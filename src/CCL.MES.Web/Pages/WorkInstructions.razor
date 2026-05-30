@@ -1,0 +1,46 @@
+@page "/workinstructions"
+@inject WiService Wi
+
+<h1>Work Instructions</h1>
+
+@if (_items is null)
+{
+    <p>Dang tai...</p>
+}
+else if (_items.Count == 0)
+{
+    <p class="muted">Chua co Work Instruction.</p>
+}
+else
+{
+    @foreach (var w in _items)
+    {
+        <div class="wi-card">
+            <div class="wi-head">
+                <h3>@w.Title</h3>
+                <span class="badge @(w.Status == WiStatus.Approved ? "ok" : "step")">@w.Status</span>
+            </div>
+            <div class="wi-meta">
+                San pham: <b>@w.Product?.ProductCode</b> &middot; Buoc: <b>@w.ProcessStep</b>
+                &middot; May: <b>@w.MachineCode</b> &middot; Phien ban: v@w.VersionNo
+            </div>
+            <ol class="wi-steps">
+                @foreach (var s in w.Steps.OrderBy(x => x.Sequence))
+                {
+                    <li>
+                        @s.Description
+                        @if (!string.IsNullOrEmpty(s.WarningNote))
+                        {
+                            <div class="wi-warn">⚠ @s.WarningNote</div>
+                        }
+                    </li>
+                }
+            </ol>
+        </div>
+    }
+}
+
+@code {
+    private List<WorkInstruction>? _items;
+    protected override async Task OnInitializedAsync() => _items = await Wi.GetAllAsync();
+}

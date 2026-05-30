@@ -1,0 +1,150 @@
+@page "/workorders"
+@inject WorkOrderService Wo
+@inject QcService Qc
+@inject OeeService Oee
+
+<h1>Work Orders</h1>
+
+@if (_items is null)
+{
+    <p>Dang tai...</p>
+}
+else
+{
+    @if (_message is not null)
+    {
+        <div class="alert @(_ok ? "ok" : "err")">@_message</div>
+    }
+
+    <table class="wo">
+        <thead>
+            <tr>
+                <th>WO No</th><th>Khach hang</th><th>San pham</th><th>May</th>
+                <th>Target</th><th>Da SX</th><th>Buoc hien tai</th><th>Tien trinh</th><th>Hanh dong</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var w in _items)
+            {
+                <tr>
+                    <td><b>@w.WoNo</b></td>
+                    <td>@w.Customer?.Name</td>
+                    <td>@w.ProductName</td>
+                    <td>@w.MachineCode</td>
+                    <td>@w.TargetQty @w.Uom</td>
+                    <td>@w.ProducedQty</td>
+                    <td><span class="badge step">@StepName(w.CurrentStep)</span></td>
+                    <td>
+                        <div class="flow">
+                            @foreach (var s in Steps)
+                            {
+                                var cls = (int)w.CurrentStep > (int)s ? "done"
+                                          : w.CurrentStep == s ? "current" : "todo";
+                                <span class="dot @cls" title="@StepName(s)">@((int)s)</span>
+                            }
+                        </div>
+                    </td>
+                    <td class="actions">
+                        <button class="btn" @onclick="() => Advance(w.Id)">Advance &raquo;</button>
+                        <button class="btn ghost" @onclick="() => Helpers(w)">Mo khoa buoc</button>
+                        @if (NeedsQc(w.CurrentStep) is { } t)
+                        {
+                            <button class="btn pass" @onclick="() => QuickPass(w.Id, t)">QC @t Pass</button>
+                        }
+                        @if (w.CurrentStep == ProcessStepCode.Running)
+                        {
+                            <span class="sep"></span>
+                            <button class="btn run" @onclick="() => Start(w.Id)">Start</button>
+                            <button class="btn warn" @onclick="() => Pause(w.Id)">Pause</button>
+                            <button class="btn run" @onclick="() => Resume(w.Id)">Resume</button>
+                            <button class="btn finish" @onclick="() => Finish(w)">Finish (+@(w.TargetQty))</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <p class="muted">
+        Luong demo: "Mo khoa buoc" -> qua 1..4. Tai buoc 5 (Running) dung Start/Pause/Resume/Finish de ghi nhan
+        thoi gian & san luong (lam du lieu OEE - xem Dashboard). Tai cua kiem IPQC/FQC/OQC bam "QC ... Pass".
+    </p>
+}
+
+@code {
+    private List<WorkOrder>? _items;
+    private string? _message;
+    private bool _ok;
+
+    private static readonly ProcessStepCode[] Steps =
+    {
+        ProcessStepCode.PrePressCheck, ProcessStepCode.OpSetting, ProcessStepCode.IpqcApproval,
+        ProcessStepCode.ReadyToRun, ProcessStepCode.Running, ProcessStepCode.Fqc, ProcessStepCode.Oqc
+    };
+
+    protected override async Task OnInitializedAsync() => await Reload();
+    private async Task Reload() => _items = await Wo.GetAllAsync();
+
+    private async Task Advance(long id)
+    {
+        var res = await Wo.AdvanceAsync(id, "shopfloor");
+        _ok = res.Ok;
+        _message = res.Ok ? $"Da chuyen sang buoc: {res.CurrentStep}" : $"Khong the chuyen: {res.Error}";
+        await Reload();
+    }
+
+    private async Task Helpers(WorkOrder w)
+    {
+        await Wo.UpdateFlagsAsync(w.Id, new UpdateFlagsRequest
+        {
+            MaterialsReady = true, SetupConfirmed = true, RohsOk = true,
+            ProducedQty = w.ProducedQty > 0 ? w.ProducedQty : 0
+        });
+        _ok = true; _message = $"Da mo khoa dieu kien cho {w.WoNo}.";
+        await Reload();
+    }
+
+    private async Task QuickPass(long id, QcType t)
+    {
+        var insp = await Qc.CreateAsync(new CreateQcRequest
+        {
+            WorkOrderId = id, Type = t, InspectorId = "demo", SampleSize = 20,
+            Details = new() { new QcDetailDto { ItemName = "Visual", Pass = true, Qty = 20 } }
+        });
+        await Qc.ApproveAsync(insp.Id, true, "qc.lead");
+        _ok = true; _message = $"Da tao + duyet QC {t} (Pass).";
+        await Reload();
+    }
+
+    private async Task Start(long id)  { await Oee.StartAsync(id, "op01");  _ok = true; _message = "Start: may bat dau chay."; await Reload(); }
+    private async Task Pause(long id)  { await Oee.PauseAsync(id, new PauseRequest { OperatorId = "op01" }); _ok = true; _message = "Pause: ghi nhan dung may."; await Reload(); }
+    private async Task Resume(long id) { await Oee.ResumeAsync(id, "op01"); _ok = true; _message = "Resume: chay lai."; await Reload(); }
+
+    private async Task Finish(WorkOrder w)
+    {
+        await Oee.FinishAsync(w.Id, new FinishRunRequest { GoodQty = w.TargetQty, RejectQty = 0, OperatorId = "op01" });
+        _ok = true; _message = $"Finish: +{w.TargetQty} good. ProducedQty cap nhat -> co the Advance qua FQC.";
+        await Reload();
+    }
+
+    private static QcType? NeedsQc(ProcessStepCode step) => step switch
+    {
+        ProcessStepCode.IpqcApproval => QcType.IPQC,
+        ProcessStepCode.Fqc => QcType.FQC,
+        ProcessStepCode.Oqc => QcType.OQC,
+        _ => null
+    };
+
+    private static string StepName(ProcessStepCode s) => s switch
+    {
+        ProcessStepCode.PrePressCheck => "1. Pre-press Check",
+        ProcessStepCode.OpSetting => "2. OP Setting",
+        ProcessStepCode.IpqcApproval => "3. IPQC Approval",
+        ProcessStepCode.ReadyToRun => "4. Ready to Run",
+        ProcessStepCode.Running => "5. Running",
+        ProcessStepCode.Fqc => "6. FQC",
+        ProcessStepCode.Oqc => "7. OQC",
+        ProcessStepCode.Closed => "Closed",
+        _ => s.ToString()
+    };
+}

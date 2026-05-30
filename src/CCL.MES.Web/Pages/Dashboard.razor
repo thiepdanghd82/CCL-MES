@@ -1,0 +1,83 @@
+@page "/dashboard"
+@inject OeeService Oee
+@inject WorkOrderService Wo
+
+<h1>Dashboard quan ly</h1>
+
+@if (_loading)
+{
+    <p>Dang tai...</p>
+}
+else
+{
+    <div class="kpi-row">
+        <div class="kpi"><div class="kpi-val">@_woCount</div><div class="kpi-lbl">Tong WO</div></div>
+        <div class="kpi"><div class="kpi-val">@_inProgress</div><div class="kpi-lbl">Dang san xuat</div></div>
+        <div class="kpi"><div class="kpi-val">@_onHold</div><div class="kpi-lbl">On-Hold (QC fail)</div></div>
+        <div class="kpi"><div class="kpi-val">@_closed</div><div class="kpi-lbl">Da dong</div></div>
+    </div>
+
+    <h2>Hieu suat may (OEE - hom nay)</h2>
+    <table class="wo">
+        <thead>
+            <tr><th>May</th><th>Trang thai</th><th>Run (phut)</th><th>Down (phut)</th>
+                <th>Good</th><th>Reject</th><th>Availability</th><th>Performance</th><th>Quality</th><th>OEE</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var o in _oee)
+            {
+                <tr>
+                    <td><b>@o.MachineCode</b> - @o.MachineName</td>
+                    <td><span class="badge @StateCls(o.CurrentState)">@o.CurrentState</span></td>
+                    <td>@o.RunMinutes</td>
+                    <td>@o.DownMinutes</td>
+                    <td>@o.GoodQty</td>
+                    <td>@o.RejectQty</td>
+                    <td>@Pct(o.Availability)</td>
+                    <td>@Pct(o.Performance)</td>
+                    <td>@Pct(o.Quality)</td>
+                    <td><span class="oee @OeeCls(o.Oee)">@Pct(o.Oee)</span></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <p class="muted">OEE = Availability x Performance x Quality. So lieu sinh tu cac lan Start/Pause/Resume/Finish o man hinh Work Orders (buoc Running).</p>
+
+    <h2>WO theo buoc</h2>
+    <div class="flow-count">
+        @foreach (var kv in _byStep)
+        {
+            <div class="fc"><div class="fc-n">@kv.Value</div><div class="fc-l">@kv.Key</div></div>
+        }
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private int _woCount, _inProgress, _onHold, _closed;
+    private List<OeeResult> _oee = new();
+    private Dictionary<string,int> _byStep = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var wos = await Wo.GetAllAsync();
+        _woCount = wos.Count;
+        _inProgress = wos.Count(w => w.Status == WoStatus.InProgress);
+        _onHold = wos.Count(w => w.Status == WoStatus.OnHold);
+        _closed = wos.Count(w => w.Status == WoStatus.Closed);
+
+        _byStep = wos.GroupBy(w => w.CurrentStep.ToString())
+                     .ToDictionary(g => g.Key, g => g.Count());
+
+        foreach (var m in await Oee.GetMachinesAsync())
+        {
+            var r = await Oee.ComputeAsync(m.Id);
+            if (r is not null) _oee.Add(r);
+        }
+        _loading = false;
+    }
+
+    private static string Pct(double v) => (v*100).ToString("0.0") + "%";
+    private static string StateCls(string s) => s switch { "Run" => "ok", "Stop" => "err", _ => "step" };
+    private static string OeeCls(double v) => v >= 0.75 ? "good" : v >= 0.5 ? "mid" : "low";
+}
