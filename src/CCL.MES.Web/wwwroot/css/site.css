@@ -69,3 +69,8 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .wi-steps { margin:0; padding-left:20px; }
 .wi-steps li { margin-bottom:8px; }
 .wi-warn { color:#c05621; font-size:13px; margin-top:2px; }
+
+/* --- live indicator --- */
+.live { font-size:13px; color:#2f855a; font-weight:600; vertical-align:middle; margin-left:8px;
+  animation:pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.35;} }

@@ -36,13 +36,20 @@ Tài liệu này ghi lại những bài học rút ra trong quá trình thiết 
 
 ## 5. Việc cần làm tiếp (carry-over)
 
-- [ ] Chuyển `EnsureCreated()` → EF Migrations + cấu hình SQL Server.
+- [x] Chuyển `EnsureCreated()` → EF Migrations + cấu hình SQL Server. *(provider switch qua `Database:Provider`; SqlServer dùng Migrate, Sqlite dùng EnsureCreated)*
+- [x] SignalR realtime cho Dashboard. *(ShopfloorHub + ShopfloorNotifier; Dashboard & WO tự cập nhật)*
+- [x] Bộ công cụ Python `tools/` (verify OEE, OEE từ CSV, ETL Excel→DB).
 - [ ] Thêm xác thực & phân quyền (RBAC / Entra ID).
-- [ ] SignalR realtime cho Dashboard (hiện đang load khi mở trang).
 - [ ] Tích hợp SAP (đơn hàng, vật tư, costing) và Warehouse.
 - [ ] Thu thập OEE tự động từ PLC (OPC-UA/Modbus) thay vì bấm tay.
 - [ ] Unit test cho `WorkOrderStateMachine` và `OeeService`.
 
+## 6. Bài học bổ sung (đợt 2)
+
+- **EF migrations là provider-specific.** Migration sinh cho SQL Server không chạy được trên SQLite. Giải pháp: SQLite (dev) dùng `EnsureCreated()`, SQL Server (prod) dùng `Migrate()` — chọn theo `Database:Provider`. Cần `IDesignTimeDbContextFactory` để `dotnet ef` chạy được ngoài runtime web.
+- **Blazor Server vẫn cần HubConnection client riêng** để nhận broadcast realtime giữa các phiên (circuit). Pattern: service `ShopfloorNotifier` (singleton, bọc `IHubContext`) phát sự kiện; mỗi trang tạo `HubConnection` tới `/hubs/shopfloor` và `On(...)` để reload.
+- **Nhớ `IAsyncDisposable`** trên component Blazor có `HubConnection` để giải phóng kết nối khi rời trang.
+
 ---
 
-*Cập nhật lần cuối: 30/05/2026 — sau khi hoàn thiện MVP (6 module) và chạy thành công trên máy .NET 10.*
+*Cập nhật lần cuối: 30/05/2026 — sau khi thêm tools/ (Python), EF Migrations + SQL Server, và SignalR realtime.*

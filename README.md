@@ -89,14 +89,30 @@ src/
   CCL.MES.Web             # API + Swagger + Blazor (Dashboard, WO, Work Instructions)
 ```
 
+## 5b. Công cụ Python (tools/)
+Bộ script hỗ trợ — xem `tools/README.md`:
+- `verify_oee.py` — kiểm chứng công thức OEE (dùng cho CI).
+- `oee_from_csv.py` — tính OEE từ file log CSV.
+- `seed_from_excel.py` — ETL nạp master data từ Excel/CSV vào SQLite.
+
 ## 6. Chuyển sang SQL Server (production)
-1. Trong `CCL.MES.Infrastructure.csproj` đổi gói:
-   `Microsoft.EntityFrameworkCore.Sqlite` → `Microsoft.EntityFrameworkCore.SqlServer`
-2. Trong `Infrastructure/DependencyInjection.cs` đổi `o.UseSqlite(cs)` → `o.UseSqlServer(cs)`
-3. Trong `appsettings.json` đổi connection string, ví dụ:
+Đã hỗ trợ sẵn cả 2 provider — chỉ cần đổi cấu hình, KHÔNG sửa code:
+
+1. Trong `appsettings.json` đặt:
+   `"Database": { "Provider": "SqlServer" }` và sửa `ConnectionStrings:Default`, ví dụ:
    `"Server=localhost;Database=CCL_MES;Trusted_Connection=True;TrustServerCertificate=True"`
-4. (Khuyến nghị) thay `EnsureCreated()` bằng EF Core Migrations:
-   `dotnet ef migrations add Init && dotnet ef database update`
+   (có sẵn mẫu `appsettings.SqlServer.json`).
+2. Tạo & áp dụng EF Migrations:
+   ```bash
+   dotnet tool install --global dotnet-ef   # nếu chưa có
+   bash ef-migrate.sh                        # tự add Init + database update
+   ```
+   Khi `Provider = SqlServer`, app tự chạy `Migrate()`; khi `Sqlite`, app dùng `EnsureCreated()`.
+
+## 6b. Realtime (SignalR)
+Dashboard và màn hình Work Orders kết nối hub `/hubs/shopfloor`. Mỗi khi có thay đổi
+(Advance, QC, Start/Pause/Finish), mọi client đang mở sẽ **tự cập nhật** mà không cần F5.
+Dashboard có chỉ báo `● live`.
 
 ## 7. Hướng mở rộng (theo tài liệu kiến trúc)
 - Module OEE / Production Log (Start/Pause/Resume/Finish, tính OEE theo máy).

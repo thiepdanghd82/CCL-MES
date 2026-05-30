@@ -1,0 +1,3 @@
+# Thư viện cho script Python phụ trợ trong tools/
+# Cài: pip install -r tools/requirements.txt
+openpyxl>=3.1   # đọc/ghi Excel (.xlsx) cho seed_from_excel.py

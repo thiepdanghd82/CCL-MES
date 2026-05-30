@@ -1,7 +1,12 @@
 @page "/workorders"
+@using CCL.MES.Web.Hubs
+@using Microsoft.AspNetCore.SignalR.Client
 @inject WorkOrderService Wo
 @inject QcService Qc
 @inject OeeService Oee
+@inject ShopfloorNotifier Notifier
+@inject NavigationManager Nav
+@implements IAsyncDisposable
 
 <h1>Work Orders</h1>
 
@@ -76,14 +81,36 @@ else
     private string? _message;
     private bool _ok;
 
+    private HubConnection? _hub;
+
     private static readonly ProcessStepCode[] Steps =
     {
         ProcessStepCode.PrePressCheck, ProcessStepCode.OpSetting, ProcessStepCode.IpqcApproval,
         ProcessStepCode.ReadyToRun, ProcessStepCode.Running, ProcessStepCode.Fqc, ProcessStepCode.Oqc
     };
 
-    protected override async Task OnInitializedAsync() => await Reload();
+    protected override async Task OnInitializedAsync()
+    {
+        await Reload();
+        // Ket noi SignalR: khi co thay doi tu client khac -> tu reload
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/hubs/shopfloor"))
+            .WithAutomaticReconnect()
+            .Build();
+        _hub.On<string>("shopfloorChanged", async _ =>
+        {
+            await Reload();
+            await InvokeAsync(StateHasChanged);
+        });
+        await _hub.StartAsync();
+    }
+
     private async Task Reload() => _items = await Wo.GetAllAsync();
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null) await _hub.DisposeAsync();
+    }
 
     private async Task Advance(long id)
     {
@@ -91,6 +118,7 @@ else
         _ok = res.Ok;
         _message = res.Ok ? $"Da chuyen sang buoc: {res.CurrentStep}" : $"Khong the chuyen: {res.Error}";
         await Reload();
+        await Notifier.NotifyChangedAsync("advance");
     }
 
     private async Task Helpers(WorkOrder w)
@@ -102,6 +130,7 @@ else
         });
         _ok = true; _message = $"Da mo khoa dieu kien cho {w.WoNo}.";
         await Reload();
+        await Notifier.NotifyChangedAsync("flags");
     }
 
     private async Task QuickPass(long id, QcType t)
@@ -114,17 +143,19 @@ else
         await Qc.ApproveAsync(insp.Id, true, "qc.lead");
         _ok = true; _message = $"Da tao + duyet QC {t} (Pass).";
         await Reload();
+        await Notifier.NotifyChangedAsync("qc");
     }
 
-    private async Task Start(long id)  { await Oee.StartAsync(id, "op01");  _ok = true; _message = "Start: may bat dau chay."; await Reload(); }
-    private async Task Pause(long id)  { await Oee.PauseAsync(id, new PauseRequest { OperatorId = "op01" }); _ok = true; _message = "Pause: ghi nhan dung may."; await Reload(); }
-    private async Task Resume(long id) { await Oee.ResumeAsync(id, "op01"); _ok = true; _message = "Resume: chay lai."; await Reload(); }
+    private async Task Start(long id)  { await Oee.StartAsync(id, "op01");  _ok = true; _message = "Start: may bat dau chay."; await Reload(); await Notifier.NotifyChangedAsync("oee"); }
+    private async Task Pause(long id)  { await Oee.PauseAsync(id, new PauseRequest { OperatorId = "op01" }); _ok = true; _message = "Pause: ghi nhan dung may."; await Reload(); await Notifier.NotifyChangedAsync("oee"); }
+    private async Task Resume(long id) { await Oee.ResumeAsync(id, "op01"); _ok = true; _message = "Resume: chay lai."; await Reload(); await Notifier.NotifyChangedAsync("oee"); }
 
     private async Task Finish(WorkOrder w)
     {
         await Oee.FinishAsync(w.Id, new FinishRunRequest { GoodQty = w.TargetQty, RejectQty = 0, OperatorId = "op01" });
         _ok = true; _message = $"Finish: +{w.TargetQty} good. ProducedQty cap nhat -> co the Advance qua FQC.";
         await Reload();
+        await Notifier.NotifyChangedAsync("oee");
     }
 
     private static QcType? NeedsQc(ProcessStepCode step) => step switch

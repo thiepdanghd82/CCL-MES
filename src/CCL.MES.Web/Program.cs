@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using CCL.MES.Application;
 using CCL.MES.Infrastructure;
+using CCL.MES.Web.Hubs;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -18,17 +19,25 @@ builder.Services.AddControllers().AddJsonOptions(o =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Blazor Server
+// Blazor Server + SignalR (realtime)
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<ShopfloorNotifier>();
 
 var app = builder.Build();
 
-// Tao DB + seed du lieu mau
+// Khoi tao DB + seed du lieu mau.
+// - Sqlite (dev): dung EnsureCreated() cho nhanh.
+// - SqlServer (prod): dung Migrate() de ap dung EF Migrations.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
-    db.Database.EnsureCreated();
+    var provider = app.Configuration["Database:Provider"] ?? "Sqlite";
+    if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+        db.Database.Migrate();
+    else
+        db.Database.EnsureCreated();
     await DbSeeder.SeedAsync(db);
 }
 
@@ -40,6 +49,7 @@ app.UseRouting();
 
 app.MapControllers();
 app.MapBlazorHub();
+app.MapHub<ShopfloorHub>("/hubs/shopfloor");
 app.MapFallbackToPage("/_Host");
 
 app.Run();

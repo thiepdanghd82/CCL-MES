@@ -1,8 +1,11 @@
 @page "/dashboard"
+@using Microsoft.AspNetCore.SignalR.Client
 @inject OeeService Oee
 @inject WorkOrderService Wo
+@inject NavigationManager Nav
+@implements IAsyncDisposable
 
-<h1>Dashboard quan ly</h1>
+<h1>Dashboard quan ly <span class="live">● live</span></h1>
 
 @if (_loading)
 {
@@ -57,8 +60,25 @@ else
     private int _woCount, _inProgress, _onHold, _closed;
     private List<OeeResult> _oee = new();
     private Dictionary<string,int> _byStep = new();
+    private HubConnection? _hub;
 
     protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        // SignalR: tu dong cap nhat khi co thay doi o shopfloor
+        _hub = new HubConnectionBuilder()
+            .WithUrl(Nav.ToAbsoluteUri("/hubs/shopfloor"))
+            .WithAutomaticReconnect()
+            .Build();
+        _hub.On<string>("shopfloorChanged", async _ =>
+        {
+            await LoadAsync();
+            await InvokeAsync(StateHasChanged);
+        });
+        await _hub.StartAsync();
+    }
+
+    private async Task LoadAsync()
     {
         var wos = await Wo.GetAllAsync();
         _woCount = wos.Count;
@@ -69,12 +89,18 @@ else
         _byStep = wos.GroupBy(w => w.CurrentStep.ToString())
                      .ToDictionary(g => g.Key, g => g.Count());
 
+        _oee = new();
         foreach (var m in await Oee.GetMachinesAsync())
         {
             var r = await Oee.ComputeAsync(m.Id);
             if (r is not null) _oee.Add(r);
         }
         _loading = false;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hub is not null) await _hub.DisposeAsync();
     }
 
     private static string Pct(double v) => (v*100).ToString("0.0") + "%";

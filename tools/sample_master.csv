@@ -1,0 +1,4 @@
+customer_code,customer_name,product_code,product_name,spec_code,spec_title
+BRADY,Brady Asia,BRD-7656-D,PCB ID Label 20x8mm,SPEC-BRD-7656-D,PCB ID Label 20x8mm
+BRADY,Brady Asia,BRD-8012-A,Cable Wrap Label 30x10mm,SPEC-BRD-8012-A,Cable Wrap Label 30x10mm
+APPLE,Apple Vietnam,APL-LBL-001,Serial Barcode Label,SPEC-APL-LBL-001,Serial Barcode Label
