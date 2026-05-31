@@ -280,22 +280,29 @@
   <data name="npi.spec.status.obsolete" xml:space="preserve"><value>Obsolete</value></data>
 
   <data name="qcqa.iqc.title" xml:space="preserve"><value>QC/QA Data — IQC</value></data>
-  <data name="qcqa.iqc.placeholder_lead" xml:space="preserve"><value>The IQC (Incoming Quality Control) tab — quality check on incoming materials. To be built in a later sprint.</value></data>
-  <data name="qcqa.iqc.placeholder_li1" xml:space="preserve"><value>Inspect goods-in materials against checklist and AQL.</value></data>
-  <data name="qcqa.iqc.placeholder_li2" xml:space="preserve"><value>Link results to material lots and suppliers (Raw Materials).</value></data>
-  <data name="qcqa.iqc.placeholder_li3" xml:space="preserve"><value>Approve accept/reject and archive for audit.</value></data>
+  <data name="qcqa.iqc.stub_lead" xml:space="preserve"><value>IQC (Incoming Quality Control) is a stub. IQC inspections tie to raw-material batches, not Work Orders, so they need a dedicated entity rather than reusing QcInspection. The full surface ships in Phase 6 Bước 7 (IQC entity + migration + UI).</value></data>
+  <data name="qcqa.iqc.stub_li1" xml:space="preserve"><value>New IqcInspection entity (RawMaterialId + BatchNo + Result + Details).</value></data>
+  <data name="qcqa.iqc.stub_li2" xml:space="preserve"><value>EF migration v2 (rides the Phase 5 Bước 4 baseline-aware pipeline).</value></data>
+  <data name="qcqa.iqc.stub_li3" xml:space="preserve"><value>Grid + manual create form parallel to IPQC / OQC.</value></data>
 
   <data name="qcqa.ipqc.title" xml:space="preserve"><value>QC/QA Data — IPQC</value></data>
-  <data name="qcqa.ipqc.placeholder_lead" xml:space="preserve"><value>The IPQC (In-Process Quality Control) tab — quality check during production. To be built in a later sprint.</value></data>
-  <data name="qcqa.ipqc.placeholder_li1" xml:space="preserve"><value>First-off and in-line sample inspection against spec.</value></data>
-  <data name="qcqa.ipqc.placeholder_li2" xml:space="preserve"><value>Linked to Work Order (IPQC step in process flow).</value></data>
-  <data name="qcqa.ipqc.placeholder_li3" xml:space="preserve"><value>Record defects, approve, block WO on fail.</value></data>
 
   <data name="qcqa.oqc.title" xml:space="preserve"><value>QC/QA Data — OQC</value></data>
-  <data name="qcqa.oqc.placeholder_lead" xml:space="preserve"><value>The OQC (Outgoing Quality Control) tab — final quality check before shipment. To be built in a later sprint.</value></data>
-  <data name="qcqa.oqc.placeholder_li1" xml:space="preserve"><value>Final inspection and RoHS check before shipment.</value></data>
-  <data name="qcqa.oqc.placeholder_li2" xml:space="preserve"><value>Linked to Work Order (OQC step in process flow).</value></data>
-  <data name="qcqa.oqc.placeholder_li3" xml:space="preserve"><value>Sign-off for release and archive for customer (Brady…).</value></data>
+
+  <data name="qcqa.grid.search_placeholder" xml:space="preserve"><value>Search by Work Order / Inspector / Approver…</value></data>
+  <data name="qcqa.grid.empty" xml:space="preserve"><value>No QC inspections yet for this type.</value></data>
+  <data name="qcqa.grid.col.id" xml:space="preserve"><value>ID</value></data>
+  <data name="qcqa.grid.col.wo_no" xml:space="preserve"><value>Work Order</value></data>
+  <data name="qcqa.grid.col.product" xml:space="preserve"><value>Product</value></data>
+  <data name="qcqa.grid.col.inspector" xml:space="preserve"><value>Inspector</value></data>
+  <data name="qcqa.grid.col.sample_size" xml:space="preserve"><value>Sample</value></data>
+  <data name="qcqa.grid.col.detail_count" xml:space="preserve"><value>Items</value></data>
+  <data name="qcqa.grid.col.status" xml:space="preserve"><value>Status</value></data>
+  <data name="qcqa.grid.col.approved_by" xml:space="preserve"><value>Approved by</value></data>
+  <data name="qcqa.grid.col.approved_at" xml:space="preserve"><value>Approved at</value></data>
+  <data name="qcqa.grid.status.pending" xml:space="preserve"><value>Pending</value></data>
+  <data name="qcqa.grid.status.pass" xml:space="preserve"><value>Pass</value></data>
+  <data name="qcqa.grid.status.fail" xml:space="preserve"><value>Fail</value></data>
 
   <data name="index.title" xml:space="preserve"><value>CCL Design - MES (MVP)</value></data>
   <data name="index.intro" xml:space="preserve"><value>Manufacturing Execution System for label/sticker printing plants.</value></data>
