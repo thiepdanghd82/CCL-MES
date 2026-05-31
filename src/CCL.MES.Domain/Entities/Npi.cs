@@ -25,7 +25,11 @@ public class RawMaterial : BaseEntity
     public string? TypeDesc { get; set; }
 }
 
-/// <summary>Định tuyến công đoạn (Engineer Routine / Routing Operations).</summary>
+/// <summary>Định tuyến công đoạn (Engineer Routine / Routing Operations).
+/// Phase 7 hạng mục 2 — mở rộng từ 10 lên 20 cột để khớp CMES tham chiếu:
+/// 4 numeric đổi từ double sang double? (phân biệt 0 vs missing) + thêm
+/// 10 field mới (Unit/Crew/SetupCrew/LaborClass/Alt/Effectivity/Efficiency/
+/// Site/RoutingType/Planner). Planner thêm cho parity với Structure tab.</summary>
 public class RoutingOperation : BaseEntity
 {
     public string PartNo { get; set; } = "";
@@ -34,10 +38,21 @@ public class RoutingOperation : BaseEntity
     public string? Operation { get; set; }
     public string? WorkCenterNo { get; set; }
     public string? WorkCenterDescription { get; set; }
-    public double MachineSetupTime { get; set; }
-    public double LaborSetupTime { get; set; }
-    public double MachineRunTime { get; set; }
-    public double LaborRunTime { get; set; }
+    public double? MachineSetupTime { get; set; }
+    public double? LaborSetupTime { get; set; }
+    public double? MachineRunTime { get; set; }
+    public double? LaborRunTime { get; set; }
+    // Phase 7 hạng mục 2 — 10 field mới khớp CMES UI tham chiếu (cộng Planner parity Structure).
+    public string? Unit { get; set; }
+    public double? Crew { get; set; }
+    public double? SetupCrew { get; set; }
+    public string? LaborClass { get; set; }
+    public string? Alt { get; set; }
+    public string? Effectivity { get; set; }
+    public double? Efficiency { get; set; }
+    public string? Site { get; set; }
+    public string? RoutingType { get; set; }
+    public string? Planner { get; set; }
 }
 
 /// <summary>Cấu trúc sản phẩm / BOM (Engineer Structure / Manufacturing Structures).

@@ -249,8 +249,35 @@
   <data name="login.demo_hint" xml:space="preserve"><value>Tài khoản demo: admin / admin (Phase 2). Đổi mật khẩu trước khi đưa lên production.</value></data>
   <data name="login.footer_note" xml:space="preserve"><value>CCL Design — MES (MVP)</value></data>
 
-  <data name="npi.routine.title" xml:space="preserve"><value>NPI Data — Engineer Routine</value></data>
-  <data name="npi.routine.search_placeholder" xml:space="preserve"><value>Tìm Part No / mô tả / operation / work center…</value></data>
+  <data name="npi.routine.title" xml:space="preserve"><value>Routing Operations</value></data>
+  <data name="npi.routine.breadcrumb" xml:space="preserve"><value>CƠ SỞ DỮ LIỆU / ROUTINE</value></data>
+  <data name="npi.routine.rows_loaded" xml:space="preserve"><value>đã tải {0} dòng</value></data>
+  <data name="npi.routine.rows_count" xml:space="preserve"><value>{0} dòng</value></data>
+  <data name="npi.routine.search_placeholder" xml:space="preserve"><value>Tìm Part No / Op No / mô tả / work center / labor class…</value></data>
+  <data name="npi.routine.btn_columns" xml:space="preserve"><value>☰ Cột ({0}/{1})</value></data>
+  <data name="npi.routine.btn_show_all" xml:space="preserve"><value>Hiện tất cả</value></data>
+  <data name="npi.routine.col.part_no" xml:space="preserve"><value>Part No</value></data>
+  <data name="npi.routine.col.part_desc" xml:space="preserve"><value>Mô tả Part</value></data>
+  <data name="npi.routine.col.op_no" xml:space="preserve"><value>Op No</value></data>
+  <data name="npi.routine.col.operation" xml:space="preserve"><value>Operation</value></data>
+  <data name="npi.routine.col.work_center" xml:space="preserve"><value>Work Center</value></data>
+  <data name="npi.routine.col.wc_desc" xml:space="preserve"><value>Mô tả WC</value></data>
+  <data name="npi.routine.col.mach_setup" xml:space="preserve"><value>Mach Setup</value></data>
+  <data name="npi.routine.col.labor_setup" xml:space="preserve"><value>Labor Setup</value></data>
+  <data name="npi.routine.col.mach_run" xml:space="preserve"><value>Mach Run</value></data>
+  <data name="npi.routine.col.labor_run" xml:space="preserve"><value>Labor Run</value></data>
+  <data name="npi.routine.col.unit" xml:space="preserve"><value>Đơn vị</value></data>
+  <data name="npi.routine.col.crew" xml:space="preserve"><value>Crew</value></data>
+  <data name="npi.routine.col.setup_crew" xml:space="preserve"><value>Setup Crew</value></data>
+  <data name="npi.routine.col.labor_class" xml:space="preserve"><value>Labor Class</value></data>
+  <data name="npi.routine.col.alt" xml:space="preserve"><value>Alt</value></data>
+  <data name="npi.routine.col.effectivity" xml:space="preserve"><value>Effectivity</value></data>
+  <data name="npi.routine.col.efficiency" xml:space="preserve"><value>Efficiency</value></data>
+  <data name="npi.routine.col.site" xml:space="preserve"><value>Site</value></data>
+  <data name="npi.routine.col.routing_type" xml:space="preserve"><value>Routing Type</value></data>
+  <data name="npi.routine.col.planner" xml:space="preserve"><value>Planner</value></data>
+  <data name="npi.routine.empty" xml:space="preserve"><value>Chưa có routing operation nào.</value></data>
+  <data name="npi.routine.empty_filter" xml:space="preserve"><value>Không có dòng nào khớp tìm kiếm.</value></data>
   <data name="npi.structure.title" xml:space="preserve"><value>Cấu trúc sản xuất</value></data>
   <data name="npi.structure.breadcrumb" xml:space="preserve"><value>CƠ SỞ DỮ LIỆU / CẤU TRÚC SẢN PHẨM</value></data>
   <data name="npi.structure.rows_loaded" xml:space="preserve"><value>đã tải {0} dòng</value></data>

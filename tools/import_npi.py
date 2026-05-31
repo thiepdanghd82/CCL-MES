@@ -109,6 +109,11 @@ def infer_area(code, desc):
 def read_routing(path):
     """RoutingOperations + collect distinct work centers as a side-effect.
 
+    Phase 7 hạng mục 2 — mở rộng từ 10 lên 20 cột để khớp CMES tham chiếu:
+    4 numeric đổi sang num_or_none() (phân biệt 0 vs missing) + 10 field
+    mới (Unit/Crew/SetupCrew/LaborClass/Alt/Effectivity/Efficiency/Site/
+    RoutingType/Planner).
+
     Column map (IFS export "RoutingOperations *.csv", 62 columns):
         [0]  Create Date            (unused)
         [1]  Part No                → PartNo
@@ -117,13 +122,21 @@ def read_routing(path):
         [4]  Operation Description  → Operation
         [5]  Work Centre No         → WorkCenterNo
         [6]  Setup Labour Class     (unused)
-        [7]  Labour Class           (unused)
+        [7]  Labour Class           → LaborClass               (Phase 7 hm2)
         [8]  Work Centre Desc       → WorkCenterDescription
-        [9]  Mach Setup Time        → MachineSetupTime
-        [10] Labour Setup Time      → LaborSetupTime
-        [11] Mach Run Factor        → MachineRunTime
-        [12] Labour Run Factor      → LaborRunTime
-        [13] Factor Unit            (unused — semantic context only)
+        [9]  Mach Setup Time        → MachineSetupTime         (Phase 7 hm2: → double?)
+        [10] Labour Setup Time      → LaborSetupTime           (Phase 7 hm2: → double?)
+        [11] Mach Run Factor        → MachineRunTime           (Phase 7 hm2: → double?)
+        [12] Labour Run Factor      → LaborRunTime             (Phase 7 hm2: → double?)
+        [13] Factor Unit            → Unit                     (Phase 7 hm2)
+        [19] Setup Crew Size        → SetupCrew                (Phase 7 hm2)
+        [20] Crew Size              → Crew                     (Phase 7 hm2)
+        [21] Alternative            → Alt                      (Phase 7 hm2)
+        [24] Routing Effectivity    → Effectivity              (Phase 7 hm2)
+        [26] Planner                → Planner                  (Phase 7 hm2, parity Structure)
+        [43] Efficiency Factor      → Efficiency               (Phase 7 hm2)
+        [58] Site                   → Site                     (Phase 7 hm2)
+        [60] Routing Type           → RoutingType              (Phase 7 hm2)
     """
     counters = {"seen": 0, "skipped": 0, "skip_reasons": {}}
     rows = []
@@ -152,6 +165,9 @@ def read_routing(path):
             wcno, wcdesc = s(r[5]), s(r[8])
             if wcno and wcno not in wc:
                 wc[wcno] = wcdesc or ""
+            # Safe-index helper — IFS exports may truncate trailing columns.
+            def col(idx):
+                return r[idx] if idx < len(r) else None
             rows.append(
                 (
                     part,
@@ -160,10 +176,21 @@ def read_routing(path):
                     s(r[4]),
                     wcno,
                     wcdesc,
-                    num(r[9]),
-                    num(r[10]),
-                    num(r[11]),
-                    num(r[12]),
+                    num_or_none(r[9]),
+                    num_or_none(r[10]),
+                    num_or_none(r[11]),
+                    num_or_none(r[12]),
+                    # Phase 7 hạng mục 2 — 10 cột mới.
+                    s(col(13)),    # Unit
+                    num_or_none(col(20)),  # Crew (CSV col 21 → idx 20)
+                    num_or_none(col(19)),  # SetupCrew (CSV col 20 → idx 19)
+                    s(col(7)),     # LaborClass
+                    s(col(21)),    # Alt
+                    s(col(24)),    # Effectivity
+                    num_or_none(col(43)),  # Efficiency
+                    s(col(58)),    # Site
+                    s(col(60)),    # RoutingType
+                    s(col(26)),    # Planner
                     ts,
                 )
             )
@@ -346,11 +373,15 @@ def insert_workcenters(cur, wc_dict):
 
 
 def insert_routing(cur, rows):
+    # Phase 7 hạng mục 2 — 21 columns (20 data + CreatedAt). Order khớp
+    # exactly với tuple shape trong read_routing.
     cur.executemany(
         'INSERT INTO "RoutingOperations" '
         '("PartNo","PartDescription","OpNo","Operation","WorkCenterNo","WorkCenterDescription",'
-        '"MachineSetupTime","LaborSetupTime","MachineRunTime","LaborRunTime","CreatedAt") '
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        '"MachineSetupTime","LaborSetupTime","MachineRunTime","LaborRunTime",'
+        '"Unit","Crew","SetupCrew","LaborClass","Alt","Effectivity","Efficiency","Site","RoutingType","Planner",'
+        '"CreatedAt") '
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         rows,
     )
     return len(rows)
