@@ -40,7 +40,11 @@ public class RoutingOperation : BaseEntity
     public double LaborRunTime { get; set; }
 }
 
-/// <summary>Cấu trúc sản phẩm / BOM (Engineer Structure / Manufacturing Structures).</summary>
+/// <summary>Cấu trúc sản phẩm / BOM (Engineer Structure / Manufacturing Structures).
+/// Phase 7 hạng mục 1 — mở rộng từ 11 lên 16 cột để khớp CMES tham chiếu:
+/// thêm StructureType / Alt / Effectivity / EffectivityDate / Planner +
+/// đổi Pitch/Cavity/ScrapPct từ string sang double? (Q9 verified 100%
+/// numeric trên IFS CSV nguồn 20,530 rows).</summary>
 public class ManufacturingStructure : BaseEntity
 {
     public string ParentPart { get; set; } = "";
@@ -50,8 +54,14 @@ public class ManufacturingStructure : BaseEntity
     public double QtyAssembly { get; set; }
     public string? Uom { get; set; }
     public double ScrapFactor { get; set; }
-    public string? ScrapPct { get; set; }
-    public string? Pitch { get; set; }
-    public string? Cavity { get; set; }
+    public double? ScrapPct { get; set; }
+    public double? Pitch { get; set; }
+    public double? Cavity { get; set; }
     public string? Color { get; set; }
+    // Phase 7 hạng mục 1 — 5 field mới khớp CMES UI tham chiếu.
+    public string? StructureType { get; set; }
+    public string? Alt { get; set; }
+    public string? Effectivity { get; set; }
+    public string? EffectivityDate { get; set; }
+    public string? Planner { get; set; }
 }

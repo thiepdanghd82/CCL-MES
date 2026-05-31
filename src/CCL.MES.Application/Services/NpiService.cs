@@ -66,11 +66,15 @@ public class NpiService
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
+            // Phase 7 hạng mục 1 — search expand từ 4 → 6 field (thêm Planner +
+            // StructureType, khớp CMES service.list bên tham chiếu).
             q = q.Where(x => x.ParentPart.Contains(s)
                 || (x.ParentDescription != null && x.ParentDescription.Contains(s))
                 || x.ComponentPart.Contains(s)
-                || (x.ComponentDescription != null && x.ComponentDescription.Contains(s)));
+                || (x.ComponentDescription != null && x.ComponentDescription.Contains(s))
+                || (x.Planner != null && x.Planner.Contains(s))
+                || (x.StructureType != null && x.StructureType.Contains(s)));
         }
-        return PagingHelper.PageAsync(q.OrderBy(x => x.ParentPart), page, pageSize);
+        return PagingHelper.PageAsync(q.OrderBy(x => x.ParentPart).ThenBy(x => x.ComponentPart), page, pageSize);
     }
 }

@@ -251,8 +251,32 @@
 
   <data name="npi.routine.title" xml:space="preserve"><value>NPI Data — Engineer Routine</value></data>
   <data name="npi.routine.search_placeholder" xml:space="preserve"><value>Tìm Part No / mô tả / operation / work center…</value></data>
-  <data name="npi.structure.title" xml:space="preserve"><value>NPI Data — Engineer Structure</value></data>
-  <data name="npi.structure.search_placeholder" xml:space="preserve"><value>Tìm Parent / Component part / mô tả…</value></data>
+  <data name="npi.structure.title" xml:space="preserve"><value>Cấu trúc sản xuất</value></data>
+  <data name="npi.structure.breadcrumb" xml:space="preserve"><value>CƠ SỞ DỮ LIỆU / CẤU TRÚC SẢN PHẨM</value></data>
+  <data name="npi.structure.rows_loaded" xml:space="preserve"><value>đã tải {0} dòng</value></data>
+  <data name="npi.structure.rows_count" xml:space="preserve"><value>{0} dòng</value></data>
+  <data name="npi.structure.rows_filtered" xml:space="preserve"><value>{0} / {1} dòng</value></data>
+  <data name="npi.structure.search_placeholder" xml:space="preserve"><value>Tìm theo Parent / Component / Planner / Loại cấu trúc…</value></data>
+  <data name="npi.structure.btn_columns" xml:space="preserve"><value>☰ Cột ({0}/{1})</value></data>
+  <data name="npi.structure.btn_show_all" xml:space="preserve"><value>Hiện tất cả</value></data>
+  <data name="npi.structure.col.parent_part" xml:space="preserve"><value>Parent Part</value></data>
+  <data name="npi.structure.col.parent_desc" xml:space="preserve"><value>Mô tả Parent</value></data>
+  <data name="npi.structure.col.component_part" xml:space="preserve"><value>Component Part</value></data>
+  <data name="npi.structure.col.component_desc" xml:space="preserve"><value>Mô tả Component</value></data>
+  <data name="npi.structure.col.qty_assembly" xml:space="preserve"><value>SL/Bộ</value></data>
+  <data name="npi.structure.col.uom" xml:space="preserve"><value>ĐVT</value></data>
+  <data name="npi.structure.col.scrap" xml:space="preserve"><value>Hao hụt</value></data>
+  <data name="npi.structure.col.scrap_pct" xml:space="preserve"><value>Hao hụt %</value></data>
+  <data name="npi.structure.col.pitch" xml:space="preserve"><value>Pitch</value></data>
+  <data name="npi.structure.col.cavity" xml:space="preserve"><value>Cavity</value></data>
+  <data name="npi.structure.col.colors" xml:space="preserve"><value>Số màu</value></data>
+  <data name="npi.structure.col.structure_type" xml:space="preserve"><value>Loại cấu trúc</value></data>
+  <data name="npi.structure.col.alt" xml:space="preserve"><value>Alt</value></data>
+  <data name="npi.structure.col.effectivity" xml:space="preserve"><value>Hiệu lực</value></data>
+  <data name="npi.structure.col.effectivity_date" xml:space="preserve"><value>Ngày</value></data>
+  <data name="npi.structure.col.planner" xml:space="preserve"><value>Planner</value></data>
+  <data name="npi.structure.empty" xml:space="preserve"><value>Chưa có BOM nào được import.</value></data>
+  <data name="npi.structure.empty_filter" xml:space="preserve"><value>Không có dòng nào khớp tìm kiếm.</value></data>
   <data name="npi.rawmaterials.title" xml:space="preserve"><value>NPI Data — Raw Materials</value></data>
   <data name="npi.rawmaterials.search_placeholder" xml:space="preserve"><value>Tìm Part No / mô tả / nhà cung cấp…</value></data>
   <data name="npi.workcenter.title" xml:space="preserve"><value>NPI Data — WorkCenter</value></data>
