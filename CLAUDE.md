@@ -166,20 +166,30 @@ Chi tiết tại [`docs/LESSONS_LEARNED.md`](docs/LESSONS_LEARNED.md):
 - §1-§5: Phase 1-5 kiến trúc + tooling
 - §6 đợt 2: EF migrations provider-specific + SignalR HubConnection
 - §7 đợt 3: EF Core safety (rule §4.1-§4.5 trên đây), Bước 6.5/7
+- §8 đợt 4: `git merge -X ours` blunt cho overlapping additive edits (PR #19 regression)
+
+### 9.1 Sprint close-out checklist (Phase 6 added)
+
+Khi sprint có nhiều stacked PR cần merge tuần tự:
+1. **Smoke verify trên main sau từng PR merge** (KHÔNG chờ tới cuối). Mỗi PR merged → quick curl smoke với admin login + 5 representative routes phủ 5 policy.
+2. **Tránh `git merge -X ours` blanket** khi có overlapping additive edits trong cùng block (DI setup, policy registration, route mapping). Resolve conflict thủ công.
+3. **Final smoke matrix** có cả admin (200 hết) + operator (AccessDenied panel rendered) để verify defense-in-depth còn hoạt động.
 
 ## 10. Phase history (SHA-discipline)
 
 - **Phase 5**: RBAC + SignalR hub auth + error code i18n + EF Migrations + EnsureCreated→Migrate
-- **Phase 6 Bước 1**: NPI Engineer Spec UI (PR #10)
-- **Phase 6 Bước 2A**: Settings User group (PR #11)
-- **Phase 6 Bước 2B**: Settings System group (PR #12)
-- **Phase 6 Bước 3**: 2 QC tab IPQC/OQC + IQC stub (PR #13)
-- **Phase 6 Bước 4**: RBAC 5-role + Account mutation + recover-admin (PR #14)
-- **Phase 6 Bước 5**: Audit Log + Syslog tab + BackupRestore (PR #15)
-- **Phase 6 Bước 6.5**: Ops Control v1.2-style SQLite deploy + SQL Server gate fix (PR #16 SHA `13e0e58`)
-- **Phase 6 Bước 7**: IQC entity + tab (PR #17, đóng stub Bước 3)
+- **Phase 6 Bước 1**: NPI Engineer Spec UI (PR #10 SHA `ed91fc8`)
+- **Phase 6 Bước 2A**: Settings User group (PR #11 SHA `4fc36bf`)
+- **Phase 6 Bước 2B**: Settings System group (PR #12 SHA `70d1f71`)
+- **Phase 6 Bước 3**: 2 QC tab IPQC/OQC + IQC stub (PR #13 SHA `bfaa6d6`)
+- **Phase 6 Bước 4**: RBAC 5-role + Account mutation + recover-admin (PR #14 SHA `84016fe`)
+- **Phase 6 Bước 5**: Audit Log + Syslog tab + BackupRestore (PR #15 SHA `1991ec6`)
+- **Phase 6 Bước 6.5**: Ops Control v1.2-style SQLite deploy + SQL Server gate fix (PR #16 SHA `2d4d532`)
+- **Phase 6 Bước 7**: IQC entity + tab (PR #17 SHA `23ccae2`, đóng stub Bước 3)
+- **Phase 6 chore**: Remove Import data v1.0 sub-tab (PR #18 SHA `4fc15b1`)
+- **Phase 6 P0 fix**: Restore Bước 4 RBAC policies (PR #19 SHA `90ce645`, `-X ours` merge regression hotfix)
 
-Sau Bước 7 → close-out Phase 6 (merge chain + cleanup + report).
+Phase 6 close-out 2026-05-31. Final report: [`docs/PHASE6-REPORT-2026-05-31.md`](docs/PHASE6-REPORT-2026-05-31.md).
 
 ## 11. References
 

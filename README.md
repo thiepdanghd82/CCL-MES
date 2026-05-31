@@ -139,19 +139,28 @@ Dashboard và màn hình Work Orders kết nối hub `/hubs/shopfloor`. Mỗi kh
 (Advance, QC, Start/Pause/Finish), mọi client đang mở sẽ **tự cập nhật** mà không cần F5.
 Dashboard có chỉ báo `● live`.
 
-## 6c. Auth + RBAC (Phase 2 + Phase 5 Bước 1)
+## 6c. Auth + RBAC (Phase 2 + Phase 5 Bước 1 + Phase 6 Bước 4)
 - Cookie auth (`ccl_mes_auth`, HttpOnly, SameSite=Lax, 8h sliding) qua `Microsoft.AspNetCore.Authentication.Cookies`.
 - Password hash: `PasswordHasher<User>` (PBKDF2 100k iter SHA256 + 128-bit salt + 256-bit hash).
 - Global `FallbackPolicy = RequireAuthenticatedUser` — mọi page / API yêu cầu đăng nhập trừ khi gắn `[AllowAnonymous]` (chỉ Login + Logout + SetLanguage).
-- Demo accounts (idempotent seed):
-  - **`admin / admin`** — Role=Admin (Phase 2)
-  - **`operator / operator`** — Role=User (Phase 5 Bước 1, để test RBAC)
+- **5 demo accounts** (Phase 6 Bước 4 mở rộng từ 2 role lên 5, idempotent seed):
+  - **`admin / admin`** — Role=Admin (full access)
+  - **`supervisor / supervisor`** — Role=Supervisor (NPI + QC read + approve)
+  - **`engineer / engineer`** — Role=Engineer (NPI write + Spec authoring)
+  - **`qc / qc`** — Role=QC (NPI read + QC write)
+  - **`operator / operator`** — Role=Operator (WO Start/Pause/Resume/Finish only)
   - Đổi password trước khi đưa lên production.
-- Đăng nhập: `/login` (Razor Page). Đăng xuất: `POST /logout`. Reset password: chưa có UI, chỉ xoá DB + restart để re-seed.
-- **RBAC enforce** (Phase 5 Bước 1) — defence-in-depth 2 layer cho 4 admin-only sub-tab Settings (`account`, `data`, `syslog`, `import-legacy`):
-  - **Layer 1 — UI hide**: `<AuthorizeView Roles="Admin">` quanh 4 dropdown item trong `MainLayout.razor`. Operator thấy 6 items; admin thấy 10.
-  - **Layer 2 — Route gate**: `@attribute [Authorize(Policy = "AdminOnly")]` trên 4 Razor page. Operator gõ URL trực tiếp → render `<AccessDenied />` component (i18n EN+VI) qua `<NotAuthorized>` slot trong `App.razor`.
-- Policy mới: `AdminOnly = RequireRole("Admin")` cùng `FallbackPolicy` đã có.
+- Đăng nhập: `/login` (Razor Page). Đăng xuất: `POST /logout`. Self-change pwd: `Settings → My Password`. Admin reset pwd cho user khác: `Settings → Account Control → Edit → Reset password`.
+- **RBAC enforce** — defence-in-depth 3 layer:
+  - **Layer 1 — UI hide**: `<AuthorizeView Roles="...">` ẩn dropdown item theo role
+  - **Layer 2 — Page policy**: `@attribute [Authorize(Policy="...")]` trên Razor page
+  - **Layer 3 — Service check**: server-side role validate trong UserAdminService + IqcService mutation methods
+- **4 page-level policy**:
+  - `AdminOnly` = {Admin} — Settings/Account, /data, /syslog
+  - `NpiRead` = {Admin, Supervisor, Engineer, QC} — /npi/*
+  - `NpiSpecRead` = {Admin, Supervisor, Engineer} — /npi/engineer-spec
+  - `QcRead` = {Admin, Supervisor, QC} — /qcqa/*
+- **Invariants** (Bước 4): cấm self-modify role/active, cấm demote/disable Admin cuối cùng. Console recovery: `scripts/RecoverAdmin/`.
 
 ## 6c-bis. SignalR hub auth (Phase 5 Bước 2)
 - `/hubs/shopfloor` **không còn** `AllowAnonymous()` — đi qua `FallbackPolicy`.
@@ -169,14 +178,17 @@ Dashboard có chỉ báo `● live`.
 - SVG flag inline (`Shared/Flags/FlagGB.razor` + `FlagVN.razor`) — đa OS render đồng nhất, không phụ thuộc emoji 🇬🇧 🇻🇳.
 - Coverage verified: EN 100% Anh / VI 100% Việt (xem [`docs/FINAL-REPORT-2026-05-31.md`](docs/FINAL-REPORT-2026-05-31.md) §3 + 14 screenshot trong `docs/screenshots/`).
 
-## 6e. Settings dropdown (Phase 3 + Phase 5 Bước 1)
+## 6e. Settings dropdown (Phase 3 + Phase 5 Bước 1 + Phase 6 Bước 2A/2B/4 + chore #18)
 - Header dropdown thứ 3 (cạnh `NPI Data` + `QC/QA Data`): `Settings ▾`.
-- 10 sub-tab y hệt §2.3 audit doc trích từ Ops Control v1.2, đúng tên + đúng thứ tự, KHÔNG thêm KHÔNG bớt:
-  - **User**: My Profile · My Password · Appearance · Hardware devices · Connection mode
-  - **System**: Account Control [admin] · About / Diagnostics
-  - **Maintenance**: Backup / Restore [admin] · System Logs [admin] · Import data v1.0 [admin]
-- Mỗi sub-tab = 1 Razor page tại `/settings/<slug>` với placeholder content (3 bullet point + lead). KHÔNG có nghiệp vụ thực — TODO sprint sau.
-- 4 sub-tab admin-only (Account Control / Backup / System Logs / Import data) — **Phase 5 đã enforce RBAC**: dropdown hide với operator + URL trực tiếp render `<AccessDenied />`. Xem §6c.
+- 9 sub-tab (Phase 6 close-out — bỏ "Import data v1.0" stub qua PR #18):
+  - **User group** (Phase 6 Bước 2A — UI thật): My Profile · My Password · Appearance · Hardware devices (placeholder) · Connection mode (placeholder)
+  - **System group** (Phase 6 Bước 2B — UI thật + admin-only):
+    - Account Control [admin] — list / create / edit / reset pwd / toggle active (Bước 4 mutations)
+    - About / Diagnostics — app version + provider + row counts NPI + Users + Specs + audit count
+  - **Maintenance group** (Phase 6 Bước 2B + 5 — UI thật + admin-only):
+    - Backup / Restore [admin] — SQLite snapshot list + Take new snapshot
+    - System Logs [admin] (Phase 6 Bước 5) — AuditLog filter grid (date from/to + action + actor)
+- **Phase 5 RBAC enforce** + Phase 6 Bước 4 expanded: `AdminOnly` policy gate cho 3 admin tab. Operator URL trực tiếp → `<AccessDenied />` render qua `<NotAuthorized>` slot trong `App.razor`.
 
 ## 6f. Error code i18n (Phase 5 Bước 3)
 - Backend không còn trả error string EN hardcoded. `WorkOrderStateMachine.cs` + `WorkOrderService.cs` emit `WoErrorCode` enum (9 value):
@@ -223,13 +235,14 @@ Pass/Fail. Seed sẵn 3 demo IQC (Pending / Pass / Fail) trên DB rỗng.
 - Work Instruction số hóa; SignalR realtime cho dashboard.
 - RBAC (Entra ID/AD); tích hợp SAP & Warehouse.
 
-## 7b. TODO Phase 6+ (sau Phase 5 wrap)
-> Phase 5 đã đóng 4/5 TODO Phase 4 (RBAC, hub auth, error-code, EF Migrations). Xem [`docs/PHASE5-REPORT-2026-05-31.md`](docs/PHASE5-REPORT-2026-05-31.md).
-- **Nội dung nghiệp vụ thực** cho 3 QC tab + 1 NPI tab (Engineer Spec) + 10 Settings tab — tất cả đang là placeholder.
-- **Deploy SQL Server thật** — Phase 5 Bước 4 đã chuẩn bị provider-agnostic migration + `ef-migrate.sh --sqlserver`. Cần ops chạy `appsettings.SqlServer.json` + verify trên SQL Server instance.
-- **RBAC roles ngoài Admin/User** — Phase 5 chỉ có 2 role. Future: Supervisor (xem dashboard + duyệt QC), Operator (chỉ Start/Pause/Resume/Finish), QA Lead, etc.
-- **Hub auth — reconnect sau 8h cookie expire** — khi circuit sống idle >8h, cookie sliding refresh cần re-fetch. Hiện chưa giải quyết (rủi ro thấp với operator MES bình thường).
-- **Audit log cho RBAC events** — RBAC violations + role changes nên log vào audit history. Hiện chưa có audit log entity.
-- **Test suite** — chưa có unit test framework. Phase 6 nên thêm xUnit cho Domain + Application; Playwright cho Blazor flow.
+## 7b. TODO Phase 7+ (sau Phase 6 wrap)
+> Phase 6 đã đóng 6/8 TODO Phase 5 (NPI Engineer Spec, 6 Settings tab, IPQC+OQC+IQC, RBAC 5-role, AuditLog, Deploy gate fix). Xem [`docs/PHASE6-REPORT-2026-05-31.md`](docs/PHASE6-REPORT-2026-05-31.md).
+- **Docker SQL Server verify** — Phase 6 Bước 6.5 đã strip type-affinity → migration provider-agnostic. Cần Docker SQL Server image + `ef-migrate.sh --sqlserver` + apply 4 migration verify clean.
+- **System log file viewer** — Syslog tab hiện chỉ đọc AuditLog table (DB events). Bổ sung tab/section đọc text log file (`logs/cclmes-*.log`) cho IIS error / migration messages.
+- **Retention + export CSV audit** — `AuditLog` chưa có cleanup policy. Cần admin UI: filter range + export CSV cho compliance + delete events > N days.
+- **Test framework** — Phase 6 vẫn chưa có unit test. Phase 7 add xUnit cho Domain.StateMachine + Application.Services + IqcService; Playwright cho login + 5-role flows.
+- **Hub auth reconnect** sau 8h cookie expire — rủi ro thấp với operator MES, defer Phase 7+.
+- **IPQC + OQC create modal** — hiện chỉ grid + filter. Cần create + approve modal pattern y hệt IQC Bước 7 (đã chứng minh).
+- **PERMISSION_MATRIX.md** — publish matrix từ `docs/PHASE6-STEP4-PLAN.md §2.C` thành file riêng cho ops onboarding.
 
 > Lưu ý: project target **net10.0** (khớp .NET SDK 10 của bạn). Nếu dùng .NET 8/9, đổi <TargetFramework> trong 4 file .csproj về net8.0/net9.0 và version các package EF/Extensions tương ứng.

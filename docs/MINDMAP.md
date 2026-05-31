@@ -58,9 +58,10 @@ CCL-MES (MES cho nhà máy in nhãn/label)
 │   └── 10 sub-tab y hệt Ops Control v1.2 §2.3:
 │       ├── User group (5): profile / mypwd / appearance / hardware / mode
 │       ├── System group (2): account [admin] / about
-│       └── Maintenance group (3): data [admin] / syslog [admin] / import-legacy [admin]
-│         Phase 5 — 4 admin-only sub-tab enforce qua `[Authorize(Policy="AdminOnly")]`
+│       └── Maintenance group (2): data [admin] / syslog [admin]
+│         Phase 5 — 3 admin-only sub-tab enforce qua `[Authorize(Policy="AdminOnly")]`
 │         + `<AuthorizeView Roles="Admin">` hide trên dropdown. Operator → AccessDenied.
+│         Phase 6 close-out — bỏ tab "Import data v1.0" (placeholder stub) qua PR #18.
 │
 ├── 9. PHASE 5 (đóng TODO Phase 4)
 │   ├── Bước 1 — RBAC enforcement (PR #4) — AdminOnly policy + AccessDenied component + operator seed
@@ -68,10 +69,22 @@ CCL-MES (MES cho nhà máy in nhãn/label)
 │   ├── Bước 3 — Error-code refactor (PR #8 ← #6) — WoErrorCode enum + WoErrorKeys dictionary + 10 i18n key
 │   └── Bước 4 — EF Migrations SQLite (PR #9 ← #7) — Init migration + DbInitializer baseline-aware
 │
+├── 10. PHASE 6 (đóng TODO Phase 5 — real business content)
+│   ├── Bước 1 — NPI Engineer Spec grid UI (PR #10) — Pages/Npi/EngineerSpec.razor + SpecsAsync paginated + SpecStatus badge
+│   ├── Bước 2A — Settings User group (PR #11) — Profile / My Password / Appearance + UserProfileService scoped
+│   ├── Bước 2B — Settings System group (PR #12) — About/Diagnostics + Account read-only + Backup SQLite snapshot
+│   ├── Bước 3 — IPQC + OQC grids + IQC stub (PR #13) — shared QcInspectionGrid + QcResult badge
+│   ├── Bước 4 — RBAC 5-role (PR #14) — Admin/Supervisor/Engineer/QC/Operator + 3 policies (NpiRead/NpiSpecRead/QcRead) + Account mutations + RecoverAdmin console
+│   ├── Bước 5 — AuditLog + Syslog + BackupRestore console (PR #15) — AuditLog entity + IAuditWriter + Syslog filterable grid + 21 AuditAction codes
+│   ├── Bước 6.5 — Ops Control v1.2-style SQLite + SQL Server gate (PR #16) — Backup dir nested + provider-agnostic migration strip type-affinity
+│   ├── Bước 7 — IQC entity + tab (PR #17) — hybrid FK (RawMaterialId nullable + PartNo snapshot) + IqcResultDetail separate + 2 audit codes + 37 i18n × 2 locale + 3 demo seed
+│   ├── chore — Remove Import data v1.0 sub-tab (PR #18) — xoá placeholder ImportLegacy.razor + 6 i18n key + nav entry
+│   └── P0 fix — Restore Bước 4 RBAC policies (PR #19) — git merge -X ours regression hotfix (NpiRead/NpiSpecRead/QcRead bị ăn mất)
+│
 └── 6. BÀN GIAO
-    ├── GitHub repo (thiepdanghd82/CCL-MES) — main = Phase 1+2+3+4
+    ├── GitHub repo (thiepdanghd82/CCL-MES) — main = Phase 1+2+3+4+5+6
     ├── skills/dotnet-mes-mvp (.skill cài được)
-    └── docs/ (LESSONS_LEARNED, MINDMAP, AUDIT-2026-05-31, FINAL-REPORT-2026-05-31)
+    └── docs/ (LESSONS_LEARNED, MINDMAP, AUDIT-2026-05-31, FINAL-REPORT-2026-05-31, PHASE5-REPORT, PHASE6-REPORT)
 ```
 
 ## 2. Cây thư mục thực tế
@@ -145,6 +158,20 @@ CCL-MES/
 20. **Bước 3 — Error-string → WoErrorCode enum** (PR #8, SHA `db42c8d`; replace PR #6 sau khi base auto-deleted). Domain language-free qua enum 9 value `WoErrorCode` (AlreadyAtFinalStep, RequiresSpecAndMaterials, …, WorkOrderNotFound). `TransitionResult.Reason` (string?) → `Error` (WoErrorCode?); `AdvanceResult.Error` (string?) → `ErrorCode` (WoErrorCode?). Web layer mới `Services/WoErrorKeys.cs` dictionary code → `workorders.error.*` resource key. 10 i18n key EN+VI thêm. API wire format đổi `"error": "<EN string>"` → `"errorCode": "RequiresSetupConfirmed"` (enum NAME qua `JsonStringEnumConverter`). Đóng 2 TODO comment ở Domain + Application + gap i18n cuối Phase 4 (dynamic error portion vẫn EN giữa VI message).
 21. **Bước 4 — EF Migrations cho SQLite** (PR #9, SHA `29cca38`; replace PR #7 sau khi base auto-deleted). Init migration (19 CreateTable + 22 CreateIndex khớp 100% live DB). `DbInitializer.InitializeAsync` mới (cross-provider qua `IHistoryRepository.GetCreateScript` + `GetInsertScript(HistoryRow)`) — baseline tự động trên existing DB từ thời `EnsureCreated()` mà KHÔNG mất 60k+ row NPI. Program.cs gỡ branching `EnsureCreated/Migrate`, gọi `DbInitializer.InitializeAsync(db)` chung. `ef-migrate.sh` mở rộng 2-mode `--sqlite | --sqlserver` + `add <Name>` subcommand. Test methodology A→B→C: backup + SHA256 → test trên `ccl_mes.db.testcopy` trước → áp DB thật. Restart proof: lần 2 boot Migrate no-op. Đóng TODO "EF Migrations cho SQLite" cuối FINAL-REPORT Phase 4.
 22. **Phase 5 close** — Merge tuần tự PR #4 → #5 → #8 (replace #6) → #9 (replace #7). PR #6 + #7 ban đầu auto-close khi base branch bị delete; thay thế bằng PR #8 + #9 trỏ thẳng `main`, content nguyên vẹn. Verify trên main: build clean, 4-step smoke pass, row counts 43/2127/38441/20530/2 + Users=2 không đổi, restart proof. Ghi `docs/PHASE5-REPORT-2026-05-31.md` (tổng kết) + cập nhật MINDMAP + README.
+
+### Phase 6 (2026-05-31, 1 phiên — đóng TODO Phase 5 §7 "real business content" + 1 P0 regression fix)
+
+23. **Bước 1 — NPI Engineer Spec grid UI** (PR #10, `ed91fc8`). `Pages/Npi/EngineerSpec.razor` đọc qua `SpecService.SpecsAsync(search, page, pageSize)` paginated bằng helper shared `PagingHelper.PageAsync`. SpecStatus badge 4 màu (Draft/InReview/Approved/Obsolete). Pattern y hệt 4 NPI grid khác. Đóng Phase 5 §7 #2.
+24. **Bước 2A — Settings User group** (PR #11, `6ce04f9`). 3 sub-tab Profile / My Password / Appearance. Mới `Services/UserProfileService.cs` scoped — UpdateProfile + ChangePassword + clear `must_change_password = false` khi self-change. 8 i18n key EN+VI. Đóng phần User group của Phase 5 §7 #3.
+25. **Bước 2B — Settings System group** (PR #12, `7fd21ff`). About/Diagnostics + Account read-only + Backup SQLite snapshot. Mới `Services/UserAdminService.cs` + `Services/BackupService.cs` (cả 2 scoped). Online backup API SQLite. Backup dir flat next to DB (sẽ refactor sang nested ở Bước 6.5). Account mutations bumped sang Bước 4.
+26. **Bước 3 — IPQC + OQC grids + IQC stub** (PR #13, `80c21f4`). 3 razor page `Pages/QcQa/{Ipqc,Oqc,Iqc}.razor`. IPQC + OQC dùng shared `QcInspectionGrid` component. IQC stub "Sắp ra mắt" — khoá Bước 7. QcResult badge 3 màu. Đóng phần IPQC + OQC của Phase 5 §7 #1.
+27. **Bước 4 — RBAC 5-role + Account mutation + recover-admin** (PR #14, `777ecd9`). Mở rộng 2 role → 5: Admin / Supervisor / Engineer / QC / Operator. `Domain/Auth/UserRole.cs` const string class. Migration v2 `AddUserMustChangeAndIsActive` thêm 2 cột + idempotent legacy mapping `Role="User" → "Operator"`. 3 page-level policy mới: `NpiRead` + `NpiSpecRead` + `QcRead`. Account mutations: Create / Edit DisplayName + Role / Reset password / Toggle active. Invariant: cấm self-modify, cấm demote/disable Admin cuối cùng. `scripts/RecoverAdmin/` console app. Đóng Phase 5 §7 #5.
+28. **Bước 5 — AuditLog + Syslog + BackupRestore console** (PR #15, `8c17c77`). `Domain/Entities/AuditLog.cs` + `Domain/Audit/AuditAction.cs` (~21 codes). `Application/Audit/IAuditWriter.cs` interface. `Web/Services/AuditService.cs` implementation. `Pages/Settings/Syslog.razor` admin grid 4 filter. Migration v3 `AddAuditLog`. `scripts/BackupRestore/` console restore tool. Mutations trong UserAdmin + Backup + Spec service emit audit. JSON-only detail. Đóng Phase 5 §7 #7.
+29. **Bước 6.5 — Ops Control v1.2-style SQLite + SQL Server gate** (PR #16, `5e9d152`). Backup dir `<DATA_DIR>/Backup/SQLite/` (nested, was flat). Auto-migration helper `MigrateLegacySnapshots()` boot-time. SQL Server gate fix: strip toàn bộ inline `type:` + `.HasColumnType()` qua Python script — migrations provider-agnostic. Cleanup `SpecService.SpecsAsync` → `PagingHelper.PageAsync` shared.
+30. **Bước 7 — IQC entity + tab** (PR #17, `67e86a8`). Hybrid FK pattern: `IqcInspection` có `RawMaterialId long?` + `PartNo string` snapshot. Separate `IqcResultDetail` entity. Reuse `QcResult` enum. No WO.OnHold cascade. 2 audit codes `IQC_CREATE` + `IQC_APPROVE`. Migration v4 `AddIqcInspection` Phase A→B→C SAFE pattern (MES_CONNSTR=/tmp/iqc-design.db, live SHA `850fbf56…` không đổi). UI: 1-modal create + view + approve. Page `[Authorize(Policy="QcRead")]` + inline AuthorizeView + server-side check. 37 i18n × 2 locale. 3 demo IQC idempotent seed. Đóng phần IQC cuối Phase 5 §7 #1 + đóng stub Bước 3.
+31. **chore — Remove Import data v1.0 sub-tab** (PR #18, `c5883f2`). Xoá `Pages/Settings/ImportLegacy.razor` + 6 i18n key (EN+VI) + nav entry + AccessDenied lead reference. Tab này chỉ là placeholder stub từ Phase 3.
+32. **P0 fix — Restore Bước 4 RBAC policies** (PR #19, `0c3a049`). Smoke verify trên main sau PR #18 phát hiện `NpiRead` + `NpiSpecRead` + `QcRead` bị mất khỏi Program.cs → mọi GET `/npi/engineer-spec` + `/qcqa/*` → HTTP 500. Root cause: `git merge -X ours` strategy trên overlapping additive edits — PR #18 chỉnh comment AdminOnly, PR #14 thêm 3 policies → ours version (PR #18) ăn mất 3 policies. Fix: re-add 3 policies + restore AdminOnly về `UserRole.Admin` enum. Verified post-fix 13/13 routes 200 (admin) + operator → AccessDenied panel.
+33. **Phase 6 close** — Merge tuần tự PR #10 → #11 → #12 → #13 → #14 → #15 → #16 → #17 → #18 → #19. Verify trên main: build clean, 11-step smoke pass, row counts 43/2127/38441/20530/5 + Users=5 + IQC=3 không đổi, 4 migration apply idempotent, restart proof. Final backup SHA256 `abd45359486cc85aa090ae2b4f21f773e71b59f8d00f53f6b276b90087cd021c`. Ghi `docs/PHASE6-REPORT-2026-05-31.md` (tổng kết) + cập nhật MINDMAP + README + LESSONS_LEARNED §8 (bài học `git merge -X ours`).
 
 ## 4. Luồng dữ liệu chính (Work Order)
 
