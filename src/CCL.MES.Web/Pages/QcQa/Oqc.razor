@@ -1,13 +1,10 @@
 @page "/qcqa/oqc"
+@using CCL.MES.Domain
 @inject IStringLocalizer<SharedResource> Loc
 
-<h1>@Loc["qcqa.oqc.title"]</h1>
+@*  Phase 6 Bước 3 — OQC (Outgoing Quality Control).
+    Reuses <QcInspectionGrid /> with Type=QcType.OQC. Same shape as
+    Ipqc.razor — column labels + status badges shared via the component
+    + qcqa.grid.* i18n keys. *@
 
-<div class="npi-placeholder">
-    <p class="muted">@Loc["qcqa.oqc.placeholder_lead"]</p>
-    <ul>
-        <li>@Loc["qcqa.oqc.placeholder_li1"]</li>
-        <li>@Loc["qcqa.oqc.placeholder_li2"]</li>
-        <li>@Loc["qcqa.oqc.placeholder_li3"]</li>
-    </ul>
-</div>
+<QcInspectionGrid Type="QcType.OQC" Title="@Loc["qcqa.oqc.title"].Value" />

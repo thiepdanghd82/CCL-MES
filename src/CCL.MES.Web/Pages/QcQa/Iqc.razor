@@ -1,13 +1,25 @@
 @page "/qcqa/iqc"
 @inject IStringLocalizer<SharedResource> Loc
 
+@*  Phase 6 Bước 3 — IQC stub (intentional).
+
+    IQC (Incoming Quality Control) — quality check on incoming raw
+    materials — does NOT share the QcInspection entity with IPQC/FQC/OQC
+    because it ties to a raw-material batch (not a WorkOrder). The
+    Phase 6 plan (docs/PHASE6-PLAN.md §3 Bước 7) ships IQC as its own
+    entity + service + migration so the foreign-key + filter semantics
+    match the workflow.
+
+    This page deliberately keeps the placeholder chrome so operators see
+    "in progress, not forgotten" rather than a broken grid. *@
+
 <h1>@Loc["qcqa.iqc.title"]</h1>
 
 <div class="npi-placeholder">
-    <p class="muted">@Loc["qcqa.iqc.placeholder_lead"]</p>
+    <p class="muted">@Loc["qcqa.iqc.stub_lead"]</p>
     <ul>
-        <li>@Loc["qcqa.iqc.placeholder_li1"]</li>
-        <li>@Loc["qcqa.iqc.placeholder_li2"]</li>
-        <li>@Loc["qcqa.iqc.placeholder_li3"]</li>
+        <li>@Loc["qcqa.iqc.stub_li1"]</li>
+        <li>@Loc["qcqa.iqc.stub_li2"]</li>
+        <li>@Loc["qcqa.iqc.stub_li3"]</li>
     </ul>
 </div>
