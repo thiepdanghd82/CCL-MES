@@ -20,6 +20,14 @@ table.wo { width: 100%; border-collapse: collapse; background: #fff; border-radi
 table.wo th { background: #1f4e79; color: #fff; text-align: left; padding: 10px 12px; }
 table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align: middle; }
 .badge.step { background: #e7efff; color: #1f3864; padding: 3px 10px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
+/* Phase 6 Bước 1 — SpecStatus badges (Engineer Spec grid). Same pill chrome
+   as .badge.step, colour per status: draft=gray, review=amber, approved=green,
+   obsolete=red. */
+.badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; white-space: nowrap; font-weight: 600; }
+.badge.spec-draft    { background:#e5e7eb; color:#374151; }
+.badge.spec-review   { background:#fef3c7; color:#92400e; }
+.badge.spec-approved { background:#dcfce7; color:#166534; }
+.badge.spec-obsolete { background:#fee2e2; color:#991b1b; }
 .flow { display: flex; gap: 6px; }
 .dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 700; color: #fff; }
@@ -119,17 +127,32 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   color:#dbe5ff; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:13px; }
 .topbar-logout-btn:hover { background:rgba(255,255,255,.12); color:#fff; }
 
-/* --- Phase 6 Bước 2B — Settings System group (About / Account / Backup) --- */
+/* --- Phase 6 Bước 2A — Settings User group (Profile / Password / Appearance) --- */
 .settings-card { background:#fff; border:1px solid #e5e7eb; border-radius:10px;
   padding:20px 24px; box-shadow:0 1px 3px rgba(0,0,0,.05); max-width:720px; margin-bottom:18px; }
 .settings-section { margin:0 0 8px; color:#1f3864; font-size:16px; font-weight:600; }
+.field-row { display:flex; flex-direction:column; gap:4px; margin-bottom:14px; }
+.field-row label { font-size:13px; font-weight:600; color:#374151; }
+.form-input { width:100%; padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px;
+  font-size:14px; box-sizing:border-box; }
+.form-input:focus { outline:none; border-color:#2e75b6; box-shadow:0 0 0 2px rgba(46,117,182,.2); }
+.readonly { width:100%; padding:8px 12px; border:1px solid #e5e7eb; border-radius:6px;
+  font-size:14px; background:#f9fafb; color:#6b7280; box-sizing:border-box; }
+.btn.btn-primary { background:#1f3864; color:#fff; padding:8px 16px; font-size:14px;
+  border:0; border-radius:6px; cursor:pointer; }
+.btn.btn-primary:hover { background:#16294b; }
+.appearance-lang { display:flex; gap:12px; }
+.appearance-lang .lang-flag-btn { color:#1f3864; border:1px solid #cbd5e1;
+  border-radius:6px; padding:6px 12px; text-decoration:none; }
+.appearance-lang .lang-flag-btn.is-active { background:#e7efff; border-color:#1f3864; }
+
+/* --- Phase 6 Bước 2B — Settings System group (About / Account / Backup) --- */
 .diag-table { width:100%; border-collapse:collapse; font-size:14px; }
 .diag-table th { text-align:left; padding:8px 12px; color:#374151;
   width:42%; font-weight:600; vertical-align:top; }
 .diag-table td { padding:8px 12px; color:#1f2937; vertical-align:top; }
 .diag-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
 .diag-table tr + tr th, .diag-table tr + tr td { border-top:1px solid #f1f5f9; }
-.badge { padding:3px 10px; border-radius:999px; font-size:12px; white-space:nowrap; font-weight:600; }
 .badge.role-admin      { background:#1f3864; color:#fff; }
 .badge.role-supervisor { background:#2e75b6; color:#fff; }
 .badge.role-engineer   { background:#16a34a; color:#fff; }
@@ -148,9 +171,6 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .account-modal .readonly { width:100%; padding:8px 12px; border:1px solid #e5e7eb;
   border-radius:6px; font-size:14px; background:#f9fafb; color:#6b7280; box-sizing:border-box; }
 .account-modal .actions { display:flex; gap:8px; margin-top:8px; }
-.btn.btn-primary { background:#1f3864; color:#fff; padding:8px 16px; font-size:14px;
-  border:0; border-radius:6px; cursor:pointer; }
-.btn.btn-primary:hover { background:#16294b; }
 
 /* Phase 6 Bước 5 — Syslog tab + Backup Restore guidance card. */
 .syslog-toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0 16px; }
@@ -165,8 +185,7 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .code-snippet { background:#f3f4f6; color:#1f2937; padding:10px 14px; border-radius:6px;
   font-family:Menlo, Consolas, monospace; font-size:13px; overflow:auto; }
 
-/* Phase 6 Bước 7 — IQC result badges (Pending / Pass / Fail).
-   Reuse oee.* palette family so QC + IQC + OEE feel coherent. */
+/* Phase 6 Bước 7 — IQC result badges (Pending / Pass / Fail). */
 .badge.iqc-pending { background:#fef3c7; color:#92400e; }
 .badge.iqc-pass    { background:#dcfce7; color:#166534; }
 .badge.iqc-fail    { background:#fee2e2; color:#991b1b; }
