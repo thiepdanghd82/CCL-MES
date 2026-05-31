@@ -145,17 +145,39 @@
   <data name="settings.mode.placeholder_li2" xml:space="preserve"><value>URL server + chẩn đoán kết nối.</value></data>
   <data name="settings.mode.placeholder_li3" xml:space="preserve"><value>Chạy lại wizard thiết lập lần đầu.</value></data>
 
+  <data name="common.cancel" xml:space="preserve"><value>Huỷ</value></data>
+
   <data name="settings.account.title" xml:space="preserve"><value>Cài đặt — Quản lý tài khoản</value></data>
   <data name="settings.account.search_placeholder" xml:space="preserve"><value>Tìm theo tài khoản / tên hiển thị / vai trò…</value></data>
   <data name="settings.account.empty" xml:space="preserve"><value>Chưa có người dùng.</value></data>
   <data name="settings.account.col.username" xml:space="preserve"><value>Tài khoản</value></data>
   <data name="settings.account.col.display_name" xml:space="preserve"><value>Tên hiển thị</value></data>
   <data name="settings.account.col.role" xml:space="preserve"><value>Vai trò</value></data>
+  <data name="settings.account.col.active" xml:space="preserve"><value>Hoạt động</value></data>
   <data name="settings.account.col.last_login" xml:space="preserve"><value>Đăng nhập gần nhất</value></data>
   <data name="settings.account.col.created" xml:space="preserve"><value>Tạo lúc</value></data>
   <data name="settings.account.col.actions" xml:space="preserve"><value>Hành động</value></data>
-  <data name="settings.account.actions.todo" xml:space="preserve"><value>Tạo / vô hiệu / vai trò / reset — Phase 6 Bước 4 (RBAC).</value></data>
-  <data name="settings.account.bucket4_note" xml:space="preserve"><value>Các thao tác ghi (tạo / vô hiệu / đổi vai trò / reset mật khẩu người dùng khác) sẽ làm ở Phase 6 Bước 4 cùng với whitelist 5 vai trò RBAC + script recover-admin. Bước này chỉ đọc.</value></data>
+  <data name="settings.account.active.yes" xml:space="preserve"><value>Hoạt động</value></data>
+  <data name="settings.account.active.no" xml:space="preserve"><value>Vô hiệu</value></data>
+  <data name="settings.account.btn.new_user" xml:space="preserve"><value>+ Tạo người dùng</value></data>
+  <data name="settings.account.btn.edit" xml:space="preserve"><value>Sửa</value></data>
+  <data name="settings.account.btn.reset" xml:space="preserve"><value>Reset mật khẩu</value></data>
+  <data name="settings.account.btn.disable" xml:space="preserve"><value>Vô hiệu</value></data>
+  <data name="settings.account.btn.enable" xml:space="preserve"><value>Kích hoạt</value></data>
+  <data name="settings.account.field.password" xml:space="preserve"><value>Mật khẩu (tạm)</value></data>
+  <data name="settings.account.hint.password_min" xml:space="preserve"><value>Tối thiểu 4 ký tự. User sẽ phải đổi mật khẩu lần đăng nhập kế.</value></data>
+  <data name="settings.account.modal.create" xml:space="preserve"><value>Tạo người dùng</value></data>
+  <data name="settings.account.modal.edit" xml:space="preserve"><value>Sửa người dùng</value></data>
+  <data name="settings.account.modal.reset" xml:space="preserve"><value>Reset mật khẩu</value></data>
+  <data name="settings.account.msg.success" xml:space="preserve"><value>Đã lưu.</value></data>
+  <data name="settings.account.msg.not_found" xml:space="preserve"><value>Không tìm thấy người dùng.</value></data>
+  <data name="settings.account.msg.username_required" xml:space="preserve"><value>Phải có tên tài khoản.</value></data>
+  <data name="settings.account.msg.username_in_use" xml:space="preserve"><value>Tài khoản đã tồn tại.</value></data>
+  <data name="settings.account.msg.invalid_role" xml:space="preserve"><value>Vai trò phải là một trong Admin / Supervisor / Engineer / QC / Operator.</value></data>
+  <data name="settings.account.msg.password_too_short" xml:space="preserve"><value>Mật khẩu tối thiểu 4 ký tự.</value></data>
+  <data name="settings.account.msg.last_admin_protected" xml:space="preserve"><value>Không thể giảm quyền hoặc vô hiệu Admin cuối cùng đang hoạt động. Tạo Admin mới trước, hoặc dùng scripts/RecoverAdmin.</value></data>
+  <data name="settings.account.msg.self_block" xml:space="preserve"><value>Bạn không thể đổi vai trò hoặc tự vô hiệu mình ở đây. Dùng Hồ sơ + Mật khẩu (Cài đặt → User group) thay thế.</value></data>
+  <data name="settings.account.invariants_note" xml:space="preserve"><value>Rào an toàn: không thể giảm quyền hoặc vô hiệu Admin cuối cùng đang hoạt động, và admin không thể tự đổi vai trò / tự vô hiệu mình ở đây. Dùng scripts/RecoverAdmin (console-only) nếu mọi Admin đều bị khoá.</value></data>
 
   <data name="settings.about.title" xml:space="preserve"><value>Cài đặt — Giới thiệu / Chẩn đoán</value></data>
   <data name="settings.about.section.app" xml:space="preserve"><value>Ứng dụng</value></data>

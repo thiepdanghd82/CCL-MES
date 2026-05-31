@@ -1,5 +1,5 @@
 @page "/qcqa/oqc"
-@using CCL.MES.Domain
+@attribute [Authorize(Policy = "QcRead")]
 @inject IStringLocalizer<SharedResource> Loc
 
 @*  Phase 6 Bước 3 — OQC (Outgoing Quality Control).

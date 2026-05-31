@@ -53,19 +53,31 @@ else
                         </div>
                     </td>
                     <td class="actions">
-                        <button class="btn" @onclick="() => Advance(w.Id)">@Loc["workorders.btn.advance"]</button>
-                        <button class="btn ghost" @onclick="() => Helpers(w)">@Loc["workorders.btn.unlock_step"]</button>
+                        @* Phase 6 Bước 4 — button gating per matrix:
+                            Advance + Mở khoá bước flags = Admin/Supervisor (matrix row "Advance" + "flags")
+                            QC Pass = Admin/Supervisor/QC
+                            Start/Pause/Resume/Finish = Admin/Supervisor/Operator
+                           AuthorizeView Context renamed to avoid clash if
+                           someone later wraps the row in another AuthorizeView. *@
+                        <AuthorizeView Roles="Admin,Supervisor" Context="advanceCtx">
+                            <button class="btn" @onclick="() => Advance(w.Id)">@Loc["workorders.btn.advance"]</button>
+                            <button class="btn ghost" @onclick="() => Helpers(w)">@Loc["workorders.btn.unlock_step"]</button>
+                        </AuthorizeView>
                         @if (NeedsQc(w.CurrentStep) is { } t)
                         {
-                            <button class="btn pass" @onclick="() => QuickPass(w.Id, t)">QC @t Pass</button>
+                            <AuthorizeView Roles="Admin,Supervisor,QC" Context="qcCtx">
+                                <button class="btn pass" @onclick="() => QuickPass(w.Id, t)">QC @t Pass</button>
+                            </AuthorizeView>
                         }
                         @if (w.CurrentStep == ProcessStepCode.Running)
                         {
-                            <span class="sep"></span>
-                            <button class="btn run" @onclick="() => Start(w.Id)">Start</button>
-                            <button class="btn warn" @onclick="() => Pause(w.Id)">Pause</button>
-                            <button class="btn run" @onclick="() => Resume(w.Id)">Resume</button>
-                            <button class="btn finish" @onclick="() => Finish(w)">Finish (+@(w.TargetQty))</button>
+                            <AuthorizeView Roles="Admin,Supervisor,Operator" Context="runCtx">
+                                <span class="sep"></span>
+                                <button class="btn run" @onclick="() => Start(w.Id)">Start</button>
+                                <button class="btn warn" @onclick="() => Pause(w.Id)">Pause</button>
+                                <button class="btn run" @onclick="() => Resume(w.Id)">Resume</button>
+                                <button class="btn finish" @onclick="() => Finish(w)">Finish (+@(w.TargetQty))</button>
+                            </AuthorizeView>
                         }
                     </td>
                 </tr>

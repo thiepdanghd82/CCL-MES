@@ -145,17 +145,39 @@
   <data name="settings.mode.placeholder_li2" xml:space="preserve"><value>Server URL + connection diagnostics.</value></data>
   <data name="settings.mode.placeholder_li3" xml:space="preserve"><value>Re-run the first-run setup wizard.</value></data>
 
+  <data name="common.cancel" xml:space="preserve"><value>Cancel</value></data>
+
   <data name="settings.account.title" xml:space="preserve"><value>Settings — Account Control</value></data>
   <data name="settings.account.search_placeholder" xml:space="preserve"><value>Search by username / display name / role…</value></data>
   <data name="settings.account.empty" xml:space="preserve"><value>No users.</value></data>
   <data name="settings.account.col.username" xml:space="preserve"><value>Username</value></data>
   <data name="settings.account.col.display_name" xml:space="preserve"><value>Display name</value></data>
   <data name="settings.account.col.role" xml:space="preserve"><value>Role</value></data>
+  <data name="settings.account.col.active" xml:space="preserve"><value>Active</value></data>
   <data name="settings.account.col.last_login" xml:space="preserve"><value>Last sign-in</value></data>
   <data name="settings.account.col.created" xml:space="preserve"><value>Created</value></data>
   <data name="settings.account.col.actions" xml:space="preserve"><value>Actions</value></data>
-  <data name="settings.account.actions.todo" xml:space="preserve"><value>Create / disable / role / reset — Phase 6 Bước 4 (RBAC roles).</value></data>
-  <data name="settings.account.bucket4_note" xml:space="preserve"><value>Mutation operations (create / disable / change role / reset password for another user) ship in Phase 6 Bước 4 alongside the RBAC role whitelist + recover-admin script. This Bước is read-only.</value></data>
+  <data name="settings.account.active.yes" xml:space="preserve"><value>Active</value></data>
+  <data name="settings.account.active.no" xml:space="preserve"><value>Disabled</value></data>
+  <data name="settings.account.btn.new_user" xml:space="preserve"><value>+ New user</value></data>
+  <data name="settings.account.btn.edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="settings.account.btn.reset" xml:space="preserve"><value>Reset pwd</value></data>
+  <data name="settings.account.btn.disable" xml:space="preserve"><value>Disable</value></data>
+  <data name="settings.account.btn.enable" xml:space="preserve"><value>Enable</value></data>
+  <data name="settings.account.field.password" xml:space="preserve"><value>Password (temp)</value></data>
+  <data name="settings.account.hint.password_min" xml:space="preserve"><value>Minimum 4 characters. The user is forced to change it on next sign-in.</value></data>
+  <data name="settings.account.modal.create" xml:space="preserve"><value>Create user</value></data>
+  <data name="settings.account.modal.edit" xml:space="preserve"><value>Edit user</value></data>
+  <data name="settings.account.modal.reset" xml:space="preserve"><value>Reset password</value></data>
+  <data name="settings.account.msg.success" xml:space="preserve"><value>Saved.</value></data>
+  <data name="settings.account.msg.not_found" xml:space="preserve"><value>User not found.</value></data>
+  <data name="settings.account.msg.username_required" xml:space="preserve"><value>Username is required.</value></data>
+  <data name="settings.account.msg.username_in_use" xml:space="preserve"><value>Username already exists.</value></data>
+  <data name="settings.account.msg.invalid_role" xml:space="preserve"><value>Role must be one of Admin / Supervisor / Engineer / QC / Operator.</value></data>
+  <data name="settings.account.msg.password_too_short" xml:space="preserve"><value>Password must be at least 4 characters.</value></data>
+  <data name="settings.account.msg.last_admin_protected" xml:space="preserve"><value>Cannot demote or disable the last active Admin. Create another Admin first, or use scripts/RecoverAdmin.</value></data>
+  <data name="settings.account.msg.self_block" xml:space="preserve"><value>You cannot change your own role or disable yourself from this surface. Use My Profile + My Password (Settings → User group) instead.</value></data>
+  <data name="settings.account.invariants_note" xml:space="preserve"><value>Safety rails: the last active Admin cannot be demoted or disabled, and admins cannot mutate their own role or active flag from this surface. Use scripts/RecoverAdmin (console-only) if every Admin has been locked out.</value></data>
 
   <data name="settings.about.title" xml:space="preserve"><value>Settings — About / Diagnostics</value></data>
   <data name="settings.about.section.app" xml:space="preserve"><value>Application</value></data>
