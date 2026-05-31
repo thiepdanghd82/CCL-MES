@@ -323,16 +323,23 @@
   <data name="common.confirm" xml:space="preserve"><value>Xác nhận</value></data>
 
   <data name="qcqa.ipqc.title" xml:space="preserve"><value>QC/QA Data — IPQC</value></data>
-  <data name="qcqa.ipqc.placeholder_lead" xml:space="preserve"><value>Tab quản lý IPQC (In-Process Quality Control) — kiểm tra trong quá trình sản xuất. Chức năng sẽ được xây dựng sau.</value></data>
-  <data name="qcqa.ipqc.placeholder_li1" xml:space="preserve"><value>Kiểm mẫu đầu chuyền và trong khi chạy theo spec.</value></data>
-  <data name="qcqa.ipqc.placeholder_li2" xml:space="preserve"><value>Liên kết với Work Order (bước IPQC trong process flow).</value></data>
-  <data name="qcqa.ipqc.placeholder_li3" xml:space="preserve"><value>Ghi nhận lỗi, phê duyệt, chặn WO khi fail.</value></data>
 
   <data name="qcqa.oqc.title" xml:space="preserve"><value>QC/QA Data — OQC</value></data>
-  <data name="qcqa.oqc.placeholder_lead" xml:space="preserve"><value>Tab quản lý OQC (Outgoing Quality Control) — kiểm tra chất lượng đầu ra trước khi xuất. Chức năng sẽ được xây dựng sau.</value></data>
-  <data name="qcqa.oqc.placeholder_li1" xml:space="preserve"><value>Kiểm tra cuối và RoHS trước khi xuất hàng.</value></data>
-  <data name="qcqa.oqc.placeholder_li2" xml:space="preserve"><value>Liên kết với Work Order (bước OQC trong process flow).</value></data>
-  <data name="qcqa.oqc.placeholder_li3" xml:space="preserve"><value>Ký xác nhận xuất và lưu hồ sơ cho khách hàng (Brady…).</value></data>
+
+  <data name="qcqa.grid.search_placeholder" xml:space="preserve"><value>Tìm theo Work Order / Inspector / Người duyệt…</value></data>
+  <data name="qcqa.grid.empty" xml:space="preserve"><value>Chưa có phiếu QC nào cho loại này.</value></data>
+  <data name="qcqa.grid.col.id" xml:space="preserve"><value>ID</value></data>
+  <data name="qcqa.grid.col.wo_no" xml:space="preserve"><value>Work Order</value></data>
+  <data name="qcqa.grid.col.product" xml:space="preserve"><value>Sản phẩm</value></data>
+  <data name="qcqa.grid.col.inspector" xml:space="preserve"><value>Người kiểm</value></data>
+  <data name="qcqa.grid.col.sample_size" xml:space="preserve"><value>Cỡ mẫu</value></data>
+  <data name="qcqa.grid.col.detail_count" xml:space="preserve"><value>Mục</value></data>
+  <data name="qcqa.grid.col.status" xml:space="preserve"><value>Trạng thái</value></data>
+  <data name="qcqa.grid.col.approved_by" xml:space="preserve"><value>Người duyệt</value></data>
+  <data name="qcqa.grid.col.approved_at" xml:space="preserve"><value>Duyệt lúc</value></data>
+  <data name="qcqa.grid.status.pending" xml:space="preserve"><value>Chờ duyệt</value></data>
+  <data name="qcqa.grid.status.pass" xml:space="preserve"><value>Đạt</value></data>
+  <data name="qcqa.grid.status.fail" xml:space="preserve"><value>Hỏng</value></data>
 
   <data name="index.title" xml:space="preserve"><value>CCL Design - MES (MVP)</value></data>
   <data name="index.intro" xml:space="preserve"><value>Khung hệ thống điều hành sản xuất cho nhà máy in nhãn/sticker.</value></data>

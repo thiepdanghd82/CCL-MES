@@ -17,6 +17,31 @@ public class QcService
         _audit = audit;
     }
 
+    /// <summary>
+    /// Phase 6 Bước 3 — paginated list for the IPQC + OQC grid UIs. Type
+    /// filter is required so a page bound to one inspection type cannot
+    /// accidentally display rows from another. Includes the linked WO +
+    /// Product + Details so the row can show ctx without N+1 queries.
+    /// </summary>
+    public Task<PagedResult<QcInspection>> ListAsync(QcType type, string? search, int page, int pageSize)
+    {
+        var q = _db.QcInspections
+            .AsNoTracking()
+            .Include(i => i.WorkOrder)
+            .ThenInclude(w => w!.Product)
+            .Include(i => i.Details)
+            .Where(i => i.Type == type);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(i =>
+                (i.InspectorId != null && EF.Functions.Like(i.InspectorId, $"%{s}%"))
+                || (i.WorkOrder != null && EF.Functions.Like(i.WorkOrder.WoNo, $"%{s}%"))
+                || (i.ApprovedBy != null && EF.Functions.Like(i.ApprovedBy, $"%{s}%")));
+        }
+        return PagingHelper.PageAsync(q.OrderByDescending(i => i.Id), page, pageSize);
+    }
+
     public async Task<QcInspection> CreateAsync(CreateQcRequest r)
     {
         var insp = new QcInspection
