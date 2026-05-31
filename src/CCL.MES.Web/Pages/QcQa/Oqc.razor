@@ -1,12 +1,13 @@
 @page "/qcqa/oqc"
+@inject IStringLocalizer<SharedResource> Loc
 
-<h1>QC/QA Data — OQC</h1>
+<h1>@Loc["qcqa.oqc.title"]</h1>
 
 <div class="npi-placeholder">
-    <p class="muted">Tab quản lý <b>OQC (Outgoing Quality Control)</b> — kiểm tra chất lượng đầu ra trước khi xuất. Chức năng sẽ được xây dựng sau.</p>
+    <p class="muted">@Loc["qcqa.oqc.placeholder_lead"]</p>
     <ul>
-        <li>Kiểm tra cuối + RoHS trước khi xuất hàng.</li>
-        <li>Liên kết với Work Order (bước OQC trong process flow).</li>
-        <li>Ký xác nhận xuất & lưu hồ sơ cho khách hàng (Brady…).</li>
+        <li>@Loc["qcqa.oqc.placeholder_li1"]</li>
+        <li>@Loc["qcqa.oqc.placeholder_li2"]</li>
+        <li>@Loc["qcqa.oqc.placeholder_li3"]</li>
     </ul>
 </div>

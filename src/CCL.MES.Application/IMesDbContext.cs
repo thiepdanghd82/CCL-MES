@@ -20,6 +20,10 @@ public interface IMesDbContext
     DbSet<ProductionLog> ProductionLogs { get; }
     DbSet<WorkInstruction> WorkInstructions { get; }
     DbSet<WiStepDetail> WiStepDetails { get; }
+    DbSet<WorkCenter> WorkCenters { get; }
+    DbSet<RawMaterial> RawMaterials { get; }
+    DbSet<RoutingOperation> RoutingOperations { get; }
+    DbSet<ManufacturingStructure> ManufacturingStructures { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

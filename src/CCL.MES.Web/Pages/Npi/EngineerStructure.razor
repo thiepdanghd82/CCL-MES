@@ -1,12 +1,61 @@
 @page "/npi/engineer-structure"
+@using CCL.MES.Application.Services
+@inject NpiService Npi
+@inject IStringLocalizer<SharedResource> Loc
 
-<h1>NPI Data — Engineer Structure</h1>
-
-<div class="npi-placeholder">
-    <p class="muted">Tab quản lý <b>Engineer Structure</b> (cấu trúc sản phẩm / BOM). Chức năng sẽ được xây dựng sau.</p>
-    <ul>
-        <li>Khai báo cấu trúc lớp vật liệu (layer structure) của nhãn/label.</li>
-        <li>BOM: thành phần, định mức, nhà cung cấp.</li>
-        <li>Phiên bản hóa & phê duyệt structure.</li>
-    </ul>
+<div class="grid-head">
+    <h1>@Loc["npi.structure.title"] <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…")</span></h1>
 </div>
+
+<div class="grid-toolbar">
+    <input class="grid-search" placeholder="@Loc["npi.structure.search_placeholder"]" @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
+</div>
+
+@if (_result is null)
+{
+    <p>@Loc["common.loading"]</p>
+}
+else
+{
+    <div class="table-scroll">
+    <table class="wo data">
+        <thead>
+            <tr><th>Parent Part</th><th>Parent Description</th><th>Component Part</th><th>Component Description</th>
+                <th class="num">Qty/Assembly</th><th>UOM</th><th>Scrap %</th><th class="num">Pitch</th><th class="num">Cavity</th><th>Color</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var r in _result.Items)
+            {
+                <tr>
+                    <td><b>@r.ParentPart</b></td>
+                    <td>@r.ParentDescription</td>
+                    <td>@r.ComponentPart</td>
+                    <td>@r.ComponentDescription</td>
+                    <td class="num">@r.QtyAssembly</td>
+                    <td>@r.Uom</td>
+                    <td>@r.ScrapPct</td>
+                    <td class="num">@r.Pitch</td>
+                    <td class="num">@r.Cavity</td>
+                    <td>@r.Color</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    </div>
+    <Pager Result="@PagerInfo" OnPage="GoPage" />
+}
+
+@code {
+    private PagedResult<CCL.MES.Domain.Entities.ManufacturingStructure>? _result;
+    private string? _search;
+    private int _page = 1;
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() => _result = await Npi.StructuresAsync(_search, _page, 50);
+    private async Task DoSearch() { _page = 1; await Load(); }
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
+    private async Task GoPage(int p) { _page = p; await Load(); }
+    private (int Page, int TotalPages, int Total) PagerInfo =>
+        _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
+}

@@ -22,6 +22,10 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<ProductionLog> ProductionLogs => Set<ProductionLog>();
     public DbSet<WorkInstruction> WorkInstructions => Set<WorkInstruction>();
     public DbSet<WiStepDetail> WiStepDetails => Set<WiStepDetail>();
+    public DbSet<WorkCenter> WorkCenters => Set<WorkCenter>();
+    public DbSet<RawMaterial> RawMaterials => Set<RawMaterial>();
+    public DbSet<RoutingOperation> RoutingOperations => Set<RoutingOperation>();
+    public DbSet<ManufacturingStructure> ManufacturingStructures => Set<ManufacturingStructure>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -42,6 +46,12 @@ public class MesDbContext : DbContext, IMesDbContext
 
         b.Entity<WorkOrder>().HasIndex(x => x.WoNo).IsUnique();
         b.Entity<Machine>().HasIndex(x => x.Code).IsUnique();
+
+        // Index cho tra cứu nhanh các bảng NPI dữ liệu lớn
+        b.Entity<WorkCenter>().HasIndex(x => x.Code);
+        b.Entity<RawMaterial>().HasIndex(x => x.PartNo);
+        b.Entity<RoutingOperation>().HasIndex(x => x.PartNo);
+        b.Entity<ManufacturingStructure>().HasIndex(x => x.ParentPart);
 
         // Tính toán read-only -> không map vào DB
         b.Entity<WorkOrder>().Ignore("LastQc");

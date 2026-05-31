@@ -1,12 +1,54 @@
 @page "/npi/workcenter"
+@using CCL.MES.Application.Services
+@inject NpiService Npi
+@inject IStringLocalizer<SharedResource> Loc
 
-<h1>NPI Data — WorkCenter</h1>
-
-<div class="npi-placeholder">
-    <p class="muted">Tab quản lý <b>WorkCenter</b> (trung tâm/khu vực sản xuất). Chức năng sẽ được xây dựng sau.</p>
-    <ul>
-        <li>Khai báo danh mục WorkCenter: mã, tên, khu vực, nhóm máy.</li>
-        <li>Gắn máy & công suất (capacity) vào từng WorkCenter.</li>
-        <li>Liên kết với Engineer Routine (định tuyến công đoạn) và OEE.</li>
-    </ul>
+<div class="grid-head">
+    <h1>@Loc["npi.workcenter.title"] <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…") </span></h1>
 </div>
+
+<div class="grid-toolbar">
+    <input class="grid-search" placeholder="@Loc["npi.workcenter.search_placeholder"]" @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
+</div>
+
+@if (_result is null)
+{
+    <p>@Loc["common.loading"]</p>
+}
+else
+{
+    <table class="wo data">
+        <thead>
+            <tr><th>#</th><th>WC Code</th><th>Work Center · Description</th><th>Area</th></tr>
+        </thead>
+        <tbody>
+            @{ var i = (_result.Page - 1) * _result.PageSize; }
+            @foreach (var w in _result.Items)
+            {
+                i++;
+                <tr>
+                    <td>@i</td>
+                    <td><b>@w.Code</b></td>
+                    <td>@w.Description</td>
+                    <td>@if (!string.IsNullOrEmpty(w.Area)) { <span class="badge step">@w.Area</span> }</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <Pager Result="@PagerInfo" OnPage="GoPage" />
+}
+
+@code {
+    private PagedResult<CCL.MES.Domain.Entities.WorkCenter>? _result;
+    private string? _search;
+    private int _page = 1;
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() => _result = await Npi.WorkCentersAsync(_search, _page, 50);
+    private async Task DoSearch() { _page = 1; await Load(); }
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
+    private async Task GoPage(int p) { _page = p; await Load(); }
+    private (int Page, int TotalPages, int Total) PagerInfo =>
+        _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
+}

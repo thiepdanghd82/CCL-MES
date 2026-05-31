@@ -4,6 +4,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>CCL.MES.Web</RootNamespace>
+    <!-- EN is the default UI culture (Phase 1 mandate). With NeutralLanguage=en,
+         the compiler embeds SharedResource.en.resx into the MAIN assembly as the
+         neutral fallback (no en/ satellite needed). VI gets its own satellite. -->
+    <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />

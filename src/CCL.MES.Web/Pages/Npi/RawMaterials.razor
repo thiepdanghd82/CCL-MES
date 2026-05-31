@@ -1,12 +1,59 @@
 @page "/npi/raw-materials"
+@using CCL.MES.Application.Services
+@inject NpiService Npi
+@inject IStringLocalizer<SharedResource> Loc
 
-<h1>NPI Data — Raw Materials</h1>
-
-<div class="npi-placeholder">
-    <p class="muted">Tab quản lý <b>Raw Materials</b> (nguyên vật liệu). Chức năng sẽ được xây dựng sau.</p>
-    <ul>
-        <li>Danh mục nguyên vật liệu: mã, mô tả, đơn vị, nhà cung cấp.</li>
-        <li>Thông số kỹ thuật vật liệu & chứng chỉ (RoHS, datasheet).</li>
-        <li>Liên kết với BOM (Engineer Structure) và kho.</li>
-    </ul>
+<div class="grid-head">
+    <h1>@Loc["npi.rawmaterials.title"] <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…")</span></h1>
 </div>
+
+<div class="grid-toolbar">
+    <input class="grid-search" placeholder="@Loc["npi.rawmaterials.search_placeholder"]" @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
+</div>
+
+@if (_result is null)
+{
+    <p>@Loc["common.loading"]</p>
+}
+else
+{
+    <div class="table-scroll">
+    <table class="wo data">
+        <thead>
+            <tr><th>Part No</th><th>Part Description</th><th>Supplier ID</th><th>Supplier Name</th>
+                <th class="num">Price</th><th>Cur</th><th>Price UOM</th><th>Catalog Group</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var r in _result.Items)
+            {
+                <tr>
+                    <td><b>@r.PartNo</b></td>
+                    <td>@r.PartDescription</td>
+                    <td>@r.SupplierId</td>
+                    <td>@r.SupplierName</td>
+                    <td class="num">@r.Price.ToString("N2")</td>
+                    <td>@r.Currency</td>
+                    <td>@r.PriceUom</td>
+                    <td>@r.CatalogGroup</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    </div>
+    <Pager Result="@PagerInfo" OnPage="GoPage" />
+}
+
+@code {
+    private PagedResult<CCL.MES.Domain.Entities.RawMaterial>? _result;
+    private string? _search;
+    private int _page = 1;
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() => _result = await Npi.RawMaterialsAsync(_search, _page, 50);
+    private async Task DoSearch() { _page = 1; await Load(); }
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
+    private async Task GoPage(int p) { _page = p; await Load(); }
+    private (int Page, int TotalPages, int Total) PagerInfo =>
+        _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
+}

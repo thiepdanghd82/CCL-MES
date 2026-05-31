@@ -1,12 +1,13 @@
 @page "/qcqa/ipqc"
+@inject IStringLocalizer<SharedResource> Loc
 
-<h1>QC/QA Data — IPQC</h1>
+<h1>@Loc["qcqa.ipqc.title"]</h1>
 
 <div class="npi-placeholder">
-    <p class="muted">Tab quản lý <b>IPQC (In-Process Quality Control)</b> — kiểm tra trong quá trình sản xuất. Chức năng sẽ được xây dựng sau.</p>
+    <p class="muted">@Loc["qcqa.ipqc.placeholder_lead"]</p>
     <ul>
-        <li>Kiểm mẫu đầu chuyền & trong khi chạy theo spec.</li>
-        <li>Liên kết với Work Order (bước IPQC trong process flow).</li>
-        <li>Ghi nhận lỗi, phê duyệt, chặn WO khi fail.</li>
+        <li>@Loc["qcqa.ipqc.placeholder_li1"]</li>
+        <li>@Loc["qcqa.ipqc.placeholder_li2"]</li>
+        <li>@Loc["qcqa.ipqc.placeholder_li3"]</li>
     </ul>
 </div>

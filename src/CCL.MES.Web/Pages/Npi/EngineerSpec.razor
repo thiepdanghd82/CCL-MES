@@ -1,12 +1,13 @@
 @page "/npi/engineer-spec"
+@inject IStringLocalizer<SharedResource> Loc
 
-<h1>NPI Data — Engineer Spec</h1>
+<h1>@Loc["npi.spec.title"]</h1>
 
 <div class="npi-placeholder">
-    <p class="muted">Tab quản lý <b>Engineer Spec</b> (thông số kỹ thuật NPI). Chức năng sẽ được xây dựng sau.</p>
+    <p class="muted">@Loc["npi.spec.placeholder_lead"]</p>
     <ul>
-        <li>Thông số kỹ thuật chi tiết cho sản phẩm mới (kích thước, dung sai, vật liệu).</li>
-        <li>Liên kết với module Spec Control hiện có.</li>
-        <li>Phiên bản hóa & phê duyệt spec.</li>
+        <li>@Loc["npi.spec.placeholder_li1"]</li>
+        <li>@Loc["npi.spec.placeholder_li2"]</li>
+        <li>@Loc["npi.spec.placeholder_li3"]</li>
     </ul>
 </div>

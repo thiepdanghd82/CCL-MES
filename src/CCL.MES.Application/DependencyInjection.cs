@@ -12,6 +12,7 @@ public static class DependencyInjection
         services.AddScoped<QcService>();
         services.AddScoped<OeeService>();
         services.AddScoped<WiService>();
+        services.AddScoped<NpiService>();
         return services;
     }
 }
