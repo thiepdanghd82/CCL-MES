@@ -141,21 +141,12 @@ builder.Services.AddAuthorization(o =>
         .RequireAuthenticatedUser()
         .Build();
 
-    // Phase 5 — RBAC. "AdminOnly" gates the 4 admin sub-tabs under
-    // /settings (account, data, syslog, import-legacy) which were
-    // marked TODO RBAC in Phase 3. Role claim emitted at login from
-    // User.Role; the whitelist of valid values lives in UserRole.All.
-    o.AddPolicy("AdminOnly", p => p.RequireRole(UserRole.Admin));
-
-    // Phase 6 Bước 4 — 3 additional page-level policies aligned to the
-    // matrix in docs/PHASE6-STEP4-PLAN.md §2.C. Per-button gating uses
-    // <AuthorizeView Roles="..."> inline rather than policies.
-    o.AddPolicy("NpiRead", p =>
-        p.RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc));
-    o.AddPolicy("NpiSpecRead", p =>
-        p.RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
-    o.AddPolicy("QcRead", p =>
-        p.RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Qc));
+    // Phase 5 — RBAC. "AdminOnly" gates the 3 admin sub-tabs under
+    // /settings (account, data, syslog) which were
+    // marked TODO RBAC in Phase 3. The role claim is emitted at login
+    // from User.Role ("Admin" | "User") so this policy works on the
+    // existing cookie principal without any auth pipeline changes.
+    o.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
 });
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
