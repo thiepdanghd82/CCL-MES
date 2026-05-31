@@ -1,12 +1,13 @@
 @page "/qcqa/iqc"
+@inject IStringLocalizer<SharedResource> Loc
 
-<h1>QC/QA Data — IQC</h1>
+<h1>@Loc["qcqa.iqc.title"]</h1>
 
 <div class="npi-placeholder">
-    <p class="muted">Tab quản lý <b>IQC (Incoming Quality Control)</b> — kiểm tra chất lượng đầu vào. Chức năng sẽ được xây dựng sau.</p>
+    <p class="muted">@Loc["qcqa.iqc.placeholder_lead"]</p>
     <ul>
-        <li>Kiểm tra nguyên vật liệu nhập kho theo checklist & AQL.</li>
-        <li>Gắn kết quả với lô vật liệu, nhà cung cấp (Raw Materials).</li>
-        <li>Phê duyệt nhập/loại & lưu hồ sơ cho audit.</li>
+        <li>@Loc["qcqa.iqc.placeholder_li1"]</li>
+        <li>@Loc["qcqa.iqc.placeholder_li2"]</li>
+        <li>@Loc["qcqa.iqc.placeholder_li3"]</li>
     </ul>
 </div>

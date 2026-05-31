@@ -1,12 +1,14 @@
+using System.Globalization;
 using System.Text.Json.Serialization;
 using CCL.MES.Application;
 using CCL.MES.Infrastructure;
 using CCL.MES.Web.Hubs;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Tang du lieu + ung dung
+// Data + application layers
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
 
@@ -18,6 +20,27 @@ builder.Services.AddControllers().AddJsonOptions(o =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Localization — Phase 1 minimum infra.
+// Default UI culture is EN. VI is the second supported culture; the flag
+// picker that flips the cookie lands in Phase 2 (login screen). Resource
+// files live in Resources/SharedResource.resx (neutral = EN, NeutralLanguage
+// in csproj) + Resources/SharedResource.vi.resx (Vietnamese satellite),
+// reached via IStringLocalizer<CCL.MES.Web.Resources.SharedResource>.
+// We deliberately do NOT set ResourcesPath: the marker type already lives
+// under the .Resources sub-namespace, so the default lookup baseName
+// (T.FullName = "CCL.MES.Web.Resources.SharedResource") matches the
+// embedded resource name exactly.
+builder.Services.AddLocalization();
+builder.Services.Configure<RequestLocalizationOptions>(o =>
+{
+    var supported = new[] { new CultureInfo("en"), new CultureInfo("vi") };
+    o.DefaultRequestCulture = new RequestCulture("en", "en");
+    o.SupportedCultures = supported;
+    o.SupportedUICultures = supported;
+    // Order: cookie (.AspNetCore.Culture) → Accept-Language → default EN.
+    // Cookie is intentionally first because Phase 2's flag picker writes it.
+});
 
 // Blazor Server + SignalR (realtime)
 builder.Services.AddRazorPages();
@@ -43,6 +66,11 @@ using (var scope = app.Services.CreateScope())
 
 app.UseSwagger();
 app.UseSwaggerUI();
+
+// Apply request culture before any UI middleware so Razor renders + API
+// JSON formatters see the right CultureInfo.
+var locOpts = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<RequestLocalizationOptions>>().Value;
+app.UseRequestLocalization(locOpts);
 
 app.UseStaticFiles();
 app.UseRouting();

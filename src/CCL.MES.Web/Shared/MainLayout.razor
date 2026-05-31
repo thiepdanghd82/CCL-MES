@@ -1,35 +1,36 @@
 @inherits LayoutComponentBase
+@inject IStringLocalizer<SharedResource> Loc
 
 <div class="page">
     <header class="topbar">
-        <div class="brand">CCL Design <span>MES</span></div>
+        <div class="brand">@Loc["app.brand"] <span>@Loc["app.brand_short"]</span></div>
         <nav>
-            <a href="/">Trang chu</a>
-            <a href="/dashboard">Dashboard</a>
-            <a href="/workorders">Work Orders</a>
-            <a href="/workinstructions">Work Instructions</a>
+            <a href="/">@Loc["nav.home"]</a>
+            <a href="/dashboard">@Loc["nav.dashboard"]</a>
+            <a href="/workorders">@Loc["nav.workorders"]</a>
+            <a href="/workinstructions">@Loc["nav.workinstructions"]</a>
 
             <div class="dropdown">
-                <span class="dropbtn">NPI Data &#9662;</span>
+                <span class="dropbtn">@Loc["nav.npidata"] &#9662;</span>
                 <div class="dropdown-menu">
-                    <a href="/npi/engineer-routine">Engineer Routine</a>
-                    <a href="/npi/engineer-structure">Engineer Structure</a>
-                    <a href="/npi/engineer-spec">Engineer Spec</a>
-                    <a href="/npi/raw-materials">Raw Materials</a>
-                    <a href="/npi/workcenter">WorkCenter</a>
+                    <a href="/npi/engineer-routine">@Loc["nav.npi.routine"]</a>
+                    <a href="/npi/engineer-structure">@Loc["nav.npi.structure"]</a>
+                    <a href="/npi/engineer-spec">@Loc["nav.npi.spec"]</a>
+                    <a href="/npi/raw-materials">@Loc["nav.npi.rawmaterials"]</a>
+                    <a href="/npi/workcenter">@Loc["nav.npi.workcenter"]</a>
                 </div>
             </div>
 
             <div class="dropdown">
-                <span class="dropbtn">QC/QA Data &#9662;</span>
+                <span class="dropbtn">@Loc["nav.qcqadata"] &#9662;</span>
                 <div class="dropdown-menu">
-                    <a href="/qcqa/iqc">IQC</a>
-                    <a href="/qcqa/ipqc">IPQC</a>
-                    <a href="/qcqa/oqc">OQC</a>
+                    <a href="/qcqa/iqc">@Loc["nav.qcqa.iqc"]</a>
+                    <a href="/qcqa/ipqc">@Loc["nav.qcqa.ipqc"]</a>
+                    <a href="/qcqa/oqc">@Loc["nav.qcqa.oqc"]</a>
                 </div>
             </div>
 
-            <a href="/swagger" target="_blank">API (Swagger)</a>
+            <a href="/swagger" target="_blank">@Loc["nav.api_swagger"]</a>
         </nav>
     </header>
     <main>
