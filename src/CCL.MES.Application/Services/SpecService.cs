@@ -1,4 +1,7 @@
+using System.Text.Json;
+using CCL.MES.Application.Audit;
 using CCL.MES.Domain;
+using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,7 +10,12 @@ namespace CCL.MES.Application.Services;
 public class SpecService
 {
     private readonly IMesDbContext _db;
-    public SpecService(IMesDbContext db) => _db = db;
+    private readonly IAuditWriter _audit;
+    public SpecService(IMesDbContext db, IAuditWriter audit)
+    {
+        _db = db;
+        _audit = audit;
+    }
 
     public Task<List<Spec>> GetAllAsync() =>
         _db.Specs
@@ -35,24 +43,13 @@ public class SpecService
                 || EF.Functions.Like(x.Title, $"%{s}%")
                 || (x.Product != null && EF.Functions.Like(x.Product.Name, $"%{s}%")));
         }
-        return PageAsync(q.OrderByDescending(x => x.Id), page, pageSize);
+        return PagingHelper.PageAsync(q.OrderByDescending(x => x.Id), page, pageSize);
     }
 
-    // Phase 6 Bước 1 — local copy of NpiService.PageAsync (7 LOC). Kept
-    // local rather than promoting to a shared helper to avoid touching the
-    // 4 NpiService callsites; if a 3rd service ever needs paging the
-    // natural extraction point arrives then. Behavior must stay identical
-    // to NpiService.PageAsync — if one changes, both should.
-    private static async Task<PagedResult<T>> PageAsync<T>(IQueryable<T> q, int page, int pageSize)
-    {
-        page = page < 1 ? 1 : page;
-        pageSize = pageSize is < 1 or > 500 ? 50 : pageSize;
-        var total = await q.CountAsync();
-        var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-        return new PagedResult<T>(items, total, page, pageSize);
-    }
-
-    public async Task<SpecVersion> CreateAsync(CreateSpecRequest r)
+    // Phase 6 Bước 5 — actor param added (was a gap noted in PHASE6-STEP5-PLAN.md §1.1).
+    // Phase 6 close-out — local PageAsync removed (consolidated into shared
+    // PagingHelper.PageAsync in Bước 2B; carry-over note in Bước 1 closed).
+    public async Task<SpecVersion> CreateAsync(CreateSpecRequest r, string? user)
     {
         var spec = new Spec
         {
@@ -76,6 +73,16 @@ public class SpecService
         spec.Versions.Add(ver);
         _db.Specs.Add(spec);
         await _db.SaveChangesAsync();
+        await _audit.EmitAsync(
+            AuditAction.SpecCreate, user ?? "anonymous", actorRole: "",
+            targetType: "Spec", targetId: spec.Id.ToString(),
+            detail: JsonSerializer.Serialize(new {
+                spec_code = r.SpecCode,
+                title = r.Title,
+                product_id = r.ProductId,
+                version_no = ver.VersionNo,
+                param_count = r.Parameters.Count,
+            }));
         return ver;
     }
 
@@ -88,6 +95,13 @@ public class SpecService
         v.ApprovedAt = DateTime.UtcNow;
         v.EffectiveDate ??= DateTime.UtcNow;
         await _db.SaveChangesAsync();
+        await _audit.EmitAsync(
+            AuditAction.SpecApprove, user ?? "anonymous", actorRole: "",
+            targetType: "SpecVersion", targetId: v.Id.ToString(),
+            detail: JsonSerializer.Serialize(new {
+                spec_id = v.SpecId,
+                version_no = v.VersionNo,
+            }));
         return v;
     }
 }

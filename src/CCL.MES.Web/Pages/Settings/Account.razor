@@ -201,7 +201,7 @@ else
         switch (_mode)
         {
             case FormMode.Create:
-                result = await UserSvc.CreateAsync(_form.Username, _form.DisplayName, _form.Role, _form.Password);
+                result = await UserSvc.CreateAsync(_form.Username, _form.DisplayName, _form.Role, _form.Password, auth.User);
                 break;
             case FormMode.Edit:
                 var nameResult = await UserSvc.UpdateDisplayNameAsync(_editId, _form.DisplayName, auth.User);

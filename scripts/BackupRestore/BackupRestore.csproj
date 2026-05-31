@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CCL.MES.Scripts.BackupRestore</RootNamespace>
+    <AssemblyName>BackupRestore</AssemblyName>
+    <!--
+      Phase 6 Bước 5 — console-only DB restore. Standalone project so the
+      destructive operation cannot be triggered from any web surface;
+      trust boundary = OS user with write access to the SQLite file.
+      Auto-backs up the current DB before overwriting + records an audit
+      row via direct DbContext write (since the Web layer is not running
+      when this script executes).
+    -->
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CCL.MES.Domain\CCL.MES.Domain.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Application\CCL.MES.Application.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Infrastructure\CCL.MES.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

@@ -95,7 +95,12 @@ builder.Services.AddScoped<HubCookieAccessor>();
 builder.Services.AddScoped<UserProfileService>();
 // Phase 6 Bước 2B — Settings System + 1 admin (About / Account / Backup).
 builder.Services.AddScoped<UserAdminService>();
-builder.Services.AddSingleton<BackupService>();
+// Phase 6 Bước 5 — moved from Singleton → Scoped because it now depends
+// on IAuditWriter (Scoped) to stamp BACKUP_CREATE rows.
+builder.Services.AddScoped<BackupService>();
+// Phase 6 Bước 5 — audit log writer (Application interface) + Syslog list.
+builder.Services.AddScoped<CCL.MES.Application.Audit.IAuditWriter, AuditService>();
+builder.Services.AddScoped<AuditLogService>();
 
 var app = builder.Build();
 
