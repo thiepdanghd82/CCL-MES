@@ -3,28 +3,29 @@
 @inject OeeService Oee
 @inject WorkOrderService Wo
 @inject NavigationManager Nav
+@inject IStringLocalizer<SharedResource> Loc
 @implements IAsyncDisposable
 
-<h1>Dashboard quan ly <span class="live">● live</span></h1>
+<h1>@Loc["dashboard.title"] <span class="live">● @Loc["common.live"]</span></h1>
 
 @if (_loading)
 {
-    <p>Dang tai...</p>
+    <p>@Loc["common.loading_dots"]</p>
 }
 else
 {
     <div class="kpi-row">
-        <div class="kpi"><div class="kpi-val">@_woCount</div><div class="kpi-lbl">Tong WO</div></div>
-        <div class="kpi"><div class="kpi-val">@_inProgress</div><div class="kpi-lbl">Dang san xuat</div></div>
-        <div class="kpi"><div class="kpi-val">@_onHold</div><div class="kpi-lbl">On-Hold (QC fail)</div></div>
-        <div class="kpi"><div class="kpi-val">@_closed</div><div class="kpi-lbl">Da dong</div></div>
+        <div class="kpi"><div class="kpi-val">@_woCount</div><div class="kpi-lbl">@Loc["dashboard.kpi.total_wo"]</div></div>
+        <div class="kpi"><div class="kpi-val">@_inProgress</div><div class="kpi-lbl">@Loc["dashboard.kpi.in_production"]</div></div>
+        <div class="kpi"><div class="kpi-val">@_onHold</div><div class="kpi-lbl">@Loc["dashboard.kpi.on_hold"]</div></div>
+        <div class="kpi"><div class="kpi-val">@_closed</div><div class="kpi-lbl">@Loc["dashboard.kpi.closed"]</div></div>
     </div>
 
-    <h2>Hieu suat may (OEE - hom nay)</h2>
+    <h2>@Loc["dashboard.oee_section"]</h2>
     <table class="wo">
         <thead>
-            <tr><th>May</th><th>Trang thai</th><th>Run (phut)</th><th>Down (phut)</th>
-                <th>Good</th><th>Reject</th><th>Availability</th><th>Performance</th><th>Quality</th><th>OEE</th></tr>
+            <tr><th>@Loc["dashboard.col.machine"]</th><th>@Loc["dashboard.col.status"]</th><th>@Loc["dashboard.col.run_minutes"]</th><th>@Loc["dashboard.col.down_minutes"]</th>
+                <th>@Loc["dashboard.col.good"]</th><th>@Loc["dashboard.col.reject"]</th><th>@Loc["dashboard.col.availability"]</th><th>@Loc["dashboard.col.performance"]</th><th>@Loc["dashboard.col.quality"]</th><th>@Loc["dashboard.col.oee"]</th></tr>
         </thead>
         <tbody>
             @foreach (var o in _oee)
@@ -44,9 +45,9 @@ else
             }
         </tbody>
     </table>
-    <p class="muted">OEE = Availability x Performance x Quality. So lieu sinh tu cac lan Start/Pause/Resume/Finish o man hinh Work Orders (buoc Running).</p>
+    <p class="muted">@Loc["dashboard.oee_footer"]</p>
 
-    <h2>WO theo buoc</h2>
+    <h2>@Loc["dashboard.wo_by_step"]</h2>
     <div class="flow-count">
         @foreach (var kv in _byStep)
         {
@@ -65,7 +66,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
-        // SignalR: tu dong cap nhat khi co thay doi o shopfloor
+        // SignalR — auto-refresh whenever the shopfloor reports a change.
         _hub = new HubConnectionBuilder()
             .WithUrl(Nav.ToAbsoluteUri("/hubs/shopfloor"))
             .WithAutomaticReconnect()

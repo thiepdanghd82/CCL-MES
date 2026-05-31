@@ -53,7 +53,12 @@ public class WorkOrderService
             .Include(w => w.Inspections)
             .FirstOrDefaultAsync(w => w.Id == id);
 
-        if (wo is null) return new AdvanceResult(false, "Khong tim thay WO.", "-");
+        // Error strings returned from this service bubble through the
+        // Razor page as the dynamic portion of a localized message
+        // ("Cannot advance: <Error>"). The text below is intentionally
+        // English-only — Phase 4+ should swap to an error-code → resource-key
+        // map so the dynamic portion also localises.
+        if (wo is null) return new AdvanceResult(false, "Work Order not found.", "-");
 
         var check = WorkOrderStateMachine.CanAdvance(wo);
         if (!check.Allowed)

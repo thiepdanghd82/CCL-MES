@@ -1,15 +1,16 @@
 @page "/workinstructions"
 @inject WiService Wi
+@inject IStringLocalizer<SharedResource> Loc
 
-<h1>Work Instructions</h1>
+<h1>@Loc["workinstructions.title"]</h1>
 
 @if (_items is null)
 {
-    <p>Dang tai...</p>
+    <p>@Loc["common.loading_dots"]</p>
 }
 else if (_items.Count == 0)
 {
-    <p class="muted">Chua co Work Instruction.</p>
+    <p class="muted">@Loc["workinstructions.no_items"]</p>
 }
 else
 {
@@ -21,8 +22,8 @@ else
                 <span class="badge @(w.Status == WiStatus.Approved ? "ok" : "step")">@w.Status</span>
             </div>
             <div class="wi-meta">
-                San pham: <b>@w.Product?.ProductCode</b> &middot; Buoc: <b>@w.ProcessStep</b>
-                &middot; May: <b>@w.MachineCode</b> &middot; Phien ban: v@w.VersionNo
+                @Loc["workinstructions.meta.product"]: <b>@w.Product?.ProductCode</b> &middot; @Loc["workinstructions.meta.step"]: <b>@w.ProcessStep</b>
+                &middot; @Loc["workinstructions.meta.machine"]: <b>@w.MachineCode</b> &middot; @Loc["workinstructions.meta.version"]: v@w.VersionNo
             </div>
             <ol class="wi-steps">
                 @foreach (var s in w.Steps.OrderBy(x => x.Sequence))

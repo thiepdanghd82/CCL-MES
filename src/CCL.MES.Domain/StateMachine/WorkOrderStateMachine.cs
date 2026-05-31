@@ -5,8 +5,12 @@ namespace CCL.MES.Domain.StateMachine;
 public record TransitionResult(bool Allowed, string? Reason = null);
 
 /// <summary>
-/// Máy trạng thái điều khiển luồng 7 bước của Work Order.
-/// Mỗi bước chỉ được chuyển khi thỏa điều kiện (guard).
+/// State machine governing the 7-step Work Order flow. Each transition
+/// fires only when its guard is satisfied. Reason strings are kept in
+/// English because they bubble through the Razor page as the dynamic
+/// portion of a localized message ("Cannot advance: <Reason>"). Phase 4+
+/// should swap to an error-code → resource-key map so the dynamic portion
+/// also localises.
 /// </summary>
 public static class WorkOrderStateMachine
 {
@@ -32,24 +36,24 @@ public static class WorkOrderStateMachine
     public static TransitionResult CanAdvance(WorkOrder wo)
     {
         var next = Next(wo.CurrentStep);
-        if (next is null) return new TransitionResult(false, "Work Order da o buoc cuoi.");
+        if (next is null) return new TransitionResult(false, "Work Order is already at the final step.");
 
         return (wo.CurrentStep, next.Value) switch
         {
             (ProcessStepCode.PrePressCheck, ProcessStepCode.OpSetting) =>
                 wo.SpecVersionId is not null && wo.MaterialsReady
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "Can Spec da duyet (SpecVersionId) va vat tu san sang (MaterialsReady)."),
+                    : new TransitionResult(false, "Requires an approved Spec (SpecVersionId) and ready materials (MaterialsReady)."),
 
             (ProcessStepCode.OpSetting, ProcessStepCode.IpqcApproval) =>
                 wo.SetupConfirmed
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "Can xac nhan can chinh may (SetupConfirmed)."),
+                    : new TransitionResult(false, "Requires machine setup confirmation (SetupConfirmed)."),
 
             (ProcessStepCode.IpqcApproval, ProcessStepCode.ReadyToRun) =>
                 wo.LastQc(QcType.IPQC)?.Result == QcResult.Pass
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "IPQC chua Pass."),
+                    : new TransitionResult(false, "IPQC has not yet Passed."),
 
             (ProcessStepCode.ReadyToRun, ProcessStepCode.Running) =>
                 new TransitionResult(true),
@@ -57,19 +61,19 @@ public static class WorkOrderStateMachine
             (ProcessStepCode.Running, ProcessStepCode.Fqc) =>
                 wo.ProducedQty > 0
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "Chua ghi nhan san luong (ProducedQty = 0)."),
+                    : new TransitionResult(false, "No production recorded yet (ProducedQty = 0)."),
 
             (ProcessStepCode.Fqc, ProcessStepCode.Oqc) =>
                 wo.LastQc(QcType.FQC)?.Result == QcResult.Pass
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "FQC chua Pass."),
+                    : new TransitionResult(false, "FQC has not yet Passed."),
 
             (ProcessStepCode.Oqc, ProcessStepCode.Closed) =>
                 wo.LastQc(QcType.OQC)?.Result == QcResult.Pass && wo.RohsOk
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "OQC chua Pass hoac RoHS chua dat."),
+                    : new TransitionResult(false, "OQC has not yet Passed or RoHS not met."),
 
-            _ => new TransitionResult(false, "Buoc chuyen khong hop le.")
+            _ => new TransitionResult(false, "Invalid step transition.")
         };
     }
 }

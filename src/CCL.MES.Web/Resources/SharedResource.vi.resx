@@ -8,8 +8,58 @@
   <data name="common.search_placeholder_default" xml:space="preserve"><value>Tìm…</value></data>
   <data name="common.search_button" xml:space="preserve"><value>Tìm</value></data>
   <data name="common.loading" xml:space="preserve"><value>Đang tải…</value></data>
+  <data name="common.loading_dots" xml:space="preserve"><value>Đang tải…</value></data>
+  <data name="common.live" xml:space="preserve"><value>trực tiếp</value></data>
   <data name="common.pager_total" xml:space="preserve"><value>Tổng</value></data>
   <data name="common.pager_rows" xml:space="preserve"><value>dòng</value></data>
+
+  <data name="dashboard.title" xml:space="preserve"><value>Dashboard</value></data>
+  <data name="dashboard.kpi.total_wo" xml:space="preserve"><value>Tổng WO</value></data>
+  <data name="dashboard.kpi.in_production" xml:space="preserve"><value>Đang sản xuất</value></data>
+  <data name="dashboard.kpi.on_hold" xml:space="preserve"><value>On-Hold (QC fail)</value></data>
+  <data name="dashboard.kpi.closed" xml:space="preserve"><value>Đã đóng</value></data>
+  <data name="dashboard.oee_section" xml:space="preserve"><value>Hiệu suất máy (OEE — hôm nay)</value></data>
+  <data name="dashboard.col.machine" xml:space="preserve"><value>Máy</value></data>
+  <data name="dashboard.col.status" xml:space="preserve"><value>Trạng thái</value></data>
+  <data name="dashboard.col.run_minutes" xml:space="preserve"><value>Run (phút)</value></data>
+  <data name="dashboard.col.down_minutes" xml:space="preserve"><value>Down (phút)</value></data>
+  <data name="dashboard.col.good" xml:space="preserve"><value>Good</value></data>
+  <data name="dashboard.col.reject" xml:space="preserve"><value>Reject</value></data>
+  <data name="dashboard.col.availability" xml:space="preserve"><value>Availability</value></data>
+  <data name="dashboard.col.performance" xml:space="preserve"><value>Performance</value></data>
+  <data name="dashboard.col.quality" xml:space="preserve"><value>Quality</value></data>
+  <data name="dashboard.col.oee" xml:space="preserve"><value>OEE</value></data>
+  <data name="dashboard.oee_footer" xml:space="preserve"><value>OEE = Availability × Performance × Quality. Số liệu sinh từ các lần Start/Pause/Resume/Finish ở màn Work Orders (bước Running).</value></data>
+  <data name="dashboard.wo_by_step" xml:space="preserve"><value>WO theo bước</value></data>
+
+  <data name="workorders.title" xml:space="preserve"><value>Work Orders</value></data>
+  <data name="workorders.col.wo_no" xml:space="preserve"><value>WO No</value></data>
+  <data name="workorders.col.customer" xml:space="preserve"><value>Khách hàng</value></data>
+  <data name="workorders.col.product" xml:space="preserve"><value>Sản phẩm</value></data>
+  <data name="workorders.col.machine" xml:space="preserve"><value>Máy</value></data>
+  <data name="workorders.col.target" xml:space="preserve"><value>Mục tiêu</value></data>
+  <data name="workorders.col.produced" xml:space="preserve"><value>Đã SX</value></data>
+  <data name="workorders.col.current_step" xml:space="preserve"><value>Bước hiện tại</value></data>
+  <data name="workorders.col.progress" xml:space="preserve"><value>Tiến trình</value></data>
+  <data name="workorders.col.actions" xml:space="preserve"><value>Hành động</value></data>
+  <data name="workorders.btn.advance" xml:space="preserve"><value>Advance »</value></data>
+  <data name="workorders.btn.unlock_step" xml:space="preserve"><value>Mở khóa bước</value></data>
+  <data name="workorders.demo_note" xml:space="preserve"><value>Luồng demo: "Mở khóa bước" đi qua 1..4. Tại bước 5 (Running) dùng Start/Pause/Resume/Finish để ghi nhận thời gian + sản lượng (làm dữ liệu OEE — xem Dashboard). Tại cửa kiểm IPQC/FQC/OQC bấm "QC … Pass".</value></data>
+  <data name="workorders.msg.advance_ok" xml:space="preserve"><value>Đã chuyển sang bước: {0}</value></data>
+  <data name="workorders.msg.advance_fail" xml:space="preserve"><value>Không thể chuyển: {0}</value></data>
+  <data name="workorders.msg.unlocked" xml:space="preserve"><value>Đã mở khóa điều kiện cho {0}.</value></data>
+  <data name="workorders.msg.qc_passed" xml:space="preserve"><value>Đã tạo + duyệt QC {0} (Pass).</value></data>
+  <data name="workorders.msg.start" xml:space="preserve"><value>Start: máy bắt đầu chạy.</value></data>
+  <data name="workorders.msg.pause" xml:space="preserve"><value>Pause: ghi nhận dừng máy.</value></data>
+  <data name="workorders.msg.resume" xml:space="preserve"><value>Resume: chạy lại.</value></data>
+  <data name="workorders.msg.finish" xml:space="preserve"><value>Finish: +{0} good. ProducedQty cập nhật — có thể Advance qua FQC.</value></data>
+
+  <data name="workinstructions.title" xml:space="preserve"><value>Work Instructions</value></data>
+  <data name="workinstructions.no_items" xml:space="preserve"><value>Chưa có Work Instruction.</value></data>
+  <data name="workinstructions.meta.product" xml:space="preserve"><value>Sản phẩm</value></data>
+  <data name="workinstructions.meta.step" xml:space="preserve"><value>Bước</value></data>
+  <data name="workinstructions.meta.machine" xml:space="preserve"><value>Máy</value></data>
+  <data name="workinstructions.meta.version" xml:space="preserve"><value>Phiên bản</value></data>
 
   <data name="app.brand" xml:space="preserve"><value>CCL Design</value></data>
   <data name="app.brand_short" xml:space="preserve"><value>MES</value></data>

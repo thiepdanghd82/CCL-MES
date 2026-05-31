@@ -6,13 +6,14 @@
 @inject OeeService Oee
 @inject ShopfloorNotifier Notifier
 @inject NavigationManager Nav
+@inject IStringLocalizer<SharedResource> Loc
 @implements IAsyncDisposable
 
-<h1>Work Orders</h1>
+<h1>@Loc["workorders.title"]</h1>
 
 @if (_items is null)
 {
-    <p>Dang tai...</p>
+    <p>@Loc["common.loading_dots"]</p>
 }
 else
 {
@@ -24,8 +25,8 @@ else
     <table class="wo">
         <thead>
             <tr>
-                <th>WO No</th><th>Khach hang</th><th>San pham</th><th>May</th>
-                <th>Target</th><th>Da SX</th><th>Buoc hien tai</th><th>Tien trinh</th><th>Hanh dong</th>
+                <th>@Loc["workorders.col.wo_no"]</th><th>@Loc["workorders.col.customer"]</th><th>@Loc["workorders.col.product"]</th><th>@Loc["workorders.col.machine"]</th>
+                <th>@Loc["workorders.col.target"]</th><th>@Loc["workorders.col.produced"]</th><th>@Loc["workorders.col.current_step"]</th><th>@Loc["workorders.col.progress"]</th><th>@Loc["workorders.col.actions"]</th>
             </tr>
         </thead>
         <tbody>
@@ -50,8 +51,8 @@ else
                         </div>
                     </td>
                     <td class="actions">
-                        <button class="btn" @onclick="() => Advance(w.Id)">Advance &raquo;</button>
-                        <button class="btn ghost" @onclick="() => Helpers(w)">Mo khoa buoc</button>
+                        <button class="btn" @onclick="() => Advance(w.Id)">@Loc["workorders.btn.advance"]</button>
+                        <button class="btn ghost" @onclick="() => Helpers(w)">@Loc["workorders.btn.unlock_step"]</button>
                         @if (NeedsQc(w.CurrentStep) is { } t)
                         {
                             <button class="btn pass" @onclick="() => QuickPass(w.Id, t)">QC @t Pass</button>
@@ -70,10 +71,7 @@ else
         </tbody>
     </table>
 
-    <p class="muted">
-        Luong demo: "Mo khoa buoc" -> qua 1..4. Tai buoc 5 (Running) dung Start/Pause/Resume/Finish de ghi nhan
-        thoi gian & san luong (lam du lieu OEE - xem Dashboard). Tai cua kiem IPQC/FQC/OQC bam "QC ... Pass".
-    </p>
+    <p class="muted">@Loc["workorders.demo_note"]</p>
 }
 
 @code {
@@ -92,7 +90,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         await Reload();
-        // Ket noi SignalR: khi co thay doi tu client khac -> tu reload
+        // SignalR — when another client posts a change, reload.
         _hub = new HubConnectionBuilder()
             .WithUrl(Nav.ToAbsoluteUri("/hubs/shopfloor"))
             .WithAutomaticReconnect()
@@ -116,7 +114,9 @@ else
     {
         var res = await Wo.AdvanceAsync(id, "shopfloor");
         _ok = res.Ok;
-        _message = res.Ok ? $"Da chuyen sang buoc: {res.CurrentStep}" : $"Khong the chuyen: {res.Error}";
+        _message = res.Ok
+            ? Loc["workorders.msg.advance_ok", res.CurrentStep ?? ""].Value
+            : Loc["workorders.msg.advance_fail", res.Error ?? ""].Value;
         await Reload();
         await Notifier.NotifyChangedAsync("advance");
     }
@@ -128,7 +128,8 @@ else
             MaterialsReady = true, SetupConfirmed = true, RohsOk = true,
             ProducedQty = w.ProducedQty > 0 ? w.ProducedQty : 0
         });
-        _ok = true; _message = $"Da mo khoa dieu kien cho {w.WoNo}.";
+        _ok = true;
+        _message = Loc["workorders.msg.unlocked", w.WoNo].Value;
         await Reload();
         await Notifier.NotifyChangedAsync("flags");
     }
@@ -141,19 +142,38 @@ else
             Details = new() { new QcDetailDto { ItemName = "Visual", Pass = true, Qty = 20 } }
         });
         await Qc.ApproveAsync(insp.Id, true, "qc.lead");
-        _ok = true; _message = $"Da tao + duyet QC {t} (Pass).";
+        _ok = true;
+        _message = Loc["workorders.msg.qc_passed", t.ToString()].Value;
         await Reload();
         await Notifier.NotifyChangedAsync("qc");
     }
 
-    private async Task Start(long id)  { await Oee.StartAsync(id, "op01");  _ok = true; _message = "Start: may bat dau chay."; await Reload(); await Notifier.NotifyChangedAsync("oee"); }
-    private async Task Pause(long id)  { await Oee.PauseAsync(id, new PauseRequest { OperatorId = "op01" }); _ok = true; _message = "Pause: ghi nhan dung may."; await Reload(); await Notifier.NotifyChangedAsync("oee"); }
-    private async Task Resume(long id) { await Oee.ResumeAsync(id, "op01"); _ok = true; _message = "Resume: chay lai."; await Reload(); await Notifier.NotifyChangedAsync("oee"); }
+    private async Task Start(long id)
+    {
+        await Oee.StartAsync(id, "op01");
+        _ok = true; _message = Loc["workorders.msg.start"].Value;
+        await Reload(); await Notifier.NotifyChangedAsync("oee");
+    }
+
+    private async Task Pause(long id)
+    {
+        await Oee.PauseAsync(id, new PauseRequest { OperatorId = "op01" });
+        _ok = true; _message = Loc["workorders.msg.pause"].Value;
+        await Reload(); await Notifier.NotifyChangedAsync("oee");
+    }
+
+    private async Task Resume(long id)
+    {
+        await Oee.ResumeAsync(id, "op01");
+        _ok = true; _message = Loc["workorders.msg.resume"].Value;
+        await Reload(); await Notifier.NotifyChangedAsync("oee");
+    }
 
     private async Task Finish(WorkOrder w)
     {
         await Oee.FinishAsync(w.Id, new FinishRunRequest { GoodQty = w.TargetQty, RejectQty = 0, OperatorId = "op01" });
-        _ok = true; _message = $"Finish: +{w.TargetQty} good. ProducedQty cap nhat -> co the Advance qua FQC.";
+        _ok = true;
+        _message = Loc["workorders.msg.finish", w.TargetQty].Value;
         await Reload();
         await Notifier.NotifyChangedAsync("oee");
     }
