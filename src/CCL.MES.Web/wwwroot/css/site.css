@@ -145,3 +145,8 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .appearance-lang .lang-flag-btn { color:#1f3864; border:1px solid #cbd5e1;
   border-radius:6px; padding:6px 12px; text-decoration:none; }
 .appearance-lang .lang-flag-btn.is-active { background:#e7efff; border-color:#1f3864; }
+
+/* --- Phase 6 Bước 3 — QC inspection status badges (IPQC / OQC grid) --- */
+.badge.qc-pending { background:#fef3c7; color:#92400e; }
+.badge.qc-pass    { background:#dcfce7; color:#166534; }
+.badge.qc-fail    { background:#fee2e2; color:#991b1b; }

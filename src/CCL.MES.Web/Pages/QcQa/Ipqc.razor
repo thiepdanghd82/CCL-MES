@@ -1,13 +1,10 @@
 @page "/qcqa/ipqc"
+@using CCL.MES.Domain
 @inject IStringLocalizer<SharedResource> Loc
 
-<h1>@Loc["qcqa.ipqc.title"]</h1>
+@*  Phase 6 Bước 3 — IPQC (In-Process Quality Control).
+    Reuses <QcInspectionGrid /> with Type=QcType.IPQC. Read-only this Bước;
+    Create / Approve already exposed by QcService + driven by the
+    Work Orders page (Phase 0). *@
 
-<div class="npi-placeholder">
-    <p class="muted">@Loc["qcqa.ipqc.placeholder_lead"]</p>
-    <ul>
-        <li>@Loc["qcqa.ipqc.placeholder_li1"]</li>
-        <li>@Loc["qcqa.ipqc.placeholder_li2"]</li>
-        <li>@Loc["qcqa.ipqc.placeholder_li3"]</li>
-    </ul>
-</div>
+<QcInspectionGrid Type="QcType.IPQC" Title="@Loc["qcqa.ipqc.title"].Value" />
