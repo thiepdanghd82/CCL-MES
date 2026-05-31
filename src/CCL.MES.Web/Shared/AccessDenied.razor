@@ -1,0 +1,12 @@
+@* Phase 5 — rendered by AuthorizeRouteView's <NotAuthorized> slot when the
+   signed-in user lacks the policy required by the routed page (e.g. a
+   non-admin opening /settings/account). Anonymous visitors take the
+   <RedirectToLogin /> branch in App.razor instead. *@
+@inject IStringLocalizer<SharedResource> Loc
+
+<div class="access-denied">
+    <h1>@Loc["access_denied.title"]</h1>
+    <p class="muted">@Loc["access_denied.lead"]</p>
+    <p class="hint">@Loc["access_denied.hint"]</p>
+    <a class="home-link" href="/">@Loc["access_denied.back_home"]</a>
+</div>

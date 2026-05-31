@@ -67,6 +67,13 @@ builder.Services.AddAuthorization(o =>
     o.FallbackPolicy = new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();
+
+    // Phase 5 — RBAC. "AdminOnly" gates the 4 admin sub-tabs under
+    // /settings (account, data, syslog, import-legacy) which were
+    // marked TODO RBAC in Phase 3. The role claim is emitted at login
+    // from User.Role ("Admin" | "User") so this policy works on the
+    // existing cookie principal without any auth pipeline changes.
+    o.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
 });
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
@@ -128,23 +135,42 @@ app.MapFallbackToPage("/_Host");
 app.Run();
 
 // ──────────────────────────────────────────────────────────────────────
-// Local function: idempotent admin/admin seed for Phase 2 login demo.
-// Skips when any user already exists, so a populated DB is never touched.
-// Kept here (Web project) because PasswordHasher<User> lives in
-// Microsoft.AspNetCore.Identity, which the Infrastructure class lib
-// intentionally does not depend on.
+// Local function: idempotent demo-user seed.
+//
+// Phase 2 seeded admin/admin (Role = "Admin") so the login page had
+// something to authenticate against. Phase 5 adds operator/operator
+// (Role = "User") so the new "AdminOnly" policy can be tested
+// end-to-end without manually editing the DB. Both accounts are
+// skip-if-exists so reseeding never overwrites a populated DB.
+// PasswordHasher<User> stays in the Web project because the
+// Infrastructure class lib does not depend on
+// Microsoft.AspNetCore.Identity.
 // ──────────────────────────────────────────────────────────────────────
 static async Task SeedAdminUserAsync(MesDbContext db, IPasswordHasher<User> hasher)
 {
-    if (await db.Users.AnyAsync()) return;
-
-    var admin = new User
+    if (!await db.Users.AnyAsync(u => u.Username == "admin"))
     {
-        Username = "admin",
-        Role = "Admin",
-        DisplayName = "Administrator",
-    };
-    admin.PasswordHash = hasher.HashPassword(admin, "admin");
-    db.Users.Add(admin);
+        var admin = new User
+        {
+            Username = "admin",
+            Role = "Admin",
+            DisplayName = "Administrator",
+        };
+        admin.PasswordHash = hasher.HashPassword(admin, "admin");
+        db.Users.Add(admin);
+    }
+
+    if (!await db.Users.AnyAsync(u => u.Username == "operator"))
+    {
+        var op = new User
+        {
+            Username = "operator",
+            Role = "User",
+            DisplayName = "Demo Operator",
+        };
+        op.PasswordHash = hasher.HashPassword(op, "operator");
+        db.Users.Add(op);
+    }
+
     await db.SaveChangesAsync();
 }

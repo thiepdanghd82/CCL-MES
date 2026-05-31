@@ -155,6 +155,11 @@
 
   <data name="lang.picker.aria_label" xml:space="preserve"><value>Language picker</value></data>
 
+  <data name="access_denied.title" xml:space="preserve"><value>Access denied</value></data>
+  <data name="access_denied.lead" xml:space="preserve"><value>You don't have permission to view this page. Administrator-only settings (Account Control, Backup / Restore, System Logs, Import data v1.0) are visible only to users with the Admin role.</value></data>
+  <data name="access_denied.hint" xml:space="preserve"><value>If you believe you should have access, ask an administrator to assign you the Admin role.</value></data>
+  <data name="access_denied.back_home" xml:space="preserve"><value>Back to Home</value></data>
+
   <data name="login.title" xml:space="preserve"><value>Sign in</value></data>
   <data name="login.subtitle" xml:space="preserve"><value>Sign in to the CCL Design Manufacturing Execution System.</value></data>
   <data name="login.username" xml:space="preserve"><value>Username</value></data>

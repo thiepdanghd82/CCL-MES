@@ -155,6 +155,11 @@
 
   <data name="lang.picker.aria_label" xml:space="preserve"><value>Chọn ngôn ngữ</value></data>
 
+  <data name="access_denied.title" xml:space="preserve"><value>Không có quyền truy cập</value></data>
+  <data name="access_denied.lead" xml:space="preserve"><value>Bạn không có quyền xem trang này. Các mục cài đặt dành riêng cho quản trị viên (Account Control, Backup / Restore, System Logs, Import data v1.0) chỉ hiển thị với người dùng có vai trò Admin.</value></data>
+  <data name="access_denied.hint" xml:space="preserve"><value>Nếu bạn cho rằng mình cần truy cập, hãy yêu cầu quản trị viên gán vai trò Admin.</value></data>
+  <data name="access_denied.back_home" xml:space="preserve"><value>Về trang chủ</value></data>
+
   <data name="login.title" xml:space="preserve"><value>Đăng nhập</value></data>
   <data name="login.subtitle" xml:space="preserve"><value>Đăng nhập vào hệ thống điều hành sản xuất CCL Design.</value></data>
   <data name="login.username" xml:space="preserve"><value>Tên đăng nhập</value></data>

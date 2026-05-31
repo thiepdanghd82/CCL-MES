@@ -9,7 +9,20 @@
         <Found Context="routeData">
             <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
                 <NotAuthorized>
-                    <RedirectToLogin />
+                    @*  Phase 5 — split the unauthorized branch in two:
+                        anonymous visitors still bounce to /login (the
+                        FallbackPolicy case), but authenticated users
+                        who lack the required role see a localized
+                        access-denied panel instead of being kicked
+                        back to the login form. *@
+                    @if (context.User.Identity?.IsAuthenticated == true)
+                    {
+                        <AccessDenied />
+                    }
+                    else
+                    {
+                        <RedirectToLogin />
+                    }
                 </NotAuthorized>
             </AuthorizeRouteView>
         </Found>

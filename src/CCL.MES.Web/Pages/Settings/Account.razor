@@ -1,8 +1,11 @@
 @page "/settings/account"
+@attribute [Authorize(Policy = "AdminOnly")]
 @inject IStringLocalizer<SharedResource> Loc
 
-@*  Role-restricted in Ops Control v1.2 source (admin / sys only).
-    RBAC enforcement deferred to Phase 4+. *@
+@*  Phase 5 — RBAC enforced. Non-admin users hitting this URL get the
+    <AccessDenied /> panel from App.razor's NotAuthorized branch;
+    the topbar Settings dropdown also hides this item via
+    <AuthorizeView Roles="Admin"> in MainLayout.razor. *@
 
 <h1>@Loc["settings.account.title"]</h1>
 
