@@ -15,14 +15,14 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "Customers",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    Code = table.Column<string>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    Code = table.Column<string>(nullable: false),
+                    Name = table.Column<string>(nullable: false),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -33,15 +33,15 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "DowntimeReasons",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    Code = table.Column<string>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
-                    Category = table.Column<string>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    Code = table.Column<string>(nullable: false),
+                    Name = table.Column<string>(nullable: false),
+                    Category = table.Column<string>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -52,17 +52,17 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "Machines",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    Code = table.Column<string>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
-                    Type = table.Column<string>(type: "TEXT", nullable: true),
-                    CurrentState = table.Column<string>(type: "TEXT", nullable: false),
-                    IdealCycleTimeSec = table.Column<double>(type: "REAL", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    Code = table.Column<string>(nullable: false),
+                    Name = table.Column<string>(nullable: false),
+                    Type = table.Column<string>(nullable: true),
+                    CurrentState = table.Column<string>(nullable: false),
+                    IdealCycleTimeSec = table.Column<double>(nullable: false),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -73,23 +73,23 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "ManufacturingStructures",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    ParentPart = table.Column<string>(type: "TEXT", nullable: false),
-                    ParentDescription = table.Column<string>(type: "TEXT", nullable: true),
-                    ComponentPart = table.Column<string>(type: "TEXT", nullable: false),
-                    ComponentDescription = table.Column<string>(type: "TEXT", nullable: true),
-                    QtyAssembly = table.Column<double>(type: "REAL", nullable: false),
-                    Uom = table.Column<string>(type: "TEXT", nullable: true),
-                    ScrapFactor = table.Column<double>(type: "REAL", nullable: false),
-                    ScrapPct = table.Column<string>(type: "TEXT", nullable: true),
-                    Pitch = table.Column<string>(type: "TEXT", nullable: true),
-                    Cavity = table.Column<string>(type: "TEXT", nullable: true),
-                    Color = table.Column<string>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    ParentPart = table.Column<string>(nullable: false),
+                    ParentDescription = table.Column<string>(nullable: true),
+                    ComponentPart = table.Column<string>(nullable: false),
+                    ComponentDescription = table.Column<string>(nullable: true),
+                    QtyAssembly = table.Column<double>(nullable: false),
+                    Uom = table.Column<string>(nullable: true),
+                    ScrapFactor = table.Column<double>(nullable: false),
+                    ScrapPct = table.Column<string>(nullable: true),
+                    Pitch = table.Column<string>(nullable: true),
+                    Cavity = table.Column<string>(nullable: true),
+                    Color = table.Column<string>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -100,24 +100,24 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "RawMaterials",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    PartNo = table.Column<string>(type: "TEXT", nullable: false),
-                    PartDescription = table.Column<string>(type: "TEXT", nullable: true),
-                    SupplierId = table.Column<string>(type: "TEXT", nullable: true),
-                    SupplierName = table.Column<string>(type: "TEXT", nullable: true),
-                    Price = table.Column<double>(type: "REAL", nullable: false),
-                    Currency = table.Column<string>(type: "TEXT", nullable: true),
-                    PriceUom = table.Column<string>(type: "TEXT", nullable: true),
-                    CatalogGroup = table.Column<string>(type: "TEXT", nullable: true),
-                    CatalogDesc = table.Column<string>(type: "TEXT", nullable: true),
-                    Grp = table.Column<string>(type: "TEXT", nullable: true),
-                    Type = table.Column<string>(type: "TEXT", nullable: true),
-                    TypeDesc = table.Column<string>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    PartNo = table.Column<string>(nullable: false),
+                    PartDescription = table.Column<string>(nullable: true),
+                    SupplierId = table.Column<string>(nullable: true),
+                    SupplierName = table.Column<string>(nullable: true),
+                    Price = table.Column<double>(nullable: false),
+                    Currency = table.Column<string>(nullable: true),
+                    PriceUom = table.Column<string>(nullable: true),
+                    CatalogGroup = table.Column<string>(nullable: true),
+                    CatalogDesc = table.Column<string>(nullable: true),
+                    Grp = table.Column<string>(nullable: true),
+                    Type = table.Column<string>(nullable: true),
+                    TypeDesc = table.Column<string>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -128,22 +128,22 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "RoutingOperations",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    PartNo = table.Column<string>(type: "TEXT", nullable: false),
-                    PartDescription = table.Column<string>(type: "TEXT", nullable: true),
-                    OpNo = table.Column<string>(type: "TEXT", nullable: true),
-                    Operation = table.Column<string>(type: "TEXT", nullable: true),
-                    WorkCenterNo = table.Column<string>(type: "TEXT", nullable: true),
-                    WorkCenterDescription = table.Column<string>(type: "TEXT", nullable: true),
-                    MachineSetupTime = table.Column<double>(type: "REAL", nullable: false),
-                    LaborSetupTime = table.Column<double>(type: "REAL", nullable: false),
-                    MachineRunTime = table.Column<double>(type: "REAL", nullable: false),
-                    LaborRunTime = table.Column<double>(type: "REAL", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    PartNo = table.Column<string>(nullable: false),
+                    PartDescription = table.Column<string>(nullable: true),
+                    OpNo = table.Column<string>(nullable: true),
+                    Operation = table.Column<string>(nullable: true),
+                    WorkCenterNo = table.Column<string>(nullable: true),
+                    WorkCenterDescription = table.Column<string>(nullable: true),
+                    MachineSetupTime = table.Column<double>(nullable: false),
+                    LaborSetupTime = table.Column<double>(nullable: false),
+                    MachineRunTime = table.Column<double>(nullable: false),
+                    LaborRunTime = table.Column<double>(nullable: false),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -154,17 +154,17 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "Users",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    Username = table.Column<string>(type: "TEXT", nullable: false),
-                    PasswordHash = table.Column<string>(type: "TEXT", nullable: false),
-                    Role = table.Column<string>(type: "TEXT", nullable: false),
-                    DisplayName = table.Column<string>(type: "TEXT", nullable: true),
-                    LastLoginAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    Username = table.Column<string>(nullable: false),
+                    PasswordHash = table.Column<string>(nullable: false),
+                    Role = table.Column<string>(nullable: false),
+                    DisplayName = table.Column<string>(nullable: true),
+                    LastLoginAt = table.Column<DateTime>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -175,15 +175,15 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "WorkCenters",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    Code = table.Column<string>(type: "TEXT", nullable: false),
-                    Description = table.Column<string>(type: "TEXT", nullable: false),
-                    Area = table.Column<string>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    Code = table.Column<string>(nullable: false),
+                    Description = table.Column<string>(nullable: false),
+                    Area = table.Column<string>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -194,15 +194,15 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "Products",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    ProductCode = table.Column<string>(type: "TEXT", nullable: false),
-                    Name = table.Column<string>(type: "TEXT", nullable: false),
-                    CustomerId = table.Column<long>(type: "INTEGER", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    ProductCode = table.Column<string>(nullable: false),
+                    Name = table.Column<string>(nullable: false),
+                    CustomerId = table.Column<long>(nullable: false),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -219,15 +219,15 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "Specs",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    SpecCode = table.Column<string>(type: "TEXT", nullable: false),
-                    Title = table.Column<string>(type: "TEXT", nullable: false),
-                    ProductId = table.Column<long>(type: "INTEGER", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    SpecCode = table.Column<string>(nullable: false),
+                    Title = table.Column<string>(nullable: false),
+                    ProductId = table.Column<long>(nullable: false),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -244,19 +244,19 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "WorkInstructions",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    Title = table.Column<string>(type: "TEXT", nullable: false),
-                    ProductId = table.Column<long>(type: "INTEGER", nullable: false),
-                    ProcessStep = table.Column<string>(type: "TEXT", nullable: false),
-                    MachineCode = table.Column<string>(type: "TEXT", nullable: true),
-                    VersionNo = table.Column<int>(type: "INTEGER", nullable: false),
-                    Status = table.Column<string>(type: "TEXT", nullable: false),
-                    EffectiveDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    Title = table.Column<string>(nullable: false),
+                    ProductId = table.Column<long>(nullable: false),
+                    ProcessStep = table.Column<string>(nullable: false),
+                    MachineCode = table.Column<string>(nullable: true),
+                    VersionNo = table.Column<int>(nullable: false),
+                    Status = table.Column<string>(nullable: false),
+                    EffectiveDate = table.Column<DateTime>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -273,18 +273,18 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "SpecVersions",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    SpecId = table.Column<long>(type: "INTEGER", nullable: false),
-                    VersionNo = table.Column<int>(type: "INTEGER", nullable: false),
-                    Status = table.Column<string>(type: "TEXT", nullable: false),
-                    EffectiveDate = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    ApprovedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    ApprovedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    SpecId = table.Column<long>(nullable: false),
+                    VersionNo = table.Column<int>(nullable: false),
+                    Status = table.Column<string>(nullable: false),
+                    EffectiveDate = table.Column<DateTime>(nullable: true),
+                    ApprovedBy = table.Column<string>(nullable: true),
+                    ApprovedAt = table.Column<DateTime>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -301,17 +301,17 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "WiStepDetails",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    WorkInstructionId = table.Column<long>(type: "INTEGER", nullable: false),
-                    Sequence = table.Column<int>(type: "INTEGER", nullable: false),
-                    Description = table.Column<string>(type: "TEXT", nullable: false),
-                    ImageUrl = table.Column<string>(type: "TEXT", nullable: true),
-                    WarningNote = table.Column<string>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    WorkInstructionId = table.Column<long>(nullable: false),
+                    Sequence = table.Column<int>(nullable: false),
+                    Description = table.Column<string>(nullable: false),
+                    ImageUrl = table.Column<string>(nullable: true),
+                    WarningNote = table.Column<string>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -328,19 +328,19 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "SpecParameters",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    SpecVersionId = table.Column<long>(type: "INTEGER", nullable: false),
-                    ParamName = table.Column<string>(type: "TEXT", nullable: false),
-                    Nominal = table.Column<string>(type: "TEXT", nullable: true),
-                    TolMin = table.Column<string>(type: "TEXT", nullable: true),
-                    TolMax = table.Column<string>(type: "TEXT", nullable: true),
-                    Uom = table.Column<string>(type: "TEXT", nullable: true),
-                    IsCritical = table.Column<bool>(type: "INTEGER", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    SpecVersionId = table.Column<long>(nullable: false),
+                    ParamName = table.Column<string>(nullable: false),
+                    Nominal = table.Column<string>(nullable: true),
+                    TolMin = table.Column<string>(nullable: true),
+                    TolMax = table.Column<string>(nullable: true),
+                    Uom = table.Column<string>(nullable: true),
+                    IsCritical = table.Column<bool>(nullable: false),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -357,30 +357,30 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "WorkOrders",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    WoNo = table.Column<string>(type: "TEXT", nullable: false),
-                    CustomerId = table.Column<long>(type: "INTEGER", nullable: false),
-                    ProductId = table.Column<long>(type: "INTEGER", nullable: false),
-                    ProductName = table.Column<string>(type: "TEXT", nullable: false),
-                    SpecVersionId = table.Column<long>(type: "INTEGER", nullable: true),
-                    MachineCode = table.Column<string>(type: "TEXT", nullable: true),
-                    MachineName = table.Column<string>(type: "TEXT", nullable: true),
-                    TargetQty = table.Column<int>(type: "INTEGER", nullable: false),
-                    Uom = table.Column<string>(type: "TEXT", nullable: false),
-                    ProducedQty = table.Column<int>(type: "INTEGER", nullable: false),
-                    CurrentStep = table.Column<string>(type: "TEXT", nullable: false),
-                    Status = table.Column<string>(type: "TEXT", nullable: false),
-                    Priority = table.Column<int>(type: "INTEGER", nullable: false),
-                    MaterialsReady = table.Column<bool>(type: "INTEGER", nullable: false),
-                    SetupConfirmed = table.Column<bool>(type: "INTEGER", nullable: false),
-                    RohsOk = table.Column<bool>(type: "INTEGER", nullable: false),
-                    PlannedStart = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    PlannedEnd = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    WoNo = table.Column<string>(nullable: false),
+                    CustomerId = table.Column<long>(nullable: false),
+                    ProductId = table.Column<long>(nullable: false),
+                    ProductName = table.Column<string>(nullable: false),
+                    SpecVersionId = table.Column<long>(nullable: true),
+                    MachineCode = table.Column<string>(nullable: true),
+                    MachineName = table.Column<string>(nullable: true),
+                    TargetQty = table.Column<int>(nullable: false),
+                    Uom = table.Column<string>(nullable: false),
+                    ProducedQty = table.Column<int>(nullable: false),
+                    CurrentStep = table.Column<string>(nullable: false),
+                    Status = table.Column<string>(nullable: false),
+                    Priority = table.Column<int>(nullable: false),
+                    MaterialsReady = table.Column<bool>(nullable: false),
+                    SetupConfirmed = table.Column<bool>(nullable: false),
+                    RohsOk = table.Column<bool>(nullable: false),
+                    PlannedStart = table.Column<DateTime>(nullable: true),
+                    PlannedEnd = table.Column<DateTime>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -408,21 +408,21 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "ProductionLogs",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    WorkOrderId = table.Column<long>(type: "INTEGER", nullable: false),
-                    MachineId = table.Column<long>(type: "INTEGER", nullable: false),
-                    EventType = table.Column<string>(type: "TEXT", nullable: false),
-                    StartAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    EndAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    GoodQty = table.Column<int>(type: "INTEGER", nullable: false),
-                    RejectQty = table.Column<int>(type: "INTEGER", nullable: false),
-                    OperatorId = table.Column<string>(type: "TEXT", nullable: true),
-                    DowntimeReasonId = table.Column<long>(type: "INTEGER", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    WorkOrderId = table.Column<long>(nullable: false),
+                    MachineId = table.Column<long>(nullable: false),
+                    EventType = table.Column<string>(nullable: false),
+                    StartAt = table.Column<DateTime>(nullable: false),
+                    EndAt = table.Column<DateTime>(nullable: true),
+                    GoodQty = table.Column<int>(nullable: false),
+                    RejectQty = table.Column<int>(nullable: false),
+                    OperatorId = table.Column<string>(nullable: true),
+                    DowntimeReasonId = table.Column<long>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -450,19 +450,19 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "QcInspections",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    WorkOrderId = table.Column<long>(type: "INTEGER", nullable: false),
-                    Type = table.Column<string>(type: "TEXT", nullable: false),
-                    Result = table.Column<string>(type: "TEXT", nullable: false),
-                    InspectorId = table.Column<string>(type: "TEXT", nullable: true),
-                    SampleSize = table.Column<int>(type: "INTEGER", nullable: false),
-                    ApprovedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    ApprovedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    WorkOrderId = table.Column<long>(nullable: false),
+                    Type = table.Column<string>(nullable: false),
+                    Result = table.Column<string>(nullable: false),
+                    InspectorId = table.Column<string>(nullable: true),
+                    SampleSize = table.Column<int>(nullable: false),
+                    ApprovedBy = table.Column<string>(nullable: true),
+                    ApprovedAt = table.Column<DateTime>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -479,18 +479,18 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "WoStatusHistories",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    WorkOrderId = table.Column<long>(type: "INTEGER", nullable: false),
-                    FromStep = table.Column<string>(type: "TEXT", nullable: false),
-                    ToStep = table.Column<string>(type: "TEXT", nullable: false),
-                    Action = table.Column<string>(type: "TEXT", nullable: false),
-                    ByUser = table.Column<string>(type: "TEXT", nullable: true),
-                    Reason = table.Column<string>(type: "TEXT", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    WorkOrderId = table.Column<long>(nullable: false),
+                    FromStep = table.Column<string>(nullable: false),
+                    ToStep = table.Column<string>(nullable: false),
+                    Action = table.Column<string>(nullable: false),
+                    ByUser = table.Column<string>(nullable: true),
+                    Reason = table.Column<string>(nullable: true),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -507,18 +507,18 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "QcResultDetails",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    QcInspectionId = table.Column<long>(type: "INTEGER", nullable: false),
-                    ItemName = table.Column<string>(type: "TEXT", nullable: false),
-                    MeasuredValue = table.Column<string>(type: "TEXT", nullable: true),
-                    Pass = table.Column<bool>(type: "INTEGER", nullable: false),
-                    DefectCode = table.Column<string>(type: "TEXT", nullable: true),
-                    Qty = table.Column<int>(type: "INTEGER", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    QcInspectionId = table.Column<long>(nullable: false),
+                    ItemName = table.Column<string>(nullable: false),
+                    MeasuredValue = table.Column<string>(nullable: true),
+                    Pass = table.Column<bool>(nullable: false),
+                    DefectCode = table.Column<string>(nullable: true),
+                    Qty = table.Column<int>(nullable: false),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {

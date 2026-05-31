@@ -200,7 +200,7 @@
   <data name="settings.data.title" xml:space="preserve"><value>Settings — Backup / Restore</value></data>
   <data name="settings.data.section.snapshot" xml:space="preserve"><value>Manual snapshot</value></data>
   <data name="settings.data.section.list" xml:space="preserve"><value>Existing snapshots</value></data>
-  <data name="settings.data.snapshot.hint" xml:space="preserve"><value>Saves a copy of the live SQLite DB next to ccl_mes.db using the online-backup API (safe while serving).</value></data>
+  <data name="settings.data.snapshot.hint" xml:space="preserve"><value>Saves a copy of the live SQLite DB into data/Backup/SQLite/ using the online-backup API (safe while serving).</value></data>
   <data name="settings.data.btn.snapshot" xml:space="preserve"><value>Create snapshot</value></data>
   <data name="settings.data.btn.snapshotting" xml:space="preserve"><value>Snapshotting…</value></data>
   <data name="settings.data.list.empty" xml:space="preserve"><value>No snapshots yet.</value></data>

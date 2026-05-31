@@ -1,9 +1,15 @@
 bin/
 obj/
+# Phase 6 Bước 6.5 — SQLite data folder lives at repo-root level data/
+# (mirror of Ops Control v1.2's server/data/). Live DB + snapshots are
+# ignored; only .gitkeep marker files commit so the folder structure
+# survives a fresh clone.
 *.db
 *.db-shm
 *.db-wal
 *.db.bak*
+data/Backup/SQLite/*
+!data/Backup/SQLite/.gitkeep
 .vs/
 .DS_Store
 *.db.testcopy*

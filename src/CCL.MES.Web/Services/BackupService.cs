@@ -9,14 +9,19 @@ namespace CCL.MES.Web.Services;
 /// <summary>
 /// Phase 6 Bước 2B — manual backup workflow for the Settings → Backup tab.
 /// Behavior intentionally limited to non-destructive operations:
-///   - SQLite: snapshot the live DB file to a sibling .db.bak.snapshot-&lt;ts&gt;
-///     and enumerate existing snapshots.
+///   - SQLite: snapshot the live DB file to &lt;DATA_DIR&gt;/Backup/SQLite/
+///     and enumerate existing snapshots from the same folder.
 ///   - SQL Server: every operation returns <see cref="BackupOutcome.SqlServerUnsupported"/>;
 ///     the UI surfaces a localized message pointing operators at SSMS /
 ///     maintenance plans.
-/// Restore is deliberately out of scope this Bước — replacing the live DB
-/// file is a destructive operation that would warrant its own confirmation
-/// gate + audit trail (filed as a Bước 5 follow-up).
+/// Restore is shipped Bước 5 — `scripts/BackupRestore/` console script.
+/// The Backup.razor tab shows guidance card with the literal command.
+///
+/// Phase 6 Bước 6.5 — backup folder moved from "next to DB" (flat) to
+/// nested `&lt;DATA_DIR&gt;/Backup/SQLite/` mirror of Ops Control v1.2's
+/// `server/data/Backup/SQLite/` convention. Old snapshots sitting next
+/// to the live DB are migrated by a one-shot helper at boot via
+/// <see cref="MigrateLegacySnapshots"/>.
 /// </summary>
 public class BackupService
 {
@@ -45,13 +50,17 @@ public class BackupService
     {
         if (!IsSqlite) return new BackupResult(BackupOutcome.SqlServerUnsupported, null);
 
-        var (dir, dbFile) = ResolveSqlitePath();
+        var (backupDir, dbFile) = ResolveSqlitePath();
         if (string.IsNullOrEmpty(dbFile) || !File.Exists(dbFile))
             return new BackupResult(BackupOutcome.SourceMissing, null);
 
+        // Idempotent — Program.cs Bước 6.5 init already mkdirs, but cover
+        // operators who pointed MES_DB_PATH outside the canonical data dir.
+        Directory.CreateDirectory(backupDir);
+
         var ts = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
         var name = $"ccl_mes.db.bak.snapshot-{ts}";
-        var target = Path.Combine(dir, name);
+        var target = Path.Combine(backupDir, name);
 
         try
         {
@@ -83,18 +92,18 @@ public class BackupService
     }
 
     /// <summary>
-    /// Enumerate snapshots + any other <c>*.db.bak*</c> files sitting next
-    /// to the live DB. Sort newest first by file mtime.
+    /// Enumerate snapshots from &lt;DATA_DIR&gt;/Backup/SQLite/. Sort newest
+    /// first by file mtime.
     /// </summary>
     public IReadOnlyList<BackupFile> ListSnapshots()
     {
         if (!IsSqlite) return Array.Empty<BackupFile>();
 
-        var (dir, dbFile) = ResolveSqlitePath();
-        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return Array.Empty<BackupFile>();
+        var (backupDir, dbFile) = ResolveSqlitePath();
+        if (string.IsNullOrEmpty(backupDir) || !Directory.Exists(backupDir)) return Array.Empty<BackupFile>();
 
         var prefix = Path.GetFileName(dbFile) + ".bak";
-        var files = Directory.EnumerateFiles(dir, $"{prefix}*", SearchOption.TopDirectoryOnly)
+        var files = Directory.EnumerateFiles(backupDir, $"{prefix}*", SearchOption.TopDirectoryOnly)
             .Select(p =>
             {
                 var info = new FileInfo(p);
@@ -105,10 +114,47 @@ public class BackupService
         return files;
     }
 
-    // Resolve the SQLite file path from the connection string. The
-    // connection string is "Data Source=<path>" — relative paths resolve
-    // against process CWD (src/CCL.MES.Web for `dotnet run`).
-    private (string Dir, string DbFile) ResolveSqlitePath()
+    /// <summary>
+    /// One-shot migration: move legacy <c>*.db.bak.snapshot-*</c> files
+    /// sitting next to the live DB (Bước 2B layout) into the new
+    /// <c>&lt;DATA_DIR&gt;/Backup/SQLite/</c> folder (Bước 6.5 layout).
+    /// Idempotent — safe to invoke at every boot. Returns count of files
+    /// migrated for the boot log.
+    /// </summary>
+    public int MigrateLegacySnapshots()
+    {
+        if (!IsSqlite) return 0;
+
+        var (backupDir, dbFile) = ResolveSqlitePath();
+        if (string.IsNullOrEmpty(dbFile)) return 0;
+
+        var legacyDir = Path.GetDirectoryName(dbFile);
+        if (string.IsNullOrEmpty(legacyDir) || legacyDir == backupDir) return 0;
+
+        var prefix = Path.GetFileName(dbFile) + ".bak";
+        var legacyFiles = Directory.EnumerateFiles(legacyDir, $"{prefix}*", SearchOption.TopDirectoryOnly).ToList();
+        if (legacyFiles.Count == 0) return 0;
+
+        Directory.CreateDirectory(backupDir);
+        var moved = 0;
+        foreach (var src in legacyFiles)
+        {
+            var target = Path.Combine(backupDir, Path.GetFileName(src));
+            if (File.Exists(target)) continue;   // already migrated, skip
+            File.Move(src, target);
+            moved++;
+        }
+        return moved;
+    }
+
+    // Resolve the SQLite paths from the connection string.
+    //  - Live DB file: absolute path from "Data Source=<path>".
+    //  - Backup dir : &lt;dirname(dbFile)&gt;/Backup/SQLite/ (Bước 6.5,
+    //    mirror of Ops Control v1.2's server/data/Backup/SQLite/).
+    // Program.cs Bước 6.5 forces an absolute path for the SQLite
+    // connection string at boot, so Path.GetFullPath here returns the
+    // operator-intended path regardless of process CWD.
+    private (string BackupDir, string DbFile) ResolveSqlitePath()
     {
         var cs = _config.GetConnectionString("Default");
         if (string.IsNullOrEmpty(cs)) return ("", "");
@@ -116,7 +162,9 @@ public class BackupService
         var path = builder.DataSource;
         if (string.IsNullOrEmpty(path)) return ("", "");
         var full = Path.GetFullPath(path);
-        return (Path.GetDirectoryName(full) ?? "", full);
+        var dataDir = Path.GetDirectoryName(full) ?? "";
+        var backupDir = Path.Combine(dataDir, "Backup", "SQLite");
+        return (backupDir, full);
     }
 }
 

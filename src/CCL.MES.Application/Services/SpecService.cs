@@ -47,8 +47,6 @@ public class SpecService
     }
 
     // Phase 6 Bước 5 — actor param added (was a gap noted in PHASE6-STEP5-PLAN.md §1.1).
-    // Phase 6 close-out — local PageAsync removed (consolidated into shared
-    // PagingHelper.PageAsync in Bước 2B; carry-over note in Bước 1 closed).
     public async Task<SpecVersion> CreateAsync(CreateSpecRequest r, string? user)
     {
         var spec = new Spec

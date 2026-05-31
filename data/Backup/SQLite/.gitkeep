@@ -1,0 +1,2 @@
+# Phase 6 Bước 6.5 — SQLite snapshot target folder (mirror of Ops Control v1.2's server/data/Backup/SQLite/).
+# Snapshot files (ccl_mes.db.bak.snapshot-<UTC>) ignored via .gitignore.
