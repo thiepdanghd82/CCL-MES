@@ -31,6 +31,78 @@
   <data name="nav.qcqa.oqc" xml:space="preserve"><value>OQC</value></data>
   <data name="nav.logout" xml:space="preserve"><value>Sign out</value></data>
 
+  <data name="nav.settings" xml:space="preserve"><value>Settings</value></data>
+  <data name="nav.settings.profile" xml:space="preserve"><value>My Profile</value></data>
+  <data name="nav.settings.mypwd" xml:space="preserve"><value>My Password</value></data>
+  <data name="nav.settings.appearance" xml:space="preserve"><value>Appearance</value></data>
+  <data name="nav.settings.hardware" xml:space="preserve"><value>Hardware devices</value></data>
+  <data name="nav.settings.mode" xml:space="preserve"><value>Connection mode</value></data>
+  <data name="nav.settings.account" xml:space="preserve"><value>Account Control</value></data>
+  <data name="nav.settings.about" xml:space="preserve"><value>About / Diagnostics</value></data>
+  <data name="nav.settings.data" xml:space="preserve"><value>Backup / Restore</value></data>
+  <data name="nav.settings.syslog" xml:space="preserve"><value>System Logs</value></data>
+  <data name="nav.settings.importlegacy" xml:space="preserve"><value>Import data v1.0</value></data>
+
+  <data name="settings.profile.title" xml:space="preserve"><value>Settings — My Profile</value></data>
+  <data name="settings.profile.placeholder_lead" xml:space="preserve"><value>The My Profile tab — personal account details, display name, contact info. To be built in a later sprint.</value></data>
+  <data name="settings.profile.placeholder_li1" xml:space="preserve"><value>View and edit display name + email.</value></data>
+  <data name="settings.profile.placeholder_li2" xml:space="preserve"><value>View role + permission group (assigned by an administrator).</value></data>
+  <data name="settings.profile.placeholder_li3" xml:space="preserve"><value>Recent sign-in activity.</value></data>
+
+  <data name="settings.mypwd.title" xml:space="preserve"><value>Settings — My Password</value></data>
+  <data name="settings.mypwd.placeholder_lead" xml:space="preserve"><value>The My Password tab — change your own password. To be built in a later sprint.</value></data>
+  <data name="settings.mypwd.placeholder_li1" xml:space="preserve"><value>Verify current password and set a new one (PBKDF2 hash).</value></data>
+  <data name="settings.mypwd.placeholder_li2" xml:space="preserve"><value>Password strength meter + complexity rules.</value></data>
+  <data name="settings.mypwd.placeholder_li3" xml:space="preserve"><value>Force re-login on all other active sessions.</value></data>
+
+  <data name="settings.appearance.title" xml:space="preserve"><value>Settings — Appearance</value></data>
+  <data name="settings.appearance.placeholder_lead" xml:space="preserve"><value>The Appearance tab — UI theme and language preferences. To be built in a later sprint.</value></data>
+  <data name="settings.appearance.placeholder_li1" xml:space="preserve"><value>Light / dark / system theme toggle.</value></data>
+  <data name="settings.appearance.placeholder_li2" xml:space="preserve"><value>Default UI language (mirrors the topbar flag picker).</value></data>
+  <data name="settings.appearance.placeholder_li3" xml:space="preserve"><value>Grid density (compact / comfortable).</value></data>
+
+  <data name="settings.hardware.title" xml:space="preserve"><value>Settings — Hardware devices</value></data>
+  <data name="settings.hardware.placeholder_lead" xml:space="preserve"><value>The Hardware devices tab — barcode scanners, label printers, USB scales. Desktop-only surface. To be built in a later sprint.</value></data>
+  <data name="settings.hardware.placeholder_li1" xml:space="preserve"><value>Detect and name connected scanners / printers.</value></data>
+  <data name="settings.hardware.placeholder_li2" xml:space="preserve"><value>Set the default printer per workstation.</value></data>
+  <data name="settings.hardware.placeholder_li3" xml:space="preserve"><value>Test print + scanner echo.</value></data>
+
+  <data name="settings.mode.title" xml:space="preserve"><value>Settings — Connection mode</value></data>
+  <data name="settings.mode.placeholder_lead" xml:space="preserve"><value>The Connection mode tab — embedded / thin / smart desktop modes. To be built in a later sprint.</value></data>
+  <data name="settings.mode.placeholder_li1" xml:space="preserve"><value>Pick standalone (local SQLite) or server-connected.</value></data>
+  <data name="settings.mode.placeholder_li2" xml:space="preserve"><value>Server URL + connection diagnostics.</value></data>
+  <data name="settings.mode.placeholder_li3" xml:space="preserve"><value>Re-run the first-run setup wizard.</value></data>
+
+  <data name="settings.account.title" xml:space="preserve"><value>Settings — Account Control</value></data>
+  <data name="settings.account.placeholder_lead" xml:space="preserve"><value>The Account Control tab — user management, role assignment, permission groups. Admin-only in Ops Control v1.2 source; RBAC is not yet enforced in CCL-MES Phase 3 (TODO Phase 4+).</value></data>
+  <data name="settings.account.placeholder_li1" xml:space="preserve"><value>Create / disable users, reset passwords.</value></data>
+  <data name="settings.account.placeholder_li2" xml:space="preserve"><value>Assign roles and permission groups.</value></data>
+  <data name="settings.account.placeholder_li3" xml:space="preserve"><value>Provisioning Card flow (one-shot temp password + must-change-password).</value></data>
+
+  <data name="settings.about.title" xml:space="preserve"><value>Settings — About / Diagnostics</value></data>
+  <data name="settings.about.placeholder_lead" xml:space="preserve"><value>The About / Diagnostics tab — build version, server status, hardware fingerprint, license info. To be built in a later sprint.</value></data>
+  <data name="settings.about.placeholder_li1" xml:space="preserve"><value>App version + commit SHA + .NET runtime.</value></data>
+  <data name="settings.about.placeholder_li2" xml:space="preserve"><value>DB provider + size + last backup timestamp.</value></data>
+  <data name="settings.about.placeholder_li3" xml:space="preserve"><value>License activation status + hardware fingerprint.</value></data>
+
+  <data name="settings.data.title" xml:space="preserve"><value>Settings — Backup / Restore</value></data>
+  <data name="settings.data.placeholder_lead" xml:space="preserve"><value>The Backup / Restore tab — manual and scheduled backups, point-in-time restore. Admin-only in Ops Control v1.2 source; RBAC is not yet enforced in CCL-MES Phase 3 (TODO Phase 4+).</value></data>
+  <data name="settings.data.placeholder_li1" xml:space="preserve"><value>Run a backup now / view backup history.</value></data>
+  <data name="settings.data.placeholder_li2" xml:space="preserve"><value>Schedule + retention policy.</value></data>
+  <data name="settings.data.placeholder_li3" xml:space="preserve"><value>Restore from a chosen snapshot (with confirmation gate).</value></data>
+
+  <data name="settings.syslog.title" xml:space="preserve"><value>Settings — System Logs</value></data>
+  <data name="settings.syslog.placeholder_lead" xml:space="preserve"><value>The System Logs tab — audit log timeline, sign-in events, data changes. Admin-only in Ops Control v1.2 source; RBAC is not yet enforced in CCL-MES Phase 3 (TODO Phase 4+).</value></data>
+  <data name="settings.syslog.placeholder_li1" xml:space="preserve"><value>Filter by event type / user / date range.</value></data>
+  <data name="settings.syslog.placeholder_li2" xml:space="preserve"><value>Export to CSV for compliance review.</value></data>
+  <data name="settings.syslog.placeholder_li3" xml:space="preserve"><value>Retention + archival to off-site storage.</value></data>
+
+  <data name="settings.importlegacy.title" xml:space="preserve"><value>Settings — Import data v1.0</value></data>
+  <data name="settings.importlegacy.placeholder_lead" xml:space="preserve"><value>The Import data v1.0 tab — bring data over from Ops Control v1.0 file backends. Admin-only in Ops Control v1.2 source; RBAC is not yet enforced in CCL-MES Phase 3 (TODO Phase 4+).</value></data>
+  <data name="settings.importlegacy.placeholder_li1" xml:space="preserve"><value>Pick source folder and map to the current schema.</value></data>
+  <data name="settings.importlegacy.placeholder_li2" xml:space="preserve"><value>Dry-run preview before commit.</value></data>
+  <data name="settings.importlegacy.placeholder_li3" xml:space="preserve"><value>Audit log of what was imported + skipped.</value></data>
+
   <data name="lang.picker.aria_label" xml:space="preserve"><value>Language picker</value></data>
 
   <data name="login.title" xml:space="preserve"><value>Sign in</value></data>

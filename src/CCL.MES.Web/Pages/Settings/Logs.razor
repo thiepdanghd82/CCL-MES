@@ -1,0 +1,16 @@
+@page "/settings/syslog"
+@inject IStringLocalizer<SharedResource> Loc
+
+@*  Role-restricted in Ops Control v1.2 source (admin only).
+    RBAC enforcement deferred to Phase 4+. *@
+
+<h1>@Loc["settings.syslog.title"]</h1>
+
+<div class="npi-placeholder">
+    <p class="muted">@Loc["settings.syslog.placeholder_lead"]</p>
+    <ul>
+        <li>@Loc["settings.syslog.placeholder_li1"]</li>
+        <li>@Loc["settings.syslog.placeholder_li2"]</li>
+        <li>@Loc["settings.syslog.placeholder_li3"]</li>
+    </ul>
+</div>
