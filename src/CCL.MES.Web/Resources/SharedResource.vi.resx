@@ -104,23 +104,34 @@
   <data name="nav.settings.syslog" xml:space="preserve"><value>Nhật ký hệ thống</value></data>
   <data name="nav.settings.importlegacy" xml:space="preserve"><value>Nhập dữ liệu v1.0</value></data>
 
+  <data name="common.save" xml:space="preserve"><value>Lưu</value></data>
+
   <data name="settings.profile.title" xml:space="preserve"><value>Cài đặt — Hồ sơ của tôi</value></data>
-  <data name="settings.profile.placeholder_lead" xml:space="preserve"><value>Tab Hồ sơ của tôi — quản lý thông tin tài khoản cá nhân, tên hiển thị, thông tin liên hệ. Sẽ được xây dựng ở sprint sau.</value></data>
-  <data name="settings.profile.placeholder_li1" xml:space="preserve"><value>Xem và chỉnh tên hiển thị + email.</value></data>
-  <data name="settings.profile.placeholder_li2" xml:space="preserve"><value>Xem vai trò + nhóm quyền (do quản trị viên gán).</value></data>
-  <data name="settings.profile.placeholder_li3" xml:space="preserve"><value>Lịch sử đăng nhập gần đây.</value></data>
+  <data name="settings.profile.field.username" xml:space="preserve"><value>Tài khoản</value></data>
+  <data name="settings.profile.field.role" xml:space="preserve"><value>Vai trò</value></data>
+  <data name="settings.profile.field.display_name" xml:space="preserve"><value>Tên hiển thị</value></data>
+  <data name="settings.profile.field.last_login" xml:space="preserve"><value>Đăng nhập gần nhất</value></data>
+  <data name="settings.profile.msg.saved" xml:space="preserve"><value>Đã lưu hồ sơ.</value></data>
+  <data name="settings.profile.msg.error" xml:space="preserve"><value>Không lưu được hồ sơ.</value></data>
 
   <data name="settings.mypwd.title" xml:space="preserve"><value>Cài đặt — Mật khẩu của tôi</value></data>
-  <data name="settings.mypwd.placeholder_lead" xml:space="preserve"><value>Tab Mật khẩu của tôi — đổi mật khẩu cá nhân. Sẽ được xây dựng ở sprint sau.</value></data>
-  <data name="settings.mypwd.placeholder_li1" xml:space="preserve"><value>Xác nhận mật khẩu hiện tại + đặt mật khẩu mới (PBKDF2 hash).</value></data>
-  <data name="settings.mypwd.placeholder_li2" xml:space="preserve"><value>Thanh đo độ mạnh mật khẩu + quy tắc phức tạp.</value></data>
-  <data name="settings.mypwd.placeholder_li3" xml:space="preserve"><value>Bắt đăng nhập lại trên các phiên khác.</value></data>
+  <data name="settings.mypwd.field.old" xml:space="preserve"><value>Mật khẩu hiện tại</value></data>
+  <data name="settings.mypwd.field.new" xml:space="preserve"><value>Mật khẩu mới</value></data>
+  <data name="settings.mypwd.field.confirm" xml:space="preserve"><value>Xác nhận mật khẩu mới</value></data>
+  <data name="settings.mypwd.btn.change" xml:space="preserve"><value>Đổi mật khẩu</value></data>
+  <data name="settings.mypwd.hint_minlength" xml:space="preserve"><value>Tối thiểu 4 ký tự. PBKDF2 hash sẽ được tính lại khi lưu.</value></data>
+  <data name="settings.mypwd.msg.success" xml:space="preserve"><value>Đã đổi mật khẩu. Đăng xuất + đăng nhập lại trên các thiết bị khác.</value></data>
+  <data name="settings.mypwd.msg.wrong_current" xml:space="preserve"><value>Mật khẩu hiện tại không đúng.</value></data>
+  <data name="settings.mypwd.msg.too_short" xml:space="preserve"><value>Mật khẩu mới quá ngắn (tối thiểu 4 ký tự).</value></data>
+  <data name="settings.mypwd.msg.mismatch" xml:space="preserve"><value>Mật khẩu mới và xác nhận không trùng khớp.</value></data>
+  <data name="settings.mypwd.msg.missing" xml:space="preserve"><value>Vui lòng điền cả 3 ô.</value></data>
+  <data name="settings.mypwd.msg.user_not_found" xml:space="preserve"><value>Lỗi phiên đăng nhập. Vui lòng đăng nhập lại.</value></data>
 
   <data name="settings.appearance.title" xml:space="preserve"><value>Cài đặt — Giao diện</value></data>
-  <data name="settings.appearance.placeholder_lead" xml:space="preserve"><value>Tab Giao diện — chủ đề UI và tuỳ chọn ngôn ngữ. Sẽ được xây dựng ở sprint sau.</value></data>
-  <data name="settings.appearance.placeholder_li1" xml:space="preserve"><value>Chuyển chế độ sáng / tối / theo hệ điều hành.</value></data>
-  <data name="settings.appearance.placeholder_li2" xml:space="preserve"><value>Ngôn ngữ mặc định (đồng bộ với bộ chọn cờ trên topbar).</value></data>
-  <data name="settings.appearance.placeholder_li3" xml:space="preserve"><value>Mật độ lưới (gọn / thoải mái).</value></data>
+  <data name="settings.appearance.section.language" xml:space="preserve"><value>Ngôn ngữ</value></data>
+  <data name="settings.appearance.language.hint" xml:space="preserve"><value>Chọn ngôn ngữ giao diện. Lựa chọn lưu trong cookie .AspNetCore.Culture 1 năm.</value></data>
+  <data name="settings.appearance.section.theme" xml:space="preserve"><value>Chủ đề</value></data>
+  <data name="settings.appearance.theme.todo" xml:space="preserve"><value>Chuyển sáng / tối — dự kiến sprint sau.</value></data>
 
   <data name="settings.hardware.title" xml:space="preserve"><value>Cài đặt — Thiết bị phần cứng</value></data>
   <data name="settings.hardware.placeholder_lead" xml:space="preserve"><value>Tab Thiết bị phần cứng — máy quét mã vạch, máy in nhãn, cân USB. Chỉ chạy trên bản desktop. Sẽ được xây dựng ở sprint sau.</value></data>
@@ -254,10 +265,19 @@
   <data name="npi.workcenter.title" xml:space="preserve"><value>NPI Data — WorkCenter</value></data>
   <data name="npi.workcenter.search_placeholder" xml:space="preserve"><value>Tìm WC Code / mô tả / area…</value></data>
   <data name="npi.spec.title" xml:space="preserve"><value>NPI Data — Engineer Spec</value></data>
-  <data name="npi.spec.placeholder_lead" xml:space="preserve"><value>Tab quản lý Engineer Spec (thông số kỹ thuật NPI). Chức năng sẽ được xây dựng sau.</value></data>
-  <data name="npi.spec.placeholder_li1" xml:space="preserve"><value>Thông số kỹ thuật chi tiết cho sản phẩm mới (kích thước, dung sai, vật liệu).</value></data>
-  <data name="npi.spec.placeholder_li2" xml:space="preserve"><value>Liên kết với module Spec Control hiện có.</value></data>
-  <data name="npi.spec.placeholder_li3" xml:space="preserve"><value>Phiên bản hoá và phê duyệt spec.</value></data>
+  <data name="npi.spec.search_placeholder" xml:space="preserve"><value>Tìm theo Spec Code / tiêu đề / sản phẩm…</value></data>
+  <data name="npi.spec.empty" xml:space="preserve"><value>Chưa có Spec nào. Tạo qua Spec Control API.</value></data>
+  <data name="npi.spec.col.spec_code" xml:space="preserve"><value>Mã Spec</value></data>
+  <data name="npi.spec.col.title" xml:space="preserve"><value>Tiêu đề</value></data>
+  <data name="npi.spec.col.product" xml:space="preserve"><value>Sản phẩm</value></data>
+  <data name="npi.spec.col.version" xml:space="preserve"><value>Phiên bản</value></data>
+  <data name="npi.spec.col.status" xml:space="preserve"><value>Trạng thái</value></data>
+  <data name="npi.spec.col.effective" xml:space="preserve"><value>Hiệu lực</value></data>
+  <data name="npi.spec.col.params" xml:space="preserve"><value>Thông số</value></data>
+  <data name="npi.spec.status.draft" xml:space="preserve"><value>Nháp</value></data>
+  <data name="npi.spec.status.in_review" xml:space="preserve"><value>Đang duyệt</value></data>
+  <data name="npi.spec.status.approved" xml:space="preserve"><value>Đã duyệt</value></data>
+  <data name="npi.spec.status.obsolete" xml:space="preserve"><value>Lỗi thời</value></data>
 
   <data name="qcqa.iqc.title" xml:space="preserve"><value>QC/QA Data — IQC</value></data>
   <data name="qcqa.iqc.placeholder_lead" xml:space="preserve"><value>Tab quản lý IQC (Incoming Quality Control) — kiểm tra chất lượng đầu vào. Chức năng sẽ được xây dựng sau.</value></data>

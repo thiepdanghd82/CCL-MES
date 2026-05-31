@@ -24,7 +24,31 @@ public class SpecService
             .OrderByDescending(s => s.Id)
             .ToListAsync();
 
+    /// <summary>
+    /// Phase 6 Bước 1 — paginated list for the Engineer Spec grid UI.
+    /// Mirrors the NpiService pattern (search + page + AsNoTracking) so the
+    /// Razor page reads identical to the 4 existing NPI grids.
+    /// </summary>
+    public Task<PagedResult<Spec>> SpecsAsync(string? search, int page, int pageSize)
+    {
+        var q = _db.Specs
+            .AsNoTracking()
+            .Include(s => s.Versions)
+            .Include(s => s.Product)
+            .AsQueryable();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(x => EF.Functions.Like(x.SpecCode, $"%{s}%")
+                || EF.Functions.Like(x.Title, $"%{s}%")
+                || (x.Product != null && EF.Functions.Like(x.Product.Name, $"%{s}%")));
+        }
+        return PagingHelper.PageAsync(q.OrderByDescending(x => x.Id), page, pageSize);
+    }
+
     // Phase 6 Bước 5 — actor param added (was a gap noted in PHASE6-STEP5-PLAN.md §1.1).
+    // Phase 6 close-out — local PageAsync removed (consolidated into shared
+    // PagingHelper.PageAsync in Bước 2B; carry-over note in Bước 1 closed).
     public async Task<SpecVersion> CreateAsync(CreateSpecRequest r, string? user)
     {
         var spec = new Spec
