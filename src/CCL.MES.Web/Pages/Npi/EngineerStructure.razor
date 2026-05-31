@@ -2,6 +2,9 @@
 @attribute [Authorize(Policy = "NpiRead")]
 @using System.Globalization
 @using CCL.MES.Application.Services
+@using CCL.MES.Application.Services.NpiImport
+@using CCL.MES.Domain.Entities
+@using CCL.MES.Web.Shared
 @using Microsoft.JSInterop
 @inject NpiService Npi
 @inject IJSRuntime JS
@@ -45,7 +48,19 @@
                 </div>
             }
         </div>
+        @* Phase 7 hạng mục 1 Bổ sung — Import CSV. AuthorizeView gate Admin/Engineer
+           khớp matrix Phase 6 Bước 4 §2.C (master data write). Defense-in-depth:
+           NpiImportService.ApplyAsync validate role lần nữa server-side. *@
+        <AuthorizeView Roles="Admin,Engineer">
+            <button type="button" class="rt-btn" @onclick="OpenImportAsync">@Loc["npi.import.btn"]</button>
+        </AuthorizeView>
     </div>
+
+    <NpiImportModal TEntity="ManufacturingStructure"
+                    @ref="_importModal"
+                    Target="@_importTarget"
+                    EntityLabel="@Loc["npi.structure.title"].Value"
+                    OnImported="OnImportedAsync" />
 
     <div class="rt-table-wrap">
         @if (_result is null)
@@ -103,6 +118,24 @@
     private HashSet<string> _hidden = new();
     private const string _storageKey = "cclmes.engineer-structure.columns-hidden.v1";
     private bool _hiddenLoaded;
+
+    // Phase 7 hạng mục 1 Bổ sung — Import CSV wiring.
+    private NpiImportModal<ManufacturingStructure>? _importModal;
+    private readonly StructureCsvTarget _importTarget = new();
+
+    private async Task OpenImportAsync()
+    {
+        if (_importModal is null) return;
+        await _importModal.OpenAsync(_result?.Total ?? 0);
+    }
+
+    private async Task OnImportedAsync()
+    {
+        // Reset to page 1 + reload grid for fresh data; user vẫn ở Step 3 modal.
+        _page = 1;
+        _search = null;
+        await Load();
+    }
 
     private enum ColAlign { Left, Right }
 

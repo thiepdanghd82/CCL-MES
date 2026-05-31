@@ -182,6 +182,9 @@ builder.Services.AddScoped<BackupService>();
 // Phase 6 Bước 5 — audit log writer (Application interface) + Syslog list.
 builder.Services.AddScoped<CCL.MES.Application.Audit.IAuditWriter, AuditService>();
 builder.Services.AddScoped<AuditLogService>();
+// Phase 7 hạng mục 1 — NPI CSV import engine (replace-all + auto-backup
+// + audit emit). Generic, reusable cho 5 tab NPI sau qua ICsvImportTarget.
+builder.Services.AddScoped<NpiImportService>();
 
 var app = builder.Build();
 

@@ -1,0 +1,282 @@
+@*  Phase 7 hạng mục 1 — generic NPI CSV import wizard (3-step).
+    Pattern: parent page nhận ref → gọi OpenAsync(target) → modal handle
+    file pick + preview + confirm. KHÔNG ghi DB ở step 1-2 (parse pure).
+    Step 3 (Apply) gọi NpiImportService.ApplyAsync với auto-backup +
+    DELETE + INSERT atomic + audit.
+
+    Generic qua type parameter TEntity (constraint class). Hạng mục 2+
+    (Routine / RawMaterials / Spec / WorkCenter) chỉ cần truyền target
+    khác — không sửa modal.
+*@
+
+@typeparam TEntity where TEntity : class
+
+@using System.Security.Claims
+@using CCL.MES.Application.Services.NpiImport
+@using CCL.MES.Web.Services
+@inject NpiImportService Importer
+@inject IStringLocalizer<SharedResource> Loc
+@inject AuthenticationStateProvider AuthState
+
+@if (_open)
+{
+    <div class="modal-scrim" @onclick="CancelClick">
+        <div class="modal-card npi-import-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal-head">
+                <h2>@string.Format(Loc["npi.import.modal.title"].Value, EntityLabel)</h2>
+                <button type="button" class="modal-close" @onclick="CancelClick" aria-label="Close">×</button>
+            </div>
+
+            <div class="modal-body">
+                @if (_step == Step.Pick)
+                {
+                    <h3>@Loc["npi.import.modal.step1_title"]</h3>
+                    <p class="muted">@Loc["npi.import.modal.step1_hint"]</p>
+                    <InputFile OnChange="OnFilePickedAsync" accept=".csv" disabled="@_busy" />
+                    @if (_busy)
+                    {
+                        <p class="muted">@Loc["npi.import.modal.parsing"]</p>
+                    }
+                    @if (!string.IsNullOrEmpty(_errorKey))
+                    {
+                        <div class="alert err">@LocalizedError</div>
+                    }
+                }
+                else if (_step == Step.Preview && _parse is not null)
+                {
+                    <h3>@Loc["npi.import.modal.step2_title"]</h3>
+
+                    @if (_parse.MissingRequired.Count > 0)
+                    {
+                        <div class="alert err">
+                            @string.Format(Loc["npi.import.modal.warning_missing_required"].Value, string.Join(", ", _parse.MissingRequired))
+                        </div>
+                    }
+                    else if (_parse.Rows.Count == 0)
+                    {
+                        <div class="alert err">@Loc["npi.import.modal.warning_no_rows"]</div>
+                    }
+
+                    <table class="diag-table">
+                        <tr><th>@Loc["npi.import.modal.header_label"]</th>
+                            <td>@string.Format(Loc["npi.import.modal.header_value"].Value, _parse.HeaderRaw.Count, _parse.MappedFields.Count, Target.HeaderAliases.Count)</td></tr>
+                        <tr><th>@Loc["npi.import.modal.rows_parsed"]</th><td>@_parse.Parsed.ToString("N0")</td></tr>
+                        <tr><th>@Loc["npi.import.modal.rows_valid"]</th><td>@_parse.Rows.Count.ToString("N0")</td></tr>
+                        <tr><th>@Loc["npi.import.modal.rows_skipped"]</th>
+                            <td>@_parse.Skipped.ToString("N0")@if (_parse.SkipReasons.Count > 0) { <span class="muted"> (@string.Join(", ", _parse.SkipReasons.Select(kv => $"{kv.Key}={kv.Value}")))</span> }</td></tr>
+                        <tr><th>@Loc["npi.import.modal.diff_label"]</th>
+                            <td>@string.Format(Loc["npi.import.modal.diff_value"].Value, _currentRowCount.ToString("N0"), _parse.Rows.Count.ToString("N0"))</td></tr>
+                    </table>
+
+                    @if (_parse.Rows.Count > 0)
+                    {
+                        <h4>@Loc["npi.import.modal.sample_header"]</h4>
+                        <pre class="code-snippet">@SamplePreview(_parse.Rows.Take(5))</pre>
+                        <p class="muted">@string.Format(Loc["npi.import.modal.confirm_lead"].Value, Target.TableName)</p>
+                    }
+
+                    @if (!string.IsNullOrEmpty(_errorKey))
+                    {
+                        <div class="alert err">@LocalizedError</div>
+                    }
+
+                    @if (_busy)
+                    {
+                        <p class="muted">@Loc["npi.import.modal.applying"]</p>
+                    }
+                }
+                else if (_step == Step.Done && _result is not null)
+                {
+                    <h3>@Loc["npi.import.modal.step3_title"]</h3>
+                    <div class="alert ok">@Loc["npi.import.modal.success_lead"]</div>
+                    <table class="diag-table">
+                        <tr><th>@Loc["npi.import.modal.result_backup"]</th><td>@_result.BackupFile <span class="muted">(@_result.BackupSha256Short…)</span></td></tr>
+                        <tr><th>@Loc["npi.import.modal.result_diff"]</th>
+                            <td>@string.Format(Loc["npi.import.modal.result_diff_value"].Value, _result.OldCount.ToString("N0"), _result.NewCount.ToString("N0"), _result.ElapsedMs.ToString("N0"))</td></tr>
+                        @if (_result.Skipped > 0)
+                        {
+                            <tr><th>@Loc["npi.import.modal.rows_skipped"]</th><td>@_result.Skipped.ToString("N0")</td></tr>
+                        }
+                    </table>
+                }
+                else if (_step == Step.Error)
+                {
+                    <div class="alert err">
+                        <strong>@Loc["npi.import.modal.error_lead"]</strong>
+                        <p>@LocalizedError</p>
+                    </div>
+                }
+            </div>
+
+            <div class="modal-foot">
+                @if (_step == Step.Pick)
+                {
+                    <button type="button" class="btn" @onclick="CancelClick" disabled="@_busy">@Loc["npi.import.modal.btn_cancel"]</button>
+                }
+                else if (_step == Step.Preview && _parse is not null)
+                {
+                    <button type="button" class="btn" @onclick="BackToPick" disabled="@_busy">@Loc["npi.import.modal.btn_pick_again"]</button>
+                    <button type="button" class="btn" @onclick="CancelClick" disabled="@_busy">@Loc["npi.import.modal.btn_cancel"]</button>
+                    @if (_parse.CanApply)
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="ApplyAsync" disabled="@_busy">@Loc["npi.import.modal.btn_confirm"]</button>
+                    }
+                }
+                else
+                {
+                    <button type="button" class="btn btn-primary" @onclick="CloseDone">@Loc["npi.import.modal.btn_close"]</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public ICsvImportTarget<TEntity> Target { get; set; } = default!;
+    [Parameter] public EventCallback OnImported { get; set; }
+    [Parameter] public int CurrentRowCount { get; set; }
+    [Parameter] public string? EntityLabel { get; set; }
+    [Parameter] public long MaxFileSizeBytes { get; set; } = 100L * 1024 * 1024;   // Q13 chốt 100 MB
+
+    private enum Step { Pick, Preview, Done, Error }
+    private bool _open;
+    private bool _busy;
+    private Step _step = Step.Pick;
+    private CsvParseResult<TEntity>? _parse;
+    private CsvImportResult? _result;
+    private string? _errorKey;
+    private string? _errorRaw;
+    private int _currentRowCount;
+
+    public Task OpenAsync(int currentRowCount)
+    {
+        _open = true;
+        _busy = false;
+        _step = Step.Pick;
+        _parse = null;
+        _result = null;
+        _errorKey = null;
+        _errorRaw = null;
+        _currentRowCount = currentRowCount;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private string LocalizedError
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(_errorKey)) return _errorRaw ?? "";
+            var key = $"npi.import.err.{_errorKey}";
+            var label = Loc[key].Value;
+            if (label == key) label = Loc["npi.import.err.unknown"].Value;
+            return string.IsNullOrEmpty(_errorRaw) ? label : $"{label} ({_errorRaw})";
+        }
+    }
+
+    private async Task OnFilePickedAsync(InputFileChangeEventArgs args)
+    {
+        _errorKey = null; _errorRaw = null;
+        _busy = true;
+        try
+        {
+            var f = args.File;
+            if (f.Size > MaxFileSizeBytes)
+            {
+                _errorKey = "too_large";
+                _errorRaw = $"{f.Size / 1024 / 1024} MB";
+                return;
+            }
+            using var stream = f.OpenReadStream(MaxFileSizeBytes);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            ms.Position = 0;
+            _parse = NpiCsvParser.Parse(ms, Target);
+            _step = Step.Preview;
+        }
+        catch (Exception ex)
+        {
+            _errorKey = "unknown";
+            _errorRaw = ex.Message;
+            _step = Step.Error;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ApplyAsync()
+    {
+        if (_parse is null || !_parse.CanApply) return;
+        _errorKey = null; _errorRaw = null;
+        _busy = true;
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var result = await Importer.ApplyAsync(_parse.Rows, Target, state.User, _parse.Skipped);
+            _result = result;
+            _step = Step.Done;
+            if (OnImported.HasDelegate) await OnImported.InvokeAsync();
+        }
+        catch (CsvImportException ex)
+        {
+            _errorKey = ex.ErrorKey;
+            _errorRaw = ex.Message;
+            _step = Step.Error;
+        }
+        catch (Exception ex)
+        {
+            _errorKey = "unknown";
+            _errorRaw = ex.Message;
+            _step = Step.Error;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void BackToPick()
+    {
+        _step = Step.Pick;
+        _parse = null;
+        _errorKey = null; _errorRaw = null;
+    }
+
+    private void CancelClick()
+    {
+        if (_busy) return;
+        _open = false;
+    }
+
+    private void CloseDone()
+    {
+        _open = false;
+    }
+
+    private static string SamplePreview(IEnumerable<TEntity> rows)
+    {
+        // Generic preview — reflection-free, dùng ToString() override hoặc
+        // public properties join với " | ". Đủ thông tin để operator kiểm
+        // mắt trước khi confirm replace. Không hiển thị quá rộng (max 200
+        // char per row để dễ đọc).
+        var lines = new List<string>();
+        foreach (var r in rows)
+        {
+            var props = typeof(TEntity).GetProperties()
+                .Where(p => p.PropertyType == typeof(string) || p.PropertyType == typeof(double) || p.PropertyType == typeof(double?))
+                .Take(8);
+            var parts = props.Select(p =>
+            {
+                var v = p.GetValue(r);
+                var s = v?.ToString() ?? "—";
+                return s.Length > 30 ? s[..30] + "…" : s;
+            });
+            var line = string.Join(" | ", parts);
+            if (line.Length > 200) line = line[..200] + "…";
+            lines.Add(line);
+        }
+        return string.Join("\n", lines);
+    }
+}

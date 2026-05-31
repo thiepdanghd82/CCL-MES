@@ -303,3 +303,322 @@ CCL-CMES (sẽ thay đổi):
 ---
 
 *Phase 7 — Hạng mục 1 khảo sát ngày 2026-05-31. Untracked, KHÔNG commit. STOP chờ anh chốt Q1-Q9.*
+
+---
+
+# Bổ sung — Import CSV trên UI (2026-05-31, sau khi anh duyệt Option A)
+
+> **Đổi scope**: Q3 ban đầu chốt "Import/Clear UI tách PR riêng". Anh đổi ý: gộp Import CSV vào PR Engineer Structure luôn vì đây là cách nạp data chính thay cho script Python tay. Em khảo sát + báo cáo trước khi code.
+
+## 12. ⚠ Phát hiện về CMES "auto-merge" — CMES KHÔNG auto-merge thật
+
+Em đọc lại kỹ `apps/server/src/modules/engineer-structure/engineer-structure.service.ts:243-337` (`importCsv` method) + `db/migrations/sqlite/007_engineer_structure.sql` + postgres equivalent. **Sự thật về CMES**:
+
+### 12.1 CMES schema KHÔNG có UNIQUE constraint
+
+```sql
+CREATE TABLE IF NOT EXISTS engineer_structure (
+  id                  TEXT PRIMARY KEY DEFAULT (gen_random_uuid()),  -- chỉ id là UNIQUE
+  parent_part         TEXT NOT NULL,
+  component_part      TEXT NOT NULL,
+  ...
+);
+CREATE INDEX idx_eng_structure_parent ON engineer_structure (parent_part);    -- chỉ INDEX, KHÔNG UNIQUE
+CREATE INDEX idx_eng_structure_component ON engineer_structure (component_part);
+```
+
+→ Không có `UNIQUE(parent_part, component_part)` hay tương tự.
+
+### 12.2 CMES importCsv KHÔNG có ON CONFLICT, KHÔNG DELETE trước
+
+```typescript
+await this.repo.query(
+  `INSERT INTO engineer_structure (...) VALUES (...)`,  // chỉ INSERT, không có ON CONFLICT
+  values as never,
+);
+```
+
+Không có `DELETE` trước, không có `ON CONFLICT DO UPDATE`, không có upsert. **Mỗi lần import = APPEND**. Re-import cùng file → **DUPLICATE rows**.
+
+### 12.3 CMES có `DELETE` endpoint riêng "Clear Data"
+
+```typescript
+@Delete()
+async clear() { await this.repo.query(`DELETE FROM engineer_structure`); }
+```
+
+→ Operator phải bấm **Clear Data** trước rồi Import lại nếu muốn replace toàn bộ. Đây là pattern hai bước, NHIỀU CÁCH bị sai nếu operator quên Clear.
+
+### 12.4 Kết luận về "auto-merge" của CMES
+
+CMES **KHÔNG** auto-merge. UI có 2 nút riêng (Import + Clear Data). Operator phải tự điều phối:
+- Nếu DB rỗng → Import → có data
+- Nếu DB đã có data + muốn refresh → Clear Data trước → Import → có data mới
+- Nếu Import mà quên Clear → duplicate rows (silent bug, không cảnh báo)
+
+→ **Mental model anh có về CMES "tự động merge" không khớp với code thật**. Trước khi quyết phương án em phải báo điều này. CCL-CMES có thể làm tốt hơn CMES bằng cách thiết kế semantic merge rõ ràng ngay từ đầu.
+
+## 13. So sánh các phương án merge cho CCL-CMES
+
+### 13.A — Replace-all (idempotent, đề xuất ⭐)
+
+Pattern CCL-CMES Python script hiện đang dùng: `DELETE FROM ManufacturingStructures` + `INSERT VALUES (...)` trong **1 transaction**. Atomic, idempotent.
+
+```csharp
+using var tx = await _db.Database.BeginTransactionAsync();
+try {
+  await _db.Database.ExecuteSqlRawAsync("DELETE FROM ManufacturingStructures");
+  _db.ManufacturingStructures.AddRange(parsedRows);
+  await _db.SaveChangesAsync();
+  await tx.CommitAsync();
+} catch {
+  await tx.RollbackAsync();
+  throw;
+}
+```
+
+**Pros**:
+- **Idempotent**: re-import cùng file → same end state (không nhân đôi)
+- Pattern này CCL-CMES Python script đã chạy chính xác, ops familiar
+- IFS export CSV là FULL DUMP (20,530 rows), không partial — replace-all hợp lý
+- Không cần thêm UNIQUE constraint → không cần migration v6
+- Code đơn giản (~20 LOC import logic)
+- Atomic — fail giữa chừng rollback toàn bộ, DB không corrupt
+
+**Cons**:
+- Nếu operator import file PARTIAL (vd CSV chỉ 100 rows test) → mất 20,430 rows còn lại
+- → Mitigation: **preview trước confirm** (xem trước số rows + 5 mẫu) + **auto-backup pre-import** để rollback bằng tay nếu sai
+- Không thể "patch một phần" (Engineer thêm 5 row mới → phải import full CSV)
+
+### 13.B — Upsert-by-key (preserve manual edits, phức tạp hơn)
+
+Thêm UNIQUE constraint `(ParentPart, ComponentPart, Alt)` qua migration v6. Import dùng `INSERT ... ON CONFLICT (ParentPart, ComponentPart, Alt) DO UPDATE`.
+
+**Pros**:
+- Preserve rows không có trong CSV (vd Engineer thêm 1 row tay không trong IFS dump)
+- Re-import idempotent (cùng key → update, không trùng)
+
+**Cons**:
+- Phải chốt key — `(ParentPart, ComponentPart)` không đủ vì IFS có Alternative No (Alt = "*", "1", "2"…) → cần `(ParentPart, ComponentPart, Alt)`. Risk: nếu CSV nguồn có NULL Alt → SQLite NULL không match nhau trong UNIQUE (mỗi NULL distinct), upsert fail
+- Cần migration v6 + verify lại CSV nguồn xem `(ParentPart, ComponentPart, Alt)` có duplicate không (em verify trước khi code)
+- LOC ~80 (helper to_upsert + key handling), test complexity cao hơn
+- EF Core 10 SQLite chưa support native UPSERT through DbContext API → phải `ExecuteSqlRaw` hand-craft
+
+### 13.C — Append (giống CMES code thật, NOT RECOMMENDED)
+
+Chỉ `INSERT`, không dedup. Operator phải bấm Clear Data trước rồi Import.
+
+**Pros**:
+- Đơn giản nhất (~10 LOC)
+
+**Cons**:
+- Không idempotent — re-import → duplicate. **Đã thấy bug CMES; không nên lặp lại**
+- Operator phải nhớ bấm Clear trước → human error
+- Không có safety net
+
+### 13.D — Append + auto-clear (replace-all wrapper, tương đương 13.A)
+
+UI có 1 nút "Import" duy nhất, server tự DELETE trước rồi INSERT (operator không cần bấm Clear). = Replace-all (13.A) với UX 1 click.
+
+→ **Đây chính là phương án 13.A** với UI 1 nút (không có nút "Clear Data" rời).
+
+---
+
+**Em đề xuất 13.D** (1 nút Import + replace-all + preview + auto-backup). Đây là biến thể tốt hơn CMES. Lý do:
+
+| Tiêu chí | CMES (Append + Clear riêng) | CCL-CMES đề xuất (13.D Replace-all + preview + auto-backup) |
+|---|---|---|
+| Số nút operator phải nhớ | 2 (Import + Clear) | 1 (Import) |
+| Re-import idempotent | ❌ duplicate | ✅ atomic |
+| Preview trước commit | ❌ | ✅ "Sẽ thay {old N} → {new M} rows, có chắc?" |
+| Safety net | ❌ | ✅ auto-backup SHA256 + audit trail trước khi DELETE |
+| Mất data partial CSV | – (CMES Append không mất) | ⚠ có, nhưng preview + backup mitigate |
+
+---
+
+## 14. Phương án 13.D chi tiết
+
+### 14.1 Luồng UI (3 step wizard)
+
+```
+Step 1 — Pick file
+  [InputFile accept=".csv"]  → user chọn file local
+  
+Step 2 — Preview (server parse + validate)
+  - Header detected: 31 cột, mapped 16/16 ✓
+  - Rows valid: 20,530
+  - Rows skipped: 0 (missing Parent or Component)
+  - 5 sample rows shown
+  - Current DB: 20,530 rows → sau import sẽ là 20,530 rows
+  - [Confirm Import] [Cancel]
+  
+Step 3 — Result
+  - ✓ Backup taken: ccl_mes.db.bak.pre-structure-import-{ts}
+  - ✓ DELETE 20,530 + INSERT 20,530 in 1 transaction (2.3s)
+  - ✓ Audit emitted: NPI_IMPORT (table=ManufacturingStructures, rows=20530)
+  - [Close]
+```
+
+### 14.2 Server-side parse + insert (Service code mới)
+
+`Application/Services/NpiImportService.cs` (mới):
+- `ParseStructureCsvAsync(Stream stream) → CsvParseResult` (preview)
+- `ApplyStructureImportAsync(IReadOnlyList<ManufacturingStructure> parsedRows, ClaimsPrincipal actor) → ImportResult` (commit)
+
+Tái dùng mapping logic từ `tools/import_npi.py:read_structures` (5 cột mới + num_or_none cho double?).
+
+### 14.3 Auto-backup pre-import
+
+```csharp
+// Inside ApplyStructureImportAsync, before DELETE:
+var backup = await _backup.CreateSnapshotAsync(actor);
+if (backup.Outcome != BackupOutcome.Success)
+    throw new InvalidOperationException("Backup failed — abort import");
+// → backup file: ccl_mes.db.bak.snapshot-{ts}
+// Audit Detail JSON sẽ ghi backup filename + sha256
+```
+
+### 14.4 RBAC
+
+- Page `[Authorize(Policy="NpiRead")]` giữ nguyên (xem grid)
+- Button **Import** chỉ render bằng `<AuthorizeView Roles="Admin,Engineer">` — match matrix Phase 6 Bước 4 §2.C (write master data = Admin/Engineer)
+  - Supervisor: read-only NPI (không edit master)
+  - QC: read-only NPI (không edit master)
+  - Operator: không access NPI nói chung
+- Server-side check trong `NpiImportService.ApplyStructureImportAsync` validate role lần nữa (defense-in-depth) — refuse nếu actor không phải Admin/Engineer
+- New AuditAction code: `NpiImport = "NPI_IMPORT"` (generic — detail JSON chứa table + rows + backup file + sha256)
+
+### 14.5 Validate dòng
+
+Reuse pattern Python script:
+- `len(row) < 11` → skip "short_row"
+- Cả `parent_part` lẫn `component_part` đều rỗng → skip "no_parent_or_component"
+- Pitch/Cavity/ScrapPct parse fail → store NULL (không skip)
+- Counters: parsed / inserted / skipped + skip_reasons dict
+
+**Fail policy**: skip dòng lỗi, KHÔNG fail batch (operator vẫn import được file có vài dòng lỗi nhỏ). Nếu skip ratio > 50% → flag warning bắt buộc operator confirm lại.
+
+### 14.6 Transaction
+
+Toàn bộ DELETE + INSERT trong 1 `BeginTransactionAsync()` → rollback nếu exception. Auto-backup được tạo TRƯỚC khi mở transaction (snapshot file độc lập, vẫn còn nếu rollback).
+
+### 14.7 File size limit
+
+CMES dùng env `OPS_MAX_UPLOAD_MB=200`. CCL-CMES đề xuất hard cap 100 MB (IFS dump ~5 MB cho 20k rows → 100 MB đủ rộng cho gấp 20 lần). Blazor `InputFile` parameter `MaxFileSize` enforce + server-side double-check.
+
+### 14.8 Header CSV — flexibility
+
+CMES có `HEADER_ALIASES` dict (case-insensitive, priority order). CCL-CMES reuse pattern này:
+- Map theo header CSV (không hardcode index như Python script hiện tại) → flexibility nếu IFS export đổi thứ tự cột
+- Aliases lấy từ CMES (đã verify): `parent_part` ← `"parent part no"|"parent part"`; `parent_desc` ← `"parent part description"|"parent description"`; etc.
+- Strip UTF-8 BOM
+- Separator = `,` (CSV comma); tab/semicolon defer (IFS export luôn CSV comma)
+
+### 14.9 i18n
+
+~15 key mới `npi.structure.import.*`:
+- `btn_import`, `modal.title`, `modal.pick_file`, `modal.parsing`, `modal.preview_header`, `modal.preview_rows`, `modal.preview_warning` (nếu skip > 50%), `modal.confirm_replace` (X cũ → Y mới), `modal.btn_confirm`, `modal.btn_cancel`, `modal.success`, `modal.error`, `result.imported`, `result.skipped`, `result.elapsed`
+
+EN+VI parity.
+
+---
+
+## 15. Tổng quát hóa cho 5 tab NPI (Structure / Routine / RawMaterials / Spec / Machine List)
+
+Pattern em đề xuất:
+
+```
+Application/Services/NpiImport/
+  ├── ICsvImportTarget<T>.cs       — interface chung: ParseRow / Apply
+  ├── StructureCsvTarget.cs        — implement mapping cho Structure
+  ├── RoutineCsvTarget.cs          — hạng mục 2
+  ├── RawMaterialsCsvTarget.cs     — hạng mục 3
+  ├── SpecCsvTarget.cs             — hạng mục 4
+  └── WorkCenterCsvTarget.cs       — hạng mục 5
+  
+Application/Services/NpiImportService.cs   — Generic engine:
+  - ParseCsvAsync<T>(Stream, ICsvImportTarget<T>) → CsvParseResult<T>
+  - ApplyImportAsync<T>(IReadOnlyList<T>, ICsvImportTarget<T>, actor) → ImportResult
+    1. CreateSnapshotAsync (auto-backup)
+    2. BeginTransaction
+    3. DELETE FROM <table>
+    4. INSERT rows
+    5. CommitAsync
+    6. Audit emit NPI_IMPORT { table, rows, backup_file, backup_sha256 }
+    
+Web/Shared/NpiImportModal.razor   — Generic 3-step wizard component:
+  - InputFile + preview + confirm + result
+  - Bind T type-generic; nhận ICsvImportTarget<T>
+  - Reusable cho 5 tab
+```
+
+Hạng mục 1 (Structure) làm REFERENCE implementation. Hạng mục 2+ refactor extract khi pattern đã ổn (giống định hướng NpiDataGrid Q6 chốt).
+
+→ **Bước 1 KHÔNG ép tổng quát hoá ngay**. Em làm `StructureCsvTarget` + `NpiImportService` (generic shape sẵn) + `NpiImportModal` (generic shape sẵn). Hạng mục 2 chỉ cần viết `RoutineCsvTarget` + dùng lại Service + Modal.
+
+---
+
+## 16. Câu hỏi mới Q10-Q15
+
+| # | Câu hỏi | Default em đề xuất |
+|---|---|---|
+| Q10 | Merge semantic: 13.A Replace-all (idempotent) hay 13.B Upsert-by-key (preserve manual edits)? | **13.A Replace-all** ⭐ vì idempotent + IFS export là full dump + Python script đã pattern này + có safety net (preview + auto-backup). 13.B phức tạp + Alt NULL handling tricky. |
+| Q11 | Có preview trước confirm không? | **Có** — 3-step wizard. Preview = header detected + rows valid + sample 5 rows + "{old N} → {new M}" diff. Operator confirm trước khi DELETE. |
+| Q12 | Auto-backup pre-import có bắt buộc không? | **Có** — gọi `BackupService.CreateSnapshotAsync` trước transaction. Backup fail → abort import. Audit detail ghi backup filename + sha256. |
+| Q13 | Giới hạn file size? | **100 MB** (IFS dump thực ~5 MB, dư rộng). Cả Blazor `InputFile MaxFileSize` + server check. |
+| Q14 | RBAC role nào được Import? | **Admin + Engineer** (match Phase 6 Bước 4 §2.C — write master data). Supervisor/QC read-only NPI; Operator không access NPI. |
+| Q15 | "Clear Data" UI tách rời như CMES, hay chỉ có "Import" (Replace-all)? | **Chỉ "Import"** — 13.D pattern. Replace-all đã có behavior tương đương Clear+Import nhưng atomic + ít human error. Không cần nút Clear riêng. |
+| Q16 | Generic NpiImportModal + ICsvImportTarget pattern làm ngay từ hạng mục 1 hay defer? | **Làm shape sẵn** ở hạng mục 1 (Service + Modal là generic, chỉ StructureCsvTarget concrete). Hạng mục 2 chỉ cần add RoutineCsvTarget — không refactor. |
+| Q17 | Header mapping reuse `HEADER_ALIASES` từ CMES hay viết riêng theo IFS CCL? | **Reuse CMES aliases** (đã verify khớp với CSV thật CCL IFS export). Add aliases mới nếu thấy gap qua test. |
+
+---
+
+## 17. Rủi ro + Mitigation mới
+
+| Rủi ro | Mức | Mitigation |
+|---|---|---|
+| Operator import sai file → mất 20,530 rows | **High** | Preview confirm (Step 2) + auto-backup SHA256 trước DELETE. Restore từ backup nếu sai. |
+| File CSV quá lớn → OOM | Med | 100 MB cap + InputFile streaming (không buffer toàn bộ vào memory một lúc). Blazor `OpenReadStream(maxAllowedSize: 100_000_000)`. |
+| CSV header thay đổi (IFS update) → mapping lỗi | Med | `HEADER_ALIASES` dict + log mapped_columns trong audit detail để debug. |
+| Transaction rollback fail giữa chừng → DB partial | Low | `BeginTransactionAsync` SQLite atomic. Auto-backup là safety net cuối cùng. |
+| Concurrent import (2 operator cùng nhấn) → race | Low | Page-level lock không cần (Blazor Server circuit per-user). Server-side: dùng `DbInitializer` lock pattern hoặc `lock` keyword đơn giản (rare scenario). |
+| Backup file disk full → cycle backup folder | Low | `BackupService.CreateSnapshotAsync` đã có log size. Future: cleanup old backups > N. Out of scope. |
+| Audit detail JSON quá dài (5 sample rows) | Low | Truncate detail nếu > 10 KB; chỉ ghi metadata (rows, filename, sha256, mapped_columns count). Không ghi raw CSV content. |
+
+---
+
+## 18. LOC ước lượng update (Option A + Import CSV gộp)
+
+| Module | LOC |
+|---|---|
+| Entity v5 + migration (đã chốt Option A) | 80 |
+| Razor grid 16 cột + freeze + Columns toggle (đã chốt) | 150 |
+| CSS + JS interop (đã chốt) | 80 |
+| i18n grid + import keys × 2 locale | 100 |
+| import_npi.py update (đã chốt) | 30 |
+| **NpiImportService + ICsvImportTarget + StructureCsvTarget** | 200 |
+| **NpiImportModal (3-step wizard, generic)** | 250 |
+| **NpiImport route handler trong page + AuditAction NPI_IMPORT** | 50 |
+| Test (parse mapping + replace-all idempotent + auto-backup chain) | 60 |
+| **TOTAL** | **~1000 LOC** |
+
+Vẫn 1 PR nhưng từ ~400 LOC → ~1000 LOC. Vẫn nằm trong giới hạn cho 1 PR.
+
+---
+
+## 19. DoD update cho PR hạng mục 1 (gộp Import)
+
+Bổ sung cho list §9:
+
+11. ✅ admin login → page có nút "Import" (Admin role pass `<AuthorizeView Roles="Admin,Engineer">`)
+12. ✅ engineer login → page có nút "Import"
+13. ✅ supervisor/qc/operator login → KHÔNG có nút Import (UI hide) + server-side refuse nếu force POST
+14. ✅ Import test file: pick CSV → preview hiển thị 31 cột mapped 16/16 + 5 sample rows + "20,530 → 20,530" → confirm → success
+15. ✅ Auto-backup file tạo TRƯỚC khi DELETE (verify by ls timestamps in `<DATA_DIR>/Backup/SQLite/`)
+16. ✅ Re-import cùng file → DB row count vẫn 20,530 (idempotent — KHÔNG duplicate)
+17. ✅ Audit log có entry `NPI_IMPORT` với detail JSON `{table: "ManufacturingStructures", rows: 20530, backup_file: "ccl_mes.db.bak.snapshot-...", elapsed_ms: ...}`
+18. ✅ Restore từ backup pre-import → DB rollback về 20,530 rows trước import (verify SHA256 match)
+
+---
+
+*Bổ sung Import CSV — 2026-05-31. Untracked, KHÔNG commit. STOP chờ anh chốt Q10-Q17.*

@@ -154,6 +154,13 @@ public class BackupService
     // Program.cs Bước 6.5 forces an absolute path for the SQLite
     // connection string at boot, so Path.GetFullPath here returns the
     // operator-intended path regardless of process CWD.
+    /// <summary>
+    /// Phase 7 hạng mục 1 — public expose để NpiImportService có thể tính
+    /// absolute path của snapshot file (SHA256 + audit). Trả về tuple
+    /// (BackupDir, DbFile) cùng shape như internal helper.
+    /// </summary>
+    public (string BackupDir, string DbFile) ResolveSqlitePaths() => ResolveSqlitePath();
+
     private (string BackupDir, string DbFile) ResolveSqlitePath()
     {
         var cs = _config.GetConnectionString("Default");
