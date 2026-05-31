@@ -53,16 +53,14 @@ public class WorkOrderService
             .Include(w => w.Inspections)
             .FirstOrDefaultAsync(w => w.Id == id);
 
-        // Error strings returned from this service bubble through the
-        // Razor page as the dynamic portion of a localized message
-        // ("Cannot advance: <Error>"). The text below is intentionally
-        // English-only — Phase 4+ should swap to an error-code → resource-key
-        // map so the dynamic portion also localises.
-        if (wo is null) return new AdvanceResult(false, "Work Order not found.", "-");
+        // Phase 5 — emit a WoErrorCode so the Web layer can localise the
+        // dynamic portion of the message ("Cannot advance: <localized>")
+        // via WoErrorKeys. Domain stays language-free.
+        if (wo is null) return new AdvanceResult(false, WoErrorCode.WorkOrderNotFound, "-");
 
         var check = WorkOrderStateMachine.CanAdvance(wo);
         if (!check.Allowed)
-            return new AdvanceResult(false, check.Reason, wo.CurrentStep.ToString());
+            return new AdvanceResult(false, check.Error, wo.CurrentStep.ToString());
 
         var from = wo.CurrentStep;
         var next = WorkOrderStateMachine.Next(from)!.Value;
@@ -86,6 +84,7 @@ public class WorkOrderService
         await _db.SaveChangesAsync();
         return new AdvanceResult(true, null, wo.CurrentStep.ToString());
     }
+
 
     public async Task<WorkOrder?> UpdateFlagsAsync(long id, UpdateFlagsRequest r)
     {

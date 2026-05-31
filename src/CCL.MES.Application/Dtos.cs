@@ -1,4 +1,5 @@
 using CCL.MES.Domain;
+using CCL.MES.Domain.StateMachine;
 
 namespace CCL.MES.Application;
 
@@ -59,4 +60,8 @@ public class QcDetailDto
     public int Qty { get; set; }
 }
 
-public record AdvanceResult(bool Ok, string? Error, string CurrentStep);
+// Phase 5 — ErrorCode replaces the prior free-form Error string. The Web
+// layer maps the enum to a localized resource key via WoErrorKeys; the API
+// serialises the enum as its name (e.g. "RequiresSpecAndMaterials") thanks
+// to JsonStringEnumConverter registered in Program.cs.
+public record AdvanceResult(bool Ok, WoErrorCode? ErrorCode, string CurrentStep);
