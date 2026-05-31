@@ -1,6 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
+using System.Text.Json;
 using CCL.MES.Application;
+using CCL.MES.Application.Audit;
+using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -22,11 +25,13 @@ public class LoginModel : PageModel
 {
     private readonly IMesDbContext _db;
     private readonly IPasswordHasher<User> _hasher;
+    private readonly IAuditWriter _audit;
 
-    public LoginModel(IMesDbContext db, IPasswordHasher<User> hasher)
+    public LoginModel(IMesDbContext db, IPasswordHasher<User> hasher, IAuditWriter audit)
     {
         _db = db;
         _hasher = hasher;
+        _audit = audit;
     }
 
     [BindProperty]
@@ -65,7 +70,15 @@ public class LoginModel : PageModel
             || _hasher.VerifyHashedPassword(user, user.PasswordHash, Input.Password) == PasswordVerificationResult.Failed)
         {
             // Same error for "user not found" + "wrong password" so we don't
-            // leak which usernames exist.
+            // leak which usernames exist. Phase 6 Bước 5 — audit row still
+            // records the typed username so admins can spot brute-force
+            // attempts; the response shape is unchanged so this is NOT a
+            // probe oracle.
+            await _audit.EmitAsync(
+                AuditAction.LoginFail,
+                actor: "anonymous", actorRole: "",
+                targetType: "User", targetId: null,
+                detail: JsonSerializer.Serialize(new { typed_username = username }));
             ErrorKey = "login.error.invalid";
             return Page();
         }
@@ -76,6 +89,11 @@ public class LoginModel : PageModel
         // or scripts/RecoverAdmin.
         if (!user.IsActive)
         {
+            await _audit.EmitAsync(
+                AuditAction.LoginDisabled,
+                actor: "anonymous", actorRole: "",
+                targetType: "User", targetId: user.Id.ToString(),
+                detail: JsonSerializer.Serialize(new { typed_username = username }));
             ErrorKey = "login.error.invalid";
             return Page();
         }
@@ -95,6 +113,11 @@ public class LoginModel : PageModel
 
         user.LastLoginAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.LoginOk,
+            actor: user.Username, actorRole: user.Role,
+            targetType: "User", targetId: user.Id.ToString());
 
         return Redirect(SafeReturnUrl(Input.ReturnUrl));
     }

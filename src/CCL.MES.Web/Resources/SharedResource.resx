@@ -200,15 +200,27 @@
   <data name="settings.data.msg.snapshot_err" xml:space="preserve"><value>Snapshot failed: {0}</value></data>
   <data name="settings.data.msg.source_missing" xml:space="preserve"><value>Source DB file is missing.</value></data>
   <data name="settings.data.msg.sqlserver_unsupported" xml:space="preserve"><value>Snapshot from app is only supported on SQLite.</value></data>
-  <data name="settings.data.restore.todo" xml:space="preserve"><value>Restore is a destructive operation and will ship in Phase 6 Bước 5 (Audit Log + confirmation gate).</value></data>
+  <data name="settings.data.restore.title" xml:space="preserve"><value>Restore</value></data>
+  <data name="settings.data.restore.guidance" xml:space="preserve"><value>Restore is console-only. Stop the web app first, then run:</value></data>
+  <data name="settings.data.restore.safety" xml:space="preserve"><value>The script types-CONFIRM, prints snapshot row counts, takes a pre-restore auto-backup, then overwrites the live DB and writes a BACKUP_RESTORE audit row. See scripts/BackupRestore/README.md.</value></data>
   <data name="settings.data.sqlserver.title" xml:space="preserve"><value>SQL Server provider</value></data>
   <data name="settings.data.sqlserver.message" xml:space="preserve"><value>For SQL Server use the database engine's tooling (SSMS, maintenance plans, or `BACKUP DATABASE` T-SQL). The app does not orchestrate SQL Server backups.</value></data>
 
   <data name="settings.syslog.title" xml:space="preserve"><value>Settings — System Logs</value></data>
-  <data name="settings.syslog.placeholder_lead" xml:space="preserve"><value>The System Logs tab — audit log timeline, sign-in events, data changes. Admin-only in Ops Control v1.2 source; RBAC is not yet enforced in CCL-MES Phase 3 (TODO Phase 4+).</value></data>
-  <data name="settings.syslog.placeholder_li1" xml:space="preserve"><value>Filter by event type / user / date range.</value></data>
-  <data name="settings.syslog.placeholder_li2" xml:space="preserve"><value>Export to CSV for compliance review.</value></data>
-  <data name="settings.syslog.placeholder_li3" xml:space="preserve"><value>Retention + archival to off-site storage.</value></data>
+  <data name="settings.syslog.search_placeholder" xml:space="preserve"><value>Search across action / target / detail…</value></data>
+  <data name="settings.syslog.empty" xml:space="preserve"><value>No audit rows match the current filter.</value></data>
+  <data name="settings.syslog.from" xml:space="preserve"><value>From</value></data>
+  <data name="settings.syslog.to" xml:space="preserve"><value>To</value></data>
+  <data name="settings.syslog.action_all" xml:space="preserve"><value>All actions</value></data>
+  <data name="settings.syslog.actor_placeholder" xml:space="preserve"><value>Actor username…</value></data>
+  <data name="settings.syslog.col.timestamp" xml:space="preserve"><value>Timestamp (UTC)</value></data>
+  <data name="settings.syslog.col.actor" xml:space="preserve"><value>Actor</value></data>
+  <data name="settings.syslog.col.role" xml:space="preserve"><value>Role</value></data>
+  <data name="settings.syslog.col.action" xml:space="preserve"><value>Action</value></data>
+  <data name="settings.syslog.col.target" xml:space="preserve"><value>Target</value></data>
+  <data name="settings.syslog.col.detail" xml:space="preserve"><value>Detail</value></data>
+  <data name="settings.syslog.col.ip" xml:space="preserve"><value>IP</value></data>
+  <data name="settings.syslog.col.source" xml:space="preserve"><value>Source</value></data>
 
   <data name="settings.importlegacy.title" xml:space="preserve"><value>Settings — Import data v1.0</value></data>
   <data name="settings.importlegacy.placeholder_lead" xml:space="preserve"><value>The Import data v1.0 tab — bring data over from Ops Control v1.0 file backends. Admin-only in Ops Control v1.2 source; RBAC is not yet enforced in CCL-MES Phase 3 (TODO Phase 4+).</value></data>

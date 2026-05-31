@@ -27,6 +27,7 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<RoutingOperation> RoutingOperations => Set<RoutingOperation>();
     public DbSet<ManufacturingStructure> ManufacturingStructures => Set<ManufacturingStructure>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -56,6 +57,13 @@ public class MesDbContext : DbContext, IMesDbContext
 
         // Auth — Username must be unique; login lookup hits this index every sign-in.
         b.Entity<User>().HasIndex(x => x.Username).IsUnique();
+
+        // Phase 6 Bước 5 — audit log indexes for Syslog filter UX.
+        // Sort hiển thị thường theo Timestamp DESC; filter theo
+        // ActorUsername / Action là pattern phổ biến nhất.
+        b.Entity<AuditLog>().HasIndex(x => x.Timestamp);
+        b.Entity<AuditLog>().HasIndex(x => x.ActorUsername);
+        b.Entity<AuditLog>().HasIndex(x => x.Action);
 
         // Tính toán read-only -> không map vào DB
         b.Entity<WorkOrder>().Ignore("LastQc");

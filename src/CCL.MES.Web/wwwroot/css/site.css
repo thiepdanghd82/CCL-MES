@@ -151,3 +151,16 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .btn.btn-primary { background:#1f3864; color:#fff; padding:8px 16px; font-size:14px;
   border:0; border-radius:6px; cursor:pointer; }
 .btn.btn-primary:hover { background:#16294b; }
+
+/* Phase 6 Bước 5 — Syslog tab + Backup Restore guidance card. */
+.syslog-toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0 16px; }
+.syslog-toolbar .grid-search { flex:1 1 220px; min-width:220px; }
+.syslog-toolbar .syslog-date { width:160px; }
+.syslog-toolbar .syslog-action { width:200px; }
+.syslog-toolbar .syslog-actor { width:180px; }
+.syslog-table { font-size:13px; }
+.syslog-table code { background:#f3f4f6; padding:1px 6px; border-radius:4px; font-size:12px; }
+.syslog-detail { font-family:Menlo, Consolas, monospace; font-size:12px; max-width:520px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:help; }
+.code-snippet { background:#f3f4f6; color:#1f2937; padding:10px 14px; border-radius:6px;
+  font-family:Menlo, Consolas, monospace; font-size:13px; overflow:auto; }

@@ -25,6 +25,7 @@ public interface IMesDbContext
     DbSet<RoutingOperation> RoutingOperations { get; }
     DbSet<ManufacturingStructure> ManufacturingStructures { get; }
     DbSet<User> Users { get; }
+    DbSet<AuditLog> AuditLogs { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

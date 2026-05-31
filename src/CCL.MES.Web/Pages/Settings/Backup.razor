@@ -75,11 +75,17 @@ else
     </div>
 
     <div class="settings-card">
-        <p class="muted">@Loc["settings.data.restore.todo"]</p>
+        <h2 class="settings-section">@Loc["settings.data.restore.title"]</h2>
+        <p>@Loc["settings.data.restore.guidance"]</p>
+        <pre class="code-snippet">cd scripts/BackupRestore
+dotnet run -- --from &lt;snapshot-filename&gt;</pre>
+        <p class="muted">@Loc["settings.data.restore.safety"]</p>
     </div>
 }
 
 @code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
     private IReadOnlyList<BackupFile>? _snapshots;
     private string? _message;
     private bool _ok;
@@ -99,9 +105,12 @@ else
         _ok = false;
         StateHasChanged();
 
-        // SQLite online backup is synchronous-bound; Task.Run keeps the
-        // SignalR circuit responsive on a large DB.
-        var result = await Task.Run(() => BackupSvc.CreateSnapshot());
+        if (AuthState is null) { _busy = false; return; }
+        var auth = await AuthState;
+        // Phase 6 Bước 5 — CreateSnapshotAsync emits BACKUP_CREATE audit
+        // on success. Task.Run keeps the SignalR circuit responsive on a
+        // large DB (SQLite online backup is synchronous-bound).
+        var result = await Task.Run(() => BackupSvc.CreateSnapshotAsync(auth.User));
 
         switch (result.Outcome)
         {
