@@ -1,19 +1,86 @@
 @page "/settings/account"
 @attribute [Authorize(Policy = "AdminOnly")]
+@using CCL.MES.Application.Services
+@using CCL.MES.Domain.Entities
+@using CCL.MES.Web.Services
+@inject UserAdminService UserSvc
 @inject IStringLocalizer<SharedResource> Loc
 
-@*  Phase 5 — RBAC enforced. Non-admin users hitting this URL get the
-    <AccessDenied /> panel from App.razor's NotAuthorized branch;
-    the topbar Settings dropdown also hides this item via
-    <AuthorizeView Roles="Admin"> in MainLayout.razor. *@
+@*  Phase 5 — RBAC gate kept (4 admin-only sub-tabs).
+    Phase 6 Bước 2B — read-only user list grid bám pattern NPI:
+    search + Pager + table. Mutations (create / disable / role change /
+    reset password for another user) deferred to Bước 4 — landed alongside
+    the RBAC 5-role whitelist + recover-admin script. Each is flagged as a
+    TODO in the row actions cell so admins see what's coming. *@
 
-<h1>@Loc["settings.account.title"]</h1>
-
-<div class="npi-placeholder">
-    <p class="muted">@Loc["settings.account.placeholder_lead"]</p>
-    <ul>
-        <li>@Loc["settings.account.placeholder_li1"]</li>
-        <li>@Loc["settings.account.placeholder_li2"]</li>
-        <li>@Loc["settings.account.placeholder_li3"]</li>
-    </ul>
+<div class="grid-head">
+    <h1>@Loc["settings.account.title"] <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…")</span></h1>
 </div>
+
+<div class="grid-toolbar">
+    <input class="grid-search" placeholder="@Loc["settings.account.search_placeholder"]"
+           @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
+</div>
+
+@if (_result is null)
+{
+    <p>@Loc["common.loading"]</p>
+}
+else if (_result.Total == 0)
+{
+    <div class="npi-placeholder">
+        <p class="muted">@Loc["settings.account.empty"]</p>
+    </div>
+}
+else
+{
+    <div class="table-scroll">
+    <table class="wo data">
+        <thead>
+            <tr>
+                <th>@Loc["settings.account.col.username"]</th>
+                <th>@Loc["settings.account.col.display_name"]</th>
+                <th>@Loc["settings.account.col.role"]</th>
+                <th>@Loc["settings.account.col.last_login"]</th>
+                <th>@Loc["settings.account.col.created"]</th>
+                <th>@Loc["settings.account.col.actions"]</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var u in _result.Items)
+            {
+                <tr>
+                    <td><b>@u.Username</b></td>
+                    <td>@(u.DisplayName ?? "-")</td>
+                    <td><span class="badge role-@u.Role.ToLowerInvariant()">@u.Role</span></td>
+                    <td>@FormatDate(u.LastLoginAt)</td>
+                    <td>@FormatDate(u.CreatedAt)</td>
+                    <td class="muted">@Loc["settings.account.actions.todo"]</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    </div>
+    <Pager Result="@PagerInfo" OnPage="GoPage" />
+}
+
+<div class="settings-card">
+    <p class="muted">@Loc["settings.account.bucket4_note"]</p>
+</div>
+
+@code {
+    private PagedResult<User>? _result;
+    private string? _search;
+    private int _page = 1;
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() => _result = await UserSvc.ListAsync(_search, _page, 50);
+    private async Task DoSearch() { _page = 1; await Load(); }
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
+    private async Task GoPage(int p) { _page = p; await Load(); }
+    private (int Page, int TotalPages, int Total) PagerInfo =>
+        _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
+
+    private static string FormatDate(DateTime? dt) => dt?.ToString("yyyy-MM-dd HH:mm") ?? "-";
+}

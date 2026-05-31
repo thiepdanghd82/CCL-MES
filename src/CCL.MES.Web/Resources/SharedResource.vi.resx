@@ -146,22 +146,52 @@
   <data name="settings.mode.placeholder_li3" xml:space="preserve"><value>Chạy lại wizard thiết lập lần đầu.</value></data>
 
   <data name="settings.account.title" xml:space="preserve"><value>Cài đặt — Quản lý tài khoản</value></data>
-  <data name="settings.account.placeholder_lead" xml:space="preserve"><value>Tab Quản lý tài khoản — quản lý người dùng, gán vai trò, nhóm quyền. Trong nguồn Ops Control v1.2 chỉ admin truy cập; RBAC chưa được áp dụng trong CCL-MES Phase 3 (TODO Phase 4+).</value></data>
-  <data name="settings.account.placeholder_li1" xml:space="preserve"><value>Tạo / vô hiệu hoá người dùng, reset mật khẩu.</value></data>
-  <data name="settings.account.placeholder_li2" xml:space="preserve"><value>Gán vai trò và nhóm quyền.</value></data>
-  <data name="settings.account.placeholder_li3" xml:space="preserve"><value>Luồng Provisioning Card (mật khẩu tạm dùng một lần + buộc đổi mật khẩu).</value></data>
+  <data name="settings.account.search_placeholder" xml:space="preserve"><value>Tìm theo tài khoản / tên hiển thị / vai trò…</value></data>
+  <data name="settings.account.empty" xml:space="preserve"><value>Chưa có người dùng.</value></data>
+  <data name="settings.account.col.username" xml:space="preserve"><value>Tài khoản</value></data>
+  <data name="settings.account.col.display_name" xml:space="preserve"><value>Tên hiển thị</value></data>
+  <data name="settings.account.col.role" xml:space="preserve"><value>Vai trò</value></data>
+  <data name="settings.account.col.last_login" xml:space="preserve"><value>Đăng nhập gần nhất</value></data>
+  <data name="settings.account.col.created" xml:space="preserve"><value>Tạo lúc</value></data>
+  <data name="settings.account.col.actions" xml:space="preserve"><value>Hành động</value></data>
+  <data name="settings.account.actions.todo" xml:space="preserve"><value>Tạo / vô hiệu / vai trò / reset — Phase 6 Bước 4 (RBAC).</value></data>
+  <data name="settings.account.bucket4_note" xml:space="preserve"><value>Các thao tác ghi (tạo / vô hiệu / đổi vai trò / reset mật khẩu người dùng khác) sẽ làm ở Phase 6 Bước 4 cùng với whitelist 5 vai trò RBAC + script recover-admin. Bước này chỉ đọc.</value></data>
 
   <data name="settings.about.title" xml:space="preserve"><value>Cài đặt — Giới thiệu / Chẩn đoán</value></data>
-  <data name="settings.about.placeholder_lead" xml:space="preserve"><value>Tab Giới thiệu / Chẩn đoán — phiên bản build, trạng thái server, vân tay phần cứng, thông tin license. Sẽ được xây dựng ở sprint sau.</value></data>
-  <data name="settings.about.placeholder_li1" xml:space="preserve"><value>Phiên bản ứng dụng + commit SHA + .NET runtime.</value></data>
-  <data name="settings.about.placeholder_li2" xml:space="preserve"><value>Loại DB + dung lượng + thời điểm backup gần nhất.</value></data>
-  <data name="settings.about.placeholder_li3" xml:space="preserve"><value>Trạng thái kích hoạt license + vân tay phần cứng.</value></data>
+  <data name="settings.about.section.app" xml:space="preserve"><value>Ứng dụng</value></data>
+  <data name="settings.about.section.db" xml:space="preserve"><value>Cơ sở dữ liệu</value></data>
+  <data name="settings.about.section.counts" xml:space="preserve"><value>Số bản ghi</value></data>
+  <data name="settings.about.field.app_name" xml:space="preserve"><value>Tên ứng dụng</value></data>
+  <data name="settings.about.field.version" xml:space="preserve"><value>Phiên bản</value></data>
+  <data name="settings.about.field.runtime" xml:space="preserve"><value>Runtime</value></data>
+  <data name="settings.about.field.environment" xml:space="preserve"><value>Môi trường</value></data>
+  <data name="settings.about.field.provider" xml:space="preserve"><value>Provider</value></data>
+  <data name="settings.about.field.last_backup" xml:space="preserve"><value>File backup gần nhất</value></data>
+  <data name="settings.about.count.users" xml:space="preserve"><value>Người dùng</value></data>
+  <data name="settings.about.count.work_orders" xml:space="preserve"><value>Work Orders</value></data>
+  <data name="settings.about.count.work_centers" xml:space="preserve"><value>Work Centers (NPI)</value></data>
+  <data name="settings.about.count.raw_materials" xml:space="preserve"><value>Raw Materials (NPI)</value></data>
+  <data name="settings.about.count.routing_operations" xml:space="preserve"><value>Routing Operations (NPI)</value></data>
+  <data name="settings.about.count.mfg_structures" xml:space="preserve"><value>Manufacturing Structures (NPI)</value></data>
+  <data name="settings.about.count.specs" xml:space="preserve"><value>Specs</value></data>
 
   <data name="settings.data.title" xml:space="preserve"><value>Cài đặt — Sao lưu / Phục hồi</value></data>
-  <data name="settings.data.placeholder_lead" xml:space="preserve"><value>Tab Sao lưu / Phục hồi — sao lưu thủ công và theo lịch, phục hồi tại thời điểm. Trong nguồn Ops Control v1.2 chỉ admin truy cập; RBAC chưa được áp dụng trong CCL-MES Phase 3 (TODO Phase 4+).</value></data>
-  <data name="settings.data.placeholder_li1" xml:space="preserve"><value>Chạy backup ngay / xem lịch sử backup.</value></data>
-  <data name="settings.data.placeholder_li2" xml:space="preserve"><value>Lập lịch + chính sách lưu trữ.</value></data>
-  <data name="settings.data.placeholder_li3" xml:space="preserve"><value>Phục hồi từ snapshot đã chọn (kèm bước xác nhận).</value></data>
+  <data name="settings.data.section.snapshot" xml:space="preserve"><value>Snapshot thủ công</value></data>
+  <data name="settings.data.section.list" xml:space="preserve"><value>Snapshot hiện có</value></data>
+  <data name="settings.data.snapshot.hint" xml:space="preserve"><value>Tạo bản sao DB SQLite cạnh ccl_mes.db qua online-backup API (an toàn khi server đang phục vụ).</value></data>
+  <data name="settings.data.btn.snapshot" xml:space="preserve"><value>Tạo snapshot</value></data>
+  <data name="settings.data.btn.snapshotting" xml:space="preserve"><value>Đang tạo…</value></data>
+  <data name="settings.data.list.empty" xml:space="preserve"><value>Chưa có snapshot nào.</value></data>
+  <data name="settings.data.col.name" xml:space="preserve"><value>Tên file</value></data>
+  <data name="settings.data.col.size" xml:space="preserve"><value>Kích thước</value></data>
+  <data name="settings.data.col.created" xml:space="preserve"><value>Tạo lúc (UTC)</value></data>
+  <data name="settings.data.msg.snapshot_ok" xml:space="preserve"><value>Đã tạo snapshot: {0}</value></data>
+  <data name="settings.data.msg.snapshot_err" xml:space="preserve"><value>Tạo snapshot thất bại: {0}</value></data>
+  <data name="settings.data.msg.source_missing" xml:space="preserve"><value>Không tìm thấy file DB nguồn.</value></data>
+  <data name="settings.data.msg.sqlserver_unsupported" xml:space="preserve"><value>Snapshot từ ứng dụng chỉ hỗ trợ SQLite.</value></data>
+  <data name="settings.data.restore.todo" xml:space="preserve"><value>Restore là thao tác phá huỷ, sẽ làm ở Phase 6 Bước 5 (Audit Log + bước xác nhận).</value></data>
+  <data name="settings.data.sqlserver.title" xml:space="preserve"><value>Provider SQL Server</value></data>
+  <data name="settings.data.sqlserver.message" xml:space="preserve"><value>Với SQL Server hãy dùng công cụ của database engine (SSMS, maintenance plans, hoặc `BACKUP DATABASE` T-SQL). Ứng dụng không điều phối backup SQL Server.</value></data>
 
   <data name="settings.syslog.title" xml:space="preserve"><value>Cài đặt — Nhật ký hệ thống</value></data>
   <data name="settings.syslog.placeholder_lead" xml:space="preserve"><value>Tab Nhật ký hệ thống — dòng thời gian audit, sự kiện đăng nhập, thay đổi dữ liệu. Trong nguồn Ops Control v1.2 chỉ admin truy cập; RBAC chưa được áp dụng trong CCL-MES Phase 3 (TODO Phase 4+).</value></data>

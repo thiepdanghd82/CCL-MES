@@ -1,19 +1,133 @@
 @page "/settings/data"
 @attribute [Authorize(Policy = "AdminOnly")]
+@using CCL.MES.Web.Services
+@inject BackupService BackupSvc
 @inject IStringLocalizer<SharedResource> Loc
 
-@*  Phase 5 — RBAC enforced. Non-admin users hitting this URL get the
-    <AccessDenied /> panel from App.razor's NotAuthorized branch;
-    the topbar Settings dropdown also hides this item via
-    <AuthorizeView Roles="Admin"> in MainLayout.razor. *@
+@*  Phase 5 — RBAC gate kept.
+    Phase 6 Bước 2B — Backup tab:
+      - SQLite: button to snapshot the live DB via SqliteConnection.BackupDatabase
+        (online backup, safe while serving) + list existing snapshots in the
+        same directory.
+      - SQL Server: localized message pointing operators at SSMS / maintenance
+        plans; no button rendered (would no-op).
+    Restore deliberately NOT in this Bước — replacing the live DB is a
+    destructive operation that needs a confirmation gate + audit row +
+    operator training. Filed as a Bước 5 follow-up. *@
 
 <h1>@Loc["settings.data.title"]</h1>
 
-<div class="npi-placeholder">
-    <p class="muted">@Loc["settings.data.placeholder_lead"]</p>
-    <ul>
-        <li>@Loc["settings.data.placeholder_li1"]</li>
-        <li>@Loc["settings.data.placeholder_li2"]</li>
-        <li>@Loc["settings.data.placeholder_li3"]</li>
-    </ul>
-</div>
+@if (!BackupSvc.IsSqlite)
+{
+    <div class="settings-card">
+        <h2 class="settings-section">@Loc["settings.data.sqlserver.title"]</h2>
+        <p>@Loc["settings.data.sqlserver.message"]</p>
+    </div>
+}
+else
+{
+    <div class="settings-card">
+        <h2 class="settings-section">@Loc["settings.data.section.snapshot"]</h2>
+        <p class="muted">@Loc["settings.data.snapshot.hint"]</p>
+        <button class="btn btn-primary" @onclick="DoSnapshot" disabled="@_busy">
+            @(_busy ? Loc["settings.data.btn.snapshotting"] : Loc["settings.data.btn.snapshot"])
+        </button>
+        @if (!string.IsNullOrEmpty(_message))
+        {
+            <div class="alert @(_ok ? "ok" : "err")">@_message</div>
+        }
+    </div>
+
+    <div class="settings-card">
+        <h2 class="settings-section">@Loc["settings.data.section.list"]</h2>
+        @if (_snapshots is null)
+        {
+            <p>@Loc["common.loading"]</p>
+        }
+        else if (_snapshots.Count == 0)
+        {
+            <p class="muted">@Loc["settings.data.list.empty"]</p>
+        }
+        else
+        {
+            <div class="table-scroll">
+            <table class="wo data">
+                <thead>
+                    <tr>
+                        <th>@Loc["settings.data.col.name"]</th>
+                        <th class="num">@Loc["settings.data.col.size"]</th>
+                        <th>@Loc["settings.data.col.created"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in _snapshots)
+                    {
+                        <tr>
+                            <td><code>@f.Name</code></td>
+                            <td class="num">@FormatSize(f.SizeBytes)</td>
+                            <td>@f.LastWriteUtc.ToString("yyyy-MM-dd HH:mm 'UTC'")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            </div>
+        }
+    </div>
+
+    <div class="settings-card">
+        <p class="muted">@Loc["settings.data.restore.todo"]</p>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<BackupFile>? _snapshots;
+    private string? _message;
+    private bool _ok;
+    private bool _busy;
+
+    protected override void OnInitialized() => Reload();
+
+    private void Reload()
+    {
+        _snapshots = BackupSvc.ListSnapshots();
+    }
+
+    private async Task DoSnapshot()
+    {
+        _busy = true;
+        _message = null;
+        _ok = false;
+        StateHasChanged();
+
+        // SQLite online backup is synchronous-bound; Task.Run keeps the
+        // SignalR circuit responsive on a large DB.
+        var result = await Task.Run(() => BackupSvc.CreateSnapshot());
+
+        switch (result.Outcome)
+        {
+            case BackupOutcome.Success:
+                _ok = true;
+                _message = string.Format(Loc["settings.data.msg.snapshot_ok"].Value, result.FileName);
+                break;
+            case BackupOutcome.SourceMissing:
+                _message = Loc["settings.data.msg.source_missing"].Value;
+                break;
+            case BackupOutcome.SqlServerUnsupported:
+                _message = Loc["settings.data.msg.sqlserver_unsupported"].Value;
+                break;
+            case BackupOutcome.Error:
+                _message = string.Format(Loc["settings.data.msg.snapshot_err"].Value, result.FileName ?? "?");
+                break;
+        }
+        _busy = false;
+        Reload();
+    }
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024 * 1024 * 1024L) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
+    }
+}
