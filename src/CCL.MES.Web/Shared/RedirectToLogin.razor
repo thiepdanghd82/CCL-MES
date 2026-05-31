@@ -1,0 +1,16 @@
+@* Force-redirects the browser to /login, carrying the original URL so the
+   Login Razor Page can return the user to their intended page after they
+   sign in. Used by AuthorizeRouteView's <NotAuthorized> slot in App.razor. *@
+@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        var current = Nav.ToBaseRelativePath(Nav.Uri);
+        var returnUrl = string.IsNullOrEmpty(current) ? "/" : "/" + current;
+        var target = $"/login?returnUrl={Uri.EscapeDataString(returnUrl)}";
+        // forceLoad: true → browser does a full GET so the cookie path
+        // (and the Razor Page that issues it) is hit cleanly.
+        Nav.NavigateTo(target, forceLoad: true);
+    }
+}
