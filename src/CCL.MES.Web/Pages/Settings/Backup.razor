@@ -1,0 +1,16 @@
+@page "/settings/data"
+@inject IStringLocalizer<SharedResource> Loc
+
+@*  Role-restricted in Ops Control v1.2 source (admin only).
+    RBAC enforcement deferred to Phase 4+. *@
+
+<h1>@Loc["settings.data.title"]</h1>
+
+<div class="npi-placeholder">
+    <p class="muted">@Loc["settings.data.placeholder_lead"]</p>
+    <ul>
+        <li>@Loc["settings.data.placeholder_li1"]</li>
+        <li>@Loc["settings.data.placeholder_li2"]</li>
+        <li>@Loc["settings.data.placeholder_li3"]</li>
+    </ul>
+</div>
