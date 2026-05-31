@@ -1,0 +1,240 @@
+@*  Phase 7 hạng mục 4 — Create Spec modal.
+    Reuse modal-scrim + modal-card + modal-head/body/foot CSS từ
+    NpiImportModal (Phase 7 hạng mục 1+). KHÔNG dùng generic vì đây là
+    form thuần Blazor binding tới CreateSpecRequest DTO.
+
+    Form structure (mirror SpecService.CreateAsync contract):
+      - SpecCode (required, unique check ở server-side)
+      - Title (required)
+      - Product dropdown (required, populate từ SpecService.ProductsForDropdownAsync)
+      - Initial parameters table:
+          ParamName | Nominal | TolMin | TolMax | UoM | IsCritical
+        + Add row / Remove row buttons; require ≥ 1 row
+
+    Submit → SpecService.CreateAsync → success → OnCreated callback parent
+    refresh grid. Error → inline alert (mirror NpiImportModal err state).
+
+    RBAC defense-in-depth: SpecService.CreateAsync KHÔNG validate role
+    hiện tại (đó là gap nhỏ — modal đã gate AuthorizeView Roles
+    Admin/Engineer ở caller, browser path bị chặn; nếu cần defense-in-depth
+    server-side, đẩy thành ticket Phase 8). Audit emit SpecCreate đã sẵn
+    qua AuditAction.SpecCreate.
+*@
+
+@using CCL.MES.Application.Services
+@using CCL.MES.Domain.Entities
+@inject SpecService Specs
+@inject IStringLocalizer<SharedResource> Loc
+@inject AuthenticationStateProvider AuthState
+
+@if (_open)
+{
+    <div class="modal-scrim" @onclick="CancelClick">
+        <div class="modal-card spec-create-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal-head">
+                <h2>@Loc["npi.spec.create.title"]</h2>
+                <button type="button" class="modal-close" @onclick="CancelClick" aria-label="Close">×</button>
+            </div>
+
+            <div class="modal-body">
+                <EditForm Model="_form" OnValidSubmit="OnSubmitAsync">
+                    <DataAnnotationsValidator />
+
+                    <div class="spec-form-grid">
+                        <label>
+                            <span class="spec-label">@Loc["npi.spec.create.spec_code"] <em>*</em></span>
+                            <InputText class="spec-input" @bind-Value="_form.SpecCode" placeholder="@Loc["npi.spec.create.spec_code_ph"]" />
+                            <ValidationMessage For="@(() => _form.SpecCode)" />
+                        </label>
+
+                        <label>
+                            <span class="spec-label">@Loc["npi.spec.create.title_field"] <em>*</em></span>
+                            <InputText class="spec-input" @bind-Value="_form.Title" placeholder="@Loc["npi.spec.create.title_field_ph"]" />
+                            <ValidationMessage For="@(() => _form.Title)" />
+                        </label>
+
+                        <label>
+                            <span class="spec-label">@Loc["npi.spec.create.product"] <em>*</em></span>
+                            <InputSelect class="spec-input" @bind-Value="_form.ProductId">
+                                <option value="0">— @Loc["npi.spec.create.product_pick"] —</option>
+                                @foreach (var p in _products)
+                                {
+                                    <option value="@p.Id">@p.ProductCode — @p.Name</option>
+                                }
+                            </InputSelect>
+                            @if (_form.ProductId == 0)
+                            {
+                                <small class="spec-hint">@Loc["npi.spec.create.product_required"]</small>
+                            }
+                        </label>
+                    </div>
+
+                    <h3>@Loc["npi.spec.create.params_header"]</h3>
+                    <table class="spec-params-table">
+                        <thead>
+                            <tr>
+                                <th>@Loc["npi.spec.create.param_name"] <em>*</em></th>
+                                <th>@Loc["npi.spec.create.nominal"]</th>
+                                <th>@Loc["npi.spec.create.tol_min"]</th>
+                                <th>@Loc["npi.spec.create.tol_max"]</th>
+                                <th>@Loc["npi.spec.create.uom"]</th>
+                                <th class="spec-col-critical">@Loc["npi.spec.create.is_critical"]</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int i = 0; i < _form.Parameters.Count; i++)
+                            {
+                                var idx = i;
+                                var p = _form.Parameters[idx];
+                                <tr>
+                                    <td><input class="spec-input-sm" @bind="p.ParamName" /></td>
+                                    <td><input class="spec-input-sm" @bind="p.Nominal" /></td>
+                                    <td><input class="spec-input-sm" @bind="p.TolMin" /></td>
+                                    <td><input class="spec-input-sm" @bind="p.TolMax" /></td>
+                                    <td><input class="spec-input-sm" @bind="p.Uom" /></td>
+                                    <td class="spec-col-critical"><input type="checkbox" @bind="p.IsCritical" /></td>
+                                    <td>
+                                        @if (_form.Parameters.Count > 1)
+                                        {
+                                            <button type="button" class="spec-btn-remove"
+                                                    @onclick="@(() => RemoveParam(idx))"
+                                                    title="@Loc["npi.spec.create.btn_remove_param"]">−</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <button type="button" class="btn" @onclick="AddParam">+ @Loc["npi.spec.create.btn_add_param"]</button>
+
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert err" role="alert">@_errorMessage</div>
+                    }
+
+                    @if (_busy)
+                    {
+                        <p class="muted">@Loc["npi.spec.create.saving"]</p>
+                    }
+
+                    <div class="modal-foot">
+                        <button type="button" class="btn" @onclick="CancelClick" disabled="@_busy">
+                            @Loc["npi.spec.create.btn_cancel"]
+                        </button>
+                        <button type="submit" class="btn btn-primary" disabled="@(_busy || !CanSubmit)">
+                            @Loc["npi.spec.create.btn_save"]
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback OnCreated { get; set; }
+
+    private bool _open;
+    private bool _busy;
+    private string? _errorMessage;
+    private FormModel _form = new();
+    private List<ProductDropdownItem> _products = new();
+
+    public async Task OpenAsync()
+    {
+        _open = true;
+        _busy = false;
+        _errorMessage = null;
+        _form = new FormModel();
+        _form.Parameters.Add(new ParamRow()); // start với 1 param row
+        _products = await Specs.ProductsForDropdownAsync();
+        StateHasChanged();
+    }
+
+    private void CancelClick()
+    {
+        if (_busy) return;
+        _open = false;
+    }
+
+    private void AddParam() => _form.Parameters.Add(new ParamRow());
+    private void RemoveParam(int idx)
+    {
+        if (_form.Parameters.Count > 1) _form.Parameters.RemoveAt(idx);
+    }
+
+    private bool CanSubmit =>
+        !string.IsNullOrWhiteSpace(_form.SpecCode)
+        && !string.IsNullOrWhiteSpace(_form.Title)
+        && _form.ProductId > 0
+        && _form.Parameters.Any(p => !string.IsNullOrWhiteSpace(p.ParamName));
+
+    private async Task OnSubmitAsync()
+    {
+        if (_busy || !CanSubmit) return;
+        _busy = true;
+        _errorMessage = null;
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var user = state.User?.Identity?.Name;
+
+            var req = new CCL.MES.Application.CreateSpecRequest
+            {
+                SpecCode = _form.SpecCode.Trim(),
+                Title = _form.Title.Trim(),
+                ProductId = _form.ProductId,
+                Parameters = _form.Parameters
+                    .Where(p => !string.IsNullOrWhiteSpace(p.ParamName))
+                    .Select(p => new CCL.MES.Application.SpecParamDto
+                    {
+                        ParamName = p.ParamName.Trim(),
+                        Nominal = string.IsNullOrWhiteSpace(p.Nominal) ? null : p.Nominal.Trim(),
+                        TolMin = string.IsNullOrWhiteSpace(p.TolMin) ? null : p.TolMin.Trim(),
+                        TolMax = string.IsNullOrWhiteSpace(p.TolMax) ? null : p.TolMax.Trim(),
+                        Uom = string.IsNullOrWhiteSpace(p.Uom) ? null : p.Uom.Trim(),
+                        IsCritical = p.IsCritical,
+                    })
+                    .ToList(),
+            };
+
+            await Specs.CreateAsync(req, user);
+            _open = false;
+            if (OnCreated.HasDelegate) await OnCreated.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = Loc["npi.spec.create.err_save"].Value + " (" + ex.Message + ")";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(64)]
+        public string SpecCode { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(200)]
+        public string Title { get; set; } = "";
+
+        public long ProductId { get; set; } = 0;
+
+        public List<ParamRow> Parameters { get; set; } = new();
+    }
+
+    private sealed class ParamRow
+    {
+        public string ParamName { get; set; } = "";
+        public string? Nominal { get; set; }
+        public string? TolMin { get; set; }
+        public string? TolMax { get; set; }
+        public string? Uom { get; set; }
+        public bool IsCritical { get; set; }
+    }
+}

@@ -1,104 +1,322 @@
 @page "/npi/engineer-spec"
 @attribute [Authorize(Policy = "NpiSpecRead")]
+@using System.Globalization
 @using CCL.MES.Application.Services
 @using CCL.MES.Domain
+@using CCL.MES.Domain.Entities
+@using CCL.MES.Web.Shared
+@using Microsoft.JSInterop
 @inject SpecService SpecSvc
+@inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> Loc
+@inject AuthenticationStateProvider AuthState
 
-@*  Phase 6 Bước 1 — Engineer Spec grid.
-    Mirrors the NPI grid pattern (EngineerRoutine / EngineerStructure / etc.)
-    so operators coming from those tabs find the same layout. Backend already
-    complete (SpecService.SpecsAsync paginated). *@
+@*  Phase 7 hạng mục 4 — Engineer Spec UI khớp pattern .rt-* đã chuẩn hoá
+    ở hạng mục 1-3 (Structure/Routine/RawMaterials):
+    - Migrate `wo data` class → `.rt-page` + freeze sticky thead
+    - 7 cột (ALL visible default) + Columns toggle popover (persist localStorage)
+    - + Create Spec button (AuthorizeView Admin/Engineer) → CreateSpecModal
+    - Approve per-row button (chỉ hiện khi version status ∈ {Draft, InReview})
+    - Status badge reuse .rm-status--{draft/review/approved/obsolete}
+    - Search expand 3 → 5 field (+ApprovedBy +Status enum string)
 
-<div class="grid-head">
-    <h1>@Loc["npi.spec.title"] <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…")</span></h1>
-</div>
+    KHÔNG Import CSV vì Spec data nội bộ (không có IFS source).
+    KHÔNG migration vì entity Spec/SpecVersion/SpecParameter đã đủ.
+    RBAC policy NpiSpecRead giữ nguyên (Admin/Supervisor/Engineer; QC chặn).
+    Mutation gate Admin+Engineer (Phase 6 Bước 4 §2.C — Supervisor R only). *@
 
-<div class="grid-toolbar">
-    <input class="grid-search" placeholder="@Loc["npi.spec.search_placeholder"]" @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
-    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
-</div>
-
-@if (_result is null)
-{
-    <p>@Loc["common.loading"]</p>
-}
-else if (_result.Total == 0)
-{
-    <div class="npi-placeholder">
-        <p class="muted">@Loc["npi.spec.empty"]</p>
+<section class="rt-page">
+    <div class="rt-breadcrumb">
+        @Loc["npi.spec.breadcrumb"]
+        @if (_result is not null)
+        {
+            <span class="rt-breadcrumb-count">· @string.Format(Loc["npi.spec.rows_loaded"].Value, _result.Total.ToString("N0", CultureInfo.InvariantCulture))</span>
+        }
     </div>
-}
-else
-{
-    <div class="table-scroll">
-    <table class="wo data">
-        <thead>
-            <tr>
-                <th>@Loc["npi.spec.col.spec_code"]</th>
-                <th>@Loc["npi.spec.col.title"]</th>
-                <th>@Loc["npi.spec.col.product"]</th>
-                <th class="num">@Loc["npi.spec.col.version"]</th>
-                <th>@Loc["npi.spec.col.status"]</th>
-                <th>@Loc["npi.spec.col.effective"]</th>
-                <th class="num">@Loc["npi.spec.col.params"]</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var s in _result.Items)
+
+    <div class="rt-toolbar">
+        <h2 class="rt-title">@Loc["npi.spec.title"]</h2>
+        <span class="rt-count-chip">@RowCountLabel</span>
+        <input type="search" class="rt-search" placeholder="@Loc["npi.spec.search_placeholder"]"
+               @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+        <div class="rt-cols-wrap">
+            <button type="button" class="rt-btn" @onclick="ToggleColsPop" aria-haspopup="true" aria-expanded="@_colsOpen">
+                @string.Format(Loc["npi.spec.btn_columns"].Value, VisibleCols.Count, AllCols.Count)
+            </button>
+            @if (_colsOpen)
             {
-                var latest = LatestVersion(s);
-                <tr>
-                    <td><b>@s.SpecCode</b></td>
-                    <td>@s.Title</td>
-                    <td>@(s.Product?.Name ?? "-")</td>
-                    <td class="num">v@(latest?.VersionNo.ToString() ?? "-")</td>
-                    <td>
-                        <span class="badge spec-@(StatusClass(latest?.Status))">@StatusLabel(latest?.Status)</span>
-                    </td>
-                    <td>@(latest?.EffectiveDate?.ToString("yyyy-MM-dd") ?? "-")</td>
-                    <td class="num">@(latest?.Parameters.Count ?? 0)</td>
-                </tr>
+                <div class="rt-cols-pop" role="menu">
+                    @foreach (var c in AllCols)
+                    {
+                        <label>
+                            <input type="checkbox" checked="@(!_hidden.Contains(c.Key))"
+                                   @onchange="@(() => ToggleCol(c.Key))" />
+                            @Loc[c.LabelKey]
+                        </label>
+                    }
+                    <button type="button" class="rt-btn-link" @onclick="ShowAllCols">@Loc["npi.spec.btn_show_all"]</button>
+                </div>
             }
-        </tbody>
-    </table>
+        </div>
+        <AuthorizeView Roles="Admin,Engineer">
+            <button type="button" class="rt-btn" @onclick="OpenCreateAsync">+ @Loc["npi.spec.btn_create"]</button>
+        </AuthorizeView>
     </div>
-    <Pager Result="@PagerInfo" OnPage="GoPage" />
-}
+
+    <CreateSpecModal @ref="_createModal" OnCreated="OnCreatedAsync" />
+
+    <div class="rt-table-wrap">
+        @if (_result is null)
+        {
+            <div class="rt-state">@Loc["common.loading"]</div>
+        }
+        else if (_result.Total == 0)
+        {
+            <div class="rt-state">@Loc[string.IsNullOrWhiteSpace(_search) ? "npi.spec.empty" : "npi.spec.empty_filter"]</div>
+        }
+        else
+        {
+            <table class="rt-table">
+                <thead>
+                    <tr>
+                        <th class="rt-num">#</th>
+                        @foreach (var c in VisibleCols)
+                        {
+                            <th style="@($"width:{c.Width}px; text-align:{(c.Align == ColAlign.Right ? "right" : "left")}")">@Loc[c.LabelKey]</th>
+                        }
+                        <AuthorizeView Roles="Admin,Engineer">
+                            <th style="width:90px; text-align:center">@Loc["npi.spec.col.actions"]</th>
+                        </AuthorizeView>
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ var rowIdx = (_result.Page - 1) * _pageSize; }
+                    @foreach (var s in _result.Items)
+                    {
+                        rowIdx++;
+                        var latest = LatestVersion(s);
+                        <tr>
+                            <td class="rt-num">@rowIdx</td>
+                            @foreach (var c in VisibleCols)
+                            {
+                                <td class="@(c.Align == ColAlign.Right ? "rt-right" : "")" title="@RawValue(s, latest, c.Key)">
+                                    @if (c.Key == "status")
+                                    {
+                                        @StatusBadge(latest?.Status)
+                                    }
+                                    else
+                                    {
+                                        @FormatCell(s, latest, c)
+                                    }
+                                </td>
+                            }
+                            <AuthorizeView Roles="Admin,Engineer">
+                                <td style="text-align:center">
+                                    @if (latest is not null && (latest.Status == SpecStatus.Draft || latest.Status == SpecStatus.InReview))
+                                    {
+                                        <button type="button" class="spec-approve-btn"
+                                                @onclick="@(() => ApproveAsync(latest.Id, s.SpecCode, latest.VersionNo))"
+                                                title="@Loc["npi.spec.btn_approve"]"
+                                                disabled="@(_busyApproveId == latest.Id)">
+                                            ✓
+                                        </button>
+                                    }
+                                </td>
+                            </AuthorizeView>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    @if (_result is not null && _result.TotalPages > 1)
+    {
+        <Pager Result="@PagerInfo" OnPage="GoPage" />
+    }
+</section>
 
 @code {
-    private PagedResult<CCL.MES.Domain.Entities.Spec>? _result;
+    private PagedResult<Spec>? _result;
     private string? _search;
     private int _page = 1;
+    private const int _pageSize = 50;
+    private bool _colsOpen;
+    private HashSet<string> _hidden = new();
+    private const string _storageKey = "cclmes.engineer-spec.columns-hidden.v1";
+    private bool _hiddenLoaded;
+
+    private CreateSpecModal? _createModal;
+    private long _busyApproveId = 0;
+
+    private async Task OpenCreateAsync()
+    {
+        if (_createModal is null) return;
+        await _createModal.OpenAsync();
+    }
+
+    private async Task OnCreatedAsync()
+    {
+        _page = 1;
+        _search = null;
+        await Load();
+    }
+
+    private async Task ApproveAsync(long versionId, string specCode, int versionNo)
+    {
+        if (_busyApproveId != 0) return;
+        // Confirm dialog — JS prompt; nếu JS không khả dụng (SSR pre-circuit)
+        // exception sẽ throw + skip approve. Đây là acceptable: server vẫn
+        // safe vì SpecService.ApproveAsync chỉ thực hiện khi modal handler
+        // chạy. Operator có thể retry.
+        bool confirmed;
+        try
+        {
+            confirmed = await JS.InvokeAsync<bool>("confirm",
+                string.Format(Loc["npi.spec.approve_confirm"].Value, specCode, versionNo));
+        }
+        catch
+        {
+            confirmed = false;
+        }
+        if (!confirmed) return;
+
+        _busyApproveId = versionId;
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var user = state.User?.Identity?.Name;
+            await SpecSvc.ApproveAsync(versionId, user);
+            await Load();
+        }
+        finally
+        {
+            _busyApproveId = 0;
+        }
+    }
+
+    private enum ColAlign { Left, Right }
+
+    private sealed record ColumnDef(string Key, string LabelKey, int Width, ColAlign Align);
+
+    private static readonly List<ColumnDef> AllCols = new()
+    {
+        new("spec_code",      "npi.spec.col.spec_code",     130, ColAlign.Left),
+        new("title",          "npi.spec.col.title",         260, ColAlign.Left),
+        new("product",        "npi.spec.col.product",       180, ColAlign.Left),
+        new("version",        "npi.spec.col.version",        70, ColAlign.Right),
+        new("status",         "npi.spec.col.status",        110, ColAlign.Left),
+        new("effective_date", "npi.spec.col.effective",     110, ColAlign.Left),
+        new("params_count",   "npi.spec.col.params",         80, ColAlign.Right),
+    };
+
+    private IReadOnlyList<ColumnDef> VisibleCols => AllCols.Where(c => !_hidden.Contains(c.Key)).ToList();
+
+    private string RowCountLabel
+    {
+        get
+        {
+            if (_result is null) return "…";
+            var totalStr = _result.Total.ToString("N0", CultureInfo.InvariantCulture);
+            return string.Format(Loc["npi.spec.rows_count"].Value, totalStr);
+        }
+    }
+
+    private static SpecVersion? LatestVersion(Spec s) =>
+        s.Versions is { Count: > 0 } ? s.Versions.OrderByDescending(v => v.VersionNo).First() : null;
+
+    private RenderFragment StatusBadge(SpecStatus? st) => __builder =>
+    {
+        if (st is null)
+        {
+            __builder.AddContent(0, "—");
+            return;
+        }
+        var (cls, labelKey) = st.Value switch
+        {
+            SpecStatus.Draft     => ("rm-status rm-status--draft",    "npi.spec.status.draft"),
+            SpecStatus.InReview  => ("rm-status rm-status--review",   "npi.spec.status.in_review"),
+            SpecStatus.Approved  => ("rm-status rm-status--approved", "npi.spec.status.approved"),
+            SpecStatus.Obsolete  => ("rm-status rm-status--obsolete", "npi.spec.status.obsolete"),
+            _                    => ("rm-status",                     "npi.spec.status.draft"),
+        };
+        __builder.OpenElement(1, "span");
+        __builder.AddAttribute(2, "class", cls);
+        __builder.AddContent(3, Loc[labelKey].Value);
+        __builder.CloseElement();
+    };
 
     protected override async Task OnInitializedAsync() => await Load();
-    private async Task Load() => _result = await SpecSvc.SpecsAsync(_search, _page, 50);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _hiddenLoaded) return;
+        _hiddenLoaded = true;
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>("cclmes.storageGet", _storageKey);
+            if (!string.IsNullOrWhiteSpace(stored))
+            {
+                var parts = stored.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                _hidden = parts.Where(p => AllCols.Any(c => c.Key == p)).ToHashSet();
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // JS not available (SSR pre-circuit) — keep empty set.
+        }
+    }
+
+    private async Task PersistHidden()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("cclmes.storageSet", _storageKey, string.Join(",", _hidden));
+        }
+        catch { /* localStorage unavailable — silent */ }
+    }
+
+    private async Task Load() => _result = await SpecSvc.SpecsAsync(_search, _page, _pageSize);
     private async Task DoSearch() { _page = 1; await Load(); }
     private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
     private async Task GoPage(int p) { _page = p; await Load(); }
+
+    private void ToggleColsPop() => _colsOpen = !_colsOpen;
+    private async Task ToggleCol(string key)
+    {
+        if (_hidden.Contains(key)) _hidden.Remove(key); else _hidden.Add(key);
+        await PersistHidden();
+    }
+    private async Task ShowAllCols()
+    {
+        _hidden.Clear();
+        await PersistHidden();
+    }
+
     private (int Page, int TotalPages, int Total) PagerInfo =>
         _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
 
-    private static CCL.MES.Domain.Entities.SpecVersion? LatestVersion(CCL.MES.Domain.Entities.Spec s) =>
-        s.Versions is { Count: > 0 } ? s.Versions.OrderByDescending(v => v.VersionNo).First() : null;
-
-    // Map SpecStatus → CSS class suffix (drives the colored badge).
-    private static string StatusClass(SpecStatus? st) => st switch
+    private static string RawValue(Spec s, SpecVersion? v, string key) => key switch
     {
-        SpecStatus.Draft     => "draft",
-        SpecStatus.InReview  => "review",
-        SpecStatus.Approved  => "approved",
-        SpecStatus.Obsolete  => "obsolete",
-        _                    => "draft",
+        "spec_code"      => s.SpecCode,
+        "title"          => s.Title,
+        "product"        => s.Product?.Name ?? "",
+        "version"        => v is null ? "" : v.VersionNo.ToString(),
+        "status"         => v?.Status.ToString() ?? "",
+        "effective_date" => v?.EffectiveDate?.ToString("yyyy-MM-dd") ?? "",
+        "params_count"   => (v?.Parameters.Count ?? 0).ToString(),
+        _                => "",
     };
 
-    // Localized label for SpecStatus. Returns "-" when version is missing.
-    private string StatusLabel(SpecStatus? st) => st switch
+    private string FormatCell(Spec s, SpecVersion? v, ColumnDef col) => col.Key switch
     {
-        SpecStatus.Draft     => Loc["npi.spec.status.draft"].Value,
-        SpecStatus.InReview  => Loc["npi.spec.status.in_review"].Value,
-        SpecStatus.Approved  => Loc["npi.spec.status.approved"].Value,
-        SpecStatus.Obsolete  => Loc["npi.spec.status.obsolete"].Value,
-        _                    => "-",
+        "spec_code"      => s.SpecCode,
+        "title"          => s.Title,
+        "product"        => s.Product?.Name ?? "—",
+        "version"        => v is null ? "—" : $"v{v.VersionNo}",
+        "effective_date" => v?.EffectiveDate?.ToString("yyyy-MM-dd") ?? "—",
+        "params_count"   => (v?.Parameters.Count ?? 0).ToString(),
+        _                => "—",
     };
 }
