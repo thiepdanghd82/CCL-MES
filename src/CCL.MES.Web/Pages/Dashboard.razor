@@ -1,8 +1,10 @@
 @page "/dashboard"
 @using Microsoft.AspNetCore.SignalR.Client
+@using CCL.MES.Web.Services
 @inject OeeService Oee
 @inject WorkOrderService Wo
 @inject NavigationManager Nav
+@inject HubCookieAccessor HubCookie
 @inject IStringLocalizer<SharedResource> Loc
 @implements IAsyncDisposable
 
@@ -67,8 +69,18 @@ else
     {
         await LoadAsync();
         // SignalR — auto-refresh whenever the shopfloor reports a change.
+        // Phase 5 — forward ccl_mes_auth cookie so the negotiate request
+        // authenticates against the same cookie scheme as Razor pages.
+        var hubUri = Nav.ToAbsoluteUri("/hubs/shopfloor");
         _hub = new HubConnectionBuilder()
-            .WithUrl(Nav.ToAbsoluteUri("/hubs/shopfloor"))
+            .WithUrl(hubUri, options =>
+            {
+                if (!string.IsNullOrEmpty(HubCookie.AuthCookie))
+                {
+                    options.Cookies.Add(new System.Net.Cookie(
+                        "ccl_mes_auth", HubCookie.AuthCookie, "/", hubUri.Host));
+                }
+            })
             .WithAutomaticReconnect()
             .Build();
         _hub.On<string>("shopfloorChanged", async _ =>

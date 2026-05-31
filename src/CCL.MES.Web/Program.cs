@@ -4,6 +4,7 @@ using CCL.MES.Application;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Infrastructure;
 using CCL.MES.Web.Hubs;
+using CCL.MES.Web.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -87,6 +88,8 @@ builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<ShopfloorNotifier>();
+// Phase 5 — cookie forward via scoped CookieAccessor (see docs/PHASE5-STEP2-PLAN.md).
+builder.Services.AddScoped<HubCookieAccessor>();
 
 var app = builder.Build();
 
@@ -122,14 +125,8 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapRazorPages();
 app.MapBlazorHub();
-// AllowAnonymous on the realtime broadcast hub: the Blazor Server
-// HubConnection client from Dashboard.razor does NOT carry the user's
-// cookie into the negotiate call, so the FallbackPolicy would reject
-// it. The hub itself only fans out shopfloor events (work-order step
-// changes, OEE counter ticks) — the underlying data is still gated
-// by the auth-required APIs. Phase 4+ should pass cookies via
-// HubConnectionBuilder options and remove this AllowAnonymous.
-app.MapHub<ShopfloorHub>("/hubs/shopfloor").AllowAnonymous();
+// Phase 5 — cookie forward via scoped CookieAccessor (see docs/PHASE5-STEP2-PLAN.md).
+app.MapHub<ShopfloorHub>("/hubs/shopfloor");
 app.MapFallbackToPage("/_Host");
 
 app.Run();
