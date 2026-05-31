@@ -1,0 +1,18 @@
+@* Pager — reusable pagination strip for NPI grids. *@
+@inject IStringLocalizer<SharedResource> Loc
+
+<div class="pager">
+    <span class="pager-info">@Loc["common.pager_total"]: <b>@Result.Total.ToString("N0")</b> @Loc["common.pager_rows"]</span>
+    <div class="pager-ctrls">
+        <button class="btn ghost" disabled="@(Result.Page <= 1)" @onclick="() => OnPage.InvokeAsync(1)">&laquo;</button>
+        <button class="btn ghost" disabled="@(Result.Page <= 1)" @onclick="() => OnPage.InvokeAsync(Result.Page - 1)">&lsaquo;</button>
+        <span class="pager-cur">@Result.Page / @(Result.TotalPages == 0 ? 1 : Result.TotalPages)</span>
+        <button class="btn ghost" disabled="@(Result.Page >= Result.TotalPages)" @onclick="() => OnPage.InvokeAsync(Result.Page + 1)">&rsaquo;</button>
+        <button class="btn ghost" disabled="@(Result.Page >= Result.TotalPages)" @onclick="() => OnPage.InvokeAsync(Result.TotalPages)">&raquo;</button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public (int Page, int TotalPages, int Total) Result { get; set; }
+    [Parameter] public EventCallback<int> OnPage { get; set; }
+}
