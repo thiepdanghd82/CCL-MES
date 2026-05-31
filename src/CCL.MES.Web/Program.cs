@@ -93,17 +93,15 @@ builder.Services.AddScoped<HubCookieAccessor>();
 
 var app = builder.Build();
 
-// DB init + seed.
-// - SQLite dev: EnsureCreated()
-// - SQL Server prod: Migrate()
+// DB init + seed (Phase 5 — single path for SQLite + SQL Server via
+// DbInitializer.InitializeAsync. The initializer baselines any pre-existing
+// EnsureCreated() DB by populating __EFMigrationsHistory before calling
+// Migrate(), so the 60k+ rows of NPI data already on disk are preserved.
+// See docs/PHASE5-STEP4-PLAN.md.)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
-    var provider = app.Configuration["Database:Provider"] ?? "Sqlite";
-    if (provider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
-        db.Database.Migrate();
-    else
-        db.Database.EnsureCreated();
+    await DbInitializer.InitializeAsync(db);
     await DbSeeder.SeedAsync(db);
     await SeedAdminUserAsync(db, scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>());
 }
