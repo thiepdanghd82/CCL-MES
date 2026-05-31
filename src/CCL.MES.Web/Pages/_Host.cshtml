@@ -1,9 +1,15 @@
 @page
 @namespace CCL.MES.Web.Pages
+@inject CCL.MES.Web.Services.HubCookieAccessor HubCookie
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 @{
     Layout = null;
     var lang = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+    // Phase 5 — capture ccl_mes_auth cookie into the circuit-scoped accessor
+    // so Dashboard/WorkOrders HubConnections can forward it on negotiate.
+    // HttpContext is alive here (Razor Page render) but not safely accessible
+    // from inside the Blazor circuit afterwards. See docs/PHASE5-STEP2-PLAN.md.
+    HubCookie.AuthCookie = Request.Cookies["ccl_mes_auth"];
 }
 <!DOCTYPE html>
 <html lang="@lang">

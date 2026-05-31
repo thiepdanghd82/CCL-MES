@@ -1,11 +1,13 @@
 @page "/workorders"
 @using CCL.MES.Web.Hubs
+@using CCL.MES.Web.Services
 @using Microsoft.AspNetCore.SignalR.Client
 @inject WorkOrderService Wo
 @inject QcService Qc
 @inject OeeService Oee
 @inject ShopfloorNotifier Notifier
 @inject NavigationManager Nav
+@inject HubCookieAccessor HubCookie
 @inject IStringLocalizer<SharedResource> Loc
 @implements IAsyncDisposable
 
@@ -91,8 +93,18 @@ else
     {
         await Reload();
         // SignalR — when another client posts a change, reload.
+        // Phase 5 — forward ccl_mes_auth cookie so the negotiate request
+        // authenticates against the same cookie scheme as Razor pages.
+        var hubUri = Nav.ToAbsoluteUri("/hubs/shopfloor");
         _hub = new HubConnectionBuilder()
-            .WithUrl(Nav.ToAbsoluteUri("/hubs/shopfloor"))
+            .WithUrl(hubUri, options =>
+            {
+                if (!string.IsNullOrEmpty(HubCookie.AuthCookie))
+                {
+                    options.Cookies.Add(new System.Net.Cookie(
+                        "ccl_mes_auth", HubCookie.AuthCookie, "/", hubUri.Host));
+                }
+            })
             .WithAutomaticReconnect()
             .Build();
         _hub.On<string>("shopfloorChanged", async _ =>
