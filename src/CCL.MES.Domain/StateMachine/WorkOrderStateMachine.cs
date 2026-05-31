@@ -2,15 +2,15 @@ using CCL.MES.Domain.Entities;
 
 namespace CCL.MES.Domain.StateMachine;
 
-public record TransitionResult(bool Allowed, string? Reason = null);
+public record TransitionResult(bool Allowed, WoErrorCode? Error = null);
 
 /// <summary>
 /// State machine governing the 7-step Work Order flow. Each transition
-/// fires only when its guard is satisfied. Reason strings are kept in
-/// English because they bubble through the Razor page as the dynamic
-/// portion of a localized message ("Cannot advance: <Reason>"). Phase 4+
-/// should swap to an error-code → resource-key map so the dynamic portion
-/// also localises.
+/// fires only when its guard is satisfied. Phase 5 — guards return a
+/// language-free <see cref="WoErrorCode"/>; the Web layer maps each code
+/// to a resource key via <c>WoErrorKeys</c> so the dynamic portion of the
+/// UI message localises with the surrounding text. See
+/// docs/PHASE5-STEP3-PLAN.md.
 /// </summary>
 public static class WorkOrderStateMachine
 {
@@ -36,24 +36,24 @@ public static class WorkOrderStateMachine
     public static TransitionResult CanAdvance(WorkOrder wo)
     {
         var next = Next(wo.CurrentStep);
-        if (next is null) return new TransitionResult(false, "Work Order is already at the final step.");
+        if (next is null) return new TransitionResult(false, WoErrorCode.AlreadyAtFinalStep);
 
         return (wo.CurrentStep, next.Value) switch
         {
             (ProcessStepCode.PrePressCheck, ProcessStepCode.OpSetting) =>
                 wo.SpecVersionId is not null && wo.MaterialsReady
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "Requires an approved Spec (SpecVersionId) and ready materials (MaterialsReady)."),
+                    : new TransitionResult(false, WoErrorCode.RequiresSpecAndMaterials),
 
             (ProcessStepCode.OpSetting, ProcessStepCode.IpqcApproval) =>
                 wo.SetupConfirmed
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "Requires machine setup confirmation (SetupConfirmed)."),
+                    : new TransitionResult(false, WoErrorCode.RequiresSetupConfirmed),
 
             (ProcessStepCode.IpqcApproval, ProcessStepCode.ReadyToRun) =>
                 wo.LastQc(QcType.IPQC)?.Result == QcResult.Pass
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "IPQC has not yet Passed."),
+                    : new TransitionResult(false, WoErrorCode.IpqcNotPassed),
 
             (ProcessStepCode.ReadyToRun, ProcessStepCode.Running) =>
                 new TransitionResult(true),
@@ -61,19 +61,19 @@ public static class WorkOrderStateMachine
             (ProcessStepCode.Running, ProcessStepCode.Fqc) =>
                 wo.ProducedQty > 0
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "No production recorded yet (ProducedQty = 0)."),
+                    : new TransitionResult(false, WoErrorCode.NoProductionYet),
 
             (ProcessStepCode.Fqc, ProcessStepCode.Oqc) =>
                 wo.LastQc(QcType.FQC)?.Result == QcResult.Pass
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "FQC has not yet Passed."),
+                    : new TransitionResult(false, WoErrorCode.FqcNotPassed),
 
             (ProcessStepCode.Oqc, ProcessStepCode.Closed) =>
                 wo.LastQc(QcType.OQC)?.Result == QcResult.Pass && wo.RohsOk
                     ? new TransitionResult(true)
-                    : new TransitionResult(false, "OQC has not yet Passed or RoHS not met."),
+                    : new TransitionResult(false, WoErrorCode.OqcOrRohsNotMet),
 
-            _ => new TransitionResult(false, "Invalid step transition.")
+            _ => new TransitionResult(false, WoErrorCode.InvalidStepTransition)
         };
     }
 }

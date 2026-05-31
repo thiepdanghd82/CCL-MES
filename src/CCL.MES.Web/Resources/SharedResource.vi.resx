@@ -54,6 +54,17 @@
   <data name="workorders.msg.resume" xml:space="preserve"><value>Resume: chạy lại.</value></data>
   <data name="workorders.msg.finish" xml:space="preserve"><value>Finish: +{0} good. ProducedQty cập nhật — có thể Advance qua FQC.</value></data>
 
+  <data name="workorders.error.already_at_final_step" xml:space="preserve"><value>Work Order đã ở bước cuối.</value></data>
+  <data name="workorders.error.requires_spec_materials" xml:space="preserve"><value>Cần Spec đã duyệt và vật tư sẵn sàng.</value></data>
+  <data name="workorders.error.requires_setup_confirmed" xml:space="preserve"><value>Cần xác nhận setup máy.</value></data>
+  <data name="workorders.error.ipqc_not_passed" xml:space="preserve"><value>IPQC chưa Pass.</value></data>
+  <data name="workorders.error.no_production_yet" xml:space="preserve"><value>Chưa ghi nhận sản lượng (ProducedQty = 0).</value></data>
+  <data name="workorders.error.fqc_not_passed" xml:space="preserve"><value>FQC chưa Pass.</value></data>
+  <data name="workorders.error.oqc_or_rohs_not_met" xml:space="preserve"><value>OQC chưa Pass hoặc RoHS không đạt.</value></data>
+  <data name="workorders.error.invalid_transition" xml:space="preserve"><value>Chuyển bước không hợp lệ.</value></data>
+  <data name="workorders.error.wo_not_found" xml:space="preserve"><value>Không tìm thấy Work Order.</value></data>
+  <data name="workorders.error.unknown" xml:space="preserve"><value>Lỗi không xác định.</value></data>
+
   <data name="workinstructions.title" xml:space="preserve"><value>Work Instructions</value></data>
   <data name="workinstructions.no_items" xml:space="preserve"><value>Chưa có Work Instruction.</value></data>
   <data name="workinstructions.meta.product" xml:space="preserve"><value>Sản phẩm</value></data>

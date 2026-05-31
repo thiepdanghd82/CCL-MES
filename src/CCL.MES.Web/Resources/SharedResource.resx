@@ -54,6 +54,17 @@
   <data name="workorders.msg.resume" xml:space="preserve"><value>Resume: running again.</value></data>
   <data name="workorders.msg.finish" xml:space="preserve"><value>Finish: +{0} good. ProducedQty updated — can Advance through FQC.</value></data>
 
+  <data name="workorders.error.already_at_final_step" xml:space="preserve"><value>Work Order is already at the final step.</value></data>
+  <data name="workorders.error.requires_spec_materials" xml:space="preserve"><value>Requires an approved Spec and ready materials.</value></data>
+  <data name="workorders.error.requires_setup_confirmed" xml:space="preserve"><value>Requires machine setup confirmation.</value></data>
+  <data name="workorders.error.ipqc_not_passed" xml:space="preserve"><value>IPQC has not yet Passed.</value></data>
+  <data name="workorders.error.no_production_yet" xml:space="preserve"><value>No production recorded yet (ProducedQty = 0).</value></data>
+  <data name="workorders.error.fqc_not_passed" xml:space="preserve"><value>FQC has not yet Passed.</value></data>
+  <data name="workorders.error.oqc_or_rohs_not_met" xml:space="preserve"><value>OQC has not yet Passed or RoHS not met.</value></data>
+  <data name="workorders.error.invalid_transition" xml:space="preserve"><value>Invalid step transition.</value></data>
+  <data name="workorders.error.wo_not_found" xml:space="preserve"><value>Work Order not found.</value></data>
+  <data name="workorders.error.unknown" xml:space="preserve"><value>Unknown error.</value></data>
+
   <data name="workinstructions.title" xml:space="preserve"><value>Work Instructions</value></data>
   <data name="workinstructions.no_items" xml:space="preserve"><value>No Work Instructions yet.</value></data>
   <data name="workinstructions.meta.product" xml:space="preserve"><value>Product</value></data>

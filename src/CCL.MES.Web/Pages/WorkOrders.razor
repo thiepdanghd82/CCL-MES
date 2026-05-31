@@ -126,9 +126,14 @@ else
     {
         var res = await Wo.AdvanceAsync(id, "shopfloor");
         _ok = res.Ok;
+        // Phase 5 — dynamic error portion now runs through WoErrorKeys so it
+        // localises along with the surrounding wrapper text.
+        var errorText = res.ErrorCode is null
+            ? ""
+            : Loc[WoErrorKeys.KeyFor(res.ErrorCode)].Value;
         _message = res.Ok
             ? Loc["workorders.msg.advance_ok", res.CurrentStep ?? ""].Value
-            : Loc["workorders.msg.advance_fail", res.Error ?? ""].Value;
+            : Loc["workorders.msg.advance_fail", errorText].Value;
         await Reload();
         await Notifier.NotifyChangedAsync("advance");
     }
