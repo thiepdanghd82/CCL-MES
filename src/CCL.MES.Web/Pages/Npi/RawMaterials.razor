@@ -1,60 +1,319 @@
 @page "/npi/raw-materials"
 @attribute [Authorize(Policy = "NpiRead")]
+@using System.Globalization
 @using CCL.MES.Application.Services
+@using CCL.MES.Application.Services.NpiImport
+@using CCL.MES.Domain.Entities
+@using CCL.MES.Web.Shared
+@using Microsoft.JSInterop
 @inject NpiService Npi
+@inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> Loc
 
-<div class="grid-head">
-    <h1>@Loc["npi.rawmaterials.title"] <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…")</span></h1>
-</div>
+@*  Phase 7 hạng mục 3 — Raw Materials UI khớp CMES tham chiếu:
+    28 cột đầy đủ (12 visible default + 16 hidden trong Columns popover)
+    + freeze header (sticky thead) + FROZEN first column PartNo (CMES có,
+    Routine/Structure không vì ít cột hơn) + Columns show/hide toggle
+    (persist localStorage). Status code badge inline styling.
 
-<div class="grid-toolbar">
-    <input class="grid-search" placeholder="@Loc["npi.rawmaterials.search_placeholder"]" @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
-    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
-</div>
+    Import CSV: source IFS Raw Materials là XLSX 69 cột — operator cần
+    "Save As .csv (UTF-8)" trong Excel TRƯỚC khi import. Hint hiển thị
+    trong Step 1 hint của NpiImportModal đã đủ; thêm sub-note ở toolbar
+    cho rõ ràng. RBAC NpiRead giữ nguyên. Import role Admin+Engineer. *@
 
-@if (_result is null)
-{
-    <p>@Loc["common.loading"]</p>
-}
-else
-{
-    <div class="table-scroll">
-    <table class="wo data">
-        <thead>
-            <tr><th>Part No</th><th>Part Description</th><th>Supplier ID</th><th>Supplier Name</th>
-                <th class="num">Price</th><th>Cur</th><th>Price UOM</th><th>Catalog Group</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var r in _result.Items)
-            {
-                <tr>
-                    <td><b>@r.PartNo</b></td>
-                    <td>@r.PartDescription</td>
-                    <td>@r.SupplierId</td>
-                    <td>@r.SupplierName</td>
-                    <td class="num">@r.Price.ToString("N2")</td>
-                    <td>@r.Currency</td>
-                    <td>@r.PriceUom</td>
-                    <td>@r.CatalogGroup</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+<section class="rt-page">
+    <div class="rt-breadcrumb">
+        @Loc["npi.rawmaterials.breadcrumb"]
+        @if (_result is not null)
+        {
+            <span class="rt-breadcrumb-count">· @string.Format(Loc["npi.rawmaterials.rows_loaded"].Value, _result.Total.ToString("N0", CultureInfo.InvariantCulture))</span>
+        }
     </div>
-    <Pager Result="@PagerInfo" OnPage="GoPage" />
-}
+
+    <div class="rt-toolbar">
+        <h2 class="rt-title">@Loc["npi.rawmaterials.title"]</h2>
+        <span class="rt-count-chip">@RowCountLabel</span>
+        <input type="search" class="rt-search" placeholder="@Loc["npi.rawmaterials.search_placeholder"]"
+               @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+        <div class="rt-cols-wrap">
+            <button type="button" class="rt-btn" @onclick="ToggleColsPop" aria-haspopup="true" aria-expanded="@_colsOpen">
+                @string.Format(Loc["npi.rawmaterials.btn_columns"].Value, VisibleCols.Count, AllCols.Count)
+            </button>
+            @if (_colsOpen)
+            {
+                <div class="rt-cols-pop" role="menu">
+                    @foreach (var c in AllCols)
+                    {
+                        <label>
+                            <input type="checkbox" checked="@(!_hidden.Contains(c.Key))"
+                                   @onchange="@(() => ToggleCol(c.Key))" />
+                            @Loc[c.LabelKey]
+                        </label>
+                    }
+                    <button type="button" class="rt-btn-link" @onclick="ShowAllCols">@Loc["npi.rawmaterials.btn_show_all"]</button>
+                </div>
+            }
+        </div>
+        <AuthorizeView Roles="Admin,Engineer">
+            <button type="button" class="rt-btn" @onclick="OpenImportAsync">@Loc["npi.import.btn"]</button>
+        </AuthorizeView>
+    </div>
+
+    @* Format hint: IFS source là XLSX — operator phải Save As .csv trước.
+       Hiển thị inline-subtle để không che toolbar; chỉ admin/engineer thấy
+       cũng đủ vì user thường KHÔNG import. *@
+    <AuthorizeView Roles="Admin,Engineer">
+        <p class="rt-format-hint">@Loc["npi.rawmaterials.format_hint"]</p>
+    </AuthorizeView>
+
+    <NpiImportModal TEntity="RawMaterial"
+                    @ref="_importModal"
+                    Target="@_importTarget"
+                    EntityLabel="@Loc["npi.rawmaterials.title"].Value"
+                    OnImported="OnImportedAsync" />
+
+    <div class="rt-table-wrap rt-rawmat-wrap">
+        @if (_result is null)
+        {
+            <div class="rt-state">@Loc["common.loading"]</div>
+        }
+        else if (_result.Total == 0)
+        {
+            <div class="rt-state">@Loc[string.IsNullOrWhiteSpace(_search) ? "npi.rawmaterials.empty" : "npi.rawmaterials.empty_filter"]</div>
+        }
+        else
+        {
+            <table class="rt-table rt-rawmat-table">
+                <thead>
+                    <tr>
+                        <th class="rt-num rt-sticky-col">#</th>
+                        @{ var firstCol = true; }
+                        @foreach (var c in VisibleCols)
+                        {
+                            var stickyCls = firstCol ? " rt-sticky-col" : "";
+                            firstCol = false;
+                            <th class="@stickyCls.Trim()" style="@($"width:{c.Width}px; text-align:{(c.Align == ColAlign.Right ? "right" : "left")}")">@Loc[c.LabelKey]</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ var rowIdx = (_result.Page - 1) * _pageSize; }
+                    @foreach (var r in _result.Items)
+                    {
+                        rowIdx++;
+                        <tr>
+                            <td class="rt-num rt-sticky-col">@rowIdx</td>
+                            @{ var firstBodyCol = true; }
+                            @foreach (var c in VisibleCols)
+                            {
+                                var cls = c.Align == ColAlign.Right ? "rt-right" : "";
+                                if (firstBodyCol) { cls = (cls + " rt-sticky-col").Trim(); firstBodyCol = false; }
+                                <td class="@cls" title="@RawValue(r, c.Key)">
+                                    @if (c.Key == "status_code")
+                                    {
+                                        @StatusBadge(r.StatusCode)
+                                    }
+                                    else
+                                    {
+                                        @FormatCell(r, c)
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    @if (_result is not null && _result.TotalPages > 1)
+    {
+        <Pager Result="@PagerInfo" OnPage="GoPage" />
+    }
+</section>
 
 @code {
-    private PagedResult<CCL.MES.Domain.Entities.RawMaterial>? _result;
+    private PagedResult<RawMaterial>? _result;
     private string? _search;
     private int _page = 1;
+    private const int _pageSize = 50;
+    private bool _colsOpen;
+    private HashSet<string> _hidden = new();
+    private const string _storageKey = "cclmes.raw-materials.columns-hidden.v1";
+    private bool _hiddenLoaded;
 
-    protected override async Task OnInitializedAsync() => await Load();
-    private async Task Load() => _result = await Npi.RawMaterialsAsync(_search, _page, 50);
+    // Phase 7 hạng mục 3 — Import CSV wiring.
+    private NpiImportModal<RawMaterial>? _importModal;
+    private readonly RawMaterialCsvTarget _importTarget = new();
+
+    private async Task OpenImportAsync()
+    {
+        if (_importModal is null) return;
+        await _importModal.OpenAsync(_result?.Total ?? 0);
+    }
+
+    private async Task OnImportedAsync()
+    {
+        _page = 1;
+        _search = null;
+        await Load();
+    }
+
+    private enum ColAlign { Left, Right }
+
+    private sealed record ColumnDef(string Key, string LabelKey, int Width, ColAlign Align,
+        Func<RawMaterial, object?> Get,
+        Func<object?, string>? Format,
+        bool HiddenByDefault);
+
+    private static string FmtNum(object? v, int digits)
+    {
+        if (v is null) return "—";
+        if (v is double d) return d.ToString($"F{digits}", CultureInfo.InvariantCulture);
+        return v.ToString() ?? "—";
+    }
+    private static string FmtStr(object? v)
+    {
+        var s = v?.ToString();
+        return string.IsNullOrEmpty(s) ? "—" : s;
+    }
+
+    private static RenderFragment StatusBadge(string? code) => __builder =>
+    {
+        if (string.IsNullOrEmpty(code))
+        {
+            __builder.AddContent(0, "—");
+            return;
+        }
+        var cls = "rm-status rm-status--" + code.ToLowerInvariant();
+        __builder.OpenElement(1, "span");
+        __builder.AddAttribute(2, "class", cls);
+        __builder.AddContent(3, code);
+        __builder.CloseElement();
+    };
+
+    // 28 columns — mirror CMES `RM_COLUMNS` literal (apps/web/src/modules/
+    // raw-materials/columns.tsx). 12 visible default + 16 hidden default.
+    // PartNo flagged frozen via UI rendering (first VisibleCols → rt-sticky-col).
+    private static readonly List<ColumnDef> AllCols = new()
+    {
+        new("part_no",                   "npi.rawmaterials.col.part_no",                   130, ColAlign.Left,  r => r.PartNo,                  null,                  false),
+        new("part_description",          "npi.rawmaterials.col.part_description",          280, ColAlign.Left,  r => r.PartDescription,         null,                  false),
+        new("supplier_id",               "npi.rawmaterials.col.supplier_id",               110, ColAlign.Left,  r => r.SupplierId,              null,                  false),
+        new("supplier_name",             "npi.rawmaterials.col.supplier_name",             200, ColAlign.Left,  r => r.SupplierName,            null,                  false),
+        new("price",                     "npi.rawmaterials.col.price",                     100, ColAlign.Right, r => r.Price,                   v => FmtNum(v, 4),     false),
+        new("price_incl_tax",            "npi.rawmaterials.col.price_incl_tax",            120, ColAlign.Right, r => r.PriceInclTax,            v => FmtNum(v, 4),     true),
+        new("currency",                  "npi.rawmaterials.col.currency",                   60, ColAlign.Left,  r => r.Currency,                null,                  false),
+        new("price_uom",                 "npi.rawmaterials.col.price_uom",                  80, ColAlign.Left,  r => r.PriceUom,                null,                  false),
+        new("supplier_leadtime_days",    "npi.rawmaterials.col.supplier_leadtime_days",    100, ColAlign.Right, r => r.SupplierLeadtimeDays,    v => FmtNum(v, 0),     false),
+        new("purch_uom",                 "npi.rawmaterials.col.purch_uom",                  80, ColAlign.Left,  r => r.PurchUom,                null,                  false),
+        new("inventory_uom",             "npi.rawmaterials.col.inventory_uom",              80, ColAlign.Left,  r => r.InventoryUom,            null,                  false),
+        new("site",                      "npi.rawmaterials.col.site",                       60, ColAlign.Left,  r => r.Site,                    null,                  false),
+        new("site_description",          "npi.rawmaterials.col.site_description",          140, ColAlign.Left,  r => r.SiteDescription,         null,                  true),
+        new("status_code",               "npi.rawmaterials.col.status_code",                90, ColAlign.Left,  r => r.StatusCode,              null,                  false),
+        new("minimum_quantity",          "npi.rawmaterials.col.minimum_quantity",          100, ColAlign.Right, r => r.MinimumQuantity,         v => FmtNum(v, 0),     true),
+        new("std_multiple_qty",          "npi.rawmaterials.col.std_multiple_qty",          110, ColAlign.Right, r => r.StdMultipleQty,          v => FmtNum(v, 0),     true),
+        new("standard_pack_size",        "npi.rawmaterials.col.standard_pack_size",        100, ColAlign.Right, r => r.StandardPackSize,        v => FmtNum(v, 0),     true),
+        new("conversion_factor",         "npi.rawmaterials.col.conversion_factor",         110, ColAlign.Right, r => r.ConversionFactor,        v => FmtNum(v, 4),     true),
+        new("tax_code",                  "npi.rawmaterials.col.tax_code",                   80, ColAlign.Left,  r => r.TaxCode,                 null,                  true),
+        new("tax_code_description",      "npi.rawmaterials.col.tax_code_description",      180, ColAlign.Left,  r => r.TaxCodeDescription,      null,                  true),
+        new("country_of_origin",         "npi.rawmaterials.col.country_of_origin",         100, ColAlign.Left,  r => r.CountryOfOrigin,         null,                  true),
+        new("acquisition_type",          "npi.rawmaterials.col.acquisition_type",          120, ColAlign.Left,  r => r.AcquisitionType,         null,                  true),
+        new("supplier_part_no",          "npi.rawmaterials.col.supplier_part_no",          140, ColAlign.Left,  r => r.SupplierPartNo,          null,                  true),
+        new("supplier_part_description", "npi.rawmaterials.col.supplier_part_description", 220, ColAlign.Left,  r => r.SupplierPartDescription, null,                  true),
+        new("net_weight",                "npi.rawmaterials.col.net_weight",                 90, ColAlign.Right, r => r.NetWeight,               v => FmtNum(v, 3),     true),
+        new("net_weight_uom",            "npi.rawmaterials.col.net_weight_uom",             70, ColAlign.Left,  r => r.NetWeightUom,            null,                  true),
+        new("next_order_date",           "npi.rawmaterials.col.next_order_date",           110, ColAlign.Left,  r => r.NextOrderDate,           null,                  true),
+        new("notes",                     "npi.rawmaterials.col.notes",                     200, ColAlign.Left,  r => r.Notes,                   null,                  true),
+    };
+
+    private static readonly HashSet<string> _defaultHidden = AllCols
+        .Where(c => c.HiddenByDefault)
+        .Select(c => c.Key)
+        .ToHashSet();
+
+    private IReadOnlyList<ColumnDef> VisibleCols => AllCols.Where(c => !_hidden.Contains(c.Key)).ToList();
+
+    private string RowCountLabel
+    {
+        get
+        {
+            if (_result is null) return "…";
+            var totalStr = _result.Total.ToString("N0", CultureInfo.InvariantCulture);
+            return string.Format(Loc["npi.rawmaterials.rows_count"].Value, totalStr);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Apply default hidden set BEFORE first load so visible UI matches
+        // CMES out of the box. localStorage in OnAfterRenderAsync overrides
+        // if operator already customized.
+        _hidden = new HashSet<string>(_defaultHidden);
+        await Load();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _hiddenLoaded) return;
+        _hiddenLoaded = true;
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>("cclmes.storageGet", _storageKey);
+            if (!string.IsNullOrWhiteSpace(stored))
+            {
+                var parts = stored.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                _hidden = parts.Where(p => AllCols.Any(c => c.Key == p)).ToHashSet();
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // JS not available (SSR pre-circuit) — keep default hidden, in-memory only.
+        }
+    }
+
+    private async Task PersistHidden()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("cclmes.storageSet", _storageKey, string.Join(",", _hidden));
+        }
+        catch { /* localStorage unavailable — silent */ }
+    }
+
+    private async Task Load() => _result = await Npi.RawMaterialsAsync(_search, _page, _pageSize);
     private async Task DoSearch() { _page = 1; await Load(); }
     private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
     private async Task GoPage(int p) { _page = p; await Load(); }
+
+    private void ToggleColsPop() => _colsOpen = !_colsOpen;
+    private async Task ToggleCol(string key)
+    {
+        if (_hidden.Contains(key)) _hidden.Remove(key); else _hidden.Add(key);
+        await PersistHidden();
+    }
+    private async Task ShowAllCols()
+    {
+        _hidden.Clear();
+        await PersistHidden();
+    }
+
     private (int Page, int TotalPages, int Total) PagerInfo =>
         _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
+
+    private static string RawValue(RawMaterial r, string key)
+    {
+        var col = AllCols.FirstOrDefault(c => c.Key == key);
+        if (col is null) return "";
+        var v = col.Get(r);
+        return v?.ToString() ?? "";
+    }
+
+    private static string FormatCell(RawMaterial r, ColumnDef col)
+    {
+        var raw = col.Get(r);
+        if (col.Format is not null) return col.Format(raw);
+        return FmtStr(raw);
+    }
 }

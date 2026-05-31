@@ -296,24 +296,40 @@ def read_structures(path):
 def read_raw_materials(path):
     """RawMaterials (IFS Raw Material catalog).
 
+    Phase 7 hạng mục 3 — mở rộng từ 12 lên 28 cột để khớp CMES tham
+    chiếu. 5 field legacy proxy (CatalogGroup/CatalogDesc/Grp/Type/
+    TypeDesc) bị DROP — chúng map sai semantic. Price `double` →
+    `double?`. 21 field mới map rõ ràng tới IFS columns.
+
     Column map (IFS export "Raw Materials.xlsx", 69 columns):
         [0]  Part No                       → PartNo
         [1]  Part Description              → PartDescription
         [2]  Supplier ID                   → SupplierId
         [3]  Supplier Name                 → SupplierName
-        [4]  Price                         → Price (numeric)
+        [4]  Price                         → Price (Phase 7 hm3: → double?)
+        [5]  Price incl. Tax               → PriceInclTax           (Phase 7 hm3)
         [6]  Currency                      → Currency
         [7]  Price Unit Measure            → PriceUom
-        [29] Status Code                   → Grp
-        [30] Status Code Description       → Type / TypeDesc (mirrored)
-        [31] Acquisition Type              → CatalogGroup
-        [10] Site                          → CatalogDesc (numeric site code as string)
-
-    The current IFS export does NOT carry the historical "Catalog Group"
-    /"Catalog Desc" columns the entity schema originally targeted. The
-    closest-meaning columns above are used so the read-side UI has
-    something to show; if these mappings are wrong for business use,
-    flag for Phase-1 follow-up and re-run the import (idempotent).
+        [8]  Supplier Mfg Leadtime         → SupplierLeadtimeDays   (Phase 7 hm3)
+        [9]  Purch U/M                     → PurchUom               (Phase 7 hm3)
+        [10] Site                          → Site                   (Phase 7 hm3, đúng tên — trước là CatalogDesc proxy)
+        [11] Site Description              → SiteDescription        (Phase 7 hm3)
+        [12] Inventory U/M                 → InventoryUom           (Phase 7 hm3)
+        [13] Conversion Factor             → ConversionFactor       (Phase 7 hm3)
+        [17] Tax Code                      → TaxCode                (Phase 7 hm3)
+        [18] Tax Code Description          → TaxCodeDescription     (Phase 7 hm3)
+        [28] Standard Pack Size            → StandardPackSize       (Phase 7 hm3)
+        [29] Status Code                   → StatusCode             (Phase 7 hm3, đúng tên — trước là Grp proxy)
+        [31] Acquisition Type              → AcquisitionType        (Phase 7 hm3, đúng tên — trước là CatalogGroup proxy)
+        [32] Supplier Part No              → SupplierPartNo         (Phase 7 hm3)
+        [33] Supplier Part Description     → SupplierPartDescription (Phase 7 hm3)
+        [37] Minimum Quantity              → MinimumQuantity        (Phase 7 hm3)
+        [38] Std Multiple Qty              → StdMultipleQty         (Phase 7 hm3)
+        [39] Country of Origin             → CountryOfOrigin        (Phase 7 hm3)
+        [53] Notes                         → Notes                  (Phase 7 hm3)
+        [62] Next Order Date               → NextOrderDate          (Phase 7 hm3)
+        [64] Net Weight                    → NetWeight              (Phase 7 hm3)
+        [65] Net Weight UoM                → NetWeightUom           (Phase 7 hm3)
     """
     counters = {"seen": 0, "skipped": 0, "skip_reasons": {}}
     rows = []
@@ -342,18 +358,34 @@ def read_raw_materials(path):
         g = lambda k: r[k] if k < len(r) else None
         rows.append(
             (
-                s(g(0)),
-                s(g(1)),
-                s(g(2)),
-                s(g(3)),
-                num(g(4)),
-                s(g(6)),
-                s(g(7)),
-                s(g(31)),
-                s(g(10)),
-                s(g(29)),
-                s(g(30)),
-                s(g(30)),
+                s(g(0)),               # PartNo
+                s(g(1)),               # PartDescription
+                s(g(2)),               # SupplierId
+                s(g(3)),               # SupplierName
+                num_or_none(g(4)),     # Price (Phase 7 hm3: nullable)
+                num_or_none(g(5)),     # PriceInclTax (NEW)
+                s(g(6)),               # Currency
+                s(g(7)),               # PriceUom
+                num_or_none(g(8)),     # SupplierLeadtimeDays (NEW)
+                s(g(9)),               # PurchUom (NEW)
+                s(g(12)),              # InventoryUom (NEW)
+                s(g(10)),              # Site (NEW, replaces CatalogDesc proxy)
+                s(g(11)),              # SiteDescription (NEW)
+                s(g(29)),              # StatusCode (NEW, replaces Grp proxy)
+                num_or_none(g(37)),    # MinimumQuantity (NEW)
+                num_or_none(g(38)),    # StdMultipleQty (NEW)
+                num_or_none(g(28)),    # StandardPackSize (NEW)
+                num_or_none(g(13)),    # ConversionFactor (NEW)
+                s(g(17)),              # TaxCode (NEW)
+                s(g(18)),              # TaxCodeDescription (NEW)
+                s(g(39)),              # CountryOfOrigin (NEW)
+                s(g(31)),              # AcquisitionType (NEW, replaces CatalogGroup proxy)
+                s(g(32)),              # SupplierPartNo (NEW)
+                s(g(33)),              # SupplierPartDescription (NEW)
+                num_or_none(g(64)),    # NetWeight (NEW)
+                s(g(65)),              # NetWeightUom (NEW)
+                s(g(62)),              # NextOrderDate (NEW)
+                s(g(53)),              # Notes (NEW)
                 ts,
             )
         )
@@ -401,11 +433,19 @@ def insert_structures(cur, rows):
 
 
 def insert_raw_materials(cur, rows):
+    # Phase 7 hạng mục 3 — 29 columns (28 data + CreatedAt). Order khớp
+    # exactly với tuple shape trong read_raw_materials. 5 legacy proxy
+    # cols (CatalogGroup/CatalogDesc/Grp/Type/TypeDesc) đã DROP khỏi
+    # entity + table; mapping mới tới actual IFS columns.
     cur.executemany(
         'INSERT INTO "RawMaterials" '
-        '("PartNo","PartDescription","SupplierId","SupplierName","Price","Currency","PriceUom",'
-        '"CatalogGroup","CatalogDesc","Grp","Type","TypeDesc","CreatedAt") '
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        '("PartNo","PartDescription","SupplierId","SupplierName","Price","PriceInclTax",'
+        '"Currency","PriceUom","SupplierLeadtimeDays","PurchUom","InventoryUom",'
+        '"Site","SiteDescription","StatusCode","MinimumQuantity","StdMultipleQty",'
+        '"StandardPackSize","ConversionFactor","TaxCode","TaxCodeDescription",'
+        '"CountryOfOrigin","AcquisitionType","SupplierPartNo","SupplierPartDescription",'
+        '"NetWeight","NetWeightUom","NextOrderDate","Notes","CreatedAt") '
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         rows,
     )
     return len(rows)

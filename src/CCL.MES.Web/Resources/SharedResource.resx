@@ -340,8 +340,44 @@
   <data name="npi.import.err.no_rows" xml:space="preserve"><value>Nothing to import (0 valid rows).</value></data>
   <data name="npi.import.err.too_large" xml:space="preserve"><value>File exceeds the 100 MB limit.</value></data>
   <data name="npi.import.err.unknown" xml:space="preserve"><value>Unexpected error during import.</value></data>
-  <data name="npi.rawmaterials.title" xml:space="preserve"><value>NPI Data — Raw Materials</value></data>
-  <data name="npi.rawmaterials.search_placeholder" xml:space="preserve"><value>Search by Part No / description / supplier…</value></data>
+  <data name="npi.rawmaterials.title" xml:space="preserve"><value>Raw Materials Code</value></data>
+  <data name="npi.rawmaterials.breadcrumb" xml:space="preserve"><value>DATABASE / RAW MATERIALS</value></data>
+  <data name="npi.rawmaterials.rows_loaded" xml:space="preserve"><value>{0} rows loaded</value></data>
+  <data name="npi.rawmaterials.rows_count" xml:space="preserve"><value>{0} rows</value></data>
+  <data name="npi.rawmaterials.search_placeholder" xml:space="preserve"><value>Search by Part No / description / supplier / status / origin…</value></data>
+  <data name="npi.rawmaterials.btn_columns" xml:space="preserve"><value>☰ Columns ({0}/{1})</value></data>
+  <data name="npi.rawmaterials.btn_show_all" xml:space="preserve"><value>Show all</value></data>
+  <data name="npi.rawmaterials.format_hint" xml:space="preserve"><value>ℹ Import source is IFS Raw Materials.xlsx (69 columns). Save As .csv (UTF-8) in Excel before clicking Import.</value></data>
+  <data name="npi.rawmaterials.col.part_no" xml:space="preserve"><value>Part No</value></data>
+  <data name="npi.rawmaterials.col.part_description" xml:space="preserve"><value>Part Description</value></data>
+  <data name="npi.rawmaterials.col.supplier_id" xml:space="preserve"><value>Supplier ID</value></data>
+  <data name="npi.rawmaterials.col.supplier_name" xml:space="preserve"><value>Supplier Name</value></data>
+  <data name="npi.rawmaterials.col.price" xml:space="preserve"><value>Price</value></data>
+  <data name="npi.rawmaterials.col.price_incl_tax" xml:space="preserve"><value>Price Incl Tax</value></data>
+  <data name="npi.rawmaterials.col.currency" xml:space="preserve"><value>Cur</value></data>
+  <data name="npi.rawmaterials.col.price_uom" xml:space="preserve"><value>Price UoM</value></data>
+  <data name="npi.rawmaterials.col.supplier_leadtime_days" xml:space="preserve"><value>Leadtime (d)</value></data>
+  <data name="npi.rawmaterials.col.purch_uom" xml:space="preserve"><value>Purch UoM</value></data>
+  <data name="npi.rawmaterials.col.inventory_uom" xml:space="preserve"><value>Inv UoM</value></data>
+  <data name="npi.rawmaterials.col.site" xml:space="preserve"><value>Site</value></data>
+  <data name="npi.rawmaterials.col.site_description" xml:space="preserve"><value>Site Desc</value></data>
+  <data name="npi.rawmaterials.col.status_code" xml:space="preserve"><value>Status</value></data>
+  <data name="npi.rawmaterials.col.minimum_quantity" xml:space="preserve"><value>Min Qty</value></data>
+  <data name="npi.rawmaterials.col.std_multiple_qty" xml:space="preserve"><value>Std Multiple</value></data>
+  <data name="npi.rawmaterials.col.standard_pack_size" xml:space="preserve"><value>Pack Size</value></data>
+  <data name="npi.rawmaterials.col.conversion_factor" xml:space="preserve"><value>Conv Factor</value></data>
+  <data name="npi.rawmaterials.col.tax_code" xml:space="preserve"><value>Tax Code</value></data>
+  <data name="npi.rawmaterials.col.tax_code_description" xml:space="preserve"><value>Tax Desc</value></data>
+  <data name="npi.rawmaterials.col.country_of_origin" xml:space="preserve"><value>Origin</value></data>
+  <data name="npi.rawmaterials.col.acquisition_type" xml:space="preserve"><value>Acquisition</value></data>
+  <data name="npi.rawmaterials.col.supplier_part_no" xml:space="preserve"><value>Supplier Part No</value></data>
+  <data name="npi.rawmaterials.col.supplier_part_description" xml:space="preserve"><value>Supplier Part Desc</value></data>
+  <data name="npi.rawmaterials.col.net_weight" xml:space="preserve"><value>Net Wt</value></data>
+  <data name="npi.rawmaterials.col.net_weight_uom" xml:space="preserve"><value>Wt UoM</value></data>
+  <data name="npi.rawmaterials.col.next_order_date" xml:space="preserve"><value>Next Order</value></data>
+  <data name="npi.rawmaterials.col.notes" xml:space="preserve"><value>Notes</value></data>
+  <data name="npi.rawmaterials.empty" xml:space="preserve"><value>No raw materials imported yet.</value></data>
+  <data name="npi.rawmaterials.empty_filter" xml:space="preserve"><value>No rows match the search.</value></data>
   <data name="npi.workcenter.title" xml:space="preserve"><value>NPI Data — Work Center</value></data>
   <data name="npi.workcenter.search_placeholder" xml:space="preserve"><value>Search by WC Code / description / area…</value></data>
   <data name="npi.spec.title" xml:space="preserve"><value>NPI Data — Engineer Spec</value></data>
