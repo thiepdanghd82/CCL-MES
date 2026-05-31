@@ -164,3 +164,9 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:help; }
 .code-snippet { background:#f3f4f6; color:#1f2937; padding:10px 14px; border-radius:6px;
   font-family:Menlo, Consolas, monospace; font-size:13px; overflow:auto; }
+
+/* Phase 6 Bước 7 — IQC result badges (Pending / Pass / Fail).
+   Reuse oee.* palette family so QC + IQC + OEE feel coherent. */
+.badge.iqc-pending { background:#fef3c7; color:#92400e; }
+.badge.iqc-pass    { background:#dcfce7; color:#166534; }
+.badge.iqc-fail    { background:#fee2e2; color:#991b1b; }

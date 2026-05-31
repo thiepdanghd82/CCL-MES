@@ -50,6 +50,95 @@ Tài liệu này ghi lại những bài học rút ra trong quá trình thiết 
 - **Blazor Server vẫn cần HubConnection client riêng** để nhận broadcast realtime giữa các phiên (circuit). Pattern: service `ShopfloorNotifier` (singleton, bọc `IHubContext`) phát sự kiện; mỗi trang tạo `HubConnection` tới `/hubs/shopfloor` và `On(...)` để reload.
 - **Nhớ `IAsyncDisposable`** trên component Blazor có `HubConnection` để giải phóng kết nối khi rời trang.
 
+## 7. Bài học bổ sung (đợt 3) — Phase 6 Bước 6.5/7 EF Core safety
+
+### 7.1 ⚠ KHÔNG dùng `dotnet ef migrations remove` trên repo có live DB
+
+`dotnet ef migrations remove` **tự động connect tới live DB** và áp dụng
+`Down()` của migration cuối để revert schema THẬT, không chỉ xoá file
+`.cs` local như thường tưởng.
+
+**Sự cố Bước 6.5 (2026-05-31)**: chạy `dotnet ef migrations remove` để
+dọn dẹp một migration verify đã add → tool revert `AddAuditLog` trên
+SQLite live DB → DROP TABLE AuditLogs + xoá 1 row trong
+`__EFMigrationsHistory`. SHA `04545cc5...` đổi thành `b7f38b5a...`. Phải
+restore từ Phase A backup byte-identical để recovery (`cp $BACKUP
+data/ccl_mes.db`). Không mất data vĩnh viễn nhờ A→B→C protocol.
+
+### 7.2 ⚠ KHÔNG `ef migrations add` mà không set `MES_CONNSTR`
+
+Mặc định `ef migrations add` đọc connection string từ `appsettings.json`
+qua `MesDbContextFactory` → trỏ về `data/ccl_mes.db` (live). Tool sẽ
+inspect schema live khi build model snapshot → ghi metadata vào file
+`Designer.cs`, có thể ảnh hưởng/xung đột với state thật.
+
+### 7.3 Pattern an toàn — luôn dùng
+
+```bash
+# Snapshot CURRENT model snapshot trước khi sửa
+cp src/CCL.MES.Infrastructure/Migrations/MesDbContextModelSnapshot.cs \
+   /tmp/snapshot-pre-<name>.cs
+
+# Generate trên ISOLATED DB
+rm -f /tmp/<name>-design.db
+MES_PROVIDER=Sqlite MES_CONNSTR="Data Source=/tmp/<name>-design.db" \
+  dotnet ef migrations add <Name> -p src/CCL.MES.Infrastructure \
+  -s src/CCL.MES.Web -o Migrations --no-build
+
+# Verify content bằng cat / Read tool — đừng apply
+cat src/CCL.MES.Infrastructure/Migrations/*<Name>.cs
+
+# Optionally — apply trên isolated DB để verify schema
+MES_PROVIDER=Sqlite MES_CONNSTR="Data Source=/tmp/<name>-design.db" \
+  dotnet ef database update -p src/CCL.MES.Infrastructure \
+  -s src/CCL.MES.Web --no-build
+sqlite3 /tmp/<name>-design.db ".schema <NewTable>"
+
+# UNDO bằng manual rm + git checkout snapshot — KHÔNG dùng remove
+rm -f src/CCL.MES.Infrastructure/Migrations/*<Name>*
+cp /tmp/snapshot-pre-<name>.cs \
+   src/CCL.MES.Infrastructure/Migrations/MesDbContextModelSnapshot.cs
+```
+
+### 7.4 Diagnostic — khi cần xác nhận live DB chưa bị đụng
+
+```bash
+shasum -a 256 data/ccl_mes.db    # so với SHA Phase A backup
+sqlite3 data/ccl_mes.db "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId;"
+sqlite3 data/ccl_mes.db "SELECT COUNT(*) FROM WorkCenters;"  # = 43 baseline
+```
+
+### 7.5 Recovery playbook khi đã lỡ
+
+1. **STOP** mọi thao tác trên repo (đừng commit / push).
+2. `cp $BACKUP data/ccl_mes.db` (Phase A backup luôn phải có sẵn).
+3. `shasum -a 256` để xác nhận byte-identical.
+4. `git checkout src/CCL.MES.Infrastructure/Migrations/` để restore file
+   gốc — KHÔNG dùng `ef migrations remove` lần nữa.
+
+### 7.6 Áp dụng cho Phase 6 Bước 6.5 (3.2.B affinity fix)
+
+Sau khi strip `type:` strings + `HasColumnType()` calls khỏi 3 migration
+existing + ModelSnapshot:
+- `MES_CONNSTR=Data Source=/tmp/verify-sqlite.db ef migrations add
+  VerifyNoChange_Sqlite` → file generated empty → confirm no drift
+- `MES_CONNSTR=Data Source=/tmp/verify-sqlserver.db MES_PROVIDER=SqlServer
+  ef migrations add VerifyNoChange_SqlServer` → file chỉ có AlterColumn
+  identity annotation (expected cross-provider quirk, không phải type
+  drift)
+- `rm` 4 verify files + `cp /tmp/snapshot-pre-verify.cs` để restore
+  ModelSnapshot — KHÔNG dùng `ef migrations remove`
+
+### 7.7 Áp dụng cho Phase 6 Bước 7 (AddIqcInspection migration v4)
+
+Sau khi thêm IqcInspection + IqcResultDetail entity:
+- `MES_CONNSTR=Data Source=/tmp/iqc-design.db ef migrations add
+  AddIqcInspection` → file generated với 2 CreateTable + 5 CreateIndex
+- Python type-strip script áp lên file mới để bảo toàn 3.2.B
+- `ef database update` trên `/tmp/iqc-design.db` → verify `.schema
+  IqcInspections` đúng
+- Live DB SHA `850fbf56...` UNCHANGED throughout — protocol works.
+
 ---
 
-*Cập nhật lần cuối: 30/05/2026 — sau khi thêm tools/ (Python), EF Migrations + SQL Server, và SignalR realtime.*
+*Cập nhật lần cuối: 31/05/2026 — Phase 6 Bước 6.5 + 7 (deploy SQLite + IQC entity + EF Core safety lesson).*

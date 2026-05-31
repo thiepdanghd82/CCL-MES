@@ -1,14 +1,404 @@
 @page "/qcqa/iqc"
 @attribute [Authorize(Policy = "QcRead")]
+@using CCL.MES.Application.Services
+@using CCL.MES.Domain
+@using CCL.MES.Domain.Auth
+@using CCL.MES.Domain.Entities
+@using System.Security.Claims
+@inject IqcService IqcSvc
 @inject IStringLocalizer<SharedResource> Loc
 
-<h1>@Loc["qcqa.iqc.title"]</h1>
+@*  Phase 6 Bước 7 — IQC tab replaces the stub from Bước 3.
+    Reads QcRead policy (same as IPQC/OQC); mutations gated inline
+    via <AuthorizeView Roles="Admin,Supervisor,QC"> on the New/Approve
+    buttons + server-side check inside IqcService (see Iqc.cs +
+    IqcService.cs).
+    Layout: toolbar (search + status + date range) → table 8 cols →
+    Pager. Create + View Detail + Approve modals share .settings-card
+    .account-modal styling.  *@
 
-<div class="npi-placeholder">
-    <p class="muted">@Loc["qcqa.iqc.placeholder_lead"]</p>
-    <ul>
-        <li>@Loc["qcqa.iqc.placeholder_li1"]</li>
-        <li>@Loc["qcqa.iqc.placeholder_li2"]</li>
-        <li>@Loc["qcqa.iqc.placeholder_li3"]</li>
-    </ul>
+<div class="grid-head">
+    <h1>@Loc["qcqa.iqc.title"]
+        <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…")</span>
+    </h1>
+    <AuthorizeView Roles="@("Admin,Supervisor,QC")">
+        <Authorized Context="_authCtx">
+            <button class="btn btn-primary" @onclick="OpenCreate">@Loc["qcqa.iqc.btn.new"]</button>
+        </Authorized>
+    </AuthorizeView>
 </div>
+
+<div class="grid-toolbar syslog-toolbar">
+    <input class="grid-search" placeholder="@Loc["qcqa.iqc.search_placeholder"]"
+           @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+    <select class="form-input syslog-action" @bind="_status">
+        <option value="">@Loc["qcqa.iqc.status_all"]</option>
+        <option value="Pending">@Loc["qcqa.iqc.status_pending"]</option>
+        <option value="Pass">@Loc["qcqa.iqc.status_pass"]</option>
+        <option value="Fail">@Loc["qcqa.iqc.status_fail"]</option>
+    </select>
+    <input type="date" class="form-input syslog-date" @bind="_from" />
+    <input type="date" class="form-input syslog-date" @bind="_to" />
+    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
+</div>
+
+@if (_result is null)
+{
+    <p>@Loc["common.loading"]</p>
+}
+else if (_result.Total == 0)
+{
+    <div class="npi-placeholder">
+        <p class="muted">@Loc["qcqa.iqc.list.empty"]</p>
+    </div>
+}
+else
+{
+    <div class="table-scroll">
+        <table class="wo data">
+            <thead>
+                <tr>
+                    <th>@Loc["qcqa.iqc.col.received"]</th>
+                    <th>@Loc["qcqa.iqc.col.part_no"]</th>
+                    <th>@Loc["qcqa.iqc.col.batch"]</th>
+                    <th>@Loc["qcqa.iqc.col.supplier"]</th>
+                    <th class="num">@Loc["qcqa.iqc.col.qty"]</th>
+                    <th class="num">@Loc["qcqa.iqc.col.sample_size"]</th>
+                    <th>@Loc["qcqa.iqc.col.result"]</th>
+                    <th>@Loc["qcqa.iqc.col.actions"]</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var i in _result.Items)
+                {
+                    <tr>
+                        <td>@i.ReceivedDate.ToString("yyyy-MM-dd")</td>
+                        <td><b>@i.PartNo</b></td>
+                        <td><code>@i.BatchNumber</code></td>
+                        <td>@(i.SupplierName ?? "-")</td>
+                        <td class="num">@i.Quantity.ToString("N2") @i.UomQty</td>
+                        <td class="num">@i.SampleSize</td>
+                        <td><span class="badge iqc-@i.Result.ToString().ToLowerInvariant()">@Loc[$"qcqa.iqc.status_{i.Result.ToString().ToLowerInvariant()}"]</span></td>
+                        <td class="actions">
+                            <button class="btn ghost" @onclick="() => OpenView(i.Id)">@Loc["qcqa.iqc.btn.view"]</button>
+                            <AuthorizeView Roles="@("Admin,Supervisor,QC")">
+                                <Authorized Context="_approveCtx">
+                                    @if (i.Result == QcResult.Pending)
+                                    {
+                                        <button class="btn pass" @onclick="() => OpenApprove(i.Id, true)">@Loc["qcqa.iqc.btn.approve_pass"]</button>
+                                        <button class="btn warn" @onclick="() => OpenApprove(i.Id, false)">@Loc["qcqa.iqc.btn.approve_fail"]</button>
+                                    }
+                                </Authorized>
+                            </AuthorizeView>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <Pager Result="@PagerInfo" OnPage="GoPage" />
+}
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <div class="alert @(_ok ? "ok" : "err")">@_message</div>
+}
+
+@* ─── Create modal ─── *@
+@if (_showCreate)
+{
+    <div class="settings-card account-modal">
+        <h2 class="settings-section">@Loc["qcqa.iqc.btn.new"]</h2>
+        <div class="field-row">
+            <label>@Loc["qcqa.iqc.form.part_no"]</label>
+            <input class="form-input" @bind="_form.PartNo" />
+        </div>
+        <div class="field-row">
+            <label>@Loc["qcqa.iqc.form.batch"]</label>
+            <input class="form-input" @bind="_form.BatchNumber" />
+        </div>
+        <div class="field-row">
+            <label>@Loc["qcqa.iqc.form.lot"]</label>
+            <input class="form-input" @bind="_form.LotNumber" />
+        </div>
+        <div class="field-row">
+            <label>@Loc["qcqa.iqc.form.received_date"]</label>
+            <input class="form-input" type="date" @bind="_form.ReceivedDate" />
+        </div>
+        <div class="field-row">
+            <label>@Loc["qcqa.iqc.form.qty"] / @Loc["qcqa.iqc.form.uom"]</label>
+            <div style="display:flex;gap:8px">
+                <input class="form-input" type="number" step="0.01" style="flex:2" @bind="_form.Quantity" />
+                <input class="form-input" style="flex:1" placeholder="kg / pcs / m..." @bind="_form.UomQty" />
+            </div>
+        </div>
+        <div class="field-row">
+            <label>@Loc["qcqa.iqc.form.supplier"]</label>
+            <input class="form-input" @bind="_form.SupplierName" />
+        </div>
+        <div class="field-row">
+            <label>@Loc["qcqa.iqc.form.inspector"]</label>
+            <input class="form-input readonly" readonly @bind="_form.InspectorId" />
+        </div>
+        <div class="field-row">
+            <label>@Loc["qcqa.iqc.form.sample_size"]</label>
+            <input class="form-input" type="number" @bind="_form.SampleSize" />
+        </div>
+
+        <h3 style="margin:18px 0 6px;color:#1f3864;font-size:14px">@Loc["qcqa.iqc.form.add_detail"]</h3>
+        <table class="wo data" style="font-size:13px">
+            <thead><tr>
+                <th>@Loc["qcqa.iqc.detail.item_name"]</th>
+                <th>@Loc["qcqa.iqc.detail.measured"]</th>
+                <th>@Loc["qcqa.iqc.detail.pass"]</th>
+                <th>@Loc["qcqa.iqc.detail.qty"]</th>
+                <th>@Loc["qcqa.iqc.detail.defect_code"]</th>
+                <th></th>
+            </tr></thead>
+            <tbody>
+                @for (var idx = 0; idx < _form.Details.Count; idx++)
+                {
+                    var i = idx;
+                    <tr>
+                        <td><input class="form-input" @bind="_form.Details[i].ItemName" /></td>
+                        <td><input class="form-input" @bind="_form.Details[i].MeasuredValue" /></td>
+                        <td><input type="checkbox" @bind="_form.Details[i].Pass" /></td>
+                        <td><input class="form-input" type="number" @bind="_form.Details[i].Qty" /></td>
+                        <td><input class="form-input" @bind="_form.Details[i].DefectCode" /></td>
+                        <td><button class="btn ghost" @onclick="() => _form.Details.RemoveAt(i)">×</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <button class="btn ghost" @onclick="AddDetailRow">@Loc["qcqa.iqc.form.add_detail"]</button>
+
+        <div class="actions" style="margin-top:14px">
+            <button class="btn btn-primary" @onclick="DoCreate" disabled="@_busy">
+                @(_busy ? Loc["common.loading_dots"] : Loc["qcqa.iqc.btn.new"])
+            </button>
+            <button class="btn ghost" @onclick="() => _showCreate = false">@Loc["common.cancel"]</button>
+        </div>
+    </div>
+}
+
+@* ─── View Detail modal ─── *@
+@if (_showView && _viewInsp is not null)
+{
+    <div class="settings-card account-modal">
+        <h2 class="settings-section">IQC #@_viewInsp.Id — @_viewInsp.PartNo / @_viewInsp.BatchNumber</h2>
+        <table class="diag-table">
+            <tr><th>@Loc["qcqa.iqc.col.received"]</th><td>@_viewInsp.ReceivedDate.ToString("yyyy-MM-dd HH:mm 'UTC'")</td></tr>
+            <tr><th>@Loc["qcqa.iqc.col.supplier"]</th><td>@(_viewInsp.SupplierName ?? "-")</td></tr>
+            <tr><th>@Loc["qcqa.iqc.col.qty"]</th><td>@_viewInsp.Quantity.ToString("N2") @_viewInsp.UomQty</td></tr>
+            <tr><th>@Loc["qcqa.iqc.form.lot"]</th><td>@(_viewInsp.LotNumber ?? "-")</td></tr>
+            <tr><th>@Loc["qcqa.iqc.form.inspector"]</th><td>@(_viewInsp.InspectorId ?? "-")</td></tr>
+            <tr><th>@Loc["qcqa.iqc.form.sample_size"]</th><td>@_viewInsp.SampleSize</td></tr>
+            <tr><th>@Loc["qcqa.iqc.col.result"]</th><td><span class="badge iqc-@_viewInsp.Result.ToString().ToLowerInvariant()">@Loc[$"qcqa.iqc.status_{_viewInsp.Result.ToString().ToLowerInvariant()}"]</span></td></tr>
+            @if (_viewInsp.ApprovedBy is not null)
+            {
+                <tr><th>Approved by</th><td>@_viewInsp.ApprovedBy @(_viewInsp.ApprovedAt?.ToString(" / yyyy-MM-dd HH:mm"))</td></tr>
+            }
+        </table>
+        @if (_viewInsp.Details.Any())
+        {
+            <h3 style="margin:14px 0 6px;color:#1f3864;font-size:14px">@Loc["qcqa.iqc.form.add_detail"]</h3>
+            <table class="wo data" style="font-size:13px">
+                <thead><tr>
+                    <th>@Loc["qcqa.iqc.detail.item_name"]</th>
+                    <th>@Loc["qcqa.iqc.detail.measured"]</th>
+                    <th>@Loc["qcqa.iqc.detail.pass"]</th>
+                    <th class="num">@Loc["qcqa.iqc.detail.qty"]</th>
+                    <th>@Loc["qcqa.iqc.detail.defect_code"]</th>
+                </tr></thead>
+                <tbody>
+                    @foreach (var d in _viewInsp.Details)
+                    {
+                        <tr>
+                            <td>@d.ItemName</td>
+                            <td>@(d.MeasuredValue ?? "-")</td>
+                            <td>@(d.Pass ? "✓" : "✗")</td>
+                            <td class="num">@d.Qty</td>
+                            <td>@(d.DefectCode ?? "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        <div class="actions" style="margin-top:14px">
+            <button class="btn ghost" @onclick="() => _showView = false">@Loc["common.close"]</button>
+        </div>
+    </div>
+}
+
+@* ─── Approve modal ─── *@
+@if (_approveId.HasValue)
+{
+    <div class="settings-card account-modal">
+        <h2 class="settings-section">@(_approvePass ? Loc["qcqa.iqc.btn.approve_pass"] : Loc["qcqa.iqc.btn.approve_fail"])</h2>
+        <p class="muted">IQC #@_approveId</p>
+        <div class="actions" style="margin-top:14px">
+            <button class="btn @(_approvePass ? "pass" : "warn")" @onclick="DoApprove" disabled="@_busy">
+                @(_busy ? Loc["common.loading_dots"] : Loc["common.confirm"])
+            </button>
+            <button class="btn ghost" @onclick="() => _approveId = null">@Loc["common.cancel"]</button>
+        </div>
+    </div>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private PagedResult<IqcInspection>? _result;
+    private string? _search;
+    private string? _status;
+    private DateTime? _from;
+    private DateTime? _to;
+    private int _page = 1;
+
+    private bool _showCreate;
+    private bool _showView;
+    private bool _busy;
+    private string? _message;
+    private bool _ok;
+    private FormVm _form = new();
+
+    private IqcInspection? _viewInsp;
+    private long? _approveId;
+    private bool _approvePass;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        QcResult? statusFilter = string.IsNullOrEmpty(_status)
+            ? null
+            : Enum.TryParse<QcResult>(_status, true, out var s) ? s : null;
+        _result = await IqcSvc.ListAsync(_search, statusFilter, _from, _to, _page, 25);
+    }
+
+    private async Task DoSearch() { _page = 1; await Load(); }
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
+    private async Task GoPage(int p) { _page = p; await Load(); }
+
+    private (int Page, int TotalPages, int Total) PagerInfo =>
+        _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
+
+    private async Task OpenCreate()
+    {
+        _form = new FormVm
+        {
+            ReceivedDate = DateTime.UtcNow.Date,
+            SampleSize = 1,
+            Quantity = 0,
+            Details = new List<DetailVm>(),
+        };
+        if (AuthState is not null)
+        {
+            var a = await AuthState;
+            _form.InspectorId = a.User.Identity?.Name ?? "";
+        }
+        AddDetailRow();
+        _message = null;
+        _showCreate = true;
+    }
+
+    private void AddDetailRow() => _form.Details.Add(new DetailVm { Qty = 1, Pass = true });
+
+    private async Task DoCreate()
+    {
+        if (AuthState is null) return;
+        var auth = await AuthState;
+        var (actor, role) = (auth.User.Identity?.Name ?? "anonymous",
+                             auth.User.FindFirst(ClaimTypes.Role)?.Value ?? "");
+        // Server-side role enforcement — Engineer/Operator/anonymous cannot create.
+        if (!RoleCanMutate(role)) { _ok = false; _message = "Forbidden"; return; }
+
+        _busy = true;
+        try
+        {
+            var req = new CreateIqcRequest(
+                _form.PartNo?.Trim() ?? "",
+                _form.BatchNumber?.Trim() ?? "",
+                string.IsNullOrWhiteSpace(_form.LotNumber) ? null : _form.LotNumber.Trim(),
+                _form.ReceivedDate,
+                string.IsNullOrWhiteSpace(_form.SupplierName) ? null : _form.SupplierName.Trim(),
+                _form.Quantity,
+                string.IsNullOrWhiteSpace(_form.UomQty) ? null : _form.UomQty.Trim(),
+                _form.InspectorId,
+                _form.SampleSize,
+                _form.Details.Select(d => new CreateIqcDetail(
+                    d.ItemName?.Trim() ?? "",
+                    string.IsNullOrWhiteSpace(d.MeasuredValue) ? null : d.MeasuredValue.Trim(),
+                    d.Pass,
+                    string.IsNullOrWhiteSpace(d.DefectCode) ? null : d.DefectCode.Trim(),
+                    d.Qty)).ToList());
+            var insp = await IqcSvc.CreateAsync(req, actor, role);
+            _ok = true;
+            _message = string.Format(Loc["qcqa.iqc.msg.created"].Value, insp.Id);
+            _showCreate = false;
+            _page = 1;
+            await Load();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task OpenView(long id)
+    {
+        _viewInsp = await IqcSvc.GetWithDetailsAsync(id);
+        _showView = _viewInsp is not null;
+    }
+
+    private void OpenApprove(long id, bool pass)
+    {
+        _approveId = id;
+        _approvePass = pass;
+        _message = null;
+    }
+
+    private async Task DoApprove()
+    {
+        if (_approveId is null || AuthState is null) return;
+        var auth = await AuthState;
+        var (actor, role) = (auth.User.Identity?.Name ?? "anonymous",
+                             auth.User.FindFirst(ClaimTypes.Role)?.Value ?? "");
+        if (!RoleCanMutate(role)) { _ok = false; _message = "Forbidden"; _approveId = null; return; }
+
+        _busy = true;
+        try
+        {
+            var res = await IqcSvc.ApproveAsync(_approveId.Value, _approvePass, actor, role);
+            _ok = res is not null;
+            _message = res is null
+                ? "Not found"
+                : string.Format(Loc["qcqa.iqc.msg.approved"].Value, res.Id, res.Result);
+            _approveId = null;
+            await Load();
+        }
+        finally { _busy = false; }
+    }
+
+    private static bool RoleCanMutate(string role) =>
+        role == UserRole.Admin || role == UserRole.Supervisor || role == UserRole.Qc;
+
+    public class FormVm
+    {
+        public string? PartNo { get; set; }
+        public string? BatchNumber { get; set; }
+        public string? LotNumber { get; set; }
+        public DateTime ReceivedDate { get; set; } = DateTime.UtcNow.Date;
+        public string? SupplierName { get; set; }
+        public double Quantity { get; set; }
+        public string? UomQty { get; set; }
+        public string? InspectorId { get; set; }
+        public int SampleSize { get; set; } = 1;
+        public List<DetailVm> Details { get; set; } = new();
+    }
+    public class DetailVm
+    {
+        public string? ItemName { get; set; }
+        public string? MeasuredValue { get; set; }
+        public bool Pass { get; set; } = true;
+        public int Qty { get; set; } = 1;
+        public string? DefectCode { get; set; }
+    }
+}

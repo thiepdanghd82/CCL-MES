@@ -259,11 +259,48 @@
   <data name="npi.spec.placeholder_li2" xml:space="preserve"><value>Liên kết với module Spec Control hiện có.</value></data>
   <data name="npi.spec.placeholder_li3" xml:space="preserve"><value>Phiên bản hoá và phê duyệt spec.</value></data>
 
-  <data name="qcqa.iqc.title" xml:space="preserve"><value>QC/QA Data — IQC</value></data>
-  <data name="qcqa.iqc.placeholder_lead" xml:space="preserve"><value>Tab quản lý IQC (Incoming Quality Control) — kiểm tra chất lượng đầu vào. Chức năng sẽ được xây dựng sau.</value></data>
+  <data name="qcqa.iqc.title" xml:space="preserve"><value>QC/QA — IQC (Kiểm tra nguyên liệu đầu vào)</value></data>
+  <data name="qcqa.iqc.placeholder_lead" xml:space="preserve"><value>Tab quản lý IQC (Incoming Quality Control) — kiểm tra chất lượng đầu vào.</value></data>
   <data name="qcqa.iqc.placeholder_li1" xml:space="preserve"><value>Kiểm tra nguyên vật liệu nhập kho theo checklist và AQL.</value></data>
   <data name="qcqa.iqc.placeholder_li2" xml:space="preserve"><value>Gắn kết quả với lô vật liệu, nhà cung cấp (Raw Materials).</value></data>
   <data name="qcqa.iqc.placeholder_li3" xml:space="preserve"><value>Phê duyệt nhập/loại và lưu hồ sơ cho audit.</value></data>
+  <data name="qcqa.iqc.search_placeholder" xml:space="preserve"><value>Tìm part / batch / nhà cung cấp…</value></data>
+  <data name="qcqa.iqc.btn.new" xml:space="preserve"><value>Tạo phiếu IQC</value></data>
+  <data name="qcqa.iqc.status_all" xml:space="preserve"><value>Tất cả trạng thái</value></data>
+  <data name="qcqa.iqc.status_pending" xml:space="preserve"><value>Đợi duyệt</value></data>
+  <data name="qcqa.iqc.status_pass" xml:space="preserve"><value>Đạt</value></data>
+  <data name="qcqa.iqc.status_fail" xml:space="preserve"><value>Không đạt</value></data>
+  <data name="qcqa.iqc.col.received" xml:space="preserve"><value>Ngày nhập</value></data>
+  <data name="qcqa.iqc.col.part_no" xml:space="preserve"><value>Mã vật tư</value></data>
+  <data name="qcqa.iqc.col.batch" xml:space="preserve"><value>Lô (Batch)</value></data>
+  <data name="qcqa.iqc.col.supplier" xml:space="preserve"><value>Nhà cung cấp</value></data>
+  <data name="qcqa.iqc.col.qty" xml:space="preserve"><value>SL</value></data>
+  <data name="qcqa.iqc.col.sample_size" xml:space="preserve"><value>Mẫu</value></data>
+  <data name="qcqa.iqc.col.result" xml:space="preserve"><value>Kết quả</value></data>
+  <data name="qcqa.iqc.col.actions" xml:space="preserve"><value>Thao tác</value></data>
+  <data name="qcqa.iqc.btn.view" xml:space="preserve"><value>Xem</value></data>
+  <data name="qcqa.iqc.btn.approve_pass" xml:space="preserve"><value>Duyệt Đạt</value></data>
+  <data name="qcqa.iqc.btn.approve_fail" xml:space="preserve"><value>Duyệt Không đạt</value></data>
+  <data name="qcqa.iqc.form.part_no" xml:space="preserve"><value>Mã vật tư (Raw Material)</value></data>
+  <data name="qcqa.iqc.form.batch" xml:space="preserve"><value>Số lô (Batch)</value></data>
+  <data name="qcqa.iqc.form.lot" xml:space="preserve"><value>Số Lot (tùy chọn)</value></data>
+  <data name="qcqa.iqc.form.received_date" xml:space="preserve"><value>Ngày nhập (UTC)</value></data>
+  <data name="qcqa.iqc.form.qty" xml:space="preserve"><value>Số lượng</value></data>
+  <data name="qcqa.iqc.form.uom" xml:space="preserve"><value>Đơn vị tính</value></data>
+  <data name="qcqa.iqc.form.supplier" xml:space="preserve"><value>Nhà cung cấp (snapshot)</value></data>
+  <data name="qcqa.iqc.form.inspector" xml:space="preserve"><value>Người kiểm</value></data>
+  <data name="qcqa.iqc.form.sample_size" xml:space="preserve"><value>Cỡ mẫu</value></data>
+  <data name="qcqa.iqc.form.add_detail" xml:space="preserve"><value>+ Thêm dòng kiểm</value></data>
+  <data name="qcqa.iqc.detail.item_name" xml:space="preserve"><value>Hạng mục</value></data>
+  <data name="qcqa.iqc.detail.measured" xml:space="preserve"><value>Giá trị đo</value></data>
+  <data name="qcqa.iqc.detail.pass" xml:space="preserve"><value>Đạt?</value></data>
+  <data name="qcqa.iqc.detail.qty" xml:space="preserve"><value>SL</value></data>
+  <data name="qcqa.iqc.detail.defect_code" xml:space="preserve"><value>Mã lỗi</value></data>
+  <data name="qcqa.iqc.msg.created" xml:space="preserve"><value>Đã tạo IQC #{0}.</value></data>
+  <data name="qcqa.iqc.msg.approved" xml:space="preserve"><value>IQC #{0} → {1}.</value></data>
+  <data name="qcqa.iqc.list.empty" xml:space="preserve"><value>Không có phiếu IQC nào khớp bộ lọc.</value></data>
+  <data name="common.close" xml:space="preserve"><value>Đóng</value></data>
+  <data name="common.confirm" xml:space="preserve"><value>Xác nhận</value></data>
 
   <data name="qcqa.ipqc.title" xml:space="preserve"><value>QC/QA Data — IPQC</value></data>
   <data name="qcqa.ipqc.placeholder_lead" xml:space="preserve"><value>Tab quản lý IPQC (In-Process Quality Control) — kiểm tra trong quá trình sản xuất. Chức năng sẽ được xây dựng sau.</value></data>

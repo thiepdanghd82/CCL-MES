@@ -203,6 +203,21 @@ Dashboard có chỉ báo `● live`.
 - `ef-migrate.sh` 2-mode: `--sqlite` (mặc định) | `--sqlserver`. Subcommand `add <Name>` để tạo migration.
 - Chi tiết: [`docs/PHASE5-STEP4-PLAN.md`](docs/PHASE5-STEP4-PLAN.md).
 
+## 6h. IQC (Phase 6 Bước 7)
+
+Tab **QC/QA → IQC** (`/qcqa/iqc`) — Incoming Quality Check cho nguyên
+liệu nhập kho. Khác IPQC/FQC/OQC ở chỗ:
+
+- Gắn với **raw-material batch** (PartNo + Batch + Lot + ReceivedDate +
+  Supplier), KHÔNG gắn WorkOrder
+- Entity riêng `IqcInspection` + `IqcResultDetail` (xem `src/CCL.MES.Domain/Entities/Iqc.cs`)
+- FK hybrid: `RawMaterialId` nullable optional + `PartNo` snapshot bắt buộc
+- Fail KHÔNG cascade `WO.Status=OnHold` (pre-WO; operator quarantine ngoài app)
+- Audit emit `IQC_CREATE` + `IQC_APPROVE`
+
+Workflow: New IQC (modal form + Details inline) → Pending → Approve
+Pass/Fail. Seed sẵn 3 demo IQC (Pending / Pass / Fail) trên DB rỗng.
+
 ## 7. Hướng mở rộng (theo tài liệu kiến trúc)
 - Module OEE / Production Log (Start/Pause/Resume/Finish, tính OEE theo máy).
 - Work Instruction số hóa; SignalR realtime cho dashboard.
