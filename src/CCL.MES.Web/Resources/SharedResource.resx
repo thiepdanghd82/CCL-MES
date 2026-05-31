@@ -277,6 +277,42 @@
   <data name="npi.structure.col.planner" xml:space="preserve"><value>Planner</value></data>
   <data name="npi.structure.empty" xml:space="preserve"><value>No BOM rows imported yet.</value></data>
   <data name="npi.structure.empty_filter" xml:space="preserve"><value>No rows match the search.</value></data>
+
+  <data name="npi.import.btn" xml:space="preserve"><value>⬆ Import…</value></data>
+  <data name="npi.import.modal.title" xml:space="preserve"><value>Import CSV — {0}</value></data>
+  <data name="npi.import.modal.step1_title" xml:space="preserve"><value>Step 1 · Pick CSV file</value></data>
+  <data name="npi.import.modal.step1_hint" xml:space="preserve"><value>Choose an IFS export CSV. Max 100 MB. UTF-8 encoded.</value></data>
+  <data name="npi.import.modal.parsing" xml:space="preserve"><value>Parsing CSV…</value></data>
+  <data name="npi.import.modal.step2_title" xml:space="preserve"><value>Step 2 · Preview &amp; confirm</value></data>
+  <data name="npi.import.modal.header_label" xml:space="preserve"><value>Header detected</value></data>
+  <data name="npi.import.modal.header_value" xml:space="preserve"><value>{0} columns · mapped {1}/{2}</value></data>
+  <data name="npi.import.modal.rows_parsed" xml:space="preserve"><value>Rows parsed</value></data>
+  <data name="npi.import.modal.rows_valid" xml:space="preserve"><value>Rows valid</value></data>
+  <data name="npi.import.modal.rows_skipped" xml:space="preserve"><value>Rows skipped</value></data>
+  <data name="npi.import.modal.diff_label" xml:space="preserve"><value>After commit (replace-all)</value></data>
+  <data name="npi.import.modal.diff_value" xml:space="preserve"><value>{0} rows now → {1} rows after</value></data>
+  <data name="npi.import.modal.sample_header" xml:space="preserve"><value>Sample (first 5 rows)</value></data>
+  <data name="npi.import.modal.warning_missing_required" xml:space="preserve"><value>CSV is missing required header(s): {0}. Cannot import.</value></data>
+  <data name="npi.import.modal.warning_no_rows" xml:space="preserve"><value>No valid rows found in CSV. Cannot import.</value></data>
+  <data name="npi.import.modal.confirm_lead" xml:space="preserve"><value>The {0} table will be REPLACED (DELETE + INSERT atomic). A backup snapshot is taken automatically before the change. Continue?</value></data>
+  <data name="npi.import.modal.btn_confirm" xml:space="preserve"><value>Confirm Replace</value></data>
+  <data name="npi.import.modal.btn_cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="npi.import.modal.btn_close" xml:space="preserve"><value>Close</value></data>
+  <data name="npi.import.modal.btn_pick_again" xml:space="preserve"><value>Pick another file</value></data>
+  <data name="npi.import.modal.applying" xml:space="preserve"><value>Backing up + replacing…</value></data>
+  <data name="npi.import.modal.step3_title" xml:space="preserve"><value>Step 3 · Done</value></data>
+  <data name="npi.import.modal.success_lead" xml:space="preserve"><value>Import committed successfully.</value></data>
+  <data name="npi.import.modal.result_backup" xml:space="preserve"><value>Backup taken</value></data>
+  <data name="npi.import.modal.result_diff" xml:space="preserve"><value>Replaced</value></data>
+  <data name="npi.import.modal.result_diff_value" xml:space="preserve"><value>{0} → {1} rows in {2} ms</value></data>
+  <data name="npi.import.modal.error_lead" xml:space="preserve"><value>Import failed</value></data>
+  <data name="npi.import.err.forbidden_role" xml:space="preserve"><value>Your role is not allowed to import master data.</value></data>
+  <data name="npi.import.err.backup_failed" xml:space="preserve"><value>Pre-import backup failed; nothing was changed.</value></data>
+  <data name="npi.import.err.apply_failed" xml:space="preserve"><value>Replace failed and was rolled back. Backup is still available.</value></data>
+  <data name="npi.import.err.invalid_table_name" xml:space="preserve"><value>Refusing to import — internal target name is invalid.</value></data>
+  <data name="npi.import.err.no_rows" xml:space="preserve"><value>Nothing to import (0 valid rows).</value></data>
+  <data name="npi.import.err.too_large" xml:space="preserve"><value>File exceeds the 100 MB limit.</value></data>
+  <data name="npi.import.err.unknown" xml:space="preserve"><value>Unexpected error during import.</value></data>
   <data name="npi.rawmaterials.title" xml:space="preserve"><value>NPI Data — Raw Materials</value></data>
   <data name="npi.rawmaterials.search_placeholder" xml:space="preserve"><value>Search by Part No / description / supplier…</value></data>
   <data name="npi.workcenter.title" xml:space="preserve"><value>NPI Data — Work Center</value></data>

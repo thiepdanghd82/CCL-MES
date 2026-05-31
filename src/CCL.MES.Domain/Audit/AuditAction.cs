@@ -16,6 +16,7 @@ public static class AuditAction
     public const string LoginFail             = "LOGIN_FAIL";              // wrong username OR wrong password (same code — no oracle)
     public const string LoginOk               = "LOGIN_OK";
     public const string Logout                = "LOGOUT";
+    public const string NpiImport             = "NPI_IMPORT";              // Phase 7 — NPI master CSV replace-all import; detail JSON: { table, parsed, inserted, skipped, backup_file, backup_sha256, elapsed_ms }
     public const string QcApprove             = "QC_APPROVE";              // pass/fail in Detail
     public const string QcCreate              = "QC_CREATE";
     public const string SpecApprove           = "SPEC_APPROVE";
