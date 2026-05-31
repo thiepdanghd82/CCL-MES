@@ -31,6 +31,78 @@
   <data name="nav.qcqa.oqc" xml:space="preserve"><value>OQC</value></data>
   <data name="nav.logout" xml:space="preserve"><value>Đăng xuất</value></data>
 
+  <data name="nav.settings" xml:space="preserve"><value>Cài đặt</value></data>
+  <data name="nav.settings.profile" xml:space="preserve"><value>Hồ sơ của tôi</value></data>
+  <data name="nav.settings.mypwd" xml:space="preserve"><value>Mật khẩu của tôi</value></data>
+  <data name="nav.settings.appearance" xml:space="preserve"><value>Giao diện</value></data>
+  <data name="nav.settings.hardware" xml:space="preserve"><value>Thiết bị phần cứng</value></data>
+  <data name="nav.settings.mode" xml:space="preserve"><value>Chế độ kết nối</value></data>
+  <data name="nav.settings.account" xml:space="preserve"><value>Quản lý tài khoản</value></data>
+  <data name="nav.settings.about" xml:space="preserve"><value>Giới thiệu / Chẩn đoán</value></data>
+  <data name="nav.settings.data" xml:space="preserve"><value>Sao lưu / Phục hồi</value></data>
+  <data name="nav.settings.syslog" xml:space="preserve"><value>Nhật ký hệ thống</value></data>
+  <data name="nav.settings.importlegacy" xml:space="preserve"><value>Nhập dữ liệu v1.0</value></data>
+
+  <data name="settings.profile.title" xml:space="preserve"><value>Cài đặt — Hồ sơ của tôi</value></data>
+  <data name="settings.profile.placeholder_lead" xml:space="preserve"><value>Tab Hồ sơ của tôi — quản lý thông tin tài khoản cá nhân, tên hiển thị, thông tin liên hệ. Sẽ được xây dựng ở sprint sau.</value></data>
+  <data name="settings.profile.placeholder_li1" xml:space="preserve"><value>Xem và chỉnh tên hiển thị + email.</value></data>
+  <data name="settings.profile.placeholder_li2" xml:space="preserve"><value>Xem vai trò + nhóm quyền (do quản trị viên gán).</value></data>
+  <data name="settings.profile.placeholder_li3" xml:space="preserve"><value>Lịch sử đăng nhập gần đây.</value></data>
+
+  <data name="settings.mypwd.title" xml:space="preserve"><value>Cài đặt — Mật khẩu của tôi</value></data>
+  <data name="settings.mypwd.placeholder_lead" xml:space="preserve"><value>Tab Mật khẩu của tôi — đổi mật khẩu cá nhân. Sẽ được xây dựng ở sprint sau.</value></data>
+  <data name="settings.mypwd.placeholder_li1" xml:space="preserve"><value>Xác nhận mật khẩu hiện tại + đặt mật khẩu mới (PBKDF2 hash).</value></data>
+  <data name="settings.mypwd.placeholder_li2" xml:space="preserve"><value>Thanh đo độ mạnh mật khẩu + quy tắc phức tạp.</value></data>
+  <data name="settings.mypwd.placeholder_li3" xml:space="preserve"><value>Bắt đăng nhập lại trên các phiên khác.</value></data>
+
+  <data name="settings.appearance.title" xml:space="preserve"><value>Cài đặt — Giao diện</value></data>
+  <data name="settings.appearance.placeholder_lead" xml:space="preserve"><value>Tab Giao diện — chủ đề UI và tuỳ chọn ngôn ngữ. Sẽ được xây dựng ở sprint sau.</value></data>
+  <data name="settings.appearance.placeholder_li1" xml:space="preserve"><value>Chuyển chế độ sáng / tối / theo hệ điều hành.</value></data>
+  <data name="settings.appearance.placeholder_li2" xml:space="preserve"><value>Ngôn ngữ mặc định (đồng bộ với bộ chọn cờ trên topbar).</value></data>
+  <data name="settings.appearance.placeholder_li3" xml:space="preserve"><value>Mật độ lưới (gọn / thoải mái).</value></data>
+
+  <data name="settings.hardware.title" xml:space="preserve"><value>Cài đặt — Thiết bị phần cứng</value></data>
+  <data name="settings.hardware.placeholder_lead" xml:space="preserve"><value>Tab Thiết bị phần cứng — máy quét mã vạch, máy in nhãn, cân USB. Chỉ chạy trên bản desktop. Sẽ được xây dựng ở sprint sau.</value></data>
+  <data name="settings.hardware.placeholder_li1" xml:space="preserve"><value>Nhận diện và đặt tên cho máy quét / máy in đã kết nối.</value></data>
+  <data name="settings.hardware.placeholder_li2" xml:space="preserve"><value>Chọn máy in mặc định theo từng máy trạm.</value></data>
+  <data name="settings.hardware.placeholder_li3" xml:space="preserve"><value>In thử + echo dữ liệu quét.</value></data>
+
+  <data name="settings.mode.title" xml:space="preserve"><value>Cài đặt — Chế độ kết nối</value></data>
+  <data name="settings.mode.placeholder_lead" xml:space="preserve"><value>Tab Chế độ kết nối — embedded / thin / smart cho bản desktop. Sẽ được xây dựng ở sprint sau.</value></data>
+  <data name="settings.mode.placeholder_li1" xml:space="preserve"><value>Chọn standalone (SQLite cục bộ) hoặc kết nối server.</value></data>
+  <data name="settings.mode.placeholder_li2" xml:space="preserve"><value>URL server + chẩn đoán kết nối.</value></data>
+  <data name="settings.mode.placeholder_li3" xml:space="preserve"><value>Chạy lại wizard thiết lập lần đầu.</value></data>
+
+  <data name="settings.account.title" xml:space="preserve"><value>Cài đặt — Quản lý tài khoản</value></data>
+  <data name="settings.account.placeholder_lead" xml:space="preserve"><value>Tab Quản lý tài khoản — quản lý người dùng, gán vai trò, nhóm quyền. Trong nguồn Ops Control v1.2 chỉ admin truy cập; RBAC chưa được áp dụng trong CCL-MES Phase 3 (TODO Phase 4+).</value></data>
+  <data name="settings.account.placeholder_li1" xml:space="preserve"><value>Tạo / vô hiệu hoá người dùng, reset mật khẩu.</value></data>
+  <data name="settings.account.placeholder_li2" xml:space="preserve"><value>Gán vai trò và nhóm quyền.</value></data>
+  <data name="settings.account.placeholder_li3" xml:space="preserve"><value>Luồng Provisioning Card (mật khẩu tạm dùng một lần + buộc đổi mật khẩu).</value></data>
+
+  <data name="settings.about.title" xml:space="preserve"><value>Cài đặt — Giới thiệu / Chẩn đoán</value></data>
+  <data name="settings.about.placeholder_lead" xml:space="preserve"><value>Tab Giới thiệu / Chẩn đoán — phiên bản build, trạng thái server, vân tay phần cứng, thông tin license. Sẽ được xây dựng ở sprint sau.</value></data>
+  <data name="settings.about.placeholder_li1" xml:space="preserve"><value>Phiên bản ứng dụng + commit SHA + .NET runtime.</value></data>
+  <data name="settings.about.placeholder_li2" xml:space="preserve"><value>Loại DB + dung lượng + thời điểm backup gần nhất.</value></data>
+  <data name="settings.about.placeholder_li3" xml:space="preserve"><value>Trạng thái kích hoạt license + vân tay phần cứng.</value></data>
+
+  <data name="settings.data.title" xml:space="preserve"><value>Cài đặt — Sao lưu / Phục hồi</value></data>
+  <data name="settings.data.placeholder_lead" xml:space="preserve"><value>Tab Sao lưu / Phục hồi — sao lưu thủ công và theo lịch, phục hồi tại thời điểm. Trong nguồn Ops Control v1.2 chỉ admin truy cập; RBAC chưa được áp dụng trong CCL-MES Phase 3 (TODO Phase 4+).</value></data>
+  <data name="settings.data.placeholder_li1" xml:space="preserve"><value>Chạy backup ngay / xem lịch sử backup.</value></data>
+  <data name="settings.data.placeholder_li2" xml:space="preserve"><value>Lập lịch + chính sách lưu trữ.</value></data>
+  <data name="settings.data.placeholder_li3" xml:space="preserve"><value>Phục hồi từ snapshot đã chọn (kèm bước xác nhận).</value></data>
+
+  <data name="settings.syslog.title" xml:space="preserve"><value>Cài đặt — Nhật ký hệ thống</value></data>
+  <data name="settings.syslog.placeholder_lead" xml:space="preserve"><value>Tab Nhật ký hệ thống — dòng thời gian audit, sự kiện đăng nhập, thay đổi dữ liệu. Trong nguồn Ops Control v1.2 chỉ admin truy cập; RBAC chưa được áp dụng trong CCL-MES Phase 3 (TODO Phase 4+).</value></data>
+  <data name="settings.syslog.placeholder_li1" xml:space="preserve"><value>Lọc theo loại sự kiện / người dùng / khoảng ngày.</value></data>
+  <data name="settings.syslog.placeholder_li2" xml:space="preserve"><value>Xuất CSV để review compliance.</value></data>
+  <data name="settings.syslog.placeholder_li3" xml:space="preserve"><value>Chính sách lưu trữ + chuyển sang lưu off-site.</value></data>
+
+  <data name="settings.importlegacy.title" xml:space="preserve"><value>Cài đặt — Nhập dữ liệu v1.0</value></data>
+  <data name="settings.importlegacy.placeholder_lead" xml:space="preserve"><value>Tab Nhập dữ liệu v1.0 — chuyển dữ liệu từ các backend file của Ops Control v1.0. Trong nguồn Ops Control v1.2 chỉ admin truy cập; RBAC chưa được áp dụng trong CCL-MES Phase 3 (TODO Phase 4+).</value></data>
+  <data name="settings.importlegacy.placeholder_li1" xml:space="preserve"><value>Chọn thư mục nguồn và map sang schema hiện tại.</value></data>
+  <data name="settings.importlegacy.placeholder_li2" xml:space="preserve"><value>Xem trước dry-run trước khi commit.</value></data>
+  <data name="settings.importlegacy.placeholder_li3" xml:space="preserve"><value>Nhật ký audit cho phần đã nhập + phần bỏ qua.</value></data>
+
   <data name="lang.picker.aria_label" xml:space="preserve"><value>Chọn ngôn ngữ</value></data>
 
   <data name="login.title" xml:space="preserve"><value>Đăng nhập</value></data>

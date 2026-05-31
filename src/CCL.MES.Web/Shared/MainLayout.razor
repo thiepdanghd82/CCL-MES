@@ -30,6 +30,29 @@
                 </div>
             </div>
 
+            @* Phase 3 — Settings dropdown. The 10 sub-tabs are a verbatim
+               copy of the MENU_SECTIONS catalogue in Ops Control v1.2
+               (3 groups × 10 items), kept in the same order so operators
+               coming from Ops Control v1.2 find each setting in the same
+               position. Items flagged "admin only" in the source are
+               currently visible to every signed-in user — RBAC enforcement
+               is deferred to Phase 4+ (see TODO notes inside each page). *@
+            <div class="dropdown">
+                <span class="dropbtn">@Loc["nav.settings"] &#9662;</span>
+                <div class="dropdown-menu">
+                    <a href="/settings/profile">@Loc["nav.settings.profile"]</a>
+                    <a href="/settings/mypwd">@Loc["nav.settings.mypwd"]</a>
+                    <a href="/settings/appearance">@Loc["nav.settings.appearance"]</a>
+                    <a href="/settings/hardware">@Loc["nav.settings.hardware"]</a>
+                    <a href="/settings/mode">@Loc["nav.settings.mode"]</a>
+                    <a href="/settings/account">@Loc["nav.settings.account"]</a>
+                    <a href="/settings/about">@Loc["nav.settings.about"]</a>
+                    <a href="/settings/data">@Loc["nav.settings.data"]</a>
+                    <a href="/settings/syslog">@Loc["nav.settings.syslog"]</a>
+                    <a href="/settings/import-legacy">@Loc["nav.settings.importlegacy"]</a>
+                </div>
+            </div>
+
             <a href="/swagger" target="_blank">@Loc["nav.api_swagger"]</a>
         </nav>
 
