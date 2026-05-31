@@ -1,0 +1,109 @@
+@*  Phase 6 Bước 3 — shared QC inspection grid used by Ipqc.razor +
+    Oqc.razor. Bám pattern NPI grid (search + Pager + table). Type filter
+    is required so each page only sees its own inspection type — no
+    cross-bleed between IPQC + OQC even if a developer copies the markup. *@
+
+@using CCL.MES.Application.Services
+@using CCL.MES.Domain
+@using CCL.MES.Domain.Entities
+@inject QcService Qc
+@inject IStringLocalizer<SharedResource> Loc
+
+<div class="grid-head">
+    <h1>@Title <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…")</span></h1>
+</div>
+
+<div class="grid-toolbar">
+    <input class="grid-search" placeholder="@Loc["qcqa.grid.search_placeholder"]"
+           @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
+</div>
+
+@if (_result is null)
+{
+    <p>@Loc["common.loading"]</p>
+}
+else if (_result.Total == 0)
+{
+    <div class="npi-placeholder">
+        <p class="muted">@Loc["qcqa.grid.empty"]</p>
+    </div>
+}
+else
+{
+    <div class="table-scroll">
+    <table class="wo data">
+        <thead>
+            <tr>
+                <th>@Loc["qcqa.grid.col.id"]</th>
+                <th>@Loc["qcqa.grid.col.wo_no"]</th>
+                <th>@Loc["qcqa.grid.col.product"]</th>
+                <th>@Loc["qcqa.grid.col.inspector"]</th>
+                <th class="num">@Loc["qcqa.grid.col.sample_size"]</th>
+                <th class="num">@Loc["qcqa.grid.col.detail_count"]</th>
+                <th>@Loc["qcqa.grid.col.status"]</th>
+                <th>@Loc["qcqa.grid.col.approved_by"]</th>
+                <th>@Loc["qcqa.grid.col.approved_at"]</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var i in _result.Items)
+            {
+                <tr>
+                    <td><b>#@i.Id</b></td>
+                    <td>@(i.WorkOrder?.WoNo ?? "-")</td>
+                    <td>@(i.WorkOrder?.Product?.Name ?? "-")</td>
+                    <td>@(i.InspectorId ?? "-")</td>
+                    <td class="num">@i.SampleSize</td>
+                    <td class="num">@i.Details.Count</td>
+                    <td>
+                        <span class="badge qc-@i.Result.ToString().ToLowerInvariant()">@StatusLabel(i.Result)</span>
+                    </td>
+                    <td>@(i.ApprovedBy ?? "-")</td>
+                    <td>@FormatDate(i.ApprovedAt)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    </div>
+    <Pager Result="@PagerInfo" OnPage="GoPage" />
+}
+
+@code {
+    /// <summary>Inspection type the grid filters on. Required.</summary>
+    [Parameter, EditorRequired] public QcType Type { get; set; }
+
+    /// <summary>Page title (already localized by the calling page).</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+
+    private PagedResult<QcInspection>? _result;
+    private string? _search;
+    private int _page = 1;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // If the parent navigates between Ipqc / Oqc (same component reused
+        // via route), reset the page index and reload.
+        _page = 1;
+        await Load();
+    }
+
+    private async Task Load() => _result = await Qc.ListAsync(Type, _search, _page, 50);
+    private async Task DoSearch() { _page = 1; await Load(); }
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
+    private async Task GoPage(int p) { _page = p; await Load(); }
+    private (int Page, int TotalPages, int Total) PagerInfo =>
+        _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
+
+    private string StatusLabel(QcResult r) => r switch
+    {
+        QcResult.Pending => Loc["qcqa.grid.status.pending"].Value,
+        QcResult.Pass    => Loc["qcqa.grid.status.pass"].Value,
+        QcResult.Fail    => Loc["qcqa.grid.status.fail"].Value,
+        _                => "-",
+    };
+
+    private static string FormatDate(DateTime? dt) => dt?.ToString("yyyy-MM-dd HH:mm") ?? "-";
+}
