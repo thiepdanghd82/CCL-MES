@@ -92,6 +92,9 @@ builder.Services.AddSingleton<ShopfloorNotifier>();
 builder.Services.AddScoped<HubCookieAccessor>();
 // Phase 6 Bước 2A — Settings User group (Profile / Password / Appearance).
 builder.Services.AddScoped<UserProfileService>();
+// Phase 6 Bước 2B — Settings System + 1 admin (About / Account / Backup).
+builder.Services.AddScoped<UserAdminService>();
+builder.Services.AddSingleton<BackupService>();
 
 var app = builder.Build();
 
