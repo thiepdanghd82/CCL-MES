@@ -36,9 +36,9 @@ public class WorkOrdersController : ControllerBase
     }
 
     [HttpPost("{id:long}/flags")]
-    public async Task<IActionResult> Flags(long id, [FromBody] UpdateFlagsRequest r)
+    public async Task<IActionResult> Flags(long id, [FromBody] UpdateFlagsRequest r, [FromQuery] string? user)
     {
-        var wo = await _svc.UpdateFlagsAsync(id, r);
+        var wo = await _svc.UpdateFlagsAsync(id, r, user);
         return wo is null ? NotFound() : Ok(wo);
     }
 }

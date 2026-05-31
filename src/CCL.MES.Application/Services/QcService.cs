@@ -1,4 +1,7 @@
+using System.Text.Json;
+using CCL.MES.Application.Audit;
 using CCL.MES.Domain;
+using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,7 +10,12 @@ namespace CCL.MES.Application.Services;
 public class QcService
 {
     private readonly IMesDbContext _db;
-    public QcService(IMesDbContext db) => _db = db;
+    private readonly IAuditWriter _audit;
+    public QcService(IMesDbContext db, IAuditWriter audit)
+    {
+        _db = db;
+        _audit = audit;
+    }
 
     /// <summary>
     /// Phase 6 Bước 3 — paginated list for the IPQC + OQC grid UIs. Type
@@ -57,6 +65,15 @@ public class QcService
         }
         _db.QcInspections.Add(insp);
         await _db.SaveChangesAsync();
+        await _audit.EmitAsync(
+            AuditAction.QcCreate, r.InspectorId ?? "anonymous", actorRole: "",
+            targetType: "QcInspection", targetId: insp.Id.ToString(),
+            detail: JsonSerializer.Serialize(new {
+                wo_id = r.WorkOrderId,
+                type = r.Type.ToString(),
+                sample_size = r.SampleSize,
+                detail_count = r.Details.Count,
+            }));
         return insp;
     }
 
@@ -79,6 +96,14 @@ public class QcService
         }
 
         await _db.SaveChangesAsync();
+        await _audit.EmitAsync(
+            AuditAction.QcApprove, user ?? "anonymous", actorRole: "",
+            targetType: "QcInspection", targetId: insp.Id.ToString(),
+            detail: JsonSerializer.Serialize(new {
+                wo_id = insp.WorkOrderId,
+                type = insp.Type.ToString(),
+                result = insp.Result.ToString(),
+            }));
         return insp;
     }
 }

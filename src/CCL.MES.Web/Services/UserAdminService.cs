@@ -1,6 +1,9 @@
 using System.Security.Claims;
+using System.Text.Json;
 using CCL.MES.Application;
+using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
+using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Auth;
 using CCL.MES.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -29,11 +32,13 @@ public class UserAdminService
 {
     private readonly IMesDbContext _db;
     private readonly IPasswordHasher<User> _hasher;
+    private readonly IAuditWriter _audit;
 
-    public UserAdminService(IMesDbContext db, IPasswordHasher<User> hasher)
+    public UserAdminService(IMesDbContext db, IPasswordHasher<User> hasher, IAuditWriter audit)
     {
         _db = db;
         _hasher = hasher;
+        _audit = audit;
     }
 
     public Task<PagedResult<User>> ListAsync(string? search, int page, int pageSize)
@@ -54,7 +59,7 @@ public class UserAdminService
 
     /// <summary>Create a new user. Username is unique (DB index from Phase 2).</summary>
     public async Task<UserAdminResult> CreateAsync(
-        string username, string? displayName, string role, string password)
+        string username, string? displayName, string role, string password, ClaimsPrincipal actor)
     {
         if (string.IsNullOrWhiteSpace(username))
             return UserAdminResult.UsernameRequired;
@@ -78,6 +83,12 @@ public class UserAdminService
         user.PasswordHash = _hasher.HashPassword(user, password);
         _db.Users.Add(user);
         await _db.SaveChangesAsync();
+
+        var (actorName, actorRole) = actor.AuditIdentity();
+        await _audit.EmitAsync(
+            AuditAction.UserCreate, actorName, actorRole,
+            targetType: "User", targetId: user.Id.ToString(),
+            detail: JsonSerializer.Serialize(new { username, role }));
         return UserAdminResult.Success;
     }
 
@@ -91,9 +102,16 @@ public class UserAdminService
         var user = await GetByIdAsync(userId);
         if (user is null) return UserAdminResult.NotFound;
 
+        var before = user.DisplayName;
         user.DisplayName = string.IsNullOrWhiteSpace(newDisplayName) ? null : newDisplayName.Trim();
         user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var (actorName, actorRole) = actor.AuditIdentity();
+        await _audit.EmitAsync(
+            AuditAction.UserDisplayChange, actorName, actorRole,
+            targetType: "User", targetId: user.Id.ToString(),
+            detail: JsonSerializer.Serialize(new { username = user.Username, before, after = user.DisplayName }));
         return UserAdminResult.Success;
     }
 
@@ -121,9 +139,16 @@ public class UserAdminService
                 return UserAdminResult.LastAdminProtected;
         }
 
+        var before = user.Role;
         user.Role = newRole;
         user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var (actorName, actorRole) = actor.AuditIdentity();
+        await _audit.EmitAsync(
+            AuditAction.UserRoleChange, actorName, actorRole,
+            targetType: "User", targetId: user.Id.ToString(),
+            detail: JsonSerializer.Serialize(new { username = user.Username, before, after = newRole }));
         return UserAdminResult.Success;
     }
 
@@ -145,6 +170,15 @@ public class UserAdminService
         user.MustChangePassword = true;
         user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var (actorName, actorRole) = actor.AuditIdentity();
+        // Audit Detail INTENTIONALLY does NOT include the new password
+        // (or hash) — sanitize whitelist convention from
+        // docs/PHASE6-STEP5-PLAN.md.
+        await _audit.EmitAsync(
+            AuditAction.UserResetPassword, actorName, actorRole,
+            targetType: "User", targetId: user.Id.ToString(),
+            detail: JsonSerializer.Serialize(new { username = user.Username, must_change = true }));
         return UserAdminResult.Success;
     }
 
@@ -172,6 +206,12 @@ public class UserAdminService
         user.IsActive = isActive;
         user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        var (actorName, actorRole) = actor.AuditIdentity();
+        await _audit.EmitAsync(
+            AuditAction.UserSetActive, actorName, actorRole,
+            targetType: "User", targetId: user.Id.ToString(),
+            detail: JsonSerializer.Serialize(new { username = user.Username, is_active = isActive }));
         return UserAdminResult.Success;
     }
 

@@ -211,15 +211,27 @@
   <data name="settings.data.msg.snapshot_err" xml:space="preserve"><value>Tạo snapshot thất bại: {0}</value></data>
   <data name="settings.data.msg.source_missing" xml:space="preserve"><value>Không tìm thấy file DB nguồn.</value></data>
   <data name="settings.data.msg.sqlserver_unsupported" xml:space="preserve"><value>Snapshot từ ứng dụng chỉ hỗ trợ SQLite.</value></data>
-  <data name="settings.data.restore.todo" xml:space="preserve"><value>Restore là thao tác phá huỷ, sẽ làm ở Phase 6 Bước 5 (Audit Log + bước xác nhận).</value></data>
+  <data name="settings.data.restore.title" xml:space="preserve"><value>Restore</value></data>
+  <data name="settings.data.restore.guidance" xml:space="preserve"><value>Restore chỉ qua console. Tắt web app trước, sau đó chạy:</value></data>
+  <data name="settings.data.restore.safety" xml:space="preserve"><value>Script yêu cầu gõ CONFIRM-RESTORE, in row count snapshot, tạo auto-backup trước khi ghi đè, rồi ghi đè DB live và sinh audit row BACKUP_RESTORE. Xem scripts/BackupRestore/README.md.</value></data>
   <data name="settings.data.sqlserver.title" xml:space="preserve"><value>Provider SQL Server</value></data>
   <data name="settings.data.sqlserver.message" xml:space="preserve"><value>Với SQL Server hãy dùng công cụ của database engine (SSMS, maintenance plans, hoặc `BACKUP DATABASE` T-SQL). Ứng dụng không điều phối backup SQL Server.</value></data>
 
   <data name="settings.syslog.title" xml:space="preserve"><value>Cài đặt — Nhật ký hệ thống</value></data>
-  <data name="settings.syslog.placeholder_lead" xml:space="preserve"><value>Tab Nhật ký hệ thống — dòng thời gian audit, sự kiện đăng nhập, thay đổi dữ liệu. Trong nguồn Ops Control v1.2 chỉ admin truy cập; RBAC chưa được áp dụng trong CCL-MES Phase 3 (TODO Phase 4+).</value></data>
-  <data name="settings.syslog.placeholder_li1" xml:space="preserve"><value>Lọc theo loại sự kiện / người dùng / khoảng ngày.</value></data>
-  <data name="settings.syslog.placeholder_li2" xml:space="preserve"><value>Xuất CSV để review compliance.</value></data>
-  <data name="settings.syslog.placeholder_li3" xml:space="preserve"><value>Chính sách lưu trữ + chuyển sang lưu off-site.</value></data>
+  <data name="settings.syslog.search_placeholder" xml:space="preserve"><value>Tìm trong action / target / detail…</value></data>
+  <data name="settings.syslog.empty" xml:space="preserve"><value>Không có dòng audit nào khớp filter hiện tại.</value></data>
+  <data name="settings.syslog.from" xml:space="preserve"><value>Từ</value></data>
+  <data name="settings.syslog.to" xml:space="preserve"><value>Đến</value></data>
+  <data name="settings.syslog.action_all" xml:space="preserve"><value>Tất cả actions</value></data>
+  <data name="settings.syslog.actor_placeholder" xml:space="preserve"><value>Tên tài khoản…</value></data>
+  <data name="settings.syslog.col.timestamp" xml:space="preserve"><value>Thời gian (UTC)</value></data>
+  <data name="settings.syslog.col.actor" xml:space="preserve"><value>Actor</value></data>
+  <data name="settings.syslog.col.role" xml:space="preserve"><value>Vai trò</value></data>
+  <data name="settings.syslog.col.action" xml:space="preserve"><value>Action</value></data>
+  <data name="settings.syslog.col.target" xml:space="preserve"><value>Target</value></data>
+  <data name="settings.syslog.col.detail" xml:space="preserve"><value>Chi tiết</value></data>
+  <data name="settings.syslog.col.ip" xml:space="preserve"><value>IP</value></data>
+  <data name="settings.syslog.col.source" xml:space="preserve"><value>Nguồn</value></data>
 
   <data name="settings.importlegacy.title" xml:space="preserve"><value>Cài đặt — Nhập dữ liệu v1.0</value></data>
   <data name="settings.importlegacy.placeholder_lead" xml:space="preserve"><value>Tab Nhập dữ liệu v1.0 — chuyển dữ liệu từ các backend file của Ops Control v1.0. Trong nguồn Ops Control v1.2 chỉ admin truy cập; RBAC chưa được áp dụng trong CCL-MES Phase 3 (TODO Phase 4+).</value></data>

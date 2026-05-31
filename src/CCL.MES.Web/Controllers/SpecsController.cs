@@ -15,8 +15,8 @@ public class SpecsController : ControllerBase
     public async Task<IActionResult> GetAll() => Ok(await _svc.GetAllAsync());
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateSpecRequest r)
-        => Ok(await _svc.CreateAsync(r));
+    public async Task<IActionResult> Create([FromBody] CreateSpecRequest r, [FromQuery] string? user)
+        => Ok(await _svc.CreateAsync(r, user));
 
     [HttpPost("versions/{versionId:long}/approve")]
     public async Task<IActionResult> Approve(long versionId, [FromQuery] string? user)

@@ -156,7 +156,7 @@ else
         {
             MaterialsReady = true, SetupConfirmed = true, RohsOk = true,
             ProducedQty = w.ProducedQty > 0 ? w.ProducedQty : 0
-        });
+        }, "shopfloor");
         _ok = true;
         _message = Loc["workorders.msg.unlocked", w.WoNo].Value;
         await Reload();

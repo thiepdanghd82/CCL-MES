@@ -1,3 +1,7 @@
+using System.Security.Claims;
+using System.Text.Json;
+using CCL.MES.Application.Audit;
+using CCL.MES.Domain.Audit;
 using Microsoft.Data.Sqlite;
 
 namespace CCL.MES.Web.Services;
@@ -17,7 +21,12 @@ namespace CCL.MES.Web.Services;
 public class BackupService
 {
     private readonly IConfiguration _config;
-    public BackupService(IConfiguration config) => _config = config;
+    private readonly IAuditWriter _audit;
+    public BackupService(IConfiguration config, IAuditWriter audit)
+    {
+        _config = config;
+        _audit = audit;
+    }
 
     public string Provider =>
         _config["Database:Provider"]?.Equals("SqlServer", StringComparison.OrdinalIgnoreCase) == true
@@ -32,7 +41,7 @@ public class BackupService
     /// otherwise. Uses SQLite's online backup API so a snapshot is safe to
     /// take while the server is serving traffic.
     /// </summary>
-    public BackupResult CreateSnapshot()
+    public async Task<BackupResult> CreateSnapshotAsync(ClaimsPrincipal actor)
     {
         if (!IsSqlite) return new BackupResult(BackupOutcome.SqlServerUnsupported, null);
 
@@ -59,6 +68,16 @@ public class BackupService
         {
             return new BackupResult(BackupOutcome.Error, ex.Message);
         }
+
+        // Phase 6 Bước 5 — emit audit AFTER success. Detail captures the
+        // resulting filename + size for cross-reference with the snapshot
+        // list. NO file contents serialized.
+        var (actorName, actorRole) = actor.AuditIdentity();
+        var sizeBytes = new FileInfo(target).Length;
+        await _audit.EmitAsync(
+            AuditAction.BackupCreate, actorName, actorRole,
+            targetType: "Backup", targetId: name,
+            detail: JsonSerializer.Serialize(new { file = name, size_bytes = sizeBytes }));
 
         return new BackupResult(BackupOutcome.Success, name);
     }

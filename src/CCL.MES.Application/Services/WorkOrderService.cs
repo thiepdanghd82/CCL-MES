@@ -1,4 +1,7 @@
+using System.Text.Json;
+using CCL.MES.Application.Audit;
 using CCL.MES.Domain;
+using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Domain.StateMachine;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +11,12 @@ namespace CCL.MES.Application.Services;
 public class WorkOrderService
 {
     private readonly IMesDbContext _db;
-    public WorkOrderService(IMesDbContext db) => _db = db;
+    private readonly IAuditWriter _audit;
+    public WorkOrderService(IMesDbContext db, IAuditWriter audit)
+    {
+        _db = db;
+        _audit = audit;
+    }
 
     public Task<List<WorkOrder>> GetAllAsync() =>
         _db.WorkOrders
@@ -82,11 +90,17 @@ public class WorkOrderService
         });
 
         await _db.SaveChangesAsync();
+        // Phase 6 Bước 5 — emit WO_ADVANCE with from/to step.
+        await _audit.EmitAsync(
+            AuditAction.WoAdvance, user ?? "anonymous", actorRole: "",
+            targetType: "WorkOrder", targetId: wo.Id.ToString(),
+            detail: JsonSerializer.Serialize(new { wo_no = wo.WoNo, from = from.ToString(), to = next.ToString() }));
         return new AdvanceResult(true, null, wo.CurrentStep.ToString());
     }
 
 
-    public async Task<WorkOrder?> UpdateFlagsAsync(long id, UpdateFlagsRequest r)
+    // Phase 6 Bước 5 — actor param added (was a gap noted in PHASE6-STEP5-PLAN.md §1.1).
+    public async Task<WorkOrder?> UpdateFlagsAsync(long id, UpdateFlagsRequest r, string? user)
     {
         var wo = await _db.WorkOrders.FirstOrDefaultAsync(w => w.Id == id);
         if (wo is null) return null;
@@ -98,6 +112,16 @@ public class WorkOrderService
         wo.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
+        await _audit.EmitAsync(
+            AuditAction.WoFlagsUpdate, user ?? "anonymous", actorRole: "",
+            targetType: "WorkOrder", targetId: wo.Id.ToString(),
+            detail: JsonSerializer.Serialize(new {
+                wo_no = wo.WoNo,
+                materials_ready = r.MaterialsReady,
+                setup_confirmed = r.SetupConfirmed,
+                rohs_ok = r.RohsOk,
+                produced_qty = r.ProducedQty,
+            }));
         return wo;
     }
 }

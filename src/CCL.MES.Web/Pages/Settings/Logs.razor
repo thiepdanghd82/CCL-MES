@@ -1,19 +1,108 @@
 @page "/settings/syslog"
 @attribute [Authorize(Policy = "AdminOnly")]
+@using CCL.MES.Application.Services
+@using CCL.MES.Domain.Entities
+@using CCL.MES.Web.Services
+@inject AuditLogService AuditSvc
 @inject IStringLocalizer<SharedResource> Loc
 
-@*  Phase 5 — RBAC enforced. Non-admin users hitting this URL get the
-    <AccessDenied /> panel from App.razor's NotAuthorized branch;
-    the topbar Settings dropdown also hides this item via
-    <AuthorizeView Roles="Admin"> in MainLayout.razor. *@
+@*  Phase 5 RBAC gate kept.
+    Phase 6 Bước 5 — Audit log viewer. Read-only grid backed by the
+    AuditLogs table; filters: date range, action dropdown, actor search.
+    System log file viewer (ASP.NET / EF console output) deferred to
+    Phase 7 per docs/PHASE6-STEP5-PLAN.md §2.B. *@
 
-<h1>@Loc["settings.syslog.title"]</h1>
-
-<div class="npi-placeholder">
-    <p class="muted">@Loc["settings.syslog.placeholder_lead"]</p>
-    <ul>
-        <li>@Loc["settings.syslog.placeholder_li1"]</li>
-        <li>@Loc["settings.syslog.placeholder_li2"]</li>
-        <li>@Loc["settings.syslog.placeholder_li3"]</li>
-    </ul>
+<div class="grid-head">
+    <h1>@Loc["settings.syslog.title"] <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…")</span></h1>
 </div>
+
+<div class="grid-toolbar syslog-toolbar">
+    <input class="grid-search" placeholder="@Loc["settings.syslog.search_placeholder"]"
+           @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+    <input type="date" class="form-input syslog-date" @bind="_from" title="@Loc["settings.syslog.from"]" />
+    <input type="date" class="form-input syslog-date" @bind="_to" title="@Loc["settings.syslog.to"]" />
+    <select class="form-input syslog-action" @bind="_action">
+        <option value="">@Loc["settings.syslog.action_all"]</option>
+        @if (_actions is not null)
+        {
+            @foreach (var a in _actions)
+            {
+                <option value="@a">@a</option>
+            }
+        }
+    </select>
+    <input class="form-input syslog-actor" placeholder="@Loc["settings.syslog.actor_placeholder"]" @bind="_actor" />
+    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
+</div>
+
+@if (_result is null)
+{
+    <p>@Loc["common.loading"]</p>
+}
+else if (_result.Total == 0)
+{
+    <div class="npi-placeholder">
+        <p class="muted">@Loc["settings.syslog.empty"]</p>
+    </div>
+}
+else
+{
+    <div class="table-scroll">
+    <table class="wo data syslog-table">
+        <thead>
+            <tr>
+                <th>@Loc["settings.syslog.col.timestamp"]</th>
+                <th>@Loc["settings.syslog.col.actor"]</th>
+                <th>@Loc["settings.syslog.col.role"]</th>
+                <th>@Loc["settings.syslog.col.action"]</th>
+                <th>@Loc["settings.syslog.col.target"]</th>
+                <th>@Loc["settings.syslog.col.detail"]</th>
+                <th>@Loc["settings.syslog.col.ip"]</th>
+                <th>@Loc["settings.syslog.col.source"]</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in _result.Items)
+            {
+                <tr>
+                    <td>@a.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                    <td><b>@a.ActorUsername</b></td>
+                    <td><span class="badge role-@a.ActorRole.ToLowerInvariant()">@a.ActorRole</span></td>
+                    <td><code>@a.Action</code></td>
+                    <td>@(a.TargetType is null ? "-" : $"{a.TargetType}#{a.TargetId}")</td>
+                    <td class="syslog-detail" title="@a.Detail">@Truncate(a.Detail, 80)</td>
+                    <td class="muted">@(a.IpAddress ?? "-")</td>
+                    <td>@a.Source</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    </div>
+    <Pager Result="@PagerInfo" OnPage="GoPage" />
+}
+
+@code {
+    private PagedResult<AuditLog>? _result;
+    private IReadOnlyList<string>? _actions;
+    private string? _search;
+    private string? _action;
+    private string? _actor;
+    private DateTime? _from;
+    private DateTime? _to;
+    private int _page = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _actions = await AuditSvc.DistinctActionsAsync();
+        await Load();
+    }
+    private async Task Load() => _result = await AuditSvc.ListAsync(_search, _action, _actor, _from, _to, _page, 50);
+    private async Task DoSearch() { _page = 1; await Load(); }
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
+    private async Task GoPage(int p) { _page = p; await Load(); }
+    private (int Page, int TotalPages, int Total) PagerInfo =>
+        _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
+
+    private static string Truncate(string? s, int max) =>
+        string.IsNullOrEmpty(s) ? "-" : s.Length <= max ? s : s[..max] + "…";
+}

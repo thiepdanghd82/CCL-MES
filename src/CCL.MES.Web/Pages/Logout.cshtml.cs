@@ -1,3 +1,6 @@
+using CCL.MES.Application.Audit;
+using CCL.MES.Domain.Audit;
+using CCL.MES.Web.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -17,8 +20,17 @@ namespace CCL.MES.Web.Pages;
 [IgnoreAntiforgeryToken]
 public class LogoutModel : PageModel
 {
+    private readonly IAuditWriter _audit;
+
+    public LogoutModel(IAuditWriter audit) => _audit = audit;
+
     public async Task<IActionResult> OnPostAsync()
     {
+        // Phase 6 Bước 5 — emit before sign-out so the principal is still
+        // attached and we record who actually signed out.
+        var (actor, role) = User.AuditIdentity();
+        await _audit.EmitAsync(AuditAction.Logout, actor, role);
+
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return Redirect("/login");
     }
