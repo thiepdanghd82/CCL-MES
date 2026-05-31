@@ -118,3 +118,17 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .topbar-logout-btn { background:transparent; border:1px solid rgba(255,255,255,.35);
   color:#dbe5ff; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:13px; }
 .topbar-logout-btn:hover { background:rgba(255,255,255,.12); color:#fff; }
+
+/* --- Phase 6 Bước 2B — Settings System group (About / Account / Backup) --- */
+.settings-card { background:#fff; border:1px solid #e5e7eb; border-radius:10px;
+  padding:20px 24px; box-shadow:0 1px 3px rgba(0,0,0,.05); max-width:720px; margin-bottom:18px; }
+.settings-section { margin:0 0 8px; color:#1f3864; font-size:16px; font-weight:600; }
+.diag-table { width:100%; border-collapse:collapse; font-size:14px; }
+.diag-table th { text-align:left; padding:8px 12px; color:#374151;
+  width:42%; font-weight:600; vertical-align:top; }
+.diag-table td { padding:8px 12px; color:#1f2937; vertical-align:top; }
+.diag-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.diag-table tr + tr th, .diag-table tr + tr td { border-top:1px solid #f1f5f9; }
+.badge { padding:3px 10px; border-radius:999px; font-size:12px; white-space:nowrap; font-weight:600; }
+.badge.role-admin { background:#1f3864; color:#fff; }
+.badge.role-user  { background:#e7efff; color:#1f3864; }
