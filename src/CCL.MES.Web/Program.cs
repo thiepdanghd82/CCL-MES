@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
 using CCL.MES.Application;
+using CCL.MES.Domain.Auth;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Infrastructure;
 using CCL.MES.Web.Hubs;
@@ -148,28 +149,49 @@ app.Run();
 // ──────────────────────────────────────────────────────────────────────
 static async Task SeedAdminUserAsync(MesDbContext db, IPasswordHasher<User> hasher)
 {
-    if (!await db.Users.AnyAsync(u => u.Username == "admin"))
+    // Phase 6 Bước 4 — fix-up legacy Role="User" → "Operator" BEFORE the
+    // whitelist takes effect anywhere. Idempotent: only mutates rows that
+    // still carry the legacy value, so reseeding never undoes an admin's
+    // later role change. Console-logs the count so an operator can see
+    // what happened on first boot after upgrading.
+    var legacy = await db.Users.Where(u => u.Role == "User").ToListAsync();
+    foreach (var u in legacy)
     {
-        var admin = new User
-        {
-            Username = "admin",
-            Role = "Admin",
-            DisplayName = "Administrator",
-        };
-        admin.PasswordHash = hasher.HashPassword(admin, "admin");
-        db.Users.Add(admin);
+        u.Role = UserRole.Operator;
+        u.UpdatedAt = DateTime.UtcNow;
     }
+    if (legacy.Count > 0)
+        Console.WriteLine($"[seed] Phase 6 Bước 4 — migrated {legacy.Count} legacy Role=\"User\" → \"{UserRole.Operator}\".");
 
-    if (!await db.Users.AnyAsync(u => u.Username == "operator"))
+    // Seed table: 5 demo accounts (one per role) so the matrix can be
+    // smoke-tested without an admin manually building accounts. All
+    // skip-if-exists by username; populated DBs unchanged. Default
+    // values for IsActive (true) + MustChangePassword (false) come
+    // from the entity, set explicitly here for new rows just in case
+    // a later migration changes the default direction.
+    var seed = new (string Username, string Role, string DisplayName, string Password)[]
     {
-        var op = new User
+        ("admin",      UserRole.Admin,      "Administrator",  "admin"),
+        ("supervisor", UserRole.Supervisor, "Demo Supervisor","supervisor"),
+        ("engineer",   UserRole.Engineer,   "Demo Engineer",  "engineer"),
+        ("qc",         UserRole.Qc,         "Demo QC Lead",   "qc"),
+        ("operator",   UserRole.Operator,   "Demo Operator",  "operator"),
+    };
+    foreach (var (username, role, displayName, password) in seed)
+    {
+        if (!await db.Users.AnyAsync(u => u.Username == username))
         {
-            Username = "operator",
-            Role = "User",
-            DisplayName = "Demo Operator",
-        };
-        op.PasswordHash = hasher.HashPassword(op, "operator");
-        db.Users.Add(op);
+            var user = new User
+            {
+                Username = username,
+                Role = role,
+                DisplayName = displayName,
+                IsActive = true,
+                MustChangePassword = false,
+            };
+            user.PasswordHash = hasher.HashPassword(user, password);
+            db.Users.Add(user);
+        }
     }
 
     await db.SaveChangesAsync();

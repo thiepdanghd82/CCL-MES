@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CCL.MES.Scripts.RecoverAdmin</RootNamespace>
+    <AssemblyName>RecoverAdmin</AssemblyName>
+    <!--
+      Phase 6 Bước 4 — console-only admin recovery tool. Standalone
+      project so accidental "dotnet run" on the Web project can't trigger
+      it; trust boundary = OS user able to write to the SQLite file.
+      Mirror of the Ops Control v1.2 recover-sys-user pattern.
+    -->
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Slimmer Identity package — provides PasswordHasher<T> without the
+         legacy Identity stack (which transitively pulls a CVE-flagged
+         System.Security.Cryptography.Xml). -->
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.8" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CCL.MES.Domain\CCL.MES.Domain.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Application\CCL.MES.Application.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Infrastructure\CCL.MES.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>
