@@ -1,11 +1,20 @@
 namespace CCL.MES.Domain.Entities;
 
-/// <summary>Trung tâm sản xuất / máy (Work Center). Nguồn: distinct từ Routing.</summary>
+/// <summary>Trung tâm sản xuất / máy (Work Center). Nguồn: distinct từ
+/// Routing (derived) HOẶC import CSV độc lập (Phase 7 hạng mục 5).
+/// Phase 7 hạng mục 5 — mở rộng từ 3 lên 6 cột để khớp CMES tham chiếu:
+/// thêm IdealSpeedPcsH (operator-edit tốc độ lý tưởng pcs/h), ShiftPattern
+/// (text plain "A"/"B"/"C"/"A+B"/"A+B+C" — KHÔNG enum để giữ linh hoạt),
+/// Active (bool? — 43 row hiện tại default TRUE sau migration).</summary>
 public class WorkCenter : BaseEntity
 {
     public string Code { get; set; } = "";
     public string Description { get; set; } = "";
     public string? Area { get; set; }
+    // Phase 7 hạng mục 5 — 3 field mới khớp CMES UI tham chiếu.
+    public double? IdealSpeedPcsH { get; set; }
+    public string? ShiftPattern { get; set; }
+    public bool? Active { get; set; }
 }
 
 /// <summary>Danh mục nguyên vật liệu (IFS Raw Material catalog).

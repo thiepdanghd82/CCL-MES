@@ -395,10 +395,20 @@ def read_raw_materials(path):
 # ─── Insert helpers (called inside one transaction) ──────────────
 
 def insert_workcenters(cur, wc_dict):
+    # Phase 7 hạng mục 5 — schema mở rộng 3 → 6 cột (thêm IdealSpeedPcsH/
+    # ShiftPattern/Active). Derive-from-Routing KHÔNG có info cho 3 field
+    # mới: IdealSpeedPcsH=NULL, ShiftPattern=NULL, Active=TRUE (đồng nhất
+    # với Q2 migration UPDATE — derived = đang dùng = active). Operator
+    # chỉnh sau qua UI hoặc Import CSV với rich CSV.
     ts = now()
-    rows = [(code, desc, infer_area(code, desc), ts) for code, desc in sorted(wc_dict.items())]
+    rows = [
+        (code, desc, infer_area(code, desc), None, None, 1, ts)
+        for code, desc in sorted(wc_dict.items())
+    ]
     cur.executemany(
-        'INSERT INTO "WorkCenters" ("Code","Description","Area","CreatedAt") VALUES (?,?,?,?)',
+        'INSERT INTO "WorkCenters" '
+        '("Code","Description","Area","IdealSpeedPcsH","ShiftPattern","Active","CreatedAt") '
+        'VALUES (?,?,?,?,?,?,?)',
         rows,
     )
     return len(rows)

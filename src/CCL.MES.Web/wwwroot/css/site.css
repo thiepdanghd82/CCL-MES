@@ -335,3 +335,29 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   width:28px; height:24px; cursor:pointer; font-weight:bold; font-size:13px; }
 .spec-approve-btn:hover { background:#a7f3d0; }
 .spec-approve-btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+/* === Phase 7 hạng mục 5 — Work Center area badge palette === */
+
+/* 17 KNOWN_AREAS palette mirror CMES tham chiếu (Q6 chốt). Color picked
+   để dễ phân biệt khi xem nhiều WC cell trong cùng grid (operator scan).
+   Tone bão hoà nhẹ, contrast WCAG AA cho text trên bg. */
+.wc-area { display:inline-block; padding:2px 8px; border-radius:10px;
+  font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; }
+.wc-area--cnc          { background:#dbeafe; color:#1e40af; }   /* blue */
+.wc-area--diecut       { background:#fee2e2; color:#991b1b; }   /* red */
+.wc-area--drying       { background:#fef3c7; color:#92400e; }   /* amber */
+.wc-area--finishing    { background:#fce7f3; color:#9d174d; }   /* pink */
+.wc-area--flexo        { background:#d1fae5; color:#065f46; }   /* green */
+.wc-area--forming      { background:#ede9fe; color:#5b21b6; }   /* violet */
+.wc-area--indigo       { background:#e0e7ff; color:#3730a3; }   /* indigo */
+.wc-area--inspection   { background:#fef9c3; color:#854d0e; }   /* yellow */
+.wc-area--lamination   { background:#cffafe; color:#155e75; }   /* cyan */
+.wc-area--letterpress  { background:#fde68a; color:#854d0e; }   /* gold */
+.wc-area--manual       { background:#e5e7eb; color:#374151; }   /* gray */
+.wc-area--prep         { background:#a7f3d0; color:#064e3b; }   /* light green */
+.wc-area--punch        { background:#fbcfe8; color:#831843; }   /* pink-rose */
+.wc-area--qc           { background:#bbf7d0; color:#14532d; }   /* mint */
+.wc-area--rdc          { background:#bfdbfe; color:#1e3a8a; }   /* sky */
+.wc-area--silkscreen   { background:#e9d5ff; color:#581c87; }   /* purple */
+.wc-area--special      { background:#fed7aa; color:#9a3412; }   /* orange */
+.wc-area--other        { background:#f3f4f6; color:#6b7280; }   /* fallback neutral */

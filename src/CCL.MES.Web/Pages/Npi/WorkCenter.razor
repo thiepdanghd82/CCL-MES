@@ -1,55 +1,312 @@
 @page "/npi/workcenter"
 @attribute [Authorize(Policy = "NpiRead")]
+@using System.Globalization
 @using CCL.MES.Application.Services
+@using CCL.MES.Application.Services.NpiImport
+@using CCL.MES.Domain.Entities
+@using CCL.MES.Web.Shared
+@using Microsoft.JSInterop
+@* Page class implicit name `WorkCenter` collides với entity `WorkCenter`.
+   Alias entity → WCEntity để Razor/C# phân biệt rõ ràng. *@
+@using WCEntity = CCL.MES.Domain.Entities.WorkCenter
 @inject NpiService Npi
+@inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> Loc
 
-<div class="grid-head">
-    <h1>@Loc["npi.workcenter.title"] <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…") </span></h1>
-</div>
+@*  Phase 7 hạng mục 5 — Work Center UI khớp pattern .rt-* đã chuẩn hoá:
+    - 6 cột (Code/Description/Area/IdealSpeed/Shift/Active) + freeze thead
+    - ALL visible default (cột vừa phải) + Columns toggle popover
+    - Area badge với 17 KNOWN_AREAS palette (CSS .wc-area--{name})
+    - Active badge reuse .rm-status--active/--inactive
+    - Import CSV button gated AuthorizeView Admin/Engineer
 
-<div class="grid-toolbar">
-    <input class="grid-search" placeholder="@Loc["npi.workcenter.search_placeholder"]" @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
-    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
-</div>
+    Lưu ý source data — derive từ Routing CSV (43 WC hiện tại) HOẶC
+    Import CSV độc lập. Replace-all semantic → operator phải gộp catalog
+    vào 1 file CSV trước khi import. Format hint hiển thị inline cho
+    admin/engineer rõ. Chạy tools/import_npi.py sau sẽ overwrite WC với
+    derived-from-Routing → mất 3 field mới (IdealSpeed/Shift/Active) trừ
+    khi rows đó có sẵn Code trong Routing. *@
 
-@if (_result is null)
-{
-    <p>@Loc["common.loading"]</p>
-}
-else
-{
-    <table class="wo data">
-        <thead>
-            <tr><th>#</th><th>WC Code</th><th>Work Center · Description</th><th>Area</th></tr>
-        </thead>
-        <tbody>
-            @{ var i = (_result.Page - 1) * _result.PageSize; }
-            @foreach (var w in _result.Items)
+<section class="rt-page">
+    <div class="rt-breadcrumb">
+        @Loc["npi.workcenter.breadcrumb"]
+        @if (_result is not null)
+        {
+            <span class="rt-breadcrumb-count">· @string.Format(Loc["npi.workcenter.rows_loaded"].Value, _result.Total.ToString("N0", CultureInfo.InvariantCulture))</span>
+        }
+    </div>
+
+    <div class="rt-toolbar">
+        <h2 class="rt-title">@Loc["npi.workcenter.title"]</h2>
+        <span class="rt-count-chip">@RowCountLabel</span>
+        <input type="search" class="rt-search" placeholder="@Loc["npi.workcenter.search_placeholder"]"
+               @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+        <div class="rt-cols-wrap">
+            <button type="button" class="rt-btn" @onclick="ToggleColsPop" aria-haspopup="true" aria-expanded="@_colsOpen">
+                @string.Format(Loc["npi.workcenter.btn_columns"].Value, VisibleCols.Count, AllCols.Count)
+            </button>
+            @if (_colsOpen)
             {
-                i++;
-                <tr>
-                    <td>@i</td>
-                    <td><b>@w.Code</b></td>
-                    <td>@w.Description</td>
-                    <td>@if (!string.IsNullOrEmpty(w.Area)) { <span class="badge step">@w.Area</span> }</td>
-                </tr>
+                <div class="rt-cols-pop" role="menu">
+                    @foreach (var c in AllCols)
+                    {
+                        <label>
+                            <input type="checkbox" checked="@(!_hidden.Contains(c.Key))"
+                                   @onchange="@(() => ToggleCol(c.Key))" />
+                            @Loc[c.LabelKey]
+                        </label>
+                    }
+                    <button type="button" class="rt-btn-link" @onclick="ShowAllCols">@Loc["npi.workcenter.btn_show_all"]</button>
+                </div>
             }
-        </tbody>
-    </table>
-    <Pager Result="@PagerInfo" OnPage="GoPage" />
-}
+        </div>
+        <AuthorizeView Roles="Admin,Engineer">
+            <button type="button" class="rt-btn" @onclick="OpenImportAsync">@Loc["npi.import.btn"]</button>
+        </AuthorizeView>
+    </div>
+
+    @* Format hint: replace-all + warn về tools/import_npi.py overwrite.
+       Chỉ admin/engineer thấy (user thường không Import). *@
+    <AuthorizeView Roles="Admin,Engineer">
+        <p class="rt-format-hint">@Loc["npi.workcenter.format_hint"]</p>
+    </AuthorizeView>
+
+    <NpiImportModal TEntity="WCEntity"
+                    @ref="_importModal"
+                    Target="@_importTarget"
+                    EntityLabel="@Loc["npi.workcenter.title"].Value"
+                    OnImported="OnImportedAsync" />
+
+    <div class="rt-table-wrap">
+        @if (_result is null)
+        {
+            <div class="rt-state">@Loc["common.loading"]</div>
+        }
+        else if (_result.Total == 0)
+        {
+            <div class="rt-state">@Loc[string.IsNullOrWhiteSpace(_search) ? "npi.workcenter.empty" : "npi.workcenter.empty_filter"]</div>
+        }
+        else
+        {
+            <table class="rt-table">
+                <thead>
+                    <tr>
+                        <th class="rt-num">#</th>
+                        @foreach (var c in VisibleCols)
+                        {
+                            <th style="@($"width:{c.Width}px; text-align:{(c.Align == ColAlign.Right ? "right" : "left")}")">@Loc[c.LabelKey]</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ var rowIdx = (_result.Page - 1) * _pageSize; }
+                    @foreach (var w in _result.Items)
+                    {
+                        rowIdx++;
+                        <tr>
+                            <td class="rt-num">@rowIdx</td>
+                            @foreach (var c in VisibleCols)
+                            {
+                                <td class="@(c.Align == ColAlign.Right ? "rt-right" : "")" title="@RawValue(w, c.Key)">
+                                    @if (c.Key == "area")
+                                    {
+                                        @AreaBadge(w.Area)
+                                    }
+                                    else if (c.Key == "active")
+                                    {
+                                        @ActiveBadge(w.Active)
+                                    }
+                                    else
+                                    {
+                                        @FormatCell(w, c)
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    @if (_result is not null && _result.TotalPages > 1)
+    {
+        <Pager Result="@PagerInfo" OnPage="GoPage" />
+    }
+</section>
 
 @code {
-    private PagedResult<CCL.MES.Domain.Entities.WorkCenter>? _result;
+    private PagedResult<WCEntity>? _result;
     private string? _search;
     private int _page = 1;
+    private const int _pageSize = 50;
+    private bool _colsOpen;
+    private HashSet<string> _hidden = new();
+    private const string _storageKey = "cclmes.workcenter.columns-hidden.v1";
+    private bool _hiddenLoaded;
+
+    // Phase 7 hạng mục 5 — Import CSV wiring.
+    private NpiImportModal<WCEntity>? _importModal;
+    private readonly WorkCenterCsvTarget _importTarget = new();
+
+    private async Task OpenImportAsync()
+    {
+        if (_importModal is null) return;
+        await _importModal.OpenAsync(_result?.Total ?? 0);
+    }
+
+    private async Task OnImportedAsync()
+    {
+        _page = 1;
+        _search = null;
+        await Load();
+    }
+
+    private enum ColAlign { Left, Right }
+
+    private sealed record ColumnDef(string Key, string LabelKey, int Width, ColAlign Align,
+        Func<WCEntity, object?> Get,
+        Func<object?, string>? Format);
+
+    private static string FmtNum(object? v, int digits)
+    {
+        if (v is null) return "—";
+        if (v is double d) return d.ToString($"F{digits}", CultureInfo.InvariantCulture);
+        return v.ToString() ?? "—";
+    }
+    private static string FmtStr(object? v)
+    {
+        var s = v?.ToString();
+        return string.IsNullOrEmpty(s) ? "—" : s;
+    }
+
+    private RenderFragment AreaBadge(string? area) => __builder =>
+    {
+        if (string.IsNullOrEmpty(area))
+        {
+            __builder.AddContent(0, "—");
+            return;
+        }
+        // CSS class slug từ area name (lowercase, no special chars).
+        // Vd "CNC" → "cnc"; "Letterpress" → "letterpress". Fallback
+        // .wc-area--other nếu area chưa thuộc 17 KNOWN_AREAS.
+        var slug = area.ToLowerInvariant().Replace(" ", "");
+        var knownAreas = new HashSet<string>(new[] {
+            "cnc", "diecut", "drying", "finishing", "flexo", "forming",
+            "indigo", "inspection", "lamination", "letterpress", "manual",
+            "prep", "punch", "qc", "rdc", "silkscreen", "special",
+        });
+        var cls = "wc-area " + (knownAreas.Contains(slug) ? $"wc-area--{slug}" : "wc-area--other");
+        __builder.OpenElement(1, "span");
+        __builder.AddAttribute(2, "class", cls);
+        __builder.AddContent(3, area);
+        __builder.CloseElement();
+    };
+
+    private RenderFragment ActiveBadge(bool? active) => __builder =>
+    {
+        if (active is null)
+        {
+            __builder.AddContent(0, "—");
+            return;
+        }
+        var (cls, labelKey) = active.Value
+            ? ("rm-status rm-status--active", "npi.workcenter.active.true")
+            : ("rm-status rm-status--inactive", "npi.workcenter.active.false");
+        __builder.OpenElement(1, "span");
+        __builder.AddAttribute(2, "class", cls);
+        __builder.AddContent(3, Loc[labelKey].Value);
+        __builder.CloseElement();
+    };
+
+    private static readonly List<ColumnDef> AllCols = new()
+    {
+        new("code",        "npi.workcenter.col.code",          100, ColAlign.Left,  w => w.Code,           null),
+        new("description", "npi.workcenter.col.description",   280, ColAlign.Left,  w => w.Description,    null),
+        new("area",        "npi.workcenter.col.area",          110, ColAlign.Left,  w => w.Area,           null),
+        new("ideal_speed", "npi.workcenter.col.ideal_speed",   110, ColAlign.Right, w => w.IdealSpeedPcsH, v => FmtNum(v, 0)),
+        new("shift",       "npi.workcenter.col.shift",          90, ColAlign.Left,  w => w.ShiftPattern,   null),
+        new("active",      "npi.workcenter.col.active",         80, ColAlign.Left,  w => w.Active,         null),
+    };
+
+    private IReadOnlyList<ColumnDef> VisibleCols => AllCols.Where(c => !_hidden.Contains(c.Key)).ToList();
+
+    private string RowCountLabel
+    {
+        get
+        {
+            if (_result is null) return "…";
+            var totalStr = _result.Total.ToString("N0", CultureInfo.InvariantCulture);
+            return string.Format(Loc["npi.workcenter.rows_count"].Value, totalStr);
+        }
+    }
 
     protected override async Task OnInitializedAsync() => await Load();
-    private async Task Load() => _result = await Npi.WorkCentersAsync(_search, _page, 50);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _hiddenLoaded) return;
+        _hiddenLoaded = true;
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>("cclmes.storageGet", _storageKey);
+            if (!string.IsNullOrWhiteSpace(stored))
+            {
+                var parts = stored.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                _hidden = parts.Where(p => AllCols.Any(c => c.Key == p)).ToHashSet();
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // JS not available (SSR pre-circuit) — keep empty set.
+        }
+    }
+
+    private async Task PersistHidden()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("cclmes.storageSet", _storageKey, string.Join(",", _hidden));
+        }
+        catch { /* localStorage unavailable — silent */ }
+    }
+
+    private async Task Load() => _result = await Npi.WorkCentersAsync(_search, _page, _pageSize);
     private async Task DoSearch() { _page = 1; await Load(); }
     private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
     private async Task GoPage(int p) { _page = p; await Load(); }
+
+    private void ToggleColsPop() => _colsOpen = !_colsOpen;
+    private async Task ToggleCol(string key)
+    {
+        if (_hidden.Contains(key)) _hidden.Remove(key); else _hidden.Add(key);
+        await PersistHidden();
+    }
+    private async Task ShowAllCols()
+    {
+        _hidden.Clear();
+        await PersistHidden();
+    }
+
     private (int Page, int TotalPages, int Total) PagerInfo =>
         _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
+
+    private static string RawValue(WCEntity w, string key) => key switch
+    {
+        "code"        => w.Code,
+        "description" => w.Description,
+        "area"        => w.Area ?? "",
+        "ideal_speed" => w.IdealSpeedPcsH?.ToString(CultureInfo.InvariantCulture) ?? "",
+        "shift"       => w.ShiftPattern ?? "",
+        "active"      => w.Active?.ToString() ?? "",
+        _             => "",
+    };
+
+    private static string FormatCell(WCEntity w, ColumnDef col)
+    {
+        var raw = col.Get(w);
+        if (col.Format is not null) return col.Format(raw);
+        return FmtStr(raw);
+    }
 }
