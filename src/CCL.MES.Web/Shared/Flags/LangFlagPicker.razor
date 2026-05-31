@@ -1,0 +1,60 @@
+@* LangFlagPicker — two flag buttons (GB / VN) that swap the UI culture.
+   Click → GET /set-language?lang=…&returnUrl=… which writes the
+   .AspNetCore.Culture cookie and 302s back to the caller. No JS needed,
+   so it works identically in Razor Pages (login) and Blazor circuits.
+
+   Phase 3's Settings → Language tab will reuse this component directly. *@
+@inject IStringLocalizer<SharedResource> Loc
+@inject Microsoft.AspNetCore.Http.IHttpContextAccessor Http
+
+<div class="lang-flag-picker @CssClass" role="group" aria-label="@Loc["lang.picker.aria_label"]">
+    <a class="lang-flag-btn @(IsActive("en") ? "is-active" : "")"
+       href="@BuildHref("en")"
+       aria-label="English"
+       aria-pressed="@(IsActive("en") ? "true" : "false")"
+       title="English"
+       rel="nofollow">
+        <FlagGB CssClass="lang-flag-svg" />
+        <span class="lang-flag-code">EN</span>
+    </a>
+    <a class="lang-flag-btn @(IsActive("vi") ? "is-active" : "")"
+       href="@BuildHref("vi")"
+       aria-label="Tiếng Việt"
+       aria-pressed="@(IsActive("vi") ? "true" : "false")"
+       title="Tiếng Việt"
+       rel="nofollow">
+        <FlagVN CssClass="lang-flag-svg" />
+        <span class="lang-flag-code">VN</span>
+    </a>
+</div>
+
+@code {
+    /// <summary>
+    /// Path the user should land on AFTER the language cookie is written.
+    /// If null, falls back to the current request path so a flag click
+    /// re-renders the same screen in the chosen language.
+    /// </summary>
+    [Parameter] public string? ReturnUrl { get; set; }
+
+    [Parameter] public string CssClass { get; set; } = "";
+
+    private string CurrentCulture =>
+        System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+
+    private bool IsActive(string code) =>
+        string.Equals(CurrentCulture, code, StringComparison.OrdinalIgnoreCase);
+
+    private string BuildHref(string lang)
+    {
+        var rt = ReturnUrl;
+        if (string.IsNullOrEmpty(rt))
+        {
+            // Fall back to the current request path so the cookie write
+            // round-trip lands the user back on the same screen.
+            rt = Http.HttpContext?.Request.Path.Value
+                + Http.HttpContext?.Request.QueryString.Value;
+            if (string.IsNullOrEmpty(rt)) rt = "/";
+        }
+        return $"/set-language?lang={Uri.EscapeDataString(lang)}&returnUrl={Uri.EscapeDataString(rt)}";
+    }
+}

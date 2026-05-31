@@ -1,0 +1,51 @@
+/* Shared flag-picker styles (Phase 2). Reused by login page + MainLayout
+   header + Phase 3's Settings → Language tab. Pixel sizing kept compact so
+   the picker reads as a "control", not decoration. */
+
+.lang-flag-picker {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.lang-flag-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    text-decoration: none;
+    line-height: 1;
+    transition: background-color 0.12s, border-color 0.12s;
+}
+
+.lang-flag-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.lang-flag-btn:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
+}
+
+.lang-flag-btn.is-active {
+    background: rgba(37, 99, 235, 0.12);
+    border-color: rgba(37, 99, 235, 0.45);
+}
+
+.lang-flag-btn .lang-flag-svg {
+    width: 24px;
+    height: auto;
+    border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+    display: block;
+}
+
+.lang-flag-code {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}

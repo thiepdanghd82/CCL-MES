@@ -1,0 +1,147 @@
+/* Login screen styling — Phase 2.
+   Keeps the login surface visually independent from the app shell (no
+   topbar nav, centred card) so the screen reads as "sign in", not "you're
+   inside". */
+
+body.login-body {
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f2042 0%, #1f3864 100%);
+    color: #e5e7eb;
+    font-family: Segoe UI, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+.login-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 28px;
+    color: #fff;
+}
+
+.login-header .login-brand {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.login-header .login-brand span {
+    color: #8fb6ff;
+    margin-left: 6px;
+    font-weight: 500;
+}
+
+/* Inside the dark header, the flag picker buttons need a light hover. */
+.login-header .lang-flag-btn {
+    color: #e5e7eb;
+}
+
+.login-header .lang-flag-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.login-header .lang-flag-btn.is-active {
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.login-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.login-card {
+    background: #fff;
+    color: #1f2937;
+    width: min(420px, 100%);
+    border-radius: 14px;
+    padding: 32px 36px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.login-card h1 {
+    margin: 0 0 6px;
+    color: #1f3864;
+    font-size: 24px;
+}
+
+.login-card .muted {
+    color: #6b7280;
+    font-size: 13px;
+    margin: 0 0 22px;
+}
+
+.login-card form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.login-card label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: -8px;
+}
+
+.login-card input[type="text"],
+.login-card input[type="password"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    color: #1f2937;
+}
+
+.login-card input:focus {
+    outline: 2px solid #2563eb;
+    outline-offset: 1px;
+    border-color: #2563eb;
+}
+
+.login-card button.btn.primary {
+    margin-top: 6px;
+    background: #1f3864;
+    color: #fff;
+    border: 0;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.login-card button.btn.primary:hover {
+    background: #16284b;
+}
+
+.login-error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.login-card .small {
+    font-size: 12px;
+    color: #9ca3af;
+    margin: 18px 0 0;
+    text-align: center;
+}
+
+.login-footer {
+    padding: 12px 28px;
+    text-align: center;
+    color: rgba(229, 231, 235, 0.7);
+    font-size: 12px;
+}

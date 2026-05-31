@@ -1,0 +1,11 @@
+@* Vietnamese flag — red field with a centred yellow 5-point star.
+   SVG so it renders identically on every OS (emoji 🇻🇳 differs Win/Mac/Linux).
+   Self-contained: viewBox 30x20 (official 3:2 ratio). *@
+<svg class="flag flag-vn @CssClass" viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+    <rect width="30" height="20" fill="#da251d"/>
+    <polygon fill="#ff0" points="15,4.5 16.76,9.91 22.45,9.91 17.85,13.26 19.61,18.68 15,15.32 10.39,18.68 12.15,13.26 7.55,9.91 13.24,9.91"/>
+</svg>
+
+@code {
+    [Parameter] public string CssClass { get; set; } = "";
+}

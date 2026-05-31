@@ -1,10 +1,22 @@
-<Router AppAssembly="@typeof(App).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
-    </Found>
-    <NotFound>
-        <LayoutView Layout="@typeof(MainLayout)">
-            <p>Khong tim thay trang.</p>
-        </LayoutView>
-    </NotFound>
-</Router>
+@* Phase 2 — wraps the Blazor router in a CascadingAuthenticationState so
+   downstream components can use AuthorizeView / AuthenticationStateProvider.
+   AuthorizeRouteView pairs with the FallbackPolicy in Program.cs to make
+   every Blazor page authenticated-by-default; an unauthenticated visit
+   renders <RedirectToLogin>, which force-loads /login with the current
+   URL as returnUrl so post-login they land back where they meant to go. *@
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                <NotAuthorized>
+                    <RedirectToLogin />
+                </NotAuthorized>
+            </AuthorizeRouteView>
+        </Found>
+        <NotFound>
+            <LayoutView Layout="@typeof(MainLayout)">
+                <p>Page not found.</p>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

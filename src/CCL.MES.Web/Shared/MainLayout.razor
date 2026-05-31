@@ -32,6 +32,24 @@
 
             <a href="/swagger" target="_blank">@Loc["nav.api_swagger"]</a>
         </nav>
+
+        <div class="topbar-right">
+            <LangFlagPicker CssClass="topbar-lang" />
+            <AuthorizeView>
+                <Authorized>
+                    <span class="topbar-user" title="@context.User.Identity?.Name">
+                        @(context.User.FindFirst("display_name")?.Value ?? context.User.Identity?.Name)
+                    </span>
+                    @* GET-based logout link — keeps the link styled inline with
+                       the nav. The Logout Razor Page only mutates auth state on
+                       POST; the GET path just bounces to /login, so a stray
+                       link click does not leave the session in a bad state. *@
+                    <form method="post" action="/logout" class="topbar-logout-form">
+                        <button type="submit" class="topbar-logout-btn">@Loc["nav.logout"]</button>
+                    </form>
+                </Authorized>
+            </AuthorizeView>
+        </div>
     </header>
     <main>
         @Body
