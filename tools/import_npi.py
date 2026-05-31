@@ -170,6 +170,21 @@ def read_routing(path):
     return rows, wc, counters
 
 
+def num_or_none(v):
+    """Coerce a cell into float OR None for empty/non-numeric. Diff
+    from num() which coerces empty/non-numeric → 0.0; used for the
+    nullable double? columns added in Phase 7 hạng mục 1."""
+    if v is None:
+        return None
+    t = str(v).strip().rstrip("%").replace(",", "")
+    if t == "" or t == "-":
+        return None
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
 def read_structures(path):
     """ManufacturingStructures (BOM).
 
@@ -181,12 +196,21 @@ def read_structures(path):
         [4]  Parent Part Status          (unused)
         [5]  Qty Per Assembly            → QtyAssembly (numeric)
         [6]  Component Scrap             → ScrapFactor (numeric)
-        [7]  Scrap Factor (%)            → ScrapPct    (string, may carry %)
-        [8]  Pitch                       → Pitch
-        [9]  Cavity                      → Cavity
+        [7]  Scrap Factor (%)            → ScrapPct  (Phase 7: double?)
+        [8]  Pitch                       → Pitch     (Phase 7: double?)
+        [9]  Cavity                      → Cavity    (Phase 7: double?)
         [10] Color Nums                  → Color
-        ...
+        [11] Phase In                    → EffectivityDate  (Phase 7)
+        [14] Structure Effectivity       → Effectivity      (Phase 7)
+        [15] Alternative No              → Alt              (Phase 7)
+        [21] Structure Type              → StructureType    (Phase 7)
+        [28] Planner                     → Planner          (Phase 7)
         [29] UOM                         → Uom
+
+    Phase 7 hạng mục 1 — bổ sung 5 field mới (StructureType / Alt /
+    Effectivity / EffectivityDate / Planner) + đổi 3 field Pitch /
+    Cavity / ScrapPct từ string sang double? (Q9 verified 100% numeric
+    trên 20,530 rows). Khớp 16 cột UI CMES tham chiếu.
     """
     counters = {"seen": 0, "skipped": 0, "skip_reasons": {}}
     rows = []
@@ -213,6 +237,11 @@ def read_structures(path):
                 )
                 continue
             uom = s(r[29]) if len(r) > 29 else None
+            structure_type = s(r[21]) if len(r) > 21 else None
+            alt = s(r[15]) if len(r) > 15 else None
+            effectivity = s(r[14]) if len(r) > 14 else None
+            effectivity_date = s(r[11]) if len(r) > 11 else None
+            planner = s(r[28]) if len(r) > 28 else None
             rows.append(
                 (
                     parent or "",
@@ -222,10 +251,15 @@ def read_structures(path):
                     num(r[5]),
                     uom,
                     num(r[6]),
-                    s(r[7]),
-                    s(r[8]),
-                    s(r[9]),
+                    num_or_none(r[7]),
+                    num_or_none(r[8]),
+                    num_or_none(r[9]),
                     s(r[10]),
+                    structure_type,
+                    alt,
+                    effectivity,
+                    effectivity_date,
+                    planner,
                     ts,
                 )
             )
@@ -323,11 +357,13 @@ def insert_routing(cur, rows):
 
 
 def insert_structures(cur, rows):
+    # Phase 7 hạng mục 1 — 17 columns (16 data + CreatedAt).
     cur.executemany(
         'INSERT INTO "ManufacturingStructures" '
         '("ParentPart","ParentDescription","ComponentPart","ComponentDescription",'
-        '"QtyAssembly","Uom","ScrapFactor","ScrapPct","Pitch","Cavity","Color","CreatedAt") '
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        '"QtyAssembly","Uom","ScrapFactor","ScrapPct","Pitch","Cavity","Color",'
+        '"StructureType","Alt","Effectivity","EffectivityDate","Planner","CreatedAt") '
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         rows,
     )
     return len(rows)

@@ -189,3 +189,47 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .badge.iqc-pending { background:#fef3c7; color:#92400e; }
 .badge.iqc-pass    { background:#dcfce7; color:#166534; }
 .badge.iqc-fail    { background:#fee2e2; color:#991b1b; }
+
+/* === Phase 7 hạng mục 1 — Engineer Structure (rt-* namespace) ===
+   Bê pattern từ CMES tham chiếu (apps/web/src/styles/index.css §1570-1760)
+   + chỉnh max-height cho calc(100vh - 240px) per Q5 chốt.
+   Freeze header = position:sticky trên thead th; wrapper scroll + max-height
+   để tbody cuộn vertical mà thead luôn dính top. */
+.rt-page { display:flex; flex-direction:column; gap:16px; }
+.rt-breadcrumb { font-size:11px; text-transform:uppercase; letter-spacing:1px; color:#6b7280; }
+.rt-breadcrumb strong { color:#d97706; font-weight:700; }
+.rt-breadcrumb-count { color:#d97706; font-weight:600; }
+.rt-toolbar { display:flex; align-items:center; gap:8px; background:#fff;
+  border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; flex-wrap:wrap; }
+.rt-title { margin:0; font-size:16px; font-weight:600; color:#1f3864; }
+.rt-count-chip { background:#f0f3f9; color:#6b7280; border-radius:999px;
+  padding:3px 12px; font-size:12px; font-weight:500; }
+.rt-search { flex:1; min-width:200px; padding:7px 12px; border:1px solid #cbd5e1;
+  border-radius:6px; font:inherit; font-size:14px; }
+.rt-cols-wrap { position:relative; }
+.rt-btn { background:#fff; color:#1f2937; border:1px solid #cbd5e1;
+  padding:7px 14px; border-radius:6px; font:inherit; font-size:13px;
+  cursor:pointer; font-weight:500; }
+.rt-btn:hover { background:#f0f3f9; }
+.rt-btn:disabled { opacity:.5; cursor:not-allowed; }
+.rt-btn-link { background:transparent; border:0; color:#1f3864; padding:4px 8px;
+  cursor:pointer; font:inherit; font-size:12px; text-align:left; }
+.rt-cols-pop { position:absolute; top:100%; left:0; margin-top:4px; background:#fff;
+  border:1px solid #cbd5e1; border-radius:6px; padding:8px 12px;
+  box-shadow:0 6px 18px rgba(0,0,0,.12); z-index:50; min-width:200px;
+  display:flex; flex-direction:column; gap:4px; max-height:50vh; overflow-y:auto; }
+.rt-cols-pop label { font-size:12px; display:flex; align-items:center; gap:6px; white-space:nowrap; cursor:pointer; }
+.rt-table-wrap { background:#fff; border:1px solid #e5e7eb; border-radius:10px;
+  overflow:auto; max-height:calc(100vh - 240px); }
+.rt-state { padding:40px 20px; text-align:center; color:#6b7280; }
+.rt-table { width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums; }
+.rt-table th, .rt-table td { padding:6px 10px; border-bottom:1px solid #e5e7eb;
+  text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:280px; }
+.rt-table thead th { background:#f7f8fa; font-size:10px; font-weight:600;
+  text-transform:uppercase; letter-spacing:.5px; color:#6b7280;
+  border-bottom:2px solid #e5e7eb; position:sticky; top:0; z-index:5; }
+.rt-table .rt-num { text-align:center; color:#6b7280; width:40px; }
+.rt-table td.rt-right { text-align:right; }
+.rt-table tbody tr:hover { background:#fef9e3; }
+.rt-footer-warn { padding:10px 14px; background:#fef3c7; color:#92400e;
+  font-size:12px; border-top:1px solid #fde68a; text-align:center; }

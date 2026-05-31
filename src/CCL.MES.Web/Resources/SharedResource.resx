@@ -251,8 +251,32 @@
 
   <data name="npi.routine.title" xml:space="preserve"><value>NPI Data — Engineer Routine</value></data>
   <data name="npi.routine.search_placeholder" xml:space="preserve"><value>Search by Part No / description / operation / work center…</value></data>
-  <data name="npi.structure.title" xml:space="preserve"><value>NPI Data — Engineer Structure</value></data>
-  <data name="npi.structure.search_placeholder" xml:space="preserve"><value>Search by Parent / Component part / description…</value></data>
+  <data name="npi.structure.title" xml:space="preserve"><value>Manufacturing Structures</value></data>
+  <data name="npi.structure.breadcrumb" xml:space="preserve"><value>DATABASE / PRODUCT STRUCTURE</value></data>
+  <data name="npi.structure.rows_loaded" xml:space="preserve"><value>{0} rows loaded</value></data>
+  <data name="npi.structure.rows_count" xml:space="preserve"><value>{0} rows</value></data>
+  <data name="npi.structure.rows_filtered" xml:space="preserve"><value>{0} / {1} rows</value></data>
+  <data name="npi.structure.search_placeholder" xml:space="preserve"><value>Search by Parent / Component / Planner / Structure Type…</value></data>
+  <data name="npi.structure.btn_columns" xml:space="preserve"><value>☰ Columns ({0}/{1})</value></data>
+  <data name="npi.structure.btn_show_all" xml:space="preserve"><value>Show all</value></data>
+  <data name="npi.structure.col.parent_part" xml:space="preserve"><value>Parent Part</value></data>
+  <data name="npi.structure.col.parent_desc" xml:space="preserve"><value>Parent Description</value></data>
+  <data name="npi.structure.col.component_part" xml:space="preserve"><value>Component Part</value></data>
+  <data name="npi.structure.col.component_desc" xml:space="preserve"><value>Component Description</value></data>
+  <data name="npi.structure.col.qty_assembly" xml:space="preserve"><value>Qty/Assembly</value></data>
+  <data name="npi.structure.col.uom" xml:space="preserve"><value>UOM</value></data>
+  <data name="npi.structure.col.scrap" xml:space="preserve"><value>Scrap</value></data>
+  <data name="npi.structure.col.scrap_pct" xml:space="preserve"><value>Scrap %</value></data>
+  <data name="npi.structure.col.pitch" xml:space="preserve"><value>Pitch</value></data>
+  <data name="npi.structure.col.cavity" xml:space="preserve"><value>Cavity</value></data>
+  <data name="npi.structure.col.colors" xml:space="preserve"><value>Colors</value></data>
+  <data name="npi.structure.col.structure_type" xml:space="preserve"><value>Structure Type</value></data>
+  <data name="npi.structure.col.alt" xml:space="preserve"><value>Alt</value></data>
+  <data name="npi.structure.col.effectivity" xml:space="preserve"><value>Effectivity</value></data>
+  <data name="npi.structure.col.effectivity_date" xml:space="preserve"><value>Date</value></data>
+  <data name="npi.structure.col.planner" xml:space="preserve"><value>Planner</value></data>
+  <data name="npi.structure.empty" xml:space="preserve"><value>No BOM rows imported yet.</value></data>
+  <data name="npi.structure.empty_filter" xml:space="preserve"><value>No rows match the search.</value></data>
   <data name="npi.rawmaterials.title" xml:space="preserve"><value>NPI Data — Raw Materials</value></data>
   <data name="npi.rawmaterials.search_placeholder" xml:space="preserve"><value>Search by Part No / description / supplier…</value></data>
   <data name="npi.workcenter.title" xml:space="preserve"><value>NPI Data — Work Center</value></data>

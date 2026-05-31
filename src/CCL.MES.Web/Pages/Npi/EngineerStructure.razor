@@ -1,62 +1,233 @@
 @page "/npi/engineer-structure"
 @attribute [Authorize(Policy = "NpiRead")]
+@using System.Globalization
 @using CCL.MES.Application.Services
+@using Microsoft.JSInterop
 @inject NpiService Npi
+@inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> Loc
 
-<div class="grid-head">
-    <h1>@Loc["npi.structure.title"] <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…")</span></h1>
-</div>
+@*  Phase 7 hạng mục 1 — Engineer Structure UI khớp CMES tham chiếu:
+    16 cột đầy đủ + freeze header (sticky thead) + Columns show/hide
+    toggle (persist localStorage). RBAC NpiRead giữ nguyên. Pager 50/page
+    (Q4 chốt giữ Pager cũ, scroll-only defer cho shared component). *@
 
-<div class="grid-toolbar">
-    <input class="grid-search" placeholder="@Loc["npi.structure.search_placeholder"]" @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
-    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
-</div>
-
-@if (_result is null)
-{
-    <p>@Loc["common.loading"]</p>
-}
-else
-{
-    <div class="table-scroll">
-    <table class="wo data">
-        <thead>
-            <tr><th>Parent Part</th><th>Parent Description</th><th>Component Part</th><th>Component Description</th>
-                <th class="num">Qty/Assembly</th><th>UOM</th><th>Scrap %</th><th class="num">Pitch</th><th class="num">Cavity</th><th>Color</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var r in _result.Items)
-            {
-                <tr>
-                    <td><b>@r.ParentPart</b></td>
-                    <td>@r.ParentDescription</td>
-                    <td>@r.ComponentPart</td>
-                    <td>@r.ComponentDescription</td>
-                    <td class="num">@r.QtyAssembly</td>
-                    <td>@r.Uom</td>
-                    <td>@r.ScrapPct</td>
-                    <td class="num">@r.Pitch</td>
-                    <td class="num">@r.Cavity</td>
-                    <td>@r.Color</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+<section class="rt-page">
+    <div class="rt-breadcrumb">
+        @Loc["npi.structure.breadcrumb"]
+        @if (_result is not null)
+        {
+            <span class="rt-breadcrumb-count">· @string.Format(Loc["npi.structure.rows_loaded"].Value, _result.Total.ToString("N0", CultureInfo.InvariantCulture))</span>
+        }
     </div>
-    <Pager Result="@PagerInfo" OnPage="GoPage" />
-}
+
+    <div class="rt-toolbar">
+        <h2 class="rt-title">@Loc["npi.structure.title"]</h2>
+        <span class="rt-count-chip">@RowCountLabel</span>
+        <input type="search" class="rt-search" placeholder="@Loc["npi.structure.search_placeholder"]"
+               @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+        <div class="rt-cols-wrap">
+            <button type="button" class="rt-btn" @onclick="ToggleColsPop" aria-haspopup="true" aria-expanded="@_colsOpen">
+                @string.Format(Loc["npi.structure.btn_columns"].Value, VisibleCols.Count, AllCols.Count)
+            </button>
+            @if (_colsOpen)
+            {
+                <div class="rt-cols-pop" role="menu">
+                    @foreach (var c in AllCols)
+                    {
+                        <label>
+                            <input type="checkbox" checked="@(!_hidden.Contains(c.Key))"
+                                   @onchange="@(() => ToggleCol(c.Key))" />
+                            @Loc[c.LabelKey]
+                        </label>
+                    }
+                    <button type="button" class="rt-btn-link" @onclick="ShowAllCols">@Loc["npi.structure.btn_show_all"]</button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="rt-table-wrap">
+        @if (_result is null)
+        {
+            <div class="rt-state">@Loc["common.loading"]</div>
+        }
+        else if (_result.Total == 0)
+        {
+            <div class="rt-state">@Loc[string.IsNullOrWhiteSpace(_search) ? "npi.structure.empty" : "npi.structure.empty_filter"]</div>
+        }
+        else
+        {
+            <table class="rt-table">
+                <thead>
+                    <tr>
+                        <th class="rt-num">#</th>
+                        @foreach (var c in VisibleCols)
+                        {
+                            <th style="@($"width:{c.Width}px; text-align:{(c.Align == ColAlign.Right ? "right" : "left")}")">@Loc[c.LabelKey]</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @{ var rowIdx = (_result.Page - 1) * _pageSize; }
+                    @foreach (var r in _result.Items)
+                    {
+                        rowIdx++;
+                        <tr>
+                            <td class="rt-num">@rowIdx</td>
+                            @foreach (var c in VisibleCols)
+                            {
+                                <td class="@(c.Align == ColAlign.Right ? "rt-right" : "")" title="@RawValue(r, c.Key)">
+                                    @FormatCell(r, c)
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    @if (_result is not null && _result.TotalPages > 1)
+    {
+        <Pager Result="@PagerInfo" OnPage="GoPage" />
+    }
+</section>
 
 @code {
     private PagedResult<CCL.MES.Domain.Entities.ManufacturingStructure>? _result;
     private string? _search;
     private int _page = 1;
+    private const int _pageSize = 50;
+    private bool _colsOpen;
+    private HashSet<string> _hidden = new();
+    private const string _storageKey = "cclmes.engineer-structure.columns-hidden.v1";
+    private bool _hiddenLoaded;
+
+    private enum ColAlign { Left, Right }
+
+    private sealed record ColumnDef(string Key, string LabelKey, int Width, ColAlign Align,
+        Func<CCL.MES.Domain.Entities.ManufacturingStructure, object?> Get,
+        Func<object?, string>? Format);
+
+    // Format helpers (mirror CMES fmtNum/fmtPct semantics).
+    private static string FmtNum(object? v, int digits)
+    {
+        if (v is null) return "—";
+        if (v is double d) return d.ToString($"F{digits}", CultureInfo.InvariantCulture);
+        return v.ToString() ?? "—";
+    }
+    private static string FmtPct(object? v)
+    {
+        if (v is null) return "—";
+        if (v is double d) return d.ToString(CultureInfo.InvariantCulture) + "%";
+        return v.ToString() ?? "—";
+    }
+    private static string FmtStr(object? v)
+    {
+        var s = v?.ToString();
+        return string.IsNullOrEmpty(s) ? "—" : s;
+    }
+
+    private static readonly List<ColumnDef> AllCols = new()
+    {
+        new("parent_part",     "npi.structure.col.parent_part",     110, ColAlign.Left,  r => r.ParentPart,           null),
+        new("parent_desc",     "npi.structure.col.parent_desc",     220, ColAlign.Left,  r => r.ParentDescription,    null),
+        new("component_part",  "npi.structure.col.component_part",  110, ColAlign.Left,  r => r.ComponentPart,        null),
+        new("component_desc",  "npi.structure.col.component_desc",  320, ColAlign.Left,  r => r.ComponentDescription, null),
+        new("qty_assembly",    "npi.structure.col.qty_assembly",    110, ColAlign.Right, r => r.QtyAssembly,          v => FmtNum(v, 6)),
+        new("uom",             "npi.structure.col.uom",              60, ColAlign.Left,  r => r.Uom,                  null),
+        new("scrap",           "npi.structure.col.scrap",            70, ColAlign.Right, r => r.ScrapFactor,          v => FmtNum(v, 2)),
+        new("scrap_pct",       "npi.structure.col.scrap_pct",        70, ColAlign.Right, r => r.ScrapPct,             FmtPct),
+        new("pitch",           "npi.structure.col.pitch",            70, ColAlign.Right, r => r.Pitch,                v => FmtNum(v, 2)),
+        new("cavity",          "npi.structure.col.cavity",           60, ColAlign.Right, r => r.Cavity,               v => FmtNum(v, 0)),
+        new("colors",          "npi.structure.col.colors",           70, ColAlign.Left,  r => r.Color,                null),
+        new("structure_type",  "npi.structure.col.structure_type",  130, ColAlign.Left,  r => r.StructureType,        null),
+        new("alt",             "npi.structure.col.alt",              50, ColAlign.Left,  r => r.Alt,                  null),
+        new("effectivity",     "npi.structure.col.effectivity",      80, ColAlign.Left,  r => r.Effectivity,          null),
+        new("effectivity_date","npi.structure.col.effectivity_date", 70, ColAlign.Left,  r => r.EffectivityDate,      null),
+        new("planner",         "npi.structure.col.planner",         100, ColAlign.Left,  r => r.Planner,              null),
+    };
+
+    private IReadOnlyList<ColumnDef> VisibleCols => AllCols.Where(c => !_hidden.Contains(c.Key)).ToList();
+
+    private string RowCountLabel
+    {
+        get
+        {
+            if (_result is null) return "…";
+            var totalStr = _result.Total.ToString("N0", CultureInfo.InvariantCulture);
+            if (string.IsNullOrWhiteSpace(_search)) return string.Format(Loc["npi.structure.rows_count"].Value, totalStr);
+            // Search active. For now Total == filtered_total (NpiService returns
+            // filtered count). Total unfiltered isn't tracked separately — match
+            // CMES "filtered/total" only when we can compute total. Keep simple.
+            return string.Format(Loc["npi.structure.rows_count"].Value, totalStr);
+        }
+    }
 
     protected override async Task OnInitializedAsync() => await Load();
-    private async Task Load() => _result = await Npi.StructuresAsync(_search, _page, 50);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _hiddenLoaded) return;
+        _hiddenLoaded = true;
+        try
+        {
+            var stored = await JS.InvokeAsync<string?>("cclmes.storageGet", _storageKey);
+            if (!string.IsNullOrWhiteSpace(stored))
+            {
+                var parts = stored.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                _hidden = parts.Where(p => AllCols.Any(c => c.Key == p)).ToHashSet();
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // JS not available (SSR pre-circuit) — keep empty set, in-memory only.
+        }
+    }
+
+    private async Task PersistHidden()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("cclmes.storageSet", _storageKey, string.Join(",", _hidden));
+        }
+        catch { /* localStorage unavailable — silent */ }
+    }
+
+    private async Task Load() => _result = await Npi.StructuresAsync(_search, _page, _pageSize);
     private async Task DoSearch() { _page = 1; await Load(); }
     private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
     private async Task GoPage(int p) { _page = p; await Load(); }
+
+    private void ToggleColsPop() => _colsOpen = !_colsOpen;
+    private async Task ToggleCol(string key)
+    {
+        if (_hidden.Contains(key)) _hidden.Remove(key); else _hidden.Add(key);
+        await PersistHidden();
+    }
+    private async Task ShowAllCols()
+    {
+        _hidden.Clear();
+        await PersistHidden();
+    }
+
     private (int Page, int TotalPages, int Total) PagerInfo =>
         _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
+
+    private static string RawValue(CCL.MES.Domain.Entities.ManufacturingStructure r, string key)
+    {
+        var col = AllCols.FirstOrDefault(c => c.Key == key);
+        if (col is null) return "";
+        var v = col.Get(r);
+        return v?.ToString() ?? "";
+    }
+
+    private static string FormatCell(CCL.MES.Domain.Entities.ManufacturingStructure r, ColumnDef col)
+    {
+        var raw = col.Get(r);
+        if (col.Format is not null) return col.Format(raw);
+        return FmtStr(raw);
+    }
 }
