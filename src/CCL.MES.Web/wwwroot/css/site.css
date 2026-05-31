@@ -20,6 +20,14 @@ table.wo { width: 100%; border-collapse: collapse; background: #fff; border-radi
 table.wo th { background: #1f4e79; color: #fff; text-align: left; padding: 10px 12px; }
 table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align: middle; }
 .badge.step { background: #e7efff; color: #1f3864; padding: 3px 10px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
+/* Phase 6 Bước 1 — SpecStatus badges (Engineer Spec grid). Same pill chrome
+   as .badge.step, colour per status: draft=gray, review=amber, approved=green,
+   obsolete=red. */
+.badge { padding: 3px 10px; border-radius: 999px; font-size: 12px; white-space: nowrap; font-weight: 600; }
+.badge.spec-draft    { background:#e5e7eb; color:#374151; }
+.badge.spec-review   { background:#fef3c7; color:#92400e; }
+.badge.spec-approved { background:#dcfce7; color:#166534; }
+.badge.spec-obsolete { background:#fee2e2; color:#991b1b; }
 .flow { display: flex; gap: 6px; }
 .dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
   font-size: 12px; font-weight: 700; color: #fff; }

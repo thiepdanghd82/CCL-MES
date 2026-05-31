@@ -190,10 +190,19 @@
   <data name="npi.workcenter.title" xml:space="preserve"><value>NPI Data — Work Center</value></data>
   <data name="npi.workcenter.search_placeholder" xml:space="preserve"><value>Search by WC Code / description / area…</value></data>
   <data name="npi.spec.title" xml:space="preserve"><value>NPI Data — Engineer Spec</value></data>
-  <data name="npi.spec.placeholder_lead" xml:space="preserve"><value>The Engineer Spec tab (NPI technical parameters). To be built in a later sprint.</value></data>
-  <data name="npi.spec.placeholder_li1" xml:space="preserve"><value>Detailed technical parameters for new products (dimensions, tolerances, materials).</value></data>
-  <data name="npi.spec.placeholder_li2" xml:space="preserve"><value>Linked to the existing Spec Control module.</value></data>
-  <data name="npi.spec.placeholder_li3" xml:space="preserve"><value>Versioning and spec approval.</value></data>
+  <data name="npi.spec.search_placeholder" xml:space="preserve"><value>Search by Spec Code / Title / Product…</value></data>
+  <data name="npi.spec.empty" xml:space="preserve"><value>No Spec found. Create one via the Spec Control API.</value></data>
+  <data name="npi.spec.col.spec_code" xml:space="preserve"><value>Spec Code</value></data>
+  <data name="npi.spec.col.title" xml:space="preserve"><value>Title</value></data>
+  <data name="npi.spec.col.product" xml:space="preserve"><value>Product</value></data>
+  <data name="npi.spec.col.version" xml:space="preserve"><value>Latest Ver.</value></data>
+  <data name="npi.spec.col.status" xml:space="preserve"><value>Status</value></data>
+  <data name="npi.spec.col.effective" xml:space="preserve"><value>Effective</value></data>
+  <data name="npi.spec.col.params" xml:space="preserve"><value>Params</value></data>
+  <data name="npi.spec.status.draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="npi.spec.status.in_review" xml:space="preserve"><value>In Review</value></data>
+  <data name="npi.spec.status.approved" xml:space="preserve"><value>Approved</value></data>
+  <data name="npi.spec.status.obsolete" xml:space="preserve"><value>Obsolete</value></data>
 
   <data name="qcqa.iqc.title" xml:space="preserve"><value>QC/QA Data — IQC</value></data>
   <data name="qcqa.iqc.placeholder_lead" xml:space="preserve"><value>The IQC (Incoming Quality Control) tab — quality check on incoming materials. To be built in a later sprint.</value></data>
