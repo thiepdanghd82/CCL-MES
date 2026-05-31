@@ -24,6 +24,7 @@ public interface IMesDbContext
     DbSet<RawMaterial> RawMaterials { get; }
     DbSet<RoutingOperation> RoutingOperations { get; }
     DbSet<ManufacturingStructure> ManufacturingStructures { get; }
+    DbSet<User> Users { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

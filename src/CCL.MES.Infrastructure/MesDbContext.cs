@@ -26,6 +26,7 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<RawMaterial> RawMaterials => Set<RawMaterial>();
     public DbSet<RoutingOperation> RoutingOperations => Set<RoutingOperation>();
     public DbSet<ManufacturingStructure> ManufacturingStructures => Set<ManufacturingStructure>();
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -52,6 +53,9 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<RawMaterial>().HasIndex(x => x.PartNo);
         b.Entity<RoutingOperation>().HasIndex(x => x.PartNo);
         b.Entity<ManufacturingStructure>().HasIndex(x => x.ParentPart);
+
+        // Auth — Username must be unique; login lookup hits this index every sign-in.
+        b.Entity<User>().HasIndex(x => x.Username).IsUnique();
 
         // Tính toán read-only -> không map vào DB
         b.Entity<WorkOrder>().Ignore("LastQc");

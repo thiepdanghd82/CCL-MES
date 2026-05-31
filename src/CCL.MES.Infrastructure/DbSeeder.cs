@@ -8,6 +8,11 @@ public static class DbSeeder
 {
     public static async Task SeedAsync(MesDbContext db)
     {
+        // NB: the Phase 2 admin/admin demo account is seeded from the Web
+        // project (Program.cs) because PasswordHasher<User> lives in
+        // Microsoft.AspNetCore.Identity and Infrastructure is a plain
+        // class lib — we don't want to drag AspNetCore.App into it.
+
         if (await db.WorkOrders.AnyAsync()) return;
 
         // Máy
