@@ -73,6 +73,12 @@ public class UserProfileService
             return PasswordChangeResult.NewTooShort;
 
         user.PasswordHash = _hasher.HashPassword(user, newPassword);
+        // Phase 6 Bước 4 follow-up — successful self-change clears the
+        // admin-handed-pwd flag so the user is not forced to change again
+        // on the next sign-in. The column exists from Bước 4's migration
+        // v2; on a pre-v2 DB this assignment is a no-op against an entity
+        // property that doesn't map yet.
+        user.MustChangePassword = false;
         user.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return PasswordChangeResult.Success;
