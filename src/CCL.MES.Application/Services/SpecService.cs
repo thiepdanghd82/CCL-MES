@@ -26,6 +26,11 @@ public class SpecService
 
     /// <summary>
     /// Phase 6 Bước 1 — paginated list for the Engineer Spec grid UI.
+    /// Phase 7 hạng mục 4 — search expand từ 3 → 5 field (thêm ApprovedBy
+    /// + Status string contains; SpecVersion.Status stored as TEXT via
+    /// HasConversion&lt;string&gt;(), nên Like search hoạt động trên giá trị
+    /// "Draft"/"InReview"/"Approved"/"Obsolete"). Operator dùng "approved"
+    /// để lọc theo workflow state, "username" để lọc theo approver.
     /// </summary>
     public Task<PagedResult<Spec>> SpecsAsync(string? search, int page, int pageSize)
     {
@@ -39,10 +44,25 @@ public class SpecService
             var s = search.Trim();
             q = q.Where(x => EF.Functions.Like(x.SpecCode, $"%{s}%")
                 || EF.Functions.Like(x.Title, $"%{s}%")
-                || (x.Product != null && EF.Functions.Like(x.Product.Name, $"%{s}%")));
+                || (x.Product != null && EF.Functions.Like(x.Product.Name, $"%{s}%"))
+                || x.Versions.Any(v => v.ApprovedBy != null && EF.Functions.Like(v.ApprovedBy, $"%{s}%"))
+                || x.Versions.Any(v => EF.Functions.Like(v.Status.ToString(), $"%{s}%")));
         }
         return PagingHelper.PageAsync(q.OrderByDescending(x => x.Id), page, pageSize);
     }
+
+    /// <summary>
+    /// Phase 7 hạng mục 4 — Product dropdown source cho CreateSpecModal.
+    /// Trả lightweight projection (Id + ProductCode + Name) để modal binding
+    /// không kéo full Product graph (Customer included không cần thiết cho
+    /// dropdown). Sort theo ProductCode để operator dễ tìm.
+    /// </summary>
+    public Task<List<ProductDropdownItem>> ProductsForDropdownAsync() =>
+        _db.Products
+            .AsNoTracking()
+            .OrderBy(p => p.ProductCode)
+            .Select(p => new ProductDropdownItem(p.Id, p.ProductCode, p.Name))
+            .ToListAsync();
 
     // Phase 6 Bước 5 — actor param added (was a gap noted in PHASE6-STEP5-PLAN.md §1.1).
     public async Task<SpecVersion> CreateAsync(CreateSpecRequest r, string? user)

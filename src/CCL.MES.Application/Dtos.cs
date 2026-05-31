@@ -65,3 +65,8 @@ public class QcDetailDto
 // serialises the enum as its name (e.g. "RequiresSpecAndMaterials") thanks
 // to JsonStringEnumConverter registered in Program.cs.
 public record AdvanceResult(bool Ok, WoErrorCode? ErrorCode, string CurrentStep);
+
+// Phase 7 hạng mục 4 — lightweight Product projection cho CreateSpecModal
+// dropdown. KHÔNG include Customer hay full Product graph để tránh kéo
+// dữ liệu thừa qua serializer.
+public record ProductDropdownItem(long Id, string ProductCode, string Name);

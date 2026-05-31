@@ -297,3 +297,41 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .rm-status--1 { background:#f3f4f6; color:#6b7280; }   /* Inactive */
 .rm-status--2 { background:#d1fae5; color:#065f46; }   /* Active (majority) */
 .rm-status--4 { background:#fee2e2; color:#991b1b; }   /* Obsolete */
+/* Phase 7 hạng mục 4 — Spec status workflow palette (reuse .rm-status base).
+   draft = neutral gray (chưa duyệt), review = amber (chờ approver),
+   approved + obsolete reuse existing green/red từ RawMaterials palette. */
+.rm-status--draft    { background:#e5e7eb; color:#374151; }
+.rm-status--review   { background:#fef3c7; color:#92400e; }
+
+/* === Phase 7 hạng mục 4 — CreateSpecModal + Approve action === */
+
+/* Modal max-width rộng hơn import modal vì có table dynamic params. */
+.spec-create-modal { max-width:880px; }
+
+.spec-form-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+  gap:14px; margin-bottom:18px; }
+.spec-form-grid label { display:flex; flex-direction:column; gap:4px; }
+.spec-label { font-size:12px; font-weight:600; color:#374151; }
+.spec-label em { color:#dc2626; font-style:normal; margin-left:2px; }
+.spec-hint { font-size:11px; color:#6b7280; }
+.spec-input { padding:6px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:13px; }
+.spec-input:focus { outline:2px solid #1f3864; outline-offset:-2px; }
+.spec-input-sm { padding:4px 6px; border:1px solid #cbd5e1; border-radius:4px;
+  font-size:12px; width:100%; box-sizing:border-box; }
+
+.spec-params-table { width:100%; border-collapse:collapse; font-size:12px;
+  margin-bottom:8px; }
+.spec-params-table th { padding:6px 8px; background:#f7f8fa; font-size:10px;
+  font-weight:600; text-transform:uppercase; letter-spacing:.5px; color:#6b7280;
+  text-align:left; border-bottom:1px solid #e5e7eb; }
+.spec-params-table th em { color:#dc2626; font-style:normal; margin-left:2px; }
+.spec-params-table td { padding:4px 6px; border-bottom:1px solid #f1f5f9; }
+.spec-col-critical { text-align:center; width:80px; }
+.spec-btn-remove { background:#fee2e2; color:#991b1b; border:0; border-radius:4px;
+  width:24px; height:24px; cursor:pointer; font-weight:bold; }
+.spec-btn-remove:hover { background:#fecaca; }
+
+.spec-approve-btn { background:#d1fae5; color:#065f46; border:0; border-radius:4px;
+  width:28px; height:24px; cursor:pointer; font-weight:bold; font-size:13px; }
+.spec-approve-btn:hover { background:#a7f3d0; }
+.spec-approve-btn:disabled { opacity:0.5; cursor:not-allowed; }

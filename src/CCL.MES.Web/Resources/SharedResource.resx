@@ -380,9 +380,40 @@
   <data name="npi.rawmaterials.empty_filter" xml:space="preserve"><value>No rows match the search.</value></data>
   <data name="npi.workcenter.title" xml:space="preserve"><value>NPI Data — Work Center</value></data>
   <data name="npi.workcenter.search_placeholder" xml:space="preserve"><value>Search by WC Code / description / area…</value></data>
-  <data name="npi.spec.title" xml:space="preserve"><value>NPI Data — Engineer Spec</value></data>
-  <data name="npi.spec.search_placeholder" xml:space="preserve"><value>Search by Spec Code / Title / Product…</value></data>
-  <data name="npi.spec.empty" xml:space="preserve"><value>No Spec found. Create one via the Spec Control API.</value></data>
+  <data name="npi.spec.title" xml:space="preserve"><value>Engineer Spec</value></data>
+  <data name="npi.spec.breadcrumb" xml:space="preserve"><value>DATABASE / SPEC</value></data>
+  <data name="npi.spec.rows_loaded" xml:space="preserve"><value>{0} rows loaded</value></data>
+  <data name="npi.spec.rows_count" xml:space="preserve"><value>{0} rows</value></data>
+  <data name="npi.spec.search_placeholder" xml:space="preserve"><value>Search by Spec Code / Title / Product / Approved By / Status…</value></data>
+  <data name="npi.spec.btn_columns" xml:space="preserve"><value>☰ Columns ({0}/{1})</value></data>
+  <data name="npi.spec.btn_show_all" xml:space="preserve"><value>Show all</value></data>
+  <data name="npi.spec.btn_create" xml:space="preserve"><value>Create Spec</value></data>
+  <data name="npi.spec.btn_approve" xml:space="preserve"><value>Approve this version</value></data>
+  <data name="npi.spec.approve_confirm" xml:space="preserve"><value>Approve "{0}" v{1}? This sets status=Approved + EffectiveDate=now + records you as approver.</value></data>
+  <data name="npi.spec.col.actions" xml:space="preserve"><value>Actions</value></data>
+  <data name="npi.spec.empty" xml:space="preserve"><value>No Spec found. Click + Create Spec to add one.</value></data>
+  <data name="npi.spec.empty_filter" xml:space="preserve"><value>No rows match the search.</value></data>
+  <data name="npi.spec.create.title" xml:space="preserve"><value>Create new Spec</value></data>
+  <data name="npi.spec.create.spec_code" xml:space="preserve"><value>Spec Code</value></data>
+  <data name="npi.spec.create.spec_code_ph" xml:space="preserve"><value>e.g. SPEC-PCB-001</value></data>
+  <data name="npi.spec.create.title_field" xml:space="preserve"><value>Title</value></data>
+  <data name="npi.spec.create.title_field_ph" xml:space="preserve"><value>Short title</value></data>
+  <data name="npi.spec.create.product" xml:space="preserve"><value>Product</value></data>
+  <data name="npi.spec.create.product_pick" xml:space="preserve"><value>pick a product</value></data>
+  <data name="npi.spec.create.product_required" xml:space="preserve"><value>Product is required.</value></data>
+  <data name="npi.spec.create.params_header" xml:space="preserve"><value>Parameters (at least 1 required)</value></data>
+  <data name="npi.spec.create.param_name" xml:space="preserve"><value>Param Name</value></data>
+  <data name="npi.spec.create.nominal" xml:space="preserve"><value>Nominal</value></data>
+  <data name="npi.spec.create.tol_min" xml:space="preserve"><value>Tol Min</value></data>
+  <data name="npi.spec.create.tol_max" xml:space="preserve"><value>Tol Max</value></data>
+  <data name="npi.spec.create.uom" xml:space="preserve"><value>UoM</value></data>
+  <data name="npi.spec.create.is_critical" xml:space="preserve"><value>Critical</value></data>
+  <data name="npi.spec.create.btn_add_param" xml:space="preserve"><value>Add parameter</value></data>
+  <data name="npi.spec.create.btn_remove_param" xml:space="preserve"><value>Remove this parameter</value></data>
+  <data name="npi.spec.create.btn_cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="npi.spec.create.btn_save" xml:space="preserve"><value>Create Spec</value></data>
+  <data name="npi.spec.create.saving" xml:space="preserve"><value>Saving…</value></data>
+  <data name="npi.spec.create.err_save" xml:space="preserve"><value>Save failed.</value></data>
   <data name="npi.spec.col.spec_code" xml:space="preserve"><value>Spec Code</value></data>
   <data name="npi.spec.col.title" xml:space="preserve"><value>Title</value></data>
   <data name="npi.spec.col.product" xml:space="preserve"><value>Product</value></data>
