@@ -1,13 +1,21 @@
 @page "/settings/appearance"
 @inject IStringLocalizer<SharedResource> Loc
 
+@*  Phase 6 Bước 2A — Appearance.
+    Language picker reuses <LangFlagPicker /> (writes the
+    .AspNetCore.Culture cookie via /set-language; same component as the
+    topbar). Theme toggle deferred — kept as a localized TODO note so
+    operators see Phase 6+ on the roadmap rather than placeholder text. *@
+
 <h1>@Loc["settings.appearance.title"]</h1>
 
-<div class="npi-placeholder">
-    <p class="muted">@Loc["settings.appearance.placeholder_lead"]</p>
-    <ul>
-        <li>@Loc["settings.appearance.placeholder_li1"]</li>
-        <li>@Loc["settings.appearance.placeholder_li2"]</li>
-        <li>@Loc["settings.appearance.placeholder_li3"]</li>
-    </ul>
+<div class="settings-card">
+    <h2 class="settings-section">@Loc["settings.appearance.section.language"]</h2>
+    <p class="muted">@Loc["settings.appearance.language.hint"]</p>
+    <LangFlagPicker ReturnUrl="/settings/appearance" CssClass="appearance-lang" />
+</div>
+
+<div class="settings-card">
+    <h2 class="settings-section">@Loc["settings.appearance.section.theme"]</h2>
+    <p class="muted">@Loc["settings.appearance.theme.todo"]</p>
 </div>

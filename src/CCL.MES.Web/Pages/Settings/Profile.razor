@@ -1,13 +1,89 @@
 @page "/settings/profile"
+@using CCL.MES.Domain.Entities
+@using CCL.MES.Web.Services
+@inject UserProfileService ProfileSvc
 @inject IStringLocalizer<SharedResource> Loc
+
+@*  Phase 6 Bước 2A — My Profile.
+    Self-service form: only the signed-in user's own row is loaded + saved.
+    Role + Username read-only (Account Control admin tab will own those
+    edits — Bước 2B). *@
 
 <h1>@Loc["settings.profile.title"]</h1>
 
-<div class="npi-placeholder">
-    <p class="muted">@Loc["settings.profile.placeholder_lead"]</p>
-    <ul>
-        <li>@Loc["settings.profile.placeholder_li1"]</li>
-        <li>@Loc["settings.profile.placeholder_li2"]</li>
-        <li>@Loc["settings.profile.placeholder_li3"]</li>
-    </ul>
-</div>
+@if (_user is null)
+{
+    <p>@Loc["common.loading"]</p>
+}
+else
+{
+    <div class="settings-card">
+        <EditForm Model="@_form" OnValidSubmit="Save">
+            <DataAnnotationsValidator />
+
+            <div class="field-row">
+                <label>@Loc["settings.profile.field.username"]</label>
+                <input type="text" value="@_user.Username" readonly class="readonly" />
+            </div>
+
+            <div class="field-row">
+                <label>@Loc["settings.profile.field.role"]</label>
+                <input type="text" value="@_user.Role" readonly class="readonly" />
+            </div>
+
+            <div class="field-row">
+                <label for="display-name">@Loc["settings.profile.field.display_name"]</label>
+                <InputText id="display-name" @bind-Value="_form.DisplayName" class="form-input" />
+            </div>
+
+            <div class="field-row">
+                <label>@Loc["settings.profile.field.last_login"]</label>
+                <input type="text" value="@FormatDate(_user.LastLoginAt)" readonly class="readonly" />
+            </div>
+
+            <button type="submit" class="btn btn-primary">@Loc["common.save"]</button>
+            @if (!string.IsNullOrEmpty(_message))
+            {
+                <div class="alert @(_ok ? "ok" : "err")">@_message</div>
+            }
+        </EditForm>
+    </div>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private User? _user;
+    private ProfileForm _form = new();
+    private string? _message;
+    private bool _ok;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        if (AuthState is null) return;
+        var auth = await AuthState;
+        _user = await ProfileSvc.GetCurrentAsync(auth.User);
+        if (_user is not null) _form.DisplayName = _user.DisplayName ?? "";
+    }
+
+    private async Task Save()
+    {
+        if (AuthState is null) return;
+        var auth = await AuthState;
+        _ok = await ProfileSvc.UpdateDisplayNameAsync(auth.User, _form.DisplayName);
+        _message = _ok ? Loc["settings.profile.msg.saved"].Value : Loc["settings.profile.msg.error"].Value;
+        await Load();
+    }
+
+    private static string FormatDate(DateTime? dt) => dt?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "-";
+
+    private class ProfileForm
+    {
+        public string DisplayName { get; set; } = "";
+    }
+}

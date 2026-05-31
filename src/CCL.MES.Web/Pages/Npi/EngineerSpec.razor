@@ -1,14 +1,104 @@
 @page "/npi/engineer-spec"
 @attribute [Authorize(Policy = "NpiSpecRead")]
+@using CCL.MES.Application.Services
+@using CCL.MES.Domain
+@inject SpecService SpecSvc
 @inject IStringLocalizer<SharedResource> Loc
 
-<h1>@Loc["npi.spec.title"]</h1>
+@*  Phase 6 Bước 1 — Engineer Spec grid.
+    Mirrors the NPI grid pattern (EngineerRoutine / EngineerStructure / etc.)
+    so operators coming from those tabs find the same layout. Backend already
+    complete (SpecService.SpecsAsync paginated). *@
 
-<div class="npi-placeholder">
-    <p class="muted">@Loc["npi.spec.placeholder_lead"]</p>
-    <ul>
-        <li>@Loc["npi.spec.placeholder_li1"]</li>
-        <li>@Loc["npi.spec.placeholder_li2"]</li>
-        <li>@Loc["npi.spec.placeholder_li3"]</li>
-    </ul>
+<div class="grid-head">
+    <h1>@Loc["npi.spec.title"] <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…")</span></h1>
 </div>
+
+<div class="grid-toolbar">
+    <input class="grid-search" placeholder="@Loc["npi.spec.search_placeholder"]" @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+    <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
+</div>
+
+@if (_result is null)
+{
+    <p>@Loc["common.loading"]</p>
+}
+else if (_result.Total == 0)
+{
+    <div class="npi-placeholder">
+        <p class="muted">@Loc["npi.spec.empty"]</p>
+    </div>
+}
+else
+{
+    <div class="table-scroll">
+    <table class="wo data">
+        <thead>
+            <tr>
+                <th>@Loc["npi.spec.col.spec_code"]</th>
+                <th>@Loc["npi.spec.col.title"]</th>
+                <th>@Loc["npi.spec.col.product"]</th>
+                <th class="num">@Loc["npi.spec.col.version"]</th>
+                <th>@Loc["npi.spec.col.status"]</th>
+                <th>@Loc["npi.spec.col.effective"]</th>
+                <th class="num">@Loc["npi.spec.col.params"]</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in _result.Items)
+            {
+                var latest = LatestVersion(s);
+                <tr>
+                    <td><b>@s.SpecCode</b></td>
+                    <td>@s.Title</td>
+                    <td>@(s.Product?.Name ?? "-")</td>
+                    <td class="num">v@(latest?.VersionNo.ToString() ?? "-")</td>
+                    <td>
+                        <span class="badge spec-@(StatusClass(latest?.Status))">@StatusLabel(latest?.Status)</span>
+                    </td>
+                    <td>@(latest?.EffectiveDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                    <td class="num">@(latest?.Parameters.Count ?? 0)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    </div>
+    <Pager Result="@PagerInfo" OnPage="GoPage" />
+}
+
+@code {
+    private PagedResult<CCL.MES.Domain.Entities.Spec>? _result;
+    private string? _search;
+    private int _page = 1;
+
+    protected override async Task OnInitializedAsync() => await Load();
+    private async Task Load() => _result = await SpecSvc.SpecsAsync(_search, _page, 50);
+    private async Task DoSearch() { _page = 1; await Load(); }
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
+    private async Task GoPage(int p) { _page = p; await Load(); }
+    private (int Page, int TotalPages, int Total) PagerInfo =>
+        _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
+
+    private static CCL.MES.Domain.Entities.SpecVersion? LatestVersion(CCL.MES.Domain.Entities.Spec s) =>
+        s.Versions is { Count: > 0 } ? s.Versions.OrderByDescending(v => v.VersionNo).First() : null;
+
+    // Map SpecStatus → CSS class suffix (drives the colored badge).
+    private static string StatusClass(SpecStatus? st) => st switch
+    {
+        SpecStatus.Draft     => "draft",
+        SpecStatus.InReview  => "review",
+        SpecStatus.Approved  => "approved",
+        SpecStatus.Obsolete  => "obsolete",
+        _                    => "draft",
+    };
+
+    // Localized label for SpecStatus. Returns "-" when version is missing.
+    private string StatusLabel(SpecStatus? st) => st switch
+    {
+        SpecStatus.Draft     => Loc["npi.spec.status.draft"].Value,
+        SpecStatus.InReview  => Loc["npi.spec.status.in_review"].Value,
+        SpecStatus.Approved  => Loc["npi.spec.status.approved"].Value,
+        SpecStatus.Obsolete  => Loc["npi.spec.status.obsolete"].Value,
+        _                    => "-",
+    };
+}
