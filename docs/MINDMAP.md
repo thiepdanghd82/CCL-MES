@@ -37,16 +37,34 @@ CCL-MES (MES cho nhà máy in nhãn/label)
 ├── 4. CÔNG CỤ PHỤ TRỢ (tools/ — Python)
 │   ├── verify_oee.py       → kiểm chứng công thức OEE (CI)
 │   ├── oee_from_csv.py     → tính OEE từ log CSV
-│   └── seed_from_excel.py  → ETL nạp master data Excel/CSV → SQLite
+│   ├── seed_from_excel.py  → ETL nạp master data Excel/CSV → SQLite
+│   └── import_npi.py       → Phase 1: nạp 4 bảng NPI (WorkCenters/RawMaterials/Routing/Structures)
+│                              từ IFS export — transaction + skipped/failed counter + idempotent
 │
 ├── 5. HẠ TẦNG DỮ LIỆU
 │   ├── Dev  → SQLite (EnsureCreated)
 │   └── Prod → SQL Server (EF Migrations) — switch qua Database:Provider
 │
+├── 7. AUTH + I18N (Phase 2 + 4)
+│   ├── Cookie auth (PBKDF2) — ccl_mes_auth, 8h sliding, FallbackPolicy = RequireAuthenticatedUser
+│   ├── Demo account admin/admin seed trên DB sạch
+│   ├── ASP.NET Core Localization — IStringLocalizer<SharedResource>
+│   │   ├── SharedResource.resx     (neutral = EN, NeutralLanguage=en trong csproj)
+│   │   └── SharedResource.vi.resx  (VI satellite, ~160 keys)
+│   ├── LangFlagPicker.razor — SVG GB + SVG VN (đa OS), persist .AspNetCore.Culture cookie 1 năm
+│   └── Login Razor Page + Logout + SetLanguage endpoint
+│
+├── 8. SETTINGS DROPDOWN (Phase 3)
+│   └── 10 sub-tab y hệt Ops Control v1.2 §2.3:
+│       ├── User group (5): profile / mypwd / appearance / hardware / mode
+│       ├── System group (2): account [admin] / about
+│       └── Maintenance group (3): data [admin] / syslog [admin] / import-legacy [admin]
+│         (sub-tab admin-only đánh dấu TODO RBAC, chưa enforce trong Phase 3)
+│
 └── 6. BÀN GIAO
-    ├── GitHub repo (thiepdanghd82/CCL-MES)
+    ├── GitHub repo (thiepdanghd82/CCL-MES) — main = Phase 1+2+3+4
     ├── skills/dotnet-mes-mvp (.skill cài được)
-    └── docs/ (LESSONS_LEARNED, MINDMAP)
+    └── docs/ (LESSONS_LEARNED, MINDMAP, AUDIT-2026-05-31, FINAL-REPORT-2026-05-31)
 ```
 
 ## 2. Cây thư mục thực tế
@@ -105,6 +123,14 @@ CCL-MES/
 11. **Thêm SignalR realtime** — ShopfloorHub, Dashboard & WorkOrders tự cập nhật.
 12. **Ghi MINDMAP** (file này) + đẩy lại GitHub.
 
+### Phase 1 → Phase 4 (2026-05-31, 1 phiên)
+
+13. **Phase 0 — Audit** — đọc Ops Control v1.2 (read-only) trích Settings catalogue + LangFlagToggle pattern; ghi `docs/AUDIT-2026-05-31.md`.
+14. **Phase 1 — Finish NPI import** — sửa P0 column mapping của `tools/import_npi.py` (IFS RoutingOperations/ManufacturingStructures/RawMaterials); wrap transaction; thêm seen/skipped/imported/failed counter. Import thành công 4 bảng (43 / 2,127 / 38,441 / 20,530 rows). Đồng thời dựng nền ASP.NET Core Localization (`IStringLocalizer<SharedResource>` + .resx EN + VI, default EN) + chuyển hết hardcode VI ở NPI/QC/MainLayout/Index sang key.
+15. **Phase 2 — Login + i18n** — `User` entity + PBKDF2 password hash + cookie auth + global `FallbackPolicy = RequireAuthenticatedUser`. SVG flag picker (GB + VN) + `/set-language` endpoint persist `.AspNetCore.Culture` cookie. Login Razor Page + Logout. Seed `admin/admin` (idempotent).
+16. **Phase 3 — Settings dropdown** — 10 placeholder Razor pages dưới `/settings/*` y hệt §2.3 catalogue Ops Control v1.2 (profile / mypwd / appearance / hardware / mode / account / about / data / syslog / import-legacy). 4 sub-tab admin-only đánh dấu TODO RBAC. Setting dropdown trên MainLayout.
+17. **Phase 4 — Merge + i18n full + báo cáo** — merge PR #2 + PR #3 vào main. Audit + chuyển hết hardcoded VI còn sót ở Dashboard / WorkOrders / WorkInstructions / WorkOrderStateMachine sang `IStringLocalizer` key. Verify EN 100% Anh / VI 100% Việt qua curl + 6 screenshots. Final backup + restart proof + báo cáo tổng (`docs/FINAL-REPORT-2026-05-31.md`).
+
 ## 4. Luồng dữ liệu chính (Work Order)
 
 ```
@@ -135,4 +161,4 @@ python3 tools/oee_from_csv.py tools/sample_production_log.csv
 
 ---
 
-*Cập nhật: 30/05/2026 — sau khi thêm tools/, EF Migrations/SQL Server, SignalR realtime.*
+*Cập nhật: 31/05/2026 — sau Phase 1 → Phase 4: NPI import + login + i18n EN/VI full coverage + Settings dropdown.*
