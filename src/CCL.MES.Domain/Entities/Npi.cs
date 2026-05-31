@@ -8,21 +8,43 @@ public class WorkCenter : BaseEntity
     public string? Area { get; set; }
 }
 
-/// <summary>Danh mục nguyên vật liệu (IFS Raw Material catalog).</summary>
+/// <summary>Danh mục nguyên vật liệu (IFS Raw Material catalog).
+/// Phase 7 hạng mục 3 — mở rộng từ 12 lên 28 cột để khớp CMES tham
+/// chiếu: DROP 5 field legacy proxy-mapping (CatalogGroup/CatalogDesc/
+/// Grp/Type/TypeDesc — đã verify không nơi nào ngoài entity+importer+
+/// RawMaterials.razor dùng); Price `double` → `double?`; ADD 21 field
+/// mới mapping rõ ràng tới IFS columns. PartNo/SupplierName/Id bảo toàn
+/// (IQC hybrid FK + IqcService snapshot lookup).</summary>
 public class RawMaterial : BaseEntity
 {
     public string PartNo { get; set; } = "";
     public string? PartDescription { get; set; }
     public string? SupplierId { get; set; }
     public string? SupplierName { get; set; }
-    public double Price { get; set; }
+    public double? Price { get; set; }
+    public double? PriceInclTax { get; set; }
     public string? Currency { get; set; }
     public string? PriceUom { get; set; }
-    public string? CatalogGroup { get; set; }
-    public string? CatalogDesc { get; set; }
-    public string? Grp { get; set; }
-    public string? Type { get; set; }
-    public string? TypeDesc { get; set; }
+    public double? SupplierLeadtimeDays { get; set; }
+    public string? PurchUom { get; set; }
+    public string? InventoryUom { get; set; }
+    public string? Site { get; set; }
+    public string? SiteDescription { get; set; }
+    public string? StatusCode { get; set; }
+    public double? MinimumQuantity { get; set; }
+    public double? StdMultipleQty { get; set; }
+    public double? StandardPackSize { get; set; }
+    public double? ConversionFactor { get; set; }
+    public string? TaxCode { get; set; }
+    public string? TaxCodeDescription { get; set; }
+    public string? CountryOfOrigin { get; set; }
+    public string? AcquisitionType { get; set; }
+    public string? SupplierPartNo { get; set; }
+    public string? SupplierPartDescription { get; set; }
+    public double? NetWeight { get; set; }
+    public string? NetWeightUom { get; set; }
+    public string? NextOrderDate { get; set; }
+    public string? Notes { get; set; }
 }
 
 /// <summary>Định tuyến công đoạn (Engineer Routine / Routing Operations).

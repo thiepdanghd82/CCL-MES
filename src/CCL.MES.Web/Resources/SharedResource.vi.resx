@@ -340,8 +340,44 @@
   <data name="npi.import.err.no_rows" xml:space="preserve"><value>Không có gì để import (0 dòng hợp lệ).</value></data>
   <data name="npi.import.err.too_large" xml:space="preserve"><value>File vượt quá giới hạn 100 MB.</value></data>
   <data name="npi.import.err.unknown" xml:space="preserve"><value>Lỗi không mong muốn khi import.</value></data>
-  <data name="npi.rawmaterials.title" xml:space="preserve"><value>NPI Data — Raw Materials</value></data>
-  <data name="npi.rawmaterials.search_placeholder" xml:space="preserve"><value>Tìm Part No / mô tả / nhà cung cấp…</value></data>
+  <data name="npi.rawmaterials.title" xml:space="preserve"><value>Raw Materials Code</value></data>
+  <data name="npi.rawmaterials.breadcrumb" xml:space="preserve"><value>CƠ SỞ DỮ LIỆU / RAW MATERIALS</value></data>
+  <data name="npi.rawmaterials.rows_loaded" xml:space="preserve"><value>đã tải {0} dòng</value></data>
+  <data name="npi.rawmaterials.rows_count" xml:space="preserve"><value>{0} dòng</value></data>
+  <data name="npi.rawmaterials.search_placeholder" xml:space="preserve"><value>Tìm Part No / mô tả / nhà cung cấp / trạng thái / xuất xứ…</value></data>
+  <data name="npi.rawmaterials.btn_columns" xml:space="preserve"><value>☰ Cột ({0}/{1})</value></data>
+  <data name="npi.rawmaterials.btn_show_all" xml:space="preserve"><value>Hiện tất cả</value></data>
+  <data name="npi.rawmaterials.format_hint" xml:space="preserve"><value>ℹ Nguồn import là IFS Raw Materials.xlsx (69 cột). Mở file trong Excel + Save As .csv (UTF-8) trước khi bấm Import.</value></data>
+  <data name="npi.rawmaterials.col.part_no" xml:space="preserve"><value>Mã VT</value></data>
+  <data name="npi.rawmaterials.col.part_description" xml:space="preserve"><value>Mô tả VT</value></data>
+  <data name="npi.rawmaterials.col.supplier_id" xml:space="preserve"><value>Mã NCC</value></data>
+  <data name="npi.rawmaterials.col.supplier_name" xml:space="preserve"><value>Tên NCC</value></data>
+  <data name="npi.rawmaterials.col.price" xml:space="preserve"><value>Giá</value></data>
+  <data name="npi.rawmaterials.col.price_incl_tax" xml:space="preserve"><value>Giá gồm thuế</value></data>
+  <data name="npi.rawmaterials.col.currency" xml:space="preserve"><value>Tiền</value></data>
+  <data name="npi.rawmaterials.col.price_uom" xml:space="preserve"><value>ĐVT giá</value></data>
+  <data name="npi.rawmaterials.col.supplier_leadtime_days" xml:space="preserve"><value>Thời gian giao (ngày)</value></data>
+  <data name="npi.rawmaterials.col.purch_uom" xml:space="preserve"><value>ĐVT mua</value></data>
+  <data name="npi.rawmaterials.col.inventory_uom" xml:space="preserve"><value>ĐVT tồn</value></data>
+  <data name="npi.rawmaterials.col.site" xml:space="preserve"><value>Site</value></data>
+  <data name="npi.rawmaterials.col.site_description" xml:space="preserve"><value>Tên Site</value></data>
+  <data name="npi.rawmaterials.col.status_code" xml:space="preserve"><value>Trạng thái</value></data>
+  <data name="npi.rawmaterials.col.minimum_quantity" xml:space="preserve"><value>SL tối thiểu</value></data>
+  <data name="npi.rawmaterials.col.std_multiple_qty" xml:space="preserve"><value>Bội số</value></data>
+  <data name="npi.rawmaterials.col.standard_pack_size" xml:space="preserve"><value>Pack Size</value></data>
+  <data name="npi.rawmaterials.col.conversion_factor" xml:space="preserve"><value>Hệ số quy đổi</value></data>
+  <data name="npi.rawmaterials.col.tax_code" xml:space="preserve"><value>Mã thuế</value></data>
+  <data name="npi.rawmaterials.col.tax_code_description" xml:space="preserve"><value>Mô tả thuế</value></data>
+  <data name="npi.rawmaterials.col.country_of_origin" xml:space="preserve"><value>Xuất xứ</value></data>
+  <data name="npi.rawmaterials.col.acquisition_type" xml:space="preserve"><value>Loại mua</value></data>
+  <data name="npi.rawmaterials.col.supplier_part_no" xml:space="preserve"><value>Mã NCC cung cấp</value></data>
+  <data name="npi.rawmaterials.col.supplier_part_description" xml:space="preserve"><value>Mô tả NCC cung cấp</value></data>
+  <data name="npi.rawmaterials.col.net_weight" xml:space="preserve"><value>Khối lượng</value></data>
+  <data name="npi.rawmaterials.col.net_weight_uom" xml:space="preserve"><value>ĐVT khối lượng</value></data>
+  <data name="npi.rawmaterials.col.next_order_date" xml:space="preserve"><value>Đơn kế tiếp</value></data>
+  <data name="npi.rawmaterials.col.notes" xml:space="preserve"><value>Ghi chú</value></data>
+  <data name="npi.rawmaterials.empty" xml:space="preserve"><value>Chưa có nguyên vật liệu nào.</value></data>
+  <data name="npi.rawmaterials.empty_filter" xml:space="preserve"><value>Không có dòng nào khớp tìm kiếm.</value></data>
   <data name="npi.workcenter.title" xml:space="preserve"><value>NPI Data — WorkCenter</value></data>
   <data name="npi.workcenter.search_placeholder" xml:space="preserve"><value>Tìm WC Code / mô tả / area…</value></data>
   <data name="npi.spec.title" xml:space="preserve"><value>NPI Data — Engineer Spec</value></data>

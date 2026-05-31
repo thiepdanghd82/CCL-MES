@@ -38,10 +38,15 @@ public class NpiService
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
+            // Phase 7 hạng mục 3 — search expand từ 4 → 6 field
+            // (thêm StatusCode + CountryOfOrigin, khớp CMES raw-materials
+            // filter). Operator dùng StatusCode để lọc active vs obsolete.
             q = q.Where(x => x.PartNo.Contains(s)
                 || (x.PartDescription != null && x.PartDescription.Contains(s))
                 || (x.SupplierName != null && x.SupplierName.Contains(s))
-                || (x.SupplierId != null && x.SupplierId.Contains(s)));
+                || (x.SupplierId != null && x.SupplierId.Contains(s))
+                || (x.StatusCode != null && x.StatusCode.Contains(s))
+                || (x.CountryOfOrigin != null && x.CountryOfOrigin.Contains(s)));
         }
         return PagingHelper.PageAsync(q.OrderBy(x => x.PartNo), page, pageSize);
     }
