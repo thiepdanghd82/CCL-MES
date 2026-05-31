@@ -30,13 +30,15 @@
                 </div>
             </div>
 
-            @* Phase 3 — Settings dropdown. The 10 sub-tabs are a verbatim
-               copy of the MENU_SECTIONS catalogue in Ops Control v1.2
-               (3 groups × 10 items), kept in the same order so operators
-               coming from Ops Control v1.2 find each setting in the same
-               position. Items flagged "admin only" in the source are
-               currently visible to every signed-in user — RBAC enforcement
-               is deferred to Phase 4+ (see TODO notes inside each page). *@
+            @* Phase 3 — Settings dropdown (10 sub-tabs, verbatim from
+               Ops Control v1.2 MENU_SECTIONS catalogue, 3 groups, same
+               order so operators find each setting in the same position).
+               Phase 5 — 4 sub-tabs (Account Control, Backup / Restore,
+               System Logs, Import data v1.0) are hidden from non-admin
+               users via <AuthorizeView Roles="Admin">. The pages
+               themselves are also gated by [Authorize(Policy = "AdminOnly")],
+               so a non-admin user typing the URL directly still hits
+               <AccessDenied /> (defence-in-depth). *@
             <div class="dropdown">
                 <span class="dropbtn">@Loc["nav.settings"] &#9662;</span>
                 <div class="dropdown-menu">
@@ -45,11 +47,15 @@
                     <a href="/settings/appearance">@Loc["nav.settings.appearance"]</a>
                     <a href="/settings/hardware">@Loc["nav.settings.hardware"]</a>
                     <a href="/settings/mode">@Loc["nav.settings.mode"]</a>
-                    <a href="/settings/account">@Loc["nav.settings.account"]</a>
+                    <AuthorizeView Roles="Admin">
+                        <a href="/settings/account">@Loc["nav.settings.account"]</a>
+                    </AuthorizeView>
                     <a href="/settings/about">@Loc["nav.settings.about"]</a>
-                    <a href="/settings/data">@Loc["nav.settings.data"]</a>
-                    <a href="/settings/syslog">@Loc["nav.settings.syslog"]</a>
-                    <a href="/settings/import-legacy">@Loc["nav.settings.importlegacy"]</a>
+                    <AuthorizeView Roles="Admin">
+                        <a href="/settings/data">@Loc["nav.settings.data"]</a>
+                        <a href="/settings/syslog">@Loc["nav.settings.syslog"]</a>
+                        <a href="/settings/import-legacy">@Loc["nav.settings.importlegacy"]</a>
+                    </AuthorizeView>
                 </div>
             </div>
 

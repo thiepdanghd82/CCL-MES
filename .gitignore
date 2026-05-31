@@ -3,5 +3,6 @@ obj/
 *.db
 *.db-shm
 *.db-wal
+*.db.bak*
 .vs/
 .DS_Store

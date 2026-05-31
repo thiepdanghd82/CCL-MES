@@ -94,6 +94,20 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .npi-placeholder ul { color:#374151; margin:10px 0 0; padding-left:20px; }
 .npi-placeholder li { margin-bottom:6px; }
 
+/* --- Phase 5 RBAC: <AccessDenied /> panel rendered by App.razor's
+       NotAuthorized branch when a signed-in user opens an admin-only
+       route (currently /settings/account, /settings/data,
+       /settings/syslog, /settings/import-legacy). Same chrome family
+       as .npi-placeholder so it doesn't feel like a different app. --- */
+.access-denied { background:#fff; border:1px solid #fecaca; border-radius:10px;
+  padding:20px 24px; box-shadow:0 1px 3px rgba(0,0,0,.05); max-width:720px; }
+.access-denied h1 { color:#b91c1c; margin:0 0 8px; }
+.access-denied .muted { color:#374151; margin:0 0 12px; }
+.access-denied .hint { color:#6b7280; font-size:13px; margin:0 0 16px; }
+.access-denied .home-link { display:inline-block; padding:6px 14px;
+  background:#1f3864; color:#fff; border-radius:6px; text-decoration:none; }
+.access-denied .home-link:hover { background:#16294b; }
+
 /* --- Topbar right cluster (Phase 2): lang picker + user + logout --- */
 .topbar-right { display:flex; align-items:center; gap:14px; margin-left:auto; }
 .topbar-right .lang-flag-btn { color:#dbe5ff; }
