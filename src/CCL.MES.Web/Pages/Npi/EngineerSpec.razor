@@ -1,4 +1,5 @@
 @page "/npi/engineer-spec"
+@attribute [Authorize(Policy = "NpiSpecRead")]
 @inject IStringLocalizer<SharedResource> Loc
 
 <h1>@Loc["npi.spec.title"]</h1>

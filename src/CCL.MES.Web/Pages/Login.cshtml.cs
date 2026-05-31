@@ -70,6 +70,16 @@ public class LoginModel : PageModel
             return Page();
         }
 
+        // Phase 6 Bước 4 — disabled accounts can't sign in. Same generic
+        // error as wrong-password so a disabled username doesn't become a
+        // probe oracle. Recovery: admin re-enables via /settings/account
+        // or scripts/RecoverAdmin.
+        if (!user.IsActive)
+        {
+            ErrorKey = "login.error.invalid";
+            return Page();
+        }
+
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),

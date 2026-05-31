@@ -1,17 +1,19 @@
 @page "/settings/account"
 @attribute [Authorize(Policy = "AdminOnly")]
 @using CCL.MES.Application.Services
+@using CCL.MES.Domain.Auth
 @using CCL.MES.Domain.Entities
 @using CCL.MES.Web.Services
 @inject UserAdminService UserSvc
 @inject IStringLocalizer<SharedResource> Loc
 
-@*  Phase 5 — RBAC gate kept (4 admin-only sub-tabs).
-    Phase 6 Bước 2B — read-only user list grid bám pattern NPI:
-    search + Pager + table. Mutations (create / disable / role change /
-    reset password for another user) deferred to Bước 4 — landed alongside
-    the RBAC 5-role whitelist + recover-admin script. Each is flagged as a
-    TODO in the row actions cell so admins see what's coming. *@
+@*  Phase 5 — RBAC gate kept.
+    Phase 6 Bước 2B — read-only grid.
+    Phase 6 Bước 4 — added Create / Edit (DisplayName + Role) / Reset
+    password / Toggle active. Mutations go through UserAdminService
+    which enforces lockout invariants (last-admin protection +
+    self-modify block). The form is inline so a small dev DB stays
+    easy to manage. *@
 
 <div class="grid-head">
     <h1>@Loc["settings.account.title"] <span class="rowcount">@(_result?.Total.ToString("N0") ?? "…")</span></h1>
@@ -21,7 +23,13 @@
     <input class="grid-search" placeholder="@Loc["settings.account.search_placeholder"]"
            @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
     <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
+    <button class="btn btn-primary" @onclick="OpenCreate">@Loc["settings.account.btn.new_user"]</button>
 </div>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <div class="alert @(_ok ? "ok" : "err")">@_message</div>
+}
 
 @if (_result is null)
 {
@@ -42,8 +50,8 @@ else
                 <th>@Loc["settings.account.col.username"]</th>
                 <th>@Loc["settings.account.col.display_name"]</th>
                 <th>@Loc["settings.account.col.role"]</th>
+                <th>@Loc["settings.account.col.active"]</th>
                 <th>@Loc["settings.account.col.last_login"]</th>
-                <th>@Loc["settings.account.col.created"]</th>
                 <th>@Loc["settings.account.col.actions"]</th>
             </tr>
         </thead>
@@ -54,9 +62,29 @@ else
                     <td><b>@u.Username</b></td>
                     <td>@(u.DisplayName ?? "-")</td>
                     <td><span class="badge role-@u.Role.ToLowerInvariant()">@u.Role</span></td>
+                    <td>
+                        @if (u.IsActive)
+                        {
+                            <span class="badge active-yes">@Loc["settings.account.active.yes"]</span>
+                        }
+                        else
+                        {
+                            <span class="badge active-no">@Loc["settings.account.active.no"]</span>
+                        }
+                    </td>
                     <td>@FormatDate(u.LastLoginAt)</td>
-                    <td>@FormatDate(u.CreatedAt)</td>
-                    <td class="muted">@Loc["settings.account.actions.todo"]</td>
+                    <td class="actions">
+                        <button class="btn ghost" @onclick="() => OpenEdit(u)">@Loc["settings.account.btn.edit"]</button>
+                        <button class="btn ghost" @onclick="() => OpenReset(u)">@Loc["settings.account.btn.reset"]</button>
+                        @if (u.IsActive)
+                        {
+                            <button class="btn warn" @onclick="() => DoToggle(u, false)">@Loc["settings.account.btn.disable"]</button>
+                        }
+                        else
+                        {
+                            <button class="btn pass" @onclick="() => DoToggle(u, true)">@Loc["settings.account.btn.enable"]</button>
+                        }
+                    </td>
                 </tr>
             }
         </tbody>
@@ -65,14 +93,68 @@ else
     <Pager Result="@PagerInfo" OnPage="GoPage" />
 }
 
+@* Create / Edit / Reset modals — single inline pane that swaps content
+   based on _mode. Keeps the page short for a 5-account dev DB. *@
+@if (_mode != FormMode.None)
+{
+    <div class="settings-card account-modal">
+        <h2 class="settings-section">@ModalTitle()</h2>
+
+        @if (_mode == FormMode.Create || _mode == FormMode.Edit)
+        {
+            <div class="field-row">
+                <label>@Loc["settings.account.col.username"]</label>
+                <input type="text" value="@_form.Username" readonly="@(_mode == FormMode.Edit)"
+                       @oninput="@(e => _form.Username = e.Value?.ToString() ?? "")"
+                       class="@(_mode == FormMode.Edit ? "readonly" : "form-input")" />
+            </div>
+            <div class="field-row">
+                <label>@Loc["settings.account.col.display_name"]</label>
+                <input type="text" class="form-input" @bind="_form.DisplayName" />
+            </div>
+            <div class="field-row">
+                <label>@Loc["settings.account.col.role"]</label>
+                <select class="form-input" @bind="_form.Role">
+                    @foreach (var role in UserRole.All)
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </select>
+            </div>
+        }
+        @if (_mode == FormMode.Create || _mode == FormMode.Reset)
+        {
+            <div class="field-row">
+                <label>@Loc["settings.account.field.password"]</label>
+                <input type="password" class="form-input" @bind="_form.Password"
+                       autocomplete="new-password" />
+            </div>
+            <p class="muted">@Loc["settings.account.hint.password_min"]</p>
+        }
+
+        <div class="actions">
+            <button class="btn btn-primary" @onclick="DoSubmit">@Loc["common.save"]</button>
+            <button class="btn ghost" @onclick="CloseForm">@Loc["common.cancel"]</button>
+        </div>
+    </div>
+}
+
 <div class="settings-card">
-    <p class="muted">@Loc["settings.account.bucket4_note"]</p>
+    <p class="muted">@Loc["settings.account.invariants_note"]</p>
 </div>
 
 @code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
     private PagedResult<User>? _result;
     private string? _search;
     private int _page = 1;
+    private string? _message;
+    private bool _ok;
+
+    private FormMode _mode = FormMode.None;
+    private long _editId;
+    private AccountForm _form = new();
 
     protected override async Task OnInitializedAsync() => await Load();
     private async Task Load() => _result = await UserSvc.ListAsync(_search, _page, 50);
@@ -83,4 +165,105 @@ else
         _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
 
     private static string FormatDate(DateTime? dt) => dt?.ToString("yyyy-MM-dd HH:mm") ?? "-";
+
+    private void OpenCreate()
+    {
+        _mode = FormMode.Create;
+        _form = new AccountForm { Role = UserRole.Operator };
+        _message = null;
+    }
+    private void OpenEdit(User u)
+    {
+        _mode = FormMode.Edit;
+        _editId = u.Id;
+        _form = new AccountForm { Username = u.Username, DisplayName = u.DisplayName ?? "", Role = u.Role };
+        _message = null;
+    }
+    private void OpenReset(User u)
+    {
+        _mode = FormMode.Reset;
+        _editId = u.Id;
+        _form = new AccountForm { Username = u.Username };
+        _message = null;
+    }
+    private void CloseForm()
+    {
+        _mode = FormMode.None;
+        _form = new AccountForm();
+    }
+
+    private async Task DoSubmit()
+    {
+        if (AuthState is null) return;
+        var auth = await AuthState;
+        UserAdminResult result;
+
+        switch (_mode)
+        {
+            case FormMode.Create:
+                result = await UserSvc.CreateAsync(_form.Username, _form.DisplayName, _form.Role, _form.Password);
+                break;
+            case FormMode.Edit:
+                var nameResult = await UserSvc.UpdateDisplayNameAsync(_editId, _form.DisplayName, auth.User);
+                if (nameResult != UserAdminResult.Success) { Report(nameResult); return; }
+                result = await UserSvc.UpdateRoleAsync(_editId, _form.Role, auth.User);
+                break;
+            case FormMode.Reset:
+                result = await UserSvc.ResetPasswordAsync(_editId, _form.Password, auth.User);
+                break;
+            default:
+                return;
+        }
+
+        Report(result);
+        if (result == UserAdminResult.Success)
+        {
+            CloseForm();
+            await Load();
+        }
+    }
+
+    private async Task DoToggle(User u, bool isActive)
+    {
+        if (AuthState is null) return;
+        var auth = await AuthState;
+        var result = await UserSvc.SetActiveAsync(u.Id, isActive, auth.User);
+        Report(result);
+        if (result == UserAdminResult.Success) await Load();
+    }
+
+    private void Report(UserAdminResult result)
+    {
+        _ok = result == UserAdminResult.Success;
+        _message = result switch
+        {
+            UserAdminResult.Success                 => Loc["settings.account.msg.success"].Value,
+            UserAdminResult.NotFound                => Loc["settings.account.msg.not_found"].Value,
+            UserAdminResult.UsernameRequired        => Loc["settings.account.msg.username_required"].Value,
+            UserAdminResult.UsernameInUse           => Loc["settings.account.msg.username_in_use"].Value,
+            UserAdminResult.InvalidRole             => Loc["settings.account.msg.invalid_role"].Value,
+            UserAdminResult.PasswordTooShort        => Loc["settings.account.msg.password_too_short"].Value,
+            UserAdminResult.LastAdminProtected      => Loc["settings.account.msg.last_admin_protected"].Value,
+            UserAdminResult.SelfModificationBlocked => Loc["settings.account.msg.self_block"].Value,
+            _                                       => "?",
+        };
+    }
+
+    private string ModalTitle() => _mode switch
+    {
+        FormMode.Create => Loc["settings.account.modal.create"].Value,
+        FormMode.Edit   => Loc["settings.account.modal.edit"].Value,
+        FormMode.Reset  => Loc["settings.account.modal.reset"].Value,
+        _               => "",
+    };
+
+    private enum FormMode { None, Create, Edit, Reset }
+
+    private class AccountForm
+    {
+        public string Username { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string Role { get; set; } = UserRole.Operator;
+        public string Password { get; set; } = "";
+    }
 }

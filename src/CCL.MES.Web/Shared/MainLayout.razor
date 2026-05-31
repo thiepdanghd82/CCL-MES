@@ -10,25 +10,37 @@
             <a href="/workorders">@Loc["nav.workorders"]</a>
             <a href="/workinstructions">@Loc["nav.workinstructions"]</a>
 
-            <div class="dropdown">
-                <span class="dropbtn">@Loc["nav.npidata"] &#9662;</span>
-                <div class="dropdown-menu">
-                    <a href="/npi/engineer-routine">@Loc["nav.npi.routine"]</a>
-                    <a href="/npi/engineer-structure">@Loc["nav.npi.structure"]</a>
-                    <a href="/npi/engineer-spec">@Loc["nav.npi.spec"]</a>
-                    <a href="/npi/raw-materials">@Loc["nav.npi.rawmaterials"]</a>
-                    <a href="/npi/workcenter">@Loc["nav.npi.workcenter"]</a>
+            @* Phase 6 Bước 4 — NPI dropdown hides itself for Operator
+               (matrix: NPI is blocked for Operator). Engineer Spec
+               further excluded for QC role inside the dropdown. *@
+            <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
+                <div class="dropdown">
+                    <span class="dropbtn">@Loc["nav.npidata"] &#9662;</span>
+                    <div class="dropdown-menu">
+                        <a href="/npi/engineer-routine">@Loc["nav.npi.routine"]</a>
+                        <a href="/npi/engineer-structure">@Loc["nav.npi.structure"]</a>
+                        <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="specCtx">
+                            <a href="/npi/engineer-spec">@Loc["nav.npi.spec"]</a>
+                        </AuthorizeView>
+                        <a href="/npi/raw-materials">@Loc["nav.npi.rawmaterials"]</a>
+                        <a href="/npi/workcenter">@Loc["nav.npi.workcenter"]</a>
+                    </div>
                 </div>
-            </div>
+            </AuthorizeView>
 
-            <div class="dropdown">
-                <span class="dropbtn">@Loc["nav.qcqadata"] &#9662;</span>
-                <div class="dropdown-menu">
-                    <a href="/qcqa/iqc">@Loc["nav.qcqa.iqc"]</a>
-                    <a href="/qcqa/ipqc">@Loc["nav.qcqa.ipqc"]</a>
-                    <a href="/qcqa/oqc">@Loc["nav.qcqa.oqc"]</a>
+            @* Phase 6 Bước 4 — QC dropdown hides itself for Engineer +
+               Operator (matrix: QC tabs blocked for both). Inside the
+               dropdown all 3 sub-tabs share the same role set. *@
+            <AuthorizeView Roles="Admin,Supervisor,QC">
+                <div class="dropdown">
+                    <span class="dropbtn">@Loc["nav.qcqadata"] &#9662;</span>
+                    <div class="dropdown-menu">
+                        <a href="/qcqa/iqc">@Loc["nav.qcqa.iqc"]</a>
+                        <a href="/qcqa/ipqc">@Loc["nav.qcqa.ipqc"]</a>
+                        <a href="/qcqa/oqc">@Loc["nav.qcqa.oqc"]</a>
+                    </div>
                 </div>
-            </div>
+            </AuthorizeView>
 
             @* Phase 3 — Settings dropdown (10 sub-tabs, verbatim from
                Ops Control v1.2 MENU_SECTIONS catalogue, 3 groups, same

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
 using CCL.MES.Application;
+using CCL.MES.Domain.Auth;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Infrastructure;
 using CCL.MES.Web.Hubs;
@@ -71,10 +72,19 @@ builder.Services.AddAuthorization(o =>
 
     // Phase 5 — RBAC. "AdminOnly" gates the 4 admin sub-tabs under
     // /settings (account, data, syslog, import-legacy) which were
-    // marked TODO RBAC in Phase 3. The role claim is emitted at login
-    // from User.Role ("Admin" | "User") so this policy works on the
-    // existing cookie principal without any auth pipeline changes.
-    o.AddPolicy("AdminOnly", p => p.RequireRole("Admin"));
+    // marked TODO RBAC in Phase 3. Role claim emitted at login from
+    // User.Role; the whitelist of valid values lives in UserRole.All.
+    o.AddPolicy("AdminOnly", p => p.RequireRole(UserRole.Admin));
+
+    // Phase 6 Bước 4 — 3 additional page-level policies aligned to the
+    // matrix in docs/PHASE6-STEP4-PLAN.md §2.C. Per-button gating uses
+    // <AuthorizeView Roles="..."> inline rather than policies.
+    o.AddPolicy("NpiRead", p =>
+        p.RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc));
+    o.AddPolicy("NpiSpecRead", p =>
+        p.RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
+    o.AddPolicy("QcRead", p =>
+        p.RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Qc));
 });
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
@@ -146,28 +156,49 @@ app.Run();
 // ──────────────────────────────────────────────────────────────────────
 static async Task SeedAdminUserAsync(MesDbContext db, IPasswordHasher<User> hasher)
 {
-    if (!await db.Users.AnyAsync(u => u.Username == "admin"))
+    // Phase 6 Bước 4 — fix-up legacy Role="User" → "Operator" BEFORE the
+    // whitelist takes effect anywhere. Idempotent: only mutates rows that
+    // still carry the legacy value, so reseeding never undoes an admin's
+    // later role change. Console-logs the count so an operator can see
+    // what happened on first boot after upgrading.
+    var legacy = await db.Users.Where(u => u.Role == "User").ToListAsync();
+    foreach (var u in legacy)
     {
-        var admin = new User
-        {
-            Username = "admin",
-            Role = "Admin",
-            DisplayName = "Administrator",
-        };
-        admin.PasswordHash = hasher.HashPassword(admin, "admin");
-        db.Users.Add(admin);
+        u.Role = UserRole.Operator;
+        u.UpdatedAt = DateTime.UtcNow;
     }
+    if (legacy.Count > 0)
+        Console.WriteLine($"[seed] Phase 6 Bước 4 — migrated {legacy.Count} legacy Role=\"User\" → \"{UserRole.Operator}\".");
 
-    if (!await db.Users.AnyAsync(u => u.Username == "operator"))
+    // Seed table: 5 demo accounts (one per role) so the matrix can be
+    // smoke-tested without an admin manually building accounts. All
+    // skip-if-exists by username; populated DBs unchanged. Default
+    // values for IsActive (true) + MustChangePassword (false) come
+    // from the entity, set explicitly here for new rows just in case
+    // a later migration changes the default direction.
+    var seed = new (string Username, string Role, string DisplayName, string Password)[]
     {
-        var op = new User
+        ("admin",      UserRole.Admin,      "Administrator",  "admin"),
+        ("supervisor", UserRole.Supervisor, "Demo Supervisor","supervisor"),
+        ("engineer",   UserRole.Engineer,   "Demo Engineer",  "engineer"),
+        ("qc",         UserRole.Qc,         "Demo QC Lead",   "qc"),
+        ("operator",   UserRole.Operator,   "Demo Operator",  "operator"),
+    };
+    foreach (var (username, role, displayName, password) in seed)
+    {
+        if (!await db.Users.AnyAsync(u => u.Username == username))
         {
-            Username = "operator",
-            Role = "User",
-            DisplayName = "Demo Operator",
-        };
-        op.PasswordHash = hasher.HashPassword(op, "operator");
-        db.Users.Add(op);
+            var user = new User
+            {
+                Username = username,
+                Role = role,
+                DisplayName = displayName,
+                IsActive = true,
+                MustChangePassword = false,
+            };
+            user.PasswordHash = hasher.HashPassword(user, password);
+            db.Users.Add(user);
+        }
     }
 
     await db.SaveChangesAsync();
