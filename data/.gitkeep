@@ -1,0 +1,4 @@
+# Phase 6 Bước 6.5 — repo-root data/ folder.
+# Live SQLite DB lands here as ccl_mes.db (gitignored).
+# Backup snapshots at Backup/SQLite/ (gitignored).
+# Override base via MES_DATA_DIR env var; override file via MES_DB_PATH.

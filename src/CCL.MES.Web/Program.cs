@@ -14,6 +14,77 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ──────────────────────────────────────────────────────────────────────
+// Phase 6 Bước 6.5 — Ops Control v1.2-style SQLite data folder.
+//
+// SQLite production runs from a stable repo-root-level "data/" folder
+// (mirror of Ops Control v1.2's server/data/). Override with MES_DATA_DIR
+// env var on prod boxes; MES_DB_PATH overrides the specific file when an
+// operator wants the live DB outside the folder.
+//
+// R3 (operator-stated): connection-string override ONLY applies when
+// Database:Provider == "Sqlite". SQL Server connection comes from
+// appsettings.SqlServer.json + operator-managed secret — never touched
+// by this block. The SQL Server "gate" stays scaffolded as-is so the
+// future upgrade path (see docs/HOW-TO-UPGRADE-TO-SQLSERVER.md) is one
+// config flip away.
+// ──────────────────────────────────────────────────────────────────────
+{
+    var provider = builder.Configuration["Database:Provider"] ?? "Sqlite";
+    if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+    {
+        var dataDir = Environment.GetEnvironmentVariable("MES_DATA_DIR");
+        if (string.IsNullOrEmpty(dataDir))
+        {
+            // Walk up from the Web project's content root to the repo
+            // root (the folder carrying *.sln). Yields <repo-root>/data/
+            // regardless of whether `dotnet run` was invoked from the
+            // repo root or from inside the Web project — `dotnet run
+            // --project src/CCL.MES.Web` sets CWD=src/CCL.MES.Web/ which
+            // would otherwise break the convention.
+            var probe = builder.Environment.ContentRootPath;
+            string? repoRoot = null;
+            for (var dir = new DirectoryInfo(probe); dir is not null; dir = dir.Parent)
+            {
+                if (dir.GetFiles("*.sln").Length > 0)
+                {
+                    repoRoot = dir.FullName;
+                    break;
+                }
+            }
+            // Fallback to CWD if no .sln found (e.g. published binary in
+            // a flat dir on a server). Operator should set MES_DATA_DIR
+            // explicitly in that case.
+            dataDir = Path.Combine(repoRoot ?? Directory.GetCurrentDirectory(), "data");
+        }
+        dataDir = Path.GetFullPath(dataDir);
+
+        // Idempotent — Directory.CreateDirectory is a no-op when the
+        // folder already exists. Backup subfolder mirrors Ops Control's
+        // server/data/Backup/SQLite/ convention so snapshots stay out
+        // of the live-DB folder root.
+        Directory.CreateDirectory(dataDir);
+        Directory.CreateDirectory(Path.Combine(dataDir, "Backup", "SQLite"));
+
+        var dbPath = Environment.GetEnvironmentVariable("MES_DB_PATH");
+        if (string.IsNullOrEmpty(dbPath))
+            dbPath = Path.Combine(dataDir, "ccl_mes.db");
+        dbPath = Path.GetFullPath(dbPath);
+
+        // Absolute path defeats the cwd-trap from Lesson 30 (Ops
+        // Control CLAUDE.md): SQLite `new Database(relativePath)`
+        // resolves against process CWD which differs between
+        // `dotnet run` and a packaged binary launch.
+        builder.Configuration["ConnectionStrings:Default"] = $"Data Source={dbPath}";
+        Console.WriteLine($"[boot] SQLite data dir: {dataDir}");
+        Console.WriteLine($"[boot] SQLite DB path : {dbPath}");
+    }
+    else
+    {
+        Console.WriteLine($"[boot] DB provider: {provider} — connection string from config only.");
+    }
+}
+
 // Data + application layers
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
@@ -122,6 +193,14 @@ using (var scope = app.Services.CreateScope())
     await DbInitializer.InitializeAsync(db);
     await DbSeeder.SeedAsync(db);
     await SeedAdminUserAsync(db, scope.ServiceProvider.GetRequiredService<IPasswordHasher<User>>());
+
+    // Phase 6 Bước 6.5 — migrate legacy SQLite snapshots from old
+    // flat layout (next to ccl_mes.db) into <DATA_DIR>/Backup/SQLite/.
+    // No-op for SQL Server or when no legacy files exist.
+    var backupSvc = scope.ServiceProvider.GetRequiredService<BackupService>();
+    var movedSnapshots = backupSvc.MigrateLegacySnapshots();
+    if (movedSnapshots > 0)
+        Console.WriteLine($"[boot] Phase 6 Bước 6.5 — migrated {movedSnapshots} legacy snapshot(s) to <DATA_DIR>/Backup/SQLite/.");
 }
 
 app.UseSwagger();

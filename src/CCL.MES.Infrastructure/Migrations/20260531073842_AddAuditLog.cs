@@ -15,21 +15,21 @@ namespace CCL.MES.Infrastructure.Migrations
                 name: "AuditLogs",
                 columns: table => new
                 {
-                    Id = table.Column<long>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    Timestamp = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ActorUsername = table.Column<string>(type: "TEXT", nullable: false),
-                    ActorRole = table.Column<string>(type: "TEXT", nullable: false),
-                    Action = table.Column<string>(type: "TEXT", nullable: false),
-                    TargetType = table.Column<string>(type: "TEXT", nullable: true),
-                    TargetId = table.Column<string>(type: "TEXT", nullable: true),
-                    Detail = table.Column<string>(type: "TEXT", nullable: true),
-                    IpAddress = table.Column<string>(type: "TEXT", nullable: true),
-                    Source = table.Column<string>(type: "TEXT", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    Timestamp = table.Column<DateTime>(nullable: false),
+                    ActorUsername = table.Column<string>(nullable: false),
+                    ActorRole = table.Column<string>(nullable: false),
+                    Action = table.Column<string>(nullable: false),
+                    TargetType = table.Column<string>(nullable: true),
+                    TargetId = table.Column<string>(nullable: true),
+                    Detail = table.Column<string>(nullable: true),
+                    IpAddress = table.Column<string>(nullable: true),
+                    Source = table.Column<string>(nullable: false),
+                    CreatedAt = table.Column<DateTime>(nullable: false),
+                    CreatedBy = table.Column<string>(nullable: true),
+                    UpdatedAt = table.Column<DateTime>(nullable: true),
+                    UpdatedBy = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {

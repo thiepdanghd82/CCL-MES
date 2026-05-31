@@ -23,28 +23,21 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.Customer", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
                     b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
                     b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.HasKey("Id");
 
@@ -54,31 +47,23 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.DowntimeReason", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<string>("Category")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Category");
 
                     b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
                     b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.HasKey("Id");
 
@@ -88,38 +73,28 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.Machine", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
                     b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
                     b.Property<string>("CurrentState")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<double>("IdealCycleTimeSec")
-                        .HasColumnType("REAL");
+                    b.Property<double>("IdealCycleTimeSec");
 
                     b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<string>("Type")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Type");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.HasKey("Id");
 
@@ -132,55 +107,39 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.ManufacturingStructure", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<string>("Cavity")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Cavity");
 
-                    b.Property<string>("Color")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Color");
 
-                    b.Property<string>("ComponentDescription")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("ComponentDescription");
 
                     b.Property<string>("ComponentPart")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<string>("ParentDescription")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("ParentDescription");
 
                     b.Property<string>("ParentPart")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<string>("Pitch")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Pitch");
 
-                    b.Property<double>("QtyAssembly")
-                        .HasColumnType("REAL");
+                    b.Property<double>("QtyAssembly");
 
-                    b.Property<double>("ScrapFactor")
-                        .HasColumnType("REAL");
+                    b.Property<double>("ScrapFactor");
 
-                    b.Property<string>("ScrapPct")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("ScrapPct");
 
-                    b.Property<string>("Uom")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Uom");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.HasKey("Id");
 
@@ -192,31 +151,23 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.Product", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<long>("CustomerId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("CustomerId");
 
                     b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
                     b.Property<string>("ProductCode")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.HasKey("Id");
 
@@ -228,48 +179,34 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.ProductionLog", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<long?>("DowntimeReasonId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long?>("DowntimeReasonId");
 
-                    b.Property<DateTime?>("EndAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("EndAt");
 
                     b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<int>("GoodQty")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("GoodQty");
 
-                    b.Property<long>("MachineId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("MachineId");
 
-                    b.Property<string>("OperatorId")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("OperatorId");
 
-                    b.Property<int>("RejectQty")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("RejectQty");
 
-                    b.Property<DateTime>("StartAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("StartAt");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
-                    b.Property<long>("WorkOrderId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("WorkOrderId");
 
                     b.HasKey("Id");
 
@@ -285,43 +222,31 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.QcInspection", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime?>("ApprovedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("ApprovedAt");
 
-                    b.Property<string>("ApprovedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("ApprovedBy");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<string>("InspectorId")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("InspectorId");
 
                     b.Property<string>("Result")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<int>("SampleSize")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("SampleSize");
 
                     b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
-                    b.Property<long>("WorkOrderId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("WorkOrderId");
 
                     b.HasKey("Id");
 
@@ -333,39 +258,28 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.QcResultDetail", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<string>("DefectCode")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("DefectCode");
 
                     b.Property<string>("ItemName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<string>("MeasuredValue")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("MeasuredValue");
 
-                    b.Property<bool>("Pass")
-                        .HasColumnType("INTEGER");
+                    b.Property<bool>("Pass");
 
-                    b.Property<long>("QcInspectionId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("QcInspectionId");
 
-                    b.Property<int>("Qty")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("Qty");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.HasKey("Id");
 
@@ -377,57 +291,40 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.RawMaterial", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<string>("CatalogDesc")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CatalogDesc");
 
-                    b.Property<string>("CatalogGroup")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CatalogGroup");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<string>("Currency")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Currency");
 
-                    b.Property<string>("Grp")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Grp");
 
-                    b.Property<string>("PartDescription")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("PartDescription");
 
                     b.Property<string>("PartNo")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<double>("Price")
-                        .HasColumnType("REAL");
+                    b.Property<double>("Price");
 
-                    b.Property<string>("PriceUom")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("PriceUom");
 
-                    b.Property<string>("SupplierId")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("SupplierId");
 
-                    b.Property<string>("SupplierName")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("SupplierName");
 
-                    b.Property<string>("Type")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Type");
 
-                    b.Property<string>("TypeDesc")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("TypeDesc");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.HasKey("Id");
 
@@ -439,51 +336,36 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.RoutingOperation", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<double>("LaborRunTime")
-                        .HasColumnType("REAL");
+                    b.Property<double>("LaborRunTime");
 
-                    b.Property<double>("LaborSetupTime")
-                        .HasColumnType("REAL");
+                    b.Property<double>("LaborSetupTime");
 
-                    b.Property<double>("MachineRunTime")
-                        .HasColumnType("REAL");
+                    b.Property<double>("MachineRunTime");
 
-                    b.Property<double>("MachineSetupTime")
-                        .HasColumnType("REAL");
+                    b.Property<double>("MachineSetupTime");
 
-                    b.Property<string>("OpNo")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("OpNo");
 
-                    b.Property<string>("Operation")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Operation");
 
-                    b.Property<string>("PartDescription")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("PartDescription");
 
                     b.Property<string>("PartNo")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
-                    b.Property<string>("WorkCenterDescription")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("WorkCenterDescription");
 
-                    b.Property<string>("WorkCenterNo")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("WorkCenterNo");
 
                     b.HasKey("Id");
 
@@ -495,31 +377,23 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.Spec", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<long>("ProductId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("ProductId");
 
                     b.Property<string>("SpecCode")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
                     b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.HasKey("Id");
 
@@ -531,42 +405,30 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecParameter", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<bool>("IsCritical")
-                        .HasColumnType("INTEGER");
+                    b.Property<bool>("IsCritical");
 
-                    b.Property<string>("Nominal")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Nominal");
 
                     b.Property<string>("ParamName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<long>("SpecVersionId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("SpecVersionId");
 
-                    b.Property<string>("TolMax")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("TolMax");
 
-                    b.Property<string>("TolMin")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("TolMin");
 
-                    b.Property<string>("Uom")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Uom");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.HasKey("Id");
 
@@ -578,39 +440,28 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecVersion", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime?>("ApprovedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("ApprovedAt");
 
-                    b.Property<string>("ApprovedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("ApprovedBy");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<DateTime?>("EffectiveDate")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("EffectiveDate");
 
-                    b.Property<long>("SpecId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("SpecId");
 
                     b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
-                    b.Property<int>("VersionNo")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("VersionNo");
 
                     b.HasKey("Id");
 
@@ -622,44 +473,32 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.User", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<string>("DisplayName")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("DisplayName");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
+                    b.Property<bool>("IsActive");
 
-                    b.Property<DateTime?>("LastLoginAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("LastLoginAt");
 
-                    b.Property<bool>("MustChangePassword")
-                        .HasColumnType("INTEGER");
+                    b.Property<bool>("MustChangePassword");
 
                     b.Property<string>("PasswordHash")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
                     b.Property<string>("Role")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.Property<string>("Username")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
                     b.HasKey("Id");
 
@@ -672,36 +511,26 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.WiStepDetail", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
                     b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<string>("ImageUrl")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("ImageUrl");
 
-                    b.Property<int>("Sequence")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("Sequence");
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
-                    b.Property<string>("WarningNote")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("WarningNote");
 
-                    b.Property<long>("WorkInstructionId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("WorkInstructionId");
 
                     b.HasKey("Id");
 
@@ -713,41 +542,30 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoStatusHistory", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
                     b.Property<string>("Action")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<string>("ByUser")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("ByUser");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
                     b.Property<string>("FromStep")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<string>("Reason")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Reason");
 
                     b.Property<string>("ToStep")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
-                    b.Property<long>("WorkOrderId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("WorkOrderId");
 
                     b.HasKey("Id");
 
@@ -759,31 +577,23 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.WorkCenter", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<string>("Area")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Area");
 
                     b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
                     b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.HasKey("Id");
 
@@ -795,44 +605,32 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.WorkInstruction", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
-                    b.Property<DateTime?>("EffectiveDate")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("EffectiveDate");
 
-                    b.Property<string>("MachineCode")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("MachineCode");
 
                     b.Property<string>("ProcessStep")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<long>("ProductId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("ProductId");
 
                     b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
                     b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
-                    b.Property<int>("VersionNo")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("VersionNo");
 
                     b.HasKey("Id");
 
@@ -844,79 +642,56 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.WorkOrder", b =>
                 {
                     b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .ValueGeneratedOnAdd();
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime>("CreatedAt");
 
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("CreatedBy");
 
                     b.Property<string>("CurrentStep")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<long>("CustomerId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("CustomerId");
 
-                    b.Property<string>("MachineCode")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("MachineCode");
 
-                    b.Property<string>("MachineName")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("MachineName");
 
-                    b.Property<bool>("MaterialsReady")
-                        .HasColumnType("INTEGER");
+                    b.Property<bool>("MaterialsReady");
 
-                    b.Property<DateTime?>("PlannedEnd")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("PlannedEnd");
 
-                    b.Property<DateTime?>("PlannedStart")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("PlannedStart");
 
-                    b.Property<int>("Priority")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("Priority");
 
-                    b.Property<int>("ProducedQty")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("ProducedQty");
 
-                    b.Property<long>("ProductId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("ProductId");
 
                     b.Property<string>("ProductName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<bool>("RohsOk")
-                        .HasColumnType("INTEGER");
+                    b.Property<bool>("RohsOk");
 
-                    b.Property<bool>("SetupConfirmed")
-                        .HasColumnType("INTEGER");
+                    b.Property<bool>("SetupConfirmed");
 
-                    b.Property<long?>("SpecVersionId")
-                        .HasColumnType("INTEGER");
+                    b.Property<long?>("SpecVersionId");
 
                     b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<int>("TargetQty")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("TargetQty");
 
                     b.Property<string>("Uom")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTime?>("UpdatedAt");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("UpdatedBy");
 
                     b.Property<string>("WoNo")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                        .IsRequired();
 
                     b.HasKey("Id");
 

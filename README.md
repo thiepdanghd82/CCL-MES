@@ -11,19 +11,41 @@ Khung mẫu **Manufacturing Execution System** cho nhà máy in nhãn/label, ch�
 - Project target: **net10.0**
 
 ## 2. Chạy ứng dụng
+
+### 2.a Standalone server (Ops Control v1.2 pattern — Phase 6 Bước 6.5)
+
 ```bash
-# QUAN TRONG: cd vao dung thu muc da giai nen (noi co file CCL.MES.sln)
+# macOS — double-click file Finder hoặc chạy từ Terminal:
+bash START_SERVER.command
+
+# Windows — double-click file Explorer hoặc cmd:
+START_SERVER.bat
+```
+
+Server bind `0.0.0.0:5050` (LAN-reachable). Banner in localhost + LAN URL +
+data dir + log path. Cmd+C / Ctrl+C để tắt.
+
+- **Data folder**: `<repo-root>/data/ccl_mes.db` (override `MES_DATA_DIR=...`).
+- **Backup snapshot**: `<repo-root>/data/Backup/SQLite/`.
+- **Log**: `/tmp/ccl-mes-server.log` (macOS).
+
+### 2.b Dev launch (qua launchSettings — port 5080)
+
+```bash
 cd duong/dan/toi/CCL.MES.MVP
 dotnet restore
 dotnet run --project src/CCL.MES.Web
 ```
-Mặc định chạy tại: `http://localhost:5080`
 
-- Giao diện Work Order (Blazor):  `http://localhost:5080/workorders`
-- Swagger UI (API):              `http://localhost:5080/swagger`
+Mặc định dev: `http://localhost:5080` (port từ `launchSettings.json`).
 
-Lần chạy đầu tiên hệ thống tự tạo file `ccl_mes.db` (SQLite) và seed sẵn:
-khách hàng **Brady Asia**, sản phẩm **BRD-7656-D**, 1 Spec đã duyệt, và WO mẫu **WO-26-3683**.
+- Work Order (Blazor): `http://localhost:5080/workorders`
+- Swagger UI (API):    `http://localhost:5080/swagger`
+
+Lần chạy đầu tiên hệ thống tự tạo file `data/ccl_mes.db` (SQLite, Phase 6
+Bước 6.5 layout) và seed sẵn: khách hàng **Brady Asia**, sản phẩm
+**BRD-7656-D**, 1 Spec đã duyệt, WO mẫu **WO-26-3683**, 5 demo user
+(admin/supervisor/engineer/qc/operator).
 
 ## 3. Thử luồng 7 bước (trên màn hình /workorders)
 Mỗi WO đi qua: `Pre-press → OP Setting → IPQC → Ready to Run → Running → FQC → OQC → Closed`.
@@ -96,18 +118,21 @@ Bộ script hỗ trợ — xem `tools/README.md`:
 - `seed_from_excel.py` — ETL nạp master data từ Excel/CSV vào SQLite.
 
 ## 6. Chuyển sang SQL Server (production)
-Đã hỗ trợ sẵn cả 2 provider — chỉ cần đổi cấu hình, KHÔNG sửa code:
 
-1. Trong `appsettings.json` đặt:
-   `"Database": { "Provider": "SqlServer" }` và sửa `ConnectionStrings:Default`, ví dụ:
-   `"Server=localhost;Database=CCL_MES;Trusted_Connection=True;TrustServerCertificate=True"`
-   (có sẵn mẫu `appsettings.SqlServer.json`).
-2. Tạo & áp dụng EF Migrations:
-   ```bash
-   dotnet tool install --global dotnet-ef   # nếu chưa có
-   bash ef-migrate.sh                        # tự add Init + database update
-   ```
-   Khi `Provider = SqlServer`, app tự chạy `Migrate()`; khi `Sqlite`, app dùng `EnsureCreated()`.
+**Trạng thái production hiện tại**: SQLite kiểu Ops Control v1.2 (`data/ccl_mes.db`).
+SQL Server scaffolding **đã sẵn sàng** làm cổng nâng cấp (Phase 6 Bước 6.5 đã
+fix migration provider-affinity — `INTEGER/TEXT/REAL` → SQL Server inference
+emit `bigint/nvarchar(max)/float` đúng convention).
+
+**Khi nào & cách nâng cấp**: xem runbook chi tiết tại
+[`docs/HOW-TO-UPGRADE-TO-SQLSERVER.md`](docs/HOW-TO-UPGRADE-TO-SQLSERVER.md).
+Quy trình A→B→C: backup SQLite + SHA256 → migrate schema SQL Server rỗng →
+ETL data → switch `Database:Provider` + connection string → verify post-upgrade.
+
+Tóm tắt 3 dòng cho người vội:
+1. Provider switch qua `appsettings.Production.json` (`"Database": { "Provider": "SqlServer" }` + connection string đúng).
+2. Apply migrations: `MES_PROVIDER=SqlServer bash ef-migrate.sh --sqlserver`.
+3. Restart app — DbInitializer baseline-aware tự no-op sau khi schema match.
 
 ## 6b. Realtime (SignalR)
 Dashboard và màn hình Work Orders kết nối hub `/hubs/shopfloor`. Mỗi khi có thay đổi
