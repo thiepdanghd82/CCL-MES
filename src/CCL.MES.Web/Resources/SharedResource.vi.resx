@@ -190,10 +190,19 @@
   <data name="npi.workcenter.title" xml:space="preserve"><value>NPI Data — WorkCenter</value></data>
   <data name="npi.workcenter.search_placeholder" xml:space="preserve"><value>Tìm WC Code / mô tả / area…</value></data>
   <data name="npi.spec.title" xml:space="preserve"><value>NPI Data — Engineer Spec</value></data>
-  <data name="npi.spec.placeholder_lead" xml:space="preserve"><value>Tab quản lý Engineer Spec (thông số kỹ thuật NPI). Chức năng sẽ được xây dựng sau.</value></data>
-  <data name="npi.spec.placeholder_li1" xml:space="preserve"><value>Thông số kỹ thuật chi tiết cho sản phẩm mới (kích thước, dung sai, vật liệu).</value></data>
-  <data name="npi.spec.placeholder_li2" xml:space="preserve"><value>Liên kết với module Spec Control hiện có.</value></data>
-  <data name="npi.spec.placeholder_li3" xml:space="preserve"><value>Phiên bản hoá và phê duyệt spec.</value></data>
+  <data name="npi.spec.search_placeholder" xml:space="preserve"><value>Tìm theo Spec Code / tiêu đề / sản phẩm…</value></data>
+  <data name="npi.spec.empty" xml:space="preserve"><value>Chưa có Spec nào. Tạo qua Spec Control API.</value></data>
+  <data name="npi.spec.col.spec_code" xml:space="preserve"><value>Mã Spec</value></data>
+  <data name="npi.spec.col.title" xml:space="preserve"><value>Tiêu đề</value></data>
+  <data name="npi.spec.col.product" xml:space="preserve"><value>Sản phẩm</value></data>
+  <data name="npi.spec.col.version" xml:space="preserve"><value>Phiên bản</value></data>
+  <data name="npi.spec.col.status" xml:space="preserve"><value>Trạng thái</value></data>
+  <data name="npi.spec.col.effective" xml:space="preserve"><value>Hiệu lực</value></data>
+  <data name="npi.spec.col.params" xml:space="preserve"><value>Thông số</value></data>
+  <data name="npi.spec.status.draft" xml:space="preserve"><value>Nháp</value></data>
+  <data name="npi.spec.status.in_review" xml:space="preserve"><value>Đang duyệt</value></data>
+  <data name="npi.spec.status.approved" xml:space="preserve"><value>Đã duyệt</value></data>
+  <data name="npi.spec.status.obsolete" xml:space="preserve"><value>Lỗi thời</value></data>
 
   <data name="qcqa.iqc.title" xml:space="preserve"><value>QC/QA Data — IQC</value></data>
   <data name="qcqa.iqc.placeholder_lead" xml:space="preserve"><value>Tab quản lý IQC (Incoming Quality Control) — kiểm tra chất lượng đầu vào. Chức năng sẽ được xây dựng sau.</value></data>

@@ -16,6 +16,42 @@ public class SpecService
             .OrderByDescending(s => s.Id)
             .ToListAsync();
 
+    /// <summary>
+    /// Phase 6 Bước 1 — paginated list for the Engineer Spec grid UI.
+    /// Mirrors the NpiService pattern (search + page + AsNoTracking) so the
+    /// Razor page reads identical to the 4 existing NPI grids.
+    /// </summary>
+    public Task<PagedResult<Spec>> SpecsAsync(string? search, int page, int pageSize)
+    {
+        var q = _db.Specs
+            .AsNoTracking()
+            .Include(s => s.Versions)
+            .Include(s => s.Product)
+            .AsQueryable();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(x => EF.Functions.Like(x.SpecCode, $"%{s}%")
+                || EF.Functions.Like(x.Title, $"%{s}%")
+                || (x.Product != null && EF.Functions.Like(x.Product.Name, $"%{s}%")));
+        }
+        return PageAsync(q.OrderByDescending(x => x.Id), page, pageSize);
+    }
+
+    // Phase 6 Bước 1 — local copy of NpiService.PageAsync (7 LOC). Kept
+    // local rather than promoting to a shared helper to avoid touching the
+    // 4 NpiService callsites; if a 3rd service ever needs paging the
+    // natural extraction point arrives then. Behavior must stay identical
+    // to NpiService.PageAsync — if one changes, both should.
+    private static async Task<PagedResult<T>> PageAsync<T>(IQueryable<T> q, int page, int pageSize)
+    {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize is < 1 or > 500 ? 50 : pageSize;
+        var total = await q.CountAsync();
+        var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        return new PagedResult<T>(items, total, page, pageSize);
+    }
+
     public async Task<SpecVersion> CreateAsync(CreateSpecRequest r)
     {
         var spec = new Spec
