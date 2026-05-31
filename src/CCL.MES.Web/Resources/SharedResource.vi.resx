@@ -102,7 +102,6 @@
   <data name="nav.settings.about" xml:space="preserve"><value>Giới thiệu / Chẩn đoán</value></data>
   <data name="nav.settings.data" xml:space="preserve"><value>Sao lưu / Phục hồi</value></data>
   <data name="nav.settings.syslog" xml:space="preserve"><value>Nhật ký hệ thống</value></data>
-  <data name="nav.settings.importlegacy" xml:space="preserve"><value>Nhập dữ liệu v1.0</value></data>
 
   <data name="common.save" xml:space="preserve"><value>Lưu</value></data>
 
@@ -199,16 +198,10 @@
   <data name="settings.syslog.placeholder_li2" xml:space="preserve"><value>Xuất CSV để review compliance.</value></data>
   <data name="settings.syslog.placeholder_li3" xml:space="preserve"><value>Chính sách lưu trữ + chuyển sang lưu off-site.</value></data>
 
-  <data name="settings.importlegacy.title" xml:space="preserve"><value>Cài đặt — Nhập dữ liệu v1.0</value></data>
-  <data name="settings.importlegacy.placeholder_lead" xml:space="preserve"><value>Tab Nhập dữ liệu v1.0 — chuyển dữ liệu từ các backend file của Ops Control v1.0. Trong nguồn Ops Control v1.2 chỉ admin truy cập; RBAC chưa được áp dụng trong CCL-MES Phase 3 (TODO Phase 4+).</value></data>
-  <data name="settings.importlegacy.placeholder_li1" xml:space="preserve"><value>Chọn thư mục nguồn và map sang schema hiện tại.</value></data>
-  <data name="settings.importlegacy.placeholder_li2" xml:space="preserve"><value>Xem trước dry-run trước khi commit.</value></data>
-  <data name="settings.importlegacy.placeholder_li3" xml:space="preserve"><value>Nhật ký audit cho phần đã nhập + phần bỏ qua.</value></data>
-
   <data name="lang.picker.aria_label" xml:space="preserve"><value>Chọn ngôn ngữ</value></data>
 
   <data name="access_denied.title" xml:space="preserve"><value>Không có quyền truy cập</value></data>
-  <data name="access_denied.lead" xml:space="preserve"><value>Bạn không có quyền xem trang này. Các mục cài đặt dành riêng cho quản trị viên (Account Control, Backup / Restore, System Logs, Import data v1.0) chỉ hiển thị với người dùng có vai trò Admin.</value></data>
+  <data name="access_denied.lead" xml:space="preserve"><value>Bạn không có quyền xem trang này. Các mục cài đặt dành riêng cho quản trị viên (Account Control, Backup / Restore, System Logs) chỉ hiển thị với người dùng có vai trò Admin.</value></data>
   <data name="access_denied.hint" xml:space="preserve"><value>Nếu bạn cho rằng mình cần truy cập, hãy yêu cầu quản trị viên gán vai trò Admin.</value></data>
   <data name="access_denied.back_home" xml:space="preserve"><value>Về trang chủ</value></data>
 

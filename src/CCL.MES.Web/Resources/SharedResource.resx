@@ -102,7 +102,6 @@
   <data name="nav.settings.about" xml:space="preserve"><value>About / Diagnostics</value></data>
   <data name="nav.settings.data" xml:space="preserve"><value>Backup / Restore</value></data>
   <data name="nav.settings.syslog" xml:space="preserve"><value>System Logs</value></data>
-  <data name="nav.settings.importlegacy" xml:space="preserve"><value>Import data v1.0</value></data>
 
   <data name="common.save" xml:space="preserve"><value>Save</value></data>
 
@@ -199,16 +198,10 @@
   <data name="settings.syslog.placeholder_li2" xml:space="preserve"><value>Export to CSV for compliance review.</value></data>
   <data name="settings.syslog.placeholder_li3" xml:space="preserve"><value>Retention + archival to off-site storage.</value></data>
 
-  <data name="settings.importlegacy.title" xml:space="preserve"><value>Settings — Import data v1.0</value></data>
-  <data name="settings.importlegacy.placeholder_lead" xml:space="preserve"><value>The Import data v1.0 tab — bring data over from Ops Control v1.0 file backends. Admin-only in Ops Control v1.2 source; RBAC is not yet enforced in CCL-MES Phase 3 (TODO Phase 4+).</value></data>
-  <data name="settings.importlegacy.placeholder_li1" xml:space="preserve"><value>Pick source folder and map to the current schema.</value></data>
-  <data name="settings.importlegacy.placeholder_li2" xml:space="preserve"><value>Dry-run preview before commit.</value></data>
-  <data name="settings.importlegacy.placeholder_li3" xml:space="preserve"><value>Audit log of what was imported + skipped.</value></data>
-
   <data name="lang.picker.aria_label" xml:space="preserve"><value>Language picker</value></data>
 
   <data name="access_denied.title" xml:space="preserve"><value>Access denied</value></data>
-  <data name="access_denied.lead" xml:space="preserve"><value>You don't have permission to view this page. Administrator-only settings (Account Control, Backup / Restore, System Logs, Import data v1.0) are visible only to users with the Admin role.</value></data>
+  <data name="access_denied.lead" xml:space="preserve"><value>You don't have permission to view this page. Administrator-only settings (Account Control, Backup / Restore, System Logs) are visible only to users with the Admin role.</value></data>
   <data name="access_denied.hint" xml:space="preserve"><value>If you believe you should have access, ask an administrator to assign you the Admin role.</value></data>
   <data name="access_denied.back_home" xml:space="preserve"><value>Back to Home</value></data>
 

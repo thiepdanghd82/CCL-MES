@@ -69,8 +69,8 @@ builder.Services.AddAuthorization(o =>
         .RequireAuthenticatedUser()
         .Build();
 
-    // Phase 5 — RBAC. "AdminOnly" gates the 4 admin sub-tabs under
-    // /settings (account, data, syslog, import-legacy) which were
+    // Phase 5 — RBAC. "AdminOnly" gates the 3 admin sub-tabs under
+    // /settings (account, data, syslog) which were
     // marked TODO RBAC in Phase 3. The role claim is emitted at login
     // from User.Role ("Admin" | "User") so this policy works on the
     // existing cookie principal without any auth pipeline changes.
