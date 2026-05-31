@@ -141,4 +141,42 @@ Sau khi thêm IqcInspection + IqcResultDetail entity:
 
 ---
 
-*Cập nhật lần cuối: 31/05/2026 — Phase 6 Bước 6.5 + 7 (deploy SQLite + IQC entity + EF Core safety lesson).*
+## 8. `git merge -X ours` strategy — blunt cho overlapping additive edits (Phase 6 close-out)
+
+### 8.1 Bối cảnh
+
+Sprint Phase 6 close-out có 4 stacked PR (#14 → #15 → #16 → #17) + 1 chore (#18) + 1 P0 fix (#19). Mỗi lần anh merge 1 PR vào `main`, các PR còn lại bị conflict. Strategy dùng để re-merge: `git merge origin/main --no-ff -X ours`.
+
+Cho 90% conflict (cùng region edited khác nhau từ 2 side), `-X ours` chọn HEAD version → preserve toàn bộ Bước N changes, đẩy thêm files mới từ main vào. PR sau khi push lại CLEAN MERGEABLE.
+
+### 8.2 Bug PR #19
+
+Cho overlapping **additive** edits trong **cùng block** (PR #14 thêm 3 policies + PR #18 chỉ sửa comment trong cùng `AddAuthorization` block), `-X ours` chọn ours → **mất 3 policies từ theirs**.
+
+Cụ thể `Program.cs:138-150`:
+- PR #18 (chore) sửa comment AdminOnly từ "4 admin sub-tabs" → "3 admin sub-tabs" (vì xoá Import data v1.0)
+- PR #14 (Bước 4) thêm 3 policies `NpiRead` + `NpiSpecRead` + `QcRead` vào cùng block
+- Branch PR #18 fork TRƯỚC khi PR #14 merge → PR #18 không có 3 policies
+- Re-merge PR #18 với `-X ours` → giữ ours (PR #18 version) → drop 3 policies + revert `AdminOnly` từ `UserRole.Admin` về string `"Admin"`
+
+Hậu quả: mọi GET `/npi/engineer-spec` + `/qcqa/*` → **HTTP 500** `AuthorizationPolicy named: 'QcRead' was not found` ngay sau khi PR #18 merge.
+
+Phát hiện qua smoke verify trên main (curl admin login + GET 13 routes) — KHÔNG có chuyện này nếu skip smoke step.
+
+### 8.3 Pattern an toàn
+
+1. **Identify additive blocks before merge** — block có overlapping ADD-ONLY trên cả 2 side cần resolve THỦ CÔNG, giữ cả 2 set of additions.
+2. **Tránh `-X ours` blanket** cho PR scope chỉnh nhiều file shared/config. Sprint close-out như Phase 6 nên dùng default 3-way merge + resolve từng conflict carefully.
+3. **Smoke verify trên main sau từng PR merge** (KHÔNG chờ tới cuối). Mỗi PR merged → quick curl smoke với admin login + 5 representative routes phủ 5 policy. Phát hiện regression sớm.
+4. **Sprint close-out checklist** (Phase 6 added):
+   - Sau merge mỗi PR: `dotnet build` + curl smoke `/login` + `/` + `/npi/engineer-spec` + `/qcqa/iqc` + `/settings/account` (5 route đại diện 5 policy)
+   - Nếu phát hiện 500 → check ngay `AuthorizationPolicy` registration trong Program.cs
+   - Final smoke matrix có cả admin (200 hết) + operator (AccessDenied panel rendered)
+
+### 8.4 Code review heuristic
+
+Trong PR review, khi thấy diff có cả 2 phía cùng modify 1 block configuration (DI setup, policy registration, route mapping, middleware pipeline) — flag để reviewer kiểm tra MANUAL chứ đừng tin `-X ours`.
+
+---
+
+*Cập nhật lần cuối: 31/05/2026 — Phase 6 close-out (deploy SQLite + IQC entity + EF Core safety lesson + merge-strategy lesson §8).*
