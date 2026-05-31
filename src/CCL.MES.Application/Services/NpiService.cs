@@ -52,10 +52,17 @@ public class NpiService
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
+            // Phase 7 hạng mục 2 — search expand từ 4 → 7 field
+            // (thêm WorkCenterDescription + LaborClass + OpNo, khớp CMES
+            // engineer-routine.service.list filter). OpNo rất hữu ích khi
+            // operator nhớ "Op No" cụ thể trên printed routing card.
             q = q.Where(x => x.PartNo.Contains(s)
                 || (x.PartDescription != null && x.PartDescription.Contains(s))
                 || (x.Operation != null && x.Operation.Contains(s))
-                || (x.WorkCenterNo != null && x.WorkCenterNo.Contains(s)));
+                || (x.WorkCenterNo != null && x.WorkCenterNo.Contains(s))
+                || (x.WorkCenterDescription != null && x.WorkCenterDescription.Contains(s))
+                || (x.LaborClass != null && x.LaborClass.Contains(s))
+                || (x.OpNo != null && x.OpNo.Contains(s)));
         }
         return PagingHelper.PageAsync(q.OrderBy(x => x.PartNo).ThenBy(x => x.OpNo), page, pageSize);
     }
