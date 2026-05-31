@@ -29,6 +29,19 @@
   <data name="nav.qcqa.iqc" xml:space="preserve"><value>IQC</value></data>
   <data name="nav.qcqa.ipqc" xml:space="preserve"><value>IPQC</value></data>
   <data name="nav.qcqa.oqc" xml:space="preserve"><value>OQC</value></data>
+  <data name="nav.logout" xml:space="preserve"><value>Đăng xuất</value></data>
+
+  <data name="lang.picker.aria_label" xml:space="preserve"><value>Chọn ngôn ngữ</value></data>
+
+  <data name="login.title" xml:space="preserve"><value>Đăng nhập</value></data>
+  <data name="login.subtitle" xml:space="preserve"><value>Đăng nhập vào hệ thống điều hành sản xuất CCL Design.</value></data>
+  <data name="login.username" xml:space="preserve"><value>Tên đăng nhập</value></data>
+  <data name="login.password" xml:space="preserve"><value>Mật khẩu</value></data>
+  <data name="login.signin_button" xml:space="preserve"><value>Đăng nhập</value></data>
+  <data name="login.error.invalid" xml:space="preserve"><value>Tên đăng nhập hoặc mật khẩu không đúng.</value></data>
+  <data name="login.error.missing" xml:space="preserve"><value>Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.</value></data>
+  <data name="login.demo_hint" xml:space="preserve"><value>Tài khoản demo: admin / admin (Phase 2). Đổi mật khẩu trước khi đưa lên production.</value></data>
+  <data name="login.footer_note" xml:space="preserve"><value>CCL Design — MES (MVP)</value></data>
 
   <data name="npi.routine.title" xml:space="preserve"><value>NPI Data — Engineer Routine</value></data>
   <data name="npi.routine.search_placeholder" xml:space="preserve"><value>Tìm Part No / mô tả / operation / work center…</value></data>

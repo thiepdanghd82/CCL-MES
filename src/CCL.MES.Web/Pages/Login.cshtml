@@ -1,0 +1,52 @@
+@page
+@model CCL.MES.Web.Pages.LoginModel
+@inject IStringLocalizer<SharedResource> Loc
+@{
+    Layout = null;
+    ViewData["Title"] = Loc["login.title"].Value;
+}
+<!DOCTYPE html>
+<html lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="stylesheet" href="~/css/flags.css" />
+    <link rel="stylesheet" href="~/css/login.css" />
+</head>
+<body class="login-body">
+    <header class="login-header">
+        <div class="login-brand">@Loc["app.brand"] <span>@Loc["app.brand_short"]</span></div>
+        <component type="typeof(LangFlagPicker)" render-mode="Static" param-ReturnUrl="@Model.ReturnPathForPicker()" />
+    </header>
+
+    <main class="login-main">
+        <section class="login-card" aria-labelledby="login-heading">
+            <h1 id="login-heading">@Loc["login.title"]</h1>
+            <p class="muted">@Loc["login.subtitle"]</p>
+
+            @if (Model.ErrorKey != null)
+            {
+                <div class="login-error" role="alert">@Loc[Model.ErrorKey]</div>
+            }
+
+            <form method="post" autocomplete="on" novalidate>
+                <label for="login-user">@Loc["login.username"]</label>
+                <input type="text" id="login-user" asp-for="Input.Username" autocomplete="username" autofocus required />
+
+                <label for="login-pwd">@Loc["login.password"]</label>
+                <input type="password" id="login-pwd" asp-for="Input.Password" autocomplete="current-password" required />
+
+                <input type="hidden" asp-for="Input.ReturnUrl" />
+
+                <button type="submit" class="btn primary">@Loc["login.signin_button"]</button>
+            </form>
+
+            <p class="small">@Loc["login.demo_hint"]</p>
+        </section>
+    </main>
+
+    <footer class="login-footer">@Loc["login.footer_note"]</footer>
+</body>
+</html>

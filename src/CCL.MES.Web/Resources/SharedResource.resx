@@ -29,6 +29,19 @@
   <data name="nav.qcqa.iqc" xml:space="preserve"><value>IQC</value></data>
   <data name="nav.qcqa.ipqc" xml:space="preserve"><value>IPQC</value></data>
   <data name="nav.qcqa.oqc" xml:space="preserve"><value>OQC</value></data>
+  <data name="nav.logout" xml:space="preserve"><value>Sign out</value></data>
+
+  <data name="lang.picker.aria_label" xml:space="preserve"><value>Language picker</value></data>
+
+  <data name="login.title" xml:space="preserve"><value>Sign in</value></data>
+  <data name="login.subtitle" xml:space="preserve"><value>Sign in to the CCL Design Manufacturing Execution System.</value></data>
+  <data name="login.username" xml:space="preserve"><value>Username</value></data>
+  <data name="login.password" xml:space="preserve"><value>Password</value></data>
+  <data name="login.signin_button" xml:space="preserve"><value>Sign in</value></data>
+  <data name="login.error.invalid" xml:space="preserve"><value>Wrong username or password.</value></data>
+  <data name="login.error.missing" xml:space="preserve"><value>Please enter both a username and a password.</value></data>
+  <data name="login.demo_hint" xml:space="preserve"><value>Demo account: admin / admin (Phase 2). Change before production.</value></data>
+  <data name="login.footer_note" xml:space="preserve"><value>CCL Design — MES (MVP)</value></data>
 
   <data name="npi.routine.title" xml:space="preserve"><value>NPI Data — Engineer Routine</value></data>
   <data name="npi.routine.search_placeholder" xml:space="preserve"><value>Search by Part No / description / operation / work center…</value></data>
