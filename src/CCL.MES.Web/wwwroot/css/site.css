@@ -129,8 +129,8 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 
 /* --- Phase 6 Bước 2A — Settings User group (Profile / Password / Appearance) --- */
 .settings-card { background:#fff; border:1px solid #e5e7eb; border-radius:10px;
-  padding:20px 24px; box-shadow:0 1px 3px rgba(0,0,0,.05); max-width:560px; margin-bottom:18px; }
-.settings-section { margin:0 0 6px; color:#1f3864; font-size:16px; font-weight:600; }
+  padding:20px 24px; box-shadow:0 1px 3px rgba(0,0,0,.05); max-width:720px; margin-bottom:18px; }
+.settings-section { margin:0 0 8px; color:#1f3864; font-size:16px; font-weight:600; }
 .field-row { display:flex; flex-direction:column; gap:4px; margin-bottom:14px; }
 .field-row label { font-size:13px; font-weight:600; color:#374151; }
 .form-input { width:100%; padding:8px 12px; border:1px solid #cbd5e1; border-radius:6px;
@@ -145,3 +145,14 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .appearance-lang .lang-flag-btn { color:#1f3864; border:1px solid #cbd5e1;
   border-radius:6px; padding:6px 12px; text-decoration:none; }
 .appearance-lang .lang-flag-btn.is-active { background:#e7efff; border-color:#1f3864; }
+
+/* --- Phase 6 Bước 2B — Settings System group (About / Account / Backup) --- */
+.diag-table { width:100%; border-collapse:collapse; font-size:14px; }
+.diag-table th { text-align:left; padding:8px 12px; color:#374151;
+  width:42%; font-weight:600; vertical-align:top; }
+.diag-table td { padding:8px 12px; color:#1f2937; vertical-align:top; }
+.diag-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.diag-table tr + tr th, .diag-table tr + tr td { border-top:1px solid #f1f5f9; }
+.badge { padding:3px 10px; border-radius:999px; font-size:12px; white-space:nowrap; font-weight:600; }
+.badge.role-admin { background:#1f3864; color:#fff; }
+.badge.role-user  { background:#e7efff; color:#1f3864; }

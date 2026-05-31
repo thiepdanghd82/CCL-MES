@@ -18,14 +18,8 @@ public class NpiService
     private readonly IMesDbContext _db;
     public NpiService(IMesDbContext db) => _db = db;
 
-    private static async Task<PagedResult<T>> PageAsync<T>(IQueryable<T> q, int page, int pageSize)
-    {
-        page = page < 1 ? 1 : page;
-        pageSize = pageSize is < 1 or > 500 ? 50 : pageSize;
-        var total = await q.CountAsync();
-        var items = await q.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
-        return new PagedResult<T>(items, total, page, pageSize);
-    }
+    // Phase 6 Bước 2B — local PageAsync removed; consolidated into
+    // PagingHelper.PageAsync. Behavior identical; helper is public static.
 
     public Task<PagedResult<WorkCenter>> WorkCentersAsync(string? search, int page, int pageSize)
     {
@@ -35,7 +29,7 @@ public class NpiService
             var s = search.Trim();
             q = q.Where(x => x.Code.Contains(s) || x.Description.Contains(s) || (x.Area != null && x.Area.Contains(s)));
         }
-        return PageAsync(q.OrderBy(x => x.Code), page, pageSize);
+        return PagingHelper.PageAsync(q.OrderBy(x => x.Code), page, pageSize);
     }
 
     public Task<PagedResult<RawMaterial>> RawMaterialsAsync(string? search, int page, int pageSize)
@@ -49,7 +43,7 @@ public class NpiService
                 || (x.SupplierName != null && x.SupplierName.Contains(s))
                 || (x.SupplierId != null && x.SupplierId.Contains(s)));
         }
-        return PageAsync(q.OrderBy(x => x.PartNo), page, pageSize);
+        return PagingHelper.PageAsync(q.OrderBy(x => x.PartNo), page, pageSize);
     }
 
     public Task<PagedResult<RoutingOperation>> RoutingAsync(string? search, int page, int pageSize)
@@ -63,7 +57,7 @@ public class NpiService
                 || (x.Operation != null && x.Operation.Contains(s))
                 || (x.WorkCenterNo != null && x.WorkCenterNo.Contains(s)));
         }
-        return PageAsync(q.OrderBy(x => x.PartNo).ThenBy(x => x.OpNo), page, pageSize);
+        return PagingHelper.PageAsync(q.OrderBy(x => x.PartNo).ThenBy(x => x.OpNo), page, pageSize);
     }
 
     public Task<PagedResult<ManufacturingStructure>> StructuresAsync(string? search, int page, int pageSize)
@@ -77,6 +71,6 @@ public class NpiService
                 || x.ComponentPart.Contains(s)
                 || (x.ComponentDescription != null && x.ComponentDescription.Contains(s)));
         }
-        return PageAsync(q.OrderBy(x => x.ParentPart), page, pageSize);
+        return PagingHelper.PageAsync(q.OrderBy(x => x.ParentPart), page, pageSize);
     }
 }
