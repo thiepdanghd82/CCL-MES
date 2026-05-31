@@ -104,23 +104,34 @@
   <data name="nav.settings.syslog" xml:space="preserve"><value>System Logs</value></data>
   <data name="nav.settings.importlegacy" xml:space="preserve"><value>Import data v1.0</value></data>
 
+  <data name="common.save" xml:space="preserve"><value>Save</value></data>
+
   <data name="settings.profile.title" xml:space="preserve"><value>Settings — My Profile</value></data>
-  <data name="settings.profile.placeholder_lead" xml:space="preserve"><value>The My Profile tab — personal account details, display name, contact info. To be built in a later sprint.</value></data>
-  <data name="settings.profile.placeholder_li1" xml:space="preserve"><value>View and edit display name + email.</value></data>
-  <data name="settings.profile.placeholder_li2" xml:space="preserve"><value>View role + permission group (assigned by an administrator).</value></data>
-  <data name="settings.profile.placeholder_li3" xml:space="preserve"><value>Recent sign-in activity.</value></data>
+  <data name="settings.profile.field.username" xml:space="preserve"><value>Username</value></data>
+  <data name="settings.profile.field.role" xml:space="preserve"><value>Role</value></data>
+  <data name="settings.profile.field.display_name" xml:space="preserve"><value>Display name</value></data>
+  <data name="settings.profile.field.last_login" xml:space="preserve"><value>Last sign-in</value></data>
+  <data name="settings.profile.msg.saved" xml:space="preserve"><value>Profile saved.</value></data>
+  <data name="settings.profile.msg.error" xml:space="preserve"><value>Could not save profile.</value></data>
 
   <data name="settings.mypwd.title" xml:space="preserve"><value>Settings — My Password</value></data>
-  <data name="settings.mypwd.placeholder_lead" xml:space="preserve"><value>The My Password tab — change your own password. To be built in a later sprint.</value></data>
-  <data name="settings.mypwd.placeholder_li1" xml:space="preserve"><value>Verify current password and set a new one (PBKDF2 hash).</value></data>
-  <data name="settings.mypwd.placeholder_li2" xml:space="preserve"><value>Password strength meter + complexity rules.</value></data>
-  <data name="settings.mypwd.placeholder_li3" xml:space="preserve"><value>Force re-login on all other active sessions.</value></data>
+  <data name="settings.mypwd.field.old" xml:space="preserve"><value>Current password</value></data>
+  <data name="settings.mypwd.field.new" xml:space="preserve"><value>New password</value></data>
+  <data name="settings.mypwd.field.confirm" xml:space="preserve"><value>Confirm new password</value></data>
+  <data name="settings.mypwd.btn.change" xml:space="preserve"><value>Change password</value></data>
+  <data name="settings.mypwd.hint_minlength" xml:space="preserve"><value>Minimum 4 characters. The PBKDF2 hash is recomputed on save.</value></data>
+  <data name="settings.mypwd.msg.success" xml:space="preserve"><value>Password changed. Sign out + back in on other devices.</value></data>
+  <data name="settings.mypwd.msg.wrong_current" xml:space="preserve"><value>Current password is wrong.</value></data>
+  <data name="settings.mypwd.msg.too_short" xml:space="preserve"><value>New password is too short (minimum 4 characters).</value></data>
+  <data name="settings.mypwd.msg.mismatch" xml:space="preserve"><value>New password and confirmation do not match.</value></data>
+  <data name="settings.mypwd.msg.missing" xml:space="preserve"><value>Please fill in all three fields.</value></data>
+  <data name="settings.mypwd.msg.user_not_found" xml:space="preserve"><value>Session error. Please sign in again.</value></data>
 
   <data name="settings.appearance.title" xml:space="preserve"><value>Settings — Appearance</value></data>
-  <data name="settings.appearance.placeholder_lead" xml:space="preserve"><value>The Appearance tab — UI theme and language preferences. To be built in a later sprint.</value></data>
-  <data name="settings.appearance.placeholder_li1" xml:space="preserve"><value>Light / dark / system theme toggle.</value></data>
-  <data name="settings.appearance.placeholder_li2" xml:space="preserve"><value>Default UI language (mirrors the topbar flag picker).</value></data>
-  <data name="settings.appearance.placeholder_li3" xml:space="preserve"><value>Grid density (compact / comfortable).</value></data>
+  <data name="settings.appearance.section.language" xml:space="preserve"><value>Language</value></data>
+  <data name="settings.appearance.language.hint" xml:space="preserve"><value>Pick the UI language. Choice is saved in the .AspNetCore.Culture cookie for 1 year.</value></data>
+  <data name="settings.appearance.section.theme" xml:space="preserve"><value>Theme</value></data>
+  <data name="settings.appearance.theme.todo" xml:space="preserve"><value>Light / dark theme toggle — planned for a later sprint.</value></data>
 
   <data name="settings.hardware.title" xml:space="preserve"><value>Settings — Hardware devices</value></data>
   <data name="settings.hardware.placeholder_lead" xml:space="preserve"><value>The Hardware devices tab — barcode scanners, label printers, USB scales. Desktop-only surface. To be built in a later sprint.</value></data>
@@ -242,10 +253,19 @@
   <data name="npi.workcenter.title" xml:space="preserve"><value>NPI Data — Work Center</value></data>
   <data name="npi.workcenter.search_placeholder" xml:space="preserve"><value>Search by WC Code / description / area…</value></data>
   <data name="npi.spec.title" xml:space="preserve"><value>NPI Data — Engineer Spec</value></data>
-  <data name="npi.spec.placeholder_lead" xml:space="preserve"><value>The Engineer Spec tab (NPI technical parameters). To be built in a later sprint.</value></data>
-  <data name="npi.spec.placeholder_li1" xml:space="preserve"><value>Detailed technical parameters for new products (dimensions, tolerances, materials).</value></data>
-  <data name="npi.spec.placeholder_li2" xml:space="preserve"><value>Linked to the existing Spec Control module.</value></data>
-  <data name="npi.spec.placeholder_li3" xml:space="preserve"><value>Versioning and spec approval.</value></data>
+  <data name="npi.spec.search_placeholder" xml:space="preserve"><value>Search by Spec Code / Title / Product…</value></data>
+  <data name="npi.spec.empty" xml:space="preserve"><value>No Spec found. Create one via the Spec Control API.</value></data>
+  <data name="npi.spec.col.spec_code" xml:space="preserve"><value>Spec Code</value></data>
+  <data name="npi.spec.col.title" xml:space="preserve"><value>Title</value></data>
+  <data name="npi.spec.col.product" xml:space="preserve"><value>Product</value></data>
+  <data name="npi.spec.col.version" xml:space="preserve"><value>Latest Ver.</value></data>
+  <data name="npi.spec.col.status" xml:space="preserve"><value>Status</value></data>
+  <data name="npi.spec.col.effective" xml:space="preserve"><value>Effective</value></data>
+  <data name="npi.spec.col.params" xml:space="preserve"><value>Params</value></data>
+  <data name="npi.spec.status.draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="npi.spec.status.in_review" xml:space="preserve"><value>In Review</value></data>
+  <data name="npi.spec.status.approved" xml:space="preserve"><value>Approved</value></data>
+  <data name="npi.spec.status.obsolete" xml:space="preserve"><value>Obsolete</value></data>
 
   <data name="qcqa.iqc.title" xml:space="preserve"><value>QC/QA Data — IQC</value></data>
   <data name="qcqa.iqc.placeholder_lead" xml:space="preserve"><value>The IQC (Incoming Quality Control) tab — quality check on incoming materials. To be built in a later sprint.</value></data>

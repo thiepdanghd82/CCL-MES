@@ -100,6 +100,8 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<ShopfloorNotifier>();
 // Phase 5 — cookie forward via scoped CookieAccessor (see docs/PHASE5-STEP2-PLAN.md).
 builder.Services.AddScoped<HubCookieAccessor>();
+// Phase 6 Bước 2A — Settings User group (Profile / Password / Appearance).
+builder.Services.AddScoped<UserProfileService>();
 // Phase 6 Bước 2B — Settings System + 1 admin (About / Account / Backup).
 builder.Services.AddScoped<UserAdminService>();
 builder.Services.AddSingleton<BackupService>();
