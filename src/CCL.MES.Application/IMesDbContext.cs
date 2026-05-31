@@ -26,6 +26,10 @@ public interface IMesDbContext
     DbSet<ManufacturingStructure> ManufacturingStructures { get; }
     DbSet<User> Users { get; }
     DbSet<AuditLog> AuditLogs { get; }
+    // Phase 6 Bước 7 — IQC = pre-WO raw-material inspection, tách
+    // khỏi QcInspections vì semantically khác (xem Iqc.cs).
+    DbSet<IqcInspection> IqcInspections { get; }
+    DbSet<IqcResultDetail> IqcResultDetails { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

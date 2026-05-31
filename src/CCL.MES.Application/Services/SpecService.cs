@@ -26,8 +26,6 @@ public class SpecService
 
     /// <summary>
     /// Phase 6 Bước 1 — paginated list for the Engineer Spec grid UI.
-    /// Mirrors the NpiService pattern (search + page + AsNoTracking) so the
-    /// Razor page reads identical to the 4 existing NPI grids.
     /// </summary>
     public Task<PagedResult<Spec>> SpecsAsync(string? search, int page, int pageSize)
     {

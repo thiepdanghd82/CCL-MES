@@ -13,6 +13,12 @@ public static class DbSeeder
         // Microsoft.AspNetCore.Identity and Infrastructure is a plain
         // class lib — we don't want to drag AspNetCore.App into it.
 
+        // Phase 6 Bước 7 — IQC demo seed runs INDEPENDENTLY of the
+        // WO seed below (each block has its own .Any() idempotent gate).
+        // Without this split, IQC seed would never fire on existing
+        // DBs because the WO-block early-return below skips everything.
+        await SeedDemoIqcAsync(db);
+
         if (await db.WorkOrders.AnyAsync()) return;
 
         // Máy
@@ -80,6 +86,90 @@ public static class DbSeeder
             PlannedStart = DateTime.UtcNow
         };
         db.WorkOrders.Add(wo);
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedDemoIqcAsync(MesDbContext db)
+    {
+        if (await db.IqcInspections.AnyAsync()) return;
+
+        var refDate = DateTime.UtcNow.Date;
+        // Resolve RawMaterial.Id for 3 realistic part numbers if catalog
+        // has them. Hybrid FK: if catalog miss, FK stays null + PartNo
+        // text survives (matches Q1 design).
+        async Task<long?> ResolveAsync(string partNo)
+        {
+            var rm = await db.RawMaterials.FirstOrDefaultAsync(x => x.PartNo == partNo);
+            return rm?.Id;
+        }
+
+        var seed = new[]
+        {
+            // 1 Pending — đợi QC approve
+            new IqcInspection
+            {
+                RawMaterialId = await ResolveAsync("RM-PVC-001"),
+                PartNo = "RM-PVC-001",
+                BatchNumber = "BATCH-2026-05-A12",
+                LotNumber = "LOT-001",
+                ReceivedDate = refDate.AddDays(-1),
+                SupplierName = "Avery Dennison VN",
+                Quantity = 250.5,
+                UomQty = "kg",
+                InspectorId = "qc",
+                SampleSize = 10,
+                Result = QcResult.Pending,
+                Details =
+                {
+                    new IqcResultDetail { ItemName = "Visual",   Pass = true,  Qty = 10 },
+                    new IqcResultDetail { ItemName = "Width",    MeasuredValue = "300mm", Pass = true, Qty = 10 },
+                    new IqcResultDetail { ItemName = "Adhesion", Pass = true,  Qty = 10 },
+                }
+            },
+            // 2 Pass — đã approved
+            new IqcInspection
+            {
+                RawMaterialId = await ResolveAsync("RM-INK-002"),
+                PartNo = "RM-INK-002",
+                BatchNumber = "INK-2026-05-007",
+                ReceivedDate = refDate.AddDays(-3),
+                SupplierName = "Toyo Ink VN",
+                Quantity = 50,
+                UomQty = "L",
+                InspectorId = "qc",
+                SampleSize = 5,
+                Result = QcResult.Pass,
+                ApprovedBy = "qc",
+                ApprovedAt = refDate.AddDays(-2),
+                Details =
+                {
+                    new IqcResultDetail { ItemName = "Viscosity", MeasuredValue = "120 cps", Pass = true, Qty = 5 },
+                    new IqcResultDetail { ItemName = "Color",     MeasuredValue = "Pantone 285C", Pass = true, Qty = 5 },
+                }
+            },
+            // 3 Fail — out-of-spec, operator quarantine ngoài app
+            new IqcInspection
+            {
+                RawMaterialId = await ResolveAsync("RM-CORE-003"),
+                PartNo = "RM-CORE-003",
+                BatchNumber = "CORE-2026-04-099",
+                ReceivedDate = refDate.AddDays(-7),
+                SupplierName = "Vietnam Paper Tube Co.",
+                Quantity = 100,
+                UomQty = "pcs",
+                InspectorId = "qc",
+                SampleSize = 20,
+                Result = QcResult.Fail,
+                ApprovedBy = "qc",
+                ApprovedAt = refDate.AddDays(-6),
+                Details =
+                {
+                    new IqcResultDetail { ItemName = "Outer Diameter", MeasuredValue = "76.5mm", Pass = false, DefectCode = "DIM-OOT", Qty = 3 },
+                    new IqcResultDetail { ItemName = "Wall Thickness", MeasuredValue = "3.2mm", Pass = true, Qty = 20 },
+                }
+            },
+        };
+        db.IqcInspections.AddRange(seed);
         await db.SaveChangesAsync();
     }
 }

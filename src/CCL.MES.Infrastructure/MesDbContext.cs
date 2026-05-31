@@ -28,6 +28,9 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<ManufacturingStructure> ManufacturingStructures => Set<ManufacturingStructure>();
     public DbSet<User> Users => Set<User>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    // Phase 6 Bước 7 — IQC entity + result detail (xem Iqc.cs).
+    public DbSet<IqcInspection> IqcInspections => Set<IqcInspection>();
+    public DbSet<IqcResultDetail> IqcResultDetails => Set<IqcResultDetail>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -64,6 +67,15 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<AuditLog>().HasIndex(x => x.Timestamp);
         b.Entity<AuditLog>().HasIndex(x => x.ActorUsername);
         b.Entity<AuditLog>().HasIndex(x => x.Action);
+
+        // Phase 6 Bước 7 — IqcInspection enum-as-string + lookup indexes.
+        // Hybrid FK: RawMaterialId nullable; PartNo text snapshot bắt buộc.
+        // Index theo PartNo + BatchNumber là pattern operator tra cứu phổ
+        // biến nhất; ReceivedDate phục vụ sort DESC mặc định trên grid.
+        b.Entity<IqcInspection>().Property(x => x.Result).HasConversion<string>();
+        b.Entity<IqcInspection>().HasIndex(x => x.PartNo);
+        b.Entity<IqcInspection>().HasIndex(x => x.BatchNumber);
+        b.Entity<IqcInspection>().HasIndex(x => x.ReceivedDate);
 
         // Tính toán read-only -> không map vào DB
         b.Entity<WorkOrder>().Ignore("LastQc");
