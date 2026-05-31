@@ -25,6 +25,19 @@ python3 tools/oee_from_csv.py my_log.csv --ideal-cycle 0.4 --json
 
 CSV cần cột: `machine,event,start,end,good,reject` (event = Run/Stop/Setup/Idle).
 
+### 3b. `import_npi.py` — Nạp dữ liệu NPI vào DB (WorkCenter / RawMaterials / Routing / Structure)
+Nạp 4 bảng dữ liệu lớn từ folder `Data` vào SQLite để hiển thị trên các tab **NPI Data**:
+WorkCenters (suy ra từ Routing), RawMaterials (xlsx), RoutingOperations (csv), ManufacturingStructures (csv).
+
+```bash
+# Thứ tự: xóa db cũ -> chạy app 1 lần (EF tạo bảng) -> Ctrl+C -> chạy lệnh dưới -> chạy lại app
+bash load-npi-data.sh "/đường/dẫn/Data"
+# hoặc gọi trực tiếp:
+python3 tools/import_npi.py --data "/đường/dẫn/Data" --db src/CCL.MES.Web/ccl_mes.db
+```
+
+Đã kiểm thử với dữ liệu thật (Phase 1, 2026-05-31): WorkCenters 43 · RawMaterials 2,127 · RoutingOperations 38,441 · ManufacturingStructures 20,530. Script idempotent (DELETE + INSERT trong 1 transaction), in BEFORE/AFTER count, đếm skipped/failed riêng. Re-run nhiều lần sẽ về cùng end state; nếu bất kỳ batch nào lỗi, toàn bộ transaction rollback và DB không đổi.
+
 ### 3. `seed_from_excel.py` — Nạp master data từ Excel/CSV vào DB
 ETL đơn giản: đọc Excel/CSV chứa Customer/Product/Spec rồi UPSERT vào SQLite `ccl_mes.db` (DB do EF Core tạo). Tiện khi cần khởi tạo nhanh dữ liệu thật thay vì gõ tay.
 
