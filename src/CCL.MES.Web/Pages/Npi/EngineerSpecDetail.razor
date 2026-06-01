@@ -35,6 +35,7 @@
 @using CCL.MES.Domain.Entities
 @inject SpecService SpecSvc
 @inject SpecQcWindowService QcWindowSvc
+@inject SpecQcCaptureService QcCaptureSvc
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> Loc
@@ -512,6 +513,268 @@
                     }
                 </div>
             }
+            else if (_activeTab == "qc-capture")
+            {
+                @* ── Phase 8 PR-D-4 — QC Capture tab. Mirrors QC Plans 4-stage
+                     structure but shows latest capture pill + Capture button
+                     per criterion. Capture button opens a single-column modal
+                     (PASS/FAIL/N-A result + measurement + conditional NG
+                     reason + optional comment). Lazy-loads plans + captures +
+                     reason codes on first switch to the tab.
+
+                     RBAC: View = route NpiSpecRead policy (Admin/Supervisor/
+                     Engineer). Edit = Admin/Engineer enforced both client
+                     (AuthorizeView) + server (SpecQcCaptureService role
+                     check). Hotfix #27: render from entity + try-catch +
+                     inline error banner. *@
+                <div class="spec-qccapture-area">
+                    <p class="spec-qccapture-intro">@Loc["npi.spec.detail.qccapture.intro"]</p>
+
+                    @if (_qcCapturesLoading || _qcPlansLoading)
+                    {
+                        <div class="spec-qcplans-state">@Loc["common.loading"]</div>
+                    }
+                    else if (_qcCapturesError is not null)
+                    {
+                        <div class="alert err spec-qcplans-error" role="alert">
+                            <strong>@Loc["npi.spec.detail.qccapture.load_err"]</strong>
+                            <pre>@_qcCapturesError</pre>
+                        </div>
+                    }
+                    else if (_qcPlansError is not null)
+                    {
+                        <div class="alert err spec-qcplans-error" role="alert">
+                            <strong>@Loc["npi.spec.detail.qcplans.load_err"]</strong>
+                            <pre>@_qcPlansError</pre>
+                        </div>
+                    }
+                    else if (_qcStageDefs.All(s => _qcDraft[s.Stage].Count == 0))
+                    {
+                        <div class="spec-qcplans-empty">@Loc["npi.spec.detail.qccapture.empty_plans"]</div>
+                    }
+                    else
+                    {
+                        @foreach (var stageDef in _qcStageDefs)
+                        {
+                            var rows = _qcDraft[stageDef.Stage];
+
+                            <section class="spec-qcplans-stage">
+                                <header class="spec-qcplans-stage-head">
+                                    <div class="spec-qcplans-stage-title">
+                                        <h3>@Loc[stageDef.LabelKey]</h3>
+                                        <p class="spec-qcplans-stage-desc">@Loc[stageDef.DescKey]</p>
+                                    </div>
+                                </header>
+
+                                @if (rows.Count == 0)
+                                {
+                                    <div class="spec-qcplans-empty">@Loc["npi.spec.detail.qccapture.stage.empty"]</div>
+                                }
+                                else
+                                {
+                                    <div class="spec-qcplans-table-wrap">
+                                        <table class="spec-qcplans-table spec-qccapture-table">
+                                            <thead>
+                                                <tr>
+                                                    <th class="col-criterion">@Loc["npi.spec.detail.qccapture.col.criterion"]</th>
+                                                    <th class="col-target">@Loc["npi.spec.detail.qccapture.col.target"]</th>
+                                                    <th class="col-latest">@Loc["npi.spec.detail.qccapture.col.latest"]</th>
+                                                    <th class="col-captured-by">@Loc["npi.spec.detail.qccapture.col.captured_by"]</th>
+                                                    <AuthorizeView Roles="Admin,Engineer">
+                                                        <Authorized>
+                                                            <th class="col-action" aria-label="@Loc["npi.spec.detail.qccapture.col.action"]"></th>
+                                                        </Authorized>
+                                                    </AuthorizeView>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var row in rows)
+                                                {
+                                                    var critId = row.Id;
+                                                    var latest = critId.HasValue ? GetLatestCapture(stageDef.Stage, critId.Value) : null;
+                                                    <tr>
+                                                        <td class="col-criterion">
+                                                            <span class="spec-qcplans-readcell">@OrDash(row.Name)</span>
+                                                        </td>
+                                                        <td class="col-target">
+                                                            <span class="spec-qcplans-readcell">@OrDash(row.Target)</span>
+                                                        </td>
+                                                        <td class="col-latest">
+                                                            @if (latest is null)
+                                                            {
+                                                                <span class="spec-qccapture-pill spec-qccapture-pill-none">@Loc["npi.spec.detail.qccapture.pill.none"]</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="spec-qccapture-pill @CapturePillClass(latest.Result)">@CapturePillLabel(latest.Result)</span>
+                                                                @if (!string.IsNullOrWhiteSpace(latest.Measurement))
+                                                                {
+                                                                    <div class="spec-qccapture-pill-sub">@latest.Measurement</div>
+                                                                }
+                                                                @if (!string.IsNullOrWhiteSpace(latest.NgReasonCode))
+                                                                {
+                                                                    <div class="spec-qccapture-pill-reason">@latest.NgReasonCode</div>
+                                                                }
+                                                            }
+                                                        </td>
+                                                        <td class="col-captured-by">
+                                                            @if (latest is null)
+                                                            {
+                                                                <span class="muted">—</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <div>@latest.CapturedBy</div>
+                                                                <div class="spec-qccapture-time">@latest.CapturedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                                                            }
+                                                        </td>
+                                                        <AuthorizeView Roles="Admin,Engineer">
+                                                            <Authorized>
+                                                                <td class="col-action">
+                                                                    @if (critId.HasValue)
+                                                                    {
+                                                                        <button type="button"
+                                                                                class="rt-btn rt-btn-primary spec-qccapture-btn"
+                                                                                @onclick="@(() => OpenCaptureModal(stageDef.Stage, row))">
+                                                                            @Loc["npi.spec.detail.qccapture.btn_capture"]
+                                                                        </button>
+                                                                    }
+                                                                </td>
+                                                            </Authorized>
+                                                        </AuthorizeView>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                            </section>
+                        }
+                    }
+                </div>
+
+                @* ── Capture modal — only renders when a row is picked. ───── *@
+                @if (_captureModalOpen && _captureModalCriterion is not null)
+                {
+                    <div class="modal-scrim" @onclick="CloseCaptureModal">
+                        <div class="modal-card spec-qccapture-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+                            <div class="modal-head">
+                                <h2>@Loc["npi.spec.detail.qccapture.modal.title"]</h2>
+                                <button type="button" class="modal-close" @onclick="CloseCaptureModal" aria-label="Close" disabled="@_captureModalBusy">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="spec-qccapture-modal-subtitle">
+                                    @string.Format(
+                                        Loc["npi.spec.detail.qccapture.modal.subtitle"].Value,
+                                        Loc[_captureModalStageLabelKey ?? ""].Value,
+                                        _captureModalCriterion.Name)
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(_captureModalCriterion.Target))
+                                {
+                                    <div class="spec-qccapture-modal-meta">
+                                        <span class="spec-qccapture-modal-meta-label">@Loc["npi.spec.detail.qccapture.modal.label_target"]:</span>
+                                        <span>@_captureModalCriterion.Target</span>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(_captureModalCriterion.Tolerance))
+                                {
+                                    <div class="spec-qccapture-modal-meta">
+                                        <span class="spec-qccapture-modal-meta-label">@Loc["npi.spec.detail.qccapture.modal.label_tolerance"]:</span>
+                                        <span>@_captureModalCriterion.Tolerance</span>
+                                    </div>
+                                }
+
+                                <div class="spec-qccapture-modal-section">
+                                    <label class="spec-qccapture-modal-label">@Loc["npi.spec.detail.qccapture.modal.label_result"]</label>
+                                    <div class="spec-qccapture-modal-result-row" role="radiogroup">
+                                        <button type="button"
+                                                class="spec-qccapture-result-btn pass @(_captureResult == QcCaptureResult.Pass ? "active" : "")"
+                                                disabled="@_captureModalBusy"
+                                                role="radio"
+                                                aria-checked="@(_captureResult == QcCaptureResult.Pass)"
+                                                @onclick="@(() => SetCaptureResult(QcCaptureResult.Pass))">
+                                            @Loc["npi.spec.detail.qccapture.pill.pass"]
+                                        </button>
+                                        <button type="button"
+                                                class="spec-qccapture-result-btn fail @(_captureResult == QcCaptureResult.Fail ? "active" : "")"
+                                                disabled="@_captureModalBusy"
+                                                role="radio"
+                                                aria-checked="@(_captureResult == QcCaptureResult.Fail)"
+                                                @onclick="@(() => SetCaptureResult(QcCaptureResult.Fail))">
+                                            @Loc["npi.spec.detail.qccapture.pill.fail"]
+                                        </button>
+                                        <button type="button"
+                                                class="spec-qccapture-result-btn na @(_captureResult == QcCaptureResult.Na ? "active" : "")"
+                                                disabled="@_captureModalBusy"
+                                                role="radio"
+                                                aria-checked="@(_captureResult == QcCaptureResult.Na)"
+                                                @onclick="@(() => SetCaptureResult(QcCaptureResult.Na))">
+                                            @Loc["npi.spec.detail.qccapture.pill.na"]
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="spec-qccapture-modal-section">
+                                    <label class="spec-qccapture-modal-label" for="capture-measurement">@Loc["npi.spec.detail.qccapture.modal.label_measurement"]</label>
+                                    <input id="capture-measurement"
+                                           type="text"
+                                           class="spec-qcplans-input"
+                                           maxlength="200"
+                                           placeholder="@Loc["npi.spec.detail.qccapture.modal.ph_measurement"]"
+                                           disabled="@_captureModalBusy"
+                                           value="@_captureMeasurement"
+                                           @oninput="@(e => _captureMeasurement = e.Value?.ToString())" />
+                                </div>
+
+                                @if (_captureResult == QcCaptureResult.Fail)
+                                {
+                                    <div class="spec-qccapture-modal-section">
+                                        <label class="spec-qccapture-modal-label" for="capture-reason">@Loc["npi.spec.detail.qccapture.modal.label_reason"] <span class="required">*</span></label>
+                                        <select id="capture-reason"
+                                                class="spec-qcplans-input"
+                                                disabled="@_captureModalBusy"
+                                                value="@_captureReasonCode"
+                                                @onchange="@(e => _captureReasonCode = e.Value?.ToString())">
+                                            <option value="">@Loc["npi.spec.detail.qccapture.modal.ph_reason"]</option>
+                                            @foreach (var rc in _reasonCodes.Where(r => r.Kind == ReasonCodeKind.Scrap))
+                                            {
+                                                <option value="@rc.Code">@rc.Code — @LabelForReasonCode(rc)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                }
+
+                                <div class="spec-qccapture-modal-section">
+                                    <label class="spec-qccapture-modal-label" for="capture-comment">@Loc["npi.spec.detail.qccapture.modal.label_comment"]</label>
+                                    <textarea id="capture-comment"
+                                              class="spec-qcplans-input spec-qccapture-textarea"
+                                              rows="3"
+                                              maxlength="500"
+                                              placeholder="@Loc["npi.spec.detail.qccapture.modal.ph_comment"]"
+                                              disabled="@_captureModalBusy"
+                                              @oninput="@(e => _captureComment = e.Value?.ToString())">@_captureComment</textarea>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(_captureModalError))
+                                {
+                                    <div class="alert err" role="alert">@_captureModalError</div>
+                                }
+                            </div>
+                            <div class="modal-foot">
+                                <button type="button" class="btn" @onclick="CloseCaptureModal" disabled="@_captureModalBusy">@Loc["npi.spec.detail.qccapture.modal.btn_cancel"]</button>
+                                <button type="button" class="rt-btn rt-btn-primary"
+                                        disabled="@(_captureResult == null || _captureModalBusy)"
+                                        @onclick="SubmitCaptureAsync">
+                                    @(_captureModalBusy
+                                        ? Loc["npi.spec.detail.qccapture.modal.btn_saving"]
+                                        : Loc["npi.spec.detail.qccapture.modal.btn_save"])
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
             else
             {
                 <div class="spec-detail-coming-soon">
@@ -876,6 +1139,13 @@
         _qcSaving.Clear();
         _qcSaveMessages.Clear();
         _qcSaveErrors.Clear();
+        // PR-D-4 — reset QC capture state on revision change.
+        _qcCapturesLoaded = false;
+        _qcCapturesError = null;
+        _qcLatestByCriterion.Clear();
+        _captureModalOpen = false;
+        _captureModalCriterion = null;
+        _captureModalError = null;
         try
         {
             _detail = await SpecSvc.SpecDetailAsync(RevisionId);
@@ -902,6 +1172,170 @@
         if (key == "qc-plans")
         {
             await EnsureQcPlansLoadedAsync();
+        }
+        // PR-D-4 — QC Capture needs plans (criteria list) + captures (latest pill)
+        // + reason codes (modal dropdown). Plans-load is shared with PR-D-3.
+        if (key == "qc-capture")
+        {
+            await EnsureQcPlansLoadedAsync();
+            await EnsureQcCapturesLoadedAsync();
+        }
+    }
+
+    // ── Phase 8 PR-D-4 — QC Capture tab state ─────────────────────────────
+
+    private bool _qcCapturesLoaded;
+    private bool _qcCapturesLoading;
+    private string? _qcCapturesError;
+    /// <summary>Latest capture per (Stage, CriterionId). Indexed by criterion Id only
+    /// since each criterion's window already encodes the stage.</summary>
+    private Dictionary<long, SpecQcCapture> _qcLatestByCriterion = new();
+    private List<ReasonCode> _reasonCodes = new();
+
+    // Modal state
+    private bool _captureModalOpen;
+    private QcStage _captureModalStage;
+    private string? _captureModalStageLabelKey;
+    private QcRowEdit? _captureModalCriterion;
+    private QcCaptureResult? _captureResult;
+    private string? _captureMeasurement;
+    private string? _captureReasonCode;
+    private string? _captureComment;
+    private bool _captureModalBusy;
+    private string? _captureModalError;
+
+    private async Task EnsureQcCapturesLoadedAsync()
+    {
+        if (_qcCapturesLoaded || _qcCapturesLoading || _detail is null) return;
+        _qcCapturesLoading = true;
+        _qcCapturesError = null;
+        try
+        {
+            // Captures ordered ASC — last entry per criterion is latest.
+            var captures = await QcCaptureSvc.ListByRevisionAsync(_detail.Id);
+            var latest = new Dictionary<long, SpecQcCapture>();
+            foreach (var cap in captures)
+            {
+                latest[cap.QcCriterionId] = cap;
+            }
+            _qcLatestByCriterion = latest;
+
+            if (_reasonCodes.Count == 0)
+            {
+                _reasonCodes = await QcCaptureSvc.ListReasonCodesAsync();
+            }
+            _qcCapturesLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            _qcCapturesError = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _qcCapturesLoading = false;
+        }
+    }
+
+    private SpecQcCapture? GetLatestCapture(QcStage _, long criterionId)
+        => _qcLatestByCriterion.TryGetValue(criterionId, out var cap) ? cap : null;
+
+    private static string CapturePillClass(QcCaptureResult r) => r switch
+    {
+        QcCaptureResult.Pass => "pass",
+        QcCaptureResult.Fail => "fail",
+        QcCaptureResult.Na   => "na",
+        _                    => "none",
+    };
+
+    private string CapturePillLabel(QcCaptureResult r) => r switch
+    {
+        QcCaptureResult.Pass => Loc["npi.spec.detail.qccapture.pill.pass"].Value,
+        QcCaptureResult.Fail => Loc["npi.spec.detail.qccapture.pill.fail"].Value,
+        QcCaptureResult.Na   => Loc["npi.spec.detail.qccapture.pill.na"].Value,
+        _                    => Loc["npi.spec.detail.qccapture.pill.none"].Value,
+    };
+
+    private string LabelForReasonCode(ReasonCode rc)
+    {
+        var culture = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        return culture == "vi" ? rc.LabelVi : rc.LabelEn;
+    }
+
+    private void OpenCaptureModal(QcStage stage, QcRowEdit row)
+    {
+        if (row.Id is null) return;
+        _captureModalStage = stage;
+        _captureModalStageLabelKey = _qcStageDefs.FirstOrDefault(s => s.Stage == stage)?.LabelKey;
+        _captureModalCriterion = row;
+        _captureResult = null;
+        _captureMeasurement = null;
+        _captureReasonCode = null;
+        _captureComment = null;
+        _captureModalError = null;
+        _captureModalBusy = false;
+        _captureModalOpen = true;
+    }
+
+    private void CloseCaptureModal()
+    {
+        if (_captureModalBusy) return;
+        _captureModalOpen = false;
+        _captureModalCriterion = null;
+        _captureModalError = null;
+    }
+
+    private void SetCaptureResult(QcCaptureResult result)
+    {
+        _captureResult = result;
+        _captureModalError = null;
+        // When operator flips away from FAIL, clear stale reason code so a re-submit doesn't carry it.
+        if (result != QcCaptureResult.Fail) _captureReasonCode = null;
+    }
+
+    private async Task SubmitCaptureAsync()
+    {
+        if (_captureModalBusy || _captureModalCriterion is null || _captureModalCriterion.Id is null) return;
+        if (_captureResult is null)
+        {
+            _captureModalError = Loc["npi.spec.detail.qccapture.modal.err_result_required"].Value;
+            return;
+        }
+        if (_captureResult == QcCaptureResult.Fail && string.IsNullOrWhiteSpace(_captureReasonCode))
+        {
+            _captureModalError = Loc["npi.spec.detail.qccapture.modal.err_reason_required"].Value;
+            return;
+        }
+
+        _captureModalBusy = true;
+        _captureModalError = null;
+        try
+        {
+            var auth = await AuthState.GetAuthenticationStateAsync();
+            var user = auth.User?.Identity?.Name ?? "anonymous";
+            var role = ResolveRole(auth);
+            var request = new QcCaptureRequest(
+                _captureModalCriterion.Id.Value,
+                _captureResult.Value,
+                _captureMeasurement,
+                _captureReasonCode,
+                _captureComment);
+            var saved = await QcCaptureSvc.CaptureAsync(_detail!.Id, request, user, role);
+            // Update latest-by-criterion in place — no full reload needed.
+            _qcLatestByCriterion[saved.QcCriterionId] = saved;
+            _captureModalOpen = false;
+            _captureModalCriterion = null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _captureModalError = Loc["npi.spec.detail.qccapture.forbidden"].Value;
+        }
+        catch (Exception ex)
+        {
+            _captureModalError = ex.Message;
+        }
+        finally
+        {
+            _captureModalBusy = false;
         }
     }
 

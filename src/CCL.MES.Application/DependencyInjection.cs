@@ -10,6 +10,7 @@ public static class DependencyInjection
         services.AddScoped<WorkOrderService>();
         services.AddScoped<SpecService>();
         services.AddScoped<SpecQcWindowService>();
+        services.AddScoped<SpecQcCaptureService>();
         services.AddScoped<QcService>();
         services.AddScoped<OeeService>();
         services.AddScoped<WiService>();

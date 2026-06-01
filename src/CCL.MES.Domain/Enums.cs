@@ -54,3 +54,11 @@ public enum QcCriterionType { Visual, Dimensional, Colorimetric, Functional, Cou
 
 public enum ProcessCategory { Print, Cut, Finishing }
 public enum ProcessCatalogStatus { Active, Deprecated }
+
+// ── Phase 8 PR-D-4 — QC Capture (NPI spec-level inspection result + lookup) ──
+
+/// <summary>Operator-recorded result per QcCriterion capture event.</summary>
+public enum QcCaptureResult { Pass, Fail, Na }
+
+/// <summary>Bucket for ReasonCode lookup — Pause = downtime cause, Scrap = NG cause.</summary>
+public enum ReasonCodeKind { Pause, Scrap }

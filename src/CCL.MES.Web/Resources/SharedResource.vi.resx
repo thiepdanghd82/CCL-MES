@@ -844,4 +844,38 @@
   <data name="npi.spec.detail.qcplans.save_ok" xml:space="preserve"><value>Đã lưu kế hoạch QC.</value></data>
   <data name="npi.spec.detail.qcplans.forbidden" xml:space="preserve"><value>Chỉ Admin hoặc Engineer mới được chỉnh sửa kế hoạch QC.</value></data>
   <data name="npi.spec.detail.qcplans.load_err" xml:space="preserve"><value>Không tải được kế hoạch QC</value></data>
+  <!-- Phase 8 PR-D-4 — Tab Ghi nhận QC. Mirror 4 giai đoạn của Kế hoạch QC + pill kết quả gần nhất + Modal Capture. -->
+  <data name="npi.spec.detail.qccapture.intro" xml:space="preserve"><value>Ghi nhận kết quả kiểm tra theo các tiêu chí Kế hoạch QC. Mỗi lần capture là một dòng append-only — lịch sử được lưu lại.</value></data>
+  <data name="npi.spec.detail.qccapture.empty_plans" xml:space="preserve"><value>— Chưa có tiêu chí nào. Vào tab Kế hoạch QC để thêm.</value></data>
+  <data name="npi.spec.detail.qccapture.stage.empty" xml:space="preserve"><value>— Chưa có tiêu chí cho công đoạn này.</value></data>
+  <data name="npi.spec.detail.qccapture.col.criterion" xml:space="preserve"><value>Tiêu chí</value></data>
+  <data name="npi.spec.detail.qccapture.col.target" xml:space="preserve"><value>Mục tiêu</value></data>
+  <data name="npi.spec.detail.qccapture.col.latest" xml:space="preserve"><value>Kết quả gần nhất</value></data>
+  <data name="npi.spec.detail.qccapture.col.captured_by" xml:space="preserve"><value>Người ghi nhận</value></data>
+  <data name="npi.spec.detail.qccapture.col.action" xml:space="preserve"><value>Hành động</value></data>
+  <data name="npi.spec.detail.qccapture.btn_capture" xml:space="preserve"><value>Ghi nhận</value></data>
+  <data name="npi.spec.detail.qccapture.pill.pass" xml:space="preserve"><value>ĐẠT</value></data>
+  <data name="npi.spec.detail.qccapture.pill.fail" xml:space="preserve"><value>HỎNG</value></data>
+  <data name="npi.spec.detail.qccapture.pill.na" xml:space="preserve"><value>K/A</value></data>
+  <data name="npi.spec.detail.qccapture.pill.none" xml:space="preserve"><value>—</value></data>
+  <data name="npi.spec.detail.qccapture.load_err" xml:space="preserve"><value>Không tải được dữ liệu ghi nhận QC</value></data>
+  <data name="npi.spec.detail.qccapture.forbidden" xml:space="preserve"><value>Chỉ Admin hoặc Engineer mới được ghi nhận kết quả QC.</value></data>
+  <!-- Modal Capture. -->
+  <data name="npi.spec.detail.qccapture.modal.title" xml:space="preserve"><value>Ghi nhận kết quả QC</value></data>
+  <data name="npi.spec.detail.qccapture.modal.subtitle" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_target" xml:space="preserve"><value>Mục tiêu</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_tolerance" xml:space="preserve"><value>Dung sai</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_result" xml:space="preserve"><value>Kết quả</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_measurement" xml:space="preserve"><value>Số đo</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_reason" xml:space="preserve"><value>Mã lý do HỎNG</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_comment" xml:space="preserve"><value>Ghi chú</value></data>
+  <data name="npi.spec.detail.qccapture.modal.ph_measurement" xml:space="preserve"><value>vd. 0,05 mm; Pantone 285C</value></data>
+  <data name="npi.spec.detail.qccapture.modal.ph_reason" xml:space="preserve"><value>— chọn lý do —</value></data>
+  <data name="npi.spec.detail.qccapture.modal.ph_comment" xml:space="preserve"><value>Tuỳ chọn (tối đa 500 ký tự)</value></data>
+  <data name="npi.spec.detail.qccapture.modal.btn_cancel" xml:space="preserve"><value>Huỷ</value></data>
+  <data name="npi.spec.detail.qccapture.modal.btn_save" xml:space="preserve"><value>Ghi nhận</value></data>
+  <data name="npi.spec.detail.qccapture.modal.btn_saving" xml:space="preserve"><value>Đang lưu…</value></data>
+  <data name="npi.spec.detail.qccapture.modal.err_reason_required" xml:space="preserve"><value>Cần chọn mã lý do khi kết quả là HỎNG.</value></data>
+  <data name="npi.spec.detail.qccapture.modal.err_result_required" xml:space="preserve"><value>Hãy chọn kết quả trước.</value></data>
+  <data name="npi.spec.detail.qccapture.modal.save_ok" xml:space="preserve"><value>Đã ghi nhận.</value></data>
 </root>
