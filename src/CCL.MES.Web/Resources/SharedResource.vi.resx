@@ -736,4 +736,17 @@
   <data name="npi.spec.backfill_detail_confirm" xml:space="preserve"><value>Backfill 4 field detail-sheet (ProductSize W/H + Print/Cut remarks) từ sample bundled? IN-PLACE update trên revision tồn tại match RefNo — KHÔNG tạo revision mới. Bỏ qua field đã populated.</value></data>
   <data name="npi.spec.backfill_detail_result" xml:space="preserve"><value>Backfill: {0} revision updated · {1} skipped (already set) · {2} field touched</value></data>
   <data name="npi.spec.backfill_detail_err" xml:space="preserve"><value>Backfill thất bại</value></data>
+
+  <!-- Phase 8 PR-A (showcard parity) — Compact peek modal keys. -->
+  <data name="npi.spec.detail.btn_open_full" xml:space="preserve"><value>Mở spec sheet đầy đủ</value></data>
+  <data name="npi.spec.detail.peek.size" xml:space="preserve"><value>Kích thước SP</value></data>
+  <data name="npi.spec.detail.peek.cavity_pitch" xml:space="preserve"><value>Cavity / Bước nhảy</value></data>
+  <data name="npi.spec.detail.peek.substrate" xml:space="preserve"><value>Nguyên liệu</value></data>
+  <data name="npi.spec.detail.peek.colors" xml:space="preserve"><value>Số màu in</value></data>
+  <data name="npi.spec.detail.peek.flexo_rows" xml:space="preserve"><value>Flexo rows</value></data>
+  <data name="npi.spec.detail.peek.silk_colors" xml:space="preserve"><value>Silk Print Process — màu</value></data>
+  <data name="npi.spec.detail.peek.flexo_cut" xml:space="preserve"><value>Flexo Cutting rows</value></data>
+  <data name="npi.spec.detail.peek.flexo_ink" xml:space="preserve"><value>Flexo Ink rows</value></data>
+  <data name="npi.spec.detail.peek.no_print_rows" xml:space="preserve"><value>— Không có print row —</value></data>
+  <data name="npi.spec.detail.peek.audit_stamps" xml:space="preserve"><value>Audit stamps</value></data>
 </root>

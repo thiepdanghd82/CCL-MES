@@ -25,14 +25,34 @@ namespace CCL.MES.Infrastructure.SpecExport;
 /// </summary>
 public static class SpecPdfDocumentBuilder
 {
-    /// <summary>Shared style constants — reuse cho list + detail sheet PR #33.</summary>
+    /// <summary>
+    /// Shared style constants — reuse cho list + detail sheet PR #33.
+    ///
+    /// PR-A (showcard navy theme parity): swap palette từ SpecHub silk red /
+    /// flexo royal-blue sang CCL-MES navy đồng nhất. Hex sources documented
+    /// trong docs/PHASE8-SPEC-SHOWCARD-PLAN.md §4.1:
+    ///   - PrimaryColorHex = #1f3864 (CCL-MES Login + IQC existing, đồng bộ app)
+    ///   - MutedColorHex   = #6B7280 (tailwind gray-500, secondary text)
+    ///   - HeaderBgHex     = #DDE6F3 (SpecHub direct navy-light, section title bar)
+    ///   - BorderColorHex  = #B6C4DD (SpecHub direct navy-border)
+    ///   - AccentColorHex  = #C00000 (user mốc customer red, Customer column highlight)
+    ///   - AltRowBgHex     = #F5F8FC (user mốc navy-tinted alt row)
+    ///   - ColHeaderBgHex  = #F0F2F5 (user mốc gray neutral col header — phân biệt section bar)
+    ///   - ColHeaderTextHex= #6B7280 (tailwind gray-500)
+    /// </summary>
     public static class StyleConstants
     {
-        public const string PrimaryColorHex = "#0033A0";   // CCL brand blue
-        public const string MutedColorHex   = "#6B7280";   // tailwind gray-500
-        public const string HeaderBgHex     = "#E5E7EB";   // tailwind gray-200
-        public const string BorderColorHex  = "#D1D5DB";   // tailwind gray-300
-        public const string AccentColorHex  = "#C8102E";   // CCL accent red (silk planner)
+        public const string PrimaryColorHex   = "#1F3864";   // CCL-MES navy (Login + IQC)
+        public const string MutedColorHex     = "#6B7280";   // tailwind gray-500
+        public const string HeaderBgHex       = "#DDE6F3";   // SpecHub navy-light (section title)
+        public const string BorderColorHex    = "#B6C4DD";   // SpecHub navy-border
+        public const string AccentColorHex    = "#C00000";   // Customer red (user mốc)
+        public const string AltRowBgHex       = "#F5F8FC";   // Navy-tinted alt row (user mốc)
+        public const string ColHeaderBgHex    = "#F0F2F5";   // Gray col header (user mốc)
+        public const string ColHeaderTextHex  = "#6B7280";   // tailwind gray-500
+        public const string NavyDarkHex       = "#1E3A73";   // SpecHub direct, heading text
+        public const string NavyTintHex       = "#E8EEF7";   // SpecHub direct, cert/info bg
+        public const string StampApprovedHex  = "#2E9B57";   // user mốc
 
         public const double TitleFontPt    = 14;
         public const double SubtitleFontPt = 9;
@@ -164,7 +184,7 @@ public static class SpecPdfDocumentBuilder
             }
             // Alternating row shading cho readability
             if (r % 2 == 1)
-                dataRow.Shading.Color = Color.Parse("#F9FAFB");
+                dataRow.Shading.Color = Color.Parse(StyleConstants.AltRowBgHex);
         }
 
         return doc;
@@ -238,7 +258,8 @@ public static class SpecPdfDocumentBuilder
         t.Borders.Color = Color.Parse(StyleConstants.BorderColorHex);
         t.Borders.Width = 0;
         t.Borders.Bottom.Width = 1.5;
-        t.Borders.Bottom.Color = Color.Parse("#1F2937");
+        // PR-A: navy header band bottom border (đồng nhất app theme)
+        t.Borders.Bottom.Color = Color.Parse(StyleConstants.PrimaryColorHex);
         t.AddColumn(Unit.FromCentimeter(6));
         t.AddColumn(Unit.FromCentimeter(7));
         t.AddColumn(Unit.FromCentimeter(5));
@@ -255,7 +276,8 @@ public static class SpecPdfDocumentBuilder
         pCenter.Format.Alignment = ParagraphAlignment.Center;
         pCenter.Format.Font.Size = 16;
         pCenter.Format.Font.Bold = true;
-        pCenter.Format.Font.Color = Color.Parse(d.IsFlexo ? StyleConstants.PrimaryColorHex : StyleConstants.AccentColorHex);
+        pCenter.Format.Font.Color = // PR-A: unified navy — silk + flexo cùng PrimaryColorHex (KHÔNG còn AccentColorHex split silk-red)
+            Color.Parse(StyleConstants.PrimaryColorHex);
         var pSub = row.Cells[1].AddParagraph(d.IsFlexo
             ? "Thông số kỹ thuật sản phẩm tiêu chuẩn In Nhãn Flexo"
             : "Thông số kỹ thuật sản phẩm tiêu chuẩn In Lụa");
@@ -267,7 +289,8 @@ public static class SpecPdfDocumentBuilder
         pRef.Format.Alignment = ParagraphAlignment.Right;
         pRef.Format.Font.Size = 9;
         pRef.Format.Font.Bold = true;
-        pRef.Format.Font.Color = Color.Parse(d.IsFlexo ? StyleConstants.PrimaryColorHex : StyleConstants.AccentColorHex);
+        pRef.Format.Font.Color = // PR-A: unified navy — silk + flexo cùng PrimaryColorHex (KHÔNG còn AccentColorHex split silk-red)
+            Color.Parse(StyleConstants.PrimaryColorHex);
         var pStamp = row.Cells[2].AddParagraph($"Inspection: {d.InspectionLevel ?? "—"}  [{d.StatusDisplay}]");
         pStamp.Format.Alignment = ParagraphAlignment.Right;
         pStamp.Format.Font.Size = 8;

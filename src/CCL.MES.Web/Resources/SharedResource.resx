@@ -738,4 +738,17 @@
   <data name="npi.spec.backfill_detail_confirm" xml:space="preserve"><value>Backfill 4 detail-sheet fields (ProductSize W/H + Print/Cut remarks) from bundled samples? IN-PLACE update on existing revisions matching RefNo — NO new revisions created. Skips field if already populated.</value></data>
   <data name="npi.spec.backfill_detail_result" xml:space="preserve"><value>Backfill: {0} revisions updated · {1} skipped (already set) · {2} fields touched</value></data>
   <data name="npi.spec.backfill_detail_err" xml:space="preserve"><value>Backfill failed</value></data>
+
+  <!-- Phase 8 PR-A (showcard parity) — Compact peek modal keys. -->
+  <data name="npi.spec.detail.btn_open_full" xml:space="preserve"><value>Open full spec sheet</value></data>
+  <data name="npi.spec.detail.peek.size" xml:space="preserve"><value>Product size</value></data>
+  <data name="npi.spec.detail.peek.cavity_pitch" xml:space="preserve"><value>Cavity / Pitch</value></data>
+  <data name="npi.spec.detail.peek.substrate" xml:space="preserve"><value>Substrate</value></data>
+  <data name="npi.spec.detail.peek.colors" xml:space="preserve"><value>Print colors</value></data>
+  <data name="npi.spec.detail.peek.flexo_rows" xml:space="preserve"><value>Flexo rows</value></data>
+  <data name="npi.spec.detail.peek.silk_colors" xml:space="preserve"><value>Silk Print Process colors</value></data>
+  <data name="npi.spec.detail.peek.flexo_cut" xml:space="preserve"><value>Flexo Cutting rows</value></data>
+  <data name="npi.spec.detail.peek.flexo_ink" xml:space="preserve"><value>Flexo Ink rows</value></data>
+  <data name="npi.spec.detail.peek.no_print_rows" xml:space="preserve"><value>— No print rows recorded —</value></data>
+  <data name="npi.spec.detail.peek.audit_stamps" xml:space="preserve"><value>Audit stamps</value></data>
 </root>
