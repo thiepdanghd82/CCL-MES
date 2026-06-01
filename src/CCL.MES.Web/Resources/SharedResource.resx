@@ -756,4 +756,27 @@
   <data name="npi.spec.showcard.generic_subtitle" xml:space="preserve"><value>Production spec sheet · Generic preview</value></data>
   <data name="npi.spec.showcard.generic_no_data" xml:space="preserve"><value>— No print / cut / ink rows recorded yet —</value></data>
   <data name="npi.spec.showcard.peek.data_rows" xml:space="preserve"><value>Captured rows</value></data>
+
+  <!-- Phase 8 follow-up — Engineer Spec detail chrome (CMES parity port). -->
+  <data name="npi.spec.detail.version_label" xml:space="preserve"><value>· _version</value></data>
+  <data name="npi.spec.detail.tab.spec" xml:space="preserve"><value>Specification</value></data>
+  <data name="npi.spec.detail.tab.drawings" xml:space="preserve"><value>Drawings</value></data>
+  <data name="npi.spec.detail.tab.qc-plans" xml:space="preserve"><value>QC Plans</value></data>
+  <data name="npi.spec.detail.tab.qc-capture" xml:space="preserve"><value>QC Capture</value></data>
+  <data name="npi.spec.detail.tab.artwork" xml:space="preserve"><value>Artwork</value></data>
+  <data name="npi.spec.detail.tab.setup" xml:space="preserve"><value>Setup</value></data>
+  <data name="npi.spec.detail.action.history" xml:space="preserve"><value>History</value></data>
+  <data name="npi.spec.detail.action.export" xml:space="preserve"><value>Export</value></data>
+  <data name="npi.spec.detail.action.copy" xml:space="preserve"><value>Copy</value></data>
+  <data name="npi.spec.detail.action.promote" xml:space="preserve"><value>Promote</value></data>
+  <data name="npi.spec.detail.action.trash" xml:space="preserve"><value>Trash</value></data>
+  <data name="npi.spec.detail.action.edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="npi.spec.detail.action.promote_tooltip" xml:space="preserve"><value>Transition Draft/InReview → Approved</value></data>
+  <data name="npi.spec.detail.action.promote_blocked" xml:space="preserve"><value>Promote is only available for Draft / InReview specs</value></data>
+  <data name="npi.spec.detail.action.promote_ok" xml:space="preserve"><value>✓ Promoted to Approved</value></data>
+  <data name="npi.spec.detail.action.promote_err" xml:space="preserve"><value>Promote failed</value></data>
+  <data name="npi.spec.detail.action.copy_unimpl" xml:space="preserve"><value>Copy ships in a later PR (server CopySpecAsync not yet implemented)</value></data>
+  <data name="npi.spec.detail.action.trash_unimpl" xml:space="preserve"><value>Trash ships in a later PR (server TrashSpecAsync not yet implemented)</value></data>
+  <data name="npi.spec.detail.action.edit_unimpl" xml:space="preserve"><value>Edit modal ships in a later PR (deferred per PR #31a)</value></data>
+  <data name="npi.spec.detail.coming_soon_body" xml:space="preserve"><value>This tab is reserved for a future PR. The backend tables haven't landed on CCL-MES yet — the sibling CMES schema (spec_drawings / spec_qc_plans / spec_qc_captures / spec_artwork) is the porting target.</value></data>
 </root>

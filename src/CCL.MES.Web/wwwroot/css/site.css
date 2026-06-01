@@ -492,6 +492,57 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .spec-detail-deferred h3 { color:#854d0e; }
 .spec-detail-deferred p { color:#854d0e; margin:0; }
 
+/* ─── Phase 8 follow-up — Engineer Spec detail chrome (CMES parity port). */
+.spec-detail-back-row { margin-bottom:8px; }
+.spec-detail-back-link { background:transparent; border:0; color:var(--navy-primary);
+  font-size:13px; cursor:pointer; padding:4px 0; }
+.spec-detail-back-link:hover { text-decoration:underline; }
+
+.spec-detail-header-card { background:#fff; border:1px solid var(--navy-border);
+  border-radius:4px; padding:14px 18px; margin-bottom:10px; }
+.spec-detail-title { margin:0; font-size:22px; font-weight:700; color:var(--navy-dark);
+  letter-spacing:-0.01em; }
+.spec-detail-title .spec-detail-kind { font-size:13px; font-weight:600;
+  color:#6b7280; margin-left:8px; text-transform:uppercase; letter-spacing:0.04em; }
+.spec-detail-meta { margin:6px 0 0; font-size:13px; color:#4b5563; }
+.spec-detail-meta code { font-family:'IBM Plex Mono', ui-monospace, monospace;
+  font-size:12px; color:#1f2937; background:#f3f4f6; padding:1px 4px; border-radius:2px; }
+
+.spec-detail-actions-bar { display:flex; flex-wrap:wrap; align-items:center;
+  gap:8px; padding:8px 12px; background:#fff; border:1px solid var(--navy-border);
+  border-radius:4px; margin-bottom:10px; }
+.spec-action-btn { display:inline-flex; align-items:center; gap:5px;
+  padding:5px 12px; font-size:13px; }
+.spec-action-btn-danger { color:#b91c1c; border-color:#fca5a5; }
+.spec-action-btn-danger:hover:not(:disabled) { background:#fef2f2; }
+.spec-detail-actions-bar .alert.inline { padding:3px 10px; font-size:12px; }
+.alert.ok.inline { background:#d1fae5; color:#065f46; border:1px solid #6ee7b7;
+  border-radius:3px; }
+
+.spec-detail-tabs { display:flex; border-bottom:1px solid var(--navy-border);
+  margin-bottom:0; gap:2px; }
+.spec-detail-tab { background:transparent; border:0; border-bottom:2px solid transparent;
+  padding:8px 16px; font-size:13px; font-weight:500; color:#6b7280; cursor:pointer;
+  margin-bottom:-1px; }
+.spec-detail-tab:hover { color:var(--navy-dark); }
+.spec-detail-tab.active { color:var(--navy-primary); border-bottom-color:var(--navy-primary);
+  font-weight:600; }
+
+.spec-detail-tab-panel { padding-top:14px; }
+.spec-detail-tab-toolbar { margin-bottom:10px; }
+.spec-edit-btn { padding:4px 12px; font-size:13px; }
+
+.spec-detail-coming-soon { background:#fff; border:1px dashed var(--navy-border);
+  border-radius:4px; padding:48px 24px; text-align:center; }
+.spec-detail-coming-soon-icon { font-size:48px; margin-bottom:10px;
+  color:var(--navy-primary); }
+.spec-detail-coming-soon h3 { margin:0 0 8px; font-size:18px; color:var(--navy-dark); }
+.spec-detail-coming-soon p { margin:0; color:#6b7280; font-size:13px;
+  max-width:520px; margin-left:auto; margin-right:auto; line-height:1.5; }
+
+.spec-history-modal { max-width:760px; }
+.spec-history-modal-list { max-height:60vh; overflow-y:auto; }
+
 .spec-detail-audit-list { list-style:none; padding:0; margin:6px 0 0; }
 .spec-detail-audit-list li { padding:4px 0; font-size:12px;
   border-bottom:1px dashed #f1f5f9; display:flex; align-items:baseline;
