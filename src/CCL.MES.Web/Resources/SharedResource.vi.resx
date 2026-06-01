@@ -754,4 +754,27 @@
   <data name="npi.spec.showcard.generic_subtitle" xml:space="preserve"><value>Thông số kỹ thuật sản phẩm tiêu chuẩn · Xem nhanh generic</value></data>
   <data name="npi.spec.showcard.generic_no_data" xml:space="preserve"><value>— Chưa ghi nhận row in / cắt / mực —</value></data>
   <data name="npi.spec.showcard.peek.data_rows" xml:space="preserve"><value>Số row đã ghi</value></data>
+
+  <!-- Phase 8 follow-up — Engineer Spec detail chrome (CMES parity port). -->
+  <data name="npi.spec.detail.version_label" xml:space="preserve"><value>· _version</value></data>
+  <data name="npi.spec.detail.tab.spec" xml:space="preserve"><value>Thông số</value></data>
+  <data name="npi.spec.detail.tab.drawings" xml:space="preserve"><value>Bản vẽ</value></data>
+  <data name="npi.spec.detail.tab.qc-plans" xml:space="preserve"><value>Kế hoạch QC</value></data>
+  <data name="npi.spec.detail.tab.qc-capture" xml:space="preserve"><value>Ghi nhận QC</value></data>
+  <data name="npi.spec.detail.tab.artwork" xml:space="preserve"><value>Artwork</value></data>
+  <data name="npi.spec.detail.tab.setup" xml:space="preserve"><value>Cài đặt</value></data>
+  <data name="npi.spec.detail.action.history" xml:space="preserve"><value>Lịch sử</value></data>
+  <data name="npi.spec.detail.action.export" xml:space="preserve"><value>Xuất</value></data>
+  <data name="npi.spec.detail.action.copy" xml:space="preserve"><value>Sao chép</value></data>
+  <data name="npi.spec.detail.action.promote" xml:space="preserve"><value>Phê duyệt</value></data>
+  <data name="npi.spec.detail.action.trash" xml:space="preserve"><value>Xoá</value></data>
+  <data name="npi.spec.detail.action.edit" xml:space="preserve"><value>Sửa</value></data>
+  <data name="npi.spec.detail.action.promote_tooltip" xml:space="preserve"><value>Chuyển trạng thái Draft/InReview → Approved</value></data>
+  <data name="npi.spec.detail.action.promote_blocked" xml:space="preserve"><value>Chỉ Promote được spec ở trạng thái Draft / InReview</value></data>
+  <data name="npi.spec.detail.action.promote_ok" xml:space="preserve"><value>✓ Đã phê duyệt thành Approved</value></data>
+  <data name="npi.spec.detail.action.promote_err" xml:space="preserve"><value>Phê duyệt thất bại</value></data>
+  <data name="npi.spec.detail.action.copy_unimpl" xml:space="preserve"><value>Sao chép ship sau (server CopySpecAsync chưa có)</value></data>
+  <data name="npi.spec.detail.action.trash_unimpl" xml:space="preserve"><value>Xoá ship sau (server TrashSpecAsync chưa có)</value></data>
+  <data name="npi.spec.detail.action.edit_unimpl" xml:space="preserve"><value>Modal Sửa ship sau (defer từ PR #31a)</value></data>
+  <data name="npi.spec.detail.coming_soon_body" xml:space="preserve"><value>Tab này dành cho PR tương lai. Bảng backend chưa có trên CCL-MES — schema CMES sibling (spec_drawings / spec_qc_plans / spec_qc_captures / spec_artwork) là target để port.</value></data>
 </root>

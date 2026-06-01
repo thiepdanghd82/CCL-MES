@@ -1,16 +1,30 @@
 @page "/npi/engineer-spec/{revisionId:long}"
 @attribute [Authorize(Policy = "NpiSpecRead")]
 
-@*  Phase 8 PR-B — Full-page detail route refactored to delegate the 9-section
-    showcard layout to <SpecShowcard Mode="Full" />.
+@*  Phase 8 follow-up — port CMES sibling's spec-detail UI chrome:
+      1. Header card  (part_no · spec_kind / part_name · Rev X · status · _version)
+      2. Actions bar  (History / Export / Copy / Promote / Trash)
+      3. Tab bar      (Specification / Drawings / QC Plans / QC Capture / Artwork / Setup)
+      4. Edit button  (inside Specification tab, top-left)
 
-    PR #31d shipped the 9 sections inline; PR-B extracts them into a shared
-    component used by EngineerSpecDetail (Full), SpecDetailModal (Compact), and
-    CreateSpecModal preview (Preview, PR-C). Loader + toolbar (back + print
-    PDF) stay here (route-level concerns).
+    Specification tab keeps PR-B <SpecShowcard Mode="Full"/> body.
 
-    Bài học hotfix #27: load via try-catch + inline error banner — KHÔNG
-    freeze Blazor circuit khi SpecDetailAsync throw.
+    Stub tabs (Drawings / QC Plans / QC Capture / Artwork / Setup) render a
+    placeholder card — backend tables don't exist yet on this side
+    (Phase 6 IqcInspections covers a different surface; CMES sibling has
+    `spec_drawings` / `spec_qc_plans` / `spec_qc_captures` / `spec_artwork`
+    schema that hasn't been ported into CCL-MES).
+
+    Actions wired this PR:
+      • History  → modal showing full audit timeline (data already in DTO)
+      • Export   → window.print() (keeps PR #37 + PR #41 print stylesheet flow)
+      • Promote  → existing SpecSvc.ApproveAsync (Draft/InReview → Approved
+                   single transition; full state machine deferred)
+      • Copy     → stub (server CopySpecAsync doesn't exist yet)
+      • Trash    → stub (server TrashSpecAsync doesn't exist yet)
+      • Edit     → stub (Edit modal deferred — PR #31a Q5 note)
+
+    Bài học hotfix #27: every action wraps try-catch + inline error banner.
 *@
 
 @using System.Globalization
@@ -22,6 +36,7 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> Loc
+@inject AuthenticationStateProvider AuthState
 
 <section class="spec-sheet-page">
     @if (_loading)
@@ -45,17 +60,144 @@
     }
     else
     {
-        @* ── Toolbar (Back + Print PDF) ──────────────────────────────────── *@
-        <div class="spec-sheet-toolbar">
-            <button type="button" class="rt-btn" @onclick="GoBack">← @Loc["npi.spec.detail.btn_back"]</button>
-            <h2 class="spec-sheet-title">@_detail.SpecCode <span class="muted">Rev @_detail.RevisionCode</span></h2>
-            <button type="button" class="rt-btn rt-btn-primary" @onclick="PrintAsync">
-                🖨 @Loc["npi.spec.detail.btn_print_pdf"]
+        @* ── Back-to-list link (small, top-left) ─────────────────────────── *@
+        <div class="spec-detail-back-row">
+            <button type="button" class="spec-detail-back-link" @onclick="GoBack">
+                ← @Loc["npi.spec.detail.btn_back"]
             </button>
         </div>
 
-        @* ── Showcard body (9 section — delegated to <SpecShowcard />) ───── *@
-        <SpecShowcard Detail="_detail" Mode="SpecShowcardMode.Full" />
+        @* ── 1. Header card (part_no · spec_kind / part_name · Rev · status) ── *@
+        <div class="spec-detail-header-card">
+            <h1 class="spec-detail-title">
+                @_detail.SpecCode
+                <span class="spec-detail-kind">· @ProcessKindLabel(_detail.Planner)</span>
+            </h1>
+            <p class="spec-detail-meta">
+                @(string.IsNullOrWhiteSpace(_detail.ProductName) ? "—" : _detail.ProductName)
+                · Rev @_detail.RevisionCode
+                · <span class="rm-status @StatusBadgeClass(_detail.Status)">@_detail.StatusDisplay.ToLowerInvariant()</span>
+                · @Loc["npi.spec.detail.version_label"] <code>0</code>
+            </p>
+        </div>
+
+        @* ── 2. Actions bar (History / Export / Copy / Promote / Trash) ─── *@
+        <div class="spec-detail-actions-bar">
+            <button type="button" class="rt-btn spec-action-btn"
+                    @onclick="OpenHistory" disabled="@_busyAction">
+                ⟲ @Loc["npi.spec.detail.action.history"]
+            </button>
+            <button type="button" class="rt-btn spec-action-btn"
+                    @onclick="ExportPrintAsync" disabled="@_busyAction">
+                ⬇ @Loc["npi.spec.detail.action.export"]
+            </button>
+            <AuthorizeView Roles="Admin,Engineer">
+                <button type="button" class="rt-btn spec-action-btn"
+                        @onclick="CopyAsync" disabled="@_busyAction"
+                        title="@Loc["npi.spec.detail.action.copy_unimpl"]">
+                    ⎘ @Loc["npi.spec.detail.action.copy"]
+                </button>
+                <button type="button" class="rt-btn spec-action-btn"
+                        @onclick="PromoteAsync"
+                        disabled="@(_busyAction || !CanPromote)"
+                        title="@PromoteTooltip">
+                    ↗ @Loc["npi.spec.detail.action.promote"]
+                </button>
+                <button type="button" class="rt-btn spec-action-btn spec-action-btn-danger"
+                        @onclick="TrashAsync" disabled="@_busyAction"
+                        title="@Loc["npi.spec.detail.action.trash_unimpl"]">
+                    🗑 @Loc["npi.spec.detail.action.trash"]
+                </button>
+            </AuthorizeView>
+
+            @if (!string.IsNullOrEmpty(_actionError))
+            {
+                <span class="alert err inline">@_actionError</span>
+            }
+            @if (!string.IsNullOrEmpty(_actionMessage))
+            {
+                <span class="alert ok inline">@_actionMessage</span>
+            }
+        </div>
+
+        @* ── 3. Tab bar (6 tabs) ────────────────────────────────────────── *@
+        <div class="spec-detail-tabs" role="tablist" aria-label="Spec sections">
+            @foreach (var tab in _tabs)
+            {
+                var isActive = _activeTab == tab.Key;
+                <button type="button"
+                        role="tab"
+                        aria-selected="@isActive"
+                        class="spec-detail-tab @(isActive ? "active" : "")"
+                        @onclick="@(() => SetActiveTab(tab.Key))">
+                    @Loc[tab.LabelKey]
+                </button>
+            }
+        </div>
+
+        @* ── 4. Tab content panel ───────────────────────────────────────── *@
+        <div class="spec-detail-tab-panel" role="tabpanel">
+            @if (_activeTab == "spec")
+            {
+                <div class="spec-detail-tab-toolbar">
+                    <AuthorizeView Roles="Admin,Engineer">
+                        <button type="button" class="rt-btn spec-edit-btn"
+                                @onclick="EditAsync" disabled="@_busyAction"
+                                title="@Loc["npi.spec.detail.action.edit_unimpl"]">
+                            ✎ @Loc["npi.spec.detail.action.edit"]
+                        </button>
+                    </AuthorizeView>
+                </div>
+                <SpecShowcard Detail="_detail" Mode="SpecShowcardMode.Full" />
+            }
+            else
+            {
+                <div class="spec-detail-coming-soon">
+                    <div class="spec-detail-coming-soon-icon">@ComingSoonIcon(_activeTab)</div>
+                    <h3>@Loc[$"npi.spec.detail.tab.{_activeTab}"]</h3>
+                    <p>@Loc["npi.spec.detail.coming_soon_body"]</p>
+                </div>
+            }
+        </div>
+
+        @* ── History modal (full audit timeline) ────────────────────────── *@
+        @if (_historyOpen)
+        {
+            <div class="modal-scrim" @onclick="CloseHistory">
+                <div class="modal-card spec-history-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+                    <div class="modal-head">
+                        <h2>⟲ @Loc["npi.spec.detail.action.history"] — @_detail.SpecCode Rev @_detail.RevisionCode</h2>
+                        <button type="button" class="modal-close" @onclick="CloseHistory" aria-label="Close">×</button>
+                    </div>
+                    <div class="modal-body">
+                        @if (_detail.AuditEntries.Count == 0)
+                        {
+                            <p class="muted">@Loc["npi.spec.detail.audit.empty"]</p>
+                        }
+                        else
+                        {
+                            <ul class="spec-audit-log spec-history-modal-list">
+                                @foreach (var a in _detail.AuditEntries)
+                                {
+                                    <li>
+                                        <span class="audit-time">@a.Timestamp.ToString("yyyy-MM-dd HH:mm")</span>
+                                        <span class="audit-action">@a.Action</span>
+                                        <span class="muted">· @a.ActorUsername</span>
+                                        @if (!string.IsNullOrWhiteSpace(a.ActorRole))
+                                        {
+                                            <span class="muted">(@a.ActorRole)</span>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                    <div class="modal-foot">
+                        <button type="button" class="btn" @onclick="CloseHistory">@Loc["npi.spec.detail.btn_close"]</button>
+                    </div>
+                </div>
+            </div>
+        }
     }
 </section>
 
@@ -66,11 +208,31 @@
     private string? _error;
     private SpecDetailDto? _detail;
 
+    // Tab state
+    private string _activeTab = "spec";
+    private sealed record TabDef(string Key, string LabelKey);
+    private static readonly TabDef[] _tabs = new[]
+    {
+        new TabDef("spec",       "npi.spec.detail.tab.spec"),
+        new TabDef("drawings",   "npi.spec.detail.tab.drawings"),
+        new TabDef("qc-plans",   "npi.spec.detail.tab.qc-plans"),
+        new TabDef("qc-capture", "npi.spec.detail.tab.qc-capture"),
+        new TabDef("artwork",    "npi.spec.detail.tab.artwork"),
+        new TabDef("setup",      "npi.spec.detail.tab.setup"),
+    };
+
+    // Action state
+    private bool _busyAction;
+    private string? _actionError;
+    private string? _actionMessage;
+    private bool _historyOpen;
+
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
         _error = null;
         _detail = null;
+        _activeTab = "spec";
         try
         {
             _detail = await SpecSvc.SpecDetailAsync(RevisionId);
@@ -87,16 +249,147 @@
 
     private void GoBack() => Nav.NavigateTo("/npi/engineer-spec");
 
-    /// <summary>
-    /// Phase 8 follow-up — open the browser's native Print dialog. macOS / Win /
-    /// Linux print dialogs all offer "Save as PDF" so we no longer need to round-
-    /// trip through the server PdfSpecSheetExporter for the operator's day-to-day
-    /// "I want a PDF of this sheet" workflow. Server endpoint /api/specs/export/
-    /// sheet/{id} stays available for API/programmatic consumers.
-    /// </summary>
-    private async Task PrintAsync()
+    private void SetActiveTab(string key)
     {
-        if (_detail is null) return;
-        await JS.InvokeVoidAsync("window.print");
+        _activeTab = key;
+        _actionError = null;
+        _actionMessage = null;
     }
+
+    /// <summary>
+    /// Phase 8 follow-up — Export action uses the browser's native Print
+    /// dialog (window.print()) honoring the A4 landscape + 2-page stylesheet
+    /// shipped in PR #37 / #39 / #41. Server endpoint /api/specs/export/
+    /// sheet/{id} remains available for API consumers.
+    /// </summary>
+    private async Task ExportPrintAsync()
+    {
+        if (_busyAction || _detail is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("window.print");
+        }
+        catch (Exception ex)
+        {
+            _actionError = ex.GetType().Name + ": " + ex.Message;
+        }
+    }
+
+    private void OpenHistory()
+    {
+        _actionError = null;
+        _actionMessage = null;
+        _historyOpen = true;
+    }
+
+    private void CloseHistory() => _historyOpen = false;
+
+    /// <summary>
+    /// Promote = transition Draft / InReview → Approved (single click). CCL-MES's
+    /// 5-state ProductRevisionStatus enum is simpler than CMES sibling's full
+    /// state machine (draft → pending_npi → pending_qc → approved → obsolete);
+    /// match the simpler semantics with the existing SpecSvc.ApproveAsync until
+    /// a fuller state machine ships.
+    /// </summary>
+    private async Task PromoteAsync()
+    {
+        if (_busyAction || _detail is null || !CanPromote) return;
+        _busyAction = true;
+        _actionError = null;
+        _actionMessage = null;
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var user = state.User?.Identity?.Name;
+            bool confirmed = await JS.InvokeAsync<bool>("confirm",
+                string.Format(Loc["npi.spec.approve_confirm"].Value,
+                    _detail.SpecCode, "Rev " + _detail.RevisionCode));
+            if (!confirmed)
+            {
+                _busyAction = false;
+                return;
+            }
+            var updated = await SpecSvc.ApproveAsync(_detail.Id, user);
+            if (updated is null)
+            {
+                _actionError = Loc["npi.spec.detail.action.promote_err"].Value;
+            }
+            else
+            {
+                _detail = await SpecSvc.SpecDetailAsync(RevisionId);
+                _actionMessage = Loc["npi.spec.detail.action.promote_ok"].Value;
+            }
+        }
+        catch (Exception ex)
+        {
+            _actionError = $"{Loc["npi.spec.detail.action.promote_err"].Value}: {ex.Message}";
+        }
+        finally
+        {
+            _busyAction = false;
+        }
+    }
+
+    private bool CanPromote => _detail is not null
+        && (_detail.Status == ProductRevisionStatus.Draft
+            || _detail.Status == ProductRevisionStatus.InReview);
+
+    private string PromoteTooltip
+        => CanPromote
+            ? Loc["npi.spec.detail.action.promote_tooltip"].Value
+            : Loc["npi.spec.detail.action.promote_blocked"].Value;
+
+    /// <summary>Stub — server CopySpecAsync doesn't exist on CCL-MES yet.</summary>
+    private async Task CopyAsync()
+    {
+        _actionMessage = null;
+        _actionError = Loc["npi.spec.detail.action.copy_unimpl"].Value;
+        await Task.CompletedTask;
+    }
+
+    /// <summary>Stub — server TrashSpecAsync doesn't exist on CCL-MES yet.</summary>
+    private async Task TrashAsync()
+    {
+        _actionMessage = null;
+        _actionError = Loc["npi.spec.detail.action.trash_unimpl"].Value;
+        await Task.CompletedTask;
+    }
+
+    /// <summary>Stub — Edit modal deferred per PR #31a Q5.</summary>
+    private async Task EditAsync()
+    {
+        _actionMessage = null;
+        _actionError = Loc["npi.spec.detail.action.edit_unimpl"].Value;
+        await Task.CompletedTask;
+    }
+
+    private static string ProcessKindLabel(string planner) => (planner ?? "UNKNOWN").Trim().ToUpperInvariant() switch
+    {
+        "SILK"   => "PRINT",
+        "FLEXO"  => "PRINT",
+        "INDIGO" => "PRINT",
+        "LETTER" => "PRINT",
+        "DIECUT" => "DIE-CUT",
+        _        => "SPEC",
+    };
+
+    private static string StatusBadgeClass(ProductRevisionStatus s) => s switch
+    {
+        ProductRevisionStatus.Draft      => "rm-status--draft",
+        ProductRevisionStatus.InReview   => "rm-status--review",
+        ProductRevisionStatus.Approved   => "rm-status--approved",
+        ProductRevisionStatus.Released   => "rm-status--released",
+        ProductRevisionStatus.Superseded => "rm-status--obsolete",
+        _                                 => "",
+    };
+
+    private static string ComingSoonIcon(string tab) => tab switch
+    {
+        "drawings"   => "📐",
+        "qc-plans"   => "📋",
+        "qc-capture" => "✅",
+        "artwork"    => "🎨",
+        "setup"      => "⚙",
+        _            => "📦",
+    };
 }
