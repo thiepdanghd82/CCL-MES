@@ -24,6 +24,9 @@ public interface IMesDbContext
     DbSet<DrawingApproval> DrawingApprovals { get; }
     DbSet<SpecQcWindow> SpecQcWindows { get; }
     DbSet<QcCriterion> QcCriteria { get; }
+    // Phase 8 PR-D-4 — QC Capture entity + ReasonCode lookup.
+    DbSet<SpecQcCapture> SpecQcCaptures { get; }
+    DbSet<ReasonCode> ReasonCodes { get; }
     DbSet<ProcessCatalog> ProcessCatalogs { get; }
     DbSet<WorkOrder> WorkOrders { get; }
     DbSet<WoStatusHistory> WoStatusHistories { get; }

@@ -35,6 +35,10 @@ public static class AuditAction
     // Phase 8 PR-D-3 — QC Plans tab atomic per-stage upsert. detail JSON:
     // { revision_id, stage, criteria_count, created, updated, deleted }
     public const string SpecQcPlanUpsert      = "SPEC_QC_PLAN_UPSERT";
+    // Phase 8 PR-D-4 — QC Capture (NPI spec-level inspection result). detail JSON:
+    // { revision_id, stage, criterion_id, result, has_measurement, ng_reason_code,
+    //   has_comment }
+    public const string SpecQcCapture         = "SPEC_QC_CAPTURE";
     // Refresh-samples Admin-only batch (idempotent). detail JSON: { added,
     // updated, skipped, files: [{filename, ref_no, status}] }
     public const string SpecRefreshSamples    = "SPEC_REFRESH_SAMPLES";

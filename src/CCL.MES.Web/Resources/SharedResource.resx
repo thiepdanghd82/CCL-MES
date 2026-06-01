@@ -846,4 +846,38 @@
   <data name="npi.spec.detail.qcplans.save_ok" xml:space="preserve"><value>QC plan saved.</value></data>
   <data name="npi.spec.detail.qcplans.forbidden" xml:space="preserve"><value>Only Admin or Engineer can edit QC plans.</value></data>
   <data name="npi.spec.detail.qcplans.load_err" xml:space="preserve"><value>Could not load QC plans</value></data>
+  <!-- Phase 8 PR-D-4 — QC Capture tab. 4-stage table mirror of QC Plans + latest-result pill + Capture modal. -->
+  <data name="npi.spec.detail.qccapture.intro" xml:space="preserve"><value>Record inspection results against the QC plan criteria. Each capture is append-only — history is preserved.</value></data>
+  <data name="npi.spec.detail.qccapture.empty_plans" xml:space="preserve"><value>— No criteria defined yet. Go to QC Plans tab to add some.</value></data>
+  <data name="npi.spec.detail.qccapture.stage.empty" xml:space="preserve"><value>— No criteria for this stage.</value></data>
+  <data name="npi.spec.detail.qccapture.col.criterion" xml:space="preserve"><value>Criterion</value></data>
+  <data name="npi.spec.detail.qccapture.col.target" xml:space="preserve"><value>Target</value></data>
+  <data name="npi.spec.detail.qccapture.col.latest" xml:space="preserve"><value>Latest result</value></data>
+  <data name="npi.spec.detail.qccapture.col.captured_by" xml:space="preserve"><value>Captured by</value></data>
+  <data name="npi.spec.detail.qccapture.col.action" xml:space="preserve"><value>Action</value></data>
+  <data name="npi.spec.detail.qccapture.btn_capture" xml:space="preserve"><value>Capture</value></data>
+  <data name="npi.spec.detail.qccapture.pill.pass" xml:space="preserve"><value>PASS</value></data>
+  <data name="npi.spec.detail.qccapture.pill.fail" xml:space="preserve"><value>FAIL</value></data>
+  <data name="npi.spec.detail.qccapture.pill.na" xml:space="preserve"><value>N/A</value></data>
+  <data name="npi.spec.detail.qccapture.pill.none" xml:space="preserve"><value>—</value></data>
+  <data name="npi.spec.detail.qccapture.load_err" xml:space="preserve"><value>Could not load QC captures</value></data>
+  <data name="npi.spec.detail.qccapture.forbidden" xml:space="preserve"><value>Only Admin or Engineer can capture QC results.</value></data>
+  <!-- Capture modal. -->
+  <data name="npi.spec.detail.qccapture.modal.title" xml:space="preserve"><value>Capture QC result</value></data>
+  <data name="npi.spec.detail.qccapture.modal.subtitle" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_target" xml:space="preserve"><value>Target</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_tolerance" xml:space="preserve"><value>Tolerance</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_result" xml:space="preserve"><value>Result</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_measurement" xml:space="preserve"><value>Measurement</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_reason" xml:space="preserve"><value>NG reason code</value></data>
+  <data name="npi.spec.detail.qccapture.modal.label_comment" xml:space="preserve"><value>Comment</value></data>
+  <data name="npi.spec.detail.qccapture.modal.ph_measurement" xml:space="preserve"><value>e.g. 0.05 mm, Pantone 285C</value></data>
+  <data name="npi.spec.detail.qccapture.modal.ph_reason" xml:space="preserve"><value>— pick a reason —</value></data>
+  <data name="npi.spec.detail.qccapture.modal.ph_comment" xml:space="preserve"><value>Optional notes (max 500 chars)</value></data>
+  <data name="npi.spec.detail.qccapture.modal.btn_cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="npi.spec.detail.qccapture.modal.btn_save" xml:space="preserve"><value>Capture</value></data>
+  <data name="npi.spec.detail.qccapture.modal.btn_saving" xml:space="preserve"><value>Saving…</value></data>
+  <data name="npi.spec.detail.qccapture.modal.err_reason_required" xml:space="preserve"><value>Pick a reason code when result is FAIL.</value></data>
+  <data name="npi.spec.detail.qccapture.modal.err_result_required" xml:space="preserve"><value>Pick a result first.</value></data>
+  <data name="npi.spec.detail.qccapture.modal.save_ok" xml:space="preserve"><value>Captured.</value></data>
 </root>

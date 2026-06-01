@@ -710,6 +710,65 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   .spec-qcplans-table .col-frequency { width:auto; }
 }
 
+/* Phase 8 PR-D-4 — QC Capture tab. Mirrors QC Plans 4-stage layout but
+   read-only rows + capture button per criterion + result pill. CMES sibling
+   pill semantics: PASS green, FAIL red, N/A muted gray. */
+.spec-qccapture-area { display:flex; flex-direction:column; gap:14px; }
+.spec-qccapture-intro { margin:0 0 4px; font-size:13px; color:#6b7280; }
+.spec-qccapture-table .col-criterion   { width:24%; }
+.spec-qccapture-table .col-target      { width:16%; }
+.spec-qccapture-table .col-latest      { width:24%; }
+.spec-qccapture-table .col-captured-by { width:18%; }
+.spec-qccapture-table .col-action      { width:90px; text-align:center; }
+
+.spec-qccapture-pill { display:inline-block; padding:2px 8px; border-radius:10px;
+  font-size:11px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase;
+  border:1px solid transparent; }
+.spec-qccapture-pill-pass, .spec-qccapture-pill.pass {
+  background:rgba(31,122,77,0.12); color:#1f7a4d; border-color:rgba(31,122,77,0.30); }
+.spec-qccapture-pill-fail, .spec-qccapture-pill.fail {
+  background:rgba(192,57,43,0.12); color:#c0392b; border-color:rgba(192,57,43,0.30); }
+.spec-qccapture-pill-na, .spec-qccapture-pill.na {
+  background:#eef1f7; color:#6b7280; border-color:#cbd5e1; }
+.spec-qccapture-pill-none, .spec-qccapture-pill.none {
+  background:transparent; color:#9ca3af; border-color:transparent; font-weight:500; }
+.spec-qccapture-pill-sub { margin-top:2px; font-size:12px; color:#6b7280; }
+.spec-qccapture-pill-reason { margin-top:1px; font-size:11px; color:#c0392b;
+  font-weight:600; letter-spacing:0.3px; }
+.spec-qccapture-time { font-size:11px; color:#6b7280; }
+.spec-qccapture-btn { font-size:12px; padding:4px 10px; }
+
+/* Capture modal — single column, fixed 520px on wide screens, fluid below. */
+.spec-qccapture-modal { width:min(520px, calc(100vw - 32px)); }
+.spec-qccapture-modal-subtitle { font-size:13px; color:var(--navy-dark);
+  font-weight:600; margin-bottom:10px; }
+.spec-qccapture-modal-meta { display:flex; gap:8px; font-size:12px;
+  color:#374151; margin-bottom:4px; }
+.spec-qccapture-modal-meta-label { font-weight:600; color:#6b7280;
+  min-width:80px; }
+.spec-qccapture-modal-section { margin-top:14px; }
+.spec-qccapture-modal-label { display:block; font-size:12px; font-weight:600;
+  color:var(--navy-dark); margin-bottom:6px; text-transform:uppercase;
+  letter-spacing:0.4px; }
+.spec-qccapture-modal-label .required { color:#c0392b; font-size:13px; }
+.spec-qccapture-modal-result-row { display:flex; gap:8px; }
+.spec-qccapture-result-btn { flex:1; padding:10px 0; border-radius:6px;
+  border:1px solid var(--navy-border); background:#fff; cursor:pointer;
+  font-weight:700; font-size:13px; letter-spacing:0.4px; text-transform:uppercase;
+  transition:transform 0.05s, background-color 0.15s, border-color 0.15s; }
+.spec-qccapture-result-btn:hover:not(:disabled) { transform:translateY(-1px); }
+.spec-qccapture-result-btn:disabled { opacity:0.5; cursor:not-allowed; }
+.spec-qccapture-result-btn.pass { color:#1f7a4d; }
+.spec-qccapture-result-btn.pass.active { background:rgba(31,122,77,0.12);
+  border-color:#1f7a4d; }
+.spec-qccapture-result-btn.fail { color:#c0392b; }
+.spec-qccapture-result-btn.fail.active { background:rgba(192,57,43,0.12);
+  border-color:#c0392b; }
+.spec-qccapture-result-btn.na { color:#6b7280; }
+.spec-qccapture-result-btn.na.active { background:#eef1f7; border-color:#6b7280; }
+.spec-qccapture-textarea { resize:vertical; min-height:60px;
+  font-family:inherit; }
+
 .spec-history-modal-list { max-height:60vh; overflow-y:auto; }
 
 .spec-detail-audit-list { list-style:none; padding:0; margin:6px 0 0; }

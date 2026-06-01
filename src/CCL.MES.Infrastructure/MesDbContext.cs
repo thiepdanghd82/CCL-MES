@@ -27,6 +27,9 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<DrawingApproval> DrawingApprovals => Set<DrawingApproval>();
     public DbSet<SpecQcWindow> SpecQcWindows => Set<SpecQcWindow>();
     public DbSet<QcCriterion> QcCriteria => Set<QcCriterion>();
+    // Phase 8 PR-D-4 — QC Capture (NPI spec-level inspection result) + ReasonCode lookup.
+    public DbSet<SpecQcCapture> SpecQcCaptures => Set<SpecQcCapture>();
+    public DbSet<ReasonCode> ReasonCodes => Set<ReasonCode>();
     public DbSet<ProcessCatalog> ProcessCatalogs => Set<ProcessCatalog>();
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
     public DbSet<WoStatusHistory> WoStatusHistories => Set<WoStatusHistory>();
@@ -69,6 +72,16 @@ public class MesDbContext : DbContext, IMesDbContext
         // Phase 8 PR-D-3 — Method (free-form ops text), Frequency (cadence) per-criterion.
         b.Entity<QcCriterion>().Property(x => x.Method).HasMaxLength(200);
         b.Entity<QcCriterion>().Property(x => x.Frequency).HasMaxLength(120);
+        // Phase 8 PR-D-4 — SpecQcCapture (append-only result per criterion) + ReasonCode lookup.
+        b.Entity<SpecQcCapture>().Property(x => x.Result).HasConversion<string>();
+        b.Entity<SpecQcCapture>().Property(x => x.Measurement).HasMaxLength(200);
+        b.Entity<SpecQcCapture>().Property(x => x.NgReasonCode).HasMaxLength(40);
+        b.Entity<SpecQcCapture>().Property(x => x.Comment).HasMaxLength(500);
+        b.Entity<SpecQcCapture>().Property(x => x.CapturedBy).HasMaxLength(80);
+        b.Entity<ReasonCode>().Property(x => x.Code).HasMaxLength(40);
+        b.Entity<ReasonCode>().Property(x => x.LabelEn).HasMaxLength(200);
+        b.Entity<ReasonCode>().Property(x => x.LabelVi).HasMaxLength(200);
+        b.Entity<ReasonCode>().Property(x => x.Kind).HasConversion<string>();
         b.Entity<ProcessCatalog>().Property(x => x.Category).HasConversion<string>();
         b.Entity<ProcessCatalog>().Property(x => x.Status).HasConversion<string>();
         b.Entity<QcInspection>().Property(x => x.Type).HasConversion<string>();
@@ -101,6 +114,13 @@ public class MesDbContext : DbContext, IMesDbContext
         // QC plan lookups
         b.Entity<SpecQcWindow>().HasIndex(x => new { x.ProductRevisionId, x.Stage });
         b.Entity<QcCriterion>().HasIndex(x => new { x.SpecQcWindowId, x.Seq }).IsUnique();
+        // Phase 8 PR-D-4 — QC Capture (append-only result rows). Lookup by
+        // (window + criterion) for current pill render, by CapturedAt for
+        // timeline view. ReasonCode.Code unique = natural-key lookup.
+        b.Entity<SpecQcCapture>().HasIndex(x => new { x.SpecQcWindowId, x.QcCriterionId });
+        b.Entity<SpecQcCapture>().HasIndex(x => x.CapturedAt);
+        b.Entity<ReasonCode>().HasIndex(x => x.Code).IsUnique();
+        b.Entity<ReasonCode>().HasIndex(x => new { x.Kind, x.Active, x.Sort });
         // ProcessCatalog Code = stable string code (unique lookup); EF still
         // uses Id as PK per BaseEntity convention.
         b.Entity<ProcessCatalog>().HasIndex(x => x.Code).IsUnique();
@@ -141,6 +161,23 @@ public class MesDbContext : DbContext, IMesDbContext
             .WithOne(x => x.SpecQcWindow!)
             .HasForeignKey(x => x.SpecQcWindowId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Phase 8 PR-D-4 — SpecQcCapture FK both to window + criterion.
+        // Cascade from window (delete window → all captures gone too);
+        // RESTRICT from criterion so historical captures survive a criterion
+        // delete (operator forensic trail). NgReasonCode is a string lookup,
+        // NOT an EF FK (matches CMES pattern — loose coupling, validates in
+        // service layer).
+        b.Entity<SpecQcCapture>()
+            .HasOne(x => x.SpecQcWindow)
+            .WithMany()
+            .HasForeignKey(x => x.SpecQcWindowId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<SpecQcCapture>()
+            .HasOne(x => x.QcCriterion)
+            .WithMany()
+            .HasForeignKey(x => x.QcCriterionId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // ProductRevision 1:1 sibling specs (Material/Print/Diecut/Finishing).
         // Delete cascade từ ProductRevision → siblings (orphan-safe).

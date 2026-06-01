@@ -342,3 +342,46 @@ public class QcCriterion : BaseEntity
     public string? Method { get; set; }
     public string? Frequency { get; set; }
 }
+
+/// <summary>
+/// Phase 8 PR-D-4 — captured QC result against a criterion within a stage window.
+/// Append-only — each click of "Capture" creates a new row; latest-by-CapturedAt is
+/// rendered as the current pill. NOT to be confused with Phase 6 IqcInspection
+/// (which is pre-WO raw-material inspection on Iqc.cs — different semantic).
+/// </summary>
+public class SpecQcCapture : BaseEntity
+{
+    public long SpecQcWindowId { get; set; }
+    public SpecQcWindow? SpecQcWindow { get; set; }
+
+    public long QcCriterionId { get; set; }
+    public QcCriterion? QcCriterion { get; set; }
+
+    public QcCaptureResult Result { get; set; } = QcCaptureResult.Pass;
+    /// <summary>Free-form measurement reading (e.g. "0.05 mm", "Pantone 285C").</summary>
+    public string? Measurement { get; set; }
+    /// <summary>NG reason — references <see cref="ReasonCode.Code"/> by natural key.
+    /// Required when <see cref="Result"/> = Fail (enforced in service layer).</summary>
+    public string? NgReasonCode { get; set; }
+    public string? Comment { get; set; }
+
+    public string CapturedBy { get; set; } = "";
+    public DateTime CapturedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Phase 8 PR-D-4 — bilingual lookup table for QC NG reasons + production pause causes.
+/// Seeded at boot from DbSeeder.SeedReasonCodesAsync (idempotent .Any() gate, pattern
+/// matches ProcessCatalog 17-code seed). Admin CRUD UI deferred — Library tab in
+/// future PR (MES-3-FIX-2 KIOSK-002 covers the cross-module variant).
+/// </summary>
+public class ReasonCode : BaseEntity
+{
+    /// <summary>Natural key — stable string lookup token (ML-MAT, SC-COLOR, …).</summary>
+    public string Code { get; set; } = "";
+    public string LabelEn { get; set; } = "";
+    public string LabelVi { get; set; } = "";
+    public ReasonCodeKind Kind { get; set; } = ReasonCodeKind.Scrap;
+    public bool Active { get; set; } = true;
+    public int Sort { get; set; }
+}

@@ -24,6 +24,10 @@ public static class DbSeeder
         // even when WO/Product seed already exists.
         await SeedProcessCatalogAsync(db);
 
+        // Phase 8 PR-D-4 — ReasonCode seed for QC Capture NG reasons + pause
+        // codes (CMES sibling parity, 12 codes). Independent .Any() gate.
+        await SeedReasonCodesAsync(db);
+
         if (await db.WorkOrders.AnyAsync()) return;
 
         // Máy
@@ -225,6 +229,37 @@ public static class DbSeeder
             new ProcessCatalog { Code = "LAMINATION",    Category = ProcessCategory.Finishing, DisplayNameEn = "Lamination",             DisplayNameVi = "Cán màng",            DisplayOrder = 220 },
             new ProcessCatalog { Code = "FOIL_STAMP",    Category = ProcessCategory.Finishing, DisplayNameEn = "Hot foil stamping",      DisplayNameVi = "Ép nhũ",              DisplayOrder = 230 },
             new ProcessCatalog { Code = "EMBOSS",        Category = ProcessCategory.Finishing, DisplayNameEn = "Embossing / debossing",  DisplayNameVi = "Dập nổi / dập chìm",  DisplayOrder = 240 }
+        );
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Phase 8 PR-D-4 — seed 12 ReasonCode rows from CMES sibling
+    /// `work_orders.seed.json` (8 Pause causes ML-* + 4 Scrap causes SC-*).
+    /// Idempotent .Any() gate fires once per fresh DB. Admin CRUD UI deferred
+    /// to a future Library tab — for now this is the canonical source of NG
+    /// reason codes referenced by SpecQcCapture.NgReasonCode (loose string
+    /// FK per CMES pattern, validated in service layer at capture time).
+    /// </summary>
+    private static async Task SeedReasonCodesAsync(MesDbContext db)
+    {
+        if (await db.ReasonCodes.AnyAsync()) return;
+
+        db.ReasonCodes.AddRange(
+            // Pause causes (ML-* — Machine Lost time).
+            new ReasonCode { Code = "ML-MAT",   LabelEn = "Material loading / changeover", LabelVi = "Nạp / đổi vật liệu",         Kind = ReasonCodeKind.Pause, Sort = 10  },
+            new ReasonCode { Code = "ML-INK",   LabelEn = "Ink change",                    LabelVi = "Thay mực",                    Kind = ReasonCodeKind.Pause, Sort = 20  },
+            new ReasonCode { Code = "ML-PLATE", LabelEn = "Plate / cylinder change",       LabelVi = "Đổi bản / trục",              Kind = ReasonCodeKind.Pause, Sort = 30  },
+            new ReasonCode { Code = "ML-QC",    LabelEn = "QC hold",                       LabelVi = "Giữ do QC",                   Kind = ReasonCodeKind.Pause, Sort = 40  },
+            new ReasonCode { Code = "ML-BREAK", LabelEn = "Operator break",                LabelVi = "Nghỉ giải lao",               Kind = ReasonCodeKind.Pause, Sort = 50  },
+            new ReasonCode { Code = "ML-MTC",   LabelEn = "Maintenance",                   LabelVi = "Bảo trì",                     Kind = ReasonCodeKind.Pause, Sort = 60  },
+            new ReasonCode { Code = "ML-MEET",  LabelEn = "Shift handover / meeting",      LabelVi = "Giao ca / họp",               Kind = ReasonCodeKind.Pause, Sort = 70  },
+            new ReasonCode { Code = "ML-UTIL",  LabelEn = "Power / air loss",              LabelVi = "Mất điện / khí",              Kind = ReasonCodeKind.Pause, Sort = 80  },
+            // Scrap / NG causes (SC-* — used for SpecQcCapture FAIL result).
+            new ReasonCode { Code = "SC-COLOR", LabelEn = "Colour ΔE out of spec",         LabelVi = "Lệch màu ΔE quá ngưỡng",      Kind = ReasonCodeKind.Scrap, Sort = 10  },
+            new ReasonCode { Code = "SC-REG",   LabelEn = "Registration / mis-print",      LabelVi = "Lệch định vị / in lệch",      Kind = ReasonCodeKind.Scrap, Sort = 20  },
+            new ReasonCode { Code = "SC-DIE",   LabelEn = "Die-cut burr / break",          LabelVi = "Cắt bế xước / gãy",           Kind = ReasonCodeKind.Scrap, Sort = 30  },
+            new ReasonCode { Code = "SC-BAR",   LabelEn = "Barcode grade below B",         LabelVi = "Barcode kém (dưới B)",        Kind = ReasonCodeKind.Scrap, Sort = 40  }
         );
         await db.SaveChangesAsync();
     }
