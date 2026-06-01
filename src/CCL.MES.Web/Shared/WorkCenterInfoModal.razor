@@ -1,19 +1,21 @@
 @*  Phase 8 — Work Center "Open / Get Info" read-only detail modal.
 
+    HOTFIX: Modal nhận row entity TRỰC TIẾP từ grid (đã có sẵn trong
+    memory) thay vì re-fetch by id qua server. Loại bỏ điểm fail
+    "Work Center not found". Usage stats query riêng qua
+    WorkCenterUsageAsync(code) — empty stats nếu opCount=0, KHÔNG null.
+    Try-catch wrap usage query → error display inline thay vì freeze
+    Blazor circuit.
+
     4 sections (em thiết kế theo kinh nghiệm MES shop-floor):
-      📋 Identity        — operator scan "máy gì?" (Code/Desc/Area/Status)
-      ⚡ Capacity        — planner schedule (Speed + Shift + computed daily/monthly)
-      🛠️ Routing usage   — engineer phân tích (op count + parts + avg setup/run + top-5)
-      📅 Audit trail     — compliance (Created/Updated stamps)
+      📋 Identity        — Code/Desc/Area badge/Status badge
+      ⚡ Capacity        — IdealSpeed + Shift + computed Daily/Monthly
+                          Working hrs: A/B/C → 8 | A+B → 16 | A+B+C → 24
+      🛠️ Routing usage   — OpCount + DistinctParts + avg Setup/Run + Top-5
+      📅 Audit trail     — Created/Updated stamps
 
-    Section "Recent production" CHỦ Ý KHÔNG có: Machine entity chưa link với
-    WorkCenter → ProductionLog không truy được. Placeholder note ghi rõ.
-
-    Computed Capacity:
-      Working hrs/day theo ShiftPattern:
-        A → 8 | B → 8 | C → 8 | A+B → 16 | A+B+C → 24 | null → "?"
-      Daily cap = IdealSpeed × Working hrs
-      Monthly = Daily × 30
+    Section "Recent production" deferred placeholder — Machine ↔ WC
+    mapping chưa cấu hình (TD-4 trong closeout report).
 *@
 
 @using System.Globalization
@@ -27,23 +29,18 @@
     <div class="modal-scrim" @onclick="Close">
         <div class="modal-card wc-info-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
             <div class="modal-head">
-                <h2>@string.Format(Loc["wc.info.title"].Value, _detail?.Row.Code ?? "…")</h2>
+                <h2>@string.Format(Loc["wc.info.title"].Value, _row?.Code ?? "…")</h2>
                 <button type="button" class="modal-close" @onclick="Close" aria-label="Close">×</button>
             </div>
 
             <div class="modal-body">
-                @if (_loading)
-                {
-                    <p class="muted">@Loc["wc.info.loading"]</p>
-                }
-                else if (_detail is null)
+                @if (_row is null)
                 {
                     <div class="alert err">@Loc["wc.info.not_found"]</div>
                 }
                 else
                 {
-                    var row = _detail.Row;
-                    var usage = _detail.Usage;
+                    var row = _row;
 
                     <section class="wc-info-section">
                         <h3>📋 @Loc["wc.info.section.identity"]</h3>
@@ -74,25 +71,33 @@
 
                     <section class="wc-info-section">
                         <h3>🛠️ @Loc["wc.info.section.routing"]</h3>
-                        @if (usage.OpCount == 0)
+                        @if (_usageLoading)
+                        {
+                            <p class="muted">@Loc["wc.info.loading"]</p>
+                        }
+                        else if (_usageError is not null)
+                        {
+                            <div class="alert err">@_usageError</div>
+                        }
+                        else if (_usage is null || _usage.OpCount == 0)
                         {
                             <p class="muted">@Loc["wc.info.routing.empty"]</p>
                         }
                         else
                         {
                             <table class="wc-info-table">
-                                <tr><th>@Loc["wc.info.field.op_count"]</th><td>@usage.OpCount.ToString("N0", CultureInfo.InvariantCulture) @Loc["wc.info.unit.ops"]</td></tr>
-                                <tr><th>@Loc["wc.info.field.distinct_parts"]</th><td>@usage.DistinctPartCount.ToString("N0", CultureInfo.InvariantCulture) @Loc["wc.info.unit.parts"]</td></tr>
-                                <tr><th>@Loc["wc.info.field.avg_mach_setup"]</th><td>@FmtAvg(usage.AvgMachSetup, "hrs")</td></tr>
-                                <tr><th>@Loc["wc.info.field.avg_labor_setup"]</th><td>@FmtAvg(usage.AvgLaborSetup, "hrs")</td></tr>
-                                <tr><th>@Loc["wc.info.field.avg_mach_run"]</th><td>@FmtAvg(usage.AvgMachRun, "factor")</td></tr>
+                                <tr><th>@Loc["wc.info.field.op_count"]</th><td>@_usage.OpCount.ToString("N0", CultureInfo.InvariantCulture) @Loc["wc.info.unit.ops"]</td></tr>
+                                <tr><th>@Loc["wc.info.field.distinct_parts"]</th><td>@_usage.DistinctPartCount.ToString("N0", CultureInfo.InvariantCulture) @Loc["wc.info.unit.parts"]</td></tr>
+                                <tr><th>@Loc["wc.info.field.avg_mach_setup"]</th><td>@FmtAvg(_usage.AvgMachSetup, "hrs")</td></tr>
+                                <tr><th>@Loc["wc.info.field.avg_labor_setup"]</th><td>@FmtAvg(_usage.AvgLaborSetup, "hrs")</td></tr>
+                                <tr><th>@Loc["wc.info.field.avg_mach_run"]</th><td>@FmtAvg(_usage.AvgMachRun, "factor")</td></tr>
                             </table>
 
-                            @if (usage.TopParts.Count > 0)
+                            @if (_usage.TopParts.Count > 0)
                             {
                                 <h4 class="wc-info-subhead">@Loc["wc.info.routing.top_parts"]</h4>
                                 <ul class="wc-info-toplist">
-                                    @foreach (var p in usage.TopParts)
+                                    @foreach (var p in _usage.TopParts)
                                     {
                                         <li><code>@p.PartNo</code> <span class="muted">× @p.OpCount @Loc["wc.info.unit.ops"]</span></li>
                                     }
@@ -121,7 +126,7 @@
 
             <div class="modal-foot">
                 <button type="button" class="btn" @onclick="Close">@Loc["wc.info.btn_close"]</button>
-                @if (_detail is not null)
+                @if (_row is not null)
                 {
                     <AuthorizeView Roles="Admin,Engineer">
                         <button type="button" class="btn btn-primary" @onclick="OnEditClick">@Loc["wc.info.btn_edit"]</button>
@@ -133,25 +138,38 @@
 }
 
 @code {
-    [Parameter] public EventCallback<long> OnEditRequested { get; set; }
+    [Parameter] public EventCallback<WCEntityNs> OnEditRequested { get; set; }
 
     private bool _open;
-    private bool _loading;
-    private WorkCenterDetailDto? _detail;
+    private bool _usageLoading;
+    private string? _usageError;
+    private WCEntityNs? _row;
+    private WorkCenterUsageStats? _usage;
 
-    public async Task OpenAsync(long id)
+    /// <summary>
+    /// Phase 8 hotfix — nhận row entity TRỰC TIẾP (đã có từ grid).
+    /// Modal render Identity/Capacity/Audit ngay từ row, KHÔNG cần server call.
+    /// Usage stats query riêng — error display inline thay vì freeze circuit.
+    /// </summary>
+    public async Task OpenAsync(WCEntityNs row)
     {
+        _row = row;
         _open = true;
-        _loading = true;
-        _detail = null;
+        _usageLoading = true;
+        _usageError = null;
+        _usage = null;
         StateHasChanged();
         try
         {
-            _detail = await Npi.WorkCenterDetailAsync(id);
+            _usage = await Npi.WorkCenterUsageAsync(row.Code);
+        }
+        catch (Exception ex)
+        {
+            _usageError = ex.GetType().Name + ": " + ex.Message;
         }
         finally
         {
-            _loading = false;
+            _usageLoading = false;
             StateHasChanged();
         }
     }
@@ -159,15 +177,17 @@
     private void Close()
     {
         _open = false;
-        _detail = null;
+        _row = null;
+        _usage = null;
+        _usageError = null;
     }
 
     private async Task OnEditClick()
     {
-        if (_detail is null) return;
-        var id = _detail.Row.Id;
+        if (_row is null) return;
+        var row = _row;
         Close();
-        if (OnEditRequested.HasDelegate) await OnEditRequested.InvokeAsync(id);
+        if (OnEditRequested.HasDelegate) await OnEditRequested.InvokeAsync(row);
     }
 
     // ─── Capacity helpers ────────────────────────────────────────────
@@ -209,7 +229,7 @@
         return $"{v.Value.ToString("N2", CultureInfo.InvariantCulture)} {unit}";
     }
 
-    // ─── Badge renderers — reuse từ WorkCenter.razor logic ───────────
+    // ─── Badge renderers ─────────────────────────────────────────────
 
     private RenderFragment RenderAreaBadge(string? area) => __builder =>
     {

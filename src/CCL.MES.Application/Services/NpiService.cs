@@ -19,17 +19,10 @@ public record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int Pa
 public class NpiService
 {
     private readonly IMesDbContext _db;
-    private readonly IAuditWriter? _audit;
+    private readonly IAuditWriter _audit;
 
-    public NpiService(IMesDbContext db)
-    {
-        _db = db;
-        _audit = null;
-    }
-
-    // Phase 8 — overload với IAuditWriter cho Work Center context-menu
-    // mutations (Update/Copy/SetActive emit audit). DI sẽ resolve constructor
-    // dài hơn khi IAuditWriter registered (đã có từ Phase 6 Bước 5).
+    // Phase 8 — single ctor để DI ko phải resolve 2-ctor ambiguity.
+    // IAuditWriter đã registered từ Phase 6 Bước 5 (Program.cs:183).
     public NpiService(IMesDbContext db, IAuditWriter audit)
     {
         _db = db;
@@ -118,24 +111,26 @@ public class NpiService
     // ═══════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Phase 8 — Work Center rich detail cho "Open / Get Info" modal.
-    /// Trả entity row + UsageStats derived từ RoutingOperations (count
-    /// + distinct parts + avg setup/run + top-5 parts). KHÔNG include
-    /// ProductionLog vì Machine entity chưa link với WorkCenter — placeholder
-    /// section trong UI ghi rõ.
+    /// Phase 8 hotfix — usage stats only, query by Code (string match
+    /// vào RoutingOperations.WorkCenterNo). Trả empty stats nếu opCount=0
+    /// (thay vì null) để UI không bị "not found" trap. Modal sẽ pass row
+    /// entity TRỰC TIẾP từ grid (đã có sẵn trong memory) → không cần re-fetch.
     /// </summary>
-    public async Task<WorkCenterDetailDto?> WorkCenterDetailAsync(long id)
+    public async Task<WorkCenterUsageStats> WorkCenterUsageAsync(string code)
     {
-        var row = await _db.WorkCenters.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
-        if (row is null) return null;
+        if (string.IsNullOrWhiteSpace(code))
+            return new WorkCenterUsageStats(0, 0, null, null, null, new List<TopPartUsage>());
 
-        var ops = _db.RoutingOperations.AsNoTracking().Where(o => o.WorkCenterNo == row.Code);
+        var ops = _db.RoutingOperations.AsNoTracking().Where(o => o.WorkCenterNo == code);
 
         var opCount = await ops.CountAsync();
-        var distinctParts = opCount > 0 ? await ops.Select(o => o.PartNo).Distinct().CountAsync() : 0;
-        var avgMachSetup = opCount > 0 ? await ops.AverageAsync(o => (double?)o.MachineSetupTime) : null;
-        var avgLaborSetup = opCount > 0 ? await ops.AverageAsync(o => (double?)o.LaborSetupTime) : null;
-        var avgMachRun = opCount > 0 ? await ops.AverageAsync(o => (double?)o.MachineRunTime) : null;
+        if (opCount == 0)
+            return new WorkCenterUsageStats(0, 0, null, null, null, new List<TopPartUsage>());
+
+        var distinctParts = await ops.Select(o => o.PartNo).Distinct().CountAsync();
+        var avgMachSetup = await ops.AverageAsync(o => (double?)o.MachineSetupTime);
+        var avgLaborSetup = await ops.AverageAsync(o => (double?)o.LaborSetupTime);
+        var avgMachRun = await ops.AverageAsync(o => (double?)o.MachineRunTime);
 
         var topParts = await ops
             .GroupBy(o => o.PartNo)
@@ -144,10 +139,20 @@ public class NpiService
             .Take(5)
             .ToListAsync();
 
-        var stats = new WorkCenterUsageStats(
-            opCount, distinctParts, avgMachSetup, avgLaborSetup, avgMachRun, topParts);
+        return new WorkCenterUsageStats(opCount, distinctParts, avgMachSetup, avgLaborSetup, avgMachRun, topParts);
+    }
 
-        return new WorkCenterDetailDto(row, stats);
+    /// <summary>
+    /// Phase 8 — keep WorkCenterDetailAsync(id) cho compat (e.g. test
+    /// scripts hay external API caller). Internal modal flow giờ pass
+    /// row entity trực tiếp + dùng WorkCenterUsageAsync.
+    /// </summary>
+    public async Task<WorkCenterDetailDto?> WorkCenterDetailAsync(long id)
+    {
+        var row = await _db.WorkCenters.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (row is null) return null;
+        var usage = await WorkCenterUsageAsync(row.Code);
+        return new WorkCenterDetailDto(row, usage);
     }
 
     /// <summary>
@@ -180,13 +185,10 @@ public class NpiService
         row.UpdatedBy = user;
         await _db.SaveChangesAsync();
 
-        if (_audit is not null)
-        {
-            await _audit.EmitAsync(
-                AuditAction.WcUpdate, user ?? "anonymous", actorRole: "",
-                targetType: "WorkCenter", targetId: row.Id.ToString(),
-                detail: JsonSerializer.Serialize(new { wc_id = row.Id, code = row.Code, changes }));
-        }
+        await _audit.EmitAsync(
+            AuditAction.WcUpdate, user ?? "anonymous", actorRole: "",
+            targetType: "WorkCenter", targetId: row.Id.ToString(),
+            detail: JsonSerializer.Serialize(new { wc_id = row.Id, code = row.Code, changes }));
         return row;
     }
 
@@ -216,16 +218,13 @@ public class NpiService
         _db.WorkCenters.Add(newRow);
         await _db.SaveChangesAsync();
 
-        if (_audit is not null)
-        {
-            await _audit.EmitAsync(
-                AuditAction.WcCopy, user ?? "anonymous", actorRole: "",
-                targetType: "WorkCenter", targetId: newRow.Id.ToString(),
-                detail: JsonSerializer.Serialize(new {
-                    src_id = src.Id, src_code = src.Code,
-                    new_id = newRow.Id, new_code = newRow.Code,
-                }));
-        }
+        await _audit.EmitAsync(
+            AuditAction.WcCopy, user ?? "anonymous", actorRole: "",
+            targetType: "WorkCenter", targetId: newRow.Id.ToString(),
+            detail: JsonSerializer.Serialize(new {
+                src_id = src.Id, src_code = src.Code,
+                new_id = newRow.Id, new_code = newRow.Code,
+            }));
         return newRow;
     }
 
@@ -245,13 +244,10 @@ public class NpiService
         row.UpdatedBy = user;
         await _db.SaveChangesAsync();
 
-        if (_audit is not null)
-        {
-            await _audit.EmitAsync(
-                AuditAction.WcActiveToggle, user ?? "anonymous", actorRole: "",
-                targetType: "WorkCenter", targetId: row.Id.ToString(),
-                detail: JsonSerializer.Serialize(new { wc_id = row.Id, code = row.Code, from, to = active }));
-        }
+        await _audit.EmitAsync(
+            AuditAction.WcActiveToggle, user ?? "anonymous", actorRole: "",
+            targetType: "WorkCenter", targetId: row.Id.ToString(),
+            detail: JsonSerializer.Serialize(new { wc_id = row.Id, code = row.Code, from, to = active }));
         return row;
     }
 }

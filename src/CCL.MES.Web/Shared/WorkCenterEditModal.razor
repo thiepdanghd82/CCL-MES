@@ -134,62 +134,48 @@
 
     private static readonly Regex WcCodeRe = new(@"^[A-Z0-9_-]{3,12}$", RegexOptions.Compiled);
 
-    /// <summary>Open in Edit mode — load current row into form.</summary>
-    public async Task OpenEditAsync(long id)
+    /// <summary>Open in Edit mode — pre-fill từ row entity TRỰC TIẾP
+    /// (đã có sẵn từ grid; HOTFIX loại bỏ server call có thể fail).</summary>
+    public Task OpenEditAsync(CCL.MES.Domain.Entities.WorkCenter row)
     {
         _mode = EditMode.Edit;
-        _editId = id;
+        _editId = row.Id;
         _busy = false;
         _errorMessage = null;
-        var detail = await Npi.WorkCenterDetailAsync(id);
-        if (detail is null)
-        {
-            _errorMessage = Loc["wc.edit.err_not_found"].Value;
-            _open = true;
-            StateHasChanged();
-            return;
-        }
-        var r = detail.Row;
         _form = new FormModel
         {
-            Code = r.Code,
-            Description = r.Description,
-            Area = r.Area ?? "",
-            IdealSpeedPcsH = r.IdealSpeedPcsH,
-            ShiftPattern = r.ShiftPattern ?? "",
-            Active = r.Active ?? true,
+            Code = row.Code,
+            Description = row.Description,
+            Area = row.Area ?? "",
+            IdealSpeedPcsH = row.IdealSpeedPcsH,
+            ShiftPattern = row.ShiftPattern ?? "",
+            Active = row.Active ?? true,
         };
         _open = true;
         StateHasChanged();
+        return Task.CompletedTask;
     }
 
-    /// <summary>Open in Copy mode — pre-fill từ source, Code empty.</summary>
-    public async Task OpenCopyAsync(long srcId)
+    /// <summary>Open in Copy mode — pre-fill từ source row, Code empty
+    /// (operator điền code mới). HOTFIX dùng row entity trực tiếp.</summary>
+    public Task OpenCopyAsync(CCL.MES.Domain.Entities.WorkCenter row)
     {
         _mode = EditMode.Copy;
-        _copySrcId = srcId;
+        _copySrcId = row.Id;
         _busy = false;
         _errorMessage = null;
-        var detail = await Npi.WorkCenterDetailAsync(srcId);
-        if (detail is null)
-        {
-            _errorMessage = Loc["wc.edit.err_not_found"].Value;
-            _open = true;
-            StateHasChanged();
-            return;
-        }
-        var r = detail.Row;
         _form = new FormModel
         {
-            Code = "",  // Operator điền code mới
-            Description = r.Description + " (copy)",
-            Area = r.Area ?? "",
-            IdealSpeedPcsH = r.IdealSpeedPcsH,
-            ShiftPattern = r.ShiftPattern ?? "",
-            Active = true,  // Q2 default TRUE
+            Code = "",                                  // Operator điền code mới
+            Description = row.Description + " (copy)",
+            Area = row.Area ?? "",
+            IdealSpeedPcsH = row.IdealSpeedPcsH,
+            ShiftPattern = row.ShiftPattern ?? "",
+            Active = true,                              // Q2 default TRUE
         };
         _open = true;
         StateHasChanged();
+        return Task.CompletedTask;
     }
 
     private void CancelClick()

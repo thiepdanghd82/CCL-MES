@@ -423,3 +423,11 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .spec-checkbox-row { flex-direction:row !important; align-items:center;
   gap:8px !important; }
 .spec-checkbox-row input[type="checkbox"] { width:auto; }
+
+/* === Phase 8 hotfix — context-menu action error banner === */
+.rt-ctx-error { position:fixed; bottom:20px; right:20px; max-width:520px;
+  z-index:300; box-shadow:0 6px 24px rgba(0,0,0,.15);
+  display:flex; align-items:flex-start; gap:8px; }
+.rt-ctx-error-close { background:none; border:0; color:inherit;
+  cursor:pointer; font-size:18px; padding:0 4px; margin-left:auto; }
+.rt-ctx-error-close:hover { color:#1f3864; }

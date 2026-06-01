@@ -83,6 +83,16 @@
     <WorkCenterInfoModal @ref="_infoModal" OnEditRequested="OnInfoEdit" />
     <WorkCenterEditModal @ref="_editModal" OnSaved="OnEditSaved" />
 
+    @* Phase 8 hotfix — error banner cho context-menu action failures.
+       Hiển thị inline thay vì để exception terminate Blazor circuit. *@
+    @if (!string.IsNullOrEmpty(_ctxError))
+    {
+        <div class="alert err rt-ctx-error" role="alert">
+            ⚠ @_ctxError
+            <button type="button" class="rt-ctx-error-close" @onclick="@(() => _ctxError = null)">×</button>
+        </div>
+    }
+
     <div class="rt-table-wrap">
         @if (_result is null)
         {
@@ -170,30 +180,50 @@
         _ctxMenu.Open(e.ClientX, e.ClientY, row);
     }
 
+    private string? _ctxError;
+
+    /// <summary>
+    /// Phase 8 hotfix — toàn bộ wrap try-catch để exception KHÔNG terminate
+    /// Blazor circuit ("bị đơ"). Lỗi hiển thị inline (red banner) cho operator
+    /// thấy thay vì page freeze.
+    ///
+    /// Quan trọng: pass ev.Row (entity TRỰC TIẾP từ grid) cho modal, KHÔNG
+    /// pass id để server re-fetch. Eliminates "Work Center not found" trap.
+    /// </summary>
     private async Task OnCtxAction((string Action, WCEntity Row) ev)
     {
-        switch (ev.Action)
+        _ctxError = null;
+        try
         {
-            case "open":
-            case "info":
-                if (_infoModal is not null) await _infoModal.OpenAsync(ev.Row.Id);
-                break;
-            case "edit":
-                if (_editModal is not null) await _editModal.OpenEditAsync(ev.Row.Id);
-                break;
-            case "copy":
-                if (_editModal is not null) await _editModal.OpenCopyAsync(ev.Row.Id);
-                break;
-            case "toggle":
-                await ToggleActiveAsync(ev.Row);
-                break;
+            switch (ev.Action)
+            {
+                case "open":
+                case "info":
+                    if (_infoModal is not null) await _infoModal.OpenAsync(ev.Row);
+                    break;
+                case "edit":
+                    if (_editModal is not null) await _editModal.OpenEditAsync(ev.Row);
+                    break;
+                case "copy":
+                    if (_editModal is not null) await _editModal.OpenCopyAsync(ev.Row);
+                    break;
+                case "toggle":
+                    await ToggleActiveAsync(ev.Row);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+            StateHasChanged();
         }
     }
 
-    private async Task OnInfoEdit(long id)
+    private async Task OnInfoEdit(WCEntity row)
     {
         if (_editModal is null) return;
-        await _editModal.OpenEditAsync(id);
+        try { await _editModal.OpenEditAsync(row); }
+        catch (Exception ex) { _ctxError = ex.Message; StateHasChanged(); }
     }
 
     private async Task OnEditSaved() => await Load();
