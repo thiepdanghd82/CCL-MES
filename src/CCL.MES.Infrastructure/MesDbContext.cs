@@ -17,6 +17,7 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<ProductRevision> ProductRevisions => Set<ProductRevision>();
     public DbSet<SpecMaterial> SpecMaterials => Set<SpecMaterial>();
     public DbSet<SpecPrint> SpecPrints => Set<SpecPrint>();
+    public DbSet<SpecPrintColor> SpecPrintColors => Set<SpecPrintColor>();
     public DbSet<SpecDiecut> SpecDiecuts => Set<SpecDiecut>();
     public DbSet<SpecFinishing> SpecFinishings => Set<SpecFinishing>();
     public DbSet<Drawing> Drawings => Set<Drawing>();
@@ -148,6 +149,19 @@ public class MesDbContext : DbContext, IMesDbContext
             .WithOne(x => x.ProductRevision!)
             .HasForeignKey<SpecPrint>(x => x.ProductRevisionId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Phase 8 PR #31a — SpecPrint 1:N SpecPrintColor (silkscreen print rows).
+        // Cascade delete để xóa color rows khi xóa SpecPrint master.
+        b.Entity<SpecPrint>()
+            .HasMany(x => x.Colors)
+            .WithOne(x => x.SpecPrint!)
+            .HasForeignKey(x => x.SpecPrintId)
+            .OnDelete(DeleteBehavior.Cascade);
+        // Lookup index — (SpecPrintId + Seq) unique giữ thứ tự in canonical.
+        b.Entity<SpecPrintColor>().HasIndex(x => new { x.SpecPrintId, x.Seq }).IsUnique();
+        // PlateCode + InkCode search (PR #33 detail sheet + future cross-spec lookup).
+        b.Entity<SpecPrintColor>().HasIndex(x => x.PlateCode);
+        b.Entity<SpecPrintColor>().HasIndex(x => x.InkCode);
         b.Entity<ProductRevision>()
             .HasOne(x => x.Diecut)
             .WithOne(x => x.ProductRevision!)

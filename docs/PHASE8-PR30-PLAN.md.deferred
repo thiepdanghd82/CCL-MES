@@ -1,0 +1,377 @@
+# PHASE 8 PR #30 — Lifecycle ops (Revise + Copy + Edit + Trash/Restore + Supersede + Purge)
+
+> Branch `feat/phase8-spec-lifecycle` base `main` (post PR #29 merge).
+> KHÔNG migration — soft-delete + lineage fields đã có từ PR #28.
+> STOP sau plan này — chờ duyệt semantics + Q1-Q10 trước khi code.
+
+---
+
+## 0. Baseline verification (KHÔNG migration)
+
+| Field cần | Trạng thái |
+|---|---|
+| `ProductRevision.IsTrashed` (bool) | ✅ có (PR #28) |
+| `ProductRevision.TrashedAt` (DateTime?) | ✅ có |
+| `ProductRevision.TrashedBy` (string?) | ✅ có |
+| `ProductRevision.ParentRevisionId` (long?) | ✅ có (lineage Revise) |
+| `ProductRevision.ChangeSummary` (string?) | ✅ có |
+| `ProductRevisionStatus` enum gồm `Superseded` | ✅ có (5 state: Draft/InReview/Approved/Released/Superseded) |
+| WO FK `ProductRevisionId` ON DELETE RESTRICT | ✅ có (PR #28 migration) |
+| Soft-delete columns trong live DB | ✅ confirm qua PRAGMA table_info('ProductRevisions') |
+| Audit infra (`IAuditWriter` + AuditLog table) | ✅ có (Phase 6 Bước 5) |
+
+Live DB row counts (PR #30 verify gates phải match):
+- ProductRevisions=1 / SpecPrints=1 / ProcessCatalogs=17 / IqcInspections=3 / WorkOrders=1 / Structure 20530 / Routine 38441 / RawMat 2127 / WC 43
+
+**Kết luận**: schema đủ cho PR #30 lifecycle ops. Không migration. Nếu code phát hiện gap → STOP báo cáo, KHÔNG quietly thêm migration.
+
+---
+
+## 1. Scope tổng
+
+7 op + 1 background service + UI wire 5 menu items + Trash sub-view:
+
+| Op | Surface | RBAC |
+|---|---|---|
+| **Edit** | SpecEditModal (focus Identity + ColorSpecJson params) — only `Status=Draft` rev | Admin/Engineer |
+| **Copy** | SpecCopyModal (mirror PR #27 WC Copy form) → new independent rev `RevCode=A` Status=Draft | Admin/Engineer |
+| **Revise** | SpecReviseModal (reason input) → new ProductRevision với `RevCode bumped`, lineage to parent, old rev auto-Superseded | Admin/Engineer |
+| **Mark Superseded** | Confirm dialog → flip Status=Superseded manual (cho deprecate spec không Revise) | Admin/Engineer |
+| **Trash** | Confirm dialog → soft-delete (`IsTrashed=true`); blocker checks orphan WO FK | Admin/Engineer |
+| **Restore** | Trash view button → flip `IsTrashed=false` | Admin/Engineer |
+| **Purge** | HostedService 24h cycle, hard-delete `IsTrashed AND TrashedAt < now - retention` | server-side only |
+| Trash view toggle | Engineer Spec grid filter chip "Show Trash" | NpiSpecRead (R xem) |
+
+---
+
+## 2. Semantics đề xuất (default + trade-off)
+
+### 2.1 Revise (Q1 — quan trọng nhất)
+
+**Default (a) — Create new revision**: SpecHub-aligned, audit/compliance complete.
+
+```
+Trước:  rev_A (Approved, Id=1)
+Revise (reason="Substrate brand change")
+Sau:    rev_A (Status=Superseded, EffectiveTo=now)
+        rev_B (Status=Draft, ParentRevisionId=1, ChangeSummary=reason,
+               4 sibling specs deep-cloned từ rev_A, Id=2)
+```
+
+**Algorithm**:
+1. Load source rev với 4 sibling specs (Material/Print/Diecut/Finishing) via Include
+2. Compute `nextRev()`: A→B→C→…→Z→AA→AB→… (port SpecHub `nextRev` JS sang C# helper)
+3. Wrap trong DB transaction:
+   - INSERT new ProductRevision với SpecCode kế thừa, RevisionCode=bumped, Status=Draft, ParentRevisionId=src.Id, ChangeSummary=reason, Title=src.Title (operator edit sau qua Edit)
+   - Deep clone 4 sibling specs (Material/Print/Diecut/Finishing) với ProductRevisionId=new.Id
+   - UPDATE old rev: Status=Superseded, EffectiveTo=UtcNow
+4. Audit emit `SPEC_REVISE` với detail JSON `{source_id, source_rev, new_id, new_rev, reason}`
+
+**Trade-off (b) Rewrite in-place**: mất lịch sử + không có compliance audit trail. REJECT.
+
+### 2.2 Supersede (Q2)
+
+**Default**: Auto-supersede từ Revise flow + cho phép manual "Mark Superseded" trên Approved/Released rev (admin override, KHÔNG yêu cầu tạo rev mới).
+
+**Manual Mark Superseded**:
+- Active khi `Status ∈ {Approved, Released}` (Draft/InReview không cần superseded; Superseded đã rồi)
+- Confirm dialog 2-step (admin override action)
+- Set `Status=Superseded`, `EffectiveTo=UtcNow`
+- KHÔNG tạo rev mới
+- Audit emit `SPEC_SUPERSEDE` với detail `{from_status, manual=true}`
+
+**Trade-off**: Cho phép manual Superseded không có rev kế thừa → spec lifecycle "dangling" (không có active rev). Lý do vẫn cho phép: production code có thể bị obsolete hoàn toàn (vd product retired).
+
+### 2.3 Copy (Q3)
+
+**Default**: Tạo ProductRevision độc lập với SpecCode rỗng (operator nhập), RevCode='A', ParentRevisionId=null (KHÔNG lineage vì là copy chứ không phải Revise), Status=Draft. Deep clone 4 sibling specs.
+
+**Form**: mirror PR #27 `WorkCenterEditModal` Copy mode:
+- SpecCode (empty, operator nhập, validate unique giống Create)
+- Title (pre-fill `<old title> (copy)`)
+- ProductId dropdown (operator có thể chuyển product)
+- ProcessCode pre-fill từ source (operator có thể đổi)
+
+Audit emit `SPEC_COPY` với detail `{source_id, source_code, source_rev, new_id, new_code}`.
+
+### 2.4 Edit (Q4 — KHÔNG có trong message ban đầu, em đề xuất scope hẹp)
+
+**Default scope hẹp**: SpecEditModal cho phép edit Identity + SpecPrint.ColorSpecJson params (Width/Height/Process). KHÔNG full 4-sub-tab editor (defer Phase 9).
+
+**Gate**: chỉ enable khi `Status=Draft`. Approved/Released/Superseded rev immutable per SpecHub principle 2 ("Released revs immutable").
+
+**Form fields**:
+- Title (editable)
+- ProcessCode (dropdown từ ProcessCatalog)
+- ColorSpecJson params table (Add/Remove rows mirror CreateSpecModal)
+
+Audit emit `SPEC_UPDATE` với detail `{rev_id, fields_changed[]}` (deep diff sẽ defer; Phase 9).
+
+### 2.5 Trash + blockers (Q5)
+
+**Default blocker**: chặn trash nếu có WO active reference.
+
+```csharp
+async Task<TrashResult> TrashAsync(long revisionId, string user) {
+    // 1. Load rev
+    var rev = await _db.ProductRevisions.FindAsync(revisionId);
+    if (rev is null) return TrashResult.NotFound;
+    if (rev.IsTrashed) return TrashResult.AlreadyTrashed;
+
+    // 2. Blocker check: active WO reference?
+    var activeWoCount = await _db.WorkOrders
+        .Where(w => w.ProductRevisionId == revisionId
+                  && w.Status != WoStatus.Closed
+                  && w.Status != WoStatus.Cancelled)
+        .CountAsync();
+    if (activeWoCount > 0)
+        return TrashResult.BlockedByActiveWorkOrders(activeWoCount);
+
+    // 3. Soft-delete in tx + audit
+    using var tx = await _db.Database.BeginTransactionAsync();
+    rev.IsTrashed = true;
+    rev.TrashedAt = DateTime.UtcNow;
+    rev.TrashedBy = user;
+    await _db.SaveChangesAsync();
+    await _audit.EmitAsync(AuditAction.SpecTrash, user, ...);
+    await tx.CommitAsync();
+    return TrashResult.Ok;
+}
+```
+
+**Q5 sub**: Có chặn trash Approved/Released rev nếu KHÔNG có WO active? Default: cho phép (operator discretion + audit). Closed/Cancelled WO không block — historical reference OK.
+
+### 2.6 Restore (Q6)
+
+**Default**: simple flip `IsTrashed=false`, clear TrashedAt/TrashedBy.
+
+**Gate**: chỉ available trong Trash view. KHÔNG có blocker (restore safe — không tạo orphan).
+
+Audit `SPEC_RESTORE`.
+
+### 2.7 Purge HostedService (Q7)
+
+**Default**: `BackgroundService` chạy cycle 24h (configurable). Hard-delete `IsTrashed=true AND TrashedAt < UtcNow - retention`. Retention default 30 days, env `OPS_SPEC_TRASH_RETENTION_DAYS=30`.
+
+**Architecture**:
+```csharp
+public class SpecTrashPurgeService : BackgroundService {
+    private readonly IServiceScopeFactory _scopes;
+    private readonly TimeSpan _cycle = TimeSpan.FromHours(24);
+    private readonly int _retentionDays;  // from env
+
+    protected override async Task ExecuteAsync(CancellationToken ct) {
+        // First-run delay 30s để server boot xong + DbSeeder finish.
+        await Task.Delay(TimeSpan.FromSeconds(30), ct);
+        while (!ct.IsCancellationRequested) {
+            await RunPurgeCycleAsync(ct);
+            await Task.Delay(_cycle, ct);
+        }
+    }
+
+    async Task RunPurgeCycleAsync(CancellationToken ct) {
+        using var scope = _scopes.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IMesDbContext>();
+        var audit = scope.ServiceProvider.GetRequiredService<IAuditWriter>();
+        var cutoff = DateTime.UtcNow.AddDays(-_retentionDays);
+
+        var eligible = await db.ProductRevisions
+            .Where(r => r.IsTrashed && r.TrashedAt < cutoff)
+            .ToListAsync(ct);
+        if (eligible.Count == 0) {
+            _logger.LogInformation("Spec trash purge cycle: 0 eligible (cutoff={cutoff:o})", cutoff);
+            return;
+        }
+        var ids = eligible.Select(r => r.Id).ToList();
+        db.ProductRevisions.RemoveRange(eligible);  // cascade 4 sibling + drawings + QC via FK ON DELETE CASCADE
+        await db.SaveChangesAsync(ct);
+        await audit.EmitAsync(AuditAction.SpecPurge, "system",
+            detail: JsonSerializer.Serialize(new { purged_count = eligible.Count, ids, cutoff }));
+        _logger.LogInformation("Spec trash purge cycle: purged {count} revs (ids={ids})", eligible.Count, ids);
+    }
+}
+```
+
+**Idempotent guarantees**:
+- Run cycle nhiều lần không xóa lại — chỉ load `WHERE IsTrashed AND TrashedAt < cutoff`; sau khi remove rows không còn match
+- Server restart giữa cycle → tiếp tục, không double-delete
+- Cycle chạy KHÔNG đụng row chưa quá hạn (test isolated trên /tmp với cutoff date logic verified)
+
+**Boot safety**: 30s first-run delay tránh chạy trong DbSeeder cycle.
+
+**Test plan** (verify isolated):
+```bash
+# 1. Backup live, copy sang /tmp/purge-test.db
+# 2. Tạo fake trashed rev với TrashedAt = NOW - 31 days (eligible)
+# 3. Tạo fake trashed rev với TrashedAt = NOW - 29 days (not eligible)
+# 4. Set OPS_SPEC_TRASH_RETENTION_DAYS=30
+# 5. Boot server trên /tmp DB, đợi 35s, kiểm: eligible rev gone, 29-day rev intact
+# 6. Audit log có SPEC_PURGE với count=1 + id
+# 7. Restart server, đợi 35s, kiểm: thêm cycle SPEC_PURGE count=0 (idempotent)
+```
+
+### 2.8 Wire context menu (Q8)
+
+PR #29 SpecContextMenu hiện có 5 mutation items disabled. PR #30 wire active + ADD Trash:
+
+| Item | Gate enable | Action |
+|---|---|---|
+| Open / Get Info | NpiSpecRead | SpecDetailModal (PR #29) — unchanged |
+| **Edit** | `Status=Draft` + Admin/Engineer | SpecEditModal |
+| **Copy** | Admin/Engineer | SpecCopyModal |
+| **Revise** | `Status ∈ {Approved, Released}` + Admin/Engineer | SpecReviseModal |
+| **Mark Superseded** | `Status ∈ {Approved, Released}` + Admin/Engineer | Confirm dialog 2-step |
+| **Trash** (NEW) | Admin/Engineer | Confirm dialog + WO blocker check |
+
+Items disabled khi gate fail → tooltip explain ("Edit chỉ khả dụng cho Draft rev" / "Revise chỉ khả dụng cho Approved/Released" / "Mark Superseded chỉ khả dụng cho Approved/Released" / "Đã Superseded rồi").
+
+### 2.9 Trash sub-view (Q9)
+
+Engineer Spec grid ADD filter chip toolbar: `[All] [Active] [Trash]`. Default `Active` (= `WHERE !IsTrashed`). Click `Trash` → `WHERE IsTrashed`. Trash view rows hiển thị `TrashedAt`, `TrashedBy` columns + Restore button. KHÔNG context menu trên trash rows (chỉ Restore + Get Info).
+
+### 2.10 nextRev helper
+
+Port SpecHub `nextRev()` (HTML:11343):
+```csharp
+public static string NextRev(string current) {
+    var r = (current ?? "A").Trim().ToUpperInvariant();
+    if (string.IsNullOrEmpty(r)) return "B";
+    if (r == "Z") return "AA";
+    var chars = r.ToCharArray();
+    int i = chars.Length - 1;
+    while (i >= 0) {
+        if (chars[i] == 'Z') { chars[i] = 'A'; i--; }
+        else { chars[i] = (char)(chars[i] + 1); break; }
+    }
+    return i < 0 ? "A" + new string(chars) : new string(chars);
+}
+```
+
+Tests: A→B, B→C, Y→Z, Z→AA, AZ→BA, ZZ→AAA.
+
+---
+
+## 3. Audit codes mới đề xuất (~5)
+
+ADD vào `src/CCL.MES.Domain/Audit/AuditAction.cs`:
+
+```csharp
+public const string SpecRevise     = "SPEC_REVISE";      // tạo rev mới (auto-supersede old)
+public const string SpecCopy       = "SPEC_COPY";        // copy độc lập
+public const string SpecUpdate     = "SPEC_UPDATE";      // edit in-place Draft rev
+public const string SpecSupersede  = "SPEC_SUPERSEDE";   // manual mark superseded (KHÔNG revise)
+public const string SpecTrash      = "SPEC_TRASH";       // soft-delete
+public const string SpecRestore    = "SPEC_RESTORE";     // un-trash
+public const string SpecPurge      = "SPEC_PURGE";       // HostedService cycle hard-delete
+```
+
+**Detail JSON shape** (sanitize, ≤ 4 KB):
+- `SPEC_REVISE`: `{source_id, source_rev, new_id, new_rev, reason}`
+- `SPEC_COPY`: `{source_id, source_code, source_rev, new_id, new_code}`
+- `SPEC_UPDATE`: `{rev_id, rev_code, fields_changed: []}`
+- `SPEC_SUPERSEDE`: `{rev_id, rev_code, from_status, manual: true}`
+- `SPEC_TRASH`: `{rev_id, rev_code, status}`
+- `SPEC_RESTORE`: `{rev_id, rev_code}`
+- `SPEC_PURGE`: `{purged_count, ids: [], cutoff_utc}`
+
+---
+
+## 4. UI deliverables
+
+| File | Vai trò | LOC est |
+|---|---|---|
+| `Shared/SpecReviseModal.razor` | Reason input + diff preview placeholder | ~180 |
+| `Shared/SpecCopyModal.razor` | Mirror WorkCenterEditModal Copy mode | ~220 |
+| `Shared/SpecEditModal.razor` | Edit Identity + ColorSpecJson params (Draft only) | ~280 |
+| `Shared/SpecTrashConfirmModal.razor` | Confirm + show blocker reason inline | ~120 |
+| `Shared/SpecContextMenu.razor` | Wire 5 active items + ADD Trash item | ~+80 (modify) |
+| `Pages/Npi/EngineerSpec.razor` | ADD `[All/Active/Trash]` filter chip + Trash view columns + Restore button + modal refs + handlers | ~+200 (modify) |
+| `Services/SpecService.cs` | ADD ReviseAsync / CopyAsync / UpdateAsync / SupersedeAsync / TrashAsync / RestoreAsync + WO blocker check + NextRev | ~+400 (modify) |
+| `Services/SpecTrashPurgeService.cs` | BackgroundService 24h cycle | ~180 |
+| `Domain/Audit/AuditAction.cs` | +7 audit codes | ~+10 |
+| `Application/Dtos.cs` | ReviseRequest / CopyRequest / UpdateRequest / TrashResult enum | ~+50 |
+| i18n EN/VI | +60 keys (5 modals labels + confirm copy + chip labels + blocker reason) | ~120 entries |
+| CSS `site.css` | `.spec-trash-row` (line-through grey) + filter chip styles | ~+60 |
+
+**Tổng**: ~1,900 LOC code + ~120 i18n entries. Size M-L.
+
+---
+
+## 5. Hard constraints (PR đầu mutation Phase 8)
+
+- ❌ KHÔNG migration (verified §0 — schema đủ)
+- ✅ Mọi mutation op WRAP TRANSACTION + audit emit cùng tx
+- ✅ WO FK ON DELETE RESTRICT — blocker check trước Trash (avoid orphan)
+- ✅ HostedService Purge: idempotent + log mỗi cycle + first-run 30s delay (avoid race với DbSeeder) + test isolated /tmp trước khi enable trên live
+- ✅ Modal nhận row entity TRỰC TIẾP từ grid (bài học hotfix PR #27)
+- ✅ Try-catch wrap async handlers + error banner inline (KHÔNG freeze circuit)
+- ✅ i18n EN/VI cho mọi label/tooltip/confirm/error
+- ✅ RBAC: mutation Admin/Engineer; NpiSpecRead xem; Purge server-side only
+- ✅ Approved/Released rev = immutable (Edit gate Draft only; mirror SpecHub principle 2)
+- ✅ Vùng cấm intact: Machine / ProductionLog / 4 NPI tab khác / IQC / Ops Control v1.2 / CMES / Old ver / SpecHub READ-ONLY
+
+---
+
+## 6. Verify gates
+
+| # | Check | Method |
+|---|---|---|
+| V1 | dotnet build clean | 0 errors/warnings |
+| V2 | Baseline rows unchanged + tăng do op test | Pre-test snapshot + diff |
+| V3 | nextRev unit-test (mental check: A→B, Z→AA, AZ→BA, ZZ→AAA) | Inline test trong dev or quick console |
+| V4 | Revise op: rev_A Approved → rev_B Draft + rev_A=Superseded, EffectiveTo set | Manual op via UI + sqlite verify |
+| V5 | Copy op: new rev independent (ParentRevisionId=null) | Manual op + sqlite verify |
+| V6 | Trash blocker: WO active ref → 422 with reason | Manual op (test data: tạo WO Status=Draft trên rev, trash → expect block) |
+| V7 | Trash op + Restore: IsTrashed/At/By set + cleared | Manual op + sqlite verify |
+| V8 | Purge cycle: TrashedAt < cutoff → hard-deleted; >= cutoff → intact | Isolated /tmp DB test + boot server |
+| V9 | Purge cycle idempotent: 2nd cycle 0 eligible | Audit log emit count=0 |
+| V10 | Audit emit per op | sqlite audit_log query latest |
+| V11 | Trash sub-view filter chip works | Manual UI |
+| V12 | Vùng cấm intact | git diff scope |
+
+---
+
+## 7. Q1-Q10 chờ anh chốt (default em đề xuất)
+
+| Q | Default em đề xuất | Trade-off |
+|---|---|---|
+| **Q1 Revise semantics** | (a) New revision: bump RevCode, lineage ParentRevisionId, 4 sibling deep-clone, old auto-Superseded, reason mandatory | (b) Rewrite in-place: mất history → REJECT |
+| **Q2 Supersede auto vs manual** | Cả 2: auto trong Revise flow + manual "Mark Superseded" cho Approved/Released | — |
+| **Q3 Copy form** | Mirror WC Copy: SpecCode empty (operator nhập), Title pre-fill `(copy)`, ProductId dropdown, ProcessCode pre-fill | — |
+| **Q4 Edit scope** | Hẹp: Identity + ColorSpecJson params, gate Draft only. Full 4-sub-tab editor defer Phase 9 | — |
+| **Q5 Trash blocker** | Chặn nếu có WO Status ∉ {Closed, Cancelled}. Closed/Cancelled WO không block (historical OK) | — |
+| **Q6 Restore gate** | Không blocker — restore safe | — |
+| **Q7 Purge cycle + retention** | BackgroundService 24h cycle, retention 30 days env-overridable (`OPS_SPEC_TRASH_RETENTION_DAYS`), first-run 30s delay | — |
+| **Q8 Wire context menu items** | Edit (Draft only) + Copy (always) + Revise (Approved/Released) + Mark Superseded (Approved/Released) + Trash (always) | Items không match gate hiện disabled + tooltip explain |
+| **Q9 Trash sub-view** | Filter chip `[All / Active / Trash]` trên toolbar, default Active. Trash rows: line-through grey + show TrashedAt/By columns + Restore button | — |
+| **Q10 Audit codes mới** | 7 codes: SPEC_REVISE / SPEC_COPY / SPEC_UPDATE / SPEC_SUPERSEDE / SPEC_TRASH / SPEC_RESTORE / SPEC_PURGE | — |
+
+**Bonus question Q11 — Mark Superseded confirm UX**:
+- Default: 1-step confirm dialog "Mark spec X Rev Y as Superseded? This is reversible only by Admin via direct DB intervention." (admin manual ≠ Revise, không tạo rev mới — operator phải hiểu là one-way trên thực tế)
+- Alternative: 2-step confirm (type SpecCode để xác nhận). Em đề xuất 2-step vì semi-irreversible.
+
+**Bonus question Q12 — UI trash auto-purge countdown**:
+- Default: hiển thị `TrashedAt + 30 days = <purge date>` trong Trash view row tooltip. Nice-to-have, không blocking.
+
+---
+
+## 8. Out of scope
+
+- Drawing upload + 3-role approval → PR #31/#32
+- QC plan editor → Phase 9
+- xlsx import → Phase 9
+- Stats panel sidebar → Phase 9
+- Full 4-sub-tab editor (Material/Print/Diecut/Finishing field-by-field) → Phase 9 (Edit ở PR #30 chỉ Identity + params)
+- ProcessCatalog admin CRUD → Phase 9
+- Drawing approval chain → PR #32
+
+---
+
+## 9. STOP — chờ duyệt
+
+Em sẽ KHÔNG tạo branch / KHÔNG code cho đến khi anh:
+1. Duyệt scope tổng 7 op + HostedService
+2. Chốt Q1-Q12 (hoặc nhận default em đề xuất)
+3. Confirm hard constraints (đặc biệt: WO blocker semantics + Purge first-run delay + Edit gate Draft only)
+
+Sau khi chốt, em sẽ tạo branch `feat/phase8-spec-lifecycle`, code theo plan này, run isolated /tmp test cho Purge cycle, verify đầy đủ V1-V12, commit + PR + STOP chờ duyệt.

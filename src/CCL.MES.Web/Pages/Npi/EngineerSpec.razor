@@ -3,11 +3,15 @@
 @using System.Globalization
 @using CCL.MES.Application
 @using CCL.MES.Application.Services
+@using CCL.MES.Application.SpecImport
 @using CCL.MES.Domain
 @using CCL.MES.Domain.Entities
 @using CCL.MES.Web.Shared
+@using Microsoft.AspNetCore.Hosting
 @using Microsoft.JSInterop
 @inject SpecService SpecSvc
+@inject SpecImportService SpecImport
+@inject IWebHostEnvironment Env
 @inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> Loc
 @inject AuthenticationStateProvider AuthState
@@ -62,10 +66,27 @@
                 </div>
             }
         </div>
+        <AuthorizeView Roles="Admin">
+            <button type="button"
+                    class="rt-btn rt-btn-refresh-samples"
+                    @onclick="RefreshSamplesAsync"
+                    disabled="@_busyRefresh"
+                    title="@Loc["npi.spec.refresh_samples_confirm"]">
+                @(_busyRefresh ? Loc["npi.spec.create_v2.parsing"].Value : Loc["npi.spec.btn_refresh_samples"].Value)
+            </button>
+        </AuthorizeView>
         <AuthorizeView Roles="Admin,Engineer">
             <button type="button" class="rt-btn rt-btn-primary" @onclick="OpenCreateAsync">+ @Loc["npi.spec.btn_create"]</button>
         </AuthorizeView>
     </div>
+
+    @if (!string.IsNullOrEmpty(_refreshMessage))
+    {
+        <div class="alert err" role="alert" style="margin:8px 0;">
+            @_refreshMessage
+            <button type="button" class="rt-ctx-error-close" @onclick="@(() => _refreshMessage = null)">×</button>
+        </div>
+    }
 
     <CreateSpecModal @ref="_createModal" OnCreated="OnCreatedAsync" />
     <SpecContextMenu @ref="_ctxMenu" OnAction="OnCtxActionAsync" />
@@ -160,6 +181,66 @@
     private SpecDetailModal? _detailModal;
     private string? _ctxError;
     private long _busyApproveId = 0;
+
+    // PR #31a — Refresh samples (Admin only).
+    private bool _busyRefresh;
+    private string? _refreshMessage;
+
+    /// <summary>
+    /// PR #31a Q7 — Refresh samples (Admin only). Đọc 4 file silkscreen
+    /// sanitized từ wwwroot/Data/Specs/ → SpecImportService.RefreshSamplesAsync.
+    /// Default idempotent skip RefNo trùng; nếu operator giữ Shift khi click →
+    /// force=true: soft-trash existing + re-import.
+    /// </summary>
+    private async Task RefreshSamplesAsync()
+    {
+        if (_busyRefresh) return;
+        _refreshMessage = null;
+
+        bool force;
+        try
+        {
+            // Distinguish default vs force qua confirm dialog 2-step.
+            var confirmed = await JS.InvokeAsync<bool>("confirm", Loc["npi.spec.refresh_samples_confirm"].Value);
+            if (!confirmed) return;
+            force = await JS.InvokeAsync<bool>("confirm", Loc["npi.spec.refresh_samples_force_confirm"].Value);
+        }
+        catch
+        {
+            return;
+        }
+
+        _busyRefresh = true;
+        StateHasChanged();
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var user = state.User?.Identity?.Name;
+            var samplesDir = Path.Combine(Env.WebRootPath ?? "wwwroot", "Data", "Specs");
+            var files = new[]
+            {
+                ("DEMO_SILK_1.xlsx", "silkscreen"),
+                ("DEMO_SILK_2.xlsx", "silkscreen"),
+                ("DEMO_SILK_3.xlsx", "silkscreen"),
+                ("DEMO_SILK_4.xlsx", "silkscreen"),
+            };
+            var result = await SpecImport.RefreshSamplesAsync(samplesDir, files, force, user);
+            _refreshMessage = string.Format(Loc["npi.spec.refresh_samples_result"].Value,
+                result.Added, result.Updated, result.Skipped);
+            _page = 1;
+            _search = null;
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _refreshMessage = $"{Loc["npi.spec.refresh_samples_err"].Value}: {ex.Message}";
+        }
+        finally
+        {
+            _busyRefresh = false;
+            StateHasChanged();
+        }
+    }
 
     // Q16 debounce 300ms — clear previous timer + reset on each keystroke.
     private CancellationTokenSource? _searchCts;
