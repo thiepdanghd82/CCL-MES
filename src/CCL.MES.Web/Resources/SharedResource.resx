@@ -396,6 +396,72 @@
   <data name="npi.workcenter.active.false" xml:space="preserve"><value>Inactive</value></data>
   <data name="npi.workcenter.empty" xml:space="preserve"><value>No Work Centers found. Click Import to load a CSV or run tools/import_npi.py to derive from Routing.</value></data>
   <data name="npi.workcenter.empty_filter" xml:space="preserve"><value>No rows match the search.</value></data>
+
+  <!-- Phase 8 — Work Center right-click context menu + Info/Edit modals -->
+  <data name="wc.ctx.open" xml:space="preserve"><value>Open</value></data>
+  <data name="wc.ctx.edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="wc.ctx.copy" xml:space="preserve"><value>Copy</value></data>
+  <data name="wc.ctx.get_info" xml:space="preserve"><value>Get Info</value></data>
+  <data name="wc.ctx.activate" xml:space="preserve"><value>Activate</value></data>
+  <data name="wc.ctx.deactivate" xml:space="preserve"><value>Deactivate</value></data>
+  <data name="wc.ctx.confirm_activate" xml:space="preserve"><value>Activate Work Center "{0}"?</value></data>
+  <data name="wc.ctx.confirm_deactivate" xml:space="preserve"><value>Deactivate Work Center "{0}"? It will be marked inactive but kept in the catalog.</value></data>
+  <data name="wc.ctx.require_admin_or_engineer" xml:space="preserve"><value>Requires Admin or Engineer role</value></data>
+
+  <data name="wc.info.title" xml:space="preserve"><value>Work Center: {0}</value></data>
+  <data name="wc.info.loading" xml:space="preserve"><value>Loading detail…</value></data>
+  <data name="wc.info.not_found" xml:space="preserve"><value>Work Center not found.</value></data>
+  <data name="wc.info.section.identity" xml:space="preserve"><value>Identity</value></data>
+  <data name="wc.info.section.capacity" xml:space="preserve"><value>Capacity</value></data>
+  <data name="wc.info.section.routing" xml:space="preserve"><value>Routing usage</value></data>
+  <data name="wc.info.section.audit" xml:space="preserve"><value>Audit trail</value></data>
+  <data name="wc.info.section.production" xml:space="preserve"><value>Recent production</value></data>
+  <data name="wc.info.production.deferred" xml:space="preserve"><value>Mapping Machine ↔ WorkCenter not configured yet. ProductionLog statistics will be enabled in a follow-up phase once Machine entity links to WorkCenter.</value></data>
+  <data name="wc.info.field.code" xml:space="preserve"><value>Code</value></data>
+  <data name="wc.info.field.description" xml:space="preserve"><value>Description</value></data>
+  <data name="wc.info.field.area" xml:space="preserve"><value>Area</value></data>
+  <data name="wc.info.field.status" xml:space="preserve"><value>Status</value></data>
+  <data name="wc.info.field.ideal_speed" xml:space="preserve"><value>Ideal Speed</value></data>
+  <data name="wc.info.field.shift" xml:space="preserve"><value>Shift</value></data>
+  <data name="wc.info.field.working_hrs" xml:space="preserve"><value>Working hrs</value></data>
+  <data name="wc.info.field.daily_cap" xml:space="preserve"><value>Daily capacity</value></data>
+  <data name="wc.info.field.monthly_est" xml:space="preserve"><value>Monthly estimate</value></data>
+  <data name="wc.info.field.op_count" xml:space="preserve"><value>Ops linked</value></data>
+  <data name="wc.info.field.distinct_parts" xml:space="preserve"><value>Distinct parts</value></data>
+  <data name="wc.info.field.avg_mach_setup" xml:space="preserve"><value>Avg Mach Setup</value></data>
+  <data name="wc.info.field.avg_labor_setup" xml:space="preserve"><value>Avg Labor Setup</value></data>
+  <data name="wc.info.field.avg_mach_run" xml:space="preserve"><value>Avg Mach Run</value></data>
+  <data name="wc.info.field.created" xml:space="preserve"><value>Created</value></data>
+  <data name="wc.info.field.updated" xml:space="preserve"><value>Last update</value></data>
+  <data name="wc.info.unit.hrs_per_day" xml:space="preserve"><value>hrs/day</value></data>
+  <data name="wc.info.unit.ops" xml:space="preserve"><value>ops</value></data>
+  <data name="wc.info.unit.parts" xml:space="preserve"><value>parts</value></data>
+  <data name="wc.info.hint.30_days" xml:space="preserve"><value>30 working days</value></data>
+  <data name="wc.info.routing.empty" xml:space="preserve"><value>No routing operations reference this Work Center yet.</value></data>
+  <data name="wc.info.routing.top_parts" xml:space="preserve"><value>Top parts by usage</value></data>
+  <data name="wc.info.btn_close" xml:space="preserve"><value>Close</value></data>
+  <data name="wc.info.btn_edit" xml:space="preserve"><value>Edit</value></data>
+
+  <data name="wc.edit.title_edit" xml:space="preserve"><value>Edit Work Center</value></data>
+  <data name="wc.edit.title_copy" xml:space="preserve"><value>Copy Work Center</value></data>
+  <data name="wc.edit.code" xml:space="preserve"><value>Code</value></data>
+  <data name="wc.edit.code_ph" xml:space="preserve"><value>e.g. MACHINE_42</value></data>
+  <data name="wc.edit.code_hint" xml:space="preserve"><value>3–12 chars, uppercase letters / digits / dash / underscore</value></data>
+  <data name="wc.edit.description" xml:space="preserve"><value>Description</value></data>
+  <data name="wc.edit.description_ph" xml:space="preserve"><value>e.g. Flexo press 8-color</value></data>
+  <data name="wc.edit.area" xml:space="preserve"><value>Area</value></data>
+  <data name="wc.edit.area_pick" xml:space="preserve"><value>pick an area</value></data>
+  <data name="wc.edit.ideal_speed" xml:space="preserve"><value>Ideal Speed (pcs/h)</value></data>
+  <data name="wc.edit.ideal_speed_ph" xml:space="preserve"><value>e.g. 1200</value></data>
+  <data name="wc.edit.shift" xml:space="preserve"><value>Shift Pattern</value></data>
+  <data name="wc.edit.shift_pick" xml:space="preserve"><value>pick a shift</value></data>
+  <data name="wc.edit.active" xml:space="preserve"><value>Active (operator-visible in scheduling)</value></data>
+  <data name="wc.edit.btn_cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="wc.edit.btn_save" xml:space="preserve"><value>Save changes</value></data>
+  <data name="wc.edit.btn_create_copy" xml:space="preserve"><value>Create copy</value></data>
+  <data name="wc.edit.saving" xml:space="preserve"><value>Saving…</value></data>
+  <data name="wc.edit.err_save" xml:space="preserve"><value>Save failed.</value></data>
+  <data name="wc.edit.err_not_found" xml:space="preserve"><value>Source Work Center not found.</value></data>
   <data name="npi.spec.title" xml:space="preserve"><value>Engineer Spec</value></data>
   <data name="npi.spec.breadcrumb" xml:space="preserve"><value>DATABASE / SPEC</value></data>
   <data name="npi.spec.rows_loaded" xml:space="preserve"><value>{0} rows loaded</value></data>

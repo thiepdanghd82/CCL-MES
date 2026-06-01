@@ -361,3 +361,73 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .wc-area--silkscreen   { background:#e9d5ff; color:#581c87; }   /* purple */
 .wc-area--special      { background:#fed7aa; color:#9a3412; }   /* orange */
 .wc-area--other        { background:#f3f4f6; color:#6b7280; }   /* fallback neutral */
+
+/* === Phase 8 — WorkCenter right-click context menu (dark theme) === */
+/* Mirror macOS Sonoma context menu palette (slate gray bg + light text).
+   Position absolute trên scrim full-screen; scrim transparent để click-outside
+   dismiss. z-index trên modal-scrim (200) là 250 — context menu always TOP. */
+
+.wc-ctx-scrim { position:fixed; inset:0; z-index:249; background:transparent; }
+.wc-ctx-menu {
+  position:fixed; z-index:250; min-width:220px;
+  background:#1f2937; color:#f3f4f6;
+  border:1px solid #374151; border-radius:8px;
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+  padding:6px 0; font-size:13px;
+  user-select:none;
+}
+.wc-ctx-item {
+  display:flex; align-items:center; justify-content:space-between; gap:24px;
+  width:100%; padding:6px 14px;
+  background:none; border:0; color:inherit; cursor:pointer;
+  text-align:left;
+}
+.wc-ctx-item:hover:not(:disabled) { background:#3b82f6; color:#fff; }
+.wc-ctx-item:hover:not(:disabled) .wc-ctx-shortcut { color:#dbeafe; }
+.wc-ctx-item.wc-ctx-danger { color:#fca5a5; }
+.wc-ctx-item.wc-ctx-danger:hover:not(:disabled) { background:#dc2626; color:#fff; }
+.wc-ctx-item.wc-ctx-danger:hover:not(:disabled) .wc-ctx-shortcut { color:#fee2e2; }
+.wc-ctx-item.wc-ctx-disabled,
+.wc-ctx-item:disabled { color:#6b7280; cursor:not-allowed; }
+.wc-ctx-shortcut { color:#9ca3af; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; }
+.wc-ctx-separator { height:1px; background:#374151; margin:6px 8px; }
+
+/* === Phase 8 — Work Center Info modal (sectioned read-only) === */
+
+.wc-info-modal { max-width:760px; }
+.wc-info-modal .modal-body { padding:0; }
+
+.wc-info-section { padding:14px 22px; border-bottom:1px solid #f1f5f9; }
+.wc-info-section:last-child { border-bottom:0; }
+.wc-info-section h3 { margin:0 0 8px; font-size:14px; color:#1f3864;
+  text-transform:none; letter-spacing:.2px; font-weight:600; }
+.wc-info-section h4.wc-info-subhead { margin:10px 0 6px; font-size:12px;
+  color:#374151; text-transform:uppercase; letter-spacing:.5px; }
+
+.wc-info-table { width:100%; border-collapse:collapse; font-size:13px; }
+.wc-info-table th { text-align:left; padding:4px 8px 4px 0; font-weight:500;
+  color:#6b7280; width:160px; vertical-align:top; }
+.wc-info-table td { padding:4px 0; color:#1f2937; }
+
+.wc-info-toplist { list-style:none; padding:0; margin:6px 0 0; }
+.wc-info-toplist li { padding:3px 0; font-size:12px; }
+.wc-info-toplist code { background:#f3f4f6; padding:1px 6px; border-radius:4px;
+  font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.wc-info-deferred { background:#fef9c3; }
+.wc-info-deferred h3 { color:#854d0e; }
+
+/* === Phase 8 — Work Center Edit/Copy modal === */
+
+.wc-edit-modal { max-width:720px; }
+.spec-checkbox-row { flex-direction:row !important; align-items:center;
+  gap:8px !important; }
+.spec-checkbox-row input[type="checkbox"] { width:auto; }
+
+/* === Phase 8 hotfix — context-menu action error banner === */
+.rt-ctx-error { position:fixed; bottom:20px; right:20px; max-width:520px;
+  z-index:300; box-shadow:0 6px 24px rgba(0,0,0,.15);
+  display:flex; align-items:flex-start; gap:8px; }
+.rt-ctx-error-close { background:none; border:0; color:inherit;
+  cursor:pointer; font-size:18px; padding:0 4px; margin-left:auto; }
+.rt-ctx-error-close:hover { color:#1f3864; }

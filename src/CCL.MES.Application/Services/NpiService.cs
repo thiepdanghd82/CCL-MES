@@ -1,3 +1,6 @@
+using System.Text.Json;
+using CCL.MES.Application.Audit;
+using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +19,15 @@ public record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int Pa
 public class NpiService
 {
     private readonly IMesDbContext _db;
-    public NpiService(IMesDbContext db) => _db = db;
+    private readonly IAuditWriter _audit;
+
+    // Phase 8 — single ctor để DI ko phải resolve 2-ctor ambiguity.
+    // IAuditWriter đã registered từ Phase 6 Bước 5 (Program.cs:183).
+    public NpiService(IMesDbContext db, IAuditWriter audit)
+    {
+        _db = db;
+        _audit = audit;
+    }
 
     // Phase 6 Bước 2B — local PageAsync removed; consolidated into
     // PagingHelper.PageAsync. Behavior identical; helper is public static.
@@ -93,5 +104,150 @@ public class NpiService
                 || (x.StructureType != null && x.StructureType.Contains(s)));
         }
         return PagingHelper.PageAsync(q.OrderBy(x => x.ParentPart).ThenBy(x => x.ComponentPart), page, pageSize);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Phase 8 — Work Center context-menu CRUD (Open/Edit/Copy/Toggle Active)
+    // ═══════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Phase 8 hotfix — usage stats only, query by Code (string match
+    /// vào RoutingOperations.WorkCenterNo). Trả empty stats nếu opCount=0
+    /// (thay vì null) để UI không bị "not found" trap. Modal sẽ pass row
+    /// entity TRỰC TIẾP từ grid (đã có sẵn trong memory) → không cần re-fetch.
+    /// </summary>
+    public async Task<WorkCenterUsageStats> WorkCenterUsageAsync(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+            return new WorkCenterUsageStats(0, 0, null, null, null, new List<TopPartUsage>());
+
+        var ops = _db.RoutingOperations.AsNoTracking().Where(o => o.WorkCenterNo == code);
+
+        var opCount = await ops.CountAsync();
+        if (opCount == 0)
+            return new WorkCenterUsageStats(0, 0, null, null, null, new List<TopPartUsage>());
+
+        var distinctParts = await ops.Select(o => o.PartNo).Distinct().CountAsync();
+        var avgMachSetup = await ops.AverageAsync(o => (double?)o.MachineSetupTime);
+        var avgLaborSetup = await ops.AverageAsync(o => (double?)o.LaborSetupTime);
+        var avgMachRun = await ops.AverageAsync(o => (double?)o.MachineRunTime);
+
+        var topParts = await ops
+            .GroupBy(o => o.PartNo)
+            .Select(g => new TopPartUsage(g.Key, g.Count()))
+            .OrderByDescending(t => t.OpCount)
+            .Take(5)
+            .ToListAsync();
+
+        return new WorkCenterUsageStats(opCount, distinctParts, avgMachSetup, avgLaborSetup, avgMachRun, topParts);
+    }
+
+    /// <summary>
+    /// Phase 8 — keep WorkCenterDetailAsync(id) cho compat (e.g. test
+    /// scripts hay external API caller). Internal modal flow giờ pass
+    /// row entity trực tiếp + dùng WorkCenterUsageAsync.
+    /// </summary>
+    public async Task<WorkCenterDetailDto?> WorkCenterDetailAsync(long id)
+    {
+        var row = await _db.WorkCenters.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (row is null) return null;
+        var usage = await WorkCenterUsageAsync(row.Code);
+        return new WorkCenterDetailDto(row, usage);
+    }
+
+    /// <summary>
+    /// Phase 8 — Edit Work Center via context menu. Diff old vs new để
+    /// audit detail chỉ ghi field thay đổi. Code unique check thủ công
+    /// (DB không có UNIQUE INDEX trên Code; chỉ HasIndex non-unique).
+    /// </summary>
+    public async Task<WorkCenter?> UpdateWorkCenterAsync(long id, UpdateWorkCenterRequest r, string? user)
+    {
+        var row = await _db.WorkCenters.FirstOrDefaultAsync(x => x.Id == id);
+        if (row is null) return null;
+
+        if (!string.Equals(row.Code, r.Code, StringComparison.OrdinalIgnoreCase))
+        {
+            var clash = await _db.WorkCenters.AnyAsync(x => x.Code == r.Code && x.Id != id);
+            if (clash) throw new InvalidOperationException($"WC Code '{r.Code}' already exists.");
+        }
+
+        var changes = new Dictionary<string, object?>();
+        if (row.Code != r.Code) { changes["code"] = new[] { row.Code, r.Code }; row.Code = r.Code; }
+        if (row.Description != r.Description) { changes["description"] = new[] { row.Description, r.Description }; row.Description = r.Description; }
+        if (row.Area != r.Area) { changes["area"] = new[] { row.Area, r.Area }; row.Area = r.Area; }
+        if (row.IdealSpeedPcsH != r.IdealSpeedPcsH) { changes["ideal_speed_pcs_h"] = new object?[] { row.IdealSpeedPcsH, r.IdealSpeedPcsH }; row.IdealSpeedPcsH = r.IdealSpeedPcsH; }
+        if (row.ShiftPattern != r.ShiftPattern) { changes["shift_pattern"] = new[] { row.ShiftPattern, r.ShiftPattern }; row.ShiftPattern = r.ShiftPattern; }
+        if (row.Active != r.Active) { changes["active"] = new object?[] { row.Active, r.Active }; row.Active = r.Active; }
+
+        if (changes.Count == 0) return row;
+
+        row.UpdatedAt = DateTime.UtcNow;
+        row.UpdatedBy = user;
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.WcUpdate, user ?? "anonymous", actorRole: "",
+            targetType: "WorkCenter", targetId: row.Id.ToString(),
+            detail: JsonSerializer.Serialize(new { wc_id = row.Id, code = row.Code, changes }));
+        return row;
+    }
+
+    /// <summary>
+    /// Phase 8 — Copy Work Center via context menu. Tạo row mới với Code
+    /// mới (operator điền) + clone Description/Area/IdealSpeedPcsH/
+    /// ShiftPattern/Active từ source. Audit WC_COPY ghi mapping src → new.
+    /// </summary>
+    public async Task<WorkCenter?> CopyWorkCenterAsync(long srcId, UpdateWorkCenterRequest r, string? user)
+    {
+        var src = await _db.WorkCenters.AsNoTracking().FirstOrDefaultAsync(x => x.Id == srcId);
+        if (src is null) return null;
+
+        var clash = await _db.WorkCenters.AnyAsync(x => x.Code == r.Code);
+        if (clash) throw new InvalidOperationException($"WC Code '{r.Code}' already exists.");
+
+        var newRow = new WorkCenter
+        {
+            Code = r.Code,
+            Description = r.Description,
+            Area = r.Area,
+            IdealSpeedPcsH = r.IdealSpeedPcsH,
+            ShiftPattern = r.ShiftPattern,
+            Active = r.Active ?? true,
+            CreatedBy = user,
+        };
+        _db.WorkCenters.Add(newRow);
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.WcCopy, user ?? "anonymous", actorRole: "",
+            targetType: "WorkCenter", targetId: newRow.Id.ToString(),
+            detail: JsonSerializer.Serialize(new {
+                src_id = src.Id, src_code = src.Code,
+                new_id = newRow.Id, new_code = newRow.Code,
+            }));
+        return newRow;
+    }
+
+    /// <summary>
+    /// Phase 8 — Toggle Active flag via context menu. Audit WC_ACTIVE_TOGGLE
+    /// ghi from → to. Idempotent: gọi với active = current value chỉ no-op.
+    /// </summary>
+    public async Task<WorkCenter?> SetActiveAsync(long id, bool active, string? user)
+    {
+        var row = await _db.WorkCenters.FirstOrDefaultAsync(x => x.Id == id);
+        if (row is null) return null;
+        if (row.Active == active) return row;
+
+        var from = row.Active;
+        row.Active = active;
+        row.UpdatedAt = DateTime.UtcNow;
+        row.UpdatedBy = user;
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.WcActiveToggle, user ?? "anonymous", actorRole: "",
+            targetType: "WorkCenter", targetId: row.Id.ToString(),
+            detail: JsonSerializer.Serialize(new { wc_id = row.Id, code = row.Code, from, to = active }));
+        return row;
     }
 }

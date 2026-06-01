@@ -28,6 +28,9 @@ public static class AuditAction
     public const string UserSelfDisplayChange = "USER_SELF_DISPLAY_CHANGE";
     public const string UserSelfPasswordChange= "USER_SELF_PWD_CHANGE";
     public const string UserSetActive         = "USER_SET_ACTIVE";
+    public const string WcActiveToggle        = "WC_ACTIVE_TOGGLE";        // Phase 8 — WorkCenter active flag flip; detail JSON: { wc_id, code, from, to }
+    public const string WcCopy                = "WC_COPY";                 // Phase 8 — WorkCenter duplicate via context menu; detail JSON: { src_id, src_code, new_id, new_code }
+    public const string WcUpdate              = "WC_UPDATE";               // Phase 8 — WorkCenter row edit via context menu; detail JSON: { wc_id, code, changes: {...} }
     public const string WoAdvance             = "WO_ADVANCE";
     public const string WoFlagsUpdate         = "WO_FLAGS_UPDATE";
 }

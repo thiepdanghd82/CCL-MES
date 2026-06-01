@@ -1,0 +1,123 @@
+@*  Phase 8 — Right-click context menu cho row Work Center.
+    Dark theme mirror macOS Sonoma context menu (CMES SpecContextMenu
+    pattern: Open/Copy/Edit/Toggle/Get Info). Positioned absolute với
+    X/Y của mouse click. Click-outside dismiss via overlay scrim.
+
+    Items disabled gracefully nếu user không có quyền mutation (Admin/
+    Engineer required for Edit/Copy/Toggle) — đỡ confuse "tại sao bấm
+    không phản ứng". Tooltip giải thích role required.
+
+    Keyboard shortcuts hiển thị bên phải nhưng KHÔNG bind globally —
+    chỉ active khi menu open + focus (defer keybind tới Phase 8.x). *@
+
+@using CCL.MES.Domain.Entities
+@using WCEntityNs = CCL.MES.Domain.Entities.WorkCenter
+
+@if (_open && _row is not null)
+{
+    @* Scrim full-screen để bắt click-outside; transparent, không overlay
+       màu vì context menu nhỏ + thường đứng cạnh chỗ chuột. *@
+    <div class="wc-ctx-scrim" @onclick="Close" @oncontextmenu="OnScrimRightClick" @oncontextmenu:preventDefault="true"></div>
+
+    <div class="wc-ctx-menu" style="@($"left:{_x}px; top:{_y}px")" @onclick:stopPropagation="true" role="menu">
+        <button type="button" class="wc-ctx-item" @onclick="@(() => Invoke("open"))" role="menuitem">
+            <span class="wc-ctx-label">@Loc["wc.ctx.open"]</span>
+            <span class="wc-ctx-shortcut">⌘O</span>
+        </button>
+
+        <AuthorizeView Roles="Admin,Engineer" Context="auth">
+            <Authorized>
+                <button type="button" class="wc-ctx-item" @onclick="@(() => Invoke("edit"))" role="menuitem">
+                    <span class="wc-ctx-label">@Loc["wc.ctx.edit"]</span>
+                    <span class="wc-ctx-shortcut">⌘E</span>
+                </button>
+                <button type="button" class="wc-ctx-item" @onclick="@(() => Invoke("copy"))" role="menuitem">
+                    <span class="wc-ctx-label">@Loc["wc.ctx.copy"]</span>
+                    <span class="wc-ctx-shortcut">⌘D</span>
+                </button>
+            </Authorized>
+            <NotAuthorized>
+                <button type="button" class="wc-ctx-item wc-ctx-disabled" disabled
+                        title="@Loc["wc.ctx.require_admin_or_engineer"]" role="menuitem">
+                    <span class="wc-ctx-label">@Loc["wc.ctx.edit"]</span>
+                    <span class="wc-ctx-shortcut">⌘E</span>
+                </button>
+                <button type="button" class="wc-ctx-item wc-ctx-disabled" disabled
+                        title="@Loc["wc.ctx.require_admin_or_engineer"]" role="menuitem">
+                    <span class="wc-ctx-label">@Loc["wc.ctx.copy"]</span>
+                    <span class="wc-ctx-shortcut">⌘D</span>
+                </button>
+            </NotAuthorized>
+        </AuthorizeView>
+
+        <div class="wc-ctx-separator"></div>
+
+        <AuthorizeView Roles="Admin,Engineer" Context="auth2">
+            <Authorized>
+                <button type="button" class="wc-ctx-item wc-ctx-danger" @onclick="@(() => Invoke("toggle"))" role="menuitem">
+                    <span class="wc-ctx-label">@(ToggleLabel)</span>
+                    <span class="wc-ctx-shortcut">⌘T</span>
+                </button>
+            </Authorized>
+            <NotAuthorized>
+                <button type="button" class="wc-ctx-item wc-ctx-disabled" disabled
+                        title="@Loc["wc.ctx.require_admin_or_engineer"]" role="menuitem">
+                    <span class="wc-ctx-label">@(ToggleLabel)</span>
+                    <span class="wc-ctx-shortcut">⌘T</span>
+                </button>
+            </NotAuthorized>
+        </AuthorizeView>
+
+        <button type="button" class="wc-ctx-item" @onclick="@(() => Invoke("info"))" role="menuitem">
+            <span class="wc-ctx-label">@Loc["wc.ctx.get_info"]</span>
+            <span class="wc-ctx-shortcut">⌘I</span>
+        </button>
+    </div>
+}
+
+@code {
+    [Inject] private IStringLocalizer<SharedResource> Loc { get; set; } = default!;
+
+    [Parameter] public EventCallback<(string Action, WCEntityNs Row)> OnAction { get; set; }
+
+    private bool _open;
+    private double _x;
+    private double _y;
+    private WCEntityNs? _row;
+
+    private string ToggleLabel => _row?.Active == true
+        ? Loc["wc.ctx.deactivate"].Value
+        : Loc["wc.ctx.activate"].Value;
+
+    /// <summary>
+    /// Open menu tại vị trí (x,y) cho row chỉ định. Caller (Page) clamp
+    /// x,y trong viewport nếu cần. Auto-close khi action invoked hoặc
+    /// click scrim.
+    /// </summary>
+    public void Open(double x, double y, WCEntityNs row)
+    {
+        _x = x;
+        _y = y;
+        _row = row;
+        _open = true;
+        StateHasChanged();
+    }
+
+    public void Close()
+    {
+        _open = false;
+        _row = null;
+        StateHasChanged();
+    }
+
+    /// <summary>Right-click trên scrim cũng đóng menu (đỡ stacked menus).</summary>
+    private void OnScrimRightClick() => Close();
+
+    private async Task Invoke(string action)
+    {
+        if (_row is null) return;
+        var row = _row;
+        Close();
+        if (OnAction.HasDelegate) await OnAction.InvokeAsync((action, row));
+    }
+}

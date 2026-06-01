@@ -70,3 +70,32 @@ public record AdvanceResult(bool Ok, WoErrorCode? ErrorCode, string CurrentStep)
 // dropdown. KHÔNG include Customer hay full Product graph để tránh kéo
 // dữ liệu thừa qua serializer.
 public record ProductDropdownItem(long Id, string ProductCode, string Name);
+
+// Phase 8 — Work Center context-menu actions (Open/Edit/Copy/Toggle).
+// DetailDto trả về entity row + usage stats derived từ RoutingOperations
+// (count + distinct parts + avg setup/run + top-5 parts). KHÔNG include
+// ProductionLog vì Machine entity chưa link với WorkCenter — defer.
+public record WorkCenterDetailDto(
+    CCL.MES.Domain.Entities.WorkCenter Row,
+    WorkCenterUsageStats Usage);
+
+public record WorkCenterUsageStats(
+    int OpCount,
+    int DistinctPartCount,
+    double? AvgMachSetup,
+    double? AvgLaborSetup,
+    double? AvgMachRun,
+    List<TopPartUsage> TopParts);
+
+public record TopPartUsage(string PartNo, int OpCount);
+
+// Edit + Copy reuse cùng request shape. Copy = Edit với srcId tham chiếu
+// để pre-fill, server tạo row mới với Code mới (NewCode field overrides
+// Code khi non-null trong CopyAsync; Edit thì Code stays).
+public record UpdateWorkCenterRequest(
+    string Code,
+    string Description,
+    string? Area,
+    double? IdealSpeedPcsH,
+    string? ShiftPattern,
+    bool? Active);
