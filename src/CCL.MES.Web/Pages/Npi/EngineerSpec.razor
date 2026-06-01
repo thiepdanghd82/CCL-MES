@@ -63,6 +63,18 @@
     </div>
 
     <CreateSpecModal @ref="_createModal" OnCreated="OnCreatedAsync" />
+    @* Phase 8 PR #29 — context menu + detail modal. KHÔNG re-fetch by id
+       cho Identity (DTO grid đã có); SpecDetailModal query phụ trong section
+       riêng try-catch + error banner. *@
+    <SpecContextMenu @ref="_ctxMenu" OnAction="OnCtxActionAsync" />
+    <SpecDetailModal @ref="_detailModal" />
+    @if (!string.IsNullOrEmpty(_ctxError))
+    {
+        <div class="rt-ctx-error" role="alert">
+            @_ctxError
+            <button type="button" class="rt-ctx-error-close" @onclick="@(() => _ctxError = null)">×</button>
+        </div>
+    }
 
     <div class="rt-table-wrap">
         @if (_result is null)
@@ -93,7 +105,11 @@
                     @foreach (var s in _result.Items)
                     {
                         rowIdx++;
-                        <tr>
+                        var rowCapture = s; // capture closure để lambda async + ondblclick + oncontextmenu KHÔNG bị aliasing iterator
+                        <tr @oncontextmenu="@(e => OnRowContextMenuAsync(e, rowCapture))"
+                            @oncontextmenu:preventDefault="true"
+                            @ondblclick="@(() => OpenDetailAsync(rowCapture))"
+                            style="cursor:context-menu">
                             <td class="rt-num">@rowIdx</td>
                             @foreach (var c in VisibleCols)
                             {
@@ -145,12 +161,71 @@
     private bool _hiddenLoaded;
 
     private CreateSpecModal? _createModal;
+    private SpecContextMenu? _ctxMenu;
+    private SpecDetailModal? _detailModal;
+    private string? _ctxError;
     private long _busyApproveId = 0;
 
     private async Task OpenCreateAsync()
     {
         if (_createModal is null) return;
         await _createModal.OpenAsync();
+    }
+
+    // ── Phase 8 PR #29 — context menu + detail modal handlers ────────────────
+    // Bài học hotfix PR #27: try-catch wrap MỌI async handler, error banner
+    // inline thay vì throw lên Blazor circuit (freeze SignalR connection).
+
+    private Task OnRowContextMenuAsync(MouseEventArgs e, ProductRevisionListItem row)
+    {
+        try
+        {
+            _ctxError = null;
+            _ctxMenu?.Open(e.ClientX, e.ClientY, row);
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+            StateHasChanged();
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task OnCtxActionAsync((string Action, ProductRevisionListItem Row) ev)
+    {
+        try
+        {
+            _ctxError = null;
+            switch (ev.Action)
+            {
+                // Open + Get Info đều mở detail modal (mirror WC pattern).
+                // Mutation items (edit/copy/revise/supersede) disabled cứng ở PR #29 —
+                // KHÔNG cần case ở đây.
+                case "open":
+                case "info":
+                    await OpenDetailAsync(ev.Row);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenDetailAsync(ProductRevisionListItem row)
+    {
+        if (_detailModal is null) return;
+        try
+        {
+            await _detailModal.OpenAsync(row);
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+            StateHasChanged();
+        }
     }
 
     private async Task OnCreatedAsync()

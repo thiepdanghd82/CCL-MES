@@ -161,4 +161,75 @@ public class SpecService
         });
         return JsonSerializer.Serialize(arr);
     }
+
+    // ── Phase 8 PR #29 — read-only queries cho SpecDetailModal ────────────────
+
+    /// <summary>
+    /// Load spec content cluster (4 sibling specs + audit stamps) cho detail
+    /// modal. Trả null nếu revision không tồn tại. Caller wraps try-catch +
+    /// error banner inline (bài học hotfix PR #27: lỗi query KHÔNG được freeze
+    /// Blazor circuit).
+    /// Read-only — KHÔNG audit emit cho display (Q9 cam kết).
+    /// </summary>
+    public async Task<SpecContentDto?> SpecContentAsync(long revisionId)
+    {
+        var rev = await _db.ProductRevisions
+            .AsNoTracking()
+            .Include(r => r.Material)
+            .Include(r => r.Print)
+            .Include(r => r.Diecut)
+            .Include(r => r.Finishing)
+            .FirstOrDefaultAsync(r => r.Id == revisionId);
+        if (rev is null) return null;
+
+        return new SpecContentDto(
+            RevisionId: rev.Id,
+            Material: rev.Material is null ? null : new SpecMaterialDto(
+                rev.Material.SubstrateType, rev.Material.SubstrateBrand,
+                rev.Material.ThicknessUm, rev.Material.LinerType,
+                rev.Material.AdhesiveType, rev.Material.AdhesiveBrand,
+                rev.Material.ExtraJson),
+            Print: rev.Print is null ? null : new SpecPrintDto(
+                rev.Print.ProcessCode, rev.Print.NumColors,
+                rev.Print.ColorSpecJson, rev.Print.Varnish,
+                rev.Print.Lamination, rev.Print.WhiteUnderprint,
+                rev.Print.ExtraJson),
+            Diecut: rev.Diecut is null ? null : new SpecDiecutDto(
+                rev.Diecut.CutProcessCode, rev.Diecut.DieId, rev.Diecut.DieType,
+                rev.Diecut.WidthMm, rev.Diecut.LengthMm, rev.Diecut.CornerRadiusMm,
+                rev.Diecut.KissCutDepthUm, rev.Diecut.BleedMm, rev.Diecut.ExtraJson),
+            Finishing: rev.Finishing is null ? null : new SpecFinishingDto(
+                rev.Finishing.OutputForm, rev.Finishing.LabelsPerRoll,
+                rev.Finishing.CoreDiameterMm, rev.Finishing.WindingDirection,
+                rev.Finishing.FinishingProcessesJson, rev.Finishing.ExtraJson),
+            CreatedAt: rev.CreatedAt,
+            CreatedBy: rev.CreatedBy,
+            UpdatedAt: rev.UpdatedAt,
+            UpdatedBy: rev.UpdatedBy,
+            ApprovedBy: rev.ApprovedBy,
+            ApprovedAt: rev.ApprovedAt);
+    }
+
+    /// <summary>
+    /// Audit trail query cho 1 ProductRevision. Filter AuditLog WHERE
+    /// TargetType='ProductRevision' AND TargetId=revisionId.ToString(),
+    /// ORDER Timestamp DESC, LIMIT max. PR #28 emit SpecCreate/SpecApprove
+    /// với TargetType='ProductRevision' (đã đúng shape); PR #30+ thêm
+    /// SpecRevise/SpecCopy/SpecTrash/SpecRestore cũng giữ pattern này.
+    /// Q9 cam kết: KHÔNG ADD field/column mới, query trực tiếp AuditLog table.
+    /// </summary>
+    public async Task<List<SpecAuditEntry>> SpecAuditTrailAsync(long revisionId, int max = 50)
+    {
+        if (max <= 0) max = 50;
+        var rid = revisionId.ToString();
+        var rows = await _db.AuditLogs
+            .AsNoTracking()
+            .Where(a => a.TargetType == "ProductRevision" && a.TargetId == rid)
+            .OrderByDescending(a => a.Timestamp)
+            .Take(max)
+            .Select(a => new SpecAuditEntry(
+                a.Timestamp, a.Action, a.ActorUsername, a.ActorRole, a.Detail))
+            .ToListAsync();
+        return rows;
+    }
 }

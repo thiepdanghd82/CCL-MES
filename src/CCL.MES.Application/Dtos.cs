@@ -67,6 +67,77 @@ public record ProductRevisionListItem(
     string ProductName,
     string? ProcessCode);
 
+// ── Phase 8 PR #29 — SpecDetailModal content + audit query DTOs ────────────────
+// Modal Identity render trực tiếp từ ProductRevisionListItem (đã có ở grid).
+// Spec content + Audit trail là query phụ — tách section + try-catch + error
+// banner inline thay vì freeze circuit (bài học hotfix PR #27).
+
+/// <summary>
+/// Spec content cluster: 4 sibling specs (Material/Print/Diecut/Finishing) +
+/// audit stamps (Created/Updated/Approved). Tất cả nullable — section nào
+/// rỗng render "—".
+/// </summary>
+public record SpecContentDto(
+    long RevisionId,
+    SpecMaterialDto? Material,
+    SpecPrintDto? Print,
+    SpecDiecutDto? Diecut,
+    SpecFinishingDto? Finishing,
+    DateTime CreatedAt,
+    string? CreatedBy,
+    DateTime? UpdatedAt,
+    string? UpdatedBy,
+    string? ApprovedBy,
+    DateTime? ApprovedAt);
+
+public record SpecMaterialDto(
+    string? SubstrateType,
+    string? SubstrateBrand,
+    int? ThicknessUm,
+    string? LinerType,
+    string? AdhesiveType,
+    string? AdhesiveBrand,
+    string? ExtraJson);
+
+public record SpecPrintDto(
+    string? ProcessCode,
+    int NumColors,
+    string? ColorSpecJson,
+    string? Varnish,
+    string? Lamination,
+    bool WhiteUnderprint,
+    string? ExtraJson);
+
+public record SpecDiecutDto(
+    string? CutProcessCode,
+    string? DieId,
+    string? DieType,
+    double? WidthMm,
+    double? LengthMm,
+    double? CornerRadiusMm,
+    int? KissCutDepthUm,
+    double? BleedMm,
+    string? ExtraJson);
+
+public record SpecFinishingDto(
+    string? OutputForm,
+    int? LabelsPerRoll,
+    double? CoreDiameterMm,
+    string? WindingDirection,
+    string? FinishingProcessesJson,
+    string? ExtraJson);
+
+/// <summary>
+/// AuditLog row dùng cho timeline section (Q9: query AuditLog, KHÔNG thêm
+/// field mới). Sort Timestamp DESC ở caller.
+/// </summary>
+public record SpecAuditEntry(
+    DateTime Timestamp,
+    string Action,
+    string ActorUsername,
+    string ActorRole,
+    string? Detail);
+
 public class CreateQcRequest
 {
     public long WorkOrderId { get; set; }

@@ -1,0 +1,137 @@
+@*  Phase 8 PR #29 — Right-click context menu cho row Engineer Spec.
+
+    Reuse 100% pattern PR #27 `WorkCenterContextMenu.razor` — dark theme +
+    items + separator + keyboard shortcut hint + AuthorizeView gate.
+
+    7 items:
+      Open (⌘O)          — opens SpecDetailModal (read-only). Enabled mọi role NpiSpecRead.
+      Edit (⌘E)          — placeholder PR #30, disabled + tooltip "Coming soon".
+      Copy (⌘D)          — placeholder PR #30, disabled.
+      ───
+      Revise (⌘R)        — placeholder PR #30, disabled.
+      Mark Superseded(⌘T)— placeholder PR #30, disabled (ProductRevisionStatus
+                            có "Superseded" thay vì Active/Inactive flag — pattern
+                            khác WC nhưng cùng concept lifecycle item disabled).
+      Get Info (⌘I)      — alias of Open (same action, mirror WC pattern).
+
+    Mutation items đều disabled cứng ở PR #29 — KHÔNG wire dở (user requirement).
+    AuthorizeView gate giữ structure cho PR #30 quick wire sau này.
+*@
+
+@using CCL.MES.Application
+
+@if (_open && _row is not null)
+{
+    @* Scrim full-screen bắt click-outside; right-click cũng đóng menu. *@
+    <div class="spec-ctx-scrim" @onclick="Close" @oncontextmenu="OnScrimRightClick" @oncontextmenu:preventDefault="true"></div>
+
+    <div class="spec-ctx-menu" style="@($"left:{_x}px; top:{_y}px")" @onclick:stopPropagation="true" role="menu">
+        <button type="button" class="spec-ctx-item" @onclick="@(() => Invoke("open"))" role="menuitem">
+            <span class="spec-ctx-label">@Loc["npi.spec.ctx.open"]</span>
+            <span class="spec-ctx-shortcut">⌘O</span>
+        </button>
+
+        <AuthorizeView Roles="Admin,Engineer" Context="auth">
+            <Authorized>
+                <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
+                        title="@Loc["npi.spec.ctx.coming_soon_pr30"]" role="menuitem">
+                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.edit"]</span>
+                    <span class="spec-ctx-shortcut">⌘E</span>
+                </button>
+                <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
+                        title="@Loc["npi.spec.ctx.coming_soon_pr30"]" role="menuitem">
+                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.copy"]</span>
+                    <span class="spec-ctx-shortcut">⌘D</span>
+                </button>
+            </Authorized>
+            <NotAuthorized>
+                <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
+                        title="@Loc["npi.spec.ctx.require_admin_or_engineer"]" role="menuitem">
+                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.edit"]</span>
+                    <span class="spec-ctx-shortcut">⌘E</span>
+                </button>
+                <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
+                        title="@Loc["npi.spec.ctx.require_admin_or_engineer"]" role="menuitem">
+                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.copy"]</span>
+                    <span class="spec-ctx-shortcut">⌘D</span>
+                </button>
+            </NotAuthorized>
+        </AuthorizeView>
+
+        <div class="spec-ctx-separator"></div>
+
+        <AuthorizeView Roles="Admin,Engineer" Context="auth2">
+            <Authorized>
+                <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
+                        title="@Loc["npi.spec.ctx.coming_soon_pr30"]" role="menuitem">
+                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.revise"]</span>
+                    <span class="spec-ctx-shortcut">⌘R</span>
+                </button>
+                <button type="button" class="spec-ctx-item spec-ctx-disabled spec-ctx-danger" disabled
+                        title="@Loc["npi.spec.ctx.coming_soon_pr30"]" role="menuitem">
+                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.mark_superseded"]</span>
+                    <span class="spec-ctx-shortcut">⌘T</span>
+                </button>
+            </Authorized>
+            <NotAuthorized>
+                <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
+                        title="@Loc["npi.spec.ctx.require_admin_or_engineer"]" role="menuitem">
+                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.revise"]</span>
+                    <span class="spec-ctx-shortcut">⌘R</span>
+                </button>
+                <button type="button" class="spec-ctx-item spec-ctx-disabled spec-ctx-danger" disabled
+                        title="@Loc["npi.spec.ctx.require_admin_or_engineer"]" role="menuitem">
+                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.mark_superseded"]</span>
+                    <span class="spec-ctx-shortcut">⌘T</span>
+                </button>
+            </NotAuthorized>
+        </AuthorizeView>
+
+        <button type="button" class="spec-ctx-item" @onclick="@(() => Invoke("info"))" role="menuitem">
+            <span class="spec-ctx-label">@Loc["npi.spec.ctx.get_info"]</span>
+            <span class="spec-ctx-shortcut">⌘I</span>
+        </button>
+    </div>
+}
+
+@code {
+    [Inject] private IStringLocalizer<SharedResource> Loc { get; set; } = default!;
+
+    [Parameter] public EventCallback<(string Action, ProductRevisionListItem Row)> OnAction { get; set; }
+
+    private bool _open;
+    private double _x;
+    private double _y;
+    private ProductRevisionListItem? _row;
+
+    /// <summary>
+    /// Open menu tại (x,y) cho row chỉ định. Caller (Page) clamp x,y
+    /// trong viewport nếu cần. Auto-close khi action invoked hoặc click scrim.
+    /// </summary>
+    public void Open(double x, double y, ProductRevisionListItem row)
+    {
+        _x = x;
+        _y = y;
+        _row = row;
+        _open = true;
+        StateHasChanged();
+    }
+
+    public void Close()
+    {
+        _open = false;
+        _row = null;
+        StateHasChanged();
+    }
+
+    /// <summary>Right-click trên scrim cũng đóng menu (đỡ stacked menus).</summary>
+    private void OnScrimRightClick() => Close();
+
+    private async Task Invoke(string action)
+    {
+        if (_row is null) return;
+        var row = _row;
+        Close();
+        if (OnAction.HasDelegate) await OnAction.InvokeAsync((action, row));
+    }
+}

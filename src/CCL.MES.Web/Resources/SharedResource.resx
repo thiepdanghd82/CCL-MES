@@ -516,6 +516,71 @@
   <data name="npi.spec.status.released" xml:space="preserve"><value>Released</value></data>
   <data name="npi.spec.status.superseded" xml:space="preserve"><value>Superseded</value></data>
 
+  <!-- Phase 8 PR #29 — context menu + detail modal i18n. -->
+  <data name="npi.spec.ctx.open" xml:space="preserve"><value>Open</value></data>
+  <data name="npi.spec.ctx.edit" xml:space="preserve"><value>Edit</value></data>
+  <data name="npi.spec.ctx.copy" xml:space="preserve"><value>Copy</value></data>
+  <data name="npi.spec.ctx.revise" xml:space="preserve"><value>Revise</value></data>
+  <data name="npi.spec.ctx.mark_superseded" xml:space="preserve"><value>Mark Superseded</value></data>
+  <data name="npi.spec.ctx.get_info" xml:space="preserve"><value>Get Info</value></data>
+  <data name="npi.spec.ctx.coming_soon_pr30" xml:space="preserve"><value>Coming soon (PR #30 — lifecycle ops)</value></data>
+  <data name="npi.spec.ctx.require_admin_or_engineer" xml:space="preserve"><value>Requires Admin or Engineer role</value></data>
+
+  <data name="npi.spec.detail.title" xml:space="preserve"><value>Spec {0} — Rev {1}</value></data>
+  <data name="npi.spec.detail.btn_close" xml:space="preserve"><value>Close</value></data>
+  <data name="npi.spec.detail.loading" xml:space="preserve"><value>Loading…</value></data>
+  <data name="npi.spec.detail.section.identity" xml:space="preserve"><value>Identity</value></data>
+  <data name="npi.spec.detail.section.content" xml:space="preserve"><value>Spec content</value></data>
+  <data name="npi.spec.detail.section.drawings" xml:space="preserve"><value>Drawings</value></data>
+  <data name="npi.spec.detail.section.audit" xml:space="preserve"><value>Audit trail</value></data>
+  <data name="npi.spec.detail.drawings.placeholder" xml:space="preserve"><value>Drawings upload + 3-role approval available in PR #31/#32. Currently no drawings linked to this revision.</value></data>
+  <data name="npi.spec.detail.audit.timeline" xml:space="preserve"><value>Timeline</value></data>
+  <data name="npi.spec.detail.audit.empty" xml:space="preserve"><value>No audit events recorded for this revision.</value></data>
+  <data name="npi.spec.detail.content.not_found" xml:space="preserve"><value>Spec content not found (revision may have been deleted).</value></data>
+  <data name="npi.spec.detail.content.material" xml:space="preserve"><value>Material</value></data>
+  <data name="npi.spec.detail.content.print" xml:space="preserve"><value>Print</value></data>
+  <data name="npi.spec.detail.content.diecut" xml:space="preserve"><value>Diecut</value></data>
+  <data name="npi.spec.detail.content.finishing" xml:space="preserve"><value>Finishing</value></data>
+
+  <data name="npi.spec.detail.field.spec_code" xml:space="preserve"><value>Spec Code</value></data>
+  <data name="npi.spec.detail.field.title" xml:space="preserve"><value>Title</value></data>
+  <data name="npi.spec.detail.field.product" xml:space="preserve"><value>Product</value></data>
+  <data name="npi.spec.detail.field.revision_code" xml:space="preserve"><value>Revision</value></data>
+  <data name="npi.spec.detail.field.status" xml:space="preserve"><value>Status</value></data>
+  <data name="npi.spec.detail.field.effective_from" xml:space="preserve"><value>Effective From</value></data>
+  <data name="npi.spec.detail.field.substrate_type" xml:space="preserve"><value>Substrate Type</value></data>
+  <data name="npi.spec.detail.field.substrate_brand" xml:space="preserve"><value>Substrate Brand</value></data>
+  <data name="npi.spec.detail.field.thickness_um" xml:space="preserve"><value>Thickness</value></data>
+  <data name="npi.spec.detail.field.liner_type" xml:space="preserve"><value>Liner Type</value></data>
+  <data name="npi.spec.detail.field.adhesive_type" xml:space="preserve"><value>Adhesive Type</value></data>
+  <data name="npi.spec.detail.field.adhesive_brand" xml:space="preserve"><value>Adhesive Brand</value></data>
+  <data name="npi.spec.detail.field.process_code" xml:space="preserve"><value>Process Code</value></data>
+  <data name="npi.spec.detail.field.num_colors" xml:space="preserve"><value>Num Colors</value></data>
+  <data name="npi.spec.detail.field.varnish" xml:space="preserve"><value>Varnish</value></data>
+  <data name="npi.spec.detail.field.lamination" xml:space="preserve"><value>Lamination</value></data>
+  <data name="npi.spec.detail.field.white_underprint" xml:space="preserve"><value>White Underprint</value></data>
+  <data name="npi.spec.detail.field.params" xml:space="preserve"><value>Parameters</value></data>
+  <data name="npi.spec.detail.field.param_name" xml:space="preserve"><value>Name</value></data>
+  <data name="npi.spec.detail.field.nominal" xml:space="preserve"><value>Nominal</value></data>
+  <data name="npi.spec.detail.field.tol_min" xml:space="preserve"><value>Tol Min</value></data>
+  <data name="npi.spec.detail.field.tol_max" xml:space="preserve"><value>Tol Max</value></data>
+  <data name="npi.spec.detail.field.uom" xml:space="preserve"><value>UoM</value></data>
+  <data name="npi.spec.detail.field.is_critical" xml:space="preserve"><value>Critical</value></data>
+  <data name="npi.spec.detail.field.cut_process_code" xml:space="preserve"><value>Cut Process</value></data>
+  <data name="npi.spec.detail.field.die_id" xml:space="preserve"><value>Die ID</value></data>
+  <data name="npi.spec.detail.field.die_type" xml:space="preserve"><value>Die Type</value></data>
+  <data name="npi.spec.detail.field.width_mm" xml:space="preserve"><value>Width</value></data>
+  <data name="npi.spec.detail.field.length_mm" xml:space="preserve"><value>Length</value></data>
+  <data name="npi.spec.detail.field.corner_radius_mm" xml:space="preserve"><value>Corner Radius</value></data>
+  <data name="npi.spec.detail.field.bleed_mm" xml:space="preserve"><value>Bleed</value></data>
+  <data name="npi.spec.detail.field.output_form" xml:space="preserve"><value>Output Form</value></data>
+  <data name="npi.spec.detail.field.labels_per_roll" xml:space="preserve"><value>Labels/Roll</value></data>
+  <data name="npi.spec.detail.field.core_diameter_mm" xml:space="preserve"><value>Core Diameter</value></data>
+  <data name="npi.spec.detail.field.winding_direction" xml:space="preserve"><value>Winding Direction</value></data>
+  <data name="npi.spec.detail.field.created" xml:space="preserve"><value>Created</value></data>
+  <data name="npi.spec.detail.field.updated" xml:space="preserve"><value>Updated</value></data>
+  <data name="npi.spec.detail.field.approved" xml:space="preserve"><value>Approved</value></data>
+
   <data name="qcqa.iqc.title" xml:space="preserve"><value>QC/QA — IQC (Incoming Quality Check)</value></data>
   <!-- Phase 6 Bước 7 — IQC list + create + approve UI. The 3 placeholder_li* keys below stay so older bundles don't 404 the resource lookup, but are no longer rendered. -->
   <data name="qcqa.iqc.placeholder_lead" xml:space="preserve"><value>The IQC (Incoming Quality Control) tab — quality check on incoming materials.</value></data>
