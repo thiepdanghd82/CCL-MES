@@ -641,7 +641,7 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 
 /* ─── Phase 8 PR #31d (PR-A re-skin navy) — Detail sheet showcard ─────── */
 
-.spec-sheet-page { max-width:1400px; margin:0 auto; padding:16px; }
+.spec-sheet-page { max-width:min(1800px, calc(100vw - 32px)); margin:0 auto; padding:16px; }
 .spec-sheet-state { padding:30px; text-align:center; color:#6b7280; }
 .spec-sheet-error { padding:16px; }
 .spec-sheet-error pre { font-size:11px; white-space:pre-wrap; word-break:break-all; margin:8px 0; }
@@ -906,18 +906,109 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   font-size:10.5px; }
 
 /* ─── Print stylesheet — Engineer Spec detail (Print / Export button → window.print).
-   Hide app chrome (topbar nav, spec-sheet-toolbar with Back + Print buttons) so
-   the printed page / browser "Save as PDF" output is just the showcard. */
+
+   Layout target (operator spec):
+     • A4 landscape (browser print dialog can switch to A3 landscape — content
+       only gets more room, never less).
+     • Exactly 2 pages: everything EXCEPT Change Log on page 1; Change Log
+       alone on page 2.
+     • All borders + table lines: 0.3pt (printer hairline).
+     • Background colors preserved (navy section bars, ⚠ chip, alt rows).
+*/
 @media print {
+  @page { size: A4 landscape; margin: 6mm; }
+
+  /* Hide app chrome (top nav + Back/Print toolbar). */
   .topbar,
   .spec-sheet-toolbar { display:none !important; }
+
+  /* Full bleed for the showcard. */
   .spec-sheet-page { max-width:none; margin:0; padding:0; }
-  .spec-frame { border:none; padding:0; }
-  /* Force exact background colors for shaded section titles + ⚠ chip + alt rows. */
-  * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  /* Avoid orphan section titles. */
-  .spec-block-title { break-after:avoid; page-break-after:avoid; }
+  .spec-frame,
+  .spec-frame.flexo,
+  .spec-frame-generic { border:none; padding:0; }
+
+  /* Force exact background colors (Chromium / Safari / Firefox). */
+  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+
+  /* Compress fonts so all non-Change-Log sections fit on a single A4 landscape page. */
+  .spec-sheet-page,
+  .spec-frame { font-size:7.5pt; }
+  .spec-doc-header .co-block,
+  .spec-doc-header .right-block { font-size:7.5pt; }
+  .spec-doc-header .center-block { font-size:13pt; }
+  .spec-doc-header .center-block .sub,
+  .spec-doc-header .co-block .sub { font-size:6.5pt; }
+  .spec-block-title { font-size:8pt; padding:2pt 4pt; }
+  .spec-cert-row,
+  .cert-chip { font-size:7pt; }
+  .spec-info-table,
+  .spec-print-table,
+  .spec-rev-table { font-size:7pt; }
+  .spec-params .lbl { font-size:6.5pt; }
+  .spec-params .val { font-size:9pt; }
+  .spec-codes-legend,
+  .spec-codes-legend .legend-row { font-size:6.5pt; }
+  .spec-codes-legend .legend-title { font-size:7pt; }
+  .spec-signoff .role { font-size:7pt; }
+  .spec-signoff .name,
+  .spec-signoff .date { font-size:7.5pt; }
+  .spec-signoff-note { font-size:6.5pt; }
+  .spec-remarks-block,
+  .flexo-remarks-2col { font-size:7.5pt; }
+
+  /* Tight spacing — every mm matters to land 1 page. */
+  .spec-block { margin:3pt 0; padding:0; }
+  .spec-cert-row { margin:3pt 0; padding:2pt 4pt; }
+  .spec-doc-header { padding:2pt 4pt; }
+  .spec-params { gap:4pt; padding:3pt; }
+  .spec-params > div { padding:3pt 4pt; }
+  .spec-codes-legend { gap:4pt; padding:3pt; }
+  .spec-codes-legend > div { padding:3pt 4pt; }
+  .spec-signoff { gap:4pt; }
+  .spec-signoff > div { padding:3pt 4pt; }
+  .spec-info-table th, .spec-info-table td,
+  .spec-print-table th, .spec-print-table td,
+  .spec-rev-table th, .spec-rev-table td { padding:1pt 3pt; }
+
+  /* 0.3pt borders everywhere — printer hairline (override Phase 8 PR-A 1px / 0.4pt). */
+  .spec-frame,
   .spec-block,
+  .spec-cert-row,
+  .cert-chip,
+  .stamp,
+  .spec-params > div,
+  .spec-codes-legend > div,
+  .spec-signoff > div,
+  .spec-generic-warning,
+  .spec-doc-header,
+  .spec-info-table, .spec-info-table th, .spec-info-table td,
+  .spec-print-table, .spec-print-table th, .spec-print-table td,
+  .spec-rev-table, .spec-rev-table th, .spec-rev-table td {
+    border-width:0.3pt !important;
+  }
+  table { border-collapse:collapse; }
+  .spec-info-table,
+  .spec-print-table,
+  .spec-rev-table { border:0.3pt solid var(--navy-border); }
+  .spec-info-table th, .spec-info-table td,
+  .spec-print-table th, .spec-print-table td,
+  .spec-rev-table th, .spec-rev-table td { border:0.3pt solid var(--navy-border) !important; }
+
+  /* Don't fragment a section across pages (Change Log handled separately below). */
+  .spec-block { break-inside:avoid; page-break-inside:avoid; }
+  .spec-block-title { break-after:avoid; page-break-after:avoid; }
   .spec-print-table tbody tr,
-  .spec-rev-table tbody tr { break-inside:avoid; page-break-inside:avoid; }
+  .spec-rev-table tbody tr,
+  .spec-info-table tbody tr { break-inside:avoid; page-break-inside:avoid; }
+
+  /* Page 2 = Change Log alone (always start fresh page). */
+  .spec-history-block {
+    break-before:page !important;
+    page-break-before:always !important;
+    margin-top:0 !important;
+  }
+
+  /* Tables shouldn't scroll on paper. */
+  .spec-table-scroll { overflow:visible !important; }
 }
