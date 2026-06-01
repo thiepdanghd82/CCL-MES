@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CCL.MES.Scripts.VerifyBlobStore</RootNamespace>
+    <AssemblyName>VerifyBlobStore</AssemblyName>
+    <!--
+      Phase 8 PR-D-5a verification harness. Exercises FilesystemBlobStore
+      against a temp blob root (no DB, no auth, no Razor, no production
+      data touched). 8 test cases: round-trip, idempotency, 6 security
+      guards. Engineer-use tool (run via dotnet run); NOT a CI runner.
+      Excluded from sln so building at repo root does not bloat the
+      standard graph (matches scripts/VerifyPrB pattern).
+    -->
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CCL.MES.Application\CCL.MES.Application.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Infrastructure\CCL.MES.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

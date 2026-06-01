@@ -411,4 +411,73 @@ attachment filename. Browser tự handle.
 
 ---
 
-*Cập nhật lần cuối: 01/06/2026 — Phase 8 PR #31d (detail sheet + backfill mode + Razor @page binding + dot-extension lặp lại).*
+## Phase 8 PR-D-5a — Blob storage path scheme + security rules (FilesystemBlobStore)
+
+Drawings được persist qua `IBlobStore`. PR-D-5a implement `FilesystemBlobStore` —
+nền cho PR-D-5b (upload UI) và PR-D-5c (3-role approval). Pin lại quy ước ở đây
+để PR sau (và onboarding) không phải tự re-discover.
+
+### Path scheme — fix cứng, đừng đổi mà không cập nhật mọi tầng
+
+```
+<DataDir>/blobs/drawings/<revisionId>/<drawingId>/v<n>_<sha8>.<ext>
+```
+
+- `DataDir` re-use lại đúng giá trị mà `Program.cs` resolve cho SQLite DB
+  (env `MES_DATA_DIR`, mặc định `<repo-root>/data/`). Boot log dòng
+  `[boot] Blob root: …/blobs/` confirm path.
+- **Storage key persist vào DB là RELATIVE path** (`drawings/1/2/v1_3a7e9f12.pdf`),
+  không phải absolute. Sang prod copy DataDir đi chỗ khác, key vẫn resolve được.
+- `sha8` là 8 hex char đầu của SHA256 — dedup + integrity check.
+- `revisionId` + `drawingId` là số nguyên `> 0` (KHÔNG leading-zero — tránh
+  `001` lừa regex thành alias của `1`).
+
+### 6 security guards (KHÔNG bỏ guard nào khi extend)
+
+1. **Suggested-key regex** trên `PutAsync`:
+   `^drawings/([1-9]\d*)/([1-9]\d*)/v([1-9]\d*)\.([a-zA-Z0-9]{1,8})$` —
+   reject `..`, leading `/`, drive letters, null bytes, NFD tricks.
+2. **Stored-key regex** trên `GetAsync` / `ExistsAsync` / `DeleteAsync` —
+   sha8 BẮT BUỘC để caller không probe key tuỳ ý.
+3. **Extension allowlist** — `pdf png jpg jpeg svg gif webp dwg dxf ai`
+   (override env `MES_BLOB_ALLOWED_EXTENSIONS` CSV nếu cần).
+4. **Size cap** — env `MES_BLOB_MAX_BYTES`, default 10 MiB. Counted
+   per-chunk trong vòng `ReadAsync`; throw EARLY trước khi commit file.
+5. **Containment check** — resolved `Path.GetFullPath` MUST `StartsWith`
+   `<DataDir>/blobs/` (với trailing separator). Defense-in-depth khi
+   regex bị bypass qua symlink / NFD canonical tricks.
+6. **Atomic rename** — write `.tmp.<guid>` rồi `File.Move`. Partial
+   write không bao giờ hiện ra như readable blob.
+
+### Idempotency by content
+
+Nếu PutAsync nhận stream byte trùng với file đã có (cùng `revId/drwId/v/sha8/ext`):
+drop temp + return existing key. 2 parallel uploads cùng content converge an toàn.
+Operator UX: re-upload "cùng file" lần 2 không tạo duplicate.
+
+### Harness — `dotnet run --project scripts/VerifyBlobStore`
+
+8 test cases + 1 containment audit. Pass criterion: `Result: PASS 9 FAIL 0` +
+exit code 0. Out-of-sln giống `VerifyPrB` — engineer tool, không phải CI.
+Nếu sửa `FilesystemBlobStore` (đổi regex, đổi allowlist, đổi path scheme),
+**phải re-run harness trước khi mở PR**.
+
+### Khi mở PR-D-5b (upload UI)
+
+- Caller `PutAsync` truyền suggestedKey theo template
+  `drawings/<revId>/<drwId>/v<n>.<ext>` — `<n>` là next version no operator
+  vừa bump. Service trả về stored key chính là cái cần ghi vào
+  `DrawingVersion.StorageKey`.
+- Multer-equivalent (`IFormFile`) bound to a Blazor server-side handler;
+  pass `IFormFile.OpenReadStream()` thẳng vào `PutAsync`. Đừng buffer
+  full vào memory — size cap chỉ hữu dụng khi stream đi qua store.
+- Persist `FileHash` (SHA256 hex 64 char đầy đủ) — Put trả về cả key
+  (chứa sha8 prefix). Hash đầy đủ derive bằng cách `SHA256.HashData` lại
+  sau khi đọc back, HOẶC PutAsync expose full sha qua return tuple
+  (decision này PR-D-5b chốt).
+- DI: `IBlobStore` đã đăng ký Singleton — inject thẳng vào
+  service Layer hoặc Razor page.
+
+---
+
+*Cập nhật lần cuối: 01/06/2026 — Phase 8 PR-D-5a (blob path scheme + 6 security guards + harness).*
