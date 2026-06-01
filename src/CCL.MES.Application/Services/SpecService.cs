@@ -34,27 +34,35 @@ public class SpecService
     }
 
     /// <summary>
-    /// Phase 8 PR #28 — paginated list cho EngineerSpec grid. Pre-flatten vào
-    /// DTO để Razor binding clean + KHÔNG kéo full graph qua serializer.
-    /// Search 5 field: SpecCode / Title / Product code / Product name / ProcessCode.
+    /// Phase 8 PR #28 (rewired PR #30) — paginated list cho EngineerSpec grid
+    /// 14-col SpecHub parity. Pre-flatten vào DTO để Razor binding clean.
+    ///
+    /// Q6 — narrow search 5 → 3 field per SpecHub placeholder UX
+    /// ("Search by customer / part no / part name"): Customer.Name +
+    /// Product.ProductCode + ProductRevision.Title.
+    ///
+    /// Include chain mở rộng để cover 14-col:
+    ///   Product → Customer (cột Customer)
+    ///   Print (cột Colors/Cavity/Pitch/Planner derived)
     /// </summary>
     public async Task<PagedResult<ProductRevisionListItem>> SpecsAsync(string? search, int page, int pageSize)
     {
         var q = _db.ProductRevisions
             .AsNoTracking()
-            .Where(x => !x.IsTrashed)               // soft-delete skip (Trash UI ở PR #30)
+            .Where(x => !x.IsTrashed)               // soft-delete skip
             .Include(x => x.Product)
-            .Include(x => x.Print)
+                .ThenInclude(p => p!.Customer)      // Q3 — Customer column join
+            .Include(x => x.Print)                  // Colors/Cavity/Pitch/Planner derive
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
-            q = q.Where(x => EF.Functions.Like(x.SpecCode, $"%{s}%")
-                || EF.Functions.Like(x.Title, $"%{s}%")
+            // Q6 — exactly 3 fields per SpecHub placeholder UX.
+            q = q.Where(x =>
+                (x.Product != null && x.Product.Customer != null && EF.Functions.Like(x.Product.Customer.Name, $"%{s}%"))
                 || (x.Product != null && EF.Functions.Like(x.Product.ProductCode, $"%{s}%"))
-                || (x.Product != null && EF.Functions.Like(x.Product.Name, $"%{s}%"))
-                || (x.Print != null && x.Print.ProcessCode != null && EF.Functions.Like(x.Print.ProcessCode, $"%{s}%")));
+                || EF.Functions.Like(x.Title, $"%{s}%"));
         }
 
         var ordered = q.OrderByDescending(x => x.Id);
@@ -71,10 +79,48 @@ public class SpecService
                 x.ApprovedBy,
                 x.Product?.ProductCode ?? "",
                 x.Product?.Name ?? "",
-                x.Print?.ProcessCode))
+                x.Print?.ProcessCode,
+                // Phase 8 PR #30 — 9 fields mới
+                CustomerName: x.Product?.Customer?.Name,
+                RefNo: x.RefNo,
+                InspectionLevel: x.InspectionLevel,
+                NumColors: x.Print?.NumColors ?? 0,
+                Cavity: x.Print?.Cavity,
+                PitchMm: x.Print?.PitchMm,
+                Planner: PlannerFromProcessCode(x.Print?.ProcessCode),
+                LastUpdatedAt: x.UpdatedAt ?? x.CreatedAt,
+                LastUpdatedBy: x.UpdatedBy ?? x.CreatedBy))
             .ToList();
 
         return new PagedResult<ProductRevisionListItem>(items, paged.Total, paged.Page, paged.PageSize);
+    }
+
+    /// <summary>
+    /// Phase 8 PR #30 — Q1 DERIVE Planner code từ SpecPrint.ProcessCode (single
+    /// source of truth ProcessCatalog). Mapping mirror SpecHub `SPEC_CATEGORIES`
+    /// (`spechub-prototype.html:11312`). Operator có thể ẩn cột Planner qua
+    /// Columns toggle nếu thấy redundant với ProcessCode.
+    /// Mapping:
+    ///   SILKSCREEN                                   → SILK
+    ///   FLEXO                                        → FLEXO
+    ///   LETTERPRESS                                  → LETTER
+    ///   INDIGO / INDIGO_PRIMER                       → INDIGO
+    ///   FLATBED_CUT / ROTARY_CUT / RDC / POWERPUNCH
+    ///   / CNC / LASER_CUT / KISS_CUT                 → DIECUT
+    ///   (other / null)                               → UNKNOWN
+    /// </summary>
+    public static string? PlannerFromProcessCode(string? processCode)
+    {
+        if (string.IsNullOrWhiteSpace(processCode)) return "UNKNOWN";
+        return processCode.Trim().ToUpperInvariant() switch
+        {
+            "SILKSCREEN"                                                                       => "SILK",
+            "FLEXO"                                                                            => "FLEXO",
+            "LETTERPRESS"                                                                      => "LETTER",
+            "INDIGO" or "INDIGO_PRIMER"                                                        => "INDIGO",
+            "FLATBED_CUT" or "ROTARY_CUT" or "RDC" or "POWERPUNCH" or "CNC" or "LASER_CUT" or "KISS_CUT" => "DIECUT",
+            _                                                                                  => "UNKNOWN",
+        };
     }
 
     /// <summary>Phase 7 hạng mục 4 — Product dropdown cho CreateSpecModal.</summary>

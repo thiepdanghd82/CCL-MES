@@ -12,32 +12,37 @@
 @inject IStringLocalizer<SharedResource> Loc
 @inject AuthenticationStateProvider AuthState
 
-@*  Phase 8 PR #28 — EngineerSpec grid rewired sau Spec → ProductRevision
-    clean rewrite. Backing model giờ là <see cref="ProductRevisionListItem"/>
-    (pre-flattened DTO). 8 cột thay vì 7:
-        spec_code · product_code · title · revision_code · status · process · effective_from · approved_by
+@*  Phase 8 PR #30 — LIST view PARITY với SpecHub (`spechub-prototype.html`
+    HTML:12961-12976 + HTML:7691-7727 + screenshot 07-1c-spec-library.png).
 
-    KHÔNG đụng RBAC policy NpiSpecRead. Mutation AuthorizeView Admin/Engineer
-    cho Create + Approve unchanged. Audit codes SpecCreate/SpecApprove unchanged.
-    Status badge mapping cập nhật theo ProductRevisionStatus 5-state enum.
+    14 cột đúng thứ tự + nhãn SpecHub:
+      # / Planner / REF NO / Customer / Part No / Part Name / Colors /
+      Cavity / Pitch / Spec / Status / Rev / Rev Date / By
 
-    PR #29 sẽ ADD right-click context menu + detail view + revise/copy/trash.
+    Title bar: "NPI Spec Library" + row count chip "N specs".
+    Breadcrumb: "DATABASE / NPI SPEC · N SPECS IN LIBRARY".
+    Search placeholder: "Search by customer / part no / part name..." (3 fields).
+    Toolbar btn: chỉ giữ "+ Create Spec" (Phase 7 form unchanged); ẨN
+                 Refresh samples / Trash / Export (defer PR #31/#32).
+
+    Pattern: reuse rt-* sticky thead + Columns toggle Phase 7 (key
+    `cclmes.engineer-spec.columns-hidden.v1` unchanged — preserve persisted
+    prefs từ PR #28).
+
+    Debounce search 300ms (Q16) — đỡ blast EF query mỗi phím.
 *@
 
 <section class="rt-page">
     <div class="rt-breadcrumb">
-        @Loc["npi.spec.breadcrumb"]
-        @if (_result is not null)
-        {
-            <span class="rt-breadcrumb-count">· @string.Format(Loc["npi.spec.rows_loaded"].Value, _result.Total.ToString("N0", CultureInfo.InvariantCulture))</span>
-        }
+        @string.Format(Loc["npi.spec.breadcrumb_parity"].Value,
+            (_result?.Total ?? 0).ToString("N0", CultureInfo.InvariantCulture))
     </div>
 
     <div class="rt-toolbar">
-        <h2 class="rt-title">@Loc["npi.spec.title"]</h2>
+        <h2 class="rt-title">@Loc["npi.spec.list_title"]</h2>
         <span class="rt-count-chip">@RowCountLabel</span>
-        <input type="search" class="rt-search" placeholder="@Loc["npi.spec.search_placeholder"]"
-               @bind="_search" @bind:event="oninput" @onkeyup="OnKey" />
+        <input type="search" class="rt-search" placeholder="@Loc["npi.spec.search_placeholder_parity"]"
+               @bind="_search" @bind:event="oninput" @bind:after="OnSearchInputAfter" @onkeyup="OnKey" />
         <div class="rt-cols-wrap">
             <button type="button" class="rt-btn" @onclick="ToggleColsPop" aria-haspopup="true" aria-expanded="@_colsOpen">
                 @string.Format(Loc["npi.spec.btn_columns"].Value, VisibleCols.Count, AllCols.Count)
@@ -58,14 +63,11 @@
             }
         </div>
         <AuthorizeView Roles="Admin,Engineer">
-            <button type="button" class="rt-btn" @onclick="OpenCreateAsync">+ @Loc["npi.spec.btn_create"]</button>
+            <button type="button" class="rt-btn rt-btn-primary" @onclick="OpenCreateAsync">+ @Loc["npi.spec.btn_create"]</button>
         </AuthorizeView>
     </div>
 
     <CreateSpecModal @ref="_createModal" OnCreated="OnCreatedAsync" />
-    @* Phase 8 PR #29 — context menu + detail modal. KHÔNG re-fetch by id
-       cho Identity (DTO grid đã có); SpecDetailModal query phụ trong section
-       riêng try-catch + error banner. *@
     <SpecContextMenu @ref="_ctxMenu" OnAction="OnCtxActionAsync" />
     <SpecDetailModal @ref="_detailModal" />
     @if (!string.IsNullOrEmpty(_ctxError))
@@ -93,7 +95,7 @@
                         <th class="rt-num">#</th>
                         @foreach (var c in VisibleCols)
                         {
-                            <th style="@($"width:{c.Width}px; text-align:{(c.Align == ColAlign.Right ? "right" : "left")}")">@Loc[c.LabelKey]</th>
+                            <th style="@($"width:{c.Width}px; text-align:{(c.Align == ColAlign.Right ? "right" : (c.Align == ColAlign.Center ? "center" : "left"))}")">@Loc[c.LabelKey]</th>
                         }
                         <AuthorizeView Roles="Admin,Engineer">
                             <th style="width:90px; text-align:center">@Loc["npi.spec.col.actions"]</th>
@@ -105,7 +107,7 @@
                     @foreach (var s in _result.Items)
                     {
                         rowIdx++;
-                        var rowCapture = s; // capture closure để lambda async + ondblclick + oncontextmenu KHÔNG bị aliasing iterator
+                        var rowCapture = s;
                         <tr @oncontextmenu="@(e => OnRowContextMenuAsync(e, rowCapture))"
                             @oncontextmenu:preventDefault="true"
                             @ondblclick="@(() => OpenDetailAsync(rowCapture))"
@@ -113,15 +115,8 @@
                             <td class="rt-num">@rowIdx</td>
                             @foreach (var c in VisibleCols)
                             {
-                                <td class="@(c.Align == ColAlign.Right ? "rt-right" : "")" title="@RawValue(s, c.Key)">
-                                    @if (c.Key == "status")
-                                    {
-                                        @StatusBadge(s.Status)
-                                    }
-                                    else
-                                    {
-                                        @FormatCell(s, c)
-                                    }
+                                <td class="@AlignClass(c.Align)" title="@RawValue(s, c.Key)">
+                                    @RenderCell(s, c)
                                 </td>
                             }
                             <AuthorizeView Roles="Admin,Engineer">
@@ -166,66 +161,13 @@
     private string? _ctxError;
     private long _busyApproveId = 0;
 
+    // Q16 debounce 300ms — clear previous timer + reset on each keystroke.
+    private CancellationTokenSource? _searchCts;
+
     private async Task OpenCreateAsync()
     {
         if (_createModal is null) return;
         await _createModal.OpenAsync();
-    }
-
-    // ── Phase 8 PR #29 — context menu + detail modal handlers ────────────────
-    // Bài học hotfix PR #27: try-catch wrap MỌI async handler, error banner
-    // inline thay vì throw lên Blazor circuit (freeze SignalR connection).
-
-    private Task OnRowContextMenuAsync(MouseEventArgs e, ProductRevisionListItem row)
-    {
-        try
-        {
-            _ctxError = null;
-            _ctxMenu?.Open(e.ClientX, e.ClientY, row);
-        }
-        catch (Exception ex)
-        {
-            _ctxError = ex.GetType().Name + ": " + ex.Message;
-            StateHasChanged();
-        }
-        return Task.CompletedTask;
-    }
-
-    private async Task OnCtxActionAsync((string Action, ProductRevisionListItem Row) ev)
-    {
-        try
-        {
-            _ctxError = null;
-            switch (ev.Action)
-            {
-                // Open + Get Info đều mở detail modal (mirror WC pattern).
-                // Mutation items (edit/copy/revise/supersede) disabled cứng ở PR #29 —
-                // KHÔNG cần case ở đây.
-                case "open":
-                case "info":
-                    await OpenDetailAsync(ev.Row);
-                    break;
-            }
-        }
-        catch (Exception ex)
-        {
-            _ctxError = ex.GetType().Name + ": " + ex.Message;
-            StateHasChanged();
-        }
-    }
-
-    private async Task OpenDetailAsync(ProductRevisionListItem row)
-    {
-        if (_detailModal is null) return;
-        try
-        {
-            await _detailModal.OpenAsync(row);
-        }
-        catch (Exception ex)
-        {
-            _ctxError = ex.GetType().Name + ": " + ex.Message;
-            StateHasChanged();
-        }
     }
 
     private async Task OnCreatedAsync()
@@ -264,22 +206,110 @@
         }
     }
 
-    private enum ColAlign { Left, Right }
+    // ── Phase 8 PR #29 — context menu + detail modal handlers (giữ pattern) ──
+
+    private Task OnRowContextMenuAsync(MouseEventArgs e, ProductRevisionListItem row)
+    {
+        try
+        {
+            _ctxError = null;
+            _ctxMenu?.Open(e.ClientX, e.ClientY, row);
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+            StateHasChanged();
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task OnCtxActionAsync((string Action, ProductRevisionListItem Row) ev)
+    {
+        try
+        {
+            _ctxError = null;
+            switch (ev.Action)
+            {
+                case "open":
+                case "info":
+                    await OpenDetailAsync(ev.Row);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenDetailAsync(ProductRevisionListItem row)
+    {
+        if (_detailModal is null) return;
+        try
+        {
+            await _detailModal.OpenAsync(row);
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+            StateHasChanged();
+        }
+    }
+
+    // ── Phase 8 PR #30 — column definition ───────────────────────────────────
+
+    private enum ColAlign { Left, Center, Right }
 
     private sealed record ColumnDef(string Key, string LabelKey, int Width, ColAlign Align);
 
-    // Phase 8 PR #28 — 8 cột tổng. Default visible all 8. PR #29 sẽ ADD
-    // process_code + effective_from là toggleable nếu operator muốn ẩn.
+    /// <summary>
+    /// 13 cột (cột # render riêng từ row index). Thứ tự + nhãn + width KHỚP
+    /// SpecHub `renderOneCList` (HTML:12961-12976):
+    /// Planner / REF NO / Customer / Part No / Part Name / Colors / Cavity /
+    /// Pitch / Spec / Status / Rev / Rev Date / By.
+    ///
+    /// Hidden default cols (operator có thể bật qua Columns toggle):
+    ///   Process — đã có ở PR #29, vẫn giữ để backward-compat persisted prefs;
+    ///   Effective From / Approved By — hidden default sau parity (cột "By"
+    ///   + "Rev Date" đã cover semantic "ai/khi nào touched gần nhất").
+    /// Persisted localStorage key giữ nguyên `cclmes.engineer-spec.columns-hidden.v1`.
+    /// </summary>
     private static readonly List<ColumnDef> AllCols = new()
     {
-        new("spec_code",      "npi.spec.col.spec_code",      150, ColAlign.Left),
-        new("product_code",   "npi.spec.col.product_code",   140, ColAlign.Left),
-        new("title",          "npi.spec.col.title",          240, ColAlign.Left),
-        new("revision_code",  "npi.spec.col.revision_code",   80, ColAlign.Left),
-        new("status",         "npi.spec.col.status",         110, ColAlign.Left),
-        new("process",        "npi.spec.col.process",        110, ColAlign.Left),
-        new("effective_from", "npi.spec.col.effective_from", 120, ColAlign.Left),
-        new("approved_by",    "npi.spec.col.approved_by",    130, ColAlign.Left),
+        // ── 13 cột parity SpecHub (thứ tự đúng) ─────────────────────────────
+        new("planner",        "npi.spec.col.planner",         110, ColAlign.Center),
+        new("ref_no",         "npi.spec.col.ref_no",          140, ColAlign.Left),
+        new("customer",       "npi.spec.col.customer",        140, ColAlign.Left),
+        new("part_no",        "npi.spec.col.part_no",         170, ColAlign.Left),
+        new("part_name",      "npi.spec.col.part_name",       240, ColAlign.Left),
+        new("colors",         "npi.spec.col.colors",           70, ColAlign.Center),
+        new("cavity",         "npi.spec.col.cavity",           70, ColAlign.Center),
+        new("pitch",          "npi.spec.col.pitch",            70, ColAlign.Center),
+        new("inspection",     "npi.spec.col.inspection",       80, ColAlign.Center),
+        new("status",         "npi.spec.col.status",          110, ColAlign.Left),
+        new("revision_code",  "npi.spec.col.revision_code",    60, ColAlign.Center),
+        new("rev_date",       "npi.spec.col.rev_date",        120, ColAlign.Left),
+        new("rev_by",         "npi.spec.col.rev_by",          120, ColAlign.Left),
+        // ── Legacy cột (giữ trong AllCols để persisted localStorage không
+        //    crash; hidden by default). PR #28 từng có spec_code/title; PR #30
+        //    đổi sang Part No + Part Name (clearer SpecHub mapping). SpecCode
+        //    + Title vẫn có sẵn qua Detail modal / Get Info, không mất data. ─
+        new("spec_code",      "npi.spec.col.spec_code",       150, ColAlign.Left),
+        new("title",          "npi.spec.col.title",           240, ColAlign.Left),
+        new("process",        "npi.spec.col.process",         110, ColAlign.Left),
+        new("effective_from", "npi.spec.col.effective_from",  120, ColAlign.Left),
+        new("approved_by",    "npi.spec.col.approved_by",     130, ColAlign.Left),
+    };
+
+    /// <summary>
+    /// Default hidden = 5 legacy cột (spec_code/title/process/effective_from/approved_by).
+    /// Operator có thể bật lại qua Columns toggle. Apply 1 lần khi load
+    /// _hidden từ localStorage; nếu storage trống → seed defaults.
+    /// </summary>
+    private static readonly HashSet<string> DefaultHidden = new()
+    {
+        "spec_code", "title", "process", "effective_from", "approved_by"
     };
 
     private IReadOnlyList<ColumnDef> VisibleCols => AllCols.Where(c => !_hidden.Contains(c.Key)).ToList();
@@ -290,20 +320,124 @@
         {
             if (_result is null) return "…";
             var totalStr = _result.Total.ToString("N0", CultureInfo.InvariantCulture);
-            return string.Format(Loc["npi.spec.rows_count"].Value, totalStr);
+            return string.Format(Loc["npi.spec.rows_count_parity"].Value, totalStr);
         }
     }
 
-    private RenderFragment StatusBadge(ProductRevisionStatus st) => __builder =>
+    private string AlignClass(ColAlign a) => a switch
+    {
+        ColAlign.Right => "rt-right",
+        ColAlign.Center => "rt-center",
+        _ => ""
+    };
+
+    // ── Render helpers ───────────────────────────────────────────────────────
+
+    private RenderFragment RenderCell(ProductRevisionListItem s, ColumnDef col) => __builder =>
+    {
+        switch (col.Key)
+        {
+            case "planner":
+                {
+                    var planner = s.Planner ?? "UNKNOWN";
+                    var slug = planner.ToLowerInvariant();
+                    __builder.OpenElement(1, "span");
+                    __builder.AddAttribute(2, "class", $"spec-planner-tag spec-planner-{slug}");
+                    __builder.AddContent(3, planner);
+                    __builder.CloseElement();
+                    break;
+                }
+            case "ref_no":
+                {
+                    var planner = (s.Planner ?? "UNKNOWN").ToLowerInvariant();
+                    __builder.OpenElement(10, "span");
+                    __builder.AddAttribute(11, "class", $"spec-refno spec-refno-{planner}");
+                    __builder.AddContent(12, s.RefNo ?? "—");
+                    __builder.CloseElement();
+                    break;
+                }
+            case "customer":
+                __builder.OpenElement(20, "b");
+                __builder.AddContent(21, s.CustomerName ?? "—");
+                __builder.CloseElement();
+                break;
+            case "part_no":
+                __builder.OpenElement(30, "code");
+                __builder.AddAttribute(31, "class", "spec-partno");
+                __builder.AddContent(32, s.ProductCode);
+                __builder.CloseElement();
+                break;
+            case "part_name":
+                __builder.AddContent(40, string.IsNullOrEmpty(s.ProductName) ? s.Title : s.ProductName);
+                break;
+            case "colors":
+                __builder.OpenElement(50, "b");
+                __builder.AddContent(51, s.NumColors > 0 ? s.NumColors.ToString(CultureInfo.InvariantCulture) : "—");
+                __builder.CloseElement();
+                break;
+            case "cavity":
+                __builder.AddContent(60, s.Cavity?.ToString(CultureInfo.InvariantCulture) ?? "—");
+                break;
+            case "pitch":
+                __builder.AddContent(70, s.PitchMm is null ? "—" : s.PitchMm.Value.ToString("N1", CultureInfo.InvariantCulture));
+                break;
+            case "inspection":
+                __builder.AddContent(80, s.InspectionLevel ?? "—");
+                break;
+            case "status":
+                __builder.AddContent(90, RenderStatusBadgeParity(s.Status));
+                break;
+            case "revision_code":
+                __builder.OpenElement(100, "b");
+                __builder.AddContent(101, s.RevisionCode);
+                __builder.CloseElement();
+                break;
+            case "rev_date":
+                __builder.AddContent(110, s.LastUpdatedAt?.ToString("yyyy-MM-dd") ?? "—");
+                break;
+            case "rev_by":
+                __builder.AddContent(120, s.LastUpdatedBy ?? "—");
+                break;
+            // Legacy cột (hidden by default, vẫn giữ render path)
+            case "spec_code":
+                __builder.AddContent(130, s.SpecCode);
+                break;
+            case "title":
+                __builder.AddContent(140, s.Title);
+                break;
+            case "process":
+                __builder.AddContent(150, s.ProcessCode ?? "—");
+                break;
+            case "effective_from":
+                __builder.AddContent(160, s.EffectiveFrom?.ToString("yyyy-MM-dd") ?? "—");
+                break;
+            case "approved_by":
+                __builder.AddContent(170, s.ApprovedBy ?? "—");
+                break;
+            default:
+                __builder.AddContent(900, "—");
+                break;
+        }
+    };
+
+    /// <summary>
+    /// Q13 Status display map 5-state → 3-state SpecHub:
+    ///   Draft + InReview → DRAFT (amber)
+    ///   Approved + Released → APPROVED (green)
+    ///   Superseded → Superseded (gray strike)
+    /// Underlying enum giữ 5-state (KHÔNG đổi DB).
+    /// </summary>
+    private RenderFragment RenderStatusBadgeParity(ProductRevisionStatus st) => __builder =>
     {
         var (cls, labelKey) = st switch
         {
-            ProductRevisionStatus.Draft       => ("rm-status rm-status--draft",      "npi.spec.status.draft"),
-            ProductRevisionStatus.InReview    => ("rm-status rm-status--review",     "npi.spec.status.in_review"),
-            ProductRevisionStatus.Approved    => ("rm-status rm-status--approved",   "npi.spec.status.approved"),
-            ProductRevisionStatus.Released    => ("rm-status rm-status--released",   "npi.spec.status.released"),
-            ProductRevisionStatus.Superseded  => ("rm-status rm-status--obsolete",   "npi.spec.status.superseded"),
-            _                                 => ("rm-status",                       "npi.spec.status.draft"),
+            ProductRevisionStatus.Draft or ProductRevisionStatus.InReview
+                => ("spec-stamp spec-stamp-draft",      "npi.spec.stamp.draft"),
+            ProductRevisionStatus.Approved or ProductRevisionStatus.Released
+                => ("spec-stamp spec-stamp-approved",   "npi.spec.stamp.approved"),
+            ProductRevisionStatus.Superseded
+                => ("spec-stamp spec-stamp-superseded", "npi.spec.stamp.superseded"),
+            _ => ("spec-stamp", "npi.spec.stamp.draft"),
         };
         __builder.OpenElement(1, "span");
         __builder.AddAttribute(2, "class", cls);
@@ -324,12 +458,18 @@
             {
                 var parts = stored.Split(',', StringSplitOptions.RemoveEmptyEntries);
                 _hidden = parts.Where(p => AllCols.Any(c => c.Key == p)).ToHashSet();
-                StateHasChanged();
             }
+            else
+            {
+                // Seed default-hidden khi storage trống (legacy cột ẩn).
+                _hidden = new HashSet<string>(DefaultHidden);
+            }
+            StateHasChanged();
         }
         catch
         {
-            // JS not available (SSR pre-circuit) — keep empty set.
+            // JS not available (SSR pre-circuit) — apply defaults.
+            _hidden = new HashSet<string>(DefaultHidden);
         }
     }
 
@@ -343,6 +483,27 @@
     }
 
     private async Task Load() => _result = await SpecSvc.SpecsAsync(_search, _page, _pageSize);
+
+    /// <summary>Q16 — debounce 300ms search; cancel previous CTS mỗi keystroke.
+    /// Sử dụng @bind:after thay vì @oninput để tránh xung đột với @bind:event="oninput".</summary>
+    private async Task OnSearchInputAfter()
+    {
+        _searchCts?.Cancel();
+        _searchCts = new CancellationTokenSource();
+        var ct = _searchCts.Token;
+        try
+        {
+            await Task.Delay(300, ct);
+            _page = 1;
+            await Load();
+            StateHasChanged();
+        }
+        catch (TaskCanceledException)
+        {
+            // Keystroke mới đến — debounce cancel, no-op.
+        }
+    }
+
     private async Task DoSearch() { _page = 1; await Load(); }
     private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
     private async Task GoPage(int p) { _page = p; await Load(); }
@@ -364,26 +525,24 @@
 
     private static string RawValue(ProductRevisionListItem s, string key) => key switch
     {
-        "spec_code"      => s.SpecCode,
-        "product_code"   => s.ProductCode,
-        "title"          => s.Title,
-        "revision_code"  => s.RevisionCode,
+        "planner"        => s.Planner ?? "",
+        "ref_no"         => s.RefNo ?? "",
+        "customer"       => s.CustomerName ?? "",
+        "part_no"        => s.ProductCode,
+        "part_name"      => s.ProductName,
+        "colors"         => s.NumColors.ToString(CultureInfo.InvariantCulture),
+        "cavity"         => s.Cavity?.ToString(CultureInfo.InvariantCulture) ?? "",
+        "pitch"          => s.PitchMm?.ToString("N2", CultureInfo.InvariantCulture) ?? "",
+        "inspection"     => s.InspectionLevel ?? "",
         "status"         => s.Status.ToString(),
+        "revision_code"  => s.RevisionCode,
+        "rev_date"       => s.LastUpdatedAt?.ToString("yyyy-MM-dd HH:mm") ?? "",
+        "rev_by"         => s.LastUpdatedBy ?? "",
+        "spec_code"      => s.SpecCode,
+        "title"          => s.Title,
         "process"        => s.ProcessCode ?? "",
         "effective_from" => s.EffectiveFrom?.ToString("yyyy-MM-dd") ?? "",
         "approved_by"    => s.ApprovedBy ?? "",
         _                => "",
-    };
-
-    private string FormatCell(ProductRevisionListItem s, ColumnDef col) => col.Key switch
-    {
-        "spec_code"      => s.SpecCode,
-        "product_code"   => s.ProductCode,
-        "title"          => s.Title,
-        "revision_code"  => $"Rev {s.RevisionCode}",
-        "process"        => s.ProcessCode ?? "—",
-        "effective_from" => s.EffectiveFrom?.ToString("yyyy-MM-dd") ?? "—",
-        "approved_by"    => s.ApprovedBy ?? "—",
-        _                => "—",
     };
 }
