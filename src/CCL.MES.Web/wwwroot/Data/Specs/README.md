@@ -1,8 +1,8 @@
-# Spec sample bundle — Phase 8 PR #31a
+# Spec sample bundle — Phase 8 PR #31a + #31b
 
-4 silkscreen xlsx files used by the "Refresh samples" Admin button on the
-**NPI · Engineer Spec** page. They are also the test fixtures for the
-silkscreen xlsx parser regression tests.
+4 silkscreen + 2 flexo xlsx files used by the "Refresh samples" Admin button
+on the **NPI · Engineer Spec** page. They are also the test fixtures for the
+xlsx parser regression tests.
 
 ## Sanitization manifest
 
@@ -39,6 +39,16 @@ testing:
 | `DEMO_SILK_2.xlsx` | `DEMO_CUSTOMER_1` | 10 colors | derived from `AWW0146C6FC0-0C5.xlsx` (Panasonic Panel Face B variant) |
 | `DEMO_SILK_3.xlsx` | `DEMO_CUSTOMER_2` | 7 colors | derived from `3205884802.xlsx` (DELTA decal) |
 | `DEMO_SILK_4.xlsx` | `DEMO_CUSTOMER_3` | 6 colors | derived from `Silk_1000527330.xlsx` (Johnson console window) |
+| `DEMO_FLEXO_1.xlsx` | `DEMO_CUSTOMER_4` | 2 print / 3 cut / 5 ink | derived from `G-EHB-HC-DISNEY.xlsx` (CCL VINA seal, DISNEY brand reference scrubbed everywhere) |
+| `DEMO_FLEXO_2.xlsx` | `DEMO_CUSTOMER_5` | 1 print / 1 cut / 3 ink | derived from `080-0005-1618-ZE-NP.xlsx` (FIT label) |
+
+## Flexo-specific notes (PR #31b)
+
+Flexo template packs THREE distinct data tables in one worksheet (printing +
+cutting + ink), each with its own row count. The "Print rows / Cut rows / Ink
+rows" column shows all three. Sanitization scanned EVERY cell against original
+substrings (incl. `DISNEY` brand reference in `DEMO_FLEXO_1`) — verified zero
+leak via parser round-trip with `Contains` assertion.
 
 ## Refresh-samples behavior
 

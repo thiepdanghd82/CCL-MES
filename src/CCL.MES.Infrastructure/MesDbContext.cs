@@ -18,6 +18,8 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<SpecMaterial> SpecMaterials => Set<SpecMaterial>();
     public DbSet<SpecPrint> SpecPrints => Set<SpecPrint>();
     public DbSet<SpecPrintColor> SpecPrintColors => Set<SpecPrintColor>();
+    public DbSet<SpecFlexoCuttingRow> SpecFlexoCuttingRows => Set<SpecFlexoCuttingRow>();
+    public DbSet<SpecFlexoInkRow> SpecFlexoInkRows => Set<SpecFlexoInkRow>();
     public DbSet<SpecDiecut> SpecDiecuts => Set<SpecDiecut>();
     public DbSet<SpecFinishing> SpecFinishings => Set<SpecFinishing>();
     public DbSet<Drawing> Drawings => Set<Drawing>();
@@ -162,6 +164,23 @@ public class MesDbContext : DbContext, IMesDbContext
         // PlateCode + InkCode search (PR #33 detail sheet + future cross-spec lookup).
         b.Entity<SpecPrintColor>().HasIndex(x => x.PlateCode);
         b.Entity<SpecPrintColor>().HasIndex(x => x.InkCode);
+
+        // Phase 8 PR #31b — Flexo cutting + ink rows (1:N từ SpecPrint).
+        // Cascade delete để xóa cả 3 dạng row con khi xóa SpecPrint master.
+        b.Entity<SpecPrint>()
+            .HasMany(x => x.FlexoCuttingRows)
+            .WithOne(x => x.SpecPrint!)
+            .HasForeignKey(x => x.SpecPrintId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<SpecPrint>()
+            .HasMany(x => x.FlexoInkRows)
+            .WithOne(x => x.SpecPrint!)
+            .HasForeignKey(x => x.SpecPrintId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.Entity<SpecFlexoCuttingRow>().HasIndex(x => new { x.SpecPrintId, x.Seq }).IsUnique();
+        b.Entity<SpecFlexoInkRow>().HasIndex(x => new { x.SpecPrintId, x.Seq }).IsUnique();
+        b.Entity<SpecFlexoInkRow>().HasIndex(x => x.PlateCode);
+        b.Entity<SpecFlexoInkRow>().HasIndex(x => x.InkCode);
         b.Entity<ProductRevision>()
             .HasOne(x => x.Diecut)
             .WithOne(x => x.ProductRevision!)

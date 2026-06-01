@@ -31,10 +31,15 @@ public static class DependencyInjection
 
         services.AddScoped<IMesDbContext>(sp => sp.GetRequiredService<MesDbContext>());
 
-        // Phase 8 PR #31a — silkscreen xlsx parser (ClosedXML impl). Stateless,
-        // safe as Singleton. PR #31b sẽ register thêm flexo parser bằng
-        // category-keyed factory; nay scope hẹp 1 impl đủ.
-        services.AddSingleton<ISpecXlsxParser, SilkscreenXlsxParser>();
+        // Phase 8 PR #31a — silkscreen xlsx parser (ClosedXML impl).
+        // PR #31b — flexo parser + category-keyed factory dispatch.
+        services.AddSingleton<SilkscreenXlsxParser>();
+        services.AddSingleton<FlexoXlsxParser>();
+        services.AddSingleton<ISpecXlsxParserFactory, SpecXlsxParserFactory>();
+        // Giữ ISpecXlsxParser registration cho backward-compat callers (PR #31a)
+        // — resolve về silkscreen default (caller mới phải dùng factory thay vì
+        // trực tiếp inject ISpecXlsxParser).
+        services.AddSingleton<ISpecXlsxParser>(sp => sp.GetRequiredService<SilkscreenXlsxParser>());
         return services;
     }
 }

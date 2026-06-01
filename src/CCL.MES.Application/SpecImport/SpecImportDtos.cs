@@ -45,6 +45,13 @@ public class ParsedSpecDto
 
     /// <summary>Warnings/skipped rows surfaced ở preview UI (non-fatal).</summary>
     public List<string> Warnings { get; set; } = new();
+
+    // ── PR #31b — Flexo-specific (silkscreen = empty) ────────────────────────
+    /// <summary>Flexo "version" field từ R4 C21 (silkscreen = "").</summary>
+    public string? Version { get; set; }
+    public List<ParsedFlexoPrintRowDto> FlexoPrintRows { get; set; } = new();
+    public List<ParsedFlexoCuttingRowDto> FlexoCuttingRows { get; set; } = new();
+    public List<ParsedFlexoInkRowDto> FlexoInkRows { get; set; } = new();
 }
 
 /// <summary>
@@ -73,6 +80,68 @@ public class ParsedPrintColorDto
     public string? PlateCode { get; set; }
     public int? ControlNo { get; set; }
     public string? Remark { get; set; }
+}
+
+/// <summary>
+/// PR #31b — Flexo printing rows (12 fields per process). Fold vào
+/// SpecPrint.ExtraJson per Q3 — operator ít cần column-wise query.
+/// </summary>
+public class ParsedFlexoPrintRowDto
+{
+    public int Seq { get; set; }
+    public string? Process { get; set; }
+    public string? Material { get; set; }
+    public string? Thickness { get; set; }
+    public string? Size { get; set; }
+    public string? Cylinders { get; set; }
+    public string? PitchMm { get; set; }
+    public string? Speed { get; set; }
+    public string? TensionHead { get; set; }
+    public string? TensionEnd { get; set; }
+    public string? TensionRoll { get; set; }
+    public string? PlateCavity { get; set; }
+    public string? Tension { get; set; }
+}
+
+/// <summary>
+/// PR #31b — Flexo cutting rows (14 fields per process). Persist vào
+/// SpecFlexoCuttingRow entity.
+/// </summary>
+public class ParsedFlexoCuttingRowDto
+{
+    public int Seq { get; set; }
+    public string? Process { get; set; }
+    public string? Lamination { get; set; }
+    public string? Size { get; set; }
+    public string? CutterLot { get; set; }
+    public string? CutterName { get; set; }
+    public int? PcsPerSheet { get; set; }
+    public int? CuttingCavity { get; set; }
+    public double? PitchMm { get; set; }
+    public string? Packing { get; set; }
+    public double? PaperSpeed { get; set; }
+    public double? CuttingSpeed { get; set; }
+    public double? CuttingPressure { get; set; }
+    public double? HeadTension { get; set; }
+    public double? RollTension { get; set; }
+}
+
+/// <summary>
+/// PR #31b — Flexo ink rows (10 fields per color). Persist vào SpecFlexoInkRow
+/// entity (tách khỏi SpecPrintColor silk-shape per Q3).
+/// </summary>
+public class ParsedFlexoInkRowDto
+{
+    public int Seq { get; set; }
+    public string? Color { get; set; }
+    public string? InkCode { get; set; }
+    public string? InkDescription { get; set; }
+    public string? Brand { get; set; }
+    public string? Anilox { get; set; }
+    public string? PlateCode { get; set; }
+    public double? Pressure { get; set; }
+    public double? UvPowerW { get; set; }
+    public double? IrPowerW { get; set; }
 }
 
 /// <summary>

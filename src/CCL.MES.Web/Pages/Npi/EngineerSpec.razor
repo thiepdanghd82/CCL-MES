@@ -223,6 +223,9 @@
                 ("DEMO_SILK_2.xlsx", "silkscreen"),
                 ("DEMO_SILK_3.xlsx", "silkscreen"),
                 ("DEMO_SILK_4.xlsx", "silkscreen"),
+                // Phase 8 PR #31b — flexo samples
+                ("DEMO_FLEXO_1.xlsx", "flexo"),
+                ("DEMO_FLEXO_2.xlsx", "flexo"),
             };
             var result = await SpecImport.RefreshSamplesAsync(samplesDir, files, force, user);
             _refreshMessage = string.Format(Loc["npi.spec.refresh_samples_result"].Value,
