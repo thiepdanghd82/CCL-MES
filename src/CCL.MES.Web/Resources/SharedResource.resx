@@ -717,4 +717,13 @@
   <data name="npi.spec.refresh_samples_force_confirm" xml:space="preserve"><value>FORCE mode — re-parse all 6 samples AND replace any existing rev with matching RefNo (existing rev gets soft-deleted to Trash). Continue?</value></data>
   <data name="npi.spec.refresh_samples_result" xml:space="preserve"><value>Samples refresh: {0} added · {1} updated · {2} skipped</value></data>
   <data name="npi.spec.refresh_samples_err" xml:space="preserve"><value>Refresh samples failed</value></data>
+
+  <!-- Phase 8 PR #31c — Export 3 formats (CSV / Excel / PDF). -->
+  <data name="npi.spec.btn_export_csv" xml:space="preserve"><value>Export CSV</value></data>
+  <data name="npi.spec.btn_export_xlsx" xml:space="preserve"><value>Export Excel</value></data>
+  <data name="npi.spec.btn_print_pdf" xml:space="preserve"><value>Print PDF</value></data>
+  <data name="npi.spec.export_count" xml:space="preserve"><value>Exporting {0} rows…</value></data>
+  <data name="npi.spec.export_ok" xml:space="preserve"><value>Exported {0} rows to {1}</value></data>
+  <data name="npi.spec.export_err" xml:space="preserve"><value>Export failed</value></data>
+  <data name="npi.spec.export_empty" xml:space="preserve"><value>No data to export (filter returns 0 rows)</value></data>
 </root>

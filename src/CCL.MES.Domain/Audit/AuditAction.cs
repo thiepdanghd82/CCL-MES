@@ -21,6 +21,9 @@ public static class AuditAction
     public const string QcCreate              = "QC_CREATE";
     public const string SpecApprove           = "SPEC_APPROVE";
     public const string SpecCreate            = "SPEC_CREATE";
+    // Phase 8 PR #31c — Export list view (CSV / XLSX / PDF). detail JSON:
+    // { format, search, rows, filename, content_length }
+    public const string SpecExport            = "SPEC_EXPORT";
     // Phase 8 PR #31a — xlsx import (silkscreen). detail JSON: { spec_code,
     // ref_no, title, product_id, process_code, source, filename, rows_parsed,
     // warnings, created_new_product }

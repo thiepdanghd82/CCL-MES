@@ -66,6 +66,30 @@
                 </div>
             }
         </div>
+        <!-- Phase 8 PR #31c — Export buttons (visible to NpiSpecRead roles =
+             Admin/Supervisor/Engineer). Server-side RBAC double-check trong
+             SpecsExportController qua [Authorize(Policy="NpiSpecRead")]. -->
+        <button type="button"
+                class="rt-btn"
+                @onclick="ExportCsvAsync"
+                disabled="@_busyExport"
+                title="@Loc["npi.spec.btn_export_csv"]">
+            @Loc["npi.spec.btn_export_csv"]
+        </button>
+        <button type="button"
+                class="rt-btn"
+                @onclick="ExportXlsxAsync"
+                disabled="@_busyExport"
+                title="@Loc["npi.spec.btn_export_xlsx"]">
+            @Loc["npi.spec.btn_export_xlsx"]
+        </button>
+        <button type="button"
+                class="rt-btn"
+                @onclick="PrintPdfAsync"
+                disabled="@_busyExport"
+                title="@Loc["npi.spec.btn_print_pdf"]">
+            @Loc["npi.spec.btn_print_pdf"]
+        </button>
         <AuthorizeView Roles="Admin">
             <button type="button"
                     class="rt-btn rt-btn-refresh-samples"
@@ -85,6 +109,13 @@
         <div class="alert err" role="alert" style="margin:8px 0;">
             @_refreshMessage
             <button type="button" class="rt-ctx-error-close" @onclick="@(() => _refreshMessage = null)">×</button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(_exportMessage))
+    {
+        <div class="alert err" role="alert" style="margin:8px 0;">
+            @_exportMessage
+            <button type="button" class="rt-ctx-error-close" @onclick="@(() => _exportMessage = null)">×</button>
         </div>
     }
 
@@ -185,6 +216,50 @@
     // PR #31a — Refresh samples (Admin only).
     private bool _busyRefresh;
     private string? _refreshMessage;
+
+    // PR #31c — Export (CSV/XLSX/PDF). _busyExport applies tới cả 3 buttons.
+    private bool _busyExport;
+    private string? _exportMessage;
+
+    private Task ExportCsvAsync()  => TriggerExportAsync("csv");
+    private Task ExportXlsxAsync() => TriggerExportAsync("xlsx");
+    private Task PrintPdfAsync()   => TriggerExportAsync("pdf");
+
+    /// <summary>
+    /// PR #31c — Trigger browser download cho 1 trong 3 format. Pattern: build
+    /// URL `/api/specs/export.<ext>?search=<x>` → JS interop navigate (anchor
+    /// click) để browser download stream từ controller. RBAC server-side check
+    /// trong SpecsExportController qua `[Authorize(Policy="NpiSpecRead")]`.
+    /// Try-catch wrap (bài học hotfix PR #27 — error banner inline, KHÔNG freeze
+    /// circuit).
+    /// </summary>
+    private async Task TriggerExportAsync(string format)
+    {
+        if (_busyExport) return;
+        _busyExport = true;
+        _exportMessage = null;
+        StateHasChanged();
+        try
+        {
+            var query = string.IsNullOrWhiteSpace(_search)
+                ? string.Empty
+                : $"?search={Uri.EscapeDataString(_search.Trim())}";
+            var url = $"/api/specs/export/{format}{query}";
+            // JS-side trigger anchor click; window.open mở tab mới phù hợp file
+            // download (browser auto-close khi response Content-Disposition
+            // attachment). Fallback location.href nếu window.open bị block.
+            await JS.InvokeVoidAsync("cclmes.downloadFile", url);
+        }
+        catch (Exception ex)
+        {
+            _exportMessage = $"{Loc["npi.spec.export_err"].Value}: {ex.Message}";
+        }
+        finally
+        {
+            _busyExport = false;
+            StateHasChanged();
+        }
+    }
 
     /// <summary>
     /// PR #31a Q7 — Refresh samples (Admin only). Đọc 4 file silkscreen

@@ -20,3 +20,25 @@ window.cclmes.storageSet = function (key, value) {
         return false;
     }
 };
+
+// Phase 8 PR #31c — Trigger file download cho Export endpoints.
+// Pattern: tạo anchor <a download href=...> + click() programmatically.
+// Browser auto-handle Content-Disposition + Save dialog tùy preference.
+// KHÔNG dùng window.open vì popup-blocker có thể chặn; anchor click safer.
+window.cclmes.downloadFile = function (url) {
+    try {
+        const a = document.createElement('a');
+        a.href = url;
+        a.style.display = 'none';
+        // KHÔNG set download attribute — để Content-Disposition header
+        // từ server quyết định filename (timestamp + correct extension).
+        document.body.appendChild(a);
+        a.click();
+        // Defer cleanup để browser kịp khởi tạo download stream.
+        setTimeout(() => document.body.removeChild(a), 100);
+        return true;
+    } catch (e) {
+        console.error('cclmes.downloadFile failed:', e);
+        return false;
+    }
+};

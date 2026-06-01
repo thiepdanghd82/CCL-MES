@@ -70,6 +70,11 @@ Server không có tác động; package vẫn được resolve qua NuGet như SQ
 Xem `LESSONS_LEARNED.md` §9 cho upgrade caveat của ClosedXML (run parser
 harness regression suite mỗi lần bump version).
 
+PR #31c thêm `PDFsharp-MigraDoc 6.2.4` (PDF gen). Pure-managed .NET, MIT
+licensed, cross-platform/cross-provider — KHÔNG đụng database stack. Khi
+deploy Linux server: yêu cầu `apt install fonts-dejavu-core` (~5MB; xem
+`LESSONS_LEARNED.md` §12.1). Windows + macOS preinstalled native fonts.
+
 ---
 
 ## 2. Quy trình A→B→C

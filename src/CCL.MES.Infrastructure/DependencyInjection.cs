@@ -1,5 +1,7 @@
 using CCL.MES.Application;
+using CCL.MES.Application.SpecExport;
 using CCL.MES.Application.SpecImport;
+using CCL.MES.Infrastructure.SpecExport;
 using CCL.MES.Infrastructure.SpecImport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -40,6 +42,20 @@ public static class DependencyInjection
         // — resolve về silkscreen default (caller mới phải dùng factory thay vì
         // trực tiếp inject ISpecXlsxParser).
         services.AddSingleton<ISpecXlsxParser>(sp => sp.GetRequiredService<SilkscreenXlsxParser>());
+
+        // Phase 8 PR #31c — list exporters (3 formats). Stateless impl, safe
+        // as Singleton. CSV impl lives in Application (pure .NET); xlsx + pdf
+        // impl in Infrastructure (ClosedXML / PdfSharp deps).
+        services.AddSingleton<CsvSpecListExporter>();
+        services.AddSingleton<XlsxSpecListExporter>();
+        services.AddSingleton<PdfSpecListExporter>();
+        // Resolve by format string — controller pattern. ISpecListExporter
+        // multi-impl đăng ký để future PR thêm exporter (JSON, PDF detail, …)
+        // chỉ cần thêm dòng dưới.
+        services.AddSingleton<ISpecListExporter>(sp => sp.GetRequiredService<CsvSpecListExporter>());
+        services.AddSingleton<ISpecListExporter>(sp => sp.GetRequiredService<XlsxSpecListExporter>());
+        services.AddSingleton<ISpecListExporter>(sp => sp.GetRequiredService<PdfSpecListExporter>());
+
         return services;
     }
 }

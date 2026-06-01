@@ -272,4 +272,82 @@ late throw rolls back Customer + Product + Revision atomically.
 
 ---
 
-*Cập nhật lần cuối: 01/06/2026 — Phase 8 PR #31a (ClosedXML dep + sample bundle sanitization + Customer FK chain).*
+## 12. PDFsharp + MigraDoc dependency cho server-side PDF gen (Phase 8 PR #31c)
+
+PR #31c thêm `PDFsharp-MigraDoc 6.2.4` (MIT license) cho server-side PDF gen
+trong export feature. **Lý do chọn MIT thay QuestPDF Community License**:
+QuestPDF Community License free CHỈ ≤ $1M USD revenue/year — CCL Vietnam
+business có khả năng vượt ngưỡng → MIT safer legally + KHÔNG cần revenue
+audit yearly.
+
+**Why this specific package variant**:
+
+| Variant | Use when |
+|---|---|
+| `PDFsharp-MigraDoc` 6.2.4 | **Chọn** — cross-platform pure .NET (no System.Drawing/GDI dep). Chạy trên Linux/macOS/Windows server. |
+| `PDFsharp-MigraDoc-GDI` 6.2.4 | LOẠI — Windows-only via System.Drawing.Common (Linux deploy fail). |
+| `PDFsharp-MigraDoc-WPF` 6.2.4 | LOẠI — WPF dep, không phù hợp ASP.NET Core Linux. |
+
+**Architectural pattern — reusable cho PR #33 detail sheet PDF**:
+
+PR #31c thiết kế PDF layer thành 3 component tách biệt:
+1. `SpecPdfDocumentBuilder.cs` — shared DOM builder + style constants
+   (PrimaryColorHex, header/footer fonts, page setup). Public methods:
+   `BuildEmpty(title, orientation)` cho caller append sections (PR #33 detail
+   sheet sẽ dùng) + `BuildListView(rows, ctx)` cho PR #31c list export.
+2. `PdfSpecListExporter.cs` — list-specific impl của `ISpecListExporter`.
+3. `SystemFontResolver.cs` — cross-platform IFontResolver (xem mục 12.1 dưới).
+
+Khi PR #33 build detail sheet PDF: chỉ cần extend `SpecPdfDocumentBuilder`
+thêm `BuildDetailSheet(spec, ctx)` reusing cùng StyleConstants. KHÔNG hard-
+code list cụ thể trong PdfSpecListExporter.
+
+### 12.1 Cross-platform font resolution
+
+PDFsharp 6.2.4 KHÔNG bundle font; phải register `IFontResolver` provide TTF
+bytes. SystemFontResolver tìm font theo platform-specific path:
+
+- **macOS**: `/System/Library/Fonts/Supplemental/Arial.ttf` (+ Bold/Italic/Bold-Italic
+  variants)
+- **Linux**: `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf` (+ variants).
+  **Deploy requirement**: `apt install fonts-dejavu-core` (~5MB, preinstalled
+  trên hầu hết Debian/Ubuntu/RHEL distros) — fail với `FileNotFoundException`
+  + message gợi ý apt command nếu missing.
+- **Windows**: `%WINDIR%\Fonts\arial.ttf` (+ variants, preinstalled native).
+
+Cache TTF bytes trong static Dictionary — load 1 lần per font face (size +
+io overhead chỉ ở first export). Reusable cho PR #33 + future detail sheet.
+
+**Deploy gate**: nếu deploy CMES lên Linux server, verify fonts-dejavu-core
+preinstalled BEFORE first PDF export request. Add vào deploy checklist.
+
+## 13. ASP.NET Core controller route + dot extension (PR #31c trap)
+
+PR #31c originally route `/api/specs/export.csv` với `[HttpGet(".csv")]` —
+route resolves 404 vì static-file middleware claim path-with-dot-extension
+trước controller routing. **Fix**: switch sang path segment `/api/specs/
+export/csv` với `[HttpGet("csv")]`.
+
+**General rule**: tránh dot extension trong API route templates. Dùng path
+segment cho format dispatch (`/export/{format}`) hoặc query string
+(`?format=csv`).
+
+## 14. `[Authorize(Policy=...)]` trên API controller redirect tới SPA fallback
+
+PR #31c originally `[Authorize(Policy = "NpiSpecRead")]` — request từ
+authenticated user vẫn return 200 HTML (SPA shell) thay vì 200 file content.
+Cause: policy challenge invoke cookie-auth challenge → redirect tới `/login`
+→ MapFallbackToPage("/_Host") catches redirect + returns SPA shell HTML 200.
+
+**Fix**: dùng `[Authorize(Roles = "Admin,Supervisor,Engineer")]` — Roles
+attribute returns 403 Forbidden cho ApiController route thay vì challenge
+redirect. Behavior consistent với `[ApiController]` convention.
+
+**General rule**: API controller (`[ApiController]`) prefer `[Authorize
+(Roles=...)]` over `[Authorize(Policy=...)]` để skip challenge redirect path.
+Mirror policy intent trong Roles list để giữ matrix consistent với Razor Page
+`<AuthorizeView Roles="...">`.
+
+---
+
+*Cập nhật lần cuối: 01/06/2026 — Phase 8 PR #31c (PDFsharp-MigraDoc dep + cross-platform font resolver + API auth route patterns).*
