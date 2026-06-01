@@ -39,6 +39,10 @@ public static class AuditAction
     // { revision_id, stage, criterion_id, result, has_measurement, ng_reason_code,
     //   has_comment }
     public const string SpecQcCapture         = "SPEC_QC_CAPTURE";
+    // Phase 8 PR-D-5b — Drawing version uploaded (FilesystemBlobStore persisted).
+    // detail JSON: { revision_id, drawing_id, kind, version_no, filename,
+    //   sha256_short, size_bytes, has_change_reason }
+    public const string DrawingUpload         = "DRAWING_UPLOAD";
     // Refresh-samples Admin-only batch (idempotent). detail JSON: { added,
     // updated, skipped, files: [{filename, ref_no, status}] }
     public const string SpecRefreshSamples    = "SPEC_REFRESH_SAMPLES";

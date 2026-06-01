@@ -480,4 +480,45 @@ Nếu sửa `FilesystemBlobStore` (đổi regex, đổi allowlist, đổi path s
 
 ---
 
-*Cập nhật lần cuối: 01/06/2026 — Phase 8 PR-D-5a (blob path scheme + 6 security guards + harness).*
+## Phase 8 PR-D-5b — IBlobStore return shape widened + Blazor InputFile cap trap + controller route discipline
+
+PR-D-5b consume `IBlobStore` từ D-5a cho tab Drawings (upload/version/view).
+3 lesson lớn rút ra khi wire end-to-end:
+
+### `IBlobStore.PutAsync` return shape widened (small breaking change)
+
+D-5a contract: `Task<string> PutAsync(...)` — chỉ trả về storage key. Key chứa sha8 prefix, nhưng caller nào cần **full SHA256** (DrawingVersion.FileHash = 64 hex chars) phải re-stream file để compute SHA mới — double IO trên mỗi upload.
+
+D-5b widen return về `BlobPutResult(Key, Sha256Hex, SizeBytes)`. Implementation đã compute full sha256 trong single write pass — chỉ thay đổi expose nó qua return. Harness D-5a update accordingly (test #1 + #2 verify all 3 fields). 1-line interface change, 1-line impl change, lý do được pin trong XML doc của `IBlobStore.PutAsync`.
+
+**Bài học**: contract design phase, nếu store cần compute metadata internally để serve write, expose ngay từ đầu — đừng để caller round-trip lại. Lý tưởng nhất từ D-5a, nhưng accepted cost để D-5a focused trên security guards.
+
+### Blazor `InputFile.OpenReadStream(maxAllowedSize)` default 500 KB — phải override
+
+Blazor Server `InputFile.OpenReadStream()` mà KHÔNG truyền `maxAllowedSize` argument sẽ throw cho file > **524288 bytes (~512 KB)**. Operator upload PDF 2 MB sẽ thấy `IOException: Supplied stream is too long`.
+
+Fix: inject `BlobStoreOptions` vào Razor page, gọi `_uploadModalFile.OpenReadStream(BlobOpts.MaxBytes)` để khớp server cap (env `MES_BLOB_MAX_BYTES`, default 10 MiB). Khi mở UI: pass `BlobOpts.MaxBytes / (1024 * 1024)` xuống modal hint string để operator biết cap.
+
+Integration test `scripts/VerifyDrawingsUpload` chứng minh: 1.2 MiB file upload thành công end-to-end (> Blazor default 500 KB).
+
+### Drawing download controller — path-segment route, NO dot-extension (Lesson #33 reuse)
+
+PR #31d trước đây bị trap khi route template chứa `{filename}.pdf` — static-file middleware match dot-extension và route nhầm sang file lookup → 404.
+
+D-5b reuse lesson: route là `GET /api/specs/{revisionId:long}/drawings/{versionId:long}/file` — pure path-segment, không dot. Content-Type + Content-Disposition response header điều khiển browser behavior:
+- `Content-Type` map từ file extension qua whitelist dictionary (10 MIME types khớp BlobStoreOptions.AllowedExtensions; unknown → `application/octet-stream` fallback).
+- `Content-Disposition: inline; filename="<sanitized>"` — browser preview PDF/image in-tab + cho phép Cmd+S download với filename gốc.
+- `X-Content-Type-Options: nosniff` — chặn browser MIME sniff override (defense vs disguised content).
+- `Cache-Control: private, max-age=300` — auth-scoped, browser cache 5 phút (mặc dù blob content immutable per sha8 key thì cache có thể dài hơn — to-do PR-D-5c).
+
+**Bổ sung**: revision-scoped download. Controller route nhận cả `revisionId` + `versionId`; service `GetForDownloadAsync` verify version's parent drawing thuộc đúng revisionId được pass vào (defense-in-depth — caller URL phải khớp cả 2 ids, forging chỉ versionId mà sai revisionId trả 404).
+
+### `[Authorize(Roles=...)]` over `[Authorize(Policy=...)]` cho API endpoints
+
+`SpecsExportController` (PR #31c) đã pin pattern: dùng `Roles="Admin,Supervisor,Engineer"` thay vì `Policy="NpiSpecRead"` cho API controllers. Lý do: API auth response 401/403 thay vì cookie-auth challenge redirect → SPA fallback `_Host.cshtml` (HTTP 200 HTML response, gây client nhầm thành thành công).
+
+`DrawingsController` reuse cùng pattern. Roles list khớp Program.cs:NpiSpecRead policy.
+
+---
+
+*Cập nhật lần cuối: 01/06/2026 — Phase 8 PR-D-5b (IBlobStore return shape + Blazor InputFile cap + controller route discipline).*

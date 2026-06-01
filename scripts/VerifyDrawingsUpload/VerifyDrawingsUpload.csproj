@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CCL.MES.Scripts.VerifyDrawingsUpload</RootNamespace>
+    <AssemblyName>VerifyDrawingsUpload</AssemblyName>
+    <!--
+      Phase 8 PR-D-5b end-to-end integration test for DrawingsService.
+      Bootstraps a temp SQLite DB + temp blob root, runs an in-memory
+      ProductRevision through UploadAsync (with 1.2 MiB synthetic content,
+      bigger than the 500 KB Blazor InputFile default cap) + the
+      GetForDownloadAsync round-trip. Verifies persisted metadata matches
+      blob (StorageKey, FileHash full sha256, FileSize) AND that
+      downloading via IBlobStore.GetAsync reproduces the original bytes.
+      Also exercises RBAC reject + extension rule reject. Engineer tool,
+      out of sln. Run via dotnet run.
+    -->
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CCL.MES.Domain\CCL.MES.Domain.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Application\CCL.MES.Application.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Infrastructure\CCL.MES.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

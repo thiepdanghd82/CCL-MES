@@ -75,7 +75,7 @@ public sealed class FilesystemBlobStore : IBlobStore
         Directory.CreateDirectory(_blobRootAbs);
     }
 
-    public async Task<string> PutAsync(
+    public async Task<BlobPutResult> PutAsync(
         Stream content,
         string suggestedKey,
         string contentType,
@@ -159,7 +159,7 @@ public sealed class FilesystemBlobStore : IBlobStore
             _logger?.LogInformation(
                 "Blob stored: key={Key} bytes={Bytes} sha8={Sha8}",
                 storageKey, bytesWritten, sha8);
-            return storageKey;
+            return new BlobPutResult(storageKey, sha256Hex, bytesWritten);
         }
         catch
         {

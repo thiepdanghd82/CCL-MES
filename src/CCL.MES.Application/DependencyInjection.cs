@@ -11,6 +11,7 @@ public static class DependencyInjection
         services.AddScoped<SpecService>();
         services.AddScoped<SpecQcWindowService>();
         services.AddScoped<SpecQcCaptureService>();
+        services.AddScoped<DrawingsService>();
         services.AddScoped<QcService>();
         services.AddScoped<OeeService>();
         services.AddScoped<WiService>();
