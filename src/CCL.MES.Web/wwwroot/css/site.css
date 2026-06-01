@@ -907,16 +907,21 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 
 /* ─── Print stylesheet — Engineer Spec detail (Print / Export button → window.print).
 
-   Layout target (operator spec):
+   Layout target (operator spec, hardened after PR #39 → operator screenshot
+   showed Approval Signatures spilling onto a 3rd page; this revision
+   tightens compression so everything except Change Log lands on page 1):
      • A4 landscape (browser print dialog can switch to A3 landscape — content
        only gets more room, never less).
-     • Exactly 2 pages: everything EXCEPT Change Log on page 1; Change Log
-       alone on page 2.
-     • All borders + table lines: 0.3pt (printer hairline).
+     • Exactly 2 pages: ALL spec content (header + compliance + product info +
+       print params + legend + print process + remarks + revision history +
+       approval signatures) on page 1; Change Log alone on page 2.
+     • All borders + table lines: 0.3pt hairline, declared as full
+       `border:0.3pt solid var(--navy-border)` to beat any PR-A 1px screen
+       declarations + lint quirks where `border-width` alone could be ignored.
      • Background colors preserved (navy section bars, ⚠ chip, alt rows).
 */
 @media print {
-  @page { size: A4 landscape; margin: 6mm; }
+  @page { size: A4 landscape; margin: 5mm; }
 
   /* Hide app chrome (top nav + Back/Print toolbar). */
   .topbar,
@@ -931,47 +936,56 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   /* Force exact background colors (Chromium / Safari / Firefox). */
   * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
 
-  /* Compress fonts so all non-Change-Log sections fit on a single A4 landscape page. */
+  /* Compress fonts. PR #39 used 7.5pt body — operator PDF still spilled
+     Approval Signatures to page 2. Drop body 7pt, tables 6.5pt, center 11pt. */
   .spec-sheet-page,
-  .spec-frame { font-size:7.5pt; }
+  .spec-frame { font-size:7pt; line-height:1.15; }
   .spec-doc-header .co-block,
-  .spec-doc-header .right-block { font-size:7.5pt; }
-  .spec-doc-header .center-block { font-size:13pt; }
+  .spec-doc-header .right-block { font-size:7pt; line-height:1.1; }
+  .spec-doc-header .center-block { font-size:11pt; line-height:1.1; }
   .spec-doc-header .center-block .sub,
-  .spec-doc-header .co-block .sub { font-size:6.5pt; }
-  .spec-block-title { font-size:8pt; padding:2pt 4pt; }
+  .spec-doc-header .co-block .sub { font-size:6pt; }
+  .spec-block-title { font-size:7.5pt; padding:1pt 3pt; line-height:1.15; }
   .spec-cert-row,
-  .cert-chip { font-size:7pt; }
+  .cert-chip { font-size:6.5pt; }
   .spec-info-table,
   .spec-print-table,
-  .spec-rev-table { font-size:7pt; }
-  .spec-params .lbl { font-size:6.5pt; }
-  .spec-params .val { font-size:9pt; }
+  .spec-rev-table { font-size:6.5pt; line-height:1.1; }
+  .spec-params .lbl { font-size:6pt; line-height:1.1; }
+  .spec-params .val { font-size:8pt; line-height:1.1; }
   .spec-codes-legend,
-  .spec-codes-legend .legend-row { font-size:6.5pt; }
-  .spec-codes-legend .legend-title { font-size:7pt; }
-  .spec-signoff .role { font-size:7pt; }
+  .spec-codes-legend .legend-row { font-size:6pt; line-height:1.15; }
+  .spec-codes-legend .legend-title { font-size:6.5pt; }
+  .spec-codes-legend .legend-code { padding:0 2pt; font-size:5.5pt; }
+  .spec-signoff .role { font-size:6.5pt; line-height:1.1; }
   .spec-signoff .name,
-  .spec-signoff .date { font-size:7.5pt; }
-  .spec-signoff-note { font-size:6.5pt; }
+  .spec-signoff .date { font-size:7pt; line-height:1.1; }
+  .spec-signoff-note { font-size:6pt; line-height:1.1; }
   .spec-remarks-block,
-  .flexo-remarks-2col { font-size:7.5pt; }
+  .flexo-remarks-2col { font-size:7pt; line-height:1.15; }
 
-  /* Tight spacing — every mm matters to land 1 page. */
-  .spec-block { margin:3pt 0; padding:0; }
-  .spec-cert-row { margin:3pt 0; padding:2pt 4pt; }
-  .spec-doc-header { padding:2pt 4pt; }
-  .spec-params { gap:4pt; padding:3pt; }
-  .spec-params > div { padding:3pt 4pt; }
-  .spec-codes-legend { gap:4pt; padding:3pt; }
-  .spec-codes-legend > div { padding:3pt 4pt; }
-  .spec-signoff { gap:4pt; }
-  .spec-signoff > div { padding:3pt 4pt; }
+  /* Even tighter spacing — every mm matters. PR #39 had 3pt block margins. */
+  .spec-block { margin:1.5pt 0; padding:0; }
+  .spec-cert-row { margin:1.5pt 0; padding:1pt 3pt; }
+  .spec-doc-header { padding:1pt 3pt; margin-bottom:1pt; }
+  .spec-params { gap:2pt; padding:2pt; }
+  .spec-params > div { padding:1.5pt 3pt; }
+  .spec-codes-legend { gap:2pt; padding:2pt; }
+  .spec-codes-legend > div { padding:1.5pt 3pt; }
+  .spec-codes-legend .legend-row { margin:0; gap:3pt; }
+  .spec-signoff { gap:2pt; margin-top:1pt; }
+  .spec-signoff > div { padding:1.5pt 3pt; }
   .spec-info-table th, .spec-info-table td,
   .spec-print-table th, .spec-print-table td,
-  .spec-rev-table th, .spec-rev-table td { padding:1pt 3pt; }
+  .spec-rev-table th, .spec-rev-table td { padding:0.5pt 2pt; }
+  .spec-print-table thead th { padding:1pt 2pt; }
+  .pantone-swatch { width:7pt; height:7pt; margin-right:2pt; }
+  .spec-remarks-block { padding:2pt 3pt; }
+  .flexo-remarks-2col { gap:4pt; padding:2pt; }
 
-  /* 0.3pt borders everywhere — printer hairline (override Phase 8 PR-A 1px / 0.4pt). */
+  /* 0.3pt hairline borders everywhere — printer hairline. Use full
+     `border:0.3pt solid` (not just border-width) to beat PR-A 1px screen
+     declarations on .spec-info-table / .spec-print-table / .spec-rev-table. */
   .spec-frame,
   .spec-block,
   .spec-cert-row,
@@ -981,19 +995,16 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   .spec-codes-legend > div,
   .spec-signoff > div,
   .spec-generic-warning,
-  .spec-doc-header,
-  .spec-info-table, .spec-info-table th, .spec-info-table td,
-  .spec-print-table, .spec-print-table th, .spec-print-table td,
-  .spec-rev-table, .spec-rev-table th, .spec-rev-table td {
-    border-width:0.3pt !important;
-  }
+  .spec-doc-header { border:0.3pt solid var(--navy-border) !important; }
   table { border-collapse:collapse; }
   .spec-info-table,
   .spec-print-table,
-  .spec-rev-table { border:0.3pt solid var(--navy-border); }
+  .spec-rev-table { border:0.3pt solid var(--navy-border) !important; }
   .spec-info-table th, .spec-info-table td,
   .spec-print-table th, .spec-print-table td,
   .spec-rev-table th, .spec-rev-table td { border:0.3pt solid var(--navy-border) !important; }
+  /* Reaffirm the doc-header bottom navy band stays at exactly 0.3pt (PR-A had 1.5px). */
+  .spec-doc-header { border-bottom:0.3pt solid var(--navy-primary) !important; }
 
   /* Don't fragment a section across pages (Change Log handled separately below). */
   .spec-block { break-inside:avoid; page-break-inside:avoid; }
@@ -1008,6 +1019,9 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
     page-break-before:always !important;
     margin-top:0 !important;
   }
+  /* Change Log fonts — operator wants this page to also be compact. */
+  .spec-history-block .spec-audit-log li { font-size:7pt; padding:1pt 0; }
+  .spec-history-block .audit-time { font-size:6.5pt; }
 
   /* Tables shouldn't scroll on paper. */
   .spec-table-scroll { overflow:visible !important; }
