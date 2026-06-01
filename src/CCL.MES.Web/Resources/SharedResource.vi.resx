@@ -516,6 +516,26 @@
   <data name="npi.spec.status.released" xml:space="preserve"><value>Phát hành</value></data>
   <data name="npi.spec.status.superseded" xml:space="preserve"><value>Đã thay thế</value></data>
 
+  <!-- Phase 8 PR #30 — LIST view parity với SpecHub. -->
+  <data name="npi.spec.list_title" xml:space="preserve"><value>Thư viện NPI Spec</value></data>
+  <data name="npi.spec.breadcrumb_parity" xml:space="preserve"><value>DATABASE / NPI SPEC · {0} SPECS TRONG THƯ VIỆN</value></data>
+  <data name="npi.spec.rows_count_parity" xml:space="preserve"><value>{0} specs</value></data>
+  <data name="npi.spec.search_placeholder_parity" xml:space="preserve"><value>Tìm theo khách hàng / mã sản phẩm / tên sản phẩm…</value></data>
+  <data name="npi.spec.col.planner" xml:space="preserve"><value>Planner</value></data>
+  <data name="npi.spec.col.ref_no" xml:space="preserve"><value>Mã tham chiếu</value></data>
+  <data name="npi.spec.col.customer" xml:space="preserve"><value>Khách hàng</value></data>
+  <data name="npi.spec.col.part_no" xml:space="preserve"><value>Mã sản phẩm</value></data>
+  <data name="npi.spec.col.part_name" xml:space="preserve"><value>Tên sản phẩm</value></data>
+  <data name="npi.spec.col.colors" xml:space="preserve"><value>Số màu</value></data>
+  <data name="npi.spec.col.cavity" xml:space="preserve"><value>Bộ cắt</value></data>
+  <data name="npi.spec.col.pitch" xml:space="preserve"><value>Bước</value></data>
+  <data name="npi.spec.col.inspection" xml:space="preserve"><value>Mức kiểm</value></data>
+  <data name="npi.spec.col.rev_date" xml:space="preserve"><value>Ngày sửa</value></data>
+  <data name="npi.spec.col.rev_by" xml:space="preserve"><value>Người sửa</value></data>
+  <data name="npi.spec.stamp.draft" xml:space="preserve"><value>NHÁP</value></data>
+  <data name="npi.spec.stamp.approved" xml:space="preserve"><value>ĐÃ DUYỆT</value></data>
+  <data name="npi.spec.stamp.superseded" xml:space="preserve"><value>Đã thay thế</value></data>
+
   <!-- Phase 8 PR #29 — context menu + detail modal i18n. -->
   <data name="npi.spec.ctx.open" xml:space="preserve"><value>Mở</value></data>
   <data name="npi.spec.ctx.edit" xml:space="preserve"><value>Chỉnh sửa</value></data>

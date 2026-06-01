@@ -230,6 +230,7 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   border-bottom:2px solid #e5e7eb; position:sticky; top:0; z-index:5; }
 .rt-table .rt-num { text-align:center; color:#6b7280; width:40px; }
 .rt-table td.rt-right { text-align:right; }
+.rt-table td.rt-center { text-align:center; }
 .rt-table tbody tr:hover { background:#fef9e3; }
 .rt-footer-warn { padding:10px 14px; background:#fef3c7; color:#92400e;
   font-size:12px; border-top:1px solid #fde68a; text-align:center; }
@@ -500,3 +501,41 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size:11px; min-width:120px; }
 .spec-detail-audit-action { font-weight:600; color:#1f3864; }
+
+/* === Phase 8 PR #30 — Spec list-view parity (SpecHub 14-col) === */
+/* Q12 — Planner badge palette match SpecHub `SPEC_CATEGORIES.color`
+   (spechub-prototype.html:11312-11319). Tint background 10% alpha + border + bold text. */
+
+.spec-planner-tag {
+  display:inline-block; padding:2px 8px; border-radius:10px;
+  font-size:10px; font-weight:700; letter-spacing:.3px;
+  border:1px solid currentColor; line-height:1.4;
+  font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.spec-planner-silk    { color:#c8102e; background:rgba(200,16,46,.08); }
+.spec-planner-flexo   { color:#0033a0; background:rgba(0,51,160,.08); }
+.spec-planner-letter  { color:#7c2d12; background:rgba(124,45,18,.08); }
+.spec-planner-indigo  { color:#00897b; background:rgba(0,137,123,.10); }
+.spec-planner-diecut  { color:#9333ea; background:rgba(147,51,234,.10); }
+.spec-planner-unknown { color:#6b7280; background:rgba(107,114,128,.10); }
+
+/* REF NO color matches planner palette (giống SpecHub onec-refno style:font-weight:600; color:${catInfo.color}) */
+.spec-refno { font-weight:600; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
+.spec-refno-silk    { color:#c8102e; }
+.spec-refno-flexo   { color:#0033a0; }
+.spec-refno-letter  { color:#7c2d12; }
+.spec-refno-indigo  { color:#00897b; }
+.spec-refno-diecut  { color:#9333ea; }
+.spec-refno-unknown { color:#6b7280; }
+
+/* Part No — monospace IBM Plex Mono fallback */
+.spec-partno { font-family:'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size:11px; color:#1f2937; background:none; padding:0; }
+
+/* Q13 Status display map: 3 visual stamps (SpecHub onec-row-stamp pattern) */
+.spec-stamp { display:inline-block; padding:2px 8px; border-radius:10px;
+  font-size:10px; font-weight:700; letter-spacing:.3px;
+  border:1px solid currentColor; line-height:1.4; }
+.spec-stamp-draft      { color:#d97706; background:#fffbeb; }
+.spec-stamp-approved   { color:#00a651; background:#ecfdf5; }
+.spec-stamp-superseded { color:#6b7280; background:#f3f4f6; text-decoration:line-through; }

@@ -55,6 +55,16 @@ public class ProductRevision : BaseEntity
     /// <summary>Spec code (immutable across revisions of cùng 1 spec lineage).</summary>
     public string SpecCode { get; set; } = "";
 
+    // ── Phase 8 PR #30 — list-view parity với SpecHub ────────────────────────
+    // SpecHub `spec.refNo` field (e.g. `CCL-Silk-19235`) — customer-facing
+    // reference distinct với SpecCode (internal lineage). Nullable cho backfill
+    // sạch các baseline rev đã có; UI render "—" khi NULL.
+    public string? RefNo { get; set; }
+
+    // SpecHub `spec.inspectionLevel` field (e.g. `A166`, `A`, `B`, `C`) — quality
+    // inspection grade hiển thị ở cột `Spec` của list view. Nullable.
+    public string? InspectionLevel { get; set; }
+
     // Reverse navigations (1:1)
     public SpecMaterial? Material { get; set; }
     public SpecPrint? Print { get; set; }
@@ -98,6 +108,16 @@ public class SpecPrint : BaseEntity
     public string? Lamination { get; set; }
     public bool WhiteUnderprint { get; set; }
     public string? ExtraJson { get; set; }
+
+    // ── Phase 8 PR #30 — list-view parity với SpecHub ────────────────────────
+    // SpecHub `spec.printParams.printingCavity` (silkscreen) /
+    // `firstPrint.plateCavity` (flexo) → unified field `Cavity`.
+    public int? Cavity { get; set; }
+
+    // SpecHub `spec.printParams.lengthPitch` (silkscreen, mm) /
+    // `firstPrint.pitch` (flexo, mm). Đơn vị mm để compute cylinder gap
+    // + feed-rate thực tế. Nullable cho legacy baseline.
+    public double? PitchMm { get; set; }
 }
 
 /// <summary>

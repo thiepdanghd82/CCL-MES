@@ -516,6 +516,26 @@
   <data name="npi.spec.status.released" xml:space="preserve"><value>Released</value></data>
   <data name="npi.spec.status.superseded" xml:space="preserve"><value>Superseded</value></data>
 
+  <!-- Phase 8 PR #30 — LIST view parity với SpecHub (14 cột + title + breadcrumb). -->
+  <data name="npi.spec.list_title" xml:space="preserve"><value>NPI Spec Library</value></data>
+  <data name="npi.spec.breadcrumb_parity" xml:space="preserve"><value>DATABASE / NPI SPEC · {0} SPECS IN LIBRARY</value></data>
+  <data name="npi.spec.rows_count_parity" xml:space="preserve"><value>{0} specs</value></data>
+  <data name="npi.spec.search_placeholder_parity" xml:space="preserve"><value>Search by customer / part no / part name…</value></data>
+  <data name="npi.spec.col.planner" xml:space="preserve"><value>Planner</value></data>
+  <data name="npi.spec.col.ref_no" xml:space="preserve"><value>REF NO</value></data>
+  <data name="npi.spec.col.customer" xml:space="preserve"><value>Customer</value></data>
+  <data name="npi.spec.col.part_no" xml:space="preserve"><value>Part No</value></data>
+  <data name="npi.spec.col.part_name" xml:space="preserve"><value>Part Name</value></data>
+  <data name="npi.spec.col.colors" xml:space="preserve"><value>Colors</value></data>
+  <data name="npi.spec.col.cavity" xml:space="preserve"><value>Cavity</value></data>
+  <data name="npi.spec.col.pitch" xml:space="preserve"><value>Pitch</value></data>
+  <data name="npi.spec.col.inspection" xml:space="preserve"><value>Spec</value></data>
+  <data name="npi.spec.col.rev_date" xml:space="preserve"><value>Rev Date</value></data>
+  <data name="npi.spec.col.rev_by" xml:space="preserve"><value>By</value></data>
+  <data name="npi.spec.stamp.draft" xml:space="preserve"><value>DRAFT</value></data>
+  <data name="npi.spec.stamp.approved" xml:space="preserve"><value>APPROVED</value></data>
+  <data name="npi.spec.stamp.superseded" xml:space="preserve"><value>Superseded</value></data>
+
   <!-- Phase 8 PR #29 — context menu + detail modal i18n. -->
   <data name="npi.spec.ctx.open" xml:space="preserve"><value>Open</value></data>
   <data name="npi.spec.ctx.edit" xml:space="preserve"><value>Edit</value></data>

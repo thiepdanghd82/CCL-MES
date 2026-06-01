@@ -53,8 +53,16 @@ public class SpecParamDto
     public bool IsCritical { get; set; }
 }
 
-// Phase 8 PR #28 — lightweight grid projection cho EngineerSpec.razor sau khi
-// rewire ProductRevision model. Pre-flatten thay vì kéo full graph qua include.
+// Phase 8 PR #28 (extended PR #30) — lightweight grid projection cho
+// EngineerSpec.razor. PR #30 SpecHub list-view parity ADD 9 fields:
+// CustomerName / RefNo / InspectionLevel / NumColors / Cavity / PitchMm /
+// Planner (derived) / LastUpdatedAt / LastUpdatedBy.
+//
+// Pattern: pre-flatten thay vì kéo full graph qua serializer (DTO record
+// immutable + nullable lúc nào cũng có nghĩa). 14-col grid SpecHub map:
+//   # / Planner / REF NO / Customer / Part No / Part Name / Colors /
+//   Cavity / Pitch / Spec / Status / Rev / Rev Date / By
+// (Cột # render từ row index, không cần field; 13 cột còn lại = 13 fields.)
 public record ProductRevisionListItem(
     long Id,
     string SpecCode,
@@ -65,7 +73,17 @@ public record ProductRevisionListItem(
     string? ApprovedBy,
     string ProductCode,
     string ProductName,
-    string? ProcessCode);
+    string? ProcessCode,
+    // ── Phase 8 PR #30 — 9 fields mới cho list-view parity SpecHub ──────────
+    string? CustomerName,        // SpecHub col `Customer` — join Product.Customer.Name
+    string? RefNo,               // SpecHub col `REF NO` — customer-facing reference
+    string? InspectionLevel,     // SpecHub col `Spec` — quality grade e.g. A166
+    int NumColors,               // SpecHub col `Colors` — SpecPrint.NumColors
+    int? Cavity,                 // SpecHub col `Cavity` — SpecPrint.Cavity
+    double? PitchMm,             // SpecHub col `Pitch` — SpecPrint.PitchMm (mm)
+    string? Planner,             // SpecHub col `Planner` — DERIVED từ ProcessCode (SILK/FLEXO/LETTER/INDIGO/DIECUT/UNKNOWN)
+    DateTime? LastUpdatedAt,     // SpecHub col `Rev Date` — UpdatedAt fallback CreatedAt
+    string? LastUpdatedBy);      // SpecHub col `By` — UpdatedBy fallback CreatedBy
 
 // ── Phase 8 PR #29 — SpecDetailModal content + audit query DTOs ────────────────
 // Modal Identity render trực tiếp từ ProductRevisionListItem (đã có ở grid).
