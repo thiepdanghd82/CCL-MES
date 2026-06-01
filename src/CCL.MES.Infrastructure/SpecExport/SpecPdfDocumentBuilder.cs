@@ -219,25 +219,38 @@ public static class SpecPdfDocumentBuilder
         ftr.AddText(" / ");
         ftr.AddNumPagesField();
 
+        // PR-B: Planner-based template dispatch (was IsSilkscreen/IsFlexo flag-based).
+        //   SILK / FLEXO → existing dedicated helpers (no render diff for current samples)
+        //   GENERIC (INDIGO / LETTER / DIECUT / UNKNOWN) → warning paragraph + render
+        //     only sections with data, mirroring Razor <SpecShowcard /> generic fallback.
+        var template = ResolvePdfTemplate(detail.Planner);
+
         // 1. Doc header
-        AppendDocHeader(section, detail);
+        AppendDocHeader(section, detail, template);
         // 2. Compliance strip
         AppendComplianceStrip(section, detail);
+        // 2b. Generic warning chip (PR-B Q5 — honest fallback signal in PDF too)
+        if (template == "GENERIC")
+            AppendGenericWarning(section, detail);
         // 3. Product Information
         AppendProductInfo(section, detail);
         // 4. Print Parameters (silk only)
-        if (detail.IsSilkscreen)
+        if (template == "SILK")
             AppendPrintParams(section, detail);
-        // 5/5b. Silk colors OR Flexo 3 sub-tables
-        if (detail.IsSilkscreen)
+        // 5/5b/5c. Silk / Flexo 3 sub-tables / Generic data-driven sections
+        if (template == "SILK")
         {
             AppendSilkPrintProcess(section, detail);
         }
-        else if (detail.IsFlexo)
+        else if (template == "FLEXO")
         {
             AppendFlexoPrinting(section, detail);
             AppendFlexoCutting(section, detail);
             AppendFlexoInk(section, detail);
+        }
+        else // GENERIC
+        {
+            AppendGenericPrintSections(section, detail);
         }
         // 6. Remarks
         AppendRemarks(section, detail);
@@ -251,7 +264,23 @@ public static class SpecPdfDocumentBuilder
         return doc;
     }
 
-    private static void AppendDocHeader(Section section, SpecDetailDto d)
+    /// <summary>
+    /// PR-B: mirror Razor SpecShowcard.ResolveTemplate logic — single dispatch
+    /// from Planner enum. SILK / FLEXO → dedicated template; INDIGO / LETTER /
+    /// DIECUT / UNKNOWN → generic fallback (only sections with data + warning).
+    /// </summary>
+    private static string ResolvePdfTemplate(string planner) => (planner ?? "UNKNOWN").Trim().ToUpperInvariant() switch
+    {
+        "SILK"  => "SILK",
+        "FLEXO" => "FLEXO",
+        _       => "GENERIC",
+    };
+
+    /// <summary>
+    /// PR-B: <paramref name="template"/> drives the center-block label + subtitle.
+    /// SILK / FLEXO render identical to PR-A; GENERIC swaps in "SPEC" + generic subtitle.
+    /// </summary>
+    private static void AppendDocHeader(Section section, SpecDetailDto d, string template = "SILK")
     {
         // 3-col table layout: company / center title / right block (REF NO + stamp)
         var t = section.AddTable();
@@ -271,16 +300,26 @@ public static class SpecPdfDocumentBuilder
         var pCoSub = row.Cells[0].AddParagraph("CCL Design Vietnam Co. Ltd");
         pCoSub.Format.Font.Size = 7;
         pCoSub.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
-        // Center
-        var pCenter = row.Cells[1].AddParagraph(d.IsFlexo ? "SEAL" : "SILK");
+        // Center (PR-B template-aware)
+        var centerLabel = template switch
+        {
+            "FLEXO" => "SEAL",
+            "SILK"  => "SILK",
+            _       => "SPEC",
+        };
+        var centerSubtitle = template switch
+        {
+            "FLEXO" => "Thông số kỹ thuật sản phẩm tiêu chuẩn In Nhãn Flexo",
+            "SILK"  => "Thông số kỹ thuật sản phẩm tiêu chuẩn In Lụa",
+            _       => "Thông số kỹ thuật sản phẩm · Generic preview",
+        };
+        var pCenter = row.Cells[1].AddParagraph(centerLabel);
         pCenter.Format.Alignment = ParagraphAlignment.Center;
         pCenter.Format.Font.Size = 16;
         pCenter.Format.Font.Bold = true;
         pCenter.Format.Font.Color = // PR-A: unified navy — silk + flexo cùng PrimaryColorHex (KHÔNG còn AccentColorHex split silk-red)
             Color.Parse(StyleConstants.PrimaryColorHex);
-        var pSub = row.Cells[1].AddParagraph(d.IsFlexo
-            ? "Thông số kỹ thuật sản phẩm tiêu chuẩn In Nhãn Flexo"
-            : "Thông số kỹ thuật sản phẩm tiêu chuẩn In Lụa");
+        var pSub = row.Cells[1].AddParagraph(centerSubtitle);
         pSub.Format.Alignment = ParagraphAlignment.Center;
         pSub.Format.Font.Size = 7;
         pSub.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
@@ -294,6 +333,63 @@ public static class SpecPdfDocumentBuilder
         var pStamp = row.Cells[2].AddParagraph($"Inspection: {d.InspectionLevel ?? "—"}  [{d.StatusDisplay}]");
         pStamp.Format.Alignment = ParagraphAlignment.Right;
         pStamp.Format.Font.Size = 8;
+    }
+
+    /// <summary>
+    /// PR-B: yellow warning paragraph rendered between Compliance strip and Product Info
+    /// for GENERIC template — mirrors Razor SpecShowcard `.spec-generic-warning` chip.
+    /// </summary>
+    private static void AppendGenericWarning(Section section, SpecDetailDto d)
+    {
+        var label = (d.Planner ?? "UNKNOWN").Trim().ToUpperInvariant() switch
+        {
+            "LETTER" => "LETTERPRESS",
+            "INDIGO" => "INDIGO",
+            "DIECUT" => "DIE-CUT",
+            _        => d.Planner ?? "UNKNOWN",
+        };
+        var p = section.AddParagraph(
+            $"⚠ Generic preview — the standard {label} template will be added once a real CCL Vietnam sample is available.");
+        p.Format.SpaceBefore = 4;
+        p.Format.SpaceAfter = 8;
+        p.Format.Font.Size = 8;
+        p.Format.Font.Color = Color.Parse("#92400E");
+        p.Format.Shading.Color = Color.Parse("#FEF3C7");
+        p.Format.Borders.Color = Color.Parse("#FDE68A");
+        p.Format.Borders.Width = 0.5;
+        p.Format.LeftIndent = "0.15cm";
+        p.Format.RightIndent = "0.15cm";
+    }
+
+    /// <summary>
+    /// PR-B: Generic fallback — render only sub-spec sections WITH data
+    /// (silk colors / flexo print / flexo cut / flexo ink). Reuse existing
+    /// appenders where their shape fits (silk + flexo helpers already
+    /// guard on empty rows via `spec-empty` cell). If NONE have data,
+    /// emit an italic muted paragraph stating no print/cut/ink rows.
+    /// </summary>
+    private static void AppendGenericPrintSections(Section section, SpecDetailDto d)
+    {
+        var hasSilkColors = d.PrintColors.Count > 0;
+        var hasFlexoPrint = d.FlexoPrintRows.Count > 0;
+        var hasFlexoCut   = d.FlexoCuttingRows.Count > 0;
+        var hasFlexoInk   = d.FlexoInkRows.Count > 0;
+
+        if (hasSilkColors) AppendSilkPrintProcess(section, d);
+        if (hasFlexoPrint) AppendFlexoPrinting(section, d);
+        if (hasFlexoCut)   AppendFlexoCutting(section, d);
+        if (hasFlexoInk)   AppendFlexoInk(section, d);
+
+        if (!hasSilkColors && !hasFlexoPrint && !hasFlexoCut && !hasFlexoInk)
+        {
+            var p = section.AddParagraph("— No print / cut / ink rows recorded yet —");
+            p.Format.SpaceBefore = 8;
+            p.Format.SpaceAfter = 8;
+            p.Format.Font.Size = 9;
+            p.Format.Font.Italic = true;
+            p.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
+            p.Format.Alignment = ParagraphAlignment.Center;
+        }
     }
 
     private static void AppendComplianceStrip(Section section, SpecDetailDto d)

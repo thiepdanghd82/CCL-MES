@@ -1,0 +1,1024 @@
+@*  Phase 8 PR-B — Unified Spec Showcard component (single source of layout).
+
+    Reused bởi 3 surface:
+      • EngineerSpecDetail.razor   → Mode = Full     (full-page 9 section)
+      • SpecDetailModal.razor      → Mode = Compact  (modal peek subset)
+      • CreateSpecModal (PR-C)     → Mode = Preview  (live preview during edit)
+
+    Auto-detect category qua SpecDetailDto.Planner:
+      • "SILK"                                   → silk template (Print Params + 10-color table)
+      • "FLEXO"                                  → flexo template (3 sub-tables: print/cut/ink)
+      • "INDIGO" / "LETTER" / "DIECUT" / "UNKNOWN" → generic fallback (Q5 honest):
+          – render Identity + Compliance + Product Info + CHỈ section/sub-spec có data thật
+            (silk colors / flexo print / flexo cut / flexo ink — whichever non-empty)
+          – warning chip "Template chuẩn cho dòng này sẽ bổ sung khi có sample thực"
+          – KHÔNG ép template silk 10-màu cho non-silk specs
+
+    Đảm bảo render silk + flexo y hệt PR-A (regression-free) — diff PR-B vs PR-A
+    chỉ thêm: (a) extract layout sang component, (b) Planner-based dispatch ở
+    template selector, (c) generic fallback path cho 3 dòng LETTER/INDIGO/DIECUT.
+
+    PDF parity (BuildDetailSheet): cùng nhánh dispatch — silk/flexo dùng template
+    dedicated; generic fallback CHỈ render section có data + warning paragraph.
+
+    Bài học hotfix #27: caller wraps SpecDetailAsync trong try-catch + error
+    banner; component này CHỈ render từ DTO đã load — KHÔNG fetch.
+*@
+
+@using System.Globalization
+@using CCL.MES.Application
+@using CCL.MES.Application.SpecDetail
+@using CCL.MES.Domain
+@inject IStringLocalizer<SharedResource> Loc
+
+@if (Detail is not null)
+{
+    var d = Detail;
+    var template = ResolveTemplate(d.Planner);
+    var isSilkTemplate = template == "SILK";
+    var isFlexoTemplate = template == "FLEXO";
+    var isGenericTemplate = template == "GENERIC";
+
+    // Generic fallback: detect which sub-spec sections actually have data
+    var hasSilkColors = d.PrintColors.Count > 0;
+    var hasFlexoPrint = d.FlexoPrintRows.Count > 0;
+    var hasFlexoCut   = d.FlexoCuttingRows.Count > 0;
+    var hasFlexoInk   = d.FlexoInkRows.Count > 0;
+    var hasAnyPrintData = hasSilkColors || hasFlexoPrint || hasFlexoCut || hasFlexoInk;
+
+    var frameCls = Mode == SpecShowcardMode.Full
+        ? (isFlexoTemplate ? "spec-frame flexo" : (isSilkTemplate ? "spec-frame" : "spec-frame spec-frame-generic"))
+        : "";   // Compact + Preview render flat inside their host container; no spec-frame chrome.
+
+    <div class="spec-showcard spec-showcard-@Mode.ToString().ToLowerInvariant() spec-showcard-template-@template.ToLowerInvariant() @frameCls">
+
+        @* ─── 1. Doc header (Full mode only — Compact/Preview skip vì modal head đã cover) ─── *@
+        @if (Mode == SpecShowcardMode.Full)
+        {
+            <div class="spec-doc-header">
+                <div class="co-block">
+                    Công ty TNHH CCL Design Việt Nam
+                    <div class="sub">CCL Design Vietnam Co. Ltd</div>
+                </div>
+                <div class="center-block">
+                    @CategoryHeaderLabel(template)
+                    <span class="sub">@CategoryHeaderSubtitle(template)</span>
+                </div>
+                <div class="right-block">
+                    <div><span class="ref">REF NO: @(d.RefNo ?? "—")</span></div>
+                    <div class="mt-row">
+                        Inspection Level: @(d.InspectionLevel ?? "—")
+                        <span class="stamp @StatusStampClass(d.Status)">@d.StatusDisplay</span>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* ─── 2. Compliance strip ─── *@
+        <div class="spec-cert-row @(Mode != SpecShowcardMode.Full ? "spec-cert-row-compact" : "")">
+            <span>Compliance:</span>
+            @foreach (var chip in d.ComplianceChips)
+            {
+                <span class="cert-chip">@chip</span>
+            }
+        </div>
+
+        @* ─── Generic fallback warning chip (LETTER/INDIGO/DIECUT/UNKNOWN only) ─── *@
+        @if (isGenericTemplate)
+        {
+            <div class="spec-generic-warning" role="note">
+                <span class="spec-generic-warning-icon">⚠</span>
+                <span class="spec-generic-warning-text">
+                    @string.Format(
+                        Loc["npi.spec.showcard.generic_warning"].Value,
+                        CategoryDisplayLabel(d.Planner))
+                </span>
+            </div>
+        }
+
+        @* ─── 3. Product Information ─── *@
+        @if (Mode == SpecShowcardMode.Full)
+        {
+            <div class="spec-block">
+                <div class="spec-block-title">Product Information · Thông tin sản phẩm</div>
+                <table class="spec-info-table">
+                    @if (isFlexoTemplate || isGenericTemplate)
+                    {
+                        <thead>
+                            <tr>
+                                <th>Customer<span class="sub">Khách hàng</span></th>
+                                <th>Part No<span class="sub">Mã SP</span></th>
+                                <th>Part Name<span class="sub">Tên linh kiện</span></th>
+                                <th>Version<span class="sub">Phiên bản</span></th>
+                                <th>Product Size<span class="sub">Kích thước SP (mm)</span></th>
+                                <th>Substrate<span class="sub">Nguyên liệu</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="highlight">@OrDash(d.CustomerName)</td>
+                                <td class="highlight">@OrDash(d.ProductCode)</td>
+                                <td>@OrDash(d.ProductName)</td>
+                                <td>—</td>
+                                <td>@d.ProductSizeDisplay</td>
+                                <td>@OrDash(d.SubstrateType)</td>
+                            </tr>
+                        </tbody>
+                    }
+                    else
+                    {
+                        <thead>
+                            <tr>
+                                <th>Customer<span class="sub">Khách hàng</span></th>
+                                <th>Part No<span class="sub">Mã SP</span></th>
+                                <th>Part Name<span class="sub">Tên SP</span></th>
+                                <th>Material Type<span class="sub">Tên Nguyên Liệu</span></th>
+                                <th>Material Size<span class="sub">Cỡ Nguyên Liệu</span></th>
+                                <th>Lamination<span class="sub">Ép dán</span></th>
+                                <th>Lam. Size<span class="sub">Cỡ ép dán</span></th>
+                                <th>Lam. Cavity<span class="sub">Cavity</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                var mx = ParseMaterialExtra(d.MaterialExtraJson);
+                            }
+                            <tr>
+                                <td class="highlight">@OrDash(d.CustomerName)</td>
+                                <td class="highlight">@OrDash(d.ProductCode)</td>
+                                <td>@OrDash(d.ProductName)</td>
+                                <td>@OrDash(d.SubstrateType)</td>
+                                <td>@OrDash(mx.MaterialSize)</td>
+                                <td>@OrDash(mx.LaminationTape)</td>
+                                <td>@OrDash(mx.LaminationSize)</td>
+                                <td>@OrDash(mx.LaminationCavity)</td>
+                            </tr>
+                        </tbody>
+                    }
+                </table>
+            </div>
+        }
+        else
+        {
+            @* Compact/Preview: Product Info mini-table 5-row dl/dt *@
+            <table class="spec-detail-table">
+                <tr><th>@Loc["npi.spec.detail.field.process_code"]</th>
+                    <td>@(d.ProcessCode ?? "—")
+                        <span class="spec-planner-tag spec-planner-@(d.Planner.ToLowerInvariant())">@d.Planner</span>
+                    </td></tr>
+                <tr><th>@Loc["npi.spec.detail.peek.size"]</th>
+                    <td>@d.ProductSizeDisplay</td></tr>
+                <tr><th>@Loc["npi.spec.detail.peek.cavity_pitch"]</th>
+                    <td>
+                        Cavity: <b>@(d.PrintingCavity?.ToString(CultureInfo.InvariantCulture) ?? "—")</b>
+                        · Pitch: <b>@(d.LengthPitchMm?.ToString("N1", CultureInfo.InvariantCulture) ?? "—") mm</b>
+                    </td></tr>
+                <tr><th>@Loc["npi.spec.detail.peek.substrate"]</th>
+                    <td>@(d.SubstrateType ?? "—")</td></tr>
+                @if (isSilkTemplate && hasSilkColors)
+                {
+                    <tr><th>@Loc["npi.spec.detail.peek.colors"]</th>
+                        <td><b>@d.PrintColors.Count</b> colors</td></tr>
+                }
+                else if (isFlexoTemplate)
+                {
+                    <tr><th>@Loc["npi.spec.detail.peek.flexo_rows"]</th>
+                        <td>
+                            Print: <b>@d.FlexoPrintRows.Count</b>
+                            · Cut: <b>@d.FlexoCuttingRows.Count</b>
+                            · Ink: <b>@d.FlexoInkRows.Count</b>
+                        </td></tr>
+                }
+                else if (isGenericTemplate && hasAnyPrintData)
+                {
+                    <tr><th>@Loc["npi.spec.showcard.peek.data_rows"]</th>
+                        <td>
+                            @if (hasSilkColors) { <span>Colors: <b>@d.PrintColors.Count</b></span> }
+                            @if (hasFlexoPrint) { <span>· Print: <b>@d.FlexoPrintRows.Count</b></span> }
+                            @if (hasFlexoCut)   { <span>· Cut: <b>@d.FlexoCuttingRows.Count</b></span> }
+                            @if (hasFlexoInk)   { <span>· Ink: <b>@d.FlexoInkRows.Count</b></span> }
+                        </td></tr>
+                }
+            </table>
+        }
+
+        @* ─── 4. Silk Print Parameters + Squeegee/Drying codes legend ─── *@
+        @if (isSilkTemplate && Mode == SpecShowcardMode.Full)
+        {
+            <div class="spec-block">
+                <div class="spec-block-title">Print Parameters · Thông số in</div>
+                <div class="spec-params">
+                    <div>
+                        <div class="lbl">Printing cavity<br><span class="muted">Số lượng/1 lần in</span></div>
+                        <div class="val">@OrDash(d.PrintingCavity?.ToString(CultureInfo.InvariantCulture))</div>
+                    </div>
+                    <div>
+                        <div class="lbl">Length pitch<br><span class="muted">Bước nhảy (mm)</span></div>
+                        <div class="val">@(d.LengthPitchMm is null ? "—" : d.LengthPitchMm.Value.ToString("N1", CultureInfo.InvariantCulture))</div>
+                    </div>
+                    <div>
+                        <div class="lbl">Product size<br><span class="muted">Kích thước SP</span></div>
+                        <div class="val">@d.ProductSizeDisplay</div>
+                    </div>
+                    <div>
+                        <div class="lbl">Adhesive<br><span class="muted">Keo dán</span></div>
+                        <div class="val">@OrDash(d.AdhesiveType)</div>
+                    </div>
+                </div>
+                <SilkCodeLegend />
+            </div>
+        }
+
+        @* ─── 5. Silk Print Process 10-color table ─── *@
+        @if (isSilkTemplate && Mode == SpecShowcardMode.Full)
+        {
+            <div class="spec-block">
+                <div class="spec-block-title">
+                    Print Process · Sấy · Plate Parameter — @d.PrintColors.Count colors
+                </div>
+                <div class="spec-table-scroll">
+                    <table class="spec-print-table">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">No<span class="sub">Stt</span></th>
+                                <th rowspan="2">Surf.<span class="sub">Mặt in</span></th>
+                                <th colspan="4">In · Printing</th>
+                                <th colspan="2">Retarder / Visc</th>
+                                <th rowspan="2">Speed<span class="sub">shoot/min</span></th>
+                                <th rowspan="2">Squee.<span class="sub">±3</span></th>
+                                <th colspan="3">Sấy · Drying</th>
+                                <th rowspan="2">UV</th>
+                                <th rowspan="2">Emul. (μm)</th>
+                                <th colspan="3">Khuôn · Plate</th>
+                                <th rowspan="2">Plate code</th>
+                                <th rowspan="2">Ctrl#</th>
+                                <th rowspan="2">Remark</th>
+                            </tr>
+                            <tr>
+                                <th>Color</th><th>Ink name</th><th>Ink code</th><th>Maker</th>
+                                <th>Retarder</th><th>Visc</th>
+                                <th>Method</th><th>°C</th><th>min</th>
+                                <th>Size (mm)</th><th>Mesh</th><th>Angle</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (d.PrintColors.Count == 0)
+                            {
+                                <tr><td colspan="21" class="spec-empty">— No print rows —</td></tr>
+                            }
+                            @foreach (var c in d.PrintColors)
+                            {
+                                <tr>
+                                    <td class="col-no">@c.Seq</td>
+                                    <td>@OrDash(c.Surface)</td>
+                                    <td class="col-color">
+                                        @{ var hex = SpecDetailColors.SwatchHex(c.Color); var isTransparent = SpecDetailColors.IsTransparent(c.Color); }
+                                        @if (hex is not null)
+                                        {
+                                            <span class="pantone-swatch @(isTransparent ? "swatch-transparent" : "")" style="@(isTransparent ? "" : $"background:{hex};")"></span>
+                                        }
+                                        @OrDash(c.Color)
+                                    </td>
+                                    <td>@OrDash(c.InkName)</td>
+                                    <td class="col-code">@OrDash(c.InkCode)</td>
+                                    <td>@OrDash(c.Maker)</td>
+                                    <td>@OrDash(c.Retarder)</td>
+                                    <td>@OrDashNum(c.Viscosity, "N0")</td>
+                                    <td>@OrDashNum(c.Speed, "N0")</td>
+                                    <td>@OrDash(c.Squeegee)</td>
+                                    <td>@OrDash(c.Dry)</td>
+                                    <td>@OrDashNum(c.TemperatureC, "N0")</td>
+                                    <td>@OrDash(c.TimeMin?.ToString(CultureInfo.InvariantCulture))</td>
+                                    <td class="col-uv">@OrDash(c.Uv)</td>
+                                    <td>@OrDashNum(c.EmulsionUm, "N0")</td>
+                                    <td>@OrDash(c.PlateSize)</td>
+                                    <td>@OrDash(c.Mesh)</td>
+                                    <td>@OrDashNum(c.AngleDeg, "N1")</td>
+                                    <td class="col-code">@OrDash(c.PlateCode)</td>
+                                    <td>@OrDash(c.ControlNo?.ToString(CultureInfo.InvariantCulture))</td>
+                                    <td class="col-remark">@OrDash(c.Remark)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        @* ─── 5-Compact. Silk print rows mini table (first 5) ─── *@
+        @if (isSilkTemplate && Mode != SpecShowcardMode.Full && hasSilkColors)
+        {
+            <h4 class="spec-detail-subhead">
+                @Loc["npi.spec.detail.peek.silk_colors"]
+                @if (d.PrintColors.Count > 5)
+                {
+                    <span class="muted">(first 5 of @d.PrintColors.Count — open full sheet for all)</span>
+                }
+            </h4>
+            <table class="spec-detail-table spec-peek-color-table">
+                <thead>
+                    <tr>
+                        <th>No</th><th>Surf</th><th>Color</th><th>Ink Code</th>
+                        <th>Maker</th><th>Mesh</th><th>Plate Code</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in d.PrintColors.Take(5))
+                    {
+                        var hex2 = SpecDetailColors.SwatchHex(c.Color);
+                        var isTransparent2 = SpecDetailColors.IsTransparent(c.Color);
+                        <tr>
+                            <td class="col-no">@c.Seq</td>
+                            <td>@(c.Surface ?? "—")</td>
+                            <td class="col-color">
+                                @if (hex2 is not null)
+                                {
+                                    <span class="pantone-swatch @(isTransparent2 ? "swatch-transparent" : "")" style="@(isTransparent2 ? "" : $"background:{hex2};")"></span>
+                                }
+                                @(c.Color ?? "—")
+                            </td>
+                            <td class="col-code">@(c.InkCode ?? "—")</td>
+                            <td>@(c.Maker ?? "—")</td>
+                            <td>@(c.Mesh ?? "—")</td>
+                            <td class="col-code">@(c.PlateCode ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @* ─── 5b. Flexo 3 sub-tables ─── *@
+        @if (isFlexoTemplate && Mode == SpecShowcardMode.Full)
+        {
+            @* Printing rows *@
+            <div class="spec-block flexo-section-print">
+                <div class="spec-block-title">
+                    Thông tin in · Printing Information — @d.FlexoPrintRows.Count processes
+                </div>
+                <div class="spec-table-scroll">
+                    <table class="spec-print-table flexo-process-table">
+                        <thead>
+                            <tr>
+                                <th>Process</th><th>Material</th><th>Thickness</th><th>Size</th>
+                                <th>Cylinder</th><th>Pitch</th><th>Speed</th>
+                                <th>T.Head</th><th>T.End</th><th>T.Roll</th>
+                                <th>Plate Cav.</th><th>Tension</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (d.FlexoPrintRows.Count == 0)
+                            {
+                                <tr><td colspan="12" class="spec-empty">— No printing rows —</td></tr>
+                            }
+                            @foreach (var r in d.FlexoPrintRows)
+                            {
+                                <tr>
+                                    <td class="col-process">@OrDash(r.Process)</td>
+                                    <td>@OrDash(r.Material)</td>
+                                    <td>@OrDash(r.Thickness)</td>
+                                    <td class="col-code">@OrDash(r.Size)</td>
+                                    <td>@OrDash(r.Cylinders)</td>
+                                    <td>@OrDash(r.PitchMm)</td>
+                                    <td>@OrDash(r.Speed)</td>
+                                    <td>@OrDash(r.TensionHead)</td>
+                                    <td>@OrDash(r.TensionEnd)</td>
+                                    <td>@OrDash(r.TensionRoll)</td>
+                                    <td>@OrDash(r.PlateCavity)</td>
+                                    <td>@OrDash(r.Tension)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            @* Cutting rows *@
+            <div class="spec-block flexo-section-cut">
+                <div class="spec-block-title">
+                    Thông tin cắt · Cutting Information — @d.FlexoCuttingRows.Count processes
+                </div>
+                <div class="spec-table-scroll">
+                    <table class="spec-print-table flexo-process-table">
+                        <thead>
+                            <tr>
+                                <th>Process</th><th>Lamination</th><th>Size</th>
+                                <th>Cutter Lot</th><th>Cutter Name</th>
+                                <th>Pcs/Sheet</th><th>Cavity</th><th>Pitch</th>
+                                <th>Packing</th><th>Paper Sp.</th><th>Cut Sp.</th>
+                                <th>Cut Pres.</th><th>Head T.</th><th>Roll T.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (d.FlexoCuttingRows.Count == 0)
+                            {
+                                <tr><td colspan="14" class="spec-empty">— No cutting rows —</td></tr>
+                            }
+                            @foreach (var c in d.FlexoCuttingRows)
+                            {
+                                <tr>
+                                    <td class="col-process">@OrDash(c.Process)</td>
+                                    <td class="col-code">@OrDash(c.Lamination)</td>
+                                    <td class="col-code">@OrDash(c.Size)</td>
+                                    <td>@OrDash(c.CutterLot)</td>
+                                    <td class="col-code">@OrDash(c.CutterName)</td>
+                                    <td>@OrDash(c.PcsPerSheet?.ToString(CultureInfo.InvariantCulture))</td>
+                                    <td>@OrDash(c.CuttingCavity?.ToString(CultureInfo.InvariantCulture))</td>
+                                    <td>@OrDashNum(c.PitchMm, "N1")</td>
+                                    <td>@OrDash(c.Packing)</td>
+                                    <td>@OrDashNum(c.PaperSpeed, "N1")</td>
+                                    <td>@OrDashNum(c.CuttingSpeed, "N1")</td>
+                                    <td>@OrDashNum(c.CuttingPressure, "N1")</td>
+                                    <td>@OrDashNum(c.HeadTension, "N1")</td>
+                                    <td>@OrDashNum(c.RollTension, "N1")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            @* Ink rows *@
+            <div class="spec-block flexo-section-ink">
+                <div class="spec-block-title">
+                    Thông tin mực · Ink Information — @d.FlexoInkRows.Count inks
+                </div>
+                <div class="spec-table-scroll">
+                    <table class="spec-print-table">
+                        <thead>
+                            <tr>
+                                <th>No</th><th>Color</th><th>Ink Code</th>
+                                <th>Ink Description</th><th>Brand</th><th>Anilox</th>
+                                <th>Plate Code</th><th>Pressure</th>
+                                <th>UV Power</th><th>IR Power</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (d.FlexoInkRows.Count == 0)
+                            {
+                                <tr><td colspan="10" class="spec-empty">— No ink rows —</td></tr>
+                            }
+                            @foreach (var i in d.FlexoInkRows)
+                            {
+                                <tr>
+                                    <td class="col-no">@i.Seq</td>
+                                    <td class="col-color">@OrDash(i.Color)</td>
+                                    <td class="col-code">@OrDash(i.InkCode)</td>
+                                    <td>@OrDash(i.InkDescription)</td>
+                                    <td>@OrDash(i.Brand)</td>
+                                    <td>@OrDash(i.Anilox)</td>
+                                    <td class="col-code">@OrDash(i.PlateCode)</td>
+                                    <td>@OrDashNum(i.Pressure, "N1")</td>
+                                    <td>@OrDashNum(i.UvPowerW, "N0")</td>
+                                    <td>@OrDashNum(i.IrPowerW, "N0")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        @* ─── 5b-Compact. Flexo mini cut + ink ─── *@
+        @if (isFlexoTemplate && Mode != SpecShowcardMode.Full)
+        {
+            @if (hasFlexoCut)
+            {
+                <h4 class="spec-detail-subhead">
+                    @Loc["npi.spec.detail.peek.flexo_cut"]
+                    @if (d.FlexoCuttingRows.Count > 3)
+                    {
+                        <span class="muted">(first 3 of @d.FlexoCuttingRows.Count)</span>
+                    }
+                </h4>
+                <table class="spec-detail-table">
+                    <thead>
+                        <tr><th>No</th><th>Process</th><th>Cutter Name</th><th>Cavity</th><th>Pitch (mm)</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in d.FlexoCuttingRows.Take(3))
+                        {
+                            <tr>
+                                <td class="col-no">@c.Seq</td>
+                                <td>@(c.Process ?? "—")</td>
+                                <td class="col-code">@(c.CutterName ?? "—")</td>
+                                <td>@(c.CuttingCavity?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
+                                <td>@(c.PitchMm?.ToString("N1", CultureInfo.InvariantCulture) ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            @if (hasFlexoInk)
+            {
+                <h4 class="spec-detail-subhead">
+                    @Loc["npi.spec.detail.peek.flexo_ink"]
+                    @if (d.FlexoInkRows.Count > 3)
+                    {
+                        <span class="muted">(first 3 of @d.FlexoInkRows.Count)</span>
+                    }
+                </h4>
+                <table class="spec-detail-table">
+                    <thead>
+                        <tr><th>No</th><th>Color</th><th>Ink Code</th><th>Brand</th><th>Anilox</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var i in d.FlexoInkRows.Take(3))
+                        {
+                            <tr>
+                                <td class="col-no">@i.Seq</td>
+                                <td class="col-color">@(i.Color ?? "—")</td>
+                                <td class="col-code">@(i.InkCode ?? "—")</td>
+                                <td>@(i.Brand ?? "—")</td>
+                                <td>@(i.Anilox ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            @if (!hasFlexoCut && !hasFlexoInk)
+            {
+                <p class="muted">@Loc["npi.spec.detail.peek.no_print_rows"]</p>
+            }
+        }
+
+        @* ─── 5c. Generic fallback — CHỈ render section có data thật (Q5) ─── *@
+        @if (isGenericTemplate && Mode == SpecShowcardMode.Full)
+        {
+            @if (hasSilkColors)
+            {
+                <div class="spec-block">
+                    <div class="spec-block-title">
+                        Print Colors · Bảng màu — @d.PrintColors.Count colors
+                    </div>
+                    <div class="spec-table-scroll">
+                        <table class="spec-print-table">
+                            <thead>
+                                <tr>
+                                    <th>No</th><th>Surf</th><th>Color</th><th>Ink Name</th>
+                                    <th>Ink Code</th><th>Maker</th><th>Plate Code</th><th>Remark</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var c in d.PrintColors)
+                                {
+                                    var ghex = SpecDetailColors.SwatchHex(c.Color);
+                                    var gtr = SpecDetailColors.IsTransparent(c.Color);
+                                    <tr>
+                                        <td class="col-no">@c.Seq</td>
+                                        <td>@OrDash(c.Surface)</td>
+                                        <td class="col-color">
+                                            @if (ghex is not null)
+                                            {
+                                                <span class="pantone-swatch @(gtr ? "swatch-transparent" : "")" style="@(gtr ? "" : $"background:{ghex};")"></span>
+                                            }
+                                            @OrDash(c.Color)
+                                        </td>
+                                        <td>@OrDash(c.InkName)</td>
+                                        <td class="col-code">@OrDash(c.InkCode)</td>
+                                        <td>@OrDash(c.Maker)</td>
+                                        <td class="col-code">@OrDash(c.PlateCode)</td>
+                                        <td class="col-remark">@OrDash(c.Remark)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+            @if (hasFlexoPrint)
+            {
+                <div class="spec-block flexo-section-print">
+                    <div class="spec-block-title">
+                        Printing · Thông tin in — @d.FlexoPrintRows.Count processes
+                    </div>
+                    <div class="spec-table-scroll">
+                        <table class="spec-print-table flexo-process-table">
+                            <thead>
+                                <tr>
+                                    <th>Process</th><th>Material</th><th>Thickness</th><th>Size</th>
+                                    <th>Cylinder</th><th>Pitch</th><th>Speed</th>
+                                    <th>Plate Cav.</th><th>Tension</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in d.FlexoPrintRows)
+                                {
+                                    <tr>
+                                        <td class="col-process">@OrDash(r.Process)</td>
+                                        <td>@OrDash(r.Material)</td>
+                                        <td>@OrDash(r.Thickness)</td>
+                                        <td class="col-code">@OrDash(r.Size)</td>
+                                        <td>@OrDash(r.Cylinders)</td>
+                                        <td>@OrDash(r.PitchMm)</td>
+                                        <td>@OrDash(r.Speed)</td>
+                                        <td>@OrDash(r.PlateCavity)</td>
+                                        <td>@OrDash(r.Tension)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+            @if (hasFlexoCut)
+            {
+                <div class="spec-block flexo-section-cut">
+                    <div class="spec-block-title">
+                        Cutting · Thông tin cắt — @d.FlexoCuttingRows.Count processes
+                    </div>
+                    <div class="spec-table-scroll">
+                        <table class="spec-print-table flexo-process-table">
+                            <thead>
+                                <tr>
+                                    <th>Process</th><th>Lamination</th><th>Cutter Name</th>
+                                    <th>Pcs/Sheet</th><th>Cavity</th><th>Pitch</th><th>Packing</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var c in d.FlexoCuttingRows)
+                                {
+                                    <tr>
+                                        <td class="col-process">@OrDash(c.Process)</td>
+                                        <td class="col-code">@OrDash(c.Lamination)</td>
+                                        <td class="col-code">@OrDash(c.CutterName)</td>
+                                        <td>@OrDash(c.PcsPerSheet?.ToString(CultureInfo.InvariantCulture))</td>
+                                        <td>@OrDash(c.CuttingCavity?.ToString(CultureInfo.InvariantCulture))</td>
+                                        <td>@OrDashNum(c.PitchMm, "N1")</td>
+                                        <td>@OrDash(c.Packing)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+            @if (hasFlexoInk)
+            {
+                <div class="spec-block flexo-section-ink">
+                    <div class="spec-block-title">
+                        Ink · Thông tin mực — @d.FlexoInkRows.Count inks
+                    </div>
+                    <div class="spec-table-scroll">
+                        <table class="spec-print-table">
+                            <thead>
+                                <tr>
+                                    <th>No</th><th>Color</th><th>Ink Code</th>
+                                    <th>Brand</th><th>Anilox</th><th>Plate Code</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var i in d.FlexoInkRows)
+                                {
+                                    <tr>
+                                        <td class="col-no">@i.Seq</td>
+                                        <td class="col-color">@OrDash(i.Color)</td>
+                                        <td class="col-code">@OrDash(i.InkCode)</td>
+                                        <td>@OrDash(i.Brand)</td>
+                                        <td>@OrDash(i.Anilox)</td>
+                                        <td class="col-code">@OrDash(i.PlateCode)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+            @if (!hasAnyPrintData)
+            {
+                <div class="spec-block">
+                    <p class="muted spec-generic-empty">@Loc["npi.spec.showcard.generic_no_data"]</p>
+                </div>
+            }
+        }
+
+        @* ─── 5c-Compact. Generic compact — first 3 of whichever section has data ─── *@
+        @if (isGenericTemplate && Mode != SpecShowcardMode.Full)
+        {
+            @if (hasSilkColors)
+            {
+                <h4 class="spec-detail-subhead">
+                    @Loc["npi.spec.detail.peek.silk_colors"]
+                    @if (d.PrintColors.Count > 3) { <span class="muted">(first 3 of @d.PrintColors.Count)</span> }
+                </h4>
+                <table class="spec-detail-table spec-peek-color-table">
+                    <thead>
+                        <tr><th>No</th><th>Color</th><th>Ink Code</th><th>Maker</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in d.PrintColors.Take(3))
+                        {
+                            <tr>
+                                <td class="col-no">@c.Seq</td>
+                                <td>@(c.Color ?? "—")</td>
+                                <td class="col-code">@(c.InkCode ?? "—")</td>
+                                <td>@(c.Maker ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (hasFlexoCut)
+            {
+                <h4 class="spec-detail-subhead">
+                    @Loc["npi.spec.detail.peek.flexo_cut"]
+                    @if (d.FlexoCuttingRows.Count > 3) { <span class="muted">(first 3 of @d.FlexoCuttingRows.Count)</span> }
+                </h4>
+                <table class="spec-detail-table">
+                    <thead><tr><th>No</th><th>Process</th><th>Cutter Name</th><th>Cavity</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in d.FlexoCuttingRows.Take(3))
+                        {
+                            <tr>
+                                <td class="col-no">@c.Seq</td>
+                                <td>@(c.Process ?? "—")</td>
+                                <td class="col-code">@(c.CutterName ?? "—")</td>
+                                <td>@(c.CuttingCavity?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (hasFlexoInk)
+            {
+                <h4 class="spec-detail-subhead">
+                    @Loc["npi.spec.detail.peek.flexo_ink"]
+                    @if (d.FlexoInkRows.Count > 3) { <span class="muted">(first 3 of @d.FlexoInkRows.Count)</span> }
+                </h4>
+                <table class="spec-detail-table">
+                    <thead><tr><th>No</th><th>Color</th><th>Ink Code</th><th>Brand</th></tr></thead>
+                    <tbody>
+                        @foreach (var i in d.FlexoInkRows.Take(3))
+                        {
+                            <tr>
+                                <td class="col-no">@i.Seq</td>
+                                <td>@(i.Color ?? "—")</td>
+                                <td class="col-code">@(i.InkCode ?? "—")</td>
+                                <td>@(i.Brand ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p class="muted">@Loc["npi.spec.showcard.generic_no_data"]</p>
+            }
+        }
+
+        @* ─── 6. Remarks ─── *@
+        @if (Mode == SpecShowcardMode.Full)
+        {
+            <div class="spec-block">
+                <div class="spec-block-title">Remarks · Ghi chú</div>
+                @if (isFlexoTemplate)
+                {
+                    <div class="flexo-remarks-2col">
+                        <div>
+                            <div class="label">Print remarks · Ghi chú in</div>
+                            <div>@(string.IsNullOrEmpty(d.RemarksText) ? "—" : $"※ {d.RemarksText}")</div>
+                        </div>
+                        <div>
+                            <div class="label">Cut remarks · Ghi chú cắt</div>
+                            <div>@(string.IsNullOrEmpty(d.RemarksCutText) ? "—" : $"※ {d.RemarksCutText}")</div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="spec-remarks-block">
+                        @(string.IsNullOrEmpty(d.RemarksText) ? "—" : $"※ {d.RemarksText}")
+                    </div>
+                }
+            </div>
+        }
+
+        @* ─── 7. Revision History (Full only) ─── *@
+        @if (Mode == SpecShowcardMode.Full)
+        {
+            <div class="spec-block">
+                <div class="spec-block-title">Revision History · Lịch sử thay đổi</div>
+                <table class="spec-rev-table">
+                    <thead>
+                        <tr>
+                            <th class="col-rev">Rev</th>
+                            <th>Contents · Nội dung</th>
+                            <th class="col-date">Date · Ngày</th>
+                            <th class="col-by">By · Bởi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (d.Lineage.Count == 0)
+                        {
+                            <tr><td colspan="4" class="spec-empty">— No revision history —</td></tr>
+                        }
+                        @foreach (var lr in d.Lineage)
+                        {
+                            <tr>
+                                <td class="col-rev">@lr.RevisionCode</td>
+                                <td>@OrDash(lr.ChangeSummary)</td>
+                                <td>@lr.CreatedAt.ToString("yyyy-MM-dd")</td>
+                                <td>@OrDash(lr.CreatedBy)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @* ─── 8. Approval Signatures (Full only — Option A render-only) ─── *@
+        @if (Mode == SpecShowcardMode.Full)
+        {
+            <div class="spec-block">
+                <div class="spec-block-title">Approval Signatures · Chữ ký phê duyệt</div>
+                <div class="spec-signoff">
+                    <div>
+                        <div class="role">Người tạo R&D · Issued by R&D</div>
+                        <div class="name">@OrDash(d.CreatedBy)</div>
+                        <div class="date">Date: @d.CreatedAt.ToString("yyyy-MM-dd")</div>
+                    </div>
+                    <div>
+                        <div class="role">Xác nhận bởi R&D · Confirmed by R&D</div>
+                        <div class="name">@OrDash(d.ApprovedBy)</div>
+                        <div class="date">Date: @(d.ApprovedAt?.ToString("yyyy-MM-dd") ?? "—")</div>
+                    </div>
+                    <div>
+                        <div class="role">Xác nhận bởi PD · Confirmed by PD</div>
+                        <div class="name">—</div>
+                        <div class="date">Date: —</div>
+                    </div>
+                    <div>
+                        <div class="role">Xác nhận bởi QA · Confirmed by QA</div>
+                        <div class="name">—</div>
+                        <div class="date">Date: —</div>
+                    </div>
+                </div>
+                <p class="spec-signoff-note muted">
+                    @Loc["npi.spec.detail.approval_note"]
+                </p>
+            </div>
+        }
+
+        @* ─── 9. Change Log (Full + Compact, NOT Preview) ─── *@
+        @if (Mode == SpecShowcardMode.Full)
+        {
+            <div class="spec-block spec-history-block">
+                <div class="spec-block-title">Change Log · Lịch sử thay đổi (audit)</div>
+                @if (d.AuditEntries.Count == 0)
+                {
+                    <p class="muted">@Loc["npi.spec.detail.audit.empty"]</p>
+                }
+                else
+                {
+                    <ul class="spec-audit-log">
+                        @foreach (var a in d.AuditEntries)
+                        {
+                            <li>
+                                <span class="audit-time">@a.Timestamp.ToString("yyyy-MM-dd HH:mm")</span>
+                                <span class="audit-action">@a.Action</span>
+                                <span class="muted">· @a.ActorUsername</span>
+                                @if (!string.IsNullOrWhiteSpace(a.ActorRole))
+                                {
+                                    <span class="muted">(@a.ActorRole)</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+        else if (Mode == SpecShowcardMode.Compact)
+        {
+            @* Audit stamps mini *@
+            <h4 class="spec-detail-subhead">@Loc["npi.spec.detail.peek.audit_stamps"]</h4>
+            <table class="spec-detail-table">
+                <tr><th>@Loc["npi.spec.detail.field.created"]</th>
+                    <td>@d.CreatedAt.ToString("yyyy-MM-dd HH:mm")
+                        <span class="muted">@(d.CreatedBy is null ? "" : "· " + d.CreatedBy)</span></td></tr>
+                <tr><th>@Loc["npi.spec.detail.field.updated"]</th>
+                    <td>@(d.UpdatedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")
+                        <span class="muted">@(d.UpdatedBy is null ? "" : "· " + d.UpdatedBy)</span></td></tr>
+                <tr><th>@Loc["npi.spec.detail.field.approved"]</th>
+                    <td>@(d.ApprovedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")
+                        <span class="muted">@(d.ApprovedBy is null ? "" : "· " + d.ApprovedBy)</span></td></tr>
+            </table>
+
+            @if (d.AuditEntries.Count > 0)
+            {
+                <h4 class="spec-detail-subhead">
+                    @Loc["npi.spec.detail.audit.timeline"]
+                    @if (d.AuditEntries.Count > 5)
+                    {
+                        <span class="muted">(first 5 of @d.AuditEntries.Count)</span>
+                    }
+                </h4>
+                <ul class="spec-detail-audit-list">
+                    @foreach (var a in d.AuditEntries.Take(5))
+                    {
+                        <li>
+                            <span class="spec-detail-audit-time">@a.Timestamp.ToString("yyyy-MM-dd HH:mm")</span>
+                            <span class="spec-detail-audit-action">@a.Action</span>
+                            <span class="muted">· @a.ActorUsername</span>
+                            @if (!string.IsNullOrWhiteSpace(a.ActorRole))
+                            {
+                                <span class="muted">(@a.ActorRole)</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        }
+        @* Preview mode: no audit (CreateSpecModal hiển thị live, audit chưa tồn tại) *@
+    </div>
+}
+
+@code {
+    /// <summary>Required — the spec detail to render. Caller fetches via SpecService.SpecDetailAsync.</summary>
+    [Parameter, EditorRequired] public SpecDetailDto? Detail { get; set; }
+
+    /// <summary>Rendering mode — Full (full-page) / Compact (modal peek) / Preview (create-edit live).</summary>
+    [Parameter] public SpecShowcardMode Mode { get; set; } = SpecShowcardMode.Full;
+
+    /// <summary>
+    /// Resolve template variant from Planner enum.
+    ///   SILK → silk template (Print Params + 10-color)
+    ///   FLEXO → flexo template (3 sub-tables print/cut/ink)
+    ///   INDIGO / LETTER / DIECUT / UNKNOWN → generic fallback (data-driven section render + warning chip)
+    /// Behavior change vs PR-A: INDIGO previously rendered as silk via IsSilkscreen flag;
+    /// now uses generic so honest "template chuẩn sẽ bổ sung" chip surfaces. PDF mirror nhánh tương ứng.
+    /// </summary>
+    private static string ResolveTemplate(string planner) => (planner ?? "UNKNOWN").Trim().ToUpperInvariant() switch
+    {
+        "SILK"  => "SILK",
+        "FLEXO" => "FLEXO",
+        _       => "GENERIC",
+    };
+
+    private static string CategoryHeaderLabel(string template) => template switch
+    {
+        "SILK"  => "SILK",
+        "FLEXO" => "SEAL",
+        _       => "SPEC",
+    };
+
+    private string CategoryHeaderSubtitle(string template) => template switch
+    {
+        "SILK"  => "Thông số kỹ thuật sản phẩm tiêu chuẩn In Lụa · Silkscreen production spec",
+        "FLEXO" => "Thông số kỹ thuật sản phẩm tiêu chuẩn In Nhãn Flexo · Flexo production spec",
+        _       => Loc["npi.spec.showcard.generic_subtitle"].Value,
+    };
+
+    /// <summary>Human-readable label cho category trong warning chip (LETTER / INDIGO / DIE-CUT / ...).</summary>
+    private static string CategoryDisplayLabel(string planner) => (planner ?? "UNKNOWN").Trim().ToUpperInvariant() switch
+    {
+        "LETTER" => "LETTERPRESS",
+        "INDIGO" => "INDIGO",
+        "DIECUT" => "DIE-CUT",
+        _        => planner ?? "UNKNOWN",
+    };
+
+    private static string OrDash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
+
+    private static string OrDashNum(double? v, string fmt) =>
+        v is null ? "—" : v.Value.ToString(fmt, CultureInfo.InvariantCulture);
+
+    private static string StatusStampClass(ProductRevisionStatus s) => s switch
+    {
+        ProductRevisionStatus.Draft or ProductRevisionStatus.InReview     => "stamp-draft",
+        ProductRevisionStatus.Approved or ProductRevisionStatus.Released  => "stamp-approved",
+        ProductRevisionStatus.Superseded                                  => "stamp-superseded",
+        _                                                                  => "",
+    };
+
+    /// <summary>Parse Material.ExtraJson `{material_size, lamination_tape, …}` (mirror PR-A logic).</summary>
+    private static MaterialExtraView ParseMaterialExtra(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            return new MaterialExtraView
+            {
+                MaterialSize     = TryString(root, "material_size"),
+                LaminationTape   = TryString(root, "lamination_tape"),
+                LaminationSize   = TryString(root, "lamination_size"),
+                LaminationCavity = TryString(root, "lamination_cavity"),
+            };
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    private static string? TryString(System.Text.Json.JsonElement el, string key)
+        => el.TryGetProperty(key, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : null;
+
+    private class MaterialExtraView
+    {
+        public string? MaterialSize { get; set; }
+        public string? LaminationTape { get; set; }
+        public string? LaminationSize { get; set; }
+        public string? LaminationCavity { get; set; }
+    }
+}

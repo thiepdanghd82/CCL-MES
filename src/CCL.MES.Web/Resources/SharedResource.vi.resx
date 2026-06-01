@@ -749,4 +749,10 @@
   <data name="npi.spec.detail.peek.flexo_ink" xml:space="preserve"><value>Flexo Ink rows</value></data>
   <data name="npi.spec.detail.peek.no_print_rows" xml:space="preserve"><value>— Không có print row —</value></data>
   <data name="npi.spec.detail.peek.audit_stamps" xml:space="preserve"><value>Audit stamps</value></data>
+
+  <!-- Phase 8 PR-B (unified <SpecShowcard /> component) — generic fallback keys. -->
+  <data name="npi.spec.showcard.generic_warning" xml:space="preserve"><value>Xem nhanh generic — template chuẩn cho dòng {0} sẽ được bổ sung khi có sample thực từ CCL Vietnam.</value></data>
+  <data name="npi.spec.showcard.generic_subtitle" xml:space="preserve"><value>Thông số kỹ thuật sản phẩm tiêu chuẩn · Xem nhanh generic</value></data>
+  <data name="npi.spec.showcard.generic_no_data" xml:space="preserve"><value>— Chưa ghi nhận row in / cắt / mực —</value></data>
+  <data name="npi.spec.showcard.peek.data_rows" xml:space="preserve"><value>Số row đã ghi</value></data>
 </root>

@@ -751,4 +751,10 @@
   <data name="npi.spec.detail.peek.flexo_ink" xml:space="preserve"><value>Flexo Ink rows</value></data>
   <data name="npi.spec.detail.peek.no_print_rows" xml:space="preserve"><value>— No print rows recorded —</value></data>
   <data name="npi.spec.detail.peek.audit_stamps" xml:space="preserve"><value>Audit stamps</value></data>
+
+  <!-- Phase 8 PR-B (unified <SpecShowcard /> component) — generic fallback keys. -->
+  <data name="npi.spec.showcard.generic_warning" xml:space="preserve"><value>Generic preview — the standard {0} template will be added once a real CCL Vietnam sample is available.</value></data>
+  <data name="npi.spec.showcard.generic_subtitle" xml:space="preserve"><value>Production spec sheet · Generic preview</value></data>
+  <data name="npi.spec.showcard.generic_no_data" xml:space="preserve"><value>— No print / cut / ink rows recorded yet —</value></data>
+  <data name="npi.spec.showcard.peek.data_rows" xml:space="preserve"><value>Captured rows</value></data>
 </root>
