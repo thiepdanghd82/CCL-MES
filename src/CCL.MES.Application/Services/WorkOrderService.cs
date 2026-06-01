@@ -42,7 +42,7 @@ public class WorkOrderService
             CustomerId = r.CustomerId,
             ProductId = r.ProductId,
             ProductName = r.ProductName,
-            SpecVersionId = r.SpecVersionId,
+            ProductRevisionId = r.ProductRevisionId,
             MachineCode = r.MachineCode,
             MachineName = r.MachineName,
             TargetQty = r.TargetQty,

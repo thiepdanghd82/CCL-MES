@@ -7,6 +7,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CCL.MES.Application.Services;
 
+/// <summary>
+/// Phase 8 PR #28 — REWRITTEN sau Spec → ProductRevision clean rewrite.
+///
+/// Public surface giữ nguyên signature cho EngineerSpec.razor + CreateSpecModal
+/// đỡ phải cascade rộng:
+///   - <see cref="SpecsAsync(string?, int, int)"/> trả về <see cref="PagedResult{T}"/>
+///     của <see cref="ProductRevisionListItem"/> thay vì <c>Spec</c> entity.
+///   - <see cref="CreateAsync"/> nhận <see cref="CreateSpecRequest"/> (DTO unchanged)
+///     và lưu thành 1 <see cref="ProductRevision"/> (rev "A") + 1 <see cref="SpecPrint"/>
+///     sibling với parameters folded vào ColorSpecJson.
+///   - <see cref="ApproveAsync"/> chuyển vào <see cref="ProductRevision"/>.
+///
+/// RBAC NpiSpecRead unchanged. Audit codes SpecCreate + SpecApprove unchanged
+/// (target id giờ là ProductRevision.Id thay vì SpecVersion.Id).
+/// Mutation Revise/Copy/Trash/Restore + Drawing CRUD ship PR #30/#31/#32.
+/// </summary>
 public class SpecService
 {
     private readonly IMesDbContext _db;
@@ -17,46 +33,51 @@ public class SpecService
         _audit = audit;
     }
 
-    public Task<List<Spec>> GetAllAsync() =>
-        _db.Specs
-            .Include(s => s.Versions)
-            .ThenInclude(v => v.Parameters)
-            .OrderByDescending(s => s.Id)
-            .ToListAsync();
-
     /// <summary>
-    /// Phase 6 Bước 1 — paginated list for the Engineer Spec grid UI.
-    /// Phase 7 hạng mục 4 — search expand từ 3 → 5 field (thêm ApprovedBy
-    /// + Status string contains; SpecVersion.Status stored as TEXT via
-    /// HasConversion&lt;string&gt;(), nên Like search hoạt động trên giá trị
-    /// "Draft"/"InReview"/"Approved"/"Obsolete"). Operator dùng "approved"
-    /// để lọc theo workflow state, "username" để lọc theo approver.
+    /// Phase 8 PR #28 — paginated list cho EngineerSpec grid. Pre-flatten vào
+    /// DTO để Razor binding clean + KHÔNG kéo full graph qua serializer.
+    /// Search 5 field: SpecCode / Title / Product code / Product name / ProcessCode.
     /// </summary>
-    public Task<PagedResult<Spec>> SpecsAsync(string? search, int page, int pageSize)
+    public async Task<PagedResult<ProductRevisionListItem>> SpecsAsync(string? search, int page, int pageSize)
     {
-        var q = _db.Specs
+        var q = _db.ProductRevisions
             .AsNoTracking()
-            .Include(s => s.Versions)
-            .Include(s => s.Product)
+            .Where(x => !x.IsTrashed)               // soft-delete skip (Trash UI ở PR #30)
+            .Include(x => x.Product)
+            .Include(x => x.Print)
             .AsQueryable();
+
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
             q = q.Where(x => EF.Functions.Like(x.SpecCode, $"%{s}%")
                 || EF.Functions.Like(x.Title, $"%{s}%")
+                || (x.Product != null && EF.Functions.Like(x.Product.ProductCode, $"%{s}%"))
                 || (x.Product != null && EF.Functions.Like(x.Product.Name, $"%{s}%"))
-                || x.Versions.Any(v => v.ApprovedBy != null && EF.Functions.Like(v.ApprovedBy, $"%{s}%"))
-                || x.Versions.Any(v => EF.Functions.Like(v.Status.ToString(), $"%{s}%")));
+                || (x.Print != null && x.Print.ProcessCode != null && EF.Functions.Like(x.Print.ProcessCode, $"%{s}%")));
         }
-        return PagingHelper.PageAsync(q.OrderByDescending(x => x.Id), page, pageSize);
+
+        var ordered = q.OrderByDescending(x => x.Id);
+        var paged = await PagingHelper.PageAsync(ordered, page, pageSize);
+
+        var items = paged.Items
+            .Select(x => new ProductRevisionListItem(
+                x.Id,
+                x.SpecCode,
+                x.Title,
+                x.RevisionCode,
+                x.Status,
+                x.EffectiveFrom,
+                x.ApprovedBy,
+                x.Product?.ProductCode ?? "",
+                x.Product?.Name ?? "",
+                x.Print?.ProcessCode))
+            .ToList();
+
+        return new PagedResult<ProductRevisionListItem>(items, paged.Total, paged.Page, paged.PageSize);
     }
 
-    /// <summary>
-    /// Phase 7 hạng mục 4 — Product dropdown source cho CreateSpecModal.
-    /// Trả lightweight projection (Id + ProductCode + Name) để modal binding
-    /// không kéo full Product graph (Customer included không cần thiết cho
-    /// dropdown). Sort theo ProductCode để operator dễ tìm.
-    /// </summary>
+    /// <summary>Phase 7 hạng mục 4 — Product dropdown cho CreateSpecModal.</summary>
     public Task<List<ProductDropdownItem>> ProductsForDropdownAsync() =>
         _db.Products
             .AsNoTracking()
@@ -64,60 +85,80 @@ public class SpecService
             .Select(p => new ProductDropdownItem(p.Id, p.ProductCode, p.Name))
             .ToListAsync();
 
-    // Phase 6 Bước 5 — actor param added (was a gap noted in PHASE6-STEP5-PLAN.md §1.1).
-    public async Task<SpecVersion> CreateAsync(CreateSpecRequest r, string? user)
+    /// <summary>
+    /// Phase 8 PR #28 — Create new spec → ProductRevision rev "A" + SpecPrint
+    /// sibling. Parameters folded vào SpecPrint.ColorSpecJson (mirror DbSeeder
+    /// shape). PR #29 sẽ thay form thành full editor 4 sibling tab.
+    /// </summary>
+    public async Task<ProductRevision> CreateAsync(CreateSpecRequest r, string? user)
     {
-        var spec = new Spec
+        var revision = new ProductRevision
         {
             ProductId = r.ProductId,
             SpecCode = r.SpecCode,
-            Title = r.Title
-        };
-        var ver = new SpecVersion { VersionNo = 1, Status = SpecStatus.Draft };
-        foreach (var p in r.Parameters)
-        {
-            ver.Parameters.Add(new SpecParameter
+            Title = r.Title,
+            RevisionCode = "A",
+            Status = ProductRevisionStatus.Draft,
+            Print = new SpecPrint
             {
-                ParamName = p.ParamName,
-                Nominal = p.Nominal,
-                TolMin = p.TolMin,
-                TolMax = p.TolMax,
-                Uom = p.Uom,
-                IsCritical = p.IsCritical
-            });
-        }
-        spec.Versions.Add(ver);
-        _db.Specs.Add(spec);
+                ProcessCode = string.IsNullOrWhiteSpace(r.ProcessCode) ? "SILKSCREEN" : r.ProcessCode,
+                NumColors = 0,
+                ColorSpecJson = SerializeParams(r.Parameters)
+            }
+        };
+        _db.ProductRevisions.Add(revision);
         await _db.SaveChangesAsync();
+
         await _audit.EmitAsync(
             AuditAction.SpecCreate, user ?? "anonymous", actorRole: "",
-            targetType: "Spec", targetId: spec.Id.ToString(),
-            detail: JsonSerializer.Serialize(new {
+            targetType: "ProductRevision", targetId: revision.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
                 spec_code = r.SpecCode,
                 title = r.Title,
                 product_id = r.ProductId,
-                version_no = ver.VersionNo,
+                revision_code = revision.RevisionCode,
+                process_code = revision.Print?.ProcessCode,
                 param_count = r.Parameters.Count,
             }));
-        return ver;
+        return revision;
     }
 
-    public async Task<SpecVersion?> ApproveAsync(long versionId, string? user)
+    /// <summary>Approve hiện rev → Status=Approved + ApprovedBy/At + EffectiveFrom=now.</summary>
+    public async Task<ProductRevision?> ApproveAsync(long revisionId, string? user)
     {
-        var v = await _db.SpecVersions.FirstOrDefaultAsync(x => x.Id == versionId);
-        if (v is null) return null;
-        v.Status = SpecStatus.Approved;
-        v.ApprovedBy = user;
-        v.ApprovedAt = DateTime.UtcNow;
-        v.EffectiveDate ??= DateTime.UtcNow;
+        var rev = await _db.ProductRevisions.FirstOrDefaultAsync(x => x.Id == revisionId);
+        if (rev is null) return null;
+        rev.Status = ProductRevisionStatus.Approved;
+        rev.ApprovedBy = user;
+        rev.ApprovedAt = DateTime.UtcNow;
+        rev.EffectiveFrom ??= DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
         await _audit.EmitAsync(
             AuditAction.SpecApprove, user ?? "anonymous", actorRole: "",
-            targetType: "SpecVersion", targetId: v.Id.ToString(),
-            detail: JsonSerializer.Serialize(new {
-                spec_id = v.SpecId,
-                version_no = v.VersionNo,
+            targetType: "ProductRevision", targetId: rev.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                spec_code = rev.SpecCode,
+                revision_code = rev.RevisionCode,
+                product_id = rev.ProductId,
             }));
-        return v;
+        return rev;
+    }
+
+    private static string SerializeParams(List<SpecParamDto> parameters)
+    {
+        if (parameters.Count == 0) return "[]";
+        var arr = parameters.Select(p => new
+        {
+            param_name = p.ParamName,
+            nominal = p.Nominal,
+            tol_min = p.TolMin,
+            tol_max = p.TolMax,
+            uom = p.Uom,
+            is_critical = p.IsCritical
+        });
+        return JsonSerializer.Serialize(arr);
     }
 }

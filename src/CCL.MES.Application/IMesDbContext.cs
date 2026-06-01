@@ -8,9 +8,20 @@ public interface IMesDbContext
 {
     DbSet<Customer> Customers { get; }
     DbSet<Product> Products { get; }
-    DbSet<Spec> Specs { get; }
-    DbSet<SpecVersion> SpecVersions { get; }
-    DbSet<SpecParameter> SpecParameters { get; }
+    // Phase 8 PR #28 — Spec/SpecVersion/SpecParameter REMOVED via clean
+    // rewrite. New ProductRevision + 4 sibling specs + Drawings + QC plan +
+    // ProcessCatalog DbSets below.
+    DbSet<ProductRevision> ProductRevisions { get; }
+    DbSet<SpecMaterial> SpecMaterials { get; }
+    DbSet<SpecPrint> SpecPrints { get; }
+    DbSet<SpecDiecut> SpecDiecuts { get; }
+    DbSet<SpecFinishing> SpecFinishings { get; }
+    DbSet<Drawing> Drawings { get; }
+    DbSet<DrawingVersion> DrawingVersions { get; }
+    DbSet<DrawingApproval> DrawingApprovals { get; }
+    DbSet<SpecQcWindow> SpecQcWindows { get; }
+    DbSet<QcCriterion> QcCriteria { get; }
+    DbSet<ProcessCatalog> ProcessCatalogs { get; }
     DbSet<WorkOrder> WorkOrders { get; }
     DbSet<WoStatusHistory> WoStatusHistories { get; }
     DbSet<QcInspection> QcInspections { get; }

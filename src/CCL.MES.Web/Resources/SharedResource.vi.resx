@@ -507,6 +507,14 @@
   <data name="npi.spec.status.in_review" xml:space="preserve"><value>Đang duyệt</value></data>
   <data name="npi.spec.status.approved" xml:space="preserve"><value>Đã duyệt</value></data>
   <data name="npi.spec.status.obsolete" xml:space="preserve"><value>Lỗi thời</value></data>
+  <!-- Phase 8 PR #28 — keys mới cho ProductRevision shape grid. -->
+  <data name="npi.spec.col.product_code" xml:space="preserve"><value>Sản phẩm</value></data>
+  <data name="npi.spec.col.revision_code" xml:space="preserve"><value>Rev</value></data>
+  <data name="npi.spec.col.process" xml:space="preserve"><value>Công đoạn</value></data>
+  <data name="npi.spec.col.effective_from" xml:space="preserve"><value>Hiệu lực từ</value></data>
+  <data name="npi.spec.col.approved_by" xml:space="preserve"><value>Người duyệt</value></data>
+  <data name="npi.spec.status.released" xml:space="preserve"><value>Phát hành</value></data>
+  <data name="npi.spec.status.superseded" xml:space="preserve"><value>Đã thay thế</value></data>
 
   <data name="qcqa.iqc.title" xml:space="preserve"><value>QC/QA — IQC (Kiểm tra nguyên liệu đầu vào)</value></data>
   <data name="qcqa.iqc.placeholder_lead" xml:space="preserve"><value>Tab quản lý IQC (Incoming Quality Control) — kiểm tra chất lượng đầu vào.</value></data>

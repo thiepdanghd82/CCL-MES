@@ -507,6 +507,14 @@
   <data name="npi.spec.status.in_review" xml:space="preserve"><value>In Review</value></data>
   <data name="npi.spec.status.approved" xml:space="preserve"><value>Approved</value></data>
   <data name="npi.spec.status.obsolete" xml:space="preserve"><value>Obsolete</value></data>
+  <!-- Phase 8 PR #28 — keys mới cho ProductRevision shape grid. -->
+  <data name="npi.spec.col.product_code" xml:space="preserve"><value>Product</value></data>
+  <data name="npi.spec.col.revision_code" xml:space="preserve"><value>Rev</value></data>
+  <data name="npi.spec.col.process" xml:space="preserve"><value>Process</value></data>
+  <data name="npi.spec.col.effective_from" xml:space="preserve"><value>Effective From</value></data>
+  <data name="npi.spec.col.approved_by" xml:space="preserve"><value>Approved By</value></data>
+  <data name="npi.spec.status.released" xml:space="preserve"><value>Released</value></data>
+  <data name="npi.spec.status.superseded" xml:space="preserve"><value>Superseded</value></data>
 
   <data name="qcqa.iqc.title" xml:space="preserve"><value>QC/QA — IQC (Incoming Quality Check)</value></data>
   <!-- Phase 6 Bước 7 — IQC list + create + approve UI. The 3 placeholder_li* keys below stay so older bundles don't 404 the resource lookup, but are no longer rendered. -->

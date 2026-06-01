@@ -44,6 +44,22 @@ hiện tại.
 - Backup SQLite tươi (qua Settings → Backup/Restore → Create snapshot OR
   `scripts/BackupRestore` console).
 
+### Provider-guarded migrations (đã có sẵn)
+
+Một số migration phải dùng raw SQL workaround cho quirk của EF Core SQLite
+provider. Chúng được bọc trong `if (migrationBuilder.ActiveProvider == "Microsoft.EntityFrameworkCore.Sqlite")`
++ nhánh `else if` cho SQL Server + `else throw NotSupportedException` cho
+provider mới. Khi nâng cấp SQL Server, các migration này tự chọn đúng nhánh
+mà KHÔNG cần edit code.
+
+| Migration | Lý do dùng raw SQL workaround | SQL Server branch |
+|---|---|---|
+| `20260601023538_AddProductRevisionSchema` (Phase 8 PR #28) | EF Core 10 SQLite không reliably trigger table-rebuild khi `DropForeignKey` + `RenameColumn` đứng cạnh nhau — phải manual rebuild WorkOrders để drop FK `FK_WorkOrders_SpecVersions_SpecVersionId` trước khi `DROP TABLE SpecVersions`. | Standard `DropForeignKey` + `DropIndex` + `RenameColumn` + `CreateIndex` (SQL Server hỗ trợ `ALTER TABLE DROP CONSTRAINT` + `sp_rename` native). |
+
+Khi nâng cấp lên SQL Server, các nhánh này tự kích hoạt — KHÔNG cần edit lại
+migration. Nếu thêm provider mới (Postgres etc.) sẽ bị `NotSupportedException`
++ điểm đến doc này để bổ sung nhánh tương đương.
+
 ---
 
 ## 2. Quy trình A→B→C
