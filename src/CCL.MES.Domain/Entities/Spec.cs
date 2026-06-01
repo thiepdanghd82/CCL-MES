@@ -125,6 +125,16 @@ public class SpecPrint : BaseEntity
     // (PlateCode/InkCode/Color search trong PR #33 detail sheet).
     // ColorSpecJson vẫn giữ cho fallback legacy + extra fields chưa migrate.
     public List<SpecPrintColor> Colors { get; set; } = new();
+
+    // ── Phase 8 PR #31b — Flexo child rows ──────────────────────────────────
+    // SpecHub flexo template chứa 3 data tables riêng:
+    //   - PrintingRows (cylinder/material/tension) → fold vào ExtraJson per Q3
+    //     PR #31b (3-4 rows mỗi spec, ít cần query column-wise)
+    //   - CuttingRows (die cut + lamination + cutter) → SpecFlexoCuttingRow
+    //   - InkRows (per-color ink + anilox + UV/IR power) → SpecFlexoInkRow
+    // Sub-tab nav PR #33 sẽ render từ 2 entity này; current PR chỉ persist.
+    public List<SpecFlexoCuttingRow> FlexoCuttingRows { get; set; } = new();
+    public List<SpecFlexoInkRow> FlexoInkRows { get; set; } = new();
 }
 
 /// <summary>
@@ -162,6 +172,65 @@ public class SpecPrintColor : BaseEntity
     public int? ControlNo { get; set; }
     public string? Remark { get; set; }
     public string? ExtraJson { get; set; }          // future-proof per-process variance
+}
+
+/// <summary>
+/// Phase 8 PR #31b — Flexo cutting row (per process). 1:N keyed by
+/// SpecPrintId. Mirror SpecHub `flexoData.cuttingRows[i]` 14-field shape
+/// (HTML:11707-11722).
+///
+/// Hai entity flexo (Cutting + Ink) tách riêng vì semantic độc lập: cutting
+/// chỉ độc các thông số die cut + lamination + tốc độ máy cắt; ink là per-
+/// color UV/IR power + anilox. PrintingRows (substrate/cylinder/tension) fold
+/// vào SpecPrint.ExtraJson — ít cần query column-wise + giảm số bảng wide.
+/// </summary>
+public class SpecFlexoCuttingRow : BaseEntity
+{
+    public long SpecPrintId { get; set; }
+    public SpecPrint? SpecPrint { get; set; }
+
+    public int Seq { get; set; }                    // R7+ row order
+    public string? Process { get; set; }            // "FLEXBED CUT", "ROTARY"...
+    public string? Lamination { get; set; }
+    public string? Size { get; set; }               // "112×95"
+    public string? CutterLot { get; set; }
+    public string? CutterName { get; set; }
+    public int? PcsPerSheet { get; set; }
+    public int? CuttingCavity { get; set; }
+    public double? PitchMm { get; set; }
+    public string? Packing { get; set; }
+    public double? PaperSpeed { get; set; }
+    public double? CuttingSpeed { get; set; }
+    public double? CuttingPressure { get; set; }
+    public double? HeadTension { get; set; }
+    public double? RollTension { get; set; }
+    public string? ExtraJson { get; set; }
+}
+
+/// <summary>
+/// Phase 8 PR #31b — Flexo ink row (per color). 1:N keyed by SpecPrintId.
+/// Mirror SpecHub `flexoData.inkRows[i]` 10-field shape (HTML:11740-11751).
+///
+/// Tách bảng riêng khỏi <see cref="SpecPrintColor"/> (silkscreen-shape):
+/// flexo có anilox + UV/IR power là semantic khác hẳn squeegee/mesh của silk.
+/// PR #33 detail sheet sẽ render từ entity rows trực tiếp.
+/// </summary>
+public class SpecFlexoInkRow : BaseEntity
+{
+    public long SpecPrintId { get; set; }
+    public SpecPrint? SpecPrint { get; set; }
+
+    public int Seq { get; set; }
+    public string? Color { get; set; }              // "WHITE", "PANTONE 186C"...
+    public string? InkCode { get; set; }            // "HI160", "VI2"
+    public string? InkDescription { get; set; }
+    public string? Brand { get; set; }              // "CCL MIX", "SEIKO"
+    public string? Anilox { get; set; }             // "L120" / "UX59" / anilox volume
+    public string? PlateCode { get; set; }          // "SP2387-1"
+    public double? Pressure { get; set; }
+    public double? UvPowerW { get; set; }
+    public double? IrPowerW { get; set; }
+    public string? ExtraJson { get; set; }
 }
 
 /// <summary>

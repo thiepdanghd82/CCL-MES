@@ -711,8 +711,8 @@
 
   <!-- Phase 8 PR #31a — Refresh samples button (Admin only). -->
   <data name="npi.spec.btn_refresh_samples" xml:space="preserve"><value>Refresh samples</value></data>
-  <data name="npi.spec.refresh_samples_confirm" xml:space="preserve"><value>Re-parse 4 file silkscreen sample bundled từ wwwroot/Data/Specs/? RefNo đã tồn tại sẽ bị skip mặc định.</value></data>
-  <data name="npi.spec.refresh_samples_force_confirm" xml:space="preserve"><value>Chế độ FORCE — re-parse cả 4 sample VÀ thay thế rev đã có với RefNo trùng (rev cũ bị soft-delete vào Trash). Tiếp tục?</value></data>
+  <data name="npi.spec.refresh_samples_confirm" xml:space="preserve"><value>Re-parse 6 file sample bundled (4 silkscreen + 2 flexo) từ wwwroot/Data/Specs/? RefNo đã tồn tại sẽ bị skip mặc định.</value></data>
+  <data name="npi.spec.refresh_samples_force_confirm" xml:space="preserve"><value>Chế độ FORCE — re-parse cả 6 sample VÀ thay thế rev đã có với RefNo trùng (rev cũ bị soft-delete vào Trash). Tiếp tục?</value></data>
   <data name="npi.spec.refresh_samples_result" xml:space="preserve"><value>Samples refresh: {0} added · {1} updated · {2} skipped</value></data>
   <data name="npi.spec.refresh_samples_err" xml:space="preserve"><value>Refresh samples thất bại</value></data>
 </root>

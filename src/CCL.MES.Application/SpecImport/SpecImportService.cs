@@ -30,13 +30,13 @@ public class SpecImportService
 
     private readonly IMesDbContext _db;
     private readonly IAuditWriter _audit;
-    private readonly ISpecXlsxParser _parser;
+    private readonly ISpecXlsxParserFactory _parserFactory;
 
-    public SpecImportService(IMesDbContext db, IAuditWriter audit, ISpecXlsxParser parser)
+    public SpecImportService(IMesDbContext db, IAuditWriter audit, ISpecXlsxParserFactory parserFactory)
     {
         _db = db;
         _audit = audit;
-        _parser = parser;
+        _parserFactory = parserFactory;
     }
 
     /// <summary>
@@ -63,7 +63,9 @@ public class SpecImportService
         ParsedSpecDto parsed;
         try
         {
-            parsed = _parser.Parse(xlsxStream, preview.PlannerCategory);
+            // PR #31b — dispatch parser via factory (silkscreen / flexo / fallback)
+            var parser = _parserFactory.GetParser(preview.PlannerCategory);
+            parsed = parser.Parse(xlsxStream, preview.PlannerCategory);
         }
         catch (Exception ex)
         {
@@ -175,6 +177,18 @@ public class SpecImportService
             // partNo. KHÔNG enforce unique cross-product (PartNo có thể chia
             // ranh giới khác); chỉ unique trong (ProductId, RevisionCode).
             var specCode = parsed.PartNo;
+            var isFlexo = string.Equals(parsed.Category, "flexo", StringComparison.OrdinalIgnoreCase);
+            // PR #31b — flexo NumColors = số ink row; silk = số print row.
+            var numColors = isFlexo ? parsed.FlexoInkRows.Count : parsed.PrintRows.Count;
+            // Flexo cavity/pitch lấy từ first cuttingRow (tự nhiên ánh xạ);
+            // silk dùng PrintingCavity + LengthPitchMm trực tiếp từ R8.
+            int? cavity = isFlexo
+                ? parsed.FlexoCuttingRows.FirstOrDefault()?.CuttingCavity
+                : parsed.PrintingCavity;
+            double? pitchMm = isFlexo
+                ? parsed.FlexoCuttingRows.FirstOrDefault()?.PitchMm
+                : parsed.LengthPitchMm;
+
             var revision = new ProductRevision
             {
                 ProductId = product.Id,
@@ -188,11 +202,14 @@ public class SpecImportService
                 Print = new SpecPrint
                 {
                     ProcessCode = MapCategoryToProcessCode(parsed.Category),
-                    NumColors = parsed.PrintRows.Count,
-                    Cavity = parsed.PrintingCavity,
-                    PitchMm = parsed.LengthPitchMm,
-                    ColorSpecJson = SerializeColorsForLegacy(parsed.PrintRows),
-                    Colors = parsed.PrintRows.Select(r => new SpecPrintColor
+                    NumColors = numColors,
+                    Cavity = cavity,
+                    PitchMm = pitchMm,
+                    ColorSpecJson = isFlexo ? null : SerializeColorsForLegacy(parsed.PrintRows),
+                    // PR #31b — fold flexo printing rows (substrate/cylinder/tension)
+                    // vào ExtraJson per Q3. Operator ít cần column-wise query.
+                    ExtraJson = isFlexo ? SerializeFlexoPrintRows(parsed.FlexoPrintRows) : null,
+                    Colors = isFlexo ? new List<SpecPrintColor>() : parsed.PrintRows.Select(r => new SpecPrintColor
                     {
                         Seq          = r.Seq,
                         Surface      = r.Surface,
@@ -216,6 +233,38 @@ public class SpecImportService
                         ControlNo    = r.ControlNo,
                         Remark       = r.Remark,
                     }).ToList(),
+                    // PR #31b — Flexo cutting + ink child rows.
+                    FlexoCuttingRows = isFlexo ? parsed.FlexoCuttingRows.Select(c => new SpecFlexoCuttingRow
+                    {
+                        Seq             = c.Seq,
+                        Process         = c.Process,
+                        Lamination      = c.Lamination,
+                        Size            = c.Size,
+                        CutterLot       = c.CutterLot,
+                        CutterName      = c.CutterName,
+                        PcsPerSheet     = c.PcsPerSheet,
+                        CuttingCavity   = c.CuttingCavity,
+                        PitchMm         = c.PitchMm,
+                        Packing         = c.Packing,
+                        PaperSpeed      = c.PaperSpeed,
+                        CuttingSpeed    = c.CuttingSpeed,
+                        CuttingPressure = c.CuttingPressure,
+                        HeadTension     = c.HeadTension,
+                        RollTension     = c.RollTension,
+                    }).ToList() : new List<SpecFlexoCuttingRow>(),
+                    FlexoInkRows = isFlexo ? parsed.FlexoInkRows.Select(i => new SpecFlexoInkRow
+                    {
+                        Seq             = i.Seq,
+                        Color           = i.Color,
+                        InkCode         = i.InkCode,
+                        InkDescription  = i.InkDescription,
+                        Brand           = i.Brand,
+                        Anilox          = i.Anilox,
+                        PlateCode       = i.PlateCode,
+                        Pressure        = i.Pressure,
+                        UvPowerW        = i.UvPowerW,
+                        IrPowerW        = i.IrPowerW,
+                    }).ToList() : new List<SpecFlexoInkRow>(),
                 },
             };
 
@@ -246,9 +295,16 @@ public class SpecImportService
                     title = revision.Title,
                     product_id = revision.ProductId,
                     process_code = revision.Print?.ProcessCode,
+                    category = parsed.Category,
                     source,
                     filename = fileName,
-                    rows_parsed = parsed.PrintRows.Count,
+                    rows_parsed = isFlexo
+                        ? parsed.FlexoInkRows.Count + parsed.FlexoCuttingRows.Count + parsed.FlexoPrintRows.Count
+                        : parsed.PrintRows.Count,
+                    flexo_ink_rows = isFlexo ? parsed.FlexoInkRows.Count : 0,
+                    flexo_cutting_rows = isFlexo ? parsed.FlexoCuttingRows.Count : 0,
+                    flexo_print_rows = isFlexo ? parsed.FlexoPrintRows.Count : 0,
+                    silk_print_rows = isFlexo ? 0 : parsed.PrintRows.Count,
                     warnings = parsed.Warnings.Take(20).ToArray(),  // cap to ≤4KB
                     created_new_product = createdNewProduct,
                 }));
@@ -261,7 +317,9 @@ public class SpecImportService
                 ProductId = product.Id,
                 SpecCode = revision.SpecCode,
                 RefNo = revision.RefNo ?? "",
-                RowsParsed = parsed.PrintRows.Count,
+                RowsParsed = isFlexo
+                    ? parsed.FlexoInkRows.Count + parsed.FlexoCuttingRows.Count + parsed.FlexoPrintRows.Count
+                    : parsed.PrintRows.Count,
                 CreatedNewProduct = createdNewProduct,
                 Warnings = parsed.Warnings.ToList(),
             };
@@ -406,6 +464,18 @@ public class SpecImportService
             remark = r.Remark,
         });
         return JsonSerializer.Serialize(arr);
+    }
+
+    /// <summary>
+    /// PR #31b — Persist flexo printing rows (substrate/cylinder/tension —
+    /// 12 fields) vào SpecPrint.ExtraJson. Operator ít cần column-wise query
+    /// nên KHÔNG tách entity riêng (Q3 đã chốt 2 entity cutting + ink).
+    /// </summary>
+    private static string? SerializeFlexoPrintRows(List<ParsedFlexoPrintRowDto> rows)
+    {
+        if (rows.Count == 0) return null;
+        var payload = new { flexo_print_rows = rows };
+        return JsonSerializer.Serialize(payload);
     }
 
     private static string? SerializeMaterialExtra(ParsedSpecDto parsed)

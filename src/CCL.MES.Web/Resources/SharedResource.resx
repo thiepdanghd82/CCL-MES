@@ -713,8 +713,8 @@
 
   <!-- Phase 8 PR #31a — Refresh samples button (Admin only). -->
   <data name="npi.spec.btn_refresh_samples" xml:space="preserve"><value>Refresh samples</value></data>
-  <data name="npi.spec.refresh_samples_confirm" xml:space="preserve"><value>Re-parse the 4 bundled silkscreen sample specs from wwwroot/Data/Specs/? Existing RefNos will be skipped by default.</value></data>
-  <data name="npi.spec.refresh_samples_force_confirm" xml:space="preserve"><value>FORCE mode — re-parse all 4 samples AND replace any existing rev with matching RefNo (existing rev gets soft-deleted to Trash). Continue?</value></data>
+  <data name="npi.spec.refresh_samples_confirm" xml:space="preserve"><value>Re-parse the 6 bundled sample specs (4 silkscreen + 2 flexo) from wwwroot/Data/Specs/? Existing RefNos will be skipped by default.</value></data>
+  <data name="npi.spec.refresh_samples_force_confirm" xml:space="preserve"><value>FORCE mode — re-parse all 6 samples AND replace any existing rev with matching RefNo (existing rev gets soft-deleted to Trash). Continue?</value></data>
   <data name="npi.spec.refresh_samples_result" xml:space="preserve"><value>Samples refresh: {0} added · {1} updated · {2} skipped</value></data>
   <data name="npi.spec.refresh_samples_err" xml:space="preserve"><value>Refresh samples failed</value></data>
 </root>
