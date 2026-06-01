@@ -241,6 +241,77 @@
                     </section>
                 </div>
             }
+            else if (_activeTab == "artwork")
+            {
+                @* ── Phase 8 PR-D-2 — Artwork tab (client-only SVG shell).
+                     Port pattern from CMES sibling ArtworkTab.tsx (READ-ONLY
+                     copy of SVG markup structure). NO API, NO entity, NO
+                     mutation — client state only. CCL-MES has no per-spec
+                     artwork data yet; this is a PREVIEW TEMPLATE so operator
+                     understands the future surface, NOT a render of real
+                     artwork (banner makes that explicit). Q3 default: template
+                     auto-selected from Planner (SILK → panel-face; FLEXO →
+                     brady-safety; INDIGO/LETTER/DIECUT/UNKNOWN → manual pick
+                     via button row). *@
+                <div class="spec-artwork-area">
+                    <div class="spec-artwork-preview-banner" role="note">
+                        <span class="spec-artwork-preview-icon">ℹ</span>
+                        <span class="spec-artwork-preview-text">@Loc["npi.spec.detail.artwork.preview_banner"]</span>
+                    </div>
+
+                    <div class="spec-artwork-controls">
+                        @* Layer toggles — 4 buttons. Mirrors CMES LAYER_DEFS:
+                           Print yellow / Die-cut red / Register marks blue /
+                           Bleed area light blue. Default: print + die ON,
+                           reg + bleed OFF. *@
+                        <div class="spec-artwork-control-group" role="group" aria-label="Layer toggles">
+                            <span class="spec-artwork-control-label">@Loc["npi.spec.detail.artwork.layers_label"]:</span>
+                            @foreach (var layer in _artworkLayerDefs)
+                            {
+                                var isOn = _artworkLayers[layer.Key];
+                                <button type="button"
+                                        class="spec-artwork-toggle @(isOn ? "active" : "")"
+                                        aria-pressed="@isOn"
+                                        @onclick="@(() => ToggleArtworkLayer(layer.Key))">
+                                    <span class="spec-artwork-toggle-dot" style="background:@layer.Tint"></span>
+                                    @Loc[layer.LabelKey]
+                                </button>
+                            }
+                        </div>
+
+                        @* Template picker — 3 buttons + auto-from-planner hint. *@
+                        <div class="spec-artwork-control-group" role="group" aria-label="Template picker">
+                            <span class="spec-artwork-control-label">@Loc["npi.spec.detail.artwork.template_label"]:</span>
+                            @foreach (var tpl in _artworkTemplateDefs)
+                            {
+                                var isSelected = _artworkTemplate == tpl.Key;
+                                <button type="button"
+                                        class="spec-artwork-template-btn @(isSelected ? "active" : "")"
+                                        @onclick="@(() => SetArtworkTemplate(tpl.Key))">
+                                    @Loc[tpl.LabelKey]
+                                </button>
+                            }
+                            <span class="spec-artwork-template-hint">@ArtworkTemplateHint()</span>
+                        </div>
+                    </div>
+
+                    <div class="spec-artwork-canvas">
+                        @switch (_artworkTemplate)
+                        {
+                            case "ccl-cosmetic":
+                                @RenderCosmeticSvg();
+                                break;
+                            case "panel-face":
+                                @RenderPanelFaceSvg();
+                                break;
+                            case "brady-safety":
+                            default:
+                                @RenderBradySafetySvg();
+                                break;
+                        }
+                    </div>
+                </div>
+            }
             else
             {
                 <div class="spec-detail-coming-soon">
@@ -318,15 +389,91 @@
     private string? _actionMessage;
     private bool _historyOpen;
 
+    // ── Phase 8 PR-D-2 — Artwork tab state (client-only).
+    private sealed record ArtworkLayerDef(string Key, string LabelKey, string Tint);
+    private sealed record ArtworkTemplateDef(string Key, string LabelKey);
+
+    private static readonly ArtworkLayerDef[] _artworkLayerDefs = new[]
+    {
+        new ArtworkLayerDef("print", "npi.spec.detail.artwork.layer.print", "#FFCD00"),
+        new ArtworkLayerDef("die",   "npi.spec.detail.artwork.layer.die",   "#ef4444"),
+        new ArtworkLayerDef("reg",   "npi.spec.detail.artwork.layer.reg",   "#00b4d8"),
+        new ArtworkLayerDef("bleed", "npi.spec.detail.artwork.layer.bleed", "#60a5fa"),
+    };
+
+    private static readonly ArtworkTemplateDef[] _artworkTemplateDefs = new[]
+    {
+        new ArtworkTemplateDef("brady-safety", "npi.spec.detail.artwork.template.brady_safety"),
+        new ArtworkTemplateDef("ccl-cosmetic", "npi.spec.detail.artwork.template.ccl_cosmetic"),
+        new ArtworkTemplateDef("panel-face",   "npi.spec.detail.artwork.template.panel_face"),
+    };
+
+    /// <summary>Layer visibility state — defaults per CMES sibling: print+die ON, reg+bleed OFF.</summary>
+    private Dictionary<string, bool> _artworkLayers = new()
+    {
+        ["print"] = true,
+        ["die"]   = true,
+        ["reg"]   = false,
+        ["bleed"] = false,
+    };
+
+    /// <summary>Selected template — auto from Planner per Q3, manual override allowed.</summary>
+    private string _artworkTemplate = "brady-safety";
+
+    /// <summary>Track whether operator has manually picked a template (suppresses auto-from-planner reset).</summary>
+    private bool _artworkTemplateUserChosen;
+
+    private void ToggleArtworkLayer(string key)
+    {
+        if (_artworkLayers.ContainsKey(key)) _artworkLayers[key] = !_artworkLayers[key];
+    }
+
+    private void SetArtworkTemplate(string template)
+    {
+        _artworkTemplate = template;
+        _artworkTemplateUserChosen = true;
+    }
+
+    /// <summary>
+    /// Q3 default — auto-select template from Planner when operator hasn't manually
+    /// picked one. SILK → panel-face (rectangular black panel matches dashboard labels).
+    /// FLEXO → brady-safety (rectangular warning label matches roll output).
+    /// Others (INDIGO / LETTER / DIECUT / UNKNOWN) → brady-safety as universal fallback.
+    /// </summary>
+    private void ApplyArtworkTemplateFromPlanner()
+    {
+        if (_artworkTemplateUserChosen || _detail is null) return;
+        _artworkTemplate = (_detail.Planner ?? "UNKNOWN").Trim().ToUpperInvariant() switch
+        {
+            "SILK"  => "panel-face",
+            "FLEXO" => "brady-safety",
+            _       => "brady-safety",
+        };
+    }
+
+    private string ArtworkTemplateHint()
+    {
+        if (_artworkTemplateUserChosen) return "";
+        var hint = (_detail?.Planner ?? "UNKNOWN").Trim().ToUpperInvariant() switch
+        {
+            "SILK"  => Loc["npi.spec.detail.artwork.template_hint.silk"].Value,
+            "FLEXO" => Loc["npi.spec.detail.artwork.template_hint.flexo"].Value,
+            _       => Loc["npi.spec.detail.artwork.template_hint.other"].Value,
+        };
+        return hint;
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
         _error = null;
         _detail = null;
         _activeTab = "spec";
+        _artworkTemplateUserChosen = false;
         try
         {
             _detail = await SpecSvc.SpecDetailAsync(RevisionId);
+            ApplyArtworkTemplateFromPlanner();
         }
         catch (Exception ex)
         {
@@ -468,4 +615,127 @@
     /// <summary>Render "—" for null/whitespace strings — Setup tab uses this on
     /// every read-only field per PR-D-1 plan ("field rỗng render '—' gọn").</summary>
     private static string OrDash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
+
+    // ── Phase 8 PR-D-2 — Artwork SVG renderers (port from CMES sibling).
+    //    Layers conditionally rendered via @if; SVG markup straight C-port of
+    //    BradySafetySvg / CosmeticSvg / PanelFaceSvg JSX. RenderFragment so
+    //    Razor compiler treats SVG nested tags correctly.
+
+    private RenderFragment RenderBradySafetySvg() => __builder =>
+    {
+        <svg class="spec-artwork-svg" viewBox="0 0 400 280" xmlns="http://www.w3.org/2000/svg"
+             aria-label="Brady safety label artwork preview">
+            @if (_artworkLayers["bleed"])
+            {
+                <rect x="10" y="10" width="380" height="260" fill="none" stroke="#60a5fa"
+                      stroke-width="1" stroke-dasharray="2,4" opacity="0.6" />
+            }
+            @if (_artworkLayers["print"])
+            {
+                <g>
+                    <rect x="30" y="30" width="340" height="220" rx="12" fill="#FFCD00" />
+                    <polygon points="200,55 250,140 150,140" fill="none" stroke="#101820" stroke-width="6" />
+                    <text x="200" y="125" font-family="system-ui, sans-serif" font-weight="700"
+                          font-size="32" text-anchor="middle" fill="#101820">!</text>
+                    <text x="200" y="175" font-family="system-ui, sans-serif" font-weight="700"
+                          font-size="22" text-anchor="middle" fill="#101820" letter-spacing="2">WARNING</text>
+                    <text x="200" y="200" font-family="system-ui, sans-serif" font-weight="500"
+                          font-size="11" text-anchor="middle" fill="#101820">HIGH VOLTAGE · KEEP OUT</text>
+                </g>
+            }
+            @if (_artworkLayers["die"])
+            {
+                <rect x="30" y="30" width="340" height="220" rx="12" fill="none" stroke="#ef4444"
+                      stroke-width="1.5" stroke-dasharray="6,3" />
+            }
+            @if (_artworkLayers["reg"])
+            {
+                <g stroke="#00b4d8" stroke-width="1" fill="none">
+                    <circle cx="20" cy="20" r="5" />
+                    <line x1="15" y1="20" x2="25" y2="20" />
+                    <line x1="20" y1="15" x2="20" y2="25" />
+                    <circle cx="380" cy="20" r="5" />
+                    <line x1="375" y1="20" x2="385" y2="20" />
+                    <line x1="380" y1="15" x2="380" y2="25" />
+                    <circle cx="20" cy="260" r="5" />
+                    <line x1="15" y1="260" x2="25" y2="260" />
+                    <line x1="20" y1="255" x2="20" y2="265" />
+                    <circle cx="380" cy="260" r="5" />
+                    <line x1="375" y1="260" x2="385" y2="260" />
+                    <line x1="380" y1="255" x2="380" y2="265" />
+                </g>
+            }
+        </svg>
+    };
+
+    private RenderFragment RenderCosmeticSvg() => __builder =>
+    {
+        <svg class="spec-artwork-svg" viewBox="0 0 400 320" xmlns="http://www.w3.org/2000/svg"
+             aria-label="Cosmetic label artwork preview">
+            @if (_artworkLayers["bleed"])
+            {
+                <ellipse cx="200" cy="160" rx="160" ry="135" fill="none" stroke="#60a5fa"
+                         stroke-width="1" stroke-dasharray="2,4" opacity="0.6" />
+            }
+            @if (_artworkLayers["print"])
+            {
+                <g>
+                    <ellipse cx="200" cy="160" rx="150" ry="125" fill="#FAF6F2" />
+                    <ellipse cx="200" cy="160" rx="135" ry="110" fill="none" stroke="#C0C0C0" stroke-width="1" />
+                    <text x="200" y="155" font-family="serif" font-weight="300" font-size="38"
+                          text-anchor="middle" fill="#9E2B5C" letter-spacing="2">Lumière</text>
+                    <text x="200" y="180" font-family="serif" font-style="italic" font-size="11"
+                          text-anchor="middle" fill="#53565A">eau de parfum</text>
+                </g>
+            }
+            @if (_artworkLayers["die"])
+            {
+                <ellipse cx="200" cy="160" rx="150" ry="125" fill="none" stroke="#ef4444"
+                         stroke-width="1.5" stroke-dasharray="6,3" />
+            }
+            @if (_artworkLayers["reg"])
+            {
+                <g stroke="#00b4d8" stroke-width="1" fill="none">
+                    <circle cx="200" cy="20" r="4" />
+                    <line x1="195" y1="20" x2="205" y2="20" />
+                    <line x1="200" y1="15" x2="200" y2="25" />
+                    <circle cx="200" cy="300" r="4" />
+                    <line x1="195" y1="300" x2="205" y2="300" />
+                    <line x1="200" y1="295" x2="200" y2="305" />
+                </g>
+            }
+        </svg>
+    };
+
+    private RenderFragment RenderPanelFaceSvg() => __builder =>
+    {
+        <svg class="spec-artwork-svg" viewBox="0 0 480 100" xmlns="http://www.w3.org/2000/svg"
+             aria-label="Panel face artwork preview">
+            @if (_artworkLayers["bleed"])
+            {
+                <rect x="10" y="10" width="460" height="80" fill="none" stroke="#60a5fa"
+                      stroke-width="1" stroke-dasharray="2,4" opacity="0.6" />
+            }
+            @if (_artworkLayers["print"])
+            {
+                <g>
+                    <rect x="20" y="20" width="440" height="60" fill="#101820" rx="4" />
+                    <text x="240" y="58" font-family="system-ui, sans-serif" font-size="28"
+                          font-weight="600" text-anchor="middle" fill="#FFCD00" letter-spacing="4">POWER</text>
+                </g>
+            }
+            @if (_artworkLayers["die"])
+            {
+                <rect x="20" y="20" width="440" height="60" fill="none" stroke="#ef4444"
+                      stroke-width="1.5" stroke-dasharray="6,3" rx="4" />
+            }
+            @if (_artworkLayers["reg"])
+            {
+                <g stroke="#00b4d8" stroke-width="1" fill="none">
+                    <circle cx="20" cy="50" r="4" />
+                    <circle cx="460" cy="50" r="4" />
+                </g>
+            }
+        </svg>
+    };
 }

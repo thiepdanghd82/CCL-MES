@@ -798,4 +798,19 @@
   <data name="npi.spec.detail.setup.unit.colors" xml:space="preserve"><value>màu</value></data>
   <data name="npi.spec.detail.setup.unit.processes" xml:space="preserve"><value>công đoạn</value></data>
   <data name="npi.spec.detail.setup.unit.inks" xml:space="preserve"><value>mực</value></data>
+
+  <!-- Phase 8 PR-D-2 — Artwork tab (client-only SVG shell + 4 layers + 3 templates). -->
+  <data name="npi.spec.detail.artwork.preview_banner" xml:space="preserve"><value>Preview template — đây KHÔNG phải artwork của spec đang xem. Artwork thật theo spec sẽ wire khi có dữ liệu mẫu từ CCL Vietnam. Dùng toggle layer + chọn template để xem trước layout tương lai.</value></data>
+  <data name="npi.spec.detail.artwork.layers_label" xml:space="preserve"><value>Lớp</value></data>
+  <data name="npi.spec.detail.artwork.template_label" xml:space="preserve"><value>Mẫu</value></data>
+  <data name="npi.spec.detail.artwork.layer.print" xml:space="preserve"><value>Lớp in</value></data>
+  <data name="npi.spec.detail.artwork.layer.die" xml:space="preserve"><value>Đường dao</value></data>
+  <data name="npi.spec.detail.artwork.layer.reg" xml:space="preserve"><value>Dấu định vị</value></data>
+  <data name="npi.spec.detail.artwork.layer.bleed" xml:space="preserve"><value>Vùng tràn</value></data>
+  <data name="npi.spec.detail.artwork.template.brady_safety" xml:space="preserve"><value>Nhãn an toàn Brady</value></data>
+  <data name="npi.spec.detail.artwork.template.ccl_cosmetic" xml:space="preserve"><value>Mỹ phẩm</value></data>
+  <data name="npi.spec.detail.artwork.template.panel_face" xml:space="preserve"><value>Mặt panel</value></data>
+  <data name="npi.spec.detail.artwork.template_hint.silk" xml:space="preserve"><value>(tự chọn: SILK → Mặt panel)</value></data>
+  <data name="npi.spec.detail.artwork.template_hint.flexo" xml:space="preserve"><value>(tự chọn: FLEXO → Brady Safety)</value></data>
+  <data name="npi.spec.detail.artwork.template_hint.other" xml:space="preserve"><value>(mặc định: Brady Safety)</value></data>
 </root>
