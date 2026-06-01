@@ -49,12 +49,8 @@
         <div class="spec-sheet-toolbar">
             <button type="button" class="rt-btn" @onclick="GoBack">← @Loc["npi.spec.detail.btn_back"]</button>
             <h2 class="spec-sheet-title">@_detail.SpecCode <span class="muted">Rev @_detail.RevisionCode</span></h2>
-            @if (!string.IsNullOrEmpty(_pdfError))
-            {
-                <span class="alert err inline">@_pdfError</span>
-            }
-            <button type="button" class="rt-btn rt-btn-primary" @onclick="PrintPdfAsync" disabled="@_busyPdf">
-                🖨 @(_busyPdf ? Loc["npi.spec.create_v2.parsing"].Value : Loc["npi.spec.detail.btn_print_pdf"].Value)
+            <button type="button" class="rt-btn rt-btn-primary" @onclick="PrintAsync">
+                🖨 @Loc["npi.spec.detail.btn_print_pdf"]
             </button>
         </div>
 
@@ -69,9 +65,6 @@
     private bool _loading = true;
     private string? _error;
     private SpecDetailDto? _detail;
-
-    private bool _busyPdf;
-    private string? _pdfError;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -94,24 +87,16 @@
 
     private void GoBack() => Nav.NavigateTo("/npi/engineer-spec");
 
-    private async Task PrintPdfAsync()
+    /// <summary>
+    /// Phase 8 follow-up — open the browser's native Print dialog. macOS / Win /
+    /// Linux print dialogs all offer "Save as PDF" so we no longer need to round-
+    /// trip through the server PdfSpecSheetExporter for the operator's day-to-day
+    /// "I want a PDF of this sheet" workflow. Server endpoint /api/specs/export/
+    /// sheet/{id} stays available for API/programmatic consumers.
+    /// </summary>
+    private async Task PrintAsync()
     {
-        if (_busyPdf || _detail is null) return;
-        _busyPdf = true;
-        _pdfError = null;
-        try
-        {
-            var url = $"/api/specs/export/sheet/{_detail.Id}";
-            await JS.InvokeVoidAsync("cclmes.downloadFile", url);
-        }
-        catch (Exception ex)
-        {
-            _pdfError = $"{Loc["npi.spec.detail.print_err"].Value}: {ex.Message}";
-        }
-        finally
-        {
-            _busyPdf = false;
-            StateHasChanged();
-        }
+        if (_detail is null) return;
+        await JS.InvokeVoidAsync("window.print");
     }
 }
