@@ -9,8 +9,14 @@ public class WorkOrder : BaseEntity
     public Product? Product { get; set; }
     public string ProductName { get; set; } = "";
 
-    public long? SpecVersionId { get; set; }
-    public SpecVersion? SpecVersion { get; set; }
+    // Phase 8 PR #28 — Spec → ProductRevision clean rewrite.
+    //   Was: SpecVersionId / SpecVersion (Phase 6 baseline)
+    //   Now: ProductRevisionId / ProductRevision (SpecHub revision-is-truth model)
+    // Migration `AddProductRevisionSchema` UPDATE WorkOrders SET ProductRevisionId =
+    // SpecVersionId WHERE SpecVersionId IS NOT NULL (PK preserved 1:1 remap),
+    // then DROP column SpecVersionId.
+    public long? ProductRevisionId { get; set; }
+    public ProductRevision? ProductRevision { get; set; }
 
     public string? MachineCode { get; set; }
     public string? MachineName { get; set; }

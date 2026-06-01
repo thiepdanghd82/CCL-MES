@@ -41,7 +41,7 @@ public static class WorkOrderStateMachine
         return (wo.CurrentStep, next.Value) switch
         {
             (ProcessStepCode.PrePressCheck, ProcessStepCode.OpSetting) =>
-                wo.SpecVersionId is not null && wo.MaterialsReady
+                wo.ProductRevisionId is not null && wo.MaterialsReady
                     ? new TransitionResult(true)
                     : new TransitionResult(false, WoErrorCode.RequiresSpecAndMaterials),
 

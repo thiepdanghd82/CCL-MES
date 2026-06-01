@@ -80,7 +80,8 @@
             (Loc["settings.about.count.raw_materials"].Value,          await Db.RawMaterials.CountAsync()),
             (Loc["settings.about.count.routing_operations"].Value,     await Db.RoutingOperations.CountAsync()),
             (Loc["settings.about.count.mfg_structures"].Value,         await Db.ManufacturingStructures.CountAsync()),
-            (Loc["settings.about.count.specs"].Value,                  await Db.Specs.CountAsync()),
+            // Phase 8 PR #28 — Specs DbSet REMOVED; ProductRevisions thay thế (preserve PK 1:1 từ migration).
+            (Loc["settings.about.count.specs"].Value,                  await Db.ProductRevisions.CountAsync()),
         };
     }
 

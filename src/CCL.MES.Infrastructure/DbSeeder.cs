@@ -19,6 +19,11 @@ public static class DbSeeder
         // DBs because the WO-block early-return below skips everything.
         await SeedDemoIqcAsync(db);
 
+        // Phase 8 PR #28 — ProcessCatalog seed. Independent of WO seed
+        // (own .Any() gate) so migration to existing DBs picks up 17 codes
+        // even when WO/Product seed already exists.
+        await SeedProcessCatalogAsync(db);
+
         if (await db.WorkOrders.AnyAsync()) return;
 
         // Máy
@@ -43,20 +48,34 @@ public static class DbSeeder
         db.Customers.Add(customer);
         await db.SaveChangesAsync();
 
-        var spec = new Spec { ProductId = product.Id, SpecCode = "SPEC-BRD-7656-D", Title = "PCB ID Label 20x8mm" };
-        var ver = new SpecVersion
+        // Phase 8 PR #28 — Spec/SpecVersion/SpecParameter seed REWRITTEN to
+        // ProductRevision + SpecPrint shape. 3 legacy params (Width/Height/
+        // Process) folded vào SpecPrint.ColorSpecJson as JSON array for
+        // forensic preservation (migration migrate 1 spec sequence ↔ this
+        // greenfield seed sequence trùng output).
+        var revision = new ProductRevision
         {
-            VersionNo = 1, Status = SpecStatus.Approved, EffectiveDate = DateTime.UtcNow,
-            ApprovedBy = "qa.lead", ApprovedAt = DateTime.UtcNow,
-            Parameters =
+            ProductId = product.Id,
+            SpecCode = "SPEC-BRD-7656-D",
+            Title = "PCB ID Label 20x8mm",
+            RevisionCode = "A",
+            Status = ProductRevisionStatus.Approved,
+            EffectiveFrom = DateTime.UtcNow,
+            ApprovedBy = "qa.lead",
+            ApprovedAt = DateTime.UtcNow,
+            ChangeSummary = "Initial spec baseline (SpecHub revision model)",
+            Print = new SpecPrint
             {
-                new SpecParameter { ParamName = "Width",  Nominal = "20", TolMin = "19.9", TolMax = "20.1", Uom = "mm", IsCritical = true },
-                new SpecParameter { ParamName = "Height", Nominal = "8",  TolMin = "7.9",  TolMax = "8.1",  Uom = "mm", IsCritical = true },
-                new SpecParameter { ParamName = "Process", Nominal = "Silkscreen + Diecut", Uom = "", IsCritical = false }
+                ProcessCode = "SILKSCREEN",
+                NumColors = 0,
+                ColorSpecJson = "[" +
+                    "{\"param_name\":\"Width\",\"nominal\":\"20\",\"tol_min\":\"19.9\",\"tol_max\":\"20.1\",\"uom\":\"mm\",\"is_critical\":true}," +
+                    "{\"param_name\":\"Height\",\"nominal\":\"8\",\"tol_min\":\"7.9\",\"tol_max\":\"8.1\",\"uom\":\"mm\",\"is_critical\":true}," +
+                    "{\"param_name\":\"Process\",\"nominal\":\"Silkscreen + Diecut\",\"uom\":\"\",\"is_critical\":false}" +
+                "]"
             }
         };
-        spec.Versions.Add(ver);
-        db.Specs.Add(spec);
+        db.ProductRevisions.Add(revision);
         await db.SaveChangesAsync();
 
         // Work Instruction (bước OP Setting)
@@ -80,7 +99,7 @@ public static class DbSeeder
         {
             WoNo = "WO-26-3683",
             CustomerId = customer.Id, ProductId = product.Id, ProductName = product.Name,
-            SpecVersionId = ver.Id, MachineCode = "ACNC3", MachineName = "CNC 3-Heads",
+            ProductRevisionId = revision.Id, MachineCode = "ACNC3", MachineName = "CNC 3-Heads",
             TargetQty = 12000, Uom = "pcs",
             CurrentStep = ProcessStepCode.PrePressCheck, Status = WoStatus.Draft,
             PlannedStart = DateTime.UtcNow
@@ -170,6 +189,43 @@ public static class DbSeeder
             },
         };
         db.IqcInspections.AddRange(seed);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Phase 8 PR #28 — seed 17 ProcessCatalog codes derived from SpecHub
+    /// `docs/02-data-model.md` §process_catalog seed block. Idempotent gate
+    /// on .Any() — fires once per fresh DB.
+    /// Code-string remains the stable lookup token; SpecPrint.ProcessCode +
+    /// SpecDiecut.CutProcessCode + SpecFinishing.FinishingProcessesJson đều
+    /// reference qua chuỗi này. Admin UI Phase 9 sẽ wire CRUD vào Library tab.
+    /// </summary>
+    private static async Task SeedProcessCatalogAsync(MesDbContext db)
+    {
+        if (await db.ProcessCatalogs.AnyAsync()) return;
+
+        db.ProcessCatalogs.AddRange(
+            // Print processes
+            new ProcessCatalog { Code = "FLEXO",         Category = ProcessCategory.Print,     DisplayNameEn = "Flexography",            DisplayNameVi = "In Flexo",            DisplayOrder = 10 },
+            new ProcessCatalog { Code = "LETTERPRESS",   Category = ProcessCategory.Print,     DisplayNameEn = "Letterpress",            DisplayNameVi = "In Letterpress",      DisplayOrder = 20 },
+            new ProcessCatalog { Code = "INDIGO",        Category = ProcessCategory.Print,     DisplayNameEn = "HP Indigo (digital)",    DisplayNameVi = "In Indigo",           DisplayOrder = 30 },
+            new ProcessCatalog { Code = "INDIGO_PRIMER", Category = ProcessCategory.Print,     DisplayNameEn = "HP Indigo + primer",     DisplayNameVi = "In Indigo có primer", DisplayOrder = 40 },
+            new ProcessCatalog { Code = "SILKSCREEN",    Category = ProcessCategory.Print,     DisplayNameEn = "Silkscreen",             DisplayNameVi = "In lụa",              DisplayOrder = 50 },
+            new ProcessCatalog { Code = "DIGITAL_UV",    Category = ProcessCategory.Print,     DisplayNameEn = "Digital UV inkjet",      DisplayNameVi = "In UV kỹ thuật số",   DisplayOrder = 60 },
+            // Cut processes
+            new ProcessCatalog { Code = "FLATBED_CUT",   Category = ProcessCategory.Cut,       DisplayNameEn = "Flatbed die cut",        DisplayNameVi = "Cắt flatbed",         DisplayOrder = 110 },
+            new ProcessCatalog { Code = "ROTARY_CUT",    Category = ProcessCategory.Cut,       DisplayNameEn = "Rotary die cut (solid)", DisplayNameVi = "Cắt rotary",          DisplayOrder = 120 },
+            new ProcessCatalog { Code = "RDC",           Category = ProcessCategory.Cut,       DisplayNameEn = "Rotary die cut (magnetic)", DisplayNameVi = "RDC (magnetic die)", DisplayOrder = 130 },
+            new ProcessCatalog { Code = "POWERPUNCH",    Category = ProcessCategory.Cut,       DisplayNameEn = "Powerpunch semi-rotary", DisplayNameVi = "Cắt Powerpunch",      DisplayOrder = 140 },
+            new ProcessCatalog { Code = "CNC",           Category = ProcessCategory.Cut,       DisplayNameEn = "CNC routing",            DisplayNameVi = "Cắt CNC",             DisplayOrder = 150 },
+            new ProcessCatalog { Code = "LASER_CUT",     Category = ProcessCategory.Cut,       DisplayNameEn = "Laser cutting",          DisplayNameVi = "Cắt laser",           DisplayOrder = 160 },
+            new ProcessCatalog { Code = "KISS_CUT",      Category = ProcessCategory.Cut,       DisplayNameEn = "Kiss cut",               DisplayNameVi = "Cắt kiss-cut",        DisplayOrder = 170 },
+            // Finishing processes
+            new ProcessCatalog { Code = "VARNISH",       Category = ProcessCategory.Finishing, DisplayNameEn = "Varnish coating",        DisplayNameVi = "Phủ varnish",         DisplayOrder = 210 },
+            new ProcessCatalog { Code = "LAMINATION",    Category = ProcessCategory.Finishing, DisplayNameEn = "Lamination",             DisplayNameVi = "Cán màng",            DisplayOrder = 220 },
+            new ProcessCatalog { Code = "FOIL_STAMP",    Category = ProcessCategory.Finishing, DisplayNameEn = "Hot foil stamping",      DisplayNameVi = "Ép nhũ",              DisplayOrder = 230 },
+            new ProcessCatalog { Code = "EMBOSS",        Category = ProcessCategory.Finishing, DisplayNameEn = "Embossing / debossing",  DisplayNameVi = "Dập nổi / dập chìm",  DisplayOrder = 240 }
+        );
         await db.SaveChangesAsync();
     }
 }

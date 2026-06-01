@@ -9,7 +9,9 @@ public class CreateWoRequest
     public long CustomerId { get; set; }
     public long ProductId { get; set; }
     public string ProductName { get; set; } = "";
-    public long? SpecVersionId { get; set; }
+    // Phase 8 PR #28 — was SpecVersionId; refactored to ProductRevisionId after
+    // Spec → ProductRevision clean rewrite (SpecHub revision-is-truth model).
+    public long? ProductRevisionId { get; set; }
     public string? MachineCode { get; set; }
     public string? MachineName { get; set; }
     public int TargetQty { get; set; }
@@ -24,11 +26,20 @@ public class UpdateFlagsRequest
     public int? ProducedQty { get; set; }
 }
 
+// Phase 8 PR #28 — kept name `CreateSpecRequest` for backward compat with the
+// EngineerSpec.razor → CreateSpecModal.razor surface; semantics rewired to
+// ProductRevision (rev A) + SpecPrint with parameters folded into ColorSpecJson
+// as a JSON array. Full editor form (per-sibling-table inputs for Material/
+// Diecut/Finishing) đẩy PR #29.
 public class CreateSpecRequest
 {
     public long ProductId { get; set; }
     public string SpecCode { get; set; } = "";
     public string Title { get; set; } = "";
+
+    /// <summary>Process code lookup vào ProcessCatalog (default 'SILKSCREEN' khi null).</summary>
+    public string? ProcessCode { get; set; }
+
     public List<SpecParamDto> Parameters { get; set; } = new();
 }
 
@@ -41,6 +52,20 @@ public class SpecParamDto
     public string? Uom { get; set; }
     public bool IsCritical { get; set; }
 }
+
+// Phase 8 PR #28 — lightweight grid projection cho EngineerSpec.razor sau khi
+// rewire ProductRevision model. Pre-flatten thay vì kéo full graph qua include.
+public record ProductRevisionListItem(
+    long Id,
+    string SpecCode,
+    string Title,
+    string RevisionCode,
+    CCL.MES.Domain.ProductRevisionStatus Status,
+    DateTime? EffectiveFrom,
+    string? ApprovedBy,
+    string ProductCode,
+    string ProductName,
+    string? ProcessCode);
 
 public class CreateQcRequest
 {

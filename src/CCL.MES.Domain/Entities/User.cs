@@ -42,4 +42,15 @@ public class User : BaseEntity
     /// the migration backfill leaves existing accounts untouched.
     /// </summary>
     public bool MustChangePassword { get; set; } = false;
+
+    /// <summary>
+    /// Phase 8 PR #28 — Department tag (npi / production / qc / sales / planning…)
+    /// dùng cho Drawing 3-role approval mapping (Q5):
+    ///   NPI slot      → Role=Engineer + Department=npi
+    ///   Production    → Role=Engineer + Department=production (hoặc Role=Supervisor)
+    ///   QC slot       → Role=Qc (any department)
+    /// Nullable + default null cho backfill cleanly. UI Phase 8/9 sẽ wire dropdown
+    /// trong Settings → Account Control → user edit form.
+    /// </summary>
+    public string? Department { get; set; }
 }
