@@ -3,15 +3,11 @@
 @using System.Globalization
 @using CCL.MES.Application
 @using CCL.MES.Application.Services
-@using CCL.MES.Application.SpecImport
 @using CCL.MES.Domain
 @using CCL.MES.Domain.Entities
 @using CCL.MES.Web.Shared
-@using Microsoft.AspNetCore.Hosting
 @using Microsoft.JSInterop
 @inject SpecService SpecSvc
-@inject SpecImportService SpecImport
-@inject IWebHostEnvironment Env
 @inject IJSRuntime JS
 @inject Microsoft.AspNetCore.Components.NavigationManager Nav
 @inject IStringLocalizer<SharedResource> Loc
@@ -27,8 +23,11 @@
     Title bar: "NPI Spec Library" + row count chip "N specs".
     Breadcrumb: "DATABASE / NPI SPEC · N SPECS IN LIBRARY".
     Search placeholder: "Search by customer / part no / part name..." (3 fields).
-    Toolbar btn: chỉ giữ "+ Create Spec" (Phase 7 form unchanged); ẨN
-                 Refresh samples / Trash / Export (defer PR #31/#32).
+    Toolbar btn: chỉ giữ "Columns" + "+ Create Spec". Export (CSV/XLSX/PDF)
+    + Refresh samples + Backfill detail fields buttons đã được xoá theo
+    operator feedback (Phase 8 post-PR-B cleanup). Server endpoints +
+    SpecImportService.RefreshSamplesAsync / BackfillDetailSheetFieldsAsync /
+    SpecsExportController vẫn còn nguyên, có thể gọi qua API trực tiếp.
 
     Pattern: reuse rt-* sticky thead + Columns toggle Phase 7 (key
     `cclmes.engineer-spec.columns-hidden.v1` unchanged — preserve persisted
@@ -67,65 +66,10 @@
                 </div>
             }
         </div>
-        <!-- Phase 8 PR #31c — Export buttons (visible to NpiSpecRead roles =
-             Admin/Supervisor/Engineer). Server-side RBAC double-check trong
-             SpecsExportController qua [Authorize(Policy="NpiSpecRead")]. -->
-        <button type="button"
-                class="rt-btn"
-                @onclick="ExportCsvAsync"
-                disabled="@_busyExport"
-                title="@Loc["npi.spec.btn_export_csv"]">
-            @Loc["npi.spec.btn_export_csv"]
-        </button>
-        <button type="button"
-                class="rt-btn"
-                @onclick="ExportXlsxAsync"
-                disabled="@_busyExport"
-                title="@Loc["npi.spec.btn_export_xlsx"]">
-            @Loc["npi.spec.btn_export_xlsx"]
-        </button>
-        <button type="button"
-                class="rt-btn"
-                @onclick="PrintPdfAsync"
-                disabled="@_busyExport"
-                title="@Loc["npi.spec.btn_print_pdf"]">
-            @Loc["npi.spec.btn_print_pdf"]
-        </button>
-        <AuthorizeView Roles="Admin">
-            <button type="button"
-                    class="rt-btn rt-btn-refresh-samples"
-                    @onclick="RefreshSamplesAsync"
-                    disabled="@_busyRefresh"
-                    title="@Loc["npi.spec.refresh_samples_confirm"]">
-                @(_busyRefresh ? Loc["npi.spec.create_v2.parsing"].Value : Loc["npi.spec.btn_refresh_samples"].Value)
-            </button>
-            <button type="button"
-                    class="rt-btn rt-btn-refresh-samples"
-                    @onclick="BackfillDetailFieldsAsync"
-                    disabled="@_busyBackfill"
-                    title="@Loc["npi.spec.backfill_detail_confirm"]">
-                @(_busyBackfill ? Loc["npi.spec.create_v2.parsing"].Value : Loc["npi.spec.btn_backfill_detail"].Value)
-            </button>
-        </AuthorizeView>
         <AuthorizeView Roles="Admin,Engineer">
             <button type="button" class="rt-btn rt-btn-primary" @onclick="OpenCreateAsync">+ @Loc["npi.spec.btn_create"]</button>
         </AuthorizeView>
     </div>
-
-    @if (!string.IsNullOrEmpty(_refreshMessage))
-    {
-        <div class="alert err" role="alert" style="margin:8px 0;">
-            @_refreshMessage
-            <button type="button" class="rt-ctx-error-close" @onclick="@(() => _refreshMessage = null)">×</button>
-        </div>
-    }
-    @if (!string.IsNullOrEmpty(_exportMessage))
-    {
-        <div class="alert err" role="alert" style="margin:8px 0;">
-            @_exportMessage
-            <button type="button" class="rt-ctx-error-close" @onclick="@(() => _exportMessage = null)">×</button>
-        </div>
-    }
 
     <CreateSpecModal @ref="_createModal" OnCreated="OnCreatedAsync" />
     <SpecContextMenu @ref="_ctxMenu" OnAction="OnCtxActionAsync" />
@@ -220,169 +164,6 @@
     private SpecDetailModal? _detailModal;
     private string? _ctxError;
     private long _busyApproveId = 0;
-
-    // PR #31a — Refresh samples (Admin only).
-    private bool _busyRefresh;
-    private string? _refreshMessage;
-
-    // PR #31d — Backfill detail fields (Admin only, in-place update existing).
-    private bool _busyBackfill;
-
-    /// <summary>
-    /// PR #31d — Backfill 4 detail-sheet fields (ProductSizeWmm/Hmm +
-    /// RemarksText/RemarksCutText) cho 6 sample rev EXISTING (match RefNo).
-    /// KHÔNG tạo revision mới (khác `force=1` của Refresh Samples). Update
-    /// chỉ field NULL — preserve operator-edited values.
-    /// </summary>
-    private async Task BackfillDetailFieldsAsync()
-    {
-        if (_busyBackfill) return;
-        _refreshMessage = null;
-        bool confirmed;
-        try
-        {
-            confirmed = await JS.InvokeAsync<bool>("confirm", Loc["npi.spec.backfill_detail_confirm"].Value);
-        }
-        catch
-        {
-            confirmed = false;
-        }
-        if (!confirmed) return;
-
-        _busyBackfill = true;
-        StateHasChanged();
-        try
-        {
-            var state = await AuthState.GetAuthenticationStateAsync();
-            var user = state.User?.Identity?.Name;
-            var samplesDir = Path.Combine(Env.WebRootPath ?? "wwwroot", "Data", "Specs");
-            var files = new[]
-            {
-                ("DEMO_SILK_1.xlsx", "silkscreen"),
-                ("DEMO_SILK_2.xlsx", "silkscreen"),
-                ("DEMO_SILK_3.xlsx", "silkscreen"),
-                ("DEMO_SILK_4.xlsx", "silkscreen"),
-                ("DEMO_FLEXO_1.xlsx", "flexo"),
-                ("DEMO_FLEXO_2.xlsx", "flexo"),
-            };
-            var result = await SpecImport.BackfillDetailSheetFieldsAsync(samplesDir, files, user);
-            _refreshMessage = string.Format(Loc["npi.spec.backfill_detail_result"].Value,
-                result.Backfilled, result.Skipped, result.FieldsTouched);
-            await Load();
-        }
-        catch (Exception ex)
-        {
-            _refreshMessage = $"{Loc["npi.spec.backfill_detail_err"].Value}: {ex.Message}";
-        }
-        finally
-        {
-            _busyBackfill = false;
-            StateHasChanged();
-        }
-    }
-
-    // PR #31c — Export (CSV/XLSX/PDF). _busyExport applies tới cả 3 buttons.
-    private bool _busyExport;
-    private string? _exportMessage;
-
-    private Task ExportCsvAsync()  => TriggerExportAsync("csv");
-    private Task ExportXlsxAsync() => TriggerExportAsync("xlsx");
-    private Task PrintPdfAsync()   => TriggerExportAsync("pdf");
-
-    /// <summary>
-    /// PR #31c — Trigger browser download cho 1 trong 3 format. Pattern: build
-    /// URL `/api/specs/export.<ext>?search=<x>` → JS interop navigate (anchor
-    /// click) để browser download stream từ controller. RBAC server-side check
-    /// trong SpecsExportController qua `[Authorize(Policy="NpiSpecRead")]`.
-    /// Try-catch wrap (bài học hotfix PR #27 — error banner inline, KHÔNG freeze
-    /// circuit).
-    /// </summary>
-    private async Task TriggerExportAsync(string format)
-    {
-        if (_busyExport) return;
-        _busyExport = true;
-        _exportMessage = null;
-        StateHasChanged();
-        try
-        {
-            var query = string.IsNullOrWhiteSpace(_search)
-                ? string.Empty
-                : $"?search={Uri.EscapeDataString(_search.Trim())}";
-            var url = $"/api/specs/export/{format}{query}";
-            // JS-side trigger anchor click; window.open mở tab mới phù hợp file
-            // download (browser auto-close khi response Content-Disposition
-            // attachment). Fallback location.href nếu window.open bị block.
-            await JS.InvokeVoidAsync("cclmes.downloadFile", url);
-        }
-        catch (Exception ex)
-        {
-            _exportMessage = $"{Loc["npi.spec.export_err"].Value}: {ex.Message}";
-        }
-        finally
-        {
-            _busyExport = false;
-            StateHasChanged();
-        }
-    }
-
-    /// <summary>
-    /// PR #31a Q7 — Refresh samples (Admin only). Đọc 4 file silkscreen
-    /// sanitized từ wwwroot/Data/Specs/ → SpecImportService.RefreshSamplesAsync.
-    /// Default idempotent skip RefNo trùng; nếu operator giữ Shift khi click →
-    /// force=true: soft-trash existing + re-import.
-    /// </summary>
-    private async Task RefreshSamplesAsync()
-    {
-        if (_busyRefresh) return;
-        _refreshMessage = null;
-
-        bool force;
-        try
-        {
-            // Distinguish default vs force qua confirm dialog 2-step.
-            var confirmed = await JS.InvokeAsync<bool>("confirm", Loc["npi.spec.refresh_samples_confirm"].Value);
-            if (!confirmed) return;
-            force = await JS.InvokeAsync<bool>("confirm", Loc["npi.spec.refresh_samples_force_confirm"].Value);
-        }
-        catch
-        {
-            return;
-        }
-
-        _busyRefresh = true;
-        StateHasChanged();
-        try
-        {
-            var state = await AuthState.GetAuthenticationStateAsync();
-            var user = state.User?.Identity?.Name;
-            var samplesDir = Path.Combine(Env.WebRootPath ?? "wwwroot", "Data", "Specs");
-            var files = new[]
-            {
-                ("DEMO_SILK_1.xlsx", "silkscreen"),
-                ("DEMO_SILK_2.xlsx", "silkscreen"),
-                ("DEMO_SILK_3.xlsx", "silkscreen"),
-                ("DEMO_SILK_4.xlsx", "silkscreen"),
-                // Phase 8 PR #31b — flexo samples
-                ("DEMO_FLEXO_1.xlsx", "flexo"),
-                ("DEMO_FLEXO_2.xlsx", "flexo"),
-            };
-            var result = await SpecImport.RefreshSamplesAsync(samplesDir, files, force, user);
-            _refreshMessage = string.Format(Loc["npi.spec.refresh_samples_result"].Value,
-                result.Added, result.Updated, result.Skipped);
-            _page = 1;
-            _search = null;
-            await Load();
-        }
-        catch (Exception ex)
-        {
-            _refreshMessage = $"{Loc["npi.spec.refresh_samples_err"].Value}: {ex.Message}";
-        }
-        finally
-        {
-            _busyRefresh = false;
-            StateHasChanged();
-        }
-    }
 
     // Q16 debounce 300ms — clear previous timer + reset on each keystroke.
     private CancellationTokenSource? _searchCts;
