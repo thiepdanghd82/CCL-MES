@@ -729,8 +729,7 @@
 
   <!-- Phase 8 PR #31d — Full detail sheet page. -->
   <data name="npi.spec.detail.btn_back" xml:space="preserve"><value>Back to list</value></data>
-  <data name="npi.spec.detail.btn_print_pdf" xml:space="preserve"><value>Print spec sheet PDF</value></data>
-  <data name="npi.spec.detail.print_err" xml:space="preserve"><value>Print failed</value></data>
+  <data name="npi.spec.detail.btn_print_pdf" xml:space="preserve"><value>Print / Export</value></data>
   <data name="npi.spec.detail.load_err" xml:space="preserve"><value>Failed to load spec detail</value></data>
   <data name="npi.spec.detail.not_found" xml:space="preserve"><value>Spec not found or has been trashed.</value></data>
   <data name="npi.spec.detail.approval_note" xml:space="preserve"><value>Note: PD + QA signature workflow ships in a later PR (approval-chain). Currently only R&amp;D Confirmed populates from ApprovedBy/At.</value></data>

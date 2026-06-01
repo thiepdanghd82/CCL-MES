@@ -904,3 +904,20 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .spec-showcard-compact .spec-generic-warning,
 .spec-showcard-preview .spec-generic-warning { margin:6px 0 8px; padding:6px 10px;
   font-size:10.5px; }
+
+/* ─── Print stylesheet — Engineer Spec detail (Print / Export button → window.print).
+   Hide app chrome (topbar nav, spec-sheet-toolbar with Back + Print buttons) so
+   the printed page / browser "Save as PDF" output is just the showcard. */
+@media print {
+  .topbar,
+  .spec-sheet-toolbar { display:none !important; }
+  .spec-sheet-page { max-width:none; margin:0; padding:0; }
+  .spec-frame { border:none; padding:0; }
+  /* Force exact background colors for shaded section titles + ⚠ chip + alt rows. */
+  * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  /* Avoid orphan section titles. */
+  .spec-block-title { break-after:avoid; page-break-after:avoid; }
+  .spec-block,
+  .spec-print-table tbody tr,
+  .spec-rev-table tbody tr { break-inside:avoid; page-break-inside:avoid; }
+}

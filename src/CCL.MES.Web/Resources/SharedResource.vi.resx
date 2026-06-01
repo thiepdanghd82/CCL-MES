@@ -727,8 +727,7 @@
 
   <!-- Phase 8 PR #31d — Full detail sheet page. -->
   <data name="npi.spec.detail.btn_back" xml:space="preserve"><value>Quay lại danh sách</value></data>
-  <data name="npi.spec.detail.btn_print_pdf" xml:space="preserve"><value>In spec sheet PDF</value></data>
-  <data name="npi.spec.detail.print_err" xml:space="preserve"><value>In thất bại</value></data>
+  <data name="npi.spec.detail.btn_print_pdf" xml:space="preserve"><value>In / Xuất</value></data>
   <data name="npi.spec.detail.load_err" xml:space="preserve"><value>Tải spec detail thất bại</value></data>
   <data name="npi.spec.detail.not_found" xml:space="preserve"><value>Spec không tồn tại hoặc đã bị xóa.</value></data>
   <data name="npi.spec.detail.approval_note" xml:space="preserve"><value>Lưu ý: workflow chữ ký PD + QA sẽ ship ở PR sau (approval-chain). Hiện tại chỉ R&amp;D Confirmed populated từ ApprovedBy/At.</value></data>
