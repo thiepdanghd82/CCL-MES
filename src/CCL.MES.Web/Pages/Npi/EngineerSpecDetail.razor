@@ -92,10 +92,17 @@
                 ⬇ @Loc["npi.spec.detail.action.export"]
             </button>
             <AuthorizeView Roles="Admin,Engineer">
-                <button type="button" class="rt-btn spec-action-btn"
-                        @onclick="CopyAsync" disabled="@_busyAction"
+                @* Copy / Trash / Edit are stubs until server lifecycle ops land
+                   (CopySpecAsync / TrashSpecAsync / Edit modal — deferred per
+                   PR #30 plan). Render as TRULY DISABLED so operators can't
+                   click into a red-alert dead end — only the tooltip + "soon"
+                   subtitle communicates intent. Promote stays interactive
+                   (real SpecSvc.ApproveAsync wired with server-side audit). *@
+                <button type="button" class="rt-btn spec-action-btn spec-action-btn-stub"
+                        disabled
                         title="@Loc["npi.spec.detail.action.copy_unimpl"]">
                     ⎘ @Loc["npi.spec.detail.action.copy"]
+                    <span class="spec-action-soon">soon</span>
                 </button>
                 <button type="button" class="rt-btn spec-action-btn"
                         @onclick="PromoteAsync"
@@ -103,10 +110,11 @@
                         title="@PromoteTooltip">
                     ↗ @Loc["npi.spec.detail.action.promote"]
                 </button>
-                <button type="button" class="rt-btn spec-action-btn spec-action-btn-danger"
-                        @onclick="TrashAsync" disabled="@_busyAction"
+                <button type="button" class="rt-btn spec-action-btn spec-action-btn-danger spec-action-btn-stub"
+                        disabled
                         title="@Loc["npi.spec.detail.action.trash_unimpl"]">
                     🗑 @Loc["npi.spec.detail.action.trash"]
+                    <span class="spec-action-soon">soon</span>
                 </button>
             </AuthorizeView>
 
@@ -141,10 +149,14 @@
             {
                 <div class="spec-detail-tab-toolbar">
                     <AuthorizeView Roles="Admin,Engineer">
-                        <button type="button" class="rt-btn spec-edit-btn"
-                                @onclick="EditAsync" disabled="@_busyAction"
+                        @* Edit modal stub — deferred per PR #31a Q5. Render
+                           truly disabled so click is a no-op (no red-alert
+                           dead end). Will wire to Edit modal in a future PR. *@
+                        <button type="button" class="rt-btn spec-edit-btn spec-action-btn-stub"
+                                disabled
                                 title="@Loc["npi.spec.detail.action.edit_unimpl"]">
                             ✎ @Loc["npi.spec.detail.action.edit"]
+                            <span class="spec-action-soon">soon</span>
                         </button>
                     </AuthorizeView>
                 </div>
@@ -339,29 +351,10 @@
             ? Loc["npi.spec.detail.action.promote_tooltip"].Value
             : Loc["npi.spec.detail.action.promote_blocked"].Value;
 
-    /// <summary>Stub — server CopySpecAsync doesn't exist on CCL-MES yet.</summary>
-    private async Task CopyAsync()
-    {
-        _actionMessage = null;
-        _actionError = Loc["npi.spec.detail.action.copy_unimpl"].Value;
-        await Task.CompletedTask;
-    }
-
-    /// <summary>Stub — server TrashSpecAsync doesn't exist on CCL-MES yet.</summary>
-    private async Task TrashAsync()
-    {
-        _actionMessage = null;
-        _actionError = Loc["npi.spec.detail.action.trash_unimpl"].Value;
-        await Task.CompletedTask;
-    }
-
-    /// <summary>Stub — Edit modal deferred per PR #31a Q5.</summary>
-    private async Task EditAsync()
-    {
-        _actionMessage = null;
-        _actionError = Loc["npi.spec.detail.action.edit_unimpl"].Value;
-        await Task.CompletedTask;
-    }
+    // Copy / Trash / Edit handlers removed — buttons now render as truly
+    // disabled stubs (no click event reaches Blazor). Will be re-added when
+    // the server-side lifecycle ops (CopySpecAsync / TrashSpecAsync / Edit
+    // modal) ship in a future PR.
 
     private static string ProcessKindLabel(string planner) => (planner ?? "UNKNOWN").Trim().ToUpperInvariant() switch
     {
