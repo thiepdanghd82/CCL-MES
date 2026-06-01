@@ -162,6 +162,85 @@
                 </div>
                 <SpecShowcard Detail="_detail" Mode="SpecShowcardMode.Full" />
             }
+            else if (_activeTab == "setup")
+            {
+                @* ── Phase 8 PR-D-1 — Setup tab (read-only).
+                     2 cards from SpecDetailDto.Material + Print (no new entity,
+                     no new query, no mutation). Category-aware: silk vs flexo
+                     surface different process counts (colors / print+cut+ink
+                     rows). Empty fields render "—" per CMES pattern. *@
+                <div class="spec-setup-grid">
+                    @* Card 1 — Press Settings (operational params from SpecPrint) *@
+                    <section class="spec-setup-card">
+                        <header class="spec-setup-card-head">
+                            <h3>⚙ @Loc["npi.spec.detail.setup.press.title"]</h3>
+                            <span class="spec-setup-card-sub">@Loc["npi.spec.detail.setup.press.sub"]</span>
+                        </header>
+                        <dl class="spec-setup-rows">
+                            <dt>@Loc["npi.spec.detail.setup.field.process"]</dt>
+                            <dd>@OrDash(_detail.ProcessCode)
+                                <span class="spec-planner-tag spec-planner-@(_detail.Planner.ToLowerInvariant())">@_detail.Planner</span>
+                            </dd>
+
+                            <dt>@Loc["npi.spec.detail.setup.field.inspection_level"]</dt>
+                            <dd>@OrDash(_detail.InspectionLevel)</dd>
+
+                            <dt>@Loc["npi.spec.detail.setup.field.printing_cavity"]</dt>
+                            <dd>@OrDash(_detail.PrintingCavity?.ToString(CultureInfo.InvariantCulture))</dd>
+
+                            <dt>@Loc["npi.spec.detail.setup.field.length_pitch"]</dt>
+                            <dd>@(_detail.LengthPitchMm is null ? "—" : _detail.LengthPitchMm.Value.ToString("N1", CultureInfo.InvariantCulture) + " mm")</dd>
+
+                            <dt>@Loc["npi.spec.detail.setup.field.product_size"]</dt>
+                            <dd>@_detail.ProductSizeDisplay</dd>
+
+                            <dt>@Loc["npi.spec.detail.setup.field.adhesive"]</dt>
+                            <dd>@OrDash(_detail.AdhesiveType)</dd>
+
+                            <dt class="spec-setup-divider" colspan="2"></dt>
+
+                            @* Per-category process count surface *@
+                            @if (_detail.Planner == "FLEXO")
+                            {
+                                <dt>@Loc["npi.spec.detail.setup.field.flexo_print_rows"]</dt>
+                                <dd><strong>@_detail.FlexoPrintRows.Count</strong> @Loc["npi.spec.detail.setup.unit.processes"]</dd>
+
+                                <dt>@Loc["npi.spec.detail.setup.field.flexo_cut_rows"]</dt>
+                                <dd><strong>@_detail.FlexoCuttingRows.Count</strong> @Loc["npi.spec.detail.setup.unit.processes"]</dd>
+
+                                <dt>@Loc["npi.spec.detail.setup.field.flexo_ink_rows"]</dt>
+                                <dd><strong>@_detail.FlexoInkRows.Count</strong> @Loc["npi.spec.detail.setup.unit.inks"]</dd>
+                            }
+                            else
+                            {
+                                @* Silk + Indigo + Letter + Diecut + Unknown all surface PrintColors count
+                                   (PR-B Q5 honest fallback: 0 colors if no data — render literal 0). *@
+                                <dt>@Loc["npi.spec.detail.setup.field.print_colors"]</dt>
+                                <dd><strong>@_detail.PrintColors.Count</strong> @Loc["npi.spec.detail.setup.unit.colors"]</dd>
+                            }
+                        </dl>
+                    </section>
+
+                    @* Card 2 — Tolerances (Critical) — placeholder pointer to QC Plans tab.
+                       Per PR-D-1 Q2 default + plan §3.2: tolerance bands live in
+                       SpecQcWindow + QcCriterion (shipping in PR-D-3 QC Plans).
+                       Until then, this card stays a transparent placeholder with
+                       a click-to-pivot button to the QC Plans tab. *@
+                    <section class="spec-setup-card spec-setup-card-pending">
+                        <header class="spec-setup-card-head">
+                            <h3>📐 @Loc["npi.spec.detail.setup.tolerance.title"]</h3>
+                            <span class="spec-setup-card-sub">@Loc["npi.spec.detail.setup.tolerance.sub"]</span>
+                        </header>
+                        <div class="spec-setup-pending-body">
+                            <p class="spec-setup-pending-text">@Loc["npi.spec.detail.setup.tolerance.pending"]</p>
+                            <button type="button" class="rt-btn spec-setup-pivot-btn"
+                                    @onclick="@(() => SetActiveTab("qc-plans"))">
+                                @Loc["npi.spec.detail.setup.tolerance.pivot"] →
+                            </button>
+                        </div>
+                    </section>
+                </div>
+            }
             else
             {
                 <div class="spec-detail-coming-soon">
@@ -385,4 +464,8 @@
         "setup"      => "⚙",
         _            => "📦",
     };
+
+    /// <summary>Render "—" for null/whitespace strings — Setup tab uses this on
+    /// every read-only field per PR-D-1 plan ("field rỗng render '—' gọn").</summary>
+    private static string OrDash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
 }

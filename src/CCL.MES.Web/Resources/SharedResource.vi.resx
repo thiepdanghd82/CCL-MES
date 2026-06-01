@@ -777,4 +777,25 @@
   <data name="npi.spec.detail.action.trash_unimpl" xml:space="preserve"><value>Xoá ship sau (server TrashSpecAsync chưa có)</value></data>
   <data name="npi.spec.detail.action.edit_unimpl" xml:space="preserve"><value>Modal Sửa ship sau (defer từ PR #31a)</value></data>
   <data name="npi.spec.detail.coming_soon_body" xml:space="preserve"><value>Tab này dành cho PR tương lai. Bảng backend chưa có trên CCL-MES — schema CMES sibling (spec_drawings / spec_qc_plans / spec_qc_captures / spec_artwork) là target để port.</value></data>
+
+  <!-- Phase 8 PR-D-1 — Setup tab (read-only press settings + tolerances placeholder). -->
+  <data name="npi.spec.detail.setup.press.title" xml:space="preserve"><value>Cài đặt máy in</value></data>
+  <data name="npi.spec.detail.setup.press.sub" xml:space="preserve"><value>Thông số vận hành từ SpecPrint + SpecMaterial</value></data>
+  <data name="npi.spec.detail.setup.tolerance.title" xml:space="preserve"><value>Dung sai (Critical)</value></data>
+  <data name="npi.spec.detail.setup.tolerance.sub" xml:space="preserve"><value>Định nghĩa theo công đoạn QC</value></data>
+  <data name="npi.spec.detail.setup.tolerance.pending" xml:space="preserve"><value>Dung sai sống ở tab QC Plans. Mở tab đó để xem + sửa Target / Tolerance / Method / Frequency theo từng công đoạn IPQC Print, IPQC Cut, FQC, OQC.</value></data>
+  <data name="npi.spec.detail.setup.tolerance.pivot" xml:space="preserve"><value>Mở tab QC Plans</value></data>
+  <data name="npi.spec.detail.setup.field.process" xml:space="preserve"><value>Mã quy trình</value></data>
+  <data name="npi.spec.detail.setup.field.inspection_level" xml:space="preserve"><value>Cấp kiểm tra</value></data>
+  <data name="npi.spec.detail.setup.field.printing_cavity" xml:space="preserve"><value>Số lượng/1 lần in</value></data>
+  <data name="npi.spec.detail.setup.field.length_pitch" xml:space="preserve"><value>Bước nhảy</value></data>
+  <data name="npi.spec.detail.setup.field.product_size" xml:space="preserve"><value>Kích thước SP</value></data>
+  <data name="npi.spec.detail.setup.field.adhesive" xml:space="preserve"><value>Keo dán</value></data>
+  <data name="npi.spec.detail.setup.field.print_colors" xml:space="preserve"><value>Số màu in</value></data>
+  <data name="npi.spec.detail.setup.field.flexo_print_rows" xml:space="preserve"><value>Số công đoạn in Flexo</value></data>
+  <data name="npi.spec.detail.setup.field.flexo_cut_rows" xml:space="preserve"><value>Số công đoạn cắt Flexo</value></data>
+  <data name="npi.spec.detail.setup.field.flexo_ink_rows" xml:space="preserve"><value>Số mực Flexo</value></data>
+  <data name="npi.spec.detail.setup.unit.colors" xml:space="preserve"><value>màu</value></data>
+  <data name="npi.spec.detail.setup.unit.processes" xml:space="preserve"><value>công đoạn</value></data>
+  <data name="npi.spec.detail.setup.unit.inks" xml:space="preserve"><value>mực</value></data>
 </root>
