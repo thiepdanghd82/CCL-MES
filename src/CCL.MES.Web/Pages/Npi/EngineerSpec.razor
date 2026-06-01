@@ -13,6 +13,7 @@
 @inject SpecImportService SpecImport
 @inject IWebHostEnvironment Env
 @inject IJSRuntime JS
+@inject Microsoft.AspNetCore.Components.NavigationManager Nav
 @inject IStringLocalizer<SharedResource> Loc
 @inject AuthenticationStateProvider AuthState
 
@@ -98,6 +99,13 @@
                     title="@Loc["npi.spec.refresh_samples_confirm"]">
                 @(_busyRefresh ? Loc["npi.spec.create_v2.parsing"].Value : Loc["npi.spec.btn_refresh_samples"].Value)
             </button>
+            <button type="button"
+                    class="rt-btn rt-btn-refresh-samples"
+                    @onclick="BackfillDetailFieldsAsync"
+                    disabled="@_busyBackfill"
+                    title="@Loc["npi.spec.backfill_detail_confirm"]">
+                @(_busyBackfill ? Loc["npi.spec.create_v2.parsing"].Value : Loc["npi.spec.btn_backfill_detail"].Value)
+            </button>
         </AuthorizeView>
         <AuthorizeView Roles="Admin,Engineer">
             <button type="button" class="rt-btn rt-btn-primary" @onclick="OpenCreateAsync">+ @Loc["npi.spec.btn_create"]</button>
@@ -162,7 +170,7 @@
                         var rowCapture = s;
                         <tr @oncontextmenu="@(e => OnRowContextMenuAsync(e, rowCapture))"
                             @oncontextmenu:preventDefault="true"
-                            @ondblclick="@(() => OpenDetailAsync(rowCapture))"
+                            @ondblclick="@(() => OpenDetailPageAsync(rowCapture))"
                             style="cursor:context-menu">
                             <td class="rt-num">@rowIdx</td>
                             @foreach (var c in VisibleCols)
@@ -216,6 +224,62 @@
     // PR #31a — Refresh samples (Admin only).
     private bool _busyRefresh;
     private string? _refreshMessage;
+
+    // PR #31d — Backfill detail fields (Admin only, in-place update existing).
+    private bool _busyBackfill;
+
+    /// <summary>
+    /// PR #31d — Backfill 4 detail-sheet fields (ProductSizeWmm/Hmm +
+    /// RemarksText/RemarksCutText) cho 6 sample rev EXISTING (match RefNo).
+    /// KHÔNG tạo revision mới (khác `force=1` của Refresh Samples). Update
+    /// chỉ field NULL — preserve operator-edited values.
+    /// </summary>
+    private async Task BackfillDetailFieldsAsync()
+    {
+        if (_busyBackfill) return;
+        _refreshMessage = null;
+        bool confirmed;
+        try
+        {
+            confirmed = await JS.InvokeAsync<bool>("confirm", Loc["npi.spec.backfill_detail_confirm"].Value);
+        }
+        catch
+        {
+            confirmed = false;
+        }
+        if (!confirmed) return;
+
+        _busyBackfill = true;
+        StateHasChanged();
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var user = state.User?.Identity?.Name;
+            var samplesDir = Path.Combine(Env.WebRootPath ?? "wwwroot", "Data", "Specs");
+            var files = new[]
+            {
+                ("DEMO_SILK_1.xlsx", "silkscreen"),
+                ("DEMO_SILK_2.xlsx", "silkscreen"),
+                ("DEMO_SILK_3.xlsx", "silkscreen"),
+                ("DEMO_SILK_4.xlsx", "silkscreen"),
+                ("DEMO_FLEXO_1.xlsx", "flexo"),
+                ("DEMO_FLEXO_2.xlsx", "flexo"),
+            };
+            var result = await SpecImport.BackfillDetailSheetFieldsAsync(samplesDir, files, user);
+            _refreshMessage = string.Format(Loc["npi.spec.backfill_detail_result"].Value,
+                result.Backfilled, result.Skipped, result.FieldsTouched);
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _refreshMessage = $"{Loc["npi.spec.backfill_detail_err"].Value}: {ex.Message}";
+        }
+        finally
+        {
+            _busyBackfill = false;
+            StateHasChanged();
+        }
+    }
 
     // PR #31c — Export (CSV/XLSX/PDF). _busyExport applies tới cả 3 buttons.
     private bool _busyExport;
@@ -414,6 +478,24 @@
             _ctxError = ex.GetType().Name + ": " + ex.Message;
             StateHasChanged();
         }
+    }
+
+    /// <summary>
+    /// PR #31d — Open full-page detail sheet (default for double-click).
+    /// Context menu "Get Info" / "Open" giữ modal cho quick peek.
+    /// </summary>
+    private Task OpenDetailPageAsync(ProductRevisionListItem row)
+    {
+        try
+        {
+            Nav.NavigateTo($"/npi/engineer-spec/{row.Id}");
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+            StateHasChanged();
+        }
+        return Task.CompletedTask;
     }
 
     // ── Phase 8 PR #30 — column definition ───────────────────────────────────

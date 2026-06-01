@@ -119,6 +119,21 @@ public class SpecPrint : BaseEntity
     // + feed-rate thực tế. Nullable cho legacy baseline.
     public double? PitchMm { get; set; }
 
+    // ── Phase 8 PR #31d — detail sheet parity fields ────────────────────────
+    // SpecHub `spec.printParams.productSize` parsed thành W × H mm (silkscreen)
+    // hoặc R4 C25 + C29 (flexo). Parser PR #31a/b đã capture, persist từ PR #31d.
+    // Detail sheet hiển thị "W × H mm"; NULL → "—".
+    public double? ProductSizeWmm { get; set; }
+    public double? ProductSizeHmm { get; set; }
+
+    // SpecHub `spec.specRemarks` (silk single blob) / `flexoData.remarksLeft`
+    // (flexo print remarks). Parser PR #31a/b đã capture; persist từ PR #31d.
+    public string? RemarksText { get; set; }
+
+    // SpecHub `flexoData.remarksRight` (flexo cut remarks). Silk = null.
+    // Flexo detail sheet render 2-col layout (Print Remarks | Cut Remarks).
+    public string? RemarksCutText { get; set; }
+
     // ── Phase 8 PR #31a — silkscreen print rows child entity ────────────────
     // SpecHub `spec.printRows[]` — per-color print spec (20 field). Trước đây
     // fold vào ColorSpecJson; sau PR #31a tách bảng để query/filter/index được

@@ -208,6 +208,8 @@ public class FlexoXlsxParser : ISpecXlsxParser
                 var left = GetCell(aoa, r, 2);
                 var right = GetCell(aoa, r, 20);
                 spec.Remarks = string.IsNullOrEmpty(right) ? left : $"{left} | {right}";
+                spec.RemarksLeft = NullIfEmpty(left);    // PR #31d persist print remarks
+                spec.RemarksRight = NullIfEmpty(right);  // PR #31d persist cut remarks
                 break;
             }
         }

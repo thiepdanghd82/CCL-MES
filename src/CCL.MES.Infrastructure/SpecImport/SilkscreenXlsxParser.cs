@@ -213,6 +213,7 @@ public class SilkscreenXlsxParser : ISpecXlsxParser
             if (c1.Contains("ghi ch") || c1.Contains("remark"))
             {
                 spec.Remarks = GetCell(aoa, r, 3);
+                spec.RemarksLeft = NullIfEmpty(spec.Remarks);  // PR #31d persist field
                 break;
             }
         }
