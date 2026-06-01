@@ -644,6 +644,72 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   border-radius:3px; padding:20px; display:flex; justify-content:center;
   align-items:center; min-height:320px; }
 .spec-artwork-svg { max-width:100%; height:auto; max-height:480px; }
+
+/* Phase 8 PR-D-3 — QC Plans tab. 4 stage sections stacked, each with
+   editable criteria table. Per-stage dirty + save state. Navy palette
+   tokens for visual consistency with Spec showcard / Setup / Artwork tabs. */
+.spec-qcplans-area { display:flex; flex-direction:column; gap:14px; }
+.spec-qcplans-intro { margin:0 0 4px; font-size:13px; color:#6b7280; }
+.spec-qcplans-state { background:#fff; border:1px dashed var(--navy-border);
+  border-radius:6px; padding:20px; text-align:center; color:#6b7280;
+  font-size:13px; }
+.spec-qcplans-error { margin:0; }
+
+.spec-qcplans-stage { background:#fff; border:1px solid var(--navy-border);
+  border-radius:6px; padding:14px 16px 16px; display:flex; flex-direction:column;
+  gap:10px; }
+.spec-qcplans-stage-head { display:flex; align-items:flex-start;
+  justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.spec-qcplans-stage-title h3 { margin:0; font-size:15px; font-weight:700;
+  color:var(--navy-dark); }
+.spec-qcplans-stage-desc { margin:2px 0 0; font-size:12px; color:#6b7280; }
+.spec-qcplans-stage-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.spec-qcplans-add-btn, .spec-qcplans-save-btn { font-size:12px; padding:4px 10px; }
+.spec-qcplans-save-btn:disabled { opacity:0.5; cursor:not-allowed; }
+.spec-qcplans-stage-err { margin:0; font-size:12px; }
+.spec-qcplans-stage-ok { margin:0; font-size:12px; }
+.spec-qcplans-empty { padding:12px; text-align:center; color:#6b7280;
+  font-size:13px; font-style:italic; border:1px dashed #e5e7eb;
+  border-radius:4px; }
+
+.spec-qcplans-table-wrap { overflow-x:auto; }
+.spec-qcplans-table { width:100%; border-collapse:collapse; font-size:13px;
+  table-layout:fixed; }
+.spec-qcplans-table th, .spec-qcplans-table td {
+  border:1px solid var(--navy-light); padding:4px 6px; vertical-align:middle;
+  text-align:left; }
+.spec-qcplans-table th { background:var(--navy-light); color:var(--navy-dark);
+  font-weight:600; font-size:12px; text-transform:uppercase;
+  letter-spacing:0.3px; }
+.spec-qcplans-table .col-criterion { width:24%; }
+.spec-qcplans-table .col-target    { width:14%; }
+.spec-qcplans-table .col-tolerance { width:14%; }
+.spec-qcplans-table .col-method    { width:22%; }
+.spec-qcplans-table .col-frequency { width:14%; }
+.spec-qcplans-table .col-delete    { width:44px; text-align:center; }
+.spec-qcplans-input { width:100%; box-sizing:border-box; border:1px solid #e5e7eb;
+  border-radius:3px; padding:4px 6px; font-size:13px; font-family:inherit;
+  background:#fff; }
+.spec-qcplans-input:focus { outline:none; border-color:var(--navy-primary);
+  box-shadow:0 0 0 2px rgba(30,58,138,0.12); }
+.spec-qcplans-readcell { display:inline-block; padding:2px 0; color:#374151;
+  font-size:13px; }
+.spec-qcplans-delete-btn { background:transparent; border:1px solid #fecaca;
+  color:#dc2626; width:28px; height:24px; border-radius:3px; cursor:pointer;
+  font-size:14px; line-height:1; padding:0; }
+.spec-qcplans-delete-btn:hover:not(:disabled) { background:#fef2f2;
+  border-color:#dc2626; }
+.spec-qcplans-delete-btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+@container (max-width: 720px) {
+  .spec-qcplans-table { font-size:12px; table-layout:auto; }
+  .spec-qcplans-table .col-criterion,
+  .spec-qcplans-table .col-target,
+  .spec-qcplans-table .col-tolerance,
+  .spec-qcplans-table .col-method,
+  .spec-qcplans-table .col-frequency { width:auto; }
+}
+
 .spec-history-modal-list { max-height:60vh; overflow-y:auto; }
 
 .spec-detail-audit-list { list-style:none; padding:0; margin:6px 0 0; }

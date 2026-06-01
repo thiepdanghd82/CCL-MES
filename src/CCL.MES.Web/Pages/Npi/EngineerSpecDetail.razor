@@ -32,7 +32,9 @@
 @using CCL.MES.Application.Services
 @using CCL.MES.Application.SpecDetail
 @using CCL.MES.Domain
+@using CCL.MES.Domain.Entities
 @inject SpecService SpecSvc
+@inject SpecQcWindowService QcWindowSvc
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> Loc
@@ -312,6 +314,204 @@
                     </div>
                 </div>
             }
+            else if (_activeTab == "qc-plans")
+            {
+                @* ── Phase 8 PR-D-3 — QC Plans tab. CMES sibling parity:
+                     4 stage sections (IPQC-Print / IPQC-Cut / FQC / OQC),
+                     each editable table with 6 cols (Criterion / Target /
+                     Tolerance / Method / Frequency / Delete). Per-stage
+                     dirty flag + atomic per-stage save via
+                     SpecQcWindowService.UpsertStageAsync. RBAC: View =
+                     route NpiSpecRead; Edit = Admin or Engineer (AuthorizeView +
+                     server-side role check inside the service). Hotfix #27:
+                     render from entity + try-catch + inline error banner. *@
+                <div class="spec-qcplans-area">
+                    <p class="spec-qcplans-intro">@Loc["npi.spec.detail.qcplans.intro"]</p>
+
+                    @if (_qcPlansLoading)
+                    {
+                        <div class="spec-qcplans-state">@Loc["common.loading"]</div>
+                    }
+                    else if (_qcPlansError is not null)
+                    {
+                        <div class="alert err spec-qcplans-error" role="alert">
+                            <strong>@Loc["npi.spec.detail.qcplans.load_err"]</strong>
+                            <pre>@_qcPlansError</pre>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var stageDef in _qcStageDefs)
+                        {
+                            var rows = _qcDraft[stageDef.Stage];
+                            var isDirty = _qcDirty.Contains(stageDef.Stage);
+                            var isSaving = _qcSaving.Contains(stageDef.Stage);
+                            var saveMsg = _qcSaveMessages.TryGetValue(stageDef.Stage, out var msg) ? msg : null;
+                            var saveErr = _qcSaveErrors.TryGetValue(stageDef.Stage, out var err) ? err : null;
+
+                            <section class="spec-qcplans-stage">
+                                <header class="spec-qcplans-stage-head">
+                                    <div class="spec-qcplans-stage-title">
+                                        <h3>@Loc[stageDef.LabelKey]</h3>
+                                        <p class="spec-qcplans-stage-desc">@Loc[stageDef.DescKey]</p>
+                                    </div>
+                                    <div class="spec-qcplans-stage-actions">
+                                        <AuthorizeView Roles="Admin,Engineer">
+                                            <Authorized>
+                                                <button type="button"
+                                                        class="rt-btn spec-qcplans-add-btn"
+                                                        disabled="@isSaving"
+                                                        @onclick="@(() => AddQcRow(stageDef.Stage))">
+                                                    @Loc["npi.spec.detail.qcplans.btn_add"]
+                                                </button>
+                                                <button type="button"
+                                                        class="rt-btn rt-btn-primary spec-qcplans-save-btn"
+                                                        disabled="@(!isDirty || isSaving)"
+                                                        @onclick="@(() => SaveQcStageAsync(stageDef.Stage))">
+                                                    @(isSaving
+                                                        ? Loc["npi.spec.detail.qcplans.btn_saving"]
+                                                        : isDirty
+                                                            ? Loc["npi.spec.detail.qcplans.btn_save"]
+                                                            : Loc["npi.spec.detail.qcplans.btn_saved"])
+                                                </button>
+                                            </Authorized>
+                                        </AuthorizeView>
+                                    </div>
+                                </header>
+
+                                @if (saveErr is not null)
+                                {
+                                    <div class="alert err spec-qcplans-stage-err" role="alert">
+                                        <strong>@Loc["npi.spec.detail.qcplans.save_err"]</strong>: @saveErr
+                                    </div>
+                                }
+                                else if (!string.IsNullOrEmpty(saveMsg))
+                                {
+                                    <div class="alert ok spec-qcplans-stage-ok" role="status">@saveMsg</div>
+                                }
+
+                                @if (rows.Count == 0)
+                                {
+                                    <div class="spec-qcplans-empty">@Loc["npi.spec.detail.qcplans.empty"]</div>
+                                }
+                                else
+                                {
+                                    <div class="spec-qcplans-table-wrap">
+                                        <table class="spec-qcplans-table">
+                                            <thead>
+                                                <tr>
+                                                    <th class="col-criterion">@Loc["npi.spec.detail.qcplans.col.criterion"]</th>
+                                                    <th class="col-target">@Loc["npi.spec.detail.qcplans.col.target"]</th>
+                                                    <th class="col-tolerance">@Loc["npi.spec.detail.qcplans.col.tolerance"]</th>
+                                                    <th class="col-method">@Loc["npi.spec.detail.qcplans.col.method"]</th>
+                                                    <th class="col-frequency">@Loc["npi.spec.detail.qcplans.col.frequency"]</th>
+                                                    <AuthorizeView Roles="Admin,Engineer">
+                                                        <Authorized>
+                                                            <th class="col-delete" aria-label="@Loc["npi.spec.detail.qcplans.col.delete"]"></th>
+                                                        </Authorized>
+                                                    </AuthorizeView>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @for (var i = 0; i < rows.Count; i++)
+                                                {
+                                                    var idx = i;
+                                                    var row = rows[idx];
+                                                    <tr>
+                                                        <td class="col-criterion">
+                                                            <AuthorizeView Roles="Admin,Engineer">
+                                                                <Authorized>
+                                                                    <input type="text"
+                                                                           class="spec-qcplans-input"
+                                                                           value="@row.Name"
+                                                                           placeholder="@Loc["npi.spec.detail.qcplans.ph.criterion"]"
+                                                                           @oninput="@(e => UpdateQcField(stageDef.Stage, idx, "name", e.Value?.ToString()))" />
+                                                                </Authorized>
+                                                                <NotAuthorized>
+                                                                    <span class="spec-qcplans-readcell">@OrDash(row.Name)</span>
+                                                                </NotAuthorized>
+                                                            </AuthorizeView>
+                                                        </td>
+                                                        <td class="col-target">
+                                                            <AuthorizeView Roles="Admin,Engineer">
+                                                                <Authorized>
+                                                                    <input type="text"
+                                                                           class="spec-qcplans-input"
+                                                                           value="@row.Target"
+                                                                           placeholder="@Loc["npi.spec.detail.qcplans.ph.target"]"
+                                                                           @oninput="@(e => UpdateQcField(stageDef.Stage, idx, "target", e.Value?.ToString()))" />
+                                                                </Authorized>
+                                                                <NotAuthorized>
+                                                                    <span class="spec-qcplans-readcell">@OrDash(row.Target)</span>
+                                                                </NotAuthorized>
+                                                            </AuthorizeView>
+                                                        </td>
+                                                        <td class="col-tolerance">
+                                                            <AuthorizeView Roles="Admin,Engineer">
+                                                                <Authorized>
+                                                                    <input type="text"
+                                                                           class="spec-qcplans-input"
+                                                                           value="@row.Tolerance"
+                                                                           placeholder="@Loc["npi.spec.detail.qcplans.ph.tolerance"]"
+                                                                           @oninput="@(e => UpdateQcField(stageDef.Stage, idx, "tolerance", e.Value?.ToString()))" />
+                                                                </Authorized>
+                                                                <NotAuthorized>
+                                                                    <span class="spec-qcplans-readcell">@OrDash(row.Tolerance)</span>
+                                                                </NotAuthorized>
+                                                            </AuthorizeView>
+                                                        </td>
+                                                        <td class="col-method">
+                                                            <AuthorizeView Roles="Admin,Engineer">
+                                                                <Authorized>
+                                                                    <input type="text"
+                                                                           class="spec-qcplans-input"
+                                                                           value="@row.Method"
+                                                                           placeholder="@Loc["npi.spec.detail.qcplans.ph.method"]"
+                                                                           @oninput="@(e => UpdateQcField(stageDef.Stage, idx, "method", e.Value?.ToString()))" />
+                                                                </Authorized>
+                                                                <NotAuthorized>
+                                                                    <span class="spec-qcplans-readcell">@OrDash(row.Method)</span>
+                                                                </NotAuthorized>
+                                                            </AuthorizeView>
+                                                        </td>
+                                                        <td class="col-frequency">
+                                                            <AuthorizeView Roles="Admin,Engineer">
+                                                                <Authorized>
+                                                                    <input type="text"
+                                                                           class="spec-qcplans-input"
+                                                                           value="@row.Frequency"
+                                                                           placeholder="@Loc["npi.spec.detail.qcplans.ph.frequency"]"
+                                                                           @oninput="@(e => UpdateQcField(stageDef.Stage, idx, "frequency", e.Value?.ToString()))" />
+                                                                </Authorized>
+                                                                <NotAuthorized>
+                                                                    <span class="spec-qcplans-readcell">@OrDash(row.Frequency)</span>
+                                                                </NotAuthorized>
+                                                            </AuthorizeView>
+                                                        </td>
+                                                        <AuthorizeView Roles="Admin,Engineer">
+                                                            <Authorized>
+                                                                <td class="col-delete">
+                                                                    <button type="button"
+                                                                            class="spec-qcplans-delete-btn"
+                                                                            disabled="@isSaving"
+                                                                            aria-label="@Loc["npi.spec.detail.qcplans.col.delete"]"
+                                                                            @onclick="@(() => RemoveQcRow(stageDef.Stage, idx))">
+                                                                        @Loc["npi.spec.detail.qcplans.btn_delete"]
+                                                                    </button>
+                                                                </td>
+                                                            </Authorized>
+                                                        </AuthorizeView>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                            </section>
+                        }
+                    }
+                </div>
+            }
             else
             {
                 <div class="spec-detail-coming-soon">
@@ -463,6 +663,205 @@
         return hint;
     }
 
+    // ── Phase 8 PR-D-3 — QC Plans tab state ────────────────────────────────
+    //
+    // Server-truth → editable draft → save-per-stage round-trip. State is per
+    // revision id; reload on RevisionId change in OnParametersSetAsync.
+
+    private sealed record QcStageDef(QcStage Stage, string Key, string LabelKey, string DescKey);
+
+    private static readonly QcStageDef[] _qcStageDefs = new[]
+    {
+        new QcStageDef(QcStage.IpqcPrint, "ipqc-print",
+            "npi.spec.detail.qcplans.stage.ipqc-print",
+            "npi.spec.detail.qcplans.stage.ipqc-print.desc"),
+        new QcStageDef(QcStage.IpqcCut, "ipqc-cut",
+            "npi.spec.detail.qcplans.stage.ipqc-cut",
+            "npi.spec.detail.qcplans.stage.ipqc-cut.desc"),
+        new QcStageDef(QcStage.Fqc, "fqc",
+            "npi.spec.detail.qcplans.stage.fqc",
+            "npi.spec.detail.qcplans.stage.fqc.desc"),
+        new QcStageDef(QcStage.Oqc, "oqc",
+            "npi.spec.detail.qcplans.stage.oqc",
+            "npi.spec.detail.qcplans.stage.oqc.desc"),
+    };
+
+    /// <summary>Local editable row — mirrors <see cref="QcCriterionRow"/> DTO,
+    /// mutable so input @oninput handlers can update in place.</summary>
+    private sealed class QcRowEdit
+    {
+        public long? Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Target { get; set; }
+        public string? Tolerance { get; set; }
+        public string? Method { get; set; }
+        public string? Frequency { get; set; }
+    }
+
+    private bool _qcPlansLoaded;
+    private bool _qcPlansLoading;
+    private string? _qcPlansError;
+    private readonly Dictionary<QcStage, List<QcRowEdit>> _qcDraft = new()
+    {
+        { QcStage.IpqcPrint, new() },
+        { QcStage.IpqcCut,   new() },
+        { QcStage.Fqc,       new() },
+        { QcStage.Oqc,       new() },
+    };
+    private readonly HashSet<QcStage> _qcDirty = new();
+    private readonly HashSet<QcStage> _qcSaving = new();
+    private readonly Dictionary<QcStage, string> _qcSaveMessages = new();
+    private readonly Dictionary<QcStage, string> _qcSaveErrors = new();
+
+    private async Task EnsureQcPlansLoadedAsync()
+    {
+        if (_qcPlansLoaded || _qcPlansLoading || _detail is null) return;
+        _qcPlansLoading = true;
+        _qcPlansError = null;
+        try
+        {
+            var windows = await QcWindowSvc.ListByRevisionAsync(_detail.Id);
+            foreach (var def in _qcStageDefs)
+            {
+                var rows = new List<QcRowEdit>();
+                if (windows.TryGetValue(def.Stage, out var w) && w is not null)
+                {
+                    foreach (var c in w.Criteria.OrderBy(x => x.Seq))
+                    {
+                        rows.Add(new QcRowEdit
+                        {
+                            Id = c.Id,
+                            Name = c.Name,
+                            Target = c.PassCriteria,
+                            Tolerance = c.MeasureMethod,
+                            Method = c.Method,
+                            Frequency = c.Frequency,
+                        });
+                    }
+                }
+                _qcDraft[def.Stage] = rows;
+            }
+            _qcDirty.Clear();
+            _qcPlansLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            _qcPlansError = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _qcPlansLoading = false;
+        }
+    }
+
+    private void AddQcRow(QcStage stage)
+    {
+        _qcDraft[stage].Add(new QcRowEdit { Name = "" });
+        _qcDirty.Add(stage);
+        _qcSaveMessages.Remove(stage);
+        _qcSaveErrors.Remove(stage);
+    }
+
+    private void RemoveQcRow(QcStage stage, int idx)
+    {
+        if (idx < 0 || idx >= _qcDraft[stage].Count) return;
+        _qcDraft[stage].RemoveAt(idx);
+        _qcDirty.Add(stage);
+        _qcSaveMessages.Remove(stage);
+        _qcSaveErrors.Remove(stage);
+    }
+
+    private void UpdateQcField(QcStage stage, int idx, string field, string? value)
+    {
+        if (idx < 0 || idx >= _qcDraft[stage].Count) return;
+        var row = _qcDraft[stage][idx];
+        switch (field)
+        {
+            case "name":      row.Name      = value ?? ""; break;
+            case "target":    row.Target    = value;       break;
+            case "tolerance": row.Tolerance = value;       break;
+            case "method":    row.Method    = value;       break;
+            case "frequency": row.Frequency = value;       break;
+        }
+        _qcDirty.Add(stage);
+        _qcSaveMessages.Remove(stage);
+        _qcSaveErrors.Remove(stage);
+    }
+
+    private async Task SaveQcStageAsync(QcStage stage)
+    {
+        if (_detail is null || _qcSaving.Contains(stage)) return;
+        // UI guards: every row must have non-empty Name. Caught server-side too.
+        var rows = _qcDraft[stage];
+        var blankRow = rows.FirstOrDefault(r => string.IsNullOrWhiteSpace(r.Name));
+        if (blankRow is not null)
+        {
+            _qcSaveErrors[stage] = Loc["npi.spec.detail.qcplans.col.criterion"].Value + " — required.";
+            return;
+        }
+
+        _qcSaving.Add(stage);
+        _qcSaveMessages.Remove(stage);
+        _qcSaveErrors.Remove(stage);
+        try
+        {
+            var auth = await AuthState.GetAuthenticationStateAsync();
+            var user = auth.User?.Identity?.Name ?? "anonymous";
+            var role = ResolveRole(auth);
+            var payload = rows
+                .Select(r => new QcCriterionRow(
+                    r.Id,
+                    r.Name.Trim(),
+                    r.Target,
+                    r.Tolerance,
+                    r.Method,
+                    r.Frequency))
+                .ToList();
+            var saved = await QcWindowSvc.UpsertStageAsync(_detail.Id, stage, payload, user, role);
+
+            // Rebind from authoritative response — picks up new Ids on freshly-inserted rows.
+            var rebound = new List<QcRowEdit>();
+            foreach (var c in saved.Criteria.OrderBy(x => x.Seq))
+            {
+                rebound.Add(new QcRowEdit
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    Target = c.PassCriteria,
+                    Tolerance = c.MeasureMethod,
+                    Method = c.Method,
+                    Frequency = c.Frequency,
+                });
+            }
+            _qcDraft[stage] = rebound;
+            _qcDirty.Remove(stage);
+            _qcSaveMessages[stage] = Loc["npi.spec.detail.qcplans.save_ok"].Value;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _qcSaveErrors[stage] = Loc["npi.spec.detail.qcplans.forbidden"].Value;
+        }
+        catch (Exception ex)
+        {
+            _qcSaveErrors[stage] = ex.Message;
+        }
+        finally
+        {
+            _qcSaving.Remove(stage);
+        }
+    }
+
+    private static string ResolveRole(Microsoft.AspNetCore.Components.Authorization.AuthenticationState auth)
+    {
+        var user = auth?.User;
+        if (user is null) return "";
+        if (user.IsInRole("Admin")) return "Admin";
+        if (user.IsInRole("Engineer")) return "Engineer";
+        if (user.IsInRole("QC")) return "QC";
+        if (user.IsInRole("Operator")) return "Operator";
+        return user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         _loading = true;
@@ -470,6 +869,13 @@
         _detail = null;
         _activeTab = "spec";
         _artworkTemplateUserChosen = false;
+        // PR-D-3 — reset QC plan state on revision change.
+        _qcPlansLoaded = false;
+        _qcPlansError = null;
+        _qcDirty.Clear();
+        _qcSaving.Clear();
+        _qcSaveMessages.Clear();
+        _qcSaveErrors.Clear();
         try
         {
             _detail = await SpecSvc.SpecDetailAsync(RevisionId);
@@ -487,11 +893,16 @@
 
     private void GoBack() => Nav.NavigateTo("/npi/engineer-spec");
 
-    private void SetActiveTab(string key)
+    private async Task SetActiveTab(string key)
     {
         _activeTab = key;
         _actionError = null;
         _actionMessage = null;
+        // PR-D-3 — lazy-load QC plans on first switch to the tab.
+        if (key == "qc-plans")
+        {
+            await EnsureQcPlansLoadedAsync();
+        }
     }
 
     /// <summary>
