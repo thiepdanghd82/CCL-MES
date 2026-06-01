@@ -515,6 +515,20 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   padding:5px 12px; font-size:13px; }
 .spec-action-btn-danger { color:#b91c1c; border-color:#fca5a5; }
 .spec-action-btn-danger:hover:not(:disabled) { background:#fef2f2; }
+
+/* Truly-disabled stub state — Copy / Trash / Edit until server lifecycle
+   ops land. Greyed out + pointer-events:none so even programmatic dispatch
+   can't fire a click; "soon" pill communicates intent at a glance without
+   forcing the operator to hover for the tooltip. */
+.spec-action-btn-stub { opacity:0.55; cursor:not-allowed; pointer-events:none;
+  color:#9ca3af !important; border-color:#e5e7eb !important; background:#fff !important; }
+.spec-action-btn-stub.spec-action-btn-danger { color:#fca5a5 !important;
+  border-color:#fecaca !important; }
+.spec-action-soon { display:inline-block; margin-left:4px; padding:1px 6px;
+  background:#f3f4f6; color:#6b7280; border-radius:8px; font-size:9px;
+  font-weight:600; text-transform:uppercase; letter-spacing:0.05em;
+  line-height:1.4; }
+
 .spec-detail-actions-bar .alert.inline { padding:3px 10px; font-size:12px; }
 .alert.ok.inline { background:#d1fae5; color:#065f46; border:1px solid #6ee7b7;
   border-radius:3px; }
