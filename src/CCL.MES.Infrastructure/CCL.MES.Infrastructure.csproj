@@ -18,6 +18,17 @@
          + SixLabors.Fonts transitively (~12 MB packages, ~4 MB gzipped). See
          docs/HOW-TO-UPGRADE-TO-SQLSERVER.md + LESSONS_LEARNED.md. -->
     <PackageReference Include="ClosedXML" Version="0.104.2" />
+    <!-- Phase 8 PR #31c — server-side PDF gen dep (MIT). Cross-platform via
+         the no-GDI variant `PDFsharp-MigraDoc` (vs `-GDI` Windows-only). Bundle
+         brings in PdfSharp core + MigraDoc.DocumentObjectModel +
+         MigraDoc.Rendering. Pin patch version để rebuild deterministic. Pure
+         .NET (no native deps; runs on Linux/macOS/Windows server). Lý do chọn
+         vs QuestPDF Community License: QuestPDF Community free chỉ ≤ $1M USD
+         revenue — CCL Vietnam business revenue có thể vượt ngưỡng → MIT safer
+         legally. PDF layer thiết kế reusable (SpecPdfDocumentBuilder) cho
+         single-spec detail sheet PR #33 — KHÔNG hard-code riêng list export.
+         See docs/HOW-TO-UPGRADE-TO-SQLSERVER.md + LESSONS_LEARNED.md. -->
+    <PackageReference Include="PDFsharp-MigraDoc" Version="6.2.4" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CCL.MES.Domain\CCL.MES.Domain.csproj" />

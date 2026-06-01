@@ -715,4 +715,13 @@
   <data name="npi.spec.refresh_samples_force_confirm" xml:space="preserve"><value>Chế độ FORCE — re-parse cả 6 sample VÀ thay thế rev đã có với RefNo trùng (rev cũ bị soft-delete vào Trash). Tiếp tục?</value></data>
   <data name="npi.spec.refresh_samples_result" xml:space="preserve"><value>Samples refresh: {0} added · {1} updated · {2} skipped</value></data>
   <data name="npi.spec.refresh_samples_err" xml:space="preserve"><value>Refresh samples thất bại</value></data>
+
+  <!-- Phase 8 PR #31c — Export 3 formats (CSV / Excel / PDF). -->
+  <data name="npi.spec.btn_export_csv" xml:space="preserve"><value>Xuất CSV</value></data>
+  <data name="npi.spec.btn_export_xlsx" xml:space="preserve"><value>Xuất Excel</value></data>
+  <data name="npi.spec.btn_print_pdf" xml:space="preserve"><value>In PDF</value></data>
+  <data name="npi.spec.export_count" xml:space="preserve"><value>Đang xuất {0} dòng…</value></data>
+  <data name="npi.spec.export_ok" xml:space="preserve"><value>Đã xuất {0} dòng → {1}</value></data>
+  <data name="npi.spec.export_err" xml:space="preserve"><value>Xuất thất bại</value></data>
+  <data name="npi.spec.export_empty" xml:space="preserve"><value>Không có dữ liệu (filter trả 0 dòng)</value></data>
 </root>
