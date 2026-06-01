@@ -878,4 +878,46 @@
   <data name="npi.spec.detail.qccapture.modal.err_reason_required" xml:space="preserve"><value>Cần chọn mã lý do khi kết quả là HỎNG.</value></data>
   <data name="npi.spec.detail.qccapture.modal.err_result_required" xml:space="preserve"><value>Hãy chọn kết quả trước.</value></data>
   <data name="npi.spec.detail.qccapture.modal.save_ok" xml:space="preserve"><value>Đã ghi nhận.</value></data>
+  <!-- Phase 8 PR-D-5b — Tab Bản vẽ. 9 loại, version chain, upload + download. -->
+  <data name="npi.spec.detail.drawings.intro" xml:space="preserve"><value>Bản vẽ khách hàng + NPI + IPQC + FQC + OQC. Upload phiên bản mới bất cứ lúc nào; phiên bản cũ vẫn lưu trong chuỗi.</value></data>
+  <data name="npi.spec.detail.drawings.section.empty" xml:space="preserve"><value>— Chưa upload bản vẽ cho loại này.</value></data>
+  <data name="npi.spec.detail.drawings.btn_upload_first" xml:space="preserve"><value>↑ Upload v1</value></data>
+  <data name="npi.spec.detail.drawings.btn_upload_new" xml:space="preserve"><value>↑ Upload phiên bản mới</value></data>
+  <data name="npi.spec.detail.drawings.btn_view" xml:space="preserve"><value>Xem</value></data>
+  <data name="npi.spec.detail.drawings.btn_versions_show" xml:space="preserve"><value>▸ Phiên bản ({0})</value></data>
+  <data name="npi.spec.detail.drawings.btn_versions_hide" xml:space="preserve"><value>▾ Ẩn phiên bản</value></data>
+  <data name="npi.spec.detail.drawings.version_tag" xml:space="preserve"><value>v{0}</value></data>
+  <data name="npi.spec.detail.drawings.size_kb" xml:space="preserve"><value>{0} KB</value></data>
+  <data name="npi.spec.detail.drawings.uploaded_by" xml:space="preserve"><value>{0} · {1:yyyy-MM-dd HH:mm}</value></data>
+  <data name="npi.spec.detail.drawings.change_reason_label" xml:space="preserve"><value>Lý do thay đổi</value></data>
+  <data name="npi.spec.detail.drawings.load_err" xml:space="preserve"><value>Không tải được bản vẽ</value></data>
+  <data name="npi.spec.detail.drawings.forbidden" xml:space="preserve"><value>Chỉ Admin hoặc Engineer mới được upload bản vẽ.</value></data>
+  <!-- 9 loại bản vẽ. -->
+  <data name="npi.spec.detail.drawings.kind.CustomerDrawing" xml:space="preserve"><value>Bản vẽ khách hàng</value></data>
+  <data name="npi.spec.detail.drawings.kind.NpiPrintLayout" xml:space="preserve"><value>Layout in NPI</value></data>
+  <data name="npi.spec.detail.drawings.kind.NpiCutLayout" xml:space="preserve"><value>Layout cắt NPI</value></data>
+  <data name="npi.spec.detail.drawings.kind.IpqcPrintReference" xml:space="preserve"><value>Tham chiếu IPQC in</value></data>
+  <data name="npi.spec.detail.drawings.kind.IpqcCutReference" xml:space="preserve"><value>Tham chiếu IPQC cắt</value></data>
+  <data name="npi.spec.detail.drawings.kind.FqcChecksheet" xml:space="preserve"><value>Checksheet FQC</value></data>
+  <data name="npi.spec.detail.drawings.kind.OqcChecksheet" xml:space="preserve"><value>Checksheet OQC</value></data>
+  <data name="npi.spec.detail.drawings.kind.CustomerApproval" xml:space="preserve"><value>Bản duyệt của khách</value></data>
+  <data name="npi.spec.detail.drawings.kind.InternalProof" xml:space="preserve"><value>Proof nội bộ</value></data>
+  <!-- Pill trạng thái. -->
+  <data name="npi.spec.detail.drawings.status.Draft" xml:space="preserve"><value>Chờ duyệt</value></data>
+  <data name="npi.spec.detail.drawings.status.PendingApproval" xml:space="preserve"><value>Đang duyệt</value></data>
+  <data name="npi.spec.detail.drawings.status.Approved" xml:space="preserve"><value>Đã duyệt</value></data>
+  <data name="npi.spec.detail.drawings.status.Rejected" xml:space="preserve"><value>Từ chối</value></data>
+  <data name="npi.spec.detail.drawings.status.Superseded" xml:space="preserve"><value>Đã thay thế</value></data>
+  <!-- Upload modal. -->
+  <data name="npi.spec.detail.drawings.modal.title" xml:space="preserve"><value>Upload bản vẽ</value></data>
+  <data name="npi.spec.detail.drawings.modal.subtitle" xml:space="preserve"><value>{0} · phiên bản tiếp v{1}</value></data>
+  <data name="npi.spec.detail.drawings.modal.label_file" xml:space="preserve"><value>File</value></data>
+  <data name="npi.spec.detail.drawings.modal.hint_file" xml:space="preserve"><value>Định dạng: pdf, png, jpg, jpeg, svg, gif, webp, dwg, dxf, ai. Tối đa {0} MiB.</value></data>
+  <data name="npi.spec.detail.drawings.modal.label_change_reason" xml:space="preserve"><value>Lý do thay đổi (tuỳ chọn)</value></data>
+  <data name="npi.spec.detail.drawings.modal.ph_change_reason" xml:space="preserve"><value>vd. ECN-2026-118 — cập nhật die outline cho size nhãn mới</value></data>
+  <data name="npi.spec.detail.drawings.modal.btn_cancel" xml:space="preserve"><value>Huỷ</value></data>
+  <data name="npi.spec.detail.drawings.modal.btn_upload" xml:space="preserve"><value>Upload</value></data>
+  <data name="npi.spec.detail.drawings.modal.btn_uploading" xml:space="preserve"><value>Đang upload…</value></data>
+  <data name="npi.spec.detail.drawings.modal.err_no_file" xml:space="preserve"><value>Vui lòng chọn file trước.</value></data>
+  <data name="npi.spec.detail.drawings.modal.save_ok" xml:space="preserve"><value>Đã upload.</value></data>
 </root>

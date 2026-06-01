@@ -769,6 +769,91 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .spec-qccapture-textarea { resize:vertical; min-height:60px;
   font-family:inherit; }
 
+/* Phase 8 PR-D-5b — Drawings tab. 9 sections stacked, each section is a
+   DrawingKind. Card = thumbnail + filename + meta + status pill + view btn.
+   Version timeline expands below card on toggle. CMES pattern with navy
+   palette overlay. */
+.spec-drawings-area { display:flex; flex-direction:column; gap:14px; }
+.spec-drawings-intro { margin:0 0 4px; font-size:13px; color:#6b7280; }
+.spec-drawings-section { background:#fff; border:1px solid var(--navy-border);
+  border-radius:6px; padding:14px 16px 16px; display:flex; flex-direction:column;
+  gap:10px; }
+.spec-drawings-section-head { display:flex; align-items:center;
+  justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.spec-drawings-section-head h3 { margin:0; font-size:14px; font-weight:700;
+  color:var(--navy-dark); text-transform:uppercase; letter-spacing:0.4px; }
+.spec-drawings-upload-btn { font-size:12px; padding:4px 10px; }
+.spec-drawings-empty { padding:12px; text-align:center; color:#6b7280;
+  font-size:13px; font-style:italic; border:1px dashed #e5e7eb;
+  border-radius:4px; }
+
+.spec-drawings-card { display:flex; gap:14px; align-items:flex-start;
+  padding:10px; border:1px solid var(--navy-light); border-radius:4px;
+  background:#fafbfc; }
+.spec-drawings-thumb { width:64px; height:64px; flex-shrink:0;
+  background:var(--navy-light); border:1px solid var(--navy-border);
+  border-radius:4px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:2px; }
+.spec-drawings-thumb-ext { font-size:11px; font-weight:700;
+  color:var(--navy-dark); letter-spacing:0.5px; }
+.spec-drawings-thumb-ver { font-size:10px; color:#6b7280; }
+
+.spec-drawings-info { flex:1; min-width:0; display:flex; flex-direction:column;
+  gap:3px; }
+.spec-drawings-title { font-size:13px; font-weight:600; color:var(--navy-dark);
+  word-break:break-all; }
+.spec-drawings-meta { font-size:11px; color:#6b7280; }
+.spec-drawings-status-line { display:flex; gap:8px; align-items:center;
+  flex-wrap:wrap; margin-top:4px; }
+.spec-drawings-reason { font-size:12px; color:#6b7280; font-style:italic; }
+
+.spec-drawings-actions { display:flex; flex-direction:column; gap:6px;
+  flex-shrink:0; }
+.spec-drawings-view-btn, .spec-drawings-toggle-btn { font-size:12px;
+  padding:4px 12px; text-decoration:none; text-align:center; }
+
+/* Status pill — Draft (yellow/amber), PendingApproval (blue),
+   Approved (green), Rejected (red), Superseded (muted gray). */
+.spec-drawings-status-pill { display:inline-block; padding:2px 8px;
+  border-radius:10px; font-size:11px; font-weight:700;
+  letter-spacing:0.4px; text-transform:uppercase; border:1px solid transparent; }
+.spec-drawings-status-pill.draft {
+  background:rgba(217,119,6,0.12); color:#b45309; border-color:rgba(217,119,6,0.30); }
+.spec-drawings-status-pill.pending {
+  background:rgba(37,99,235,0.12); color:#1d4ed8; border-color:rgba(37,99,235,0.30); }
+.spec-drawings-status-pill.approved {
+  background:rgba(31,122,77,0.12); color:#1f7a4d; border-color:rgba(31,122,77,0.30); }
+.spec-drawings-status-pill.rejected {
+  background:rgba(192,57,43,0.12); color:#c0392b; border-color:rgba(192,57,43,0.30); }
+.spec-drawings-status-pill.superseded {
+  background:#eef1f7; color:#6b7280; border-color:#cbd5e1; }
+
+/* Version timeline. */
+.spec-drawings-timeline { list-style:none; padding:0; margin:8px 0 0;
+  display:flex; flex-direction:column; gap:6px; }
+.spec-drawings-timeline-row { display:flex; gap:10px; align-items:flex-start;
+  padding:8px 10px; border:1px solid var(--navy-light); border-radius:4px;
+  background:#fff; font-size:12px; }
+.spec-drawings-timeline-row.is-current { border-color:var(--navy-primary);
+  background:#fafcff; }
+.spec-drawings-version-tag { font-weight:700; color:var(--navy-dark);
+  min-width:36px; flex-shrink:0; }
+.spec-drawings-timeline-body { flex:1; min-width:0; display:flex;
+  flex-direction:column; gap:2px; }
+.spec-drawings-timeline-filename { font-weight:500; color:var(--navy-dark);
+  word-break:break-all; }
+.spec-drawings-timeline-reason { color:#6b7280; font-style:italic; }
+.spec-drawings-timeline-meta { color:#9ca3af; font-size:11px; }
+.spec-drawings-timeline-view-btn { font-size:11px; padding:2px 8px;
+  text-decoration:none; flex-shrink:0; }
+
+/* Upload modal — single column, 480px on wide. */
+.spec-drawings-modal { width:min(480px, calc(100vw - 32px)); }
+.spec-drawings-modal-hint { font-size:11px; color:#6b7280; margin-top:4px; }
+.spec-drawings-modal-picked { margin-top:6px; padding:4px 8px;
+  background:var(--navy-light); border-radius:4px; font-size:12px;
+  color:var(--navy-dark); }
+
 .spec-history-modal-list { max-height:60vh; overflow-y:auto; }
 
 .spec-detail-audit-list { list-style:none; padding:0; margin:6px 0 0; }

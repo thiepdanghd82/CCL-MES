@@ -880,4 +880,46 @@
   <data name="npi.spec.detail.qccapture.modal.err_reason_required" xml:space="preserve"><value>Pick a reason code when result is FAIL.</value></data>
   <data name="npi.spec.detail.qccapture.modal.err_result_required" xml:space="preserve"><value>Pick a result first.</value></data>
   <data name="npi.spec.detail.qccapture.modal.save_ok" xml:space="preserve"><value>Captured.</value></data>
+  <!-- Phase 8 PR-D-5b — Drawings tab. 9 kind sections, version chain, upload + download. -->
+  <data name="npi.spec.detail.drawings.intro" xml:space="preserve"><value>Customer + NPI + IPQC + FQC + OQC drawings. Upload a new version any time; previous versions stay in the chain.</value></data>
+  <data name="npi.spec.detail.drawings.section.empty" xml:space="preserve"><value>— No drawing uploaded for this kind yet.</value></data>
+  <data name="npi.spec.detail.drawings.btn_upload_first" xml:space="preserve"><value>↑ Upload v1</value></data>
+  <data name="npi.spec.detail.drawings.btn_upload_new" xml:space="preserve"><value>↑ Upload new version</value></data>
+  <data name="npi.spec.detail.drawings.btn_view" xml:space="preserve"><value>View</value></data>
+  <data name="npi.spec.detail.drawings.btn_versions_show" xml:space="preserve"><value>▸ Versions ({0})</value></data>
+  <data name="npi.spec.detail.drawings.btn_versions_hide" xml:space="preserve"><value>▾ Hide versions</value></data>
+  <data name="npi.spec.detail.drawings.version_tag" xml:space="preserve"><value>v{0}</value></data>
+  <data name="npi.spec.detail.drawings.size_kb" xml:space="preserve"><value>{0} KB</value></data>
+  <data name="npi.spec.detail.drawings.uploaded_by" xml:space="preserve"><value>{0} · {1:yyyy-MM-dd HH:mm}</value></data>
+  <data name="npi.spec.detail.drawings.change_reason_label" xml:space="preserve"><value>Change reason</value></data>
+  <data name="npi.spec.detail.drawings.load_err" xml:space="preserve"><value>Could not load drawings</value></data>
+  <data name="npi.spec.detail.drawings.forbidden" xml:space="preserve"><value>Only Admin or Engineer can upload drawings.</value></data>
+  <!-- 9 drawing kinds (DrawingKind enum). -->
+  <data name="npi.spec.detail.drawings.kind.CustomerDrawing" xml:space="preserve"><value>Customer drawing</value></data>
+  <data name="npi.spec.detail.drawings.kind.NpiPrintLayout" xml:space="preserve"><value>NPI print layout</value></data>
+  <data name="npi.spec.detail.drawings.kind.NpiCutLayout" xml:space="preserve"><value>NPI cut layout</value></data>
+  <data name="npi.spec.detail.drawings.kind.IpqcPrintReference" xml:space="preserve"><value>IPQC print reference</value></data>
+  <data name="npi.spec.detail.drawings.kind.IpqcCutReference" xml:space="preserve"><value>IPQC cut reference</value></data>
+  <data name="npi.spec.detail.drawings.kind.FqcChecksheet" xml:space="preserve"><value>FQC checksheet</value></data>
+  <data name="npi.spec.detail.drawings.kind.OqcChecksheet" xml:space="preserve"><value>OQC checksheet</value></data>
+  <data name="npi.spec.detail.drawings.kind.CustomerApproval" xml:space="preserve"><value>Customer approval</value></data>
+  <data name="npi.spec.detail.drawings.kind.InternalProof" xml:space="preserve"><value>Internal proof</value></data>
+  <!-- Status pills on DrawingVersion. -->
+  <data name="npi.spec.detail.drawings.status.Draft" xml:space="preserve"><value>Pending</value></data>
+  <data name="npi.spec.detail.drawings.status.PendingApproval" xml:space="preserve"><value>Pending approval</value></data>
+  <data name="npi.spec.detail.drawings.status.Approved" xml:space="preserve"><value>Approved</value></data>
+  <data name="npi.spec.detail.drawings.status.Rejected" xml:space="preserve"><value>Rejected</value></data>
+  <data name="npi.spec.detail.drawings.status.Superseded" xml:space="preserve"><value>Superseded</value></data>
+  <!-- Upload modal. -->
+  <data name="npi.spec.detail.drawings.modal.title" xml:space="preserve"><value>Upload drawing</value></data>
+  <data name="npi.spec.detail.drawings.modal.subtitle" xml:space="preserve"><value>{0} · next v{1}</value></data>
+  <data name="npi.spec.detail.drawings.modal.label_file" xml:space="preserve"><value>File</value></data>
+  <data name="npi.spec.detail.drawings.modal.hint_file" xml:space="preserve"><value>Allowed: pdf, png, jpg, jpeg, svg, gif, webp, dwg, dxf, ai. Max {0} MiB.</value></data>
+  <data name="npi.spec.detail.drawings.modal.label_change_reason" xml:space="preserve"><value>Change reason (optional)</value></data>
+  <data name="npi.spec.detail.drawings.modal.ph_change_reason" xml:space="preserve"><value>e.g. customer ECN-2026-118 — die outline updated</value></data>
+  <data name="npi.spec.detail.drawings.modal.btn_cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="npi.spec.detail.drawings.modal.btn_upload" xml:space="preserve"><value>Upload</value></data>
+  <data name="npi.spec.detail.drawings.modal.btn_uploading" xml:space="preserve"><value>Uploading…</value></data>
+  <data name="npi.spec.detail.drawings.modal.err_no_file" xml:space="preserve"><value>Please choose a file first.</value></data>
+  <data name="npi.spec.detail.drawings.modal.save_ok" xml:space="preserve"><value>Uploaded.</value></data>
 </root>

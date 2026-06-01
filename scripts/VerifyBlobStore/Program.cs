@@ -60,26 +60,34 @@ try
     var content = RandomBytes(5000);
     var expectedSha = Sha256Hex(content);
     using var inStream = new MemoryStream(content);
-    var key = await store.PutAsync(inStream, "drawings/1/2/v1.pdf", "application/pdf");
+    var result = await store.PutAsync(inStream, "drawings/1/2/v1.pdf", "application/pdf");
 
-    if (!key.StartsWith("drawings/1/2/v1_") || !key.EndsWith(".pdf"))
+    if (!result.Key.StartsWith("drawings/1/2/v1_") || !result.Key.EndsWith(".pdf"))
     {
-        Fail("1. Round-trip — key shape", $"unexpected key '{key}'");
+        Fail("1. Round-trip — key shape", $"unexpected key '{result.Key}'");
     }
-    else if (!key.Contains(expectedSha[..8]))
+    else if (!result.Key.Contains(expectedSha[..8]))
     {
-        Fail("1. Round-trip — sha8 in key", $"expected {expectedSha[..8]} in '{key}'");
+        Fail("1. Round-trip — sha8 in key", $"expected {expectedSha[..8]} in '{result.Key}'");
+    }
+    else if (result.Sha256Hex != expectedSha)
+    {
+        Fail("1. Round-trip — full sha256 in result", $"expected {expectedSha} got {result.Sha256Hex}");
+    }
+    else if (result.SizeBytes != content.Length)
+    {
+        Fail("1. Round-trip — size in result", $"expected {content.Length} got {result.SizeBytes}");
     }
     else
     {
-        using var outStream = await store.GetAsync(key);
+        using var outStream = await store.GetAsync(result.Key);
         using var ms = new MemoryStream();
         await outStream.CopyToAsync(ms);
         var actualSha = Sha256Hex(ms.ToArray());
         if (actualSha != expectedSha)
             Fail("1. Round-trip — sha mismatch", $"expected {expectedSha} got {actualSha}");
         else
-            Pass("1. Round-trip put → get → sha match", $"key={key}");
+            Pass("1. Round-trip put → get → sha match", $"key={result.Key} size={result.SizeBytes}");
     }
 }
 catch (Exception ex)
@@ -92,13 +100,15 @@ try
 {
     var content = RandomBytes(2048);
     using var s1 = new MemoryStream(content);
-    var k1 = await store.PutAsync(s1, "drawings/3/4/v1.png", "image/png");
+    var r1 = await store.PutAsync(s1, "drawings/3/4/v1.png", "image/png");
     using var s2 = new MemoryStream(content);
-    var k2 = await store.PutAsync(s2, "drawings/3/4/v1.png", "image/png");
-    if (k1 != k2)
-        Fail("2. Idempotency — same content", $"k1='{k1}' k2='{k2}'");
+    var r2 = await store.PutAsync(s2, "drawings/3/4/v1.png", "image/png");
+    if (r1.Key != r2.Key)
+        Fail("2. Idempotency — same content", $"k1='{r1.Key}' k2='{r2.Key}'");
+    else if (r1.Sha256Hex != r2.Sha256Hex)
+        Fail("2. Idempotency — sha mismatch", $"s1='{r1.Sha256Hex}' s2='{r2.Sha256Hex}'");
     else
-        Pass("2. Idempotency same content → same key", $"key={k1}");
+        Pass("2. Idempotency same content → same key", $"key={r1.Key}");
 }
 catch (Exception ex)
 {

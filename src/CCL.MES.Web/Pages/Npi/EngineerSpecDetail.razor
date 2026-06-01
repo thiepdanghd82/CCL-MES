@@ -33,9 +33,13 @@
 @using CCL.MES.Application.SpecDetail
 @using CCL.MES.Domain
 @using CCL.MES.Domain.Entities
+@using CCL.MES.Infrastructure.Storage
+@using Microsoft.AspNetCore.Components.Forms
 @inject SpecService SpecSvc
 @inject SpecQcWindowService QcWindowSvc
 @inject SpecQcCaptureService QcCaptureSvc
+@inject DrawingsService DrawingsSvc
+@inject BlobStoreOptions BlobOpts
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> Loc
@@ -775,6 +779,212 @@
                     </div>
                 }
             }
+            else if (_activeTab == "drawings")
+            {
+                @* ── Phase 8 PR-D-5b — Drawings tab. 9 kind sections (one per
+                     DrawingKind enum value) each showing the current
+                     DrawingVersion as a card + collapsible version chain.
+                     Upload via Blazor InputFile streamed straight to
+                     IBlobStore.PutAsync (no full-memory buffer per Lesson
+                     PR-D-5a caller guidance). 3-role approval chips
+                     DEFERRED to PR-D-5c — status pill renders the basic
+                     Draft/Pending state from the persisted version row.
+
+                     RBAC: View = route NpiSpecRead policy. Upload = Admin/
+                     Engineer enforced both client (AuthorizeView) and server
+                     (DrawingsService.UploadAsync role check). Hotfix #27:
+                     render from entity + try-catch + inline error banner. *@
+                <div class="spec-drawings-area">
+                    <p class="spec-drawings-intro">@Loc["npi.spec.detail.drawings.intro"]</p>
+
+                    @if (_drawingsLoading)
+                    {
+                        <div class="spec-qcplans-state">@Loc["common.loading"]</div>
+                    }
+                    else if (_drawingsError is not null)
+                    {
+                        <div class="alert err spec-qcplans-error" role="alert">
+                            <strong>@Loc["npi.spec.detail.drawings.load_err"]</strong>
+                            <pre>@_drawingsError</pre>
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var kv in _drawingViews)
+                        {
+                            var kind = kv.Kind;
+                            var label = Loc[$"npi.spec.detail.drawings.kind.{kind}"].Value;
+                            var hasCurrent = kv.CurrentVersionId.HasValue;
+                            var current = hasCurrent
+                                ? kv.Versions.FirstOrDefault(v => v.Id == kv.CurrentVersionId)
+                                : null;
+                            var versionCount = kv.Versions.Count;
+                            var expanded = kv.DrawingId.HasValue && _expandedDrawings.Contains(kv.DrawingId.Value);
+
+                            <section class="spec-drawings-section">
+                                <header class="spec-drawings-section-head">
+                                    <h3>@label</h3>
+                                    <AuthorizeView Roles="Admin,Engineer">
+                                        <Authorized>
+                                            <button type="button" class="rt-btn spec-drawings-upload-btn"
+                                                    @onclick="@(() => OpenUploadModal(kind, versionCount))">
+                                                @(hasCurrent
+                                                    ? Loc["npi.spec.detail.drawings.btn_upload_new"]
+                                                    : Loc["npi.spec.detail.drawings.btn_upload_first"])
+                                            </button>
+                                        </Authorized>
+                                    </AuthorizeView>
+                                </header>
+
+                                @if (current is null)
+                                {
+                                    <div class="spec-drawings-empty">@Loc["npi.spec.detail.drawings.section.empty"]</div>
+                                }
+                                else
+                                {
+                                    <article class="spec-drawings-card">
+                                        <div class="spec-drawings-thumb">
+                                            <span class="spec-drawings-thumb-ext">@FileExt(current.FileName)</span>
+                                            <span class="spec-drawings-thumb-ver">v@current.VersionNo</span>
+                                        </div>
+                                        <div class="spec-drawings-info">
+                                            <div class="spec-drawings-title">
+                                                @current.FileName
+                                                <span class="spec-drawings-meta">· v@current.VersionNo</span>
+                                            </div>
+                                            <div class="spec-drawings-meta">
+                                                @string.Format(Loc["npi.spec.detail.drawings.size_kb"].Value, FmtKb(current.FileSize))
+                                                ·
+                                                @string.Format(Loc["npi.spec.detail.drawings.uploaded_by"].Value,
+                                                    current.UploadedBy ?? "—",
+                                                    current.UploadedAt.ToLocalTime())
+                                            </div>
+                                            <div class="spec-drawings-status-line">
+                                                <span class="spec-drawings-status-pill @StatusPillClass(current.Status)">@StatusPillLabel(current.Status)</span>
+                                                @if (!string.IsNullOrWhiteSpace(current.ChangeReason))
+                                                {
+                                                    <span class="spec-drawings-reason"
+                                                          title="@Loc["npi.spec.detail.drawings.change_reason_label"].Value">
+                                                        "@current.ChangeReason"
+                                                    </span>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="spec-drawings-actions">
+                                            <a class="rt-btn rt-btn-primary spec-drawings-view-btn"
+                                               href="@DownloadUrl(current.Id)"
+                                               target="_blank" rel="noreferrer">
+                                                @Loc["npi.spec.detail.drawings.btn_view"]
+                                            </a>
+                                            @if (versionCount > 1 && kv.DrawingId.HasValue)
+                                            {
+                                                <button type="button" class="rt-btn spec-drawings-toggle-btn"
+                                                        @onclick="@(() => ToggleVersions(kv.DrawingId.Value))">
+                                                    @(expanded
+                                                        ? Loc["npi.spec.detail.drawings.btn_versions_hide"].Value
+                                                        : string.Format(Loc["npi.spec.detail.drawings.btn_versions_show"].Value, versionCount))
+                                                </button>
+                                            }
+                                        </div>
+                                    </article>
+
+                                    @if (expanded && versionCount > 1)
+                                    {
+                                        <ul class="spec-drawings-timeline">
+                                            @foreach (var v in kv.Versions)
+                                            {
+                                                var isCurrent = v.Id == kv.CurrentVersionId;
+                                                <li class="spec-drawings-timeline-row @(isCurrent ? "is-current" : "")">
+                                                    <span class="spec-drawings-version-tag">v@v.VersionNo</span>
+                                                    <div class="spec-drawings-timeline-body">
+                                                        <div class="spec-drawings-timeline-filename">@v.FileName · @string.Format(Loc["npi.spec.detail.drawings.size_kb"].Value, FmtKb(v.FileSize))</div>
+                                                        @if (!string.IsNullOrWhiteSpace(v.ChangeReason))
+                                                        {
+                                                            <div class="spec-drawings-timeline-reason">"@v.ChangeReason"</div>
+                                                        }
+                                                        <div class="spec-drawings-timeline-meta">
+                                                            @string.Format(Loc["npi.spec.detail.drawings.uploaded_by"].Value,
+                                                                v.UploadedBy ?? "—",
+                                                                v.UploadedAt.ToLocalTime())
+                                                        </div>
+                                                    </div>
+                                                    <span class="spec-drawings-status-pill @StatusPillClass(v.Status)">@StatusPillLabel(v.Status)</span>
+                                                    <a class="rt-btn spec-drawings-timeline-view-btn"
+                                                       href="@DownloadUrl(v.Id)"
+                                                       target="_blank" rel="noreferrer">
+                                                        @Loc["npi.spec.detail.drawings.btn_view"]
+                                                    </a>
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                }
+                            </section>
+                        }
+                    }
+                </div>
+
+                @* ── Upload modal — single column. ────────────────────── *@
+                @if (_uploadModalOpen)
+                {
+                    <div class="modal-scrim" @onclick="CloseUploadModal">
+                        <div class="modal-card spec-drawings-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+                            <div class="modal-head">
+                                <h2>@Loc["npi.spec.detail.drawings.modal.title"]</h2>
+                                <button type="button" class="modal-close" @onclick="CloseUploadModal" aria-label="Close" disabled="@_uploadModalBusy">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="spec-qccapture-modal-subtitle">
+                                    @string.Format(
+                                        Loc["npi.spec.detail.drawings.modal.subtitle"].Value,
+                                        Loc[$"npi.spec.detail.drawings.kind.{_uploadModalKind}"].Value,
+                                        _uploadModalNextVersion)
+                                </div>
+
+                                <div class="spec-qccapture-modal-section">
+                                    <label class="spec-qccapture-modal-label">@Loc["npi.spec.detail.drawings.modal.label_file"] <span class="required">*</span></label>
+                                    <InputFile OnChange="OnUploadFileChange"
+                                               accept=".pdf,.png,.jpg,.jpeg,.svg,.gif,.webp,.dwg,.dxf,.ai"
+                                               disabled="@_uploadModalBusy" />
+                                    <div class="spec-drawings-modal-hint">@string.Format(Loc["npi.spec.detail.drawings.modal.hint_file"].Value, BlobOpts.MaxBytes / (1024 * 1024))</div>
+                                    @if (_uploadModalFile is not null)
+                                    {
+                                        <div class="spec-drawings-modal-picked">
+                                            @_uploadModalFile.Name (@FmtKb(_uploadModalFile.Size) KB)
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="spec-qccapture-modal-section">
+                                    <label class="spec-qccapture-modal-label" for="upload-reason">@Loc["npi.spec.detail.drawings.modal.label_change_reason"]</label>
+                                    <textarea id="upload-reason"
+                                              class="spec-qcplans-input spec-qccapture-textarea"
+                                              rows="2"
+                                              maxlength="500"
+                                              placeholder="@Loc["npi.spec.detail.drawings.modal.ph_change_reason"]"
+                                              disabled="@_uploadModalBusy"
+                                              @oninput="@(e => _uploadModalChangeReason = e.Value?.ToString())">@_uploadModalChangeReason</textarea>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(_uploadModalError))
+                                {
+                                    <div class="alert err" role="alert">@_uploadModalError</div>
+                                }
+                            </div>
+                            <div class="modal-foot">
+                                <button type="button" class="btn" @onclick="CloseUploadModal" disabled="@_uploadModalBusy">@Loc["npi.spec.detail.drawings.modal.btn_cancel"]</button>
+                                <button type="button" class="rt-btn rt-btn-primary"
+                                        disabled="@(_uploadModalFile is null || _uploadModalBusy)"
+                                        @onclick="SubmitUploadAsync">
+                                    @(_uploadModalBusy
+                                        ? Loc["npi.spec.detail.drawings.modal.btn_uploading"]
+                                        : Loc["npi.spec.detail.drawings.modal.btn_upload"])
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
             else
             {
                 <div class="spec-detail-coming-soon">
@@ -1146,6 +1356,14 @@
         _captureModalOpen = false;
         _captureModalCriterion = null;
         _captureModalError = null;
+        // PR-D-5b — reset Drawings tab state on revision change.
+        _drawingsLoaded = false;
+        _drawingsError = null;
+        _drawingViews = new();
+        _expandedDrawings.Clear();
+        _uploadModalOpen = false;
+        _uploadModalFile = null;
+        _uploadModalError = null;
         try
         {
             _detail = await SpecSvc.SpecDetailAsync(RevisionId);
@@ -1180,7 +1398,156 @@
             await EnsureQcPlansLoadedAsync();
             await EnsureQcCapturesLoadedAsync();
         }
+        // PR-D-5b — Drawings tab lazy-load.
+        if (key == "drawings")
+        {
+            await EnsureDrawingsLoadedAsync();
+        }
     }
+
+    // ── Phase 8 PR-D-5b — Drawings tab state ──────────────────────────────
+
+    private bool _drawingsLoaded;
+    private bool _drawingsLoading;
+    private string? _drawingsError;
+    private List<DrawingKindView> _drawingViews = new();
+    private readonly HashSet<long> _expandedDrawings = new();
+
+    // Upload modal state.
+    private bool _uploadModalOpen;
+    private DrawingKind _uploadModalKind;
+    private int _uploadModalNextVersion = 1;
+    private IBrowserFile? _uploadModalFile;
+    private string? _uploadModalChangeReason;
+    private bool _uploadModalBusy;
+    private string? _uploadModalError;
+
+    private async Task EnsureDrawingsLoadedAsync()
+    {
+        if (_drawingsLoaded || _drawingsLoading || _detail is null) return;
+        _drawingsLoading = true;
+        _drawingsError = null;
+        try
+        {
+            _drawingViews = await DrawingsSvc.ListByRevisionAsync(_detail.Id);
+            _drawingsLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            _drawingsError = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _drawingsLoading = false;
+        }
+    }
+
+    private void ToggleVersions(long drawingId)
+    {
+        if (!_expandedDrawings.Add(drawingId))
+            _expandedDrawings.Remove(drawingId);
+    }
+
+    private void OpenUploadModal(DrawingKind kind, int existingVersionCount)
+    {
+        _uploadModalKind = kind;
+        _uploadModalNextVersion = existingVersionCount + 1;
+        _uploadModalFile = null;
+        _uploadModalChangeReason = null;
+        _uploadModalError = null;
+        _uploadModalBusy = false;
+        _uploadModalOpen = true;
+    }
+
+    private void CloseUploadModal()
+    {
+        if (_uploadModalBusy) return;
+        _uploadModalOpen = false;
+        _uploadModalFile = null;
+        _uploadModalError = null;
+    }
+
+    private void OnUploadFileChange(InputFileChangeEventArgs e)
+    {
+        _uploadModalFile = e.File;
+        _uploadModalError = null;
+    }
+
+    private async Task SubmitUploadAsync()
+    {
+        if (_uploadModalBusy || _detail is null) return;
+        if (_uploadModalFile is null)
+        {
+            _uploadModalError = Loc["npi.spec.detail.drawings.modal.err_no_file"].Value;
+            return;
+        }
+
+        _uploadModalBusy = true;
+        _uploadModalError = null;
+        try
+        {
+            var auth = await AuthState.GetAuthenticationStateAsync();
+            var user = auth.User?.Identity?.Name ?? "anonymous";
+            var role = ResolveRole(auth);
+
+            // Stream straight into the blob store — never buffer full into memory.
+            // maxAllowedSize MUST be set to match server cap (Blazor default is
+            // 512 KB; size-cap rejection then happens client-side instead of
+            // surfacing the server's clearer "exceeds MaxBytes" message).
+            await using var stream = _uploadModalFile.OpenReadStream(BlobOpts.MaxBytes);
+            await DrawingsSvc.UploadAsync(
+                _detail.Id,
+                _uploadModalKind,
+                _uploadModalFile.Name,
+                _uploadModalFile.ContentType ?? "application/octet-stream",
+                stream,
+                _uploadModalChangeReason,
+                user,
+                role);
+
+            // Reload list so the new version surfaces with server-assigned Id.
+            _drawingViews = await DrawingsSvc.ListByRevisionAsync(_detail.Id);
+            _uploadModalOpen = false;
+            _uploadModalFile = null;
+            _uploadModalChangeReason = null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _uploadModalError = Loc["npi.spec.detail.drawings.forbidden"].Value;
+        }
+        catch (Exception ex)
+        {
+            _uploadModalError = ex.Message;
+        }
+        finally
+        {
+            _uploadModalBusy = false;
+        }
+    }
+
+    private static string FileExt(string fileName)
+    {
+        var e = Path.GetExtension(fileName).TrimStart('.').ToUpperInvariant();
+        return string.IsNullOrEmpty(e) ? "FILE" : e;
+    }
+
+    private static string FmtKb(long bytes)
+        => (bytes / 1024.0).ToString("F1", CultureInfo.InvariantCulture);
+
+    private string DownloadUrl(long versionId)
+        => $"/api/specs/{_detail!.Id}/drawings/{versionId}/file";
+
+    private static string StatusPillClass(DrawingVersionStatus s) => s switch
+    {
+        DrawingVersionStatus.Approved        => "approved",
+        DrawingVersionStatus.Rejected        => "rejected",
+        DrawingVersionStatus.PendingApproval => "pending",
+        DrawingVersionStatus.Superseded      => "superseded",
+        _                                    => "draft",
+    };
+
+    private string StatusPillLabel(DrawingVersionStatus s)
+        => Loc[$"npi.spec.detail.drawings.status.{s}"].Value;
 
     // ── Phase 8 PR-D-4 — QC Capture tab state ─────────────────────────────
 
