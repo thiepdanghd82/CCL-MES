@@ -779,4 +779,25 @@
   <data name="npi.spec.detail.action.trash_unimpl" xml:space="preserve"><value>Trash ships in a later PR (server TrashSpecAsync not yet implemented)</value></data>
   <data name="npi.spec.detail.action.edit_unimpl" xml:space="preserve"><value>Edit modal ships in a later PR (deferred per PR #31a)</value></data>
   <data name="npi.spec.detail.coming_soon_body" xml:space="preserve"><value>This tab is reserved for a future PR. The backend tables haven't landed on CCL-MES yet — the sibling CMES schema (spec_drawings / spec_qc_plans / spec_qc_captures / spec_artwork) is the porting target.</value></data>
+
+  <!-- Phase 8 PR-D-1 — Setup tab (read-only press settings + tolerances placeholder). -->
+  <data name="npi.spec.detail.setup.press.title" xml:space="preserve"><value>Press Settings</value></data>
+  <data name="npi.spec.detail.setup.press.sub" xml:space="preserve"><value>Operational parameters from SpecPrint + SpecMaterial</value></data>
+  <data name="npi.spec.detail.setup.tolerance.title" xml:space="preserve"><value>Tolerances (Critical)</value></data>
+  <data name="npi.spec.detail.setup.tolerance.sub" xml:space="preserve"><value>Defined per QC stage</value></data>
+  <data name="npi.spec.detail.setup.tolerance.pending" xml:space="preserve"><value>Tolerance bands live in the QC Plans tab. Open it to view + edit per-stage Target / Tolerance / Method / Frequency for IPQC Print, IPQC Cut, FQC, and OQC.</value></data>
+  <data name="npi.spec.detail.setup.tolerance.pivot" xml:space="preserve"><value>Open QC Plans tab</value></data>
+  <data name="npi.spec.detail.setup.field.process" xml:space="preserve"><value>Process code</value></data>
+  <data name="npi.spec.detail.setup.field.inspection_level" xml:space="preserve"><value>Inspection level</value></data>
+  <data name="npi.spec.detail.setup.field.printing_cavity" xml:space="preserve"><value>Printing cavity</value></data>
+  <data name="npi.spec.detail.setup.field.length_pitch" xml:space="preserve"><value>Length pitch</value></data>
+  <data name="npi.spec.detail.setup.field.product_size" xml:space="preserve"><value>Product size</value></data>
+  <data name="npi.spec.detail.setup.field.adhesive" xml:space="preserve"><value>Adhesive</value></data>
+  <data name="npi.spec.detail.setup.field.print_colors" xml:space="preserve"><value>Print colors</value></data>
+  <data name="npi.spec.detail.setup.field.flexo_print_rows" xml:space="preserve"><value>Flexo printing processes</value></data>
+  <data name="npi.spec.detail.setup.field.flexo_cut_rows" xml:space="preserve"><value>Flexo cutting processes</value></data>
+  <data name="npi.spec.detail.setup.field.flexo_ink_rows" xml:space="preserve"><value>Flexo inks</value></data>
+  <data name="npi.spec.detail.setup.unit.colors" xml:space="preserve"><value>colors</value></data>
+  <data name="npi.spec.detail.setup.unit.processes" xml:space="preserve"><value>processes</value></data>
+  <data name="npi.spec.detail.setup.unit.inks" xml:space="preserve"><value>inks</value></data>
 </root>

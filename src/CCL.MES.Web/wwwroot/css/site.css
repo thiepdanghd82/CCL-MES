@@ -554,6 +554,44 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .spec-detail-coming-soon p { margin:0; color:#6b7280; font-size:13px;
   max-width:520px; margin-left:auto; margin-right:auto; line-height:1.5; }
 
+/* ─── Phase 8 PR-D-1 — Setup tab (2-card layout, read-only).
+   Press Settings (left) + Tolerances placeholder (right). Reuses navy
+   palette tokens from PR-A; spec-planner-tag tokens from chrome (PR #42). */
+.spec-setup-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px;
+  margin-top:4px; }
+@media (max-width:900px) {
+  .spec-setup-grid { grid-template-columns:1fr; }
+}
+.spec-setup-card { background:#fff; border:1px solid var(--navy-border);
+  border-radius:4px; padding:14px 18px; }
+.spec-setup-card-head { border-bottom:1px solid var(--navy-light);
+  padding-bottom:8px; margin-bottom:10px; }
+.spec-setup-card-head h3 { margin:0; font-size:14px; font-weight:700;
+  color:var(--navy-dark); }
+.spec-setup-card-sub { display:block; margin-top:2px; font-size:11px;
+  color:#6b7280; font-style:italic; }
+.spec-setup-rows { display:grid; grid-template-columns:140px 1fr;
+  gap:6px 12px; margin:0; font-size:12.5px; }
+.spec-setup-rows dt { color:#6b7280; font-weight:500; align-self:center; }
+.spec-setup-rows dd { margin:0; color:#1f2937; align-self:center;
+  font-weight:600; }
+.spec-setup-rows .spec-planner-tag { margin-left:8px; font-size:10px;
+  padding:1px 6px; border-radius:8px; font-weight:600; letter-spacing:0.04em;
+  background:var(--navy-light); color:var(--navy-dark); text-transform:uppercase; }
+/* Divider row (full-width) between universal + category-specific blocks. */
+.spec-setup-divider { grid-column:1 / span 2; border-bottom:1px dashed var(--navy-border);
+  height:0; padding:0; margin:6px 0; }
+
+/* Card 2 placeholder variant — Tolerances ("Defined per QC stage" pointer card). */
+.spec-setup-card-pending { border-style:dashed; background:#FEFCE8; }
+.spec-setup-pending-body { display:flex; flex-direction:column; gap:10px;
+  align-items:flex-start; }
+.spec-setup-pending-text { margin:0; font-size:12.5px; color:#854D0E;
+  line-height:1.5; }
+.spec-setup-pivot-btn { font-size:12px; padding:4px 12px;
+  background:var(--navy-primary); color:#fff; border-color:var(--navy-primary); }
+.spec-setup-pivot-btn:hover { background:var(--navy-dark); }
+
 .spec-history-modal { max-width:760px; }
 .spec-history-modal-list { max-height:60vh; overflow-y:auto; }
 
