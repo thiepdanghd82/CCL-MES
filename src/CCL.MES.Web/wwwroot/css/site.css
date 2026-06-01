@@ -592,7 +592,58 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   background:var(--navy-primary); color:#fff; border-color:var(--navy-primary); }
 .spec-setup-pivot-btn:hover { background:var(--navy-dark); }
 
-.spec-history-modal { max-width:760px; }
+/* ─── Phase 8 PR-D-2 — Artwork tab (client-only SVG shell).
+   Preview banner + layer toggles + template picker + canvas. */
+.spec-artwork-area { display:flex; flex-direction:column; gap:12px; }
+
+/* Yellow preview-template banner — operator must understand this is NOT
+   real artwork data. Borrow .spec-generic-warning palette (PR-B) for
+   visual consistency with other "this isn't real" surfaces. */
+.spec-artwork-preview-banner { display:flex; align-items:flex-start; gap:8px;
+  padding:10px 14px; background:#FEF3C7; border:1px solid #FDE68A;
+  border-left:3px solid #F59E0B; border-radius:3px; color:#92400E;
+  font-size:12px; line-height:1.45; }
+.spec-artwork-preview-icon { font-size:14px; flex:0 0 auto;
+  font-weight:700; }
+.spec-artwork-preview-text { flex:1 1 auto; }
+
+/* Controls row — layer toggles + template picker as 2 horizontal groups. */
+.spec-artwork-controls { display:flex; flex-wrap:wrap; gap:18px;
+  padding:10px 14px; background:#fff; border:1px solid var(--navy-border);
+  border-radius:3px; }
+.spec-artwork-control-group { display:flex; flex-wrap:wrap; align-items:center;
+  gap:6px; }
+.spec-artwork-control-label { font-size:11px; font-weight:600;
+  color:#6b7280; text-transform:uppercase; letter-spacing:0.04em;
+  margin-right:4px; }
+
+/* Layer toggle button — pill with color dot. Active = filled bg + bold. */
+.spec-artwork-toggle { display:inline-flex; align-items:center; gap:6px;
+  padding:4px 10px; font-size:12px; font-weight:500;
+  background:#fff; color:#6b7280; border:1px solid var(--navy-border);
+  border-radius:14px; cursor:pointer; transition:all 0.12s; }
+.spec-artwork-toggle:hover { border-color:var(--navy-dark); color:var(--navy-dark); }
+.spec-artwork-toggle.active { background:var(--navy-light); color:var(--navy-dark);
+  font-weight:600; border-color:var(--navy-border); }
+.spec-artwork-toggle-dot { width:8px; height:8px; border-radius:50%;
+  display:inline-block; flex:0 0 auto; box-shadow:inset 0 0 0 1px rgba(0,0,0,0.1); }
+
+/* Template picker button — rectangular tab-style. */
+.spec-artwork-template-btn { padding:4px 12px; font-size:12px; font-weight:500;
+  background:#fff; color:#6b7280; border:1px solid var(--navy-border);
+  border-radius:3px; cursor:pointer; }
+.spec-artwork-template-btn:hover { border-color:var(--navy-dark); color:var(--navy-dark); }
+.spec-artwork-template-btn.active { background:var(--navy-primary); color:#fff;
+  border-color:var(--navy-primary); font-weight:600; }
+.spec-artwork-template-hint { font-size:11px; color:#6b7280; font-style:italic;
+  margin-left:6px; }
+
+/* SVG canvas — white card with subtle border, full available width.
+   max-height clamp so panel-face (480x100) doesn't stretch the full tab. */
+.spec-artwork-canvas { background:#fff; border:1px solid var(--navy-border);
+  border-radius:3px; padding:20px; display:flex; justify-content:center;
+  align-items:center; min-height:320px; }
+.spec-artwork-svg { max-width:100%; height:auto; max-height:480px; }
 .spec-history-modal-list { max-height:60vh; overflow-y:auto; }
 
 .spec-detail-audit-list { list-style:none; padding:0; margin:6px 0 0; }

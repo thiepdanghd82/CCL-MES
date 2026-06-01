@@ -800,4 +800,19 @@
   <data name="npi.spec.detail.setup.unit.colors" xml:space="preserve"><value>colors</value></data>
   <data name="npi.spec.detail.setup.unit.processes" xml:space="preserve"><value>processes</value></data>
   <data name="npi.spec.detail.setup.unit.inks" xml:space="preserve"><value>inks</value></data>
+
+  <!-- Phase 8 PR-D-2 — Artwork tab (client-only SVG shell + 4 layers + 3 templates). -->
+  <data name="npi.spec.detail.artwork.preview_banner" xml:space="preserve"><value>Preview template — this is NOT the artwork of the current spec. Real per-spec artwork will be wired when CCL Vietnam sample data lands. Use the layer toggles + template picker to explore the future surface.</value></data>
+  <data name="npi.spec.detail.artwork.layers_label" xml:space="preserve"><value>Layers</value></data>
+  <data name="npi.spec.detail.artwork.template_label" xml:space="preserve"><value>Template</value></data>
+  <data name="npi.spec.detail.artwork.layer.print" xml:space="preserve"><value>Print layer</value></data>
+  <data name="npi.spec.detail.artwork.layer.die" xml:space="preserve"><value>Die-cut line</value></data>
+  <data name="npi.spec.detail.artwork.layer.reg" xml:space="preserve"><value>Register marks</value></data>
+  <data name="npi.spec.detail.artwork.layer.bleed" xml:space="preserve"><value>Bleed area</value></data>
+  <data name="npi.spec.detail.artwork.template.brady_safety" xml:space="preserve"><value>Brady Safety</value></data>
+  <data name="npi.spec.detail.artwork.template.ccl_cosmetic" xml:space="preserve"><value>Cosmetic</value></data>
+  <data name="npi.spec.detail.artwork.template.panel_face" xml:space="preserve"><value>Panel Face</value></data>
+  <data name="npi.spec.detail.artwork.template_hint.silk" xml:space="preserve"><value>(auto-picked: SILK → Panel Face)</value></data>
+  <data name="npi.spec.detail.artwork.template_hint.flexo" xml:space="preserve"><value>(auto-picked: FLEXO → Brady Safety)</value></data>
+  <data name="npi.spec.detail.artwork.template_hint.other" xml:space="preserve"><value>(fallback: Brady Safety)</value></data>
 </root>
