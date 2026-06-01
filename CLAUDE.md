@@ -36,6 +36,12 @@ Khi commit, verify: `git diff --name-only | grep -E "Ops Control v1\.2|^CMES/|Ol
 - `data/ccl_mes.db` — live SQLite (override `MES_DB_PATH=/abs/path` env)
 - `data/Backup/SQLite/` — snapshot target (`Settings → Backup/Restore →
   Create snapshot`)
+- `data/blobs/drawings/<revisionId>/<drawingId>/v<n>_<sha8>.<ext>` —
+  Phase 8 PR-D-5a FilesystemBlobStore artefacts. Caps:
+  `MES_BLOB_MAX_BYTES` (default 10 MiB), `MES_BLOB_ALLOWED_EXTENSIONS`
+  (CSV, default `pdf,png,jpg,jpeg,svg,gif,webp,dwg,dxf,ai`). 6 security
+  guards documented in `docs/LESSONS_LEARNED.md`; harness at
+  `scripts/VerifyBlobStore` (run via `dotnet run --project ...`).
 - Base dir override: `MES_DATA_DIR=/abs/path`
 
 ## 3. Database provider switch

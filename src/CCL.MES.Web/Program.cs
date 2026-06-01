@@ -89,6 +89,45 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
 
+// Phase 8 PR-D-5a — Drawing blob storage. FilesystemBlobStore writes
+// <DataDir>/blobs/drawings/<revId>/<drwId>/v<n>_<sha8>.<ext>. DataDir is
+// resolved earlier in this file (absolute path, matches DbContext data
+// dir per Lesson 30 cwd-trap convention).
+{
+    var blobOpts = new CCL.MES.Infrastructure.Storage.BlobStoreOptions
+    {
+        DataDir = Path.GetFullPath(
+            Environment.GetEnvironmentVariable("MES_DATA_DIR")
+                ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "data")),
+    };
+    // Re-resolve relative to our just-computed dataDir block above. The
+    // ConnectionStrings default is keyed on the same dataDir, so re-derive
+    // here to stay in sync regardless of env-var path.
+    var dbConn = builder.Configuration["ConnectionStrings:Default"] ?? "";
+    var prefix = "Data Source=";
+    if (dbConn.StartsWith(prefix, StringComparison.Ordinal))
+    {
+        var dbFile = dbConn.Substring(prefix.Length);
+        var dbDir = Path.GetDirectoryName(Path.GetFullPath(dbFile));
+        if (!string.IsNullOrWhiteSpace(dbDir)) blobOpts.DataDir = dbDir;
+    }
+
+    if (long.TryParse(Environment.GetEnvironmentVariable("MES_BLOB_MAX_BYTES"), out var maxBytes) && maxBytes > 0)
+    {
+        blobOpts.MaxBytes = maxBytes;
+    }
+    var allowedEnv = Environment.GetEnvironmentVariable("MES_BLOB_ALLOWED_EXTENSIONS");
+    if (!string.IsNullOrWhiteSpace(allowedEnv))
+    {
+        blobOpts.AllowedExtensions = new HashSet<string>(
+            allowedEnv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            StringComparer.OrdinalIgnoreCase);
+    }
+    Console.WriteLine($"[boot] Blob root: {blobOpts.DataDir}/blobs/  (max {blobOpts.MaxBytes} bytes, {blobOpts.AllowedExtensions.Count} extensions)");
+    builder.Services.AddSingleton(blobOpts);
+    builder.Services.AddSingleton<CCL.MES.Application.Storage.IBlobStore, CCL.MES.Infrastructure.Storage.FilesystemBlobStore>();
+}
+
 // API + Swagger
 builder.Services.AddControllers().AddJsonOptions(o =>
 {
