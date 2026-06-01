@@ -20,6 +20,10 @@ public static class AuditAction
     public const string QcApprove             = "QC_APPROVE";              // pass/fail in Detail
     public const string QcCreate              = "QC_CREATE";
     public const string SpecApprove           = "SPEC_APPROVE";
+    // Phase 8 PR #31d — Backfill 4 detail-sheet fields trên SpecPrint cho
+    // ProductRevisions existing (KHÔNG tạo mới). detail JSON: { backfilled,
+    // skipped, fields_touched, files: [{filename, status, ref_no}] }
+    public const string SpecBackfillDetail    = "SPEC_BACKFILL_DETAIL";
     public const string SpecCreate            = "SPEC_CREATE";
     // Phase 8 PR #31c — Export list view (CSV / XLSX / PDF). detail JSON:
     // { format, search, rows, filename, content_length }

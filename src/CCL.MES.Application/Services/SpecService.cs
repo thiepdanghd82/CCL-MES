@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CCL.MES.Application.Audit;
+using CCL.MES.Application.SpecDetail;
 using CCL.MES.Domain;
 using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
@@ -277,5 +278,170 @@ public class SpecService
                 a.Timestamp, a.Action, a.ActorUsername, a.ActorRole, a.Detail))
             .ToListAsync();
         return rows;
+    }
+
+    // ── Phase 8 PR #31d — full detail sheet ────────────────────────────────
+
+    /// <summary>
+    /// PR #31d — Single-query full detail graph cho EngineerSpecDetail.razor
+    /// + PdfSpecSheetExporter. Include Material/Print/Print.Colors/
+    /// FlexoCuttingRows/FlexoInkRows + Product.Customer. KHÔNG re-fetch by id
+    /// per section (bài học hotfix #27 — render trực tiếp từ entity graph).
+    ///
+    /// Returns null nếu revision không tồn tại hoặc trashed.
+    /// </summary>
+    public async Task<SpecDetailDto?> SpecDetailAsync(long revisionId, int auditMax = 50, int lineageMax = 6)
+    {
+        var rev = await _db.ProductRevisions
+            .AsNoTracking()
+            .Include(r => r.Material)
+            .Include(r => r.Print!).ThenInclude(p => p.Colors)
+            .Include(r => r.Print!).ThenInclude(p => p.FlexoCuttingRows)
+            .Include(r => r.Print!).ThenInclude(p => p.FlexoInkRows)
+            .Include(r => r.Product!).ThenInclude(p => p.Customer)
+            .Where(r => !r.IsTrashed)
+            .FirstOrDefaultAsync(r => r.Id == revisionId);
+        if (rev is null) return null;
+
+        var processCode = rev.Print?.ProcessCode ?? "";
+        var planner = PlannerFromProcessCode(processCode);
+        var isFlexo = string.Equals(processCode, "FLEXO", StringComparison.OrdinalIgnoreCase);
+        var isSilkscreen = !isFlexo
+            && (string.Equals(processCode, "SILKSCREEN", StringComparison.OrdinalIgnoreCase)
+             || string.Equals(processCode, "INDIGO", StringComparison.OrdinalIgnoreCase)
+             || string.Equals(processCode, "INDIGO_PRIMER", StringComparison.OrdinalIgnoreCase));
+
+        // Parse flexo printing rows từ ExtraJson (folded per Q3 PR #31b)
+        var flexoPrintRows = new List<FlexoPrintRow>();
+        if (isFlexo && !string.IsNullOrWhiteSpace(rev.Print?.ExtraJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(rev.Print.ExtraJson);
+                if (doc.RootElement.TryGetProperty("flexo_print_rows", out var rows)
+                    && rows.ValueKind == JsonValueKind.Array)
+                {
+                    int seq = 0;
+                    foreach (var el in rows.EnumerateArray())
+                    {
+                        if (el.ValueKind != JsonValueKind.Object) continue;
+                        flexoPrintRows.Add(new FlexoPrintRow(
+                            Seq:         el.TryGetProperty("Seq", out var s) ? (s.GetInt32()) : ++seq,
+                            Process:     el.TryGetProperty("Process", out var p) ? p.GetString() : null,
+                            Material:    el.TryGetProperty("Material", out var m) ? m.GetString() : null,
+                            Thickness:   el.TryGetProperty("Thickness", out var t) ? t.GetString() : null,
+                            Size:        el.TryGetProperty("Size", out var sz) ? sz.GetString() : null,
+                            Cylinders:   el.TryGetProperty("Cylinders", out var c) ? c.GetString() : null,
+                            PitchMm:     el.TryGetProperty("PitchMm", out var pm) ? pm.GetString() : null,
+                            Speed:       el.TryGetProperty("Speed", out var sp) ? sp.GetString() : null,
+                            TensionHead: el.TryGetProperty("TensionHead", out var th) ? th.GetString() : null,
+                            TensionEnd:  el.TryGetProperty("TensionEnd", out var te) ? te.GetString() : null,
+                            TensionRoll: el.TryGetProperty("TensionRoll", out var tr) ? tr.GetString() : null,
+                            PlateCavity: el.TryGetProperty("PlateCavity", out var pc) ? pc.GetString() : null,
+                            Tension:     el.TryGetProperty("Tension", out var tn) ? tn.GetString() : null));
+                    }
+                }
+            }
+            catch { /* malformed JSON — fallback empty list, không crash */ }
+        }
+
+        var dto = new SpecDetailDto
+        {
+            Id = rev.Id,
+            SpecCode = rev.SpecCode,
+            Title = rev.Title,
+            RevisionCode = rev.RevisionCode,
+            Status = rev.Status,
+            RefNo = rev.RefNo,
+            InspectionLevel = rev.InspectionLevel,
+            Planner = planner ?? "UNKNOWN",
+            ProductCode = rev.Product?.ProductCode ?? "",
+            ProductName = rev.Product?.Name ?? "",
+            CustomerName = rev.Product?.Customer?.Name,
+            ProcessCode = processCode,
+            IsSilkscreen = isSilkscreen,
+            IsFlexo = isFlexo,
+            // Material
+            SubstrateType = rev.Material?.SubstrateType,
+            SubstrateBrand = rev.Material?.SubstrateBrand,
+            AdhesiveType = rev.Material?.AdhesiveType,
+            AdhesiveBrand = rev.Material?.AdhesiveBrand,
+            ThicknessUm = rev.Material?.ThicknessUm,
+            MaterialExtraJson = rev.Material?.ExtraJson,
+            // Print params
+            PrintingCavity = rev.Print?.Cavity,
+            LengthPitchMm = rev.Print?.PitchMm,
+            ProductSizeWmm = rev.Print?.ProductSizeWmm,
+            ProductSizeHmm = rev.Print?.ProductSizeHmm,
+            Varnish = rev.Print?.Varnish,
+            Lamination = rev.Print?.Lamination,
+            WhiteUnderprint = rev.Print?.WhiteUnderprint ?? false,
+            PrintExtraJson = rev.Print?.ExtraJson,
+            ColorSpecJson = rev.Print?.ColorSpecJson,
+            // Remarks (PR #31d)
+            RemarksText = rev.Print?.RemarksText,
+            RemarksCutText = rev.Print?.RemarksCutText,
+            // Silk colors
+            PrintColors = rev.Print?.Colors.OrderBy(c => c.Seq).Select(c => new SpecPrintColorRow(
+                c.Seq, c.Surface, c.Color, c.InkName, c.InkCode, c.Maker, c.Retarder,
+                c.Viscosity, c.Speed, c.Squeegee, c.Dry, c.TemperatureC, c.TimeMin, c.Uv,
+                c.EmulsionUm, c.PlateSize, c.Mesh, c.AngleDeg, c.PlateCode, c.ControlNo, c.Remark
+            )).ToList() ?? new List<SpecPrintColorRow>(),
+            // Flexo rows
+            FlexoPrintRows = flexoPrintRows,
+            FlexoCuttingRows = rev.Print?.FlexoCuttingRows.OrderBy(c => c.Seq).Select(c => new FlexoCuttingRow(
+                c.Seq, c.Process, c.Lamination, c.Size, c.CutterLot, c.CutterName,
+                c.PcsPerSheet, c.CuttingCavity, c.PitchMm, c.Packing, c.PaperSpeed,
+                c.CuttingSpeed, c.CuttingPressure, c.HeadTension, c.RollTension
+            )).ToList() ?? new List<FlexoCuttingRow>(),
+            FlexoInkRows = rev.Print?.FlexoInkRows.OrderBy(i => i.Seq).Select(i => new FlexoInkRow(
+                i.Seq, i.Color, i.InkCode, i.InkDescription, i.Brand, i.Anilox,
+                i.PlateCode, i.Pressure, i.UvPowerW, i.IrPowerW
+            )).ToList() ?? new List<FlexoInkRow>(),
+            // Approval (Option A render-only)
+            ApprovedBy = rev.ApprovedBy,
+            ApprovedAt = rev.ApprovedAt,
+            ReleasedBy = rev.ReleasedBy,
+            ReleasedAt = rev.ReleasedAt,
+            // Audit stamps
+            CreatedAt = rev.CreatedAt,
+            CreatedBy = rev.CreatedBy,
+            UpdatedAt = rev.UpdatedAt,
+            UpdatedBy = rev.UpdatedBy,
+        };
+
+        // Lineage walk — DESC max 6 entries (Q11)
+        dto.Lineage = await WalkLineageAsync(rev.Id, lineageMax);
+
+        // Audit timeline — reuse PR #29 query path (Q11 audit timeline)
+        dto.AuditEntries = await SpecAuditTrailAsync(rev.Id, auditMax);
+
+        return dto;
+    }
+
+    /// <summary>
+    /// Walk ParentRevisionId chain DESC, return entries newest-first
+    /// (current → parent → grandparent → …). Limit max entries.
+    /// </summary>
+    private async Task<List<RevisionLineageEntry>> WalkLineageAsync(long startId, int max)
+    {
+        var entries = new List<RevisionLineageEntry>();
+        var currentId = (long?)startId;
+        int safetyCounter = 0;
+        while (currentId.HasValue && entries.Count < max && safetyCounter++ < 50)
+        {
+            var rev = await _db.ProductRevisions
+                .AsNoTracking()
+                .Where(r => r.Id == currentId.Value)
+                .Select(r => new {
+                    r.Id, r.RevisionCode, r.ChangeSummary, r.CreatedAt, r.CreatedBy, r.ParentRevisionId
+                })
+                .FirstOrDefaultAsync();
+            if (rev is null) break;
+            entries.Add(new RevisionLineageEntry(
+                rev.Id, rev.RevisionCode, rev.ChangeSummary, rev.CreatedAt, rev.CreatedBy));
+            currentId = rev.ParentRevisionId;
+        }
+        return entries;
     }
 }

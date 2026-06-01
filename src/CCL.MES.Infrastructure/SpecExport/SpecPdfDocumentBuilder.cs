@@ -1,4 +1,6 @@
+using System.Globalization;
 using CCL.MES.Application;
+using CCL.MES.Application.SpecDetail;
 using CCL.MES.Application.SpecExport;
 using MigraDoc.DocumentObjectModel;
 using MigraDoc.DocumentObjectModel.Tables;
@@ -166,5 +168,466 @@ public static class SpecPdfDocumentBuilder
         }
 
         return doc;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Phase 8 PR #31d — Single-spec detail sheet PDF.
+    //
+    // Reuse BuildEmpty() entry point + StyleConstants. 9-section append
+    // mirror EngineerSpecDetail.razor + SpecHub renderSilkscreenSpec/Flexo.
+    // A4 portrait, sans-serif Arial (system font via SystemFontResolver).
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Build single-spec detail sheet PDF (PR #31d Q4). Reuse BuildEmpty +
+    /// StyleConstants từ PR #31c. 9 section mirror web detail render.
+    /// </summary>
+    public static Document BuildDetailSheet(SpecDetailDto detail, SpecExportContext context)
+    {
+        var doc = BuildEmpty(
+            title: $"Spec Sheet {detail.RefNo ?? detail.SpecCode} Rev {detail.RevisionCode}",
+            orientation: MigraDocOrientation.Portrait);
+        var section = doc.LastSection;
+
+        // Page footer
+        var ftr = section.Footers.Primary.AddParagraph();
+        ftr.Format.Alignment = ParagraphAlignment.Center;
+        ftr.Format.Font.Size = StyleConstants.FooterFontPt;
+        ftr.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
+        ftr.AddText($"{detail.SpecCode} Rev {detail.RevisionCode} · Generated {context.GeneratedAt:yyyy-MM-dd HH:mm} by {context.GeneratedBy} · Page ");
+        ftr.AddPageField();
+        ftr.AddText(" / ");
+        ftr.AddNumPagesField();
+
+        // 1. Doc header
+        AppendDocHeader(section, detail);
+        // 2. Compliance strip
+        AppendComplianceStrip(section, detail);
+        // 3. Product Information
+        AppendProductInfo(section, detail);
+        // 4. Print Parameters (silk only)
+        if (detail.IsSilkscreen)
+            AppendPrintParams(section, detail);
+        // 5/5b. Silk colors OR Flexo 3 sub-tables
+        if (detail.IsSilkscreen)
+        {
+            AppendSilkPrintProcess(section, detail);
+        }
+        else if (detail.IsFlexo)
+        {
+            AppendFlexoPrinting(section, detail);
+            AppendFlexoCutting(section, detail);
+            AppendFlexoInk(section, detail);
+        }
+        // 6. Remarks
+        AppendRemarks(section, detail);
+        // 7. Revision History
+        AppendRevisionHistory(section, detail);
+        // 8. Approval Signatures (Option A render-only)
+        AppendApprovalSignatures(section, detail);
+        // 9. Change Log (audit timeline) — chỉ render top 10 entries cho PDF
+        AppendChangeLog(section, detail);
+
+        return doc;
+    }
+
+    private static void AppendDocHeader(Section section, SpecDetailDto d)
+    {
+        // 3-col table layout: company / center title / right block (REF NO + stamp)
+        var t = section.AddTable();
+        t.Borders.Color = Color.Parse(StyleConstants.BorderColorHex);
+        t.Borders.Width = 0;
+        t.Borders.Bottom.Width = 1.5;
+        t.Borders.Bottom.Color = Color.Parse("#1F2937");
+        t.AddColumn(Unit.FromCentimeter(6));
+        t.AddColumn(Unit.FromCentimeter(7));
+        t.AddColumn(Unit.FromCentimeter(5));
+        var row = t.AddRow();
+        // Left
+        var pCo = row.Cells[0].AddParagraph("Công ty TNHH CCL Design Việt Nam");
+        pCo.Format.Font.Bold = true;
+        pCo.Format.Font.Size = 9;
+        var pCoSub = row.Cells[0].AddParagraph("CCL Design Vietnam Co. Ltd");
+        pCoSub.Format.Font.Size = 7;
+        pCoSub.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
+        // Center
+        var pCenter = row.Cells[1].AddParagraph(d.IsFlexo ? "SEAL" : "SILK");
+        pCenter.Format.Alignment = ParagraphAlignment.Center;
+        pCenter.Format.Font.Size = 16;
+        pCenter.Format.Font.Bold = true;
+        pCenter.Format.Font.Color = Color.Parse(d.IsFlexo ? StyleConstants.PrimaryColorHex : StyleConstants.AccentColorHex);
+        var pSub = row.Cells[1].AddParagraph(d.IsFlexo
+            ? "Thông số kỹ thuật sản phẩm tiêu chuẩn In Nhãn Flexo"
+            : "Thông số kỹ thuật sản phẩm tiêu chuẩn In Lụa");
+        pSub.Format.Alignment = ParagraphAlignment.Center;
+        pSub.Format.Font.Size = 7;
+        pSub.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
+        // Right
+        var pRef = row.Cells[2].AddParagraph($"REF NO: {d.RefNo ?? "—"}");
+        pRef.Format.Alignment = ParagraphAlignment.Right;
+        pRef.Format.Font.Size = 9;
+        pRef.Format.Font.Bold = true;
+        pRef.Format.Font.Color = Color.Parse(d.IsFlexo ? StyleConstants.PrimaryColorHex : StyleConstants.AccentColorHex);
+        var pStamp = row.Cells[2].AddParagraph($"Inspection: {d.InspectionLevel ?? "—"}  [{d.StatusDisplay}]");
+        pStamp.Format.Alignment = ParagraphAlignment.Right;
+        pStamp.Format.Font.Size = 8;
+    }
+
+    private static void AppendComplianceStrip(Section section, SpecDetailDto d)
+    {
+        var p = section.AddParagraph($"Compliance: {string.Join(" · ", d.ComplianceChips)}");
+        p.Format.SpaceBefore = 6;
+        p.Format.SpaceAfter = 6;
+        p.Format.Font.Size = 8;
+        p.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
+    }
+
+    private static void AppendSectionTitle(Section section, string title, string? bgHex = null)
+    {
+        var p = section.AddParagraph(title);
+        p.Format.SpaceBefore = 6;
+        p.Format.Font.Bold = true;
+        p.Format.Font.Size = StyleConstants.HeaderFontPt;
+        p.Format.Shading.Color = Color.Parse(bgHex ?? StyleConstants.HeaderBgHex);
+        p.Format.Borders.Color = Color.Parse(StyleConstants.BorderColorHex);
+        p.Format.Borders.Width = 0.4;
+        p.Format.LeftIndent = "0.1cm";
+    }
+
+    private static void AppendProductInfo(Section section, SpecDetailDto d)
+    {
+        AppendSectionTitle(section, "Product Information · Thông tin sản phẩm");
+        var t = section.AddTable();
+        ApplyTableBorders(t);
+        t.Format.Font.Size = 7.5;
+        var headers = d.IsFlexo
+            ? new[] { "Customer", "Part No", "Part Name", "Version", "Size", "Substrate" }
+            : new[] { "Customer", "Part No", "Part Name", "Material", "Mat Size", "Lamination", "Lam Size", "Lam Cav" };
+        var values = d.IsFlexo
+            ? new[] { d.CustomerName ?? "—", d.ProductCode, d.ProductName, "—",
+                      d.ProductSizeDisplay, d.SubstrateType ?? "—" }
+            : SilkProductValues(d);
+        foreach (var _ in headers) t.AddColumn(Unit.FromCentimeter(2.8));
+        var hRow = t.AddRow();
+        hRow.HeadingFormat = true;
+        hRow.Format.Font.Bold = true;
+        hRow.Shading.Color = Color.Parse(StyleConstants.HeaderBgHex);
+        for (int i = 0; i < headers.Length; i++) hRow.Cells[i].AddParagraph(headers[i]);
+        var dRow = t.AddRow();
+        for (int i = 0; i < values.Length; i++) dRow.Cells[i].AddParagraph(values[i]);
+    }
+
+    private static string[] SilkProductValues(SpecDetailDto d)
+    {
+        var extra = ParseSilkMaterialExtra(d.MaterialExtraJson);
+        return new[]
+        {
+            d.CustomerName ?? "—",
+            d.ProductCode,
+            d.ProductName,
+            d.SubstrateType ?? "—",
+            extra.MaterialSize ?? "—",
+            extra.LaminationTape ?? "—",
+            extra.LaminationSize ?? "—",
+            extra.LaminationCavity ?? "—",
+        };
+    }
+
+    private static (string? MaterialSize, string? LaminationTape, string? LaminationSize, string? LaminationCavity)
+        ParseSilkMaterialExtra(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return (null, null, null, null);
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var r = doc.RootElement;
+            string? GetStr(string k) => r.TryGetProperty(k, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : null;
+            return (GetStr("material_size"), GetStr("lamination_tape"), GetStr("lamination_size"), GetStr("lamination_cavity"));
+        }
+        catch
+        {
+            return (null, null, null, null);
+        }
+    }
+
+    private static void AppendPrintParams(Section section, SpecDetailDto d)
+    {
+        AppendSectionTitle(section, "Print Parameters · Thông số in");
+        var t = section.AddTable();
+        ApplyTableBorders(t);
+        t.Format.Font.Size = 8;
+        for (int i = 0; i < 4; i++) t.AddColumn(Unit.FromCentimeter(4.5));
+        var hRow = t.AddRow();
+        hRow.HeadingFormat = true;
+        hRow.Format.Font.Bold = true;
+        hRow.Shading.Color = Color.Parse(StyleConstants.HeaderBgHex);
+        hRow.Cells[0].AddParagraph("Printing Cavity");
+        hRow.Cells[1].AddParagraph("Length Pitch (mm)");
+        hRow.Cells[2].AddParagraph("Product Size");
+        hRow.Cells[3].AddParagraph("Adhesive");
+        var dRow = t.AddRow();
+        dRow.Cells[0].AddParagraph(d.PrintingCavity?.ToString(CultureInfo.InvariantCulture) ?? "—");
+        dRow.Cells[1].AddParagraph(d.LengthPitchMm?.ToString("N1", CultureInfo.InvariantCulture) ?? "—");
+        dRow.Cells[2].AddParagraph(d.ProductSizeDisplay);
+        dRow.Cells[3].AddParagraph(d.AdhesiveType ?? "—");
+    }
+
+    private static void AppendSilkPrintProcess(Section section, SpecDetailDto d)
+    {
+        AppendSectionTitle(section, $"Print Process — {d.PrintColors.Count} colors");
+        if (d.PrintColors.Count == 0)
+        {
+            var p = section.AddParagraph("— No print rows —");
+            p.Format.Font.Italic = true;
+            p.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
+            return;
+        }
+        var t = section.AddTable();
+        ApplyTableBorders(t);
+        t.Format.Font.Size = 6.5;
+        // 8 essential cols (rest fit in landscape would be needed) — portrait constraint
+        var hdr = new[] { "No", "Sur", "Color", "Ink Code", "Maker", "Mesh", "Plate Code", "Remark" };
+        var widths = new[] { 0.7, 0.8, 3.2, 1.8, 1.5, 1.5, 2.0, 6.5 };
+        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        var hRow = t.AddRow();
+        hRow.HeadingFormat = true;
+        hRow.Format.Font.Bold = true;
+        hRow.Shading.Color = Color.Parse(StyleConstants.HeaderBgHex);
+        for (int i = 0; i < hdr.Length; i++) hRow.Cells[i].AddParagraph(hdr[i]);
+        foreach (var c in d.PrintColors)
+        {
+            var row = t.AddRow();
+            row.Cells[0].AddParagraph(c.Seq.ToString());
+            row.Cells[1].AddParagraph(c.Surface ?? "—");
+            row.Cells[2].AddParagraph(c.Color ?? "—");
+            row.Cells[3].AddParagraph(c.InkCode ?? "—");
+            row.Cells[4].AddParagraph(c.Maker ?? "—");
+            row.Cells[5].AddParagraph(c.Mesh ?? "—");
+            row.Cells[6].AddParagraph(c.PlateCode ?? "—");
+            row.Cells[7].AddParagraph(c.Remark ?? "—");
+        }
+    }
+
+    private static void AppendFlexoPrinting(Section section, SpecDetailDto d)
+    {
+        AppendSectionTitle(section, $"Printing Information — {d.FlexoPrintRows.Count} processes", "#CEE0FA");
+        if (d.FlexoPrintRows.Count == 0) { AppendEmpty(section); return; }
+        var t = section.AddTable();
+        ApplyTableBorders(t);
+        t.Format.Font.Size = 7;
+        var hdr = new[] { "Process", "Material", "Size", "Cyl", "Pitch", "Speed", "Plt Cav" };
+        var widths = new[] { 3.5, 3.5, 2.0, 1.5, 2.0, 2.0, 1.5 };
+        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        var hRow = t.AddRow();
+        hRow.HeadingFormat = true;
+        hRow.Format.Font.Bold = true;
+        hRow.Shading.Color = Color.Parse(StyleConstants.HeaderBgHex);
+        for (int i = 0; i < hdr.Length; i++) hRow.Cells[i].AddParagraph(hdr[i]);
+        foreach (var r in d.FlexoPrintRows)
+        {
+            var row = t.AddRow();
+            row.Cells[0].AddParagraph(r.Process ?? "—");
+            row.Cells[1].AddParagraph(r.Material ?? "—");
+            row.Cells[2].AddParagraph(r.Size ?? "—");
+            row.Cells[3].AddParagraph(r.Cylinders ?? "—");
+            row.Cells[4].AddParagraph(r.PitchMm ?? "—");
+            row.Cells[5].AddParagraph(r.Speed ?? "—");
+            row.Cells[6].AddParagraph(r.PlateCavity ?? "—");
+        }
+    }
+
+    private static void AppendFlexoCutting(Section section, SpecDetailDto d)
+    {
+        AppendSectionTitle(section, $"Cutting Information — {d.FlexoCuttingRows.Count} processes", "#FFEACC");
+        if (d.FlexoCuttingRows.Count == 0) { AppendEmpty(section); return; }
+        var t = section.AddTable();
+        ApplyTableBorders(t);
+        t.Format.Font.Size = 7;
+        var hdr = new[] { "Process", "Lamination", "Cutter Name", "Pcs/Sh", "Cavity", "Pitch", "Packing" };
+        var widths = new[] { 3.5, 2.5, 3.0, 1.3, 1.3, 1.5, 2.9 };
+        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        var hRow = t.AddRow();
+        hRow.HeadingFormat = true;
+        hRow.Format.Font.Bold = true;
+        hRow.Shading.Color = Color.Parse(StyleConstants.HeaderBgHex);
+        for (int i = 0; i < hdr.Length; i++) hRow.Cells[i].AddParagraph(hdr[i]);
+        foreach (var c in d.FlexoCuttingRows)
+        {
+            var row = t.AddRow();
+            row.Cells[0].AddParagraph(c.Process ?? "—");
+            row.Cells[1].AddParagraph(c.Lamination ?? "—");
+            row.Cells[2].AddParagraph(c.CutterName ?? "—");
+            row.Cells[3].AddParagraph(c.PcsPerSheet?.ToString(CultureInfo.InvariantCulture) ?? "—");
+            row.Cells[4].AddParagraph(c.CuttingCavity?.ToString(CultureInfo.InvariantCulture) ?? "—");
+            row.Cells[5].AddParagraph(c.PitchMm?.ToString("N1", CultureInfo.InvariantCulture) ?? "—");
+            row.Cells[6].AddParagraph(c.Packing ?? "—");
+        }
+    }
+
+    private static void AppendFlexoInk(Section section, SpecDetailDto d)
+    {
+        AppendSectionTitle(section, $"Ink Information — {d.FlexoInkRows.Count} inks", "#D8F0D6");
+        if (d.FlexoInkRows.Count == 0) { AppendEmpty(section); return; }
+        var t = section.AddTable();
+        ApplyTableBorders(t);
+        t.Format.Font.Size = 7;
+        var hdr = new[] { "No", "Color", "Ink Code", "Description", "Brand", "Anilox", "Plate", "UV" };
+        var widths = new[] { 0.7, 2.5, 1.8, 4.0, 1.8, 1.8, 1.8, 1.6 };
+        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        var hRow = t.AddRow();
+        hRow.HeadingFormat = true;
+        hRow.Format.Font.Bold = true;
+        hRow.Shading.Color = Color.Parse(StyleConstants.HeaderBgHex);
+        for (int i = 0; i < hdr.Length; i++) hRow.Cells[i].AddParagraph(hdr[i]);
+        foreach (var i in d.FlexoInkRows)
+        {
+            var row = t.AddRow();
+            row.Cells[0].AddParagraph(i.Seq.ToString());
+            row.Cells[1].AddParagraph(i.Color ?? "—");
+            row.Cells[2].AddParagraph(i.InkCode ?? "—");
+            row.Cells[3].AddParagraph(i.InkDescription ?? "—");
+            row.Cells[4].AddParagraph(i.Brand ?? "—");
+            row.Cells[5].AddParagraph(i.Anilox ?? "—");
+            row.Cells[6].AddParagraph(i.PlateCode ?? "—");
+            row.Cells[7].AddParagraph(i.UvPowerW?.ToString("N0", CultureInfo.InvariantCulture) ?? "—");
+        }
+    }
+
+    private static void AppendRemarks(Section section, SpecDetailDto d)
+    {
+        AppendSectionTitle(section, "Remarks · Ghi chú");
+        if (d.IsFlexo)
+        {
+            var t = section.AddTable();
+            ApplyTableBorders(t);
+            t.Format.Font.Size = 8;
+            t.AddColumn(Unit.FromCentimeter(9));
+            t.AddColumn(Unit.FromCentimeter(9));
+            var hRow = t.AddRow();
+            hRow.HeadingFormat = true;
+            hRow.Format.Font.Bold = true;
+            hRow.Cells[0].AddParagraph("Print Remarks");
+            hRow.Cells[1].AddParagraph("Cut Remarks");
+            var dRow = t.AddRow();
+            dRow.Cells[0].AddParagraph(string.IsNullOrEmpty(d.RemarksText) ? "—" : d.RemarksText);
+            dRow.Cells[1].AddParagraph(string.IsNullOrEmpty(d.RemarksCutText) ? "—" : d.RemarksCutText);
+        }
+        else
+        {
+            var p = section.AddParagraph(string.IsNullOrEmpty(d.RemarksText) ? "—" : $"※ {d.RemarksText}");
+            p.Format.Font.Size = 8;
+            p.Format.SpaceBefore = 2;
+        }
+    }
+
+    private static void AppendRevisionHistory(Section section, SpecDetailDto d)
+    {
+        AppendSectionTitle(section, "Revision History · Lịch sử thay đổi");
+        var t = section.AddTable();
+        ApplyTableBorders(t);
+        t.Format.Font.Size = 8;
+        t.AddColumn(Unit.FromCentimeter(1.5));
+        t.AddColumn(Unit.FromCentimeter(11.5));
+        t.AddColumn(Unit.FromCentimeter(2.5));
+        t.AddColumn(Unit.FromCentimeter(2.5));
+        var hRow = t.AddRow();
+        hRow.HeadingFormat = true;
+        hRow.Format.Font.Bold = true;
+        hRow.Shading.Color = Color.Parse(StyleConstants.HeaderBgHex);
+        hRow.Cells[0].AddParagraph("Rev");
+        hRow.Cells[1].AddParagraph("Contents");
+        hRow.Cells[2].AddParagraph("Date");
+        hRow.Cells[3].AddParagraph("By");
+        if (d.Lineage.Count == 0)
+        {
+            var row = t.AddRow();
+            var cell0 = row.Cells[0]; cell0.MergeRight = 3;
+            var p = cell0.AddParagraph("— No revision history —");
+            p.Format.Font.Italic = true;
+            p.Format.Alignment = ParagraphAlignment.Center;
+        }
+        foreach (var lr in d.Lineage)
+        {
+            var row = t.AddRow();
+            row.Cells[0].AddParagraph(lr.RevisionCode);
+            row.Cells[1].AddParagraph(lr.ChangeSummary ?? "—");
+            row.Cells[2].AddParagraph(lr.CreatedAt.ToString("yyyy-MM-dd"));
+            row.Cells[3].AddParagraph(lr.CreatedBy ?? "—");
+        }
+    }
+
+    private static void AppendApprovalSignatures(Section section, SpecDetailDto d)
+    {
+        AppendSectionTitle(section, "Approval Signatures · Chữ ký phê duyệt");
+        var t = section.AddTable();
+        ApplyTableBorders(t);
+        t.Format.Font.Size = 7;
+        for (int i = 0; i < 4; i++) t.AddColumn(Unit.FromCentimeter(4.5));
+        var hRow = t.AddRow();
+        hRow.HeadingFormat = true;
+        hRow.Format.Font.Bold = true;
+        hRow.Shading.Color = Color.Parse(StyleConstants.HeaderBgHex);
+        hRow.Cells[0].AddParagraph("R&D Issued");
+        hRow.Cells[1].AddParagraph("R&D Confirmed");
+        hRow.Cells[2].AddParagraph("PD Confirmed");
+        hRow.Cells[3].AddParagraph("QA Confirmed");
+        var nameRow = t.AddRow();
+        nameRow.Format.Font.Bold = true;
+        nameRow.Cells[0].AddParagraph(d.CreatedBy ?? "—");
+        nameRow.Cells[1].AddParagraph(d.ApprovedBy ?? "—");
+        nameRow.Cells[2].AddParagraph("—");
+        nameRow.Cells[3].AddParagraph("—");
+        var dateRow = t.AddRow();
+        dateRow.Format.Font.Size = 6;
+        dateRow.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
+        dateRow.Cells[0].AddParagraph($"Date: {d.CreatedAt:yyyy-MM-dd}");
+        dateRow.Cells[1].AddParagraph($"Date: {d.ApprovedAt?.ToString("yyyy-MM-dd") ?? "—"}");
+        dateRow.Cells[2].AddParagraph("Date: —");
+        dateRow.Cells[3].AddParagraph("Date: —");
+        var note = section.AddParagraph("Note: PD + QA signature workflow ships in a later PR (approval-chain).");
+        note.Format.Font.Size = 6;
+        note.Format.Font.Italic = true;
+        note.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
+        note.Format.SpaceBefore = 2;
+    }
+
+    private static void AppendChangeLog(Section section, SpecDetailDto d)
+    {
+        AppendSectionTitle(section, "Change Log · Audit timeline", "#FEF3C7");
+        if (d.AuditEntries.Count == 0)
+        {
+            var p = section.AddParagraph("— No audit entries —");
+            p.Format.Font.Italic = true;
+            p.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
+            return;
+        }
+        foreach (var a in d.AuditEntries.Take(15))
+        {
+            var p = section.AddParagraph();
+            p.Format.Font.Size = 7;
+            var ts = p.AddFormattedText($"{a.Timestamp:yyyy-MM-dd HH:mm} ", TextFormat.NotBold);
+            ts.Color = Color.Parse(StyleConstants.MutedColorHex);
+            var act = p.AddFormattedText(a.Action, TextFormat.Bold);
+            p.AddText($" · {a.ActorUsername}");
+            if (!string.IsNullOrWhiteSpace(a.ActorRole)) p.AddText($" ({a.ActorRole})");
+        }
+    }
+
+    private static void AppendEmpty(Section section)
+    {
+        var p = section.AddParagraph("— No rows —");
+        p.Format.Font.Size = 8;
+        p.Format.Font.Italic = true;
+        p.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
+    }
+
+    private static void ApplyTableBorders(Table t)
+    {
+        t.Borders.Color = Color.Parse(StyleConstants.BorderColorHex);
+        t.Borders.Width = 0.4;
+        t.LeftPadding = 2;
+        t.RightPadding = 2;
+        t.TopPadding = 1.5;
+        t.BottomPadding = 1.5;
     }
 }

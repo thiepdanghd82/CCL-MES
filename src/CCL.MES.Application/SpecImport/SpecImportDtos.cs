@@ -40,8 +40,17 @@ public class ParsedSpecDto
     // ── Print rows (silkscreen 20 fields per color) ───────────────────────
     public List<ParsedPrintColorDto> PrintRows { get; set; } = new();
 
-    /// <summary>Remarks blob — long text từ "Ghi chú/Remarks" section.</summary>
+    /// <summary>Remarks blob — long text từ "Ghi chú/Remarks" section.
+    /// Silk: single column. Flexo: combined "left | right" for legacy callers;
+    /// PR #31d use <see cref="RemarksLeft"/> + <see cref="RemarksRight"/> riêng.</summary>
     public string Remarks { get; set; } = "";
+
+    // PR #31d — tách remarks 2-col cho flexo (silk = chỉ RemarksLeft).
+    /// <summary>Flexo print remarks (silk = main remarks).</summary>
+    public string? RemarksLeft { get; set; }
+
+    /// <summary>Flexo cut remarks (silk = null).</summary>
+    public string? RemarksRight { get; set; }
 
     /// <summary>Warnings/skipped rows surfaced ở preview UI (non-fatal).</summary>
     public List<string> Warnings { get; set; } = new();

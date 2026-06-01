@@ -350,4 +350,65 @@ Mirror policy intent trong Roles list để giữ matrix consistent với Razor 
 
 ---
 
-*Cập nhật lần cuối: 01/06/2026 — Phase 8 PR #31c (PDFsharp-MigraDoc dep + cross-platform font resolver + API auth route patterns).*
+## 15. Backfill mode tách khỏi force=re-create (PR #31d)
+
+PR #31a `RefreshSamplesAsync(force=true)` SOFT-TRASH existing revision + tạo
+mới (revision Ids tăng, count tăng). Đó là pattern đúng cho "fresh sample
+sau khi parser bug fix" — clean audit trail forensic + reset state.
+
+NHƯNG khi schema thêm field mới (PR #31d ADD 4 nullable cols trên SpecPrint)
+và muốn populate cho data existing — `force=true` SAI vì:
+- Tạo revision trùng (ProductRevisions count tăng 6 → 13: 6 trashed + 6 new)
+- Reset operator-edited fields (nếu có) — không bảo toàn data
+- Audit log nhiễu (6 trash + 6 import events)
+
+**Fix pattern**: `BackfillDetailSheetFieldsAsync` riêng (KHÔNG reuse force=):
+- Match RefNo → fetch existing revision
+- Update ONLY fields hiện NULL (preserve operator-edited values)
+- KHÔNG tạo revision mới
+- Idempotent: 2nd run = 0 backfilled
+- Single `SPEC_BACKFILL_DETAIL` audit event per cycle (gọn)
+
+**General rule**: khi schema migration ADD nullable fields, design backfill
+service riêng — KHÔNG reuse force=re-create của import flow. Decoupling
+backfill (data-only update) vs force (clean re-import) giữ semantic rõ.
+
+## 16. Razor `@page` route parameter binding (PR #31d trap)
+
+`@page "/path/{revisionId:long}"` Razor route parameter PHẢI declare
+`[Parameter]` INSIDE `@code { }` block, KHÔNG OUTSIDE (như inline Razor
+expression). Outside `@code` block trigger compile error CS0103 "name not
+exists".
+
+Pattern đúng:
+```razor
+@page "/npi/engineer-spec/{revisionId:long}"
+@code {
+    [Parameter] public long RevisionId { get; set; }
+}
+```
+
+Lệch pattern (compile fail):
+```razor
+@page "/path/{revisionId:long}"
+[Parameter] public long RevisionId { get; set; }  // ❌ CS0103
+@code { ... }
+```
+
+## 17. SqlServer dot-extension trong API route (lặp lại bài học #33)
+
+PR #31d `[HttpGet("sheet/{revisionId:long}.pdf")]` — dot extension trong
+route template re-trigger bài học #33 (static-file middleware claim
+path-with-dot trước controller routing → 404 / SPA fallback).
+
+**Pattern an toàn**: chỉ dùng path segment, NO dot extension ANYWHERE
+trong route template. Browser tự thêm extension qua Content-Disposition
+header response → operator download `.pdf` filename đúng.
+
+Sửa: `[HttpGet("sheet/{revisionId:long}")]` → URL `/api/specs/export/sheet/123`
+trả PDF binary với Content-Type `application/pdf` + Content-Disposition
+attachment filename. Browser tự handle.
+
+---
+
+*Cập nhật lần cuối: 01/06/2026 — Phase 8 PR #31d (detail sheet + backfill mode + Razor @page binding + dot-extension lặp lại).*

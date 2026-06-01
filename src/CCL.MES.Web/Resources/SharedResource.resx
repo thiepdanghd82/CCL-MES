@@ -726,4 +726,16 @@
   <data name="npi.spec.export_ok" xml:space="preserve"><value>Exported {0} rows to {1}</value></data>
   <data name="npi.spec.export_err" xml:space="preserve"><value>Export failed</value></data>
   <data name="npi.spec.export_empty" xml:space="preserve"><value>No data to export (filter returns 0 rows)</value></data>
+
+  <!-- Phase 8 PR #31d — Full detail sheet page. -->
+  <data name="npi.spec.detail.btn_back" xml:space="preserve"><value>Back to list</value></data>
+  <data name="npi.spec.detail.btn_print_pdf" xml:space="preserve"><value>Print spec sheet PDF</value></data>
+  <data name="npi.spec.detail.print_err" xml:space="preserve"><value>Print failed</value></data>
+  <data name="npi.spec.detail.load_err" xml:space="preserve"><value>Failed to load spec detail</value></data>
+  <data name="npi.spec.detail.not_found" xml:space="preserve"><value>Spec not found or has been trashed.</value></data>
+  <data name="npi.spec.detail.approval_note" xml:space="preserve"><value>Note: PD + QA signature workflow ships in a later PR (approval-chain). Currently only R&amp;D Confirmed populates from ApprovedBy/At.</value></data>
+  <data name="npi.spec.btn_backfill_detail" xml:space="preserve"><value>Backfill detail fields</value></data>
+  <data name="npi.spec.backfill_detail_confirm" xml:space="preserve"><value>Backfill 4 detail-sheet fields (ProductSize W/H + Print/Cut remarks) from bundled samples? IN-PLACE update on existing revisions matching RefNo — NO new revisions created. Skips field if already populated.</value></data>
+  <data name="npi.spec.backfill_detail_result" xml:space="preserve"><value>Backfill: {0} revisions updated · {1} skipped (already set) · {2} fields touched</value></data>
+  <data name="npi.spec.backfill_detail_err" xml:space="preserve"><value>Backfill failed</value></data>
 </root>

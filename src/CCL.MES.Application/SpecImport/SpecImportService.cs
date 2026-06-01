@@ -205,6 +205,11 @@ public class SpecImportService
                     NumColors = numColors,
                     Cavity = cavity,
                     PitchMm = pitchMm,
+                    // PR #31d — detail sheet parity fields
+                    ProductSizeWmm = parsed.ProductSizeW,
+                    ProductSizeHmm = parsed.ProductSizeH,
+                    RemarksText = parsed.RemarksLeft,
+                    RemarksCutText = parsed.RemarksRight,
                     ColorSpecJson = isFlexo ? null : SerializeColorsForLegacy(parsed.PrintRows),
                     // PR #31b — fold flexo printing rows (substrate/cylinder/tension)
                     // vào ExtraJson per Q3. Operator ít cần column-wise query.
@@ -329,6 +334,110 @@ public class SpecImportService
             await tx.RollbackAsync();
             throw;
         }
+    }
+
+    /// <summary>
+    /// PR #31d — Backfill 4 detail-sheet fields (ProductSizeWmm/Hmm + RemarksText/
+    /// RemarksCutText) cho ProductRevisions đã tồn tại match RefNo. KHÔNG tạo
+    /// revision mới; KHÔNG đụng SpecPrintColors / FlexoCutting / FlexoInk
+    /// (child rows giữ nguyên). KHÔNG audit emit per row — single batch
+    /// `SPEC_BACKFILL_DETAIL` ở cuối.
+    ///
+    /// Chỉ touch field NULL: existing value ≠ NULL → SKIP (operator đã edit
+    /// thủ công → không overwrite). Counts: matched / backfilled / skipped /
+    /// missing.
+    /// </summary>
+    public async Task<DetailSheetBackfillResult> BackfillDetailSheetFieldsAsync(
+        string samplesDir, IEnumerable<(string FileName, string Category)> files, string? user)
+    {
+        var result = new DetailSheetBackfillResult();
+        var dbCtx = (DbContext)_db;
+
+        foreach (var (fileName, category) in files)
+        {
+            var fullPath = Path.Combine(samplesDir, fileName);
+            if (!File.Exists(fullPath))
+            {
+                result.Files.Add(new BackfillFileResult(fileName, "missing", null, "File not found"));
+                continue;
+            }
+
+            try
+            {
+                await using var fs = File.OpenRead(fullPath);
+                var preview = await PreviewAsync(fs, fileName, fs.Length, category);
+                if (!preview.ParseOk || preview.Parsed is null)
+                {
+                    result.Files.Add(new BackfillFileResult(fileName, "parse-error", null, preview.ParseError));
+                    continue;
+                }
+
+                var refNo = preview.Parsed.RefNo;
+                var rev = await _db.ProductRevisions
+                    .Include(r => r.Print)
+                    .FirstOrDefaultAsync(r => !r.IsTrashed && r.RefNo == refNo);
+                if (rev is null)
+                {
+                    result.Files.Add(new BackfillFileResult(fileName, "no-match", refNo, "RefNo not in DB — run Refresh Samples first"));
+                    continue;
+                }
+                if (rev.Print is null)
+                {
+                    result.Files.Add(new BackfillFileResult(fileName, "no-print", refNo, "Revision has no SpecPrint child"));
+                    continue;
+                }
+
+                int touched = 0;
+                if (rev.Print.ProductSizeWmm is null && preview.Parsed.ProductSizeW is not null)
+                {
+                    rev.Print.ProductSizeWmm = preview.Parsed.ProductSizeW; touched++;
+                }
+                if (rev.Print.ProductSizeHmm is null && preview.Parsed.ProductSizeH is not null)
+                {
+                    rev.Print.ProductSizeHmm = preview.Parsed.ProductSizeH; touched++;
+                }
+                if (string.IsNullOrEmpty(rev.Print.RemarksText) && !string.IsNullOrEmpty(preview.Parsed.RemarksLeft))
+                {
+                    rev.Print.RemarksText = preview.Parsed.RemarksLeft; touched++;
+                }
+                if (string.IsNullOrEmpty(rev.Print.RemarksCutText) && !string.IsNullOrEmpty(preview.Parsed.RemarksRight))
+                {
+                    rev.Print.RemarksCutText = preview.Parsed.RemarksRight; touched++;
+                }
+
+                if (touched == 0)
+                {
+                    result.Skipped++;
+                    result.Files.Add(new BackfillFileResult(fileName, "skipped-already-set", refNo, "All 4 fields already populated"));
+                    continue;
+                }
+
+                await _db.SaveChangesAsync();
+                result.Backfilled++;
+                result.FieldsTouched += touched;
+                result.Files.Add(new BackfillFileResult(fileName, "backfilled", refNo, $"{touched} field(s) updated"));
+            }
+            catch (Exception ex)
+            {
+                result.Files.Add(new BackfillFileResult(fileName, "error", null, ex.Message));
+            }
+        }
+
+        await _audit.EmitAsync(
+            AuditAction.SpecBackfillDetail,
+            user ?? "anonymous",
+            actorRole: "",
+            targetType: "ProductRevision",
+            targetId: "(batch)",
+            detail: JsonSerializer.Serialize(new
+            {
+                backfilled = result.Backfilled,
+                skipped = result.Skipped,
+                fields_touched = result.FieldsTouched,
+                files = result.Files.Take(20).Select(f => new { filename = f.FileName, status = f.Status, ref_no = f.RefNo }).ToArray(),
+            }));
+
+        return result;
     }
 
     /// <summary>
@@ -502,3 +611,17 @@ public class SampleRefreshResult
 }
 
 public record SampleFileResult(string FileName, string Status, string? RefNo, string? ErrorMessage);
+
+/// <summary>
+/// PR #31d — In-place backfill result (NOT create new). Touched 4 detail-
+/// sheet fields trên SpecPrint của existing ProductRevision.
+/// </summary>
+public class DetailSheetBackfillResult
+{
+    public int Backfilled { get; set; }       // số revision có touched > 0
+    public int Skipped { get; set; }          // số revision all-fields-already-set
+    public int FieldsTouched { get; set; }    // tổng số field NULL → updated
+    public List<BackfillFileResult> Files { get; set; } = new();
+}
+
+public record BackfillFileResult(string FileName, string Status, string? RefNo, string? Message);

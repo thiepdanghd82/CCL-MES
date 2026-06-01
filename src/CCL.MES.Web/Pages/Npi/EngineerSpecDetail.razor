@@ -1,0 +1,612 @@
+@page "/npi/engineer-spec/{revisionId:long}"
+@attribute [Authorize(Policy = "NpiSpecRead")]
+
+@*  Phase 8 PR #31d — Full-page detail sheet route (mirror SpecHub spec sheet).
+
+    Render đầy đủ 9 section đồng dạng SpecHub `renderSilkscreenSpec` /
+    `renderFlexoSpec`:
+      1. Doc header (Company + SILK/SEAL + REF NO + Inspection + Status)
+      2. Compliance strip (3 chip derive)
+      3. Product Information (silk 8 cols / flexo 6 cols)
+      4. Print Parameters (silk only — Cavity/Pitch/Size/Diameter + Squeegee codes)
+      5. Print Process 10-color table (silk) HOẶC Flexo 3 sub-table (flexo)
+      6. Remarks (silk 1-col / flexo 2-col Print + Cut)
+      7. Revision History (lineage chain DESC)
+      8. Approval Signatures 4-role (Option A render-only; map ApprovedBy→R&D Confirmed)
+      9. Change Log (audit timeline)
+
+    Render trực tiếp từ SpecDetailDto (Q3 — single query, bài học hotfix #27).
+    Try-catch wrap loading + error banner inline. Empty section → "—" (Q12).
+    PANTONE swatch render từ SpecDetailColors (Q8).
+
+    Modal PR #29 SpecDetailModal giữ làm "Get Info" quick peek; full-page
+    là default khi double-click row (PR #31d wire trong EngineerSpec.razor).
+*@
+
+@using System.Globalization
+@using CCL.MES.Application
+@using CCL.MES.Application.Services
+@using CCL.MES.Application.SpecDetail
+@using CCL.MES.Domain
+@inject SpecService SpecSvc
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> Loc
+
+<section class="spec-sheet-page">
+    @if (_loading)
+    {
+        <div class="spec-sheet-state">@Loc["common.loading"]</div>
+    }
+    else if (_error is not null)
+    {
+        <div class="alert err spec-sheet-error" role="alert">
+            <strong>@Loc["npi.spec.detail.load_err"]</strong>
+            <pre>@_error</pre>
+            <button type="button" class="rt-btn" @onclick="GoBack">← @Loc["npi.spec.detail.btn_back"]</button>
+        </div>
+    }
+    else if (_detail is null)
+    {
+        <div class="spec-sheet-state">
+            <p>@Loc["npi.spec.detail.not_found"]</p>
+            <button type="button" class="rt-btn" @onclick="GoBack">← @Loc["npi.spec.detail.btn_back"]</button>
+        </div>
+    }
+    else
+    {
+        @* ── Toolbar (Back + Print PDF) ──────────────────────────────────── *@
+        <div class="spec-sheet-toolbar">
+            <button type="button" class="rt-btn" @onclick="GoBack">← @Loc["npi.spec.detail.btn_back"]</button>
+            <h2 class="spec-sheet-title">@_detail.SpecCode <span class="muted">Rev @_detail.RevisionCode</span></h2>
+            @if (!string.IsNullOrEmpty(_pdfError))
+            {
+                <span class="alert err inline">@_pdfError</span>
+            }
+            <button type="button" class="rt-btn rt-btn-primary" @onclick="PrintPdfAsync" disabled="@_busyPdf">
+                🖨 @(_busyPdf ? Loc["npi.spec.create_v2.parsing"].Value : Loc["npi.spec.detail.btn_print_pdf"].Value)
+            </button>
+        </div>
+
+        @* ── 1. Doc header ───────────────────────────────────────────────── *@
+        <div class="spec-frame @(_detail.IsFlexo ? "flexo" : "")">
+            <div class="spec-doc-header">
+                <div class="co-block">
+                    Công ty TNHH CCL Design Việt Nam
+                    <div class="sub">CCL Design Vietnam Co. Ltd</div>
+                </div>
+                <div class="center-block">
+                    @(_detail.IsFlexo ? "SEAL" : "SILK")
+                    <span class="sub">
+                        @if (_detail.IsFlexo)
+                        {
+                            @("Thông số kỹ thuật sản phẩm tiêu chuẩn In Nhãn Flexo · Flexo production spec")
+                        }
+                        else
+                        {
+                            @("Thông số kỹ thuật sản phẩm tiêu chuẩn In Lụa · Silkscreen production spec")
+                        }
+                    </span>
+                </div>
+                <div class="right-block">
+                    <div><span class="ref">REF NO: @(_detail.RefNo ?? "—")</span></div>
+                    <div class="mt-row">
+                        Inspection Level: @(_detail.InspectionLevel ?? "—")
+                        <span class="stamp @StatusStampClass(_detail.Status)">@_detail.StatusDisplay</span>
+                    </div>
+                </div>
+            </div>
+
+            @* ── 2. Compliance strip ─────────────────────────────────────── *@
+            <div class="spec-cert-row">
+                <span>Compliance:</span>
+                @foreach (var chip in _detail.ComplianceChips)
+                {
+                    <span class="cert-chip">@chip</span>
+                }
+            </div>
+
+            @* ── 3. Product Information ──────────────────────────────────── *@
+            <div class="spec-block">
+                <div class="spec-block-title">Product Information · Thông tin sản phẩm</div>
+                <table class="spec-info-table">
+                    @if (_detail.IsFlexo)
+                    {
+                        <thead>
+                            <tr>
+                                <th>Customer<span class="sub">Khách hàng</span></th>
+                                <th>Part No<span class="sub">Mã SP</span></th>
+                                <th>Part Name<span class="sub">Tên linh kiện</span></th>
+                                <th>Version<span class="sub">Phiên bản</span></th>
+                                <th>Product Size<span class="sub">Kích thước SP (mm)</span></th>
+                                <th>Substrate<span class="sub">Nguyên liệu</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="highlight">@OrDash(_detail.CustomerName)</td>
+                                <td class="highlight">@OrDash(_detail.ProductCode)</td>
+                                <td>@OrDash(_detail.ProductName)</td>
+                                <td>—</td>
+                                <td>@_detail.ProductSizeDisplay</td>
+                                <td>@OrDash(_detail.SubstrateType)</td>
+                            </tr>
+                        </tbody>
+                    }
+                    else
+                    {
+                        <thead>
+                            <tr>
+                                <th>Customer<span class="sub">Khách hàng</span></th>
+                                <th>Part No<span class="sub">Mã SP</span></th>
+                                <th>Part Name<span class="sub">Tên SP</span></th>
+                                <th>Material Type<span class="sub">Tên Nguyên Liệu</span></th>
+                                <th>Material Size<span class="sub">Cỡ Nguyên Liệu</span></th>
+                                <th>Lamination<span class="sub">Ép dán</span></th>
+                                <th>Lam. Size<span class="sub">Cỡ ép dán</span></th>
+                                <th>Lam. Cavity<span class="sub">Cavity</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                var mx = ParseMaterialExtra(_detail.MaterialExtraJson);
+                            }
+                            <tr>
+                                <td class="highlight">@OrDash(_detail.CustomerName)</td>
+                                <td class="highlight">@OrDash(_detail.ProductCode)</td>
+                                <td>@OrDash(_detail.ProductName)</td>
+                                <td>@OrDash(_detail.SubstrateType)</td>
+                                <td>@OrDash(mx.MaterialSize)</td>
+                                <td>@OrDash(mx.LaminationTape)</td>
+                                <td>@OrDash(mx.LaminationSize)</td>
+                                <td>@OrDash(mx.LaminationCavity)</td>
+                            </tr>
+                        </tbody>
+                    }
+                </table>
+            </div>
+
+            @* ── 4. Print Parameters (silk) ──────────────────────────────── *@
+            @if (_detail.IsSilkscreen)
+            {
+                <div class="spec-block">
+                    <div class="spec-block-title">Print Parameters · Thông số in</div>
+                    <div class="spec-params">
+                        <div>
+                            <div class="lbl">Printing cavity<br><span class="muted">Số lượng/1 lần in</span></div>
+                            <div class="val">@OrDash(_detail.PrintingCavity?.ToString(CultureInfo.InvariantCulture))</div>
+                        </div>
+                        <div>
+                            <div class="lbl">Length pitch<br><span class="muted">Bước nhảy (mm)</span></div>
+                            <div class="val">@(_detail.LengthPitchMm is null ? "—" : _detail.LengthPitchMm.Value.ToString("N1", CultureInfo.InvariantCulture))</div>
+                        </div>
+                        <div>
+                            <div class="lbl">Product size<br><span class="muted">Kích thước SP</span></div>
+                            <div class="val">@_detail.ProductSizeDisplay</div>
+                        </div>
+                        <div>
+                            <div class="lbl">Adhesive<br><span class="muted">Keo dán</span></div>
+                            <div class="val">@OrDash(_detail.AdhesiveType)</div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @* ── 5. Silk Print Process 10-color table ────────────────────── *@
+            @if (_detail.IsSilkscreen)
+            {
+                <div class="spec-block">
+                    <div class="spec-block-title">
+                        Print Process · Sấy · Plate Parameter — @_detail.PrintColors.Count colors
+                    </div>
+                    <div class="spec-table-scroll">
+                        <table class="spec-print-table">
+                            <thead>
+                                <tr>
+                                    <th rowspan="2">No<span class="sub">Stt</span></th>
+                                    <th rowspan="2">Surf.<span class="sub">Mặt in</span></th>
+                                    <th colspan="4">In · Printing</th>
+                                    <th colspan="2">Retarder / Visc</th>
+                                    <th rowspan="2">Speed<span class="sub">shoot/min</span></th>
+                                    <th rowspan="2">Squee.<span class="sub">±3</span></th>
+                                    <th colspan="3">Sấy · Drying</th>
+                                    <th rowspan="2">UV</th>
+                                    <th rowspan="2">Emul. (μm)</th>
+                                    <th colspan="3">Khuôn · Plate</th>
+                                    <th rowspan="2">Plate code</th>
+                                    <th rowspan="2">Ctrl#</th>
+                                    <th rowspan="2">Remark</th>
+                                </tr>
+                                <tr>
+                                    <th>Color</th><th>Ink name</th><th>Ink code</th><th>Maker</th>
+                                    <th>Retarder</th><th>Visc</th>
+                                    <th>Method</th><th>°C</th><th>min</th>
+                                    <th>Size (mm)</th><th>Mesh</th><th>Angle</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_detail.PrintColors.Count == 0)
+                                {
+                                    <tr><td colspan="21" class="spec-empty">— No print rows —</td></tr>
+                                }
+                                @foreach (var c in _detail.PrintColors)
+                                {
+                                    <tr>
+                                        <td class="col-no">@c.Seq</td>
+                                        <td>@OrDash(c.Surface)</td>
+                                        <td class="col-color">
+                                            @{ var hex = SpecDetailColors.SwatchHex(c.Color); var isTransparent = SpecDetailColors.IsTransparent(c.Color); }
+                                            @if (hex is not null)
+                                            {
+                                                <span class="pantone-swatch @(isTransparent ? "swatch-transparent" : "")" style="@(isTransparent ? "" : $"background:{hex};")"></span>
+                                            }
+                                            @OrDash(c.Color)
+                                        </td>
+                                        <td>@OrDash(c.InkName)</td>
+                                        <td class="col-code">@OrDash(c.InkCode)</td>
+                                        <td>@OrDash(c.Maker)</td>
+                                        <td>@OrDash(c.Retarder)</td>
+                                        <td>@OrDashNum(c.Viscosity, "N0")</td>
+                                        <td>@OrDashNum(c.Speed, "N0")</td>
+                                        <td>@OrDash(c.Squeegee)</td>
+                                        <td>@OrDash(c.Dry)</td>
+                                        <td>@OrDashNum(c.TemperatureC, "N0")</td>
+                                        <td>@OrDash(c.TimeMin?.ToString(CultureInfo.InvariantCulture))</td>
+                                        <td class="col-uv">@OrDash(c.Uv)</td>
+                                        <td>@OrDashNum(c.EmulsionUm, "N0")</td>
+                                        <td>@OrDash(c.PlateSize)</td>
+                                        <td>@OrDash(c.Mesh)</td>
+                                        <td>@OrDashNum(c.AngleDeg, "N1")</td>
+                                        <td class="col-code">@OrDash(c.PlateCode)</td>
+                                        <td>@OrDash(c.ControlNo?.ToString(CultureInfo.InvariantCulture))</td>
+                                        <td class="col-remark">@OrDash(c.Remark)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            @* ── 5b. Flexo 3 sub-tables ──────────────────────────────────── *@
+            @if (_detail.IsFlexo)
+            {
+                @* Printing rows *@
+                <div class="spec-block flexo-section-print">
+                    <div class="spec-block-title">
+                        Thông tin in · Printing Information — @_detail.FlexoPrintRows.Count processes
+                    </div>
+                    <div class="spec-table-scroll">
+                        <table class="spec-print-table flexo-process-table">
+                            <thead>
+                                <tr>
+                                    <th>Process</th><th>Material</th><th>Thickness</th><th>Size</th>
+                                    <th>Cylinder</th><th>Pitch</th><th>Speed</th>
+                                    <th>T.Head</th><th>T.End</th><th>T.Roll</th>
+                                    <th>Plate Cav.</th><th>Tension</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_detail.FlexoPrintRows.Count == 0)
+                                {
+                                    <tr><td colspan="12" class="spec-empty">— No printing rows —</td></tr>
+                                }
+                                @foreach (var r in _detail.FlexoPrintRows)
+                                {
+                                    <tr>
+                                        <td class="col-process">@OrDash(r.Process)</td>
+                                        <td>@OrDash(r.Material)</td>
+                                        <td>@OrDash(r.Thickness)</td>
+                                        <td class="col-code">@OrDash(r.Size)</td>
+                                        <td>@OrDash(r.Cylinders)</td>
+                                        <td>@OrDash(r.PitchMm)</td>
+                                        <td>@OrDash(r.Speed)</td>
+                                        <td>@OrDash(r.TensionHead)</td>
+                                        <td>@OrDash(r.TensionEnd)</td>
+                                        <td>@OrDash(r.TensionRoll)</td>
+                                        <td>@OrDash(r.PlateCavity)</td>
+                                        <td>@OrDash(r.Tension)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                @* Cutting rows *@
+                <div class="spec-block flexo-section-cut">
+                    <div class="spec-block-title">
+                        Thông tin cắt · Cutting Information — @_detail.FlexoCuttingRows.Count processes
+                    </div>
+                    <div class="spec-table-scroll">
+                        <table class="spec-print-table flexo-process-table">
+                            <thead>
+                                <tr>
+                                    <th>Process</th><th>Lamination</th><th>Size</th>
+                                    <th>Cutter Lot</th><th>Cutter Name</th>
+                                    <th>Pcs/Sheet</th><th>Cavity</th><th>Pitch</th>
+                                    <th>Packing</th><th>Paper Sp.</th><th>Cut Sp.</th>
+                                    <th>Cut Pres.</th><th>Head T.</th><th>Roll T.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_detail.FlexoCuttingRows.Count == 0)
+                                {
+                                    <tr><td colspan="14" class="spec-empty">— No cutting rows —</td></tr>
+                                }
+                                @foreach (var c in _detail.FlexoCuttingRows)
+                                {
+                                    <tr>
+                                        <td class="col-process">@OrDash(c.Process)</td>
+                                        <td class="col-code">@OrDash(c.Lamination)</td>
+                                        <td class="col-code">@OrDash(c.Size)</td>
+                                        <td>@OrDash(c.CutterLot)</td>
+                                        <td class="col-code">@OrDash(c.CutterName)</td>
+                                        <td>@OrDash(c.PcsPerSheet?.ToString(CultureInfo.InvariantCulture))</td>
+                                        <td>@OrDash(c.CuttingCavity?.ToString(CultureInfo.InvariantCulture))</td>
+                                        <td>@OrDashNum(c.PitchMm, "N1")</td>
+                                        <td>@OrDash(c.Packing)</td>
+                                        <td>@OrDashNum(c.PaperSpeed, "N1")</td>
+                                        <td>@OrDashNum(c.CuttingSpeed, "N1")</td>
+                                        <td>@OrDashNum(c.CuttingPressure, "N1")</td>
+                                        <td>@OrDashNum(c.HeadTension, "N1")</td>
+                                        <td>@OrDashNum(c.RollTension, "N1")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                @* Ink rows *@
+                <div class="spec-block flexo-section-ink">
+                    <div class="spec-block-title">
+                        Thông tin mực · Ink Information — @_detail.FlexoInkRows.Count inks
+                    </div>
+                    <div class="spec-table-scroll">
+                        <table class="spec-print-table">
+                            <thead>
+                                <tr>
+                                    <th>No</th><th>Color</th><th>Ink Code</th>
+                                    <th>Ink Description</th><th>Brand</th><th>Anilox</th>
+                                    <th>Plate Code</th><th>Pressure</th>
+                                    <th>UV Power</th><th>IR Power</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_detail.FlexoInkRows.Count == 0)
+                                {
+                                    <tr><td colspan="10" class="spec-empty">— No ink rows —</td></tr>
+                                }
+                                @foreach (var i in _detail.FlexoInkRows)
+                                {
+                                    <tr>
+                                        <td class="col-no">@i.Seq</td>
+                                        <td class="col-color">@OrDash(i.Color)</td>
+                                        <td class="col-code">@OrDash(i.InkCode)</td>
+                                        <td>@OrDash(i.InkDescription)</td>
+                                        <td>@OrDash(i.Brand)</td>
+                                        <td>@OrDash(i.Anilox)</td>
+                                        <td class="col-code">@OrDash(i.PlateCode)</td>
+                                        <td>@OrDashNum(i.Pressure, "N1")</td>
+                                        <td>@OrDashNum(i.UvPowerW, "N0")</td>
+                                        <td>@OrDashNum(i.IrPowerW, "N0")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+
+            @* ── 6. Remarks ──────────────────────────────────────────────── *@
+            <div class="spec-block">
+                <div class="spec-block-title">Remarks · Ghi chú</div>
+                @if (_detail.IsFlexo)
+                {
+                    <div class="flexo-remarks-2col">
+                        <div>
+                            <div class="label">Print remarks · Ghi chú in</div>
+                            <div>@(string.IsNullOrEmpty(_detail.RemarksText) ? "—" : $"※ {_detail.RemarksText}")</div>
+                        </div>
+                        <div>
+                            <div class="label">Cut remarks · Ghi chú cắt</div>
+                            <div>@(string.IsNullOrEmpty(_detail.RemarksCutText) ? "—" : $"※ {_detail.RemarksCutText}")</div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="spec-remarks-block">
+                        @(string.IsNullOrEmpty(_detail.RemarksText) ? "—" : $"※ {_detail.RemarksText}")
+                    </div>
+                }
+            </div>
+
+            @* ── 7. Revision History ─────────────────────────────────────── *@
+            <div class="spec-block">
+                <div class="spec-block-title">Revision History · Lịch sử thay đổi</div>
+                <table class="spec-rev-table">
+                    <thead>
+                        <tr>
+                            <th class="col-rev">Rev</th>
+                            <th>Contents · Nội dung</th>
+                            <th class="col-date">Date · Ngày</th>
+                            <th class="col-by">By · Bởi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_detail.Lineage.Count == 0)
+                        {
+                            <tr><td colspan="4" class="spec-empty">— No revision history —</td></tr>
+                        }
+                        @foreach (var lr in _detail.Lineage)
+                        {
+                            <tr>
+                                <td class="col-rev">@lr.RevisionCode</td>
+                                <td>@OrDash(lr.ChangeSummary)</td>
+                                <td>@lr.CreatedAt.ToString("yyyy-MM-dd")</td>
+                                <td>@OrDash(lr.CreatedBy)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @* ── 8. Approval Signatures (Option A render-only) ───────────── *@
+            <div class="spec-block">
+                <div class="spec-block-title">Approval Signatures · Chữ ký phê duyệt</div>
+                <div class="spec-signoff">
+                    <div>
+                        <div class="role">Người tạo R&D · Issued by R&D</div>
+                        <div class="name">@OrDash(_detail.CreatedBy)</div>
+                        <div class="date">Date: @_detail.CreatedAt.ToString("yyyy-MM-dd")</div>
+                    </div>
+                    <div>
+                        <div class="role">Xác nhận bởi R&D · Confirmed by R&D</div>
+                        <div class="name">@OrDash(_detail.ApprovedBy)</div>
+                        <div class="date">Date: @(_detail.ApprovedAt?.ToString("yyyy-MM-dd") ?? "—")</div>
+                    </div>
+                    <div>
+                        <div class="role">Xác nhận bởi PD · Confirmed by PD</div>
+                        <div class="name">—</div>
+                        <div class="date">Date: —</div>
+                    </div>
+                    <div>
+                        <div class="role">Xác nhận bởi QA · Confirmed by QA</div>
+                        <div class="name">—</div>
+                        <div class="date">Date: —</div>
+                    </div>
+                </div>
+                <p class="spec-signoff-note muted">
+                    @Loc["npi.spec.detail.approval_note"]
+                </p>
+            </div>
+
+            @* ── 9. Change Log (audit timeline) ──────────────────────────── *@
+            <div class="spec-block spec-history-block">
+                <div class="spec-block-title">Change Log · Lịch sử thay đổi (audit)</div>
+                @if (_detail.AuditEntries.Count == 0)
+                {
+                    <p class="muted">@Loc["npi.spec.detail.audit.empty"]</p>
+                }
+                else
+                {
+                    <ul class="spec-audit-log">
+                        @foreach (var a in _detail.AuditEntries)
+                        {
+                            <li>
+                                <span class="audit-time">@a.Timestamp.ToString("yyyy-MM-dd HH:mm")</span>
+                                <span class="audit-action">@a.Action</span>
+                                <span class="muted">· @a.ActorUsername</span>
+                                @if (!string.IsNullOrWhiteSpace(a.ActorRole))
+                                {
+                                    <span class="muted">(@a.ActorRole)</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter] public long RevisionId { get; set; }
+
+    private bool _loading = true;
+    private string? _error;
+    private SpecDetailDto? _detail;
+
+    private bool _busyPdf;
+    private string? _pdfError;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _error = null;
+        _detail = null;
+        try
+        {
+            _detail = await SpecSvc.SpecDetailAsync(RevisionId);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void GoBack() => Nav.NavigateTo("/npi/engineer-spec");
+
+    private async Task PrintPdfAsync()
+    {
+        if (_busyPdf || _detail is null) return;
+        _busyPdf = true;
+        _pdfError = null;
+        try
+        {
+            var url = $"/api/specs/export/sheet/{_detail.Id}";
+            await JS.InvokeVoidAsync("cclmes.downloadFile", url);
+        }
+        catch (Exception ex)
+        {
+            _pdfError = $"{Loc["npi.spec.detail.print_err"].Value}: {ex.Message}";
+        }
+        finally
+        {
+            _busyPdf = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string OrDash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
+
+    private static string OrDashNum(double? v, string fmt) =>
+        v is null ? "—" : v.Value.ToString(fmt, CultureInfo.InvariantCulture);
+
+    private static string StatusStampClass(ProductRevisionStatus s) => s switch
+    {
+        ProductRevisionStatus.Draft or ProductRevisionStatus.InReview     => "stamp-draft",
+        ProductRevisionStatus.Approved or ProductRevisionStatus.Released  => "stamp-approved",
+        ProductRevisionStatus.Superseded                                  => "stamp-superseded",
+        _                                                                  => "",
+    };
+
+    /// <summary>Parse Material.ExtraJson `{material_size, lamination_tape, …}` từ PR #31a.</summary>
+    private static MaterialExtraView ParseMaterialExtra(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            return new MaterialExtraView
+            {
+                MaterialSize     = TryString(root, "material_size"),
+                LaminationTape   = TryString(root, "lamination_tape"),
+                LaminationSize   = TryString(root, "lamination_size"),
+                LaminationCavity = TryString(root, "lamination_cavity"),
+            };
+        }
+        catch
+        {
+            return new();
+        }
+    }
+
+    private static string? TryString(System.Text.Json.JsonElement el, string key)
+        => el.TryGetProperty(key, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : null;
+
+    private class MaterialExtraView
+    {
+        public string? MaterialSize { get; set; }
+        public string? LaminationTape { get; set; }
+        public string? LaminationSize { get; set; }
+        public string? LaminationCavity { get; set; }
+    }
+}

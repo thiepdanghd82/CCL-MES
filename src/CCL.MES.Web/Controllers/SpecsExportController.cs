@@ -2,6 +2,7 @@ using System.Globalization;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
+using CCL.MES.Application.SpecDetail;
 using CCL.MES.Application.SpecExport;
 using CCL.MES.Domain.Audit;
 using Microsoft.AspNetCore.Authorization;
@@ -72,6 +73,59 @@ public class SpecsExportController : ControllerBase
     [HttpGet("pdf")]
     public Task<IActionResult> ExportPdf([FromQuery] string? search)
         => ExportAsync(_pdf, search);
+
+    /// <summary>
+    /// PR #31d — Single-spec detail sheet PDF export. Path segment-only route
+    /// (bài học #33: KHÔNG dot-extension trong URL — static-file middleware
+    /// có thể claim path-with-dot trước controller routing).
+    /// URL: `/api/specs/export/sheet/{revisionId}` → returns PDF (browser
+    /// auto-handle Content-Disposition filename).
+    /// </summary>
+    [HttpGet("sheet/{revisionId:long}")]
+    public async Task<IActionResult> ExportSheetPdf(
+        long revisionId,
+        [FromServices] Infrastructure.SpecExport.PdfSpecSheetExporter sheetPdf)
+    {
+        try
+        {
+            var detail = await _spec.SpecDetailAsync(revisionId);
+            if (detail is null) return NotFound(new { error = "Spec not found or trashed", revisionId });
+
+            var ctx = new SpecExportContext(
+                Title: $"Spec Sheet {detail.RefNo ?? detail.SpecCode} Rev {detail.RevisionCode}",
+                FilterDescription: null,
+                GeneratedAt: DateTime.UtcNow.ToLocalTime(),
+                GeneratedBy: User?.Identity?.Name ?? "anonymous",
+                Culture: CultureInfo.InvariantCulture);
+            var bytes = sheetPdf.Export(detail, ctx);
+            var ts = DateTime.UtcNow.ToLocalTime().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            var refNoSafe = (detail.RefNo ?? detail.SpecCode)?.Replace("/", "-").Replace(" ", "_") ?? "spec";
+            var filename = $"SpecSheet_{refNoSafe}_Rev{detail.RevisionCode}_{ts}.pdf";
+
+            await _audit.EmitAsync(
+                AuditAction.SpecExport,
+                User?.Identity?.Name ?? "anonymous",
+                actorRole: "",
+                targetType: "ProductRevision",
+                targetId: revisionId.ToString(CultureInfo.InvariantCulture),
+                detail: System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    format = "pdf",
+                    kind = "single_spec_sheet",
+                    revision_id = revisionId,
+                    ref_no = detail.RefNo,
+                    spec_code = detail.SpecCode,
+                    filename,
+                    content_length = bytes.Length,
+                }));
+
+            return File(bytes, sheetPdf.ContentType, filename);
+        }
+        catch (Exception ex)
+        {
+            return Problem(title: "Spec sheet PDF export failed", detail: ex.Message, statusCode: 500);
+        }
+    }
 
     private async Task<IActionResult> ExportAsync(ISpecListExporter exporter, string? search)
     {
