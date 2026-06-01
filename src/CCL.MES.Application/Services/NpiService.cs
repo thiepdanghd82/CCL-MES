@@ -27,7 +27,12 @@ public class NpiService
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim();
-            q = q.Where(x => x.Code.Contains(s) || x.Description.Contains(s) || (x.Area != null && x.Area.Contains(s)));
+            // Phase 7 hạng mục 5 — search expand từ 3 → 4 field thêm
+            // ShiftPattern (Q8 chốt; operator filter "A+B+C 24/7 cell").
+            q = q.Where(x => x.Code.Contains(s)
+                || x.Description.Contains(s)
+                || (x.Area != null && x.Area.Contains(s))
+                || (x.ShiftPattern != null && x.ShiftPattern.Contains(s)));
         }
         return PagingHelper.PageAsync(q.OrderBy(x => x.Code), page, pageSize);
     }

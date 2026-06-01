@@ -378,8 +378,24 @@
   <data name="npi.rawmaterials.col.notes" xml:space="preserve"><value>Notes</value></data>
   <data name="npi.rawmaterials.empty" xml:space="preserve"><value>No raw materials imported yet.</value></data>
   <data name="npi.rawmaterials.empty_filter" xml:space="preserve"><value>No rows match the search.</value></data>
-  <data name="npi.workcenter.title" xml:space="preserve"><value>NPI Data — Work Center</value></data>
-  <data name="npi.workcenter.search_placeholder" xml:space="preserve"><value>Search by WC Code / description / area…</value></data>
+  <data name="npi.workcenter.title" xml:space="preserve"><value>Work Center</value></data>
+  <data name="npi.workcenter.breadcrumb" xml:space="preserve"><value>DATABASE / WORK CENTER</value></data>
+  <data name="npi.workcenter.rows_loaded" xml:space="preserve"><value>{0} rows loaded</value></data>
+  <data name="npi.workcenter.rows_count" xml:space="preserve"><value>{0} rows</value></data>
+  <data name="npi.workcenter.search_placeholder" xml:space="preserve"><value>Search by WC Code / description / area / shift…</value></data>
+  <data name="npi.workcenter.btn_columns" xml:space="preserve"><value>☰ Columns ({0}/{1})</value></data>
+  <data name="npi.workcenter.btn_show_all" xml:space="preserve"><value>Show all</value></data>
+  <data name="npi.workcenter.format_hint" xml:space="preserve"><value>ℹ Import is replace-all (DELETE + INSERT). Consolidate the WC catalog into ONE CSV before import. Code must match [A-Z0-9_-]{{3,12}}; invalid rows are skipped. Running tools/import_npi.py later WILL overwrite WCs with the routing-derived list — re-import your CSV afterwards if you have non-routing WCs.</value></data>
+  <data name="npi.workcenter.col.code" xml:space="preserve"><value>WC Code</value></data>
+  <data name="npi.workcenter.col.description" xml:space="preserve"><value>Description</value></data>
+  <data name="npi.workcenter.col.area" xml:space="preserve"><value>Area</value></data>
+  <data name="npi.workcenter.col.ideal_speed" xml:space="preserve"><value>Ideal Speed (pcs/h)</value></data>
+  <data name="npi.workcenter.col.shift" xml:space="preserve"><value>Shift</value></data>
+  <data name="npi.workcenter.col.active" xml:space="preserve"><value>Active</value></data>
+  <data name="npi.workcenter.active.true" xml:space="preserve"><value>Active</value></data>
+  <data name="npi.workcenter.active.false" xml:space="preserve"><value>Inactive</value></data>
+  <data name="npi.workcenter.empty" xml:space="preserve"><value>No Work Centers found. Click Import to load a CSV or run tools/import_npi.py to derive from Routing.</value></data>
+  <data name="npi.workcenter.empty_filter" xml:space="preserve"><value>No rows match the search.</value></data>
   <data name="npi.spec.title" xml:space="preserve"><value>Engineer Spec</value></data>
   <data name="npi.spec.breadcrumb" xml:space="preserve"><value>DATABASE / SPEC</value></data>
   <data name="npi.spec.rows_loaded" xml:space="preserve"><value>{0} rows loaded</value></data>
