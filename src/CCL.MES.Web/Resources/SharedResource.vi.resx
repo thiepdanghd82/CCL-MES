@@ -516,6 +516,71 @@
   <data name="npi.spec.status.released" xml:space="preserve"><value>Phát hành</value></data>
   <data name="npi.spec.status.superseded" xml:space="preserve"><value>Đã thay thế</value></data>
 
+  <!-- Phase 8 PR #29 — context menu + detail modal i18n. -->
+  <data name="npi.spec.ctx.open" xml:space="preserve"><value>Mở</value></data>
+  <data name="npi.spec.ctx.edit" xml:space="preserve"><value>Chỉnh sửa</value></data>
+  <data name="npi.spec.ctx.copy" xml:space="preserve"><value>Sao chép</value></data>
+  <data name="npi.spec.ctx.revise" xml:space="preserve"><value>Tạo bản sửa đổi</value></data>
+  <data name="npi.spec.ctx.mark_superseded" xml:space="preserve"><value>Đánh dấu thay thế</value></data>
+  <data name="npi.spec.ctx.get_info" xml:space="preserve"><value>Xem thông tin</value></data>
+  <data name="npi.spec.ctx.coming_soon_pr30" xml:space="preserve"><value>Sắp ra mắt (PR #30 — chức năng lifecycle)</value></data>
+  <data name="npi.spec.ctx.require_admin_or_engineer" xml:space="preserve"><value>Cần vai trò Admin hoặc Engineer</value></data>
+
+  <data name="npi.spec.detail.title" xml:space="preserve"><value>Spec {0} — Rev {1}</value></data>
+  <data name="npi.spec.detail.btn_close" xml:space="preserve"><value>Đóng</value></data>
+  <data name="npi.spec.detail.loading" xml:space="preserve"><value>Đang tải…</value></data>
+  <data name="npi.spec.detail.section.identity" xml:space="preserve"><value>Định danh</value></data>
+  <data name="npi.spec.detail.section.content" xml:space="preserve"><value>Nội dung Spec</value></data>
+  <data name="npi.spec.detail.section.drawings" xml:space="preserve"><value>Bản vẽ</value></data>
+  <data name="npi.spec.detail.section.audit" xml:space="preserve"><value>Lịch sử</value></data>
+  <data name="npi.spec.detail.drawings.placeholder" xml:space="preserve"><value>Upload bản vẽ + chuỗi duyệt 3-vai-trò sẽ ra mắt ở PR #31/#32. Hiện tại revision này chưa có bản vẽ.</value></data>
+  <data name="npi.spec.detail.audit.timeline" xml:space="preserve"><value>Dòng thời gian</value></data>
+  <data name="npi.spec.detail.audit.empty" xml:space="preserve"><value>Chưa ghi nhận sự kiện audit nào cho revision này.</value></data>
+  <data name="npi.spec.detail.content.not_found" xml:space="preserve"><value>Không tìm thấy nội dung Spec (revision có thể đã bị xóa).</value></data>
+  <data name="npi.spec.detail.content.material" xml:space="preserve"><value>Vật liệu</value></data>
+  <data name="npi.spec.detail.content.print" xml:space="preserve"><value>In</value></data>
+  <data name="npi.spec.detail.content.diecut" xml:space="preserve"><value>Cắt khuôn</value></data>
+  <data name="npi.spec.detail.content.finishing" xml:space="preserve"><value>Hoàn thiện</value></data>
+
+  <data name="npi.spec.detail.field.spec_code" xml:space="preserve"><value>Mã Spec</value></data>
+  <data name="npi.spec.detail.field.title" xml:space="preserve"><value>Tiêu đề</value></data>
+  <data name="npi.spec.detail.field.product" xml:space="preserve"><value>Sản phẩm</value></data>
+  <data name="npi.spec.detail.field.revision_code" xml:space="preserve"><value>Phiên bản</value></data>
+  <data name="npi.spec.detail.field.status" xml:space="preserve"><value>Trạng thái</value></data>
+  <data name="npi.spec.detail.field.effective_from" xml:space="preserve"><value>Hiệu lực từ</value></data>
+  <data name="npi.spec.detail.field.substrate_type" xml:space="preserve"><value>Loại vật liệu nền</value></data>
+  <data name="npi.spec.detail.field.substrate_brand" xml:space="preserve"><value>Hãng vật liệu nền</value></data>
+  <data name="npi.spec.detail.field.thickness_um" xml:space="preserve"><value>Độ dày</value></data>
+  <data name="npi.spec.detail.field.liner_type" xml:space="preserve"><value>Loại liner</value></data>
+  <data name="npi.spec.detail.field.adhesive_type" xml:space="preserve"><value>Loại keo</value></data>
+  <data name="npi.spec.detail.field.adhesive_brand" xml:space="preserve"><value>Hãng keo</value></data>
+  <data name="npi.spec.detail.field.process_code" xml:space="preserve"><value>Mã công đoạn</value></data>
+  <data name="npi.spec.detail.field.num_colors" xml:space="preserve"><value>Số màu</value></data>
+  <data name="npi.spec.detail.field.varnish" xml:space="preserve"><value>Phủ varnish</value></data>
+  <data name="npi.spec.detail.field.lamination" xml:space="preserve"><value>Cán màng</value></data>
+  <data name="npi.spec.detail.field.white_underprint" xml:space="preserve"><value>Lót trắng</value></data>
+  <data name="npi.spec.detail.field.params" xml:space="preserve"><value>Thông số</value></data>
+  <data name="npi.spec.detail.field.param_name" xml:space="preserve"><value>Tên</value></data>
+  <data name="npi.spec.detail.field.nominal" xml:space="preserve"><value>Danh nghĩa</value></data>
+  <data name="npi.spec.detail.field.tol_min" xml:space="preserve"><value>Tol Dưới</value></data>
+  <data name="npi.spec.detail.field.tol_max" xml:space="preserve"><value>Tol Trên</value></data>
+  <data name="npi.spec.detail.field.uom" xml:space="preserve"><value>Đơn vị</value></data>
+  <data name="npi.spec.detail.field.is_critical" xml:space="preserve"><value>Trọng yếu</value></data>
+  <data name="npi.spec.detail.field.cut_process_code" xml:space="preserve"><value>Công đoạn cắt</value></data>
+  <data name="npi.spec.detail.field.die_id" xml:space="preserve"><value>Mã khuôn</value></data>
+  <data name="npi.spec.detail.field.die_type" xml:space="preserve"><value>Loại khuôn</value></data>
+  <data name="npi.spec.detail.field.width_mm" xml:space="preserve"><value>Chiều rộng</value></data>
+  <data name="npi.spec.detail.field.length_mm" xml:space="preserve"><value>Chiều dài</value></data>
+  <data name="npi.spec.detail.field.corner_radius_mm" xml:space="preserve"><value>Bán kính bo góc</value></data>
+  <data name="npi.spec.detail.field.bleed_mm" xml:space="preserve"><value>Bleed</value></data>
+  <data name="npi.spec.detail.field.output_form" xml:space="preserve"><value>Dạng output</value></data>
+  <data name="npi.spec.detail.field.labels_per_roll" xml:space="preserve"><value>Nhãn/Cuộn</value></data>
+  <data name="npi.spec.detail.field.core_diameter_mm" xml:space="preserve"><value>Đường kính lõi</value></data>
+  <data name="npi.spec.detail.field.winding_direction" xml:space="preserve"><value>Hướng cuộn</value></data>
+  <data name="npi.spec.detail.field.created" xml:space="preserve"><value>Tạo lúc</value></data>
+  <data name="npi.spec.detail.field.updated" xml:space="preserve"><value>Cập nhật</value></data>
+  <data name="npi.spec.detail.field.approved" xml:space="preserve"><value>Duyệt lúc</value></data>
+
   <data name="qcqa.iqc.title" xml:space="preserve"><value>QC/QA — IQC (Kiểm tra nguyên liệu đầu vào)</value></data>
   <data name="qcqa.iqc.placeholder_lead" xml:space="preserve"><value>Tab quản lý IQC (Incoming Quality Control) — kiểm tra chất lượng đầu vào.</value></data>
   <data name="qcqa.iqc.placeholder_li1" xml:space="preserve"><value>Kiểm tra nguyên vật liệu nhập kho theo checklist và AQL.</value></data>

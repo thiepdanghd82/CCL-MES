@@ -431,3 +431,72 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .rt-ctx-error-close { background:none; border:0; color:inherit;
   cursor:pointer; font-size:18px; padding:0 4px; margin-left:auto; }
 .rt-ctx-error-close:hover { color:#1f3864; }
+
+/* === Phase 8 PR #29 — Spec right-click context menu (mirror wc-ctx) === */
+/* Pattern identical với wc-ctx (PR #27); class-name riêng để future ranges
+   styling (vd Spec dùng accent xanh; WC dùng accent xám) khi cần. */
+
+.spec-ctx-scrim { position:fixed; inset:0; z-index:249; background:transparent; }
+.spec-ctx-menu {
+  position:fixed; z-index:250; min-width:240px;
+  background:#1f2937; color:#f3f4f6;
+  border:1px solid #374151; border-radius:8px;
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+  padding:6px 0; font-size:13px;
+  user-select:none;
+}
+.spec-ctx-item {
+  display:flex; align-items:center; justify-content:space-between; gap:24px;
+  width:100%; padding:6px 14px;
+  background:none; border:0; color:inherit; cursor:pointer;
+  text-align:left;
+}
+.spec-ctx-item:hover:not(:disabled) { background:#3b82f6; color:#fff; }
+.spec-ctx-item:hover:not(:disabled) .spec-ctx-shortcut { color:#dbeafe; }
+.spec-ctx-item.spec-ctx-danger { color:#fca5a5; }
+.spec-ctx-item.spec-ctx-danger:hover:not(:disabled) { background:#dc2626; color:#fff; }
+.spec-ctx-item.spec-ctx-danger:hover:not(:disabled) .spec-ctx-shortcut { color:#fee2e2; }
+.spec-ctx-item.spec-ctx-disabled,
+.spec-ctx-item:disabled { color:#6b7280; cursor:not-allowed; }
+.spec-ctx-shortcut { color:#9ca3af; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; }
+.spec-ctx-separator { height:1px; background:#374151; margin:6px 8px; }
+
+/* === Phase 8 PR #29 — SpecDetailModal (4 sections) === */
+
+.spec-detail-modal { max-width:880px; }
+.spec-detail-modal .modal-body { padding:0; max-height:75vh; overflow-y:auto; }
+
+.spec-detail-section { padding:16px 24px; border-bottom:1px solid #f1f5f9; }
+.spec-detail-section:last-child { border-bottom:0; }
+.spec-detail-section h3 { margin:0 0 10px; font-size:14px; color:#1f3864;
+  text-transform:none; letter-spacing:.2px; font-weight:600; }
+.spec-detail-section h4.spec-detail-subhead { margin:14px 0 6px; font-size:12px;
+  color:#374151; text-transform:uppercase; letter-spacing:.5px; font-weight:600; }
+
+.spec-detail-table { width:100%; border-collapse:collapse; font-size:13px;
+  margin-top:4px; }
+.spec-detail-table th { text-align:left; padding:4px 8px 4px 0; font-weight:500;
+  color:#6b7280; width:180px; vertical-align:top; }
+.spec-detail-table td { padding:4px 0; color:#1f2937; }
+.spec-detail-table thead th { color:#1f3864; font-weight:600; width:auto;
+  border-bottom:1px solid #e5e7eb; padding-bottom:6px; }
+.spec-detail-table thead + tbody tr td { padding:4px 8px 4px 0; }
+
+.spec-detail-rawjson { background:#f9fafb; padding:8px 12px; border-radius:4px;
+  font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11px;
+  color:#374151; white-space:pre-wrap; word-break:break-all;
+  max-height:200px; overflow-y:auto; }
+
+.spec-detail-deferred { background:#fef9c3; }
+.spec-detail-deferred h3 { color:#854d0e; }
+.spec-detail-deferred p { color:#854d0e; margin:0; }
+
+.spec-detail-audit-list { list-style:none; padding:0; margin:6px 0 0; }
+.spec-detail-audit-list li { padding:4px 0; font-size:12px;
+  border-bottom:1px dashed #f1f5f9; display:flex; align-items:baseline;
+  gap:8px; flex-wrap:wrap; }
+.spec-detail-audit-list li:last-child { border-bottom:0; }
+.spec-detail-audit-time { color:#6b7280;
+  font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size:11px; min-width:120px; }
+.spec-detail-audit-action { font-weight:600; color:#1f3864; }

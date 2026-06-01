@@ -1,0 +1,399 @@
+@*  Phase 8 PR #29 — Read-only detail modal cho ProductRevision.
+
+    4 sections (theo CMES shop-floor convention + SpecHub reference):
+      📋 Identity        — SpecCode/Title/Product/RevCode/Status badge
+                           Render INSTANT từ ProductRevisionListItem (đã có ở grid).
+      📝 Spec content    — Material/Print/Diecut/Finishing siblings.
+                           Server query phụ (SpecContentAsync) → try-catch +
+                           error banner inline. Empty siblings render "—".
+      🖼️ Drawings       — placeholder vàng "Available in PR #31"
+                           (blob storage chưa wire, IBlobStore stub đã ship #28).
+      📅 Audit trail     — Created/Updated/Approved stamps + AuditLog timeline
+                           (SpecCreate/SpecApprove + tương lai SpecRevise/Copy/Trash).
+                           Server query phụ → try-catch.
+
+    HOTFIX bài học PR #27 áp dụng strictly:
+      - Modal nhận row entity TRỰC TIẾP từ grid (NO re-fetch by id cho Identity)
+      - Query phụ TÁCH SECTION RIÊNG + try-catch + error banner inline
+      - KHÔNG có server call nào throw mà freeze Blazor circuit
+*@
+
+@using System.Globalization
+@using System.Text.Json
+@using CCL.MES.Application
+@using CCL.MES.Application.Services
+@using CCL.MES.Domain
+@inject SpecService Specs
+@inject IStringLocalizer<SharedResource> Loc
+
+@if (_open && _row is not null)
+{
+    <div class="modal-scrim" @onclick="Close">
+        <div class="modal-card spec-detail-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal-head">
+                <h2>@string.Format(Loc["npi.spec.detail.title"].Value, _row.SpecCode, _row.RevisionCode)</h2>
+                <button type="button" class="modal-close" @onclick="Close" aria-label="Close">×</button>
+            </div>
+
+            <div class="modal-body">
+                @{ var row = _row; }
+
+                @* ── 📋 Identity (instant, render from DTO) ─────────────── *@
+                <section class="spec-detail-section">
+                    <h3>📋 @Loc["npi.spec.detail.section.identity"]</h3>
+                    <table class="spec-detail-table">
+                        <tr><th>@Loc["npi.spec.detail.field.spec_code"]</th>
+                            <td><b>@row.SpecCode</b></td></tr>
+                        <tr><th>@Loc["npi.spec.detail.field.title"]</th>
+                            <td>@row.Title</td></tr>
+                        <tr><th>@Loc["npi.spec.detail.field.product"]</th>
+                            <td>@row.ProductCode — @row.ProductName</td></tr>
+                        <tr><th>@Loc["npi.spec.detail.field.revision_code"]</th>
+                            <td><b>Rev @row.RevisionCode</b></td></tr>
+                        <tr><th>@Loc["npi.spec.detail.field.status"]</th>
+                            <td>@RenderStatusBadge(row.Status)</td></tr>
+                        <tr><th>@Loc["npi.spec.detail.field.effective_from"]</th>
+                            <td>@(row.EffectiveFrom?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td></tr>
+                    </table>
+                </section>
+
+                @* ── 📝 Spec content (server query + try-catch + inline error) ── *@
+                <section class="spec-detail-section">
+                    <h3>📝 @Loc["npi.spec.detail.section.content"]</h3>
+                    @if (_contentLoading)
+                    {
+                        <p class="muted">@Loc["npi.spec.detail.loading"]</p>
+                    }
+                    else if (_contentError is not null)
+                    {
+                        <div class="alert err">@_contentError</div>
+                    }
+                    else if (_content is null)
+                    {
+                        <p class="muted">@Loc["npi.spec.detail.content.not_found"]</p>
+                    }
+                    else
+                    {
+                        @* Sub-section: Material *@
+                        <h4 class="spec-detail-subhead">@Loc["npi.spec.detail.content.material"]</h4>
+                        @if (_content.Material is null)
+                        {
+                            <p class="muted">—</p>
+                        }
+                        else
+                        {
+                            var m = _content.Material;
+                            <table class="spec-detail-table">
+                                <tr><th>@Loc["npi.spec.detail.field.substrate_type"]</th><td>@(m.SubstrateType ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.substrate_brand"]</th><td>@(m.SubstrateBrand ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.thickness_um"]</th><td>@(m.ThicknessUm?.ToString() ?? "—") @(m.ThicknessUm is not null ? "µm" : "")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.liner_type"]</th><td>@(m.LinerType ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.adhesive_type"]</th><td>@(m.AdhesiveType ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.adhesive_brand"]</th><td>@(m.AdhesiveBrand ?? "—")</td></tr>
+                            </table>
+                        }
+
+                        @* Sub-section: Print *@
+                        <h4 class="spec-detail-subhead">@Loc["npi.spec.detail.content.print"]</h4>
+                        @if (_content.Print is null)
+                        {
+                            <p class="muted">—</p>
+                        }
+                        else
+                        {
+                            var p = _content.Print;
+                            <table class="spec-detail-table">
+                                <tr><th>@Loc["npi.spec.detail.field.process_code"]</th><td>@(p.ProcessCode ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.num_colors"]</th><td>@p.NumColors</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.varnish"]</th><td>@(p.Varnish ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.lamination"]</th><td>@(p.Lamination ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.white_underprint"]</th><td>@(p.WhiteUnderprint ? "✓" : "—")</td></tr>
+                            </table>
+
+                            @* Migrated params from legacy SpecParameter (PR #28
+                               migrated thành JSON array trong ColorSpecJson).
+                               Render compact dạng table nếu parse được; fallback
+                               raw JSON nếu parse fail (defensive). *@
+                            @if (!string.IsNullOrWhiteSpace(p.ColorSpecJson) && p.ColorSpecJson != "[]")
+                            {
+                                <h4 class="spec-detail-subhead">@Loc["npi.spec.detail.field.params"]</h4>
+                                @if (_params is not null && _params.Count > 0)
+                                {
+                                    <table class="spec-detail-table">
+                                        <thead>
+                                            <tr>
+                                                <th>@Loc["npi.spec.detail.field.param_name"]</th>
+                                                <th>@Loc["npi.spec.detail.field.nominal"]</th>
+                                                <th>@Loc["npi.spec.detail.field.tol_min"]</th>
+                                                <th>@Loc["npi.spec.detail.field.tol_max"]</th>
+                                                <th>@Loc["npi.spec.detail.field.uom"]</th>
+                                                <th>@Loc["npi.spec.detail.field.is_critical"]</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var pp in _params)
+                                            {
+                                                <tr>
+                                                    <td><b>@(pp.ParamName ?? "")</b></td>
+                                                    <td>@(pp.Nominal ?? "—")</td>
+                                                    <td>@(pp.TolMin ?? "—")</td>
+                                                    <td>@(pp.TolMax ?? "—")</td>
+                                                    <td>@(pp.Uom ?? "")</td>
+                                                    <td>@(pp.IsCritical ? "✓" : "—")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                                else
+                                {
+                                    <pre class="spec-detail-rawjson">@p.ColorSpecJson</pre>
+                                }
+                            }
+                        }
+
+                        @* Sub-section: Diecut *@
+                        <h4 class="spec-detail-subhead">@Loc["npi.spec.detail.content.diecut"]</h4>
+                        @if (_content.Diecut is null)
+                        {
+                            <p class="muted">—</p>
+                        }
+                        else
+                        {
+                            var d = _content.Diecut;
+                            <table class="spec-detail-table">
+                                <tr><th>@Loc["npi.spec.detail.field.cut_process_code"]</th><td>@(d.CutProcessCode ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.die_id"]</th><td>@(d.DieId ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.die_type"]</th><td>@(d.DieType ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.width_mm"]</th><td>@FmtMm(d.WidthMm)</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.length_mm"]</th><td>@FmtMm(d.LengthMm)</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.corner_radius_mm"]</th><td>@FmtMm(d.CornerRadiusMm)</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.bleed_mm"]</th><td>@FmtMm(d.BleedMm)</td></tr>
+                            </table>
+                        }
+
+                        @* Sub-section: Finishing *@
+                        <h4 class="spec-detail-subhead">@Loc["npi.spec.detail.content.finishing"]</h4>
+                        @if (_content.Finishing is null)
+                        {
+                            <p class="muted">—</p>
+                        }
+                        else
+                        {
+                            var f = _content.Finishing;
+                            <table class="spec-detail-table">
+                                <tr><th>@Loc["npi.spec.detail.field.output_form"]</th><td>@(f.OutputForm ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.labels_per_roll"]</th><td>@(f.LabelsPerRoll?.ToString("N0", CultureInfo.InvariantCulture) ?? "—")</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.core_diameter_mm"]</th><td>@FmtMm(f.CoreDiameterMm)</td></tr>
+                                <tr><th>@Loc["npi.spec.detail.field.winding_direction"]</th><td>@(f.WindingDirection ?? "—")</td></tr>
+                            </table>
+                        }
+                    }
+                </section>
+
+                @* ── 🖼️ Drawings (placeholder PR #31) ─────────────────────── *@
+                <section class="spec-detail-section spec-detail-deferred">
+                    <h3>🖼️ @Loc["npi.spec.detail.section.drawings"]</h3>
+                    <p class="muted">@Loc["npi.spec.detail.drawings.placeholder"]</p>
+                </section>
+
+                @* ── 📅 Audit trail (server query + try-catch) ─────────────── *@
+                <section class="spec-detail-section">
+                    <h3>📅 @Loc["npi.spec.detail.section.audit"]</h3>
+                    @if (_content is not null)
+                    {
+                        @* Stamps: Created / Updated / Approved (đã có trong _content) *@
+                        <table class="spec-detail-table">
+                            <tr><th>@Loc["npi.spec.detail.field.created"]</th>
+                                <td>@_content.CreatedAt.ToString("yyyy-MM-dd HH:mm")
+                                    <span class="muted">@(_content.CreatedBy is null ? "" : "· " + _content.CreatedBy)</span></td></tr>
+                            <tr><th>@Loc["npi.spec.detail.field.updated"]</th>
+                                <td>@(_content.UpdatedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")
+                                    <span class="muted">@(_content.UpdatedBy is null ? "" : "· " + _content.UpdatedBy)</span></td></tr>
+                            <tr><th>@Loc["npi.spec.detail.field.approved"]</th>
+                                <td>@(_content.ApprovedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")
+                                    <span class="muted">@(_content.ApprovedBy is null ? "" : "· " + _content.ApprovedBy)</span></td></tr>
+                        </table>
+                    }
+
+                    @* Timeline events từ AuditLog (Q9: query table sẵn có) *@
+                    <h4 class="spec-detail-subhead">@Loc["npi.spec.detail.audit.timeline"]</h4>
+                    @if (_auditLoading)
+                    {
+                        <p class="muted">@Loc["npi.spec.detail.loading"]</p>
+                    }
+                    else if (_auditError is not null)
+                    {
+                        <div class="alert err">@_auditError</div>
+                    }
+                    else if (_audit is null || _audit.Count == 0)
+                    {
+                        <p class="muted">@Loc["npi.spec.detail.audit.empty"]</p>
+                    }
+                    else
+                    {
+                        <ul class="spec-detail-audit-list">
+                            @foreach (var a in _audit)
+                            {
+                                <li>
+                                    <span class="spec-detail-audit-time">@a.Timestamp.ToString("yyyy-MM-dd HH:mm")</span>
+                                    <span class="spec-detail-audit-action">@a.Action</span>
+                                    <span class="muted">· @a.ActorUsername</span>
+                                    @if (!string.IsNullOrWhiteSpace(a.ActorRole))
+                                    {
+                                        <span class="muted">(@a.ActorRole)</span>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="btn" @onclick="Close">@Loc["npi.spec.detail.btn_close"]</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _open;
+    private ProductRevisionListItem? _row;
+
+    private bool _contentLoading;
+    private string? _contentError;
+    private SpecContentDto? _content;
+    private List<ParamRow>? _params;
+
+    private bool _auditLoading;
+    private string? _auditError;
+    private List<SpecAuditEntry>? _audit;
+
+    /// <summary>
+    /// Modal nhận row entity TRỰC TIẾP từ grid (DTO). Identity render NGAY.
+    /// Content + Audit query phụ — try-catch inline để KHÔNG freeze circuit.
+    /// </summary>
+    public async Task OpenAsync(ProductRevisionListItem row)
+    {
+        _row = row;
+        _open = true;
+
+        _contentLoading = true;
+        _contentError = null;
+        _content = null;
+        _params = null;
+
+        _auditLoading = true;
+        _auditError = null;
+        _audit = null;
+
+        StateHasChanged();
+
+        // Content query (separate try-catch, error inline trong section)
+        try
+        {
+            _content = await Specs.SpecContentAsync(row.Id);
+            if (_content?.Print?.ColorSpecJson is { Length: > 0 } json && json != "[]")
+            {
+                _params = TryParseParams(json);
+            }
+        }
+        catch (Exception ex)
+        {
+            _contentError = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _contentLoading = false;
+            StateHasChanged();
+        }
+
+        // Audit query (separate try-catch)
+        try
+        {
+            _audit = await Specs.SpecAuditTrailAsync(row.Id);
+        }
+        catch (Exception ex)
+        {
+            _auditError = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _auditLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    public void Close()
+    {
+        _open = false;
+        _row = null;
+        _content = null;
+        _params = null;
+        _contentError = null;
+        _audit = null;
+        _auditError = null;
+        StateHasChanged();
+    }
+
+    private static string FmtMm(double? v) =>
+        v is null ? "—" : v.Value.ToString("N3", CultureInfo.InvariantCulture) + " mm";
+
+    private RenderFragment RenderStatusBadge(ProductRevisionStatus st) => __builder =>
+    {
+        var (cls, labelKey) = st switch
+        {
+            ProductRevisionStatus.Draft       => ("rm-status rm-status--draft",      "npi.spec.status.draft"),
+            ProductRevisionStatus.InReview    => ("rm-status rm-status--review",     "npi.spec.status.in_review"),
+            ProductRevisionStatus.Approved    => ("rm-status rm-status--approved",   "npi.spec.status.approved"),
+            ProductRevisionStatus.Released    => ("rm-status rm-status--released",   "npi.spec.status.released"),
+            ProductRevisionStatus.Superseded  => ("rm-status rm-status--obsolete",   "npi.spec.status.superseded"),
+            _                                 => ("rm-status",                       "npi.spec.status.draft"),
+        };
+        __builder.OpenElement(1, "span");
+        __builder.AddAttribute(2, "class", cls);
+        __builder.AddContent(3, Loc[labelKey].Value);
+        __builder.CloseElement();
+    };
+
+    private static List<ParamRow>? TryParseParams(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return null;
+            var rows = new List<ParamRow>();
+            foreach (var el in doc.RootElement.EnumerateArray())
+            {
+                if (el.ValueKind != JsonValueKind.Object) continue;
+                rows.Add(new ParamRow
+                {
+                    ParamName  = el.TryGetProperty("param_name", out var n) ? n.GetString() : null,
+                    Nominal    = el.TryGetProperty("nominal", out var v) ? v.GetString() : null,
+                    TolMin     = el.TryGetProperty("tol_min", out var lo) ? lo.GetString() : null,
+                    TolMax     = el.TryGetProperty("tol_max", out var hi) ? hi.GetString() : null,
+                    Uom        = el.TryGetProperty("uom", out var u) ? u.GetString() : null,
+                    IsCritical = el.TryGetProperty("is_critical", out var c)
+                                 && (c.ValueKind == JsonValueKind.True
+                                     || (c.ValueKind == JsonValueKind.Number && c.TryGetInt32(out var i) && i != 0)),
+                });
+            }
+            return rows;
+        }
+        catch
+        {
+            return null; // Caller render raw JSON fallback.
+        }
+    }
+
+    private sealed class ParamRow
+    {
+        public string? ParamName { get; set; }
+        public string? Nominal { get; set; }
+        public string? TolMin { get; set; }
+        public string? TolMax { get; set; }
+        public string? Uom { get; set; }
+        public bool IsCritical { get; set; }
+    }
+}
