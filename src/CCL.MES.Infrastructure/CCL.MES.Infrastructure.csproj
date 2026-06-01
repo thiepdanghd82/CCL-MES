@@ -10,6 +10,14 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.8" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <!-- Phase 8 PR #31a — xlsx parser dep (MIT). Exception to the "CSV-only"
+         rule because SpecHub spec sheets use positional cell layouts that
+         survive only in native xlsx (merged headers, multi-row sub-headers).
+         Pin patch version để rebuild deterministic. Pure .NET, no native
+         deps, cross-platform; pulls DocumentFormat.OpenXml + ExcelNumberFormat
+         + SixLabors.Fonts transitively (~12 MB packages, ~4 MB gzipped). See
+         docs/HOW-TO-UPGRADE-TO-SQLSERVER.md + LESSONS_LEARNED.md. -->
+    <PackageReference Include="ClosedXML" Version="0.104.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CCL.MES.Domain\CCL.MES.Domain.csproj" />

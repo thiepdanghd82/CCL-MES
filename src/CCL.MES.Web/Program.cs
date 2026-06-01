@@ -185,6 +185,10 @@ builder.Services.AddScoped<AuditLogService>();
 // Phase 7 hạng mục 1 — NPI CSV import engine (replace-all + auto-backup
 // + audit emit). Generic, reusable cho 5 tab NPI sau qua ICsvImportTarget.
 builder.Services.AddScoped<NpiImportService>();
+// Phase 8 PR #31a — Spec xlsx import orchestrator (parse → preview → save
+// transaction + audit + samples refresh). ISpecXlsxParser singleton đã wired
+// trong AddInfrastructure() (SilkscreenXlsxParser impl).
+builder.Services.AddScoped<CCL.MES.Application.SpecImport.SpecImportService>();
 
 var app = builder.Build();
 

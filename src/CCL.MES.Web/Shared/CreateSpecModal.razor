@@ -1,29 +1,27 @@
-@*  Phase 7 hạng mục 4 — Create Spec modal.
-    Reuse modal-scrim + modal-card + modal-head/body/foot CSS từ
-    NpiImportModal (Phase 7 hạng mục 1+). KHÔNG dùng generic vì đây là
-    form thuần Blazor binding tới CreateSpecRequest DTO.
+@* Phase 8 PR #31a — Create Spec modal v2 (planner picker + xlsx import +
+   preview + Save).
 
-    Form structure (mirror SpecService.CreateAsync contract):
-      - SpecCode (required, unique check ở server-side)
-      - Title (required)
-      - Product dropdown (required, populate từ SpecService.ProductsForDropdownAsync)
-      - Initial parameters table:
-          ParamName | Nominal | TolMin | TolMax | UoM | IsCritical
-        + Add row / Remove row buttons; require ≥ 1 row
+   Port pattern UX SpecHub `openCreateOneCModal` (HTML:11865-11882) +
+   `handleOneCFileSelected` (HTML:11884-11903) + `showOneCPreview`
+   (HTML:11905-11952).
 
-    Submit → SpecService.CreateAsync → success → OnCreated callback parent
-    refresh grid. Error → inline alert (mirror NpiImportModal err state).
+   Public surface giữ giống Phase 7 CreateSpecModal cho EngineerSpec caller:
+     - @ref + OpenAsync() + OnCreated callback
+   Internal flow:
+     1. Operator chọn planner (5 categories — SILK mặc định)
+     2. Upload xlsx → InputFile streams → SpecImportService.PreviewAsync
+     3. Preview hiển thị summary + warnings + dup detection
+     4. Click Save → SpecImportService.SaveAsync (transaction Q13)
+     5. Success → OnCreated → close modal → grid refresh
 
-    RBAC defense-in-depth: SpecService.CreateAsync KHÔNG validate role
-    hiện tại (đó là gap nhỏ — modal đã gate AuthorizeView Roles
-    Admin/Engineer ở caller, browser path bị chặn; nếu cần defense-in-depth
-    server-side, đẩy thành ticket Phase 8). Audit emit SpecCreate đã sẵn
-    qua AuditAction.SpecCreate.
-*@
+   Bài học hotfix PR #27: KHÔNG re-fetch by id; bind trực tiếp PreviewDto
+   trả về từ service.
+   Bài học PR #28-#30 try-catch wrap mọi async handler — error gắn vào
+   _errorMessage state, KHÔNG freeze circuit. *@
 
-@using CCL.MES.Application.Services
-@using CCL.MES.Domain.Entities
-@inject SpecService Specs
+@using CCL.MES.Application.SpecImport
+@using Microsoft.AspNetCore.Components.Forms
+@inject SpecImportService SpecImport
 @inject IStringLocalizer<SharedResource> Loc
 @inject AuthenticationStateProvider AuthState
 
@@ -32,101 +30,145 @@
     <div class="modal-scrim" @onclick="CancelClick">
         <div class="modal-card spec-create-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
             <div class="modal-head">
-                <h2>@Loc["npi.spec.create.title"]</h2>
+                <h2>@Loc["npi.spec.create_v2.title"]</h2>
                 <button type="button" class="modal-close" @onclick="CancelClick" aria-label="Close">×</button>
             </div>
 
             <div class="modal-body">
-                <EditForm Model="_form" OnValidSubmit="OnSubmitAsync">
-                    <DataAnnotationsValidator />
-
-                    <div class="spec-form-grid">
-                        <label>
-                            <span class="spec-label">@Loc["npi.spec.create.spec_code"] <em>*</em></span>
-                            <InputText class="spec-input" @bind-Value="_form.SpecCode" placeholder="@Loc["npi.spec.create.spec_code_ph"]" />
-                            <ValidationMessage For="@(() => _form.SpecCode)" />
-                        </label>
-
-                        <label>
-                            <span class="spec-label">@Loc["npi.spec.create.title_field"] <em>*</em></span>
-                            <InputText class="spec-input" @bind-Value="_form.Title" placeholder="@Loc["npi.spec.create.title_field_ph"]" />
-                            <ValidationMessage For="@(() => _form.Title)" />
-                        </label>
-
-                        <label>
-                            <span class="spec-label">@Loc["npi.spec.create.product"] <em>*</em></span>
-                            <InputSelect class="spec-input" @bind-Value="_form.ProductId">
-                                <option value="0">— @Loc["npi.spec.create.product_pick"] —</option>
-                                @foreach (var p in _products)
-                                {
-                                    <option value="@p.Id">@p.ProductCode — @p.Name</option>
-                                }
-                            </InputSelect>
-                            @if (_form.ProductId == 0)
-                            {
-                                <small class="spec-hint">@Loc["npi.spec.create.product_required"]</small>
-                            }
-                        </label>
+                <!-- Step 1 — Planner picker -->
+                <section class="spec-create-step">
+                    <h3>@Loc["npi.spec.create_v2.step1"]</h3>
+                    <div class="planner-grid">
+                        @foreach (var p in _planners)
+                        {
+                            var key = p.Key;
+                            var isSelected = _selectedPlanner == key;
+                            <button type="button"
+                                    class="planner-opt @(isSelected ? "selected" : "") spec-planner-@key"
+                                    @onclick="@(() => SelectPlanner(key))"
+                                    disabled="@_busy">
+                                @Loc[p.LabelKey]
+                            </button>
+                        }
                     </div>
+                    <small class="spec-hint">@Loc["npi.spec.create_v2.step1_hint"]</small>
+                </section>
 
-                    <h3>@Loc["npi.spec.create.params_header"]</h3>
-                    <table class="spec-params-table">
-                        <thead>
-                            <tr>
-                                <th>@Loc["npi.spec.create.param_name"] <em>*</em></th>
-                                <th>@Loc["npi.spec.create.nominal"]</th>
-                                <th>@Loc["npi.spec.create.tol_min"]</th>
-                                <th>@Loc["npi.spec.create.tol_max"]</th>
-                                <th>@Loc["npi.spec.create.uom"]</th>
-                                <th class="spec-col-critical">@Loc["npi.spec.create.is_critical"]</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @for (int i = 0; i < _form.Parameters.Count; i++)
+                <!-- Step 2 — Upload xlsx -->
+                <section class="spec-create-step">
+                    <h3>@Loc["npi.spec.create_v2.step2"]</h3>
+                    <label class="spec-file-drop @(_preview is not null ? "has-file" : "")">
+                        <InputFile OnChange="OnFileChangedAsync" accept=".xlsx" disabled="@_busy" />
+                        <span class="spec-file-drop-label">
+                            @if (_preview is null && string.IsNullOrEmpty(_fileName))
                             {
-                                var idx = i;
-                                var p = _form.Parameters[idx];
-                                <tr>
-                                    <td><input class="spec-input-sm" @bind="p.ParamName" /></td>
-                                    <td><input class="spec-input-sm" @bind="p.Nominal" /></td>
-                                    <td><input class="spec-input-sm" @bind="p.TolMin" /></td>
-                                    <td><input class="spec-input-sm" @bind="p.TolMax" /></td>
-                                    <td><input class="spec-input-sm" @bind="p.Uom" /></td>
-                                    <td class="spec-col-critical"><input type="checkbox" @bind="p.IsCritical" /></td>
-                                    <td>
-                                        @if (_form.Parameters.Count > 1)
-                                        {
-                                            <button type="button" class="spec-btn-remove"
-                                                    @onclick="@(() => RemoveParam(idx))"
-                                                    title="@Loc["npi.spec.create.btn_remove_param"]">−</button>
-                                        }
-                                    </td>
-                                </tr>
+                                @Loc["npi.spec.create_v2.upload_label"]
                             }
-                        </tbody>
-                    </table>
-                    <button type="button" class="btn" @onclick="AddParam">+ @Loc["npi.spec.create.btn_add_param"]</button>
+                            else if (_busy)
+                            {
+                                <strong>@Loc["npi.spec.create_v2.parsing"]</strong>
+                            }
+                            else if (_preview is not null && _preview.ParseOk)
+                            {
+                                <strong>@_fileName</strong>
+                                <br />
+                                <small class="muted">✓ Parsed — @(_preview.Parsed?.PrintRows.Count ?? 0) print rows</small>
+                            }
+                            else
+                            {
+                                <strong>@_fileName</strong>
+                                <br />
+                                <small class="err">@Loc["npi.spec.create_v2.parse_error"]: @_preview?.ParseError</small>
+                            }
+                        </span>
+                    </label>
+                </section>
 
-                    @if (!string.IsNullOrEmpty(_errorMessage))
-                    {
-                        <div class="alert err" role="alert">@_errorMessage</div>
-                    }
+                <!-- Preview (after parse OK) -->
+                @if (_preview is not null && _preview.ParseOk && _preview.Parsed is not null)
+                {
+                    var parsed = _preview.Parsed;
+                    <section class="spec-create-step spec-preview-section">
+                        <h3>@Loc["npi.spec.create_v2.preview_header"]</h3>
 
-                    @if (_busy)
-                    {
-                        <p class="muted">@Loc["npi.spec.create.saving"]</p>
-                    }
+                        @if (_preview.DuplicateRefNo)
+                        {
+                            <div class="alert err" role="alert">
+                                ⚠ @Loc["npi.spec.create_v2.dup_banner"]
+                                <br />
+                                <small class="muted">RefNo: <code>@parsed.RefNo</code> · existing spec: <code>@_preview.DuplicateSpecCode</code> (id=@_preview.DuplicateRevisionId)</small>
+                            </div>
+                        }
 
-                    <div class="modal-foot">
-                        <button type="button" class="btn" @onclick="CancelClick" disabled="@_busy">
-                            @Loc["npi.spec.create.btn_cancel"]
-                        </button>
-                        <button type="submit" class="btn btn-primary" disabled="@(_busy || !CanSubmit)">
-                            @Loc["npi.spec.create.btn_save"]
-                        </button>
+                        <dl class="spec-preview-grid">
+                            <dt>@Loc["npi.spec.create_v2.preview_refno"]</dt>
+                            <dd><strong>@(string.IsNullOrEmpty(parsed.RefNo) ? "—" : parsed.RefNo)</strong></dd>
+
+                            <dt>@Loc["npi.spec.create_v2.preview_customer"]</dt>
+                            <dd><b>@(string.IsNullOrEmpty(parsed.Customer) ? "—" : parsed.Customer)</b></dd>
+
+                            <dt>@Loc["npi.spec.create_v2.preview_partno"]</dt>
+                            <dd><code class="spec-partno">@(string.IsNullOrEmpty(parsed.PartNo) ? "—" : parsed.PartNo)</code></dd>
+
+                            <dt>@Loc["npi.spec.create_v2.preview_partname"]</dt>
+                            <dd>@(string.IsNullOrEmpty(parsed.PartName) ? "—" : parsed.PartName)</dd>
+
+                            <dt>@Loc["npi.spec.create_v2.preview_inspection"]</dt>
+                            <dd>@parsed.InspectionLevel</dd>
+
+                            <dt>@Loc["npi.spec.create_v2.preview_size"]</dt>
+                            <dd>@FormatSize(parsed.ProductSizeW, parsed.ProductSizeH)</dd>
+
+                            <dt>@Loc["npi.spec.create_v2.preview_cavity"]</dt>
+                            <dd>@(parsed.PrintingCavity?.ToString() ?? "—")</dd>
+
+                            <dt>@Loc["npi.spec.create_v2.preview_pitch"]</dt>
+                            <dd>@(parsed.LengthPitchMm is null ? "—" : parsed.LengthPitchMm.Value.ToString("N1"))</dd>
+
+                            <dt>@Loc["npi.spec.create_v2.preview_material"]</dt>
+                            <dd>@(string.IsNullOrEmpty(parsed.MaterialType) ? "—" : parsed.MaterialType)</dd>
+
+                            <dt>@Loc["npi.spec.create_v2.preview_rows"]</dt>
+                            <dd><strong>@parsed.PrintRows.Count</strong> colors</dd>
+                        </dl>
+
+                        @if (_preview.Warnings.Count > 0)
+                        {
+                            <details class="spec-warnings" open="@(_preview.Warnings.Count <= 3)">
+                                <summary>@Loc["npi.spec.create_v2.warnings_header"] (@_preview.Warnings.Count)</summary>
+                                <ul>
+                                    @foreach (var w in _preview.Warnings)
+                                    {
+                                        <li>@w</li>
+                                    }
+                                </ul>
+                            </details>
+                        }
+                    </section>
+                }
+
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert err" role="alert">
+                        @_errorMessage
                     </div>
-                </EditForm>
+                }
+
+                <div class="modal-foot">
+                    <button type="button" class="btn" @onclick="CancelClick" disabled="@_busy">
+                        @Loc["npi.spec.create_v2.btn_cancel"]
+                    </button>
+                    <button type="button" class="btn"
+                            @onclick="OnManualEntryAsync" disabled="@_busy"
+                            title="@Loc["npi.spec.create_v2.btn_manual"]">
+                        @Loc["npi.spec.create_v2.btn_manual"]
+                    </button>
+                    <button type="button" class="btn btn-primary"
+                            @onclick="OnSaveAsync" disabled="@(_busy || !CanSave)">
+                        @if (_busy) { @Loc["npi.spec.create_v2.saving"] }
+                        else        { @Loc["npi.spec.create_v2.btn_save"] }
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -137,104 +179,171 @@
 
     private bool _open;
     private bool _busy;
+    private string _selectedPlanner = "silkscreen";
+    private string _fileName = "";
     private string? _errorMessage;
-    private FormModel _form = new();
-    private List<ProductDropdownItem> _products = new();
+    private SpecImportPreviewDto? _preview;
 
-    public async Task OpenAsync()
+    private sealed record PlannerOpt(string Key, string LabelKey);
+
+    private static readonly PlannerOpt[] _planners = new[]
+    {
+        new PlannerOpt("silkscreen",  "npi.spec.create_v2.planner.silkscreen"),
+        new PlannerOpt("flexo",       "npi.spec.create_v2.planner.flexo"),
+        new PlannerOpt("letterpress", "npi.spec.create_v2.planner.letterpress"),
+        new PlannerOpt("indigo",      "npi.spec.create_v2.planner.indigo"),
+        new PlannerOpt("diecut",      "npi.spec.create_v2.planner.diecut"),
+    };
+
+    public Task OpenAsync()
     {
         _open = true;
         _busy = false;
+        _selectedPlanner = "silkscreen";
+        _fileName = "";
         _errorMessage = null;
-        _form = new FormModel();
-        _form.Parameters.Add(new ParamRow()); // start với 1 param row
-        _products = await Specs.ProductsForDropdownAsync();
+        _preview = null;
         StateHasChanged();
+        return Task.CompletedTask;
     }
 
     private void CancelClick()
     {
         if (_busy) return;
         _open = false;
+        _preview = null;
+        _fileName = "";
+        _errorMessage = null;
     }
 
-    private void AddParam() => _form.Parameters.Add(new ParamRow());
-    private void RemoveParam(int idx)
+    private void SelectPlanner(string planner)
     {
-        if (_form.Parameters.Count > 1) _form.Parameters.RemoveAt(idx);
+        if (_busy) return;
+        _selectedPlanner = planner;
+        // Re-parse hint: keep current preview if any; user may want to re-upload
+        // sau khi đổi planner. Để đơn giản clear preview để khỏi mismatch.
+        if (_preview is not null)
+        {
+            _preview = null;
+            _fileName = "";
+        }
     }
 
-    private bool CanSubmit =>
-        !string.IsNullOrWhiteSpace(_form.SpecCode)
-        && !string.IsNullOrWhiteSpace(_form.Title)
-        && _form.ProductId > 0
-        && _form.Parameters.Any(p => !string.IsNullOrWhiteSpace(p.ParamName));
+    private bool CanSave => _preview is not null
+                            && _preview.ParseOk
+                            && !_preview.DuplicateRefNo
+                            && _preview.Parsed is not null
+                            && !string.IsNullOrWhiteSpace(_preview.Parsed.Customer)
+                            && !string.IsNullOrWhiteSpace(_preview.Parsed.PartNo);
 
-    private async Task OnSubmitAsync()
+    private async Task OnFileChangedAsync(InputFileChangeEventArgs e)
     {
-        if (_busy || !CanSubmit) return;
+        var file = e.File;
+        if (file is null) return;
+
         _busy = true;
         _errorMessage = null;
+        _preview = null;
+        _fileName = file.Name;
+        StateHasChanged();
+
         try
         {
-            var state = await AuthState.GetAuthenticationStateAsync();
-            var user = state.User?.Identity?.Name;
-
-            var req = new CCL.MES.Application.CreateSpecRequest
+            if (file.Size > SpecImportService.MaxFileSizeBytes)
             {
-                SpecCode = _form.SpecCode.Trim(),
-                Title = _form.Title.Trim(),
-                ProductId = _form.ProductId,
-                Parameters = _form.Parameters
-                    .Where(p => !string.IsNullOrWhiteSpace(p.ParamName))
-                    .Select(p => new CCL.MES.Application.SpecParamDto
-                    {
-                        ParamName = p.ParamName.Trim(),
-                        Nominal = string.IsNullOrWhiteSpace(p.Nominal) ? null : p.Nominal.Trim(),
-                        TolMin = string.IsNullOrWhiteSpace(p.TolMin) ? null : p.TolMin.Trim(),
-                        TolMax = string.IsNullOrWhiteSpace(p.TolMax) ? null : p.TolMax.Trim(),
-                        Uom = string.IsNullOrWhiteSpace(p.Uom) ? null : p.Uom.Trim(),
-                        IsCritical = p.IsCritical,
-                    })
-                    .ToList(),
-            };
+                _errorMessage = Loc["npi.spec.create_v2.file_too_large"].Value;
+                _preview = new SpecImportPreviewDto
+                {
+                    FileName = file.Name,
+                    FileSizeBytes = file.Size,
+                    PlannerCategory = _selectedPlanner,
+                    ParseOk = false,
+                    ParseError = _errorMessage,
+                };
+                return;
+            }
 
-            await Specs.CreateAsync(req, user);
-            _open = false;
-            if (OnCreated.HasDelegate) await OnCreated.InvokeAsync();
+            // Copy stream to MemoryStream — Blazor InputFile stream cap default
+            // 500KB; pass through OpenReadStream với maxAllowedSize.
+            await using var src = file.OpenReadStream(SpecImportService.MaxFileSizeBytes);
+            using var ms = new MemoryStream();
+            await src.CopyToAsync(ms);
+            ms.Position = 0;
+
+            _preview = await SpecImport.PreviewAsync(ms, file.Name, file.Size, _selectedPlanner);
+            if (!_preview.ParseOk)
+            {
+                _errorMessage = _preview.ParseError;
+            }
         }
         catch (Exception ex)
         {
-            _errorMessage = Loc["npi.spec.create.err_save"].Value + " (" + ex.Message + ")";
+            _errorMessage = $"{Loc["npi.spec.create_v2.parse_error"].Value}: {ex.Message}";
+            _preview = new SpecImportPreviewDto
+            {
+                FileName = file.Name,
+                FileSizeBytes = file.Size,
+                PlannerCategory = _selectedPlanner,
+                ParseOk = false,
+                ParseError = ex.Message,
+            };
         }
         finally
         {
             _busy = false;
+            StateHasChanged();
         }
     }
 
-    private sealed class FormModel
+    private async Task OnSaveAsync()
     {
-        [System.ComponentModel.DataAnnotations.Required]
-        [System.ComponentModel.DataAnnotations.StringLength(64)]
-        public string SpecCode { get; set; } = "";
+        if (_busy || !CanSave || _preview?.Parsed is null) return;
+        _busy = true;
+        _errorMessage = null;
+        StateHasChanged();
 
-        [System.ComponentModel.DataAnnotations.Required]
-        [System.ComponentModel.DataAnnotations.StringLength(200)]
-        public string Title { get; set; } = "";
-
-        public long ProductId { get; set; } = 0;
-
-        public List<ParamRow> Parameters { get; set; } = new();
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var user = state.User?.Identity?.Name;
+            await SpecImport.SaveAsync(_preview.Parsed, source: "create_modal", fileName: _fileName, user: user);
+            _open = false;
+            _preview = null;
+            _fileName = "";
+            if (OnCreated.HasDelegate) await OnCreated.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"{Loc["npi.spec.create_v2.save_err"].Value}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
     }
 
-    private sealed class ParamRow
+    /// <summary>
+    /// PR #31a Q5 — Manual entry placeholder. Reuse Phase 7 form đơn giản đã
+    /// có không khả thi (form đó vẫn yêu cầu Parameters non-empty + Product
+    /// dropdown selection — ràng buộc cho create-from-scratch không phù hợp
+    /// với planner picker flow). Em chọn "minimal Draft + Edit later" pattern:
+    /// đóng modal + show advisory để operator dùng SpecHub-style Edit flow
+    /// (defer PR #32+).
+    /// </summary>
+    private void OnManualEntryAsync()
     {
-        public string ParamName { get; set; } = "";
-        public string? Nominal { get; set; }
-        public string? TolMin { get; set; }
-        public string? TolMax { get; set; }
-        public string? Uom { get; set; }
-        public bool IsCritical { get; set; }
+        if (_busy) return;
+        // PR #31a: just close — Manual entry full form đẩy PR sau (cần Edit modal trước).
+        _errorMessage = "Manual entry form sẽ ship cùng Edit modal (PR sau). PR #31a chỉ hỗ trợ xlsx import.";
+        StateHasChanged();
+    }
+
+    private static string FormatSize(double? w, double? h)
+    {
+        if (w is null && h is null) return "—";
+        var ws = w?.ToString("N1") ?? "—";
+        var hs = h?.ToString("N1") ?? "—";
+        return $"{ws} × {hs} mm";
     }
 }

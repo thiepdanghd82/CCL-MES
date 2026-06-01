@@ -21,6 +21,13 @@ public static class AuditAction
     public const string QcCreate              = "QC_CREATE";
     public const string SpecApprove           = "SPEC_APPROVE";
     public const string SpecCreate            = "SPEC_CREATE";
+    // Phase 8 PR #31a — xlsx import (silkscreen). detail JSON: { spec_code,
+    // ref_no, title, product_id, process_code, source, filename, rows_parsed,
+    // warnings, created_new_product }
+    public const string SpecImport            = "SPEC_IMPORT";
+    // Refresh-samples Admin-only batch (idempotent). detail JSON: { added,
+    // updated, skipped, files: [{filename, ref_no, status}] }
+    public const string SpecRefreshSamples    = "SPEC_REFRESH_SAMPLES";
     public const string UserCreate            = "USER_CREATE";
     public const string UserDisplayChange     = "USER_DISPLAY_CHANGE";
     public const string UserResetPassword     = "USER_RESET_PASSWORD";

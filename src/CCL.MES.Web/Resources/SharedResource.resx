@@ -676,4 +676,45 @@
   <data name="index.card.api.title" xml:space="preserve"><value>API / Swagger</value></data>
   <data name="index.card.api.desc" xml:space="preserve"><value>Test endpoints for WO, Spec, QC, OEE, WI.</value></data>
   <data name="index.footer_modules" xml:space="preserve"><value>Modules: Work Order Control · Spec Control · QC (IPQC/FQC/OQC) · OEE/Production Log · Work Instruction.</value></data>
+
+  <!-- Phase 8 PR #31a — Create Spec modal v2 (planner picker + xlsx import + preview). -->
+  <data name="npi.spec.create_v2.title" xml:space="preserve"><value>Create new NPI Spec</value></data>
+  <data name="npi.spec.create_v2.step1" xml:space="preserve"><value>1. Choose Planner (Category)</value></data>
+  <data name="npi.spec.create_v2.step1_hint" xml:space="preserve"><value>Each planner has its own template spec sheet. The app picks the parser when importing.</value></data>
+  <data name="npi.spec.create_v2.step2" xml:space="preserve"><value>2. Import from Excel file</value></data>
+  <data name="npi.spec.create_v2.upload_label" xml:space="preserve"><value>Choose Excel (.xlsx) — drop or click to pick. Max 5 MB.</value></data>
+  <data name="npi.spec.create_v2.parsing" xml:space="preserve"><value>Parsing…</value></data>
+  <data name="npi.spec.create_v2.parse_error" xml:space="preserve"><value>Parse error</value></data>
+  <data name="npi.spec.create_v2.preview_header" xml:space="preserve"><value>Preview parsed data</value></data>
+  <data name="npi.spec.create_v2.preview_refno" xml:space="preserve"><value>REF NO</value></data>
+  <data name="npi.spec.create_v2.preview_customer" xml:space="preserve"><value>Customer</value></data>
+  <data name="npi.spec.create_v2.preview_partno" xml:space="preserve"><value>Part No</value></data>
+  <data name="npi.spec.create_v2.preview_partname" xml:space="preserve"><value>Part Name</value></data>
+  <data name="npi.spec.create_v2.preview_inspection" xml:space="preserve"><value>Spec / Inspection</value></data>
+  <data name="npi.spec.create_v2.preview_cavity" xml:space="preserve"><value>Cavity</value></data>
+  <data name="npi.spec.create_v2.preview_pitch" xml:space="preserve"><value>Pitch (mm)</value></data>
+  <data name="npi.spec.create_v2.preview_size" xml:space="preserve"><value>Product size</value></data>
+  <data name="npi.spec.create_v2.preview_material" xml:space="preserve"><value>Material</value></data>
+  <data name="npi.spec.create_v2.preview_rows" xml:space="preserve"><value>Print rows</value></data>
+  <data name="npi.spec.create_v2.warnings_header" xml:space="preserve"><value>Warnings</value></data>
+  <data name="npi.spec.create_v2.dup_banner" xml:space="preserve"><value>This RefNo already exists — import blocked. Change the RefNo in xlsx or remove the existing spec first.</value></data>
+  <data name="npi.spec.create_v2.btn_cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="npi.spec.create_v2.btn_manual" xml:space="preserve"><value>Manual entry (empty form)</value></data>
+  <data name="npi.spec.create_v2.btn_save" xml:space="preserve"><value>Save imported spec</value></data>
+  <data name="npi.spec.create_v2.saving" xml:space="preserve"><value>Saving…</value></data>
+  <data name="npi.spec.create_v2.save_ok" xml:space="preserve"><value>Imported spec saved.</value></data>
+  <data name="npi.spec.create_v2.save_err" xml:space="preserve"><value>Save failed</value></data>
+  <data name="npi.spec.create_v2.file_too_large" xml:space="preserve"><value>File too large. Maximum 5 MB.</value></data>
+  <data name="npi.spec.create_v2.planner.silkscreen" xml:space="preserve"><value>SILK — Silkscreen</value></data>
+  <data name="npi.spec.create_v2.planner.flexo" xml:space="preserve"><value>FLEXO — Gallus / Brotech</value></data>
+  <data name="npi.spec.create_v2.planner.letterpress" xml:space="preserve"><value>LETTER — Letterpress</value></data>
+  <data name="npi.spec.create_v2.planner.indigo" xml:space="preserve"><value>INDIGO — HP Indigo</value></data>
+  <data name="npi.spec.create_v2.planner.diecut" xml:space="preserve"><value>DIECUT — Die cut / RDC / CNC</value></data>
+
+  <!-- Phase 8 PR #31a — Refresh samples button (Admin only). -->
+  <data name="npi.spec.btn_refresh_samples" xml:space="preserve"><value>Refresh samples</value></data>
+  <data name="npi.spec.refresh_samples_confirm" xml:space="preserve"><value>Re-parse the 4 bundled silkscreen sample specs from wwwroot/Data/Specs/? Existing RefNos will be skipped by default.</value></data>
+  <data name="npi.spec.refresh_samples_force_confirm" xml:space="preserve"><value>FORCE mode — re-parse all 4 samples AND replace any existing rev with matching RefNo (existing rev gets soft-deleted to Trash). Continue?</value></data>
+  <data name="npi.spec.refresh_samples_result" xml:space="preserve"><value>Samples refresh: {0} added · {1} updated · {2} skipped</value></data>
+  <data name="npi.spec.refresh_samples_err" xml:space="preserve"><value>Refresh samples failed</value></data>
 </root>

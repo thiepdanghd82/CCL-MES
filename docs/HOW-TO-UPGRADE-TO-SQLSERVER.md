@@ -55,10 +55,20 @@ mà KHÔNG cần edit code.
 | Migration | Lý do dùng raw SQL workaround | SQL Server branch |
 |---|---|---|
 | `20260601023538_AddProductRevisionSchema` (Phase 8 PR #28) | EF Core 10 SQLite không reliably trigger table-rebuild khi `DropForeignKey` + `RenameColumn` đứng cạnh nhau — phải manual rebuild WorkOrders để drop FK `FK_WorkOrders_SpecVersions_SpecVersionId` trước khi `DROP TABLE SpecVersions`. | Standard `DropForeignKey` + `DropIndex` + `RenameColumn` + `CreateIndex` (SQL Server hỗ trợ `ALTER TABLE DROP CONSTRAINT` + `sp_rename` native). |
+| `20260601043125_AddSpecListViewParityFields` (Phase 8 PR #30) | KHÔNG cần guard — chỉ `AddColumn` nullable trên cả 2 provider chuẩn. | Native. |
+| `20260601045526_AddSpecPrintColorChildEntity` (Phase 8 PR #31a) | KHÔNG cần guard — `CreateTable` + `CreateIndex` + `ForeignKey` cascade emit chuẩn cả 2 provider. Bảng nullable wide; FK kèm `ReferentialAction.Cascade` mirror SpecPrint master delete. | Native. |
 
 Khi nâng cấp lên SQL Server, các nhánh này tự kích hoạt — KHÔNG cần edit lại
 migration. Nếu thêm provider mới (Postgres etc.) sẽ bị `NotSupportedException`
 + điểm đến doc này để bổ sung nhánh tương đương.
+
+### Runtime deps đáng chú ý khi migrate provider
+
+PR #31a thêm `ClosedXML 0.104.2` (xlsx import). Pure-managed .NET, MIT
+licensed, cross-provider — KHÔNG đụng database stack. Khi migrate sang SQL
+Server không có tác động; package vẫn được resolve qua NuGet như SQLite path.
+Xem `LESSONS_LEARNED.md` §9 cho upgrade caveat của ClosedXML (run parser
+harness regression suite mỗi lần bump version).
 
 ---
 

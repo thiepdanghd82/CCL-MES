@@ -118,6 +118,50 @@ public class SpecPrint : BaseEntity
     // `firstPrint.pitch` (flexo, mm). Đơn vị mm để compute cylinder gap
     // + feed-rate thực tế. Nullable cho legacy baseline.
     public double? PitchMm { get; set; }
+
+    // ── Phase 8 PR #31a — silkscreen print rows child entity ────────────────
+    // SpecHub `spec.printRows[]` — per-color print spec (20 field). Trước đây
+    // fold vào ColorSpecJson; sau PR #31a tách bảng để query/filter/index được
+    // (PlateCode/InkCode/Color search trong PR #33 detail sheet).
+    // ColorSpecJson vẫn giữ cho fallback legacy + extra fields chưa migrate.
+    public List<SpecPrintColor> Colors { get; set; } = new();
+}
+
+/// <summary>
+/// Phase 8 PR #31a — Silkscreen print rows child entity. 1:N keyed by
+/// SpecPrintId. Mirror SpecHub `printRows[]` shape (20 field per color).
+/// Future PR may extend cho indigo + flexo subtypes (reuse fields where
+/// overlap; FlexoPrint/FlexoCut/FlexoInk có entity riêng PR #31b).
+/// </summary>
+public class SpecPrintColor : BaseEntity
+{
+    public long SpecPrintId { get; set; }
+    public SpecPrint? SpecPrint { get; set; }
+
+    /// <summary>1-based print sequence (No. column in xlsx).</summary>
+    public int Seq { get; set; }
+
+    public string? Surface { get; set; }            // R / S / R+S
+    public string? Color { get; set; }              // "WN-212", "PANTONE 186 C"
+    public string? InkName { get; set; }            // "CCLISOL-1160"
+    public string? InkCode { get; set; }            // "HI1160"
+    public string? Maker { get; set; }              // "CCL MIX", "SEIKO"
+    public string? Retarder { get; set; }           // additive code
+    public double? Viscosity { get; set; }
+    public double? Speed { get; set; }              // shoot/min
+    public string? Squeegee { get; set; }           // BS / BMS / YR …
+    public string? Dry { get; set; }                // OVEN / ND / DR / UV
+    public double? TemperatureC { get; set; }
+    public int? TimeMin { get; set; }               // dry minutes
+    public string? Uv { get; set; }                 // mJ/cm² hoặc text
+    public double? EmulsionUm { get; set; }
+    public string? PlateSize { get; set; }          // "700×950"
+    public string? Mesh { get; set; }               // "L120"
+    public double? AngleDeg { get; set; }
+    public string? PlateCode { get; set; }          // "SP1620-1"
+    public int? ControlNo { get; set; }
+    public string? Remark { get; set; }
+    public string? ExtraJson { get; set; }          // future-proof per-process variance
 }
 
 /// <summary>

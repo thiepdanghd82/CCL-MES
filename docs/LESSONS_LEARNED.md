@@ -179,4 +179,97 @@ Trong PR review, khi thấy diff có cả 2 phía cùng modify 1 block configura
 
 ---
 
-*Cập nhật lần cuối: 31/05/2026 — Phase 6 close-out (deploy SQLite + IQC entity + EF Core safety lesson + merge-strategy lesson §8).*
+## 9. ClosedXML dependency — exception to "CSV-only" rule (Phase 8 PR #31a)
+
+CSV-only data interchange rule (originally from Phase 7 NPI import) **does not
+work** for Spec sheet import. SpecHub silkscreen/flexo templates pack the
+header + data table + sub-headers + revision history into a SINGLE worksheet
+using merged cells + 2-row sub-headers + positional cell layouts. CSV would
+need 9 separate files per spec, and the cell-position semantics would be lost.
+
+**Exception**: PR #31a pins `ClosedXML 0.104.2` in `CCL.MES.Infrastructure.csproj`.
+Pure-managed .NET, MIT licensed, no native deps, cross-platform. Pulls
+`DocumentFormat.OpenXml` + `ExcelNumberFormat` + `SixLabors.Fonts` (also
+permissive licenses). ~12 MB packages, ~4 MB gzipped — acceptable for the
+Web project.
+
+**Why ClosedXML over alternatives**:
+
+| Lib | Why rejected |
+|---|---|
+| EPPlus v5+ | Polyform commercial license restrictive — risk to commercial CCL deploy |
+| NPOI | API rườm rà, less idiomatic .NET |
+| OpenXml SDK raw | Too low-level — verbose 3-4× LOC for column lookup |
+
+**Operational caveats**:
+
+1. **OOXML zip case sensitivity** — `XlsxNormalizer` rewrites Content_Types
+   Override `PartName` casing before handing to OpenXml SDK. SpecHub samples
+   produced by SheetJS contain mismatched case (`/xl/sharedStrings.xml`
+   override vs `xl/SharedStrings.xml` actual file). SheetJS is lenient;
+   OpenXml is strict. Normalizer is unconditional — adds <100ms overhead
+   per file but ensures any SheetJS-produced xlsx works.
+
+2. **Number formatting** — ClosedXML `cell.GetFormattedString()` respects
+   workbook locale. SpecHub VN locale uses comma decimal (`78,5` instead
+   of `78.5`). Parser `ParseDouble` normalizes by stripping non-digits +
+   replacing comma with dot before `double.TryParse`. Don't read raw
+   `cell.Value.ToString()` directly — locale leak.
+
+3. **Upgrade path** — when bumping ClosedXML, run the parser harness at
+   `/tmp/parser-harness` against `wwwroot/Data/Specs/DEMO_SILK_*.xlsx`
+   and verify all 4 files still produce expected (Customer, PartNo, RefNo,
+   NumColors). Sub-deps may change OOXML strict-mode behavior.
+
+4. **No Excel installed on server** — ClosedXML is pure .NET, runs anywhere
+   net8+ runs. macOS dev + Windows IIS prod both supported.
+
+## 10. Test-driven sample bundle + sanitization workflow (PR #31a)
+
+When bundling customer-derived data into the repo as fixtures:
+
+1. **Read source files via parser**, capture expected (customer, partno,
+   partname). These become the "before" check.
+2. **Edit cells via ClosedXML** in a one-shot script (NOT in production
+   code path), replacing customer-identifying fields with fully-synthetic
+   demo values.
+3. **Re-parse the sanitized files** + assert `parsed.Customer`,
+   `parsed.PartNo`, `parsed.PartName` no longer contain ANY original PII
+   substring. The assertion must use `Contains` not `Equals` to catch
+   partial-substring leaks (e.g. `DEMO-DLT-80644547` still leaks SAP
+   code 80644547 — first iteration of PR #31a failed this; iterated to
+   `DEMO-DT-001`).
+4. **Document mapping in `README.md` next to the bundled files** — what
+   was replaced + what was preserved + why. Auditor must be able to
+   reconcile a year later when someone asks "where did these samples
+   come from?".
+5. **Commit only sanitized files**. Source files in SpecHub/Data/Specs/
+   stay READ-ONLY and out-of-tree.
+
+## 11. Customer auto-create FK chain (PR #31a)
+
+`Product.CustomerId` is non-nullable FK → Customer. When importing a spec
+from an unknown customer, the Spec import service must `lookup-or-create`
+Customer *before* `lookup-or-create` Product *before* the ProductRevision
++ siblings. Forgetting this throws `SQLite Error 19: FOREIGN KEY constraint
+failed` at first SaveChangesAsync — opaque error that took 1 round of
+debugging during PR #31a build.
+
+Pattern (preserved in `SpecImportService.SaveAsync`):
+
+```csharp
+var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Name.ToLower() == parsed.Customer.ToLower())
+              ?? (await CreateCustomer(parsed.Customer));
+var product = await _db.Products
+    .FirstOrDefaultAsync(p => p.ProductCode == parsed.PartNo && p.CustomerId == customer.Id)
+    ?? (await CreateProduct(customer.Id, parsed.PartNo, parsed.PartName));
+var revision = new ProductRevision { ProductId = product.Id, ... };
+```
+
+Each "create" requires `SaveChangesAsync()` BEFORE downstream foreign key
+references resolve. The whole sequence stays inside one transaction so a
+late throw rolls back Customer + Product + Revision atomically.
+
+---
+
+*Cập nhật lần cuối: 01/06/2026 — Phase 8 PR #31a (ClosedXML dep + sample bundle sanitization + Customer FK chain).*

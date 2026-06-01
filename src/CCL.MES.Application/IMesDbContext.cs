@@ -14,6 +14,7 @@ public interface IMesDbContext
     DbSet<ProductRevision> ProductRevisions { get; }
     DbSet<SpecMaterial> SpecMaterials { get; }
     DbSet<SpecPrint> SpecPrints { get; }
+    DbSet<SpecPrintColor> SpecPrintColors { get; }
     DbSet<SpecDiecut> SpecDiecuts { get; }
     DbSet<SpecFinishing> SpecFinishings { get; }
     DbSet<Drawing> Drawings { get; }

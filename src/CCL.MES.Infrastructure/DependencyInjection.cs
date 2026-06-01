@@ -1,4 +1,6 @@
 using CCL.MES.Application;
+using CCL.MES.Application.SpecImport;
+using CCL.MES.Infrastructure.SpecImport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +30,11 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IMesDbContext>(sp => sp.GetRequiredService<MesDbContext>());
+
+        // Phase 8 PR #31a — silkscreen xlsx parser (ClosedXML impl). Stateless,
+        // safe as Singleton. PR #31b sẽ register thêm flexo parser bằng
+        // category-keyed factory; nay scope hẹp 1 impl đủ.
+        services.AddSingleton<ISpecXlsxParser, SilkscreenXlsxParser>();
         return services;
     }
 }
