@@ -1,0 +1,241 @@
+@*  Phase 8 — Work Center "Open / Get Info" read-only detail modal.
+
+    4 sections (em thiết kế theo kinh nghiệm MES shop-floor):
+      📋 Identity        — operator scan "máy gì?" (Code/Desc/Area/Status)
+      ⚡ Capacity        — planner schedule (Speed + Shift + computed daily/monthly)
+      🛠️ Routing usage   — engineer phân tích (op count + parts + avg setup/run + top-5)
+      📅 Audit trail     — compliance (Created/Updated stamps)
+
+    Section "Recent production" CHỦ Ý KHÔNG có: Machine entity chưa link với
+    WorkCenter → ProductionLog không truy được. Placeholder note ghi rõ.
+
+    Computed Capacity:
+      Working hrs/day theo ShiftPattern:
+        A → 8 | B → 8 | C → 8 | A+B → 16 | A+B+C → 24 | null → "?"
+      Daily cap = IdealSpeed × Working hrs
+      Monthly = Daily × 30
+*@
+
+@using System.Globalization
+@using CCL.MES.Application.Services
+@using WCEntityNs = CCL.MES.Domain.Entities.WorkCenter
+@inject NpiService Npi
+@inject IStringLocalizer<SharedResource> Loc
+
+@if (_open)
+{
+    <div class="modal-scrim" @onclick="Close">
+        <div class="modal-card wc-info-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal-head">
+                <h2>@string.Format(Loc["wc.info.title"].Value, _detail?.Row.Code ?? "…")</h2>
+                <button type="button" class="modal-close" @onclick="Close" aria-label="Close">×</button>
+            </div>
+
+            <div class="modal-body">
+                @if (_loading)
+                {
+                    <p class="muted">@Loc["wc.info.loading"]</p>
+                }
+                else if (_detail is null)
+                {
+                    <div class="alert err">@Loc["wc.info.not_found"]</div>
+                }
+                else
+                {
+                    var row = _detail.Row;
+                    var usage = _detail.Usage;
+
+                    <section class="wc-info-section">
+                        <h3>📋 @Loc["wc.info.section.identity"]</h3>
+                        <table class="wc-info-table">
+                            <tr><th>@Loc["wc.info.field.code"]</th><td><b>@row.Code</b></td></tr>
+                            <tr><th>@Loc["wc.info.field.description"]</th><td>@row.Description</td></tr>
+                            <tr><th>@Loc["wc.info.field.area"]</th><td>@RenderAreaBadge(row.Area)</td></tr>
+                            <tr><th>@Loc["wc.info.field.status"]</th><td>@RenderActiveBadge(row.Active)</td></tr>
+                        </table>
+                    </section>
+
+                    <section class="wc-info-section">
+                        <h3>⚡ @Loc["wc.info.section.capacity"]</h3>
+                        <table class="wc-info-table">
+                            <tr><th>@Loc["wc.info.field.ideal_speed"]</th>
+                                <td>@(row.IdealSpeedPcsH is null ? "—" : $"{row.IdealSpeedPcsH.Value.ToString("N0", CultureInfo.InvariantCulture)} pcs/h")</td></tr>
+                            <tr><th>@Loc["wc.info.field.shift"]</th>
+                                <td>@(string.IsNullOrEmpty(row.ShiftPattern) ? "—" : row.ShiftPattern)</td></tr>
+                            <tr><th>@Loc["wc.info.field.working_hrs"]</th>
+                                <td>@WorkingHrsDisplay(row.ShiftPattern) @Loc["wc.info.unit.hrs_per_day"]</td></tr>
+                            <tr><th>@Loc["wc.info.field.daily_cap"]</th>
+                                <td>@DailyCapDisplay(row.IdealSpeedPcsH, row.ShiftPattern)</td></tr>
+                            <tr><th>@Loc["wc.info.field.monthly_est"]</th>
+                                <td>@MonthlyCapDisplay(row.IdealSpeedPcsH, row.ShiftPattern)
+                                    <small class="muted"> · @Loc["wc.info.hint.30_days"]</small></td></tr>
+                        </table>
+                    </section>
+
+                    <section class="wc-info-section">
+                        <h3>🛠️ @Loc["wc.info.section.routing"]</h3>
+                        @if (usage.OpCount == 0)
+                        {
+                            <p class="muted">@Loc["wc.info.routing.empty"]</p>
+                        }
+                        else
+                        {
+                            <table class="wc-info-table">
+                                <tr><th>@Loc["wc.info.field.op_count"]</th><td>@usage.OpCount.ToString("N0", CultureInfo.InvariantCulture) @Loc["wc.info.unit.ops"]</td></tr>
+                                <tr><th>@Loc["wc.info.field.distinct_parts"]</th><td>@usage.DistinctPartCount.ToString("N0", CultureInfo.InvariantCulture) @Loc["wc.info.unit.parts"]</td></tr>
+                                <tr><th>@Loc["wc.info.field.avg_mach_setup"]</th><td>@FmtAvg(usage.AvgMachSetup, "hrs")</td></tr>
+                                <tr><th>@Loc["wc.info.field.avg_labor_setup"]</th><td>@FmtAvg(usage.AvgLaborSetup, "hrs")</td></tr>
+                                <tr><th>@Loc["wc.info.field.avg_mach_run"]</th><td>@FmtAvg(usage.AvgMachRun, "factor")</td></tr>
+                            </table>
+
+                            @if (usage.TopParts.Count > 0)
+                            {
+                                <h4 class="wc-info-subhead">@Loc["wc.info.routing.top_parts"]</h4>
+                                <ul class="wc-info-toplist">
+                                    @foreach (var p in usage.TopParts)
+                                    {
+                                        <li><code>@p.PartNo</code> <span class="muted">× @p.OpCount @Loc["wc.info.unit.ops"]</span></li>
+                                    }
+                                </ul>
+                            }
+                        }
+                    </section>
+
+                    <section class="wc-info-section">
+                        <h3>📅 @Loc["wc.info.section.audit"]</h3>
+                        <table class="wc-info-table">
+                            <tr><th>@Loc["wc.info.field.created"]</th>
+                                <td>@row.CreatedAt.ToString("yyyy-MM-dd HH:mm") <span class="muted">@(row.CreatedBy is null ? "" : "· by " + row.CreatedBy)</span></td></tr>
+                            <tr><th>@Loc["wc.info.field.updated"]</th>
+                                <td>@(row.UpdatedAt is null ? "—" : row.UpdatedAt.Value.ToString("yyyy-MM-dd HH:mm"))
+                                    <span class="muted">@(row.UpdatedBy is null ? "" : "· by " + row.UpdatedBy)</span></td></tr>
+                        </table>
+                    </section>
+
+                    <section class="wc-info-section wc-info-deferred">
+                        <h3>📊 @Loc["wc.info.section.production"]</h3>
+                        <p class="muted">@Loc["wc.info.production.deferred"]</p>
+                    </section>
+                }
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="btn" @onclick="Close">@Loc["wc.info.btn_close"]</button>
+                @if (_detail is not null)
+                {
+                    <AuthorizeView Roles="Admin,Engineer">
+                        <button type="button" class="btn btn-primary" @onclick="OnEditClick">@Loc["wc.info.btn_edit"]</button>
+                    </AuthorizeView>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback<long> OnEditRequested { get; set; }
+
+    private bool _open;
+    private bool _loading;
+    private WorkCenterDetailDto? _detail;
+
+    public async Task OpenAsync(long id)
+    {
+        _open = true;
+        _loading = true;
+        _detail = null;
+        StateHasChanged();
+        try
+        {
+            _detail = await Npi.WorkCenterDetailAsync(id);
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void Close()
+    {
+        _open = false;
+        _detail = null;
+    }
+
+    private async Task OnEditClick()
+    {
+        if (_detail is null) return;
+        var id = _detail.Row.Id;
+        Close();
+        if (OnEditRequested.HasDelegate) await OnEditRequested.InvokeAsync(id);
+    }
+
+    // ─── Capacity helpers ────────────────────────────────────────────
+
+    /// <summary>Working hrs/day theo ShiftPattern. 5 valid options + null fallback.</summary>
+    private static int? WorkingHrs(string? shift) => shift switch
+    {
+        "A" or "B" or "C" => 8,
+        "A+B"             => 16,
+        "A+B+C"           => 24,
+        _                 => null,
+    };
+
+    private static string WorkingHrsDisplay(string? shift)
+    {
+        var hrs = WorkingHrs(shift);
+        return hrs is null ? "?" : hrs.Value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string DailyCapDisplay(double? speed, string? shift)
+    {
+        var hrs = WorkingHrs(shift);
+        if (speed is null || hrs is null) return "—";
+        var daily = speed.Value * hrs.Value;
+        return $"{daily.ToString("N0", CultureInfo.InvariantCulture)} pcs/day";
+    }
+
+    private static string MonthlyCapDisplay(double? speed, string? shift)
+    {
+        var hrs = WorkingHrs(shift);
+        if (speed is null || hrs is null) return "—";
+        var monthly = speed.Value * hrs.Value * 30;
+        return $"~{monthly.ToString("N0", CultureInfo.InvariantCulture)} pcs";
+    }
+
+    private static string FmtAvg(double? v, string unit)
+    {
+        if (v is null) return "—";
+        return $"{v.Value.ToString("N2", CultureInfo.InvariantCulture)} {unit}";
+    }
+
+    // ─── Badge renderers — reuse từ WorkCenter.razor logic ───────────
+
+    private RenderFragment RenderAreaBadge(string? area) => __builder =>
+    {
+        if (string.IsNullOrEmpty(area)) { __builder.AddContent(0, "—"); return; }
+        var slug = area.ToLowerInvariant().Replace(" ", "");
+        var knownAreas = new HashSet<string>(new[] {
+            "cnc", "diecut", "drying", "finishing", "flexo", "forming",
+            "indigo", "inspection", "lamination", "letterpress", "manual",
+            "prep", "punch", "qc", "rdc", "silkscreen", "special",
+        });
+        var cls = "wc-area " + (knownAreas.Contains(slug) ? $"wc-area--{slug}" : "wc-area--other");
+        __builder.OpenElement(1, "span");
+        __builder.AddAttribute(2, "class", cls);
+        __builder.AddContent(3, area);
+        __builder.CloseElement();
+    };
+
+    private RenderFragment RenderActiveBadge(bool? active) => __builder =>
+    {
+        if (active is null) { __builder.AddContent(0, "—"); return; }
+        var (cls, labelKey) = active.Value
+            ? ("rm-status rm-status--active", "npi.workcenter.active.true")
+            : ("rm-status rm-status--inactive", "npi.workcenter.active.false");
+        __builder.OpenElement(1, "span");
+        __builder.AddAttribute(2, "class", cls);
+        __builder.AddContent(3, Loc[labelKey].Value);
+        __builder.CloseElement();
+    };
+}

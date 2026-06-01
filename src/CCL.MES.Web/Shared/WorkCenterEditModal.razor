@@ -1,0 +1,257 @@
+@*  Phase 8 — Work Center Edit + Copy modal (single component, Mode enum).
+
+    Edit mode  → Code field editable nhưng pre-filled, save → UpdateWorkCenterAsync.
+    Copy mode  → Code field EMPTY (operator phải điền code mới); other fields
+                pre-filled từ source. Save → CopyWorkCenterAsync.
+
+    Form validation:
+      - Code: required, regex [A-Z0-9_-]{3,12} (mirror WorkCenterCsvTarget)
+      - Description: required
+      - Area: optional, dropdown 17 KNOWN_AREAS + "(other)" textbox fallback
+      - IdealSpeedPcsH: optional, number ≥ 0
+      - ShiftPattern: optional, dropdown 5 options + "(none)"
+      - Active: bool, default TRUE cho Copy mode
+
+    Reuse modal-* CSS + spec-form-grid pattern từ CreateSpecModal.
+*@
+
+@using System.Globalization
+@using System.Text.RegularExpressions
+@using CCL.MES.Application
+@using CCL.MES.Application.Services
+@inject NpiService Npi
+@inject IStringLocalizer<SharedResource> Loc
+@inject AuthenticationStateProvider AuthState
+
+@if (_open)
+{
+    <div class="modal-scrim" @onclick="CancelClick">
+        <div class="modal-card wc-edit-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal-head">
+                <h2>@(_mode == EditMode.Edit ? Loc["wc.edit.title_edit"] : Loc["wc.edit.title_copy"])</h2>
+                <button type="button" class="modal-close" @onclick="CancelClick" aria-label="Close">×</button>
+            </div>
+
+            <div class="modal-body">
+                <EditForm Model="_form" OnValidSubmit="OnSubmitAsync">
+                    <DataAnnotationsValidator />
+
+                    <div class="spec-form-grid">
+                        <label>
+                            <span class="spec-label">@Loc["wc.edit.code"] <em>*</em></span>
+                            <InputText class="spec-input" @bind-Value="_form.Code"
+                                       placeholder="@Loc["wc.edit.code_ph"]"
+                                       maxlength="12" style="text-transform:uppercase" />
+                            <small class="spec-hint">@Loc["wc.edit.code_hint"]</small>
+                            <ValidationMessage For="@(() => _form.Code)" />
+                        </label>
+
+                        <label>
+                            <span class="spec-label">@Loc["wc.edit.description"] <em>*</em></span>
+                            <InputText class="spec-input" @bind-Value="_form.Description"
+                                       placeholder="@Loc["wc.edit.description_ph"]" maxlength="200" />
+                            <ValidationMessage For="@(() => _form.Description)" />
+                        </label>
+
+                        <label>
+                            <span class="spec-label">@Loc["wc.edit.area"]</span>
+                            <InputSelect class="spec-input" @bind-Value="_form.Area">
+                                <option value="">— @Loc["wc.edit.area_pick"] —</option>
+                                @foreach (var a in KnownAreas)
+                                {
+                                    <option value="@a">@a</option>
+                                }
+                            </InputSelect>
+                        </label>
+
+                        <label>
+                            <span class="spec-label">@Loc["wc.edit.ideal_speed"]</span>
+                            <InputNumber class="spec-input" @bind-Value="_form.IdealSpeedPcsH"
+                                         placeholder="@Loc["wc.edit.ideal_speed_ph"]" min="0" />
+                        </label>
+
+                        <label>
+                            <span class="spec-label">@Loc["wc.edit.shift"]</span>
+                            <InputSelect class="spec-input" @bind-Value="_form.ShiftPattern">
+                                <option value="">— @Loc["wc.edit.shift_pick"] —</option>
+                                <option value="A">A (8 hrs)</option>
+                                <option value="B">B (8 hrs)</option>
+                                <option value="C">C (8 hrs)</option>
+                                <option value="A+B">A+B (16 hrs)</option>
+                                <option value="A+B+C">A+B+C (24 hrs)</option>
+                            </InputSelect>
+                        </label>
+
+                        <label class="spec-checkbox-row">
+                            <InputCheckbox @bind-Value="_form.Active" />
+                            <span class="spec-label">@Loc["wc.edit.active"]</span>
+                        </label>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert err" role="alert">@_errorMessage</div>
+                    }
+
+                    @if (_busy)
+                    {
+                        <p class="muted">@Loc["wc.edit.saving"]</p>
+                    }
+
+                    <div class="modal-foot">
+                        <button type="button" class="btn" @onclick="CancelClick" disabled="@_busy">
+                            @Loc["wc.edit.btn_cancel"]
+                        </button>
+                        <button type="submit" class="btn btn-primary" disabled="@(_busy || !CanSubmit)">
+                            @(_mode == EditMode.Edit ? Loc["wc.edit.btn_save"] : Loc["wc.edit.btn_create_copy"])
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    public enum EditMode { Edit, Copy }
+
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool _open;
+    private bool _busy;
+    private string? _errorMessage;
+    private EditMode _mode = EditMode.Edit;
+    private long _editId;       // for Edit mode
+    private long _copySrcId;    // for Copy mode
+    private FormModel _form = new();
+
+    // Mirror Phase 7 hạng mục 5 — 17 KNOWN_AREAS palette từ CMES tham chiếu.
+    private static readonly string[] KnownAreas = new[] {
+        "CNC", "Diecut", "Drying", "Finishing", "Flexo", "Forming",
+        "Indigo", "Inspection", "Lamination", "Letterpress", "Manual",
+        "Prep", "Punch", "QC", "RDC", "Silkscreen", "Special",
+    };
+
+    private static readonly Regex WcCodeRe = new(@"^[A-Z0-9_-]{3,12}$", RegexOptions.Compiled);
+
+    /// <summary>Open in Edit mode — load current row into form.</summary>
+    public async Task OpenEditAsync(long id)
+    {
+        _mode = EditMode.Edit;
+        _editId = id;
+        _busy = false;
+        _errorMessage = null;
+        var detail = await Npi.WorkCenterDetailAsync(id);
+        if (detail is null)
+        {
+            _errorMessage = Loc["wc.edit.err_not_found"].Value;
+            _open = true;
+            StateHasChanged();
+            return;
+        }
+        var r = detail.Row;
+        _form = new FormModel
+        {
+            Code = r.Code,
+            Description = r.Description,
+            Area = r.Area ?? "",
+            IdealSpeedPcsH = r.IdealSpeedPcsH,
+            ShiftPattern = r.ShiftPattern ?? "",
+            Active = r.Active ?? true,
+        };
+        _open = true;
+        StateHasChanged();
+    }
+
+    /// <summary>Open in Copy mode — pre-fill từ source, Code empty.</summary>
+    public async Task OpenCopyAsync(long srcId)
+    {
+        _mode = EditMode.Copy;
+        _copySrcId = srcId;
+        _busy = false;
+        _errorMessage = null;
+        var detail = await Npi.WorkCenterDetailAsync(srcId);
+        if (detail is null)
+        {
+            _errorMessage = Loc["wc.edit.err_not_found"].Value;
+            _open = true;
+            StateHasChanged();
+            return;
+        }
+        var r = detail.Row;
+        _form = new FormModel
+        {
+            Code = "",  // Operator điền code mới
+            Description = r.Description + " (copy)",
+            Area = r.Area ?? "",
+            IdealSpeedPcsH = r.IdealSpeedPcsH,
+            ShiftPattern = r.ShiftPattern ?? "",
+            Active = true,  // Q2 default TRUE
+        };
+        _open = true;
+        StateHasChanged();
+    }
+
+    private void CancelClick()
+    {
+        if (_busy) return;
+        _open = false;
+    }
+
+    private bool CanSubmit =>
+        !string.IsNullOrWhiteSpace(_form.Code)
+        && WcCodeRe.IsMatch(_form.Code.Trim().ToUpperInvariant())
+        && !string.IsNullOrWhiteSpace(_form.Description);
+
+    private async Task OnSubmitAsync()
+    {
+        if (_busy || !CanSubmit) return;
+        _busy = true;
+        _errorMessage = null;
+        try
+        {
+            var state = await AuthState.GetAuthenticationStateAsync();
+            var user = state.User?.Identity?.Name;
+
+            var req = new UpdateWorkCenterRequest(
+                Code: _form.Code.Trim().ToUpperInvariant(),
+                Description: _form.Description.Trim(),
+                Area: string.IsNullOrWhiteSpace(_form.Area) ? null : _form.Area,
+                IdealSpeedPcsH: _form.IdealSpeedPcsH,
+                ShiftPattern: string.IsNullOrWhiteSpace(_form.ShiftPattern) ? null : _form.ShiftPattern,
+                Active: _form.Active);
+
+            if (_mode == EditMode.Edit)
+                await Npi.UpdateWorkCenterAsync(_editId, req, user);
+            else
+                await Npi.CopyWorkCenterAsync(_copySrcId, req, user);
+
+            _open = false;
+            if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = Loc["wc.edit.err_save"].Value + " (" + ex.Message + ")";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private sealed class FormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(12, MinimumLength = 3)]
+        public string Code { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.StringLength(200)]
+        public string Description { get; set; } = "";
+
+        public string Area { get; set; } = "";
+        public double? IdealSpeedPcsH { get; set; }
+        public string ShiftPattern { get; set; } = "";
+        public bool Active { get; set; } = true;
+    }
+}

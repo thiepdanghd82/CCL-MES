@@ -396,6 +396,72 @@
   <data name="npi.workcenter.active.false" xml:space="preserve"><value>Ngừng dùng</value></data>
   <data name="npi.workcenter.empty" xml:space="preserve"><value>Chưa có Work Center nào. Bấm Import để load CSV hoặc chạy tools/import_npi.py để derive từ Routing.</value></data>
   <data name="npi.workcenter.empty_filter" xml:space="preserve"><value>Không có dòng nào khớp tìm kiếm.</value></data>
+
+  <!-- Phase 8 — Work Center right-click context menu + Info/Edit modals -->
+  <data name="wc.ctx.open" xml:space="preserve"><value>Mở</value></data>
+  <data name="wc.ctx.edit" xml:space="preserve"><value>Sửa</value></data>
+  <data name="wc.ctx.copy" xml:space="preserve"><value>Sao chép</value></data>
+  <data name="wc.ctx.get_info" xml:space="preserve"><value>Xem thông tin</value></data>
+  <data name="wc.ctx.activate" xml:space="preserve"><value>Kích hoạt</value></data>
+  <data name="wc.ctx.deactivate" xml:space="preserve"><value>Vô hiệu hoá</value></data>
+  <data name="wc.ctx.confirm_activate" xml:space="preserve"><value>Kích hoạt Work Center "{0}"?</value></data>
+  <data name="wc.ctx.confirm_deactivate" xml:space="preserve"><value>Vô hiệu hoá Work Center "{0}"? Sẽ đánh dấu inactive nhưng vẫn giữ trong catalog.</value></data>
+  <data name="wc.ctx.require_admin_or_engineer" xml:space="preserve"><value>Yêu cầu vai trò Admin hoặc Engineer</value></data>
+
+  <data name="wc.info.title" xml:space="preserve"><value>Work Center: {0}</value></data>
+  <data name="wc.info.loading" xml:space="preserve"><value>Đang tải chi tiết…</value></data>
+  <data name="wc.info.not_found" xml:space="preserve"><value>Không tìm thấy Work Center.</value></data>
+  <data name="wc.info.section.identity" xml:space="preserve"><value>Định danh</value></data>
+  <data name="wc.info.section.capacity" xml:space="preserve"><value>Năng lực</value></data>
+  <data name="wc.info.section.routing" xml:space="preserve"><value>Sử dụng trong Routing</value></data>
+  <data name="wc.info.section.audit" xml:space="preserve"><value>Audit trail</value></data>
+  <data name="wc.info.section.production" xml:space="preserve"><value>Sản lượng gần đây</value></data>
+  <data name="wc.info.production.deferred" xml:space="preserve"><value>Mapping Machine ↔ WorkCenter chưa cấu hình. Thống kê ProductionLog sẽ được enable ở Phase sau khi Machine entity link với WorkCenter.</value></data>
+  <data name="wc.info.field.code" xml:space="preserve"><value>Mã</value></data>
+  <data name="wc.info.field.description" xml:space="preserve"><value>Mô tả</value></data>
+  <data name="wc.info.field.area" xml:space="preserve"><value>Khu vực</value></data>
+  <data name="wc.info.field.status" xml:space="preserve"><value>Trạng thái</value></data>
+  <data name="wc.info.field.ideal_speed" xml:space="preserve"><value>Tốc độ lý tưởng</value></data>
+  <data name="wc.info.field.shift" xml:space="preserve"><value>Ca</value></data>
+  <data name="wc.info.field.working_hrs" xml:space="preserve"><value>Giờ làm</value></data>
+  <data name="wc.info.field.daily_cap" xml:space="preserve"><value>Năng lực/ngày</value></data>
+  <data name="wc.info.field.monthly_est" xml:space="preserve"><value>Ước tính/tháng</value></data>
+  <data name="wc.info.field.op_count" xml:space="preserve"><value>Số operation</value></data>
+  <data name="wc.info.field.distinct_parts" xml:space="preserve"><value>Số part khác nhau</value></data>
+  <data name="wc.info.field.avg_mach_setup" xml:space="preserve"><value>Mach Setup TB</value></data>
+  <data name="wc.info.field.avg_labor_setup" xml:space="preserve"><value>Labor Setup TB</value></data>
+  <data name="wc.info.field.avg_mach_run" xml:space="preserve"><value>Mach Run TB</value></data>
+  <data name="wc.info.field.created" xml:space="preserve"><value>Tạo lúc</value></data>
+  <data name="wc.info.field.updated" xml:space="preserve"><value>Cập nhật cuối</value></data>
+  <data name="wc.info.unit.hrs_per_day" xml:space="preserve"><value>giờ/ngày</value></data>
+  <data name="wc.info.unit.ops" xml:space="preserve"><value>ops</value></data>
+  <data name="wc.info.unit.parts" xml:space="preserve"><value>part</value></data>
+  <data name="wc.info.hint.30_days" xml:space="preserve"><value>30 ngày làm việc</value></data>
+  <data name="wc.info.routing.empty" xml:space="preserve"><value>Chưa có routing operation nào tham chiếu Work Center này.</value></data>
+  <data name="wc.info.routing.top_parts" xml:space="preserve"><value>Top part theo số lần sử dụng</value></data>
+  <data name="wc.info.btn_close" xml:space="preserve"><value>Đóng</value></data>
+  <data name="wc.info.btn_edit" xml:space="preserve"><value>Sửa</value></data>
+
+  <data name="wc.edit.title_edit" xml:space="preserve"><value>Sửa Work Center</value></data>
+  <data name="wc.edit.title_copy" xml:space="preserve"><value>Sao chép Work Center</value></data>
+  <data name="wc.edit.code" xml:space="preserve"><value>Mã</value></data>
+  <data name="wc.edit.code_ph" xml:space="preserve"><value>vd. MACHINE_42</value></data>
+  <data name="wc.edit.code_hint" xml:space="preserve"><value>3–12 ký tự, chữ hoa / số / dấu gạch ngang / gạch dưới</value></data>
+  <data name="wc.edit.description" xml:space="preserve"><value>Mô tả</value></data>
+  <data name="wc.edit.description_ph" xml:space="preserve"><value>vd. Máy Flexo 8 màu</value></data>
+  <data name="wc.edit.area" xml:space="preserve"><value>Khu vực</value></data>
+  <data name="wc.edit.area_pick" xml:space="preserve"><value>chọn khu vực</value></data>
+  <data name="wc.edit.ideal_speed" xml:space="preserve"><value>Tốc độ lý tưởng (pcs/h)</value></data>
+  <data name="wc.edit.ideal_speed_ph" xml:space="preserve"><value>vd. 1200</value></data>
+  <data name="wc.edit.shift" xml:space="preserve"><value>Ca làm việc</value></data>
+  <data name="wc.edit.shift_pick" xml:space="preserve"><value>chọn ca</value></data>
+  <data name="wc.edit.active" xml:space="preserve"><value>Đang dùng (hiển thị cho operator khi lên kế hoạch)</value></data>
+  <data name="wc.edit.btn_cancel" xml:space="preserve"><value>Huỷ</value></data>
+  <data name="wc.edit.btn_save" xml:space="preserve"><value>Lưu thay đổi</value></data>
+  <data name="wc.edit.btn_create_copy" xml:space="preserve"><value>Tạo bản sao</value></data>
+  <data name="wc.edit.saving" xml:space="preserve"><value>Đang lưu…</value></data>
+  <data name="wc.edit.err_save" xml:space="preserve"><value>Lưu thất bại.</value></data>
+  <data name="wc.edit.err_not_found" xml:space="preserve"><value>Không tìm thấy Work Center nguồn.</value></data>
   <data name="npi.spec.title" xml:space="preserve"><value>Engineer Spec</value></data>
   <data name="npi.spec.breadcrumb" xml:space="preserve"><value>CƠ SỞ DỮ LIỆU / SPEC</value></data>
   <data name="npi.spec.rows_loaded" xml:space="preserve"><value>đã tải {0} dòng</value></data>

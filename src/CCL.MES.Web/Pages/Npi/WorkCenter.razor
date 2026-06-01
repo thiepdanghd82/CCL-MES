@@ -12,6 +12,7 @@
 @inject NpiService Npi
 @inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> Loc
+@inject AuthenticationStateProvider AuthState
 
 @*  Phase 7 hạng mục 5 — Work Center UI khớp pattern .rt-* đã chuẩn hoá:
     - 6 cột (Code/Description/Area/IdealSpeed/Shift/Active) + freeze thead
@@ -77,6 +78,11 @@
                     EntityLabel="@Loc["npi.workcenter.title"].Value"
                     OnImported="OnImportedAsync" />
 
+    @* Phase 8 — Right-click context menu + Info modal + Edit/Copy modal. *@
+    <WorkCenterContextMenu @ref="_ctxMenu" OnAction="OnCtxAction" />
+    <WorkCenterInfoModal @ref="_infoModal" OnEditRequested="OnInfoEdit" />
+    <WorkCenterEditModal @ref="_editModal" OnSaved="OnEditSaved" />
+
     <div class="rt-table-wrap">
         @if (_result is null)
         {
@@ -103,7 +109,8 @@
                     @foreach (var w in _result.Items)
                     {
                         rowIdx++;
-                        <tr>
+                        var rowRef = w;  // capture cho closure
+                        <tr @oncontextmenu="@(e => OnRowContextMenu(e, rowRef))" @oncontextmenu:preventDefault="true">
                             <td class="rt-num">@rowIdx</td>
                             @foreach (var c in VisibleCols)
                             {
@@ -148,6 +155,70 @@
     // Phase 7 hạng mục 5 — Import CSV wiring.
     private NpiImportModal<WCEntity>? _importModal;
     private readonly WorkCenterCsvTarget _importTarget = new();
+
+    // Phase 8 — Right-click context menu + 2 modals (Info + Edit/Copy).
+    private WorkCenterContextMenu? _ctxMenu;
+    private WorkCenterInfoModal? _infoModal;
+    private WorkCenterEditModal? _editModal;
+
+    private void OnRowContextMenu(MouseEventArgs e, WCEntity row)
+    {
+        if (_ctxMenu is null) return;
+        // ClientX/Y là tọa độ trong viewport — menu position absolute trên scrim
+        // full-screen nên dùng trực tiếp được. Clamp tránh tràn phải/dưới nếu cần
+        // (defer Phase 8.x — màn ≥1366 hiếm khi tràn với menu width 220px).
+        _ctxMenu.Open(e.ClientX, e.ClientY, row);
+    }
+
+    private async Task OnCtxAction((string Action, WCEntity Row) ev)
+    {
+        switch (ev.Action)
+        {
+            case "open":
+            case "info":
+                if (_infoModal is not null) await _infoModal.OpenAsync(ev.Row.Id);
+                break;
+            case "edit":
+                if (_editModal is not null) await _editModal.OpenEditAsync(ev.Row.Id);
+                break;
+            case "copy":
+                if (_editModal is not null) await _editModal.OpenCopyAsync(ev.Row.Id);
+                break;
+            case "toggle":
+                await ToggleActiveAsync(ev.Row);
+                break;
+        }
+    }
+
+    private async Task OnInfoEdit(long id)
+    {
+        if (_editModal is null) return;
+        await _editModal.OpenEditAsync(id);
+    }
+
+    private async Task OnEditSaved() => await Load();
+
+    private async Task ToggleActiveAsync(WCEntity row)
+    {
+        var newState = !(row.Active ?? true);
+        var confirmKey = newState ? "wc.ctx.confirm_activate" : "wc.ctx.confirm_deactivate";
+        bool confirmed;
+        try
+        {
+            confirmed = await JS.InvokeAsync<bool>("confirm",
+                string.Format(Loc[confirmKey].Value, row.Code));
+        }
+        catch
+        {
+            confirmed = false;
+        }
+        if (!confirmed) return;
+
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var user = state.User?.Identity?.Name;
+        await Npi.SetActiveAsync(row.Id, newState, user);
+        await Load();
+    }
 
     private async Task OpenImportAsync()
     {
