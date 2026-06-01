@@ -606,7 +606,40 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .rt-btn-refresh-samples { color:#7c2d12; border-color:#fde68a; background:#fffbeb; }
 .rt-btn-refresh-samples:hover:not(:disabled) { background:#fef3c7; }
 
-/* ─── Phase 8 PR #31d — Detail sheet (mirror SpecHub spec-frame) ──────── */
+/* ─── Phase 8 PR-A — Navy showcard palette tokens ─────────────────────
+ * Anh chốt navy theme đồng nhất mọi category (silk/flexo/letter/indigo/diecut).
+ * Hex sources documented trong docs/PHASE8-SPEC-SHOWCARD-PLAN.md §4.1.
+ *   --navy-primary: #1f3864  (CCL-MES Login + IQC existing — đồng bộ app)
+ *   --navy-dark   : #1e3a73  (SpecHub flexo direct, heading text)
+ *   --navy-light  : #dde6f3  (SpecHub direct, section title bar bg)
+ *   --navy-tint   : #e8eef7  (SpecHub direct, cert/info bg)
+ *   --navy-border : #b6c4dd  (SpecHub direct)
+ *   --navy-accent : #1F5FAE  (user mốc, accent text Part No/plate code)
+ *   --col-header-bg   : #F0F2F5  (user mốc, gray neutral cho col header)
+ *   --col-header-text : #6b7280  (tailwind gray-500)
+ *   --alt-row-bg      : #F5F8FC  (user mốc, navy-tinted alt row)
+ *   --stamp-approved  : #2E9B57  (user mốc xanh lá)
+ *   --customer-red    : #C00000  (user mốc đỏ doanh nghiệp)
+ *   --changelog-orange: #E8A33D  (user mốc audit icon)
+ * Khi anh muốn rotate theme khác sau này, đổi 13 token dưới — 1 nguồn duy nhất.
+ */
+:root {
+  --navy-primary: #1f3864;
+  --navy-deep:    #0f2042;
+  --navy-dark:    #1e3a73;
+  --navy-light:   #dde6f3;
+  --navy-tint:    #e8eef7;
+  --navy-border:  #b6c4dd;
+  --navy-accent:  #1F5FAE;
+  --col-header-bg:   #F0F2F5;
+  --col-header-text: #6b7280;
+  --alt-row-bg:      #F5F8FC;
+  --stamp-approved:  #2E9B57;
+  --customer-red:    #C00000;
+  --changelog-orange:#E8A33D;
+}
+
+/* ─── Phase 8 PR #31d (PR-A re-skin navy) — Detail sheet showcard ─────── */
 
 .spec-sheet-page { max-width:1400px; margin:0 auto; padding:16px; }
 .spec-sheet-state { padding:30px; text-align:center; color:#6b7280; }
@@ -621,63 +654,68 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   margin:0; max-width:50%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
 /* Paper-like frame */
-.spec-frame { background:#fff; border:1px solid #d1d5db; border-radius:4px;
+.spec-frame { background:#fff; border:1px solid var(--navy-border); border-radius:4px;
   padding:18px 22px; font-size:11px; color:#1f2937; line-height:1.4;
   box-shadow:0 1px 2px rgba(0,0,0,.04); }
-.spec-frame.flexo { border-color:#b6c4dd; }
+.spec-frame.flexo { border-color:var(--navy-border); }
 
-/* Doc header — 3-col grid */
+/* Doc header — 3-col grid + navy band bottom-border */
 .spec-doc-header { display:grid; grid-template-columns:1fr 1.5fr 1.2fr;
   gap:12px; align-items:start; padding-bottom:10px;
-  border-bottom:2px solid #1f2937; margin-bottom:10px; }
+  border-bottom:2px solid var(--navy-primary); margin-bottom:10px; }
 .spec-doc-header .co-block { font-weight:700; font-size:11px; }
 .spec-doc-header .co-block .sub { display:block; font-weight:400; font-size:9px;
   color:#6b7280; margin-top:2px; }
 .spec-doc-header .center-block { text-align:center; font-weight:700; font-size:20px;
-  color:#c8102e; letter-spacing:2px; }
-.spec-frame.flexo .spec-doc-header .center-block { color:#0033a0; }
+  color:var(--navy-primary); letter-spacing:2px; }
+/* PR-A: unified navy — KHÔNG còn silk-red vs flexo-blue split */
+.spec-frame.flexo .spec-doc-header .center-block { color:var(--navy-primary); }
 .spec-doc-header .center-block .sub { display:block; font-weight:400; font-size:9px;
   color:#6b7280; letter-spacing:0; margin-top:4px; }
 .spec-doc-header .right-block { text-align:right; font-size:10px; }
-.spec-doc-header .right-block .ref { font-weight:700; color:#c8102e; font-size:11px; }
-.spec-frame.flexo .spec-doc-header .right-block .ref { color:#0033a0; }
+.spec-doc-header .right-block .ref { font-weight:700; color:var(--navy-primary); font-size:11px; }
+.spec-frame.flexo .spec-doc-header .right-block .ref { color:var(--navy-primary); }
 .spec-doc-header .right-block .mt-row { margin-top:6px; }
 
-/* Stamp badge in header right */
+/* Stamp badge in header right (navy approved per user mốc #2E9B57) */
 .spec-doc-header .stamp { display:inline-block; padding:1px 8px; margin-left:6px;
   border:1.5px solid currentColor; border-radius:3px; font-weight:700;
   font-size:9px; letter-spacing:1px; }
 .spec-doc-header .stamp.stamp-draft { color:#d97706; }
-.spec-doc-header .stamp.stamp-approved { color:#00a651; }
+.spec-doc-header .stamp.stamp-approved { color:var(--stamp-approved); }
 .spec-doc-header .stamp.stamp-superseded { color:#6b7280; text-decoration:line-through; }
 
-/* Compliance strip */
-.spec-cert-row { display:flex; align-items:center; gap:8px; padding:6px 0 10px;
-  font-size:10px; color:#6b7280; }
-.spec-cert-row .cert-chip { padding:2px 8px; border:1px solid #d1d5db;
-  border-radius:10px; background:#f9fafb; font-size:10px; color:#1f2937; }
+/* Compliance strip — navy-tint bg unified */
+.spec-cert-row { display:flex; align-items:center; gap:8px; padding:6px 8px 6px 10px;
+  font-size:10px; color:var(--navy-dark); background:var(--navy-tint);
+  border-radius:3px; margin:6px 0 10px; }
+.spec-cert-row .cert-chip { padding:2px 8px; border:1px solid var(--navy-border);
+  border-radius:10px; background:#fff; font-size:10px; color:var(--navy-dark); }
 
-/* Section block */
+/* Section block — navy-light bar đồng nhất (silk + flexo) */
 .spec-block { margin:14px 0; }
-.spec-block-title { padding:6px 10px; background:#f3f4f6; color:#1f2937;
-  font-weight:700; font-size:11px; border:1px solid #d1d5db;
-  border-bottom:none; }
-.spec-frame.flexo .spec-block-title { background:#dde6f3; color:#1e3a73; border-color:#b6c4dd; }
-.flexo-section-print  .spec-block-title { background:#cee0fa; }
-.flexo-section-cut    .spec-block-title { background:#ffeacc; color:#7b4400; }
-.flexo-section-ink    .spec-block-title { background:#d8f0d6; color:#2c5d2a; }
+.spec-block-title { padding:6px 10px; background:var(--navy-light); color:var(--navy-dark);
+  font-weight:700; font-size:11px; border:1px solid var(--navy-border);
+  border-bottom:none; text-transform:uppercase; letter-spacing:.5px; }
+.spec-frame.flexo .spec-block-title { background:var(--navy-light); color:var(--navy-dark); border-color:var(--navy-border); }
+/* PR-A: unified navy — flexo 3 subsection cùng navy-light (KHÔNG còn tan/green) */
+.flexo-section-print  .spec-block-title { background:var(--navy-light); color:var(--navy-dark); }
+.flexo-section-cut    .spec-block-title { background:var(--navy-light); color:var(--navy-dark); }
+.flexo-section-ink    .spec-block-title { background:var(--navy-light); color:var(--navy-dark); }
 
-/* Product info table */
+/* Product info table — header navy-light + customer red */
 .spec-info-table { width:100%; border-collapse:collapse; font-size:10px;
-  border:1px solid #d1d5db; }
-.spec-info-table th { background:#f9fafb; font-weight:600; padding:4px 6px;
-  text-align:center; border:1px solid #d1d5db; vertical-align:top; font-size:10px; }
+  border:1px solid var(--navy-border); }
+.spec-info-table th { background:var(--navy-light); font-weight:600; padding:4px 6px;
+  text-align:center; border:1px solid var(--navy-border); vertical-align:top;
+  font-size:10px; color:var(--navy-dark); }
 .spec-info-table th .sub { display:block; font-weight:400; font-size:8px;
   color:#6b7280; margin-top:1px; }
-.spec-info-table td { padding:6px; border:1px solid #d1d5db; text-align:center;
+.spec-info-table td { padding:6px; border:1px solid var(--navy-border); text-align:center;
   font-size:10px; vertical-align:middle; }
-.spec-info-table td.highlight { font-weight:700; color:#c8102e; }
-.spec-frame.flexo .spec-info-table td.highlight { color:#0033a0; }
+/* Customer cell highlight = đỏ doanh nghiệp #C00000 */
+.spec-info-table td.highlight { font-weight:700; color:var(--customer-red); }
+.spec-frame.flexo .spec-info-table td.highlight { color:var(--customer-red); }
 
 /* Print params (silk) */
 .spec-params { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
@@ -688,12 +726,13 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .spec-params .lbl { font-size:9px; color:#6b7280; margin-bottom:4px; }
 .spec-params .val { font-size:13px; font-weight:700; color:#1f2937; }
 
-/* Print process table (silk + flexo) */
-.spec-table-scroll { overflow-x:auto; border:1px solid #d1d5db; border-top:none; }
+/* Print process table (silk + flexo) — col header gray (#F0F2F5) phân biệt với section bar navy */
+.spec-table-scroll { overflow-x:auto; border:1px solid var(--navy-border); border-top:none; }
 .spec-print-table { width:100%; border-collapse:collapse; font-size:9px;
   min-width:1100px; }
-.spec-print-table th { padding:3px 4px; background:#f3f4f6; border:1px solid #d1d5db;
-  font-weight:600; vertical-align:top; font-size:9px; text-align:center; }
+.spec-print-table th { padding:3px 4px; background:var(--col-header-bg); border:1px solid var(--navy-border);
+  font-weight:600; vertical-align:top; font-size:9px; text-align:center;
+  color:var(--col-header-text); }
 .spec-print-table th .sub { display:block; font-weight:400; font-size:7.5px;
   color:#6b7280; margin-top:1px; }
 .spec-print-table td { padding:3px 4px; border:1px solid #e5e7eb; text-align:center;
@@ -701,13 +740,18 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .spec-print-table .col-no { font-weight:700; }
 .spec-print-table .col-color { text-align:left; padding-left:6px; font-weight:600; }
 .spec-print-table .col-ink { text-align:left; padding-left:6px; }
-.spec-print-table .col-code { font-family:'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size:9px; }
-.spec-print-table .col-uv { color:#7c2d12; font-weight:600; }
-.spec-print-table .col-remark { text-align:left; padding-left:6px; color:#c8102e; }
-.spec-print-table .col-process { text-align:left; padding-left:8px; font-weight:600; }
+/* Part No / Plate code / Ink code accent navy link */
+.spec-print-table .col-code { font-family:'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  font-size:9px; color:var(--navy-accent); }
+.spec-print-table .col-uv { color:var(--navy-accent); font-weight:600; }
+/* Remark cell vẫn đỏ doanh nghiệp cho visibility (giống Customer) */
+.spec-print-table .col-remark { text-align:left; padding-left:6px; color:var(--customer-red); }
+.spec-print-table .col-process { text-align:left; padding-left:8px; font-weight:600;
+  color:var(--navy-dark); }
 .spec-print-table .spec-empty { color:#9ca3af; padding:10px; font-style:italic; }
-.spec-print-table tbody tr:nth-child(even) { background:#fafafa; }
-.flexo-process-table .col-process { color:#1e3a73; }
+/* Alt row = navy-tinted #F5F8FC */
+.spec-print-table tbody tr:nth-child(even) { background:var(--alt-row-bg); }
+.flexo-process-table .col-process { color:var(--navy-dark); }
 
 /* Pantone swatch */
 .pantone-swatch { display:inline-block; width:12px; height:12px; vertical-align:middle;
@@ -724,37 +768,39 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .flexo-remarks-2col .label { font-weight:600; font-size:9px; color:#6b7280; margin-bottom:4px; }
 .flexo-remarks-2col > div > div:last-child { font-size:10px; min-height:24px; }
 
-/* Revision history table */
+/* Revision history table — col header gray để phân biệt section bar */
 .spec-rev-table { width:100%; border-collapse:collapse; font-size:10px;
-  border:1px solid #d1d5db; border-top:none; }
-.spec-rev-table th { background:#f3f4f6; padding:4px 6px; border:1px solid #d1d5db;
-  font-weight:600; font-size:10px; text-align:center; }
+  border:1px solid var(--navy-border); border-top:none; }
+.spec-rev-table th { background:var(--col-header-bg); padding:4px 6px; border:1px solid var(--navy-border);
+  font-weight:600; font-size:10px; text-align:center; color:var(--col-header-text); }
 .spec-rev-table td { padding:4px 6px; border:1px solid #e5e7eb; font-size:10px; }
-.spec-rev-table .col-rev { text-align:center; font-weight:700; width:50px; }
+.spec-rev-table .col-rev { text-align:center; font-weight:700; width:50px;
+  background:var(--navy-tint); color:var(--navy-primary); }
 .spec-rev-table .col-date { width:90px; text-align:center; }
 .spec-rev-table .col-by { width:120px; }
 .spec-rev-table .spec-empty { color:#9ca3af; text-align:center; font-style:italic; padding:8px; }
 
-/* Approval signatures — 4 boxes */
+/* Approval signatures — 4 boxes (alt row navy-tinted, navy-border) */
 .spec-signoff { display:grid; grid-template-columns:repeat(4, 1fr); gap:6px;
-  padding:10px; border:1px solid #d1d5db; border-top:none; background:#fafafa; }
-.spec-signoff > div { padding:8px; border:1px solid #e5e7eb; background:#fff;
+  padding:10px; border:1px solid var(--navy-border); border-top:none; background:var(--alt-row-bg); }
+.spec-signoff > div { padding:8px; border:1px solid var(--navy-border); background:#fff;
   border-radius:3px; min-height:80px; }
-.spec-signoff .role { font-weight:700; font-size:9px; color:#1f2937;
-  border-bottom:1px solid #e5e7eb; padding-bottom:4px; margin-bottom:8px; }
+.spec-signoff .role { font-weight:700; font-size:9px; color:var(--navy-dark);
+  border-bottom:1px solid var(--navy-border); padding-bottom:4px; margin-bottom:8px;
+  text-transform:uppercase; letter-spacing:.3px; }
 .spec-signoff .name { font-size:11px; font-weight:600; min-height:18px;
   color:#1f2937; }
 .spec-signoff .date { font-size:9px; color:#6b7280; margin-top:6px; }
 .spec-signoff-note { font-size:9px; padding:4px 0; }
 
-/* Change log (audit timeline) */
-.spec-history-block .spec-block-title { background:#fef3c7; color:#7c2d12; }
-.spec-audit-log { padding:10px 10px 10px 30px; border:1px solid #d1d5db;
+/* Change log (audit timeline) — navy section title đồng nhất (KHÔNG còn yellow tan) */
+.spec-history-block .spec-block-title { background:var(--navy-light); color:var(--navy-dark); }
+.spec-audit-log { padding:10px 10px 10px 30px; border:1px solid var(--navy-border);
   border-top:none; background:#fff; margin:0; list-style:disc; }
 .spec-audit-log li { font-size:10px; margin:3px 0; }
 .spec-audit-log .audit-time { color:#6b7280; font-family:'IBM Plex Mono', ui-monospace, monospace;
   font-size:9.5px; margin-right:6px; }
-.spec-audit-log .audit-action { font-weight:700; color:#1f2937; }
+.spec-audit-log .audit-action { font-weight:700; color:var(--navy-dark); }
 
 @media (max-width: 900px) {
   .spec-doc-header { grid-template-columns:1fr; }
@@ -762,3 +808,68 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   .spec-signoff { grid-template-columns:repeat(2, 1fr); }
   .flexo-remarks-2col { grid-template-columns:1fr; }
 }
+
+/* ─── Phase 8 PR-A — Silk Squeegee/Drying codes legend + Modal peek ─── */
+
+/* Squeegee + Drying codes legend chip card (mirror SpecHub HTML:11617-11629) */
+.spec-codes-legend { display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  padding:10px; border:1px solid var(--navy-border); border-top:none;
+  background:var(--alt-row-bg); }
+.spec-codes-legend > div { background:#fff; border:1px solid var(--navy-border);
+  border-radius:3px; padding:8px 10px; }
+.spec-codes-legend .legend-title { font-weight:700; font-size:9px;
+  color:var(--navy-dark); text-transform:uppercase; letter-spacing:.5px;
+  margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid var(--navy-border); }
+.spec-codes-legend .legend-row { display:flex; align-items:center; gap:6px;
+  font-size:10px; padding:2px 0; }
+.spec-codes-legend .legend-code { display:inline-block; min-width:38px;
+  padding:1px 6px; border-radius:2px; background:var(--navy-light);
+  color:var(--navy-primary); font-family:'IBM Plex Mono', monospace;
+  font-size:9.5px; font-weight:700; text-align:center; }
+.spec-codes-legend .legend-desc { color:#1f2937; }
+
+@media (max-width: 700px) {
+  .spec-codes-legend { grid-template-columns:1fr; }
+}
+
+/* Modal compact peek (PR-A bug fix + SpecDetailDto single source) */
+.spec-detail-modal { max-width:920px; }
+.spec-detail-modal .modal-body { max-height:75vh; overflow-y:auto; padding:12px 18px; }
+.spec-detail-section { margin:14px 0; }
+.spec-detail-section h3 { font-size:13px; margin:0 0 8px;
+  color:var(--navy-primary); font-weight:700;
+  border-bottom:1.5px solid var(--navy-light); padding-bottom:4px; }
+.spec-detail-subhead { font-size:11px; margin:10px 0 4px; color:var(--navy-dark);
+  font-weight:600; }
+.spec-detail-subhead .muted { font-size:10px; font-weight:400; margin-left:6px; }
+.spec-detail-table { width:100%; border-collapse:collapse; font-size:11px;
+  border:1px solid var(--navy-border); margin-bottom:6px; }
+.spec-detail-table th { background:var(--navy-light); color:var(--navy-dark);
+  font-weight:600; padding:5px 8px; text-align:left;
+  border:1px solid var(--navy-border); width:160px; vertical-align:top; }
+.spec-detail-table td { padding:5px 8px; border:1px solid var(--navy-border);
+  color:#1f2937; vertical-align:top; }
+.spec-detail-table tbody tr:nth-child(even) td { background:var(--alt-row-bg); }
+.spec-detail-table.spec-peek-color-table th { background:var(--col-header-bg);
+  color:var(--col-header-text); width:auto; text-align:center; }
+.spec-detail-table.spec-peek-color-table td { text-align:center; }
+.spec-detail-table.spec-peek-color-table .col-no { font-weight:700; }
+.spec-detail-table.spec-peek-color-table .col-color { text-align:left; padding-left:6px; }
+.spec-detail-table.spec-peek-color-table .col-code { font-family:'IBM Plex Mono', monospace;
+  font-size:10.5px; color:var(--navy-accent); }
+.spec-detail-rawjson { background:var(--alt-row-bg); border:1px solid var(--navy-border);
+  padding:6px; font-size:10px; overflow:auto; max-height:160px; }
+
+.spec-cert-row-compact { margin:6px 0 10px; }
+
+.spec-detail-audit-list { list-style:none; padding:6px 10px; margin:0;
+  border:1px solid var(--navy-border); background:#fff; }
+.spec-detail-audit-list li { font-size:10px; padding:3px 0;
+  border-bottom:1px dashed var(--navy-border); }
+.spec-detail-audit-list li:last-child { border-bottom:none; }
+.spec-detail-audit-time { color:#6b7280; font-family:'IBM Plex Mono', monospace;
+  font-size:10px; margin-right:6px; }
+.spec-detail-audit-action { font-weight:700; color:var(--navy-dark); }
+
+.spec-detail-deferred { background:#fef3c7; padding:10px; border-radius:3px;
+  border:1px solid #fde68a; }

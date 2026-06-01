@@ -166,7 +166,7 @@
                 </table>
             </div>
 
-            @* ── 4. Print Parameters (silk) ──────────────────────────────── *@
+            @* ── 4. Print Parameters (silk) + Squeegee/Drying codes legend ─ *@
             @if (_detail.IsSilkscreen)
             {
                 <div class="spec-block">
@@ -189,6 +189,8 @@
                             <div class="val">@OrDash(_detail.AdhesiveType)</div>
                         </div>
                     </div>
+                    @* PR-A — Squeegee + Drying codes legend (port SpecHub HTML:11617-11629) *@
+                    <SilkCodeLegend />
                 </div>
             }
 
