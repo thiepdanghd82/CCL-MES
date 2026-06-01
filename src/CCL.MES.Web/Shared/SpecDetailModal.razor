@@ -1,27 +1,18 @@
-@*  Phase 8 PR-A (showcard parity) — Compact peek modal cho ProductRevision.
+@*  Phase 8 PR-B — Modal peek refactor to delegate layout to <SpecShowcard Mode="Compact" />.
 
-    Bug fix: PR #29 modal `TryParseParams` đọc JSON keys
-    `param_name/nominal/tol_min/tol_max/uom/is_critical` (legacy SpecParameter
-    shape Phase 6) nhưng PR #31a `SerializeColorsForLegacy` ghi shape silk
-    print row `color/ink_name/ink_code/...`. Mismatch → 10 ParamRow null →
-    10 cell "—". 100% bug binding (KHÔNG bug schema).
+    PR-A history: dropped legacy `_params` / `TryParseParams` (binding bug fix —
+    JSON shape mismatch SpecParameter vs SpecPrintColor) → switched modal to
+    SpecDetailDto via SpecService.SpecDetailAsync (single source of truth).
 
-    Fix: drop _params + TryParseParams + ParamRow hoàn toàn. Modal load
-    `SpecService.SpecDetailAsync` (PR #31d) — single source of truth chung
-    với full-page route `/npi/engineer-spec/{id}` + PDF spec sheet exporter.
+    PR-B: extract the section layout (Compliance + Product Info mini + first N
+    rows + audit subset) into <SpecShowcard /> so EngineerSpecDetail (Full),
+    SpecDetailModal (Compact), CreateSpecModal preview (Preview, PR-C) share
+    one renderer. Modal here keeps responsibility for: dialog frame, Identity
+    table (row data fetched cheap before detail loads), loading/error banner,
+    and "Open full spec sheet →" CTA.
 
-    UX Q2 C2: compact peek subset của showcard (KHÔNG full showcard trong
-    modal — modal cho quick check; full layout ở route `/npi/engineer-spec/{id}`).
-    Sections render:
-      1. Identity (instant từ row + StatusDisplay 5→3)
-      2. Compliance strip (3 chip derive)
-      3. Product Info mini-table (silk 8-col / flexo 6-col)
-      4. Silk first 5 PrintColors OR Flexo first 3 each subsection
-      5. Audit stamps + first 5 timeline entries
-      6. Button "Open full spec sheet →" navigate `/npi/engineer-spec/{id}`
-
-    Bài học hotfix #27: render trực tiếp từ entity grid + try-catch wrap
-    query phụ + error banner inline (KHÔNG freeze Blazor circuit).
+    Compact mode rendering side-effects bằng PR-A: same DOM structure for
+    silk + flexo samples → CSS từ PR-A apply 1:1.
 *@
 
 @using System.Globalization
@@ -45,7 +36,7 @@
             <div class="modal-body">
                 @{ var row = _row; }
 
-                @* ── 1. Identity (instant render từ DTO row) ─────────────── *@
+                @* ── Identity (instant render từ DTO row, KHÔNG đợi SpecDetailAsync) ── *@
                 <section class="spec-detail-section">
                     <h3>📋 @Loc["npi.spec.detail.section.identity"]</h3>
                     <table class="spec-detail-table">
@@ -64,7 +55,7 @@
                     </table>
                 </section>
 
-                @* ── 2-4. Spec showcard peek (SpecDetailDto single source) ── *@
+                @* ── Spec showcard peek (delegated to SpecShowcard Mode=Compact) ── *@
                 <section class="spec-detail-section">
                     <h3>📝 @Loc["npi.spec.detail.section.content"]</h3>
                     @if (_detailLoading)
@@ -81,195 +72,7 @@
                     }
                     else
                     {
-                        var d = _detail;
-
-                        @* Compliance strip mini (3 chip derive) *@
-                        <div class="spec-cert-row spec-cert-row-compact">
-                            <span>Compliance:</span>
-                            @foreach (var chip in d.ComplianceChips)
-                            {
-                                <span class="cert-chip">@chip</span>
-                            }
-                        </div>
-
-                        @* Product Info mini (5 row dl/dt for peek) *@
-                        <table class="spec-detail-table">
-                            <tr><th>@Loc["npi.spec.detail.field.process_code"]</th>
-                                <td>@(d.ProcessCode ?? "—")
-                                    <span class="spec-planner-tag spec-planner-@(d.Planner.ToLowerInvariant())">@d.Planner</span>
-                                </td></tr>
-                            <tr><th>@Loc["npi.spec.detail.peek.size"]</th>
-                                <td>@d.ProductSizeDisplay</td></tr>
-                            <tr><th>@Loc["npi.spec.detail.peek.cavity_pitch"]</th>
-                                <td>
-                                    Cavity: <b>@(d.PrintingCavity?.ToString(CultureInfo.InvariantCulture) ?? "—")</b>
-                                    · Pitch: <b>@(d.LengthPitchMm?.ToString("N1", CultureInfo.InvariantCulture) ?? "—") mm</b>
-                                </td></tr>
-                            <tr><th>@Loc["npi.spec.detail.peek.substrate"]</th>
-                                <td>@(d.SubstrateType ?? "—")</td></tr>
-                            @if (d.IsSilkscreen)
-                            {
-                                <tr><th>@Loc["npi.spec.detail.peek.colors"]</th>
-                                    <td><b>@d.PrintColors.Count</b> colors</td></tr>
-                            }
-                            else if (d.IsFlexo)
-                            {
-                                <tr><th>@Loc["npi.spec.detail.peek.flexo_rows"]</th>
-                                    <td>
-                                        Print: <b>@d.FlexoPrintRows.Count</b>
-                                        · Cut: <b>@d.FlexoCuttingRows.Count</b>
-                                        · Ink: <b>@d.FlexoInkRows.Count</b>
-                                    </td></tr>
-                            }
-                        </table>
-
-                        @* Mini print rows table (silk first 5 / flexo first 3 cut + 3 ink) *@
-                        @if (d.IsSilkscreen && d.PrintColors.Count > 0)
-                        {
-                            <h4 class="spec-detail-subhead">
-                                @Loc["npi.spec.detail.peek.silk_colors"]
-                                @if (d.PrintColors.Count > 5)
-                                {
-                                    <span class="muted">(first 5 of @d.PrintColors.Count — open full sheet for all)</span>
-                                }
-                            </h4>
-                            <table class="spec-detail-table spec-peek-color-table">
-                                <thead>
-                                    <tr>
-                                        <th>No</th>
-                                        <th>Surf</th>
-                                        <th>Color</th>
-                                        <th>Ink Code</th>
-                                        <th>Maker</th>
-                                        <th>Mesh</th>
-                                        <th>Plate Code</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var c in d.PrintColors.Take(5))
-                                    {
-                                        var hex = SpecDetailColors.SwatchHex(c.Color);
-                                        var isTransparent = SpecDetailColors.IsTransparent(c.Color);
-                                        <tr>
-                                            <td class="col-no">@c.Seq</td>
-                                            <td>@(c.Surface ?? "—")</td>
-                                            <td class="col-color">
-                                                @if (hex is not null)
-                                                {
-                                                    <span class="pantone-swatch @(isTransparent ? "swatch-transparent" : "")" style="@(isTransparent ? "" : $"background:{hex};")"></span>
-                                                }
-                                                @(c.Color ?? "—")
-                                            </td>
-                                            <td class="col-code">@(c.InkCode ?? "—")</td>
-                                            <td>@(c.Maker ?? "—")</td>
-                                            <td>@(c.Mesh ?? "—")</td>
-                                            <td class="col-code">@(c.PlateCode ?? "—")</td>
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        }
-                        else if (d.IsFlexo)
-                        {
-                            @if (d.FlexoCuttingRows.Count > 0)
-                            {
-                                <h4 class="spec-detail-subhead">
-                                    @Loc["npi.spec.detail.peek.flexo_cut"]
-                                    @if (d.FlexoCuttingRows.Count > 3)
-                                    {
-                                        <span class="muted">(first 3 of @d.FlexoCuttingRows.Count)</span>
-                                    }
-                                </h4>
-                                <table class="spec-detail-table">
-                                    <thead>
-                                        <tr><th>No</th><th>Process</th><th>Cutter Name</th><th>Cavity</th><th>Pitch (mm)</th></tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var c in d.FlexoCuttingRows.Take(3))
-                                        {
-                                            <tr>
-                                                <td class="col-no">@c.Seq</td>
-                                                <td>@(c.Process ?? "—")</td>
-                                                <td class="col-code">@(c.CutterName ?? "—")</td>
-                                                <td>@(c.CuttingCavity?.ToString(CultureInfo.InvariantCulture) ?? "—")</td>
-                                                <td>@(c.PitchMm?.ToString("N1", CultureInfo.InvariantCulture) ?? "—")</td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            }
-                            @if (d.FlexoInkRows.Count > 0)
-                            {
-                                <h4 class="spec-detail-subhead">
-                                    @Loc["npi.spec.detail.peek.flexo_ink"]
-                                    @if (d.FlexoInkRows.Count > 3)
-                                    {
-                                        <span class="muted">(first 3 of @d.FlexoInkRows.Count)</span>
-                                    }
-                                </h4>
-                                <table class="spec-detail-table">
-                                    <thead>
-                                        <tr><th>No</th><th>Color</th><th>Ink Code</th><th>Brand</th><th>Anilox</th></tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var i in d.FlexoInkRows.Take(3))
-                                        {
-                                            <tr>
-                                                <td class="col-no">@i.Seq</td>
-                                                <td class="col-color">@(i.Color ?? "—")</td>
-                                                <td class="col-code">@(i.InkCode ?? "—")</td>
-                                                <td>@(i.Brand ?? "—")</td>
-                                                <td>@(i.Anilox ?? "—")</td>
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            }
-                        }
-                        else
-                        {
-                            <p class="muted">@Loc["npi.spec.detail.peek.no_print_rows"]</p>
-                        }
-
-                        @* Audit stamps mini *@
-                        <h4 class="spec-detail-subhead">@Loc["npi.spec.detail.peek.audit_stamps"]</h4>
-                        <table class="spec-detail-table">
-                            <tr><th>@Loc["npi.spec.detail.field.created"]</th>
-                                <td>@d.CreatedAt.ToString("yyyy-MM-dd HH:mm")
-                                    <span class="muted">@(d.CreatedBy is null ? "" : "· " + d.CreatedBy)</span></td></tr>
-                            <tr><th>@Loc["npi.spec.detail.field.updated"]</th>
-                                <td>@(d.UpdatedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")
-                                    <span class="muted">@(d.UpdatedBy is null ? "" : "· " + d.UpdatedBy)</span></td></tr>
-                            <tr><th>@Loc["npi.spec.detail.field.approved"]</th>
-                                <td>@(d.ApprovedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")
-                                    <span class="muted">@(d.ApprovedBy is null ? "" : "· " + d.ApprovedBy)</span></td></tr>
-                        </table>
-
-                        @* Audit timeline (first 5 entries) *@
-                        @if (d.AuditEntries.Count > 0)
-                        {
-                            <h4 class="spec-detail-subhead">
-                                @Loc["npi.spec.detail.audit.timeline"]
-                                @if (d.AuditEntries.Count > 5)
-                                {
-                                    <span class="muted">(first 5 of @d.AuditEntries.Count)</span>
-                                }
-                            </h4>
-                            <ul class="spec-detail-audit-list">
-                                @foreach (var a in d.AuditEntries.Take(5))
-                                {
-                                    <li>
-                                        <span class="spec-detail-audit-time">@a.Timestamp.ToString("yyyy-MM-dd HH:mm")</span>
-                                        <span class="spec-detail-audit-action">@a.Action</span>
-                                        <span class="muted">· @a.ActorUsername</span>
-                                        @if (!string.IsNullOrWhiteSpace(a.ActorRole))
-                                        {
-                                            <span class="muted">(@a.ActorRole)</span>
-                                        }
-                                    </li>
-                                }
-                            </ul>
-                        }
+                        <SpecShowcard Detail="_detail" Mode="SpecShowcardMode.Compact" />
                     }
                 </section>
             </div>
