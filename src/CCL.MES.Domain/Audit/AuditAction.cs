@@ -32,6 +32,9 @@ public static class AuditAction
     // ref_no, title, product_id, process_code, source, filename, rows_parsed,
     // warnings, created_new_product }
     public const string SpecImport            = "SPEC_IMPORT";
+    // Phase 8 PR-D-3 — QC Plans tab atomic per-stage upsert. detail JSON:
+    // { revision_id, stage, criteria_count, created, updated, deleted }
+    public const string SpecQcPlanUpsert      = "SPEC_QC_PLAN_UPSERT";
     // Refresh-samples Admin-only batch (idempotent). detail JSON: { added,
     // updated, skipped, files: [{filename, ref_no, status}] }
     public const string SpecRefreshSamples    = "SPEC_REFRESH_SAMPLES";

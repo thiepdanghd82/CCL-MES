@@ -66,6 +66,9 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<SpecQcWindow>().Property(x => x.RejectAction).HasConversion<string>();
         b.Entity<SpecQcWindow>().Property(x => x.Status).HasConversion<string>();
         b.Entity<QcCriterion>().Property(x => x.CriterionType).HasConversion<string>();
+        // Phase 8 PR-D-3 — Method (free-form ops text), Frequency (cadence) per-criterion.
+        b.Entity<QcCriterion>().Property(x => x.Method).HasMaxLength(200);
+        b.Entity<QcCriterion>().Property(x => x.Frequency).HasMaxLength(120);
         b.Entity<ProcessCatalog>().Property(x => x.Category).HasConversion<string>();
         b.Entity<ProcessCatalog>().Property(x => x.Status).HasConversion<string>();
         b.Entity<QcInspection>().Property(x => x.Type).HasConversion<string>();

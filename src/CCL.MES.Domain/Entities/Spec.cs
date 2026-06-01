@@ -335,4 +335,10 @@ public class QcCriterion : BaseEntity
     public string? ReferenceImageKey { get; set; }
     public bool Required { get; set; } = true;
     public string? ExtraJson { get; set; }
+    // Phase 8 PR-D-3 — CMES parity per-criterion overrides (nullable additive).
+    // Method overrides SpecQcWindow scope per row (e.g. "micrometer / drawdown");
+    // Frequency overrides per row (e.g. "every 30 min"). Distinct from existing
+    // MeasureMethod which encodes coarse category — Method is free-form ops text.
+    public string? Method { get; set; }
+    public string? Frequency { get; set; }
 }

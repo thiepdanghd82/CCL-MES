@@ -813,4 +813,35 @@
   <data name="npi.spec.detail.artwork.template_hint.silk" xml:space="preserve"><value>(tự chọn: SILK → Mặt panel)</value></data>
   <data name="npi.spec.detail.artwork.template_hint.flexo" xml:space="preserve"><value>(tự chọn: FLEXO → Brady Safety)</value></data>
   <data name="npi.spec.detail.artwork.template_hint.other" xml:space="preserve"><value>(mặc định: Brady Safety)</value></data>
+  <!-- Phase 8 PR-D-3 — Tab Kế hoạch QC. CMES parity: 4 giai đoạn editable, save độc lập per stage. -->
+  <data name="npi.spec.detail.qcplans.intro" xml:space="preserve"><value>Điểm kiểm tra chất lượng theo từng công đoạn. Mỗi công đoạn lưu độc lập.</value></data>
+  <data name="npi.spec.detail.qcplans.stage.ipqc-print" xml:space="preserve"><value>IPQC · In</value></data>
+  <data name="npi.spec.detail.qcplans.stage.ipqc-cut" xml:space="preserve"><value>IPQC · Bế</value></data>
+  <data name="npi.spec.detail.qcplans.stage.fqc" xml:space="preserve"><value>FQC · Cuối</value></data>
+  <data name="npi.spec.detail.qcplans.stage.oqc" xml:space="preserve"><value>OQC · Xuất xưởng</value></data>
+  <data name="npi.spec.detail.qcplans.stage.ipqc-print.desc" xml:space="preserve"><value>Kiểm tra trong khi in.</value></data>
+  <data name="npi.spec.detail.qcplans.stage.ipqc-cut.desc" xml:space="preserve"><value>Kiểm tra tại trạm bế.</value></data>
+  <data name="npi.spec.detail.qcplans.stage.fqc.desc" xml:space="preserve"><value>QC cuối trước đóng gói.</value></data>
+  <data name="npi.spec.detail.qcplans.stage.oqc.desc" xml:space="preserve"><value>Kiểm tra trước khi xuất xưởng.</value></data>
+  <data name="npi.spec.detail.qcplans.col.criterion" xml:space="preserve"><value>Tiêu chí</value></data>
+  <data name="npi.spec.detail.qcplans.col.target" xml:space="preserve"><value>Mục tiêu</value></data>
+  <data name="npi.spec.detail.qcplans.col.tolerance" xml:space="preserve"><value>Dung sai</value></data>
+  <data name="npi.spec.detail.qcplans.col.method" xml:space="preserve"><value>Phương pháp</value></data>
+  <data name="npi.spec.detail.qcplans.col.frequency" xml:space="preserve"><value>Tần suất</value></data>
+  <data name="npi.spec.detail.qcplans.col.delete" xml:space="preserve"><value>Xoá</value></data>
+  <data name="npi.spec.detail.qcplans.ph.criterion" xml:space="preserve"><value>vd. Định vị in</value></data>
+  <data name="npi.spec.detail.qcplans.ph.target" xml:space="preserve"><value>—</value></data>
+  <data name="npi.spec.detail.qcplans.ph.tolerance" xml:space="preserve"><value>±0,10 mm</value></data>
+  <data name="npi.spec.detail.qcplans.ph.method" xml:space="preserve"><value>quan sát / panme / drawdown</value></data>
+  <data name="npi.spec.detail.qcplans.ph.frequency" xml:space="preserve"><value>mỗi 30 phút</value></data>
+  <data name="npi.spec.detail.qcplans.empty" xml:space="preserve"><value>— Chưa có tiêu chí cho công đoạn này.</value></data>
+  <data name="npi.spec.detail.qcplans.btn_add" xml:space="preserve"><value>+ Thêm tiêu chí</value></data>
+  <data name="npi.spec.detail.qcplans.btn_delete" xml:space="preserve"><value>×</value></data>
+  <data name="npi.spec.detail.qcplans.btn_save" xml:space="preserve"><value>Lưu thay đổi</value></data>
+  <data name="npi.spec.detail.qcplans.btn_saving" xml:space="preserve"><value>Đang lưu…</value></data>
+  <data name="npi.spec.detail.qcplans.btn_saved" xml:space="preserve"><value>Đã lưu</value></data>
+  <data name="npi.spec.detail.qcplans.save_err" xml:space="preserve"><value>Không lưu được kế hoạch QC</value></data>
+  <data name="npi.spec.detail.qcplans.save_ok" xml:space="preserve"><value>Đã lưu kế hoạch QC.</value></data>
+  <data name="npi.spec.detail.qcplans.forbidden" xml:space="preserve"><value>Chỉ Admin hoặc Engineer mới được chỉnh sửa kế hoạch QC.</value></data>
+  <data name="npi.spec.detail.qcplans.load_err" xml:space="preserve"><value>Không tải được kế hoạch QC</value></data>
 </root>
