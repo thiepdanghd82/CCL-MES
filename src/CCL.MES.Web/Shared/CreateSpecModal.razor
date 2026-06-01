@@ -19,7 +19,11 @@
    Bài học PR #28-#30 try-catch wrap mọi async handler — error gắn vào
    _errorMessage state, KHÔNG freeze circuit. *@
 
+@using System.Globalization
+@using System.Text.Json
+@using CCL.MES.Application.SpecDetail
 @using CCL.MES.Application.SpecImport
+@using CCL.MES.Domain
 @using Microsoft.AspNetCore.Components.Forms
 @inject SpecImportService SpecImport
 @inject IStringLocalizer<SharedResource> Loc
@@ -100,37 +104,11 @@
                             </div>
                         }
 
-                        <dl class="spec-preview-grid">
-                            <dt>@Loc["npi.spec.create_v2.preview_refno"]</dt>
-                            <dd><strong>@(string.IsNullOrEmpty(parsed.RefNo) ? "—" : parsed.RefNo)</strong></dd>
-
-                            <dt>@Loc["npi.spec.create_v2.preview_customer"]</dt>
-                            <dd><b>@(string.IsNullOrEmpty(parsed.Customer) ? "—" : parsed.Customer)</b></dd>
-
-                            <dt>@Loc["npi.spec.create_v2.preview_partno"]</dt>
-                            <dd><code class="spec-partno">@(string.IsNullOrEmpty(parsed.PartNo) ? "—" : parsed.PartNo)</code></dd>
-
-                            <dt>@Loc["npi.spec.create_v2.preview_partname"]</dt>
-                            <dd>@(string.IsNullOrEmpty(parsed.PartName) ? "—" : parsed.PartName)</dd>
-
-                            <dt>@Loc["npi.spec.create_v2.preview_inspection"]</dt>
-                            <dd>@parsed.InspectionLevel</dd>
-
-                            <dt>@Loc["npi.spec.create_v2.preview_size"]</dt>
-                            <dd>@FormatSize(parsed.ProductSizeW, parsed.ProductSizeH)</dd>
-
-                            <dt>@Loc["npi.spec.create_v2.preview_cavity"]</dt>
-                            <dd>@(parsed.PrintingCavity?.ToString() ?? "—")</dd>
-
-                            <dt>@Loc["npi.spec.create_v2.preview_pitch"]</dt>
-                            <dd>@(parsed.LengthPitchMm is null ? "—" : parsed.LengthPitchMm.Value.ToString("N1"))</dd>
-
-                            <dt>@Loc["npi.spec.create_v2.preview_material"]</dt>
-                            <dd>@(string.IsNullOrEmpty(parsed.MaterialType) ? "—" : parsed.MaterialType)</dd>
-
-                            <dt>@Loc["npi.spec.create_v2.preview_rows"]</dt>
-                            <dd><strong>@parsed.PrintRows.Count</strong> colors</dd>
-                        </dl>
+                        @* PR-C — Live showcard preview replaces the legacy <dl> text summary.
+                           Mode=Preview renders the navy showcard directly from the parsed DTO
+                           (no DB / no Id / no SpecDetailAsync call) so operator sees the same
+                           layout that will land in the grid + full-page detail after Save. *@
+                        <SpecShowcard Detail="@BuildPreviewDto(parsed)" Mode="SpecShowcardMode.Preview" />
 
                         @if (_preview.Warnings.Count > 0)
                         {
@@ -339,11 +317,161 @@
         StateHasChanged();
     }
 
-    private static string FormatSize(double? w, double? h)
+    /// <summary>
+    /// PR-C — Build an in-memory <see cref="SpecDetailDto"/> from the parsed xlsx
+    /// payload. NO DB call, NO SpecDetailAsync, NO Id (preview happens BEFORE
+    /// the spec is persisted) — just structural mapping so <SpecShowcard
+    /// Mode="Preview" /> can render the same navy showcard layout it uses for
+    /// saved specs (Full + Compact in PR-B).
+    ///
+    /// Category → Planner mapping mirrors SpecService.PlannerFromProcessCode
+    /// reverse direction; LETTER / INDIGO / DIECUT route via the GENERIC
+    /// template (warning chip + only sections with data) per PR-B Q5 honest
+    /// fallback. Bài học hotfix PR #27: pure mapping, no async, no exception
+    /// surface beyond the JSON serializer for MaterialExtraJson.
+    /// </summary>
+    private static SpecDetailDto BuildPreviewDto(ParsedSpecDto p)
     {
-        if (w is null && h is null) return "—";
-        var ws = w?.ToString("N1") ?? "—";
-        var hs = h?.ToString("N1") ?? "—";
-        return $"{ws} × {hs} mm";
+        var (planner, processCode, isSilkscreen, isFlexo) = MapCategory(p.Category);
+
+        // Material extra JSON — same shape SpecImportService writes on Save so
+        // the showcard's ParseMaterialExtra helper resolves Material Size /
+        // Lamination Tape / Lamination Size / Lamination Cavity columns.
+        string? materialExtraJson = null;
+        if (!string.IsNullOrWhiteSpace(p.MaterialSize)
+         || !string.IsNullOrWhiteSpace(p.LaminationTape)
+         || !string.IsNullOrWhiteSpace(p.LaminationSize)
+         || !string.IsNullOrWhiteSpace(p.LaminationCavity))
+        {
+            materialExtraJson = JsonSerializer.Serialize(new
+            {
+                material_size     = p.MaterialSize ?? "",
+                lamination_tape   = p.LaminationTape ?? "",
+                lamination_size   = p.LaminationSize ?? "",
+                lamination_cavity = p.LaminationCavity ?? "",
+            });
+        }
+
+        return new SpecDetailDto
+        {
+            Id           = 0,                          // unsaved — Mode=Preview must never key off Id
+            SpecCode     = string.IsNullOrWhiteSpace(p.PartNo) ? "(preview)" : p.PartNo,
+            Title        = p.PartName ?? "",
+            RevisionCode = "A",
+            Status       = ProductRevisionStatus.Draft,
+            RefNo        = p.RefNo,
+            InspectionLevel = p.InspectionLevel,
+            Planner      = planner,
+            ProcessCode  = processCode,
+            IsSilkscreen = isSilkscreen,
+            IsFlexo      = isFlexo,
+            ProductCode  = p.PartNo ?? "",
+            ProductName  = p.PartName ?? "",
+            CustomerName = p.Customer,
+            SubstrateType = p.MaterialType,
+            MaterialExtraJson = materialExtraJson,
+            PrintingCavity   = p.PrintingCavity,
+            LengthPitchMm    = p.LengthPitchMm,
+            ProductSizeWmm   = p.ProductSizeW,
+            ProductSizeHmm   = p.ProductSizeH,
+            RemarksText      = p.RemarksLeft ?? p.Remarks,
+            RemarksCutText   = p.RemarksRight,
+            CreatedAt        = DateTime.Now,
+            // PrintColors / FlexoPrintRows / FlexoCuttingRows / FlexoInkRows mapped below.
+            PrintColors      = MapPrintColors(p.PrintRows),
+            FlexoPrintRows   = MapFlexoPrintRows(p.FlexoPrintRows),
+            FlexoCuttingRows = MapFlexoCuttingRows(p.FlexoCuttingRows),
+            FlexoInkRows     = MapFlexoInkRows(p.FlexoInkRows),
+            // Lineage + AuditEntries left empty — Mode=Preview never renders them.
+        };
     }
+
+    /// <summary>
+    /// Reverse of SpecService.PlannerFromProcessCode for the 5 planner keys the
+    /// modal picker emits. Tuple = (Planner, ProcessCode, IsSilkscreen, IsFlexo).
+    /// Matches SpecService.SpecDetailAsync's IsSilkscreen logic (silkscreen +
+    /// indigo + indigo_primer all flag silk for downstream readers).
+    /// </summary>
+    private static (string planner, string processCode, bool isSilkscreen, bool isFlexo) MapCategory(string category)
+        => (category ?? "silkscreen").Trim().ToLowerInvariant() switch
+        {
+            "silkscreen"    => ("SILK",   "SILKSCREEN",    true,  false),
+            "flexo"         => ("FLEXO",  "FLEXO",         false, true),
+            "letterpress"   => ("LETTER", "LETTERPRESS",   false, false),
+            "indigo"        => ("INDIGO", "INDIGO",        true,  false),
+            "indigo_primer" => ("INDIGO", "INDIGO_PRIMER", true,  false),
+            "diecut"        => ("DIECUT", "FLATBED_CUT",   false, false),
+            _               => ("UNKNOWN", category ?? "", false, false),
+        };
+
+    private static List<SpecPrintColorRow> MapPrintColors(List<ParsedPrintColorDto> rows)
+        => rows.Select(r => new SpecPrintColorRow(
+            Seq:          r.Seq,
+            Surface:      r.Surface,
+            Color:        r.Color,
+            InkName:      r.InkName,
+            InkCode:      r.InkCode,
+            Maker:        r.Maker,
+            Retarder:     r.Retarder,
+            Viscosity:    r.Viscosity,
+            Speed:        r.Speed,
+            Squeegee:     r.Squeegee,
+            Dry:          r.Dry,
+            TemperatureC: r.TemperatureC,
+            TimeMin:      r.TimeMin,
+            Uv:           r.Uv,
+            EmulsionUm:   r.EmulsionUm,
+            PlateSize:    r.PlateSize,
+            Mesh:         r.Mesh,
+            AngleDeg:     r.AngleDeg,
+            PlateCode:    r.PlateCode,
+            ControlNo:    r.ControlNo,
+            Remark:       r.Remark)).ToList();
+
+    private static List<FlexoPrintRow> MapFlexoPrintRows(List<ParsedFlexoPrintRowDto> rows)
+        => rows.Select(r => new FlexoPrintRow(
+            Seq:         r.Seq,
+            Process:     r.Process,
+            Material:    r.Material,
+            Thickness:   r.Thickness,
+            Size:        r.Size,
+            Cylinders:   r.Cylinders,
+            PitchMm:     r.PitchMm,
+            Speed:       r.Speed,
+            TensionHead: r.TensionHead,
+            TensionEnd:  r.TensionEnd,
+            TensionRoll: r.TensionRoll,
+            PlateCavity: r.PlateCavity,
+            Tension:     r.Tension)).ToList();
+
+    private static List<FlexoCuttingRow> MapFlexoCuttingRows(List<ParsedFlexoCuttingRowDto> rows)
+        => rows.Select(r => new FlexoCuttingRow(
+            Seq:             r.Seq,
+            Process:         r.Process,
+            Lamination:      r.Lamination,
+            Size:            r.Size,
+            CutterLot:       r.CutterLot,
+            CutterName:      r.CutterName,
+            PcsPerSheet:     r.PcsPerSheet,
+            CuttingCavity:   r.CuttingCavity,
+            PitchMm:         r.PitchMm,
+            Packing:         r.Packing,
+            PaperSpeed:      r.PaperSpeed,
+            CuttingSpeed:    r.CuttingSpeed,
+            CuttingPressure: r.CuttingPressure,
+            HeadTension:     r.HeadTension,
+            RollTension:     r.RollTension)).ToList();
+
+    private static List<FlexoInkRow> MapFlexoInkRows(List<ParsedFlexoInkRowDto> rows)
+        => rows.Select(r => new FlexoInkRow(
+            Seq:            r.Seq,
+            Color:          r.Color,
+            InkCode:        r.InkCode,
+            InkDescription: r.InkDescription,
+            Brand:          r.Brand,
+            Anilox:         r.Anilox,
+            PlateCode:      r.PlateCode,
+            Pressure:       r.Pressure,
+            UvPowerW:       r.UvPowerW,
+            IrPowerW:       r.IrPowerW)).ToList();
 }
