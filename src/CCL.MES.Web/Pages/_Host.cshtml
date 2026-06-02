@@ -25,5 +25,14 @@
     <component type="typeof(CCL.MES.Web.App)" render-mode="ServerPrerendered" />
     <script src="_framework/blazor.server.js"></script>
     <script src="~/js/ccl-mes.js"></script>
+    @* Phase 8 PR #32b — vendored QR scanner library + thin wrapper.
+       html5-qrcode 2.3.8 (Apache-2.0) lives at /lib/html5-qrcode/2.3.8/.
+       Load order matters: lib first, wrapper second. Both small (~120 KB)
+       so an unconditional include keeps Shop Order page interactive on
+       first paint. On HTTP LAN deployments where camera is unusable the
+       wrapper still loads — `ccl.qr.isAvailable()` returns false and the
+       Camera button stays disabled per Q2 default. *@
+    <script src="~/lib/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="~/js/cclQrScanner.js"></script>
 </body>
 </html>

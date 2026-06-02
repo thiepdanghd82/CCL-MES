@@ -1,0 +1,206 @@
+@*  Phase 8 PR #32b — Read-only per-WO drawer for Shop Order page.
+    Renders 5 sections (Header / Production / Materials / QC History /
+    Action footer) from a pre-flattened DTO. Zero mutation surface — every
+    action button intentionally redirects to /workorders Phase 6 table
+    (caveat: that table does NOT consume ?wo= query param today, so we
+    navigate plain `/workorders` rather than ship a stale query). Phase 6
+    is `git diff` empty by this PR.
+
+    Hotfix #27: render-from-entity / DTO + try-catch at the load site
+    (Pages/ShopOrder.razor) — this component itself never throws. *@
+
+@using CCL.MES.Application.Services
+@using CCL.MES.Domain
+@inject NavigationManager Nav
+@inject IStringLocalizer<SharedResource> Loc
+
+@if (Open && View is not null)
+{
+    <div class="wo-drawer-scrim" @onclick="OnCloseAsync"></div>
+    <aside class="wo-drawer" role="dialog" aria-modal="true">
+        <header class="wo-drawer-head">
+            <div class="wo-drawer-title">
+                <h2>@View.WoNo</h2>
+                <p class="wo-drawer-subtitle">@OrDash(View.CustomerName) · @OrDash(View.ProductCode)</p>
+                <span class="shop-pill @View.BadgeCssClass" title="@Loc[View.BadgeLabelKey]">
+                    <span class="shop-pill-icon">@View.BadgeIcon</span>
+                    @Loc[View.BadgeLabelKey]
+                </span>
+            </div>
+            <button type="button" class="wo-drawer-close"
+                    @onclick="OnCloseAsync"
+                    aria-label="Close">×</button>
+        </header>
+
+        <div class="wo-drawer-body">
+
+            @* ── Section 1: Header (Customer / Product / Spec) ─────────── *@
+            <section class="wo-drawer-section">
+                <h3>@Loc["shop_order.drawer.section.header"]</h3>
+                <dl>
+                    <div class="wo-drawer-row">
+                        <dt>@Loc["shop_order.field.customer"]</dt>
+                        <dd>@OrDash(View.CustomerName)</dd>
+                    </div>
+                    <div class="wo-drawer-row">
+                        <dt>@Loc["shop_order.field.product"]</dt>
+                        <dd>@OrDash(View.ProductCode)@(string.IsNullOrWhiteSpace(View.ProductName) ? "" : $" · {View.ProductName}")</dd>
+                    </div>
+                    <div class="wo-drawer-row">
+                        <dt>@Loc["shop_order.drawer.field.spec_rev"]</dt>
+                        <dd>
+                            @if (string.IsNullOrWhiteSpace(View.SpecCode) && string.IsNullOrWhiteSpace(View.RevisionCode))
+                            {
+                                <span class="muted">—</span>
+                            }
+                            else
+                            {
+                                @($"{OrDash(View.SpecCode)} · Rev {OrDash(View.RevisionCode)}")
+                            }
+                        </dd>
+                    </div>
+                </dl>
+            </section>
+
+            @* ── Section 2: Production ────────────────────────────────── *@
+            <section class="wo-drawer-section">
+                <h3>@Loc["shop_order.drawer.section.production"]</h3>
+                <dl>
+                    <div class="wo-drawer-row">
+                        <dt>@Loc["shop_order.field.machine"]</dt>
+                        <dd>
+                            @if (string.IsNullOrWhiteSpace(View.MachineCode) && string.IsNullOrWhiteSpace(View.MachineName))
+                            {
+                                <span class="muted">—</span>
+                            }
+                            else
+                            {
+                                @(View.MachineCode + (string.IsNullOrWhiteSpace(View.MachineName) ? "" : $" · {View.MachineName}"))
+                            }
+                        </dd>
+                    </div>
+                    <div class="wo-drawer-row">
+                        <dt>@Loc["shop_order.field.process"]</dt>
+                        <dd>@OrDash(View.ProcessLabel)</dd>
+                    </div>
+                    <div class="wo-drawer-row">
+                        <dt>@Loc["shop_order.drawer.field.target"]</dt>
+                        <dd>@FormatQty(View.TargetQty, View.Uom)</dd>
+                    </div>
+                    <div class="wo-drawer-row">
+                        <dt>@Loc["shop_order.drawer.field.produced"]</dt>
+                        <dd>@FormatQty(View.ProducedQty, View.Uom)</dd>
+                    </div>
+                    <div class="wo-drawer-row">
+                        <dt>@Loc["shop_order.drawer.field.planned_start"]</dt>
+                        <dd>@FormatDate(View.PlannedStart)</dd>
+                    </div>
+                    <div class="wo-drawer-row">
+                        <dt>@Loc["shop_order.drawer.field.planned_end"]</dt>
+                        <dd>@FormatDate(View.PlannedEnd)</dd>
+                    </div>
+                </dl>
+            </section>
+
+            @* ── Section 3: Materials (BOM read-only) ─────────────────── *@
+            <section class="wo-drawer-section">
+                <h3>@Loc["shop_order.drawer.section.materials"] <span class="wo-drawer-count">(@View.Materials.Count)</span></h3>
+                @if (View.Materials.Count == 0)
+                {
+                    <p class="wo-drawer-empty">@Loc["shop_order.drawer.materials.empty"]</p>
+                }
+                else
+                {
+                    <ul class="wo-drawer-list">
+                        @foreach (var m in View.Materials)
+                        {
+                            <li>
+                                <span class="wo-drawer-list-key">@m.PartNo</span>
+                                @if (!string.IsNullOrWhiteSpace(m.Description))
+                                {
+                                    <span class="wo-drawer-list-sub">@m.Description</span>
+                                }
+                                <span class="wo-drawer-list-meta">@FormatQty((int)Math.Round(m.QtyAssembly), m.Uom ?? "")</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            @* ── Section 4: QC History (5 latest, read-only) ──────────── *@
+            <section class="wo-drawer-section">
+                <h3>@Loc["shop_order.drawer.section.qc"] <span class="wo-drawer-count">(@View.QcInspections.Count)</span></h3>
+                @if (View.QcInspections.Count == 0)
+                {
+                    <p class="wo-drawer-empty">@Loc["shop_order.drawer.qc.empty"]</p>
+                }
+                else
+                {
+                    <ul class="wo-drawer-list wo-drawer-qc-list">
+                        @foreach (var q in View.QcInspections)
+                        {
+                            <li>
+                                <span class="wo-drawer-qc-type">@q.Type</span>
+                                <span class="wo-drawer-qc-result wo-drawer-qc-@QcResultClass(q.Result)">@q.Result</span>
+                                @if (q.ApprovedAt is not null)
+                                {
+                                    <span class="wo-drawer-list-meta">@FormatDate(q.ApprovedAt)</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(q.InspectorId))
+                                {
+                                    <span class="wo-drawer-list-sub">@Loc["shop_order.drawer.qc.inspector"]: @q.InspectorId</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+        </div>
+
+        @* ── Section 5: Action footer ──────────────────────────────── *@
+        <footer class="wo-drawer-foot">
+            <button type="button" class="rt-btn rt-btn-primary wo-drawer-cta"
+                    @onclick="OnOpenInWorkOrders">
+                @Loc["shop_order.drawer.action.open_in_workorders"] →
+            </button>
+        </footer>
+    </aside>
+}
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public WorkOrderDrawerView? View { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private Task OnCloseAsync() => OnClose.InvokeAsync();
+
+    /// <summary>
+    /// Q7 caveat — Phase 6 /workorders page does NOT consume `?wo=` or
+    /// `?q=` query params today. To stay strictly within "Phase 6
+    /// untouched" we navigate plain `/workorders` so the operator finds
+    /// the row via the existing table filter UI. If Phase 6 later wires
+    /// a `wo=` param, this is the only line to update.
+    /// </summary>
+    private void OnOpenInWorkOrders()
+    {
+        Nav.NavigateTo("/workorders");
+    }
+
+    private static string OrDash(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+
+    private string FormatQty(int qty, string uom)
+    {
+        var formatted = qty.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
+        return string.IsNullOrWhiteSpace(uom) ? formatted : $"{formatted} {uom}";
+    }
+
+    private string FormatDate(DateTime? d)
+        => d is null ? "—" : d.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+    private static string QcResultClass(QcResult r) => r switch
+    {
+        QcResult.Pass    => "pass",
+        QcResult.Fail    => "fail",
+        _                => "pending",
+    };
+}

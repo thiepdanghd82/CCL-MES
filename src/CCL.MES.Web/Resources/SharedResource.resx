@@ -983,4 +983,29 @@
   <data name="shop_order.status.qa_pending" xml:space="preserve"><value>QA-PENDING</value></data>
   <data name="shop_order.status.done" xml:space="preserve"><value>DONE</value></data>
   <data name="shop_order.status.cancelled" xml:space="preserve"><value>CANCELLED</value></data>
+  <!-- Phase 8 PR #32b — Scan camera button + scanner modal + read-only drawer. -->
+  <data name="shop_order.scan.btn_camera" xml:space="preserve"><value>Camera</value></data>
+  <data name="shop_order.scan.camera_ready" xml:space="preserve"><value>Tap to start camera scan</value></data>
+  <data name="shop_order.scan.camera_unavailable" xml:space="preserve"><value>Camera needs HTTPS or localhost. Use manual input instead.</value></data>
+  <data name="shop_order.scan.modal.title" xml:space="preserve"><value>Scan Work Order QR</value></data>
+  <data name="shop_order.scan.modal.hint" xml:space="preserve"><value>Hold the QR code inside the box. Tap × to cancel.</value></data>
+  <data name="shop_order.scan.not_found_fmt" xml:space="preserve"><value>Work Order &quot;{0}&quot; not found.</value></data>
+  <data name="shop_order.scan.err.permission" xml:space="preserve"><value>Camera permission denied. Use manual input.</value></data>
+  <data name="shop_order.scan.err.no_camera" xml:space="preserve"><value>No camera found on this device.</value></data>
+  <data name="shop_order.scan.err.no_secure" xml:space="preserve"><value>Camera requires HTTPS or localhost.</value></data>
+  <data name="shop_order.scan.err.lib_missing" xml:space="preserve"><value>QR scanner library not loaded. Refresh page.</value></data>
+  <data name="shop_order.scan.err.other" xml:space="preserve"><value>Could not start scanner.</value></data>
+  <data name="shop_order.drawer.section.header" xml:space="preserve"><value>Header</value></data>
+  <data name="shop_order.drawer.section.production" xml:space="preserve"><value>Production</value></data>
+  <data name="shop_order.drawer.section.materials" xml:space="preserve"><value>Materials</value></data>
+  <data name="shop_order.drawer.section.qc" xml:space="preserve"><value>QC History</value></data>
+  <data name="shop_order.drawer.field.spec_rev" xml:space="preserve"><value>Spec / Revision</value></data>
+  <data name="shop_order.drawer.field.target" xml:space="preserve"><value>Target</value></data>
+  <data name="shop_order.drawer.field.produced" xml:space="preserve"><value>Produced</value></data>
+  <data name="shop_order.drawer.field.planned_start" xml:space="preserve"><value>Planned start</value></data>
+  <data name="shop_order.drawer.field.planned_end" xml:space="preserve"><value>Planned end</value></data>
+  <data name="shop_order.drawer.materials.empty" xml:space="preserve"><value>— No BOM materials linked to this product.</value></data>
+  <data name="shop_order.drawer.qc.empty" xml:space="preserve"><value>— No QC inspections recorded for this Work Order yet.</value></data>
+  <data name="shop_order.drawer.qc.inspector" xml:space="preserve"><value>by</value></data>
+  <data name="shop_order.drawer.action.open_in_workorders" xml:space="preserve"><value>Open in Work Orders</value></data>
 </root>

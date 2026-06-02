@@ -130,6 +130,92 @@ public class WorkOrderService
         return null;
     }
 
+    /// <summary>
+    /// Phase 8 PR #32b — Shop Order per-WO drawer view. Pure READ —
+    /// no mutation, no state machine touch, no audit emit. Caller is
+    /// the read-only drawer that opens on scan-success, card-click,
+    /// or manual exact-match lookup.
+    ///
+    /// Single round-trip via Include for the WO + 2 light follow-up
+    /// queries: BOM materials via ManufacturingStructures.Where(
+    /// s => s.ParentPart == ProductCode), QC inspections via
+    /// OrderByDescending(Id).Take(5). Returns null when WoNo not
+    /// found (case-insensitive trim match).
+    /// </summary>
+    public async Task<WorkOrderDrawerView?> GetDrawerAsync(string woNo)
+    {
+        if (string.IsNullOrWhiteSpace(woNo)) return null;
+        var normalised = woNo.Trim();
+
+        var wo = await _db.WorkOrders
+            .AsNoTracking()
+            .Include(w => w.Customer)
+            .Include(w => w.Product)
+            .Include(w => w.Inspections)
+            .Include(w => w.ProductRevision)
+                .ThenInclude(r => r!.Print)
+            .Include(w => w.ProductRevision)
+                .ThenInclude(r => r!.Diecut)
+            .FirstOrDefaultAsync(w => w.WoNo == normalised);
+
+        if (wo is null) return null;
+
+        var badge = WorkOrderStatusBadge.From(wo);
+        var processLabel = BuildProcessLabel(wo.ProductRevision);
+
+        var materials = new List<DrawerMaterialRow>();
+        if (!string.IsNullOrWhiteSpace(wo.Product?.ProductCode))
+        {
+            var bom = await _db.ManufacturingStructures
+                .AsNoTracking()
+                .Where(s => s.ParentPart == wo.Product.ProductCode)
+                .OrderBy(s => s.ComponentPart)
+                .ToListAsync();
+            foreach (var row in bom)
+            {
+                materials.Add(new DrawerMaterialRow(
+                    PartNo:      row.ComponentPart,
+                    Description: row.ComponentDescription,
+                    QtyAssembly: row.QtyAssembly,
+                    Uom:         row.Uom));
+            }
+        }
+
+        // QC: 5 most recent — service trims here so UI doesn't need a take.
+        var qc = wo.Inspections
+            .OrderByDescending(i => i.Id)
+            .Take(5)
+            .Select(i => new DrawerQcRow(
+                Type:        i.Type,
+                Result:      i.Result,
+                InspectorId: i.InspectorId,
+                ApprovedAt:  i.ApprovedAt))
+            .ToList();
+
+        return new WorkOrderDrawerView(
+            Id:              wo.Id,
+            WoNo:            wo.WoNo,
+            CustomerName:    wo.Customer?.Name,
+            ProductCode:     wo.Product?.ProductCode,
+            ProductName:     wo.Product?.Name ?? wo.ProductName,
+            SpecCode:        wo.ProductRevision?.SpecCode,
+            RevisionCode:    wo.ProductRevision?.RevisionCode,
+            MachineCode:     wo.MachineCode,
+            MachineName:     wo.MachineName,
+            ProcessLabel:    processLabel,
+            TargetQty:       wo.TargetQty,
+            ProducedQty:     wo.ProducedQty,
+            Uom:             wo.Uom,
+            PlannedStart:    wo.PlannedStart,
+            PlannedEnd:      wo.PlannedEnd,
+            BadgeToken:      badge.Token,
+            BadgeLabelKey:   badge.LabelKey,
+            BadgeCssClass:   badge.CssClass,
+            BadgeIcon:       badge.Icon,
+            Materials:       materials,
+            QcInspections:   qc);
+    }
+
     public Task<WorkOrder?> GetAsync(long id) =>
         _db.WorkOrders
             .Include(w => w.Customer)
@@ -257,3 +343,40 @@ public sealed record WorkOrderCardItem(
 public sealed record ShopOrderListResult(
     List<WorkOrderCardItem> Active,
     List<WorkOrderCardItem> Closed);
+
+// ── Phase 8 PR #32b — Drawer DTOs (read-only) ────────────────────────────
+
+public sealed record WorkOrderDrawerView(
+    long Id,
+    string WoNo,
+    string? CustomerName,
+    string? ProductCode,
+    string? ProductName,
+    string? SpecCode,
+    string? RevisionCode,
+    string? MachineCode,
+    string? MachineName,
+    string? ProcessLabel,
+    int TargetQty,
+    int ProducedQty,
+    string Uom,
+    DateTime? PlannedStart,
+    DateTime? PlannedEnd,
+    string BadgeToken,
+    string BadgeLabelKey,
+    string BadgeCssClass,
+    string BadgeIcon,
+    List<DrawerMaterialRow> Materials,
+    List<DrawerQcRow> QcInspections);
+
+public sealed record DrawerMaterialRow(
+    string PartNo,
+    string? Description,
+    double QtyAssembly,
+    string? Uom);
+
+public sealed record DrawerQcRow(
+    QcType Type,
+    QcResult Result,
+    string? InspectorId,
+    DateTime? ApprovedAt);

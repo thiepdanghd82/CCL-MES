@@ -20,8 +20,11 @@
 @using CCL.MES.Application.Services
 @using CCL.MES.Domain
 @using CCL.MES.Domain.Entities
+@using CCL.MES.Web.Components
+@implements IAsyncDisposable
 @inject WorkOrderService Wo
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 @inject IStringLocalizer<SharedResource> Loc
 
 <section class="shop-order-page">
@@ -49,12 +52,25 @@
                        @oninput="@(e => _scanQuery = e.Value?.ToString())"
                        @onkeydown="@OnScanKeyDownAsync" />
                 <button type="button"
+                        class="rt-btn shop-order-camera-btn"
+                        disabled="@(!_cameraAvailable || _scannerOpen)"
+                        title="@(_cameraAvailable ? Loc["shop_order.scan.camera_ready"].Value : Loc["shop_order.scan.camera_unavailable"].Value)"
+                        @onclick="OpenScannerAsync">
+                    📷 @Loc["shop_order.scan.btn_camera"]
+                </button>
+                <button type="button"
                         class="rt-btn rt-btn-primary shop-order-lookup-btn"
                         disabled="@string.IsNullOrWhiteSpace(_scanQuery)"
-                        @onclick="Lookup">
+                        @onclick="LookupAsync">
                     @Loc["shop_order.btn_lookup"]
                 </button>
             </div>
+            @if (!string.IsNullOrEmpty(_toastMessage))
+            {
+                <div class="shop-order-toast @(_toastIsError ? "err" : "info")" role="status">
+                    @_toastMessage
+                </div>
+            }
             @if (_result is not null && _result.Active.Count == 0 && _result.Closed.Count == 0)
             {
                 <p class="shop-order-empty-hint">
@@ -84,7 +100,10 @@
                 <div class="mes-wo-cards">
                     @foreach (var wo in _result.Active)
                     {
-                        <article class="mes-wo-card" data-wo="@wo.WoNo">
+                        <article class="mes-wo-card mes-wo-card-clickable" data-wo="@wo.WoNo"
+                                 role="button" tabindex="0"
+                                 @onclick="@(() => OpenDrawerByWoNoAsync(wo.WoNo))"
+                                 @onkeydown="@(e => OnCardKeyAsync(e, wo.WoNo))">
                             <header class="mes-wo-card-head">
                                 <span class="mes-wo-card-no">@wo.WoNo</span>
                                 <span class="shop-pill @wo.BadgeCssClass" title="@Loc[wo.BadgeLabelKey]">
@@ -162,6 +181,23 @@
                 </div>
             }
         </section>
+
+        @* ── PR #32b — Scanner modal + Drawer mount ──────────────────── *@
+        @if (_scannerOpen)
+        {
+            <div class="qr-scanner-scrim" @onclick="CloseScannerAsync">
+                <div class="qr-scanner-modal" @onclick:stopPropagation="true">
+                    <header class="qr-scanner-head">
+                        <h3>@Loc["shop_order.scan.modal.title"]</h3>
+                        <button type="button" class="qr-scanner-close" @onclick="CloseScannerAsync" aria-label="Close">×</button>
+                    </header>
+                    <div id="@_scannerElementId" class="qr-scanner-viewport"></div>
+                    <p class="qr-scanner-hint">@Loc["shop_order.scan.modal.hint"]</p>
+                </div>
+            </div>
+        }
+
+        <WorkOrderDrawer Open="@_drawerOpen" View="@_drawerView" OnClose="CloseDrawer" />
     }
 </section>
 
@@ -171,9 +207,38 @@
     private ShopOrderListResult? _result;
     private string? _scanQuery;
 
+    // ── PR #32b — Drawer + scanner state ─────────────────────────────
+    private bool _drawerOpen;
+    private WorkOrderDrawerView? _drawerView;
+
+    private bool _cameraAvailable;
+    private bool _scannerOpen;
+    private const string _scannerElementId = "qr-reader";
+    private DotNetObjectReference<ShopOrder>? _selfRef;
+
+    private string? _toastMessage;
+    private bool _toastIsError;
+    private CancellationTokenSource? _toastCts;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _cameraAvailable = await JS.InvokeAsync<bool>("ccl.qr.isAvailable");
+            }
+            catch
+            {
+                _cameraAvailable = false;
+            }
+            StateHasChanged();
+        }
     }
 
     private async Task LoadAsync()
@@ -196,20 +261,146 @@
 
     private void OnScanKeyDownAsync(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") Lookup();
+        if (e.Key == "Enter") _ = LookupAsync();
     }
 
     /// <summary>
-    /// Q6 default — LOOKUP redirects to existing /workorders Phase 6 table
-    /// filtered by WoNo via querystring. Phase 6 table already filters
-    /// client-side. Camera QR scan + per-WO drawer defer to PR #32b.
+    /// Q3 default — manual exact-match opens the drawer (read-only).
+    /// Non-exact / unknown → toast + stay on page (no redirect to
+    /// Phase 6 since the table doesn't filter on ?wo= anyway, Q7 caveat).
     /// </summary>
-    private void Lookup()
+    private async Task LookupAsync()
     {
-        if (string.IsNullOrWhiteSpace(_scanQuery)) return;
-        var q = Uri.EscapeDataString(_scanQuery.Trim());
-        // Push to existing Phase 6 table — preserve querystring contract.
-        Nav.NavigateTo($"/workorders?q={q}");
+        var code = _scanQuery?.Trim();
+        if (string.IsNullOrWhiteSpace(code)) return;
+        await OpenDrawerByWoNoAsync(code, fromManual: true);
+    }
+
+    private async Task OpenDrawerByWoNoAsync(string woNo, bool fromManual = false)
+    {
+        try
+        {
+            var view = await Wo.GetDrawerAsync(woNo);
+            if (view is null)
+            {
+                if (fromManual)
+                {
+                    ShowToast(string.Format(Loc["shop_order.scan.not_found_fmt"].Value, woNo), isError: true);
+                }
+                return;
+            }
+            _drawerView = view;
+            _drawerOpen = true;
+            // On exact-match LOOKUP, clear input so operator can scan next.
+            if (fromManual) _scanQuery = "";
+        }
+        catch (Exception ex)
+        {
+            ShowToast(ex.GetType().Name + ": " + ex.Message, isError: true);
+        }
+    }
+
+    private async Task OnCardKeyAsync(KeyboardEventArgs e, string woNo)
+    {
+        if (e.Key == "Enter" || e.Key == " ") await OpenDrawerByWoNoAsync(woNo);
+    }
+
+    private void CloseDrawer()
+    {
+        _drawerOpen = false;
+        _drawerView = null;
+    }
+
+    private async Task OpenScannerAsync()
+    {
+        if (!_cameraAvailable || _scannerOpen) return;
+        _scannerOpen = true;
+        // Re-render so the #qr-reader div is in the DOM before we call start().
+        StateHasChanged();
+        await Task.Yield();
+
+        _selfRef ??= DotNetObjectReference.Create(this);
+        try
+        {
+            var result = await JS.InvokeAsync<ScannerResult>(
+                "ccl.qr.start", _scannerElementId, _selfRef, nameof(OnScanResultAsync));
+            // The decode callback already fires OnScanResultAsync via .NET;
+            // if start() resolved with !ok (permission denied / no camera /
+            // missing lib), surface a toast here.
+            if (result is not null && !result.Ok)
+            {
+                ShowToast(LocalizeScannerError(result.Error), isError: true);
+                await CloseScannerAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast(ex.Message, isError: true);
+            await CloseScannerAsync();
+        }
+    }
+
+    private async Task CloseScannerAsync()
+    {
+        if (!_scannerOpen) return;
+        _scannerOpen = false;
+        try
+        {
+            await JS.InvokeVoidAsync("ccl.qr.stop", _scannerElementId);
+        }
+        catch { /* swallow — best-effort cleanup */ }
+    }
+
+    [JSInvokable]
+    public async Task OnScanResultAsync(string code)
+    {
+        await CloseScannerAsync();
+        if (string.IsNullOrWhiteSpace(code)) return;
+        await OpenDrawerByWoNoAsync(code, fromManual: false);
+        StateHasChanged();
+    }
+
+    private string LocalizeScannerError(string? code) => code switch
+    {
+        "permission_denied" => Loc["shop_order.scan.err.permission"].Value,
+        "no_camera"         => Loc["shop_order.scan.err.no_camera"].Value,
+        "no_secure"         => Loc["shop_order.scan.err.no_secure"].Value,
+        "library_missing"   => Loc["shop_order.scan.err.lib_missing"].Value,
+        _                   => Loc["shop_order.scan.err.other"].Value,
+    };
+
+    private void ShowToast(string message, bool isError)
+    {
+        _toastMessage = message;
+        _toastIsError = isError;
+        _toastCts?.Cancel();
+        _toastCts = new CancellationTokenSource();
+        var token = _toastCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), token);
+                if (!token.IsCancellationRequested)
+                {
+                    _toastMessage = null;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch { /* cancelled */ }
+        });
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // Critical: tear down camera stream + Blazor ref so closing the
+        // page mid-scan does not leak the device. Lesson PR #32b.
+        try { await CloseScannerAsync(); } catch { }
+        _selfRef?.Dispose();
+        _selfRef = null;
+        _toastCts?.Cancel();
+        _toastCts?.Dispose();
+        _toastCts = null;
     }
 
     private static string OrDash(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
@@ -230,4 +421,6 @@
         if (sample.Count == 0) return "";
         return string.Format(Loc["shop_order.demo_codes_fmt"].Value, string.Join(", ", sample));
     }
+
+    private sealed record ScannerResult(bool Ok, string? Code, string? Error, string? Detail);
 }
