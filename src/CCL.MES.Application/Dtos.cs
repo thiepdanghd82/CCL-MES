@@ -43,6 +43,42 @@ public class CreateSpecRequest
     public List<SpecParamDto> Parameters { get; set; } = new();
 }
 
+// Phase 8 PR-L1 — Spec lifecycle Copy. Creates a new independent
+// ProductRevision (RevisionCode="A", Status=Draft, ParentRevisionId=null per
+// Q4 — independent copy, not lineage) and deep-clones the SOURCE rev's
+// content. Per Q6: 4 sub-specs (Material/Print/Diecut/Finishing) +
+// SpecPrintColor + SpecFlexoCuttingRow + SpecFlexoInkRow + SpecQcWindow +
+// QcCriterion are cloned. SpecQcCapture (results) and Drawings (uploaded
+// files) are NOT cloned — capture results stay with source rev; the new
+// copy starts fresh and must re-upload drawings.
+//
+// SpecCode is operator-supplied (validated unique server-side); Title
+// pre-fills "<source title> (copy)" on the client but the server accepts
+// whatever the operator finalises.
+public class CopySpecRequest
+{
+    /// <summary>Destination product (operator may switch product when copying).</summary>
+    public long ProductId { get; set; }
+    public string SpecCode { get; set; } = "";
+    public string Title { get; set; } = "";
+}
+
+// Phase 8 PR-L1 — Spec lifecycle Update (Edit). Server enforces Draft-only
+// gate: Approved/Released/Superseded revisions are immutable per SpecHub
+// principle "Released revs immutable". Scope per Q3 (strict Draft only):
+// Identity fields (Title, RefNo, InspectionLevel) + SpecPrint params
+// (ProcessCode, ColorSpecJson). Per-row Material/Diecut/Finishing field
+// editor defers to Phase 9.
+public class UpdateSpecRequest
+{
+    public string? Title { get; set; }
+    public string? RefNo { get; set; }
+    public string? InspectionLevel { get; set; }
+    public string? ProcessCode { get; set; }
+    /// <summary>Optional ColorSpecJson replacement (caller supplies the full array). Null = leave unchanged.</summary>
+    public string? ColorSpecJson { get; set; }
+}
+
 public class SpecParamDto
 {
     public string ParamName { get; set; } = "";

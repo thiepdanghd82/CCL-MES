@@ -545,6 +545,43 @@
   <data name="npi.spec.ctx.get_info" xml:space="preserve"><value>Get Info</value></data>
   <data name="npi.spec.ctx.coming_soon_pr30" xml:space="preserve"><value>Coming soon (PR #30 — lifecycle ops)</value></data>
   <data name="npi.spec.ctx.require_admin_or_engineer" xml:space="preserve"><value>Requires Admin or Engineer role</value></data>
+  <!-- Phase 8 PR-L1 — Spec lifecycle Copy + Edit (Draft-only) -->
+  <data name="npi.spec.ctx.edit_draft_only" xml:space="preserve"><value>Edit is only available for Draft revisions</value></data>
+  <data name="npi.spec.copy.title_fmt" xml:space="preserve"><value>Copy spec {0} — Rev {1}</value></data>
+  <data name="npi.spec.copy.intro" xml:space="preserve"><value>Creates a new independent Draft revision. Content (4 sub-specs + print colors + flexo rows + QC plan) is cloned; QC capture results and uploaded drawings stay with the source.</value></data>
+  <data name="npi.spec.copy.field.spec_code" xml:space="preserve"><value>New Spec Code</value></data>
+  <data name="npi.spec.copy.field.spec_code_hint" xml:space="preserve"><value>Must be unique across all specs.</value></data>
+  <data name="npi.spec.copy.field.title" xml:space="preserve"><value>Title</value></data>
+  <data name="npi.spec.copy.field.title_hint" xml:space="preserve"><value>Pre-filled with " (copy)" — edit freely.</value></data>
+  <data name="npi.spec.copy.field.product" xml:space="preserve"><value>Product</value></data>
+  <data name="npi.spec.copy.field.product_select" xml:space="preserve"><value>— Select product —</value></data>
+  <data name="npi.spec.copy.section.cloning" xml:space="preserve"><value>Cloned to new revision</value></data>
+  <data name="npi.spec.copy.section.not_cloning" xml:space="preserve"><value>NOT cloned</value></data>
+  <data name="npi.spec.copy.cloning.material" xml:space="preserve"><value>Material (substrate / adhesive / liner)</value></data>
+  <data name="npi.spec.copy.cloning.print" xml:space="preserve"><value>Print spec + per-color rows + flexo rows</value></data>
+  <data name="npi.spec.copy.cloning.diecut" xml:space="preserve"><value>Diecut spec (die ID / dimensions / process)</value></data>
+  <data name="npi.spec.copy.cloning.finishing" xml:space="preserve"><value>Finishing spec (output form / core / post-press)</value></data>
+  <data name="npi.spec.copy.cloning.qc" xml:space="preserve"><value>QC plan (windows + criteria — approval reset to Draft)</value></data>
+  <data name="npi.spec.copy.not_cloning.qc_captures" xml:space="preserve"><value>QC capture results (stay with the source revision)</value></data>
+  <data name="npi.spec.copy.not_cloning.drawings" xml:space="preserve"><value>Drawings (upload fresh into the new revision)</value></data>
+  <data name="npi.spec.copy.btn.submit" xml:space="preserve"><value>Create copy</value></data>
+  <data name="npi.spec.copy.btn.creating" xml:space="preserve"><value>Creating…</value></data>
+  <data name="npi.spec.copy.err.duplicate_fmt" xml:space="preserve"><value>Spec code "{0}" already exists. Pick a different code.</value></data>
+  <data name="npi.spec.copy.err.validation" xml:space="preserve"><value>Validation failed. Check the required fields.</value></data>
+  <data name="npi.spec.copy.toast_fmt" xml:space="preserve"><value>Spec copied as {0} (Draft).</value></data>
+  <data name="npi.spec.edit.title_fmt" xml:space="preserve"><value>Edit spec {0} — Rev {1}</value></data>
+  <data name="npi.spec.edit.field.title" xml:space="preserve"><value>Title</value></data>
+  <data name="npi.spec.edit.field.ref_no" xml:space="preserve"><value>Ref No</value></data>
+  <data name="npi.spec.edit.field.ref_no_hint" xml:space="preserve"><value>Customer-facing reference (optional).</value></data>
+  <data name="npi.spec.edit.field.inspection_level" xml:space="preserve"><value>Inspection Level</value></data>
+  <data name="npi.spec.edit.field.process_code" xml:space="preserve"><value>Process Code</value></data>
+  <data name="npi.spec.edit.field.process_code_hint" xml:space="preserve"><value>SILKSCREEN · FLEXO · INDIGO · DIGITAL_UV · HYBRID</value></data>
+  <data name="npi.spec.edit.btn.save" xml:space="preserve"><value>Save changes</value></data>
+  <data name="npi.spec.edit.btn.saving" xml:space="preserve"><value>Saving…</value></data>
+  <data name="npi.spec.edit.err.immutable_fmt" xml:space="preserve"><value>Only Draft revisions are editable. Current status: {0}.</value></data>
+  <data name="npi.spec.edit.err.trashed" xml:space="preserve"><value>This revision is in Trash. Restore it before editing.</value></data>
+  <data name="npi.spec.edit.info.saved" xml:space="preserve"><value>Spec updated.</value></data>
+  <data name="npi.spec.edit.info.no_changes" xml:space="preserve"><value>No changes to save.</value></data>
 
   <data name="npi.spec.detail.title" xml:space="preserve"><value>Spec {0} — Rev {1}</value></data>
   <data name="npi.spec.detail.btn_close" xml:space="preserve"><value>Close</value></data>

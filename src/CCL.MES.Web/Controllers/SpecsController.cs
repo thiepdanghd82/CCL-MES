@@ -1,5 +1,6 @@
 using CCL.MES.Application;
 using CCL.MES.Application.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CCL.MES.Web.Controllers;
@@ -39,5 +40,93 @@ public class SpecsController : ControllerBase
     {
         var rev = await _svc.ApproveAsync(revisionId, user);
         return rev is null ? NotFound() : Ok(rev);
+    }
+
+    // Phase 8 PR-L1 — Spec lifecycle Copy + Edit. RBAC: Admin/Engineer only
+    // (Q9 mirror — QC/Operator cannot mutate spec content). Audit emit
+    // happens inside the service inside the same transaction as the writes.
+    //
+    // Result envelopes (CopyResult, UpdateResult) are mapped to HTTP status
+    // codes here:
+    //   - Copy:   Ok → 201, SourceNotFound → 404, DuplicateCode → 422,
+    //             ValidationError → 422
+    //   - Update: Ok / NoChanges → 200, NotFound → 404, Trashed → 422,
+    //             ImmutableStatus → 422 with current status in detail
+
+    [HttpPost("{revisionId:long}/copy")]
+    [Authorize(Roles = "Admin,Engineer")]
+    public async Task<IActionResult> Copy(long revisionId, [FromBody] CopySpecRequest r)
+    {
+        try
+        {
+            var user = User?.Identity?.Name;
+            var result = await _svc.CopyAsync(revisionId, r, user);
+            return result.Kind switch
+            {
+                CopyResultKind.Ok               => StatusCode(201, new
+                {
+                    id          = result.Revision!.Id,
+                    specCode    = result.Revision.SpecCode,
+                    revision    = result.Revision.RevisionCode,
+                    productId   = result.Revision.ProductId,
+                }),
+                CopyResultKind.SourceNotFound   => NotFound(new { error = result.Error }),
+                CopyResultKind.DuplicateCode    => UnprocessableEntity(new
+                {
+                    code  = "duplicate_spec_code",
+                    error = result.Error,
+                }),
+                CopyResultKind.ValidationError  => UnprocessableEntity(new
+                {
+                    code  = "validation",
+                    error = result.Error,
+                }),
+                _                               => Problem("Unexpected copy result"),
+            };
+        }
+        catch (System.Exception ex)
+        {
+            return Problem(title: "Spec copy failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
+    [HttpPut("{revisionId:long}")]
+    [Authorize(Roles = "Admin,Engineer")]
+    public async Task<IActionResult> Update(long revisionId, [FromBody] UpdateSpecRequest r)
+    {
+        try
+        {
+            var user = User?.Identity?.Name;
+            var result = await _svc.UpdateAsync(revisionId, r, user);
+            return result.Kind switch
+            {
+                UpdateResultKind.Ok or UpdateResultKind.NoChanges => Ok(new
+                {
+                    id              = result.Revision!.Id,
+                    specCode        = result.Revision.SpecCode,
+                    revision        = result.Revision.RevisionCode,
+                    title           = result.Revision.Title,
+                    status          = result.Revision.Status.ToString(),
+                    noChanges       = result.Kind == UpdateResultKind.NoChanges,
+                }),
+                UpdateResultKind.NotFound        => NotFound(new { error = result.Error }),
+                UpdateResultKind.Trashed         => UnprocessableEntity(new
+                {
+                    code  = "trashed",
+                    error = result.Error,
+                }),
+                UpdateResultKind.ImmutableStatus => UnprocessableEntity(new
+                {
+                    code           = "immutable_status",
+                    error          = result.Error,
+                    currentStatus  = result.CurrentStatus?.ToString(),
+                }),
+                _                                => Problem("Unexpected update result"),
+            };
+        }
+        catch (System.Exception ex)
+        {
+            return Problem(title: "Spec update failed", detail: ex.Message, statusCode: 500);
+        }
     }
 }

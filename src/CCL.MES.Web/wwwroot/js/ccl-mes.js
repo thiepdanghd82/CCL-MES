@@ -231,3 +231,80 @@ window.cclmes.workorders.createDemo = async function (templateCode) {
         return { ok: false, status: 0, woNo: null, body: (e && e.message) || String(e) };
     }
 };
+
+// Phase 8 PR-L1 — Spec lifecycle Copy + Update.
+// Both helpers use the same fetch shape so the Blazor modal code paths stay
+// minimal. Returned object encodes:
+//   { ok, status, id?, specCode?, code?, currentStatus?, noChanges?, body? }
+// where `code` mirrors the server's RFC 7807-style `code` field (e.g.
+// "duplicate_spec_code" / "immutable_status" / "trashed" / "validation").
+window.cclmes.specs = window.cclmes.specs || {};
+
+window.cclmes.specs.copy = async function (sourceRevId, payload) {
+    try {
+        const resp = await fetch('/api/specs/' + sourceRevId + '/copy', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        let text = '';
+        try { text = await resp.text(); } catch (_) {}
+        if (!resp.ok) {
+            let code = null, problem = text;
+            try {
+                const parsed = JSON.parse(text);
+                code = parsed.code || null;
+                problem = parsed.error || parsed.title || text;
+            } catch (_) {}
+            return { ok: false, status: resp.status, code: code, body: problem };
+        }
+        let parsed = {};
+        try { parsed = JSON.parse(text); } catch (_) {}
+        return {
+            ok: true,
+            status: resp.status,
+            id: parsed.id || null,
+            specCode: parsed.specCode || null,
+            body: text,
+        };
+    } catch (e) {
+        return { ok: false, status: 0, code: null, body: (e && e.message) || String(e) };
+    }
+};
+
+window.cclmes.specs.update = async function (revId, payload) {
+    try {
+        const resp = await fetch('/api/specs/' + revId, {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        let text = '';
+        try { text = await resp.text(); } catch (_) {}
+        if (!resp.ok) {
+            let code = null, problem = text, currentStatus = null;
+            try {
+                const parsed = JSON.parse(text);
+                code = parsed.code || null;
+                problem = parsed.error || parsed.title || text;
+                currentStatus = parsed.currentStatus || null;
+            } catch (_) {}
+            return {
+                ok: false, status: resp.status,
+                code: code, currentStatus: currentStatus, body: problem,
+            };
+        }
+        let parsed = {};
+        try { parsed = JSON.parse(text); } catch (_) {}
+        return {
+            ok: true,
+            status: resp.status,
+            noChanges: parsed.noChanges === true,
+            body: text,
+        };
+    } catch (e) {
+        return { ok: false, status: 0, code: null, body: (e && e.message) || String(e) };
+    }
+};

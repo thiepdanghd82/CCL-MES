@@ -74,6 +74,10 @@
     <CreateSpecModal @ref="_createModal" OnCreated="OnCreatedAsync" />
     <SpecContextMenu @ref="_ctxMenu" OnAction="OnCtxActionAsync" />
     <SpecDetailModal @ref="_detailModal" />
+    @* PR-L1 — Copy + Edit modals mounted at page level so the context menu +
+       (future) toolbar can both invoke them. *@
+    <SpecCopyModal @ref="_copyModal" OnCreated="OnCopiedAsync" />
+    <SpecEditModal @ref="_editModal" OnUpdated="OnEditedAsync" />
     @if (!string.IsNullOrEmpty(_ctxError))
     {
         <div class="rt-ctx-error" role="alert">
@@ -162,6 +166,8 @@
     private CreateSpecModal? _createModal;
     private SpecContextMenu? _ctxMenu;
     private SpecDetailModal? _detailModal;
+    private SpecCopyModal? _copyModal;
+    private SpecEditModal? _editModal;
     private string? _ctxError;
     private long _busyApproveId = 0;
 
@@ -238,6 +244,12 @@
                 case "info":
                     await OpenDetailAsync(ev.Row);
                     break;
+                case "edit":
+                    _editModal?.Open(ev.Row);
+                    break;
+                case "copy":
+                    if (_copyModal is not null) await _copyModal.OpenAsync(ev.Row);
+                    break;
             }
         }
         catch (Exception ex)
@@ -245,6 +257,39 @@
             _ctxError = ex.GetType().Name + ": " + ex.Message;
             StateHasChanged();
         }
+    }
+
+    /// <summary>
+    /// PR-L1 — Reload grid after a copy creates a new Draft revision. Toast
+    /// surfaces the new SpecCode so operator knows where to find it.
+    /// </summary>
+    private async Task OnCopiedAsync((long NewRevId, string NewSpecCode) ev)
+    {
+        try
+        {
+            await Load();
+            _ctxError = null;
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    /// <summary>PR-L1 — Reload grid after an edit so updated Title/Identity surface.</summary>
+    private async Task OnEditedAsync()
+    {
+        try
+        {
+            await Load();
+            _ctxError = null;
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+        }
+        StateHasChanged();
     }
 
     private async Task OpenDetailAsync(ProductRevisionListItem row)

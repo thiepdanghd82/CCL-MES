@@ -1,0 +1,190 @@
+@*  Phase 8 PR-L1 — Spec lifecycle Edit modal.
+
+    Scope per Q3 (strict Draft only): Identity fields + SpecPrint params.
+    Server enforces Draft-only gate; this modal mirrors the gate UI-side so
+    operators can't see the form on immutable revisions. Caller (chrome)
+    should pre-check Status=Draft and only open the modal in that case;
+    this is defence in depth — if somehow opened on a non-Draft rev, the
+    server returns 422 with `immutable_status` and we surface it inline.
+
+    Reuse modal-card / modal-scrim chrome + navy palette. Submit PUTs to
+    /api/specs/{id} via cclmes.specs.update JS helper. *@
+
+@using CCL.MES.Application
+@using CCL.MES.Application.Services
+@inject SpecService Specs
+@inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> Loc
+
+@if (_open && _row is not null)
+{
+    <div class="modal-scrim" @onclick="Close">
+        <div class="modal-card spec-edit-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal-head">
+                <h2>@string.Format(Loc["npi.spec.edit.title_fmt"].Value, _row.SpecCode, _row.RevisionCode)</h2>
+                <button type="button" class="modal-close" @onclick="Close" aria-label="Close">×</button>
+            </div>
+
+            <div class="modal-body">
+                @if (_row.Status != CCL.MES.Domain.ProductRevisionStatus.Draft)
+                {
+                    <div class="alert err">
+                        @string.Format(Loc["npi.spec.edit.err.immutable_fmt"].Value, _row.Status)
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert err">@_errorMessage</div>
+                }
+                @if (!string.IsNullOrEmpty(_infoMessage))
+                {
+                    <div class="alert ok">@_infoMessage</div>
+                }
+
+                <div class="form-row">
+                    <label for="edit-title">@Loc["npi.spec.edit.field.title"]</label>
+                    <input id="edit-title" type="text" value="@_title"
+                           @oninput="@(e => _title = e.Value?.ToString() ?? "")"
+                           maxlength="200" />
+                </div>
+
+                <div class="form-row">
+                    <label for="edit-refno">@Loc["npi.spec.edit.field.ref_no"]</label>
+                    <input id="edit-refno" type="text" value="@_refNo"
+                           @oninput="@(e => _refNo = e.Value?.ToString() ?? "")"
+                           maxlength="64" />
+                    <small class="muted">@Loc["npi.spec.edit.field.ref_no_hint"]</small>
+                </div>
+
+                <div class="form-row">
+                    <label for="edit-inspection">@Loc["npi.spec.edit.field.inspection_level"]</label>
+                    <input id="edit-inspection" type="text" value="@_inspectionLevel"
+                           @oninput="@(e => _inspectionLevel = e.Value?.ToString() ?? "")"
+                           maxlength="32" />
+                </div>
+
+                <div class="form-row">
+                    <label for="edit-process">@Loc["npi.spec.edit.field.process_code"]</label>
+                    <input id="edit-process" type="text" value="@_processCode"
+                           @oninput="@(e => _processCode = e.Value?.ToString() ?? "")"
+                           maxlength="32" />
+                    <small class="muted">@Loc["npi.spec.edit.field.process_code_hint"]</small>
+                </div>
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="rt-btn" @onclick="Close" disabled="@_busy">
+                    @Loc["common.cancel"]
+                </button>
+                <button type="button" class="rt-btn rt-btn-primary"
+                        disabled="@(!CanSubmit())"
+                        @onclick="SubmitAsync">
+                    @(_busy ? Loc["npi.spec.edit.btn.saving"].Value : Loc["npi.spec.edit.btn.save"].Value)
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback OnUpdated { get; set; }
+
+    private bool _open;
+    private ProductRevisionListItem? _row;
+    private string _title = "";
+    private string _refNo = "";
+    private string _inspectionLevel = "";
+    private string _processCode = "";
+    private bool _busy;
+    private string? _errorMessage;
+    private string? _infoMessage;
+
+    public void Open(ProductRevisionListItem row)
+    {
+        _row = row;
+        _title = row.Title ?? "";
+        _refNo = row.RefNo ?? "";
+        _inspectionLevel = row.InspectionLevel ?? "";
+        _processCode = row.ProcessCode ?? "";
+        _errorMessage = null;
+        _infoMessage = null;
+        _busy = false;
+        _open = true;
+        StateHasChanged();
+    }
+
+    public void Close()
+    {
+        _open = false;
+        _row = null;
+        StateHasChanged();
+    }
+
+    private bool CanSubmit() => !_busy
+        && _row is not null
+        && _row.Status == CCL.MES.Domain.ProductRevisionStatus.Draft;
+
+    private async Task SubmitAsync()
+    {
+        if (_row is null || _busy) return;
+        _busy = true;
+        _errorMessage = null;
+        _infoMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var payload = new
+            {
+                title           = _title.Trim(),
+                refNo           = string.IsNullOrWhiteSpace(_refNo) ? null : _refNo.Trim(),
+                inspectionLevel = string.IsNullOrWhiteSpace(_inspectionLevel) ? null : _inspectionLevel.Trim(),
+                processCode     = string.IsNullOrWhiteSpace(_processCode) ? null : _processCode.Trim(),
+            };
+            var result = await JS.InvokeAsync<UpdateMutationResult>(
+                "cclmes.specs.update", _row.Id, payload);
+            if (!result.Ok)
+            {
+                _errorMessage = result.Code switch
+                {
+                    "immutable_status" => string.Format(
+                        Loc["npi.spec.edit.err.immutable_fmt"].Value,
+                        result.CurrentStatus ?? "?"),
+                    "trashed"          => Loc["npi.spec.edit.err.trashed"].Value,
+                    _                  => $"{result.Status}: {Truncate(result.Body, 240)}",
+                };
+            }
+            else if (result.NoChanges == true)
+            {
+                _infoMessage = Loc["npi.spec.edit.info.no_changes"].Value;
+            }
+            else
+            {
+                _infoMessage = Loc["npi.spec.edit.info.saved"].Value;
+                await OnUpdated.InvokeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string Truncate(string? s, int n) =>
+        string.IsNullOrEmpty(s) ? "" : (s.Length > n ? s.Substring(0, n) + "…" : s);
+
+    public sealed class UpdateMutationResult
+    {
+        public bool Ok { get; set; }
+        public int Status { get; set; }
+        public string? Code { get; set; }
+        public string? CurrentStatus { get; set; }
+        public bool? NoChanges { get; set; }
+        public string? Body { get; set; }
+    }
+}

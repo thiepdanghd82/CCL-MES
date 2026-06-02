@@ -24,6 +24,14 @@ public static class AuditAction
     // ProductRevisions existing (KHÔNG tạo mới). detail JSON: { backfilled,
     // skipped, fields_touched, files: [{filename, status, ref_no}] }
     public const string SpecBackfillDetail    = "SPEC_BACKFILL_DETAIL";
+    // Phase 8 PR-L1 — Spec lifecycle Copy. Deep-clones content (4 sub-specs +
+    // SpecPrintColor + flexo rows + QC plan QcWindow/Criterion); does NOT
+    // clone QcCaptures (results stay with source rev) or Drawings (files are
+    // version-controlled separately and require fresh upload chain).
+    // detail JSON: { source_id, source_code, source_rev, new_id, new_code,
+    //   product_id, cloned_counts: { material, print, diecut, finishing,
+    //   print_colors, flexo_cutting, flexo_ink, qc_windows, qc_criteria } }
+    public const string SpecCopy              = "SPEC_COPY";
     public const string SpecCreate            = "SPEC_CREATE";
     // Phase 8 PR #31c — Export list view (CSV / XLSX / PDF). detail JSON:
     // { format, search, rows, filename, content_length }
@@ -35,6 +43,12 @@ public static class AuditAction
     // Phase 8 PR-D-3 — QC Plans tab atomic per-stage upsert. detail JSON:
     // { revision_id, stage, criteria_count, created, updated, deleted }
     public const string SpecQcPlanUpsert      = "SPEC_QC_PLAN_UPSERT";
+    // Phase 8 PR-L1 — Spec edit (Draft-only). Surface for Title / RefNo /
+    // InspectionLevel / SpecPrint ColorSpecJson/ProcessCode/ProductSize params.
+    // Approved/Released/Superseded revs are immutable — server returns 422
+    // when invoked on a non-Draft revision.
+    // detail JSON: { rev_id, rev_code, fields_changed: [...] }.
+    public const string SpecUpdate            = "SPEC_UPDATE";
     // Phase 8 PR-D-4 — QC Capture (NPI spec-level inspection result). detail JSON:
     // { revision_id, stage, criterion_id, result, has_measurement, ng_reason_code,
     //   has_comment }

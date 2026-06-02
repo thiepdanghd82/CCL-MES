@@ -31,15 +31,32 @@
             <span class="spec-ctx-shortcut">⌘O</span>
         </button>
 
+        @* PR-L1 — Edit + Copy wired. Edit gates on Status=Draft client-side
+           (server enforces too via 422 immutable_status). Copy is always
+           available for Admin/Engineer regardless of source status. *@
         <AuthorizeView Roles="Admin,Engineer" Context="auth">
             <Authorized>
-                <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
-                        title="@Loc["npi.spec.ctx.coming_soon_pr30"]" role="menuitem">
-                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.edit"]</span>
-                    <span class="spec-ctx-shortcut">⌘E</span>
-                </button>
-                <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
-                        title="@Loc["npi.spec.ctx.coming_soon_pr30"]" role="menuitem">
+                @{
+                    var canEdit = _row?.Status == CCL.MES.Domain.ProductRevisionStatus.Draft;
+                }
+                @if (canEdit)
+                {
+                    <button type="button" class="spec-ctx-item"
+                            @onclick="@(() => Invoke("edit"))" role="menuitem">
+                        <span class="spec-ctx-label">@Loc["npi.spec.ctx.edit"]</span>
+                        <span class="spec-ctx-shortcut">⌘E</span>
+                    </button>
+                }
+                else
+                {
+                    <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
+                            title="@Loc["npi.spec.ctx.edit_draft_only"]" role="menuitem">
+                        <span class="spec-ctx-label">@Loc["npi.spec.ctx.edit"]</span>
+                        <span class="spec-ctx-shortcut">⌘E</span>
+                    </button>
+                }
+                <button type="button" class="spec-ctx-item"
+                        @onclick="@(() => Invoke("copy"))" role="menuitem">
                     <span class="spec-ctx-label">@Loc["npi.spec.ctx.copy"]</span>
                     <span class="spec-ctx-shortcut">⌘D</span>
                 </button>

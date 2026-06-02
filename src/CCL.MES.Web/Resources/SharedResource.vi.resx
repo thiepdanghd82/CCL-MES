@@ -545,6 +545,43 @@
   <data name="npi.spec.ctx.get_info" xml:space="preserve"><value>Xem thông tin</value></data>
   <data name="npi.spec.ctx.coming_soon_pr30" xml:space="preserve"><value>Sắp ra mắt (PR #30 — chức năng lifecycle)</value></data>
   <data name="npi.spec.ctx.require_admin_or_engineer" xml:space="preserve"><value>Cần vai trò Admin hoặc Engineer</value></data>
+  <!-- Phase 8 PR-L1 — Spec lifecycle Copy + Edit (Draft only) -->
+  <data name="npi.spec.ctx.edit_draft_only" xml:space="preserve"><value>Chỉ có thể sửa khi spec ở trạng thái Draft</value></data>
+  <data name="npi.spec.copy.title_fmt" xml:space="preserve"><value>Sao chép spec {0} — Rev {1}</value></data>
+  <data name="npi.spec.copy.intro" xml:space="preserve"><value>Tạo revision Draft mới độc lập. Nội dung (4 sub-specs + print colors + flexo rows + QC plan) được clone; kết quả QC capture và Drawings GIỮ ở source.</value></data>
+  <data name="npi.spec.copy.field.spec_code" xml:space="preserve"><value>Spec Code mới</value></data>
+  <data name="npi.spec.copy.field.spec_code_hint" xml:space="preserve"><value>Phải duy nhất trong toàn bộ specs.</value></data>
+  <data name="npi.spec.copy.field.title" xml:space="preserve"><value>Tiêu đề</value></data>
+  <data name="npi.spec.copy.field.title_hint" xml:space="preserve"><value>Đã điền sẵn " (copy)" — sửa tự do.</value></data>
+  <data name="npi.spec.copy.field.product" xml:space="preserve"><value>Sản phẩm</value></data>
+  <data name="npi.spec.copy.field.product_select" xml:space="preserve"><value>— Chọn sản phẩm —</value></data>
+  <data name="npi.spec.copy.section.cloning" xml:space="preserve"><value>Sẽ được clone</value></data>
+  <data name="npi.spec.copy.section.not_cloning" xml:space="preserve"><value>KHÔNG clone</value></data>
+  <data name="npi.spec.copy.cloning.material" xml:space="preserve"><value>Material (substrate / adhesive / liner)</value></data>
+  <data name="npi.spec.copy.cloning.print" xml:space="preserve"><value>Print spec + dòng theo màu + dòng flexo</value></data>
+  <data name="npi.spec.copy.cloning.diecut" xml:space="preserve"><value>Diecut (die ID / kích thước / process)</value></data>
+  <data name="npi.spec.copy.cloning.finishing" xml:space="preserve"><value>Finishing (output / core / post-press)</value></data>
+  <data name="npi.spec.copy.cloning.qc" xml:space="preserve"><value>QC plan (window + criteria — duyệt reset về Draft)</value></data>
+  <data name="npi.spec.copy.not_cloning.qc_captures" xml:space="preserve"><value>Kết quả QC capture (giữ ở source revision)</value></data>
+  <data name="npi.spec.copy.not_cloning.drawings" xml:space="preserve"><value>Drawings (upload mới vào revision này)</value></data>
+  <data name="npi.spec.copy.btn.submit" xml:space="preserve"><value>Tạo bản sao</value></data>
+  <data name="npi.spec.copy.btn.creating" xml:space="preserve"><value>Đang tạo…</value></data>
+  <data name="npi.spec.copy.err.duplicate_fmt" xml:space="preserve"><value>Spec code "{0}" đã tồn tại. Chọn mã khác.</value></data>
+  <data name="npi.spec.copy.err.validation" xml:space="preserve"><value>Validation lỗi. Kiểm tra các field bắt buộc.</value></data>
+  <data name="npi.spec.copy.toast_fmt" xml:space="preserve"><value>Đã sao chép spec sang {0} (Draft).</value></data>
+  <data name="npi.spec.edit.title_fmt" xml:space="preserve"><value>Sửa spec {0} — Rev {1}</value></data>
+  <data name="npi.spec.edit.field.title" xml:space="preserve"><value>Tiêu đề</value></data>
+  <data name="npi.spec.edit.field.ref_no" xml:space="preserve"><value>Ref No</value></data>
+  <data name="npi.spec.edit.field.ref_no_hint" xml:space="preserve"><value>Tham chiếu phía khách hàng (tuỳ chọn).</value></data>
+  <data name="npi.spec.edit.field.inspection_level" xml:space="preserve"><value>Inspection Level</value></data>
+  <data name="npi.spec.edit.field.process_code" xml:space="preserve"><value>Process Code</value></data>
+  <data name="npi.spec.edit.field.process_code_hint" xml:space="preserve"><value>SILKSCREEN · FLEXO · INDIGO · DIGITAL_UV · HYBRID</value></data>
+  <data name="npi.spec.edit.btn.save" xml:space="preserve"><value>Lưu thay đổi</value></data>
+  <data name="npi.spec.edit.btn.saving" xml:space="preserve"><value>Đang lưu…</value></data>
+  <data name="npi.spec.edit.err.immutable_fmt" xml:space="preserve"><value>Chỉ có thể sửa khi spec ở trạng thái Draft. Hiện tại: {0}.</value></data>
+  <data name="npi.spec.edit.err.trashed" xml:space="preserve"><value>Revision này đang trong Trash. Khôi phục trước khi sửa.</value></data>
+  <data name="npi.spec.edit.info.saved" xml:space="preserve"><value>Đã cập nhật spec.</value></data>
+  <data name="npi.spec.edit.info.no_changes" xml:space="preserve"><value>Không có thay đổi để lưu.</value></data>
 
   <data name="npi.spec.detail.title" xml:space="preserve"><value>Spec {0} — Rev {1}</value></data>
   <data name="npi.spec.detail.btn_close" xml:space="preserve"><value>Đóng</value></data>
