@@ -77,18 +77,40 @@
 
         <div class="spec-ctx-separator"></div>
 
+        @* PR-L2 — Revise + Mark Superseded wired. Both gate on Status ∈
+           {Approved, Released}. Server enforces the same gate via 422. *@
         <AuthorizeView Roles="Admin,Engineer" Context="auth2">
             <Authorized>
-                <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
-                        title="@Loc["npi.spec.ctx.coming_soon_pr30"]" role="menuitem">
-                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.revise"]</span>
-                    <span class="spec-ctx-shortcut">⌘R</span>
-                </button>
-                <button type="button" class="spec-ctx-item spec-ctx-disabled spec-ctx-danger" disabled
-                        title="@Loc["npi.spec.ctx.coming_soon_pr30"]" role="menuitem">
-                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.mark_superseded"]</span>
-                    <span class="spec-ctx-shortcut">⌘T</span>
-                </button>
+                @{
+                    var canRevise = _row?.Status is CCL.MES.Domain.ProductRevisionStatus.Approved
+                                                or CCL.MES.Domain.ProductRevisionStatus.Released;
+                }
+                @if (canRevise)
+                {
+                    <button type="button" class="spec-ctx-item"
+                            @onclick="@(() => Invoke("revise"))" role="menuitem">
+                        <span class="spec-ctx-label">@Loc["npi.spec.ctx.revise"]</span>
+                        <span class="spec-ctx-shortcut">⌘R</span>
+                    </button>
+                    <button type="button" class="spec-ctx-item spec-ctx-danger"
+                            @onclick="@(() => Invoke("supersede"))" role="menuitem">
+                        <span class="spec-ctx-label">@Loc["npi.spec.ctx.mark_superseded"]</span>
+                        <span class="spec-ctx-shortcut">⌘T</span>
+                    </button>
+                }
+                else
+                {
+                    <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
+                            title="@Loc["npi.spec.ctx.revise_approved_only"]" role="menuitem">
+                        <span class="spec-ctx-label">@Loc["npi.spec.ctx.revise"]</span>
+                        <span class="spec-ctx-shortcut">⌘R</span>
+                    </button>
+                    <button type="button" class="spec-ctx-item spec-ctx-disabled spec-ctx-danger" disabled
+                            title="@Loc["npi.spec.ctx.supersede_approved_only"]" role="menuitem">
+                        <span class="spec-ctx-label">@Loc["npi.spec.ctx.mark_superseded"]</span>
+                        <span class="spec-ctx-shortcut">⌘T</span>
+                    </button>
+                }
             </Authorized>
             <NotAuthorized>
                 <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled

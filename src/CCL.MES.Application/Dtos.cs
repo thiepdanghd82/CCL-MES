@@ -63,6 +63,27 @@ public class CopySpecRequest
     public string Title { get; set; } = "";
 }
 
+// Phase 8 PR-L2 — Spec lifecycle Revise. Bumps RevisionCode for the source
+// spec's product, deep-clones content (same scope as CopySpecRequest per Q6 —
+// 4 sub-specs + SpecPrintColor + flexo rows + QC Plan; NOT QcCaptures, NOT
+// Drawings), sets ParentRevisionId on the new rev to the source (lineage),
+// and auto-supersedes the source (Q2 default). Per Q1 the reason is
+// MANDATORY and stored in the new rev's ChangeSummary (>=5 chars).
+public class ReviseSpecRequest
+{
+    public string Reason { get; set; } = "";
+}
+
+// Phase 8 PR-L2 — Spec lifecycle Mark Superseded (manual). Operator types the
+// source spec's SpecCode as a confirmation (semi-irreversible action per Q2).
+// Server validates the typed value matches the rev's actual SpecCode before
+// flipping Status; UI 2-step is defence in depth, not the trust boundary.
+public class SupersedeSpecRequest
+{
+    /// <summary>SpecCode the operator typed to confirm. Must match the target rev's SpecCode exactly.</summary>
+    public string ConfirmSpecCode { get; set; } = "";
+}
+
 // Phase 8 PR-L1 — Spec lifecycle Update (Edit). Server enforces Draft-only
 // gate: Approved/Released/Superseded revisions are immutable per SpecHub
 // principle "Released revs immutable". Scope per Q3 (strict Draft only):

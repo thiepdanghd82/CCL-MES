@@ -1078,4 +1078,34 @@
 
 This will appear in Active immediately.</value></data>
   <data name="workorders.demo.created_fmt" xml:space="preserve"><value>Work Order {0} created from demo template.</value></data>
+  <!-- Phase 8 PR-L2 — Spec lifecycle Revise + Mark Superseded -->
+  <data name="npi.spec.ctx.revise_approved_only" xml:space="preserve"><value>Revise is only available for Approved or Released revisions</value></data>
+  <data name="npi.spec.ctx.supersede_approved_only" xml:space="preserve"><value>Mark Superseded is only available for Approved or Released revisions</value></data>
+  <data name="npi.spec.detail.action.revise" xml:space="preserve"><value>Revise</value></data>
+  <data name="npi.spec.detail.action.supersede" xml:space="preserve"><value>Mark Superseded</value></data>
+  <data name="npi.spec.revise.title_fmt" xml:space="preserve"><value>Revise spec {0} — Rev {1}</value></data>
+  <data name="npi.spec.revise.intro" xml:space="preserve"><value>Creates a new Draft revision linked to this one (lineage). Content is deep-cloned per the same rule as Copy.</value></data>
+  <data name="npi.spec.revise.warn.auto_supersede_fmt" xml:space="preserve"><value>The source revision {0} Rev {1} will be automatically marked Superseded once the new revision is saved. There will be no Approved revision active until the new Draft is promoted.</value></data>
+  <data name="npi.spec.revise.field.reason" xml:space="preserve"><value>Reason</value></data>
+  <data name="npi.spec.revise.field.reason_placeholder" xml:space="preserve"><value>Why is this revision being created? (e.g. customer-requested colour change, substrate supplier switch)</value></data>
+  <data name="npi.spec.revise.field.reason_hint" xml:space="preserve"><value>At least 5 characters. Stored on the new revision's change summary.</value></data>
+  <data name="npi.spec.revise.section.cloning" xml:space="preserve"><value>Cloned into the new revision</value></data>
+  <data name="npi.spec.revise.btn.submit" xml:space="preserve"><value>Create new revision</value></data>
+  <data name="npi.spec.revise.btn.creating" xml:space="preserve"><value>Creating…</value></data>
+  <data name="npi.spec.revise.err.invalid_source_fmt" xml:space="preserve"><value>Revise is only available for Approved or Released revisions. Current status: {0}.</value></data>
+  <data name="npi.spec.revise.err.reason_required" xml:space="preserve"><value>Reason must be at least 5 characters.</value></data>
+  <data name="npi.spec.revise.err.source_trashed" xml:space="preserve"><value>Source revision is in Trash. Restore it before revising.</value></data>
+  <data name="npi.spec.revise.toast_fmt" xml:space="preserve"><value>New revision {0} created (Draft). Source was Superseded.</value></data>
+  <data name="npi.spec.supersede.title_fmt" xml:space="preserve"><value>Mark Superseded — {0} Rev {1}</value></data>
+  <data name="npi.spec.supersede.warn.title" xml:space="preserve"><value>This action is semi-irreversible.</value></data>
+  <data name="npi.spec.supersede.warn.body" xml:space="preserve"><value>Once marked Superseded, the revision can no longer be Approved or Released through the normal flow. Use this only when retiring a spec without a successor.</value></data>
+  <data name="npi.spec.supersede.intro" xml:space="preserve"><value>Type the spec code exactly to confirm. The server re-validates the typed value before flipping the status.</value></data>
+  <data name="npi.spec.supersede.field.confirm_fmt" xml:space="preserve"><value>Type spec code "{0}" to confirm</value></data>
+  <data name="npi.spec.supersede.field.confirm_hint" xml:space="preserve"><value>Must match exactly (case-sensitive).</value></data>
+  <data name="npi.spec.supersede.btn.confirm" xml:space="preserve"><value>Mark Superseded</value></data>
+  <data name="npi.spec.supersede.btn.flipping" xml:space="preserve"><value>Flipping…</value></data>
+  <data name="npi.spec.supersede.err.invalid_status_fmt" xml:space="preserve"><value>Mark Superseded is only available for Approved or Released revisions. Current status: {0}.</value></data>
+  <data name="npi.spec.supersede.err.trashed" xml:space="preserve"><value>Spec is in Trash. Restore it before superseding.</value></data>
+  <data name="npi.spec.supersede.err.mismatch" xml:space="preserve"><value>The typed spec code does not match. Confirmation cancelled.</value></data>
+  <data name="npi.spec.supersede.toast_ok" xml:space="preserve"><value>Spec marked Superseded.</value></data>
 </root>

@@ -43,6 +43,19 @@ public static class AuditAction
     // Phase 8 PR-D-3 — QC Plans tab atomic per-stage upsert. detail JSON:
     // { revision_id, stage, criteria_count, created, updated, deleted }
     public const string SpecQcPlanUpsert      = "SPEC_QC_PLAN_UPSERT";
+    // Phase 8 PR-L2 — Spec lifecycle Revise. Creates a new Draft revision with
+    // ParentRevisionId pointing at the source (lineage), bumps RevisionCode via
+    // SpecRevisionHelpers, deep-clones content (same scope as Copy), auto-
+    // supersedes the source. Per approved Q1: reason mandatory (>=5 chars)
+    // captured in ChangeSummary. detail JSON: { source_id, source_code,
+    // source_rev, source_status_before, new_id, new_rev, reason, cloned_counts:
+    // {...same shape as SPEC_COPY...} }.
+    public const string SpecRevise            = "SPEC_REVISE";
+    // Phase 8 PR-L2 — Spec lifecycle Supersede (manual). Operator types the
+    // SpecCode to confirm; server validates the typed value matches before
+    // flipping Status. Gate: Status in {Approved, Released}. detail JSON:
+    // { rev_id, rev_code, spec_code, from_status, manual: true }.
+    public const string SpecSupersede         = "SPEC_SUPERSEDE";
     // Phase 8 PR-L1 — Spec edit (Draft-only). Surface for Title / RefNo /
     // InspectionLevel / SpecPrint ColorSpecJson/ProcessCode/ProductSize params.
     // Approved/Released/Superseded revs are immutable — server returns 422

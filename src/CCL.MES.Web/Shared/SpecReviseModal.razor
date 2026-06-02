@@ -1,0 +1,165 @@
+@*  Phase 8 PR-L2 — Spec lifecycle Revise modal.
+
+    Per Q1 reason is MANDATORY (≥5 chars). Server re-validates (defence in
+    depth) — this modal just prevents the obvious empty-textarea submit.
+
+    Per Q2 default: auto-supersede source on Revise. UI explains this so the
+    operator understands the source rev will flip to Superseded immediately
+    (the new Draft becomes the active editable rev). The "production-safe"
+    variant (defer supersede until new rev approved) is NOT shipping per
+    Henry's explicit confirmation — that would touch ApproveAsync. *@
+
+@using CCL.MES.Application
+@inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> Loc
+
+@if (_open && _source is not null)
+{
+    <div class="modal-scrim" @onclick="Close">
+        <div class="modal-card spec-revise-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal-head">
+                <h2>@string.Format(Loc["npi.spec.revise.title_fmt"].Value, _source.SpecCode, _source.RevisionCode)</h2>
+                <button type="button" class="modal-close" @onclick="Close" aria-label="Close">×</button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert err">@_errorMessage</div>
+                }
+
+                <p class="muted">@Loc["npi.spec.revise.intro"]</p>
+
+                <div class="alert warn spec-revise-supersede-warn">
+                    @string.Format(Loc["npi.spec.revise.warn.auto_supersede_fmt"].Value,
+                        _source.SpecCode, _source.RevisionCode)
+                </div>
+
+                <div class="form-row">
+                    <label for="revise-reason">@Loc["npi.spec.revise.field.reason"] <span class="required">*</span></label>
+                    <textarea id="revise-reason" rows="4"
+                              value="@_reason"
+                              @oninput="@(e => _reason = e.Value?.ToString() ?? "")"
+                              maxlength="500"
+                              placeholder="@Loc["npi.spec.revise.field.reason_placeholder"]"></textarea>
+                    <small class="muted">@Loc["npi.spec.revise.field.reason_hint"] · @(_reason?.Length ?? 0) / 500</small>
+                </div>
+
+                <div class="spec-revise-clone-summary">
+                    <h4>@Loc["npi.spec.revise.section.cloning"]</h4>
+                    <ul class="spec-copy-bullets">
+                        <li>@Loc["npi.spec.copy.cloning.material"]</li>
+                        <li>@Loc["npi.spec.copy.cloning.print"]</li>
+                        <li>@Loc["npi.spec.copy.cloning.diecut"]</li>
+                        <li>@Loc["npi.spec.copy.cloning.finishing"]</li>
+                        <li>@Loc["npi.spec.copy.cloning.qc"]</li>
+                    </ul>
+                    <h4>@Loc["npi.spec.copy.section.not_cloning"]</h4>
+                    <ul class="spec-copy-bullets spec-copy-bullets-warn">
+                        <li>@Loc["npi.spec.copy.not_cloning.qc_captures"]</li>
+                        <li>@Loc["npi.spec.copy.not_cloning.drawings"]</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="rt-btn" @onclick="Close" disabled="@_busy">
+                    @Loc["common.cancel"]
+                </button>
+                <button type="button" class="rt-btn rt-btn-primary"
+                        disabled="@(!CanSubmit())"
+                        @onclick="SubmitAsync">
+                    @(_busy ? Loc["npi.spec.revise.btn.creating"].Value : Loc["npi.spec.revise.btn.submit"].Value)
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback<(long NewRevId, string NewRevCode)> OnRevised { get; set; }
+
+    private bool _open;
+    private ProductRevisionListItem? _source;
+    private string _reason = "";
+    private bool _busy;
+    private string? _errorMessage;
+
+    public void Open(ProductRevisionListItem source)
+    {
+        _source = source;
+        _reason = "";
+        _errorMessage = null;
+        _busy = false;
+        _open = true;
+        StateHasChanged();
+    }
+
+    public void Close()
+    {
+        _open = false;
+        _source = null;
+        StateHasChanged();
+    }
+
+    private bool CanSubmit() => !_busy
+        && _source is not null
+        && (_reason?.Trim().Length ?? 0) >= 5;
+
+    private async Task SubmitAsync()
+    {
+        if (_source is null || _busy) return;
+        _busy = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var payload = new { reason = _reason.Trim() };
+            var result = await JS.InvokeAsync<ReviseMutationResult>(
+                "cclmes.specs.revise", _source.Id, payload);
+            if (!result.Ok)
+            {
+                _errorMessage = result.Code switch
+                {
+                    "invalid_source_status" => string.Format(
+                        Loc["npi.spec.revise.err.invalid_source_fmt"].Value,
+                        result.CurrentStatus ?? "?"),
+                    "reason_required"       => Loc["npi.spec.revise.err.reason_required"].Value,
+                    "trashed"               => Loc["npi.spec.revise.err.source_trashed"].Value,
+                    _                       => $"{result.Status}: {Truncate(result.Body, 240)}",
+                };
+            }
+            else
+            {
+                Close();
+                await OnRevised.InvokeAsync((result.Id ?? 0, result.Revision ?? "?"));
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string Truncate(string? s, int n) =>
+        string.IsNullOrEmpty(s) ? "" : (s.Length > n ? s.Substring(0, n) + "…" : s);
+
+    public sealed class ReviseMutationResult
+    {
+        public bool Ok { get; set; }
+        public int Status { get; set; }
+        public long? Id { get; set; }
+        public string? SpecCode { get; set; }
+        public string? Revision { get; set; }
+        public long? ParentId { get; set; }
+        public string? Code { get; set; }
+        public string? CurrentStatus { get; set; }
+        public string? Body { get; set; }
+    }
+}
