@@ -4,20 +4,16 @@ using Xunit;
 namespace CCL.MES.Tests.Unit;
 
 /// <summary>
-/// Phase 9 T1 — Pure-testable surface of <see cref="SpecTrashPurgeService"/>:
-/// the <see cref="PurgeOneOutcome"/> + <see cref="PurgeCycleStats"/> value
-/// types, plus a documenting test for the Rule #1 ELIGIBILITY date-boundary
-/// contract. EF query + audit emit + blob cleanup paths land in T2
-/// integration once <c>IsolatedDbFixture</c> is in place.
+/// Phase 9 T1 → T2a — Pure unit tests for the value types declared at
+/// the bottom of <see cref="SpecTrashPurgeService"/>:
+/// <see cref="PurgeOneOutcome"/> + <see cref="PurgeCycleStats"/>.
 ///
 /// <para>
-/// <b>Why eligibility predicate is documenting-only at T1</b>: the prod
-/// predicate runs inline as a SQL WHERE clause inside an EF query —
-/// <c>SpecTrashPurgeService.cs:130-134</c>. Extracting it for direct
-/// unit-test would be a prod refactor "for testability" which Henry's
-/// hard constraint forbids. The boundary semantics are instead pinned
-/// here in a test-local mirror; T2 will assert prod uses this exact
-/// formula against a fresh /tmp SQLite.
+/// The Rule #1 ELIGIBILITY date-boundary semantics that lived here as
+/// a documenting mirror in T1 were promoted to T2a integration —
+/// <c>SpecTrashPurgeServiceTests</c> exercises the real EF predicate
+/// against an isolated /tmp SQLite with seeded TrashedAt at -29d / -31d /
+/// -45d. No mirror remains; the prod predicate is the only source.
 /// </para>
 /// </summary>
 public class SpecTrashPurgeEligibilityTests
@@ -79,100 +75,11 @@ public class SpecTrashPurgeEligibilityTests
             BlobsRemoved   = 7,
             BlobsFailed    = 0,
         };
-        // Sanity — these are independent accumulators, not derived.
         Assert.Equal(5, s.EligibleCount);
         Assert.Equal(3, s.PurgedCount);
         Assert.Equal(1, s.SkippedCount);
         Assert.Equal(1, s.FailedCount);
         Assert.Equal(3 + 1 + 1, s.PurgedCount + s.SkippedCount + s.FailedCount);
         Assert.Equal(7, s.BlobsRemoved);
-    }
-
-    // ── Rule #1 ELIGIBILITY — strict-`<` boundary documenting test ────
-
-    /// <summary>
-    /// Mirror of the inline predicate at <c>SpecTrashPurgeService.cs:127-134</c>:
-    /// <code>
-    ///   var cutoff = DateTime.UtcNow.AddDays(-_retentionDays);
-    ///   eligible = row.IsTrashed
-    ///           && row.TrashedAt.HasValue
-    ///           && row.TrashedAt.Value &lt; cutoff;
-    /// </code>
-    /// Lives in the test project so a future prod change to <c>&lt;=</c>
-    /// won't accidentally pass these assertions. T2 will assert prod uses
-    /// THIS formula via an EF round-trip.
-    /// </summary>
-    private static bool IsEligibleMirror(bool isTrashed, DateTime? trashedAt, DateTime nowUtc, int retentionDays)
-    {
-        if (!isTrashed) return false;
-        if (!trashedAt.HasValue) return false;
-        var cutoff = nowUtc.AddDays(-retentionDays);
-        return trashedAt.Value < cutoff;
-    }
-
-    [Fact]
-    public void Eligibility_excludes_non_trashed_rows()
-    {
-        var now = new DateTime(2026, 6, 2, 12, 0, 0, DateTimeKind.Utc);
-        Assert.False(IsEligibleMirror(
-            isTrashed: false,
-            trashedAt: now.AddDays(-100),     // very old, but not trashed
-            nowUtc: now, retentionDays: 30));
-    }
-
-    [Fact]
-    public void Eligibility_excludes_rows_with_null_trashedAt()
-    {
-        var now = new DateTime(2026, 6, 2, 12, 0, 0, DateTimeKind.Utc);
-        Assert.False(IsEligibleMirror(
-            isTrashed: true,
-            trashedAt: null,                  // null → can't compute age
-            nowUtc: now, retentionDays: 30));
-    }
-
-    [Fact]
-    public void Eligibility_keeps_row_29_days_old_under_30_day_retention()
-    {
-        // 29-day-old row is YOUNGER than cutoff → cutoff > trashedAt → false
-        var now = new DateTime(2026, 6, 2, 12, 0, 0, DateTimeKind.Utc);
-        Assert.False(IsEligibleMirror(
-            isTrashed: true,
-            trashedAt: now.AddDays(-29),
-            nowUtc: now, retentionDays: 30));
-    }
-
-    [Fact]
-    public void Eligibility_keeps_row_exactly_30_days_old_strict_lt()
-    {
-        // EXACT cutoff boundary — strict `<` means "exactly N days" KEEPS.
-        // This is the documented Henry rule ("Exactly-30-day boundary
-        // keeps the row").
-        var now = new DateTime(2026, 6, 2, 12, 0, 0, DateTimeKind.Utc);
-        Assert.False(IsEligibleMirror(
-            isTrashed: true,
-            trashedAt: now.AddDays(-30),
-            nowUtc: now, retentionDays: 30));
-    }
-
-    [Fact]
-    public void Eligibility_purges_row_31_days_old_under_30_day_retention()
-    {
-        var now = new DateTime(2026, 6, 2, 12, 0, 0, DateTimeKind.Utc);
-        Assert.True(IsEligibleMirror(
-            isTrashed: true,
-            trashedAt: now.AddDays(-31),
-            nowUtc: now, retentionDays: 30));
-    }
-
-    [Fact]
-    public void Eligibility_with_1_day_retention_purges_2_day_old_row()
-    {
-        // Floor scenario — retention=1 is the env-overridable minimum
-        // (SpecTrashPurgeService ctor floors to 1).
-        var now = new DateTime(2026, 6, 2, 12, 0, 0, DateTimeKind.Utc);
-        Assert.True(IsEligibleMirror(
-            isTrashed: true,
-            trashedAt: now.AddDays(-2),
-            nowUtc: now, retentionDays: 1));
     }
 }
