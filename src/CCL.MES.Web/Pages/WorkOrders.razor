@@ -1,112 +1,306 @@
 @page "/workorders"
+
+@*  Phase 8 WO-Consolidation — single /workorders page that hosts BOTH
+    the kiosk-first Shop Order experience (card grid + scan + camera +
+    per-WO drawer) AND a Phase 6 planner-overview Table view. Toggle via
+    a segmented control top-right; choice persists in sessionStorage
+    (`workorders.view`).
+
+    Phase 6 ACTIONS PRESERVED 100%. The 9 buttons that used to live in
+    each table row (Advance / Unlock step / QC IPQC|FQC|OQC Pass / Start /
+    Pause / Resume / Finish) MOVED VERBATIM into the drawer's Action
+    section — same AuthorizeView Context names, same NeedsQc + Running
+    guards, same service calls (Wo.AdvanceAsync / Wo.UpdateFlagsAsync /
+    Qc.CreateAsync + ApproveAsync / Oee.{Start,Pause,Resume,Finish}Async),
+    same ShopfloorNotifier reason strings ("advance" / "flags" / "qc" /
+    "oee"). Server-side state-machine in WorkOrderStateMachine.cs is
+    UNTOUCHED.
+
+    Table view is now DISPLAY-ONLY: 9 cols (WoNo / Customer / Product /
+    Machine / Target / Produced / CurrentStep badge / 7-dot flow / "open
+    drawer" affordance). Row click → opens drawer (single source of
+    action UI, Q4 default). No inline buttons in row.
+
+    SignalR ShopfloorNotifier contract UNCHANGED — page subscribes
+    "shopfloorChanged" once and triggers RefreshAllAsync() which reloads
+    both the card list (Wo.ShopOrderListAsync) and the open drawer DTO
+    (Wo.GetDrawerAsync). *@
+
+@using System.Net
+@using CCL.MES.Application
+@using CCL.MES.Application.Services
+@using CCL.MES.Domain
+@using CCL.MES.Domain.Entities
+@using CCL.MES.Web.Components
 @using CCL.MES.Web.Hubs
 @using CCL.MES.Web.Services
+@using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
 @inject WorkOrderService Wo
-@inject QcService Qc
-@inject OeeService Oee
-@inject ShopfloorNotifier Notifier
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 @inject HubCookieAccessor HubCookie
 @inject IStringLocalizer<SharedResource> Loc
-@implements IAsyncDisposable
 
-<h1>@Loc["workorders.title"]</h1>
+<section class="workorders-page">
 
-@if (_items is null)
-{
-    <p>@Loc["common.loading_dots"]</p>
-}
-else
-{
-    @if (_message is not null)
+    @* ── Header (scan + camera + lookup + view toggle) ──────────────── *@
+    <div class="shop-order-header">
+        <div class="shop-order-scan-wrap">
+            <span class="shop-order-scan-icon" aria-hidden="true">📱</span>
+            <input type="text"
+                   class="shop-order-scan-input"
+                   placeholder="@Loc["shop_order.scan_placeholder"]"
+                   value="@_scanQuery"
+                   @oninput="@(e => _scanQuery = e.Value?.ToString())"
+                   @onkeydown="@OnScanKeyDownAsync" />
+            <button type="button"
+                    class="rt-btn shop-order-camera-btn"
+                    disabled="@(!_cameraAvailable || _scannerOpen)"
+                    title="@(_cameraAvailable ? Loc["shop_order.scan.camera_ready"].Value : Loc["shop_order.scan.camera_unavailable"].Value)"
+                    @onclick="OpenScannerAsync">
+                📷 @Loc["shop_order.scan.btn_camera"]
+            </button>
+            <button type="button"
+                    class="rt-btn rt-btn-primary shop-order-lookup-btn"
+                    disabled="@string.IsNullOrWhiteSpace(_scanQuery)"
+                    @onclick="LookupAsync">
+                @Loc["shop_order.btn_lookup"]
+            </button>
+            <div class="workorders-view-toggle" role="group" aria-label="View toggle">
+                <button type="button"
+                        class="workorders-view-toggle-btn @(_view == "card" ? "active" : "")"
+                        @onclick="@(() => SetViewAsync("card"))">
+                    @Loc["workorders.view.card"]
+                </button>
+                <button type="button"
+                        class="workorders-view-toggle-btn @(_view == "table" ? "active" : "")"
+                        @onclick="@(() => SetViewAsync("table"))">
+                    @Loc["workorders.view.table"]
+                </button>
+            </div>
+        </div>
+        @if (!string.IsNullOrEmpty(_toastMessage))
+        {
+            <div class="shop-order-toast @(_toastIsError ? "err" : "info")" role="status">
+                @_toastMessage
+            </div>
+        }
+        @if (_loading && _result is null)
+        {
+            <p class="shop-order-empty-hint">@Loc["common.loading"]</p>
+        }
+        else if (_result is not null && _result.Active.Count == 0 && _result.Closed.Count == 0)
+        {
+            <p class="shop-order-empty-hint">@Loc["shop_order.empty_hint"]</p>
+        }
+        else
+        {
+            <p class="shop-order-hint">
+                @Loc["shop_order.scan_hint"]
+                <span class="shop-order-demo">@DemoCodes()</span>
+            </p>
+        }
+    </div>
+
+    @if (_error is not null)
     {
-        <div class="alert @(_ok ? "ok" : "err")">@_message</div>
+        <div class="alert err shop-order-error" role="alert">
+            <strong>@Loc["shop_order.load_err"]</strong>
+            <pre>@_error</pre>
+        </div>
+    }
+    else if (_result is not null)
+    {
+        @* ── Card view (default per Q1) ─────────────────────────────── *@
+        @if (_view == "card")
+        {
+            <section class="shop-order-section">
+                <header class="shop-order-section-head">
+                    <span class="shop-order-section-icon" aria-hidden="true">⚡</span>
+                    <h2>@Loc["shop_order.section.active"] <span class="shop-order-count">(@_result.Active.Count)</span></h2>
+                </header>
+                @if (_result.Active.Count == 0)
+                {
+                    <div class="shop-order-empty">@Loc["shop_order.empty.active"]</div>
+                }
+                else
+                {
+                    <div class="mes-wo-cards">
+                        @foreach (var wo in _result.Active)
+                        {
+                            <article class="mes-wo-card mes-wo-card-clickable" data-wo="@wo.WoNo"
+                                     role="button" tabindex="0"
+                                     @onclick="@(() => OpenDrawerByWoNoAsync(wo.WoNo))"
+                                     @onkeydown="@(e => OnCardKeyAsync(e, wo.WoNo))">
+                                <header class="mes-wo-card-head">
+                                    <span class="mes-wo-card-no">@wo.WoNo</span>
+                                    <span class="shop-pill @wo.BadgeCssClass" title="@Loc[wo.BadgeLabelKey]">
+                                        <span class="shop-pill-icon">@wo.BadgeIcon</span>
+                                        @Loc[wo.BadgeLabelKey]
+                                    </span>
+                                </header>
+                                <dl class="mes-wo-card-body">
+                                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.customer"]</dt><dd>@OrDash(wo.CustomerName)</dd></div>
+                                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.product"]</dt><dd>@OrDash(wo.ProductCode)</dd></div>
+                                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.machine"]</dt><dd>@OrDash(wo.MachineCode)</dd></div>
+                                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.process"]</dt><dd>@OrDash(wo.ProcessLabel)</dd></div>
+                                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.progress"]</dt><dd>@FormatProgress(wo)</dd></div>
+                                </dl>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+            <section class="shop-order-section">
+                <header class="shop-order-section-head">
+                    <span class="shop-order-section-icon" aria-hidden="true">✔</span>
+                    <h2>@Loc["shop_order.section.closed"] <span class="shop-order-count">(@_result.Closed.Count)</span></h2>
+                </header>
+                @if (_result.Closed.Count == 0)
+                {
+                    <div class="shop-order-empty">@Loc["shop_order.empty.closed"]</div>
+                }
+                else
+                {
+                    <div class="mes-wo-cards">
+                        @foreach (var wo in _result.Closed)
+                        {
+                            <article class="mes-wo-card mes-wo-card-closed mes-wo-card-clickable" data-wo="@wo.WoNo"
+                                     role="button" tabindex="0"
+                                     @onclick="@(() => OpenDrawerByWoNoAsync(wo.WoNo))"
+                                     @onkeydown="@(e => OnCardKeyAsync(e, wo.WoNo))">
+                                <header class="mes-wo-card-head">
+                                    <span class="mes-wo-card-no">@wo.WoNo</span>
+                                    <span class="shop-pill @wo.BadgeCssClass" title="@Loc[wo.BadgeLabelKey]">
+                                        <span class="shop-pill-icon">@wo.BadgeIcon</span>
+                                        @Loc[wo.BadgeLabelKey]
+                                    </span>
+                                </header>
+                                <dl class="mes-wo-card-body">
+                                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.customer"]</dt><dd>@OrDash(wo.CustomerName)</dd></div>
+                                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.output"]</dt><dd>@FormatProgress(wo)</dd></div>
+                                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.reject"]</dt><dd class="muted">—</dd></div>
+                                </dl>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+        }
+        @* ── Table view (Phase 6 9-cols, DISPLAY ONLY per Q4) ───────── *@
+        else
+        {
+            <section class="shop-order-section">
+                <h2 class="visually-hidden">@Loc["workorders.title"]</h2>
+                <table class="wo">
+                    <thead>
+                        <tr>
+                            <th>@Loc["workorders.col.wo_no"]</th>
+                            <th>@Loc["workorders.col.customer"]</th>
+                            <th>@Loc["workorders.col.product"]</th>
+                            <th>@Loc["workorders.col.machine"]</th>
+                            <th>@Loc["workorders.col.target"]</th>
+                            <th>@Loc["workorders.col.produced"]</th>
+                            <th>@Loc["workorders.col.current_step"]</th>
+                            <th>@Loc["workorders.col.progress"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var wo in _result.Active.Concat(_result.Closed))
+                        {
+                            <tr class="wo-row-clickable" tabindex="0"
+                                @onclick="@(() => OpenDrawerByWoNoAsync(wo.WoNo))"
+                                @onkeydown="@(e => OnCardKeyAsync(e, wo.WoNo))">
+                                <td><b>@wo.WoNo</b></td>
+                                <td>@OrDash(wo.CustomerName)</td>
+                                <td>@OrDash(wo.ProductName)</td>
+                                <td>@OrDash(wo.MachineCode)</td>
+                                <td>@wo.TargetQty @wo.Uom</td>
+                                <td>@wo.ProducedQty</td>
+                                <td><span class="badge step">@StepName(wo.CurrentStep)</span></td>
+                                <td>
+                                    <div class="flow">
+                                        @foreach (var s in Steps)
+                                        {
+                                            var cls = (int)wo.CurrentStep > (int)s ? "done"
+                                                      : wo.CurrentStep == s ? "current" : "todo";
+                                            <span class="dot @cls" title="@StepName(s)">@((int)s)</span>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <p class="muted">@Loc["workorders.demo_note"]</p>
+            </section>
+        }
     }
 
-    <table class="wo">
-        <thead>
-            <tr>
-                <th>@Loc["workorders.col.wo_no"]</th><th>@Loc["workorders.col.customer"]</th><th>@Loc["workorders.col.product"]</th><th>@Loc["workorders.col.machine"]</th>
-                <th>@Loc["workorders.col.target"]</th><th>@Loc["workorders.col.produced"]</th><th>@Loc["workorders.col.current_step"]</th><th>@Loc["workorders.col.progress"]</th><th>@Loc["workorders.col.actions"]</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var w in _items)
-            {
-                <tr>
-                    <td><b>@w.WoNo</b></td>
-                    <td>@w.Customer?.Name</td>
-                    <td>@w.ProductName</td>
-                    <td>@w.MachineCode</td>
-                    <td>@w.TargetQty @w.Uom</td>
-                    <td>@w.ProducedQty</td>
-                    <td><span class="badge step">@StepName(w.CurrentStep)</span></td>
-                    <td>
-                        <div class="flow">
-                            @foreach (var s in Steps)
-                            {
-                                var cls = (int)w.CurrentStep > (int)s ? "done"
-                                          : w.CurrentStep == s ? "current" : "todo";
-                                <span class="dot @cls" title="@StepName(s)">@((int)s)</span>
-                            }
-                        </div>
-                    </td>
-                    <td class="actions">
-                        @* Phase 6 Bước 4 — button gating per matrix:
-                            Advance + Mở khoá bước flags = Admin/Supervisor (matrix row "Advance" + "flags")
-                            QC Pass = Admin/Supervisor/QC
-                            Start/Pause/Resume/Finish = Admin/Supervisor/Operator
-                           AuthorizeView Context renamed to avoid clash if
-                           someone later wraps the row in another AuthorizeView. *@
-                        <AuthorizeView Roles="Admin,Supervisor" Context="advanceCtx">
-                            <button class="btn" @onclick="() => Advance(w.Id)">@Loc["workorders.btn.advance"]</button>
-                            <button class="btn ghost" @onclick="() => Helpers(w)">@Loc["workorders.btn.unlock_step"]</button>
-                        </AuthorizeView>
-                        @if (NeedsQc(w.CurrentStep) is { } t)
-                        {
-                            <AuthorizeView Roles="Admin,Supervisor,QC" Context="qcCtx">
-                                <button class="btn pass" @onclick="() => QuickPass(w.Id, t)">QC @t Pass</button>
-                            </AuthorizeView>
-                        }
-                        @if (w.CurrentStep == ProcessStepCode.Running)
-                        {
-                            <AuthorizeView Roles="Admin,Supervisor,Operator" Context="runCtx">
-                                <span class="sep"></span>
-                                <button class="btn run" @onclick="() => Start(w.Id)">Start</button>
-                                <button class="btn warn" @onclick="() => Pause(w.Id)">Pause</button>
-                                <button class="btn run" @onclick="() => Resume(w.Id)">Resume</button>
-                                <button class="btn finish" @onclick="() => Finish(w)">Finish (+@(w.TargetQty))</button>
-                            </AuthorizeView>
-                        }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    @* ── Scanner modal (only mounted when open) ─────────────────────── *@
+    @if (_scannerOpen)
+    {
+        <div class="qr-scanner-scrim" @onclick="CloseScannerAsync">
+            <div class="qr-scanner-modal" @onclick:stopPropagation="true">
+                <header class="qr-scanner-head">
+                    <h3>@Loc["shop_order.scan.modal.title"]</h3>
+                    <button type="button" class="qr-scanner-close" @onclick="CloseScannerAsync" aria-label="Close">×</button>
+                </header>
+                <div id="@_scannerElementId" class="qr-scanner-viewport"></div>
+                <p class="qr-scanner-hint">@Loc["shop_order.scan.modal.hint"]</p>
+            </div>
+        </div>
+    }
 
-    <p class="muted">@Loc["workorders.demo_note"]</p>
-}
+    <WorkOrderDrawer Open="@_drawerOpen"
+                     View="@_drawerView"
+                     OnClose="CloseDrawerAsync"
+                     OnChanged="OnDrawerChangedAsync" />
+</section>
 
 @code {
-    private List<WorkOrder>? _items;
-    private string? _message;
-    private bool _ok;
+    private bool _loading = true;
+    private string? _error;
+    private ShopOrderListResult? _result;
+    private string? _scanQuery;
+    private string _view = "card"; // Q1 default
 
+    // ── Drawer state ──────────────────────────────────────────────────
+    private bool _drawerOpen;
+    private WorkOrderDrawerView? _drawerView;
+    private string? _drawerWoNo;
+
+    // ── Scanner state ─────────────────────────────────────────────────
+    private bool _cameraAvailable;
+    private bool _scannerOpen;
+    private const string _scannerElementId = "qr-reader";
+    private DotNetObjectReference<WorkOrders>? _selfRef;
+
+    // ── Toast (5s auto-dismiss) ───────────────────────────────────────
+    private string? _toastMessage;
+    private bool _toastIsError;
+    private CancellationTokenSource? _toastCts;
+
+    // ── SignalR push ──────────────────────────────────────────────────
     private HubConnection? _hub;
 
     private static readonly ProcessStepCode[] Steps =
     {
-        ProcessStepCode.PrePressCheck, ProcessStepCode.OpSetting, ProcessStepCode.IpqcApproval,
-        ProcessStepCode.ReadyToRun, ProcessStepCode.Running, ProcessStepCode.Fqc, ProcessStepCode.Oqc
+        ProcessStepCode.PrePressCheck, ProcessStepCode.OpSetting,
+        ProcessStepCode.IpqcApproval,  ProcessStepCode.ReadyToRun,
+        ProcessStepCode.Running,       ProcessStepCode.Fqc,
+        ProcessStepCode.Oqc,
     };
 
     protected override async Task OnInitializedAsync()
     {
-        await Reload();
-        // SignalR — when another client posts a change, reload.
-        // Phase 5 — forward ccl_mes_auth cookie so the negotiate request
-        // authenticates against the same cookie scheme as Razor pages.
+        await LoadAsync();
+
+        // Reuse Phase 6 SignalR plumbing verbatim — ShopfloorNotifier
+        // contract unchanged; we just refresh both surfaces on push.
         var hubUri = Nav.ToAbsoluteUri("/hubs/shopfloor");
         _hub = new HubConnectionBuilder()
             .WithUrl(hubUri, options =>
@@ -121,110 +315,260 @@ else
             .Build();
         _hub.On<string>("shopfloorChanged", async _ =>
         {
-            await Reload();
+            await RefreshAllAsync();
             await InvokeAsync(StateHasChanged);
         });
         await _hub.StartAsync();
     }
 
-    private async Task Reload() => _items = await Wo.GetAllAsync();
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _cameraAvailable = await JS.InvokeAsync<bool>("ccl.qr.isAvailable");
+            }
+            catch { _cameraAvailable = false; }
+            // Restore view preference from sessionStorage (Q12).
+            try
+            {
+                var saved = await JS.InvokeAsync<string?>("sessionStorage.getItem", "workorders.view");
+                if (saved == "table" || saved == "card") _view = saved;
+            }
+            catch { /* sessionStorage may not be available */ }
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _result = await Wo.ShopOrderListAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    /// <summary>Refresh card list + re-fetch open drawer DTO.</summary>
+    private async Task RefreshAllAsync()
+    {
+        await LoadAsync();
+        if (_drawerOpen && _drawerWoNo is not null)
+        {
+            try
+            {
+                _drawerView = await Wo.GetDrawerAsync(_drawerWoNo);
+            }
+            catch (Exception ex)
+            {
+                ShowToast(ex.Message, isError: true);
+            }
+        }
+    }
+
+    private async Task SetViewAsync(string view)
+    {
+        if (view != "card" && view != "table") return;
+        _view = view;
+        try
+        {
+            await JS.InvokeVoidAsync("sessionStorage.setItem", "workorders.view", view);
+        }
+        catch { /* tolerate older browsers */ }
+    }
+
+    // ── Drawer open/close/refresh ────────────────────────────────────
+
+    private async Task OpenDrawerByWoNoAsync(string woNo, bool fromManual = false)
+    {
+        try
+        {
+            var view = await Wo.GetDrawerAsync(woNo);
+            if (view is null)
+            {
+                if (fromManual)
+                {
+                    ShowToast(string.Format(Loc["shop_order.scan.not_found_fmt"].Value, woNo), isError: true);
+                }
+                return;
+            }
+            _drawerView = view;
+            _drawerWoNo = view.WoNo;
+            _drawerOpen = true;
+            if (fromManual) _scanQuery = "";
+        }
+        catch (Exception ex)
+        {
+            ShowToast(ex.GetType().Name + ": " + ex.Message, isError: true);
+        }
+    }
+
+    private Task CloseDrawerAsync()
+    {
+        _drawerOpen = false;
+        _drawerView = null;
+        _drawerWoNo = null;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Drawer raised OnChanged after a mutation. Refresh both
+    /// surfaces from local context (SignalR push covers cross-session).</summary>
+    private async Task OnDrawerChangedAsync()
+    {
+        await RefreshAllAsync();
+    }
+
+    private async Task OnCardKeyAsync(KeyboardEventArgs e, string woNo)
+    {
+        if (e.Key == "Enter" || e.Key == " ") await OpenDrawerByWoNoAsync(woNo);
+    }
+
+    // ── Manual LOOKUP ────────────────────────────────────────────────
+
+    private void OnScanKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") _ = LookupAsync();
+    }
+
+    private async Task LookupAsync()
+    {
+        var code = _scanQuery?.Trim();
+        if (string.IsNullOrWhiteSpace(code)) return;
+        await OpenDrawerByWoNoAsync(code, fromManual: true);
+    }
+
+    // ── Camera scanner ───────────────────────────────────────────────
+
+    private async Task OpenScannerAsync()
+    {
+        if (!_cameraAvailable || _scannerOpen) return;
+        _scannerOpen = true;
+        StateHasChanged();
+        await Task.Yield();
+
+        _selfRef ??= DotNetObjectReference.Create(this);
+        try
+        {
+            var result = await JS.InvokeAsync<ScannerResult>(
+                "ccl.qr.start", _scannerElementId, _selfRef, nameof(OnScanResultAsync));
+            if (result is not null && !result.Ok)
+            {
+                ShowToast(LocalizeScannerError(result.Error), isError: true);
+                await CloseScannerAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast(ex.Message, isError: true);
+            await CloseScannerAsync();
+        }
+    }
+
+    private async Task CloseScannerAsync()
+    {
+        if (!_scannerOpen) return;
+        _scannerOpen = false;
+        try { await JS.InvokeVoidAsync("ccl.qr.stop", _scannerElementId); }
+        catch { /* swallow */ }
+    }
+
+    [JSInvokable]
+    public async Task OnScanResultAsync(string code)
+    {
+        await CloseScannerAsync();
+        if (string.IsNullOrWhiteSpace(code)) return;
+        await OpenDrawerByWoNoAsync(code, fromManual: false);
+        StateHasChanged();
+    }
+
+    private string LocalizeScannerError(string? code) => code switch
+    {
+        "permission_denied" => Loc["shop_order.scan.err.permission"].Value,
+        "no_camera"         => Loc["shop_order.scan.err.no_camera"].Value,
+        "no_secure"         => Loc["shop_order.scan.err.no_secure"].Value,
+        "library_missing"   => Loc["shop_order.scan.err.lib_missing"].Value,
+        _                   => Loc["shop_order.scan.err.other"].Value,
+    };
+
+    private void ShowToast(string message, bool isError)
+    {
+        _toastMessage = message;
+        _toastIsError = isError;
+        _toastCts?.Cancel();
+        _toastCts = new CancellationTokenSource();
+        var token = _toastCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), token);
+                if (!token.IsCancellationRequested)
+                {
+                    _toastMessage = null;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+            catch { /* cancelled */ }
+        });
+    }
 
     public async ValueTask DisposeAsync()
     {
-        if (_hub is not null) await _hub.DisposeAsync();
-    }
-
-    private async Task Advance(long id)
-    {
-        var res = await Wo.AdvanceAsync(id, "shopfloor");
-        _ok = res.Ok;
-        // Phase 5 — dynamic error portion now runs through WoErrorKeys so it
-        // localises along with the surrounding wrapper text.
-        var errorText = res.ErrorCode is null
-            ? ""
-            : Loc[WoErrorKeys.KeyFor(res.ErrorCode)].Value;
-        _message = res.Ok
-            ? Loc["workorders.msg.advance_ok", res.CurrentStep ?? ""].Value
-            : Loc["workorders.msg.advance_fail", errorText].Value;
-        await Reload();
-        await Notifier.NotifyChangedAsync("advance");
-    }
-
-    private async Task Helpers(WorkOrder w)
-    {
-        await Wo.UpdateFlagsAsync(w.Id, new UpdateFlagsRequest
+        // Tear down camera stream + DotNetObjectReference + SignalR hub.
+        try { await CloseScannerAsync(); } catch { }
+        _selfRef?.Dispose();
+        _selfRef = null;
+        if (_hub is not null)
         {
-            MaterialsReady = true, SetupConfirmed = true, RohsOk = true,
-            ProducedQty = w.ProducedQty > 0 ? w.ProducedQty : 0
-        }, "shopfloor");
-        _ok = true;
-        _message = Loc["workorders.msg.unlocked", w.WoNo].Value;
-        await Reload();
-        await Notifier.NotifyChangedAsync("flags");
+            try { await _hub.DisposeAsync(); } catch { }
+            _hub = null;
+        }
+        _toastCts?.Cancel();
+        _toastCts?.Dispose();
+        _toastCts = null;
     }
 
-    private async Task QuickPass(long id, QcType t)
+    // ── Render helpers ───────────────────────────────────────────────
+
+    private static string OrDash(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+
+    private string FormatProgress(WorkOrderCardItem wo)
     {
-        var insp = await Qc.CreateAsync(new CreateQcRequest
-        {
-            WorkOrderId = id, Type = t, InspectorId = "demo", SampleSize = 20,
-            Details = new() { new QcDetailDto { ItemName = "Visual", Pass = true, Qty = 20 } }
-        });
-        await Qc.ApproveAsync(insp.Id, true, "qc.lead");
-        _ok = true;
-        _message = Loc["workorders.msg.qc_passed", t.ToString()].Value;
-        await Reload();
-        await Notifier.NotifyChangedAsync("qc");
+        var produced = wo.ProducedQty.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
+        var target = wo.TargetQty.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
+        return string.Format(Loc["shop_order.progress_fmt"].Value, produced, target, wo.Uom);
     }
 
-    private async Task Start(long id)
+    private string DemoCodes()
     {
-        await Oee.StartAsync(id, "op01");
-        _ok = true; _message = Loc["workorders.msg.start"].Value;
-        await Reload(); await Notifier.NotifyChangedAsync("oee");
+        if (_result is null) return "";
+        var sample = _result.Active.Take(3).Select(w => w.WoNo).ToList();
+        if (sample.Count == 0) return "";
+        return string.Format(Loc["shop_order.demo_codes_fmt"].Value, string.Join(", ", sample));
     }
-
-    private async Task Pause(long id)
-    {
-        await Oee.PauseAsync(id, new PauseRequest { OperatorId = "op01" });
-        _ok = true; _message = Loc["workorders.msg.pause"].Value;
-        await Reload(); await Notifier.NotifyChangedAsync("oee");
-    }
-
-    private async Task Resume(long id)
-    {
-        await Oee.ResumeAsync(id, "op01");
-        _ok = true; _message = Loc["workorders.msg.resume"].Value;
-        await Reload(); await Notifier.NotifyChangedAsync("oee");
-    }
-
-    private async Task Finish(WorkOrder w)
-    {
-        await Oee.FinishAsync(w.Id, new FinishRunRequest { GoodQty = w.TargetQty, RejectQty = 0, OperatorId = "op01" });
-        _ok = true;
-        _message = Loc["workorders.msg.finish", w.TargetQty].Value;
-        await Reload();
-        await Notifier.NotifyChangedAsync("oee");
-    }
-
-    private static QcType? NeedsQc(ProcessStepCode step) => step switch
-    {
-        ProcessStepCode.IpqcApproval => QcType.IPQC,
-        ProcessStepCode.Fqc => QcType.FQC,
-        ProcessStepCode.Oqc => QcType.OQC,
-        _ => null
-    };
 
     private static string StepName(ProcessStepCode s) => s switch
     {
         ProcessStepCode.PrePressCheck => "1. Pre-press Check",
-        ProcessStepCode.OpSetting => "2. OP Setting",
-        ProcessStepCode.IpqcApproval => "3. IPQC Approval",
-        ProcessStepCode.ReadyToRun => "4. Ready to Run",
-        ProcessStepCode.Running => "5. Running",
-        ProcessStepCode.Fqc => "6. FQC",
-        ProcessStepCode.Oqc => "7. OQC",
-        ProcessStepCode.Closed => "Closed",
-        _ => s.ToString()
+        ProcessStepCode.OpSetting     => "2. OP Setting",
+        ProcessStepCode.IpqcApproval  => "3. IPQC Approval",
+        ProcessStepCode.ReadyToRun    => "4. Ready to Run",
+        ProcessStepCode.Running       => "5. Running",
+        ProcessStepCode.Fqc           => "6. FQC",
+        ProcessStepCode.Oqc           => "7. OQC",
+        ProcessStepCode.Closed        => "Closed",
+        _                             => s.ToString(),
     };
+
+    private sealed record ScannerResult(bool Ok, string? Code, string? Error, string? Detail);
 }

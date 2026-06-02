@@ -1,16 +1,30 @@
-@*  Phase 8 PR #32b — Read-only per-WO drawer for Shop Order page.
-    Renders 5 sections (Header / Production / Materials / QC History /
-    Action footer) from a pre-flattened DTO. Zero mutation surface — every
-    action button intentionally redirects to /workorders Phase 6 table
-    (caveat: that table does NOT consume ?wo= query param today, so we
-    navigate plain `/workorders` rather than ship a stale query). Phase 6
-    is `git diff` empty by this PR.
+@*  Phase 8 WO-Consolidation — Per-WO drawer is now the SINGLE action
+    surface for /workorders. Renders 5 sections from a pre-flattened DTO:
+    Header / Production / Materials / QC History / Action.
 
-    Hotfix #27: render-from-entity / DTO + try-catch at the load site
-    (Pages/ShopOrder.razor) — this component itself never throws. *@
+    The Action section MOVES the 9 buttons VERBATIM from Phase 6
+    /workorders row markup (Advance / Unlock step / QC IPQC|FQC|OQC Pass /
+    Start / Pause / Resume / Finish). Same AuthorizeView Context names,
+    same NeedsQc / CurrentStep guards, same service calls
+    (Wo.AdvanceAsync, Wo.UpdateFlagsAsync, Qc.CreateAsync + ApproveAsync,
+    Oee.{Start,Pause,Resume,Finish}Async). Same Notifier reason strings
+    ("advance" / "flags" / "qc" / "oee"). Same audit. Only thing that
+    changed: where the buttons render. Server-side state-machine guard
+    in WorkOrderStateMachine is untouched.
 
+    Hotfix #27: try-catch wraps every mutation; error banner inline. *@
+
+@using CCL.MES.Application
 @using CCL.MES.Application.Services
 @using CCL.MES.Domain
+@using CCL.MES.Domain.Entities
+@using CCL.MES.Domain.StateMachine
+@using CCL.MES.Web.Hubs
+@using CCL.MES.Web.Services
+@inject WorkOrderService Wo
+@inject QcService Qc
+@inject OeeService Oee
+@inject ShopfloorNotifier Notifier
 @inject NavigationManager Nav
 @inject IStringLocalizer<SharedResource> Loc
 
@@ -155,14 +169,65 @@
                     </ul>
                 }
             </section>
+
+            @* ── Section 5: Action (state-machine button grid, RBAC gated).
+                 9 buttons MOVED VERBATIM from Phase 6 WorkOrders.razor row
+                 (see PHASE8-WO-CONSOLIDATION-PLAN §4). Same AuthorizeView
+                 Context names (advanceCtx / qcCtx / runCtx) + same NeedsQc
+                 helper + same CurrentStep == Running guard + same service
+                 calls. Q3 default: always render, disabled handled by
+                 AuthorizeView (hides for insufficient role) plus the
+                 server-side state-machine guard (returns localized error
+                 banner on guard miss). *@
+            <section class="wo-drawer-section wo-drawer-actions">
+                <h3>@Loc["workorders.drawer.section.actions"]</h3>
+                @if (_actionMessage is not null)
+                {
+                    <div class="alert @(_actionOk ? "ok" : "err")">@_actionMessage</div>
+                }
+                <div class="wo-drawer-action-grid">
+                    <AuthorizeView Roles="Admin,Supervisor" Context="advanceCtx">
+                        <button type="button" class="btn"
+                                disabled="@_busy"
+                                @onclick="AdvanceAsync">@Loc["workorders.btn.advance"]</button>
+                        <button type="button" class="btn ghost"
+                                disabled="@_busy"
+                                @onclick="UnlockStepAsync">@Loc["workorders.btn.unlock_step"]</button>
+                    </AuthorizeView>
+                    @if (NeedsQc(View.CurrentStep) is { } qct)
+                    {
+                        <AuthorizeView Roles="Admin,Supervisor,QC" Context="qcCtx">
+                            <button type="button" class="btn pass"
+                                    disabled="@_busy"
+                                    @onclick="@(() => QuickPassAsync(qct))">QC @qct Pass</button>
+                        </AuthorizeView>
+                    }
+                    @if (View.CurrentStep == ProcessStepCode.Running)
+                    {
+                        <AuthorizeView Roles="Admin,Supervisor,Operator" Context="runCtx">
+                            <span class="sep"></span>
+                            <button type="button" class="btn run"
+                                    disabled="@_busy"
+                                    @onclick="StartAsync">Start</button>
+                            <button type="button" class="btn warn"
+                                    disabled="@_busy"
+                                    @onclick="PauseAsync">Pause</button>
+                            <button type="button" class="btn run"
+                                    disabled="@_busy"
+                                    @onclick="ResumeAsync">Resume</button>
+                            <button type="button" class="btn finish"
+                                    disabled="@_busy"
+                                    @onclick="FinishAsync">Finish (+@View.TargetQty)</button>
+                        </AuthorizeView>
+                    }
+                </div>
+            </section>
         </div>
 
-        @* ── Section 5: Action footer ──────────────────────────────── *@
+        @* Q7 — drawer footer is just Close (drawer IS the WO surface). *@
         <footer class="wo-drawer-foot">
-            <button type="button" class="rt-btn rt-btn-primary wo-drawer-cta"
-                    @onclick="OnOpenInWorkOrders">
-                @Loc["shop_order.drawer.action.open_in_workorders"] →
-            </button>
+            <button type="button" class="rt-btn wo-drawer-cta"
+                    @onclick="OnCloseAsync">@Loc["workorders.drawer.action.close"]</button>
         </footer>
     </aside>
 }
@@ -171,20 +236,161 @@
     [Parameter] public bool Open { get; set; }
     [Parameter] public WorkOrderDrawerView? View { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>
+    /// Phase 8 WO-Consolidation — fired after every mutation so the parent
+    /// page can refresh the card list + re-fetch the drawer DTO. Parent
+    /// also subscribes to SignalR for cross-session push; this callback
+    /// handles the local-session response within the same Blazor circuit.
+    /// </summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private bool _busy;
+    private bool _actionOk;
+    private string? _actionMessage;
 
     private Task OnCloseAsync() => OnClose.InvokeAsync();
 
-    /// <summary>
-    /// Q7 caveat — Phase 6 /workorders page does NOT consume `?wo=` or
-    /// `?q=` query params today. To stay strictly within "Phase 6
-    /// untouched" we navigate plain `/workorders` so the operator finds
-    /// the row via the existing table filter UI. If Phase 6 later wires
-    /// a `wo=` param, this is the only line to update.
-    /// </summary>
-    private void OnOpenInWorkOrders()
+    // ── Action handlers — copied VERBATIM from Phase 6 WorkOrders.razor.
+    // Only difference: no Reload() call here (parent OnChanged owns the
+    // refresh). Service calls + Notifier.NotifyChangedAsync(reason) +
+    // error code i18n mapping all unchanged.
+
+    private async Task AdvanceAsync()
     {
-        Nav.NavigateTo("/workorders");
+        if (View is null) return;
+        await RunAsync(async () =>
+        {
+            var res = await Wo.AdvanceAsync(View.Id, "shopfloor");
+            _actionOk = res.Ok;
+            var errorText = res.ErrorCode is null
+                ? ""
+                : Loc[WoErrorKeys.KeyFor(res.ErrorCode.Value)].Value;
+            _actionMessage = res.Ok
+                ? Loc["workorders.msg.advance_ok", res.CurrentStep ?? ""].Value
+                : Loc["workorders.msg.advance_fail", errorText].Value;
+            await Notifier.NotifyChangedAsync("advance");
+        });
     }
+
+    private async Task UnlockStepAsync()
+    {
+        if (View is null) return;
+        await RunAsync(async () =>
+        {
+            await Wo.UpdateFlagsAsync(View.Id, new UpdateFlagsRequest
+            {
+                MaterialsReady = true,
+                SetupConfirmed = true,
+                RohsOk = true,
+                ProducedQty = View.ProducedQty > 0 ? View.ProducedQty : 0,
+            }, "shopfloor");
+            _actionOk = true;
+            _actionMessage = Loc["workorders.msg.unlocked", View.WoNo].Value;
+            await Notifier.NotifyChangedAsync("flags");
+        });
+    }
+
+    private async Task QuickPassAsync(QcType t)
+    {
+        if (View is null) return;
+        await RunAsync(async () =>
+        {
+            var insp = await Qc.CreateAsync(new CreateQcRequest
+            {
+                WorkOrderId = View.Id,
+                Type = t,
+                InspectorId = "demo",
+                SampleSize = 20,
+                Details = new() { new QcDetailDto { ItemName = "Visual", Pass = true, Qty = 20 } },
+            });
+            await Qc.ApproveAsync(insp.Id, true, "qc.lead");
+            _actionOk = true;
+            _actionMessage = Loc["workorders.msg.qc_passed", t.ToString()].Value;
+            await Notifier.NotifyChangedAsync("qc");
+        });
+    }
+
+    private async Task StartAsync()
+    {
+        if (View is null) return;
+        await RunAsync(async () =>
+        {
+            await Oee.StartAsync(View.Id, "op01");
+            _actionOk = true;
+            _actionMessage = Loc["workorders.msg.start"].Value;
+            await Notifier.NotifyChangedAsync("oee");
+        });
+    }
+
+    private async Task PauseAsync()
+    {
+        if (View is null) return;
+        await RunAsync(async () =>
+        {
+            await Oee.PauseAsync(View.Id, new PauseRequest { OperatorId = "op01" });
+            _actionOk = true;
+            _actionMessage = Loc["workorders.msg.pause"].Value;
+            await Notifier.NotifyChangedAsync("oee");
+        });
+    }
+
+    private async Task ResumeAsync()
+    {
+        if (View is null) return;
+        await RunAsync(async () =>
+        {
+            await Oee.ResumeAsync(View.Id, "op01");
+            _actionOk = true;
+            _actionMessage = Loc["workorders.msg.resume"].Value;
+            await Notifier.NotifyChangedAsync("oee");
+        });
+    }
+
+    private async Task FinishAsync()
+    {
+        if (View is null) return;
+        await RunAsync(async () =>
+        {
+            await Oee.FinishAsync(View.Id,
+                new FinishRunRequest { GoodQty = View.TargetQty, RejectQty = 0, OperatorId = "op01" });
+            _actionOk = true;
+            _actionMessage = Loc["workorders.msg.finish", View.TargetQty].Value;
+            await Notifier.NotifyChangedAsync("oee");
+        });
+    }
+
+    /// <summary>Single try/catch + busy-flag wrapper around mutations.
+    /// Surfaces unexpected errors via the action banner (hotfix #27).</summary>
+    private async Task RunAsync(Func<Task> body)
+    {
+        if (_busy) return;
+        _busy = true;
+        _actionMessage = null;
+        try
+        {
+            await body();
+        }
+        catch (Exception ex)
+        {
+            _actionOk = false;
+            _actionMessage = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+            await OnChanged.InvokeAsync();
+        }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    private static QcType? NeedsQc(ProcessStepCode step) => step switch
+    {
+        ProcessStepCode.IpqcApproval => QcType.IPQC,
+        ProcessStepCode.Fqc          => QcType.FQC,
+        ProcessStepCode.Oqc          => QcType.OQC,
+        _                            => null,
+    };
 
     private static string OrDash(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
 
