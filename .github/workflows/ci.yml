@@ -1,0 +1,65 @@
+name: CI
+
+# Phase 9 T2b — `dotnet test` gate on every push to main + every PR.
+# No deploy, no secret, no live-DB touch — the test suite uses isolated
+# /tmp SQLite per [Fact] (see tests/CCL.MES.Tests/Integration/_Support/
+# IsolatedDbFixture.cs). Mirrors the dev box (.NET SDK 10.0.300, ubuntu).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Allow only one concurrent CI run per ref so a fast-follow push cancels
+# the in-progress build (saves runner minutes; the latest commit is what
+# matters).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build + xUnit (T1 unit + T2a/T2b integration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK 10.0.300
+        uses: actions/setup-dotnet@v4
+        with:
+          # Pin matches dev box (`dotnet --version` → 10.0.300). Any drift
+          # here would silently change EF Core / runtime behavior.
+          dotnet-version: '10.0.300'
+
+      # Restore + build separately so a restore failure (NuGet) is easy to
+      # distinguish from a compile failure in the workflow log.
+      - name: Restore
+        run: dotnet restore CCL.MES.sln
+
+      - name: Build (Release, no-restore)
+        run: dotnet build CCL.MES.sln --configuration Release --no-restore
+
+      - name: Test (Release, no-build)
+        # --logger trx for the test-summary action below; --blame to capture
+        # a hang dump if a [Fact] never returns (SQLite + /tmp shouldn't,
+        # but cheap insurance).
+        run: |
+          dotnet test tests/CCL.MES.Tests/CCL.MES.Tests.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory TestResults \
+            --blame \
+            --verbosity normal
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/
+          retention-days: 7
