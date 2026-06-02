@@ -29,8 +29,36 @@ public class IqcService
         _audit = audit;
     }
 
+    // Phase 8 security hardening (docs/PERMISSION_MATRIX.md §6.3). Mirrors
+    // the pattern in SpecQcCaptureService / SpecQcWindowService — server
+    // re-validates the actor role even though the only known caller
+    // (Pages/QcQa/Iqc.razor) already gates UI via
+    // <AuthorizeView Roles="Admin,Supervisor,QC"> + a client-side
+    // RoleCanMutate(role) helper. Defense in depth: if a future PR adds
+    // an HTTP controller for IQC, it inherits the same role gate without
+    // a separate code path. Throws UnauthorizedAccessException on bad
+    // role; existing callers (Iqc.razor) already wrap mutations in
+    // try/catch + show an error banner.
+    private static readonly HashSet<string> _editorRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Admin",
+        "Supervisor",
+        "QC",
+    };
+
+    private static void RequireEditorRole(string actorRole)
+    {
+        if (!_editorRoles.Contains(actorRole ?? ""))
+        {
+            throw new UnauthorizedAccessException(
+                $"Role '{actorRole}' không có quyền IQC mutation. " +
+                $"Yêu cầu: {string.Join(" | ", _editorRoles)}.");
+        }
+    }
+
     public async Task<IqcInspection> CreateAsync(CreateIqcRequest r, string actor, string actorRole)
     {
+        RequireEditorRole(actorRole);
         // Hybrid FK: tra catalog theo PartNo, nếu match thì set hard FK.
         // Snapshot SupplierName: nếu request không nêu, lấy từ RawMaterial.
         long? rawMaterialId = null;
@@ -97,6 +125,7 @@ public class IqcService
     /// </summary>
     public async Task<IqcInspection?> ApproveAsync(long inspectionId, bool pass, string actor, string actorRole)
     {
+        RequireEditorRole(actorRole);
         var insp = await _db.IqcInspections
             .Include(i => i.Details)
             .FirstOrDefaultAsync(i => i.Id == inspectionId);
