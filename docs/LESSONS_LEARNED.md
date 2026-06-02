@@ -773,3 +773,97 @@ focused thay vì spread khắp 9-cột row.
 ---
 
 *Cập nhật lần cuối: 02/06/2026 — Phase 8 WO-Consolidation (verbatim MOVE + EventCallback OnChanged refresh + HTTP 301 native MapGet + single source action UI).*
+
+---
+
+## Responsive main tab pattern — MANDATORY cho mọi tab mới (project-wide convention)
+
+Sau khi ship /workorders consolidation, operator screenshot trên màn rộng:
+1 WO card duy nhất stretch full container width (~1600px) → rectangle trống bên phải xấu. Anh chỉ thị: "Sau này tất cả các main tab đều áp dụng responsive cho tôi". Từ giờ pattern dưới là **mandatory** cho mọi main tab + sub-tab ship sau.
+
+### Vấn đề + 4 fix bắt buộc
+
+**Vấn đề chính**: CCL-MES chạy trên cả 13" laptop, kiosk vertical 1080×1920, và planner 27"+ ultrawide. Card grid `auto-fit minmax(280px, 1fr)` đẹp với N cards nhưng thành rectangle 1600px khi chỉ 1 card. Container thiếu `max-width` thì line lengths trên ultrawide không đọc được.
+
+**Fix 1 — Card grid dùng `auto-fill` + capped max track**:
+
+```css
+.cards {
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(280px, 360px));
+    gap:12px;
+    justify-content:start;
+}
+```
+
+Lý do: `auto-fit` collapse empty tracks → 1 card stretch toàn bộ. `auto-fill` giữ empty tracks → 1 card đứng ở natural width 280-360px, phần còn lại trống về phải (left-aligned).
+
+**Fix 2 — Page container max-width 1280px + clamp() gutter**:
+
+```css
+.page {
+    max-width:1280px;
+    padding:18px clamp(16px, 3vw, 32px);
+    margin:0 auto;
+    container-type:inline-size;
+    container-name:my-page;
+}
+```
+
+1280px (không 1600px) cho action-heavy planner pages → readable line length. `clamp(16px, 3vw, 32px)` cho fluid gutter — narrow viewport vẫn breathe.
+
+**Fix 3 — Header/toolbar flex rows wrap**:
+
+```css
+.toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.toolbar-input { flex:1 1 280px; min-width:0; }
+.toolbar-toggle { flex-shrink:0; }
+```
+
+`flex:1 1 280px` (không `flex:1`) cho input shrinkable + basis 280px. `min-width:0` chống overflow khi viewport hẹp.
+
+**Fix 4 — Container queries cho local breakpoints**:
+
+```css
+@container my-page (max-width:640px) {
+    .toggle { width:100%; margin-left:0; }
+    .toggle-btn { flex:1; }
+    .input-cell { flex-basis:100%; }
+}
+@container my-page (max-width:540px) {
+    .cards { grid-template-columns:1fr; }
+}
+```
+
+KHÔNG dùng `@media` viewport — sidebar/topbar có thể đóng/mở, panel width khác viewport width. Container queries scope to the panel — work correctly trong mọi trường hợp.
+
+### Anti-pattern reject ở review
+
+- ❌ `grid-template-columns:repeat(auto-fit, minmax(X, 1fr))` — single-item stretch trap
+- ❌ `max-width:1600px` hoặc absent — ultrawide unreadable
+- ❌ `flex:1` không kèm `min-width:0` — overflow trên narrow
+- ❌ `@media (max-width:...)` cho panel — nên dùng container queries
+
+### Reference impl
+
+`src/CCL.MES.Web/wwwroot/css/site.css` post-PR #54 responsive fix:
+- `.workorders-page` (container + container-type:inline-size + container-name:wo-page)
+- `.mes-wo-cards` (auto-fill + max 360px + justify-content:start)
+- `.shop-order-scan-wrap` (flex-wrap:wrap)
+- `.shop-order-scan-input` (flex:1 1 280px + min-width:0)
+- `@container wo-page (max-width:640px) / (max-width:540px)` breakpoints
+
+### Checklist cho PR mới của main tab
+
+Trước khi mở PR cho 1 tab mới (NPI / QC / Settings sub-tab / báo cáo / dashboard), verify:
+
+1. ☐ Card grid dùng `auto-fill` + max track size (KHÔNG `auto-fit + 1fr`)
+2. ☐ Page container có `max-width` ≤ 1280px + `clamp()` padding
+3. ☐ Container queries `container-type:inline-size` + `container-name:<page>`
+4. ☐ Header/toolbar flex row có `flex-wrap:wrap`
+5. ☐ Shrinkable inputs có `flex:1 1 <basis>` + `min-width:0`
+6. ☐ Test trên viewport 360px / 640px / 1024px / 1440px / 1920px+ — không có element overflow / không có content stretch xấu
+
+---
+
+*Cập nhật lần cuối: 02/06/2026 — Responsive main tab pattern (mandatory project-wide convention sau PR #54).*

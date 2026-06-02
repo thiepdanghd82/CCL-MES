@@ -892,10 +892,11 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .shop-order-header { background:#fff; border:1px solid var(--navy-border);
   border-radius:8px; padding:14px 16px; display:flex; flex-direction:column;
   gap:10px; }
-.shop-order-scan-wrap { display:flex; gap:8px; align-items:center; }
+.shop-order-scan-wrap { display:flex; gap:8px; align-items:center;
+  flex-wrap:wrap; }
 .shop-order-scan-icon { font-size:22px; }
-.shop-order-scan-input { flex:1; padding:8px 12px; border:1px solid #cbd5e1;
-  border-radius:6px; font-size:14px; background:#fff; }
+.shop-order-scan-input { flex:1 1 280px; min-width:0; padding:8px 12px;
+  border:1px solid #cbd5e1; border-radius:6px; font-size:14px; background:#fff; }
 .shop-order-scan-input:focus { outline:none; border-color:var(--navy-primary);
   box-shadow:0 0 0 2px rgba(30,58,138,0.12); }
 .shop-order-lookup-btn { font-size:13px; padding:8px 16px; }
@@ -918,10 +919,15 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   font-size:13px; font-style:italic; border:1px dashed #e5e7eb;
   border-radius:6px; }
 
-/* Card grid — auto-fit responsive. */
+/* Card grid — auto-FILL (not auto-fit) so a single card stays at its
+   natural max width on wide viewports instead of stretching across the
+   full container. minmax(280px, 360px) caps each card; left-aligned via
+   justify-content:start. Main-tab responsive convention per
+   docs/LESSONS_LEARNED.md "Responsive main tab pattern". */
 .mes-wo-cards { display:grid;
-  grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
-  gap:12px; }
+  grid-template-columns:repeat(auto-fill, minmax(280px, 360px));
+  gap:12px;
+  justify-content:start; }
 .mes-wo-card { border:1px solid var(--navy-border); border-radius:6px;
   padding:10px 12px 12px; background:#fafbfc; display:flex; flex-direction:column;
   gap:8px; transition:border-color 0.15s, box-shadow 0.15s; }
@@ -1109,7 +1115,25 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0);
   white-space:nowrap; border:0; }
 .workorders-page { display:flex; flex-direction:column; gap:14px;
-  padding:18px 20px; max-width:1600px; margin:0 auto; }
+  padding:18px clamp(16px, 3vw, 32px);
+  max-width:1280px;          /* readable line length cap on ultrawide */
+  margin:0 auto;
+  container-type:inline-size; /* enables @container queries below */
+  container-name:wo-page; }
+
+/* View toggle responsive — narrow viewport wraps below scan input. */
+.workorders-view-toggle { flex-shrink:0; }
+@container wo-page (max-width:640px) {
+  .workorders-view-toggle { margin-left:0; width:100%; }
+  .workorders-view-toggle-btn { flex:1; }
+  .shop-order-scan-input { flex-basis:100%; }
+  .shop-order-camera-btn,
+  .shop-order-lookup-btn { flex:1 1 calc(50% - 4px); }
+}
+/* Stacked card grid on cramped viewport — keep single-column for clarity. */
+@container wo-page (max-width:540px) {
+  .mes-wo-cards { grid-template-columns:1fr; }
+}
 
 .spec-history-modal-list { max-height:60vh; overflow-y:auto; }
 
