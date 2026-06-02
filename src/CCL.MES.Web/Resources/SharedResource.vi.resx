@@ -1024,4 +1024,19 @@
   <data name="workorders.drawer.history.flag.setup" xml:space="preserve"><value>Cài đặt</value></data>
   <data name="workorders.drawer.history.flag.rohs" xml:space="preserve"><value>RoHS</value></data>
   <data name="workorders.drawer.history.flag.produced" xml:space="preserve"><value>Đã sản xuất</value></data>
+  <!-- Phase 8 PR #32d — NG (đọc-only) + Demo templates. -->
+  <data name="shop_order.reject_count_fmt" xml:space="preserve"><value>{0} {1}</value></data>
+  <data name="shop_order.reject_fmt" xml:space="preserve"><value>{0} {1} ({2}%)</value></data>
+  <data name="workorders.demo.section" xml:space="preserve"><value>Work Order mẫu (demo)</value></data>
+  <data name="workorders.demo.hint" xml:space="preserve"><value>Bấm template để tạo Work Order thật với cùng FK seed như production. Chỉ Admin / Supervisor.</value></data>
+  <data name="workorders.demo.batch_fmt" xml:space="preserve"><value>{0} {1}</value></data>
+  <data name="workorders.demo.start_btn" xml:space="preserve"><value>Tạo demo</value></data>
+  <data name="workorders.demo.creating" xml:space="preserve"><value>Đang tạo…</value></data>
+  <data name="workorders.demo.confirm_fmt" xml:space="preserve"><value>Tạo Work Order thật từ "{0}"?
+  Khách hàng: {1}
+  Sản phẩm: {2}
+  Mục tiêu: {3} {4}
+
+WO mới sẽ xuất hiện trong Active ngay sau khi xác nhận.</value></data>
+  <data name="workorders.demo.created_fmt" xml:space="preserve"><value>Đã tạo Work Order {0} từ template demo.</value></data>
 </root>

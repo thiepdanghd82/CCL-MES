@@ -1,0 +1,189 @@
+@*  Phase 8 PR #32d — Demo Work Order templates.
+
+    Three hardcoded sample cards operator clicks to spawn a real WO.
+    The actual create goes through Phase 6 WorkOrderService.CreateAsync
+    via a server endpoint (POST /api/workorders/demo/{templateCode}) so
+    state machine + persistence stay on the canonical path. CreateAsync
+    body is NOT modified — audit emit happens at the controller callsite.
+
+    RBAC (Q9): rendered only inside <AuthorizeView Roles="Admin,Supervisor">
+    on the parent page; the controller enforces the same role server-side
+    so curl users without role get 403.
+
+    UX (Q10): confirm dialog before each create — prevents accidental
+    bulk creation if operator double-clicks.
+
+    Behavior:
+      - Read-only template data (3 const records).
+      - "Start Demo" click → window.confirm() → POST → on success
+        invokes OnCreated callback with new WoNo for parent toast.
+      - Inline error banner per card on failure (#27 try-catch pattern).
+      - SignalR push from the controller refreshes other circuits too. *@
+
+@using CCL.MES.Web.Hubs
+@inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> Loc
+
+<section class="shop-order-section workorders-demo-section">
+    <header class="shop-order-section-head">
+        <span class="shop-order-section-icon" aria-hidden="true">🧪</span>
+        <h2>@Loc["workorders.demo.section"]</h2>
+        <span class="shop-order-count">(@Templates.Length)</span>
+    </header>
+    <p class="workorders-demo-hint">@Loc["workorders.demo.hint"]</p>
+    <div class="mes-wo-cards">
+        @foreach (var t in Templates)
+        {
+            <article class="mes-wo-card workorders-demo-card" data-tpl="@t.Code">
+                <header class="mes-wo-card-head">
+                    <span class="workorders-demo-card-title">@t.Title</span>
+                    <span class="workorders-demo-card-batch">@FormatBatch(t)</span>
+                </header>
+                <dl class="mes-wo-card-body">
+                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.customer"]</dt><dd>@t.CustomerName</dd></div>
+                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.product"]</dt><dd>@t.ProductCode</dd></div>
+                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.machine"]</dt><dd>@t.MachineCode</dd></div>
+                </dl>
+                @if (_errorFor.TryGetValue(t.Code, out var err))
+                {
+                    <div class="alert err">@err</div>
+                }
+                <button type="button"
+                        class="rt-btn rt-btn-primary workorders-demo-start-btn"
+                        disabled="@(_busyFor.Contains(t.Code))"
+                        @onclick="@(() => StartDemoAsync(t))">
+                    @(_busyFor.Contains(t.Code)
+                        ? Loc["workorders.demo.creating"].Value
+                        : Loc["workorders.demo.start_btn"].Value)
+                </button>
+            </article>
+        }
+    </div>
+</section>
+
+@code {
+    /// <summary>
+    /// Callback invoked with the new WoNo when a demo create succeeds.
+    /// Parent uses it to refresh the WO list + show a toast.
+    /// </summary>
+    [Parameter] public EventCallback<string> OnCreated { get; set; }
+
+    private readonly HashSet<string> _busyFor = new();
+    private readonly Dictionary<string, string> _errorFor = new();
+
+    /// <summary>
+    /// Three hardcoded demo templates. Uses REAL seeded FKs — Customer 1 +
+    /// Product 1 + Revision 1 (Brady BRD-7656-D), Customer 4 + Product 4 +
+    /// Revision 4 (SEV GH68-55731L). Machine "ACNC3" is the only seeded
+    /// machine. Adjust here when CCL Vietnam onboards new sample customers.
+    /// </summary>
+    private static readonly DemoTemplate[] Templates =
+    {
+        new DemoTemplate(
+            Code:              "demo-1",
+            Title:             "Demo · Small batch",
+            CustomerName:      "Brady Asia",
+            ProductCode:       "BRD-7656-D",
+            MachineCode:       "ACNC3",
+            TargetQty:         5000,
+            Uom:               "pcs"),
+        new DemoTemplate(
+            Code:              "demo-2",
+            Title:             "Demo · Full run",
+            CustomerName:      "Brady Asia",
+            ProductCode:       "BRD-7656-D",
+            MachineCode:       "ACNC3",
+            TargetQty:         20000,
+            Uom:               "pcs"),
+        new DemoTemplate(
+            Code:              "demo-3",
+            Title:             "Demo · Other customer",
+            CustomerName:      "SEV",
+            ProductCode:       "GH68-55731L",
+            MachineCode:       "ACNC3",
+            TargetQty:         10000,
+            Uom:               "pcs"),
+    };
+
+    private string FormatBatch(DemoTemplate t)
+    {
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        return string.Format(Loc["workorders.demo.batch_fmt"].Value,
+            t.TargetQty.ToString("N0", culture), t.Uom);
+    }
+
+    private async Task StartDemoAsync(DemoTemplate t)
+    {
+        if (_busyFor.Contains(t.Code)) return;
+
+        // Q10 — confirm before create. Prevents accidental bulk if operator
+        // double-taps. Native window.confirm() is sync + reliable in Blazor
+        // Server + works in the desktop kiosk shell.
+        var msg = string.Format(Loc["workorders.demo.confirm_fmt"].Value,
+            t.Title, t.CustomerName, t.ProductCode,
+            t.TargetQty.ToString("N0", System.Globalization.CultureInfo.CurrentCulture),
+            t.Uom);
+        bool ok;
+        try
+        {
+            ok = await JS.InvokeAsync<bool>("confirm", msg);
+        }
+        catch
+        {
+            // Headless / very old browser — treat as cancelled.
+            ok = false;
+        }
+        if (!ok) return;
+
+        _busyFor.Add(t.Code);
+        _errorFor.Remove(t.Code);
+        StateHasChanged();
+
+        try
+        {
+            // Route via JS fetch (relative URL) so the browser's cookie auth
+            // travels with the request — controller [Authorize] reads the
+            // same identity as the parent AuthorizeView, server-side double
+            // check. JS helper lives in ccl-mes.js (added this PR).
+            var result = await JS.InvokeAsync<DemoCreateResult>(
+                "cclmes.workorders.createDemo", t.Code);
+            if (!result.Ok)
+            {
+                _errorFor[t.Code] = $"{result.Status}: {Truncate(result.Body ?? "", 240)}";
+            }
+            else
+            {
+                await OnCreated.InvokeAsync(result.WoNo ?? "?");
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorFor[t.Code] = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _busyFor.Remove(t.Code);
+            StateHasChanged();
+        }
+    }
+
+    private static string Truncate(string s, int n) =>
+        string.IsNullOrEmpty(s) ? "" : (s.Length > n ? s.Substring(0, n) + "…" : s);
+
+    private sealed record DemoTemplate(
+        string Code,
+        string Title,
+        string CustomerName,
+        string ProductCode,
+        string MachineCode,
+        int TargetQty,
+        string Uom);
+
+    private sealed class DemoCreateResult
+    {
+        public bool Ok { get; set; }
+        public int Status { get; set; }
+        public string? WoNo { get; set; }
+        public string? Body { get; set; }
+    }
+}

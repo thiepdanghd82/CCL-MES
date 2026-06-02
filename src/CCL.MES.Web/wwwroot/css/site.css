@@ -1151,6 +1151,28 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   .mes-wo-cards { grid-template-columns:1fr; }
 }
 
+/* PR #32d — Demo Work Orders section. Lives between Active and Closed
+   on /workorders. Cards reuse `.mes-wo-card` shell (auto-fill grid
+   inherited from `.mes-wo-cards`) but get an accent border + dashed
+   border-style + faint background tint to distinguish from production
+   cards at a glance. Start button is full-width navy primary. */
+.workorders-demo-section { border:1px dashed var(--navy-border);
+  background:rgba(30,58,138,0.03); border-radius:8px; padding:10px 14px; }
+.workorders-demo-hint { color:#374151; font-size:12px;
+  margin:0 0 8px; font-style:italic; }
+.workorders-demo-card { border-style:dashed !important;
+  background:#fcfdff !important; }
+.workorders-demo-card-title { font-weight:700; color:var(--navy-dark);
+  font-size:13px; letter-spacing:0.2px; }
+.workorders-demo-card-batch { margin-left:auto; font-size:11px;
+  color:#6b7280; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
+.workorders-demo-start-btn { width:100%; padding:7px 12px; font-size:12px;
+  font-weight:600; letter-spacing:0.4px; text-transform:uppercase;
+  margin-top:6px; }
+.workorders-demo-start-btn:disabled { opacity:0.6; cursor:wait; }
+.workorders-demo-card .alert { margin:6px 0 0; padding:4px 8px;
+  font-size:11px; border-radius:4px; }
+
 /* PR #32c — Drawer History section (audit timeline per-WO). Compact
    list rows with When · Who · Action chip on the first line + Detail
    pretty-render on the second line. Pass/fail-style chips reuse the

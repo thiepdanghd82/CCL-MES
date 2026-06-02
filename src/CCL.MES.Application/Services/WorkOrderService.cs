@@ -76,6 +76,28 @@ public class WorkOrderService
             }
         }
 
+        // Phase 8 PR #32d — NG/Reject aggregation per-WO. READ-ONLY surface
+        // of ProductionLog.RejectQty (Phase 6) written by OeeService.FinishAsync.
+        // Single grouped query keyed by WorkOrderId; the dict is keyed by WO id
+        // (not WoNo) so the lookup is direct against w.Id below. WOs with no
+        // ProductionLog entry default to 0. KHÔNG đụng OeeService / ProductionLog
+        // entity / state machine — pure read aggregation.
+        var woIds = rows.Select(w => w.Id).ToList();
+        var rejectCounts = new Dictionary<long, int>(rows.Count);
+        if (woIds.Count > 0)
+        {
+            var rejectGroups = await _db.ProductionLogs
+                .AsNoTracking()
+                .Where(p => woIds.Contains(p.WorkOrderId))
+                .GroupBy(p => p.WorkOrderId)
+                .Select(g => new { WorkOrderId = g.Key, Reject = g.Sum(p => p.RejectQty) })
+                .ToListAsync();
+            foreach (var g in rejectGroups)
+            {
+                rejectCounts[g.WorkOrderId] = g.Reject;
+            }
+        }
+
         var items = new List<WorkOrderCardItem>(rows.Count);
         foreach (var w in rows)
         {
@@ -83,6 +105,7 @@ public class WorkOrderService
             var processLabel = BuildProcessLabel(w.ProductRevision);
             var bomCount = w.Product?.ProductCode is { Length: > 0 } code
                 && bomCounts.TryGetValue(code, out var n) ? n : 0;
+            var reject = rejectCounts.TryGetValue(w.Id, out var r) ? r : 0;
 
             items.Add(new WorkOrderCardItem(
                 Id:                w.Id,
@@ -95,6 +118,7 @@ public class WorkOrderService
                 ProcessLabel:      processLabel,
                 TargetQty:         w.TargetQty,
                 ProducedQty:       w.ProducedQty,
+                RejectQty:         reject,
                 Uom:               w.Uom,
                 BomMaterialsCount: bomCount,
                 Status:            w.Status,
@@ -192,6 +216,15 @@ public class WorkOrderService
                 ApprovedAt:  i.ApprovedAt))
             .ToList();
 
+        // Phase 8 PR #32d — NG/Reject sum per-WO (READ-only of ProductionLog).
+        // Single aggregated query — same pattern as ShopOrderListAsync.
+        // Returns 0 when WO has no production log entries (e.g. demo WO before
+        // Finish). KHÔNG đụng OeeService / ProductionLog entity / state machine.
+        var rejectQty = await _db.ProductionLogs
+            .AsNoTracking()
+            .Where(p => p.WorkOrderId == wo.Id)
+            .SumAsync(p => (int?)p.RejectQty) ?? 0;
+
         // Phase 8 PR #32c — History timeline. Read AuditLog WHERE
         // TargetType="WorkOrder" AND TargetId=woId.ToString(). Top 50
         // most recent; the UI does no further pagination. QC events
@@ -224,6 +257,7 @@ public class WorkOrderService
             ProcessLabel:    processLabel,
             TargetQty:       wo.TargetQty,
             ProducedQty:     wo.ProducedQty,
+            RejectQty:       rejectQty,
             Uom:             wo.Uom,
             PlannedStart:    wo.PlannedStart,
             PlannedEnd:      wo.PlannedEnd,
@@ -352,6 +386,8 @@ public sealed record WorkOrderCardItem(
     string? ProcessLabel,
     int TargetQty,
     int ProducedQty,
+    // Phase 8 PR #32d — NG/Reject aggregate from ProductionLog (read-only).
+    int RejectQty,
     string Uom,
     int BomMaterialsCount,
     WoStatus Status,
@@ -380,6 +416,8 @@ public sealed record WorkOrderDrawerView(
     string? ProcessLabel,
     int TargetQty,
     int ProducedQty,
+    // Phase 8 PR #32d — NG/Reject aggregate (read-only of ProductionLog).
+    int RejectQty,
     string Uom,
     DateTime? PlannedStart,
     DateTime? PlannedEnd,
