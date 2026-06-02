@@ -80,6 +80,23 @@
                     @Loc["workorders.view.table"]
                 </button>
             </div>
+            @* PR #32c — Export CSV/Excel. Native <a> so browser handles
+               the Content-Disposition download without JSInterop. The
+               server endpoint streams Active + Closed combined. *@
+            <div class="workorders-export" role="group" aria-label="@Loc["workorders.export.aria"]">
+                <a class="rt-btn workorders-export-btn"
+                   href="/api/workorders/export/csv"
+                   target="_blank" rel="noopener"
+                   title="@Loc["workorders.export.csv.title"]">
+                    @Loc["workorders.export.csv"]
+                </a>
+                <a class="rt-btn workorders-export-btn"
+                   href="/api/workorders/export/xlsx"
+                   target="_blank" rel="noopener"
+                   title="@Loc["workorders.export.xlsx.title"]">
+                    @Loc["workorders.export.xlsx"]
+                </a>
+            </div>
         </div>
         @if (!string.IsNullOrEmpty(_toastMessage))
         {

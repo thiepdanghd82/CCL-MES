@@ -192,6 +192,25 @@ public class WorkOrderService
                 ApprovedAt:  i.ApprovedAt))
             .ToList();
 
+        // Phase 8 PR #32c — History timeline. Read AuditLog WHERE
+        // TargetType="WorkOrder" AND TargetId=woId.ToString(). Top 50
+        // most recent; the UI does no further pagination. QC events
+        // intentionally excluded (TargetType="QcInspection") so the
+        // existing "QC History" section is not duplicated. OEE
+        // mutations do not emit audit (acceptable per PR #32c plan).
+        var woIdStr = wo.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var history = await _db.AuditLogs
+            .AsNoTracking()
+            .Where(a => a.TargetType == "WorkOrder" && a.TargetId == woIdStr)
+            .OrderByDescending(a => a.Timestamp)
+            .Take(50)
+            .Select(a => new WoHistoryRow(
+                Timestamp:     a.Timestamp,
+                ActorUsername: a.ActorUsername,
+                Action:        a.Action,
+                Detail:        a.Detail))
+            .ToListAsync();
+
         return new WorkOrderDrawerView(
             Id:              wo.Id,
             WoNo:            wo.WoNo,
@@ -214,7 +233,8 @@ public class WorkOrderService
             BadgeCssClass:   badge.CssClass,
             BadgeIcon:       badge.Icon,
             Materials:       materials,
-            QcInspections:   qc);
+            QcInspections:   qc,
+            History:         history);
     }
 
     public Task<WorkOrder?> GetAsync(long id) =>
@@ -372,7 +392,10 @@ public sealed record WorkOrderDrawerView(
     string BadgeCssClass,
     string BadgeIcon,
     List<DrawerMaterialRow> Materials,
-    List<DrawerQcRow> QcInspections);
+    List<DrawerQcRow> QcInspections,
+    // Phase 8 PR #32c — top-50 audit timeline for this WO. Empty list
+    // when AuditLogs has no rows targeting this WoId.
+    List<WoHistoryRow> History);
 
 public sealed record DrawerMaterialRow(
     string PartNo,
@@ -385,3 +408,15 @@ public sealed record DrawerQcRow(
     QcResult Result,
     string? InspectorId,
     DateTime? ApprovedAt);
+
+/// <summary>
+/// Phase 8 PR #32c — Single audit-log row projection consumed by the
+/// drawer's History section. Detail is raw JSON; the UI pretty-renders
+/// known actions (WO_ADVANCE / WO_FLAGS_UPDATE) and falls back to a
+/// truncated JSON string for unknown codes.
+/// </summary>
+public sealed record WoHistoryRow(
+    DateTime Timestamp,
+    string ActorUsername,
+    string Action,
+    string? Detail);

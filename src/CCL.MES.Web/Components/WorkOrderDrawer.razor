@@ -1,6 +1,11 @@
 @*  Phase 8 WO-Consolidation — Per-WO drawer is now the SINGLE action
-    surface for /workorders. Renders 5 sections from a pre-flattened DTO:
-    Header / Production / Materials / QC History / Action.
+    surface for /workorders. Renders 6 sections from a pre-flattened DTO:
+    Header / Production / Materials / QC History / History / Action.
+
+    PR #32c added "History" section (read-only audit timeline of this WO:
+    WO_ADVANCE + WO_FLAGS_UPDATE events DESC top-50). QC events stay in
+    their dedicated section; OEE service does not emit audit so OEE
+    transitions do not appear in History (acceptable per plan).
 
     The Action section MOVES the 9 buttons VERBATIM from Phase 6
     /workorders row markup (Advance / Unlock step / QC IPQC|FQC|OQC Pass /
@@ -17,6 +22,7 @@
 @using CCL.MES.Application
 @using CCL.MES.Application.Services
 @using CCL.MES.Domain
+@using CCL.MES.Domain.Audit
 @using CCL.MES.Domain.Entities
 @using CCL.MES.Domain.StateMachine
 @using CCL.MES.Web.Hubs
@@ -170,7 +176,36 @@
                 }
             </section>
 
-            @* ── Section 5: Action (state-machine button grid, RBAC gated).
+            @* ── Section 5: History (audit timeline per-WO, top 50, read-only).
+                 PR #32c. Reads AuditLog WHERE TargetType="WorkOrder" AND
+                 TargetId=woId. Pretty-renders WO_ADVANCE (Step from→to) and
+                 WO_FLAGS_UPDATE (per-flag ✓ summary); unknown action codes
+                 fall back to a truncated JSON one-liner. ──────────────── *@
+            <section class="wo-drawer-section">
+                <h3>@Loc["workorders.drawer.section.history"] <span class="wo-drawer-count">(@View.History.Count)</span></h3>
+                @if (View.History.Count == 0)
+                {
+                    <p class="wo-drawer-empty">@Loc["workorders.drawer.history.empty"]</p>
+                }
+                else
+                {
+                    <ul class="wo-drawer-list wo-drawer-history-list">
+                        @foreach (var h in View.History)
+                        {
+                            <li>
+                                <div class="wo-drawer-history-row">
+                                    <span class="wo-drawer-history-when">@FormatHistoryWhen(h.Timestamp)</span>
+                                    <span class="wo-drawer-history-who">@h.ActorUsername</span>
+                                    <span class="wo-drawer-history-action @HistoryActionClass(h.Action)">@HistoryActionLabel(h.Action)</span>
+                                </div>
+                                <div class="wo-drawer-history-detail">@RenderHistoryDetail(h.Action, h.Detail)</div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+
+            @* ── Section 6: Action (state-machine button grid, RBAC gated).
                  9 buttons MOVED VERBATIM from Phase 6 WorkOrders.razor row
                  (see PHASE8-WO-CONSOLIDATION-PLAN §4). Same AuthorizeView
                  Context names (advanceCtx / qcCtx / runCtx) + same NeedsQc
@@ -408,5 +443,86 @@
         QcResult.Pass    => "pass",
         QcResult.Fail    => "fail",
         _                => "pending",
+    };
+
+    // ── History pretty-rendering (PR #32c) ──────────────────────────────
+
+    private string FormatHistoryWhen(DateTime utc)
+        => utc.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+    private string HistoryActionLabel(string action) => action switch
+    {
+        AuditAction.WoAdvance      => Loc["workorders.drawer.history.action.advance"].Value,
+        AuditAction.WoFlagsUpdate  => Loc["workorders.drawer.history.action.flags_update"].Value,
+        _                          => action,
+    };
+
+    private static string HistoryActionClass(string action) => action switch
+    {
+        AuditAction.WoAdvance     => "advance",
+        AuditAction.WoFlagsUpdate => "flags",
+        _                         => "other",
+    };
+
+    /// <summary>
+    /// Pretty-render audit detail JSON per Q4. WO_ADVANCE → "Step from → to".
+    /// WO_FLAGS_UPDATE → "Materials ✓ · Setup ✓ · RoHS ✓ · Produced 1200".
+    /// Unknown action codes truncate to 200 chars + show raw JSON one-liner.
+    /// Defensive: any JSON parse failure falls through to the truncation path
+    /// so a malformed historic row never crashes the drawer.
+    /// </summary>
+    private string RenderHistoryDetail(string action, string? detail)
+    {
+        if (string.IsNullOrWhiteSpace(detail)) return "—";
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(detail);
+            var root = doc.RootElement;
+            if (action == AuditAction.WoAdvance)
+            {
+                var from = root.TryGetProperty("from", out var f) ? f.GetString() : null;
+                var to   = root.TryGetProperty("to",   out var t) ? t.GetString() : null;
+                if (!string.IsNullOrEmpty(from) && !string.IsNullOrEmpty(to))
+                    return $"{StepShort(from)} → {StepShort(to)}";
+            }
+            else if (action == AuditAction.WoFlagsUpdate)
+            {
+                var parts = new List<string>();
+                if (root.TryGetProperty("materials_ready", out var mr) && mr.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    parts.Add(FlagPart(Loc["workorders.drawer.history.flag.materials"].Value, mr));
+                if (root.TryGetProperty("setup_confirmed", out var sc) && sc.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    parts.Add(FlagPart(Loc["workorders.drawer.history.flag.setup"].Value, sc));
+                if (root.TryGetProperty("rohs_ok", out var ro) && ro.ValueKind != System.Text.Json.JsonValueKind.Null)
+                    parts.Add(FlagPart(Loc["workorders.drawer.history.flag.rohs"].Value, ro));
+                if (root.TryGetProperty("produced_qty", out var pq) && pq.ValueKind == System.Text.Json.JsonValueKind.Number)
+                    parts.Add($"{Loc["workorders.drawer.history.flag.produced"].Value} {pq.GetInt32()}");
+                return parts.Count == 0 ? "—" : string.Join(" · ", parts);
+            }
+        }
+        catch
+        {
+            /* Fall through to truncation below. */
+        }
+        return detail.Length > 200 ? detail.Substring(0, 200) + "…" : detail;
+    }
+
+    private static string FlagPart(string label, System.Text.Json.JsonElement el)
+    {
+        if (el.ValueKind == System.Text.Json.JsonValueKind.True)  return $"{label} ✓";
+        if (el.ValueKind == System.Text.Json.JsonValueKind.False) return $"{label} ✗";
+        return label;
+    }
+
+    /// <summary>Short label for WO_ADVANCE from/to enum strings.</summary>
+    private static string StepShort(string raw) => raw switch
+    {
+        "PrePressCheck" => "Pre-Press",
+        "OpSetting"     => "Setting",
+        "IpqcApproval"  => "IPQC",
+        "ReadyToRun"    => "Ready",
+        "Running"       => "Running",
+        "Fqc"           => "FQC",
+        "Oqc"           => "OQC",
+        _               => raw,
     };
 }

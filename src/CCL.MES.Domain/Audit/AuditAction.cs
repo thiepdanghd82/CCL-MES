@@ -66,5 +66,8 @@ public static class AuditAction
     public const string WcCopy                = "WC_COPY";                 // Phase 8 — WorkCenter duplicate via context menu; detail JSON: { src_id, src_code, new_id, new_code }
     public const string WcUpdate              = "WC_UPDATE";               // Phase 8 — WorkCenter row edit via context menu; detail JSON: { wc_id, code, changes: {...} }
     public const string WoAdvance             = "WO_ADVANCE";
+    // Phase 8 PR #32c — WO list export (CSV / XLSX). detail JSON:
+    // { format, rows, filename, content_length }
+    public const string WoExport              = "WO_EXPORT";
     public const string WoFlagsUpdate         = "WO_FLAGS_UPDATE";
 }
