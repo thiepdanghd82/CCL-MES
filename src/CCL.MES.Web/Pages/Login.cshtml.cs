@@ -104,6 +104,11 @@ public class LoginModel : PageModel
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(ClaimTypes.Role, user.Role),
             new Claim("display_name", user.DisplayName ?? user.Username),
+            // Phase 8 PR-D-5c — Department claim cho Drawing 3-role approval chip
+            // permission (NPI/Production/QC). Nullable on entity → empty string fallback
+            // for the claim so FindFirstValue never returns null. User changes Department
+            // → next login picks up new value (matches role-change semantics).
+            new Claim("department", user.Department ?? ""),
         };
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         await HttpContext.SignInAsync(

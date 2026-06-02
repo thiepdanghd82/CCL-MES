@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using CCL.MES.Application.Services;
 using CCL.MES.Application.Storage;
+using CCL.MES.Domain;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -103,4 +105,55 @@ public class DrawingsController : ControllerBase
         var chars = s.Where(c => c != '"' && c != '\r' && c != '\n').ToArray();
         return new string(chars);
     }
+
+    /// <summary>
+    /// Phase 8 PR-D-5c — chip decide endpoint. Body shape:
+    ///   { role: "Npi"|"Production"|"Qc",
+    ///     decision: "Approved"|"Rejected",
+    ///     comment: string? }
+    /// Service enforces RBAC (Role + Department per Option (a)) +
+    /// comment-required-on-Reject. Path is pure segments (no dot-extension
+    /// per Lesson #33).
+    /// </summary>
+    [HttpPost("{versionId:long}/decide")]
+    public async Task<IActionResult> Decide(
+        long revisionId,
+        long versionId,
+        [FromBody] DecideRequest req,
+        CancellationToken ct)
+    {
+        if (req is null) return BadRequest(new { error = "body_required" });
+        if (!Enum.TryParse<DrawingApprovalRole>(req.Role, ignoreCase: true, out var role))
+            return BadRequest(new { error = "invalid_role", req.Role });
+        if (!Enum.TryParse<DrawingApprovalStatus>(req.Decision, ignoreCase: true, out var decision))
+            return BadRequest(new { error = "invalid_decision", req.Decision });
+
+        var actor = User.Identity?.Name ?? "anonymous";
+        var actorRole = User.FindFirstValue(ClaimTypes.Role) ?? "";
+        var actorDepartment = User.FindFirstValue("department");
+
+        try
+        {
+            var result = await _svc.DecideAsync(
+                revisionId, versionId, role, decision,
+                req.Comment, actor, actorRole, actorDepartment, ct);
+            return Ok(new
+            {
+                version_id          = result.VersionId,
+                version_status      = result.VersionStatus.ToString(),
+                drawing_status      = result.DrawingStatus.ToString(),
+                superseded_count    = result.SupersededCount,
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { error = "forbidden", message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = "invalid_state", message = ex.Message });
+        }
+    }
+
+    public sealed record DecideRequest(string Role, string Decision, string? Comment);
 }

@@ -854,6 +854,31 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   background:var(--navy-light); border-radius:4px; font-size:12px;
   color:var(--navy-dark); }
 
+/* PR-D-5c — Approval chips (NPI / Production / QC).
+   Pending = gray, Approved = green, Rejected = red. Disabled chips
+   cursor:not-allowed with reduced opacity. Mini variant for timeline rows. */
+.spec-drawings-chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+.spec-drawings-chip { display:inline-flex; align-items:center; gap:4px;
+  padding:3px 8px; border-radius:10px; border:1px solid transparent;
+  font-size:11px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase;
+  background:#fff; cursor:pointer; line-height:1.2; }
+.spec-drawings-chip:hover:not(:disabled) { transform:translateY(-1px); }
+.spec-drawings-chip:disabled { cursor:not-allowed; opacity:0.6; }
+.spec-drawings-chip.pending {
+  background:#eef1f7; color:#6b7280; border-color:#cbd5e1; }
+.spec-drawings-chip.approved {
+  background:rgba(31,122,77,0.12); color:#1f7a4d; border-color:rgba(31,122,77,0.30); }
+.spec-drawings-chip.rejected {
+  background:rgba(192,57,43,0.12); color:#c0392b; border-color:rgba(192,57,43,0.30); }
+.spec-drawings-chip-role { font-weight:700; }
+.spec-drawings-chip-status { font-weight:500; opacity:0.8; }
+.spec-drawings-chips-mini .spec-drawings-chip { padding:2px 6px; font-size:10px; }
+.spec-drawings-chips-mini .spec-drawings-chip-role { font-size:10px; }
+.spec-drawings-chips-mini .spec-drawings-chip-status { display:none; }
+
+/* Decide modal — same width as Capture modal for visual rhyme. */
+.spec-drawings-decide-modal { width:min(480px, calc(100vw - 32px)); }
+
 .spec-history-modal-list { max-height:60vh; overflow-y:auto; }
 
 .spec-detail-audit-list { list-style:none; padding:0; margin:6px 0 0; }

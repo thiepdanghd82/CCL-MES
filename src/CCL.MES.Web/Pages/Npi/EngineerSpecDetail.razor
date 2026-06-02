@@ -869,6 +869,24 @@
                                                     </span>
                                                 }
                                             </div>
+                                            @* PR-D-5c — 3 chip row (Npi/Production/Qc). *@
+                                            <div class="spec-drawings-chips" role="group" aria-label="Approval chips">
+                                                @foreach (var a in current.Approvals)
+                                                {
+                                                    var canAct = CanActAsChip(a.Role);
+                                                    var isFinal = current.Status == DrawingVersionStatus.Superseded;
+                                                    var chipClass = ChipPillClass(a.Status);
+                                                    var disabled = !canAct || isFinal;
+                                                    <button type="button"
+                                                            class="spec-drawings-chip @chipClass @(canAct ? "actionable" : "readonly")"
+                                                            title="@ChipTooltip(a, canAct)"
+                                                            disabled="@disabled"
+                                                            @onclick="@(() => OpenDecideModal(current, a))">
+                                                        <span class="spec-drawings-chip-role">@Loc[$"npi.spec.detail.drawings.chip.label.{a.Role}"]</span>
+                                                        <span class="spec-drawings-chip-status">@Loc[$"npi.spec.detail.drawings.chip.status.{a.Status}"]</span>
+                                                    </button>
+                                                }
+                                            </div>
                                         </div>
                                         <div class="spec-drawings-actions">
                                             <a class="rt-btn rt-btn-primary spec-drawings-view-btn"
@@ -909,6 +927,20 @@
                                                         </div>
                                                     </div>
                                                     <span class="spec-drawings-status-pill @StatusPillClass(v.Status)">@StatusPillLabel(v.Status)</span>
+                                                    <div class="spec-drawings-chips spec-drawings-chips-mini" role="group" aria-label="Approval chips">
+                                                        @foreach (var a in v.Approvals)
+                                                        {
+                                                            var canActMini = CanActAsChip(a.Role);
+                                                            var isFinalMini = v.Status == DrawingVersionStatus.Superseded;
+                                                            <button type="button"
+                                                                    class="spec-drawings-chip @ChipPillClass(a.Status) @(canActMini ? "actionable" : "readonly")"
+                                                                    title="@ChipTooltip(a, canActMini)"
+                                                                    disabled="@(!canActMini || isFinalMini)"
+                                                                    @onclick="@(() => OpenDecideModal(v, a))">
+                                                                <span class="spec-drawings-chip-role">@Loc[$"npi.spec.detail.drawings.chip.label.{a.Role}"]</span>
+                                                            </button>
+                                                        }
+                                                    </div>
                                                     <a class="rt-btn spec-drawings-timeline-view-btn"
                                                        href="@DownloadUrl(v.Id)"
                                                        target="_blank" rel="noreferrer">
@@ -979,6 +1011,84 @@
                                     @(_uploadModalBusy
                                         ? Loc["npi.spec.detail.drawings.modal.btn_uploading"]
                                         : Loc["npi.spec.detail.drawings.modal.btn_upload"])
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @* ── PR-D-5c — Decide modal — only renders when a chip picked. ── *@
+                @if (_decideModalOpen && _decideModalVersion is not null && _decideModalApproval is not null)
+                {
+                    <div class="modal-scrim" @onclick="CloseDecideModal">
+                        <div class="modal-card spec-drawings-decide-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+                            <div class="modal-head">
+                                <h2>@Loc["npi.spec.detail.drawings.decide.modal.title"]</h2>
+                                <button type="button" class="modal-close" @onclick="CloseDecideModal" aria-label="Close" disabled="@_decideModalBusy">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="spec-qccapture-modal-subtitle">
+                                    @string.Format(
+                                        Loc["npi.spec.detail.drawings.decide.modal.subtitle"].Value,
+                                        _decideModalKindLabel ?? "",
+                                        _decideModalVersion.VersionNo,
+                                        Loc[$"npi.spec.detail.drawings.chip.label.{_decideModalApproval.Role}"].Value)
+                                </div>
+
+                                <div class="spec-qccapture-modal-section">
+                                    <label class="spec-qccapture-modal-label">@Loc["npi.spec.detail.drawings.decide.modal.label_decision"] <span class="required">*</span></label>
+                                    <div class="spec-qccapture-modal-result-row" role="radiogroup">
+                                        <button type="button"
+                                                class="spec-qccapture-result-btn pass @(_decideDecision == DrawingApprovalStatus.Approved ? "active" : "")"
+                                                disabled="@_decideModalBusy"
+                                                role="radio"
+                                                aria-checked="@(_decideDecision == DrawingApprovalStatus.Approved)"
+                                                @onclick="@(() => SetDecideDecision(DrawingApprovalStatus.Approved))">
+                                            @Loc["npi.spec.detail.drawings.decide.modal.btn_approve"]
+                                        </button>
+                                        <button type="button"
+                                                class="spec-qccapture-result-btn fail @(_decideDecision == DrawingApprovalStatus.Rejected ? "active" : "")"
+                                                disabled="@_decideModalBusy"
+                                                role="radio"
+                                                aria-checked="@(_decideDecision == DrawingApprovalStatus.Rejected)"
+                                                @onclick="@(() => SetDecideDecision(DrawingApprovalStatus.Rejected))">
+                                            @Loc["npi.spec.detail.drawings.decide.modal.btn_reject"]
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="spec-qccapture-modal-section">
+                                    <label class="spec-qccapture-modal-label" for="decide-comment">
+                                        @(_decideDecision == DrawingApprovalStatus.Rejected
+                                            ? Loc["npi.spec.detail.drawings.decide.modal.label_comment_required"]
+                                            : Loc["npi.spec.detail.drawings.decide.modal.label_comment"])
+                                        @if (_decideDecision == DrawingApprovalStatus.Rejected)
+                                        {
+                                            <span class="required">*</span>
+                                        }
+                                    </label>
+                                    <textarea id="decide-comment"
+                                              class="spec-qcplans-input spec-qccapture-textarea"
+                                              rows="3"
+                                              maxlength="500"
+                                              placeholder="@Loc["npi.spec.detail.drawings.decide.modal.ph_comment"]"
+                                              disabled="@_decideModalBusy"
+                                              @oninput="@(e => _decideComment = e.Value?.ToString())">@_decideComment</textarea>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(_decideModalError))
+                                {
+                                    <div class="alert err" role="alert">@_decideModalError</div>
+                                }
+                            </div>
+                            <div class="modal-foot">
+                                <button type="button" class="btn" @onclick="CloseDecideModal" disabled="@_decideModalBusy">@Loc["npi.spec.detail.drawings.decide.modal.btn_cancel"]</button>
+                                <button type="button" class="rt-btn rt-btn-primary"
+                                        disabled="@(_decideDecision == null || _decideModalBusy)"
+                                        @onclick="SubmitDecideAsync">
+                                    @(_decideModalBusy
+                                        ? Loc["npi.spec.detail.drawings.decide.modal.btn_submitting"]
+                                        : Loc["npi.spec.detail.drawings.decide.modal.btn_submit"])
                                 </button>
                             </div>
                         </div>
@@ -1364,6 +1474,11 @@
         _uploadModalOpen = false;
         _uploadModalFile = null;
         _uploadModalError = null;
+        // PR-D-5c — reset Decide modal state on revision change.
+        _decideModalOpen = false;
+        _decideModalVersion = null;
+        _decideModalApproval = null;
+        _decideModalError = null;
         try
         {
             _detail = await SpecSvc.SpecDetailAsync(RevisionId);
@@ -1401,6 +1516,7 @@
         // PR-D-5b — Drawings tab lazy-load.
         if (key == "drawings")
         {
+            await EnsureCurrentUserClaimsAsync();
             await EnsureDrawingsLoadedAsync();
         }
     }
@@ -1548,6 +1664,146 @@
 
     private string StatusPillLabel(DrawingVersionStatus s)
         => Loc[$"npi.spec.detail.drawings.status.{s}"].Value;
+
+    // ── Phase 8 PR-D-5c — Decide modal state ──────────────────────────────
+
+    private bool _decideModalOpen;
+    private DrawingVersionView? _decideModalVersion;
+    private DrawingApprovalView? _decideModalApproval;
+    private string? _decideModalKindLabel;
+    private DrawingApprovalStatus? _decideDecision;
+    private string? _decideComment;
+    private bool _decideModalBusy;
+    private string? _decideModalError;
+
+    private static string ChipPillClass(DrawingApprovalStatus s) => s switch
+    {
+        DrawingApprovalStatus.Approved => "approved",
+        DrawingApprovalStatus.Rejected => "rejected",
+        _                              => "pending",
+    };
+
+    private string ChipTooltip(DrawingApprovalView a, bool canAct)
+    {
+        var roleLabel = Loc[$"npi.spec.detail.drawings.chip.label.{a.Role}"].Value;
+        if (!canAct)
+        {
+            var needs = Loc[$"npi.spec.detail.drawings.chip.forbidden_needs.{a.Role}"].Value;
+            return string.Format(Loc["npi.spec.detail.drawings.chip.tooltip.forbidden"].Value,
+                roleLabel, needs);
+        }
+        if (a.Status == DrawingApprovalStatus.Pending)
+        {
+            return string.Format(Loc["npi.spec.detail.drawings.chip.tooltip.pending"].Value, roleLabel);
+        }
+        var statusLabel = Loc[$"npi.spec.detail.drawings.chip.status.{a.Status}"].Value;
+        return string.Format(Loc["npi.spec.detail.drawings.chip.tooltip.decided"].Value,
+            roleLabel, statusLabel, a.ActedBy ?? "—",
+            a.ActedAt?.ToLocalTime() ?? DateTime.MinValue);
+    }
+
+    private bool CanActAsChip(DrawingApprovalRole role)
+        => DrawingsService.CanActAs(_currentUserRole, _currentUserDepartment, role);
+
+    private string _currentUserRole = "";
+    private string? _currentUserDepartment;
+
+    private async Task EnsureCurrentUserClaimsAsync()
+    {
+        if (!string.IsNullOrEmpty(_currentUserRole)) return;
+        var auth = await AuthState.GetAuthenticationStateAsync();
+        var user = auth?.User;
+        if (user is null) return;
+        _currentUserRole = user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+        _currentUserDepartment = user.FindFirst("department")?.Value;
+    }
+
+    private void OpenDecideModal(DrawingVersionView v, DrawingApprovalView a)
+    {
+        if (v.Status == DrawingVersionStatus.Superseded) return;
+        if (!CanActAsChip(a.Role)) return;
+        _decideModalVersion = v;
+        _decideModalApproval = a;
+        // Derive the kind label by finding the parent section. Loop the
+        // small in-memory list — 9 entries, cheap.
+        var parent = _drawingViews.FirstOrDefault(kv => kv.Versions.Any(x => x.Id == v.Id));
+        _decideModalKindLabel = parent is not null
+            ? Loc[$"npi.spec.detail.drawings.kind.{parent.Kind}"].Value
+            : "";
+        // Pre-populate from existing chip state if re-deciding.
+        _decideDecision = a.Status == DrawingApprovalStatus.Pending ? null : a.Status;
+        _decideComment = a.Comment;
+        _decideModalError = null;
+        _decideModalBusy = false;
+        _decideModalOpen = true;
+    }
+
+    private void CloseDecideModal()
+    {
+        if (_decideModalBusy) return;
+        _decideModalOpen = false;
+        _decideModalVersion = null;
+        _decideModalApproval = null;
+        _decideModalError = null;
+    }
+
+    private void SetDecideDecision(DrawingApprovalStatus d)
+    {
+        _decideDecision = d;
+        _decideModalError = null;
+    }
+
+    private async Task SubmitDecideAsync()
+    {
+        if (_decideModalBusy || _decideModalVersion is null || _decideModalApproval is null || _detail is null) return;
+        if (_decideDecision is null)
+        {
+            _decideModalError = Loc["npi.spec.detail.drawings.decide.modal.err_pick_decision"].Value;
+            return;
+        }
+        if (_decideDecision == DrawingApprovalStatus.Rejected && string.IsNullOrWhiteSpace(_decideComment))
+        {
+            _decideModalError = Loc["npi.spec.detail.drawings.decide.modal.err_comment_required"].Value;
+            return;
+        }
+
+        _decideModalBusy = true;
+        _decideModalError = null;
+        try
+        {
+            var auth = await AuthState.GetAuthenticationStateAsync();
+            var user = auth.User?.Identity?.Name ?? "anonymous";
+            var role = _currentUserRole;
+            await DrawingsSvc.DecideAsync(
+                _detail.Id,
+                _decideModalVersion.Id,
+                _decideModalApproval.Role,
+                _decideDecision.Value,
+                _decideComment,
+                user,
+                role,
+                _currentUserDepartment);
+
+            // Reload to pick up new chip state + recomputed version + supersede
+            // effect on older versions.
+            _drawingViews = await DrawingsSvc.ListByRevisionAsync(_detail.Id);
+            _decideModalOpen = false;
+            _decideModalVersion = null;
+            _decideModalApproval = null;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _decideModalError = Loc["npi.spec.detail.drawings.decide.modal.err_forbidden"].Value;
+        }
+        catch (Exception ex)
+        {
+            _decideModalError = ex.Message;
+        }
+        finally
+        {
+            _decideModalBusy = false;
+        }
+    }
 
     // ── Phase 8 PR-D-4 — QC Capture tab state ─────────────────────────────
 

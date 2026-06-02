@@ -920,4 +920,32 @@
   <data name="npi.spec.detail.drawings.modal.btn_uploading" xml:space="preserve"><value>Đang upload…</value></data>
   <data name="npi.spec.detail.drawings.modal.err_no_file" xml:space="preserve"><value>Vui lòng chọn file trước.</value></data>
   <data name="npi.spec.detail.drawings.modal.save_ok" xml:space="preserve"><value>Đã upload.</value></data>
+  <!-- Phase 8 PR-D-5c — Chip duyệt + Modal Decide. -->
+  <data name="npi.spec.detail.drawings.chip.label.Npi" xml:space="preserve"><value>NPI</value></data>
+  <data name="npi.spec.detail.drawings.chip.label.Production" xml:space="preserve"><value>SX</value></data>
+  <data name="npi.spec.detail.drawings.chip.label.Qc" xml:space="preserve"><value>QC</value></data>
+  <data name="npi.spec.detail.drawings.chip.status.Pending" xml:space="preserve"><value>chờ</value></data>
+  <data name="npi.spec.detail.drawings.chip.status.Approved" xml:space="preserve"><value>duyệt</value></data>
+  <data name="npi.spec.detail.drawings.chip.status.Rejected" xml:space="preserve"><value>từ chối</value></data>
+  <data name="npi.spec.detail.drawings.chip.tooltip.pending" xml:space="preserve"><value>{0}: chờ quyết định</value></data>
+  <data name="npi.spec.detail.drawings.chip.tooltip.decided" xml:space="preserve"><value>{0}: {1} bởi {2} lúc {3:yyyy-MM-dd HH:mm}</value></data>
+  <data name="npi.spec.detail.drawings.chip.tooltip.forbidden" xml:space="preserve"><value>Bạn không có quyền action {0} (cần {1}).</value></data>
+  <data name="npi.spec.detail.drawings.chip.forbidden_needs.Npi" xml:space="preserve"><value>Engineer + Dept=npi</value></data>
+  <data name="npi.spec.detail.drawings.chip.forbidden_needs.Production" xml:space="preserve"><value>Engineer + Dept=production hoặc Supervisor</value></data>
+  <data name="npi.spec.detail.drawings.chip.forbidden_needs.Qc" xml:space="preserve"><value>Engineer + Dept=qc</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.title" xml:space="preserve"><value>Quyết định duyệt bản vẽ</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.subtitle" xml:space="preserve"><value>{0} · v{1} · chip {2}</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.label_decision" xml:space="preserve"><value>Quyết định</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.btn_approve" xml:space="preserve"><value>Duyệt</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.btn_reject" xml:space="preserve"><value>Từ chối</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.label_comment" xml:space="preserve"><value>Ghi chú</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.label_comment_required" xml:space="preserve"><value>Ghi chú (bắt buộc khi Từ chối)</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.ph_comment" xml:space="preserve"><value>Tuỳ chọn / bắt buộc lý do khi Từ chối (tối đa 500 ký tự)</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.btn_cancel" xml:space="preserve"><value>Huỷ</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.btn_submit" xml:space="preserve"><value>Gửi quyết định</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.btn_submitting" xml:space="preserve"><value>Đang gửi…</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.err_pick_decision" xml:space="preserve"><value>Hãy chọn Duyệt hoặc Từ chối trước.</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.err_comment_required" xml:space="preserve"><value>Cần ghi chú khi Từ chối.</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.err_forbidden" xml:space="preserve"><value>Bạn không có quyền action chip này.</value></data>
+  <data name="npi.spec.detail.drawings.decide.modal.save_ok" xml:space="preserve"><value>Đã ghi nhận quyết định.</value></data>
 </root>
