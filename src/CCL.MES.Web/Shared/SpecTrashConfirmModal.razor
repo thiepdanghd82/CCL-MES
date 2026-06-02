@@ -1,0 +1,122 @@
+@*  Phase 8 PR-L3 — Spec lifecycle Trash confirm modal.
+
+    Soft-delete with WO-active blocker. Server returns 422
+    active_work_orders with the count when the blocker fires; this modal
+    surfaces that count inline so the operator understands why they're
+    being stopped. *@
+
+@using CCL.MES.Application
+@inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> Loc
+
+@if (_open && _row is not null)
+{
+    <div class="modal-scrim" @onclick="Close">
+        <div class="modal-card spec-trash-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal-head">
+                <h2>@string.Format(Loc["npi.spec.trash.title_fmt"].Value, _row.SpecCode, _row.RevisionCode)</h2>
+                <button type="button" class="modal-close" @onclick="Close" aria-label="Close">×</button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert err">@_errorMessage</div>
+                }
+
+                <p>@Loc["npi.spec.trash.intro"]</p>
+
+                <div class="alert warn spec-trash-purge-warn">
+                    @Loc["npi.spec.trash.purge_warn"]
+                </div>
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="rt-btn" @onclick="Close" disabled="@_busy">
+                    @Loc["common.cancel"]
+                </button>
+                <button type="button" class="rt-btn rt-btn-danger"
+                        disabled="@_busy"
+                        @onclick="SubmitAsync">
+                    @(_busy ? Loc["npi.spec.trash.btn.trashing"].Value : Loc["npi.spec.trash.btn.confirm"].Value)
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback OnTrashed { get; set; }
+
+    private bool _open;
+    private ProductRevisionListItem? _row;
+    private bool _busy;
+    private string? _errorMessage;
+
+    public void Open(ProductRevisionListItem row)
+    {
+        _row = row;
+        _errorMessage = null;
+        _busy = false;
+        _open = true;
+        StateHasChanged();
+    }
+
+    public void Close()
+    {
+        _open = false;
+        _row = null;
+        StateHasChanged();
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_row is null || _busy) return;
+        _busy = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var result = await JS.InvokeAsync<TrashMutationResult>(
+                "cclmes.specs.trash", _row.Id);
+            if (!result.Ok)
+            {
+                _errorMessage = result.Code switch
+                {
+                    "active_work_orders" => string.Format(
+                        Loc["npi.spec.trash.err.active_wo_fmt"].Value,
+                        result.ActiveWoCount ?? 0),
+                    "already_trashed"    => Loc["npi.spec.trash.err.already"].Value,
+                    _                    => $"{result.Status}: {Truncate(result.Body, 240)}",
+                };
+            }
+            else
+            {
+                Close();
+                await OnTrashed.InvokeAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string Truncate(string? s, int n) =>
+        string.IsNullOrEmpty(s) ? "" : (s.Length > n ? s.Substring(0, n) + "…" : s);
+
+    public sealed class TrashMutationResult
+    {
+        public bool Ok { get; set; }
+        public int Status { get; set; }
+        public string? Code { get; set; }
+        public int? ActiveWoCount { get; set; }
+        public string? Body { get; set; }
+    }
+}

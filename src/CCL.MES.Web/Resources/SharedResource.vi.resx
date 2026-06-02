@@ -1106,4 +1106,21 @@ WO mới sẽ xuất hiện trong Active ngay sau khi xác nhận.</value></data
   <data name="npi.spec.supersede.err.trashed" xml:space="preserve"><value>Spec đang trong Trash. Khôi phục trước khi supersede.</value></data>
   <data name="npi.spec.supersede.err.mismatch" xml:space="preserve"><value>Spec code gõ không khớp. Huỷ xác nhận.</value></data>
   <data name="npi.spec.supersede.toast_ok" xml:space="preserve"><value>Đã đánh dấu Superseded.</value></data>
+  <!-- Phase 8 PR-L3 — Spec lifecycle Trash + Restore + Purge view -->
+  <data name="npi.spec.view.aria" xml:space="preserve"><value>Bộ lọc view danh sách</value></data>
+  <data name="npi.spec.view.active" xml:space="preserve"><value>Active</value></data>
+  <data name="npi.spec.view.trash" xml:space="preserve"><value>Thùng rác</value></data>
+  <data name="npi.spec.view.all" xml:space="preserve"><value>Tất cả</value></data>
+  <data name="npi.spec.ctx.trash" xml:space="preserve"><value>Chuyển vào Thùng rác</value></data>
+  <data name="npi.spec.ctx.restore" xml:space="preserve"><value>Khôi phục từ Thùng rác</value></data>
+  <data name="npi.spec.btn_restore" xml:space="preserve"><value>Khôi phục từ Thùng rác</value></data>
+  <data name="npi.spec.detail.action.restore" xml:space="preserve"><value>Khôi phục từ Thùng rác</value></data>
+  <data name="npi.spec.trash.title_fmt" xml:space="preserve"><value>Chuyển vào Thùng rác — {0} Rev {1}</value></data>
+  <data name="npi.spec.trash.intro" xml:space="preserve"><value>Soft-delete revision này. Vẫn xem được trong Thùng rác; có thể Restore bất cứ lúc nào trước khi hết retention.</value></data>
+  <data name="npi.spec.trash.purge_warn" xml:space="preserve"><value>Revision trong Thùng rác sẽ bị xóa vĩnh viễn bởi background purge sau 30 ngày (cấu hình qua OPS_SPEC_TRASH_RETENTION_DAYS). Restore trước thời gian đó nếu muốn giữ.</value></data>
+  <data name="npi.spec.trash.btn.confirm" xml:space="preserve"><value>Chuyển vào Thùng rác</value></data>
+  <data name="npi.spec.trash.btn.trashing" xml:space="preserve"><value>Đang chuyển…</value></data>
+  <data name="npi.spec.trash.err.active_wo_fmt" xml:space="preserve"><value>Không thể chuyển vào Thùng rác: còn {0} Work Order active đang tham chiếu spec này. Đóng/Huỷ các WO đó trước.</value></data>
+  <data name="npi.spec.trash.err.already" xml:space="preserve"><value>Revision này đã ở Thùng rác.</value></data>
+  <data name="npi.spec.trash.toast_ok" xml:space="preserve"><value>Đã chuyển spec vào Thùng rác. Xem ở filter Thùng rác.</value></data>
 </root>

@@ -337,6 +337,32 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .spec-approve-btn:hover { background:#a7f3d0; }
 .spec-approve-btn:disabled { opacity:0.5; cursor:not-allowed; }
 
+/* PR-L3 — Spec lifecycle Trash + Restore. */
+.spec-restore-btn { background:#fef3c7; color:#92400e; border:0; border-radius:4px;
+  width:28px; height:24px; cursor:pointer; font-weight:bold; font-size:14px; }
+.spec-restore-btn:hover { background:#fde68a; }
+.spec-restore-btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+/* Trash view rows render with a dimmed line-through styling so operators
+   immediately see they're looking at trashed entities. */
+.spec-trash-row td { color:#9ca3af !important; }
+.spec-trash-row td.rt-num { font-style:italic; }
+.spec-trash-row { background:#fafbfc; }
+
+/* Filter chip for the Spec list view selector — uses the same segmented
+   control look as the WO consolidated page view-toggle so the UI stays
+   consistent across main tabs. */
+.spec-view-chip { display:inline-flex; border:1px solid var(--navy-border);
+  border-radius:6px; overflow:hidden; }
+.spec-view-chip-btn { background:#fff; color:var(--navy-dark);
+  border:0; padding:6px 12px; font-size:12px; font-weight:600;
+  cursor:pointer; letter-spacing:0.4px; text-transform:uppercase; }
+.spec-view-chip-btn + .spec-view-chip-btn {
+  border-left:1px solid var(--navy-border); }
+.spec-view-chip-btn.active { background:var(--navy-primary); color:#fff; }
+.spec-view-chip-btn:hover:not(.active) { background:var(--navy-light); }
+.spec-view-chip-trash.active { background:#b45309; }
+
 /* === Phase 7 hạng mục 5 — Work Center area badge palette === */
 
 /* 17 KNOWN_AREAS palette mirror CMES tham chiếu (Q6 chốt). Color picked

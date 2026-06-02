@@ -28,8 +28,20 @@ public class SpecsController : ControllerBase
     /// auth middleware ở đây — Web SPA dùng SpecService trực tiếp qua DI.
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
-        => Ok(await _svc.SpecsAsync(search, page, pageSize));
+    public async Task<IActionResult> GetAll(
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        [FromQuery] string? view = null)
+    {
+        var v = (view ?? "").Trim().ToLowerInvariant() switch
+        {
+            "trash" => SpecListView.Trash,
+            "all"   => SpecListView.All,
+            _        => SpecListView.Active,
+        };
+        return Ok(await _svc.SpecsAsync(search, page, pageSize, v));
+    }
 
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateSpecRequest r, [FromQuery] string? user)
@@ -173,6 +185,74 @@ public class SpecsController : ControllerBase
         catch (System.Exception ex)
         {
             return Problem(title: "Spec supersede failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
+    [HttpPost("{revisionId:long}/trash")]
+    [Authorize(Roles = "Admin,Engineer")]
+    public async Task<IActionResult> Trash(long revisionId)
+    {
+        try
+        {
+            var user = User?.Identity?.Name;
+            var result = await _svc.TrashAsync(revisionId, user);
+            return result.Kind switch
+            {
+                TrashResultKind.Ok               => Ok(new
+                {
+                    id        = result.Revision!.Id,
+                    specCode  = result.Revision.SpecCode,
+                    isTrashed = result.Revision.IsTrashed,
+                }),
+                TrashResultKind.NotFound         => NotFound(new { error = result.Error }),
+                TrashResultKind.AlreadyTrashed   => UnprocessableEntity(new
+                {
+                    code  = "already_trashed",
+                    error = result.Error,
+                }),
+                TrashResultKind.ActiveWorkOrders => UnprocessableEntity(new
+                {
+                    code           = "active_work_orders",
+                    error          = result.Error,
+                    activeWoCount  = result.ActiveWoCount,
+                }),
+                _                                => Problem("Unexpected trash result"),
+            };
+        }
+        catch (System.Exception ex)
+        {
+            return Problem(title: "Spec trash failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
+    [HttpPost("{revisionId:long}/restore")]
+    [Authorize(Roles = "Admin,Engineer")]
+    public async Task<IActionResult> Restore(long revisionId)
+    {
+        try
+        {
+            var user = User?.Identity?.Name;
+            var result = await _svc.RestoreAsync(revisionId, user);
+            return result.Kind switch
+            {
+                RestoreResultKind.Ok         => Ok(new
+                {
+                    id        = result.Revision!.Id,
+                    specCode  = result.Revision.SpecCode,
+                    isTrashed = result.Revision.IsTrashed,
+                }),
+                RestoreResultKind.NotFound   => NotFound(new { error = result.Error }),
+                RestoreResultKind.NotTrashed => UnprocessableEntity(new
+                {
+                    code  = "not_trashed",
+                    error = result.Error,
+                }),
+                _                            => Problem("Unexpected restore result"),
+            };
+        }
+        catch (System.Exception ex)
+        {
+            return Problem(title: "Spec restore failed", detail: ex.Message, statusCode: 500);
         }
     }
 

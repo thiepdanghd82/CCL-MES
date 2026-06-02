@@ -40,6 +40,11 @@ public static class AuditAction
     // ref_no, title, product_id, process_code, source, filename, rows_parsed,
     // warnings, created_new_product }
     public const string SpecImport            = "SPEC_IMPORT";
+    // Phase 8 PR-L3 — Spec lifecycle Purge (HostedService hard-delete after
+    // retention). Per-spec audit emit BEFORE the delete so the forensic trail
+    // survives. detail JSON: { spec_code, rev_id, rev_code, trashed_at,
+    // age_days, drawing_blob_keys_removed, blob_cleanup_failures }.
+    public const string SpecPurge             = "SPEC_PURGE";
     // Phase 8 PR-D-3 — QC Plans tab atomic per-stage upsert. detail JSON:
     // { revision_id, stage, criteria_count, created, updated, deleted }
     public const string SpecQcPlanUpsert      = "SPEC_QC_PLAN_UPSERT";
@@ -82,6 +87,15 @@ public static class AuditAction
     // Refresh-samples Admin-only batch (idempotent). detail JSON: { added,
     // updated, skipped, files: [{filename, ref_no, status}] }
     public const string SpecRefreshSamples    = "SPEC_REFRESH_SAMPLES";
+    // Phase 8 PR-L3 — Spec lifecycle Restore (un-trash). detail JSON:
+    // { rev_id, rev_code, spec_code, was_trashed_at }.
+    public const string SpecRestore           = "SPEC_RESTORE";
+    // Phase 8 PR-L3 — Spec lifecycle Trash (soft-delete). Blocked at service
+    // when WO active references still exist (FK ON DELETE RESTRICT defence in
+    // depth — soft-delete keeps the row, but Purge would later try to hard-
+    // delete and violate the FK). detail JSON: { rev_id, rev_code, spec_code,
+    // status }.
+    public const string SpecTrash             = "SPEC_TRASH";
     public const string UserCreate            = "USER_CREATE";
     public const string UserDisplayChange     = "USER_DISPLAY_CHANGE";
     public const string UserResetPassword     = "USER_RESET_PASSWORD";

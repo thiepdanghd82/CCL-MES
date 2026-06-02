@@ -130,6 +130,37 @@
             <span class="spec-ctx-label">@Loc["npi.spec.ctx.get_info"]</span>
             <span class="spec-ctx-shortcut">⌘I</span>
         </button>
+
+        @* PR-L3 — Trash / Restore. Both gate on Admin/Engineer. Trash shows
+           when the row isn't already trashed; Restore swaps in when it is. *@
+        <div class="spec-ctx-separator"></div>
+        <AuthorizeView Roles="Admin,Engineer" Context="auth3">
+            <Authorized>
+                @if (_isTrashed)
+                {
+                    <button type="button" class="spec-ctx-item"
+                            @onclick="@(() => Invoke("restore"))" role="menuitem">
+                        <span class="spec-ctx-label">@Loc["npi.spec.ctx.restore"]</span>
+                        <span class="spec-ctx-shortcut">⌘Z</span>
+                    </button>
+                }
+                else
+                {
+                    <button type="button" class="spec-ctx-item spec-ctx-danger"
+                            @onclick="@(() => Invoke("trash"))" role="menuitem">
+                        <span class="spec-ctx-label">@Loc["npi.spec.ctx.trash"]</span>
+                        <span class="spec-ctx-shortcut">⌫</span>
+                    </button>
+                }
+            </Authorized>
+            <NotAuthorized>
+                <button type="button" class="spec-ctx-item spec-ctx-disabled" disabled
+                        title="@Loc["npi.spec.ctx.require_admin_or_engineer"]" role="menuitem">
+                    <span class="spec-ctx-label">@Loc["npi.spec.ctx.trash"]</span>
+                    <span class="spec-ctx-shortcut">⌫</span>
+                </button>
+            </NotAuthorized>
+        </AuthorizeView>
     </div>
 }
 
@@ -142,16 +173,23 @@
     private double _x;
     private double _y;
     private ProductRevisionListItem? _row;
+    private bool _isTrashed;
 
     /// <summary>
     /// Open menu tại (x,y) cho row chỉ định. Caller (Page) clamp x,y
     /// trong viewport nếu cần. Auto-close khi action invoked hoặc click scrim.
+    ///
+    /// PR-L3 added <paramref name="isTrashed"/> so the menu can swap Trash
+    /// vs Restore item. The DTO ProductRevisionListItem doesn't carry the
+    /// flag (kept lean for the 14-col grid); the page passes its current
+    /// view-state in.
     /// </summary>
-    public void Open(double x, double y, ProductRevisionListItem row)
+    public void Open(double x, double y, ProductRevisionListItem row, bool isTrashed = false)
     {
         _x = x;
         _y = y;
         _row = row;
+        _isTrashed = isTrashed;
         _open = true;
         StateHasChanged();
     }

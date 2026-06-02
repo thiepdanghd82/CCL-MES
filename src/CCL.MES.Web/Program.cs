@@ -229,6 +229,12 @@ builder.Services.AddScoped<NpiImportService>();
 // trong AddInfrastructure() (SilkscreenXlsxParser impl).
 builder.Services.AddScoped<CCL.MES.Application.SpecImport.SpecImportService>();
 
+// Phase 8 PR-L3 — Spec trash purge background worker. Cycle 24h, retention
+// 30 days (env-overridable via OPS_SPEC_TRASH_RETENTION_DAYS), first-run
+// delay 30s (avoids racing the DbSeeder). Implementation details + safety
+// contract in src/CCL.MES.Web/Services/SpecTrashPurgeService.cs.
+builder.Services.AddHostedService<CCL.MES.Web.Services.SpecTrashPurgeService>();
+
 var app = builder.Build();
 
 // DB init + seed (Phase 5 — single path for SQLite + SQL Server via
