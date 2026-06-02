@@ -772,4 +772,34 @@ focused thay vì spread khắp 9-cột row.
 
 ---
 
-*Cập nhật lần cuối: 02/06/2026 — Phase 8 WO-Consolidation (verbatim MOVE + EventCallback OnChanged refresh + HTTP 301 native MapGet + single source action UI).*
+## Phase 8 carry-over CLOSED — SpecService.PageAsync đã consolidate
+
+`docs/PHASE6-STEP2B-PLAN.md` cam kết swap SpecService sang
+`PagingHelper.PageAsync<T>` sau khi PR #10 + PR Bước 2B đều merge. Khi
+audit lại 02/06/2026 (sau khi merge PR #60 RBAC hardening): SpecService
+KHÔNG còn local `PageAsync` — `SpecService.cs:78` đã consume shared
+`PagingHelper.PageAsync(ordered, page, pageSize)` từ chuỗi merge
+close-out Phase 6 (`6de3fc7` Merge → `319d983` Merge → trước PR #28
+`1b1c752`). Refactor `refactor/specservice-paginghelper` là no-op,
+branch xoá local trước khi commit. **Carry-over CLOSED — tránh
+re-raise.**
+
+Bằng chứng grep trên `main` tại thời điểm verify (commit `91045da`):
+
+```
+$ grep -rn "PageAsync" --include="*.cs" src/
+src/CCL.MES.Application/Services/SpecService.cs:78  ← shared helper
+src/CCL.MES.Application/Services/IqcService.cs:182
+src/CCL.MES.Application/Services/QcService.cs:42
+src/CCL.MES.Application/Services/NpiService.cs:48,67,88,106
+src/CCL.MES.Web/Services/UserAdminService.cs:54
+src/CCL.MES.Web/Services/AuditLogService.cs:60
+src/CCL.MES.Application/Services/PagingHelper.cs:16  ← định nghĩa
+```
+
+Toàn bộ 7 service paginated đều consume `PagingHelper.PageAsync` —
+zero local copy còn lại.
+
+---
+
+*Cập nhật lần cuối: 02/06/2026 — Phase 8 WO-Consolidation + carry-over CLOSED note (SpecService PagingHelper).*
