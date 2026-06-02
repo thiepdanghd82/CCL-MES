@@ -208,6 +208,7 @@ public class WorkOrderService
             Uom:             wo.Uom,
             PlannedStart:    wo.PlannedStart,
             PlannedEnd:      wo.PlannedEnd,
+            CurrentStep:     wo.CurrentStep,
             BadgeToken:      badge.Token,
             BadgeLabelKey:   badge.LabelKey,
             BadgeCssClass:   badge.CssClass,
@@ -362,6 +363,10 @@ public sealed record WorkOrderDrawerView(
     string Uom,
     DateTime? PlannedStart,
     DateTime? PlannedEnd,
+    // Phase 8 WO-Consolidation — Action section needs CurrentStep for
+    // visibility gating (mirror Phase 6 row pattern). Server-side
+    // state-machine guard still authoritative in Wo.AdvanceAsync.
+    ProcessStepCode CurrentStep,
     string BadgeToken,
     string BadgeLabelKey,
     string BadgeCssClass,

@@ -78,7 +78,6 @@
   <data name="nav.home" xml:space="preserve"><value>Trang chủ</value></data>
   <data name="nav.dashboard" xml:space="preserve"><value>Dashboard</value></data>
   <data name="nav.workorders" xml:space="preserve"><value>Work Orders</value></data>
-  <data name="nav.shoporder" xml:space="preserve"><value>Shop Order</value></data>
   <data name="nav.workinstructions" xml:space="preserve"><value>Work Instructions</value></data>
   <data name="nav.npidata" xml:space="preserve"><value>NPI Data</value></data>
   <data name="nav.qcqadata" xml:space="preserve"><value>QC/QA Data</value></data>
@@ -1006,4 +1005,9 @@
   <data name="shop_order.drawer.qc.empty" xml:space="preserve"><value>— WO chưa có lần kiểm QC nào.</value></data>
   <data name="shop_order.drawer.qc.inspector" xml:space="preserve"><value>bởi</value></data>
   <data name="shop_order.drawer.action.open_in_workorders" xml:space="preserve"><value>Mở trong Work Orders</value></data>
+  <!-- Phase 8 WO-Consolidation — Drawer Action section + view toggle. -->
+  <data name="workorders.drawer.section.actions" xml:space="preserve"><value>Thao tác</value></data>
+  <data name="workorders.drawer.action.close" xml:space="preserve"><value>Đóng</value></data>
+  <data name="workorders.view.card" xml:space="preserve"><value>Thẻ</value></data>
+  <data name="workorders.view.table" xml:space="preserve"><value>Bảng</value></data>
 </root>

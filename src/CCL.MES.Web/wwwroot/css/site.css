@@ -1053,6 +1053,64 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   background:#fafbfc; }
 .wo-drawer-cta { width:100%; padding:10px; font-size:14px; }
 
+/* Phase 8 WO-Consolidation — drawer Action section (9-button grid moved
+   verbatim from Phase 6 row). Button styling reuses Phase 6 .btn classes
+   in workorders.css so visual parity with the old row is preserved. */
+.wo-drawer-actions h3 { color:var(--navy-dark); }
+.wo-drawer-action-grid { display:flex; flex-wrap:wrap; gap:6px;
+  align-items:center; }
+.wo-drawer-action-grid .sep { flex-basis:100%; height:0;
+  border-top:1px dashed var(--navy-light); margin:6px 0; }
+.wo-drawer-action-grid .btn { padding:6px 12px; font-size:13px; }
+.wo-drawer-actions .alert { margin:0 0 8px; padding:6px 10px;
+  border-radius:4px; font-size:12px; }
+
+/* View toggle (segmented control) — top-right of header. */
+.workorders-view-toggle { margin-left:auto; display:inline-flex;
+  border:1px solid var(--navy-border); border-radius:6px; overflow:hidden; }
+.workorders-view-toggle-btn { background:#fff; color:var(--navy-dark);
+  border:0; padding:6px 14px; font-size:12px; font-weight:600;
+  cursor:pointer; letter-spacing:0.4px; text-transform:uppercase; }
+.workorders-view-toggle-btn + .workorders-view-toggle-btn {
+  border-left:1px solid var(--navy-border); }
+.workorders-view-toggle-btn.active { background:var(--navy-primary);
+  color:#fff; }
+.workorders-view-toggle-btn:hover:not(.active) {
+  background:var(--navy-light); }
+
+/* Table view — Phase 6 9-cols, now DISPLAY-ONLY (Q4). Row click opens
+   drawer; no inline action buttons. Cursor + hover affordance signals
+   row-as-button. */
+.workorders-page table.wo { width:100%; border-collapse:collapse;
+  font-size:13px; background:#fff; }
+.workorders-page table.wo thead th { background:var(--navy-light);
+  color:var(--navy-dark); font-weight:600; padding:6px 8px;
+  text-align:left; border-bottom:1px solid var(--navy-border); }
+.workorders-page table.wo tbody td { padding:6px 8px;
+  border-bottom:1px solid #e5e7eb; }
+.workorders-page tr.wo-row-clickable { cursor:pointer; }
+.workorders-page tr.wo-row-clickable:hover { background:#fafbfc; }
+.workorders-page tr.wo-row-clickable:focus-visible {
+  outline:2px solid var(--navy-primary); outline-offset:-2px; }
+.workorders-page table.wo .badge.step { background:var(--navy-light);
+  color:var(--navy-dark); padding:2px 8px; border-radius:8px;
+  font-size:11px; font-weight:600; }
+.workorders-page .flow { display:flex; gap:3px; }
+.workorders-page .flow .dot { width:18px; height:18px; border-radius:50%;
+  font-size:10px; line-height:18px; text-align:center; font-weight:600;
+  color:#fff; }
+.workorders-page .flow .dot.done { background:var(--navy-primary); }
+.workorders-page .flow .dot.current { background:#f59e0b;
+  outline:2px solid #fcd34d; }
+.workorders-page .flow .dot.todo { background:#cbd5e1; color:#6b7280; }
+.workorders-page .muted { color:#6b7280; font-size:12px;
+  font-style:italic; margin-top:8px; }
+.workorders-page .visually-hidden { position:absolute; width:1px; height:1px;
+  padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0);
+  white-space:nowrap; border:0; }
+.workorders-page { display:flex; flex-direction:column; gap:14px;
+  padding:18px 20px; max-width:1600px; margin:0 auto; }
+
 .spec-history-modal-list { max-height:60vh; overflow-y:auto; }
 
 .spec-detail-audit-list { list-style:none; padding:0; margin:6px 0 0; }

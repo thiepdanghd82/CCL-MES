@@ -668,3 +668,108 @@ Pattern chung: **mọi tab/view mới thêm vào trên 1 entity existing phải 
 ---
 
 *Cập nhật lần cuối: 02/06/2026 — Phase 8 PR #32b (vendor lib pattern + getUserMedia secure context + JS interop dispose + read-only drawer discipline).*
+
+---
+
+## Phase 8 WO-Consolidation — Verbatim action MOVE preserving state machine
+
+PR #32a → PR #32b → consolidation: 2 trang `/workorders/shop` (kiosk
+card + scan + read-only drawer) và `/workorders` (Phase 6 planner table +
+9 inline action buttons + state machine + SignalR) đã hợp nhất. 3 lesson
+quan trọng:
+
+### Verbatim MOVE = zero-risk consolidation
+
+Khi merge 2 surface UI có overlap chức năng, **chuyển button code y nguyên
+ô vị trí** thay vì re-implement. Trong consolidation này 9 Phase 6 action
+buttons (`Advance` / `Unlock step` / `QC ×3` / `Start` / `Pause` / `Resume`
+/ `Finish`) **copy verbatim** từ `WorkOrders.razor` row markup sang
+`WorkOrderDrawer.razor` Action section:
+
+- Cùng `AuthorizeView Roles="..." Context="..."` (advanceCtx / qcCtx / runCtx).
+- Cùng `NeedsQc(step)` helper + `CurrentStep == Running` guard.
+- Cùng service calls: `Wo.AdvanceAsync` / `Wo.UpdateFlagsAsync` /
+  `Qc.CreateAsync + ApproveAsync` / `Oee.{Start,Pause,Resume,Finish}Async`.
+- Cùng `Notifier.NotifyChangedAsync(reason)` với `reason` strings
+  `"advance"` / `"flags"` / `"qc"` / `"oee"`.
+- Cùng error code → i18n key mapping qua `WoErrorKeys.KeyFor(...)`.
+
+**Result**: service surface + state machine + SignalR contract + audit
+emit codes `git diff main = EMPTY`. Operator hành vi đúng pattern Phase 6
+trước/sau. Risk profile của consolidation gần như zero.
+
+**Anti-pattern**: re-implement actions trong drawer với "modern hooks"
+hoặc "cleaner async API" → kéo theo state machine guards, audit, RBAC,
+SignalR rewire — bug surface tăng vọt + Phase 6 muscle memory bị break.
+
+### `EventCallback OnChanged` cho parent-child refresh sau mutation
+
+Drawer là **child component** (sống trong page parent). Sau mỗi mutation
+button click, drawer cần parent re-fetch card list + re-fetch chính drawer
+DTO (nếu drawer vẫn mở). Pattern:
+
+```razor
+@* Parent — WorkOrders.razor *@
+<WorkOrderDrawer Open="@_drawerOpen"
+                 View="@_drawerView"
+                 OnClose="CloseDrawerAsync"
+                 OnChanged="OnDrawerChangedAsync" />
+
+private async Task OnDrawerChangedAsync()
+{
+    await RefreshAllAsync(); // re-fetch card list + drawer DTO
+}
+```
+
+```razor
+@* Child — WorkOrderDrawer.razor *@
+[Parameter] public EventCallback OnChanged { get; set; }
+
+private async Task RunAsync(Func<Task> body)
+{
+    if (_busy) return;
+    _busy = true;
+    try { await body(); }
+    catch (Exception ex) { /* ... */ }
+    finally {
+        _busy = false;
+        await OnChanged.InvokeAsync(); // PARENT REFRESH
+    }
+}
+```
+
+SignalR push handler vẫn riêng (xử lý cross-session). Local-session phụ
+thuộc `OnChanged` callback — tránh **trigger ngầm** qua `StateHasChanged`
+parent vì parent không biết drawer vừa mutate cái gì.
+
+### HTTP 301 native via `Program.cs MapGet` cho deprecated route
+
+Khi bỏ 1 route (consolidation), bookmark + share-link cũ phải redirect
+không-broken. 2 cách:
+
+- **A (Razor shell page)**: `Pages/ShopOrderRedirect.razor` với
+  `Nav.NavigateTo("/workorders", forceLoad: true)` — Blazor circuit hop +
+  client-side redirect. **Slower** (init circuit) + leaks Blazor render
+  attempt.
+- **B (Endpoint MapGet)**: `app.MapGet("/workorders/shop", ctx => {
+  ctx.Response.Redirect("/workorders", permanent: true); return
+  Task.CompletedTask; })` — **native HTTP 301**, no Blazor.
+
+PR này chọn B. Verify: anon → 302 /login (FallbackPolicy auth gate chạy
+trước endpoint nên vẫn enforce auth — không leak); auth → 301 /workorders
+(native, sub-millisecond). Browser cache 301 forever → bookmark cũ tự
+update.
+
+### Single source action UI — bỏ inline row buttons
+
+Khi consolidate, hấp dẫn để giữ inline action buttons trong table view
+"cho operator muscle memory". **Đừng** — duplicate UI = duplicate logic
+risk. Table view trong consolidation này CHỈ DISPLAY, row click → mở
+drawer (single source action UI). Operator học flow mới 1 lần (click WO
+→ drawer → action) + state machine + RBAC chỉ wire 1 chỗ. Phase 6 muscle
+memory chuyển sang drawer Action section còn nhanh hơn vì button-grid
+focused thay vì spread khắp 9-cột row.
+
+---
+
+*Cập nhật lần cuối: 02/06/2026 — Phase 8 WO-Consolidation (verbatim MOVE + EventCallback OnChanged refresh + HTTP 301 native MapGet + single source action UI).*

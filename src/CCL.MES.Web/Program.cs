@@ -271,6 +271,16 @@ app.MapRazorPages();
 app.MapBlazorHub();
 // Phase 5 — cookie forward via scoped CookieAccessor (see docs/PHASE5-STEP2-PLAN.md).
 app.MapHub<ShopfloorHub>("/hubs/shopfloor");
+
+// Phase 8 WO-Consolidation — /workorders/shop merged into /workorders.
+// Native HTTP 301 (no Blazor circuit hop) so bookmarks + share-links from
+// PR #32a/#32b stay valid. Q6 default per consolidation plan.
+app.MapGet("/workorders/shop", ctx =>
+{
+    ctx.Response.Redirect("/workorders", permanent: true);
+    return Task.CompletedTask;
+});
+
 app.MapFallbackToPage("/_Host");
 
 app.Run();
