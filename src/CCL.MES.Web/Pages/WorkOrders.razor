@@ -164,12 +164,22 @@
                                     <div class="mes-wo-row"><dt>@Loc["shop_order.field.machine"]</dt><dd>@OrDash(wo.MachineCode)</dd></div>
                                     <div class="mes-wo-row"><dt>@Loc["shop_order.field.process"]</dt><dd>@OrDash(wo.ProcessLabel)</dd></div>
                                     <div class="mes-wo-row"><dt>@Loc["shop_order.field.progress"]</dt><dd>@FormatProgress(wo)</dd></div>
+                                    @* PR #32d Q3 — luôn hiện Reject (kể cả 0) cho at-a-glance consistency. *@
+                                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.reject"]</dt><dd>@FormatReject(wo)</dd></div>
                                 </dl>
                             </article>
                         }
                     </div>
                 }
             </section>
+
+            @* PR #32d — Demo Work Orders section. Per Q7: between Active and
+                 Closed so it doesn't displace either of the operational lists.
+                 Hidden from anyone outside Admin / Supervisor (RBAC Q9 — but
+                 we also gate server-side at the controller). *@
+            <AuthorizeView Roles="Admin,Supervisor" Context="demoCtx">
+                <DemoWoTemplates OnCreated="OnDemoCreatedAsync" />
+            </AuthorizeView>
 
             <section class="shop-order-section">
                 <header class="shop-order-section-head">
@@ -199,7 +209,8 @@
                                 <dl class="mes-wo-card-body">
                                     <div class="mes-wo-row"><dt>@Loc["shop_order.field.customer"]</dt><dd>@OrDash(wo.CustomerName)</dd></div>
                                     <div class="mes-wo-row"><dt>@Loc["shop_order.field.output"]</dt><dd>@FormatProgress(wo)</dd></div>
-                                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.reject"]</dt><dd class="muted">—</dd></div>
+                                    @* PR #32d — real reject count from ProductionLog (replaces "—"). *@
+                                    <div class="mes-wo-row"><dt>@Loc["shop_order.field.reject"]</dt><dd>@FormatReject(wo)</dd></div>
                                 </dl>
                             </article>
                         }
@@ -572,6 +583,36 @@
         var sample = _result.Active.Take(3).Select(w => w.WoNo).ToList();
         if (sample.Count == 0) return "";
         return string.Format(Loc["shop_order.demo_codes_fmt"].Value, string.Join(", ", sample));
+    }
+
+    /// <summary>
+    /// Phase 8 PR #32d — Format reject for card row.
+    /// Q2: count + rate% when (produced+reject) > 0, else just count.
+    /// Rate = reject / (produced + reject) × 100, 1 decimal.
+    /// </summary>
+    private string FormatReject(WorkOrderCardItem wo)
+    {
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        var reject = wo.RejectQty.ToString("N0", culture);
+        var denom = wo.ProducedQty + wo.RejectQty;
+        if (denom > 0 && wo.RejectQty > 0)
+        {
+            var rate = ((double)wo.RejectQty / denom * 100.0).ToString("0.0", culture);
+            return string.Format(Loc["shop_order.reject_fmt"].Value, reject, wo.Uom, rate);
+        }
+        return string.Format(Loc["shop_order.reject_count_fmt"].Value, reject, wo.Uom);
+    }
+
+    /// <summary>
+    /// Phase 8 PR #32d — Demo template "Start Demo" success handler.
+    /// Refresh list + toast confirmation. SignalR also pushes from the
+    /// controller via ShopfloorNotifier so other circuits update too.
+    /// </summary>
+    private async Task OnDemoCreatedAsync(string newWoNo)
+    {
+        await RefreshAllAsync();
+        ShowToast(string.Format(Loc["workorders.demo.created_fmt"].Value, newWoNo), isError: false);
+        await InvokeAsync(StateHasChanged);
     }
 
     private static string StepName(ProcessStepCode s) => s switch

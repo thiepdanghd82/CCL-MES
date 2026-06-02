@@ -1026,4 +1026,19 @@
   <data name="workorders.drawer.history.flag.setup" xml:space="preserve"><value>Setup</value></data>
   <data name="workorders.drawer.history.flag.rohs" xml:space="preserve"><value>RoHS</value></data>
   <data name="workorders.drawer.history.flag.produced" xml:space="preserve"><value>Produced</value></data>
+  <!-- Phase 8 PR #32d — NG (read-only) + Demo templates (click-to-create). -->
+  <data name="shop_order.reject_count_fmt" xml:space="preserve"><value>{0} {1}</value></data>
+  <data name="shop_order.reject_fmt" xml:space="preserve"><value>{0} {1} ({2}%)</value></data>
+  <data name="workorders.demo.section" xml:space="preserve"><value>Demo Work Orders</value></data>
+  <data name="workorders.demo.hint" xml:space="preserve"><value>Click any template below to create a real Work Order seeded with the same FKs as production. Admin / Supervisor only.</value></data>
+  <data name="workorders.demo.batch_fmt" xml:space="preserve"><value>{0} {1}</value></data>
+  <data name="workorders.demo.start_btn" xml:space="preserve"><value>Start Demo</value></data>
+  <data name="workorders.demo.creating" xml:space="preserve"><value>Creating…</value></data>
+  <data name="workorders.demo.confirm_fmt" xml:space="preserve"><value>Create a real Work Order from "{0}"?
+  Customer: {1}
+  Product: {2}
+  Target: {3} {4}
+
+This will appear in Active immediately.</value></data>
+  <data name="workorders.demo.created_fmt" xml:space="preserve"><value>Work Order {0} created from demo template.</value></data>
 </root>

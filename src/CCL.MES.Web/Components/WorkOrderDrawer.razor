@@ -111,6 +111,12 @@
                         <dt>@Loc["shop_order.drawer.field.produced"]</dt>
                         <dd>@FormatQty(View.ProducedQty, View.Uom)</dd>
                     </div>
+                    @* PR #32d Q4 — Reject directly after Produced.
+                         Q2: count + rate % when (produced+reject) > 0. *@
+                    <div class="wo-drawer-row">
+                        <dt>@Loc["shop_order.field.reject"]</dt>
+                        <dd>@FormatReject(View.RejectQty, View.ProducedQty, View.Uom)</dd>
+                    </div>
                     <div class="wo-drawer-row">
                         <dt>@Loc["shop_order.drawer.field.planned_start"]</dt>
                         <dd>@FormatDate(View.PlannedStart)</dd>
@@ -433,6 +439,23 @@
     {
         var formatted = qty.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
         return string.IsNullOrWhiteSpace(uom) ? formatted : $"{formatted} {uom}";
+    }
+
+    /// <summary>
+    /// Phase 8 PR #32d — Reject format mirroring the card helper.
+    /// Q2: count + rate % when (produced + reject) > 0, else just count.
+    /// </summary>
+    private string FormatReject(int reject, int produced, string uom)
+    {
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        var rejectStr = reject.ToString("N0", culture);
+        var denom = produced + reject;
+        if (denom > 0 && reject > 0)
+        {
+            var rate = ((double)reject / denom * 100.0).ToString("0.0", culture);
+            return string.Format(Loc["shop_order.reject_fmt"].Value, rejectStr, uom, rate);
+        }
+        return string.Format(Loc["shop_order.reject_count_fmt"].Value, rejectStr, uom);
     }
 
     private string FormatDate(DateTime? d)

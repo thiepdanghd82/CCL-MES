@@ -195,3 +195,39 @@ window.cclmes.downloadFile = function (url) {
         _unwrapPagesAfterPrint();
     };
 })();
+
+// Phase 8 PR #32d — Demo Work Order create.
+// Posts to the controller with the browser's auth cookie + the antiforgery
+// token if one is present in the document. Returns a small object the
+// Blazor component reads. Failure swallowed inside try/catch — caller
+// surfaces the `ok=false` shape.
+window.cclmes.workorders = window.cclmes.workorders || {};
+window.cclmes.workorders.createDemo = async function (templateCode) {
+    try {
+        const headers = { 'Accept': 'application/json' };
+        // Pick up the antiforgery cookie if MVC issued one (cookie-name match
+        // covers both default `.AspNetCore.Antiforgery.*` and any custom set).
+        const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        if (csrfMeta && csrfMeta.content) {
+            headers['RequestVerificationToken'] = csrfMeta.content;
+        }
+        const resp = await fetch('/api/workorders/demo/' + encodeURIComponent(templateCode), {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: headers,
+        });
+        let body = '';
+        try { body = await resp.text(); } catch (_) { /* empty */ }
+        if (!resp.ok) {
+            return { ok: false, status: resp.status, woNo: null, body: body };
+        }
+        let woNo = null;
+        try {
+            const parsed = JSON.parse(body);
+            woNo = parsed && parsed.woNo ? parsed.woNo : null;
+        } catch (_) { /* server returned non-JSON success — surface raw */ }
+        return { ok: true, status: resp.status, woNo: woNo, body: body };
+    } catch (e) {
+        return { ok: false, status: 0, woNo: null, body: (e && e.message) || String(e) };
+    }
+};
