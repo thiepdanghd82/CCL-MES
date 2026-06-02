@@ -1076,4 +1076,34 @@
 
 WO mới sẽ xuất hiện trong Active ngay sau khi xác nhận.</value></data>
   <data name="workorders.demo.created_fmt" xml:space="preserve"><value>Đã tạo Work Order {0} từ template demo.</value></data>
+  <!-- Phase 8 PR-L2 — Spec lifecycle Revise + Mark Superseded -->
+  <data name="npi.spec.ctx.revise_approved_only" xml:space="preserve"><value>Chỉ Revise được khi spec ở trạng thái Approved hoặc Released</value></data>
+  <data name="npi.spec.ctx.supersede_approved_only" xml:space="preserve"><value>Chỉ Mark Superseded được khi spec ở trạng thái Approved hoặc Released</value></data>
+  <data name="npi.spec.detail.action.revise" xml:space="preserve"><value>Revise</value></data>
+  <data name="npi.spec.detail.action.supersede" xml:space="preserve"><value>Mark Superseded</value></data>
+  <data name="npi.spec.revise.title_fmt" xml:space="preserve"><value>Revise spec {0} — Rev {1}</value></data>
+  <data name="npi.spec.revise.intro" xml:space="preserve"><value>Tạo revision Draft mới liên kết với revision này (lineage). Nội dung được clone theo đúng rule như Copy.</value></data>
+  <data name="npi.spec.revise.warn.auto_supersede_fmt" xml:space="preserve"><value>Revision gốc {0} Rev {1} sẽ tự động chuyển sang Superseded ngay khi tạo revision mới. Sẽ không có revision Approved active cho tới khi Draft mới được duyệt.</value></data>
+  <data name="npi.spec.revise.field.reason" xml:space="preserve"><value>Lý do</value></data>
+  <data name="npi.spec.revise.field.reason_placeholder" xml:space="preserve"><value>Vì sao tạo revision này? (ví dụ: khách đổi màu, đổi nhà cung cấp substrate)</value></data>
+  <data name="npi.spec.revise.field.reason_hint" xml:space="preserve"><value>Tối thiểu 5 ký tự. Lưu vào change summary của revision mới.</value></data>
+  <data name="npi.spec.revise.section.cloning" xml:space="preserve"><value>Sẽ clone sang revision mới</value></data>
+  <data name="npi.spec.revise.btn.submit" xml:space="preserve"><value>Tạo revision mới</value></data>
+  <data name="npi.spec.revise.btn.creating" xml:space="preserve"><value>Đang tạo…</value></data>
+  <data name="npi.spec.revise.err.invalid_source_fmt" xml:space="preserve"><value>Chỉ Revise được khi spec ở Approved hoặc Released. Hiện tại: {0}.</value></data>
+  <data name="npi.spec.revise.err.reason_required" xml:space="preserve"><value>Lý do phải có ít nhất 5 ký tự.</value></data>
+  <data name="npi.spec.revise.err.source_trashed" xml:space="preserve"><value>Revision gốc đang trong Trash. Khôi phục trước khi Revise.</value></data>
+  <data name="npi.spec.revise.toast_fmt" xml:space="preserve"><value>Đã tạo revision {0} (Draft). Revision gốc đã Superseded.</value></data>
+  <data name="npi.spec.supersede.title_fmt" xml:space="preserve"><value>Mark Superseded — {0} Rev {1}</value></data>
+  <data name="npi.spec.supersede.warn.title" xml:space="preserve"><value>Thao tác này khó hoàn tác.</value></data>
+  <data name="npi.spec.supersede.warn.body" xml:space="preserve"><value>Sau khi Mark Superseded, revision không thể được Approve hoặc Release qua flow bình thường. Chỉ dùng khi muốn rút spec ra khỏi production mà không có successor.</value></data>
+  <data name="npi.spec.supersede.intro" xml:space="preserve"><value>Gõ chính xác spec code để xác nhận. Server validate lại giá trị gõ trước khi flip status.</value></data>
+  <data name="npi.spec.supersede.field.confirm_fmt" xml:space="preserve"><value>Gõ spec code "{0}" để xác nhận</value></data>
+  <data name="npi.spec.supersede.field.confirm_hint" xml:space="preserve"><value>Phải khớp chính xác (phân biệt hoa thường).</value></data>
+  <data name="npi.spec.supersede.btn.confirm" xml:space="preserve"><value>Mark Superseded</value></data>
+  <data name="npi.spec.supersede.btn.flipping" xml:space="preserve"><value>Đang flip…</value></data>
+  <data name="npi.spec.supersede.err.invalid_status_fmt" xml:space="preserve"><value>Chỉ Mark Superseded được khi spec ở Approved hoặc Released. Hiện tại: {0}.</value></data>
+  <data name="npi.spec.supersede.err.trashed" xml:space="preserve"><value>Spec đang trong Trash. Khôi phục trước khi supersede.</value></data>
+  <data name="npi.spec.supersede.err.mismatch" xml:space="preserve"><value>Spec code gõ không khớp. Huỷ xác nhận.</value></data>
+  <data name="npi.spec.supersede.toast_ok" xml:space="preserve"><value>Đã đánh dấu Superseded.</value></data>
 </root>

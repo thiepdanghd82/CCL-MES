@@ -271,172 +271,11 @@ public class SpecService
             InspectionLevel  = src.InspectionLevel,
         };
 
-            if (src.Material is not null)
-            {
-                dest.Material = new SpecMaterial
-                {
-                    SubstrateType  = src.Material.SubstrateType,
-                    SubstrateBrand = src.Material.SubstrateBrand,
-                    ThicknessUm    = src.Material.ThicknessUm,
-                    LinerType      = src.Material.LinerType,
-                    AdhesiveType   = src.Material.AdhesiveType,
-                    AdhesiveBrand  = src.Material.AdhesiveBrand,
-                    ExtraJson      = src.Material.ExtraJson,
-                };
-            }
-            if (src.Print is not null)
-            {
-                var p = new SpecPrint
-                {
-                    ProcessCode         = src.Print.ProcessCode,
-                    HybridProcessesJson = src.Print.HybridProcessesJson,
-                    NumColors           = src.Print.NumColors,
-                    ColorSpecJson       = src.Print.ColorSpecJson,
-                    Varnish             = src.Print.Varnish,
-                    Lamination          = src.Print.Lamination,
-                    WhiteUnderprint     = src.Print.WhiteUnderprint,
-                    ExtraJson           = src.Print.ExtraJson,
-                    Cavity              = src.Print.Cavity,
-                    PitchMm             = src.Print.PitchMm,
-                    ProductSizeWmm      = src.Print.ProductSizeWmm,
-                    ProductSizeHmm      = src.Print.ProductSizeHmm,
-                    RemarksText         = src.Print.RemarksText,
-                    RemarksCutText      = src.Print.RemarksCutText,
-                };
-                foreach (var c in src.Print.Colors)
-                {
-                    p.Colors.Add(new SpecPrintColor
-                    {
-                        Seq          = c.Seq,
-                        Surface      = c.Surface,
-                        Color        = c.Color,
-                        InkName      = c.InkName,
-                        InkCode      = c.InkCode,
-                        Maker        = c.Maker,
-                        Retarder     = c.Retarder,
-                        Viscosity    = c.Viscosity,
-                        Speed        = c.Speed,
-                        Squeegee     = c.Squeegee,
-                        Dry          = c.Dry,
-                        TemperatureC = c.TemperatureC,
-                        TimeMin      = c.TimeMin,
-                        Uv           = c.Uv,
-                        EmulsionUm   = c.EmulsionUm,
-                        PlateSize    = c.PlateSize,
-                        Mesh         = c.Mesh,
-                        AngleDeg     = c.AngleDeg,
-                        PlateCode    = c.PlateCode,
-                        ControlNo    = c.ControlNo,
-                        Remark       = c.Remark,
-                        ExtraJson    = c.ExtraJson,
-                    });
-                }
-                foreach (var fc in src.Print.FlexoCuttingRows)
-                {
-                    p.FlexoCuttingRows.Add(new SpecFlexoCuttingRow
-                    {
-                        Seq             = fc.Seq,
-                        Process         = fc.Process,
-                        Lamination      = fc.Lamination,
-                        Size            = fc.Size,
-                        CutterLot       = fc.CutterLot,
-                        CutterName      = fc.CutterName,
-                        PcsPerSheet     = fc.PcsPerSheet,
-                        CuttingCavity   = fc.CuttingCavity,
-                        PitchMm         = fc.PitchMm,
-                        Packing         = fc.Packing,
-                        PaperSpeed      = fc.PaperSpeed,
-                        CuttingSpeed    = fc.CuttingSpeed,
-                        CuttingPressure = fc.CuttingPressure,
-                        HeadTension     = fc.HeadTension,
-                        RollTension     = fc.RollTension,
-                        ExtraJson       = fc.ExtraJson,
-                    });
-                }
-                foreach (var fi in src.Print.FlexoInkRows)
-                {
-                    p.FlexoInkRows.Add(CloneFlexoInkRow(fi));
-                }
-                dest.Print = p;
-            }
-            if (src.Diecut is not null)
-            {
-                dest.Diecut = new SpecDiecut
-                {
-                    CutProcessCode    = src.Diecut.CutProcessCode,
-                    DieId             = src.Diecut.DieId,
-                    DieType           = src.Diecut.DieType,
-                    WidthMm           = src.Diecut.WidthMm,
-                    LengthMm          = src.Diecut.LengthMm,
-                    CornerRadiusMm    = src.Diecut.CornerRadiusMm,
-                    KissCutDepthUm   = src.Diecut.KissCutDepthUm,
-                    PerforationJson   = src.Diecut.PerforationJson,
-                    BleedMm           = src.Diecut.BleedMm,
-                    CncProgram        = src.Diecut.CncProgram,
-                    LaserPowerW       = src.Diecut.LaserPowerW,
-                    PowerpunchTool    = src.Diecut.PowerpunchTool,
-                    ExtraJson         = src.Diecut.ExtraJson,
-                };
-            }
-            if (src.Finishing is not null)
-            {
-                dest.Finishing = new SpecFinishing
-                {
-                    OutputForm              = src.Finishing.OutputForm,
-                    LabelsPerRoll           = src.Finishing.LabelsPerRoll,
-                    CoreDiameterMm          = src.Finishing.CoreDiameterMm,
-                    WindingDirection        = src.Finishing.WindingDirection,
-                    MaxOuterDiaMm           = src.Finishing.MaxOuterDiaMm,
-                    RollsPerBox             = src.Finishing.RollsPerBox,
-                    FinishingProcessesJson  = src.Finishing.FinishingProcessesJson,
-                    ExtraJson               = src.Finishing.ExtraJson,
-                };
-            }
-            int qcWindowCount = 0;
-            int qcCriterionCount = 0;
-            foreach (var w in src.QcWindows)
-            {
-                var nw = new SpecQcWindow
-                {
-                    Stage         = w.Stage,
-                    ProcessCode   = w.ProcessCode,
-                    Title         = w.Title,
-                    Description   = w.Description,
-                    SamplePlan    = w.SamplePlan,
-                    Frequency     = w.Frequency,
-                    RejectAction  = w.RejectAction,
-                    Status        = SpecQcWindowStatus.Draft,   // copy resets approval
-                    ApprovedBy    = null,
-                    ApprovedAt    = null,
-                };
-                foreach (var k in w.Criteria)
-                {
-                    nw.Criteria.Add(new QcCriterion
-                    {
-                        Seq              = k.Seq,
-                        Name             = k.Name,
-                        CriterionType    = k.CriterionType,
-                        MeasureMethod    = k.MeasureMethod,
-                        TargetValue      = k.TargetValue,
-                        ToleranceMin     = k.ToleranceMin,
-                        ToleranceMax     = k.ToleranceMax,
-                        Unit             = k.Unit,
-                        PassCriteria     = k.PassCriteria,
-                        ReferenceImageKey = k.ReferenceImageKey,
-                        Required         = k.Required,
-                        ExtraJson        = k.ExtraJson,
-                        Method           = k.Method,
-                        Frequency        = k.Frequency,
-                    });
-                    qcCriterionCount++;
-                }
-                dest.QcWindows.Add(nw);
-                qcWindowCount++;
-            }
-
-            // Intentionally NOT cloned per approved plan Q6:
-            //   - SpecQcCapture (capture results stay with the source rev)
-            //   - Drawing (file version chain; new copy uploads fresh via PR-D-5b)
+        // Deep-clone content from src into dest. Same scope used by Revise
+        // (PR-L2) — single source of clone logic per "1 nguồn clone logic,
+        // không re-implement" hard constraint. Per Q6: SpecQcCapture and
+        // Drawing are intentionally NOT cloned.
+        var (qcWindowCount, qcCriterionCount) = CloneSpecContent(src, dest);
 
             _db.ProductRevisions.Add(dest);
             await _db.SaveChangesAsync();
@@ -468,6 +307,192 @@ public class SpecService
                 }));
 
         return CopyResult.Ok(dest);
+    }
+
+    /// <summary>
+    /// Phase 8 PR-L2 — Single source of clone logic shared between
+    /// <see cref="CopyAsync"/> and <see cref="ReviseAsync"/>. Deep-clones
+    /// SOURCE content into DEST per the approved Q6 rule:
+    ///   - 4 sub-specs (Material / Print / Diecut / Finishing)
+    ///   - SpecPrintColor + SpecFlexoCuttingRow + SpecFlexoInkRow
+    ///   - SpecQcWindow + nested QcCriterion (approval reset to Draft)
+    ///   - SpecQcCapture NOT cloned (results stay with source)
+    ///   - Drawing NOT cloned (file version chain re-uploads fresh)
+    ///
+    /// Returns the (qc_windows, qc_criteria) counts so callers can emit
+    /// them into the audit detail JSON. DEST must already be initialised
+    /// (Id assignment, top-level fields); this method only touches the
+    /// content collections / navigation properties.
+    ///
+    /// SRC must already have all relevant collections .Include'd by the
+    /// caller's query — this method does not re-query the DB.
+    /// </summary>
+    private static (int QcWindowCount, int QcCriterionCount) CloneSpecContent(
+        ProductRevision src, ProductRevision dest)
+    {
+        if (src.Material is not null)
+        {
+            dest.Material = new SpecMaterial
+            {
+                SubstrateType  = src.Material.SubstrateType,
+                SubstrateBrand = src.Material.SubstrateBrand,
+                ThicknessUm    = src.Material.ThicknessUm,
+                LinerType      = src.Material.LinerType,
+                AdhesiveType   = src.Material.AdhesiveType,
+                AdhesiveBrand  = src.Material.AdhesiveBrand,
+                ExtraJson      = src.Material.ExtraJson,
+            };
+        }
+        if (src.Print is not null)
+        {
+            var p = new SpecPrint
+            {
+                ProcessCode         = src.Print.ProcessCode,
+                HybridProcessesJson = src.Print.HybridProcessesJson,
+                NumColors           = src.Print.NumColors,
+                ColorSpecJson       = src.Print.ColorSpecJson,
+                Varnish             = src.Print.Varnish,
+                Lamination          = src.Print.Lamination,
+                WhiteUnderprint     = src.Print.WhiteUnderprint,
+                ExtraJson           = src.Print.ExtraJson,
+                Cavity              = src.Print.Cavity,
+                PitchMm             = src.Print.PitchMm,
+                ProductSizeWmm      = src.Print.ProductSizeWmm,
+                ProductSizeHmm      = src.Print.ProductSizeHmm,
+                RemarksText         = src.Print.RemarksText,
+                RemarksCutText      = src.Print.RemarksCutText,
+            };
+            foreach (var c in src.Print.Colors)
+            {
+                p.Colors.Add(new SpecPrintColor
+                {
+                    Seq          = c.Seq,
+                    Surface      = c.Surface,
+                    Color        = c.Color,
+                    InkName      = c.InkName,
+                    InkCode      = c.InkCode,
+                    Maker        = c.Maker,
+                    Retarder     = c.Retarder,
+                    Viscosity    = c.Viscosity,
+                    Speed        = c.Speed,
+                    Squeegee     = c.Squeegee,
+                    Dry          = c.Dry,
+                    TemperatureC = c.TemperatureC,
+                    TimeMin      = c.TimeMin,
+                    Uv           = c.Uv,
+                    EmulsionUm   = c.EmulsionUm,
+                    PlateSize    = c.PlateSize,
+                    Mesh         = c.Mesh,
+                    AngleDeg     = c.AngleDeg,
+                    PlateCode    = c.PlateCode,
+                    ControlNo    = c.ControlNo,
+                    Remark       = c.Remark,
+                    ExtraJson    = c.ExtraJson,
+                });
+            }
+            foreach (var fc in src.Print.FlexoCuttingRows)
+            {
+                p.FlexoCuttingRows.Add(new SpecFlexoCuttingRow
+                {
+                    Seq             = fc.Seq,
+                    Process         = fc.Process,
+                    Lamination      = fc.Lamination,
+                    Size            = fc.Size,
+                    CutterLot       = fc.CutterLot,
+                    CutterName      = fc.CutterName,
+                    PcsPerSheet     = fc.PcsPerSheet,
+                    CuttingCavity   = fc.CuttingCavity,
+                    PitchMm         = fc.PitchMm,
+                    Packing         = fc.Packing,
+                    PaperSpeed      = fc.PaperSpeed,
+                    CuttingSpeed    = fc.CuttingSpeed,
+                    CuttingPressure = fc.CuttingPressure,
+                    HeadTension     = fc.HeadTension,
+                    RollTension     = fc.RollTension,
+                    ExtraJson       = fc.ExtraJson,
+                });
+            }
+            foreach (var fi in src.Print.FlexoInkRows)
+            {
+                p.FlexoInkRows.Add(CloneFlexoInkRow(fi));
+            }
+            dest.Print = p;
+        }
+        if (src.Diecut is not null)
+        {
+            dest.Diecut = new SpecDiecut
+            {
+                CutProcessCode    = src.Diecut.CutProcessCode,
+                DieId             = src.Diecut.DieId,
+                DieType           = src.Diecut.DieType,
+                WidthMm           = src.Diecut.WidthMm,
+                LengthMm          = src.Diecut.LengthMm,
+                CornerRadiusMm    = src.Diecut.CornerRadiusMm,
+                KissCutDepthUm    = src.Diecut.KissCutDepthUm,
+                PerforationJson   = src.Diecut.PerforationJson,
+                BleedMm           = src.Diecut.BleedMm,
+                CncProgram        = src.Diecut.CncProgram,
+                LaserPowerW       = src.Diecut.LaserPowerW,
+                PowerpunchTool    = src.Diecut.PowerpunchTool,
+                ExtraJson         = src.Diecut.ExtraJson,
+            };
+        }
+        if (src.Finishing is not null)
+        {
+            dest.Finishing = new SpecFinishing
+            {
+                OutputForm              = src.Finishing.OutputForm,
+                LabelsPerRoll           = src.Finishing.LabelsPerRoll,
+                CoreDiameterMm          = src.Finishing.CoreDiameterMm,
+                WindingDirection        = src.Finishing.WindingDirection,
+                MaxOuterDiaMm           = src.Finishing.MaxOuterDiaMm,
+                RollsPerBox             = src.Finishing.RollsPerBox,
+                FinishingProcessesJson  = src.Finishing.FinishingProcessesJson,
+                ExtraJson               = src.Finishing.ExtraJson,
+            };
+        }
+        int qcWindowCount = 0;
+        int qcCriterionCount = 0;
+        foreach (var w in src.QcWindows)
+        {
+            var nw = new SpecQcWindow
+            {
+                Stage         = w.Stage,
+                ProcessCode   = w.ProcessCode,
+                Title         = w.Title,
+                Description   = w.Description,
+                SamplePlan    = w.SamplePlan,
+                Frequency     = w.Frequency,
+                RejectAction  = w.RejectAction,
+                Status        = SpecQcWindowStatus.Draft,   // copy/revise resets approval
+                ApprovedBy    = null,
+                ApprovedAt    = null,
+            };
+            foreach (var k in w.Criteria)
+            {
+                nw.Criteria.Add(new QcCriterion
+                {
+                    Seq              = k.Seq,
+                    Name             = k.Name,
+                    CriterionType    = k.CriterionType,
+                    MeasureMethod    = k.MeasureMethod,
+                    TargetValue      = k.TargetValue,
+                    ToleranceMin     = k.ToleranceMin,
+                    ToleranceMax     = k.ToleranceMax,
+                    Unit             = k.Unit,
+                    PassCriteria     = k.PassCriteria,
+                    ReferenceImageKey = k.ReferenceImageKey,
+                    Required         = k.Required,
+                    ExtraJson        = k.ExtraJson,
+                    Method           = k.Method,
+                    Frequency        = k.Frequency,
+                });
+                qcCriterionCount++;
+            }
+            dest.QcWindows.Add(nw);
+            qcWindowCount++;
+        }
+        return (qcWindowCount, qcCriterionCount);
     }
 
     private static SpecFlexoInkRow CloneFlexoInkRow(SpecFlexoInkRow fi)
@@ -560,6 +585,160 @@ public class SpecService
                 fields_changed  = changed,
             }));
         return UpdateResult.Ok(rev);
+    }
+
+    /// <summary>
+    /// Phase 8 PR-L2 — Spec lifecycle Revise. Creates a new Draft revision
+    /// with ParentRevisionId linking back to the source (lineage), bumps
+    /// RevisionCode via <see cref="SpecRevisionHelpers.NextAvailableRev"/>
+    /// over the source product's existing codes, deep-clones content using
+    /// the shared <see cref="CloneSpecContent"/> helper, and auto-supersedes
+    /// the source per approved Q2 default. Reason mandatory (≥5 chars) per
+    /// Q1; stored on the new rev's <see cref="ProductRevision.ChangeSummary"/>.
+    ///
+    /// Gate: source rev must be <c>Approved</c> or <c>Released</c> (Draft
+    /// goes through Edit; Superseded already terminal; InReview skipped per
+    /// SpecHub principle).
+    ///
+    /// CreateAsync / ApproveAsync stay untouched per hard constraint — Revise
+    /// owns its own write path. The auto-supersede update is on Status +
+    /// EffectiveTo only; ApprovedBy/ReleasedBy provenance fields preserved.
+    /// </summary>
+    public async Task<ReviseResult> ReviseAsync(long sourceRevisionId, ReviseSpecRequest r, string? user)
+    {
+        var src = await _db.ProductRevisions
+            .Include(rev => rev.Material)
+            .Include(rev => rev.Print)
+                .ThenInclude(p => p!.Colors)
+            .Include(rev => rev.Print)
+                .ThenInclude(p => p!.FlexoCuttingRows)
+            .Include(rev => rev.Print)
+                .ThenInclude(p => p!.FlexoInkRows)
+            .Include(rev => rev.Diecut)
+            .Include(rev => rev.Finishing)
+            .Include(rev => rev.QcWindows)
+                .ThenInclude(w => w.Criteria)
+            .FirstOrDefaultAsync(rev => rev.Id == sourceRevisionId);
+        if (src is null) return ReviseResult.SourceNotFound();
+        if (src.IsTrashed) return ReviseResult.SourceTrashed();
+        if (src.Status != ProductRevisionStatus.Approved
+            && src.Status != ProductRevisionStatus.Released)
+        {
+            return ReviseResult.InvalidSourceStatus(src.Status);
+        }
+        var reason = (r.Reason ?? "").Trim();
+        if (reason.Length < 5) return ReviseResult.ReasonRequired();
+
+        var sourceStatusBefore = src.Status;
+
+        // Next rev code over the SOURCE's product — Revise stays inside the
+        // same product family; SpecCode is preserved (rev tree per spec).
+        var existingCodesForProduct = await _db.ProductRevisions
+            .Where(rev => rev.ProductId == src.ProductId)
+            .Select(rev => rev.RevisionCode)
+            .ToListAsync();
+        var revCode = SpecRevisionHelpers.NextAvailableRev(existingCodesForProduct);
+
+        var dest = new ProductRevision
+        {
+            ProductId        = src.ProductId,
+            SpecCode         = src.SpecCode,                 // SpecCode preserved across rev tree
+            Title            = src.Title,
+            RevisionCode     = revCode,
+            Status           = ProductRevisionStatus.Draft,
+            ParentRevisionId = src.Id,                       // Q1 — lineage
+            ChangeSummary    = reason,                       // Q1 — operator reason
+            RefNo            = src.RefNo,
+            InspectionLevel  = src.InspectionLevel,
+        };
+
+        var (qcWindowCount, qcCriterionCount) = CloneSpecContent(src, dest);
+
+        // Auto-supersede the source (Q2 default). We touch only the
+        // lifecycle status fields — ApprovedBy/ApprovedAt/ReleasedBy/
+        // ReleasedAt are preserved as provenance.
+        src.Status = ProductRevisionStatus.Superseded;
+        src.EffectiveTo = DateTime.UtcNow;
+
+        _db.ProductRevisions.Add(dest);
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.SpecRevise, user ?? "anonymous", actorRole: "",
+            targetType: "ProductRevision", targetId: dest.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                source_id            = src.Id,
+                source_code          = src.SpecCode,
+                source_rev           = src.RevisionCode,
+                source_status_before = sourceStatusBefore.ToString(),
+                new_id               = dest.Id,
+                new_rev              = dest.RevisionCode,
+                reason               = reason,
+                cloned_counts        = new
+                {
+                    material        = src.Material is null ? 0 : 1,
+                    print           = src.Print is null ? 0 : 1,
+                    diecut          = src.Diecut is null ? 0 : 1,
+                    finishing       = src.Finishing is null ? 0 : 1,
+                    print_colors    = src.Print?.Colors.Count ?? 0,
+                    flexo_cutting   = src.Print?.FlexoCuttingRows.Count ?? 0,
+                    flexo_ink       = src.Print?.FlexoInkRows.Count ?? 0,
+                    qc_windows      = qcWindowCount,
+                    qc_criteria     = qcCriterionCount,
+                },
+            }));
+
+        return ReviseResult.Ok(dest);
+    }
+
+    /// <summary>
+    /// Phase 8 PR-L2 — Spec lifecycle Mark Superseded (manual). Operator
+    /// types the target spec's SpecCode as a confirmation; server validates
+    /// the typed value matches before flipping Status. UI 2-step is defence
+    /// in depth, NOT the trust boundary.
+    ///
+    /// Gate per Q2: Status must be <c>Approved</c> or <c>Released</c>. Draft
+    /// uses Trash; Superseded is already terminal; InReview skipped (operator
+    /// can revert to Draft first if needed).
+    ///
+    /// Does NOT create a new revision (use Revise for that). Does NOT touch
+    /// ApprovedBy/ReleasedBy — those stay as historical provenance.
+    /// </summary>
+    public async Task<SupersedeResult> SupersedeAsync(long revisionId, SupersedeSpecRequest r, string? user)
+    {
+        var rev = await _db.ProductRevisions.FirstOrDefaultAsync(x => x.Id == revisionId);
+        if (rev is null) return SupersedeResult.NotFound();
+        if (rev.IsTrashed) return SupersedeResult.Trashed();
+        if (rev.Status != ProductRevisionStatus.Approved
+            && rev.Status != ProductRevisionStatus.Released)
+        {
+            return SupersedeResult.InvalidStatus(rev.Status);
+        }
+        var typed = (r.ConfirmSpecCode ?? "").Trim();
+        if (!string.Equals(typed, rev.SpecCode, StringComparison.Ordinal))
+        {
+            return SupersedeResult.ConfirmMismatch();
+        }
+
+        var fromStatus = rev.Status;
+        rev.Status = ProductRevisionStatus.Superseded;
+        rev.EffectiveTo = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.SpecSupersede, user ?? "anonymous", actorRole: "",
+            targetType: "ProductRevision", targetId: rev.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                rev_id      = rev.Id,
+                rev_code    = rev.RevisionCode,
+                spec_code   = rev.SpecCode,
+                from_status = fromStatus.ToString(),
+                manual      = true,
+            }));
+
+        return SupersedeResult.Ok(rev);
     }
 
     private static string SerializeParams(List<SpecParamDto> parameters)
@@ -867,4 +1046,67 @@ public enum UpdateResultKind
     NotFound,
     Trashed,
     ImmutableStatus,
+}
+
+// ── Phase 8 PR-L2 — Revise + Supersede result envelopes ─────────────────────
+
+/// <summary>
+/// Outcome from <see cref="SpecService.ReviseAsync"/>. Controller maps Kind to
+/// HTTP: Ok → 201, SourceNotFound → 404, InvalidSourceStatus → 422 with the
+/// current status surfaced, ReasonRequired → 422 validation, SourceTrashed →
+/// 422 trashed.
+/// </summary>
+public sealed record ReviseResult(
+    ReviseResultKind Kind,
+    ProductRevision? Revision,
+    ProductRevisionStatus? CurrentStatus,
+    string? Error)
+{
+    public static ReviseResult Ok(ProductRevision rev) => new(ReviseResultKind.Ok, rev, rev.Status, null);
+    public static ReviseResult SourceNotFound() => new(ReviseResultKind.SourceNotFound, null, null, "Source spec not found");
+    public static ReviseResult SourceTrashed() => new(ReviseResultKind.SourceTrashed, null, null, "Source spec is trashed; restore before revising");
+    public static ReviseResult InvalidSourceStatus(ProductRevisionStatus current) => new(
+        ReviseResultKind.InvalidSourceStatus, null, current,
+        $"Revise is only available for Approved/Released revisions; current status is {current}");
+    public static ReviseResult ReasonRequired() => new(ReviseResultKind.ReasonRequired, null, null, "Reason must be at least 5 characters");
+}
+
+public enum ReviseResultKind
+{
+    Ok,
+    SourceNotFound,
+    SourceTrashed,
+    InvalidSourceStatus,
+    ReasonRequired,
+}
+
+/// <summary>
+/// Outcome from <see cref="SpecService.SupersedeAsync"/>. ConfirmMismatch
+/// signals the operator-typed SpecCode did not match — server-side defence
+/// for the 2-step confirm UX (Q2).
+/// </summary>
+public sealed record SupersedeResult(
+    SupersedeResultKind Kind,
+    ProductRevision? Revision,
+    ProductRevisionStatus? CurrentStatus,
+    string? Error)
+{
+    public static SupersedeResult Ok(ProductRevision rev) => new(SupersedeResultKind.Ok, rev, rev.Status, null);
+    public static SupersedeResult NotFound() => new(SupersedeResultKind.NotFound, null, null, "Spec not found");
+    public static SupersedeResult Trashed() => new(SupersedeResultKind.Trashed, null, null, "Spec is trashed; restore before superseding");
+    public static SupersedeResult InvalidStatus(ProductRevisionStatus current) => new(
+        SupersedeResultKind.InvalidStatus, null, current,
+        $"Mark Superseded is only available for Approved/Released revisions; current status is {current}");
+    public static SupersedeResult ConfirmMismatch() => new(
+        SupersedeResultKind.ConfirmMismatch, null, null,
+        "Confirmation SpecCode does not match");
+}
+
+public enum SupersedeResultKind
+{
+    Ok,
+    NotFound,
+    Trashed,
+    InvalidStatus,
+    ConfirmMismatch,
 }

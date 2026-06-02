@@ -78,6 +78,9 @@
        (future) toolbar can both invoke them. *@
     <SpecCopyModal @ref="_copyModal" OnCreated="OnCopiedAsync" />
     <SpecEditModal @ref="_editModal" OnUpdated="OnEditedAsync" />
+    @* PR-L2 — Revise + Mark Superseded modals. *@
+    <SpecReviseModal @ref="_reviseModal" OnRevised="OnRevisedAsync" />
+    <SpecSupersedeConfirmModal @ref="_supersedeModal" OnSuperseded="OnSupersededAsync" />
     @if (!string.IsNullOrEmpty(_ctxError))
     {
         <div class="rt-ctx-error" role="alert">
@@ -168,6 +171,8 @@
     private SpecDetailModal? _detailModal;
     private SpecCopyModal? _copyModal;
     private SpecEditModal? _editModal;
+    private SpecReviseModal? _reviseModal;
+    private SpecSupersedeConfirmModal? _supersedeModal;
     private string? _ctxError;
     private long _busyApproveId = 0;
 
@@ -250,6 +255,12 @@
                 case "copy":
                     if (_copyModal is not null) await _copyModal.OpenAsync(ev.Row);
                     break;
+                case "revise":
+                    _reviseModal?.Open(ev.Row);
+                    break;
+                case "supersede":
+                    _supersedeModal?.Open(ev.Row);
+                    break;
             }
         }
         catch (Exception ex)
@@ -279,6 +290,36 @@
 
     /// <summary>PR-L1 — Reload grid after an edit so updated Title/Identity surface.</summary>
     private async Task OnEditedAsync()
+    {
+        try
+        {
+            await Load();
+            _ctxError = null;
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    /// <summary>PR-L2 — Reload after Revise; source flips to Superseded + new Draft appears.</summary>
+    private async Task OnRevisedAsync((long NewRevId, string NewRevCode) ev)
+    {
+        try
+        {
+            await Load();
+            _ctxError = null;
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    /// <summary>PR-L2 — Reload after Mark Superseded so the rev's status badge updates.</summary>
+    private async Task OnSupersededAsync()
     {
         try
         {

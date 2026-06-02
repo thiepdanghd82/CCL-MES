@@ -90,6 +90,92 @@ public class SpecsController : ControllerBase
         }
     }
 
+    [HttpPost("{revisionId:long}/revise")]
+    [Authorize(Roles = "Admin,Engineer")]
+    public async Task<IActionResult> Revise(long revisionId, [FromBody] ReviseSpecRequest r)
+    {
+        try
+        {
+            var user = User?.Identity?.Name;
+            var result = await _svc.ReviseAsync(revisionId, r, user);
+            return result.Kind switch
+            {
+                ReviseResultKind.Ok                  => StatusCode(201, new
+                {
+                    id          = result.Revision!.Id,
+                    specCode    = result.Revision.SpecCode,
+                    revision    = result.Revision.RevisionCode,
+                    parentId    = result.Revision.ParentRevisionId,
+                }),
+                ReviseResultKind.SourceNotFound      => NotFound(new { error = result.Error }),
+                ReviseResultKind.SourceTrashed       => UnprocessableEntity(new
+                {
+                    code  = "trashed",
+                    error = result.Error,
+                }),
+                ReviseResultKind.InvalidSourceStatus => UnprocessableEntity(new
+                {
+                    code           = "invalid_source_status",
+                    error          = result.Error,
+                    currentStatus  = result.CurrentStatus?.ToString(),
+                }),
+                ReviseResultKind.ReasonRequired      => UnprocessableEntity(new
+                {
+                    code  = "reason_required",
+                    error = result.Error,
+                }),
+                _                                    => Problem("Unexpected revise result"),
+            };
+        }
+        catch (System.Exception ex)
+        {
+            return Problem(title: "Spec revise failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
+    [HttpPost("{revisionId:long}/supersede")]
+    [Authorize(Roles = "Admin,Engineer")]
+    public async Task<IActionResult> Supersede(long revisionId, [FromBody] SupersedeSpecRequest r)
+    {
+        try
+        {
+            var user = User?.Identity?.Name;
+            var result = await _svc.SupersedeAsync(revisionId, r, user);
+            return result.Kind switch
+            {
+                SupersedeResultKind.Ok               => Ok(new
+                {
+                    id          = result.Revision!.Id,
+                    specCode    = result.Revision.SpecCode,
+                    revision    = result.Revision.RevisionCode,
+                    status      = result.Revision.Status.ToString(),
+                }),
+                SupersedeResultKind.NotFound         => NotFound(new { error = result.Error }),
+                SupersedeResultKind.Trashed          => UnprocessableEntity(new
+                {
+                    code  = "trashed",
+                    error = result.Error,
+                }),
+                SupersedeResultKind.InvalidStatus    => UnprocessableEntity(new
+                {
+                    code           = "invalid_status",
+                    error          = result.Error,
+                    currentStatus  = result.CurrentStatus?.ToString(),
+                }),
+                SupersedeResultKind.ConfirmMismatch  => UnprocessableEntity(new
+                {
+                    code  = "confirm_mismatch",
+                    error = result.Error,
+                }),
+                _                                    => Problem("Unexpected supersede result"),
+            };
+        }
+        catch (System.Exception ex)
+        {
+            return Problem(title: "Spec supersede failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
     [HttpPut("{revisionId:long}")]
     [Authorize(Roles = "Admin,Engineer")]
     public async Task<IActionResult> Update(long revisionId, [FromBody] UpdateSpecRequest r)

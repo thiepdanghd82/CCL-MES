@@ -99,10 +99,11 @@
                 ⬇ @Loc["npi.spec.detail.action.export"]
             </button>
             <AuthorizeView Roles="Admin,Engineer">
-                @* PR-L1 — Copy + Edit wired via SpecCopyModal/SpecEditModal.
+                @* PR-L1 — Copy + Edit wired.
+                   PR-L2 — Revise + Mark Superseded wired (gate Approved/Released).
                    Trash stays as a stub until PR-L3 (Trash + Restore + Purge)
-                   ships; tooltip communicates intent. Promote stays interactive
-                   (real SpecSvc.ApproveAsync wired with server-side audit). *@
+                   ships. Promote stays interactive (SpecSvc.ApproveAsync,
+                   Phase 6 service path). *@
                 <button type="button" class="rt-btn spec-action-btn"
                         @onclick="OpenCopyModalAsync"
                         disabled="@_busyAction"
@@ -114,6 +115,18 @@
                         disabled="@(_busyAction || !CanPromote)"
                         title="@PromoteTooltip">
                     ↗ @Loc["npi.spec.detail.action.promote"]
+                </button>
+                <button type="button" class="rt-btn spec-action-btn"
+                        @onclick="OpenReviseModalAsync"
+                        disabled="@(_busyAction || !CanRevise)"
+                        title="@ReviseTooltip">
+                    ✂ @Loc["npi.spec.detail.action.revise"]
+                </button>
+                <button type="button" class="rt-btn spec-action-btn spec-action-btn-danger"
+                        @onclick="OpenSupersedeModalAsync"
+                        disabled="@(_busyAction || !CanSupersede)"
+                        title="@SupersedeTooltip">
+                    ⊘ @Loc["npi.spec.detail.action.supersede"]
                 </button>
                 <button type="button" class="rt-btn spec-action-btn spec-action-btn-danger spec-action-btn-stub"
                         disabled
@@ -1150,6 +1163,9 @@
         the detail page share) get the row shape they already expect. *@
     <SpecCopyModal @ref="_copyModal" OnCreated="OnCopiedAsync" />
     <SpecEditModal @ref="_editModal" OnUpdated="OnEditedAsync" />
+    @* PR-L2 — Revise + Mark Superseded modal mounts. *@
+    <SpecReviseModal @ref="_reviseModal" OnRevised="OnRevisedAsync" />
+    <SpecSupersedeConfirmModal @ref="_supersedeModal" OnSuperseded="OnSupersededAsync" />
 </section>
 
 @code {
@@ -2133,6 +2149,68 @@
         {
             _detail = await SpecSvc.SpecDetailAsync(RevisionId);
             _actionMessage = Loc["npi.spec.edit.info.saved"].Value;
+        }
+        catch (Exception ex)
+        {
+            _actionError = ex.GetType().Name + ": " + ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    // ── PR-L2 — Revise + Mark Superseded ────────────────────────────────
+
+    private SpecReviseModal? _reviseModal;
+    private SpecSupersedeConfirmModal? _supersedeModal;
+
+    private bool CanRevise => _detail is not null
+        && (_detail.Status == ProductRevisionStatus.Approved
+            || _detail.Status == ProductRevisionStatus.Released);
+
+    private bool CanSupersede => CanRevise;
+
+    private string ReviseTooltip => CanRevise
+        ? Loc["npi.spec.detail.action.revise"].Value
+        : Loc["npi.spec.revise.err.invalid_source_fmt"].Value.Replace("{0}", _detail?.Status.ToString() ?? "?");
+
+    private string SupersedeTooltip => CanSupersede
+        ? Loc["npi.spec.detail.action.supersede"].Value
+        : Loc["npi.spec.supersede.err.invalid_status_fmt"].Value.Replace("{0}", _detail?.Status.ToString() ?? "?");
+
+    private Task OpenReviseModalAsync()
+    {
+        if (_reviseModal is null) return Task.CompletedTask;
+        var row = CurrentRowProjection();
+        if (row is null) return Task.CompletedTask;
+        _reviseModal.Open(row);
+        return Task.CompletedTask;
+    }
+
+    private Task OpenSupersedeModalAsync()
+    {
+        if (_supersedeModal is null) return Task.CompletedTask;
+        var row = CurrentRowProjection();
+        if (row is null) return Task.CompletedTask;
+        _supersedeModal.Open(row);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>After Revise: navigate to the new Draft rev (operator usually
+    /// wants to inspect or edit it next).</summary>
+    private Task OnRevisedAsync((long NewRevId, string NewRevCode) ev)
+    {
+        _actionMessage = string.Format(Loc["npi.spec.revise.toast_fmt"].Value, ev.NewRevCode);
+        StateHasChanged();
+        Nav.NavigateTo($"/npi/engineer-spec/{ev.NewRevId}");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>After Mark Superseded: reload the detail DTO so Status badge updates.</summary>
+    private async Task OnSupersededAsync()
+    {
+        try
+        {
+            _detail = await SpecSvc.SpecDetailAsync(RevisionId);
+            _actionMessage = Loc["npi.spec.supersede.toast_ok"].Value;
         }
         catch (Exception ex)
         {

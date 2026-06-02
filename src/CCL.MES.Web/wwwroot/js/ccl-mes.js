@@ -308,3 +308,86 @@ window.cclmes.specs.update = async function (revId, payload) {
         return { ok: false, status: 0, code: null, body: (e && e.message) || String(e) };
     }
 };
+
+// Phase 8 PR-L2 — Spec lifecycle Revise + Supersede helpers.
+// Mirror cclmes.specs.copy/update shape so the Blazor modals can map the
+// returned envelope uniformly. The `code` field surfaces server's
+// structured error code: "invalid_source_status" / "reason_required" /
+// "trashed" / "invalid_status" / "confirm_mismatch".
+
+window.cclmes.specs.revise = async function (sourceRevId, payload) {
+    try {
+        const resp = await fetch('/api/specs/' + sourceRevId + '/revise', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        let text = '';
+        try { text = await resp.text(); } catch (_) {}
+        if (!resp.ok) {
+            let code = null, problem = text, currentStatus = null;
+            try {
+                const parsed = JSON.parse(text);
+                code = parsed.code || null;
+                problem = parsed.error || parsed.title || text;
+                currentStatus = parsed.currentStatus || null;
+            } catch (_) {}
+            return {
+                ok: false, status: resp.status,
+                code: code, currentStatus: currentStatus, body: problem,
+            };
+        }
+        let parsed = {};
+        try { parsed = JSON.parse(text); } catch (_) {}
+        return {
+            ok: true,
+            status: resp.status,
+            id: parsed.id || null,
+            specCode: parsed.specCode || null,
+            revision: parsed.revision || null,
+            parentId: parsed.parentId || null,
+            body: text,
+        };
+    } catch (e) {
+        return { ok: false, status: 0, code: null, body: (e && e.message) || String(e) };
+    }
+};
+
+window.cclmes.specs.supersede = async function (revId, payload) {
+    try {
+        const resp = await fetch('/api/specs/' + revId + '/supersede', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        let text = '';
+        try { text = await resp.text(); } catch (_) {}
+        if (!resp.ok) {
+            let code = null, problem = text, currentStatus = null;
+            try {
+                const parsed = JSON.parse(text);
+                code = parsed.code || null;
+                problem = parsed.error || parsed.title || text;
+                currentStatus = parsed.currentStatus || null;
+            } catch (_) {}
+            return {
+                ok: false, status: resp.status,
+                code: code, currentStatus: currentStatus, body: problem,
+            };
+        }
+        let parsed = {};
+        try { parsed = JSON.parse(text); } catch (_) {}
+        return {
+            ok: true,
+            status: resp.status,
+            id: parsed.id || null,
+            specCode: parsed.specCode || null,
+            status_after: parsed.status || null,
+            body: text,
+        };
+    } catch (e) {
+        return { ok: false, status: 0, code: null, body: (e && e.message) || String(e) };
+    }
+};
