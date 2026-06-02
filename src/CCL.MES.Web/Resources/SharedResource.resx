@@ -78,6 +78,7 @@
   <data name="nav.home" xml:space="preserve"><value>Home</value></data>
   <data name="nav.dashboard" xml:space="preserve"><value>Dashboard</value></data>
   <data name="nav.workorders" xml:space="preserve"><value>Work Orders</value></data>
+  <data name="nav.shoporder" xml:space="preserve"><value>Shop Order</value></data>
   <data name="nav.workinstructions" xml:space="preserve"><value>Work Instructions</value></data>
   <data name="nav.npidata" xml:space="preserve"><value>NPI Data</value></data>
   <data name="nav.qcqadata" xml:space="preserve"><value>QC/QA Data</value></data>
@@ -950,4 +951,36 @@
   <data name="npi.spec.detail.drawings.decide.modal.err_comment_required" xml:space="preserve"><value>Comment is required when rejecting.</value></data>
   <data name="npi.spec.detail.drawings.decide.modal.err_forbidden" xml:space="preserve"><value>You don't have permission to act on this chip.</value></data>
   <data name="npi.spec.detail.drawings.decide.modal.save_ok" xml:space="preserve"><value>Decision recorded.</value></data>
+  <!-- Phase 8 PR #32a — Shop Order LIST page (parallel to /workorders Phase 6 table). -->
+  <data name="shop_order.load_err" xml:space="preserve"><value>Could not load Shop Order list</value></data>
+  <data name="shop_order.scan_placeholder" xml:space="preserve"><value>Scan WO QR or type code…</value></data>
+  <data name="shop_order.scan_hint" xml:space="preserve"><value>Scan a Work Order QR code to begin.</value></data>
+  <data name="shop_order.empty_hint" xml:space="preserve"><value>No Work Orders yet. Use /workorders to create one.</value></data>
+  <data name="shop_order.demo_codes_fmt" xml:space="preserve"><value>Recent: {0}</value></data>
+  <data name="shop_order.btn_lookup" xml:space="preserve"><value>Lookup</value></data>
+  <data name="shop_order.section.active" xml:space="preserve"><value>Active Work Orders</value></data>
+  <data name="shop_order.section.closed" xml:space="preserve"><value>Closed Work Orders</value></data>
+  <data name="shop_order.empty.active" xml:space="preserve"><value>— No active Work Orders.</value></data>
+  <data name="shop_order.empty.closed" xml:space="preserve"><value>— No closed Work Orders.</value></data>
+  <data name="shop_order.field.customer" xml:space="preserve"><value>Customer</value></data>
+  <data name="shop_order.field.product" xml:space="preserve"><value>Product</value></data>
+  <data name="shop_order.field.machine" xml:space="preserve"><value>Machine</value></data>
+  <data name="shop_order.field.process" xml:space="preserve"><value>Process</value></data>
+  <data name="shop_order.field.progress" xml:space="preserve"><value>Progress</value></data>
+  <data name="shop_order.field.output" xml:space="preserve"><value>Output</value></data>
+  <data name="shop_order.field.reject" xml:space="preserve"><value>Reject</value></data>
+  <data name="shop_order.progress_fmt" xml:space="preserve"><value>{0} / {1} {2}</value></data>
+  <!-- Status badge labels (12 states). -->
+  <data name="shop_order.status.new" xml:space="preserve"><value>NEW</value></data>
+  <data name="shop_order.status.pre_press" xml:space="preserve"><value>PRE-PRESS</value></data>
+  <data name="shop_order.status.setting" xml:space="preserve"><value>SETTING</value></data>
+  <data name="shop_order.status.ipqc_wait" xml:space="preserve"><value>IPQC-WAIT</value></data>
+  <data name="shop_order.status.ipqc_approved" xml:space="preserve"><value>IPQC-OK</value></data>
+  <data name="shop_order.status.ipqc_rejected" xml:space="preserve"><value>IPQC-FAIL</value></data>
+  <data name="shop_order.status.ready" xml:space="preserve"><value>READY</value></data>
+  <data name="shop_order.status.running" xml:space="preserve"><value>RUNNING</value></data>
+  <data name="shop_order.status.paused" xml:space="preserve"><value>PAUSED</value></data>
+  <data name="shop_order.status.qa_pending" xml:space="preserve"><value>QA-PENDING</value></data>
+  <data name="shop_order.status.done" xml:space="preserve"><value>DONE</value></data>
+  <data name="shop_order.status.cancelled" xml:space="preserve"><value>CANCELLED</value></data>
 </root>

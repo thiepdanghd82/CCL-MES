@@ -879,6 +879,87 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 /* Decide modal — same width as Capture modal for visual rhyme. */
 .spec-drawings-decide-modal { width:min(480px, calc(100vw - 32px)); }
 
+/* Phase 8 PR #32a — Shop Order LIST page. Port SpecHub
+   `.mes-wo-card / .mes-wo-cards / shop-pill` patterns onto CCL-MES navy
+   palette tokens (--navy-primary / --navy-border / --navy-light /
+   --navy-dark). Card grid auto-fits at 280px min — works in kiosk
+   landscape + planner laptop side-by-side. */
+.shop-order-page { display:flex; flex-direction:column; gap:18px;
+  padding:18px 20px; max-width:1600px; margin:0 auto; }
+.shop-order-state, .shop-order-error { padding:14px; background:#fff;
+  border:1px solid var(--navy-border); border-radius:6px; }
+
+.shop-order-header { background:#fff; border:1px solid var(--navy-border);
+  border-radius:8px; padding:14px 16px; display:flex; flex-direction:column;
+  gap:10px; }
+.shop-order-scan-wrap { display:flex; gap:8px; align-items:center; }
+.shop-order-scan-icon { font-size:22px; }
+.shop-order-scan-input { flex:1; padding:8px 12px; border:1px solid #cbd5e1;
+  border-radius:6px; font-size:14px; background:#fff; }
+.shop-order-scan-input:focus { outline:none; border-color:var(--navy-primary);
+  box-shadow:0 0 0 2px rgba(30,58,138,0.12); }
+.shop-order-lookup-btn { font-size:13px; padding:8px 16px; }
+.shop-order-lookup-btn:disabled { opacity:0.5; cursor:not-allowed; }
+.shop-order-hint, .shop-order-empty-hint { margin:0; font-size:12px;
+  color:#6b7280; }
+.shop-order-demo { color:var(--navy-dark); font-weight:600; }
+
+.shop-order-section { background:#fff; border:1px solid var(--navy-border);
+  border-radius:8px; padding:14px 16px 16px; display:flex; flex-direction:column;
+  gap:12px; }
+.shop-order-section-head { display:flex; align-items:center; gap:10px;
+  border-bottom:1px solid var(--navy-light); padding-bottom:10px; }
+.shop-order-section-icon { font-size:18px; }
+.shop-order-section-head h2 { margin:0; font-size:15px; font-weight:700;
+  color:var(--navy-dark); text-transform:uppercase; letter-spacing:0.5px; }
+.shop-order-count { font-size:13px; font-weight:400; color:#6b7280;
+  margin-left:4px; }
+.shop-order-empty { padding:16px; text-align:center; color:#6b7280;
+  font-size:13px; font-style:italic; border:1px dashed #e5e7eb;
+  border-radius:6px; }
+
+/* Card grid — auto-fit responsive. */
+.mes-wo-cards { display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+  gap:12px; }
+.mes-wo-card { border:1px solid var(--navy-border); border-radius:6px;
+  padding:10px 12px 12px; background:#fafbfc; display:flex; flex-direction:column;
+  gap:8px; transition:border-color 0.15s, box-shadow 0.15s; }
+.mes-wo-card:hover { border-color:var(--navy-primary);
+  box-shadow:0 2px 6px rgba(30,58,138,0.08); }
+.mes-wo-card-closed { background:#f8fafc; opacity:0.95; }
+.mes-wo-card-head { display:flex; align-items:center; justify-content:space-between;
+  gap:8px; }
+.mes-wo-card-no { font-size:14px; font-weight:700; color:var(--navy-dark);
+  font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
+.mes-wo-card-body { margin:0; display:flex; flex-direction:column; gap:3px; }
+.mes-wo-row { display:flex; gap:8px; font-size:12px; }
+.mes-wo-row dt { flex:0 0 80px; color:#6b7280; font-weight:500; margin:0; }
+.mes-wo-row dd { flex:1; margin:0; color:#1f2937; }
+.mes-wo-row .muted { color:#9ca3af; }
+
+/* Status badge pill — 12 variants. Color semantics:
+   gray (new/cancelled), blue (pre-press/ready), amber (setting/qa),
+   purple (ipqc-wait), green (ipqc-ok/running/done),
+   red (ipqc-fail), orange (paused). */
+.shop-pill { display:inline-flex; align-items:center; gap:4px;
+  padding:3px 10px; border-radius:11px; font-size:10px; font-weight:700;
+  letter-spacing:0.5px; text-transform:uppercase;
+  border:1px solid transparent; line-height:1.4; }
+.shop-pill-icon { font-size:11px; }
+.shop-pill-new        { background:#eef1f7; color:#6b7280; border-color:#cbd5e1; }
+.shop-pill-pre-press  { background:rgba(37,99,235,0.10);  color:#1d4ed8; border-color:rgba(37,99,235,0.30); }
+.shop-pill-setting    { background:rgba(217,119,6,0.12);  color:#b45309; border-color:rgba(217,119,6,0.30); }
+.shop-pill-ipqc-wait  { background:rgba(124,58,237,0.10); color:#6d28d9; border-color:rgba(124,58,237,0.30); }
+.shop-pill-ipqc-ok    { background:rgba(31,122,77,0.12);  color:#1f7a4d; border-color:rgba(31,122,77,0.30); }
+.shop-pill-ipqc-fail  { background:rgba(192,57,43,0.12);  color:#c0392b; border-color:rgba(192,57,43,0.30); }
+.shop-pill-ready      { background:rgba(14,165,233,0.10); color:#0369a1; border-color:rgba(14,165,233,0.30); }
+.shop-pill-running    { background:rgba(31,122,77,0.18);  color:#15803d; border-color:rgba(31,122,77,0.40); }
+.shop-pill-paused     { background:rgba(234,88,12,0.12);  color:#c2410c; border-color:rgba(234,88,12,0.30); }
+.shop-pill-qa         { background:rgba(217,119,6,0.12);  color:#b45309; border-color:rgba(217,119,6,0.30); }
+.shop-pill-done       { background:rgba(31,122,77,0.12);  color:#166534; border-color:rgba(31,122,77,0.30); }
+.shop-pill-cancelled  { background:#e5e7eb; color:#6b7280; border-color:#9ca3af; }
+
 .spec-history-modal-list { max-height:60vh; overflow-y:auto; }
 
 .spec-detail-audit-list { list-style:none; padding:0; margin:6px 0 0; }

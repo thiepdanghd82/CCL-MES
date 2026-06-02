@@ -1,0 +1,233 @@
+@page "/workorders/shop"
+
+@*  Phase 8 PR #32a — Shop Order LIST view, parallel to /workorders Phase 6
+    table. Card-based kiosk shell ported from SpecHub `renderMesEmptyState`
+    HTML:18193-18290 — 2 sections (Active + Closed; Demo dropped per Q1).
+    Header carries scan-input shell + LOOKUP button that redirects to the
+    Phase 6 table filtered by WoNo (Q6: camera QR + drawer detail defer to
+    PR #32b).
+
+    RBAC: page-level Authorize attribute omitted on purpose — Program.cs
+    FallbackPolicy = RequireAuthenticatedUser already gates all routes,
+    matching the existing /workorders Phase 6 page (no WoRead policy
+    exists). All logged-in operators see the page. The +New WO button is
+    not surfaced in this PR — operator clicks back to the /workorders
+    table to use the Phase 6 Create flow.
+
+    Hotfix #27: query phụ wrapped in try-catch; banner render on failure;
+    empty-state handles the 0-WO case so the page never blows up. *@
+
+@using CCL.MES.Application.Services
+@using CCL.MES.Domain
+@using CCL.MES.Domain.Entities
+@inject WorkOrderService Wo
+@inject NavigationManager Nav
+@inject IStringLocalizer<SharedResource> Loc
+
+<section class="shop-order-page">
+    @if (_loading)
+    {
+        <div class="shop-order-state">@Loc["common.loading"]</div>
+    }
+    else if (_error is not null)
+    {
+        <div class="alert err shop-order-error" role="alert">
+            <strong>@Loc["shop_order.load_err"]</strong>
+            <pre>@_error</pre>
+        </div>
+    }
+    else
+    {
+        @* ── Header: scan input + LOOKUP. Mirror SpecHub layout. ───────── *@
+        <div class="shop-order-header">
+            <div class="shop-order-scan-wrap">
+                <span class="shop-order-scan-icon" aria-hidden="true">📱</span>
+                <input type="text"
+                       class="shop-order-scan-input"
+                       placeholder="@Loc["shop_order.scan_placeholder"]"
+                       value="@_scanQuery"
+                       @oninput="@(e => _scanQuery = e.Value?.ToString())"
+                       @onkeydown="@OnScanKeyDownAsync" />
+                <button type="button"
+                        class="rt-btn rt-btn-primary shop-order-lookup-btn"
+                        disabled="@string.IsNullOrWhiteSpace(_scanQuery)"
+                        @onclick="Lookup">
+                    @Loc["shop_order.btn_lookup"]
+                </button>
+            </div>
+            @if (_result is not null && _result.Active.Count == 0 && _result.Closed.Count == 0)
+            {
+                <p class="shop-order-empty-hint">
+                    @Loc["shop_order.empty_hint"]
+                </p>
+            }
+            else
+            {
+                <p class="shop-order-hint">
+                    @Loc["shop_order.scan_hint"] <span class="shop-order-demo">@DemoCodes()</span>
+                </p>
+            }
+        </div>
+
+        @* ── Section 1: Active Work Orders ─────────────────────────────── *@
+        <section class="shop-order-section">
+            <header class="shop-order-section-head">
+                <span class="shop-order-section-icon" aria-hidden="true">⚡</span>
+                <h2>@Loc["shop_order.section.active"] <span class="shop-order-count">(@_result!.Active.Count)</span></h2>
+            </header>
+            @if (_result.Active.Count == 0)
+            {
+                <div class="shop-order-empty">@Loc["shop_order.empty.active"]</div>
+            }
+            else
+            {
+                <div class="mes-wo-cards">
+                    @foreach (var wo in _result.Active)
+                    {
+                        <article class="mes-wo-card" data-wo="@wo.WoNo">
+                            <header class="mes-wo-card-head">
+                                <span class="mes-wo-card-no">@wo.WoNo</span>
+                                <span class="shop-pill @wo.BadgeCssClass" title="@Loc[wo.BadgeLabelKey]">
+                                    <span class="shop-pill-icon">@wo.BadgeIcon</span>
+                                    @Loc[wo.BadgeLabelKey]
+                                </span>
+                            </header>
+                            <dl class="mes-wo-card-body">
+                                <div class="mes-wo-row">
+                                    <dt>@Loc["shop_order.field.customer"]</dt>
+                                    <dd>@OrDash(wo.CustomerName)</dd>
+                                </div>
+                                <div class="mes-wo-row">
+                                    <dt>@Loc["shop_order.field.product"]</dt>
+                                    <dd>@OrDash(wo.ProductCode)</dd>
+                                </div>
+                                <div class="mes-wo-row">
+                                    <dt>@Loc["shop_order.field.machine"]</dt>
+                                    <dd>@OrDash(wo.MachineCode)</dd>
+                                </div>
+                                <div class="mes-wo-row">
+                                    <dt>@Loc["shop_order.field.process"]</dt>
+                                    <dd>@OrDash(wo.ProcessLabel)</dd>
+                                </div>
+                                <div class="mes-wo-row">
+                                    <dt>@Loc["shop_order.field.progress"]</dt>
+                                    <dd>@FormatProgress(wo)</dd>
+                                </div>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        @* ── Section 2: Closed Work Orders ─────────────────────────────── *@
+        <section class="shop-order-section">
+            <header class="shop-order-section-head">
+                <span class="shop-order-section-icon" aria-hidden="true">✔</span>
+                <h2>@Loc["shop_order.section.closed"] <span class="shop-order-count">(@_result.Closed.Count)</span></h2>
+            </header>
+            @if (_result.Closed.Count == 0)
+            {
+                <div class="shop-order-empty">@Loc["shop_order.empty.closed"]</div>
+            }
+            else
+            {
+                <div class="mes-wo-cards">
+                    @foreach (var wo in _result.Closed)
+                    {
+                        <article class="mes-wo-card mes-wo-card-closed" data-wo="@wo.WoNo">
+                            <header class="mes-wo-card-head">
+                                <span class="mes-wo-card-no">@wo.WoNo</span>
+                                <span class="shop-pill @wo.BadgeCssClass" title="@Loc[wo.BadgeLabelKey]">
+                                    <span class="shop-pill-icon">@wo.BadgeIcon</span>
+                                    @Loc[wo.BadgeLabelKey]
+                                </span>
+                            </header>
+                            <dl class="mes-wo-card-body">
+                                <div class="mes-wo-row">
+                                    <dt>@Loc["shop_order.field.customer"]</dt>
+                                    <dd>@OrDash(wo.CustomerName)</dd>
+                                </div>
+                                <div class="mes-wo-row">
+                                    <dt>@Loc["shop_order.field.output"]</dt>
+                                    <dd>@FormatProgress(wo)</dd>
+                                </div>
+                                <div class="mes-wo-row">
+                                    <dt>@Loc["shop_order.field.reject"]</dt>
+                                    <dd class="muted">—</dd>
+                                </div>
+                            </dl>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private ShopOrderListResult? _result;
+    private string? _scanQuery;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _result = await Wo.ShopOrderListAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OnScanKeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") Lookup();
+    }
+
+    /// <summary>
+    /// Q6 default — LOOKUP redirects to existing /workorders Phase 6 table
+    /// filtered by WoNo via querystring. Phase 6 table already filters
+    /// client-side. Camera QR scan + per-WO drawer defer to PR #32b.
+    /// </summary>
+    private void Lookup()
+    {
+        if (string.IsNullOrWhiteSpace(_scanQuery)) return;
+        var q = Uri.EscapeDataString(_scanQuery.Trim());
+        // Push to existing Phase 6 table — preserve querystring contract.
+        Nav.NavigateTo($"/workorders?q={q}");
+    }
+
+    private static string OrDash(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+
+    private string FormatProgress(WorkOrderCardItem wo)
+    {
+        var produced = wo.ProducedQty.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
+        var target = wo.TargetQty.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
+        return string.Format(Loc["shop_order.progress_fmt"].Value, produced, target, wo.Uom);
+    }
+
+    /// <summary>3 most-recent Active WoNo as a hint (mirror SpecHub Demo:
+    /// codes string).</summary>
+    private string DemoCodes()
+    {
+        if (_result is null) return "";
+        var sample = _result.Active.Take(3).Select(w => w.WoNo).ToList();
+        if (sample.Count == 0) return "";
+        return string.Format(Loc["shop_order.demo_codes_fmt"].Value, string.Join(", ", sample));
+    }
+}

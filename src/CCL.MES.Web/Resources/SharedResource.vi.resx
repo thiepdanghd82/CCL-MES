@@ -78,6 +78,7 @@
   <data name="nav.home" xml:space="preserve"><value>Trang chủ</value></data>
   <data name="nav.dashboard" xml:space="preserve"><value>Dashboard</value></data>
   <data name="nav.workorders" xml:space="preserve"><value>Work Orders</value></data>
+  <data name="nav.shoporder" xml:space="preserve"><value>Shop Order</value></data>
   <data name="nav.workinstructions" xml:space="preserve"><value>Work Instructions</value></data>
   <data name="nav.npidata" xml:space="preserve"><value>NPI Data</value></data>
   <data name="nav.qcqadata" xml:space="preserve"><value>QC/QA Data</value></data>
@@ -948,4 +949,36 @@
   <data name="npi.spec.detail.drawings.decide.modal.err_comment_required" xml:space="preserve"><value>Cần ghi chú khi Từ chối.</value></data>
   <data name="npi.spec.detail.drawings.decide.modal.err_forbidden" xml:space="preserve"><value>Bạn không có quyền action chip này.</value></data>
   <data name="npi.spec.detail.drawings.decide.modal.save_ok" xml:space="preserve"><value>Đã ghi nhận quyết định.</value></data>
+  <!-- Phase 8 PR #32a — Trang Shop Order (song song với /workorders Phase 6). -->
+  <data name="shop_order.load_err" xml:space="preserve"><value>Không tải được danh sách Shop Order</value></data>
+  <data name="shop_order.scan_placeholder" xml:space="preserve"><value>Quét QR WO hoặc gõ mã…</value></data>
+  <data name="shop_order.scan_hint" xml:space="preserve"><value>Quét mã QR Work Order để bắt đầu.</value></data>
+  <data name="shop_order.empty_hint" xml:space="preserve"><value>Chưa có Work Order nào. Dùng /workorders để tạo.</value></data>
+  <data name="shop_order.demo_codes_fmt" xml:space="preserve"><value>Gần đây: {0}</value></data>
+  <data name="shop_order.btn_lookup" xml:space="preserve"><value>Tra cứu</value></data>
+  <data name="shop_order.section.active" xml:space="preserve"><value>Work Order đang chạy</value></data>
+  <data name="shop_order.section.closed" xml:space="preserve"><value>Work Order đã đóng</value></data>
+  <data name="shop_order.empty.active" xml:space="preserve"><value>— Không có WO nào đang chạy.</value></data>
+  <data name="shop_order.empty.closed" xml:space="preserve"><value>— Chưa có WO nào đóng.</value></data>
+  <data name="shop_order.field.customer" xml:space="preserve"><value>Khách hàng</value></data>
+  <data name="shop_order.field.product" xml:space="preserve"><value>Sản phẩm</value></data>
+  <data name="shop_order.field.machine" xml:space="preserve"><value>Máy</value></data>
+  <data name="shop_order.field.process" xml:space="preserve"><value>Công đoạn</value></data>
+  <data name="shop_order.field.progress" xml:space="preserve"><value>Tiến độ</value></data>
+  <data name="shop_order.field.output" xml:space="preserve"><value>Sản lượng</value></data>
+  <data name="shop_order.field.reject" xml:space="preserve"><value>Phế phẩm</value></data>
+  <data name="shop_order.progress_fmt" xml:space="preserve"><value>{0} / {1} {2}</value></data>
+  <!-- Status badge labels. -->
+  <data name="shop_order.status.new" xml:space="preserve"><value>MỚI</value></data>
+  <data name="shop_order.status.pre_press" xml:space="preserve"><value>TIỀN-IN</value></data>
+  <data name="shop_order.status.setting" xml:space="preserve"><value>CÀI-MÁY</value></data>
+  <data name="shop_order.status.ipqc_wait" xml:space="preserve"><value>IPQC-CHỜ</value></data>
+  <data name="shop_order.status.ipqc_approved" xml:space="preserve"><value>IPQC-ĐẠT</value></data>
+  <data name="shop_order.status.ipqc_rejected" xml:space="preserve"><value>IPQC-HỎNG</value></data>
+  <data name="shop_order.status.ready" xml:space="preserve"><value>SẴN-SÀNG</value></data>
+  <data name="shop_order.status.running" xml:space="preserve"><value>ĐANG-CHẠY</value></data>
+  <data name="shop_order.status.paused" xml:space="preserve"><value>TẠM-DỪNG</value></data>
+  <data name="shop_order.status.qa_pending" xml:space="preserve"><value>CHỜ-QA</value></data>
+  <data name="shop_order.status.done" xml:space="preserve"><value>HOÀN-TẤT</value></data>
+  <data name="shop_order.status.cancelled" xml:space="preserve"><value>HUỶ</value></data>
 </root>
