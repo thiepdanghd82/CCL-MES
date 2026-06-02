@@ -1010,4 +1010,18 @@
   <data name="workorders.drawer.action.close" xml:space="preserve"><value>Đóng</value></data>
   <data name="workorders.view.card" xml:space="preserve"><value>Thẻ</value></data>
   <data name="workorders.view.table" xml:space="preserve"><value>Bảng</value></data>
+  <!-- Phase 8 PR #32c — Nút Export + section History timeline trong drawer. -->
+  <data name="workorders.export.aria" xml:space="preserve"><value>Xuất file</value></data>
+  <data name="workorders.export.csv" xml:space="preserve"><value>Xuất CSV</value></data>
+  <data name="workorders.export.xlsx" xml:space="preserve"><value>Xuất Excel</value></data>
+  <data name="workorders.export.csv.title" xml:space="preserve"><value>Tải danh sách hiện tại dạng CSV (RFC 4180, UTF-8 BOM).</value></data>
+  <data name="workorders.export.xlsx.title" xml:space="preserve"><value>Tải danh sách hiện tại dạng Excel (.xlsx).</value></data>
+  <data name="workorders.drawer.section.history" xml:space="preserve"><value>Lịch sử</value></data>
+  <data name="workorders.drawer.history.empty" xml:space="preserve"><value>— Chưa có sự kiện audit nào cho Work Order này.</value></data>
+  <data name="workorders.drawer.history.action.advance" xml:space="preserve"><value>Chuyển bước</value></data>
+  <data name="workorders.drawer.history.action.flags_update" xml:space="preserve"><value>Cập nhật cờ</value></data>
+  <data name="workorders.drawer.history.flag.materials" xml:space="preserve"><value>Vật tư</value></data>
+  <data name="workorders.drawer.history.flag.setup" xml:space="preserve"><value>Cài đặt</value></data>
+  <data name="workorders.drawer.history.flag.rohs" xml:space="preserve"><value>RoHS</value></data>
+  <data name="workorders.drawer.history.flag.produced" xml:space="preserve"><value>Đã sản xuất</value></data>
 </root>

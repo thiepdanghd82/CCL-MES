@@ -1012,4 +1012,18 @@
   <data name="workorders.drawer.action.close" xml:space="preserve"><value>Close</value></data>
   <data name="workorders.view.card" xml:space="preserve"><value>Card</value></data>
   <data name="workorders.view.table" xml:space="preserve"><value>Table</value></data>
+  <!-- Phase 8 PR #32c — Export buttons + per-WO drawer History timeline. -->
+  <data name="workorders.export.aria" xml:space="preserve"><value>Export</value></data>
+  <data name="workorders.export.csv" xml:space="preserve"><value>Export CSV</value></data>
+  <data name="workorders.export.xlsx" xml:space="preserve"><value>Export Excel</value></data>
+  <data name="workorders.export.csv.title" xml:space="preserve"><value>Download the current list as CSV (RFC 4180, UTF-8 BOM).</value></data>
+  <data name="workorders.export.xlsx.title" xml:space="preserve"><value>Download the current list as Excel (.xlsx).</value></data>
+  <data name="workorders.drawer.section.history" xml:space="preserve"><value>History</value></data>
+  <data name="workorders.drawer.history.empty" xml:space="preserve"><value>— No audit events recorded for this Work Order yet.</value></data>
+  <data name="workorders.drawer.history.action.advance" xml:space="preserve"><value>Advance</value></data>
+  <data name="workorders.drawer.history.action.flags_update" xml:space="preserve"><value>Flags</value></data>
+  <data name="workorders.drawer.history.flag.materials" xml:space="preserve"><value>Materials</value></data>
+  <data name="workorders.drawer.history.flag.setup" xml:space="preserve"><value>Setup</value></data>
+  <data name="workorders.drawer.history.flag.rohs" xml:space="preserve"><value>RoHS</value></data>
+  <data name="workorders.drawer.history.flag.produced" xml:space="preserve"><value>Produced</value></data>
 </root>

@@ -1,8 +1,10 @@
 using CCL.MES.Application;
 using CCL.MES.Application.SpecExport;
 using CCL.MES.Application.SpecImport;
+using CCL.MES.Application.WorkOrderExport;
 using CCL.MES.Infrastructure.SpecExport;
 using CCL.MES.Infrastructure.SpecImport;
+using CCL.MES.Infrastructure.WorkOrderExport;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -57,6 +59,14 @@ public static class DependencyInjection
         services.AddSingleton<ISpecListExporter>(sp => sp.GetRequiredService<CsvSpecListExporter>());
         services.AddSingleton<ISpecListExporter>(sp => sp.GetRequiredService<XlsxSpecListExporter>());
         services.AddSingleton<ISpecListExporter>(sp => sp.GetRequiredService<PdfSpecListExporter>());
+
+        // Phase 8 PR #32c — Work Order list exporters. Same Singleton + concrete
+        // + interface-multi-impl pattern as Spec exporters above. Stateless,
+        // re-uses ClosedXML from Infrastructure; no new dep added.
+        services.AddSingleton<CsvWorkOrderListExporter>();
+        services.AddSingleton<XlsxWorkOrderListExporter>();
+        services.AddSingleton<IWorkOrderListExporter>(sp => sp.GetRequiredService<CsvWorkOrderListExporter>());
+        services.AddSingleton<IWorkOrderListExporter>(sp => sp.GetRequiredService<XlsxWorkOrderListExporter>());
 
         return services;
     }
