@@ -583,3 +583,88 @@ dụng đây.
 ---
 
 *Cập nhật lần cuối: 01/06/2026 — Phase 8 PR-D-5c (Department claim + state-machine recompute + ChangeTracker.Clear trap + multi-emit-1-tx).*
+
+---
+
+## Phase 8 PR #32b — Camera QR + per-WO drawer (lib vendoring, HTTPS, JS interop, read-only discipline)
+
+PR #32b thêm camera scanner + read-only drawer vào Shop Order page. 4 lesson:
+
+### Vendor lib pattern — bundle local, KHÔNG CDN
+
+CCL-MES deploy lên server nhà máy có thể no-internet. Mọi client-side lib
+phải vendor vào `wwwroot/lib/<name>/<version>/`:
+
+```
+wwwroot/lib/html5-qrcode/2.3.8/html5-qrcode.min.js
+wwwroot/lib/html5-qrcode/2.3.8/LICENSE          # verbatim từ upstream
+```
+
+Path-pin version (folder `2.3.8/`) cho phép upgrade lib chỉ là path-bump 1 dòng `<script src>` trong `_Host.cshtml`. **License compliance**: Apache-2.0 yêu cầu giữ LICENSE file → vendor cùng folder. **SHA256 verify** ghi vào commit message + PR body khi vendor lần đầu để audit (sandbox + reviewer có thể compare).
+
+KHÔNG dùng CDN (`unpkg`, `jsdelivr`, …) vì offline-LAN deployment. KHÔNG add NuGet server dep cho client lib.
+
+### getUserMedia secure-context constraint
+
+`navigator.mediaDevices.getUserMedia({ video: true })` chỉ chạy trên **secure
+contexts**:
+- `https://` ✅
+- `http://localhost` ✅
+- `http://<LAN-IP>` ❌ browser block (Chrome 47+ / Firefox 60+ / Safari)
+
+Server nhà máy thường chạy `http://<LAN-IP>:<port>` → camera KHÔNG hoạt động trừ khi setup HTTPS reverse proxy. **PR #32b design**: ship camera code đầy đủ + detection logic; UI fallback to manual input khi `isSecureContext === false`. Manual LOOKUP (PR #32a) là **đường tin cậy luôn dùng được** cho operator.
+
+Detection (JS):
+```js
+window.ccl.qr.isAvailable = () =>
+    !!(window.isSecureContext &&
+       navigator.mediaDevices &&
+       typeof navigator.mediaDevices.getUserMedia === 'function');
+```
+
+Razor: `_cameraAvailable = await JS.InvokeAsync<bool>("ccl.qr.isAvailable")` trong `OnAfterRenderAsync(firstRender)` → button disabled + tooltip rõ ràng khi unavailable.
+
+### JS interop disposal — `IAsyncDisposable`
+
+Blazor Server component spin up camera stream qua `getUserMedia` MUST tear
+down stream khi component unmount (operator nav away mid-scan, sign out,
+tab close). Quên dispose → camera light vẫn sáng, browser cảnh báo, security
++ UX poor.
+
+Pattern:
+```csharp
+@implements IAsyncDisposable
+
+public async ValueTask DisposeAsync()
+{
+    try { await CloseScannerAsync(); } catch { }
+    _selfRef?.Dispose();   // DotNetObjectReference release
+    _selfRef = null;
+}
+
+private async Task CloseScannerAsync()
+{
+    if (!_scannerOpen) return;
+    _scannerOpen = false;
+    try { await JS.InvokeVoidAsync("ccl.qr.stop", _scannerElementId); }
+    catch { /* best-effort cleanup */ }
+}
+```
+
+JS side cũng có defensive cleanup qua `window.addEventListener('pagehide', ...)` — đề phòng Blazor circuit chết bất ngờ (network drop). 2 lớp defense.
+
+### Read-only drawer discipline — không đụng Phase 6 state machine
+
+Drawer mở qua scan / card click / manual exact-match. **Mọi action mutation
+vẫn ở Phase 6 `/workorders` table** với existing AuthorizeView role gating.
+Drawer chỉ có 1 footer button "Open in Work Orders →" navigate `/workorders`
+trơn (Phase 6 chưa handle `?wo=` querystring → KHÔNG truyền param thừa,
+KHÔNG sửa Phase 6).
+
+Lý do: PR #32b is purely kiosk-view layer. State machine (WorkOrderStateMachine.CanAdvance / Next) + SignalR ShopfloorNotifier + role-gated buttons đã ship + tested. KHÔNG tái implement trong drawer → giữ Phase 6 = `git diff` empty.
+
+Pattern chung: **mọi tab/view mới thêm vào trên 1 entity existing phải xác định rõ trước = read-only hay mutation**. Nếu read-only, tránh đụng state machine + audit + SignalR. Nếu mutation, follow pattern PR-D-5c (atomic + audit + role check + state recompute).
+
+---
+
+*Cập nhật lần cuối: 02/06/2026 — Phase 8 PR #32b (vendor lib pattern + getUserMedia secure context + JS interop dispose + read-only drawer discipline).*

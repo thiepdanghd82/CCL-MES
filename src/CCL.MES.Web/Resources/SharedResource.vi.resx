@@ -981,4 +981,29 @@
   <data name="shop_order.status.qa_pending" xml:space="preserve"><value>CHỜ-QA</value></data>
   <data name="shop_order.status.done" xml:space="preserve"><value>HOÀN-TẤT</value></data>
   <data name="shop_order.status.cancelled" xml:space="preserve"><value>HUỶ</value></data>
+  <!-- Phase 8 PR #32b — Nút quét camera + modal scanner + drawer read-only. -->
+  <data name="shop_order.scan.btn_camera" xml:space="preserve"><value>Camera</value></data>
+  <data name="shop_order.scan.camera_ready" xml:space="preserve"><value>Bấm để bắt đầu quét camera</value></data>
+  <data name="shop_order.scan.camera_unavailable" xml:space="preserve"><value>Camera cần HTTPS hoặc localhost. Dùng nhập tay thay thế.</value></data>
+  <data name="shop_order.scan.modal.title" xml:space="preserve"><value>Quét QR Work Order</value></data>
+  <data name="shop_order.scan.modal.hint" xml:space="preserve"><value>Đưa QR vào khung. Bấm × để huỷ.</value></data>
+  <data name="shop_order.scan.not_found_fmt" xml:space="preserve"><value>Không tìm thấy Work Order &quot;{0}&quot;.</value></data>
+  <data name="shop_order.scan.err.permission" xml:space="preserve"><value>Quyền camera bị từ chối. Dùng nhập tay.</value></data>
+  <data name="shop_order.scan.err.no_camera" xml:space="preserve"><value>Thiết bị không có camera.</value></data>
+  <data name="shop_order.scan.err.no_secure" xml:space="preserve"><value>Camera cần HTTPS hoặc localhost.</value></data>
+  <data name="shop_order.scan.err.lib_missing" xml:space="preserve"><value>Thư viện QR chưa nạp. Reload trang.</value></data>
+  <data name="shop_order.scan.err.other" xml:space="preserve"><value>Không thể bắt đầu scanner.</value></data>
+  <data name="shop_order.drawer.section.header" xml:space="preserve"><value>Tổng quan</value></data>
+  <data name="shop_order.drawer.section.production" xml:space="preserve"><value>Sản xuất</value></data>
+  <data name="shop_order.drawer.section.materials" xml:space="preserve"><value>Vật tư</value></data>
+  <data name="shop_order.drawer.section.qc" xml:space="preserve"><value>Lịch sử QC</value></data>
+  <data name="shop_order.drawer.field.spec_rev" xml:space="preserve"><value>Spec / Phiên bản</value></data>
+  <data name="shop_order.drawer.field.target" xml:space="preserve"><value>Mục tiêu</value></data>
+  <data name="shop_order.drawer.field.produced" xml:space="preserve"><value>Đã SX</value></data>
+  <data name="shop_order.drawer.field.planned_start" xml:space="preserve"><value>Bắt đầu KH</value></data>
+  <data name="shop_order.drawer.field.planned_end" xml:space="preserve"><value>Kết thúc KH</value></data>
+  <data name="shop_order.drawer.materials.empty" xml:space="preserve"><value>— Sản phẩm chưa có BOM vật tư.</value></data>
+  <data name="shop_order.drawer.qc.empty" xml:space="preserve"><value>— WO chưa có lần kiểm QC nào.</value></data>
+  <data name="shop_order.drawer.qc.inspector" xml:space="preserve"><value>bởi</value></data>
+  <data name="shop_order.drawer.action.open_in_workorders" xml:space="preserve"><value>Mở trong Work Orders</value></data>
 </root>
