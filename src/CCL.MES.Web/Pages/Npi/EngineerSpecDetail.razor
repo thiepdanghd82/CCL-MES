@@ -99,17 +99,15 @@
                 ⬇ @Loc["npi.spec.detail.action.export"]
             </button>
             <AuthorizeView Roles="Admin,Engineer">
-                @* Copy / Trash / Edit are stubs until server lifecycle ops land
-                   (CopySpecAsync / TrashSpecAsync / Edit modal — deferred per
-                   PR #30 plan). Render as TRULY DISABLED so operators can't
-                   click into a red-alert dead end — only the tooltip + "soon"
-                   subtitle communicates intent. Promote stays interactive
+                @* PR-L1 — Copy + Edit wired via SpecCopyModal/SpecEditModal.
+                   Trash stays as a stub until PR-L3 (Trash + Restore + Purge)
+                   ships; tooltip communicates intent. Promote stays interactive
                    (real SpecSvc.ApproveAsync wired with server-side audit). *@
-                <button type="button" class="rt-btn spec-action-btn spec-action-btn-stub"
-                        disabled
-                        title="@Loc["npi.spec.detail.action.copy_unimpl"]">
+                <button type="button" class="rt-btn spec-action-btn"
+                        @onclick="OpenCopyModalAsync"
+                        disabled="@_busyAction"
+                        title="@Loc["npi.spec.detail.action.copy"]">
                     ⎘ @Loc["npi.spec.detail.action.copy"]
-                    <span class="spec-action-soon">soon</span>
                 </button>
                 <button type="button" class="rt-btn spec-action-btn"
                         @onclick="PromoteAsync"
@@ -156,12 +154,14 @@
             {
                 <div class="spec-detail-tab-toolbar">
                     <AuthorizeView Roles="Admin,Engineer">
-                        @* Edit modal stub — deferred per PR #31a Q5. Render
-                           truly disabled so click is a no-op (no red-alert
-                           dead end). Will wire to Edit modal in a future PR. *@
-                        <button type="button" class="rt-btn spec-edit-btn spec-action-btn-stub"
-                                disabled
-                                title="@Loc["npi.spec.detail.action.edit_unimpl"]">
+                        @* PR-L1 — Edit modal wired. Gate Draft-only (server
+                           enforces too via 422 immutable_status). Approved/
+                           Released/Superseded revs show button as disabled with
+                           tooltip explaining why. *@
+                        <button type="button" class="rt-btn spec-edit-btn"
+                                @onclick="OpenEditModalAsync"
+                                disabled="@(_busyAction || !CanEdit)"
+                                title="@(CanEdit ? Loc["npi.spec.detail.action.edit"].Value : string.Format(Loc["npi.spec.edit.err.immutable_fmt"].Value, _detail?.Status))">
                             ✎ @Loc["npi.spec.detail.action.edit"]
                             <span class="spec-action-soon">soon</span>
                         </button>
@@ -1144,6 +1144,12 @@
             </div>
         }
     }
+
+    @* PR-L1 — Copy + Edit modal mounts. Caller pre-pivots SpecDetailDto into a
+        lightweight ProductRevisionListItem so the modals (which both grids and
+        the detail page share) get the row shape they already expect. *@
+    <SpecCopyModal @ref="_copyModal" OnCreated="OnCopiedAsync" />
+    <SpecEditModal @ref="_editModal" OnUpdated="OnEditedAsync" />
 </section>
 
 @code {
@@ -2045,10 +2051,95 @@
             ? Loc["npi.spec.detail.action.promote_tooltip"].Value
             : Loc["npi.spec.detail.action.promote_blocked"].Value;
 
-    // Copy / Trash / Edit handlers removed — buttons now render as truly
-    // disabled stubs (no click event reaches Blazor). Will be re-added when
-    // the server-side lifecycle ops (CopySpecAsync / TrashSpecAsync / Edit
-    // modal) ship in a future PR.
+    // ── PR-L1 — Copy + Edit (Trash still pending PR-L3) ──────────────────
+
+    private SpecCopyModal? _copyModal;
+    private SpecEditModal? _editModal;
+
+    private bool CanEdit => _detail is not null
+        && _detail.Status == ProductRevisionStatus.Draft;
+
+    /// <summary>
+    /// Build the lightweight grid-row DTO the lifecycle modals expect. The
+    /// detail page owns a richer SpecDetailDto; we shim it to
+    /// ProductRevisionListItem so both surfaces share one modal contract.
+    /// </summary>
+    private ProductRevisionListItem? CurrentRowProjection()
+    {
+        if (_detail is null) return null;
+        return new ProductRevisionListItem(
+            Id:                 _detail.Id,
+            SpecCode:           _detail.SpecCode,
+            Title:              _detail.Title,
+            RevisionCode:       _detail.RevisionCode,
+            Status:             _detail.Status,
+            EffectiveFrom:      null,
+            ApprovedBy:         _detail.ApprovedBy,
+            ProductCode:        _detail.ProductCode,
+            ProductName:        _detail.ProductName,
+            ProcessCode:        _detail.ProcessCode,
+            CustomerName:       _detail.CustomerName,
+            RefNo:              _detail.RefNo,
+            InspectionLevel:    _detail.InspectionLevel,
+            NumColors:          _detail.PrintColors.Count,
+            Cavity:             _detail.PrintingCavity,
+            PitchMm:            _detail.LengthPitchMm,
+            Planner:            _detail.Planner,
+            LastUpdatedAt:      _detail.UpdatedAt ?? _detail.CreatedAt,
+            LastUpdatedBy:      _detail.UpdatedBy ?? _detail.CreatedBy);
+    }
+
+    private async Task OpenCopyModalAsync()
+    {
+        if (_copyModal is null) return;
+        var row = CurrentRowProjection();
+        if (row is null) return;
+        try
+        {
+            await _copyModal.OpenAsync(row);
+        }
+        catch (Exception ex)
+        {
+            _actionError = ex.GetType().Name + ": " + ex.Message;
+            StateHasChanged();
+        }
+    }
+
+    private Task OpenEditModalAsync()
+    {
+        if (_editModal is null) return Task.CompletedTask;
+        var row = CurrentRowProjection();
+        if (row is null) return Task.CompletedTask;
+        _editModal.Open(row);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// After Copy: navigate to the new Draft revision (operator usually wants
+    /// to inspect what was cloned before continuing edits).
+    /// </summary>
+    private Task OnCopiedAsync((long NewRevId, string NewSpecCode) ev)
+    {
+        _actionMessage = string.Format(Loc["npi.spec.copy.toast_fmt"].Value, ev.NewSpecCode);
+        StateHasChanged();
+        Nav.NavigateTo($"/npi/engineer-spec/{ev.NewRevId}");
+        return Task.CompletedTask;
+    }
+
+    /// <summary>After Edit: reload the detail DTO so Identity row reflects the new values.</summary>
+    private async Task OnEditedAsync()
+    {
+        try
+        {
+            _detail = await SpecSvc.SpecDetailAsync(RevisionId);
+            _actionMessage = Loc["npi.spec.edit.info.saved"].Value;
+        }
+        catch (Exception ex)
+        {
+            _actionError = ex.GetType().Name + ": " + ex.Message;
+        }
+        StateHasChanged();
+    }
 
     private static string ProcessKindLabel(string planner) => (planner ?? "UNKNOWN").Trim().ToUpperInvariant() switch
     {

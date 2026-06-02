@@ -1,0 +1,213 @@
+@*  Phase 8 PR-L1 — Spec lifecycle Copy modal.
+
+    Operator picks a destination Product + supplies a new SpecCode, then the
+    server clones content from the source revision per Q6 (4 sub-specs +
+    SpecPrintColor + flexo rows + QC Plan; NOT QcCaptures, NOT Drawings).
+
+    Reuse modal-card / modal-scrim chrome + navy palette from
+    SpecDetailModal. Submit POSTs to /api/specs/{srcId}/copy via JS fetch
+    helper added in ccl-mes.js so the cookie auth flows correctly and the
+    [Authorize(Roles="Admin,Engineer")] gate fires server-side.
+
+    On success the parent grid refreshes + a toast prompts the operator to
+    open the newly created Draft spec. *@
+
+@using CCL.MES.Application
+@using CCL.MES.Application.Services
+@inject SpecService Specs
+@inject IJSRuntime JS
+@inject IStringLocalizer<SharedResource> Loc
+
+@if (_open && _source is not null)
+{
+    <div class="modal-scrim" @onclick="Close">
+        <div class="modal-card spec-copy-modal" @onclick:stopPropagation="true" role="dialog" aria-modal="true">
+            <div class="modal-head">
+                <h2>@string.Format(Loc["npi.spec.copy.title_fmt"].Value, _source.SpecCode, _source.RevisionCode)</h2>
+                <button type="button" class="modal-close" @onclick="Close" aria-label="Close">×</button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert err">@_errorMessage</div>
+                }
+                <p class="muted">@Loc["npi.spec.copy.intro"]</p>
+
+                <div class="form-row">
+                    <label for="copy-spec-code">@Loc["npi.spec.copy.field.spec_code"] <span class="required">*</span></label>
+                    <input id="copy-spec-code" type="text" value="@_specCode"
+                           @oninput="@(e => _specCode = e.Value?.ToString() ?? "")"
+                           autocomplete="off" maxlength="64" />
+                    <small class="muted">@Loc["npi.spec.copy.field.spec_code_hint"]</small>
+                </div>
+
+                <div class="form-row">
+                    <label for="copy-title">@Loc["npi.spec.copy.field.title"]</label>
+                    <input id="copy-title" type="text" value="@_title"
+                           @oninput="@(e => _title = e.Value?.ToString() ?? "")"
+                           maxlength="200" />
+                    <small class="muted">@Loc["npi.spec.copy.field.title_hint"]</small>
+                </div>
+
+                <div class="form-row">
+                    <label for="copy-product">@Loc["npi.spec.copy.field.product"] <span class="required">*</span></label>
+                    <select id="copy-product" @bind="_productId">
+                        @if (_products is null)
+                        {
+                            <option value="0">@Loc["common.loading"]</option>
+                        }
+                        else
+                        {
+                            <option value="0">@Loc["npi.spec.copy.field.product_select"]</option>
+                            @foreach (var p in _products)
+                            {
+                                <option value="@p.Id">@p.ProductCode — @p.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+
+                <div class="spec-copy-clone-summary">
+                    <h4>@Loc["npi.spec.copy.section.cloning"]</h4>
+                    <ul class="spec-copy-bullets">
+                        <li>@Loc["npi.spec.copy.cloning.material"]</li>
+                        <li>@Loc["npi.spec.copy.cloning.print"]</li>
+                        <li>@Loc["npi.spec.copy.cloning.diecut"]</li>
+                        <li>@Loc["npi.spec.copy.cloning.finishing"]</li>
+                        <li>@Loc["npi.spec.copy.cloning.qc"]</li>
+                    </ul>
+                    <h4>@Loc["npi.spec.copy.section.not_cloning"]</h4>
+                    <ul class="spec-copy-bullets spec-copy-bullets-warn">
+                        <li>@Loc["npi.spec.copy.not_cloning.qc_captures"]</li>
+                        <li>@Loc["npi.spec.copy.not_cloning.drawings"]</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="modal-foot">
+                <button type="button" class="rt-btn" @onclick="Close" disabled="@_busy">
+                    @Loc["common.cancel"]
+                </button>
+                <button type="button" class="rt-btn rt-btn-primary"
+                        disabled="@(!CanSubmit())"
+                        @onclick="SubmitAsync">
+                    @(_busy ? Loc["npi.spec.copy.btn.creating"].Value : Loc["npi.spec.copy.btn.submit"].Value)
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback<(long NewRevId, string NewSpecCode)> OnCreated { get; set; }
+
+    private bool _open;
+    private ProductRevisionListItem? _source;
+    private List<ProductDropdownItem>? _products;
+    private string _specCode = "";
+    private string _title = "";
+    private long _productId;
+    private bool _busy;
+    private string? _errorMessage;
+
+    public async Task OpenAsync(ProductRevisionListItem source)
+    {
+        _source = source;
+        _specCode = "";
+        _title = string.IsNullOrWhiteSpace(source.Title)
+            ? "(copy)"
+            : $"{source.Title} (copy)";
+        _errorMessage = null;
+        _busy = false;
+        _open = true;
+
+        try
+        {
+            _products = await Specs.ProductsForDropdownAsync();
+            // Default to the source's own product so the operator only has to
+            // change it if they actually want to switch.
+            var sourceProductId = _products?.FirstOrDefault(p => p.ProductCode == source.ProductCode)?.Id ?? 0;
+            _productId = sourceProductId;
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.GetType().Name + ": " + ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    public void Close()
+    {
+        _open = false;
+        _source = null;
+        _products = null;
+        StateHasChanged();
+    }
+
+    private bool CanSubmit() => !_busy
+        && _source is not null
+        && _productId > 0
+        && !string.IsNullOrWhiteSpace(_specCode);
+
+    private async Task SubmitAsync()
+    {
+        if (_source is null || _busy) return;
+        _busy = true;
+        _errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var payload = new
+            {
+                productId = _productId,
+                specCode  = _specCode.Trim(),
+                title     = _title.Trim(),
+            };
+            var result = await JS.InvokeAsync<SpecMutationResult>(
+                "cclmes.specs.copy", _source.Id, payload);
+            if (!result.Ok)
+            {
+                _errorMessage = MapServerError(result);
+            }
+            else
+            {
+                Close();
+                await OnCreated.InvokeAsync((result.Id ?? 0, result.SpecCode ?? _specCode.Trim()));
+            }
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+
+    private string MapServerError(SpecMutationResult r)
+    {
+        return r.Code switch
+        {
+            "duplicate_spec_code" => string.Format(Loc["npi.spec.copy.err.duplicate_fmt"].Value, _specCode),
+            "validation"          => r.Body ?? Loc["npi.spec.copy.err.validation"].Value,
+            _                     => $"{r.Status}: {Truncate(r.Body, 240)}",
+        };
+    }
+
+    private static string Truncate(string? s, int n) =>
+        string.IsNullOrEmpty(s) ? "" : (s.Length > n ? s.Substring(0, n) + "…" : s);
+
+    public sealed class SpecMutationResult
+    {
+        public bool Ok { get; set; }
+        public int Status { get; set; }
+        public long? Id { get; set; }
+        public string? SpecCode { get; set; }
+        public string? Code { get; set; }
+        public string? Body { get; set; }
+    }
+}
