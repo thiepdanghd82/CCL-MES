@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Phase 9 T1 — Regression test project for the high-risk preservation
+    guarantees verified manually 5-10 times across Phase 5-8 sprints.
+    OUT-OF-PRODUCTION: no prod csproj references this project; runtime
+    deps flow one-way (test → prod). Adding to CCL.MES.sln does not
+    change the Web build output.
+
+    Free-license stack only (per Henry's Q-revisit):
+      - xUnit + xunit.runner.visualstudio  (Apache 2.0)
+      - Microsoft.NET.Test.Sdk             (MIT)
+      - Assertions: built-in xUnit Assert  (no FluentAssertions — v8+ is
+        commercial-license; v7 frozen is the only free option).
+
+    T1 = scaffold + unit (NO EF / NO DB integration). Integration suite
+    lands in T2. See docs/PHASE9-TEST-FRAMEWORK-PLAN.md §5.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CCL.MES.Domain\CCL.MES.Domain.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Application\CCL.MES.Application.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Infrastructure\CCL.MES.Infrastructure.csproj" />
+    <!--
+      Web is referenced ONLY to reach the value types declared at the bottom of
+      Web/Services/SpecTrashPurgeService.cs (PurgeOneOutcome + PurgeCycleStats).
+      The hosted-service class itself is not instantiated in T1. T2 will likely
+      relocate these types to Application or keep this reference; either way
+      the test project remains out-of-production.
+    -->
+    <ProjectReference Include="..\..\src\CCL.MES.Web\CCL.MES.Web.csproj" />
+  </ItemGroup>
+
+</Project>
