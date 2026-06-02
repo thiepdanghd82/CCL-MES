@@ -26,6 +26,110 @@ public class WorkOrderService
             .OrderByDescending(w => w.Id)
             .ToListAsync();
 
+    /// <summary>
+    /// Phase 8 PR #32a — Shop Order list page. Returns a pre-flattened
+    /// <see cref="ShopOrderListResult"/> with Active + Closed split, plus
+    /// the BOM-material cumulative count derived from
+    /// <see cref="ManufacturingStructure"/> link via ProductCode.
+    ///
+    /// Pre-flattens at service layer so the Razor render path has no
+    /// EF navigations dangling (avoids #27 hot-path query surprises).
+    /// Includes <see cref="ProductRevision"/>.Print + Diecut so the
+    /// process label can be derived without a second round-trip.
+    ///
+    /// NG / Reject quantity NOT included (Q5 default: render "—" in
+    /// PR #32a; defer NG tracking to a later PR).
+    /// </summary>
+    public async Task<ShopOrderListResult> ShopOrderListAsync()
+    {
+        var rows = await _db.WorkOrders
+            .AsNoTracking()
+            .Include(w => w.Customer)
+            .Include(w => w.Product)
+            .Include(w => w.Inspections)
+            .Include(w => w.ProductRevision)
+                .ThenInclude(r => r!.Print)
+            .Include(w => w.ProductRevision)
+                .ThenInclude(r => r!.Diecut)
+            .OrderByDescending(w => w.Id)
+            .ToListAsync();
+
+        // Distinct ProductCodes to count BOM in a single grouped query.
+        var productCodes = rows
+            .Select(w => w.Product?.ProductCode)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct()
+            .ToList();
+
+        var bomCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (productCodes.Count > 0)
+        {
+            var grouped = await _db.ManufacturingStructures
+                .AsNoTracking()
+                .Where(s => productCodes.Contains(s.ParentPart))
+                .GroupBy(s => s.ParentPart)
+                .Select(g => new { ParentPart = g.Key, Count = g.Count() })
+                .ToListAsync();
+            foreach (var g in grouped)
+            {
+                bomCounts[g.ParentPart] = g.Count;
+            }
+        }
+
+        var items = new List<WorkOrderCardItem>(rows.Count);
+        foreach (var w in rows)
+        {
+            var badge = WorkOrderStatusBadge.From(w);
+            var processLabel = BuildProcessLabel(w.ProductRevision);
+            var bomCount = w.Product?.ProductCode is { Length: > 0 } code
+                && bomCounts.TryGetValue(code, out var n) ? n : 0;
+
+            items.Add(new WorkOrderCardItem(
+                Id:                w.Id,
+                WoNo:              w.WoNo,
+                CustomerName:      w.Customer?.Name,
+                ProductCode:       w.Product?.ProductCode,
+                ProductName:       w.Product?.Name ?? w.ProductName,
+                MachineCode:       w.MachineCode,
+                MachineName:       w.MachineName,
+                ProcessLabel:      processLabel,
+                TargetQty:         w.TargetQty,
+                ProducedQty:       w.ProducedQty,
+                Uom:               w.Uom,
+                BomMaterialsCount: bomCount,
+                Status:            w.Status,
+                CurrentStep:       w.CurrentStep,
+                BadgeToken:        badge.Token,
+                BadgeLabelKey:     badge.LabelKey,
+                BadgeCssClass:     badge.CssClass,
+                BadgeIcon:         badge.Icon));
+        }
+
+        var active = items
+            .Where(i => i.Status != WoStatus.Closed
+                        && i.Status != WoStatus.Finished
+                        && i.Status != WoStatus.Cancelled)
+            .ToList();
+        var closed = items
+            .Where(i => i.Status == WoStatus.Closed
+                        || i.Status == WoStatus.Finished
+                        || i.Status == WoStatus.Cancelled)
+            .ToList();
+
+        return new ShopOrderListResult(active, closed);
+    }
+
+    private static string? BuildProcessLabel(ProductRevision? rev)
+    {
+        var print = rev?.Print?.ProcessCode;
+        var cut = rev?.Diecut?.CutProcessCode;
+        if (!string.IsNullOrWhiteSpace(print) && !string.IsNullOrWhiteSpace(cut))
+            return $"{print} + {cut}";
+        if (!string.IsNullOrWhiteSpace(print)) return print;
+        if (!string.IsNullOrWhiteSpace(cut)) return cut;
+        return null;
+    }
+
     public Task<WorkOrder?> GetAsync(long id) =>
         _db.WorkOrders
             .Include(w => w.Customer)
@@ -125,3 +229,31 @@ public class WorkOrderService
         return wo;
     }
 }
+
+// ── Phase 8 PR #32a — Shop Order DTOs ────────────────────────────────────
+
+/// <summary>Pre-flattened WO row for Shop Order card render. NG quantity
+/// intentionally absent (Q5 default: render "—" in PR #32a).</summary>
+public sealed record WorkOrderCardItem(
+    long Id,
+    string WoNo,
+    string? CustomerName,
+    string? ProductCode,
+    string? ProductName,
+    string? MachineCode,
+    string? MachineName,
+    string? ProcessLabel,
+    int TargetQty,
+    int ProducedQty,
+    string Uom,
+    int BomMaterialsCount,
+    WoStatus Status,
+    ProcessStepCode CurrentStep,
+    string BadgeToken,
+    string BadgeLabelKey,
+    string BadgeCssClass,
+    string BadgeIcon);
+
+public sealed record ShopOrderListResult(
+    List<WorkOrderCardItem> Active,
+    List<WorkOrderCardItem> Closed);
