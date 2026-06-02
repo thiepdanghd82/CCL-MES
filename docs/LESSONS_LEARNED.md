@@ -522,3 +522,64 @@ D-5b reuse lesson: route là `GET /api/specs/{revisionId:long}/drawings/{version
 ---
 
 *Cập nhật lần cuối: 01/06/2026 — Phase 8 PR-D-5b (IBlobStore return shape + Blazor InputFile cap + controller route discipline).*
+
+---
+
+## Phase 8 PR-D-5c — 3-role approval chain (RBAC department + state machine + EF transient tracking)
+
+PR-D-5c đóng chuỗi Drawings: NPI / Production / QC chips driven by `User.Department`,
+state machine `Draft → PendingApproval → Approved/Rejected`, supersede on Approve.
+Bốn lesson rút ra:
+
+### Department claim phải thêm vào auth cookie nếu service-layer cần nó
+
+User entity có `Department` field (PR #28 scaffold) nhưng `Login.cshtml.cs` không
+emit claim. Service-layer `DrawingsService.DecideAsync(actorDepartment)` cần giá
+trị này per request — 2 lựa chọn:
+
+- **A** (đã làm): emit `"department"` claim ở Login → controller `User.FindFirstValue("department")` đọc trong O(1), không round-trip DB. Trade-off: user đổi Department thì cần re-login (giống như Role change).
+- **B**: fetch User row mỗi decide → +1 SELECT/request. Cleaner data freshness, nhưng overhead trên endpoint hot-path.
+
+**Decision** PR-D-5c: A. Login.cshtml.cs `+1 line` cho claim. Logout đã wipe cookie. Operator UX matches role-change semantic.
+
+### State machine recompute từ approval rows — defensive duy nhất
+
+`DrawingVersionStatus` không lưu trực tiếp computed-from-chips. Mỗi `DecideAsync`
+gọi `RecomputeVersionStatus(approvals)` rồi UPDATE field. Lý do:
+
+- **Drift-safe**: nếu sau này có path nào UPDATE 1 chip mà quên gọi recompute, status drift dễ phát hiện qua harness re-run.
+- **Re-decide friendly**: operator flip chip từ Approve→Reject → recompute tự nhiên đảo version status (Approved→Rejected) cùng cycle với chip update — không cần special case "rollback".
+- **Pure function**: `RecomputeVersionStatus` chỉ depend trên 3 `(role, status)` tuples, dễ unit-test ngoài DB.
+
+Pattern: persist "fact rows" (chip decisions), compute "summary state" (version status) on-demand HOẶC lazy-cache. PR-D-5c chọn persist summary (đỡ join mỗi read) + recompute mỗi mutation.
+
+### EF ChangeTracker không tự reset khi `BeginTransactionAsync().RollbackAsync()`
+
+Harness test 6 (bad extension) reject + rollback tx. Test 9 (next upload) crash
+với `UNIQUE constraint failed` — root cause: EF change tracker vẫn giữ Drawing
+entity ở `Added` state từ test 6's rollback. SaveChanges của test 9 cố commit
+**cả 2** entities → constraint violation hoặc orphan side effects.
+
+Fix: `db.ChangeTracker.Clear()` ngay sau catch block trong tests có intentional
+rollback. **Production code KHÔNG cần** — mỗi HTTP request có scoped DbContext mới,
+không có shared state. Nhưng harness/integration tests reuse 1 DbContext → phải
+manual clear.
+
+Pattern chung: integration test reuse DbContext giữa cases → mọi expected-throw
+phải kèm `ChangeTracker.Clear()` để cô lập state.
+
+### One service method, 2 audit events emitted in one tx
+
+`DecideAsync` emit `DRAWING_DECIDE` cho chip click + emit `DRAWING_SUPERSEDE` per
+older version bị rollup (loop nhiều rows). Cả N emit nằm chung 1 EF transaction
+qua `IAuditWriter` (AuditService scoped to context). Roll back nếu bất kỳ step
+nào throw — entire decide cancelled, audit rows không persisted.
+
+Trade-off: forensic completeness vs. atomicity. Đi với atomicity (cả-hoặc-không)
+vì state inconsistency tệ hơn audit gap. Nếu cần audit-without-affect, cách
+khác: write-ahead `AuditService.EmitAndCommitAsync` (separate tx) — không áp
+dụng đây.
+
+---
+
+*Cập nhật lần cuối: 01/06/2026 — Phase 8 PR-D-5c (Department claim + state-machine recompute + ChangeTracker.Clear trap + multi-emit-1-tx).*

@@ -43,6 +43,15 @@ public static class AuditAction
     // detail JSON: { revision_id, drawing_id, kind, version_no, filename,
     //   sha256_short, size_bytes, has_change_reason }
     public const string DrawingUpload         = "DRAWING_UPLOAD";
+    // Phase 8 PR-D-5c — Drawing approval chip decided (Approve or Reject). detail
+    // JSON: { revision_id, drawing_id, version_id, version_no, role, decision,
+    //   has_comment, version_status_after, drawing_status_after }.
+    public const string DrawingDecide         = "DRAWING_DECIDE";
+    // Phase 8 PR-D-5c — Drawing version rolled to Superseded when a newer version
+    // becomes Approved. Emit one row per superseded version. detail JSON:
+    // { revision_id, drawing_id, superseded_version_id, superseded_version_no,
+    //   by_version_id, by_version_no, by_decided_user }.
+    public const string DrawingSupersede      = "DRAWING_SUPERSEDE";
     // Refresh-samples Admin-only batch (idempotent). detail JSON: { added,
     // updated, skipped, files: [{filename, ref_no, status}] }
     public const string SpecRefreshSamples    = "SPEC_REFRESH_SAMPLES";

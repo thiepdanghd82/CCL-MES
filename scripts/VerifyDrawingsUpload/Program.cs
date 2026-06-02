@@ -212,6 +212,9 @@ catch (InvalidOperationException ex) when (ex.Message.Contains("not in allowlist
             $"orphan rows: drawings {drawingCountBefore}->{drawingCountAfter}, versions {versionCountBefore}->{versionCountAfter}");
     else
         Pass("6. Bad extension rejected + rollback", "no orphan Drawing or Version row");
+    // EF change tracker still holds the rolled-back Drawing in Added state;
+    // clear so subsequent tests do not double-insert it.
+    db.ChangeTracker.Clear();
 }
 catch (Exception ex)
 {
@@ -251,6 +254,239 @@ if (upRes is not null)
     else
         Pass("8. Download scope: wrong revisionId rejected", "returned null");
 }
+
+// ── PR-D-5c — Approval chain test cases (9-16) ────────────────────────
+
+// Use the v1 + v2 customer-drawing chain that PR-D-5b tests created.
+// Their approval rows were inserted by UploadAsync.
+
+// Fresh helper: bootstrap a new revision so PR-D-5b's v1/v2 don't pollute.
+var revision2 = new ProductRevision
+{
+    ProductId = product.Id,
+    SpecCode = "SPEC-TST-002",
+    Title = "Approval-test spec",
+    RevisionCode = "B",
+    Status = ProductRevisionStatus.Draft,
+};
+db.ProductRevisions.Add(revision2);
+await db.SaveChangesAsync();
+
+// Helper to upload v(n) as engineer for npi department.
+async Task<DrawingUploadResult> UploadFreshAsync(long revId, int sizeBytes, string fname)
+{
+    var data = new byte[sizeBytes];
+    new Random(sizeBytes).NextBytes(data);
+    using var s = new MemoryStream(data);
+    return await drawingsSvc.UploadAsync(
+        revisionId: revId,
+        kind: DrawingKind.NpiPrintLayout,
+        originalFileName: fname,
+        contentType: "application/pdf",
+        content: s,
+        changeReason: null,
+        actor: "uploader",
+        actorRole: "Engineer");
+}
+
+DrawingUploadResult? v1 = null;
+try
+{
+    v1 = await UploadFreshAsync(revision2.Id, 100, "approval-test-v1.pdf");
+    // Verify 3 approval rows created at upload time.
+    var apCount = await db.DrawingApprovals.CountAsync(a => a.DrawingVersionId == v1.VersionId);
+    if (apCount != 3)
+        Fail("9. Upload creates 3 approval rows", $"expected 3 got {apCount}");
+    else
+        Pass("9. Upload creates 3 approval rows", "Npi+Production+Qc all Pending");
+}
+catch (Exception ex)
+{
+    Fail("9. Upload + approval row creation", $"{ex.GetType().Name}: {ex.Message}");
+}
+
+// ── 10. Decide NPI Approve → version → PendingApproval ──
+if (v1 is not null)
+{
+    try
+    {
+        var r = await drawingsSvc.DecideAsync(
+            revisionId: revision2.Id,
+            versionId: v1.VersionId,
+            role: DrawingApprovalRole.Npi,
+            decision: DrawingApprovalStatus.Approved,
+            comment: "looks fine to NPI",
+            actor: "alice.npi",
+            actorRole: "Engineer",
+            actorDepartment: "npi");
+        if (r.VersionStatus != DrawingVersionStatus.PendingApproval)
+            Fail("10. NPI Approve → PendingApproval", $"got {r.VersionStatus}");
+        else
+            Pass("10. NPI Approve → PendingApproval", $"drawing_status={r.DrawingStatus}");
+    }
+    catch (Exception ex) { Fail("10. NPI Approve", $"{ex.GetType().Name}: {ex.Message}"); }
+}
+
+// ── 11. Decide Production Approve → still PendingApproval ──
+if (v1 is not null)
+{
+    try
+    {
+        var r = await drawingsSvc.DecideAsync(
+            revisionId: revision2.Id,
+            versionId: v1.VersionId,
+            role: DrawingApprovalRole.Production,
+            decision: DrawingApprovalStatus.Approved,
+            comment: null,
+            actor: "bob.prod",
+            actorRole: "Engineer",
+            actorDepartment: "production");
+        if (r.VersionStatus != DrawingVersionStatus.PendingApproval)
+            Fail("11. 2/3 approved still PendingApproval", $"got {r.VersionStatus}");
+        else
+            Pass("11. 2/3 approved → PendingApproval", "");
+    }
+    catch (Exception ex) { Fail("11. Production Approve", $"{ex.GetType().Name}: {ex.Message}"); }
+}
+
+// ── 12. Decide QC Approve → all 3 OK → Approved + Drawing.CurrentVersionId set ──
+if (v1 is not null)
+{
+    try
+    {
+        var r = await drawingsSvc.DecideAsync(
+            revisionId: revision2.Id,
+            versionId: v1.VersionId,
+            role: DrawingApprovalRole.Qc,
+            decision: DrawingApprovalStatus.Approved,
+            comment: null,
+            actor: "carol.qc",
+            actorRole: "Engineer",
+            actorDepartment: "qc");
+        var dr = await db.Drawings.FirstAsync(d => d.ProductRevisionId == revision2.Id && d.Kind == DrawingKind.NpiPrintLayout);
+        if (r.VersionStatus != DrawingVersionStatus.Approved)
+            Fail("12. 3/3 → Approved", $"version status got {r.VersionStatus}");
+        else if (dr.CurrentVersionId != v1.VersionId)
+            Fail("12. CurrentVersionId set to v1", $"got {dr.CurrentVersionId}");
+        else if (dr.Status != DrawingStatus.Approved)
+            Fail("12. Drawing.Status = Approved", $"got {dr.Status}");
+        else
+            Pass("12. 3/3 Approved → Drawing.Approved + CurrentVersionId", $"v{v1.VersionNo}");
+    }
+    catch (Exception ex) { Fail("12. QC Approve cascade", $"{ex.GetType().Name}: {ex.Message}"); }
+}
+
+// ── 13. Reject with empty comment → throws ──
+if (v1 is not null)
+{
+    // Use a different version so we don't poison v1; upload v2.
+    try
+    {
+        var v2 = await UploadFreshAsync(revision2.Id, 200, "approval-test-v2.pdf");
+        try
+        {
+            await drawingsSvc.DecideAsync(
+                revisionId: revision2.Id,
+                versionId: v2.VersionId,
+                role: DrawingApprovalRole.Npi,
+                decision: DrawingApprovalStatus.Rejected,
+                comment: "",
+                actor: "alice.npi",
+                actorRole: "Engineer",
+                actorDepartment: "npi");
+            Fail("13. Reject with empty comment", "did not throw");
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Comment is required"))
+        {
+            Pass("13. Reject with empty comment → throws", "");
+        }
+
+        // ── 14. NPI Reject with comment → version → Rejected ──
+        var rj = await drawingsSvc.DecideAsync(
+            revisionId: revision2.Id,
+            versionId: v2.VersionId,
+            role: DrawingApprovalRole.Npi,
+            decision: DrawingApprovalStatus.Rejected,
+            comment: "needs revision before production approval",
+            actor: "alice.npi",
+            actorRole: "Engineer",
+            actorDepartment: "npi");
+        if (rj.VersionStatus != DrawingVersionStatus.Rejected)
+            Fail("14. 1 Reject → version.Status=Rejected", $"got {rj.VersionStatus}");
+        else
+            Pass("14. 1 Reject → version=Rejected (drawing.Status stays Approved from v1)", "");
+
+        // ── 15. Upload v3 + 3-chip approve → v1 superseded ──
+        var v3 = await UploadFreshAsync(revision2.Id, 300, "approval-test-v3.pdf");
+        await drawingsSvc.DecideAsync(revision2.Id, v3.VersionId, DrawingApprovalRole.Npi,        DrawingApprovalStatus.Approved, null, "alice.npi",  "Engineer", "npi");
+        await drawingsSvc.DecideAsync(revision2.Id, v3.VersionId, DrawingApprovalRole.Production, DrawingApprovalStatus.Approved, null, "bob.prod",   "Engineer", "production");
+        var rSup = await drawingsSvc.DecideAsync(revision2.Id, v3.VersionId, DrawingApprovalRole.Qc, DrawingApprovalStatus.Approved, null, "carol.qc", "Engineer", "qc");
+
+        // Reload v1 from DB to check status flip.
+        var v1Refresh = await db.DrawingVersions.AsNoTracking().FirstAsync(v => v.Id == v1.VersionId);
+        var v2Refresh = await db.DrawingVersions.AsNoTracking().FirstAsync(v => v.Id == v2.VersionId);
+        var drRefresh = await db.Drawings.AsNoTracking().FirstAsync(d => d.ProductRevisionId == revision2.Id && d.Kind == DrawingKind.NpiPrintLayout);
+
+        if (v1Refresh.Status != DrawingVersionStatus.Superseded)
+            Fail("15. v1 superseded by v3 Approved", $"v1.Status={v1Refresh.Status}");
+        else if (v2Refresh.Status != DrawingVersionStatus.Rejected)
+            Fail("15. v2 stays Rejected (not Superseded)", $"v2.Status={v2Refresh.Status}");
+        else if (drRefresh.CurrentVersionId != v3.VersionId)
+            Fail("15. CurrentVersionId → v3", $"got {drRefresh.CurrentVersionId}");
+        else
+            Pass("15. v3 Approved → v1 Superseded + CurrentVersionId=v3 + v2 stays Rejected", $"superseded_count={rSup.SupersededCount}");
+    }
+    catch (Exception ex)
+    {
+        Fail("13-15. Reject/Supersede chain", $"{ex.GetType().Name}: {ex.Message}");
+    }
+}
+
+// ── 16. RBAC: Engineer + Department=production cannot action NPI chip ──
+try
+{
+    var vrr = await UploadFreshAsync(revision2.Id, 150, "rbac-test.pdf");
+    await drawingsSvc.DecideAsync(
+        revisionId: revision2.Id,
+        versionId: vrr.VersionId,
+        role: DrawingApprovalRole.Npi,
+        decision: DrawingApprovalStatus.Approved,
+        comment: null,
+        actor: "bob.prod",
+        actorRole: "Engineer",
+        actorDepartment: "production");
+    Fail("16. RBAC: Eng+Dept=production action NPI chip rejected", "did not throw");
+}
+catch (UnauthorizedAccessException)
+{
+    Pass("16. RBAC: Eng+Dept=production action NPI chip rejected", "throw OK");
+}
+catch (Exception ex) { Fail("16. RBAC mismatch reject", $"wrong type {ex.GetType().Name}"); }
+
+// ── 17. Re-decide allowed: flip Approve → Reject ──
+try
+{
+    var vrd = await UploadFreshAsync(revision2.Id, 175, "redecide-test.pdf");
+    await drawingsSvc.DecideAsync(revision2.Id, vrd.VersionId, DrawingApprovalRole.Npi, DrawingApprovalStatus.Approved, null, "alice.npi", "Engineer", "npi");
+    var r = await drawingsSvc.DecideAsync(revision2.Id, vrd.VersionId, DrawingApprovalRole.Npi, DrawingApprovalStatus.Rejected, "actually need changes", "alice.npi", "Engineer", "npi");
+    if (r.VersionStatus != DrawingVersionStatus.Rejected)
+        Fail("17. Re-decide Approve→Reject flips version status", $"got {r.VersionStatus}");
+    else
+        Pass("17. Re-decide Approve→Reject allowed (flip OK)", "");
+}
+catch (Exception ex) { Fail("17. Re-decide", $"{ex.GetType().Name}: {ex.Message}"); }
+
+// ── 18. Admin overrides any chip + department ──
+try
+{
+    var vad = await UploadFreshAsync(revision2.Id, 125, "admin-override.pdf");
+    var r = await drawingsSvc.DecideAsync(revision2.Id, vad.VersionId, DrawingApprovalRole.Qc, DrawingApprovalStatus.Approved, null, "boss.admin", "Admin", null);
+    if (r.VersionStatus != DrawingVersionStatus.PendingApproval)
+        Fail("18. Admin override QC chip", $"got {r.VersionStatus}");
+    else
+        Pass("18. Admin override QC chip (no department needed)", "");
+}
+catch (Exception ex) { Fail("18. Admin override", $"{ex.GetType().Name}: {ex.Message}"); }
 
 Console.WriteLine();
 Console.WriteLine($"  Result: PASS {pass}  FAIL {fail}");
