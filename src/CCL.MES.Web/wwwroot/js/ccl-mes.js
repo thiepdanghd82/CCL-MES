@@ -391,3 +391,58 @@ window.cclmes.specs.supersede = async function (revId, payload) {
         return { ok: false, status: 0, code: null, body: (e && e.message) || String(e) };
     }
 };
+
+// Phase 8 PR-L3 — Spec lifecycle Trash + Restore.
+window.cclmes.specs.trash = async function (revId) {
+    try {
+        const resp = await fetch('/api/specs/' + revId + '/trash', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: '{}',
+        });
+        let text = '';
+        try { text = await resp.text(); } catch (_) {}
+        if (!resp.ok) {
+            let code = null, problem = text, activeWoCount = null;
+            try {
+                const parsed = JSON.parse(text);
+                code = parsed.code || null;
+                problem = parsed.error || parsed.title || text;
+                activeWoCount = (typeof parsed.activeWoCount === 'number') ? parsed.activeWoCount : null;
+            } catch (_) {}
+            return {
+                ok: false, status: resp.status,
+                code: code, activeWoCount: activeWoCount, body: problem,
+            };
+        }
+        return { ok: true, status: resp.status, body: text };
+    } catch (e) {
+        return { ok: false, status: 0, code: null, body: (e && e.message) || String(e) };
+    }
+};
+
+window.cclmes.specs.restore = async function (revId) {
+    try {
+        const resp = await fetch('/api/specs/' + revId + '/restore', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: '{}',
+        });
+        let text = '';
+        try { text = await resp.text(); } catch (_) {}
+        if (!resp.ok) {
+            let code = null, problem = text;
+            try {
+                const parsed = JSON.parse(text);
+                code = parsed.code || null;
+                problem = parsed.error || parsed.title || text;
+            } catch (_) {}
+            return { ok: false, status: resp.status, code: code, body: problem };
+        }
+        return { ok: true, status: resp.status, body: text };
+    } catch (e) {
+        return { ok: false, status: 0, code: null, body: (e && e.message) || String(e) };
+    }
+};

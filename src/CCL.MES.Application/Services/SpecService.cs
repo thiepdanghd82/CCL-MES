@@ -46,15 +46,23 @@ public class SpecService
     ///   Product → Customer (cột Customer)
     ///   Print (cột Colors/Cavity/Pitch/Planner derived)
     /// </summary>
-    public async Task<PagedResult<ProductRevisionListItem>> SpecsAsync(string? search, int page, int pageSize)
+    public async Task<PagedResult<ProductRevisionListItem>> SpecsAsync(string? search, int page, int pageSize, SpecListView view = SpecListView.Active)
     {
         var q = _db.ProductRevisions
             .AsNoTracking()
-            .Where(x => !x.IsTrashed)               // soft-delete skip
             .Include(x => x.Product)
                 .ThenInclude(p => p!.Customer)      // Q3 — Customer column join
             .Include(x => x.Print)                  // Colors/Cavity/Pitch/Planner derive
             .AsQueryable();
+        // PR-L3 — filter chip view selector. Active hides trashed (default,
+        // backward-compat with prior callers); Trash shows only trashed;
+        // All shows both.
+        q = view switch
+        {
+            SpecListView.Trash => q.Where(x => x.IsTrashed),
+            SpecListView.All   => q,
+            _                  => q.Where(x => !x.IsTrashed),
+        };
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -741,6 +749,92 @@ public class SpecService
         return SupersedeResult.Ok(rev);
     }
 
+    /// <summary>
+    /// Phase 8 PR-L3 — Spec lifecycle Trash (soft-delete). Flips
+    /// <see cref="ProductRevision.IsTrashed"/> + records who/when. Server-side
+    /// blocker counts WO references with <c>Status NOT IN {Closed, Cancelled,
+    /// Finished}</c>; if any exist, returns
+    /// <see cref="TrashResult.ActiveWorkOrders"/> with the count so the
+    /// controller can map to 422 + the modal can render the inline blocker
+    /// reason. Closed/Cancelled/Finished WOs do NOT block — historical
+    /// references are acceptable.
+    ///
+    /// Why the blocker matters even though Trash is "soft": Purge later
+    /// hard-deletes from <c>ProductRevisions</c> and the FK on
+    /// <c>WorkOrders.ProductRevisionId</c> is <c>ON DELETE RESTRICT</c>. If
+    /// we let trash succeed while active WOs reference the spec, Purge
+    /// would either fail or have to skip the row forever. Catching the
+    /// blocker at Trash time is the cleaner ergonomics.
+    /// </summary>
+    public async Task<TrashResult> TrashAsync(long revisionId, string? user)
+    {
+        var rev = await _db.ProductRevisions.FirstOrDefaultAsync(x => x.Id == revisionId);
+        if (rev is null) return TrashResult.NotFound();
+        if (rev.IsTrashed) return TrashResult.AlreadyTrashed();
+
+        // Phase 6 WorkOrders FK is ON DELETE RESTRICT. Count WOs that still
+        // reference this rev in any operational state. Historical states
+        // (Closed / Cancelled / Finished) are acceptable.
+        var activeWoCount = await _db.WorkOrders
+            .Where(w => w.ProductRevisionId == revisionId
+                        && w.Status != WoStatus.Closed
+                        && w.Status != WoStatus.Cancelled
+                        && w.Status != WoStatus.Finished)
+            .CountAsync();
+        if (activeWoCount > 0)
+        {
+            return TrashResult.ActiveWorkOrders(activeWoCount);
+        }
+
+        rev.IsTrashed = true;
+        rev.TrashedAt = DateTime.UtcNow;
+        rev.TrashedBy = user;
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.SpecTrash, user ?? "anonymous", actorRole: "",
+            targetType: "ProductRevision", targetId: rev.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                rev_id    = rev.Id,
+                rev_code  = rev.RevisionCode,
+                spec_code = rev.SpecCode,
+                status    = rev.Status.ToString(),
+            }));
+
+        return TrashResult.Ok(rev);
+    }
+
+    /// <summary>
+    /// Phase 8 PR-L3 — Spec lifecycle Restore (un-trash). Clears the trash
+    /// flags + stamps. No blocker — restoring cannot create an orphan FK.
+    /// </summary>
+    public async Task<RestoreResult> RestoreAsync(long revisionId, string? user)
+    {
+        var rev = await _db.ProductRevisions.FirstOrDefaultAsync(x => x.Id == revisionId);
+        if (rev is null) return RestoreResult.NotFound();
+        if (!rev.IsTrashed) return RestoreResult.NotTrashed();
+
+        var wasTrashedAt = rev.TrashedAt;
+        rev.IsTrashed = false;
+        rev.TrashedAt = null;
+        rev.TrashedBy = null;
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.SpecRestore, user ?? "anonymous", actorRole: "",
+            targetType: "ProductRevision", targetId: rev.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                rev_id          = rev.Id,
+                rev_code        = rev.RevisionCode,
+                spec_code       = rev.SpecCode,
+                was_trashed_at  = wasTrashedAt,
+            }));
+
+        return RestoreResult.Ok(rev);
+    }
+
     private static string SerializeParams(List<SpecParamDto> parameters)
     {
         if (parameters.Count == 0) return "[]";
@@ -1109,4 +1203,61 @@ public enum SupersedeResultKind
     Trashed,
     InvalidStatus,
     ConfirmMismatch,
+}
+
+// ── Phase 8 PR-L3 — Trash + Restore + Purge result envelopes ────────────────
+
+/// <summary>Filter chip view selector for <see cref="SpecService.SpecsAsync"/>.</summary>
+public enum SpecListView
+{
+    Active,
+    Trash,
+    All,
+}
+
+/// <summary>
+/// Outcome from <see cref="SpecService.TrashAsync"/>. ActiveWorkOrders carries
+/// the count so the controller can compose a clear "Cannot trash: N active
+/// WOs reference this spec" message.
+/// </summary>
+public sealed record TrashResult(
+    TrashResultKind Kind,
+    ProductRevision? Revision,
+    int? ActiveWoCount,
+    string? Error)
+{
+    public static TrashResult Ok(ProductRevision rev) => new(TrashResultKind.Ok, rev, null, null);
+    public static TrashResult NotFound() => new(TrashResultKind.NotFound, null, null, "Spec not found");
+    public static TrashResult AlreadyTrashed() => new(TrashResultKind.AlreadyTrashed, null, null, "Spec is already in Trash");
+    public static TrashResult ActiveWorkOrders(int n) => new(
+        TrashResultKind.ActiveWorkOrders, null, n,
+        $"Cannot trash: {n} active Work Order(s) reference this spec");
+}
+
+public enum TrashResultKind
+{
+    Ok,
+    NotFound,
+    AlreadyTrashed,
+    ActiveWorkOrders,
+}
+
+/// <summary>
+/// Outcome from <see cref="SpecService.RestoreAsync"/>.
+/// </summary>
+public sealed record RestoreResult(
+    RestoreResultKind Kind,
+    ProductRevision? Revision,
+    string? Error)
+{
+    public static RestoreResult Ok(ProductRevision rev) => new(RestoreResultKind.Ok, rev, null);
+    public static RestoreResult NotFound() => new(RestoreResultKind.NotFound, null, "Spec not found");
+    public static RestoreResult NotTrashed() => new(RestoreResultKind.NotTrashed, null, "Spec is not in Trash");
+}
+
+public enum RestoreResultKind
+{
+    Ok,
+    NotFound,
+    NotTrashed,
 }

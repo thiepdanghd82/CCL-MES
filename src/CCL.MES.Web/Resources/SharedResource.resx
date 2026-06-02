@@ -1108,4 +1108,21 @@ This will appear in Active immediately.</value></data>
   <data name="npi.spec.supersede.err.trashed" xml:space="preserve"><value>Spec is in Trash. Restore it before superseding.</value></data>
   <data name="npi.spec.supersede.err.mismatch" xml:space="preserve"><value>The typed spec code does not match. Confirmation cancelled.</value></data>
   <data name="npi.spec.supersede.toast_ok" xml:space="preserve"><value>Spec marked Superseded.</value></data>
+  <!-- Phase 8 PR-L3 — Spec lifecycle Trash + Restore + Purge view -->
+  <data name="npi.spec.view.aria" xml:space="preserve"><value>List view filter</value></data>
+  <data name="npi.spec.view.active" xml:space="preserve"><value>Active</value></data>
+  <data name="npi.spec.view.trash" xml:space="preserve"><value>Trash</value></data>
+  <data name="npi.spec.view.all" xml:space="preserve"><value>All</value></data>
+  <data name="npi.spec.ctx.trash" xml:space="preserve"><value>Move to Trash</value></data>
+  <data name="npi.spec.ctx.restore" xml:space="preserve"><value>Restore from Trash</value></data>
+  <data name="npi.spec.btn_restore" xml:space="preserve"><value>Restore from Trash</value></data>
+  <data name="npi.spec.detail.action.restore" xml:space="preserve"><value>Restore from Trash</value></data>
+  <data name="npi.spec.trash.title_fmt" xml:space="preserve"><value>Move to Trash — {0} Rev {1}</value></data>
+  <data name="npi.spec.trash.intro" xml:space="preserve"><value>Soft-deletes this revision. It will still appear in the Trash view; you can Restore it any time before the retention window expires.</value></data>
+  <data name="npi.spec.trash.purge_warn" xml:space="preserve"><value>Trashed revisions are permanently deleted by the background purge service after 30 days (configurable via OPS_SPEC_TRASH_RETENTION_DAYS). Restore before then to keep the data.</value></data>
+  <data name="npi.spec.trash.btn.confirm" xml:space="preserve"><value>Move to Trash</value></data>
+  <data name="npi.spec.trash.btn.trashing" xml:space="preserve"><value>Moving…</value></data>
+  <data name="npi.spec.trash.err.active_wo_fmt" xml:space="preserve"><value>Cannot move to Trash: {0} active Work Order(s) still reference this spec. Close or cancel those Work Orders first.</value></data>
+  <data name="npi.spec.trash.err.already" xml:space="preserve"><value>This revision is already in Trash.</value></data>
+  <data name="npi.spec.trash.toast_ok" xml:space="preserve"><value>Spec moved to Trash. View it under the Trash filter.</value></data>
 </root>

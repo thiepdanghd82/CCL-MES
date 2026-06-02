@@ -128,11 +128,15 @@
                         title="@SupersedeTooltip">
                     ⊘ @Loc["npi.spec.detail.action.supersede"]
                 </button>
-                <button type="button" class="rt-btn spec-action-btn spec-action-btn-danger spec-action-btn-stub"
-                        disabled
-                        title="@Loc["npi.spec.detail.action.trash_unimpl"]">
+                @* PR-L3 — Trash wired. SpecDetailAsync filters trashed revs
+                   out of the read path, so this surface only sees non-trashed
+                   revisions. Restore lives on the grid Trash view; the
+                   per-rev detail page is unreachable for a trashed rev. *@
+                <button type="button" class="rt-btn spec-action-btn spec-action-btn-danger"
+                        @onclick="OpenTrashModalAsync"
+                        disabled="@_busyAction"
+                        title="@Loc["npi.spec.detail.action.trash"]">
                     🗑 @Loc["npi.spec.detail.action.trash"]
-                    <span class="spec-action-soon">soon</span>
                 </button>
             </AuthorizeView>
 
@@ -1166,6 +1170,8 @@
     @* PR-L2 — Revise + Mark Superseded modal mounts. *@
     <SpecReviseModal @ref="_reviseModal" OnRevised="OnRevisedAsync" />
     <SpecSupersedeConfirmModal @ref="_supersedeModal" OnSuperseded="OnSupersededAsync" />
+    @* PR-L3 — Trash confirm modal. *@
+    <SpecTrashConfirmModal @ref="_trashModal" OnTrashed="OnTrashedAsync" />
 </section>
 
 @code {
@@ -2217,6 +2223,29 @@
             _actionError = ex.GetType().Name + ": " + ex.Message;
         }
         StateHasChanged();
+    }
+
+    // ── PR-L3 — Trash ────────────────────────────────────────────────────
+
+    private SpecTrashConfirmModal? _trashModal;
+
+    private Task OpenTrashModalAsync()
+    {
+        if (_trashModal is null) return Task.CompletedTask;
+        var row = CurrentRowProjection();
+        if (row is null) return Task.CompletedTask;
+        _trashModal.Open(row);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>After Trash: navigate back to the grid — the rev is no longer
+    /// visible in the default Active view but reachable via the Trash chip.</summary>
+    private Task OnTrashedAsync()
+    {
+        _actionMessage = Loc["npi.spec.trash.toast_ok"].Value;
+        StateHasChanged();
+        Nav.NavigateTo("/npi/engineer-spec");
+        return Task.CompletedTask;
     }
 
     private static string ProcessKindLabel(string planner) => (planner ?? "UNKNOWN").Trim().ToUpperInvariant() switch

@@ -45,6 +45,25 @@
     <div class="rt-toolbar">
         <h2 class="rt-title">@Loc["npi.spec.list_title"]</h2>
         <span class="rt-count-chip">@RowCountLabel</span>
+        @* PR-L3 — filter chip [Active / Trash / All]. Default Active per
+             Q10. Server enforces the same filter via the `view` query param. *@
+        <div class="spec-view-chip" role="group" aria-label="@Loc["npi.spec.view.aria"]">
+            <button type="button"
+                    class="spec-view-chip-btn @(_view == "active" ? "active" : "")"
+                    @onclick="@(() => SetViewAsync("active"))">
+                @Loc["npi.spec.view.active"]
+            </button>
+            <button type="button"
+                    class="spec-view-chip-btn @(_view == "trash" ? "active" : "") spec-view-chip-trash"
+                    @onclick="@(() => SetViewAsync("trash"))">
+                @Loc["npi.spec.view.trash"]
+            </button>
+            <button type="button"
+                    class="spec-view-chip-btn @(_view == "all" ? "active" : "")"
+                    @onclick="@(() => SetViewAsync("all"))">
+                @Loc["npi.spec.view.all"]
+            </button>
+        </div>
         <input type="search" class="rt-search" placeholder="@Loc["npi.spec.search_placeholder_parity"]"
                @bind="_search" @bind:event="oninput" @bind:after="OnSearchInputAfter" @onkeyup="OnKey" />
         <div class="rt-cols-wrap">
@@ -81,6 +100,8 @@
     @* PR-L2 — Revise + Mark Superseded modals. *@
     <SpecReviseModal @ref="_reviseModal" OnRevised="OnRevisedAsync" />
     <SpecSupersedeConfirmModal @ref="_supersedeModal" OnSuperseded="OnSupersededAsync" />
+    @* PR-L3 — Trash confirm modal. *@
+    <SpecTrashConfirmModal @ref="_trashModal" OnTrashed="OnTrashedAsync" />
     @if (!string.IsNullOrEmpty(_ctxError))
     {
         <div class="rt-ctx-error" role="alert">
@@ -122,6 +143,7 @@
                         <tr @oncontextmenu="@(e => OnRowContextMenuAsync(e, rowCapture))"
                             @oncontextmenu:preventDefault="true"
                             @ondblclick="@(() => OpenDetailPageAsync(rowCapture))"
+                            class="@(_view == "trash" || (_view == "all" && IsRowTrashed(s)) ? "spec-trash-row" : "")"
                             style="cursor:context-menu">
                             <td class="rt-num">@rowIdx</td>
                             @foreach (var c in VisibleCols)
@@ -132,7 +154,17 @@
                             }
                             <AuthorizeView Roles="Admin,Engineer">
                                 <td style="text-align:center">
-                                    @if (s.Status == ProductRevisionStatus.Draft || s.Status == ProductRevisionStatus.InReview)
+                                    @* PR-L3 — in Trash view show Restore button instead of Approve. *@
+                                    @if (_view == "trash")
+                                    {
+                                        <button type="button" class="spec-restore-btn"
+                                                @onclick="@(() => RestoreAsync(rowCapture))"
+                                                title="@Loc["npi.spec.btn_restore"]"
+                                                disabled="@(_busyRestoreId == s.Id)">
+                                            ↺
+                                        </button>
+                                    }
+                                    else if (s.Status == ProductRevisionStatus.Draft || s.Status == ProductRevisionStatus.InReview)
                                     {
                                         <button type="button" class="spec-approve-btn"
                                                 @onclick="@(() => ApproveAsync(s.Id, s.SpecCode, s.RevisionCode))"
@@ -173,6 +205,12 @@
     private SpecEditModal? _editModal;
     private SpecReviseModal? _reviseModal;
     private SpecSupersedeConfirmModal? _supersedeModal;
+    private SpecTrashConfirmModal? _trashModal;
+
+    // PR-L3 — filter chip view. Active is default per Q10. Sync with the
+    // server query param `view` so a curl caller sees the same shape.
+    private string _view = "active";
+    private long? _busyRestoreId;
     private string? _ctxError;
     private long _busyApproveId = 0;
 
@@ -228,7 +266,7 @@
         try
         {
             _ctxError = null;
-            _ctxMenu?.Open(e.ClientX, e.ClientY, row);
+            _ctxMenu?.Open(e.ClientX, e.ClientY, row, isTrashed: _view == "trash");
         }
         catch (Exception ex)
         {
@@ -260,6 +298,12 @@
                     break;
                 case "supersede":
                     _supersedeModal?.Open(ev.Row);
+                    break;
+                case "trash":
+                    _trashModal?.Open(ev.Row);
+                    break;
+                case "restore":
+                    await RestoreAsync(ev.Row);
                     break;
             }
         }
@@ -590,7 +634,98 @@
         catch { /* localStorage unavailable — silent */ }
     }
 
-    private async Task Load() => _result = await SpecSvc.SpecsAsync(_search, _page, _pageSize);
+    private async Task Load()
+    {
+        var view = _view switch
+        {
+            "trash" => CCL.MES.Application.Services.SpecListView.Trash,
+            "all"   => CCL.MES.Application.Services.SpecListView.All,
+            _        => CCL.MES.Application.Services.SpecListView.Active,
+        };
+        _result = await SpecSvc.SpecsAsync(_search, _page, _pageSize, view);
+    }
+
+    /// <summary>
+    /// PR-L3 — flip filter chip + reload. _page resets to 1 because the row
+    /// set fundamentally changes; staying on page 5 of a 1-page Trash view
+    /// would render an empty grid.
+    /// </summary>
+    private async Task SetViewAsync(string view)
+    {
+        if (view != "active" && view != "trash" && view != "all") return;
+        if (_view == view) return;
+        _view = view;
+        _page = 1;
+        try
+        {
+            await Load();
+            _ctxError = null;
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// PR-L3 — In the "All" view we want to mark trashed rows visually.
+    /// SpecsAsync DTO doesn't carry IsTrashed today; for "All" we approximate
+    /// by reading the row's Status — Trashed revs keep their Status but the
+    /// soft-delete flag is what really matters. Until the DTO is widened in
+    /// a follow-up, this is a no-op (returns false). Trash-view rows get
+    /// the dimmed styling unconditionally.
+    /// </summary>
+    private static bool IsRowTrashed(ProductRevisionListItem _) => false;
+
+    private async Task RestoreAsync(ProductRevisionListItem row)
+    {
+        if (_busyRestoreId == row.Id) return;
+        _busyRestoreId = row.Id;
+        StateHasChanged();
+        try
+        {
+            var result = await JS.InvokeAsync<RestoreInvokeResult>(
+                "cclmes.specs.restore", row.Id);
+            if (!result.Ok)
+            {
+                _ctxError = $"{result.Status}: {result.Body}";
+            }
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+        }
+        finally
+        {
+            _busyRestoreId = null;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>PR-L3 — reload after Trash so the row drops out of Active view.</summary>
+    private async Task OnTrashedAsync()
+    {
+        try
+        {
+            await Load();
+            _ctxError = null;
+        }
+        catch (Exception ex)
+        {
+            _ctxError = ex.GetType().Name + ": " + ex.Message;
+        }
+        StateHasChanged();
+    }
+
+    private sealed class RestoreInvokeResult
+    {
+        public bool Ok { get; set; }
+        public int Status { get; set; }
+        public string? Code { get; set; }
+        public string? Body { get; set; }
+    }
 
     /// <summary>Q16 — debounce 300ms search; cancel previous CTS mỗi keystroke.
     /// Sử dụng @bind:after thay vì @oninput để tránh xung đột với @bind:event="oninput".</summary>
