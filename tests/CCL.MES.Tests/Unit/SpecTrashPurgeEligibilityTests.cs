@@ -18,13 +18,14 @@ namespace CCL.MES.Tests.Unit;
 /// </summary>
 public class SpecTrashPurgeEligibilityTests
 {
-    // ── PurgeOneOutcome factory methods — all return Skipped = true ───
+    // ── PurgeOneOutcome factory methods ───────────────────────────────
 
     [Fact]
     public void AlreadyGone_factory_marks_outcome_as_skipped()
     {
         var o = PurgeOneOutcome.AlreadyGone();
         Assert.True(o.Skipped);
+        Assert.False(o.Retained);
         Assert.Equal(0, o.BlobsRemoved);
         Assert.Equal(0, o.BlobsFailed);
     }
@@ -34,17 +35,33 @@ public class SpecTrashPurgeEligibilityTests
     {
         var o = PurgeOneOutcome.Restored();
         Assert.True(o.Skipped);
+        Assert.False(o.Retained);
         Assert.Equal(0, o.BlobsRemoved);
         Assert.Equal(0, o.BlobsFailed);
     }
 
     [Fact]
-    public void WasSkipped_factory_marks_outcome_as_skipped_for_wo_blocker_path()
+    public void WasSkipped_factory_marks_outcome_as_skipped()
     {
-        // Used when active-WO defence-in-depth fires (Rule #2). Audit row
-        // is written with skipped=true before this returns.
+        // Reserved for future "skipped for non-WO reason" paths. Pre-WO-
+        // retain fix this also covered the active-WO defence-in-depth
+        // emit; that path is now <see cref="OfRetained"/>.
         var o = PurgeOneOutcome.WasSkipped();
         Assert.True(o.Skipped);
+        Assert.False(o.Retained);
+    }
+
+    [Fact]
+    public void OfRetained_factory_marks_outcome_as_retained_not_skipped()
+    {
+        // Retained = "spec stays in Trash because a WO still references it".
+        // Distinct from Skipped so the cycle stats split RetainedCount /
+        // SkippedCount / FailedCount cleanly.
+        var o = PurgeOneOutcome.OfRetained();
+        Assert.True(o.Retained);
+        Assert.False(o.Skipped);
+        Assert.Equal(0, o.BlobsRemoved);
+        Assert.Equal(0, o.BlobsFailed);
     }
 
     // ── PurgeCycleStats defaults — accumulator starts at zero ─────────
@@ -55,6 +72,7 @@ public class SpecTrashPurgeEligibilityTests
         var s = new PurgeCycleStats();
         Assert.Equal(0, s.EligibleCount);
         Assert.Equal(0, s.PurgedCount);
+        Assert.Equal(0, s.RetainedCount);
         Assert.Equal(0, s.SkippedCount);
         Assert.Equal(0, s.FailedCount);
         Assert.Equal(0, s.BlobsRemoved);
@@ -68,18 +86,23 @@ public class SpecTrashPurgeEligibilityTests
         var s = new PurgeCycleStats
         {
             CutoffUtc      = new DateTime(2026, 5, 3, 0, 0, 0, DateTimeKind.Utc),
-            EligibleCount  = 5,
+            EligibleCount  = 6,
             PurgedCount    = 3,
+            RetainedCount  = 1,
             SkippedCount   = 1,
             FailedCount    = 1,
             BlobsRemoved   = 7,
             BlobsFailed    = 0,
         };
-        Assert.Equal(5, s.EligibleCount);
+        Assert.Equal(6, s.EligibleCount);
         Assert.Equal(3, s.PurgedCount);
+        Assert.Equal(1, s.RetainedCount);
         Assert.Equal(1, s.SkippedCount);
         Assert.Equal(1, s.FailedCount);
-        Assert.Equal(3 + 1 + 1, s.PurgedCount + s.SkippedCount + s.FailedCount);
+        // Eligible = purged + retained + skipped + failed (every eligible
+        // row lands in exactly one bucket).
+        Assert.Equal(s.EligibleCount,
+            s.PurgedCount + s.RetainedCount + s.SkippedCount + s.FailedCount);
         Assert.Equal(7, s.BlobsRemoved);
     }
 }
