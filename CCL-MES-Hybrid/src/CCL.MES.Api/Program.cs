@@ -1,0 +1,217 @@
+using System.Text;
+using CCL.MES.Api.Audit;
+using CCL.MES.Api.Auth;
+using CCL.MES.Api.Hubs;
+using CCL.MES.Application;
+using CCL.MES.Application.Audit;
+using CCL.MES.Domain.Auth;
+using CCL.MES.Domain.Entities;
+using CCL.MES.Infrastructure;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.IdentityModel.Tokens;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// ──────────────────────────────────────────────────────────────────────
+// Database path resolution.
+//
+// Mirrors the legacy Web project's repo-root /data/ convention (Lesson 30
+// from Ops Control v1.2 CLAUDE.md: always feed SQLite absolute paths so
+// process CWD changes can't pull the rug). The API project lives at
+// CCL-MES-Hybrid/src/CCL.MES.Api so the search has to walk up FOUR levels
+// to reach the repo root that hosts the legacy CCL.MES.sln.
+//
+// Resolution priority (highest wins):
+//   1. ConnectionStrings:Default already set in configuration — respect
+//      it (tests use this path so each factory pins its own /tmp file).
+//   2. MES_DB_PATH env var — explicit file override for ops.
+//   3. MES_DATA_DIR env var + ccl_mes.db filename — folder override.
+//   4. <repo-root>/data/ccl_mes.db default (shared with legacy Web).
+// SqlServer provider — connection string is operator-managed; we never
+// touch it.
+// ──────────────────────────────────────────────────────────────────────
+{
+    var provider = builder.Configuration["Database:Provider"] ?? "Sqlite";
+    var existingCs = builder.Configuration.GetConnectionString("Default");
+
+    if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase)
+        && string.IsNullOrEmpty(existingCs))
+    {
+        var dataDir = Environment.GetEnvironmentVariable("MES_DATA_DIR");
+        if (string.IsNullOrEmpty(dataDir))
+        {
+            var probe = builder.Environment.ContentRootPath;
+            string? repoRoot = null;
+            for (var dir = new DirectoryInfo(probe); dir is not null; dir = dir.Parent)
+            {
+                if (dir.GetFiles("*.sln").Length > 0)
+                {
+                    repoRoot = dir.FullName;
+                    break;
+                }
+            }
+            dataDir = Path.Combine(repoRoot ?? Directory.GetCurrentDirectory(), "data");
+        }
+        dataDir = Path.GetFullPath(dataDir);
+        Directory.CreateDirectory(dataDir);
+
+        var dbPath = Environment.GetEnvironmentVariable("MES_DB_PATH");
+        if (string.IsNullOrEmpty(dbPath))
+            dbPath = Path.Combine(dataDir, "ccl_mes.db");
+        dbPath = Path.GetFullPath(dbPath);
+
+        builder.Configuration["ConnectionStrings:Default"] = $"Data Source={dbPath}";
+        Console.WriteLine($"[boot] API SQLite data dir: {dataDir}");
+        Console.WriteLine($"[boot] API SQLite DB path : {dbPath}");
+    }
+    else if (!string.IsNullOrEmpty(existingCs))
+    {
+        Console.WriteLine("[boot] API DB connection string supplied by configuration.");
+    }
+    else
+    {
+        Console.WriteLine($"[boot] API DB provider: {provider} — connection string from config only.");
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Layer registration — reuses the LEGACY DI extensions verbatim so that
+// the same 10 Application services + DbContext + exporters seen by the
+// Blazor Server web app are available to the API. Zero duplication.
+// ──────────────────────────────────────────────────────────────────────
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddApplication();
+
+// PasswordHasher<User> mirrors legacy registration so password verification
+// stays bit-identical. Without this the AuthController couldn't validate
+// the cookie-era hash format.
+builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
+
+// IAuditWriter implementation — distinct from legacy AuditService (lives in
+// Web) but behaviour-identical. See ApiAuditWriter.cs for the parity note.
+builder.Services.AddScoped<IAuditWriter, ApiAuditWriter>();
+builder.Services.AddHttpContextAccessor();
+
+// ──────────────────────────────────────────────────────────────────────
+// JWT bearer auth.
+//
+// Q7 lock (2026-06-03): access 15m, refresh 7d, one-time-use rotation.
+// JwtOptions defaults match Q7. SigningKey MUST be provided via
+// configuration in production — the bound-in default is a dev sentinel.
+//
+// Hub query-string token: the Microsoft.AspNetCore.Authentication.JwtBearer
+// middleware reads the Authorization header by default. SignalR over WS
+// can't set headers on the negotiate request, so we sniff the query string
+// for paths under /hubs/ — same pattern the SignalR docs recommend.
+// ──────────────────────────────────────────────────────────────────────
+var jwtSection = builder.Configuration.GetSection("Jwt");
+builder.Services.Configure<JwtOptions>(jwtSection);
+var jwtOpts = jwtSection.Get<JwtOptions>() ?? new JwtOptions();
+if (Encoding.UTF8.GetByteCount(jwtOpts.SigningKey) < 32)
+{
+    // We log + throw here so a misconfigured prod env fails its own
+    // preflight rather than silently using a known dev key.
+    throw new InvalidOperationException(
+        "Jwt:SigningKey must be at least 32 bytes of UTF-8 for HS256. "
+        + "Set Jwt__SigningKey in env or appsettings.");
+}
+
+builder.Services.AddSingleton<JwtTokenIssuer>();
+builder.Services.AddSingleton<IRefreshTokenStore, InMemoryRefreshTokenStore>();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, opt =>
+    {
+        opt.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = jwtOpts.Issuer,
+            ValidateAudience = true,
+            ValidAudience = jwtOpts.Audience,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOpts.SigningKey)),
+            ClockSkew = jwtOpts.ClockSkew,
+        };
+        opt.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = ctx =>
+            {
+                var accessToken = ctx.Request.Query["access_token"].ToString();
+                var path = ctx.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                    ctx.Token = accessToken;
+                return Task.CompletedTask;
+            }
+        };
+    });
+
+// ──────────────────────────────────────────────────────────────────────
+// RBAC. Policies port 1:1 from the legacy
+// src/CCL.MES.Web/Program.cs:177-199. Same role names, same membership.
+// FallbackPolicy keeps the whole API gated behind a valid JWT unless an
+// endpoint opts out with [AllowAnonymous].
+// ──────────────────────────────────────────────────────────────────────
+builder.Services.AddAuthorization(o =>
+{
+    o.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireAuthenticatedUser()
+        .Build();
+
+    o.AddPolicy("AdminOnly", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin));
+
+    o.AddPolicy("NpiRead", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc));
+
+    o.AddPolicy("NpiSpecRead", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
+
+    o.AddPolicy("QcRead", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Qc));
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// MVC controllers + SignalR + OpenAPI (dev). JSON options: leave ASP.NET
+// defaults (camelCase property names) — DTOs in CCL.MES.Shared are POCO
+// records that serialize cleanly out of the box.
+// ──────────────────────────────────────────────────────────────────────
+builder.Services.AddControllers();
+builder.Services.AddSignalR();
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+builder.Services.AddSingleton<ShopfloorNotifierV2>();
+
+var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseRouting();
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapControllers();
+app.MapHub<ShopfloorHubV2>("/hubs/shopfloor");
+
+app.Run();
+
+/// <summary>
+/// Marker class so <c>WebApplicationFactory&lt;Program&gt;</c> can spin up
+/// the API inside integration tests. Required because top-level Program.cs
+/// emits an internal Program class by default; the public partial below
+/// promotes it.
+/// </summary>
+public partial class Program { }
