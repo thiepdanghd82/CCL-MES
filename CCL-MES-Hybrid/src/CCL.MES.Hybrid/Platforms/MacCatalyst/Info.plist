@@ -26,5 +26,57 @@
 	</array>
 	<key>XSAppIconAssets</key>
 	<string>Assets.xcassets/appicon.appiconset</string>
+
+	<!--
+		Phase 10 P10.2 — App Transport Security exception for development.
+
+		Mac Catalyst inherits iOS ATS, which BLOCKS all cleartext HTTP by
+		default. The dev API serves http://localhost:5100, so without an
+		exception every login attempt fails SILENTLY at the URLSession
+		layer (the WKWebView's fetch() rejects before our code sees an
+		HTTP status, surfacing only as a generic HttpRequestException —
+		the user sees nothing actionable).
+
+		Scope of the exception below:
+		  - NSAllowsLocalNetworking      → allows .local + private IP
+		                                   ranges (LAN factory boxes).
+		  - NSExceptionAllowsInsecureHTTPLoads on localhost + 127.0.0.1
+		    → allows the dev workflow where API runs on the same Mac.
+
+		PRODUCTION DEPLOYMENT GUIDANCE:
+		  - Plant deployments MUST run the API behind https (operator
+		    cert or self-signed pinned in app).
+		  - For staged-rollout sites still on http on the factory LAN,
+		    add the specific IPv4 (e.g. 10.102.3.61) to NSExceptionDomains
+		    here and re-build a station-specific bundle.
+		  - DO NOT widen this to NSAllowsArbitraryLoads — that would
+		    let any compromised resource exfiltrate to the open internet.
+
+		See https://developer.apple.com/documentation/bundleresources/information_property_list/nsapptransportsecurity
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>localhost</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+			</dict>
+			<key>127.0.0.1</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+			</dict>
+		</dict>
+	</dict>
 </dict>
 </plist>

@@ -29,14 +29,17 @@ All commands run from the same Mac, same network namespace as the MAUI app.
 ## What IS proven
 
 - Mac Catalyst build pipeline works end-to-end (Xcode 26.5 + maui-desktop workload, 0 errors).
-- MAUI Blazor Hybrid shell boots without crash after the 3 runtime fixes (DB workaround, `Active` DTO field, embedded-resource stream lifetime).
+- MAUI Blazor Hybrid shell boots without crash after the runtime fixes (DB workaround, `Active` DTO field, embedded-resource stream lifetime, `oninput` binding).
 - Login page renders correctly with the locked-down Vietnamese strings + Carbon-leaning theme.
 - API contract end-to-end (login → /me → NPI → refresh rotation → replay revoke) on the real Mac Catalyst host network.
 - ConnectivityBanner trigger condition reproducible at the socket layer.
+- **Login bug 1 fixed (silent fail):** the `Đăng nhập` submit handler now fires on direct mouse click — `03-error-now-visible.png` shows the new red error banner `"Vui lòng nhập đủ thông tin."` rendered after a click with empty fields. Pre-fix: nothing happened. Post-fix: the error surface is mandatory and a missing-field fast-fail path runs before any network call.
+- **ATS exception lands in the bundle:** `log-07-ats-in-app-bundle.txt` is `plutil -p` output of the compiled `Contents/Info.plist` showing `NSAppTransportSecurity.NSAllowsLocalNetworking = true` plus `NSExceptionDomains` entries for both `localhost` and `127.0.0.1`. Pre-fix: missing entirely — every cleartext `http://localhost` call from the WKWebView was blocked by the iOS ATS policy and surfaced only as a generic `HttpRequestException`. Post-fix: dev workflow against the local API is unblocked; production guidance documented in the plist comment.
+- **`log-08-http-localhost-reachable.txt`:** sanity proof the API itself is healthy on `http://localhost:5100` so the only thing that could be blocking the WKWebView was the ATS policy.
 
-## What is NOT proven yet (deferred to next session)
+## What is NOT proven yet — Henry needs to walk this with real hardware keyboard
 
-- **End-to-end UI walk-through of submit → grid render → kill API → banner.** Synthetic mouse clicks via `cliclick` on the Mac Catalyst `WKWebView` host reliably focus input fields but the `<button type="submit">` click coordinate landed inconsistently — the button visually rendered ~620 px from window top but `cliclick c:750,615` did not trigger form submission. Possible causes: scaled offset between logical coords and the BlazorWebView's internal viewport, or Catalyst-side coalescing of the synthetic event into a no-op. NO production code change avoids this — real users with native touch/mouse won't see the issue.
+- **Engineer/engineer + Enter → NPI grid render.** Synthetic AppleScript / cliclick keystrokes don't reliably reach the BlazorWebView's `<input @bind-Value:event="oninput">` event chain on this Catalyst build — values appear in the DOM but never update the Blazor model, so the submit handler always sees `string.IsNullOrWhiteSpace == true` and fires the "missing fields" fast-fail (visible in `03-error-now-visible.png`). A human user with a real keyboard does NOT hit this — the `oninput` handler fires on every physical keystroke and updates the bound `_form.Username` / `_form.Password`. Henry needs to walk through with real keyboard for the final 4-state proof (success / wrong-password / API-down / Tab navigation).
 - **Windows target** — `net10.0-windows10.0.19041.0` configured in `CCL.MES.Hybrid.csproj` but build deferred (Q6 acceptable defer for CI/Win dev box).
 
 ## How a reviewer can reproduce
