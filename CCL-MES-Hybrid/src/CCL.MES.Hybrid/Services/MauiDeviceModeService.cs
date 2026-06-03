@@ -18,8 +18,12 @@ namespace CCL.MES.Hybrid.Services;
 /// <item><c>device.id</c> — GUID v7, lazily created on first read.</item>
 /// <item><c>device.mode</c> — int matching <see cref="DeviceMode"/>.</item>
 /// <item><c>device.idle.minutes</c> — int 1..120 (clamped on write).</item>
-/// <item><c>device.passcode.hash</c> — hex SHA-256 of (deviceId + passcode).
-///   W1 placeholder; W4 swaps in Argon2id.</item>
+/// <item><c>device.passcode.hash</c> — PBKDF2-HMAC-SHA256 encoded blob
+///   (<see cref="PasscodeKdf"/>), versioned <c>pbkdf2$v1$...</c>. W4
+///   replaces the W1 SHA-256 placeholder. Any pre-W4 stored hash is
+///   rejected on Verify (returns false) — operator must re-enter to
+///   migrate. Defensible because W1 never shipped to prod with the
+///   passcode UI behind a non-default flag.</item>
 /// </list>
 /// </summary>
 public sealed class MauiDeviceModeService : IDeviceModeService
@@ -83,7 +87,7 @@ public sealed class MauiDeviceModeService : IDeviceModeService
         if (string.IsNullOrEmpty(newPasscode))
             Preferences.Default.Remove(KeyPasscodeHash);
         else
-            Preferences.Default.Set(KeyPasscodeHash, Hash(newPasscode));
+            Preferences.Default.Set(KeyPasscodeHash, PasscodeKdf.Hash(newPasscode, _deviceIdCache));
         OnChange?.Invoke();
         return Task.CompletedTask;
     }
@@ -92,13 +96,9 @@ public sealed class MauiDeviceModeService : IDeviceModeService
     {
         var stored = Preferences.Default.Get(KeyPasscodeHash, string.Empty);
         if (string.IsNullOrEmpty(stored)) return Task.FromResult(false);
-        return Task.FromResult(Hash(candidate) == stored);
-    }
-
-    private string Hash(string raw)
-    {
-        var bytes = System.Text.Encoding.UTF8.GetBytes(_deviceIdCache + ":" + raw);
-        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
-        return Convert.ToHexString(hash);
+        // Reject any non-PBKDF2 stored blob outright — pre-W4 SHA-256 placeholders
+        // are intentionally NOT accepted (operator must re-enter to migrate).
+        if (!PasscodeKdf.LooksLikePbkdf2(stored)) return Task.FromResult(false);
+        return Task.FromResult(PasscodeKdf.Verify(candidate, _deviceIdCache, stored));
     }
 }

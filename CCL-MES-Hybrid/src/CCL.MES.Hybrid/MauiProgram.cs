@@ -10,7 +10,9 @@ using Microsoft.AspNetCore.Components.WebView.Maui;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CCL.MES.Hybrid;
 
@@ -85,6 +87,28 @@ public static class MauiProgram
         // light them up. The DI Replace pattern preserves any other
         // registration the client extension already made.
         builder.Services.Replace(ServiceDescriptor.Singleton<IDeviceModeService, MauiDeviceModeService>());
+
+        // P10.3 W4 — feed the persisted device id into ApiClientOptions so
+        // every device-scoped endpoint call (scan-log / heartbeat / info)
+        // carries the station's stable guid. PostConfigure runs AFTER the
+        // initial Configure(configuration.GetSection("CclApi")) so we can
+        // mutate the bound options without losing BaseUrl/Timeout from
+        // appsettings.json. We can't inject IDeviceModeService into the
+        // closure directly via the IServiceCollection extension, so the
+        // BuildServiceProvider-once-during-options-init trick is needed —
+        // safe because IDeviceModeService is a singleton with no scoped
+        // dependencies (just hits MAUI Preferences).
+        builder.Services.AddOptions<ApiClientOptions>()
+            .PostConfigure<IServiceProvider>((opts, sp) =>
+            {
+                var device = sp.GetRequiredService<IDeviceModeService>();
+                if (string.IsNullOrWhiteSpace(opts.DeviceId))
+                    opts.DeviceId = device.DeviceId;
+            });
+
+        // P10.3 W4 — background heartbeat. 60-second cadence, suspends
+        // when no logged-in user.
+        builder.Services.AddHostedService<DeviceHeartbeatHostedService>();
 
 #if MACCATALYST || IOS
         // P10.3 W2 — Mac Catalyst camera scanner (AVFoundation). Drops

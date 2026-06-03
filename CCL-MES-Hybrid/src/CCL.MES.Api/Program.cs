@@ -238,6 +238,13 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton<ShopfloorNotifierV2>();
 
+// P10.3 W4 — in-memory device heartbeat snapshot store. Process-scoped
+// so /v2/devices/{id} can answer last-seen + scan-count without a DB
+// write per ping. Lost on process restart (acceptable: heartbeat
+// cadence rebuilds the map in under a minute).
+builder.Services.AddSingleton<CCL.MES.Api.Devices.IDeviceHeartbeatStore,
+    CCL.MES.Api.Devices.InMemoryDeviceHeartbeatStore>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
