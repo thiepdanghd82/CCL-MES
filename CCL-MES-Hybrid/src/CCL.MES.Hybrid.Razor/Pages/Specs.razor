@@ -1,0 +1,318 @@
+@page "/npi/specs"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer")]
+@inject ICclApiClient Api
+@inject IGridPreferenceStore PrefStore
+@inject NavigationManager Nav
+
+@*
+    P10.5b — Engineer Spec list. 14-col parity với SpecHub + legacy web
+    EngineerSpec.razor (Phase 8 PR #30). 5-state status pill per Henry's
+    Q2 = ACCEPT 5-state (mirror legacy web, NOT SpecHub's collapsed 3).
+    Planner palette per SpecHub. Search 3-field + paginate + view chip
+    (Active/Trash/All) + columns toggle + context menu.
+
+    Mutations deferred to P10.5c+ — context menu surfaces them as
+    "có ở bản sau" so operator knows where to find them later.
+*@
+
+<PageTitle>Engineer Spec — NPI</PageTitle>
+
+<h1 class="page-title">Engineer Spec</h1>
+
+<div class="grid-toolbar">
+    <input type="search" class="grid-search" placeholder="Tìm theo Customer / Part No / Part Name…"
+           @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKey" />
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Tìm</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+
+    <div class="spec-view-chips" role="tablist">
+        <button type="button" role="tab" aria-selected="@(IsView("active"))"
+                class="spec-view-chip @(IsView("active") ? "is-active" : "")"
+                @onclick='() => SetViewAsync("active")'>Đang dùng</button>
+        <button type="button" role="tab" aria-selected="@(IsView("trash"))"
+                class="spec-view-chip @(IsView("trash") ? "is-active" : "")"
+                @onclick='() => SetViewAsync("trash")'>Thùng rác</button>
+        <button type="button" role="tab" aria-selected="@(IsView("all"))"
+                class="spec-view-chip @(IsView("all") ? "is-active" : "")"
+                @onclick='() => SetViewAsync("all")'>Tất cả</button>
+    </div>
+
+    <div class="grid-toolbar-spacer"></div>
+    <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
+</div>
+
+@if (_loading && _data is null)
+{
+    <p class="grid-status">Đang tải…</p>
+}
+else if (_error is not null)
+{
+    <div class="grid-error" role="alert">
+        <strong>Không tải được danh sách Spec.</strong>
+        <div>@_error</div>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">Thử lại</button>
+    </div>
+}
+else if (_data is not null)
+{
+    <div class="grid-scroll">
+        <table class="grid grid-sticky">
+            <thead>
+                <tr>
+                    <th class="grid-h grid-col-narrow">#</th>
+                    @foreach (var col in _columns.Visible)
+                    {
+                        <th class="grid-h @ColClass(col.Id)">@col.Label</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @{ var rowIdx = 1 + (_page - 1) * PageSize; }
+                @foreach (var row in _data.Items)
+                {
+                    var vm = SpecShowcardVm.FromListItem(row);
+                    var localIdx = rowIdx++;
+                    <tr class="spec-row" @ondblclick="() => OpenAsync(row.Id)"
+                        @oncontextmenu:preventDefault="true"
+                        @oncontextmenu="(args) => OnRowContextAsync(args, row)">
+                        <td class="grid-col-narrow grid-row-num">@localIdx</td>
+                        @foreach (var col in _columns.Visible)
+                        {
+                            <td>@RenderCell(row, vm, col.Id)</td>
+                        }
+                    </tr>
+                }
+                @if (_data.Items.Count == 0)
+                {
+                    <tr>
+                        <td colspan="@(_columns.Visible.Count + 1)" class="grid-empty">
+                            Không có Spec nào phù hợp.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="grid-pager">
+        <button type="button" class="grid-btn"
+                disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
+                @onclick="() => GoToPageAsync(_page - 1)">‹ Trước</button>
+        <span class="grid-pager-text">
+            Trang @_page / @TotalPages — @_data.Total dòng
+        </span>
+        <button type="button" class="grid-btn"
+                disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
+                @onclick="() => GoToPageAsync(_page + 1)">Sau ›</button>
+    </div>
+}
+
+<SpecContextMenu Open="_ctxOpen" Anchor="_ctxAnchor"
+                 TargetSpecId="_ctxId" TargetSpecCode="@_ctxCode"
+                 OnOpen="OpenAsync" OnInfo="OpenAsync"
+                 OnClose="() => { _ctxOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
+
+@code {
+    private NpiPagedRaw<SpecListItem>? _data;
+    private bool _loading;
+    private string? _error;
+    private string _search = "";
+    private string _view = "active";
+    private int _page = 1;
+    private const int PageSize = 50;
+    private GridColumns _columns = default!;
+
+    // Context menu state
+    private bool _ctxOpen;
+    private (double X, double Y) _ctxAnchor;
+    private long _ctxId;
+    private string _ctxCode = "";
+
+    private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, PageSize);
+
+    private bool IsView(string v) => string.Equals(_view, v, StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 14-col grid per SpecHub + Phase 8 PR #30. Default-visible
+        // matches the legacy EngineerSpec.razor default; the 5 legacy
+        // hidden cols (SpecCode / Title / ProcessCode / EffectiveFrom /
+        // ApprovedBy) ride along as DefaultVisible=false so operator can
+        // expose via columns menu.
+        _columns = new GridColumns("specs", new[]
+        {
+            new ColumnDef("planner",    "Planner"),
+            new ColumnDef("ref_no",     "REF NO"),
+            new ColumnDef("customer",   "Khách hàng"),
+            new ColumnDef("part_no",    "Part No"),
+            new ColumnDef("part_name",  "Tên Part"),
+            new ColumnDef("colors",     "Màu"),
+            new ColumnDef("cavity",     "Cavity"),
+            new ColumnDef("pitch",      "Pitch (mm)"),
+            new ColumnDef("inspection", "Spec"),
+            new ColumnDef("status",     "Trạng thái"),
+            new ColumnDef("rev",        "Rev"),
+            new ColumnDef("rev_date",   "Ngày Rev"),
+            new ColumnDef("rev_by",     "Người"),
+
+            // Legacy hidden cols — operator can opt in via columns menu.
+            new ColumnDef("spec_code",     "Mã Spec",      DefaultVisible: false),
+            new ColumnDef("title",         "Tiêu đề",      DefaultVisible: false),
+            new ColumnDef("process_code",  "Process code", DefaultVisible: false),
+            new ColumnDef("effective_from","Hiệu lực từ",  DefaultVisible: false),
+            new ColumnDef("approved_by",   "Người duyệt",  DefaultVisible: false),
+        }, PrefStore);
+        await LoadAsync();
+    }
+
+    private Task HandleSearchKey(KeyboardEventArgs e)
+        => e.Key == "Enter" ? OnSearchClickAsync() : Task.CompletedTask;
+
+    private Task OnSearchClickAsync()
+    {
+        _page = 1;
+        return LoadAsync();
+    }
+
+    private Task SetViewAsync(string view)
+    {
+        _view = view;
+        _page = 1;
+        return LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _data = await Api.GetSpecsAsync(
+                string.IsNullOrWhiteSpace(_search) ? null : _search,
+                _page, PageSize, _view);
+        }
+        catch (ApiException apiEx)
+        {
+            _error = apiEx.ApiError.MessageEn;
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _error = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task ReloadAsync()
+    {
+        _page = 1;
+        return LoadAsync();
+    }
+
+    private Task GoToPageAsync(int page)
+    {
+        _page = GridPagination.Clamp(page, TotalPages);
+        return LoadAsync();
+    }
+
+    private Task OpenAsync(long id)
+    {
+        Nav.NavigateTo($"/npi/specs/{id}");
+        return Task.CompletedTask;
+    }
+
+    private Task OnRowContextAsync(MouseEventArgs args, SpecListItem row)
+    {
+        _ctxOpen = true;
+        _ctxAnchor = (args.ClientX, args.ClientY);
+        _ctxId = row.Id;
+        _ctxCode = row.SpecCode;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private static string ColClass(string columnId) => columnId switch
+    {
+        "part_no" or "spec_code" or "process_code" or "ref_no" => "grid-col-mono",
+        "colors" or "cavity" or "pitch" or "rev"               => "grid-col-num",
+        "status" or "planner" or "inspection"                   => "grid-col-narrow",
+        _                                                       => "",
+    };
+
+    private static RenderFragment RenderCell(SpecListItem row, SpecShowcardVm vm, string columnId) => __builder =>
+    {
+        switch (columnId)
+        {
+            case "planner":
+                __builder.OpenElement(0, "span");
+                __builder.AddAttribute(1, "class", $"spec-planner-chip {vm.PlannerCssClass}");
+                __builder.AddContent(2, vm.PlannerLabel);
+                __builder.CloseElement();
+                break;
+            case "ref_no":
+                __builder.AddContent(0, row.RefNo ?? "—");
+                break;
+            case "customer":
+                __builder.AddContent(0, row.CustomerName ?? "—");
+                break;
+            case "part_no":
+                __builder.OpenElement(0, "code");
+                __builder.AddContent(1, row.ProductCode);
+                __builder.CloseElement();
+                break;
+            case "part_name":
+                __builder.AddContent(0, row.ProductName);
+                break;
+            case "colors":
+                __builder.AddContent(0, row.NumColors);
+                break;
+            case "cavity":
+                __builder.AddContent(0, row.Cavity?.ToString() ?? "—");
+                break;
+            case "pitch":
+                __builder.AddContent(0, row.PitchMm?.ToString("0.##") ?? "—");
+                break;
+            case "inspection":
+                __builder.AddContent(0, row.InspectionLevel ?? "—");
+                break;
+            case "status":
+                __builder.OpenElement(0, "span");
+                __builder.AddAttribute(1, "class", $"spec-status-pill {vm.StatusCssClass}");
+                __builder.AddContent(2, vm.StatusLabel);
+                __builder.CloseElement();
+                break;
+            case "rev":
+                __builder.AddContent(0, row.RevisionCode);
+                break;
+            case "rev_date":
+                __builder.AddContent(0, row.LastUpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—");
+                break;
+            case "rev_by":
+                __builder.AddContent(0, row.LastUpdatedBy ?? "—");
+                break;
+            case "spec_code":
+                __builder.OpenElement(0, "code");
+                __builder.AddContent(1, row.SpecCode);
+                __builder.CloseElement();
+                break;
+            case "title":
+                __builder.AddContent(0, row.Title);
+                break;
+            case "process_code":
+                __builder.AddContent(0, row.ProcessCode ?? "—");
+                break;
+            case "effective_from":
+                __builder.AddContent(0, row.EffectiveFrom?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—");
+                break;
+            case "approved_by":
+                __builder.AddContent(0, row.ApprovedBy ?? "—");
+                break;
+        }
+    };
+}

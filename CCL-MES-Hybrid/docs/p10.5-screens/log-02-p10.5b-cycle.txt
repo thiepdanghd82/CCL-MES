@@ -1,0 +1,21 @@
+2026-06-03 22:58:24.872 CCL.MES.Hybrid[19755:205171] You've implemented -[<UIApplicationDelegate> application:performFetchWithCompletionHandler:], but you still need to add "fetch" to the list of your supported UIBackgroundModes in your Info.plist.
+2026-06-03 22:58:24.915 CCL.MES.Hybrid[19755:205171] [boot] appsettings.json loaded — 133 bytes.
+2026-06-03 22:58:24.922 CCL.MES.Hybrid[19755:205171] [boot] CclApi:BaseUrl resolved => http://127.0.0.1:5100
+2026-06-03 22:58:25.149 CCL.MES.Hybrid[19755:205171] [BlazorWebView/DEBUG] WKWebView.Inspectable = true (attach via Safari → Develop).
+2026-06-03 22:58:25.150 CCL.MES.Hybrid[19755:205171] [BlazorWebView/DEBUG] cclLog bridge + window.onerror observer installed.
+2026-06-03 22:58:26.549 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/login h1=CCL · MES specRows=0 tab=(none)
+2026-06-03 22:58:26.550 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] click DEBUG auto-login
+2026-06-03 22:58:26.702 CCL.MES.Hybrid[19755:205171] [TokenStore] Keychain unavailable (Exception: Error adding record: MissingEntitlement). Falling back to in-memory token store for THIS process. Persistence across launches DISABLED.
+2026-06-03 22:58:27.550 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] navigate /npi/specs
+2026-06-03 22:58:28.553 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] dwell on spec list for 60s
+2026-06-03 22:58:30.555 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/npi/specs h1=Engineer Spec specRows=6 tab=(none)
+2026-06-03 22:58:34.614 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/npi/specs h1=Engineer Spec specRows=6 tab=(none)
+2026-06-03 22:58:38.693 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/npi/specs h1=Engineer Spec specRows=6 tab=(none)
+2026-06-03 22:58:42.772 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/npi/specs h1=Engineer Spec specRows=6 tab=(none)
+2026-06-03 22:58:46.853 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/npi/specs h1=Engineer Spec specRows=6 tab=(none)
+2026-06-03 22:58:50.932 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/npi/specs h1=Engineer Spec specRows=6 tab=(none)
+2026-06-03 22:58:55.011 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/npi/specs h1=Engineer Spec specRows=6 tab=(none)
+2026-06-03 22:58:59.091 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/npi/specs h1=Engineer Spec specRows=6 tab=(none)
+2026-06-03 22:59:03.173 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/npi/specs h1=Engineer Spec specRows=6 tab=(none)
+2026-06-03 22:59:07.253 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/npi/specs h1=Engineer Spec specRows=6 tab=(none)
+2026-06-03 22:59:11.331 CCL.MES.Hybrid[19755:205171] [js] [p10-5b] path=/npi/specs h1=Engineer Spec specRows=6 tab=(none)

@@ -1,0 +1,529 @@
+@page "/npi/specs/{RevisionId:long}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer")]
+@inject ICclApiClient Api
+@inject NavigationManager Nav
+
+@*
+    P10.5b — Spec detail (read-only). 6-tab layout mirroring legacy
+    EngineerSpecDetail.razor + SpecHub. Specification tab uses the
+    compact SpecShowcardVm (full mode = 5c). Drawings / QC Plans /
+    QC Capture / Artwork / Setup all render the available read data
+    from existing API endpoints (zero new server endpoints needed for
+    5b — gap analysis §2.7 confirmed).
+
+    Per Lesson #27 (carry from P10.5a): every tab's data load wraps
+    its own try/catch + inline error banner. A failing drawings fetch
+    does NOT crash the Specification tab. Each tab fetches lazily on
+    first activation.
+*@
+
+<PageTitle>@(_detail?.SpecCode ?? "Spec") — chi tiết</PageTitle>
+
+<div class="spec-detail-header">
+    <button type="button" class="grid-btn grid-btn-link" @onclick="NavigateBack">‹ Trở lại danh sách</button>
+    @if (_detail is not null)
+    {
+        <span class="spec-detail-crumb">@(_detail.SpecCode) · Rev @_detail.RevisionCode</span>
+    }
+</div>
+
+@if (_detailLoading && _detail is null)
+{
+    <p class="grid-status">Đang tải chi tiết Spec…</p>
+}
+else if (_detailError is not null)
+{
+    <div class="grid-error" role="alert">
+        <strong>Không tải được chi tiết Spec.</strong>
+        <div>@_detailError</div>
+        <button type="button" class="grid-btn" @onclick="LoadDetailAsync">Thử lại</button>
+    </div>
+}
+else if (_detail is not null && _vm is not null)
+{
+    <div class="spec-tabs" role="tablist">
+        @foreach (var tab in _tabs)
+        {
+            <button type="button" role="tab"
+                    aria-selected="@(IsActiveTab(tab.Key))"
+                    class="spec-tab @(IsActiveTab(tab.Key) ? "is-active" : "")"
+                    @onclick='() => SetActiveTabAsync(tab.Key)'>
+                @tab.Label
+            </button>
+        }
+    </div>
+
+    <div class="spec-tab-panel" role="tabpanel">
+        @switch (_activeTab)
+        {
+            case "spec":
+                <SpecShowcardCompact Vm="_vm" />
+                break;
+
+            case "drawings":
+                @RenderDrawingsTab()
+                break;
+
+            case "qc-plans":
+                @RenderQcPlansTab()
+                break;
+
+            case "qc-capture":
+                @RenderQcCaptureTab()
+                break;
+
+            case "artwork":
+                @RenderArtworkTab()
+                break;
+
+            case "setup":
+                @RenderSetupTab()
+                break;
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public long RevisionId { get; set; }
+
+    private SpecDetailItem? _detail;
+    private SpecShowcardVm? _vm;
+    private bool _detailLoading;
+    private string? _detailError;
+
+    private string _activeTab = "spec";
+
+    // Per-tab independent fetch state — Lesson #27 isolation.
+    private List<DrawingKindSlot>? _drawings;
+    private bool _drawingsLoading;
+    private string? _drawingsError;
+
+    private Dictionary<string, QcWindowItem?>? _qcWindows;
+    private bool _qcWindowsLoading;
+    private string? _qcWindowsError;
+
+    private List<QcCaptureItem>? _qcCaptures;
+    private bool _qcCapturesLoading;
+    private string? _qcCapturesError;
+
+    private static readonly (string Key, string Label)[] _tabs = new[]
+    {
+        ("spec",       "Specification"),
+        ("drawings",   "Drawings"),
+        ("qc-plans",   "QC Plans"),
+        ("qc-capture", "QC Capture"),
+        ("artwork",    "Artwork"),
+        ("setup",      "Setup"),
+    };
+
+    private bool IsActiveTab(string key) => string.Equals(_activeTab, key, StringComparison.OrdinalIgnoreCase);
+
+    protected override Task OnInitializedAsync() => LoadDetailAsync();
+
+    private async Task LoadDetailAsync()
+    {
+        _detailLoading = true;
+        _detailError = null;
+        try
+        {
+            _detail = await Api.GetSpecDetailAsync(RevisionId);
+            if (_detail is null)
+            {
+                _detailError = "Không tìm thấy Spec này (404).";
+            }
+            else
+            {
+                _vm = SpecShowcardVm.FromDetail(_detail);
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _detailError = apiEx.ApiError.MessageEn;
+        }
+        catch (HttpRequestException ex)
+        {
+            _detailError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _detailError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _detailLoading = false;
+        }
+    }
+
+    private async Task SetActiveTabAsync(string key)
+    {
+        _activeTab = key;
+        // Lazy-load per tab on first activation so we don't burn 4 round-trips
+        // on a tab the operator may never open.
+        switch (key)
+        {
+            case "drawings" when _drawings is null && _drawingsError is null:
+                await LoadDrawingsAsync();
+                break;
+            case "qc-plans" when _qcWindows is null && _qcWindowsError is null:
+                await LoadQcWindowsAsync();
+                break;
+            case "qc-capture":
+                if (_qcWindows is null && _qcWindowsError is null) await LoadQcWindowsAsync();
+                if (_qcCaptures is null && _qcCapturesError is null) await LoadQcCapturesAsync();
+                break;
+        }
+    }
+
+    private async Task LoadDrawingsAsync()
+    {
+        _drawingsLoading = true;
+        _drawingsError = null;
+        try
+        {
+            _drawings = await Api.GetDrawingsByRevisionAsync(RevisionId);
+        }
+        catch (ApiException apiEx) { _drawingsError = apiEx.ApiError.MessageEn; }
+        catch (HttpRequestException ex) { _drawingsError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _drawingsError = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _drawingsLoading = false; }
+    }
+
+    private async Task LoadQcWindowsAsync()
+    {
+        _qcWindowsLoading = true;
+        _qcWindowsError = null;
+        try
+        {
+            _qcWindows = await Api.GetQcWindowsByRevisionAsync(RevisionId);
+        }
+        catch (ApiException apiEx) { _qcWindowsError = apiEx.ApiError.MessageEn; }
+        catch (HttpRequestException ex) { _qcWindowsError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _qcWindowsError = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _qcWindowsLoading = false; }
+    }
+
+    private async Task LoadQcCapturesAsync()
+    {
+        _qcCapturesLoading = true;
+        _qcCapturesError = null;
+        try
+        {
+            _qcCaptures = await Api.GetQcCapturesByRevisionAsync(RevisionId);
+        }
+        catch (ApiException apiEx) { _qcCapturesError = apiEx.ApiError.MessageEn; }
+        catch (HttpRequestException ex) { _qcCapturesError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _qcCapturesError = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _qcCapturesLoading = false; }
+    }
+
+    private void NavigateBack() => Nav.NavigateTo("/npi/specs");
+
+    // ── tab body renderers ─────────────────────────────────────────
+
+    private RenderFragment RenderDrawingsTab() => __builder =>
+    {
+        if (_drawingsLoading)
+        {
+            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Đang tải bản vẽ…</p>");
+            return;
+        }
+        if (_drawingsError is not null)
+        {
+            __builder.OpenElement(0, "div");
+            __builder.AddAttribute(1, "class", "grid-error");
+            __builder.AddAttribute(2, "role", "alert");
+            __builder.OpenElement(3, "strong");
+            __builder.AddContent(4, "Không tải được Drawings.");
+            __builder.CloseElement();
+            __builder.OpenElement(5, "div");
+            __builder.AddContent(6, _drawingsError);
+            __builder.CloseElement();
+            __builder.OpenElement(7, "button");
+            __builder.AddAttribute(8, "type", "button");
+            __builder.AddAttribute(9, "class", "grid-btn");
+            __builder.AddAttribute(10, "onclick", EventCallback.Factory.Create(this, LoadDrawingsAsync));
+            __builder.AddContent(11, "Thử lại");
+            __builder.CloseElement();
+            __builder.CloseElement();
+            return;
+        }
+        if (_drawings is null || _drawings.Count == 0)
+        {
+            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Chưa có bản vẽ nào cho revision này.</p>");
+            return;
+        }
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "drawing-grid");
+        foreach (var slot in _drawings)
+        {
+            __builder.OpenElement(2, "div");
+            __builder.AddAttribute(3, "class", "drawing-slot");
+            __builder.OpenElement(4, "div");
+            __builder.AddAttribute(5, "class", "drawing-slot-head");
+            __builder.OpenElement(6, "strong");
+            __builder.AddContent(7, slot.Title);
+            __builder.CloseElement();
+            __builder.OpenElement(8, "span");
+            __builder.AddAttribute(9, "class", $"spec-status-pill drawing-status-{slot.DrawingStatus.ToString().ToLowerInvariant()}");
+            __builder.AddContent(10, DrawingSlotStatusLabel(slot.DrawingStatus));
+            __builder.CloseElement();
+            __builder.CloseElement();
+            __builder.OpenElement(11, "div");
+            __builder.AddAttribute(12, "class", "drawing-slot-versions");
+            if (slot.Versions.Count == 0)
+            {
+                __builder.AddMarkupContent(13, "<span class=\"spec-empty-inline\">Chưa có bản tải lên.</span>");
+            }
+            else
+            {
+                foreach (var v in slot.Versions)
+                {
+                    __builder.OpenElement(14, "div");
+                    __builder.AddAttribute(15, "class", "drawing-version-row");
+                    __builder.AddMarkupContent(16, $"<span class=\"spec-mono\">v{v.VersionNo}</span>");
+                    __builder.AddMarkupContent(17, $"<span>{System.Net.WebUtility.HtmlEncode(v.FileName)}</span>");
+                    __builder.AddMarkupContent(18, $"<span class=\"drawing-size\">{FormatBytes(v.FileSize)}</span>");
+                    __builder.AddMarkupContent(19, $"<span class=\"drawing-status-{v.Status.ToString().ToLowerInvariant()}\">{System.Net.WebUtility.HtmlEncode(DrawingVersionStatusLabel(v.Status))}</span>");
+                    __builder.CloseElement();
+                }
+            }
+            __builder.CloseElement();
+            __builder.CloseElement();
+        }
+        __builder.CloseElement();
+        __builder.AddMarkupContent(100, "<p class=\"spec-deferred-note\"><em>Upload + duyệt sẽ có ở bản 5e.</em></p>");
+    };
+
+    private RenderFragment RenderQcPlansTab() => __builder =>
+    {
+        if (_qcWindowsLoading)
+        {
+            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Đang tải QC Plans…</p>");
+            return;
+        }
+        if (_qcWindowsError is not null)
+        {
+            __builder.OpenElement(0, "div");
+            __builder.AddAttribute(1, "class", "grid-error");
+            __builder.AddMarkupContent(2, "<strong>Không tải được QC Plans.</strong>");
+            __builder.AddMarkupContent(3, $"<div>{System.Net.WebUtility.HtmlEncode(_qcWindowsError)}</div>");
+            __builder.OpenElement(4, "button");
+            __builder.AddAttribute(5, "type", "button");
+            __builder.AddAttribute(6, "class", "grid-btn");
+            __builder.AddAttribute(7, "onclick", EventCallback.Factory.Create(this, LoadQcWindowsAsync));
+            __builder.AddContent(8, "Thử lại");
+            __builder.CloseElement();
+            __builder.CloseElement();
+            return;
+        }
+        if (_qcWindows is null)
+        {
+            return;
+        }
+
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "qc-stage-grid");
+        foreach (var stageKey in new[] { "IpqcPrint", "IpqcCut", "Fqc", "Oqc" })
+        {
+            _qcWindows.TryGetValue(stageKey, out var window);
+            __builder.OpenElement(2, "div");
+            __builder.AddAttribute(3, "class", "qc-stage-card");
+            __builder.AddMarkupContent(4, $"<div class=\"qc-stage-card-head\"><strong>{QcStageLabel(stageKey)}</strong></div>");
+            if (window is null)
+            {
+                __builder.AddMarkupContent(5, "<p class=\"spec-empty-inline\">Chưa định nghĩa.</p>");
+            }
+            else
+            {
+                __builder.AddMarkupContent(6, $"<div class=\"qc-stage-card-title\">{System.Net.WebUtility.HtmlEncode(window.Title)}</div>");
+                if (!string.IsNullOrWhiteSpace(window.SamplePlan))
+                {
+                    __builder.AddMarkupContent(7, $"<div class=\"qc-stage-card-sample\"><span class=\"spec-stamp-label\">Sample plan:</span> {System.Net.WebUtility.HtmlEncode(window.SamplePlan)}</div>");
+                }
+                if (!string.IsNullOrWhiteSpace(window.Frequency))
+                {
+                    __builder.AddMarkupContent(8, $"<div class=\"qc-stage-card-sample\"><span class=\"spec-stamp-label\">Tần suất:</span> {System.Net.WebUtility.HtmlEncode(window.Frequency)}</div>");
+                }
+                if (window.Criteria.Count == 0)
+                {
+                    __builder.AddMarkupContent(9, "<p class=\"spec-empty-inline\">Chưa có tiêu chí.</p>");
+                }
+                else
+                {
+                    __builder.OpenElement(10, "table");
+                    __builder.AddAttribute(11, "class", "grid grid-sm");
+                    __builder.AddMarkupContent(12,
+                        "<thead><tr><th>#</th><th>Tiêu chí</th><th>Target</th><th>Tolerance</th><th>Đvt</th><th>Pass</th></tr></thead>");
+                    __builder.OpenElement(13, "tbody");
+                    foreach (var c in window.Criteria)
+                    {
+                        var tolerance = (c.ToleranceMin, c.ToleranceMax) switch
+                        {
+                            (null, null)         => "—",
+                            (var min, null)      => $"≥ {min}",
+                            (null, var max)      => $"≤ {max}",
+                            (var min, var max)   => $"{min} … {max}",
+                        };
+                        __builder.OpenElement(14, "tr");
+                        __builder.AddMarkupContent(15, $"<td>{c.Seq}</td>");
+                        __builder.AddMarkupContent(16, $"<td>{System.Net.WebUtility.HtmlEncode(c.Name)}</td>");
+                        __builder.AddMarkupContent(17, $"<td class=\"grid-col-num\">{(c.TargetValue?.ToString("0.##") ?? "—")}</td>");
+                        __builder.AddMarkupContent(18, $"<td class=\"grid-col-num\">{tolerance}</td>");
+                        __builder.AddMarkupContent(19, $"<td>{System.Net.WebUtility.HtmlEncode(c.Unit ?? "—")}</td>");
+                        __builder.AddMarkupContent(20, $"<td>{System.Net.WebUtility.HtmlEncode(c.PassCriteria ?? "—")}</td>");
+                        __builder.CloseElement();
+                    }
+                    __builder.CloseElement();
+                    __builder.CloseElement();
+                }
+            }
+            __builder.CloseElement();
+        }
+        __builder.CloseElement();
+        __builder.AddMarkupContent(100, "<p class=\"spec-deferred-note\"><em>Tạo / sửa QC Plan sẽ có ở bản 5f.</em></p>");
+    };
+
+    private RenderFragment RenderQcCaptureTab() => __builder =>
+    {
+        if (_qcCapturesLoading || _qcWindowsLoading)
+        {
+            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Đang tải QC Capture…</p>");
+            return;
+        }
+        if (_qcCapturesError is not null)
+        {
+            __builder.OpenElement(0, "div");
+            __builder.AddAttribute(1, "class", "grid-error");
+            __builder.AddMarkupContent(2, "<strong>Không tải được QC Capture.</strong>");
+            __builder.AddMarkupContent(3, $"<div>{System.Net.WebUtility.HtmlEncode(_qcCapturesError)}</div>");
+            __builder.OpenElement(4, "button");
+            __builder.AddAttribute(5, "type", "button");
+            __builder.AddAttribute(6, "class", "grid-btn");
+            __builder.AddAttribute(7, "onclick", EventCallback.Factory.Create(this, LoadQcCapturesAsync));
+            __builder.AddContent(8, "Thử lại");
+            __builder.CloseElement();
+            __builder.CloseElement();
+            return;
+        }
+        if (_qcCaptures is null || _qcCaptures.Count == 0)
+        {
+            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Chưa có kết quả QC capture nào cho revision này.</p>");
+            return;
+        }
+
+        __builder.OpenElement(0, "table");
+        __builder.AddAttribute(1, "class", "grid grid-sm");
+        __builder.AddMarkupContent(2,
+            "<thead><tr><th>Lúc</th><th>Người</th><th>Kết quả</th><th>Đo</th><th>NG reason</th><th>Ghi chú</th></tr></thead>");
+        __builder.OpenElement(3, "tbody");
+        foreach (var cap in _qcCaptures.OrderByDescending(c => c.CapturedAt))
+        {
+            __builder.OpenElement(4, "tr");
+            __builder.AddMarkupContent(5, $"<td>{cap.CapturedAt.ToLocalTime():yyyy-MM-dd HH:mm}</td>");
+            __builder.AddMarkupContent(6, $"<td>{System.Net.WebUtility.HtmlEncode(cap.CapturedBy)}</td>");
+            __builder.AddMarkupContent(7, $"<td><span class=\"qc-result-pill qc-result-{cap.Result.ToString().ToLowerInvariant()}\">{System.Net.WebUtility.HtmlEncode(QcResultLabel(cap.Result))}</span></td>");
+            __builder.AddMarkupContent(8, $"<td>{System.Net.WebUtility.HtmlEncode(cap.Measurement ?? "—")}</td>");
+            __builder.AddMarkupContent(9, $"<td>{System.Net.WebUtility.HtmlEncode(cap.NgReasonCode ?? "—")}</td>");
+            __builder.AddMarkupContent(10, $"<td>{System.Net.WebUtility.HtmlEncode(cap.Comment ?? "—")}</td>");
+            __builder.CloseElement();
+        }
+        __builder.CloseElement();
+        __builder.CloseElement();
+        __builder.AddMarkupContent(100, "<p class=\"spec-deferred-note\"><em>Ghi nhận capture mới sẽ có ở bản 5f.</em></p>");
+    };
+
+    private RenderFragment RenderArtworkTab() => __builder =>
+    {
+        // 5b: read-only Artwork stub. Legacy SVG canvas + 4-layer toggle
+        // + 3 template variants land in 5e (per SpecHub parity plan §2.7
+        // gap "Artwork SVG 4-layer toggle"). For now render the spec
+        // identity reminder + deferred notice so operator knows the path.
+        __builder.AddMarkupContent(0, """
+            <div class="spec-tab-stub">
+                <p>Khu vực hiển thị mẫu artwork (SVG 4-layer toggle).</p>
+                <p class="spec-deferred-note"><em>Sẽ có ở bản 5e — kèm 3 template (brady-safety / ccl-cosmetic / panel-face) khớp SpecHub.</em></p>
+            </div>
+            """);
+    };
+
+    private RenderFragment RenderSetupTab() => __builder =>
+    {
+        if (_detail is null) return;
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "spec-setup");
+        __builder.OpenElement(2, "div");
+        __builder.AddAttribute(3, "class", "spec-showcard-section");
+        __builder.AddMarkupContent(4, "<div class=\"spec-showcard-section-title\">Press / Material</div>");
+        __builder.OpenElement(5, "dl");
+        __builder.AddAttribute(6, "class", "spec-showcard-grid");
+        AddCell(__builder, "Substrate", _detail.SubstrateType);
+        AddCell(__builder, "Brand", _detail.SubstrateBrand);
+        AddCell(__builder, "Adhesive", _detail.AdhesiveType);
+        AddCell(__builder, "Adhesive brand", _detail.AdhesiveBrand);
+        AddCell(__builder, "Thickness (µm)", _detail.ThicknessUm?.ToString() ?? "—");
+        AddCell(__builder, "Lamination", _detail.Lamination);
+        AddCell(__builder, "Varnish", _detail.Varnish);
+        AddCell(__builder, "Pitch (mm)", _detail.LengthPitchMm?.ToString("0.##") ?? "—");
+        AddCell(__builder, "Printing cavity", _detail.PrintingCavity?.ToString() ?? "—");
+        AddCell(__builder, "White underprint", _detail.WhiteUnderprint ? "Có" : "Không");
+        __builder.CloseElement();
+        __builder.CloseElement();
+        __builder.AddMarkupContent(99, "<p class=\"spec-deferred-note\"><em>Bảng Flexo print rows / Silk colors sẽ có ở bản 5c (Full showcard).</em></p>");
+        __builder.CloseElement();
+    };
+
+    private static void AddCell(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder __builder, string label, string? value)
+    {
+        __builder.OpenElement(0, "div");
+        __builder.AddAttribute(1, "class", "spec-showcard-cell");
+        __builder.AddMarkupContent(2, $"<dt>{System.Net.WebUtility.HtmlEncode(label)}</dt>");
+        __builder.AddMarkupContent(3, $"<dd>{System.Net.WebUtility.HtmlEncode(value ?? "—")}</dd>");
+        __builder.CloseElement();
+    }
+
+    // ── format helpers ─────────────────────────────────────────────
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:0.#} KB";
+        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+    }
+
+    private static string QcStageLabel(string stageKey) => stageKey switch
+    {
+        "IpqcPrint" => "IPQC — In",
+        "IpqcCut"   => "IPQC — Bế",
+        "Fqc"       => "FQC",
+        "Oqc"       => "OQC",
+        _            => stageKey,
+    };
+
+    private static string DrawingSlotStatusLabel(DrawingSlotStatus s) => s switch
+    {
+        DrawingSlotStatus.Draft            => "Nháp",
+        DrawingSlotStatus.PendingApproval  => "Chờ duyệt",
+        DrawingSlotStatus.Approved         => "Đã duyệt",
+        DrawingSlotStatus.Superseded       => "Đã thay thế",
+        DrawingSlotStatus.Withdrawn        => "Đã thu hồi",
+        _                                   => s.ToString(),
+    };
+
+    private static string DrawingVersionStatusLabel(DrawingVersionStatus s) => s switch
+    {
+        DrawingVersionStatus.Draft            => "Nháp",
+        DrawingVersionStatus.PendingApproval  => "Chờ duyệt",
+        DrawingVersionStatus.Approved         => "Đã duyệt",
+        DrawingVersionStatus.Rejected         => "Đã từ chối",
+        DrawingVersionStatus.Superseded       => "Đã thay thế",
+        _                                      => s.ToString(),
+    };
+
+    private static string QcResultLabel(QcCaptureResult r) => r switch
+    {
+        QcCaptureResult.Pass => "PASS",
+        QcCaptureResult.Fail => "FAIL",
+        QcCaptureResult.Na   => "N/A",
+        _                     => r.ToString(),
+    };
+}
