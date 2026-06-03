@@ -1,24 +1,14 @@
-@page "/npi/workcenters"
+@page "/npi/structure"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
 
-@*
-    P10.5a — Work Centers grid. Standardised pattern shared with
-    /npi/structure, /npi/routine, /npi/rawmaterials:
-        - Toolbar: search + Tải lại + GridColumnsMenu
-        - Sticky/freeze table header inside a scroll container
-        - Server-side pagination (default 20/page)
-        - Lesson #27 (try/catch + inline error banner) — never crash the
-          page on a partial/transient failure
-*@
+<PageTitle>Cấu trúc (BOM) — NPI</PageTitle>
 
-<PageTitle>Trung tâm sản xuất — NPI</PageTitle>
-
-<h1 class="page-title">Trung tâm sản xuất</h1>
+<h1 class="page-title">Cấu trúc (BOM)</h1>
 
 <div class="grid-toolbar">
-    <input type="search" class="grid-search" placeholder="Tìm theo mã hoặc mô tả…"
+    <input type="search" class="grid-search" placeholder="Tìm theo part / mô tả…"
            @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKey" />
     <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Tìm</button>
     <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
@@ -86,27 +76,38 @@ else if (_data is not null)
 }
 
 @code {
-    private NpiPagedRaw<NpiWorkCenter>? _data;
+    private NpiPagedRaw<NpiStructure>? _data;
     private bool _loading;
     private string? _error;
     private string _search = "";
     private int _page = 1;
-    private const int PageSize = 20;
+    private const int PageSize = 50;
     private GridColumns _columns = default!;
 
     private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, PageSize);
 
     protected override async Task OnInitializedAsync()
     {
-        _columns = new GridColumns("workcenters", new[]
+        // 16 columns from Phase 7 hạng mục 1. All default visible — the
+        // grid is wide but operators benefit from full BOM context.
+        _columns = new GridColumns("structure", new[]
         {
-            new ColumnDef("id",          "ID"),
-            new ColumnDef("code",        "Mã trạm"),
-            new ColumnDef("description", "Mô tả"),
-            new ColumnDef("area",        "Khu vực"),
-            new ColumnDef("ideal_speed", "Tốc độ lý tưởng (pcs/h)"),
-            new ColumnDef("shift",       "Ca máy"),
-            new ColumnDef("active",      "Trạng thái"),
+            new ColumnDef("parent_part",          "Part cha"),
+            new ColumnDef("parent_desc",          "Mô tả part cha"),
+            new ColumnDef("component_part",       "Part con"),
+            new ColumnDef("component_desc",       "Mô tả part con"),
+            new ColumnDef("qty_assembly",         "Số lượng"),
+            new ColumnDef("uom",                  "Đvt"),
+            new ColumnDef("scrap_factor",         "Hệ số hao"),
+            new ColumnDef("scrap_pct",            "Hao %", DefaultVisible: false),
+            new ColumnDef("pitch",                "Pitch", DefaultVisible: false),
+            new ColumnDef("cavity",               "Cavity", DefaultVisible: false),
+            new ColumnDef("color",                "Màu", DefaultVisible: false),
+            new ColumnDef("structure_type",       "Loại cấu trúc", DefaultVisible: false),
+            new ColumnDef("alt",                  "Alt", DefaultVisible: false),
+            new ColumnDef("effectivity",          "Hiệu lực", DefaultVisible: false),
+            new ColumnDef("effectivity_date",     "Ngày hiệu lực", DefaultVisible: false),
+            new ColumnDef("planner",              "Planner", DefaultVisible: false),
         }, PrefStore);
         await LoadAsync();
     }
@@ -116,8 +117,6 @@ else if (_data is not null)
 
     private Task OnSearchClickAsync()
     {
-        // Reset page on new search — operator expects to see the first
-        // match, not page 5 of the previous filter.
         _page = 1;
         return LoadAsync();
     }
@@ -128,7 +127,7 @@ else if (_data is not null)
         _error = null;
         try
         {
-            _data = await Api.GetWorkCentersAsync(
+            _data = await Api.GetStructuresAsync(
                 string.IsNullOrWhiteSpace(_search) ? null : _search,
                 _page, PageSize);
         }
@@ -164,31 +163,32 @@ else if (_data is not null)
 
     private static string ColClass(string columnId) => columnId switch
     {
-        "id"          => "grid-col-narrow",
-        "code"        => "grid-col-mono",
-        "active"      => "grid-col-narrow",
-        "ideal_speed" => "grid-col-num",
-        _              => "",
+        "parent_part" or "component_part"               => "grid-col-mono",
+        "qty_assembly" or "scrap_factor" or "scrap_pct"
+            or "pitch" or "cavity"                       => "grid-col-num",
+        _                                                => "",
     };
 
-    private static RenderFragment RenderCell(NpiWorkCenter row, string columnId) => __builder =>
+    private static RenderFragment RenderCell(NpiStructure row, string columnId) => __builder =>
     {
         switch (columnId)
         {
-            case "id":          __builder.AddContent(0, row.Id); break;
-            case "code":        __builder.OpenElement(0, "code"); __builder.AddContent(1, row.Code); __builder.CloseElement(); break;
-            case "description": __builder.AddContent(0, row.Description); break;
-            case "area":        __builder.AddContent(0, row.Area); break;
-            case "ideal_speed": __builder.AddContent(0, row.IdealSpeedPcsH?.ToString("0.##") ?? "—"); break;
-            case "shift":       __builder.AddContent(0, row.ShiftPattern ?? "—"); break;
-            case "active":
-                __builder.AddContent(0, row.Active switch
-                {
-                    true  => "✓ Active",
-                    false => "× Inactive",
-                    _      => "—",
-                });
-                break;
+            case "parent_part":     __builder.OpenElement(0, "code"); __builder.AddContent(1, row.ParentPart); __builder.CloseElement(); break;
+            case "parent_desc":     __builder.AddContent(0, row.ParentDescription ?? "—"); break;
+            case "component_part":  __builder.OpenElement(0, "code"); __builder.AddContent(1, row.ComponentPart); __builder.CloseElement(); break;
+            case "component_desc":  __builder.AddContent(0, row.ComponentDescription ?? "—"); break;
+            case "qty_assembly":    __builder.AddContent(0, row.QtyAssembly.ToString("0.######")); break;
+            case "uom":             __builder.AddContent(0, row.Uom ?? "—"); break;
+            case "scrap_factor":    __builder.AddContent(0, row.ScrapFactor.ToString("0.######")); break;
+            case "scrap_pct":       __builder.AddContent(0, row.ScrapPct?.ToString("0.##") ?? "—"); break;
+            case "pitch":           __builder.AddContent(0, row.Pitch?.ToString("0.##") ?? "—"); break;
+            case "cavity":          __builder.AddContent(0, row.Cavity?.ToString("0.##") ?? "—"); break;
+            case "color":           __builder.AddContent(0, row.Color ?? "—"); break;
+            case "structure_type":  __builder.AddContent(0, row.StructureType ?? "—"); break;
+            case "alt":             __builder.AddContent(0, row.Alt ?? "—"); break;
+            case "effectivity":     __builder.AddContent(0, row.Effectivity ?? "—"); break;
+            case "effectivity_date":__builder.AddContent(0, row.EffectivityDate ?? "—"); break;
+            case "planner":         __builder.AddContent(0, row.Planner ?? "—"); break;
         }
     };
 }

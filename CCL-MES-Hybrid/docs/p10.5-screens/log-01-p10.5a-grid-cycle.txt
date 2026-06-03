@@ -1,0 +1,22 @@
+2026-06-03 21:51:32.816 CCL.MES.Hybrid[11375:130255] You've implemented -[<UIApplicationDelegate> application:performFetchWithCompletionHandler:], but you still need to add "fetch" to the list of your supported UIBackgroundModes in your Info.plist.
+2026-06-03 21:51:32.862 CCL.MES.Hybrid[11375:130255] [boot] appsettings.json loaded — 133 bytes.
+2026-06-03 21:51:32.869 CCL.MES.Hybrid[11375:130255] [boot] CclApi:BaseUrl resolved => http://127.0.0.1:5100
+2026-06-03 21:51:33.096 CCL.MES.Hybrid[11375:130255] [BlazorWebView/DEBUG] WKWebView.Inspectable = true (attach via Safari → Develop).
+2026-06-03 21:51:33.097 CCL.MES.Hybrid[11375:130255] [BlazorWebView/DEBUG] cclLog bridge + window.onerror observer installed.
+2026-06-03 21:51:34.492 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] path=/login h1=CCL · MES cols=0 rows=0
+2026-06-03 21:51:34.493 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] click DEBUG auto-login
+2026-06-03 21:51:35.675 CCL.MES.Hybrid[11375:130255] [TokenStore] Keychain unavailable (Exception: Error adding record: MissingEntitlement). Falling back to in-memory token store for THIS process. Persistence across launches DISABLED.
+2026-06-03 21:51:36.494 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] start grid cycle
+2026-06-03 21:51:38.499 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] path=/npi/structure h1=Cấu trúc (BOM) cols=7 rows=50
+2026-06-03 21:51:42.544 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] path=/npi/structure h1=Cấu trúc (BOM) cols=7 rows=50
+2026-06-03 21:51:44.589 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] next grid → /npi/routine
+2026-06-03 21:51:46.624 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] path=/npi/routine h1=Định tuyến công đoạn cols=10 rows=50
+2026-06-03 21:51:50.704 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] path=/npi/routine h1=Định tuyến công đoạn cols=10 rows=50
+2026-06-03 21:51:52.744 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] next grid → /npi/rawmaterials
+2026-06-03 21:51:54.784 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] path=/npi/rawmaterials h1=Nguyên vật liệu cols=12 rows=50
+2026-06-03 21:51:58.865 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] path=/npi/rawmaterials h1=Nguyên vật liệu cols=12 rows=50
+2026-06-03 21:52:00.903 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] next grid → /npi/workcenters
+2026-06-03 21:52:02.945 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] path=/npi/workcenters h1=Trung tâm sản xuất cols=7 rows=20
+2026-06-03 21:52:07.024 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] path=/npi/workcenters h1=Trung tâm sản xuất cols=7 rows=20
+2026-06-03 21:52:11.105 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] path=/npi/workcenters h1=Trung tâm sản xuất cols=7 rows=20
+2026-06-03 21:52:15.182 CCL.MES.Hybrid[11375:130255] [js] [p10-5a] path=/npi/workcenters h1=Trung tâm sản xuất cols=7 rows=20

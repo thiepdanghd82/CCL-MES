@@ -748,3 +748,278 @@ html, body {
     font-size: 0.82rem;
     color: #7f1d1d;
 }
+
+/* ── P10.5a — NPI grid foundation ───────────────────────────────── */
+
+/* Grid toolbar (shared by every NPI page) */
+.grid-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+
+.grid-toolbar-spacer { flex: 1 1 auto; }
+
+.grid-search {
+    flex: 1 1 320px;
+    max-width: 460px;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+}
+
+.grid-btn {
+    padding: 8px 14px;
+    background: #1d4ed8;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.92rem;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.grid-btn:hover:not(:disabled)  { background: #1e3a8a; }
+.grid-btn:disabled              { background: #93b8eb; cursor: not-allowed; }
+
+.grid-btn-link {
+    background: transparent;
+    color: #1d4ed8;
+    text-decoration: underline;
+    padding: 6px 8px;
+}
+
+.grid-btn-link:hover            { color: #1e3a8a; background: transparent; }
+
+/* Grid status banners */
+.grid-status   { padding: 12px 0; color: #6b7280; }
+.grid-empty    { text-align: center; color: #6b7280; padding: 22px; }
+
+.grid-error {
+    background: rgba(248, 81, 73, 0.1);
+    color: #991b1b;
+    border: 1px solid rgba(248, 81, 73, 0.4);
+    border-radius: 6px;
+    padding: 12px 14px;
+    margin: 12px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+/* Scroll container — gives the sticky header somewhere to stick to */
+.grid-scroll {
+    overflow: auto;
+    max-height: calc(100vh - 240px);
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: white;
+}
+
+.grid {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+}
+
+.grid th, .grid td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+}
+
+.grid tbody tr:hover { background: #f8fafc; }
+
+/* Freeze header — sticky position + opaque background so rows scroll
+   beneath without bleed-through. */
+.grid-sticky thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f3f4f6;
+    color: #111827;
+    font-weight: 600;
+    border-bottom: 2px solid #d1d5db;
+}
+
+.grid-h           { white-space: nowrap; }
+.grid-col-mono    { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+.grid-col-narrow  { width: 8rem; }
+.grid-col-num     { text-align: right; }
+
+/* Grid pager */
+.grid-pager {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0 6px;
+}
+
+.grid-pager-text { color: #4b5563; font-size: 0.9rem; }
+
+/* Columns dropdown */
+.grid-cols-menu { position: relative; }
+
+.grid-cols-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    width: 280px;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.grid-cols-popover-title {
+    font-weight: 600;
+    color: #111827;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 6px;
+}
+
+.grid-cols-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 320px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.grid-cols-item label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 2px;
+    cursor: pointer;
+    font-size: 0.92rem;
+    color: #1f2937;
+}
+
+.grid-cols-item label:hover { color: #1d4ed8; }
+
+.grid-cols-popover-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 8px;
+    margin-top: 4px;
+}
+
+/* Nav sub-link indent for NPI sub-tabs */
+.app-nav-link-sub {
+    padding-left: 28px;
+    font-size: 0.92rem;
+}
+
+/* ── P10.5a — Modal primitive ─────────────────────────────────── */
+
+.modal-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: grid;
+    place-items: center;
+    z-index: 100;
+    padding: 16px;
+    box-sizing: border-box;
+    animation: modal-scrim-in 120ms ease-out;
+}
+
+@keyframes modal-scrim-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.modal-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.28);
+    width: 100%;
+    max-width: 480px;
+    max-height: calc(100vh - 64px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: modal-card-in 140ms ease-out;
+}
+
+@keyframes modal-card-in {
+    from { transform: translateY(8px) scale(0.98); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+}
+
+.modal-sm .modal-card { max-width: 360px; }
+.modal-md .modal-card { max-width: 480px; }
+.modal-lg .modal-card { max-width: 720px; }
+.modal-xl .modal-card { max-width: 1040px; }
+
+.modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e5e7eb;
+    gap: 12px;
+}
+
+.modal-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #111827;
+}
+
+.modal-close {
+    background: transparent;
+    border: none;
+    font-size: 1.6rem;
+    line-height: 1;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.modal-close:hover { background: #f3f4f6; color: #111827; }
+
+.modal-body {
+    padding: 16px 18px;
+    overflow: auto;
+    color: #111827;
+    font-size: 0.95rem;
+}
+
+.modal-foot {
+    padding: 12px 18px;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    background: #f9fafb;
+}
+
+/* Header tone variants — header band picks up severity color */
+.modal-severity-info    .modal-head { background: #eef2ff; }
+.modal-severity-success .modal-head { background: #ecfdf5; }
+.modal-severity-warning .modal-head { background: #fef3c7; }
+.modal-severity-danger  .modal-head { background: #fee2e2; }
+
+.modal-severity-info    .modal-title { color: #1e3a8a; }
+.modal-severity-success .modal-title { color: #166534; }
+.modal-severity-warning .modal-title { color: #92400e; }
+.modal-severity-danger  .modal-title { color: #991b1b; }

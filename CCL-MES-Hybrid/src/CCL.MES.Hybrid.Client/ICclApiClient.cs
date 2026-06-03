@@ -1,3 +1,4 @@
+using CCL.MES.Hybrid.Client.Npi;
 using CCL.MES.Shared.Auth;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Envelopes;
@@ -65,10 +66,9 @@ public sealed class ApiException : Exception
     }
 }
 
-// ── Minimal NPI DTOs (legacy Domain entities live behind the API; we
-//    mirror the shape we need rather than referencing CCL.MES.Domain
-//    so the MAUI shell doesn't pull EF entities into the client). ──
-
+/// <summary>Paged response envelope mirroring the legacy
+/// <c>PagedResult&lt;T&gt;</c> from the Application layer. Lives in the
+/// client lib so the MAUI shell doesn't depend on CCL.MES.Domain.</summary>
 public sealed record NpiPagedRaw<T>
 {
     public IReadOnlyList<T> Items { get; init; } = Array.Empty<T>();
@@ -77,37 +77,8 @@ public sealed record NpiPagedRaw<T>
     public int PageSize { get; init; }
 }
 
-public sealed record NpiWorkCenter
-{
-    public long Id { get; init; }
-    public string Code { get; init; } = "";
-    public string? Description { get; init; }
-    public string? Area { get; init; }
-    // Legacy WorkCenter.Active is nullable bool — surface as nullable so
-    // the UI can distinguish "not set" from "explicitly inactive".
-    public bool? Active { get; init; }
-}
-
-public sealed record NpiRawMaterial
-{
-    public long Id { get; init; }
-    public string PartNo { get; init; } = "";
-    public string? PartDescription { get; init; }
-    public string? Uom { get; init; }
-}
-
-public sealed record NpiRoutingOperation
-{
-    public long Id { get; init; }
-    public string PartNo { get; init; } = "";
-    public string? OpNo { get; init; }
-    public string? WorkCenter { get; init; }
-}
-
-public sealed record NpiStructure
-{
-    public long Id { get; init; }
-    public string ParentPartNo { get; init; } = "";
-    public string ComponentPartNo { get; init; } = "";
-    public decimal Qty { get; init; }
-}
+// Full NPI row DTOs (NpiWorkCenter / NpiRawMaterial / NpiRoutingOperation /
+// NpiStructure) moved to CCL.MES.Hybrid.Client.Npi.NpiDtos.cs in P10.5a so
+// the grid pages can lean on the full column shape without bloating this
+// file. They were extended from the P10.2 pilot subset to match the
+// Phase 7 entity expansions (28 / 20 / 16 / 6 cols respectively).

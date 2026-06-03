@@ -1,4 +1,5 @@
 using CCL.MES.Hybrid.Client.Auth;
+using CCL.MES.Hybrid.Client.Grid;
 using CCL.MES.Hybrid.Client.Hardware;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -63,6 +64,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IIdleMonitor, StubIdleMonitor>();
         services.AddSingleton<IDeviceModeService, InMemoryDeviceModeService>();
         services.AddSingleton<IDeviceSettingsLauncher, StubDeviceSettingsLauncher>();
+
+        // P10.5a grid preference store. The MAUI host overrides with the
+        // Preferences-backed impl; tests + non-MAUI consumers keep the
+        // in-memory default so DI resolution is always safe.
+        services.AddSingleton<IGridPreferenceStore, InMemoryGridPreferenceStore>();
 
         return services;
     }
