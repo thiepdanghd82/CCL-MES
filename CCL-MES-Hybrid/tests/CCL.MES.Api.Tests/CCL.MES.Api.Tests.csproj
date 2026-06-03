@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Phase 10 P10.1 — Integration tests for CCL.MES.Api. Uses ASP.NET Core
+    WebApplicationFactory<Program> for in-memory HTTP round-trips. Mirrors
+    the Phase 9 IsolatedSqliteFixture pattern from tests/CCL.MES.Tests:
+    each test gets its own SQLite file under TestResults/p10api/<guid>/.
+
+    Out-of-production: no prod csproj references this; runtime deps flow
+    one-way (test → prod). Adding to CCL-MES-Hybrid.sln does not change
+    build output of the Api.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+
+    <!-- WebApplicationFactory<TEntryPoint> + TestServer host. -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CCL.MES.Api\CCL.MES.Api.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Shared\CCL.MES.Shared.csproj" />
+    <!-- Legacy refs needed for test seed (User entity, IPasswordHasher target). -->
+    <ProjectReference Include="..\..\..\src\CCL.MES.Domain\CCL.MES.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\CCL.MES.Application\CCL.MES.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\CCL.MES.Infrastructure\CCL.MES.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

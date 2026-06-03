@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Phase 10 P10.1 — Shared DTO + envelope library for the new hybrid stack.
+
+    Constraints:
+      - Pure POCO. No EF, no HTTP, no Blazor, no MAUI.
+      - Referenced by both CCL.MES.Api (server) AND eventual CCL.MES.Hybrid
+        (MAUI client). Anything that wouldn't load on a mobile target is
+        forbidden here.
+      - DTOs designed for HTTP/JSON contract stability. When extending,
+        prefer adding new optional fields over changing existing ones.
+
+    Out of scope for P10.1:
+      - Mirroring every legacy Application/Dtos.cs entry — only what the
+        new auth surface + system-log viewer endpoint need. Per-endpoint
+        DTO migration tracked under §3 (drift guardrails) of
+        PHASE10-MAUI-MIGRATION-PLAN.md and ships incrementally.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CCL.MES.Shared</RootNamespace>
+  </PropertyGroup>
+
+</Project>

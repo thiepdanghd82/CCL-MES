@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Phase 10 P10.1 — ASP.NET Core 10 Web API. Hosts the legacy
+    CCL.MES.Application services behind JWT-secured HTTP endpoints +
+    SignalR ShopfloorHubV2 push channel for the new MAUI Hybrid client
+    (P10.2 onward). Legacy CCL.MES.Web (Blazor Server) keeps running
+    untouched in parallel.
+
+    Project references:
+      - ../../../src/CCL.MES.Domain         (READ-ONLY legacy)
+      - ../../../src/CCL.MES.Application    (READ-ONLY legacy)
+      - ../../../src/CCL.MES.Infrastructure (READ-ONLY legacy)
+      - ../CCL.MES.Shared                    (new sibling)
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CCL.MES.Api</RootNamespace>
+    <UserSecretsId>ccl-mes-api-p10.1</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- JWT bearer auth + token issuance. Pin minor version to track .NET 10. -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.2.1" />
+
+    <!-- PasswordHasher<User> ships with the ASP.NET Core shared framework
+         (Microsoft.Extensions.Identity.Core) when the Web SDK is in use,
+         so no explicit PackageReference is needed. The legacy Web project
+         relies on the same implicit dependency for bit-identical password
+         verification semantics. -->
+
+    <!-- OpenAPI / Swagger UI for dev exploration. Dev-only middleware gate
+         lives in Program.cs. -->
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Legacy projects — READ-ONLY reference. We DO NOT modify any file
+         under ../../../src/CCL.MES.Domain, Application, or Infrastructure.
+         Path: from src/CCL.MES.Api/ up three levels to repo root,
+         then down into src/CCL.MES.{Domain,Application,Infrastructure}/. -->
+    <ProjectReference Include="..\..\..\src\CCL.MES.Domain\CCL.MES.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\CCL.MES.Application\CCL.MES.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\CCL.MES.Infrastructure\CCL.MES.Infrastructure.csproj" />
+
+    <ProjectReference Include="..\CCL.MES.Shared\CCL.MES.Shared.csproj" />
+  </ItemGroup>
+
+</Project>
