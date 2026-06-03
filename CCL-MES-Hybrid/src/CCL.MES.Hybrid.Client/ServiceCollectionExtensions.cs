@@ -1,4 +1,5 @@
 using CCL.MES.Hybrid.Client.Auth;
+using CCL.MES.Hybrid.Client.Hardware;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -48,6 +49,19 @@ public static class ServiceCollectionExtensions
             http.Timeout = opts.Timeout;
         })
         .AddHttpMessageHandler<AuthorizationDelegatingHandler>();
+
+        // P10.3 hardware abstraction. The host project MAY override any of
+        // these with platform-specific impls (Catalyst AVFoundation in W2,
+        // Windows MediaCapture+ZXing in W3, Maui Preferences-backed
+        // DeviceModeService — see CCL.MES.Hybrid host registration).
+        // Defaults here are the stubs so a test harness or stripped-down
+        // host can still resolve the graph.
+        services.Configure<HardwareOptions>(configuration.GetSection("Hardware"));
+        services.AddSingleton<IBarcodeScannerService, StubBarcodeScannerService>();
+        services.AddSingleton<ILabelPrinterService, StubLabelPrinterService>();
+        services.AddSingleton<IWeighScaleService, StubWeighScaleService>();
+        services.AddSingleton<IIdleMonitor, StubIdleMonitor>();
+        services.AddSingleton<IDeviceModeService, InMemoryDeviceModeService>();
 
         return services;
     }

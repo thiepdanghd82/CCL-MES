@@ -1,0 +1,60 @@
+@*
+    Reusable status row for the /hardware page. Probes the supplied
+    availability-check delegate on first render + reflects the result
+    in a status pill + reason text. Caller wires the delegate to
+    IService.IsAvailableAsync(); the row stays platform-agnostic.
+
+    Visual states:
+      - probing (initial)  : gray pill "Đang kiểm tra…"
+      - ok                 : green pill "Sẵn sàng" + EnabledAction body
+      - not available      : amber pill "@reason" + OperatorMessage body
+*@
+@using CCL.MES.Shared.Hardware
+
+<div class="hw-row">
+    <div class="hw-row-title">@Title</div>
+
+    @if (_state == State.Probing)
+    {
+        <div class="hw-pill hw-pill-probing">Đang kiểm tra…</div>
+    }
+    else if (_avail?.IsAvailable == true)
+    {
+        <div class="hw-pill hw-pill-ok">Sẵn sàng</div>
+        <div class="hw-row-msg">@EnabledAction</div>
+    }
+    else
+    {
+        <div class="hw-pill hw-pill-warn">@(_avail?.Reason ?? "unknown")</div>
+        <div class="hw-row-msg">@(_avail?.OperatorMessage ?? "")</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public Func<Task<HardwareAvailability>>? Probe { get; set; }
+    [Parameter] public string EnabledAction { get; set; } = "";
+
+    private HardwareAvailability? _avail;
+    private State _state = State.Probing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Probe is null) { _state = State.Done; return; }
+        try
+        {
+            _avail = await Probe();
+        }
+        catch (Exception ex)
+        {
+            _avail = new HardwareAvailability(false, "probe_failed",
+                $"Lỗi khi kiểm tra: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            _state = State.Done;
+        }
+    }
+
+    private enum State { Probing, Done }
+}

@@ -2,12 +2,14 @@ using System.Reflection;
 using CCL.MES.Hybrid.Client;
 using CCL.MES.Hybrid.Client.Auth;
 using CCL.MES.Hybrid.Client.Connectivity;
+using CCL.MES.Hybrid.Client.Hardware;
 using CCL.MES.Hybrid.Razor;
 using CCL.MES.Hybrid.Services;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.WebView.Maui;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 
 namespace CCL.MES.Hybrid;
@@ -75,6 +77,14 @@ public static class MauiProgram
         builder.Services.AddCclHybridClient(configuration);
         builder.Services.AddScoped<AuthenticationStateProvider, HybridAuthStateProvider>();
         builder.Services.AddAuthorizationCore();
+
+        // P10.3 hardware overrides — replace the in-memory default
+        // device-mode service with the Preferences-backed one so settings
+        // persist across launches. Scanner / printer / scale impls stay
+        // on the stubs from CCL.MES.Hybrid.Client until W2/W3 ship the
+        // platform-specific overrides. The DI Replace pattern preserves
+        // any other registration the client extension already made.
+        builder.Services.Replace(ServiceDescriptor.Singleton<IDeviceModeService, MauiDeviceModeService>());
 
         return builder.Build();
     }
