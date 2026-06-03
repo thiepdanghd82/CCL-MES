@@ -3,8 +3,10 @@
 @using CCL.MES.Application.Services
 @using CCL.MES.Domain.Entities
 @using CCL.MES.Web.Services
+@using Microsoft.AspNetCore.WebUtilities
 @inject AuditLogService AuditSvc
 @inject IStringLocalizer<SharedResource> Loc
+@inject NavigationManager Nav
 
 @*  Phase 5 RBAC gate kept.
     Phase 6 Bước 5 — Audit log viewer. Read-only grid backed by the
@@ -33,6 +35,13 @@
     </select>
     <input class="form-input syslog-actor" placeholder="@Loc["settings.syslog.actor_placeholder"]" @bind="_actor" />
     <button class="btn" @onclick="DoSearch">@Loc["common.search_button"]</button>
+    @* Phase 9 audit-export — CSV / XLSX download buttons. Both reuse the
+       current filter state via query string so the operator gets exactly
+       the rows they're previewing in the grid. AdminOnly is enforced
+       server-side via [Authorize(Roles="Admin")] on the controller; the
+       buttons render here because the page itself is AdminOnly. *@
+    <button class="btn" type="button" @onclick="@(() => ExportTo("csv"))">@Loc["settings.syslog.export_csv"]</button>
+    <button class="btn" type="button" @onclick="@(() => ExportTo("xlsx"))">@Loc["settings.syslog.export_xlsx"]</button>
 </div>
 
 @if (_result is null)
@@ -100,6 +109,22 @@ else
     private async Task DoSearch() { _page = 1; await Load(); }
     private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
     private async Task GoPage(int p) { _page = p; await Load(); }
+
+    private void ExportTo(string format)
+    {
+        // Build query string from the current filter state so the export
+        // matches exactly what the operator sees. NavigationManager with
+        // forceLoad triggers a browser download via the controller's
+        // FileContentResult; no JS interop needed.
+        var qs = new Dictionary<string, string?>();
+        if (!string.IsNullOrWhiteSpace(_search)) qs["search"] = _search;
+        if (!string.IsNullOrWhiteSpace(_action)) qs["action"] = _action;
+        if (!string.IsNullOrWhiteSpace(_actor))  qs["actor"]  = _actor;
+        if (_from.HasValue) qs["from"] = _from.Value.ToString("yyyy-MM-dd");
+        if (_to.HasValue)   qs["to"]   = _to.Value.ToString("yyyy-MM-dd");
+        var url = QueryHelpers.AddQueryString($"/api/audit-log/export/{format}", qs);
+        Nav.NavigateTo(url, forceLoad: true);
+    }
     private (int Page, int TotalPages, int Total) PagerInfo =>
         _result is null ? (1, 1, 0) : (_result.Page, _result.TotalPages, _result.Total);
 

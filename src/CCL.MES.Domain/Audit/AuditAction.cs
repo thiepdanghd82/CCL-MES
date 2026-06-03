@@ -8,6 +8,14 @@ namespace CCL.MES.Domain.Audit;
 /// </summary>
 public static class AuditAction
 {
+    // Phase 9 audit-export — Admin downloaded the audit log via the
+    // CSV / XLSX export endpoint. This is the "audit-the-audit" hook:
+    // an admin lifting trail data out of the system is itself an event
+    // that needs to appear in the trail (chống admin tampering — admin
+    // không thể xóa rồi export một bản "sạch" mà KHÔNG để lại dấu vết
+    // export-event). detail JSON: { format, search, action_filter,
+    // actor_filter, from, to, rows, filename, content_length }.
+    public const string AuditExport           = "AUDIT_EXPORT";
     public const string BackupCreate          = "BACKUP_CREATE";
     public const string BackupRestore         = "BACKUP_RESTORE";          // emitted by scripts/BackupRestore (Source = Console)
     public const string IqcApprove            = "IQC_APPROVE";             // Phase 6 Bước 7 — pass/fail in Detail

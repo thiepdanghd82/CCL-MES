@@ -1,7 +1,9 @@
 using CCL.MES.Application;
+using CCL.MES.Application.AuditLogExport;
 using CCL.MES.Application.SpecExport;
 using CCL.MES.Application.SpecImport;
 using CCL.MES.Application.WorkOrderExport;
+using CCL.MES.Infrastructure.AuditLogExport;
 using CCL.MES.Infrastructure.SpecExport;
 using CCL.MES.Infrastructure.SpecImport;
 using CCL.MES.Infrastructure.WorkOrderExport;
@@ -67,6 +69,14 @@ public static class DependencyInjection
         services.AddSingleton<XlsxWorkOrderListExporter>();
         services.AddSingleton<IWorkOrderListExporter>(sp => sp.GetRequiredService<CsvWorkOrderListExporter>());
         services.AddSingleton<IWorkOrderListExporter>(sp => sp.GetRequiredService<XlsxWorkOrderListExporter>());
+
+        // Phase 9 audit-export — AuditLog list exporters. CSV pure .NET,
+        // XLSX via ClosedXML reuse. Singleton (stateless) + multi-impl
+        // pattern parallel to Spec/WO exporters.
+        services.AddSingleton<CsvAuditLogExporter>();
+        services.AddSingleton<XlsxAuditLogExporter>();
+        services.AddSingleton<IAuditLogExporter>(sp => sp.GetRequiredService<CsvAuditLogExporter>());
+        services.AddSingleton<IAuditLogExporter>(sp => sp.GetRequiredService<XlsxAuditLogExporter>());
 
         return services;
     }
