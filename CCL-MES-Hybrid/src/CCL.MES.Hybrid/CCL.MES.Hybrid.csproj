@@ -59,6 +59,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Starting with .NET 8 the MAUI SDK no longer implicit-references
+         Microsoft.Maui.Controls and Microsoft.AspNetCore.Components.WebView.Maui.
+         Declaring them here silences MA002 + pins the patch version.
+         Version tracks the maui-desktop workload manifest (10.0.20). -->
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.20" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="10.0.20" />
+
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
   </ItemGroup>
