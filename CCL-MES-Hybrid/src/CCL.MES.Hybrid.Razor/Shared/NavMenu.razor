@@ -27,6 +27,13 @@
 
         @if (HwOptions.Value.ScanEnabled)
         {
+            @* P10.3 W4 — Work Orders scan→Accept surface. Open to every authenticated
+               role because Operator + QC routinely need to advance WOs on the floor.
+               Server-side authorization on the advance endpoint stays at the
+               FallbackPolicy = RequireAuthenticatedUser. *@
+            <div class="app-nav-section">SẢN XUẤT</div>
+            <NavLink href="/workorders" class="app-nav-link">Work Orders — Quét</NavLink>
+
             <AuthorizeView Roles="Admin,Supervisor,Engineer">
                 <div class="app-nav-section">CÀI ĐẶT</div>
                 <NavLink href="/hardware" class="app-nav-link">Thiết bị</NavLink>

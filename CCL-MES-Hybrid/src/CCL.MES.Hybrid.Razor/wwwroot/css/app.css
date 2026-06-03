@@ -625,3 +625,126 @@ html, body {
 }
 
 .lock-logout:hover { color: var(--brand); text-decoration: underline; }
+
+/* ── P10.3 W4 — Work Orders scan→Accept surface ─────────────────── */
+
+.wo-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-width: 720px;
+}
+
+.wo-cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.wo-cta-primary {
+    /* Larger tap target — operators may be wearing gloves. */
+    font-size: 1.05rem !important;
+    padding: 14px 22px !important;
+}
+
+.wo-cta-accept {
+    /* Brand-green accept; brand-blue scan keeps the two semantics distinct. */
+    background: #15803d !important;
+    font-size: 1.05rem !important;
+    padding: 14px 22px !important;
+    margin-top: 14px;
+}
+
+.wo-cta-accept:hover:not(:disabled) { background: #166534 !important; }
+.wo-cta-accept:disabled { background: #86efac !important; }
+
+.wo-lookup {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wo-card {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 18px 20px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.wo-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+}
+
+.wo-card-wo {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.wo-card-step {
+    /* Pre-rendered status pill — server hands us a CSS class name; we
+       still set a sane default in case the badge token is empty. */
+    background: #e5e7eb;
+    color: #1f2937;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.shop-pill-running, .shop-pill-ready { background: #dbeafe; color: #1e3a8a; }
+.shop-pill-done                      { background: #dcfce7; color: #166534; }
+.shop-pill-cancelled                 { background: #fee2e2; color: #991b1b; }
+.shop-pill-paused                    { background: #fef3c7; color: #92400e; }
+.shop-pill-qa                        { background: #ede9fe; color: #5b21b6; }
+.shop-pill-pre-press                 { background: #fee2e2; color: #991b1b; }
+.shop-pill-setting                   { background: #fef3c7; color: #92400e; }
+
+.wo-card-row {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 12px;
+    font-size: 0.92rem;
+}
+
+.wo-card-label { color: #6b7280; }
+.wo-card-value { color: #111827; }
+
+.wo-card-success {
+    background: rgba(21, 128, 61, 0.1);
+    color: #166534;
+    border: 1px solid rgba(21, 128, 61, 0.4);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 0.92rem;
+    margin-top: 10px;
+}
+
+.wo-card-error {
+    background: rgba(248, 81, 73, 0.1);
+    color: #991b1b;
+    border: 1px solid rgba(248, 81, 73, 0.4);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 0.92rem;
+    margin-top: 10px;
+}
+
+.wo-card-error-detail {
+    margin-top: 4px;
+    font-size: 0.82rem;
+    color: #7f1d1d;
+}

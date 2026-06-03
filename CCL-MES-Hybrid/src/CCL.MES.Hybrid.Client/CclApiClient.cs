@@ -2,7 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using CCL.MES.Shared;
 using CCL.MES.Shared.Auth;
+using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.WorkOrders;
 using Microsoft.Extensions.Options;
 
 namespace CCL.MES.Hybrid.Client;
@@ -64,7 +66,65 @@ public sealed class CclApiClient : ICclApiClient
     public Task<NpiPagedRaw<NpiStructure>> GetStructuresAsync(string? search, int page, int pageSize, CancellationToken ct = default)
         => GetPagedAsync<NpiStructure>("structures", search, page, pageSize, ct);
 
+    // ── Work Orders ─────────────────────────────────────────────────
+
+    public async Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
+    {
+        // Path-segment encode — WO numbers may legitimately contain
+        // characters that need escaping (slashes are blocked at the
+        // model level but we still escape defensively).
+        var encoded = Uri.EscapeDataString(woNo);
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/work-orders/by-no/{encoded}/summary", ct);
+        if (resp.StatusCode == HttpStatusCode.NotFound) return null;
+        return await ReadAsAsync<WorkOrderSummary>(resp, ct);
+    }
+
+    public async Task<AdvanceWorkOrderResponse> AdvanceWorkOrderAsync(long workOrderId, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Post, $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/advance");
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<AdvanceWorkOrderResponse>(resp, ct);
+    }
+
+    // ── Devices ─────────────────────────────────────────────────────
+
+    public async Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default)
+    {
+        var deviceId = RequireDeviceId();
+        using var resp = await _http.PostAsJsonAsync(
+            $"/{ApiVersion.Prefix}/devices/{Uri.EscapeDataString(deviceId)}/scan-log", req, ct);
+        return await ReadAsAsync<ScanLogResponse>(resp, ct);
+    }
+
+    public async Task<HeartbeatResponse> HeartbeatAsync(HeartbeatRequest req, CancellationToken ct = default)
+    {
+        var deviceId = RequireDeviceId();
+        using var resp = await _http.PostAsJsonAsync(
+            $"/{ApiVersion.Prefix}/devices/{Uri.EscapeDataString(deviceId)}/heartbeat", req, ct);
+        return await ReadAsAsync<HeartbeatResponse>(resp, ct);
+    }
+
+    public async Task<DeviceInfoResponse?> GetDeviceInfoAsync(CancellationToken ct = default)
+    {
+        var deviceId = RequireDeviceId();
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/devices/{Uri.EscapeDataString(deviceId)}", ct);
+        if (resp.StatusCode == HttpStatusCode.NotFound) return null;
+        return await ReadAsAsync<DeviceInfoResponse>(resp, ct);
+    }
+
     // ── helpers ─────────────────────────────────────────────────────
+
+    private string RequireDeviceId()
+    {
+        if (string.IsNullOrWhiteSpace(_opts.DeviceId))
+            throw new InvalidOperationException(
+                "ApiClientOptions.DeviceId is not configured. The MAUI host must populate it from " +
+                "IDeviceModeService.DeviceId at startup before device-scoped endpoints are called.");
+        return _opts.DeviceId;
+    }
 
     private async Task<NpiPagedRaw<T>> GetPagedAsync<T>(string segment, string? search, int page, int pageSize, CancellationToken ct)
     {

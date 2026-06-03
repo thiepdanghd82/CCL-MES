@@ -11,10 +11,12 @@ namespace CCL.MES.Hybrid.Client.Hardware;
 /// <c>MauiDeviceModeService</c>.
 ///
 /// <para>
-/// Passcode hashing in W1 uses a deliberately weak placeholder
-/// (SHA-256 with a per-device salt embedded in the device id). W4
-/// swaps in real Argon2id via libsodium-net. The interface contract
-/// doesn't change.
+/// Passcode hashing — W4 ships <see cref="PasscodeKdf"/> (PBKDF2-HMAC-
+/// SHA256, 200k iterations, 16-byte random salt, device-id mixed in
+/// via HMAC pre-derive). The encoded blob is versioned
+/// (<c>pbkdf2$v1$...</c>) so a future Argon2id swap can land without
+/// breaking existing stored hashes. Verification is constant-time. No
+/// raw passcode bytes ever leave the process or appear in logs.
 /// </para>
 /// </summary>
 public sealed class InMemoryDeviceModeService : IDeviceModeService
@@ -45,7 +47,9 @@ public sealed class InMemoryDeviceModeService : IDeviceModeService
 
     public Task SetPasscodeAsync(string? newPasscode, CancellationToken ct = default)
     {
-        _passcodeHash = string.IsNullOrEmpty(newPasscode) ? null : Hash(newPasscode);
+        _passcodeHash = string.IsNullOrEmpty(newPasscode)
+            ? null
+            : PasscodeKdf.Hash(newPasscode, _deviceId);
         OnChange?.Invoke();
         return Task.CompletedTask;
     }
@@ -53,16 +57,9 @@ public sealed class InMemoryDeviceModeService : IDeviceModeService
     public Task<bool> VerifyPasscodeAsync(string candidate, CancellationToken ct = default)
     {
         if (_passcodeHash is null) return Task.FromResult(false);
-        return Task.FromResult(Hash(candidate) == _passcodeHash);
+        return Task.FromResult(PasscodeKdf.Verify(candidate, _deviceId, _passcodeHash));
     }
 
     /// <summary>Test helper — let tests seed a device id deterministically.</summary>
     public void OverrideDeviceIdForTests(string deviceId) => _deviceId = deviceId;
-
-    private string Hash(string raw)
-    {
-        var bytes = System.Text.Encoding.UTF8.GetBytes(_deviceId + ":" + raw);
-        var hash = System.Security.Cryptography.SHA256.HashData(bytes);
-        return Convert.ToHexString(hash);
-    }
 }

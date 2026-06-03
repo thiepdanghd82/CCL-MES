@@ -1,0 +1,362 @@
+@page "/workorders"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.Hardware
+@using CCL.MES.Shared.Devices
+@using CCL.MES.Shared.Envelopes
+@using CCL.MES.Shared.Hardware
+@using CCL.MES.Shared.WorkOrders
+@using Microsoft.Extensions.Logging
+@inject IBarcodeScannerService Scanner
+@inject IDeviceSettingsLauncher SettingsLauncher
+@inject ICclApiClient Api
+@inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
+@inject Microsoft.Extensions.Logging.ILogger<WorkOrders> Log
+
+<PageTitle>Work Orders — CCL MES</PageTitle>
+
+@*
+    P10.3 W4 — primary scan→Accept/Start surface. Operator flow:
+      1. Page renders the "Quét WO" CTA when scanner is available; otherwise
+         shows the W2 deny banner + Settings deep-link reuse.
+      2. Tap CTA → open Catalyst AVFoundation modal (W2 impl). Decoded
+         payload comes back as ScanResult.
+      3. Page sends ScanLogRequest to server (always — even on bad codes — so
+         operations has a full forensic trail of misreads).
+      4. Page sends GET /work-orders/by-no/{code}/summary to look up the WO.
+         404 → "không tìm thấy WO" banner with a "Quét lại" affordance.
+         200 → WO card rendered with CurrentStep + status badge + the
+         primary "Nhận / Bắt đầu" button.
+      5. Tap Nhận/Bắt đầu → POST /work-orders/{id}/advance (server adds
+         X-Device-Id from ApiClientOptions). Successful advance shows the
+         new step + "Quét WO khác" CTA. Domain guard failure shows the
+         legacy WoErrorCode (mapped to Vietnamese) in-card.
+
+    All API calls go online — no outbox queue per Q4 lock. Network drop
+    surfaces as a `network_error` banner; operator retries when LAN is back.
+*@
+
+<h1 class="page-title">Work Orders — Quét &amp; Nhận</h1>
+
+@if (!HwOptions.Value.ScanEnabled)
+{
+    <div class="hw-gate" role="status">
+        <strong>Tính năng quét đang tắt.</strong>
+        <p>
+            Đặt <code>Hardware:ScanEnabled = true</code> trong appsettings.json
+            (hoặc env override) để bật luồng scan→WO. Cài đặt ngay tại Settings →
+            Thiết bị nếu trạm này đã được duyệt.
+        </p>
+    </div>
+}
+else
+{
+    <div class="wo-shell">
+        @if (_availability is null)
+        {
+            <div class="hw-pill hw-pill-probing">Đang kiểm tra camera…</div>
+        }
+        else if (!_availability.IsAvailable)
+        {
+            <div class="scan-banner">
+                <strong>@(_availability.OperatorMessage ?? _availability.Reason)</strong>
+            </div>
+            @if (_availability.Reason == "permission_denied")
+            {
+                <button type="button" class="scan-btn scan-btn-secondary"
+                        disabled="@_openingSettings"
+                        @onclick="OnOpenSettings">
+                    @(_openingSettings ? "Đang mở…" : "Mở System Settings")
+                </button>
+                @if (_openSettingsFailed)
+                {
+                    <div class="scan-banner-help">
+                        Không mở được Settings tự động. Vào Apple Menu → System
+                        Settings → Privacy &amp; Security → Camera để bật quyền
+                        cho CCL MES.
+                    </div>
+                }
+            }
+        }
+        else
+        {
+            <div class="wo-cta-row">
+                <button type="button" class="scan-btn wo-cta-primary"
+                        disabled="@(_scanning || _advancing || _lookingUp)"
+                        @onclick="OnScan">
+                    @(_scanning ? "Đang mở camera…" : "Quét WO")
+                </button>
+                @if (_summary is not null || _lookupError is not null)
+                {
+                    <button type="button" class="scan-btn scan-btn-secondary"
+                            disabled="@(_scanning || _advancing)"
+                            @onclick="ResetState">
+                        Quét WO khác
+                    </button>
+                }
+            </div>
+
+            @if (_lastScan is not null && _summary is null && _lookupError is null && _lookingUp)
+            {
+                <div class="wo-lookup">
+                    <span class="hw-pill hw-pill-probing">Đang tra cứu @(_lastScan.Code)…</span>
+                </div>
+            }
+
+            @if (_lookupError is not null)
+            {
+                <div class="scan-error">
+                    @_lookupError
+                </div>
+            }
+
+            @if (_summary is not null)
+            {
+                <div class="wo-card" data-current-step="@_summary.CurrentStep">
+                    <div class="wo-card-head">
+                        <div class="wo-card-wo">@_summary.WoNo</div>
+                        <div class="wo-card-step @_summary.BadgeCssClass">@FormatBadge(_summary.BadgeLabelKey)</div>
+                    </div>
+                    <div class="wo-card-row"><span class="wo-card-label">Khách hàng</span><span class="wo-card-value">@(_summary.CustomerName ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Mã sản phẩm</span><span class="wo-card-value">@(_summary.ProductCode ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Sản phẩm</span><span class="wo-card-value">@(_summary.ProductName ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Máy</span><span class="wo-card-value">@(_summary.MachineCode ?? "—") @(_summary.MachineName is null ? "" : $"· {_summary.MachineName}")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Mục tiêu</span><span class="wo-card-value">@_summary.TargetQty @_summary.Uom</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Đã sản xuất</span><span class="wo-card-value">@_summary.ProducedQty @_summary.Uom</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Bước hiện tại</span><span class="wo-card-value scan-mono">@_summary.CurrentStep</span></div>
+
+                    @if (_advanceResult?.Ok == true)
+                    {
+                        <div class="wo-card-success">
+                            ✔ Đã chuyển bước. Bước mới: <strong>@_advanceResult.CurrentStep</strong>.
+                        </div>
+                    }
+                    else if (_advanceResult is { Ok: false } && !string.IsNullOrEmpty(_advanceResult.ErrorCode))
+                    {
+                        <div class="wo-card-error">
+                            <strong>Không chuyển bước được:</strong> @LocaliseAdvanceError(_advanceResult.ErrorCode)
+                            <div class="wo-card-error-detail">Mã lỗi: <code>@_advanceResult.ErrorCode</code></div>
+                        </div>
+                    }
+                    else if (_advanceError is not null)
+                    {
+                        <div class="wo-card-error"><strong>Lỗi mạng:</strong> @_advanceError</div>
+                    }
+
+                    @if (_advanceResult?.Ok != true)
+                    {
+                        <button type="button" class="scan-btn wo-cta-accept"
+                                disabled="@_advancing"
+                                @onclick="OnAdvance">
+                            @(_advancing ? "Đang chuyển bước…" : "Nhận / Bắt đầu (chuyển bước)")
+                        </button>
+                    }
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    private HardwareAvailability? _availability;
+    private bool _scanning;
+    private bool _lookingUp;
+    private bool _advancing;
+    private bool _openingSettings;
+    private bool _openSettingsFailed;
+    private ScanResult? _lastScan;
+    private WorkOrderSummary? _summary;
+    private AdvanceWorkOrderResponse? _advanceResult;
+    private string? _lookupError;
+    private string? _advanceError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (HwOptions.Value.ScanEnabled)
+            await Probe();
+    }
+
+    private async Task Probe()
+    {
+        try
+        {
+            _availability = await Scanner.IsAvailableAsync();
+        }
+        catch (Exception ex)
+        {
+            _availability = new HardwareAvailability(false, "probe_failed",
+                $"Lỗi khi kiểm tra: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private async Task OnScan()
+    {
+        ResetState();
+        _scanning = true;
+        try
+        {
+            var result = await Scanner.ScanOnceAsync();
+            if (result is null)
+            {
+                await Probe();
+                return;
+            }
+            _lastScan = result;
+            await LogScanThenLookupAsync(result);
+        }
+        catch (Exception ex)
+        {
+            _lookupError = $"Lỗi quét: {ex.GetType().Name}: {ex.Message}";
+            Log.LogWarning(ex, "[workorders] scan flow failed");
+        }
+        finally
+        {
+            _scanning = false;
+        }
+    }
+
+    private async Task LogScanThenLookupAsync(ScanResult scan)
+    {
+        // Step 1 — audit-log the scan unconditionally (good code or bad).
+        // Forensic trail is the whole point of the device.scan-log endpoint.
+        try
+        {
+            await Api.LogScanAsync(new ScanLogRequest
+            {
+                Payload = scan.Code,
+                Format = scan.Format,
+                Context = "wo-accept",
+                SourceDeviceLabel = scan.SourceDevice,
+                ClientTimestamp = scan.CapturedAt,
+            });
+        }
+        catch (Exception ex)
+        {
+            // Audit failures should NOT block lookup — the operator's
+            // primary task is the WO Accept, not the audit row. Log + continue.
+            Log.LogWarning(ex, "[workorders] scan-log POST failed — continuing with lookup");
+        }
+
+        // Step 2 — lookup the WO by number. Trim because some barcodes carry
+        // trailing whitespace from print rendering.
+        _lookingUp = true;
+        try
+        {
+            var summary = await Api.GetWorkOrderByNoAsync(scan.Code.Trim());
+            if (summary is null)
+            {
+                _lookupError = $"Không tìm thấy WO số \"{scan.Code}\". Kiểm tra lại mã hoặc quét lại.";
+            }
+            else
+            {
+                _summary = summary;
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _lookupError = LocaliseApiError(apiEx);
+        }
+        catch (HttpRequestException ex)
+        {
+            _lookupError = $"Không kết nối được máy chủ: {TrimDetail(ex.Message)}";
+        }
+        catch (Exception ex)
+        {
+            _lookupError = $"Lỗi tra cứu WO: {ex.GetType().Name}: {TrimDetail(ex.Message)}";
+        }
+        finally
+        {
+            _lookingUp = false;
+        }
+    }
+
+    private async Task OnAdvance()
+    {
+        if (_summary is null) return;
+        _advancing = true;
+        _advanceError = null;
+        try
+        {
+            _advanceResult = await Api.AdvanceWorkOrderAsync(_summary.Id);
+            if (_advanceResult.Ok)
+            {
+                // Refresh summary so the card shows the new CurrentStep + badge.
+                var refreshed = await Api.GetWorkOrderByNoAsync(_summary.WoNo);
+                if (refreshed is not null) _summary = refreshed;
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _advanceError = LocaliseApiError(apiEx);
+        }
+        catch (HttpRequestException ex)
+        {
+            _advanceError = $"Không kết nối được máy chủ: {TrimDetail(ex.Message)}";
+        }
+        catch (Exception ex)
+        {
+            _advanceError = $"{ex.GetType().Name}: {TrimDetail(ex.Message)}";
+        }
+        finally
+        {
+            _advancing = false;
+        }
+    }
+
+    private async Task OnOpenSettings()
+    {
+        _openingSettings = true;
+        _openSettingsFailed = false;
+        try
+        {
+            var opened = await SettingsLauncher.OpenCameraSettingsAsync();
+            _openSettingsFailed = !opened;
+        }
+        finally
+        {
+            _openingSettings = false;
+        }
+    }
+
+    private void ResetState()
+    {
+        _lastScan = null;
+        _summary = null;
+        _advanceResult = null;
+        _lookupError = null;
+        _advanceError = null;
+    }
+
+    private static string FormatBadge(string key) =>
+        key.Length == 0 ? "—" : key.Split('.').Last().Replace('_', ' ').ToUpperInvariant();
+
+    private static string LocaliseApiError(ApiException ex) => ex.ApiError.Code switch
+    {
+        "work_order.not_found" => "Không tìm thấy WO trên máy chủ.",
+        "device.invalid_id"    => "Mã thiết bị không hợp lệ — báo IT.",
+        "device.not_seen"      => "Trạm chưa nhận diện được — thử lại sau.",
+        "scan.empty_payload"   => "Payload quét rỗng — quét lại.",
+        _                      => $"HTTP {ex.StatusCode} · {ex.ApiError.Code} · {ex.ApiError.MessageEn}",
+    };
+
+    private static string LocaliseAdvanceError(string code) => code switch
+    {
+        "WorkOrderNotFound"           => "Không tìm thấy WO.",
+        "AlreadyAtFinalStep"          => "WO đã đến bước cuối (Closed).",
+        "RequiresSpecAndMaterials"    => "Thiếu bản vẽ kỹ thuật hoặc vật tư chưa sẵn sàng.",
+        "RequiresSetupConfirmed"      => "Chưa xác nhận setup máy.",
+        "IpqcNotPassed"               => "IPQC chưa Pass.",
+        "NoProductionYet"             => "Chưa có sản lượng — không thể chuyển sang FQC.",
+        "FqcNotPassed"                => "FQC chưa Pass.",
+        "OqcOrRohsNotMet"             => "OQC chưa Pass hoặc RoHS chưa OK.",
+        "InvalidStepTransition"       => "Chuyển bước không hợp lệ.",
+        _                             => $"Mã lỗi không xác định ({code}).",
+    };
+
+    private static string TrimDetail(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return raw;
+        var oneLine = raw.Replace('\n', ' ').Replace('\r', ' ').Trim();
+        return oneLine.Length <= 240 ? oneLine : oneLine[..240] + "…";
+    }
+}
