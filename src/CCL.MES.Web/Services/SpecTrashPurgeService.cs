@@ -26,11 +26,18 @@ namespace CCL.MES.Web.Services;
 ///   1. ELIGIBILITY: a row is eligible ONLY when both
 ///        <c>IsTrashed = true</c>  AND  <c>TrashedAt &lt; UtcNow - retention</c>.
 ///      Exactly-30-day boundary keeps the row (`&lt;` strict).
-///   2. WO BLOCKER DEFENCE-IN-DEPTH: even though Trash should have blocked
-///      the soft-delete when active WOs existed, recount on each eligible
-///      row. If any active WO still references the spec → skip + log a
-///      <see cref="AuditAction.SpecPurge"/> SKIPPED row (so the trail
-///      survives) and continue. Never crash the cycle on FK violations.
+///   2. WO RETAIN: WorkOrders.ProductRevisionId is ON DELETE RESTRICT, so
+///      a spec with ANY WO row referencing it (active OR terminal) cannot
+///      be deleted without an FK violation. Pre-count via a single COUNT
+///      query and RETAIN silently (no audit emit per-spec) when > 0 — this
+///      avoids the failure-loop where each 24h cycle would attempt a
+///      delete-then-catch-FK and pump up FailedCount + audit noise. The
+///      Trash-side blocker still gates ACTIVE WOs (a spec with only
+///      terminal WOs can enter retention; an active WO can also race in
+///      after trash). Spec remains in Trash (IsTrashed=true); link to WO
+///      preserved for traceability + compliance. NO FK relaxation,
+///      NO migration, NO persisted "retained" field — the outcome is a
+///      runtime classification on the cycle stats only.
 ///   3. AUDIT BEFORE DELETE: emit SPEC_PURGE before EF Remove so the audit
 ///      row is durable after the spec row vanishes.
 ///   4. CASCADE QcCriterion RESTRICT: SpecQcCapture.QcCriterionId is
@@ -152,8 +159,9 @@ public class SpecTrashPurgeService : BackgroundService
             try
             {
                 var purged = await PurgeOneAsync(db, audit, blobStore, revId, ct);
-                if (purged.Skipped) stats.SkippedCount++;
-                else stats.PurgedCount++;
+                if      (purged.Retained) stats.RetainedCount++;
+                else if (purged.Skipped)  stats.SkippedCount++;
+                else                      stats.PurgedCount++;
                 stats.BlobsRemoved += purged.BlobsRemoved;
                 stats.BlobsFailed  += purged.BlobsFailed;
             }
@@ -166,8 +174,8 @@ public class SpecTrashPurgeService : BackgroundService
         }
 
         _logger.LogInformation(
-            "SpecTrashPurge cycle: eligible={Eligible}, purged={Purged}, skipped_fk={Skipped}, failed={Failed}, blobs_removed={Blobs}, blobs_failed={BlobsFail}.",
-            stats.EligibleCount, stats.PurgedCount, stats.SkippedCount,
+            "SpecTrashPurge cycle: eligible={Eligible}, purged={Purged}, retained_wo={Retained}, skipped_other={Skipped}, failed={Failed}, blobs_removed={Blobs}, blobs_failed={BlobsFail}.",
+            stats.EligibleCount, stats.PurgedCount, stats.RetainedCount, stats.SkippedCount,
             stats.FailedCount, stats.BlobsRemoved, stats.BlobsFailed);
         return stats;
     }
@@ -193,34 +201,31 @@ public class SpecTrashPurgeService : BackgroundService
             return PurgeOneOutcome.Restored();
         }
 
-        // Safety #2 — WO defence-in-depth. Trash should have blocked but
-        // recount just in case.
-        var activeWoCount = await db.WorkOrders
-            .Where(w => w.ProductRevisionId == revId
-                        && w.Status != WoStatus.Closed
-                        && w.Status != WoStatus.Cancelled
-                        && w.Status != WoStatus.Finished)
+        // Safety #2 — WO defence-in-depth. WorkOrders.ProductRevisionId is
+        // ON DELETE RESTRICT (MesDbContext.cs ~ line 390), so a spec with
+        // ANY WO row pointing at it (active OR terminal) cannot be purged
+        // without an FK violation. Trash-side blocker only excludes ACTIVE
+        // WOs, so terminal WOs (Closed/Finished/Cancelled) attached PRIOR
+        // to trashing — and any active WO created AFTER trash through a
+        // race window — survive into retention. Pre-count here and RETAIN
+        // silently instead of attempting the delete-then-catch-FK loop
+        // that used to noisy-spam audit + FailedCount each 24h cycle.
+        //
+        // Retention is a runtime outcome — the spec stays in Trash with
+        // IsTrashed=true; no field persisted, no schema change, no FK
+        // relaxation (link kept for WO traceability / compliance).
+        var anyWoCount = await db.WorkOrders
+            .Where(w => w.ProductRevisionId == revId)
             .CountAsync(ct);
-        if (activeWoCount > 0)
+        if (anyWoCount > 0)
         {
-            await audit.EmitAsync(
-                AuditAction.SpecPurge, "system", actorRole: "",
-                targetType: "ProductRevision", targetId: rev.Id.ToString(CultureInfo.InvariantCulture),
-                detail: JsonSerializer.Serialize(new
-                {
-                    spec_code        = rev.SpecCode,
-                    rev_id           = rev.Id,
-                    rev_code         = rev.RevisionCode,
-                    trashed_at       = rev.TrashedAt,
-                    age_days         = AgeDays(rev.TrashedAt),
-                    skipped          = true,
-                    reason           = "active_work_orders",
-                    active_wo_count  = activeWoCount,
-                }));
-            _logger.LogWarning(
-                "SpecTrashPurge: skipping revId={RevId} ({Spec}) — {N} active WO(s) still reference it.",
-                rev.Id, rev.SpecCode, activeWoCount);
-            return PurgeOneOutcome.WasSkipped();
+            // Per Henry's directive: no audit emit per-retained-spec (the
+            // event repeats every 24h cycle and would flood the audit log).
+            // Debug log captures the population for ops visibility.
+            _logger.LogDebug(
+                "SpecTrashPurge: retaining revId={RevId} ({Spec}) — {N} WO(s) reference it; FK RESTRICT prevents deletion.",
+                rev.Id, rev.SpecCode, anyWoCount);
+            return PurgeOneOutcome.OfRetained();
         }
 
         // Safety #5 — capture blob keys BEFORE EF cascade wipes the rows we'd
@@ -311,9 +316,15 @@ public class SpecTrashPurgeService : BackgroundService
     }
 }
 
-/// <summary>Per-row outcome for cycle accounting + tests.</summary>
+/// <summary>
+/// Per-row outcome for cycle accounting + tests. Three terminal states:
+///   - <see cref="Retained"/> = WO link blocks deletion; spec stays in Trash.
+///   - <see cref="Skipped"/>  = rev disappeared / restored mid-cycle.
+///   - default (neither flag) = purged successfully.
+/// </summary>
 public sealed class PurgeOneOutcome
 {
+    public bool Retained { get; set; }
     public bool Skipped { get; set; }
     public int BlobsRemoved { get; set; }
     public int BlobsFailed { get; set; }
@@ -321,6 +332,13 @@ public sealed class PurgeOneOutcome
     public static PurgeOneOutcome AlreadyGone() => new() { Skipped = true };
     public static PurgeOneOutcome Restored() => new() { Skipped = true };
     public static PurgeOneOutcome WasSkipped() => new() { Skipped = true };
+
+    /// <summary>
+    /// Spec stays in Trash because at least one WorkOrder still references
+    /// it. No FK throw, no audit emit (would noisy-flood the trail across
+    /// daily cycles). Cycle log tallies the population.
+    /// </summary>
+    public static PurgeOneOutcome OfRetained() => new() { Retained = true };
 }
 
 /// <summary>Per-cycle stats used by the log line and by tests.</summary>
@@ -329,6 +347,11 @@ public sealed class PurgeCycleStats
     public DateTime CutoffUtc { get; set; }
     public int EligibleCount { get; set; }
     public int PurgedCount { get; set; }
+    /// <summary>
+    /// Specs eligible by date but kept because a WorkOrder still references
+    /// them (FK RESTRICT — see PurgeOneAsync Safety #2). Silent — no audit.
+    /// </summary>
+    public int RetainedCount { get; set; }
     public int SkippedCount { get; set; }
     public int FailedCount { get; set; }
     public int BlobsRemoved { get; set; }

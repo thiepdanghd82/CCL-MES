@@ -160,49 +160,44 @@ public sealed class SpecTrashPurgeServiceTests : IDisposable
         await AssertRevExistsAsync(purge2, expected: false);
     }
 
-    // ── Rule #2 — WO defence-in-depth (active WO blocks purge + audit) ─
+    // ── Rule #2 — WO RETAIN (any WO link → silent retain, no FK throw) ─
 
     [Fact]
-    public async Task Cycle_skips_when_active_WO_still_references_trashed_rev()
+    public async Task Cycle_retains_silently_when_active_WO_references_trashed_rev()
     {
-        var revId = await SeedTrashedRevAsync("SPEC-WO-BLOCKER", "B", DateTime.UtcNow.AddDays(-45));
-        await _fx.SeedWorkOrderAsync(revId, WoStatus.InProgress, "WO-PURGE-BLOCK");
+        // Trash-side blocker normally prevents this state — but an active
+        // WO can race in AFTER trashing. Purge pre-checks ANY WO reference
+        // and retains silently instead of attempting a delete that the FK
+        // would reject.
+        var revId = await SeedTrashedRevAsync("SPEC-WO-ACTIVE", "B", DateTime.UtcNow.AddDays(-45));
+        await _fx.SeedWorkOrderAsync(revId, WoStatus.InProgress, "WO-RACE-IN");
 
         var stats = await _svc.RunCycleAsync();
 
         Assert.Equal(1, stats.EligibleCount);
         Assert.Equal(0, stats.PurgedCount);
-        Assert.Equal(1, stats.SkippedCount);
+        Assert.Equal(1, stats.RetainedCount);
+        Assert.Equal(0, stats.SkippedCount);
+        Assert.Equal(0, stats.FailedCount);
 
-        // Rev still in DB.
+        // Spec still in DB + still trashed (retained, not restored).
         await AssertRevExistsAsync(revId, expected: true);
+        await AssertRevIsTrashedAsync(revId, expected: true);
 
-        // Audit row emitted with skipped=true reason=active_work_orders.
-        var audit = Assert.Single(_audit.ByAction(AuditAction.SpecPurge));
-        Assert.NotNull(audit.Detail);
-        Assert.Contains("\"skipped\":true", audit.Detail);
-        Assert.Contains("active_work_orders", audit.Detail);
+        // No audit emit per-retained-spec (would noisy-flood the audit log
+        // across daily cycles).
+        Assert.Empty(_audit.ByAction(AuditAction.SpecPurge));
     }
 
     [Fact]
-    public async Task Cycle_with_only_terminal_WOs_hits_RESTRICT_FK_and_records_failure()
+    public async Task Cycle_retains_silently_when_only_terminal_WOs_reference_trashed_rev()
     {
-        // Documents prod reality (T2a locks this in; follow-up ticket may
-        // widen the WO check or relax the FK — that's a product decision).
-        //
-        // The SpecTrashPurge defence-in-depth check at PurgeOneAsync
-        // excludes Closed/Finished/Cancelled WOs (counts only "active"),
-        // but the underlying WorkOrders.ProductRevisionId FK is
-        // ON DELETE RESTRICT (MesDbContext.cs ~ line 390) — so the
-        // service does:
-        //   1. Defence-in-depth check passes (no active WOs).
-        //   2. Audit row IS emitted per Rule #3 ("audit BEFORE delete").
-        //   3. EF SaveChanges throws FK exception → caught by outer
-        //      try/catch → FailedCount++; rev untouched.
-        // So we end up with an audit row that says "tried to purge" but
-        // no actual deletion. Operator forensics still works — the audit
-        // detail's blob_keys_count + age confirm intent; the missing
-        // skipped:true marker distinguishes this from the Rule #2 path.
+        // WorkOrders.ProductRevisionId is ON DELETE RESTRICT — even a
+        // Closed/Finished/Cancelled WO blocks the delete. Pre-count avoids
+        // the delete-then-catch-FK loop that used to noisy-spam audit +
+        // FailedCount every 24h. This locks in the fix per Henry's
+        // directive (was: "Cycle_with_only_terminal_WOs_hits_RESTRICT_FK_
+        // and_records_failure"). NO FK throw, NO FailedCount, NO audit.
         var revId = await SeedTrashedRevAsync("SPEC-DONE-WO", "B", DateTime.UtcNow.AddDays(-45));
         await _fx.SeedWorkOrderAsync(revId, WoStatus.Closed,    "WO-CLOSED");
         await _fx.SeedWorkOrderAsync(revId, WoStatus.Finished,  "WO-FINISHED");
@@ -212,15 +207,40 @@ public sealed class SpecTrashPurgeServiceTests : IDisposable
 
         Assert.Equal(1, stats.EligibleCount);
         Assert.Equal(0, stats.PurgedCount);
+        Assert.Equal(1, stats.RetainedCount);
         Assert.Equal(0, stats.SkippedCount);
-        Assert.Equal(1, stats.FailedCount);
-        await AssertRevExistsAsync(revId, expected: true);
+        Assert.Equal(0, stats.FailedCount);
 
-        // Audit row was emitted before the delete attempted (Rule #3) — but
-        // NOT with skipped:true (this isn't the Rule #2 "active WO" path).
+        await AssertRevExistsAsync(revId, expected: true);
+        await AssertRevIsTrashedAsync(revId, expected: true);
+        Assert.Empty(_audit.ByAction(AuditAction.SpecPurge));
+    }
+
+    [Fact]
+    public async Task Cycle_classifies_mixed_batch_into_purged_and_retained()
+    {
+        // 3 specs eligible by date; 1 has no WO link → purged, 2 have WO
+        // links → retained. Stats split cleanly across counters.
+        var purgeId = await SeedTrashedRevAsync("SPEC-MIX-PURGE", "B", DateTime.UtcNow.AddDays(-31));
+        var keepIdActive = await SeedTrashedRevAsync("SPEC-MIX-RETAIN-ACTIVE", "C", DateTime.UtcNow.AddDays(-40));
+        await _fx.SeedWorkOrderAsync(keepIdActive, WoStatus.InProgress, "WO-A-1");
+        var keepIdClosed = await SeedTrashedRevAsync("SPEC-MIX-RETAIN-CLOSED", "D", DateTime.UtcNow.AddDays(-50));
+        await _fx.SeedWorkOrderAsync(keepIdClosed, WoStatus.Closed, "WO-C-1");
+
+        var stats = await _svc.RunCycleAsync();
+
+        Assert.Equal(3, stats.EligibleCount);
+        Assert.Equal(1, stats.PurgedCount);
+        Assert.Equal(2, stats.RetainedCount);
+        Assert.Equal(0, stats.FailedCount);
+
+        await AssertRevExistsAsync(purgeId,      expected: false);
+        await AssertRevExistsAsync(keepIdActive, expected: true);
+        await AssertRevExistsAsync(keepIdClosed, expected: true);
+
+        // Only the actually-purged spec produces an audit row.
         var audit = Assert.Single(_audit.ByAction(AuditAction.SpecPurge));
-        Assert.NotNull(audit.Detail);
-        Assert.DoesNotContain("\"skipped\":true", audit.Detail);
+        Assert.Equal(purgeId.ToString(), audit.TargetId);
     }
 
     // ── Rule #5 — Blob cleanup after EF cascade ───────────────────────
@@ -327,5 +347,14 @@ public sealed class SpecTrashPurgeServiceTests : IDisposable
         using var db = _fx.NewContext();
         var exists = await db.ProductRevisions.AnyAsync(r => r.Id == revId);
         Assert.Equal(expected, exists);
+    }
+
+    private async Task AssertRevIsTrashedAsync(long revId, bool expected)
+    {
+        // Retain is a runtime classification — the spec's IsTrashed bit MUST
+        // stay set (it didn't get restored; it just couldn't be purged).
+        using var db = _fx.NewContext();
+        var rev = await db.ProductRevisions.AsNoTracking().FirstAsync(r => r.Id == revId);
+        Assert.Equal(expected, rev.IsTrashed);
     }
 }
