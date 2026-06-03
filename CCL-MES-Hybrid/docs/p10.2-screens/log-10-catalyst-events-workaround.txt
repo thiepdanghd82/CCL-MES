@@ -1,0 +1,118 @@
+2026-06-03 14:29:45.374 CCL.MES.Hybrid[18703:452769] You've implemented -[<UIApplicationDelegate> application:performFetchWithCompletionHandler:], but you still need to add "fetch" to the list of your supported UIBackgroundModes in your Info.plist.
+2026-06-03 14:29:45.419 CCL.MES.Hybrid[18703:452769] [boot] MauiProgram.CreateMauiApp starting.
+2026-06-03 14:29:45.419 CCL.MES.Hybrid[18703:452769] [boot] embedded resources: CCL.MES.Hybrid.appsettings.json, CCL.MES.Hybrid.App.xaml, CCL.MES.Hybrid.MainPage.xaml, CCL.MES.Hybrid.Platforms.Windows.App.xaml
+2026-06-03 14:29:45.422 CCL.MES.Hybrid[18703:452769] [boot] appsettings.json loaded — 88 bytes.
+2026-06-03 14:29:45.429 CCL.MES.Hybrid[18703:452769] [boot] CclApi:BaseUrl resolved => http://localhost:5100
+2026-06-03 14:29:45.448 CCL.MES.Hybrid[18703:452769] [boot] MauiApp.Build completed without throwing.
+2026-06-03 14:29:45.650 CCL.MES.Hybrid[18703:452769] [BlazorWebView] Initialized — WebView object type: WebKit.WKWebView
+2026-06-03 14:29:45.650 CCL.MES.Hybrid[18703:452769] [BlazorWebView] WKWebView.Inspectable = true (attach via Safari → Develop).
+2026-06-03 14:29:45.651 CCL.MES.Hybrid[18703:452769] [BlazorWebView] userScript + cclLog bridge installed.
+2026-06-03 14:29:45.653 CCL.MES.Hybrid[18703:452769] [BlazorWebView] native UITapGestureRecognizer attached to WKWebView.
+2026-06-03 14:29:46.039 CCL.MES.Hybrid[18703:452769] [js] [js-probe] index.html executed.
+2026-06-03 14:29:46.346 CCL.MES.Hybrid[18703:452769] [Login] OnAfterRender firstRender=true — interactive render handshake reached client.
+2026-06-03 14:29:47.040 CCL.MES.Hybrid[18703:452769] [js] [js-heartbeat] T+1000ms
+2026-06-03 14:29:48.539 CCL.MES.Hybrid[18703:452769] [js] [js-buttons] count=3
+2026-06-03 14:29:48.540 CCL.MES.Hybrid[18703:452769] [js] [js-button#0] text=probe click rect=432,341,80,24 type=button
+2026-06-03 14:29:48.540 CCL.MES.Hybrid[18703:452769] [js] [js-button#1] text=probe async rect=525,341,86,24 type=button
+2026-06-03 14:29:48.540 CCL.MES.Hybrid[18703:452769] [js] [js-button#2] text=Đăng nhập rect=423,567,324,41 type=submit
+2026-06-03 14:29:50.040 CCL.MES.Hybrid[18703:452769] [js] [js-self-test] dispatching .click() on probe-sync button.
+2026-06-03 14:29:50.041 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=BUTTON id= type=button cx=0 cy=0
+2026-06-03 14:29:50.065 CCL.MES.Hybrid[18703:452769] [Login] probe sync clicks=1
+2026-06-03 14:29:50.072 CCL.MES.Hybrid[18703:452769] [js] [js-self-test] .click() returned — check next line for [Login] probe sync clicks=1.
+2026-06-03 14:30:07.362 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=DIV id= type=undefined cx=389.61038961038963 cy=322.6363636363636
+2026-06-03 14:30:07.362 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=DIV id= type=undefined cx=389 cy=322
+2026-06-03 14:30:07.378 CCL.MES.Hybrid[18703:452769] [native-tap] uiview point=(389,6,322,6) state=Ended
+2026-06-03 14:30:07.379 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=DIV id= type=undefined cx=389.61038961038963 cy=322.6363636363636
+2026-06-03 14:30:07.379 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=DIV id= type=undefined cx=389 cy=322
+2026-06-03 14:30:07.380 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=DIV id= type=undefined cx=389 cy=322
+2026-06-03 14:30:08.328 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=DIV id= type=undefined cx=389.61038961038963 cy=374.5844155844156
+2026-06-03 14:30:08.329 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=DIV id= type=undefined cx=389 cy=374
+2026-06-03 14:30:08.342 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=DIV id= type=undefined cx=389.61038961038963 cy=374.5844155844156
+2026-06-03 14:30:08.343 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=DIV id= type=undefined cx=389 cy=374
+2026-06-03 14:30:08.343 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=DIV id= type=undefined cx=389 cy=374
+2026-06-03 14:30:09.286 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=DIV id= type=undefined cx=389.61038961038963 cy=426.53246753246754
+2026-06-03 14:30:09.287 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=DIV id= type=undefined cx=389 cy=426
+2026-06-03 14:30:09.299 CCL.MES.Hybrid[18703:452769] [native-tap] uiview point=(389,6,426,5) state=Ended
+2026-06-03 14:30:09.301 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=DIV id= type=undefined cx=389.61038961038963 cy=426.53246753246754
+2026-06-03 14:30:09.301 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=DIV id= type=undefined cx=389 cy=426
+2026-06-03 14:30:09.301 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=DIV id= type=undefined cx=389 cy=426
+2026-06-03 14:30:10.252 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=DIV id= type=undefined cx=389.61038961038963 cy=453.8051948051948
+2026-06-03 14:30:10.253 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=DIV id= type=undefined cx=389 cy=453
+2026-06-03 14:30:10.266 CCL.MES.Hybrid[18703:452769] [native-tap] uiview point=(389,6,453,8) state=Ended
+2026-06-03 14:30:10.268 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=DIV id= type=undefined cx=389.61038961038963 cy=453.8051948051948
+2026-06-03 14:30:10.268 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=DIV id= type=undefined cx=389 cy=453
+2026-06-03 14:30:10.268 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=DIV id= type=undefined cx=389 cy=453
+2026-06-03 14:30:11.202 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=DIV id= type=undefined cx=431.16883116883116 cy=322.6363636363636
+2026-06-03 14:30:11.203 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=DIV id= type=undefined cx=431 cy=322
+2026-06-03 14:30:11.216 CCL.MES.Hybrid[18703:452769] [native-tap] uiview point=(431,2,322,6) state=Ended
+2026-06-03 14:30:11.219 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=DIV id= type=undefined cx=431.16883116883116 cy=322.6363636363636
+2026-06-03 14:30:11.219 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=DIV id= type=undefined cx=431 cy=322
+2026-06-03 14:30:11.219 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=DIV id= type=undefined cx=431 cy=322
+2026-06-03 14:30:12.145 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=SPAN id= type=undefined cx=431.16883116883116 cy=374.5844155844156
+2026-06-03 14:30:12.145 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=SPAN id= type=undefined cx=431 cy=374
+2026-06-03 14:30:12.158 CCL.MES.Hybrid[18703:452769] [native-tap] uiview point=(431,2,374,6) state=Ended
+2026-06-03 14:30:12.158 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=SPAN id= type=undefined cx=431.16883116883116 cy=374.5844155844156
+2026-06-03 14:30:12.158 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=SPAN id= type=undefined cx=431 cy=374
+2026-06-03 14:30:12.159 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=SPAN id= type=undefined cx=431 cy=374
+2026-06-03 14:30:13.069 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=INPUT id=login-username type=text cx=431.16883116883116 cy=426.53246753246754
+2026-06-03 14:30:13.069 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=INPUT id=login-username type=text cx=431 cy=426
+2026-06-03 14:30:13.082 CCL.MES.Hybrid[18703:452769] [native-tap] uiview point=(431,2,426,5) state=Ended
+2026-06-03 14:30:13.083 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=INPUT id=login-username type=text cx=431.16883116883116 cy=426.53246753246754
+2026-06-03 14:30:13.084 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=INPUT id=login-username type=text cx=431 cy=426
+2026-06-03 14:30:13.084 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=INPUT id=login-username type=text cx=431 cy=426
+2026-06-03 14:30:14.038 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=INPUT id=login-username type=text cx=431.16883116883116 cy=453.8051948051948
+2026-06-03 14:30:14.038 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=INPUT id=login-username type=text cx=431 cy=453
+2026-06-03 14:30:14.043 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=INPUT id=login-username type=text cx=431.16883116883116 cy=453.8051948051948
+2026-06-03 14:30:14.043 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=INPUT id=login-username type=text cx=431 cy=453
+2026-06-03 14:30:14.043 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=INPUT id=login-username type=text cx=431 cy=453
+2026-06-03 14:30:14.994 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=DIV id= type=undefined cx=467.53246753246754 cy=322.6363636363636
+2026-06-03 14:30:14.995 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=DIV id= type=undefined cx=467 cy=322
+2026-06-03 14:30:15.007 CCL.MES.Hybrid[18703:452769] [native-tap] uiview point=(467,5,322,6) state=Ended
+2026-06-03 14:30:15.008 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=DIV id= type=undefined cx=467.53246753246754 cy=322.6363636363636
+2026-06-03 14:30:15.008 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=DIV id= type=undefined cx=467 cy=322
+2026-06-03 14:30:15.008 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=DIV id= type=undefined cx=467 cy=322
+2026-06-03 14:30:15.944 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=SPAN id= type=undefined cx=467.53246753246754 cy=374.5844155844156
+2026-06-03 14:30:15.944 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=SPAN id= type=undefined cx=467 cy=374
+2026-06-03 14:30:15.958 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=SPAN id= type=undefined cx=467.53246753246754 cy=374.5844155844156
+2026-06-03 14:30:15.959 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=SPAN id= type=undefined cx=467 cy=374
+2026-06-03 14:30:15.959 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=SPAN id= type=undefined cx=467 cy=374
+2026-06-03 14:30:16.885 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=INPUT id=login-username type=text cx=467.53246753246754 cy=426.53246753246754
+2026-06-03 14:30:16.885 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=INPUT id=login-username type=text cx=467 cy=426
+2026-06-03 14:30:16.899 CCL.MES.Hybrid[18703:452769] [native-tap] uiview point=(467,5,426,5) state=Ended
+2026-06-03 14:30:16.900 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=INPUT id=login-username type=text cx=467.53246753246754 cy=426.53246753246754
+2026-06-03 14:30:16.900 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=INPUT id=login-username type=text cx=467 cy=426
+2026-06-03 14:30:16.900 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=INPUT id=login-username type=text cx=467 cy=426
+2026-06-03 14:30:17.853 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=INPUT id=login-username type=text cx=467.53246753246754 cy=453.8051948051948
+2026-06-03 14:30:17.853 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=INPUT id=login-username type=text cx=467 cy=453
+2026-06-03 14:30:17.868 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=INPUT id=login-username type=text cx=467.53246753246754 cy=453.8051948051948
+2026-06-03 14:30:17.868 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=INPUT id=login-username type=text cx=467 cy=453
+2026-06-03 14:30:17.868 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=INPUT id=login-username type=text cx=467 cy=453
+2026-06-03 14:30:44.936 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=BUTTON id= type=button cx=472.72727272727275 cy=353.8051948051948
+2026-06-03 14:30:44.936 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=BUTTON id= type=button cx=472 cy=353
+2026-06-03 14:30:44.949 CCL.MES.Hybrid[18703:452769] [native-tap] uiview point=(472,7,353,8) state=Ended
+2026-06-03 14:30:44.950 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=BUTTON id= type=button cx=472.72727272727275 cy=353.8051948051948
+2026-06-03 14:30:44.950 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=BUTTON id= type=button cx=472 cy=353
+2026-06-03 14:30:44.951 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=BUTTON id= type=button cx=472 cy=353
+2026-06-03 14:30:44.953 CCL.MES.Hybrid[18703:452769] [Login] probe sync clicks=2
+2026-06-03 14:30:45.636 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=BUTTON id= type=submit cx=585.7142857142857 cy=587.5714285714286
+2026-06-03 14:30:45.636 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=BUTTON id= type=submit cx=585 cy=587
+2026-06-03 14:30:45.650 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=BUTTON id= type=submit cx=585.7142857142857 cy=587.5714285714286
+2026-06-03 14:30:45.650 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=BUTTON id= type=submit cx=585 cy=587
+2026-06-03 14:30:45.650 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=BUTTON id= type=submit cx=585 cy=587
+2026-06-03 14:30:45.653 CCL.MES.Hybrid[18703:452769] [Login] HandleSubmitAsync entered. u='' p.len=0 _submitting=False
+2026-06-03 14:31:07.285 CCL.MES.Hybrid[18703:452769] [js] [js-pointerdown] target=INPUT id=login-username type=text cx=472.72727272727275 cy=426.53246753246754
+2026-06-03 14:31:07.285 CCL.MES.Hybrid[18703:452769] [js] [js-mousedown] target=INPUT id=login-username type=text cx=472 cy=426
+2026-06-03 14:31:07.299 CCL.MES.Hybrid[18703:452769] [native-tap] uiview point=(472,7,426,5) state=Ended
+2026-06-03 14:31:07.299 CCL.MES.Hybrid[18703:452769] [js] [js-pointerup] target=INPUT id=login-username type=text cx=472.72727272727275 cy=426.53246753246754
+2026-06-03 14:31:07.300 CCL.MES.Hybrid[18703:452769] [js] [js-mouseup] target=INPUT id=login-username type=text cx=472 cy=426
+2026-06-03 14:31:07.300 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=INPUT id=login-username type=text cx=472 cy=426
+2026-06-03 14:31:08.110 CCL.MES.Hybrid[18703:452769] error messaging the mach port for IMKCFRunLoopWakeUpReliable
+2026-06-03 14:31:08.113 CCL.MES.Hybrid[18703:452769] [js] [js-keydown] key=Tab code=Tab target=INPUT shift=false
+2026-06-03 14:31:08.123 CCL.MES.Hybrid[18703:452769] [js] [js-tab-fix] moved focus 2 -> 3 tag=INPUT id=login-password
+2026-06-03 14:31:08.132 CCL.MES.Hybrid[18703:452769] [Login] OnFieldKeyDown key=Tab
+2026-06-03 14:31:08.856 CCL.MES.Hybrid[18703:452769] [js] [js-keydown] key=Enter code=Enter target=INPUT shift=false
+2026-06-03 14:31:08.857 CCL.MES.Hybrid[18703:452769] [js] [js-enter-fix] triggering submit click via DOM .click().
+2026-06-03 14:31:08.857 CCL.MES.Hybrid[18703:452769] [js] [js-click] target=BUTTON id= type=submit cx=0 cy=0
+2026-06-03 14:31:08.859 CCL.MES.Hybrid[18703:452769] [Login] HandleSubmitAsync entered. u='' p.len=0 _submitting=False
+2026-06-03 14:31:08.863 CCL.MES.Hybrid[18703:452769] [Login] OnFieldKeyDown key=Enter
+2026-06-03 14:31:08.863 CCL.MES.Hybrid[18703:452769] [Login] HandleSubmitAsync entered. u='' p.len=0 _submitting=False

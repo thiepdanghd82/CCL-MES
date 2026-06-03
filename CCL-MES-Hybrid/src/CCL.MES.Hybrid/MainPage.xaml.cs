@@ -91,11 +91,71 @@ public partial class MainPage : ContentPage
                         window.addEventListener('unhandledrejection', function (ev) {
                             log('[js-rejection] ' + (ev && ev.reason ? String(ev.reason) : '(no reason)'));
                         });
-                        document.addEventListener('click', function (ev) {
-                            log('[js-click] target=' + (ev.target && ev.target.tagName) + ' id=' + (ev.target && ev.target.id) + ' type=' + (ev.target && ev.target.type) + ' cx=' + ev.clientX + ' cy=' + ev.clientY);
-                        }, true);
+                        // Fine-grained event tracing so we can distinguish
+                        // (a) event never reaches WKWebView DOM
+                        // (b) reaches DOM but Blazor delegate misses it
+                        ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click'].forEach(function (etype) {
+                            document.addEventListener(etype, function (ev) {
+                                log('[js-' + etype + '] target=' + (ev.target && ev.target.tagName) + ' id=' + (ev.target && ev.target.id) + ' type=' + (ev.target && ev.target.type) + ' cx=' + ev.clientX + ' cy=' + ev.clientY);
+                            }, true);
+                        });
                         document.addEventListener('keydown', function (ev) {
-                            log('[js-keydown] key=' + ev.key + ' target=' + (ev.target && ev.target.tagName));
+                            log('[js-keydown] key=' + ev.key + ' code=' + ev.code + ' target=' + (ev.target && ev.target.tagName) + ' shift=' + ev.shiftKey);
+                        }, true);
+                        document.addEventListener('input', function (ev) {
+                            log('[js-input] target=' + (ev.target && ev.target.tagName) + ' id=' + (ev.target && ev.target.id) + ' val.len=' + (ev.target && ev.target.value || '').length);
+                        }, true);
+                        // ────────────────────────────────────────────────
+                        // KNOWN ISSUE WORKAROUND — dotnet/maui#13934.
+                        // On Mac Catalyst, when an <input> element has
+                        // focus, the WKWebView traps Tab/Enter inside that
+                        // input and never moves focus to the next element.
+                        // Native Mac apps, Windows BlazorWebView, and iOS
+                        // are all unaffected — it's a Catalyst-specific
+                        // WKWebView bug Apple has not fixed since 2023
+                        // (Apple Feedback FB12076485, still 'Open').
+                        // Community workaround (@Angineer48 in the issue
+                        // thread): intercept Tab at document level,
+                        // preventDefault, and manually move focus via
+                        // .focus() on the next focusable element. We also
+                        // promote Enter inside form inputs to submit the
+                        // form because the native WKWebView form-submit
+                        // chain has the same trap.
+                        // ────────────────────────────────────────────────
+                        document.addEventListener('keydown', function (ev) {
+                            if (ev.code === 'Tab') {
+                                var sel = 'a:not([disabled]):not([tabindex=""-1""]), button:not([disabled]):not([tabindex=""-1""]), input:not([disabled]):not([tabindex=""-1""]), select:not([disabled]):not([tabindex=""-1""]), textarea:not([disabled]):not([tabindex=""-1""]), [tabindex]:not([disabled]):not([tabindex=""-1""])';
+                                var focusables = Array.prototype.filter.call(document.querySelectorAll(sel), function (el) {
+                                    return el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement;
+                                });
+                                var idx = focusables.indexOf(document.activeElement);
+                                if (idx > -1) {
+                                    ev.preventDefault();
+                                    var nextIdx = idx + (ev.shiftKey ? -1 : 1);
+                                    var next = focusables[nextIdx] || focusables[ev.shiftKey ? focusables.length - 1 : 0];
+                                    if (next) {
+                                        next.focus();
+                                        log('[js-tab-fix] moved focus ' + idx + ' -> ' + nextIdx + ' tag=' + next.tagName + ' id=' + next.id);
+                                    }
+                                }
+                            }
+                            if (ev.code === 'Enter') {
+                                var ae = document.activeElement;
+                                // Enter inside an input field — manually find
+                                // the form's submit button and .click() it so
+                                // the Blazor @onclick delegate fires. The
+                                // native form-submit path goes through
+                                // OnValidSubmit which DataAnnotations + the
+                                // Catalyst event trap interferes with.
+                                if (ae && ae.tagName === 'INPUT' && ae.form) {
+                                    var submitBtn = ae.form.querySelector('button[type=""submit""]');
+                                    if (submitBtn && !submitBtn.disabled) {
+                                        ev.preventDefault();
+                                        log('[js-enter-fix] triggering submit click via DOM .click().');
+                                        submitBtn.click();
+                                    }
+                                }
+                            }
                         }, true);
                         // Heartbeat after Blazor likely started — proves
                         // setTimeout JS task queue is alive.
@@ -143,6 +203,28 @@ public partial class MainPage : ContentPage
                 isForMainFrameOnly: true);
             wkWebView.Configuration.UserContentController.AddUserScript(userScript);
             Console.WriteLine("[BlazorWebView] userScript + cclLog bridge installed.");
+
+            // Force WKWebView to claim first-responder so the host UIWindow
+            // routes keyboard events here. Without this, keyboard input
+            // on Catalyst can land on the containing UIView and never
+            // reach the web content — one of several manifestations of
+            // dotnet/maui#13934.
+            wkWebView.BecomeFirstResponder();
+
+            // Native UIView-layer click observer. If physical clicks
+            // reach the WKWebView's UIView but DON'T reach the embedded
+            // web content (the documented Catalyst trap), we'd see this
+            // log fire but [js-pointerdown] / [js-mousedown] would not.
+            var tapGesture = new UIKit.UITapGestureRecognizer((g) =>
+            {
+                var pt = g.LocationInView(wkWebView);
+                Console.WriteLine($"[native-tap] uiview point=({pt.X:F1},{pt.Y:F1}) state={g.State}");
+            });
+            tapGesture.CancelsTouchesInView = false;
+            tapGesture.DelaysTouchesBegan = false;
+            tapGesture.DelaysTouchesEnded = false;
+            wkWebView.AddGestureRecognizer(tapGesture);
+            Console.WriteLine("[BlazorWebView] native UITapGestureRecognizer attached to WKWebView.");
         }
         catch (Exception ex)
         {
