@@ -1023,3 +1023,427 @@ html, body {
 .modal-severity-success .modal-title { color: #166534; }
 .modal-severity-warning .modal-title { color: #92400e; }
 .modal-severity-danger  .modal-title { color: #991b1b; }
+
+/* ── P10.5b — Spec list view chips + planner palette + status pills */
+
+.spec-view-chips {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: 8px;
+    padding: 2px;
+    background: #f3f4f6;
+    border-radius: 8px;
+}
+
+.spec-view-chip {
+    background: transparent;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    color: #4b5563;
+    cursor: pointer;
+}
+
+.spec-view-chip:hover  { color: #1f2937; }
+.spec-view-chip.is-active {
+    background: white;
+    color: #1d4ed8;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+    font-weight: 600;
+}
+
+.spec-row { cursor: default; }
+.spec-row:hover { background: #f8fafc; }
+
+.grid-row-num {
+    color: #6b7280;
+    font-size: 0.82rem;
+    text-align: right;
+}
+
+/* Planner chips — SpecHub palette mapped to navy variants. */
+.spec-planner-chip {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: white;
+    text-transform: uppercase;
+}
+
+.spec-planner-silk     { background: #c8102e; }
+.spec-planner-flexo    { background: #0033a0; }
+.spec-planner-letter   { background: #7c2d12; }
+.spec-planner-indigo   { background: #00897b; }
+.spec-planner-diecut   { background: #9333ea; }
+.spec-planner-unknown  { background: #6b7280; }
+
+/* 5-state status pill — Q2: mirror legacy web 5-state, NOT SpecHub 3. */
+.spec-status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.spec-status-draft        { background: #e5e7eb; color: #374151; }
+.spec-status-in-review    { background: #fef3c7; color: #92400e; }
+.spec-status-approved     { background: #dcfce7; color: #166534; }
+.spec-status-released     { background: #dbeafe; color: #1e3a8a; }
+.spec-status-superseded   { background: #f3f4f6; color: #6b7280; text-decoration: line-through; }
+
+/* Spec context menu — absolutely positioned */
+.spec-ctx-scrim {
+    position: fixed; inset: 0;
+    background: transparent;
+    z-index: 50;
+}
+
+.spec-ctx-menu {
+    position: fixed;
+    z-index: 51;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+    min-width: 280px;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.spec-ctx-section {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.spec-ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 0.92rem;
+    color: #111827;
+    text-align: left;
+}
+
+.spec-ctx-item:hover:not(:disabled) { background: #eef2ff; color: #1d4ed8; }
+.spec-ctx-item.is-deferred {
+    color: #9ca3af;
+    cursor: not-allowed;
+}
+
+.spec-ctx-item .spec-ctx-ico {
+    width: 1.4rem;
+    color: #6b7280;
+    text-align: center;
+}
+
+.spec-ctx-divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 4px 8px;
+}
+
+/* ── P10.5b — Spec detail header + tabs + showcard navy theme */
+
+.spec-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 12px;
+}
+
+.spec-detail-crumb {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
+.spec-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    border-bottom: 1px solid #e5e7eb;
+    margin: 0 0 16px;
+}
+
+.spec-tab {
+    background: transparent;
+    border: none;
+    padding: 10px 16px;
+    font-size: 0.95rem;
+    color: #4b5563;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+
+.spec-tab:hover { color: #1d4ed8; }
+.spec-tab.is-active {
+    color: #161b22;
+    font-weight: 600;
+    border-bottom-color: #161b22;
+}
+
+.spec-tab-panel { padding: 0 0 32px; }
+
+.spec-showcard {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-top: 4px solid #161b22;     /* navy header per Henry's brief */
+    border-radius: 10px;
+    padding: 18px 22px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.spec-showcard-head {
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 12px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px 16px;
+    align-items: center;
+}
+
+.spec-showcard-headline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.spec-showcard-spec-code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-weight: 700;
+    color: #111827;
+    font-size: 1.05rem;
+}
+
+.spec-showcard-title {
+    grid-column: 1 / -1;
+    font-size: 0.95rem;
+    color: #4b5563;
+}
+
+.spec-showcard-rev {
+    color: #4b5563;
+    font-size: 0.9rem;
+    align-self: flex-start;
+    text-align: right;
+}
+
+.spec-showcard-rev strong { font-family: ui-monospace, monospace; color: #161b22; }
+
+.spec-showcard-empty { color: #6b7280; font-style: italic; }
+
+.spec-showcard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px 16px;
+    margin: 0;
+}
+
+.spec-showcard-cell {
+    padding: 4px 0;
+    border-bottom: 1px dashed #f1f5f9;
+}
+
+.spec-showcard-cell dt {
+    color: #6b7280;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 2px;
+}
+
+.spec-showcard-cell dd {
+    color: #111827;
+    font-size: 0.92rem;
+    margin: 0;
+}
+
+.spec-mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+.spec-process-flag {
+    display: inline-block;
+    padding: 2px 10px;
+    background: #f3f4f6;
+    color: #4b5563;
+    border-radius: 999px;
+    font-size: 0.82rem;
+}
+
+.spec-process-flag.is-silk  { background: #fee2e2; color: #991b1b; }
+.spec-process-flag.is-flexo { background: #dbeafe; color: #1e3a8a; }
+
+.spec-showcard-section {
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.spec-showcard-section-title {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    color: #6b7280;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+}
+
+.spec-compliance-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.spec-compliance-chip {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.82rem;
+    color: #1f2937;
+}
+
+.spec-showcard-note { margin: 0; color: #1f2937; font-size: 0.9rem; }
+.spec-showcard-deferred { color: #6b7280; }
+
+.spec-showcard-stamps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 4px 16px;
+}
+
+.spec-showcard-stamp {
+    color: #4b5563;
+    font-size: 0.82rem;
+    display: flex;
+    gap: 6px;
+}
+
+.spec-stamp-label { color: #6b7280; }
+.spec-stamp-value { color: #111827; }
+
+/* Drawings tab */
+.drawing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 12px;
+}
+
+.drawing-slot {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.drawing-slot-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.drawing-slot-versions {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.drawing-version-row {
+    display: grid;
+    grid-template-columns: 3rem 1fr auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom: 1px dashed #f1f5f9;
+    font-size: 0.88rem;
+}
+
+.drawing-size { color: #6b7280; font-size: 0.82rem; }
+
+.drawing-status-draft           { color: #374151; }
+.drawing-status-pendingapproval { color: #92400e; }
+.drawing-status-approved        { color: #166534; }
+.drawing-status-rejected        { color: #991b1b; }
+.drawing-status-superseded      { color: #6b7280; }
+.drawing-status-withdrawn       { color: #4b5563; text-decoration: line-through; }
+
+/* QC tabs */
+.qc-stage-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 12px;
+}
+
+.qc-stage-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.qc-stage-card-head { color: #111827; }
+.qc-stage-card-title { color: #4b5563; font-size: 0.92rem; }
+.qc-stage-card-sample { color: #4b5563; font-size: 0.85rem; }
+
+.qc-result-pill {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.qc-result-pass { background: #dcfce7; color: #166534; }
+.qc-result-fail { background: #fee2e2; color: #991b1b; }
+.qc-result-na   { background: #f3f4f6; color: #6b7280; }
+
+.spec-tab-stub {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 18px 22px;
+}
+
+.spec-setup { display: flex; flex-direction: column; gap: 12px; }
+
+.spec-empty-inline { color: #6b7280; font-style: italic; font-size: 0.88rem; }
+
+.spec-deferred-note {
+    color: #6b7280;
+    font-size: 0.85rem;
+    margin: 8px 0 0;
+}
+
+.grid.grid-sm th, .grid.grid-sm td {
+    padding: 4px 8px;
+    font-size: 0.85rem;
+}

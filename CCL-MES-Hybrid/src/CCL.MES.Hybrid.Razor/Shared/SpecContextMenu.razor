@@ -1,0 +1,97 @@
+@*
+    P10.5b — Spec list row context menu. Read-only entries land in this
+    PR; mutation entries (Copy / Edit / Revise / Mark Superseded / Trash)
+    render but disabled with the i18n marker text "có ở bản sau" per the
+    P10.5 plan ordering (mutations = P10.5c+).
+
+    Trigger: parent grid passes Open=true + Anchor coordinates; menu
+    renders absolutely positioned via inline style. Click outside →
+    OnClose. ESC handled at parent via the standard MacCatalystKeyboardFix
+    Tab/Enter polyfill.
+
+    The "Open" + "Get info" actions are different navigation paths the
+    operator may want:
+       Open      → navigate to /spec/{id} (full detail page in this tab)
+       Get info  → no-op placeholder for the lightweight modal peek
+                   (P10.5b ships the full page only; modal-peek deferred
+                   per Henry's Q3 — full mode in 5c covers it).
+*@
+
+@if (Open)
+{
+    <div class="spec-ctx-scrim" @onclick="OnClose" @onclick:stopPropagation="true"></div>
+    <div class="spec-ctx-menu"
+         style="@($"left:{Anchor.X}px; top:{Anchor.Y}px;")"
+         role="menu" @onclick:stopPropagation="true">
+        <div class="spec-ctx-section">@TargetSpecCode</div>
+
+        <button type="button" class="spec-ctx-item" @onclick="OnOpenAsync">
+            <span class="spec-ctx-ico">↗</span>
+            <span>Mở chi tiết</span>
+        </button>
+        <button type="button" class="spec-ctx-item" @onclick="OnInfoAsync">
+            <span class="spec-ctx-ico">ⓘ</span>
+            <span>Xem thông tin</span>
+        </button>
+
+        <div class="spec-ctx-divider"></div>
+
+        @* Mutations — deferred per plan. Render visible but disabled so
+           operators see the path coming and don't ask where it went. *@
+        <button type="button" class="spec-ctx-item is-deferred" disabled>
+            <span class="spec-ctx-ico">📝</span>
+            <span>Sửa <em>(có ở bản sau)</em></span>
+        </button>
+        <button type="button" class="spec-ctx-item is-deferred" disabled>
+            <span class="spec-ctx-ico">⎘</span>
+            <span>Sao chép <em>(có ở bản sau)</em></span>
+        </button>
+        <button type="button" class="spec-ctx-item is-deferred" disabled>
+            <span class="spec-ctx-ico">⟳</span>
+            <span>Tạo bản mới (Revise) <em>(có ở bản sau)</em></span>
+        </button>
+        <button type="button" class="spec-ctx-item is-deferred" disabled>
+            <span class="spec-ctx-ico">⊘</span>
+            <span>Đánh dấu thay thế <em>(có ở bản sau)</em></span>
+        </button>
+        <button type="button" class="spec-ctx-item is-deferred" disabled>
+            <span class="spec-ctx-ico">🗑</span>
+            <span>Xoá vào thùng rác <em>(có ở bản sau)</em></span>
+        </button>
+    </div>
+}
+
+@code {
+    /// <summary>Controls whether the menu is visible. Parent flips false
+    /// after firing an action so the menu collapses cleanly.</summary>
+    [Parameter] public bool Open { get; set; }
+
+    /// <summary>Absolute pixel offset relative to the page where the
+    /// menu's top-left anchors. Caller computes from MouseEventArgs
+    /// (ClientX/ClientY) at trigger time.</summary>
+    [Parameter] public (double X, double Y) Anchor { get; set; }
+
+    /// <summary>Spec id the menu is acting on. Echoed to the OnOpen +
+    /// OnInfo callbacks so the parent can route.</summary>
+    [Parameter, EditorRequired] public long TargetSpecId { get; set; }
+
+    /// <summary>SpecCode shown as the menu header so the operator
+    /// confirms which row the action will apply to.</summary>
+    [Parameter] public string TargetSpecCode { get; set; } = "";
+
+    [Parameter] public EventCallback<long> OnOpen { get; set; }
+    [Parameter] public EventCallback<long> OnInfo { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private async Task OnOpenAsync()
+    {
+        if (OnOpen.HasDelegate) await OnOpen.InvokeAsync(TargetSpecId);
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+
+    private async Task OnInfoAsync()
+    {
+        if (OnInfo.HasDelegate) await OnInfo.InvokeAsync(TargetSpecId);
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+}

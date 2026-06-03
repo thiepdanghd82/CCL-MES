@@ -4,7 +4,10 @@ using CCL.MES.Hybrid.Client.Npi;
 using CCL.MES.Shared;
 using CCL.MES.Shared.Auth;
 using CCL.MES.Shared.Devices;
+using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.QcSpecs;
+using CCL.MES.Shared.Specs;
 using CCL.MES.Shared.WorkOrders;
 using Microsoft.Extensions.Options;
 
@@ -114,6 +117,54 @@ public sealed class CclApiClient : ICclApiClient
             $"/{ApiVersion.Prefix}/devices/{Uri.EscapeDataString(deviceId)}", ct);
         if (resp.StatusCode == HttpStatusCode.NotFound) return null;
         return await ReadAsAsync<DeviceInfoResponse>(resp, ct);
+    }
+
+    // ── Specs ───────────────────────────────────────────────────────
+
+    public async Task<NpiPagedRaw<SpecListItem>> GetSpecsAsync(string? search, int page, int pageSize, string? view, CancellationToken ct = default)
+    {
+        var qs = $"page={page}&pageSize={pageSize}";
+        if (!string.IsNullOrWhiteSpace(search))
+            qs += $"&search={Uri.EscapeDataString(search)}";
+        if (!string.IsNullOrWhiteSpace(view))
+            qs += $"&view={Uri.EscapeDataString(view)}";
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/specs?{qs}", ct);
+        return await ReadAsAsync<NpiPagedRaw<SpecListItem>>(resp, ct);
+    }
+
+    public async Task<SpecDetailItem?> GetSpecDetailAsync(long revisionId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/specs/{revisionId}", ct);
+        if (resp.StatusCode == HttpStatusCode.NotFound) return null;
+        return await ReadAsAsync<SpecDetailItem>(resp, ct);
+    }
+
+    // ── Drawings ────────────────────────────────────────────────────
+
+    public async Task<List<DrawingKindSlot>> GetDrawingsByRevisionAsync(long revisionId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/drawings/by-revision/{revisionId}", ct);
+        return await ReadAsAsync<List<DrawingKindSlot>>(resp, ct);
+    }
+
+    // ── QC Specs ────────────────────────────────────────────────────
+
+    public async Task<Dictionary<string, QcWindowItem?>> GetQcWindowsByRevisionAsync(long revisionId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/qc-specs/windows/by-revision/{revisionId}", ct);
+        return await ReadAsAsync<Dictionary<string, QcWindowItem?>>(resp, ct);
+    }
+
+    public async Task<List<QcCaptureItem>> GetQcCapturesByRevisionAsync(long revisionId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/qc-specs/captures/by-revision/{revisionId}", ct);
+        return await ReadAsAsync<List<QcCaptureItem>>(resp, ct);
+    }
+
+    public async Task<List<QcReasonCode>> GetQcReasonCodesAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/qc-specs/reason-codes", ct);
+        return await ReadAsAsync<List<QcReasonCode>>(resp, ct);
     }
 
     // ── helpers ─────────────────────────────────────────────────────

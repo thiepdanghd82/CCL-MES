@@ -1,7 +1,10 @@
 using CCL.MES.Hybrid.Client.Npi;
 using CCL.MES.Shared.Auth;
 using CCL.MES.Shared.Devices;
+using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.QcSpecs;
+using CCL.MES.Shared.Specs;
 using CCL.MES.Shared.WorkOrders;
 
 namespace CCL.MES.Hybrid.Client;
@@ -45,6 +48,36 @@ public interface ICclApiClient
     Task<HeartbeatResponse> HeartbeatAsync(HeartbeatRequest req, CancellationToken ct = default);
     /// <summary>Returns null on 404 (device never connected); throws on other errors.</summary>
     Task<DeviceInfoResponse?> GetDeviceInfoAsync(CancellationToken ct = default);
+
+    // ── Specs (P10.5b — read-only; mutations land in P10.5c+) ─────
+    /// <summary>Paged Spec list. View defaults to Active server-side.
+    /// `view` accepts "active" / "trash" / "all" — case-insensitive
+    /// per the legacy `SpecListView` enum.</summary>
+    Task<NpiPagedRaw<SpecListItem>> GetSpecsAsync(string? search, int page, int pageSize, string? view, CancellationToken ct = default);
+
+    /// <summary>Returns the full <see cref="SpecDetailItem"/> for a
+    /// revision id. Null on 404 (mirrors Spec list view returning
+    /// 404 for trashed-but-active-only views).</summary>
+    Task<SpecDetailItem?> GetSpecDetailAsync(long revisionId, CancellationToken ct = default);
+
+    // ── Drawings (P10.5b — read) ──────────────────────────────────
+    /// <summary>9-slot drawing layout per revision. Empty list when the
+    /// revision is unknown (server returns []; we return [] not null).</summary>
+    Task<List<DrawingKindSlot>> GetDrawingsByRevisionAsync(long revisionId, CancellationToken ct = default);
+
+    // ── QC Specs (P10.5b — read) ──────────────────────────────────
+    /// <summary>QC windows keyed by stage. Server returns the legacy
+    /// <c>Dictionary&lt;QcStage, SpecQcWindow?&gt;</c> — we expose as
+    /// <c>Dictionary&lt;string, QcWindowItem?&gt;</c> so the QC Plans tab
+    /// can render the 4 stage cards independently.</summary>
+    Task<Dictionary<string, QcWindowItem?>> GetQcWindowsByRevisionAsync(long revisionId, CancellationToken ct = default);
+
+    /// <summary>Flat list of captures across all stages of the revision.
+    /// QC Capture tab groups client-side by <see cref="QcCaptureItem.SpecQcWindowId"/>.</summary>
+    Task<List<QcCaptureItem>> GetQcCapturesByRevisionAsync(long revisionId, CancellationToken ct = default);
+
+    /// <summary>NG reason-code master list. Cached locally per session.</summary>
+    Task<List<QcReasonCode>> GetQcReasonCodesAsync(CancellationToken ct = default);
 }
 
 /// <summary>

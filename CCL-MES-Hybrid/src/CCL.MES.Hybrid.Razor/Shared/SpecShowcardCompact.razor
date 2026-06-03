@@ -1,0 +1,145 @@
+@*
+    P10.5b — Compact-mode Spec showcard. Renders identity + status +
+    planner + compliance + remarks + approval stamps. NO sub-spec tables
+    (material / print rows / flexo / silk) — those land in 5c full mode.
+
+    Compact mode is consumed by:
+       - /npi/specs/{id} detail page tab "Specification"
+       - (future) Spec list double-click modal peek
+       - (future) "Get info" context menu action
+
+    Q12 — i18n inline VN with marker comments.
+*@
+
+@if (Vm is null)
+{
+    <div class="spec-showcard">
+        <p class="spec-showcard-empty">Chưa có dữ liệu showcard.</p>
+    </div>
+}
+else
+{
+    <div class="spec-showcard">
+        <div class="spec-showcard-head">
+            <div class="spec-showcard-headline">
+                <span class="spec-planner-chip @Vm.PlannerCssClass">@Vm.PlannerLabel</span>
+                <span class="spec-showcard-spec-code">@Vm.SpecCode</span>
+                <span class="spec-status-pill @Vm.StatusCssClass">@Vm.StatusLabel</span>
+            </div>
+            <div class="spec-showcard-title">@Vm.Title</div>
+            <div class="spec-showcard-rev">Rev <strong>@Vm.RevisionCode</strong></div>
+        </div>
+
+        <dl class="spec-showcard-grid">
+            <div class="spec-showcard-cell">
+                <dt>REF NO</dt>
+                <dd class="spec-mono">@(Vm.RefNo ?? "—")</dd>
+            </div>
+            <div class="spec-showcard-cell">
+                <dt>Khách hàng</dt>
+                <dd>@(Vm.CustomerName ?? "—")</dd>
+            </div>
+            <div class="spec-showcard-cell">
+                <dt>Part No</dt>
+                <dd class="spec-mono">@Vm.ProductCode</dd>
+            </div>
+            <div class="spec-showcard-cell">
+                <dt>Tên Part</dt>
+                <dd>@Vm.ProductName</dd>
+            </div>
+            <div class="spec-showcard-cell">
+                <dt>Quy trình</dt>
+                <dd class="spec-mono">@Vm.ProcessCode</dd>
+            </div>
+            <div class="spec-showcard-cell">
+                <dt>Spec</dt>
+                <dd>@(Vm.InspectionLevel ?? "—")</dd>
+            </div>
+            <div class="spec-showcard-cell">
+                <dt>Kích thước sản phẩm</dt>
+                <dd>@Vm.ProductSizeDisplay</dd>
+            </div>
+            <div class="spec-showcard-cell">
+                <dt>Loại quy trình</dt>
+                <dd>
+                    @if (Vm.IsSilkscreen)
+                    {
+                        <span class="spec-process-flag is-silk">Silk / Indigo</span>
+                    }
+                    else if (Vm.IsFlexo)
+                    {
+                        <span class="spec-process-flag is-flexo">Flexo</span>
+                    }
+                    else
+                    {
+                        <span class="spec-process-flag">Khác / chung</span>
+                    }
+                </dd>
+            </div>
+        </dl>
+
+        @if (Vm.ComplianceChips.Count > 0)
+        {
+            <div class="spec-showcard-section">
+                <div class="spec-showcard-section-title">Tuân thủ</div>
+                <div class="spec-compliance-row">
+                    @foreach (var chip in Vm.ComplianceChips)
+                    {
+                        <span class="spec-compliance-chip">@chip</span>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(Vm.RemarksText) || !string.IsNullOrWhiteSpace(Vm.RemarksCutText))
+        {
+            <div class="spec-showcard-section">
+                <div class="spec-showcard-section-title">Ghi chú</div>
+                @if (!string.IsNullOrWhiteSpace(Vm.RemarksText))
+                {
+                    <p class="spec-showcard-note"><strong>In:</strong> @Vm.RemarksText</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(Vm.RemarksCutText))
+                {
+                    <p class="spec-showcard-note"><strong>Bế:</strong> @Vm.RemarksCutText</p>
+                }
+            </div>
+        }
+
+        <div class="spec-showcard-stamps">
+            <div class="spec-showcard-stamp">
+                <span class="spec-stamp-label">Tạo:</span>
+                <span class="spec-stamp-value">@(Vm.CreatedBy ?? "—") · @Vm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</span>
+            </div>
+            @if (Vm.UpdatedAt is not null)
+            {
+                <div class="spec-showcard-stamp">
+                    <span class="spec-stamp-label">Cập nhật:</span>
+                    <span class="spec-stamp-value">@(Vm.UpdatedBy ?? "—") · @Vm.UpdatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd")</span>
+                </div>
+            }
+            @if (Vm.ApprovedAt is not null)
+            {
+                <div class="spec-showcard-stamp">
+                    <span class="spec-stamp-label">Duyệt:</span>
+                    <span class="spec-stamp-value">@(Vm.ApprovedBy ?? "—") · @Vm.ApprovedAt.Value.ToLocalTime().ToString("yyyy-MM-dd")</span>
+                </div>
+            }
+            @if (Vm.ReleasedAt is not null)
+            {
+                <div class="spec-showcard-stamp">
+                    <span class="spec-stamp-label">Phát hành:</span>
+                    <span class="spec-stamp-value">@(Vm.ReleasedBy ?? "—") · @Vm.ReleasedAt.Value.ToLocalTime().ToString("yyyy-MM-dd")</span>
+                </div>
+            }
+        </div>
+
+        <p class="spec-showcard-note spec-showcard-deferred">
+            <em>Toàn bộ nội dung sub-spec (Material / Print rows / Flexo / Silk) sẽ có ở bản 5c (Full mode).</em>
+        </p>
+    </div>
+}
+
+@code {
+    [Parameter] public SpecShowcardVm? Vm { get; set; }
+}
