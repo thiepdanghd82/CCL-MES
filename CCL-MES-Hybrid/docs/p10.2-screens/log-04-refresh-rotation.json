@@ -1,0 +1,14 @@
+{
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIxNThjODQ5NDNhMTg0NjA2YTk1NzFjMTVkYjljNjUxNyIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiNCIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJlbmdpbmVlciIsImh0dHA6Ly9zY2hlbWFzLm1pY3Jvc29mdC5jb20vd3MvMjAwOC8wNi9pZGVudGl0eS9jbGFpbXMvcm9sZSI6IkVuZ2luZWVyIiwiZGlzcGxheV9uYW1lIjoiRGVtbyBFbmdpbmVlciIsImRlcGFydG1lbnQiOiIiLCJuYmYiOjE3ODA0NjY5MDAsImV4cCI6MTc4MDQ2NzgwMCwiaXNzIjoiY2NsLW1lcy1hcGkiLCJhdWQiOiJjY2wtbWVzLWh5YnJpZCJ9.O6vG1FT56vKamPvMigyq8E0VNmontNutVJiw-48myJc",
+    "refreshToken": "b_F87ztumevRaR2tUSwbg9XBk-c64ehdJqLEd7rzcPk",
+    "accessTokenExpiresAt": "2026-06-03T06:23:20.498922Z",
+    "refreshTokenExpiresAt": "2026-06-10T06:08:20.498922Z",
+    "user": {
+        "id": 4,
+        "username": "engineer",
+        "role": "Engineer",
+        "displayName": "Demo Engineer",
+        "department": "",
+        "language": ""
+    }
+}

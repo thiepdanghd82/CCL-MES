@@ -1,0 +1,9 @@
+@*
+  Top-level root component for the MAUI Hybrid host. CascadingAuthenticationState
+  feeds <AuthorizeView> + the RBAC shell. Anonymous users get routed to the
+  Login page by AuthRedirectRouter (declared inside Routes.razor) — no need
+  for a separate <NotAuthorized> branch on every page.
+*@
+<CascadingAuthenticationState>
+    <Routes />
+</CascadingAuthenticationState>

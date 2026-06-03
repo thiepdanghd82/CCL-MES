@@ -1,0 +1,339 @@
+/* Phase 10 P10.2 — minimal Carbon-leaning stylesheet.
+   Lean on purpose; operator UX work lands in P10.5+ once we know which
+   screens ship for real. No external CSS deps; everything inline so the
+   MAUI bundle stays small. */
+
+:root {
+    --navy:    #161b22;
+    --navy-2:  #1f2730;
+    --line:    #2b333d;
+    --ink:     #e6edf3;
+    --ink-mut: #8b949e;
+    --brand:   #2f80ed;
+    --brand-2: #1f5ec7;
+    --error:   #f85149;
+    --warn:    #f1b500;
+    --bg:      #f6f8fa;
+    --card:    #ffffff;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: #1f2937;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    height: 100%;
+}
+
+#app {
+    height: 100%;
+}
+
+/* ─────── Shell ─────── */
+
+.app-shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+}
+
+.app-nav {
+    background: var(--navy);
+    color: var(--ink);
+    padding: 18px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-right: 1px solid var(--line);
+}
+
+.app-nav-brand {
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: 0.04em;
+    padding: 6px 10px 16px;
+    border-bottom: 1px solid var(--line);
+}
+
+.app-nav-link {
+    display: block;
+    color: var(--ink);
+    text-decoration: none;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+}
+
+.app-nav-link:hover {
+    background: var(--navy-2);
+}
+
+.app-nav-link.active {
+    background: var(--brand);
+    color: white;
+}
+
+.app-nav-userbox {
+    margin-top: auto;
+    padding: 12px;
+    background: var(--navy-2);
+    border-radius: 6px;
+}
+
+.app-nav-userline { font-weight: 600; font-size: 0.95rem; }
+.app-nav-userline-sub { color: var(--ink-mut); font-size: 0.8rem; }
+
+.app-nav-logout {
+    margin-top: 10px;
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 6px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.app-nav-logout:hover { background: var(--line); }
+
+.app-main {
+    display: flex;
+    flex-direction: column;
+}
+
+.app-content {
+    flex: 1;
+    padding: 20px 28px;
+    overflow: auto;
+}
+
+/* ─────── Connectivity banner ─────── */
+
+.app-conn-banner {
+    background: rgba(241, 181, 0, 0.15);
+    color: #8a6500;
+    border-bottom: 1px solid var(--warn);
+    padding: 8px 16px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font-size: 0.9rem;
+}
+
+.app-conn-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--warn);
+    border-radius: 50%;
+    animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+/* ─────── Login ─────── */
+
+.empty-layout {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #1f2937, #111827);
+    display: grid;
+    place-items: center;
+}
+
+.login-shell {
+    width: 100%;
+    max-width: 380px;
+    padding: 16px;
+}
+
+.login-card {
+    background: white;
+    border-radius: 10px;
+    padding: 28px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+
+.login-title {
+    margin: 0 0 4px;
+    font-size: 1.4rem;
+    color: #111827;
+    letter-spacing: 0.04em;
+}
+
+.login-sub {
+    margin: 0 0 22px;
+    color: #6b7280;
+    font-size: 0.92rem;
+}
+
+.login-field {
+    display: block;
+    margin-bottom: 16px;
+}
+
+.login-field label {
+    display: block;
+    font-size: 0.85rem;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.login-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    box-sizing: border-box;
+}
+
+.login-input:focus {
+    outline: 2px solid var(--brand);
+    outline-offset: -1px;
+    border-color: var(--brand);
+}
+
+.login-submit {
+    width: 100%;
+    background: var(--brand);
+    color: white;
+    border: none;
+    padding: 11px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+}
+
+.login-submit:hover  { background: var(--brand-2); }
+.login-submit:disabled { background: #93b8eb; cursor: not-allowed; }
+
+.login-error {
+    background: rgba(248, 81, 73, 0.1);
+    color: #991b1b;
+    border: 1px solid rgba(248, 81, 73, 0.4);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    font-size: 0.88rem;
+}
+
+/* ─────── Pages ─────── */
+
+.page-title {
+    margin: 0 0 14px;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.home-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.home-tile {
+    display: block;
+    padding: 18px 16px;
+    background: var(--card);
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.home-tile:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+}
+
+.home-tile-title { font-weight: 600; margin-bottom: 4px; }
+.home-tile-desc  { color: #6b7280; font-size: 0.88rem; }
+
+/* ─────── Grid ─────── */
+
+.grid-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.grid-search {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.95rem;
+}
+
+.grid-btn {
+    padding: 8px 14px;
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.grid-btn:hover:not(:disabled) { background: #f3f4f6; }
+.grid-btn:disabled { color: #9ca3af; cursor: not-allowed; }
+
+.grid {
+    width: 100%;
+    background: white;
+    border-collapse: collapse;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.grid th, .grid td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #f3f4f6;
+    font-size: 0.9rem;
+}
+
+.grid th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.grid tr:last-child td { border-bottom: none; }
+
+.grid-empty {
+    text-align: center;
+    color: #9ca3af;
+    padding: 24px;
+}
+
+.grid-pager {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 0.9rem;
+    color: #4b5563;
+}
+
+.grid-status, .grid-error {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 16px;
+}
+
+.grid-error {
+    border-color: rgba(248, 81, 73, 0.4);
+    background: rgba(248, 81, 73, 0.05);
+    color: #991b1b;
+}

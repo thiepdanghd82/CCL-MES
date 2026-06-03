@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    Phase 10 P10.2 — Razor class library hosting the Blazor UI shared
+    between the MAUI Blazor Hybrid app (Win + MacCatalyst) and any future
+    web-assembly variant.
+
+    Why an RCL instead of inlining .razor files in CCL.MES.Hybrid?
+      - The MAUI csproj multi-targets to net10.0-maccatalyst +
+        net10.0-windows10.0.19041.0. A separate net10.0 RCL keeps the UI
+        free of platform-specific symbols and lets a future BlazorWebApp
+        host (e.g. for a "web-only" plant) reuse the same pages
+        unchanged. Locked in by Henry's Q3 = Razor class library.
+      - Test isolation: pure-net10.0 dependency means the existing
+        Hybrid.Client.Tests project can take a reference if/when we want
+        to test components — no MAUI workload required.
+
+    Constraints:
+      - No MAUI / SecureStorage references here. The shell wires
+        platform services and the RCL consumes them via DI abstractions
+        (ITokenStore, ICclApiClient, IConnectivityMonitor).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CCL.MES.Hybrid.Razor</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CCL.MES.Shared\CCL.MES.Shared.csproj" />
+    <ProjectReference Include="..\CCL.MES.Hybrid.Client\CCL.MES.Hybrid.Client.csproj" />
+  </ItemGroup>
+
+</Project>

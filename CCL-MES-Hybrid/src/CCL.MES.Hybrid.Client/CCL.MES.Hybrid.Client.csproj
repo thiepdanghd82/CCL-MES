@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Phase 10 P10.2 — Platform-agnostic typed API client + token plumbing
+    consumed by the MAUI Hybrid app (and any future Blazor variant). NO
+    MAUI references here so it stays multi-target friendly + xUnit can
+    bring it in unchanged.
+
+    Surface:
+      - ITokenStore           (abstraction; InMemoryTokenStore impl for tests)
+      - JwtClaims             (lightweight client-side decode, NOT validation)
+      - IAuthSession          (broadcasts login/logout; holds current user)
+      - ICclApiClient         (typed wrappers around the API endpoints
+                               needed by the P10.2 pilot — Auth + NPI)
+      - AuthorizationDelegatingHandler — Bearer attach + 401-refresh
+                                          with serialized concurrent refresh
+      - DI extension AddCclHybridClient(...) — one-call setup
+
+    Constraints:
+      - No MAUI deps. SecureStorage is supplied by the MAUI project via the
+        ITokenStore interface.
+      - Refresh-rotation flow matches the API contract from P10.1: a
+        single SemaphoreSlim serialises refresh attempts so concurrent
+        401s only trigger ONE refresh.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CCL.MES.Hybrid.Client</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CCL.MES.Shared\CCL.MES.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

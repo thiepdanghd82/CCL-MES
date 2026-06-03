@@ -1,0 +1,123 @@
+@page "/npi/workcenters"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
+@inject ICclApiClient Api
+
+<PageTitle>Work Centers — CCL MES</PageTitle>
+
+<h1 class="page-title">Work Centers</h1>
+
+<div class="grid-toolbar">
+    <input type="search" class="grid-search" placeholder="Tìm theo mã hoặc mô tả…"
+           @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKey" />
+    <button type="button" class="grid-btn" @onclick="LoadAsync" disabled="@_loading">Tìm</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+</div>
+
+@if (_loading && _data is null)
+{
+    <p class="grid-status">Đang tải…</p>
+}
+else if (_error is not null)
+{
+    <div class="grid-error" role="alert">
+        <strong>Không tải được dữ liệu.</strong>
+        <div>@_error</div>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">Thử lại</button>
+    </div>
+}
+else if (_data is not null)
+{
+    <table class="grid">
+        <thead>
+            <tr>
+                <th style="width:7rem">ID</th>
+                <th style="width:9rem">Code</th>
+                <th>Mô tả</th>
+                <th style="width:9rem">Area</th>
+                <th style="width:6rem">Active</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in _data.Items)
+            {
+                <tr>
+                    <td>@row.Id</td>
+                    <td><code>@row.Code</code></td>
+                    <td>@row.Description</td>
+                    <td>@row.Area</td>
+                    <td>@(row.Active == true ? "Active" : row.Active == false ? "Inactive" : "—")</td>
+                </tr>
+            }
+            @if (_data.Items.Count == 0)
+            {
+                <tr><td colspan="5" class="grid-empty">Không có dữ liệu phù hợp.</td></tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="grid-pager">
+        <button type="button" class="grid-btn" disabled="@(_page <= 1 || _loading)"
+                @onclick="() => GoToPageAsync(_page - 1)">Trước</button>
+        <span>Trang @_page / @TotalPages — @_data.Total dòng</span>
+        <button type="button" class="grid-btn" disabled="@(_page >= TotalPages || _loading)"
+                @onclick="() => GoToPageAsync(_page + 1)">Sau</button>
+    </div>
+}
+
+@code {
+    private NpiPagedRaw<NpiWorkCenter>? _data;
+    private bool _loading;
+    private string? _error;
+    private string _search = "";
+    private int _page = 1;
+    private const int PageSize = 20;
+
+    private int TotalPages =>
+        _data is null || PageSize <= 0 ? 1
+        : Math.Max(1, (int)Math.Ceiling((double)_data.Total / PageSize));
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private Task HandleSearchKey(KeyboardEventArgs e)
+        => e.Key == "Enter" ? LoadAsync() : Task.CompletedTask;
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _data = await Api.GetWorkCentersAsync(
+                string.IsNullOrWhiteSpace(_search) ? null : _search,
+                _page, PageSize);
+        }
+        catch (ApiException apiEx)
+        {
+            _error = apiEx.ApiError.MessageEn;
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Không thể kết nối máy chủ ({ex.Message}).";
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task ReloadAsync()
+    {
+        _page = 1;
+        return LoadAsync();
+    }
+
+    private Task GoToPageAsync(int page)
+    {
+        _page = page;
+        return LoadAsync();
+    }
+}

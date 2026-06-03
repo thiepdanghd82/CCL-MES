@@ -1,0 +1,90 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <!--
+    Phase 10 P10.2 — MAUI Blazor Hybrid client. Henry's Q6 lock:
+    Win + macOS desktop only. Android/iOS deferred to a post-Phase-10 phase.
+
+    Build status this PR:
+      - net10.0-maccatalyst — built + run on this Mac (see PR description).
+      - net10.0-windows10.0.19041.0 — config present + dependencies declared
+        but NOT built locally (Mac host). Build happens on a Windows CI
+        runner OR when a Windows dev machine is available. Adding the
+        target now keeps the SDK happy when someone first opens this on
+        Windows.
+
+    Notes on multi-targeting on macOS:
+      The TargetFrameworks line conditionally adds net10.0-windows only
+      when MSBuild runs on Windows. On a Mac it builds net10.0-maccatalyst
+      ONLY, so `dotnet build` from a Mac doesn't fail on missing Windows
+      SDK bits. Same pattern the `maui-blazor` template uses by default.
+  -->
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>CCL.MES.Hybrid</RootNamespace>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCssItems>false</EnableDefaultCssItems>
+
+    <ApplicationTitle>CCL MES</ApplicationTitle>
+    <ApplicationId>com.ccl.mes.hybrid</ApplicationId>
+    <ApplicationIdGuid>3B2E8292-1E19-48DD-8B4D-166FB8281334</ApplicationIdGuid>
+
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+
+    <!-- net10 Mac Catalyst SDK enforces a minimum of 15.0 (the template
+         default 14.0 hits "lower than the minimum value '15.0'" on
+         Xcode 26.5 + Microsoft.MacCatalyst.Sdk.net10.0_26.5). Bumping
+         here is purely a build-floor; runtime requirements on operator
+         Macs end up at 15.0+ which all CCL machines already exceed. -->
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\appicon.svg" ForegroundFile="Resources\appiconfg.svg" Color="#0F1924" />
+    <MauiSplashScreen Include="Resources\appiconfg.svg" Color="#0F1924" BaseSize="128,128" />
+    <MauiImage Include="Resources\Images\*" />
+    <MauiFont Include="Resources\Fonts\*" />
+    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Bundled appsettings.json — read at boot by MauiProgram via
+         Assembly.GetManifestResourceStream so the API base URL is
+         configurable without a rebuild. EmbeddedResource gives us a
+         logical name 'CCL.MES.Hybrid.appsettings.json' that we read in
+         code; MauiAsset is the wrong primitive here because it expects
+         relative paths inside the .app bundle (which broke under
+         absolute-path source trees containing a space). The Remove
+         below cancels the implicit MauiAsset glob that the MAUI SDK
+         applies to root-level json files. -->
+    <MauiAsset Remove="appsettings.json" />
+    <EmbeddedResource Include="appsettings.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Starting with .NET 8 the MAUI SDK no longer implicit-references
+         Microsoft.Maui.Controls and Microsoft.AspNetCore.Components.WebView.Maui.
+         Declaring them here silences MA002 + pins the patch version.
+         Version tracks the maui-desktop workload manifest (10.0.20). -->
+    <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.20" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="10.0.20" />
+
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CCL.MES.Shared\CCL.MES.Shared.csproj" />
+    <ProjectReference Include="..\CCL.MES.Hybrid.Client\CCL.MES.Hybrid.Client.csproj" />
+    <ProjectReference Include="..\CCL.MES.Hybrid.Razor\CCL.MES.Hybrid.Razor.csproj" />
+  </ItemGroup>
+
+</Project>

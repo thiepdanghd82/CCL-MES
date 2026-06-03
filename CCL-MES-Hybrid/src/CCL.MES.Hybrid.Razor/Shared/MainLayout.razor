@@ -1,0 +1,16 @@
+@inherits LayoutComponentBase
+@*
+  Top-level layout. Sidebar nav on the left, content + connectivity
+  banner stacked on the right. Carbon-style minimalism — operators care
+  about the data not the chrome.
+*@
+
+<div class="app-shell">
+    <NavMenu />
+    <main class="app-main">
+        <ConnectivityBanner />
+        <div class="app-content">
+            @Body
+        </div>
+    </main>
+</div>

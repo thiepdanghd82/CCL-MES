@@ -1,0 +1,39 @@
+@using CCL.MES.Hybrid.Client.Connectivity
+@inject IConnectivityMonitor Monitor
+@implements IDisposable
+
+@*
+  Q4 lock: Phase 10 has NO offline-write queue. When the device loses
+  network, the operator gets this banner + UI still renders cached
+  in-memory state. Recovery is automatic on reconnect (the next API
+  call goes through and screen state refreshes).
+*@
+
+@if (!_isConnected)
+{
+    <div class="app-conn-banner" role="alert" aria-live="polite">
+        <span class="app-conn-dot"></span>
+        <span>Mất kết nối — đang chờ mạng để tải dữ liệu.</span>
+    </div>
+}
+
+@code {
+    private bool _isConnected;
+
+    protected override void OnInitialized()
+    {
+        _isConnected = Monitor.IsConnected;
+        Monitor.ConnectivityChanged += Handle;
+    }
+
+    private void Handle(bool isConnected)
+    {
+        _isConnected = isConnected;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Monitor.ConnectivityChanged -= Handle;
+    }
+}
