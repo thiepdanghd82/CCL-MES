@@ -1,0 +1,33 @@
+@page "/"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject IAuthSession Session
+
+<PageTitle>Trang chủ — CCL MES</PageTitle>
+
+<h1 class="page-title">Xin chào, @(_displayName)</h1>
+
+<p>Phase 10 P10.2 pilot — MAUI Blazor Hybrid client kết nối với CCL.MES.Api.</p>
+
+<div class="home-tiles">
+    @if (Session.CurrentUser.IsInRole("Admin")
+         || Session.CurrentUser.IsInRole("Supervisor")
+         || Session.CurrentUser.IsInRole("Engineer")
+         || Session.CurrentUser.IsInRole("QC"))
+    {
+        <a class="home-tile" href="/npi/workcenters">
+            <div class="home-tile-title">NPI</div>
+            <div class="home-tile-desc">Master data — Work Centers / Raw Materials / Routings</div>
+        </a>
+    }
+</div>
+
+@code {
+    private string _displayName = "";
+
+    protected override void OnInitialized()
+    {
+        _displayName = Session.CurrentUser.FindFirst("display_name")?.Value
+            ?? Session.CurrentUser.Identity?.Name
+            ?? "operator";
+    }
+}

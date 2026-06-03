@@ -1,0 +1,91 @@
+@page "/login"
+@layout EmptyLayout
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@inject ICclApiClient Api
+@inject IAuthSession Session
+@inject NavigationManager Nav
+
+<PageTitle>Đăng nhập — CCL MES</PageTitle>
+
+<div class="login-shell">
+    <div class="login-card">
+        <h1 class="login-title">CCL · MES</h1>
+        <p class="login-sub">Đăng nhập với tài khoản hệ thống</p>
+
+        <EditForm Model="@_form" OnValidSubmit="HandleSubmitAsync" FormName="login">
+            <DataAnnotationsValidator />
+            <div class="login-field">
+                <label for="login-username">Tên đăng nhập</label>
+                <InputText id="login-username" class="login-input"
+                           @bind-Value="_form.Username" autocomplete="username" />
+            </div>
+            <div class="login-field">
+                <label for="login-password">Mật khẩu</label>
+                <InputText id="login-password" type="password" class="login-input"
+                           @bind-Value="_form.Password" autocomplete="current-password" />
+            </div>
+
+            @if (_errorKey is not null)
+            {
+                <div class="login-error" role="alert">@LocaliseError(_errorKey)</div>
+            }
+
+            <button type="submit" class="login-submit" disabled="@_submitting">
+                @(_submitting ? "Đang đăng nhập…" : "Đăng nhập")
+            </button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private LoginForm _form = new();
+    private string? _errorKey;
+    private bool _submitting;
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+
+    private async Task HandleSubmitAsync()
+    {
+        _errorKey = null;
+        _submitting = true;
+        try
+        {
+            var response = await Api.LoginAsync(_form.Username.Trim(), _form.Password);
+            await Session.SetLoginAsync(response);
+            var target = string.IsNullOrWhiteSpace(ReturnUrl) ? "/" : ReturnUrl!;
+            Nav.NavigateTo(target, forceLoad: false, replace: true);
+        }
+        catch (ApiException apiEx) when (apiEx.StatusCode == 401)
+        {
+            _errorKey = apiEx.ApiError.Code;
+        }
+        catch (HttpRequestException)
+        {
+            _errorKey = "auth.network_error";
+        }
+        catch
+        {
+            _errorKey = "auth.unknown_error";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private static string LocaliseError(string code) => code switch
+    {
+        "auth.invalid_credentials" => "Sai tên đăng nhập hoặc mật khẩu.",
+        "auth.missing_fields"      => "Vui lòng nhập đủ thông tin.",
+        "auth.network_error"       => "Không thể kết nối máy chủ. Kiểm tra mạng rồi thử lại.",
+        _                          => "Đăng nhập thất bại. Vui lòng thử lại.",
+    };
+
+    private sealed class LoginForm
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Bắt buộc")]
+        public string Username { get; set; } = "";
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Bắt buộc")]
+        public string Password { get; set; } = "";
+    }
+}

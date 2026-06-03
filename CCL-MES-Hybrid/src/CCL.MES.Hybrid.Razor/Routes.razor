@@ -1,0 +1,35 @@
+@*
+  Router for the MAUI Hybrid pilot. Two reasons we declare it explicitly
+  here (rather than relying on a default Router in App.razor):
+    1. The MAUI BlazorWebView host needs an assembly-list it can scan for
+       routable @page directives; this RCL is the only one with routes.
+    2. We want a custom <NotAuthorized> tree that auto-redirects to /login,
+       so anonymous deep-links bounce instead of rendering an error page.
+*@
+@inject NavigationManager Nav
+@inject IAuthSession Session
+
+<Router AppAssembly="@typeof(Routes).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+            <NotAuthorized>
+                @{
+                    // Bounce to login; remember the original target so we
+                    // can route back after authentication.
+                    var returnUrl = Uri.EscapeDataString(Nav.ToBaseRelativePath(Nav.Uri));
+                    Nav.NavigateTo($"/login?returnUrl={returnUrl}", forceLoad: false, replace: true);
+                }
+            </NotAuthorized>
+            <Authorizing>
+                <div class="p-3">Đang xác thực…</div>
+            </Authorizing>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <PageTitle>Không tìm thấy</PageTitle>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <p>Trang này không tồn tại. <a href="/">Về trang chủ</a></p>
+        </LayoutView>
+    </NotFound>
+</Router>

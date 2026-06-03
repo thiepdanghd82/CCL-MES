@@ -1,0 +1,44 @@
+@*
+  Left-side navigation. Items render with role-gating via <AuthorizeView>:
+  the NPI grid is visible to any user the API would let read NPI (matches
+  the NpiRead policy: Admin / Supervisor / Engineer / QC). Operator-only
+  users see the welcome page until P10.5 ships a shop-floor screen.
+*@
+@inject IAuthSession Session
+@inject NavigationManager Nav
+
+<aside class="app-nav">
+    <div class="app-nav-brand">CCL · MES</div>
+
+    <nav>
+        <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link">Trang chủ</NavLink>
+
+        <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
+            <NavLink href="/npi/workcenters" class="app-nav-link">NPI — Work Centers</NavLink>
+        </AuthorizeView>
+    </nav>
+
+    <AuthorizeView>
+        <Authorized>
+            <div class="app-nav-userbox">
+                <div class="app-nav-userline">
+                    @* Show the display_name claim when present, fall back to identity name. *@
+                    @(context.User.FindFirst("display_name")?.Value ?? context.User.Identity?.Name ?? "")
+                </div>
+                <div class="app-nav-userline-sub">
+                    @context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
+                </div>
+                <button type="button" class="app-nav-logout"
+                        @onclick="LogoutAsync">Đăng xuất</button>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+</aside>
+
+@code {
+    private async Task LogoutAsync()
+    {
+        await Session.SignOutAsync();
+        Nav.NavigateTo("/login", forceLoad: false, replace: true);
+    }
+}
