@@ -10,6 +10,11 @@
 
 <h1>@Loc["dashboard.title"] <span class="live">● @Loc["common.live"]</span></h1>
 
+@* Phase 9 hub-reconnect — 4-state session banner. Hidden when Connected;
+   surfaces Reconnecting / Reconnected toast / SessionExpired sticky reload.
+   Wiring lives in OnInitializedAsync via WireSessionHandlers. *@
+<HubSessionBanner @ref="_sessionBanner" />
+
 @if (_loading)
 {
     <p>@Loc["common.loading_dots"]</p>
@@ -64,6 +69,7 @@ else
     private List<OeeResult> _oee = new();
     private Dictionary<string,int> _byStep = new();
     private HubConnection? _hub;
+    private HubSessionBanner? _sessionBanner;
 
     protected override async Task OnInitializedAsync()
     {
@@ -88,6 +94,15 @@ else
             await LoadAsync();
             await InvokeAsync(StateHasChanged);
         });
+
+        // Phase 9 hub-reconnect — wire the 4-state UX banner. Helper
+        // marshals SignalR worker-thread callbacks to the banner's
+        // InvokeAsync so Blazor renders on the right thread.
+        _hub.WireSessionHandlers(state =>
+            _sessionBanner is null
+                ? Task.CompletedTask
+                : _sessionBanner.UpdateStateAsync(state));
+
         await _hub.StartAsync();
     }
 

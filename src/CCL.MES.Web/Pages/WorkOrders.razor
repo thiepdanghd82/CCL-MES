@@ -45,6 +45,11 @@
 
 <section class="workorders-page">
 
+    @* Phase 9 hub-reconnect — 4-state session banner. Hidden when Connected;
+       surfaces Reconnecting / Reconnected toast / SessionExpired sticky reload.
+       Wired via WireSessionHandlers in OnInitializedAsync. *@
+    <HubSessionBanner @ref="_sessionBanner" />
+
     @* ── Header (scan + camera + lookup + view toggle) ──────────────── *@
     <div class="shop-order-header">
         <div class="shop-order-scan-wrap">
@@ -314,6 +319,7 @@
 
     // ── SignalR push ──────────────────────────────────────────────────
     private HubConnection? _hub;
+    private HubSessionBanner? _sessionBanner;
 
     private static readonly ProcessStepCode[] Steps =
     {
@@ -346,6 +352,15 @@
             await RefreshAllAsync();
             await InvokeAsync(StateHasChanged);
         });
+
+        // Phase 9 hub-reconnect — wire the 4-state UX banner. Helper
+        // marshals SignalR worker-thread callbacks to the banner's
+        // InvokeAsync so Blazor renders on the right thread.
+        _hub.WireSessionHandlers(state =>
+            _sessionBanner is null
+                ? Task.CompletedTask
+                : _sessionBanner.UpdateStateAsync(state));
+
         await _hub.StartAsync();
     }
 

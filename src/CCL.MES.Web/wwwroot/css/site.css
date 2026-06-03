@@ -1005,6 +1005,32 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
 .shop-order-toast.err { background:rgba(192,57,43,0.10); color:#c0392b;
   border:1px solid rgba(192,57,43,0.30); }
 
+/* Phase 9 hub-reconnect — 4-state session banner shared between every
+   page that subscribes to ShopfloorHub. Reuses navy + button + toast
+   shape; sticky red for SessionExpired so shop-floor never sees stale
+   data silently. */
+.hub-banner { display:flex; align-items:center; gap:10px;
+  padding:8px 14px; border-radius:6px; font-size:13px;
+  margin:8px 0; }
+.hub-banner-text { flex:1; }
+.hub-banner-reconnecting { background:rgba(245,158,11,0.10);
+  color:#92400e; border:1px solid rgba(245,158,11,0.35); }
+.hub-banner-reconnected  { background:rgba(37,99,235,0.10);
+  color:#1d4ed8; border:1px solid rgba(37,99,235,0.30); }
+.hub-banner-expired { background:rgba(192,57,43,0.10);
+  color:#c0392b; border:1px solid rgba(192,57,43,0.40);
+  position:sticky; top:8px; z-index:80; font-weight:600; }
+.hub-banner-reload { padding:4px 12px; font-size:12px;
+  white-space:nowrap; }
+/* Pulsing dot animates the Reconnecting state so operators see it's
+   actively trying to recover (vs a static banner that looks dead). */
+.hub-banner-dot { width:8px; height:8px; border-radius:50%;
+  background:#f59e0b; animation:hub-banner-pulse 1.2s ease-in-out infinite; }
+@keyframes hub-banner-pulse {
+  0%,100% { opacity:1; transform:scale(1); }
+  50%     { opacity:0.4; transform:scale(0.85); }
+}
+
 .mes-wo-card-clickable { cursor:pointer; }
 .mes-wo-card-clickable:focus-visible { outline:2px solid var(--navy-primary);
   outline-offset:2px; }

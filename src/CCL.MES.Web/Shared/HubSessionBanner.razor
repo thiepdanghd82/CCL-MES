@@ -1,0 +1,113 @@
+@* Phase 9 hub-reconnect — 4-state banner shared between every page
+   that subscribes to ShopfloorHub (Dashboard + WorkOrders today; any
+   future subscriber wires the same way). State semantics + reasoning
+   in Services/HubSessionState.cs.
+
+   Render contract:
+     Connected      → render nothing (banner hidden)
+     Reconnecting   → non-blocking inline banner top of page
+     Reconnected    → 3s auto-dismiss toast (info)
+     SessionExpired → sticky red banner + [Reload] button forcing a
+                      full-page navigate so the cookie auth gate routes
+                      through /login when the cookie is dead, else
+                      back to the same page.
+
+   Hard constraints (per PHASE9-HUB-RECONNECT-PLAN §0 + Henry's Q5=A):
+     - Client-side ONLY. No server contract changes.
+     - i18n EN/VI. All strings via SharedResource.
+     - No new dep. Reuse navy + button + toast pattern. *@
+
+@using CCL.MES.Web.Services
+@inject IStringLocalizer<SharedResource> Loc
+@inject NavigationManager Nav
+
+@if (State == HubSessionState.Reconnecting)
+{
+    <div class="hub-banner hub-banner-reconnecting" role="status" aria-live="polite">
+        <span class="hub-banner-dot" aria-hidden="true"></span>
+        <span class="hub-banner-text">@Loc["hub.banner.reconnecting"]</span>
+    </div>
+}
+else if (State == HubSessionState.Reconnected)
+{
+    <div class="hub-banner hub-banner-reconnected" role="status" aria-live="polite">
+        <span class="hub-banner-text">@Loc["hub.banner.reconnected"]</span>
+    </div>
+}
+else if (State == HubSessionState.SessionExpired)
+{
+    <div class="hub-banner hub-banner-expired" role="alert" aria-live="assertive">
+        <span class="hub-banner-text">@Loc["hub.banner.session_expired"]</span>
+        <button type="button" class="btn hub-banner-reload" @onclick="ReloadPage">
+            @Loc["hub.banner.reload_button"]
+        </button>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// Current banner state. Pages call <see cref="UpdateStateAsync"/>
+    /// from inside their <c>WireSessionHandlers</c> callback so this
+    /// component never owns connection lifecycle itself.
+    /// </summary>
+    public HubSessionState State { get; private set; } = HubSessionState.Connected;
+
+    private CancellationTokenSource? _reconnectedDismissCts;
+
+    /// <summary>
+    /// Push a new state in from the page's handler callback. Marshals to
+    /// the renderer thread via <see cref="ComponentBase.InvokeAsync"/>
+    /// because the SignalR events fire on a worker thread.
+    /// </summary>
+    public Task UpdateStateAsync(HubSessionState newState)
+    {
+        return InvokeAsync(() =>
+        {
+            State = newState;
+
+            // Auto-dismiss the "Reconnected" confirm toast after 3s so
+            // it doesn't linger forever. Cancellable so a fast
+            // Reconnecting→Reconnected→Reconnecting cycle replaces the
+            // pending dismissal instead of stacking timers.
+            _reconnectedDismissCts?.Cancel();
+            _reconnectedDismissCts = null;
+
+            if (newState == HubSessionState.Reconnected)
+            {
+                _reconnectedDismissCts = new CancellationTokenSource();
+                var ct = _reconnectedDismissCts.Token;
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+                        if (!ct.IsCancellationRequested)
+                        {
+                            await InvokeAsync(() =>
+                            {
+                                if (State == HubSessionState.Reconnected)
+                                {
+                                    State = HubSessionState.Connected;
+                                    StateHasChanged();
+                                }
+                            });
+                        }
+                    }
+                    catch (TaskCanceledException) { /* normal — replaced by next state push */ }
+                });
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    private void ReloadPage()
+    {
+        // forceLoad triggers a full browser navigation so the cookie
+        // auth gate runs cleanly. When the cookie is dead, FallbackPolicy
+        // redirects to /login then back; when only the websocket died
+        // but cookie is still valid, the page just rehydrates with a
+        // fresh HubConnection.
+        Nav.NavigateTo(Nav.Uri, forceLoad: true);
+    }
+}
