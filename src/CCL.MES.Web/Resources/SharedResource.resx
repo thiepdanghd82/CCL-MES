@@ -231,6 +231,8 @@
   <data name="settings.syslog.col.detail" xml:space="preserve"><value>Detail</value></data>
   <data name="settings.syslog.col.ip" xml:space="preserve"><value>IP</value></data>
   <data name="settings.syslog.col.source" xml:space="preserve"><value>Source</value></data>
+  <data name="settings.syslog.export_csv" xml:space="preserve"><value>Export CSV</value></data>
+  <data name="settings.syslog.export_xlsx" xml:space="preserve"><value>Export Excel</value></data>
 
   <data name="lang.picker.aria_label" xml:space="preserve"><value>Language picker</value></data>
 
