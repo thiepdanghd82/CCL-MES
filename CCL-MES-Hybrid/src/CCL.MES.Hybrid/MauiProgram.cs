@@ -88,6 +88,12 @@ public static class MauiProgram
         // registration the client extension already made.
         builder.Services.Replace(ServiceDescriptor.Singleton<IDeviceModeService, MauiDeviceModeService>());
 
+        // P10.5a — Preferences-backed grid column visibility store. Falls
+        // back to in-memory in non-MAUI hosts (tests).
+        builder.Services.Replace(ServiceDescriptor.Singleton<
+            CCL.MES.Hybrid.Client.Grid.IGridPreferenceStore,
+            MauiGridPreferenceStore>());
+
         // P10.3 W4 — feed the persisted device id into ApiClientOptions so
         // every device-scoped endpoint call (scan-log / heartbeat / info)
         // carries the station's stable guid. PostConfigure runs AFTER the

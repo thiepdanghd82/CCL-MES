@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using CCL.MES.Hybrid.Client.Npi;
 using CCL.MES.Shared;
 using CCL.MES.Shared.Auth;
 using CCL.MES.Shared.Devices;

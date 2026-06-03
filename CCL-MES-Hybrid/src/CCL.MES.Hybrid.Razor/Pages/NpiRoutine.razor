@@ -1,0 +1,203 @@
+@page "/npi/routine"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
+@inject ICclApiClient Api
+@inject IGridPreferenceStore PrefStore
+
+<PageTitle>Định tuyến — NPI</PageTitle>
+
+<h1 class="page-title">Định tuyến công đoạn</h1>
+
+<div class="grid-toolbar">
+    <input type="search" class="grid-search" placeholder="Tìm theo part / op / trạm…"
+           @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKey" />
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Tìm</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+    <div class="grid-toolbar-spacer"></div>
+    <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
+</div>
+
+@if (_loading && _data is null)
+{
+    <p class="grid-status">Đang tải…</p>
+}
+else if (_error is not null)
+{
+    <div class="grid-error" role="alert">
+        <strong>Không tải được dữ liệu.</strong>
+        <div>@_error</div>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">Thử lại</button>
+    </div>
+}
+else if (_data is not null)
+{
+    <div class="grid-scroll">
+        <table class="grid grid-sticky">
+            <thead>
+                <tr>
+                    @foreach (var col in _columns.Visible)
+                    {
+                        <th class="grid-h @ColClass(col.Id)">@col.Label</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _data.Items)
+                {
+                    <tr>
+                        @foreach (var col in _columns.Visible)
+                        {
+                            <td>@RenderCell(row, col.Id)</td>
+                        }
+                    </tr>
+                }
+                @if (_data.Items.Count == 0)
+                {
+                    <tr>
+                        <td colspan="@_columns.Visible.Count" class="grid-empty">
+                            Không có dữ liệu phù hợp.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="grid-pager">
+        <button type="button" class="grid-btn"
+                disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
+                @onclick="() => GoToPageAsync(_page - 1)">‹ Trước</button>
+        <span class="grid-pager-text">
+            Trang @_page / @TotalPages — @_data.Total dòng
+        </span>
+        <button type="button" class="grid-btn"
+                disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
+                @onclick="() => GoToPageAsync(_page + 1)">Sau ›</button>
+    </div>
+}
+
+@code {
+    private NpiPagedRaw<NpiRoutingOperation>? _data;
+    private bool _loading;
+    private string? _error;
+    private string _search = "";
+    private int _page = 1;
+    private const int PageSize = 50;
+    private GridColumns _columns = default!;
+
+    private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, PageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 20 columns from Phase 7 hạng mục 2. 10 default visible — covers
+        // the routing essentials (part / op / wc / times); the 10 extras
+        // (Crew, LaborClass, Alt, Effectivity, etc.) are operator-toggle.
+        _columns = new GridColumns("routine", new[]
+        {
+            new ColumnDef("part_no",          "Part No"),
+            new ColumnDef("part_desc",        "Mô tả part"),
+            new ColumnDef("op_no",            "Op"),
+            new ColumnDef("operation",        "Tên công đoạn"),
+            new ColumnDef("wc_no",            "Mã trạm"),
+            new ColumnDef("wc_desc",          "Tên trạm"),
+            new ColumnDef("mach_setup",       "Mach setup"),
+            new ColumnDef("labor_setup",      "Labor setup"),
+            new ColumnDef("mach_run",         "Mach run"),
+            new ColumnDef("labor_run",        "Labor run"),
+            new ColumnDef("unit",             "Đvt", DefaultVisible: false),
+            new ColumnDef("crew",             "Crew", DefaultVisible: false),
+            new ColumnDef("setup_crew",       "Setup crew", DefaultVisible: false),
+            new ColumnDef("labor_class",      "Labor class", DefaultVisible: false),
+            new ColumnDef("alt",              "Alt", DefaultVisible: false),
+            new ColumnDef("effectivity",      "Hiệu lực", DefaultVisible: false),
+            new ColumnDef("efficiency",       "Efficiency", DefaultVisible: false),
+            new ColumnDef("site",             "Site", DefaultVisible: false),
+            new ColumnDef("routing_type",     "Routing type", DefaultVisible: false),
+            new ColumnDef("planner",          "Planner", DefaultVisible: false),
+        }, PrefStore);
+        await LoadAsync();
+    }
+
+    private Task HandleSearchKey(KeyboardEventArgs e)
+        => e.Key == "Enter" ? OnSearchClickAsync() : Task.CompletedTask;
+
+    private Task OnSearchClickAsync()
+    {
+        _page = 1;
+        return LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _data = await Api.GetRoutingsAsync(
+                string.IsNullOrWhiteSpace(_search) ? null : _search,
+                _page, PageSize);
+        }
+        catch (ApiException apiEx)
+        {
+            _error = apiEx.ApiError.MessageEn;
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _error = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task ReloadAsync()
+    {
+        _page = 1;
+        return LoadAsync();
+    }
+
+    private Task GoToPageAsync(int page)
+    {
+        _page = GridPagination.Clamp(page, TotalPages);
+        return LoadAsync();
+    }
+
+    private static string ColClass(string columnId) => columnId switch
+    {
+        "part_no" or "wc_no"                                                  => "grid-col-mono",
+        "op_no" or "mach_setup" or "labor_setup" or "mach_run" or "labor_run"
+            or "crew" or "setup_crew" or "efficiency"                          => "grid-col-num",
+        _                                                                      => "",
+    };
+
+    private static RenderFragment RenderCell(NpiRoutingOperation row, string columnId) => __builder =>
+    {
+        switch (columnId)
+        {
+            case "part_no":      __builder.OpenElement(0, "code"); __builder.AddContent(1, row.PartNo); __builder.CloseElement(); break;
+            case "part_desc":    __builder.AddContent(0, row.PartDescription ?? "—"); break;
+            case "op_no":        __builder.AddContent(0, row.OpNo ?? "—"); break;
+            case "operation":    __builder.AddContent(0, row.Operation ?? "—"); break;
+            case "wc_no":        __builder.OpenElement(0, "code"); __builder.AddContent(1, row.WorkCenterNo ?? ""); __builder.CloseElement(); break;
+            case "wc_desc":      __builder.AddContent(0, row.WorkCenterDescription ?? "—"); break;
+            case "mach_setup":   __builder.AddContent(0, row.MachineSetupTime?.ToString("0.##") ?? "—"); break;
+            case "labor_setup":  __builder.AddContent(0, row.LaborSetupTime?.ToString("0.##") ?? "—"); break;
+            case "mach_run":     __builder.AddContent(0, row.MachineRunTime?.ToString("0.##") ?? "—"); break;
+            case "labor_run":    __builder.AddContent(0, row.LaborRunTime?.ToString("0.##") ?? "—"); break;
+            case "unit":         __builder.AddContent(0, row.Unit ?? "—"); break;
+            case "crew":         __builder.AddContent(0, row.Crew?.ToString("0.##") ?? "—"); break;
+            case "setup_crew":   __builder.AddContent(0, row.SetupCrew?.ToString("0.##") ?? "—"); break;
+            case "labor_class":  __builder.AddContent(0, row.LaborClass ?? "—"); break;
+            case "alt":          __builder.AddContent(0, row.Alt ?? "—"); break;
+            case "effectivity":  __builder.AddContent(0, row.Effectivity ?? "—"); break;
+            case "efficiency":   __builder.AddContent(0, row.Efficiency?.ToString("0.##") ?? "—"); break;
+            case "site":         __builder.AddContent(0, row.Site ?? "—"); break;
+            case "routing_type": __builder.AddContent(0, row.RoutingType ?? "—"); break;
+            case "planner":      __builder.AddContent(0, row.Planner ?? "—"); break;
+        }
+    };
+}

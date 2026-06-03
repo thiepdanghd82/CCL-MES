@@ -1,0 +1,223 @@
+@page "/npi/rawmaterials"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
+@inject ICclApiClient Api
+@inject IGridPreferenceStore PrefStore
+
+<PageTitle>Nguyên vật liệu — NPI</PageTitle>
+
+<h1 class="page-title">Nguyên vật liệu</h1>
+
+<div class="grid-toolbar">
+    <input type="search" class="grid-search" placeholder="Tìm theo part / nhà cung cấp / site…"
+           @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKey" />
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Tìm</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+    <div class="grid-toolbar-spacer"></div>
+    <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
+</div>
+
+@if (_loading && _data is null)
+{
+    <p class="grid-status">Đang tải…</p>
+}
+else if (_error is not null)
+{
+    <div class="grid-error" role="alert">
+        <strong>Không tải được dữ liệu.</strong>
+        <div>@_error</div>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">Thử lại</button>
+    </div>
+}
+else if (_data is not null)
+{
+    <div class="grid-scroll">
+        <table class="grid grid-sticky">
+            <thead>
+                <tr>
+                    @foreach (var col in _columns.Visible)
+                    {
+                        <th class="grid-h @ColClass(col.Id)">@col.Label</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _data.Items)
+                {
+                    <tr>
+                        @foreach (var col in _columns.Visible)
+                        {
+                            <td>@RenderCell(row, col.Id)</td>
+                        }
+                    </tr>
+                }
+                @if (_data.Items.Count == 0)
+                {
+                    <tr>
+                        <td colspan="@_columns.Visible.Count" class="grid-empty">
+                            Không có dữ liệu phù hợp.
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="grid-pager">
+        <button type="button" class="grid-btn"
+                disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
+                @onclick="() => GoToPageAsync(_page - 1)">‹ Trước</button>
+        <span class="grid-pager-text">
+            Trang @_page / @TotalPages — @_data.Total dòng
+        </span>
+        <button type="button" class="grid-btn"
+                disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
+                @onclick="() => GoToPageAsync(_page + 1)">Sau ›</button>
+    </div>
+}
+
+@code {
+    private NpiPagedRaw<NpiRawMaterial>? _data;
+    private bool _loading;
+    private string? _error;
+    private string _search = "";
+    private int _page = 1;
+    private const int PageSize = 50;
+    private GridColumns _columns = default!;
+
+    private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, PageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 28 columns from Phase 7 hạng mục 3 IFS expansion. 12 default
+        // visible (the everyday subset operators reach for); the remaining
+        // 16 are operator-toggle. Inversion (hide-by-default) is encoded
+        // via DefaultVisible=false in ColumnDef; GridColumns flips them
+        // on with a "+" override sentinel.
+        _columns = new GridColumns("rawmaterials", new[]
+        {
+            new ColumnDef("part_no",            "Part No"),
+            new ColumnDef("part_desc",          "Mô tả"),
+            new ColumnDef("supplier_id",        "Nhà CC ID"),
+            new ColumnDef("supplier_name",      "Nhà cung cấp"),
+            new ColumnDef("price",              "Giá"),
+            new ColumnDef("currency",           "Tiền tệ"),
+            new ColumnDef("purch_uom",          "Đvt mua"),
+            new ColumnDef("inv_uom",            "Đvt tồn"),
+            new ColumnDef("site",               "Site"),
+            new ColumnDef("status",             "Trạng thái"),
+            new ColumnDef("min_qty",            "Min Qty"),
+            new ColumnDef("leadtime",           "Leadtime (ngày)"),
+            // 16 default-hidden — operator opens via column menu.
+            new ColumnDef("price_incl_tax",     "Giá có thuế", DefaultVisible: false),
+            new ColumnDef("price_uom",          "Đvt giá", DefaultVisible: false),
+            new ColumnDef("site_desc",          "Mô tả site", DefaultVisible: false),
+            new ColumnDef("std_multiple",       "Std multiple", DefaultVisible: false),
+            new ColumnDef("std_pack",           "Std pack", DefaultVisible: false),
+            new ColumnDef("conversion",         "Hệ số đổi", DefaultVisible: false),
+            new ColumnDef("tax_code",           "Mã thuế", DefaultVisible: false),
+            new ColumnDef("tax_code_desc",      "Mô tả thuế", DefaultVisible: false),
+            new ColumnDef("country_origin",     "Nước xuất xứ", DefaultVisible: false),
+            new ColumnDef("acquisition_type",   "Acquisition", DefaultVisible: false),
+            new ColumnDef("supplier_part_no",   "Part NCC", DefaultVisible: false),
+            new ColumnDef("supplier_part_desc", "Mô tả part NCC", DefaultVisible: false),
+            new ColumnDef("net_weight",         "Trọng lượng", DefaultVisible: false),
+            new ColumnDef("net_weight_uom",     "Đvt trọng lượng", DefaultVisible: false),
+            new ColumnDef("next_order_date",    "Ngày đặt kế tiếp", DefaultVisible: false),
+            new ColumnDef("notes",              "Ghi chú", DefaultVisible: false),
+        }, PrefStore);
+        await LoadAsync();
+    }
+
+    private Task HandleSearchKey(KeyboardEventArgs e)
+        => e.Key == "Enter" ? OnSearchClickAsync() : Task.CompletedTask;
+
+    private Task OnSearchClickAsync()
+    {
+        _page = 1;
+        return LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _data = await Api.GetRawMaterialsAsync(
+                string.IsNullOrWhiteSpace(_search) ? null : _search,
+                _page, PageSize);
+        }
+        catch (ApiException apiEx)
+        {
+            _error = apiEx.ApiError.MessageEn;
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _error = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task ReloadAsync()
+    {
+        _page = 1;
+        return LoadAsync();
+    }
+
+    private Task GoToPageAsync(int page)
+    {
+        _page = GridPagination.Clamp(page, TotalPages);
+        return LoadAsync();
+    }
+
+    private static string ColClass(string columnId) => columnId switch
+    {
+        "part_no" or "supplier_id" or "supplier_part_no" => "grid-col-mono",
+        "price" or "price_incl_tax" or "min_qty"
+            or "std_multiple" or "std_pack" or "conversion"
+            or "leadtime" or "net_weight"                 => "grid-col-num",
+        _                                                  => "",
+    };
+
+    private static RenderFragment RenderCell(NpiRawMaterial row, string columnId) => __builder =>
+    {
+        switch (columnId)
+        {
+            case "part_no":             __builder.OpenElement(0, "code"); __builder.AddContent(1, row.PartNo); __builder.CloseElement(); break;
+            case "part_desc":           __builder.AddContent(0, row.PartDescription ?? "—"); break;
+            case "supplier_id":         __builder.AddContent(0, row.SupplierId ?? "—"); break;
+            case "supplier_name":       __builder.AddContent(0, row.SupplierName ?? "—"); break;
+            case "price":               __builder.AddContent(0, row.Price?.ToString("0.####") ?? "—"); break;
+            case "currency":            __builder.AddContent(0, row.Currency ?? "—"); break;
+            case "purch_uom":           __builder.AddContent(0, row.PurchUom ?? "—"); break;
+            case "inv_uom":             __builder.AddContent(0, row.InventoryUom ?? "—"); break;
+            case "site":                __builder.AddContent(0, row.Site ?? "—"); break;
+            case "status":              __builder.AddContent(0, row.StatusCode ?? "—"); break;
+            case "min_qty":             __builder.AddContent(0, row.MinimumQuantity?.ToString("0.##") ?? "—"); break;
+            case "leadtime":            __builder.AddContent(0, row.SupplierLeadtimeDays?.ToString("0.##") ?? "—"); break;
+            case "price_incl_tax":      __builder.AddContent(0, row.PriceInclTax?.ToString("0.####") ?? "—"); break;
+            case "price_uom":           __builder.AddContent(0, row.PriceUom ?? "—"); break;
+            case "site_desc":           __builder.AddContent(0, row.SiteDescription ?? "—"); break;
+            case "std_multiple":        __builder.AddContent(0, row.StdMultipleQty?.ToString("0.##") ?? "—"); break;
+            case "std_pack":            __builder.AddContent(0, row.StandardPackSize?.ToString("0.##") ?? "—"); break;
+            case "conversion":          __builder.AddContent(0, row.ConversionFactor?.ToString("0.####") ?? "—"); break;
+            case "tax_code":            __builder.AddContent(0, row.TaxCode ?? "—"); break;
+            case "tax_code_desc":       __builder.AddContent(0, row.TaxCodeDescription ?? "—"); break;
+            case "country_origin":      __builder.AddContent(0, row.CountryOfOrigin ?? "—"); break;
+            case "acquisition_type":    __builder.AddContent(0, row.AcquisitionType ?? "—"); break;
+            case "supplier_part_no":    __builder.OpenElement(0, "code"); __builder.AddContent(1, row.SupplierPartNo ?? ""); __builder.CloseElement(); break;
+            case "supplier_part_desc":  __builder.AddContent(0, row.SupplierPartDescription ?? "—"); break;
+            case "net_weight":          __builder.AddContent(0, row.NetWeight?.ToString("0.##") ?? "—"); break;
+            case "net_weight_uom":      __builder.AddContent(0, row.NetWeightUom ?? "—"); break;
+            case "next_order_date":     __builder.AddContent(0, row.NextOrderDate ?? "—"); break;
+            case "notes":               __builder.AddContent(0, row.Notes ?? "—"); break;
+        }
+    };
+}

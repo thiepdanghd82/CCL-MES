@@ -1,0 +1,69 @@
+@*
+    P10.5a — Dropdown column-visibility toggle. Used by every NPI grid
+    so the operator can hide rarely-used columns. Persists via
+    IGridPreferenceStore through the GridColumns instance the caller
+    supplies.
+
+    The component is dumb: it renders a list of checkboxes against the
+    GridColumns instance and calls Toggle(...) on click. The parent
+    page is responsible for re-rendering after a toggle (StateHasChanged
+    is implicit in @onclick on the parent).
+*@
+
+<div class="grid-cols-menu @(_open ? "open" : "")">
+    <button type="button" class="grid-btn"
+            aria-expanded="@_open" aria-haspopup="true"
+            @onclick="ToggleMenu">
+        Cột (@Columns.Visible.Count / @Columns.All.Count)
+    </button>
+    @if (_open)
+    {
+        <div class="grid-cols-popover" role="menu" @onclick:stopPropagation="true">
+            <div class="grid-cols-popover-title">Hiện / Ẩn cột</div>
+            <ul class="grid-cols-list">
+                @foreach (var col in Columns.All)
+                {
+                    var visible = Columns.IsVisible(col.Id);
+                    <li class="grid-cols-item">
+                        <label>
+                            <input type="checkbox" checked="@visible"
+                                   @onchange="@(() => OnToggle(col.Id))" />
+                            <span>@col.Label</span>
+                        </label>
+                    </li>
+                }
+            </ul>
+            <div class="grid-cols-popover-foot">
+                <button type="button" class="grid-btn grid-btn-link" @onclick="OnReset">Mặc định</button>
+                <button type="button" class="grid-btn" @onclick="CloseMenu">Đóng</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public GridColumns Columns { get; set; } = default!;
+
+    /// <summary>Fired after a toggle/reset so the parent grid page can
+    /// re-render. Pages re-render on @onclick from the menu naturally;
+    /// this exists so a parent can hook extra side effects (analytics,
+    /// scroll-to-top, etc.).</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    private bool _open;
+
+    private void ToggleMenu() => _open = !_open;
+    private void CloseMenu() => _open = false;
+
+    private async Task OnToggle(string columnId)
+    {
+        Columns.Toggle(columnId);
+        if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
+    }
+
+    private async Task OnReset()
+    {
+        Columns.ResetToDefaults();
+        if (OnChanged.HasDelegate) await OnChanged.InvokeAsync();
+    }
+}

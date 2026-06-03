@@ -21,8 +21,16 @@
     <nav>
         <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link">Trang chủ</NavLink>
 
+        @* P10.5a — NPI Data sub-group. Five read-only grids from legacy
+           Phase 7 master data. Engineer Spec list ships in P10.5b. Same
+           NpiRead policy as the legacy Web pages (Admin/Supervisor/
+           Engineer/QC). *@
         <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
-            <NavLink href="/npi/workcenters" class="app-nav-link">NPI — Work Centers</NavLink>
+            <div class="app-nav-section">NPI DATA</div>
+            <NavLink href="/npi/structure" class="app-nav-link app-nav-link-sub">Cấu trúc (BOM)</NavLink>
+            <NavLink href="/npi/routine" class="app-nav-link app-nav-link-sub">Định tuyến</NavLink>
+            <NavLink href="/npi/rawmaterials" class="app-nav-link app-nav-link-sub">Nguyên vật liệu</NavLink>
+            <NavLink href="/npi/workcenters" class="app-nav-link app-nav-link-sub">Trung tâm sản xuất</NavLink>
         </AuthorizeView>
 
         @if (HwOptions.Value.ScanEnabled)

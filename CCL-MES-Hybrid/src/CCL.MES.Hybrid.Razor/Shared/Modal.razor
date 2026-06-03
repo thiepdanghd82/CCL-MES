@@ -1,0 +1,107 @@
+@*
+    P10.5a — Clean-room Modal primitive.
+
+    Composition pattern:
+        <Modal Open="@_open" OnClose="@CloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Info">
+            <Header>Tiêu đề</Header>
+            <Body>Nội dung…</Body>
+            <Footer>
+                <button class="op-btn op-btn-secondary" @onclick="CloseAsync">Hủy</button>
+                <button class="op-btn op-btn-primary" @onclick="OnConfirmAsync">Đồng ý</button>
+            </Footer>
+        </Modal>
+
+    Design decisions:
+      - Size variants Sm/Md/Lg/Xl map to max-width + horizontal padding
+        via CSS class (.modal-sm, .modal-md, .modal-lg, .modal-xl).
+      - Severity variants drive header tone (info/success/warning/danger).
+      - Esc-to-close uses a JS-free DOM @onkeydown handler attached to
+        the scrim — works inside the Catalyst BlazorWebView without the
+        @oninvoke headache.
+      - Click-outside closes via the scrim click handler. Inner card
+        @onclick uses @onclick:stopPropagation so taps inside don't
+        trigger close.
+      - Three RenderFragment slots — Header / Body / Footer — keep the
+        primitive composable without coupling to any specific UI shape.
+      - NOT modal-stacking aware (V1 ships one open at a time). Future
+        PRs that need stacked dialogs can layer their own scrim above.
+*@
+
+@if (Open)
+{
+    <div class="modal-scrim @(SeverityClass) @(SizeClass)"
+         role="dialog" aria-modal="true"
+         @onclick="OnScrimClick"
+         @onkeydown="OnKeyDown"
+         tabindex="-1">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            @if (Header is not null)
+            {
+                <div class="modal-head">
+                    <div class="modal-title">@Header</div>
+                    <button type="button" class="modal-close" aria-label="Đóng" @onclick="CloseAsync">×</button>
+                </div>
+            }
+            <div class="modal-body">@Body</div>
+            @if (Footer is not null)
+            {
+                <div class="modal-foot">@Footer</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Controls whether the modal renders. Two-way bind not
+    /// required — caller drives the flag, modal raises <see cref="OnClose"/>
+    /// to request closure.</summary>
+    [Parameter] public bool Open { get; set; }
+
+    /// <summary>Fired when the operator clicks the X, the scrim, or
+    /// presses Esc. The caller is responsible for flipping Open back
+    /// to false (we don't EventCallback&lt;bool&gt; to avoid two-way
+    /// confusion).</summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    [Parameter] public ModalSize Size { get; set; } = ModalSize.Md;
+    [Parameter] public ModalSeverity Severity { get; set; } = ModalSeverity.Info;
+
+    /// <summary>When false, clicking the scrim does NOT close the modal —
+    /// useful for confirm-required flows. Esc still closes.</summary>
+    [Parameter] public bool ClickOutsideToClose { get; set; } = true;
+
+    [Parameter] public RenderFragment? Header { get; set; }
+    [Parameter] public RenderFragment? Body { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    private string SizeClass => Size switch
+    {
+        ModalSize.Sm => "modal-sm",
+        ModalSize.Lg => "modal-lg",
+        ModalSize.Xl => "modal-xl",
+        _            => "modal-md",
+    };
+
+    private string SeverityClass => Severity switch
+    {
+        ModalSeverity.Success => "modal-severity-success",
+        ModalSeverity.Warning => "modal-severity-warning",
+        ModalSeverity.Danger  => "modal-severity-danger",
+        _                     => "modal-severity-info",
+    };
+
+    private async Task CloseAsync()
+    {
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+
+    private async Task OnScrimClick()
+    {
+        if (ClickOutsideToClose) await CloseAsync();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await CloseAsync();
+    }
+}
