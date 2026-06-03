@@ -13,25 +13,7 @@
         <p class="login-sub">Đăng nhập với tài khoản hệ thống</p>
 
         @*
-            DEEP-DEBUG probe — outside EditForm, simplest possible handler.
-            If click here does NOT increment the counter, Blazor interactivity
-            is dead globally (blazor.webview.js bridge not wired). Remove
-            once interactivity confirmed.
-        *@
-        <div style="margin-bottom: 14px; padding: 8px; border: 1px dashed #999; font-size: 12px; font-family: monospace;">
-            <button type="button" @onclick="OnProbeClick"
-                    style="padding: 4px 10px; margin-right: 6px;">
-                probe click
-            </button>
-            <button type="button" @onclick="OnProbeAsync"
-                    style="padding: 4px 10px; margin-right: 6px;">
-                probe async
-            </button>
-            <span>clicks=@_probeClicks · async=@_probeAsync · render=@_renderId</span>
-        </div>
-
-        @*
-            Wiring notes (Phase 10 P10.2 fix):
+            Wiring notes (Phase 10 P10.2):
               - EditForm + DataAnnotationsValidator handle the [Required] rule.
               - Submit button has BOTH type="submit" AND @onclick so the form
                 fires either via Enter-in-input (browser-style submit) or via
@@ -42,7 +24,13 @@
                 can't double-trigger.
               - tabindex 1/2/3 makes Tab/Shift+Tab move username → password →
                 button predictably. WKWebView inside Catalyst sometimes
-                doesn't honour the default focus order without explicit tabindex.
+                doesn't honour the default focus order without explicit
+                tabindex. The platform-gated <MacCatalystKeyboardFix /> in
+                MainLayout/EmptyLayout intercepts Tab + Enter at the DOM
+                level to work around dotnet/maui#13934.
+              - autocomplete=off / new-password so macOS Keychain doesn't
+                replace typed values mid-stream (it would inject the saved
+                pair on focus and confuse the @bind-Value state machine).
         *@
         <EditForm Model="@_form" OnValidSubmit="HandleSubmitAsync" FormName="login">
             <DataAnnotationsValidator />
@@ -52,7 +40,7 @@
                            tabindex="1"
                            @bind-Value="_form.Username" @bind-Value:event="oninput"
                            @onkeydown="OnFieldKeyDown"
-                           autocomplete="username" autofocus />
+                           autocomplete="off" autofocus />
             </div>
             <div class="login-field">
                 <label for="login-password">Mật khẩu</label>
@@ -60,7 +48,7 @@
                            tabindex="2"
                            @bind-Value="_form.Password" @bind-Value:event="oninput"
                            @onkeydown="OnFieldKeyDown"
-                           autocomplete="current-password" />
+                           autocomplete="new-password" />
             </div>
 
             @if (_errorKey is not null)
@@ -89,40 +77,8 @@
     private bool _submitting;
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
 
-    // DEEP-DEBUG probe state — proves global Blazor interactivity is alive
-    // OUTSIDE the EditForm. Remove block once root cause is fixed.
-    private int _probeClicks;
-    private int _probeAsync;
-    private int _renderId;
-
-    private void OnProbeClick()
-    {
-        _probeClicks++;
-        Console.WriteLine($"[Login] probe sync clicks={_probeClicks}");
-    }
-
-    private async Task OnProbeAsync()
-    {
-        await Task.Yield();
-        _probeAsync++;
-        Console.WriteLine($"[Login] probe async asyncs={_probeAsync}");
-    }
-
-    protected override void OnAfterRender(bool firstRender)
-    {
-        _renderId++;
-        if (firstRender)
-        {
-            Console.WriteLine("[Login] OnAfterRender firstRender=true — interactive render handshake reached client.");
-        }
-    }
-
     private async Task HandleSubmitAsync()
     {
-        // DEEP-DEBUG: prove the handler entered (Henry's session must
-        // see this line in Console.app to confirm @onclick fired).
-        Console.WriteLine($"[Login] HandleSubmitAsync entered. u='{_form.Username}' p.len={_form.Password?.Length ?? 0} _submitting={_submitting}");
-
         // Idempotency guard — EditForm OnValidSubmit + button @onclick may
         // both fire on the same user action depending on the WebView host;
         // _submitting ensures the LoginAsync round-trip happens once.
@@ -183,21 +139,17 @@
     }
 
     /// <summary>
-    /// Catalyst's WKWebView occasionally swallows the default Tab key on
-    /// password &lt;input&gt; elements (we saw this during P10.2 smoke).
-    /// Promote our own focus move + Enter-to-submit so keyboard nav is
-    /// deterministic regardless of host quirks.
+    /// Enter inside an input fires submit. Tab navigation is handled by
+    /// the platform-gated <MacCatalystKeyboardFix /> component (see
+    /// dotnet/maui#13934 — Catalyst WKWebView traps focus inside inputs
+    /// so the default Tab handling is broken).
     /// </summary>
     private async Task OnFieldKeyDown(KeyboardEventArgs e)
     {
-        Console.WriteLine($"[Login] OnFieldKeyDown key={e.Key}");
         if (e.Key == "Enter")
         {
             await HandleSubmitAsync();
         }
-        // Tab is already handled by the browser/WebView when tabindex is
-        // set explicitly (above). We intentionally do NOT preventDefault
-        // here — letting the browser move focus respects Shift+Tab too.
     }
 
     private static string LocaliseError(string code) => code switch
