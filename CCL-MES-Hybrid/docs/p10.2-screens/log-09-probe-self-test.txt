@@ -1,0 +1,20 @@
+2026-06-03 14:11:34.769 CCL.MES.Hybrid[17908:431586] You've implemented -[<UIApplicationDelegate> application:performFetchWithCompletionHandler:], but you still need to add "fetch" to the list of your supported UIBackgroundModes in your Info.plist.
+2026-06-03 14:11:34.811 CCL.MES.Hybrid[17908:431586] [boot] MauiProgram.CreateMauiApp starting.
+2026-06-03 14:11:34.811 CCL.MES.Hybrid[17908:431586] [boot] embedded resources: CCL.MES.Hybrid.appsettings.json, CCL.MES.Hybrid.App.xaml, CCL.MES.Hybrid.MainPage.xaml, CCL.MES.Hybrid.Platforms.Windows.App.xaml
+2026-06-03 14:11:34.814 CCL.MES.Hybrid[17908:431586] [boot] appsettings.json loaded — 88 bytes.
+2026-06-03 14:11:34.821 CCL.MES.Hybrid[17908:431586] [boot] CclApi:BaseUrl resolved => http://localhost:5100
+2026-06-03 14:11:34.840 CCL.MES.Hybrid[17908:431586] [boot] MauiApp.Build completed without throwing.
+2026-06-03 14:11:35.046 CCL.MES.Hybrid[17908:431586] [BlazorWebView] Initialized — WebView object type: WebKit.WKWebView
+2026-06-03 14:11:35.047 CCL.MES.Hybrid[17908:431586] [BlazorWebView] WKWebView.Inspectable = true (attach via Safari → Develop).
+2026-06-03 14:11:35.048 CCL.MES.Hybrid[17908:431586] [BlazorWebView] userScript + cclLog bridge installed.
+2026-06-03 14:11:35.375 CCL.MES.Hybrid[17908:431586] [js] [js-probe] index.html executed.
+2026-06-03 14:11:35.693 CCL.MES.Hybrid[17908:431586] [Login] OnAfterRender firstRender=true — interactive render handshake reached client.
+2026-06-03 14:11:36.377 CCL.MES.Hybrid[17908:431586] [js] [js-heartbeat] T+1000ms
+2026-06-03 14:11:37.878 CCL.MES.Hybrid[17908:431586] [js] [js-buttons] count=3
+2026-06-03 14:11:37.879 CCL.MES.Hybrid[17908:431586] [js] [js-button#0] text=probe click rect=432,341,80,24 type=button
+2026-06-03 14:11:37.879 CCL.MES.Hybrid[17908:431586] [js] [js-button#1] text=probe async rect=525,341,86,24 type=button
+2026-06-03 14:11:37.880 CCL.MES.Hybrid[17908:431586] [js] [js-button#2] text=Đăng nhập rect=423,567,324,41 type=submit
+2026-06-03 14:11:39.391 CCL.MES.Hybrid[17908:431586] [js] [js-self-test] dispatching .click() on probe-sync button.
+2026-06-03 14:11:39.391 CCL.MES.Hybrid[17908:431586] [js] [js-click] target=BUTTON id= type=button cx=0 cy=0
+2026-06-03 14:11:39.392 CCL.MES.Hybrid[17908:431586] [js] [js-self-test] .click() returned — check next line for [Login] probe sync clicks=1.
+2026-06-03 14:11:39.406 CCL.MES.Hybrid[17908:431586] [Login] probe sync clicks=1

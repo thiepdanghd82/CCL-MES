@@ -13,6 +13,24 @@
         <p class="login-sub">Đăng nhập với tài khoản hệ thống</p>
 
         @*
+            DEEP-DEBUG probe — outside EditForm, simplest possible handler.
+            If click here does NOT increment the counter, Blazor interactivity
+            is dead globally (blazor.webview.js bridge not wired). Remove
+            once interactivity confirmed.
+        *@
+        <div style="margin-bottom: 14px; padding: 8px; border: 1px dashed #999; font-size: 12px; font-family: monospace;">
+            <button type="button" @onclick="OnProbeClick"
+                    style="padding: 4px 10px; margin-right: 6px;">
+                probe click
+            </button>
+            <button type="button" @onclick="OnProbeAsync"
+                    style="padding: 4px 10px; margin-right: 6px;">
+                probe async
+            </button>
+            <span>clicks=@_probeClicks · async=@_probeAsync · render=@_renderId</span>
+        </div>
+
+        @*
             Wiring notes (Phase 10 P10.2 fix):
               - EditForm + DataAnnotationsValidator handle the [Required] rule.
               - Submit button has BOTH type="submit" AND @onclick so the form
@@ -71,8 +89,40 @@
     private bool _submitting;
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
 
+    // DEEP-DEBUG probe state — proves global Blazor interactivity is alive
+    // OUTSIDE the EditForm. Remove block once root cause is fixed.
+    private int _probeClicks;
+    private int _probeAsync;
+    private int _renderId;
+
+    private void OnProbeClick()
+    {
+        _probeClicks++;
+        Console.WriteLine($"[Login] probe sync clicks={_probeClicks}");
+    }
+
+    private async Task OnProbeAsync()
+    {
+        await Task.Yield();
+        _probeAsync++;
+        Console.WriteLine($"[Login] probe async asyncs={_probeAsync}");
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        _renderId++;
+        if (firstRender)
+        {
+            Console.WriteLine("[Login] OnAfterRender firstRender=true — interactive render handshake reached client.");
+        }
+    }
+
     private async Task HandleSubmitAsync()
     {
+        // DEEP-DEBUG: prove the handler entered (Henry's session must
+        // see this line in Console.app to confirm @onclick fired).
+        Console.WriteLine($"[Login] HandleSubmitAsync entered. u='{_form.Username}' p.len={_form.Password?.Length ?? 0} _submitting={_submitting}");
+
         // Idempotency guard — EditForm OnValidSubmit + button @onclick may
         // both fire on the same user action depending on the WebView host;
         // _submitting ensures the LoginAsync round-trip happens once.
@@ -140,6 +190,7 @@
     /// </summary>
     private async Task OnFieldKeyDown(KeyboardEventArgs e)
     {
+        Console.WriteLine($"[Login] OnFieldKeyDown key={e.Key}");
         if (e.Key == "Enter")
         {
             await HandleSubmitAsync();
