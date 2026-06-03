@@ -234,6 +234,11 @@
   <data name="settings.syslog.export_csv" xml:space="preserve"><value>Xuất CSV</value></data>
   <data name="settings.syslog.export_xlsx" xml:space="preserve"><value>Xuất Excel</value></data>
 
+  <data name="hub.banner.reconnecting" xml:space="preserve"><value>Đang kết nối lại bản tin trực tiếp…</value></data>
+  <data name="hub.banner.reconnected" xml:space="preserve"><value>Đã khôi phục kết nối trực tiếp.</value></data>
+  <data name="hub.banner.session_expired" xml:space="preserve"><value>Phiên đã hết hạn — tải lại trang để tiếp tục nhận cập nhật trực tiếp.</value></data>
+  <data name="hub.banner.reload_button" xml:space="preserve"><value>Tải lại</value></data>
+
   <data name="lang.picker.aria_label" xml:space="preserve"><value>Chọn ngôn ngữ</value></data>
 
   <data name="access_denied.title" xml:space="preserve"><value>Không có quyền truy cập</value></data>

@@ -234,6 +234,11 @@
   <data name="settings.syslog.export_csv" xml:space="preserve"><value>Export CSV</value></data>
   <data name="settings.syslog.export_xlsx" xml:space="preserve"><value>Export Excel</value></data>
 
+  <data name="hub.banner.reconnecting" xml:space="preserve"><value>Reconnecting to live updates…</value></data>
+  <data name="hub.banner.reconnected" xml:space="preserve"><value>Live updates restored.</value></data>
+  <data name="hub.banner.session_expired" xml:space="preserve"><value>Session expired — reload the page to keep getting live updates.</value></data>
+  <data name="hub.banner.reload_button" xml:space="preserve"><value>Reload</value></data>
+
   <data name="lang.picker.aria_label" xml:space="preserve"><value>Language picker</value></data>
 
   <data name="access_denied.title" xml:space="preserve"><value>Access denied</value></data>
