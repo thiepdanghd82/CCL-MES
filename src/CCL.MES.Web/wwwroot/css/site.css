@@ -911,7 +911,13 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
    --navy-dark). Card grid auto-fits at 280px min — works in kiosk
    landscape + planner laptop side-by-side. */
 .shop-order-page { display:flex; flex-direction:column; gap:18px;
-  padding:18px 20px; max-width:1600px; margin:0 auto; }
+  padding:18px 20px;
+  /* Phase 9 — same Lesson 27 ultrawide cap as .workorders-page above.
+     This class is currently dead CSS (Phase 8 WO-Consolidation merged
+     /shoporder into /workorders) but kept here in case any future
+     surface re-uses the shop-order-* class family. */
+  max-width:min(2400px, calc(100vw - 48px));
+  margin:0 auto; }
 .shop-order-state, .shop-order-error { padding:14px; background:#fff;
   border:1px solid var(--navy-border); border-radius:6px; }
 
@@ -1168,7 +1174,12 @@ table.wo td { padding: 10px 12px; border-top: 1px solid #eef0f4; vertical-align:
   white-space:nowrap; border:0; }
 .workorders-page { display:flex; flex-direction:column; gap:14px;
   padding:18px clamp(16px, 3vw, 32px);
-  max-width:1280px;          /* readable line length cap on ultrawide */
+  /* Phase 9 — Henry feedback: cap was 1280px which left ~25% white
+     gutters on each side of 27"/4K monitors. Switch to the Ops Control
+     v1.2 Lesson 27 pattern: a generous cap that lets the page fill
+     ultrawide screens, with the clamp() padding above providing the
+     gutter on side. */
+  max-width:min(2400px, calc(100vw - 48px));
   margin:0 auto;
   container-type:inline-size; /* enables @container queries below */
   container-name:wo-page; }
