@@ -802,4 +802,33 @@ zero local copy còn lại.
 
 ---
 
-*Cập nhật lần cuối: 02/06/2026 — Phase 8 WO-Consolidation + carry-over CLOSED note (SpecService PagingHelper).*
+## Phase 9 audit retention CLOSED — option (a) Export-only chốt
+
+`docs/PHASE9-AUDIT-RETENTION-PLAN.md` đề xuất 3 option (a/b/c) cho
+việc giải quyết bảng `AuditLogs` tăng vô hạn. Henry chốt **option
+(a) Export-only, KHÔNG auto-delete** theo compliance CCL — audit
+trail nhà máy giữ vĩnh viễn (ISO 9001 / IATF 16949 / customer audit
+như BMW PPAP), KHÔNG xóa cứng từ DB ngay cả khi DB lớn dần.
+
+Audit export feature ship PR #66 cung cấp surface để admin lấy
+trail ra (CSV/XLSX) khi cần feed SIEM / external archive. Audit
+row trên DB sẽ KHÔNG tự xóa bởi bất kỳ HostedService hay cron job
+nào — không có code path nào trong codebase delete `AuditLogs` row
+tự động.
+
+**Phase 9.B (archive-then-prune hoặc hard-delete) CHỈ mở** nếu:
+
+1. DB size đo được thực tế > 5GB và backup time vượt RTO,
+2. Compliance team / legal confirm rằng quy định cho phép archive
+   ngoài DB (option b) hoặc hard-delete sau N tháng (option c),
+3. Henry mở approval mới.
+
+Trong khi chờ điều kiện trên, mitigation cho cons "DB lớn dần":
+- Index `(Timestamp DESC)` + đã có `ActorUsername` + `Action`.
+- UI filter mặc định 30 ngày recent (Logs.razor).
+- Operator thủ công có thể `DELETE FROM AuditLogs WHERE
+  Timestamp < ?` sau khi backup + ký nhận — KHÔNG tự động hóa.
+
+---
+
+*Cập nhật lần cuối: 02/06/2026 — Phase 8 WO-Consolidation + carry-over CLOSED + Phase 9 audit retention CLOSED (option a Export-only).*
