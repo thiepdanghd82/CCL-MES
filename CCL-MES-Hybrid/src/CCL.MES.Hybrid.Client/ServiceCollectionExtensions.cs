@@ -62,6 +62,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IWeighScaleService, StubWeighScaleService>();
         services.AddSingleton<IIdleMonitor, StubIdleMonitor>();
         services.AddSingleton<IDeviceModeService, InMemoryDeviceModeService>();
+        services.AddSingleton<IDeviceSettingsLauncher, StubDeviceSettingsLauncher>();
 
         return services;
     }

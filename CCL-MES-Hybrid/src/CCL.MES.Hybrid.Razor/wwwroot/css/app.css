@@ -412,6 +412,81 @@ html, body {
 .hw-pill-ok      { background: rgba(34, 197, 94, 0.12); color: #166534; }
 .hw-pill-warn    { background: rgba(241, 181, 0, 0.18); color: #8a6500; }
 
+/* Scanner test panel inside /hardware */
+.scan-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.scan-btn {
+    align-self: flex-start;
+    padding: 10px 18px;
+    background: var(--brand);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.92rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.scan-btn:hover:not(:disabled)    { background: var(--brand-2); }
+.scan-btn:disabled                { background: #93b8eb; cursor: not-allowed; }
+.scan-btn-secondary               { background: #374151; }
+.scan-btn-secondary:hover:not(:disabled) { background: #1f2937; }
+
+.scan-banner {
+    background: rgba(241, 181, 0, 0.12);
+    border: 1px solid rgba(241, 181, 0, 0.4);
+    color: #5d4400;
+    padding: 10px 14px;
+    border-radius: 6px;
+    max-width: 540px;
+}
+
+.scan-banner-help {
+    font-size: 0.85rem;
+    color: #6b7280;
+    max-width: 540px;
+}
+
+.scan-error {
+    background: rgba(248, 81, 73, 0.10);
+    border: 1px solid rgba(248, 81, 73, 0.40);
+    color: #991b1b;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    max-width: 540px;
+}
+
+.scan-cancelled {
+    color: #6b7280;
+    font-size: 0.88rem;
+    font-style: italic;
+}
+
+.scan-result {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 12px 14px;
+    max-width: 540px;
+    display: grid;
+    gap: 6px;
+}
+
+.scan-result-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 12px;
+    font-size: 0.9rem;
+}
+
+.scan-label { color: #6b7280; font-weight: 500; }
+.scan-value { color: #1f2937; word-break: break-word; }
+.scan-mono  { font-family: ui-monospace, "SF Mono", "Menlo", monospace; font-size: 0.86rem; }
+
 .mode-section {
     margin-bottom: 22px;
     background: var(--card);

@@ -43,9 +43,7 @@ else
 
     <section class="hw-section">
         <h2>Scanner</h2>
-        <HardwareAvailabilityRow Probe="@(() => Scanner.IsAvailableAsync())"
-                                 Title="Máy quét mã vạch / QR"
-                                 EnabledAction="(Chưa cấu hình — sẽ có ở W2/W3)" />
+        <ScannerTestPanel />
     </section>
 
     <section class="hw-section">

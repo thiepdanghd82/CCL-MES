@@ -54,6 +54,30 @@
 
 		See https://developer.apple.com/documentation/bundleresources/information_property_list/nsapptransportsecurity
 	-->
+	<!--
+		Phase 10 P10.3 W2 — Camera permission for the native barcode/QR
+		scanner. The scanner runs an AVCaptureSession backing
+		CatalystBarcodeScanner; touching the device the first time
+		triggers the system consent dialog showing this string verbatim.
+
+		Wording covers (a) what we use the camera for in plain Vietnamese
+		and (b) when access actually happens (only on operator tap, not
+		background). If the operator denies, /hardware shows a banner
+		with a "Mở Settings" deep-link via CameraSettingsHelper.
+
+		PRODUCTION DEPLOYMENT GUIDANCE:
+		  - Adhoc-signed dev builds may surface MissingEntitlement-style
+		    failures from RequestAccessAsync similar to the Keychain
+		    issue we hit in P10.2 (signed prod builds with a real
+		    provisioning profile do not). CatalystBarcodeScanner catches
+		    + logs that scenario explicitly.
+		  - Production signed builds should NOT need any additional
+		    entitlements for this — Camera is granted via Info.plist
+		    + user consent. No app-sandbox plist change required.
+	-->
+	<key>NSCameraUsageDescription</key>
+	<string>CCL MES sử dụng camera để quét mã vạch / QR cho các quy trình production (acceptance Work Order, sample tracking, IPQC). Camera chỉ chạy khi bạn mở chức năng quét — không có background access.</string>
+
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
