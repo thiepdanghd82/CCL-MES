@@ -1,0 +1,101 @@
+=== P10.5c-2 wire-level verification — Thu Jun  4 06:50:13 +07 2026 ===
+
+--- [1] LOGIN as eng-verify ---
+{
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI2YzQxMTAyMTgwNDc0YmNjODcwMWRiODU5NDQwZGFiNSIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWVpZGVudGlmaWVyIjoiMSIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL25hbWUiOiJlbmctdmVyaWZ5IiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiRW5naW5lZXIiLCJkaXNwbGF5X25hbWUiOiJFbmcgVmVyaWZ5IiwiZGVwYXJ0bWVudCI6IiIsIm5iZiI6MTc4MDUzMDYxNCwiZXhwIjoxNzgwNTMxNTE0LCJpc3MiOiJjY2wtbWVzLWFwaSIsImF1ZCI6ImNjbC1tZXMtaHlicmlkIn0.sNjt-iTGv1igoSqGCRy6p4HUQyzkOjxTmqZPJhOZBxQ",
+    "refreshToken": "hodFTCOIdbYokAQb0fLGW6Rxydt_UrV9Qo47W_Otk0o",
+    "accessTokenExpiresAt": "2026-06-04T00:05:14.064792Z",
+    "refreshTokenExpiresAt": "2026-06-10T23:50:14.064792Z",
+    "user": {
+        "id": 1,
+        "username": "eng-verify",
+        "role": "Engineer",
+        "displayName": "Eng Verify",
+        "department": "",
+        "language": ""
+    }
+}
+Got token (len=596)
+
+--- [2] /import/preview multipart upload of DEMO_SILK_1.xlsx ---
+{
+  "fileName": "DEMO_SILK_1.xlsx",
+  "fileSizeBytes": 16365,
+  "plannerCategory": "silkscreen",
+  "parseOk": true,
+  "parseError": null,
+  "warnings": [],
+  "summary": {
+    "category": "silkscreen",
+    "refNo": "CCL-Silk-19235",
+    "customer": "DEMO_CUSTOMER_1",
+    "partNo": "DEMO-PN-001",
+    "partName": "Demo Panel B",
+    "materialType": "PET SH01 (old code: SH02) T0.188-CT331",
+    "productSizeW": 442,
+    "productSizeH": 78.5,
+    "numColors": 9,
+    "cavity": 3,
+    "pitchMm": 485,
+    "inspectionLevel": "A166",
+    "remarksLeft": "\u00c9p d\u00e1n SJ450 \u1edf m\u1eb7t in ph\u00eda tr\u00ean",
+    "remarksRight": null,
+    "printRowsCount": 9,
+    "flexoCuttingRowsCount": 0,
+    "flexoInkRowsCount": 0,
+    "flexoPrintRowsCount": 0
+  },
+  "duplicateRefNo": false,
+  "duplicateRevisionId": null,
+  "duplicateSpecCode": null,
+  "duplicateStatus": null,
+  "parsedJson_len": 3780
+}
+
+--- [3] /import/save (SaveNew, first import) ---
+{
+    "productRevisionId": 1,
+    "productId": 1,
+    "specCode": "DEMO-PN-001",
+    "refNo": "CCL-Silk-19235",
+    "rowsParsed": 9,
+    "createdNewProduct": true,
+    "warnings": [],
+    "mode": "SaveNew"
+}
+
+--- [4] AUDIT row SPEC_IMPORT_DEVICE ---
+SPEC_IMPORT_DEVICE|0193a200-0001-0002-0003-curlverify001|{"device_id":"0193a200-0001-0002-0003-curlverify001","detail":{"rev_id":1,"spec_code":"DEMO-PN-001","ref_no":"CCL-Silk-19235","category":"silkscreen","mode":"SaveNew","filename":"DEMO_SILK_1.xlsx","ro
+SPEC_IMPORT|1|{"spec_code":"DEMO-PN-001","ref_no":"CCL-Silk-19235","title":"Demo Panel B","product_id":1,"process_code":"SILKSCREEN","category":"silkscreen","source":"maui_import","filename":"DEMO_SILK_1.xlsx","row
+
+--- [5] /import/preview re-upload (expecting dup detection) ---
+{
+  "parseOk": true,
+  "duplicateRefNo": true,
+  "duplicateRevisionId": 1,
+  "duplicateSpecCode": "DEMO-PN-001",
+  "duplicateStatus": "Draft",
+  "summary_partNo": "DEMO-PN-001",
+  "summary_refNo": "CCL-Silk-19235"
+}
+
+--- [6] reject .txt extension ---
+{
+    "code": "import.invalid_extension",
+    "error": "File 'notxlsx.txt' is not .xlsx.",
+    "currentStatus": null,
+    "activeWoCount": null
+}
+
+--- [7] reject xlsx ext + non-PK content (renamed .txt) ---
+{
+    "code": "import.invalid_content",
+    "error": "File is not a valid zip/xlsx container.",
+    "currentStatus": null,
+    "activeWoCount": null
+}
+
+--- [8] anonymous (no token) returns 401 ---
+HTTP 401
+
+=== verification complete — trace saved at /tmp/p10-5c-2-curl-trace.txt ===

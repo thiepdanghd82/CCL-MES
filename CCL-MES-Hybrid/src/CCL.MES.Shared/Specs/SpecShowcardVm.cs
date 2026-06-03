@@ -141,6 +141,58 @@ public sealed record SpecShowcardVm
         };
     }
 
+    /// <summary>
+    /// P10.5c-2 — Flatten a Spec xlsx import preview summary into a
+    /// compact VM so <c>SpecShowcardCompact</c> can render the parsed
+    /// payload before the operator commits to a save. Status is pinned
+    /// to <see cref="SpecRevisionStatus.Draft"/> because the legacy
+    /// importer always creates Draft revisions.
+    /// </summary>
+    public static SpecShowcardVm FromImportSummary(SpecImportParsedSummary s, string fileName)
+    {
+        var processCode = MapCategoryToProcessCode(s.Category);
+        var planner = NormalisePlannerCode(null, processCode);
+        var isFlexo = string.Equals(s.Category, "flexo", StringComparison.OrdinalIgnoreCase);
+        var isSilk = string.Equals(s.Category, "silkscreen", StringComparison.OrdinalIgnoreCase);
+        return new SpecShowcardVm
+        {
+            Id = 0,
+            SpecCode = s.PartNo ?? "(chưa có)",
+            Title = !string.IsNullOrWhiteSpace(s.PartName) ? s.PartName! : (s.PartNo ?? fileName),
+            RevisionCode = "A",
+            Status = SpecRevisionStatus.Draft,
+            StatusLabel = StatusLabelVi(SpecRevisionStatus.Draft),
+            StatusCssClass = StatusCssClassFor(SpecRevisionStatus.Draft),
+            PlannerCode = planner,
+            PlannerLabel = PlannerLabelVi(planner),
+            PlannerCssClass = PlannerCssClassFor(planner),
+            RefNo = s.RefNo,
+            InspectionLevel = s.InspectionLevel,
+            ProductCode = s.PartNo ?? "",
+            ProductName = s.PartName ?? "",
+            CustomerName = s.Customer,
+            ProcessCode = processCode,
+            IsSilkscreen = isSilk,
+            IsFlexo = isFlexo,
+            ProductSizeDisplay = FormatProductSize(s.ProductSizeW, s.ProductSizeH),
+            RemarksText = s.RemarksLeft,
+            RemarksCutText = s.RemarksRight,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = "(xem trước)",
+            ComplianceChips = BuildComplianceChips(s.InspectionLevel),
+        };
+    }
+
+    private static string MapCategoryToProcessCode(string category) => (category ?? "").ToLowerInvariant() switch
+    {
+        "silkscreen"  => "SILKSCREEN",
+        "flexo"       => "FLEXO",
+        "letterpress" => "LETTERPRESS",
+        "indigo"      => "INDIGO",
+        "diecut"      => "FLATBED_CUT",
+        _             => "SILKSCREEN",
+    };
+
     // ── status helpers ──────────────────────────────────────────────
 
     /// <summary>VN label cho 5-state status (Q2 — keep 5-state).</summary>

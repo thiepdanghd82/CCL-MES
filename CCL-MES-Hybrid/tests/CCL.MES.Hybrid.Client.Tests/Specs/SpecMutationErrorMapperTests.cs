@@ -115,4 +115,60 @@ public sealed class SpecMutationErrorMapperTests
         var msg = SpecMutationErrorMapper.ToVietnameseMessage(err);
         Assert.Contains("Released", msg);
     }
+
+    // ── P10.5c-2 — Spec xlsx import codes ───────────────────────────
+
+    [Theory]
+    [InlineData("import.no_file",                 "Chưa chọn file để tải lên.")]
+    [InlineData("import.invalid_extension",       "Chỉ hỗ trợ file .xlsx.")]
+    [InlineData("import.oversize",                "File vượt quá 10 MB — chọn file nhỏ hơn.")]
+    [InlineData("import.invalid_content",         "File không phải định dạng xlsx hợp lệ.")]
+    [InlineData("import.no_parsed_payload",       "Phiên xem trước đã hết hạn — chọn lại file.")]
+    [InlineData("import.invalid_parsed_payload",  "Dữ liệu xem trước không hợp lệ — chọn lại file.")]
+    [InlineData("import.invalid_mode",            "Lựa chọn lưu không hợp lệ — thử lại.")]
+    [InlineData("import.spec_code_override_required", "Phải nhập Mã Spec mới khi chọn Lưu thành bản sao.")]
+    [InlineData("import.duplicate_ref_no",        "Đã tồn tại Spec với cùng REF NO — chọn Thay thế hoặc Lưu thành bản sao.")]
+    public void Import_simple_codes_map_to_VN(string code, string expected)
+    {
+        Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code));
+    }
+
+    [Fact]
+    public void Import_parse_error_with_blank_message_uses_generic_VN()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("import.parse_error");
+        Assert.StartsWith("Không đọc được file xlsx", msg);
+    }
+
+    [Fact]
+    public void Import_parse_error_with_message_passes_through()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("import.parse_error", messageEn: "Header row missing");
+        Assert.Contains("Header row missing", msg);
+        Assert.StartsWith("Không đọc được file xlsx", msg);
+    }
+
+    [Fact]
+    public void Import_validation_with_message_passes_through()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("import.validation", messageEn: "Customer field required");
+        Assert.Contains("Customer field required", msg);
+        Assert.StartsWith("Dữ liệu chưa hợp lệ", msg);
+    }
+
+    [Fact]
+    public void Import_validation_with_blank_message_uses_generic_VN()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("import.validation");
+        Assert.Equal("Dữ liệu chưa hợp lệ — kiểm tra Customer / Part No.", msg);
+    }
+
+    [Fact]
+    public void Unknown_import_code_falls_back_to_generic()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("import.future_code_never_seen");
+        // The default branch surfaces the code so operators can screenshot
+        // for ops triage rather than seeing a blank banner.
+        Assert.Contains("import.future_code_never_seen", msg);
+    }
 }

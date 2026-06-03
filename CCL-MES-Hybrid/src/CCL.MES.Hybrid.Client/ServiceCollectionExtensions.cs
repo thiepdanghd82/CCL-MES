@@ -1,4 +1,5 @@
 using CCL.MES.Hybrid.Client.Auth;
+using CCL.MES.Hybrid.Client.Files;
 using CCL.MES.Hybrid.Client.Grid;
 using CCL.MES.Hybrid.Client.Hardware;
 using Microsoft.Extensions.Configuration;
@@ -69,6 +70,12 @@ public static class ServiceCollectionExtensions
         // Preferences-backed impl; tests + non-MAUI consumers keep the
         // in-memory default so DI resolution is always safe.
         services.AddSingleton<IGridPreferenceStore, InMemoryGridPreferenceStore>();
+
+        // P10.5c-2 — file picker abstraction. MAUI host replaces with
+        // CatalystFilePicker (FilePicker.Default backed). Tests + non-MAUI
+        // consumers keep the stub which always returns null (operator-
+        // cancelled), so import flows degrade cleanly without crashing.
+        services.AddSingleton<IFilePickerService, StubFilePickerService>();
 
         return services;
     }

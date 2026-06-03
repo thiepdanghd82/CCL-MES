@@ -171,6 +171,63 @@ public sealed class CclApiClient : ICclApiClient
     public Task<SpecMutationResponse> UpdateSpecAsync(long revisionId, UpdateSpecMutation req, CancellationToken ct = default) =>
         SendSpecMutationAsync(HttpMethod.Put, $"/{ApiVersion.Prefix}/specs/{revisionId}", req, ct);
 
+    // ── Spec import (P10.5c-2) ───────────────────────────────────────
+
+    public async Task<SpecImportPreviewResponse> ImportPreviewSpecAsync(
+        Stream content, string fileName, string plannerCategory, CancellationToken ct = default)
+    {
+        // Multipart upload — stream the file part DIRECTLY without
+        // buffering. StreamContent wraps the stream as-is so HttpClient
+        // pumps it chunk-by-chunk into the socket; the 10 MB legacy cap
+        // never lives entirely in heap memory. Lesson D-5b.
+        using var form = new MultipartFormDataContent();
+        var fileContent = new StreamContent(content);
+        fileContent.Headers.ContentType =
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        form.Add(fileContent, "file", fileName);
+        form.Add(new StringContent(plannerCategory ?? "silkscreen"), "plannerCategory");
+
+        using var msg = new HttpRequestMessage(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/import/preview")
+        {
+            Content = form,
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        // 90s timeout per Henry's spec — covers slow WiFi upload of a
+        // 10 MB xlsx. The handler chain still respects the per-call CT
+        // for operator cancel.
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(90));
+        using var resp = await _http.SendAsync(msg, cts.Token);
+
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, cts.Token);
+
+        var body = await resp.Content.ReadFromJsonAsync<SpecImportPreviewResponse>(cancellationToken: cts.Token);
+        return body ?? throw new InvalidOperationException(
+            "Spec import preview returned 2xx but body was empty.");
+    }
+
+    public async Task<SpecImportSaveResponse> ImportSaveSpecAsync(
+        SpecImportSaveRequest req, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/import/save")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(req),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        using var resp = await _http.SendAsync(msg, ct);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+
+        var body = await resp.Content.ReadFromJsonAsync<SpecImportSaveResponse>(cancellationToken: ct);
+        return body ?? throw new InvalidOperationException(
+            "Spec import save returned 2xx but body was empty.");
+    }
+
     /// <summary>
     /// Shared mutation helper: builds the request with X-Device-Id (W4
     /// audit-pairing pattern), optional JSON body, and reads either a

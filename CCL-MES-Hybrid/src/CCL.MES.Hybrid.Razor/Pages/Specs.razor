@@ -46,6 +46,8 @@
        on the server; we mirror role-gate on the client so other roles
        don't see the affordance. *@
     <AuthorizeView Roles="Admin,Engineer">
+        <button type="button" class="grid-btn grid-btn-secondary"
+                @onclick="OpenImportModal">⤓ Import xlsx</button>
         <button type="button" class="grid-btn grid-btn-primary"
                 @onclick="OpenCreateModal">＋ Tạo Spec</button>
     </AuthorizeView>
@@ -131,6 +133,13 @@ else if (_data is not null)
                  OnClose="() => { _createOpen = false; StateHasChanged(); return Task.CompletedTask; }"
                  OnCreated="OnSpecCreatedAsync" />
 
+@* P10.5c-2 — Spec xlsx import. Refreshes the list on success so the new
+   draft surfaces immediately; navigation to detail is post-close per
+   operator's Q-vote (stay on list, peek the new draft). *@
+<ImportSpecModal Open="_importOpen"
+                 OnClose="() => { _importOpen = false; StateHasChanged(); return Task.CompletedTask; }"
+                 OnImported="OnSpecImportedAsync" />
+
 @* P10.5c-1 — Trash/Restore confirm. Both fire directly with just the
    id + spec code, so no detail-page round-trip needed for the common
    "tidy the list" workflow. *@
@@ -174,6 +183,9 @@ else if (_data is not null)
     private bool _restoreOpen;
     private long _pendingSpecId;
     private string _pendingSpecCode = "";
+
+    // P10.5c-2 — import modal state
+    private bool _importOpen;
 
     private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, PageSize);
 
@@ -292,12 +304,26 @@ else if (_data is not null)
         StateHasChanged();
     }
 
+    private void OpenImportModal()
+    {
+        _importOpen = true;
+        StateHasChanged();
+    }
+
     private Task OnSpecCreatedAsync(SpecMutationResponse resp)
     {
         // Refresh list so the new Draft shows up + jump to the detail page
         // so the operator can continue authoring content.
         Nav.NavigateTo($"/npi/specs/{resp.Id}");
         return Task.CompletedTask;
+    }
+
+    private async Task OnSpecImportedAsync(SpecImportSaveResponse resp)
+    {
+        // Stay on the list + reload so the newly-imported spec appears at
+        // the top. Operator can double-click to open detail if they want
+        // to keep authoring.
+        await ReloadAsync();
     }
 
     private Task OnRequestEditClassAsync((long Id, SpecMutationAction Action) req)

@@ -245,6 +245,13 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton<ShopfloorNotifierV2>();
 
+// P10.5c-2 — Spec xlsx import orchestrator. Legacy CCL.MES.Application
+// service composed of IMesDbContext (Infrastructure) + IAuditWriter (Api)
+// + ISpecXlsxParserFactory (Infrastructure) — all already registered by
+// the calls above. We add the orchestrator itself scoped, mirroring the
+// legacy Web project's registration (src/CCL.MES.Web/Program.cs:230).
+builder.Services.AddScoped<CCL.MES.Application.SpecImport.SpecImportService>();
+
 // P10.3 W4 — in-memory device heartbeat snapshot store. Process-scoped
 // so /v2/devices/{id} can answer last-seen + scan-count without a DB
 // write per ping. Lost on process restart (acceptable: heartbeat
