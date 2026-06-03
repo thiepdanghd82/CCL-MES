@@ -14,6 +14,17 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Force scope + build validation in every environment (Dev / Test / Prod)
+// rather than ASP.NET's Dev-only default. P10.1 caught a missing IBlobStore
+// registration only at first `dotnet run` because the integration test
+// factory uses env=Test which doesn't trigger ValidateOnBuild. Making it
+// unconditional means xUnit catches the next missing-DI bug too.
+builder.Host.UseDefaultServiceProvider((context, options) =>
+{
+    options.ValidateScopes = true;
+    options.ValidateOnBuild = true;
+});
+
 // ──────────────────────────────────────────────────────────────────────
 // Database path resolution.
 //
@@ -83,6 +94,42 @@ var builder = WebApplication.CreateBuilder(args);
 // ──────────────────────────────────────────────────────────────────────
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
+
+// Drawing blob storage. Mirrors the legacy Web registration
+// (src/CCL.MES.Web/Program.cs:91-129) so DrawingsService — which the
+// legacy AddApplication() registers — can resolve IBlobStore. DataDir
+// derives from the connection string just resolved, so blobs land next
+// to the live DB on prod and inside the test fixture tmp dir under test.
+// Singleton matches legacy lifetime (FilesystemBlobStore is stateless).
+{
+    var blobOpts = new CCL.MES.Infrastructure.Storage.BlobStoreOptions();
+    var cs = builder.Configuration.GetConnectionString("Default") ?? "";
+    const string prefix = "Data Source=";
+    if (cs.StartsWith(prefix, StringComparison.Ordinal))
+    {
+        var dbFile = cs[prefix.Length..];
+        var dbDir = Path.GetDirectoryName(Path.GetFullPath(dbFile));
+        if (!string.IsNullOrWhiteSpace(dbDir)) blobOpts.DataDir = dbDir;
+    }
+    if (string.IsNullOrEmpty(blobOpts.DataDir))
+    {
+        // Fallback — co-locate with the API binary. Operator should set an
+        // explicit data dir in any non-trivial deployment.
+        blobOpts.DataDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "data"));
+    }
+    if (long.TryParse(Environment.GetEnvironmentVariable("MES_BLOB_MAX_BYTES"), out var maxBytes) && maxBytes > 0)
+        blobOpts.MaxBytes = maxBytes;
+    var allowed = Environment.GetEnvironmentVariable("MES_BLOB_ALLOWED_EXTENSIONS");
+    if (!string.IsNullOrWhiteSpace(allowed))
+    {
+        blobOpts.AllowedExtensions = new HashSet<string>(
+            allowed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            StringComparer.OrdinalIgnoreCase);
+    }
+    builder.Services.AddSingleton(blobOpts);
+    builder.Services.AddSingleton<CCL.MES.Application.Storage.IBlobStore,
+                                  CCL.MES.Infrastructure.Storage.FilesystemBlobStore>();
+}
 
 // PasswordHasher<User> mirrors legacy registration so password verification
 // stays bit-identical. Without this the AuthController couldn't validate
