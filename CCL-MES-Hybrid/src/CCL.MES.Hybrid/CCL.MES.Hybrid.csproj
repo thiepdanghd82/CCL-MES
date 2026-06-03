@@ -37,7 +37,12 @@
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
 
-    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">14.0</SupportedOSPlatformVersion>
+    <!-- net10 Mac Catalyst SDK enforces a minimum of 15.0 (the template
+         default 14.0 hits "lower than the minimum value '15.0'" on
+         Xcode 26.5 + Microsoft.MacCatalyst.Sdk.net10.0_26.5). Bumping
+         here is purely a build-floor; runtime requirements on operator
+         Macs end up at 15.0+ which all CCL machines already exceed. -->
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
   </PropertyGroup>
@@ -51,11 +56,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Bundled appsettings.json — read at boot by MauiProgram so the
-         API base URL is configurable without a rebuild (operator copies
-         a modified file to the app's bundled resources before shipping
-         the DMG/MSIX). -->
-    <MauiAsset Include="appsettings.json" LogicalName="appsettings.json" />
+    <!-- Bundled appsettings.json — read at boot by MauiProgram via
+         Assembly.GetManifestResourceStream so the API base URL is
+         configurable without a rebuild. EmbeddedResource gives us a
+         logical name 'CCL.MES.Hybrid.appsettings.json' that we read in
+         code; MauiAsset is the wrong primitive here because it expects
+         relative paths inside the .app bundle (which broke under
+         absolute-path source trees containing a space). The Remove
+         below cancels the implicit MauiAsset glob that the MAUI SDK
+         applies to root-level json files. -->
+    <MauiAsset Remove="appsettings.json" />
+    <EmbeddedResource Include="appsettings.json" />
   </ItemGroup>
 
   <ItemGroup>

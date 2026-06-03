@@ -17,12 +17,14 @@
             <div class="login-field">
                 <label for="login-username">Tên đăng nhập</label>
                 <InputText id="login-username" class="login-input"
-                           @bind-Value="_form.Username" autocomplete="username" />
+                           @bind-Value="_form.Username" @bind-Value:event="oninput"
+                           autocomplete="username" />
             </div>
             <div class="login-field">
                 <label for="login-password">Mật khẩu</label>
                 <InputText id="login-password" type="password" class="login-input"
-                           @bind-Value="_form.Password" autocomplete="current-password" />
+                           @bind-Value="_form.Password" @bind-Value:event="oninput"
+                           autocomplete="current-password" />
             </div>
 
             @if (_errorKey is not null)

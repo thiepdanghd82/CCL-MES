@@ -63,7 +63,10 @@ public sealed record NpiWorkCenter
     public long Id { get; init; }
     public string Code { get; init; } = "";
     public string? Description { get; init; }
-    public bool IsActive { get; init; }
+    public string? Area { get; init; }
+    // Legacy WorkCenter.Active is nullable bool — surface as nullable so
+    // the UI can distinguish "not set" from "explicitly inactive".
+    public bool? Active { get; init; }
 }
 
 public sealed record NpiRawMaterial

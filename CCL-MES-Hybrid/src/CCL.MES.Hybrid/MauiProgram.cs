@@ -34,13 +34,20 @@ public static class MauiProgram
         // ship a stationspecific copy by replacing the asset before sign.
         var asm = typeof(MauiProgram).GetTypeInfo().Assembly;
         var configBuilder = new ConfigurationBuilder();
-        using (var settingsStream = asm.GetManifestResourceStream("CCL.MES.Hybrid.appsettings.json"))
+        // The JsonStreamConfigurationProvider reads the stream lazily on
+        // Build(), so we MUST keep it alive past this scope — using/dispose
+        // here closes it too early and we surface "Stream was not readable".
+        // We materialise the JSON into memory + hand a fresh MemoryStream
+        // each time the provider reloads so disposal is harmless.
+        var settingsStream = asm.GetManifestResourceStream("CCL.MES.Hybrid.appsettings.json");
+        if (settingsStream is not null)
         {
-            if (settingsStream is not null)
-                configBuilder.AddJsonStream(settingsStream);
+            using var ms = new MemoryStream();
+            settingsStream.CopyTo(ms);
+            settingsStream.Dispose();
+            var bytes = ms.ToArray();
+            configBuilder.AddJsonStream(new MemoryStream(bytes, writable: false));
         }
-        // Allow env overrides for dev iteration — eg. CCL_CCLAPI__BASEURL.
-        configBuilder.AddEnvironmentVariables(prefix: "CCL_");
         var configuration = configBuilder.Build();
         builder.Configuration.AddConfiguration(configuration);
 

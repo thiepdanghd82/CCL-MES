@@ -30,10 +30,11 @@ else if (_data is not null)
     <table class="grid">
         <thead>
             <tr>
-                <th style="width:8rem">ID</th>
-                <th>Code</th>
+                <th style="width:7rem">ID</th>
+                <th style="width:9rem">Code</th>
                 <th>Mô tả</th>
-                <th style="width:6rem">Trạng thái</th>
+                <th style="width:9rem">Area</th>
+                <th style="width:6rem">Active</th>
             </tr>
         </thead>
         <tbody>
@@ -43,12 +44,13 @@ else if (_data is not null)
                     <td>@row.Id</td>
                     <td><code>@row.Code</code></td>
                     <td>@row.Description</td>
-                    <td>@(row.IsActive ? "Active" : "Inactive")</td>
+                    <td>@row.Area</td>
+                    <td>@(row.Active == true ? "Active" : row.Active == false ? "Inactive" : "—")</td>
                 </tr>
             }
             @if (_data.Items.Count == 0)
             {
-                <tr><td colspan="4" class="grid-empty">Không có dữ liệu phù hợp.</td></tr>
+                <tr><td colspan="5" class="grid-empty">Không có dữ liệu phù hợp.</td></tr>
             }
         </tbody>
     </table>

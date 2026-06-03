@@ -1,0 +1,73 @@
+{
+    "items": [
+        {
+            "code": "AAINK",
+            "description": "Ink Mixing",
+            "area": "OTHER",
+            "idealSpeedPcsH": null,
+            "shiftPattern": null,
+            "active": true,
+            "id": 44,
+            "createdAt": "2026-05-31T14:14:48",
+            "createdBy": null,
+            "updatedAt": null,
+            "updatedBy": null
+        },
+        {
+            "code": "ACNC3",
+            "description": "CNC-3 Heads",
+            "area": "CNC",
+            "idealSpeedPcsH": null,
+            "shiftPattern": null,
+            "active": true,
+            "id": 45,
+            "createdAt": "2026-05-31T14:14:48",
+            "createdBy": null,
+            "updatedAt": null,
+            "updatedBy": null
+        },
+        {
+            "code": "AOI01",
+            "description": "AOI(AVT)",
+            "area": "INSPECTION",
+            "idealSpeedPcsH": null,
+            "shiftPattern": null,
+            "active": true,
+            "id": 46,
+            "createdAt": "2026-05-31T14:14:48",
+            "createdBy": null,
+            "updatedAt": null,
+            "updatedBy": null
+        },
+        {
+            "code": "ARSS4",
+            "description": "SS(R2R)",
+            "area": "SILKSCREEN",
+            "idealSpeedPcsH": null,
+            "shiftPattern": null,
+            "active": true,
+            "id": 47,
+            "createdAt": "2026-05-31T14:14:48",
+            "createdBy": null,
+            "updatedAt": null,
+            "updatedBy": null
+        },
+        {
+            "code": "ARSS6",
+            "description": "SS(R2R)",
+            "area": "SILKSCREEN",
+            "idealSpeedPcsH": null,
+            "shiftPattern": null,
+            "active": true,
+            "id": 48,
+            "createdAt": "2026-05-31T14:14:48",
+            "createdBy": null,
+            "updatedAt": null,
+            "updatedBy": null
+        }
+    ],
+    "total": 43,
+    "page": 1,
+    "pageSize": 5,
+    "totalPages": 9
+}
