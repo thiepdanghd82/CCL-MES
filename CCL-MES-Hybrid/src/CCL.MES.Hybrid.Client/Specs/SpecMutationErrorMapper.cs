@@ -1,0 +1,91 @@
+using CCL.MES.Shared.Envelopes;
+
+namespace CCL.MES.Hybrid.Client.Specs;
+
+/// <summary>
+/// P10.5c-1 — Pure mapper from server-side Spec mutation error codes onto
+/// operator-facing Vietnamese strings. Lives in the client lib (not in
+/// the Shared assembly) because the VN strings are MAUI-local until the
+/// resx infrastructure lands in P10.6 (Q12 i18n inline VN).
+///
+/// Server-side codes (from <c>CCL.MES.Application.SpecService</c> +
+/// the controller mapping):
+///   - <c>duplicate_spec_code</c>     — Create / Copy
+///   - <c>validation</c>              — Create / Copy generic
+///   - <c>not_found</c>               — Approve / Update / Trash / Restore / Copy source / Revise source / Supersede target
+///   - <c>trashed</c>                 — Edit / Revise / Supersede on trashed source
+///   - <c>immutable_status</c>        — Update on non-Draft
+///   - <c>invalid_source_status</c>   — Revise on non-Approved/Released
+///   - <c>reason_required</c>         — Revise missing reason
+///   - <c>invalid_status</c>          — Supersede on non-Approved/Released
+///   - <c>confirm_mismatch</c>        — Supersede confirmation SpecCode mismatch
+///   - <c>already_trashed</c>         — Trash on already-trashed
+///   - <c>active_work_orders</c>      — Trash blocked by active WO refs (count in Details)
+///   - <c>not_trashed</c>             — Restore on non-trashed
+/// </summary>
+public static class SpecMutationErrorMapper
+{
+    /// <summary>Map an <see cref="ApiException"/> raised from a Spec
+    /// mutation call into a single Vietnamese error message ready for
+    /// inline banner display. Falls back to MessageEn when the code is
+    /// unrecognised so future server-side additions don't surface as a
+    /// blank banner.</summary>
+    public static string ToVietnameseMessage(ApiException ex)
+    {
+        ArgumentNullException.ThrowIfNull(ex);
+        return ToVietnameseMessage(ex.ApiError);
+    }
+
+    public static string ToVietnameseMessage(ApiError err)
+    {
+        ArgumentNullException.ThrowIfNull(err);
+        return err.Code switch
+        {
+            "duplicate_spec_code"   => "Mã Spec đã tồn tại — chọn mã khác.",
+            "validation"            => string.IsNullOrWhiteSpace(err.MessageEn) ? "Dữ liệu chưa hợp lệ." : $"Dữ liệu chưa hợp lệ: {err.MessageEn}",
+            "not_found"             => "Không tìm thấy Spec (có thể đã bị xoá).",
+            "trashed"               => "Spec đang ở Thùng rác — khôi phục trước khi thực hiện.",
+            "immutable_status"      => CurrentStatusSuffix("Chỉ Bản nháp mới được sửa.", err),
+            "invalid_source_status" => CurrentStatusSuffix("Chỉ Spec đã Duyệt hoặc Phát hành mới có thể tạo Revise.", err),
+            "reason_required"       => "Lý do Revise phải có ít nhất 5 ký tự.",
+            "invalid_status"        => CurrentStatusSuffix("Chỉ Spec đã Duyệt hoặc Phát hành mới có thể đánh dấu Thay thế.", err),
+            "confirm_mismatch"      => "Mã Spec xác nhận chưa đúng — gõ lại chính xác mã hiện tại.",
+            "already_trashed"       => "Spec đã ở Thùng rác.",
+            "active_work_orders"    => ActiveWoSuffix(err),
+            "not_trashed"           => "Spec không ở Thùng rác — không cần khôi phục.",
+            "auth.invalid_credentials" or "auth.bad_claim" => "Phiên đăng nhập đã hết hạn — đăng nhập lại.",
+            "http.non_success"      => $"Lỗi máy chủ (HTTP {err.MessageEn}).",
+            _                       => string.IsNullOrWhiteSpace(err.MessageEn) ? $"Lỗi không xác định ({err.Code})." : err.MessageEn,
+        };
+    }
+
+    /// <summary>Map by <c>code</c> + the optional <c>currentStatus</c> detail
+    /// without needing a full ApiException — useful for unit tests that
+    /// reconstruct the mapping table.</summary>
+    public static string ToVietnameseMessage(string code, string? currentStatus = null, int? activeWoCount = null, string? messageEn = null)
+    {
+        var details = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!string.IsNullOrWhiteSpace(currentStatus)) details["currentStatus"] = currentStatus!;
+        if (activeWoCount is not null) details["activeWoCount"] = activeWoCount.Value.ToString();
+        return ToVietnameseMessage(new ApiError
+        {
+            Code = code,
+            MessageEn = messageEn ?? "",
+            Details = details.Count == 0 ? null : details,
+        });
+    }
+
+    private static string CurrentStatusSuffix(string baseMessage, ApiError err)
+    {
+        if (err.Details is not null && err.Details.TryGetValue("currentStatus", out var status) && !string.IsNullOrWhiteSpace(status))
+            return $"{baseMessage} (Hiện tại: {status})";
+        return baseMessage;
+    }
+
+    private static string ActiveWoSuffix(ApiError err)
+    {
+        if (err.Details is not null && err.Details.TryGetValue("activeWoCount", out var raw) && int.TryParse(raw, out var count))
+            return $"Không thể xoá: {count} Work Order đang sử dụng Spec này.";
+        return "Không thể xoá: vẫn còn Work Order đang sử dụng Spec này.";
+    }
+}

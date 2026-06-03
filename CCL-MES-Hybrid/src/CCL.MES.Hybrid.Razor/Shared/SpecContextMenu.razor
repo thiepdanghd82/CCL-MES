@@ -1,20 +1,14 @@
 @*
-    P10.5b — Spec list row context menu. Read-only entries land in this
-    PR; mutation entries (Copy / Edit / Revise / Mark Superseded / Trash)
-    render but disabled with the i18n marker text "có ở bản sau" per the
-    P10.5 plan ordering (mutations = P10.5c+).
+    P10.5c-1 — Spec list row context menu. Items split by where the
+    mutation lives:
+      · Open / Get info → navigate to detail (handled in page)
+      · Edit / Copy / Revise / Mark Superseded → fire OnRequestEditClass;
+        page navigates to detail with the action queued so the operator
+        lands in the detail page with the right modal already open.
+      · Trash / Restore → fire OnTrash/OnRestore directly so the page
+        owns a SpecConfirmActionModal inline (no detail nav needed).
 
-    Trigger: parent grid passes Open=true + Anchor coordinates; menu
-    renders absolutely positioned via inline style. Click outside →
-    OnClose. ESC handled at parent via the standard MacCatalystKeyboardFix
-    Tab/Enter polyfill.
-
-    The "Open" + "Get info" actions are different navigation paths the
-    operator may want:
-       Open      → navigate to /spec/{id} (full detail page in this tab)
-       Get info  → no-op placeholder for the lightweight modal peek
-                   (P10.5b ships the full page only; modal-peek deferred
-                   per Henry's Q3 — full mode in 5c covers it).
+    Trash is exposed only in active/all views; Restore only in trash view.
 *@
 
 @if (Open)
@@ -36,51 +30,60 @@
 
         <div class="spec-ctx-divider"></div>
 
-        @* Mutations — deferred per plan. Render visible but disabled so
-           operators see the path coming and don't ask where it went. *@
-        <button type="button" class="spec-ctx-item is-deferred" disabled>
+        <button type="button" class="spec-ctx-item"
+                @onclick="() => RequestEditClassAsync(SpecMutationAction.Edit)">
             <span class="spec-ctx-ico">📝</span>
-            <span>Sửa <em>(có ở bản sau)</em></span>
+            <span>Sửa (Bản nháp)</span>
         </button>
-        <button type="button" class="spec-ctx-item is-deferred" disabled>
+        <button type="button" class="spec-ctx-item"
+                @onclick="() => RequestEditClassAsync(SpecMutationAction.Copy)">
             <span class="spec-ctx-ico">⎘</span>
-            <span>Sao chép <em>(có ở bản sau)</em></span>
+            <span>Sao chép</span>
         </button>
-        <button type="button" class="spec-ctx-item is-deferred" disabled>
+        <button type="button" class="spec-ctx-item"
+                @onclick="() => RequestEditClassAsync(SpecMutationAction.Revise)">
             <span class="spec-ctx-ico">⟳</span>
-            <span>Tạo bản mới (Revise) <em>(có ở bản sau)</em></span>
+            <span>Tạo bản mới (Revise)</span>
         </button>
-        <button type="button" class="spec-ctx-item is-deferred" disabled>
+        <button type="button" class="spec-ctx-item"
+                @onclick="() => RequestEditClassAsync(SpecMutationAction.Supersede)">
             <span class="spec-ctx-ico">⊘</span>
-            <span>Đánh dấu thay thế <em>(có ở bản sau)</em></span>
+            <span>Đánh dấu thay thế</span>
         </button>
-        <button type="button" class="spec-ctx-item is-deferred" disabled>
-            <span class="spec-ctx-ico">🗑</span>
-            <span>Xoá vào thùng rác <em>(có ở bản sau)</em></span>
-        </button>
+
+        <div class="spec-ctx-divider"></div>
+
+        @if (IsTrashView)
+        {
+            <button type="button" class="spec-ctx-item" @onclick="OnRestoreAsync">
+                <span class="spec-ctx-ico">↺</span>
+                <span>Khôi phục từ Thùng rác</span>
+            </button>
+        }
+        else
+        {
+            <button type="button" class="spec-ctx-item spec-ctx-item-danger" @onclick="OnTrashAsync">
+                <span class="spec-ctx-ico">🗑</span>
+                <span>Xoá vào Thùng rác</span>
+            </button>
+        }
     </div>
 }
 
 @code {
-    /// <summary>Controls whether the menu is visible. Parent flips false
-    /// after firing an action so the menu collapses cleanly.</summary>
     [Parameter] public bool Open { get; set; }
-
-    /// <summary>Absolute pixel offset relative to the page where the
-    /// menu's top-left anchors. Caller computes from MouseEventArgs
-    /// (ClientX/ClientY) at trigger time.</summary>
     [Parameter] public (double X, double Y) Anchor { get; set; }
-
-    /// <summary>Spec id the menu is acting on. Echoed to the OnOpen +
-    /// OnInfo callbacks so the parent can route.</summary>
     [Parameter, EditorRequired] public long TargetSpecId { get; set; }
-
-    /// <summary>SpecCode shown as the menu header so the operator
-    /// confirms which row the action will apply to.</summary>
     [Parameter] public string TargetSpecCode { get; set; } = "";
+    /// <summary>Set true when the list is rendering the trash view so the
+    /// context menu surfaces Restore instead of Trash.</summary>
+    [Parameter] public bool IsTrashView { get; set; }
 
     [Parameter] public EventCallback<long> OnOpen { get; set; }
     [Parameter] public EventCallback<long> OnInfo { get; set; }
+    [Parameter] public EventCallback<(long Id, SpecMutationAction Action)> OnRequestEditClass { get; set; }
+    [Parameter] public EventCallback<long> OnTrash { get; set; }
+    [Parameter] public EventCallback<long> OnRestore { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
     private async Task OnOpenAsync()
@@ -92,6 +95,24 @@
     private async Task OnInfoAsync()
     {
         if (OnInfo.HasDelegate) await OnInfo.InvokeAsync(TargetSpecId);
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+
+    private async Task RequestEditClassAsync(SpecMutationAction action)
+    {
+        if (OnRequestEditClass.HasDelegate) await OnRequestEditClass.InvokeAsync((TargetSpecId, action));
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+
+    private async Task OnTrashAsync()
+    {
+        if (OnTrash.HasDelegate) await OnTrash.InvokeAsync(TargetSpecId);
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+
+    private async Task OnRestoreAsync()
+    {
+        if (OnRestore.HasDelegate) await OnRestore.InvokeAsync(TargetSpecId);
         if (OnClose.HasDelegate) await OnClose.InvokeAsync();
     }
 }

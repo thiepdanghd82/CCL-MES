@@ -139,6 +139,102 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<SpecDetailItem>(resp, ct);
     }
 
+    public async Task<List<SpecProductDropdownItem>> GetSpecProductsAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/specs/products", ct);
+        return await ReadAsAsync<List<SpecProductDropdownItem>>(resp, ct);
+    }
+
+    // ── Spec mutations (P10.5c-1) ───────────────────────────────────
+
+    public Task<SpecMutationResponse> CreateSpecAsync(CreateSpecMutation req, CancellationToken ct = default) =>
+        SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs", req, ct);
+
+    public Task<SpecMutationResponse> ApproveSpecAsync(long revisionId, CancellationToken ct = default) =>
+        SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/revisions/{revisionId}/approve", body: null, ct);
+
+    public Task<SpecMutationResponse> CopySpecAsync(long sourceRevisionId, CopySpecMutation req, CancellationToken ct = default) =>
+        SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{sourceRevisionId}/copy", req, ct);
+
+    public Task<SpecMutationResponse> ReviseSpecAsync(long sourceRevisionId, ReviseSpecMutation req, CancellationToken ct = default) =>
+        SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{sourceRevisionId}/revise", req, ct);
+
+    public Task<SpecMutationResponse> SupersedeSpecAsync(long revisionId, SupersedeSpecMutation req, CancellationToken ct = default) =>
+        SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{revisionId}/supersede", req, ct);
+
+    public Task<SpecMutationResponse> TrashSpecAsync(long revisionId, CancellationToken ct = default) =>
+        SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{revisionId}/trash", body: null, ct);
+
+    public Task<SpecMutationResponse> RestoreSpecAsync(long revisionId, CancellationToken ct = default) =>
+        SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{revisionId}/restore", body: null, ct);
+
+    public Task<SpecMutationResponse> UpdateSpecAsync(long revisionId, UpdateSpecMutation req, CancellationToken ct = default) =>
+        SendSpecMutationAsync(HttpMethod.Put, $"/{ApiVersion.Prefix}/specs/{revisionId}", req, ct);
+
+    /// <summary>
+    /// Shared mutation helper: builds the request with X-Device-Id (W4
+    /// audit-pairing pattern), optional JSON body, and reads either a
+    /// <see cref="SpecMutationResponse"/> success or a
+    /// <see cref="SpecMutationError"/> failure. Failure → throw
+    /// <see cref="ApiException"/> + <see cref="ApiError"/> envelope so
+    /// the existing client error pipeline (page banners + Thử lại) keeps
+    /// working uniformly across the lifecycle.
+    /// </summary>
+    private async Task<SpecMutationResponse> SendSpecMutationAsync(HttpMethod verb, string path, object? body, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(verb, path);
+        if (body is not null)
+            msg.Content = System.Net.Http.Json.JsonContent.Create(body);
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        using var resp = await _http.SendAsync(msg, ct);
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+        }
+
+        var success = await resp.Content.ReadFromJsonAsync<SpecMutationResponse>(cancellationToken: ct);
+        return success ?? throw new InvalidOperationException(
+            $"Spec mutation {verb} {path} returned 2xx but body was empty.");
+    }
+
+    /// <summary>
+    /// Spec mutation errors land as <see cref="SpecMutationError"/> (the
+    /// shape SpecsController projects on 4xx). We translate to the global
+    /// <see cref="ApiError"/> envelope by lifting <c>Code</c> + composing
+    /// the English fallback so page-level banners can render either the
+    /// raw code (mapped to VN by the page) or the English error text.
+    /// </summary>
+    private static async Task ThrowOnSpecMutationFailureAsync(HttpResponseMessage resp, CancellationToken ct)
+    {
+        SpecMutationError? mutErr = null;
+        try { mutErr = await resp.Content.ReadFromJsonAsync<SpecMutationError>(cancellationToken: ct); }
+        catch { /* fallback below */ }
+
+        if (mutErr is not null && !string.IsNullOrWhiteSpace(mutErr.Code))
+        {
+            var details = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (mutErr.CurrentStatus is not null) details["currentStatus"] = mutErr.CurrentStatus;
+            if (mutErr.ActiveWoCount is not null) details["activeWoCount"] = mutErr.ActiveWoCount.Value.ToString();
+            throw new ApiException((int)resp.StatusCode, new ApiError
+            {
+                Code = mutErr.Code,
+                MessageEn = mutErr.Error,
+                Details = details.Count == 0 ? null : details,
+            });
+        }
+
+        // Fall back to the generic non-success path so the caller always
+        // sees an ApiException regardless of whether the body parsed.
+        ApiError? generic = null;
+        try { generic = await resp.Content.ReadFromJsonAsync<ApiError>(cancellationToken: ct); }
+        catch { /* synthesise below */ }
+        generic ??= new ApiError { Code = "http.non_success", MessageEn = $"HTTP {(int)resp.StatusCode}" };
+        throw new ApiException((int)resp.StatusCode, generic);
+    }
+
     // ── Drawings ────────────────────────────────────────────────────
 
     public async Task<List<DrawingKindSlot>> GetDrawingsByRevisionAsync(long revisionId, CancellationToken ct = default)

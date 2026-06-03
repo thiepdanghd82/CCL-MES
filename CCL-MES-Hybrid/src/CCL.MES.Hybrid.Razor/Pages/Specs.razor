@@ -3,6 +3,7 @@
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
 @inject NavigationManager Nav
+@using CCL.MES.Hybrid.Client.Specs
 
 @*
     P10.5b — Engineer Spec list. 14-col parity với SpecHub + legacy web
@@ -11,8 +12,11 @@
     Planner palette per SpecHub. Search 3-field + paginate + view chip
     (Active/Trash/All) + columns toggle + context menu.
 
-    Mutations deferred to P10.5c+ — context menu surfaces them as
-    "có ở bản sau" so operator knows where to find them later.
+    P10.5c-1 enables write paths: toolbar Create button (Admin/Engineer
+    only), context menu Trash/Restore inline (no detail-page round-trip),
+    Edit/Copy/Revise/Supersede route to detail page where the modals
+    own the full SpecDetailItem they need. Mutations land via
+    ICclApiClient → API → SpecService through NpiSpecWrite policy.
 *@
 
 <PageTitle>Engineer Spec — NPI</PageTitle>
@@ -38,6 +42,13 @@
     </div>
 
     <div class="grid-toolbar-spacer"></div>
+    @* P10.5c-1 — Create Spec button. NpiSpecWrite policy = Admin / Engineer
+       on the server; we mirror role-gate on the client so other roles
+       don't see the affordance. *@
+    <AuthorizeView Roles="Admin,Engineer">
+        <button type="button" class="grid-btn grid-btn-primary"
+                @onclick="OpenCreateModal">＋ Tạo Spec</button>
+    </AuthorizeView>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
 </div>
 
@@ -109,8 +120,37 @@ else if (_data is not null)
 
 <SpecContextMenu Open="_ctxOpen" Anchor="_ctxAnchor"
                  TargetSpecId="_ctxId" TargetSpecCode="@_ctxCode"
+                 IsTrashView="@(IsView("trash"))"
                  OnOpen="OpenAsync" OnInfo="OpenAsync"
+                 OnRequestEditClass="OnRequestEditClassAsync"
+                 OnTrash="OnRequestTrashAsync"
+                 OnRestore="OnRequestRestoreAsync"
                  OnClose="() => { _ctxOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
+
+<CreateSpecModal Open="_createOpen"
+                 OnClose="() => { _createOpen = false; StateHasChanged(); return Task.CompletedTask; }"
+                 OnCreated="OnSpecCreatedAsync" />
+
+@* P10.5c-1 — Trash/Restore confirm. Both fire directly with just the
+   id + spec code, so no detail-page round-trip needed for the common
+   "tidy the list" workflow. *@
+<SpecConfirmActionModal Open="_trashOpen"
+                        Title="@($"Xoá Spec {_pendingSpecCode} vào Thùng rác?")"
+                        Message="Spec sẽ bị soft-delete. Có thể khôi phục từ tab Thùng rác. Lưu ý: server sẽ chặn nếu còn Work Order đang dùng Spec này."
+                        ConfirmLabel="Xoá vào Thùng rác"
+                        PendingLabel="Đang xoá…"
+                        Severity="ModalSeverity.Danger"
+                        OnConfirm="OnTrashConfirmAsync"
+                        OnClose="() => { _trashOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
+
+<SpecConfirmActionModal Open="_restoreOpen"
+                        Title="@($"Khôi phục Spec {_pendingSpecCode}?")"
+                        Message="Spec sẽ rời Thùng rác và quay lại danh sách Đang dùng."
+                        ConfirmLabel="Khôi phục"
+                        PendingLabel="Đang khôi phục…"
+                        Severity="ModalSeverity.Warning"
+                        OnConfirm="OnRestoreConfirmAsync"
+                        OnClose="() => { _restoreOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
 
 @code {
     private NpiPagedRaw<SpecListItem>? _data;
@@ -127,6 +167,13 @@ else if (_data is not null)
     private (double X, double Y) _ctxAnchor;
     private long _ctxId;
     private string _ctxCode = "";
+
+    // P10.5c-1 — mutation modal state
+    private bool _createOpen;
+    private bool _trashOpen;
+    private bool _restoreOpen;
+    private long _pendingSpecId;
+    private string _pendingSpecCode = "";
 
     private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, PageSize);
 
@@ -235,6 +282,68 @@ else if (_data is not null)
         _ctxCode = row.SpecCode;
         StateHasChanged();
         return Task.CompletedTask;
+    }
+
+    // ── P10.5c-1 — mutation handlers ───────────────────────────────
+
+    private void OpenCreateModal()
+    {
+        _createOpen = true;
+        StateHasChanged();
+    }
+
+    private Task OnSpecCreatedAsync(SpecMutationResponse resp)
+    {
+        // Refresh list so the new Draft shows up + jump to the detail page
+        // so the operator can continue authoring content.
+        Nav.NavigateTo($"/npi/specs/{resp.Id}");
+        return Task.CompletedTask;
+    }
+
+    private Task OnRequestEditClassAsync((long Id, SpecMutationAction Action) req)
+    {
+        // Edit / Copy / Revise / Supersede live on the detail page. We
+        // route there with the action queued in query string; the detail
+        // page reads it on init and pre-opens the matching modal.
+        Nav.NavigateTo($"/npi/specs/{req.Id}?action={req.Action.ToString().ToLowerInvariant()}");
+        return Task.CompletedTask;
+    }
+
+    private Task OnRequestTrashAsync(long id)
+    {
+        var row = _data?.Items.FirstOrDefault(r => r.Id == id);
+        if (row is null) return Task.CompletedTask;
+        _pendingSpecId = id;
+        _pendingSpecCode = row.SpecCode;
+        _trashOpen = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private Task OnRequestRestoreAsync(long id)
+    {
+        var row = _data?.Items.FirstOrDefault(r => r.Id == id);
+        if (row is null) return Task.CompletedTask;
+        _pendingSpecId = id;
+        _pendingSpecCode = row.SpecCode;
+        _restoreOpen = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task OnTrashConfirmAsync()
+    {
+        // SpecConfirmActionModal wraps the call in its own try/catch and
+        // surfaces the VN banner via SpecMutationErrorMapper. We just do
+        // the API call + reload the list on success.
+        await Api.TrashSpecAsync(_pendingSpecId);
+        await ReloadAsync();
+    }
+
+    private async Task OnRestoreConfirmAsync()
+    {
+        await Api.RestoreSpecAsync(_pendingSpecId);
+        await ReloadAsync();
     }
 
     private static string ColClass(string columnId) => columnId switch

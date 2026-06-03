@@ -1,0 +1,49 @@
+2026-06-03 23:47:42.911 CCL.MES.Hybrid[25214:250416] You've implemented -[<UIApplicationDelegate> application:performFetchWithCompletionHandler:], but you still need to add "fetch" to the list of your supported UIBackgroundModes in your Info.plist.
+2026-06-03 23:47:42.953 CCL.MES.Hybrid[25214:250416] [boot] appsettings.json loaded — 133 bytes.
+2026-06-03 23:47:42.960 CCL.MES.Hybrid[25214:250416] [boot] CclApi:BaseUrl resolved => http://127.0.0.1:5100
+2026-06-03 23:47:43.170 CCL.MES.Hybrid[25214:250416] [BlazorWebView/DEBUG] WKWebView.Inspectable = true (attach via Safari → Develop).
+2026-06-03 23:47:43.171 CCL.MES.Hybrid[25214:250416] [BlazorWebView/DEBUG] cclLog bridge + window.onerror observer installed.
+2026-06-03 23:47:44.546 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/login h1=CCL · MES createBtn=no actionBtns=0
+2026-06-03 23:47:44.547 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] click DEBUG auto-login
+2026-06-03 23:47:44.696 CCL.MES.Hybrid[25214:250416] [TokenStore] Keychain unavailable (Exception: Error adding record: MissingEntitlement). Falling back to in-memory token store for THIS process. Persistence across launches DISABLED.
+2026-06-03 23:47:45.547 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] navigate /npi/specs
+2026-06-03 23:47:46.549 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] dwell on spec list for 25s
+2026-06-03 23:47:48.552 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs h1=Engineer Spec createBtn=yes actionBtns=0
+2026-06-03 23:47:53.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs h1=Engineer Spec createBtn=yes actionBtns=0
+2026-06-03 23:47:59.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs h1=Engineer Spec createBtn=yes actionBtns=0
+2026-06-03 23:48:05.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs h1=Engineer Spec createBtn=yes actionBtns=0
+2026-06-03 23:48:11.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs h1=Engineer Spec createBtn=yes actionBtns=0
+2026-06-03 23:48:13.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] dblclick first row
+2026-06-03 23:48:17.286 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:48:23.285 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:48:29.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:48:35.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:48:41.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:48:47.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:48:53.282 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:48:59.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:49:05.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:49:11.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:49:17.282 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:49:23.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:49:29.282 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:49:35.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:49:41.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:49:47.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:49:53.282 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:49:59.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:50:05.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:50:11.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:50:17.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:50:23.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:50:29.285 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:50:35.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:50:41.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:50:47.285 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:50:53.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:50:57.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:51:03.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:51:09.282 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:51:13.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:51:19.284 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4
+2026-06-03 23:51:25.283 CCL.MES.Hybrid[25214:250416] [js] [p10-5c] path=/npi/specs/11 h1=(none) createBtn=no actionBtns=4

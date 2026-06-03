@@ -1,0 +1,162 @@
+@inject ICclApiClient Api
+@using CCL.MES.Hybrid.Client.Specs
+
+@*
+    P10.5c-1 — Create Spec modal. Form: product picker + spec code +
+    title + optional process code. Reuses <Modal> primitive (clean-room
+    P10.5a) + the _submitting guard mandated by Q11 (chặn double-click;
+    no idempotency key in P10.5 online-only).
+
+    Server-side validation: duplicate_spec_code surfaces as VN banner
+    via SpecMutationErrorMapper. Client checks (specCode + title
+    non-empty + productId > 0) gate the submit button before the
+    network round-trip.
+*@
+
+<Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Info"
+       ClickOutsideToClose="false">
+    <Header>Tạo Spec mới</Header>
+    <Body>
+        @if (_loadProductsError is not null)
+        {
+            <div class="modal-banner modal-banner-error" role="alert">
+                <strong>Không tải được danh sách sản phẩm.</strong>
+                <div>@_loadProductsError</div>
+                <button type="button" class="grid-btn" @onclick="LoadProductsAsync">Thử lại</button>
+            </div>
+        }
+        else if (_products is null)
+        {
+            <p class="grid-status">Đang tải danh sách sản phẩm…</p>
+        }
+        else
+        {
+            <form @onsubmit:preventDefault="true">
+                <div class="modal-field">
+                    <label for="cs-product">Sản phẩm <span class="modal-req">*</span></label>
+                    <select id="cs-product" class="modal-input" @bind="_productId" disabled="@_submitting">
+                        <option value="0">— Chọn sản phẩm —</option>
+                        @foreach (var p in _products)
+                        {
+                            <option value="@p.Id">@p.ProductCode · @p.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="modal-field">
+                    <label for="cs-code">Mã Spec <span class="modal-req">*</span></label>
+                    <input id="cs-code" type="text" class="modal-input" maxlength="64"
+                           placeholder="VD: SP-001 hoặc REF của khách hàng"
+                           @bind="_specCode" @bind:event="oninput" disabled="@_submitting" />
+                </div>
+                <div class="modal-field">
+                    <label for="cs-title">Tiêu đề <span class="modal-req">*</span></label>
+                    <input id="cs-title" type="text" class="modal-input" maxlength="200"
+                           placeholder="Mô tả ngắn của Spec"
+                           @bind="_title" @bind:event="oninput" disabled="@_submitting" />
+                </div>
+                <div class="modal-field">
+                    <label for="cs-process">Process code</label>
+                    <input id="cs-process" type="text" class="modal-input" maxlength="64"
+                           placeholder="VD: SILKSCREEN / FLEXO / INDIGO (để trống = SILKSCREEN mặc định)"
+                           @bind="_processCode" @bind:event="oninput" disabled="@_submitting" />
+                </div>
+                @if (_error is not null)
+                {
+                    <div class="modal-banner modal-banner-error" role="alert">@_error</div>
+                }
+            </form>
+        }
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary"
+                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+        <button type="button" class="op-btn op-btn-primary"
+                disabled="@(!CanSubmit())" @onclick="SubmitAsync">
+            @(_submitting ? "Đang tạo…" : "Tạo Spec")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<SpecMutationResponse> OnCreated { get; set; }
+
+    private List<SpecProductDropdownItem>? _products;
+    private string? _loadProductsError;
+
+    private long _productId;
+    private string _specCode = "";
+    private string _title = "";
+    private string _processCode = "";
+
+    private bool _submitting;
+    private string? _error;
+
+    private bool CanSubmit() =>
+        !_submitting
+        && _productId > 0
+        && !string.IsNullOrWhiteSpace(_specCode)
+        && !string.IsNullOrWhiteSpace(_title);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open && _products is null && _loadProductsError is null)
+            await LoadProductsAsync();
+        if (!Open) ResetForm();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        _loadProductsError = null;
+        try
+        {
+            _products = await Api.GetSpecProductsAsync();
+        }
+        catch (ApiException apiEx) { _loadProductsError = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
+        catch (HttpRequestException ex) { _loadProductsError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _loadProductsError = $"{ex.GetType().Name}: {ex.Message}"; }
+    }
+
+    private async Task SubmitAsync()
+    {
+        // Q11 — _submitting guard mandatory. Double-click can no-op safely.
+        if (_submitting) return;
+        if (!CanSubmit()) return;
+
+        _submitting = true;
+        _error = null;
+        try
+        {
+            var resp = await Api.CreateSpecAsync(new CreateSpecMutation
+            {
+                ProductId = _productId,
+                SpecCode = _specCode.Trim(),
+                Title = _title.Trim(),
+                ProcessCode = string.IsNullOrWhiteSpace(_processCode) ? null : _processCode.Trim(),
+            });
+            if (OnCreated.HasDelegate) await OnCreated.InvokeAsync(resp);
+            ResetForm();
+            if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+        }
+        catch (ApiException apiEx) { _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
+        catch (HttpRequestException ex) { _error = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _submitting = false; }
+    }
+
+    private async Task RequestCloseAsync()
+    {
+        if (_submitting) return; // never close mid-submit
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+
+    private void ResetForm()
+    {
+        _productId = 0;
+        _specCode = "";
+        _title = "";
+        _processCode = "";
+        _error = null;
+    }
+}

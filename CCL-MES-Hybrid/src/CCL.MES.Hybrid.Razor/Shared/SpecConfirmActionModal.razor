@@ -1,0 +1,84 @@
+@*
+    P10.5c-1 — Generic confirm-only modal used by Trash / Restore /
+    Approve. Caller passes the action label + severity + the async
+    callback that performs the mutation. The _submitting guard is
+    enforced here so every confirm flow shares the same idempotency
+    behaviour without each per-action modal re-implementing it.
+*@
+
+<Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Sm" Severity="@Severity"
+       ClickOutsideToClose="false">
+    <Header>@Title</Header>
+    <Body>
+        <p class="modal-helper">@Message</p>
+        @if (_error is not null)
+        {
+            <div class="modal-banner modal-banner-error" role="alert">@_error</div>
+        }
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary"
+                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+        <button type="button" class="@($"op-btn {ConfirmButtonClass()}")"
+                disabled="@_submitting" @onclick="ConfirmAsync">
+            @(_submitting ? PendingLabel : ConfirmLabel)
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Message { get; set; } = "";
+    [Parameter] public string ConfirmLabel { get; set; } = "Xác nhận";
+    [Parameter] public string PendingLabel { get; set; } = "Đang thực hiện…";
+    [Parameter] public ModalSeverity Severity { get; set; } = ModalSeverity.Warning;
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>The mutation work. Caller throws to surface a VN error
+    /// banner via <see cref="ErrorMessage"/>; on success the modal
+    /// closes via <see cref="OnClose"/>.</summary>
+    [Parameter, EditorRequired] public Func<Task>? OnConfirm { get; set; }
+
+    private bool _submitting;
+    private string? _error;
+
+    private string ConfirmButtonClass() => Severity switch
+    {
+        ModalSeverity.Danger  => "op-btn-danger",
+        ModalSeverity.Warning => "op-btn-warning",
+        ModalSeverity.Success => "op-btn-success",
+        _                     => "op-btn-primary",
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (!Open) _error = null;
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (_submitting) return;
+        if (OnConfirm is null) return;
+        _submitting = true;
+        _error = null;
+        try
+        {
+            await OnConfirm();
+            if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+        }
+        catch (ApiException apiEx)
+        {
+            _error = CCL.MES.Hybrid.Client.Specs.SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+        }
+        catch (HttpRequestException ex) { _error = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _submitting = false; }
+    }
+
+    private async Task RequestCloseAsync()
+    {
+        if (_submitting) return;
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+}
