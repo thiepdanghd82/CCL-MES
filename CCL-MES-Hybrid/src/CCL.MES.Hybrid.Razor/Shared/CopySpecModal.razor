@@ -1,0 +1,153 @@
+@inject ICclApiClient Api
+@using CCL.MES.Hybrid.Client.Specs
+
+@*
+    P10.5c-1 — Copy Spec → new Draft revision. Operator may switch
+    product when copying (legacy CopySpecRequest pattern); ProductId
+    pre-fills to the source spec's product. SpecCode + Title required.
+*@
+
+<Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Info"
+       ClickOutsideToClose="false">
+    <Header>Sao chép Spec @SourceSpec?.SpecCode</Header>
+    <Body>
+        @if (_loadProductsError is not null)
+        {
+            <div class="modal-banner modal-banner-error" role="alert">
+                <strong>Không tải được danh sách sản phẩm.</strong>
+                <div>@_loadProductsError</div>
+                <button type="button" class="grid-btn" @onclick="LoadProductsAsync">Thử lại</button>
+            </div>
+        }
+        else if (_products is null)
+        {
+            <p class="grid-status">Đang tải danh sách sản phẩm…</p>
+        }
+        else if (SourceSpec is null)
+        {
+            <p class="grid-status">Chưa có Spec nguồn.</p>
+        }
+        else
+        {
+            <form @onsubmit:preventDefault="true">
+                <div class="modal-field">
+                    <label for="cp-product">Sản phẩm đích <span class="modal-req">*</span></label>
+                    <select id="cp-product" class="modal-input" @bind="_productId" disabled="@_submitting">
+                        <option value="0">— Chọn sản phẩm —</option>
+                        @foreach (var p in _products)
+                        {
+                            <option value="@p.Id">@p.ProductCode · @p.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="modal-field">
+                    <label for="cp-code">Mã Spec mới <span class="modal-req">*</span></label>
+                    <input id="cp-code" type="text" class="modal-input" maxlength="64"
+                           @bind="_specCode" @bind:event="oninput" disabled="@_submitting" />
+                </div>
+                <div class="modal-field">
+                    <label for="cp-title">Tiêu đề mới <span class="modal-req">*</span></label>
+                    <input id="cp-title" type="text" class="modal-input" maxlength="200"
+                           @bind="_title" @bind:event="oninput" disabled="@_submitting" />
+                </div>
+                @if (_error is not null)
+                {
+                    <div class="modal-banner modal-banner-error" role="alert">@_error</div>
+                }
+            </form>
+        }
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary"
+                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+        <button type="button" class="op-btn op-btn-primary"
+                disabled="@(!CanSubmit())" @onclick="SubmitAsync">
+            @(_submitting ? "Đang sao chép…" : "Sao chép")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public SpecDetailItem? SourceSpec { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<SpecMutationResponse> OnCopied { get; set; }
+
+    private List<SpecProductDropdownItem>? _products;
+    private string? _loadProductsError;
+
+    private long _productId;
+    private string _specCode = "";
+    private string _title = "";
+    private bool _submitting;
+    private string? _error;
+
+    private bool CanSubmit() =>
+        !_submitting && _productId > 0
+        && !string.IsNullOrWhiteSpace(_specCode)
+        && !string.IsNullOrWhiteSpace(_title)
+        && SourceSpec is not null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Open)
+        {
+            if (_products is null && _loadProductsError is null) await LoadProductsAsync();
+            // Pre-fill once per open.
+            if (SourceSpec is not null && _specCode == "")
+            {
+                _specCode = SourceSpec.SpecCode + "-COPY";
+                _title = SourceSpec.Title + " (copy)";
+                // Best-effort product pre-select — page caller may pass it later
+                // via cascade; default to 0 so the operator confirms.
+            }
+        }
+        if (!Open) ResetForm();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        _loadProductsError = null;
+        try { _products = await Api.GetSpecProductsAsync(); }
+        catch (ApiException apiEx) { _loadProductsError = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
+        catch (HttpRequestException ex) { _loadProductsError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _loadProductsError = $"{ex.GetType().Name}: {ex.Message}"; }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_submitting || !CanSubmit() || SourceSpec is null) return;
+        _submitting = true;
+        _error = null;
+        try
+        {
+            var resp = await Api.CopySpecAsync(SourceSpec.Id, new CopySpecMutation
+            {
+                ProductId = _productId,
+                SpecCode = _specCode.Trim(),
+                Title = _title.Trim(),
+            });
+            if (OnCopied.HasDelegate) await OnCopied.InvokeAsync(resp);
+            ResetForm();
+            if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+        }
+        catch (ApiException apiEx) { _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
+        catch (HttpRequestException ex) { _error = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _submitting = false; }
+    }
+
+    private async Task RequestCloseAsync()
+    {
+        if (_submitting) return;
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+
+    private void ResetForm()
+    {
+        _productId = 0;
+        _specCode = "";
+        _title = "";
+        _error = null;
+    }
+}

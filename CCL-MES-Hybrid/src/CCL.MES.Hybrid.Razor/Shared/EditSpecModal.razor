@@ -1,0 +1,130 @@
+@inject ICclApiClient Api
+@using CCL.MES.Hybrid.Client.Specs
+
+@*
+    P10.5c-1 — Edit Spec modal. Draft-only — server enforces
+    immutable_status; we let the operator submit and surface the VN
+    banner so the page state stays predictable across roles.
+    Fields: Title / RefNo / InspectionLevel / ProcessCode / ColorSpecJson.
+*@
+
+<Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Info"
+       ClickOutsideToClose="false">
+    <Header>Sửa Spec @Spec?.SpecCode</Header>
+    <Body>
+        @if (Spec is null)
+        {
+            <p class="grid-status">Chưa có dữ liệu Spec.</p>
+        }
+        else
+        {
+            <form @onsubmit:preventDefault="true">
+                <div class="modal-field">
+                    <label for="es-title">Tiêu đề</label>
+                    <input id="es-title" type="text" class="modal-input" maxlength="200"
+                           @bind="_title" @bind:event="oninput" disabled="@_submitting" />
+                </div>
+                <div class="modal-field">
+                    <label for="es-refno">REF NO</label>
+                    <input id="es-refno" type="text" class="modal-input" maxlength="64"
+                           @bind="_refNo" @bind:event="oninput" disabled="@_submitting" />
+                </div>
+                <div class="modal-field">
+                    <label for="es-inspection">Spec / Inspection level</label>
+                    <input id="es-inspection" type="text" class="modal-input" maxlength="32"
+                           placeholder="VD: A166"
+                           @bind="_inspectionLevel" @bind:event="oninput" disabled="@_submitting" />
+                </div>
+                <div class="modal-field">
+                    <label for="es-process">Process code</label>
+                    <input id="es-process" type="text" class="modal-input" maxlength="64"
+                           @bind="_processCode" @bind:event="oninput" disabled="@_submitting" />
+                </div>
+                <div class="modal-field">
+                    <label for="es-color">ColorSpec JSON</label>
+                    <textarea id="es-color" class="modal-input modal-input-textarea" rows="3"
+                              placeholder='Mảng JSON các màu, để trống = giữ nguyên'
+                              @bind="_colorSpecJson" @bind:event="oninput" disabled="@_submitting"></textarea>
+                </div>
+                @if (_error is not null)
+                {
+                    <div class="modal-banner modal-banner-error" role="alert">@_error</div>
+                }
+            </form>
+        }
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary"
+                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+        <button type="button" class="op-btn op-btn-primary"
+                disabled="@(_submitting || Spec is null)" @onclick="SubmitAsync">
+            @(_submitting ? "Đang lưu…" : "Lưu thay đổi")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public SpecDetailItem? Spec { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<SpecMutationResponse> OnUpdated { get; set; }
+
+    private string _title = "";
+    private string _refNo = "";
+    private string _inspectionLevel = "";
+    private string _processCode = "";
+    private string _colorSpecJson = "";
+    private bool _submitting;
+    private string? _error;
+
+    protected override void OnParametersSet()
+    {
+        if (Open && Spec is not null)
+        {
+            _title = Spec.Title;
+            _refNo = Spec.RefNo ?? "";
+            _inspectionLevel = Spec.InspectionLevel ?? "";
+            _processCode = Spec.ProcessCode;
+            _colorSpecJson = Spec.ColorSpecJson ?? "";
+            _error = null;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_submitting || Spec is null) return;
+        _submitting = true;
+        _error = null;
+        try
+        {
+            // Send NULL for fields the operator did not change; the server
+            // treats null as "leave unchanged" per UpdateSpecRequest contract.
+            var req = new UpdateSpecMutation
+            {
+                Title = OrNullIfSame(_title, Spec.Title),
+                RefNo = OrNullIfSame(_refNo, Spec.RefNo ?? ""),
+                InspectionLevel = OrNullIfSame(_inspectionLevel, Spec.InspectionLevel ?? ""),
+                ProcessCode = OrNullIfSame(_processCode, Spec.ProcessCode),
+                ColorSpecJson = OrNullIfSame(_colorSpecJson, Spec.ColorSpecJson ?? ""),
+            };
+            var resp = await Api.UpdateSpecAsync(Spec.Id, req);
+            if (OnUpdated.HasDelegate) await OnUpdated.InvokeAsync(resp);
+            if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+        }
+        catch (ApiException apiEx) { _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
+        catch (HttpRequestException ex) { _error = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _submitting = false; }
+    }
+
+    private async Task RequestCloseAsync()
+    {
+        if (_submitting) return;
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+
+    private static string? OrNullIfSame(string current, string original)
+        => string.Equals(current?.Trim() ?? "", original?.Trim() ?? "", StringComparison.Ordinal)
+            ? null
+            : (current?.Trim() ?? "");
+}

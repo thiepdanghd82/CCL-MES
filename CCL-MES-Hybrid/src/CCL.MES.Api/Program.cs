@@ -220,6 +220,13 @@ builder.Services.AddAuthorization(o =>
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
 
+    // P10.5c-1 — Spec mutation gate. Mirrors the legacy
+    // SpecsController inline `[Authorize(Roles = "Admin,Engineer")]` —
+    // Supervisor / QC can READ specs but never WRITE per Phase 8 Q9.
+    o.AddPolicy("NpiSpecWrite", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Engineer));
+
     o.AddPolicy("QcRead", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Qc));

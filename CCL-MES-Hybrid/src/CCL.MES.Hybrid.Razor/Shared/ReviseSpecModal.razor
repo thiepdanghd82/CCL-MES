@@ -1,0 +1,103 @@
+@inject ICclApiClient Api
+@using CCL.MES.Hybrid.Client.Specs
+
+@*
+    P10.5c-1 — Revise Spec → new Draft revision + auto-supersede source.
+    Reason ≥5 chars mandatory per legacy ReviseSpecRequest contract.
+    Client-side validation (length helper text + button gate) + server
+    re-validates and surfaces ReasonRequired as a VN banner if the
+    operator bypasses the gate.
+*@
+
+<Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Warning"
+       ClickOutsideToClose="false">
+    <Header>Tạo Revise của Spec @SourceSpec?.SpecCode</Header>
+    <Body>
+        @if (SourceSpec is null)
+        {
+            <p class="grid-status">Chưa có Spec nguồn.</p>
+        }
+        else
+        {
+            <p class="modal-helper">
+                Bản nháp mới sẽ được tạo + bản nguồn (@SourceSpec.SpecCode Rev @SourceSpec.RevisionCode)
+                sẽ tự đánh dấu <strong>Đã thay thế</strong>. Hành động này không thể tự hoàn tác.
+            </p>
+            <form @onsubmit:preventDefault="true">
+                <div class="modal-field">
+                    <label for="rv-reason">Lý do Revise <span class="modal-req">*</span></label>
+                    <textarea id="rv-reason" class="modal-input modal-input-textarea" rows="4"
+                              maxlength="500" placeholder="Tối thiểu 5 ký tự"
+                              @bind="_reason" @bind:event="oninput" disabled="@_submitting"></textarea>
+                    <div class="modal-helper-line">
+                        @(_reason?.Trim().Length ?? 0) / 5 ký tự tối thiểu
+                    </div>
+                </div>
+                @if (_error is not null)
+                {
+                    <div class="modal-banner modal-banner-error" role="alert">@_error</div>
+                }
+            </form>
+        }
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary"
+                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+        <button type="button" class="op-btn op-btn-warning"
+                disabled="@(!CanSubmit())" @onclick="SubmitAsync">
+            @(_submitting ? "Đang tạo Revise…" : "Tạo Revise")
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public SpecDetailItem? SourceSpec { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<SpecMutationResponse> OnRevised { get; set; }
+
+    private string _reason = "";
+    private bool _submitting;
+    private string? _error;
+
+    private bool CanSubmit() =>
+        !_submitting
+        && SourceSpec is not null
+        && (_reason?.Trim().Length ?? 0) >= 5;
+
+    protected override void OnParametersSet()
+    {
+        if (!Open)
+        {
+            _reason = "";
+            _error = null;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_submitting || !CanSubmit() || SourceSpec is null) return;
+        _submitting = true;
+        _error = null;
+        try
+        {
+            var resp = await Api.ReviseSpecAsync(SourceSpec.Id, new ReviseSpecMutation
+            {
+                Reason = _reason.Trim(),
+            });
+            if (OnRevised.HasDelegate) await OnRevised.InvokeAsync(resp);
+            _reason = "";
+            if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+        }
+        catch (ApiException apiEx) { _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
+        catch (HttpRequestException ex) { _error = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _submitting = false; }
+    }
+
+    private async Task RequestCloseAsync()
+    {
+        if (_submitting) return;
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+}

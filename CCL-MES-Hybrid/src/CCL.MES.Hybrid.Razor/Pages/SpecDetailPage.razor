@@ -2,6 +2,8 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer")]
 @inject ICclApiClient Api
 @inject NavigationManager Nav
+@using CCL.MES.Hybrid.Client.Specs
+@using CCL.MES.Hybrid.Razor.Shared
 
 @*
     P10.5b — Spec detail (read-only). 6-tab layout mirroring legacy
@@ -26,6 +28,58 @@
         <span class="spec-detail-crumb">@(_detail.SpecCode) · Rev @_detail.RevisionCode</span>
     }
 </div>
+
+@if (_detail is not null && _vm is not null)
+{
+    @* P10.5c-1 — Spec action bar. Mutations gate on the NpiSpecWrite
+       policy (Admin/Engineer); Approve only renders for Draft/InReview
+       per the legacy ApproveAsync semantics (state machine elsewhere).
+       Every button is disabled while a mutation is in-flight via the
+       page-level _busy guard so double-tap can't double-fire. *@
+    <AuthorizeView Roles="Admin,Engineer">
+        <div class="spec-detail-actions">
+            @if (_detail.Status == SpecRevisionStatus.Draft || _detail.Status == SpecRevisionStatus.InReview)
+            {
+                <button type="button" class="op-btn op-btn-success"
+                        disabled="@_busy" @onclick="OnApproveAsync">
+                    @(_busy && _busyAction == "approve" ? "Đang duyệt…" : "✓ Duyệt")
+                </button>
+            }
+            @if (_detail.Status == SpecRevisionStatus.Draft)
+            {
+                <button type="button" class="op-btn op-btn-secondary"
+                        disabled="@_busy" @onclick="() => OpenEditAsync()">
+                    📝 Sửa
+                </button>
+            }
+            <button type="button" class="op-btn op-btn-secondary"
+                    disabled="@_busy" @onclick="() => OpenCopyAsync()">
+                ⎘ Sao chép
+            </button>
+            @if (_detail.Status == SpecRevisionStatus.Approved || _detail.Status == SpecRevisionStatus.Released)
+            {
+                <button type="button" class="op-btn op-btn-warning"
+                        disabled="@_busy" @onclick="() => OpenReviseAsync()">
+                    ⟳ Revise
+                </button>
+                <button type="button" class="op-btn op-btn-danger"
+                        disabled="@_busy" @onclick="() => OpenSupersedeAsync()">
+                    ⊘ Đánh dấu thay thế
+                </button>
+            }
+            <button type="button" class="op-btn op-btn-secondary"
+                    disabled="@_busy" @onclick="() => OpenTrashAsync()">
+                🗑 Xoá vào Thùng rác
+            </button>
+
+            @if (_actionBanner is not null)
+            {
+                <span class="spec-action-banner @(_actionBannerIsError ? "is-error" : "is-success")"
+                      role="status">@_actionBanner</span>
+            }
+        </div>
+    </AuthorizeView>
+}
 
 @if (_detailLoading && _detail is null)
 {
@@ -83,8 +137,33 @@ else if (_detail is not null && _vm is not null)
     </div>
 }
 
+@* P10.5c-1 mutation modal mounts. Each owns its own _submitting guard
+   via the mandated pattern (Q11). *@
+<EditSpecModal Open="_editOpen" Spec="_detail"
+               OnClose="CloseEditAsync"
+               OnUpdated="OnUpdatedAsync" />
+<CopySpecModal Open="_copyOpen" SourceSpec="_detail"
+               OnClose="CloseCopyAsync"
+               OnCopied="OnCopiedAsync" />
+<ReviseSpecModal Open="_reviseOpen" SourceSpec="_detail"
+                 OnClose="CloseReviseAsync"
+                 OnRevised="OnRevisedAsync" />
+<SupersedeSpecModal Open="_supersedeOpen" SourceSpec="_detail"
+                    OnClose="CloseSupersedeAsync"
+                    OnSuperseded="OnSupersededAsync" />
+
+<SpecConfirmActionModal Open="_trashOpen"
+                        Title="@($"Xoá Spec {(_detail?.SpecCode ?? "")} vào Thùng rác?")"
+                        Message="Spec sẽ bị soft-delete. Có thể khôi phục từ tab Thùng rác. Lưu ý: server sẽ chặn nếu còn Work Order đang dùng Spec này."
+                        ConfirmLabel="Xoá vào Thùng rác"
+                        PendingLabel="Đang xoá…"
+                        Severity="ModalSeverity.Danger"
+                        OnConfirm="OnTrashConfirmAsync"
+                        OnClose="() => { _trashOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
+
 @code {
     [Parameter] public long RevisionId { get; set; }
+    [SupplyParameterFromQuery] public string? Action { get; set; }
 
     private SpecDetailItem? _detail;
     private SpecShowcardVm? _vm;
@@ -106,6 +185,19 @@ else if (_detail is not null && _vm is not null)
     private bool _qcCapturesLoading;
     private string? _qcCapturesError;
 
+    // P10.5c-1 — mutation modal state. Single _busy flag drives every
+    // action button's disabled state so the operator can never have two
+    // mutations in flight at once (Q11 _submitting guard mandatory).
+    private bool _busy;
+    private string? _busyAction;
+    private string? _actionBanner;
+    private bool _actionBannerIsError;
+    private bool _editOpen;
+    private bool _copyOpen;
+    private bool _reviseOpen;
+    private bool _supersedeOpen;
+    private bool _trashOpen;
+
     private static readonly (string Key, string Label)[] _tabs = new[]
     {
         ("spec",       "Specification"),
@@ -118,7 +210,26 @@ else if (_detail is not null && _vm is not null)
 
     private bool IsActiveTab(string key) => string.Equals(_activeTab, key, StringComparison.OrdinalIgnoreCase);
 
-    protected override Task OnInitializedAsync() => LoadDetailAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDetailAsync();
+        ApplyQueuedAction();
+    }
+
+    /// <summary>If the list page routed here with <c>?action=…</c>, pre-open
+    /// the matching mutation modal. Called after LoadDetailAsync so the
+    /// modal has the full <see cref="SpecDetailItem"/> available.</summary>
+    private void ApplyQueuedAction()
+    {
+        if (_detail is null || string.IsNullOrWhiteSpace(Action)) return;
+        switch (Action.ToLowerInvariant())
+        {
+            case "edit":      _editOpen = true; break;
+            case "copy":      _copyOpen = true; break;
+            case "revise":    _reviseOpen = true; break;
+            case "supersede": _supersedeOpen = true; break;
+        }
+    }
 
     private async Task LoadDetailAsync()
     {
@@ -526,4 +637,86 @@ else if (_detail is not null && _vm is not null)
         QcCaptureResult.Na   => "N/A",
         _                     => r.ToString(),
     };
+
+    // ── P10.5c-1 mutation handlers ────────────────────────────────
+
+    private async Task OnApproveAsync()
+    {
+        if (_busy || _detail is null) return;
+        _busy = true;
+        _busyAction = "approve";
+        _actionBanner = null;
+        try
+        {
+            var resp = await Api.ApproveSpecAsync(_detail.Id);
+            _actionBanner = $"✓ Đã duyệt — trạng thái mới: {resp.Status}";
+            _actionBannerIsError = false;
+            await LoadDetailAsync();
+        }
+        catch (ApiException apiEx)
+        {
+            _actionBanner = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+            _actionBannerIsError = true;
+        }
+        catch (Exception ex)
+        {
+            _actionBanner = $"{ex.GetType().Name}: {ex.Message}";
+            _actionBannerIsError = true;
+        }
+        finally
+        {
+            _busy = false;
+            _busyAction = null;
+        }
+    }
+
+    private void OpenEditAsync() { _editOpen = true; StateHasChanged(); }
+    private Task CloseEditAsync() { _editOpen = false; StateHasChanged(); return Task.CompletedTask; }
+
+    private void OpenCopyAsync() { _copyOpen = true; StateHasChanged(); }
+    private Task CloseCopyAsync() { _copyOpen = false; StateHasChanged(); return Task.CompletedTask; }
+
+    private void OpenReviseAsync() { _reviseOpen = true; StateHasChanged(); }
+    private Task CloseReviseAsync() { _reviseOpen = false; StateHasChanged(); return Task.CompletedTask; }
+
+    private void OpenSupersedeAsync() { _supersedeOpen = true; StateHasChanged(); }
+    private Task CloseSupersedeAsync() { _supersedeOpen = false; StateHasChanged(); return Task.CompletedTask; }
+
+    private void OpenTrashAsync() { _trashOpen = true; StateHasChanged(); }
+
+    private async Task OnUpdatedAsync(SpecMutationResponse resp)
+    {
+        _actionBanner = resp.NoChanges == true
+            ? "Không có thay đổi để lưu."
+            : "✓ Đã lưu thay đổi.";
+        _actionBannerIsError = false;
+        await LoadDetailAsync();
+    }
+
+    private Task OnCopiedAsync(SpecMutationResponse resp)
+    {
+        // Operator goes to the freshly-created Draft to keep authoring.
+        Nav.NavigateTo($"/npi/specs/{resp.Id}");
+        return Task.CompletedTask;
+    }
+
+    private Task OnRevisedAsync(SpecMutationResponse resp)
+    {
+        Nav.NavigateTo($"/npi/specs/{resp.Id}");
+        return Task.CompletedTask;
+    }
+
+    private async Task OnSupersededAsync(SpecMutationResponse resp)
+    {
+        _actionBanner = $"✓ Đã đánh dấu Thay thế — trạng thái mới: {resp.Status}";
+        _actionBannerIsError = false;
+        await LoadDetailAsync();
+    }
+
+    private async Task OnTrashConfirmAsync()
+    {
+        if (_detail is null) return;
+        await Api.TrashSpecAsync(_detail.Id);
+        Nav.NavigateTo("/npi/specs");
+    }
 }

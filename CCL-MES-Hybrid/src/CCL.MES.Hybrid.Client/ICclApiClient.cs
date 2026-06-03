@@ -60,6 +60,40 @@ public interface ICclApiClient
     /// 404 for trashed-but-active-only views).</summary>
     Task<SpecDetailItem?> GetSpecDetailAsync(long revisionId, CancellationToken ct = default);
 
+    /// <summary>Product dropdown used by the Create Spec modal.</summary>
+    Task<List<SpecProductDropdownItem>> GetSpecProductsAsync(CancellationToken ct = default);
+
+    // ── Spec mutations (P10.5c-1) ─────────────────────────────────
+    /// <summary>Create a fresh Draft spec. Throws <see cref="ApiException"/>
+    /// on duplicate code / validation error; the body carries
+    /// <see cref="SpecMutationError"/> for VN mapping.</summary>
+    Task<SpecMutationResponse> CreateSpecAsync(CreateSpecMutation req, CancellationToken ct = default);
+
+    /// <summary>Approve a Draft → Approved. Throws on 404.</summary>
+    Task<SpecMutationResponse> ApproveSpecAsync(long revisionId, CancellationToken ct = default);
+
+    /// <summary>Copy a source spec into a new Draft revision.</summary>
+    Task<SpecMutationResponse> CopySpecAsync(long sourceRevisionId, CopySpecMutation req, CancellationToken ct = default);
+
+    /// <summary>Revise an Approved/Released → new Draft + parent lineage.
+    /// Reason ≥5 chars enforced server-side; client UI validates first.</summary>
+    Task<SpecMutationResponse> ReviseSpecAsync(long sourceRevisionId, ReviseSpecMutation req, CancellationToken ct = default);
+
+    /// <summary>Mark Approved/Released → Superseded. Operator must type the
+    /// SpecCode to confirm; server-side validates the typed value.</summary>
+    Task<SpecMutationResponse> SupersedeSpecAsync(long revisionId, SupersedeSpecMutation req, CancellationToken ct = default);
+
+    /// <summary>Soft-delete (move to Trash). Blocked when an active WO
+    /// references the spec; the 422 body carries <see cref="SpecMutationError.ActiveWoCount"/>.</summary>
+    Task<SpecMutationResponse> TrashSpecAsync(long revisionId, CancellationToken ct = default);
+
+    /// <summary>Un-trash. 422 when the spec is not in Trash.</summary>
+    Task<SpecMutationResponse> RestoreSpecAsync(long revisionId, CancellationToken ct = default);
+
+    /// <summary>Edit fields on a Draft spec. 422 with code=immutable_status
+    /// when the rev has moved past Draft.</summary>
+    Task<SpecMutationResponse> UpdateSpecAsync(long revisionId, UpdateSpecMutation req, CancellationToken ct = default);
+
     // ── Drawings (P10.5b — read) ──────────────────────────────────
     /// <summary>9-slot drawing layout per revision. Empty list when the
     /// revision is unknown (server returns []; we return [] not null).</summary>
