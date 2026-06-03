@@ -3,9 +3,17 @@
   the NPI grid is visible to any user the API would let read NPI (matches
   the NpiRead policy: Admin / Supervisor / Engineer / QC). Operator-only
   users see the welcome page until P10.5 ships a shop-floor screen.
+
+  P10.3 W1: Settings group (Hardware + Mode) only renders when the
+  HardwareOptions.ScanEnabled flag is on. Hides the buttons entirely
+  rather than greying them out so operators don't see a feature they
+  can't use. The routes still mount so deep-links from /hardware
+  state pages work for an admin who manually flipped the flag locally.
 *@
+@using CCL.MES.Hybrid.Client.Hardware
 @inject IAuthSession Session
 @inject NavigationManager Nav
+@inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
 
 <aside class="app-nav">
     <div class="app-nav-brand">CCL · MES</div>
@@ -16,6 +24,17 @@
         <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
             <NavLink href="/npi/workcenters" class="app-nav-link">NPI — Work Centers</NavLink>
         </AuthorizeView>
+
+        @if (HwOptions.Value.ScanEnabled)
+        {
+            <AuthorizeView Roles="Admin,Supervisor,Engineer">
+                <div class="app-nav-section">CÀI ĐẶT</div>
+                <NavLink href="/hardware" class="app-nav-link">Thiết bị</NavLink>
+                <AuthorizeView Roles="Admin,Supervisor" Context="modeCtx">
+                    <NavLink href="/mode" class="app-nav-link">Chế độ trạm</NavLink>
+                </AuthorizeView>
+            </AuthorizeView>
+        }
     </nav>
 
     <AuthorizeView>

@@ -1,0 +1,72 @@
+@page "/hardware"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer")]
+@using CCL.MES.Hybrid.Client.Hardware
+@using CCL.MES.Shared.Hardware
+@inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
+@inject IBarcodeScannerService Scanner
+@inject ILabelPrinterService Printer
+@inject IWeighScaleService Scale
+@inject IDeviceModeService Device
+
+<PageTitle>Hardware — CCL MES</PageTitle>
+
+@*
+    W1 page skeleton. The three hardware blocks render their availability
+    status driven by IsAvailableAsync() so the page is correct whether
+    the feature flag is off (everything says "feature_disabled"), the
+    real impl isn't shipped yet (printer + scale say "not_implemented"),
+    or a real impl is registered (W2/W3 Catalyst+Windows scanner).
+    Test-connection buttons + actual scan modal land in W2/W3. The
+    layout is final; only the wiring is incomplete.
+*@
+
+<h1 class="page-title">Cấu hình thiết bị</h1>
+
+@if (!HwOptions.Value.ScanEnabled)
+{
+    <div class="hw-gate" role="status">
+        <strong>Tính năng phần cứng đang tắt.</strong>
+        <p>
+            P10.3 (Hardware native) đang ở pha W1 — interface + stub đã sẵn,
+            nhưng giao diện thiết bị thật bật trong các pha kế tiếp (W2 = camera
+            Mac Catalyst, W3 = camera Windows + USB-HID, W4 = wire vào WO Accept
+            + /mode kiosk). Bật bằng cách đặt
+            <code>Hardware:ScanEnabled = true</code> trong
+            <code>appsettings.json</code> hoặc env override.
+        </p>
+        <p>Mã thiết bị (device id) của trạm này: <code>@Device.DeviceId</code></p>
+    </div>
+}
+else
+{
+    <p>Trạm: <code>@Device.DeviceId</code></p>
+
+    <section class="hw-section">
+        <h2>Scanner</h2>
+        <HardwareAvailabilityRow Probe="@(() => Scanner.IsAvailableAsync())"
+                                 Title="Máy quét mã vạch / QR"
+                                 EnabledAction="(Chưa cấu hình — sẽ có ở W2/W3)" />
+    </section>
+
+    <section class="hw-section">
+        <h2>Máy in nhãn</h2>
+        <HardwareAvailabilityRow Probe="@(() => Printer.IsAvailableAsync())"
+                                 Title="Máy in nhãn (ZPL)"
+                                 EnabledAction="(Stub — sẽ có khi quy trình in nhãn được duyệt)" />
+    </section>
+
+    <section class="hw-section">
+        <h2>Cân</h2>
+        <HardwareAvailabilityRow Probe="@(() => Scale.IsAvailableAsync())"
+                                 Title="Cân điện tử"
+                                 EnabledAction="(Stub — sẽ có khi quy trình cân được duyệt)" />
+    </section>
+}
+
+@code {
+    // W4 will add: TEST SCAN button (opens scanner modal), heartbeat call
+    // to /api/v2/devices/{id}/heartbeat, and the per-station scanner-
+    // source picker (camera | usb-hid | wedge). Page reacts to OnChange
+    // on IDeviceModeService for live updates when /mode is open in a
+    // companion window.
+}

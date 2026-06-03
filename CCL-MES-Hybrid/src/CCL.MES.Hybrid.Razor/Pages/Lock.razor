@@ -1,0 +1,83 @@
+@page "/lock"
+@layout EmptyLayout
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using CCL.MES.Hybrid.Client.Hardware
+@inject IDeviceModeService Device
+@inject NavigationManager Nav
+
+<PageTitle>Đã khoá — CCL MES</PageTitle>
+
+@*
+    Lock screen placeholder for the kiosk idle workflow. W4 wires
+    IIdleMonitor.IdleThresholdReached → Nav.NavigateTo("/lock") with
+    the previous route stashed in query string; passcode verify on
+    success restores the previous route. W1 just renders the visual
+    + has an "unlock" form so deep-linking to /lock manually doesn't
+    panic. Logout button below routes to /login if operator wants
+    to switch user.
+*@
+
+<div class="lock-shell">
+    <div class="lock-card">
+        <h1 class="lock-title">Trạm đã khoá</h1>
+        <p class="lock-sub">Nhập mật mã thiết bị để mở khoá.</p>
+
+        <input type="password"
+               placeholder="Mật mã"
+               autocomplete="off"
+               autofocus
+               @bind="_passcode" @bind:event="oninput"
+               @onkeydown="OnKeyDown"
+               class="lock-input" />
+
+        @if (_error is not null)
+        {
+            <div class="lock-error" role="alert">@_error</div>
+        }
+
+        <button type="button" class="lock-btn"
+                disabled="@_busy"
+                @onclick="OnUnlock">
+            @(_busy ? "Đang kiểm tra…" : "Mở khoá")
+        </button>
+
+        <a href="/login" class="lock-logout">Đăng nhập tài khoản khác</a>
+    </div>
+</div>
+
+@code {
+    private string _passcode = "";
+    private bool _busy;
+    private string? _error;
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await OnUnlock();
+    }
+
+    private async Task OnUnlock()
+    {
+        _error = null;
+        if (string.IsNullOrEmpty(_passcode))
+        {
+            _error = "Mật mã rỗng.";
+            return;
+        }
+        _busy = true;
+        try
+        {
+            var ok = await Device.VerifyPasscodeAsync(_passcode);
+            if (!ok)
+            {
+                _error = "Mật mã không đúng.";
+                return;
+            }
+            // W4 will navigate back to the workflow the operator was
+            // on before the idle timeout. For now, send home.
+            var target = string.IsNullOrWhiteSpace(ReturnUrl) ? "/" : ReturnUrl!;
+            Nav.NavigateTo(target, forceLoad: false, replace: true);
+        }
+        finally { _busy = false; }
+    }
+}

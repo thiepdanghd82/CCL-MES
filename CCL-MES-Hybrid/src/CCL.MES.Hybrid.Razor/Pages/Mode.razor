@@ -1,0 +1,144 @@
+@page "/mode"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor")]
+@using CCL.MES.Hybrid.Client.Hardware
+@using CCL.MES.Shared.Hardware
+@implements IDisposable
+@inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
+@inject IDeviceModeService Device
+
+<PageTitle>Mode — CCL MES</PageTitle>
+
+<h1 class="page-title">Chế độ trạm</h1>
+
+@if (!HwOptions.Value.ScanEnabled)
+{
+    <div class="hw-gate" role="status">
+        <strong>Tính năng phần cứng đang tắt.</strong>
+        <p>
+            Trang /mode bật cùng /hardware khi cờ
+            <code>Hardware:ScanEnabled = true</code>. W1 chỉ render
+            khung; logic kiosk + lock-screen ship ở W4.
+        </p>
+    </div>
+}
+else
+{
+    <p>Trạm: <code>@Device.DeviceId</code></p>
+
+    <section class="mode-section">
+        <h2>Chế độ</h2>
+        <p class="mode-help">
+            Chế độ <strong>Interactive</strong> — màn hình đầy đủ, không tự
+            khoá. Dùng ở bàn office / NPI / giám sát viên.<br />
+            Chế độ <strong>Kiosk</strong> — ẩn sidebar sau lần điều hướng đầu;
+            sau N phút không thao tác → khoá màn hình (nhập mật mã để mở).
+            JWT không bị huỷ — chỉ chặn truy cập UI. Mặc định N=10 phút.<br />
+            Chế độ <strong>Headless</strong> — chỉ scanner, không UI.
+            Reserve cho P10.4+.
+        </p>
+
+        <fieldset class="mode-picker" disabled="@_saving">
+            <label>
+                <input type="radio" name="mode" value="@((int)DeviceMode.Interactive)"
+                       checked="@(Device.CurrentMode == DeviceMode.Interactive)"
+                       @onchange="() => OnPickMode(DeviceMode.Interactive)" />
+                Interactive
+            </label>
+            <label>
+                <input type="radio" name="mode" value="@((int)DeviceMode.Kiosk)"
+                       checked="@(Device.CurrentMode == DeviceMode.Kiosk)"
+                       @onchange="() => OnPickMode(DeviceMode.Kiosk)" />
+                Kiosk
+            </label>
+            <label class="mode-disabled">
+                <input type="radio" name="mode" value="@((int)DeviceMode.Headless)"
+                       disabled />
+                Headless (P10.4+)
+            </label>
+        </fieldset>
+    </section>
+
+    <section class="mode-section">
+        <h2>Ngưỡng idle (phút)</h2>
+        <p class="mode-help">
+            Áp dụng cho Kiosk. Range 1..120. Mặc định 10. Sau khi thay
+            đổi, khoá tự động trên trạm này dùng giá trị mới ngay (không
+            cần khởi động lại app).
+        </p>
+        <input type="number" min="1" max="120" step="1"
+               value="@Device.IdleMinutes"
+               disabled="@_saving"
+               @onchange="OnPickIdleMinutes"
+               class="mode-input" />
+    </section>
+
+    <section class="mode-section">
+        <h2>Mật mã thiết bị</h2>
+        <p class="mode-help">
+            Dùng để mở lock-screen ở chế độ Kiosk. KHÔNG phải mật khẩu
+            tài khoản. Lưu trên thiết bị này (không đồng bộ server).
+            Nhập trống để xoá.
+        </p>
+        <input type="password"
+               placeholder="Nhập mật mã mới rồi nhấn Lưu"
+               autocomplete="off"
+               disabled="@_saving"
+               @bind="_passcodeInput"
+               class="mode-input" />
+        <button type="button" class="mode-btn"
+                disabled="@_saving"
+                @onclick="OnSavePasscode">Lưu mật mã</button>
+        @if (_passcodeFeedback is not null)
+        {
+            <div class="mode-feedback">@_passcodeFeedback</div>
+        }
+    </section>
+}
+
+@code {
+    private bool _saving;
+    private string _passcodeInput = "";
+    private string? _passcodeFeedback;
+
+    protected override void OnInitialized()
+    {
+        Device.OnChange += OnDeviceChanged;
+    }
+
+    public void Dispose()
+    {
+        Device.OnChange -= OnDeviceChanged;
+    }
+
+    private void OnDeviceChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task OnPickMode(DeviceMode mode)
+    {
+        _saving = true;
+        try { await Device.SetModeAsync(mode); }
+        finally { _saving = false; }
+    }
+
+    private async Task OnPickIdleMinutes(ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var minutes)) return;
+        _saving = true;
+        try { await Device.SetIdleMinutesAsync(minutes); }
+        finally { _saving = false; }
+    }
+
+    private async Task OnSavePasscode()
+    {
+        _saving = true;
+        _passcodeFeedback = null;
+        try
+        {
+            await Device.SetPasscodeAsync(string.IsNullOrEmpty(_passcodeInput) ? null : _passcodeInput);
+            _passcodeFeedback = string.IsNullOrEmpty(_passcodeInput)
+                ? "Đã xoá mật mã."
+                : "Đã lưu mật mã.";
+            _passcodeInput = "";
+        }
+        finally { _saving = false; }
+    }
+}
