@@ -12,27 +12,52 @@
         <h1 class="login-title">CCL · MES</h1>
         <p class="login-sub">Đăng nhập với tài khoản hệ thống</p>
 
+        @*
+            Wiring notes (Phase 10 P10.2 fix):
+              - EditForm + DataAnnotationsValidator handle the [Required] rule.
+              - Submit button has BOTH type="submit" AND @onclick so the form
+                fires either via Enter-in-input (browser-style submit) or via
+                direct click — the Mac Catalyst BlazorWebView occasionally
+                drops the synthetic form-submit event on direct mouse clicks,
+                and the explicit @onclick guarantees the handler runs.
+                _submitting flag is the idempotency guard so the two paths
+                can't double-trigger.
+              - tabindex 1/2/3 makes Tab/Shift+Tab move username → password →
+                button predictably. WKWebView inside Catalyst sometimes
+                doesn't honour the default focus order without explicit tabindex.
+        *@
         <EditForm Model="@_form" OnValidSubmit="HandleSubmitAsync" FormName="login">
             <DataAnnotationsValidator />
             <div class="login-field">
                 <label for="login-username">Tên đăng nhập</label>
                 <InputText id="login-username" class="login-input"
+                           tabindex="1"
                            @bind-Value="_form.Username" @bind-Value:event="oninput"
-                           autocomplete="username" />
+                           @onkeydown="OnFieldKeyDown"
+                           autocomplete="username" autofocus />
             </div>
             <div class="login-field">
                 <label for="login-password">Mật khẩu</label>
                 <InputText id="login-password" type="password" class="login-input"
+                           tabindex="2"
                            @bind-Value="_form.Password" @bind-Value:event="oninput"
+                           @onkeydown="OnFieldKeyDown"
                            autocomplete="current-password" />
             </div>
 
             @if (_errorKey is not null)
             {
-                <div class="login-error" role="alert">@LocaliseError(_errorKey)</div>
+                <div class="login-error" role="alert">
+                    <strong>@LocaliseError(_errorKey)</strong>
+                    @if (!string.IsNullOrWhiteSpace(_errorDetail))
+                    {
+                        <div class="login-error-detail">@_errorDetail</div>
+                    }
+                </div>
             }
 
-            <button type="submit" class="login-submit" disabled="@_submitting">
+            <button type="submit" class="login-submit" tabindex="3"
+                    disabled="@_submitting" @onclick="HandleSubmitAsync">
                 @(_submitting ? "Đang đăng nhập…" : "Đăng nhập")
             </button>
         </EditForm>
@@ -42,12 +67,26 @@
 @code {
     private LoginForm _form = new();
     private string? _errorKey;
+    private string? _errorDetail;
     private bool _submitting;
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
 
     private async Task HandleSubmitAsync()
     {
+        // Idempotency guard — EditForm OnValidSubmit + button @onclick may
+        // both fire on the same user action depending on the WebView host;
+        // _submitting ensures the LoginAsync round-trip happens once.
+        if (_submitting) return;
+
         _errorKey = null;
+        _errorDetail = null;
+
+        if (string.IsNullOrWhiteSpace(_form.Username) || string.IsNullOrWhiteSpace(_form.Password))
+        {
+            _errorKey = "auth.missing_fields";
+            return;
+        }
+
         _submitting = true;
         try
         {
@@ -59,14 +98,33 @@
         catch (ApiException apiEx) when (apiEx.StatusCode == 401)
         {
             _errorKey = apiEx.ApiError.Code;
+            _errorDetail = $"HTTP {apiEx.StatusCode} · {apiEx.ApiError.Code}";
         }
-        catch (HttpRequestException)
-        {
-            _errorKey = "auth.network_error";
-        }
-        catch
+        catch (ApiException apiEx)
         {
             _errorKey = "auth.unknown_error";
+            _errorDetail = $"HTTP {apiEx.StatusCode} · {apiEx.ApiError.Code} · {apiEx.ApiError.MessageEn}";
+        }
+        catch (HttpRequestException ex)
+        {
+            // Mac Catalyst ATS blocks cleartext http://localhost without
+            // the Info.plist exception — that path surfaces as
+            // HttpRequestException + "The resource could not be loaded
+            // because the App Transport Security policy requires the use
+            // of a secure connection." We expose the inner message so
+            // operators see the actual cause instead of a generic banner.
+            _errorKey = "auth.network_error";
+            _errorDetail = TrimDetail(ex.Message);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _errorKey = "auth.timeout";
+            _errorDetail = TrimDetail(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _errorKey = "auth.unknown_error";
+            _errorDetail = $"{ex.GetType().Name}: {TrimDetail(ex.Message)}";
         }
         finally
         {
@@ -74,13 +132,42 @@
         }
     }
 
+    /// <summary>
+    /// Catalyst's WKWebView occasionally swallows the default Tab key on
+    /// password &lt;input&gt; elements (we saw this during P10.2 smoke).
+    /// Promote our own focus move + Enter-to-submit so keyboard nav is
+    /// deterministic regardless of host quirks.
+    /// </summary>
+    private async Task OnFieldKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await HandleSubmitAsync();
+        }
+        // Tab is already handled by the browser/WebView when tabindex is
+        // set explicitly (above). We intentionally do NOT preventDefault
+        // here — letting the browser move focus respects Shift+Tab too.
+    }
+
     private static string LocaliseError(string code) => code switch
     {
         "auth.invalid_credentials" => "Sai tên đăng nhập hoặc mật khẩu.",
         "auth.missing_fields"      => "Vui lòng nhập đủ thông tin.",
         "auth.network_error"       => "Không thể kết nối máy chủ. Kiểm tra mạng rồi thử lại.",
+        "auth.timeout"             => "Máy chủ phản hồi quá lâu. Thử lại.",
         _                          => "Đăng nhập thất bại. Vui lòng thử lại.",
     };
+
+    /// <summary>Cap the error-detail text so a multi-line exception
+    /// message doesn't blow the card height. 240 chars is enough for
+    /// "HTTP 401 · auth.invalid_credentials · Invalid username or
+    /// password." plus the ATS / DNS / timeout variants.</summary>
+    private static string TrimDetail(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return raw;
+        var oneLine = raw.Replace('\n', ' ').Replace('\r', ' ').Trim();
+        return oneLine.Length <= 240 ? oneLine : oneLine[..240] + "…";
+    }
 
     private sealed class LoginForm
     {

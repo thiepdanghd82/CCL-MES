@@ -1,0 +1,14 @@
+  "NSAppTransportSecurity" => {
+    "NSAllowsLocalNetworking" => true
+    "NSExceptionDomains" => {
+      "127.0.0.1" => {
+        "NSExceptionAllowsInsecureHTTPLoads" => true
+        "NSExceptionMinimumTLSVersion" => "TLSv1.0"
+      }
+      "localhost" => {
+        "NSExceptionAllowsInsecureHTTPLoads" => true
+        "NSExceptionMinimumTLSVersion" => "TLSv1.0"
+        "NSIncludesSubdomains" => true
+      }
+    }
+  }

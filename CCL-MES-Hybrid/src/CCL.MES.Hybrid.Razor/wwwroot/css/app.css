@@ -221,6 +221,14 @@ html, body {
     font-size: 0.88rem;
 }
 
+.login-error-detail {
+    margin-top: 4px;
+    color: #7f1d1d;
+    font-family: ui-monospace, "SF Mono", "Menlo", monospace;
+    font-size: 0.78rem;
+    word-break: break-word;
+}
+
 /* ─────── Pages ─────── */
 
 .page-title {

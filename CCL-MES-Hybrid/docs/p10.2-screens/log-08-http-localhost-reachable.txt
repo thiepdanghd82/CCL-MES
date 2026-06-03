@@ -1,0 +1,1 @@
+{"status":"ok","version":"P10.1","timeUtc":"2026-06-03T06:34:30.081975Z"}HTTP 200 (proves http://localhost reachable; with Info.plist ATS exception WKWebView would also reach this)
