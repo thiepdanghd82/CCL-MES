@@ -1,0 +1,151 @@
+@*
+    /hardware page — Scanner section body. Runs the platform-injected
+    IBarcodeScannerService.IsAvailableAsync() to drive the test-scan
+    button + permission-denied banner. On scan success, shows the
+    decoded payload + format + source. On permission denied, shows
+    a "Mở Settings" button that fires the Catalyst deep-link via
+    IDeviceSettingsLauncher.
+*@
+@using CCL.MES.Hybrid.Client.Hardware
+@using CCL.MES.Shared.Hardware
+@inject IBarcodeScannerService Scanner
+@inject IDeviceSettingsLauncher SettingsLauncher
+
+<div class="scan-panel">
+    @if (_avail is null)
+    {
+        <div class="hw-pill hw-pill-probing">Đang kiểm tra…</div>
+    }
+    else if (_avail.IsAvailable)
+    {
+        <button type="button" class="scan-btn"
+                disabled="@_scanning"
+                @onclick="OnTestScan">
+            @(_scanning ? "Đang mở camera…" : "Quét thử")
+        </button>
+
+        @if (_lastResult is not null)
+        {
+            <div class="scan-result">
+                <div class="scan-result-row">
+                    <span class="scan-label">Payload</span>
+                    <span class="scan-value scan-mono">@_lastResult.Code</span>
+                </div>
+                <div class="scan-result-row">
+                    <span class="scan-label">Format</span>
+                    <span class="scan-value">@_lastResult.Format</span>
+                </div>
+                <div class="scan-result-row">
+                    <span class="scan-label">Camera</span>
+                    <span class="scan-value">@(_lastResult.SourceDevice ?? "—")</span>
+                </div>
+                <div class="scan-result-row">
+                    <span class="scan-label">Lúc</span>
+                    <span class="scan-value">@_lastResult.CapturedAt.ToLocalTime().ToString("HH:mm:ss")</span>
+                </div>
+            </div>
+        }
+        @if (_cancelled)
+        {
+            <div class="scan-cancelled">Đã huỷ.</div>
+        }
+        @if (_error is not null)
+        {
+            <div class="scan-error">@_error</div>
+        }
+    }
+    else
+    {
+        <div class="scan-banner">
+            <strong>@(_avail.OperatorMessage ?? _avail.Reason)</strong>
+        </div>
+        @if (_avail.Reason == "permission_denied")
+        {
+            <button type="button" class="scan-btn scan-btn-secondary"
+                    disabled="@_opening"
+                    @onclick="OnOpenSettings">
+                @(_opening ? "Đang mở…" : "Mở System Settings")
+            </button>
+            @if (_openSettingsFailed)
+            {
+                <div class="scan-banner-help">
+                    Không mở được Settings tự động. Vào Apple Menu → System
+                    Settings → Privacy &amp; Security → Camera để bật quyền
+                    cho CCL MES.
+                </div>
+            }
+        }
+    }
+</div>
+
+@code {
+    private HardwareAvailability? _avail;
+    private bool _scanning;
+    private bool _opening;
+    private bool _openSettingsFailed;
+    private bool _cancelled;
+    private ScanResult? _lastResult;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await Probe();
+
+    private async Task Probe()
+    {
+        try
+        {
+            _avail = await Scanner.IsAvailableAsync();
+        }
+        catch (Exception ex)
+        {
+            _avail = new HardwareAvailability(false, "probe_failed",
+                $"Lỗi khi kiểm tra: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+    private async Task OnTestScan()
+    {
+        _scanning = true;
+        _cancelled = false;
+        _error = null;
+        _lastResult = null;
+        try
+        {
+            var result = await Scanner.ScanOnceAsync();
+            if (result is null)
+            {
+                _cancelled = true;
+                // Re-probe in case the operator denied the permission
+                // during the modal — surfaces the deny banner without
+                // requiring a manual refresh.
+                await Probe();
+            }
+            else
+            {
+                _lastResult = result;
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Lỗi quét: {ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _scanning = false;
+        }
+    }
+
+    private async Task OnOpenSettings()
+    {
+        _opening = true;
+        _openSettingsFailed = false;
+        try
+        {
+            var opened = await SettingsLauncher.OpenCameraSettingsAsync();
+            _openSettingsFailed = !opened;
+        }
+        finally
+        {
+            _opening = false;
+        }
+    }
+}

@@ -70,5 +70,6 @@ public sealed class HardwareOptionsConfigTests
         Assert.IsType<StubWeighScaleService>(sp.GetRequiredService<IWeighScaleService>());
         Assert.IsType<StubIdleMonitor>(sp.GetRequiredService<IIdleMonitor>());
         Assert.IsType<InMemoryDeviceModeService>(sp.GetRequiredService<IDeviceModeService>());
+        Assert.IsType<StubDeviceSettingsLauncher>(sp.GetRequiredService<IDeviceSettingsLauncher>());
     }
 }

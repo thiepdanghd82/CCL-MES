@@ -80,11 +80,21 @@ public static class MauiProgram
 
         // P10.3 hardware overrides — replace the in-memory default
         // device-mode service with the Preferences-backed one so settings
-        // persist across launches. Scanner / printer / scale impls stay
-        // on the stubs from CCL.MES.Hybrid.Client until W2/W3 ship the
-        // platform-specific overrides. The DI Replace pattern preserves
-        // any other registration the client extension already made.
+        // persist across launches. Printer + scale impls stay on the
+        // stubs from CCL.MES.Hybrid.Client until concrete workflows
+        // light them up. The DI Replace pattern preserves any other
+        // registration the client extension already made.
         builder.Services.Replace(ServiceDescriptor.Singleton<IDeviceModeService, MauiDeviceModeService>());
+
+#if MACCATALYST || IOS
+        // P10.3 W2 — Mac Catalyst camera scanner (AVFoundation). Drops
+        // in over the StubBarcodeScannerService + StubDeviceSettings-
+        // Launcher from the client lib.
+        builder.Services.Replace(ServiceDescriptor.Singleton<IBarcodeScannerService,
+            CCL.MES.Hybrid.Platforms.MacCatalyst.CatalystBarcodeScanner>());
+        builder.Services.Replace(ServiceDescriptor.Singleton<IDeviceSettingsLauncher,
+            CCL.MES.Hybrid.Platforms.MacCatalyst.MauiCatalystDeviceSettingsLauncher>());
+#endif
 
         return builder.Build();
     }
