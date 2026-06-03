@@ -39,12 +39,6 @@ public static class MauiProgram
         // here closes it too early and we surface "Stream was not readable".
         // We materialise the JSON into memory + hand a fresh MemoryStream
         // each time the provider reloads so disposal is harmless.
-        // DEEP-DEBUG boot trace — surfaces in Console.app under the
-        // CCL MES process. Confirms config loaded + which BaseUrl wins.
-        Console.WriteLine("[boot] MauiProgram.CreateMauiApp starting.");
-        var allManifestNames = asm.GetManifestResourceNames();
-        Console.WriteLine($"[boot] embedded resources: {string.Join(", ", allManifestNames)}");
-
         var settingsStream = asm.GetManifestResourceStream("CCL.MES.Hybrid.appsettings.json");
         if (settingsStream is not null)
         {
@@ -52,16 +46,22 @@ public static class MauiProgram
             settingsStream.CopyTo(ms);
             settingsStream.Dispose();
             var bytes = ms.ToArray();
-            Console.WriteLine($"[boot] appsettings.json loaded — {bytes.Length} bytes.");
             configBuilder.AddJsonStream(new MemoryStream(bytes, writable: false));
+#if DEBUG
+            Console.WriteLine($"[boot] appsettings.json loaded — {bytes.Length} bytes.");
+#endif
         }
+#if DEBUG
         else
         {
             Console.WriteLine("[boot] WARN: appsettings.json manifest stream is null — defaults will apply.");
         }
+#endif
         var configuration = configBuilder.Build();
         builder.Configuration.AddConfiguration(configuration);
+#if DEBUG
         Console.WriteLine($"[boot] CclApi:BaseUrl resolved => {configuration["CclApi:BaseUrl"] ?? "(null)"}");
+#endif
 
         builder.Services.AddMauiBlazorWebView();
 #if DEBUG
@@ -76,8 +76,6 @@ public static class MauiProgram
         builder.Services.AddScoped<AuthenticationStateProvider, HybridAuthStateProvider>();
         builder.Services.AddAuthorizationCore();
 
-        var app = builder.Build();
-        Console.WriteLine("[boot] MauiApp.Build completed without throwing.");
-        return app;
+        return builder.Build();
     }
 }

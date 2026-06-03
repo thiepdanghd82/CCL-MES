@@ -1,0 +1,84 @@
+@*
+  Tab + Enter focus-trap workaround for Mac Catalyst BlazorWebView.
+
+  Background — dotnet/maui#13934 (open since 2023, Apple Feedback
+  FB12076485 unresolved): the WKWebView under Mac Catalyst traps
+  keyboard focus inside any <input> element. Tab does not move focus
+  to the next focusable element, and Enter does not submit the
+  containing form, even though the JS-level keydown event fires
+  correctly. Native Mac apps, iOS, and Windows BlazorWebView are
+  unaffected.
+
+  The workaround listens at document keydown bubble-phase:
+    - Tab  → preventDefault + .focus() on the next focusable element
+             (sibling-source order, respecting tabindex / disabled /
+             hidden via offsetWidth/Height zero check). Shift+Tab
+             walks backwards.
+    - Enter inside an <input> → preventDefault + .click() the form's
+             submit button so Blazor's @onclick delegate fires.
+
+  Platform detection is done in JS via user-agent because this RCL
+  is platform-neutral net10.0 (no Microsoft.Maui.Devices reference).
+  Mac Catalyst's WKWebView reports UA containing "Mobile/" + "Mac OS X"
+  — that combination is unique to Catalyst (regular macOS Safari does
+  NOT carry "Mobile/", and iOS does not carry "Mac OS X"). Windows
+  BlazorWebView reports a Trident-like or Edge UA; iOS reports
+  "iPhone"/"iPad". Removing the workaround once Apple ships a fix is
+  a one-line edit (drop the component from the layouts).
+*@
+<script type="text/javascript">
+    (function () {
+        // Idempotency guard — both MainLayout + EmptyLayout inject
+        // this component, and SPA navigation between them may run
+        // the script twice. We attach the listener once per window.
+        if (window.__cclMacCatalystKbdFix) return;
+
+        // Catalyst-only detect via UA.
+        var ua = navigator.userAgent || '';
+        var isCatalyst = ua.indexOf('Mobile/') !== -1 && ua.indexOf('Mac OS X') !== -1;
+        if (!isCatalyst) return;
+
+        window.__cclMacCatalystKbdFix = true;
+
+        function focusables() {
+            var sel = 'a:not([disabled]):not([tabindex="-1"]),' +
+                      'button:not([disabled]):not([tabindex="-1"]),' +
+                      'input:not([disabled]):not([tabindex="-1"]),' +
+                      'select:not([disabled]):not([tabindex="-1"]),' +
+                      'textarea:not([disabled]):not([tabindex="-1"]),' +
+                      '[tabindex]:not([disabled]):not([tabindex="-1"])';
+            return Array.prototype.filter.call(
+                document.querySelectorAll(sel),
+                function (el) {
+                    return el.offsetWidth > 0 ||
+                           el.offsetHeight > 0 ||
+                           el === document.activeElement;
+                });
+        }
+
+        document.addEventListener('keydown', function (ev) {
+            if (ev.code === 'Tab') {
+                var list = focusables();
+                var idx = list.indexOf(document.activeElement);
+                if (idx > -1) {
+                    ev.preventDefault();
+                    var nextIdx = idx + (ev.shiftKey ? -1 : 1);
+                    var next = list[nextIdx] ||
+                               list[ev.shiftKey ? list.length - 1 : 0];
+                    if (next) next.focus();
+                }
+                return;
+            }
+            if (ev.code === 'Enter') {
+                var ae = document.activeElement;
+                if (ae && ae.tagName === 'INPUT' && ae.form) {
+                    var submit = ae.form.querySelector('button[type="submit"]');
+                    if (submit && !submit.disabled) {
+                        ev.preventDefault();
+                        submit.click();
+                    }
+                }
+            }
+        }, true);
+    })();
+</script>

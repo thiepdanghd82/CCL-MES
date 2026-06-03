@@ -1,0 +1,36 @@
+2026-06-03 15:23:07.214 CCL.MES.Hybrid[21363:506609] You've implemented -[<UIApplicationDelegate> application:performFetchWithCompletionHandler:], but you still need to add "fetch" to the list of your supported UIBackgroundModes in your Info.plist.
+2026-06-03 15:23:07.252 CCL.MES.Hybrid[21363:506609] [boot] MauiProgram.CreateMauiApp starting.
+2026-06-03 15:23:07.253 CCL.MES.Hybrid[21363:506609] [boot] embedded resources: CCL.MES.Hybrid.appsettings.json, CCL.MES.Hybrid.App.xaml, CCL.MES.Hybrid.MainPage.xaml, CCL.MES.Hybrid.Platforms.Windows.App.xaml
+2026-06-03 15:23:07.255 CCL.MES.Hybrid[21363:506609] [boot] appsettings.json loaded — 88 bytes.
+2026-06-03 15:23:07.261 CCL.MES.Hybrid[21363:506609] [boot] CclApi:BaseUrl resolved => http://127.0.0.1:5100
+2026-06-03 15:23:07.277 CCL.MES.Hybrid[21363:506609] [boot] MauiApp.Build completed without throwing.
+2026-06-03 15:23:07.470 CCL.MES.Hybrid[21363:506609] [BlazorWebView] Initialized — WebView object type: WebKit.WKWebView
+2026-06-03 15:23:07.470 CCL.MES.Hybrid[21363:506609] [BlazorWebView] WKWebView.Inspectable = true (attach via Safari → Develop).
+2026-06-03 15:23:07.471 CCL.MES.Hybrid[21363:506609] [BlazorWebView] userScript + cclLog bridge installed.
+2026-06-03 15:23:07.472 CCL.MES.Hybrid[21363:506609] [BlazorWebView] native UITapGestureRecognizer attached to WKWebView.
+2026-06-03 15:23:07.850 CCL.MES.Hybrid[21363:506609] [js] [js-probe] index.html executed.
+2026-06-03 15:23:08.132 CCL.MES.Hybrid[21363:506609] [Login] OnAfterRender firstRender=true — interactive render handshake reached client.
+2026-06-03 15:23:08.851 CCL.MES.Hybrid[21363:506609] [js] [js-heartbeat] T+1000ms
+2026-06-03 15:23:10.352 CCL.MES.Hybrid[21363:506609] [js] [js-buttons] count=4
+2026-06-03 15:23:10.353 CCL.MES.Hybrid[21363:506609] [js] [js-button#0] text=probe click rect=432,341,80,24 type=button
+2026-06-03 15:23:10.354 CCL.MES.Hybrid[21363:506609] [js] [js-button#1] text=probe async rect=525,341,86,24 type=button
+2026-06-03 15:23:10.354 CCL.MES.Hybrid[21363:506609] [js] [js-button#2] text=AUTO LOGIN rect=624,341,90,24 type=button
+2026-06-03 15:23:10.355 CCL.MES.Hybrid[21363:506609] [js] [js-button#3] text=Đăng nhập rect=423,567,324,41 type=submit
+2026-06-03 15:23:10.355 CCL.MES.Hybrid[21363:506609] [js] [js-inputs] count=2
+2026-06-03 15:23:10.355 CCL.MES.Hybrid[21363:506609] [js] [js-input#0] id=login-username rect=423,426,324,41 type=text
+2026-06-03 15:23:10.356 CCL.MES.Hybrid[21363:506609] [js] [js-input#1] id=login-password rect=423,506,324,41 type=password
+2026-06-03 15:23:11.852 CCL.MES.Hybrid[21363:506609] [js] [js-self-test] dispatching .click() on probe-sync button.
+2026-06-03 15:23:11.856 CCL.MES.Hybrid[21363:506609] [js] [js-click] target=BUTTON id= type=button cx=0 cy=0
+2026-06-03 15:23:11.877 CCL.MES.Hybrid[21363:506609] [Login] probe sync clicks=1
+2026-06-03 15:23:13.852 CCL.MES.Hybrid[21363:506609] [js] [js-login-test] clicking #login-autotest-btn — expect [Login] OnAutoTestLogin entered next.
+2026-06-03 15:23:13.854 CCL.MES.Hybrid[21363:506609] [js] [js-click] target=BUTTON id=login-autotest-btn type=button cx=0 cy=0
+2026-06-03 15:23:13.859 CCL.MES.Hybrid[21363:506609] [Login] OnAutoTestLogin entered — filling engineer/engineer + calling HandleSubmitAsync.
+2026-06-03 15:23:13.861 CCL.MES.Hybrid[21363:506609] [Login] HandleSubmitAsync entered. u='engineer' p.len=8 _submitting=False
+2026-06-03 15:23:13.861 CCL.MES.Hybrid[21363:506609] [Login] calling Api.LoginAsync...
+2026-06-03 15:23:13.989 CCL.MES.Hybrid[21363:506609] [Login] Api.LoginAsync returned access.len=597.
+2026-06-03 15:23:13.990 CCL.MES.Hybrid[21363:506609] [TokenStore] SaveAsync entry _fallback=False
+2026-06-03 15:23:13.993 CCL.MES.Hybrid[21363:506609] [TokenStore] SaveAsync caught Exception: Error adding record: MissingEntitlement. IsEntitlementFailure=True
+2026-06-03 15:23:13.993 CCL.MES.Hybrid[21363:506609] [TokenStore] Keychain unavailable (Exception: Error adding record: MissingEntitlement). Falling back to in-memory token store for THIS process. Persistence across launches DISABLED.
+2026-06-03 15:23:13.993 CCL.MES.Hybrid[21363:506609] [TokenStore] SaveAsync after fallback: wrote to memory.
+2026-06-03 15:23:13.994 CCL.MES.Hybrid[21363:506609] [Login] Session.SetLoginAsync returned. Navigating to target.
+2026-06-03 15:23:13.994 CCL.MES.Hybrid[21363:506609] [Login] NavigateTo(/) returned.
