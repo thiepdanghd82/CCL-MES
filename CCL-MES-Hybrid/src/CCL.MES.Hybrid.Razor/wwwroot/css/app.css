@@ -1515,6 +1515,40 @@ html, body {
     color: #6b7280;
 }
 
+/* P10.6e UI fix — <input type="date"> on Mac Catalyst WKWebView ships
+   native styling that right-aligns the date text + auto-sizes to the
+   content (~ "4 Jun 2026" + picker icon). Result: the date cells in
+   the audit filter grid LOOK narrower than the sibling text/select
+   inputs even though the grid track is 1fr. Force the same layout
+   contract as the other inputs:
+     - appearance: none kills the native right-aligned + auto-sized
+       look; the input renders like a normal text input.
+     - ::-webkit-date-and-time-value text-align: left realigns the
+       inner value span.
+     - ::-webkit-calendar-picker-indicator stays visible, positioned
+       on the right with margin-left: auto. */
+.modal-input[type="date"] {
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+    text-align: left;
+    min-height: 2.6em;
+}
+
+.modal-input[type="date"]::-webkit-date-and-time-value {
+    text-align: left;
+}
+
+.modal-input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.55;
+    margin-left: auto;
+}
+
+.modal-input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 0.85;
+}
+
 .modal-input-textarea {
     min-height: 70px;
     font-family: inherit;
