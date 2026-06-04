@@ -10,35 +10,85 @@
   unaffected.
 
   The workaround listens at document keydown bubble-phase:
-    - Tab  → preventDefault + .focus() on the next focusable element
-             (sibling-source order, respecting tabindex / disabled /
-             hidden via offsetWidth/Height zero check). Shift+Tab
-             walks backwards.
+    - Tab  → preventDefault + .focus() on the next focusable element.
     - Enter inside an <input> → preventDefault + .click() the form's
              submit button so Blazor's @onclick delegate fires.
 
-  Platform detection is done in JS via user-agent because this RCL
-  is platform-neutral net10.0 (no Microsoft.Maui.Devices reference).
-  Mac Catalyst's WKWebView reports UA containing "Mobile/" + "Mac OS X"
-  — that combination is unique to Catalyst (regular macOS Safari does
-  NOT carry "Mobile/", and iOS does not carry "Mac OS X"). Windows
-  BlazorWebView reports a Trident-like or Edge UA; iOS reports
-  "iPhone"/"iPad". Removing the workaround once Apple ships a fix is
-  a one-line edit (drop the component from the layouts).
+  Platform detection uses TWO independent signals so a Catalyst SDK
+  bump that drops the "Mobile/" UA token (the original detection
+  trigger) cannot silently turn the fix off — the symptom Henry
+  filed twice now (1st time pre-P10.5g; 2nd time post-P10.6a-merge-
+  attempt). The boot-time console.log line is the always-on canary:
+  if Safari Web Inspector doesn't show "[keyboard-fix] … active=1"
+  then the detect is wrong, not the user's keyboard.
 *@
 <script type="text/javascript">
+    // P10.6a hotfix — production-safe JS-side uncaught capture.
+    // ALWAYS-ON (not gated on Catalyst), idempotent. The sentinels
+    // "[js-uncaught]" + "[js-unhandled-rejection]" let an ops-side log
+    // tail catch JS-side incidents without parsing structure.
+    (function () {
+        if (window.__cclJsErrorLogger) return;
+        window.__cclJsErrorLogger = true;
+        window.addEventListener('error', function (ev) {
+            try {
+                console.error('[js-uncaught] ' +
+                    (ev && ev.message ? ev.message : '(no message)') +
+                    ' at ' + ((ev && ev.filename) || '?') + ':' +
+                    ((ev && ev.lineno) || '?'));
+            } catch (e) { /* console may be wrapped */ }
+        });
+        window.addEventListener('unhandledrejection', function (ev) {
+            try {
+                var reason = ev && ev.reason ? String(ev.reason) : '(no reason)';
+                console.error('[js-unhandled-rejection] ' + reason);
+            } catch (e) { /* swallow */ }
+        });
+    })();
+
     (function () {
         // Idempotency guard — both MainLayout + EmptyLayout inject
         // this component, and SPA navigation between them may run
         // the script twice. We attach the listener once per window.
         if (window.__cclMacCatalystKbdFix) return;
 
-        // Catalyst-only detect via UA.
         var ua = navigator.userAgent || '';
-        var isCatalyst = ua.indexOf('Mobile/') !== -1 && ua.indexOf('Mac OS X') !== -1;
+
+        // Signal 1 — original UA combo. Mac Catalyst BlazorWebView
+        // historically reports both tokens; regular Safari macOS lacks
+        // "Mobile/" and iOS lacks "Mac OS X".
+        var uaMatchesCatalyst = (ua.indexOf('Mobile/') !== -1 && ua.indexOf('Mac OS X') !== -1);
+
+        // Signal 2 — WKWebView message-handler surface probe.
+        // Present in every Catalyst/iOS BlazorWebView; absent from
+        // regular macOS Safari + every non-Apple browser. Guards the
+        // patch against UA-token regressions on future Catalyst
+        // SDKs (the symptom mode this comment block warns about).
+        var wkMatchesCatalyst = (
+            typeof window.webkit === 'object' &&
+            window.webkit !== null &&
+            window.webkit.messageHandlers !== undefined &&
+            (ua.indexOf('Mac OS X') !== -1 || ua.indexOf('Macintosh') !== -1)
+        );
+
+        var isCatalyst = uaMatchesCatalyst || wkMatchesCatalyst;
+
+        // Boot log line — visible in Safari Web Inspector + cclLog
+        // bridge. The "[keyboard-fix]" prefix is the same string the
+        // regression-guard unit test greps for.
+        try {
+            console.log('[keyboard-fix] ua=' + (uaMatchesCatalyst ? '1' : '0') +
+                        ' wk=' + (wkMatchesCatalyst ? '1' : '0') +
+                        ' active=' + (isCatalyst ? '1' : '0'));
+        } catch (e) { /* console may be wrapped */ }
+
         if (!isCatalyst) return;
 
-        window.__cclMacCatalystKbdFix = true;
+        window.__cclMacCatalystKbdFix = {
+            attached: true,
+            ua: uaMatchesCatalyst,
+            wk: wkMatchesCatalyst,
+        };
 
         function focusables() {
             var sel = 'a:not([disabled]):not([tabindex="-1"]),' +

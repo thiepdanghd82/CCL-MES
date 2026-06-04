@@ -2815,3 +2815,39 @@ html, body {
 .settings-meta div { display: flex; gap: 8px; }
 .settings-meta dt  { font-weight: 600; min-width: 110px; margin: 0; }
 .settings-meta dd  { margin: 0; }
+
+/* ── P10.6a hotfix — RendererCrashBoundary fallback card ──────── */
+
+.renderer-crash-card {
+    margin: 16px;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #C00000;
+    background: #FDECEC;
+    color: #6A0000;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.renderer-crash-card h2 { margin: 0 0 8px; font-size: 18px; }
+.renderer-crash-card details { margin: 12px 0; }
+.renderer-crash-card pre {
+    background: rgba(192, 0, 0, 0.08);
+    padding: 8px 12px;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 12px;
+}
+
+.renderer-crash-reload {
+    padding: 6px 14px;
+    background: #1F3864;
+    color: white;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.renderer-crash-reload:hover { background: #142A4E; }

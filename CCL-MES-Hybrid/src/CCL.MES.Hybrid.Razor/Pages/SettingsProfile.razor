@@ -46,7 +46,13 @@ else if (_profile is not null)
     }
 
     <section class="settings-form-card">
-        <EditForm Model="@_form" OnValidSubmit="SubmitAsync" FormName="profile">
+        @* P10.6a hotfix — plain HTML form + plain input + @bind, NOT
+           the EditForm + InputText + bind-Value:event=oninput combo.
+           That InputText triple throws ChangeEventArgs→string on every
+           keystroke under net10 MAUI Blazor Hybrid (see LESSONS in
+           docs/p10.5-screens/HOTFIX-RENDERER-CRASH-REPORT.md). Same
+           pattern Login.razor uses post-hotfix. *@
+        <form @onsubmit="SubmitAsync" @onsubmit:preventDefault="true" name="profile">
             <div class="settings-field">
                 <label for="prof-username">Tên đăng nhập</label>
                 <input id="prof-username" class="settings-input" type="text"
@@ -65,10 +71,10 @@ else if (_profile is not null)
             </div>
             <div class="settings-field">
                 <label for="prof-display">Tên hiển thị</label>
-                <InputText id="prof-display" class="settings-input"
-                           tabindex="1" maxlength="100"
-                           @bind-Value="_form.DisplayName" @bind-Value:event="oninput"
-                           @onkeydown="OnFieldKeyDown" />
+                <input id="prof-display" class="settings-input" type="text"
+                       tabindex="1" maxlength="100"
+                       @bind="_form.DisplayName" @bind:event="oninput"
+                       @onkeydown="OnFieldKeyDown" />
                 <span class="settings-hint">Tối đa 100 ký tự. Để trống để xoá.</span>
             </div>
 
@@ -83,7 +89,7 @@ else if (_profile is not null)
                     @(_submitting ? "Đang lưu…" : "Lưu thay đổi")
                 </button>
             </div>
-        </EditForm>
+        </form>
 
         <dl class="settings-meta">
             <div><dt>Ngày tạo</dt><dd>@_profile.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</dd></div>
