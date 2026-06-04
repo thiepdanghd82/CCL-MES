@@ -2,6 +2,7 @@ using CCL.MES.Hybrid.Client.Auth;
 using CCL.MES.Hybrid.Client.Files;
 using CCL.MES.Hybrid.Client.Grid;
 using CCL.MES.Hybrid.Client.Hardware;
+using CCL.MES.Hybrid.Client.Localization;
 using CCL.MES.Hybrid.Client.RecentScans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -96,6 +97,13 @@ public static class ServiceCollectionExtensions
         // survives app restarts. Tests + non-MAUI consumers keep the
         // in-memory default so DI resolution is safe in any harness.
         services.AddSingleton<IRecentScansService, InMemoryRecentScansService>();
+
+        // P10.6b — Appearance language preference store. MAUI host
+        // replaces with MauiLanguageService (Preferences-backed) so the
+        // operator's VN/EN choice survives app restarts. Tests + non-
+        // MAUI hosts keep the in-memory default. Theme switcher is
+        // out of scope for P10.6b — it ships in P10.6g.
+        services.AddSingleton<ILanguageService, InMemoryLanguageService>();
 
         return services;
     }

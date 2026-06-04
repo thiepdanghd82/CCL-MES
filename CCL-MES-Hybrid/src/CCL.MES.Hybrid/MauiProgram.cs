@@ -139,6 +139,14 @@ public static class MauiProgram
             CCL.MES.Hybrid.Client.RecentScans.IRecentScansService,
             MauiRecentScansService>());
 
+        // P10.6b — Preferences-backed language preference. Persists
+        // the operator's VN/EN choice across app launches. The actual
+        // string-swap layer (resx) ships in a follow-up PR; this PR
+        // is the persistence + picker foundation.
+        builder.Services.Replace(ServiceDescriptor.Singleton<
+            CCL.MES.Hybrid.Client.Localization.ILanguageService,
+            MauiLanguageService>());
+
         // P10.3 W4 — feed the persisted device id into ApiClientOptions so
         // every device-scoped endpoint call (scan-log / heartbeat / info)
         // carries the station's stable guid. PostConfigure runs AFTER the

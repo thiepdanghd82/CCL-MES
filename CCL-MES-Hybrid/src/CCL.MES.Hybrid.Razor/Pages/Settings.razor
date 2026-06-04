@@ -77,18 +77,24 @@
 </section>
 
 <section class="settings-group">
-    <h2 class="settings-group-title">Sẽ có (P10.6b, e, f, g, h, c)</h2>
+    <h2 class="settings-group-title">Giao diện</h2>
     <div class="settings-cards">
-        <div class="settings-card is-disabled" aria-disabled="true">
+        @* P10.6b — Appearance landing card. Language picker today;
+           theme switcher ships in P10.6g. *@
+        <a class="settings-card" href="/settings/appearance">
             <span class="settings-card-icon">🌐</span>
-            <span class="settings-card-title">Ngôn ngữ &amp; Giao diện</span>
-            <span class="settings-card-sub">P10.6b — Tiếng Việt / English + chủ đề sáng-tối.</span>
-        </div>
-        <div class="settings-card is-disabled" aria-disabled="true">
-            <span class="settings-card-icon">🕓</span>
-            <span class="settings-card-title">Quét gần đây</span>
-            <span class="settings-card-sub">P10.6f — Lịch sử quét sidebar (LocalStorage).</span>
-        </div>
+            <span class="settings-card-title">Giao diện</span>
+            <span class="settings-card-sub">Ngôn ngữ Tiếng Việt / English; chủ đề sẽ ra mắt ở P10.6g.</span>
+        </a>
+    </div>
+</section>
+
+<section class="settings-group">
+    <h2 class="settings-group-title">Sẽ có (P10.6e, h, c)</h2>
+    <div class="settings-cards">
+        @* P10.6f shipped — Recent Scans lives in the sidebar widget
+           (rendered by RecentScansWidget under the CÀI ĐẶT nav group);
+           no landing card needed. *@
         <AuthorizeView Roles="Admin">
             <div class="settings-card is-disabled" aria-disabled="true">
                 <span class="settings-card-icon">📜</span>

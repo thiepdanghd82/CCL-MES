@@ -63,6 +63,8 @@
            put them). *@
         <NavLink href="/settings/connection" class="app-nav-link app-nav-link-sub">Chế độ kết nối</NavLink>
         <NavLink href="/settings/about" class="app-nav-link app-nav-link-sub">Về ứng dụng</NavLink>
+        @* P10.6b — Appearance (language picker; theme deferred to 6g). *@
+        <NavLink href="/settings/appearance" class="app-nav-link app-nav-link-sub">Giao diện</NavLink>
         @if (HwOptions.Value.ScanEnabled)
         {
             <AuthorizeView Roles="Admin,Supervisor,Engineer">
