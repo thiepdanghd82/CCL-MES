@@ -291,7 +291,11 @@ public sealed class CclApiClient : ICclApiClient
         ApiError? generic = null;
         try { generic = await resp.Content.ReadFromJsonAsync<ApiError>(cancellationToken: ct); }
         catch { /* synthesise below */ }
-        generic ??= new ApiError { Code = "http.non_success", MessageEn = $"HTTP {(int)resp.StatusCode}" };
+        generic ??= new ApiError { Code = "http.non_success", // P10.6a hotfix — MessageEn carries the bare status code; the VN
+// mapper for "http.non_success" wraps it as "Lỗi máy chủ (HTTP …)"
+// so prepending "HTTP " here produced the operator-visible
+// "HTTP HTTP 404" double-prefix Henry filed.
+MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture) };
         throw new ApiException((int)resp.StatusCode, generic);
     }
 
@@ -570,7 +574,11 @@ public sealed class CclApiClient : ICclApiClient
         ApiError? error = null;
         try { error = await resp.Content.ReadFromJsonAsync<ApiError>(cancellationToken: ct); }
         catch { /* swallow — synthesise below */ }
-        error ??= new ApiError { Code = "http.non_success", MessageEn = $"HTTP {(int)resp.StatusCode}" };
+        error ??= new ApiError { Code = "http.non_success", // P10.6a hotfix — MessageEn carries the bare status code; the VN
+// mapper for "http.non_success" wraps it as "Lỗi máy chủ (HTTP …)"
+// so prepending "HTTP " here produced the operator-visible
+// "HTTP HTTP 404" double-prefix Henry filed.
+MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.InvariantCulture) };
         throw new ApiException((int)resp.StatusCode, error);
     }
 }
