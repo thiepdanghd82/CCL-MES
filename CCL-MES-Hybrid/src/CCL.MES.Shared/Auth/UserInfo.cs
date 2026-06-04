@@ -19,4 +19,11 @@ public sealed record UserInfo
     /// chosen one — clients default to "en" per the project-wide
     /// <c>NeutralLanguage=en</c> mandate.</summary>
     public string Language { get; init; } = "";
+
+    /// <summary>P10.6c — true after an admin reset the password OR
+    /// the account was freshly created. The Hybrid client routes the
+    /// user to the change-password flow at next login instead of the
+    /// usual home screen. Mirrors the legacy
+    /// <c>User.MustChangePassword</c> flag.</summary>
+    public bool MustChangePassword { get; init; }
 }

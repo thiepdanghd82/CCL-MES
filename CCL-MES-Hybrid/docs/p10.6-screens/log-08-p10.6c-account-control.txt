@@ -1,0 +1,43 @@
+====================================================================
+P10.6c verify — 2026-06-04 22:03:53
+====================================================================
+[ctx]  repo  = /Volumes/Macintosh Data/Claude-Cowork/3. PROJECTS/CCL-CMES/CCL-MES
+[ctx]  branch= feat/p10.6c-account-control
+[ctx]  HEAD  = 9f47ee9
+[ctx]  admin = admin
+[ctx]  new_op= verify-op-1780585433  (unique per run)
+
+[step] kill anything on :5100
+[step] build Client lib
+[step] build API
+[step] run client unit tests
+[step] run API unit tests (incl. 12 AccountControl + 5 new canary rows)
+[step] filter-run AccountControlController tests
+[step] start API on :5100
+[run]  PID=38536  log=/var/folders/k3/j9v52bb95lxcfkzgdfdlgshc0000gn/T/ccl-api-verify-XXXXXX.63seNFrL3L
+[step] anon route discovery — all new admin/users routes (401)
+[step] login as admin
+
+============================  SUMMARY  ============================
+  PASS  Client lib build
+  PASS  API build (commit 9f47ee9)
+  PASS  Client tests (passed=481 failed=0)
+  PASS  API tests (passed=217 failed=0)
+  PASS  AccountControlController tests (passed=17 ≥ 12 expected)
+  PASS  API boot (200 /health)
+  PASS  GET   /api/v2/admin/users anon (got 401)
+  PASS  POST  /api/v2/admin/users anon (got 401)
+  PASS  GET   /api/v2/admin/users/1 anon (got 401)
+  PASS  PATCH /api/v2/admin/users/1 anon (got 401)
+  PASS  POST  /api/v2/admin/users/1/reset anon (got 401)
+  PASS  Login admin (token_len=589)
+  PASS  POST   /admin/users (201, id=7, mustChangePassword=True)
+  PASS  POST   /admin/users dupe (422 accounts.username_in_use)
+  PASS  Login new operator (token + user.mustChangePassword=True)
+  PASS  POST   /admin/users/7/reset-password (200 + must=true)
+  PASS  Old password rejected after reset (401)
+  PASS  Login with new pwd (token + still mustChangePassword=True)
+  PASS  PATCH  self-disable (422 accounts.self_action_forbidden)
+  PASS  PATCH  self-demote (422 self_action_forbidden — runtime block before last-admin)
+
+  TOTAL: pass=20 fail=0

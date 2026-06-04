@@ -1,4 +1,5 @@
 using CCL.MES.Hybrid.Client.Npi;
+using CCL.MES.Shared.Accounts;
 using CCL.MES.Shared.Audit;
 using CCL.MES.Shared.Auth;
 using CCL.MES.Shared.Backup;
@@ -262,6 +263,26 @@ public interface ICclApiClient
         string? search, string? action, string? actor,
         DateTime? fromUtc, DateTime? toUtc,
         string destinationFilePath, CancellationToken ct = default);
+
+    // ── Account Control — Admin-only (P10.6c) ───────────────────────
+    /// <summary>Paged user list. Throws <see cref="ApiException"/>
+    /// with 403 when the caller is not Admin.</summary>
+    Task<AccountPagedResult> ListAccountsAsync(string? search, int page, int pageSize, CancellationToken ct = default);
+
+    /// <summary>Create a new account. Throws <see cref="ApiException"/>
+    /// on 403, 422 (validation), or 5xx. Server flips
+    /// MustChangePassword=true on every freshly-created row.</summary>
+    Task<AccountDto> CreateAccountAsync(CreateAccountRequest req, CancellationToken ct = default);
+
+    /// <summary>Update displayName / role / department / IsActive.
+    /// Server enforces last-admin + self-action guards.</summary>
+    Task<AccountDto> UpdateAccountAsync(long userId, UpdateAccountRequest req, CancellationToken ct = default);
+
+    /// <summary>Admin force-reset another user's password. Sets
+    /// MustChangePassword=true on the target so they're prompted on
+    /// next login. Throws 422 <c>accounts.self_action_forbidden</c>
+    /// when invoked against the caller's own id.</summary>
+    Task<AccountDto> ResetAccountPasswordAsync(long userId, ResetPasswordRequest req, CancellationToken ct = default);
 
     // ── Backup / Restore — Admin-only (P10.6h) ──────────────────────
     /// <summary>List existing snapshots in the server's backup dir.

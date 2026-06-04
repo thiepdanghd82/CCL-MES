@@ -42,6 +42,11 @@ public sealed class RouteDiscoveryCanaryTests : IClassFixture<MesApiFactory>
     [InlineData("GET",   "/api/v2/audit/actions")]       // P10.6e — distinct actions
     [InlineData("GET",   "/api/v2/audit/export/csv")]    // P10.6e — CSV export
     [InlineData("GET",   "/api/v2/audit/export/xlsx")]   // P10.6e — XLSX export
+    [InlineData("GET",   "/api/v2/admin/users")]         // P10.6c — list
+    [InlineData("POST",  "/api/v2/admin/users")]         // P10.6c — create
+    [InlineData("GET",   "/api/v2/admin/users/1")]       // P10.6c — get by id
+    [InlineData("PATCH", "/api/v2/admin/users/1")]       // P10.6c — update
+    [InlineData("POST",  "/api/v2/admin/users/1/reset-password")] // P10.6c — reset
     public async Task Settings_route_is_discovered_and_returns_401_not_404_without_bearer(string verb, string url)
     {
         var client = _fx.CreateClient();

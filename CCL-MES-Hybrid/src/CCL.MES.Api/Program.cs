@@ -270,6 +270,11 @@ builder.Services.AddSingleton<CCL.MES.Api.Services.BackupApiService>();
 // IEnumerable<IAuditLogExporter> and dispatches by Format.
 builder.Services.AddScoped<CCL.MES.Api.Services.AuditLogQueryService>();
 
+// P10.6c — Admin Account Control. Scoped — depends on IMesDbContext +
+// IPasswordHasher (singleton) + IRefreshTokenStore (singleton). The
+// AdminOnly policy on AccountControlController is the only gate.
+builder.Services.AddScoped<CCL.MES.Api.Services.AccountControlService>();
+
 // P10.5e-1 — Drawings upload + download orchestrator. Legacy Phase 8
 // PR-D-5b service composed of IMesDbContext + IBlobStore (registered
 // just above) + IAuditWriter. Multipart upload routes to UploadAsync;

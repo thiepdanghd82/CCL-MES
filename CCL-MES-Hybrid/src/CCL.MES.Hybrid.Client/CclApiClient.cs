@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using CCL.MES.Hybrid.Client.Npi;
 using CCL.MES.Shared;
+using CCL.MES.Shared.Accounts;
 using CCL.MES.Shared.Audit;
 using CCL.MES.Shared.Auth;
 using CCL.MES.Shared.Backup;
@@ -582,6 +583,39 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
             destinationFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
         await resp.Content.CopyToAsync(fs, ct);
         return new AuditLogExportDownload(serverName, fs.Length, ct2);
+    }
+
+    // ── Account Control (P10.6c) ────────────────────────────────────
+
+    public async Task<AccountPagedResult> ListAccountsAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        var qs = new List<string> { $"page={page}", $"pageSize={pageSize}" };
+        if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/admin/users?{string.Join('&', qs)}", ct);
+        return await ReadAsAsync<AccountPagedResult>(resp, ct);
+    }
+
+    public async Task<AccountDto> CreateAccountAsync(CreateAccountRequest req, CancellationToken ct = default)
+    {
+        using var resp = await _http.PostAsJsonAsync($"/{ApiVersion.Prefix}/admin/users", req, ct);
+        return await ReadAsAsync<AccountDto>(resp, ct);
+    }
+
+    public async Task<AccountDto> UpdateAccountAsync(long userId, UpdateAccountRequest req, CancellationToken ct = default)
+    {
+        using var resp = await _http.PatchAsJsonAsync(
+            $"/{ApiVersion.Prefix}/admin/users/{userId}", req, ct);
+        return await ReadAsAsync<AccountDto>(resp, ct);
+    }
+
+    public async Task<AccountDto> ResetAccountPasswordAsync(
+        long userId, ResetPasswordRequest req, CancellationToken ct = default)
+    {
+        using var resp = await _http.PostAsJsonAsync(
+            $"/{ApiVersion.Prefix}/admin/users/{userId}/reset-password", req, ct);
+        return await ReadAsAsync<AccountDto>(resp, ct);
     }
 
     // ── Backup / Restore (P10.6h) ───────────────────────────────────

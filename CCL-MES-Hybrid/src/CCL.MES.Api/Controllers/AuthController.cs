@@ -161,6 +161,15 @@ public sealed class AuthController : ControllerBase
         if (!long.TryParse(idStr, out var id))
             return Unauthorized(ApiError.Of("auth.bad_claim", "Token is missing user id."));
 
+        // P10.6c — surface MustChangePassword so the client routes the
+        // user to the change-pwd flow if they've just been admin-reset
+        // or freshly created. Cheap single-row lookup.
+        var mustChange = _db.Users
+            .AsNoTracking()
+            .Where(u => u.Id == id)
+            .Select(u => u.MustChangePassword)
+            .FirstOrDefault();
+
         return Ok(new UserInfo
         {
             Id = id,
@@ -169,6 +178,7 @@ public sealed class AuthController : ControllerBase
             DisplayName = User.FindFirstValue("display_name") ?? "",
             Department = User.FindFirstValue("department") ?? "",
             Language = "",
+            MustChangePassword = mustChange,
         });
     }
 
@@ -200,6 +210,7 @@ public sealed class AuthController : ControllerBase
                 DisplayName = user.DisplayName ?? user.Username,
                 Department = user.Department ?? "",
                 Language = "",
+                MustChangePassword = user.MustChangePassword,
             },
         };
     }

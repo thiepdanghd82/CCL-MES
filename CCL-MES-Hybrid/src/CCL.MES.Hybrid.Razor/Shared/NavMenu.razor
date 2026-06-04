@@ -75,6 +75,10 @@
         <AuthorizeView Roles="Admin" Context="audCtx">
             <NavLink href="/settings/audit" class="app-nav-link app-nav-link-sub">Nhật ký kiểm tra</NavLink>
         </AuthorizeView>
+        @* P10.6c — Account Control — Admin only. *@
+        <AuthorizeView Roles="Admin" Context="accCtx">
+            <NavLink href="/settings/accounts" class="app-nav-link app-nav-link-sub">Quản lý tài khoản</NavLink>
+        </AuthorizeView>
         @if (HwOptions.Value.ScanEnabled)
         {
             <AuthorizeView Roles="Admin,Supervisor,Engineer">

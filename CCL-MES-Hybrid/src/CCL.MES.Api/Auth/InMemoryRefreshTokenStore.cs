@@ -37,6 +37,15 @@ public sealed class InMemoryRefreshTokenStore : IRefreshTokenStore
         }
     }
 
+    public void RevokeAllForUser(long userId)
+    {
+        foreach (var kv in _byToken)
+        {
+            if (kv.Value.UserId == userId && !kv.Value.Revoked)
+                _byToken[kv.Key] = kv.Value with { Revoked = true };
+        }
+    }
+
     public void PurgeExpired(DateTime now)
     {
         foreach (var kv in _byToken)

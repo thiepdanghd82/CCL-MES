@@ -1,0 +1,472 @@
+@page "/settings/accounts"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@using System.Globalization
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Shared.Accounts
+@inject ICclApiClient Api
+@inject IJSRuntime Js
+
+@*
+  P10.6c — Admin Account Control.
+
+  Admin-only at BOTH layers:
+    - Page [Authorize(Roles = "Admin")] — non-admin renders the
+      standard forbidden screen.
+    - Every API endpoint sits behind AdminOnly policy. Server is
+      defence-in-depth — anon-401 + Engineer-403 covered by
+      RouteDiscoveryCanaryTests + AccountControlControllerTests.
+
+  Catalyst safety: plain <input type="text" / "password"> +
+  plain <select> + plain @onclick. NO <InputText>, NO <InputFile>.
+  Confirm modals via Js.InvokeAsync<bool>("confirm", …) — proven
+  Catalyst-safe since P10.6h Backup restore.
+
+  Mutations:
+    - Create user: opens an inline modal with username / display
+      name / role / department / temp password.
+    - Reset password: prompt for the new temp pwd → confirm gate →
+      USER_RESET_PASSWORD emit; server sets MustChangePassword=true.
+    - Toggle Active: confirm gate → USER_SET_ACTIVE emit; server
+      revokes all refresh tokens when flipping to inactive (effective
+      logout ≤ 15 min — access token TTL).
+    - Role + Department + DisplayName change: inline <select> /
+      <input> + Lưu button.
+*@
+
+<PageTitle>Quản lý tài khoản — CCL MES</PageTitle>
+
+<div class="settings-page-header">
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
+    <h1 class="page-title">Quản lý tài khoản</h1>
+</div>
+
+<section class="settings-form-card is-wide">
+    <div class="audit-result-head">
+        <h2 class="settings-group-title">Người dùng (@_result.Total tổng)</h2>
+        <div class="audit-filter-actions" style="margin-top:0">
+            <input id="ac-search" type="text" class="modal-input"
+                   placeholder="Tìm theo username / display / role…"
+                   style="width:280px"
+                   @bind="_search" @bind:event="oninput"
+                   @bind:after="OnApplySearch" />
+            <button type="button" class="grid-btn grid-btn-primary"
+                    @onclick="OpenCreateModal">+ Tạo tài khoản</button>
+        </div>
+    </div>
+
+    @if (_listError is not null)
+    {
+        <div class="settings-form-error">@_listError</div>
+    }
+    @if (_actionInfo is not null)
+    {
+        <div class="settings-form-success">@_actionInfo</div>
+    }
+    @if (_actionError is not null)
+    {
+        <div class="settings-form-error">@_actionError</div>
+    }
+
+    @if (_loading)
+    {
+        <p class="settings-form-help">Đang tải…</p>
+    }
+    else if (_result.Items.Count == 0)
+    {
+        <p class="settings-form-help">Không có tài khoản nào khớp.</p>
+    }
+    else
+    {
+        <div class="audit-table-wrap">
+            <table class="audit-table accounts-table">
+                <colgroup>
+                    <col class="acc-col-username" />
+                    <col class="acc-col-display"  />
+                    <col class="acc-col-role"     />
+                    <col class="acc-col-dept"     />
+                    <col class="acc-col-active"   />
+                    <col class="acc-col-must"     />
+                    <col class="acc-col-last"     />
+                    <col class="acc-col-actions"  />
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Display name</th>
+                        <th>Vai trò</th>
+                        <th>Phòng ban</th>
+                        <th>Trạng thái</th>
+                        <th>Đổi MK?</th>
+                        <th>Đăng nhập gần nhất</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in _result.Items)
+                    {
+                        var isSelf = u.Id == _selfId;
+                        <tr>
+                            <td class="audit-mono" title="@u.Username">@u.Username @if (isSelf) { <span class="acc-self">(bạn)</span> }</td>
+                            <td>
+                                <input type="text" class="modal-input acc-inline"
+                                       value="@(u.DisplayName ?? "")"
+                                       @onchange="@(e => OnEditDisplay(u.Id, e.Value?.ToString()))" />
+                            </td>
+                            <td>
+                                <select class="modal-input acc-inline"
+                                        value="@u.Role"
+                                        disabled="@isSelf"
+                                        @onchange="@(e => OnEditRole(u.Id, e.Value?.ToString() ?? u.Role))">
+                                    @foreach (var r in Roles)
+                                    {
+                                        <option value="@r">@r</option>
+                                    }
+                                </select>
+                            </td>
+                            <td>
+                                <input type="text" class="modal-input acc-inline"
+                                       value="@(u.Department ?? "")"
+                                       @onchange="@(e => OnEditDept(u.Id, e.Value?.ToString()))" />
+                            </td>
+                            <td>
+                                @if (u.IsActive)
+                                {
+                                    <span class="backup-chip">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="backup-chip backup-chip-pre">Disabled</span>
+                                }
+                            </td>
+                            <td>@(u.MustChangePassword ? "✓" : "—")</td>
+                            <td class="audit-mono">@(u.LastLoginAtUtc?.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "—")</td>
+                            <td>
+                                <div class="acc-actions">
+                                    <button type="button" class="audit-copy-btn"
+                                            disabled="@isSelf"
+                                            title="Reset password"
+                                            @onclick="@(() => OpenResetModal(u))">Reset</button>
+                                    @if (u.IsActive)
+                                    {
+                                        <button type="button" class="audit-copy-btn"
+                                                disabled="@isSelf"
+                                                title="Vô hiệu hoá"
+                                                @onclick="@(() => OnToggleActive(u, false))">Disable</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="audit-copy-btn"
+                                                title="Kích hoạt lại"
+                                                @onclick="@(() => OnToggleActive(u, true))">Enable</button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="audit-paging" style="margin-top:10px">
+            <button type="button" class="grid-btn" disabled="@(_loading || _result.Page <= 1)"
+                    @onclick="@(() => LoadPage(_result.Page - 1))">‹ Trước</button>
+            <span class="audit-paging-pos">Trang @_result.Page / @TotalPages</span>
+            <button type="button" class="grid-btn"
+                    disabled="@(_loading || _result.Page >= TotalPages)"
+                    @onclick="@(() => LoadPage(_result.Page + 1))">Sau ›</button>
+        </div>
+    }
+</section>
+
+@* ── Create modal ─────────────────────────────────────────────── *@
+@if (_createOpen)
+{
+    <div class="acc-modal-scrim" @onclick="CloseCreateModal">
+        <div class="acc-modal" @onclick:stopPropagation="true">
+            <h3 class="acc-modal-title">Tạo tài khoản mới</h3>
+            <div class="acc-modal-grid">
+                <div>
+                    <label>Username *</label>
+                    <input type="text" class="modal-input"
+                           @bind="_newUsername" @bind:event="oninput"
+                           autocomplete="off" />
+                </div>
+                <div>
+                    <label>Display name</label>
+                    <input type="text" class="modal-input"
+                           @bind="_newDisplay" @bind:event="oninput" />
+                </div>
+                <div>
+                    <label>Vai trò *</label>
+                    <select class="modal-input" @bind="_newRole">
+                        @foreach (var r in Roles)
+                        {
+                            <option value="@r">@r</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label>Phòng ban</label>
+                    <input type="text" class="modal-input"
+                           @bind="_newDept" @bind:event="oninput" />
+                </div>
+                <div style="grid-column: span 2">
+                    <label>Mật khẩu tạm (operator sẽ bị bắt đổi lần đăng nhập đầu) *</label>
+                    <input type="password" class="modal-input"
+                           @bind="_newPassword" @bind:event="oninput"
+                           autocomplete="new-password" />
+                </div>
+            </div>
+            @if (_createError is not null)
+            {
+                <div class="settings-form-error">@_createError</div>
+            }
+            <div class="acc-modal-actions">
+                <button type="button" class="grid-btn" @onclick="CloseCreateModal" disabled="@_creating">Huỷ</button>
+                <button type="button" class="grid-btn grid-btn-primary"
+                        @onclick="OnCreateSubmit" disabled="@_creating">
+                    @(_creating ? "Đang tạo…" : "Tạo")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── Reset modal ──────────────────────────────────────────────── *@
+@if (_resetTarget is not null)
+{
+    <div class="acc-modal-scrim" @onclick="CloseResetModal">
+        <div class="acc-modal acc-modal-narrow" @onclick:stopPropagation="true">
+            <h3 class="acc-modal-title">Reset mật khẩu — @_resetTarget.Username</h3>
+            <p class="settings-form-help">
+                User sẽ bị bắt đổi mật khẩu ở lần đăng nhập kế tiếp
+                (MustChangePassword=true). Session hiện tại của họ
+                KHÔNG bị huỷ — nếu cần huỷ session, dùng nút Disable
+                rồi Enable lại.
+            </p>
+            <div>
+                <label>Mật khẩu tạm mới *</label>
+                <input type="password" class="modal-input"
+                       @bind="_resetPassword" @bind:event="oninput"
+                       autocomplete="new-password" />
+            </div>
+            @if (_resetError is not null)
+            {
+                <div class="settings-form-error">@_resetError</div>
+            }
+            <div class="acc-modal-actions">
+                <button type="button" class="grid-btn" @onclick="CloseResetModal" disabled="@_resetting">Huỷ</button>
+                <button type="button" class="grid-btn grid-btn-danger"
+                        @onclick="OnResetSubmit" disabled="@_resetting">
+                    @(_resetting ? "Đang reset…" : "Reset")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const int PageSize = 50;
+    private static readonly string[] Roles =
+        new[] { "Admin", "Supervisor", "Engineer", "Qc", "Operator" };
+
+    private string? _search;
+    private bool _loading = true;
+    private string? _listError;
+    private string? _actionInfo;
+    private string? _actionError;
+    private AccountPagedResult _result = new();
+    private long _selfId;
+
+    // Create modal state.
+    private bool _createOpen;
+    private bool _creating;
+    private string _newUsername = "";
+    private string _newDisplay = "";
+    private string _newRole = "Operator";
+    private string _newDept = "";
+    private string _newPassword = "";
+    private string? _createError;
+
+    // Reset modal state.
+    private AccountDto? _resetTarget;
+    private bool _resetting;
+    private string _resetPassword = "";
+    private string? _resetError;
+
+    private int TotalPages =>
+        _result.Total <= 0 ? 1 : (int)Math.Ceiling(_result.Total / (double)Math.Max(1, _result.PageSize));
+
+    [CascadingParameter]
+    public Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? AuthStateTask { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthStateTask is not null)
+        {
+            var auth = await AuthStateTask;
+            var idStr = auth.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            long.TryParse(idStr, out _selfId);
+        }
+        await LoadPage(1);
+    }
+
+    private async Task OnApplySearch() => await LoadPage(1);
+
+    private async Task LoadPage(int page)
+    {
+        _loading = true;
+        _listError = null;
+        try
+        {
+            _result = await Api.ListAccountsAsync(_search, page, PageSize);
+        }
+        catch (ApiException ex)
+        {
+            _listError = $"Không tải được: {ex.ApiError.Code} ({ex.StatusCode}).";
+        }
+        catch (Exception ex)
+        {
+            _listError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // ── Inline edits ────────────────────────────────────────────────
+
+    private Task OnEditDisplay(long userId, string? newName) =>
+        Patch(userId, new UpdateAccountRequest { DisplayName = newName ?? "" });
+
+    private Task OnEditRole(long userId, string newRole) =>
+        Patch(userId, new UpdateAccountRequest { Role = newRole });
+
+    private Task OnEditDept(long userId, string? newDept) =>
+        Patch(userId, new UpdateAccountRequest { Department = newDept ?? "" });
+
+    private async Task OnToggleActive(AccountDto u, bool target)
+    {
+        var label = target ? "kích hoạt" : "vô hiệu hoá";
+        var msg = target
+            ? $"Kích hoạt lại tài khoản '{u.Username}'?"
+            : $"Vô hiệu hoá '{u.Username}'? Tất cả refresh-token của user này sẽ bị huỷ ngay; access-token còn sống tối đa 15 phút.";
+        var ok = await Js.InvokeAsync<bool>("confirm", msg);
+        if (!ok) return;
+        await Patch(u.Id, new UpdateAccountRequest { IsActive = target });
+    }
+
+    private async Task Patch(long userId, UpdateAccountRequest req)
+    {
+        _actionError = null;
+        _actionInfo = null;
+        try
+        {
+            var dto = await Api.UpdateAccountAsync(userId, req);
+            _actionInfo = $"✔ Đã cập nhật {dto.Username}.";
+            await LoadPage(_result.Page);
+        }
+        catch (ApiException ex)
+        {
+            _actionError = $"Không cập nhật được: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _actionError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+        }
+    }
+
+    // ── Create modal ────────────────────────────────────────────────
+
+    private void OpenCreateModal()
+    {
+        _newUsername = "";
+        _newDisplay = "";
+        _newRole = "Operator";
+        _newDept = "";
+        _newPassword = "";
+        _createError = null;
+        _createOpen = true;
+    }
+
+    private void CloseCreateModal()
+    {
+        if (_creating) return;
+        _createOpen = false;
+    }
+
+    private async Task OnCreateSubmit()
+    {
+        _creating = true;
+        _createError = null;
+        try
+        {
+            var dto = await Api.CreateAccountAsync(new CreateAccountRequest
+            {
+                Username = _newUsername,
+                DisplayName = string.IsNullOrWhiteSpace(_newDisplay) ? null : _newDisplay,
+                Role = _newRole,
+                Department = string.IsNullOrWhiteSpace(_newDept) ? null : _newDept,
+                Password = _newPassword,
+            });
+            _actionInfo = $"✔ Đã tạo {dto.Username} ({dto.Role}). User sẽ bị bắt đổi mật khẩu lần đăng nhập đầu.";
+            _createOpen = false;
+            await LoadPage(1);
+        }
+        catch (ApiException ex)
+        {
+            _createError = $"{ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _createError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _creating = false;
+        }
+    }
+
+    // ── Reset modal ─────────────────────────────────────────────────
+
+    private void OpenResetModal(AccountDto u)
+    {
+        _resetTarget = u;
+        _resetPassword = "";
+        _resetError = null;
+    }
+
+    private void CloseResetModal()
+    {
+        if (_resetting) return;
+        _resetTarget = null;
+    }
+
+    private async Task OnResetSubmit()
+    {
+        if (_resetTarget is null) return;
+        _resetting = true;
+        _resetError = null;
+        try
+        {
+            var dto = await Api.ResetAccountPasswordAsync(_resetTarget.Id,
+                new ResetPasswordRequest { NewPassword = _resetPassword });
+            _actionInfo = $"✔ Đã reset mật khẩu cho {dto.Username}. MustChangePassword = true.";
+            _resetTarget = null;
+            await LoadPage(_result.Page);
+        }
+        catch (ApiException ex)
+        {
+            _resetError = $"{ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _resetError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _resetting = false;
+        }
+    }
+}

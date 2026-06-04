@@ -41,6 +41,16 @@ public interface IRefreshTokenStore
     void RevokeFamily(Guid familyId);
 
     /// <summary>
+    /// P10.6c — revoke every non-revoked token belonging to a single user.
+    /// Called when an admin disables an account so existing sessions can't
+    /// keep refreshing past the access-token TTL. The access token itself
+    /// stays valid for ≤ <c>JwtOptions.AccessLifetimeMinutes</c> (15 min);
+    /// after that, any refresh attempt finds the token already-revoked and
+    /// the operator is bumped to the login screen.
+    /// </summary>
+    void RevokeAllForUser(long userId);
+
+    /// <summary>
     /// Drop expired entries from the store. May be called by a hosted
     /// background service or inline at refresh time. In-memory impl is
     /// fine to no-op since the dictionary is bounded by request volume;
