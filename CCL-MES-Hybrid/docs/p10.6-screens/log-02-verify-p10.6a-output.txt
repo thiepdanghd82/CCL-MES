@@ -1,0 +1,31 @@
+====================================================================
+P10.6a verify — 2026-06-04 16:05:52
+====================================================================
+[ctx]  repo  = /Volumes/Macintosh Data/Claude-Cowork/3. PROJECTS/CCL-CMES/CCL-MES
+[ctx]  branch= feat/p10.6a-settings-profile-password
+[ctx]  HEAD  = 4c5068d
+[ctx]  user  = admin
+
+[step] kill anything on :5100
+[step] build API
+[build] exit=0
+[build] Jun  4 16:04:39 2026 189440 bytes
+[step] start API on :5100
+[run]  PID=789  log=/var/folders/k3/j9v52bb95lxcfkzgdfdlgshc0000gn/T/ccl-api-verify-XXXXXX.1HuxwaTIuz
+[step] route discovery — anon
+[step] login as admin
+
+============================  SUMMARY  ============================
+  PASS  Build (commit 4c5068d)
+  PASS  API boot (200 /health)
+  PASS  GET   /api/v2/settings/me anon (got 401 expected 401)
+  PASS  PATCH /api/v2/settings/me anon (got 401 expected 401)
+  PASS  POST  /api/v2/settings/password anon (got 401 expected 401)
+  PASS  Login admin (token_len=589)
+  PASS  GET    /api/v2/settings/me auth (200, username=admin, role=Admin)
+  PASS  PATCH  /api/v2/settings/me auth (DisplayName=Verify-160556)
+  PASS  PATCH  /api/v2/settings/me long (422 profile.display_name_too_long)
+  PASS  POST   /api/v2/settings/password wrong (422 auth.wrong_current)
+  PASS  POST   /api/v2/settings/password short (422 auth.new_too_short)
+
+  TOTAL: pass=11 fail=0
