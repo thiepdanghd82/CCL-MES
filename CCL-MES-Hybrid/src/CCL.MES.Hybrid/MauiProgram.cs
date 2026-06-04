@@ -111,6 +111,15 @@ public static class MauiProgram
             CCL.MES.Hybrid.Client.Files.IFileOpener,
             CatalystFileOpener>());
 
+        // P10.5g — Save-As file dialog. Wraps UIDocumentPickerViewController
+        // (forExporting:) — native macOS Save dialog — so operators pick
+        // the destination folder + final filename through the system UI
+        // instead of accepting the sandbox path. The caller streams the
+        // download to the sandbox first, then hands the path here.
+        builder.Services.Replace(ServiceDescriptor.Singleton<
+            CCL.MES.Hybrid.Client.Files.IFileSaver,
+            CatalystFileSaver>());
+
         // P10.3 W4 — feed the persisted device id into ApiClientOptions so
         // every device-scoped endpoint call (scan-log / heartbeat / info)
         // carries the station's stable guid. PostConfigure runs AFTER the

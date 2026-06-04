@@ -178,6 +178,36 @@ public interface ICclApiClient
     /// persisted capture with server-assigned Id + CapturedAt.</summary>
     Task<QcCaptureItem> CreateQcCaptureAsync(
         long revisionId, QcCaptureCreateRequest req, CancellationToken ct = default);
+
+    // ── Spec list / sheet exports (P10.5g) ──────────────────────────
+    /// <summary>
+    /// Stream the server-rendered Spec list export (CSV / XLSX / PDF) to
+    /// <paramref name="destinationFilePath"/>. Server filters by the same
+    /// <paramref name="view"/> + <paramref name="planner"/> chip the Spec
+    /// list page uses, so what the operator sees == what they get. Uses
+    /// <see cref="HttpCompletionOption.ResponseHeadersRead"/> + chunked
+    /// CopyTo so a 10 k-row xlsx (~ few MB) never lives in memory all at
+    /// once. Returns the bytes persisted; throws on non-2xx.
+    /// </summary>
+    /// <param name="format">"csv" / "xlsx" / "pdf" — anything else throws
+    /// <see cref="ArgumentOutOfRangeException"/>.</param>
+    Task<long> DownloadSpecListExportAsync(
+        string format,
+        string? search,
+        string view,
+        string? planner,
+        string destinationFilePath,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Stream the single-spec sheet PDF (mirror of web PR #31d) to
+    /// <paramref name="destinationFilePath"/>. Same chunked-download
+    /// semantics as <see cref="DownloadSpecListExportAsync"/>.
+    /// </summary>
+    Task<long> DownloadSpecSheetPdfAsync(
+        long revisionId,
+        string destinationFilePath,
+        CancellationToken ct = default);
 }
 
 /// <summary>

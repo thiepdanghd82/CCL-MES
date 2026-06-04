@@ -1,0 +1,150 @@
+=== P10.5g wire-level verification — Thu Jun  4 11:55:00 +07 2026 ===
+Substrate: TestServer harness running CCL.MES.Api with EF SQLite InMemory
+(Microsoft.AspNetCore.Mvc.Testing WebApplicationFactory). Mac Catalyst
+native click-through stays manual (Antigravity overlay blocks screen-
+capture on this Mac; the harness exercises the same controller path the
+MAUI host calls via Kestrel — same DI graph, same authn/authz pipeline,
+same EF context).
+
+Endpoints in scope:
+  GET  /api/v2/specs/export/csv    ?search=&view=Active|Trash|All&planner=
+  GET  /api/v2/specs/export/xlsx   ?search=&view=&planner=
+  GET  /api/v2/specs/export/pdf    ?search=&view=&planner=
+  GET  /api/v2/specs/export/{revisionId}/sheet/pdf
+
+Auth policy: NpiSpecRead (Admin / Supervisor / Engineer).
+Audit emit:  SPEC_EXPORT per call; SPEC_EXPORT_DEVICE when X-Device-Id
+             header present (W4 pattern).
+
+
+--- [1] CSV list export — Engineer, Active view ---
+HTTP 200
+Content-Type: text/csv; charset=utf-8
+Body[0..2] = EF BB BF        (UTF-8 BOM present — Excel VN locale autodetect OK)
+Content-Disposition filename: NpiSpecLibrary_<yyyyMMdd-HHmmss>.csv
+
+--- [2] XLSX list export — Engineer, Active view ---
+HTTP 200
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+Body[0..3] = 50 4B 03 04     (ZIP magic — xlsx container OK)
+Content-Disposition filename: NpiSpecLibrary_<yyyyMMdd-HHmmss>.xlsx
+
+--- [3] PDF list export — Engineer, Active view ---
+HTTP 200
+Content-Type: application/pdf
+Body[0..4] = 25 50 44 46 2D  (%PDF- header — PdfSharp render OK)
+Content-Disposition filename: NpiSpecLibrary_<yyyyMMdd-HHmmss>.pdf
+
+--- [4] Sheet PDF — Engineer, real revisionId ---
+HTTP 200
+Content-Type: application/pdf
+Body[0..4] = 25 50 44 46 2D
+Content-Disposition filename: SpecSheet_<RefNoOrSpec>_Rev<Code>_<ts>.pdf
+
+--- [5] Sheet PDF — unknown revisionId 999999999 ---
+HTTP 404
+Body: { "code": "not_found", "revisionId": 999999999 }
+
+--- [6] QC role denied on list export ---
+HTTP 403
+NpiSpecRead policy excludes Qc role — controller gate verified.
+
+--- [7] Unauthenticated → sheet PDF ---
+HTTP 401
+No bearer token; JWT challenge fires before NpiSpecRead policy.
+
+--- [8] Audit log: SPEC_EXPORT row written on every success ---
+Row shape:
+  action   = "SPEC_EXPORT"
+  actor    = "<engineer-username>"
+  detail   = JSON { format, kind, search, view, planner, rows, filename,
+                    content_length } for list; { format:"pdf", kind:"sheet",
+                    revision_id, ref_no, spec_code, revision_code,
+                    filename, content_length } for sheet.
+
+--- [9] X-Device-Id header → paired SPEC_EXPORT_DEVICE row ---
+Sent X-Device-Id: "DEV-EXPORT-PAIR" on a successful CSV export.
+audit_log rows after the call:
+  SPEC_EXPORT         (kind=list, format=csv, planner="", view=Active, ...)
+  SPEC_EXPORT_DEVICE  (target_id="DEV-EXPORT-PAIR",
+                       detail.device_id="DEV-EXPORT-PAIR",
+                       detail.detail.kind="list", detail.detail.format="csv")
+
+--- [10] X-Device-Id absent → no paired row ---
+Verified absence: query AuditLogs where action='SPEC_EXPORT_DEVICE'
+AND ActorUsername=<engineer> returns null. Pair only emits when the
+header is present (matches the SPEC_*_DEVICE pattern from PRs #83/#85).
+
+
+--- xUnit harness output (11/11 passed) ---
+Passed CCL.MES.Api.Tests.SpecsExportTests.Csv_export_returns_utf8_bom_and_csv_content_type
+Passed CCL.MES.Api.Tests.SpecsExportTests.Xlsx_export_returns_zip_magic_and_xlsx_content_type
+Passed CCL.MES.Api.Tests.SpecsExportTests.Pdf_export_returns_pdf_header_and_pdf_content_type
+Passed CCL.MES.Api.Tests.SpecsExportTests.Filename_carries_NpiSpecLibrary_prefix_and_extension
+Passed CCL.MES.Api.Tests.SpecsExportTests.Sheet_pdf_returns_pdf_with_SpecSheet_filename
+Passed CCL.MES.Api.Tests.SpecsExportTests.Sheet_pdf_returns_404_for_unknown_revision
+Passed CCL.MES.Api.Tests.SpecsExportTests.Qc_role_is_denied_on_list_export
+Passed CCL.MES.Api.Tests.SpecsExportTests.Unauthenticated_call_is_denied_on_sheet_pdf
+Passed CCL.MES.Api.Tests.SpecsExportTests.Audit_emits_SPEC_EXPORT_on_successful_list_call
+Passed CCL.MES.Api.Tests.SpecsExportTests.X_device_id_header_emits_paired_SPEC_EXPORT_DEVICE_row
+Passed CCL.MES.Api.Tests.SpecsExportTests.Missing_device_header_does_not_emit_device_audit_row
+
+
+--- Pure-helper coverage (filename + filter) ---
+CCL.MES.Api.Tests.Unit.SpecExportFilenameTests
+  • List_filename_carries_prefix_timestamp_and_extension (csv/xlsx/pdf)
+  • Sheet_filename_uses_RefNo_when_present
+  • Sheet_filename_falls_back_to_specCode_when_RefNo_is_null
+  • Sheet_filename_sanitises_slashes_spaces_and_special_chars
+  • Describe_filter_returns_null_for_default_args
+  • Describe_filter_composes_parts_with_separator
+  • Describe_filter_uppercases_planner_token
+  • Sanitize_token_falls_back_to_spec_when_input_blank
+  • Sanitize_token_handles_common_shapes (4 shapes)
+14 tests, all passed.
+
+
+--- Client-side orchestration (SpecExportFlow) ---
+CCL.MES.Hybrid.Client.Tests.Specs.SpecExportFlowTests
+  • StampedListFilename csv/xlsx/pdf carry NpiSpecLibrary_<ts>.<ext>
+  • Sheet filename sanitises "/" and " " to "_"; falls back to "spec"
+  • ExportListAsync save outcome when saver returns destination
+  • ExportListAsync keeps sandbox path when saver cancels
+  • ExportListAsync opens sandbox path when save cancelled but openAfterSave
+  • ExportSheetPdfAsync routes revisionId to api
+  • ExportListAsync throws on unknown format
+  • ExportListAsync forwards filter args (search/view/planner) to api
+9 tests, all passed.
+
+
+--- VN error mapper extension (SpecMutationErrorMapper) ---
+CCL.MES.Hybrid.Client.Tests.Specs.SpecMutationErrorMapperTests
+  • export.no_data         → "Không có dữ liệu phù hợp với bộ lọc…"
+  • export.save_cancelled  → "Bạn đã huỷ hộp thoại lưu — file vẫn còn…"
+  • export.failed (blank)  → "Xuất file thất bại — thử lại."
+  • export.failed (with msg) → "Xuất file thất bại: ClosedXML threw on row 17"
+4 new tests, all passed.
+
+
+--- Suite totals after P10.5g land ---
+Server:  143 / 143 passed  (+25: 11 integration + 14 filename unit)
+Client:  421 / 421 passed  (+13: 9 flow + 4 VN mapper)
+Build:   solution Debug clean, only pre-existing appsettings.json warning
+         (introduced before P10.5g; appears on every prior build).
+
+
+--- Mac Catalyst manual click-through (operator-side, post-merge) ---
+Steps once Henry signs off the harness verification above:
+  1. Open Engineer Spec list → click ⬇ CSV / ⬇ Excel / ⬇ PDF
+  2. Native Save dialog (UIDocumentPickerViewController forExporting:)
+     pops up with NpiSpecLibrary_<ts>.<ext> suggested filename
+  3. Pick ~/Downloads/, hit Save → banner: "Đã lưu … — đã mở để xem."
+  4. Open file in Numbers / Excel / Preview to confirm rendered content
+  5. Cancel the save dialog → banner: "Bạn đã huỷ hộp thoại lưu — file
+     đã lưu trong thư mục tải xuống của ứng dụng (bấm Mở file để xem)."
+     Click "Mở file" → Launcher.Default routes to QuickLook with sandbox
+     path.
+  6. Open any spec detail page → 🖨 In PDF → same Save dialog with
+     SpecSheet_<RefNo>_Rev<Code>_<ts>.pdf
+  7. Hard-cancel network mid-download → banner shows VN error from
+     SpecMutationErrorMapper.ToVietnameseMessage("export.failed", …).

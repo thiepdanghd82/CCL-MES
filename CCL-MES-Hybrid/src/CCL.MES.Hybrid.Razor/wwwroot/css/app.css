@@ -2622,3 +2622,46 @@ html, body {
 .qc-result-toggle.is-active.qc-result-pass { background: #166534; color: white; border-color: #166534; }
 .qc-result-toggle.is-active.qc-result-fail { background: #c2410c; color: white; border-color: #c2410c; }
 .qc-result-toggle.is-active.qc-result-na   { background: #475569; color: white; border-color: #475569; }
+
+/* ── P10.5g — Spec list/sheet export ──────────────────────────── */
+
+.spec-export-group {
+    display: inline-flex;
+    gap: 6px;
+    margin-left: 8px;
+    border-left: 1px solid #DDE6F3;
+    padding-left: 10px;
+}
+
+.grid-btn-small {
+    padding: 3px 10px;
+    font-size: 12px;
+    line-height: 1.4;
+    border: 1px solid #B6C4DD;
+    background: white;
+    color: #1F3864;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.grid-btn-small:hover     { background: #F5F8FC; }
+.grid-btn-small:disabled  { opacity: 0.55; cursor: not-allowed; }
+
+.grid-export-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    border-left: 4px solid #1F3864;
+    background: #F5F8FC;
+    color: #1F3864;
+}
+
+.grid-export-banner span        { flex: 1; word-break: break-word; }
+.grid-export-banner.is-success  { background: #ECFCE8; border-left-color: #2E9B57; color: #064D2A; }
+.grid-export-banner.is-warn     { background: #FEF6DC; border-left-color: #B45309; color: #6F3500; }
+.grid-export-banner.is-danger   { background: #FDECEC; border-left-color: #C00000; color: #6A0000; }

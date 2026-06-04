@@ -2,7 +2,10 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer")]
 @inject ICclApiClient Api
 @inject NavigationManager Nav
+@inject CCL.MES.Hybrid.Client.Files.IFileOpener FileOpener
+@inject CCL.MES.Hybrid.Client.Files.IFileSaver FileSaver
 @using CCL.MES.Hybrid.Client.Specs
+@using CCL.MES.Hybrid.Client.Files
 @using CCL.MES.Hybrid.Razor.Shared
 
 @*
@@ -26,8 +29,31 @@
     @if (_detail is not null)
     {
         <span class="spec-detail-crumb">@(_detail.SpecCode) · Rev @_detail.RevisionCode</span>
+        @* P10.5g — Print sheet PDF. Read-level (export = read per
+           NpiSpecRead policy) so the button surfaces for every role
+           that can already view the page. Q11 _exporting guard prevents
+           double-fire while the file streams. *@
+        <button type="button" class="grid-btn grid-btn-secondary"
+                disabled="@_exporting"
+                @onclick="ExportSheetPdfAsync">
+            @(_exporting ? "Đang tạo PDF…" : "🖨 In PDF")
+        </button>
     }
 </div>
+
+@* P10.5g — Sheet export banner. Same visual contract as Specs list. *@
+@if (!string.IsNullOrEmpty(_exportBanner))
+{
+    <div class="grid-export-banner @($"is-{_exportBannerKind}")" role="status">
+        <span>@_exportBanner</span>
+        @if (!string.IsNullOrEmpty(_exportSandboxPath))
+        {
+            <button type="button" class="grid-btn grid-btn-small"
+                    @onclick="OpenSandboxAsync">Mở file</button>
+        }
+        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">Đóng</button>
+    </div>
+}
 
 @if (_detail is not null && _vm is not null)
 {
@@ -267,6 +293,14 @@ else if (_detail is not null && _vm is not null)
     private bool _reviseOpen;
     private bool _supersedeOpen;
     private bool _trashOpen;
+
+    // P10.5g — sheet PDF export state. Independent of _busy so an
+    // export can fire while the operator is mid-mutation review; the
+    // download itself is read-only so no concurrency hazard.
+    private bool _exporting;
+    private string? _exportBanner;
+    private string _exportBannerKind = "info";
+    private string? _exportSandboxPath;
 
     private static readonly (string Key, string Label)[] _tabs = new[]
     {
@@ -767,5 +801,91 @@ else if (_detail is not null && _vm is not null)
         if (_detail is null) return;
         await Api.TrashSpecAsync(_detail.Id);
         Nav.NavigateTo("/npi/specs");
+    }
+
+    // ── P10.5g — Per-spec sheet PDF export ───────────────────────────
+
+    /// <summary>Q11 _exporting guard + Q4 try/catch wrap. Sandboxes
+    /// the bytes via IFileOpener first, then defers the save dialog to
+    /// the operator via IFileSaver. RefNo (or SpecCode fallback) + Rev
+    /// shape the on-disk filename.</summary>
+    private async Task ExportSheetPdfAsync()
+    {
+        if (_exporting || _detail is null) return;
+        _exporting = true;
+        _exportBanner = "Đang tạo PDF…";
+        _exportBannerKind = "info";
+        _exportSandboxPath = null;
+        StateHasChanged();
+        try
+        {
+            var flow = new SpecExportFlow(Api, FileOpener, FileSaver);
+            var outcome = await flow.ExportSheetPdfAsync(
+                _detail.Id,
+                _detail.RefNo ?? _detail.SpecCode,
+                _detail.RevisionCode,
+                openAfterSave: true);
+            RenderExportOutcome(outcome);
+        }
+        catch (ApiException apiEx)
+        {
+            _exportBanner = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+            _exportBannerKind = "danger";
+        }
+        catch (HttpRequestException ex)
+        {
+            _exportBanner = $"Không kết nối được máy chủ: {ex.Message}";
+            _exportBannerKind = "danger";
+        }
+        catch (Exception ex)
+        {
+            _exportBanner = $"Xuất PDF thất bại: {ex.Message}";
+            _exportBannerKind = "danger";
+        }
+        finally
+        {
+            _exporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void RenderExportOutcome(SpecExportFlowOutcome outcome)
+    {
+        if (outcome.DidSave)
+        {
+            _exportBanner = outcome.Opened
+                ? $"Đã lưu {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) — đã mở để xem."
+                : $"Đã lưu {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) tại {outcome.DestinationPath}.";
+            _exportBannerKind = "success";
+            _exportSandboxPath = null;
+        }
+        else
+        {
+            _exportSandboxPath = outcome.SandboxPath;
+            _exportBanner = outcome.Opened
+                ? "Bạn đã huỷ hộp thoại lưu — file vẫn nằm trong thư mục tải xuống của ứng dụng và đã được mở để xem."
+                : "Bạn đã huỷ hộp thoại lưu — file đã lưu trong thư mục tải xuống của ứng dụng (bấm Mở file để xem).";
+            _exportBannerKind = "warn";
+        }
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024            => $"{bytes} B",
+        < 1024 * 1024     => $"{bytes / 1024.0:F1} KB",
+        _                 => $"{bytes / 1024.0 / 1024.0:F1} MB",
+    };
+
+    private async Task OpenSandboxAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_exportSandboxPath)) return;
+        await FileOpener.TryOpenAsync(_exportSandboxPath);
+    }
+
+    private void ClearExportBanner()
+    {
+        _exportBanner = null;
+        _exportSandboxPath = null;
+        StateHasChanged();
     }
 }

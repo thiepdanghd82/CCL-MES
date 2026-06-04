@@ -3,7 +3,10 @@
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
 @inject NavigationManager Nav
+@inject CCL.MES.Hybrid.Client.Files.IFileOpener FileOpener
+@inject CCL.MES.Hybrid.Client.Files.IFileSaver FileSaver
 @using CCL.MES.Hybrid.Client.Specs
+@using CCL.MES.Hybrid.Client.Files
 @using Microsoft.AspNetCore.Components.Rendering
 
 @*
@@ -57,6 +60,21 @@
     </div>
 
     <div class="grid-toolbar-spacer"></div>
+    @* P10.5g — Export. Three buttons share one busy guard (_exporting)
+       so the operator can't fire two downloads in parallel — Q11 rule.
+       Filter (search + view chip + planner chip) is forwarded to the
+       server so the file mirrors what the operator currently sees. *@
+    <div class="spec-export-group" role="group" aria-label="Xuất danh sách">
+        <button type="button" class="grid-btn grid-btn-secondary"
+                disabled="@_exporting"
+                @onclick="@(() => ExportListAsync("csv"))">⬇ CSV</button>
+        <button type="button" class="grid-btn grid-btn-secondary"
+                disabled="@_exporting"
+                @onclick="@(() => ExportListAsync("xlsx"))">⬇ Excel</button>
+        <button type="button" class="grid-btn grid-btn-secondary"
+                disabled="@_exporting"
+                @onclick="@(() => ExportListAsync("pdf"))">⬇ PDF</button>
+    </div>
     @* P10.5c-1 — Create Spec button. NpiSpecWrite policy = Admin / Engineer
        on the server; we mirror role-gate on the client so other roles
        don't see the affordance. *@
@@ -68,6 +86,22 @@
     </AuthorizeView>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
 </div>
+
+@* P10.5g — Export banner. Toggles between progress, success, sandbox-
+   fallback, and error states. _exportBanner is the rendered VN message;
+   _exportBannerKind drives the CSS class for color theming. *@
+@if (!string.IsNullOrEmpty(_exportBanner))
+{
+    <div class="grid-export-banner @($"is-{_exportBannerKind}")" role="status">
+        <span>@_exportBanner</span>
+        @if (!string.IsNullOrEmpty(_exportSandboxPath))
+        {
+            <button type="button" class="grid-btn grid-btn-small"
+                    @onclick="OpenSandboxAsync">Mở file</button>
+        }
+        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">Đóng</button>
+    </div>
+}
 
 @if (_loading && _data is null)
 {
@@ -227,6 +261,16 @@ else if (_data is not null)
     // P10.5c-2 — import modal state
     private bool _importOpen;
 
+    // P10.5g — export state. Single _exporting guard prevents two
+    // parallel downloads (Q11). _exportBanner + _exportBannerKind feed
+    // the inline VN status row above the grid; _exportSandboxPath
+    // surfaces the "Mở file" button when the operator cancels the save
+    // dialog so the sandbox copy is still recoverable.
+    private bool _exporting;
+    private string? _exportBanner;
+    private string _exportBannerKind = "info";  // info / success / warn / danger
+    private string? _exportSandboxPath;
+
     private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, PageSize);
 
     private bool IsView(string v) => string.Equals(_view, v, StringComparison.OrdinalIgnoreCase);
@@ -240,6 +284,101 @@ else if (_data is not null)
         _planner = IsPlanner(code) ? null : code;
         _page = 1;
         return LoadAsync();
+    }
+
+    // ── P10.5g — Export ──────────────────────────────────────────────
+
+    /// <summary>Kick off the Spec list export flow for the chosen
+    /// format. Q11 _exporting guard makes the 3 buttons mutually
+    /// exclusive; Q4 online-only + try/catch wraps every failure path
+    /// into a VN banner via <see cref="SpecMutationErrorMapper"/>.</summary>
+    private async Task ExportListAsync(string format)
+    {
+        if (_exporting) return;
+        _exporting = true;
+        _exportBanner = $"Đang xuất {format.ToUpperInvariant()}…";
+        _exportBannerKind = "info";
+        _exportSandboxPath = null;
+        StateHasChanged();
+        try
+        {
+            var flow = new SpecExportFlow(Api, FileOpener, FileSaver);
+            // View tokens passed verbatim to the server; the API maps to
+            // the legacy SpecListView enum on the controller side.
+            var view = _view switch
+            {
+                "trash" => "Trash",
+                "all"   => "All",
+                _       => "Active",
+            };
+            var outcome = await flow.ExportListAsync(
+                format,
+                string.IsNullOrWhiteSpace(_search) ? null : _search,
+                view,
+                _planner,
+                openAfterSave: true);
+            RenderExportOutcome(outcome, format);
+        }
+        catch (ApiException apiEx)
+        {
+            _exportBanner = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+            _exportBannerKind = "danger";
+        }
+        catch (HttpRequestException ex)
+        {
+            _exportBanner = $"Không kết nối được máy chủ: {ex.Message}";
+            _exportBannerKind = "danger";
+        }
+        catch (Exception ex)
+        {
+            _exportBanner = $"Xuất file thất bại: {ex.Message}";
+            _exportBannerKind = "danger";
+        }
+        finally
+        {
+            _exporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void RenderExportOutcome(SpecExportFlowOutcome outcome, string format)
+    {
+        if (outcome.DidSave)
+        {
+            _exportBanner = outcome.Opened
+                ? $"Đã lưu {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) — đã mở để xem."
+                : $"Đã lưu {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) tại {outcome.DestinationPath}.";
+            _exportBannerKind = "success";
+            _exportSandboxPath = null;
+        }
+        else
+        {
+            _exportSandboxPath = outcome.SandboxPath;
+            _exportBanner = outcome.Opened
+                ? $"Bạn đã huỷ hộp thoại lưu — file vẫn nằm trong thư mục tải xuống của ứng dụng và đã được mở để xem."
+                : $"Bạn đã huỷ hộp thoại lưu — file đã lưu trong thư mục tải xuống của ứng dụng (bấm Mở file để xem).";
+            _exportBannerKind = "warn";
+        }
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024            => $"{bytes} B",
+        < 1024 * 1024     => $"{bytes / 1024.0:F1} KB",
+        _                 => $"{bytes / 1024.0 / 1024.0:F1} MB",
+    };
+
+    private async Task OpenSandboxAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_exportSandboxPath)) return;
+        await FileOpener.TryOpenAsync(_exportSandboxPath);
+    }
+
+    private void ClearExportBanner()
+    {
+        _exportBanner = null;
+        _exportSandboxPath = null;
+        StateHasChanged();
     }
 
     protected override async Task OnInitializedAsync()
