@@ -1,0 +1,39 @@
+====================================================================
+P10.6e verify — 2026-06-04 20:58:17
+====================================================================
+[ctx]  repo  = /Volumes/Macintosh Data/Claude-Cowork/3. PROJECTS/CCL-CMES/CCL-MES
+[ctx]  branch= feat/p10.6e-audit-log
+[ctx]  HEAD  = b0f7997
+[ctx]  admin = admin
+
+[step] kill anything on :5100
+[step] build Client lib
+[step] build API
+[step] run client unit tests
+[step] run API unit tests (incl. 14 AuditLog + 4 new canary rows)
+[step] filter-run AuditLogController tests
+[step] start API on :5100
+[run]  PID=29882  log=/var/folders/k3/j9v52bb95lxcfkzgdfdlgshc0000gn/T/ccl-api-verify-XXXXXX.RknrmG5jzb
+[step] anon route discovery — all new audit routes (401)
+[step] login as admin
+
+============================  SUMMARY  ============================
+  PASS  Client lib build
+  PASS  API build (commit b0f7997)
+  PASS  Client tests (passed=481 failed=0)
+  PASS  API tests (passed=195 failed=0)
+  PASS  AuditLogController tests (passed=12 ≥ 12 expected)
+  PASS  API boot (200 /health)
+  PASS  GET   /api/v2/audit/log anon (got 401)
+  PASS  GET   /api/v2/audit/actions anon (got 401)
+  PASS  GET   /api/v2/audit/export/csv anon (got 401)
+  PASS  GET   /api/v2/audit/export/xlsx anon (got 401)
+  PASS  Login admin (token_len=589)
+  PASS  GET    /api/v2/audit/log admin (200, total=28)
+  PASS  GET    /api/v2/audit/actions admin (200 + LOGIN_OK present)
+  PASS  GET    /api/v2/audit/export/csv admin (200, ct=text/csv; charset=utf-8, 4389 bytes, 29 rows, 9-col header)
+  PASS  GET    /api/v2/audit/export/xlsx admin (200, ct=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, 8792 bytes, PK magic)
+  PASS  AUDIT_EXPORT emit (total=8 ≥ 2 — CSV + XLSX both logged)
+  PASS  Empty-range CSV (200, header row only, rows=1)
+
+  TOTAL: pass=17 fail=0

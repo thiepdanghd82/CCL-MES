@@ -3128,3 +3128,98 @@ html, body {
     color: #166534;
     font-size: 0.85rem;
 }
+
+/* ── P10.6e — Audit Log viewer ──────────────────────────────── */
+
+.audit-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.audit-filter-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.audit-filter-field label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #4b5563;
+}
+
+.audit-filter-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+.audit-export-spacer { flex: 1 1 auto; }
+
+.audit-result-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.audit-paging {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+}
+
+.audit-paging-pos {
+    color: #4b5563;
+    font-variant-numeric: tabular-nums;
+}
+
+.audit-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 0.8rem;
+}
+
+.audit-table th, .audit-table td {
+    text-align: left;
+    padding: 6px 8px;
+    border-bottom: 1px solid #e5e7eb;
+    vertical-align: top;
+}
+
+.audit-table th {
+    background: #f3f4f6;
+    font-weight: 600;
+}
+
+.audit-mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, "Cascadia Mono", monospace;
+    font-size: 0.74rem;
+    color: #374151;
+}
+
+.audit-action-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    background: rgba(47,128,237,0.12);
+    color: var(--brand-2);
+    letter-spacing: 0.02em;
+}
+
+.audit-detail {
+    display: inline-block;
+    max-width: 360px;
+    font-size: 0.72rem;
+    color: #4b5563;
+    word-break: break-all;
+    white-space: pre-wrap;
+}

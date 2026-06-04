@@ -1,0 +1,287 @@
+@page "/settings/audit"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@using System.Globalization
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.Files
+@using CCL.MES.Shared.Audit
+@inject ICclApiClient Api
+@inject IFileSaver Saver
+@inject IFileOpener Opener
+
+@*
+  P10.6e — Admin Audit Log viewer + CSV / XLSX export.
+
+  Admin-only at BOTH layers:
+    - Page [Authorize(Roles = "Admin")] — non-admin gets the standard
+      forbidden render.
+    - Every API endpoint sits behind the AdminOnly policy. Server is
+      defence-in-depth; both anon-401 and Engineer-403 are covered
+      by RouteDiscoveryCanaryTests + AuditLogControllerTests.
+
+  Catalyst safety: ONLY plain <input type="text" / "date" />, plain
+  <select> + @bind, plain @onclick. NO <InputText>, NO <InputFile>.
+  Same rule as Login / SettingsAppearance / SettingsBackup.
+
+  Export flow mirrors P10.5g Spec exports:
+    1. Stream the file from server to the sandbox download dir.
+    2. Hand the sandbox path to IFileSaver → native Save dialog
+       (Catalyst forExporting:).
+    3. On Saved → success banner shows where the file landed; on
+       Cancelled → banner reads "Đã lưu vào sandbox" with the path.
+    4. Export itself emits AUDIT_EXPORT server-side — visible in the
+       same list on next reload.
+*@
+
+<PageTitle>Nhật ký kiểm tra — CCL MES</PageTitle>
+
+<div class="settings-page-header">
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
+    <h1 class="page-title">Nhật ký kiểm tra</h1>
+</div>
+
+<section class="settings-form-card">
+    <h2 class="settings-group-title">Bộ lọc</h2>
+    <div class="audit-filter-grid">
+        <div class="audit-filter-field">
+            <label for="al-search">Tìm kiếm</label>
+            <input id="al-search" type="text" class="modal-input"
+                   placeholder="Tìm trong tất cả cột…"
+                   @bind="_search" @bind:event="oninput" />
+        </div>
+        <div class="audit-filter-field">
+            <label for="al-action">Hành động</label>
+            <select id="al-action" class="modal-input" @bind="_action">
+                <option value="">— Tất cả —</option>
+                @foreach (var a in _actions)
+                {
+                    <option value="@a">@a</option>
+                }
+            </select>
+        </div>
+        <div class="audit-filter-field">
+            <label for="al-actor">Người dùng</label>
+            <input id="al-actor" type="text" class="modal-input"
+                   placeholder="admin, supervisor, …"
+                   @bind="_actor" @bind:event="oninput" />
+        </div>
+        <div class="audit-filter-field">
+            <label for="al-from">Từ ngày (UTC)</label>
+            <input id="al-from" type="date" class="modal-input"
+                   @bind="_fromDate" />
+        </div>
+        <div class="audit-filter-field">
+            <label for="al-to">Đến ngày (UTC)</label>
+            <input id="al-to" type="date" class="modal-input"
+                   @bind="_toDate" />
+        </div>
+    </div>
+    <div class="audit-filter-actions">
+        <button type="button" class="grid-btn grid-btn-primary"
+                disabled="@_loading" @onclick="OnApply">
+            @(_loading ? "Đang tải…" : "Áp dụng + Tải lại")
+        </button>
+        <button type="button" class="grid-btn" @onclick="OnReset">Đặt lại</button>
+        <span class="audit-export-spacer"></span>
+        <button type="button" class="grid-btn"
+                disabled="@_exporting" @onclick="@(() => OnExport("csv"))">
+            @(_exporting ? "Đang xuất…" : "Xuất CSV")
+        </button>
+        <button type="button" class="grid-btn"
+                disabled="@_exporting" @onclick="@(() => OnExport("xlsx"))">
+            @(_exporting ? "Đang xuất…" : "Xuất XLSX")
+        </button>
+    </div>
+    @if (_filterError is not null)
+    {
+        <div class="settings-form-error">@_filterError</div>
+    }
+    @if (_exportInfo is not null)
+    {
+        <div class="settings-form-success">@_exportInfo</div>
+    }
+</section>
+
+<section class="settings-form-card" style="margin-top:16px">
+    <div class="audit-result-head">
+        <h2 class="settings-group-title">
+            Kết quả (@_result.Total tổng — trang @_result.Page / @TotalPages, @_result.Items.Count dòng)
+        </h2>
+        <div class="audit-paging">
+            <button type="button" class="grid-btn" disabled="@(_loading || _result.Page <= 1)"
+                    @onclick="@(() => GoPage(_result.Page - 1))">‹ Trước</button>
+            <span class="audit-paging-pos">Trang @_result.Page</span>
+            <button type="button" class="grid-btn"
+                    disabled="@(_loading || _result.Page >= TotalPages)"
+                    @onclick="@(() => GoPage(_result.Page + 1))">Sau ›</button>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <p class="settings-form-help">Đang tải…</p>
+    }
+    else if (_result.Items.Count == 0)
+    {
+        <p class="settings-form-help">
+            Không có hàng nào khớp bộ lọc. Thử mở rộng phạm vi ngày hoặc bỏ filter người dùng.
+        </p>
+    }
+    else
+    {
+        <table class="audit-table">
+            <thead>
+                <tr>
+                    <th>UTC</th>
+                    <th>Người dùng</th>
+                    <th>Vai trò</th>
+                    <th>Hành động</th>
+                    <th>Đối tượng</th>
+                    <th>ID</th>
+                    <th>IP</th>
+                    <th>Nguồn</th>
+                    <th>Chi tiết</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in _result.Items)
+                {
+                    <tr>
+                        <td class="audit-mono">@e.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</td>
+                        <td>@e.ActorUsername</td>
+                        <td>@e.ActorRole</td>
+                        <td><span class="audit-action-chip">@e.Action</span></td>
+                        <td>@(e.TargetType ?? "—")</td>
+                        <td class="audit-mono">@(string.IsNullOrEmpty(e.TargetId) ? "—" : e.TargetId)</td>
+                        <td class="audit-mono">@(e.IpAddress ?? "—")</td>
+                        <td>@e.Source</td>
+                        <td><code class="audit-detail">@TrimDetail(e.Detail)</code></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private const int PageSize = 50;
+
+    // Filter state — plain string + nullable DateTime backing fields,
+    // no <InputText>. @bind / @bind:event="oninput" only.
+    private string? _search;
+    private string? _action;
+    private string? _actor;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+
+    private List<string> _actions = new();
+    private AuditLogPagedResult _result = new();
+    private bool _loading = true;
+    private bool _exporting;
+    private string? _filterError;
+    private string? _exportInfo;
+
+    private int TotalPages =>
+        _result.Total <= 0 ? 1 : (int)Math.Ceiling(_result.Total / (double)Math.Max(1, _result.PageSize));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _actions = await Api.GetAuditActionsAsync();
+        }
+        catch
+        {
+            // Dropdown is best-effort — empty list still lets the
+            // operator filter by search box.
+            _actions = new();
+        }
+        await LoadPage(1);
+    }
+
+    private Task OnApply() => LoadPage(1);
+
+    private Task OnReset()
+    {
+        _search = null;
+        _action = null;
+        _actor = null;
+        _fromDate = null;
+        _toDate = null;
+        return LoadPage(1);
+    }
+
+    private Task GoPage(int page) => LoadPage(page);
+
+    private async Task LoadPage(int page)
+    {
+        _loading = true;
+        _filterError = null;
+        _exportInfo = null;
+        try
+        {
+            _result = await Api.GetAuditLogAsync(
+                _search, _action, _actor,
+                _fromDate, _toDate,
+                page, PageSize);
+        }
+        catch (ApiException ex)
+        {
+            _filterError = $"Không tải được: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _filterError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnExport(string format)
+    {
+        _exporting = true;
+        _exportInfo = null;
+        _filterError = null;
+        try
+        {
+            // 1. Stream to sandbox download dir.
+            var ts = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            var dir = Opener.GetSafeDownloadDirectory();
+            Directory.CreateDirectory(dir);
+            var sandboxPath = Path.Combine(dir, $"AuditLog_{ts}.{format}");
+
+            var dl = await Api.ExportAuditLogAsync(
+                format, _search, _action, _actor,
+                _fromDate, _toDate, sandboxPath);
+
+            // 2. Native Save dialog.
+            var outcome = await Saver.SaveAsync(sandboxPath, dl.FileName);
+            _exportInfo = outcome.Saved
+                ? $"✔ Đã lưu {dl.FileName} ({dl.Bytes:N0} bytes) tại {outcome.DestinationPath}."
+                : $"✔ Đã lưu {dl.FileName} ({dl.Bytes:N0} bytes) vào sandbox: {sandboxPath}.";
+
+            // 3. Reload page 1 so the AUDIT_EXPORT row just emitted
+            //    appears at the top.
+            await LoadPage(1);
+        }
+        catch (ApiException ex)
+        {
+            _filterError = $"Không xuất được: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _filterError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _exporting = false;
+        }
+    }
+
+    private static string TrimDetail(string? detail)
+    {
+        if (string.IsNullOrEmpty(detail)) return "—";
+        return detail.Length <= 180 ? detail : detail[..180] + "…";
+    }
+}

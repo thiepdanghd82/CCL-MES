@@ -263,6 +263,13 @@ builder.Services.AddScoped<CCL.MES.Api.Services.UserProfileService>();
 // itself does no auth (called only by the controller).
 builder.Services.AddSingleton<CCL.MES.Api.Services.BackupApiService>();
 
+// P10.6e — Admin Audit Log viewer + CSV/XLSX export. Scoped because
+// the service depends on IMesDbContext (per-request scope). The
+// IAuditLogExporter instances (CSV + XLSX) are already registered as
+// singletons by AddInfrastructure(); the controller resolves both via
+// IEnumerable<IAuditLogExporter> and dispatches by Format.
+builder.Services.AddScoped<CCL.MES.Api.Services.AuditLogQueryService>();
+
 // P10.5e-1 — Drawings upload + download orchestrator. Legacy Phase 8
 // PR-D-5b service composed of IMesDbContext + IBlobStore (registered
 // just above) + IAuditWriter. Multipart upload routes to UploadAsync;
