@@ -52,8 +52,10 @@ public interface ICclApiClient
     // ── Specs (P10.5b — read-only; mutations land in P10.5c+) ─────
     /// <summary>Paged Spec list. View defaults to Active server-side.
     /// `view` accepts "active" / "trash" / "all" — case-insensitive
-    /// per the legacy `SpecListView` enum.</summary>
-    Task<NpiPagedRaw<SpecListItem>> GetSpecsAsync(string? search, int page, int pageSize, string? view, CancellationToken ct = default);
+    /// per the legacy `SpecListView` enum. `planner` accepts canonical
+    /// planner codes (SILK / FLEXO / LETTER / INDIGO / DIECUT) and is
+    /// ignored when null/empty/unknown.</summary>
+    Task<NpiPagedRaw<SpecListItem>> GetSpecsAsync(string? search, int page, int pageSize, string? view, string? planner = null, CancellationToken ct = default);
 
     /// <summary>Returns the full <see cref="SpecDetailItem"/> for a
     /// revision id. Null on 404 (mirrors Spec list view returning

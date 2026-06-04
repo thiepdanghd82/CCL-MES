@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using CCL.MES.Application.Audit;
+using CCL.MES.Application.Services;
 using CCL.MES.Domain;
 using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
@@ -25,8 +26,11 @@ namespace CCL.MES.Application.SpecImport;
 /// </summary>
 public class SpecImportService
 {
-    /// <summary>5 MB max per Q14 — reject xlsx vượt size.</summary>
-    public const long MaxFileSizeBytes = 5 * 1024 * 1024;
+    /// <summary>10 MB max — aligned with the MAUI API contract cap
+    /// (P10.5c-3, 2026-06-04). Earlier 5 MB cap pre-dated the multipart
+    /// preview endpoint; lifting here keeps the operator UX promise
+    /// ("file ≤ 10 MB") consistent across legacy web + MAUI client.</summary>
+    public const long MaxFileSizeBytes = 10 * 1024 * 1024;
 
     private readonly IMesDbContext _db;
     private readonly IAuditWriter _audit;
@@ -177,6 +181,49 @@ public class SpecImportService
             // partNo. KHÔNG enforce unique cross-product (PartNo có thể chia
             // ranh giới khác); chỉ unique trong (ProductId, RevisionCode).
             var specCode = parsed.PartNo;
+
+            // P10.5c-3 — when overwriteRefNo=true (UpgradeRev flow) AND a
+            // non-trashed rev with the same RefNo exists, supersede the
+            // source + bump the revision letter via the same
+            // SpecRevisionHelpers.NextAvailableRev helper Revise uses.
+            // Replaces the prior "create new A regardless" path that
+            // depended on a caller-side soft-trash + rename suffix to
+            // dodge the (ProductId, RevisionCode) UNIQUE index.
+            //
+            // Behavior: source rev → Status=Superseded, EffectiveTo=now
+            // (mirrors SpecService.ReviseAsync supersede shape — provenance
+            // fields ApprovedBy/At + ReleasedBy/At preserved). New rev
+            // RevisionCode = NextAvailableRev over the SOURCE product's
+            // sibling codes, ParentRevisionId = source.Id so lineage is
+            // queryable via the Trash / Detail page chain.
+            ProductRevision? supersededSource = null;
+            string newRevisionCode = "A";
+            if (overwriteRefNo && !string.IsNullOrWhiteSpace(parsed.RefNo))
+            {
+                // Pick the LIVE rev to supersede — not a previously-
+                // superseded sibling that happens to share the RefNo. A
+                // chain like A → B (superseded), B → C (superseded) leaves
+                // multiple non-trashed rows with the same RefNo; supersede-
+                // ing already-Superseded rows would skip past the live
+                // Draft and the operator's "Upgrade Rev" gesture would
+                // silently fail to replace the active one.
+                supersededSource = await _db.ProductRevisions
+                    .Where(r => !r.IsTrashed && r.RefNo == parsed.RefNo
+                                && r.Status != ProductRevisionStatus.Superseded)
+                    .OrderByDescending(r => r.Id)
+                    .FirstOrDefaultAsync();
+                if (supersededSource is not null)
+                {
+                    var existingCodes = await _db.ProductRevisions
+                        .Where(r => r.ProductId == supersededSource.ProductId)
+                        .Select(r => r.RevisionCode)
+                        .ToListAsync();
+                    newRevisionCode = SpecRevisionHelpers.NextAvailableRev(existingCodes);
+                    supersededSource.Status = ProductRevisionStatus.Superseded;
+                    supersededSource.EffectiveTo = DateTime.UtcNow;
+                }
+            }
+
             var isFlexo = string.Equals(parsed.Category, "flexo", StringComparison.OrdinalIgnoreCase);
             // PR #31b — flexo NumColors = số ink row; silk = số print row.
             var numColors = isFlexo ? parsed.FlexoInkRows.Count : parsed.PrintRows.Count;
@@ -194,11 +241,14 @@ public class SpecImportService
                 ProductId = product.Id,
                 SpecCode = specCode,
                 Title = !string.IsNullOrWhiteSpace(parsed.PartName) ? parsed.PartName : parsed.PartNo,
-                RevisionCode = "A",
+                RevisionCode = newRevisionCode,
                 Status = ProductRevisionStatus.Draft,
                 RefNo = string.IsNullOrWhiteSpace(parsed.RefNo) ? null : parsed.RefNo,
                 InspectionLevel = string.IsNullOrWhiteSpace(parsed.InspectionLevel) ? null : parsed.InspectionLevel,
-                ChangeSummary = $"Imported from {fileName}",
+                ChangeSummary = supersededSource is not null
+                    ? $"Imported from {fileName} (upgrades rev {supersededSource.RevisionCode})"
+                    : $"Imported from {fileName}",
+                ParentRevisionId = supersededSource?.Id,
                 Print = new SpecPrint
                 {
                     ProcessCode = MapCategoryToProcessCode(parsed.Category),
@@ -303,6 +353,10 @@ public class SpecImportService
                     category = parsed.Category,
                     source,
                     filename = fileName,
+                    revision_code = revision.RevisionCode,
+                    parent_revision_id = supersededSource?.Id,
+                    superseded_source_id = supersededSource?.Id,
+                    superseded_source_rev = supersededSource?.RevisionCode,
                     rows_parsed = isFlexo
                         ? parsed.FlexoInkRows.Count + parsed.FlexoCuttingRows.Count + parsed.FlexoPrintRows.Count
                         : parsed.PrintRows.Count,
@@ -475,21 +529,12 @@ public class SpecImportService
                     continue;
                 }
 
-                if (preview.DuplicateRefNo && force)
-                {
-                    // Force = soft-trash existing + create new. Safer than in-
-                    // place mutation cho audit forensic trail.
-                    var existing = await _db.ProductRevisions
-                        .FirstOrDefaultAsync(r => !r.IsTrashed && r.RefNo == preview.Parsed.RefNo);
-                    if (existing is not null)
-                    {
-                        existing.IsTrashed = true;
-                        existing.TrashedAt = DateTime.UtcNow;
-                        existing.TrashedBy = user ?? "system";
-                        await _db.SaveChangesAsync();
-                    }
-                }
-
+                // P10.5c-3 — the pre-trash workaround previously here was
+                // removed: SaveAsync(overwriteRefNo=true) now supersedes
+                // the matching rev + bumps the revision letter via
+                // NextAvailableRev. The supersede preserves audit lineage
+                // (ParentRevisionId on the new rev) which the soft-trash
+                // path discarded.
                 var save = await SaveAsync(preview.Parsed, "refresh_samples", fileName, user, overwriteRefNo: force);
                 if (preview.DuplicateRefNo && force)
                 {

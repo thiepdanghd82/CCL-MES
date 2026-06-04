@@ -46,7 +46,7 @@ public class SpecService
     ///   Product → Customer (cột Customer)
     ///   Print (cột Colors/Cavity/Pitch/Planner derived)
     /// </summary>
-    public async Task<PagedResult<ProductRevisionListItem>> SpecsAsync(string? search, int page, int pageSize, SpecListView view = SpecListView.Active)
+    public async Task<PagedResult<ProductRevisionListItem>> SpecsAsync(string? search, int page, int pageSize, SpecListView view = SpecListView.Active, string? planner = null)
     {
         var q = _db.ProductRevisions
             .AsNoTracking()
@@ -72,6 +72,36 @@ public class SpecService
                 (x.Product != null && x.Product.Customer != null && EF.Functions.Like(x.Product.Customer.Name, $"%{s}%"))
                 || (x.Product != null && EF.Functions.Like(x.Product.ProductCode, $"%{s}%"))
                 || EF.Functions.Like(x.Title, $"%{s}%"));
+        }
+
+        // P10.5c-3 — Planner chip filter (SpecHub parity). Accepts
+        // SILK / FLEXO / LETTER / INDIGO / DIECUT (matches
+        // PlannerFromProcessCode output + the client-side palette
+        // codes from SpecShowcardVm). Filter projects ProcessCode →
+        // planner via the canonical IN-list mapping so the predicate
+        // stays SQL-translatable (LinqToSqlite EF cannot translate
+        // PlannerFromProcessCode static method directly). Unknown /
+        // empty planner = no filter.
+        if (!string.IsNullOrWhiteSpace(planner))
+        {
+            var p = planner.Trim().ToUpperInvariant();
+            q = p switch
+            {
+                "SILK"   => q.Where(x => x.Print != null && x.Print.ProcessCode == "SILKSCREEN"),
+                "FLEXO"  => q.Where(x => x.Print != null && x.Print.ProcessCode == "FLEXO"),
+                "LETTER" => q.Where(x => x.Print != null && x.Print.ProcessCode == "LETTERPRESS"),
+                "INDIGO" => q.Where(x => x.Print != null
+                    && (x.Print.ProcessCode == "INDIGO" || x.Print.ProcessCode == "INDIGO_PRIMER")),
+                "DIECUT" => q.Where(x => x.Print != null
+                    && (x.Print.ProcessCode == "FLATBED_CUT"
+                        || x.Print.ProcessCode == "ROTARY_CUT"
+                        || x.Print.ProcessCode == "RDC"
+                        || x.Print.ProcessCode == "POWERPUNCH"
+                        || x.Print.ProcessCode == "CNC"
+                        || x.Print.ProcessCode == "LASER_CUT"
+                        || x.Print.ProcessCode == "KISS_CUT")),
+                _        => q,  // unknown planner code → ignored (no filter)
+            };
         }
 
         var ordered = q.OrderByDescending(x => x.Id);

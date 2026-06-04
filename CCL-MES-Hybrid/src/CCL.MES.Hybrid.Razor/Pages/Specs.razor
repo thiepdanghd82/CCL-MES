@@ -4,6 +4,7 @@
 @inject IGridPreferenceStore PrefStore
 @inject NavigationManager Nav
 @using CCL.MES.Hybrid.Client.Specs
+@using Microsoft.AspNetCore.Components.Rendering
 
 @*
     P10.5b — Engineer Spec list. 14-col parity với SpecHub + legacy web
@@ -39,6 +40,20 @@
         <button type="button" role="tab" aria-selected="@(IsView("all"))"
                 class="spec-view-chip @(IsView("all") ? "is-active" : "")"
                 @onclick='() => SetViewAsync("all")'>Tất cả</button>
+    </div>
+
+    @* P10.5c-3 — Planner chip filter (SpecHub parity). Click to filter
+       by planner code; click the active chip again to clear. Combines
+       with search + view chip. *@
+    <div class="spec-planner-chips" role="group" aria-label="Lọc theo Planner">
+        @foreach (var p in PlannerChips)
+        {
+            var active = IsPlanner(p.Code);
+            <button type="button"
+                    aria-pressed="@(active ? "true" : "false")"
+                    class="spec-planner-filter-chip @(active ? "is-active" : "") @p.CssClass"
+                    @onclick="() => TogglePlannerAsync(p.Code)">@p.Label</button>
+        }
     </div>
 
     <div class="grid-toolbar-spacer"></div>
@@ -85,13 +100,16 @@ else if (_data is not null)
                 {
                     var vm = SpecShowcardVm.FromListItem(row);
                     var localIdx = rowIdx++;
-                    <tr class="spec-row" @ondblclick="() => OpenAsync(row.Id)"
+                    var rowClass = SpecListInlineEditVm.IsRowEditable(row.Status)
+                        ? "spec-row spec-row-editable"
+                        : "spec-row";
+                    <tr class="@rowClass" @ondblclick="() => OpenAsync(row.Id)"
                         @oncontextmenu:preventDefault="true"
                         @oncontextmenu="(args) => OnRowContextAsync(args, row)">
                         <td class="grid-col-narrow grid-row-num">@localIdx</td>
                         @foreach (var col in _columns.Visible)
                         {
-                            <td>@RenderCell(row, vm, col.Id)</td>
+                            <td>@RenderCellOrEditor(row, vm, col.Id)</td>
                         }
                     </tr>
                 }
@@ -167,9 +185,31 @@ else if (_data is not null)
     private string? _error;
     private string _search = "";
     private string _view = "active";
+    private string? _planner;    // P10.5c-3 — planner chip filter; null = no filter.
     private int _page = 1;
     private const int PageSize = 50;
     private GridColumns _columns = default!;
+
+    // P10.5c-3 — planner chip palette. Codes mirror the canonical
+    // PlannerFromProcessCode output + SpecShowcardVm planner codes.
+    private static readonly (string Code, string Label, string CssClass)[] PlannerChips = new[]
+    {
+        ("SILK",   "Lụa",         "spec-planner-silk"),
+        ("FLEXO",  "Flexo",       "spec-planner-flexo"),
+        ("LETTER", "Letterpress", "spec-planner-letter"),
+        ("INDIGO", "Indigo",      "spec-planner-indigo"),
+        ("DIECUT", "Bế",          "spec-planner-diecut"),
+    };
+
+    // P10.5c-3 — inline edit state. Only one cell editable at a time;
+    // _editingField is the data-field key ("title" / "ref_no" /
+    // "inspection_level"). _editingValue is the draft text bound to
+    // the inline input.
+    private long _editingRowId;
+    private string? _editingField;
+    private string _editingValue = "";
+    private bool _inlineSubmitting;
+    private string? _inlineError;
 
     // Context menu state
     private bool _ctxOpen;
@@ -190,6 +230,17 @@ else if (_data is not null)
     private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, PageSize);
 
     private bool IsView(string v) => string.Equals(_view, v, StringComparison.OrdinalIgnoreCase);
+
+    private bool IsPlanner(string p) => string.Equals(_planner, p, StringComparison.OrdinalIgnoreCase);
+
+    private Task TogglePlannerAsync(string code)
+    {
+        // Click active chip → clear filter. Click another chip → switch
+        // (one planner at a time per SpecHub semantics).
+        _planner = IsPlanner(code) ? null : code;
+        _page = 1;
+        return LoadAsync();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -248,7 +299,7 @@ else if (_data is not null)
         {
             _data = await Api.GetSpecsAsync(
                 string.IsNullOrWhiteSpace(_search) ? null : _search,
-                _page, PageSize, _view);
+                _page, PageSize, _view, _planner);
         }
         catch (ApiException apiEx)
         {
@@ -380,7 +431,171 @@ else if (_data is not null)
         _                                                       => "",
     };
 
-    private static RenderFragment RenderCell(SpecListItem row, SpecShowcardVm vm, string columnId) => __builder =>
+    // P10.5c-3 — Map grid column id → inline-edit field key. Only the
+    // 3 fields the server-side UpdateAsync surface accepts as nullable
+    // partial updates are wired (no contenteditable on ProcessCode or
+    // ColorSpecJson — those stay modal-only because they need pickers).
+    private static string? InlineEditFieldKeyForColumn(string columnId) => columnId switch
+    {
+        "title"      => "title",
+        "ref_no"     => "ref_no",
+        "inspection" => "inspection_level",
+        _            => null,
+    };
+
+    private RenderFragment RenderCellOrEditor(SpecListItem row, SpecShowcardVm vm, string columnId) => __builder =>
+    {
+        var fieldKey = InlineEditFieldKeyForColumn(columnId);
+        if (fieldKey is not null && SpecListInlineEditVm.IsCellEditable(row, fieldKey))
+        {
+            RenderEditableShell(__builder, row, fieldKey);
+            return;
+        }
+        RenderCellStatic(__builder, row, vm, columnId);
+    };
+
+    private void RenderEditableShell(RenderTreeBuilder __builder, SpecListItem row, string fieldKey)
+    {
+        var isEditingThis = _editingRowId == row.Id
+            && string.Equals(_editingField, fieldKey, StringComparison.Ordinal);
+        if (isEditingThis)
+        {
+            __builder.OpenElement(0, "span");
+            __builder.AddAttribute(1, "class", "spec-inline-edit-shell is-active");
+            __builder.AddAttribute(2, "onclick:stopPropagation", true);
+            __builder.OpenElement(3, "input");
+            __builder.AddAttribute(4, "type", "text");
+            __builder.AddAttribute(5, "class", "spec-inline-edit-input");
+            __builder.AddAttribute(6, "value", _editingValue);
+            __builder.AddAttribute(7, "disabled", _inlineSubmitting);
+            __builder.AddAttribute(8, "autofocus", true);
+            __builder.AddAttribute(9, "oninput", EventCallback.Factory.Create<ChangeEventArgs>(this, e =>
+            {
+                _editingValue = e.Value?.ToString() ?? "";
+            }));
+            __builder.AddAttribute(10, "onblur", EventCallback.Factory.Create<FocusEventArgs>(this, _ => CommitInlineEditAsync()));
+            __builder.AddAttribute(11, "onkeydown", EventCallback.Factory.Create<KeyboardEventArgs>(this, async e =>
+            {
+                if (e.Key == "Enter") await CommitInlineEditAsync();
+                else if (e.Key == "Escape") CancelInlineEdit();
+            }));
+            __builder.CloseElement();
+            if (_inlineError is not null)
+            {
+                __builder.OpenElement(12, "span");
+                __builder.AddAttribute(13, "class", "spec-inline-edit-error");
+                __builder.AddAttribute(14, "role", "alert");
+                __builder.AddContent(15, _inlineError);
+                __builder.CloseElement();
+            }
+            __builder.CloseElement();
+        }
+        else
+        {
+            var current = SpecListInlineEditVm.ReadFieldValue(row, fieldKey);
+            var display = string.IsNullOrWhiteSpace(current) ? "—" : current;
+            __builder.OpenElement(0, "span");
+            __builder.AddAttribute(1, "class", "spec-inline-edit-shell");
+            __builder.AddAttribute(2, "role", "button");
+            __builder.AddAttribute(3, "tabindex", "0");
+            __builder.AddAttribute(4, "title", "Bấm để chỉnh sửa nhanh");
+            __builder.AddAttribute(5, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, _ => BeginInlineEdit(row.Id, fieldKey, current)));
+            __builder.AddAttribute(6, "onclick:stopPropagation", true);
+            __builder.AddContent(7, display);
+            __builder.CloseElement();
+        }
+    }
+
+    private void BeginInlineEdit(long rowId, string fieldKey, string currentValue)
+    {
+        if (_inlineSubmitting) return;
+        _editingRowId = rowId;
+        _editingField = fieldKey;
+        _editingValue = currentValue ?? "";
+        _inlineError = null;
+        StateHasChanged();
+    }
+
+    private void CancelInlineEdit()
+    {
+        if (_inlineSubmitting) return;
+        _editingRowId = 0;
+        _editingField = null;
+        _editingValue = "";
+        _inlineError = null;
+        StateHasChanged();
+    }
+
+    private async Task CommitInlineEditAsync()
+    {
+        // _submitting guard — Enter + blur can both fire on the same edit;
+        // the flag keeps the API call idempotent at the UI layer.
+        if (_inlineSubmitting) return;
+        var rowId = _editingRowId;
+        var fieldKey = _editingField;
+        if (rowId == 0 || string.IsNullOrEmpty(fieldKey)) return;
+
+        var row = _data?.Items.FirstOrDefault(r => r.Id == rowId);
+        if (row is null)
+        {
+            CancelInlineEdit();
+            return;
+        }
+
+        var original = SpecListInlineEditVm.ReadFieldValue(row, fieldKey);
+        if (!SpecListInlineEditVm.HasChanged(original, _editingValue))
+        {
+            // No-op — just leave edit mode cleanly without an API round-trip.
+            CancelInlineEdit();
+            return;
+        }
+
+        _inlineSubmitting = true;
+        _inlineError = null;
+        StateHasChanged();
+        try
+        {
+            var req = SpecListInlineEditVm.BuildMutation(fieldKey, _editingValue);
+            await Api.UpdateSpecAsync(rowId, req);
+            // Patch the row in-place so the operator sees the saved value
+            // without a full re-fetch. Server already enforced Draft +
+            // immutable_status; if it returned NoChanges we still apply
+            // the value (it matches the typed string).
+            if (_data is not null)
+            {
+                var idx = _data.Items.ToList().FindIndex(r => r.Id == rowId);
+                if (idx >= 0)
+                {
+                    var patched = SpecListInlineEditVm.ApplyResponseToRow(row, fieldKey, _editingValue);
+                    var list = _data.Items.ToList();
+                    list[idx] = patched;
+                    _data = _data with { Items = list };
+                }
+            }
+            _editingRowId = 0;
+            _editingField = null;
+            _editingValue = "";
+        }
+        catch (ApiException apiEx)
+        {
+            _inlineError = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+        }
+        catch (HttpRequestException ex)
+        {
+            _inlineError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _inlineError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _inlineSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private static void RenderCellStatic(RenderTreeBuilder __builder, SpecListItem row, SpecShowcardVm vm, string columnId)
     {
         switch (columnId)
         {
@@ -449,5 +664,5 @@ else if (_data is not null)
                 __builder.AddContent(0, row.ApprovedBy ?? "—");
                 break;
         }
-    };
+    }
 }

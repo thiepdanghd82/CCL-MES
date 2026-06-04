@@ -121,13 +121,15 @@ public sealed class CclApiClient : ICclApiClient
 
     // ── Specs ───────────────────────────────────────────────────────
 
-    public async Task<NpiPagedRaw<SpecListItem>> GetSpecsAsync(string? search, int page, int pageSize, string? view, CancellationToken ct = default)
+    public async Task<NpiPagedRaw<SpecListItem>> GetSpecsAsync(string? search, int page, int pageSize, string? view, string? planner = null, CancellationToken ct = default)
     {
         var qs = $"page={page}&pageSize={pageSize}";
         if (!string.IsNullOrWhiteSpace(search))
             qs += $"&search={Uri.EscapeDataString(search)}";
         if (!string.IsNullOrWhiteSpace(view))
             qs += $"&view={Uri.EscapeDataString(view)}";
+        if (!string.IsNullOrWhiteSpace(planner))
+            qs += $"&planner={Uri.EscapeDataString(planner)}";
         using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/specs?{qs}", ct);
         return await ReadAsAsync<NpiPagedRaw<SpecListItem>>(resp, ct);
     }
