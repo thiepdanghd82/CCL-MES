@@ -7,6 +7,7 @@
 @inject ICclApiClient Api
 @inject IFileSaver Saver
 @inject IFileOpener Opener
+@inject IJSRuntime Js
 
 @*
   P10.6e — Admin Audit Log viewer + CSV / XLSX export.
@@ -39,7 +40,7 @@
     <h1 class="page-title">Nhật ký kiểm tra</h1>
 </div>
 
-<section class="settings-form-card">
+<section class="settings-form-card is-wide">
     <h2 class="settings-group-title">Bộ lọc</h2>
     <div class="audit-filter-grid">
         <div class="audit-filter-field">
@@ -101,7 +102,7 @@
     }
 </section>
 
-<section class="settings-form-card" style="margin-top:16px">
+<section class="settings-form-card is-wide" style="margin-top:16px">
     <div class="audit-result-head">
         <h2 class="settings-group-title">
             Kết quả (@_result.Total tổng — trang @_result.Page / @TotalPages, @_result.Items.Count dòng)
@@ -128,37 +129,80 @@
     }
     else
     {
-        <table class="audit-table">
-            <thead>
-                <tr>
-                    <th>UTC</th>
-                    <th>Người dùng</th>
-                    <th>Vai trò</th>
-                    <th>Hành động</th>
-                    <th>Đối tượng</th>
-                    <th>ID</th>
-                    <th>IP</th>
-                    <th>Nguồn</th>
-                    <th>Chi tiết</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var e in _result.Items)
-                {
+        <div class="audit-table-wrap">
+            <table class="audit-table">
+                <colgroup>
+                    <col class="audit-col-utc"     />
+                    <col class="audit-col-actor"   />
+                    <col class="audit-col-role"    />
+                    <col class="audit-col-action"  />
+                    <col class="audit-col-target"  />
+                    <col class="audit-col-id"      />
+                    <col class="audit-col-ip"      />
+                    <col class="audit-col-source"  />
+                    <col class="audit-col-detail"  />
+                </colgroup>
+                <thead>
                     <tr>
-                        <td class="audit-mono">@e.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</td>
-                        <td>@e.ActorUsername</td>
-                        <td>@e.ActorRole</td>
-                        <td><span class="audit-action-chip">@e.Action</span></td>
-                        <td>@(e.TargetType ?? "—")</td>
-                        <td class="audit-mono">@(string.IsNullOrEmpty(e.TargetId) ? "—" : e.TargetId)</td>
-                        <td class="audit-mono">@(e.IpAddress ?? "—")</td>
-                        <td>@e.Source</td>
-                        <td><code class="audit-detail">@TrimDetail(e.Detail)</code></td>
+                        <th>UTC</th>
+                        <th>Người dùng</th>
+                        <th>Vai trò</th>
+                        <th>Hành động</th>
+                        <th>Đối tượng</th>
+                        <th>ID</th>
+                        <th>IP</th>
+                        <th>Nguồn</th>
+                        <th>Chi tiết</th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var e in _result.Items)
+                    {
+                        var isExpanded = _expanded.Contains(e.Id);
+                        <tr>
+                            <td class="audit-mono" title="@e.TimestampUtc.ToString("o", CultureInfo.InvariantCulture)">@e.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</td>
+                            <td title="@e.ActorUsername">@e.ActorUsername</td>
+                            <td>@e.ActorRole</td>
+                            <td><span class="audit-action-chip">@e.Action</span></td>
+                            <td title="@(e.TargetType ?? "")">@(e.TargetType ?? "—")</td>
+                            <td class="audit-mono" title="@(e.TargetId ?? "")">@(string.IsNullOrEmpty(e.TargetId) ? "—" : e.TargetId)</td>
+                            <td class="audit-mono" title="@(e.IpAddress ?? "")">@(e.IpAddress ?? "—")</td>
+                            <td>@e.Source</td>
+                            <td class="audit-detail-cell"
+                                title="@(string.IsNullOrEmpty(e.Detail) ? "(rỗng)" : e.Detail)"
+                                @onclick="@(() => ToggleExpand(e.Id))">
+                                @if (string.IsNullOrEmpty(e.Detail))
+                                {
+                                    <span class="audit-detail-empty">—</span>
+                                }
+                                else
+                                {
+                                    <span class="audit-detail-trunc">@e.Detail</span>
+                                    <span class="audit-expand-toggle">@(isExpanded ? "▼" : "▶")</span>
+                                }
+                            </td>
+                        </tr>
+                        @if (isExpanded && !string.IsNullOrEmpty(e.Detail))
+                        {
+                            var pretty = _prettyCache.TryGetValue(e.Id, out var p) ? p : e.Detail;
+                            <tr class="audit-expanded-row">
+                                <td colspan="9">
+                                    <div class="audit-expanded-head">
+                                        <span>Chi tiết (JSON) — sự kiện <code>@e.Action</code> #@e.Id</span>
+                                        <button type="button" class="audit-copy-btn @(_copiedId == e.Id ? "is-ok" : "")"
+                                                @onclick="@(() => CopyDetail(e.Id, e.Detail!))"
+                                                @onclick:stopPropagation="true">
+                                            @(_copiedId == e.Id ? "✔ Đã copy" : "Copy")
+                                        </button>
+                                    </div>
+                                    <pre class="audit-expanded-pre">@pretty</pre>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
     }
 </section>
 
@@ -179,6 +223,12 @@
     private bool _exporting;
     private string? _filterError;
     private string? _exportInfo;
+
+    // Per-row UI state. Detail cell stays truncated to 1 line; the
+    // operator taps to expand into a JSON-pretty-printed panel below.
+    private readonly HashSet<long> _expanded = new();
+    private readonly Dictionary<long, string> _prettyCache = new();
+    private long _copiedId;   // 0 = none; bumps for ~1.5s after a copy click.
 
     private int TotalPages =>
         _result.Total <= 0 ? 1 : (int)Math.Ceiling(_result.Total / (double)Math.Max(1, _result.PageSize));
@@ -217,6 +267,11 @@
         _loading = true;
         _filterError = null;
         _exportInfo = null;
+        // Reset per-row expansion state when the row set changes so
+        // expanded rows don't bleed across pages with different ids.
+        _expanded.Clear();
+        _prettyCache.Clear();
+        _copiedId = 0;
         try
         {
             _result = await Api.GetAuditLogAsync(
@@ -279,9 +334,48 @@
         }
     }
 
-    private static string TrimDetail(string? detail)
+    private async Task ToggleExpand(long id)
     {
-        if (string.IsNullOrEmpty(detail)) return "—";
-        return detail.Length <= 180 ? detail : detail[..180] + "…";
+        if (_expanded.Contains(id))
+        {
+            _expanded.Remove(id);
+            return;
+        }
+        _expanded.Add(id);
+        // Lazily pretty-print so a 100-row page with all-collapsed
+        // detail cells doesn't pay the parse cost up front.
+        var row = _result.Items.FirstOrDefault(x => x.Id == id);
+        if (row?.Detail is { Length: > 0 } && !_prettyCache.ContainsKey(id))
+        {
+            try
+            {
+                var pretty = await Js.InvokeAsync<string>("cclMesClipboard.prettyJson", row.Detail);
+                _prettyCache[id] = pretty;
+            }
+            catch
+            {
+                _prettyCache[id] = row.Detail;
+            }
+        }
+    }
+
+    private async Task CopyDetail(long id, string text)
+    {
+        try
+        {
+            var ok = await Js.InvokeAsync<bool>("cclMesClipboard.copy", text);
+            if (ok)
+            {
+                _copiedId = id;
+                StateHasChanged();
+                await Task.Delay(1500);
+                if (_copiedId == id) _copiedId = 0;
+            }
+        }
+        catch
+        {
+            // Clipboard denied — silently no-op. The JSON panel is still
+            // visible so the operator can select + manual-copy.
+        }
     }
 }
