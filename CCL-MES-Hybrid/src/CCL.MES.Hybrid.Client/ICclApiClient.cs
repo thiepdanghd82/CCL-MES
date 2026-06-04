@@ -1,4 +1,5 @@
 using CCL.MES.Hybrid.Client.Npi;
+using CCL.MES.Shared.Audit;
 using CCL.MES.Shared.Auth;
 using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
@@ -241,6 +242,27 @@ public interface ICclApiClient
     /// <see cref="ApiException"/> on 401 / 5xx.</summary>
     Task<AboutDto> GetAboutAsync(CancellationToken ct = default);
 
+    // ── Audit Log — Admin-only (P10.6e) ─────────────────────────────
+    /// <summary>Paged audit log fetch. Throws <see cref="ApiException"/>
+    /// with 403 when the caller is not Admin.</summary>
+    Task<AuditLogPagedResult> GetAuditLogAsync(
+        string? search, string? action, string? actor,
+        DateTime? fromUtc, DateTime? toUtc,
+        int page, int pageSize, CancellationToken ct = default);
+
+    /// <summary>Distinct action codes for the filter dropdown.</summary>
+    Task<List<string>> GetAuditActionsAsync(CancellationToken ct = default);
+
+    /// <summary>Download an audit log export. Saves the streamed
+    /// bytes to <paramref name="destinationFilePath"/> and returns
+    /// the size in bytes + the server-provided filename. Throws
+    /// <see cref="ApiException"/> on 403 / 422.</summary>
+    Task<AuditLogExportDownload> ExportAuditLogAsync(
+        string format,
+        string? search, string? action, string? actor,
+        DateTime? fromUtc, DateTime? toUtc,
+        string destinationFilePath, CancellationToken ct = default);
+
     // ── Backup / Restore — Admin-only (P10.6h) ──────────────────────
     /// <summary>List existing snapshots in the server's backup dir.
     /// Throws <see cref="ApiException"/> with 403 when the caller is
@@ -279,6 +301,12 @@ public sealed class ApiException : Exception
         ApiError = error;
     }
 }
+
+/// <summary>P10.6e — return shape from
+/// <see cref="ICclApiClient.ExportAuditLogAsync"/>. The bytes are
+/// streamed to disk by the client wrapper; the page surfaces the
+/// filename + size so the operator gets a "saved to …" toast.</summary>
+public sealed record AuditLogExportDownload(string FileName, long Bytes, string ContentType);
 
 /// <summary>Paged response envelope mirroring the legacy
 /// <c>PagedResult&lt;T&gt;</c> from the Application layer. Lives in the

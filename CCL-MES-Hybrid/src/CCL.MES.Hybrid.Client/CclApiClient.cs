@@ -1,7 +1,9 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using CCL.MES.Hybrid.Client.Npi;
 using CCL.MES.Shared;
+using CCL.MES.Shared.Audit;
 using CCL.MES.Shared.Auth;
 using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
@@ -512,6 +514,74 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
     {
         using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/settings/about", ct);
         return await ReadAsAsync<AboutDto>(resp, ct);
+    }
+
+    // ── Audit Log (P10.6e) ──────────────────────────────────────────
+
+    public async Task<AuditLogPagedResult> GetAuditLogAsync(
+        string? search, string? action, string? actor,
+        DateTime? fromUtc, DateTime? toUtc,
+        int page, int pageSize, CancellationToken ct = default)
+    {
+        var qs = new List<string>
+        {
+            $"page={page}",
+            $"pageSize={pageSize}",
+        };
+        if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        if (!string.IsNullOrWhiteSpace(action)) qs.Add($"action={Uri.EscapeDataString(action)}");
+        if (!string.IsNullOrWhiteSpace(actor))  qs.Add($"actor={Uri.EscapeDataString(actor)}");
+        if (fromUtc.HasValue)
+            qs.Add($"from={Uri.EscapeDataString(fromUtc.Value.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture))}");
+        if (toUtc.HasValue)
+            qs.Add($"to={Uri.EscapeDataString(toUtc.Value.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture))}");
+
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/audit/log?{string.Join('&', qs)}", ct);
+        return await ReadAsAsync<AuditLogPagedResult>(resp, ct);
+    }
+
+    public async Task<List<string>> GetAuditActionsAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/audit/actions", ct);
+        return await ReadAsAsync<List<string>>(resp, ct);
+    }
+
+    public async Task<AuditLogExportDownload> ExportAuditLogAsync(
+        string format,
+        string? search, string? action, string? actor,
+        DateTime? fromUtc, DateTime? toUtc,
+        string destinationFilePath, CancellationToken ct = default)
+    {
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        if (!string.IsNullOrWhiteSpace(action)) qs.Add($"action={Uri.EscapeDataString(action)}");
+        if (!string.IsNullOrWhiteSpace(actor))  qs.Add($"actor={Uri.EscapeDataString(actor)}");
+        if (fromUtc.HasValue)
+            qs.Add($"from={Uri.EscapeDataString(fromUtc.Value.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture))}");
+        if (toUtc.HasValue)
+            qs.Add($"to={Uri.EscapeDataString(toUtc.Value.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture))}");
+
+        var query = qs.Count == 0 ? "" : "?" + string.Join('&', qs);
+        var path = $"/{ApiVersion.Prefix}/audit/export/{format}{query}";
+
+        using var msg = new HttpRequestMessage(HttpMethod.Get, path);
+        using var resp = await _http.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+
+        // Server stamps the filename via Content-Disposition; fall back
+        // to "AuditLog.{ext}" if the header is somehow missing.
+        var serverName = resp.Content.Headers.ContentDisposition?.FileName?.Trim('"')
+            ?? $"AuditLog.{format}";
+        var ct2 = resp.Content.Headers.ContentType?.ToString() ?? "application/octet-stream";
+
+        var dir = Path.GetDirectoryName(destinationFilePath);
+        if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+        await using var fs = new FileStream(
+            destinationFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        await resp.Content.CopyToAsync(fs, ct);
+        return new AuditLogExportDownload(serverName, fs.Length, ct2);
     }
 
     // ── Backup / Restore (P10.6h) ───────────────────────────────────

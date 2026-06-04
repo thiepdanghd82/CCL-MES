@@ -92,8 +92,7 @@
 <section class="settings-group">
     <h2 class="settings-group-title">Quản trị viên</h2>
     <div class="settings-cards">
-        @* P10.6h shipped — Backup & Restore admin landing. Admin-only;
-           card hides for non-admin via <AuthorizeView>. *@
+        @* P10.6h shipped — Backup & Restore admin landing. *@
         <AuthorizeView Roles="Admin">
             <a class="settings-card" href="/settings/backup">
                 <span class="settings-card-icon">💾</span>
@@ -101,22 +100,21 @@
                 <span class="settings-card-sub">Snapshot SQLite + khôi phục từ file (admin).</span>
             </a>
         </AuthorizeView>
+        @* P10.6e shipped — Audit Log viewer + CSV/XLSX export. *@
+        <AuthorizeView Roles="Admin" Context="audCtx">
+            <a class="settings-card" href="/settings/audit">
+                <span class="settings-card-icon">📜</span>
+                <span class="settings-card-title">Nhật ký kiểm tra</span>
+                <span class="settings-card-sub">Tra cứu + xuất CSV/XLSX (admin).</span>
+            </a>
+        </AuthorizeView>
     </div>
 </section>
 
 <section class="settings-group">
-    <h2 class="settings-group-title">Sẽ có (P10.6e, c)</h2>
+    <h2 class="settings-group-title">Sẽ có (P10.6c)</h2>
     <div class="settings-cards">
-        @* P10.6f shipped — Recent Scans lives in the sidebar widget
-           (rendered by RecentScansWidget under the CÀI ĐẶT nav group);
-           no landing card needed. *@
-        <AuthorizeView Roles="Admin">
-            <div class="settings-card is-disabled" aria-disabled="true">
-                <span class="settings-card-icon">📜</span>
-                <span class="settings-card-title">Nhật ký kiểm tra</span>
-                <span class="settings-card-sub">P10.6e — Tra cứu &amp; xuất CSV/XLSX.</span>
-            </div>
-        </AuthorizeView>
+        @* P10.6f shipped — Recent Scans lives in the sidebar widget. *@
         <AuthorizeView Roles="Admin">
             <div class="settings-card is-disabled" aria-disabled="true">
                 <span class="settings-card-icon">👥</span>
