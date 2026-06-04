@@ -3396,3 +3396,90 @@ html, body {
 }
 
 .audit-copy-btn.is-ok { color: #16A34A; border-color: #16A34A; }
+
+/* ── P10.6c — Account Control admin page ────────────────────── */
+
+.accounts-table { min-width: 1200px; }
+
+.accounts-table col.acc-col-username { width: 160px; }
+.accounts-table col.acc-col-display  { width: 200px; }
+.accounts-table col.acc-col-role     { width: 130px; }
+.accounts-table col.acc-col-dept     { width: 130px; }
+.accounts-table col.acc-col-active   { width: 90px;  }
+.accounts-table col.acc-col-must     { width: 70px;  }
+.accounts-table col.acc-col-last     { width: 140px; }
+.accounts-table col.acc-col-actions  { width: auto; }
+
+.acc-inline {
+    padding: 4px 6px;
+    font-size: 0.78rem;
+    width: 100%;
+}
+
+.acc-self {
+    color: var(--brand-2);
+    font-size: 0.7rem;
+    margin-left: 4px;
+}
+
+.acc-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.acc-modal-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+
+.acc-modal {
+    background: white;
+    border-radius: 8px;
+    padding: 24px;
+    width: 100%;
+    max-width: 560px;
+    box-shadow: 0 16px 32px rgba(0,0,0,0.25);
+}
+
+.acc-modal-narrow { max-width: 420px; }
+
+.acc-modal-title {
+    margin: 0 0 16px 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.acc-modal-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.acc-modal-grid label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 4px;
+}
+
+.acc-modal-narrow label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 4px;
+}
+
+.acc-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+}
