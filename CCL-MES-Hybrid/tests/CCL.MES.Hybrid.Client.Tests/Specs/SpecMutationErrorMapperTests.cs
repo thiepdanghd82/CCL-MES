@@ -209,4 +209,47 @@ public sealed class SpecMutationErrorMapperTests
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("drawing.validation");
         Assert.Equal("Bản vẽ chưa hợp lệ.", msg);
     }
+
+    // ── P10.5f — QC plan + capture codes ───────────────────────────
+
+    [Theory]
+    [InlineData("qc.forbidden",        "Tài khoản không có quyền chỉnh sửa QC (cần Admin hoặc Engineer).")]
+    [InlineData("qc.invalid_stage",    "Tên stage không hợp lệ — chỉ chấp nhận IpqcPrint / IpqcCut / Fqc / Oqc.")]
+    [InlineData("qc.invalid_result",   "Kết quả không hợp lệ — chỉ chấp nhận Pass / Fail / Na.")]
+    [InlineData("qc.reason_required",  "Phải chọn mã lý do khi kết quả là FAIL.")]
+    [InlineData("qc.invalid_reason",   "Mã lý do không hợp lệ hoặc đã ngừng sử dụng.")]
+    [InlineData("qc.not_found",        "Không tìm thấy QC plan / tiêu chí (có thể đã bị xoá).")]
+    public void Qc_simple_codes_map_to_VN(string code, string expected)
+    {
+        Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code));
+    }
+
+    [Fact]
+    public void Qc_invalid_row_blank_falls_back_to_generic_VN()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("qc.invalid_row");
+        Assert.Equal("Tên tiêu chí không được để trống.", msg);
+    }
+
+    [Fact]
+    public void Qc_invalid_row_with_message_passes_through()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("qc.invalid_row", messageEn: "Row 3 name blank");
+        Assert.Contains("Row 3 name blank", msg);
+    }
+
+    [Fact]
+    public void Qc_validation_blank_message_uses_generic_VN()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("qc.validation");
+        Assert.Equal("Dữ liệu QC chưa hợp lệ.", msg);
+    }
+
+    [Fact]
+    public void Qc_validation_with_message_pass_through()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("qc.validation", messageEn: "Stage missing");
+        Assert.Contains("Stage missing", msg);
+        Assert.StartsWith("Dữ liệu QC chưa hợp lệ", msg);
+    }
 }

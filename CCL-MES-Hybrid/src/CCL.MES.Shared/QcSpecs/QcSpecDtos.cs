@@ -69,6 +69,16 @@ public sealed record QcReasonCode
     public string Code { get; init; } = "";
     public string LabelEn { get; init; } = "";
     public string LabelVi { get; init; } = "";
+
+    /// <summary>P10.5f — exposed so the QC capture FAIL filter can
+    /// keep only <c>"Scrap"</c>-kind codes (matches the server-side
+    /// <c>SpecQcCaptureService</c> guard which only allows scrap
+    /// reasons on a FAIL capture).</summary>
+    public string Kind { get; init; } = "";
+
+    /// <summary>Display ordering — matches the legacy
+    /// <c>ReasonCode.Sort</c>.</summary>
+    public int Sort { get; init; }
 }
 
 public enum QcStage

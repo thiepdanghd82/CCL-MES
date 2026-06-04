@@ -250,6 +250,11 @@ else if (_detail is not null && _vm is not null)
     private bool _qcCapturesLoading;
     private string? _qcCapturesError;
 
+    // P10.5f — reason codes are fetched once per tab activation so the
+    // capture modal's Scrap-kind dropdown has data without each click
+    // hitting the network.
+    private List<QcReasonCode>? _qcReasonCodes;
+
     // P10.5c-1 — mutation modal state. Single _busy flag drives every
     // action button's disabled state so the operator can never have two
     // mutations in flight at once (Q11 _submitting guard mandatory).
@@ -455,11 +460,30 @@ else if (_detail is not null && _vm is not null)
         try
         {
             _qcCaptures = await Api.GetQcCapturesByRevisionAsync(RevisionId);
+            // P10.5f — reason codes ride along on the first capture
+            // tab open so the capture modal's Scrap-kind dropdown has
+            // data without a second tap. Failure is non-fatal — the
+            // modal degrades to an empty list (operator sees an empty
+            // dropdown until reload).
+            if (_qcReasonCodes is null)
+            {
+                try { _qcReasonCodes = await Api.GetQcReasonCodesAsync(); }
+                catch { _qcReasonCodes = new(); }
+            }
         }
         catch (ApiException apiEx) { _qcCapturesError = apiEx.ApiError.MessageEn; }
         catch (HttpRequestException ex) { _qcCapturesError = $"Không kết nối được máy chủ: {ex.Message}"; }
         catch (Exception ex) { _qcCapturesError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _qcCapturesLoading = false; }
+    }
+
+    /// <summary>P10.5f — reload both QC datasets after a capture or
+    /// upsert so the latest-pill + version chain reflect the canonical
+    /// server state. Q4 source-of-truth pattern.</summary>
+    private async Task ReloadQcAsync()
+    {
+        await LoadQcWindowsAsync();
+        await LoadQcCapturesAsync();
     }
 
     private void NavigateBack() => Nav.NavigateTo("/npi/specs");
@@ -521,71 +545,15 @@ else if (_detail is not null && _vm is not null)
             __builder.CloseElement();
             return;
         }
-        if (_qcWindows is null)
-        {
-            return;
-        }
-
-        __builder.OpenElement(0, "div");
-        __builder.AddAttribute(1, "class", "qc-stage-grid");
-        foreach (var stageKey in new[] { "IpqcPrint", "IpqcCut", "Fqc", "Oqc" })
-        {
-            _qcWindows.TryGetValue(stageKey, out var window);
-            __builder.OpenElement(2, "div");
-            __builder.AddAttribute(3, "class", "qc-stage-card");
-            __builder.AddMarkupContent(4, $"<div class=\"qc-stage-card-head\"><strong>{QcStageLabel(stageKey)}</strong></div>");
-            if (window is null)
-            {
-                __builder.AddMarkupContent(5, "<p class=\"spec-empty-inline\">Chưa định nghĩa.</p>");
-            }
-            else
-            {
-                __builder.AddMarkupContent(6, $"<div class=\"qc-stage-card-title\">{System.Net.WebUtility.HtmlEncode(window.Title)}</div>");
-                if (!string.IsNullOrWhiteSpace(window.SamplePlan))
-                {
-                    __builder.AddMarkupContent(7, $"<div class=\"qc-stage-card-sample\"><span class=\"spec-stamp-label\">Sample plan:</span> {System.Net.WebUtility.HtmlEncode(window.SamplePlan)}</div>");
-                }
-                if (!string.IsNullOrWhiteSpace(window.Frequency))
-                {
-                    __builder.AddMarkupContent(8, $"<div class=\"qc-stage-card-sample\"><span class=\"spec-stamp-label\">Tần suất:</span> {System.Net.WebUtility.HtmlEncode(window.Frequency)}</div>");
-                }
-                if (window.Criteria.Count == 0)
-                {
-                    __builder.AddMarkupContent(9, "<p class=\"spec-empty-inline\">Chưa có tiêu chí.</p>");
-                }
-                else
-                {
-                    __builder.OpenElement(10, "table");
-                    __builder.AddAttribute(11, "class", "grid grid-sm");
-                    __builder.AddMarkupContent(12,
-                        "<thead><tr><th>#</th><th>Tiêu chí</th><th>Target</th><th>Tolerance</th><th>Đvt</th><th>Pass</th></tr></thead>");
-                    __builder.OpenElement(13, "tbody");
-                    foreach (var c in window.Criteria)
-                    {
-                        var tolerance = (c.ToleranceMin, c.ToleranceMax) switch
-                        {
-                            (null, null)         => "—",
-                            (var min, null)      => $"≥ {min}",
-                            (null, var max)      => $"≤ {max}",
-                            (var min, var max)   => $"{min} … {max}",
-                        };
-                        __builder.OpenElement(14, "tr");
-                        __builder.AddMarkupContent(15, $"<td>{c.Seq}</td>");
-                        __builder.AddMarkupContent(16, $"<td>{System.Net.WebUtility.HtmlEncode(c.Name)}</td>");
-                        __builder.AddMarkupContent(17, $"<td class=\"grid-col-num\">{(c.TargetValue?.ToString("0.##") ?? "—")}</td>");
-                        __builder.AddMarkupContent(18, $"<td class=\"grid-col-num\">{tolerance}</td>");
-                        __builder.AddMarkupContent(19, $"<td>{System.Net.WebUtility.HtmlEncode(c.Unit ?? "—")}</td>");
-                        __builder.AddMarkupContent(20, $"<td>{System.Net.WebUtility.HtmlEncode(c.PassCriteria ?? "—")}</td>");
-                        __builder.CloseElement();
-                    }
-                    __builder.CloseElement();
-                    __builder.CloseElement();
-                }
-            }
-            __builder.CloseElement();
-        }
-        __builder.CloseElement();
-        __builder.AddMarkupContent(100, "<p class=\"spec-deferred-note\"><em>Tạo / sửa QC Plan sẽ có ở bản 5f.</em></p>");
+        // P10.5f — delegate to focused editable component (~270 LOC)
+        // so the upsert flow + role gating + per-stage error/notice
+        // state live in a single file instead of expanding this page.
+        __builder.OpenComponent<SpecQcPlansTab>(0);
+        __builder.AddAttribute(1, "RevisionId", RevisionId);
+        __builder.AddAttribute(2, "Windows", _qcWindows);
+        __builder.AddAttribute(3, "OnReloadRequested",
+            EventCallback.Factory.Create(this, LoadQcWindowsAsync));
+        __builder.CloseComponent();
     };
 
     private RenderFragment RenderQcCaptureTab() => __builder =>
@@ -610,31 +578,18 @@ else if (_detail is not null && _vm is not null)
             __builder.CloseElement();
             return;
         }
-        if (_qcCaptures is null || _qcCaptures.Count == 0)
-        {
-            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Chưa có kết quả QC capture nào cho revision này.</p>");
-            return;
-        }
-
-        __builder.OpenElement(0, "table");
-        __builder.AddAttribute(1, "class", "grid grid-sm");
-        __builder.AddMarkupContent(2,
-            "<thead><tr><th>Lúc</th><th>Người</th><th>Kết quả</th><th>Đo</th><th>NG reason</th><th>Ghi chú</th></tr></thead>");
-        __builder.OpenElement(3, "tbody");
-        foreach (var cap in _qcCaptures.OrderByDescending(c => c.CapturedAt))
-        {
-            __builder.OpenElement(4, "tr");
-            __builder.AddMarkupContent(5, $"<td>{cap.CapturedAt.ToLocalTime():yyyy-MM-dd HH:mm}</td>");
-            __builder.AddMarkupContent(6, $"<td>{System.Net.WebUtility.HtmlEncode(cap.CapturedBy)}</td>");
-            __builder.AddMarkupContent(7, $"<td><span class=\"qc-result-pill qc-result-{cap.Result.ToString().ToLowerInvariant()}\">{System.Net.WebUtility.HtmlEncode(QcResultLabel(cap.Result))}</span></td>");
-            __builder.AddMarkupContent(8, $"<td>{System.Net.WebUtility.HtmlEncode(cap.Measurement ?? "—")}</td>");
-            __builder.AddMarkupContent(9, $"<td>{System.Net.WebUtility.HtmlEncode(cap.NgReasonCode ?? "—")}</td>");
-            __builder.AddMarkupContent(10, $"<td>{System.Net.WebUtility.HtmlEncode(cap.Comment ?? "—")}</td>");
-            __builder.CloseElement();
-        }
-        __builder.CloseElement();
-        __builder.CloseElement();
-        __builder.AddMarkupContent(100, "<p class=\"spec-deferred-note\"><em>Ghi nhận capture mới sẽ có ở bản 5f.</em></p>");
+        // P10.5f — delegate to focused capture component. Reason codes
+        // are lazy-loaded on first capture button click (lives in the
+        // child component); the modal-required Scrap-kind filter
+        // happens via QcCaptureGateVm.ScrapKindOnly.
+        __builder.OpenComponent<SpecQcCaptureTab>(0);
+        __builder.AddAttribute(1, "RevisionId", RevisionId);
+        __builder.AddAttribute(2, "Windows", _qcWindows);
+        __builder.AddAttribute(3, "Captures", _qcCaptures);
+        __builder.AddAttribute(4, "ReasonCodes", _qcReasonCodes);
+        __builder.AddAttribute(5, "OnReloadRequested",
+            EventCallback.Factory.Create(this, ReloadQcAsync));
+        __builder.CloseComponent();
     };
 
     private RenderFragment RenderArtworkTab() => __builder =>

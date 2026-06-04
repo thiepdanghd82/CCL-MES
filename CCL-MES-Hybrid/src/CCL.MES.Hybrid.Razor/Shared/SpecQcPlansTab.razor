@@ -1,0 +1,298 @@
+@inject ICclApiClient Api
+@inject IAuthSession Session
+@using CCL.MES.Hybrid.Client.Specs
+@using CCL.MES.Shared.QcSpecs
+
+@*
+    P10.5f — QC Plans tab (write). 4 stages (IpqcPrint / IpqcCut /
+    Fqc / Oqc), each rendered as a card with an editable 5-col table:
+    Criterion / Target / Tolerance / Method / Frequency + Delete.
+
+    Per-stage atomic save (1 button per card) → reuse the legacy
+    `SpecQcWindowService.UpsertStageAsync` diff-then-replace flow.
+    Admin/Engineer only — UI greys out the Save button + add-row for
+    other roles; server is source of truth (403 → VN banner via
+    SpecMutationErrorMapper).
+*@
+
+@if (Windows is null || Windows.Count == 0)
+{
+    <p class="grid-status">Chưa có dữ liệu QC.</p>
+}
+else
+{
+    var canEdit = QcCaptureGateVm.IsEditor(Session.CurrentUserInfo?.Role);
+    @if (!canEdit)
+    {
+        <div class="modal-banner modal-banner-warning" role="note">
+            Tài khoản hiện tại (vai trò <strong>@(Session.CurrentUserInfo?.Role ?? "—")</strong>)
+            chỉ xem được QC plans. Cần Admin hoặc Engineer để chỉnh sửa.
+        </div>
+    }
+
+    <div class="qc-stage-grid">
+        @foreach (var stage in Stages)
+        {
+            var key = stage.ToString();
+            var stageRows = _rowsByStage.TryGetValue(key, out var rows) ? rows : new();
+            var stageError = _errorByStage.TryGetValue(key, out var e) ? e : null;
+            var stageNotice = _noticeByStage.TryGetValue(key, out var n) ? n : null;
+            var submitting = _submittingStage == key;
+
+            <div class="qc-stage-card @(submitting ? "is-busy" : "")">
+                <div class="qc-stage-card-head">
+                    <strong>@StageLabel(stage)</strong>
+                    <span class="qc-stage-count">@stageRows.Count tiêu chí</span>
+                    @if (canEdit)
+                    {
+                        <button type="button" class="grid-btn"
+                                disabled="@submitting"
+                                @onclick="() => AddRow(key)">+ Thêm dòng</button>
+                        <button type="button" class="grid-btn grid-btn-primary"
+                                disabled="@submitting"
+                                @onclick="() => SaveStageAsync(stage)">
+                            @(submitting ? "Đang lưu…" : "Lưu stage")
+                        </button>
+                    }
+                </div>
+
+                @if (stageError is not null)
+                {
+                    <div class="modal-banner modal-banner-error" role="alert">@stageError</div>
+                }
+                @if (stageNotice is not null)
+                {
+                    <div class="modal-banner modal-banner-success" role="status">@stageNotice</div>
+                }
+
+                <div class="qc-table-scroll">
+                    <table class="qc-plan-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Criterion <span class="modal-req">*</span></th>
+                                <th>Target</th>
+                                <th>Tolerance</th>
+                                <th>Method</th>
+                                <th>Frequency</th>
+                                @if (canEdit) { <th class="qc-col-narrow"></th> }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (stageRows.Count == 0)
+                            {
+                                <tr><td colspan="@(canEdit ? 7 : 6)" class="spec-empty-cell">— Chưa có tiêu chí —</td></tr>
+                            }
+                            @for (int i = 0; i < stageRows.Count; i++)
+                            {
+                                var idx = i;
+                                var row = stageRows[idx];
+                                <tr>
+                                    <td class="qc-col-narrow">@(idx + 1)</td>
+                                    <td>
+                                        <input type="text" class="qc-cell-input"
+                                               value="@row.Name" maxlength="200"
+                                               disabled="@(submitting || !canEdit)"
+                                               @oninput="(e) => row.Name = e.Value?.ToString() ?? string.Empty" />
+                                    </td>
+                                    <td>
+                                        <input type="text" class="qc-cell-input"
+                                               value="@row.Target" maxlength="200"
+                                               disabled="@(submitting || !canEdit)"
+                                               @oninput="(e) => row.Target = e.Value?.ToString()" />
+                                    </td>
+                                    <td>
+                                        <input type="text" class="qc-cell-input"
+                                               value="@row.Tolerance" maxlength="200"
+                                               disabled="@(submitting || !canEdit)"
+                                               @oninput="(e) => row.Tolerance = e.Value?.ToString()" />
+                                    </td>
+                                    <td>
+                                        <input type="text" class="qc-cell-input"
+                                               value="@row.Method" maxlength="200"
+                                               disabled="@(submitting || !canEdit)"
+                                               @oninput="(e) => row.Method = e.Value?.ToString()" />
+                                    </td>
+                                    <td>
+                                        <input type="text" class="qc-cell-input"
+                                               value="@row.Frequency" maxlength="120"
+                                               disabled="@(submitting || !canEdit)"
+                                               @oninput="(e) => row.Frequency = e.Value?.ToString()" />
+                                    </td>
+                                    @if (canEdit)
+                                    {
+                                        <td class="qc-col-narrow">
+                                            <button type="button" class="grid-btn qc-row-del"
+                                                    disabled="@submitting"
+                                                    aria-label="Xoá dòng"
+                                                    @onclick="() => DeleteRow(key, idx)">✕</button>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public long RevisionId { get; set; }
+    [Parameter] public IReadOnlyDictionary<string, QcWindowItem?>? Windows { get; set; }
+    [Parameter] public EventCallback OnReloadRequested { get; set; }
+
+    private static readonly QcStage[] Stages = new[]
+    {
+        QcStage.IpqcPrint, QcStage.IpqcCut, QcStage.Fqc, QcStage.Oqc,
+    };
+
+    private string? _submittingStage;
+    private readonly Dictionary<string, List<EditableRow>> _rowsByStage = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string?> _errorByStage = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string?> _noticeByStage = new(StringComparer.Ordinal);
+    private string? _lastBoundWindowsHash;
+
+    protected override void OnParametersSet()
+    {
+        if (Windows is null) return;
+        // Re-hydrate the editable copies only when Windows changes
+        // (parent reload after save) so per-cell typing isn't blown
+        // away by a re-render between keystrokes.
+        var hash = ComputeWindowsHash(Windows);
+        if (hash == _lastBoundWindowsHash) return;
+        _lastBoundWindowsHash = hash;
+
+        _rowsByStage.Clear();
+        foreach (var stage in Stages)
+        {
+            var key = stage.ToString();
+            var w = Windows.TryGetValue(key, out var window) ? window : null;
+            var rows = w?.Criteria
+                .OrderBy(c => c.Seq)
+                .Select(c => new EditableRow
+                {
+                    Id = c.Id,
+                    Name = c.Name ?? "",
+                    Target = c.PassCriteria,
+                    Tolerance = c.MeasureMethod,
+                    Method = c.MethodOverride,
+                    Frequency = c.FrequencyOverride,
+                }).ToList() ?? new List<EditableRow>();
+            _rowsByStage[key] = rows;
+        }
+    }
+
+    private static string ComputeWindowsHash(IReadOnlyDictionary<string, QcWindowItem?> windows)
+    {
+        // Cheap stable hash over stage + criterion ids; rebinds when
+        // the shape changes (rare).
+        return string.Join("|", windows.Select(kv =>
+            $"{kv.Key}:{string.Join(",", (kv.Value?.Criteria ?? new()).Select(c => c.Id))}"));
+    }
+
+    private void AddRow(string stageKey)
+    {
+        if (_submittingStage is not null) return;
+        if (!_rowsByStage.TryGetValue(stageKey, out var rows))
+        {
+            rows = new();
+            _rowsByStage[stageKey] = rows;
+        }
+        rows.Add(new EditableRow());
+        _errorByStage[stageKey] = null;
+        _noticeByStage[stageKey] = null;
+        StateHasChanged();
+    }
+
+    private void DeleteRow(string stageKey, int index)
+    {
+        if (_submittingStage is not null) return;
+        if (!_rowsByStage.TryGetValue(stageKey, out var rows)) return;
+        if (index < 0 || index >= rows.Count) return;
+        rows.RemoveAt(index);
+        _errorByStage[stageKey] = null;
+        _noticeByStage[stageKey] = null;
+        StateHasChanged();
+    }
+
+    private async Task SaveStageAsync(QcStage stage)
+    {
+        var key = stage.ToString();
+        if (_submittingStage is not null) return;
+
+        var rows = _rowsByStage.TryGetValue(key, out var r) ? r : new();
+        // Client-side Name guard mirrors the legacy + saves an obvious
+        // round-trip if the operator forgot a row.
+        foreach (var row in rows)
+        {
+            if (string.IsNullOrWhiteSpace(row.Name))
+            {
+                _errorByStage[key] = "Tên tiêu chí không được để trống.";
+                StateHasChanged();
+                return;
+            }
+        }
+
+        _submittingStage = key;
+        _errorByStage[key] = null;
+        _noticeByStage[key] = null;
+        StateHasChanged();
+        try
+        {
+            var req = new QcPlanUpsertRequest
+            {
+                Stage = key,
+                Rows = rows.Select(x => new QcCriterionRowRequest
+                {
+                    Id = x.Id,
+                    Name = (x.Name ?? "").Trim(),
+                    Target = string.IsNullOrWhiteSpace(x.Target) ? null : x.Target.Trim(),
+                    Tolerance = string.IsNullOrWhiteSpace(x.Tolerance) ? null : x.Tolerance.Trim(),
+                    Method = string.IsNullOrWhiteSpace(x.Method) ? null : x.Method.Trim(),
+                    Frequency = string.IsNullOrWhiteSpace(x.Frequency) ? null : x.Frequency.Trim(),
+                }).ToList(),
+            };
+            var resp = await Api.UpsertQcPlanStageAsync(RevisionId, req);
+            _noticeByStage[key] = $"Đã lưu {resp.Window.Criteria.Count} tiêu chí cho stage {StageLabel(stage)}.";
+            if (OnReloadRequested.HasDelegate) await OnReloadRequested.InvokeAsync();
+        }
+        catch (ApiException apiEx)
+        {
+            _errorByStage[key] = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+        }
+        catch (HttpRequestException ex)
+        {
+            _errorByStage[key] = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _errorByStage[key] = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _submittingStage = null;
+            StateHasChanged();
+        }
+    }
+
+    private static string StageLabel(QcStage stage) => stage switch
+    {
+        QcStage.IpqcPrint => "IPQC · Print",
+        QcStage.IpqcCut   => "IPQC · Cut",
+        QcStage.Fqc       => "FQC · Final",
+        QcStage.Oqc       => "OQC · Outgoing",
+        _                 => stage.ToString(),
+    };
+
+    private sealed class EditableRow
+    {
+        public long? Id { get; set; }
+        public string Name { get; set; } = "";
+        public string? Target { get; set; }
+        public string? Tolerance { get; set; }
+        public string? Method { get; set; }
+        public string? Frequency { get; set; }
+    }
+}

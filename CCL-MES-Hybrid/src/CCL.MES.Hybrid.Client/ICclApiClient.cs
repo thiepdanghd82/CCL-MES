@@ -162,6 +162,22 @@ public interface ICclApiClient
 
     /// <summary>NG reason-code master list. Cached locally per session.</summary>
     Task<List<QcReasonCode>> GetQcReasonCodesAsync(CancellationToken ct = default);
+
+    // ── QC plan + capture write surface (P10.5f) ────────────────────
+    /// <summary>Atomic per-stage QC plan upsert. Mirrors legacy
+    /// <c>SpecQcWindowService.UpsertStageAsync</c>: reads current
+    /// criteria, computes a delete/update/insert diff against the
+    /// supplied <paramref name="req"/>.Rows, writes inside a single
+    /// transaction. Server-side role gate (Admin/Engineer) — 403
+    /// surfaces as <c>qc.forbidden</c>.</summary>
+    Task<QcPlanUpsertResponse> UpsertQcPlanStageAsync(
+        long revisionId, QcPlanUpsertRequest req, CancellationToken ct = default);
+
+    /// <summary>Append-only QC capture write. Server validates
+    /// FAIL → reason required, reason exists + active. Returns the
+    /// persisted capture with server-assigned Id + CapturedAt.</summary>
+    Task<QcCaptureItem> CreateQcCaptureAsync(
+        long revisionId, QcCaptureCreateRequest req, CancellationToken ct = default);
 }
 
 /// <summary>

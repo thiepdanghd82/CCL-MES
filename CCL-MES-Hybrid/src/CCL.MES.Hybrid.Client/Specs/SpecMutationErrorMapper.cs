@@ -52,6 +52,16 @@ namespace CCL.MES.Hybrid.Client.Specs;
 ///   - <c>drawing.department_mismatch</c> — CanActAs gate rejected (403)
 ///   - <c>drawing.comment_required</c>    — Reject without comment
 ///   - <c>drawing.invalid_state</c>       — Cannot decide on Superseded version
+///
+/// P10.5f — QC plan + capture error codes:
+///   - <c>qc.forbidden</c>          — Admin/Engineer role gate
+///   - <c>qc.invalid_stage</c>      — Unknown stage query param
+///   - <c>qc.invalid_row</c>        — Criterion Name blank
+///   - <c>qc.invalid_result</c>     — Unknown capture result
+///   - <c>qc.reason_required</c>    — FAIL without NgReasonCode
+///   - <c>qc.invalid_reason</c>     — NgReasonCode not active or unknown
+///   - <c>qc.not_found</c>          — Revision / Criterion missing / cross-revision
+///   - <c>qc.validation</c>         — Generic legacy validation fallthrough
 /// </summary>
 public static class SpecMutationErrorMapper
 {
@@ -112,6 +122,15 @@ public static class SpecMutationErrorMapper
             "drawing.department_mismatch" => "Tài khoản không có quyền duyệt chip này — chuyển cho đúng Phòng/Role được phép.",
             "drawing.comment_required"    => "Phải nhập lý do khi Reject.",
             "drawing.invalid_state"       => "Không duyệt được vì version đã ở trạng thái Thay thế.",
+            // P10.5f — QC plan + capture codes.
+            "qc.forbidden"        => "Tài khoản không có quyền chỉnh sửa QC (cần Admin hoặc Engineer).",
+            "qc.invalid_stage"    => "Tên stage không hợp lệ — chỉ chấp nhận IpqcPrint / IpqcCut / Fqc / Oqc.",
+            "qc.invalid_row"      => string.IsNullOrWhiteSpace(err.MessageEn) ? "Tên tiêu chí không được để trống." : err.MessageEn,
+            "qc.invalid_result"   => "Kết quả không hợp lệ — chỉ chấp nhận Pass / Fail / Na.",
+            "qc.reason_required"  => "Phải chọn mã lý do khi kết quả là FAIL.",
+            "qc.invalid_reason"   => "Mã lý do không hợp lệ hoặc đã ngừng sử dụng.",
+            "qc.not_found"        => "Không tìm thấy QC plan / tiêu chí (có thể đã bị xoá).",
+            "qc.validation"       => string.IsNullOrWhiteSpace(err.MessageEn) ? "Dữ liệu QC chưa hợp lệ." : $"Dữ liệu QC chưa hợp lệ: {err.MessageEn}",
             _                       => string.IsNullOrWhiteSpace(err.MessageEn) ? $"Lỗi không xác định ({err.Code})." : err.MessageEn,
         };
     }

@@ -406,6 +406,44 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<List<QcReasonCode>>(resp, ct);
     }
 
+    // ── QC plan + capture write surface (P10.5f) ────────────────────
+
+    public async Task<QcPlanUpsertResponse> UpsertQcPlanStageAsync(
+        long revisionId, QcPlanUpsertRequest req, CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/qc-specs/windows/upsert-stage/{revisionId}";
+        using var msg = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(req),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        using var resp = await _http.SendAsync(msg, ct);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+        var body = await resp.Content.ReadFromJsonAsync<QcPlanUpsertResponse>(cancellationToken: ct);
+        return body ?? throw new InvalidOperationException(
+            "QC plan upsert returned 2xx but body was empty.");
+    }
+
+    public async Task<QcCaptureItem> CreateQcCaptureAsync(
+        long revisionId, QcCaptureCreateRequest req, CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/qc-specs/captures/{revisionId}";
+        using var msg = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(req),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        using var resp = await _http.SendAsync(msg, ct);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+        var body = await resp.Content.ReadFromJsonAsync<QcCaptureItem>(cancellationToken: ct);
+        return body ?? throw new InvalidOperationException(
+            "QC capture returned 2xx but body was empty.");
+    }
+
     // ── helpers ─────────────────────────────────────────────────────
 
     private string RequireDeviceId()
