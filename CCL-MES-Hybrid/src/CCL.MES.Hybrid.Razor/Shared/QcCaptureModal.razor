@@ -1,0 +1,211 @@
+@inject ICclApiClient Api
+@using CCL.MES.Hybrid.Client.Specs
+@using CCL.MES.Shared.QcSpecs
+
+@*
+    P10.5f — QC capture modal. Operator picks Pass / Fail / N-A,
+    optional measurement, comment, and a Reason dropdown (Scrap kind
+    only, REQUIRED on FAIL — client validate + server re-validate via
+    SpecQcCaptureService.CaptureAsync).
+
+    Reuses the P10.5a Modal primitive. _submitting guard chặn double-
+    click + close-mid-flight per Q11.
+*@
+
+<Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md"
+       Severity="@HeaderSeverity" ClickOutsideToClose="false">
+    <Header>@Title</Header>
+    <Body>
+        @if (Open)
+        {
+            <p class="modal-help">
+                Ghi nhận kết quả cho tiêu chí
+                <strong>@(Criterion?.Name ?? "—")</strong>
+                · Stage <strong>@StageLabel</strong>.
+            </p>
+
+            <div class="modal-field">
+                <label>Kết quả <span class="modal-req">*</span></label>
+                <div class="qc-result-row" role="radiogroup" aria-label="Kết quả">
+                    @foreach (var opt in new[] { QcCaptureResult.Pass, QcCaptureResult.Fail, QcCaptureResult.Na })
+                    {
+                        var active = _result == opt;
+                        <button type="button" role="radio" aria-checked="@(active ? "true" : "false")"
+                                class="qc-result-toggle qc-result-@opt.ToString().ToLowerInvariant() @(active ? "is-active" : "")"
+                                disabled="@_submitting"
+                                @onclick="() => { _result = opt; _error = null; StateHasChanged(); }">
+                            @ResultLabel(opt)
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="modal-field">
+                <label for="qc-measurement">Measurement (tùy chọn)</label>
+                <input id="qc-measurement" type="text" class="modal-input" maxlength="200"
+                       placeholder="VD: 12.5mm / OK / ±0.1"
+                       @bind="_measurement" @bind:event="oninput" disabled="@_submitting" />
+            </div>
+
+            <div class="modal-field">
+                <label for="qc-reason">
+                    Mã lý do
+                    @if (_result == QcCaptureResult.Fail) { <span class="modal-req">*</span> }
+                    else { <span class="modal-help-inline">(bắt buộc khi FAIL)</span> }
+                </label>
+                <select id="qc-reason" class="modal-input"
+                        @bind="_reasonCode" @bind:event="onchange"
+                        disabled="@(_submitting || _result != QcCaptureResult.Fail)">
+                    <option value="">— Chọn mã lý do —</option>
+                    @foreach (var r in ScrapReasons)
+                    {
+                        <option value="@r.Code">@r.Code · @r.LabelVi</option>
+                    }
+                </select>
+            </div>
+
+            <div class="modal-field">
+                <label for="qc-comment">Ghi chú</label>
+                <textarea id="qc-comment" class="modal-input modal-input-textarea"
+                          maxlength="500" rows="2"
+                          @bind="_comment" @bind:event="oninput"
+                          disabled="@_submitting"></textarea>
+                <div class="modal-counter">@_comment?.Length / 500</div>
+            </div>
+
+            @if (_error is not null)
+            {
+                <div class="modal-banner modal-banner-error" role="alert">@_error</div>
+            }
+        }
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary"
+                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+        <button type="button" class="op-btn @SubmitClass"
+                disabled="@(!CanSubmit())" @onclick="SubmitAsync">
+            @(_submitting ? "Đang ghi nhận…" : SubmitLabel)
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<QcCaptureItem> OnCaptured { get; set; }
+    [Parameter] public long RevisionId { get; set; }
+    [Parameter] public QcCriterionItem? Criterion { get; set; }
+    [Parameter] public string StageLabel { get; set; } = "";
+    [Parameter] public IReadOnlyList<QcReasonCode> ScrapReasons { get; set; } = Array.Empty<QcReasonCode>();
+
+    private QcCaptureResult _result = QcCaptureResult.Pass;
+    private string _measurement = "";
+    private string _reasonCode = "";
+    private string _comment = "";
+    private bool _submitting;
+    private string? _error;
+
+    private ModalSeverity HeaderSeverity => _result switch
+    {
+        QcCaptureResult.Fail => ModalSeverity.Warning,
+        QcCaptureResult.Pass => ModalSeverity.Success,
+        _                    => ModalSeverity.Info,
+    };
+
+    private string SubmitClass => _result switch
+    {
+        QcCaptureResult.Fail => "op-btn-warning",
+        _                    => "op-btn-primary",
+    };
+
+    private string SubmitLabel => _result switch
+    {
+        QcCaptureResult.Fail => "Ghi nhận FAIL",
+        QcCaptureResult.Pass => "Ghi nhận PASS",
+        _                    => "Ghi nhận N/A",
+    };
+
+    private string Title => $"Capture QC · v{Criterion?.Seq ?? 0} — {Criterion?.Name ?? "(không tên)"}";
+
+    private bool CanSubmit()
+    {
+        if (_submitting) return false;
+        return QcCaptureGateVm.IsCaptureValid(_result, _reasonCode);
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!Open) ResetState();
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_submitting) return;
+        if (Criterion is null) return;
+        if (!CanSubmit())
+        {
+            _error = QcCaptureGateVm.ExplainInvalid(_result, _reasonCode);
+            return;
+        }
+
+        _submitting = true;
+        _error = null;
+        StateHasChanged();
+        try
+        {
+            var req = new QcCaptureCreateRequest
+            {
+                CriterionId = Criterion.Id,
+                Result = _result.ToString(),
+                Measurement = string.IsNullOrWhiteSpace(_measurement) ? null : _measurement.Trim(),
+                NgReasonCode = string.IsNullOrWhiteSpace(_reasonCode) ? null : _reasonCode,
+                Comment = string.IsNullOrWhiteSpace(_comment) ? null : _comment.Trim(),
+            };
+            var resp = await Api.CreateQcCaptureAsync(RevisionId, req);
+            if (OnCaptured.HasDelegate) await OnCaptured.InvokeAsync(resp);
+            ResetState();
+            if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+        }
+        catch (ApiException apiEx)
+        {
+            _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _error = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RequestCloseAsync()
+    {
+        if (_submitting) return;
+        ResetState();
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+
+    private void ResetState()
+    {
+        _result = QcCaptureResult.Pass;
+        _measurement = "";
+        _reasonCode = "";
+        _comment = "";
+        _error = null;
+    }
+
+    private static string ResultLabel(QcCaptureResult r) => r switch
+    {
+        QcCaptureResult.Pass => "✓ PASS",
+        QcCaptureResult.Fail => "✗ FAIL",
+        QcCaptureResult.Na   => "— N/A",
+        _                    => r.ToString(),
+    };
+}

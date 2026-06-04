@@ -1,0 +1,212 @@
+@inject IAuthSession Session
+@using CCL.MES.Hybrid.Client.Specs
+@using CCL.MES.Shared.QcSpecs
+
+@*
+    P10.5f — QC Capture tab (write). Per stage / per criterion:
+      · Latest-result pill (color-coded PASS/FAIL/N-A) + actor + time
+      · History expander (chronological list of prior captures)
+      · "Ghi nhận" button → opens QcCaptureModal
+
+    Capture write goes through Api.CreateQcCaptureAsync from the modal;
+    parent reload via OnReloadRequested fires after success so the
+    latest pill re-renders from the canonical server state (Q4).
+*@
+
+@if (Windows is null || Windows.Count == 0)
+{
+    <p class="grid-status">Chưa có QC plan để capture.</p>
+}
+else
+{
+    var canEdit = QcCaptureGateVm.IsEditor(Session.CurrentUserInfo?.Role);
+    var latest = QcCaptureGateVm.LatestPerCriterion(Captures ?? Array.Empty<QcCaptureItem>());
+    var allCapturesByCriterion = (Captures ?? Array.Empty<QcCaptureItem>())
+        .GroupBy(c => c.QcCriterionId)
+        .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.CapturedAt).ToList());
+
+    @if (!canEdit)
+    {
+        <div class="modal-banner modal-banner-warning" role="note">
+            Tài khoản hiện tại chỉ xem kết quả QC. Cần Admin hoặc Engineer để Ghi nhận.
+        </div>
+    }
+
+    @foreach (var stage in Stages)
+    {
+        var key = stage.ToString();
+        var window = Windows.TryGetValue(key, out var w) ? w : null;
+        if (window is null || window.Criteria.Count == 0)
+        {
+            continue;
+        }
+
+        <div class="qc-cap-stage-card">
+            <div class="qc-stage-card-head">
+                <strong>@StageLabel(stage)</strong>
+                <span class="qc-stage-count">@window.Criteria.Count tiêu chí</span>
+            </div>
+
+            <table class="qc-capture-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Tiêu chí</th>
+                        <th>Latest</th>
+                        <th>Measurement</th>
+                        <th>Lý do</th>
+                        <th>Người ghi</th>
+                        <th>Thời gian</th>
+                        @if (canEdit) { <th class="qc-col-narrow">Ghi nhận</th> }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var crit in window.Criteria.OrderBy(c => c.Seq))
+                    {
+                        latest.TryGetValue(crit.Id, out var last);
+                        var hasHistory = allCapturesByCriterion.TryGetValue(crit.Id, out var historyList)
+                                         && historyList.Count > 1;
+                        <tr>
+                            <td class="qc-col-narrow">@(crit.Seq + 1)</td>
+                            <td>
+                                <strong>@crit.Name</strong>
+                                @if (!string.IsNullOrWhiteSpace(crit.PassCriteria))
+                                {
+                                    <div class="qc-criterion-hint">Target: @crit.PassCriteria</div>
+                                }
+                            </td>
+                            <td>
+                                @if (last is null)
+                                {
+                                    <span class="qc-capture-pill qc-capture-pending">Chưa có</span>
+                                }
+                                else
+                                {
+                                    <span class="qc-capture-pill qc-capture-@last.Result.ToString().ToLowerInvariant()">@ResultLabel(last.Result)</span>
+                                }
+                            </td>
+                            <td>@(last?.Measurement ?? "—")</td>
+                            <td>@(last?.NgReasonCode ?? "—")</td>
+                            <td>@(last?.CapturedBy ?? "—")</td>
+                            <td>@(last?.CapturedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+                            @if (canEdit)
+                            {
+                                <td>
+                                    <button type="button" class="grid-btn grid-btn-primary qc-cap-btn"
+                                            @onclick="() => OpenCaptureModal(crit, stage)">
+                                        + Ghi nhận
+                                    </button>
+                                </td>
+                            }
+                        </tr>
+                        @if (hasHistory)
+                        {
+                            <tr class="qc-history-row">
+                                <td colspan="@(canEdit ? 8 : 7)">
+                                    <details class="qc-history-details">
+                                        <summary>Xem lịch sử (@historyList.Count bản ghi)</summary>
+                                        <table class="qc-history-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Thời gian</th><th>Kết quả</th>
+                                                    <th>Measurement</th><th>Lý do</th>
+                                                    <th>Người</th><th>Comment</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var h in historyList)
+                                                {
+                                                    <tr>
+                                                        <td>@h.CapturedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                                        <td><span class="qc-capture-pill qc-capture-@h.Result.ToString().ToLowerInvariant()">@ResultLabel(h.Result)</span></td>
+                                                        <td>@(h.Measurement ?? "—")</td>
+                                                        <td>@(h.NgReasonCode ?? "—")</td>
+                                                        <td>@(h.CapturedBy ?? "—")</td>
+                                                        <td>@(h.Comment ?? "—")</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </details>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+<QcCaptureModal Open="_modalOpen"
+                RevisionId="@RevisionId"
+                Criterion="@_modalCriterion"
+                StageLabel="@_modalStageLabel"
+                ScrapReasons="@_scrapReasons"
+                OnCaptured="OnCapturedAsync"
+                OnClose="OnModalClosedAsync" />
+
+@code {
+    [Parameter] public long RevisionId { get; set; }
+    [Parameter] public IReadOnlyDictionary<string, QcWindowItem?>? Windows { get; set; }
+    [Parameter] public IReadOnlyList<QcCaptureItem>? Captures { get; set; }
+    [Parameter] public IReadOnlyList<QcReasonCode>? ReasonCodes { get; set; }
+    [Parameter] public EventCallback OnReloadRequested { get; set; }
+
+    private static readonly QcStage[] Stages = new[]
+    {
+        QcStage.IpqcPrint, QcStage.IpqcCut, QcStage.Fqc, QcStage.Oqc,
+    };
+
+    private bool _modalOpen;
+    private QcCriterionItem? _modalCriterion;
+    private string _modalStageLabel = "";
+
+    private IReadOnlyList<QcReasonCode> _scrapReasons = Array.Empty<QcReasonCode>();
+
+    protected override void OnParametersSet()
+    {
+        _scrapReasons = ReasonCodes is null
+            ? Array.Empty<QcReasonCode>()
+            : QcCaptureGateVm.ScrapKindOnly(ReasonCodes);
+    }
+
+    private void OpenCaptureModal(QcCriterionItem crit, QcStage stage)
+    {
+        _modalCriterion = crit;
+        _modalStageLabel = StageLabel(stage);
+        _modalOpen = true;
+        StateHasChanged();
+    }
+
+    private async Task OnCapturedAsync(QcCaptureItem _)
+    {
+        if (OnReloadRequested.HasDelegate) await OnReloadRequested.InvokeAsync();
+    }
+
+    private async Task OnModalClosedAsync()
+    {
+        _modalOpen = false;
+        _modalCriterion = null;
+        _modalStageLabel = "";
+        await Task.CompletedTask;
+        StateHasChanged();
+    }
+
+    private static string StageLabel(QcStage stage) => stage switch
+    {
+        QcStage.IpqcPrint => "IPQC · Print",
+        QcStage.IpqcCut   => "IPQC · Cut",
+        QcStage.Fqc       => "FQC · Final",
+        QcStage.Oqc       => "OQC · Outgoing",
+        _                 => stage.ToString(),
+    };
+
+    private static string ResultLabel(QcCaptureResult r) => r switch
+    {
+        QcCaptureResult.Pass => "PASS",
+        QcCaptureResult.Fail => "FAIL",
+        QcCaptureResult.Na   => "N/A",
+        _                    => r.ToString(),
+    };
+}

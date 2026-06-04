@@ -1,0 +1,100 @@
+=== P10.5f wire-level verification (round 2) — Thu Jun  4 10:35:06 +07 2026 ===
+rev id = 1
+
+--- [1] eng-npi upserts 4 stages ---
+  IpqcPrint → 2 criteria
+  IpqcCut → 2 criteria
+  Fqc → 2 criteria
+  Oqc → 2 criteria
+
+--- [2] GET windows (eng-npi) ---
+  IpqcPrint: 2 criteria (window_id=1)
+  IpqcCut: 2 criteria (window_id=2)
+  Fqc: 2 criteria (window_id=3)
+  Oqc: 2 criteria (window_id=4)
+
+--- [3] Picked criterion id=17 ---
+
+--- [4] Capture PASS via eng-npi ---
+{
+    "id": 1,
+    "specQcWindowId": 1,
+    "qcCriterionId": 17,
+    "result": 0,
+    "measurement": "12.5mm",
+    "ngReasonCode": null,
+    "comment": null,
+    "capturedBy": "eng-npi",
+    "capturedAt": "2026-06-04T03:35:06.968499Z"
+}
+
+--- [5] Capture FAIL without reason → 422 ---
+  HTTP 422
+{
+    "code": "qc.reason_required",
+    "error": "NG reason code is required when result = FAIL."
+}
+
+--- [6] Capture FAIL with reason=SC-COLOR → 200 ---
+{
+    "id": 2,
+    "specQcWindowId": 1,
+    "qcCriterionId": 17,
+    "result": 1,
+    "measurement": null,
+    "ngReasonCode": "SC-COLOR",
+    "comment": "L\u1ec7ch m\u00e0u pantone",
+    "capturedBy": "eng-npi",
+    "capturedAt": "2026-06-04T03:35:07.077499Z"
+}
+
+--- [7] Capture FAIL with unknown reason → 422 ---
+  HTTP 422
+{
+    "code": "qc.invalid_reason",
+    "error": "NG reason code 'NEVER-EXIST' is not a known active reason code."
+}
+
+--- [8] History walk ---
+  total captures = 2
+  crit=17 result=0 reason=- by=eng-npi measurement=12.5mm
+  crit=17 result=1 reason=SC-COLOR by=eng-npi measurement=-
+
+--- [9] Supervisor capture → 403 qc.forbidden ---
+  HTTP 403
+{
+    "code": "qc.forbidden",
+    "error": "Role 'Supervisor' kh\u00f4ng c\u00f3 quy\u1ec1n capture QC (c\u1ea7n Admin ho\u1eb7c Engineer)."
+}
+
+--- [10] Supervisor upsert → 403 qc.forbidden ---
+  HTTP 403
+{
+    "code": "qc.forbidden",
+    "error": "Role 'Supervisor' kh\u00f4ng c\u00f3 quy\u1ec1n ch\u1ec9nh s\u1eeda QC plans (c\u1ea7n Admin ho\u1eb7c Engineer)."
+}
+
+--- [11] GET reason-codes — Kind/Sort exposed ---
+  code=PA-WAIT kind=Pause sort=1 labelVi=Chờ vật liệu
+  code=SC-COLOR kind=Scrap sort=1 labelVi=Sai màu
+  code=SC-MAT kind=Scrap sort=2 labelVi=Lỗi vật liệu
+  code=SC-DIM kind=Scrap sort=3 labelVi=Sai kích thước
+
+--- [12] AUDIT — final state ---
+SPEC_QC_CAPTURE_DEVICE|eng-npi|{"device_id":"0193f5c0-0000-0000-0000-finalverify001","detail":{"revision_id":1,"criterion_id":17,"r
+SPEC_QC_CAPTURE|eng-npi|{"revision_id":1,"stage":"IpqcPrint","criterion_id":17,"result":"Fail","has_measurement":false,"ng_r
+SPEC_QC_CAPTURE_DEVICE|eng-npi|{"device_id":"0193f5c0-0000-0000-0000-finalverify001","detail":{"revision_id":1,"criterion_id":17,"r
+SPEC_QC_CAPTURE|eng-npi|{"revision_id":1,"stage":"IpqcPrint","criterion_id":17,"result":"Pass","has_measurement":true,"ng_re
+SPEC_QC_PLAN_UPSERT_DEVICE|eng-npi|{"device_id":"0193f5c0-0000-0000-0000-finalverify001","detail":{"revision_id":1,"stage":"Oqc","windo
+SPEC_QC_PLAN_UPSERT|eng-npi|{"revision_id":1,"stage":"Oqc","criteria_count":2,"created":2,"updated":0,"deleted":2}
+SPEC_QC_PLAN_UPSERT_DEVICE|eng-npi|{"device_id":"0193f5c0-0000-0000-0000-finalverify001","detail":{"revision_id":1,"stage":"Fqc","windo
+SPEC_QC_PLAN_UPSERT|eng-npi|{"revision_id":1,"stage":"Fqc","criteria_count":2,"created":2,"updated":0,"deleted":2}
+SPEC_QC_PLAN_UPSERT_DEVICE|eng-npi|{"device_id":"0193f5c0-0000-0000-0000-finalverify001","detail":{"revision_id":1,"stage":"IpqcCut","w
+SPEC_QC_PLAN_UPSERT|eng-npi|{"revision_id":1,"stage":"IpqcCut","criteria_count":2,"created":2,"updated":0,"deleted":2}
+SPEC_QC_PLAN_UPSERT_DEVICE|eng-npi|{"device_id":"0193f5c0-0000-0000-0000-finalverify001","detail":{"revision_id":1,"stage":"IpqcPrint",
+SPEC_QC_PLAN_UPSERT|eng-npi|{"revision_id":1,"stage":"IpqcPrint","criteria_count":2,"created":2,"updated":0,"deleted":2}
+SPEC_QC_PLAN_UPSERT_DEVICE|admin|{"device_id":"0193f5c0-0000-0000-0000-qcverify00002","detail":{"revision_id":1,"stage":"Oqc","window
+SPEC_QC_PLAN_UPSERT|admin|{"revision_id":1,"stage":"Oqc","criteria_count":2,"created":2,"updated":0,"deleted":2}
+SPEC_QC_PLAN_UPSERT_DEVICE|admin|{"device_id":"0193f5c0-0000-0000-0000-qcverify00002","detail":{"revision_id":1,"stage":"Fqc","window
+
+=== verification complete —       99 lines ===
