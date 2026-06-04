@@ -1,0 +1,97 @@
+=== P10.5c-3 wire-level verification — Thu Jun  4 08:03:03 +07 2026 ===
+
+--- [1] LOGIN ---
+Login OK (token len=596)
+
+--- [2] Import silk SaveNew → rev A ---
+{
+    "productRevisionId": 1,
+    "productId": 1,
+    "specCode": "DEMO-PN-001",
+    "refNo": "CCL-Silk-19235",
+    "rowsParsed": 9,
+    "createdNewProduct": true,
+    "warnings": [],
+    "mode": "SaveNew"
+}
+
+--- [3] Re-import silk UpgradeRev → rev B + parent lineage ---
+{
+  "duplicateRefNo": true,
+  "duplicateStatus": "Draft",
+  "duplicateRevisionId": 1
+}
+{
+    "productRevisionId": 2,
+    "productId": 1,
+    "specCode": "DEMO-PN-001",
+    "refNo": "CCL-Silk-19235",
+    "rowsParsed": 9,
+    "createdNewProduct": false,
+    "warnings": [],
+    "mode": "UpgradeRev"
+}
+
+--- [4] Re-import silk UpgradeRev again → rev C ---
+{
+    "productRevisionId": 3,
+    "productId": 1,
+    "specCode": "DEMO-PN-001",
+    "refNo": "CCL-Silk-19235",
+    "rowsParsed": 9,
+    "createdNewProduct": false,
+    "warnings": [],
+    "mode": "UpgradeRev"
+}
+
+--- [5] DB chain Status + ParentRevisionId + RevisionCode ---
+1|A|Superseded||0
+2|B|Superseded|1|0
+3|C|Draft|2|0
+
+--- [6] Import flexo sample (SaveNew) ---
+{
+    "productRevisionId": 4,
+    "productId": 2,
+    "specCode": "DEMO-FX-001",
+    "refNo": "CCL-Seal-30952",
+    "rowsParsed": 10,
+    "createdNewProduct": true,
+    "warnings": [],
+    "mode": "SaveNew"
+}
+
+--- [7] GET /specs?planner=SILK ---
+Total=3 returned=3
+  id=3 rev=C processCode=SILKSCREEN status=0
+  id=2 rev=B processCode=SILKSCREEN status=4
+  id=1 rev=A processCode=SILKSCREEN status=4
+
+--- [8] GET /specs?planner=FLEXO ---
+Total=1 returned=1
+  id=4 processCode=FLEXO
+
+--- [9] Inline edit Title on Draft rev C (id=3) ---
+{
+    "id": 3,
+    "specCode": "DEMO-PN-001",
+    "revision": "C",
+    "status": "Draft",
+    "title": "Edited via inline shell",
+    "productId": null,
+    "parentId": null,
+    "isTrashed": null,
+    "noChanges": false
+
+--- [10] DB Title after inline edit ---
+3|C|Edited via inline shell|Draft
+
+--- [11] Inline edit on Superseded rev (id=1) → 422 immutable_status ---
+{
+    "code": "immutable_status",
+    "error": "Only Draft revisions are editable; current status is Superseded",
+    "currentStatus": "Superseded",
+    "activeWoCount": null
+}
+
+=== verification complete — trace at /tmp/p10-5c-3-curl-trace.txt ===

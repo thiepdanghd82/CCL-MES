@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using CCL.MES.Api.Tests._Support;
 using CCL.MES.Domain.Auth;
+using CCL.MES.Domain.Entities;
 using CCL.MES.Infrastructure;
 using CCL.MES.Shared.Specs;
 using Microsoft.EntityFrameworkCore;
@@ -300,6 +301,98 @@ public sealed class SpecImportTests : IClassFixture<MesApiFactory>
             .ToListAsync();
         Assert.NotEmpty(deviceAudit);
         Assert.Contains(deviceAudit, a => a.Detail != null && a.Detail.Contains(save.SpecCode));
+    }
+
+    [Fact]
+    public async Task UpgradeRev_bumps_revision_letter_and_supersedes_source()
+    {
+        var samplePath = SilkSamplePath();
+        Assert.True(File.Exists(samplePath));
+
+        var client = await EngineerClientAsync("eng-upgrade-rev");
+        var bytes = await File.ReadAllBytesAsync(samplePath);
+
+        // Each test in this class shares the MesApiFactory DB fixture, so
+        // a clean "first import = rev A" assumption doesn't hold (sibling
+        // tests already inserted DEMO_SILK_1.xlsx). Instead, we assert
+        // bumped-letter semantics relative to whatever rev is current at
+        // import time, plus the supersede chain. That's the actual
+        // behavior contract the legacy fix introduces.
+
+        async Task<SpecImportSaveResponse> ImportOnceAsync(string mode)
+        {
+            using var body = BuildMultipart(bytes, "DEMO_SILK_1.xlsx", "silkscreen");
+            var p = await (await client.PostAsync("/api/v2/specs/import/preview", body))
+                .Content.ReadFromJsonAsync<SpecImportPreviewResponse>();
+            Assert.NotNull(p);
+            Assert.True(p!.ParseOk);
+            var actualMode = mode == SpecImportSaveMode.UpgradeRev && !p.DuplicateRefNo
+                ? SpecImportSaveMode.SaveNew
+                : mode;
+            var save = await client.PostAsJsonAsync("/api/v2/specs/import/save", new SpecImportSaveRequest
+            {
+                ParsedJson = p.ParsedJson!,
+                FileName = p.FileName,
+                PlannerCategory = p.PlannerCategory,
+                Mode = actualMode,
+            });
+            var saveBody = await save.Content.ReadAsStringAsync();
+            Assert.True(save.StatusCode == HttpStatusCode.OK,
+                $"Import save failed with {save.StatusCode}: {saveBody}");
+            return (await save.Content.ReadFromJsonAsync<SpecImportSaveResponse>())!;
+        }
+
+        ProductRevision Reload(long id)
+        {
+            using var scope = _fx.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            return db.ProductRevisions.AsNoTracking().First(r => r.Id == id);
+        }
+
+        // Iteration 1 — depending on sibling-test state this may create rev
+        // "A" (clean DB) OR detect a dup + bump. Either way it gives us a
+        // baseline to chain from.
+        var first = await ImportOnceAsync(SpecImportSaveMode.UpgradeRev);
+        var firstRev = Reload(first.ProductRevisionId);
+
+        // Iteration 2 — MUST UpgradeRev (dup is guaranteed now).
+        var second = await ImportOnceAsync(SpecImportSaveMode.UpgradeRev);
+        var secondRev = Reload(second.ProductRevisionId);
+
+        // Iteration 3 — same chain.
+        var third = await ImportOnceAsync(SpecImportSaveMode.UpgradeRev);
+        var thirdRev = Reload(third.ProductRevisionId);
+
+        // After iteration 2 firstRev must be Superseded, no trashed suffix.
+        var firstRevReloaded = Reload(first.ProductRevisionId);
+        Assert.Equal(CCL.MES.Domain.ProductRevisionStatus.Superseded, firstRevReloaded.Status);
+        Assert.False(firstRevReloaded.IsTrashed,
+            "Source rev must NOT be IsTrashed under the new UpgradeRev semantics.");
+        Assert.NotNull(firstRevReloaded.EffectiveTo);
+        Assert.DoesNotContain("-trashed-", firstRevReloaded.RevisionCode);
+
+        // After iteration 3 secondRev is Superseded.
+        var secondRevReloaded = Reload(second.ProductRevisionId);
+        Assert.Equal(CCL.MES.Domain.ProductRevisionStatus.Superseded, secondRevReloaded.Status);
+        Assert.False(secondRevReloaded.IsTrashed);
+        Assert.DoesNotContain("-trashed-", secondRevReloaded.RevisionCode);
+
+        // Letter bumps monotonically via NextAvailableRev — chain second
+        // is one letter ahead of first, and third one ahead of second.
+        Assert.Equal(
+            CCL.MES.Application.Services.SpecRevisionHelpers.NextRev(firstRev.RevisionCode),
+            secondRev.RevisionCode);
+        Assert.Equal(
+            CCL.MES.Application.Services.SpecRevisionHelpers.NextRev(secondRev.RevisionCode),
+            thirdRev.RevisionCode);
+
+        // Lineage chain.
+        Assert.Equal(first.ProductRevisionId, secondRev.ParentRevisionId);
+        Assert.Equal(second.ProductRevisionId, thirdRev.ParentRevisionId);
+
+        // New revs always Draft on insert.
+        Assert.Equal(CCL.MES.Domain.ProductRevisionStatus.Draft, thirdRev.Status);
+        Assert.DoesNotContain("-trashed-", thirdRev.RevisionCode);
     }
 
     [Fact]

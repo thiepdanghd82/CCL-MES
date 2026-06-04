@@ -1715,3 +1715,98 @@ html, body {
 .import-warnings li {
     margin: 2px 0;
 }
+
+/* ── P10.5c-3 — Planner chip filter + inline edit ───────────────── */
+
+.spec-planner-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-left: 8px;
+}
+
+.spec-planner-filter-chip {
+    border: 1px solid #d1d5db;
+    background: white;
+    color: #374151;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.spec-planner-filter-chip:hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+}
+
+.spec-planner-filter-chip.is-active {
+    color: white;
+    border-color: transparent;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+/* Active state colour borrows the planner palette already used by
+   the row-level chip. Each planner family gets its own active hue
+   so the operator can tell at a glance which planner is filtered. */
+.spec-planner-filter-chip.is-active.spec-planner-silk    { background: #1e40af; }
+.spec-planner-filter-chip.is-active.spec-planner-flexo   { background: #6d28d9; }
+.spec-planner-filter-chip.is-active.spec-planner-letter  { background: #b45309; }
+.spec-planner-filter-chip.is-active.spec-planner-indigo  { background: #4338ca; }
+.spec-planner-filter-chip.is-active.spec-planner-diecut  { background: #be123c; }
+
+/* Inline edit shell — wraps editable cell content. Click target +
+   visible hover affordance only on rows the operator can actually
+   mutate (Draft). */
+.spec-row-editable {
+    background: rgba(254, 252, 232, 0.45);
+}
+
+.spec-inline-edit-shell {
+    display: inline-block;
+    padding: 2px 4px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1px dashed transparent;
+    min-width: 1.5em;
+}
+
+.spec-row-editable .spec-inline-edit-shell:hover {
+    background: white;
+    border-color: #d1d5db;
+}
+
+.spec-inline-edit-shell.is-active {
+    background: white;
+    border-color: #2563eb;
+    cursor: text;
+    padding: 0;
+}
+
+.spec-inline-edit-input {
+    border: none;
+    outline: none;
+    width: 100%;
+    min-width: 8em;
+    background: transparent;
+    font: inherit;
+    padding: 2px 6px;
+    box-sizing: border-box;
+}
+
+.spec-inline-edit-input:disabled {
+    color: #6b7280;
+    background: #f3f4f6;
+    cursor: progress;
+}
+
+.spec-inline-edit-error {
+    display: block;
+    background: rgba(248, 81, 73, 0.1);
+    color: #991b1b;
+    border-top: 1px solid rgba(248, 81, 73, 0.4);
+    padding: 4px 8px;
+    font-size: 0.78rem;
+}

@@ -67,9 +67,13 @@ public sealed class SpecsController : ControllerBase
         [FromQuery] string? search,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
-        [FromQuery] SpecListView view = SpecListView.Active)
+        [FromQuery] SpecListView view = SpecListView.Active,
+        [FromQuery] string? planner = null)
     {
-        var result = await _svc.SpecsAsync(search, page, pageSize, view);
+        // P10.5c-3 — planner chip filter forwarded to legacy service.
+        // Accepts SILK / FLEXO / LETTER / INDIGO / DIECUT (canonical
+        // planner codes used by SpecShowcardVm). Empty / unknown = no filter.
+        var result = await _svc.SpecsAsync(search, page, pageSize, view, planner);
         return Ok(result);
     }
 
@@ -600,31 +604,15 @@ public sealed class SpecsController : ControllerBase
                     return UnprocessableEntity(new SpecMutationError { Code = "import.invalid_mode", Error = $"Unknown mode '{req.Mode}'." });
             }
 
-            // UpgradeRev needs the legacy refresh-samples behavior: soft-
-            // trash the matching existing rev BEFORE SaveAsync sees the
-            // dup. RefreshSamplesAsync does this inline; we replicate the
-            // small dance here since SaveAsync alone won't soft-trash
-            // when overwriteRefNo=true (it just bypasses the dup check).
-            //
-            // Also rename the trashed rev's RevisionCode so the SaveAsync
-            // hardcoded "A" doesn't collide on the (ProductId, RevisionCode)
-            // UNIQUE index. The suffix keeps the trashed rev individually
-            // identifiable in the Trash view; revision-letter increment
-            // (A→B→C) for the live rev is tracked as a follow-up (legacy
-            // hardcodes "A" on every save).
-            if (mode == SpecImportSaveMode.UpgradeRev && !string.IsNullOrWhiteSpace(parsed.RefNo))
-            {
-                var existing = await _db.ProductRevisions
-                    .FirstOrDefaultAsync(r => !r.IsTrashed && r.RefNo == parsed.RefNo, ct);
-                if (existing is not null)
-                {
-                    existing.IsTrashed = true;
-                    existing.TrashedAt = DateTime.UtcNow;
-                    existing.TrashedBy = ActorName();
-                    existing.RevisionCode = $"{existing.RevisionCode}-trashed-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
-                    await _db.SaveChangesAsync(ct);
-                }
-            }
+            // P10.5c-3 — the prior rename-suffix workaround here was
+            // removed. Legacy SpecImportService.SaveAsync now handles the
+            // UpgradeRev flow correctly: when overwriteRefNo=true and a
+            // matching non-trashed rev exists, it supersedes that rev
+            // (Status=Superseded + EffectiveTo=now) AND bumps the new
+            // rev's letter via SpecRevisionHelpers.NextAvailableRev,
+            // preserving lineage via ParentRevisionId. No more
+            // (ProductId, "A") UNIQUE collisions, no trashed-suffix
+            // noise in the Trash view.
 
             SpecImportSaveResult save;
             try
