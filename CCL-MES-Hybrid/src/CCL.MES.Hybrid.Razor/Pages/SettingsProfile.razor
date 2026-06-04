@@ -1,0 +1,187 @@
+@page "/settings/profile"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject ICclApiClient Api
+@inject NavigationManager Nav
+@using CCL.MES.Hybrid.Client.Specs
+
+@*
+  P10.6a — My Profile. Reads /settings/me on mount, lets the operator
+  edit DisplayName, posts via PATCH /settings/me. Username + Role +
+  Department are server-only (admin sets them) so render as read-only
+  rows.
+
+  Form pattern mirrors Login.razor (current main): EditForm +
+  InputText + @bind-Value:event="oninput" + @onkeydown. Q11
+  _submitting guard prevents double-fire. Q4 online-only — every
+  failure path lands in the inline VN banner via SpecMutationErrorMapper.
+*@
+
+<PageTitle>Hồ sơ của tôi — CCL MES</PageTitle>
+
+<div class="settings-page-header">
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
+    <h1 class="page-title">Hồ sơ của tôi</h1>
+</div>
+
+@if (_loading && _profile is null)
+{
+    <p class="grid-status">Đang tải hồ sơ…</p>
+}
+else if (_loadError is not null)
+{
+    <div class="grid-error" role="alert">
+        <strong>Không tải được hồ sơ.</strong>
+        <div>@_loadError</div>
+        <button type="button" class="grid-btn" @onclick="LoadAsync">Thử lại</button>
+    </div>
+}
+else if (_profile is not null)
+{
+    @if (_profile.MustChangePassword)
+    {
+        <div class="settings-warn" role="alert">
+            ⚠ Bạn được cấp mật khẩu tạm thời. Vui lòng vào
+            <a href="/settings/password">Đổi mật khẩu</a> để đặt mật khẩu của riêng bạn.
+        </div>
+    }
+
+    <section class="settings-form-card">
+        <EditForm Model="@_form" OnValidSubmit="SubmitAsync" FormName="profile">
+            <div class="settings-field">
+                <label for="prof-username">Tên đăng nhập</label>
+                <input id="prof-username" class="settings-input" type="text"
+                       value="@_profile.Username" disabled />
+                <span class="settings-hint">Liên hệ quản trị viên nếu cần đổi.</span>
+            </div>
+            <div class="settings-field">
+                <label for="prof-role">Vai trò</label>
+                <input id="prof-role" class="settings-input" type="text"
+                       value="@_profile.Role" disabled />
+            </div>
+            <div class="settings-field">
+                <label for="prof-dept">Phòng ban</label>
+                <input id="prof-dept" class="settings-input" type="text"
+                       value="@(_profile.Department ?? "—")" disabled />
+            </div>
+            <div class="settings-field">
+                <label for="prof-display">Tên hiển thị</label>
+                <InputText id="prof-display" class="settings-input"
+                           tabindex="1" maxlength="100"
+                           @bind-Value="_form.DisplayName" @bind-Value:event="oninput"
+                           @onkeydown="OnFieldKeyDown" />
+                <span class="settings-hint">Tối đa 100 ký tự. Để trống để xoá.</span>
+            </div>
+
+            @if (_banner is not null)
+            {
+                <div class="settings-banner @($"is-{_bannerKind}")" role="status">@_banner</div>
+            }
+
+            <div class="settings-actions">
+                <button type="submit" class="grid-btn grid-btn-primary"
+                        disabled="@_submitting" @onclick="SubmitAsync">
+                    @(_submitting ? "Đang lưu…" : "Lưu thay đổi")
+                </button>
+            </div>
+        </EditForm>
+
+        <dl class="settings-meta">
+            <div><dt>Ngày tạo</dt><dd>@_profile.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</dd></div>
+            <div><dt>Sửa lần cuối</dt><dd>@(_profile.UpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</dd></div>
+        </dl>
+    </section>
+}
+
+@code {
+    private CCL.MES.Shared.Settings.SettingsProfileDto? _profile;
+    private bool _loading;
+    private string? _loadError;
+    private bool _submitting;
+    private string? _banner;
+    private string _bannerKind = "info";
+    private ProfileForm _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _loadError = null;
+        try
+        {
+            var p = await Api.GetMyProfileAsync();
+            _profile = p;
+            _form.DisplayName = p.DisplayName ?? "";
+        }
+        catch (ApiException apiEx)
+        {
+            _loadError = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_submitting || _profile is null) return;
+        _submitting = true;
+        _banner = null;
+        try
+        {
+            var req = new CCL.MES.Shared.Settings.UpdateProfileRequest
+            {
+                DisplayName = string.IsNullOrWhiteSpace(_form.DisplayName) ? null : _form.DisplayName.Trim(),
+            };
+            var updated = await Api.UpdateMyProfileAsync(req);
+            _profile = updated;
+            _form.DisplayName = updated.DisplayName ?? "";
+            _banner = "✓ Đã lưu thay đổi.";
+            _bannerKind = "success";
+        }
+        catch (ApiException apiEx)
+        {
+            _banner = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+            _bannerKind = "danger";
+        }
+        catch (HttpRequestException ex)
+        {
+            _banner = $"Không kết nối được máy chủ: {ex.Message}";
+            _bannerKind = "danger";
+        }
+        catch (Exception ex)
+        {
+            _banner = $"Lưu thất bại: {ex.Message}";
+            _bannerKind = "danger";
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private async Task OnFieldKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SubmitAsync();
+        }
+    }
+
+    private sealed class ProfileForm
+    {
+        public string DisplayName { get; set; } = "";
+    }
+}

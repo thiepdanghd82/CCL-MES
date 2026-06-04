@@ -45,12 +45,25 @@
                FallbackPolicy = RequireAuthenticatedUser. *@
             <div class="app-nav-section">SẢN XUẤT</div>
             <NavLink href="/workorders" class="app-nav-link">Work Orders — Quét</NavLink>
+        }
 
+        @* P10.6a — Settings group. The landing + Profile + Password are
+           self-service (any authenticated role). Hardware + Mode stay
+           gated by HardwareOptions.ScanEnabled + role; the Settings
+           landing also surfaces the same gates as cards so operators
+           who can't reach Hardware/Mode just don't see those cards.
+           Remaining sub-tabs (Appearance / Accounts / Audit / About /
+           Backup) ship in P10.6b-h. *@
+        <div class="app-nav-section">CÀI ĐẶT</div>
+        <NavLink href="/settings" Match="NavLinkMatch.All" class="app-nav-link">Tổng quan</NavLink>
+        <NavLink href="/settings/profile" class="app-nav-link app-nav-link-sub">Hồ sơ của tôi</NavLink>
+        <NavLink href="/settings/password" class="app-nav-link app-nav-link-sub">Đổi mật khẩu</NavLink>
+        @if (HwOptions.Value.ScanEnabled)
+        {
             <AuthorizeView Roles="Admin,Supervisor,Engineer">
-                <div class="app-nav-section">CÀI ĐẶT</div>
-                <NavLink href="/hardware" class="app-nav-link">Thiết bị</NavLink>
+                <NavLink href="/hardware" class="app-nav-link app-nav-link-sub">Thiết bị</NavLink>
                 <AuthorizeView Roles="Admin,Supervisor" Context="modeCtx">
-                    <NavLink href="/mode" class="app-nav-link">Chế độ trạm</NavLink>
+                    <NavLink href="/mode" class="app-nav-link app-nav-link-sub">Chế độ trạm</NavLink>
                 </AuthorizeView>
             </AuthorizeView>
         }

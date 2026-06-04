@@ -277,4 +277,18 @@ public sealed class SpecMutationErrorMapperTests
         Assert.Contains("ClosedXML threw on row 17", msg);
         Assert.StartsWith("Xuất file thất bại", msg);
     }
+
+    // ── P10.6a — Settings / My Profile + My Password codes ──────────
+
+    [Theory]
+    [InlineData("profile.not_found",             "Không tìm thấy thông tin tài khoản — đăng nhập lại rồi thử lại.")]
+    [InlineData("profile.invalid_body",          "Dữ liệu cập nhật không hợp lệ.")]
+    [InlineData("profile.display_name_too_long", "Tên hiển thị không được vượt quá 100 ký tự.")]
+    [InlineData("auth.wrong_current",            "Mật khẩu hiện tại không đúng.")]
+    [InlineData("auth.new_too_short",            "Mật khẩu mới phải có ít nhất 4 ký tự.")]
+    [InlineData("auth.missing_fields",           "Vui lòng nhập đủ thông tin.")]
+    public void Settings_codes_map_to_VN(string code, string expected)
+    {
+        Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code));
+    }
 }

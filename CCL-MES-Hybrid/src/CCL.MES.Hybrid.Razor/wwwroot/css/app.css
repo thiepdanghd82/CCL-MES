@@ -2665,3 +2665,153 @@ html, body {
 .grid-export-banner.is-success  { background: #ECFCE8; border-left-color: #2E9B57; color: #064D2A; }
 .grid-export-banner.is-warn     { background: #FEF6DC; border-left-color: #B45309; color: #6F3500; }
 .grid-export-banner.is-danger   { background: #FDECEC; border-left-color: #C00000; color: #6A0000; }
+
+/* ── P10.6a — Settings shell + Profile + Password ─────────────── */
+
+.page-sub { color: #475569; margin: 0 0 24px; font-size: 14px; }
+
+.settings-group { margin: 24px 0; }
+.settings-group-title {
+    margin: 0 0 12px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6B7280;
+    border-bottom: 1px solid #DDE6F3;
+    padding-bottom: 6px;
+}
+
+.settings-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.settings-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 16px;
+    border: 1px solid #B6C4DD;
+    border-radius: 8px;
+    background: white;
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.12s, transform 0.06s;
+}
+
+.settings-card:hover { background: #F5F8FC; }
+.settings-card:active { transform: translateY(1px); }
+
+.settings-card-icon { font-size: 22px; }
+.settings-card-title { font-weight: 600; color: #1F3864; }
+.settings-card-sub   { font-size: 12px; color: #64748B; }
+
+.settings-card.is-disabled {
+    background: #F8FAFC;
+    border-style: dashed;
+    border-color: #CBD5E1;
+    cursor: not-allowed;
+    color: #94A3B8;
+    pointer-events: none;
+}
+.settings-card.is-disabled .settings-card-title { color: #94A3B8; }
+
+.settings-page-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.settings-warn {
+    background: #FEF6DC;
+    border-left: 4px solid #B45309;
+    color: #6F3500;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+
+.settings-form-card {
+    background: white;
+    border: 1px solid #B6C4DD;
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 480px;
+}
+
+.settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 14px;
+}
+
+.settings-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.settings-input {
+    padding: 8px 12px;
+    border: 1px solid #B6C4DD;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1.4;
+    background: white;
+    color: #1F2937;
+}
+
+.settings-input:disabled {
+    background: #F1F5F9;
+    color: #64748B;
+    cursor: not-allowed;
+}
+
+.settings-input:focus {
+    outline: 2px solid #1F3864;
+    outline-offset: -2px;
+    border-color: #1F3864;
+}
+
+.settings-hint {
+    font-size: 11px;
+    color: #6B7280;
+    margin-top: 2px;
+}
+
+.settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
+.settings-banner {
+    margin: 12px 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    border-left: 4px solid #1F3864;
+    background: #F5F8FC;
+    color: #1F3864;
+}
+.settings-banner.is-success { background: #ECFCE8; border-left-color: #2E9B57; color: #064D2A; }
+.settings-banner.is-danger  { background: #FDECEC; border-left-color: #C00000; color: #6A0000; }
+.settings-banner.is-info    { /* default */ }
+
+.settings-meta {
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px dashed #DDE6F3;
+    font-size: 12px;
+    color: #6B7280;
+}
+.settings-meta div { display: flex; gap: 8px; }
+.settings-meta dt  { font-weight: 600; min-width: 110px; margin: 0; }
+.settings-meta dd  { margin: 0; }

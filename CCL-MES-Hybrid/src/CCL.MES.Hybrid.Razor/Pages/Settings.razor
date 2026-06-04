@@ -1,0 +1,100 @@
+@page "/settings"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject NavigationManager Nav
+@inject Microsoft.Extensions.Options.IOptions<CCL.MES.Hybrid.Client.Hardware.HardwareOptions> HwOptions
+
+@*
+  P10.6a — Settings landing. Cards link out to the sub-tab pages.
+  Profile + Password are the two new ones this PR ships; Hardware +
+  Mode link to the existing P10.3 W1 pages (no duplicate UI). The
+  remaining sub-tabs (Appearance, Account Control, Audit Log,
+  About, Backup) render as disabled-style placeholder cards so the
+  operator can see the parity roadmap; they light up as P10.6b-h
+  land.
+
+  All cards are visible to any authenticated user. Role-gated cards
+  (Hardware via ScanEnabled + Admin/Supervisor/Engineer; Mode via
+  Admin/Supervisor) wrap in <AuthorizeView> so the operator only sees
+  what they can actually open.
+*@
+
+<PageTitle>Cài đặt — CCL MES</PageTitle>
+
+<h1 class="page-title">Cài đặt</h1>
+<p class="page-sub">Quản lý hồ sơ, mật khẩu và cấu hình trạm.</p>
+
+<section class="settings-group">
+    <h2 class="settings-group-title">Tài khoản</h2>
+    <div class="settings-cards">
+        <a class="settings-card" href="/settings/profile">
+            <span class="settings-card-icon">👤</span>
+            <span class="settings-card-title">Hồ sơ của tôi</span>
+            <span class="settings-card-sub">Tên hiển thị, vai trò, phòng ban.</span>
+        </a>
+        <a class="settings-card" href="/settings/password">
+            <span class="settings-card-icon">🔑</span>
+            <span class="settings-card-title">Đổi mật khẩu</span>
+            <span class="settings-card-sub">Đặt mật khẩu mới cho tài khoản hiện tại.</span>
+        </a>
+    </div>
+</section>
+
+@if (HwOptions.Value.ScanEnabled)
+{
+    <AuthorizeView Roles="Admin,Supervisor,Engineer">
+        <section class="settings-group">
+            <h2 class="settings-group-title">Trạm</h2>
+            <div class="settings-cards">
+                <a class="settings-card" href="/hardware">
+                    <span class="settings-card-icon">🖨️</span>
+                    <span class="settings-card-title">Thiết bị</span>
+                    <span class="settings-card-sub">Máy quét, máy in, cân — đã cài đặt ở P10.3.</span>
+                </a>
+                <AuthorizeView Roles="Admin,Supervisor" Context="modeCtx">
+                    <a class="settings-card" href="/mode">
+                        <span class="settings-card-icon">🔁</span>
+                        <span class="settings-card-title">Chế độ trạm</span>
+                        <span class="settings-card-sub">Tương tác / Kiosk + mật mã khoá.</span>
+                    </a>
+                </AuthorizeView>
+            </div>
+        </section>
+    </AuthorizeView>
+}
+
+<section class="settings-group">
+    <h2 class="settings-group-title">Sẽ có (P10.6b–h)</h2>
+    <div class="settings-cards">
+        <div class="settings-card is-disabled" aria-disabled="true">
+            <span class="settings-card-icon">🌐</span>
+            <span class="settings-card-title">Ngôn ngữ &amp; Giao diện</span>
+            <span class="settings-card-sub">P10.6b — Tiếng Việt / English + chủ đề sáng-tối.</span>
+        </div>
+        <AuthorizeView Roles="Admin">
+            <div class="settings-card is-disabled" aria-disabled="true">
+                <span class="settings-card-icon">👥</span>
+                <span class="settings-card-title">Quản lý tài khoản</span>
+                <span class="settings-card-sub">P10.6c — Tạo / sửa / vô hiệu hoá tài khoản.</span>
+            </div>
+        </AuthorizeView>
+        <div class="settings-card is-disabled" aria-disabled="true">
+            <span class="settings-card-icon">ℹ️</span>
+            <span class="settings-card-title">Về ứng dụng</span>
+            <span class="settings-card-sub">P10.6d — Phiên bản, build, dung lượng.</span>
+        </div>
+        <AuthorizeView Roles="Admin">
+            <div class="settings-card is-disabled" aria-disabled="true">
+                <span class="settings-card-icon">📜</span>
+                <span class="settings-card-title">Nhật ký kiểm tra</span>
+                <span class="settings-card-sub">P10.6e — Tra cứu &amp; xuất CSV/XLSX.</span>
+            </div>
+        </AuthorizeView>
+        <AuthorizeView Roles="Admin">
+            <div class="settings-card is-disabled" aria-disabled="true">
+                <span class="settings-card-icon">💾</span>
+                <span class="settings-card-title">Sao lưu &amp; Khôi phục</span>
+                <span class="settings-card-sub">P10.6h — Snapshot + danh sách bản sao.</span>
+            </div>
+        </AuthorizeView>
+    </div>
+</section>
