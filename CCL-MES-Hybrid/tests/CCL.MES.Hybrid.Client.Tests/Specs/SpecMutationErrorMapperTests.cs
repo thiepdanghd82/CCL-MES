@@ -252,4 +252,29 @@ public sealed class SpecMutationErrorMapperTests
         Assert.Contains("Stage missing", msg);
         Assert.StartsWith("Dữ liệu QC chưa hợp lệ", msg);
     }
+
+    // ── P10.5g — Spec export codes ──────────────────────────────────
+
+    [Theory]
+    [InlineData("export.no_data",        "Không có dữ liệu phù hợp với bộ lọc — đổi điều kiện rồi xuất lại.")]
+    [InlineData("export.save_cancelled", "Bạn đã huỷ hộp thoại lưu — file vẫn còn trong thư mục tải xuống của ứng dụng.")]
+    public void Export_simple_codes_map_to_VN(string code, string expected)
+    {
+        Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code));
+    }
+
+    [Fact]
+    public void Export_failed_with_blank_message_uses_generic_VN()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("export.failed");
+        Assert.StartsWith("Xuất file thất bại", msg);
+    }
+
+    [Fact]
+    public void Export_failed_with_message_passes_through()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("export.failed", messageEn: "ClosedXML threw on row 17");
+        Assert.Contains("ClosedXML threw on row 17", msg);
+        Assert.StartsWith("Xuất file thất bại", msg);
+    }
 }

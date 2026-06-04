@@ -83,6 +83,13 @@ public static class ServiceCollectionExtensions
         // shows "Đã lưu file" without attempting to open).
         services.AddSingleton<IFileOpener, StubFileOpener>();
 
+        // P10.5g — Save-As dialog abstraction (UIDocumentPicker
+        // forExporting:). MAUI host replaces with CatalystFileSaver;
+        // tests + non-MAUI consumers keep the stub which returns
+        // SaveOutcome.Cancelled, so export flows degrade to "file kept
+        // in sandbox" UX without crashing.
+        services.AddSingleton<IFileSaver, StubFileSaver>();
+
         return services;
     }
 

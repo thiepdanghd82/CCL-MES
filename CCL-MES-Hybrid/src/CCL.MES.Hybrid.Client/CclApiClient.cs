@@ -444,6 +444,68 @@ public sealed class CclApiClient : ICclApiClient
             "QC capture returned 2xx but body was empty.");
     }
 
+    // ── Spec list / sheet exports (P10.5g) ──────────────────────────
+
+    public Task<long> DownloadSpecListExportAsync(
+        string format,
+        string? search,
+        string view,
+        string? planner,
+        string destinationFilePath,
+        CancellationToken ct = default)
+    {
+        var f = (format ?? "").Trim().ToLowerInvariant();
+        if (f != "csv" && f != "xlsx" && f != "pdf")
+            throw new ArgumentOutOfRangeException(nameof(format),
+                "Format must be one of: csv, xlsx, pdf.");
+
+        var qs = $"view={Uri.EscapeDataString(view ?? "Active")}";
+        if (!string.IsNullOrWhiteSpace(search))
+            qs += $"&search={Uri.EscapeDataString(search)}";
+        if (!string.IsNullOrWhiteSpace(planner))
+            qs += $"&planner={Uri.EscapeDataString(planner)}";
+
+        var path = $"/{ApiVersion.Prefix}/specs/export/{f}?{qs}";
+        return StreamToFileAsync(path, destinationFilePath, ct);
+    }
+
+    public Task<long> DownloadSpecSheetPdfAsync(
+        long revisionId, string destinationFilePath, CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/specs/export/{revisionId}/sheet/pdf";
+        return StreamToFileAsync(path, destinationFilePath, ct);
+    }
+
+    /// <summary>
+    /// Shared helper for the 4 export endpoints — GETs the server URL with
+    /// <see cref="HttpCompletionOption.ResponseHeadersRead"/> so the body
+    /// streams to <paramref name="destinationFilePath"/> chunk by chunk
+    /// (same pattern as <see cref="DownloadDrawingToFileAsync"/>). Carries
+    /// the device-id header so the server can pair audit emit.
+    /// </summary>
+    private async Task<long> StreamToFileAsync(
+        string path, string destinationFilePath, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Get, path);
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        using var resp = await _http.SendAsync(msg, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+
+        var dir = Path.GetDirectoryName(destinationFilePath);
+        if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+
+        await using var sourceStream = await resp.Content.ReadAsStreamAsync(ct);
+        await using var fileStream = new FileStream(
+            destinationFilePath, FileMode.Create, FileAccess.Write, FileShare.None,
+            bufferSize: 81920, useAsync: true);
+        await sourceStream.CopyToAsync(fileStream, ct);
+        await fileStream.FlushAsync(ct);
+        return new FileInfo(destinationFilePath).Length;
+    }
+
     // ── helpers ─────────────────────────────────────────────────────
 
     private string RequireDeviceId()

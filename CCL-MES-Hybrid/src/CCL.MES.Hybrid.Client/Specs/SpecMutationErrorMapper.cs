@@ -62,6 +62,11 @@ namespace CCL.MES.Hybrid.Client.Specs;
 ///   - <c>qc.invalid_reason</c>     — NgReasonCode not active or unknown
 ///   - <c>qc.not_found</c>          — Revision / Criterion missing / cross-revision
 ///   - <c>qc.validation</c>         — Generic legacy validation fallthrough
+///
+/// P10.5g — Spec export (CSV / XLSX / PDF + sheet PDF) error codes:
+///   - <c>export.failed</c>         — Server-side render exception (500)
+///   - <c>export.no_data</c>        — Filter produced 0 rows (operator hint)
+///   - <c>export.save_cancelled</c> — Save dialog dismissed (informational)
 /// </summary>
 public static class SpecMutationErrorMapper
 {
@@ -131,6 +136,10 @@ public static class SpecMutationErrorMapper
             "qc.invalid_reason"   => "Mã lý do không hợp lệ hoặc đã ngừng sử dụng.",
             "qc.not_found"        => "Không tìm thấy QC plan / tiêu chí (có thể đã bị xoá).",
             "qc.validation"       => string.IsNullOrWhiteSpace(err.MessageEn) ? "Dữ liệu QC chưa hợp lệ." : $"Dữ liệu QC chưa hợp lệ: {err.MessageEn}",
+            // P10.5g — Spec export codes.
+            "export.failed"         => string.IsNullOrWhiteSpace(err.MessageEn) ? "Xuất file thất bại — thử lại." : $"Xuất file thất bại: {err.MessageEn}",
+            "export.no_data"        => "Không có dữ liệu phù hợp với bộ lọc — đổi điều kiện rồi xuất lại.",
+            "export.save_cancelled" => "Bạn đã huỷ hộp thoại lưu — file vẫn còn trong thư mục tải xuống của ứng dụng.",
             _                       => string.IsNullOrWhiteSpace(err.MessageEn) ? $"Lỗi không xác định ({err.Code})." : err.MessageEn,
         };
     }
