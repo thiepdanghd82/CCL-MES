@@ -231,6 +231,14 @@ public interface ICclApiClient
     /// <c>profile.not_found</c> on 404.</summary>
     Task<ChangePasswordResponse> ChangeMyPasswordAsync(
         ChangePasswordRequest req, CancellationToken ct = default);
+
+    // ── Settings — About (P10.6d) ───────────────────────────────────
+    /// <summary>Server build + DB inventory snapshot for the About
+    /// page. Anonymous-friendly DTO shape — no credentials or PII;
+    /// the controller still requires auth so we don't expose the
+    /// data dir path on the public internet. Throws
+    /// <see cref="ApiException"/> on 401 / 5xx.</summary>
+    Task<AboutDto> GetAboutAsync(CancellationToken ct = default);
 }
 
 /// <summary>
