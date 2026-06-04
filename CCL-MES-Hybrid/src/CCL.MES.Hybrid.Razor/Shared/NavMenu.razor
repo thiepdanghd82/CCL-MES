@@ -58,6 +58,11 @@
         <NavLink href="/settings" Match="NavLinkMatch.All" class="app-nav-link">Tổng quan</NavLink>
         <NavLink href="/settings/profile" class="app-nav-link app-nav-link-sub">Hồ sơ của tôi</NavLink>
         <NavLink href="/settings/password" class="app-nav-link app-nav-link-sub">Đổi mật khẩu</NavLink>
+        @* P10.6d — About + Connection Mode (read-only / link-out cards;
+           the actual Hardware + Mode change controls stay where P10.3 W1
+           put them). *@
+        <NavLink href="/settings/connection" class="app-nav-link app-nav-link-sub">Chế độ kết nối</NavLink>
+        <NavLink href="/settings/about" class="app-nav-link app-nav-link-sub">Về ứng dụng</NavLink>
         @if (HwOptions.Value.ScanEnabled)
         {
             <AuthorizeView Roles="Admin,Supervisor,Engineer">

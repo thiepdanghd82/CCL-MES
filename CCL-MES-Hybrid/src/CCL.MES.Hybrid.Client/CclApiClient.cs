@@ -507,6 +507,12 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
         return await ReadAsAsync<ChangePasswordResponse>(resp, ct);
     }
 
+    public async Task<AboutDto> GetAboutAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/settings/about", ct);
+        return await ReadAsAsync<AboutDto>(resp, ct);
+    }
+
     /// <summary>
     /// Shared helper for the 4 export endpoints — GETs the server URL with
     /// <see cref="HttpCompletionOption.ResponseHeadersRead"/> so the body

@@ -1,0 +1,95 @@
+@page "/settings/connection"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject Microsoft.Extensions.Options.IOptions<CCL.MES.Hybrid.Client.ApiClientOptions> Opts
+@inject CCL.MES.Hybrid.Client.Hardware.IDeviceModeService Device
+@inject CCL.MES.Hybrid.Client.Connectivity.IConnectivityMonitor Monitor
+@inject Microsoft.Extensions.Options.IOptions<CCL.MES.Hybrid.Client.Hardware.HardwareOptions> HwOptions
+@implements IDisposable
+
+@*
+  P10.6d — Connection Mode page. READ-ONLY summary card pointing at
+  /mode (P10.3 W1) for actual change. Per Henry's "tái dùng /mode +
+  /hardware — không build trùng" instruction: this page does NOT host
+  the kiosk toggle or passcode setup; it just surfaces current state
+  + sends the operator over to the existing pages.
+
+  Surfaces 4 things:
+    1. Base URL of the API the client talks to (from ApiClientOptions).
+    2. Current connectivity state (online / offline) via
+       IConnectivityMonitor.
+    3. Current device mode (Interactive / Kiosk) + DeviceId.
+    4. Action link to /mode for change (Admin/Supervisor only).
+*@
+
+<PageTitle>Chế độ kết nối — CCL MES</PageTitle>
+
+<div class="settings-page-header">
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
+    <h1 class="page-title">Chế độ kết nối</h1>
+</div>
+
+<section class="settings-form-card">
+    <h2 class="settings-group-title">Máy chủ</h2>
+    <dl class="settings-meta">
+        <div><dt>Địa chỉ API</dt><dd><code>@Opts.Value.BaseUrl</code></dd></div>
+        <div>
+            <dt>Tình trạng kết nối</dt>
+            <dd>
+                <span class="conn-dot @(_isConnected ? "is-up" : "is-down")"></span>
+                @(_isConnected ? "Đang kết nối — sẵn sàng đăng nhập và đọc dữ liệu." : "Mất kết nối — UI sẽ chờ mạng để tải dữ liệu.")
+            </dd>
+        </div>
+    </dl>
+</section>
+
+<section class="settings-form-card" style="margin-top:16px">
+    <h2 class="settings-group-title">Trạm</h2>
+    <dl class="settings-meta">
+        <div>
+            <dt>Chế độ trạm</dt>
+            <dd>
+                @if (Device.CurrentMode == CCL.MES.Shared.Hardware.DeviceMode.Kiosk)
+                {
+                    <span>Kiosk — bị khoá vào màn hình Work Orders.</span>
+                }
+                else
+                {
+                    <span>Tương tác — đầy đủ menu cho operator + admin.</span>
+                }
+            </dd>
+        </div>
+        <div><dt>Mã thiết bị</dt><dd><code>@Device.DeviceId</code></dd></div>
+        <div>
+            <dt>Tính năng phần cứng</dt>
+            <dd>@(HwOptions.Value.ScanEnabled ? "Bật (P10.3 W1)" : "Tắt")</dd>
+        </div>
+    </dl>
+
+    <AuthorizeView Roles="Admin,Supervisor">
+        <div class="settings-actions">
+            <a class="grid-btn grid-btn-secondary" href="/mode">Đổi chế độ trạm</a>
+            <a class="grid-btn" href="/hardware" style="margin-left:8px">Cấu hình thiết bị</a>
+        </div>
+    </AuthorizeView>
+</section>
+
+@code {
+    private bool _isConnected;
+
+    protected override void OnInitialized()
+    {
+        _isConnected = Monitor.IsConnected;
+        Monitor.ConnectivityChanged += Handle;
+    }
+
+    private void Handle(bool isConnected)
+    {
+        _isConnected = isConnected;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Monitor.ConnectivityChanged -= Handle;
+    }
+}
