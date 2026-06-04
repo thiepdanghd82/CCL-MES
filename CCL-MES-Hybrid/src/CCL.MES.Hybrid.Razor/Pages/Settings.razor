@@ -89,38 +89,36 @@
     </div>
 </section>
 
-<section class="settings-group">
-    <h2 class="settings-group-title">Quản trị viên</h2>
-    <div class="settings-cards">
-        @* P10.6h shipped — Backup & Restore admin landing. *@
-        <AuthorizeView Roles="Admin">
-            <a class="settings-card" href="/settings/backup">
-                <span class="settings-card-icon">💾</span>
-                <span class="settings-card-title">Sao lưu &amp; Khôi phục</span>
-                <span class="settings-card-sub">Snapshot SQLite + khôi phục từ file (admin).</span>
-            </a>
-        </AuthorizeView>
-        @* P10.6e shipped — Audit Log viewer + CSV/XLSX export. *@
-        <AuthorizeView Roles="Admin" Context="audCtx">
-            <a class="settings-card" href="/settings/audit">
-                <span class="settings-card-icon">📜</span>
-                <span class="settings-card-title">Nhật ký kiểm tra</span>
-                <span class="settings-card-sub">Tra cứu + xuất CSV/XLSX (admin).</span>
-            </a>
-        </AuthorizeView>
-    </div>
-</section>
-
-<section class="settings-group">
-    <h2 class="settings-group-title">Sẽ có (P10.6c)</h2>
-    <div class="settings-cards">
-        @* P10.6f shipped — Recent Scans lives in the sidebar widget. *@
-        <AuthorizeView Roles="Admin">
-            <div class="settings-card is-disabled" aria-disabled="true">
-                <span class="settings-card-icon">👥</span>
-                <span class="settings-card-title">Quản lý tài khoản</span>
-                <span class="settings-card-sub">P10.6c — Tạo / sửa / vô hiệu hoá tài khoản.</span>
+@* P10.6c — wrap the entire "Quản trị viên" section in AuthorizeView
+   so the header itself hides for non-admin (Engineer / Supervisor /
+   Operator / QC). Previously the cards were each gated but the section
+   <h2> rendered unconditionally, leaving non-admin with an empty group
+   header. Carry-over from P10.6h landing-card placement + extended in
+   P10.6e — bug now closed at the section scope. *@
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        <section class="settings-group">
+            <h2 class="settings-group-title">Quản trị viên</h2>
+            <div class="settings-cards">
+                @* P10.6h shipped — Backup & Restore admin landing. *@
+                <a class="settings-card" href="/settings/backup">
+                    <span class="settings-card-icon">💾</span>
+                    <span class="settings-card-title">Sao lưu &amp; Khôi phục</span>
+                    <span class="settings-card-sub">Snapshot SQLite + khôi phục từ file.</span>
+                </a>
+                @* P10.6e shipped — Audit Log viewer + CSV/XLSX export. *@
+                <a class="settings-card" href="/settings/audit">
+                    <span class="settings-card-icon">📜</span>
+                    <span class="settings-card-title">Nhật ký kiểm tra</span>
+                    <span class="settings-card-sub">Tra cứu + xuất CSV/XLSX.</span>
+                </a>
+                @* P10.6c shipped — Account Control. *@
+                <a class="settings-card" href="/settings/accounts">
+                    <span class="settings-card-icon">👥</span>
+                    <span class="settings-card-title">Quản lý tài khoản</span>
+                    <span class="settings-card-sub">Tạo / sửa / vô hiệu hoá / reset mật khẩu.</span>
+                </a>
             </div>
-        </AuthorizeView>
-    </div>
-</section>
+        </section>
+    </Authorized>
+</AuthorizeView>
