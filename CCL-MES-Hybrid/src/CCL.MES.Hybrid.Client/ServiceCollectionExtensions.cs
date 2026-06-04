@@ -77,6 +77,12 @@ public static class ServiceCollectionExtensions
         // cancelled), so import flows degrade cleanly without crashing.
         services.AddSingleton<IFilePickerService, StubFilePickerService>();
 
+        // P10.5e-1 — file opener abstraction (Launcher.OpenAsync /
+        // QuickLook). MAUI host replaces with CatalystFileOpener; tests
+        // wire the stub which returns false from TryOpenAsync (caller
+        // shows "Đã lưu file" without attempting to open).
+        services.AddSingleton<IFileOpener, StubFileOpener>();
+
         return services;
     }
 

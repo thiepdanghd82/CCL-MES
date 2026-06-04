@@ -116,6 +116,28 @@ public interface ICclApiClient
     /// revision is unknown (server returns []; we return [] not null).</summary>
     Task<List<DrawingKindSlot>> GetDrawingsByRevisionAsync(long revisionId, CancellationToken ct = default);
 
+    // ── Drawings write surface (P10.5e-1) ─────────────────────────
+    /// <summary>Multipart upload of a new drawing version. Streams
+    /// <paramref name="content"/> directly into the request body — no
+    /// full-file buffer. Server forwards to
+    /// <c>DrawingsService.UploadAsync</c> which handles find-or-create
+    /// of the parent Drawing, version-number bump, blob store with the
+    /// 6 security guards (extension allowlist / size cap / sha256 /
+    /// path-segment / containment / atomic write), and 3-Pending
+    /// approval row seed.</summary>
+    Task<DrawingUploadResponse> UploadDrawingAsync(
+        long revisionId, string kind, Stream content, string fileName,
+        string? changeReason = null, CancellationToken ct = default);
+
+    /// <summary>Download a drawing version blob to <paramref name="destinationFilePath"/>.
+    /// Streams the response body chunk-by-chunk (no full-file buffer
+    /// in memory) so a 10 MB pdf survives slow WiFi without OOM.
+    /// Returns the file size persisted; throws on 404 / network /
+    /// blob-missing errors.</summary>
+    Task<long> DownloadDrawingToFileAsync(
+        long revisionId, long versionId, string destinationFilePath,
+        CancellationToken ct = default);
+
     // ── QC Specs (P10.5b — read) ──────────────────────────────────
     /// <summary>QC windows keyed by stage. Server returns the legacy
     /// <c>Dictionary&lt;QcStage, SpecQcWindow?&gt;</c> — we expose as

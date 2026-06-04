@@ -171,4 +171,42 @@ public sealed class SpecMutationErrorMapperTests
         // for ops triage rather than seeing a blank banner.
         Assert.Contains("import.future_code_never_seen", msg);
     }
+
+    // ── P10.5e-1 — Drawings upload + download codes ─────────────────
+
+    [Theory]
+    [InlineData("drawing.no_file",           "Chưa chọn file bản vẽ để tải lên.")]
+    [InlineData("drawing.oversize",          "File bản vẽ vượt quá 10 MB — chọn file nhỏ hơn.")]
+    [InlineData("drawing.invalid_kind",      "Loại bản vẽ không hợp lệ.")]
+    [InlineData("drawing.forbidden",         "Tài khoản không có quyền upload bản vẽ (cần Admin hoặc Engineer).")]
+    [InlineData("drawing.not_found",         "Không tìm thấy bản vẽ (có thể đã bị xoá).")]
+    [InlineData("drawing.blob_missing",      "File bản vẽ không còn trên máy chủ — vui lòng upload lại.")]
+    public void Drawing_simple_codes_map_to_VN(string code, string expected)
+    {
+        Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code));
+    }
+
+    [Fact]
+    public void Drawing_invalid_extension_lists_allowed_set()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("drawing.invalid_extension");
+        Assert.Contains("PDF", msg);
+        Assert.Contains("PNG", msg);
+        Assert.Contains("DWG", msg);
+    }
+
+    [Fact]
+    public void Drawing_validation_with_message_passes_through()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("drawing.validation", messageEn: "ProductRevision 999 not found.");
+        Assert.Contains("ProductRevision 999 not found", msg);
+        Assert.StartsWith("Bản vẽ chưa hợp lệ", msg);
+    }
+
+    [Fact]
+    public void Drawing_validation_blank_message_uses_generic_VN()
+    {
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("drawing.validation");
+        Assert.Equal("Bản vẽ chưa hợp lệ.", msg);
+    }
 }

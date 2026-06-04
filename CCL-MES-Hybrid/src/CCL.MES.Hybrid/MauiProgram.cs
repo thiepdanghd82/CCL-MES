@@ -102,6 +102,15 @@ public static class MauiProgram
             CCL.MES.Hybrid.Client.Files.IFilePickerService,
             CatalystFilePicker>());
 
+        // P10.5e-1 — file opener. Launcher.Default routes to QuickLook /
+        // Preview / the default app for the file's UTType on Catalyst
+        // + iOS; on WinUI it hits Windows.System.Launcher.LaunchFileAsync.
+        // The downloaded file MUST live in the app sandbox first; the
+        // opener exposes GetSafeDownloadDirectory() for callers.
+        builder.Services.Replace(ServiceDescriptor.Singleton<
+            CCL.MES.Hybrid.Client.Files.IFileOpener,
+            CatalystFileOpener>());
+
         // P10.3 W4 — feed the persisted device id into ApiClientOptions so
         // every device-scoped endpoint call (scan-log / heartbeat / info)
         // carries the station's stable guid. PostConfigure runs AFTER the

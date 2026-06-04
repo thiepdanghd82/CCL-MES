@@ -302,6 +302,69 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<List<DrawingKindSlot>>(resp, ct);
     }
 
+    // ── Drawings write surface (P10.5e-1) ────────────────────────────
+
+    public async Task<DrawingUploadResponse> UploadDrawingAsync(
+        long revisionId, string kind, Stream content, string fileName,
+        string? changeReason = null, CancellationToken ct = default)
+    {
+        // Multipart streaming — wrap the supplied stream as-is so
+        // HttpClient pumps chunk-by-chunk into the socket; the 10 MB
+        // legacy cap never lives entirely in heap memory (Lesson
+        // D-5b carried forward from PR #84).
+        using var form = new MultipartFormDataContent();
+        var fileContent = new StreamContent(content);
+        fileContent.Headers.ContentType =
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        form.Add(fileContent, "file", fileName);
+        if (!string.IsNullOrWhiteSpace(changeReason))
+            form.Add(new StringContent(changeReason), "changeReason");
+
+        var path = $"/{ApiVersion.Prefix}/specs/{revisionId}/drawings/upload?kind={Uri.EscapeDataString(kind)}";
+        using var msg = new HttpRequestMessage(HttpMethod.Post, path) { Content = form };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        // 90 s timeout via linked CTS covers slow WiFi upload of a
+        // full 10 MB drawing without hanging the UI.
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(90));
+
+        using var resp = await _http.SendAsync(msg, cts.Token);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, cts.Token);
+
+        var body = await resp.Content.ReadFromJsonAsync<DrawingUploadResponse>(cancellationToken: cts.Token);
+        return body ?? throw new InvalidOperationException(
+            "Drawing upload returned 2xx but body was empty.");
+    }
+
+    public async Task<long> DownloadDrawingToFileAsync(
+        long revisionId, long versionId, string destinationFilePath,
+        CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/specs/{revisionId}/drawings/{versionId}/file";
+        // Range processing enabled on the server side, so HttpCompletionOption.
+        // ResponseHeadersRead lets us stream chunks straight to disk without
+        // buffering the whole response.
+        using var resp = await _http.GetAsync(path, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+
+        // Ensure target directory exists; caller is responsible for the
+        // safe-download root selection (IFileOpener.GetSafeDownloadDirectory).
+        var dir = Path.GetDirectoryName(destinationFilePath);
+        if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+
+        await using var sourceStream = await resp.Content.ReadAsStreamAsync(ct);
+        await using var fileStream = new FileStream(
+            destinationFilePath, FileMode.Create, FileAccess.Write, FileShare.None,
+            bufferSize: 81920, useAsync: true);
+        await sourceStream.CopyToAsync(fileStream, ct);
+        await fileStream.FlushAsync(ct);
+        return new FileInfo(destinationFilePath).Length;
+    }
+
     // ── QC Specs ────────────────────────────────────────────────────
 
     public async Task<Dictionary<string, QcWindowItem?>> GetQcWindowsByRevisionAsync(long revisionId, CancellationToken ct = default)

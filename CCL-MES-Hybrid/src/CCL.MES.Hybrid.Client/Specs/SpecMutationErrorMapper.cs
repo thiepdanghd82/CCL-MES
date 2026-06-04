@@ -35,6 +35,16 @@ namespace CCL.MES.Hybrid.Client.Specs;
 ///   - <c>import.spec_code_override_required</c> — SaveAsCopy without override
 ///   - <c>import.duplicate_ref_no</c>         — RefNo dup raced past preview
 ///   - <c>import.validation</c>               — legacy SaveAsync InvalidOp (Customer/PartNo)
+///
+/// P10.5e-1 — Drawings upload + download error codes:
+///   - <c>drawing.no_file</c>             — multipart 'file' part missing
+///   - <c>drawing.oversize</c>            — &gt; 10 MB cap (blob store + API)
+///   - <c>drawing.invalid_extension</c>   — not in pdf/png/jpg/jpeg/svg/gif/webp/dwg/dxf/ai
+///   - <c>drawing.invalid_kind</c>        — kind query param not a valid DrawingKind enum
+///   - <c>drawing.forbidden</c>           — role gate (UploadAsync requires Admin/Engineer)
+///   - <c>drawing.validation</c>          — legacy UploadAsync InvalidOp catch-all
+///   - <c>drawing.not_found</c>           — version id missing OR cross-revision attempt
+///   - <c>drawing.blob_missing</c>        — DB row exists but disk blob lost
 /// </summary>
 public static class SpecMutationErrorMapper
 {
@@ -80,6 +90,15 @@ public static class SpecMutationErrorMapper
             "import.spec_code_override_required" => "Phải nhập Mã Spec mới khi chọn Lưu thành bản sao.",
             "import.duplicate_ref_no"         => "Đã tồn tại Spec với cùng REF NO — chọn Thay thế hoặc Lưu thành bản sao.",
             "import.validation"               => string.IsNullOrWhiteSpace(err.MessageEn) ? "Dữ liệu chưa hợp lệ — kiểm tra Customer / Part No." : $"Dữ liệu chưa hợp lệ: {err.MessageEn}",
+            // P10.5e-1 — Drawings upload + download codes.
+            "drawing.no_file"             => "Chưa chọn file bản vẽ để tải lên.",
+            "drawing.oversize"            => "File bản vẽ vượt quá 10 MB — chọn file nhỏ hơn.",
+            "drawing.invalid_extension"   => "Định dạng file không hợp lệ — chỉ hỗ trợ PDF / PNG / JPG / SVG / GIF / WEBP / DWG / DXF / AI.",
+            "drawing.invalid_kind"        => "Loại bản vẽ không hợp lệ.",
+            "drawing.forbidden"           => "Tài khoản không có quyền upload bản vẽ (cần Admin hoặc Engineer).",
+            "drawing.validation"          => string.IsNullOrWhiteSpace(err.MessageEn) ? "Bản vẽ chưa hợp lệ." : $"Bản vẽ chưa hợp lệ: {err.MessageEn}",
+            "drawing.not_found"           => "Không tìm thấy bản vẽ (có thể đã bị xoá).",
+            "drawing.blob_missing"        => "File bản vẽ không còn trên máy chủ — vui lòng upload lại.",
             _                       => string.IsNullOrWhiteSpace(err.MessageEn) ? $"Lỗi không xác định ({err.Code})." : err.MessageEn,
         };
     }

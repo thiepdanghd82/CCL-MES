@@ -9,4 +9,7 @@ public sealed class StubFilePickerService : IFilePickerService
 {
     public Task<PickedFile?> PickXlsxAsync(CancellationToken ct = default) =>
         Task.FromResult<PickedFile?>(null);
+
+    public Task<PickedFile?> PickFileAsync(IReadOnlyList<string> allowedExtensions, CancellationToken ct = default) =>
+        Task.FromResult<PickedFile?>(null);
 }
