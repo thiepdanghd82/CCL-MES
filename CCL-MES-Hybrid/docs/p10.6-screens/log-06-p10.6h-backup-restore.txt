@@ -1,0 +1,40 @@
+====================================================================
+P10.6h verify — 2026-06-04 20:01:42
+====================================================================
+[ctx]  repo  = /Volumes/Macintosh Data/Claude-Cowork/3. PROJECTS/CCL-CMES/CCL-MES
+[ctx]  branch= feat/p10.6h-backup-restore
+[ctx]  HEAD  = e160a22
+[ctx]  admin = admin
+[ctx]  eng   = engineer-bk-verify (will be seeded for the 403 probe)
+
+[step] kill anything on :5100
+[step] build Client lib
+[step] build API
+[build] exit=0
+[step] run client unit tests
+[step] run API unit tests (incl. 11 BackupController + 4 new canary rows)
+[step] filter-run BackupController tests to prove coverage
+[step] start API on :5100
+[run]  PID=22475  log=/var/folders/k3/j9v52bb95lxcfkzgdfdlgshc0000gn/T/ccl-api-verify-XXXXXX.oKpa5Cforx
+[step] route discovery — anon on all new backup routes (401 not 404)
+[step] login as admin
+[step] (optional) prove Engineer 403 on the wire (skipped — covered by xUnit Engineer_auth_gets_403_on_every_backup_route)
+
+============================  SUMMARY  ============================
+  PASS  Client lib build
+  PASS  API build (commit e160a22)
+  PASS  Client tests (passed=481 failed=0)
+  PASS  API tests (passed=179 failed=0)
+  PASS  BackupController tests (passed=11 ≥ 11 expected)
+  PASS  API boot (200 /health)
+  PASS  GET   /api/v2/backup anon (got 401 expected 401)
+  PASS  POST  /api/v2/backup anon (got 401 expected 401)
+  PASS  GET   /api/v2/backup/x anon (got 401 expected 401)
+  PASS  POST  /api/v2/backup/restore anon (got 401 expected 401)
+  PASS  Login admin (token_len=589)
+  PASS  GET    /api/v2/backup admin (200)
+  PASS  POST   /api/v2/backup admin (200 + fileName=ccl_mes.db.bak.snapshot-20260604-130204)
+  PASS  GET    /api/v2/backup/ccl_mes.db.bak.snapshot-20260604-130204 admin (200 + SQLite header + 18616320 bytes)
+  PASS  POST   /api/v2/backup/restore corrupt (422 backup.invalid_header)
+
+  TOTAL: pass=15 fail=0

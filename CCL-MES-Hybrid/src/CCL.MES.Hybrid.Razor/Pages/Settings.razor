@@ -90,7 +90,22 @@
 </section>
 
 <section class="settings-group">
-    <h2 class="settings-group-title">Sẽ có (P10.6e, h, c)</h2>
+    <h2 class="settings-group-title">Quản trị viên</h2>
+    <div class="settings-cards">
+        @* P10.6h shipped — Backup & Restore admin landing. Admin-only;
+           card hides for non-admin via <AuthorizeView>. *@
+        <AuthorizeView Roles="Admin">
+            <a class="settings-card" href="/settings/backup">
+                <span class="settings-card-icon">💾</span>
+                <span class="settings-card-title">Sao lưu &amp; Khôi phục</span>
+                <span class="settings-card-sub">Snapshot SQLite + khôi phục từ file (admin).</span>
+            </a>
+        </AuthorizeView>
+    </div>
+</section>
+
+<section class="settings-group">
+    <h2 class="settings-group-title">Sẽ có (P10.6e, c)</h2>
     <div class="settings-cards">
         @* P10.6f shipped — Recent Scans lives in the sidebar widget
            (rendered by RecentScansWidget under the CÀI ĐẶT nav group);
@@ -100,13 +115,6 @@
                 <span class="settings-card-icon">📜</span>
                 <span class="settings-card-title">Nhật ký kiểm tra</span>
                 <span class="settings-card-sub">P10.6e — Tra cứu &amp; xuất CSV/XLSX.</span>
-            </div>
-        </AuthorizeView>
-        <AuthorizeView Roles="Admin">
-            <div class="settings-card is-disabled" aria-disabled="true">
-                <span class="settings-card-icon">💾</span>
-                <span class="settings-card-title">Sao lưu &amp; Khôi phục</span>
-                <span class="settings-card-sub">P10.6h — Snapshot + danh sách bản sao.</span>
             </div>
         </AuthorizeView>
         <AuthorizeView Roles="Admin">

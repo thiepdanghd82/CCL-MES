@@ -257,6 +257,12 @@ builder.Services.AddScoped<CCL.MES.Application.SpecImport.SpecImportService>();
 // see the service doc-comment for the parallel-impl rationale.
 builder.Services.AddScoped<CCL.MES.Api.Services.UserProfileService>();
 
+// P10.6h — Admin Backup/Restore. Singleton because the service is
+// stateless + reads paths from IConfiguration on every call. The
+// AdminOnly policy on BackupController is the only gate; the service
+// itself does no auth (called only by the controller).
+builder.Services.AddSingleton<CCL.MES.Api.Services.BackupApiService>();
+
 // P10.5e-1 — Drawings upload + download orchestrator. Legacy Phase 8
 // PR-D-5b service composed of IMesDbContext + IBlobStore (registered
 // just above) + IAuditWriter. Multipart upload routes to UploadAsync;

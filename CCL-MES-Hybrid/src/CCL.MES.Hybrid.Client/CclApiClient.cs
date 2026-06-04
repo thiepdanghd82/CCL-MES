@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using CCL.MES.Hybrid.Client.Npi;
 using CCL.MES.Shared;
 using CCL.MES.Shared.Auth;
+using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
@@ -511,6 +512,31 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
     {
         using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/settings/about", ct);
         return await ReadAsAsync<AboutDto>(resp, ct);
+    }
+
+    // ── Backup / Restore (P10.6h) ───────────────────────────────────
+
+    public async Task<List<BackupSnapshotDto>> ListBackupsAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/backup", ct);
+        return await ReadAsAsync<List<BackupSnapshotDto>>(resp, ct);
+    }
+
+    public async Task<BackupSnapshotDto> CreateBackupAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.PostAsync($"/{ApiVersion.Prefix}/backup", content: null, ct);
+        return await ReadAsAsync<BackupSnapshotDto>(resp, ct);
+    }
+
+    public async Task<RestoreResultDto> RestoreBackupAsync(Stream content, string fileName, CancellationToken ct = default)
+    {
+        using var multipart = new MultipartFormDataContent();
+        var streamContent = new StreamContent(content);
+        streamContent.Headers.ContentType =
+            new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        multipart.Add(streamContent, "file", fileName);
+        using var resp = await _http.PostAsync($"/{ApiVersion.Prefix}/backup/restore", multipart, ct);
+        return await ReadAsAsync<RestoreResultDto>(resp, ct);
     }
 
     /// <summary>
