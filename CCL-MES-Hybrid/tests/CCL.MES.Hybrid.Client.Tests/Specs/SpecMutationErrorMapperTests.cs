@@ -92,6 +92,21 @@ public sealed class SpecMutationErrorMapperTests
     }
 
     [Fact]
+    public void Http_non_success_no_longer_double_prefixes_HTTP_when_upstream_passes_bare_code()
+    {
+        // P10.6a hotfix — Henry filed "Lỗi máy chủ (HTTP HTTP 404)" on
+        // PR #91 because the upstream synthesiser
+        // (CclApiClient.ThrowOnNonSuccess) was prepending "HTTP " to
+        // MessageEn AND the VN mapper template also wraps with
+        // "(HTTP …)". The upstream now passes the bare status code
+        // ("404") so the mapper produces the single-prefixed output.
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage("http.non_success", messageEn: "404");
+        Assert.DoesNotContain("HTTP HTTP", msg);
+        Assert.Contains("HTTP 404", msg);
+        Assert.Equal("Lỗi máy chủ (HTTP 404).", msg);
+    }
+
+    [Fact]
     public void ApiException_overload_routes_through_ApiError()
     {
         var ex = new ApiException(409, new ApiError
