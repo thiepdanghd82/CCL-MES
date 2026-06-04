@@ -3,6 +3,11 @@
   Top-level layout. Sidebar nav on the left, content + connectivity
   banner stacked on the right. Carbon-style minimalism — operators care
   about the data not the chrome.
+
+  P10.5g hotfix — <RendererCrashBoundary> wraps the route content so a
+  render-time exception in a child page can't take the BlazorWebView
+  dispatcher with it. <MacCatalystKeyboardFix> remains the always-on
+  Tab+Enter focus workaround (dotnet/maui#13934 — see component header).
 *@
 
 <div class="app-shell">
@@ -10,7 +15,9 @@
     <main class="app-main">
         <ConnectivityBanner />
         <div class="app-content">
-            @Body
+            <RendererCrashBoundary>
+                @Body
+            </RendererCrashBoundary>
         </div>
     </main>
 </div>

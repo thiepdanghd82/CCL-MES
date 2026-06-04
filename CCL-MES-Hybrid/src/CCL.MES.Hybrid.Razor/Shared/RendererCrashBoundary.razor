@@ -1,0 +1,83 @@
+@*
+  P10.5g hotfix — Blazor render-time exception containment. Wraps every
+  layout's content tree so a throw from a child component is caught at
+  the renderer boundary instead of taking the dispatcher with it. The
+  fallback UI tells the operator what happened + offers a reload (which
+  for BlazorWebView Hybrid is a no-op browser reload of the host page).
+
+  Pairs with:
+    - GlobalErrorLogger (MauiProgram-armed) for AppDomain +
+      UnobservedTaskException — covers the BACKGROUND path.
+    - This component — covers the FOREGROUND/render path.
+
+  Why this exists instead of bare <ErrorBoundary>: we want
+    (a) a VN fallback message + Reload button (not the generic
+        "An error has occurred" string), and
+    (b) the exception logged via console.error so it lands in the
+        Catalyst cclLog bridge (DEBUG) + Safari Web Inspector tail
+        and surfaces in the same forensic trail as background
+        crashes.
+  Both require an OnErrorAsync override — only available on
+  ErrorBoundaryBase, not ErrorBoundary.
+*@
+@inherits Microsoft.AspNetCore.Components.ErrorBoundaryBase
+@inject IJSRuntime JS
+
+@if (CurrentException is null)
+{
+    @ChildContent
+}
+else
+{
+    <div class="renderer-crash-card" role="alert">
+        <h2>⚠ Có lỗi không xác định</h2>
+        <p>Một thành phần giao diện vừa gặp lỗi. Bạn có thể tải lại trang để tiếp tục — dữ liệu chưa lưu có thể mất.</p>
+        <details>
+            <summary>Chi tiết lỗi</summary>
+            <pre>@CurrentException.GetType().Name: @CurrentException.Message</pre>
+        </details>
+        <button type="button" class="renderer-crash-reload" @onclick="ReloadAsync">Tải lại</button>
+    </div>
+}
+
+@code {
+    private bool _logged;
+
+    /// <summary>
+    /// Mirror the captured exception to console.error (the JS layer
+    /// keeps it in Safari Web Inspector + the cclLog bridge in DEBUG)
+    /// + Console.WriteLine so a stderr tail in the MAUI host also
+    /// sees the line. We log ONCE per exception capture so a noisy
+    /// retry cycle doesn't flood the console.
+    /// </summary>
+    protected override async Task OnErrorAsync(Exception ex)
+    {
+        if (_logged) return;
+        _logged = true;
+        try
+        {
+            await JS.InvokeVoidAsync("console.error",
+                $"[renderer-crash] {ex.GetType().FullName}: {ex.Message}");
+            await JS.InvokeVoidAsync("console.error", ex.StackTrace ?? "(no stack)");
+        }
+        catch
+        {
+            // JS bridge may already be gone — Console.WriteLine path
+            // stays alive via Catalyst's stderr forwarding.
+            Console.WriteLine($"[renderer-crash] {ex.GetType().FullName}: {ex.Message}");
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        Recover();
+        _logged = false;
+        try { await JS.InvokeVoidAsync("location.reload"); }
+        catch
+        {
+            // Reload is best-effort. If JS bridge died too, operator
+            // can kill+relaunch the app — the rolling error log under
+            // AppDataDirectory/logs survives that.
+        }
+    }
+}

@@ -90,4 +90,53 @@ public sealed class MacCatalystKeyboardFixRegressionTests
         Assert.Contains("wkMatchesCatalyst", body, StringComparison.Ordinal);
         Assert.Contains("window.webkit", body, StringComparison.Ordinal);
     }
+
+    // ── P10.5g hotfix — renderer crash containment ──────────────────
+
+    [Theory]
+    [InlineData("MainLayout.razor")]
+    [InlineData("EmptyLayout.razor")]
+    public void Layout_wraps_body_in_RendererCrashBoundary(string filename)
+    {
+        // The crash boundary is the foreground-path companion to the
+        // background-path GlobalErrorLogger. Dropping it from either
+        // layout means a render-time throw in a child page takes the
+        // BlazorWebView dispatcher with it — the "click does nothing"
+        // symptom Henry reported on the 5g branch. Refuse the merge.
+        var path = LayoutPath(filename);
+        Assert.True(File.Exists(path));
+        var body = File.ReadAllText(path);
+        Assert.Contains("<RendererCrashBoundary>", body, StringComparison.Ordinal);
+        Assert.Contains("</RendererCrashBoundary>", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RendererCrashBoundary_inherits_ErrorBoundaryBase_and_logs_via_OnErrorAsync()
+    {
+        // ErrorBoundaryBase is the only ASP.NET Core base that exposes
+        // the OnErrorAsync hook we use to forward render-time exceptions
+        // to console.error + Console.WriteLine. Subclass that base — NOT
+        // the simpler ErrorBoundary — or the operator-side incident
+        // forensic trail breaks.
+        var path = LayoutPath("RendererCrashBoundary.razor");
+        Assert.True(File.Exists(path), $"Component missing: {path}");
+        var body = File.ReadAllText(path);
+        Assert.Contains("ErrorBoundaryBase", body, StringComparison.Ordinal);
+        Assert.Contains("OnErrorAsync", body, StringComparison.Ordinal);
+        Assert.Contains("[renderer-crash]", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MacCatalystKeyboardFix_carries_always_on_JS_error_capture()
+    {
+        // Production-safe JS-side capture for window.onerror +
+        // unhandledrejection — see component comment block. Sentinel
+        // strings "[js-uncaught]" + "[js-unhandled-rejection]" let
+        // ops-side log tails grep without parsing structure.
+        var path = LayoutPath("MacCatalystKeyboardFix.razor");
+        var body = File.ReadAllText(path);
+        Assert.Contains("[js-uncaught]", body, StringComparison.Ordinal);
+        Assert.Contains("[js-unhandled-rejection]", body, StringComparison.Ordinal);
+        Assert.Contains("__cclJsErrorLogger", body, StringComparison.Ordinal);
+    }
 }

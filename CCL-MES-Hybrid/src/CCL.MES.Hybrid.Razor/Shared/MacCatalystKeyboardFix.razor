@@ -36,6 +36,31 @@
   one-line edit (drop the component from the layouts).
 *@
 <script type="text/javascript">
+    // P10.5g hotfix — production-safe JS-side error capture. Always-on
+    // (NOT gated on Catalyst), idempotent. Forwards window.onerror +
+    // unhandledrejection to console.error so the Web Inspector tail +
+    // the Catalyst cclLog bridge (DEBUG) + any future JS log shipper
+    // see the same line. Sentinel "[js-uncaught]" matches the regex
+    // tests use to assert observability.
+    (function () {
+        if (window.__cclJsErrorLogger) return;
+        window.__cclJsErrorLogger = true;
+        window.addEventListener('error', function (ev) {
+            try {
+                console.error('[js-uncaught] ' +
+                    (ev && ev.message ? ev.message : '(no message)') +
+                    ' at ' + ((ev && ev.filename) || '?') + ':' +
+                    ((ev && ev.lineno) || '?'));
+            } catch (e) { /* console may be wrapped */ }
+        });
+        window.addEventListener('unhandledrejection', function (ev) {
+            try {
+                var reason = ev && ev.reason ? String(ev.reason) : '(no reason)';
+                console.error('[js-unhandled-rejection] ' + reason);
+            } catch (e) { /* swallow */ }
+        });
+    })();
+
     (function () {
         // Idempotency guard — both MainLayout + EmptyLayout inject
         // this component, and SPA navigation between them may run

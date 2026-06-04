@@ -4,6 +4,7 @@
 @inject ICclApiClient Api
 @inject IAuthSession Session
 @inject NavigationManager Nav
+@implements IDisposable
 
 <PageTitle>Đăng nhập — CCL MES</PageTitle>
 
@@ -11,6 +12,16 @@
     <div class="login-card">
         <h1 class="login-title">CCL · MES</h1>
         <p class="login-sub">Đăng nhập với tài khoản hệ thống</p>
+
+        @* P10.5g hotfix — API health indicator. Pings /health once at
+           page init; refreshes every 15 s while idle. Operator sees a
+           coloured dot + VN text so "API down" is distinguishable from
+           "wrong password" BEFORE submitting. Independent of background
+           heartbeat (which is JWT-gated and skips on Login). *@
+        <div class="login-health @($"is-{_healthState}")" role="status">
+            <span class="login-health-dot"></span>
+            <span>@HealthLabel()</span>
+        </div>
 
         @*
             Wiring notes (Phase 10 P10.2):
@@ -76,6 +87,64 @@
     private string? _errorDetail;
     private bool _submitting;
     [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+
+    // P10.5g — API health indicator state. "unknown" until the first
+    // ping resolves; "up" / "down" thereafter. Drives the dot colour +
+    // VN label above the form. Refresh loop owns its own CTS so a page
+    // navigation away cancels cleanly.
+    private string _healthState = "unknown";
+    private CancellationTokenSource? _healthCts;
+
+    protected override void OnInitialized()
+    {
+        _healthCts = new CancellationTokenSource();
+        // Fire-and-forget — wrapped in try/catch and bounded by CTS so
+        // a hung ping can never block the renderer.
+        _ = RunHealthLoopAsync(_healthCts.Token);
+    }
+
+    /// <summary>
+    /// Single-shot health probe + 15 s polling loop. ALL failure paths
+    /// flip the dot to red; the next successful ping flips it green.
+    /// The first probe also runs synchronously-ish (await once before
+    /// the loop) so the operator never sees the "unknown" grey state
+    /// for more than ~2 seconds after page load.
+    /// </summary>
+    private async Task RunHealthLoopAsync(CancellationToken ct)
+    {
+        await PingOnceAsync(ct);
+        while (!ct.IsCancellationRequested)
+        {
+            try { await Task.Delay(TimeSpan.FromSeconds(15), ct); }
+            catch (OperationCanceledException) { return; }
+            await PingOnceAsync(ct);
+        }
+    }
+
+    private async Task PingOnceAsync(CancellationToken ct)
+    {
+        bool ok;
+        try { ok = await Api.PingHealthAsync(ct); }
+        catch { ok = false; }
+        if (ct.IsCancellationRequested) return;
+        var next = ok ? "up" : "down";
+        if (next == _healthState) return;
+        _healthState = next;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string HealthLabel() => _healthState switch
+    {
+        "up"   => "Máy chủ sẵn sàng — bạn có thể đăng nhập.",
+        "down" => "Không kết nối được máy chủ — kiểm tra mạng/VPN rồi thử lại.",
+        _      => "Đang kiểm tra kết nối…",
+    };
+
+    public void Dispose()
+    {
+        _healthCts?.Cancel();
+        _healthCts?.Dispose();
+    }
 
 
     private async Task HandleSubmitAsync()

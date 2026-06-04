@@ -1,6 +1,12 @@
 @inherits LayoutComponentBase
-@* Chromeless layout for the login screen. *@
+@* Chromeless layout for the login screen.
+   P10.5g hotfix — <RendererCrashBoundary> wraps the page body so a
+   render-time throw in Login can't take the dispatcher with it.
+   <MacCatalystKeyboardFix> stays as the always-on Tab+Enter fix
+   (dotnet/maui#13934). *@
 <div class="empty-layout">
-    @Body
+    <RendererCrashBoundary>
+        @Body
+    </RendererCrashBoundary>
 </div>
 <MacCatalystKeyboardFix />

@@ -25,6 +25,15 @@ public static class MauiProgram
 {
     public static MauiApp CreateMauiApp()
     {
+        // P10.5g hotfix — arm the global last-chance error trap BEFORE
+        // any DI graph wiring. A throw during host build or DI
+        // construction must still surface in Console.WriteLine + the
+        // rolling error log (FileSystem.AppDataDirectory/logs/error.log)
+        // so an operator-side incident leaves a forensic trail. See
+        // GlobalErrorLogger doc-comment for the why (the "renderer
+        // dead after N seconds" symptom on Mac Catalyst Hybrid).
+        GlobalErrorLogger.Install();
+
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()

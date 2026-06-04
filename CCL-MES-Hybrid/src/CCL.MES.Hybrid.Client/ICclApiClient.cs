@@ -21,6 +21,14 @@ namespace CCL.MES.Hybrid.Client;
 /// </summary>
 public interface ICclApiClient
 {
+    // ── Health (anonymous) ──────────────────────────────────────────
+    /// <summary>P10.5g hotfix — anonymous /health probe. Returns true
+    /// when the API responds with 2xx within ~2 seconds; false on any
+    /// failure (network, 5xx, timeout). Login page surfaces this via a
+    /// small status dot so an operator can tell "API is down" apart
+    /// from "I mistyped my password" BEFORE submitting. Never throws.</summary>
+    Task<bool> PingHealthAsync(CancellationToken ct = default);
+
     // ── Auth ────────────────────────────────────────────────────────
     Task<LoginResponse> LoginAsync(string username, string password, CancellationToken ct = default);
     Task<UserInfo> GetMeAsync(CancellationToken ct = default);

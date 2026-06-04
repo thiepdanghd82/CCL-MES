@@ -30,6 +30,26 @@ public sealed class CclApiClient : ICclApiClient
         _opts = opts.Value;
     }
 
+    // ── Health (anonymous) ──────────────────────────────────────────
+
+    public async Task<bool> PingHealthAsync(CancellationToken ct = default)
+    {
+        // Bounded retry — give the network 2 s. We swallow everything
+        // because the caller (Login indicator) renders "unknown" on
+        // false and never propagates the error.
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(2));
+            using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/health", timeout.Token);
+            return resp.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     // ── Auth ────────────────────────────────────────────────────────
 
     public async Task<LoginResponse> LoginAsync(string username, string password, CancellationToken ct = default)
