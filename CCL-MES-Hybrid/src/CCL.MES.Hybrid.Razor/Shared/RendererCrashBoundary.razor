@@ -1,0 +1,65 @@
+@*
+  P10.6a hotfix — Blazor render-time exception containment. Wraps every
+  layout's content tree so a throw from a child component is caught at
+  the renderer boundary instead of taking the dispatcher with it.
+
+  Pairs with:
+    - GlobalErrorLogger (MauiProgram-armed) for AppDomain +
+      UnobservedTaskException — covers the BACKGROUND path.
+    - This component — covers the FOREGROUND/render path.
+
+  Subclasses ErrorBoundaryBase (not ErrorBoundary) so we get
+  OnErrorAsync. Captured exceptions:
+    - Forward to console.error (sentinel "[renderer-crash]…") so the
+      Safari Web Inspector tail + the cclLog bridge in DEBUG MAUI
+      builds see the line.
+    - Surface a VN fallback card with details + a "Tải lại" button
+      that calls Recover() + location.reload().
+*@
+@inherits Microsoft.AspNetCore.Components.ErrorBoundaryBase
+@inject IJSRuntime JS
+
+@if (CurrentException is null)
+{
+    @ChildContent
+}
+else
+{
+    <div class="renderer-crash-card" role="alert">
+        <h2>⚠ Có lỗi không xác định</h2>
+        <p>Một thành phần giao diện vừa gặp lỗi. Bạn có thể tải lại trang để tiếp tục — dữ liệu chưa lưu có thể mất.</p>
+        <details>
+            <summary>Chi tiết lỗi</summary>
+            <pre>@CurrentException.GetType().Name: @CurrentException.Message</pre>
+        </details>
+        <button type="button" class="renderer-crash-reload" @onclick="ReloadAsync">Tải lại</button>
+    </div>
+}
+
+@code {
+    private bool _logged;
+
+    protected override async Task OnErrorAsync(Exception ex)
+    {
+        if (_logged) return;
+        _logged = true;
+        try
+        {
+            await JS.InvokeVoidAsync("console.error",
+                $"[renderer-crash] {ex.GetType().FullName}: {ex.Message}");
+            await JS.InvokeVoidAsync("console.error", ex.StackTrace ?? "(no stack)");
+        }
+        catch
+        {
+            Console.WriteLine($"[renderer-crash] {ex.GetType().FullName}: {ex.Message}");
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        Recover();
+        _logged = false;
+        try { await JS.InvokeVoidAsync("location.reload"); }
+        catch { /* best-effort — operator can kill+relaunch */ }
+    }
+}
