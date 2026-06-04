@@ -72,6 +72,12 @@
                 </AuthorizeView>
             </AuthorizeView>
         }
+
+        @* P10.6f — Recent Scans sidebar widget (SpecHub §11 port).
+           Self-hides when empty; renders a "QUÉT GẦN ĐÂY" section + up
+           to 5 rows; tap re-opens the scan surface. Client-only —
+           backed by MAUI Preferences via IRecentScansService. *@
+        <RecentScansWidget />
     </nav>
 
     <AuthorizeView>

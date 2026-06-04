@@ -130,6 +130,15 @@ public static class MauiProgram
             CCL.MES.Hybrid.Client.Files.IFileSaver,
             CatalystFileSaver>());
 
+        // P10.6f — Preferences-backed Recent Scans store. JSON snapshot
+        // persists across app restarts; the in-memory default from the
+        // client extension is replaced here so the sidebar widget
+        // renders the operator's actual recent-scan history on every
+        // login. Mirror of the P10.5a grid-prefs Replace.
+        builder.Services.Replace(ServiceDescriptor.Singleton<
+            CCL.MES.Hybrid.Client.RecentScans.IRecentScansService,
+            MauiRecentScansService>());
+
         // P10.3 W4 — feed the persisted device id into ApiClientOptions so
         // every device-scoped endpoint call (scan-log / heartbeat / info)
         // carries the station's stable guid. PostConfigure runs AFTER the
