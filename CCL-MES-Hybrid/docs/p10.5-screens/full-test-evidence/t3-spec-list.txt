@@ -1,0 +1,10 @@
+== T3 Spec list: planner chip + 5-state view + search ==
+  view=Active -> HTTP=200 total=9
+  view=Trash -> HTTP=200 total=0
+  view=All -> HTTP=200 total=9
+  planner=SILK -> HTTP=200 total=7
+  planner=FLEXO -> HTTP=200 total=2
+  planner=LETTER -> HTTP=200 total=0
+  planner=INDIGO -> HTTP=200 total=0
+  planner=DIECUT -> HTTP=200 total=0
+  search=XYZ_NO_MATCH -> HTTP=200 total=0

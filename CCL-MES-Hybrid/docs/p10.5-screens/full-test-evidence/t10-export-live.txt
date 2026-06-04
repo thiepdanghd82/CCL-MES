@@ -1,0 +1,9 @@
+== T10 Spec Export (live, real data DB) ==
+  /export/csv → HTTP=200 ctype=text/csv; charset=utf-8 bytes=932 magic=efbbbf2223222c50
+  /export/xlsx → HTTP=200 ctype=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet bytes=7801 magic=504b030414000000
+  /export/pdf → HTTP=200 ctype=application/pdf bytes=65425 magic=255044462d312e37
+  /export/1/sheet/pdf → HTTP=200 ctype=application/pdf bytes=90537 magic=255044462d312e37
+  CSV byte[0..2]=efbbbf (expected efbbbf for UTF-8 BOM)
+  XLSX members: 10 first: ['xl/workbook.xml', 'docProps/app.xml', 'xl/sharedStrings.xml']
+  PDF version line: %PDF-1.7
+  PDF %%EOF at byte 65419 ( 6 before end)

@@ -17,14 +17,23 @@
     - Enter inside an <input> → preventDefault + .click() the form's
              submit button so Blazor's @onclick delegate fires.
 
-  Platform detection is done in JS via user-agent because this RCL
-  is platform-neutral net10.0 (no Microsoft.Maui.Devices reference).
-  Mac Catalyst's WKWebView reports UA containing "Mobile/" + "Mac OS X"
-  — that combination is unique to Catalyst (regular macOS Safari does
-  NOT carry "Mobile/", and iOS does not carry "Mac OS X"). Windows
-  BlazorWebView reports a Trident-like or Edge UA; iOS reports
-  "iPhone"/"iPad". Removing the workaround once Apple ships a fix is
-  a one-line edit (drop the component from the layouts).
+  Platform detection is done in JS via two independent signals:
+    1. The classic UA token combo (Mobile/ + Mac OS X) which the
+       original P10.2 patch shipped against.
+    2. A WKWebView surface probe (window.webkit.messageHandlers)
+       which is present in every WKWebView-backed runtime (Mac
+       Catalyst BlazorWebView, iOS) but ABSENT from regular macOS
+       Safari and every non-Apple browser engine. macOS / Catalyst
+       SDK bumps occasionally drop the "Mobile/" UA token on the
+       WebView side, so the WKWebView probe is the resilient
+       fallback — without it the fix evaporates on a Catalyst
+       SDK rev and the symptom (#13934) reappears.
+
+  A single console.log line fires at boot so the regression is
+  observable from Safari Web Inspector (and from the cclLog bridge
+  in DEBUG MAUI builds — see MainPage.xaml.cs) when the script is
+  active. Removing the workaround once Apple ships a fix is a
+  one-line edit (drop the component from the layouts).
 *@
 <script type="text/javascript">
     (function () {
@@ -33,12 +42,43 @@
         // the script twice. We attach the listener once per window.
         if (window.__cclMacCatalystKbdFix) return;
 
-        // Catalyst-only detect via UA.
         var ua = navigator.userAgent || '';
-        var isCatalyst = ua.indexOf('Mobile/') !== -1 && ua.indexOf('Mac OS X') !== -1;
+
+        // Signal 1 — original UA combo. Mac Catalyst BlazorWebView
+        // historically reports both tokens; regular Safari macOS lacks
+        // "Mobile/" and iOS lacks "Mac OS X".
+        var uaMatchesCatalyst = (ua.indexOf('Mobile/') !== -1 && ua.indexOf('Mac OS X') !== -1);
+
+        // Signal 2 — WKWebView message-handler surface probe.
+        // Present in every Catalyst/iOS BlazorWebView; absent from
+        // regular macOS Safari + every non-Apple browser. Guards the
+        // patch against UA-token regressions on future Catalyst
+        // SDKs (the symptom mode this comment block warns about).
+        var wkMatchesCatalyst = (
+            typeof window.webkit === 'object' &&
+            window.webkit !== null &&
+            window.webkit.messageHandlers !== undefined &&
+            (ua.indexOf('Mac OS X') !== -1 || ua.indexOf('Macintosh') !== -1)
+        );
+
+        var isCatalyst = uaMatchesCatalyst || wkMatchesCatalyst;
+
+        // Boot log line — visible in Safari Web Inspector + cclLog
+        // bridge. The "[keyboard-fix]" prefix is the same string the
+        // regression-guard unit test greps for.
+        try {
+            console.log('[keyboard-fix] ua=' + (uaMatchesCatalyst ? '1' : '0') +
+                        ' wk=' + (wkMatchesCatalyst ? '1' : '0') +
+                        ' active=' + (isCatalyst ? '1' : '0'));
+        } catch (e) { /* console may be wrapped */ }
+
         if (!isCatalyst) return;
 
-        window.__cclMacCatalystKbdFix = true;
+        window.__cclMacCatalystKbdFix = {
+            attached: true,
+            ua: uaMatchesCatalyst,
+            wk: wkMatchesCatalyst,
+        };
 
         function focusables() {
             var sel = 'a:not([disabled]):not([tabindex="-1"]),' +

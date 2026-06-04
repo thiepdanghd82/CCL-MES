@@ -1,0 +1,18 @@
+== T4 Create Spec ==
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import sqlite3;c=sqlite3.connect('/tmp/ccl-mes-api-p10.5g.db');print(c.execute('SELECT Id FROM Products ORDER BY Id LIMIT 1').fetchone()[0])
+                                                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^
+TypeError: 'NoneType' object is not subscriptable
+Using ProductId=
+Create response: {"type":"https://tools.ietf.org/html/rfc9110#section-15.5.1","title":"One or more validation errors occurred.","status":400,"errors":{"r":["The r field is required."],"$.productId":["',' is an invalid start of a value. Path: $.productId | LineNumber: 0 | BytePositionInLine: 13."]},"traceId":"00-cb32afb7b260bc6107666519baf90b80-fcda0f5f4b379d82-00"}
+REV_ID=
+
+== T5 inline edit Draft Title ==
+
+update HTTP=405
+
+== T6 Detail / showcard JSON shape ==
+HTTP=200
+  top-level keys: items, page, pageSize, total, totalPages
+  status=None title=None revisionCode=None

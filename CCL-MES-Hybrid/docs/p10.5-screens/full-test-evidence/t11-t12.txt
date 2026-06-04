@@ -1,0 +1,26 @@
+== T11 Scanner/WO wire-level (read-only on live) ==
+  GET /workorders/by-no/UNKNOWN-WO-XX -> HTTP=404 (expected 404 — no match in legacy DB)
+  body: 
+
+  POST /devices/DEV-T11-001/heartbeat (8-char+ id, empty body):
+{"serverTimestamp":"2026-06-04T05:50:50.348743+00:00"}
+    HTTP=200
+
+  POST /devices/DEV-T11-001/scan-log (real payload):
+{"scanId":"f4dce636-76d8-4db1-9561-7942a6add810","serverTimestamp":"2026-06-04T05:50:50.373767+00:00"}
+    HTTP=200
+
+Native Mac Catalyst surfaces (need Henry spot-check, ≤2 min):
+  - /hardware → renders 4 tiles + Scan button → camera permission prompt → AVFoundation decode (proven W2)
+  - /mode → Server/Client/Kiosk toggle + lock passcode field
+  - /lock → 4-digit PIN check via PBKDF2 (covered by integration tests)
+
+== T12 Resilience ==
+  before-down GET /health:
+    HTTP=200
+  connect to non-listening port 5199 (simulates 'API down'):
+    code=000 time=0.000313
+    -> caller sees HttpRequestException → Catalyst client VN banner 'Không kết nối được máy chủ'
+  back to live API after assumed restart:
+    HTTP=200
+    -> operator bấm 'Thử lại' → request re-fires successfully

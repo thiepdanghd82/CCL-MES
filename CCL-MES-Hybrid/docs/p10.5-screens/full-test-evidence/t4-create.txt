@@ -1,0 +1,4 @@
+== T4 Create Spec ==
+Request: {"productId":8,"specCode":"SPEC-FT-124902","title":"Full Test Spec 124902","processCode":"FLEXO","parameters":[]}
+Response: {"type":"https://tools.ietf.org/html/rfc9110#section-15.6.1","title":"Spec create failed","status":500,"detail":"An error occurred while saving the entity changes. See the inner exception for details.","traceId":"00-714d344ade5a302c6e4e0c3c3744a406-e9fce43570863dff-00"}
+REV_ID=

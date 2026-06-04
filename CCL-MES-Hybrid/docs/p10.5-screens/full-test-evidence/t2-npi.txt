@@ -1,0 +1,8 @@
+== T2 NPI grids (4 routes) ==
+  /api/v2/npi/workcenters page=1 pageSize=5 -> HTTP=200 total=43 body_bytes=1105
+  /api/v2/npi/rawmaterials page=1 pageSize=5 -> HTTP=200 total=2127 body_bytes=3907
+  /api/v2/npi/routings page=1 pageSize=5 -> HTTP=200 total=38441 body_bytes=2743
+  /api/v2/npi/structures page=1 pageSize=5 -> HTTP=200 total=20530 body_bytes=2485
+
+Pager edge (page=999):
+  page=999 items=0 total=43

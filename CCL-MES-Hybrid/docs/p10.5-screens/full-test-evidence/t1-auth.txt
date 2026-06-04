@@ -1,0 +1,5 @@
+== T1 auth ==
+Bad pass:
+{"code":"auth.invalid_credentials","messageEn":"Invalid username or password.","details":null}
+HTTP=401
+Good pass: HTTP=400 token_len=589
