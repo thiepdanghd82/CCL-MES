@@ -64,6 +64,45 @@ public sealed record SpecShowcardVm
     /// order: HSF → Spec level → RoHS.</summary>
     public IReadOnlyList<string> ComplianceChips { get; init; } = Array.Empty<string>();
 
+    // ── P10.5d — Full-mode flatten (compact mode leaves these empty). ──
+
+    /// <summary>Silk print colours (20 fields each, ≤10 typical). Empty
+    /// on non-silk / preview / list flatten.</summary>
+    public IReadOnlyList<SpecPrintColorRow> PrintColors { get; init; } = Array.Empty<SpecPrintColorRow>();
+
+    /// <summary>Flexo printing rows.</summary>
+    public IReadOnlyList<SpecFlexoPrintRow> FlexoPrintRows { get; init; } = Array.Empty<SpecFlexoPrintRow>();
+
+    /// <summary>Flexo cutting rows.</summary>
+    public IReadOnlyList<SpecFlexoCuttingRow> FlexoCuttingRows { get; init; } = Array.Empty<SpecFlexoCuttingRow>();
+
+    /// <summary>Flexo ink rows.</summary>
+    public IReadOnlyList<SpecFlexoInkRow> FlexoInkRows { get; init; } = Array.Empty<SpecFlexoInkRow>();
+
+    /// <summary>Revision lineage walked DESC from current rev via
+    /// ParentRevisionId. Latest is index 0.</summary>
+    public IReadOnlyList<SpecRevisionLineageEntry> Lineage { get; init; } = Array.Empty<SpecRevisionLineageEntry>();
+
+    /// <summary>Audit timeline for the current rev (Created / Approved /
+    /// Released / Revised / Imported events).</summary>
+    public IReadOnlyList<SpecAuditEntry> AuditEntries { get; init; } = Array.Empty<SpecAuditEntry>();
+
+    /// <summary>Raw print params not covered by the showcard top fields —
+    /// Adhesive / Varnish / Lamination / WhiteUnderprint / cavity / pitch.
+    /// Populated only in full mode.</summary>
+    public SpecShowcardPrintParams PrintParams { get; init; } = new();
+
+    /// <summary>Material extras parsed from <c>MaterialExtraJson</c>
+    /// (lamination tape / size / cavity) for the silk Product Info table.</summary>
+    public SpecShowcardMaterialExtras MaterialExtras { get; init; } = new();
+
+    /// <summary>Substrate type (raw material).</summary>
+    public string? SubstrateType { get; init; }
+
+    /// <summary>True when a parent rev exists in <see cref="Lineage"/> →
+    /// the compare-with-prev toggle is meaningful.</summary>
+    public bool HasParentRev => Lineage.Count >= 2;
+
     /// <summary>
     /// Flatten a <see cref="SpecDetailItem"/> into the compact VM the
     /// MAUI list peek + detail header consume. Pure function — no DB,
@@ -106,6 +145,72 @@ public sealed record SpecShowcardVm
             ReleasedAt = detail.ReleasedAt,
             ComplianceChips = BuildComplianceChips(detail.InspectionLevel),
         };
+    }
+
+    /// <summary>
+    /// P10.5d — Full-mode flatten. Returns a VM populated with all
+    /// child rows + lineage + audit so the
+    /// <c>SpecShowcardFull</c> component can render the 9-section spec
+    /// sheet without further fetching.
+    ///
+    /// Layered on top of <see cref="FromDetail"/> — identity / planner /
+    /// status / compact fields stay identical; this method ADDS the
+    /// heavyweight collections so the two modes share the same
+    /// derivation table for label + class + size formatting.
+    /// </summary>
+    public static SpecShowcardVm FromDetailFull(SpecDetailItem detail)
+    {
+        var compact = FromDetail(detail);
+        return compact with
+        {
+            PrintColors = detail.PrintColors.ToList(),
+            FlexoPrintRows = detail.FlexoPrintRows.ToList(),
+            FlexoCuttingRows = detail.FlexoCuttingRows.ToList(),
+            FlexoInkRows = detail.FlexoInkRows.ToList(),
+            Lineage = detail.Lineage.ToList(),
+            AuditEntries = detail.AuditEntries.ToList(),
+            SubstrateType = detail.SubstrateType,
+            PrintParams = new SpecShowcardPrintParams
+            {
+                PrintingCavity = detail.PrintingCavity,
+                LengthPitchMm = detail.LengthPitchMm,
+                ProductSizeWmm = detail.ProductSizeWmm,
+                ProductSizeHmm = detail.ProductSizeHmm,
+                AdhesiveType = detail.AdhesiveType,
+                Varnish = detail.Varnish,
+                Lamination = detail.Lamination,
+                WhiteUnderprint = detail.WhiteUnderprint,
+            },
+            MaterialExtras = ParseMaterialExtras(detail.MaterialExtraJson),
+        };
+    }
+
+    /// <summary>Deserialize the <c>MaterialExtraJson</c> blob produced
+    /// by the legacy <c>SerializeMaterialExtra</c> helper. Best-effort —
+    /// returns an empty record on parse failure so the showcard never
+    /// crashes on a bad sample.</summary>
+    public static SpecShowcardMaterialExtras ParseMaterialExtras(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return new();
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return new();
+            string? Read(string key) =>
+                doc.RootElement.TryGetProperty(key, out var p) && p.ValueKind == System.Text.Json.JsonValueKind.String
+                    ? p.GetString() : null;
+            return new SpecShowcardMaterialExtras
+            {
+                MaterialSize = Read("material_size"),
+                LaminationTape = Read("lamination_tape"),
+                LaminationSize = Read("lamination_size"),
+                LaminationCavity = Read("lamination_cavity"),
+            };
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return new();
+        }
     }
 
     /// <summary>
@@ -283,4 +388,30 @@ public sealed record SpecShowcardVm
         string.IsNullOrWhiteSpace(inspectionLevel) ? "Spec A" : $"Spec {inspectionLevel}",
         "RoHS Compliance",
     };
+}
+
+/// <summary>P10.5d — Print parameters projection for the full showcard
+/// Print Parameters block. Mirrors the legacy SpecDetailDto fields the
+/// silk / flexo blocks consume; null fields render as em-dash.</summary>
+public sealed record SpecShowcardPrintParams
+{
+    public int? PrintingCavity { get; init; }
+    public double? LengthPitchMm { get; init; }
+    public double? ProductSizeWmm { get; init; }
+    public double? ProductSizeHmm { get; init; }
+    public string? AdhesiveType { get; init; }
+    public string? Varnish { get; init; }
+    public string? Lamination { get; init; }
+    public bool WhiteUnderprint { get; init; }
+}
+
+/// <summary>P10.5d — Material extras parsed from the legacy
+/// <c>SerializeMaterialExtra</c> JSON shape: lamination tape / size /
+/// cavity plus base material size.</summary>
+public sealed record SpecShowcardMaterialExtras
+{
+    public string? MaterialSize { get; init; }
+    public string? LaminationTape { get; init; }
+    public string? LaminationSize { get; init; }
+    public string? LaminationCavity { get; init; }
 }

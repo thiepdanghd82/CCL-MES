@@ -111,7 +111,61 @@ else if (_detail is not null && _vm is not null)
         @switch (_activeTab)
         {
             case "spec":
-                <SpecShowcardCompact Vm="_vm" />
+                @* P10.5d — Mode toggle (Compact ↔ Full) + Compare-with-
+                   prev toggle when lineage has ≥2 entries (current + parent).
+                   The buttons live on the inside of the panel so they don't
+                   get confused with the lifecycle action bar at the top. *@
+                <div class="spec-showcard-toolbar" role="group" aria-label="Hiển thị Spec">
+                    <button type="button"
+                            aria-pressed="@(!_fullMode ? "true" : "false")"
+                            class="spec-showcard-mode @(!_fullMode ? "is-active" : "")"
+                            @onclick="() => { _fullMode = false; _compareMode = false; StateHasChanged(); }">
+                        Tóm tắt
+                    </button>
+                    <button type="button"
+                            aria-pressed="@(_fullMode ? "true" : "false")"
+                            class="spec-showcard-mode @(_fullMode ? "is-active" : "")"
+                            @onclick="() => { _fullMode = true; _compareMode = false; StateHasChanged(); }">
+                        Đầy đủ
+                    </button>
+                    @if (_vmFull?.HasParentRev == true)
+                    {
+                        <button type="button"
+                                aria-pressed="@(_compareMode ? "true" : "false")"
+                                class="spec-showcard-mode spec-showcard-compare @(_compareMode ? "is-active" : "")"
+                                @onclick="OnToggleCompareAsync">
+                            So sánh với rev trước @(_compareMode ? "(đang bật)" : "")
+                        </button>
+                    }
+                </div>
+
+                @if (_compareMode)
+                {
+                    @if (_diffResult is null && _compareLoading)
+                    {
+                        <p class="grid-status">Đang tải rev trước để so sánh…</p>
+                    }
+                    else if (_compareError is not null)
+                    {
+                        <div class="modal-banner modal-banner-error" role="alert">
+                            <strong>Không tải được rev trước.</strong>
+                            <div>@_compareError</div>
+                            <button type="button" class="grid-btn" @onclick="OnToggleCompareAsync">Thử lại</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <SpecDiffViewer Result="_diffResult" />
+                    }
+                }
+                else if (_fullMode)
+                {
+                    <SpecShowcardFull Vm="(_vmFull ?? _vm)" />
+                }
+                else
+                {
+                    <SpecShowcardCompact Vm="_vm" />
+                }
                 break;
 
             case "drawings":
@@ -167,8 +221,19 @@ else if (_detail is not null && _vm is not null)
 
     private SpecDetailItem? _detail;
     private SpecShowcardVm? _vm;
+    private SpecShowcardVm? _vmFull;
     private bool _detailLoading;
     private string? _detailError;
+
+    // P10.5d — Specification tab mode toggle. _fullMode swaps the
+    // compact peek for the 9-section showcard; _compareMode opens the
+    // diff viewer against the parent rev. Mutually exclusive — turning
+    // on compare auto-disables full-mode rendering.
+    private bool _fullMode;
+    private bool _compareMode;
+    private bool _compareLoading;
+    private string? _compareError;
+    private SpecDiffVm.SpecDiffResult? _diffResult;
 
     private string _activeTab = "spec";
 
@@ -245,6 +310,7 @@ else if (_detail is not null && _vm is not null)
             else
             {
                 _vm = SpecShowcardVm.FromDetail(_detail);
+                _vmFull = SpecShowcardVm.FromDetailFull(_detail);
             }
         }
         catch (ApiException apiEx)
@@ -262,6 +328,75 @@ else if (_detail is not null && _vm is not null)
         finally
         {
             _detailLoading = false;
+        }
+    }
+
+    /// <summary>
+    /// P10.5d — Compare-with-prev toggle. When activated for the first
+    /// time we fetch the parent rev (next entry in Lineage after the
+    /// current rev) and run <see cref="SpecDiffVm.Compare"/>. Subsequent
+    /// toggles flip the panel without re-fetching. Parent fetch is
+    /// online-only — no cache or outbox per Q4.
+    /// </summary>
+    private async Task OnToggleCompareAsync()
+    {
+        if (_vmFull is null || !_vmFull.HasParentRev)
+            return;
+
+        if (_compareMode)
+        {
+            // Turn off — keep cached diff so re-enabling is instant.
+            _compareMode = false;
+            StateHasChanged();
+            return;
+        }
+
+        _compareMode = true;
+        _fullMode = false;  // diff implies full content; show diff only
+        _compareError = null;
+        if (_diffResult is not null)
+        {
+            // Cached from a prior toggle in this session.
+            StateHasChanged();
+            return;
+        }
+
+        _compareLoading = true;
+        StateHasChanged();
+        try
+        {
+            // Lineage[0] is the current rev; Lineage[1] is the parent
+            // (walk DESC by ParentRevisionId).
+            var parentEntry = _vmFull.Lineage[1];
+            var parentDetail = await Api.GetSpecDetailAsync(parentEntry.Id);
+            if (parentDetail is null)
+            {
+                _compareError = $"Rev trước (id={parentEntry.Id}) đã bị xoá hoặc không truy cập được.";
+                _compareMode = false;
+                return;
+            }
+            var parentVm = SpecShowcardVm.FromDetailFull(parentDetail);
+            _diffResult = SpecDiffVm.Compare(_vmFull, parentVm);
+        }
+        catch (ApiException apiEx)
+        {
+            _compareError = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+            _compareMode = false;
+        }
+        catch (HttpRequestException ex)
+        {
+            _compareError = $"Không kết nối được máy chủ: {ex.Message}";
+            _compareMode = false;
+        }
+        catch (Exception ex)
+        {
+            _compareError = $"{ex.GetType().Name}: {ex.Message}";
+            _compareMode = false;
+        }
+        finally
+        {
+            _compareLoading = false;
+            StateHasChanged();
         }
     }
 

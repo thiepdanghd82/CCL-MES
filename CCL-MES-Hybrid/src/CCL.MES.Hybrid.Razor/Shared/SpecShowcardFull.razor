@@ -1,0 +1,563 @@
+@*
+    P10.5d — Full-mode Spec Showcard. Mirrors the legacy
+    `CCL.MES.Web/Shared/SpecShowcard.razor` Mode=Full template (Phase 8
+    PR-B): 9 sections — doc header (navy strip) / compliance / product
+    info / print params / print process table (silk or flexo) / remarks
+    / revision history / approval signatures / change log.
+
+    Template auto-detect via Vm.PlannerCode:
+      - SILK   → silk template (Print Params block + 10-col color table)
+      - FLEXO  → flexo template (3 sub-tables: print / cut / ink)
+      - other  → generic fallback (warning chip + only sections with data)
+
+    Read-only render — no fetches, no mutations. Caller hydrates Vm via
+    SpecShowcardVm.FromDetailFull(detail). Per Lesson #27 + the
+    "try/catch per-section" constraint, every block is wrapped in a
+    try/catch so a single bad sub-spec can't blank the whole sheet.
+
+    Companion: SpecShowcardCompact still ships for list peek; the Spec
+    detail page toggles between the two.
+*@
+
+@using CCL.MES.Shared.Specs
+@using System.Globalization
+
+@if (Vm is null)
+{
+    <div class="spec-showcard-full spec-showcard-empty">
+        <p>Chưa có dữ liệu showcard.</p>
+    </div>
+}
+else
+{
+    var template = ResolveTemplate(Vm.PlannerCode);
+    var isSilk = template == "SILK";
+    var isFlexo = template == "FLEXO";
+    var isGeneric = template == "GENERIC";
+    var hasSilkColors = Vm.PrintColors.Count > 0;
+    var hasFlexoPrint = Vm.FlexoPrintRows.Count > 0;
+    var hasFlexoCut = Vm.FlexoCuttingRows.Count > 0;
+    var hasFlexoInk = Vm.FlexoInkRows.Count > 0;
+    var hasAnyPrintData = hasSilkColors || hasFlexoPrint || hasFlexoCut || hasFlexoInk;
+
+    <div class="spec-showcard-full spec-showcard-template-@template.ToLowerInvariant()">
+
+        @* ─── 1. Doc header — navy strip ─────────────────────────── *@
+        @TryRender("doc-header", () => @<text>
+            <div class="spec-doc-header">
+                <div class="spec-doc-header-left">
+                    <div class="spec-doc-co">Công ty TNHH CCL Design Việt Nam</div>
+                    <div class="spec-doc-co-sub">CCL Design Vietnam Co. Ltd</div>
+                </div>
+                <div class="spec-doc-header-center">
+                    <div class="spec-doc-category">@CategoryHeaderLabel(template)</div>
+                    <div class="spec-doc-category-sub">@CategoryHeaderSubtitle(template)</div>
+                </div>
+                <div class="spec-doc-header-right">
+                    <div><strong>REF NO:</strong> <code>@(Vm.RefNo ?? "—")</code></div>
+                    <div>
+                        Spec: <strong>@(Vm.InspectionLevel ?? "—")</strong>
+                        <span class="spec-status-stamp @Vm.StatusCssClass">@Vm.StatusLabel</span>
+                    </div>
+                </div>
+            </div>
+        </text>)
+
+        @* ─── 2. Compliance strip ─────────────────────────────────── *@
+        @TryRender("compliance", () => @<text>
+            <div class="spec-compliance-strip">
+                <span class="spec-compliance-label">Compliance:</span>
+                @foreach (var chip in Vm.ComplianceChips)
+                {
+                    <span class="spec-compliance-chip-full">@chip</span>
+                }
+            </div>
+        </text>)
+
+        @* Generic fallback warning chip *@
+        @if (isGeneric)
+        {
+            <div class="spec-generic-warning" role="note">
+                <span aria-hidden="true">⚠</span>
+                <span>
+                    Template chuẩn cho dòng <strong>@Vm.PlannerLabel</strong>
+                    sẽ bổ sung khi có sample thực — hiển thị các phần đã có dữ liệu.
+                </span>
+            </div>
+        }
+
+        @* ─── 3. Product Information ──────────────────────────────── *@
+        @TryRender("product-info", () => @<text>
+            <div class="spec-block-full">
+                <div class="spec-block-title-full">Product Information · Thông tin sản phẩm</div>
+                @if (isFlexo || isGeneric)
+                {
+                    <table class="spec-info-table-full">
+                        <thead>
+                            <tr>
+                                <th>Customer<span class="sub">Khách hàng</span></th>
+                                <th>Part No<span class="sub">Mã SP</span></th>
+                                <th>Part Name<span class="sub">Tên linh kiện</span></th>
+                                <th>Product Size<span class="sub">Kích thước SP (mm)</span></th>
+                                <th>Substrate<span class="sub">Nguyên liệu</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="spec-info-hi">@OrDash(Vm.CustomerName)</td>
+                                <td class="spec-info-hi spec-mono">@OrDash(Vm.ProductCode)</td>
+                                <td>@OrDash(Vm.ProductName)</td>
+                                <td>@Vm.ProductSizeDisplay</td>
+                                <td>@OrDash(Vm.SubstrateType)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <table class="spec-info-table-full">
+                        <thead>
+                            <tr>
+                                <th>Customer<span class="sub">Khách hàng</span></th>
+                                <th>Part No<span class="sub">Mã SP</span></th>
+                                <th>Part Name<span class="sub">Tên SP</span></th>
+                                <th>Material<span class="sub">Nguyên liệu</span></th>
+                                <th>Mat. Size<span class="sub">Cỡ NL</span></th>
+                                <th>Lam.<span class="sub">Ép dán</span></th>
+                                <th>Lam. Size</th>
+                                <th>Lam. Cav.</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="spec-info-hi">@OrDash(Vm.CustomerName)</td>
+                                <td class="spec-info-hi spec-mono">@OrDash(Vm.ProductCode)</td>
+                                <td>@OrDash(Vm.ProductName)</td>
+                                <td>@OrDash(Vm.SubstrateType)</td>
+                                <td>@OrDash(Vm.MaterialExtras.MaterialSize)</td>
+                                <td>@OrDash(Vm.MaterialExtras.LaminationTape)</td>
+                                <td>@OrDash(Vm.MaterialExtras.LaminationSize)</td>
+                                <td>@OrDash(Vm.MaterialExtras.LaminationCavity)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </text>)
+
+        @* ─── 4. Print Parameters (silk only — flexo skips) ───────── *@
+        @if (isSilk)
+        {
+            @TryRender("print-params", () => @<text>
+                <div class="spec-block-full">
+                    <div class="spec-block-title-full">Print Parameters · Thông số in</div>
+                    <div class="spec-params-grid">
+                        <div>
+                            <div class="lbl">Printing cavity<span class="muted">Số lượng/1 lần in</span></div>
+                            <div class="val">@OrDash(Vm.PrintParams.PrintingCavity?.ToString(CultureInfo.InvariantCulture))</div>
+                        </div>
+                        <div>
+                            <div class="lbl">Length pitch<span class="muted">Bước nhảy (mm)</span></div>
+                            <div class="val">@(Vm.PrintParams.LengthPitchMm is null ? "—" : Vm.PrintParams.LengthPitchMm.Value.ToString("N1", CultureInfo.InvariantCulture))</div>
+                        </div>
+                        <div>
+                            <div class="lbl">Product size<span class="muted">Kích thước SP</span></div>
+                            <div class="val">@Vm.ProductSizeDisplay</div>
+                        </div>
+                        <div>
+                            <div class="lbl">Adhesive<span class="muted">Keo dán</span></div>
+                            <div class="val">@OrDash(Vm.PrintParams.AdhesiveType)</div>
+                        </div>
+                    </div>
+                    <div class="spec-silk-legend">
+                        <strong>Squeegee codes:</strong> A=65° / B=75° / C=85° ·
+                        <strong>Drying codes:</strong> N=Nhiệt / U=UV / S=Self-dry
+                    </div>
+                </div>
+            </text>)
+        }
+
+        @* ─── 5. Print Process — silk 10-col table ─────────────────── *@
+        @if (isSilk && hasSilkColors)
+        {
+            @TryRender("silk-colors", () => @<text>
+                <div class="spec-block-full">
+                    <div class="spec-block-title-full">
+                        Print Process · Sấy · Plate Parameter — @Vm.PrintColors.Count colors
+                    </div>
+                    <div class="spec-table-scroll">
+                        <table class="spec-print-table-full">
+                            <thead>
+                                <tr>
+                                    <th>No</th><th>Surf</th><th>Color</th><th>Ink Name</th>
+                                    <th>Ink Code</th><th>Maker</th><th>Retarder</th>
+                                    <th>Visc</th><th>Speed</th><th>Squee.</th>
+                                    <th>Dry</th><th>°C</th><th>min</th><th>UV</th>
+                                    <th>Emul.</th><th>Plate Size</th><th>Mesh</th>
+                                    <th>Angle</th><th>Plate Code</th><th>Ctrl#</th><th>Remark</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var c in Vm.PrintColors)
+                                {
+                                    <tr>
+                                        <td>@c.Seq</td>
+                                        <td>@OrDash(c.Surface)</td>
+                                        <td>@OrDash(c.Color)</td>
+                                        <td>@OrDash(c.InkName)</td>
+                                        <td class="spec-mono">@OrDash(c.InkCode)</td>
+                                        <td>@OrDash(c.Maker)</td>
+                                        <td>@OrDash(c.Retarder)</td>
+                                        <td>@OrDashNum(c.Viscosity, "N0")</td>
+                                        <td>@OrDashNum(c.Speed, "N0")</td>
+                                        <td>@OrDash(c.Squeegee)</td>
+                                        <td>@OrDash(c.Dry)</td>
+                                        <td>@OrDashNum(c.TemperatureC, "N0")</td>
+                                        <td>@OrDash(c.TimeMin?.ToString(CultureInfo.InvariantCulture))</td>
+                                        <td>@OrDash(c.Uv)</td>
+                                        <td>@OrDashNum(c.EmulsionUm, "N0")</td>
+                                        <td>@OrDash(c.PlateSize)</td>
+                                        <td>@OrDash(c.Mesh)</td>
+                                        <td>@OrDashNum(c.AngleDeg, "N1")</td>
+                                        <td class="spec-mono">@OrDash(c.PlateCode)</td>
+                                        <td>@OrDash(c.ControlNo?.ToString(CultureInfo.InvariantCulture))</td>
+                                        <td>@OrDash(c.Remark)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </text>)
+        }
+
+        @* ─── 5b. Flexo 3 sub-tables ─────────────────────────────── *@
+        @if (isFlexo || (isGeneric && hasAnyPrintData))
+        {
+            @if (hasFlexoPrint)
+            {
+                @TryRender("flexo-print", () => @<text>
+                    <div class="spec-block-full">
+                        <div class="spec-block-title-full">
+                            Thông tin in · Printing — @Vm.FlexoPrintRows.Count processes
+                        </div>
+                        <div class="spec-table-scroll">
+                            <table class="spec-print-table-full">
+                                <thead>
+                                    <tr>
+                                        <th>Process</th><th>Material</th><th>Thickness</th><th>Size</th>
+                                        <th>Cylinder</th><th>Pitch</th><th>Speed</th>
+                                        <th>T.Head</th><th>T.End</th><th>T.Roll</th>
+                                        <th>Plate Cav.</th><th>Tension</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var r in Vm.FlexoPrintRows)
+                                    {
+                                        <tr>
+                                            <td>@OrDash(r.Process)</td>
+                                            <td>@OrDash(r.Material)</td>
+                                            <td>@OrDash(r.Thickness)</td>
+                                            <td class="spec-mono">@OrDash(r.Size)</td>
+                                            <td>@OrDash(r.Cylinders)</td>
+                                            <td>@OrDash(r.PitchMm)</td>
+                                            <td>@OrDash(r.Speed)</td>
+                                            <td>@OrDash(r.TensionHead)</td>
+                                            <td>@OrDash(r.TensionEnd)</td>
+                                            <td>@OrDash(r.TensionRoll)</td>
+                                            <td>@OrDash(r.PlateCavity)</td>
+                                            <td>@OrDash(r.Tension)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </text>)
+            }
+
+            @if (hasFlexoCut)
+            {
+                @TryRender("flexo-cut", () => @<text>
+                    <div class="spec-block-full">
+                        <div class="spec-block-title-full">
+                            Thông tin cắt · Cutting — @Vm.FlexoCuttingRows.Count processes
+                        </div>
+                        <div class="spec-table-scroll">
+                            <table class="spec-print-table-full">
+                                <thead>
+                                    <tr>
+                                        <th>Process</th><th>Lamination</th><th>Size</th>
+                                        <th>Cutter Lot</th><th>Cutter Name</th>
+                                        <th>Pcs/Sheet</th><th>Cavity</th><th>Pitch</th>
+                                        <th>Packing</th><th>Paper Sp.</th><th>Cut Sp.</th>
+                                        <th>Cut Pres.</th><th>Head T.</th><th>Roll T.</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var c in Vm.FlexoCuttingRows)
+                                    {
+                                        <tr>
+                                            <td>@OrDash(c.Process)</td>
+                                            <td>@OrDash(c.Lamination)</td>
+                                            <td class="spec-mono">@OrDash(c.Size)</td>
+                                            <td>@OrDash(c.CutterLot)</td>
+                                            <td class="spec-mono">@OrDash(c.CutterName)</td>
+                                            <td>@OrDash(c.PcsPerSheet?.ToString(CultureInfo.InvariantCulture))</td>
+                                            <td>@OrDash(c.CuttingCavity?.ToString(CultureInfo.InvariantCulture))</td>
+                                            <td>@OrDashNum(c.PitchMm, "N1")</td>
+                                            <td>@OrDash(c.Packing)</td>
+                                            <td>@OrDashNum(c.PaperSpeed, "N1")</td>
+                                            <td>@OrDashNum(c.CuttingSpeed, "N1")</td>
+                                            <td>@OrDashNum(c.CuttingPressure, "N1")</td>
+                                            <td>@OrDashNum(c.HeadTension, "N1")</td>
+                                            <td>@OrDashNum(c.RollTension, "N1")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </text>)
+            }
+
+            @if (hasFlexoInk)
+            {
+                @TryRender("flexo-ink", () => @<text>
+                    <div class="spec-block-full">
+                        <div class="spec-block-title-full">
+                            Thông tin mực · Ink — @Vm.FlexoInkRows.Count inks
+                        </div>
+                        <div class="spec-table-scroll">
+                            <table class="spec-print-table-full">
+                                <thead>
+                                    <tr>
+                                        <th>No</th><th>Color</th><th>Ink Code</th>
+                                        <th>Description</th><th>Brand</th><th>Anilox</th>
+                                        <th>Plate Code</th><th>Pressure</th>
+                                        <th>UV Power</th><th>IR Power</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var i in Vm.FlexoInkRows)
+                                    {
+                                        <tr>
+                                            <td>@i.Seq</td>
+                                            <td>@OrDash(i.Color)</td>
+                                            <td class="spec-mono">@OrDash(i.InkCode)</td>
+                                            <td>@OrDash(i.InkDescription)</td>
+                                            <td>@OrDash(i.Brand)</td>
+                                            <td>@OrDash(i.Anilox)</td>
+                                            <td class="spec-mono">@OrDash(i.PlateCode)</td>
+                                            <td>@OrDashNum(i.Pressure, "N1")</td>
+                                            <td>@OrDashNum(i.UvPowerW, "N0")</td>
+                                            <td>@OrDashNum(i.IrPowerW, "N0")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </text>)
+            }
+        }
+
+        @if (isGeneric && !hasAnyPrintData)
+        {
+            <div class="spec-block-full">
+                <p class="spec-generic-empty">
+                    Chưa có dữ liệu sub-spec cho dòng @Vm.PlannerLabel.
+                </p>
+            </div>
+        }
+
+        @* ─── 6. Remarks ──────────────────────────────────────────── *@
+        @TryRender("remarks", () => @<text>
+            <div class="spec-block-full">
+                <div class="spec-block-title-full">Remarks · Ghi chú</div>
+                @if (isFlexo)
+                {
+                    <div class="spec-flexo-remarks-2col">
+                        <div>
+                            <div class="lbl">Print remarks · Ghi chú in</div>
+                            <div>@(string.IsNullOrEmpty(Vm.RemarksText) ? "—" : $"※ {Vm.RemarksText}")</div>
+                        </div>
+                        <div>
+                            <div class="lbl">Cut remarks · Ghi chú cắt</div>
+                            <div>@(string.IsNullOrEmpty(Vm.RemarksCutText) ? "—" : $"※ {Vm.RemarksCutText}")</div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="spec-remarks-full">
+                        @(string.IsNullOrEmpty(Vm.RemarksText) ? "—" : $"※ {Vm.RemarksText}")
+                    </div>
+                }
+            </div>
+        </text>)
+
+        @* ─── 7. Revision History ─────────────────────────────────── *@
+        @TryRender("revision-history", () => @<text>
+            <div class="spec-block-full">
+                <div class="spec-block-title-full">Revision History · Lịch sử thay đổi</div>
+                <table class="spec-rev-table-full">
+                    <thead>
+                        <tr>
+                            <th>Rev</th>
+                            <th>Contents · Nội dung</th>
+                            <th>Date · Ngày</th>
+                            <th>By · Bởi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Vm.Lineage.Count == 0)
+                        {
+                            <tr><td colspan="4" class="spec-empty-cell">— Không có lịch sử —</td></tr>
+                        }
+                        @foreach (var lr in Vm.Lineage)
+                        {
+                            var isCurrent = lr.Id == Vm.Id;
+                            <tr class="@(isCurrent ? "spec-rev-row-current" : "")">
+                                <td><strong>@lr.RevisionCode</strong>@(isCurrent ? " ✓" : null)</td>
+                                <td>@OrDash(lr.ChangeSummary)</td>
+                                <td>@lr.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                                <td>@OrDash(lr.CreatedBy)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </text>)
+
+        @* ─── 8. Approval Signatures ──────────────────────────────── *@
+        @TryRender("signatures", () => @<text>
+            <div class="spec-block-full">
+                <div class="spec-block-title-full">Approval Signatures · Chữ ký phê duyệt</div>
+                <div class="spec-signoff-grid">
+                    <div>
+                        <div class="role">Người tạo R&amp;D · Issued by R&amp;D</div>
+                        <div class="name">@OrDash(Vm.CreatedBy)</div>
+                        <div class="date">Date: @Vm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</div>
+                    </div>
+                    <div>
+                        <div class="role">Xác nhận bởi R&amp;D · Confirmed by R&amp;D</div>
+                        <div class="name">@OrDash(Vm.ApprovedBy)</div>
+                        <div class="date">Date: @(Vm.ApprovedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
+                    </div>
+                    <div>
+                        <div class="role">Released by · Phát hành</div>
+                        <div class="name">@OrDash(Vm.ReleasedBy)</div>
+                        <div class="date">Date: @(Vm.ReleasedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
+                    </div>
+                    <div>
+                        <div class="role">Updated by · Cập nhật</div>
+                        <div class="name">@OrDash(Vm.UpdatedBy)</div>
+                        <div class="date">Date: @(Vm.UpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
+                    </div>
+                </div>
+            </div>
+        </text>)
+
+        @* ─── 9. Change Log (audit trail) ─────────────────────────── *@
+        @TryRender("change-log", () => @<text>
+            <div class="spec-block-full">
+                <div class="spec-block-title-full">Change Log · Nhật ký thay đổi</div>
+                @if (Vm.AuditEntries.Count == 0)
+                {
+                    <p class="spec-empty-cell">— Chưa có nhật ký —</p>
+                }
+                else
+                {
+                    <table class="spec-rev-table-full">
+                        <thead>
+                            <tr>
+                                <th>Thời gian</th>
+                                <th>Hành động</th>
+                                <th>Người</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in Vm.AuditEntries)
+                            {
+                                <tr>
+                                    <td>@entry.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td><span class="spec-audit-action">@LocalizeAction(entry.Action)</span></td>
+                                    <td>@OrDash(entry.ActorUsername)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        </text>)
+    </div>
+}
+
+@code {
+    [Parameter] public SpecShowcardVm? Vm { get; set; }
+
+    /// <summary>Lesson #27 — wrap each section in a try/catch so a
+    /// single bad sub-spec block can't blank the entire showcard.
+    /// Failures render an inline warning chip in dev, an em-dash in
+    /// release. The block id is for ops triage. Caller passes a
+    /// <c>Func&lt;RenderFragment&gt;</c> so the inner render is deferred
+    /// until the try block — invoking it eagerly would throw outside
+    /// the guard.</summary>
+    private RenderFragment TryRender(string sectionId, Func<RenderFragment> renderInner) => __builder =>
+    {
+        try
+        {
+            var fragment = renderInner();
+            fragment(__builder);
+        }
+        catch (Exception ex)
+        {
+            __builder.OpenElement(0, "div");
+            __builder.AddAttribute(1, "class", "spec-section-error");
+            __builder.AddAttribute(2, "role", "alert");
+            __builder.AddContent(3, $"Không hiển thị được phần [{sectionId}]: {ex.GetType().Name}");
+            __builder.CloseElement();
+        }
+    };
+
+    private static string ResolveTemplate(string plannerCode) => plannerCode?.ToUpperInvariant() switch
+    {
+        "SILK"   => "SILK",
+        "FLEXO"  => "FLEXO",
+        _        => "GENERIC",
+    };
+
+    private static string CategoryHeaderLabel(string template) => template switch
+    {
+        "SILK"   => "SILKSCREEN SPECIFICATION",
+        "FLEXO"  => "FLEXO SPECIFICATION",
+        _        => "PROCESS SPECIFICATION",
+    };
+
+    private static string CategoryHeaderSubtitle(string template) => template switch
+    {
+        "SILK"   => "Quy cách in lụa",
+        "FLEXO"  => "Quy cách in flexo",
+        _        => "Quy cách quy trình",
+    };
+
+    private static string OrDash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
+
+    private static string OrDashNum(double? v, string fmt) =>
+        v is null ? "—" : v.Value.ToString(fmt, CultureInfo.InvariantCulture);
+
+    private static string LocalizeAction(string action) => action switch
+    {
+        "SPEC_CREATE"     => "Tạo Spec",
+        "SPEC_APPROVE"    => "Duyệt",
+        "SPEC_RELEASE"    => "Phát hành",
+        "SPEC_REVISE"     => "Tạo Revise",
+        "SPEC_SUPERSEDE"  => "Đánh dấu Thay thế",
+        "SPEC_TRASH"      => "Xoá vào Thùng rác",
+        "SPEC_RESTORE"    => "Khôi phục",
+        "SPEC_IMPORT"     => "Import từ xlsx",
+        "SPEC_UPDATE"     => "Sửa",
+        _                 => action,
+    };
+}

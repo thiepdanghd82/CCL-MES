@@ -1,0 +1,111 @@
+@*
+    P10.5d — Renders the result of SpecDiffVm.Compare(current, parent)
+    as a grouped diff list. Each section shows fields + row diffs with
+    colour badges (Added / Removed / Changed).
+
+    Reused by the Spec detail page's "So sánh với rev trước" toggle —
+    operator clicks the button, viewer swaps in. Pure presentation; the
+    comparison is computed up-front by the pure helper SpecDiffVm.
+*@
+
+@using CCL.MES.Hybrid.Client.Specs
+
+@if (Result is null)
+{
+    <p class="spec-diff-empty">Không có dữ liệu so sánh.</p>
+}
+else if (!Result.HasDiff)
+{
+    <div class="spec-diff-banner">
+        <strong>Không có khác biệt</strong> giữa rev @Result.CurrentRev và rev @Result.ParentRev.
+    </div>
+}
+else
+{
+    <div class="spec-diff-viewer">
+        <div class="spec-diff-banner">
+            So sánh rev <strong>@Result.CurrentRev</strong>
+            (hiện tại) với rev <strong>@Result.ParentRev</strong> (trước) —
+            <strong>@Result.Entries.Count</strong> thay đổi.
+        </div>
+
+        @foreach (var group in Result.Entries.GroupBy(e => e.Section))
+        {
+            <div class="spec-diff-section">
+                <div class="spec-diff-section-title">@SectionLabel(group.Key)</div>
+                <table class="spec-diff-table">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Trước (rev @Result.ParentRev)</th>
+                            <th>Sau (rev @Result.CurrentRev)</th>
+                            <th>Loại</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var entry in group)
+                        {
+                            <tr class="spec-diff-row spec-diff-row-@KindCssSlug(entry.Kind)">
+                                <td class="spec-diff-field">@entry.FieldLabel</td>
+                                <td class="spec-diff-old">@RenderValue(entry.OldValue, entry.Kind, before: true)</td>
+                                <td class="spec-diff-new">@RenderValue(entry.NewValue, entry.Kind, before: false)</td>
+                                <td>
+                                    <span class="spec-diff-badge spec-diff-badge-@KindCssSlug(entry.Kind)">@KindLabel(entry.Kind)</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public SpecDiffVm.SpecDiffResult? Result { get; set; }
+
+    private static string SectionLabel(SpecDiffVm.DiffSection section) => section switch
+    {
+        SpecDiffVm.DiffSection.Identity     => "Identity / Header",
+        SpecDiffVm.DiffSection.PrintParams  => "Print Parameters",
+        SpecDiffVm.DiffSection.Material     => "Material",
+        SpecDiffVm.DiffSection.Remarks      => "Remarks",
+        SpecDiffVm.DiffSection.PrintColors  => "Silk Colours",
+        SpecDiffVm.DiffSection.FlexoPrint   => "Flexo Print Rows",
+        SpecDiffVm.DiffSection.FlexoCutting => "Flexo Cutting Rows",
+        SpecDiffVm.DiffSection.FlexoInk     => "Flexo Ink Rows",
+        _                                   => section.ToString(),
+    };
+
+    private static string KindLabel(SpecDiffVm.ChangeType kind) => kind switch
+    {
+        SpecDiffVm.ChangeType.Added   => "Thêm mới",
+        SpecDiffVm.ChangeType.Removed => "Đã xoá",
+        SpecDiffVm.ChangeType.Changed => "Sửa",
+        _                             => kind.ToString(),
+    };
+
+    private static string KindCssSlug(SpecDiffVm.ChangeType kind) => kind switch
+    {
+        SpecDiffVm.ChangeType.Added   => "added",
+        SpecDiffVm.ChangeType.Removed => "removed",
+        SpecDiffVm.ChangeType.Changed => "changed",
+        _                             => "unknown",
+    };
+
+    private static RenderFragment RenderValue(string? value, SpecDiffVm.ChangeType kind, bool before) => __builder =>
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            __builder.OpenElement(0, "span");
+            __builder.AddAttribute(1, "class", "spec-diff-empty-cell");
+            __builder.AddContent(2, "—");
+            __builder.CloseElement();
+            return;
+        }
+        var tag = (before && kind == SpecDiffVm.ChangeType.Removed) ? "del" : "span";
+        __builder.OpenElement(0, tag);
+        __builder.AddContent(1, value);
+        __builder.CloseElement();
+    };
+}
