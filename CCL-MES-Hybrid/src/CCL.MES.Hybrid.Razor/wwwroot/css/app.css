@@ -2743,6 +2743,16 @@ html, body {
     max-width: 480px;
 }
 
+/* P10.6e UI fix — wide variant for data-grid pages (audit / backup).
+   Form pages (profile / password / about / appearance) keep the 480px
+   cap because a single column of fields shouldn't sprawl on wide
+   screens; data-grid pages use the available width up to a sane
+   reading limit. */
+.settings-form-card.is-wide {
+    max-width: min(1600px, calc(100vw - 320px));
+    width: 100%;
+}
+
 .settings-field {
     display: flex;
     flex-direction: column;
@@ -3063,18 +3073,37 @@ html, body {
     cursor: not-allowed;
 }
 
+/* P10.6e UI fix — same pattern as audit: fixed table-layout +
+   horizontal overflow + per-col widths. Filename truncates
+   (with title= tooltip in markup) so SHA + size + chip stay visible
+   at typical viewport widths. */
+.backup-table-wrap {
+    margin-top: 10px;
+    overflow-x: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+}
+
 .backup-table {
     width: 100%;
+    min-width: 900px;
     border-collapse: collapse;
-    margin-top: 10px;
+    table-layout: fixed;
     font-size: 0.85rem;
 }
+
+.backup-table col.backup-col-file   { width: auto;  }
+.backup-table col.backup-col-size   { width: 120px; }
+.backup-table col.backup-col-sha    { width: 240px; }
+.backup-table col.backup-col-time   { width: 180px; }
+.backup-table col.backup-col-kind   { width: 120px; }
 
 .backup-table th, .backup-table td {
     text-align: left;
     padding: 6px 10px;
     border-bottom: 1px solid #e5e7eb;
     vertical-align: top;
+    overflow: hidden;
 }
 
 .backup-table th {
@@ -3082,16 +3111,31 @@ html, body {
     font-weight: 600;
 }
 
-.backup-num { text-align: right; font-variant-numeric: tabular-nums; }
+.backup-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .backup-filename {
     font-size: 0.78rem;
-    word-break: break-all;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+    width: 100%;
+}
+
+.backup-sha-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .backup-sha {
-    font-size: 0.78rem;
+    font-size: 0.74rem;
     color: #6b7280;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1 1 auto;
 }
 
 .backup-chip {
@@ -3180,29 +3224,57 @@ html, body {
     font-variant-numeric: tabular-nums;
 }
 
+/* P10.6e UI fix — fixed table-layout + per-column widths + horizontal
+   overflow on narrow viewports + collapsible detail row.
+   Sum of fixed cols ≈ 935px; "Chi tiết" + "Đối tượng" + "ID" + "IP"
+   are content-driven within the remaining space. */
+.audit-table-wrap {
+    margin-top: 10px;
+    overflow-x: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+}
+
 .audit-table {
     width: 100%;
+    min-width: 1100px;
     border-collapse: collapse;
-    margin-top: 10px;
+    table-layout: fixed;
     font-size: 0.8rem;
 }
+
+.audit-table col.audit-col-utc      { width: 160px; }
+.audit-table col.audit-col-actor    { width: 140px; }
+.audit-table col.audit-col-role     { width: 90px;  }
+.audit-table col.audit-col-action   { width: 170px; }
+.audit-table col.audit-col-target   { width: 130px; }
+.audit-table col.audit-col-id       { width: 110px; }
+.audit-table col.audit-col-ip       { width: 120px; }
+.audit-table col.audit-col-source   { width: 80px;  }
+.audit-table col.audit-col-detail   { width: auto;  }
 
 .audit-table th, .audit-table td {
     text-align: left;
     padding: 6px 8px;
     border-bottom: 1px solid #e5e7eb;
     vertical-align: top;
+    overflow: hidden;
 }
 
 .audit-table th {
     background: #f3f4f6;
     font-weight: 600;
+    position: sticky;
+    top: 0;
 }
 
 .audit-mono {
     font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, "Cascadia Mono", monospace;
     font-size: 0.74rem;
     color: #374151;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .audit-action-chip {
@@ -3213,13 +3285,80 @@ html, body {
     background: rgba(47,128,237,0.12);
     color: var(--brand-2);
     letter-spacing: 0.02em;
+    white-space: nowrap;
 }
 
-.audit-detail {
+/* Single-line truncate for the Detail cell; click toggles expansion. */
+.audit-detail-cell {
+    cursor: pointer;
+    user-select: none;
+}
+
+.audit-detail-trunc {
     display: inline-block;
-    max-width: 360px;
+    width: 100%;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, monospace;
     font-size: 0.72rem;
     color: #4b5563;
-    word-break: break-all;
-    white-space: pre-wrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
+
+.audit-detail-cell:hover .audit-detail-trunc { color: #1f2937; }
+
+.audit-detail-empty { color: #9ca3af; font-style: italic; }
+
+.audit-expand-toggle {
+    color: var(--brand-2);
+    font-size: 0.65rem;
+    margin-left: 6px;
+    font-weight: 600;
+}
+
+.audit-expanded-row td {
+    background: #f9fafb;
+    padding: 12px 14px;
+}
+
+.audit-expanded-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 0.75rem;
+    color: #4b5563;
+}
+
+.audit-expanded-pre {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Monaco, monospace;
+    font-size: 0.74rem;
+    color: #1f2937;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 8px 10px;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 320px;
+    overflow: auto;
+}
+
+.audit-copy-btn {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink-mut);
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #4b5563;
+}
+
+.audit-copy-btn:hover {
+    border-color: var(--brand);
+    color: var(--brand-2);
+}
+
+.audit-copy-btn.is-ok { color: #16A34A; border-color: #16A34A; }

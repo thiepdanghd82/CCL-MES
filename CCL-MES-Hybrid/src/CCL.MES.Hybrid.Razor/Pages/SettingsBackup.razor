@@ -37,7 +37,7 @@
     <h1 class="page-title">Sao lưu &amp; Khôi phục</h1>
 </div>
 
-<section class="settings-form-card">
+<section class="settings-form-card is-wide">
     <h2 class="settings-group-title">Tạo bản sao lưu</h2>
     <p class="settings-form-help">
         Tạo snapshot của SQLite database ngay lập tức. Snapshot dùng
@@ -61,7 +61,7 @@
     }
 </section>
 
-<section class="settings-form-card" style="margin-top:16px">
+<section class="settings-form-card is-wide" style="margin-top:16px">
     <h2 class="settings-group-title">Khôi phục từ file</h2>
     <p class="settings-form-help">
         Tải lên file <code>.db</code> hoặc <code>.bak</code> được tạo bởi
@@ -98,7 +98,7 @@
     }
 </section>
 
-<section class="settings-form-card" style="margin-top:16px">
+<section class="settings-form-card is-wide" style="margin-top:16px">
     <h2 class="settings-group-title">Danh sách bản sao (@_snapshots.Count)</h2>
     @if (_listError is not null)
     {
@@ -114,38 +114,59 @@
     }
     else
     {
-        <table class="backup-table">
-            <thead>
-                <tr>
-                    <th>Tên file</th>
-                    <th>Kích thước</th>
-                    <th>SHA-256</th>
-                    <th>Tạo lúc (UTC)</th>
-                    <th>Loại</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var s in _snapshots)
-                {
+        <div class="backup-table-wrap">
+            <table class="backup-table">
+                <colgroup>
+                    <col class="backup-col-file" />
+                    <col class="backup-col-size" />
+                    <col class="backup-col-sha"  />
+                    <col class="backup-col-time" />
+                    <col class="backup-col-kind" />
+                </colgroup>
+                <thead>
                     <tr>
-                        <td><code class="backup-filename">@s.FileName</code></td>
-                        <td class="backup-num">@FormatBytes(s.SizeBytes)</td>
-                        <td><code class="backup-sha">@ShortSha(s.Sha256)</code></td>
-                        <td>@s.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</td>
-                        <td>
-                            @if (s.IsPreRestore)
-                            {
-                                <span class="backup-chip backup-chip-pre">pre-restore</span>
-                            }
-                            else
-                            {
-                                <span class="backup-chip">snapshot</span>
-                            }
-                        </td>
+                        <th>Tên file</th>
+                        <th>Kích thước</th>
+                        <th>SHA-256</th>
+                        <th>Tạo lúc (UTC)</th>
+                        <th>Loại</th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var s in _snapshots)
+                    {
+                        <tr>
+                            <td><code class="backup-filename" title="@s.FileName">@s.FileName</code></td>
+                            <td class="backup-num">@FormatBytes(s.SizeBytes)</td>
+                            <td>
+                                <div class="backup-sha-cell">
+                                    <code class="backup-sha" title="@s.Sha256">@ShortSha(s.Sha256)</code>
+                                    @if (!string.IsNullOrEmpty(s.Sha256))
+                                    {
+                                        <button type="button"
+                                                class="audit-copy-btn @(_shaCopiedFor == s.FileName ? "is-ok" : "")"
+                                                @onclick="@(() => CopySha(s.FileName, s.Sha256))">
+                                            @(_shaCopiedFor == s.FileName ? "✔" : "Copy")
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                            <td>@s.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</td>
+                            <td>
+                                @if (s.IsPreRestore)
+                                {
+                                    <span class="backup-chip backup-chip-pre">pre-restore</span>
+                                }
+                                else
+                                {
+                                    <span class="backup-chip">snapshot</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
 </section>
 
@@ -166,6 +187,10 @@
     private ElementReference _fileInput;
     private string? _pickedName;
     private long _pickedSize;
+
+    // P10.6e UI fix — SHA copy feedback. Empty string = no recent
+    // copy; matches the source row's FileName for ~1.5s after click.
+    private string _shaCopiedFor = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -283,6 +308,22 @@
         {
             _restoring = false;
         }
+    }
+
+    private async Task CopySha(string fileName, string sha)
+    {
+        try
+        {
+            var ok = await Js.InvokeAsync<bool>("cclMesClipboard.copy", sha);
+            if (ok)
+            {
+                _shaCopiedFor = fileName;
+                StateHasChanged();
+                await Task.Delay(1500);
+                if (_shaCopiedFor == fileName) _shaCopiedFor = "";
+            }
+        }
+        catch { /* swallow — operator can long-press to copy manually */ }
     }
 
     private static string FormatBytes(long bytes)
