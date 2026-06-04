@@ -24,42 +24,50 @@
         </div>
 
         @*
-            Wiring notes (Phase 10 P10.2):
-              - EditForm + DataAnnotationsValidator handle the [Required] rule.
-              - Submit button has BOTH type="submit" AND @onclick so the form
-                fires either via Enter-in-input (browser-style submit) or via
-                direct click — the Mac Catalyst BlazorWebView occasionally
-                drops the synthetic form-submit event on direct mouse clicks,
-                and the explicit @onclick guarantees the handler runs.
-                _submitting flag is the idempotency guard so the two paths
-                can't double-trigger.
-              - tabindex 1/2/3 makes Tab/Shift+Tab move username → password →
-                button predictably. WKWebView inside Catalyst sometimes
-                doesn't honour the default focus order without explicit
-                tabindex. The platform-gated <MacCatalystKeyboardFix /> in
-                MainLayout/EmptyLayout intercepts Tab + Enter at the DOM
-                level to work around dotnet/maui#13934.
-              - autocomplete=off / new-password so macOS Keychain doesn't
-                replace typed values mid-stream (it would inject the saved
-                pair on focus and confuse the @bind-Value state machine).
+            Wiring notes (P10.5g hotfix 2/2):
+              - Pre-hotfix the page used an EditForm + InputText combo
+                with bind-Value + bind-Value:event=oninput + onkeydown.
+                That triple combo throws ArgumentException
+                ("ChangeEventArgs cannot be converted to System.String")
+                on every keystroke under net10 MAUI Blazor Hybrid. The
+                throw silently corrupted the renderer dispatcher → the
+                "click does nothing" symptom Henry filed first.
+              - Fix: switched to plain HTML input + @bind + @bind:event
+                ="oninput" + @onkeydown (same pattern Lock.razor has
+                been using cleanly).
+              - Validation: field-level [Required] enforcement via
+                DataAnnotationsValidator was dropped; HandleSubmitAsync
+                already does the same IsNullOrWhiteSpace check inline.
+                The [Required] attribute on LoginForm is left in place
+                so a future re-introduction (when the upstream Blazor
+                binder is fixed) is one EditForm wrap.
+              - Submit button keeps BOTH type="submit" AND @onclick so
+                Enter-in-input AND direct click both fire — the WebView
+                occasionally drops the synthetic form-submit, and the
+                explicit @onclick guarantees the handler runs.
+                _submitting flag is the idempotency guard.
+              - tabindex 1/2/3 sequence + the always-on
+                MacCatalystKeyboardFix component still handle Tab +
+                Enter (dotnet/maui#13934).
+              - autocomplete off / new-password so macOS Keychain
+                doesn't inject the saved-credential pair on focus.
         *@
-        <EditForm Model="@_form" OnValidSubmit="HandleSubmitAsync" FormName="login">
-            <DataAnnotationsValidator />
+        <form @onsubmit="HandleSubmitAsync" @onsubmit:preventDefault="true" name="login">
             <div class="login-field">
                 <label for="login-username">Tên đăng nhập</label>
-                <InputText id="login-username" class="login-input"
-                           tabindex="1"
-                           @bind-Value="_form.Username" @bind-Value:event="oninput"
-                           @onkeydown="OnFieldKeyDown"
-                           autocomplete="off" autofocus />
+                <input id="login-username" type="text" class="login-input"
+                       tabindex="1"
+                       @bind="_form.Username" @bind:event="oninput"
+                       @onkeydown="OnFieldKeyDown"
+                       autocomplete="off" autofocus />
             </div>
             <div class="login-field">
                 <label for="login-password">Mật khẩu</label>
-                <InputText id="login-password" type="password" class="login-input"
-                           tabindex="2"
-                           @bind-Value="_form.Password" @bind-Value:event="oninput"
-                           @onkeydown="OnFieldKeyDown"
-                           autocomplete="new-password" />
+                <input id="login-password" type="password" class="login-input"
+                       tabindex="2"
+                       @bind="_form.Password" @bind:event="oninput"
+                       @onkeydown="OnFieldKeyDown"
+                       autocomplete="new-password" />
             </div>
 
             @if (_errorKey is not null)
@@ -77,7 +85,7 @@
                     disabled="@_submitting" @onclick="HandleSubmitAsync">
                 @(_submitting ? "Đang đăng nhập…" : "Đăng nhập")
             </button>
-        </EditForm>
+        </form>
     </div>
 </div>
 

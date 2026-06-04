@@ -112,4 +112,59 @@ public sealed class BackgroundCrashContainmentTests
         Assert.Contains("login-health", body, StringComparison.Ordinal);
         Assert.Contains("RunHealthLoopAsync", body, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Login_page_uses_plain_input_not_InputText_to_avoid_ChangeEventArgs_throw()
+    {
+        // P10.5g hotfix 2/2 — the <InputText> + @bind-Value:event="oninput"
+        // + @onkeydown triple combo throws
+        //   ArgumentException: ChangeEventArgs cannot be converted to System.String
+        // on every keystroke under net10 MAUI Blazor Hybrid. The throw used
+        // to silently corrupt the renderer dispatcher (the "click does
+        // nothing" symptom Henry filed first); RendererCrashBoundary made
+        // it visible, after which Henry pinned the exact frame.
+        //
+        // Fix is the working pattern Lock.razor already uses: plain
+        // <input> + @bind + @bind:event="oninput" + @onkeydown. Refuse
+        // a refactor that re-introduces <InputText> on this page until
+        // the underlying Blazor regression is upstream-fixed.
+        var loginPath = Path.Combine(
+            new DirectoryInfo(SourceRoot).Parent!.FullName,
+            "CCL.MES.Hybrid.Razor", "Pages", "Login.razor");
+        var body = File.ReadAllText(loginPath);
+        Assert.DoesNotContain("<InputText", body, StringComparison.Ordinal);
+        Assert.Contains("@bind=\"_form.Username\"", body, StringComparison.Ordinal);
+        Assert.Contains("@bind=\"_form.Password\"", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void No_Razor_page_combines_InputText_with_bind_Value_event_oninput()
+    {
+        // Repo-wide tripwire — any new page that re-introduces the same
+        // combo will fail CI with the file path that broke. Cheaper than
+        // re-running an end-to-end Catalyst test every time someone
+        // edits a form. Trip is intentionally specific (the exact two
+        // attribute names that together produce the throw); a future
+        // <InputText> with default onchange — the pattern that does
+        // not throw — passes cleanly.
+        var razorRoot = Path.Combine(
+            new DirectoryInfo(SourceRoot).Parent!.FullName,
+            "CCL.MES.Hybrid.Razor");
+        var offenders = Directory
+            .EnumerateFiles(razorRoot, "*.razor", SearchOption.AllDirectories)
+            .Where(p => !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") &&
+                        !p.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}"))
+            .Where(p =>
+            {
+                var b = File.ReadAllText(p);
+                return b.Contains("<InputText", StringComparison.Ordinal) &&
+                       b.Contains("@bind-Value:event=\"oninput\"", StringComparison.Ordinal);
+            })
+            .ToList();
+        Assert.True(offenders.Count == 0,
+            $"<InputText> + @bind-Value:event=\"oninput\" combo throws " +
+            $"ChangeEventArgs→string on Mac Catalyst Hybrid. Use plain <input> + " +
+            $"@bind + @bind:event=\"oninput\" instead (see Lock.razor / Login.razor). " +
+            $"Offending file(s): {string.Join(", ", offenders)}");
+    }
 }

@@ -229,4 +229,107 @@ next round.
 - 5 native-UI items from the prior FULL-TEST report still need
   Henry's ≤ 90 s spot-check each — that list is unchanged.
 
-🤖 Hotfix generated with [Claude Code](https://claude.com/claude-code)
+---
+
+# Follow-up — second commit `0604df0a` — real root cause uncovered
+
+Once `RendererCrashBoundary` was live, Henry saw the actual exception
+on every keystroke into the username field:
+
+```
+ArgumentException: Object of type
+  'Microsoft.AspNetCore.Components.ChangeEventArgs'
+  cannot be converted to type 'System.String'.
+```
+
+The 6-layer containment from the previous commit was working as
+designed — turning a renderer-killing throw into a visible boundary
+card. But the throw itself is the real culprit (the "background task"
+hypothesis from the first report was a red herring; my 12-mục curl
+chain never hit the foreground render path so it missed it).
+
+## Root cause
+
+Login was the **only** page in the repo using the
+`<InputText @bind-Value="…" @bind-Value:event="oninput" @onkeydown="…">`
+triple combo. On net10 MAUI Blazor Hybrid, the generated event-binder
+mis-dispatches the native `ChangeEventArgs` into the bind callback
+(which expects an unwrapped string), producing the
+`ArgumentException` above on every keystroke.
+
+`Lock.razor` already uses the working pattern: plain `<input>` +
+`@bind` + `@bind:event="oninput"` + `@onkeydown`. Same UX, no
+`<InputText>`, no throw. Switched Login to mirror that pattern.
+
+`<EditForm>` + `<DataAnnotationsValidator>` removed alongside —
+they only run inside `<InputText>` for field-level errors, and
+HandleSubmitAsync already does the same `IsNullOrWhiteSpace` check
+inline with VN strings. The `[Required]` attribute on `LoginForm`
+fields stays put so re-introducing the EditForm pattern later (after
+the upstream Blazor regression is fixed) is a one-line change.
+
+## Repo-wide audit
+
+```
+$ grep -l '<InputText.*@bind-Value:event="oninput"' …
+(nothing — Login was the only place)
+```
+
+All other `<input>` / `<textarea>` / `<select>` bindings use plain
+HTML elements + `@bind` (no `InputText` wrapper). The bug class is
+contained.
+
+## Tests +2 in `BackgroundCrashContainmentTests`
+
+| Test | Purpose |
+| --- | --- |
+| `Login_page_uses_plain_input_not_InputText_to_avoid_ChangeEventArgs_throw` | Asserts `<InputText` is absent from Login.razor and that `@bind="_form.Username"` / `@bind="_form.Password"` are present. |
+| `No_Razor_page_combines_InputText_with_bind_Value_event_oninput` | Repo-wide tripwire — any future page that re-introduces the throwing combo will fail CI with the offending file path. |
+
+Both green: 436/436 client + 143/143 API.
+
+## LESSONS — Blazor `@oninput` / `@onchange` handler rule
+
+(Henry asked: "ít nhất ghi LESSONS: handler event Blazor phải nhận
+ChangeEventArgs".)
+
+In Blazor (Server / WebAssembly / MAUI Hybrid all the same):
+
+1. A handler wired to `@oninput=` / `@onchange=` MUST take
+   `ChangeEventArgs` (or no parameters at all). Wiring it to a method
+   that takes `string` throws
+   `ArgumentException: ChangeEventArgs cannot be converted to System.String`
+   on every event.
+
+   ```razor
+   <!-- WRONG — throws on every keystroke -->
+   <input @oninput="UpdateName" />
+   @code { void UpdateName(string s) { … } }
+
+   <!-- OK — explicit ChangeEventArgs -->
+   <input @oninput="UpdateName" />
+   @code { void UpdateName(ChangeEventArgs e) {
+       _name = e.Value?.ToString() ?? "";
+   } }
+
+   <!-- OK — implicit, parameterless -->
+   <input @oninput="MarkDirty" />
+   @code { void MarkDirty() { _dirty = true; } }
+
+   <!-- OK — inline lambda, type is inferred from EventCallback<ChangeEventArgs> -->
+   <input @oninput="(e) => _name = e.Value?.ToString() ?? string.Empty" />
+   ```
+
+2. The Catalyst Hybrid renderer EATS the throw silently into the
+   dispatcher — symptom looks like "click does nothing after N
+   seconds". Add `RendererCrashBoundary` (we did, 0604df0) so the
+   throw surfaces as a VN card instead of a dead dispatcher.
+
+3. On net10 MAUI Blazor Hybrid specifically, `<InputText>` +
+   `@bind-Value:event="oninput"` + `@onkeydown` triple combo also
+   throws the same `ChangeEventArgs → string` error even though the
+   handler signature in your code is correct — the Blazor-generated
+   binder mis-dispatches. Use plain `<input>` instead until the
+   upstream regression is fixed.
+
+🤖 Follow-up generated with [Claude Code](https://claude.com/claude-code)
