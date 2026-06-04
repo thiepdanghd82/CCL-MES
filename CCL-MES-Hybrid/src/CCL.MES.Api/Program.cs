@@ -252,6 +252,13 @@ builder.Services.AddSingleton<ShopfloorNotifierV2>();
 // legacy Web project's registration (src/CCL.MES.Web/Program.cs:230).
 builder.Services.AddScoped<CCL.MES.Application.SpecImport.SpecImportService>();
 
+// P10.5e-1 — Drawings upload + download orchestrator. Legacy Phase 8
+// PR-D-5b service composed of IMesDbContext + IBlobStore (registered
+// just above) + IAuditWriter. Multipart upload routes to UploadAsync;
+// download via GetForDownloadAsync + IBlobStore.GetAsync. Scoped to
+// match the DbContext lifetime (transactional upload).
+builder.Services.AddScoped<CCL.MES.Application.Services.DrawingsService>();
+
 // P10.3 W4 — in-memory device heartbeat snapshot store. Process-scoped
 // so /v2/devices/{id} can answer last-seen + scan-count without a DB
 // write per ping. Lost on process restart (acceptable: heartbeat

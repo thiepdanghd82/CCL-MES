@@ -478,66 +478,25 @@ else if (_detail is not null && _vm is not null)
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "grid-error");
             __builder.AddAttribute(2, "role", "alert");
-            __builder.OpenElement(3, "strong");
-            __builder.AddContent(4, "Không tải được Drawings.");
-            __builder.CloseElement();
-            __builder.OpenElement(5, "div");
-            __builder.AddContent(6, _drawingsError);
-            __builder.CloseElement();
-            __builder.OpenElement(7, "button");
-            __builder.AddAttribute(8, "type", "button");
-            __builder.AddAttribute(9, "class", "grid-btn");
-            __builder.AddAttribute(10, "onclick", EventCallback.Factory.Create(this, LoadDrawingsAsync));
-            __builder.AddContent(11, "Thử lại");
+            __builder.AddMarkupContent(3, "<strong>Không tải được Drawings.</strong>");
+            __builder.AddMarkupContent(4, $"<div>{System.Net.WebUtility.HtmlEncode(_drawingsError)}</div>");
+            __builder.OpenElement(5, "button");
+            __builder.AddAttribute(6, "type", "button");
+            __builder.AddAttribute(7, "class", "grid-btn");
+            __builder.AddAttribute(8, "onclick", EventCallback.Factory.Create(this, LoadDrawingsAsync));
+            __builder.AddContent(9, "Thử lại");
             __builder.CloseElement();
             __builder.CloseElement();
             return;
         }
-        if (_drawings is null || _drawings.Count == 0)
-        {
-            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Chưa có bản vẽ nào cho revision này.</p>");
-            return;
-        }
-        __builder.OpenElement(0, "div");
-        __builder.AddAttribute(1, "class", "drawing-grid");
-        foreach (var slot in _drawings)
-        {
-            __builder.OpenElement(2, "div");
-            __builder.AddAttribute(3, "class", "drawing-slot");
-            __builder.OpenElement(4, "div");
-            __builder.AddAttribute(5, "class", "drawing-slot-head");
-            __builder.OpenElement(6, "strong");
-            __builder.AddContent(7, slot.Title);
-            __builder.CloseElement();
-            __builder.OpenElement(8, "span");
-            __builder.AddAttribute(9, "class", $"spec-status-pill drawing-status-{slot.DrawingStatus.ToString().ToLowerInvariant()}");
-            __builder.AddContent(10, DrawingSlotStatusLabel(slot.DrawingStatus));
-            __builder.CloseElement();
-            __builder.CloseElement();
-            __builder.OpenElement(11, "div");
-            __builder.AddAttribute(12, "class", "drawing-slot-versions");
-            if (slot.Versions.Count == 0)
-            {
-                __builder.AddMarkupContent(13, "<span class=\"spec-empty-inline\">Chưa có bản tải lên.</span>");
-            }
-            else
-            {
-                foreach (var v in slot.Versions)
-                {
-                    __builder.OpenElement(14, "div");
-                    __builder.AddAttribute(15, "class", "drawing-version-row");
-                    __builder.AddMarkupContent(16, $"<span class=\"spec-mono\">v{v.VersionNo}</span>");
-                    __builder.AddMarkupContent(17, $"<span>{System.Net.WebUtility.HtmlEncode(v.FileName)}</span>");
-                    __builder.AddMarkupContent(18, $"<span class=\"drawing-size\">{FormatBytes(v.FileSize)}</span>");
-                    __builder.AddMarkupContent(19, $"<span class=\"drawing-status-{v.Status.ToString().ToLowerInvariant()}\">{System.Net.WebUtility.HtmlEncode(DrawingVersionStatusLabel(v.Status))}</span>");
-                    __builder.CloseElement();
-                }
-            }
-            __builder.CloseElement();
-            __builder.CloseElement();
-        }
-        __builder.CloseElement();
-        __builder.AddMarkupContent(100, "<p class=\"spec-deferred-note\"><em>Upload + duyệt sẽ có ở bản 5e.</em></p>");
+        // P10.5e-1 — delegate to the dedicated SpecDrawingsTab component
+        // so the upload/download buttons + per-card error/notice state
+        // live in a focused 200-LOC file instead of expanding this page.
+        __builder.OpenComponent<SpecDrawingsTab>(0);
+        __builder.AddAttribute(1, "RevisionId", RevisionId);
+        __builder.AddAttribute(2, "Slots", _drawings);
+        __builder.AddAttribute(3, "OnReloadRequested", EventCallback.Factory.Create(this, LoadDrawingsAsync));
+        __builder.CloseComponent();
     };
 
     private RenderFragment RenderQcPlansTab() => __builder =>

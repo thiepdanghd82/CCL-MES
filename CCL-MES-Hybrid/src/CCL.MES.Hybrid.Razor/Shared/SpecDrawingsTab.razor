@@ -1,0 +1,286 @@
+@inject ICclApiClient Api
+@inject IFilePickerService FilePicker
+@inject IFileOpener FileOpener
+@using CCL.MES.Hybrid.Client.Files
+@using CCL.MES.Hybrid.Client.Specs
+@using CCL.MES.Shared.Drawings
+
+@*
+    P10.5e-1 — Drawings tab on the Spec detail page. Surface:
+      · 9-kind grid (one card per DrawingKind)
+      · per-card: title + drawing-level status pill + version chain
+        (newest first) + per-version download button + read-only
+        3-role approval chips
+      · Admin/Engineer-only "Tải lên bản mới" button → native picker
+        (drawing allowlist UTType filter) → multipart streaming upload
+        → reload slot
+      · per-card inline error banner from SpecMutationErrorMapper
+
+    Constraints:
+      · _submitting per-card so one slow upload doesn't block the others
+      · download streams to <app sandbox>/downloads/ then opens via
+        Launcher (QuickLook / Preview on Catalyst); IFileOpener.Stub
+        on test hosts returns false → fallback "Đã lưu" toast
+      · 3-role decide buttons NOT here yet — chips are read-only
+        Pending placeholders until P10.5e-2 ships the gate + modal
+*@
+
+@if (Slots is null || Slots.Count == 0)
+{
+    <p class="grid-status">Chưa có bản vẽ nào cho revision này.</p>
+}
+else
+{
+    <div class="drawing-grid">
+        @foreach (var slot in Slots)
+        {
+            var kindKey = slot.Kind.ToString();
+            var submitting = _submittingKind == kindKey;
+            var error = _errorByKind.TryGetValue(kindKey, out var e) ? e : null;
+            var notice = _noticeByKind.TryGetValue(kindKey, out var n) ? n : null;
+
+            <div class="drawing-slot @(submitting ? "is-busy" : "")">
+                <div class="drawing-slot-head">
+                    <strong>@KindLabel(slot.Kind)</strong>
+                    <span class="spec-status-pill drawing-status-@slot.DrawingStatus.ToString().ToLowerInvariant()">
+                        @DrawingSlotStatusLabel(slot.DrawingStatus)
+                    </span>
+                    <AuthorizeView Roles="Admin,Engineer" Context="ctx">
+                        <button type="button" class="grid-btn grid-btn-primary drawing-upload-btn"
+                                disabled="@submitting"
+                                @onclick="() => OnUploadAsync(slot)">
+                            @(submitting ? "Đang tải lên…" : "⤒ Tải lên bản mới")
+                        </button>
+                    </AuthorizeView>
+                </div>
+
+                @if (error is not null)
+                {
+                    <div class="modal-banner modal-banner-error drawing-card-error" role="alert">
+                        <strong>Upload thất bại.</strong>
+                        <div>@error</div>
+                    </div>
+                }
+                @if (notice is not null)
+                {
+                    <div class="modal-banner modal-banner-success drawing-card-notice" role="status">
+                        @notice
+                    </div>
+                }
+
+                <div class="drawing-slot-versions">
+                    @if (slot.Versions.Count == 0)
+                    {
+                        <span class="spec-empty-inline">Chưa có bản tải lên.</span>
+                    }
+                    else
+                    {
+                        @foreach (var v in slot.Versions)
+                        {
+                            var dl = _downloadingVersionId == v.Id;
+                            <div class="drawing-version-row drawing-version-@v.Status.ToString().ToLowerInvariant()">
+                                <span class="spec-mono drawing-vno">v@v.VersionNo</span>
+                                <span class="drawing-fname" title="@v.FileName">@v.FileName</span>
+                                <span class="drawing-size">@FormatBytes(v.FileSize)</span>
+                                <span class="drawing-status-pill drawing-status-@v.Status.ToString().ToLowerInvariant()">
+                                    @DrawingVersionStatusLabel(v.Status)
+                                </span>
+                                <span class="drawing-uploader">@(v.UploadedBy ?? "—")</span>
+
+                                <span class="drawing-approval-strip">
+                                    @foreach (var a in v.Approvals)
+                                    {
+                                        <span class="drawing-approval-chip drawing-approval-chip-@a.Status.ToString().ToLowerInvariant()"
+                                              title="@($"{ApprovalRoleLabel(a.Role)} — {ApprovalStatusLabel(a.Status)}")">
+                                            @ApprovalRoleLabel(a.Role) · @ApprovalStatusLabel(a.Status)
+                                        </span>
+                                    }
+                                </span>
+
+                                <button type="button" class="grid-btn drawing-dl-btn"
+                                        disabled="@dl"
+                                        @onclick="() => OnDownloadAsync(slot, v)">
+                                    @(dl ? "Đang tải…" : "↓ Tải về")
+                                </button>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    </div>
+    <p class="spec-deferred-note">
+        <em>Chip duyệt 3 vai trò + nút Approve/Reject sẽ có ở bản 5e-2.
+            Hiện tại chỉ hiển thị trạng thái Pending.</em>
+    </p>
+}
+
+@code {
+    [Parameter] public long RevisionId { get; set; }
+    [Parameter] public IReadOnlyList<DrawingKindSlot>? Slots { get; set; }
+    [Parameter] public EventCallback OnReloadRequested { get; set; }
+
+    private string? _submittingKind;
+    private long _downloadingVersionId;
+    private readonly Dictionary<string, string?> _errorByKind = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string?> _noticeByKind = new(StringComparer.Ordinal);
+
+    private async Task OnUploadAsync(DrawingKindSlot slot)
+    {
+        var kindKey = slot.Kind.ToString();
+        if (_submittingKind is not null) return; // global busy — Q11 _submitting guard
+        _errorByKind[kindKey] = null;
+        _noticeByKind[kindKey] = null;
+
+        PickedFile? pick;
+        try
+        {
+            pick = await FilePicker.PickFileAsync(FilePickerExtensionMap.DrawingAllowlist);
+        }
+        catch (Exception ex)
+        {
+            _errorByKind[kindKey] = $"{ex.GetType().Name}: {ex.Message}";
+            StateHasChanged();
+            return;
+        }
+        if (pick is null) return; // operator cancelled
+
+        _submittingKind = kindKey;
+        StateHasChanged();
+        try
+        {
+            // Stream the picked file directly into the multipart upload —
+            // no full-file buffer. Disposed once consumed.
+            await using (pick)
+            {
+                var resp = await Api.UploadDrawingAsync(
+                    RevisionId, kindKey, pick.Content, pick.FileName);
+                _noticeByKind[kindKey] = $"Đã tải lên v{resp.VersionNo} · {pick.FileName} ({FormatBytes(resp.SizeBytes)}).";
+            }
+            if (OnReloadRequested.HasDelegate) await OnReloadRequested.InvokeAsync();
+        }
+        catch (ApiException apiEx)
+        {
+            _errorByKind[kindKey] = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+        }
+        catch (HttpRequestException ex)
+        {
+            _errorByKind[kindKey] = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (TaskCanceledException)
+        {
+            _errorByKind[kindKey] = "Tải lên quá lâu (vượt 90 giây) — kiểm tra mạng rồi thử lại.";
+        }
+        catch (Exception ex)
+        {
+            _errorByKind[kindKey] = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _submittingKind = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnDownloadAsync(DrawingKindSlot slot, DrawingVersionView v)
+    {
+        if (_downloadingVersionId != 0) return;
+        var kindKey = slot.Kind.ToString();
+        _errorByKind[kindKey] = null;
+        _noticeByKind[kindKey] = null;
+        _downloadingVersionId = v.Id;
+        StateHasChanged();
+        try
+        {
+            var safeDir = FileOpener.GetSafeDownloadDirectory();
+            // Keep the original filename so QuickLook picks the right
+            // associated app; prefix with version-id to avoid collisions
+            // across re-downloads of the same kind.
+            var dest = Path.Combine(safeDir, $"drawing-{v.Id}-{v.FileName}");
+            var size = await Api.DownloadDrawingToFileAsync(RevisionId, v.Id, dest);
+            _noticeByKind[kindKey] = $"Đã tải về v{v.VersionNo} ({FormatBytes(size)}).";
+            var opened = await FileOpener.TryOpenAsync(dest);
+            if (!opened)
+            {
+                _noticeByKind[kindKey] = $"Đã lưu file vào {dest} (không mở được tự động).";
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _errorByKind[kindKey] = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+        }
+        catch (HttpRequestException ex)
+        {
+            _errorByKind[kindKey] = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _errorByKind[kindKey] = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _downloadingVersionId = 0;
+            StateHasChanged();
+        }
+    }
+
+    private static string KindLabel(DrawingKindCode kind) => kind switch
+    {
+        DrawingKindCode.CustomerDrawing    => "Bản vẽ khách hàng",
+        DrawingKindCode.NpiPrintLayout     => "Print layout (NPI)",
+        DrawingKindCode.NpiCutLayout       => "Cut layout (NPI)",
+        DrawingKindCode.IpqcPrintReference => "IPQC Print reference",
+        DrawingKindCode.IpqcCutReference   => "IPQC Cut reference",
+        DrawingKindCode.FqcChecksheet      => "FQC Checksheet",
+        DrawingKindCode.OqcChecksheet      => "OQC Checksheet",
+        DrawingKindCode.CustomerApproval   => "Customer approval",
+        DrawingKindCode.InternalProof      => "Internal proof",
+        _                                  => kind.ToString(),
+    };
+
+    private static string DrawingSlotStatusLabel(DrawingSlotStatus s) => s switch
+    {
+        DrawingSlotStatus.Draft             => "Bản nháp",
+        DrawingSlotStatus.PendingApproval   => "Chờ duyệt",
+        DrawingSlotStatus.Approved          => "Đã duyệt",
+        DrawingSlotStatus.Superseded        => "Thay thế",
+        DrawingSlotStatus.Withdrawn         => "Đã rút",
+        _                                   => s.ToString(),
+    };
+
+    private static string DrawingVersionStatusLabel(DrawingVersionStatus s) => s switch
+    {
+        DrawingVersionStatus.Draft             => "Bản nháp",
+        DrawingVersionStatus.PendingApproval   => "Chờ duyệt",
+        DrawingVersionStatus.Approved          => "Đã duyệt",
+        DrawingVersionStatus.Rejected          => "Đã từ chối",
+        DrawingVersionStatus.Superseded        => "Thay thế",
+        _                                          => s.ToString(),
+    };
+
+    private static string ApprovalRoleLabel(DrawingApprovalRole r) => r switch
+    {
+        DrawingApprovalRole.Npi        => "NPI",
+        DrawingApprovalRole.Production => "Sản xuất",
+        DrawingApprovalRole.Qc         => "QC",
+        _                                  => r.ToString(),
+    };
+
+    private static string ApprovalStatusLabel(DrawingApprovalStatus s) => s switch
+    {
+        DrawingApprovalStatus.Pending  => "Chờ",
+        DrawingApprovalStatus.Approved => "Duyệt",
+        DrawingApprovalStatus.Rejected => "Từ chối",
+        _                                  => s.ToString(),
+    };
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes <= 0) return "—";
+        const long kb = 1024;
+        const long mb = kb * 1024;
+        if (bytes >= mb) return $"{bytes / (double)mb:0.##} MB";
+        if (bytes >= kb) return $"{bytes / (double)kb:0.#} KB";
+        return $"{bytes} B";
+    }
+}

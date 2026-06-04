@@ -68,4 +68,50 @@ public sealed class CatalystFilePicker : IFilePickerService
         long length = stream.CanSeek ? stream.Length : -1;
         return new PickedFile(result.FileName, length, stream);
     }
+
+    /// <summary>
+    /// P10.5e-1 — Generic drawing/file picker keyed by extension
+    /// allowlist. Delegates to the pure
+    /// <see cref="FilePickerExtensionMap"/> for per-platform type
+    /// translation so the platform vs allowlist coupling stays small +
+    /// xUnit-coverable. Same operator-cancel / sandbox semantics as
+    /// <see cref="PickXlsxAsync"/>.
+    /// </summary>
+    public async Task<PickedFile?> PickFileAsync(
+        IReadOnlyList<string> allowedExtensions, CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (allowedExtensions is null || allowedExtensions.Count == 0)
+            return null;
+
+        var catalystTypes = FilePickerExtensionMap.MapCatalyst(allowedExtensions);
+        var windowsTypes = FilePickerExtensionMap.MapWindows(allowedExtensions);
+        var androidTypes = FilePickerExtensionMap.MapAndroid(allowedExtensions);
+
+        var options = new PickOptions
+        {
+            PickerTitle = "Chọn bản vẽ",
+            FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+            {
+                { DevicePlatform.MacCatalyst, catalystTypes },
+                { DevicePlatform.iOS,        catalystTypes },
+                { DevicePlatform.WinUI,      windowsTypes },
+                { DevicePlatform.Android,    androidTypes },
+            }),
+        };
+
+        FileResult? result;
+        try
+        {
+            result = await FilePicker.Default.PickAsync(options);
+        }
+        catch (PermissionException) { return null; }
+        catch (FeatureNotSupportedException) { return null; }
+        catch (TaskCanceledException) { return null; }
+
+        if (result is null) return null;
+        var stream = await result.OpenReadAsync();
+        long length = stream.CanSeek ? stream.Length : -1;
+        return new PickedFile(result.FileName, length, stream);
+    }
 }

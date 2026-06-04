@@ -1,0 +1,90 @@
+=== P10.5e-1 wire-level verification — Thu Jun  4 09:22:32 +07 2026 ===
+Login OK (token len=596)
+
+--- [1] Seed silk spec via import (need rev id) ---
+  revision id = 1
+
+--- [2] Generate test payloads ---
+  pdf size=4096 sha=a89caa5af77800a50924f688f2002b73be53728358ea6440e24c2fdcdd76b1c9
+  png size=8192 sha=f2c8e255e9995558d5a9309939ac157709a4e0a9b182009bf2dd900fffcfab23
+
+--- [3] Upload pdf → CustomerDrawing kind ---
+{
+    "drawingId": 1,
+    "versionId": 1,
+    "versionNo": 1,
+    "kind": "CustomerDrawing",
+    "fileName": "test-drawing.pdf",
+    "sha256Hex": "a89caa5af77800a50924f688f2002b73be53728358ea6440e24c2fdcdd76b1c9",
+    "sizeBytes": 4096
+}
+
+--- [4] Upload png → NpiPrintLayout kind ---
+{
+    "drawingId": 2,
+    "versionId": 2,
+    "versionNo": 1,
+    "kind": "NpiPrintLayout",
+    "fileName": "test-drawing.png",
+    "sha256Hex": "f2c8e255e9995558d5a9309939ac157709a4e0a9b182009bf2dd900fffcfab23",
+    "sizeBytes": 8192
+}
+
+--- [5] GET /drawings/by-revision/1 — verify 9 slots + 3 Pending approvals ---
+  total_slots=9
+  0: v1 (test-drawing.pdf) 4096B sha=a89caa5a status=0 approvals=[0, 0, 0]
+  1: v1 (test-drawing.png) 8192B sha=f2c8e255 status=0 approvals=[0, 0, 0]
+
+--- [6] Download pdf back + verify sha matches ---
+  http=200 content_type=application/pdf size=4096
+  ✓ sha matches: a89caa5af77800a50924f688f2002b73be53728358ea6440e24c2fdcdd76b1c9
+
+--- [7] Download png back + verify sha ---
+  http=200 content_type=image/png size=8192
+  ✓ sha matches
+
+--- [8] Upload v2 to CustomerDrawing ---
+{
+    "drawingId": 1,
+    "versionId": 3,
+    "versionNo": 2,
+    "kind": "CustomerDrawing",
+    "fileName": "test-drawing-v2.pdf",
+    "sha256Hex": "3083edc304e8dc0685176412ac1270d68a07c9ba3b672452a004fd2a5cf8e7a8",
+    "sizeBytes": 6144
+}
+
+--- [9] Download with wrong revision id → 404 (revision-scoped guard) ---
+  http=404
+{
+    "code": "drawing.not_found",
+    "error": "Drawing version 1 not found for revision 999.",
+    "maxBytes": null,
+    "allowedExtensions": null
+}
+
+--- [10] Oversize upload (12 MB) → 422 drawing.oversize ---
+{
+    "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+    "title": "One or more validation errors occurred.",
+    "status": 400,
+    "errors": {
+        "": [
+            "Failed to read the request form. Request body too large. The max request body size is 10551296 bytes."
+        ]
+
+--- [11] .txt upload → 422 invalid_extension ---
+{
+    "code": "drawing.invalid_extension",
+    "error": "Extension 'txt' not in allowlist (allowed: ai, dwg, dxf, gif, jpeg, jpg, pdf, png, svg, webp).",
+    "maxBytes": null,
+    "allowedExtensions": "pdf,png,jpg,jpeg,svg,gif,webp,dwg,dxf,ai"
+}
+
+--- [12] AUDIT — DRAWING_UPLOAD + DRAWING_UPLOAD_DEVICE rows ---
+DRAWING_UPLOAD|1|{"revision_id":1,"drawing_id":1,"kind":"CustomerDrawing","version_no":1,"filename":"test-drawing.pdf","sha256_short":"a89caa5a","size_bytes"
+DRAWING_UPLOAD_DEVICE|0193deed-0001-0002-0003-drawings5e0001|{"device_id":"0193deed-0001-0002-0003-drawings5e0001","detail":{"revision_id":1,"drawing_id":1,"version_id":1,"version_no":1,"kind":"Custome
+DRAWING_UPLOAD|2|{"revision_id":1,"drawing_id":2,"kind":"NpiPrintLayout","version_no":1,"filename":"test-drawing.png","sha256_short":"f2c8e255","size_bytes":
+DRAWING_UPLOAD|3|{"revision_id":1,"drawing_id":1,"kind":"CustomerDrawing","version_no":2,"filename":"test-drawing-v2.pdf","sha256_short":"3083edc3","size_byt
+
+=== verification complete — trace at /tmp/p10-5e-curl-trace.txt ===

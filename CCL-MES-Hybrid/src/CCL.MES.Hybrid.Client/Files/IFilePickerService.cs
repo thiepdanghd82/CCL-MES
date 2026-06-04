@@ -21,6 +21,20 @@ public interface IFilePickerService
     /// the heap (Lesson D-5b — OpenReadStream → content directly).
     /// </summary>
     Task<PickedFile?> PickXlsxAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// P10.5e-1 — Open the native file picker filtered to the supplied
+    /// extension allowlist. Caller passes lowercase extensions WITHOUT
+    /// the leading dot (e.g. <c>{"pdf", "png", "jpg"}</c>); the impl
+    /// maps each extension to its platform-specific UTType /
+    /// associationType / MIME so the system picker can grey out files
+    /// the operator must not pick.
+    ///
+    /// Same streaming semantics as <see cref="PickXlsxAsync"/> — content
+    /// is opened lazily, never buffered. Returns null on operator
+    /// cancel or unsupported platform.
+    /// </summary>
+    Task<PickedFile?> PickFileAsync(IReadOnlyList<string> allowedExtensions, CancellationToken ct = default);
 }
 
 /// <summary>
