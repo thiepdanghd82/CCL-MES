@@ -1,0 +1,70 @@
+=== P10.5d wire-level verification — Thu Jun  4 08:30:58 +07 2026 ===
+Login OK
+
+--- [1] Build silk A→B→C chain ---
+  iter 1 mode=SaveNew → id=1 rev=A
+  iter 2 mode=UpgradeRev → id=2 rev=B
+  iter 3 mode=UpgradeRev → id=3 rev=C
+
+--- [2] GET /specs/3 — full data surface for silk Rev C ---
+  specCode=DEMO-PN-001
+  rev=C status=0
+  refNo=CCL-Silk-19235 inspection=A166
+  planner=SILK processCode=SILKSCREEN
+  isSilkscreen=True isFlexo=False
+  productSize=442 × 78.5
+  substrate=PET SH01 (old code: SH02) T0.188-CT331
+  printColors_count=9
+  flexoCuttingRows_count=0
+  lineage_count=3
+    · id=3 rev=C by=None
+    · id=2 rev=B by=None
+    · id=1 rev=A by=None
+  auditEntries_count=1
+    · 2026-06-04T01:31:01.032789 SPEC_IMPORT by eng-verify
+
+--- [3] PrintColors[0] full shape (silk 20 fields) ---
+{
+  "seq": 1,
+  "surface": "R",
+  "color": "WN-212",
+  "inkName": "CCLISOL-1160",
+  "inkCode": "HI1160",
+  "maker": "CCL MIX",
+  "retarder": "T980",
+  "viscosity": 16,
+  "speed": 0,
+  "squeegee": "BS",
+  "dry": "OVEN",
+  "temperatureC": 60,
+  "timeMin": 20,
+  "uv": null,
+  "emulsionUm": 15,
+  "plateSize": "700*950",
+  "mesh": "L120",
+  "angleDeg": 22.5,
+  "plateCode": "SP1620-1",
+  "controlNo": 44,
+  "remark": null
+}
+
+--- [4] Build flexo spec ---
+  flexo rev id=4
+
+--- [5] GET /specs/4 — flexo 3 sub-tables ---
+  planner=FLEXO isFlexo=True
+  flexoPrintRows_count=2
+  flexoCuttingRows_count=3
+  flexoInkRows_count=5
+  printColors_count=0  (should be 0 for flexo)
+
+--- [6] Verify Rev C lineage[0]=C lineage[1]=B (id 2) ---
+  lineage[0]: id=3 rev=C
+  lineage[1]: id=2 rev=B
+  ✓ matches DB parent_id=2 rev=B
+
+--- [7] GET /specs/2 — parent rev B detail (what diff fetches) ---
+  Rev B: id=2 rev=B status=4
+  · printColors=9 entries (matches C — same xlsx source)
+
+=== verification complete — trace at /tmp/p10-5d-curl-trace.txt ===
