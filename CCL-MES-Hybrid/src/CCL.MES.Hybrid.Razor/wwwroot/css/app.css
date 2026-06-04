@@ -2341,3 +2341,105 @@ html, body {
     border-radius: 4px;
     border-left: 3px solid #9ca3af;
 }
+
+/* ── P10.5e-2 — Clickable chips + decide modal ──────────────────── */
+
+.drawing-approval-chip-clickable {
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, transform 0.06s;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1.2;
+}
+
+.drawing-approval-chip-clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.15);
+}
+
+.drawing-approval-chip-clickable:focus-visible {
+    outline: 2px solid #1e3a8a;
+    outline-offset: 1px;
+}
+
+.drawing-approval-chip.is-not-authorized {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.drawing-approval-chip.is-locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+    text-decoration: line-through;
+}
+
+.drawing-approval-chip.is-actionable.drawing-approval-chip-pending {
+    background: #fef3c7;
+    border-color: #fde68a;
+    color: #92400e;
+}
+
+.drawing-approval-chip.is-decided {
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.12);
+}
+
+.drawing-approval-actor {
+    opacity: 0.7;
+    font-size: 0.66rem;
+    margin-left: 1px;
+}
+
+/* Decide modal toggle row */
+.decide-toggle-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.decide-toggle {
+    flex: 1;
+    border: 1px solid #d1d5db;
+    background: white;
+    color: #374151;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.decide-toggle:hover { background: #f3f4f6; }
+.decide-toggle:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.decide-toggle-approve.is-active {
+    background: #166534;
+    color: white;
+    border-color: #166534;
+}
+
+.decide-toggle-reject.is-active {
+    background: #c2410c;
+    color: white;
+    border-color: #c2410c;
+}
+
+.modal-counter {
+    text-align: right;
+    color: #9ca3af;
+    font-size: 0.75rem;
+    margin-top: 2px;
+}
+
+.modal-help {
+    margin: 0 0 12px;
+    color: #374151;
+    font-size: 0.92rem;
+}
+
+.modal-help-inline {
+    color: #9ca3af;
+    font-weight: 400;
+    font-size: 0.82rem;
+    margin-left: 4px;
+}

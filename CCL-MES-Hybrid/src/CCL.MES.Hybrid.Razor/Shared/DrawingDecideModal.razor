@@ -1,0 +1,214 @@
+@inject ICclApiClient Api
+@using CCL.MES.Hybrid.Client.Specs
+@using CCL.MES.Shared.Drawings
+
+@*
+    P10.5e-2 — Decide modal for a 3-role approval chip on a specific
+    DrawingVersion. Opens from SpecDrawingsTab when the operator clicks
+    an actionable chip; closes on success or cancel.
+
+    Flow:
+      · Operator picks Approve or Reject.
+      · Comment is REQUIRED on Reject (client validate + server
+        re-validate via DrawingsApprovalGateVm + the server's
+        DrawingsService.DecideAsync `Comment is required when
+        rejecting` guard).
+      · _submitting Q11 guard blocks double-click + close-mid-flight.
+
+    Reuses the P10.5a Modal primitive with Md size + Info severity
+    (Warning for Reject post-toggle so the colour reflects intent).
+*@
+
+<Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md"
+       Severity="@HeaderSeverity" ClickOutsideToClose="false">
+    <Header>@Title</Header>
+    <Body>
+        @if (Open)
+        {
+            <p class="modal-help">
+                Phê duyệt chip <strong>@RoleLabel(Role)</strong> cho
+                <strong>v@VersionNo</strong> · @KindLabel(Kind).
+            </p>
+
+            <div class="modal-field">
+                <label>Quyết định</label>
+                <div class="decide-toggle-row" role="radiogroup" aria-label="Quyết định">
+                    <button type="button" role="radio" aria-checked="@(_decision == "Approved" ? "true" : "false")"
+                            class="decide-toggle decide-toggle-approve @(_decision == "Approved" ? "is-active" : "")"
+                            disabled="@_submitting"
+                            @onclick='() => { _decision = "Approved"; _error = null; StateHasChanged(); }'>
+                        ✓ Approve
+                    </button>
+                    <button type="button" role="radio" aria-checked="@(_decision == "Rejected" ? "true" : "false")"
+                            class="decide-toggle decide-toggle-reject @(_decision == "Rejected" ? "is-active" : "")"
+                            disabled="@_submitting"
+                            @onclick='() => { _decision = "Rejected"; _error = null; StateHasChanged(); }'>
+                        ✗ Reject
+                    </button>
+                </div>
+            </div>
+
+            <div class="modal-field">
+                <label for="decide-comment">
+                    Lý do
+                    @if (_decision == "Rejected")
+                    {
+                        <span class="modal-req">*</span>
+                    }
+                    else
+                    {
+                        <span class="modal-help-inline">(tùy chọn khi Approve)</span>
+                    }
+                </label>
+                <textarea id="decide-comment" class="modal-input modal-input-textarea"
+                          maxlength="500" rows="3"
+                          placeholder="@CommentPlaceholder()"
+                          @bind="_comment" @bind:event="oninput"
+                          disabled="@_submitting"></textarea>
+                <div class="modal-counter">@_comment?.Length / 500</div>
+            </div>
+
+            @if (_error is not null)
+            {
+                <div class="modal-banner modal-banner-error" role="alert">@_error</div>
+            }
+        }
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary"
+                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+        <button type="button" class="op-btn @SubmitButtonClass"
+                disabled="@(!CanSubmit())" @onclick="SubmitAsync">
+            @SubmitLabel()
+        </button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<DrawingDecideResponse> OnDecided { get; set; }
+
+    [Parameter] public long RevisionId { get; set; }
+    [Parameter] public long VersionId { get; set; }
+    [Parameter] public int VersionNo { get; set; }
+    [Parameter] public DrawingKindCode Kind { get; set; }
+    [Parameter] public DrawingApprovalRole Role { get; set; }
+
+    private string _decision = "Approved";
+    private string _comment = "";
+    private bool _submitting;
+    private string? _error;
+
+    private ModalSeverity HeaderSeverity => _decision == "Rejected"
+        ? ModalSeverity.Warning
+        : ModalSeverity.Info;
+
+    private string SubmitButtonClass => _decision == "Rejected"
+        ? "op-btn-warning"
+        : "op-btn-primary";
+
+    private string Title => _decision == "Rejected"
+        ? $"Reject chip {RoleLabel(Role)} · v{VersionNo}"
+        : $"Approve chip {RoleLabel(Role)} · v{VersionNo}";
+
+    private string SubmitLabel()
+    {
+        if (_submitting) return "Đang gửi…";
+        return _decision == "Rejected" ? "Xác nhận Reject" : "Xác nhận Approve";
+    }
+
+    private string CommentPlaceholder() =>
+        _decision == "Rejected"
+            ? "Bắt buộc khi Reject — nêu rõ lý do để người thiết kế chỉnh sửa."
+            : "Có thể để trống.";
+
+    private bool CanSubmit()
+    {
+        if (_submitting) return false;
+        if (_decision == "Rejected" && string.IsNullOrWhiteSpace(_comment))
+            return false;
+        return true;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!Open) ResetState();
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (_submitting) return;
+        if (!CanSubmit()) return;
+
+        _submitting = true;
+        _error = null;
+        StateHasChanged();
+        try
+        {
+            var req = new DrawingDecideRequest
+            {
+                Role = Role.ToString(),
+                Decision = _decision,
+                Comment = string.IsNullOrWhiteSpace(_comment) ? null : _comment.Trim(),
+            };
+            var resp = await Api.DecideDrawingAsync(RevisionId, VersionId, req);
+            if (OnDecided.HasDelegate) await OnDecided.InvokeAsync(resp);
+            ResetState();
+            if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+        }
+        catch (ApiException apiEx)
+        {
+            _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _error = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _submitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RequestCloseAsync()
+    {
+        if (_submitting) return;
+        ResetState();
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+
+    private void ResetState()
+    {
+        _decision = "Approved";
+        _comment = "";
+        _error = null;
+    }
+
+    private static string RoleLabel(DrawingApprovalRole r) => r switch
+    {
+        DrawingApprovalRole.Npi        => "NPI",
+        DrawingApprovalRole.Production => "Sản xuất",
+        DrawingApprovalRole.Qc         => "QC",
+        _                              => r.ToString(),
+    };
+
+    private static string KindLabel(DrawingKindCode kind) => kind switch
+    {
+        DrawingKindCode.CustomerDrawing    => "Bản vẽ khách hàng",
+        DrawingKindCode.NpiPrintLayout     => "Print layout (NPI)",
+        DrawingKindCode.NpiCutLayout       => "Cut layout (NPI)",
+        DrawingKindCode.IpqcPrintReference => "IPQC Print reference",
+        DrawingKindCode.IpqcCutReference   => "IPQC Cut reference",
+        DrawingKindCode.FqcChecksheet      => "FQC Checksheet",
+        DrawingKindCode.OqcChecksheet      => "OQC Checksheet",
+        DrawingKindCode.CustomerApproval   => "Customer approval",
+        DrawingKindCode.InternalProof      => "Internal proof",
+        _                                  => kind.ToString(),
+    };
+}

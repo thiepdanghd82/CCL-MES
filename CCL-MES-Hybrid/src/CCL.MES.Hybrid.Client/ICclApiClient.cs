@@ -138,6 +138,17 @@ public interface ICclApiClient
         long revisionId, long versionId, string destinationFilePath,
         CancellationToken ct = default);
 
+    /// <summary>P10.5e-2 — Decide on a 3-role approval chip (Npi /
+    /// Production / Qc) for a specific version. Comment is REQUIRED
+    /// server-side when <paramref name="req"/>.Decision = Rejected;
+    /// the caller's <c>_submitting</c> guard prevents double-fire.
+    /// On <c>drawing.department_mismatch</c> (403) the operator's
+    /// claim doesn't match — the chip should have been disabled at UI
+    /// gate but the server is still the source of truth.</summary>
+    Task<DrawingDecideResponse> DecideDrawingAsync(
+        long revisionId, long versionId, DrawingDecideRequest req,
+        CancellationToken ct = default);
+
     // ── QC Specs (P10.5b — read) ──────────────────────────────────
     /// <summary>QC windows keyed by stage. Server returns the legacy
     /// <c>Dictionary&lt;QcStage, SpecQcWindow?&gt;</c> — we expose as
