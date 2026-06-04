@@ -1,0 +1,33 @@
+====================================================================
+P10.6b verify — 2026-06-04 18:04:38
+====================================================================
+[ctx]  repo  = /Volumes/Macintosh Data/Claude-Cowork/3. PROJECTS/CCL-CMES/CCL-MES
+[ctx]  branch= feat/p10.6b-appearance
+[ctx]  HEAD  = 592bd4c
+[ctx]  user  = admin
+
+[step] kill anything on :5100
+[step] build Client lib
+[step] build API
+[build] exit=0
+[build] Jun  4 18:04:41 2026 193536 bytes
+[step] run client unit tests
+[step] filter-run Localization tests to prove coverage
+[step] re-confirm RecentScans coverage (P10.6f regression guard)
+[step] run API unit tests
+[step] start API on :5100
+[run]  PID=17631  log=/var/folders/k3/j9v52bb95lxcfkzgdfdlgshc0000gn/T/ccl-api-verify-XXXXXX.IVkR91ywUn
+[step] route discovery — anon (regression guard)
+
+============================  SUMMARY  ============================
+  PASS  Client lib build
+  PASS  API build (commit 592bd4c)
+  PASS  Client tests (passed=481 failed=0)
+  PASS  Localization tests (passed=21 ≥ 21 expected)
+  PASS  RecentScans tests still green (passed=16 ≥ 16)
+  PASS  API tests (passed=164 failed=0)
+  PASS  API boot (200 /health)
+  PASS  GET   /api/v2/settings/me anon (got 401 expected 401)
+  PASS  GET   /api/v2/settings/about anon (got 401 expected 401)
+
+  TOTAL: pass=9 fail=0

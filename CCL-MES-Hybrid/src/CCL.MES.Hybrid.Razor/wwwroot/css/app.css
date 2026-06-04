@@ -2959,3 +2959,81 @@ html, body {
     font-size: 0.65rem;
     letter-spacing: 0.02em;
 }
+
+/* ── P10.6b — Appearance / Language picker ──────────────────── */
+
+.appearance-picker {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.appearance-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 16px 14px;
+    background: var(--card);
+    border: 2px solid var(--line);
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    color: inherit;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.appearance-card:hover {
+    border-color: var(--brand);
+}
+
+.appearance-card.is-active {
+    border-color: var(--brand);
+    background: rgba(47,128,237,0.06);
+}
+
+.appearance-card.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+    background: #f3f4f6;
+}
+
+.appearance-card-flag {
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+.appearance-card-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+}
+
+.appearance-card-sub {
+    font-size: 0.78rem;
+    color: #4b5563;
+}
+
+.appearance-card-check {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    color: var(--brand);
+    font-weight: 700;
+}
+
+.appearance-picker.is-locked .appearance-card {
+    cursor: not-allowed;
+}
+
+.appearance-banner {
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: rgba(241,181,0,0.12);
+    border-left: 3px solid var(--warn);
+    border-radius: 4px;
+    color: #4b5563;
+    font-size: 0.85rem;
+}

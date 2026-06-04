@@ -1,0 +1,138 @@
+@page "/settings/appearance"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using CCL.MES.Hybrid.Client.Localization
+@using CCL.MES.Shared.Localization
+@implements IDisposable
+@inject ILanguageService Language
+
+@*
+  P10.6b — Appearance / Language picker page.
+
+  Scope (locked per Henry):
+    - Language picker (Tiếng Việt / English) — Preferences-backed.
+    - Theme switcher DEFERRED to P10.6g (IMP-2 conditional).
+    - Persisted via ILanguageService; survives app restart.
+
+  Catalyst safety:
+    - NO <InputText> anywhere. Picker is a button-card group with
+      plain @onclick — the simplest possible interaction. Avoids the
+      ChangeEventArgs→string ArgumentException trap that bit Login
+      in P10.5g (proven in BackgroundCrashContainmentTests).
+    - Page state mirrors ILanguageService.Current via subscription
+      to the Changed event; service is the single source of truth.
+
+  Real-effect caveat:
+    - The resx string-swap layer ships in a follow-up PR. Operator's
+      choice is recorded today but the UI labels stay Vietnamese
+      until the resx PR lands. The page surfaces a disclaimer banner
+      so the operator isn't surprised when their EN selection looks
+      "ignored".
+*@
+
+<PageTitle>Giao diện — CCL MES</PageTitle>
+
+<div class="settings-page-header">
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
+    <h1 class="page-title">Giao diện</h1>
+</div>
+
+<section class="settings-form-card">
+    <h2 class="settings-group-title">Ngôn ngữ</h2>
+    <p class="settings-form-help">
+        Chọn ngôn ngữ giao diện. Cài đặt sẽ được lưu lại cho lần đăng nhập tiếp theo.
+    </p>
+
+    <div class="appearance-picker" role="radiogroup" aria-label="Ngôn ngữ hiển thị">
+        @foreach (var opt in Options)
+        {
+            var isActive = opt.Code == _current;
+            <button type="button"
+                    role="radio"
+                    aria-checked="@(isActive ? "true" : "false")"
+                    class="@(isActive ? "appearance-card is-active" : "appearance-card")"
+                    @onclick="@(() => OnSelect(opt.Code))">
+                <span class="appearance-card-flag">@opt.Flag</span>
+                <span class="appearance-card-title">@opt.Native</span>
+                <span class="appearance-card-sub">@opt.Hint</span>
+                @if (isActive)
+                {
+                    <span class="appearance-card-check" aria-hidden="true">✓</span>
+                }
+            </button>
+        }
+    </div>
+
+    @if (_current == LanguageCode.English)
+    {
+        <div class="appearance-banner" role="status">
+            Bản dịch tiếng Anh sẽ áp dụng sau khi cập nhật ứng dụng.
+            Lựa chọn của bạn đã được lưu.
+        </div>
+    }
+</section>
+
+<section class="settings-form-card" style="margin-top:16px">
+    <h2 class="settings-group-title">Chủ đề (sắp có — P10.6g)</h2>
+    <p class="settings-form-help">
+        Chế độ sáng / tối / theo hệ thống — sẽ ra mắt ở P10.6g. Hiện
+        ứng dụng dùng bảng màu cố định (sáng) tối ưu cho màn xưởng.
+    </p>
+    <div class="appearance-picker is-locked">
+        <div class="appearance-card is-disabled" aria-disabled="true">
+            <span class="appearance-card-flag">☀️</span>
+            <span class="appearance-card-title">Sáng</span>
+            <span class="appearance-card-sub">Mặc định hiện tại.</span>
+        </div>
+        <div class="appearance-card is-disabled" aria-disabled="true">
+            <span class="appearance-card-flag">🌙</span>
+            <span class="appearance-card-title">Tối</span>
+            <span class="appearance-card-sub">Chưa khả dụng.</span>
+        </div>
+        <div class="appearance-card is-disabled" aria-disabled="true">
+            <span class="appearance-card-flag">🖥️</span>
+            <span class="appearance-card-title">Theo hệ thống</span>
+            <span class="appearance-card-sub">Chưa khả dụng.</span>
+        </div>
+    </div>
+</section>
+
+@code {
+    private LanguageCode _current;
+
+    private static readonly LanguageOption[] Options = new[]
+    {
+        new LanguageOption(LanguageCode.Vietnamese, "🇻🇳", "Tiếng Việt",
+            "Đầy đủ — mọi giao diện hiện tại."),
+        new LanguageOption(LanguageCode.English, "🇬🇧", "English",
+            "Đang chuẩn bị — sẽ kích hoạt khi resx ra mắt."),
+    };
+
+    protected override void OnInitialized()
+    {
+        _current = Language.Current;
+        Language.Changed += OnLanguageChanged;
+    }
+
+    public void Dispose()
+    {
+        Language.Changed -= OnLanguageChanged;
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        InvokeAsync(() =>
+        {
+            _current = Language.Current;
+            StateHasChanged();
+        });
+    }
+
+    private void OnSelect(LanguageCode code)
+    {
+        // Idempotent — the service swallows no-op writes, so a double-
+        // tap on the active card does nothing.
+        Language.Set(code);
+    }
+
+    private sealed record LanguageOption(LanguageCode Code, string Flag, string Native, string Hint);
+}
