@@ -252,6 +252,11 @@ builder.Services.AddSingleton<ShopfloorNotifierV2>();
 // legacy Web project's registration (src/CCL.MES.Web/Program.cs:230).
 builder.Services.AddScoped<CCL.MES.Application.SpecImport.SpecImportService>();
 
+// P10.6a — Settings/My Profile + My Password service. Self-service
+// only (loads the current user via the JWT NameIdentifier claim);
+// see the service doc-comment for the parallel-impl rationale.
+builder.Services.AddScoped<CCL.MES.Api.Services.UserProfileService>();
+
 // P10.5e-1 — Drawings upload + download orchestrator. Legacy Phase 8
 // PR-D-5b service composed of IMesDbContext + IBlobStore (registered
 // just above) + IAuditWriter. Multipart upload routes to UploadAsync;

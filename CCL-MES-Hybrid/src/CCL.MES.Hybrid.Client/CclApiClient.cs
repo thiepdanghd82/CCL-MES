@@ -7,6 +7,7 @@ using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.QcSpecs;
+using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
 using CCL.MES.Shared.WorkOrders;
 using Microsoft.Extensions.Options;
@@ -474,6 +475,32 @@ public sealed class CclApiClient : ICclApiClient
     {
         var path = $"/{ApiVersion.Prefix}/specs/export/{revisionId}/sheet/pdf";
         return StreamToFileAsync(path, destinationFilePath, ct);
+    }
+
+    // ── Settings — My Profile + My Password (P10.6a) ────────────────
+
+    public async Task<SettingsProfileDto> GetMyProfileAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/settings/me", ct);
+        return await ReadAsAsync<SettingsProfileDto>(resp, ct);
+    }
+
+    public async Task<SettingsProfileDto> UpdateMyProfileAsync(
+        UpdateProfileRequest req, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Patch, $"/{ApiVersion.Prefix}/settings/me")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(req),
+        };
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<SettingsProfileDto>(resp, ct);
+    }
+
+    public async Task<ChangePasswordResponse> ChangeMyPasswordAsync(
+        ChangePasswordRequest req, CancellationToken ct = default)
+    {
+        using var resp = await _http.PostAsJsonAsync($"/{ApiVersion.Prefix}/settings/password", req, ct);
+        return await ReadAsAsync<ChangePasswordResponse>(resp, ct);
     }
 
     /// <summary>

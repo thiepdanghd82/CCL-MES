@@ -140,6 +140,13 @@ public static class SpecMutationErrorMapper
             "export.failed"         => string.IsNullOrWhiteSpace(err.MessageEn) ? "Xuất file thất bại — thử lại." : $"Xuất file thất bại: {err.MessageEn}",
             "export.no_data"        => "Không có dữ liệu phù hợp với bộ lọc — đổi điều kiện rồi xuất lại.",
             "export.save_cancelled" => "Bạn đã huỷ hộp thoại lưu — file vẫn còn trong thư mục tải xuống của ứng dụng.",
+            // P10.6a — Settings / My Profile + My Password codes.
+            "profile.not_found"            => "Không tìm thấy thông tin tài khoản — đăng nhập lại rồi thử lại.",
+            "profile.invalid_body"         => "Dữ liệu cập nhật không hợp lệ.",
+            "profile.display_name_too_long" => "Tên hiển thị không được vượt quá 100 ký tự.",
+            "auth.wrong_current"           => "Mật khẩu hiện tại không đúng.",
+            "auth.new_too_short"           => "Mật khẩu mới phải có ít nhất 4 ký tự.",
+            "auth.missing_fields"          => "Vui lòng nhập đủ thông tin.",
             _                       => string.IsNullOrWhiteSpace(err.MessageEn) ? $"Lỗi không xác định ({err.Code})." : err.MessageEn,
         };
     }

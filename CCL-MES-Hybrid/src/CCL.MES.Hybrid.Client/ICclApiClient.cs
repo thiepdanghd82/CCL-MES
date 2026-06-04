@@ -4,6 +4,7 @@ using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.QcSpecs;
+using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
 using CCL.MES.Shared.WorkOrders;
 
@@ -208,6 +209,28 @@ public interface ICclApiClient
         long revisionId,
         string destinationFilePath,
         CancellationToken ct = default);
+
+    // ── Settings — My Profile + My Password (P10.6a) ────────────────
+    /// <summary>Fetch the signed-in user's profile (Username + Role
+    /// from claims; DisplayName + Department + MustChangePassword
+    /// from the DB row). The Settings/My Profile page renders this.</summary>
+    Task<SettingsProfileDto> GetMyProfileAsync(CancellationToken ct = default);
+
+    /// <summary>Update the signed-in user's DisplayName. Returns the
+    /// refreshed <see cref="SettingsProfileDto"/> so the page re-renders
+    /// against the server-confirmed shape. Throws
+    /// <see cref="ApiException"/> with code <c>profile.display_name_too_long</c>
+    /// on 422, <c>profile.not_found</c> on 404.</summary>
+    Task<SettingsProfileDto> UpdateMyProfileAsync(
+        UpdateProfileRequest req, CancellationToken ct = default);
+
+    /// <summary>Change the signed-in user's password. Throws
+    /// <see cref="ApiException"/> with code <c>auth.wrong_current</c>
+    /// on 422 (old pwd mismatch), <c>auth.new_too_short</c> on 422
+    /// (< 4 chars), <c>auth.missing_fields</c> on 422 (blank), or
+    /// <c>profile.not_found</c> on 404.</summary>
+    Task<ChangePasswordResponse> ChangeMyPasswordAsync(
+        ChangePasswordRequest req, CancellationToken ct = default);
 }
 
 /// <summary>
