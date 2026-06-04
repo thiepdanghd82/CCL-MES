@@ -2864,3 +2864,98 @@ html, body {
 }
 .conn-dot.is-up   { background: #16A34A; box-shadow: 0 0 0 2px rgba(22,163,74,0.2); }
 .conn-dot.is-down { background: #C00000; box-shadow: 0 0 0 2px rgba(192,0,0,0.2); }
+
+/* ── P10.6f — Recent Scans sidebar widget ───────────────────── */
+
+.recent-scans-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-right: 4px;
+}
+
+.recent-scans-title {
+    flex: 1 1 auto;
+}
+
+.recent-scans-clear {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--ink-mut);
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.recent-scans-clear:hover {
+    border-color: var(--brand);
+    color: var(--ink);
+}
+
+.recent-scans-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 8px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.recent-scans-row {
+    padding: 0;
+    margin: 0;
+}
+
+.recent-scans-btn {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    background: transparent;
+    border: none;
+    color: var(--ink);
+    text-align: left;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.recent-scans-btn:hover {
+    background: var(--navy-2);
+}
+
+.recent-scans-code {
+    font-size: 0.88rem;
+    font-weight: 600;
+    word-break: break-all;
+}
+
+.recent-scans-sub {
+    font-size: 0.74rem;
+    color: var(--ink-mut);
+    line-height: 1.2;
+    word-break: break-word;
+}
+
+.recent-scans-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: var(--ink-mut);
+    margin-top: 2px;
+}
+
+.recent-scans-chip {
+    background: rgba(248,81,73,0.15);
+    color: #fca5a5;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    letter-spacing: 0.02em;
+}

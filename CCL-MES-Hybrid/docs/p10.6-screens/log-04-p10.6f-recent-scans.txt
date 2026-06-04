@@ -1,0 +1,31 @@
+====================================================================
+P10.6f verify — 2026-06-04 17:35:20
+====================================================================
+[ctx]  repo  = /Volumes/Macintosh Data/Claude-Cowork/3. PROJECTS/CCL-CMES/CCL-MES
+[ctx]  branch= feat/p10.6f-recent-scans
+[ctx]  HEAD  = ba8078a
+[ctx]  user  = admin
+
+[step] kill anything on :5100
+[step] build Client lib
+[step] build API
+[build] exit=0
+[build] Jun  4 17:35:23 2026 193536 bytes
+[step] run client unit tests
+[step] filter-run RecentScans tests to prove coverage
+[step] run API unit tests
+[step] start API on :5100
+[run]  PID=13109  log=/var/folders/k3/j9v52bb95lxcfkzgdfdlgshc0000gn/T/ccl-api-verify-XXXXXX.5zI2LbH280
+[step] route discovery — anon (regression guard)
+
+============================  SUMMARY  ============================
+  PASS  Client lib build
+  PASS  API build (commit ba8078a)
+  PASS  Client tests (passed=460 failed=0)
+  PASS  RecentScans tests (passed=16 ≥ 16 expected)
+  PASS  API tests (passed=164 failed=0)
+  PASS  API boot (200 /health)
+  PASS  GET   /api/v2/settings/me anon (got 401 expected 401)
+  PASS  GET   /api/v2/settings/about anon (got 401 expected 401)
+
+  TOTAL: pass=8 fail=0

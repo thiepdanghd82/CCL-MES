@@ -1,0 +1,108 @@
+@*
+  P10.6f — sidebar widget rendering the 5 most-recent scans the operator
+  captured on this station. Mirrors SpecHub §11; persisted via MAUI
+  Preferences through IRecentScansService.
+
+  Render rules:
+    - Hidden entirely when the list is empty (no header, no chrome).
+      Operators who never scan should not see a dead widget.
+    - One row per scan: bold "Resolved display" (WO number) + small
+      subtitle (product · customer) when resolved, "Quét lúc HH:mm" line.
+    - Unresolved rows render a warning chip "không tìm thấy" so the
+      operator knows tapping just re-opens the scan surface.
+    - Tap a row → navigate to /workorders. Today every scan context is
+      "wo-accept"; a future PR can route by Context.
+    - Header has a "Xoá" button to wipe — single confirm() guard so a
+      stray fat-finger doesn't blow away the list.
+
+  No <InputText> or @bind on user input — per the renderer-crash lesson
+  from P10.5g + P10.6a hotfix layer. The widget mounts/unmounts cleanly
+  whenever the operator logs in/out via the surrounding <AuthorizeView>.
+*@
+@using CCL.MES.Hybrid.Client.RecentScans
+@using CCL.MES.Shared.RecentScans
+@implements IDisposable
+@inject IRecentScansService RecentScans
+@inject NavigationManager Nav
+@inject IJSRuntime Js
+
+@if (_entries.Count > 0)
+{
+    <div class="app-nav-section recent-scans-section">
+        <span class="recent-scans-title">QUÉT GẦN ĐÂY</span>
+        <button type="button" class="recent-scans-clear"
+                title="Xoá lịch sử quét cục bộ"
+                @onclick="OnClear">Xoá</button>
+    </div>
+    <ul class="recent-scans-list">
+        @foreach (var e in _entries)
+        {
+            <li class="recent-scans-row">
+                <button type="button" class="recent-scans-btn"
+                        @onclick="@(() => OnOpen(e))">
+                    <span class="recent-scans-code">@(string.IsNullOrWhiteSpace(e.ResolvedDisplay) ? e.Code : e.ResolvedDisplay)</span>
+                    @if (!string.IsNullOrWhiteSpace(e.ResolvedSubtitle))
+                    {
+                        <span class="recent-scans-sub">@e.ResolvedSubtitle</span>
+                    }
+                    <span class="recent-scans-meta">
+                        @FormatRelative(e.ScannedAt)
+                        @if (!e.Resolved)
+                        {
+                            <span class="recent-scans-chip">không tìm thấy</span>
+                        }
+                    </span>
+                </button>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private IReadOnlyList<RecentScanEntry> _entries = Array.Empty<RecentScanEntry>();
+
+    protected override void OnInitialized()
+    {
+        _entries = RecentScans.GetRecent();
+        RecentScans.Changed += OnStoreChanged;
+    }
+
+    public void Dispose()
+    {
+        RecentScans.Changed -= OnStoreChanged;
+    }
+
+    private void OnStoreChanged(object? sender, EventArgs e)
+    {
+        InvokeAsync(() =>
+        {
+            _entries = RecentScans.GetRecent();
+            StateHasChanged();
+        });
+    }
+
+    private void OnOpen(RecentScanEntry entry)
+    {
+        // Every scan context today is "wo-accept" — route there.
+        // P10.7+ contexts (e.g. ipqc-capture) will map per their own
+        // landing page.
+        Nav.NavigateTo("/workorders", forceLoad: false);
+    }
+
+    private async Task OnClear()
+    {
+        var confirmed = await Js.InvokeAsync<bool>(
+            "confirm", "Xoá toàn bộ lịch sử quét cục bộ?");
+        if (confirmed) RecentScans.Clear();
+    }
+
+    private static string FormatRelative(DateTime utc)
+    {
+        var diff = DateTime.UtcNow - utc;
+        if (diff.TotalSeconds < 60) return "vừa xong";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes} phút trước";
+        if (diff.TotalHours < 24)   return $"{(int)diff.TotalHours} giờ trước";
+        if (diff.TotalDays < 7)     return $"{(int)diff.TotalDays} ngày trước";
+        return utc.ToLocalTime().ToString("dd/MM HH:mm");
+    }
+}

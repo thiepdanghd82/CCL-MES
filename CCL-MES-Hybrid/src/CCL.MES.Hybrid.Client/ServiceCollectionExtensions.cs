@@ -2,6 +2,7 @@ using CCL.MES.Hybrid.Client.Auth;
 using CCL.MES.Hybrid.Client.Files;
 using CCL.MES.Hybrid.Client.Grid;
 using CCL.MES.Hybrid.Client.Hardware;
+using CCL.MES.Hybrid.Client.RecentScans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -89,6 +90,12 @@ public static class ServiceCollectionExtensions
         // SaveOutcome.Cancelled, so export flows degrade to "file kept
         // in sandbox" UX without crashing.
         services.AddSingleton<IFileSaver, StubFileSaver>();
+
+        // P10.6f — Recent Scans sidebar widget store. MAUI host replaces
+        // with MauiRecentScansService (Preferences-backed) so the list
+        // survives app restarts. Tests + non-MAUI consumers keep the
+        // in-memory default so DI resolution is safe in any harness.
+        services.AddSingleton<IRecentScansService, InMemoryRecentScansService>();
 
         return services;
     }

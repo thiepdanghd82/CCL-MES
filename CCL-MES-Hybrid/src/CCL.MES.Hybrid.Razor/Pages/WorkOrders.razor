@@ -2,14 +2,17 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.Hardware
+@using CCL.MES.Hybrid.Client.RecentScans
 @using CCL.MES.Shared.Devices
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.Hardware
+@using CCL.MES.Shared.RecentScans
 @using CCL.MES.Shared.WorkOrders
 @using Microsoft.Extensions.Logging
 @inject IBarcodeScannerService Scanner
 @inject IDeviceSettingsLauncher SettingsLauncher
 @inject ICclApiClient Api
+@inject IRecentScansService RecentScans
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
 @inject Microsoft.Extensions.Logging.ILogger<WorkOrders> Log
 
@@ -267,6 +270,33 @@ else
         finally
         {
             _lookingUp = false;
+        }
+
+        // Step 3 — record the scan locally for the "Quét gần đây"
+        // sidebar widget (P10.6f). Independent of the audit-log POST
+        // because this is per-device UX, not a forensic source.
+        // Resolved=false when the lookup failed — the widget still
+        // renders the row so the operator can tap to re-scan, but
+        // marks it visually as unresolved.
+        try
+        {
+            RecentScans.Record(new RecentScanEntry
+            {
+                Code = scan.Code.Trim(),
+                Format = scan.Format ?? string.Empty,
+                Context = "wo-accept",
+                ScannedAt = DateTime.UtcNow,
+                ResolvedDisplay = _summary?.WoNo ?? scan.Code.Trim(),
+                ResolvedSubtitle = _summary is null
+                    ? null
+                    : $"{_summary.ProductCode ?? "—"} · {_summary.CustomerName ?? "—"}",
+                Resolved = _summary is not null,
+            });
+        }
+        catch (Exception ex)
+        {
+            // Never let a Preferences hiccup break the scan flow.
+            Log.LogWarning(ex, "[workorders] recent-scans record failed — ignored");
         }
     }
 
