@@ -33,6 +33,7 @@ public sealed class RouteDiscoveryCanaryTests : IClassFixture<MesApiFactory>
     [InlineData("GET",   "/api/v2/settings/me")]
     [InlineData("PATCH", "/api/v2/settings/me")]
     [InlineData("POST",  "/api/v2/settings/password")]
+    [InlineData("GET",   "/api/v2/settings/about")]      // P10.6d
     public async Task Settings_route_is_discovered_and_returns_401_not_404_without_bearer(string verb, string url)
     {
         var client = _fx.CreateClient();

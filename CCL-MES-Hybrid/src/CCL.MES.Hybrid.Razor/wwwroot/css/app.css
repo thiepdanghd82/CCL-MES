@@ -2851,3 +2851,16 @@ html, body {
 }
 
 .renderer-crash-reload:hover { background: #142A4E; }
+
+/* ── P10.6d — Connection dot indicator ───────────────────────── */
+
+.conn-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+.conn-dot.is-up   { background: #16A34A; box-shadow: 0 0 0 2px rgba(22,163,74,0.2); }
+.conn-dot.is-down { background: #C00000; box-shadow: 0 0 0 2px rgba(192,0,0,0.2); }

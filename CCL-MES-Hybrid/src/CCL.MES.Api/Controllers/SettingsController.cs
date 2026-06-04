@@ -1,13 +1,19 @@
+using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json;
 using CCL.MES.Api.Services;
+using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Domain.Audit;
 using CCL.MES.Shared;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Settings;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 
 namespace CCL.MES.Api.Controllers;
 
@@ -41,11 +47,22 @@ public sealed class SettingsController : ControllerBase
 {
     private readonly UserProfileService _users;
     private readonly IAuditWriter _audit;
+    private readonly IMesDbContext _db;
+    private readonly IHostEnvironment _env;
+    private readonly IConfiguration _config;
 
-    public SettingsController(UserProfileService users, IAuditWriter audit)
+    public SettingsController(
+        UserProfileService users,
+        IAuditWriter audit,
+        IMesDbContext db,
+        IHostEnvironment env,
+        IConfiguration config)
     {
         _users = users;
         _audit = audit;
+        _db = db;
+        _env = env;
+        _config = config;
     }
 
     // ── My Profile ──────────────────────────────────────────────────
@@ -171,6 +188,110 @@ public sealed class SettingsController : ControllerBase
                     Code = "profile.not_found",
                     MessageEn = "Profile not found.",
                 });
+        }
+    }
+
+    // ── P10.6d — About + Connection Mode ────────────────────────────
+
+    /// <summary>
+    /// Server build / runtime / DB-size snapshot. Read-only; no audit
+    /// emit (cheap COUNT(*) — operators may poll it). Counts come from
+    /// the cheapest possible queries; DB + blob sizes use
+    /// <see cref="FileInfo"/> when the provider is Sqlite. SqlServer
+    /// returns null sizes.
+    /// </summary>
+    [HttpGet("about")]
+    public async Task<IActionResult> GetAbout(CancellationToken ct)
+    {
+        var assembly = typeof(SettingsController).Assembly;
+        var serverVersion = assembly.GetName().Version?.ToString() ?? "0.0.0.0";
+        var infoVersion = assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion ?? "";
+
+        var userCount      = await _db.Users.CountAsync(ct);
+        var customerCount  = await _db.Customers.CountAsync(ct);
+        var productCount   = await _db.Products.CountAsync(ct);
+        var revisionCount  = await _db.ProductRevisions.CountAsync(ct);
+        var drawingCount   = await _db.DrawingVersions.CountAsync(ct);
+        var auditCount     = await _db.AuditLogs.LongCountAsync(ct);
+
+        var (dataDir, dbBytes, blobBytes) = ResolveStorage();
+
+        return Ok(new AboutDto
+        {
+            ServerVersion = serverVersion,
+            InformationalVersion = infoVersion,
+            EnvironmentName = _env.EnvironmentName,
+            ServerTimeUtc = DateTime.UtcNow,
+            MachineName = Environment.MachineName,
+            UserCount = userCount,
+            CustomerCount = customerCount,
+            ProductCount = productCount,
+            SpecRevisionCount = revisionCount,
+            DrawingVersionCount = drawingCount,
+            AuditEntryCount = auditCount,
+            DbFileBytes = dbBytes,
+            BlobStoreBytes = blobBytes,
+            DataDir = dataDir,
+        });
+    }
+
+    /// <summary>
+    /// Resolve the on-disk data dir + sizes. Mirrors the
+    /// ConnectionStrings:Default resolution logic in Program.cs so
+    /// the About card surfaces the same path operators would see in
+    /// boot logs. Wrapped in try/catch — a permissions issue on the
+    /// blob dir must NOT 500 the About endpoint.
+    /// </summary>
+    private (string DataDir, long? DbBytes, long? BlobBytes) ResolveStorage()
+    {
+        try
+        {
+            var provider = _config["Database:Provider"] ?? "Sqlite";
+            if (!provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase))
+                return ("", null, null);
+
+            var cs = _config.GetConnectionString("Default") ?? "";
+            const string prefix = "Data Source=";
+            string? dbFile = cs.StartsWith(prefix, StringComparison.Ordinal)
+                ? cs.Substring(prefix.Length)
+                : null;
+            if (string.IsNullOrEmpty(dbFile))
+                return ("", null, null);
+
+            dbFile = Path.GetFullPath(dbFile);
+            var dataDir = Path.GetDirectoryName(dbFile) ?? "";
+
+            long? dbBytes = null;
+            try
+            {
+                if (System.IO.File.Exists(dbFile))
+                    dbBytes = new FileInfo(dbFile).Length;
+            }
+            catch { /* swallow — null is the contract */ }
+
+            long? blobBytes = null;
+            try
+            {
+                var blobDir = Path.Combine(dataDir, "blobs");
+                if (Directory.Exists(blobDir))
+                {
+                    blobBytes = 0;
+                    foreach (var file in Directory.EnumerateFiles(blobDir, "*", SearchOption.AllDirectories))
+                    {
+                        try { blobBytes += new FileInfo(file).Length; }
+                        catch { /* file race — keep going */ }
+                    }
+                }
+            }
+            catch { /* swallow */ }
+
+            return (dataDir, dbBytes, blobBytes);
+        }
+        catch
+        {
+            return ("", null, null);
         }
     }
 
