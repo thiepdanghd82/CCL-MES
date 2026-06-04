@@ -3,10 +3,13 @@ using System.Text.Json;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
+using CCL.MES.Application.SpecImport;
+using CCL.MES.Domain;
 using CCL.MES.Shared;
 using CCL.MES.Shared.Specs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace CCL.MES.Api.Controllers;
 
@@ -38,10 +41,22 @@ public sealed class SpecsController : ControllerBase
 {
     private readonly SpecService _svc;
     private readonly IAuditWriter _audit;
-    public SpecsController(SpecService svc, IAuditWriter audit)
+    private readonly SpecImportService _import;
+    private readonly IMesDbContext _db;
+
+    /// <summary>P10.5c-2 — API contract cap. Mirrors operator UX promise
+    /// (10 MB per Henry's spec). Legacy <c>SpecImportService.MaxFileSizeBytes</c>
+    /// stays at 5 MB; files between 5 MB and 10 MB will surface as
+    /// <c>parse_error</c> with the legacy "File quá lớn" message — that's
+    /// still operator-actionable.</summary>
+    private const long ImportMaxFileSizeBytes = 10 * 1024 * 1024;
+
+    public SpecsController(SpecService svc, IAuditWriter audit, SpecImportService import, IMesDbContext db)
     {
         _svc = svc;
         _audit = audit;
+        _import = import;
+        _db = db;
     }
 
     // ── Read (P10.1) ────────────────────────────────────────────────
@@ -435,6 +450,317 @@ public sealed class SpecsController : ControllerBase
         {
             return Problem(title: "Spec update failed", detail: ex.Message, statusCode: 500);
         }
+    }
+
+    // ── Import (P10.5c-2) ───────────────────────────────────────────
+
+    /// <summary>
+    /// Multipart xlsx upload → parse → return preview + dup info.
+    /// Stateless: the parsed DTO rides back in the response as an opaque
+    /// JSON blob (<see cref="SpecImportPreviewResponse.ParsedJson"/>) which
+    /// the client echoes verbatim on save. No server-side temp-file cache.
+    ///
+    /// Validation chain:
+    ///   1. File part present + non-empty.
+    ///   2. .xlsx extension (case-insensitive).
+    ///   3. Size ≤ <see cref="ImportMaxFileSizeBytes"/> (10 MB).
+    ///   4. Content sniff: first 2 bytes = "PK" (xlsx is a zip).
+    ///   5. Planner category whitelist (silkscreen / flexo / letterpress
+    ///      / indigo / diecut) — invalid falls through to silkscreen with
+    ///      a warning per legacy parser factory behavior.
+    /// </summary>
+    [HttpPost("import/preview")]
+    [Authorize(Policy = "NpiSpecWrite")]
+    [RequestSizeLimit(ImportMaxFileSizeBytes + 64 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = ImportMaxFileSizeBytes + 64 * 1024)]
+    public async Task<IActionResult> ImportPreview(
+        IFormFile? file,
+        [FromForm] string? plannerCategory,
+        CancellationToken ct)
+    {
+        try
+        {
+            // Nullable IFormFile is required so model-binding doesn't 400
+            // ahead of our 422 guard when the multipart 'file' part is
+            // missing — we want a typed error envelope, not the framework's
+            // bare BadRequest.
+            if (file is null || file.Length == 0)
+                return UnprocessableEntity(new SpecMutationError { Code = "import.no_file", Error = "Multipart 'file' part is missing or empty." });
+
+            if (!HasXlsxExtension(file.FileName))
+                return UnprocessableEntity(new SpecMutationError { Code = "import.invalid_extension", Error = $"File '{file.FileName}' is not .xlsx." });
+
+            if (file.Length > ImportMaxFileSizeBytes)
+                return UnprocessableEntity(new SpecMutationError
+                {
+                    Code = "import.oversize",
+                    Error = $"File size {file.Length} bytes exceeds the {ImportMaxFileSizeBytes}-byte cap.",
+                });
+
+            // Sniff the first 2 bytes for the ZIP "PK" magic. xlsx is a
+            // zip container; a renamed .txt / .docx slips past extension
+            // alone. We read from a buffered stream so the legacy parser
+            // can still read from byte 0 afterwards.
+            await using var raw = file.OpenReadStream();
+            var sniff = new byte[2];
+            var sniffed = await raw.ReadAsync(sniff.AsMemory(0, 2), ct);
+            if (sniffed != 2 || sniff[0] != (byte)'P' || sniff[1] != (byte)'K')
+                return UnprocessableEntity(new SpecMutationError { Code = "import.invalid_content", Error = "File is not a valid zip/xlsx container." });
+
+            // Rewind to byte 0 so the legacy parser reads the full file.
+            // IFormFile.OpenReadStream() returns a seekable stream for
+            // small (≤ memory-buffer-threshold) bodies — true here per
+            // the 10 MB cap above.
+            if (raw.CanSeek)
+                raw.Seek(0, SeekOrigin.Begin);
+            else
+                // Fallback: copy into a MemoryStream. Bounded by the
+                // 10 MB cap so heap pressure is acceptable.
+                return await ImportPreviewBuffered(file, plannerCategory, ct);
+
+            var category = NormalizePlannerCategory(plannerCategory);
+            var previewDto = await _import.PreviewAsync(raw, file.FileName, file.Length, category);
+            var response = BuildPreviewResponse(previewDto);
+            // Enrich dup info with status — legacy returns only id+code.
+            if (response.DuplicateRevisionId is not null)
+                response = response with { DuplicateStatus = await ResolveDuplicateStatusAsync(response.DuplicateRevisionId.Value, ct) };
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            // Surface as parse_error so the modal banner reads cleanly;
+            // the underlying ex.Message is included for ops triage.
+            return UnprocessableEntity(new SpecMutationError
+            {
+                Code = "import.parse_error",
+                Error = ex.Message,
+            });
+        }
+    }
+
+    /// <summary>
+    /// Save endpoint — echoes the parsed payload from <see cref="ImportPreview"/>
+    /// and applies the operator-chosen dup-handling decision.
+    ///
+    /// Modes:
+    ///   - <c>SaveNew</c>: legacy save with overwriteRefNo=false; server
+    ///     rejects via "duplicate_ref_no" if a dup appeared since preview.
+    ///   - <c>UpgradeRev</c>: legacy save with overwriteRefNo=true →
+    ///     soft-trashes the matching existing rev + creates the new draft.
+    ///     Revision letter increment is deferred to a follow-up PR (the
+    ///     legacy still hardcodes "A").
+    ///   - <c>SaveAsCopy</c>: requires <see cref="SpecImportSaveRequest.SpecCodeOverride"/>;
+    ///     mutates parsed.PartNo to the override and clears parsed.RefNo
+    ///     so the new spec has no dup conflict.
+    /// </summary>
+    [HttpPost("import/save")]
+    [Authorize(Policy = "NpiSpecWrite")]
+    public async Task<IActionResult> ImportSave([FromBody] SpecImportSaveRequest req, CancellationToken ct)
+    {
+        try
+        {
+            if (req is null || string.IsNullOrWhiteSpace(req.ParsedJson))
+                return UnprocessableEntity(new SpecMutationError { Code = "import.no_parsed_payload", Error = "ParsedJson is required (echo from /preview)." });
+
+            ParsedSpecDto? parsed;
+            try
+            {
+                parsed = JsonSerializer.Deserialize<ParsedSpecDto>(req.ParsedJson);
+            }
+            catch (JsonException ex)
+            {
+                return UnprocessableEntity(new SpecMutationError { Code = "import.invalid_parsed_payload", Error = ex.Message });
+            }
+            if (parsed is null)
+                return UnprocessableEntity(new SpecMutationError { Code = "import.invalid_parsed_payload", Error = "ParsedJson deserialized to null." });
+
+            var mode = req.Mode ?? SpecImportSaveMode.SaveNew;
+            bool overwrite;
+            switch (mode)
+            {
+                case SpecImportSaveMode.SaveNew:
+                    overwrite = false;
+                    break;
+
+                case SpecImportSaveMode.UpgradeRev:
+                    overwrite = true;
+                    break;
+
+                case SpecImportSaveMode.SaveAsCopy:
+                    if (string.IsNullOrWhiteSpace(req.SpecCodeOverride))
+                        return UnprocessableEntity(new SpecMutationError { Code = "import.spec_code_override_required", Error = "SpecCodeOverride is required for SaveAsCopy mode." });
+                    // Mutate parsed payload: SaveAsCopy creates a parallel
+                    // spec with operator-supplied SpecCode + no RefNo.
+                    parsed.PartNo = req.SpecCodeOverride!.Trim();
+                    parsed.RefNo = "";
+                    overwrite = false;
+                    break;
+
+                default:
+                    return UnprocessableEntity(new SpecMutationError { Code = "import.invalid_mode", Error = $"Unknown mode '{req.Mode}'." });
+            }
+
+            // UpgradeRev needs the legacy refresh-samples behavior: soft-
+            // trash the matching existing rev BEFORE SaveAsync sees the
+            // dup. RefreshSamplesAsync does this inline; we replicate the
+            // small dance here since SaveAsync alone won't soft-trash
+            // when overwriteRefNo=true (it just bypasses the dup check).
+            //
+            // Also rename the trashed rev's RevisionCode so the SaveAsync
+            // hardcoded "A" doesn't collide on the (ProductId, RevisionCode)
+            // UNIQUE index. The suffix keeps the trashed rev individually
+            // identifiable in the Trash view; revision-letter increment
+            // (A→B→C) for the live rev is tracked as a follow-up (legacy
+            // hardcodes "A" on every save).
+            if (mode == SpecImportSaveMode.UpgradeRev && !string.IsNullOrWhiteSpace(parsed.RefNo))
+            {
+                var existing = await _db.ProductRevisions
+                    .FirstOrDefaultAsync(r => !r.IsTrashed && r.RefNo == parsed.RefNo, ct);
+                if (existing is not null)
+                {
+                    existing.IsTrashed = true;
+                    existing.TrashedAt = DateTime.UtcNow;
+                    existing.TrashedBy = ActorName();
+                    existing.RevisionCode = $"{existing.RevisionCode}-trashed-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+                    await _db.SaveChangesAsync(ct);
+                }
+            }
+
+            SpecImportSaveResult save;
+            try
+            {
+                save = await _import.SaveAsync(parsed, source: "maui_import", fileName: req.FileName ?? "", user: ActorName(), overwriteRefNo: overwrite);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("đã tồn tại", StringComparison.OrdinalIgnoreCase) || ex.Message.Contains("RefNo", StringComparison.OrdinalIgnoreCase))
+            {
+                return UnprocessableEntity(new SpecMutationError { Code = "import.duplicate_ref_no", Error = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return UnprocessableEntity(new SpecMutationError { Code = "import.validation", Error = ex.Message });
+            }
+
+            await EmitDeviceAuditIfHeaderPresent("SPEC_IMPORT_DEVICE", new
+            {
+                rev_id = save.ProductRevisionId,
+                spec_code = save.SpecCode,
+                ref_no = save.RefNo,
+                category = parsed.Category,
+                mode,
+                filename = req.FileName,
+                rows_parsed = save.RowsParsed,
+            });
+
+            return Ok(new SpecImportSaveResponse
+            {
+                ProductRevisionId = save.ProductRevisionId,
+                ProductId = save.ProductId,
+                SpecCode = save.SpecCode,
+                RefNo = save.RefNo,
+                RowsParsed = save.RowsParsed,
+                CreatedNewProduct = save.CreatedNewProduct,
+                Warnings = save.Warnings,
+                Mode = mode,
+            });
+        }
+        catch (Exception ex)
+        {
+            return Problem(title: "Spec import save failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
+    private async Task<IActionResult> ImportPreviewBuffered(IFormFile file, string? plannerCategory, CancellationToken ct)
+    {
+        await using var ms = new MemoryStream();
+        await file.CopyToAsync(ms, ct);
+        ms.Position = 0;
+        var category = NormalizePlannerCategory(plannerCategory);
+        var previewDto = await _import.PreviewAsync(ms, file.FileName, file.Length, category);
+        var response = BuildPreviewResponse(previewDto);
+        if (response.DuplicateRevisionId is not null)
+            response = response with { DuplicateStatus = await ResolveDuplicateStatusAsync(response.DuplicateRevisionId.Value, ct) };
+        return Ok(response);
+    }
+
+    private async Task<string?> ResolveDuplicateStatusAsync(long revisionId, CancellationToken ct)
+    {
+        var status = await _db.ProductRevisions
+            .AsNoTracking()
+            .Where(r => r.Id == revisionId)
+            .Select(r => (CCL.MES.Domain.ProductRevisionStatus?)r.Status)
+            .FirstOrDefaultAsync(ct);
+        return status?.ToString();
+    }
+
+    private static bool HasXlsxExtension(string? filename) =>
+        !string.IsNullOrEmpty(filename) && filename.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase);
+
+    private static string NormalizePlannerCategory(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "silkscreen";
+        var lower = raw.Trim().ToLowerInvariant();
+        return lower switch
+        {
+            "silkscreen" or "flexo" or "letterpress" or "indigo" or "diecut" => lower,
+            _ => "silkscreen",
+        };
+    }
+
+    private static SpecImportPreviewResponse BuildPreviewResponse(SpecImportPreviewDto dto)
+    {
+        SpecImportParsedSummary? summary = null;
+        string? parsedJson = null;
+        if (dto.Parsed is not null)
+        {
+            var p = dto.Parsed;
+            var isFlexo = string.Equals(p.Category, "flexo", StringComparison.OrdinalIgnoreCase);
+            int? cavity = isFlexo
+                ? p.FlexoCuttingRows.FirstOrDefault()?.CuttingCavity
+                : p.PrintingCavity;
+            double? pitchMm = isFlexo
+                ? p.FlexoCuttingRows.FirstOrDefault()?.PitchMm
+                : p.LengthPitchMm;
+            int numColors = isFlexo ? p.FlexoInkRows.Count : p.PrintRows.Count;
+            summary = new SpecImportParsedSummary
+            {
+                Category = p.Category,
+                RefNo = string.IsNullOrWhiteSpace(p.RefNo) ? null : p.RefNo,
+                Customer = string.IsNullOrWhiteSpace(p.Customer) ? null : p.Customer,
+                PartNo = string.IsNullOrWhiteSpace(p.PartNo) ? null : p.PartNo,
+                PartName = string.IsNullOrWhiteSpace(p.PartName) ? null : p.PartName,
+                MaterialType = string.IsNullOrWhiteSpace(p.MaterialType) ? null : p.MaterialType,
+                ProductSizeW = p.ProductSizeW,
+                ProductSizeH = p.ProductSizeH,
+                NumColors = numColors,
+                Cavity = cavity,
+                PitchMm = pitchMm,
+                InspectionLevel = string.IsNullOrWhiteSpace(p.InspectionLevel) ? null : p.InspectionLevel,
+                RemarksLeft = p.RemarksLeft,
+                RemarksRight = p.RemarksRight,
+                PrintRowsCount = p.PrintRows.Count,
+                FlexoCuttingRowsCount = p.FlexoCuttingRows.Count,
+                FlexoInkRowsCount = p.FlexoInkRows.Count,
+                FlexoPrintRowsCount = p.FlexoPrintRows.Count,
+            };
+            // Opaque echo — serialize once on preview, client passes back
+            // verbatim on save. Keeps both endpoints stateless.
+            parsedJson = JsonSerializer.Serialize(p);
+        }
+
+        return new SpecImportPreviewResponse
+        {
+            FileName = dto.FileName,
+            FileSizeBytes = dto.FileSizeBytes,
+            PlannerCategory = dto.PlannerCategory,
+            ParseOk = dto.ParseOk,
+            ParseError = dto.ParseError,
+            Warnings = dto.Warnings.ToList(),
+            Summary = summary,
+            DuplicateRefNo = dto.DuplicateRefNo,
+            DuplicateRevisionId = dto.DuplicateRevisionId,
+            DuplicateSpecCode = dto.DuplicateSpecCode,
+            ParsedJson = parsedJson,
+        };
     }
 
     // ── Helpers ─────────────────────────────────────────────────────

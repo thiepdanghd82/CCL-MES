@@ -22,6 +22,19 @@ namespace CCL.MES.Hybrid.Client.Specs;
 ///   - <c>already_trashed</c>         — Trash on already-trashed
 ///   - <c>active_work_orders</c>      — Trash blocked by active WO refs (count in Details)
 ///   - <c>not_trashed</c>             — Restore on non-trashed
+///
+/// P10.5c-2 — Spec xlsx import error codes:
+///   - <c>import.no_file</c>                  — multipart 'file' part missing
+///   - <c>import.invalid_extension</c>        — non-.xlsx upload
+///   - <c>import.oversize</c>                 — &gt; 10 MB cap
+///   - <c>import.invalid_content</c>          — content sniff failed (not a ZIP/xlsx)
+///   - <c>import.parse_error</c>              — xlsx parser threw (corrupt / wrong layout)
+///   - <c>import.no_parsed_payload</c>        — save received empty ParsedJson
+///   - <c>import.invalid_parsed_payload</c>   — save received non-deserializable ParsedJson
+///   - <c>import.invalid_mode</c>             — unknown save mode
+///   - <c>import.spec_code_override_required</c> — SaveAsCopy without override
+///   - <c>import.duplicate_ref_no</c>         — RefNo dup raced past preview
+///   - <c>import.validation</c>               — legacy SaveAsync InvalidOp (Customer/PartNo)
 /// </summary>
 public static class SpecMutationErrorMapper
 {
@@ -55,6 +68,18 @@ public static class SpecMutationErrorMapper
             "not_trashed"           => "Spec không ở Thùng rác — không cần khôi phục.",
             "auth.invalid_credentials" or "auth.bad_claim" => "Phiên đăng nhập đã hết hạn — đăng nhập lại.",
             "http.non_success"      => $"Lỗi máy chủ (HTTP {err.MessageEn}).",
+            // P10.5c-2 — Spec xlsx import codes.
+            "import.no_file"                  => "Chưa chọn file để tải lên.",
+            "import.invalid_extension"        => "Chỉ hỗ trợ file .xlsx.",
+            "import.oversize"                 => "File vượt quá 10 MB — chọn file nhỏ hơn.",
+            "import.invalid_content"          => "File không phải định dạng xlsx hợp lệ.",
+            "import.parse_error"              => string.IsNullOrWhiteSpace(err.MessageEn) ? "Không đọc được file xlsx — sai layout hoặc file hỏng." : $"Không đọc được file xlsx: {err.MessageEn}",
+            "import.no_parsed_payload"        => "Phiên xem trước đã hết hạn — chọn lại file.",
+            "import.invalid_parsed_payload"   => "Dữ liệu xem trước không hợp lệ — chọn lại file.",
+            "import.invalid_mode"             => "Lựa chọn lưu không hợp lệ — thử lại.",
+            "import.spec_code_override_required" => "Phải nhập Mã Spec mới khi chọn Lưu thành bản sao.",
+            "import.duplicate_ref_no"         => "Đã tồn tại Spec với cùng REF NO — chọn Thay thế hoặc Lưu thành bản sao.",
+            "import.validation"               => string.IsNullOrWhiteSpace(err.MessageEn) ? "Dữ liệu chưa hợp lệ — kiểm tra Customer / Part No." : $"Dữ liệu chưa hợp lệ: {err.MessageEn}",
             _                       => string.IsNullOrWhiteSpace(err.MessageEn) ? $"Lỗi không xác định ({err.Code})." : err.MessageEn,
         };
     }

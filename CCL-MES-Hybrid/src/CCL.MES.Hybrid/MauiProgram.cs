@@ -94,6 +94,14 @@ public static class MauiProgram
             CCL.MES.Hybrid.Client.Grid.IGridPreferenceStore,
             MauiGridPreferenceStore>());
 
+        // P10.5c-2 — native file picker. FilePicker.Default wraps
+        // UIDocumentPickerViewController on Catalyst + IFileOpenPicker
+        // on WinUI; both honour the xlsx UTType filter so the operator
+        // can't pick the wrong file kind through the system dialog.
+        builder.Services.Replace(ServiceDescriptor.Singleton<
+            CCL.MES.Hybrid.Client.Files.IFilePickerService,
+            CatalystFilePicker>());
+
         // P10.3 W4 — feed the persisted device id into ApiClientOptions so
         // every device-scoped endpoint call (scan-log / heartbeat / info)
         // carries the station's stable guid. PostConfigure runs AFTER the

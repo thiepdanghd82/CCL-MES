@@ -94,6 +94,21 @@ public interface ICclApiClient
     /// when the rev has moved past Draft.</summary>
     Task<SpecMutationResponse> UpdateSpecAsync(long revisionId, UpdateSpecMutation req, CancellationToken ct = default);
 
+    // ── Spec import (P10.5c-2) ────────────────────────────────────
+    /// <summary>Multipart upload of an xlsx Spec file. Streams the
+    /// <paramref name="content"/> directly into the request body — does
+    /// NOT buffer in memory (Lesson D-5b). The server parses + returns
+    /// preview shape with dup info. The opaque <c>ParsedJson</c> in
+    /// the response is echoed back on save.</summary>
+    Task<SpecImportPreviewResponse> ImportPreviewSpecAsync(
+        Stream content, string fileName, string plannerCategory, CancellationToken ct = default);
+
+    /// <summary>Apply the operator-chosen save mode to a previously-
+    /// previewed spec import. <paramref name="req"/> echoes the opaque
+    /// payload + carries the dup-handling decision.</summary>
+    Task<SpecImportSaveResponse> ImportSaveSpecAsync(
+        SpecImportSaveRequest req, CancellationToken ct = default);
+
     // ── Drawings (P10.5b — read) ──────────────────────────────────
     /// <summary>9-slot drawing layout per revision. Empty list when the
     /// revision is unknown (server returns []; we return [] not null).</summary>
