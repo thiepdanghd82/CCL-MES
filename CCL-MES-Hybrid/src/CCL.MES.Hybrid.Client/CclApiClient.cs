@@ -339,6 +339,27 @@ public sealed class CclApiClient : ICclApiClient
             "Drawing upload returned 2xx but body was empty.");
     }
 
+    public async Task<DrawingDecideResponse> DecideDrawingAsync(
+        long revisionId, long versionId, DrawingDecideRequest req,
+        CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/specs/{revisionId}/drawings/{versionId}/decide";
+        using var msg = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(req),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        using var resp = await _http.SendAsync(msg, ct);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+
+        var body = await resp.Content.ReadFromJsonAsync<DrawingDecideResponse>(cancellationToken: ct);
+        return body ?? throw new InvalidOperationException(
+            "Drawing decide returned 2xx but body was empty.");
+    }
+
     public async Task<long> DownloadDrawingToFileAsync(
         long revisionId, long versionId, string destinationFilePath,
         CancellationToken ct = default)

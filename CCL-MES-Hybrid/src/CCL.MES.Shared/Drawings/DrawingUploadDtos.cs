@@ -30,4 +30,39 @@ public sealed record DrawingMutationError
     public string Error { get; init; } = "";
     public long? MaxBytes { get; init; }
     public string? AllowedExtensions { get; init; }
+    public string? CurrentState { get; init; }
+}
+
+/// <summary>
+/// P10.5e-2 — Decide request body. Operator picks the chip role they
+/// want to act as + an Approve/Reject decision + optional comment
+/// (server-side guard makes comment MANDATORY on Reject; client
+/// mirrors the rule for UX).
+/// </summary>
+public sealed record DrawingDecideRequest
+{
+    /// <summary>One of <c>Npi</c> / <c>Production</c> / <c>Qc</c>
+    /// (case-sensitive; matches <see cref="DrawingApprovalRole"/>).</summary>
+    public string Role { get; init; } = "";
+
+    /// <summary>One of <c>Approved</c> / <c>Rejected</c>; <c>Pending</c>
+    /// is invalid at decide time and rejected by the server.</summary>
+    public string Decision { get; init; } = "";
+
+    /// <summary>Optional on Approve; REQUIRED on Reject.</summary>
+    public string? Comment { get; init; }
+}
+
+/// <summary>
+/// P10.5e-2 — Decide response. Mirrors
+/// <c>DrawingDecideResult</c> from <c>DrawingsService.DecideAsync</c>.
+/// Operator UI uses the post-decide statuses + supersede count to
+/// refresh the version chain without re-fetching the parent.
+/// </summary>
+public sealed record DrawingDecideResponse
+{
+    public long VersionId { get; init; }
+    public DrawingVersionStatus VersionStatus { get; init; }
+    public DrawingSlotStatus DrawingStatus { get; init; }
+    public int SupersededCount { get; init; }
 }

@@ -1,0 +1,108 @@
+=== P10.5e-2 FULL CHAIN verification — Thu Jun  4 09:50:27 +07 2026 ===
+
+--- [0] Logins (5 users) ---
+  ✓ admin
+  ✓ eng-npi
+  ✓ eng-prod
+  ✓ eng-qc
+  ✓ sup
+
+--- [1] Verify JWT carries 'department' claim ---
+  admin: dept=[] role=[Admin]
+  eng-npi: dept=[npi] role=[Engineer]
+  eng-prod: dept=[production] role=[Engineer]
+  eng-qc: dept=[qc] role=[Engineer]
+  sup: dept=[] role=[Supervisor]
+
+--- [2] Import silk spec via eng-npi to get rev id ---
+  rev id = 1
+
+--- [3] eng-npi uploads pdf v1 → CustomerDrawing ---
+  v1 id=1 sha=e2b6ef52573a23bc…
+
+--- [4] GET drawings → 3 chips Pending ---
+  0 v1: status=0 approvals=[0, 0, 0]
+
+--- [5] eng-npi decides Npi=Approved ---
+{
+    "versionId": 1,
+    "versionStatus": 1,
+    "drawingStatus": 1,
+    "supersededCount": 0
+}
+
+--- [6] eng-npi tries Production chip → expect 403 department_mismatch ---
+Extra data: line 1 column 188 (char 187)
+
+--- [7] eng-prod decides Production=Approved ---
+{
+    "versionId": 1,
+    "versionStatus": 1,
+    "drawingStatus": 1,
+    "supersededCount": 0
+}
+
+--- [8] eng-qc decides Qc=Approved → v1 Approved ---
+{
+    "versionId": 1,
+    "versionStatus": 2,
+    "drawingStatus": 2,
+    "supersededCount": 0
+}
+
+--- [9] Verify v1 Approved + drawing Approved ---
+  0 v1: drawing_status=2 version_status=2
+
+--- [10] eng-npi uploads pdf v2 ---
+  v2 id=2 sha=ce790ff1b271a2fc…
+
+--- [11] admin (Admin override) decides v2 Npi + Production + Qc → Approved ---
+  admin Npi → version_status=1 superseded=0
+  admin Production → version_status=1 superseded=0
+  admin Qc → version_status=2 superseded=1
+
+--- [12] Verify v1 Superseded + v2 Approved ---
+  0 v2: version_status=2
+  0 v1: version_status=4
+
+--- [13] Download v1 + v2 → sha verify both ---
+  v1: http=200 size=4096
+  ✓ v1 sha matches
+  v2: http=200 size=8192
+  ✓ v2 sha matches
+
+--- [14] Reject without comment → 422 drawing.comment_required ---
+{
+    "code": "drawing.comment_required",
+    "error": "Comment is required when rejecting.",
+    "maxBytes": null,
+    "allowedExtensions": null,
+    "currentState": null
+
+--- [15] AUDIT — DRAWING_DECIDE + DRAWING_SUPERSEDE + DRAWING_DECIDE_DEVICE ---
+
+=== FULL CHAIN verification complete — trace at /tmp/p10-5e-2-curl-trace.txt ===
+--- [6-fix] eng-npi tries Production chip — expect 403 ---
+HTTP 403
+{
+    "code": "drawing.department_mismatch",
+    "error": "Role 'Engineer' / Department 'npi' kh\u00f4ng c\u00f3 quy\u1ec1n action chip 'Production'.",
+    "maxBytes": null,
+    "allowedExtensions": null,
+    "currentState": null
+}
+
+--- [15-fix] AUDIT — DRAWING_DECIDE + DRAWING_SUPERSEDE + DRAWING_DECIDE_DEVICE ---
+CREATE TABLE IF NOT EXISTS "AuditLogs" (
+    "Id" INTEGER NOT NULL CONSTRAINT "PK_AuditLogs" PRIMARY KEY AUTOINCREMENT,
+    "Timestamp" TEXT NOT NULL,
+    "ActorUsername" TEXT NOT NULL,
+    "ActorRole" TEXT NOT NULL,
+DRAWING_DECIDE|eng-npi|{"revision_id":1,"drawing_id":1,"version_id":1,"version_no":1,"role":"Npi","decision":"Approved","ha
+DRAWING_DECIDE_DEVICE|eng-npi|{"device_id":"0193dd00-0000-0000-0000-fullchainverify","detail":{"revision_id":1,"version_id":1,"rol
+DRAWING_DECIDE|eng-prod|{"revision_id":1,"drawing_id":1,"version_id":1,"version_no":1,"role":"Production","decision":"Approv
+DRAWING_DECIDE|eng-qc|{"revision_id":1,"drawing_id":1,"version_id":1,"version_no":1,"role":"Qc","decision":"Approved","has
+DRAWING_DECIDE|admin|{"revision_id":1,"drawing_id":1,"version_id":2,"version_no":2,"role":"Npi","decision":"Approved","ha
+DRAWING_DECIDE|admin|{"revision_id":1,"drawing_id":1,"version_id":2,"version_no":2,"role":"Production","decision":"Approv
+DRAWING_SUPERSEDE|admin|{"revision_id":1,"drawing_id":1,"superseded_version_id":1,"superseded_version_no":1,"by_version_id":
+DRAWING_DECIDE|admin|{"revision_id":1,"drawing_id":1,"version_id":2,"version_no":2,"role":"Qc","decision":"Approved","has

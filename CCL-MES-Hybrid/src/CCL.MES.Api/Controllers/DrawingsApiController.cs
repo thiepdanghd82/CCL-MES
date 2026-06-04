@@ -271,6 +271,163 @@ public sealed class DrawingsApiController : ControllerBase
         }
     }
 
+    // ── Decide (P10.5e-2) ───────────────────────────────────────────
+
+    /// <summary>
+    /// 3-role decide endpoint. 1:1 forwards to
+    /// <see cref="DrawingsService.DecideAsync"/> — the legacy already
+    /// handles every concern that matters at the security boundary:
+    ///
+    /// · <c>CanActAs</c> 4-case truth table (Admin override / Engineer
+    ///   + Department / Supervisor → Production) — `UnauthorizedAccessException`
+    ///   maps to 403 <c>drawing.department_mismatch</c>.
+    /// · Comment required on Reject — `InvalidOperationException`
+    ///   with "Comment is required when rejecting" maps to 422
+    ///   <c>drawing.comment_required</c>.
+    /// · State guard (cannot decide on Superseded version) — maps to
+    ///   422 <c>drawing.invalid_state</c>.
+    /// · Cross-revision guard ("Version does not belong to revision")
+    ///   maps to 404 <c>drawing.not_found</c>.
+    /// · Atomic recompute of VersionStatus (all 3 Approved → Approved;
+    ///   any Rejected → Rejected; else PendingApproval if any decided
+    ///   else Draft).
+    /// · Supersede sweep when version newly Approved.
+    /// · `DRAWING_DECIDE` audit emit.
+    ///
+    /// Server side is the source of truth — the client MUST treat the
+    /// returned <see cref="DrawingDecideResponse"/> as the only valid
+    /// post-state and re-render from it; client-side chip-gating is a
+    /// UI affordance only.
+    ///
+    /// Policy: authenticated (any logged-in user) — the role/dept gate
+    /// runs inside the orchestrator so a forged client can never get
+    /// past the JWT signature without also matching the right
+    /// Department claim.
+    /// </summary>
+    [HttpPost("{versionId:long}/decide")]
+    [Authorize]
+    public async Task<IActionResult> Decide(
+        long revisionId,
+        long versionId,
+        [FromBody] DrawingDecideRequest req,
+        CancellationToken ct)
+    {
+        try
+        {
+            if (req is null)
+                return UnprocessableEntity(new DrawingMutationError
+                {
+                    Code = "drawing.validation",
+                    Error = "Request body is required.",
+                });
+
+            if (!Enum.TryParse<CCL.MES.Domain.DrawingApprovalRole>(req.Role, ignoreCase: false, out var role))
+                return UnprocessableEntity(new DrawingMutationError
+                {
+                    Code = "drawing.invalid_role",
+                    Error = $"Unknown chip role '{req.Role}'. Expected Npi / Production / Qc.",
+                });
+
+            if (!Enum.TryParse<CCL.MES.Domain.DrawingApprovalStatus>(req.Decision, ignoreCase: false, out var decision))
+                return UnprocessableEntity(new DrawingMutationError
+                {
+                    Code = "drawing.invalid_decision",
+                    Error = $"Unknown decision '{req.Decision}'. Expected Approved / Rejected.",
+                });
+
+            DrawingDecideResult result;
+            try
+            {
+                result = await _svc.DecideAsync(
+                    revisionId: revisionId,
+                    versionId: versionId,
+                    role: role,
+                    decision: decision,
+                    comment: req.Comment,
+                    actor: ActorName(),
+                    actorRole: ActorRole(),
+                    actorDepartment: ActorDepartment(),
+                    ct: ct);
+            }
+            catch (UnauthorizedAccessException uaex)
+            {
+                return StatusCode(403, new DrawingMutationError
+                {
+                    Code = "drawing.department_mismatch",
+                    Error = uaex.Message,
+                });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("Comment is required", StringComparison.OrdinalIgnoreCase))
+            {
+                return UnprocessableEntity(new DrawingMutationError
+                {
+                    Code = "drawing.comment_required",
+                    Error = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("superseded", StringComparison.OrdinalIgnoreCase))
+            {
+                return UnprocessableEntity(new DrawingMutationError
+                {
+                    Code = "drawing.invalid_state",
+                    Error = ex.Message,
+                    CurrentState = "Superseded",
+                });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                                                       || ex.Message.Contains("does not belong", StringComparison.OrdinalIgnoreCase))
+            {
+                return NotFound(new DrawingMutationError
+                {
+                    Code = "drawing.not_found",
+                    Error = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("Decision must be", StringComparison.OrdinalIgnoreCase))
+            {
+                return UnprocessableEntity(new DrawingMutationError
+                {
+                    Code = "drawing.invalid_decision",
+                    Error = ex.Message,
+                });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return UnprocessableEntity(new DrawingMutationError
+                {
+                    Code = "drawing.validation",
+                    Error = ex.Message,
+                });
+            }
+
+            await EmitDeviceAuditIfHeaderPresent("DRAWING_DECIDE_DEVICE", new
+            {
+                revision_id = revisionId,
+                version_id = versionId,
+                role = role.ToString(),
+                decision = decision.ToString(),
+                has_comment = !string.IsNullOrWhiteSpace(req.Comment),
+                version_status_after = result.VersionStatus.ToString(),
+                drawing_status_after = result.DrawingStatus.ToString(),
+                superseded_count = result.SupersededCount,
+            });
+
+            return Ok(new DrawingDecideResponse
+            {
+                VersionId = result.VersionId,
+                // Domain enums + Shared enums share value layouts (verified by
+                // P10.5b's read flow that round-trips through the same DTO).
+                VersionStatus = (CCL.MES.Shared.Drawings.DrawingVersionStatus)(int)result.VersionStatus,
+                DrawingStatus = (CCL.MES.Shared.Drawings.DrawingSlotStatus)(int)result.DrawingStatus,
+                SupersededCount = result.SupersededCount,
+            });
+        }
+        catch (Exception ex)
+        {
+            return Problem(title: "Drawing decide failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────
 
     private string ActorName() =>
@@ -278,6 +435,13 @@ public sealed class DrawingsApiController : ControllerBase
 
     private string ActorRole() =>
         User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+    /// <summary>Reads the <c>department</c> claim emitted by
+    /// <c>JwtTokenIssuer</c> (P10.1). Returns empty string when the
+    /// claim is missing so <c>CanActAs</c> falls through cleanly to
+    /// the Admin-override / Engineer-with-dept truth table.</summary>
+    private string ActorDepartment() =>
+        User.FindFirst("department")?.Value ?? "";
 
     private async Task EmitDeviceAuditIfHeaderPresent(string action, object detail)
     {

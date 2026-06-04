@@ -45,6 +45,13 @@ namespace CCL.MES.Hybrid.Client.Specs;
 ///   - <c>drawing.validation</c>          — legacy UploadAsync InvalidOp catch-all
 ///   - <c>drawing.not_found</c>           — version id missing OR cross-revision attempt
 ///   - <c>drawing.blob_missing</c>        — DB row exists but disk blob lost
+///
+/// P10.5e-2 — 3-role decide error codes:
+///   - <c>drawing.invalid_role</c>        — Role query param not Npi/Production/Qc
+///   - <c>drawing.invalid_decision</c>    — Decision not Approved/Rejected
+///   - <c>drawing.department_mismatch</c> — CanActAs gate rejected (403)
+///   - <c>drawing.comment_required</c>    — Reject without comment
+///   - <c>drawing.invalid_state</c>       — Cannot decide on Superseded version
 /// </summary>
 public static class SpecMutationErrorMapper
 {
@@ -99,6 +106,12 @@ public static class SpecMutationErrorMapper
             "drawing.validation"          => string.IsNullOrWhiteSpace(err.MessageEn) ? "Bản vẽ chưa hợp lệ." : $"Bản vẽ chưa hợp lệ: {err.MessageEn}",
             "drawing.not_found"           => "Không tìm thấy bản vẽ (có thể đã bị xoá).",
             "drawing.blob_missing"        => "File bản vẽ không còn trên máy chủ — vui lòng upload lại.",
+            // P10.5e-2 — Decide chain.
+            "drawing.invalid_role"        => "Vai trò chip không hợp lệ — chỉ chấp nhận NPI / Sản xuất / QC.",
+            "drawing.invalid_decision"    => "Quyết định không hợp lệ — chỉ chấp nhận Approve / Reject.",
+            "drawing.department_mismatch" => "Tài khoản không có quyền duyệt chip này — chuyển cho đúng Phòng/Role được phép.",
+            "drawing.comment_required"    => "Phải nhập lý do khi Reject.",
+            "drawing.invalid_state"       => "Không duyệt được vì version đã ở trạng thái Thay thế.",
             _                       => string.IsNullOrWhiteSpace(err.MessageEn) ? $"Lỗi không xác định ({err.Code})." : err.MessageEn,
         };
     }
