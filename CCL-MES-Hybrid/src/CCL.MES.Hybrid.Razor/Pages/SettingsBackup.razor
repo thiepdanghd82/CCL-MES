@@ -1,0 +1,300 @@
+@page "/settings/backup"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@using System.Globalization
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Shared.Backup
+@inject ICclApiClient Api
+@inject IJSRuntime Js
+
+@*
+  P10.6h — Admin Backup / Restore page.
+
+  Admin-only at BOTH layers:
+    - Page [Authorize(Roles = "Admin")] — non-admin route hit returns
+      Blazor's standard forbidden render.
+    - Every API endpoint is gated by AdminOnly policy. Server is the
+      defence-in-depth — covered by RouteDiscoveryCanaryTests
+      "Backup_routes_require_admin_role" so a future PR that drops
+      the controller attribute fails CI.
+
+  Catalyst safety: plain <button> + plain <input type="file">. NO
+  <InputText>, NO <select> + @bind. Confirm dialog before destructive
+  Restore via Js.InvokeAsync<bool>("confirm", ...). Same pattern that
+  is canary-tested in BackgroundCrashContainmentTests since P10.6a
+  hotfix layer landed.
+
+  Restore is the dangerous surface — operator picks a file, page
+  shows a 2-step confirm gate:
+    1. Hard confirm modal ("Sẽ ghi đè database hiện tại — chắc chắn?")
+    2. Server takes a PRE-RESTORE snapshot before applying so 1-click
+       rollback exists via the snapshot list.
+*@
+
+<PageTitle>Sao lưu &amp; Khôi phục — CCL MES</PageTitle>
+
+<div class="settings-page-header">
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
+    <h1 class="page-title">Sao lưu &amp; Khôi phục</h1>
+</div>
+
+<section class="settings-form-card">
+    <h2 class="settings-group-title">Tạo bản sao lưu</h2>
+    <p class="settings-form-help">
+        Tạo snapshot của SQLite database ngay lập tức. Snapshot dùng
+        SQLite online backup API, an toàn khi server đang phục vụ.
+    </p>
+    <button type="button" class="grid-btn grid-btn-primary"
+            disabled="@_creating" @onclick="OnCreate">
+        @(_creating ? "Đang tạo…" : "Tạo snapshot mới")
+    </button>
+    @if (_createError is not null)
+    {
+        <div class="settings-form-error">@_createError</div>
+    }
+    @if (_createOk is not null)
+    {
+        <div class="settings-form-success">
+            ✔ Đã tạo: <code>@_createOk.FileName</code>
+            (@FormatBytes(_createOk.SizeBytes)) — SHA-256:
+            <code class="backup-sha">@ShortSha(_createOk.Sha256)</code>
+        </div>
+    }
+</section>
+
+<section class="settings-form-card" style="margin-top:16px">
+    <h2 class="settings-group-title">Khôi phục từ file</h2>
+    <p class="settings-form-help">
+        Tải lên file <code>.db</code> hoặc <code>.bak</code> được tạo bởi
+        chính ứng dụng này. Server sẽ kiểm tra header SQLite + schema
+        TRƯỚC khi áp dụng và sẽ tự động tạo bản
+        <strong>pre-restore</strong> để quay lui khi cần.
+    </p>
+    <div class="backup-restore-row">
+        <input type="file" accept=".db,.bak,application/octet-stream"
+               @ref="_fileInput" @onchange="OnFilePicked" disabled="@_restoring" />
+        <button type="button" class="grid-btn grid-btn-danger"
+                disabled="@(_restoring || _pickedName is null)"
+                @onclick="OnRestoreClicked">
+            @(_restoring ? "Đang khôi phục…" : "Khôi phục")
+        </button>
+    </div>
+    @if (_pickedName is not null && !_restoring)
+    {
+        <div class="settings-form-help" style="margin-top:8px">
+            Đã chọn: <code>@_pickedName</code> (@FormatBytes(_pickedSize))
+        </div>
+    }
+    @if (_restoreError is not null)
+    {
+        <div class="settings-form-error">@_restoreError</div>
+    }
+    @if (_restoreOk is not null)
+    {
+        <div class="settings-form-success">
+            ✔ Khôi phục thành công. Bản pre-restore:
+            <code>@_restoreOk.PreRestoreSnapshot</code>. Khuyến nghị
+            khởi động lại ứng dụng để chắc chắn mọi service đọc DB mới.
+        </div>
+    }
+</section>
+
+<section class="settings-form-card" style="margin-top:16px">
+    <h2 class="settings-group-title">Danh sách bản sao (@_snapshots.Count)</h2>
+    @if (_listError is not null)
+    {
+        <div class="settings-form-error">@_listError</div>
+    }
+    else if (_loading)
+    {
+        <p class="settings-form-help">Đang tải…</p>
+    }
+    else if (_snapshots.Count == 0)
+    {
+        <p class="settings-form-help">Chưa có snapshot. Tạo bản đầu tiên bên trên.</p>
+    }
+    else
+    {
+        <table class="backup-table">
+            <thead>
+                <tr>
+                    <th>Tên file</th>
+                    <th>Kích thước</th>
+                    <th>SHA-256</th>
+                    <th>Tạo lúc (UTC)</th>
+                    <th>Loại</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var s in _snapshots)
+                {
+                    <tr>
+                        <td><code class="backup-filename">@s.FileName</code></td>
+                        <td class="backup-num">@FormatBytes(s.SizeBytes)</td>
+                        <td><code class="backup-sha">@ShortSha(s.Sha256)</code></td>
+                        <td>@s.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)</td>
+                        <td>
+                            @if (s.IsPreRestore)
+                            {
+                                <span class="backup-chip backup-chip-pre">pre-restore</span>
+                            }
+                            else
+                            {
+                                <span class="backup-chip">snapshot</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private bool _loading = true;
+    private bool _creating;
+    private bool _restoring;
+    private string? _listError;
+    private string? _createError;
+    private string? _restoreError;
+    private BackupSnapshotDto? _createOk;
+    private RestoreResultDto? _restoreOk;
+    private List<BackupSnapshotDto> _snapshots = new();
+
+    // Restore file pick state. The actual File object lives in
+    // window.__cclMesBackupPick (JS side); .NET only holds the
+    // metadata for UI rendering + a flag that a pick is staged.
+    private ElementReference _fileInput;
+    private string? _pickedName;
+    private long _pickedSize;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Reload();
+    }
+
+    private async Task Reload()
+    {
+        _loading = true;
+        _listError = null;
+        try
+        {
+            var rows = await Api.ListBackupsAsync();
+            _snapshots = rows ?? new();
+        }
+        catch (ApiException ex)
+        {
+            _listError = $"Không tải được danh sách: {ex.ApiError.Code} ({ex.StatusCode}).";
+        }
+        catch (Exception ex)
+        {
+            _listError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnCreate()
+    {
+        _creating = true;
+        _createError = null;
+        _createOk = null;
+        try
+        {
+            _createOk = await Api.CreateBackupAsync();
+            await Reload();
+        }
+        catch (ApiException ex)
+        {
+            _createError = $"Không tạo được snapshot: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _createError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _creating = false;
+        }
+    }
+
+    /// <summary>
+    /// Plain <input type="file"> change handler. Reads the file
+    /// metadata (name + size) via a small JS interop helper that
+    /// returns the picked File from the element + caches it in
+    /// window.__cclMesBackupPick for the upload step. Keeps the Razor
+    /// code free of <InputFile> / InputFileChangeEventArgs.
+    /// </summary>
+    private async Task OnFilePicked()
+    {
+        _restoreError = null;
+        _restoreOk = null;
+        try
+        {
+            var meta = await Js.InvokeAsync<FilePickMeta?>("cclMesBackup.pick", _fileInput);
+            if (meta is null || string.IsNullOrEmpty(meta.Name))
+            {
+                _pickedName = null;
+                _pickedSize = 0;
+                return;
+            }
+            _pickedName = meta.Name;
+            _pickedSize = meta.Size;
+        }
+        catch (Exception ex)
+        {
+            _restoreError = $"Không đọc được file: {ex.Message}";
+        }
+    }
+
+    private async Task OnRestoreClicked()
+    {
+        if (_pickedName is null) return;
+
+        var confirmed = await Js.InvokeAsync<bool>("confirm",
+            $"Sẽ GHI ĐÈ database hiện tại bằng \"{_pickedName}\"."
+            + " Server sẽ tự tạo bản pre-restore để rollback."
+            + " Chắc chắn tiếp tục?");
+        if (!confirmed) return;
+
+        _restoring = true;
+        _restoreError = null;
+        _restoreOk = null;
+        try
+        {
+            // Hand the file back via JS interop as a Stream — JSRuntime
+            // marshals the File.stream() through a SignalR-style chunk
+            // pipe. Avoids loading the entire file into managed memory.
+            var streamRef = await Js.InvokeAsync<IJSStreamReference>("cclMesBackup.takeStream");
+            await using var s = await streamRef.OpenReadStreamAsync(maxAllowedSize: 512L * 1024 * 1024);
+            _restoreOk = await Api.RestoreBackupAsync(s, _pickedName);
+            await Reload();
+        }
+        catch (ApiException ex)
+        {
+            _restoreError = $"Không khôi phục được: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _restoreError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _restoring = false;
+        }
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024L * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F2} GB";
+    }
+
+    private static string ShortSha(string sha) =>
+        string.IsNullOrEmpty(sha) ? "—" : sha.Length >= 12 ? sha[..12] + "…" : sha;
+
+    private sealed record FilePickMeta(string Name, long Size);
+}

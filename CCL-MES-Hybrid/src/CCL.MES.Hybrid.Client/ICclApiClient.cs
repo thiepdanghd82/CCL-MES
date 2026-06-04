@@ -1,5 +1,6 @@
 using CCL.MES.Hybrid.Client.Npi;
 using CCL.MES.Shared.Auth;
+using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
@@ -239,6 +240,25 @@ public interface ICclApiClient
     /// data dir path on the public internet. Throws
     /// <see cref="ApiException"/> on 401 / 5xx.</summary>
     Task<AboutDto> GetAboutAsync(CancellationToken ct = default);
+
+    // ── Backup / Restore — Admin-only (P10.6h) ──────────────────────
+    /// <summary>List existing snapshots in the server's backup dir.
+    /// Throws <see cref="ApiException"/> with 403 when the caller is
+    /// not Admin.</summary>
+    Task<List<BackupSnapshotDto>> ListBackupsAsync(CancellationToken ct = default);
+
+    /// <summary>Create a new online SQLite snapshot. Returns the new
+    /// snapshot row on success; throws <see cref="ApiException"/>
+    /// on 403 / 422.</summary>
+    Task<BackupSnapshotDto> CreateBackupAsync(CancellationToken ct = default);
+
+    /// <summary>Upload + restore from a snapshot file. The server
+    /// validates the file (SQLite header + schema sanity), takes a
+    /// pre-restore snapshot of the current live DB, then clones the
+    /// uploaded file in-place via the SQLite online backup API.
+    /// Throws <see cref="ApiException"/> on 403 / 422 with a stable
+    /// <c>backup.*</c> error code.</summary>
+    Task<RestoreResultDto> RestoreBackupAsync(Stream content, string fileName, CancellationToken ct = default);
 }
 
 /// <summary>

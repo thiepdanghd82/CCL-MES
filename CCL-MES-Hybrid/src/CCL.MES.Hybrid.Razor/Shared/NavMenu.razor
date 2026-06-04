@@ -65,6 +65,12 @@
         <NavLink href="/settings/about" class="app-nav-link app-nav-link-sub">Về ứng dụng</NavLink>
         @* P10.6b — Appearance (language picker; theme deferred to 6g). *@
         <NavLink href="/settings/appearance" class="app-nav-link app-nav-link-sub">Giao diện</NavLink>
+        @* P10.6h — Backup/Restore — Admin only (page itself is
+           [Authorize(Roles="Admin")] + every API endpoint is
+           AdminOnly policy). *@
+        <AuthorizeView Roles="Admin" Context="bkpCtx">
+            <NavLink href="/settings/backup" class="app-nav-link app-nav-link-sub">Sao lưu &amp; Khôi phục</NavLink>
+        </AuthorizeView>
         @if (HwOptions.Value.ScanEnabled)
         {
             <AuthorizeView Roles="Admin,Supervisor,Engineer">
