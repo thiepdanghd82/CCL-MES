@@ -60,5 +60,6 @@ public enum ProcessCatalogStatus { Active, Deprecated }
 /// <summary>Operator-recorded result per QcCriterion capture event.</summary>
 public enum QcCaptureResult { Pass, Fail, Na }
 
-/// <summary>Bucket for ReasonCode lookup — Pause = downtime cause, Scrap = NG cause.</summary>
-public enum ReasonCodeKind { Pause, Scrap }
+/// <summary>Bucket for ReasonCode lookup — Pause = downtime cause, Scrap = NG cause,
+/// Recovery = admin SYS_RECOVERY justification (P10.7a-2 force-phase endpoint).</summary>
+public enum ReasonCodeKind { Pause, Scrap, Recovery }

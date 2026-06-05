@@ -1,4 +1,5 @@
 using CCL.MES.Domain;
+using CCL.MES.Domain.Auth;
 using CCL.MES.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,6 +28,12 @@ public static class DbSeeder
         // Phase 8 PR-D-4 — ReasonCode seed for QC Capture NG reasons + pause
         // codes (CMES sibling parity, 12 codes). Independent .Any() gate.
         await SeedReasonCodesAsync(db);
+
+        // P10.7a-2.1 — recovery surface seeds: 6 Recovery-kind reason codes
+        // (admin SYS_RECOVERY justification vocabulary) + the sys-recovery
+        // user (audit-only attribution for the force-phase endpoint).
+        // Per-row idempotency so re-seeds on existing DBs are NOOP.
+        await SeedRecoveryDataAsync(db);
 
         if (await db.WorkOrders.AnyAsync()) return;
 
@@ -261,6 +268,79 @@ public static class DbSeeder
             new ReasonCode { Code = "SC-DIE",   LabelEn = "Die-cut burr / break",          LabelVi = "Cắt bế xước / gãy",           Kind = ReasonCodeKind.Scrap, Sort = 30  },
             new ReasonCode { Code = "SC-BAR",   LabelEn = "Barcode grade below B",         LabelVi = "Barcode kém (dưới B)",        Kind = ReasonCodeKind.Scrap, Sort = 40  }
         );
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// P10.7a-2.1 — recovery surface bootstrap. Seeds the audit-only
+    /// <c>sys-recovery</c> user + 6 Recovery-kind reason codes used by the
+    /// admin force-phase endpoint to justify SYS_RECOVERY audit entries.
+    /// Per-row idempotency: each insert is gated by a uniqueness check so
+    /// re-running on a DB that already has either surface is a NOOP.
+    /// Safe to call from app startup; safe to invoke standalone from
+    /// migration-step scripts.
+    /// </summary>
+    public static async Task SeedRecoveryDataAsync(MesDbContext db)
+    {
+        await SeedRecoveryReasonCodesAsync(db);
+        await SeedSysRecoveryUserAsync(db);
+    }
+
+    private static async Task SeedRecoveryReasonCodesAsync(MesDbContext db)
+    {
+        // Per-code idempotency. Pause/Scrap codes coexist with Recovery
+        // codes (different Kind) so the global .Any() short-circuit used
+        // by SeedReasonCodesAsync would skip these on any existing DB.
+        var existing = await db.ReasonCodes
+            .Where(r => r.Kind == ReasonCodeKind.Recovery)
+            .Select(r => r.Code)
+            .ToListAsync();
+        var existingSet = new HashSet<string>(existing, StringComparer.Ordinal);
+
+        var codes = new[]
+        {
+            new ReasonCode { Code = "REC-OP-WEDGE",     LabelEn = "Operator-reported wedge",        LabelVi = "Wedge do thao tác",            Kind = ReasonCodeKind.Recovery, Sort = 10 },
+            new ReasonCode { Code = "REC-HW-FAULT",     LabelEn = "Hardware / sensor fault",        LabelVi = "Lỗi phần cứng / cảm biến",     Kind = ReasonCodeKind.Recovery, Sort = 20 },
+            new ReasonCode { Code = "REC-MIG-LAG",      LabelEn = "Schema migration lag",           LabelVi = "DB chậm migration",            Kind = ReasonCodeKind.Recovery, Sort = 30 },
+            new ReasonCode { Code = "REC-DATA-DRIFT",   LabelEn = "Data corruption / drift",        LabelVi = "Dữ liệu lỗi / sai lệch",       Kind = ReasonCodeKind.Recovery, Sort = 40 },
+            new ReasonCode { Code = "REC-IPQC-OVR",     LabelEn = "IPQC reject override",           LabelVi = "Bỏ qua IPQC reject",           Kind = ReasonCodeKind.Recovery, Sort = 50 },
+            new ReasonCode { Code = "REC-TEST-RESET",   LabelEn = "Test / dev reset",               LabelVi = "Reset dev/test",               Kind = ReasonCodeKind.Recovery, Sort = 60 },
+        };
+
+        var toAdd = codes.Where(c => !existingSet.Contains(c.Code)).ToList();
+        if (toAdd.Count == 0) return;
+
+        db.ReasonCodes.AddRange(toAdd);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>Reserved username for the audit-only system account.
+    /// Lifted to a public const so tests + checkpoint scripts can refer
+    /// to the same literal without re-typing.</summary>
+    public const string SysRecoveryUsername = "sys-recovery";
+
+    private static async Task SeedSysRecoveryUserAsync(MesDbContext db)
+    {
+        if (await db.Users.AnyAsync(u => u.Username == SysRecoveryUsername))
+            return;
+
+        // PasswordHash: deliberate non-PBKDF2 literal. Login flow short-
+        // circuits on IsActive=false before reaching the hash check; this
+        // string is here so any code path that bypasses the IsActive guard
+        // still fails the hash verify with InvalidArgument / Failed.
+        // Account is forensic-only — owns the actor.username on
+        // SYS_RECOVERY audit rows + nothing else.
+        db.Users.Add(new User
+        {
+            Username = SysRecoveryUsername,
+            DisplayName = "System Recovery (audit-only)",
+            Role = UserRole.Sys,
+            IsActive = false,
+            MustChangePassword = false,
+            Department = "system",
+            PasswordHash = "!SYS-RECOVERY-LOCKED-NEVER-LOGIN!",
+            CreatedAt = DateTime.UtcNow,
+        });
         await db.SaveChangesAsync();
     }
 }

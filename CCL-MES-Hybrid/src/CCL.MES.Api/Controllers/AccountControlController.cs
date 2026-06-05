@@ -237,6 +237,16 @@ public sealed class AccountControlController : ControllerBase
             Code = "accounts.last_admin",
             MessageEn = "Action refused — would leave the system with zero active admins.",
         }),
+        // P10.7a-2.1 — 403 (not 422) because this is an authorization
+        // signal (sys account is out of bounds for this surface) not a
+        // validation failure. Matches the BackupController "AdminOnly"
+        // pattern for off-limits operations: surface declines, not
+        // request shape failure.
+        AccountResult.SysAccountProtected => StatusCode(403, new ApiError
+        {
+            Code = "accounts.sys_account_protected",
+            MessageEn = "System recovery accounts are audit-only and cannot be modified through this surface.",
+        }),
         _ => StatusCode(500, new ApiError
         {
             Code = "accounts.unknown_error",
