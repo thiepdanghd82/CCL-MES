@@ -90,6 +90,32 @@ gh pr merge 98 --rebase --admin
 
 ---
 
+## Rule 5 — When a PR adds a migration, the "1 Henry action" block MUST include `dotnet ef database update`
+
+The 2026-06-05 P10.7a-1.3 Catalyst checkpoint failed with a blind `HTTP 500 · http.non_success` on login. Root cause: the shipped server expected schema from 3 new migrations that operator's `data/ccl_mes.db` lagged. The 500 had no diagnostic in the operator UI; the agent had to remote-debug the server log to even find out it was a missing-column error.
+
+**Henry's reproducibility block for any PR with EF migrations MUST be:**
+
+```bash
+# Pulled from PR #N description
+git fetch origin && git checkout <branch>
+# ← THIS step is the one that was missing
+dotnet ef database update \
+  --connection "Data Source=$(pwd)/data/ccl_mes.db" \
+  --project src/CCL.MES.Infrastructure \
+  --startup-project src/CCL.MES.Web
+# then verify + boot
+cd CCL-MES-Hybrid && bash scripts/verify-p10.7a-<N>.sh --keep-alive
+```
+
+PRs that do NOT touch migrations skip the middle step.
+
+**Defence-in-depth — agent-side:** when shipping a migration the agent MUST also add a pending-migration boot probe to the API host (see `CCL-MES-Hybrid/src/CCL.MES.Api/Program.cs` — Program.cs queries `Database.GetPendingMigrationsAsync()` at boot, logs a multi-line `WARNING — DATABASE HAS UNAPPLIED MIGRATIONS` block, and refuses to start if `Database:FailOnPendingMigrations=true` in config). The probe is the seat-belt; the documented Henry-action block is the steering wheel.
+
+**Why:** blind 500s on the operator UI burn 30+ minutes of agent diagnostic time per incident, are worse than a hard "won't start" boot failure (which at least points at the cause), and degrade Henry's trust in the "1 command repro" model the checklist is built on.
+
+---
+
 ## Rule 4 — Gate scripts must strip BOTH `@* *@` Razor block comments AND `//` C# line comments
 
 When grepping Razor files for forbidden patterns (e.g. the `<InputText>` renderer-dead trap),
