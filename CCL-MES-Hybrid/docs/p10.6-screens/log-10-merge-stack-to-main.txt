@@ -1493,3 +1493,166 @@ p10.6-screens
 ── §5.4: commit lessons doc to main ──
 Your branch is up to date with 'origin/main'.
 Already up to date.
+A  docs/STACKED-PR-CHECKLIST.md
+A  docs/p10.6-screens/log-10-merge-stack-to-main.txt
+?? ../data/blobs/
+
+[main 79c5227] docs(p10.6): stacked-PR checklist + merge stack log
+ 2 files changed, 1653 insertions(+)
+ create mode 100644 CCL-MES-Hybrid/docs/STACKED-PR-CHECKLIST.md
+ create mode 100644 CCL-MES-Hybrid/docs/p10.6-screens/log-10-merge-stack-to-main.txt
+
+To https://github.com/thiepdanghd82/CCL-MES.git
+   e5eb07b..79c5227  main -> main
+
+── §5.5: tag v0.10.6 ──
+
+[tag created]
+v0.10.6
+
+[push tag]
+To https://github.com/thiepdanghd82/CCL-MES.git
+ * [new tag]         v0.10.6 -> v0.10.6
+
+── §5.6: delete 7 feature branches on origin ──
+[delete: feat/p10.6a-settings-profile-password]
+error: failed to push some refs to 'https://github.com/thiepdanghd82/CCL-MES.git'
+[delete: feat/p10.6d-about-connection-mode]
+ - [deleted]         feat/p10.6d-about-connection-mode
+[delete: feat/p10.6f-recent-scans]
+ - [deleted]         feat/p10.6f-recent-scans
+[delete: feat/p10.6b-appearance]
+ - [deleted]         feat/p10.6b-appearance
+[delete: feat/p10.6h-backup-restore]
+ - [deleted]         feat/p10.6h-backup-restore
+[delete: feat/p10.6e-audit-log]
+ - [deleted]         feat/p10.6e-audit-log
+[delete: feat/p10.6c-account-control]
+ - [deleted]         feat/p10.6c-account-control
+
+[verify no feature branches left on origin]
+
+── §5.7: state confirmation ──
+[origin main HEAD]
+79c5227c41f845f36fb00f658b368d9f35a283bd	refs/heads/main
+
+[origin tags v0.10.x]
+2d055f5ae822765c46f64f2bb586cb6a03b8aae9	refs/tags/v0.10.6
+79c5227c41f845f36fb00f658b368d9f35a283bd	refs/tags/v0.10.6^{}
+
+[safety branch still intact]
+144a9b98b299481432e83d1c84e638596bdef05d	refs/heads/backup/pre-p10.6-merge
+
+═══════════════════════════════════════════════════════════════════
+FINAL STOP REPORT — P10.6 7-PR stack merge to main
+═══════════════════════════════════════════════════════════════════
+
+Date: 2026-06-05T01:15:20Z
+Operator: thiepdt
+Log: docs/p10.6-screens/log-10-merge-stack-to-main.txt
+Tag: v0.10.6 (commit 79c5227)
+Safety branch: backup/pre-p10.6-merge → 144a9b9 (retained for rollback)
+
+─── EXIT CRITERIA CHECKLIST ───
+
+□ 1. 7 PRs merged to main (mapping: 6d=#98 replacement for #92)
+      PR #91  P10.6a  Settings shell + My Profile + My Password    MERGED
+      PR #92  closed (cascade by --delete-branch) — replaced by:
+      PR #98  P10.6d  Settings About + Connection Mode             MERGED
+      PR #93  P10.6f  Recent Scans sidebar widget                  MERGED
+      PR #94  P10.6b  Appearance language picker                   MERGED
+      PR #95  P10.6h  Admin Backup/Restore                         MERGED
+      PR #96  P10.6e  Admin Audit Log viewer + CSV/XLSX export     MERGED
+      PR #97  P10.6c  Admin Account Control — user CRUD + guards   MERGED
+
+      Cumulative result on main: 7 PRs ✓
+
+□ 2. All 7 verify scripts PASS against cumulative main (e5eb07b)
+      verify-p10.6a   11/11 PASS
+      verify-p10.6d    9/9 PASS
+      verify-p10.6f    8/8 PASS
+      verify-p10.6b    9/9 PASS
+      verify-p10.6h   15/15 PASS
+      verify-p10.6e   17/17 PASS
+      verify-p10.6c   20/20 PASS
+      TOTAL          89/89 ✓
+
+□ 3. Full test suite on main (e5eb07b)
+      Client unit tests:  481 PASS / 0 FAIL ✓
+      API unit tests:     217 PASS / 0 FAIL ✓
+      Filter-run subsets:
+        RecentScans          16/16
+        Localization         21/21
+        BackupController     11/11
+        AuditLogController   12/12
+        AccountControl       17/17
+
+□ 4. RouteDiscoveryCanaryTests InlineData count = 19
+      Actual: 19 ✓
+
+□ 5. Renderer-dead hotfix layer files PRESENT (4/4)
+      ✓ MauiProgram.cs
+      ✓ MainLayout.razor
+      ✓ MacCatalystKeyboardFix.razor
+      ✓ RendererCrashBoundary.razor
+
+□ 6. Canary test files PRESENT (2/2)
+      ✓ BackgroundCrashContainmentTests.cs
+      ✓ MacCatalystKeyboardFixRegressionTests.cs
+
+□ 7. Real <InputText> usages = 0 (comments stripped)
+      Actual: 0 ✓
+      Note: 3 doc-string references (2 in @* *@, 1 in //) accepted
+      as intentional lesson documentation, not code usages.
+
+□ 8. 7 feature branches deleted from origin
+      ✓ All deleted (verified: 0 refs/heads/feat/p10.6* on origin)
+
+□ 9. Tag v0.10.6 pushed
+      ✓ refs/tags/v0.10.6 → 2d055f5a
+
+□ 10. Lessons documented + committed
+      ✓ docs/STACKED-PR-CHECKLIST.md (4 rules)
+      ✓ docs/p10.6-screens/log-10-merge-stack-to-main.txt (    1615 lines)
+      Both committed in 79c5227 (latest main)
+
+─── DEVIATIONS DURING EXECUTION ───
+
+1. PR #92 base anomaly (Pre-flight §1c) — Option A approved + executed cleanly.
+2. Step 2 cascade-close catch-22 — Option X reopen failed → Option Y replacement (PR #98) successful.
+3. <InputText> doc-string false positives at Step 3 (RecentScansWidget.razor) and Step 6
+   (SettingsAuditLog.razor) — gate script refined to strip both @* *@ and // comments.
+4. Sibling docs commits surfaced via rebase (a8d11df 'docs/audit 3-codebase gap matrix'
+   came in with PR #94; 70d6912 'docs(p10.7) WO state-contract' came with PR #95) —
+   benign docs additions kept on main without further intervention.
+
+─── PR # MAPPING (final, immutable) ───
+
+  P10.6a → PR #91 (merged direct to main)
+  P10.6d → PR #92 → CLOSED (cascade) → REPLACED BY PR #98 (merged)
+  P10.6f → PR #93
+  P10.6b → PR #94
+  P10.6h → PR #95
+  P10.6e → PR #96
+  P10.6c → PR #97
+
+  Total PR count: 8 (7 merged + 1 cascade-closed/replaced)
+  Merge stack count: 7 (all features landed)
+
+─── POST-RELEASE STATE ───
+
+  origin/main HEAD: 79c5227c41f845f36fb00f658b368d9f35a283bd (tag v0.10.6)
+  Safety: backup/pre-p10.6-merge → 144a9b98 (retained until P10.7 begins)
+  Open PRs: 0 (verify with 'gh pr list')
+  Branches: 0 feat/p10.6* on origin
+
+─── HENRY'S QUEUED NEXT TASKS (per pre-merge plan approval) ───
+
+  A. Disk Phase 2 LOW cleanup (archive .db.bak with checksum, dotnet clean,
+     git gc, prune 84 merged branches incl. 7 P10.6) + paste du -sh before/after
+  B. P10.7a-1 breakdown (RowVersion + Idempotency + transition-matrix xUnit
+     per signed state-contract §5.2 format) — submit BEFORE coding
+
+═══════════════════════════════════════════════════════════════════
+STATUS: ALL EXIT CRITERIA ✓  /  STOP for direction on next task (A or B)
+═══════════════════════════════════════════════════════════════════

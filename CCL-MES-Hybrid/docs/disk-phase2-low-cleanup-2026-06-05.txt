@@ -1,0 +1,501 @@
+═══════════════════════════════════════════════════════════════════
+DISK PHASE 2 LOW CLEANUP — 2026-06-05
+═══════════════════════════════════════════════════════════════════
+Start: 2026-06-05T03:06:35Z
+Repo:  /Volumes/Macintosh Data/Claude-Cowork/3. PROJECTS/CCL-CMES/CCL-MES
+Log:   CCL-MES-Hybrid/docs/disk-phase2-low-cleanup-2026-06-05.txt
+
+─── BEFORE du -sh ───
+
+[whole tree]
+1.6G	../
+
+[Group A — stray DB snapshots in src/CCL.MES.Web/]
+17
+138M	total
+
+[Group B — dotnet bin/obj across whole tree]
+28
+917M	total
+
+[Group C — .git/]
+ 44M	.git
+3525
+
+[Group D — local branches]
+92
+79
+  feat/p10.6b-appearance
+  feat/p10.6c-account-control
+  feat/p10.6d-about-connection-mode
+  feat/p10.6e-audit-log
+  feat/p10.6f-recent-scans
+  feat/p10.6h-backup-restore
+
+[local P10.6 branch tips vs merged-into-main check]
+  feat/p10.6b-appearance (df45a5e0) — NOT reachable (rebased+force-pushed; needs -D to delete)
+  feat/p10.6c-account-control (71a96fe8) — NOT reachable (rebased+force-pushed; needs -D to delete)
+  feat/p10.6d-about-connection-mode (68d16246) — NOT reachable (rebased+force-pushed; needs -D to delete)
+  feat/p10.6e-audit-log (4e8db97f) — NOT reachable (rebased+force-pushed; needs -D to delete)
+  feat/p10.6f-recent-scans (846e7908) — NOT reachable (rebased+force-pushed; needs -D to delete)
+  feat/p10.6h-backup-restore (d12b0106) — NOT reachable (rebased+force-pushed; needs -D to delete)
+
+[list of 79 merged branches eligible for plain -d]
+  chore/remove-import-legacy
+  chore/spec-list-toolbar-cleanup
+  docs/audit-close-note-plus-hub-reconnect-plan
+  docs/closing-note-specservice-paginghelper
+  docs/p10.5-spechub-parity-audit
+  docs/phase6-closeout
+  docs/phase9-settings-plan
+  feat/audit-log-export-plus-retention-plan
+  feat/hub-session-banner
+  feat/p10.3-w1-hardware-foundation
+  feat/p10.3-w2-catalyst-camera
+  feat/p10.3-w4-scan-wo-accept
+  feat/p10.5a-npi-grids
+  feat/p10.5b-spec-list-detail
+  feat/p10.5b-spec-list-detail-read
+  feat/p10.5c-1-spec-mutations
+  feat/p10.5c-2-xlsx-import
+  feat/p10.5c-3-chip-filter-inline-edit
+  feat/p10.5d-full-showcard-diff
+  feat/p10.5e-2-decide-chain
+... (79 total)
+
+═══════════════════════════════════════════════════════════════════
+GROUP A — Archive stray DB snapshots in src/CCL.MES.Web/
+═══════════════════════════════════════════════════════════════════
+[archive dir: _archive/2026-06-05]
+[archive tar: _archive/2026-06-05/ccl_mes_web_db_snapshots_20260605.tar.gz]
+
+[file list (with sizes) to be archived]
+-rw-r--r--@ 1 thiepdt  admin  11030528 May 31 12:15 src/CCL.MES.Web/ccl_mes.db.bak.phase5-close-20260531-121523
+-rw-r--r--@ 1 thiepdt  admin  11018240 May 31 11:49 src/CCL.MES.Web/ccl_mes.db.bak.phase5errcodes-20260531-114918
+-rw-r--r--@ 1 thiepdt  admin  11018240 May 31 11:34 src/CCL.MES.Web/ccl_mes.db.bak.phase5hubauth-20260531-113445
+-rw-r--r--@ 1 thiepdt  admin  11018240 May 31 12:07 src/CCL.MES.Web/ccl_mes.db.bak.phase5migr-20260531-120743
+-rw-r--r--@ 1 thiepdt  admin  11018240 May 31 11:18 src/CCL.MES.Web/ccl_mes.db.bak.phase5rbac-20260531-111842
+-rw-r--r--@ 1 thiepdt  admin  11030528 May 31 12:54 src/CCL.MES.Web/ccl_mes.db.bak.phase6-2a-20260531-125456
+-rw-r--r--@ 1 thiepdt  admin  11030528 May 31 13:39 src/CCL.MES.Web/ccl_mes.db.bak.phase6-2b-20260531-133948
+-rw-r--r--@ 1 thiepdt  admin  11030528 May 31 13:51 src/CCL.MES.Web/ccl_mes.db.bak.phase6-3-20260531-135133
+-rw-r--r--@ 1 thiepdt  admin  11030528 May 31 14:18 src/CCL.MES.Web/ccl_mes.db.bak.phase6-4-20260531-141805
+-rw-r--r--@ 1 thiepdt  admin  11030528 May 31 15:04 src/CCL.MES.Web/ccl_mes.db.bak.phase6-5-20260531-150441
+-rw-r--r--@ 1 thiepdt  admin     32768 May 31 15:06 src/CCL.MES.Web/ccl_mes.db.bak.phase6-5-20260531-150441-shm
+-rw-r--r--@ 1 thiepdt  admin         0 May 31 15:06 src/CCL.MES.Web/ccl_mes.db.bak.phase6-5-20260531-150441-wal
+-rw-r--r--@ 1 thiepdt  admin  11051008 May 31 15:05 src/CCL.MES.Web/ccl_mes.db.testcopy.tested
+-rw-r--r--@ 1 thiepdt  admin  11030528 May 31 14:19 src/CCL.MES.Web/ccl_mes.db.testcopy.tested-phase6-4
+-rw-r--r--@ 1 thiepdt  admin  11104256 May 31 07:42 src/CCL.MES.Web/ccl_mes.imported-2026-05-31.db
+-rw-r--r--@ 1 thiepdt  admin     32768 May 31 07:42 src/CCL.MES.Web/ccl_mes.imported-2026-05-31.db-shm
+-rw-r--r--@ 1 thiepdt  admin         0 May 31 07:42 src/CCL.MES.Web/ccl_mes.imported-2026-05-31.db-wal
+
+[create tar.gz]
+[archive size]
+-rw-r--r--@ 1 thiepdt  admin  21584258 Jun  5 10:07 _archive/2026-06-05/ccl_mes_web_db_snapshots_20260605.tar.gz
+
+[archive SHA-256]
+68b3a004b0b8f2fa87229d8eced75d63421788feebb527df29344cb8713fb4db  _archive/2026-06-05/ccl_mes_web_db_snapshots_20260605.tar.gz
+
+[verify tar -tzf — list contents]
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-3-20260531-135133
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-2a-20260531-125456
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-4-20260531-141805
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-5-20260531-150441
+src/CCL.MES.Web/ccl_mes.imported-2026-05-31.db-wal
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-5-20260531-150441-wal
+src/CCL.MES.Web/ccl_mes.db.bak.phase5migr-20260531-120743
+src/CCL.MES.Web/ccl_mes.imported-2026-05-31.db-shm
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-5-20260531-150441-shm
+src/CCL.MES.Web/ccl_mes.db.bak.phase5rbac-20260531-111842
+src/CCL.MES.Web/ccl_mes.db.testcopy.tested
+src/CCL.MES.Web/ccl_mes.imported-2026-05-31.db
+src/CCL.MES.Web/ccl_mes.db.bak.phase5hubauth-20260531-113445
+src/CCL.MES.Web/ccl_mes.db.bak.phase5errcodes-20260531-114918
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-2b-20260531-133948
+src/CCL.MES.Web/ccl_mes.db.testcopy.tested-phase6-4
+src/CCL.MES.Web/ccl_mes.db.bak.phase5-close-20260531-121523
+
+[tar entry count: 17 (expected 17)]
+
+[write MANIFEST.md]
+[manifest written]
+total 44152
+drwxr-xr-x@ 4 thiepdt  admin       128 Jun  5 10:08 .
+drwxr-xr-x@ 3 thiepdt  admin        96 Jun  5 10:07 ..
+-rw-r--r--@ 1 thiepdt  admin      3964 Jun  5 10:08 MANIFEST.md
+-rw-r--r--@ 1 thiepdt  admin  21584258 Jun  5 10:07 ccl_mes_web_db_snapshots_20260605.tar.gz
+
+[delete originals — verify-then-delete pattern]
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-3-20260531-135133
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-2a-20260531-125456
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-4-20260531-141805
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-5-20260531-150441
+src/CCL.MES.Web/ccl_mes.imported-2026-05-31.db-wal
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-5-20260531-150441-wal
+src/CCL.MES.Web/ccl_mes.db.bak.phase5migr-20260531-120743
+src/CCL.MES.Web/ccl_mes.imported-2026-05-31.db-shm
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-5-20260531-150441-shm
+src/CCL.MES.Web/ccl_mes.db.bak.phase5rbac-20260531-111842
+src/CCL.MES.Web/ccl_mes.db.testcopy.tested
+src/CCL.MES.Web/ccl_mes.imported-2026-05-31.db
+src/CCL.MES.Web/ccl_mes.db.bak.phase5hubauth-20260531-113445
+src/CCL.MES.Web/ccl_mes.db.bak.phase5errcodes-20260531-114918
+src/CCL.MES.Web/ccl_mes.db.bak.phase6-2b-20260531-133948
+src/CCL.MES.Web/ccl_mes.db.testcopy.tested-phase6-4
+src/CCL.MES.Web/ccl_mes.db.bak.phase5-close-20260531-121523
+
+[post-delete verify — Group A scope should be 0 files]
+remaining: 0
+
+[Group A AFTER du]
+src/CCL.MES.Web (without stray DBs): 133M
+archive: 22M
+
+═══ Group A COMPLETE: 138 MB raw → 21 MB archived = 117 MB freed ═══
+
+═══════════════════════════════════════════════════════════════════
+GROUP B — dotnet clean tree-wide
+═══════════════════════════════════════════════════════════════════
+
+[find all .sln files]
+./CCL.MES.sln
+./CCL-MES-Hybrid/CCL-MES-Hybrid.sln
+
+[BEFORE: bin+obj size]
+917M	total
+
+[strategy: brute-force rm -rf all bin/ + obj/ directories — faster + no dotnet sdk dep on this run]
+./tests/CCL.MES.Tests/obj
+./tests/CCL.MES.Tests/bin
+./src/CCL.MES.Infrastructure/obj
+./src/CCL.MES.Infrastructure/bin
+./src/CCL.MES.Domain/obj
+./src/CCL.MES.Domain/bin
+./src/CCL.MES.Web/obj
+./src/CCL.MES.Web/bin
+./src/CCL.MES.Application/obj
+./src/CCL.MES.Application/bin
+./scripts/RecoverAdmin/obj
+./scripts/RecoverAdmin/bin
+./scripts/BackupRestore/obj
+./scripts/BackupRestore/bin
+./CCL-MES-Hybrid/tests/CCL.MES.Api.Tests/obj
+./CCL-MES-Hybrid/tests/CCL.MES.Api.Tests/bin
+./CCL-MES-Hybrid/tests/CCL.MES.Hybrid.Client.Tests/obj
+./CCL-MES-Hybrid/tests/CCL.MES.Hybrid.Client.Tests/bin
+./CCL-MES-Hybrid/src/CCL.MES.Hybrid.Client/obj
+./CCL-MES-Hybrid/src/CCL.MES.Hybrid.Client/bin
+./CCL-MES-Hybrid/src/CCL.MES.Shared/obj
+./CCL-MES-Hybrid/src/CCL.MES.Shared/bin
+./CCL-MES-Hybrid/src/CCL.MES.Api/obj
+./CCL-MES-Hybrid/src/CCL.MES.Api/bin
+./CCL-MES-Hybrid/src/CCL.MES.Hybrid/obj
+./CCL-MES-Hybrid/src/CCL.MES.Hybrid/bin
+./CCL-MES-Hybrid/src/CCL.MES.Hybrid.Razor/obj
+./CCL-MES-Hybrid/src/CCL.MES.Hybrid.Razor/bin
+
+[count of dirs about to be removed]
+28
+
+[delete bin/ + obj/ recursively]
+
+[AFTER: bin+obj remaining]
+remaining bin/obj dirs: 0
+
+[whole-tree size now]
+618M	../
+
+═══ Group B COMPLETE: ~917 MB bin/obj wiped ═══
+
+═══════════════════════════════════════════════════════════════════
+GROUP C — git gc --aggressive --prune=now
+═══════════════════════════════════════════════════════════════════
+
+[BEFORE: .git size + loose objects + pack files]
+.git: 44M
+loose objects: 3525
+pack files: 0
+
+$ git gc --aggressive --prune=now
+
+[AFTER: .git size + loose objects + pack files]
+.git: 27M
+loose objects: 0
+pack files: 3
+
+[fsck consistency check post-gc]
+
+═══ Group C COMPLETE ═══
+
+═══════════════════════════════════════════════════════════════════
+GROUP D — prune merged local branches
+═══════════════════════════════════════════════════════════════════
+
+[BEFORE total local branches]
+92
+
+── D.1: delete 79 plain-merged branches (-d, safe — merged into main) ──
+  deleted: 79
+  refused: 0
+
+── D.2: delete 6 P10.6 local branches (-D, rebased/force-pushed; content on main via rebase) ──
+  -D feat/p10.6b-appearance
+  -D feat/p10.6c-account-control
+  -D feat/p10.6d-about-connection-mode
+  -D feat/p10.6e-audit-log
+  -D feat/p10.6f-recent-scans
+  -D feat/p10.6h-backup-restore
+
+[AFTER total local branches]
+7
+
+[remaining local branches]
+  backup/pre-p10.6-merge
+  docs/permission-matrix
+  feat/p10.1-api-jwt-shared
+  feat/p10.2-maui-shell-npi-pilot
+  feat/p10.5g-exports-save-dialog
+  feat/phase8-wo-consolidation
+* main
+
+[safety branch backup/pre-p10.6-merge present on local? remote?]
+  backup/pre-p10.6-merge
+144a9b98b299481432e83d1c84e638596bdef05d	refs/heads/backup/pre-p10.6-merge
+
+═══ Group D COMPLETE: 92 → 7 local branches (85 pruned) ═══
+
+═══════════════════════════════════════════════════════════════════
+FINAL REPORT — Disk Phase 2 LOW cleanup
+═══════════════════════════════════════════════════════════════════
+End: 2026-06-05T03:10:17Z
+
+─── BEFORE / AFTER per group ───
+
+Group                                          Before        After        Freed
+----                                           ------        -----        -----
+A: src/CCL.MES.Web stray DBs                   138 MB 22 MB (archived)       117 MB
+B: bin/+obj/ across 28 dirs                    917 MB         0 MB       917 MB
+C: .git/ (loose→packed)                         44 MB        27 MB        17 MB
+D: local branches                                  92            7    85 pruned
+
+─── Whole tree ───
+  Before: 1.6 GB
+  After:  601M
+
+─── Total freed ───
+  117 MB (Group A net) + 917 MB (Group B) + 17 MB (Group C) ≈ 1.05 GB
+
+─── Group A archive — anchored for 90 days ───
+total 44152
+drwxr-xr-x@ 4 thiepdt  admin       128 Jun  5 10:08 .
+drwxr-xr-x@ 3 thiepdt  admin        96 Jun  5 10:07 ..
+-rw-r--r--@ 1 thiepdt  admin      3964 Jun  5 10:08 MANIFEST.md
+-rw-r--r--@ 1 thiepdt  admin  21584258 Jun  5 10:07 ccl_mes_web_db_snapshots_20260605.tar.gz
+
+  Archive: _archive/2026-06-05/ccl_mes_web_db_snapshots_20260605.tar.gz
+  SHA-256: 68b3a004b0b8f2fa87229d8eced75d63421788feebb527df29344cb8713fb4db
+  Entries: 17 (verified via tar -tzf)
+  Manifest: _archive/2026-06-05/MANIFEST.md (recovery procedure included)
+  Auto-eligible for deletion: 2026-09-03 (no anchor set)
+
+─── Untouched per Henry's exclusion rules ───
+  ✓ backup/pre-p10.6-merge (safety, kept local + remote)
+  ✓ data/ subtree (in use — live SQLite + drawings)
+  ✓ _archive/ (write-only growth)
+  ✓ MEDIUM group (data/Backup/SQLite/, data/*.backup-phase7-*, db-backups/) — retention policy below
+  ✓ 5 unmerged local branches (docs/permission-matrix, feat/p10.1-api-jwt-shared,
+      feat/p10.2-maui-shell-npi-pilot, feat/p10.5g-exports-save-dialog,
+      feat/phase8-wo-consolidation) — work-in-progress, NOT eligible for prune
+
+─── Retention policy proposal — MEDIUM group ───
+  Written: CCL-MES-Hybrid/docs/RETENTION-POLICY-PROPOSAL-2026-06-05.md
+  Status:  DRAFT — awaits Henry approval (APPROVE / AMEND / DEFER)
+  Scope:   3 piles totalling ~389 MB
+  Save:    ~230 MB if approved as-is (matches audit ~219 MB estimate)
+  No files deleted by this document.
+
+═══════════════════════════════════════════════════════════════════
+STATUS: Task A COMPLETE  /  STOP for direction (approve retention? GO B?)
+═══════════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════════
+MEDIUM GROUP RETENTION EXECUTION — 2026-06-05T04:35:03Z
+═══════════════════════════════════════════════════════════════════
+
+── Pile R re-inventory (full listing by category) ──
+[tmp partials — DELETE outright]
+-rw-r--r--@ 1 thiepdt  admin  32768 Jun  4 20:41 data/Backup/SQLite/_upload-20260604-134058.tmp-shm
+-rw-r--r--@ 1 thiepdt  admin      0 Jun  4 20:40 data/Backup/SQLite/_upload-20260604-134058.tmp-wal
+[phase6-close — KEEP newest 1]
+-rw-r--r--@ 1 thiepdt  admin     32768 May 31 20:31 data/Backup/SQLite/ccl_mes.db.bak.phase6-close-20260531-133127-shm
+-rw-r--r--@ 1 thiepdt  admin         0 May 31 20:31 data/Backup/SQLite/ccl_mes.db.bak.phase6-close-20260531-133127-wal
+-rw-r--r--@ 1 thiepdt  admin  11079680 May 31 20:31 data/Backup/SQLite/ccl_mes.db.bak.phase6-close-20260531-133127
+-rw-r--r--@ 1 thiepdt  admin  11079680 May 31 19:24 data/Backup/SQLite/ccl_mes.db.bak.phase6-close-20260531-122433
+[phase7-* — KEEP newest 1 (any sub-step)]
+-rw-r--r--@ 1 thiepdt  admin  14417920 May 31 21:36 data/Backup/SQLite/ccl_mes.db.bak.phase7-pre-import-20260531-143610
+-rw-r--r--@ 1 thiepdt  admin  14417920 May 31 21:20 data/Backup/SQLite/ccl_mes.db.bak.phase7-post-structure-20260531-142012
+-rw-r--r--@ 1 thiepdt  admin  11079680 May 31 21:11 data/Backup/SQLite/ccl_mes.db.bak.phase7-pre-structure-20260531-141106
+[snapshot-* — KEEP newest 5]
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  5 08:10 data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260605-011030
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  5 08:05 data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260605-010510
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  4 20:30 data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260604-133023
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  4 20:20 data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260604-132044
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  4 20:02 data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260604-130243
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  4 20:02 data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260604-130204
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  4 20:00 data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260604-130021
+-rw-r--r--@ 1 thiepdt  admin  18616320 May 31 22:33 data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260531-153324
+-rw-r--r--@ 1 thiepdt  admin  14417920 May 31 21:52 data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260531-145212
+[other files in dir]
+
+── Pile R execution ──
+
+[R.1: delete 2 tmp partials]
+data/Backup/SQLite/_upload-20260604-134058.tmp-shm
+data/Backup/SQLite/_upload-20260604-134058.tmp-wal
+
+[R.2: delete 1 older phase6-close (keep newest .133127 + siblings)]
+data/Backup/SQLite/ccl_mes.db.bak.phase6-close-20260531-122433
+
+[R.3: delete 2 older phase7-* (keep newest = phase7-pre-import-143610)]
+data/Backup/SQLite/ccl_mes.db.bak.phase7-pre-structure-20260531-141106
+data/Backup/SQLite/ccl_mes.db.bak.phase7-post-structure-20260531-142012
+
+[R.4: delete 4 oldest snapshot-* (keep newest 5)]
+data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260531-145212
+data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260531-153324
+data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260604-130021
+data/Backup/SQLite/ccl_mes.db.bak.snapshot-20260604-130204
+
+[Pile R post-state verify]
+total 268032
+drwxr-xr-x@ 13 thiepdt  admin       416 Jun  5 11:35 .
+drwxr-xr-x@  3 thiepdt  admin        96 May 31 15:49 ..
+-rw-r--r--@  1 thiepdt  admin       188 May 31 20:31 .gitkeep
+-rw-r--r--@  1 thiepdt  admin  11079680 May 31 20:31 ccl_mes.db.bak.phase6-close-20260531-133127
+-rw-r--r--@  1 thiepdt  admin     32768 May 31 20:31 ccl_mes.db.bak.phase6-close-20260531-133127-shm
+-rw-r--r--@  1 thiepdt  admin         0 May 31 20:31 ccl_mes.db.bak.phase6-close-20260531-133127-wal
+-rw-r--r--@  1 thiepdt  admin  14417920 May 31 21:36 ccl_mes.db.bak.phase7-pre-import-20260531-143610
+-rw-r--r--@  1 thiepdt  admin  18616320 Jun  4 20:02 ccl_mes.db.bak.snapshot-20260604-130243
+-rw-r--r--@  1 thiepdt  admin  18616320 Jun  4 20:20 ccl_mes.db.bak.snapshot-20260604-132044
+-rw-r--r--@  1 thiepdt  admin  18616320 Jun  4 20:30 ccl_mes.db.bak.snapshot-20260604-133023
+-rw-r--r--@  1 thiepdt  admin  18616320 Jun  5 08:05 ccl_mes.db.bak.snapshot-20260605-010510
+-rw-r--r--@  1 thiepdt  admin  18616320 Jun  5 08:10 ccl_mes.db.bak.snapshot-20260605-011030
+-rw-r--r--@  1 thiepdt  admin  18616320 Jun  4 20:40 pre-restore-20260604-134058-ccl_mes.db.bak.snapshot-20260604-134058
+
+[Pile R size after]
+131M	data/Backup/SQLite
+
+── Pile P execution: archive 5 files (keep newest phase7-wc-pre.db live) ──
+
+[Pile P files to archive (5 files = all minus newest phase7-*)]
+-rw-r--r--@ 1 thiepdt  admin  18616320 May 31 22:42 data/ccl_mes.backup-phase7-rawmat-pre.db
+-rw-r--r--@ 1 thiepdt  admin  14417920 May 31 22:07 data/ccl_mes.backup-phase7-routine-pre.db
+-rw-r--r--@ 1 thiepdt  admin  18616320 May 31 23:04 data/ccl_mes.backup-phase7-spec-pre.db
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  1 21:08 data/ccl_mes_backup_20260601_210827_qcplan.db
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  1 21:32 data/ccl_mes_backup_20260601_213217_qccapture.db
+[create tar.gz]
+-rw-r--r--@ 1 thiepdt  admin  13298569 Jun  5 11:36 _archive/2026-06-05/phase7_snapshots_20260605.tar.gz
+[SHA-256]
+f21e55e3118dadd9f2161855b5e93b2caa9680850afb1b1590d305fe3fb7a1d7  _archive/2026-06-05/phase7_snapshots_20260605.tar.gz
+[verify tar -tzf]
+data/ccl_mes.backup-phase7-routine-pre.db
+data/ccl_mes.backup-phase7-rawmat-pre.db
+data/ccl_mes.backup-phase7-spec-pre.db
+data/ccl_mes_backup_20260601_210827_qcplan.db
+data/ccl_mes_backup_20260601_213217_qccapture.db
+tar entry count: 5 (expected 5)
+[delete originals (5 files)]
+data/ccl_mes.backup-phase7-routine-pre.db
+data/ccl_mes.backup-phase7-rawmat-pre.db
+data/ccl_mes.backup-phase7-spec-pre.db
+data/ccl_mes_backup_20260601_210827_qcplan.db
+data/ccl_mes_backup_20260601_213217_qccapture.db
+[Pile P post-state — only newest phase7-wc-pre.db remains]
+
+[Pile P post-state — phase7-wc-pre.db live, all others deleted]
+-rw-r--r--@ 1 thiepdt  admin  18616320 May 31 23:32 data/ccl_mes.backup-phase7-wc-pre.db
+(qcplan + qccapture archived, originals removed)
+
+── Pile D execution: archive all 3 + delete + rmdir ──
+
+[files to archive]
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  1 11:56 db-backups/ccl_mes.pre-pr31a-specprintcolor.db
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  1 12:45 db-backups/ccl_mes.pre-pr31b-specflexo.db
+-rw-r--r--@ 1 thiepdt  admin  18616320 Jun  1 14:46 db-backups/ccl_mes.pre-pr31d-detail-sheet.db
+[create tar.gz]
+-rw-r--r--@ 1 thiepdt  admin  8203564 Jun  5 11:36 _archive/2026-06-05/pre_pr31_snapshots_20260605.tar.gz
+[SHA-256]
+a6ae92781a899276bd9dd77937571eea103a4c73cfa2b814dd1ccc140d741c48  _archive/2026-06-05/pre_pr31_snapshots_20260605.tar.gz
+[verify tar -tzf]
+db-backups/ccl_mes.pre-pr31a-specprintcolor.db
+db-backups/ccl_mes.pre-pr31b-specflexo.db
+db-backups/ccl_mes.pre-pr31d-detail-sheet.db
+tar entry count: 3 (expected 3)
+[delete 3 originals + rmdir db-backups]
+db-backups/ccl_mes.pre-pr31a-specprintcolor.db
+db-backups/ccl_mes.pre-pr31b-specflexo.db
+db-backups/ccl_mes.pre-pr31d-detail-sheet.db
+rmdir: db-backups: Directory not empty
+[verify db-backups gone]
+
+── Final MEDIUM measurements ──
+
+131M	data/Backup/SQLite
+ 18M	data/ccl_mes.backup-phase7-wc-pre.db
+ 42M	_archive/2026-06-05
+total 85832
+drwxr-xr-x@ 6 thiepdt  admin       192 Jun  5 11:36 .
+drwxr-xr-x@ 3 thiepdt  admin        96 Jun  5 10:07 ..
+-rw-r--r--@ 1 thiepdt  admin      3964 Jun  5 10:08 MANIFEST.md
+-rw-r--r--@ 1 thiepdt  admin  21584258 Jun  5 10:07 ccl_mes_web_db_snapshots_20260605.tar.gz
+-rw-r--r--@ 1 thiepdt  admin  13298569 Jun  5 11:36 phase7_snapshots_20260605.tar.gz
+-rw-r--r--@ 1 thiepdt  admin   8203564 Jun  5 11:36 pre_pr31_snapshots_20260605.tar.gz
+
+[investigate db-backups/ contents]
+total 64
+drwxr-xr-x@  4 thiepdt  admin    128 Jun  5 11:36 .
+drwxr-xr-x  24 thiepdt  admin    768 Jun  5 10:07 ..
+-rw-r--r--@  1 thiepdt  admin  32768 Jun  1 12:41 ccl_mes.pre-pr31a-specprintcolor.db-shm
+-rw-r--r--@  1 thiepdt  admin      0 Jun  1 12:41 ccl_mes.pre-pr31a-specprintcolor.db-wal
+
+[delete orphan SQLite sidecar files in db-backups/]
+db-backups/ccl_mes.pre-pr31a-specprintcolor.db-shm
+db-backups/ccl_mes.pre-pr31a-specprintcolor.db-wal
+REMOVED
+
+═══════════════════════════════════════════════════════════════════
+MEDIUM GROUP RETENTION COMPLETE — FINAL TABLE
+═══════════════════════════════════════════════════════════════════
+Pile                                         Before After-live   Archived Notes
+----                                         ------ ----------   -------- -----
+R: data/Backup/SQLite/                       233 MB     131 MB          0 5 snapshot + 1 phase6-close + 1 phase7 + 1 pre-restore (forensic, +11 MB over target — gap)
+P: data/*.backup-phase7-*.db                 103 MB      18 MB      13 MB kept newest = phase7-wc-pre.db
+D: db-backups/                                53 MB          0       8 MB dir removed; sidecar shm/wal orphans deleted
+TOTAL                                        389 MB     149 MB      21 MB
+
+Net live freed: 389 MB - 149 MB = 240 MB (slightly over 230 MB proposal target)
+Archive grew: 22 MB (Group A) → 42 MB total (Group A + P + D)
+
+[whole tree size now]
+381M	../
+
+[MANIFEST.md updated with Archives 2 + 3 + policy gap section]
+[archive dir final state]
+total 85848
+drwxr-xr-x@ 6 thiepdt  admin       192 Jun  5 11:38 .
+drwxr-xr-x@ 3 thiepdt  admin        96 Jun  5 10:07 ..
+-rw-r--r--@ 1 thiepdt  admin      8945 Jun  5 11:38 MANIFEST.md
+-rw-r--r--@ 1 thiepdt  admin  21584258 Jun  5 10:07 ccl_mes_web_db_snapshots_20260605.tar.gz
+-rw-r--r--@ 1 thiepdt  admin  13298569 Jun  5 11:36 phase7_snapshots_20260605.tar.gz
+-rw-r--r--@ 1 thiepdt  admin   8203564 Jun  5 11:36 pre_pr31_snapshots_20260605.tar.gz
+
+[archive integrity re-verify — sha256 of all 3]
+68b3a004b0b8f2fa87229d8eced75d63421788feebb527df29344cb8713fb4db  ccl_mes_web_db_snapshots_20260605.tar.gz
+f21e55e3118dadd9f2161855b5e93b2caa9680850afb1b1590d305fe3fb7a1d7  phase7_snapshots_20260605.tar.gz
+a6ae92781a899276bd9dd77937571eea103a4c73cfa2b814dd1ccc140d741c48  pre_pr31_snapshots_20260605.tar.gz
+
+═══════════════════════════════════════════════════════════════════
+MEDIUM RETENTION + Phase 2 LOW — combined final state
+═══════════════════════════════════════════════════════════════════
+End: 2026-06-05T04:38:44Z
+
+Tree size: 1.6 GB (audit baseline) → 381 MB (now) = ~1.29 GB freed total

@@ -13,3 +13,6 @@ data/Backup/SQLite/*
 .vs/
 .DS_Store
 *.db.testcopy*
+
+# Operational archive tarballs — manifest + sha256 in MANIFEST.md is the record
+_archive/**/*.tar.gz
