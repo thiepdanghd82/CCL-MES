@@ -20,7 +20,7 @@ public sealed class WorkOrderErrorLocaliserTests
     [InlineData("WorkOrderNotFound", "Không tìm thấy WO.")]
     [InlineData("AlreadyAtFinalStep", "WO đã đến bước cuối (Closed).")]
     [InlineData("RequiresSpecAndMaterials", "Thiếu bản vẽ kỹ thuật hoặc vật tư chưa sẵn sàng.")]
-    [InlineData("RequiresSetupConfirmed", "Chưa xác nhận setup máy.")]
+    [InlineData("RequiresSetupConfirmed", "Setup máy chưa được xác nhận. UI xác nhận setup ship trong P10.7c — báo admin/IT để xác nhận trạng thái.")]
     [InlineData("IpqcNotPassed", "IPQC chưa Pass.")]
     [InlineData("NoProductionYet", "Chưa có sản lượng — không thể chuyển sang FQC.")]
     [InlineData("FqcNotPassed", "FQC chưa Pass.")]

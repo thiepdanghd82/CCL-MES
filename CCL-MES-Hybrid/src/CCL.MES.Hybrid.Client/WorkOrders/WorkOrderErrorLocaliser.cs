@@ -38,7 +38,12 @@ public static class WorkOrderErrorLocaliser
         "WorkOrderNotFound"           => "Không tìm thấy WO.",
         "AlreadyAtFinalStep"          => "WO đã đến bước cuối (Closed).",
         "RequiresSpecAndMaterials"    => "Thiếu bản vẽ kỹ thuật hoặc vật tư chưa sẵn sàng.",
-        "RequiresSetupConfirmed"      => "Chưa xác nhận setup máy.",
+        // P10.7a-1.3 amendment — operator-actionable copy. UI confirm-setup
+        // (start/end timer + 4-eye lock) ships in P10.7c per breakdown §8;
+        // until then the legacy `SetupConfirmed` bool is the gate + only
+        // admin tools can flip it. Telling the operator to "báo admin"
+        // is the right answer for this window.
+        "RequiresSetupConfirmed"      => "Setup máy chưa được xác nhận. UI xác nhận setup ship trong P10.7c — báo admin/IT để xác nhận trạng thái.",
         "IpqcNotPassed"               => "IPQC chưa Pass.",
         "NoProductionYet"             => "Chưa có sản lượng — không thể chuyển sang FQC.",
         "FqcNotPassed"                => "FQC chưa Pass.",
