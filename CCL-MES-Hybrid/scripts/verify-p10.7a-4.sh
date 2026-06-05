@@ -214,6 +214,21 @@ cp "$REAL_DB" "$TEST_DB"
 BEFORE_WO=$(sqlite3 "$TEST_DB" "SELECT COUNT(*) FROM WorkOrders;" 2>/dev/null)
 record PASS "Test DB copy ($BEFORE_WO WO rows)"
 
+# Self-prep (STACKED-PR-CHECKLIST Rule 6): Down test DB copy to
+# PREVIOUS_MIGRATION baseline so the Up step below tests the real apply
+# instead of NOOP. NOOP if already at baseline.
+SELF_PREP_LOG="$(mktemp)"
+dotnet ef database update "$PREVIOUS_MIGRATION" \
+    --connection "Data Source=$TEST_DB" \
+    --project "$INFRA_PROJECT" --startup-project "$WEB_PROJECT" --no-build > "$SELF_PREP_LOG" 2>&1
+if [[ $? -ne 0 ]]; then
+    echo "[self-prep] FAILED to Down test DB to $PREVIOUS_MIGRATION"
+    tail -15 "$SELF_PREP_LOG"
+    echo "[abort] verify needs prep baseline; ensure current branch has all migration sources."
+    rm -rf "$TMP_DIR"
+    exit 2
+fi
+
 UP_LOG="$(mktemp)"
 dotnet ef database update "$CURRENT_MIGRATION" \
     --connection "Data Source=$TEST_DB" \

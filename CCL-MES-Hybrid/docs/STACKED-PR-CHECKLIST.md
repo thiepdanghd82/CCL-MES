@@ -137,6 +137,38 @@ grep -rcE '<InputText\b' src/CCL.MES.Hybrid.Razor --include='*.razor'
 
 ---
 
+## Rule 6 — Verify scripts with DB-state probes MUST self-prep on the COPY
+
+When a verify script has probes that depend on DB state (e.g. "pre-migration column ABSENT", "table not yet created"), the script **MUST** prep that state on the test-DB copy ITSELF — not assume the dev DB is at the previous-migration baseline. Otherwise the script breaks every time someone re-runs it on a dev box that has advanced past the target migration (which happens by default during dev cycle + after Rule 5 advances).
+
+```bash
+# CORRECT — copy DB, then Down the copy to the target baseline before any probe.
+cp "$REAL_DB" "$TEST_DB"
+dotnet ef database update "$PREVIOUS_MIGRATION" \
+    --connection "Data Source=$TEST_DB" \
+    --project "$INFRA_PROJECT" \
+    --startup-project "$WEB_PROJECT" \
+    --no-build
+# Now run the pre-migration probe — DB is in known baseline state.
+
+# WRONG — copy DB and probe straight away.
+cp "$REAL_DB" "$TEST_DB"
+COL_BEFORE=$(sqlite3 "$TEST_DB" "PRAGMA table_info(WorkOrders);" | grep -c "MesPhase")
+# ↑ FAILS if dev DB has the migration applied. Spurious "Pre-migration:
+#   MesPhase already present" fail blocks the gate even though the
+#   actual round-trip test below works correctly.
+```
+
+**Why**: empirical incident during P10.7a-1 4-PR merge stack (2026-06-05). The 4 verify-p10.7a-*.sh scripts were authored when dev DB was reliably at PREVIOUS_MIGRATION baseline (because the migration under test was the newest one). But once the stack started landing on main + dev cycle advanced dev DB to the head migration, every script's pre-migration probe began FAIL-ing on a re-run. The Option C resolution (manually Down dev DB before every verify) was wasted operator time — self-prep on the copy is the right place to handle this.
+
+**Template-ordering corollary** (until scripts self-prep): if you MUST run a verify script that does NOT self-prep, the auto-gate merge template must invert N.6 (Rule 5 dev-DB advance) and N.7 (verify): run verify FIRST while dev DB is at pre-PR state, advance AFTER. Once all scripts self-prep per this rule, the original `merge → Rule 5 → verify` order is safe again.
+
+**Cross-assembly limit**: `dotnet ef database update <prev>` only works when the current branch's migration assembly has the source `.cs` files for every migration applied to the DB. During mid-stack verify (e.g. checking out PR #99's branch, with only #99's `.cs` present, when dev DB has #100 + #101 applied), EF will revert only what it knows and leave the rest as orphans. Two ways out: (a) checkout the stack-tip branch which has all migration sources; (b) snapshot + restore dev DB to pre-stack baseline before mid-stack verify. The §1 pre-flight DB snapshot makes (b) cheap.
+
+**How to apply**: every new verify script that runs migration round-trips MUST insert the `dotnet ef database update "$PREVIOUS_MIGRATION"` step between the DB copy and the first probe. Run it with `--no-build` (the build step earlier in the script already produced the assembly). If self-prep itself fails, the script must abort with a clear "self-prep could not bring DB to baseline — see $LOG" diagnostic and exit non-zero rather than letting downstream probes report misleading failures.
+
+---
+
 ## Quick reference — full stacked-PR merge protocol
 
 ```bash
@@ -173,6 +205,13 @@ done
 # 11. Tag the merged release
 git tag -a v<X.Y.Z> -m "..."
 git push origin v<X.Y.Z>
+
+# 12. RETAIN safety backups until the FOLLOW-UP phase ships.
+#     The `backup/<phase>-*-<ts>` branches created in §1 pre-flight MUST stay
+#     on origin until the next phase merges cleanly. They are the last
+#     resort if a regression surfaces post-merge that can't be reverted via
+#     `git revert`. Prune them only after the follow-up phase tag lands.
+#     (Example: P10.7a-1 backups stay until v0.10.7a-2 ships.)
 ```
 
 ---
