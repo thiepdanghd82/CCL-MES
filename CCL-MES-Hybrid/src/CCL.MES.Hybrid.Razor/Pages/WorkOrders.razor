@@ -100,6 +100,35 @@ else
                 }
             </div>
 
+            @*  P10.7a-1.3 — manual entry fallback. Operator uses this when
+                the QR is torn/blurred, the scanner is broken, or for desk
+                testing without a camera. Uses plain <input> + @bind:event
+                "oninput" + Enter handler — NO <InputText> per the
+                renderer-crash lesson (P10.5g / P10.6a). The Find button
+                routes through the SAME ResolveAndShowAsync helper the
+                scan path uses, so audit/RecentScans/lookup all behave
+                identically — no logic fork. *@
+            <div class="wo-manual-row">
+                <input type="text"
+                       class="wo-manual-input scan-mono"
+                       placeholder="Nhập mã WO (vd. WO-26-3683)"
+                       value="@_manualCode"
+                       @oninput="OnManualInput"
+                       @onkeydown="OnManualKeyDown"
+                       disabled="@(_scanning || _advancing || _lookingUp)"
+                       aria-label="Nhập mã WO thủ công"
+                       autocomplete="off"
+                       autocapitalize="off"
+                       spellcheck="false" />
+                <button type="button" class="scan-btn scan-btn-secondary"
+                        disabled="@(_scanning || _advancing || _lookingUp
+                                    || CCL.MES.Hybrid.Client.WorkOrders.WoCodeNormalizer
+                                       .NormalizeForManualEntry(_manualCode) is null)"
+                        @onclick="OnManualLookup">
+                    @(_lookingUp ? "Đang tra cứu…" : "Tìm")
+                </button>
+            </div>
+
             @if (_lastScan is not null && _summary is null && _lookupError is null && _lookingUp)
             {
                 <div class="wo-lookup">
@@ -173,6 +202,10 @@ else
     private AdvanceWorkOrderResponse? _advanceResult;
     private string? _lookupError;
     private string? _advanceError;
+    // P10.7a-1.3 — manual-entry buffer. Bound to the input via
+    // @oninput; the Find button enables when WoCodeNormalizer
+    // accepts the value.
+    private string _manualCode = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -221,17 +254,33 @@ else
 
     private async Task LogScanThenLookupAsync(ScanResult scan)
     {
-        // Step 1 — audit-log the scan unconditionally (good code or bad).
+        // P10.7a-1.3 — scan + manual paths converge here. Both routes
+        // record the same audit + RecentScans + lookup. The only
+        // difference is the ScanLogRequest.Format string, which is
+        // "MANUAL" when the operator typed instead of scanning. The
+        // server's device.scan-log endpoint already accepts any
+        // string for Format.
+        await ResolveAndShowAsync(
+            woCode: scan.Code.Trim(),
+            format: scan.Format ?? string.Empty,
+            sourceDeviceLabel: scan.SourceDevice,
+            capturedAt: scan.CapturedAt);
+    }
+
+    private async Task ResolveAndShowAsync(
+        string woCode, string format, string? sourceDeviceLabel, DateTimeOffset capturedAt)
+    {
+        // Step 1 — audit-log unconditionally (good code or bad).
         // Forensic trail is the whole point of the device.scan-log endpoint.
         try
         {
             await Api.LogScanAsync(new ScanLogRequest
             {
-                Payload = scan.Code,
-                Format = scan.Format,
+                Payload = woCode,
+                Format = format,
                 Context = "wo-accept",
-                SourceDeviceLabel = scan.SourceDevice,
-                ClientTimestamp = scan.CapturedAt,
+                SourceDeviceLabel = sourceDeviceLabel,
+                ClientTimestamp = capturedAt,
             });
         }
         catch (Exception ex)
@@ -241,15 +290,14 @@ else
             Log.LogWarning(ex, "[workorders] scan-log POST failed — continuing with lookup");
         }
 
-        // Step 2 — lookup the WO by number. Trim because some barcodes carry
-        // trailing whitespace from print rendering.
+        // Step 2 — lookup the WO by number.
         _lookingUp = true;
         try
         {
-            var summary = await Api.GetWorkOrderByNoAsync(scan.Code.Trim());
+            var summary = await Api.GetWorkOrderByNoAsync(woCode);
             if (summary is null)
             {
-                _lookupError = $"Không tìm thấy WO số \"{scan.Code}\". Kiểm tra lại mã hoặc quét lại.";
+                _lookupError = $"Không tìm thấy WO số \"{woCode}\". Kiểm tra lại mã hoặc quét lại.";
             }
             else
             {
@@ -273,21 +321,16 @@ else
             _lookingUp = false;
         }
 
-        // Step 3 — record the scan locally for the "Quét gần đây"
-        // sidebar widget (P10.6f). Independent of the audit-log POST
-        // because this is per-device UX, not a forensic source.
-        // Resolved=false when the lookup failed — the widget still
-        // renders the row so the operator can tap to re-scan, but
-        // marks it visually as unresolved.
+        // Step 3 — record locally for the "Quét gần đây" sidebar widget.
         try
         {
             RecentScans.Record(new RecentScanEntry
             {
-                Code = scan.Code.Trim(),
-                Format = scan.Format ?? string.Empty,
+                Code = woCode,
+                Format = format,
                 Context = "wo-accept",
                 ScannedAt = DateTime.UtcNow,
-                ResolvedDisplay = _summary?.WoNo ?? scan.Code.Trim(),
+                ResolvedDisplay = _summary?.WoNo ?? woCode,
                 ResolvedSubtitle = _summary is null
                     ? null
                     : $"{_summary.ProductCode ?? "—"} · {_summary.CustomerName ?? "—"}",
@@ -296,9 +339,43 @@ else
         }
         catch (Exception ex)
         {
-            // Never let a Preferences hiccup break the scan flow.
+            // Never let a Preferences hiccup break the flow.
             Log.LogWarning(ex, "[workorders] recent-scans record failed — ignored");
         }
+    }
+
+    // P10.7a-1.3 — manual-entry handlers. Use plain @oninput/@onkeydown
+    // + Razor's value binding (no <InputText> per the renderer-crash
+    // lesson from P10.5g/P10.6a).
+    private void OnManualInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+    {
+        _manualCode = e.Value?.ToString() ?? string.Empty;
+    }
+
+    private async Task OnManualKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" || e.Key == "NumpadEnter")
+        {
+            await OnManualLookup();
+        }
+    }
+
+    private async Task OnManualLookup()
+    {
+        var normalised = CCL.MES.Hybrid.Client.WorkOrders.WoCodeNormalizer
+            .NormalizeForManualEntry(_manualCode);
+        if (normalised is null)
+        {
+            _lookupError = "Mã WO không hợp lệ — nhập ít nhất 3 ký tự.";
+            return;
+        }
+        ResetState(); // clear previous summary/error but keep typed text
+        _manualCode = normalised;
+        await ResolveAndShowAsync(
+            woCode: normalised,
+            format: "MANUAL",
+            sourceDeviceLabel: "manual-entry",
+            capturedAt: DateTimeOffset.UtcNow);
     }
 
     private async Task OnAdvance()

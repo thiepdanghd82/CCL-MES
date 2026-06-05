@@ -116,13 +116,14 @@ P=$(grep -oE "Passed:\s*[0-9]+" "$CL" | head -1 | grep -oE "[0-9]+" | tail -1)
 F=$(grep -oE "Failed:\s*[0-9]+" "$CL" | head -1 | grep -oE "[0-9]+" | tail -1)
 if [[ "$F" == "0" ]]; then record PASS "Hybrid.Client.Tests ($P PASS / 0 FAIL)"; else record FAIL "Client.Tests ($P/$F)"; fi
 
-# P10.7a-1.3 — three explicit filter probes naming each automated
-# replacement for the original Catalyst checkpoint items 2-4 + 5 + 6
-# so the reader of this summary sees the mapping.
+# P10.7a-1.3 — explicit filter probes naming each automated
+# replacement for the original Catalyst checkpoint items + the
+# follow-up Issue 1/Issue 2 fixes (banner copy + manual entry).
 for pair in \
     "CclApiClientAdvanceContract:contract_(headers + ETag + 409)" \
-    "WorkOrderErrorLocaliser:VN_banner_strings" \
-    "AdvanceOrchestrator:double_tap_guard + 409_adoption + success_refresh"; do
+    "WorkOrderErrorLocaliser:VN_banner_strings (incl. SETUP_pointer)" \
+    "AdvanceOrchestrator:double_tap_guard + 409_adoption + success_refresh" \
+    "WoCodeNormalizer:manual_entry_normalisation"; do
     filter="${pair%%:*}"
     label="${pair##*:}"
     FL="$(mktemp)"
@@ -365,21 +366,33 @@ if [[ $KEEP_ALIVE -eq 1 ]]; then
 ║  KEEP-ALIVE MODE — server is still running on $API_URL  ║
 ╠══════════════════════════════════════════════════════════════════════╣
 ║                                                                      ║
-║  Henry's 3-step Catalyst checkpoint (UI only, no DevTools):          ║
+║  PREPARE — seed 4 extra test WOs (idempotent, safe to re-run):       ║
+║    bash CCL-MES-Hybrid/scripts/seed-test-wos.sh                      ║
+║    → tạo WO-26-3684 .. WO-26-3687 (clone từ $WO_FOR_HENRY)
 ║                                                                      ║
-║  1. Login → Quét 1 WO → bấm "Nhận / Bắt đầu" → bước chuyển thành     ║
-║     công.  ← chứng minh W4 regression OK (mục 1 cũ)                  ║
+║  Henry's Catalyst checkpoint (UI only, no DevTools):                 ║
+║                                                                      ║
+║  1. Login → Quét hoặc nhập tay 1 WO (vd. WO-26-3684) → bấm           ║
+║     "Nhận / Bắt đầu" → bước chuyển thành công.                       ║
+║     ← chứng minh W4 regression + manual entry (Issue 2)              ║
 ║                                                                      ║
 ║  2. Trong terminal khác, chạy:                                       ║
-║       bash CCL-MES-Hybrid/scripts/make-stale.sh $WO_FOR_HENRY
+║       bash CCL-MES-Hybrid/scripts/make-stale.sh WO-26-3685           ║
 ║                                                                      ║
-║  3. Quay lại app, KHÔNG quét lại, bấm "Nhận / Bắt đầu" lần nữa →     ║
-║     thấy banner vàng "Một thao tác khác đã cập nhật WO này. Bấm      ║
-║     'Nhận / Bắt đầu' lần nữa để thử lại với phiên bản mới nhất."     ║
+║  3. Trong app, nhập "WO-26-3685" vào ô tay (KHÔNG quét lại) → bấm    ║
+║     Tìm → tap "Nhận / Bắt đầu" → thấy banner vàng:                   ║
+║       "Một thao tác khác đã cập nhật WO này. Bấm 'Nhận / Bắt đầu'    ║
+║        lần nữa để thử lại với phiên bản mới nhất."                   ║
 ║     ← chứng minh 409 + VN banner (mục 5 cũ)                          ║
 ║                                                                      ║
-║  Headers (mục 2-4 cũ) + replay/audit đã PASS automatically ở         ║
-║  CclApiClientAdvanceContract + AdvanceOrchestrator + wire probes.    ║
+║  NẾU bị kẹt SetupConfirmed banner: chạy                              ║
+║    bash CCL-MES-Hybrid/scripts/reset-test-wo.sh <WoNo>               ║
+║  để reset WO về PrePressCheck với RowVersion mới.                    ║
+║                                                                      ║
+║  Headers (mục 2-4 cũ) + replay/audit/normalizer đã PASS              ║
+║  automatically ở CclApiClientAdvanceContract +                       ║
+║  AdvanceOrchestrator + WorkOrderErrorLocaliser + WoCodeNormalizer    ║
+║  + wire probes.                                                      ║
 ║                                                                      ║
 ║  Khi xong: Ctrl-C ở cửa sổ này để shutdown server.                   ║
 ║                                                                      ║

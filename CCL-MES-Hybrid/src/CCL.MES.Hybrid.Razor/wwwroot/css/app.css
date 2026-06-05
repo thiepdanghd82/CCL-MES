@@ -641,6 +641,33 @@ html, body {
     gap: 10px;
 }
 
+/* P10.7a-1.3 — manual WO entry row below the Quét button. Plain
+   horizontal flex; the input shrinks/grows with the touch keyboard
+   exposure on Catalyst. */
+.wo-manual-row {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    margin-top: 12px;
+}
+.wo-manual-input {
+    flex: 1 1 auto;
+    min-height: 44px; /* operator-grade touch target */
+    padding: 8px 12px;
+    border: 1px solid #c4c4c4;
+    border-radius: 6px;
+    font-size: 16px;
+}
+.wo-manual-input:focus {
+    outline: 2px solid #1565c0;
+    outline-offset: 0;
+    border-color: transparent;
+}
+.wo-manual-input:disabled {
+    background: #f5f5f5;
+    color: #888;
+}
+
 .wo-cta-primary {
     /* Larger tap target — operators may be wearing gloves. */
     font-size: 1.05rem !important;
