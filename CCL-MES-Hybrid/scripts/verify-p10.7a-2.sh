@@ -169,10 +169,22 @@ else
     BEFORE_WO_COUNT=$(sqlite3 "$TEST_DB" "SELECT COUNT(*) FROM WorkOrders;" 2>/dev/null)
     record PASS "Test DB copy ($BEFORE_BYTES bytes, $BEFORE_WO_COUNT WO rows)"
 
-    # NB: the test DB does NOT have ANY migrations applied yet (it's a
-    # copy of data/ccl_mes.db which is behind on EF history). The
-    # dotnet ef database update will apply ALL pending migrations,
-    # including the prior 7a-1.1 one + this new one.
+    # Self-prep (STACKED-PR-CHECKLIST Rule 6): Down test DB copy to
+    # PREVIOUS_MIGRATION baseline so probes below run on known state
+    # regardless of dev DB advance level. NOOP if already at baseline.
+    SELF_PREP_LOG="$(mktemp)"
+    dotnet ef database update "$PREVIOUS_MIGRATION" \
+        --connection "Data Source=$TEST_DB" \
+        --project "$INFRA_PROJECT" --startup-project "$WEB_PROJECT" \
+        --no-build > "$SELF_PREP_LOG" 2>&1
+    if [[ $? -ne 0 ]]; then
+        echo "[self-prep] FAILED to Down test DB to $PREVIOUS_MIGRATION"
+        tail -15 "$SELF_PREP_LOG"
+        echo "[abort] verify needs prep baseline; ensure current branch has all migration sources."
+        rm -rf "$TMP_DIR"
+        exit 2
+    fi
+    [[ $VERBOSE -eq 1 ]] && echo "[self-prep] test DB at $PREVIOUS_MIGRATION baseline"
 
     # Confirm IdempotencyKeys table NOT present pre-migration.
     TABLE_BEFORE=$(sqlite3 "$TEST_DB" "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='IdempotencyKeys';" 2>/dev/null)
