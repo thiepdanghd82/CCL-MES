@@ -334,6 +334,14 @@ public class WorkOrderService
             ByUser = user
         });
 
+        // P10.7a-1 — keep MesPhase in sync with the legacy CurrentStep
+        // every time the legacy advance path moves the WO. Projection
+        // is deterministic + idempotent; failing to project here would
+        // make the new canonical column drift from the legacy column
+        // and break the next P10.7a-* PR that reads MesPhase as the
+        // source of truth.
+        wo.MesPhase = WorkOrderStateMachine.ProjectFromLegacy(next).ToString();
+
         await _db.SaveChangesAsync();
         // Phase 6 Bước 5 — emit WO_ADVANCE with from/to step.
         await _audit.EmitAsync(

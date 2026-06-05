@@ -37,6 +37,23 @@ public class WorkOrder : BaseEntity
     public DateTime? PlannedStart { get; set; }
     public DateTime? PlannedEnd { get; set; }
 
+    // P10.7a-1 — canonical 12-state model per docs/P10.7-WO-STATE-CONTRACT.md.
+    // Stored as string so legacy Web reads see a readable column; the
+    // <see cref="CCL.MES.Domain.StateMachine.MesPhase"/> enum is the
+    // intended type. Server-side write path projects MesPhase →
+    // CurrentStep deterministically in
+    // WorkOrderStateMachine.ProjectToLegacy so legacy Razor pages keep
+    // rendering the 8-step badge unchanged.
+    public string MesPhase { get; set; } = "NEW";
+
+    // P10.7a-1 — EF Core optimistic-concurrency token. SQL Server bumps
+    // automatically; SQLite uses the trigger created in migration
+    // AddWorkOrderRowVersionAndMesPhase to generate a fresh randomblob(8)
+    // on every UPDATE where the token wasn't explicitly set by the
+    // application. Mutation endpoints carry the token as base64 in the
+    // If-Match HTTP header (PR 7a-1.3).
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
     public List<WoStatusHistory> History { get; set; } = new();
     public List<QcInspection> Inspections { get; set; } = new();
 
