@@ -47,6 +47,8 @@ public interface IMesDbContext
     // khỏi QcInspections vì semantically khác (xem Iqc.cs).
     DbSet<IqcInspection> IqcInspections { get; }
     DbSet<IqcResultDetail> IqcResultDetails { get; }
+    // P10.7a-1.2 — Idempotency ledger (per contract §6.2).
+    DbSet<IdempotencyKey> IdempotencyKeys { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

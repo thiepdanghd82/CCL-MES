@@ -289,6 +289,13 @@ builder.Services.AddScoped<CCL.MES.Application.Services.DrawingsService>();
 builder.Services.AddSingleton<CCL.MES.Api.Devices.IDeviceHeartbeatStore,
     CCL.MES.Api.Devices.InMemoryDeviceHeartbeatStore>();
 
+// P10.7a-1.2 — Idempotency middleware options binding.
+// Default 24h TTL, 256 KB request+response cap. Override via
+// appsettings.json section "Idempotency" or env var
+// Idempotency__TtlHours=N.
+builder.Services.Configure<CCL.MES.Api.Middleware.IdempotencyOptions>(
+    builder.Configuration.GetSection("Idempotency"));
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -300,6 +307,13 @@ if (app.Environment.IsDevelopment())
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// P10.7a-1.2 — Idempotency middleware sits AFTER auth (needs the
+// resolved User to compute ActorId) and BEFORE controllers (so it
+// can intercept + replay the response). Pass-through for non-
+// mutating verbs + for requests without the Idempotency-Key header,
+// so the cost on read paths is one method call + zero DB hits.
+app.UseMiddleware<CCL.MES.Api.Middleware.IdempotencyMiddleware>();
 
 app.MapControllers();
 app.MapHub<ShopfloorHubV2>("/hubs/shopfloor");

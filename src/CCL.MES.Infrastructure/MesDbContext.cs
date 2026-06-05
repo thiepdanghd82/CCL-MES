@@ -49,6 +49,8 @@ public class MesDbContext : DbContext, IMesDbContext
     // Phase 6 Bước 7 — IQC entity + result detail (xem Iqc.cs).
     public DbSet<IqcInspection> IqcInspections => Set<IqcInspection>();
     public DbSet<IqcResultDetail> IqcResultDetails => Set<IqcResultDetail>();
+    // P10.7a-1.2 — Idempotency ledger (per contract §6.2).
+    public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -280,5 +282,20 @@ public class MesDbContext : DbContext, IMesDbContext
         // Tính toán read-only -> không map vào DB
         b.Entity<WorkOrder>().Ignore("LastQc");
         b.Entity<ProductionLog>().Ignore(p => p.DurationMinutes);
+
+        // P10.7a-1.2 — IdempotencyKey mapping.
+        // (KeyValue + ActorId) is the natural-key unique index — two
+        // different actors can re-use the same UUID without collision.
+        // EndpointPath + BodySha256 are length-capped to keep row size
+        // predictable; ResponseBody has no max-length at the column
+        // level (the middleware caps the buffered response at 256 KB
+        // before insert).
+        b.Entity<IdempotencyKey>().Property(x => x.KeyValue).HasMaxLength(64).IsRequired();
+        b.Entity<IdempotencyKey>().Property(x => x.EndpointPath).HasMaxLength(256).IsRequired();
+        b.Entity<IdempotencyKey>().Property(x => x.BodySha256).HasMaxLength(64).IsRequired();
+        b.Entity<IdempotencyKey>().Property(x => x.ResponseContentType).HasMaxLength(128);
+        b.Entity<IdempotencyKey>().HasIndex(x => new { x.KeyValue, x.ActorId }).IsUnique();
+        b.Entity<IdempotencyKey>().HasIndex(x => x.ExpiresAtUtc);
+        b.Entity<IdempotencyKey>().HasIndex(x => x.CompletedAtUtc);
     }
 }
