@@ -417,6 +417,45 @@ public sealed class WorkOrdersAdvanceTests : IClassFixture<MesApiFactory>
         Assert.Contains(body.ETag, resp.Headers.ETag!.Tag);
     }
 
+    // P10.7a-1.4 — contract §10.6.3 soak at N=50. Higher fan-out than
+    // the N=10 7a-1.3 sanity test so a future SQLite WAL or EF-Core
+    // batching regression that only surfaces at scale fails CI rather
+    // than at the operator's tap. Marked Category=Soak so a flaky-CI
+    // workaround can `dotnet test --filter "Category!=Soak"` to skip
+    // without losing other coverage.
+    [Trait("Category", "Soak")]
+    [Fact]
+    public async Task Concurrent_advances_at_N_equals_50_yield_one_winner_and_49_conflicts()
+    {
+        await _fx.SeedUserAsync("wo-soak-50", "P@ss!", UserRole.Engineer);
+        var client = _fx.CreateClient();
+        await _fx.LoginAndAuthenticateAsync(client, "wo-soak-50", "P@ss!");
+        var wo = await SeedWoAsync("WO-SOAK-N50", ProcessStepCode.ReadyToRun);
+
+        var etag = await GetCurrentEtagAsync(client, wo.WoNo);
+        const int N = 50;
+        var tasks = Enumerable.Range(0, N).Select(_ =>
+            PostAdvanceAsync(client, wo, ifMatchOverride: etag,
+                idemKeyOverride: Guid.NewGuid().ToString())).ToArray();
+
+        var results = await Task.WhenAll(tasks);
+        var ok = results.Count(r => r.StatusCode == HttpStatusCode.OK);
+        var conflicts = results.Count(r => r.StatusCode == HttpStatusCode.Conflict);
+
+        Assert.Equal(1, ok);
+        Assert.Equal(N - 1, conflicts);
+
+        // Audit-side invariant: exactly one WO_ADVANCE row + (N-1)
+        // WO_STATE_CONFLICT rows. Locks "state machine fires once,
+        // every loser leaves a forensic trail."
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        Assert.Equal(1, db.AuditLogs
+            .Count(a => a.Action == "WO_ADVANCE" && a.TargetId == wo.Id.ToString()));
+        Assert.Equal(N - 1, db.AuditLogs
+            .Count(a => a.Action == "WO_STATE_CONFLICT" && a.TargetId == wo.Id.ToString()));
+    }
+
     [Fact]
     public async Task Concurrent_advances_only_one_succeeds_others_get_409()
     {

@@ -1,0 +1,110 @@
+using CCL.MES.Hybrid.Client;
+using CCL.MES.Hybrid.Client.Npi;
+using CCL.MES.Shared.Accounts;
+using CCL.MES.Shared.Audit;
+using CCL.MES.Shared.Auth;
+using CCL.MES.Shared.Backup;
+using CCL.MES.Shared.Devices;
+using CCL.MES.Shared.Drawings;
+using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.QcSpecs;
+using CCL.MES.Shared.Settings;
+using CCL.MES.Shared.Specs;
+using CCL.MES.Shared.WorkOrders;
+
+namespace CCL.MES.Hybrid.Razor.Tests._Support;
+
+/// <summary>
+/// P10.7a-1.4 — records every API call the WorkOrders Razor page
+/// makes so bUnit can assert wiring without booting MAUI. Methods
+/// the page doesn't touch throw <see cref="NotImplementedException"/>
+/// so an accidental future dependency surfaces loud.
+/// </summary>
+public sealed class RecordingApi : ICclApiClient
+{
+    public Func<string, CancellationToken, Task<WorkOrderSummary?>>? SummaryImpl { get; set; }
+    public Func<long, string, CancellationToken, Task<AdvanceWorkOrderResponse>>? AdvanceImpl { get; set; }
+
+    public List<string> SummaryCalls { get; } = new();
+    public List<(long Id, string ETag)> AdvanceCalls { get; } = new();
+    public List<ScanLogRequest> ScanLogCalls { get; } = new();
+
+    public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
+    {
+        SummaryCalls.Add(woNo);
+        return SummaryImpl is null
+            ? Task.FromResult<WorkOrderSummary?>(null)
+            : SummaryImpl(woNo, ct);
+    }
+
+    public Task<AdvanceWorkOrderResponse> AdvanceWorkOrderAsync(long workOrderId, string ifMatchETag, CancellationToken ct = default)
+    {
+        AdvanceCalls.Add((workOrderId, ifMatchETag));
+        return AdvanceImpl is null
+            ? throw new InvalidOperationException("AdvanceImpl not set")
+            : AdvanceImpl(workOrderId, ifMatchETag, ct);
+    }
+
+    public Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default)
+    {
+        ScanLogCalls.Add(req);
+        return Task.FromResult(new ScanLogResponse
+        {
+            ScanId = Guid.NewGuid(),
+            ServerTimestamp = DateTimeOffset.UtcNow,
+        });
+    }
+
+    // ── Surface the WorkOrders Razor page does NOT touch — every
+    //    method throws so an accidental future dependency on Spec /
+    //    Drawing / Account / Audit / Backup work from this page
+    //    surfaces loud in CI rather than at the operator's tap. ──────
+
+    public Task<LoginResponse> LoginAsync(string username, string password, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task<UserInfo> GetMeAsync(CancellationToken ct = default) => throw new NotImplementedException();
+    public Task LogoutAsync(string refreshToken, CancellationToken ct = default) => throw new NotImplementedException();
+    public Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? s, int p, int z, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<NpiPagedRaw<NpiRawMaterial>> GetRawMaterialsAsync(string? s, int p, int z, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<NpiPagedRaw<NpiRoutingOperation>> GetRoutingsAsync(string? s, int p, int z, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<NpiPagedRaw<NpiStructure>> GetStructuresAsync(string? s, int p, int z, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<HeartbeatResponse> HeartbeatAsync(HeartbeatRequest req, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<DeviceInfoResponse?> GetDeviceInfoAsync(CancellationToken c = default) => throw new NotImplementedException();
+    public Task<NpiPagedRaw<SpecListItem>> GetSpecsAsync(string? s, int p, int z, string? v, string? planner = null, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecDetailItem?> GetSpecDetailAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<List<SpecProductDropdownItem>> GetSpecProductsAsync(CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecMutationResponse> CreateSpecAsync(CreateSpecMutation r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecMutationResponse> ApproveSpecAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecMutationResponse> CopySpecAsync(long s, CopySpecMutation r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecMutationResponse> ReviseSpecAsync(long s, ReviseSpecMutation r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecMutationResponse> SupersedeSpecAsync(long r, SupersedeSpecMutation req, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecMutationResponse> TrashSpecAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecMutationResponse> RestoreSpecAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecMutationResponse> UpdateSpecAsync(long r, UpdateSpecMutation req, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecImportPreviewResponse> ImportPreviewSpecAsync(Stream a, string b, string c2, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecImportSaveResponse> ImportSaveSpecAsync(SpecImportSaveRequest req, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<List<DrawingKindSlot>> GetDrawingsByRevisionAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<DrawingUploadResponse> UploadDrawingAsync(long a, string b, Stream s, string n, string? r = null, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<long> DownloadDrawingToFileAsync(long a, long b, string c, CancellationToken d = default) => throw new NotImplementedException();
+    public Task<DrawingDecideResponse> DecideDrawingAsync(long a, long b, DrawingDecideRequest r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<Dictionary<string, QcWindowItem?>> GetQcWindowsByRevisionAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<List<QcCaptureItem>> GetQcCapturesByRevisionAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<List<QcReasonCode>> GetQcReasonCodesAsync(CancellationToken c = default) => throw new NotImplementedException();
+    public Task<QcPlanUpsertResponse> UpsertQcPlanStageAsync(long r, QcPlanUpsertRequest req, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<QcCaptureItem> CreateQcCaptureAsync(long r, QcCaptureCreateRequest req, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<long> DownloadSpecListExportAsync(string a, string? b, string d, string? e, string f, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<long> DownloadSpecSheetPdfAsync(long a, string b, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SettingsProfileDto> GetMyProfileAsync(CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SettingsProfileDto> UpdateMyProfileAsync(UpdateProfileRequest r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<ChangePasswordResponse> ChangeMyPasswordAsync(ChangePasswordRequest r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<AboutDto> GetAboutAsync(CancellationToken c = default) => throw new NotImplementedException();
+    public Task<AuditLogPagedResult> GetAuditLogAsync(string? a, string? b, string? d, DateTime? e, DateTime? f, int g, int h, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<List<string>> GetAuditActionsAsync(CancellationToken c = default) => throw new NotImplementedException();
+    public Task<AuditLogExportDownload> ExportAuditLogAsync(string a, string? b, string? d, string? e, DateTime? f, DateTime? g, string h, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<AccountPagedResult> ListAccountsAsync(string? a, int b, int d, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<AccountDto> CreateAccountAsync(CreateAccountRequest r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<AccountDto> UpdateAccountAsync(long a, UpdateAccountRequest r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<AccountDto> ResetAccountPasswordAsync(long a, ResetPasswordRequest r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<List<BackupSnapshotDto>> ListBackupsAsync(CancellationToken c = default) => throw new NotImplementedException();
+    public Task<BackupSnapshotDto> CreateBackupAsync(CancellationToken c = default) => throw new NotImplementedException();
+    public Task<RestoreResultDto> RestoreBackupAsync(Stream a, string b, CancellationToken c = default) => throw new NotImplementedException();
+}

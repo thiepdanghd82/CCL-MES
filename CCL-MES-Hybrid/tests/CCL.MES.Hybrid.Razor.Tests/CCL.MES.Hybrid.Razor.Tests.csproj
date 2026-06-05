@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    P10.7a-1.4 — bUnit-driven render tests for the Razor RCL. Today's
+    Catalyst checkpoint exposed that the orchestrator unit tests
+    didn't cover the Razor wiring; this project closes the gap by
+    instantiating <WorkOrders /> against a stubbed ICclApiClient
+    and asserting on the rendered DOM.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="bunit" Version="1.39.5" />
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="Bunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CCL.MES.Shared\CCL.MES.Shared.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Hybrid.Client\CCL.MES.Hybrid.Client.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Hybrid.Razor\CCL.MES.Hybrid.Razor.csproj" />
+  </ItemGroup>
+
+</Project>

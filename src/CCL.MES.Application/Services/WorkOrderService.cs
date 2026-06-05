@@ -300,6 +300,16 @@ public class WorkOrderService
         return wo;
     }
 
+    // P10.7-audit-exempt: this Application-layer service is the shared
+    // helper called by BOTH the legacy CCL.MES.Web Razor pages (no
+    // RowVersion / If-Match — pre-P10.7 contract) AND the Hybrid Api
+    // WorkOrdersController (which enforces the RV gate BEFORE calling
+    // this service). The optimistic-concurrency check therefore lives
+    // at the controller layer; the service emits the audit row (see
+    // _audit.EmitAsync below) but doesn't repeat the RV check. Any
+    // new mutation method on this service must either accept the
+    // RowVersion as a parameter + enforce here, or document the same
+    // exemption rationale.
     public async Task<AdvanceResult> AdvanceAsync(long id, string? user)
     {
         var wo = await _db.WorkOrders

@@ -158,10 +158,19 @@ else
                     <div class="wo-card-row"><span class="wo-card-label">Đã sản xuất</span><span class="wo-card-value">@_summary.ProducedQty @_summary.Uom</span></div>
                     <div class="wo-card-row"><span class="wo-card-label">Bước hiện tại</span><span class="wo-card-value scan-mono">@_summary.CurrentStep</span></div>
 
-                    @if (_advanceResult?.Ok == true)
+                    @* P10.7a-1.4 — operator-grade success feedback. Today's
+                       checkpoint surfaced that the operator tapped Accept
+                       repeatedly because the previous "Bước hiện tại"
+                       label updated silently — no positive feedback.
+                       The green banner now shows the FROM → TO transition
+                       explicitly + survives for ~4 s after the advance
+                       (controlled by _showSuccessBanner, cleared by the
+                       background timer in OnAdvance). *@
+                    @if (_advanceResult?.Ok == true && _showSuccessBanner)
                     {
-                        <div class="wo-card-success">
-                            ✔ Đã chuyển bước. Bước mới: <strong>@_advanceResult.CurrentStep</strong>.
+                        <div class="wo-card-success" data-testid="advance-success-banner">
+                            ✔ Đã chuyển bước: <strong>@(_advanceFromStep ?? "—")</strong>
+                            → <strong>@_advanceResult.CurrentStep</strong>
                         </div>
                     }
                     else if (_advanceResult is { Ok: false } && !string.IsNullOrEmpty(_advanceResult.ErrorCode))
@@ -206,6 +215,17 @@ else
     // @oninput; the Find button enables when WoCodeNormalizer
     // accepts the value.
     private string _manualCode = "";
+
+    // P10.7a-1.4 — success-banner state. Captures the FROM step
+    // before the advance fires so the green banner can render
+    // "Đã chuyển bước: <old> → <new>". _showSuccessBanner gates
+    // visibility; a background delay clears it after
+    // SuccessBannerLifetime so the operator sees + reads it
+    // without it lingering forever.
+    private string? _advanceFromStep;
+    private bool _showSuccessBanner;
+    private CancellationTokenSource? _successBannerCts;
+    private static readonly TimeSpan SuccessBannerLifetime = TimeSpan.FromSeconds(4);
 
     protected override async Task OnInitializedAsync()
     {
@@ -387,6 +407,12 @@ else
         // through the disabled attribute.
         _advancing = true;
         _advanceError = null;
+        // P10.7a-1.4 — capture the FROM step BEFORE the advance fires
+        // so the success banner can show the transition explicitly.
+        // The summary in scope here is the pre-advance state; once
+        // the orchestrator returns _summary points at the refreshed
+        // post-advance state.
+        var fromStepSnapshot = _summary.CurrentStep;
         try
         {
             var orchestrator = new AdvanceOrchestrator(Api);
@@ -405,6 +431,18 @@ else
 
             _summary = outcome.Summary;
             _advanceResult = outcome.Response;
+
+            // P10.7a-1.4 — surface the success banner on every Ok=true
+            // outcome (Success or DomainGuard with Ok=true never
+            // happens — DomainGuard means Ok=false). Auto-clear after
+            // SuccessBannerLifetime so the banner doesn't stick around
+            // when the operator moves on to the next WO.
+            if (outcome.Response.Ok)
+            {
+                _advanceFromStep = fromStepSnapshot;
+                _showSuccessBanner = true;
+                ScheduleSuccessBannerHide();
+            }
         }
         catch (ApiException apiEx)
         {
@@ -446,6 +484,44 @@ else
         _advanceResult = null;
         _lookupError = null;
         _advanceError = null;
+        // P10.7a-1.4 — bail out of the success-banner timer + clear
+        // its state so a follow-up scan/manual lookup starts fresh.
+        _successBannerCts?.Cancel();
+        _successBannerCts = null;
+        _showSuccessBanner = false;
+        _advanceFromStep = null;
+    }
+
+    /// <summary>
+    /// P10.7a-1.4 — schedule the success banner to auto-hide after
+    /// <see cref="SuccessBannerLifetime"/>. Cancels any prior timer
+    /// so consecutive advances don't pile up. <c>Task.Delay</c> +
+    /// <c>InvokeAsync(StateHasChanged)</c> is enough for the
+    /// MAUI/Blazor render thread to pick up the visibility flip
+    /// without a System.Timers.Timer dependency.
+    /// </summary>
+    private void ScheduleSuccessBannerHide()
+    {
+        _successBannerCts?.Cancel();
+        _successBannerCts = new CancellationTokenSource();
+        var token = _successBannerCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(SuccessBannerLifetime, token);
+                if (token.IsCancellationRequested) return;
+                await InvokeAsync(() =>
+                {
+                    _showSuccessBanner = false;
+                    StateHasChanged();
+                });
+            }
+            catch (TaskCanceledException)
+            {
+                // Expected — operator advanced again before the timer fired.
+            }
+        });
     }
 
     private static string FormatBadge(string key) =>
