@@ -4,8 +4,10 @@ using System.Net.Http.Json;
 using CCL.MES.Api.Auth;
 using CCL.MES.Api.Tests._Support;
 using CCL.MES.Domain.Auth;
+using CCL.MES.Infrastructure;
 using CCL.MES.Shared.Accounts;
 using CCL.MES.Shared.Auth;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CCL.MES.Api.Tests;
@@ -368,5 +370,121 @@ public sealed class AccountControlControllerTests : IClassFixture<MesApiFactory>
             RefreshToken = targetRefresh,
         });
         Assert.Equal(HttpStatusCode.Unauthorized, refresh.StatusCode);
+    }
+
+    // ── P10.7a-2.1 — sys-recovery account safety ────────────────────
+    //
+    // Henry's adj #3: the seeded sys-recovery user (Role=Sys, IsActive=
+    // false) MUST NOT be mutable from the Account Control surface, even
+    // for admins. Visible-in-list for forensic transparency; every other
+    // action returns 403 accounts.sys_account_protected. The role
+    // whitelist (UserRole.IsValid) MUST reject "Sys" so admins cannot
+    // create a fresh sys account via /admin/users either.
+
+    private async Task<long> SysRecoveryUserIdAsync()
+    {
+        // Opt-in seed (idempotent) — the test fixture does NOT seed the
+        // recovery surface eagerly because it would add spurious write-
+        // lock contention to the N=50 advance soak. Calling here pulls
+        // in the sys-recovery user the first time + NOOPs on later calls.
+        await _fx.SeedRecoveryDataAsync();
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        return await db.Users
+            .Where(u => u.Username == DbSeeder.SysRecoveryUsername)
+            .Select(u => u.Id)
+            .SingleAsync();
+    }
+
+    [Fact]
+    public async Task List_includes_sys_recovery_user_for_forensic_transparency()
+    {
+        await _fx.SeedRecoveryDataAsync();
+        var client = await AdminClientAsync("admin-list-sys");
+        var resp = await client.GetAsync("/api/v2/admin/users?page=1&pageSize=100");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var body = (await resp.Content.ReadFromJsonAsync<AccountPagedResult>())!;
+
+        var sys = body.Items.SingleOrDefault(u => u.Username == DbSeeder.SysRecoveryUsername);
+        Assert.NotNull(sys);
+        Assert.Equal(UserRole.Sys, sys!.Role);
+        Assert.False(sys.IsActive,
+            "sys-recovery must be IsActive=false so the login path refuses it before reaching password verify");
+    }
+
+    [Fact]
+    public async Task Patch_sys_user_returns_403_sys_account_protected()
+    {
+        var client = await AdminClientAsync("admin-patch-sys");
+        var sysId = await SysRecoveryUserIdAsync();
+
+        var resp = await client.PatchAsJsonAsync($"/api/v2/admin/users/{sysId}",
+            new UpdateAccountRequest { DisplayName = "Attempted rename" });
+
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("accounts.sys_account_protected", body);
+    }
+
+    [Fact]
+    public async Task Patch_sys_user_role_returns_403_even_for_admin()
+    {
+        var client = await AdminClientAsync("admin-demote-sys");
+        var sysId = await SysRecoveryUserIdAsync();
+
+        // Attempt to "demote" sys → Operator. Must be refused before
+        // either the InvalidRole or LastAdminProtected branches run.
+        var resp = await client.PatchAsJsonAsync($"/api/v2/admin/users/{sysId}",
+            new UpdateAccountRequest { Role = UserRole.Operator });
+
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("accounts.sys_account_protected", body);
+    }
+
+    [Fact]
+    public async Task Patch_sys_user_isactive_returns_403_so_admins_cannot_enable_login()
+    {
+        var client = await AdminClientAsync("admin-enable-sys");
+        var sysId = await SysRecoveryUserIdAsync();
+
+        // The interesting one: an admin who knows the username could try
+        // to flip IsActive=true and then try to log in with the literal
+        // PasswordHash. Guard fires here so neither attempt succeeds.
+        var resp = await client.PatchAsJsonAsync($"/api/v2/admin/users/{sysId}",
+            new UpdateAccountRequest { IsActive = true });
+
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("accounts.sys_account_protected", body);
+    }
+
+    [Fact]
+    public async Task Reset_password_for_sys_user_returns_403()
+    {
+        var client = await AdminClientAsync("admin-reset-sys");
+        var sysId = await SysRecoveryUserIdAsync();
+
+        var resp = await client.PostAsJsonAsync($"/api/v2/admin/users/{sysId}/reset-password",
+            new ResetPasswordRequest { NewPassword = "Attempted!Replace!1" });
+
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("accounts.sys_account_protected", body);
+    }
+
+    [Fact]
+    public async Task Create_user_with_sys_role_returns_422_invalid_role()
+    {
+        var client = await AdminClientAsync("admin-create-sys-attempt");
+        var resp = await client.PostAsJsonAsync("/api/v2/admin/users", new CreateAccountRequest
+        {
+            Username = "fake-sys",
+            Role = UserRole.Sys,    // not in the whitelist
+            Password = "Whatever!1",
+        });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("accounts.invalid_role", body);
     }
 }

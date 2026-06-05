@@ -363,6 +363,25 @@ using (var bootScope = app.Services.CreateScope())
         {
             Console.WriteLine("[boot] Database migration check: up-to-date.");
         }
+
+        // P10.7a-2.1 — recovery surface bootstrap. Idempotent: re-running
+        // on an already-seeded DB is a NOOP. Safe to run at every boot.
+        // Skipped in the Test environment because the integration-test
+        // factory bootstraps its own minimal DB + explicitly seeds the
+        // sys-recovery account when a fixture needs it; running this
+        // seed during xUnit fixture init adds spurious write-lock
+        // contention to the N=50 advance soak tests.
+        if (!app.Environment.IsEnvironment("Test"))
+        {
+            try
+            {
+                await CCL.MES.Infrastructure.DbSeeder.SeedRecoveryDataAsync(bootDb);
+            }
+            catch (Exception seedEx)
+            {
+                Console.WriteLine($"[boot] Recovery seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
+            }
+        }
     }
     catch (InvalidOperationException)
     {

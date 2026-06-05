@@ -69,6 +69,18 @@ public sealed class MesApiFactory : WebApplicationFactory<Program>, IAsyncLifeti
         await db.Database.MigrateAsync();
     }
 
+    /// <summary>P10.7a-2.1 — opt-in seed of the recovery surface bootstrap
+    /// (sys-recovery user + 6 Recovery-kind reason codes). Lives outside
+    /// <see cref="InitializeAsync"/> so the N=50 advance soak tests do not
+    /// pay the extra SQLite write-lock contention; only fixtures that
+    /// actually need the sys account call this.</summary>
+    public async Task SeedRecoveryDataAsync()
+    {
+        using var scope = Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        await DbSeeder.SeedRecoveryDataAsync(db);
+    }
+
     public new Task DisposeAsync()
     {
         base.Dispose();

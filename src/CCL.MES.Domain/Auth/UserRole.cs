@@ -16,10 +16,26 @@ public static class UserRole
     public const string Qc         = "QC";
     public const string Operator   = "Operator";
 
+    /// <summary>P10.7a-2.1 — system audit-only role for the seeded
+    /// <c>sys-recovery</c> account that owns SYS_RECOVERY audit rows
+    /// when the admin force-phase endpoint fires. Deliberately NOT in
+    /// <see cref="All"/> so it cannot be assigned via Account Control
+    /// (Create/Update reject). The seed writes it directly bypassing
+    /// the whitelist; AccountControlService guards mutation paths so
+    /// admins cannot edit / reset / disable sys accounts from the UI.</summary>
+    public const string Sys        = "Sys";
+
     /// <summary>All valid role strings in display order.</summary>
     public static readonly IReadOnlyList<string> All =
         new[] { Admin, Supervisor, Engineer, Qc, Operator };
 
     public static bool IsValid(string? role) =>
         !string.IsNullOrEmpty(role) && All.Contains(role);
+
+    /// <summary>P10.7a-2.1 — true when the role is the protected
+    /// audit-only <c>Sys</c> tag. AccountControlService uses this to
+    /// short-circuit mutation requests at every surface (Update,
+    /// ResetPassword) before any other validation runs.</summary>
+    public static bool IsSystemAccount(string? role) =>
+        string.Equals(role, Sys, StringComparison.Ordinal);
 }

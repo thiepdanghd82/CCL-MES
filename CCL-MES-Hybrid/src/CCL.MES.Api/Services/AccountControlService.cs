@@ -119,6 +119,8 @@ public sealed class AccountControlService
         if (req is null) return AccountMutationResult.Failed(AccountResult.InvalidBody);
         if (string.IsNullOrWhiteSpace(req.Username))
             return AccountMutationResult.Failed(AccountResult.UsernameRequired);
+        // P10.7a-2.1 — UserRole.IsValid already excludes "Sys" from the
+        // whitelist; the InvalidRole branch covers attempted Sys creation.
         if (!UserRole.IsValid(req.Role))
             return AccountMutationResult.Failed(AccountResult.InvalidRole);
         if (string.IsNullOrEmpty(req.Password) || req.Password.Length < MinPasswordLength)
@@ -156,6 +158,15 @@ public sealed class AccountControlService
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
         if (user is null) return AccountMutationResult.Failed(AccountResult.NotFound);
+
+        // P10.7a-2.1 — sys-role accounts are audit-only. Mutation MUST be
+        // blocked at this surface (even for admins) so the sys-recovery
+        // user can never have its role/IsActive/displayName/department
+        // changed via the UI. Guard sits BEFORE the SelfModificationBlocked
+        // + LastAdminProtected checks since those reason codes would leak
+        // the wrong VN error to the operator.
+        if (UserRole.IsSystemAccount(user.Role))
+            return AccountMutationResult.Failed(AccountResult.SysAccountProtected);
 
         var isSelf = IsActor(user, actor);
 
@@ -214,6 +225,12 @@ public sealed class AccountControlService
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
         if (user is null) return AccountMutationResult.Failed(AccountResult.NotFound);
 
+        // P10.7a-2.1 — same sys-role guard as UpdateAsync. The sys-recovery
+        // password is a sentinel literal that the seed plants; resetting it
+        // would expose a login path on the audit-only account.
+        if (UserRole.IsSystemAccount(user.Role))
+            return AccountMutationResult.Failed(AccountResult.SysAccountProtected);
+
         // Self-reset goes through /settings/password not here — that
         // route requires the current password as a re-auth proof; this
         // admin route skips that proof so it MUST NOT apply to self.
@@ -267,6 +284,8 @@ public enum AccountResult
     PasswordTooShort = 13,
     SelfModificationBlocked = 20,
     LastAdminProtected = 21,
+    // P10.7a-2.1 — sys-role audit-only account protection.
+    SysAccountProtected = 22,
 }
 
 /// <summary>Envelope so the controller can return both the outcome
