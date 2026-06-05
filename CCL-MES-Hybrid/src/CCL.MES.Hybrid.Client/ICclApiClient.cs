@@ -44,8 +44,18 @@ public interface ICclApiClient
     /// <summary>Advance the WO via its existing state machine. Always returns
     /// a response object even when the domain guard rejects the move; the
     /// caller renders <see cref="AdvanceWorkOrderResponse.ErrorCode"/>.
-    /// Throws <see cref="ApiException"/> on auth failure or genuine 404.</summary>
-    Task<AdvanceWorkOrderResponse> AdvanceWorkOrderAsync(long workOrderId, CancellationToken ct = default);
+    /// Throws <see cref="ApiException"/> on auth failure or genuine 404.
+    ///
+    /// P10.7a-1.3 — caller MUST supply the <paramref name="ifMatchETag"/>
+    /// captured from the previous summary GET. Server returns 428 if
+    /// the header is missing, 409 + <c>ErrorCode = "wo.state_conflict"</c>
+    /// when another operator advanced the WO since the last GET (caller
+    /// uses the new <c>ETag</c> field to refresh + retry / show banner).
+    /// An <c>Idempotency-Key</c> is generated automatically per call so
+    /// fast double-taps return the stored response without a second
+    /// state-machine fire.</summary>
+    Task<AdvanceWorkOrderResponse> AdvanceWorkOrderAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default);
 
     // ── Devices (P10.3 W4 — kiosk surface) ────────────────────────
     Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default);

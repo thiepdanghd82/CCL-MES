@@ -307,12 +307,28 @@ else
         _advanceError = null;
         try
         {
-            _advanceResult = await Api.AdvanceWorkOrderAsync(_summary.Id);
+            // P10.7a-1.3 — send the ETag captured from the last summary
+            // GET as If-Match. Server returns 409 + new ETag if another
+            // operator advanced this WO since we loaded it; we adopt the
+            // new ETag + show a localised banner so the operator can
+            // reload the card with one tap.
+            _advanceResult = await Api.AdvanceWorkOrderAsync(_summary.Id, _summary.ETag);
+
             if (_advanceResult.Ok)
             {
                 // Refresh summary so the card shows the new CurrentStep + badge.
+                // The new ETag is also already in _advanceResult.ETag — using
+                // a fresh GET ensures every server-derived field (e.g.
+                // BadgeCssClass) is consistent with the new state.
                 var refreshed = await Api.GetWorkOrderByNoAsync(_summary.WoNo);
                 if (refreshed is not null) _summary = refreshed;
+            }
+            else if (_advanceResult.ErrorCode == "wo.state_conflict")
+            {
+                // 409 path — adopt the server's current ETag (in the
+                // response body) so the next Accept tap won't re-trip
+                // the conflict. Banner copy below renders the warning.
+                _summary = _summary with { ETag = _advanceResult.ETag };
             }
         }
         catch (ApiException apiEx)
@@ -362,11 +378,15 @@ else
 
     private static string LocaliseApiError(ApiException ex) => ex.ApiError.Code switch
     {
-        "work_order.not_found" => "Không tìm thấy WO trên máy chủ.",
-        "device.invalid_id"    => "Mã thiết bị không hợp lệ — báo IT.",
-        "device.not_seen"      => "Trạm chưa nhận diện được — thử lại sau.",
-        "scan.empty_payload"   => "Payload quét rỗng — quét lại.",
-        _                      => $"HTTP {ex.StatusCode} · {ex.ApiError.Code} · {ex.ApiError.MessageEn}",
+        "work_order.not_found"        => "Không tìm thấy WO trên máy chủ.",
+        "device.invalid_id"           => "Mã thiết bị không hợp lệ — báo IT.",
+        "device.not_seen"             => "Trạm chưa nhận diện được — thử lại sau.",
+        "scan.empty_payload"          => "Payload quét rỗng — quét lại.",
+        // P10.7a-1.3 — should not surface in normal flow because the
+        // client always sends both headers; mapped for defence-in-depth.
+        "wo.if_match_required"        => "Phiên dữ liệu hết hạn — quét lại WO.",
+        "wo.idempotency_key_required" => "Yêu cầu thiếu khóa idempotency — báo IT.",
+        _                             => $"HTTP {ex.StatusCode} · {ex.ApiError.Code} · {ex.ApiError.MessageEn}",
     };
 
     private static string LocaliseAdvanceError(string code) => code switch
@@ -380,6 +400,11 @@ else
         "FqcNotPassed"                => "FQC chưa Pass.",
         "OqcOrRohsNotMet"             => "OQC chưa Pass hoặc RoHS chưa OK.",
         "InvalidStepTransition"       => "Chuyển bước không hợp lệ.",
+        // P10.7a-1.3 — concurrency + idempotency codes from the
+        // RowVersion + Idempotency-Key contract retrofit.
+        "wo.state_conflict"           => "Một thao tác khác đã cập nhật WO này. Bấm 'Nhận / Bắt đầu' lần nữa để thử lại với phiên bản mới nhất.",
+        "wo.if_match_required"        => "Phiên dữ liệu chưa được tải lại — quét lại WO.",
+        "wo.idempotency_key_required" => "Yêu cầu thiếu khóa idempotency — báo IT.",
         _                             => $"Mã lỗi không xác định ({code}).",
     };
 

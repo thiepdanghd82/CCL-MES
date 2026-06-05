@@ -6,6 +6,7 @@ using CCL.MES.Api.Tests._Support;
 using CCL.MES.Domain;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Infrastructure;
+using CCL.MES.Shared.WorkOrders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -29,6 +30,7 @@ public sealed class IdempotencyMiddlewareTests : IClassFixture<MesApiFactory>, I
     private readonly MesApiFactory _factory;
     private HttpClient _client = null!;
     private long _woId;
+    private string _woNo = "";
     private long _actorId;
     private string _username = null!;
 
@@ -87,6 +89,7 @@ public sealed class IdempotencyMiddlewareTests : IClassFixture<MesApiFactory>, I
         db.WorkOrders.Add(wo);
         await db.SaveChangesAsync();
         _woId = wo.Id;
+        _woNo = wo.WoNo;
     }
 
     public Task DisposeAsync() => Task.CompletedTask;
@@ -96,10 +99,19 @@ public sealed class IdempotencyMiddlewareTests : IClassFixture<MesApiFactory>, I
     [Fact]
     public async Task Mutating_post_without_header_passes_through_to_controller()
     {
-        var rsp = await _client.PostAsync($"/api/v2/work-orders/{_woId}/advance", null);
+        // P10.7a-1.3 — /advance also requires If-Match. The middleware
+        // passes through when there's no Idempotency-Key — the
+        // controller-level Idempotency-Key requirement (400) lands
+        // AFTER the middleware decision; either way no ledger row gets
+        // inserted, which is what this test asserts.
+        var etag = await CurrentEtagAsync();
+        var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v2/work-orders/{_woId}/advance");
+        req.Headers.TryAddWithoutValidation("If-Match", $"\"{etag}\"");
+        var rsp = await _client.SendAsync(req);
 
-        Assert.Equal(HttpStatusCode.OK, rsp.StatusCode);
-        // Replay-marker header MUST NOT appear when middleware was no-op.
+        // Controller rejects with 400 because Idempotency-Key is required
+        // on /advance per the 7a-1.3 retrofit. The status code is not the
+        // assertion target — what matters is no ledger row was inserted.
         Assert.False(rsp.Headers.Contains("Idempotency-Replayed"));
 
         using var scope = _factory.Services.CreateScope();
@@ -343,17 +355,32 @@ public sealed class IdempotencyMiddlewareTests : IClassFixture<MesApiFactory>, I
 
     private async Task<HttpResponseMessage> PostAdvanceAsync(string key)
     {
+        // P10.7a-1.3 — /advance now REQUIRES If-Match. Read current
+        // ETag from summary on every call so replay tests still hit
+        // the same key (server's stored response from the first call
+        // is what we're verifying gets replayed).
+        var etag = await CurrentEtagAsync();
         var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v2/work-orders/{_woId}/advance");
+        req.Headers.TryAddWithoutValidation("If-Match", $"\"{etag}\"");
         req.Headers.Add("Idempotency-Key", key);
         return await _client.SendAsync(req);
     }
 
     private async Task<HttpResponseMessage> PostAdvanceWithBodyAsync(string key, string body)
     {
+        var etag = await CurrentEtagAsync();
         var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v2/work-orders/{_woId}/advance");
+        req.Headers.TryAddWithoutValidation("If-Match", $"\"{etag}\"");
         req.Headers.Add("Idempotency-Key", key);
         req.Content = new StringContent(body, Encoding.UTF8, "application/json");
         return await _client.SendAsync(req);
+    }
+
+    private async Task<string> CurrentEtagAsync()
+    {
+        var summary = await _client.GetFromJsonAsync<WorkOrderSummary>(
+            $"/api/v2/work-orders/by-no/{Uri.EscapeDataString(_woNo)}/summary");
+        return summary?.ETag ?? "";
     }
 
     private async Task<string> ReadCurrentStepAsync()
