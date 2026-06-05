@@ -16,3 +16,6 @@ data/Backup/SQLite/*
 
 # Operational archive tarballs — manifest + sha256 in MANIFEST.md is the record
 _archive/**/*.tar.gz
+
+# Runtime uploads (drawings PDF) — not source code
+data/blobs/

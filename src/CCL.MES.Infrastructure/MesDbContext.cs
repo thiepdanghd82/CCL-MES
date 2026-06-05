@@ -57,6 +57,14 @@ public class MesDbContext : DbContext, IMesDbContext
         // Lưu enum dạng chuỗi cho dễ đọc trong DB
         b.Entity<WorkOrder>().Property(x => x.CurrentStep).HasConversion<string>();
         b.Entity<WorkOrder>().Property(x => x.Status).HasConversion<string>();
+        // P10.7a-1 — canonical MesPhase column (string) + optimistic
+        // RowVersion. Both ADDITIVE — legacy CurrentStep stays the
+        // authoritative legacy-Razor read path. SQLite trigger that
+        // bumps RowVersion on every UPDATE lives in the migration
+        // (EF Core's IsRowVersion() handles SQL Server auto-bump but
+        // not SQLite; the trigger fills the gap).
+        b.Entity<WorkOrder>().Property(x => x.MesPhase).HasMaxLength(16).IsRequired();
+        b.Entity<WorkOrder>().Property(x => x.RowVersion).IsRowVersion();
         // Phase 8 PR #28 — SpecVersion HasConversion removed (entity dropped);
         // ProductRevision + Drawing + QC plan + ProcessCatalog enum config below.
         b.Entity<ProductRevision>().Property(x => x.Status).HasConversion<string>();

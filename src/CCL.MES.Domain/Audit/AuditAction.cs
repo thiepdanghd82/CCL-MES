@@ -125,4 +125,104 @@ public static class AuditAction
     // { format, rows, filename, content_length }
     public const string WoExport              = "WO_EXPORT";
     public const string WoFlagsUpdate         = "WO_FLAGS_UPDATE";
+
+    // ───────────────────────────────────────────────────────────────
+    // P10.7a-1 — canonical MES audit codes reserved per
+    // docs/P10.7-WO-STATE-CONTRACT.md §3.2 + §7.1. Reserving in this
+    // PR (additive) so feature branches downstream do not invent
+    // divergent names. Alphabetical to keep the diff review clean.
+    // Every code below carries the contract-required JSON envelope
+    // (wo_id, wo_no, shift_code, from_phase, to_phase, ok) via
+    // CCL.MES.Api.Audit.AuditEmitHelper — never raw inline new {}.
+    // ───────────────────────────────────────────────────────────────
+
+    /// <summary>QC FQC per-criterion check row. detail JSON:
+    /// { wo_id, criterion_key, criterion_value: 'OK'|'NG'|'NA', inspector_id }.</summary>
+    public const string FqcCheck              = "FQC_CHECK";
+    /// <summary>FQC inspector step-up signed in (4-eye principle).</summary>
+    public const string FqcSignin             = "FQC_SIGNIN";
+    /// <summary>FQC inspector signed out.</summary>
+    public const string FqcSignout            = "FQC_SIGNOUT";
+    /// <summary>Idempotency-Key replay attempted with DIFFERENT body —
+    /// indicates client UI bug. detail JSON: { key, endpoint_path,
+    /// expected_body_sha, received_body_sha, actor_id }.</summary>
+    public const string IdempotencyReplay     = "IDEMPOTENCY_REPLAY";
+    /// <summary>IPQC per-criterion check row.</summary>
+    public const string IpqcCheck             = "IPQC_CHECK";
+    /// <summary>IPQC judgement = GO_RUN. detail JSON: { ipqc_user_id,
+    /// criteria_summary: {5-entry map} }.</summary>
+    public const string IpqcGoRun             = "IPQC_GO_RUN";
+    /// <summary>IPQC step-up signed in.</summary>
+    public const string IpqcSignin            = "IPQC_SIGNIN";
+    /// <summary>IPQC signed out.</summary>
+    public const string IpqcSignout           = "IPQC_SIGNOUT";
+    /// <summary>IPQC judgement = SPECIAL_ACCEPT (routes WO to QA_PENDING).
+    /// detail JSON: { ipqc_user_id, reason (≤500 chars, sanitized) }.</summary>
+    public const string IpqcSpecialAccept     = "IPQC_SPECIAL_ACCEPT";
+    /// <summary>IPQC judgement = STOP_LINE (rolls WO back to PREPRESS).</summary>
+    public const string IpqcStopLine          = "IPQC_STOP_LINE";
+    /// <summary>QC OQC per-criterion check row.</summary>
+    public const string OqcCheck              = "OQC_CHECK";
+    /// <summary>OQC inspector step-up signed in.</summary>
+    public const string OqcSignin             = "OQC_SIGNIN";
+    /// <summary>OQC signed out.</summary>
+    public const string OqcSignout            = "OQC_SIGNOUT";
+    /// <summary>PREPRESS row-level cutter check failed.</summary>
+    public const string PrepressCutterNg      = "PREPRESS_CUTTER_NG";
+    /// <summary>PREPRESS row-level cutter check passed.</summary>
+    public const string PrepressCutterOk      = "PREPRESS_CUTTER_OK";
+    /// <summary>PREPRESS material row failed. detail JSON:
+    /// { bom_line_idx, actual_value, ng_reason_code, ng_note }.</summary>
+    public const string PrepressMatNg         = "PREPRESS_MAT_NG";
+    /// <summary>PREPRESS material row passed.</summary>
+    public const string PrepressMatOk         = "PREPRESS_MAT_OK";
+    /// <summary>PREPRESS plate check failed.</summary>
+    public const string PrepressPlateNg      = "PREPRESS_PLATE_NG";
+    /// <summary>PREPRESS plate check passed.</summary>
+    public const string PrepressPlateOk      = "PREPRESS_PLATE_OK";
+    /// <summary>QA Manager approves IPQC SPECIAL_ACCEPT.</summary>
+    public const string QaApproveSpecial      = "QA_APPROVE_SPECIAL";
+    /// <summary>QA Manager rejects IPQC SPECIAL_ACCEPT (rolls back
+    /// to PREPRESS).</summary>
+    public const string QaRejectSpecial       = "QA_REJECT_SPECIAL";
+    /// <summary>Admin / sys-only console or endpoint recovery action
+    /// (e.g. /admin-force-phase). detail JSON: { from_phase,
+    /// to_phase, reason, sys_user_id }.</summary>
+    public const string SysRecovery           = "SYS_RECOVERY";
+    /// <summary>Admin / sys cancels a non-terminal WO. detail JSON:
+    /// { from_phase, reason, force: true }.</summary>
+    public const string WoCancel              = "WO_CANCEL";
+    /// <summary>FQC inspector rejected at least 1 criterion (rolls
+    /// WO back to PREPRESS).</summary>
+    public const string WoFqcReject           = "WO_FQC_REJECT";
+    /// <summary>OQC inspector rejected (signed §10.2 answer:
+    /// re-inspect by FQC, not full rework).</summary>
+    public const string WoOqcReject           = "WO_OQC_REJECT";
+    /// <summary>Operator finished a run session. detail JSON:
+    /// { qty_good_total, qty_ng_total, sessions_count }.</summary>
+    public const string WoRunFinish           = "WO_RUN_FINISH";
+    /// <summary>Operator paused running session. detail JSON:
+    /// { reason_code, note, session_id }.</summary>
+    public const string WoRunPause            = "WO_RUN_PAUSE";
+    /// <summary>Operator resumed paused session.</summary>
+    public const string WoRunResume           = "WO_RUN_RESUME";
+    /// <summary>Operator started a new run session.</summary>
+    public const string WoRunStart            = "WO_RUN_START";
+    /// <summary>Operator scanned WO QR. State-neutral event — does
+    /// NOT change phase; serves as physical-presence trail.
+    /// detail JSON: { machine_id, device_id from X-Device-Id header }.</summary>
+    public const string WoScan                = "WO_SCAN";
+    /// <summary>Setting was aborted by admin/sys; row re-opens fresh.</summary>
+    public const string WoSettingAbort        = "WO_SETTING_ABORT";
+    /// <summary>Setting timer closed. detail JSON: { op_user_id,
+    /// duration_sec }.</summary>
+    public const string WoSettingDone         = "WO_SETTING_DONE";
+    /// <summary>Setting timer started. detail JSON: { op_user_id,
+    /// setting_start_at }.</summary>
+    public const string WoSettingStart        = "WO_SETTING_START";
+    /// <summary>Optimistic-concurrency conflict — write attempted
+    /// against stale RowVersion. detail JSON: { attempted_action,
+    /// client_version: base64, server_version: base64, actor_id }.
+    /// Emitted by every mutation endpoint when If-Match check fails.</summary>
+    public const string WoStateConflict       = "WO_STATE_CONFLICT";
 }
