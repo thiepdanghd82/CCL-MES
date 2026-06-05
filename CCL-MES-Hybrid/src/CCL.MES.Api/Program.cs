@@ -10,6 +10,7 @@ using CCL.MES.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -314,6 +315,68 @@ app.UseAuthorization();
 // mutating verbs + for requests without the Idempotency-Key header,
 // so the cost on read paths is one method call + zero DB hits.
 app.UseMiddleware<CCL.MES.Api.Middleware.IdempotencyMiddleware>();
+
+// P10.7a-1.3 — pending-migrations boot probe. The 2026-06-05
+// "500 on login" incident was the symptom of a server starting up
+// against a DB that lagged 8 migrations: the failure surfaced only
+// as a blind 500 in the operator UI, not in any log. From now on
+// the server logs a multi-line WARN at boot listing every pending
+// migration; opt-in `Database:FailOnPendingMigrations=true` turns
+// the WARN into a hard refusal so prod won't boot half-configured.
+using (var bootScope = app.Services.CreateScope())
+{
+    try
+    {
+        var bootDb = bootScope.ServiceProvider
+            .GetRequiredService<CCL.MES.Infrastructure.MesDbContext>();
+        var pending = (await bootDb.Database.GetPendingMigrationsAsync()).ToList();
+        if (pending.Count > 0)
+        {
+            var failOnPending = app.Configuration
+                .GetValue<bool>("Database:FailOnPendingMigrations", defaultValue: false);
+            var header = failOnPending
+                ? "════════════ DATABASE MIGRATION REQUIRED — REFUSING TO BOOT ════════════"
+                : "════════════ WARNING — DATABASE HAS UNAPPLIED MIGRATIONS ════════════";
+            Console.WriteLine();
+            Console.WriteLine(header);
+            Console.WriteLine($"  Database lags {pending.Count} migration(s):");
+            foreach (var m in pending) Console.WriteLine($"    - {m}");
+            Console.WriteLine();
+            Console.WriteLine("  Apply via:");
+            Console.WriteLine("    dotnet ef database update \\");
+            Console.WriteLine("      --connection \"Data Source=<path/to/ccl_mes.db>\" \\");
+            Console.WriteLine("      --project src/CCL.MES.Infrastructure \\");
+            Console.WriteLine("      --startup-project src/CCL.MES.Web");
+            Console.WriteLine();
+            Console.WriteLine("  Booting anyway = endpoints that touch missing schema");
+            Console.WriteLine("  return 500 with no diagnostic. Operator UI shows a");
+            Console.WriteLine("  generic 'HTTP 500 · http.non_success' banner. Don't.");
+            Console.WriteLine(new string('═', header.Length));
+            Console.WriteLine();
+            if (failOnPending)
+            {
+                throw new InvalidOperationException(
+                    $"{pending.Count} pending migration(s); set Database:FailOnPendingMigrations=false to boot anyway.");
+            }
+        }
+        else
+        {
+            Console.WriteLine("[boot] Database migration check: up-to-date.");
+        }
+    }
+    catch (InvalidOperationException)
+    {
+        // Re-throw the fail-fast case so the host shuts down.
+        throw;
+    }
+    catch (Exception ex)
+    {
+        // Any other failure (DB unreachable, table __EFMigrationsHistory
+        // missing on a fresh blank DB EF hasn't bootstrapped yet) — log
+        // but don't block boot. Test fixtures bootstrap their own DBs.
+        Console.WriteLine($"[boot] Migration check skipped: {ex.GetType().Name}: {ex.Message}");
+    }
+}
 
 app.MapControllers();
 app.MapHub<ShopfloorHubV2>("/hubs/shopfloor");

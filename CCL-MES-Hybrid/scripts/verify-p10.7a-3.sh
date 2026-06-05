@@ -29,6 +29,17 @@ WEB_PROJECT="$REPO_ROOT/src/CCL.MES.Web/CCL.MES.Web.csproj"
 API_PROJECT="$HYBRID_ROOT/src/CCL.MES.Api/CCL.MES.Api.csproj"
 LEGACY_TESTS="$REPO_ROOT/tests/CCL.MES.Tests/CCL.MES.Tests.csproj"
 API_TESTS="$HYBRID_ROOT/tests/CCL.MES.Api.Tests/CCL.MES.Api.Tests.csproj"
+CLIENT_TESTS="$HYBRID_ROOT/tests/CCL.MES.Hybrid.Client.Tests/CCL.MES.Hybrid.Client.Tests.csproj"
+
+# Keep-alive mode: leave the API running after probes so Henry can
+# tap through the 1-item Catalyst checkpoint (W4 regression + make-stale)
+# without a second `dotnet run`. Pass `--keep-alive`.
+KEEP_ALIVE=0
+for arg in "$@"; do
+    case "$arg" in
+        --keep-alive) KEEP_ALIVE=1 ;;
+    esac
+done
 
 CURRENT_MIGRATION="20260605061903_AddWorkOrderRowVersionInsertTrigger"
 PREVIOUS_MIGRATION="20260605053109_AddIdempotencyKeyLedger"
@@ -99,6 +110,32 @@ P=$(grep -oE "Passed:\s*[0-9]+" "$AL" | head -1 | grep -oE "[0-9]+" | tail -1)
 F=$(grep -oE "Failed:\s*[0-9]+" "$AL" | head -1 | grep -oE "[0-9]+" | tail -1)
 if [[ "$F" == "0" ]]; then record PASS "Api.Tests ($P PASS / 0 FAIL)"; else record FAIL "Api.Tests ($P/$F)"; fi
 
+echo "[step] full CCL.MES.Hybrid.Client.Tests (client-side contract + VN banner + orchestrator)"
+CL="$(mktemp)"; dotnet test "$CLIENT_TESTS" --nologo --verbosity quiet > "$CL" 2>&1
+P=$(grep -oE "Passed:\s*[0-9]+" "$CL" | head -1 | grep -oE "[0-9]+" | tail -1)
+F=$(grep -oE "Failed:\s*[0-9]+" "$CL" | head -1 | grep -oE "[0-9]+" | tail -1)
+if [[ "$F" == "0" ]]; then record PASS "Hybrid.Client.Tests ($P PASS / 0 FAIL)"; else record FAIL "Client.Tests ($P/$F)"; fi
+
+# P10.7a-1.3 — three explicit filter probes naming each automated
+# replacement for the original Catalyst checkpoint items 2-4 + 5 + 6
+# so the reader of this summary sees the mapping.
+for pair in \
+    "CclApiClientAdvanceContract:contract_(headers + ETag + 409)" \
+    "WorkOrderErrorLocaliser:VN_banner_strings" \
+    "AdvanceOrchestrator:double_tap_guard + 409_adoption + success_refresh"; do
+    filter="${pair%%:*}"
+    label="${pair##*:}"
+    FL="$(mktemp)"
+    dotnet test "$CLIENT_TESTS" --filter "FullyQualifiedName~$filter" --nologo --verbosity quiet > "$FL" 2>&1
+    P=$(grep -oE "Passed:\s*[0-9]+" "$FL" | head -1 | grep -oE "[0-9]+" | tail -1)
+    F=$(grep -oE "Failed:\s*[0-9]+" "$FL" | head -1 | grep -oE "[0-9]+" | tail -1)
+    if [[ "$F" == "0" && -n "$P" && "$P" != "0" ]]; then
+        record PASS "$filter ($P PASS — $label)"
+    else
+        record FAIL "$filter ($P/$F)"
+    fi
+done
+
 # ── Step 5: targeted advance + idempotency filters ────────────────
 for filter in \
     "WorkOrdersAdvanceTests" \
@@ -167,6 +204,19 @@ for _ in $(seq 1 40); do
 done
 HEALTH=$(curl -sf -o /dev/null -w '%{http_code}' "$API_URL/api/v2/health" || echo 000)
 if [[ "$HEALTH" == "200" ]]; then record PASS "API boot (200 /health)"; else tail -15 "$API_LOG"; record FAIL "API boot ($HEALTH)"; fi
+
+# P10.7a-1.3 — pending-migration boot probe. We expect EITHER the
+# "up-to-date" line (probe DB had migrations applied above) OR the
+# WARNING block. NEVER expect missing — the absence of the probe is
+# itself a regression, since the whole point is preventing the
+# 2026-06-05 "blind 500" incident from happening again.
+if grep -q "Database migration check: up-to-date" "$API_LOG"; then
+    record PASS "Boot probe: pending-migration check present + DB up-to-date"
+elif grep -q "WARNING — DATABASE HAS UNAPPLIED MIGRATIONS\|DATABASE MIGRATION REQUIRED" "$API_LOG"; then
+    record PASS "Boot probe: pending-migration WARNING fired (intentional)"
+else
+    record FAIL "Boot probe: pending-migration check missing from server log"
+fi
 
 if [[ "$HEALTH" == "200" ]]; then
     # Login as admin (factory seeds admin/admin)
@@ -291,18 +341,59 @@ except: pass" 2>/dev/null)
     fi
 fi
 
-cleanup_api
-API_PID=""
-
-# ── Cleanup ───────────────────────────────────────────────────────
-echo ""; echo "[cleanup] removing $TMP_DIR"; rm -rf "$TMP_DIR"
-
-# ── Summary ───────────────────────────────────────────────────────
+# ── Summary (printed before keep-alive) ───────────────────────────
 echo ""
 echo "============================  SUMMARY  ============================"
 printf '%s\n' "${SUMMARY[@]}"
 echo ""
 echo "  TOTAL: pass=$PASS fail=$FAIL"
 echo ""
-if [[ $FAIL -gt 0 ]]; then exit 1; fi
+
+if [[ $FAIL -gt 0 ]]; then
+    cleanup_api
+    rm -rf "$TMP_DIR"
+    exit 1
+fi
+
+# ── Keep-alive footer ─────────────────────────────────────────────
+if [[ $KEEP_ALIVE -eq 1 ]]; then
+    # Find a WO Henry can use in the make-stale step.
+    WO_FOR_HENRY=$(sqlite3 "$PROBE_DB" "SELECT WoNo FROM WorkOrders ORDER BY Id LIMIT 1;" 2>/dev/null || echo "<no WO seeded>")
+    cat <<EOF
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  KEEP-ALIVE MODE — server is still running on $API_URL  ║
+╠══════════════════════════════════════════════════════════════════════╣
+║                                                                      ║
+║  Henry's 3-step Catalyst checkpoint (UI only, no DevTools):          ║
+║                                                                      ║
+║  1. Login → Quét 1 WO → bấm "Nhận / Bắt đầu" → bước chuyển thành     ║
+║     công.  ← chứng minh W4 regression OK (mục 1 cũ)                  ║
+║                                                                      ║
+║  2. Trong terminal khác, chạy:                                       ║
+║       bash CCL-MES-Hybrid/scripts/make-stale.sh $WO_FOR_HENRY
+║                                                                      ║
+║  3. Quay lại app, KHÔNG quét lại, bấm "Nhận / Bắt đầu" lần nữa →     ║
+║     thấy banner vàng "Một thao tác khác đã cập nhật WO này. Bấm      ║
+║     'Nhận / Bắt đầu' lần nữa để thử lại với phiên bản mới nhất."     ║
+║     ← chứng minh 409 + VN banner (mục 5 cũ)                          ║
+║                                                                      ║
+║  Headers (mục 2-4 cũ) + replay/audit đã PASS automatically ở         ║
+║  CclApiClientAdvanceContract + AdvanceOrchestrator + wire probes.    ║
+║                                                                      ║
+║  Khi xong: Ctrl-C ở cửa sổ này để shutdown server.                   ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+EOF
+    # Wait on the API process so the script blocks here. trap will
+    # clean up on Ctrl-C.
+    wait "$API_PID" 2>/dev/null
+fi
+
+cleanup_api
+API_PID=""
+
+# ── Cleanup ───────────────────────────────────────────────────────
+echo ""; echo "[cleanup] removing $TMP_DIR"; rm -rf "$TMP_DIR"
+
 exit 0

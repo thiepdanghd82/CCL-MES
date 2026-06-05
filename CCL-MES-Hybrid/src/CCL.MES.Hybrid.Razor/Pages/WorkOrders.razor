@@ -3,6 +3,7 @@
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.Hardware
 @using CCL.MES.Hybrid.Client.RecentScans
+@using CCL.MES.Hybrid.Client.WorkOrders
 @using CCL.MES.Shared.Devices
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.Hardware
@@ -303,33 +304,30 @@ else
     private async Task OnAdvance()
     {
         if (_summary is null) return;
+        // P10.7a-1.3 — UI-side guard. The orchestrator carries an
+        // Interlocked-based guard for the off-UI-thread case; this
+        // flag is what the button binds to + what the test inspects
+        // through the disabled attribute.
         _advancing = true;
         _advanceError = null;
         try
         {
-            // P10.7a-1.3 — send the ETag captured from the last summary
-            // GET as If-Match. Server returns 409 + new ETag if another
-            // operator advanced this WO since we loaded it; we adopt the
-            // new ETag + show a localised banner so the operator can
-            // reload the card with one tap.
-            _advanceResult = await Api.AdvanceWorkOrderAsync(_summary.Id, _summary.ETag);
+            var orchestrator = new AdvanceOrchestrator(Api);
+            var outcome = await orchestrator.RunAsync(
+                _summary,
+                refreshSummary: (woNo, ct) => Api.GetWorkOrderByNoAsync(woNo, ct));
 
-            if (_advanceResult.Ok)
+            if (outcome is null)
             {
-                // Refresh summary so the card shows the new CurrentStep + badge.
-                // The new ETag is also already in _advanceResult.ETag — using
-                // a fresh GET ensures every server-derived field (e.g.
-                // BadgeCssClass) is consistent with the new state.
-                var refreshed = await Api.GetWorkOrderByNoAsync(_summary.WoNo);
-                if (refreshed is not null) _summary = refreshed;
+                // Double-tap dropped — the previous advance is still in
+                // flight. Operator sees nothing change; the in-flight
+                // banner ("Đang chuyển bước…") on the button already
+                // communicates this state.
+                return;
             }
-            else if (_advanceResult.ErrorCode == "wo.state_conflict")
-            {
-                // 409 path — adopt the server's current ETag (in the
-                // response body) so the next Accept tap won't re-trip
-                // the conflict. Banner copy below renders the warning.
-                _summary = _summary with { ETag = _advanceResult.ETag };
-            }
+
+            _summary = outcome.Summary;
+            _advanceResult = outcome.Response;
         }
         catch (ApiException apiEx)
         {
@@ -376,37 +374,16 @@ else
     private static string FormatBadge(string key) =>
         key.Length == 0 ? "—" : key.Split('.').Last().Replace('_', ' ').ToUpperInvariant();
 
-    private static string LocaliseApiError(ApiException ex) => ex.ApiError.Code switch
-    {
-        "work_order.not_found"        => "Không tìm thấy WO trên máy chủ.",
-        "device.invalid_id"           => "Mã thiết bị không hợp lệ — báo IT.",
-        "device.not_seen"             => "Trạm chưa nhận diện được — thử lại sau.",
-        "scan.empty_payload"          => "Payload quét rỗng — quét lại.",
-        // P10.7a-1.3 — should not surface in normal flow because the
-        // client always sends both headers; mapped for defence-in-depth.
-        "wo.if_match_required"        => "Phiên dữ liệu hết hạn — quét lại WO.",
-        "wo.idempotency_key_required" => "Yêu cầu thiếu khóa idempotency — báo IT.",
-        _                             => $"HTTP {ex.StatusCode} · {ex.ApiError.Code} · {ex.ApiError.MessageEn}",
-    };
+    // P10.7a-1.3 — both VN mapper switches extracted into
+    // CCL.MES.Hybrid.Client.WorkOrders.WorkOrderErrorLocaliser so the
+    // client xUnit suite can lock the message bank without booting MAUI.
+    private static string LocaliseApiError(ApiException ex) =>
+        CCL.MES.Hybrid.Client.WorkOrders.WorkOrderErrorLocaliser
+            .LocaliseApiError(ex.StatusCode, ex.ApiError);
 
-    private static string LocaliseAdvanceError(string code) => code switch
-    {
-        "WorkOrderNotFound"           => "Không tìm thấy WO.",
-        "AlreadyAtFinalStep"          => "WO đã đến bước cuối (Closed).",
-        "RequiresSpecAndMaterials"    => "Thiếu bản vẽ kỹ thuật hoặc vật tư chưa sẵn sàng.",
-        "RequiresSetupConfirmed"      => "Chưa xác nhận setup máy.",
-        "IpqcNotPassed"               => "IPQC chưa Pass.",
-        "NoProductionYet"             => "Chưa có sản lượng — không thể chuyển sang FQC.",
-        "FqcNotPassed"                => "FQC chưa Pass.",
-        "OqcOrRohsNotMet"             => "OQC chưa Pass hoặc RoHS chưa OK.",
-        "InvalidStepTransition"       => "Chuyển bước không hợp lệ.",
-        // P10.7a-1.3 — concurrency + idempotency codes from the
-        // RowVersion + Idempotency-Key contract retrofit.
-        "wo.state_conflict"           => "Một thao tác khác đã cập nhật WO này. Bấm 'Nhận / Bắt đầu' lần nữa để thử lại với phiên bản mới nhất.",
-        "wo.if_match_required"        => "Phiên dữ liệu chưa được tải lại — quét lại WO.",
-        "wo.idempotency_key_required" => "Yêu cầu thiếu khóa idempotency — báo IT.",
-        _                             => $"Mã lỗi không xác định ({code}).",
-    };
+    private static string LocaliseAdvanceError(string code) =>
+        CCL.MES.Hybrid.Client.WorkOrders.WorkOrderErrorLocaliser
+            .LocaliseAdvanceError(code);
 
     private static string TrimDetail(string raw)
     {
