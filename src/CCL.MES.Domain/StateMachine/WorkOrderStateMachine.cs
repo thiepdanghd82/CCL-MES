@@ -237,6 +237,24 @@ public static class WorkOrderStateMachine
     }
 
     /// <summary>
+    /// P10.7a-2.2 — convenience predicate for the admin force-phase
+    /// endpoint. True iff the (<paramref name="from"/>, <paramref name="to"/>)
+    /// edge is classified as <see cref="MesTransitionKind.RecoveryOnly"/>
+    /// per contract §3.1. Exactly 11 cells of the 144-cell grid qualify:
+    /// SETTING → PREPRESS (the §8.1 archetype) + 10× *→CANCELLED
+    /// (every non-terminal source). Returns false for:
+    ///   * self-loops (from == to)
+    ///   * terminal sources (DONE, CANCELLED) — §2.2 terminal-no-revive
+    ///   * any target other than CANCELLED for non-SETTING sources
+    ///   * any *→DONE / *→NEW edge
+    ///   * blocked / allowed / requires-condition / requires-signoff cells
+    /// The admin /force-phase endpoint MUST call this before mutation
+    /// so 133 of the 144 cells decline with 409 unforceable_transition.
+    /// </summary>
+    public static bool IsForceablePhase(MesPhase from, MesPhase to)
+        => ClassifyTransition(from, to) == MesTransitionKind.RecoveryOnly;
+
+    /// <summary>
     /// Domain-level "may this transition fire?" check. Returns
     /// <c>false</c> + a reason if (a) the matrix forbids the edge,
     /// (b) a <see cref="MesTransitionKind.RequiresCondition"/> cell's

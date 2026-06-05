@@ -69,3 +69,47 @@ public sealed record AdvanceWorkOrderResponse
     /// Also emitted as the HTTP <c>ETag</c> response header.</summary>
     public string ETag { get; init; } = "";
 }
+
+/// <summary>
+/// P10.7a-2.2 — request body for <c>POST /admin/work-orders/{id}/force-phase</c>.
+/// Per contract §8.1 + Henry-confirmed Q2 (structured): the caller MUST
+/// supply <see cref="TargetStep"/> + a Recovery-kind
+/// <see cref="ReasonCode"/> from the seeded vocabulary +
+/// <see cref="ReasonNote"/> (1-500 chars) so SYS_RECOVERY audit rows
+/// carry both a codified motive + free-text context. Allowed
+/// (FROM, TO) edges are governed by
+/// <c>WorkOrderStateMachine.IsForceablePhase</c> (11 of 144 cells —
+/// see §3.1 "recovery-only" classification). Anything else returns
+/// 409 force.unforceable_transition.
+/// </summary>
+public sealed record ForcePhaseRequest
+{
+    /// <summary>Legacy <c>ProcessStepCode</c> name (PrePressCheck /
+    /// OpSetting / … / Closed). The server projects it to canonical
+    /// <c>MesPhase</c> before consulting <c>IsForceablePhase</c>.</summary>
+    public string? TargetStep { get; init; }
+
+    /// <summary>One of the 6 Recovery-kind ReasonCodes seeded by
+    /// 7a-2.1 (<c>REC-OP-WEDGE</c>, <c>REC-HW-FAULT</c>, …).</summary>
+    public string? ReasonCode { get; init; }
+
+    /// <summary>Free-text justification, 1-500 chars. Stamped into the
+    /// SYS_RECOVERY audit row's <c>detail.reason.note</c> field for
+    /// forensic replay.</summary>
+    public string? ReasonNote { get; init; }
+}
+
+/// <summary>
+/// P10.7a-2.2 — reply for <c>POST /admin/work-orders/{id}/force-phase</c>.
+/// On success carries the new <see cref="CurrentStep"/> (post-force) +
+/// bumped <see cref="ETag"/>. On guard failure (409 / 422) the
+/// <see cref="ErrorCode"/> + the CURRENT server <see cref="ETag"/> let
+/// the admin reload + decide without a second round-trip.
+/// </summary>
+public sealed record ForcePhaseResponse
+{
+    public bool Ok { get; init; }
+    public string CurrentStep { get; init; } = "";
+    public string? ErrorCode { get; init; }
+    public string ETag { get; init; } = "";
+}

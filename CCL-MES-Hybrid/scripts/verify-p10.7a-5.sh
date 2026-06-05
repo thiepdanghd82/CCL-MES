@@ -136,16 +136,18 @@ else
     record FAIL "Hybrid Api.Tests (passed=$API_PASSED failed=$API_FAILED)"
 fi
 
-# ── Step 5: filter-run new DbSeederRecoveryTests + AccountControl sys fixtures
-echo "[step] filter-run new 7a-2.1 fixtures"
+# ── Step 5: filter-run new 7a-2.1 + 7a-2.2 fixtures ───────────────
+echo "[step] filter-run new 7a-2.1 + 7a-2.2 fixtures"
 for filter in \
     "DbSeederRecoveryTests" \
     "AccountControlControllerTests.Patch_sys_user" \
     "AccountControlControllerTests.Reset_password_for_sys_user" \
     "AccountControlControllerTests.List_includes_sys_recovery_user" \
-    "AccountControlControllerTests.Create_user_with_sys_role"; do
+    "AccountControlControllerTests.Create_user_with_sys_role" \
+    "WorkOrderStateMachineIsForceableTests" \
+    "AdminWorkOrdersForcePhaseTests"; do
     F_LOG="$(mktemp)"
-    if [[ "$filter" == DbSeederRecoveryTests* ]]; then
+    if [[ "$filter" == DbSeederRecoveryTests* || "$filter" == WorkOrderStateMachineIsForceableTests* ]]; then
         dotnet test "$LEGACY_TESTS" --filter "FullyQualifiedName~$filter" \
             --nologo --verbosity quiet > "$F_LOG" 2>&1
     else
@@ -162,6 +164,24 @@ for filter in \
         record FAIL "$filter (passed=$F_PASSED failed=$F_FAILED)"
     fi
 done
+
+# ── Step 6: checkpoint-7a-2.sh self-check ─────────────────────────
+# Light sanity that the operator-facing checkpoint script is present +
+# executable + parses its expected argv. We don't BOOT the API + run
+# it here (that's Henry's checkpoint moment after deploy); we just
+# confirm the script ships in a callable shape.
+echo "[step] checkpoint-7a-2.sh smoke check"
+CHECKPOINT="$HYBRID_ROOT/scripts/checkpoint-7a-2.sh"
+if [[ -x "$CHECKPOINT" ]]; then
+    USAGE_OUT="$(bash "$CHECKPOINT" 2>&1 | head -1)"
+    if [[ "$USAGE_OUT" == "usage: bash scripts/checkpoint-7a-2.sh <WoNo>" ]]; then
+        record PASS "checkpoint-7a-2.sh present + prints usage when no arg"
+    else
+        record FAIL "checkpoint-7a-2.sh usage line unexpected: $USAGE_OUT"
+    fi
+else
+    record FAIL "checkpoint-7a-2.sh missing or not executable"
+fi
 
 # ── Summary ───────────────────────────────────────────────────────
 echo ""
