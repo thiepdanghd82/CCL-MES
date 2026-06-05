@@ -1,13 +1,16 @@
 using System.Security.Claims;
 using System.Text.Json;
+using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
+using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Shared;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.WorkOrders;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace CCL.MES.Api.Controllers;
 
@@ -41,10 +44,12 @@ public sealed class WorkOrdersController : ControllerBase
 {
     private readonly WorkOrderService _svc;
     private readonly IAuditWriter _audit;
-    public WorkOrdersController(WorkOrderService svc, IAuditWriter audit)
+    private readonly IMesDbContext _db;
+    public WorkOrdersController(WorkOrderService svc, IAuditWriter audit, IMesDbContext db)
     {
         _svc = svc;
         _audit = audit;
+        _db = db;
     }
 
     /// <summary>Flat list — small datasets only. Use <c>shop-orders</c>
@@ -94,6 +99,26 @@ public sealed class WorkOrdersController : ControllerBase
         if (view is null)
             return NotFound(ApiError.Of("work_order.not_found", $"No work order with number '{woNo}'."));
 
+        // P10.7a-1.3 — the drawer view doesn't carry RowVersion, so
+        // round-trip via the entity to expose ETag for the optimistic
+        // concurrency contract. AsNoTracking + projection: cheap PK
+        // lookup, no change-tracker overhead, no stale-cache risk.
+        var rowVersion = await _db.WorkOrders
+            .Where(w => w.Id == view.Id)
+            .AsNoTracking()
+            .Select(w => w.RowVersion)
+            .SingleOrDefaultAsync();
+        var etag = rowVersion is not null && rowVersion.Length > 0
+            ? Convert.ToBase64String(rowVersion)
+            : "";
+
+        // Surface the ETag at the HTTP layer so well-behaved HTTP clients
+        // can capture it via Response.Headers.ETag — and also in the body
+        // for clients (e.g. browser fetch with default config) that don't
+        // expose ETag through the headers API.
+        if (!string.IsNullOrEmpty(etag))
+            Response.Headers.ETag = $"\"{etag}\"";
+
         return Ok(new WorkOrderSummary
         {
             Id = view.Id,
@@ -111,6 +136,7 @@ public sealed class WorkOrdersController : ControllerBase
             CurrentStep = view.CurrentStep.ToString(),
             BadgeLabelKey = view.BadgeLabelKey,
             BadgeCssClass = view.BadgeCssClass,
+            ETag = etag,
         });
     }
 
@@ -130,9 +156,69 @@ public sealed class WorkOrdersController : ControllerBase
     {
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
         var role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+        var actorIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0";
+
         var existing = await _svc.GetAsync(id);
         if (existing is null)
             return NotFound(ApiError.Of("work_order.not_found", $"No work order with id {id}."));
+
+        // P10.7a-1.3 — contract §6.1 + §6.2 enforcement layer for the
+        // legacy /advance endpoint. Ordering matters:
+        //   1. If-Match REQUIRED (428 if missing) — RowVersion handshake.
+        //   2. Idempotency-Key REQUIRED (400 if missing) — replay key.
+        //   3. RowVersion compare → 409 + WO_STATE_CONFLICT audit if stale.
+        //   4. Execute legacy AdvanceAsync.
+        //   5. Re-fetch to read the new RowVersion (SQLite trigger bumps
+        //      it AFTER the UPDATE; EF Core can't read the post-trigger
+        //      value via RETURNING). Stamp ETag header + body.
+        var ifMatch = Request.Headers.IfMatch.ToString();
+        if (string.IsNullOrWhiteSpace(ifMatch))
+        {
+            // RFC 6585 §3 — 428 Precondition Required.
+            return StatusCode(StatusCodes.Status428PreconditionRequired,
+                ApiError.Of("wo.if_match_required",
+                    "If-Match header required for this advance. Re-fetch the WO summary to obtain a current ETag."));
+        }
+
+        var idempotencyKey = Request.Headers["Idempotency-Key"].ToString();
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+        {
+            return BadRequest(ApiError.Of("wo.idempotency_key_required",
+                "Idempotency-Key header required for this advance. Generate a UUID per intent."));
+        }
+
+        var serverEtagRaw = Convert.ToBase64String(existing.RowVersion);
+        var clientEtagRaw = NormalizeETag(ifMatch);
+        if (!string.Equals(serverEtagRaw, clientEtagRaw, StringComparison.Ordinal))
+        {
+            // Stale ETag — emit WO_STATE_CONFLICT audit + return server's
+            // current ETag so the client can reload without re-fetching.
+            var conflictDetail = JsonSerializer.Serialize(new
+            {
+                wo_id = id,
+                wo_no = existing.WoNo,
+                attempted_action = "advance",
+                client_version = clientEtagRaw,
+                server_version = serverEtagRaw,
+                actor_id = actorIdStr,
+            });
+            await _audit.EmitAsync(
+                action: AuditAction.WoStateConflict,
+                actor: actor,
+                actorRole: role,
+                targetType: "WorkOrder",
+                targetId: id.ToString(),
+                detail: conflictDetail);
+
+            Response.Headers.ETag = $"\"{serverEtagRaw}\"";
+            return Conflict(new AdvanceWorkOrderResponse
+            {
+                Ok = false,
+                CurrentStep = existing.CurrentStep.ToString(),
+                ErrorCode = "wo.state_conflict",
+                ETag = serverEtagRaw,
+            });
+        }
 
         var deviceId = Request.Headers["X-Device-Id"].ToString();
         // Capture BEFORE state explicitly — the WorkOrderService.AdvanceAsync
@@ -142,7 +228,81 @@ public sealed class WorkOrdersController : ControllerBase
         // the legitimate "from" value for the audit row.
         var fromStep = existing.CurrentStep.ToString();
         var woNo = existing.WoNo;
-        var result = await _svc.AdvanceAsync(id, actor);
+
+        AdvanceResult result;
+        try
+        {
+            result = await _svc.AdvanceAsync(id, actor);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // EF Core's [Timestamp] optimistic concurrency tripped — another
+            // operator's UPDATE landed between our existence check + our
+            // SaveChanges. This is the soak-test path: 10 parallel POSTs all
+            // pass the If-Match precheck (same starting RowVersion), only
+            // one wins SaveChanges. Map to the same 409 + audit shape the
+            // up-front If-Match miss uses, so the client UX is identical.
+
+            // After a concurrency failure, EF's change tracker still holds
+            // the failed WO + the WoStatusHistory row that the service
+            // queued. Clear them so the downstream IdempotencyMiddleware's
+            // SaveChanges (which writes the response envelope row) doesn't
+            // re-attempt the same failed UPDATE.
+            if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
+                dbCtx.ChangeTracker.Clear();
+            var freshAfterConcurrency = await _db.WorkOrders
+                .Where(w => w.Id == id)
+                .AsNoTracking()
+                .Select(w => w.RowVersion)
+                .SingleOrDefaultAsync();
+            var concurrencyEtag = freshAfterConcurrency is not null && freshAfterConcurrency.Length > 0
+                ? Convert.ToBase64String(freshAfterConcurrency)
+                : serverEtagRaw;
+
+            var concurrencyDetail = JsonSerializer.Serialize(new
+            {
+                wo_id = id,
+                wo_no = existing.WoNo,
+                attempted_action = "advance",
+                client_version = clientEtagRaw,
+                server_version = concurrencyEtag,
+                actor_id = actorIdStr,
+                source = "ef_concurrency",
+            });
+            await _audit.EmitAsync(
+                action: AuditAction.WoStateConflict,
+                actor: actor,
+                actorRole: role,
+                targetType: "WorkOrder",
+                targetId: id.ToString(),
+                detail: concurrencyDetail);
+
+            Response.Headers.ETag = $"\"{concurrencyEtag}\"";
+            return Conflict(new AdvanceWorkOrderResponse
+            {
+                Ok = false,
+                CurrentStep = existing.CurrentStep.ToString(),
+                ErrorCode = "wo.state_conflict",
+                ETag = concurrencyEtag,
+            });
+        }
+
+        // Read the new RowVersion. The SQLite trigger fires AFTER the
+        // UPDATE statement; EF Core's tracked entity still carries the
+        // pre-trigger value because EF reads the column back in the
+        // SaveChanges UPDATE RETURNING, which executes BEFORE the
+        // trigger. Use AsNoTracking() to bypass the change tracker
+        // entirely + read the current DB value.
+        var freshRowVersion = await _db.WorkOrders
+            .Where(w => w.Id == id)
+            .AsNoTracking()
+            .Select(w => w.RowVersion)
+            .SingleOrDefaultAsync();
+        var newEtagRaw = freshRowVersion is not null && freshRowVersion.Length > 0
+            ? Convert.ToBase64String(freshRowVersion)
+            : serverEtagRaw;
+
+        Response.Headers.ETag = $"\"{newEtagRaw}\"";
 
         // Emit a paired audit row carrying the device id — the legacy service
         // already emits WO_ADVANCE without device context, so we add a thin
@@ -175,6 +335,22 @@ public sealed class WorkOrdersController : ControllerBase
             Ok = result.Ok,
             CurrentStep = result.CurrentStep,
             ErrorCode = result.ErrorCode?.ToString(),
+            ETag = newEtagRaw,
         });
+    }
+
+    /// <summary>P10.7a-1.3 — strip the standard HTTP ETag wrapping
+    /// (<c>"value"</c> + optional weak prefix <c>W/</c>) so the server
+    /// can compare against the raw base64 RowVersion. RFC 7232 lets
+    /// clients omit the quotes for compat with naive HTTP libs;
+    /// accept both.</summary>
+    private static string NormalizeETag(string raw)
+    {
+        var s = raw.Trim();
+        if (s.StartsWith("W/", StringComparison.OrdinalIgnoreCase))
+            s = s.Substring(2);
+        if (s.Length >= 2 && s[0] == '"' && s[^1] == '"')
+            s = s.Substring(1, s.Length - 2);
+        return s;
     }
 }

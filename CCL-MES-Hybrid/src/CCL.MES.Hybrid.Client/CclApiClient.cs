@@ -88,12 +88,48 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<WorkOrderSummary>(resp, ct);
     }
 
-    public async Task<AdvanceWorkOrderResponse> AdvanceWorkOrderAsync(long workOrderId, CancellationToken ct = default)
+    public async Task<AdvanceWorkOrderResponse> AdvanceWorkOrderAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default)
     {
         using var msg = new HttpRequestMessage(HttpMethod.Post, $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/advance");
+
         if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
             msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        // P10.7a-1.3 — RowVersion handshake (RFC 7232 If-Match) +
+        // Idempotency-Key per intent. The server normalizes both quoted
+        // and unquoted ETag values; we send the canonical quoted form.
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+
+        // One key per intent — fast double-tap on the Accept button
+        // shares the same key (operator clicked once with intent to
+        // advance), so the second physical tap hits the replay path
+        // server-side and returns the stored response without a second
+        // state-machine fire.
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
         using var resp = await _http.SendAsync(msg, ct);
+
+        // 200 (happy) AND 409 (stale ETag) both carry a usable
+        // AdvanceWorkOrderResponse body — the 409 path returns the
+        // server's current ETag so the caller can reload+retry without
+        // a separate summary GET. ReadAsAsync would throw on the 409;
+        // unwrap inline here so the response surfaces to the Razor
+        // page's banner logic.
+        if (resp.StatusCode == HttpStatusCode.OK || resp.StatusCode == HttpStatusCode.Conflict)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<AdvanceWorkOrderResponse>(cancellationToken: ct);
+            return body ?? new AdvanceWorkOrderResponse
+            {
+                Ok = false,
+                ErrorCode = "http.empty_body",
+            };
+        }
+
+        // 428 / 422 / 400 / 404 / 401 — let the generic non-success
+        // handler throw ApiException; the UI's central error mapper
+        // (LocaliseAdvanceError etc.) handles the rest.
         return await ReadAsAsync<AdvanceWorkOrderResponse>(resp, ct);
     }
 

@@ -34,6 +34,12 @@ public sealed record WorkOrderSummary
     /// <summary>Pre-rendered tone class e.g. "wo-status-running" so the UI can
     /// stay copy-paste with the legacy color scheme.</summary>
     public string BadgeCssClass { get; init; } = "";
+
+    /// <summary>P10.7a-1.3 — Base64-encoded current RowVersion. The client
+    /// captures this from the GET response (also surfaced as HTTP
+    /// <c>ETag</c> header) and sends it back as <c>If-Match</c> on the
+    /// next mutation. Mismatch → 409 + <c>WO_STATE_CONFLICT</c> audit.</summary>
+    public string ETag { get; init; } = "";
 }
 
 /// <summary>
@@ -53,4 +59,13 @@ public sealed record AdvanceWorkOrderResponse
     /// <summary>Stable error key e.g. "RequiresSpecAndMaterials" / "IpqcNotPassed" /
     /// "AlreadyAtFinalStep" / "WorkOrderNotFound". Empty when Ok=true.</summary>
     public string? ErrorCode { get; init; }
+
+    /// <summary>P10.7a-1.3 — Base64-encoded NEW RowVersion to be used as
+    /// <c>If-Match</c> on the next mutation. On 200 success this is the
+    /// post-advance RowVersion (bumped by the SQLite trigger). On 409
+    /// conflict this is the CURRENT server RowVersion (so the client can
+    /// reload + retry without re-fetching the summary). Empty for 404 /
+    /// 428 / 400 responses where there's no valid version to surface.
+    /// Also emitted as the HTTP <c>ETag</c> response header.</summary>
+    public string ETag { get; init; } = "";
 }
