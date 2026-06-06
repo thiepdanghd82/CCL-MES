@@ -1,0 +1,307 @@
+@*
+    P10.7c-3 — SETTING phase operator dashboard.
+
+    Hosted inside WorkOrders.razor when the scanned WO has
+    MesPhase=SETTING. Owns the entire RunningSurfaceView state +
+    every API call that mutates it.
+
+    Entry behaviour (closes the 7c-2 gap):
+      - On first load, if MesPhase=SETTING and SettingStartAt is null
+        we fire POST /setting/enter once to stamp the timer. The
+        helper is idempotent server-side so a stray re-load can't
+        reset the clock.
+
+    Render:
+      - Live setting timer (HH:MM:SS since SettingStartAt, ticks every
+        second via a System.Timers.Timer scoped to this component).
+      - 6-item operator checklist. Each item is a local boolean — NOT
+        persisted server-side in 7c-3 (operator-attestation only; if a
+        future audit needs persistence, we'll mint wo_setting_checks
+        in 7d). All 6 must be ticked + setting/done becomes enabled.
+      - Single primary button: "Hoàn tất Setting (chuyển bước)"
+        → POST /setting/done → SETTING → IPQC_WAIT.
+
+    Concurrency / error handling matches PrepressDashboard:
+      - 200 → swap state from the response (MesPhase + ETag) then
+        refetch the view to capture SettingEndAt + duration for the
+        post-write banner.
+      - 409 wo.state_conflict → refetch + show banner (the same
+        response carries the fresh ETag).
+      - 422 wo.invalid_phase → collapse to "không ở SETTING" banner.
+      - Network → red banner with retry tip.
+
+    Rule 4: plain <input> + <button>, NO <InputText>. No form fields
+    here other than the checklist checkboxes which are <input type="checkbox">.
+*@
+
+@using System.Timers
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.RunningSurface
+@using CCL.MES.Shared.Envelopes
+@using CCL.MES.Shared.RunningSurface
+@implements IDisposable
+@inject ICclApiClient Api
+
+<div class="rs-dashboard" data-testid="setting-dashboard">
+    @if (_view is null && _initialError is null)
+    {
+        <div class="rs-loading" data-testid="setting-loading">Đang tải trạng thái SETTING…</div>
+    }
+    else if (_initialError is not null)
+    {
+        <div class="wo-card-error" data-testid="setting-initial-error">
+            <strong>Không tải được trạng thái SETTING:</strong> @_initialError
+        </div>
+    }
+    else if (_invalidPhase)
+    {
+        <div class="wo-card-error" data-testid="setting-invalid-phase">
+            <strong>WO không ở giai đoạn SETTING</strong> —
+            Hiện tại: <code>@(_view?.MesPhase ?? "?")</code>.
+            Quay lại tab Work Orders để chọn WO khác.
+        </div>
+    }
+    else if (_view is not null)
+    {
+        <div class="rs-head">
+            <div class="rs-head-wo">
+                <span class="rs-head-label">WO</span>
+                <span class="rs-head-wo-no">@_view.WoNo</span>
+                <span class="rs-head-phase rs-phase-setting">@_view.MesPhase</span>
+            </div>
+            <div class="rs-head-timer" data-testid="setting-timer">
+                <span class="rs-timer-label">Thời gian Setting</span>
+                <span class="rs-timer-value scan-mono">@FormatTimer()</span>
+            </div>
+        </div>
+
+        @if (_setError is not null)
+        {
+            <div class="wo-card-error" data-testid="setting-set-error">
+                <strong>Không ghi được thay đổi:</strong> @_setError
+                <button type="button" class="op-btn op-btn-secondary op-btn-sm"
+                        @onclick="DismissSetError"
+                        data-testid="setting-set-error-dismiss">Bỏ qua</button>
+            </div>
+        }
+
+        <div class="rs-card">
+            <div class="rs-card-head">
+                <div class="rs-card-title">Checklist Setting</div>
+                <div class="rs-card-pill">@CheckedCount/@_checklist.Count đã xác nhận</div>
+            </div>
+            <ul class="rs-checklist" data-testid="setting-checklist">
+                @for (var i = 0; i < _checklist.Count; i++)
+                {
+                    var idx = i;
+                    var item = _checklist[idx];
+                    <li class="rs-checklist-item @(item.Checked ? "is-checked" : "")">
+                        <label>
+                            <input type="checkbox"
+                                   checked="@item.Checked"
+                                   data-testid="@($"setting-check-{idx}")"
+                                   @onchange="@(e => OnCheckToggle(idx, e))" />
+                            <span class="rs-checklist-text">@item.Label</span>
+                        </label>
+                    </li>
+                }
+            </ul>
+        </div>
+
+        <div class="rs-action-bar">
+            <button type="button"
+                    class="op-btn op-btn-primary rs-primary-btn"
+                    data-testid="setting-done-btn"
+                    disabled="@(!AllChecked || _busy)"
+                    @onclick="OnSettingDoneAsync">
+                Hoàn tất Setting (chuyển sang IPQC)
+            </button>
+            @if (!AllChecked)
+            {
+                <span class="rs-action-hint" data-testid="setting-action-hint">
+                    Tick đủ @_checklist.Count mục → nút kích hoạt.
+                </span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public long WorkOrderId { get; set; }
+
+    // Checklist source-of-truth (operator-attestation only; not server-persisted in 7c-3).
+    // Order matters — operators learn the sequence + we use index in test-ids.
+    private readonly List<ChecklistItem> _checklist = new()
+    {
+        new("Lắp khuôn / clichê đúng vị trí, siết chặt"),
+        new("Lắp dao cắt đúng kích thước, kiểm tra lưỡi"),
+        new("Mực + vật tư phù hợp đơn pha sẵn sàng"),
+        new("Đăng ký màu / căn chuẩn xong"),
+        new("Chạy thử mẫu đầu — đối chiếu với spec"),
+        new("Vệ sinh máy + an toàn lao động trước khi chạy"),
+    };
+
+    private RunningSurfaceView? _view;
+    private string? _initialError;
+    private string? _setError;
+    private bool _busy;
+    private bool _invalidPhase;
+    private long _lastLoadedWoId;
+    private Timer? _ticker;
+
+    private bool AllChecked => _checklist.All(c => c.Checked);
+    private int CheckedCount => _checklist.Count(c => c.Checked);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (WorkOrderId != _lastLoadedWoId)
+        {
+            _lastLoadedWoId = WorkOrderId;
+            _view = null;
+            _initialError = null;
+            _setError = null;
+            _invalidPhase = false;
+            // Reset checklist between WOs so a fresh tab starts clean.
+            foreach (var c in _checklist) c.Checked = false;
+            await ReloadAsync();
+            await EnterIfNeededAsync();
+            EnsureTicker();
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _view = await Api.GetRunningSurfaceViewAsync(WorkOrderId);
+            _invalidPhase = _view.MesPhase != "SETTING";
+        }
+        catch (ApiException apiEx)
+        {
+            _initialError = RunningSurfaceErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+        }
+        catch (HttpRequestException ex)
+        {
+            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _initialError = $"Lỗi tải trạng thái SETTING: {ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
+    private async Task EnterIfNeededAsync()
+    {
+        if (_view is null || _invalidPhase) return;
+        if (_view.SettingStartAt is not null) return; // already stamped
+        // Fire-and-forget-ish: capture errors into the set-error banner but
+        // don't block render. After success we refetch to surface the stamp.
+        _busy = true;
+        try
+        {
+            var resp = await Api.PostSettingEnterAsync(WorkOrderId, _view.ETag);
+            if (resp.Ok)
+            {
+                await ReloadAsync();
+            }
+            else if (!string.IsNullOrEmpty(resp.ErrorCode))
+            {
+                _setError = RunningSurfaceErrorLocaliser.LocaliseSetError(resp.ErrorCode);
+                await ReloadAsync();
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = RunningSurfaceErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void OnCheckToggle(int idx, Microsoft.AspNetCore.Components.ChangeEventArgs e)
+    {
+        if (idx < 0 || idx >= _checklist.Count) return;
+        _checklist[idx].Checked = e.Value is bool b ? b : false;
+    }
+
+    private async Task OnSettingDoneAsync()
+    {
+        if (_view is null || !AllChecked || _busy) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var resp = await Api.PostSettingDoneAsync(WorkOrderId, _view.ETag);
+            if (resp.Ok)
+            {
+                await ReloadAsync();
+                // Phase advanced to IPQC_WAIT — parent (WorkOrders.razor) re-renders
+                // and our IsSettingStep guard will fall through; nothing more to do here.
+            }
+            else if (!string.IsNullOrEmpty(resp.ErrorCode))
+            {
+                _setError = RunningSurfaceErrorLocaliser.LocaliseSetError(resp.ErrorCode);
+                await ReloadAsync();
+            }
+            else
+            {
+                _setError = "Máy chủ trả Ok=false không kèm mã lỗi — báo IT.";
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = RunningSurfaceErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void EnsureTicker()
+    {
+        _ticker?.Dispose();
+        _ticker = new Timer(1000) { AutoReset = true, Enabled = true };
+        _ticker.Elapsed += async (_, __) => await InvokeAsync(StateHasChanged);
+    }
+
+    private string FormatTimer()
+    {
+        var start = _view?.SettingStartAt;
+        if (start is null) return "00:00:00";
+        var elapsed = DateTime.UtcNow - start.Value;
+        if (elapsed.TotalSeconds < 0) elapsed = TimeSpan.Zero;
+        return $"{(int)elapsed.TotalHours:D2}:{elapsed.Minutes:D2}:{elapsed.Seconds:D2}";
+    }
+
+    private void DismissSetError() => _setError = null;
+
+    public void Dispose()
+    {
+        _ticker?.Dispose();
+        _ticker = null;
+    }
+
+    private sealed class ChecklistItem
+    {
+        public ChecklistItem(string label) { Label = label; }
+        public string Label { get; }
+        public bool Checked { get; set; }
+    }
+}

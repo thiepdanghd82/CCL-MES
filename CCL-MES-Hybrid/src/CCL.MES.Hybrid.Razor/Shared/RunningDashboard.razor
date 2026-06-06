@@ -1,0 +1,445 @@
+@*
+    P10.7c-3 — RUNNING + PAUSED + IPQC_APPROVED operator dashboard.
+
+    Hosted by WorkOrders.razor when the scanned WO is in one of the
+    running-surface phases. Owns the entire RunningSurfaceView state +
+    every API call (run/start, run/qty, run/qty/correct, run/pause,
+    run/resume, run/finish).
+
+    Phase fan-out:
+      IPQC_APPROVED  — single primary button "Bắt đầu chạy" (run/start).
+      RUNNING        — big counter (Done / NG / Target), quick-tap +100
+                       / +500 / +1000, NG tile with reason picker,
+                       "Sửa số" (correction modal), "Tạm dừng" + "Kết thúc".
+      PAUSED         — pause banner (reason + elapsed),
+                       "Tiếp tục chạy" (resume), "Sửa số" + "Kết thúc".
+
+    Concurrency / error handling:
+      - Every mutation refetches view on success (cheap; SQLite write-
+        lock serialises) so audit-touched fields surface.
+      - 409 wo.state_conflict carries fresh ETag in the response; we
+        refetch + show banner.
+      - 422 codes surface via RunningSurfaceErrorLocaliser.
+      - Optimistic counter increment NOT used in v1 — every tap awaits
+        the POST so we never show a stale total that the server hasn't
+        accepted yet. Acceptable because /run/qty is ~50 ms on the local
+        SQLite.
+
+    Rule 4: plain <button>, plain <input> in modals.
+*@
+
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.RunningSurface
+@using CCL.MES.Shared.Envelopes
+@using CCL.MES.Shared.ReasonCodes
+@using CCL.MES.Shared.RunningSurface
+@inject ICclApiClient Api
+
+<div class="rs-dashboard" data-testid="running-dashboard">
+    @if (_view is null && _initialError is null)
+    {
+        <div class="rs-loading" data-testid="running-loading">Đang tải trạng thái chạy…</div>
+    }
+    else if (_initialError is not null)
+    {
+        <div class="wo-card-error" data-testid="running-initial-error">
+            <strong>Không tải được trạng thái RUNNING:</strong> @_initialError
+        </div>
+    }
+    else if (_invalidPhase)
+    {
+        <div class="wo-card-error" data-testid="running-invalid-phase">
+            <strong>WO không ở giai đoạn chạy</strong> —
+            Hiện tại: <code>@(_view?.MesPhase ?? "?")</code>.
+            Quay lại tab Work Orders để chọn WO khác.
+        </div>
+    }
+    else if (_view is not null)
+    {
+        <div class="rs-head">
+            <div class="rs-head-wo">
+                <span class="rs-head-label">WO</span>
+                <span class="rs-head-wo-no">@_view.WoNo</span>
+                <span class="rs-head-phase @PhaseCssClass()">@_view.MesPhase</span>
+            </div>
+            @if (_view.MesPhase == "PAUSED" && _view.ActivePauseStartAt is not null)
+            {
+                <div class="rs-head-pause" data-testid="running-pause-banner">
+                    <span class="rs-pause-label">Đang tạm dừng</span>
+                    <span class="rs-pause-reason">@(_view.ActivePauseReasonCode ?? "?")</span>
+                </div>
+            }
+        </div>
+
+        @if (_setError is not null)
+        {
+            <div class="wo-card-error" data-testid="running-set-error">
+                <strong>Không ghi được thay đổi:</strong> @_setError
+                <button type="button" class="op-btn op-btn-secondary op-btn-sm"
+                        @onclick="DismissSetError"
+                        data-testid="running-set-error-dismiss">Bỏ qua</button>
+            </div>
+        }
+
+        @if (_view.MesPhase == "IPQC_APPROVED")
+        {
+            <div class="rs-card rs-card-stretch">
+                <div class="rs-card-head">
+                    <div class="rs-card-title">IPQC đã duyệt — bắt đầu chạy</div>
+                </div>
+                <div class="rs-action-bar">
+                    <button type="button"
+                            class="op-btn op-btn-primary rs-primary-btn"
+                            data-testid="run-start-btn"
+                            disabled="@_busy"
+                            @onclick="OnRunStartAsync">Bắt đầu chạy</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="rs-counter" data-testid="running-counter">
+                <div class="rs-counter-cell rs-counter-done">
+                    <div class="rs-counter-label">Done</div>
+                    <div class="rs-counter-value scan-mono" data-testid="counter-done">@_view.QtyDoneCached</div>
+                </div>
+                <div class="rs-counter-cell rs-counter-ng">
+                    <div class="rs-counter-label">NG</div>
+                    <div class="rs-counter-value scan-mono" data-testid="counter-ng">@_view.QtyNgCached</div>
+                </div>
+                <div class="rs-counter-cell rs-counter-target">
+                    <div class="rs-counter-label">Mục tiêu</div>
+                    <div class="rs-counter-value scan-mono" data-testid="counter-target">@_view.TargetQty</div>
+                </div>
+            </div>
+
+            <div class="rs-card">
+                <div class="rs-card-head">
+                    <div class="rs-card-title">Thêm sản lượng (Done)</div>
+                </div>
+                <div class="rs-tap-grid" data-testid="running-tap-grid">
+                    @foreach (var amt in TapAmounts)
+                    {
+                        var capturedAmt = amt;
+                        <button type="button"
+                                class="op-btn op-btn-primary rs-tap-btn"
+                                data-testid="@($"tap-done-{capturedAmt}")"
+                                disabled="@(_busy || _view.MesPhase != "RUNNING")"
+                                @onclick="() => OnTapDoneAsync(capturedAmt)">+@capturedAmt</button>
+                    }
+                </div>
+                @if (_view.MesPhase == "PAUSED")
+                {
+                    <div class="rs-tap-hint" data-testid="running-tap-paused-hint">
+                        Đang tạm dừng — bấm "Tiếp tục chạy" để mở lại nút bấm.
+                    </div>
+                }
+            </div>
+
+            <div class="rs-card">
+                <div class="rs-card-head">
+                    <div class="rs-card-title">Loại NG (Reject)</div>
+                </div>
+                <div class="rs-ng-row">
+                    <div class="rs-ng-field">
+                        <label class="rs-modal-label" for="ng-amount-input">Số lượng NG</label>
+                        <input id="ng-amount-input"
+                               type="number"
+                               class="rs-input"
+                               min="1"
+                               step="1"
+                               value="@_ngAmount"
+                               data-testid="ng-amount-input"
+                               disabled="@(_busy || _view.MesPhase != "RUNNING")"
+                               @oninput="OnNgAmountInput" />
+                    </div>
+                    <div class="rs-ng-field">
+                        <label class="rs-modal-label" for="ng-reason-select">Mã lỗi NG *</label>
+                        <select id="ng-reason-select"
+                                class="rs-input rs-select"
+                                value="@_ngReasonCode"
+                                data-testid="ng-reason-select"
+                                disabled="@(_busy || _view.MesPhase != "RUNNING" || ScrapReasons.Count == 0)"
+                                @onchange="OnNgReasonChange">
+                            <option value="">— chọn mã lỗi —</option>
+                            @foreach (var rc in ScrapReasons)
+                            {
+                                <option value="@rc.Code">@rc.Code · @rc.LabelVi</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="rs-ng-field rs-ng-field-wide">
+                        <label class="rs-modal-label" for="ng-note-input">Ghi chú * (1-500 ký tự)</label>
+                        <input id="ng-note-input"
+                               type="text"
+                               class="rs-input"
+                               maxlength="500"
+                               value="@_ngNote"
+                               data-testid="ng-note-input"
+                               disabled="@(_busy || _view.MesPhase != "RUNNING")"
+                               @oninput="OnNgNoteInput" />
+                    </div>
+                    <div class="rs-ng-field rs-ng-submit">
+                        <button type="button"
+                                class="op-btn op-btn-warning rs-ng-btn"
+                                data-testid="ng-submit-btn"
+                                disabled="@(_busy || _view.MesPhase != "RUNNING" || !IsNgValid())"
+                                @onclick="OnNgSubmitAsync">Ghi NG</button>
+                    </div>
+                </div>
+                @if (ScrapReasons.Count == 0)
+                {
+                    <div class="wo-card-error" data-testid="running-scrap-reasons-empty">
+                        <strong>Danh mục NG trống.</strong> Server chưa seed reason codes (kind=Scrap). Báo IT.
+                    </div>
+                }
+            </div>
+
+            <div class="rs-action-bar rs-action-bar-multi">
+                @if (_view.MesPhase == "RUNNING")
+                {
+                    <button type="button"
+                            class="op-btn op-btn-warning"
+                            data-testid="run-pause-btn"
+                            disabled="@_busy"
+                            @onclick="OpenPauseModal">Tạm dừng</button>
+                }
+                else if (_view.MesPhase == "PAUSED")
+                {
+                    <button type="button"
+                            class="op-btn op-btn-primary"
+                            data-testid="run-resume-btn"
+                            disabled="@_busy"
+                            @onclick="OnRunResumeAsync">Tiếp tục chạy</button>
+                }
+
+                <button type="button"
+                        class="op-btn op-btn-secondary"
+                        data-testid="run-correct-btn"
+                        disabled="@(_busy || _view.RecentEntries.Count == 0)"
+                        @onclick="OpenCorrectModal">Sửa số</button>
+
+                <button type="button"
+                        class="op-btn op-btn-danger"
+                        data-testid="run-finish-btn"
+                        disabled="@(_busy || _view.QtyDoneCached <= 0)"
+                        @onclick="OpenFinishModal">Kết thúc WO</button>
+            </div>
+        }
+
+        <WoPauseModal Open="@_pauseModalOpen"
+                      Busy="@_busy"
+                      PauseReasons="@PauseReasons"
+                      OnClose="ClosePauseModal"
+                      OnConfirm="OnPauseConfirmAsync" />
+
+        <WoQtyCorrectModal Open="@_correctModalOpen"
+                           Busy="@_busy"
+                           RecentEntries="@_view.RecentEntries"
+                           OnClose="CloseCorrectModal"
+                           OnConfirm="OnCorrectConfirmAsync" />
+
+        <WoFinishConfirm Open="@_finishModalOpen"
+                         Busy="@_busy"
+                         WoNo="@_view.WoNo"
+                         QtyDoneCached="@_view.QtyDoneCached"
+                         QtyNgCached="@_view.QtyNgCached"
+                         TargetQty="@_view.TargetQty"
+                         OnClose="CloseFinishModal"
+                         OnConfirm="OnFinishConfirmAsync" />
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public long WorkOrderId { get; set; }
+    [Parameter] public IReadOnlyList<ReasonCodeOption> ScrapReasons { get; set; } = Array.Empty<ReasonCodeOption>();
+    [Parameter] public IReadOnlyList<ReasonCodeOption> PauseReasons { get; set; } = Array.Empty<ReasonCodeOption>();
+
+    private static readonly int[] TapAmounts = new[] { 100, 500, 1000 };
+
+    private RunningSurfaceView? _view;
+    private string? _initialError;
+    private string? _setError;
+    private bool _busy;
+    private bool _invalidPhase;
+    private long _lastLoadedWoId;
+
+    private int _ngAmount = 1;
+    private string _ngReasonCode = "";
+    private string _ngNote = "";
+
+    private bool _pauseModalOpen;
+    private bool _correctModalOpen;
+    private bool _finishModalOpen;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (WorkOrderId != _lastLoadedWoId)
+        {
+            _lastLoadedWoId = WorkOrderId;
+            _view = null;
+            _initialError = null;
+            _setError = null;
+            _invalidPhase = false;
+            await ReloadAsync();
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _view = await Api.GetRunningSurfaceViewAsync(WorkOrderId);
+            _invalidPhase = !IsValidRunningPhase(_view.MesPhase);
+        }
+        catch (ApiException apiEx)
+        {
+            _initialError = RunningSurfaceErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+        }
+        catch (HttpRequestException ex)
+        {
+            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _initialError = $"Lỗi tải trạng thái: {ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
+    private static bool IsValidRunningPhase(string phase) =>
+        phase == "IPQC_APPROVED" || phase == "RUNNING" || phase == "PAUSED";
+
+    private string PhaseCssClass() => _view?.MesPhase switch
+    {
+        "RUNNING"        => "rs-phase-running",
+        "PAUSED"         => "rs-phase-paused",
+        "IPQC_APPROVED"  => "rs-phase-ipqc",
+        _                => "rs-phase-other",
+    };
+
+    private bool IsNgValid() =>
+        _ngAmount > 0
+        && !string.IsNullOrWhiteSpace(_ngReasonCode)
+        && ScrapReasons.Any(r => r.Code == _ngReasonCode)
+        && !string.IsNullOrWhiteSpace(_ngNote)
+        && _ngNote.Length <= 500;
+
+    private async Task GuardedPostAsync(Func<string, Task<RunningSurfaceSetResponse>> doPost,
+                                       Action? onSuccessExtra = null)
+    {
+        if (_view is null) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var ifMatch = _view.ETag;
+            var resp = await doPost(ifMatch);
+            if (resp.Ok)
+            {
+                await ReloadAsync();
+                onSuccessExtra?.Invoke();
+            }
+            else if (!string.IsNullOrEmpty(resp.ErrorCode))
+            {
+                _setError = RunningSurfaceErrorLocaliser.LocaliseSetError(resp.ErrorCode);
+                await ReloadAsync();
+            }
+            else
+            {
+                _setError = "Máy chủ trả Ok=false không kèm mã lỗi — báo IT.";
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = RunningSurfaceErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private Task OnRunStartAsync() => GuardedPostAsync(ifMatch =>
+        Api.PostRunStartAsync(WorkOrderId, ifMatch));
+
+    private Task OnTapDoneAsync(int amount) => GuardedPostAsync(ifMatch =>
+        Api.PostRunQtyAddAsync(WorkOrderId, ifMatch, new RunQtyAddRequest
+        {
+            QtyDoneDelta = amount,
+            QtyNgDelta = 0,
+        }));
+
+    private async Task OnNgSubmitAsync()
+    {
+        if (!IsNgValid()) return;
+        await GuardedPostAsync(ifMatch =>
+            Api.PostRunQtyAddAsync(WorkOrderId, ifMatch, new RunQtyAddRequest
+            {
+                QtyDoneDelta = 0,
+                QtyNgDelta = _ngAmount,
+                NgReasonCode = _ngReasonCode,
+                NgNote = _ngNote,
+            }),
+            onSuccessExtra: () =>
+            {
+                _ngAmount = 1;
+                _ngReasonCode = "";
+                _ngNote = "";
+            });
+    }
+
+    private void OpenPauseModal() => _pauseModalOpen = true;
+    private void ClosePauseModal() => _pauseModalOpen = false;
+
+    private async Task OnPauseConfirmAsync(RunPauseRequest req)
+    {
+        _pauseModalOpen = false;
+        await GuardedPostAsync(ifMatch => Api.PostRunPauseAsync(WorkOrderId, ifMatch, req));
+    }
+
+    private Task OnRunResumeAsync() => GuardedPostAsync(ifMatch =>
+        Api.PostRunResumeAsync(WorkOrderId, ifMatch));
+
+    private void OpenCorrectModal() => _correctModalOpen = true;
+    private void CloseCorrectModal() => _correctModalOpen = false;
+
+    private async Task OnCorrectConfirmAsync(RunQtyCorrectRequest req)
+    {
+        _correctModalOpen = false;
+        await GuardedPostAsync(ifMatch => Api.PostRunQtyCorrectAsync(WorkOrderId, ifMatch, req));
+    }
+
+    private void OpenFinishModal() => _finishModalOpen = true;
+    private void CloseFinishModal() => _finishModalOpen = false;
+
+    private async Task OnFinishConfirmAsync()
+    {
+        _finishModalOpen = false;
+        await GuardedPostAsync(ifMatch => Api.PostRunFinishAsync(WorkOrderId, ifMatch));
+    }
+
+    private void OnNgAmountInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+    {
+        var s = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(s)) { _ngAmount = 0; return; }
+        if (int.TryParse(s, out var n) && n >= 0) _ngAmount = n;
+    }
+
+    private void OnNgReasonChange(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+        => _ngReasonCode = e.Value?.ToString() ?? "";
+
+    private void OnNgNoteInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+        => _ngNote = e.Value?.ToString() ?? "";
+
+    private void DismissSetError() => _setError = null;
+}

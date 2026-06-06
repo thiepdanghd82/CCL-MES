@@ -1,0 +1,172 @@
+@*
+    P10.7c-3 — Append-only qty correction dialog (Q5).
+
+    Operator picks one prior entry from the recent-entries list, types a
+    signed Done / Ng delta (can be negative), and a free-text correction
+    reason (required, ≤ 500 chars). Server creates a NEW append-only
+    entry linked to the source via LinkedEntryId so audit history stays
+    intact.
+
+    Rule 4: plain <select> + <input>, NO <InputText>.
+*@
+
+@using CCL.MES.Shared.RunningSurface
+
+<Modal Open="@Open"
+       OnClose="@OnClose"
+       Size="ModalSize.Md"
+       Severity="ModalSeverity.Warning"
+       ClickOutsideToClose="false">
+    <Header>Sửa số lượng — Q5 (append-only)</Header>
+    <Body>
+        <div class="rs-modal-body" data-testid="qty-correct-modal">
+            @if (RecentEntries.Count == 0)
+            {
+                <div class="wo-card-error" data-testid="qty-correct-empty">
+                    <strong>Chưa có bản ghi sản lượng nào để sửa.</strong>
+                    Nhập số bằng nút +100 / +500 / +1000 trước khi mở chức năng Sửa số.
+                </div>
+            }
+            else
+            {
+                <div class="rs-modal-field">
+                    <label class="rs-modal-label" for="qty-correct-entry-select">Bản ghi gốc *</label>
+                    <select id="qty-correct-entry-select"
+                            class="rs-input rs-select"
+                            value="@_linkedEntryId"
+                            data-testid="qty-correct-entry-select"
+                            disabled="@Busy"
+                            @onchange="OnEntryChange">
+                        <option value="0">— chọn bản ghi —</option>
+                        @foreach (var e in RecentEntries)
+                        {
+                            <option value="@e.EntryId">@FormatEntry(e)</option>
+                        }
+                    </select>
+                </div>
+                <div class="rs-modal-row">
+                    <div class="rs-modal-field">
+                        <label class="rs-modal-label" for="qty-correct-done-input">Sửa Done (Δ, có thể âm)</label>
+                        <input id="qty-correct-done-input"
+                               type="number"
+                               class="rs-input"
+                               step="1"
+                               value="@_doneDelta"
+                               data-testid="qty-correct-done-input"
+                               disabled="@Busy"
+                               @oninput="OnDoneInput" />
+                    </div>
+                    <div class="rs-modal-field">
+                        <label class="rs-modal-label" for="qty-correct-ng-input">Sửa NG (Δ, có thể âm)</label>
+                        <input id="qty-correct-ng-input"
+                               type="number"
+                               class="rs-input"
+                               step="1"
+                               value="@_ngDelta"
+                               data-testid="qty-correct-ng-input"
+                               disabled="@Busy"
+                               @oninput="OnNgInput" />
+                    </div>
+                </div>
+                <div class="rs-modal-field">
+                    <label class="rs-modal-label" for="qty-correct-reason-input">Lý do sửa * (1-500 ký tự)</label>
+                    <input id="qty-correct-reason-input"
+                           type="text"
+                           class="rs-input"
+                           maxlength="500"
+                           value="@_reason"
+                           data-testid="qty-correct-reason-input"
+                           disabled="@Busy"
+                           @oninput="OnReasonInput" />
+                </div>
+            }
+        </div>
+    </Body>
+    <Footer>
+        <button type="button"
+                class="op-btn op-btn-secondary"
+                data-testid="qty-correct-cancel-btn"
+                disabled="@Busy"
+                @onclick="OnClose">Huỷ</button>
+        <button type="button"
+                class="op-btn op-btn-primary"
+                data-testid="qty-correct-confirm-btn"
+                disabled="@(!IsValid || Busy)"
+                @onclick="OnConfirmClicked">Lưu sửa</button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public IReadOnlyList<RunningQtyEntryRow> RecentEntries { get; set; } = Array.Empty<RunningQtyEntryRow>();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<RunQtyCorrectRequest> OnConfirm { get; set; }
+
+    private long _linkedEntryId;
+    private int _doneDelta;
+    private int _ngDelta;
+    private string _reason = "";
+
+    private bool IsValid =>
+        _linkedEntryId > 0
+        && RecentEntries.Any(e => e.EntryId == _linkedEntryId)
+        && (_doneDelta != 0 || _ngDelta != 0)
+        && !string.IsNullOrWhiteSpace(_reason)
+        && _reason.Length <= 500;
+
+    protected override void OnParametersSet()
+    {
+        if (!Open)
+        {
+            _linkedEntryId = 0;
+            _doneDelta = 0;
+            _ngDelta = 0;
+            _reason = "";
+        }
+    }
+
+    private void OnEntryChange(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+    {
+        var v = e.Value?.ToString() ?? "0";
+        _ = long.TryParse(v, out _linkedEntryId);
+    }
+
+    private void OnDoneInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+    {
+        var v = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(v)) { _doneDelta = 0; return; }
+        _ = int.TryParse(v, out _doneDelta);
+    }
+
+    private void OnNgInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+    {
+        var v = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(v)) { _ngDelta = 0; return; }
+        _ = int.TryParse(v, out _ngDelta);
+    }
+
+    private void OnReasonInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+        => _reason = e.Value?.ToString() ?? "";
+
+    private async Task OnConfirmClicked()
+    {
+        if (!IsValid) return;
+        await OnConfirm.InvokeAsync(new RunQtyCorrectRequest
+        {
+            LinkedEntryId = _linkedEntryId,
+            QtyDoneDelta = _doneDelta,
+            QtyNgDelta = _ngDelta,
+            CorrectionReason = _reason,
+        });
+    }
+
+    private static string FormatEntry(RunningQtyEntryRow e)
+    {
+        var kind = e.LinkedEntryId is null ? "Add" : "Corr";
+        var ts = e.CreatedAt.ToLocalTime().ToString("HH:mm:ss");
+        var done = e.QtyDoneDelta >= 0 ? $"+{e.QtyDoneDelta}" : e.QtyDoneDelta.ToString();
+        var ng = e.QtyNgDelta >= 0 ? $"+{e.QtyNgDelta}" : e.QtyNgDelta.ToString();
+        return $"#{e.EntryId} · {ts} · {kind} done={done} ng={ng}";
+    }
+}
