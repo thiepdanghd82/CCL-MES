@@ -59,6 +59,8 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<WoRunSession> WoRunSessions => Set<WoRunSession>();
     public DbSet<WoPauseEvent> WoPauseEvents => Set<WoPauseEvent>();
     public DbSet<WoQtyEntry> WoQtyEntries => Set<WoQtyEntry>();
+    // P10.7d-1 — IPQC review surface (per contract §5.5).
+    public DbSet<WoIpqcCheck> WoIpqcChecks => Set<WoIpqcCheck>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -129,6 +131,13 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<WoCutterCheck>().Property(x => x.NgReasonCode).HasMaxLength(40);
         b.Entity<WoCutterCheck>().Property(x => x.NgNote).HasMaxLength(500);
         b.Entity<WoCutterCheck>().Property(x => x.CheckedBy).HasMaxLength(80);
+        // P10.7d-1 — IPQC review surface (contract §5.5 + §5.5.1).
+        b.Entity<WoIpqcCheck>().Property(x => x.MaterialStatus).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoIpqcCheck>().Property(x => x.PrintAStatus).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoIpqcCheck>().Property(x => x.PrintBStatus).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoIpqcCheck>().Property(x => x.PrintCStatus).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoIpqcCheck>().Property(x => x.Judgment).HasConversion<string>().HasMaxLength(20);
+        b.Entity<WoIpqcCheck>().Property(x => x.QaOutcome).HasConversion<string>().HasMaxLength(16);
         b.Entity<Machine>().Property(x => x.CurrentState).HasConversion<string>();
         b.Entity<ProductionLog>().Property(x => x.EventType).HasConversion<string>();
         b.Entity<WorkInstruction>().Property(x => x.Status).HasConversion<string>();
@@ -152,6 +161,9 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<WoQtyEntry>().HasIndex(x => new { x.WoId, x.Ts });
         b.Entity<WoQtyEntry>().HasIndex(x => x.RunSessionId);
         b.Entity<WoQtyEntry>().HasIndex(x => x.LinkedEntryId);
+
+        // P10.7d-1 — IPQC review surface 1:1 uniqueness (contract §5.5).
+        b.Entity<WoIpqcCheck>().HasIndex(x => x.WorkOrderId).IsUnique();
 
         // Phase 8 PR #28 — uniqueness + lookup indexes cho new schema.
         // (ProductId + RevisionCode) unique để enforce A/B/C duy nhất per product.
