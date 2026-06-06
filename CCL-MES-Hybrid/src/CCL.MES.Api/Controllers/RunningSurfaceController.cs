@@ -66,6 +66,110 @@ public sealed class RunningSurfaceController : ControllerBase
         _audit = audit;
     }
 
+    // ── GET /running-surface ───────────────────────────────────────
+
+    /// <summary>P10.7c-3 — read view for the SETTING + RUNNING + PAUSED
+    /// dashboards. Single round-trip returns every field the operator UI
+    /// needs to render the next state (active session/pause + last 20
+    /// qty entries for the correction picker). ETag mirrors the WO's
+    /// current RowVersion so the caller can use it as <c>If-Match</c> on
+    /// the next mutation without a second hop.</summary>
+    [HttpGet("{id:long}/running-surface")]
+    public async Task<IActionResult> GetRunningSurface(long id, CancellationToken ct = default)
+    {
+        var wo = await _db.WorkOrders.AsNoTracking()
+            .FirstOrDefaultAsync(w => w.Id == id, ct);
+        if (wo is null)
+            return NotFound(ApiError.Of("wo.not_found", $"No work order with id {id}."));
+
+        var etag = Convert.ToBase64String(wo.RowVersion);
+
+        var activeSession = await _db.WoRunSessions.AsNoTracking()
+            .Where(s => s.WoId == id && s.EndedAt == null)
+            .OrderByDescending(s => s.Id)
+            .FirstOrDefaultAsync(ct);
+
+        var activePause = await _db.WoPauseEvents.AsNoTracking()
+            .Where(p => p.WoId == id && p.EndedAt == null)
+            .OrderByDescending(p => p.Id)
+            .FirstOrDefaultAsync(ct);
+
+        var recentEntries = await _db.WoQtyEntries.AsNoTracking()
+            .Where(e => e.WoId == id)
+            .OrderByDescending(e => e.Id)
+            .Take(20)
+            .Select(e => new RunningQtyEntryRow
+            {
+                EntryId = e.Id,
+                CreatedAt = e.Ts,
+                QtyDoneDelta = e.QtyDoneDelta,
+                QtyNgDelta = e.QtyNgDelta,
+                NgReasonCode = e.NgReasonCode,
+                NgNote = e.NgNote,
+                EnteredBy = e.EnteredBy,
+                LinkedEntryId = e.LinkedEntryId,
+                CorrectionReason = e.CorrectionReason,
+            })
+            .ToListAsync(ct);
+
+        var view = new RunningSurfaceView
+        {
+            WoId = wo.Id,
+            WoNo = wo.WoNo,
+            MesPhase = wo.MesPhase,
+            ETag = etag,
+            TargetQty = wo.TargetQty,
+            QtyDoneCached = wo.QtyDoneCached,
+            QtyNgCached = wo.QtyNgCached,
+            SettingStartAt = wo.SettingStartAt,
+            SettingEndAt = wo.SettingEndAt,
+            SettingDurationSec = wo.SettingDurationSec,
+            ActiveSessionId = activeSession?.Id,
+            ActiveSessionStartAt = activeSession?.StartedAt,
+            ActivePauseId = activePause?.Id,
+            ActivePauseStartAt = activePause?.StartedAt,
+            ActivePauseReasonCode = activePause?.ReasonCode,
+            ActivePauseNote = activePause?.Note,
+            RecentEntries = recentEntries,
+        };
+
+        Response.Headers.ETag = $"\"{etag}\"";
+        return Ok(view);
+    }
+
+    // ── POST /setting/enter ────────────────────────────────────────
+
+    /// <summary>P10.7c-3 — idempotent stamp of SettingStartAt. Closes
+    /// the gap that /advance landed the WO in SETTING without starting
+    /// the timer. The dashboard fires this once on first load when
+    /// MesPhase = SETTING + SettingStartAt is null; idempotent if the
+    /// stamp already exists (returns 200 + current ETag without bumping
+    /// RowVersion if no mutation actually happened — relies on the WO
+    /// touch in CommitAndAudit to bump anyway on the FIRST call only,
+    /// which is correct because the second-and-later callers see
+    /// SettingStartAt non-null + bail out of the helper.)</summary>
+    [HttpPost("{id:long}/setting/enter")]
+    public async Task<IActionResult> PostSettingEnter(
+        long id, [FromBody] SettingEnterRequest? req)
+    {
+        var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+        var pre = await PreludeAsync(id, actor, role, "setting_enter");
+        if (pre.Error is not null) return pre.Error;
+        var wo = pre.WoForUpdate!;
+
+        if (wo.MesPhase != "SETTING")
+            return Invalid("wo.invalid_phase",
+                $"setting/enter requires MesPhase = SETTING; current = {wo.MesPhase}.");
+
+        var stamped = WoSettingService.MarkSettingStart(wo, DateTime.UtcNow);
+
+        return await CommitAndAuditAsync(id, wo, actor, role,
+            AuditAction.WoSettingStart,
+            new { setting_start_stamped = stamped });
+    }
+
     // ── POST /setting/done ─────────────────────────────────────────
 
     [HttpPost("{id:long}/setting/done")]

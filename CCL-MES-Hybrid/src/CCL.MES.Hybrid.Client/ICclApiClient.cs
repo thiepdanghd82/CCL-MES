@@ -7,6 +7,7 @@ using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Prepress;
+using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
@@ -87,6 +88,58 @@ public interface ICclApiClient
     Task<PrepressSetResponse> PutPrepressCutterAsync(
         long workOrderId, string ifMatchETag,
         SetPrepressCutterRequest req, CancellationToken ct = default);
+
+    // ── Running Surface (P10.7c-3 — SETTING + RUNNING + PAUSED) ───
+    /// <summary>Read view backing the SETTING / RUNNING / PAUSED
+    /// dashboards. Single round-trip carries every field needed to
+    /// render the next state (active session/pause + last 20 qty
+    /// entries for the correction picker). Throws on 404 / 401.</summary>
+    Task<RunningSurfaceView> GetRunningSurfaceViewAsync(long workOrderId, CancellationToken ct = default);
+
+    /// <summary>Idempotent stamp of SettingStartAt. Closes the gap
+    /// that /advance landed the WO in SETTING without starting the
+    /// timer; the dashboard fires this once on first load when
+    /// MesPhase=SETTING + SettingStartAt is null.</summary>
+    Task<RunningSurfaceSetResponse> PostSettingEnterAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default);
+
+    /// <summary>Mark setting done — SETTING → IPQC_WAIT. Server stamps
+    /// EndAt = now + computes DurationSec.</summary>
+    Task<RunningSurfaceSetResponse> PostSettingDoneAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default);
+
+    /// <summary>Start a RUNNING session — IPQC_APPROVED → RUNNING.</summary>
+    Task<RunningSurfaceSetResponse> PostRunStartAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default);
+
+    /// <summary>Per-tap qty add (+done and/or +ng with reason/note).
+    /// Server validates Ng reason against ReasonCodeKind.Scrap when
+    /// QtyNgDelta &gt; 0. Use /run/qty/correct for negative.</summary>
+    Task<RunningSurfaceSetResponse> PostRunQtyAddAsync(
+        long workOrderId, string ifMatchETag,
+        RunQtyAddRequest req, CancellationToken ct = default);
+
+    /// <summary>Append-only negative-delta correction linked to a prior
+    /// entry. CorrectionReason is required (1-500 chars). Deltas can
+    /// be negative.</summary>
+    Task<RunningSurfaceSetResponse> PostRunQtyCorrectAsync(
+        long workOrderId, string ifMatchETag,
+        RunQtyCorrectRequest req, CancellationToken ct = default);
+
+    /// <summary>RUNNING → PAUSED. ReasonCode validated against
+    /// ReasonCodeKind.Pause.</summary>
+    Task<RunningSurfaceSetResponse> PostRunPauseAsync(
+        long workOrderId, string ifMatchETag,
+        RunPauseRequest req, CancellationToken ct = default);
+
+    /// <summary>PAUSED → RUNNING.</summary>
+    Task<RunningSurfaceSetResponse> PostRunResumeAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default);
+
+    /// <summary>RUNNING|PAUSED → FQC_PENDING. Closes active pause +
+    /// session. Requires QtyDoneCached &gt; 0.</summary>
+    Task<RunningSurfaceSetResponse> PostRunFinishAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default);
 
     // ── Reason codes (P10.7b-3 — operator-facing picker) ──────────
     /// <summary>List active reason codes filtered by kind ("Pause" /

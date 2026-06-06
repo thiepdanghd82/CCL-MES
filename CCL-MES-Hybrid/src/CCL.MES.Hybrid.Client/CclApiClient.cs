@@ -11,6 +11,7 @@ using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Prepress;
+using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
@@ -164,6 +165,98 @@ public sealed class CclApiClient : ICclApiClient
         => SendPrepressPutAsync(
             $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/cutter-check",
             ifMatchETag, req, ct);
+
+    // ── Running Surface (P10.7c-3) ──────────────────────────────────
+
+    public async Task<RunningSurfaceView> GetRunningSurfaceViewAsync(
+        long workOrderId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/running-surface", ct);
+        return await ReadAsAsync<RunningSurfaceView>(resp, ct);
+    }
+
+    public Task<RunningSurfaceSetResponse> PostSettingEnterAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default)
+        => SendRunningSurfacePostAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/setting/enter",
+            ifMatchETag, new SettingEnterRequest(), ct);
+
+    public Task<RunningSurfaceSetResponse> PostSettingDoneAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default)
+        => SendRunningSurfacePostAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/setting/done",
+            ifMatchETag, new SettingDoneRequest(), ct);
+
+    public Task<RunningSurfaceSetResponse> PostRunStartAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default)
+        => SendRunningSurfacePostAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/run/start",
+            ifMatchETag, new RunStartRequest(), ct);
+
+    public Task<RunningSurfaceSetResponse> PostRunQtyAddAsync(
+        long workOrderId, string ifMatchETag,
+        RunQtyAddRequest req, CancellationToken ct = default)
+        => SendRunningSurfacePostAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/run/qty",
+            ifMatchETag, req, ct);
+
+    public Task<RunningSurfaceSetResponse> PostRunQtyCorrectAsync(
+        long workOrderId, string ifMatchETag,
+        RunQtyCorrectRequest req, CancellationToken ct = default)
+        => SendRunningSurfacePostAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/run/qty/correct",
+            ifMatchETag, req, ct);
+
+    public Task<RunningSurfaceSetResponse> PostRunPauseAsync(
+        long workOrderId, string ifMatchETag,
+        RunPauseRequest req, CancellationToken ct = default)
+        => SendRunningSurfacePostAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/run/pause",
+            ifMatchETag, req, ct);
+
+    public Task<RunningSurfaceSetResponse> PostRunResumeAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default)
+        => SendRunningSurfacePostAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/run/resume",
+            ifMatchETag, new RunResumeRequest(), ct);
+
+    public Task<RunningSurfaceSetResponse> PostRunFinishAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default)
+        => SendRunningSurfacePostAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/run/finish",
+            ifMatchETag, new RunFinishRequest(), ct);
+
+    private async Task<RunningSurfaceSetResponse> SendRunningSurfacePostAsync(
+        string path, string ifMatchETag, object req, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Post, path)
+        {
+            Content = JsonContent.Create(req),
+        };
+
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+
+        if (resp.StatusCode == HttpStatusCode.OK || resp.StatusCode == HttpStatusCode.Conflict)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<RunningSurfaceSetResponse>(cancellationToken: ct);
+            return body ?? new RunningSurfaceSetResponse
+            {
+                Ok = false,
+                ErrorCode = "http.empty_body",
+            };
+        }
+
+        return await ReadAsAsync<RunningSurfaceSetResponse>(resp, ct);
+    }
 
     public async Task<IReadOnlyList<ReasonCodeOption>> GetReasonCodesAsync(
         string? kind, CancellationToken ct = default)
