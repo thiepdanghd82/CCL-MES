@@ -1,0 +1,117 @@
+@*
+    P10.7c-3 — Pause dialog for RUNNING → PAUSED.
+
+    Reuses the Modal primitive + the ReasonCodeOption picker shape from
+    7b-3's WoMaterialsList NG row (kind=Pause instead of Scrap). Note is
+    optional (server enforces 0-500 chars).
+
+    Picker discipline (Rule 4): plain <select> + <input>, NO <InputText>.
+    The parent (RunningDashboard) owns the busy flag + actually fires the
+    POST /run/pause; we just emit OnConfirm with a populated request.
+*@
+
+@using CCL.MES.Shared.ReasonCodes
+@using CCL.MES.Shared.RunningSurface
+
+<Modal Open="@Open"
+       OnClose="@OnClose"
+       Size="ModalSize.Md"
+       Severity="ModalSeverity.Warning"
+       ClickOutsideToClose="false">
+    <Header>Tạm dừng (PAUSE) — chọn lý do</Header>
+    <Body>
+        <div class="rs-modal-body" data-testid="pause-modal">
+            @if (PauseReasons.Count == 0)
+            {
+                <div class="wo-card-error" data-testid="pause-reasons-empty">
+                    <strong>Danh mục lý do PAUSE trống.</strong>
+                    Server chưa seed reason codes (kind=Pause). Báo IT.
+                </div>
+            }
+            else
+            {
+                <div class="rs-modal-field">
+                    <label class="rs-modal-label" for="pause-reason-select">Lý do tạm dừng *</label>
+                    <select id="pause-reason-select"
+                            class="rs-input rs-select"
+                            value="@_reasonCode"
+                            data-testid="pause-reason-select"
+                            disabled="@Busy"
+                            @onchange="OnReasonChange">
+                        <option value="">— chọn lý do —</option>
+                        @foreach (var rc in PauseReasons)
+                        {
+                            <option value="@rc.Code">@rc.Code · @rc.LabelVi</option>
+                        }
+                    </select>
+                </div>
+                <div class="rs-modal-field">
+                    <label class="rs-modal-label" for="pause-note-input">Ghi chú (tuỳ chọn, ≤ 500 ký tự)</label>
+                    <input id="pause-note-input"
+                           type="text"
+                           class="rs-input"
+                           maxlength="500"
+                           value="@_note"
+                           data-testid="pause-note-input"
+                           disabled="@Busy"
+                           @oninput="OnNoteInput" />
+                </div>
+            }
+        </div>
+    </Body>
+    <Footer>
+        <button type="button"
+                class="op-btn op-btn-secondary"
+                data-testid="pause-cancel-btn"
+                disabled="@Busy"
+                @onclick="OnClose">Huỷ</button>
+        <button type="button"
+                class="op-btn op-btn-warning"
+                data-testid="pause-confirm-btn"
+                disabled="@(!IsValid || Busy)"
+                @onclick="OnConfirmClicked">Tạm dừng</button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public IReadOnlyList<ReasonCodeOption> PauseReasons { get; set; } = Array.Empty<ReasonCodeOption>();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<RunPauseRequest> OnConfirm { get; set; }
+
+    private string _reasonCode = "";
+    private string _note = "";
+
+    private bool IsValid =>
+        !string.IsNullOrWhiteSpace(_reasonCode)
+        && PauseReasons.Any(r => r.Code == _reasonCode)
+        && (_note?.Length ?? 0) <= 500;
+
+    protected override void OnParametersSet()
+    {
+        // Reset draft when reopened so a previous cancel-then-reopen
+        // doesn't surface stale picks.
+        if (!Open)
+        {
+            _reasonCode = "";
+            _note = "";
+        }
+    }
+
+    private void OnReasonChange(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+        => _reasonCode = e.Value?.ToString() ?? "";
+
+    private void OnNoteInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)
+        => _note = e.Value?.ToString() ?? "";
+
+    private async Task OnConfirmClicked()
+    {
+        if (!IsValid) return;
+        await OnConfirm.InvokeAsync(new RunPauseRequest
+        {
+            ReasonCode = _reasonCode,
+            Note = string.IsNullOrWhiteSpace(_note) ? null : _note,
+        });
+    }
+}

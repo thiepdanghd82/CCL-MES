@@ -7,6 +7,7 @@
 @using CCL.MES.Shared.Devices
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.Hardware
+@using CCL.MES.Shared.ReasonCodes
 @using CCL.MES.Shared.RecentScans
 @using CCL.MES.Shared.WorkOrders
 @using Microsoft.Extensions.Logging
@@ -185,7 +186,7 @@ else
                         <div class="wo-card-error"><strong>Lỗi mạng:</strong> @_advanceError</div>
                     }
 
-                    @if (_advanceResult?.Ok != true && !IsPrepressStep(_summary.CurrentStep))
+                    @if (_advanceResult?.Ok != true && !IsPrepressStep(_summary.CurrentStep) && !IsRunningSurfaceStep(_summary.CurrentStep))
                     {
                         <button type="button" class="scan-btn wo-cta-accept"
                                 disabled="@_advancing"
@@ -205,6 +206,30 @@ else
                     <CCL.MES.Hybrid.Razor.Shared.PrepressDashboard
                         WorkOrderId="@_summary.Id"
                         OnAdvanceRequested="OnAdvance" />
+                }
+
+                @* P10.7c-3 — when the WO is in OpSetting step, render the
+                   SETTING dashboard inline. The dashboard's setting/done
+                   POST advances the WO server-side; on success the next
+                   render's _summary refresh (operator taps "Quét WO khác")
+                   will land outside this branch. *@
+                @if (IsSettingStep(_summary.CurrentStep))
+                {
+                    <CCL.MES.Hybrid.Razor.Shared.SettingDashboard
+                        WorkOrderId="@_summary.Id" />
+                }
+
+                @* P10.7c-3 — IPQC_APPROVED + RUNNING + PAUSED legacy step
+                   = ReadyToRun or Running. Render the RunningDashboard.
+                   IpqcApproval (IPQC_WAIT) shows an invalid-phase banner
+                   inside RunningDashboard — that's a known 7c-3 gap that
+                   7d will close with a dedicated IPQC review surface. *@
+                @if (IsRunningSurfaceStep(_summary.CurrentStep))
+                {
+                    <CCL.MES.Hybrid.Razor.Shared.RunningDashboard
+                        WorkOrderId="@_summary.Id"
+                        ScrapReasons="@_scrapReasons"
+                        PauseReasons="@_pauseReasons" />
                 }
             }
         }
@@ -228,6 +253,12 @@ else
     // accepts the value.
     private string _manualCode = "";
 
+    // P10.7c-3 — reason-code stores for the RunningDashboard pickers.
+    // Loaded once on init; empty list survives gracefully (each modal
+    // surfaces "danh mục trống — báo IT" inline).
+    private IReadOnlyList<ReasonCodeOption> _scrapReasons = Array.Empty<ReasonCodeOption>();
+    private IReadOnlyList<ReasonCodeOption> _pauseReasons = Array.Empty<ReasonCodeOption>();
+
     // P10.7a-1.4 — success-banner state. Captures the FROM step
     // before the advance fires so the green banner can render
     // "Đã chuyển bước: <old> → <new>". _showSuccessBanner gates
@@ -243,6 +274,17 @@ else
     {
         if (HwOptions.Value.ScanEnabled)
             await Probe();
+        await LoadReasonCodesAsync();
+    }
+
+    private async Task LoadReasonCodesAsync()
+    {
+        // P10.7c-3 — load Scrap + Pause picker vocabularies once. Errors
+        // surface as empty lists; each modal handles empty gracefully.
+        try { _scrapReasons = await Api.GetReasonCodesAsync("Scrap"); }
+        catch (Exception ex) { Log.LogWarning(ex, "[workorders] load scrap reasons failed — picker will be empty"); }
+        try { _pauseReasons = await Api.GetReasonCodesAsync("Pause"); }
+        catch (Exception ex) { Log.LogWarning(ex, "[workorders] load pause reasons failed — picker will be empty"); }
     }
 
     private async Task Probe()
@@ -550,6 +592,25 @@ else
         if (string.Equals(currentStep, "PrePressCheck", StringComparison.OrdinalIgnoreCase)) return true;
         return currentStep.Contains("PrePress", StringComparison.OrdinalIgnoreCase)
             || currentStep.Equals("PREPRESS", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // P10.7c-3 — dispatch hooks for the SETTING + RUNNING surfaces.
+    // "OpSetting" maps to MesPhase=SETTING per WorkOrderStateMachine; the
+    // SettingDashboard handles entry-stamping + checklist + setting/done.
+    // "ReadyToRun" maps to IPQC_APPROVED (run/start surface). "Running"
+    // (legacy step 5) hosts both RUNNING and PAUSED phases — the
+    // dashboard reads the canonical MesPhase via /running-surface and
+    // routes to the correct sub-UI internally.
+    private static bool IsSettingStep(string currentStep) =>
+        !string.IsNullOrEmpty(currentStep)
+        && string.Equals(currentStep, "OpSetting", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsRunningSurfaceStep(string currentStep)
+    {
+        if (string.IsNullOrEmpty(currentStep)) return false;
+        return string.Equals(currentStep, "ReadyToRun", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentStep, "Running", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(currentStep, "IpqcApproval", StringComparison.OrdinalIgnoreCase);
     }
 
     // P10.7a-1.3 — both VN mapper switches extracted into

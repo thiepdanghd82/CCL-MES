@@ -1,0 +1,50 @@
+@*
+    P10.7c-3 — Finish confirm dialog (RUNNING|PAUSED → FQC_PENDING).
+
+    No fields — just a hard confirm that surfaces the current totals so
+    the operator can sanity-check before the irreversible transition.
+*@
+
+<Modal Open="@Open"
+       OnClose="@OnClose"
+       Size="ModalSize.Sm"
+       Severity="ModalSeverity.Danger"
+       ClickOutsideToClose="false">
+    <Header>Kết thúc WO @WoNo?</Header>
+    <Body>
+        <div class="rs-modal-body" data-testid="finish-modal">
+            <p>Bạn sắp chuyển WO sang <strong>FQC_PENDING</strong>. Sản lượng đã ghi:</p>
+            <ul class="rs-finish-summary">
+                <li><span>Tổng Done</span> <strong class="scan-mono">@QtyDoneCached</strong></li>
+                <li><span>Tổng NG</span> <strong class="scan-mono">@QtyNgCached</strong></li>
+                <li><span>Mục tiêu</span> <strong class="scan-mono">@TargetQty</strong></li>
+            </ul>
+            <p class="rs-finish-warn">Sau khi kết thúc, không thể nhập thêm sản lượng vào WO này.</p>
+        </div>
+    </Body>
+    <Footer>
+        <button type="button"
+                class="op-btn op-btn-secondary"
+                data-testid="finish-cancel-btn"
+                disabled="@Busy"
+                @onclick="OnClose">Huỷ</button>
+        <button type="button"
+                class="op-btn op-btn-danger"
+                data-testid="finish-confirm-btn"
+                disabled="@Busy"
+                @onclick="OnConfirmClicked">Kết thúc WO</button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public string WoNo { get; set; } = "";
+    [Parameter] public int QtyDoneCached { get; set; }
+    [Parameter] public int QtyNgCached { get; set; }
+    [Parameter] public int TargetQty { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    private async Task OnConfirmClicked() => await OnConfirm.InvokeAsync();
+}
