@@ -272,23 +272,26 @@ public sealed class AdminWorkOrdersForcePhaseTests : IClassFixture<MesApiFactory
     }
 
     [Fact]
-    public async Task Unforceable_transition_DONE_to_PREPRESS_returns_409_unforceable_transition()
+    public async Task Unforceable_transition_DONE_to_PREPRESS_returns_422_unforceable_transition()
     {
         var client = await AdminClientAsync("adm-fp-done");
         // WO at Closed (MesPhase=DONE). DONE is a terminal source per §2.2.
+        // Per P10.7a-2.3 status-code rationale: semantic guard rejection
+        // (forbidden FOREVER by §3.1) → 422, not 409 (which is reserved
+        // for stale If-Match concurrency drift).
         var wo = await SeedWoAsync("WO-FP-DONE", ProcessStepCode.Closed, "DONE");
         var etag = await EtagOfAsync(wo.Id);
         var req = PostForce(wo.Id,
             BodyOf("PrePressCheck", "REC-OP-WEDGE", "trying to revive a DONE wo"),
             ifMatch: $"\"{etag}\"", idemKey: Guid.NewGuid().ToString());
         var resp = await client.SendAsync(req);
-        Assert.Equal(HttpStatusCode.Conflict, resp.StatusCode);
-        var body = (await resp.Content.ReadFromJsonAsync<ForcePhaseResponse>())!;
-        Assert.Equal("force.unforceable_transition", body.ErrorCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = (await resp.Content.ReadFromJsonAsync<ApiError>())!;
+        Assert.Equal("force.unforceable_transition", err.Code);
     }
 
     [Fact]
-    public async Task Unforceable_transition_SETTING_to_running_returns_409_unforceable_transition()
+    public async Task Unforceable_transition_SETTING_to_running_returns_422_unforceable_transition()
     {
         var client = await AdminClientAsync("adm-fp-skip");
         // WO at SETTING. Force-to-RUNNING skips IPQC — not in 11-cell set.
@@ -298,9 +301,37 @@ public sealed class AdminWorkOrdersForcePhaseTests : IClassFixture<MesApiFactory
             BodyOf("Running", "REC-OP-WEDGE", "skipping IPQC"),
             ifMatch: $"\"{etag}\"", idemKey: Guid.NewGuid().ToString());
         var resp = await client.SendAsync(req);
-        Assert.Equal(HttpStatusCode.Conflict, resp.StatusCode);
-        var body = (await resp.Content.ReadFromJsonAsync<ForcePhaseResponse>())!;
-        Assert.Equal("force.unforceable_transition", body.ErrorCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = (await resp.Content.ReadFromJsonAsync<ApiError>())!;
+        Assert.Equal("force.unforceable_transition", err.Code);
+    }
+
+    // ── 409 sentinel: ONLY stale If-Match returns 409 ──────────────
+    // Locks the rationale into the test belt — if a future PR
+    // overloads 409 with another guard, this assertion + the matching
+    // 422 fixtures above triangulate the regression instantly.
+
+    [Fact]
+    public async Task Only_stale_ifmatch_returns_409_unforceable_returns_422()
+    {
+        var client = await AdminClientAsync("adm-fp-409-sentinel");
+        var wo = await SeedWoAsync("WO-FP-409SENT", ProcessStepCode.Closed, "DONE");
+        var etag = await EtagOfAsync(wo.Id);
+
+        // Path A — unforceable_transition + valid If-Match → 422 (NOT 409).
+        var a = await client.SendAsync(PostForce(wo.Id,
+            BodyOf("PrePressCheck", "REC-OP-WEDGE", "guard rejection"),
+            ifMatch: $"\"{etag}\"", idemKey: Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, a.StatusCode);
+
+        // Path B — stale If-Match → 409 (the reserved concurrency code).
+        var stale = Convert.ToBase64String(new byte[] { 9, 9, 9, 9, 9, 9, 9, 9 });
+        var b = await client.SendAsync(PostForce(wo.Id,
+            BodyOf("Closed", "REC-OP-WEDGE", "stale + would-be-forceable target"),
+            ifMatch: $"\"{stale}\"", idemKey: Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.Conflict, b.StatusCode);
+        var bBody = (await b.Content.ReadFromJsonAsync<ForcePhaseResponse>())!;
+        Assert.Equal("wo.state_conflict", bBody.ErrorCode);
     }
 
     // ── Happy: SETTING → PREPRESS (the §8.1 archetype) ──────────────
@@ -430,6 +461,46 @@ public sealed class AdminWorkOrdersForcePhaseTests : IClassFixture<MesApiFactory
         // "test green, wire shape changed" trap.
         Assert.Contains("\\\"from_phase\\\":\\\"SETTING\\\"", body);
         Assert.Contains("\\\"to_phase\\\":\\\"PREPRESS\\\"", body);
+    }
+
+    // ── Concurrency soak — mirror 7a-1.4 N=10 pattern (force-phase ────
+    //    soak is smaller because admin recovery is rare; 10 parallel
+    //    admin calls is the worst credible scenario — two ops opening
+    //    the same wedged-WO drawer + both forcing simultaneously).
+
+    [Fact]
+    [Trait("Category", "Soak")]
+    public async Task Concurrent_force_phase_N_equals_10_yields_one_winner_and_nine_state_conflicts()
+    {
+        var client = await AdminClientAsync("adm-fp-soak");
+        var wo = await SeedWoAsync("WO-FP-SOAK", ProcessStepCode.OpSetting, "SETTING");
+        var startEtag = await EtagOfAsync(wo.Id);
+
+        const int N = 10;
+        var tasks = Enumerable.Range(0, N).Select(_ =>
+            client.SendAsync(PostForce(wo.Id,
+                BodyOf("PrePressCheck", "REC-OP-WEDGE", "soak"),
+                ifMatch: $"\"{startEtag}\"", idemKey: Guid.NewGuid().ToString())));
+        var responses = await Task.WhenAll(tasks);
+
+        var oks = responses.Count(r => r.StatusCode == HttpStatusCode.OK);
+        var conflicts = responses.Count(r => r.StatusCode == HttpStatusCode.Conflict);
+        Assert.Equal(1, oks);
+        Assert.Equal(N - 1, conflicts);
+
+        // Each of the N-1 conflicts must have emitted a WO_STATE_CONFLICT
+        // audit row (matches /advance soak from 7a-1.4).
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var conflictAudits = await db.AuditLogs
+            .CountAsync(a => a.Action == "WO_STATE_CONFLICT" && a.TargetId == wo.Id.ToString());
+        Assert.True(conflictAudits >= N - 1,
+            $"Expected ≥{N - 1} WO_STATE_CONFLICT audit rows, got {conflictAudits}");
+
+        // Exactly one SYS_RECOVERY row (the winner).
+        var sysRecovery = await db.AuditLogs
+            .CountAsync(a => a.Action == "SYS_RECOVERY" && a.TargetId == wo.Id.ToString());
+        Assert.Equal(1, sysRecovery);
     }
 
     // ── Idempotency replay (matches /advance) ───────────────────────

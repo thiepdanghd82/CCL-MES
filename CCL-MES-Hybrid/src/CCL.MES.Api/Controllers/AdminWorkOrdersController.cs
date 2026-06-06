@@ -164,17 +164,20 @@ public sealed class AdminWorkOrdersController : ControllerBase
                 $"WO already at MesPhase={fromPhase}. Force-phase requires a transition target."));
         }
 
-        // 7. IsForceablePhase guard (Q1 / §3.1 — 409 if not in 11-cell recovery-only set).
+        // 7. IsForceablePhase guard (Q1 / §3.1 — 422 if not in 11-cell recovery-only set).
+        // Per P10.7a-2.3 status-code rationale: unforceable transitions are a
+        // SEMANTIC rejection (the (from, to) pair is forbidden FOREVER by
+        // §3.1's grid) NOT a transient concurrency drift. 409 is reserved
+        // for stale If-Match (admin can refetch + retry); 422 means the
+        // request inputs are wrong (admin must pick a different targetStep
+        // or accept the current state). Keeps 409 unambiguous = "refetch
+        // ETag and retry" so retry logic doesn't get confused with a
+        // domain-rule rejection that retrying would never satisfy.
         if (!WorkOrderStateMachine.IsForceablePhase(fromPhase, toPhase))
         {
-            Response.Headers.ETag = $"\"{serverEtagRaw}\"";
-            return Conflict(new ForcePhaseResponse
-            {
-                Ok = false,
-                CurrentStep = existing.CurrentStep.ToString(),
-                ErrorCode = "force.unforceable_transition",
-                ETag = serverEtagRaw,
-            });
+            return UnprocessableEntity(ApiError.Of("force.unforceable_transition",
+                $"Force-phase from {fromPhase} to {toPhase} is not a recovery-only cell per §3.1. " +
+                "Allowed cells: SETTING→PREPRESS + every non-terminal source → CANCELLED."));
         }
 
         // 8. Mutation in a single transaction: update WO MesPhase + CurrentStep,

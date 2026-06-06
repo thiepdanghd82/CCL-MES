@@ -33,11 +33,13 @@ for arg in "$@"; do
 done
 
 # Scope: every .cs file that touches WO state mutation. Today the
-# legacy WorkOrderService + the Hybrid Api WorkOrdersController are
-# the only writers; the grep walks both.
+# writers are: legacy WorkOrderService + the Hybrid Api
+# WorkOrdersController (advance) + AdminWorkOrdersController (P10.7a-2.2
+# force-phase). Every new mutation entry-point lands here.
 SCAN_PATHS=(
     "$REPO_ROOT/src/CCL.MES.Application/Services/WorkOrderService.cs"
     "$HYBRID_ROOT/src/CCL.MES.Api/Controllers/WorkOrdersController.cs"
+    "$HYBRID_ROOT/src/CCL.MES.Api/Controllers/AdminWorkOrdersController.cs"
 )
 
 EMIT_RE='_audit\.EmitAsync|AuditEmitHelper\.EmitMesAsync|audit\.EmitAsync'
