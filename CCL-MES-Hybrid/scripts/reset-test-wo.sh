@@ -77,6 +77,13 @@ if [[ ! -f "$DB_PATH" ]]; then
     exit 1
 fi
 
+# Rule 7 — every script that touches a DB prints [ctx] DB=<abs-path>
+# so the operator never has to wonder which DB is in play.
+DB_ABS="$(cd "$(dirname "$DB_PATH")" 2>/dev/null && pwd)/$(basename "$DB_PATH")"
+DB_SHA8="$(shasum -a 256 "$DB_PATH" 2>/dev/null | awk '{print substr($1,1,8)}')"
+echo "[ctx] DB         = $DB_ABS"
+echo "[ctx] DB sha8    = $DB_SHA8"
+
 # Map legacy ProcessStepCode → canonical MesPhase (mirrors the
 # migration backfill SQL; this is the authoritative table). NB: PAUSED
 # / NEW are not test-targetable since they don't appear in legacy enum

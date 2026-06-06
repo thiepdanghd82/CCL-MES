@@ -393,6 +393,45 @@ public sealed class AdminWorkOrdersForcePhaseTests : IClassFixture<MesApiFactory
         Assert.NotNull(preExistingHistoryRow);
     }
 
+    // ── Wire-level audit visibility (closes the "test green, runtime broken" gap
+    //    surfaced by Henry's first checkpoint run — DbContext-only assertions
+    //    pass even when the /audit/log endpoint route is wrong or its filter
+    //    drops the row. This fixture exercises the same wire path the
+    //    checkpoint script uses).
+
+    [Fact]
+    public async Task Sys_recovery_audit_row_visible_via_wire_audit_log_endpoint()
+    {
+        var client = await AdminClientAsync("adm-fp-wire-audit");
+        var wo = await SeedWoAsync("WO-FP-WIRE", ProcessStepCode.OpSetting, "SETTING");
+        var preEtag = await EtagOfAsync(wo.Id);
+
+        var force = await client.SendAsync(PostForce(wo.Id,
+            BodyOf("PrePressCheck", "REC-OP-WEDGE", "wire-visibility test"),
+            ifMatch: $"\"{preEtag}\"", idemKey: Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.OK, force.StatusCode);
+
+        // Hit the SAME endpoint + filter shape that checkpoint-7a-2.sh uses.
+        // Route: /api/v2/audit/log (NOT /api/v2/admin/audit/log — that path
+        // is 404 and would silently mute every wire-level assertion).
+        // Filter: action=SYS_RECOVERY (the endpoint does NOT accept
+        // targetType/targetId; we filter by action + grep the response body
+        // for this WO's targetId).
+        var auditResp = await client.GetAsync($"/api/v2/audit/log?action=SYS_RECOVERY&page=1&pageSize=50");
+        Assert.Equal(HttpStatusCode.OK, auditResp.StatusCode);
+
+        var body = await auditResp.Content.ReadAsStringAsync();
+        Assert.Contains($"\"targetId\":\"{wo.Id}\"", body);
+        Assert.Contains("REC-OP-WEDGE", body);
+        // The detail field is a JSON STRING containing JSON — the outer
+        // serialiser escapes the inner double-quotes. So the substring on
+        // the wire is \"from_phase\":\"SETTING\" (literal backslash + quote
+        // in the response body). Match the escaped form to avoid the
+        // "test green, wire shape changed" trap.
+        Assert.Contains("\\\"from_phase\\\":\\\"SETTING\\\"", body);
+        Assert.Contains("\\\"to_phase\\\":\\\"PREPRESS\\\"", body);
+    }
+
     // ── Idempotency replay (matches /advance) ───────────────────────
 
     [Fact]

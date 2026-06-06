@@ -169,6 +169,72 @@ COL_BEFORE=$(sqlite3 "$TEST_DB" "PRAGMA table_info(WorkOrders);" | grep -c "MesP
 
 ---
 
+## Rule 7 — Operator scripts MUST print [ctx] DB at startup AND self-manage their server lifecycle AND every wire-path probe MUST be covered by an integration test that hits the same endpoint
+
+Two failure modes from the P10.7a-2.2 Catalyst checkpoint (2026-06-06) showed up together:
+
+1. **DB drift** — the verify keep-alive server and the checkpoint script targeted different SQLite files. The reset wrote to `data/ccl_mes.db`; the keep-alive boot in another terminal had picked a different `ConnectionStrings__Default`. Result: SQLite Error 14 ("unable to open database file") OR the wrong DB looked "unchanged" to the script.
+2. **Test-green / runtime-broken** — the force-phase endpoint genuinely persisted the SYS_RECOVERY audit row (confirmed by `sqlite3 SELECT *` against the live DB after the run). 15 unit tests asserted the row via DbContext + passed. BUT the checkpoint script queried the wrong wire URL (`/api/v2/admin/audit/log` — 404 — vs. the real route `/api/v2/audit/log`) AND the wrong query params (`?targetType=&targetId=` are silently ignored — the endpoint accepts `?search=&action=&actor=`). Both bugs were invisible to the in-process xUnit tests because they exercised `db.AuditLogs.Where(...)` directly.
+
+### Three sub-rules
+
+**Rule 7.1 — every script that touches a DB MUST print `[ctx] DB=<abs-path>` + `DB sha8=...` in its first 10 lines of output.**
+
+```bash
+DB_ABS="$(cd "$(dirname "$DB_PATH")" && pwd)/$(basename "$DB_PATH")"
+DB_SHA8="$(shasum -a 256 "$DB_PATH" | awk '{print substr($1,1,8)}')"
+echo "[ctx] DB      = $DB_ABS"
+echo "[ctx] DB sha8 = $DB_SHA8"
+```
+
+Operator can eyeball drift instantly: two scripts that print different `DB sha8` values are NOT touching the same DB.
+
+**Rule 7.2 — every `checkpoint-*` script MUST self-manage the API it talks to.**
+
+```bash
+# probe → if up, reuse; else auto-boot pinned to OUR DB; trap EXIT to kill
+trap cleanup EXIT INT TERM
+if curl -s -m 3 -o /dev/null -w "%{http_code}" "$API_BASE/health" | grep -qE "^(200|401|503)$"; then
+    echo "[boot] API_BASE responding — reusing"
+else
+    (cd "$REPO/path/to/api" && \
+        ConnectionStrings__Default="Data Source=$DB_PATH" \
+        ASPNETCORE_URLS="http://127.0.0.1:5100" \
+        dotnet run --no-build --no-launch-profile > /tmp/checkpoint-api.log 2>&1) &
+    AUTO_BOOT_PID=$!
+    # wait for /health to respond, then proceed
+fi
+```
+
+Operator runs **one** command. The script either reuses a live server OR boots its own server on the same DB it's mutating. No coordination across terminals.
+
+**Rule 7.3 — every wire-path probe in a script MUST be backed by an integration test that hits the SAME endpoint with the SAME query params.**
+
+DbContext-only tests look like wire coverage but aren't — they miss URL drift, query-param renames, controller routing changes, response shape regressions. After this incident, the checkpoint script's `GET /api/v2/audit/log?action=SYS_RECOVERY` is mirrored by `AdminWorkOrdersForcePhaseTests.Sys_recovery_audit_row_visible_via_wire_audit_log_endpoint` — the test calls the same URL via TestServer + asserts the same substring shape.
+
+```csharp
+var auditResp = await client.GetAsync($"/api/v2/audit/log?action=SYS_RECOVERY&page=1&pageSize=50");
+Assert.Equal(HttpStatusCode.OK, auditResp.StatusCode);
+var body = await auditResp.Content.ReadAsStringAsync();
+Assert.Contains($"\"targetId\":\"{wo.Id}\"", body);
+Assert.Contains("REC-OP-WEDGE", body);
+```
+
+Every new operator-facing wire probe must land with its mirror integration test in the same PR.
+
+### How to apply
+
+When you ship a `checkpoint-*` script:
+1. First 10 lines print `[ctx] DB=` + `DB sha8`.
+2. Script auto-boots its own API (or detects + reuses) — operator never has to start a parallel server.
+3. Every URL the script hits has a matching xUnit fixture that exercises the same URL via TestServer.
+
+When you ship a script that mutates a DB (`reset-*`, `seed-*`, `make-stale*`):
+1. Prints `[ctx] DB=` + `DB sha8` at startup.
+2. Bails with a clear error if the DB doesn't exist (already implemented in current scripts).
+
+---
+
 ## Quick reference — full stacked-PR merge protocol
 
 ```bash

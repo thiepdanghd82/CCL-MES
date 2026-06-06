@@ -49,12 +49,18 @@ PASS=0
 FAIL=0
 SUMMARY=()
 
+DB_PATH="$REPO_ROOT/data/ccl_mes.db"
+DB_SHA8="(missing)"
+[[ -f "$DB_PATH" ]] && DB_SHA8="$(shasum -a 256 "$DB_PATH" 2>/dev/null | awk '{print substr($1,1,8)}')"
+
 echo "===================================================================="
-echo "P10.7a-2.1 verify (skeleton) — $(date '+%Y-%m-%d %H:%M:%S')"
+echo "P10.7a-2 verify — $(date '+%Y-%m-%d %H:%M:%S')"
 echo "===================================================================="
 echo "[ctx]  repo     = $REPO_ROOT"
 echo "[ctx]  branch   = $(cd "$REPO_ROOT" && git branch --show-current)"
 echo "[ctx]  HEAD     = $(cd "$REPO_ROOT" && git rev-parse --short HEAD)"
+echo "[ctx]  DB       = $DB_PATH"
+echo "[ctx]  DB sha8  = $DB_SHA8"
 echo ""
 
 record() {
