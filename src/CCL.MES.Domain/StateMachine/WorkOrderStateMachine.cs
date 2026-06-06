@@ -223,6 +223,12 @@ public static class WorkOrderStateMachine
 
             // PAUSED
             (MesPhase.PAUSED, MesPhase.RUNNING) => MesTransitionKind.Allowed,
+            // P10.7c-1 amendment Q6 — Finish from PAUSED. Controller
+            // stamps active WoPauseEvent.EndedAt = now BEFORE the
+            // transition so OEE math (`availability = run / (run +
+            // pause)`) stays consistent. Same `ProducedQty > 0` guard
+            // as RUNNING → FQC_PENDING (matches contract §3.2).
+            (MesPhase.PAUSED, MesPhase.FQC_PENDING) => MesTransitionKind.RequiresCondition,
 
             // FQC_PENDING
             (MesPhase.FQC_PENDING, MesPhase.OQC_PENDING) => MesTransitionKind.RequiresSignoff,
