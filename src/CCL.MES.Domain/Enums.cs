@@ -69,3 +69,27 @@ public enum ReasonCodeKind { Pause, Scrap, Recovery }
 /// row; OK = operator confirmed; NG = operator flagged a defect + a
 /// <see cref="ReasonCodeKind.Scrap"/> code is required on the row.</summary>
 public enum PrepressCheckStatus { Pending, Ok, Ng }
+
+/// <summary>P10.7d-1 — status of a single IPQC check slot
+/// (Material / PrintA / PrintB / PrintC). Identical shape to
+/// <see cref="PrepressCheckStatus"/> but kept as a distinct type
+/// so an IPQC entity field can't accidentally be compared against a
+/// PREPRESS enum value (compile-time guard for the L19-style
+/// cross-surface drift). PENDING = QC hasn't touched the slot;
+/// OK = QC confirmed pass; NG = QC flagged a defect + a
+/// <see cref="ReasonCodeKind.Scrap"/> code is required.</summary>
+public enum IpqcCheckStatus { Pending, Ok, Ng }
+
+/// <summary>P10.7d-1 — IPQC judgment outcome per SpecHub §3 (3-button
+/// pattern). Pending = QC hasn't submitted the judgment yet (rollup
+/// helper gates on this). GoRun → MesPhase IPQC_APPROVED. StopLine →
+/// reset to PREPRESS. SpecialAccept → MesPhase QA_PENDING; requires
+/// a free-text reason that the QA approver reviews.</summary>
+public enum IpqcJudgment { Pending, GoRun, StopLine, SpecialAccept }
+
+/// <summary>P10.7d-1 — QA approver outcome on a SPECIAL_ACCEPT
+/// escalation. Pending = QA hasn't acted yet. Approve → MesPhase
+/// IPQC_APPROVED + dual-sig guard enforced (QA approver ≠ IPQC
+/// submitter unless `OPS_IPQC_REQUIRE_DISTINCT_QA_APPROVER=false`).
+/// Reject → reset to PREPRESS, mirrors IPQC StopLine.</summary>
+public enum QaOutcome { Pending, Approve, Reject }

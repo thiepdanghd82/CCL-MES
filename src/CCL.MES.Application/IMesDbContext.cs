@@ -57,6 +57,8 @@ public interface IMesDbContext
     DbSet<WoRunSession> WoRunSessions { get; }
     DbSet<WoPauseEvent> WoPauseEvents { get; }
     DbSet<WoQtyEntry> WoQtyEntries { get; }
+    // P10.7d-1 — IPQC review surface (per contract §5.5).
+    DbSet<WoIpqcCheck> WoIpqcChecks { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

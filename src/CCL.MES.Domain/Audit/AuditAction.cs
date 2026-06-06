@@ -251,4 +251,34 @@ public static class AuditAction
     /// client_version: base64, server_version: base64, actor_id }.
     /// Emitted by every mutation endpoint when If-Match check fails.</summary>
     public const string WoStateConflict       = "WO_STATE_CONFLICT";
+
+    // ── P10.7d-1 — IPQC review surface (per §5.6 contract amendment) ─
+
+    /// <summary>P10.7d-1 — per-slot IPQC check write. detail JSON:
+    /// { wo_id, slot: "Material"|"PrintA"|"PrintB"|"PrintC",
+    /// status: "Ok"|"Ng", ng_reason_code?, ng_note? }. Q7 lock: one
+    /// audit row per slot mutation so forensic replay can reconstruct
+    /// the exact sequence (vs lump-sum "all 4 checks set" row).</summary>
+    public const string WoIpqcCheck           = "WO_IPQC_CHECK";
+
+    /// <summary>P10.7d-1 — IPQC judgment write (3-button per SpecHub
+    /// §3 line 138). detail JSON: { wo_id, outcome:
+    /// "GoRun"|"StopLine"|"SpecialAccept", special_accept_reason? }.</summary>
+    public const string WoIpqcJudgment        = "WO_IPQC_JUDGMENT";
+
+    /// <summary>P10.7d-1 — QA approver action on a SPECIAL_ACCEPT
+    /// escalation (success path). detail JSON: { wo_id, outcome:
+    /// "Approve"|"Reject", qa_reason?, ipqc_submitted_by,
+    /// qa_approved_by, flag_state: "on"|"off" }. flag_state captures
+    /// whether dual-sig was enforced for this approval — forensic
+    /// replay needs to know which approvals predate enforcement.</summary>
+    public const string WoQaApprove           = "WO_QA_APPROVE";
+
+    /// <summary>P10.7d-1 — QA approve attempt rejected by the dual-sig
+    /// guard (Q3 critical). detail JSON: { wo_id, reason:
+    /// "same_user_as_ipqc_submitter", attempted_by,
+    /// ipqc_submitted_by }. Emitted INSTEAD of WO_QA_APPROVE on
+    /// violation so audit log shows the attempt without false-positive
+    /// approve tracking.</summary>
+    public const string WoQaApproveDenied     = "WO_QA_APPROVE_DENIED";
 }
