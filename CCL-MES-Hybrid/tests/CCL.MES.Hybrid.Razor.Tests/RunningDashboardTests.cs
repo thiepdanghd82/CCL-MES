@@ -421,6 +421,32 @@ public sealed class RunningDashboardTests : TestContext
 
     // ── 409 conflict ───────────────────────────────────────────────
 
+    // ── IPQC_WAIT informational branch ─────────────────────────────
+    // Wire-mirror: GET /running-surface returns MesPhase="IPQC_WAIT"
+    // on a WO post-/setting/done.
+
+    [Fact]
+    public void IPQC_WAIT_phase_renders_read_only_info_card_not_error()
+    {
+        var cut = Render(this, View(phase: "IPQC_WAIT",
+            qtyDone: 0, qtyNg: 0, activeSessionId: null,
+            entries: Array.Empty<RunningQtyEntryRow>()));
+
+        cut.WaitForAssertion(() =>
+        {
+            // Informational read-only card MUST render.
+            Assert.NotNull(cut.Find("[data-testid='running-ipqc-wait']"));
+            // Dead-end "không ở giai đoạn chạy" error banner MUST NOT render.
+            Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
+            // Action chrome (counter / tap grid / NG row / action bar) MUST NOT render.
+            Assert.Empty(cut.FindAll("[data-testid='running-counter']"));
+            Assert.Empty(cut.FindAll("[data-testid='running-tap-grid']"));
+            Assert.Empty(cut.FindAll("[data-testid='run-start-btn']"));
+            Assert.Empty(cut.FindAll("[data-testid='run-pause-btn']"));
+            Assert.Empty(cut.FindAll("[data-testid='run-finish-btn']"));
+        });
+    }
+
     [Fact]
     public void Tap_qty_409_state_conflict_renders_set_error_banner()
     {

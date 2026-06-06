@@ -166,65 +166,72 @@ else
                        The green banner now shows the FROM → TO transition
                        explicitly + survives for ~4 s after the advance
                        (controlled by _showSuccessBanner, cleared by the
-                       background timer in OnAdvance). *@
-                    @if (_advanceResult?.Ok == true && _showSuccessBanner)
-                    {
-                        <div class="wo-card-success" data-testid="advance-success-banner">
-                            ✔ Đã chuyển bước: <strong>@(_advanceFromStep ?? "—")</strong>
-                            → <strong>@_advanceResult.CurrentStep</strong>
-                        </div>
-                    }
-                    else if (_advanceResult is { Ok: false } && !string.IsNullOrEmpty(_advanceResult.ErrorCode))
-                    {
-                        <div class="wo-card-error">
-                            <strong>Không chuyển bước được:</strong> @LocaliseAdvanceError(_advanceResult.ErrorCode)
-                            <div class="wo-card-error-detail">Mã lỗi: <code>@_advanceResult.ErrorCode</code></div>
-                        </div>
-                    }
-                    else if (_advanceError is not null)
-                    {
-                        <div class="wo-card-error"><strong>Lỗi mạng:</strong> @_advanceError</div>
-                    }
+                       background timer in OnAdvance).
 
-                    @if (_advanceResult?.Ok != true && !IsPrepressStep(_summary.CurrentStep) && !IsRunningSurfaceStep(_summary.CurrentStep))
+                       P10.7c-3 BUG-FIX — also hidden when a 7b/7c dashboard
+                       OWNS the workflow (PREPRESS / SETTING / IPQC_* /
+                       RUNNING / PAUSED). Otherwise the stale banner +
+                       advance error chrome from a prior /advance attempt
+                       (e.g. "RequiresSetupConfirmed") competes with the
+                       dashboard for operator attention. *@
+                    @if (!IsDashboardOwnedPhase(_summary))
                     {
-                        <button type="button" class="scan-btn wo-cta-accept"
-                                disabled="@_advancing"
-                                @onclick="OnAdvance">
-                            @(_advancing ? "Đang chuyển bước…" : "Nhận / Bắt đầu (chuyển bước)")
-                        </button>
+                        @if (_advanceResult?.Ok == true && _showSuccessBanner)
+                        {
+                            <div class="wo-card-success" data-testid="advance-success-banner">
+                                ✔ Đã chuyển bước: <strong>@(_advanceFromStep ?? "—")</strong>
+                                → <strong>@_advanceResult.CurrentStep</strong>
+                            </div>
+                        }
+                        else if (_advanceResult is { Ok: false } && !string.IsNullOrEmpty(_advanceResult.ErrorCode))
+                        {
+                            <div class="wo-card-error">
+                                <strong>Không chuyển bước được:</strong> @LocaliseAdvanceError(_advanceResult.ErrorCode)
+                                <div class="wo-card-error-detail">Mã lỗi: <code>@_advanceResult.ErrorCode</code></div>
+                            </div>
+                        }
+                        else if (_advanceError is not null)
+                        {
+                            <div class="wo-card-error"><strong>Lỗi mạng:</strong> @_advanceError</div>
+                        }
+
+                        @if (_advanceResult?.Ok != true)
+                        {
+                            <button type="button" class="scan-btn wo-cta-accept"
+                                    disabled="@_advancing"
+                                    @onclick="OnAdvance">
+                                @(_advancing ? "Đang chuyển bước…" : "Nhận / Bắt đầu (chuyển bước)")
+                            </button>
+                        }
                     }
                 </div>
 
-                @* P10.7b-3 — when the WO is in PrePressCheck step, render
-                   the PREPRESS row-checks dashboard inline below the WO
-                   card. The dashboard's Advance button bubbles up via
-                   OnAdvanceRequested to OnAdvance() so the existing
-                   AdvanceOrchestrator + success-banner UX still fires. *@
-                @if (IsPrepressStep(_summary.CurrentStep))
+                @* P10.7b-3 — when the WO is in PREPRESS phase, render the
+                   PREPRESS row-checks dashboard. The dashboard's Advance
+                   button bubbles up via OnAdvanceRequested to OnAdvance()
+                   so the AdvanceOrchestrator + success-banner UX still
+                   fires on the eventual advance. *@
+                @if (IsPrepressPhase(_summary))
                 {
                     <CCL.MES.Hybrid.Razor.Shared.PrepressDashboard
                         WorkOrderId="@_summary.Id"
                         OnAdvanceRequested="OnAdvance" />
                 }
 
-                @* P10.7c-3 — when the WO is in OpSetting step, render the
-                   SETTING dashboard inline. The dashboard's setting/done
-                   POST advances the WO server-side; on success the next
-                   render's _summary refresh (operator taps "Quét WO khác")
-                   will land outside this branch. *@
-                @if (IsSettingStep(_summary.CurrentStep))
+                @* P10.7c-3 — SETTING phase routes to SettingDashboard. *@
+                @if (IsSettingPhase(_summary))
                 {
                     <CCL.MES.Hybrid.Razor.Shared.SettingDashboard
                         WorkOrderId="@_summary.Id" />
                 }
 
-                @* P10.7c-3 — IPQC_APPROVED + RUNNING + PAUSED legacy step
-                   = ReadyToRun or Running. Render the RunningDashboard.
-                   IpqcApproval (IPQC_WAIT) shows an invalid-phase banner
-                   inside RunningDashboard — that's a known 7c-3 gap that
-                   7d will close with a dedicated IPQC review surface. *@
-                @if (IsRunningSurfaceStep(_summary.CurrentStep))
+                @* P10.7c-3 — IPQC_WAIT + IPQC_APPROVED + RUNNING + PAUSED
+                   all route to RunningDashboard which fan-outs internally
+                   based on the canonical MesPhase it reads from
+                   /running-surface. IPQC_WAIT renders an informational
+                   read-only "Chờ kiểm IPQC" banner (7d will close that
+                   with a dedicated IPQC review surface). *@
+                @if (IsRunningSurfacePhase(_summary))
                 {
                     <CCL.MES.Hybrid.Razor.Shared.RunningDashboard
                         WorkOrderId="@_summary.Id"
@@ -581,37 +588,62 @@ else
     private static string FormatBadge(string key) =>
         key.Length == 0 ? "—" : key.Split('.').Last().Replace('_', ' ').ToUpperInvariant();
 
-    // P10.7b-3 — dispatch hook. CurrentStep is the operator-facing
-    // 8-step legacy value. "PrePressCheck" is the canonical name from
-    // the state-machine; older saved rows that carry "PREPRESS" /
-    // "Pre-press" survive case-insensitive containment so a server
-    // rename doesn't break the dispatch.
-    private static bool IsPrepressStep(string currentStep)
+    // P10.7c-3 — dispatch hooks key on MesPhase (CANONICAL), NOT legacy
+    // CurrentStep. CurrentStep is a legacy projection that doesn't change
+    // in lock-step with MesPhase: after /setting/done the WO is in
+    // MesPhase=IPQC_WAIT but CurrentStep stays at "OpSetting", so a
+    // CurrentStep-keyed dispatch routes the operator to SettingDashboard
+    // which then refuses to render because /running-surface reports
+    // MesPhase=IPQC_WAIT → dead-end. MesPhase routing closes the gap.
+    //
+    // CurrentStep fallback: pre-7c-3 summaries (cached / replayed) may
+    // not carry MesPhase. We fall back to the legacy mapping so existing
+    // PREPRESS work isn't blocked.
+
+    private static bool IsPrepressPhase(WorkOrderSummary summary)
     {
-        if (string.IsNullOrEmpty(currentStep)) return false;
-        if (string.Equals(currentStep, "PrePressCheck", StringComparison.OrdinalIgnoreCase)) return true;
-        return currentStep.Contains("PrePress", StringComparison.OrdinalIgnoreCase)
-            || currentStep.Equals("PREPRESS", StringComparison.OrdinalIgnoreCase);
+        if (string.Equals(summary.MesPhase, "PREPRESS", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(summary.MesPhase, "NEW", StringComparison.OrdinalIgnoreCase))
+            return true;
+        // Fallback only when MesPhase is absent.
+        if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
+        var step = summary.CurrentStep;
+        if (string.IsNullOrEmpty(step)) return false;
+        return string.Equals(step, "PrePressCheck", StringComparison.OrdinalIgnoreCase)
+            || step.Contains("PrePress", StringComparison.OrdinalIgnoreCase)
+            || step.Equals("PREPRESS", StringComparison.OrdinalIgnoreCase);
     }
 
-    // P10.7c-3 — dispatch hooks for the SETTING + RUNNING surfaces.
-    // "OpSetting" maps to MesPhase=SETTING per WorkOrderStateMachine; the
-    // SettingDashboard handles entry-stamping + checklist + setting/done.
-    // "ReadyToRun" maps to IPQC_APPROVED (run/start surface). "Running"
-    // (legacy step 5) hosts both RUNNING and PAUSED phases — the
-    // dashboard reads the canonical MesPhase via /running-surface and
-    // routes to the correct sub-UI internally.
-    private static bool IsSettingStep(string currentStep) =>
-        !string.IsNullOrEmpty(currentStep)
-        && string.Equals(currentStep, "OpSetting", StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsRunningSurfaceStep(string currentStep)
+    private static bool IsSettingPhase(WorkOrderSummary summary)
     {
-        if (string.IsNullOrEmpty(currentStep)) return false;
-        return string.Equals(currentStep, "ReadyToRun", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(currentStep, "Running", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(currentStep, "IpqcApproval", StringComparison.OrdinalIgnoreCase);
+        if (string.Equals(summary.MesPhase, "SETTING", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
+        return string.Equals(summary.CurrentStep, "OpSetting", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static bool IsRunningSurfacePhase(WorkOrderSummary summary)
+    {
+        var p = summary.MesPhase;
+        if (string.Equals(p, "IPQC_WAIT", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(p, "IPQC_APPROVED", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(p, "RUNNING", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(p, "PAUSED", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(p)) return false;
+        var step = summary.CurrentStep;
+        if (string.IsNullOrEmpty(step)) return false;
+        return string.Equals(step, "ReadyToRun", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(step, "Running", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(step, "IpqcApproval", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>True when ANY 7b/7c dashboard OWNS the operator's next
+    /// action. Used to hide the legacy Advance CTA + the stale advance
+    /// error banner so the dashboards don't compete with legacy UI for
+    /// operator attention.</summary>
+    private static bool IsDashboardOwnedPhase(WorkOrderSummary summary) =>
+        IsPrepressPhase(summary) || IsSettingPhase(summary) || IsRunningSurfacePhase(summary);
 
     // P10.7a-1.3 — both VN mapper switches extracted into
     // CCL.MES.Hybrid.Client.WorkOrders.WorkOrderErrorLocaliser so the

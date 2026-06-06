@@ -234,6 +234,128 @@ public sealed class WorkOrdersPageTests : TestContext
         cut.WaitForElement("[data-testid='advance-success-banner']");
     }
 
+    // ── P10.7c-3 BUG-FIX (Henry RCA on WO-26-3685) ────────────────────
+    // Post-/setting/done divergence: WO carries MesPhase="IPQC_WAIT" but
+    // legacy CurrentStep stays "OpSetting". Dispatch MUST key on canonical
+    // MesPhase, not on the legacy projection. Otherwise SettingDashboard
+    // dead-ends ("WO không ở SETTING — IPQC_WAIT") AND the legacy Advance
+    // CTA + stale advance error chrome render alongside.
+
+    [Fact]
+    public void Divergence_MesPhase_IPQC_WAIT_routes_to_RunningDashboard_not_SettingDashboard()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        // Server bumped MesPhase=IPQC_WAIT after /setting/done; CurrentStep
+        // legacy projection stayed "OpSetting" — the exact WO-26-3685 state.
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "IPQC_WAIT" });
+        // RunningDashboard fetches /running-surface — return matching view.
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+            {
+                WoId = 42,
+                WoNo = "WO-26-3685",
+                MesPhase = "IPQC_WAIT",
+                ETag = "RV-IPQC",
+                TargetQty = 12000,
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3685");
+        cut.Find("div.wo-manual-row button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            // RunningDashboard MUST render (with IPQC_WAIT info branch).
+            Assert.NotNull(cut.Find("[data-testid='running-dashboard']"));
+            Assert.NotNull(cut.Find("[data-testid='running-ipqc-wait']"));
+            // SettingDashboard MUST NOT render — that was the dead-end bug.
+            Assert.Empty(cut.FindAll("[data-testid='setting-dashboard']"));
+            // Dead-end "không ở giai đoạn chạy" error MUST NOT render.
+            Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
+        });
+    }
+
+    [Fact]
+    public void Dashboard_owned_phase_hides_legacy_Advance_CTA_and_stale_error_banner()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "IPQC_WAIT" });
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+            {
+                WoId = 42, WoNo = "WO-26-3685", MesPhase = "IPQC_WAIT",
+                ETag = "RV", TargetQty = 12000,
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3685");
+        cut.Find("div.wo-manual-row button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            // Legacy Advance CTA MUST NOT render — dashboard owns the workflow.
+            Assert.Empty(cut.FindAll("button.wo-cta-accept"));
+            // Stale advance error banner (e.g. RequiresSetupConfirmed from
+            // a prior failed advance) MUST NOT render either.
+            Assert.Empty(cut.FindAll("div.wo-card-error"));
+        });
+    }
+
+    [Fact]
+    public void MesPhase_SETTING_routes_to_SettingDashboard_regardless_of_CurrentStep()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "SETTING" });
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+            {
+                WoId = 42, WoNo = "WO-26-3685", MesPhase = "SETTING",
+                ETag = "RV", TargetQty = 12000,
+                SettingStartAt = DateTime.UtcNow.AddMinutes(-1),
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3685");
+        cut.Find("div.wo-manual-row button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='setting-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='running-dashboard']"));
+            Assert.Empty(cut.FindAll("button.wo-cta-accept"));
+        });
+    }
+
+    [Fact]
+    public void Legacy_CurrentStep_fallback_used_when_MesPhase_is_empty()
+    {
+        // Older summaries (cached / replayed) may not carry MesPhase.
+        // Dispatch MUST gracefully fall back to legacy CurrentStep.
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "" });
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+            {
+                WoId = 42, WoNo = "WO-26-3685", MesPhase = "SETTING",
+                ETag = "RV", TargetQty = 12000,
+                SettingStartAt = DateTime.UtcNow.AddMinutes(-1),
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3685");
+        cut.Find("div.wo-manual-row button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            // Falls back to CurrentStep="OpSetting" → SettingDashboard.
+            Assert.NotNull(cut.Find("[data-testid='setting-dashboard']"));
+        });
+    }
+
     // ── helpers ──────────────────────────────────────────────────────
 
     private static WorkOrderSummary SampleSummary(string woNo) => new()

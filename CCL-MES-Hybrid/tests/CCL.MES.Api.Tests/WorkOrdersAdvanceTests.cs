@@ -85,6 +85,13 @@ public sealed class WorkOrdersAdvanceTests : IClassFixture<MesApiFactory>
         Assert.Equal("Customer WO-W4-100", summary.CustomerName);
         Assert.Equal("PROD-WO-W4-100", summary.ProductCode);
         Assert.Equal("ReadyToRun", summary.CurrentStep);
+        // P10.7c-3 BUG-FIX — MesPhase MUST be projected so client can
+        // dispatch on the canonical phase instead of the legacy
+        // CurrentStep (which doesn't change in lock-step post-/setting/done).
+        // Test seed leaves MesPhase at the entity default ("NEW") regardless
+        // of the CurrentStep arg — that's fine; what matters is that the
+        // controller surfaces the field non-empty so client dispatch works.
+        Assert.False(string.IsNullOrEmpty(summary.MesPhase));
         // BadgeLabelKey gets populated by the WorkOrderStatusBadge mapper —
         // we don't assert the exact key here (avoid coupling to badge prose),
         // just that it's non-empty.
