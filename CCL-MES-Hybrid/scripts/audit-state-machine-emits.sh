@@ -40,6 +40,7 @@ SCAN_PATHS=(
     "$REPO_ROOT/src/CCL.MES.Application/Services/WorkOrderService.cs"
     "$HYBRID_ROOT/src/CCL.MES.Api/Controllers/WorkOrdersController.cs"
     "$HYBRID_ROOT/src/CCL.MES.Api/Controllers/AdminWorkOrdersController.cs"
+    "$HYBRID_ROOT/src/CCL.MES.Api/Controllers/PrepressController.cs"
 )
 
 EMIT_RE='_audit\.EmitAsync|AuditEmitHelper\.EmitMesAsync|audit\.EmitAsync'

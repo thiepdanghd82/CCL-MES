@@ -1,0 +1,525 @@
+using System.Security.Claims;
+using System.Text.Json;
+using CCL.MES.Application;
+using CCL.MES.Application.Audit;
+using CCL.MES.Application.Services;
+using CCL.MES.Domain;
+using CCL.MES.Domain.Audit;
+using CCL.MES.Domain.Entities;
+using CCL.MES.Domain.StateMachine;
+using CCL.MES.Shared;
+using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.Prepress;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace CCL.MES.Api.Controllers;
+
+/// <summary>
+/// P10.7b-2 — PREPRESS row-level write surface per contract §5.2.
+///
+/// Endpoints:
+///   GET /api/v2/work-orders/{id}/prepress           Read 3 child sets + rollup
+///   PUT /api/v2/work-orders/{id}/materials/{idx}    Set one wo_materials row
+///   PUT /api/v2/work-orders/{id}/plate-check        Set the 1:1 plate row
+///   PUT /api/v2/work-orders/{id}/cutter-check       Set the 1:1 cutter row
+///
+/// Authorization: any authenticated user. The contract §2.2 row PREPRESS
+/// says "Exit by OP role"; for in-PREPRESS row writes the 7b-2 surface
+/// stays at base auth (per Henry breakdown adj — no 4-eye in 7b).
+///
+/// Concurrency contract mirrors /advance from 7a-1.3:
+///   428 missing If-Match
+///   409 wo.state_conflict on stale If-Match (+ WO_STATE_CONFLICT audit)
+///   400 missing Idempotency-Key
+///   422 invalid_phase / invalid_status / invalid_reason_code / invalid_body
+///
+/// Rollup recompute fires inside the SAME SaveChanges as the child row
+/// write so SQLite write-lock serialises concurrent operators — closes
+/// the "2 ops, 2 rows, both flip rollup wrong" race condition Henry
+/// flagged as critical condition #1 in the breakdown.
+/// </summary>
+[ApiController]
+[Authorize]
+[Route(ApiVersion.Prefix + "/work-orders")]
+public sealed class PrepressController : ControllerBase
+{
+    private readonly IMesDbContext _db;
+    private readonly IAuditWriter _audit;
+    private readonly PrepressBomSnapshotService _snapshot;
+
+    public PrepressController(
+        IMesDbContext db,
+        IAuditWriter audit,
+        PrepressBomSnapshotService snapshot)
+    {
+        _db = db;
+        _audit = audit;
+        _snapshot = snapshot;
+    }
+
+    // ── GET /work-orders/{id}/prepress ─────────────────────────────
+
+    [HttpGet("{id:long}/prepress")]
+    public async Task<ActionResult<PrepressView>> Get(long id)
+    {
+        var wo = await _db.WorkOrders.AsNoTracking().FirstOrDefaultAsync(w => w.Id == id);
+        if (wo is null)
+            return NotFound(ApiError.Of("wo.not_found", $"No work order with id {id}."));
+
+        // Lazy materialise on first read so legacy WOs without a snapshot
+        // get rows fluently. Idempotent: NOOP when rows already exist.
+        await _snapshot.MaterializeAsync(id);
+
+        var materials = await _db.WoMaterials.AsNoTracking()
+            .Where(m => m.WorkOrderId == id)
+            .OrderBy(m => m.BomLineIdx)
+            .ToListAsync();
+        var plate = await _db.WoPlateChecks.AsNoTracking()
+            .SingleOrDefaultAsync(p => p.WorkOrderId == id);
+        var cutter = await _db.WoCutterChecks.AsNoTracking()
+            .SingleOrDefaultAsync(c => c.WorkOrderId == id);
+
+        var freshRv = await _db.WorkOrders.AsNoTracking()
+            .Where(w => w.Id == id)
+            .Select(w => w.RowVersion)
+            .SingleOrDefaultAsync();
+        var etag = freshRv is not null && freshRv.Length > 0
+            ? Convert.ToBase64String(freshRv) : "";
+
+        return Ok(new PrepressView
+        {
+            WoId = id,
+            WoNo = wo.WoNo,
+            MesPhase = wo.MesPhase,
+            MaterialsReady = wo.MaterialsReady,
+            ETag = etag,
+            Materials = materials.Select(MaterialToDto).ToList(),
+            PlateCheck = plate is null ? null : PlateToDto(plate),
+            CutterCheck = cutter is null ? null : CutterToDto(cutter),
+        });
+    }
+
+    // ── PUT /materials/{bom_line_idx} ──────────────────────────────
+
+    [HttpPut("{id:long}/materials/{bomLineIdx:int}")]
+    public async Task<IActionResult> PutMaterial(
+        long id, int bomLineIdx, [FromBody] SetPrepressMaterialRequest? req)
+    {
+        var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+        var pre = await PreludeAsync(id, actor, role, "prepress_material_set");
+        if (pre.Error is not null) return pre.Error;
+
+        var statusErr = ParseStatus(req?.Status);
+        if (statusErr.Error is not null) return statusErr.Error;
+        var newStatus = statusErr.Value;
+
+        var ngErr = await ValidateNgAsync(newStatus, req?.NgReasonCode, req?.NgNote);
+        if (ngErr is not null) return ngErr;
+
+        var row = await _db.WoMaterials
+            .FirstOrDefaultAsync(m => m.WorkOrderId == id && m.BomLineIdx == bomLineIdx);
+        if (row is null)
+            return NotFound(ApiError.Of("wo.material_row_not_found",
+                $"No wo_materials row for wo_id={id}, bom_line_idx={bomLineIdx}."));
+
+        var fromStatus = row.Status;
+        row.Status = newStatus;
+        row.QtyLoaded = req?.QtyLoaded ?? row.QtyLoaded;
+        row.LotNo = req?.LotNo ?? row.LotNo;
+        row.NgReasonCode = newStatus == PrepressCheckStatus.Ng ? req!.NgReasonCode : null;
+        row.NgNote = newStatus == PrepressCheckStatus.Ng ? req!.NgNote : null;
+        row.CheckedBy = actor;
+        row.CheckedAt = DateTime.UtcNow;
+        row.UpdatedAt = DateTime.UtcNow;
+        row.UpdatedBy = actor;
+
+        return await CommitAndAuditAsync(id, pre.WoForUpdate!,
+            AuditAction.WoPrepressMaterialSet, actor, role,
+            extraDetail: new
+            {
+                bom_line_idx = bomLineIdx,
+                material_code = row.MaterialCode,
+                from_status = fromStatus.ToString(),
+                to_status = newStatus.ToString(),
+                qty_loaded = row.QtyLoaded,
+                lot_no = row.LotNo,
+                ng_reason_code = row.NgReasonCode,
+                ng_note = row.NgNote,
+            });
+    }
+
+    // ── PUT /plate-check ───────────────────────────────────────────
+
+    [HttpPut("{id:long}/plate-check")]
+    public async Task<IActionResult> PutPlate(
+        long id, [FromBody] SetPrepressPlateRequest? req)
+    {
+        var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+        var pre = await PreludeAsync(id, actor, role, "prepress_plate_set");
+        if (pre.Error is not null) return pre.Error;
+
+        var statusErr = ParseStatus(req?.Status);
+        if (statusErr.Error is not null) return statusErr.Error;
+        var newStatus = statusErr.Value;
+
+        var ngErr = await ValidateNgAsync(newStatus, req?.NgReasonCode, req?.NgNote);
+        if (ngErr is not null) return ngErr;
+
+        // Plate row should exist (materialised by Get or by migration backfill).
+        // If missing (shouldn't happen post-snapshot), create on demand.
+        var row = await _db.WoPlateChecks.FirstOrDefaultAsync(p => p.WorkOrderId == id);
+        if (row is null)
+        {
+            row = new WoPlateCheck { WorkOrderId = id, CreatedAt = DateTime.UtcNow };
+            _db.WoPlateChecks.Add(row);
+        }
+
+        var fromStatus = row.Status;
+        row.Status = newStatus;
+        row.PlateNo = req?.PlateNo ?? row.PlateNo;
+        row.NgReasonCode = newStatus == PrepressCheckStatus.Ng ? req!.NgReasonCode : null;
+        row.NgNote = newStatus == PrepressCheckStatus.Ng ? req!.NgNote : null;
+        row.CheckedBy = actor;
+        row.CheckedAt = DateTime.UtcNow;
+        row.UpdatedAt = DateTime.UtcNow;
+        row.UpdatedBy = actor;
+
+        return await CommitAndAuditAsync(id, pre.WoForUpdate!,
+            AuditAction.WoPrepressPlateSet, actor, role,
+            extraDetail: new
+            {
+                from_status = fromStatus.ToString(),
+                to_status = newStatus.ToString(),
+                plate_no = row.PlateNo,
+                ng_reason_code = row.NgReasonCode,
+                ng_note = row.NgNote,
+            });
+    }
+
+    // ── PUT /cutter-check ──────────────────────────────────────────
+
+    [HttpPut("{id:long}/cutter-check")]
+    public async Task<IActionResult> PutCutter(
+        long id, [FromBody] SetPrepressCutterRequest? req)
+    {
+        var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+        var pre = await PreludeAsync(id, actor, role, "prepress_cutter_set");
+        if (pre.Error is not null) return pre.Error;
+
+        var statusErr = ParseStatus(req?.Status);
+        if (statusErr.Error is not null) return statusErr.Error;
+        var newStatus = statusErr.Value;
+
+        var ngErr = await ValidateNgAsync(newStatus, req?.NgReasonCode, req?.NgNote);
+        if (ngErr is not null) return ngErr;
+
+        var row = await _db.WoCutterChecks.FirstOrDefaultAsync(c => c.WorkOrderId == id);
+        if (row is null)
+        {
+            row = new WoCutterCheck { WorkOrderId = id, CreatedAt = DateTime.UtcNow };
+            _db.WoCutterChecks.Add(row);
+        }
+
+        var fromStatus = row.Status;
+        row.Status = newStatus;
+        row.CutterNo = req?.CutterNo ?? row.CutterNo;
+        row.NgReasonCode = newStatus == PrepressCheckStatus.Ng ? req!.NgReasonCode : null;
+        row.NgNote = newStatus == PrepressCheckStatus.Ng ? req!.NgNote : null;
+        row.CheckedBy = actor;
+        row.CheckedAt = DateTime.UtcNow;
+        row.UpdatedAt = DateTime.UtcNow;
+        row.UpdatedBy = actor;
+
+        return await CommitAndAuditAsync(id, pre.WoForUpdate!,
+            AuditAction.WoPrepressCutterSet, actor, role,
+            extraDetail: new
+            {
+                from_status = fromStatus.ToString(),
+                to_status = newStatus.ToString(),
+                cutter_no = row.CutterNo,
+                ng_reason_code = row.NgReasonCode,
+                ng_note = row.NgNote,
+            });
+    }
+
+    // ── Prelude: shared If-Match / Idempotency-Key / state guard ──
+
+    private async Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
+        long id, string actor, string role, string attemptedAction)
+    {
+        // Idempotency-Key required for ALL writes (matches /advance).
+        var idemKey = Request.Headers["Idempotency-Key"].ToString();
+        if (string.IsNullOrWhiteSpace(idemKey))
+        {
+            return (BadRequest(ApiError.Of("wo.idempotency_key_required",
+                "Idempotency-Key header required.")), null);
+        }
+
+        // If-Match required (428).
+        var ifMatch = Request.Headers.IfMatch.ToString();
+        if (string.IsNullOrWhiteSpace(ifMatch))
+        {
+            return (StatusCode(StatusCodes.Status428PreconditionRequired,
+                ApiError.Of("wo.if_match_required",
+                    "If-Match header required. Re-fetch /prepress for current ETag.")), null);
+        }
+
+        var wo = await _db.WorkOrders.FirstOrDefaultAsync(w => w.Id == id);
+        if (wo is null)
+        {
+            return (NotFound(ApiError.Of("wo.not_found",
+                $"No work order with id {id}.")), null);
+        }
+
+        // Stale RowVersion → 409 + WO_STATE_CONFLICT audit (mirrors /advance).
+        var serverEtagRaw = Convert.ToBase64String(wo.RowVersion);
+        var clientEtagRaw = NormalizeETag(ifMatch);
+        if (!string.Equals(serverEtagRaw, clientEtagRaw, StringComparison.Ordinal))
+        {
+            var conflictDetail = JsonSerializer.Serialize(new
+            {
+                wo_id = id,
+                wo_no = wo.WoNo,
+                attempted_action = attemptedAction,
+                client_version = clientEtagRaw,
+                server_version = serverEtagRaw,
+            });
+            await _audit.EmitAsync(
+                action: AuditAction.WoStateConflict,
+                actor: actor,
+                actorRole: role,
+                targetType: "WorkOrder",
+                targetId: id.ToString(),
+                detail: conflictDetail);
+
+            Response.Headers.ETag = $"\"{serverEtagRaw}\"";
+            return (Conflict(new PrepressSetResponse
+            {
+                Ok = false,
+                ErrorCode = "wo.state_conflict",
+                ETag = serverEtagRaw,
+                MaterialsReady = wo.MaterialsReady,
+            }), null);
+        }
+
+        // State guard: MesPhase MUST be PREPRESS or NEW (§5.2). Outside →
+        // 422 invalid_phase (semantic guard, NOT concurrency drift).
+        if (wo.MesPhase != "PREPRESS" && wo.MesPhase != "NEW")
+        {
+            return (UnprocessableEntity(ApiError.Of("wo.invalid_phase",
+                $"PREPRESS row writes require MesPhase ∈ {{NEW, PREPRESS}}; current = {wo.MesPhase}.")), null);
+        }
+
+        return (null, wo);
+    }
+
+    // ── Body validation: status + NG reason/note ──────────────────
+
+    private static (PrepressCheckStatus Value, IActionResult? Error) ParseStatus(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return (PrepressCheckStatus.Pending,
+                new UnprocessableEntityObjectResult(ApiError.Of(
+                    "prepress.invalid_status",
+                    "Status is required (one of: Pending / Ok / Ng).")));
+        }
+        // Tolerate case-insensitive operator input.
+        if (!Enum.TryParse<PrepressCheckStatus>(raw, ignoreCase: true, out var v))
+        {
+            return (PrepressCheckStatus.Pending,
+                new UnprocessableEntityObjectResult(ApiError.Of(
+                    "prepress.invalid_status",
+                    $"Status '{raw}' is not one of Pending / Ok / Ng.")));
+        }
+        return (v, null);
+    }
+
+    private async Task<IActionResult?> ValidateNgAsync(
+        PrepressCheckStatus status, string? ngReasonCode, string? ngNote)
+    {
+        if (status != PrepressCheckStatus.Ng) return null;
+
+        if (string.IsNullOrWhiteSpace(ngReasonCode))
+        {
+            return UnprocessableEntity(ApiError.Of("prepress.invalid_reason_code",
+                "NgReasonCode is required when status=NG."));
+        }
+        if (string.IsNullOrWhiteSpace(ngNote) || ngNote.Length > 500)
+        {
+            return UnprocessableEntity(ApiError.Of("prepress.invalid_ng_note",
+                "NgNote must be 1-500 chars when status=NG."));
+        }
+        var exists = await _db.ReasonCodes.AsNoTracking()
+            .AnyAsync(r => r.Code == ngReasonCode && r.Kind == ReasonCodeKind.Scrap);
+        if (!exists)
+        {
+            return UnprocessableEntity(ApiError.Of("prepress.invalid_reason_code",
+                $"NgReasonCode '{ngReasonCode}' is not a registered Scrap reason."));
+        }
+        return null;
+    }
+
+    // ── Commit: SaveChanges → recompute rollup → SaveChanges → audit
+    //    Rollup recompute MUST read the just-saved child rows; SQLite's
+    //    per-database write lock serialises concurrent operators so the
+    //    rollup-mid-race bug Henry flagged can't fire — the second op
+    //    waits for the first to commit before reading the materials list.
+
+    private async Task<IActionResult> CommitAndAuditAsync(
+        long woId, WorkOrder wo,
+        string action, string actor, string role,
+        object extraDetail)
+    {
+        // Read the WO's child surfaces using TRACKED queries so the
+        // tracked entity the caller just mutated is reflected in the
+        // local collection (DbSet queries return tracked instances
+        // when they're already in the change tracker). AsNoTracking
+        // would bypass the tracker + return stale DB values + the
+        // rollup would mis-flip.
+        var materials = await _db.WoMaterials
+            .Where(m => m.WorkOrderId == woId).ToListAsync();
+        var plate = await _db.WoPlateChecks
+            .SingleOrDefaultAsync(p => p.WorkOrderId == woId);
+        var cutter = await _db.WoCutterChecks
+            .SingleOrDefaultAsync(c => c.WorkOrderId == woId);
+
+        var (hasSnap, allOk) = MaterialsReadinessRollup.Compute(materials, plate, cutter);
+
+        // Always touch the WO row so the SQLite UPDATE trigger bumps
+        // RowVersion + EF's [Timestamp] concurrency check fires
+        // correctly under parallel writes. Child-only writes that don't
+        // touch WO leave its RowVersion stale + 10 concurrent ops would
+        // all "succeed" on the same If-Match. Touch UpdatedAt
+        // unconditionally; set MaterialsReady conditionally.
+        wo.UpdatedAt = DateTime.UtcNow;
+        wo.UpdatedBy = actor;
+        if (hasSnap)
+        {
+            wo.MaterialsReady = allOk;
+        }
+
+        try
+        {
+            // Single SaveChanges commits the child row mutation + the
+            // WO touch + (optional) MaterialsReady flip atomically.
+            // SQLite write-lock + EF [Timestamp] check serialise
+            // concurrent operators — race losers throw here and land
+            // in the catch as 409.
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return await HandleConcurrencyAsync(woId, wo);
+        }
+
+        // Read fresh RowVersion (Lesson 1 — SQLite trigger fires AFTER UPDATE).
+        var freshRowVersion = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking()
+            .Select(w => w.RowVersion).SingleOrDefaultAsync();
+        var newEtagRaw = freshRowVersion is not null && freshRowVersion.Length > 0
+            ? Convert.ToBase64String(freshRowVersion) : "";
+
+        Response.Headers.ETag = $"\"{newEtagRaw}\"";
+
+        // Audit emit per row write.
+        var detailObj = new
+        {
+            wo_id = woId,
+            wo_no = wo.WoNo,
+            materials_ready_after = wo.MaterialsReady,
+            extra = extraDetail,
+        };
+        await _audit.EmitAsync(
+            action: action,
+            actor: actor,
+            actorRole: role,
+            targetType: "WorkOrder",
+            targetId: woId.ToString(),
+            detail: JsonSerializer.Serialize(detailObj));
+
+        return Ok(new PrepressSetResponse
+        {
+            Ok = true,
+            MaterialsReady = wo.MaterialsReady,
+            ETag = newEtagRaw,
+        });
+    }
+
+    private async Task<IActionResult> HandleConcurrencyAsync(long woId, WorkOrder wo)
+    {
+        if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
+            dbCtx.ChangeTracker.Clear();
+        var freshRv = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking()
+            .Select(w => w.RowVersion).SingleOrDefaultAsync();
+        var freshEtag = freshRv is not null && freshRv.Length > 0
+            ? Convert.ToBase64String(freshRv) : "";
+        Response.Headers.ETag = $"\"{freshEtag}\"";
+        return Conflict(new PrepressSetResponse
+        {
+            Ok = false,
+            ErrorCode = "wo.state_conflict",
+            ETag = freshEtag,
+            MaterialsReady = wo.MaterialsReady,
+        });
+    }
+
+    // ── DTO mappers ────────────────────────────────────────────────
+
+    private static PrepressMaterialRow MaterialToDto(WoMaterial m) => new()
+    {
+        Id = m.Id,
+        BomLineIdx = m.BomLineIdx,
+        MaterialCode = m.MaterialCode,
+        MaterialDescription = m.MaterialDescription,
+        QtyRequired = m.QtyRequired,
+        Uom = m.Uom,
+        QtyLoaded = m.QtyLoaded,
+        LotNo = m.LotNo,
+        Status = m.Status.ToString(),
+        NgReasonCode = m.NgReasonCode,
+        NgNote = m.NgNote,
+        CheckedBy = m.CheckedBy,
+        CheckedAt = m.CheckedAt is null ? null : new DateTimeOffset(DateTime.SpecifyKind(m.CheckedAt.Value, DateTimeKind.Utc)),
+    };
+
+    private static PrepressPlateRow PlateToDto(WoPlateCheck p) => new()
+    {
+        Id = p.Id,
+        Status = p.Status.ToString(),
+        PlateNo = p.PlateNo,
+        NgReasonCode = p.NgReasonCode,
+        NgNote = p.NgNote,
+        CheckedBy = p.CheckedBy,
+        CheckedAt = p.CheckedAt is null ? null : new DateTimeOffset(DateTime.SpecifyKind(p.CheckedAt.Value, DateTimeKind.Utc)),
+    };
+
+    private static PrepressCutterRow CutterToDto(WoCutterCheck c) => new()
+    {
+        Id = c.Id,
+        Status = c.Status.ToString(),
+        CutterNo = c.CutterNo,
+        NgReasonCode = c.NgReasonCode,
+        NgNote = c.NgNote,
+        CheckedBy = c.CheckedBy,
+        CheckedAt = c.CheckedAt is null ? null : new DateTimeOffset(DateTime.SpecifyKind(c.CheckedAt.Value, DateTimeKind.Utc)),
+    };
+
+    // RFC 7232 strip — mirrors /advance + /force-phase.
+    private static string NormalizeETag(string raw)
+    {
+        var s = raw.Trim();
+        if (s.StartsWith("W/", StringComparison.OrdinalIgnoreCase))
+            s = s.Substring(2);
+        if (s.Length >= 2 && s[0] == '"' && s[^1] == '"')
+            s = s.Substring(1, s.Length - 2);
+        return s;
+    }
+}

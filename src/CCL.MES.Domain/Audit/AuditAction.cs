@@ -115,6 +115,19 @@ public static class AuditAction
     public const string WcCopy                = "WC_COPY";                 // Phase 8 — WorkCenter duplicate via context menu; detail JSON: { src_id, src_code, new_id, new_code }
     public const string WcUpdate              = "WC_UPDATE";               // Phase 8 — WorkCenter row edit via context menu; detail JSON: { wc_id, code, changes: {...} }
     public const string WoAdvance             = "WO_ADVANCE";
+    /// <summary>P10.7b-2 — operator set the status of a single wo_materials
+    /// row. detail JSON: { wo_id, wo_no, bom_line_idx, material_code,
+    /// from_status, to_status, qty_loaded?, lot_no?, ng_reason_code?,
+    /// ng_note?, materials_ready_after }.</summary>
+    public const string WoPrepressMaterialSet = "WO_PREPRESS_MATERIAL_SET";
+    /// <summary>P10.7b-2 — operator set the status of the wo_plate_check
+    /// row. detail JSON: { wo_id, wo_no, from_status, to_status, plate_no?,
+    /// ng_reason_code?, ng_note?, materials_ready_after }.</summary>
+    public const string WoPrepressPlateSet    = "WO_PREPRESS_PLATE_SET";
+    /// <summary>P10.7b-2 — operator set the status of the wo_cutter_check
+    /// row. detail JSON: { wo_id, wo_no, from_status, to_status, cutter_no?,
+    /// ng_reason_code?, ng_note?, materials_ready_after }.</summary>
+    public const string WoPrepressCutterSet   = "WO_PREPRESS_CUTTER_SET";
     // Phase 8 PR #32d — Work Order created from Demo template (operator clicked
     // a Demo card on /workorders). detail JSON: { template_code, wo_no, wo_id,
     // customer_id, product_id, machine_code, target_qty, uom, source: "demo" }.
