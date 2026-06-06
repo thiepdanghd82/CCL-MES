@@ -381,6 +381,20 @@ using (var bootScope = app.Services.CreateScope())
             {
                 Console.WriteLine($"[boot] Recovery seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
             }
+
+            try
+            {
+                await CCL.MES.Infrastructure.DbSeeder.SeedReasonCodesAsync(bootDb);
+
+                var pause = await bootDb.ReasonCodes.CountAsync(r => r.Kind == CCL.MES.Domain.ReasonCodeKind.Pause);
+                var scrap = await bootDb.ReasonCodes.CountAsync(r => r.Kind == CCL.MES.Domain.ReasonCodeKind.Scrap);
+                var recov = await bootDb.ReasonCodes.CountAsync(r => r.Kind == CCL.MES.Domain.ReasonCodeKind.Recovery);
+                Console.WriteLine($"[seed] reason_codes pause={pause} scrap={scrap} recovery={recov}");
+            }
+            catch (Exception seedEx)
+            {
+                Console.WriteLine($"[boot] Reason-code seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
+            }
         }
     }
     catch (InvalidOperationException)

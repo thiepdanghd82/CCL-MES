@@ -6,6 +6,7 @@
 *@
 
 @using CCL.MES.Shared.Prepress
+@using CCL.MES.Shared.ReasonCodes
 
 <div class="prepress-section">
     <div class="prepress-section-head">
@@ -31,13 +32,19 @@
         {
             <div class="prepress-form-cell">
                 <label for="plate-ng-reason">Mã lý do NG (scrap)</label>
-                <input id="plate-ng-reason"
-                       type="text"
-                       class="prepress-input"
-                       value="@_ngReason"
-                       @oninput="OnNgReasonInput"
-                       disabled="@Busy"
-                       aria-label="Mã lý do NG clichê" />
+                <select id="plate-ng-reason"
+                        class="prepress-input prepress-select"
+                        value="@_ngReason"
+                        @onchange="OnNgReasonChange"
+                        disabled="@Busy"
+                        aria-label="Mã lý do NG clichê"
+                        data-testid="plate-ng-reason-picker">
+                    <option value="">— chọn mã lỗi —</option>
+                    @foreach (var rc in ScrapReasons)
+                    {
+                        <option value="@rc.Code">@rc.Code · @rc.LabelVi</option>
+                    }
+                </select>
             </div>
             <div class="prepress-form-cell prepress-form-cell-wide">
                 <label for="plate-ng-note">Ghi chú NG (1-500 ký tự)</label>
@@ -65,7 +72,8 @@
             <button type="button"
                     class="op-btn op-btn-danger"
                     data-testid="plate-btn-ng-arm"
-                    disabled="@Busy"
+                    disabled="@(Busy || ScrapReasons.Count == 0)"
+                    title="@(ScrapReasons.Count == 0 ? "Danh mục mã NG trống — báo IT" : null)"
                     @onclick="() => _armingNg = true">
                 Đánh NG
             </button>
@@ -75,7 +83,7 @@
             <button type="button"
                     class="op-btn op-btn-danger"
                     data-testid="plate-btn-ng-confirm"
-                    disabled="@Busy"
+                    disabled="@(Busy || !IsValidNgReason(_ngReason))"
                     @onclick="OnSubmitNg">
                 Lưu NG
             </button>
@@ -104,6 +112,7 @@
 @code {
     [Parameter] public PrepressPlateRow? Row { get; set; }
     [Parameter] public bool Busy { get; set; }
+    [Parameter] public IReadOnlyList<ReasonCodeOption> ScrapReasons { get; set; } = Array.Empty<ReasonCodeOption>();
     [Parameter] public EventCallback<PlateSetIntent> OnSetPlate { get; set; }
 
     private string _plateNo = "";
@@ -126,8 +135,18 @@
     }
 
     private void OnPlateNoInput(Microsoft.AspNetCore.Components.ChangeEventArgs e) => _plateNo = e.Value?.ToString() ?? "";
-    private void OnNgReasonInput(Microsoft.AspNetCore.Components.ChangeEventArgs e) => _ngReason = e.Value?.ToString() ?? "";
+    private void OnNgReasonChange(Microsoft.AspNetCore.Components.ChangeEventArgs e) => _ngReason = e.Value?.ToString() ?? "";
     private void OnNgNoteInput(Microsoft.AspNetCore.Components.ChangeEventArgs e) => _ngNote = e.Value?.ToString() ?? "";
+
+    private bool IsValidNgReason(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return false;
+        foreach (var rc in ScrapReasons)
+        {
+            if (string.Equals(rc.Code, code, StringComparison.Ordinal)) return true;
+        }
+        return false;
+    }
 
     private async Task OnSubmitOk()
     {

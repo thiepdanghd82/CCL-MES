@@ -243,16 +243,23 @@ public static class DbSeeder
     /// <summary>
     /// Phase 8 PR-D-4 — seed 12 ReasonCode rows from CMES sibling
     /// `work_orders.seed.json` (8 Pause causes ML-* + 4 Scrap causes SC-*).
-    /// Idempotent .Any() gate fires once per fresh DB. Admin CRUD UI deferred
-    /// to a future Library tab — for now this is the canonical source of NG
-    /// reason codes referenced by SpecQcCapture.NgReasonCode (loose string
-    /// FK per CMES pattern, validated in service layer at capture time).
+    /// P10.7b-3 hotfix — per-code idempotency (was global .Any() short-circuit
+    /// that skipped Pause/Scrap on any DB already carrying Recovery codes
+    /// from <see cref="SeedRecoveryDataAsync"/>, leaving the Hybrid PREPRESS
+    /// dashboard with no valid Scrap codes to choose for NG).
+    /// Promoted to public so the Hybrid Api host's boot probe can call it
+    /// directly alongside <see cref="SeedRecoveryDataAsync"/>.
     /// </summary>
-    private static async Task SeedReasonCodesAsync(MesDbContext db)
+    public static async Task SeedReasonCodesAsync(MesDbContext db)
     {
-        if (await db.ReasonCodes.AnyAsync()) return;
+        var existing = await db.ReasonCodes
+            .Where(r => r.Kind == ReasonCodeKind.Pause || r.Kind == ReasonCodeKind.Scrap)
+            .Select(r => r.Code)
+            .ToListAsync();
+        var existingSet = new HashSet<string>(existing, StringComparer.Ordinal);
 
-        db.ReasonCodes.AddRange(
+        var codes = new[]
+        {
             // Pause causes (ML-* — Machine Lost time).
             new ReasonCode { Code = "ML-MAT",   LabelEn = "Material loading / changeover", LabelVi = "Nạp / đổi vật liệu",         Kind = ReasonCodeKind.Pause, Sort = 10  },
             new ReasonCode { Code = "ML-INK",   LabelEn = "Ink change",                    LabelVi = "Thay mực",                    Kind = ReasonCodeKind.Pause, Sort = 20  },
@@ -262,12 +269,27 @@ public static class DbSeeder
             new ReasonCode { Code = "ML-MTC",   LabelEn = "Maintenance",                   LabelVi = "Bảo trì",                     Kind = ReasonCodeKind.Pause, Sort = 60  },
             new ReasonCode { Code = "ML-MEET",  LabelEn = "Shift handover / meeting",      LabelVi = "Giao ca / họp",               Kind = ReasonCodeKind.Pause, Sort = 70  },
             new ReasonCode { Code = "ML-UTIL",  LabelEn = "Power / air loss",              LabelVi = "Mất điện / khí",              Kind = ReasonCodeKind.Pause, Sort = 80  },
-            // Scrap / NG causes (SC-* — used for SpecQcCapture FAIL result).
+            // Scrap / NG causes (SC-* — used for SpecQcCapture FAIL result
+            // AND PREPRESS material/plate/cutter NG per P10.7b contract §5.1).
             new ReasonCode { Code = "SC-COLOR", LabelEn = "Colour ΔE out of spec",         LabelVi = "Lệch màu ΔE quá ngưỡng",      Kind = ReasonCodeKind.Scrap, Sort = 10  },
             new ReasonCode { Code = "SC-REG",   LabelEn = "Registration / mis-print",      LabelVi = "Lệch định vị / in lệch",      Kind = ReasonCodeKind.Scrap, Sort = 20  },
             new ReasonCode { Code = "SC-DIE",   LabelEn = "Die-cut burr / break",          LabelVi = "Cắt bế xước / gãy",           Kind = ReasonCodeKind.Scrap, Sort = 30  },
-            new ReasonCode { Code = "SC-BAR",   LabelEn = "Barcode grade below B",         LabelVi = "Barcode kém (dưới B)",        Kind = ReasonCodeKind.Scrap, Sort = 40  }
-        );
+            new ReasonCode { Code = "SC-BAR",   LabelEn = "Barcode grade below B",         LabelVi = "Barcode kém (dưới B)",        Kind = ReasonCodeKind.Scrap, Sort = 40  },
+            // P10.7b-3 — PREPRESS-specific Scrap codes for material / plate /
+            // cutter row checks. SC-MAT-* covers material defects surfacing
+            // before press; SC-PLATE-* / SC-DIE-* surface tooling NG that the
+            // SC-DIE existing code doesn't cleanly describe at the prepress
+            // gate (vs. cut quality at FQC).
+            new ReasonCode { Code = "SC-MAT-DAMAGE",  LabelEn = "Material damaged / contaminated", LabelVi = "Vật tư hỏng / nhiễm bẩn",      Kind = ReasonCodeKind.Scrap, Sort = 50 },
+            new ReasonCode { Code = "SC-MAT-LOT",     LabelEn = "Wrong lot / expired material",    LabelVi = "Sai lot / vật tư hết hạn",     Kind = ReasonCodeKind.Scrap, Sort = 60 },
+            new ReasonCode { Code = "SC-PLATE-WORN",  LabelEn = "Plate worn / unusable",           LabelVi = "Bản mòn / không dùng được",    Kind = ReasonCodeKind.Scrap, Sort = 70 },
+            new ReasonCode { Code = "SC-CUTTER-WORN", LabelEn = "Cutter worn / blade nicked",      LabelVi = "Dao chặt mòn / sứt",           Kind = ReasonCodeKind.Scrap, Sort = 80 },
+        };
+
+        var toAdd = codes.Where(c => !existingSet.Contains(c.Code)).ToList();
+        if (toAdd.Count == 0) return;
+
+        db.ReasonCodes.AddRange(toAdd);
         await db.SaveChangesAsync();
     }
 

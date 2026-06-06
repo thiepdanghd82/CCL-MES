@@ -37,6 +37,7 @@
 @using CCL.MES.Hybrid.Client.Prepress
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.Prepress
+@using CCL.MES.Shared.ReasonCodes
 @inject ICclApiClient Api
 
 <div class="prepress-dashboard" data-testid="prepress-dashboard">
@@ -92,16 +93,29 @@
             </div>
         }
 
+        @if (_scrapReasons.Count == 0 && !_reasonsLoading)
+        {
+            <div class="wo-card-error" data-testid="prepress-reasons-empty">
+                <strong>Danh mục mã lỗi NG trống.</strong>
+                Server chưa seed reason codes (kind=Scrap). Báo IT —
+                khởi động lại API để chạy boot probe
+                <code>[seed] reason_codes</code>; chỉ ghi OK được cho đến khi sửa.
+            </div>
+        }
+
         <WoMaterialsList Materials="_view.Materials"
                          Busy="_busy"
+                         ScrapReasons="_scrapReasons"
                          OnSetMaterial="OnSetMaterial" />
 
         <WoPlateCheck Row="_view.PlateCheck"
                       Busy="_busy"
+                      ScrapReasons="_scrapReasons"
                       OnSetPlate="OnSetPlate" />
 
         <WoCutterCheck Row="_view.CutterCheck"
                        Busy="_busy"
+                       ScrapReasons="_scrapReasons"
                        OnSetCutter="OnSetCutter" />
 
         <div class="prepress-advance-bar">
@@ -133,6 +147,9 @@
     private bool _invalidPhase;
     private long _lastLoadedWoId;
 
+    private IReadOnlyList<ReasonCodeOption> _scrapReasons = Array.Empty<ReasonCodeOption>();
+    private bool _reasonsLoading;
+
     protected override async Task OnParametersSetAsync()
     {
         if (WorkOrderId != _lastLoadedWoId)
@@ -142,7 +159,33 @@
             _initialError = null;
             _setError = null;
             _invalidPhase = false;
+            await LoadScrapReasonsAsync();
             await ReloadAsync();
+        }
+    }
+
+    private async Task LoadScrapReasonsAsync()
+    {
+        _reasonsLoading = true;
+        try
+        {
+            _scrapReasons = await Api.GetReasonCodesAsync("Scrap");
+        }
+        catch (ApiException)
+        {
+            _scrapReasons = Array.Empty<ReasonCodeOption>();
+        }
+        catch (HttpRequestException)
+        {
+            _scrapReasons = Array.Empty<ReasonCodeOption>();
+        }
+        catch (Exception)
+        {
+            _scrapReasons = Array.Empty<ReasonCodeOption>();
+        }
+        finally
+        {
+            _reasonsLoading = false;
         }
     }
 

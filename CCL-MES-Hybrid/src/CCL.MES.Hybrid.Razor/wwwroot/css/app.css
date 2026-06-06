@@ -3723,3 +3723,87 @@ html, body {
     color: #6b7280;
     font-size: 0.85rem;
 }
+
+/* ── P10.7b-3 fix-2 — S9 Design Rules: responsive PREPRESS dashboard ─
+   Apply to the PrepressDashboard hosted inside WorkOrders.razor. The
+   wo-shell parent currently has a fixed inner max-width; the dashboard
+   needs to stretch to the full available width on wide viewports
+   (≥1400 px) while staying readable on narrow ones (≤900 px).
+   Closes lesson L17 + complies with SKILLS.md S9 "responsive full-screen
+   verified (wide + narrow)" gate row. */
+
+.wo-shell:has(.prepress-dashboard) {
+    max-width: min(1600px, calc(100vw - 32px));
+    margin: 0 auto;
+    padding: 12px 16px;
+}
+
+.prepress-dashboard {
+    container-type: inline-size;
+}
+
+/* Materials table — explicit column widths + overflow-x for narrow */
+.prepress-section:has(.prepress-table) {
+    overflow-x: auto;
+}
+
+.prepress-table {
+    table-layout: fixed;
+    min-width: 1080px;
+}
+
+.prepress-table colgroup col.col-idx       { width: 56px; }
+.prepress-table colgroup col.col-mat-code  { width: 130px; }
+.prepress-table colgroup col.col-mat-desc  { width: auto; min-width: 180px; }
+.prepress-table colgroup col.col-mat-req   { width: 110px; }
+.prepress-table colgroup col.col-mat-load  { width: 110px; }
+.prepress-table colgroup col.col-mat-lot   { width: 130px; }
+.prepress-table colgroup col.col-mat-stat  { width: 110px; }
+.prepress-table colgroup col.col-mat-ng    { width: auto; min-width: 220px; }
+.prepress-table colgroup col.col-mat-act   { width: 220px; }
+
+.prepress-table th,
+.prepress-table td {
+    overflow: hidden;
+}
+
+.prepress-table td.cell-truncate {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* Picker styling */
+.prepress-select {
+    appearance: auto;
+    background: white;
+    cursor: pointer;
+}
+
+.prepress-select:disabled {
+    cursor: not-allowed;
+}
+
+/* Sticky head bar so WO + rollup pill stay visible while scrolling */
+.prepress-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+/* Container queries — at narrow widths, collapse the row-form grid */
+@container (max-width: 720px) {
+    .prepress-row-form {
+        grid-template-columns: 1fr;
+    }
+    .prepress-form-cell-wide {
+        grid-column: span 1;
+    }
+}
+
+/* Wide viewport: let advance-bar pin to the bottom edge of the dashboard
+   without breaking out of the page max-width */
+.prepress-advance-bar {
+    background: linear-gradient(0deg, rgba(229, 231, 235, 0.4) 0%, transparent 100%);
+    border-radius: 6px;
+    padding: 10px 12px;
+}
