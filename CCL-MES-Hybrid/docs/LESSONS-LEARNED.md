@@ -1,0 +1,265 @@
+# CCL-MES — Lessons Learned (canonical index)
+
+> **Source of truth** for every bug class this codebase has paid
+> for. One row per lesson, fixed format:
+>
+> | Triệu chứng | Root cause | Fix | Cơ chế chặn tái phát |
+>
+> **Append-only.** Every new lesson MUST land here with a backing
+> test / script / rule — otherwise it's prose and will recur. See
+> the "Adding a new lesson" section at the bottom.
+>
+> **Cross-references**: this file is the index. Detailed RCAs live
+> in companion docs; this file links them and codifies the guard
+> mechanism for each so a session reading just this file can ship
+> safely. Companions:
+>
+> - [`STACKED-PR-CHECKLIST.md`](./STACKED-PR-CHECKLIST.md) — 7 hard
+>   rules for stacked-PR merges, scripts, and gate scripts. Rules
+>   referenced as **R1**..**R7** below.
+> - [`LESSONS-EF-SQLITE-P10.7a-1.md`](./LESSONS-EF-SQLITE-P10.7a-1.md)
+>   — detailed RCA for EF Core + SQLite optimistic concurrency, the
+>   source for lessons L11/L12/L13 below.
+> - [`p10.6-screens/HOTFIX-RENDERER-DEAD-RECURRENCE.md`](./p10.6-screens/HOTFIX-RENDERER-DEAD-RECURRENCE.md)
+>   — detailed RCA for the Razor renderer-dead trio (L1/L2/L3).
+> - [`p10.6-screens/HOTFIX-SETTINGS-404-PROVEN.md`](./p10.6-screens/HOTFIX-SETTINGS-404-PROVEN.md)
+>   — paste-the-output proof of root cause for L7 (stale binary).
+> - [`/docs/LESSONS_LEARNED.md`](../../docs/LESSONS_LEARNED.md) —
+>   legacy phase-by-phase notes from Phase 6/7/8. **Frozen**;
+>   forward-looking lessons land HERE.
+
+---
+
+## Index (lessons newest-first within each cluster)
+
+### Renderer + Razor host
+
+- [L1 — Heartbeat outer-guard + GlobalErrorLogger (background unhandled exception kills renderer dispatcher)](#l1)
+- [L2 — `ChangeEventArgs` ↔ `<InputText>` throw on every keystroke (renderer-dead silent crash)](#l2)
+- [L3 — `RendererCrashBoundary` must wrap every layout (without it L1/L2 surface as "click does nothing")](#l3)
+- [L4 — Lessons codified ≠ documented (prose-only lessons recur; every lesson needs a canary test)](#l4)
+
+### Merge + branch hygiene
+
+- [L5 — Lessons don't reach main (merge/revert can silently drop the hardening commits)](#l5)
+- [L6 — Stacked-PR mechanics (R1–R3: `--base` explicit, no `--delete-branch` mid-stack, replacement PR for cascade-close)](#l6)
+
+### Binary / database deployment
+
+- [L7 — Stale API binary mmap'd in memory while disk DLL is fresh (Settings 404 incident)](#l7)
+- [L8 — Migrations not applied → blind HTTP 500 on operator UI (R5: Henry-action block + boot probe)](#l8)
+- [L9 — Verify scripts assume baseline DB state (R6: self-prep on the copy)](#l9)
+
+### Test-green / runtime-broken
+
+- [L10 — Wire-path drift (DbContext-only tests miss URL rename, query-param rename, AdminOnly→Authenticate; R7.3 wire-mirror)](#l10)
+
+### EF Core + SQLite
+
+- [L11 — SQLite UPDATE trigger fires AFTER EF's `RETURNING` (stale RowVersion echoed back)](#l11)
+- [L12 — `DbUpdateConcurrencyException` poisons the change tracker for downstream middleware](#l12)
+- [L13 — `[Timestamp]` doesn't auto-populate `byte[]` on INSERT under SQLite (no INSERT trigger = empty ETag)](#l13)
+
+### Operator scripts + DB drift
+
+- [L14 — Operator script vs server-keep-alive DB drift (R7.1 `[ctx] DB=` + R7.2 self-managed lifecycle)](#l14)
+
+### HTTP contract
+
+- [L15 — HTTP status overload — 409 (concurrency) vs 422 (semantic guard) vs 428 (precondition missing)](#l15)
+
+### Razor + tooling
+
+- [L16 — Gate scripts must strip BOTH `@* *@` block + `//` line comments (R4)](#l16)
+- [L17 — Seed early-exit guards (`db.X.AnyAsync()` short-circuit) skip kind-specific data when a different kind is already present](#l17)
+
+---
+
+## Lesson cards
+
+<a id="l1"></a>
+### L1 — Heartbeat outer-guard + GlobalErrorLogger
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Mac Catalyst app boots, but clicking buttons / typing in inputs silently does nothing. No spinner, no error banner. Renderer dispatcher dead. Henry blocked at Login step 0. |
+| **Root cause** | `DeviceHeartbeatHostedService.RunLoopAsync` had no outer try/catch. `PeriodicTimer.WaitForNextTickAsync` threw on `OperationCanceledException` past the loop. Unhandled exception killed the Blazor dispatcher background thread, freezing all UI work. No global crash logger meant the failure was invisible — no Console.WriteLine, no `error.log` entry. |
+| **Fix** | (a) `GlobalErrorLogger.Install()` BEFORE `MauiApp.CreateBuilder()` — wires `AppDomain.UnhandledException` + `TaskScheduler.UnobservedTaskException` (with `SetObserved()` to prevent process kill); rolling 50-line file at `FileSystem.AppDataDirectory/logs/error.log`. (b) Outer try/catch wrapping `RunLoopAsync` end-to-end; new `SafeWaitNextTickAsync` wrap on `PeriodicTimer.WaitForNextTickAsync`. (c) `App.xaml.cs` per-service try/catch INSIDE the foreach (was wrapping the whole loop, so one bad service killed the rest). |
+| **Cơ chế chặn tái phát** | `tests/CCL.MES.Hybrid.Client.Tests/.../BackgroundCrashContainmentTests.cs` — 6 fixtures: `MauiProgram` install ordering (BEFORE CreateBuilder), GlobalErrorLogger wires both handlers + sets SetObserved, heartbeat outer-guard + SafeWaitNextTickAsync present, App.xaml.cs per-service try INSIDE foreach. Any future PR that drops one of these arrangements fails CI with the offending file path. **Source RCA**: [`HOTFIX-RENDERER-DEAD-RECURRENCE.md`](./p10.6-screens/HOTFIX-RENDERER-DEAD-RECURRENCE.md) Layer 1. |
+
+<a id="l2"></a>
+### L2 — `ChangeEventArgs` ↔ `<InputText>` throw on every keystroke
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Login form: typing a single character throws `ChangeEventArgs cannot be converted to System.String`. The throw poisons the dispatcher → Tab, Enter, button click ALL stop working. Operator sees "click does nothing" — same outward symptom as L1, different root cause. |
+| **Root cause** | `<InputText>` is the legacy Razor primitive bound to `string` via `@bind-Value`. Combining it with `@bind-Value:event="oninput"` + `@onkeydown="..."` makes Blazor pass `ChangeEventArgs` to a handler typed `string` — type mismatch throws on every keystroke. Live on main from before P10.5g; operators previously avoided it by paste-typing instead of character-by-character entry. |
+| **Fix** | Replace every `<InputText>` with plain `<input> + @bind + @bind:event="oninput" + @onkeydown`. Drop the EditForm + DataAnnotationsValidator wrapper; inline the Required check in the submit handler. Pattern applied to Login.razor + every Settings input + every PREPRESS input. |
+| **Cơ chế chặn tái phát** | (a) `tests/.../BackgroundCrashContainmentTests.cs` — repo-wide tripwire grep: any `.razor` file containing `<InputText` + `@bind-Value:event="oninput"` fails CI with file path. (b) **STACKED-PR-CHECKLIST R4**: gate scripts strip `@* *@` block + `//` line comments BEFORE grep so doc-strings restating "no `<InputText>`" don't false-positive. Canonical snippet in `STACKED-PR-CHECKLIST.md` R4. |
+
+<a id="l3"></a>
+### L3 — `RendererCrashBoundary` must wrap every layout
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | When L1 or L2 fires, the renderer hangs without surfacing ANY operator-visible signal. Investigation requires Safari → Develop → Mac Catalyst → Console — a path operators don't know. |
+| **Root cause** | Blazor's default behaviour on unhandled component-render exception is "freeze the affected component subtree silently". Without an `ErrorBoundary`-derived component wrapping `@Body`, the crash is invisible. |
+| **Fix** | New `RendererCrashBoundary.razor` subclasses `ErrorBoundaryBase`; `OnErrorAsync` logs sentinel `[renderer-crash]` to `console.error` + `Console.WriteLine`; renders VN fallback card with "Tải lại" (Reload) button. Wrap `@Body` in both `MainLayout.razor` AND `EmptyLayout.razor` (the latter covers Login.razor, otherwise crashes during login render stay invisible). |
+| **Cơ chế chặn tái phát** | `tests/.../MacCatalystKeyboardFixRegressionTests.cs` — 6 fixtures asserting: both layouts contain `<RendererCrashBoundary>` wrap, RendererCrashBoundary inherits ErrorBoundaryBase, uses OnErrorAsync, emits `[renderer-crash]` sentinel, MacCatalystKeyboardFix carries `[js-uncaught]` + `[js-unhandled-rejection]` capture. **Source RCA**: [`HOTFIX-RENDERER-DEAD-RECURRENCE.md`](./p10.6-screens/HOTFIX-RENDERER-DEAD-RECURRENCE.md) Layer 2. |
+
+<a id="l4"></a>
+### L4 — Lessons codified ≠ documented (prose-only lessons recur)
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | The same renderer-dead bug surfaced THREE times across P10.5g, P10.6a, P10.6a-hotfix because the lessons were written in markdown but the fix was never converted to a canary test. The fourth time it hit production, the lessons file said "do X" — but X had been removed from main during a subsequent merge (see L5). |
+| **Root cause** | Human-readable prose drifts. Markdown is not enforceable. A lesson that says "always wrap layout with RendererCrashBoundary" is only true until the next developer skips it — markdown doesn't fail CI. |
+| **Fix** | Every lesson MUST land alongside a test that fails if the lesson's invariant is violated. The L1/L2/L3 fix shipped 12 canary tests inside `tests/.../Layout/` precisely for this — the markdown lesson now has a CI-enforced mirror. |
+| **Cơ chế chặn tái phát** | This file's "Adding a new lesson" section at the bottom requires the test/rule mechanism column to be non-empty. PR review rejection if a new lesson is added with `Cơ chế chặn tái phát = (none yet)`. |
+
+<a id="l5"></a>
+### L5 — Lessons don't reach main (merge/revert can silently drop the hardening commits)
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | The 3 P10.5g hardening commits (`c4ad008` + `0604df0` + `3fff2d0`) were authored, reviewed, and the PR title implied they landed in #90. P10.6a Henry-verify on Catalyst showed every L1/L2/L3 symptom — the bugs they fixed were back. Grep on main confirmed: `0 of 3 lessons present`. |
+| **Root cause** | Merge strategies (squash + rebase + revert sequences) can drop intermediate commits. PR titles describe intent, not what actually reached main. Only `git log main -- <file>` is authoritative. |
+| **Fix** | Step 2 of every renderer-dead RCA: grep main for the lesson sentinel BEFORE writing new code. If absent on main, the lesson was never delivered — re-ship it. Example: `grep -c "SafeWaitNextTickAsync" CCL-MES-Hybrid/src/CCL.MES.Hybrid/Services/DeviceHeartbeatHostedService.cs` on main should return non-zero. |
+| **Cơ chế chặn tái phát** | (a) Canary tests in `tests/.../Layout/` (L1/L2/L3) fail CI if the hardening drops out of any branch. (b) **STACKED-PR-CHECKLIST R2**: no `--delete-branch` mid-stack — branch deletion has cascade-close side effects (see L6). (c) Document grep-confirmation in the RCA: "lessons grep on main pre-PR #91 → 0 of 3 present" is the proof shape. |
+
+<a id="l6"></a>
+### L6 — Stacked-PR mechanics
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | (a) Stacked PR #92 had `base=main` instead of `base=feat/p10.6a-...`, silently breaking the stack invariant — no warning from `gh`. (b) Step 1 of P10.6 merge used `gh pr merge --rebase --delete-branch`, which cascade-closed PR #92 (its base branch was the just-deleted branch). (c) Cascade-closed PRs with force-pushed heads cannot be reopened — GitHub's `reopenPullRequest` API refuses. |
+| **Root cause** | `gh pr create` defaults `--base` to the repo default (main) when omitted. `--delete-branch` deletes the remote branch immediately. Force-pushed heads invalidate the reopen path. |
+| **Fix** | **R1** — every `gh pr create` for a stacked PR MUST pass `--base <prev-PR-head-branch>` explicitly. **R2** — never `--delete-branch` mid-stack; defer cleanup to a single post-merge sweep at the end. **R3** — when cascade-closed, jump straight to **Option Y** (replacement PR with new number pointing at the same head commit); don't waste time on Option X (recreate-base + reopen). |
+| **Cơ chế chặn tái phát** | [`STACKED-PR-CHECKLIST.md`](./STACKED-PR-CHECKLIST.md) Rules 1/2/3 carry the exact commands + pre-flight `gh pr view <N> --json baseRefName` verification. CLAUDE.md links the checklist at the top so every session loads it before touching PR mechanics. |
+
+<a id="l7"></a>
+### L7 — Stale API binary mmap'd in memory while disk DLL is fresh
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | New API controller (`SettingsController`) returns HTTP 404 on every Settings route. Login works (`AuthController` exists in the running process). xUnit suite for SettingsController passes 100%. `dotnet build` shows no errors. The disk DLL has the controller — yet `curl localhost:5100/api/v2/settings/me` returns 404. |
+| **Root cause** | `lsof -nP -iTCP:5100 -sTCP:LISTEN` showed PID `81851` started at 1:38PM. The disk DLL was rebuilt at 16:04 (commit `4c5068d`). macOS / Linux processes retain their mmap'd image — `dotnet build` rewrites the file but the running process keeps executing the version it loaded at boot. Restarting the build is NOT restarting the binary. |
+| **Fix** | (a) Verify-script pattern: kill any process on the target port BEFORE running the build + start. (b) Boot probe in `Program.cs` that prints the commit SHA at startup — operator can eyeball "is this the binary I just built". (c) Paste-the-output discipline (see [`SKILLS.md`](./SKILLS.md) "RCA proven, not 'most likely'"). |
+| **Cơ chế chặn tái phát** | `CCL-MES-Hybrid/scripts/verify-p10.X.sh` template: `lsof | xargs kill` at top, `dotnet build` + `dotnet CCL.MES.Api.dll &` fresh, then probe routes. **STACKED-PR-CHECKLIST R7.2** mandates self-managed API lifecycle on every checkpoint script. **Source RCA**: [`HOTFIX-SETTINGS-404-PROVEN.md`](./p10.6-screens/HOTFIX-SETTINGS-404-PROVEN.md). |
+
+<a id="l8"></a>
+### L8 — Migrations not applied → blind HTTP 500 on operator UI
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | P10.7a-1.3 Catalyst checkpoint failed login with a blind `HTTP 500 · http.non_success`. No diagnostic in the operator UI; the agent had to remote-debug the server log to discover a "no such column: WorkOrders.MesPhase" SQLite error. |
+| **Root cause** | The shipped server expected schema from 3 new EF migrations that the operator's `data/ccl_mes.db` lagged. The PR's Henry-action block listed `git checkout <branch>` + `dotnet run` but omitted the `dotnet ef database update` step needed to apply the migrations. |
+| **Fix** | **R5** — Henry's reproducibility block for any PR with EF migrations MUST be: `git fetch origin && git checkout <branch>` → `dotnet ef database update --connection "Data Source=..."` → verify-script. **Defence-in-depth**: pending-migration boot probe in `CCL.MES.Api/Program.cs` queries `Database.GetPendingMigrationsAsync()` at boot, logs `WARNING — DATABASE HAS UNAPPLIED MIGRATIONS`, and refuses to start if `Database:FailOnPendingMigrations=true`. |
+| **Cơ chế chặn tái phát** | (a) Boot probe in `Program.cs` (already shipped) makes the failure mode loud at boot instead of mute at first request. (b) **STACKED-PR-CHECKLIST R5** mandates the EF update step in the Henry-action block. (c) PR template warns when migrations changed. |
+
+<a id="l9"></a>
+### L9 — Verify scripts assume baseline DB state
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | A verify script with a probe like "pre-migration: column X absent" works the day it's authored (dev DB sits at previous migration baseline) but breaks every subsequent re-run once the dev cycle advances dev DB past the target migration. False FAIL blocks the gate even though the actual round-trip test below works correctly. |
+| **Root cause** | The script copies the live DB to `$TEST_DB` then probes without resetting baseline. Once dev DB advances, the probe sees the migration already applied and reports a spurious "Pre-migration: column already present" fail. |
+| **Fix** | **R6** — every verify script that runs migration round-trips MUST insert `dotnet ef database update "$PREVIOUS_MIGRATION" --connection "Data Source=$TEST_DB"` between the DB copy and the first probe. Run with `--no-build` (the build step earlier already produced the assembly). |
+| **Cơ chế chặn tái phát** | [`STACKED-PR-CHECKLIST.md`](./STACKED-PR-CHECKLIST.md) Rule 6 carries the canonical snippet + the cross-assembly caveat (mid-stack verify on a branch with partial migration sources). New verify scripts copy the snippet verbatim. |
+
+<a id="l10"></a>
+### L10 — Wire-path drift (DbContext-only tests miss URL rename)
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | P10.7a-2.2 force-phase endpoint genuinely persisted the SYS_RECOVERY audit row (confirmed via `sqlite3 SELECT * FROM AuditLogs`). 15 xUnit fixtures asserted the row via `db.AuditLogs.Where(...)` + passed. Catalyst checkpoint script queried the wire and reported "audit row missing". Apparent paradox: write OK, read empty. |
+| **Root cause** | (a) Script queried `/api/v2/admin/audit/log` → 404; real route is `/api/v2/audit/log` (no `/admin` segment despite `[Authorize(Policy = "AdminOnly")]`). (b) Script sent `?targetType=WorkOrder&targetId=N`; endpoint accepts `?search/action/actor/from/to/page/pageSize` — extra params silently ignored. Both bugs invisible to DbContext-only tests. |
+| **Fix** | **R7.3** — every wire-path probe in an operator script MUST be backed by an integration test hitting the SAME URL + SAME query params via TestServer. Example fix: `AdminWorkOrdersForcePhaseTests.Sys_recovery_audit_row_visible_via_wire_audit_log_endpoint` calls `client.GetAsync("/api/v2/audit/log?action=SYS_RECOVERY&page=1&pageSize=50")` and asserts the same substring shape. |
+| **Cơ chế chặn tái phát** | [`STACKED-PR-CHECKLIST.md`](./STACKED-PR-CHECKLIST.md) Rule 7.3. Bunit tests in `PrepressDashboardTests.cs` follow the same pattern — every wire-touching fixture lists its TestServer mirror in a comment. **Source RCA**: [`LESSONS-EF-SQLITE-P10.7a-1.md`](./LESSONS-EF-SQLITE-P10.7a-1.md) Lesson 4. |
+
+<a id="l11"></a>
+### L11 — SQLite UPDATE trigger fires AFTER EF's `RETURNING`
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Advance endpoint returned 200 with an `ETag` HTTP header identical to the request's `If-Match`. Test `Advance_with_valid_IfMatch_returns_200_with_new_ETag_in_body_and_header` failed `Assert.NotEqual(oldEtag, body.ETag)` with both sides showing `"ctIqhIj/ME4="`. |
+| **Root cause** | EF Core 10 + SQLite emits `UPDATE … RETURNING RowVersion`. SQLite per-row triggers fire AFTER the UPDATE statement executes but BEFORE row-level RETURNING reads. So EF gets back the application-set value (== old) not the trigger-bumped value. |
+| **Fix** | Re-read via `AsNoTracking + Select(w => w.RowVersion)` AFTER `SaveChangesAsync`. The `AsNoTracking` is essential — without it the change tracker returns the cached stale instance. The `Select` projection avoids materialising a full entity. |
+| **Cơ chế chặn tái phát** | (a) Detailed RCA in [`LESSONS-EF-SQLITE-P10.7a-1.md`](./LESSONS-EF-SQLITE-P10.7a-1.md) Lesson 1. (b) Integration test `Advance_with_valid_IfMatch_returns_200_with_new_ETag_in_body_and_header` locks the contract. (c) Pattern reused in `PrepressController.CommitAndAuditAsync` for the post-write RowVersion re-read. |
+
+<a id="l12"></a>
+### L12 — `DbUpdateConcurrencyException` poisons the change tracker
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | N=50 soak test threw the EF concurrency exception PAST the controller's `try/catch`. The `IdempotencyMiddleware`'s downstream `SaveChangesAsync` (writing the response envelope row) re-tried the failed UPDATE with the same tracked entity + same stale RowVersion, throwing again. TestServer surfaced the second throw as an unhandled exception. |
+| **Root cause** | After `SaveChanges` throws `DbUpdateConcurrencyException`, EF DbContext STILL holds the failed entity in `EntityState.Modified`. Change tracker doesn't auto-detach on exception — assumption is calling code will `Reload()` + retry. Per-request scoped DbContext shared between controller + middleware means the middleware's subsequent `SaveChanges` re-attempts the failed entry. |
+| **Fix** | In the controller's `catch (DbUpdateConcurrencyException)`: `if (_db is DbContext dbCtx) dbCtx.ChangeTracker.Clear();` BEFORE emitting the 409 response. Detaches every tracked entity in one call so downstream `SaveChanges` starts from an empty change set. |
+| **Cơ chế chặn tái phát** | (a) Detailed RCA in [`LESSONS-EF-SQLITE-P10.7a-1.md`](./LESSONS-EF-SQLITE-P10.7a-1.md) Lesson 2. (b) Soak tests `Concurrent_advance_N_equals_50_yield_one_winner` + `Concurrent_prepress_row_updates_N_equals_10_yield_consistent_rollup` (Trait=Soak) lock the post-exception behaviour. (c) Pattern reused in `PrepressController.HandleConcurrencyAsync`. |
+
+<a id="l13"></a>
+### L13 — `[Timestamp]` doesn't auto-populate `byte[]` on INSERT under SQLite
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | bUnit tests + first wire probes for `Summary` returned **empty** `eTag` strings for freshly-seeded WOs. Wire log showed `eTag: ""`; the next advance's `If-Match: ""` → 428. |
+| **Root cause** | EF Core `[Timestamp]` semantics rely on SQL Server auto-populating the column at INSERT time. SQLite has no equivalent. The earlier migration added an UPDATE trigger but not an INSERT trigger, so newly-inserted rows kept the EF default of an empty `byte[]`. |
+| **Fix** | Migration `AddWorkOrderRowVersionInsertTrigger` with both backfill SQL + INSERT trigger: `AFTER INSERT WHEN length(NEW.RowVersion) = 0 BEGIN UPDATE … SET RowVersion = randomblob(8) … END`. The `length = 0` guard skips inserts that already populated the column (replication targets, test fixtures). |
+| **Cơ chế chặn tái phát** | (a) Detailed RCA in [`LESSONS-EF-SQLITE-P10.7a-1.md`](./LESSONS-EF-SQLITE-P10.7a-1.md) Lesson 3. (b) Integration test `Newly_seeded_WO_returns_non_empty_ETag` locks the post-INSERT behaviour. (c) Standing rule: every new entity using `[Timestamp]` ships UPDATE + INSERT triggers TOGETHER in the same migration — don't repeat the "2 PRs to make it work" cycle. |
+
+<a id="l14"></a>
+### L14 — Operator script vs server-keep-alive DB drift
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Catalyst checkpoint script reported `audit row missing` while the live server (started in a separate terminal) showed the WO state correctly transitioned. SQLite Error 14 ("unable to open database file") in one direction, invisible state drift in the other. |
+| **Root cause** | Operator manually coordinated `ConnectionStrings__Default` + `ASPNETCORE_URLS` env across two terminals. The checkpoint script printed no `[ctx] DB=` line so the mismatch wasn't visible until probes returned wrong data. |
+| **Fix** | **R7.1** — every script touching a DB MUST print `[ctx] DB=<abs-path>` + `DB sha8=...` in its first 10 lines. Operator eyeballs two scripts' DB sha8 to confirm they're pointed at the same file. **R7.2** — every `checkpoint-*` script MUST self-manage its API lifecycle (probe `/health`, reuse if up, else auto-boot pinned to the same DB the script is mutating, trap EXIT to kill). `--keep-alive` flag leaves the process running for UI-verify use. |
+| **Cơ chế chặn tái phát** | [`STACKED-PR-CHECKLIST.md`](./STACKED-PR-CHECKLIST.md) Rules 7.1 + 7.2. Templates in `CCL-MES-Hybrid/scripts/checkpoint-7a-2.sh` + `checkpoint-7b-2.sh` carry the canonical [ctx] header + auto-boot snippet. New scripts copy verbatim. |
+
+<a id="l15"></a>
+### L15 — HTTP status overload (409 vs 422 vs 428)
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Early P10.7a-1 commits returned 409 for both "ETag stale" AND "WO is in wrong phase for this action". Client UI had no way to distinguish "tap again" (concurrency drift) from "this action is impossible right now" (semantic guard). Operator banner conflated the two cases. |
+| **Root cause** | RFC 7232 reserves 409 Conflict for concurrency-related conflicts (optimistic-locking RowVersion mismatch); semantic guards (state-machine "invalid phase for this transition") deserve 422 Unprocessable Entity, missing precondition headers deserve 428. Conflating overloads the status code. |
+| **Fix** | Strict mapping shipped contract-wide: **409** = stale RowVersion / concurrency drift (operator retries with fresh ETag). **422** = semantic guard (operator can't proceed without different input — e.g. `wo.invalid_phase`, `prepress.invalid_reason_code`, `prepress.invalid_ng_note`). **428** = missing required precondition header (`If-Match` absent — operator must reload + retry). **400** = malformed request (missing `Idempotency-Key`). |
+| **Cơ chế chặn tái phát** | (a) Integration tests per status code: `Put_material_stale_IfMatch_returns_409` + `Put_material_invalid_status_returns_422` + `Put_material_missing_IfMatch_returns_428` + `Put_material_missing_Idempotency_returns_400`. (b) Client-side `PrepressErrorLocaliser.cs` has separate banner copy per code so operator UX stays distinct. (c) Banner-bank xUnit tests lock every VN string. |
+
+<a id="l16"></a>
+### L16 — Gate scripts must strip BOTH `@* *@` block + `//` line comments
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | The L2 InputText repo-wide tripwire grep false-positived on `RecentScansWidget.razor` + `SettingsAuditLog.razor` because both contained intentional documentation strings restating "no `<InputText>` per the renderer-crash lesson". Naive grep counted doc-strings as code usages. |
+| **Root cause** | `grep -rcE '<InputText\b' src/...` counts every occurrence including those inside `@* ... *@` Razor block comments and `// ...` C# line comments. |
+| **Fix** | **R4** canonical snippet: `find src/... -name "*.razor" -print0 \| xargs -0 perl -0777 -pe 's{@\*.*?\*@}{}gs; s{//[^\n]*}{}g' \| grep -cE '<InputText\b'`. The `perl -0777` reads each file as a single string so `s{...}{}gs` can match across newlines. Strips both comment styles BEFORE grep. |
+| **Cơ chế chặn tái phát** | [`STACKED-PR-CHECKLIST.md`](./STACKED-PR-CHECKLIST.md) Rule 4 carries the exact snippet. Every PR's gate script copies it verbatim. The 7b-3 PREPRESS UI PR ran this gate as part of its merge checklist and reported `0` matches. |
+
+<a id="l17"></a>
+### L17 — Seed early-exit guards skip kind-specific data
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | P10.7b-3 PREPRESS NG submission on Henry's Catalyst test failed with `Mã lỗi NG không có trong danh mục Scrap`. Investigation showed dev DB had only 6 Recovery-kind reason codes — NO Scrap codes, NO Pause codes. Server seed was supposed to insert 12 ML-* / SC-* codes. |
+| **Root cause** | `SeedReasonCodesAsync` used a single `if (await db.ReasonCodes.AnyAsync()) return;` short-circuit. After a different code path (`SeedRecoveryReasonCodesAsync`) populated 6 Recovery codes, the global `AnyAsync()` returned true on every subsequent boot — so Pause + Scrap seed never ran on existing DBs. |
+| **Fix** | Per-kind idempotency: `if (await db.ReasonCodes.AnyAsync(r => r.Kind == ReasonCodeKind.Pause \|\| r.Kind == ReasonCodeKind.Scrap)) return;` — short-circuits only when the kinds THIS method owns are already populated. Mirror pattern of `SeedRecoveryReasonCodesAsync` which uses per-code idempotency. |
+| **Cơ chế chặn tái phát** | (a) Standing rule: any seed function that coexists with another seed of the same table MUST scope its existence check to the rows IT owns (by Kind / by Code / by composite key) — not a global `AnyAsync()`. (b) Boot probe in P10.7b-3 NG-path fix verifies `SeedReasonCodesAsync` populates Pause+Scrap regardless of pre-existing Recovery codes. (c) Boot log prints `[seed] reason_codes pause=N scrap=M recovery=K` so operator + agent can eyeball drift. |
+
+---
+
+## Adding a new lesson
+
+When a new bug class costs ≥2 hours of investigation:
+
+1. Add an entry to the **Index** above under the closest cluster.
+2. Add a new lesson card at the bottom following the 4-column template:
+   - **Triệu chứng** — what the operator/agent saw (paste output if helpful).
+   - **Root cause** — what was actually broken, PROVEN (see SKILLS.md "RCA proven").
+   - **Fix** — the durable code/script/rule change.
+   - **Cơ chế chặn tái phát** — name the specific test file, rule number, or boot-probe that fails CI if the invariant is violated. **MUST be non-empty.** Prose lessons don't ship.
+3. If the lesson reuses a STACKED-PR-CHECKLIST rule, link by number (R1..R7). If it adds a new rule, edit `STACKED-PR-CHECKLIST.md` in the same PR.
+4. If the lesson has a longer RCA, drop the detailed write-up next to the relevant `p10.X-screens/` or `pNN-screens/` folder and link it from the card.
+
+**Append-only.** Don't rewrite history — close out a lesson with a strike-through if it's superseded, but leave the original visible. The next agent reads the index to learn what the project has paid for.
