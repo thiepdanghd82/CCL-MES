@@ -130,14 +130,19 @@ public sealed class WorkOrdersPageTests : TestContext
     {
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
         api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
-            SampleSummary(woNo) with { CurrentStep = "ReadyToRun", ETag = "RV0" });
+            // P10.7c-3 — ReadyToRun + Running + IpqcApproval now dispatch
+            // to RunningDashboard which OWNS the in-phase action buttons,
+            // so the legacy Advance CTA is hidden on those steps. Test
+            // uses "Fqc" — outside both the prepress + running surfaces —
+            // so the legacy Advance flow still surfaces for wire coverage.
+            SampleSummary(woNo) with { CurrentStep = "Fqc", ETag = "RV0" });
         api.AdvanceImpl = (id, ifMatch, ct) =>
         {
             api.SummaryImpl = (woNo, ct2) => Task.FromResult<WorkOrderSummary?>(
-                SampleSummary(woNo) with { CurrentStep = "Running", ETag = "RV1" });
+                SampleSummary(woNo) with { CurrentStep = "Oqc", ETag = "RV1" });
             return Task.FromResult(new AdvanceWorkOrderResponse
             {
-                Ok = true, CurrentStep = "Running", ETag = "RV1"
+                Ok = true, CurrentStep = "Oqc", ETag = "RV1"
             });
         };
 
@@ -154,8 +159,8 @@ public sealed class WorkOrdersPageTests : TestContext
         {
             var banner = cut.Find("[data-testid='advance-success-banner']");
             Assert.Contains("Đã chuyển bước:", banner.TextContent);
-            Assert.Contains("ReadyToRun", banner.TextContent);
-            Assert.Contains("Running", banner.TextContent);
+            Assert.Contains("Fqc", banner.TextContent);
+            Assert.Contains("Oqc", banner.TextContent);
         });
     }
 
@@ -164,11 +169,11 @@ public sealed class WorkOrdersPageTests : TestContext
     {
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
         api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
-            SampleSummary(woNo) with { CurrentStep = "ReadyToRun", ETag = "STALE" });
+            SampleSummary(woNo) with { CurrentStep = "Fqc", ETag = "STALE" });
         api.AdvanceImpl = (id, ifMatch, ct) => Task.FromResult(new AdvanceWorkOrderResponse
         {
             Ok = false,
-            CurrentStep = "ReadyToRun",
+            CurrentStep = "Fqc",
             ErrorCode = "wo.state_conflict",
             ETag = "FRESH",
         });
@@ -197,7 +202,12 @@ public sealed class WorkOrdersPageTests : TestContext
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
         var advanceGate = new TaskCompletionSource<AdvanceWorkOrderResponse>();
         api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
-            SampleSummary(woNo) with { CurrentStep = "ReadyToRun", ETag = "RV0" });
+            // P10.7c-3 — ReadyToRun + Running + IpqcApproval now dispatch
+            // to RunningDashboard which OWNS the in-phase action buttons,
+            // so the legacy Advance CTA is hidden on those steps. Test
+            // uses "Fqc" — outside both the prepress + running surfaces —
+            // so the legacy Advance flow still surfaces for wire coverage.
+            SampleSummary(woNo) with { CurrentStep = "Fqc", ETag = "RV0" });
         api.AdvanceImpl = (id, ifMatch, ct) => advanceGate.Task;
 
         var cut = RenderComponent<WorkOrders>();
@@ -219,7 +229,7 @@ public sealed class WorkOrdersPageTests : TestContext
         // Let the advance finish so the test fixture tears down cleanly.
         advanceGate.SetResult(new AdvanceWorkOrderResponse
         {
-            Ok = true, CurrentStep = "Running", ETag = "RV1"
+            Ok = true, CurrentStep = "Oqc", ETag = "RV1"
         });
         cut.WaitForElement("[data-testid='advance-success-banner']");
     }
