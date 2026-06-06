@@ -8,6 +8,9 @@ public static class DependencyInjection
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
         services.AddScoped<WorkOrderService>();
+        // P10.7b-1 — PREPRESS BOM snapshot materialiser. Used by
+        // WorkOrderService.CreateAsync + 7b-2 endpoint lazy-materialise path.
+        services.AddScoped<PrepressBomSnapshotService>();
         services.AddScoped<SpecService>();
         services.AddScoped<SpecQcWindowService>();
         services.AddScoped<SpecQcCaptureService>();

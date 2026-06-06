@@ -51,6 +51,10 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<IqcResultDetail> IqcResultDetails => Set<IqcResultDetail>();
     // P10.7a-1.2 — Idempotency ledger (per contract §6.2).
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
+    // P10.7b-1 — PREPRESS row-level child tables (per contract §5.1).
+    public DbSet<WoMaterial> WoMaterials => Set<WoMaterial>();
+    public DbSet<WoPlateCheck> WoPlateChecks => Set<WoPlateCheck>();
+    public DbSet<WoCutterCheck> WoCutterChecks => Set<WoCutterCheck>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -98,6 +102,29 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<QcInspection>().Property(x => x.Result).HasConversion<string>();
         b.Entity<WoStatusHistory>().Property(x => x.FromStep).HasConversion<string>();
         b.Entity<WoStatusHistory>().Property(x => x.ToStep).HasConversion<string>();
+        // P10.7b-1 — PREPRESS row-level child tables. Status stored as string
+        // (PENDING / OK / NG) per legacy convention; NgReasonCode references
+        // ReasonCode.Code (Kind=Scrap) by natural key. Unique indexes enforce
+        // contract §5.1 cardinality: wo_materials has (WO, BomLineIdx) unique;
+        // plate + cutter are 1:1 per WO.
+        b.Entity<WoMaterial>().Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoMaterial>().Property(x => x.MaterialCode).HasMaxLength(64).IsRequired();
+        b.Entity<WoMaterial>().Property(x => x.MaterialDescription).HasMaxLength(200);
+        b.Entity<WoMaterial>().Property(x => x.Uom).HasMaxLength(16);
+        b.Entity<WoMaterial>().Property(x => x.LotNo).HasMaxLength(64);
+        b.Entity<WoMaterial>().Property(x => x.NgReasonCode).HasMaxLength(40);
+        b.Entity<WoMaterial>().Property(x => x.NgNote).HasMaxLength(500);
+        b.Entity<WoMaterial>().Property(x => x.CheckedBy).HasMaxLength(80);
+        b.Entity<WoPlateCheck>().Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoPlateCheck>().Property(x => x.PlateNo).HasMaxLength(64);
+        b.Entity<WoPlateCheck>().Property(x => x.NgReasonCode).HasMaxLength(40);
+        b.Entity<WoPlateCheck>().Property(x => x.NgNote).HasMaxLength(500);
+        b.Entity<WoPlateCheck>().Property(x => x.CheckedBy).HasMaxLength(80);
+        b.Entity<WoCutterCheck>().Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoCutterCheck>().Property(x => x.CutterNo).HasMaxLength(64);
+        b.Entity<WoCutterCheck>().Property(x => x.NgReasonCode).HasMaxLength(40);
+        b.Entity<WoCutterCheck>().Property(x => x.NgNote).HasMaxLength(500);
+        b.Entity<WoCutterCheck>().Property(x => x.CheckedBy).HasMaxLength(80);
         b.Entity<Machine>().Property(x => x.CurrentState).HasConversion<string>();
         b.Entity<ProductionLog>().Property(x => x.EventType).HasConversion<string>();
         b.Entity<WorkInstruction>().Property(x => x.Status).HasConversion<string>();
@@ -105,6 +132,12 @@ public class MesDbContext : DbContext, IMesDbContext
 
         b.Entity<WorkOrder>().HasIndex(x => x.WoNo).IsUnique();
         b.Entity<Machine>().HasIndex(x => x.Code).IsUnique();
+
+        // P10.7b-1 — PREPRESS row uniqueness.
+        b.Entity<WoMaterial>().HasIndex(x => new { x.WorkOrderId, x.BomLineIdx }).IsUnique();
+        b.Entity<WoMaterial>().HasIndex(x => x.WorkOrderId);
+        b.Entity<WoPlateCheck>().HasIndex(x => x.WorkOrderId).IsUnique();
+        b.Entity<WoCutterCheck>().HasIndex(x => x.WorkOrderId).IsUnique();
 
         // Phase 8 PR #28 — uniqueness + lookup indexes cho new schema.
         // (ProductId + RevisionCode) unique để enforce A/B/C duy nhất per product.

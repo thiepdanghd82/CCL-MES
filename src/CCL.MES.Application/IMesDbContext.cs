@@ -49,6 +49,10 @@ public interface IMesDbContext
     DbSet<IqcResultDetail> IqcResultDetails { get; }
     // P10.7a-1.2 — Idempotency ledger (per contract §6.2).
     DbSet<IdempotencyKey> IdempotencyKeys { get; }
+    // P10.7b-1 — PREPRESS row-level child tables (per contract §5.1).
+    DbSet<WoMaterial> WoMaterials { get; }
+    DbSet<WoPlateCheck> WoPlateChecks { get; }
+    DbSet<WoCutterCheck> WoCutterChecks { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

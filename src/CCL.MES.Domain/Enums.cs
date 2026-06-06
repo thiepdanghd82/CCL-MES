@@ -63,3 +63,9 @@ public enum QcCaptureResult { Pass, Fail, Na }
 /// <summary>Bucket for ReasonCode lookup — Pause = downtime cause, Scrap = NG cause,
 /// Recovery = admin SYS_RECOVERY justification (P10.7a-2 force-phase endpoint).</summary>
 public enum ReasonCodeKind { Pause, Scrap, Recovery }
+
+/// <summary>P10.7b-1 — status of a single PREPRESS row check (wo_materials /
+/// wo_plate_check / wo_cutter_check). PENDING = operator has not touched the
+/// row; OK = operator confirmed; NG = operator flagged a defect + a
+/// <see cref="ReasonCodeKind.Scrap"/> code is required on the row.</summary>
+public enum PrepressCheckStatus { Pending, Ok, Ng }

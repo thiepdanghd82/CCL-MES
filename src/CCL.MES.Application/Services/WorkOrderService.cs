@@ -297,6 +297,17 @@ public class WorkOrderService
         };
         _db.WorkOrders.Add(wo);
         await _db.SaveChangesAsync();
+
+        // P10.7b-1 — materialise the PREPRESS row-level child tables for
+        // the new WO. Best-effort: if the BOM lookup fails (no MS rows
+        // for the product, or no ProductRevisionId), only plate + cutter
+        // PENDING rows land. Operator can fill materials via 7b-2 endpoint
+        // afterward. Snapshot uses the same DbContext scope so the
+        // outer caller's transaction (e.g. CCL.MES.Web Razor save) sees
+        // the rows committed atomically with the WO row.
+        var snapshotSvc = new Services.PrepressBomSnapshotService(_db);
+        await snapshotSvc.MaterializeAsync(wo.Id);
+
         return wo;
     }
 
