@@ -79,37 +79,83 @@ PATTERN_NOISE_LIKE="(\"Detail\" LIKE '%reproduce%' \
   OR \"Detail\" LIKE '%wire-visibility%' \
   OR \"Detail\" LIKE '%soak%')"
 
+# P10.7b-4 — also purge BOM seed rows + WO_PREPRESS_* audit noise from
+# 7b-2 and 7b-final checkpoint scripts. BOM rows are tagged with
+# CreatedBy='checkpoint-7b-2' / 'verify-p10.7b' / 'checkpoint-7b-final'
+# so they can be removed without touching real BOMs. WO_PREPRESS_*
+# audit rows from the scripts share Detail substrings (LOT-VERIFY-* /
+# LOT-FINAL-* / PLATE-VERIFY-* / CUT-VERIFY-* / CUT-FINAL-* / the
+# explicit verify-script NG note) so the noise filter catches them.
+PATTERN_PREPRESS_NOISE_LIKE="(\"Detail\" LIKE '%checkpoint-7b%' \
+  OR \"Detail\" LIKE '%verify-p10.7b%' \
+  OR \"Detail\" LIKE '%LOT-VERIFY%' \
+  OR \"Detail\" LIKE '%LOT-FINAL%' \
+  OR \"Detail\" LIKE '%PLATE-VERIFY%' \
+  OR \"Detail\" LIKE '%PLATE-FINAL%' \
+  OR \"Detail\" LIKE '%CUT-VERIFY%' \
+  OR \"Detail\" LIKE '%CUT-FINAL%' \
+  OR \"Detail\" LIKE '%verify-script NG path%')"
+
+BOM_SEED_TAGS="'checkpoint-7b-2','verify-p10.7b','checkpoint-7b-final'"
+
 TOTAL_BEFORE=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs;")
 TESTRESET_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action='TEST_RESET' AND ActorUsername='test-tool';")
 NOISE_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action='SYS_RECOVERY' AND $PATTERN_NOISE_LIKE;")
-PURGE_TOTAL=$((TESTRESET_COUNT + NOISE_COUNT))
+PREPRESS_AUDIT_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action IN ('WO_PREPRESS_MATERIAL_SET','WO_PREPRESS_PLATE_SET','WO_PREPRESS_CUTTER_SET') AND $PATTERN_PREPRESS_NOISE_LIKE;")
+BOM_SEED_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS);" 2>/dev/null)
+BOM_SEED_COUNT="${BOM_SEED_COUNT:-0}"
+AUDIT_PURGE_TOTAL=$((TESTRESET_COUNT + NOISE_COUNT + PREPRESS_AUDIT_COUNT))
+GRAND_TOTAL=$((AUDIT_PURGE_TOTAL + BOM_SEED_COUNT))
 
-echo "── Pre-purge audit counts ──"
-echo "  TOTAL AuditLogs                              : $TOTAL_BEFORE"
-echo "  TEST_RESET (actor=test-tool) candidates      : $TESTRESET_COUNT"
-echo "  SYS_RECOVERY noise (Detail LIKE patterns)    : $NOISE_COUNT"
-echo "  TOTAL TO PURGE                               : $PURGE_TOTAL"
+echo "── Pre-purge counts ──"
+echo "  TOTAL AuditLogs                                    : $TOTAL_BEFORE"
+echo "  TEST_RESET (actor=test-tool) candidates            : $TESTRESET_COUNT"
+echo "  SYS_RECOVERY noise (Detail LIKE patterns)          : $NOISE_COUNT"
+echo "  WO_PREPRESS_* test rows (7b-* / verify-p10.7b)     : $PREPRESS_AUDIT_COUNT"
+echo "  ManufacturingStructures BOM seed rows              : $BOM_SEED_COUNT"
+echo "  TOTAL AUDIT TO PURGE                               : $AUDIT_PURGE_TOTAL"
+echo "  TOTAL ALL (audit + BOM seed)                       : $GRAND_TOTAL"
 echo ""
 
-if [[ "$PURGE_TOTAL" == "0" ]]; then
-    echo "✓ Nothing to purge — audit log is clean."
+if [[ "$GRAND_TOTAL" == "0" ]]; then
+    echo "✓ Nothing to purge — audit log + BOM seed are clean."
     exit 0
 fi
 
-echo "── Candidate rows ──"
+echo "── Candidate audit rows ──"
 echo ""
-echo "TEST_RESET rows:"
-sqlite3 -column -header "$DB_PATH" \
-  "SELECT Id, datetime(Timestamp) AS T, Action, TargetId, substr(Detail,1,60) AS Detail60
-   FROM AuditLogs WHERE Action='TEST_RESET' AND ActorUsername='test-tool'
-   ORDER BY Id;"
-echo ""
-echo "SYS_RECOVERY noise rows:"
-sqlite3 -column -header "$DB_PATH" \
-  "SELECT Id, datetime(Timestamp) AS T, Action, TargetId, substr(Detail,1,80) AS Detail80
-   FROM AuditLogs WHERE Action='SYS_RECOVERY' AND $PATTERN_NOISE_LIKE
-   ORDER BY Id;"
-echo ""
+if [[ "$TESTRESET_COUNT" != "0" ]]; then
+    echo "TEST_RESET rows:"
+    sqlite3 -column -header "$DB_PATH" \
+      "SELECT Id, datetime(Timestamp) AS T, Action, TargetId, substr(Detail,1,60) AS Detail60
+       FROM AuditLogs WHERE Action='TEST_RESET' AND ActorUsername='test-tool'
+       ORDER BY Id;"
+    echo ""
+fi
+if [[ "$NOISE_COUNT" != "0" ]]; then
+    echo "SYS_RECOVERY noise rows:"
+    sqlite3 -column -header "$DB_PATH" \
+      "SELECT Id, datetime(Timestamp) AS T, Action, TargetId, substr(Detail,1,80) AS Detail80
+       FROM AuditLogs WHERE Action='SYS_RECOVERY' AND $PATTERN_NOISE_LIKE
+       ORDER BY Id;"
+    echo ""
+fi
+if [[ "$PREPRESS_AUDIT_COUNT" != "0" ]]; then
+    echo "WO_PREPRESS_* test rows:"
+    sqlite3 -column -header "$DB_PATH" \
+      "SELECT Id, datetime(Timestamp) AS T, Action, TargetId, substr(Detail,1,80) AS Detail80
+       FROM AuditLogs WHERE Action IN ('WO_PREPRESS_MATERIAL_SET','WO_PREPRESS_PLATE_SET','WO_PREPRESS_CUTTER_SET') AND $PATTERN_PREPRESS_NOISE_LIKE
+       ORDER BY Id;"
+    echo ""
+fi
+if [[ "$BOM_SEED_COUNT" != "0" ]]; then
+    echo "ManufacturingStructures BOM seed rows:"
+    sqlite3 -column -header "$DB_PATH" \
+      "SELECT Id, ProductRevisionId, ChildPartNo, Quantity, Uom, CreatedBy
+       FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS)
+       ORDER BY Id;"
+    echo ""
+fi
 
 if [[ $COMMIT -eq 0 ]]; then
     echo "── DRY-RUN — no rows written. Re-run with --commit to execute. ──"
@@ -122,6 +168,8 @@ sqlite3 "$DB_PATH" <<SQL
 BEGIN;
 DELETE FROM AuditLogs WHERE Action='TEST_RESET' AND ActorUsername='test-tool';
 DELETE FROM AuditLogs WHERE Action='SYS_RECOVERY' AND $PATTERN_NOISE_LIKE;
+DELETE FROM AuditLogs WHERE Action IN ('WO_PREPRESS_MATERIAL_SET','WO_PREPRESS_PLATE_SET','WO_PREPRESS_CUTTER_SET') AND $PATTERN_PREPRESS_NOISE_LIKE;
+DELETE FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS);
 COMMIT;
 SQL
 PURGE_EXIT=$?
@@ -132,16 +180,23 @@ if [[ $PURGE_EXIT -ne 0 ]]; then
 fi
 
 TOTAL_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs;")
-DELETED=$((TOTAL_BEFORE - TOTAL_AFTER))
+BOM_SEED_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS);")
+AUDIT_DELETED=$((TOTAL_BEFORE - TOTAL_AFTER))
+BOM_DELETED=$((BOM_SEED_COUNT - BOM_SEED_AFTER))
 echo ""
-echo "── Post-purge audit counts ──"
-echo "  TOTAL AuditLogs (before)  : $TOTAL_BEFORE"
-echo "  TOTAL AuditLogs (after)   : $TOTAL_AFTER"
-echo "  Rows deleted              : $DELETED"
+echo "── Post-purge counts ──"
+echo "  TOTAL AuditLogs (before)        : $TOTAL_BEFORE"
+echo "  TOTAL AuditLogs (after)         : $TOTAL_AFTER"
+echo "  Audit rows deleted              : $AUDIT_DELETED"
+echo "  BOM seed rows (before)          : $BOM_SEED_COUNT"
+echo "  BOM seed rows (after)           : $BOM_SEED_AFTER"
+echo "  BOM seed rows deleted           : $BOM_DELETED"
 echo ""
-if [[ "$DELETED" == "$PURGE_TOTAL" ]]; then
-    echo "✓ Purge complete — deleted count matches preview."
+if [[ "$AUDIT_DELETED" == "$AUDIT_PURGE_TOTAL" && "$BOM_DELETED" == "$BOM_SEED_COUNT" ]]; then
+    echo "✓ Purge complete — deleted counts match preview."
 else
-    echo "⚠ Deleted count ($DELETED) differs from preview ($PURGE_TOTAL) — investigate."
+    echo "⚠ Deleted counts diverged from preview — investigate."
+    echo "    audit preview=$AUDIT_PURGE_TOTAL deleted=$AUDIT_DELETED"
+    echo "    bom   preview=$BOM_SEED_COUNT  deleted=$BOM_DELETED"
     exit 1
 fi
