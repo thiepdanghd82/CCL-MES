@@ -54,6 +54,21 @@ public class WorkOrder : BaseEntity
     // If-Match HTTP header (PR 7a-1.3).
     public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
+    // P10.7c-1 — SETTING phase timer + RUNNING counter denormalisation.
+    // Per contract §5.4 amendment. SettingStartAt is set ONCE on the
+    // first PREPRESS → SETTING transition (null-guarded so race writes
+    // don't reset it); SettingEndAt is set on SETTING → IPQC_WAIT;
+    // SettingDurationSec computed at controller commit time. The
+    // QtyDoneCached/QtyNgCached columns are denormalised snapshots of
+    // SUM(WoQtyEntry.QtyDoneDelta)/SUM(WoQtyEntry.QtyNgDelta) updated
+    // on every WO_RUN_QTY_ADD / WO_RUN_QTY_CORRECT write; the ledger
+    // remains authoritative.
+    public DateTime? SettingStartAt { get; set; }
+    public DateTime? SettingEndAt { get; set; }
+    public int? SettingDurationSec { get; set; }
+    public int QtyDoneCached { get; set; }
+    public int QtyNgCached { get; set; }
+
     public List<WoStatusHistory> History { get; set; } = new();
     public List<QcInspection> Inspections { get; set; } = new();
 

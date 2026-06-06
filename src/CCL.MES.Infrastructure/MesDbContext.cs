@@ -55,6 +55,10 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<WoMaterial> WoMaterials => Set<WoMaterial>();
     public DbSet<WoPlateCheck> WoPlateChecks => Set<WoPlateCheck>();
     public DbSet<WoCutterCheck> WoCutterChecks => Set<WoCutterCheck>();
+    // P10.7c-1 — RUNNING + PAUSED child tables (per contract §5.4).
+    public DbSet<WoRunSession> WoRunSessions => Set<WoRunSession>();
+    public DbSet<WoPauseEvent> WoPauseEvents => Set<WoPauseEvent>();
+    public DbSet<WoQtyEntry> WoQtyEntries => Set<WoQtyEntry>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -138,6 +142,16 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<WoMaterial>().HasIndex(x => x.WorkOrderId);
         b.Entity<WoPlateCheck>().HasIndex(x => x.WorkOrderId).IsUnique();
         b.Entity<WoCutterCheck>().HasIndex(x => x.WorkOrderId).IsUnique();
+
+        // P10.7c-1 — RUNNING + PAUSED child tables (contract §5.4).
+        b.Entity<WoRunSession>().HasIndex(x => x.WoId);
+        b.Entity<WoRunSession>().HasIndex(x => new { x.WoId, x.EndedAt });
+        b.Entity<WoPauseEvent>().HasIndex(x => x.WoId);
+        b.Entity<WoPauseEvent>().HasIndex(x => x.RunSessionId);
+        b.Entity<WoQtyEntry>().HasIndex(x => x.WoId);
+        b.Entity<WoQtyEntry>().HasIndex(x => new { x.WoId, x.Ts });
+        b.Entity<WoQtyEntry>().HasIndex(x => x.RunSessionId);
+        b.Entity<WoQtyEntry>().HasIndex(x => x.LinkedEntryId);
 
         // Phase 8 PR #28 — uniqueness + lookup indexes cho new schema.
         // (ProductId + RevisionCode) unique để enforce A/B/C duy nhất per product.
