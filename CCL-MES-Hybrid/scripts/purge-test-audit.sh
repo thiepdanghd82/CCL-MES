@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # P10.7b-1 — housekeeping: purge test-only audit rows from the live DB.
+# P10.7c-4 — extended to cover WO_RUN_* test rows + WoRunSessions /
+#             WoPauseEvents / WoQtyEntries tagged with checkpoint-7c* +
+#             manual-l19-test + checkpoint-l19-walk vocabulary.
 #
 # Scope:
 #   * Action='TEST_RESET' AND ActorUsername='test-tool' — every row
@@ -10,6 +13,17 @@
 #     These match the 7a-2 hotfix repro + the bUnit / checkpoint test
 #     vocabulary; real ops SYS_RECOVERY rows use operator-typed Vietnamese
 #     reasons (REC-OP-WEDGE / REC-HW-FAULT / etc.) and pass through.
+#   * WO_PREPRESS_* with checkpoint-7b / verify-p10.7b vocab (existing).
+#   * P10.7c-4 NEW — WO_SETTING_* + WO_RUN_* audit rows where Detail
+#     contains 'checkpoint-7c%' / 'verify-p10.7c%' / 'manual-l19-test' /
+#     'manual-test' / 'checkpoint-l19-walk'. These are all test-script
+#     vocabularies — real operator-driven RUNNING audit rows use
+#     application-supplied notes (Vietnamese strings from the
+#     dashboard's Pause modal / NG modal) and pass through.
+#   * P10.7c-4 NEW — WoRunSessions / WoPauseEvents / WoQtyEntries rows
+#     whose StartedBy / EnteredBy / UpdatedBy match the checkpoint
+#     vocabulary. Domain rows from real operator runs use the operator's
+#     username + are preserved.
 #
 # Default: dry-run — SELECT + print counts + list candidate rows. NO DELETE.
 # --commit: BEGIN; DELETE both patterns; COMMIT; + print post-count.
@@ -96,25 +110,64 @@ PATTERN_PREPRESS_NOISE_LIKE="(\"Detail\" LIKE '%checkpoint-7b%' \
   OR \"Detail\" LIKE '%CUT-FINAL%' \
   OR \"Detail\" LIKE '%verify-script NG path%')"
 
+# P10.7c-4 — RUNNING surface audit noise: every detail JSON emitted by
+# checkpoint-7c*.sh / verify-p10.7c.sh / Henry's manual L19 shim flows.
+# The patterns target the test-script vocabularies; real ops audits
+# carry the operator's Vietnamese pause/NG notes (which never include
+# these tokens) so they pass through unchanged.
+PATTERN_RUNNING_NOISE_LIKE="(\"Detail\" LIKE '%checkpoint-7c%' \
+  OR \"Detail\" LIKE '%verify-p10.7c%' \
+  OR \"Detail\" LIKE '%checkpoint-l19-walk%' \
+  OR \"Detail\" LIKE '%manual-l19-test%' \
+  OR \"Detail\" LIKE '%manual-test%' \
+  OR \"Detail\" LIKE '%checkpoint final NG sample%' \
+  OR \"Detail\" LIKE '%checkpoint-7c-2 NG sample%' \
+  OR \"Detail\" LIKE '%checkpoint pause%' \
+  OR \"Detail\" LIKE '%checkpoint miscount fix%')"
+
 BOM_SEED_TAGS="'checkpoint-7b-2','verify-p10.7b','checkpoint-7b-final'"
+
+# P10.7c-4 — actor tags written by the test scripts into domain tables
+# (WoRunSessions.StartedBy / WoPauseEvents.StartedBy /
+# WoQtyEntries.EnteredBy / WoQtyEntries.CreatedBy).
+RUNNING_ACTOR_TAGS="'checkpoint-7c-2','checkpoint-7c-final','verify-p10.7c','checkpoint-l19-walk','manual-l19-test','manual-test'"
 
 TOTAL_BEFORE=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs;")
 TESTRESET_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action='TEST_RESET' AND ActorUsername='test-tool';")
 NOISE_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action='SYS_RECOVERY' AND $PATTERN_NOISE_LIKE;")
 PREPRESS_AUDIT_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action IN ('WO_PREPRESS_MATERIAL_SET','WO_PREPRESS_PLATE_SET','WO_PREPRESS_CUTTER_SET') AND $PATTERN_PREPRESS_NOISE_LIKE;")
+
+# P10.7c-4 — count RUNNING surface noise rows
+RUNNING_AUDIT_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action IN ('WO_SETTING_START','WO_SETTING_DONE','WO_RUN_START','WO_RUN_QTY_ADD','WO_RUN_QTY_CORRECT','WO_RUN_PAUSE','WO_RUN_RESUME','WO_RUN_FINISH','WO_STATE_CONFLICT') AND $PATTERN_RUNNING_NOISE_LIKE;")
+
+# Domain test rows tied to checkpoint actor tags (only safe to delete
+# the children — qty entries + pauses + sessions in dep-order).
+QTY_ENTRY_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM WoQtyEntries WHERE EnteredBy IN ($RUNNING_ACTOR_TAGS);" 2>/dev/null)
+QTY_ENTRY_COUNT="${QTY_ENTRY_COUNT:-0}"
+PAUSE_EVENT_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM WoPauseEvents WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);" 2>/dev/null)
+PAUSE_EVENT_COUNT="${PAUSE_EVENT_COUNT:-0}"
+RUN_SESSION_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM WoRunSessions WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);" 2>/dev/null)
+RUN_SESSION_COUNT="${RUN_SESSION_COUNT:-0}"
+
 BOM_SEED_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS);" 2>/dev/null)
 BOM_SEED_COUNT="${BOM_SEED_COUNT:-0}"
-AUDIT_PURGE_TOTAL=$((TESTRESET_COUNT + NOISE_COUNT + PREPRESS_AUDIT_COUNT))
-GRAND_TOTAL=$((AUDIT_PURGE_TOTAL + BOM_SEED_COUNT))
+AUDIT_PURGE_TOTAL=$((TESTRESET_COUNT + NOISE_COUNT + PREPRESS_AUDIT_COUNT + RUNNING_AUDIT_COUNT))
+DOMAIN_PURGE_TOTAL=$((QTY_ENTRY_COUNT + PAUSE_EVENT_COUNT + RUN_SESSION_COUNT))
+GRAND_TOTAL=$((AUDIT_PURGE_TOTAL + BOM_SEED_COUNT + DOMAIN_PURGE_TOTAL))
 
 echo "── Pre-purge counts ──"
 echo "  TOTAL AuditLogs                                    : $TOTAL_BEFORE"
 echo "  TEST_RESET (actor=test-tool) candidates            : $TESTRESET_COUNT"
 echo "  SYS_RECOVERY noise (Detail LIKE patterns)          : $NOISE_COUNT"
 echo "  WO_PREPRESS_* test rows (7b-* / verify-p10.7b)     : $PREPRESS_AUDIT_COUNT"
+echo "  WO_SETTING/RUN_* test rows (7c-* / l19-walk)       : $RUNNING_AUDIT_COUNT"
+echo "  WoQtyEntries (RUNNING actor tags)                  : $QTY_ENTRY_COUNT"
+echo "  WoPauseEvents (RUNNING actor tags)                 : $PAUSE_EVENT_COUNT"
+echo "  WoRunSessions (RUNNING actor tags)                 : $RUN_SESSION_COUNT"
 echo "  ManufacturingStructures BOM seed rows              : $BOM_SEED_COUNT"
 echo "  TOTAL AUDIT TO PURGE                               : $AUDIT_PURGE_TOTAL"
-echo "  TOTAL ALL (audit + BOM seed)                       : $GRAND_TOTAL"
+echo "  TOTAL DOMAIN TO PURGE                              : $DOMAIN_PURGE_TOTAL"
+echo "  TOTAL ALL (audit + domain + BOM seed)              : $GRAND_TOTAL"
 echo ""
 
 if [[ "$GRAND_TOTAL" == "0" ]]; then
@@ -148,6 +201,38 @@ if [[ "$PREPRESS_AUDIT_COUNT" != "0" ]]; then
        ORDER BY Id;"
     echo ""
 fi
+if [[ "$RUNNING_AUDIT_COUNT" != "0" ]]; then
+    echo "WO_SETTING/RUN_* test rows:"
+    sqlite3 -column -header "$DB_PATH" \
+      "SELECT Id, datetime(Timestamp) AS T, Action, TargetId, substr(Detail,1,80) AS Detail80
+       FROM AuditLogs WHERE Action IN ('WO_SETTING_START','WO_SETTING_DONE','WO_RUN_START','WO_RUN_QTY_ADD','WO_RUN_QTY_CORRECT','WO_RUN_PAUSE','WO_RUN_RESUME','WO_RUN_FINISH','WO_STATE_CONFLICT') AND $PATTERN_RUNNING_NOISE_LIKE
+       ORDER BY Id;"
+    echo ""
+fi
+if [[ "$QTY_ENTRY_COUNT" != "0" ]]; then
+    echo "WoQtyEntries (RUNNING actor tags):"
+    sqlite3 -column -header "$DB_PATH" \
+      "SELECT Id, WoId, RunSessionId, QtyDoneDelta, QtyNgDelta, EnteredBy
+       FROM WoQtyEntries WHERE EnteredBy IN ($RUNNING_ACTOR_TAGS)
+       ORDER BY Id;"
+    echo ""
+fi
+if [[ "$PAUSE_EVENT_COUNT" != "0" ]]; then
+    echo "WoPauseEvents (RUNNING actor tags):"
+    sqlite3 -column -header "$DB_PATH" \
+      "SELECT Id, WoId, ReasonCode, datetime(StartedAt) AS Start, datetime(EndedAt) AS Ended, StartedBy
+       FROM WoPauseEvents WHERE StartedBy IN ($RUNNING_ACTOR_TAGS)
+       ORDER BY Id;"
+    echo ""
+fi
+if [[ "$RUN_SESSION_COUNT" != "0" ]]; then
+    echo "WoRunSessions (RUNNING actor tags):"
+    sqlite3 -column -header "$DB_PATH" \
+      "SELECT Id, WoId, datetime(StartedAt) AS Start, datetime(EndedAt) AS Ended, StartedBy
+       FROM WoRunSessions WHERE StartedBy IN ($RUNNING_ACTOR_TAGS)
+       ORDER BY Id;"
+    echo ""
+fi
 if [[ "$BOM_SEED_COUNT" != "0" ]]; then
     echo "ManufacturingStructures BOM seed rows:"
     sqlite3 -column -header "$DB_PATH" \
@@ -163,12 +248,19 @@ if [[ $COMMIT -eq 0 ]]; then
 fi
 
 # COMMIT path
+# P10.7c-4 — domain rows deleted in dependency order (children first):
+# WoQtyEntries (FK → WoRunSessions) → WoPauseEvents (FK → WoRunSessions)
+# → WoRunSessions. Audit rows are independent and can purge in any order.
 echo "── Executing purge transaction ──"
 sqlite3 "$DB_PATH" <<SQL
 BEGIN;
 DELETE FROM AuditLogs WHERE Action='TEST_RESET' AND ActorUsername='test-tool';
 DELETE FROM AuditLogs WHERE Action='SYS_RECOVERY' AND $PATTERN_NOISE_LIKE;
 DELETE FROM AuditLogs WHERE Action IN ('WO_PREPRESS_MATERIAL_SET','WO_PREPRESS_PLATE_SET','WO_PREPRESS_CUTTER_SET') AND $PATTERN_PREPRESS_NOISE_LIKE;
+DELETE FROM AuditLogs WHERE Action IN ('WO_SETTING_START','WO_SETTING_DONE','WO_RUN_START','WO_RUN_QTY_ADD','WO_RUN_QTY_CORRECT','WO_RUN_PAUSE','WO_RUN_RESUME','WO_RUN_FINISH','WO_STATE_CONFLICT') AND $PATTERN_RUNNING_NOISE_LIKE;
+DELETE FROM WoQtyEntries WHERE EnteredBy IN ($RUNNING_ACTOR_TAGS);
+DELETE FROM WoPauseEvents WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);
+DELETE FROM WoRunSessions WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);
 DELETE FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS);
 COMMIT;
 SQL
@@ -181,8 +273,13 @@ fi
 
 TOTAL_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs;")
 BOM_SEED_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS);")
+QTY_ENTRY_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM WoQtyEntries WHERE EnteredBy IN ($RUNNING_ACTOR_TAGS);")
+PAUSE_EVENT_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM WoPauseEvents WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);")
+RUN_SESSION_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM WoRunSessions WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);")
 AUDIT_DELETED=$((TOTAL_BEFORE - TOTAL_AFTER))
 BOM_DELETED=$((BOM_SEED_COUNT - BOM_SEED_AFTER))
+DOMAIN_DELETED=$(( (QTY_ENTRY_COUNT - QTY_ENTRY_AFTER) + (PAUSE_EVENT_COUNT - PAUSE_EVENT_AFTER) + (RUN_SESSION_COUNT - RUN_SESSION_AFTER) ))
+
 echo ""
 echo "── Post-purge counts ──"
 echo "  TOTAL AuditLogs (before)        : $TOTAL_BEFORE"
@@ -191,12 +288,14 @@ echo "  Audit rows deleted              : $AUDIT_DELETED"
 echo "  BOM seed rows (before)          : $BOM_SEED_COUNT"
 echo "  BOM seed rows (after)           : $BOM_SEED_AFTER"
 echo "  BOM seed rows deleted           : $BOM_DELETED"
+echo "  Domain test rows deleted        : $DOMAIN_DELETED (qty/pause/session)"
 echo ""
-if [[ "$AUDIT_DELETED" == "$AUDIT_PURGE_TOTAL" && "$BOM_DELETED" == "$BOM_SEED_COUNT" ]]; then
+if [[ "$AUDIT_DELETED" == "$AUDIT_PURGE_TOTAL" && "$BOM_DELETED" == "$BOM_SEED_COUNT" && "$DOMAIN_DELETED" == "$DOMAIN_PURGE_TOTAL" ]]; then
     echo "✓ Purge complete — deleted counts match preview."
 else
     echo "⚠ Deleted counts diverged from preview — investigate."
-    echo "    audit preview=$AUDIT_PURGE_TOTAL deleted=$AUDIT_DELETED"
-    echo "    bom   preview=$BOM_SEED_COUNT  deleted=$BOM_DELETED"
+    echo "    audit  preview=$AUDIT_PURGE_TOTAL  deleted=$AUDIT_DELETED"
+    echo "    bom    preview=$BOM_SEED_COUNT    deleted=$BOM_DELETED"
+    echo "    domain preview=$DOMAIN_PURGE_TOTAL deleted=$DOMAIN_DELETED"
     exit 1
 fi
