@@ -12,6 +12,7 @@ using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.QcSpecs;
+using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
 using CCL.MES.Shared.WorkOrders;
@@ -163,6 +164,17 @@ public sealed class CclApiClient : ICclApiClient
         => SendPrepressPutAsync(
             $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/cutter-check",
             ifMatchETag, req, ct);
+
+    public async Task<IReadOnlyList<ReasonCodeOption>> GetReasonCodesAsync(
+        string? kind, CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/reason-codes";
+        if (!string.IsNullOrWhiteSpace(kind))
+            path += $"?kind={Uri.EscapeDataString(kind)}";
+        using var resp = await _http.GetAsync(path, ct);
+        var rows = await ReadAsAsync<List<ReasonCodeOption>>(resp, ct);
+        return rows;
+    }
 
     private async Task<PrepressSetResponse> SendPrepressPutAsync(
         string path, string ifMatchETag, object req, CancellationToken ct)

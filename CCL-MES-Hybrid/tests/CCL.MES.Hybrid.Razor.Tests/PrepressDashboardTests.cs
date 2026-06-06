@@ -6,6 +6,7 @@ using CCL.MES.Hybrid.Razor.Shared;
 using CCL.MES.Hybrid.Razor.Tests._Support;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Prepress;
+using CCL.MES.Shared.ReasonCodes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -26,12 +27,22 @@ public sealed class PrepressDashboardTests : TestContext
     public PrepressDashboardTests()
     {
         var api = new RecordingApi();
+        // Default Scrap reason list — 3 codes — so every fixture starts
+        // with a non-empty picker. Empty-list scenario overrides below.
+        api.ReasonCodesImpl = (_, _) => Task.FromResult<IReadOnlyList<ReasonCodeOption>>(SampleScrapReasons());
         Services.AddSingleton<ICclApiClient>(api);
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
             typeof(NullLogger<>));
         Services.AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(NullLoggerFactory.Instance);
         this.AddTestAuthorization().SetAuthorized("test-user");
     }
+
+    private static IReadOnlyList<ReasonCodeOption> SampleScrapReasons() => new List<ReasonCodeOption>
+    {
+        new() { Code = "SC-COLOR",      LabelVi = "Lệch màu",                Kind = "Scrap", Sort = 10 },
+        new() { Code = "SC-MAT-DAMAGE", LabelVi = "Vật tư hỏng / nhiễm bẩn", Kind = "Scrap", Sort = 50 },
+        new() { Code = "SC-PLATE-WORN", LabelVi = "Bản mòn / không dùng được", Kind = "Scrap", Sort = 70 },
+    };
 
     private static PrepressView SampleView(string etag = "abc==", bool ready = false,
         string mesPhase = "PREPRESS",
@@ -184,7 +195,7 @@ public sealed class PrepressDashboardTests : TestContext
     // ── Material set Ng arming ──────────────────────────────────────
 
     [Fact]
-    public void Material_Ng_arm_then_confirm_sends_reason_and_note()
+    public void Material_Ng_arm_then_pick_then_confirm_sends_chosen_code()
     {
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
         api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
@@ -201,16 +212,29 @@ public sealed class PrepressDashboardTests : TestContext
         var firstRow = cut.FindAll("[data-testid='material-row']")[0];
         firstRow.QuerySelector("[data-testid='btn-ng-arm']")!.Click();
 
+        // Picker renders + has the 3 seeded options + the placeholder.
         cut.WaitForAssertion(() =>
         {
-            Assert.NotNull(cut.Find("input[aria-label='Mã lý do NG']"));
-            Assert.NotNull(cut.Find("input[aria-label='Ghi chú NG']"));
+            var picker = cut.Find("[data-testid='material-ng-reason-picker']");
+            Assert.Equal(4, picker.QuerySelectorAll("option").Length);
         });
-        cut.FindAll("input[aria-label='Mã lý do NG']")[0].Input("SCRAP-FOIL-TEAR");
+
+        // Submit-disabled gate: until a valid code is chosen, Lưu NG stays off.
+        firstRow = cut.FindAll("[data-testid='material-row']")[0];
+        var confirmBefore = firstRow.QuerySelector("[data-testid='btn-ng-confirm']")!;
+        Assert.True(confirmBefore.HasAttribute("disabled"),
+            "No code chosen → Lưu NG MUST be disabled (L17 chặn tái phát — submit-422 loop).");
+
+        // Choose a valid Scrap code via the <select> + type a note.
+        cut.Find("[data-testid='material-ng-reason-picker']").Change("SC-MAT-DAMAGE");
         cut.FindAll("input[aria-label='Ghi chú NG']")[0].Input("biên cuộn rách");
 
         firstRow = cut.FindAll("[data-testid='material-row']")[0];
-        firstRow.QuerySelector("[data-testid='btn-ng-confirm']")!.Click();
+        var confirmAfter = firstRow.QuerySelector("[data-testid='btn-ng-confirm']")!;
+        Assert.False(confirmAfter.HasAttribute("disabled"),
+            "Valid code chosen → Lưu NG MUST be enabled.");
+
+        confirmAfter.Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -218,9 +242,89 @@ public sealed class PrepressDashboardTests : TestContext
             var (_, bomIdx, _, req) = api.PutPrepressMaterialCalls[0];
             Assert.Equal(1, bomIdx);
             Assert.Equal("Ng", req.Status);
-            Assert.Equal("SCRAP-FOIL-TEAR", req.NgReasonCode);
+            Assert.Equal("SC-MAT-DAMAGE", req.NgReasonCode);
             Assert.Equal("biên cuộn rách", req.NgNote);
         });
+    }
+
+    // ── L17 regression — picker empty list ──────────────────────────
+    // Wire-mirror: ReasonCodesControllerTests.L17_regression_Recovery_present_does_not_block_Scrap_listing
+
+    [Fact]
+    public void Empty_scrap_reasons_disables_NG_arm_and_shows_banner()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.ReasonCodesImpl = (_, _) => Task.FromResult<IReadOnlyList<ReasonCodeOption>>(Array.Empty<ReasonCodeOption>());
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='prepress-reasons-empty']"));
+        });
+
+        // Every NG arm button (material rows + plate + cutter) MUST be disabled
+        // when the picker source is empty — operator can't submit a 422 loop.
+        var armButtons = cut.FindAll("[data-testid='btn-ng-arm']");
+        Assert.NotEmpty(armButtons);
+        Assert.All(armButtons, b => Assert.True(b.HasAttribute("disabled"),
+            "Empty scrap reasons → material NG-arm MUST be disabled."));
+
+        Assert.True(cut.Find("[data-testid='plate-btn-ng-arm']").HasAttribute("disabled"),
+            "Empty scrap reasons → plate NG-arm MUST be disabled.");
+        Assert.True(cut.Find("[data-testid='cutter-btn-ng-arm']").HasAttribute("disabled"),
+            "Empty scrap reasons → cutter NG-arm MUST be disabled.");
+    }
+
+    [Fact]
+    public void Dashboard_fetches_Scrap_kind_from_reason_codes_endpoint_on_init()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='material-row']")));
+
+        Assert.Single(api.ReasonCodesCalls);
+        Assert.Equal("Scrap", api.ReasonCodesCalls[0]);
+    }
+
+    [Fact]
+    public void Picker_options_render_Code_and_LabelVi_text()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='material-row']").Count));
+
+        cut.FindAll("[data-testid='material-row']")[0]
+           .QuerySelector("[data-testid='btn-ng-arm']")!.Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var picker = cut.Find("[data-testid='material-ng-reason-picker']");
+            var options = picker.QuerySelectorAll("option").Select(o => o.TextContent).ToList();
+            Assert.Contains(options, t => t.Contains("SC-COLOR") && t.Contains("Lệch màu"));
+            Assert.Contains(options, t => t.Contains("SC-MAT-DAMAGE") && t.Contains("Vật tư hỏng"));
+        });
+    }
+
+    [Fact]
+    public void Plate_NG_arm_disabled_when_reasons_empty_even_with_view_loaded()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.ReasonCodesImpl = (_, _) => Task.FromResult<IReadOnlyList<ReasonCodeOption>>(Array.Empty<ReasonCodeOption>());
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='plate-btn-ng-arm']")));
+
+        var plateArm = cut.Find("[data-testid='plate-btn-ng-arm']");
+        Assert.True(plateArm.HasAttribute("disabled"));
+        Assert.Contains("Danh mục mã NG trống",
+            plateArm.GetAttribute("title") ?? "");
     }
 
     // ── 409 wo.state_conflict reload ────────────────────────────────

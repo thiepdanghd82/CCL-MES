@@ -9,6 +9,7 @@ using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.QcSpecs;
+using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
 using CCL.MES.Shared.WorkOrders;
@@ -29,6 +30,7 @@ public sealed class RecordingApi : ICclApiClient
     public Func<long, int, string, SetPrepressMaterialRequest, CancellationToken, Task<PrepressSetResponse>>? PutPrepressMaterialImpl { get; set; }
     public Func<long, string, SetPrepressPlateRequest, CancellationToken, Task<PrepressSetResponse>>? PutPrepressPlateImpl { get; set; }
     public Func<long, string, SetPrepressCutterRequest, CancellationToken, Task<PrepressSetResponse>>? PutPrepressCutterImpl { get; set; }
+    public Func<string?, CancellationToken, Task<IReadOnlyList<ReasonCodeOption>>>? ReasonCodesImpl { get; set; }
 
     public List<string> SummaryCalls { get; } = new();
     public List<(long Id, string ETag)> AdvanceCalls { get; } = new();
@@ -37,6 +39,7 @@ public sealed class RecordingApi : ICclApiClient
     public List<(long Id, int BomLineIdx, string ETag, SetPrepressMaterialRequest Req)> PutPrepressMaterialCalls { get; } = new();
     public List<(long Id, string ETag, SetPrepressPlateRequest Req)> PutPrepressPlateCalls { get; } = new();
     public List<(long Id, string ETag, SetPrepressCutterRequest Req)> PutPrepressCutterCalls { get; } = new();
+    public List<string?> ReasonCodesCalls { get; } = new();
 
     public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
     {
@@ -90,6 +93,14 @@ public sealed class RecordingApi : ICclApiClient
         return PutPrepressCutterImpl is null
             ? throw new InvalidOperationException("PutPrepressCutterImpl not set")
             : PutPrepressCutterImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<IReadOnlyList<ReasonCodeOption>> GetReasonCodesAsync(string? kind, CancellationToken ct = default)
+    {
+        ReasonCodesCalls.Add(kind);
+        return ReasonCodesImpl is null
+            ? Task.FromResult<IReadOnlyList<ReasonCodeOption>>(Array.Empty<ReasonCodeOption>())
+            : ReasonCodesImpl(kind, ct);
     }
 
     public Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default)

@@ -8,6 +8,7 @@ using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.QcSpecs;
+using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
 using CCL.MES.Shared.WorkOrders;
@@ -86,6 +87,17 @@ public interface ICclApiClient
     Task<PrepressSetResponse> PutPrepressCutterAsync(
         long workOrderId, string ifMatchETag,
         SetPrepressCutterRequest req, CancellationToken ct = default);
+
+    // ── Reason codes (P10.7b-3 — operator-facing picker) ──────────
+    /// <summary>List active reason codes filtered by kind ("Pause" /
+    /// "Scrap" / "Recovery"; omit for every kind). The PREPRESS dashboard
+    /// picker calls this with kind="Scrap" to populate the NG dropdown
+    /// for material / plate / cutter rows. Empty list (after a fresh DB
+    /// boot before seed runs) surfaces to the dashboard as an empty
+    /// picker → "danh mục NG trống — báo IT" banner instead of a
+    /// silent submit-422 loop.</summary>
+    Task<IReadOnlyList<ReasonCodeOption>> GetReasonCodesAsync(
+        string? kind, CancellationToken ct = default);
 
     // ── Devices (P10.3 W4 — kiosk surface) ────────────────────────
     Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default);
