@@ -72,10 +72,11 @@ public sealed class WorkOrderStateMachineFullMatrixTests
         var recovery  = nonBlocked.Count(r => (MesTransitionKind)r[2] == MesTransitionKind.RecoveryOnly);
 
         Assert.Equal(4, allowed);       // 4 unconditional happy edges
-        Assert.Equal(3, condition);     // PREPRESS→SETTING + RUNNING→FQC + RUNNING→PAUSED
+        // P10.7c-1 amendment Q6 — adds PAUSED→FQC_PENDING as condition.
+        Assert.Equal(4, condition);     // PREPRESS→SETTING + RUNNING→FQC + RUNNING→PAUSED + PAUSED→FQC
         Assert.Equal(9, signoff);       // IPQC × 3, QA × 2, FQC × 2, OQC × 2
         Assert.Equal(11, recovery);     // 10 × (non-terminal → CANCELLED) + 1 SETTING → PREPRESS
-        Assert.Equal(27, nonBlocked.Count);
+        Assert.Equal(28, nonBlocked.Count);
     }
 
     public static IEnumerable<object[]> AllCells => AllCellsData();
@@ -130,6 +131,10 @@ public sealed class WorkOrderStateMachineFullMatrixTests
             (MesPhase.RUNNING, MesPhase.FQC_PENDING)  => MesTransitionKind.RequiresCondition,
 
             (MesPhase.PAUSED, MesPhase.RUNNING) => MesTransitionKind.Allowed,
+            // P10.7c-1 amendment Q6 — Finish from PAUSED. Controller
+            // stamps active WoPauseEvent.EndedAt = now before transition
+            // so OEE math stays consistent.
+            (MesPhase.PAUSED, MesPhase.FQC_PENDING) => MesTransitionKind.RequiresCondition,
 
             (MesPhase.FQC_PENDING, MesPhase.OQC_PENDING) => MesTransitionKind.RequiresSignoff,
             (MesPhase.FQC_PENDING, MesPhase.PREPRESS)    => MesTransitionKind.RequiresSignoff,
