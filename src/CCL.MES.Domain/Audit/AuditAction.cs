@@ -217,6 +217,19 @@ public static class AuditAction
     /// <summary>Operator paused running session. detail JSON:
     /// { reason_code, note, session_id }.</summary>
     public const string WoRunPause            = "WO_RUN_PAUSE";
+    /// <summary>P10.7c amendment Q2 — per-tap qty add during RUNNING
+    /// or PAUSED. detail JSON: { run_session_id, qty_done_delta,
+    /// qty_ng_delta, ng_reason_code?, ng_note?, entered_by }.
+    /// Append-only; one row per operator tap. NOT a state
+    /// transition — does not change MesPhase.</summary>
+    public const string WoRunQtyAdd           = "WO_RUN_QTY_ADD";
+    /// <summary>P10.7c amendment Q5 — append-only negative-delta
+    /// correction for a prior WO_RUN_QTY_ADD entry. detail JSON:
+    /// { run_session_id, qty_done_delta, qty_ng_delta,
+    ///   linked_entry_id, correction_reason, entered_by }.
+    /// Edit-in-place REJECTED by contract — every fix is a new
+    /// append-only row so wrong→corrected stays forensically visible.</summary>
+    public const string WoRunQtyCorrect       = "WO_RUN_QTY_CORRECT";
     /// <summary>Operator resumed paused session.</summary>
     public const string WoRunResume           = "WO_RUN_RESUME";
     /// <summary>Operator started a new run session.</summary>

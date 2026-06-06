@@ -53,6 +53,10 @@ public interface IMesDbContext
     DbSet<WoMaterial> WoMaterials { get; }
     DbSet<WoPlateCheck> WoPlateChecks { get; }
     DbSet<WoCutterCheck> WoCutterChecks { get; }
+    // P10.7c-1 — RUNNING + PAUSED child tables (per contract §5.4).
+    DbSet<WoRunSession> WoRunSessions { get; }
+    DbSet<WoPauseEvent> WoPauseEvents { get; }
+    DbSet<WoQtyEntry> WoQtyEntries { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
