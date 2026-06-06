@@ -395,6 +395,26 @@ using (var bootScope = app.Services.CreateScope())
             {
                 Console.WriteLine($"[boot] Reason-code seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
             }
+
+            // P10.7d-1 §5.5.1 — dual-sig boot probe. Default-ON discipline:
+            // anything other than an explicit OFF token leaves the gate
+            // enforced. Emitting the flag state at boot lets operators
+            // confirm the deploy actually loaded the expected configuration
+            // (mirrors the L17 seed probe rationale — silent defaults are
+            // invisible at runtime).
+            try
+            {
+                var rawEnv = Environment.GetEnvironmentVariable("OPS_IPQC_REQUIRE_DISTINCT_QA_APPROVER");
+                var rawCfg = app.Configuration["Features:IpqcRequireDistinctQaApprover"];
+                var raw = rawEnv ?? rawCfg;
+                var flagOn = CCL.MES.Application.Services.IpqcDualSigOptionsLoader
+                    .ParseRequireDistinctQaApprover(raw);
+                Console.WriteLine($"[config] OPS_IPQC_REQUIRE_DISTINCT_QA_APPROVER={(flagOn ? "on" : "off")}");
+            }
+            catch (Exception cfgEx)
+            {
+                Console.WriteLine($"[boot] Dual-sig probe skipped: {cfgEx.GetType().Name}: {cfgEx.Message}");
+            }
         }
     }
     catch (InvalidOperationException)
