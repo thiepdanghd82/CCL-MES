@@ -189,7 +189,13 @@ echo "[ctx] DB sha8 = $DB_SHA8"
 
 Operator can eyeball drift instantly: two scripts that print different `DB sha8` values are NOT touching the same DB.
 
-**Rule 7.2 — every `checkpoint-*` script MUST self-manage the API it talks to.**
+**Rule 7.2 — every `checkpoint-*` script MUST self-manage the API it talks to AND offer a `--keep-alive` flag for UI verification.**
+
+The default lifecycle (no flag) = self-kill on exit so CI never leaks zombie processes.
+
+With `--keep-alive`, the script runs the 6 probes then leaves the auto-booted API alive + prints `pid` + `kill <pid>` command. This is the operator flow: run checkpoint → see PASS=6 → switch to Catalyst UI → verify the 2 visual checks → kill the API when done.
+
+
 
 ```bash
 # probe → if up, reuse; else auto-boot pinned to OUR DB; trap EXIT to kill

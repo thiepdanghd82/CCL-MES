@@ -197,6 +197,21 @@ Khi sprint có nhiều stacked PR cần merge tuần tự:
 
 Phase 6 close-out 2026-05-31. Final report: [`docs/PHASE6-REPORT-2026-05-31.md`](docs/PHASE6-REPORT-2026-05-31.md).
 
+### P10.7 — Work Order State Contract (Hybrid)
+
+- **P10.7a-1** (v0.10.7a-1, 2026-06-05): WO State Contract foundation — 4-PR stack #99→#102.
+  - 7a-1.1 Domain (MesPhase 12-state + RowVersion + AuditAction +34 + StateMachine extension)
+  - 7a-1.2 Idempotency infrastructure (ledger + middleware)
+  - 7a-1.3 retrofit `/work-orders/{id}/advance` with If-Match + Idempotency-Key + ETag
+  - 7a-1.4 test belt: 144-cell transition matrix + N=50 soak + bUnit Razor render + CI grep audit + WO-stuck recovery runbook
+  - Merge log + 5 safety backup branches retained until v0.10.7a-2.
+  - SHA `9a515c00` (tag) + docs `CCL-MES-Hybrid/docs/p10.7a-1-screens/merge-log-20260605T135425Z.md`.
+- **PR #103** Rule 6 + verify self-prep (2026-06-05, SHA `8e710dd`): STACKED-PR-CHECKLIST gains Rule 6; verify-p10.7a-{1..4}.sh now Down test DB copy to PREVIOUS_MIGRATION baseline before pre-migration probe so re-runs work on any dev DB state.
+- **P10.7a-2.1** (2026-06-05, SHA `8e4afa36`): recovery seeds + sys account protection. `ReasonCodeKind.Recovery` + `UserRole.Sys` (NOT in whitelist) + `DbSeeder.SeedRecoveryDataAsync` (6 REC-* codes + `sys-recovery` user `IsActive=false`). AccountControl Update/ResetPassword guard `Role=Sys` → 403 `accounts.sys_account_protected`. Boot probe seed gated by `!IsEnvironment("Test")` to avoid N=50 advance soak contention.
+- **P10.7a-2.2** (2026-06-05, SHA `d898b49f`): admin `/force-phase` endpoint + checkpoint script. `WorkOrderStateMachine.IsForceablePhase` predicate (11 of 144 cells per §3.1 recovery-only). `POST /api/v2/admin/work-orders/{id}/force-phase` AdminOnly + If-Match (428) + Idempotency-Key (400) + 409 stale + 422 body. `scripts/checkpoint-7a-2.sh` operator-runnable, self-managed API lifecycle. Contract doc §8.1 amendment lands Q1 reconciliation table (admin/sys vs sys-attribution).
+- **P10.7a-2.2 hotfix** (2026-06-06, SHA `643861a8`): checkpoint URL `/api/v2/admin/audit/log` → `/api/v2/audit/log` (404 silent-fail); filter params `targetType/targetId` → `action=SYS_RECOVERY`; self-managed API lifecycle; `[ctx] DB=<abs-path> + DB sha8` mandatory header. New wire-level audit visibility xUnit fixture so test belt mirrors operator script. STACKED-PR-CHECKLIST Rule 7 (3 sub-rules) lands. LESSONS-EF-SQLITE-P10.7a-1.md sections 4 + 5 document wire-path drift + DB/server pinning.
+- **P10.7a-2.3** (2026-06-06): test belt + verify final (25/25 probes) + 409 overload fix (`unforceable_transition` → 422; 409 reserved for stale If-Match only) + concurrency soak N=10 + checkpoint `--keep-alive` flag (Rule 7.2 amendment). Sentinel xUnit `Only_stale_ifmatch_returns_409_unforceable_returns_422` locks the 409/422 split.
+
 ## 11. References
 
 - [README.md](README.md) — user-facing quick start

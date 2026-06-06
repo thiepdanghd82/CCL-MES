@@ -37,9 +37,27 @@
 set -u
 set +e
 
-WO_NO="${1:-}"
+KEEP_ALIVE=0
+WO_NO=""
+for arg in "$@"; do
+    case "$arg" in
+        --keep-alive) KEEP_ALIVE=1 ;;
+        --help|-h)
+            echo "usage: bash scripts/checkpoint-7a-2.sh <WoNo> [--keep-alive]"
+            echo "  --keep-alive   leave the auto-booted API running after the 6 steps so"
+            echo "                 the operator can visually verify in Catalyst UI without"
+            echo "                 a second server-start. The script prints the pid + a"
+            echo "                 'kill <pid>' command at the end. Default (no flag) =="
+            echo "                 self-kill on exit (CI-safe)."
+            exit 0
+            ;;
+        --*) echo "unknown flag: $arg"; exit 64 ;;
+        *) WO_NO="$arg" ;;
+    esac
+done
+
 if [[ -z "$WO_NO" ]]; then
-    echo "usage: bash scripts/checkpoint-7a-2.sh <WoNo>"
+    echo "usage: bash scripts/checkpoint-7a-2.sh <WoNo> [--keep-alive]"
     exit 64
 fi
 
@@ -66,8 +84,15 @@ echo "===================================================================="
 # ── Self-managed server lifecycle (Rule 7) ────────────────────────
 cleanup() {
     if [[ -n "$AUTO_BOOT_PID" ]]; then
-        echo "[cleanup] stopping auto-booted API (pid=$AUTO_BOOT_PID)"
-        kill -9 "$AUTO_BOOT_PID" 2>/dev/null
+        if [[ $KEEP_ALIVE -eq 1 ]]; then
+            echo ""
+            echo "[keep-alive] API left running on $API_BASE (pid=$AUTO_BOOT_PID)"
+            echo "[keep-alive] log    : /tmp/checkpoint-7a-2-api.log"
+            echo "[keep-alive] kill   : kill $AUTO_BOOT_PID"
+        else
+            echo "[cleanup] stopping auto-booted API (pid=$AUTO_BOOT_PID)"
+            kill -9 "$AUTO_BOOT_PID" 2>/dev/null
+        fi
     fi
 }
 trap cleanup EXIT INT TERM

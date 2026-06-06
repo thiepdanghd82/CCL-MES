@@ -140,6 +140,104 @@ triggers together in the same migration — don't repeat the
 
 ---
 
+---
+
+## 4. Wire-path drift (audit endpoint URL + filter param mismatch)
+
+### Symptom
+P10.7a-2.2 Catalyst checkpoint on Henry's hardware (2026-06-06):
+force-phase returned 200 + bumped ETag; WO state transitioned
+correctly per the GET /summary follow-up. BUT step 6 reported
+`audit row missing (SYS_RECOVERY=0, REC-OP-WEDGE=0); response empty`.
+15 xUnit fixtures had passed. Apparent paradox: "state mutation
+commits OK but audit absent."
+
+### Cause
+Reproducing on the canonical `data/ccl_mes.db` proved the
+audit row WAS persisted (row 147, SYS_RECOVERY, full detail JSON
+with from/to phase + reason code + sys_user_id). The bug was in
+the checkpoint script's READ side of the audit log:
+
+- **Wrong path**: script queried `/api/v2/admin/audit/log` →
+  HTTP 404 (route doesn't exist). Real route is
+  `/api/v2/audit/log` (AuditLogController is at `[Route(ApiVersion.Prefix + "/audit")]`
+  — no `/admin` segment despite `[Authorize(Policy = "AdminOnly")]`).
+- **Wrong filter params**: script sent `?targetType=WorkOrder&targetId=N`.
+  Endpoint accepts `?search / action / actor / from / to / page / pageSize`
+  — `targetType` + `targetId` are silently ignored.
+
+Both layers of bug were INVISIBLE to the existing 15 xUnit fixtures
+because every assertion read `_db.AuditLogs.Where(...)` directly via
+the test DbContext. The wire READ path was never exercised.
+
+### Fix
+Three parts in the same PR:
+
+1. Script URL + params corrected to
+   `GET /api/v2/audit/log?action=SYS_RECOVERY&page=1&pageSize=50`,
+   then grep response body for `"targetId":"<wo_id>"` +
+   `REC-OP-WEDGE`.
+2. New xUnit fixture
+   `AdminWorkOrdersForcePhaseTests.Sys_recovery_audit_row_visible_via_wire_audit_log_endpoint`
+   calls the SAME URL the checkpoint uses via TestServer, asserts
+   the same substring shape (incl. the escaped `\"from_phase\":\"SETTING\"`
+   form because detail is JSON-encoded inside another JSON string —
+   easy to miss, the literal-quote assertion failed first time).
+3. STACKED-PR-CHECKLIST Rule 7.3 mandates that every wire probe in
+   an operator script has a matching integration test hitting the
+   same endpoint.
+
+### Apply to
+Every future endpoint that ships with an operator-facing wire
+probe (script, runbook curl, monitor URL). DbContext-only tests
+are necessary but never sufficient — they prove the WRITE side
+works while the READ side may have drifted (URL rename, param
+rename, response-shape change, AdminOnly→Authenticate role
+change, route prefix change). The wire mirror is the regression
+guard.
+
+---
+
+## 5. Operator script vs server keep-alive DB drift
+
+### Symptom
+Same Henry checkpoint session (2026-06-06): the verify keep-alive
+server (started in one terminal) and `checkpoint-7a-2.sh` (run
+from another) targeted DIFFERENT SQLite files. Symptoms varied
+between SQLite Error 14 ("unable to open database file") + invisible
+state drift (the script reset a WO that the live server never saw).
+
+### Cause
+Operator had to coordinate `ConnectionStrings__Default` /
+`ASPNETCORE_URLS` env across two terminals manually. The
+checkpoint script printed no `[ctx] DB=` line at startup so the
+mismatch wasn't visible until the audit grep returned empty AND
+the WO read returned a different MesPhase than the script just
+wrote.
+
+### Fix
+Three sub-rules added to STACKED-PR-CHECKLIST Rule 7:
+
+- **7.1**: every script that touches a DB MUST print
+  `[ctx] DB=<abs-path>` + `DB sha8=...` in its first 10 lines.
+  Operator can eyeball two scripts' DB sha8 to see if they're
+  pointed at the same file.
+- **7.2**: every `checkpoint-*` script MUST self-manage its API
+  lifecycle. Probe `$API_BASE/health`; reuse if up; else auto-boot
+  the API pinned to the SAME DB the script is mutating; trap EXIT
+  to kill the auto-booted process on exit. New `--keep-alive` flag
+  leaves the process running for UI-verify use.
+- **7.3**: every wire probe has a TestServer mirror (see lesson 4).
+
+### Apply to
+Every operator-facing script in `CCL-MES-Hybrid/scripts/` from
+P10.7a-2.3 onward. Existing scripts retrofit at next touch. The
+self-managed lifecycle is mandatory for `checkpoint-*` scripts;
+the `[ctx] DB` print is mandatory for ANY script that opens
+a DB file.
+
+---
+
 ## Backlog item — client-side intent-key sharing
 
 (Not a lesson; logged here so the next sprint picks it up.)

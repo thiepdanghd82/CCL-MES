@@ -142,15 +142,26 @@ else
     record FAIL "Hybrid Api.Tests (passed=$API_PASSED failed=$API_FAILED)"
 fi
 
-# ── Step 5: filter-run new 7a-2.1 + 7a-2.2 fixtures ───────────────
-echo "[step] filter-run new 7a-2.1 + 7a-2.2 fixtures"
+# ── Step 5: filter-run new 7a-2.1 + 7a-2.2 + 7a-2.3 fixtures ──────
+echo "[step] filter-run new 7a-2.* fixtures"
 for filter in \
     "DbSeederRecoveryTests" \
     "AccountControlControllerTests.Patch_sys_user" \
     "AccountControlControllerTests.Reset_password_for_sys_user" \
     "AccountControlControllerTests.List_includes_sys_recovery_user" \
     "AccountControlControllerTests.Create_user_with_sys_role" \
-    "WorkOrderStateMachineIsForceableTests" \
+    "WorkOrderStateMachineIsForceableTests.IsForceablePhase_classifies_every_cell" \
+    "WorkOrderStateMachineIsForceableTests.From_DONE_is_never_forceable" \
+    "WorkOrderStateMachineIsForceableTests.From_CANCELLED_is_never_forceable" \
+    "WorkOrderStateMachineIsForceableTests.Target_DONE_is_never_forceable" \
+    "WorkOrderStateMachineIsForceableTests.Target_NEW_is_never_forceable" \
+    "WorkOrderStateMachineIsForceableTests.Self_loops_are_never_forceable" \
+    "WorkOrderStateMachineIsForceableTests.Setting_to_prepress_is_the_only_non_cancel_forceable_cell" \
+    "WorkOrderStateMachineIsForceableTests.Every_non_terminal_source_can_force_cancel" \
+    "WorkOrderStateMachineIsForceableTests.Forceable_set_has_exactly_eleven_cells" \
+    "AdminWorkOrdersForcePhaseTests.Sys_recovery_audit_row_visible_via_wire" \
+    "AdminWorkOrdersForcePhaseTests.Only_stale_ifmatch_returns_409_unforceable_returns_422" \
+    "AdminWorkOrdersForcePhaseTests.Concurrent_force_phase_N_equals_10" \
     "AdminWorkOrdersForcePhaseTests"; do
     F_LOG="$(mktemp)"
     if [[ "$filter" == DbSeederRecoveryTests* || "$filter" == WorkOrderStateMachineIsForceableTests* ]]; then
@@ -171,7 +182,20 @@ for filter in \
     fi
 done
 
-# ── Step 6: checkpoint-7a-2.sh self-check ─────────────────────────
+# ── Step 6: CI grep audit (emit + RV gate) ────────────────────────
+echo "[step] CI grep audit (audit-state-machine-emits.sh)"
+GREP_AUDIT_LOG="$(mktemp)"
+bash "$HYBRID_ROOT/scripts/audit-state-machine-emits.sh" > "$GREP_AUDIT_LOG" 2>&1
+GREP_EXIT=$?
+if [[ $GREP_EXIT -eq 0 ]]; then
+    SCANNED=$(grep "Mutating files scanned" "$GREP_AUDIT_LOG" | grep -oE "[0-9]+" | head -1)
+    record PASS "CI grep audit (every WO-mutating file has paired emit + RV gate; scanned=$SCANNED)"
+else
+    tail -10 "$GREP_AUDIT_LOG"
+    record FAIL "CI grep audit (exit=$GREP_EXIT)"
+fi
+
+# ── Step 7: checkpoint-7a-2.sh self-check ─────────────────────────
 # Light sanity that the operator-facing checkpoint script is present +
 # executable + parses its expected argv. We don't BOOT the API + run
 # it here (that's Henry's checkpoint moment after deploy); we just
@@ -180,8 +204,8 @@ echo "[step] checkpoint-7a-2.sh smoke check"
 CHECKPOINT="$HYBRID_ROOT/scripts/checkpoint-7a-2.sh"
 if [[ -x "$CHECKPOINT" ]]; then
     USAGE_OUT="$(bash "$CHECKPOINT" 2>&1 | head -1)"
-    if [[ "$USAGE_OUT" == "usage: bash scripts/checkpoint-7a-2.sh <WoNo>" ]]; then
-        record PASS "checkpoint-7a-2.sh present + prints usage when no arg"
+    if [[ "$USAGE_OUT" == "usage: bash scripts/checkpoint-7a-2.sh <WoNo> [--keep-alive]" ]]; then
+        record PASS "checkpoint-7a-2.sh present + prints usage with --keep-alive flag"
     else
         record FAIL "checkpoint-7a-2.sh usage line unexpected: $USAGE_OUT"
     fi
