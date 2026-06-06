@@ -46,6 +46,41 @@
             <strong>Không tải được trạng thái RUNNING:</strong> @_initialError
         </div>
     }
+    else if (_view is { MesPhase: "IPQC_WAIT" })
+    {
+        @* P10.7c-3 BUG-FIX (Henry's #3) — IPQC_WAIT is a LEGITIMATE wait
+           state, not an error. Operator just finished SETTING + the WO
+           is queued for IPQC review. The IPQC dashboard ships in 7d;
+           until then surface a read-only informational banner so the
+           operator doesn't see a dead-end error. *@
+        <div class="rs-head">
+            <div class="rs-head-wo">
+                <span class="rs-head-label">WO</span>
+                <span class="rs-head-wo-no">@_view.WoNo</span>
+                <span class="rs-head-phase rs-phase-other">@_view.MesPhase</span>
+            </div>
+        </div>
+        <div class="rs-card rs-card-stretch" data-testid="running-ipqc-wait">
+            <div class="rs-card-head">
+                <div class="rs-card-title">Chờ kiểm IPQC</div>
+            </div>
+            <div class="rs-ipqc-wait-body">
+                <p>Setting đã hoàn tất. WO đang chờ IPQC kiểm tra trước khi mở sản xuất.</p>
+                <p class="rs-ipqc-wait-hint">
+                    Màn hình IPQC sẽ có ở bản 7d — tạm thời IPQC review thực hiện ngoài app
+                    (giấy / Zalo); khi IPQC duyệt, WO sẽ tự chuyển sang trạng thái IPQC_APPROVED
+                    và bạn quay lại đây để bấm <strong>Bắt đầu chạy</strong>.
+                </p>
+                @if (_view.QtyDoneCached > 0 || _view.QtyNgCached > 0)
+                {
+                    <div class="rs-ipqc-wait-stats">
+                        <span>Done đã ghi: <strong class="scan-mono">@_view.QtyDoneCached</strong></span>
+                        <span>NG đã ghi: <strong class="scan-mono">@_view.QtyNgCached</strong></span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
     else if (_invalidPhase)
     {
         <div class="wo-card-error" data-testid="running-invalid-phase">
@@ -307,7 +342,10 @@
     }
 
     private static bool IsValidRunningPhase(string phase) =>
-        phase == "IPQC_APPROVED" || phase == "RUNNING" || phase == "PAUSED";
+        phase == "IPQC_WAIT"      // read-only wait state — handled by dedicated branch
+        || phase == "IPQC_APPROVED"
+        || phase == "RUNNING"
+        || phase == "PAUSED";
 
     private string PhaseCssClass() => _view?.MesPhase switch
     {

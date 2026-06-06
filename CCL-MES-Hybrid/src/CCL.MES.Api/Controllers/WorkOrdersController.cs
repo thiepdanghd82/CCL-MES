@@ -103,11 +103,18 @@ public sealed class WorkOrdersController : ControllerBase
         // round-trip via the entity to expose ETag for the optimistic
         // concurrency contract. AsNoTracking + projection: cheap PK
         // lookup, no change-tracker overhead, no stale-cache risk.
-        var rowVersion = await _db.WorkOrders
+        // P10.7c-3 BUG-FIX — also project MesPhase so the client can
+        // dispatch routing decisions on the AUTHORITATIVE canonical
+        // phase instead of the legacy CurrentStep (which doesn't change
+        // in lock-step after /setting/done; CurrentStep stays "OpSetting"
+        // while MesPhase advances to "IPQC_WAIT", breaking dispatch).
+        var meta = await _db.WorkOrders
             .Where(w => w.Id == view.Id)
             .AsNoTracking()
-            .Select(w => w.RowVersion)
+            .Select(w => new { w.RowVersion, w.MesPhase })
             .SingleOrDefaultAsync();
+        var rowVersion = meta?.RowVersion;
+        var mesPhase = meta?.MesPhase ?? "";
         var etag = rowVersion is not null && rowVersion.Length > 0
             ? Convert.ToBase64String(rowVersion)
             : "";
@@ -134,6 +141,7 @@ public sealed class WorkOrdersController : ControllerBase
             PlannedStart = view.PlannedStart is null ? null : new DateTimeOffset(DateTime.SpecifyKind(view.PlannedStart.Value, DateTimeKind.Utc)),
             PlannedEnd = view.PlannedEnd is null ? null : new DateTimeOffset(DateTime.SpecifyKind(view.PlannedEnd.Value, DateTimeKind.Utc)),
             CurrentStep = view.CurrentStep.ToString(),
+            MesPhase = mesPhase,
             BadgeLabelKey = view.BadgeLabelKey,
             BadgeCssClass = view.BadgeCssClass,
             ETag = etag,

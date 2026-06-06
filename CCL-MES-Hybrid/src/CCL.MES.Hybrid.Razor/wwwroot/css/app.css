@@ -4170,3 +4170,30 @@ html, body {
     .rs-ng-row { grid-template-columns: 1fr; }
     .rs-counter-value { font-size: clamp(28px, 9cqi, 44px); }
 }
+
+/* P10.7c-3 BUG-FIX — IPQC_WAIT read-only banner. Informational, NOT
+   error-styled, so the operator understands "this is a legitimate wait
+   state" instead of "something broke". 7d will replace this with a
+   dedicated IPQC review surface. */
+.rs-ipqc-wait-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: #1f2937;
+}
+.rs-ipqc-wait-body p {
+    margin: 0;
+    line-height: 1.5;
+}
+.rs-ipqc-wait-hint {
+    color: #475569;
+    font-size: 13px;
+}
+.rs-ipqc-wait-stats {
+    display: flex;
+    gap: 16px;
+    padding: 8px 12px;
+    background: #f1f5f9;
+    border-radius: 6px;
+    font-size: 14px;
+}

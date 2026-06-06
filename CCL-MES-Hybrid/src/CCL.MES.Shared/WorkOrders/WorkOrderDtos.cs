@@ -28,6 +28,15 @@ public sealed record WorkOrderSummary
     /// <summary>Current step in the 8-step process flow (PrePressCheck → Closed).</summary>
     public string CurrentStep { get; init; } = "";
 
+    /// <summary>P10.7c-3 — canonical MesPhase ("NEW" / "PREPRESS" / "SETTING" /
+    /// "IPQC_WAIT" / "IPQC_APPROVED" / "RUNNING" / "PAUSED" / "FQC_PENDING" /
+    /// "DONE" / "CANCELLED" etc.). MesPhase is the AUTHORITATIVE phase for
+    /// dispatching 7b/7c dashboards; <see cref="CurrentStep"/> is a legacy
+    /// projection that does NOT change in lock-step with MesPhase (e.g. after
+    /// /setting/done the WO is in MesPhase=IPQC_WAIT but CurrentStep stays at
+    /// "OpSetting"). Always dispatch routing decisions on MesPhase.</summary>
+    public string MesPhase { get; init; } = "";
+
     /// <summary>Status badge i18n key e.g. "wo.status.in_progress".</summary>
     public string BadgeLabelKey { get; init; } = "";
 
