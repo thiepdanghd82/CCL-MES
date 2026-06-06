@@ -10,6 +10,7 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
@@ -131,6 +132,67 @@ public sealed class CclApiClient : ICclApiClient
         // handler throw ApiException; the UI's central error mapper
         // (LocaliseAdvanceError etc.) handles the rest.
         return await ReadAsAsync<AdvanceWorkOrderResponse>(resp, ct);
+    }
+
+    // ── PREPRESS row checks ─────────────────────────────────────────
+
+    public async Task<PrepressView> GetPrepressViewAsync(long workOrderId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/prepress", ct);
+        return await ReadAsAsync<PrepressView>(resp, ct);
+    }
+
+    public Task<PrepressSetResponse> PutPrepressMaterialAsync(
+        long workOrderId, int bomLineIdx, string ifMatchETag,
+        SetPrepressMaterialRequest req, CancellationToken ct = default)
+        => SendPrepressPutAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/materials/{bomLineIdx}",
+            ifMatchETag, req, ct);
+
+    public Task<PrepressSetResponse> PutPrepressPlateAsync(
+        long workOrderId, string ifMatchETag,
+        SetPrepressPlateRequest req, CancellationToken ct = default)
+        => SendPrepressPutAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/plate-check",
+            ifMatchETag, req, ct);
+
+    public Task<PrepressSetResponse> PutPrepressCutterAsync(
+        long workOrderId, string ifMatchETag,
+        SetPrepressCutterRequest req, CancellationToken ct = default)
+        => SendPrepressPutAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/cutter-check",
+            ifMatchETag, req, ct);
+
+    private async Task<PrepressSetResponse> SendPrepressPutAsync(
+        string path, string ifMatchETag, object req, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Put, path)
+        {
+            Content = JsonContent.Create(req),
+        };
+
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+
+        if (resp.StatusCode == HttpStatusCode.OK || resp.StatusCode == HttpStatusCode.Conflict)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<PrepressSetResponse>(cancellationToken: ct);
+            return body ?? new PrepressSetResponse
+            {
+                Ok = false,
+                ErrorCode = "http.empty_body",
+            };
+        }
+
+        return await ReadAsAsync<PrepressSetResponse>(resp, ct);
     }
 
     // ── Devices ─────────────────────────────────────────────────────

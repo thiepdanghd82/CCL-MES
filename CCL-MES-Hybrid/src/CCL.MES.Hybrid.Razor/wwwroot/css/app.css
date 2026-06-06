@@ -3510,3 +3510,216 @@ html, body {
     gap: 10px;
     margin-top: 18px;
 }
+
+/* ── P10.7b-3 — PREPRESS dashboard + sub-checklists ───────────── */
+
+.prepress-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin-top: 16px;
+}
+
+.prepress-loading,
+.prepress-empty {
+    padding: 14px 16px;
+    border: 1px dashed #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #475569;
+}
+
+.prepress-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+}
+
+.prepress-head-wo {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.prepress-head-label {
+    color: #6b7280;
+    font-size: 0.82rem;
+}
+
+.prepress-head-wo-no {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #111827;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.prepress-head-phase {
+    background: #1e40af;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.prepress-section {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.prepress-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.prepress-section-title {
+    font-weight: 700;
+    font-size: 0.98rem;
+    color: #1f2937;
+}
+
+.prepress-progress-pill {
+    background: #f3f4f6;
+    color: #1f2937;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.prepress-pill {
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.prepress-pill-ok       { background: #dcfce7; color: #15803d; }
+.prepress-pill-ng       { background: #fee2e2; color: #b91c1c; }
+.prepress-pill-pending  { background: #f3f4f6; color: #4b5563; }
+
+.prepress-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.prepress-table th,
+.prepress-table td {
+    border-bottom: 1px solid #e5e7eb;
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+.prepress-table th {
+    background: #f9fafb;
+    font-weight: 600;
+    color: #374151;
+}
+
+.prepress-table td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.prepress-input {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    font-size: 0.88rem;
+    background: white;
+    box-sizing: border-box;
+}
+
+.prepress-input-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.prepress-input:disabled {
+    background: #f3f4f6;
+    cursor: not-allowed;
+}
+
+.prepress-row-form {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.prepress-form-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.prepress-form-cell-wide {
+    grid-column: span 2;
+}
+
+.prepress-form-cell label {
+    color: #4b5563;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.prepress-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.op-btn-sm {
+    padding: 4px 10px;
+    font-size: 0.82rem;
+}
+
+.prepress-muted {
+    color: #9ca3af;
+    font-style: italic;
+}
+
+.prepress-checked-by {
+    color: #4b5563;
+    font-size: 0.82rem;
+    border-top: 1px dashed #e5e7eb;
+    padding-top: 8px;
+}
+
+.prepress-advance-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding-top: 6px;
+    border-top: 2px solid #e5e7eb;
+    margin-top: 4px;
+}
+
+.prepress-advance-btn {
+    padding: 10px 18px;
+    font-size: 1rem;
+}
+
+.prepress-advance-hint {
+    color: #6b7280;
+    font-size: 0.85rem;
+}
