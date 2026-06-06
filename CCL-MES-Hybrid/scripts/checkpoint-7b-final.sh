@@ -129,15 +129,28 @@ else
 fi
 
 # ── 1. Boot / reuse API ────────────────────────────────────────────
+# Resolve target port from API_BASE so the assert-bound logic below knows
+# what to check.
+TARGET_PORT="${API_BASE##*:}"
+TARGET_PORT="${TARGET_PORT%%/*}"
+
 if curl -s -m 3 -o /dev/null -w "%{http_code}" "$API_BASE/health" 2>/dev/null | grep -qE "^(200|401|503)$"; then
     echo "[boot] API_BASE already responding — reusing"
 else
-    echo "[boot] auto-booting API pinned to $DB_PATH"
+    # P10.7b-4 hotfix — Lesson L18: kill stale listeners on target port
+    # BEFORE booting so the dotnet run doesn't collide with a leftover.
+    STALE_PIDS=$(lsof -nP -iTCP:${TARGET_PORT} -sTCP:LISTEN -t 2>/dev/null)
+    if [[ -n "$STALE_PIDS" ]]; then
+        echo "[boot] killing stale listeners on $TARGET_PORT: $STALE_PIDS"
+        echo "$STALE_PIDS" | xargs -r kill -9 2>/dev/null
+        sleep 1
+    fi
+
+    echo "[boot] auto-booting API pinned to $DB_PATH (urls=$API_BASE)"
     (cd "$HYBRID_ROOT/src/CCL.MES.Api" && \
         ConnectionStrings__Default="Data Source=$DB_PATH" \
-        ASPNETCORE_URLS="http://127.0.0.1:5100" \
         ASPNETCORE_ENVIRONMENT="Development" \
-        dotnet run --no-build --no-launch-profile > /tmp/checkpoint-7b-final-api.log 2>&1) &
+        dotnet run --no-build --no-launch-profile --urls "$API_BASE" > /tmp/checkpoint-7b-final-api.log 2>&1) &
     AUTO_BOOT_PID=$!
     for i in $(seq 1 60); do
         code=$(curl -s -m 2 -o /dev/null -w "%{http_code}" "$API_BASE/health" 2>/dev/null)
@@ -147,6 +160,17 @@ else
         fi
         sleep 1
     done
+
+    # L18 assertion: API actually bound on the target port (not 5100).
+    BOUND_PID=$(lsof -nP -iTCP:${TARGET_PORT} -sTCP:LISTEN -t 2>/dev/null | head -1)
+    if [[ -z "$BOUND_PID" ]]; then
+        record FAIL "API never bound on port $TARGET_PORT (see /tmp/checkpoint-7b-final-api.log)"
+        tail -20 /tmp/checkpoint-7b-final-api.log
+        exit 1
+    fi
+    if grep -q "Overriding address(es)" /tmp/checkpoint-7b-final-api.log; then
+        record FAIL "L18 regression — Kestrel:Endpoints overrode --urls (Overriding address warning in log)"
+    fi
 fi
 
 # ── 2. Login ───────────────────────────────────────────────────────
