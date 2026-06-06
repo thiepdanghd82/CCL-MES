@@ -11,7 +11,8 @@
 #     2. CCL.MES.Tests (Domain) ≥747 (was 733 pre-7c + 8 unit + 6
 #        integration + 4 LegacyParity = +18 new fixtures; matrix
 #        +1 cell change covered by existing 144-cell theory).
-#     3. CCL.MES.Api.Tests ≥304 (unchanged from 7b — no controllers yet).
+#     3. CCL.MES.Api.Tests ≥323 (was 301 in 7b + 22 RunningSurfaceController
+#        non-soak fixtures landed in 7c-2; +1 soak filtered out by default).
 #     4. CCL.MES.Hybrid.Client.Tests ≥549 (unchanged — no client wrapper yet).
 #     5. CCL.MES.Hybrid.Razor.Tests ≥24 (unchanged — no UI yet).
 #
