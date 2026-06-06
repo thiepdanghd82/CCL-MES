@@ -643,4 +643,119 @@ public sealed class RunningSurfaceControllerTests : IClassFixture<MesApiFactory>
         Assert.Contains($"\"targetId\":\"{wo}\"", body);
         Assert.Contains("qty_done_delta", body);
     }
+
+    // ── P10.7c-3 — GET /running-surface read view ────────────────────
+
+    [Fact]
+    public async Task Get_running_surface_returns_view_with_ETag_and_phase()
+    {
+        var (wo, etag) = await SeedWoAsync("RUNNING");
+        var client = await OperatorClientAsync("op-7c3-view");
+
+        var resp = await client.GetAsync($"/api/v2/work-orders/{wo}/running-surface");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var view = await resp.Content.ReadFromJsonAsync<RunningSurfaceView>();
+        Assert.NotNull(view);
+        Assert.Equal(wo, view!.WoId);
+        Assert.Equal("RUNNING", view.MesPhase);
+        Assert.Equal(etag, view.ETag);
+        // Response header MUST carry the same ETag for direct If-Match reuse.
+        Assert.Contains(resp.Headers.ETag?.Tag ?? "", $"\"{etag}\"");
+    }
+
+    [Fact]
+    public async Task Get_running_surface_returns_404_for_unknown_wo()
+    {
+        var client = await OperatorClientAsync("op-7c3-404");
+        var resp = await client.GetAsync($"/api/v2/work-orders/{long.MaxValue}/running-surface");
+        Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_running_surface_carries_recent_entries_newest_first()
+    {
+        var (wo, _) = await SeedWoAsync("RUNNING");
+        await SeedRunSessionAsync(wo);
+        var etag = await CurrentEtagAsync(wo);
+        var client = await OperatorClientAsync("op-7c3-entries");
+
+        // Three adds in sequence.
+        var e = etag;
+        for (var i = 0; i < 3; i++)
+        {
+            var resp = await client.SendAsync(Post(
+                $"/api/v2/work-orders/{wo}/run/qty",
+                $"{{\"qtyDoneDelta\":{100 + i * 50},\"qtyNgDelta\":0}}",
+                $"\"{e}\"", Guid.NewGuid().ToString()));
+            Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+            var body = await resp.Content.ReadFromJsonAsync<RunningSurfaceSetResponse>();
+            e = body!.ETag;
+        }
+
+        var view = await (await client.GetAsync(
+            $"/api/v2/work-orders/{wo}/running-surface")).Content
+            .ReadFromJsonAsync<RunningSurfaceView>();
+        Assert.NotNull(view);
+        Assert.Equal(3, view!.RecentEntries.Count);
+        // Newest-first ordering — last entry (delta 200) is first in list.
+        Assert.Equal(200, view.RecentEntries[0].QtyDoneDelta);
+        Assert.Equal(150, view.RecentEntries[1].QtyDoneDelta);
+        Assert.Equal(100, view.RecentEntries[2].QtyDoneDelta);
+    }
+
+    // ── P10.7c-3 — POST /setting/enter (idempotent SettingStartAt stamp) ─
+
+    [Fact]
+    public async Task Setting_enter_stamps_SettingStartAt_when_null()
+    {
+        var (wo, etag) = await SeedWoAsync("SETTING");
+        // Sanity: SETTING seed must NOT pre-stamp SettingStartAt for this test.
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var pre = await db.WorkOrders.FindAsync(wo);
+            pre!.SettingStartAt = null;
+            await db.SaveChangesAsync();
+        }
+        etag = await CurrentEtagAsync(wo);
+
+        var client = await OperatorClientAsync("op-7c3-enter");
+        var resp = await client.SendAsync(Post(
+            $"/api/v2/work-orders/{wo}/setting/enter", "{}",
+            $"\"{etag}\"", Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        using var scope2 = _fx.Services.CreateScope();
+        var db2 = scope2.ServiceProvider.GetRequiredService<MesDbContext>();
+        var wo2 = await db2.WorkOrders.FindAsync(wo);
+        Assert.NotNull(wo2!.SettingStartAt);
+    }
+
+    [Fact]
+    public async Task Setting_enter_is_idempotent_when_already_stamped()
+    {
+        var (wo, etag) = await SeedWoAsync("SETTING");
+        DateTime? firstStamp;
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var w = await db.WorkOrders.FindAsync(wo);
+            w!.SettingStartAt = DateTime.UtcNow.AddMinutes(-10);
+            await db.SaveChangesAsync();
+            firstStamp = w.SettingStartAt;
+        }
+        etag = await CurrentEtagAsync(wo);
+
+        var client = await OperatorClientAsync("op-7c3-enter-idem");
+        var resp = await client.SendAsync(Post(
+            $"/api/v2/work-orders/{wo}/setting/enter", "{}",
+            $"\"{etag}\"", Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        using var scope2 = _fx.Services.CreateScope();
+        var db2 = scope2.ServiceProvider.GetRequiredService<MesDbContext>();
+        var wo2 = await db2.WorkOrders.FindAsync(wo);
+        // Already-stamped value MUST be preserved (helper is null-guarded).
+        Assert.Equal(firstStamp, wo2!.SettingStartAt);
+    }
 }

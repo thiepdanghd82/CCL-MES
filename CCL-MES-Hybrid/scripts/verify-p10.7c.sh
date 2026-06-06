@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# P10.7c — end-to-end verify SKELETON for the SETTING+RUNNING+PAUSED
-# stack. Ships at PR 7c-1 covering only the domain surface (entities +
-# migration + state-machine + services). 7c-2 / 7c-3 / 7c-4 PRs grow
-# the wire + UI + checkpoint probe sections.
+# P10.7c — end-to-end verify for the SETTING+RUNNING+PAUSED stack.
+# Coverage grew across the stack: 7c-1 (domain), 7c-2 (wire), 7c-3 (UI).
+# 7c-4 will add the soak filter inversion + extend purge-test-audit.sh
+# for WO_RUN_* test rows + L17/L18 wire-mirror lessons closeout.
 #
 # Probes shipped in 7c-1:
 #
@@ -11,10 +11,12 @@
 #     2. CCL.MES.Tests (Domain) ≥747 (was 733 pre-7c + 8 unit + 6
 #        integration + 4 LegacyParity = +18 new fixtures; matrix
 #        +1 cell change covered by existing 144-cell theory).
-#     3. CCL.MES.Api.Tests ≥323 (was 301 in 7b + 22 RunningSurfaceController
-#        non-soak fixtures landed in 7c-2; +1 soak filtered out by default).
-#     4. CCL.MES.Hybrid.Client.Tests ≥549 (unchanged — no client wrapper yet).
-#     5. CCL.MES.Hybrid.Razor.Tests ≥24 (unchanged — no UI yet).
+#     3. CCL.MES.Api.Tests ≥331 (was 323 in 7c-2 + 5 RunningSurface GET +
+#        setting/enter fixtures landed in 7c-3; +1 soak filtered out by default).
+#     4. CCL.MES.Hybrid.Client.Tests ≥549 (unchanged — client wrappers
+#        covered by Razor.Tests through RecordingApi double).
+#     5. CCL.MES.Hybrid.Razor.Tests ≥48 (was 24 + 11 SettingDashboard +
+#        13 RunningDashboard landed in 7c-3).
 #
 #   Migration round-trip (Rule 6 self-prep on the COPY)
 #     6. Copy real DB → /tmp; Down to PREVIOUS_MIGRATION
@@ -31,12 +33,17 @@
 #     9. Reason-code boot probe still emits the [seed] pause/scrap/recovery
 #        line + pause >= 8 (Q4 Pause picker source).
 #
-# 7c-2 will add the wire probes (auth + GET /setting + POST /run/start,
-# /run/qty, /run/pause, /run/resume, /run/finish + 422/428/409
-# negative paths + audit wire-mirror for the 7 new audit codes).
-# 7c-3 will add the bUnit + Catalyst checkpoint slots.
-# 7c-4 will add the soak (Concurrent_run_qty_add_N_equals_10) +
-# extend purge-test-audit.sh for WO_RUN_* test rows.
+# 7c-2 landed wire probes (POST /setting/done + 6 run/* endpoints) +
+# 22 RunningSurfaceController fixtures + Concurrent_run_qty_add_N=10
+# soak + Rule 7.3 audit wire-mirror for the 7 new audit codes.
+# 7c-3 landed the SettingDashboard + RunningDashboard + 3 modals
+# (Pause / Finish / QtyCorrect) + GET /running-surface endpoint +
+# POST /setting/enter (idempotent SettingStartAt stamp closing the
+# gap that /advance lands SETTING without starting the timer) +
+# 24 bUnit fixtures (11 Setting + 13 Running) + 5 server fixtures
+# (3 GET /running-surface + 2 POST /setting/enter idempotency).
+# 7c-4 will add the soak filter inversion + extend purge-test-audit.sh
+# for WO_RUN_* test rows + closeout LESSONS-LEARNED entries.
 #
 # Rules honoured in this skeleton:
 #   R1 (--base main on PR create)            — N/A here (script)
@@ -321,9 +328,9 @@ printf '%s\n' "${SUMMARY[@]}"
 echo ""
 echo "  TOTAL: pass=$PASS fail=$FAIL"
 echo ""
-echo "  Note: 7c-1 ships DOMAIN only — wire probes (PUT /run/*) land in"
-echo "        7c-2; bUnit + Catalyst checkpoint in 7c-3; soak + purge"
-echo "        extension + L17/L18 wire-mirror tests in 7c-4."
+echo "  Note: 7c-1 (domain) + 7c-2 (wire) + 7c-3 (UI) merged. 7c-4 will"
+echo "        invert soak filter + extend purge-test-audit.sh for"
+echo "        WO_RUN_* rows + closeout LESSONS-LEARNED."
 echo ""
 
 if [[ $FAIL -gt 0 ]]; then

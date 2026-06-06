@@ -8,6 +8,7 @@ using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Prepress;
+using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
@@ -32,6 +33,18 @@ public sealed class RecordingApi : ICclApiClient
     public Func<long, string, SetPrepressCutterRequest, CancellationToken, Task<PrepressSetResponse>>? PutPrepressCutterImpl { get; set; }
     public Func<string?, CancellationToken, Task<IReadOnlyList<ReasonCodeOption>>>? ReasonCodesImpl { get; set; }
 
+    // P10.7c-3 — Running Surface hooks. Each defaults to throwing when
+    // unset so any uncovered call surfaces loud in CI.
+    public Func<long, CancellationToken, Task<RunningSurfaceView>>? RunningSurfaceViewImpl { get; set; }
+    public Func<long, string, CancellationToken, Task<RunningSurfaceSetResponse>>? SettingEnterImpl { get; set; }
+    public Func<long, string, CancellationToken, Task<RunningSurfaceSetResponse>>? SettingDoneImpl { get; set; }
+    public Func<long, string, CancellationToken, Task<RunningSurfaceSetResponse>>? RunStartImpl { get; set; }
+    public Func<long, string, RunQtyAddRequest, CancellationToken, Task<RunningSurfaceSetResponse>>? RunQtyAddImpl { get; set; }
+    public Func<long, string, RunQtyCorrectRequest, CancellationToken, Task<RunningSurfaceSetResponse>>? RunQtyCorrectImpl { get; set; }
+    public Func<long, string, RunPauseRequest, CancellationToken, Task<RunningSurfaceSetResponse>>? RunPauseImpl { get; set; }
+    public Func<long, string, CancellationToken, Task<RunningSurfaceSetResponse>>? RunResumeImpl { get; set; }
+    public Func<long, string, CancellationToken, Task<RunningSurfaceSetResponse>>? RunFinishImpl { get; set; }
+
     public List<string> SummaryCalls { get; } = new();
     public List<(long Id, string ETag)> AdvanceCalls { get; } = new();
     public List<ScanLogRequest> ScanLogCalls { get; } = new();
@@ -40,6 +53,16 @@ public sealed class RecordingApi : ICclApiClient
     public List<(long Id, string ETag, SetPrepressPlateRequest Req)> PutPrepressPlateCalls { get; } = new();
     public List<(long Id, string ETag, SetPrepressCutterRequest Req)> PutPrepressCutterCalls { get; } = new();
     public List<string?> ReasonCodesCalls { get; } = new();
+
+    public List<long> RunningSurfaceViewCalls { get; } = new();
+    public List<(long Id, string ETag)> SettingEnterCalls { get; } = new();
+    public List<(long Id, string ETag)> SettingDoneCalls { get; } = new();
+    public List<(long Id, string ETag)> RunStartCalls { get; } = new();
+    public List<(long Id, string ETag, RunQtyAddRequest Req)> RunQtyAddCalls { get; } = new();
+    public List<(long Id, string ETag, RunQtyCorrectRequest Req)> RunQtyCorrectCalls { get; } = new();
+    public List<(long Id, string ETag, RunPauseRequest Req)> RunPauseCalls { get; } = new();
+    public List<(long Id, string ETag)> RunResumeCalls { get; } = new();
+    public List<(long Id, string ETag)> RunFinishCalls { get; } = new();
 
     public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
     {
@@ -101,6 +124,78 @@ public sealed class RecordingApi : ICclApiClient
         return ReasonCodesImpl is null
             ? Task.FromResult<IReadOnlyList<ReasonCodeOption>>(Array.Empty<ReasonCodeOption>())
             : ReasonCodesImpl(kind, ct);
+    }
+
+    public Task<RunningSurfaceView> GetRunningSurfaceViewAsync(long workOrderId, CancellationToken ct = default)
+    {
+        RunningSurfaceViewCalls.Add(workOrderId);
+        return RunningSurfaceViewImpl is null
+            ? throw new InvalidOperationException("RunningSurfaceViewImpl not set")
+            : RunningSurfaceViewImpl(workOrderId, ct);
+    }
+
+    public Task<RunningSurfaceSetResponse> PostSettingEnterAsync(long workOrderId, string ifMatchETag, CancellationToken ct = default)
+    {
+        SettingEnterCalls.Add((workOrderId, ifMatchETag));
+        return SettingEnterImpl is null
+            ? throw new InvalidOperationException("SettingEnterImpl not set")
+            : SettingEnterImpl(workOrderId, ifMatchETag, ct);
+    }
+
+    public Task<RunningSurfaceSetResponse> PostSettingDoneAsync(long workOrderId, string ifMatchETag, CancellationToken ct = default)
+    {
+        SettingDoneCalls.Add((workOrderId, ifMatchETag));
+        return SettingDoneImpl is null
+            ? throw new InvalidOperationException("SettingDoneImpl not set")
+            : SettingDoneImpl(workOrderId, ifMatchETag, ct);
+    }
+
+    public Task<RunningSurfaceSetResponse> PostRunStartAsync(long workOrderId, string ifMatchETag, CancellationToken ct = default)
+    {
+        RunStartCalls.Add((workOrderId, ifMatchETag));
+        return RunStartImpl is null
+            ? throw new InvalidOperationException("RunStartImpl not set")
+            : RunStartImpl(workOrderId, ifMatchETag, ct);
+    }
+
+    public Task<RunningSurfaceSetResponse> PostRunQtyAddAsync(long workOrderId, string ifMatchETag, RunQtyAddRequest req, CancellationToken ct = default)
+    {
+        RunQtyAddCalls.Add((workOrderId, ifMatchETag, req));
+        return RunQtyAddImpl is null
+            ? throw new InvalidOperationException("RunQtyAddImpl not set")
+            : RunQtyAddImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<RunningSurfaceSetResponse> PostRunQtyCorrectAsync(long workOrderId, string ifMatchETag, RunQtyCorrectRequest req, CancellationToken ct = default)
+    {
+        RunQtyCorrectCalls.Add((workOrderId, ifMatchETag, req));
+        return RunQtyCorrectImpl is null
+            ? throw new InvalidOperationException("RunQtyCorrectImpl not set")
+            : RunQtyCorrectImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<RunningSurfaceSetResponse> PostRunPauseAsync(long workOrderId, string ifMatchETag, RunPauseRequest req, CancellationToken ct = default)
+    {
+        RunPauseCalls.Add((workOrderId, ifMatchETag, req));
+        return RunPauseImpl is null
+            ? throw new InvalidOperationException("RunPauseImpl not set")
+            : RunPauseImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<RunningSurfaceSetResponse> PostRunResumeAsync(long workOrderId, string ifMatchETag, CancellationToken ct = default)
+    {
+        RunResumeCalls.Add((workOrderId, ifMatchETag));
+        return RunResumeImpl is null
+            ? throw new InvalidOperationException("RunResumeImpl not set")
+            : RunResumeImpl(workOrderId, ifMatchETag, ct);
+    }
+
+    public Task<RunningSurfaceSetResponse> PostRunFinishAsync(long workOrderId, string ifMatchETag, CancellationToken ct = default)
+    {
+        RunFinishCalls.Add((workOrderId, ifMatchETag));
+        return RunFinishImpl is null
+            ? throw new InvalidOperationException("RunFinishImpl not set")
+            : RunFinishImpl(workOrderId, ifMatchETag, ct);
     }
 
     public Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default)
