@@ -103,7 +103,6 @@ namespace CCL.MES.Infrastructure.Migrations
                     EndedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     StartedBy = table.Column<string>(type: "TEXT", maxLength: 128, nullable: false),
                     EndedBy = table.Column<string>(type: "TEXT", maxLength: 128, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "BLOB", rowVersion: true, nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: true),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),

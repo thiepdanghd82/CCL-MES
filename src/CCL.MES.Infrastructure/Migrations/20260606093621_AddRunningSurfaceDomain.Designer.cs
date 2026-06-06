@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CCL.MES.Infrastructure.Migrations
 {
     [DbContext(typeof(MesDbContext))]
-    [Migration("20260606092645_AddRunningSurfaceDomain")]
+    [Migration("20260606093621_AddRunningSurfaceDomain")]
     partial class AddRunningSurfaceDomain
     {
         /// <inheritdoc />
@@ -2278,12 +2278,6 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<string>("EndedBy")
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("BLOB");
 
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("TEXT");
