@@ -151,7 +151,7 @@ fi
 if [[ "$BOM_SEED_COUNT" != "0" ]]; then
     echo "ManufacturingStructures BOM seed rows:"
     sqlite3 -column -header "$DB_PATH" \
-      "SELECT Id, ProductRevisionId, ChildPartNo, Quantity, Uom, CreatedBy
+      "SELECT Id, ParentPart, ComponentPart, QtyAssembly, Uom, CreatedBy
        FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS)
        ORDER BY Id;"
     echo ""
