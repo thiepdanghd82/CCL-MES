@@ -2276,12 +2276,6 @@ namespace CCL.MES.Infrastructure.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("BLOB");
-
                     b.Property<DateTime>("StartedAt")
                         .HasColumnType("TEXT");
 

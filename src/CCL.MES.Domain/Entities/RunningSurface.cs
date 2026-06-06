@@ -27,13 +27,15 @@ public class WoRunSession : BaseEntity
     [MaxLength(128)] public string StartedBy { get; set; } = "";
     [MaxLength(128)] public string? EndedBy { get; set; }
 
-    /// <summary>EF Core optimistic-concurrency token. Mirrors the
-    /// pattern on <see cref="WorkOrder.RowVersion"/> so concurrent
-    /// qty-add writes against the same session can't race past
-    /// SaveChanges (server stamps a per-session SQLite trigger in
-    /// the migration so updates bump RowVersion automatically).</summary>
-    [Timestamp]
-    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+    // Concurrency note: the session row doesn't carry its own
+    // [Timestamp] RowVersion. Concurrency on Start / Pause / Resume /
+    // Finish is mediated by the PARENT WorkOrder's RowVersion
+    // (every transition mutates wo.MesPhase + wo.UpdatedAt) so
+    // SaveChanges throws DbUpdateConcurrencyException via the WO's
+    // optimistic lock if two operators race. Adding a per-session
+    // [Timestamp] would require a SQLite INSERT trigger (the 7a-1.3
+    // pattern) which is overkill for a child-table that never
+    // changes independently of its parent.
 }
 
 /// <summary>
