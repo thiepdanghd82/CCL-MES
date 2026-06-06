@@ -435,7 +435,8 @@ public sealed class RunningDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             // Informational read-only card MUST render.
-            Assert.NotNull(cut.Find("[data-testid='running-ipqc-wait']"));
+            var card = cut.Find("[data-testid='running-deferred']");
+            Assert.Equal("IPQC_WAIT", card.GetAttribute("data-deferred-phase"));
             // Dead-end "không ở giai đoạn chạy" error banner MUST NOT render.
             Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
             // Action chrome (counter / tap grid / NG row / action bar) MUST NOT render.

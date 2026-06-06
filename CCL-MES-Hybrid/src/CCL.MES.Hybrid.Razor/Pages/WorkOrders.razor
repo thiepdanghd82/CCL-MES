@@ -146,10 +146,16 @@ else
 
             @if (_summary is not null)
             {
-                <div class="wo-card" data-current-step="@_summary.CurrentStep">
+                @* P10.7c-3 BUG-FIX L19 finalization (Henry RCA on WO-26-3686):
+                   chip + "Trạng thái MES" MUST key on canonical MesPhase, not
+                   legacy CurrentStep. CurrentStep stays "OpSetting" after
+                   /setting/done while MesPhase advances through IPQC_WAIT
+                   → IPQC_APPROVED → RUNNING → PAUSED → FQC_PENDING etc.,
+                   making the chip + step row lie about the actual state. *@
+                <div class="wo-card" data-mes-phase="@_summary.MesPhase" data-current-step="@_summary.CurrentStep">
                     <div class="wo-card-head">
                         <div class="wo-card-wo">@_summary.WoNo</div>
-                        <div class="wo-card-step @_summary.BadgeCssClass">@FormatBadge(_summary.BadgeLabelKey)</div>
+                        <div class="wo-card-step @MesPhaseCssClass(_summary)" data-testid="wo-card-phase-chip">@MesPhaseDisplay(_summary)</div>
                     </div>
                     <div class="wo-card-row"><span class="wo-card-label">Khách hàng</span><span class="wo-card-value">@(_summary.CustomerName ?? "—")</span></div>
                     <div class="wo-card-row"><span class="wo-card-label">Mã sản phẩm</span><span class="wo-card-value">@(_summary.ProductCode ?? "—")</span></div>
@@ -157,7 +163,7 @@ else
                     <div class="wo-card-row"><span class="wo-card-label">Máy</span><span class="wo-card-value">@(_summary.MachineCode ?? "—") @(_summary.MachineName is null ? "" : $"· {_summary.MachineName}")</span></div>
                     <div class="wo-card-row"><span class="wo-card-label">Mục tiêu</span><span class="wo-card-value">@_summary.TargetQty @_summary.Uom</span></div>
                     <div class="wo-card-row"><span class="wo-card-label">Đã sản xuất</span><span class="wo-card-value">@_summary.ProducedQty @_summary.Uom</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Bước hiện tại</span><span class="wo-card-value scan-mono">@_summary.CurrentStep</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Trạng thái MES</span><span class="wo-card-value scan-mono" data-testid="wo-card-phase-row">@MesPhaseDisplay(_summary)</span></div>
 
                     @* P10.7a-1.4 — operator-grade success feedback. Today's
                        checkpoint surfaced that the operator tapped Accept
@@ -625,10 +631,14 @@ else
     private static bool IsRunningSurfacePhase(WorkOrderSummary summary)
     {
         var p = summary.MesPhase;
-        if (string.Equals(p, "IPQC_WAIT", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(p, "IPQC_APPROVED", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(p, "RUNNING", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(p, "PAUSED", StringComparison.OrdinalIgnoreCase))
+        // P10.7c-3 L19-finalization (Henry RCA on WO-26-3686): the
+        // 7d-deferred phases (FQC_PENDING / QA_PENDING / OQC_PENDING /
+        // DONE / CANCELLED) ALSO route to RunningDashboard so it can
+        // render a consistent read-only placeholder card (same pattern
+        // as IPQC_WAIT). The alternative — falling through to the
+        // legacy Advance CTA — exposes the operator to a half-broken
+        // advance attempt + a stale dead-end error banner.
+        if (IsRunningSurfacePhaseValue(p))
             return true;
         if (!string.IsNullOrEmpty(p)) return false;
         var step = summary.CurrentStep;
@@ -636,6 +646,60 @@ else
         return string.Equals(step, "ReadyToRun", StringComparison.OrdinalIgnoreCase)
             || string.Equals(step, "Running", StringComparison.OrdinalIgnoreCase)
             || string.Equals(step, "IpqcApproval", StringComparison.OrdinalIgnoreCase);
+        // NOTE: Fqc/Oqc/Closed deliberately omitted from the LEGACY fallback —
+        // those steps in old cached summaries (with MesPhase missing) keep
+        // the legacy Advance CTA path. New summaries with MesPhase populated
+        // route through RunningDashboard's placeholder cards via the
+        // MesPhase canonical path above.
+    }
+
+    /// <summary>Internal — true for any MesPhase that RunningDashboard
+    /// knows how to render (action UI for IPQC_APPROVED/RUNNING/PAUSED;
+    /// read-only placeholder for IPQC_WAIT/FQC_PENDING/QA_PENDING/
+    /// OQC_PENDING/DONE/CANCELLED). Test surface for the dashboard's
+    /// own validity gate.</summary>
+    private static bool IsRunningSurfacePhaseValue(string phase) =>
+        string.Equals(phase, "IPQC_WAIT", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(phase, "IPQC_APPROVED", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(phase, "RUNNING", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(phase, "PAUSED", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(phase, "QA_PENDING", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(phase, "FQC_PENDING", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(phase, "OQC_PENDING", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(phase, "DONE", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(phase, "CANCELLED", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Operator-visible display label for the chip + status
+    /// row. Prefers canonical MesPhase; falls back to legacy CurrentStep
+    /// for pre-7c-3 cached summaries that don't carry MesPhase yet.</summary>
+    private static string MesPhaseDisplay(WorkOrderSummary summary) =>
+        !string.IsNullOrEmpty(summary.MesPhase)
+            ? summary.MesPhase
+            : (string.IsNullOrEmpty(summary.CurrentStep) ? "—" : summary.CurrentStep);
+
+    /// <summary>Maps canonical MesPhase → CSS class on the wo-card chip.
+    /// Falls back to the server-emitted legacy BadgeCssClass when
+    /// MesPhase is empty (preserves pre-7c-3 behaviour).</summary>
+    private static string MesPhaseCssClass(WorkOrderSummary summary)
+    {
+        var p = summary.MesPhase;
+        if (string.IsNullOrEmpty(p)) return summary.BadgeCssClass ?? "";
+        return p.ToUpperInvariant() switch
+        {
+            "NEW"            => "wo-phase-new",
+            "PREPRESS"       => "wo-phase-prepress",
+            "SETTING"        => "wo-phase-setting",
+            "IPQC_WAIT"      => "wo-phase-ipqc-wait",
+            "QA_PENDING"     => "wo-phase-ipqc-wait",
+            "IPQC_APPROVED"  => "wo-phase-ipqc-approved",
+            "RUNNING"        => "wo-phase-running",
+            "PAUSED"         => "wo-phase-paused",
+            "FQC_PENDING"    => "wo-phase-fqc-pending",
+            "OQC_PENDING"    => "wo-phase-oqc-pending",
+            "DONE"           => "wo-phase-done",
+            "CANCELLED"      => "wo-phase-cancelled",
+            _                => "wo-phase-other",
+        };
     }
 
     /// <summary>True when ANY 7b/7c dashboard OWNS the operator's next
