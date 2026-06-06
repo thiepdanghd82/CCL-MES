@@ -46,31 +46,32 @@
             <strong>Không tải được trạng thái RUNNING:</strong> @_initialError
         </div>
     }
-    else if (_view is { MesPhase: "IPQC_WAIT" })
+    else if (_view is not null && DeferredPhaseInfo.TryGetValue(_view.MesPhase, out var deferred))
     {
-        @* P10.7c-3 BUG-FIX (Henry's #3) — IPQC_WAIT is a LEGITIMATE wait
-           state, not an error. Operator just finished SETTING + the WO
-           is queued for IPQC review. The IPQC dashboard ships in 7d;
-           until then surface a read-only informational banner so the
-           operator doesn't see a dead-end error. *@
+        @* P10.7c-3 BUG-FIX L19-finalization (Henry RCA on WO-26-3686):
+           7d-deferred phases (IPQC_WAIT / QA_PENDING / FQC_PENDING /
+           OQC_PENDING / DONE / CANCELLED) all render a read-only
+           informational placeholder card via DeferredPhaseInfo lookup.
+           Replaces the previous IPQC_WAIT-only branch + the dead-end
+           "WO không ở giai đoạn chạy" error banner that previously
+           ambushed operators after Finish. 7d/7e will replace each
+           placeholder with a real dashboard. *@
         <div class="rs-head">
             <div class="rs-head-wo">
                 <span class="rs-head-label">WO</span>
                 <span class="rs-head-wo-no">@_view.WoNo</span>
-                <span class="rs-head-phase rs-phase-other">@_view.MesPhase</span>
+                <span class="rs-head-phase @deferred.HeadPhaseCss">@_view.MesPhase</span>
             </div>
         </div>
-        <div class="rs-card rs-card-stretch" data-testid="running-ipqc-wait">
+        <div class="rs-card rs-card-stretch"
+             data-testid="running-deferred"
+             data-deferred-phase="@_view.MesPhase">
             <div class="rs-card-head">
-                <div class="rs-card-title">Chờ kiểm IPQC</div>
+                <div class="rs-card-title">@deferred.Title</div>
             </div>
             <div class="rs-ipqc-wait-body">
-                <p>Setting đã hoàn tất. WO đang chờ IPQC kiểm tra trước khi mở sản xuất.</p>
-                <p class="rs-ipqc-wait-hint">
-                    Màn hình IPQC sẽ có ở bản 7d — tạm thời IPQC review thực hiện ngoài app
-                    (giấy / Zalo); khi IPQC duyệt, WO sẽ tự chuyển sang trạng thái IPQC_APPROVED
-                    và bạn quay lại đây để bấm <strong>Bắt đầu chạy</strong>.
-                </p>
+                <p>@deferred.Body</p>
+                <p class="rs-ipqc-wait-hint">@deferred.Hint</p>
                 @if (_view.QtyDoneCached > 0 || _view.QtyNgCached > 0)
                 {
                     <div class="rs-ipqc-wait-stats">
@@ -342,10 +343,55 @@
     }
 
     private static bool IsValidRunningPhase(string phase) =>
-        phase == "IPQC_WAIT"      // read-only wait state — handled by dedicated branch
-        || phase == "IPQC_APPROVED"
+        phase == "IPQC_APPROVED"
         || phase == "RUNNING"
-        || phase == "PAUSED";
+        || phase == "PAUSED"
+        // P10.7c-3 L19-finalization — every deferred phase below is valid;
+        // the render branch above routes them to a placeholder card so
+        // the dashboard never falls into the dead-end error path.
+        || DeferredPhaseInfo.ContainsKey(phase);
+
+    /// <summary>P10.7c-3 L19-finalization — phase → placeholder card
+    /// content map. Operators landing on a 7d/7e-deferred phase see a
+    /// consistent read-only info card instead of a dead-end error banner.
+    /// 7d will replace IPQC_* + QA_PENDING entries; 7e will replace FQC +
+    /// OQC entries; DONE / CANCELLED entries stay as terminal info cards.
+    /// Maintain THIS map (not the render branch) to add new placeholders.</summary>
+    private static readonly Dictionary<string, DeferredPhase> DeferredPhaseInfo = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["IPQC_WAIT"] = new(
+            Title: "Chờ kiểm IPQC",
+            Body: "Setting đã hoàn tất. WO đang chờ IPQC kiểm tra trước khi mở sản xuất.",
+            Hint: "Màn hình IPQC sẽ có ở bản 7d — tạm thời IPQC review thực hiện ngoài app (giấy / Zalo); khi IPQC duyệt, WO sẽ chuyển sang IPQC_APPROVED và bạn quay lại đây để bấm Bắt đầu chạy.",
+            HeadPhaseCss: "rs-phase-other"),
+        ["QA_PENDING"] = new(
+            Title: "Chờ duyệt QA",
+            Body: "WO đang chờ QA duyệt trước khi mở sản xuất.",
+            Hint: "Tương đương IPQC_WAIT trong vòng v1; xử lý cùng quy trình.",
+            HeadPhaseCss: "rs-phase-other"),
+        ["FQC_PENDING"] = new(
+            Title: "Chờ kiểm FQC",
+            Body: "Sản xuất đã kết thúc. WO đang chờ FQC kiểm chất lượng đầu ra.",
+            Hint: "Màn hình FQC sẽ có ở bản 7e — tạm thời FQC review thực hiện ngoài app; khi FQC duyệt, WO sẽ chuyển sang OQC_PENDING.",
+            HeadPhaseCss: "rs-phase-other"),
+        ["OQC_PENDING"] = new(
+            Title: "Chờ kiểm OQC",
+            Body: "FQC đã duyệt. WO đang chờ OQC trước khi đóng đơn.",
+            Hint: "Màn hình OQC sẽ có ở bản 7e — tạm thời OQC review thực hiện ngoài app.",
+            HeadPhaseCss: "rs-phase-other"),
+        ["DONE"] = new(
+            Title: "WO đã hoàn tất",
+            Body: "WO đã đóng đơn. Không còn thao tác sản xuất nào trên WO này.",
+            Hint: "Quét WO khác để bắt đầu công việc mới.",
+            HeadPhaseCss: "rs-phase-other"),
+        ["CANCELLED"] = new(
+            Title: "WO đã huỷ",
+            Body: "WO đã bị huỷ. Không thể chạy hoặc nhập thêm sản lượng.",
+            Hint: "Quét WO khác để bắt đầu công việc mới.",
+            HeadPhaseCss: "rs-phase-other"),
+    };
+
+    private sealed record DeferredPhase(string Title, string Body, string Hint, string HeadPhaseCss);
 
     private string PhaseCssClass() => _view?.MesPhase switch
     {

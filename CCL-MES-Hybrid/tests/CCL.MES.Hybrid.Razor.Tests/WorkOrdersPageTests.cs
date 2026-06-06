@@ -268,7 +268,8 @@ public sealed class WorkOrdersPageTests : TestContext
         {
             // RunningDashboard MUST render (with IPQC_WAIT info branch).
             Assert.NotNull(cut.Find("[data-testid='running-dashboard']"));
-            Assert.NotNull(cut.Find("[data-testid='running-ipqc-wait']"));
+            var deferred = cut.Find("[data-testid='running-deferred']");
+            Assert.Equal("IPQC_WAIT", deferred.GetAttribute("data-deferred-phase"));
             // SettingDashboard MUST NOT render — that was the dead-end bug.
             Assert.Empty(cut.FindAll("[data-testid='setting-dashboard']"));
             // Dead-end "không ở giai đoạn chạy" error MUST NOT render.
@@ -325,6 +326,107 @@ public sealed class WorkOrdersPageTests : TestContext
         {
             Assert.NotNull(cut.Find("[data-testid='setting-dashboard']"));
             Assert.Empty(cut.FindAll("[data-testid='running-dashboard']"));
+            Assert.Empty(cut.FindAll("button.wo-cta-accept"));
+        });
+    }
+
+    // ── L19-finalization (Henry RCA on WO-26-3686) ────────────────────
+    // Card chip + "Trạng thái MES" row + placeholder card must ALL key on
+    // canonical MesPhase. Previously the chip + step row rendered the
+    // legacy CurrentStep (lying about the actual state); FQC_PENDING fell
+    // through to RunningDashboard's "không ở giai đoạn chạy" dead-end.
+
+    [Fact]
+    public void Card_chip_renders_canonical_MesPhase_not_legacy_CurrentStep()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        // The exact WO-26-3686 divergence post-/run/finish.
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "FQC_PENDING" });
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+            {
+                WoId = 42, WoNo = "WO-26-3686", MesPhase = "FQC_PENDING",
+                ETag = "RV", TargetQty = 12000, QtyDoneCached = 12000,
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3686");
+        cut.Find("div.wo-manual-row button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var chip = cut.Find("[data-testid='wo-card-phase-chip']");
+            Assert.Equal("FQC_PENDING", chip.TextContent.Trim());
+            // Chip CSS class derived from canonical MesPhase, not server's
+            // legacy BadgeCssClass (which was keyed on CurrentStep).
+            Assert.Contains("wo-phase-fqc-pending", chip.GetAttribute("class") ?? "");
+
+            var phaseRow = cut.Find("[data-testid='wo-card-phase-row']");
+            Assert.Equal("FQC_PENDING", phaseRow.TextContent.Trim());
+        });
+    }
+
+    [Fact]
+    public void FQC_PENDING_routes_to_placeholder_card_not_dead_end_error()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "FQC_PENDING" });
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+            {
+                WoId = 42, WoNo = "WO-26-3686", MesPhase = "FQC_PENDING",
+                ETag = "RV", TargetQty = 12000, QtyDoneCached = 12000,
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3686");
+        cut.Find("div.wo-manual-row button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            // Placeholder card MUST render with FQC_PENDING discriminator.
+            var card = cut.Find("[data-testid='running-deferred']");
+            Assert.Equal("FQC_PENDING", card.GetAttribute("data-deferred-phase"));
+            // Card title MUST be the operator-facing "Chờ kiểm FQC".
+            Assert.Contains("Chờ kiểm FQC", card.TextContent);
+            // Dead-end "WO không ở giai đoạn chạy" error MUST NOT render.
+            Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
+            // Legacy Advance CTA MUST NOT render either.
+            Assert.Empty(cut.FindAll("button.wo-cta-accept"));
+        });
+    }
+
+    [Theory]
+    [InlineData("QA_PENDING", "Chờ duyệt QA")]
+    [InlineData("OQC_PENDING", "Chờ kiểm OQC")]
+    [InlineData("DONE", "WO đã hoàn tất")]
+    [InlineData("CANCELLED", "WO đã huỷ")]
+    public void Deferred_phases_each_render_consistent_placeholder_card(string mesPhase, string expectedTitleFragment)
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = mesPhase });
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+            {
+                WoId = 42, WoNo = "WO-26-3686", MesPhase = mesPhase,
+                ETag = "RV", TargetQty = 12000,
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3686");
+        cut.Find("div.wo-manual-row button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var card = cut.Find("[data-testid='running-deferred']");
+            Assert.Equal(mesPhase, card.GetAttribute("data-deferred-phase"));
+            Assert.Contains(expectedTitleFragment, card.TextContent);
+            // No dead-end error.
+            Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
+            // No legacy Advance CTA — dashboard owns the workflow.
             Assert.Empty(cut.FindAll("button.wo-cta-accept"));
         });
     }

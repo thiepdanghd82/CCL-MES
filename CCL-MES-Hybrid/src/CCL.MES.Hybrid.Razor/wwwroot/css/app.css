@@ -4197,3 +4197,21 @@ html, body {
     border-radius: 6px;
     font-size: 14px;
 }
+
+/* P10.7c-3 L19-finalization (Henry RCA on WO-26-3686) — MesPhase chip
+   colour palette. Replaces the legacy server-emitted BadgeCssClass which
+   was keyed on CurrentStep (legacy 8-step) and lagged behind the
+   canonical MesPhase post-/setting/done. Maintained as a 1-to-1 client
+   map so the styling survives even when the server adds new phases. */
+.wo-phase-new            { background: #e5e7eb; color: #374151; }
+.wo-phase-prepress       { background: #ddd6fe; color: #5b21b6; }
+.wo-phase-setting        { background: #fef3c7; color: #92400e; }
+.wo-phase-ipqc-wait      { background: #fde68a; color: #78350f; }
+.wo-phase-ipqc-approved  { background: #dbeafe; color: #1e3a8a; }
+.wo-phase-running        { background: #dcfce7; color: #15803d; }
+.wo-phase-paused         { background: #fee2e2; color: #b91c1c; }
+.wo-phase-fqc-pending    { background: #cffafe; color: #155e75; }
+.wo-phase-oqc-pending    { background: #e0e7ff; color: #3730a3; }
+.wo-phase-done           { background: #dcfce7; color: #166534; }
+.wo-phase-cancelled      { background: #fee2e2; color: #991b1b; }
+.wo-phase-other          { background: #f3f4f6; color: #4b5563; }
