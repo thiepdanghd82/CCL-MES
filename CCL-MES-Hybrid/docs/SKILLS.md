@@ -35,6 +35,11 @@
 
 - [S9 — Design Rules (mandatory for every Razor/UI PR)](#s9)
 
+### Tooling discipline
+
+- [S10 — Preserve debug artifacts on FAIL (don't auto-clean api.log + TMP_DIR before the operator can read them)](#s10)
+- [S11 — Assert-bound-port on every script that boots an API (lsof + log grep for "Overriding address")](#s11)
+
 ---
 
 ## Skill cards
@@ -349,3 +354,80 @@ Before merging, manually:
 **Why**: shipped PR #91 (Settings) hit production with a fixed left-column layout that wasted half the screen. Henry's first verify session caught it. A "responsive verified" checklist row would have made the PR description gate this before merge.
 
 **Anti-pattern**: building at one viewport width + assuming it scales. Catalyst windows resize freely; operators routinely run with the Mac at 1920×1200 OR docked alongside Slack at 1024×768. Both must work.
+
+<a id="s10"></a>
+### S10 — Preserve debug artifacts on FAIL
+
+**When to use**: every verify / checkpoint / repro script that creates a `mktemp -d` working dir or writes a `tmp` log.
+
+**Recipe**:
+
+```bash
+TMP_DIR="$(mktemp -d -t myscript-XXXXXX)"
+API_LOG="$TMP_DIR/api.log"
+
+cleanup() {
+    # ... kill any subprocess ...
+    if [[ "$FAIL" -gt 0 ]]; then
+        echo ""
+        echo "[debug] TMP_DIR preserved for inspection: $TMP_DIR"
+        echo "[debug] api log    : $API_LOG"
+        # Print other interesting paths so the operator can `cat` them.
+    else
+        rm -rf "$TMP_DIR"
+    fi
+}
+trap cleanup EXIT INT TERM
+```
+
+**Why**: this exact discipline saved the L18 RCA. The original `verify-p10.7b.sh` did `rm -rf "$TMP_DIR"` unconditionally on exit. Henry's first run FAILED on the boot probe; the api.log containing the `Overriding address(es)` warning had ALREADY been deleted by the time he tried to investigate. He had to re-run, watch the log in real time, and copy the warning text manually. With S10, the second FAIL would have preserved everything automatically.
+
+**Anti-pattern**: cleanup `trap` runs unconditional cleanup. Even worse: cleanup that suppresses its own output so the operator doesn't see WHERE the preserved artifacts live. Always print the preserved paths so `cat $TMP_DIR/api.log` is one command away.
+
+**Lifetime hygiene**: TMP_DIR lives until the next reboot OR until the operator manually `rm -rf`. macOS `/tmp` is reboot-cleaned; Linux `/tmp` varies. For long-running investigations, copy artifacts out of TMP_DIR before rebooting.
+
+<a id="s11"></a>
+### S11 — Assert-bound-port on every script that boots an API
+
+**When to use**: every verify-script / checkpoint-script that auto-boots a `dotnet run` process (or any embedded server) on a target port.
+
+**Recipe**:
+
+```bash
+TARGET_PORT=5101
+
+# 1. Pre-boot — kill stale listeners so a leftover from a prior run
+#    doesn't surface as a misleading FAIL.
+STALE_PIDS=$(lsof -nP -iTCP:${TARGET_PORT} -sTCP:LISTEN -t 2>/dev/null)
+if [[ -n "$STALE_PIDS" ]]; then
+    echo "[boot] killing stale listeners on $TARGET_PORT: $STALE_PIDS"
+    echo "$STALE_PIDS" | xargs -r kill -9 2>/dev/null
+    sleep 1
+fi
+
+# 2. Boot. Use --urls (and ASPNETCORE_URLS as backup) — appsettings.json
+#    "Urls" key is overridden, but Kestrel:Endpoints would NOT be (L18).
+(cd "$API_PROJECT_DIR" && \
+    dotnet run --no-build --no-launch-profile --urls "http://127.0.0.1:${TARGET_PORT}" \
+    > "$API_LOG" 2>&1) &
+API_PID=$!
+
+# 3. Wait for /health 200 ...
+
+# 4. Post-boot — assert the API actually bound the port we asked for.
+BOUND_PID=$(lsof -nP -iTCP:${TARGET_PORT} -sTCP:LISTEN -t 2>/dev/null | head -1)
+if [[ -z "$BOUND_PID" ]]; then
+    record FAIL "API /health 200 but nothing listening on $TARGET_PORT"
+fi
+
+# 5. L18 regression guard — grep API log for the override warning.
+if grep -q "Overriding address(es)" "$API_LOG"; then
+    record FAIL "L18 regression — appsettings.json hardcoded Kestrel:Endpoints?"
+fi
+```
+
+**Why**: prior P10.7b-4 verify-script merely curl'd `/health` and trusted any 200. But ASP.NET Core's URL binding has at least 5 priority layers (`Kestrel:Endpoints` > `--urls` > `ASPNETCORE_URLS` > `Urls` config key > framework default). A hardcoded `Kestrel:Endpoints` makes `--urls` look like it worked (no error) but the server actually binds the hardcoded port. `lsof` + log-grep are the only ways to PROVE which port was actually bound. See [L18](./LESSONS-LEARNED.md#l18) for the full RCA.
+
+**Anti-pattern**: trusting `/health 200` alone. The health endpoint responds to whatever Kestrel is listening on, regardless of what `--urls` requested. Without the bound-port + log-grep assertions, the bug is invisible to scripted verification.
+
+**Cross-platform note**: `lsof -nP -iTCP:${PORT} -sTCP:LISTEN -t` works on macOS + Linux. Windows scripts use `netstat -ano | findstr ":<port>"` instead.

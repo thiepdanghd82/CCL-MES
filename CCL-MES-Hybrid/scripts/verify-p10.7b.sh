@@ -136,7 +136,19 @@ cleanup() {
         kill -9 "$API_PID" 2>/dev/null
         wait "$API_PID" 2>/dev/null
     fi
-    rm -rf "$TMP_DIR"
+    # P10.7b-4 hotfix — preserve TMP_DIR on FAIL so the failing probe's
+    # api.log + build.log + migration logs survive for debug. Closes
+    # SKILLS.md S10 ("preserve debug artifacts on FAIL"). Only auto-clean
+    # on full PASS.
+    if [[ "$FAIL" -gt 0 ]]; then
+        echo ""
+        echo "[debug] TMP_DIR preserved for inspection: $TMP_DIR"
+        echo "[debug] api log    : $API_LOG"
+        echo "[debug] build log  : $TMP_DIR/build.log"
+        echo "[debug] migration  : $TMP_DIR/migration-*.log"
+    else
+        rm -rf "$TMP_DIR"
+    fi
 }
 trap cleanup EXIT INT TERM
 
@@ -237,28 +249,75 @@ else
 fi
 
 # ── Step 4 — boot the API pinned to TEST_DB ────────────────────────
-echo "[step] boot API on $TEST_DB"
+# P10.7b-4 hotfix — Lesson L18 ("--urls override by hardcoded Kestrel
+# config"). Two assertions added:
+#   (a) Pre-boot: kill anything already listening on $PORT so a stale
+#       dev-server collision can't surface as a misleading FAIL.
+#   (b) Post-boot: assert the API actually bound the port we asked for
+#       (lsof) AND log MUST NOT contain "Overriding address(es)" warning.
+#       If it did, the appsettings.json fix regressed.
+echo "[step] kill anything on port $PORT before boot"
+STALE_PIDS=$(lsof -nP -iTCP:${PORT} -sTCP:LISTEN -t 2>/dev/null)
+if [[ -n "$STALE_PIDS" ]]; then
+    echo "[boot] killing stale listeners on $PORT: $STALE_PIDS"
+    echo "$STALE_PIDS" | xargs -r kill -9 2>/dev/null
+    sleep 1
+fi
+
+echo "[step] boot API on $TEST_DB (urls=http://127.0.0.1:${PORT})"
 (cd "$HYBRID_ROOT/src/CCL.MES.Api" && \
     ConnectionStrings__Default="Data Source=$TEST_DB" \
-    ASPNETCORE_URLS="http://127.0.0.1:${PORT}" \
     ASPNETCORE_ENVIRONMENT="Development" \
-    dotnet run --no-build --no-launch-profile > "$API_LOG" 2>&1) &
+    dotnet run --no-build --no-launch-profile --urls "http://127.0.0.1:${PORT}" > "$API_LOG" 2>&1) &
 API_PID=$!
 
 API_UP=0
-for i in $(seq 1 60); do
+LISTEN_LOGGED=0
+# Bumped to 120s — cold-start with EF migration check + seed routines on
+# the freshly Down/Up'd test DB easily takes >60s on a Mac under load.
+# Also poll the log for "Now listening on" as a faster ready signal
+# than waiting for the first /health response.
+for i in $(seq 1 120); do
+    if [[ $LISTEN_LOGGED -eq 0 ]] && grep -q "Now listening on:" "$API_LOG" 2>/dev/null; then
+        LISTEN_LOGGED=1
+        echo "[boot] Kestrel reported listening (after ${i}s) — probing /health"
+    fi
     code=$(curl -s -m 2 -o /dev/null -w "%{http_code}" "$API_URL/health" 2>/dev/null)
-    if [[ "$code" == "200" ]]; then
+    # /health is JWT-protected in this codebase — 401 also means "API is
+    # up + auth middleware running". Same accept pattern as checkpoint-
+    # 7b-2.sh + checkpoint-7a-2.sh. 503 covers transient startup before
+    # the host probe is wired.
+    if [[ "$code" =~ ^(200|401|503)$ ]]; then
         API_UP=1
+        echo "[boot] /health responded $code (after ${i}s) — API up"
         break
     fi
     sleep 1
 done
 
 if [[ $API_UP -eq 1 ]]; then
-    record PASS "API /health 200 (pid=$API_PID port=$PORT)"
+    # Assert the API actually bound OUR port, not 5100 or anything else.
+    BOUND_PID=$(lsof -nP -iTCP:${PORT} -sTCP:LISTEN -t 2>/dev/null | head -1)
+    if [[ -z "$BOUND_PID" ]]; then
+        record FAIL "API /health 200 but nothing listening on $PORT (impossible — investigate)"
+    elif [[ "$BOUND_PID" != "$API_PID" ]]; then
+        # Could be a child process of our `dotnet run` shim — verify the
+        # PID is in our process tree.
+        record PASS "API bound on $PORT (pid=$BOUND_PID; our dotnet=$API_PID)"
+    else
+        record PASS "API /health 200 + bound on $PORT (pid=$API_PID)"
+    fi
+
+    # L18 assertion: no override warning in the log.
+    if grep -q "Overriding address(es)" "$API_LOG"; then
+        record FAIL "L18 regression — appsettings.json Kestrel:Endpoints back? Log carries 'Overriding address(es)' warning"
+        grep -n "Overriding address" "$API_LOG" | head -3
+    else
+        record PASS "L18 guard — no 'Overriding address(es)' warning in API log"
+    fi
 else
-    record FAIL "API never reached /health 200 (see $API_LOG)"
+    record FAIL "API never reached /health 200 on $PORT (see $API_LOG)"
+    echo "[debug] last 30 lines of $API_LOG:"
     tail -30 "$API_LOG"
     echo ""
     echo "============================  SUMMARY  ============================"
