@@ -4,6 +4,33 @@
 > Blazor Server + EF Core. Tài liệu này dành cho AI agent (Claude, Copilot…)
 > và developer mới — encode rule + lesson hard-won qua các Phase 1→6.
 
+## Pre-flight — bắt buộc đọc trước khi code/debug
+
+Mọi session — agent hay người — MUST load 3 file dưới đây vào đầu để
+không tái phạm lesson cũ:
+
+1. [`CCL-MES-Hybrid/docs/LESSONS-LEARNED.md`](./CCL-MES-Hybrid/docs/LESSONS-LEARNED.md)
+   — canonical index mọi bug class dự án đã trả tiền cho. 17 lesson card,
+   format chuẩn `Triệu chứng | Root cause | Fix | Cơ chế chặn tái phát`.
+   Mỗi lesson đính kèm test/script/rule cụ thể fail CI khi invariant bị vi phạm.
+2. [`CCL-MES-Hybrid/docs/SKILLS.md`](./CCL-MES-Hybrid/docs/SKILLS.md)
+   — playbook quy trình coding + debug đã chứng minh hiệu quả: RCA proven
+   không "most likely", reproduce trên DB copy, verify-script per PR +
+   paste output thật, checkpoint script self-managed, Catalyst 6-probe
+   rhythm, Henry-action 1 lệnh full chain, STOP-gate discipline, stash
+   discipline, **Design Rules responsive bắt buộc cho mọi Razor PR**.
+3. [`CCL-MES-Hybrid/docs/STACKED-PR-CHECKLIST.md`](./CCL-MES-Hybrid/docs/STACKED-PR-CHECKLIST.md)
+   — 7 rule cho stacked-PR merge, gate scripts, operator scripts. R1
+   `--base` explicit, R2 không `--delete-branch` mid-stack, R3 cascade-close
+   recovery, R4 comment-strip gate, R5 migration step trong Henry-action,
+   R6 verify-script self-prep DB, R7 `[ctx] DB=` + self-managed lifecycle +
+   wire-mirror.
+
+**Mọi lesson mới phải append vào `LESSONS-LEARNED.md` + có cơ chế chặn
+(test/rule), không để dạng prose rời.** PR review reject nếu thêm lesson
+mà cột `Cơ chế chặn tái phát` để trống. Prose không ship — markdown không
+fail CI.
+
 ## 0. Quick start
 
 - **Boot server**: `bash START_SERVER.command` (macOS) hoặc
