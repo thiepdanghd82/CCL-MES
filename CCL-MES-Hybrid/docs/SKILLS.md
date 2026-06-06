@@ -39,6 +39,7 @@
 
 - [S10 — Preserve debug artifacts on FAIL (don't auto-clean api.log + TMP_DIR before the operator can read them)](#s10)
 - [S11 — Assert-bound-port on every script that boots an API (lsof + log grep for "Overriding address")](#s11)
+- [S12 — Checkpoint scripts: per-step `[N/total]` labels + always-print SUMMARY (silence = no verify)](#s12)
 
 ---
 
@@ -431,3 +432,80 @@ fi
 **Anti-pattern**: trusting `/health 200` alone. The health endpoint responds to whatever Kestrel is listening on, regardless of what `--urls` requested. Without the bound-port + log-grep assertions, the bug is invisible to scripted verification.
 
 **Cross-platform note**: `lsof -nP -iTCP:${PORT} -sTCP:LISTEN -t` works on macOS + Linux. Windows scripts use `netstat -ano | findstr ":<port>"` instead.
+
+<a id="s12"></a>
+### S12 — Checkpoint scripts: per-step `[N/total]` labels + always-print SUMMARY
+
+**When to use**: every `scripts/checkpoint-*.sh` and any verify-script that exercises a chain of HTTP probes.
+
+**Recipe**:
+
+```bash
+TOTAL_STEPS=20
+CURRENT_STEP=0
+PASS=0
+FAIL=0
+SUMMARY=()
+
+record() {
+    CURRENT_STEP=$((CURRENT_STEP + 1))
+    if [[ "$1" == "PASS" ]]; then
+        PASS=$((PASS + 1))
+        echo "[$CURRENT_STEP/$TOTAL_STEPS] ✓ $2"
+        SUMMARY+=("  PASS  $2")
+    else
+        FAIL=$((FAIL + 1))
+        echo "[$CURRENT_STEP/$TOTAL_STEPS] ✗ $2"
+        SUMMARY+=("  FAIL  $2")
+    fi
+}
+
+final_summary() {
+    echo ""
+    echo "============================  SUMMARY  ============================"
+    if [[ ${#SUMMARY[@]} -eq 0 ]]; then
+        echo "  (no steps recorded — early abort before first probe)"
+    else
+        printf '%s\n' "${SUMMARY[@]}"
+    fi
+    echo "  TOTAL: pass=$PASS fail=$FAIL"
+    [[ $FAIL -gt 0 ]] && echo "  ✗ CHECKPOINT FAILED — wire path NOT proven."
+}
+
+cleanup() {
+    final_summary    # ALWAYS runs, even on exit 1
+    # ... kill subprocesses ...
+}
+trap cleanup EXIT INT TERM
+```
+
+**Why**: the P10.7c-2 hardware test exposed this exact anti-pattern. The original `checkpoint-7c-2.sh` had a `record FAIL ... && exit 1` deep inside the script when `/force-phase` rejected the IPQC_WAIT → IPQC_APPROVED cell. The exit fired BEFORE the trailing manual SUMMARY block, so the output looked like:
+
+```
+[ctx] WO Id      = 5
+                                        ← nothing else, exit code 1
+```
+
+Henry saw 11 lines of output + no SUMMARY + the API log silent — looked identical to a successful early-bail. The actual failure (force-phase 422) was buried in a `$R` variable that only the error message inside `record FAIL` would surface. Without per-step labels, the operator couldn't tell **which** step failed without `bash -x` tracing.
+
+The recipe above forces three properties:
+1. **Per-step `[N/total] ✓` or `✗`** is printed as the step happens, so progress is visible in real time even if the script aborts halfway.
+2. **`final_summary` runs in the EXIT trap**, so it prints whether the script exited 0, 1, or was killed by SIGINT. The empty-array guard handles the "early abort" case explicitly.
+3. **`FAIL>0 → CHECKPOINT FAILED` line** at the bottom of the summary makes wire-failure unmistakable in a glance.
+
+**Pair with S10**: preserve TMP_DIR / api.log on FAIL (the api.log is essential to diagnose the failing wire response — the SUMMARY shows WHICH step failed; the api.log shows WHY).
+
+**Pair with S1**: when a checkpoint fails, the operator pastes the SUMMARY + the failing step's `$R` body + the relevant api.log line to PROVE the root cause. Without S12, even Step 1 of S1 (form a hypothesis) is fuzzy because the operator doesn't know which step failed.
+
+**Anti-pattern (what was shipped initially in checkpoint-7c-2)**:
+
+```bash
+record FAIL "..."
+exit 1   # ← summary never prints, output looks identical to success-early-bail
+# ...later in the file:
+echo "==== SUMMARY ===="   # ← dead code, never executes
+```
+
+The `exit 1` MUST go through the cleanup trap. NEVER bare-`exit` from inside a mid-script step.
+
+**In-process integration tests vs wire checkpoint**: in-process xUnit fixtures (the 22 `RunningSurfaceControllerTests` for 7c-2) cover endpoint logic but DO NOT prove the wire path on the real DB. The checkpoint script is what produces the **audit log proof** Henry needs to see in the Settings UI. Both are required — in-process catches code regressions, checkpoint catches deploy + DB + integration regressions. See [L10](./LESSONS-LEARNED.md#l10) for the wire-mirror principle (R7.3 mandates each operator-facing wire probe has a parallel TestServer mirror; S12 is the operational discipline that makes the wire side reproducible).

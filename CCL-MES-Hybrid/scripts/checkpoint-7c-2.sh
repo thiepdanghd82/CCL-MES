@@ -92,20 +92,46 @@ echo "===================================================================="
 PASS=0
 FAIL=0
 SUMMARY=()
+TOTAL_STEPS=20
+CURRENT_STEP=0
+
 record() {
+    CURRENT_STEP=$((CURRENT_STEP + 1))
     if [[ "$1" == "PASS" ]]; then
         PASS=$((PASS + 1))
+        echo "[$CURRENT_STEP/$TOTAL_STEPS] ✓ $2"
         SUMMARY+=("  PASS  $2")
     else
         FAIL=$((FAIL + 1))
+        echo "[$CURRENT_STEP/$TOTAL_STEPS] ✗ $2"
         SUMMARY+=("  FAIL  $2")
     fi
 }
 
+# P10.7c-2 fix-2 — SKILLS.md S12: ALWAYS print SUMMARY even on early
+# exit (FAIL inside a per-step block can't be allowed to skip the
+# summary print — otherwise tooling output looks identical to success).
+# Print SUMMARY in EXIT trap + exit non-zero if any FAIL.
+final_summary() {
+    echo ""
+    echo "============================  SUMMARY  ============================"
+    if [[ ${#SUMMARY[@]} -eq 0 ]]; then
+        echo "  (no steps recorded — early abort before first probe)"
+    else
+        printf '%s\n' "${SUMMARY[@]}"
+    fi
+    echo ""
+    echo "  TOTAL: pass=$PASS fail=$FAIL"
+    echo ""
+    if [[ $FAIL -gt 0 ]]; then
+        echo "  ✗ CHECKPOINT FAILED — wire path NOT proven. See log + audit."
+    fi
+}
+
 cleanup() {
+    final_summary
     if [[ -n "$AUTO_BOOT_PID" ]]; then
         if [[ $KEEP_ALIVE -eq 1 ]]; then
-            echo ""
             echo "[keep-alive] API left running on $API_BASE (pid=$AUTO_BOOT_PID)"
             echo "[keep-alive] log    : /tmp/checkpoint-7c-2-api.log"
             echo "[keep-alive] kill   : kill $AUTO_BOOT_PID"
@@ -231,25 +257,26 @@ else
     record FAIL "/setting/done failed: $R"
 fi
 
-# ── Force-phase to IPQC_APPROVED (7d not shipped) ──────────────
-ETAG=$(sqlite3 "$DB_PATH" "SELECT hex(RowVersion) FROM WorkOrders WHERE Id=$WO_ID;" | python3 -c "import sys,base64; h=sys.stdin.read().strip(); print(base64.b64encode(bytes.fromhex(h)).decode())")
-R=$(curl -s -X POST "$API_BASE/api/v2/admin/work-orders/$WO_ID/force-phase" \
-    -H "$AUTH" -H "Content-Type: application/json" \
-    -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $(uuidgen)" \
-    -d '{"toPhase":"IPQC_APPROVED","reasonCode":"REC-TEST-RESET","reasonNote":"7c-2 checkpoint — IPQC defer to 7d"}')
-NEW=$(echo "$R" | python3 -c "import sys,json; print(json.load(sys.stdin).get('eTag',''))" 2>/dev/null)
-if [[ -n "$NEW" ]]; then
-    record PASS "admin force-phase → IPQC_APPROVED (7d defer)"
-    ETAG="$NEW"
-else
-    # fallback if response shape differs
+# ── SQL shim: IPQC_WAIT → IPQC_APPROVED (7d not shipped) ──────
+# RCA from PR #114 hardware test: /admin/force-phase REJECTS this
+# transition because §3.1 classifies IPQC_WAIT → IPQC_APPROVED as
+# requires-signoff, NOT recovery-only. IsForceablePhase predicate
+# only accepts recovery-only cells (per 7a-2.3 contract). The wire
+# call returned 422 force.invalid_target_step + the WO stayed in
+# IPQC_WAIT, blocking every subsequent /run/* probe.
+#
+# Fix: same SQL shim pattern this script already uses for
+# PREPRESS → SETTING (line above). The shim is a TEST-ONLY scaffold
+# — 7d will ship the actual IPQC controllers (4-check + 3-judgment
+# modal) that produce this transition via the real wire.
+sqlite3 "$DB_PATH" "UPDATE WorkOrders SET MesPhase='IPQC_APPROVED', CurrentStep='OpSetting', UpdatedAt=datetime('now'), UpdatedBy='checkpoint-7c-2' WHERE Id=$WO_ID;"
+NEW_PHASE=$(sqlite3 "$DB_PATH" "SELECT MesPhase FROM WorkOrders WHERE Id=$WO_ID;")
+if [[ "$NEW_PHASE" == "IPQC_APPROVED" ]]; then
+    record PASS "SQL shim: IPQC_WAIT → IPQC_APPROVED (IPQC wire defers to 7d)"
     ETAG=$(sqlite3 "$DB_PATH" "SELECT hex(RowVersion) FROM WorkOrders WHERE Id=$WO_ID;" | python3 -c "import sys,base64; h=sys.stdin.read().strip(); print(base64.b64encode(bytes.fromhex(h)).decode())")
-    if [[ "$(sqlite3 "$DB_PATH" "SELECT MesPhase FROM WorkOrders WHERE Id=$WO_ID;")" == "IPQC_APPROVED" ]]; then
-        record PASS "admin force-phase → IPQC_APPROVED (via DB check)"
-    else
-        record FAIL "admin force-phase failed: $R"
-        exit 1
-    fi
+else
+    record FAIL "SQL shim failed — WO stayed in $NEW_PHASE"
+    exit 1
 fi
 
 # ── 2. POST /run/start ──────────────────────────────────────────
@@ -364,16 +391,10 @@ for ACTION in WO_SETTING_DONE WO_RUN_START WO_RUN_QTY_ADD WO_RUN_QTY_CORRECT WO_
     fi
 done
 
-# ── Summary ────────────────────────────────────────────────────
-echo ""
-echo "============================  SUMMARY  ============================"
-printf '%s\n' "${SUMMARY[@]}"
-echo ""
-echo "  TOTAL: pass=$PASS fail=$FAIL"
-echo ""
-
+# ── KEEP-ALIVE forensic dump (Summary is printed by cleanup trap) ─
 if [[ $KEEP_ALIVE -eq 1 ]]; then
-    echo "── Next: Henry hardware verify on Catalyst ─────────────────────"
+    echo ""
+    echo "── KEEP-ALIVE: forensic state for Henry hardware verify ───────"
     echo "  Final state in DB:"
     sqlite3 "$DB_PATH" -header -column "
         SELECT WoNo, MesPhase, QtyDoneCached, QtyNgCached, SettingDurationSec
