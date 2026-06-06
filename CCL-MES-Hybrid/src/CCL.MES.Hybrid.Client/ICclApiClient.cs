@@ -6,6 +6,7 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
@@ -56,6 +57,35 @@ public interface ICclApiClient
     /// state-machine fire.</summary>
     Task<AdvanceWorkOrderResponse> AdvanceWorkOrderAsync(
         long workOrderId, string ifMatchETag, CancellationToken ct = default);
+
+    // ── PREPRESS row checks (P10.7b-2 — read + 3 PUTs) ────────────
+    /// <summary>Read the 3 child-table sets + rollup flag + ETag. The server
+    /// lazy-materialises rows from the BOM snapshot on first read so legacy
+    /// pre-7b WOs surface a populated checklist on the operator's first hit.
+    /// Throws <see cref="ApiException"/> on 404 / 401.</summary>
+    Task<PrepressView> GetPrepressViewAsync(long workOrderId, CancellationToken ct = default);
+
+    /// <summary>Set one wo_materials row (status Pending/Ok/Ng + optional
+    /// QtyLoaded/LotNo + NG reason/note). 200 with the bumped ETag + post-
+    /// write rollup; 409 + <c>ErrorCode = "wo.state_conflict"</c> on stale
+    /// If-Match (response still carries the fresh server ETag). 422 on
+    /// invalid_status / invalid_reason_code / invalid_ng_note /
+    /// invalid_phase.</summary>
+    Task<PrepressSetResponse> PutPrepressMaterialAsync(
+        long workOrderId, int bomLineIdx, string ifMatchETag,
+        SetPrepressMaterialRequest req, CancellationToken ct = default);
+
+    /// <summary>Set the 1:1 wo_plate_check row. Same contract as
+    /// <see cref="PutPrepressMaterialAsync"/>.</summary>
+    Task<PrepressSetResponse> PutPrepressPlateAsync(
+        long workOrderId, string ifMatchETag,
+        SetPrepressPlateRequest req, CancellationToken ct = default);
+
+    /// <summary>Set the 1:1 wo_cutter_check row. Same contract as
+    /// <see cref="PutPrepressMaterialAsync"/>.</summary>
+    Task<PrepressSetResponse> PutPrepressCutterAsync(
+        long workOrderId, string ifMatchETag,
+        SetPrepressCutterRequest req, CancellationToken ct = default);
 
     // ── Devices (P10.3 W4 — kiosk surface) ────────────────────────
     Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default);

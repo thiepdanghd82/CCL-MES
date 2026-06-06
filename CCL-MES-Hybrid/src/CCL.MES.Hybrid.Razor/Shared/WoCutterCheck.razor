@@ -1,0 +1,183 @@
+@*
+    P10.7b-3 — Cutter (dao chặt) check sub-component. Mirror of
+    WoPlateCheck.razor with the cutter terminology. Same Rule 4 +
+    state-sync pattern.
+*@
+
+@using CCL.MES.Shared.Prepress
+
+<div class="prepress-section">
+    <div class="prepress-section-head">
+        <span class="prepress-section-title">Kiểm tra dao chặt</span>
+        <span class="prepress-pill @StatusPillClass(Row?.Status ?? "Pending")" data-testid="cutter-status-pill">
+            @StatusLabel(Row?.Status ?? "Pending")
+        </span>
+    </div>
+
+    <div class="prepress-row-form">
+        <div class="prepress-form-cell">
+            <label for="cutter-no-input">Số/mã dao chặt</label>
+            <input id="cutter-no-input"
+                   type="text"
+                   class="prepress-input"
+                   value="@_cutterNo"
+                   @oninput="OnCutterNoInput"
+                   disabled="@Busy"
+                   aria-label="Số dao chặt" />
+        </div>
+
+        @if (IsNgOrArming)
+        {
+            <div class="prepress-form-cell">
+                <label for="cutter-ng-reason">Mã lý do NG (scrap)</label>
+                <input id="cutter-ng-reason"
+                       type="text"
+                       class="prepress-input"
+                       value="@_ngReason"
+                       @oninput="OnNgReasonInput"
+                       disabled="@Busy"
+                       aria-label="Mã lý do NG dao" />
+            </div>
+            <div class="prepress-form-cell prepress-form-cell-wide">
+                <label for="cutter-ng-note">Ghi chú NG (1-500 ký tự)</label>
+                <input id="cutter-ng-note"
+                       type="text"
+                       class="prepress-input"
+                       value="@_ngNote"
+                       @oninput="OnNgNoteInput"
+                       disabled="@Busy"
+                       aria-label="Ghi chú NG dao" />
+            </div>
+        }
+    </div>
+
+    <div class="prepress-actions">
+        <button type="button"
+                class="op-btn op-btn-success"
+                data-testid="cutter-btn-ok"
+                disabled="@(Busy || (Row?.Status == "Ok"))"
+                @onclick="OnSubmitOk">
+            Ghi dao OK
+        </button>
+        @if (!_armingNg && (Row?.Status != "Ng"))
+        {
+            <button type="button"
+                    class="op-btn op-btn-danger"
+                    data-testid="cutter-btn-ng-arm"
+                    disabled="@Busy"
+                    @onclick="() => _armingNg = true">
+                Đánh NG
+            </button>
+        }
+        else
+        {
+            <button type="button"
+                    class="op-btn op-btn-danger"
+                    data-testid="cutter-btn-ng-confirm"
+                    disabled="@Busy"
+                    @onclick="OnSubmitNg">
+                Lưu NG
+            </button>
+            <button type="button"
+                    class="op-btn op-btn-secondary"
+                    data-testid="cutter-btn-ng-cancel"
+                    disabled="@Busy"
+                    @onclick="CancelNg">
+                Hủy
+            </button>
+        }
+    </div>
+
+    @if (Row?.CheckedBy is not null)
+    {
+        <div class="prepress-checked-by" data-testid="cutter-checked-by">
+            Người kiểm: <strong>@Row.CheckedBy</strong>
+            @if (Row.CheckedAt is not null)
+            {
+                <span> · @Row.CheckedAt.Value.ToLocalTime().ToString("HH:mm dd/MM")</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public PrepressCutterRow? Row { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback<CutterSetIntent> OnSetCutter { get; set; }
+
+    private string _cutterNo = "";
+    private string _ngReason = "";
+    private string _ngNote = "";
+    private bool _armingNg;
+    private long? _lastRowSyncedId;
+
+    private bool IsNgOrArming => _armingNg || (Row?.Status == "Ng");
+
+    protected override void OnParametersSet()
+    {
+        if (Row is not null && Row.Id != _lastRowSyncedId)
+        {
+            _cutterNo = Row.CutterNo ?? "";
+            _ngReason = Row.NgReasonCode ?? "";
+            _ngNote = Row.NgNote ?? "";
+            _lastRowSyncedId = Row.Id;
+        }
+    }
+
+    private void OnCutterNoInput(Microsoft.AspNetCore.Components.ChangeEventArgs e) => _cutterNo = e.Value?.ToString() ?? "";
+    private void OnNgReasonInput(Microsoft.AspNetCore.Components.ChangeEventArgs e) => _ngReason = e.Value?.ToString() ?? "";
+    private void OnNgNoteInput(Microsoft.AspNetCore.Components.ChangeEventArgs e) => _ngNote = e.Value?.ToString() ?? "";
+
+    private async Task OnSubmitOk()
+    {
+        await OnSetCutter.InvokeAsync(new CutterSetIntent
+        {
+            Status = "Ok",
+            CutterNo = string.IsNullOrWhiteSpace(_cutterNo) ? null : _cutterNo,
+            NgReasonCode = null,
+            NgNote = null,
+        });
+        _armingNg = false;
+    }
+
+    private async Task OnSubmitNg()
+    {
+        await OnSetCutter.InvokeAsync(new CutterSetIntent
+        {
+            Status = "Ng",
+            CutterNo = string.IsNullOrWhiteSpace(_cutterNo) ? null : _cutterNo,
+            NgReasonCode = string.IsNullOrWhiteSpace(_ngReason) ? null : _ngReason,
+            NgNote = string.IsNullOrWhiteSpace(_ngNote) ? null : _ngNote,
+        });
+        _armingNg = false;
+    }
+
+    private void CancelNg()
+    {
+        _armingNg = false;
+        _ngReason = "";
+        _ngNote = "";
+    }
+
+    private static string StatusPillClass(string status) => status switch
+    {
+        "Ok"      => "prepress-pill-ok",
+        "Ng"      => "prepress-pill-ng",
+        _         => "prepress-pill-pending",
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Ok"      => "OK",
+        "Ng"      => "NG",
+        _         => "Chưa kiểm",
+    };
+
+    public sealed class CutterSetIntent
+    {
+        public string Status { get; init; } = "";
+        public string? CutterNo { get; init; }
+        public string? NgReasonCode { get; init; }
+        public string? NgNote { get; init; }
+    }
+}

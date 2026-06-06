@@ -7,6 +7,7 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
@@ -24,10 +25,18 @@ public sealed class RecordingApi : ICclApiClient
 {
     public Func<string, CancellationToken, Task<WorkOrderSummary?>>? SummaryImpl { get; set; }
     public Func<long, string, CancellationToken, Task<AdvanceWorkOrderResponse>>? AdvanceImpl { get; set; }
+    public Func<long, CancellationToken, Task<PrepressView>>? PrepressViewImpl { get; set; }
+    public Func<long, int, string, SetPrepressMaterialRequest, CancellationToken, Task<PrepressSetResponse>>? PutPrepressMaterialImpl { get; set; }
+    public Func<long, string, SetPrepressPlateRequest, CancellationToken, Task<PrepressSetResponse>>? PutPrepressPlateImpl { get; set; }
+    public Func<long, string, SetPrepressCutterRequest, CancellationToken, Task<PrepressSetResponse>>? PutPrepressCutterImpl { get; set; }
 
     public List<string> SummaryCalls { get; } = new();
     public List<(long Id, string ETag)> AdvanceCalls { get; } = new();
     public List<ScanLogRequest> ScanLogCalls { get; } = new();
+    public List<long> PrepressViewCalls { get; } = new();
+    public List<(long Id, int BomLineIdx, string ETag, SetPrepressMaterialRequest Req)> PutPrepressMaterialCalls { get; } = new();
+    public List<(long Id, string ETag, SetPrepressPlateRequest Req)> PutPrepressPlateCalls { get; } = new();
+    public List<(long Id, string ETag, SetPrepressCutterRequest Req)> PutPrepressCutterCalls { get; } = new();
 
     public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
     {
@@ -43,6 +52,44 @@ public sealed class RecordingApi : ICclApiClient
         return AdvanceImpl is null
             ? throw new InvalidOperationException("AdvanceImpl not set")
             : AdvanceImpl(workOrderId, ifMatchETag, ct);
+    }
+
+    public Task<PrepressView> GetPrepressViewAsync(long workOrderId, CancellationToken ct = default)
+    {
+        PrepressViewCalls.Add(workOrderId);
+        return PrepressViewImpl is null
+            ? throw new InvalidOperationException("PrepressViewImpl not set")
+            : PrepressViewImpl(workOrderId, ct);
+    }
+
+    public Task<PrepressSetResponse> PutPrepressMaterialAsync(
+        long workOrderId, int bomLineIdx, string ifMatchETag,
+        SetPrepressMaterialRequest req, CancellationToken ct = default)
+    {
+        PutPrepressMaterialCalls.Add((workOrderId, bomLineIdx, ifMatchETag, req));
+        return PutPrepressMaterialImpl is null
+            ? throw new InvalidOperationException("PutPrepressMaterialImpl not set")
+            : PutPrepressMaterialImpl(workOrderId, bomLineIdx, ifMatchETag, req, ct);
+    }
+
+    public Task<PrepressSetResponse> PutPrepressPlateAsync(
+        long workOrderId, string ifMatchETag,
+        SetPrepressPlateRequest req, CancellationToken ct = default)
+    {
+        PutPrepressPlateCalls.Add((workOrderId, ifMatchETag, req));
+        return PutPrepressPlateImpl is null
+            ? throw new InvalidOperationException("PutPrepressPlateImpl not set")
+            : PutPrepressPlateImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<PrepressSetResponse> PutPrepressCutterAsync(
+        long workOrderId, string ifMatchETag,
+        SetPrepressCutterRequest req, CancellationToken ct = default)
+    {
+        PutPrepressCutterCalls.Add((workOrderId, ifMatchETag, req));
+        return PutPrepressCutterImpl is null
+            ? throw new InvalidOperationException("PutPrepressCutterImpl not set")
+            : PutPrepressCutterImpl(workOrderId, ifMatchETag, req, ct);
     }
 
     public Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default)

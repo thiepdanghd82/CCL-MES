@@ -1,0 +1,265 @@
+@*
+    P10.7b-3 — Materials checklist sub-component. Renders the BOM
+    snapshot rows as a table with a per-row status setter +
+    QtyLoaded/LotNo inputs + NG reason/note inputs.
+
+    Rule 4 (renderer-crash lesson): plain <input> + <select> + @oninput /
+    @onchange — NO <InputText> / <InputSelect>. Triggering the legacy
+    Razor form primitives inside MAUI Blazor Hybrid + Mac Catalyst has
+    historically blown up the renderer (P10.5g / P10.6a).
+
+    Parent (PrepressDashboard) owns the PrepressView state. We only emit
+    OnSetMaterial events; the parent does the API call + state diff +
+    optimistic-revert on 409. Local _draft buffers hold operator typing
+    until they tap "Ghi OK / Ghi NG" so a stale render from a parallel
+    refetch doesn't mid-type clobber.
+*@
+
+@using CCL.MES.Shared.Prepress
+
+<div class="prepress-section">
+    <div class="prepress-section-head">
+        <span class="prepress-section-title">Vật tư (BOM snapshot)</span>
+        <span class="prepress-progress-pill" data-testid="materials-progress">
+            @OkCount / @Materials.Count OK
+        </span>
+    </div>
+
+    @if (Materials.Count == 0)
+    {
+        <div class="prepress-empty" data-testid="materials-empty">
+            Không có dòng vật tư — BOM trống cho sản phẩm này. Kiểm tra
+            Routing/Structure trước khi tiếp tục.
+        </div>
+    }
+    else
+    {
+        <table class="prepress-table">
+            <thead>
+                <tr>
+                    <th>STT</th>
+                    <th>Mã VT</th>
+                    <th>Mô tả</th>
+                    <th>Yêu cầu</th>
+                    <th>Đã nhập</th>
+                    <th>Lot</th>
+                    <th>Trạng thái</th>
+                    <th>Ng — lý do · ghi chú</th>
+                    <th>Hành động</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Materials)
+                {
+                    var draft = GetOrInitDraft(row);
+                    var isPending = row.Status == "Pending";
+                    var isOk = row.Status == "Ok";
+                    var isNg = row.Status == "Ng";
+
+                    <tr data-testid="material-row" data-bom-idx="@row.BomLineIdx">
+                        <td>@row.BomLineIdx</td>
+                        <td class="scan-mono">@row.MaterialCode</td>
+                        <td>@(row.MaterialDescription ?? "—")</td>
+                        <td class="num">@row.QtyRequired @(row.Uom ?? "")</td>
+                        <td>
+                            <input type="number" step="any" min="0"
+                                   class="prepress-input prepress-input-num"
+                                   value="@draft.QtyLoaded"
+                                   @oninput="e => OnQtyLoadedInput(draft, e)"
+                                   disabled="@Busy"
+                                   aria-label="Số lượng đã nhập" />
+                        </td>
+                        <td>
+                            <input type="text"
+                                   class="prepress-input"
+                                   value="@draft.LotNo"
+                                   @oninput="e => OnLotNoInput(draft, e)"
+                                   disabled="@Busy"
+                                   aria-label="Số lot" />
+                        </td>
+                        <td>
+                            <span class="prepress-pill @StatusPillClass(row.Status)" data-testid="status-pill">
+                                @StatusLabel(row.Status)
+                            </span>
+                        </td>
+                        <td>
+                            @if (isNg || draft.SettingNg)
+                            {
+                                <input type="text"
+                                       class="prepress-input"
+                                       placeholder="Mã NG (scrap)"
+                                       value="@draft.NgReasonCode"
+                                       @oninput="e => OnNgReasonInput(draft, e)"
+                                       disabled="@Busy"
+                                       aria-label="Mã lý do NG" />
+                                <input type="text"
+                                       class="prepress-input"
+                                       placeholder="Ghi chú NG (1-500 ký tự)"
+                                       value="@draft.NgNote"
+                                       @oninput="e => OnNgNoteInput(draft, e)"
+                                       disabled="@Busy"
+                                       aria-label="Ghi chú NG" />
+                            }
+                            else
+                            {
+                                <span class="prepress-muted">—</span>
+                            }
+                        </td>
+                        <td class="prepress-actions">
+                            <button type="button"
+                                    class="op-btn op-btn-success op-btn-sm"
+                                    data-testid="btn-ok"
+                                    disabled="@(Busy || isOk)"
+                                    @onclick="() => OnSubmitOk(row, draft)">
+                                Ghi OK
+                            </button>
+                            @if (!draft.SettingNg && !isNg)
+                            {
+                                <button type="button"
+                                        class="op-btn op-btn-danger op-btn-sm"
+                                        data-testid="btn-ng-arm"
+                                        disabled="@Busy"
+                                        @onclick="() => draft.SettingNg = true">
+                                    Đánh NG
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button"
+                                        class="op-btn op-btn-danger op-btn-sm"
+                                        data-testid="btn-ng-confirm"
+                                        disabled="@Busy"
+                                        @onclick="() => OnSubmitNg(row, draft)">
+                                    Lưu NG
+                                </button>
+                                <button type="button"
+                                        class="op-btn op-btn-secondary op-btn-sm"
+                                        data-testid="btn-ng-cancel"
+                                        disabled="@Busy"
+                                        @onclick="() => CancelNg(draft)">
+                                    Hủy
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<PrepressMaterialRow> Materials { get; set; } = Array.Empty<PrepressMaterialRow>();
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public EventCallback<MaterialSetIntent> OnSetMaterial { get; set; }
+
+    private readonly Dictionary<int, MaterialDraft> _drafts = new();
+
+    private int OkCount => Materials.Count(m => m.Status == "Ok");
+
+    private MaterialDraft GetOrInitDraft(PrepressMaterialRow row)
+    {
+        if (!_drafts.TryGetValue(row.BomLineIdx, out var d))
+        {
+            d = new MaterialDraft
+            {
+                QtyLoaded = row.QtyLoaded?.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) ?? "",
+                LotNo = row.LotNo ?? "",
+                NgReasonCode = row.NgReasonCode ?? "",
+                NgNote = row.NgNote ?? "",
+                SettingNg = false,
+            };
+            _drafts[row.BomLineIdx] = d;
+        }
+        return d;
+    }
+
+    private void OnQtyLoadedInput(MaterialDraft draft, Microsoft.AspNetCore.Components.ChangeEventArgs e)
+        => draft.QtyLoaded = e.Value?.ToString() ?? "";
+
+    private void OnLotNoInput(MaterialDraft draft, Microsoft.AspNetCore.Components.ChangeEventArgs e)
+        => draft.LotNo = e.Value?.ToString() ?? "";
+
+    private void OnNgReasonInput(MaterialDraft draft, Microsoft.AspNetCore.Components.ChangeEventArgs e)
+        => draft.NgReasonCode = e.Value?.ToString() ?? "";
+
+    private void OnNgNoteInput(MaterialDraft draft, Microsoft.AspNetCore.Components.ChangeEventArgs e)
+        => draft.NgNote = e.Value?.ToString() ?? "";
+
+    private async Task OnSubmitOk(PrepressMaterialRow row, MaterialDraft draft)
+    {
+        await OnSetMaterial.InvokeAsync(new MaterialSetIntent
+        {
+            BomLineIdx = row.BomLineIdx,
+            Status = "Ok",
+            QtyLoaded = ParseQty(draft.QtyLoaded),
+            LotNo = string.IsNullOrWhiteSpace(draft.LotNo) ? null : draft.LotNo,
+            NgReasonCode = null,
+            NgNote = null,
+        });
+        draft.SettingNg = false;
+    }
+
+    private async Task OnSubmitNg(PrepressMaterialRow row, MaterialDraft draft)
+    {
+        await OnSetMaterial.InvokeAsync(new MaterialSetIntent
+        {
+            BomLineIdx = row.BomLineIdx,
+            Status = "Ng",
+            QtyLoaded = ParseQty(draft.QtyLoaded),
+            LotNo = string.IsNullOrWhiteSpace(draft.LotNo) ? null : draft.LotNo,
+            NgReasonCode = string.IsNullOrWhiteSpace(draft.NgReasonCode) ? null : draft.NgReasonCode,
+            NgNote = string.IsNullOrWhiteSpace(draft.NgNote) ? null : draft.NgNote,
+        });
+        draft.SettingNg = false;
+    }
+
+    private void CancelNg(MaterialDraft draft)
+    {
+        draft.SettingNg = false;
+        draft.NgReasonCode = "";
+        draft.NgNote = "";
+    }
+
+    private static double? ParseQty(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (double.TryParse(raw, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var v))
+            return v;
+        return null;
+    }
+
+    private static string StatusPillClass(string status) => status switch
+    {
+        "Ok"      => "prepress-pill-ok",
+        "Ng"      => "prepress-pill-ng",
+        _         => "prepress-pill-pending",
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Ok"      => "OK",
+        "Ng"      => "NG",
+        _         => "Chưa kiểm",
+    };
+
+    public sealed class MaterialDraft
+    {
+        public string QtyLoaded { get; set; } = "";
+        public string LotNo { get; set; } = "";
+        public string NgReasonCode { get; set; } = "";
+        public string NgNote { get; set; } = "";
+        public bool SettingNg { get; set; }
+    }
+
+    public sealed class MaterialSetIntent
+    {
+        public int BomLineIdx { get; init; }
+        public string Status { get; init; } = "";
+        public double? QtyLoaded { get; init; }
+        public string? LotNo { get; init; }
+        public string? NgReasonCode { get; init; }
+        public string? NgNote { get; init; }
+    }
+}

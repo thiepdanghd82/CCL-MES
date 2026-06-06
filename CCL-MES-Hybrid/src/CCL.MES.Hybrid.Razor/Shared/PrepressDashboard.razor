@@ -1,0 +1,270 @@
+@*
+    P10.7b-3 — PREPRESS operator dashboard.
+
+    Hosted inside WorkOrders.razor when the scanned/looked-up WO has
+    MesPhase=PREPRESS (or NEW, which the §5.2 contract treats as the
+    pre-PREPRESS entry surface). Owns the entire PrepressView state +
+    every API call that mutates it. Three child components are
+    prop-driven + emit EventCallbacks; this parent does the wire work.
+
+    Concurrency / error handling:
+      - Every PUT returns the bumped ETag in PrepressSetResponse.
+        On Ok=true we refetch the whole view (cheap; serialises
+        cascade with the SQLite write-lock) so audit-touched fields
+        (CheckedBy/CheckedAt) surface.
+      - On Ok=false + ErrorCode="wo.state_conflict" the response
+        carries the fresh ETag — we refetch + show a banner so the
+        operator can retry. (Pattern parallels WorkOrders.razor /
+        AdvanceOrchestrator outcomes.)
+      - On 422 (invalid_phase / invalid_status / invalid_reason_code /
+        invalid_ng_note) the server's ApiError code surfaces via
+        PrepressErrorLocaliser → a sticky banner above the dashboard.
+        invalid_phase additionally collapses the row UI to "WO không ở
+        PREPRESS — quay lại Work Orders" because no further writes
+        will succeed until the WO is in the right phase.
+
+    The Advance button is gated on view.MaterialsReady (server-
+    computed rollup). The actual phase transition is bubbled up to
+    WorkOrders.razor's existing AdvanceOrchestrator via OnAdvanceRequested
+    so the success-banner UX from 7a-1.4 still fires.
+
+    Rule 4: plain <input>, NO <InputText>. The 3 children honour the
+    same rule; this parent has no form fields at all (just buttons +
+    banners) so no input renderer concerns.
+*@
+
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.Prepress
+@using CCL.MES.Shared.Envelopes
+@using CCL.MES.Shared.Prepress
+@inject ICclApiClient Api
+
+<div class="prepress-dashboard" data-testid="prepress-dashboard">
+    @if (_view is null && _initialError is null)
+    {
+        <div class="prepress-loading" data-testid="prepress-loading">
+            Đang tải checklist PREPRESS…
+        </div>
+    }
+    else if (_initialError is not null)
+    {
+        <div class="wo-card-error" data-testid="prepress-initial-error">
+            <strong>Không tải được checklist PREPRESS:</strong> @_initialError
+        </div>
+    }
+    else if (_invalidPhase)
+    {
+        <div class="wo-card-error" data-testid="prepress-invalid-phase">
+            <strong>WO không ở giai đoạn PREPRESS</strong> —
+            Hiện tại: <code>@(_view?.MesPhase ?? "?")</code>.
+            Quay lại tab Work Orders để chọn WO khác.
+        </div>
+    }
+    else if (_view is not null)
+    {
+        <div class="prepress-head">
+            <div class="prepress-head-wo">
+                <span class="prepress-head-label">WO</span>
+                <span class="prepress-head-wo-no">@_view.WoNo</span>
+                <span class="prepress-head-phase">@_view.MesPhase</span>
+            </div>
+            <div class="prepress-head-rollup" data-testid="prepress-rollup-pill">
+                @if (_view.MaterialsReady)
+                {
+                    <span class="prepress-pill prepress-pill-ok">Materials Ready ✓</span>
+                }
+                else
+                {
+                    <span class="prepress-pill prepress-pill-pending">Materials chưa sẵn sàng</span>
+                }
+            </div>
+        </div>
+
+        @if (_setError is not null)
+        {
+            <div class="wo-card-error" data-testid="prepress-set-error">
+                <strong>Không ghi được thay đổi:</strong> @_setError
+                <button type="button" class="op-btn op-btn-secondary op-btn-sm"
+                        @onclick="DismissSetError"
+                        data-testid="prepress-set-error-dismiss">
+                    Bỏ qua
+                </button>
+            </div>
+        }
+
+        <WoMaterialsList Materials="_view.Materials"
+                         Busy="_busy"
+                         OnSetMaterial="OnSetMaterial" />
+
+        <WoPlateCheck Row="_view.PlateCheck"
+                      Busy="_busy"
+                      OnSetPlate="OnSetPlate" />
+
+        <WoCutterCheck Row="_view.CutterCheck"
+                       Busy="_busy"
+                       OnSetCutter="OnSetCutter" />
+
+        <div class="prepress-advance-bar">
+            <button type="button"
+                    class="op-btn op-btn-primary prepress-advance-btn"
+                    data-testid="prepress-advance-btn"
+                    disabled="@(!_view.MaterialsReady || _busy)"
+                    @onclick="OnAdvanceClicked">
+                Bắt đầu Setting (chuyển bước)
+            </button>
+            @if (!_view.MaterialsReady)
+            {
+                <span class="prepress-advance-hint" data-testid="prepress-advance-hint">
+                    Hoàn tất 3 checklist (Vật tư + Clichê + Dao) → nút này sẽ kích hoạt.
+                </span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public long WorkOrderId { get; set; }
+    [Parameter] public EventCallback OnAdvanceRequested { get; set; }
+
+    private PrepressView? _view;
+    private string? _initialError;
+    private string? _setError;
+    private bool _busy;
+    private bool _invalidPhase;
+    private long _lastLoadedWoId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (WorkOrderId != _lastLoadedWoId)
+        {
+            _lastLoadedWoId = WorkOrderId;
+            _view = null;
+            _initialError = null;
+            _setError = null;
+            _invalidPhase = false;
+            await ReloadAsync();
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _view = await Api.GetPrepressViewAsync(WorkOrderId);
+            _invalidPhase = !(_view.MesPhase == "PREPRESS" || _view.MesPhase == "NEW");
+        }
+        catch (ApiException apiEx)
+        {
+            _initialError = PrepressErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+        }
+        catch (HttpRequestException ex)
+        {
+            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _initialError = $"Lỗi tải checklist: {ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
+    private async Task OnSetMaterial(WoMaterialsList.MaterialSetIntent intent)
+    {
+        if (_view is null) return;
+        await GuardedPutAsync(async ifMatch =>
+            await Api.PutPrepressMaterialAsync(
+                WorkOrderId, intent.BomLineIdx, ifMatch,
+                new SetPrepressMaterialRequest
+                {
+                    Status = intent.Status,
+                    QtyLoaded = intent.QtyLoaded,
+                    LotNo = intent.LotNo,
+                    NgReasonCode = intent.NgReasonCode,
+                    NgNote = intent.NgNote,
+                }));
+    }
+
+    private async Task OnSetPlate(WoPlateCheck.PlateSetIntent intent)
+    {
+        if (_view is null) return;
+        await GuardedPutAsync(async ifMatch =>
+            await Api.PutPrepressPlateAsync(
+                WorkOrderId, ifMatch,
+                new SetPrepressPlateRequest
+                {
+                    Status = intent.Status,
+                    PlateNo = intent.PlateNo,
+                    NgReasonCode = intent.NgReasonCode,
+                    NgNote = intent.NgNote,
+                }));
+    }
+
+    private async Task OnSetCutter(WoCutterCheck.CutterSetIntent intent)
+    {
+        if (_view is null) return;
+        await GuardedPutAsync(async ifMatch =>
+            await Api.PutPrepressCutterAsync(
+                WorkOrderId, ifMatch,
+                new SetPrepressCutterRequest
+                {
+                    Status = intent.Status,
+                    CutterNo = intent.CutterNo,
+                    NgReasonCode = intent.NgReasonCode,
+                    NgNote = intent.NgNote,
+                }));
+    }
+
+    private async Task GuardedPutAsync(Func<string, Task<PrepressSetResponse>> doPut)
+    {
+        if (_view is null) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var ifMatch = _view.ETag;
+            var resp = await doPut(ifMatch);
+
+            if (resp.Ok)
+            {
+                await ReloadAsync();
+            }
+            else if (!string.IsNullOrEmpty(resp.ErrorCode))
+            {
+                _setError = PrepressErrorLocaliser.LocaliseSetError(resp.ErrorCode);
+                await ReloadAsync();
+            }
+            else
+            {
+                _setError = "Máy chủ trả Ok=false không kèm mã lỗi — báo IT.";
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = PrepressErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase")
+            {
+                _invalidPhase = true;
+            }
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task OnAdvanceClicked()
+    {
+        if (_view is null || !_view.MaterialsReady) return;
+        await OnAdvanceRequested.InvokeAsync();
+    }
+
+    private void DismissSetError() => _setError = null;
+}
