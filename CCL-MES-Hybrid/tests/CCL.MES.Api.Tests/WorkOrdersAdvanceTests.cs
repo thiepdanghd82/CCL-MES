@@ -99,6 +99,50 @@ public sealed class WorkOrdersAdvanceTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
+    public async Task Drawer_by_no_projects_MesPhase_per_L19_amendment()
+    {
+        // P10.7d-4 — Henry RCA on PR #120 step 13. The L19 fix (PR #115)
+        // projected MesPhase on /by-no/{woNo}/summary so the UI
+        // dispatch + auto-route would key on the canonical phase.
+        // But the SIBLING bare /by-no/{woNo} drawer DTO was left
+        // un-touched and silently returned no mesPhase field — broke
+        // the checkpoint script's L21 wire assertion even though the
+        // WO was correctly in IPQC_APPROVED in the DB.
+        //
+        // L19 amendment in this PR: EVERY endpoint that returns a WO
+        // record MUST project canonical MesPhase. This test locks that
+        // invariant for the drawer endpoint specifically; any future
+        // refactor that drops MesPhase from WorkOrderDrawerView breaks
+        // here at CI rather than at operator runtime.
+        await _fx.SeedUserAsync("wo-drawer-mp", "P@ss!", UserRole.Engineer);
+        var client = _fx.CreateClient();
+        await _fx.LoginAndAuthenticateAsync(client, "wo-drawer-mp", "P@ss!");
+        var wo = await SeedWoAsync("WO-DRAWER-MP", ProcessStepCode.ReadyToRun);
+
+        var resp = await client.GetAsync(
+            $"/api/v2/work-orders/by-no/{Uri.EscapeDataString(wo.WoNo)}");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        // Read raw JSON so the assertion CANNOT be fooled by a DTO
+        // rebind to a different shape — we're locking the wire
+        // representation operators (+ shell scripts like checkpoint-7d-final)
+        // actually see. Field name "mesPhase" matches camelCase per
+        // ASP.NET Core's default JsonSerializerOptions.
+        var json = await resp.Content.ReadAsStringAsync();
+        using var doc = System.Text.Json.JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        Assert.True(root.TryGetProperty("mesPhase", out var phaseProp),
+            "Drawer DTO MUST expose 'mesPhase' field (L19 amendment, PR #120). " +
+            "Without it operator scripts that curl /by-no/{woNo} read empty + " +
+            "fail L21 wire assertions even when the WO advanced correctly.");
+        var phase = phaseProp.GetString();
+        Assert.False(string.IsNullOrEmpty(phase),
+            $"mesPhase MUST be non-empty (got '{phase}'). The entity default 'NEW' " +
+            "is acceptable for legacy rows; an empty string means the DTO projection " +
+            "dropped the field.");
+    }
+
+    [Fact]
     public async Task Advance_ok_path_returns_next_step()
     {
         await _fx.SeedUserAsync("wo3", "P@ss!", UserRole.Engineer);

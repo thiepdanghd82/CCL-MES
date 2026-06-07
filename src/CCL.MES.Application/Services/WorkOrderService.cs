@@ -268,7 +268,12 @@ public class WorkOrderService
             BadgeIcon:       badge.Icon,
             Materials:       materials,
             QcInspections:   qc,
-            History:         history);
+            History:         history,
+            // L19 amendment (PR #120): canonical phase MUST appear on
+            // every WO-returning endpoint. Empty string when MesPhase
+            // is unset on legacy rows; clients fall back to CurrentStep
+            // for those, mirroring the WorkOrders.razor dispatch helpers.
+            MesPhase:        wo.MesPhase ?? "");
     }
 
     public Task<WorkOrder?> GetAsync(long id) =>
@@ -462,7 +467,16 @@ public sealed record WorkOrderDrawerView(
     List<DrawerQcRow> QcInspections,
     // Phase 8 PR #32c — top-50 audit timeline for this WO. Empty list
     // when AuditLogs has no rows targeting this WoId.
-    List<WoHistoryRow> History);
+    List<WoHistoryRow> History,
+    // P10.7d-4 BUG-FIX (Henry RCA on PR #120 step 13 + L19 amendment):
+    // EVERY endpoint that returns a WO record MUST project canonical
+    // MesPhase. Sibling /by-no/{woNo}/summary projects it (L19 fix);
+    // bare /by-no/{woNo} drawer did not, so the checkpoint script's
+    // L21 auto-route wire assertion read empty + failed step 13 even
+    // though the WO was correctly in IPQC_APPROVED. Operators using
+    // the drawer endpoint for any future feature (scan→drawer flow,
+    // history-timeline-by-WO) also need the canonical phase available.
+    string MesPhase = "");
 
 public sealed record DrawerMaterialRow(
     string PartNo,

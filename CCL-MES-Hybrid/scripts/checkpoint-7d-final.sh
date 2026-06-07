@@ -511,19 +511,35 @@ fi
 
 # ═══════════════════════════════════════════════════════════════════
 # L21 auto-route wire assertion — the dashboard's L21 callback would
-# re-fetch /work-orders/by-no after every phase-changing action. This
-# script can't drive Razor, but it CAN confirm the server-side state
-# matches what the dashboard's re-fetch WOULD see — closing the wire
-# half of the L21 invariant.
+# re-fetch /work-orders/by-no/{woNo}/summary after every phase-changing
+# action (CclApiClient.GetWorkOrderByNoAsync hits the /summary route,
+# not the bare drawer). This script can't drive Razor, but it CAN
+# confirm the server-side state matches what the dashboard's re-fetch
+# WOULD see — closing the wire half of the L21 invariant.
+#
+# Henry RCA on PR #120 step 13 (2026-06-07): script previously curled
+# the bare /by-no/$WO_NO drawer endpoint which DID NOT project MesPhase
+# (only /summary did, per the L19 fix). Step 13 read empty mesPhase
+# and FAILed even though the WO was correctly in IPQC_APPROVED. The
+# L19 amendment (this PR) added MesPhase to the drawer DTO too — so
+# both endpoints now expose it — but the checkpoint targets /summary
+# specifically because that's what the UI client's auto-route hits.
 # ═══════════════════════════════════════════════════════════════════
 echo ""
 echo "── L21 auto-route wire assertion ──────────────────────────────"
 # Final phase per WO is IPQC_APPROVED (from cycle 3 Q3 path B).
-FINAL_PHASE=$(curl -s -H "$IPQC_AUTH" "$API_BASE/api/v2/work-orders/by-no/$WO_NO" | json_field "mesPhase")
+FINAL_PHASE=$(curl -s -H "$IPQC_AUTH" "$API_BASE/api/v2/work-orders/by-no/$WO_NO/summary" | json_field "mesPhase")
 if [[ "$FINAL_PHASE" == "IPQC_APPROVED" ]]; then
-    record PASS "L21 wire: /work-orders/by-no returns IPQC_APPROVED — dashboard would route to RunningDashboard"
+    record PASS "L21 wire: /by-no/$WO_NO/summary returns IPQC_APPROVED — UI auto-route would mount RunningDashboard"
 else
-    record FAIL "L21 wire: by-no returned MesPhase=$FINAL_PHASE (expected IPQC_APPROVED)"
+    record FAIL "L21 wire: by-no/summary returned MesPhase='$FINAL_PHASE' (expected IPQC_APPROVED)"
+fi
+
+# Bonus probe — drawer endpoint also exposes MesPhase per L19 amendment
+# in this PR (every WO-returning endpoint MUST project canonical phase).
+DRAWER_PHASE=$(curl -s -H "$IPQC_AUTH" "$API_BASE/api/v2/work-orders/by-no/$WO_NO" | json_field "mesPhase")
+if [[ -z "$DRAWER_PHASE" ]]; then
+    echo "  [L19 amendment] /by-no/$WO_NO drawer DTO MesPhase still missing — server build did not pick up the L19 amendment. Rebuild + re-run."
 fi
 
 # ═══════════════════════════════════════════════════════════════════

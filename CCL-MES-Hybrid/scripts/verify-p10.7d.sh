@@ -25,12 +25,17 @@
 #     2. CCL.MES.Tests (Domain) ≥811 (was 751 at v0.10.7c + 14 unit
 #        rollup + 12 dual-sig parse + 18 service slot/judgment/dual-sig
 #        + 6 LegacyParity + 4 integration = +54 new IPQC fixtures).
-#     3. CCL.MES.Api.Tests ≥358 (non-soak) — was 328 at v0.10.7c + 30
+#     3. CCL.MES.Api.Tests ≥359 (non-soak) — was 328 at v0.10.7c + 30
 #        IpqcReviewController fixtures landed in 7d-2 (prelude + 4 slot
 #        PUT [Theory] + judgment happy/inconsistent/not-ready/SpecialAccept-
 #        with-reason + 5 QA approve incl Q3 dual-sig same-user 422 +
 #        distinct-user happy + audit wire-mirror R7.3 + 3 role policy
-#        fixtures locking Henry-confirmed §5.5.0 role table).
+#        fixtures locking Henry-confirmed §5.5.0 role table)
+#        + 1 7d-4 L19-amendment fixture
+#        (Drawer_by_no_projects_MesPhase_per_L19_amendment — locks
+#        the wire-shape invariant that every WO-returning endpoint
+#        projects canonical MesPhase, after Henry's PR #120 RCA
+#        revealed the drawer DTO had drifted from the L19 contract).
 #     3b. Concurrent soak step inherited from 7c — runs as-is.
 #     4. CCL.MES.Hybrid.Client.Tests ≥575 — was 549 at 7d-2 + 26 new
 #        in 7d-3 (IpqcReviewErrorLocaliser locked VN bank — 13 API + 8
