@@ -132,10 +132,10 @@ BOM_SEED_TAGS="'checkpoint-7b-2','verify-p10.7b','checkpoint-7b-final'"
 # WoQtyEntries.EnteredBy / WoQtyEntries.CreatedBy).
 RUNNING_ACTOR_TAGS="'checkpoint-7c-2','checkpoint-7c-final','verify-p10.7c','checkpoint-l19-walk','manual-l19-test','manual-test','checkpoint-7d-2'"
 
-# P10.7d-2 — usernames the 7d-2 checkpoint self-seeds via the admin
-# /admin/accounts endpoint. Both have role QC + DisplayName starting
-# "P10.7d-2 checkpoint test user" so they're easy to distinguish from
-# real operator accounts.
+# P10.7d-2 — usernames the 7d-2 checkpoint self-seeds via POST
+# /api/v2/admin/users (AccountControlController, P10.6c). Both have
+# role QC + DisplayName "P10.7d-2 checkpoint test user" so they're
+# easy to distinguish from real operator accounts.
 IPQC_QA_TEST_USERS="'ipqc-test-checkpoint','qa-test-checkpoint'"
 
 TOTAL_BEFORE=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs;")
