@@ -21,7 +21,7 @@ public sealed class IpqcDualSigOptions
     /// authenticated user's username equals the row's
     /// <c>IpqcSubmittedBy</c>.
     /// </summary>
-    public bool RequireDistinctQaApprover { get; init; } = true;
+    public bool RequireDistinctQaApprover { get; set; } = true;
 
     /// <summary>
     /// Resolved flag state stamped into successful QA approval audit

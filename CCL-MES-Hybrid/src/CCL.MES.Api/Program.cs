@@ -169,6 +169,19 @@ if (Encoding.UTF8.GetByteCount(jwtOpts.SigningKey) < 32)
 builder.Services.AddSingleton<JwtTokenIssuer>();
 builder.Services.AddSingleton<IRefreshTokenStore, InMemoryRefreshTokenStore>();
 
+// P10.7d-2 — IPQC dual-sig (Q3) options registration. Reads env var
+// OPS_IPQC_REQUIRE_DISTINCT_QA_APPROVER first, then falls back to
+// Features:IpqcRequireDistinctQaApprover config key. Default-ON parse
+// per §5.5.1 — stray typos can't silently disable 4-eye QC.
+builder.Services.Configure<CCL.MES.Application.Services.IpqcDualSigOptions>(opts =>
+{
+    var raw = Environment.GetEnvironmentVariable("OPS_IPQC_REQUIRE_DISTINCT_QA_APPROVER")
+        ?? builder.Configuration["Features:IpqcRequireDistinctQaApprover"];
+    opts.RequireDistinctQaApprover =
+        CCL.MES.Application.Services.IpqcDualSigOptionsLoader
+            .ParseRequireDistinctQaApprover(raw);
+});
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, opt =>
     {
