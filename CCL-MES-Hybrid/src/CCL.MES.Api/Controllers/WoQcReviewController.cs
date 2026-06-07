@@ -115,13 +115,17 @@ public sealed class WoQcReviewController : ControllerBase
             .FirstOrDefaultAsync(c => c.WorkOrderId == id && c.QcKind == normKind, ct);
         if (check is null)
         {
+            // P10.7e-3 FIX (Henry RCA on PR #123) — resolve profile via Q4
+            // 3-level chain BEFORE materialising. Without this the snapshot
+            // is "{}" and the dashboard renders 0/0 items. See L23.
+            var resolvedSnapshot = await ResolveProfileSnapshotAsync(wo.ProductId, normKind, ct);
             try
             {
                 _db.WoQcChecks.Add(new WoQcCheck
                 {
                     WorkOrderId = id,
                     QcKind = normKind,
-                    ProfileSnapshotJson = "{}",
+                    ProfileSnapshotJson = resolvedSnapshot,
                     Judgment = WoQcJudgment.Pending,
                 });
                 await _db.SaveChangesAsync(ct);
@@ -136,9 +140,32 @@ public sealed class WoQcReviewController : ControllerBase
                 .Include(c => c.Items)
                 .FirstOrDefaultAsync(c => c.WorkOrderId == id && c.QcKind == normKind, ct);
         }
+        else if (string.IsNullOrWhiteSpace(check.ProfileSnapshotJson) || check.ProfileSnapshotJson == "{}")
+        {
+            // P10.7e-3 FIX — heal pre-fix rows that were materialised with
+            // empty snapshot. Resolve now + persist so the next read is fast +
+            // future profile edits still don't retroactively change a row
+            // already in flight (snapshot is frozen at THIS read, not at
+            // each subsequent one).
+            var resolvedSnapshot = await ResolveProfileSnapshotAsync(wo.ProductId, normKind, ct);
+            if (resolvedSnapshot != "{}" && resolvedSnapshot != check.ProfileSnapshotJson)
+            {
+                var tracked = await _db.WoQcChecks.FirstOrDefaultAsync(c => c.Id == check.Id, ct);
+                if (tracked is not null)
+                {
+                    tracked.ProfileSnapshotJson = resolvedSnapshot;
+                    try { await _db.SaveChangesAsync(ct); }
+                    catch (DbUpdateException) { /* race; next reader will heal */ }
+                }
+                check = await _db.WoQcChecks.AsNoTracking()
+                    .Include(c => c.Items)
+                    .FirstOrDefaultAsync(c => c.WorkOrderId == id && c.QcKind == normKind, ct);
+            }
+        }
 
         var etag = Convert.ToBase64String(wo.RowVersion);
-        var (ready, allOk, anyNg) = WoQcReadinessRollup.Compute(check);
+        var profileExpected = ProfileKeyCount(check?.ProfileSnapshotJson);
+        var (ready, allOk, anyNg) = WoQcReadinessRollup.Compute(check, profileExpected);
 
         // P10.7e-3 — per-item photo IDs for the thumbnail strip. Single
         // query keyed on the check's children — cheaper than N+1 round-trips
@@ -160,6 +187,53 @@ public sealed class WoQcReviewController : ControllerBase
             }
         }
 
+        // P10.7e-3 FIX — merge profile-declared item keys with persisted
+        // WoQcCheckItem rows. Profile order is canonical (matches the
+        // declaration order operators see on the paper form CCL-10-F6).
+        // Items not yet touched render as Pending; rows from previous
+        // PUTs overlay status/NG fields/photo IDs.
+        var profileKeys = ExtractProfileItemKeys(check?.ProfileSnapshotJson);
+        var itemRowByKey = (check?.Items ?? new List<WoQcCheckItem>())
+            .GroupBy(i => i.ItemKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        // Stragglers — persisted rows whose key is NOT in the current
+        // profile snapshot (would only happen if an admin shrank the
+        // profile after a check froze; per Q3 we don't drop those — they
+        // tail-append so the auditor sees the full history).
+        var stragglerKeys = itemRowByKey.Keys
+            .Where(k => !profileKeys.Contains(k, StringComparer.OrdinalIgnoreCase))
+            .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var viewItems = new List<WoQcViewItem>(profileKeys.Count + stragglerKeys.Count);
+        foreach (var key in profileKeys.Concat(stragglerKeys))
+        {
+            if (itemRowByKey.TryGetValue(key, out var row))
+            {
+                viewItems.Add(new WoQcViewItem
+                {
+                    ItemKey = key,
+                    Status = row.Status.ToString(),
+                    NgReasonCode = row.NgReasonCode,
+                    NgNote = row.NgNote,
+                    PhotoIds = photoLookup.TryGetValue(row.Id, out var ids)
+                        ? ids
+                        : Array.Empty<long>(),
+                });
+            }
+            else
+            {
+                viewItems.Add(new WoQcViewItem
+                {
+                    ItemKey = key,
+                    Status = "Pending",
+                    NgReasonCode = null,
+                    NgNote = null,
+                    PhotoIds = Array.Empty<long>(),
+                });
+            }
+        }
+
         var view = new WoQcView
         {
             WoId = wo.Id,
@@ -168,18 +242,7 @@ public sealed class WoQcReviewController : ControllerBase
             ETag = etag,
             QcKind = normKind,
             ProfileSnapshotJson = check?.ProfileSnapshotJson ?? "{}",
-            Items = (check?.Items ?? new List<WoQcCheckItem>())
-                .OrderBy(i => i.ItemKey)
-                .Select(i => new WoQcViewItem
-                {
-                    ItemKey = i.ItemKey,
-                    Status = i.Status.ToString(),
-                    NgReasonCode = i.NgReasonCode,
-                    NgNote = i.NgNote,
-                    PhotoIds = photoLookup.TryGetValue(i.Id, out var ids)
-                        ? ids
-                        : Array.Empty<long>(),
-                }).ToList(),
+            Items = viewItems,
             Judgment = check?.Judgment.ToString() ?? "Pending",
             JudgmentReason = check?.JudgmentReason,
             InspectedBy = check?.InspectedBy,
@@ -234,7 +297,22 @@ public sealed class WoQcReviewController : ControllerBase
             if (ngErr is not null) return ngErr;
         }
 
-        var check = await GetOrCreateCheckAsync(id, normKind);
+        var check = await GetOrCreateCheckAsync(id, normKind, wo.ProductId);
+
+        // P10.7e-3 FIX — validate itemKey against the profile snapshot.
+        // Prevents bypassing seed (operator POSTs arbitrary key, server
+        // creates a row, judgment "ready" without ever touching the
+        // canonical profile items). Stragglers (legacy item keys removed
+        // from a later profile rev) tolerated when persisted; new writes
+        // gated to the snapshot's declared keys.
+        var profileKeySet = ExtractProfileItemKeys(check.ProfileSnapshotJson);
+        if (profileKeySet.Count > 0
+            && !profileKeySet.Contains(itemKey, StringComparer.OrdinalIgnoreCase)
+            && !check.Items.Any(i => string.Equals(i.ItemKey, itemKey, StringComparison.OrdinalIgnoreCase)))
+        {
+            return Invalid("qc.invalid_item_key",
+                $"ItemKey \"{itemKey}\" is not declared in the {normKind} profile snapshot.");
+        }
 
         // Find or create the child item row.
         var item = check.Items.FirstOrDefault(i => i.ItemKey == itemKey);
@@ -291,8 +369,9 @@ public sealed class WoQcReviewController : ControllerBase
             return Invalid("qc.invalid_judgment",
                 $"Judgment must be Pass or Reject; got \"{req.Judgment}\".");
 
-        var check = await GetOrCreateCheckAsync(id, KindFqc);
-        var (ready, _, _) = WoQcReadinessRollup.Compute(check);
+        var check = await GetOrCreateCheckAsync(id, KindFqc, wo.ProductId);
+        var profileExpected = ProfileKeyCount(check.ProfileSnapshotJson);
+        var (ready, _, _) = WoQcReadinessRollup.Compute(check, profileExpected);
         if (!ready)
             return Invalid("qc.not_ready_for_judgment",
                 "Every profile item must be resolved (Ok or Ng) before judgment.");
@@ -345,8 +424,9 @@ public sealed class WoQcReviewController : ControllerBase
             return Invalid("wo.invalid_phase",
                 $"qc/oqc/inspect requires MesPhase = OQC_PENDING; current = {wo.MesPhase}.");
 
-        var check = await GetOrCreateCheckAsync(id, KindOqc);
-        var (ready, _, _) = WoQcReadinessRollup.Compute(check);
+        var check = await GetOrCreateCheckAsync(id, KindOqc, wo.ProductId);
+        var profileExpected = ProfileKeyCount(check.ProfileSnapshotJson);
+        var (ready, _, _) = WoQcReadinessRollup.Compute(check, profileExpected);
         if (!ready)
             return Invalid("qc.not_ready_for_judgment",
                 "Every profile item must be resolved (Ok or Ng) before Inspector signs.");
@@ -585,23 +665,134 @@ public sealed class WoQcReviewController : ControllerBase
     private IActionResult Invalid(string code, string detail)
         => UnprocessableEntity(ApiError.Of(code, detail));
 
-    private async Task<WoQcCheck> GetOrCreateCheckAsync(long woId, string kind)
+    private async Task<WoQcCheck> GetOrCreateCheckAsync(long woId, string kind, long? productId = null)
     {
         var check = await _db.WoQcChecks
             .Include(c => c.Items)
             .FirstOrDefaultAsync(c => c.WorkOrderId == woId && c.QcKind == kind);
-        if (check is not null) return check;
+        if (check is not null)
+        {
+            // P10.7e-3 FIX — heal empty snapshot on mutation path too.
+            if ((string.IsNullOrWhiteSpace(check.ProfileSnapshotJson) || check.ProfileSnapshotJson == "{}")
+                && productId.HasValue)
+            {
+                var snap = await ResolveProfileSnapshotAsync(productId.Value, kind, CancellationToken.None);
+                if (snap != "{}") check.ProfileSnapshotJson = snap;
+            }
+            return check;
+        }
 
+        var resolved = productId.HasValue
+            ? await ResolveProfileSnapshotAsync(productId.Value, kind, CancellationToken.None)
+            : (QcProfileSeed.GetDefaultProfileJson(kind) ?? "{}");
         check = new WoQcCheck
         {
             WorkOrderId = woId,
             QcKind = kind,
-            ProfileSnapshotJson = "{}",
+            ProfileSnapshotJson = resolved,
             Judgment = WoQcJudgment.Pending,
         };
         _db.WoQcChecks.Add(check);
         return check;
     }
+
+    /// <summary>P10.7e-3 FIX — Q4 3-level profile resolution chain:
+    ///   L1: Product.QcProfileOverride (per-product override JSON;
+    ///       shape must include "kind" matching FQC / OQC)
+    ///   L2: QcProfileSeed.GetDefaultProfileJson(kind) (system default)
+    ///   L3: "{}" empty (only when both levels miss; checks render an
+    ///       empty banner so IT notices and seeds the profile).
+    /// Frozen at materialise time per Q3 — profile edits don't
+    /// retroactively change rows already in flight.</summary>
+    private async Task<string> ResolveProfileSnapshotAsync(long productId, string kind, CancellationToken ct)
+    {
+        // L1 — per-product override.
+        if (productId > 0)
+        {
+            var overrideJson = await _db.Products.AsNoTracking()
+                .Where(p => p.Id == productId)
+                .Select(p => p.QcProfileOverride)
+                .FirstOrDefaultAsync(ct);
+            if (TryExtractKindFromOverride(overrideJson, kind, out var extracted))
+                return extracted;
+        }
+        // L2 — system default.
+        var seeded = QcProfileSeed.GetDefaultProfileJson(kind);
+        if (!string.IsNullOrEmpty(seeded)) return seeded;
+        // L3 — empty.
+        return "{}";
+    }
+
+    /// <summary>Product.QcProfileOverride may carry per-kind overrides
+    /// keyed by "fqc"/"oqc" OR be a single profile snapshot.
+    /// Tolerant of both shapes; falls through silently on malformed JSON.</summary>
+    private static bool TryExtractKindFromOverride(string? overrideJson, string kind, out string extracted)
+    {
+        extracted = "";
+        if (string.IsNullOrWhiteSpace(overrideJson)) return false;
+        try
+        {
+            using var doc = JsonDocument.Parse(overrideJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return false;
+            // Shape 1: { "fqc": {...}, "oqc": {...} }
+            var kindLower = kind.ToLowerInvariant();
+            if (doc.RootElement.TryGetProperty(kindLower, out var perKind)
+                && perKind.ValueKind == JsonValueKind.Object)
+            {
+                extracted = perKind.GetRawText();
+                return true;
+            }
+            // Shape 2: direct profile shape { "sections": [...] } — accept only
+            // when the override declares kind via a top-level "kind" field.
+            if (doc.RootElement.TryGetProperty("kind", out var k)
+                && k.ValueKind == JsonValueKind.String
+                && string.Equals(k.GetString(), kind, StringComparison.OrdinalIgnoreCase)
+                && doc.RootElement.TryGetProperty("sections", out _))
+            {
+                extracted = overrideJson;
+                return true;
+            }
+        }
+        catch (JsonException) { /* malformed override — fall through */ }
+        return false;
+    }
+
+    /// <summary>Extracts the ordered list of item keys declared by the
+    /// profile snapshot's sections[*].items[*].key chain. Returns empty
+    /// when the snapshot is "{}" or malformed.</summary>
+    private static List<string> ExtractProfileItemKeys(string? profileSnapshotJson)
+    {
+        if (string.IsNullOrWhiteSpace(profileSnapshotJson) || profileSnapshotJson == "{}")
+            return new List<string>();
+        try
+        {
+            using var doc = JsonDocument.Parse(profileSnapshotJson);
+            if (!doc.RootElement.TryGetProperty("sections", out var sections))
+                return new List<string>();
+            var keys = new List<string>();
+            foreach (var section in sections.EnumerateArray())
+            {
+                if (!section.TryGetProperty("items", out var items)) continue;
+                foreach (var item in items.EnumerateArray())
+                {
+                    if (item.TryGetProperty("key", out var k)
+                        && k.ValueKind == JsonValueKind.String)
+                    {
+                        var key = k.GetString();
+                        if (!string.IsNullOrEmpty(key)) keys.Add(key);
+                    }
+                }
+            }
+            return keys;
+        }
+        catch (JsonException)
+        {
+            return new List<string>();
+        }
+    }
+
+    private static int ProfileKeyCount(string? profileSnapshotJson)
+        => ExtractProfileItemKeys(profileSnapshotJson).Count;
 
     private async Task<IActionResult?> ValidateNgAsync(string? ngReasonCode, string? ngNote)
     {
@@ -720,7 +911,8 @@ public sealed class WoQcReviewController : ControllerBase
             targetId: woId.ToString(),
             detail: detail);
 
-        var (ready, allOk, anyNg) = WoQcReadinessRollup.Compute(check);
+        var profileExpected = ProfileKeyCount(check.ProfileSnapshotJson);
+        var (ready, allOk, anyNg) = WoQcReadinessRollup.Compute(check, profileExpected);
         Response.Headers.ETag = $"\"{newEtag}\"";
         return Ok(new WoQcSetResponse
         {
@@ -787,7 +979,7 @@ public sealed class WoQcReviewController : ControllerBase
             return Invalid("wo.invalid_phase",
                 $"qc/{normKind}/photos requires MesPhase = {expectedPhase}; current = {wo.MesPhase}.");
 
-        var check = await GetOrCreateCheckAsync(id, normKind);
+        var check = await GetOrCreateCheckAsync(id, normKind, wo.ProductId);
         var item = check.Items.FirstOrDefault(i => i.ItemKey == itemKey);
         if (item is null)
         {

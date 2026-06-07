@@ -536,6 +536,25 @@ using (var bootScope = app.Services.CreateScope())
             {
                 Console.WriteLine($"[boot] OQC 3-sig probe skipped: {cfgEx.GetType().Name}: {cfgEx.Message}");
             }
+
+            // P10.7e-3 FIX (Henry RCA on PR #123) — QC profile boot probe
+            // per L23. Default profiles are embedded compile-time constants
+            // (no DB seed required), but the boot line lets ops grep at deploy
+            // and verify-p10.7e.sh assert the canonical counts so a future
+            // profile shrink (admin edits the const) trips CI rather than
+            // surfacing as silent 0/0 on the operator dashboard.
+            try
+            {
+                var fqcCount = CCL.MES.Application.Services.QcProfileSeed
+                    .CountItems(CCL.MES.Application.Services.QcProfileSeed.FqcProfileJson);
+                var oqcCount = CCL.MES.Application.Services.QcProfileSeed
+                    .CountItems(CCL.MES.Application.Services.QcProfileSeed.OqcProfileJson);
+                Console.WriteLine($"[seed] qc_profiles fqc={fqcCount} oqc={oqcCount}");
+            }
+            catch (Exception probeEx)
+            {
+                Console.WriteLine($"[boot] qc_profiles probe skipped: {probeEx.GetType().Name}: {probeEx.Message}");
+            }
         }
     }
     catch (InvalidOperationException)

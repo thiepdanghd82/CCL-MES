@@ -81,6 +81,18 @@ public sealed class WoQcReviewControllerTests : IClassFixture<MesApiFactory>
         return (wo.Id, Convert.ToBase64String(freshRv));
     }
 
+    // P10.7e-3 FIX — minimal 1-item snapshot used by the legacy fixtures.
+    // Profile-aware readiness now gates on snapshot item count; a
+    // non-empty {sections:[{items:[{key:…}]}]} payload keeps legacy
+    // 1-item ready-state semantics without triggering the controller's
+    // empty-snapshot heal path (which would resolve to the canonical
+    // 12-item FQC / 28-item OQC profile and the fixture's single seeded
+    // item would no longer satisfy readiness).
+    private const string MinimalOqcProfileJson =
+        "{\"sections\":[{\"id\":\"x\",\"title\":\"x\",\"items\":[{\"key\":\"appearance\"}]}]}";
+    private const string MinimalFqcProfileJson =
+        "{\"sections\":[{\"id\":\"x\",\"title\":\"x\",\"items\":[{\"key\":\"fqc_appearance\"}]}]}";
+
     /// <summary>Seed an OQC check row that's ready for judgment
     /// (1 item, status=Ok). Caller supplies InspectedBy/ReviewedBy
     /// to position the test at the appropriate signature step.</summary>
@@ -94,7 +106,7 @@ public sealed class WoQcReviewControllerTests : IClassFixture<MesApiFactory>
         {
             WorkOrderId = woId,
             QcKind = "OQC",
-            ProfileSnapshotJson = "{}",
+            ProfileSnapshotJson = MinimalOqcProfileJson,
             Judgment = WoQcJudgment.Pending,
             InspectedBy = inspectedBy,
             InspectedAt = inspectedBy is null ? null : DateTime.UtcNow.AddMinutes(-1),
@@ -119,7 +131,7 @@ public sealed class WoQcReviewControllerTests : IClassFixture<MesApiFactory>
         {
             WorkOrderId = woId,
             QcKind = "FQC",
-            ProfileSnapshotJson = "{}",
+            ProfileSnapshotJson = MinimalFqcProfileJson,
             Judgment = WoQcJudgment.Pending,
         };
         check.Items.Add(new WoQcCheckItem
@@ -498,5 +510,133 @@ public sealed class WoQcReviewControllerTests : IClassFixture<MesApiFactory>
         Assert.Equal(HttpStatusCode.OK, auditResp.StatusCode);
         var auditBody = await auditResp.Content.ReadAsStringAsync();
         Assert.Contains($"\"targetId\":\"{woId}\"", auditBody);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // P10.7e-3 FIX (Henry RCA on PR #123) — profile materialisation
+    // ═══════════════════════════════════════════════════════════════
+    //
+    // Closes L23: real materialisation path MUST return items keyed by
+    // the seeded profile. The previous coverage only exercised seeded
+    // check rows with hand-rolled snapshots; the operator-visible "GET
+    // view on fresh WO" path was never proven to render items.
+
+    [Fact]
+    public async Task Get_fresh_fqc_view_materialises_12_items_from_seeded_profile()
+    {
+        var client = await QcClientAsync("qc-7e3-fqc-mat-" + Guid.NewGuid().ToString("N")[..6]);
+        var (woId, _) = await SeedWoAsync(mesPhase: "FQC_PENDING");
+
+        var resp = await client.GetAsync($"/api/v2/work-orders/{woId}/qc/fqc");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var view = await resp.Content.ReadFromJsonAsync<WoQcView>();
+        Assert.NotNull(view);
+        Assert.Equal("FQC", view!.QcKind);
+        Assert.False(string.IsNullOrEmpty(view.ProfileSnapshotJson),
+            "L23: lazy materialise MUST seed the snapshot from the Q4 default chain.");
+        Assert.NotEqual("{}", view.ProfileSnapshotJson);
+        Assert.Equal(12, view.Items.Count);
+        Assert.Contains("lot_size", view.Items.Select(i => i.ItemKey));
+        Assert.Contains("dim_4", view.Items.Select(i => i.ItemKey));
+        Assert.All(view.Items, item => Assert.Equal("Pending", item.Status));
+        Assert.False(view.IsReadyForJudgment,
+            "Operator hasn't touched items yet; readiness MUST stay false.");
+    }
+
+    [Fact]
+    public async Task Get_fresh_oqc_view_materialises_28_items_from_seeded_profile()
+    {
+        var client = await QcClientAsync("qc-7e3-oqc-mat-" + Guid.NewGuid().ToString("N")[..6]);
+        var (woId, _) = await SeedWoAsync(mesPhase: "OQC_PENDING");
+
+        var resp = await client.GetAsync($"/api/v2/work-orders/{woId}/qc/oqc");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var view = await resp.Content.ReadFromJsonAsync<WoQcView>();
+        Assert.NotNull(view);
+        Assert.Equal("OQC", view!.QcKind);
+        Assert.Equal(28, view.Items.Count);
+        // RoHS heavy-metal items — CCL-10-F6 compliance leg.
+        var keys = view.Items.Select(i => i.ItemKey).ToHashSet();
+        Assert.Contains("cr_ppm", keys);
+        Assert.Contains("pb_ppm", keys);
+        Assert.Contains("sb_ppm", keys);
+    }
+
+    [Fact]
+    public async Task Get_view_heals_legacy_empty_snapshot_with_seeded_profile()
+    {
+        // Pre-fix rows materialised with ProfileSnapshotJson="{}" should
+        // self-heal on next read so existing in-flight checks pick up
+        // the seeded profile without operator action.
+        var client = await QcClientAsync("qc-7e3-heal-" + Guid.NewGuid().ToString("N")[..6]);
+        var (woId, _) = await SeedWoAsync(mesPhase: "FQC_PENDING");
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var check = new WoQcCheck
+            {
+                WorkOrderId = woId,
+                QcKind = "FQC",
+                ProfileSnapshotJson = "{}", // legacy empty
+                Judgment = WoQcJudgment.Pending,
+            };
+            db.WoQcChecks.Add(check);
+            await db.SaveChangesAsync();
+        }
+
+        var resp = await client.GetAsync($"/api/v2/work-orders/{woId}/qc/fqc");
+        var view = await resp.Content.ReadFromJsonAsync<WoQcView>();
+        Assert.NotNull(view);
+        Assert.NotEqual("{}", view!.ProfileSnapshotJson);
+        Assert.Equal(12, view.Items.Count);
+    }
+
+    [Fact]
+    public async Task Fqc_judgment_Pass_with_partial_items_returns_422_not_ready()
+    {
+        // 12-item profile; operator only completed 5 → judgment must gate.
+        // Pre-fix: row-only rule said "ready" because all 5 persisted rows
+        // were non-Pending. Fix: profile-expected count of 12 keeps it gated.
+        var inspector = "qc-7e3-partial-" + Guid.NewGuid().ToString("N")[..6];
+        var client = await QcClientAsync(inspector);
+        var (woId, etag) = await SeedWoAsync(mesPhase: "FQC_PENDING");
+
+        // Materialise the profile + add only 5 of 12 items as Ok.
+        var initView = await client.GetAsync($"/api/v2/work-orders/{woId}/qc/fqc");
+        Assert.Equal(HttpStatusCode.OK, initView.StatusCode);
+        var view = await initView.Content.ReadFromJsonAsync<WoQcView>();
+        Assert.NotNull(view);
+        var currentEtag = view!.ETag;
+
+        var fiveKeys = view.Items.Take(5).Select(i => i.ItemKey).ToList();
+        foreach (var key in fiveKeys)
+        {
+            var putReq = new HttpRequestMessage(HttpMethod.Put,
+                $"/api/v2/work-orders/{woId}/qc/fqc/items/{Uri.EscapeDataString(key)}")
+            {
+                Content = JsonContent.Create(new SetWoQcItemRequest { Status = "Ok" }),
+            };
+            AddOptimisticHeaders(putReq, currentEtag);
+            var putResp = await client.SendAsync(putReq);
+            Assert.Equal(HttpStatusCode.OK, putResp.StatusCode);
+            var putBody = await putResp.Content.ReadFromJsonAsync<WoQcSetResponse>();
+            currentEtag = putBody!.ETag;
+        }
+
+        // Re-read to confirm IsReadyForJudgment = false despite 5 Ok rows.
+        var midView = await client.GetAsync($"/api/v2/work-orders/{woId}/qc/fqc");
+        var midViewBody = await midView.Content.ReadFromJsonAsync<WoQcView>();
+        Assert.False(midViewBody!.IsReadyForJudgment,
+            "L23: 5 of 12 profile items resolved MUST NOT be 'ready'. " +
+            "Pre-fix: row-only rollup said ready=true → operator could silently bypass the profile.");
+
+        // Attempt judgment → server gates with 422 qc.not_ready_for_judgment.
+        var judgmentReq = Post($"/api/v2/work-orders/{woId}/qc/fqc/judgment",
+            new SubmitFqcJudgmentRequest { Judgment = "Pass" });
+        AddOptimisticHeaders(judgmentReq, currentEtag);
+        var judgmentResp = await client.SendAsync(judgmentReq);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, judgmentResp.StatusCode);
+        var err = await judgmentResp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("qc.not_ready_for_judgment", err!.Code);
     }
 }

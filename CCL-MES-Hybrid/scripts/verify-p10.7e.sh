@@ -29,10 +29,11 @@
 #        malformed JSON robustness + IsEnabled boolean chain). Plus
 #        a handful of new Theory rows in Canonical + IsForceable for
 #        the SHIPPED-related cells.
-#     3. CCL.MES.Api.Tests ≥376 (non-soak) — was 372 at 7e-2 + 4
-#        new WoQcPhotos + WoSummaryReport fixtures (photo MIME
-#        guard + photo SHA-256 round-trip + summary OEE math +
-#        summary 3-leg QC mapping).
+#     3. CCL.MES.Api.Tests ≥380 (non-soak) — was 376 at 7e-3 + 4
+#        new WoQcReviewController profile fixtures (Henry RCA L23):
+#        materialise 12 FQC items / 28 OQC items from QcProfileSeed,
+#        heal legacy empty-snapshot rows on next read, judgment gate
+#        on partial-profile completion (5 of 12 → 422).
 #     3b. Concurrent soak step inherited from 7c — runs as-is.
 #     4. CCL.MES.Hybrid.Client.Tests ≥575 — unchanged in 7e-3 (no
 #        new pure-helper modules; client wiring lives in CclApiClient
@@ -461,6 +462,23 @@ if [[ $API_UP -eq 1 ]]; then
         record PASS "OQC 3-sig policy line emitted ($POLICY_LINE)"
     else
         record FAIL "OQC 3-sig policy summary line missing from log"
+    fi
+
+    # P10.7e-3 FIX (Henry RCA on PR #123) — L23 boot probe.
+    # Canonical FQC=12 / OQC=28 per SpecHub MES_FQC_PROFILE +
+    # MES_OQC_PROFILE (CCL-10-F6 R04). A future profile shrink (admin
+    # edits QcProfileSeed const wrong) trips this assert at deploy time
+    # rather than surfacing as silent 0/0 on the operator dashboard.
+    QC_PROFILE_LINE=$(grep -oE '\[seed\] qc_profiles fqc=[0-9]+ oqc=[0-9]+' "$API_LOG" | tail -1)
+    FQC_COUNT=$(echo "$QC_PROFILE_LINE" | grep -oE 'fqc=[0-9]+' | cut -d= -f2)
+    OQC_COUNT=$(echo "$QC_PROFILE_LINE" | grep -oE 'oqc=[0-9]+' | cut -d= -f2)
+    if [[ "$FQC_COUNT" == "12" && "$OQC_COUNT" == "28" ]]; then
+        record PASS "qc_profiles boot probe — fqc=12 oqc=28 (L23 canonical counts)"
+    else
+        record FAIL "qc_profiles boot probe drift — got fqc='${FQC_COUNT:-?}' oqc='${OQC_COUNT:-?}', expected fqc=12 oqc=28"
+        echo "    Source: src/CCL.MES.Application/Services/QcProfileSeed.cs"
+        echo "    The 12/28 split is locked to SpecHub MES_FQC_PROFILE + MES_OQC_PROFILE."
+        echo "    A shift means somebody edited the seed JSON — restore or update L23 + this assertion together."
     fi
 else
     record FAIL "API never reached /health on $PORT (see $API_LOG)"
