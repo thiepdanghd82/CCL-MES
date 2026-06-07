@@ -130,13 +130,20 @@ BOM_SEED_TAGS="'checkpoint-7b-2','verify-p10.7b','checkpoint-7b-final'"
 # P10.7c-4 — actor tags written by the test scripts into domain tables
 # (WoRunSessions.StartedBy / WoPauseEvents.StartedBy /
 # WoQtyEntries.EnteredBy / WoQtyEntries.CreatedBy).
-RUNNING_ACTOR_TAGS="'checkpoint-7c-2','checkpoint-7c-final','verify-p10.7c','checkpoint-l19-walk','manual-l19-test','manual-test','checkpoint-7d-2'"
+RUNNING_ACTOR_TAGS="'checkpoint-7c-2','checkpoint-7c-final','verify-p10.7c','checkpoint-l19-walk','manual-l19-test','manual-test','checkpoint-7d-2','checkpoint-7d-final'"
 
 # P10.7d-2 — usernames the 7d-2 checkpoint self-seeds via POST
 # /api/v2/admin/users (AccountControlController, P10.6c). Both have
-# role QC + DisplayName "P10.7d-2 checkpoint test user" so they're
-# easy to distinguish from real operator accounts.
+# role QC + DisplayName "P10.7d-* checkpoint test user" so they're
+# easy to distinguish from real operator accounts. Re-used by
+# checkpoint-7d-final.sh (cycles 1+2+3 + Q3 dual-sig).
 IPQC_QA_TEST_USERS="'ipqc-test-checkpoint','qa-test-checkpoint'"
+
+# P10.7d-4 — IPQC + QA audit row noise: every WO_IPQC_CHECK /
+# WO_IPQC_JUDGMENT / WO_QA_APPROVE / WO_QA_APPROVE_DENIED row
+# emitted by checkpoint-7d-* scripts has one of the 2 seeded users
+# as ActorUsername (script ran as that user via their JWT). Real
+# operator audits use real usernames so this pattern is safe.
 
 TOTAL_BEFORE=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs;")
 TESTRESET_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action='TEST_RESET' AND ActorUsername='test-tool';")
@@ -161,7 +168,11 @@ BOM_SEED_COUNT="${BOM_SEED_COUNT:-0}"
 # P10.7d-2 — count seeded test users
 IPQC_QA_USER_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM Users WHERE Username IN ($IPQC_QA_TEST_USERS);" 2>/dev/null)
 IPQC_QA_USER_COUNT="${IPQC_QA_USER_COUNT:-0}"
-AUDIT_PURGE_TOTAL=$((TESTRESET_COUNT + NOISE_COUNT + PREPRESS_AUDIT_COUNT + RUNNING_AUDIT_COUNT))
+
+# P10.7d-4 — count IPQC + QA audit rows emitted by the 7d checkpoints.
+IPQC_QA_AUDIT_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action IN ('WO_IPQC_CHECK','WO_IPQC_JUDGMENT','WO_QA_APPROVE','WO_QA_APPROVE_DENIED') AND ActorUsername IN ($IPQC_QA_TEST_USERS);" 2>/dev/null)
+IPQC_QA_AUDIT_COUNT="${IPQC_QA_AUDIT_COUNT:-0}"
+AUDIT_PURGE_TOTAL=$((TESTRESET_COUNT + NOISE_COUNT + PREPRESS_AUDIT_COUNT + RUNNING_AUDIT_COUNT + IPQC_QA_AUDIT_COUNT))
 DOMAIN_PURGE_TOTAL=$((QTY_ENTRY_COUNT + PAUSE_EVENT_COUNT + RUN_SESSION_COUNT))
 GRAND_TOTAL=$((AUDIT_PURGE_TOTAL + BOM_SEED_COUNT + DOMAIN_PURGE_TOTAL + IPQC_QA_USER_COUNT))
 
@@ -171,6 +182,7 @@ echo "  TEST_RESET (actor=test-tool) candidates            : $TESTRESET_COUNT"
 echo "  SYS_RECOVERY noise (Detail LIKE patterns)          : $NOISE_COUNT"
 echo "  WO_PREPRESS_* test rows (7b-* / verify-p10.7b)     : $PREPRESS_AUDIT_COUNT"
 echo "  WO_SETTING/RUN_* test rows (7c-* / l19-walk)       : $RUNNING_AUDIT_COUNT"
+echo "  WO_IPQC_*/WO_QA_* test rows (7d-* checkpoints)     : $IPQC_QA_AUDIT_COUNT"
 echo "  WoQtyEntries (RUNNING actor tags)                  : $QTY_ENTRY_COUNT"
 echo "  WoPauseEvents (RUNNING actor tags)                 : $PAUSE_EVENT_COUNT"
 echo "  WoRunSessions (RUNNING actor tags)                 : $RUN_SESSION_COUNT"
@@ -260,6 +272,17 @@ if [[ "$IPQC_QA_USER_COUNT" != "0" ]]; then
        ORDER BY Id;"
     echo ""
 fi
+if [[ "$IPQC_QA_AUDIT_COUNT" != "0" ]]; then
+    echo "WO_IPQC_*/WO_QA_* test rows (most recent 8):"
+    sqlite3 -column -header "$DB_PATH" \
+      "SELECT Id, datetime(T) AS T, Action, ActorUsername AS Actor,
+              substr(Detail, 1, 60) AS Detail60
+       FROM AuditLogs
+       WHERE Action IN ('WO_IPQC_CHECK','WO_IPQC_JUDGMENT','WO_QA_APPROVE','WO_QA_APPROVE_DENIED')
+         AND ActorUsername IN ($IPQC_QA_TEST_USERS)
+       ORDER BY Id DESC LIMIT 8;"
+    echo ""
+fi
 
 if [[ $COMMIT -eq 0 ]]; then
     echo "── DRY-RUN — no rows written. Re-run with --commit to execute. ──"
@@ -277,6 +300,7 @@ DELETE FROM AuditLogs WHERE Action='TEST_RESET' AND ActorUsername='test-tool';
 DELETE FROM AuditLogs WHERE Action='SYS_RECOVERY' AND $PATTERN_NOISE_LIKE;
 DELETE FROM AuditLogs WHERE Action IN ('WO_PREPRESS_MATERIAL_SET','WO_PREPRESS_PLATE_SET','WO_PREPRESS_CUTTER_SET') AND $PATTERN_PREPRESS_NOISE_LIKE;
 DELETE FROM AuditLogs WHERE Action IN ('WO_SETTING_START','WO_SETTING_DONE','WO_RUN_START','WO_RUN_QTY_ADD','WO_RUN_QTY_CORRECT','WO_RUN_PAUSE','WO_RUN_RESUME','WO_RUN_FINISH','WO_STATE_CONFLICT') AND $PATTERN_RUNNING_NOISE_LIKE;
+DELETE FROM AuditLogs WHERE Action IN ('WO_IPQC_CHECK','WO_IPQC_JUDGMENT','WO_QA_APPROVE','WO_QA_APPROVE_DENIED') AND ActorUsername IN ($IPQC_QA_TEST_USERS);
 DELETE FROM WoQtyEntries WHERE EnteredBy IN ($RUNNING_ACTOR_TAGS);
 DELETE FROM WoPauseEvents WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);
 DELETE FROM WoRunSessions WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);

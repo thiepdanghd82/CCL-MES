@@ -1,12 +1,24 @@
 #!/usr/bin/env bash
-# P10.7d — end-to-end verify SKELETON for the IPQC + QA Approval
-# stack. Ships at PR 7d-1 covering the domain surface (entity +
-# enums + rollup helper + service + dual-sig options + migration).
-# 7d-2 / 7d-3 / 7d-4 PRs grow the wire + UI + checkpoint sections
-# (mirrors the 7c stack progression — see verify-p10.7c.sh for the
-# closed-out form to copy).
+# P10.7d — end-to-end verify for the IPQC + QA Approval stack.
+# Coverage closed across the stack: 7d-1 (domain), 7d-2 (wire),
+# 7d-3 (UI + L21 auto re-fetch), 7d-4 (test belt closeout —
+# this script's full form + checkpoint-7d-final.sh + purge
+# extension + LESSONS-LEARNED L20 + L21 + 7e scope hook +
+# DB-path-default footgun fix).
 #
-# Probes shipped in 7d-1:
+# 4-PR stack history (each closed via gh pr merge --rebase):
+#   PR #117  7d-1  Domain + DI options + migration (SHA at v0.10.7c+1)
+#   PR #118  7d-2  Wire + 30 IpqcReviewController fixtures + reset
+#                  + checkpoint with self-seeded users via
+#                  /api/v2/admin/users + L10 drift guard
+#   PR #119  7d-3  IpqcDashboard + QaApprovalDashboard + Q3 client
+#                  guard + L21 OnPhaseChanged auto re-fetch +
+#                  RunningDashboard DeferredPhaseInfo trim
+#   PR #120  7d-4  THIS — closeout (full verify + final checkpoint +
+#                  purge extension + L20 codified + DB-path fix +
+#                  7e scope proposal)
+#
+# Probes shipped at v0.10.7d:
 #
 #   Build / suites
 #     1. dotnet build CCL-MES-Hybrid.sln (0 errors)
@@ -25,15 +37,19 @@
 #        in-band + Q3 same-user invariant + Q3SameUserBanner constant
 #        lock + unknown-code fall-through; mirrors the
 #        PrepressErrorLocaliser / RunningSurfaceErrorLocaliser shape).
-#     5. CCL.MES.Hybrid.Razor.Tests ≥85 — was 59 at 7d-2 + 26 new in
-#        7d-3 (12 IpqcDashboard: initial/load-error/invalid-phase/4×slot-OK-and-NG/
+#     5. CCL.MES.Hybrid.Razor.Tests ≥99 — was 59 pre-7d + 26 new in
+#        7d-3 (12 IpqcDashboard initial/load-error/invalid-phase/4×slot-OK-and-NG/
 #        judgment-gating/SpecialAccept-reason/judgment-submit/409-revert;
-#        10 QaApprovalDashboard: initial/invalid-phase/Q3-same-user/
+#        10 QaApprovalDashboard initial/invalid-phase/Q3-same-user/
 #        case-insensitive/distinct/approve-happy/reject-required/reject-still-allowed/
-#        server-422; +2 WorkOrders dispatch fixtures for IPQC_WAIT→IpqcDashboard
-#        and QA_PENDING→QaApprovalDashboard; +2 RunningDashboard 7d-3
-#        guard fixtures locking IPQC_WAIT/QA_PENDING removal from
-#        DeferredPhaseInfo and FQC/OQC/DONE/CANCELLED retention).
+#        server-422; +2 WorkOrders dispatch IPQC_WAIT→IpqcDashboard +
+#        QA_PENDING→QaApprovalDashboard; +2 RunningDashboard 7d-3 guard
+#        locking IPQC_WAIT/QA_PENDING removal from DeferredPhaseInfo and
+#        FQC/OQC/DONE/CANCELLED retention) + 14 new in 7d-3 L21 fix
+#        (IpqcDashboard +3 / QaApprovalDashboard +3 / SettingDashboard +2 /
+#        RunningDashboard +4 / WorkOrders dispatch end-to-end +2 —
+#        each pair locks BOTH directions: bubble fires on real phase
+#        change + bubble suppressed on slot PUT / tap qty / 409 / 422).
 #
 #   Migration round-trip (Rule 6 self-prep on the COPY)
 #     6. Copy real DB → /tmp; Down to PREVIOUS_MIGRATION
@@ -56,19 +72,34 @@
 #        off so operators can confirm the default-ON enforcement at
 #        deploy time. Default is ON per §5.5.1 contract.
 #
-# 7c-2 landed wire probes (POST /setting/done + 6 run/* endpoints) +
-# 22 RunningSurfaceController fixtures + Concurrent_run_qty_add_N=10
-# soak + Rule 7.3 audit wire-mirror for the 7 new audit codes.
-# 7c-3 landed the SettingDashboard + RunningDashboard + 3 modals
-# (Pause / Finish / QtyCorrect) + GET /running-surface endpoint +
-# POST /setting/enter (idempotent SettingStartAt stamp closing the
-# gap that /advance lands SETTING without starting the timer) +
-# 24 bUnit fixtures (11 Setting + 13 Running) + 5 server fixtures
-# (3 GET /running-surface + 2 POST /setting/enter idempotency).
-# 7c-4 will add the soak filter inversion + extend purge-test-audit.sh
-# for WO_RUN_* test rows + closeout LESSONS-LEARNED entries.
+# Companion scripts (PR #120):
+#   checkpoint-7d-final.sh — 14-step S12 forensic walk:
+#     1 boot API on dev DB
+#     2 login admin + self-seed 2 distinct QC users via
+#       POST /api/v2/admin/users (idempotent 422 username_in_use)
+#     3 login both seeded users
+#     4 cycle 1 GoRun path (all 4 slots Ok → IPQC_APPROVED) +
+#     5 cycle 2 StopLine path (slot NG → PREPRESS rollback) +
+#     6 cycle 3 SpecialAccept path (slot NG + reason → QA_PENDING)
+#     7 same-user QA approve attempt → 422 qa.same_user_as_ipqc_submitter
+#       + WO_QA_APPROVE_DENIED audit (Q3 dual-sig path A proven)
+#     8 distinct-user QA approve → IPQC_APPROVED + QaApprovedBy
+#       stamped (Q3 dual-sig path B proven)
+#     9 audit wire-mirror — 4×WO_IPQC_CHECK + WO_IPQC_JUDGMENT +
+#       WO_QA_APPROVE_DENIED + WO_QA_APPROVE for the 3rd cycle
+#    10 L21 auto-route assertion: WO MesPhase advanced server-side
+#       on every action (the UI test belt covers the UI re-mount;
+#       this script confirms the wire state matches what the
+#       dashboard would re-fetch).
+#    11 keep-alive forensic dump for Catalyst hand-verify.
+#   purge-test-audit.sh — extended with 'checkpoint-7d-final' actor
+#       tag (joining 'checkpoint-7d-2' from 7d-2) + IPQC + QA audit
+#       row patterns (WO_IPQC_CHECK / WO_IPQC_JUDGMENT /
+#       WO_QA_APPROVE / WO_QA_APPROVE_DENIED). The 2 seeded users
+#       (ipqc-test-checkpoint + qa-test-checkpoint) carry on from
+#       7d-2's IPQC_QA_TEST_USERS list — no change needed.
 #
-# Rules honoured in this skeleton:
+# Rules honoured in this script:
 #   R1 (--base main on PR create)            — N/A here (script)
 #   R2 (no --delete-branch mid-stack)        — N/A here (script)
 #   R4 (comment-strip gate for Razor)        — checked by Rule 4 gate
@@ -77,16 +108,19 @@
 #   R6 (self-prep DB baseline)               — Step 6 below
 #   R7.1 ([ctx] DB= header)                  — printed at top
 #   R7.2 (self-managed API + cleanup)        — Steps 7-9
-#   R7.3 (wire-mirror)                       — N/A in 7c-1 (no wire); 7c-2 grows
-#   S9 (responsive UI verify wide+narrow)    — N/A in 7c-1 (no UI); 7c-3 grows
+#   R7.3 (wire-mirror)                       — 7d-2 grew; 7d-3 + 7d-4 inherit
+#   S9 (responsive UI verify wide+narrow)    — 7d-3 grew; checkpoint dumps in 7d-4
 #   S10 (preserve TMP_DIR on FAIL)           — cleanup() honours
 #   S11 (assert-bound-port + log-grep L18)   — Step 7-8
 #   L17 (seed kind-specific guard)           — Step 9
 #   L18 (--urls override guard)              — Step 7
+#   L19 (canonical MesPhase dispatch)        — locked by Razor.Tests (12 7d-3 fixtures)
+#   L20 (Q3 dual-sig default-ON flag)        — Step 10 boot probe + 7d-4 Lesson
+#   L21 (auto re-fetch on phase change)      — locked by Razor.Tests (14 7d-3 L21 fixtures)
 #
 # Usage:
-#   cd CCL-MES-Hybrid && ./scripts/verify-p10.7c.sh
-#   cd CCL-MES-Hybrid && ./scripts/verify-p10.7c.sh --verbose
+#   cd CCL-MES-Hybrid && ./scripts/verify-p10.7d.sh
+#   cd CCL-MES-Hybrid && ./scripts/verify-p10.7d.sh --verbose
 
 set -u
 set +e
@@ -413,19 +447,21 @@ printf '%s\n' "${SUMMARY[@]}"
 echo ""
 echo "  TOTAL: pass=$PASS fail=$FAIL"
 echo ""
-echo "  7d-1 (domain) + 7d-2 (wire) + 7d-3 (UI + L21 auto-refresh) shipped."
-echo "  7d-3 added IpqcDashboard (4 slots + 3-button judgment + NG sub-form"
-echo "  + optimistic-on-409 revert) + QaApprovalDashboard (Q3 dual-sig"
-echo "  client guard + Approve/Reject + same-user banner) + dropped"
-echo "  IPQC_WAIT + QA_PENDING from RunningDashboard.DeferredPhaseInfo"
-echo "  (those have real dashboards now)."
+echo "  Stack 7d CLOSED (4 PRs merged + tag v0.10.7d):"
+echo "    PR #117  domain — entity + state machine + dual-sig DI"
+echo "    PR #118  wire   — IpqcReviewController + checkpoint with"
+echo "                       self-seed users + L10 drift guard"
+echo "    PR #119  UI     — IpqcDashboard + QaApprovalDashboard +"
+echo "                       Q3 client guard + L21 auto re-fetch"
+echo "    PR #120  closeout — full verify + checkpoint-7d-final +"
+echo "                       purge extension + L20 Q3 default-ON"
+echo "                       pattern + DB-path-default fix + 7e"
+echo "                       scope proposal"
 echo ""
-echo "  L21 fix (Henry RCA on PR #119 hardware verify, 2026-06-07):"
-echo "  every transition-emitting dashboard now bubbles OnPhaseChanged"
-echo "  → parent re-fetches summary + re-dispatches → operator never"
-echo "  has to tap 'Tìm' after a phase-changing action. +14 fixtures"
-echo "  (85→99). 7d-4 will close out with checkpoint-7d-final +"
-echo "  purge extension + LESSONS-LEARNED next-lesson entry."
+echo "  Companion verify (operator-driven on hardware):"
+echo "    bash scripts/checkpoint-7d-final.sh <WoNo> [--keep-alive]"
+echo "    bash scripts/purge-test-audit.sh                # preview"
+echo "    bash scripts/purge-test-audit.sh --commit       # cleanup"
 echo ""
 
 if [[ $FAIL -gt 0 ]]; then
