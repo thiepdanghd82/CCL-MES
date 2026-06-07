@@ -127,6 +127,29 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         }
     }
 
+    // P10.7d-2 role policy (Henry-confirmed 2026-06-07):
+    //   IpqcSubmit policy: Admin | QC      (PUT slot + POST judgment)
+    //   QaApprove  policy: Admin | QC | Supervisor   (POST qa/approve)
+    // OperatorClientAsync historically returned an Operator-role
+    // client — IPQC tests need QC; QA happy-path tests need a
+    // DISTINCT QC or Supervisor user. Helpers below mint each role.
+
+    private async Task<HttpClient> QcClientAsync(string user)
+    {
+        await _fx.SeedUserAsync(user, "P@ss!1", UserRole.Qc);
+        var client = _fx.CreateClient();
+        await _fx.LoginAndAuthenticateAsync(client, user, "P@ss!1");
+        return client;
+    }
+
+    private async Task<HttpClient> SupervisorClientAsync(string user)
+    {
+        await _fx.SeedUserAsync(user, "P@ss!1", UserRole.Supervisor);
+        var client = _fx.CreateClient();
+        await _fx.LoginAndAuthenticateAsync(client, user, "P@ss!1");
+        return client;
+    }
+
     private async Task<HttpClient> OperatorClientAsync(string user)
     {
         await _fx.SeedUserAsync(user, "P@ss!1", UserRole.Operator);
@@ -169,7 +192,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     public async Task Get_ipqc_returns_view_with_ETag_and_lazy_materialise()
     {
         var (wo, etag) = await SeedWoAsync("IPQC_WAIT");
-        var client = await OperatorClientAsync("op-7d2-get");
+        var client = await QcClientAsync("qc-7d2-get");
 
         var resp = await client.GetAsync($"/api/v2/work-orders/{wo}/ipqc");
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
@@ -193,7 +216,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     [Fact]
     public async Task Get_ipqc_returns_404_for_unknown_wo()
     {
-        var client = await OperatorClientAsync("op-7d2-get-404");
+        var client = await QcClientAsync("qc-7d2-get-404");
         var resp = await client.GetAsync($"/api/v2/work-orders/{long.MaxValue}/ipqc");
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
@@ -204,7 +227,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     public async Task PutSlot_missing_IfMatch_returns_428()
     {
         var (wo, _) = await SeedWoAsync();
-        var client = await OperatorClientAsync("op-7d2-428");
+        var client = await QcClientAsync("qc-7d2-428");
         var resp = await client.SendAsync(Mk(HttpMethod.Put,
             $"/api/v2/work-orders/{wo}/ipqc/material",
             "{\"status\":\"Ok\"}",
@@ -216,7 +239,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     public async Task PutSlot_missing_Idem_returns_400()
     {
         var (wo, etag) = await SeedWoAsync();
-        var client = await OperatorClientAsync("op-7d2-400");
+        var client = await QcClientAsync("qc-7d2-400");
         var resp = await client.SendAsync(Mk(HttpMethod.Put,
             $"/api/v2/work-orders/{wo}/ipqc/material",
             "{\"status\":\"Ok\"}",
@@ -228,7 +251,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     public async Task PutSlot_stale_IfMatch_returns_409_and_emits_WO_STATE_CONFLICT()
     {
         var (wo, _) = await SeedWoAsync();
-        var client = await OperatorClientAsync("op-7d2-409");
+        var client = await QcClientAsync("qc-7d2-409");
         var resp = await client.SendAsync(Mk(HttpMethod.Put,
             $"/api/v2/work-orders/{wo}/ipqc/material",
             "{\"status\":\"Ok\"}",
@@ -254,7 +277,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     public async Task PutSlot_happy_path_status_OK_for_each_slot(string slotKey)
     {
         var (wo, etag) = await SeedWoAsync();
-        var client = await OperatorClientAsync($"op-7d2-slot-{slotKey.Replace("-", "")}");
+        var client = await QcClientAsync($"qc-7d2-slot-{slotKey.Replace("-", "")}");
         var resp = await client.SendAsync(Mk(HttpMethod.Put,
             $"/api/v2/work-orders/{wo}/ipqc/{slotKey}",
             "{\"status\":\"Ok\"}",
@@ -269,7 +292,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     public async Task PutSlot_in_non_IPQC_WAIT_phase_returns_422_invalid_phase()
     {
         var (wo, etag) = await SeedWoAsync("RUNNING");
-        var client = await OperatorClientAsync("op-7d2-slot-phase");
+        var client = await QcClientAsync("qc-7d2-slot-phase");
         var resp = await client.SendAsync(Mk(HttpMethod.Put,
             $"/api/v2/work-orders/{wo}/ipqc/material",
             "{\"status\":\"Ok\"}",
@@ -283,7 +306,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     public async Task PutSlot_invalid_status_returns_422()
     {
         var (wo, etag) = await SeedWoAsync();
-        var client = await OperatorClientAsync("op-7d2-slot-bad");
+        var client = await QcClientAsync("qc-7d2-slot-bad");
         var resp = await client.SendAsync(Mk(HttpMethod.Put,
             $"/api/v2/work-orders/{wo}/ipqc/material",
             "{\"status\":\"FunkyValue\"}",
@@ -297,7 +320,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     public async Task PutSlot_NG_without_reason_returns_422()
     {
         var (wo, etag) = await SeedWoAsync();
-        var client = await OperatorClientAsync("op-7d2-slot-ng-nor");
+        var client = await QcClientAsync("qc-7d2-slot-ng-nor");
         var resp = await client.SendAsync(Mk(HttpMethod.Put,
             $"/api/v2/work-orders/{wo}/ipqc/print-a",
             "{\"status\":\"Ng\",\"ngNote\":\"missing reason\"}",
@@ -311,7 +334,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     public async Task PutSlot_NG_with_unregistered_reason_returns_422()
     {
         var (wo, etag) = await SeedWoAsync();
-        var client = await OperatorClientAsync("op-7d2-slot-ng-bad");
+        var client = await QcClientAsync("qc-7d2-slot-ng-bad");
         var resp = await client.SendAsync(Mk(HttpMethod.Put,
             $"/api/v2/work-orders/{wo}/ipqc/print-a",
             "{\"status\":\"Ng\",\"ngReasonCode\":\"NO-SUCH-CODE\",\"ngNote\":\"reason not in catalog\"}",
@@ -326,7 +349,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     {
         await SeedScrapReasonAsync("SC-COLOR");
         var (wo, etag) = await SeedWoAsync();
-        var client = await OperatorClientAsync("op-7d2-slot-ng-ok");
+        var client = await QcClientAsync("qc-7d2-slot-ng-ok");
         var resp = await client.SendAsync(Mk(HttpMethod.Put,
             $"/api/v2/work-orders/{wo}/ipqc/print-a",
             "{\"status\":\"Ng\",\"ngReasonCode\":\"SC-COLOR\",\"ngNote\":\"ΔE = 2.4\"}",
@@ -350,7 +373,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var (wo, _) = await SeedWoAsync();
         await SeedCheckAsync(wo); // default all Ok
         var etag = await CurrentEtagAsync(wo);
-        var client = await OperatorClientAsync("op-7d2-judge-go");
+        var client = await QcClientAsync("qc-7d2-judge-go");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
             "{\"judgment\":\"GoRun\"}",
@@ -376,7 +399,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var (wo, _) = await SeedWoAsync();
         await SeedCheckAsync(wo, a: IpqcCheckStatus.Ng, ngReason: "SC-COLOR", ngNote: "ΔE");
         var etag = await CurrentEtagAsync(wo);
-        var client = await OperatorClientAsync("op-7d2-judge-incon");
+        var client = await QcClientAsync("qc-7d2-judge-incon");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
             "{\"judgment\":\"GoRun\"}",
@@ -393,7 +416,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var (wo, _) = await SeedWoAsync();
         await SeedCheckAsync(wo, b: IpqcCheckStatus.Ng, ngReason: "SC-COLOR", ngNote: "lệch màu");
         var etag = await CurrentEtagAsync(wo);
-        var client = await OperatorClientAsync("op-7d2-judge-stop");
+        var client = await QcClientAsync("qc-7d2-judge-stop");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
             "{\"judgment\":\"StopLine\"}",
@@ -410,7 +433,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var (wo, _) = await SeedWoAsync();
         await SeedCheckAsync(wo, a: IpqcCheckStatus.Ng, ngReason: "SC-COLOR", ngNote: "ΔE off");
         var etag = await CurrentEtagAsync(wo);
-        var client = await OperatorClientAsync("op-7d2-judge-sa");
+        var client = await QcClientAsync("qc-7d2-judge-sa");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
             "{\"judgment\":\"SpecialAccept\",\"specialAcceptReason\":\"Lô gấp giao trong ngày, ΔE 2.3 chấp nhận được\"}",
@@ -427,7 +450,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var (wo, _) = await SeedWoAsync();
         await SeedCheckAsync(wo, a: IpqcCheckStatus.Ng, ngReason: "SC-COLOR", ngNote: "x");
         var etag = await CurrentEtagAsync(wo);
-        var client = await OperatorClientAsync("op-7d2-judge-sa-noreason");
+        var client = await QcClientAsync("qc-7d2-judge-sa-noreason");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
             "{\"judgment\":\"SpecialAccept\"}",
@@ -442,7 +465,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     {
         var (wo, etag) = await SeedWoAsync();
         // No check row seeded → all 4 slots Pending after lazy materialise.
-        var client = await OperatorClientAsync("op-7d2-judge-notready");
+        var client = await QcClientAsync("qc-7d2-judge-notready");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
             "{\"judgment\":\"GoRun\"}",
@@ -473,7 +496,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var etag = await CurrentEtagAsync(wo);
 
         // QA approver is a DIFFERENT user.
-        var qaClient = await OperatorClientAsync(qaUser);
+        var qaClient = await QcClientAsync(qaUser);
 
         var resp = await qaClient.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/qa/approve",
@@ -516,7 +539,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var etag = await CurrentEtagAsync(wo);
 
         // SAME username tries to approve.
-        var sameUserClient = await OperatorClientAsync(sameUser);
+        var sameUserClient = await QcClientAsync(sameUser);
 
         var resp = await sameUserClient.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/qa/approve",
@@ -561,7 +584,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         await SeedScrapReasonAsync("SC-COLOR");
         var etag = await CurrentEtagAsync(wo);
 
-        var qaClient = await OperatorClientAsync(qaUser);
+        var qaClient = await QcClientAsync(qaUser);
         var resp = await qaClient.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/qa/approve",
             "{\"outcome\":\"Reject\",\"qaReason\":\"Vi phạm spec màu — không cho phép special accept\"}",
@@ -586,7 +609,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         await SeedScrapReasonAsync("SC-COLOR");
         var etag = await CurrentEtagAsync(wo);
 
-        var qaClient = await OperatorClientAsync(qaUser);
+        var qaClient = await QcClientAsync(qaUser);
         var resp = await qaClient.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/qa/approve",
             "{\"outcome\":\"Reject\"}",
@@ -600,7 +623,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     public async Task QaApprove_in_non_QA_PENDING_phase_returns_422_invalid_phase()
     {
         var (wo, etag) = await SeedWoAsync("IPQC_WAIT");
-        var client = await OperatorClientAsync("op-7d2-qa-phase");
+        var client = await QcClientAsync("qc-7d2-qa-phase");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/qa/approve",
             "{\"outcome\":\"Approve\"}",
@@ -620,7 +643,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
             judgment: IpqcJudgment.SpecialAccept,
             ipqcSubmittedBy: ipqcUser);
         var etag = await CurrentEtagAsync(wo);
-        var qaClient = await OperatorClientAsync(qaUser);
+        var qaClient = await QcClientAsync(qaUser);
         var resp = await qaClient.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/qa/approve",
             "{\"outcome\":\"Maybe\"}",
@@ -630,6 +653,67 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         Assert.Equal("qa.invalid_outcome", err!.Code);
     }
 
+    // ── Role policy (Henry-confirmed 2026-06-07) ───────────────────
+
+    [Fact]
+    public async Task PutSlot_with_Operator_role_returns_403_role_policy_locked()
+    {
+        // IpqcSubmit policy = Admin | QC only. Operator must not be
+        // able to PUT slot.
+        var (wo, etag) = await SeedWoAsync();
+        var opClient = await OperatorClientAsync("op-7d2-policy-no-ipqc");
+        var resp = await opClient.SendAsync(Mk(HttpMethod.Put,
+            $"/api/v2/work-orders/{wo}/ipqc/material",
+            "{\"status\":\"Ok\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task QaApprove_with_Supervisor_role_passes_policy_gate()
+    {
+        // QaApprove policy = Admin | QC | Supervisor. Lock the
+        // "QA Manager = Supervisor" practical mapping so a future
+        // policy-narrowing PR fails CI loudly here.
+        var ipqcUser = "qc-policy-sup-" + Guid.NewGuid().ToString("N")[..6];
+        var qaUser = "sup-policy-" + Guid.NewGuid().ToString("N")[..6];
+        var (wo, _) = await SeedWoAsync("QA_PENDING");
+        await SeedCheckAsync(wo,
+            a: IpqcCheckStatus.Ng,
+            ngReason: "SC-COLOR", ngNote: "ΔE",
+            judgment: IpqcJudgment.SpecialAccept,
+            specialAcceptReason: "Lô gấp",
+            ipqcSubmittedBy: ipqcUser);
+        await SeedScrapReasonAsync("SC-COLOR");
+        var etag = await CurrentEtagAsync(wo);
+
+        var qaClient = await SupervisorClientAsync(qaUser);
+        var resp = await qaClient.SendAsync(Mk(HttpMethod.Post,
+            $"/api/v2/work-orders/{wo}/qa/approve",
+            "{\"outcome\":\"Approve\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<IpqcSetResponse>();
+        Assert.Equal("IPQC_APPROVED", body!.MesPhase);
+    }
+
+    [Fact]
+    public async Task QaApprove_with_Operator_role_returns_403_role_policy_locked()
+    {
+        // Operator must not be able to QA-approve.
+        var (wo, _) = await SeedWoAsync("QA_PENDING");
+        await SeedCheckAsync(wo,
+            judgment: IpqcJudgment.SpecialAccept,
+            ipqcSubmittedBy: "qc-someone");
+        var etag = await CurrentEtagAsync(wo);
+        var opClient = await OperatorClientAsync("op-7d2-policy-no-qa");
+        var resp = await opClient.SendAsync(Mk(HttpMethod.Post,
+            $"/api/v2/work-orders/{wo}/qa/approve",
+            "{\"outcome\":\"Approve\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
     // ── Rule 7.3 — wire-mirror audit visibility ───────────────────
 
     [Fact]
@@ -637,7 +721,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
     {
         await SeedScrapReasonAsync("SC-COLOR");
         var (wo, etag) = await SeedWoAsync();
-        var client = await OperatorClientAsync("op-7d2-wiremirror");
+        var client = await QcClientAsync("qc-7d2-wiremirror");
 
         var resp = await client.SendAsync(Mk(HttpMethod.Put,
             $"/api/v2/work-orders/{wo}/ipqc/material",

@@ -165,21 +165,21 @@ public sealed class IpqcReviewController : ControllerBase
         return Ok(view);
     }
 
-    // ── PUT /work-orders/{id}/ipqc/{slot} ──────────────────────────
+    // ── PUT /work-orders/{id}/ipqc/{slot} (IpqcSubmit policy) ─────
 
-    [HttpPut("{id:long}/ipqc/material")]
+    [HttpPut("{id:long}/ipqc/material"), Authorize(Policy = "IpqcSubmit")]
     public Task<IActionResult> PutMaterialSlot(long id, [FromBody] SetIpqcSlotRequest? req) =>
         PutSlotAsync(id, WoIpqcCheckService.CheckSlot.Material, req);
 
-    [HttpPut("{id:long}/ipqc/print-a")]
+    [HttpPut("{id:long}/ipqc/print-a"), Authorize(Policy = "IpqcSubmit")]
     public Task<IActionResult> PutPrintASlot(long id, [FromBody] SetIpqcSlotRequest? req) =>
         PutSlotAsync(id, WoIpqcCheckService.CheckSlot.PrintA, req);
 
-    [HttpPut("{id:long}/ipqc/print-b")]
+    [HttpPut("{id:long}/ipqc/print-b"), Authorize(Policy = "IpqcSubmit")]
     public Task<IActionResult> PutPrintBSlot(long id, [FromBody] SetIpqcSlotRequest? req) =>
         PutSlotAsync(id, WoIpqcCheckService.CheckSlot.PrintB, req);
 
-    [HttpPut("{id:long}/ipqc/print-c")]
+    [HttpPut("{id:long}/ipqc/print-c"), Authorize(Policy = "IpqcSubmit")]
     public Task<IActionResult> PutPrintCSlot(long id, [FromBody] SetIpqcSlotRequest? req) =>
         PutSlotAsync(id, WoIpqcCheckService.CheckSlot.PrintC, req);
 
@@ -232,7 +232,7 @@ public sealed class IpqcReviewController : ControllerBase
 
     // ── POST /work-orders/{id}/ipqc/judgment ───────────────────────
 
-    [HttpPost("{id:long}/ipqc/judgment")]
+    [HttpPost("{id:long}/ipqc/judgment"), Authorize(Policy = "IpqcSubmit")]
     public async Task<IActionResult> PostJudgment(
         long id, [FromBody] SubmitIpqcJudgmentRequest? req)
     {
@@ -298,7 +298,7 @@ public sealed class IpqcReviewController : ControllerBase
 
     // ── POST /work-orders/{id}/qa/approve ──────────────────────────
 
-    [HttpPost("{id:long}/qa/approve")]
+    [HttpPost("{id:long}/qa/approve"), Authorize(Policy = "QaApprove")]
     public async Task<IActionResult> PostQaApprove(
         long id, [FromBody] QaApproveRequest? req)
     {

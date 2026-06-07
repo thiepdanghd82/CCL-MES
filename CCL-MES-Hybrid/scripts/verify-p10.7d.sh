@@ -13,11 +13,12 @@
 #     2. CCL.MES.Tests (Domain) ≥811 (was 751 at v0.10.7c + 14 unit
 #        rollup + 12 dual-sig parse + 18 service slot/judgment/dual-sig
 #        + 6 LegacyParity + 4 integration = +54 new IPQC fixtures).
-#     3. CCL.MES.Api.Tests ≥355 (non-soak) — was 328 at v0.10.7c + 27
+#     3. CCL.MES.Api.Tests ≥358 (non-soak) — was 328 at v0.10.7c + 30
 #        IpqcReviewController fixtures landed in 7d-2 (prelude + 4 slot
 #        PUT [Theory] + judgment happy/inconsistent/not-ready/SpecialAccept-
 #        with-reason + 5 QA approve incl Q3 dual-sig same-user 422 +
-#        distinct-user happy + audit wire-mirror R7.3).
+#        distinct-user happy + audit wire-mirror R7.3 + 3 role policy
+#        fixtures locking Henry-confirmed §5.5.0 role table).
 #     3b. Concurrent soak step inherited from 7c — runs as-is.
 #     4. CCL.MES.Hybrid.Client.Tests ≥549 (unchanged in 7d-1).
 #     5. CCL.MES.Hybrid.Razor.Tests ≥59 (unchanged in 7d-1; 7d-3 grows
