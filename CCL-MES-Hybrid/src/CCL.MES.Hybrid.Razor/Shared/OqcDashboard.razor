@@ -1,0 +1,681 @@
+@*
+    P10.7e-3 — OQC review operator dashboard. 3-sig Q5 chain:
+    Inspector → Reviewer → Approver. Hosted by WorkOrders.razor when
+    MesPhase=OQC_PENDING.
+
+    Same Q3 data-driven shape as FqcDashboard. Distinguishes the 3-sig
+    state machine via the WoQcView fields:
+        InspectedBy/At + ReviewedBy/At + ApprovedBy/At.
+
+    Sub-flow:
+      Stage 0 — items pending: render item grid; banner
+                "Hoàn tất các item rồi nhấn Inspector ký để chuyển sang Reviewer".
+      Stage 1 — items ready + Inspector blank: enable "Inspector ký" button.
+      Stage 2 — Inspector signed, Reviewer blank: show Inspector chip,
+                enable "Reviewer ký" button (Q5 client guard
+                Reviewer ≠ Inspector — disabled + banner if same user).
+      Stage 3 — Reviewer signed, Approver blank: show Inspector + Reviewer
+                chips, render Approve/Reject buttons (Q5 client guard
+                Approver ∉ {Inspector, Reviewer} — disabled + banner if
+                same as either).
+
+    On Approve happy path → WO advances OQC_PENDING → SHIPPED + emits
+    WO_OQC_APPROVE + WO_SHIPPED audits. L21 OnPhaseChanged invokes parent
+    so ShippedSummaryDashboard mounts automatically.
+    On Reject → WO loops back to FQC_PENDING + emits
+    WO_OQC_REJECT_TO_FQC_PENDING audit. L21 dispatches FqcDashboard.
+
+    Concurrency + error handling mirrors FqcDashboard + IpqcDashboard
+    exactly (200 reload, 409 optimistic revert, 422 in-band ErrorCode).
+
+    Rule 4: plain inputs + buttons. Rule 7.3: wire-mirror via
+    WoQcReviewControllerTests.
+*@
+
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.Auth
+@using CCL.MES.Hybrid.Client.WoQcReview
+@using CCL.MES.Shared.Envelopes
+@using CCL.MES.Shared.ReasonCodes
+@using CCL.MES.Shared.WoQcReview
+@inject ICclApiClient Api
+@inject IAuthSession Session
+
+<div class="rs-dashboard oqc-dashboard" data-testid="oqc-dashboard">
+    @if (_view is null && _initialError is null)
+    {
+        <div class="rs-loading" data-testid="oqc-loading">Đang tải trạng thái OQC…</div>
+    }
+    else if (_initialError is not null)
+    {
+        <div class="wo-card-error" data-testid="oqc-initial-error">
+            <strong>Không tải được trạng thái OQC:</strong> @_initialError
+        </div>
+    }
+    else if (_invalidPhase)
+    {
+        <div class="wo-card-error" data-testid="oqc-invalid-phase">
+            <strong>WO không ở giai đoạn OQC_PENDING</strong> —
+            Hiện tại: <code>@(_view?.MesPhase ?? "?")</code>.
+            Quay lại tab Work Orders để chọn WO khác.
+        </div>
+    }
+    else if (_view is not null)
+    {
+        <div class="rs-head">
+            <div class="rs-head-wo">
+                <span class="rs-head-label">WO</span>
+                <span class="rs-head-wo-no">@_view.WoNo</span>
+                <span class="rs-head-phase rs-phase-oqc">@_view.MesPhase</span>
+            </div>
+            <div class="ipqc-counter-pill" data-testid="oqc-counter">
+                <span class="ipqc-counter-label">Item · Sig</span>
+                <span class="ipqc-counter-value scan-mono">@ConfirmedCount/@(_view.Items.Count) · @SignatureCount/3</span>
+            </div>
+        </div>
+
+        @* ── Q5 client guard banners ──────────────────────────────── *@
+        @if (CurrentSigStage == SigStage.ReviewerSigning && IsSameAs(_view.InspectedBy))
+        {
+            <div class="wo-card-error qa-q3-banner" data-testid="oqc-q5-banner-inspector">
+                <strong>⚠ Chính sách 3-sig:</strong>
+                @WoQcReviewErrorLocaliser.Q5SameAsInspectorBanner
+            </div>
+        }
+        @if (CurrentSigStage == SigStage.ApproverSigning && IsSameAs(_view.ReviewedBy))
+        {
+            <div class="wo-card-error qa-q3-banner" data-testid="oqc-q5-banner-reviewer">
+                <strong>⚠ Chính sách 3-sig:</strong>
+                @WoQcReviewErrorLocaliser.Q5SameAsReviewerBanner
+            </div>
+        }
+        @if (CurrentSigStage == SigStage.ApproverSigning && IsSameAs(_view.InspectedBy))
+        {
+            <div class="wo-card-error qa-q3-banner" data-testid="oqc-q5-banner-approver-inspector">
+                <strong>⚠ Chính sách 3-sig:</strong>
+                @WoQcReviewErrorLocaliser.Q5SameAsInspectorBanner
+            </div>
+        }
+
+        @if (_setError is not null)
+        {
+            <div class="wo-card-error" data-testid="oqc-set-error">
+                <strong>Không ghi được thay đổi:</strong> @_setError
+                <button type="button" class="op-btn op-btn-secondary op-btn-sm"
+                        @onclick="DismissSetError"
+                        data-testid="oqc-set-error-dismiss">Bỏ qua</button>
+            </div>
+        }
+
+        @* ── Signature chip row (always rendered above items so the
+              auditor sees the chain at a glance) ──────────────────── *@
+        <div class="rs-card oqc-sig-row" data-testid="oqc-sig-row">
+            <div class="rs-card-head">
+                <div class="rs-card-title">Chuỗi ký 3-sig OQC</div>
+            </div>
+            <div class="oqc-sig-grid">
+                <div class="oqc-sig-cell @(string.IsNullOrEmpty(_view.InspectedBy) ? "oqc-sig-pending" : "oqc-sig-done")"
+                     data-testid="oqc-sig-inspector">
+                    <div class="oqc-sig-label">1 · Inspector</div>
+                    <div class="oqc-sig-value scan-mono">
+                        @(string.IsNullOrEmpty(_view.InspectedBy) ? "— Chờ" : _view.InspectedBy)
+                    </div>
+                    @if (_view.InspectedAt is { } at1)
+                    {
+                        <div class="oqc-sig-time">@at1.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                    }
+                </div>
+                <div class="oqc-sig-cell @(string.IsNullOrEmpty(_view.ReviewedBy) ? "oqc-sig-pending" : "oqc-sig-done")"
+                     data-testid="oqc-sig-reviewer">
+                    <div class="oqc-sig-label">2 · Reviewer</div>
+                    <div class="oqc-sig-value scan-mono">
+                        @(string.IsNullOrEmpty(_view.ReviewedBy) ? "— Chờ" : _view.ReviewedBy)
+                    </div>
+                    @if (_view.ReviewedAt is { } at2)
+                    {
+                        <div class="oqc-sig-time">@at2.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                    }
+                </div>
+                <div class="oqc-sig-cell @(string.IsNullOrEmpty(_view.ApprovedBy) ? "oqc-sig-pending" : "oqc-sig-done")"
+                     data-testid="oqc-sig-approver">
+                    <div class="oqc-sig-label">3 · Approver</div>
+                    <div class="oqc-sig-value scan-mono">
+                        @(string.IsNullOrEmpty(_view.ApprovedBy) ? "— Chờ" : _view.ApprovedBy)
+                    </div>
+                    @if (_view.ApprovedAt is { } at3)
+                    {
+                        <div class="oqc-sig-time">@at3.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @if (_view.Items.Count == 0)
+        {
+            <div class="wo-card-error" data-testid="oqc-empty-profile">
+                <strong>Profile OQC trống.</strong>
+                Quản trị phải seed profile OQC trước khi vận hành. Báo IT để cấu hình.
+            </div>
+        }
+
+        @* ── data-driven item grid (only mutable in stage 0) ─────── *@
+        <div class="ipqc-slot-grid">
+            @foreach (var item in _view.Items)
+            {
+                <div class="rs-card ipqc-slot @SlotCssClass(item.Status)"
+                     data-testid="@($"oqc-item-{item.ItemKey}")">
+                    <div class="rs-card-head">
+                        <div class="rs-card-title">@item.ItemKey</div>
+                        <div class="ipqc-status-pill @StatusPillCss(item.Status)"
+                             data-testid="@($"oqc-item-{item.ItemKey}-status")">@StatusDisplay(item.Status)</div>
+                    </div>
+
+                    @if (CurrentSigStage == SigStage.ItemsPending || CurrentSigStage == SigStage.InspectorSigning)
+                    {
+                        <div class="ipqc-slot-actions">
+                            <button type="button"
+                                    class="op-btn op-btn-success ipqc-slot-btn"
+                                    disabled="@_busy"
+                                    @onclick="@(() => OnSetOkAsync(item))"
+                                    data-testid="@($"oqc-item-{item.ItemKey}-ok")">OK</button>
+                            <button type="button"
+                                    class="op-btn op-btn-danger ipqc-slot-btn"
+                                    disabled="@_busy"
+                                    @onclick="@(() => OpenNgForm(item.ItemKey))"
+                                    data-testid="@($"oqc-item-{item.ItemKey}-ng")">NG</button>
+                        </div>
+                    }
+
+                    @if (item.Status == "Ng" && item.NgReasonCode is not null)
+                    {
+                        <div class="ipqc-slot-ng-summary" data-testid="@($"oqc-item-{item.ItemKey}-ng-summary")">
+                            <span class="ipqc-slot-ng-label">Mã NG:</span>
+                            <span class="ipqc-slot-ng-value scan-mono">@item.NgReasonCode</span>
+                            @if (!string.IsNullOrEmpty(item.NgNote))
+                            {
+                                <div class="ipqc-slot-ng-note">@item.NgNote</div>
+                            }
+                        </div>
+                    }
+
+                    @if (_openNgFor == item.ItemKey)
+                    {
+                        <div class="ipqc-ng-form" data-testid="@($"oqc-item-{item.ItemKey}-ng-form")">
+                            <div class="ipqc-ng-field">
+                                <label class="rs-modal-label" for="@($"oqc-{item.ItemKey}-reason")">Mã NG</label>
+                                <select id="@($"oqc-{item.ItemKey}-reason")"
+                                        class="ipqc-input"
+                                        value="@_ngReasonCode"
+                                        @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
+                                        data-testid="@($"oqc-item-{item.ItemKey}-ng-reason")">
+                                    <option value="">— chọn mã NG —</option>
+                                    @foreach (var r in ScrapReasons)
+                                    {
+                                        <option value="@r.Code">@r.Code — @r.LabelVi</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="ipqc-ng-field ipqc-ng-field-wide">
+                                <label class="rs-modal-label" for="@($"oqc-{item.ItemKey}-note")">Ghi chú NG (1-500 ký tự)</label>
+                                <input id="@($"oqc-{item.ItemKey}-note")"
+                                       type="text"
+                                       class="ipqc-input"
+                                       maxlength="500"
+                                       value="@_ngNote"
+                                       @oninput="@(e => _ngNote = e.Value?.ToString() ?? "")"
+                                       data-testid="@($"oqc-item-{item.ItemKey}-ng-note")" />
+                                <div class="ipqc-char-count">@_ngNote.Length/500</div>
+                            </div>
+                            <div class="ipqc-ng-actions">
+                                <button type="button"
+                                        class="op-btn op-btn-secondary"
+                                        @onclick="CloseNgForm"
+                                        data-testid="@($"oqc-item-{item.ItemKey}-ng-cancel")">Huỷ</button>
+                                <button type="button"
+                                        class="op-btn op-btn-danger"
+                                        disabled="@(!CanSubmitNg() || _busy)"
+                                        @onclick="@(() => OnSetNgAsync(item))"
+                                        data-testid="@($"oqc-item-{item.ItemKey}-ng-submit")">
+                                    Lưu NG
+                                </button>
+                            </div>
+                        </div>
+                    }
+
+                    @* photo strip — disabled after Inspector signs (audit-frozen) *@
+                    <QcPhotoStrip WorkOrderId="@_view.WoId"
+                                  Kind="oqc"
+                                  ItemKey="@item.ItemKey"
+                                  PhotoIds="@item.PhotoIds"
+                                  ETag="@_view.ETag"
+                                  Disabled="@(_busy || CurrentSigStage != SigStage.ItemsPending && CurrentSigStage != SigStage.InspectorSigning)"
+                                  OnPhotosChanged="OnPhotosChangedAsync" />
+                </div>
+            }
+        </div>
+
+        @* ── Stage action card ─────────────────────────────────────── *@
+        <div class="rs-card oqc-action" data-testid="oqc-action-card">
+            <div class="rs-card-head">
+                <div class="rs-card-title">@StageTitle</div>
+                @if (CurrentSigStage == SigStage.InspectorSigning && _view.AnyNg)
+                {
+                    <div class="ipqc-rollup-pill ipqc-rollup-warn" data-testid="oqc-rollup-pill">
+                        <span>Có item NG — Inspector ký để chuyển bước; Approver sẽ Reject về FQC.</span>
+                    </div>
+                }
+            </div>
+
+            @if (CurrentSigStage == SigStage.ItemsPending)
+            {
+                <div class="rs-action-hint" data-testid="oqc-stage-hint">
+                    Còn @(_view.Items.Count - ConfirmedCount) item chưa xác nhận.
+                    Hoàn tất rồi nhấn <strong>Inspector ký</strong>.
+                </div>
+            }
+            else if (CurrentSigStage == SigStage.InspectorSigning)
+            {
+                <div class="oqc-action-row" data-testid="oqc-stage-inspector">
+                    <button type="button"
+                            class="op-btn op-btn-primary ipqc-judgment-btn"
+                            disabled="@_busy"
+                            @onclick="OnInspectorSignAsync"
+                            data-testid="oqc-btn-inspector-sign">
+                        1 · Inspector ký
+                    </button>
+                    <div class="rs-action-hint">
+                        Tôi xác nhận đã kiểm @_view.Items.Count item theo profile OQC.
+                    </div>
+                </div>
+            }
+            else if (CurrentSigStage == SigStage.ReviewerSigning)
+            {
+                <div class="oqc-action-row" data-testid="oqc-stage-reviewer">
+                    <button type="button"
+                            class="op-btn op-btn-primary ipqc-judgment-btn"
+                            disabled="@(!CanReview() || _busy)"
+                            title="@(IsSameAs(_view.InspectedBy) ? "Reviewer phải khác Inspector" : "")"
+                            @onclick="OnReviewerSignAsync"
+                            data-testid="oqc-btn-reviewer-sign">
+                        2 · Reviewer ký
+                    </button>
+                    <div class="rs-action-hint">
+                        Reviewer xác nhận kết quả Inspector đã ký
+                        (<span class="scan-mono">@_view.InspectedBy</span>).
+                    </div>
+                </div>
+            }
+            else if (CurrentSigStage == SigStage.ApproverSigning)
+            {
+                <div class="qa-reason-field">
+                    <label class="rs-modal-label" for="oqc-reject-reason">
+                        Lý do Reject (bắt buộc khi Reject; 1-500 ký tự)
+                    </label>
+                    <input id="oqc-reject-reason"
+                           type="text"
+                           class="ipqc-input"
+                           maxlength="500"
+                           value="@_rejectReason"
+                           @oninput="@(e => _rejectReason = e.Value?.ToString() ?? "")"
+                           data-testid="oqc-reject-reason" />
+                    <div class="ipqc-char-count">@_rejectReason.Length/500</div>
+                </div>
+                <div class="qa-action-buttons rs-action-bar-multi" data-testid="oqc-stage-approver">
+                    <button type="button"
+                            class="op-btn op-btn-success ipqc-judgment-btn"
+                            disabled="@(!CanApprove() || _busy)"
+                            title="@(IsSameAs(_view.InspectedBy) ? "Approver phải khác Inspector" : IsSameAs(_view.ReviewedBy) ? "Approver phải khác Reviewer" : "")"
+                            @onclick="@(() => OnApproverDecisionAsync(OqcOutcomeApprove))"
+                            data-testid="oqc-btn-approve">
+                        Approve → SHIPPED
+                    </button>
+                    <button type="button"
+                            class="op-btn op-btn-danger ipqc-judgment-btn"
+                            disabled="@(!CanReject() || _busy)"
+                            title="@(IsSameAs(_view.InspectedBy) ? "Approver phải khác Inspector" : IsSameAs(_view.ReviewedBy) ? "Approver phải khác Reviewer" : "")"
+                            @onclick="@(() => OnApproverDecisionAsync(OqcOutcomeReject))"
+                            data-testid="oqc-btn-reject">
+                        Reject → FQC
+                    </button>
+                </div>
+                <div class="rs-action-hint" data-testid="oqc-stage-approver-hint">
+                    Approver quyết định cuối cùng. Inspector =
+                    <span class="scan-mono">@_view.InspectedBy</span>,
+                    Reviewer = <span class="scan-mono">@_view.ReviewedBy</span>.
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public long WorkOrderId { get; set; }
+    [Parameter] public IReadOnlyList<ReasonCodeOption> ScrapReasons { get; set; } = Array.Empty<ReasonCodeOption>();
+
+    /// <summary>L21 — invoked after Approver decision so parent refreshes
+    /// summary (Approve → SHIPPED ShippedSummaryDashboard mounts; Reject →
+    /// FQC_PENDING FqcDashboard mounts).</summary>
+    [Parameter] public EventCallback OnPhaseChanged { get; set; }
+
+    private const string OqcOutcomeApprove = "Approve";
+    private const string OqcOutcomeReject = "Reject";
+
+    private WoQcView? _view;
+    private string? _initialError;
+    private string? _setError;
+    private bool _busy;
+    private bool _invalidPhase;
+    private long _lastLoadedWoId;
+
+    private string? _openNgFor;
+    private string _ngReasonCode = "";
+    private string _ngNote = "";
+    private string _rejectReason = "";
+
+    private enum SigStage
+    {
+        ItemsPending,
+        InspectorSigning,
+        ReviewerSigning,
+        ApproverSigning,
+    }
+
+    private SigStage CurrentSigStage
+    {
+        get
+        {
+            if (_view is null) return SigStage.ItemsPending;
+            if (!_view.IsReadyForJudgment) return SigStage.ItemsPending;
+            if (string.IsNullOrEmpty(_view.InspectedBy)) return SigStage.InspectorSigning;
+            if (string.IsNullOrEmpty(_view.ReviewedBy)) return SigStage.ReviewerSigning;
+            return SigStage.ApproverSigning;
+        }
+    }
+
+    private string StageTitle => CurrentSigStage switch
+    {
+        SigStage.ItemsPending     => "Đang kiểm item OQC",
+        SigStage.InspectorSigning => "1 · Inspector ký",
+        SigStage.ReviewerSigning  => "2 · Reviewer ký",
+        SigStage.ApproverSigning  => "3 · Approver quyết",
+        _                         => "OQC",
+    };
+
+    private int ConfirmedCount =>
+        _view?.Items.Count(i => i.Status != "Pending") ?? 0;
+
+    private int SignatureCount
+    {
+        get
+        {
+            if (_view is null) return 0;
+            var n = 0;
+            if (!string.IsNullOrEmpty(_view.InspectedBy)) n++;
+            if (!string.IsNullOrEmpty(_view.ReviewedBy)) n++;
+            if (!string.IsNullOrEmpty(_view.ApprovedBy)) n++;
+            return n;
+        }
+    }
+
+    private bool IsSameAs(string? otherUsername)
+    {
+        var current = Session.CurrentUserInfo?.Username;
+        if (string.IsNullOrEmpty(current) || string.IsNullOrEmpty(otherUsername))
+            return false;
+        return string.Equals(current, otherUsername, StringComparison.OrdinalIgnoreCase);
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (WorkOrderId != _lastLoadedWoId)
+        {
+            _lastLoadedWoId = WorkOrderId;
+            _view = null;
+            _initialError = null;
+            _setError = null;
+            _invalidPhase = false;
+            _openNgFor = null;
+            _ngReasonCode = "";
+            _ngNote = "";
+            _rejectReason = "";
+            await ReloadAsync();
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _view = await Api.GetWoQcViewAsync(WorkOrderId, "oqc");
+            _invalidPhase = _view.MesPhase != "OQC_PENDING";
+        }
+        catch (ApiException apiEx)
+        {
+            _initialError = WoQcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+        }
+        catch (HttpRequestException ex)
+        {
+            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _initialError = $"Lỗi tải trạng thái OQC: {ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
+    private static string SlotCssClass(string status) => status switch
+    {
+        "Ok"  => "ipqc-slot-ok",
+        "Ng"  => "ipqc-slot-ng",
+        _     => "ipqc-slot-pending",
+    };
+
+    private static string StatusDisplay(string status) => status switch
+    {
+        "Ok" => "✓ OK",
+        "Ng" => "✗ NG",
+        _    => "— Chờ",
+    };
+
+    private static string StatusPillCss(string status) => status switch
+    {
+        "Ok" => "ipqc-status-ok",
+        "Ng" => "ipqc-status-ng",
+        _    => "ipqc-status-pending",
+    };
+
+    private void OpenNgForm(string itemKey)
+    {
+        if (_busy) return;
+        _openNgFor = itemKey;
+        var item = _view?.Items.FirstOrDefault(i => i.ItemKey == itemKey);
+        _ngReasonCode = item?.NgReasonCode ?? "";
+        _ngNote = item?.NgNote ?? "";
+    }
+
+    private void CloseNgForm()
+    {
+        _openNgFor = null;
+        _ngReasonCode = "";
+        _ngNote = "";
+    }
+
+    private bool CanSubmitNg() =>
+        !string.IsNullOrWhiteSpace(_ngReasonCode)
+        && ScrapReasons.Any(r => r.Code == _ngReasonCode)
+        && !string.IsNullOrWhiteSpace(_ngNote)
+        && _ngNote.Length <= 500;
+
+    private void DismissSetError() => _setError = null;
+
+    private Task OnSetOkAsync(WoQcViewItem item) =>
+        SubmitItemAsync(item, new SetWoQcItemRequest { Status = "Ok" });
+
+    private async Task OnSetNgAsync(WoQcViewItem item)
+    {
+        if (!CanSubmitNg()) return;
+        await SubmitItemAsync(item, new SetWoQcItemRequest
+        {
+            Status = "Ng",
+            NgReasonCode = _ngReasonCode,
+            NgNote = _ngNote,
+        });
+    }
+
+    private async Task SubmitItemAsync(WoQcViewItem item, SetWoQcItemRequest req)
+    {
+        if (_view is null || _busy) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var resp = await Api.PutWoQcItemAsync(
+                WorkOrderId, "oqc", item.ItemKey, _view.ETag, req);
+            await HandleSetResponseAsync(resp);
+            if (resp.Ok) CloseNgForm();
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = WoQcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex) { _setError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _setError = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    private async Task OnPhotosChangedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task OnInspectorSignAsync()
+    {
+        if (_view is null || _busy) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var resp = await Api.PostOqcInspectAsync(WorkOrderId, _view.ETag,
+                new OqcInspectRequest());
+            await HandleSetResponseAsync(resp);
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = WoQcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex) { _setError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _setError = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    private bool CanReview() =>
+        _view is not null
+        && !string.IsNullOrEmpty(_view.InspectedBy)
+        && !IsSameAs(_view.InspectedBy);
+
+    private async Task OnReviewerSignAsync()
+    {
+        if (_view is null || _busy) return;
+        if (IsSameAs(_view.InspectedBy))
+        {
+            _setError = WoQcReviewErrorLocaliser.LocaliseSetError("oqc.same_user_as_inspector");
+            return;
+        }
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var resp = await Api.PostOqcReviewAsync(WorkOrderId, _view.ETag,
+                new OqcReviewRequest());
+            await HandleSetResponseAsync(resp);
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = WoQcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex) { _setError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _setError = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    private bool CanApprove() =>
+        _view is not null
+        && !string.IsNullOrEmpty(_view.InspectedBy)
+        && !string.IsNullOrEmpty(_view.ReviewedBy)
+        && !IsSameAs(_view.ReviewedBy)
+        && !IsSameAs(_view.InspectedBy);
+
+    private bool CanReject() =>
+        _view is not null
+        && !string.IsNullOrEmpty(_view.InspectedBy)
+        && !string.IsNullOrEmpty(_view.ReviewedBy)
+        && !IsSameAs(_view.ReviewedBy)
+        && !IsSameAs(_view.InspectedBy)
+        && !string.IsNullOrWhiteSpace(_rejectReason)
+        && _rejectReason.Length <= 500;
+
+    private async Task OnApproverDecisionAsync(string outcome)
+    {
+        if (_view is null || _busy) return;
+        if (IsSameAs(_view.ReviewedBy))
+        {
+            _setError = WoQcReviewErrorLocaliser.LocaliseSetError("oqc.same_user_as_reviewer");
+            return;
+        }
+        if (IsSameAs(_view.InspectedBy))
+        {
+            _setError = WoQcReviewErrorLocaliser.LocaliseSetError("oqc.same_user_as_inspector");
+            return;
+        }
+        if (outcome == OqcOutcomeReject && string.IsNullOrWhiteSpace(_rejectReason))
+        {
+            _setError = WoQcReviewErrorLocaliser.LocaliseSetError("qc.invalid_reason");
+            return;
+        }
+
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var req = new OqcApproveRequest
+            {
+                Outcome = outcome,
+                JudgmentReason = outcome == OqcOutcomeReject ? _rejectReason : null,
+            };
+            var resp = await Api.PostOqcApproveAsync(WorkOrderId, _view.ETag, req);
+            await HandleSetResponseAsync(resp);
+            if (resp.Ok)
+            {
+                // L21 — Approve → SHIPPED, Reject → FQC_PENDING.
+                await OnPhaseChanged.InvokeAsync();
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = WoQcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex) { _setError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (Exception ex) { _setError = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    private async Task HandleSetResponseAsync(WoQcSetResponse resp)
+    {
+        if (resp.Ok) { await ReloadAsync(); return; }
+        if (!string.IsNullOrEmpty(resp.ErrorCode))
+        {
+            _setError = WoQcReviewErrorLocaliser.LocaliseSetError(resp.ErrorCode);
+            await ReloadAsync();
+            return;
+        }
+        _setError = "Máy chủ trả Ok=false không kèm mã lỗi — báo IT.";
+    }
+}

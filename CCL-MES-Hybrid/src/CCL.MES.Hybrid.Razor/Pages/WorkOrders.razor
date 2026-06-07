@@ -254,8 +254,39 @@ else
                         OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
                 }
 
+                @* P10.7e-3 — FQC_PENDING routes to FqcDashboard.
+                   L21 OnPhaseChanged: Pass → OQC_PENDING dispatches to
+                   OqcDashboard; Reject → PREPRESS dispatches to
+                   PrepressDashboard. *@
+                @if (IsFqcPendingPhase(_summary))
+                {
+                    <CCL.MES.Hybrid.Razor.Shared.FqcDashboard
+                        WorkOrderId="@_summary.Id"
+                        ScrapReasons="@_scrapReasons"
+                        OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
+                }
+
+                @* P10.7e-3 — OQC_PENDING routes to OqcDashboard with 3-sig
+                   Q5 chain. L21: Approve → SHIPPED ShippedSummaryDashboard;
+                   Reject → FQC_PENDING FqcDashboard re-mounts. *@
+                @if (IsOqcPendingPhase(_summary))
+                {
+                    <CCL.MES.Hybrid.Razor.Shared.OqcDashboard
+                        WorkOrderId="@_summary.Id"
+                        ScrapReasons="@_scrapReasons"
+                        OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
+                }
+
+                @* P10.7e-3 — SHIPPED routes to ShippedSummaryDashboard. *@
+                @if (IsShippedPhase(_summary))
+                {
+                    <CCL.MES.Hybrid.Razor.Shared.ShippedSummaryDashboard
+                        WorkOrderId="@_summary.Id" />
+                }
+
                 @* P10.7c-3 — IPQC_APPROVED + RUNNING + PAUSED + 7e-deferred
-                   phases (FQC_PENDING / OQC_PENDING / DONE / CANCELLED). *@
+                   phases (DONE / CANCELLED). FQC_PENDING + OQC_PENDING +
+                   SHIPPED dropped in 7e-3 — they have real dashboards now. *@
                 @if (IsRunningSurfacePhase(_summary))
                 {
                     <CCL.MES.Hybrid.Razor.Shared.RunningDashboard
@@ -721,15 +752,15 @@ else
 
     /// <summary>Internal — true for any MesPhase that RunningDashboard
     /// knows how to render (action UI for IPQC_APPROVED/RUNNING/PAUSED;
-    /// read-only placeholder for FQC_PENDING/OQC_PENDING/DONE/CANCELLED).
-    /// 7d-3 dropped IPQC_WAIT + QA_PENDING — they routed to their own
-    /// dashboards. Test surface for the dashboard's own validity gate.</summary>
+    /// read-only placeholder for DONE/CANCELLED). 7d-3 dropped IPQC_WAIT +
+    /// QA_PENDING; 7e-3 dropped FQC_PENDING + OQC_PENDING + SHIPPED — all
+    /// route to their own dashboards. Only DONE + CANCELLED remain as
+    /// terminal placeholders. Test surface for the dashboard's own
+    /// validity gate.</summary>
     private static bool IsRunningSurfacePhaseValue(string phase) =>
         string.Equals(phase, "IPQC_APPROVED", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "RUNNING", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "PAUSED", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(phase, "FQC_PENDING", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(phase, "OQC_PENDING", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "DONE", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "CANCELLED", StringComparison.OrdinalIgnoreCase);
 
@@ -751,6 +782,35 @@ else
     private static bool IsQaPendingPhase(WorkOrderSummary summary)
     {
         if (string.Equals(summary.MesPhase, "QA_PENDING", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
+        return false;
+    }
+
+    /// <summary>P10.7e-3 — FQC_PENDING routes to FqcDashboard. Pre-7e-3
+    /// cached summaries with MesPhase missing keep the legacy
+    /// RunningDashboard placeholder path.</summary>
+    private static bool IsFqcPendingPhase(WorkOrderSummary summary)
+    {
+        if (string.Equals(summary.MesPhase, "FQC_PENDING", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
+        return false;
+    }
+
+    /// <summary>P10.7e-3 — OQC_PENDING routes to OqcDashboard.</summary>
+    private static bool IsOqcPendingPhase(WorkOrderSummary summary)
+    {
+        if (string.Equals(summary.MesPhase, "OQC_PENDING", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
+        return false;
+    }
+
+    /// <summary>P10.7e-3 — SHIPPED routes to ShippedSummaryDashboard.</summary>
+    private static bool IsShippedPhase(WorkOrderSummary summary)
+    {
+        if (string.Equals(summary.MesPhase, "SHIPPED", StringComparison.OrdinalIgnoreCase))
             return true;
         if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
         return false;
@@ -784,6 +844,7 @@ else
             "FQC_PENDING"    => "wo-phase-fqc-pending",
             "OQC_PENDING"    => "wo-phase-oqc-pending",
             "DONE"           => "wo-phase-done",
+            "SHIPPED"        => "wo-phase-shipped",
             "CANCELLED"      => "wo-phase-cancelled",
             _                => "wo-phase-other",
         };
@@ -798,6 +859,9 @@ else
         || IsSettingPhase(summary)
         || IsIpqcWaitPhase(summary)
         || IsQaPendingPhase(summary)
+        || IsFqcPendingPhase(summary)
+        || IsOqcPendingPhase(summary)
+        || IsShippedPhase(summary)
         || IsRunningSurfacePhase(summary);
 
     // P10.7a-1.3 — both VN mapper switches extracted into

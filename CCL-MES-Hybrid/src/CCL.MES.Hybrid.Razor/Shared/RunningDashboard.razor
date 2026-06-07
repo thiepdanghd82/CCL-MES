@@ -365,21 +365,13 @@
     /// consistent read-only info card instead of a dead-end error banner.
     /// 7d-3 REMOVED IPQC_WAIT + QA_PENDING entries — those have real
     /// dashboards (IpqcDashboard + QaApprovalDashboard) hosted by
-    /// WorkOrders.razor BEFORE this dispatch. 7e will replace FQC +
-    /// OQC entries; DONE / CANCELLED entries stay as terminal info cards.
+    /// WorkOrders.razor BEFORE this dispatch. 7e-3 REMOVED FQC_PENDING +
+    /// OQC_PENDING entries — those now route to FqcDashboard +
+    /// OqcDashboard. SHIPPED also routes to its own dashboard. Only
+    /// DONE / CANCELLED remain as terminal info cards.
     /// Maintain THIS map (not the render branch) to add new placeholders.</summary>
     private static readonly Dictionary<string, DeferredPhase> DeferredPhaseInfo = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["FQC_PENDING"] = new(
-            Title: "Chờ kiểm FQC",
-            Body: "Sản xuất đã kết thúc. WO đang chờ FQC kiểm chất lượng đầu ra.",
-            Hint: "Màn hình FQC sẽ có ở bản 7e — tạm thời FQC review thực hiện ngoài app; khi FQC duyệt, WO sẽ chuyển sang OQC_PENDING.",
-            HeadPhaseCss: "rs-phase-other"),
-        ["OQC_PENDING"] = new(
-            Title: "Chờ kiểm OQC",
-            Body: "FQC đã duyệt. WO đang chờ OQC trước khi đóng đơn.",
-            Hint: "Màn hình OQC sẽ có ở bản 7e — tạm thời OQC review thực hiện ngoài app.",
-            HeadPhaseCss: "rs-phase-other"),
         ["DONE"] = new(
             Title: "WO đã hoàn tất",
             Body: "WO đã đóng đơn. Không còn thao tác sản xuất nào trên WO này.",

@@ -1,0 +1,272 @@
+@*
+    P10.7e-3 Q8 — read-only summary dashboard for SHIPPED WOs.
+    Hosted by WorkOrders.razor when MesPhase=SHIPPED.
+
+    Renders the WoSummaryReport returned by GET /work-orders/{id}/summary-report:
+      - Top strip: WO + phase chip + ShippedAt
+      - Totals: target / done / NG (with NG% bar)
+      - Runtime: total run / pause / session count
+      - OEE breakdown (Availability × Performance × Quality)
+      - Pause Pareto top-5 bars
+      - 3-leg QC summary (IPQC / FQC / OQC) with signature chain
+
+    No mutation surface; no L21 needed (terminal phase).
+
+    Container queries via .rs-dashboard + .shipped-summary-dashboard
+    handle responsive ≥1400 (3-col stats) and ≤900 (1-col stacked).
+*@
+
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Shared.Envelopes
+@using CCL.MES.Shared.WoQcReview
+@inject ICclApiClient Api
+
+<div class="rs-dashboard shipped-summary-dashboard" data-testid="shipped-summary-dashboard">
+    @if (_report is null && _initialError is null)
+    {
+        <div class="rs-loading" data-testid="shipped-loading">Đang tải tóm tắt WO…</div>
+    }
+    else if (_initialError is not null)
+    {
+        <div class="wo-card-error" data-testid="shipped-initial-error">
+            <strong>Không tải được tóm tắt:</strong> @_initialError
+        </div>
+    }
+    else if (_report is not null)
+    {
+        <div class="rs-head">
+            <div class="rs-head-wo">
+                <span class="rs-head-label">WO</span>
+                <span class="rs-head-wo-no">@_report.WoNo</span>
+                <span class="rs-head-phase rs-phase-shipped" data-testid="shipped-phase-chip">@_report.MesPhase</span>
+            </div>
+            @if (_report.ShippedAt is { } at)
+            {
+                <div class="shipped-time-pill" data-testid="shipped-time">
+                    <span class="ipqc-counter-label">Đóng đơn lúc</span>
+                    <span class="ipqc-counter-value scan-mono">@at.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+                </div>
+            }
+        </div>
+
+        <div class="shipped-stats-grid">
+            @* ── Totals ────────────────────────────────────────────── *@
+            <div class="rs-card shipped-stat" data-testid="shipped-totals">
+                <div class="rs-card-head"><div class="rs-card-title">Sản lượng</div></div>
+                <div class="shipped-stat-grid">
+                    <div class="shipped-stat-cell">
+                        <span class="shipped-stat-label">Mục tiêu</span>
+                        <span class="shipped-stat-value scan-mono">@_report.Totals.QtyTarget</span>
+                    </div>
+                    <div class="shipped-stat-cell">
+                        <span class="shipped-stat-label">Đã làm</span>
+                        <span class="shipped-stat-value scan-mono">@_report.Totals.QtyDone</span>
+                    </div>
+                    <div class="shipped-stat-cell">
+                        <span class="shipped-stat-label">NG</span>
+                        <span class="shipped-stat-value scan-mono">@_report.Totals.QtyNg</span>
+                    </div>
+                    <div class="shipped-stat-cell">
+                        <span class="shipped-stat-label">NG %</span>
+                        <span class="shipped-stat-value scan-mono">@FormatNgPct(_report.Totals)</span>
+                    </div>
+                </div>
+            </div>
+
+            @* ── Runtime ──────────────────────────────────────────── *@
+            <div class="rs-card shipped-stat" data-testid="shipped-runtime">
+                <div class="rs-card-head"><div class="rs-card-title">Thời gian</div></div>
+                <div class="shipped-stat-grid">
+                    <div class="shipped-stat-cell">
+                        <span class="shipped-stat-label">Run</span>
+                        <span class="shipped-stat-value scan-mono">@FormatDuration(_report.Runtime.RunSeconds)</span>
+                    </div>
+                    <div class="shipped-stat-cell">
+                        <span class="shipped-stat-label">Pause</span>
+                        <span class="shipped-stat-value scan-mono">@FormatDuration(_report.Runtime.PauseSeconds)</span>
+                    </div>
+                    <div class="shipped-stat-cell">
+                        <span class="shipped-stat-label">Phiên</span>
+                        <span class="shipped-stat-value scan-mono">@_report.Runtime.SessionCount</span>
+                    </div>
+                </div>
+            </div>
+
+            @* ── OEE ──────────────────────────────────────────────── *@
+            <div class="rs-card shipped-stat" data-testid="shipped-oee">
+                <div class="rs-card-head"><div class="rs-card-title">OEE</div></div>
+                <div class="shipped-oee-grid">
+                    <div class="shipped-oee-cell">
+                        <span class="shipped-stat-label">Availability</span>
+                        <span class="shipped-stat-value scan-mono">@FormatPct(_report.Oee.Availability)</span>
+                    </div>
+                    <div class="shipped-oee-cell">
+                        <span class="shipped-stat-label">Performance</span>
+                        <span class="shipped-stat-value scan-mono">@FormatPct(_report.Oee.Performance)</span>
+                    </div>
+                    <div class="shipped-oee-cell">
+                        <span class="shipped-stat-label">Quality</span>
+                        <span class="shipped-stat-value scan-mono">@FormatPct(_report.Oee.Quality)</span>
+                    </div>
+                    <div class="shipped-oee-cell shipped-oee-total" data-testid="shipped-oee-total">
+                        <span class="shipped-stat-label">OEE tổng</span>
+                        <span class="shipped-stat-value scan-mono">@FormatPct(_report.Oee.Oee)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ── Pause Pareto (top-5) ─────────────────────────────────── *@
+        @if (_report.PausePareto.Count > 0)
+        {
+            <div class="rs-card shipped-pareto" data-testid="shipped-pareto">
+                <div class="rs-card-head">
+                    <div class="rs-card-title">Pareto Pause (top-5)</div>
+                </div>
+                <div class="shipped-pareto-rows">
+                    @{ var top5 = _report.PausePareto.Take(5).ToList();
+                       var maxSeconds = top5.Count == 0 ? 1L : Math.Max(1L, top5[0].TotalSeconds); }
+                    @foreach (var row in top5)
+                    {
+                        var pct = (double)row.TotalSeconds / maxSeconds * 100.0;
+                        <div class="shipped-pareto-row" data-testid="@($"shipped-pareto-{row.ReasonCode}")">
+                            <span class="shipped-pareto-label scan-mono">@row.ReasonCode</span>
+                            <div class="shipped-pareto-bar-track">
+                                <div class="shipped-pareto-bar" style="width: @(pct.ToString("F1"))%"></div>
+                            </div>
+                            <span class="shipped-pareto-value scan-mono">
+                                @row.Count× · @FormatDuration(row.TotalSeconds)
+                            </span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @* ── 3-leg QC summary ────────────────────────────────────── *@
+        <div class="rs-card shipped-qc" data-testid="shipped-qc-summary">
+            <div class="rs-card-head"><div class="rs-card-title">Tóm tắt QC</div></div>
+            <div class="shipped-qc-grid">
+                @RenderQcLeg("IPQC", _report.QcSummary.Ipqc, "shipped-qc-ipqc", showAllSigs: false)
+                @RenderQcLeg("FQC", _report.QcSummary.Fqc, "shipped-qc-fqc", showAllSigs: false)
+                @RenderQcLeg("OQC", _report.QcSummary.Oqc, "shipped-qc-oqc", showAllSigs: true)
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public long WorkOrderId { get; set; }
+
+    private WoSummaryReport? _report;
+    private string? _initialError;
+    private long _lastLoadedWoId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (WorkOrderId != _lastLoadedWoId)
+        {
+            _lastLoadedWoId = WorkOrderId;
+            _report = null;
+            _initialError = null;
+            await ReloadAsync();
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _report = await Api.GetWoSummaryReportAsync(WorkOrderId);
+        }
+        catch (ApiException apiEx)
+        {
+            _initialError = $"HTTP {apiEx.StatusCode} · {apiEx.ApiError.Code} · {apiEx.ApiError.MessageEn}";
+        }
+        catch (HttpRequestException ex)
+        {
+            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _initialError = $"Lỗi tải tóm tắt: {ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
+    private RenderFragment RenderQcLeg(string legName, WoSummaryQcLeg leg, string testId, bool showAllSigs) => __builder =>
+    {
+        <div class="shipped-qc-leg" data-testid="@testId">
+            <div class="shipped-qc-leg-head">
+                <span class="shipped-qc-leg-name">@legName</span>
+                <span class="ipqc-status-pill @JudgmentCss(leg.Judgment)" data-testid="@($"{testId}-judgment")">
+                    @JudgmentDisplay(leg.Judgment)
+                </span>
+            </div>
+            @if (!string.IsNullOrEmpty(leg.SubmittedBy))
+            {
+                <div class="shipped-qc-sig-row">
+                    <span class="shipped-qc-sig-label">Inspector</span>
+                    <span class="shipped-qc-sig-value scan-mono">@leg.SubmittedBy</span>
+                </div>
+            }
+            @if (showAllSigs && !string.IsNullOrEmpty(leg.Reviewer))
+            {
+                <div class="shipped-qc-sig-row">
+                    <span class="shipped-qc-sig-label">Reviewer</span>
+                    <span class="shipped-qc-sig-value scan-mono">@leg.Reviewer</span>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(leg.Approver))
+            {
+                <div class="shipped-qc-sig-row">
+                    <span class="shipped-qc-sig-label">Approver</span>
+                    <span class="shipped-qc-sig-value scan-mono">@leg.Approver</span>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(leg.Reason))
+            {
+                <div class="shipped-qc-reason">@leg.Reason</div>
+            }
+        </div>
+    };
+
+    private static string FormatNgPct(WoSummaryTotals t) =>
+        t.QtyDone == 0
+            ? "—"
+            : string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{0:F2}%", (double)t.QtyNg / t.QtyDone * 100);
+
+    private static string FormatPct(double? v) =>
+        v is null
+            ? "—"
+            : string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "{0:F1}%", v.Value * 100);
+
+    private static string FormatDuration(long seconds)
+    {
+        if (seconds < 60) return $"{seconds}s";
+        if (seconds < 3600) return $"{seconds / 60}p {seconds % 60}s";
+        var h = seconds / 3600;
+        var m = (seconds % 3600) / 60;
+        return $"{h}h {m}p";
+    }
+
+    private static string JudgmentDisplay(string j) => j switch
+    {
+        "Pass"       => "✓ Pass",
+        "Pending"    => "— Chờ",
+        "Reject"     => "✗ Reject",
+        "GoRun"      => "✓ Go Run",
+        "StopLine"   => "✗ Stop Line",
+        "SpecialAccept" => "⚠ Special Accept",
+        _            => j,
+    };
+
+    private static string JudgmentCss(string j) => j switch
+    {
+        "Pass" or "GoRun"           => "ipqc-status-ok",
+        "Reject" or "StopLine"      => "ipqc-status-ng",
+        "SpecialAccept"             => "ipqc-status-warn",
+        _                           => "ipqc-status-pending",
+    };
+}

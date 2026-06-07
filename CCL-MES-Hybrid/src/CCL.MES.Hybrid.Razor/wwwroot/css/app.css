@@ -4486,3 +4486,260 @@ html, body {
     .ipqc-counter-pill,
     .qa-submitter-pill    { align-items: flex-start; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   P10.7e-3 — FQC / OQC / Shipped dashboards.
+   Reuses .rs-dashboard / .rs-card / .ipqc-* primitives so the visual
+   continuity from SETTING → IPQC → RUNNING → FQC → OQC → SHIPPED feels
+   like one operator surface. .oqc-sig-* renders the 3-sig chain;
+   .shipped-* renders the OEE + Pareto + QC chain summary.
+   Container queries scope responsive rules to the dashboard's own
+   width — sidebar collapse reflow per Lesson #27.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.rs-phase-fqc        { background: #cffafe; color: #155e75; }
+.rs-phase-oqc        { background: #e0e7ff; color: #3730a3; }
+.rs-phase-shipped    { background: #dcfce7; color: #166534; }
+.wo-phase-shipped    { background: #dcfce7; color: #166534; }
+
+/* ── OQC 3-sig chain row ───────────────────────────────────────── */
+
+.oqc-sig-row .rs-card-head { margin-bottom: 4px; }
+.oqc-sig-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+.oqc-sig-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    background: #fafafa;
+}
+.oqc-sig-cell.oqc-sig-done {
+    border-color: #15803d;
+    background: #f0fdf4;
+}
+.oqc-sig-cell.oqc-sig-pending {
+    border-color: #d1d5db;
+    background: #f9fafb;
+}
+.oqc-sig-label  { font-size: 12px; color: #475569; font-weight: 600; }
+.oqc-sig-value  { font-size: 15px; color: #111827; }
+.oqc-sig-time   { font-size: 12px; color: #6b7280; }
+
+.oqc-action-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* ── Shipped summary dashboard ─────────────────────────────────── */
+
+.shipped-summary-dashboard .rs-head { margin-bottom: 4px; }
+.shipped-time-pill {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    padding: 8px 14px;
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    border-radius: 8px;
+}
+.shipped-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+.shipped-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+.shipped-oee-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+.shipped-stat-cell,
+.shipped-oee-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+}
+.shipped-oee-total {
+    grid-column: 1 / -1;
+    background: #ecfdf5;
+    border-color: #10b981;
+}
+.shipped-stat-label { font-size: 12px; color: #4b5563; }
+.shipped-stat-value { font-size: clamp(16px, 1.6vw, 20px); font-weight: 700; color: #111827; }
+
+/* ── Pause Pareto ──────────────────────────────────────────────── */
+
+.shipped-pareto-rows { display: flex; flex-direction: column; gap: 8px; }
+.shipped-pareto-row {
+    display: grid;
+    grid-template-columns: 120px 1fr 140px;
+    align-items: center;
+    gap: 10px;
+}
+.shipped-pareto-label { font-weight: 600; color: #334155; }
+.shipped-pareto-bar-track {
+    background: #f1f5f9;
+    height: 18px;
+    border-radius: 6px;
+    overflow: hidden;
+}
+.shipped-pareto-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #b91c1c 0%, #dc2626 100%);
+    transition: width 200ms ease;
+}
+.shipped-pareto-value { font-size: 13px; color: #475569; text-align: right; }
+
+/* ── QC chain summary ──────────────────────────────────────────── */
+
+.shipped-qc-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+.shipped-qc-leg {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #fafafa;
+    border: 1px solid #e5e7eb;
+}
+.shipped-qc-leg-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.shipped-qc-leg-name { font-weight: 700; color: #1f2937; }
+.shipped-qc-sig-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+}
+.shipped-qc-sig-label { color: #6b7280; }
+.shipped-qc-sig-value { color: #111827; font-weight: 600; }
+.shipped-qc-reason {
+    font-size: 13px;
+    color: #4b5563;
+    font-style: italic;
+    border-top: 1px dashed #e5e7eb;
+    padding-top: 6px;
+    margin-top: 2px;
+}
+
+/* ── Photo strip ───────────────────────────────────────────────── */
+
+.qc-photo-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border-top: 1px dashed #e5e7eb;
+    padding-top: 8px;
+    margin-top: 8px;
+}
+.qc-photo-thumb-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.qc-photo-empty {
+    font-size: 13px;
+    color: #94a3b8;
+    font-style: italic;
+}
+.qc-photo-thumb {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    background: #f3f4f6;
+}
+.qc-photo-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.qc-photo-delete {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    line-height: 1;
+    border-radius: 50%;
+    font-size: 16px;
+}
+.qc-photo-add-btn {
+    position: relative;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    overflow: hidden;
+}
+.qc-photo-add-btn.is-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+.qc-photo-file-input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+.qc-photo-error {
+    color: #b91c1c;
+    font-size: 12px;
+}
+
+/* Q5 banner reuses .qa-q3-banner skin (same yellow scrim). */
+.ipqc-status-warn {
+    background: #fef3c7;
+    color: #78350f;
+    border: 1px solid #fcd34d;
+}
+
+/* ── S9 — Container-query responsive (≥1400 wide + ≤900 narrow) ── */
+
+@container (min-width: 1400px) {
+    .ipqc-slot-grid          { grid-template-columns: repeat(3, 1fr); }
+    .shipped-stats-grid      { grid-template-columns: repeat(3, 1fr); }
+    .shipped-qc-grid         { grid-template-columns: repeat(3, 1fr); }
+    .oqc-sig-grid            { grid-template-columns: repeat(3, 1fr); }
+}
+
+@container (max-width: 900px) {
+    .ipqc-slot-grid          { grid-template-columns: 1fr; }
+    .shipped-stats-grid      { grid-template-columns: 1fr; }
+    .shipped-qc-grid         { grid-template-columns: 1fr; }
+    .oqc-sig-grid            { grid-template-columns: 1fr; }
+    .shipped-pareto-row      { grid-template-columns: 88px 1fr; row-gap: 4px; }
+    .shipped-pareto-value    { grid-column: 1 / -1; text-align: left; }
+    .shipped-stat-grid       { grid-template-columns: 1fr; }
+    .shipped-oee-grid        { grid-template-columns: 1fr; }
+}
+

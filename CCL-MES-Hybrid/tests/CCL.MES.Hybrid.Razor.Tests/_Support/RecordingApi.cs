@@ -14,6 +14,7 @@ using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
+using CCL.MES.Shared.WoQcReview;
 using CCL.MES.Shared.WorkOrders;
 
 namespace CCL.MES.Hybrid.Razor.Tests._Support;
@@ -272,6 +273,103 @@ public sealed class RecordingApi : ICclApiClient
         return PostQaApproveImpl is null
             ? throw new InvalidOperationException("PostQaApproveImpl not set")
             : PostQaApproveImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    // ── P10.7e-3 — WoQc (FQC + OQC + photo + summary) hooks ───────
+    public Func<long, string, CancellationToken, Task<WoQcView>>? WoQcViewImpl { get; set; }
+    public Func<long, string, string, string, SetWoQcItemRequest, CancellationToken, Task<WoQcSetResponse>>? PutWoQcItemImpl { get; set; }
+    public Func<long, string, SubmitFqcJudgmentRequest, CancellationToken, Task<WoQcSetResponse>>? PostFqcJudgmentImpl { get; set; }
+    public Func<long, string, OqcInspectRequest, CancellationToken, Task<WoQcSetResponse>>? PostOqcInspectImpl { get; set; }
+    public Func<long, string, OqcReviewRequest, CancellationToken, Task<WoQcSetResponse>>? PostOqcReviewImpl { get; set; }
+    public Func<long, string, OqcApproveRequest, CancellationToken, Task<WoQcSetResponse>>? PostOqcApproveImpl { get; set; }
+    public Func<long, string, string, CancellationToken, Task<IReadOnlyList<WoQcPhotoDto>>>? WoQcPhotosImpl { get; set; }
+    public Func<long, string, string, string, Stream, string, string, CancellationToken, Task<WoQcPhotoUploadResponse>>? UploadWoQcPhotoImpl { get; set; }
+    public Func<long, string, string, long, string, CancellationToken, Task<WoQcSetResponse>>? DeleteWoQcPhotoImpl { get; set; }
+    public Func<long, CancellationToken, Task<WoSummaryReport>>? WoSummaryReportImpl { get; set; }
+
+    public List<(long Id, string Kind)> WoQcViewCalls { get; } = new();
+    public List<(long Id, string Kind, string ItemKey, string ETag, SetWoQcItemRequest Req)> PutWoQcItemCalls { get; } = new();
+    public List<(long Id, string ETag, SubmitFqcJudgmentRequest Req)> PostFqcJudgmentCalls { get; } = new();
+    public List<(long Id, string ETag)> PostOqcInspectCalls { get; } = new();
+    public List<(long Id, string ETag)> PostOqcReviewCalls { get; } = new();
+    public List<(long Id, string ETag, OqcApproveRequest Req)> PostOqcApproveCalls { get; } = new();
+    public List<long> WoSummaryReportCalls { get; } = new();
+
+    public Task<WoQcView> GetWoQcViewAsync(long workOrderId, string kind, CancellationToken ct = default)
+    {
+        WoQcViewCalls.Add((workOrderId, kind));
+        return WoQcViewImpl is null
+            ? throw new InvalidOperationException("WoQcViewImpl not set")
+            : WoQcViewImpl(workOrderId, kind, ct);
+    }
+
+    public Task<WoQcSetResponse> PutWoQcItemAsync(long workOrderId, string kind, string itemKey, string ifMatchETag, SetWoQcItemRequest req, CancellationToken ct = default)
+    {
+        PutWoQcItemCalls.Add((workOrderId, kind, itemKey, ifMatchETag, req));
+        return PutWoQcItemImpl is null
+            ? throw new InvalidOperationException("PutWoQcItemImpl not set")
+            : PutWoQcItemImpl(workOrderId, kind, itemKey, ifMatchETag, req, ct);
+    }
+
+    public Task<WoQcSetResponse> PostFqcJudgmentAsync(long workOrderId, string ifMatchETag, SubmitFqcJudgmentRequest req, CancellationToken ct = default)
+    {
+        PostFqcJudgmentCalls.Add((workOrderId, ifMatchETag, req));
+        return PostFqcJudgmentImpl is null
+            ? throw new InvalidOperationException("PostFqcJudgmentImpl not set")
+            : PostFqcJudgmentImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<WoQcSetResponse> PostOqcInspectAsync(long workOrderId, string ifMatchETag, OqcInspectRequest req, CancellationToken ct = default)
+    {
+        PostOqcInspectCalls.Add((workOrderId, ifMatchETag));
+        return PostOqcInspectImpl is null
+            ? throw new InvalidOperationException("PostOqcInspectImpl not set")
+            : PostOqcInspectImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<WoQcSetResponse> PostOqcReviewAsync(long workOrderId, string ifMatchETag, OqcReviewRequest req, CancellationToken ct = default)
+    {
+        PostOqcReviewCalls.Add((workOrderId, ifMatchETag));
+        return PostOqcReviewImpl is null
+            ? throw new InvalidOperationException("PostOqcReviewImpl not set")
+            : PostOqcReviewImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<WoQcSetResponse> PostOqcApproveAsync(long workOrderId, string ifMatchETag, OqcApproveRequest req, CancellationToken ct = default)
+    {
+        PostOqcApproveCalls.Add((workOrderId, ifMatchETag, req));
+        return PostOqcApproveImpl is null
+            ? throw new InvalidOperationException("PostOqcApproveImpl not set")
+            : PostOqcApproveImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<IReadOnlyList<WoQcPhotoDto>> GetWoQcPhotosAsync(long workOrderId, string kind, string itemKey, CancellationToken ct = default)
+    {
+        return WoQcPhotosImpl is null
+            ? Task.FromResult<IReadOnlyList<WoQcPhotoDto>>(Array.Empty<WoQcPhotoDto>())
+            : WoQcPhotosImpl(workOrderId, kind, itemKey, ct);
+    }
+
+    public Task<WoQcPhotoUploadResponse> UploadWoQcPhotoAsync(long workOrderId, string kind, string itemKey, string ifMatchETag, Stream content, string fileName, string mimeType, CancellationToken ct = default)
+    {
+        return UploadWoQcPhotoImpl is null
+            ? throw new InvalidOperationException("UploadWoQcPhotoImpl not set")
+            : UploadWoQcPhotoImpl(workOrderId, kind, itemKey, ifMatchETag, content, fileName, mimeType, ct);
+    }
+
+    public Task<WoQcSetResponse> DeleteWoQcPhotoAsync(long workOrderId, string kind, string itemKey, long photoId, string ifMatchETag, CancellationToken ct = default)
+    {
+        return DeleteWoQcPhotoImpl is null
+            ? throw new InvalidOperationException("DeleteWoQcPhotoImpl not set")
+            : DeleteWoQcPhotoImpl(workOrderId, kind, itemKey, photoId, ifMatchETag, ct);
+    }
+
+    public Task<WoSummaryReport> GetWoSummaryReportAsync(long workOrderId, CancellationToken ct = default)
+    {
+        WoSummaryReportCalls.Add(workOrderId);
+        return WoSummaryReportImpl is null
+            ? throw new InvalidOperationException("WoSummaryReportImpl not set")
+            : WoSummaryReportImpl(workOrderId, ct);
     }
 
     public Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default)

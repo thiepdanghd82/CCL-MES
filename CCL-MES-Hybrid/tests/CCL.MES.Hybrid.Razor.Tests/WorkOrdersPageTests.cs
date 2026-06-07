@@ -542,16 +542,20 @@ public sealed class WorkOrdersPageTests : TestContext
     }
 
     [Fact]
-    public void FQC_PENDING_routes_to_placeholder_card_not_dead_end_error()
+    public void FQC_PENDING_routes_to_FqcDashboard_not_placeholder()
     {
+        // P10.7e-3 — FQC_PENDING now has a real dashboard. The legacy
+        // placeholder card was removed from RunningDashboard.DeferredPhaseInfo;
+        // dispatch sits FqcDashboard BEFORE the running surface branch.
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
         api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
             SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "FQC_PENDING" });
-        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
-            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+        api.WoQcViewImpl = (_, _, _) => Task.FromResult(
+            new CCL.MES.Shared.WoQcReview.WoQcView
             {
                 WoId = 42, WoNo = "WO-26-3686", MesPhase = "FQC_PENDING",
-                ETag = "RV", TargetQty = 12000, QtyDoneCached = 12000,
+                ETag = "v1", QcKind = "FQC",
+                Items = new List<CCL.MES.Shared.WoQcReview.WoQcViewItem>(),
             });
 
         var cut = RenderComponent<WorkOrders>();
@@ -560,22 +564,16 @@ public sealed class WorkOrdersPageTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            // Placeholder card MUST render with FQC_PENDING discriminator.
-            var card = cut.Find("[data-testid='running-deferred']");
-            Assert.Equal("FQC_PENDING", card.GetAttribute("data-deferred-phase"));
-            // Card title MUST be the operator-facing "Chờ kiểm FQC".
-            Assert.Contains("Chờ kiểm FQC", card.TextContent);
-            // Dead-end "WO không ở giai đoạn chạy" error MUST NOT render.
-            Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
-            // Legacy Advance CTA MUST NOT render either.
+            Assert.NotNull(cut.Find("[data-testid='fqc-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='running-deferred']"));
             Assert.Empty(cut.FindAll("button.wo-cta-accept"));
         });
     }
 
     [Theory]
-    // P10.7d-3 — QA_PENDING REMOVED from the deferred list (has a real
-    // dashboard now). Theory covers only the 7e-deferred + terminal phases.
-    [InlineData("OQC_PENDING", "Chờ kiểm OQC")]
+    // P10.7e-3 — FQC_PENDING + OQC_PENDING + SHIPPED were REMOVED from
+    // DeferredPhaseInfo (real dashboards now). Theory covers only DONE +
+    // CANCELLED — the remaining terminal placeholders on RunningDashboard.
     [InlineData("DONE", "WO đã hoàn tất")]
     [InlineData("CANCELLED", "WO đã huỷ")]
     public void Deferred_phases_each_render_consistent_placeholder_card(string mesPhase, string expectedTitleFragment)
@@ -603,6 +601,54 @@ public sealed class WorkOrdersPageTests : TestContext
             Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
             // No legacy Advance CTA — dashboard owns the workflow.
             Assert.Empty(cut.FindAll("button.wo-cta-accept"));
+        });
+    }
+
+    [Fact]
+    public void OQC_PENDING_routes_to_OqcDashboard()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "OQC_PENDING" });
+        api.WoQcViewImpl = (_, _, _) => Task.FromResult(
+            new CCL.MES.Shared.WoQcReview.WoQcView
+            {
+                WoId = 42, WoNo = "WO-26-3686", MesPhase = "OQC_PENDING",
+                ETag = "v1", QcKind = "OQC",
+                Items = new List<CCL.MES.Shared.WoQcReview.WoQcViewItem>(),
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3686");
+        cut.Find("div.wo-manual-row button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='oqc-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='running-deferred']"));
+        });
+    }
+
+    [Fact]
+    public void SHIPPED_routes_to_ShippedSummaryDashboard()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "SHIPPED" });
+        api.WoSummaryReportImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.WoQcReview.WoSummaryReport
+            {
+                WoId = 42, WoNo = "WO-26-3686", MesPhase = "SHIPPED",
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3686");
+        cut.Find("div.wo-manual-row button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='shipped-summary-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='running-deferred']"));
         });
     }
 

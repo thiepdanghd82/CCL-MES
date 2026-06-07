@@ -461,13 +461,12 @@ public sealed class RunningDashboardTests : TestContext
     }
 
     [Theory]
-    // 7d-3 left these in DeferredPhaseInfo — they still render the
-    // placeholder card on RunningDashboard. 7e will replace FQC/OQC.
-    [InlineData("FQC_PENDING")]
-    [InlineData("OQC_PENDING")]
+    // 7d-3 removed IPQC_WAIT + QA_PENDING; 7e-3 removed FQC_PENDING +
+    // OQC_PENDING + SHIPPED — all route to their own dashboards.
+    // Only DONE + CANCELLED remain as terminal placeholders on RunningDashboard.
     [InlineData("DONE")]
     [InlineData("CANCELLED")]
-    public void After_7d3_remaining_deferred_phases_still_render_placeholder(string phase)
+    public void After_7e3_remaining_deferred_phases_still_render_placeholder(string phase)
     {
         var cut = Render(this, View(phase: phase,
             qtyDone: 0, qtyNg: 0, activeSessionId: null,
@@ -478,6 +477,28 @@ public sealed class RunningDashboardTests : TestContext
             var card = cut.Find("[data-testid='running-deferred']");
             Assert.Equal(phase, card.GetAttribute("data-deferred-phase"));
             Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
+        });
+    }
+
+    [Theory]
+    // 7e-3 removal: these phases used to route here as placeholder cards
+    // but now have real dashboards (FqcDashboard / OqcDashboard /
+    // ShippedSummaryDashboard) hosted by WorkOrders.razor. RunningDashboard
+    // for these phases must render invalid_phase — the parent dispatch
+    // never lets these reach RunningDashboard in practice.
+    [InlineData("FQC_PENDING")]
+    [InlineData("OQC_PENDING")]
+    [InlineData("SHIPPED")]
+    public void After_7e3_fqc_oqc_shipped_render_invalid_phase(string phase)
+    {
+        var cut = Render(this, View(phase: phase,
+            qtyDone: 0, qtyNg: 0, activeSessionId: null,
+            entries: Array.Empty<RunningQtyEntryRow>()));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll("[data-testid='running-deferred']"));
+            Assert.NotNull(cut.Find("[data-testid='running-invalid-phase']"));
         });
     }
 
