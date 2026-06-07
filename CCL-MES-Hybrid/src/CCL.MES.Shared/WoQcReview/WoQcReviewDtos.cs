@@ -156,6 +156,18 @@ public sealed record WoQcPhotoDto
     public DateTime UploadedAt { get; init; }
 }
 
+/// <summary>P10.7e-3 — POST /qc/{kind}/items/{itemKey}/photos response.
+/// Carries the trigger-bumped ETag + canonical MesPhase (L19) so the
+/// client refreshes the WoQcView without an extra GET.</summary>
+public sealed record WoQcPhotoUploadResponse
+{
+    public bool Ok { get; init; }
+    public string? ErrorCode { get; init; }
+    public string ETag { get; init; } = "";
+    public string MesPhase { get; init; } = "";
+    public WoQcPhotoDto? Photo { get; init; }
+}
+
 /// <summary>P10.7e-1 Q8 — JSON /summary endpoint. Live-recomputed
 /// each GET (NOT frozen at SHIPPED time) so late corrections via
 /// /run/qty/correct flow through. Read-only; no mutation surface.

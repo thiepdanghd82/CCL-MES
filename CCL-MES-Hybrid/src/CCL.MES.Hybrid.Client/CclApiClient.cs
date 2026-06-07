@@ -17,6 +17,7 @@ using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
+using CCL.MES.Shared.WoQcReview;
 using CCL.MES.Shared.WorkOrders;
 using Microsoft.Extensions.Options;
 
@@ -357,6 +358,149 @@ public sealed class CclApiClient : ICclApiClient
         }
 
         return await ReadAsAsync<IpqcSetResponse>(resp, ct);
+    }
+
+    // ── FQC + OQC review (P10.7e-3) ────────────────────────────────
+
+    public async Task<WoQcView> GetWoQcViewAsync(
+        long workOrderId, string kind, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/{kind}", ct);
+        return await ReadAsAsync<WoQcView>(resp, ct);
+    }
+
+    public Task<WoQcSetResponse> PutWoQcItemAsync(
+        long workOrderId, string kind, string itemKey, string ifMatchETag,
+        SetWoQcItemRequest req, CancellationToken ct = default)
+        => SendWoQcMutationAsync(
+            HttpMethod.Put,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/{kind}/items/{Uri.EscapeDataString(itemKey)}",
+            ifMatchETag, req, ct);
+
+    public Task<WoQcSetResponse> PostFqcJudgmentAsync(
+        long workOrderId, string ifMatchETag,
+        SubmitFqcJudgmentRequest req, CancellationToken ct = default)
+        => SendWoQcMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/fqc/judgment",
+            ifMatchETag, req, ct);
+
+    public Task<WoQcSetResponse> PostOqcInspectAsync(
+        long workOrderId, string ifMatchETag,
+        OqcInspectRequest req, CancellationToken ct = default)
+        => SendWoQcMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/oqc/inspect",
+            ifMatchETag, req, ct);
+
+    public Task<WoQcSetResponse> PostOqcReviewAsync(
+        long workOrderId, string ifMatchETag,
+        OqcReviewRequest req, CancellationToken ct = default)
+        => SendWoQcMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/oqc/review",
+            ifMatchETag, req, ct);
+
+    public Task<WoQcSetResponse> PostOqcApproveAsync(
+        long workOrderId, string ifMatchETag,
+        OqcApproveRequest req, CancellationToken ct = default)
+        => SendWoQcMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/oqc/approve",
+            ifMatchETag, req, ct);
+
+    private async Task<WoQcSetResponse> SendWoQcMutationAsync(
+        HttpMethod method, string path, string ifMatchETag, object req, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(method, path)
+        {
+            Content = JsonContent.Create(req),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+        if (resp.StatusCode == HttpStatusCode.OK
+            || resp.StatusCode == HttpStatusCode.Conflict
+            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<WoQcSetResponse>(cancellationToken: ct);
+            return body ?? new WoQcSetResponse { Ok = false, ErrorCode = "http.empty_body" };
+        }
+        return await ReadAsAsync<WoQcSetResponse>(resp, ct);
+    }
+
+    public async Task<IReadOnlyList<WoQcPhotoDto>> GetWoQcPhotosAsync(
+        long workOrderId, string kind, string itemKey, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/{kind}/items/{Uri.EscapeDataString(itemKey)}/photos",
+            ct);
+        var rows = await ReadAsAsync<List<WoQcPhotoDto>>(resp, ct);
+        return rows;
+    }
+
+    public async Task<WoQcPhotoUploadResponse> UploadWoQcPhotoAsync(
+        long workOrderId, string kind, string itemKey, string ifMatchETag,
+        Stream content, string fileName, string mimeType, CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/{kind}/items/{Uri.EscapeDataString(itemKey)}/photos";
+
+        using var msg = new HttpRequestMessage(HttpMethod.Post, path);
+        var form = new MultipartFormDataContent();
+        var streamContent = new StreamContent(content);
+        streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mimeType);
+        form.Add(streamContent, "file", fileName);
+        msg.Content = form;
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+        if (resp.StatusCode == HttpStatusCode.OK
+            || resp.StatusCode == HttpStatusCode.Conflict
+            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<WoQcPhotoUploadResponse>(cancellationToken: ct);
+            return body ?? new WoQcPhotoUploadResponse { Ok = false, ErrorCode = "http.empty_body" };
+        }
+        return await ReadAsAsync<WoQcPhotoUploadResponse>(resp, ct);
+    }
+
+    public async Task<WoQcSetResponse> DeleteWoQcPhotoAsync(
+        long workOrderId, string kind, string itemKey, long photoId, string ifMatchETag,
+        CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/{kind}/items/{Uri.EscapeDataString(itemKey)}/photos/{photoId}";
+        using var msg = new HttpRequestMessage(HttpMethod.Delete, path);
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+        if (resp.StatusCode == HttpStatusCode.OK
+            || resp.StatusCode == HttpStatusCode.Conflict
+            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<WoQcSetResponse>(cancellationToken: ct);
+            return body ?? new WoQcSetResponse { Ok = false, ErrorCode = "http.empty_body" };
+        }
+        return await ReadAsAsync<WoQcSetResponse>(resp, ct);
+    }
+
+    public async Task<WoSummaryReport> GetWoSummaryReportAsync(long workOrderId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/summary-report", ct);
+        return await ReadAsAsync<WoSummaryReport>(resp, ct);
     }
 
     public async Task<IReadOnlyList<ReasonCodeOption>> GetReasonCodesAsync(

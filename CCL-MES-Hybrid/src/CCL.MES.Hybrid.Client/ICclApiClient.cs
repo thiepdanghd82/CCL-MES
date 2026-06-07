@@ -13,6 +13,7 @@ using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
+using CCL.MES.Shared.WoQcReview;
 using CCL.MES.Shared.WorkOrders;
 
 namespace CCL.MES.Hybrid.Client;
@@ -197,6 +198,67 @@ public interface ICclApiClient
     Task<IpqcSetResponse> PostQaApproveAsync(
         long workOrderId, string ifMatchETag,
         QaApproveRequest req, CancellationToken ct = default);
+
+    // ── FQC + OQC review (P10.7e-3 — operator dashboards) ─────────
+    /// <summary>Read view for FQC ({kind}="fqc") or OQC ({kind}="oqc").
+    /// Returns items + judgment + 3-sig state + ETag + MesPhase.</summary>
+    Task<WoQcView> GetWoQcViewAsync(long workOrderId, string kind, CancellationToken ct = default);
+
+    /// <summary>PUT 1 item Status (Ok/Ng). On NG, NgReasonCode (from
+    /// reason-code catalog kind=Scrap) + NgNote (1-500 chars) required.</summary>
+    Task<WoQcSetResponse> PutWoQcItemAsync(
+        long workOrderId, string kind, string itemKey, string ifMatchETag,
+        SetWoQcItemRequest req, CancellationToken ct = default);
+
+    /// <summary>FQC single-sig Inspector judgment (Pass | Reject).
+    /// Transition: Pass → OQC_PENDING; Reject → PREPRESS (Q2 transient).</summary>
+    Task<WoQcSetResponse> PostFqcJudgmentAsync(
+        long workOrderId, string ifMatchETag,
+        SubmitFqcJudgmentRequest req, CancellationToken ct = default);
+
+    /// <summary>OQC sig 1 — Inspector commits the items.</summary>
+    Task<WoQcSetResponse> PostOqcInspectAsync(
+        long workOrderId, string ifMatchETag,
+        OqcInspectRequest req, CancellationToken ct = default);
+
+    /// <summary>OQC sig 2 — Reviewer. Server enforces Q5 invariant
+    /// Reviewer ≠ Inspector (OqcRequireDistinctReviewer default on);
+    /// violation: 422 + ErrorCode = "oqc.same_user_as_inspector" +
+    /// WO_OQC_REVIEW_DENIED audit. Mirror this gate client-side.</summary>
+    Task<WoQcSetResponse> PostOqcReviewAsync(
+        long workOrderId, string ifMatchETag,
+        OqcReviewRequest req, CancellationToken ct = default);
+
+    /// <summary>OQC sig 3 — Approver. Server enforces 2 Q5 invariants
+    /// (Approver ≠ Reviewer; Approver ≠ Inspector). On Approve happy
+    /// path: WO advances OQC_PENDING → SHIPPED + emits WO_OQC_APPROVE +
+    /// WO_SHIPPED audits. On Reject: WO → FQC_PENDING re-loop.</summary>
+    Task<WoQcSetResponse> PostOqcApproveAsync(
+        long workOrderId, string ifMatchETag,
+        OqcApproveRequest req, CancellationToken ct = default);
+
+    /// <summary>List photo metadata for one item (no blob payload).</summary>
+    Task<IReadOnlyList<WoQcPhotoDto>> GetWoQcPhotosAsync(
+        long workOrderId, string kind, string itemKey, CancellationToken ct = default);
+
+    /// <summary>POST a JPEG/PNG photo (multipart/form-data, single "file"
+    /// field, 5 MiB cap). Server SHA-256 + audit WoQcPhotoAdd; response
+    /// carries new ETag + canonical MesPhase (L19) + uploaded photo
+    /// metadata.</summary>
+    Task<WoQcPhotoUploadResponse> UploadWoQcPhotoAsync(
+        long workOrderId, string kind, string itemKey, string ifMatchETag,
+        Stream content, string fileName, string mimeType,
+        CancellationToken ct = default);
+
+    /// <summary>DELETE a single photo by id. Audit WoQcPhotoDelete +
+    /// blob removal best-effort.</summary>
+    Task<WoQcSetResponse> DeleteWoQcPhotoAsync(
+        long workOrderId, string kind, string itemKey, long photoId, string ifMatchETag,
+        CancellationToken ct = default);
+
+    /// <summary>Q8 — live-recomputed summary report for the
+    /// ShippedSummaryDashboard. Includes OEE + pause Pareto + 3-leg QC.</summary>
+    Task<WoSummaryReport> GetWoSummaryReportAsync(long workOrderId, CancellationToken ct = default);
 
     // ── Reason codes (P10.7b-3 — operator-facing picker) ──────────
     /// <summary>List active reason codes filtered by kind ("Pause" /
