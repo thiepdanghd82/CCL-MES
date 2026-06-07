@@ -281,4 +281,94 @@ public static class AuditAction
     /// violation so audit log shows the attempt without false-positive
     /// approve tracking.</summary>
     public const string WoQaApproveDenied     = "WO_QA_APPROVE_DENIED";
+
+    // ── P10.7e-1 Q7 — 12 new audit codes for FQC + OQC + SHIPPED + ──
+    // photo evidence. Mirrors 7d naming verbatim (operator + auditor
+    // pattern-recognition + greppable in 1 line per pattern).
+
+    /// <summary>P10.7e-1 — single FQC or OQC item write (Ok or Ng).
+    /// detail JSON: { wo_id, kind: "FQC"|"OQC", item_key,
+    /// status: "Ok"|"Ng", ng_reason_code?, ng_note?, photo_blob_id? }.
+    /// One row per item mutation — forensic replay reconstructs the
+    /// exact resolution order.</summary>
+    public const string WoQcCheckItem         = "WO_QC_CHECK_ITEM";
+
+    /// <summary>P10.7e-1 — FQC inspector judgment (Pass or Reject).
+    /// detail JSON: { wo_id, judgment: "Pass"|"Reject",
+    /// judgment_reason?, inspected_by, profile_sha256 }.
+    /// Pass advances FQC_PENDING → OQC_PENDING; Reject re-routes
+    /// to PREPRESS (rework).</summary>
+    public const string WoFqcJudgment         = "WO_FQC_JUDGMENT";
+
+    /// <summary>P10.7e-1 Q2 — FQC Reject → PREPRESS transition
+    /// (transient state per SpecHub plan §Phase 2). detail JSON:
+    /// { wo_id, from_phase: "FQC_PENDING", to_phase: "PREPRESS",
+    /// rework_reason }. Emitted in the same SaveChanges as
+    /// WO_FQC_JUDGMENT so an auditor sees both rows tied to the
+    /// same client request.</summary>
+    public const string WoFqcRejectToPrepress = "WO_FQC_REJECT_TO_PREPRESS";
+
+    /// <summary>P10.7e-1 — OQC Inspector signature (the first of the
+    /// 3 distinct-user OQC signatures per Q5). detail JSON:
+    /// { wo_id, inspected_by, flag_state, profile_sha256 }.
+    /// flag_state captures the WoQcSigPolicyOptions triple at
+    /// approval time so forensic replay knows which invariants
+    /// were enforced.</summary>
+    public const string WoOqcInspect          = "WO_OQC_INSPECT";
+
+    /// <summary>P10.7e-1 — OQC Reviewer signature. detail JSON:
+    /// { wo_id, reviewed_by, flag_state }. The L20 default-ON
+    /// distinct-user invariant means reviewed_by ≠
+    /// previously-stamped inspected_by (server enforces; client
+    /// gate prevents the round-trip).</summary>
+    public const string WoOqcReview           = "WO_OQC_REVIEW";
+
+    /// <summary>P10.7e-1 — OQC Reviewer attempt rejected by the
+    /// L20 distinct-Reviewer invariant. detail JSON: { wo_id,
+    /// reason: "same_user_as_inspector", attempted_by,
+    /// inspected_by, flag_state }. Emitted INSTEAD of WO_OQC_REVIEW
+    /// so audit log shows the policy violation.</summary>
+    public const string WoOqcReviewDenied     = "WO_OQC_REVIEW_DENIED";
+
+    /// <summary>P10.7e-1 — OQC Approver signature (terminal sign +
+    /// Pass advances OQC_PENDING → SHIPPED). detail JSON:
+    /// { wo_id, approved_by, judgment: "Pass"|"Reject",
+    /// judgment_reason?, flag_state }. Approver = sig 3 of 3.</summary>
+    public const string WoOqcApprove          = "WO_OQC_APPROVE";
+
+    /// <summary>P10.7e-1 — OQC Approver attempt rejected by either
+    /// the distinct-Approver OR distinct-from-Inspector L20 invariants.
+    /// detail JSON: { wo_id, reason:
+    /// "same_user_as_reviewer"|"same_user_as_inspector",
+    /// attempted_by, reviewed_by, inspected_by, flag_state }.</summary>
+    public const string WoOqcApproveDenied    = "WO_OQC_APPROVE_DENIED";
+
+    /// <summary>P10.7e-1 Q2 — OQC Reject → FQC_PENDING re-loop
+    /// (escalation back per SpecHub plan §Phase 2 line 48). detail
+    /// JSON: { wo_id, from_phase: "OQC_PENDING", to_phase:
+    /// "FQC_PENDING", rejected_by, reject_reason }. Forces operator
+    /// through another FQC cycle before re-submitting to OQC.</summary>
+    public const string WoOqcRejectToFqc      = "WO_OQC_REJECT_TO_FQC_PENDING";
+
+    /// <summary>P10.7e-1 Q1 — terminal transition OQC_PENDING →
+    /// SHIPPED after OQC Approver Pass with all 3 sigs locked in.
+    /// detail JSON: { wo_id, shipped_at, oqc_approver,
+    /// totals: { qty_target, qty_done, qty_ng } }. Closes the
+    /// SpecHub quality cycle. Future ERP push (P10.7-BACKLOG OOS-A)
+    /// triggers on this audit code.</summary>
+    public const string WoShipped             = "WO_SHIPPED";
+
+    /// <summary>P10.7e-1 Q6 — photo evidence uploaded. detail JSON:
+    /// { wo_id, kind: "FQC"|"OQC", item_key, photo_blob_id,
+    /// sha256, size_bytes, mime_type, uploaded_by }. Mirrors the
+    /// 7b Drawings upload audit shape so existing audit-log filters
+    /// pick it up without UI changes.</summary>
+    public const string WoQcPhotoAdd          = "WO_QC_PHOTO_ADD";
+
+    /// <summary>P10.7e-1 Q6 — photo evidence deleted (operator
+    /// remediation of an accidental upload). detail JSON:
+    /// { wo_id, kind, item_key, photo_blob_id, deleted_by,
+    /// reason? }. Soft-delete only — the blob stays on disk for
+    /// audit trail; the entity row gets a tombstone.</summary>
+    public const string WoQcPhotoDelete       = "WO_QC_PHOTO_DELETE";
 }
