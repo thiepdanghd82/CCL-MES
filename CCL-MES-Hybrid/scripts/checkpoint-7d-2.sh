@@ -7,16 +7,26 @@
 #   IpqcSubmit  : Admin | QC                — PUT slot + POST judgment
 #   QaApprove   : Admin | QC | Supervisor   — POST qa/approve
 #
-# SELF-SEED DISCIPLINE (Henry 2026-06-07 STOP gate):
+# SELF-SEED DISCIPLINE (Henry 2026-06-07 STOP gate; RCA #2 2026-06-07):
 #   This script does NOT assume any test user exists. It seeds 2
-#   DISTINCT users via the admin /admin/accounts endpoint:
+#   DISTINCT users via the admin endpoint POST /api/v2/admin/users
+#   (mounted by AccountControlController; P10.6c surface — the path
+#   /admin/accounts in the prior rev was a typo that returned 404):
 #     - ipqc-test-checkpoint (role QC) — submits IPQC judgment
 #     - qa-test-checkpoint   (role QC) — QA-approves (dual-sig OK
 #                                        because usernames differ)
 #   Idempotent: a second run that finds the users already present
-#   (409 conflict on POST) skips the seed step + logs in directly.
-#   Both users carry the username prefix that purge-test-audit.sh
-#   recognises for cleanup.
+#   (HTTP 422 + body.code=accounts.username_in_use) treats that as
+#   success + logs in directly. Both users carry the username prefix
+#   that purge-test-audit.sh recognises for cleanup.
+#
+# L10 ENFORCEMENT (api_post helper):
+#   Every wire probe MUST be issued via api_post() / api_get_admin() /
+#   api_post_typed() which assert HTTP code ∉ {404, 405} on the very
+#   first call. The point of L10 is that a script silently writing to
+#   a wrong path is the worst class of false-negative — it dies at
+#   the FIRST assertion instead of cascading 4 failures down the
+#   step list before Henry notices.
 #
 # CRITICAL FOCUS — Q3 dual-sig (both paths PROVEN end-to-end):
 #   step 10: SAME user (ipqc-test-checkpoint) tries to QA-approve
@@ -51,8 +61,9 @@ for arg in "$@"; do
             echo "usage: bash scripts/checkpoint-7d-2.sh <WoNo> [--keep-alive]"
             echo ""
             echo "  Self-seeds 2 test users (ipqc-test-checkpoint + qa-test-checkpoint)"
-            echo "  via the admin /admin/accounts endpoint. Idempotent — re-running"
-            echo "  reuses the existing users."
+            echo "  via POST /api/v2/admin/users (AccountControlController, P10.6c)."
+            echo "  Idempotent — a 2nd run reuses existing users (422 username_in_use"
+            echo "  treated as success)."
             exit 0
             ;;
         --*) echo "unknown flag: $arg"; exit 64 ;;
@@ -99,7 +110,10 @@ echo "===================================================================="
 PASS=0
 FAIL=0
 SUMMARY=()
-TOTAL_STEPS=13
+# 11 numbered steps: boot · admin · seed-users · login-users · scrap-source ·
+# reset-wo · put-4-slots · post-judgment · qa-same-user · qa-distinct-user ·
+# audit-wire-mirror. Update both ends if you add/remove a step.
+TOTAL_STEPS=11
 CURRENT_STEP=0
 
 record() {
@@ -172,6 +186,40 @@ login_user() {
     echo "$rsp" | json_field "accessToken"
 }
 
+# L10 — Drift guard: any wire probe that returns 404/405 is a path
+# typo on the script side, NOT a server bug. Fail fast + loud rather
+# than cascading false negatives. Sets a global $LAST_HTTP + $LAST_BODY
+# the caller can read for finer-grained branching.
+LAST_HTTP=""
+LAST_BODY=""
+api_assert_routed() {
+    # api_assert_routed <label> — call after $LAST_HTTP has been set.
+    case "$LAST_HTTP" in
+        404|405)
+            echo ""
+            echo "  [L10 drift] $1 → HTTP $LAST_HTTP — script is hitting an"
+            echo "  endpoint that does NOT exist on this server. Verify path"
+            echo "  + method against the controller, then re-run."
+            echo "  body: $(echo "$LAST_BODY" | head -c 200)"
+            return 1
+            ;;
+    esac
+    return 0
+}
+api_post_admin() {
+    # api_post_admin <path> <json_body> — POSTs as admin; populates
+    # $LAST_HTTP + $LAST_BODY. Asserts non-404/405 via api_assert_routed.
+    local path="$1"
+    local body="$2"
+    local rsp
+    rsp=$(curl -s -w "\nHTTP:%{http_code}" -X POST "$API_BASE$path" \
+        -H "$ADMIN_AUTH" -H "Content-Type: application/json" \
+        -d "$body")
+    LAST_HTTP=$(echo "$rsp" | grep -oE 'HTTP:[0-9]+$' | cut -d: -f2)
+    LAST_BODY=$(echo "$rsp" | sed '$d')
+    api_assert_routed "POST $path"
+}
+
 # ── 1. Boot API ───────────────────────────────────────────────────
 TARGET_PORT="${API_BASE##*:}"
 TARGET_PORT="${TARGET_PORT%%/*}"
@@ -225,21 +273,32 @@ fi
 record PASS "login admin"
 ADMIN_AUTH="Authorization: Bearer $ADMIN_TOKEN"
 
-# ── 3. Self-seed IPQC + QA test users (idempotent via /admin/accounts) ─
+# ── 3. Self-seed IPQC + QA test users (idempotent via POST /api/v2/admin/users) ─
+# Path is /api/v2/admin/users (AccountControlController, P10.6c).
+# Idempotency: a re-run hits 422 + body.code=accounts.username_in_use
+# (NOT 409 — verified against AccountControlController.MapError +
+# verify-p10.6c.sh §7b which already exercises the dupe path).
 seed_user() {
     local user="$1"
     local role="$2"
-    local rsp
-    rsp=$(curl -s -w "\nHTTP:%{http_code}" -X POST "$API_BASE/api/v2/admin/accounts" \
-        -H "$ADMIN_AUTH" -H "Content-Type: application/json" \
-        -d "{\"username\":\"$user\",\"displayName\":\"P10.7d-2 checkpoint test user\",\"role\":\"$role\",\"department\":\"QC\",\"password\":\"$TEST_PASSWORD\"}")
-    local http_code
-    http_code=$(echo "$rsp" | grep -oE 'HTTP:[0-9]+$' | cut -d: -f2)
-    case "$http_code" in
-        201|200) return 0 ;;       # freshly seeded
-        409)     return 0 ;;       # already present — idempotent OK
+    if ! api_post_admin "/api/v2/admin/users" \
+        "{\"username\":\"$user\",\"displayName\":\"P10.7d-2 checkpoint test user\",\"role\":\"$role\",\"department\":\"QC\",\"password\":\"$TEST_PASSWORD\"}"; then
+        return 1   # L10 drift (404/405) already logged
+    fi
+    case "$LAST_HTTP" in
+        201|200) return 0 ;;                                    # freshly seeded
+        422)
+            # Idempotent case: already present.
+            if echo "$LAST_BODY" | grep -q "accounts.username_in_use"; then
+                return 0
+            fi
+            echo "  [seed] user=$user role=$role 422 but NOT username_in_use:"
+            echo "         body=$(echo "$LAST_BODY" | head -c 200)"
+            return 1
+            ;;
         *)
-            echo "  [seed] user=$user role=$role http=$http_code rsp=$(echo "$rsp" | head -1)"
+            echo "  [seed] user=$user role=$role http=$LAST_HTTP"
+            echo "         body=$(echo "$LAST_BODY" | head -c 200)"
             return 1
             ;;
     esac
@@ -249,9 +308,10 @@ SEED_OK=1
 seed_user "$IPQC_USER" "QC" || SEED_OK=0
 seed_user "$QA_USER"   "QC" || SEED_OK=0
 if [[ $SEED_OK -eq 1 ]]; then
-    record PASS "self-seed 2 test users (IPQC + QA, role QC, idempotent)"
+    record PASS "self-seed 2 test users via POST /api/v2/admin/users (role QC, idempotent on 422 username_in_use)"
 else
     record FAIL "self-seed users failed — see preview above"
+    exit 1
 fi
 
 # ── 4. Login both test users ─────────────────────────────────────
