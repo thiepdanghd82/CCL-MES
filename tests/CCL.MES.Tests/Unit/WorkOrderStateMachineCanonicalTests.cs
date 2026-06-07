@@ -47,7 +47,9 @@ public sealed class WorkOrderStateMachineCanonicalTests
     [InlineData(MesPhase.QA_PENDING,   MesPhase.PREPRESS)]      // QA reject special
     [InlineData(MesPhase.FQC_PENDING,  MesPhase.OQC_PENDING)]   // FQC pass
     [InlineData(MesPhase.FQC_PENDING,  MesPhase.PREPRESS)]      // FQC reject
-    [InlineData(MesPhase.OQC_PENDING,  MesPhase.DONE)]          // OQC pass
+    // P10.7e-1 Q1 — OQC Pass now advances to SHIPPED (was DONE in 7d).
+    // OQC_PENDING → DONE is RecoveryOnly per Classify_RecoveryOnly_cells.
+    [InlineData(MesPhase.OQC_PENDING,  MesPhase.SHIPPED)]       // OQC pass + 3-sig terminal
     [InlineData(MesPhase.OQC_PENDING,  MesPhase.FQC_PENDING)]   // OQC reject → FQC (signed §10.2)
     public void Classify_RequiresSignoff_cells(MesPhase from, MesPhase to)
     {
@@ -67,7 +69,14 @@ public sealed class WorkOrderStateMachineCanonicalTests
     [InlineData(MesPhase.PAUSED,         MesPhase.CANCELLED)]
     [InlineData(MesPhase.FQC_PENDING,    MesPhase.CANCELLED)]
     [InlineData(MesPhase.OQC_PENDING,    MesPhase.CANCELLED)]
+    // P10.7e-1 Q1 — DONE is no longer fully terminal (transient
+    // post-RUNNING), so DONE → CANCELLED is now RecoveryOnly (was Blocked).
+    [InlineData(MesPhase.DONE,           MesPhase.CANCELLED)]
     [InlineData(MesPhase.SETTING,        MesPhase.PREPRESS)] // setting abort
+    // P10.7e-1 Q1 — OQC_PENDING → DONE is now RecoveryOnly (was
+    // RequiresSignoff in 7d). Legacy admin/sys bypass when a stuck-at-OQC
+    // row is closed without going through the 3-sig SHIPPED path.
+    [InlineData(MesPhase.OQC_PENDING,    MesPhase.DONE)]
     public void Classify_RecoveryOnly_cells(MesPhase from, MesPhase to)
     {
         Assert.Equal(
@@ -75,16 +84,26 @@ public sealed class WorkOrderStateMachineCanonicalTests
             WorkOrderStateMachine.ClassifyTransition(from, to));
     }
 
-    // ── Terminal-source rule ─────────────────────────────────────────
+    // ── Terminal-source rule (P10.7e-1 Q1 — SHIPPED + CANCELLED only) ─
 
     [Theory]
-    [InlineData(MesPhase.DONE,      MesPhase.NEW)]
-    [InlineData(MesPhase.DONE,      MesPhase.PREPRESS)]
-    [InlineData(MesPhase.DONE,      MesPhase.RUNNING)]
-    [InlineData(MesPhase.DONE,      MesPhase.CANCELLED)]
+    // P10.7e-1 Q1 — DONE narrowed to transient; the terminal-source
+    // rule covers only SHIPPED + CANCELLED (full no-revive).
+    [InlineData(MesPhase.SHIPPED,   MesPhase.NEW)]
+    [InlineData(MesPhase.SHIPPED,   MesPhase.PREPRESS)]
+    [InlineData(MesPhase.SHIPPED,   MesPhase.RUNNING)]
+    [InlineData(MesPhase.SHIPPED,   MesPhase.DONE)]
+    [InlineData(MesPhase.SHIPPED,   MesPhase.CANCELLED)]
     [InlineData(MesPhase.CANCELLED, MesPhase.NEW)]
     [InlineData(MesPhase.CANCELLED, MesPhase.PREPRESS)]
     [InlineData(MesPhase.CANCELLED, MesPhase.DONE)]
+    [InlineData(MesPhase.CANCELLED, MesPhase.SHIPPED)]
+    // P10.7e-1 Q1 — DONE → SHIPPED is Blocked (not the legal terminal-
+    // pass path; SHIPPED is reached only via OQC_PENDING → SHIPPED).
+    [InlineData(MesPhase.DONE,      MesPhase.NEW)]
+    [InlineData(MesPhase.DONE,      MesPhase.PREPRESS)]
+    [InlineData(MesPhase.DONE,      MesPhase.RUNNING)]
+    [InlineData(MesPhase.DONE,      MesPhase.SHIPPED)]
     public void Terminal_sources_block_every_target(MesPhase from, MesPhase to)
     {
         Assert.Equal(
@@ -185,10 +204,12 @@ public sealed class WorkOrderStateMachineCanonicalTests
     // ── CanonicalFlow ────────────────────────────────────────────────
 
     [Fact]
-    public void CanonicalFlow_lists_all_12_phases_in_canonical_order()
+    public void CanonicalFlow_lists_all_13_phases_in_canonical_order()
     {
-        Assert.Equal(12, WorkOrderStateMachine.CanonicalFlow.Length);
+        // P10.7e-1 Q1 — SHIPPED appended at index 12 (after CANCELLED).
+        Assert.Equal(13, WorkOrderStateMachine.CanonicalFlow.Length);
         Assert.Equal(MesPhase.NEW,       WorkOrderStateMachine.CanonicalFlow[0]);
         Assert.Equal(MesPhase.CANCELLED, WorkOrderStateMachine.CanonicalFlow[11]);
+        Assert.Equal(MesPhase.SHIPPED,   WorkOrderStateMachine.CanonicalFlow[12]);
     }
 }

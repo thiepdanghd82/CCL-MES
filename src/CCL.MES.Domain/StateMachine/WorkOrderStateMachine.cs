@@ -106,6 +106,7 @@ public static class WorkOrderStateMachine
         MesPhase.OQC_PENDING,
         MesPhase.DONE,
         MesPhase.CANCELLED,
+        MesPhase.SHIPPED,   // P10.7e-1 Q1 — terminal closed.done after 3-sig OQC Pass.
     };
 
     /// <summary>
@@ -152,6 +153,12 @@ public static class WorkOrderStateMachine
         MesPhase.OQC_PENDING    => ProcessStepCode.Oqc,
         MesPhase.DONE           => ProcessStepCode.Closed,
         MesPhase.CANCELLED      => ProcessStepCode.Closed,
+        // P10.7e-1 Q1 — SHIPPED collapses to legacy Closed (same slot as
+        // DONE/CANCELLED) so legacy CurrentStep readers see "Closed"
+        // for any of the 3 terminal states. The MesPhase column is the
+        // source of truth for the SHIPPED vs DONE vs CANCELLED
+        // discrimination (e.g. the ERP-push filter at OOS-A).
+        MesPhase.SHIPPED        => ProcessStepCode.Closed,
         _                       => ProcessStepCode.PrePressCheck,
     };
 
@@ -186,9 +193,16 @@ public static class WorkOrderStateMachine
     {
         if (from == to) return MesTransitionKind.Blocked;
 
-        // Terminal sources cannot exit (contract §2.2). Reworks open a
-        // fresh WO; no "uncancel" or "reopen DONE" event exists.
-        if (from is MesPhase.DONE or MesPhase.CANCELLED) return MesTransitionKind.Blocked;
+        // P10.7e-1 Q1 — terminal-source rule narrowed: SHIPPED + CANCELLED
+        // remain fully terminal (no outgoing edge of any kind). DONE
+        // narrowed to a TRANSIENT post-RUNNING state — its only
+        // non-blocked outgoing edge is DONE → FQC_PENDING (set as
+        // RequiresCondition below). DONE → CANCELLED becomes RecoveryOnly
+        // via the catch-all `to == CANCELLED` rule below, so admin/sys
+        // can still cancel a stuck-at-DONE legacy row. SHIPPED → anything
+        // stays Blocked because rework requires a fresh WO referencing
+        // the shipped one (contract §2.2).
+        if (from is MesPhase.CANCELLED or MesPhase.SHIPPED) return MesTransitionKind.Blocked;
 
         // Any non-terminal source → CANCELLED is recovery-only (admin/sys).
         if (to == MesPhase.CANCELLED) return MesTransitionKind.RecoveryOnly;
@@ -230,12 +244,39 @@ public static class WorkOrderStateMachine
             // as RUNNING → FQC_PENDING (matches contract §3.2).
             (MesPhase.PAUSED, MesPhase.FQC_PENDING) => MesTransitionKind.RequiresCondition,
 
+            // P10.7e-1 Q1 — DONE narrowed to transient. The Finish
+            // handler stamps DONE then auto-advances to FQC_PENDING in
+            // the same SaveChanges. Marked RequiresCondition so a stray
+            // call cannot drive the transition without the controller
+            // intent (operator clicked Finish + service composed the
+            // cascade); same gate as the RUNNING → FQC_PENDING / PAUSED
+            // → FQC_PENDING cases.
+            (MesPhase.DONE, MesPhase.FQC_PENDING) => MesTransitionKind.RequiresCondition,
+
             // FQC_PENDING
             (MesPhase.FQC_PENDING, MesPhase.OQC_PENDING) => MesTransitionKind.RequiresSignoff,
+            // P10.7e-1 Q2 — FQC Reject → PREPRESS keeps the existing
+            // signoff classification. The transient "FQC_REJECT" state
+            // SpecHub plan §Phase 2 calls out is NOT durable in our
+            // schema; the audit log + WO_FQC_REJECT_TO_PREPRESS row
+            // captures the event without occupying a phase value.
             (MesPhase.FQC_PENDING, MesPhase.PREPRESS)    => MesTransitionKind.RequiresSignoff,
 
             // OQC_PENDING (signed §10.2 answer: OQC_REJECT → FQC_PENDING, not full rework)
-            (MesPhase.OQC_PENDING, MesPhase.DONE)        => MesTransitionKind.RequiresSignoff,
+            // P10.7e-1 Q1 — OQC Pass NOW advances to SHIPPED (closes
+            // SpecHub quality cycle). The 3-sig gate (Inspector ≠
+            // Reviewer ≠ Approver per Q5) is enforced at the controller
+            // layer via WoQcSigPolicyOptions; this matrix cell only
+            // gates "is the edge in the grid". Legacy admin/sys bypass
+            // to DONE is retained as RecoveryOnly so a stuck-at-OQC
+            // legacy row can still be closed without going through
+            // the 3-sig path (Force-Phase endpoint per 7a-2.2).
+            (MesPhase.OQC_PENDING, MesPhase.SHIPPED)     => MesTransitionKind.RequiresSignoff,
+            (MesPhase.OQC_PENDING, MesPhase.DONE)        => MesTransitionKind.RecoveryOnly,
+            // P10.7e-1 Q2 — OQC Reject → FQC_PENDING re-loop, same
+            // pattern as the FQC Reject transient: no durable
+            // "OQC_REJECT" state; the audit log + WO_OQC_REJECT_TO_FQC
+            // row captures the event.
             (MesPhase.OQC_PENDING, MesPhase.FQC_PENDING) => MesTransitionKind.RequiresSignoff,
 
             _ => MesTransitionKind.Blocked,
@@ -243,19 +284,30 @@ public static class WorkOrderStateMachine
     }
 
     /// <summary>
-    /// P10.7a-2.2 — convenience predicate for the admin force-phase
-    /// endpoint. True iff the (<paramref name="from"/>, <paramref name="to"/>)
-    /// edge is classified as <see cref="MesTransitionKind.RecoveryOnly"/>
-    /// per contract §3.1. Exactly 11 cells of the 144-cell grid qualify:
-    /// SETTING → PREPRESS (the §8.1 archetype) + 10× *→CANCELLED
-    /// (every non-terminal source). Returns false for:
+    /// P10.7a-2.2 / P10.7e-1 — convenience predicate for the admin
+    /// force-phase endpoint. True iff the (<paramref name="from"/>,
+    /// <paramref name="to"/>) edge is classified as
+    /// <see cref="MesTransitionKind.RecoveryOnly"/> per contract §3.1.
+    ///
+    /// 7e-1 grid expansion (Q1) shifted the count from exactly 11 cells
+    /// on the 144-cell grid to 13 cells on the 169-cell grid:
+    ///   • SETTING → PREPRESS — the §8.1 archetype (unchanged)
+    ///   • 11 × non-terminal → CANCELLED — 1 added for DONE (DONE is
+    ///     no longer fully terminal-blocked since it has a transient
+    ///     DONE → FQC_PENDING outgoing edge; admin/sys can still
+    ///     cancel a stuck DONE row)
+    ///   • OQC_PENDING → DONE — legacy bypass when admin/sys closes
+    ///     a stuck-at-OQC row without going through the 7e-1 3-sig
+    ///     SHIPPED path (was RequiresSignoff in 7d; now RecoveryOnly
+    ///     per Q1 contract amendment)
+    /// Returns false for:
     ///   * self-loops (from == to)
-    ///   * terminal sources (DONE, CANCELLED) — §2.2 terminal-no-revive
-    ///   * any target other than CANCELLED for non-SETTING sources
-    ///   * any *→DONE / *→NEW edge
+    ///   * SHIPPED + CANCELLED sources — §2.2 terminal-no-revive
+    ///   * any target other than CANCELLED/PREPRESS/DONE for the
+    ///     specific recovery sources documented above
     ///   * blocked / allowed / requires-condition / requires-signoff cells
     /// The admin /force-phase endpoint MUST call this before mutation
-    /// so 133 of the 144 cells decline with 409 unforceable_transition.
+    /// so 156 of the 169 cells decline with 409 unforceable_transition.
     /// </summary>
     public static bool IsForceablePhase(MesPhase from, MesPhase to)
         => ClassifyTransition(from, to) == MesTransitionKind.RecoveryOnly;
