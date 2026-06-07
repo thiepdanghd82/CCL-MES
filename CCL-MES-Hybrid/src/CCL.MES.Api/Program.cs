@@ -309,6 +309,16 @@ builder.Services.AddAuthorization(o =>
     o.AddPolicy("QaApprove", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(UserRole.Admin, UserRole.Qc, UserRole.Supervisor));
+
+    // P10.7e-2 — FQC + OQC edit gate. QC role owns FQC inspector +
+    // OQC Inspector/Reviewer/Approver per SpecHub §3. Supervisor +
+    // Admin can also edit (4-eye principle when there's no second QC).
+    // The Q5 distinct-user invariants enforced at the controller
+    // layer mean Supervisor can fill the Reviewer/Approver slots that
+    // a single-QC shift can't otherwise satisfy.
+    o.AddPolicy("QcEdit", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Qc, UserRole.Supervisor));
 });
 
 // ──────────────────────────────────────────────────────────────────────
