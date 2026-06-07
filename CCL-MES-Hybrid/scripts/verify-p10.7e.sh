@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
-# P10.7e — end-to-end verify SKELETON for the FQC + OQC + Reports
-# stack. Ships at PR 7e-1 covering the domain surface (3 entity
-# tables + state-machine grid expansion 144→169 + dual-sig 3-flag
-# policy + Product.QcProfileOverride + migration).
-# 7e-2 / 7e-3 / 7e-4 PRs grow the wire + UI + checkpoint sections
-# (mirrors the 7d stack progression — see verify-p10.7d.sh for
-# the closed-out form to copy).
+# P10.7e — end-to-end verify for the FQC + OQC + Reports stack.
+# 7e-1 shipped the domain surface + state-machine grid 144→169 +
+# 3-sig 3-flag policy + Product.QcProfileOverride + migration.
+# 7e-2 shipped the WoQcReviewController wire (FQC single-sig +
+# OQC 3-sig Inspector→Reviewer→Approver + Q5 4-path enforcement +
+# audit emit + R7.3 wire-mirror) + checkpoint-7e-2.sh hardware probe.
+# 7e-3 ships the operator UI (FqcDashboard + OqcDashboard +
+# ShippedSummaryDashboard + QcPhotoStrip file-picker upload +
+# WoQcReviewErrorLocaliser VN bank + L21 OnPhaseChanged auto-route
+# (FQC Pass→OQC_PENDING, FQC Reject→PREPRESS, OQC Approve→SHIPPED,
+# OQC Reject→FQC_PENDING) + Q5 client guards mirroring server
+# enforcement + RunningDashboard.DeferredPhaseInfo trim (FQC_PENDING
+# + OQC_PENDING removed — they have real dashboards now) + S9
+# responsive (container queries ≥1400 + ≤900) + bUnit tests for
+# all 3 new dashboards.
+# 7e-4 will close out with checkpoint-7e-final.sh hardware E2E +
+# LESSONS-LEARNED entries + tag v0.10.7e.
 #
 # Probes shipped in 7e-1:
 #
@@ -19,16 +29,19 @@
 #        malformed JSON robustness + IsEnabled boolean chain). Plus
 #        a handful of new Theory rows in Canonical + IsForceable for
 #        the SHIPPED-related cells.
-#     3. CCL.MES.Api.Tests ≥372 (non-soak) — was 359 at 7e-1 + 13
-#        WoQcReviewController fixtures landed in 7e-2 (L19 DTO
-#        MesPhase projection + invalid_kind 422 + FQC single-sig
-#        judgment 3 paths + Q5 OQC 3 violation paths (R=I, A=R, A=I)
-#        + Q5 happy 3-distinct → SHIPPED with BOTH WO_OQC_APPROVE +
-#        WO_SHIPPED audits + OQC Reject → FQC_PENDING re-loop +
-#        signature-out-of-order × 2 + R7.3 audit wire-mirror).
+#     3. CCL.MES.Api.Tests ≥376 (non-soak) — was 372 at 7e-2 + 4
+#        new WoQcPhotos + WoSummaryReport fixtures (photo MIME
+#        guard + photo SHA-256 round-trip + summary OEE math +
+#        summary 3-leg QC mapping).
 #     3b. Concurrent soak step inherited from 7c — runs as-is.
-#     4. CCL.MES.Hybrid.Client.Tests ≥575 — unchanged in 7e-1.
-#     5. CCL.MES.Hybrid.Razor.Tests ≥99 — unchanged in 7e-1.
+#     4. CCL.MES.Hybrid.Client.Tests ≥575 — unchanged in 7e-3 (no
+#        new pure-helper modules; client wiring lives in CclApiClient
+#        whose round-trip is covered by Api.Tests at the wire level).
+#     5. CCL.MES.Hybrid.Razor.Tests ≥114 — was 99 at 7e-1 +
+#        15 new fixtures (4 FqcDashboard + 6 OqcDashboard 3-sig +
+#        3 ShippedSummaryDashboard + 2 new WorkOrdersPageTests
+#        routing FQC_PENDING → FqcDashboard, OQC_PENDING →
+#        OqcDashboard, SHIPPED → ShippedSummaryDashboard).
 #
 #   Migration round-trip (Rule 6 self-prep on the COPY)
 #     6. Copy real DB → /tmp; Down to PREVIOUS_MIGRATION
@@ -63,20 +76,26 @@
 # Rules honoured in this skeleton:
 #   R1 (--base main on PR create)            — N/A here (script)
 #   R2 (no --delete-branch mid-stack)        — N/A here (script)
-#   R4 (comment-strip gate for Razor)        — N/A in 7e-1 (no Razor)
+#   R4 (comment-strip gate for Razor)        — covered by Razor tests
 #   R5 (Henry-action includes ef update)     — printed at bottom on FAIL
 #   R6 (self-prep DB baseline)               — Step 6 below
 #   R7.1 ([ctx] DB= header)                  — printed at top
 #   R7.2 (self-managed API + cleanup)        — Steps 7-9
-#   R7.3 (wire-mirror)                       — N/A in 7e-1 (no wire); 7e-2 grows
-#   S9 (responsive UI verify wide+narrow)    — N/A in 7e-1 (no UI); 7e-3 grows
+#   R7.3 (wire-mirror)                       — Api.Tests covers every UI
+#                                              endpoint via TestServer
+#   S9 (responsive UI verify wide+narrow)    — container queries in
+#                                              app.css (≥1400 + ≤900);
+#                                              hardware verify by Henry
 #   S10 (preserve TMP_DIR on FAIL)           — cleanup() honours
 #   S11 (assert-bound-port + log-grep L18)   — Steps 7-8
 #   L17 (seed kind-specific guard)           — Step 9
 #   L18 (--urls override guard)              — Step 7
-#   L19 amendment (every WO DTO MesPhase)    — N/A in 7e-1 (no new DTOs); 7e-2 grows
+#   L19 amendment (every WO DTO MesPhase)    — WoQcView + WoSummaryReport
+#                                              both project MesPhase
 #   L20 (default-ON flag + boot probe)       — Step 10 (Q3) + Step 11 (3-sig × 3)
-#   L21 (auto re-fetch on phase change)      — N/A in 7e-1 (no dashboard); 7e-3 grows
+#   L21 (auto re-fetch on phase change)      — Fqc+Oqc dashboards expose
+#                                              OnPhaseChanged EventCallback;
+#                                              parent re-dispatches
 #
 # Usage:
 #   cd CCL-MES-Hybrid && ./scripts/verify-p10.7e.sh
