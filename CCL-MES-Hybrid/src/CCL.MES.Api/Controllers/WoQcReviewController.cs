@@ -1,0 +1,717 @@
+using System.Security.Claims;
+using System.Text.Json;
+using CCL.MES.Application;
+using CCL.MES.Application.Audit;
+using CCL.MES.Application.Services;
+using CCL.MES.Domain;
+using CCL.MES.Domain.Audit;
+using CCL.MES.Domain.Entities;
+using CCL.MES.Domain.StateMachine;
+using CCL.MES.Shared;
+using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.WoQcReview;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+
+namespace CCL.MES.Api.Controllers;
+
+/// <summary>
+/// P10.7e-2 — FQC + OQC review write surface per contract §5.6 +
+/// §3.4 (the 7e-1 grid amendment). Single controller handles both
+/// kinds via the {kind} path param ("fqc" | "oqc") — the data-driven
+/// schema (Q3) makes items + judgment shape identical; only the
+/// 3-sig (Q5) Inspector/Reviewer/Approver chain differs (OQC only).
+///
+/// Endpoints:
+///   GET  /api/v2/work-orders/{id}/qc/{kind}                    Read view (items + judgment + sigs)
+///   PUT  /api/v2/work-orders/{id}/qc/{kind}/items/{itemKey}    Set 1 item Status (Ok | Ng)
+///   POST /api/v2/work-orders/{id}/qc/fqc/judgment              FQC Pass | Reject (single-sig Inspector)
+///   POST /api/v2/work-orders/{id}/qc/oqc/inspect               OQC sig 1 — Inspector commits
+///   POST /api/v2/work-orders/{id}/qc/oqc/review                OQC sig 2 — Reviewer (≠ Inspector)
+///   POST /api/v2/work-orders/{id}/qc/oqc/approve               OQC sig 3 — Approver final + advance to SHIPPED
+///   POST /api/v2/work-orders/{id}/qc/oqc/reject                OQC Reject → FQC_PENDING (transient per Q2)
+///
+/// Authorization: QcRead policy on GET (Admin / QC / Engineer can
+/// view) + QcEdit policy on every mutation (Admin / QC only).
+///
+/// Concurrency contract mirrors 7d:
+///   428 missing If-Match
+///   400 missing Idempotency-Key
+///   404 WO not found OR kind invalid
+///   409 wo.state_conflict on stale If-Match (+ WO_STATE_CONFLICT audit)
+///   422 wo.invalid_phase / qc.invalid_kind / qc.invalid_status /
+///       qc.invalid_reason_code / qc.invalid_ng_note / qc.invalid_item_key /
+///       qc.invalid_judgment / qc.judgment_inconsistent / qc.not_ready_for_judgment /
+///       qc.invalid_reason / oqc.same_user_as_inspector /
+///       oqc.same_user_as_reviewer
+///
+/// Q5 — OQC 3-sig invariants (default-ON per L20):
+///   Reviewer ≠ Inspector   when OqcRequireDistinctReviewer = on
+///       → 422 oqc.same_user_as_inspector + WO_OQC_REVIEW_DENIED audit
+///   Approver ≠ Reviewer    when OqcRequireDistinctApprover = on
+///       → 422 oqc.same_user_as_reviewer + WO_OQC_APPROVE_DENIED audit
+///   Approver ≠ Inspector   when OqcRequireApproverDistinctFromInspector = on
+///       → 422 oqc.same_user_as_inspector + WO_OQC_APPROVE_DENIED audit
+///   Each violation emits the denied audit INSTEAD of the success audit
+///   so forensic replay shows the policy violation.
+///
+/// FQC sig count (§3.4 follow-up): single-sig (Inspector only) per
+/// SpecHub prototype's _mesRenderFqc shape. FqcJudgment endpoint requires
+/// only the Inspector signature; ReviewedBy + ApprovedBy stay null on
+/// FQC rows. A future plant requiring FQC dual-sig can flip a new
+/// OPS_FQC_REQUIRE_DISTINCT_REVIEWER env var (default OFF) per L20
+/// pattern without a code change.
+/// </summary>
+[ApiController]
+[Route(ApiVersion.Prefix + "/work-orders")]
+public sealed class WoQcReviewController : ControllerBase
+{
+    private const string KindFqc = "FQC";
+    private const string KindOqc = "OQC";
+
+    private readonly IMesDbContext _db;
+    private readonly IAuditWriter _audit;
+    private readonly WoQcSigPolicyOptions _sigPolicy;
+
+    public WoQcReviewController(
+        IMesDbContext db,
+        IAuditWriter audit,
+        IOptions<WoQcSigPolicyOptions> sigPolicy)
+    {
+        _db = db;
+        _audit = audit;
+        _sigPolicy = sigPolicy.Value;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GET — view
+    // ═══════════════════════════════════════════════════════════════
+
+    /// <summary>Read the QC check view for a WO + kind. Lazy-materialises
+    /// a Pending row on first read (mirrors 7d IPQC lazy materialise).
+    /// MesPhase projected per L19 amendment.</summary>
+    [HttpGet("{id:long}/qc/{kind}"), Authorize(Policy = "QcRead")]
+    public async Task<IActionResult> Get(long id, string kind, CancellationToken ct = default)
+    {
+        var normKind = NormaliseKind(kind);
+        if (normKind is null)
+            return UnprocessableEntity(ApiError.Of("qc.invalid_kind",
+                $"Kind must be \"fqc\" or \"oqc\"; got \"{kind}\"."));
+
+        var wo = await _db.WorkOrders.AsNoTracking()
+            .FirstOrDefaultAsync(w => w.Id == id, ct);
+        if (wo is null)
+            return NotFound(ApiError.Of("wo.not_found", $"No work order with id {id}."));
+
+        var check = await _db.WoQcChecks.AsNoTracking()
+            .Include(c => c.Items)
+            .FirstOrDefaultAsync(c => c.WorkOrderId == id && c.QcKind == normKind, ct);
+        if (check is null)
+        {
+            try
+            {
+                _db.WoQcChecks.Add(new WoQcCheck
+                {
+                    WorkOrderId = id,
+                    QcKind = normKind,
+                    ProfileSnapshotJson = "{}",
+                    Judgment = WoQcJudgment.Pending,
+                });
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException)
+            {
+                // Race lost — another caller inserted first.
+                if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
+                    dbCtx.ChangeTracker.Clear();
+            }
+            check = await _db.WoQcChecks.AsNoTracking()
+                .Include(c => c.Items)
+                .FirstOrDefaultAsync(c => c.WorkOrderId == id && c.QcKind == normKind, ct);
+        }
+
+        var etag = Convert.ToBase64String(wo.RowVersion);
+        var (ready, allOk, anyNg) = WoQcReadinessRollup.Compute(check);
+
+        var view = new WoQcView
+        {
+            WoId = wo.Id,
+            WoNo = wo.WoNo,
+            MesPhase = wo.MesPhase ?? "",
+            ETag = etag,
+            QcKind = normKind,
+            ProfileSnapshotJson = check?.ProfileSnapshotJson ?? "{}",
+            Items = (check?.Items ?? new List<WoQcCheckItem>())
+                .OrderBy(i => i.ItemKey)
+                .Select(i => new WoQcViewItem
+                {
+                    ItemKey = i.ItemKey,
+                    Status = i.Status.ToString(),
+                    NgReasonCode = i.NgReasonCode,
+                    NgNote = i.NgNote,
+                    PhotoIds = Array.Empty<long>(),  // photo wiring lands in 7e-2 follow-on
+                }).ToList(),
+            Judgment = check?.Judgment.ToString() ?? "Pending",
+            JudgmentReason = check?.JudgmentReason,
+            InspectedBy = check?.InspectedBy,
+            InspectedAt = check?.InspectedAt,
+            ReviewedBy = check?.ReviewedBy,
+            ReviewedAt = check?.ReviewedAt,
+            ApprovedBy = check?.ApprovedBy,
+            ApprovedAt = check?.ApprovedAt,
+            IsReadyForJudgment = ready,
+            AllOk = allOk,
+            AnyNg = anyNg,
+        };
+
+        Response.Headers.ETag = $"\"{etag}\"";
+        return Ok(view);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // PUT — set 1 item
+    // ═══════════════════════════════════════════════════════════════
+
+    [HttpPut("{id:long}/qc/{kind}/items/{itemKey}"), Authorize(Policy = "QcEdit")]
+    public async Task<IActionResult> PutItem(
+        long id, string kind, string itemKey, [FromBody] SetWoQcItemRequest? req)
+    {
+        var normKind = NormaliseKind(kind);
+        if (normKind is null)
+            return Invalid("qc.invalid_kind", $"Kind must be \"fqc\" or \"oqc\"; got \"{kind}\".");
+        if (string.IsNullOrWhiteSpace(itemKey) || itemKey.Length > 64)
+            return Invalid("qc.invalid_item_key", "ItemKey must be 1-64 chars.");
+
+        var actor = ActorName();
+        var role = ActorRole();
+        var pre = await PreludeAsync(id, actor, role, $"qc_{normKind.ToLowerInvariant()}_set_item");
+        if (pre.Error is not null) return pre.Error;
+        var wo = pre.WoForUpdate!;
+
+        var expectedPhase = normKind == KindFqc ? "FQC_PENDING" : "OQC_PENDING";
+        if (wo.MesPhase != expectedPhase)
+            return Invalid("wo.invalid_phase",
+                $"qc/{normKind}/items requires MesPhase = {expectedPhase}; current = {wo.MesPhase}.");
+
+        if (req is null || string.IsNullOrWhiteSpace(req.Status))
+            return Invalid("qc.invalid_status", "Status is required (\"Ok\" or \"Ng\").");
+        if (!Enum.TryParse<IpqcCheckStatus>(req.Status, ignoreCase: true, out var status)
+            || status == IpqcCheckStatus.Pending)
+            return Invalid("qc.invalid_status", $"Status must be \"Ok\" or \"Ng\"; got \"{req.Status}\".");
+
+        if (status == IpqcCheckStatus.Ng)
+        {
+            var ngErr = await ValidateNgAsync(req.NgReasonCode, req.NgNote);
+            if (ngErr is not null) return ngErr;
+        }
+
+        var check = await GetOrCreateCheckAsync(id, normKind);
+
+        // Find or create the child item row.
+        var item = check.Items.FirstOrDefault(i => i.ItemKey == itemKey);
+        if (item is null)
+        {
+            item = new WoQcCheckItem
+            {
+                WoQcCheckId = check.Id,
+                ItemKey = itemKey,
+                Status = status,
+            };
+            check.Items.Add(item);
+        }
+        item.Status = status;
+        item.NgReasonCode = status == IpqcCheckStatus.Ng ? req.NgReasonCode : null;
+        item.NgNote = status == IpqcCheckStatus.Ng ? req.NgNote : null;
+
+        return await CommitAndAuditAsync(id, wo, check, actor, role,
+            AuditAction.WoQcCheckItem,
+            new
+            {
+                kind = normKind,
+                item_key = itemKey,
+                status = status.ToString(),
+                ng_reason_code = status == IpqcCheckStatus.Ng ? req.NgReasonCode : null,
+                ng_note = status == IpqcCheckStatus.Ng ? req.NgNote : null,
+            });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // POST — FQC judgment (single-sig Inspector)
+    // ═══════════════════════════════════════════════════════════════
+
+    [HttpPost("{id:long}/qc/fqc/judgment"), Authorize(Policy = "QcEdit")]
+    public async Task<IActionResult> PostFqcJudgment(
+        long id, [FromBody] SubmitFqcJudgmentRequest? req)
+    {
+        var actor = ActorName();
+        var role = ActorRole();
+
+        var pre = await PreludeAsync(id, actor, role, "fqc_judgment");
+        if (pre.Error is not null) return pre.Error;
+        var wo = pre.WoForUpdate!;
+
+        if (wo.MesPhase != "FQC_PENDING")
+            return Invalid("wo.invalid_phase",
+                $"qc/fqc/judgment requires MesPhase = FQC_PENDING; current = {wo.MesPhase}.");
+
+        if (req is null || string.IsNullOrWhiteSpace(req.Judgment))
+            return Invalid("qc.invalid_judgment",
+                "Judgment is required (\"Pass\" or \"Reject\").");
+        if (!Enum.TryParse<WoQcJudgment>(req.Judgment, ignoreCase: true, out var judgment)
+            || judgment == WoQcJudgment.Pending)
+            return Invalid("qc.invalid_judgment",
+                $"Judgment must be Pass or Reject; got \"{req.Judgment}\".");
+
+        var check = await GetOrCreateCheckAsync(id, KindFqc);
+        var (ready, _, _) = WoQcReadinessRollup.Compute(check);
+        if (!ready)
+            return Invalid("qc.not_ready_for_judgment",
+                "Every profile item must be resolved (Ok or Ng) before judgment.");
+
+        if (judgment == WoQcJudgment.Reject)
+        {
+            if (string.IsNullOrWhiteSpace(req.JudgmentReason) || req.JudgmentReason!.Length > 500)
+                return Invalid("qc.invalid_reason",
+                    "JudgmentReason is required (1-500 chars) for Reject.");
+        }
+
+        var now = DateTime.UtcNow;
+        check.Judgment = judgment;
+        check.JudgmentReason = judgment == WoQcJudgment.Reject ? req.JudgmentReason : null;
+        check.InspectedBy = actor;
+        check.InspectedAt = now;
+
+        wo.MesPhase = judgment == WoQcJudgment.Pass ? "OQC_PENDING" : "PREPRESS";
+
+        var auditAction = judgment == WoQcJudgment.Pass
+            ? AuditAction.WoFqcJudgment
+            : AuditAction.WoFqcRejectToPrepress;
+
+        return await CommitAndAuditAsync(id, wo, check, actor, role,
+            auditAction,
+            new
+            {
+                outcome = judgment.ToString(),
+                judgment_reason = judgment == WoQcJudgment.Reject ? req.JudgmentReason : null,
+                inspected_by = actor,
+            });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // POST — OQC 3-sig chain
+    // ═══════════════════════════════════════════════════════════════
+
+    [HttpPost("{id:long}/qc/oqc/inspect"), Authorize(Policy = "QcEdit")]
+    public async Task<IActionResult> PostOqcInspect(
+        long id, [FromBody] OqcInspectRequest? req)
+    {
+        var actor = ActorName();
+        var role = ActorRole();
+
+        var pre = await PreludeAsync(id, actor, role, "oqc_inspect");
+        if (pre.Error is not null) return pre.Error;
+        var wo = pre.WoForUpdate!;
+
+        if (wo.MesPhase != "OQC_PENDING")
+            return Invalid("wo.invalid_phase",
+                $"qc/oqc/inspect requires MesPhase = OQC_PENDING; current = {wo.MesPhase}.");
+
+        var check = await GetOrCreateCheckAsync(id, KindOqc);
+        var (ready, _, _) = WoQcReadinessRollup.Compute(check);
+        if (!ready)
+            return Invalid("qc.not_ready_for_judgment",
+                "Every profile item must be resolved (Ok or Ng) before Inspector signs.");
+
+        var now = DateTime.UtcNow;
+        check.InspectedBy = actor;
+        check.InspectedAt = now;
+
+        return await CommitAndAuditAsync(id, wo, check, actor, role,
+            AuditAction.WoOqcInspect,
+            new
+            {
+                inspected_by = actor,
+                flag_state = _sigPolicy.FlagState,
+                note = req?.Note,
+            });
+    }
+
+    [HttpPost("{id:long}/qc/oqc/review"), Authorize(Policy = "QcEdit")]
+    public async Task<IActionResult> PostOqcReview(
+        long id, [FromBody] OqcReviewRequest? req)
+    {
+        var actor = ActorName();
+        var role = ActorRole();
+
+        var pre = await PreludeAsync(id, actor, role, "oqc_review");
+        if (pre.Error is not null) return pre.Error;
+        var wo = pre.WoForUpdate!;
+
+        if (wo.MesPhase != "OQC_PENDING")
+            return Invalid("wo.invalid_phase",
+                $"qc/oqc/review requires MesPhase = OQC_PENDING; current = {wo.MesPhase}.");
+
+        var check = await GetOrCreateCheckAsync(id, KindOqc);
+
+        if (string.IsNullOrEmpty(check.InspectedBy))
+            return Invalid("oqc.signature_out_of_order",
+                "Inspector must sign before Reviewer.");
+
+        // Q5 invariant — Reviewer ≠ Inspector.
+        if (_sigPolicy.OqcRequireDistinctReviewer
+            && string.Equals(check.InspectedBy, actor, StringComparison.OrdinalIgnoreCase))
+        {
+            var denyDetail = JsonSerializer.Serialize(new
+            {
+                wo_id = id,
+                reason = "same_user_as_inspector",
+                attempted_by = actor,
+                inspected_by = check.InspectedBy,
+                flag_state = _sigPolicy.FlagState,
+            });
+            await _audit.EmitAsync(
+                action: AuditAction.WoOqcReviewDenied,
+                actor: actor,
+                actorRole: role,
+                targetType: "WorkOrder",
+                targetId: id.ToString(),
+                detail: denyDetail);
+
+            return UnprocessableEntity(new WoQcSetResponse
+            {
+                Ok = false,
+                ErrorCode = "oqc.same_user_as_inspector",
+                ETag = Convert.ToBase64String(wo.RowVersion),
+                MesPhase = wo.MesPhase ?? "",
+            });
+        }
+
+        var now = DateTime.UtcNow;
+        check.ReviewedBy = actor;
+        check.ReviewedAt = now;
+
+        return await CommitAndAuditAsync(id, wo, check, actor, role,
+            AuditAction.WoOqcReview,
+            new
+            {
+                reviewed_by = actor,
+                inspected_by = check.InspectedBy,
+                flag_state = _sigPolicy.FlagState,
+                note = req?.Note,
+            });
+    }
+
+    [HttpPost("{id:long}/qc/oqc/approve"), Authorize(Policy = "QcEdit")]
+    public async Task<IActionResult> PostOqcApprove(
+        long id, [FromBody] OqcApproveRequest? req)
+    {
+        var actor = ActorName();
+        var role = ActorRole();
+
+        var pre = await PreludeAsync(id, actor, role, "oqc_approve");
+        if (pre.Error is not null) return pre.Error;
+        var wo = pre.WoForUpdate!;
+
+        if (wo.MesPhase != "OQC_PENDING")
+            return Invalid("wo.invalid_phase",
+                $"qc/oqc/approve requires MesPhase = OQC_PENDING; current = {wo.MesPhase}.");
+
+        var check = await GetOrCreateCheckAsync(id, KindOqc);
+
+        if (string.IsNullOrEmpty(check.InspectedBy))
+            return Invalid("oqc.signature_out_of_order",
+                "Inspector must sign before Approver.");
+        if (string.IsNullOrEmpty(check.ReviewedBy))
+            return Invalid("oqc.signature_out_of_order",
+                "Reviewer must sign before Approver.");
+
+        if (req is null || string.IsNullOrWhiteSpace(req.Outcome))
+            return Invalid("qc.invalid_judgment",
+                "Outcome is required (\"Approve\" or \"Reject\").");
+        var outcomeRaw = req.Outcome.Trim();
+        var isApprove = string.Equals(outcomeRaw, "Approve", StringComparison.OrdinalIgnoreCase);
+        var isReject  = string.Equals(outcomeRaw, "Reject",  StringComparison.OrdinalIgnoreCase);
+        if (!isApprove && !isReject)
+            return Invalid("qc.invalid_judgment",
+                $"Outcome must be Approve or Reject; got \"{req.Outcome}\".");
+
+        if (isReject)
+        {
+            if (string.IsNullOrWhiteSpace(req.JudgmentReason) || req.JudgmentReason!.Length > 500)
+                return Invalid("qc.invalid_reason",
+                    "JudgmentReason is required (1-500 chars) for Reject.");
+        }
+
+        // Q5 invariants — Approver ≠ Reviewer AND Approver ≠ Inspector.
+        if (_sigPolicy.OqcRequireDistinctApprover
+            && string.Equals(check.ReviewedBy, actor, StringComparison.OrdinalIgnoreCase))
+        {
+            return await DenyApprove(id, wo, actor, role, check,
+                "same_user_as_reviewer",
+                "oqc.same_user_as_reviewer");
+        }
+        if (_sigPolicy.OqcRequireApproverDistinctFromInspector
+            && string.Equals(check.InspectedBy, actor, StringComparison.OrdinalIgnoreCase))
+        {
+            return await DenyApprove(id, wo, actor, role, check,
+                "same_user_as_inspector",
+                "oqc.same_user_as_inspector");
+        }
+
+        var now = DateTime.UtcNow;
+        check.ApprovedBy = actor;
+        check.ApprovedAt = now;
+        check.Judgment = isApprove ? WoQcJudgment.Pass : WoQcJudgment.Reject;
+        check.JudgmentReason = isReject ? req.JudgmentReason : null;
+
+        if (isApprove)
+        {
+            // Q1 — OQC Pass advances to SHIPPED.
+            wo.MesPhase = "SHIPPED";
+            var resp = await CommitAndAuditAsync(id, wo, check, actor, role,
+                AuditAction.WoOqcApprove,
+                new
+                {
+                    approved_by = actor,
+                    reviewed_by = check.ReviewedBy,
+                    inspected_by = check.InspectedBy,
+                    outcome = "Approve",
+                    flag_state = _sigPolicy.FlagState,
+                });
+            // Stamp the WO_SHIPPED audit too — covers the transition leg.
+            await _audit.EmitAsync(
+                action: AuditAction.WoShipped,
+                actor: actor,
+                actorRole: role,
+                targetType: "WorkOrder",
+                targetId: id.ToString(),
+                detail: JsonSerializer.Serialize(new
+                {
+                    wo_id = id,
+                    shipped_at = now,
+                    oqc_approver = actor,
+                }));
+            return resp;
+        }
+
+        // Q2 — OQC Reject → FQC_PENDING re-loop.
+        wo.MesPhase = "FQC_PENDING";
+        return await CommitAndAuditAsync(id, wo, check, actor, role,
+            AuditAction.WoOqcRejectToFqc,
+            new
+            {
+                approved_by = actor,
+                reviewed_by = check.ReviewedBy,
+                inspected_by = check.InspectedBy,
+                outcome = "Reject",
+                reject_reason = req.JudgmentReason,
+                flag_state = _sigPolicy.FlagState,
+            });
+    }
+
+    private async Task<IActionResult> DenyApprove(
+        long id, WorkOrder wo, string actor, string role, WoQcCheck check,
+        string reason, string errorCode)
+    {
+        var denyDetail = JsonSerializer.Serialize(new
+        {
+            wo_id = id,
+            reason,
+            attempted_by = actor,
+            reviewed_by = check.ReviewedBy,
+            inspected_by = check.InspectedBy,
+            flag_state = _sigPolicy.FlagState,
+        });
+        await _audit.EmitAsync(
+            action: AuditAction.WoOqcApproveDenied,
+            actor: actor,
+            actorRole: role,
+            targetType: "WorkOrder",
+            targetId: id.ToString(),
+            detail: denyDetail);
+
+        return UnprocessableEntity(new WoQcSetResponse
+        {
+            Ok = false,
+            ErrorCode = errorCode,
+            ETag = Convert.ToBase64String(wo.RowVersion),
+            MesPhase = wo.MesPhase ?? "",
+        });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Helpers
+    // ═══════════════════════════════════════════════════════════════
+
+    private static string? NormaliseKind(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var s = raw.Trim().ToUpperInvariant();
+        return s switch { "FQC" => KindFqc, "OQC" => KindOqc, _ => null };
+    }
+
+    private string ActorName() => User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
+    private string ActorRole() => User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+    private IActionResult Invalid(string code, string detail)
+        => UnprocessableEntity(ApiError.Of(code, detail));
+
+    private async Task<WoQcCheck> GetOrCreateCheckAsync(long woId, string kind)
+    {
+        var check = await _db.WoQcChecks
+            .Include(c => c.Items)
+            .FirstOrDefaultAsync(c => c.WorkOrderId == woId && c.QcKind == kind);
+        if (check is not null) return check;
+
+        check = new WoQcCheck
+        {
+            WorkOrderId = woId,
+            QcKind = kind,
+            ProfileSnapshotJson = "{}",
+            Judgment = WoQcJudgment.Pending,
+        };
+        _db.WoQcChecks.Add(check);
+        return check;
+    }
+
+    private async Task<IActionResult?> ValidateNgAsync(string? ngReasonCode, string? ngNote)
+    {
+        if (string.IsNullOrWhiteSpace(ngReasonCode))
+            return Invalid("qc.invalid_reason_code",
+                "NgReasonCode is required when Status = Ng.");
+        if (string.IsNullOrWhiteSpace(ngNote) || ngNote!.Length > 500)
+            return Invalid("qc.invalid_ng_note",
+                "NgNote must be 1-500 chars when Status = Ng.");
+        var exists = await _db.ReasonCodes.AsNoTracking()
+            .AnyAsync(r => r.Code == ngReasonCode && r.Kind == ReasonCodeKind.Scrap);
+        if (!exists)
+            return Invalid("qc.invalid_reason_code",
+                $"NgReasonCode \"{ngReasonCode}\" is not a registered Scrap reason.");
+        return null;
+    }
+
+    private async Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
+        long id, string actor, string role, string attemptedAction)
+    {
+        var idemKey = Request.Headers["Idempotency-Key"].ToString();
+        if (string.IsNullOrWhiteSpace(idemKey))
+            return (BadRequest(ApiError.Of("wo.idempotency_key_required",
+                "Idempotency-Key header required.")), null);
+
+        var ifMatch = Request.Headers.IfMatch.ToString();
+        if (string.IsNullOrWhiteSpace(ifMatch))
+            return (StatusCode(StatusCodes.Status428PreconditionRequired,
+                ApiError.Of("wo.if_match_required",
+                    "If-Match header required.")), null);
+
+        var wo = await _db.WorkOrders.FirstOrDefaultAsync(w => w.Id == id);
+        if (wo is null)
+            return (NotFound(ApiError.Of("wo.not_found",
+                $"No work order with id {id}.")), null);
+
+        var serverEtag = Convert.ToBase64String(wo.RowVersion);
+        var clientEtag = NormalizeETag(ifMatch);
+        if (!string.Equals(serverEtag, clientEtag, StringComparison.Ordinal))
+        {
+            var conflictDetail = JsonSerializer.Serialize(new
+            {
+                wo_id = id,
+                wo_no = wo.WoNo,
+                attempted_action = attemptedAction,
+                client_version = clientEtag,
+                server_version = serverEtag,
+            });
+            await _audit.EmitAsync(
+                action: AuditAction.WoStateConflict,
+                actor: actor,
+                actorRole: role,
+                targetType: "WorkOrder",
+                targetId: id.ToString(),
+                detail: conflictDetail);
+
+            Response.Headers.ETag = $"\"{serverEtag}\"";
+            return (Conflict(new WoQcSetResponse
+            {
+                Ok = false,
+                ErrorCode = "wo.state_conflict",
+                ETag = serverEtag,
+                MesPhase = wo.MesPhase ?? "",
+            }), null);
+        }
+
+        return (null, wo);
+    }
+
+    private async Task<IActionResult> CommitAndAuditAsync(
+        long woId, WorkOrder wo, WoQcCheck check,
+        string actor, string role, string action, object extraDetail)
+    {
+        wo.UpdatedAt = DateTime.UtcNow;
+        wo.UpdatedBy = actor;
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
+                dbCtx.ChangeTracker.Clear();
+            var fresh = await _db.WorkOrders.AsNoTracking()
+                .FirstOrDefaultAsync(w => w.Id == woId);
+            var freshEtag = fresh is null ? "" : Convert.ToBase64String(fresh.RowVersion);
+            Response.Headers.ETag = $"\"{freshEtag}\"";
+            return Conflict(new WoQcSetResponse
+            {
+                Ok = false,
+                ErrorCode = "wo.state_conflict",
+                ETag = freshEtag,
+                MesPhase = fresh?.MesPhase ?? "",
+            });
+        }
+
+        // Re-read freshly to capture the trigger-bumped RowVersion (L11).
+        var freshWo = await _db.WorkOrders.AsNoTracking()
+            .Where(w => w.Id == woId)
+            .Select(w => new { w.RowVersion, w.MesPhase })
+            .SingleAsync();
+        var newEtag = Convert.ToBase64String(freshWo.RowVersion);
+
+        var detail = JsonSerializer.Serialize(new
+        {
+            wo_id = woId,
+            wo_no = wo.WoNo,
+            mes_phase_after = freshWo.MesPhase,
+            extra = extraDetail,
+        });
+        await _audit.EmitAsync(
+            action: action,
+            actor: actor,
+            actorRole: role,
+            targetType: "WorkOrder",
+            targetId: woId.ToString(),
+            detail: detail);
+
+        var (ready, allOk, anyNg) = WoQcReadinessRollup.Compute(check);
+        Response.Headers.ETag = $"\"{newEtag}\"";
+        return Ok(new WoQcSetResponse
+        {
+            Ok = true,
+            ETag = newEtag,
+            MesPhase = freshWo.MesPhase ?? "",
+            IsReadyForJudgment = ready,
+            AllOk = allOk,
+            AnyNg = anyNg,
+        });
+    }
+
+    private static string NormalizeETag(string raw)
+    {
+        var trimmed = raw.Trim();
+        if (trimmed.StartsWith("W/", StringComparison.Ordinal)) trimmed = trimmed[2..];
+        if (trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"')
+            trimmed = trimmed[1..^1];
+        return trimmed;
+    }
+}
