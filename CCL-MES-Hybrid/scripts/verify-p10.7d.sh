@@ -13,7 +13,11 @@
 #     2. CCL.MES.Tests (Domain) ≥811 (was 751 at v0.10.7c + 14 unit
 #        rollup + 12 dual-sig parse + 18 service slot/judgment/dual-sig
 #        + 6 LegacyParity + 4 integration = +54 new IPQC fixtures).
-#     3. CCL.MES.Api.Tests ≥328 (unchanged — 7d-2 grows the wire suite).
+#     3. CCL.MES.Api.Tests ≥355 (non-soak) — was 328 at v0.10.7c + 27
+#        IpqcReviewController fixtures landed in 7d-2 (prelude + 4 slot
+#        PUT [Theory] + judgment happy/inconsistent/not-ready/SpecialAccept-
+#        with-reason + 5 QA approve incl Q3 dual-sig same-user 422 +
+#        distinct-user happy + audit wire-mirror R7.3).
 #     3b. Concurrent soak step inherited from 7c — runs as-is.
 #     4. CCL.MES.Hybrid.Client.Tests ≥549 (unchanged in 7d-1).
 #     5. CCL.MES.Hybrid.Razor.Tests ≥59 (unchanged in 7d-1; 7d-3 grows
@@ -397,11 +401,10 @@ printf '%s\n' "${SUMMARY[@]}"
 echo ""
 echo "  TOTAL: pass=$PASS fail=$FAIL"
 echo ""
-echo "  Note: 7d-1 ships DOMAIN only — wire probes (POST /ipqc/{slot} +"
-echo "        /ipqc/judgment + /qa/approve + dual-sig 422 guard) land in"
-echo "        7d-2; bUnit + IpqcDashboard + QaApprovalDashboard in 7d-3;"
-echo "        full luồng checkpoint-7d-final.sh + purge extension for"
-echo "        WO_IPQC_* + WO_QA_* test rows + LESSONS-LEARNED L20 in 7d-4."
+echo "  7d-1 (domain) + 7d-2 (wire) shipped. 7d-3 will add the"
+echo "  IpqcDashboard + QaApprovalDashboard (loses IPQC_WAIT + QA_PENDING"
+echo "  entries from DeferredPhaseInfo map). 7d-4 will close out with"
+echo "  checkpoint-7d-final + purge extension + LESSONS-LEARNED L20."
 echo ""
 
 if [[ $FAIL -gt 0 ]]; then
