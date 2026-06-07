@@ -7,6 +7,7 @@ using CCL.MES.Hybrid.Razor.Tests._Support;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.IpqcReview;
 using CCL.MES.Shared.ReasonCodes;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -366,6 +367,100 @@ public sealed class IpqcDashboardTests : TestContext
             Assert.Equal("SpecialAccept", api.PostIpqcJudgmentCalls[0].Req.Judgment);
             Assert.Equal("Lô gấp, chấp nhận ΔE 2.3", api.PostIpqcJudgmentCalls[0].Req.SpecialAcceptReason);
         });
+    }
+
+    // ── L21 auto-refresh (Henry RCA on PR #119) ────────────────────
+    // Phase-changing actions MUST invoke OnPhaseChanged so the parent
+    // re-fetches the summary + dispatch picks the new phase. Slot
+    // PUTs DON'T change MesPhase (stays IPQC_WAIT) so they DON'T
+    // bubble; only judgment submit does.
+
+    [Fact]
+    public void Judgment_submit_success_invokes_OnPhaseChanged()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.IpqcViewImpl = (_, _) => Task.FromResult(View(
+            material: "Ok", printA: "Ok", printB: "Ng", printC: "Ok",
+            overrideReady: true, overrideAllOk: false, overrideAnyNg: true));
+        api.PostIpqcJudgmentImpl = (_, _, _, _) => Task.FromResult(new IpqcSetResponse
+        {
+            Ok = true, ETag = "v4", MesPhase = "QA_PENDING",
+        });
+
+        var phaseChangedCount = 0;
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 7L)
+            .Add(d => d.ScrapReasons, Scraps())
+            .Add(d => d.OnPhaseChanged, EventCallback.Factory.Create(this, () => phaseChangedCount++)));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-special-accept-reason']")));
+        cut.Find("[data-testid='ipqc-special-accept-reason']").Input("Lô gấp");
+        cut.WaitForAssertion(() =>
+            Assert.False(cut.Find("[data-testid='ipqc-judgment-specialaccept']").HasAttribute("disabled")));
+        cut.Find("[data-testid='ipqc-judgment-specialaccept']").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(1, phaseChangedCount));
+    }
+
+    [Fact]
+    public void Slot_PUT_success_does_NOT_invoke_OnPhaseChanged()
+    {
+        // Slots stay in IPQC_WAIT — no parent re-route needed.
+        // Bubbling here would just churn a wasted summary GET per tap.
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        var calls = 0;
+        api.IpqcViewImpl = (_, _) =>
+        {
+            calls++;
+            return Task.FromResult(calls == 1 ? View(etag: "v1") : View(etag: "v2", material: "Ok"));
+        };
+        api.PutIpqcMaterialImpl = (_, _, _, _) => Task.FromResult(new IpqcSetResponse
+        {
+            Ok = true, ETag = "v2", MesPhase = "IPQC_WAIT",
+        });
+
+        var phaseChangedCount = 0;
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 7L)
+            .Add(d => d.ScrapReasons, Scraps())
+            .Add(d => d.OnPhaseChanged, EventCallback.Factory.Create(this, () => phaseChangedCount++)));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-slot-material-ok']")));
+        cut.Find("[data-testid='ipqc-slot-material-ok']").Click();
+
+        cut.WaitForAssertion(() =>
+            Assert.Single(api.PutIpqcMaterialCalls));
+        Assert.Equal(0, phaseChangedCount);
+    }
+
+    [Fact]
+    public void Judgment_submit_409_conflict_does_NOT_invoke_OnPhaseChanged()
+    {
+        // 409 means the action did NOT change phase server-side — only
+        // a successful Ok=true bubble. State drifts get a banner.
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.IpqcViewImpl = (_, _) => Task.FromResult(View(
+            material: "Ok", printA: "Ok", printB: "Ng", printC: "Ok",
+            overrideReady: true, overrideAllOk: false, overrideAnyNg: true));
+        api.PostIpqcJudgmentImpl = (_, _, _, _) => Task.FromResult(new IpqcSetResponse
+        {
+            Ok = false, ErrorCode = "wo.state_conflict", ETag = "v9", MesPhase = "IPQC_WAIT",
+        });
+
+        var phaseChangedCount = 0;
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 7L)
+            .Add(d => d.ScrapReasons, Scraps())
+            .Add(d => d.OnPhaseChanged, EventCallback.Factory.Create(this, () => phaseChangedCount++)));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-special-accept-reason']")));
+        cut.Find("[data-testid='ipqc-special-accept-reason']").Input("Lô gấp");
+        cut.WaitForAssertion(() =>
+            Assert.False(cut.Find("[data-testid='ipqc-judgment-specialaccept']").HasAttribute("disabled")));
+        cut.Find("[data-testid='ipqc-judgment-specialaccept']").Click();
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-set-error']")));
+        Assert.Equal(0, phaseChangedCount);
     }
 
     // ── 409 conflict path (optimistic revert via reload) ───────────

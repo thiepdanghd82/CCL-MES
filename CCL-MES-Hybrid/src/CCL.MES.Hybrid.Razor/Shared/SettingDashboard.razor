@@ -129,6 +129,13 @@
 @code {
     [Parameter, EditorRequired] public long WorkOrderId { get; set; }
 
+    /// <summary>P10.7d-3 BUG-FIX (Henry RCA on PR #119) — invoked
+    /// after a successful /setting/done so the parent (WorkOrders.razor)
+    /// re-fetches the summary + dispatch picks up IPQC_WAIT, mounting
+    /// IpqcDashboard automatically. Without this the operator had to
+    /// tap "Tìm" to leave the now-invalid SettingDashboard. See Lesson L21.</summary>
+    [Parameter] public EventCallback OnPhaseChanged { get; set; }
+
     // Checklist source-of-truth (operator-attestation only; not server-persisted in 7c-3).
     // Order matters — operators learn the sequence + we use index in test-ids.
     private readonly List<ChecklistItem> _checklist = new()
@@ -241,8 +248,10 @@
             if (resp.Ok)
             {
                 await ReloadAsync();
-                // Phase advanced to IPQC_WAIT — parent (WorkOrders.razor) re-renders
-                // and our IsSettingStep guard will fall through; nothing more to do here.
+                // P10.7d-3 BUG-FIX — bubble phase change SETTING → IPQC_WAIT
+                // so the parent re-fetches the summary + dispatch routes to
+                // IpqcDashboard without the operator tapping "Tìm". See L21.
+                await OnPhaseChanged.InvokeAsync();
             }
             else if (!string.IsNullOrEmpty(resp.ErrorCode))
             {

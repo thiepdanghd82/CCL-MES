@@ -291,6 +291,15 @@
     [Parameter] public IReadOnlyList<ReasonCodeOption> ScrapReasons { get; set; } = Array.Empty<ReasonCodeOption>();
     [Parameter] public IReadOnlyList<ReasonCodeOption> PauseReasons { get; set; } = Array.Empty<ReasonCodeOption>();
 
+    /// <summary>P10.7d-3 BUG-FIX (Henry RCA on PR #119) — invoked after
+    /// a successful action that may have changed the WO's MesPhase
+    /// (run/start IPQC_APPROVED→RUNNING, run/finish RUNNING|PAUSED→FQC_PENDING).
+    /// Parent re-fetches the summary so the chip + dispatch see the
+    /// canonical post-transition state without the operator tapping
+    /// "Tìm" again. Tap qty / pause / resume do NOT bubble (no phase
+    /// change). See Lesson L21.</summary>
+    [Parameter] public EventCallback OnPhaseChanged { get; set; }
+
     private static readonly int[] TapAmounts = new[] { 100, 500, 1000 };
 
     private RunningSurfaceView? _view;
@@ -401,7 +410,8 @@
         && _ngNote.Length <= 500;
 
     private async Task GuardedPostAsync(Func<string, Task<RunningSurfaceSetResponse>> doPost,
-                                       Action? onSuccessExtra = null)
+                                       Action? onSuccessExtra = null,
+                                       bool notifyPhaseChange = false)
     {
         if (_view is null) return;
         _busy = true;
@@ -414,6 +424,16 @@
             {
                 await ReloadAsync();
                 onSuccessExtra?.Invoke();
+                // P10.7d-3 BUG-FIX (Henry RCA on PR #119) — bubble phase
+                // change up to the parent only on actions that genuinely
+                // changed MesPhase: run/start, pause, resume, finish.
+                // Tap qty + correct DON'T flip the phase, so they skip the
+                // parent re-fetch (no observable change, just a wasted
+                // round-trip). See Lesson L21.
+                if (notifyPhaseChange)
+                {
+                    await OnPhaseChanged.InvokeAsync();
+                }
             }
             else if (!string.IsNullOrEmpty(resp.ErrorCode))
             {
@@ -446,7 +466,8 @@
     }
 
     private Task OnRunStartAsync() => GuardedPostAsync(ifMatch =>
-        Api.PostRunStartAsync(WorkOrderId, ifMatch));
+        Api.PostRunStartAsync(WorkOrderId, ifMatch),
+        notifyPhaseChange: true);  // IPQC_APPROVED → RUNNING
 
     private Task OnTapDoneAsync(int amount) => GuardedPostAsync(ifMatch =>
         Api.PostRunQtyAddAsync(WorkOrderId, ifMatch, new RunQtyAddRequest
@@ -480,11 +501,14 @@
     private async Task OnPauseConfirmAsync(RunPauseRequest req)
     {
         _pauseModalOpen = false;
-        await GuardedPostAsync(ifMatch => Api.PostRunPauseAsync(WorkOrderId, ifMatch, req));
+        await GuardedPostAsync(
+            ifMatch => Api.PostRunPauseAsync(WorkOrderId, ifMatch, req),
+            notifyPhaseChange: true);  // RUNNING → PAUSED (chip color updates)
     }
 
-    private Task OnRunResumeAsync() => GuardedPostAsync(ifMatch =>
-        Api.PostRunResumeAsync(WorkOrderId, ifMatch));
+    private Task OnRunResumeAsync() => GuardedPostAsync(
+        ifMatch => Api.PostRunResumeAsync(WorkOrderId, ifMatch),
+        notifyPhaseChange: true);  // PAUSED → RUNNING (chip color updates)
 
     private void OpenCorrectModal() => _correctModalOpen = true;
     private void CloseCorrectModal() => _correctModalOpen = false;
@@ -501,7 +525,9 @@
     private async Task OnFinishConfirmAsync()
     {
         _finishModalOpen = false;
-        await GuardedPostAsync(ifMatch => Api.PostRunFinishAsync(WorkOrderId, ifMatch));
+        await GuardedPostAsync(
+            ifMatch => Api.PostRunFinishAsync(WorkOrderId, ifMatch),
+            notifyPhaseChange: true);  // RUNNING|PAUSED → FQC_PENDING
     }
 
     private void OnNgAmountInput(Microsoft.AspNetCore.Components.ChangeEventArgs e)

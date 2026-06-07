@@ -280,6 +280,141 @@ public sealed class WorkOrdersPageTests : TestContext
         });
     }
 
+    // ── L21 auto-refresh after phase change (Henry RCA on PR #119) ──
+    // Each transition-emitting dashboard exposes OnPhaseChanged;
+    // the parent re-fetches the summary so the dispatch re-evaluates
+    // BEFORE the operator has to tap "Tìm" again. Without these the
+    // operator stares at a stale dead-end card (the dashboard's own
+    // _invalidPhase branch).
+
+    [Fact]
+    public void Auto_refresh_after_IPQC_judgment_routes_to_QaApprovalDashboard_without_manual_lookup()
+    {
+        // Initial summary: IPQC_WAIT → IpqcDashboard mounts.
+        // After judgment: summary lookup returns QA_PENDING → dispatch
+        // remounts to QaApprovalDashboard. Operator never tapped "Tìm".
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+
+        var summaryCallCount = 0;
+        api.SummaryImpl = (woNo, ct) =>
+        {
+            summaryCallCount++;
+            // Call 1 = initial lookup (from manual entry). IPQC_WAIT.
+            // Call 2 = HandleDashboardPhaseChangedAsync re-fetch after
+            //          judgment. QA_PENDING (the phase advanced server-side).
+            var phase = summaryCallCount == 1 ? "IPQC_WAIT" : "QA_PENDING";
+            return Task.FromResult<WorkOrderSummary?>(
+                SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = phase });
+        };
+
+        // IpqcDashboard's GET — initial render.
+        var ipqcCallCount = 0;
+        api.IpqcViewImpl = (_, _) =>
+        {
+            ipqcCallCount++;
+            // Render 1 = IPQC_WAIT with all slots ready for judgment.
+            // Renders after judgment = QA_PENDING (also returned for
+            // QaApprovalDashboard's view fetch when it mounts).
+            var phase = ipqcCallCount == 1 ? "IPQC_WAIT" : "QA_PENDING";
+            return Task.FromResult(new CCL.MES.Shared.IpqcReview.IpqcView
+            {
+                WoId = 42, WoNo = "WO-26-3725", MesPhase = phase, ETag = "v1",
+                MaterialStatus = "Ok", PrintAStatus = "Ok",
+                PrintBStatus = "Ng", PrintCStatus = "Ok",
+                IsReadyForJudgment = true, AllOk = false, AnyNg = true,
+                IpqcSubmittedBy = phase == "QA_PENDING" ? "qc-alice" : null,
+                IpqcSubmittedAt = phase == "QA_PENDING" ? DateTime.UtcNow : (DateTime?)null,
+                SpecialAcceptReason = phase == "QA_PENDING" ? "Lô gấp" : null,
+            });
+        };
+        api.PostIpqcJudgmentImpl = (_, _, _, _) => Task.FromResult(
+            new CCL.MES.Shared.IpqcReview.IpqcSetResponse
+            {
+                Ok = true, ETag = "v2", MesPhase = "QA_PENDING",
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3725");
+        cut.Find("div.wo-manual-row button").Click();
+
+        // Step 1 — IpqcDashboard mounts (summary lookup #1 = IPQC_WAIT).
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='ipqc-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='qa-dashboard']"));
+        });
+
+        // Step 2 — type SpecialAccept reason + submit judgment.
+        cut.Find("[data-testid='ipqc-special-accept-reason']").Input("Lô gấp, chấp nhận ΔE 2.3");
+        cut.WaitForAssertion(() =>
+            Assert.False(cut.Find("[data-testid='ipqc-judgment-specialaccept']").HasAttribute("disabled")));
+        cut.Find("[data-testid='ipqc-judgment-specialaccept']").Click();
+
+        // Step 3 — parent re-fetched the summary (call #2 = QA_PENDING),
+        // dispatch re-evaluated, QaApprovalDashboard mounted. No
+        // "Tìm" button needed. Stale IpqcDashboard unmounted.
+        cut.WaitForAssertion(() =>
+        {
+            Assert.True(summaryCallCount >= 2,
+                $"Parent MUST re-fetch summary after judgment. Got {summaryCallCount} lookups.");
+            Assert.NotNull(cut.Find("[data-testid='qa-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-dashboard']"));
+        });
+    }
+
+    [Fact]
+    public void Auto_refresh_after_setting_done_routes_to_IpqcDashboard()
+    {
+        // SETTING → IPQC_WAIT transition via /setting/done.
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        var summaryCallCount = 0;
+        api.SummaryImpl = (woNo, ct) =>
+        {
+            summaryCallCount++;
+            var phase = summaryCallCount == 1 ? "SETTING" : "IPQC_WAIT";
+            return Task.FromResult<WorkOrderSummary?>(
+                SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = phase });
+        };
+        // SettingDashboard view (RunningSurfaceView) + IpqcDashboard view.
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+            {
+                WoId = 42, WoNo = "WO-26-3801", MesPhase = "SETTING",
+                ETag = "rv1", TargetQty = 1000,
+                SettingStartAt = DateTime.UtcNow.AddMinutes(-3),
+            });
+        api.SettingDoneImpl = (_, _, _) => Task.FromResult(
+            new CCL.MES.Shared.RunningSurface.RunningSurfaceSetResponse
+            {
+                Ok = true, ETag = "rv2", MesPhase = "IPQC_WAIT",
+            });
+        api.IpqcViewImpl = (_, _) => Task.FromResult(new CCL.MES.Shared.IpqcReview.IpqcView
+        {
+            WoId = 42, WoNo = "WO-26-3801", MesPhase = "IPQC_WAIT", ETag = "iv1",
+        });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3801");
+        cut.Find("div.wo-manual-row button").Click();
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-dashboard']")));
+
+        // Tick all 6 checklist items + click Hoàn tất Setting.
+        for (var i = 0; i < 6; i++)
+            cut.Find($"[data-testid='setting-check-{i}']").Change(true);
+        cut.WaitForAssertion(() =>
+            Assert.False(cut.Find("[data-testid='setting-done-btn']").HasAttribute("disabled")));
+        cut.Find("[data-testid='setting-done-btn']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.True(summaryCallCount >= 2,
+                $"Parent MUST re-fetch after /setting/done. Got {summaryCallCount}.");
+            Assert.NotNull(cut.Find("[data-testid='ipqc-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='setting-dashboard']"));
+        });
+    }
+
     [Fact]
     public void MesPhase_QA_PENDING_routes_to_QaApprovalDashboard()
     {

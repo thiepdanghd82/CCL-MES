@@ -5,6 +5,7 @@ using CCL.MES.Hybrid.Client.Auth;
 using CCL.MES.Hybrid.Razor.Shared;
 using CCL.MES.Hybrid.Razor.Tests._Support;
 using CCL.MES.Shared.IpqcReview;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -236,6 +237,81 @@ public sealed class QaApprovalDashboardTests : TestContext
             // Reject NOT gated by Q3 — same operator can reverse their own submit.
             Assert.False(cut.Find("[data-testid='qa-reject-btn']").HasAttribute("disabled"));
         });
+    }
+
+    // ── L21 auto-refresh (Henry RCA on PR #119) ────────────────────
+
+    [Fact]
+    public void Approve_success_invokes_OnPhaseChanged()
+    {
+        _session.SetUser("qc-bob"); // distinct from submitter
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.IpqcViewImpl = (_, _) => Task.FromResult(View(ipqcSubmittedBy: "qc-alice"));
+        api.PostQaApproveImpl = (_, _, _, _) => Task.FromResult(new IpqcSetResponse
+        {
+            Ok = true, ETag = "v6", MesPhase = "IPQC_APPROVED",
+        });
+
+        var phaseChangedCount = 0;
+        var cut = RenderComponent<QaApprovalDashboard>(p => p
+            .Add(d => d.WorkOrderId, 7L)
+            .Add(d => d.OnPhaseChanged, EventCallback.Factory.Create(this, () => phaseChangedCount++)));
+
+        cut.WaitForAssertion(() =>
+            Assert.False(cut.Find("[data-testid='qa-approve-btn']").HasAttribute("disabled")));
+        cut.Find("[data-testid='qa-approve-btn']").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(1, phaseChangedCount));
+    }
+
+    [Fact]
+    public void Reject_success_invokes_OnPhaseChanged()
+    {
+        _session.SetUser("qc-bob");
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.IpqcViewImpl = (_, _) => Task.FromResult(View(ipqcSubmittedBy: "qc-alice"));
+        api.PostQaApproveImpl = (_, _, _, _) => Task.FromResult(new IpqcSetResponse
+        {
+            Ok = true, ETag = "v7", MesPhase = "PREPRESS",
+        });
+
+        var phaseChangedCount = 0;
+        var cut = RenderComponent<QaApprovalDashboard>(p => p
+            .Add(d => d.WorkOrderId, 7L)
+            .Add(d => d.OnPhaseChanged, EventCallback.Factory.Create(this, () => phaseChangedCount++)));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='qa-reason-input']")));
+        cut.Find("[data-testid='qa-reason-input']").Input("Không chấp nhận sai số ΔE");
+        cut.WaitForAssertion(() =>
+            Assert.False(cut.Find("[data-testid='qa-reject-btn']").HasAttribute("disabled")));
+        cut.Find("[data-testid='qa-reject-btn']").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(1, phaseChangedCount));
+    }
+
+    [Fact]
+    public void Server_422_same_user_does_NOT_invoke_OnPhaseChanged()
+    {
+        _session.SetUser("qc-bob");
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.IpqcViewImpl = (_, _) => Task.FromResult(View(ipqcSubmittedBy: "qc-alice"));
+        api.PostQaApproveImpl = (_, _, _, _) => Task.FromResult(new IpqcSetResponse
+        {
+            Ok = false, ErrorCode = "qa.same_user_as_ipqc_submitter",
+            ETag = "v5", MesPhase = "QA_PENDING",
+        });
+
+        var phaseChangedCount = 0;
+        var cut = RenderComponent<QaApprovalDashboard>(p => p
+            .Add(d => d.WorkOrderId, 7L)
+            .Add(d => d.OnPhaseChanged, EventCallback.Factory.Create(this, () => phaseChangedCount++)));
+
+        cut.WaitForAssertion(() =>
+            Assert.False(cut.Find("[data-testid='qa-approve-btn']").HasAttribute("disabled")));
+        cut.Find("[data-testid='qa-approve-btn']").Click();
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='qa-set-error']")));
+        Assert.Equal(0, phaseChangedCount);
     }
 
     // ── Server-side Q3 422 path (curl bypass) renders banner ──────
