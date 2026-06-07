@@ -2,6 +2,7 @@ using System.Net;
 using Bunit;
 using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client;
+using CCL.MES.Hybrid.Client.Auth;
 using CCL.MES.Hybrid.Client.Hardware;
 using CCL.MES.Hybrid.Client.RecentScans;
 using CCL.MES.Hybrid.Client.WorkOrders;
@@ -42,6 +43,10 @@ public sealed class WorkOrdersPageTests : TestContext
         Services.AddSingleton<IBarcodeScannerService, StubScannerService>();
         Services.AddSingleton<IDeviceSettingsLauncher, StubDeviceSettingsLauncher>();
         Services.AddSingleton<IRecentScansService, InMemoryRecentScansService>();
+        // P10.7d-3 — QaApprovalDashboard injects IAuthSession for the Q3
+        // dual-sig client guard. WorkOrders page hosts it on QA_PENDING so
+        // the parent test context must register a session double too.
+        Services.AddSingleton<IAuthSession>(new StubAuthSession());
         Services.AddSingleton<IOptions<HardwareOptions>>(
             Options.Create(new HardwareOptions { ScanEnabled = true }));
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
@@ -242,22 +247,21 @@ public sealed class WorkOrdersPageTests : TestContext
     // CTA + stale advance error chrome render alongside.
 
     [Fact]
-    public void Divergence_MesPhase_IPQC_WAIT_routes_to_RunningDashboard_not_SettingDashboard()
+    public void Divergence_MesPhase_IPQC_WAIT_routes_to_IpqcDashboard_not_SettingDashboard()
     {
+        // P10.7d-3 — IPQC_WAIT now owns a real IpqcDashboard. Previously
+        // (7c-3) it routed to RunningDashboard's placeholder card; 7d-3
+        // narrowed IsRunningSurfacePhaseValue + added IsIpqcWaitPhase so
+        // IPQC_WAIT lands on the dedicated dashboard. The L19 cause (legacy
+        // CurrentStep="OpSetting" vs canonical MesPhase="IPQC_WAIT") still
+        // applies — dispatch MUST key on MesPhase.
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
-        // Server bumped MesPhase=IPQC_WAIT after /setting/done; CurrentStep
-        // legacy projection stayed "OpSetting" — the exact WO-26-3685 state.
         api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
             SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "IPQC_WAIT" });
-        // RunningDashboard fetches /running-surface — return matching view.
-        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
-            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+        api.IpqcViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.IpqcReview.IpqcView
             {
-                WoId = 42,
-                WoNo = "WO-26-3685",
-                MesPhase = "IPQC_WAIT",
-                ETag = "RV-IPQC",
-                TargetQty = 12000,
+                WoId = 42, WoNo = "WO-26-3685", MesPhase = "IPQC_WAIT", ETag = "IV",
             });
 
         var cut = RenderComponent<WorkOrders>();
@@ -266,28 +270,61 @@ public sealed class WorkOrdersPageTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            // RunningDashboard MUST render (with IPQC_WAIT info branch).
-            Assert.NotNull(cut.Find("[data-testid='running-dashboard']"));
-            var deferred = cut.Find("[data-testid='running-deferred']");
-            Assert.Equal("IPQC_WAIT", deferred.GetAttribute("data-deferred-phase"));
-            // SettingDashboard MUST NOT render — that was the dead-end bug.
+            // IpqcDashboard MUST render — the real 7d-3 surface.
+            Assert.NotNull(cut.Find("[data-testid='ipqc-dashboard']"));
+            // RunningDashboard MUST NOT render — IPQC_WAIT is now off its
+            // surface entirely (no placeholder).
+            Assert.Empty(cut.FindAll("[data-testid='running-dashboard']"));
+            // SettingDashboard MUST NOT render — that was the L19 dead-end bug.
             Assert.Empty(cut.FindAll("[data-testid='setting-dashboard']"));
-            // Dead-end "không ở giai đoạn chạy" error MUST NOT render.
-            Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
+        });
+    }
+
+    [Fact]
+    public void MesPhase_QA_PENDING_routes_to_QaApprovalDashboard()
+    {
+        // P10.7d-3 — QA_PENDING now owns a real QaApprovalDashboard.
+        // Previously (7c-3) it routed to RunningDashboard's placeholder.
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "QA_PENDING" });
+        api.IpqcViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.IpqcReview.IpqcView
+            {
+                WoId = 42, WoNo = "WO-26-3725", MesPhase = "QA_PENDING", ETag = "QV",
+                IpqcSubmittedBy = "qc-alice",
+                IpqcSubmittedAt = DateTime.UtcNow.AddMinutes(-3),
+                SpecialAcceptReason = "Lô gấp",
+                Judgment = "SpecialAccept",
+                IsReadyForJudgment = true,
+                AnyNg = true,
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3725");
+        cut.Find("div.wo-manual-row button").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='qa-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='running-dashboard']"));
         });
     }
 
     [Fact]
     public void Dashboard_owned_phase_hides_legacy_Advance_CTA_and_stale_error_banner()
     {
+        // P10.7d-3 — IPQC_WAIT now routes to IpqcDashboard (real surface),
+        // not the RunningDashboard placeholder. IsDashboardOwnedPhase
+        // returns true via IsIpqcWaitPhase → legacy chrome stays hidden.
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
         api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
             SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "IPQC_WAIT" });
-        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
-            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+        api.IpqcViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.IpqcReview.IpqcView
             {
-                WoId = 42, WoNo = "WO-26-3685", MesPhase = "IPQC_WAIT",
-                ETag = "RV", TargetQty = 12000,
+                WoId = 42, WoNo = "WO-26-3685", MesPhase = "IPQC_WAIT", ETag = "IV",
             });
 
         var cut = RenderComponent<WorkOrders>();
@@ -301,6 +338,8 @@ public sealed class WorkOrdersPageTests : TestContext
             // Stale advance error banner (e.g. RequiresSetupConfirmed from
             // a prior failed advance) MUST NOT render either.
             Assert.Empty(cut.FindAll("div.wo-card-error"));
+            // IpqcDashboard MUST be the owning surface.
+            Assert.NotNull(cut.Find("[data-testid='ipqc-dashboard']"));
         });
     }
 
@@ -399,7 +438,8 @@ public sealed class WorkOrdersPageTests : TestContext
     }
 
     [Theory]
-    [InlineData("QA_PENDING", "Chờ duyệt QA")]
+    // P10.7d-3 — QA_PENDING REMOVED from the deferred list (has a real
+    // dashboard now). Theory covers only the 7e-deferred + terminal phases.
     [InlineData("OQC_PENDING", "Chờ kiểm OQC")]
     [InlineData("DONE", "WO đã hoàn tất")]
     [InlineData("CANCELLED", "WO đã huỷ")]

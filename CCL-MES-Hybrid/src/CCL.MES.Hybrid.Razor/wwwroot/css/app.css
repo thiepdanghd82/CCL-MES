@@ -4215,3 +4215,274 @@ html, body {
 .wo-phase-done           { background: #dcfce7; color: #166534; }
 .wo-phase-cancelled      { background: #fee2e2; color: #991b1b; }
 .wo-phase-other          { background: #f3f4f6; color: #4b5563; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   P10.7d-3 — IPQC review + QA Approval dashboards.
+   Reuses .rs-dashboard / .rs-card / .rs-head / .op-btn skin from
+   the 7c-3 running surface so the SETTING → IPQC → QA → RUNNING
+   transition feels visually continuous to the operator. .ipqc-* and
+   .qa-* add layout + state colour for the new surfaces.
+   Responsive: container queries scoped to .ipqc-dashboard +
+   .qa-dashboard so they react to the dashboard's own width, NOT the
+   viewport (per Lesson #27 — sidebar collapse must reflow without
+   layout jank).
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ipqc-dashboard,
+.qa-dashboard {
+    /* Already gets container-type via .rs-dashboard above; this nesting
+       keeps both surfaces in sync visually + responsive-wise. */
+}
+
+.ipqc-counter-pill {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    padding: 8px 14px;
+    background: #ecfeff;
+    border: 1px solid #67e8f9;
+    border-radius: 8px;
+}
+.ipqc-counter-label { font-size: 12px; color: #155e75; }
+.ipqc-counter-value { font-size: clamp(18px, 2vw, 22px); font-weight: 700; color: #0c4a6e; }
+
+/* ── Slot cards ─────────────────────────────────────────────────── */
+
+.ipqc-slot-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.ipqc-slot {
+    /* Slot card extends .rs-card with a coloured left rail per state. */
+    border-left-width: 4px;
+    border-left-style: solid;
+    border-left-color: #d1d5db;
+    transition: border-left-color 120ms ease;
+}
+.ipqc-slot-ok      { border-left-color: #15803d; }
+.ipqc-slot-ng      { border-left-color: #b91c1c; }
+.ipqc-slot-pending { border-left-color: #d1d5db; }
+
+.ipqc-slot-subtitle {
+    font-size: 13px;
+    color: #4b5563;
+}
+
+.ipqc-slot-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.ipqc-slot-btn {
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.ipqc-slot-ng-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 6px;
+    font-size: 13px;
+}
+.ipqc-slot-ng-label { color: #991b1b; font-weight: 600; }
+.ipqc-slot-ng-value { color: #7f1d1d; font-weight: 700; }
+.ipqc-slot-ng-note  { color: #6b7280; font-style: italic; }
+
+.ipqc-status-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.ipqc-status-ok      { background: #dcfce7; color: #166534; }
+.ipqc-status-ng      { background: #fee2e2; color: #991b1b; }
+.ipqc-status-pending { background: #f3f4f6; color: #4b5563; }
+
+/* ── NG sub-form (inline under slot buttons) ────────────────────── */
+
+.ipqc-ng-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 10px;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 6px;
+}
+
+.ipqc-ng-field      { display: flex; flex-direction: column; gap: 4px; }
+.ipqc-ng-field-wide { grid-column: 1 / -1; }
+
+.ipqc-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+}
+.ipqc-input:focus {
+    outline: none;
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.15);
+}
+
+.ipqc-char-count {
+    font-size: 11px;
+    color: #6b7280;
+    text-align: right;
+}
+
+.ipqc-ng-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.ipqc-hint {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+.ipqc-hint-warn { background: #fef3c7; color: #92400e; }
+
+/* ── Judgment row ──────────────────────────────────────────────── */
+
+.ipqc-judgment-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.ipqc-judgment-btn {
+    min-height: 56px;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.ipqc-judgment-reason {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ipqc-rollup-pill {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.ipqc-rollup-ok      { background: #dcfce7; color: #166534; }
+.ipqc-rollup-warn    { background: #fef3c7; color: #92400e; }
+.ipqc-rollup-pending { background: #f3f4f6; color: #4b5563; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   QA Approval dashboard
+   ═══════════════════════════════════════════════════════════════════ */
+
+.qa-submitter-pill {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    padding: 8px 14px;
+    background: #fef9c3;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+}
+.qa-submitter-label { font-size: 12px; color: #92400e; }
+.qa-submitter-value { font-size: 15px; font-weight: 700; color: #78350f; }
+.qa-submitter-time  { font-size: 11px; color: #92400e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.qa-q3-banner {
+    /* Re-uses .wo-card-error red skin but adds a stronger left rail to
+       make Q3 conflicts visually distinct from generic set-errors. */
+    border-left-width: 4px;
+    border-left-style: solid;
+    border-left-color: #dc2626;
+    background: #fef2f2;
+}
+
+.qa-slot-summary {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+}
+.qa-slot-row {
+    display: grid;
+    grid-template-columns: 200px auto 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-bottom: 1px solid #f3f4f6;
+}
+.qa-slot-row:last-child { border-bottom: 0; }
+.qa-slot-name   { font-weight: 600; color: #1f2937; }
+.qa-slot-reason {
+    font-size: 12px;
+    color: #6b7280;
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.qa-special-reason {
+    margin-top: 4px;
+    padding: 10px 12px;
+    background: #fef9c3;
+    border: 1px solid #fde68a;
+    border-radius: 6px;
+}
+.qa-special-reason-label { font-size: 12px; font-weight: 600; color: #92400e; margin-bottom: 4px; }
+.qa-special-reason-body  { color: #78350f; }
+
+.qa-action-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.qa-hint-q3 {
+    color: #991b1b;
+    font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Container-query responsive
+   ═══════════════════════════════════════════════════════════════════ */
+
+@container (min-width: 1400px) {
+    .ipqc-slot-grid       { grid-template-columns: repeat(2, 1fr); }
+    .ipqc-slot-btn        { min-height: 56px; font-size: 16px; }
+    .ipqc-judgment-btn    { min-height: 64px; font-size: 18px; }
+    .qa-slot-row          { grid-template-columns: 240px auto 1fr; }
+    .ipqc-counter-value,
+    .qa-submitter-value   { font-size: 22px; }
+}
+
+@container (max-width: 900px) {
+    .ipqc-slot-grid       { grid-template-columns: 1fr; }
+    .ipqc-judgment-actions{ grid-template-columns: 1fr; }
+    .ipqc-judgment-btn    { width: 100%; }
+    .qa-action-buttons    { grid-template-columns: 1fr; }
+    .ipqc-ng-form         { grid-template-columns: 1fr; }
+    .qa-slot-row          { grid-template-columns: 1fr; gap: 4px; }
+    .qa-slot-reason       { white-space: normal; }
+    .ipqc-counter-pill,
+    .qa-submitter-pill    { align-items: flex-start; }
+}

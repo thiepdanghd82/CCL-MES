@@ -1,0 +1,584 @@
+@*
+    P10.7d-3 — IPQC review operator dashboard.
+
+    Hosted inside WorkOrders.razor when the scanned WO has
+    MesPhase=IPQC_WAIT. Owns the entire IpqcView state + every API call
+    that mutates it (4 PUT slot + POST judgment).
+
+    Render:
+      - Head: WO + phase chip + "X/4 đã xác nhận" pill.
+      - 4 slot cards (Material / Print A — Color/ΔE / Print B —
+        Registration / Print C — Content). Each card carries 3-state
+        status pill + OK/NG buttons + inline NG sub-form (reason
+        picker + 1-500 char note). Plain <input> + <select> per Rule 4.
+      - Judgment row visible only when IsReadyForJudgment (all 4 slots
+        non-Pending). Three buttons:
+          - Go Run  : enabled iff AllOk.
+          - Stop Line: enabled iff AnyNg.
+          - Special Accept: enabled iff AnyNg AND reason ≥1 char.
+        Server validates the GoRun ↔ AnyNg invariant too (L15 dual-side
+        check); we mirror client-side so operators get a hint, not a
+        bounced server error.
+
+    Concurrency / error handling matches SettingDashboard + the
+    Prepress dashboard:
+      - 200 → swap state from response (MesPhase + ETag + rollup) then
+        refetch the view to capture audit-side fields
+        (IpqcSubmittedAt, etc.).
+      - 409 wo.state_conflict → refetch + show banner (the fresh ETag
+        rides on the response so the next attempt can retry without an
+        extra GET).
+      - 422 ipqc.* / qa.* → in-band ErrorCode + LocaliseSetError to
+        produce the VN banner. The set-error banner sits at the top
+        of the dashboard so operators can't miss it.
+      - 422 wo.invalid_phase → collapse to "không ở IPQC_WAIT" banner.
+
+    Rule 4: plain <input>, plain <button>, plain <select>. NO
+    <InputText> / <EditForm> — Lesson L2 trap.
+
+    Rule 7.3 wire-mirror: every wire-path probe has an integration
+    test hitting the SAME URL via TestServer
+    (IpqcReviewControllerTests covers GET view + 4 PUT slots + POST
+    judgment + POST qa/approve).
+*@
+
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.IpqcReview
+@using CCL.MES.Shared.Envelopes
+@using CCL.MES.Shared.IpqcReview
+@using CCL.MES.Shared.ReasonCodes
+@inject ICclApiClient Api
+
+<div class="rs-dashboard ipqc-dashboard" data-testid="ipqc-dashboard">
+    @if (_view is null && _initialError is null)
+    {
+        <div class="rs-loading" data-testid="ipqc-loading">Đang tải trạng thái IPQC…</div>
+    }
+    else if (_initialError is not null)
+    {
+        <div class="wo-card-error" data-testid="ipqc-initial-error">
+            <strong>Không tải được trạng thái IPQC:</strong> @_initialError
+        </div>
+    }
+    else if (_invalidPhase)
+    {
+        <div class="wo-card-error" data-testid="ipqc-invalid-phase">
+            <strong>WO không ở giai đoạn IPQC_WAIT</strong> —
+            Hiện tại: <code>@(_view?.MesPhase ?? "?")</code>.
+            Quay lại tab Work Orders để chọn WO khác.
+        </div>
+    }
+    else if (_view is not null)
+    {
+        <div class="rs-head">
+            <div class="rs-head-wo">
+                <span class="rs-head-label">WO</span>
+                <span class="rs-head-wo-no">@_view.WoNo</span>
+                <span class="rs-head-phase rs-phase-ipqc">@_view.MesPhase</span>
+            </div>
+            <div class="ipqc-counter-pill" data-testid="ipqc-counter">
+                <span class="ipqc-counter-label">Slot đã xác nhận</span>
+                <span class="ipqc-counter-value scan-mono">@ConfirmedCount/4</span>
+            </div>
+        </div>
+
+        @if (_setError is not null)
+        {
+            <div class="wo-card-error" data-testid="ipqc-set-error">
+                <strong>Không ghi được thay đổi:</strong> @_setError
+                <button type="button" class="op-btn op-btn-secondary op-btn-sm"
+                        @onclick="DismissSetError"
+                        data-testid="ipqc-set-error-dismiss">Bỏ qua</button>
+            </div>
+        }
+
+        @* ── 4 slot cards ─────────────────────────────────────────── *@
+        <div class="ipqc-slot-grid">
+            @foreach (var slot in _slots)
+            {
+                <div class="rs-card ipqc-slot @SlotCssClass(slot)"
+                     data-testid="@($"ipqc-slot-{slot.Key}")">
+                    <div class="rs-card-head">
+                        <div class="rs-card-title">@slot.Title</div>
+                        <div class="ipqc-status-pill @StatusPillCss(SlotStatus(slot))"
+                             data-testid="@($"ipqc-slot-{slot.Key}-status")">@StatusDisplay(SlotStatus(slot))</div>
+                    </div>
+                    <div class="ipqc-slot-subtitle">@slot.Subtitle</div>
+
+                    <div class="ipqc-slot-actions">
+                        <button type="button"
+                                class="op-btn op-btn-success ipqc-slot-btn"
+                                disabled="@_busy"
+                                @onclick="@(() => OnSlotOkAsync(slot))"
+                                data-testid="@($"ipqc-slot-{slot.Key}-ok")">OK</button>
+                        <button type="button"
+                                class="op-btn op-btn-danger ipqc-slot-btn"
+                                disabled="@_busy"
+                                @onclick="@(() => OpenNgForm(slot.Key))"
+                                data-testid="@($"ipqc-slot-{slot.Key}-ng")">NG</button>
+                    </div>
+
+                    @if (SlotStatus(slot) == "Ng" && SlotNgReason(slot) is { } persistedReason)
+                    {
+                        <div class="ipqc-slot-ng-summary" data-testid="@($"ipqc-slot-{slot.Key}-ng-summary")">
+                            <span class="ipqc-slot-ng-label">Mã NG:</span>
+                            <span class="ipqc-slot-ng-value scan-mono">@persistedReason</span>
+                            @if (SlotNgNote(slot) is { Length: > 0 } persistedNote)
+                            {
+                                <div class="ipqc-slot-ng-note">@persistedNote</div>
+                            }
+                        </div>
+                    }
+
+                    @if (_openNgFor == slot.Key)
+                    {
+                        <div class="ipqc-ng-form" data-testid="@($"ipqc-slot-{slot.Key}-ng-form")">
+                            <div class="ipqc-ng-field">
+                                <label class="rs-modal-label" for="@($"ipqc-{slot.Key}-reason")">Mã NG</label>
+                                <select id="@($"ipqc-{slot.Key}-reason")"
+                                        class="ipqc-input"
+                                        value="@_ngReasonCode"
+                                        @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
+                                        data-testid="@($"ipqc-slot-{slot.Key}-ng-reason")">
+                                    <option value="">— chọn mã NG —</option>
+                                    @foreach (var r in ScrapReasons)
+                                    {
+                                        <option value="@r.Code">@r.Code — @r.LabelVi</option>
+                                    }
+                                </select>
+                                @if (ScrapReasons.Count == 0)
+                                {
+                                    <div class="ipqc-hint ipqc-hint-warn">
+                                        Danh mục NG trống — báo IT để seed reason codes (kind=Scrap).
+                                    </div>
+                                }
+                            </div>
+                            <div class="ipqc-ng-field ipqc-ng-field-wide">
+                                <label class="rs-modal-label" for="@($"ipqc-{slot.Key}-note")">Ghi chú NG (1-500 ký tự)</label>
+                                <input id="@($"ipqc-{slot.Key}-note")"
+                                       type="text"
+                                       class="ipqc-input"
+                                       maxlength="500"
+                                       value="@_ngNote"
+                                       @oninput="@(e => _ngNote = e.Value?.ToString() ?? "")"
+                                       data-testid="@($"ipqc-slot-{slot.Key}-ng-note")" />
+                                <div class="ipqc-char-count">@_ngNote.Length/500</div>
+                            </div>
+                            <div class="ipqc-ng-actions">
+                                <button type="button"
+                                        class="op-btn op-btn-secondary"
+                                        @onclick="CloseNgForm"
+                                        data-testid="@($"ipqc-slot-{slot.Key}-ng-cancel")">Huỷ</button>
+                                <button type="button"
+                                        class="op-btn op-btn-danger"
+                                        disabled="@(!CanSubmitNg() || _busy)"
+                                        @onclick="@(() => OnSlotNgAsync(slot))"
+                                        data-testid="@($"ipqc-slot-{slot.Key}-ng-submit")">
+                                    Lưu NG
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @* ── Judgment row ───────────────────────────────────────── *@
+        <div class="rs-card ipqc-judgment" data-testid="ipqc-judgment">
+            <div class="rs-card-head">
+                <div class="rs-card-title">Phán quyết IPQC</div>
+                @if (_view.IsReadyForJudgment)
+                {
+                    <div class="ipqc-rollup-pill @(_view.AnyNg ? "ipqc-rollup-warn" : "ipqc-rollup-ok")"
+                         data-testid="ipqc-rollup-pill">
+                        @if (_view.AllOk)
+                        {
+                            <span>Tất cả 4 slot OK — đề xuất Go Run</span>
+                        }
+                        else
+                        {
+                            <span>Có slot NG — chọn Stop Line hoặc Special Accept</span>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="ipqc-rollup-pill ipqc-rollup-pending"
+                         data-testid="ipqc-rollup-pill">
+                        Còn @(4 - ConfirmedCount) slot chưa xác nhận
+                    </div>
+                }
+            </div>
+
+            <div class="ipqc-judgment-actions rs-action-bar-multi" data-testid="ipqc-judgment-buttons">
+                <button type="button"
+                        class="op-btn op-btn-success ipqc-judgment-btn"
+                        disabled="@(!CanGoRun() || _busy)"
+                        @onclick="@(() => OnSubmitJudgmentAsync(JudgmentGoRun))"
+                        data-testid="ipqc-judgment-gorun">
+                    Go Run
+                </button>
+                <button type="button"
+                        class="op-btn op-btn-warning ipqc-judgment-btn"
+                        disabled="@(!CanStopLine() || _busy)"
+                        @onclick="@(() => OnSubmitJudgmentAsync(JudgmentStopLine))"
+                        data-testid="ipqc-judgment-stopline">
+                    Stop Line
+                </button>
+                <button type="button"
+                        class="op-btn op-btn-danger ipqc-judgment-btn"
+                        disabled="@(!CanSpecialAccept() || _busy)"
+                        @onclick="@(() => OnSubmitJudgmentAsync(JudgmentSpecialAccept))"
+                        data-testid="ipqc-judgment-specialaccept">
+                    Special Accept
+                </button>
+            </div>
+
+            @if (_view.IsReadyForJudgment && _view.AnyNg)
+            {
+                <div class="ipqc-judgment-reason">
+                    <label class="rs-modal-label" for="ipqc-sa-reason">
+                        Lý do Special Accept (bắt buộc khi chọn Special Accept; 1-500 ký tự)
+                    </label>
+                    <input id="ipqc-sa-reason"
+                           type="text"
+                           class="ipqc-input"
+                           maxlength="500"
+                           value="@_specialAcceptReason"
+                           @oninput="@(e => _specialAcceptReason = e.Value?.ToString() ?? "")"
+                           data-testid="ipqc-special-accept-reason" />
+                    <div class="ipqc-char-count">@_specialAcceptReason.Length/500</div>
+                </div>
+            }
+
+            @if (!_view.IsReadyForJudgment)
+            {
+                <div class="rs-action-hint" data-testid="ipqc-judgment-hint">
+                    Xác nhận đủ 4 slot (Material + Print A/B/C) → các nút phán quyết kích hoạt.
+                </div>
+            }
+            else if (!_view.AnyNg)
+            {
+                <div class="rs-action-hint" data-testid="ipqc-judgment-hint">
+                    Tất cả 4 slot OK — chỉ <strong>Go Run</strong> hợp lệ. Stop Line + Special Accept
+                    chỉ dùng khi có slot NG.
+                </div>
+            }
+            else
+            {
+                <div class="rs-action-hint" data-testid="ipqc-judgment-hint">
+                    Có slot NG — <strong>Go Run</strong> bị máy chủ từ chối. Chọn Stop Line (về PREPRESS)
+                    hoặc Special Accept (chờ QA duyệt).
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public long WorkOrderId { get; set; }
+
+    /// <summary>Scrap reason codes for the NG dropdowns. Loaded by the
+    /// parent (WorkOrders.razor) once on init + handed in so the
+    /// dashboard never re-fetches per render. Empty list surfaces as
+    /// "danh mục NG trống" hint inline.</summary>
+    [Parameter] public IReadOnlyList<ReasonCodeOption> ScrapReasons { get; set; } = Array.Empty<ReasonCodeOption>();
+
+    // Judgment constants — match server-side enum (Domain/StateMachine).
+    private const string JudgmentGoRun = "GoRun";
+    private const string JudgmentStopLine = "StopLine";
+    private const string JudgmentSpecialAccept = "SpecialAccept";
+
+    private IpqcView? _view;
+    private string? _initialError;
+    private string? _setError;
+    private bool _busy;
+    private bool _invalidPhase;
+    private long _lastLoadedWoId;
+
+    // NG-form local state — single open at a time (one of the 4 slot keys).
+    // Plain string keys ("material" / "print-a" / "print-b" / "print-c") so
+    // bUnit can target by data-testid without enum noise.
+    private string? _openNgFor;
+    private string _ngReasonCode = "";
+    private string _ngNote = "";
+
+    private string _specialAcceptReason = "";
+
+    private static readonly SlotDef[] _slots =
+    {
+        new("material", "Material recheck", "Đúng cuộn, lot, code, vệ sinh sau setting"),
+        new("print-a",  "Print A — Color (ΔE)", "Đo ΔE ≤ ngưỡng spec (mặc định ≤ 2)"),
+        new("print-b",  "Print B — Registration", "Chồng màu / căn chuẩn trong dung sai"),
+        new("print-c",  "Print C — Content", "Nội dung text + barcode đúng spec"),
+    };
+
+    private int ConfirmedCount => _view is null ? 0 :
+        (_view.MaterialStatus != "Pending" ? 1 : 0)
+        + (_view.PrintAStatus != "Pending" ? 1 : 0)
+        + (_view.PrintBStatus != "Pending" ? 1 : 0)
+        + (_view.PrintCStatus != "Pending" ? 1 : 0);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (WorkOrderId != _lastLoadedWoId)
+        {
+            _lastLoadedWoId = WorkOrderId;
+            _view = null;
+            _initialError = null;
+            _setError = null;
+            _invalidPhase = false;
+            _openNgFor = null;
+            _ngReasonCode = "";
+            _ngNote = "";
+            _specialAcceptReason = "";
+            await ReloadAsync();
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _view = await Api.GetIpqcViewAsync(WorkOrderId);
+            _invalidPhase = _view.MesPhase != "IPQC_WAIT";
+        }
+        catch (ApiException apiEx)
+        {
+            _initialError = IpqcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+        }
+        catch (HttpRequestException ex)
+        {
+            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _initialError = $"Lỗi tải trạng thái IPQC: {ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
+    // ── Slot helpers ────────────────────────────────────────────────
+
+    private string SlotStatus(SlotDef slot) => slot.Key switch
+    {
+        "material" => _view?.MaterialStatus ?? "Pending",
+        "print-a"  => _view?.PrintAStatus ?? "Pending",
+        "print-b"  => _view?.PrintBStatus ?? "Pending",
+        "print-c"  => _view?.PrintCStatus ?? "Pending",
+        _          => "Pending",
+    };
+
+    private string? SlotNgReason(SlotDef slot) => slot.Key switch
+    {
+        "material" => _view?.MaterialNgReasonCode,
+        "print-a"  => _view?.PrintANgReasonCode,
+        "print-b"  => _view?.PrintBNgReasonCode,
+        "print-c"  => _view?.PrintCNgReasonCode,
+        _          => null,
+    };
+
+    private string? SlotNgNote(SlotDef slot) => slot.Key switch
+    {
+        "material" => _view?.MaterialNgNote,
+        "print-a"  => _view?.PrintANgNote,
+        "print-b"  => _view?.PrintBNgNote,
+        "print-c"  => _view?.PrintCNgNote,
+        _          => null,
+    };
+
+    private string SlotCssClass(SlotDef slot) => SlotStatus(slot) switch
+    {
+        "Ok"  => "ipqc-slot-ok",
+        "Ng"  => "ipqc-slot-ng",
+        _     => "ipqc-slot-pending",
+    };
+
+    private static string StatusDisplay(string status) => status switch
+    {
+        "Ok" => "✓ OK",
+        "Ng" => "✗ NG",
+        _    => "— Chờ",
+    };
+
+    private static string StatusPillCss(string status) => status switch
+    {
+        "Ok" => "ipqc-status-ok",
+        "Ng" => "ipqc-status-ng",
+        _    => "ipqc-status-pending",
+    };
+
+    // ── NG-form lifecycle ───────────────────────────────────────────
+
+    private void OpenNgForm(string slotKey)
+    {
+        if (_busy) return;
+        _openNgFor = slotKey;
+        // Pre-populate with existing NG values if the slot was already NG —
+        // operator might be editing the reason/note without flipping back to OK first.
+        var slot = _slots.First(s => s.Key == slotKey);
+        _ngReasonCode = SlotNgReason(slot) ?? "";
+        _ngNote = SlotNgNote(slot) ?? "";
+    }
+
+    private void CloseNgForm()
+    {
+        _openNgFor = null;
+        _ngReasonCode = "";
+        _ngNote = "";
+    }
+
+    private bool CanSubmitNg() =>
+        !string.IsNullOrWhiteSpace(_ngReasonCode)
+        && ScrapReasons.Any(r => r.Code == _ngReasonCode)
+        && !string.IsNullOrWhiteSpace(_ngNote)
+        && _ngNote.Length <= 500;
+
+    private void DismissSetError() => _setError = null;
+
+    // ── Slot mutation calls ─────────────────────────────────────────
+
+    private Task OnSlotOkAsync(SlotDef slot) =>
+        SubmitSlotAsync(slot, new SetIpqcSlotRequest { Status = "Ok" });
+
+    private async Task OnSlotNgAsync(SlotDef slot)
+    {
+        if (!CanSubmitNg()) return;
+        await SubmitSlotAsync(slot, new SetIpqcSlotRequest
+        {
+            Status = "Ng",
+            NgReasonCode = _ngReasonCode,
+            NgNote = _ngNote,
+        });
+        // Form auto-closes on success in HandleSetResponse.
+    }
+
+    private async Task SubmitSlotAsync(SlotDef slot, SetIpqcSlotRequest req)
+    {
+        if (_view is null || _busy) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var task = slot.Key switch
+            {
+                "material" => Api.PutIpqcMaterialAsync(WorkOrderId, _view.ETag, req),
+                "print-a"  => Api.PutIpqcPrintAAsync(WorkOrderId, _view.ETag, req),
+                "print-b"  => Api.PutIpqcPrintBAsync(WorkOrderId, _view.ETag, req),
+                "print-c"  => Api.PutIpqcPrintCAsync(WorkOrderId, _view.ETag, req),
+                _          => Task.FromResult(new IpqcSetResponse { Ok = false, ErrorCode = "client.unknown_slot" }),
+            };
+            var resp = await task;
+            await HandleSetResponseAsync(resp);
+            // Close NG form on success — operator sees the persisted state
+            // via the slot summary block below the buttons.
+            if (resp.Ok) CloseNgForm();
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = IpqcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── Judgment helpers ────────────────────────────────────────────
+
+    private bool CanGoRun() =>
+        _view is not null && _view.IsReadyForJudgment && _view.AllOk && !_view.AnyNg;
+
+    private bool CanStopLine() =>
+        _view is not null && _view.IsReadyForJudgment && _view.AnyNg;
+
+    private bool CanSpecialAccept() =>
+        _view is not null
+        && _view.IsReadyForJudgment
+        && _view.AnyNg
+        && !string.IsNullOrWhiteSpace(_specialAcceptReason)
+        && _specialAcceptReason.Length <= 500;
+
+    private async Task OnSubmitJudgmentAsync(string judgment)
+    {
+        if (_view is null || _busy) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var req = new SubmitIpqcJudgmentRequest
+            {
+                Judgment = judgment,
+                SpecialAcceptReason = judgment == JudgmentSpecialAccept ? _specialAcceptReason : null,
+            };
+            var resp = await Api.PostIpqcJudgmentAsync(WorkOrderId, _view.ETag, req);
+            await HandleSetResponseAsync(resp);
+            // After a successful judgment the WO leaves IPQC_WAIT:
+            //   GoRun         → IPQC_APPROVED  (RunningDashboard takes over)
+            //   StopLine      → PREPRESS       (PrepressDashboard takes over)
+            //   SpecialAccept → QA_PENDING     (QaApprovalDashboard takes over)
+            // The parent (WorkOrders.razor) dispatch picks up the new phase
+            // on the next render — nothing else for us to do.
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = IpqcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── Shared response handler ─────────────────────────────────────
+
+    /// <summary>Centralised handling of <see cref="IpqcSetResponse"/>
+    /// for all 5 mutation endpoints. Mirrors the SettingDashboard /
+    /// RunningDashboard contract: 200 → reload to capture audit-side
+    /// fields; 409 / 422 → set-error banner + reload (the response
+    /// carries the fresh ETag so the next attempt can retry without
+    /// an extra GET, but reload is cheap + simpler).</summary>
+    private async Task HandleSetResponseAsync(IpqcSetResponse resp)
+    {
+        if (resp.Ok)
+        {
+            await ReloadAsync();
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(resp.ErrorCode))
+        {
+            _setError = IpqcReviewErrorLocaliser.LocaliseSetError(resp.ErrorCode);
+            // ALWAYS reload on a non-ok response — the server may have
+            // moved past us (state_conflict) so the canonical state must
+            // become source-of-truth. This implements the "optimistic
+            // revert on 409" pattern: the slot button click ran without
+            // local UI flip, server rejected, we re-sync to truth.
+            await ReloadAsync();
+            return;
+        }
+
+        _setError = "Máy chủ trả Ok=false không kèm mã lỗi — báo IT.";
+    }
+
+    private sealed record SlotDef(string Key, string Title, string Subtitle);
+}

@@ -352,23 +352,15 @@
         || DeferredPhaseInfo.ContainsKey(phase);
 
     /// <summary>P10.7c-3 L19-finalization — phase → placeholder card
-    /// content map. Operators landing on a 7d/7e-deferred phase see a
+    /// content map. Operators landing on a 7e-deferred phase see a
     /// consistent read-only info card instead of a dead-end error banner.
-    /// 7d will replace IPQC_* + QA_PENDING entries; 7e will replace FQC +
+    /// 7d-3 REMOVED IPQC_WAIT + QA_PENDING entries — those have real
+    /// dashboards (IpqcDashboard + QaApprovalDashboard) hosted by
+    /// WorkOrders.razor BEFORE this dispatch. 7e will replace FQC +
     /// OQC entries; DONE / CANCELLED entries stay as terminal info cards.
     /// Maintain THIS map (not the render branch) to add new placeholders.</summary>
     private static readonly Dictionary<string, DeferredPhase> DeferredPhaseInfo = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["IPQC_WAIT"] = new(
-            Title: "Chờ kiểm IPQC",
-            Body: "Setting đã hoàn tất. WO đang chờ IPQC kiểm tra trước khi mở sản xuất.",
-            Hint: "Màn hình IPQC sẽ có ở bản 7d — tạm thời IPQC review thực hiện ngoài app (giấy / Zalo); khi IPQC duyệt, WO sẽ chuyển sang IPQC_APPROVED và bạn quay lại đây để bấm Bắt đầu chạy.",
-            HeadPhaseCss: "rs-phase-other"),
-        ["QA_PENDING"] = new(
-            Title: "Chờ duyệt QA",
-            Body: "WO đang chờ QA duyệt trước khi mở sản xuất.",
-            Hint: "Tương đương IPQC_WAIT trong vòng v1; xử lý cùng quy trình.",
-            HeadPhaseCss: "rs-phase-other"),
         ["FQC_PENDING"] = new(
             Title: "Chờ kiểm FQC",
             Body: "Sản xuất đã kết thúc. WO đang chờ FQC kiểm chất lượng đầu ra.",

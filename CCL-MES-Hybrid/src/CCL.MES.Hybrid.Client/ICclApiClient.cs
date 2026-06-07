@@ -6,6 +6,7 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.IpqcReview;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
@@ -140,6 +141,62 @@ public interface ICclApiClient
     /// session. Requires QtyDoneCached &gt; 0.</summary>
     Task<RunningSurfaceSetResponse> PostRunFinishAsync(
         long workOrderId, string ifMatchETag, CancellationToken ct = default);
+
+    // ── IPQC review + QA approval (P10.7d-3 — operator dashboards) ─
+
+    /// <summary>Read view backing the IpqcDashboard + QaApprovalDashboard.
+    /// Single round-trip carries each of the 4 slots + judgment + QA
+    /// fields + current ETag + 3 server-computed rollup flags
+    /// (IsReadyForJudgment / AllOk / AnyNg) so the dashboard can render
+    /// every state branch without a second hop. Throws on 404 / 401.</summary>
+    Task<IpqcView> GetIpqcViewAsync(long workOrderId, CancellationToken ct = default);
+
+    /// <summary>Set the Material recheck slot (status Pending/Ok/Ng +
+    /// optional NG reason/note). On 200 the response carries the bumped
+    /// ETag + post-write rollup flags. On 409 the response still carries
+    /// the fresh server ETag so the caller can re-sync; ErrorCode =
+    /// "wo.state_conflict".</summary>
+    Task<IpqcSetResponse> PutIpqcMaterialAsync(
+        long workOrderId, string ifMatchETag,
+        SetIpqcSlotRequest req, CancellationToken ct = default);
+
+    /// <summary>Set the Print A (Color/ΔE) slot. Same contract as
+    /// <see cref="PutIpqcMaterialAsync"/>.</summary>
+    Task<IpqcSetResponse> PutIpqcPrintAAsync(
+        long workOrderId, string ifMatchETag,
+        SetIpqcSlotRequest req, CancellationToken ct = default);
+
+    /// <summary>Set the Print B (Registration) slot. Same contract as
+    /// <see cref="PutIpqcMaterialAsync"/>.</summary>
+    Task<IpqcSetResponse> PutIpqcPrintBAsync(
+        long workOrderId, string ifMatchETag,
+        SetIpqcSlotRequest req, CancellationToken ct = default);
+
+    /// <summary>Set the Print C (Content) slot. Same contract as
+    /// <see cref="PutIpqcMaterialAsync"/>.</summary>
+    Task<IpqcSetResponse> PutIpqcPrintCAsync(
+        long workOrderId, string ifMatchETag,
+        SetIpqcSlotRequest req, CancellationToken ct = default);
+
+    /// <summary>Submit IPQC judgment (GoRun / StopLine / SpecialAccept).
+    /// Server validates: all 4 slots non-Pending; GoRun rejected when
+    /// any slot=Ng; SpecialAccept requires reason 1-500 chars.
+    /// Transition map: GoRun → IPQC_APPROVED; StopLine → PREPRESS;
+    /// SpecialAccept → QA_PENDING.</summary>
+    Task<IpqcSetResponse> PostIpqcJudgmentAsync(
+        long workOrderId, string ifMatchETag,
+        SubmitIpqcJudgmentRequest req, CancellationToken ct = default);
+
+    /// <summary>QA approval of a SPECIAL_ACCEPT escalation. Server enforces
+    /// Q3 dual-sig — when OPS_IPQC_REQUIRE_DISTINCT_QA_APPROVER=on (default)
+    /// and the caller's username equals IpqcSubmittedBy, server emits
+    /// 422 + ErrorCode = "qa.same_user_as_ipqc_submitter" +
+    /// WO_QA_APPROVE_DENIED audit. UI MUST also gate the button before
+    /// the round-trip so legitimate users see the banner inline, not
+    /// after a server bounce.</summary>
+    Task<IpqcSetResponse> PostQaApproveAsync(
+        long workOrderId, string ifMatchETag,
+        QaApproveRequest req, CancellationToken ct = default);
 
     // ── Reason codes (P10.7b-3 — operator-facing picker) ──────────
     /// <summary>List active reason codes filtered by kind ("Pause" /

@@ -20,9 +20,20 @@
 #        distinct-user happy + audit wire-mirror R7.3 + 3 role policy
 #        fixtures locking Henry-confirmed §5.5.0 role table).
 #     3b. Concurrent soak step inherited from 7c — runs as-is.
-#     4. CCL.MES.Hybrid.Client.Tests ≥549 (unchanged in 7d-1).
-#     5. CCL.MES.Hybrid.Razor.Tests ≥59 (unchanged in 7d-1; 7d-3 grows
-#        IPQC dashboard fixtures).
+#     4. CCL.MES.Hybrid.Client.Tests ≥575 — was 549 at 7d-2 + 26 new
+#        in 7d-3 (IpqcReviewErrorLocaliser locked VN bank — 13 API + 8
+#        in-band + Q3 same-user invariant + Q3SameUserBanner constant
+#        lock + unknown-code fall-through; mirrors the
+#        PrepressErrorLocaliser / RunningSurfaceErrorLocaliser shape).
+#     5. CCL.MES.Hybrid.Razor.Tests ≥85 — was 59 at 7d-2 + 26 new in
+#        7d-3 (12 IpqcDashboard: initial/load-error/invalid-phase/4×slot-OK-and-NG/
+#        judgment-gating/SpecialAccept-reason/judgment-submit/409-revert;
+#        10 QaApprovalDashboard: initial/invalid-phase/Q3-same-user/
+#        case-insensitive/distinct/approve-happy/reject-required/reject-still-allowed/
+#        server-422; +2 WorkOrders dispatch fixtures for IPQC_WAIT→IpqcDashboard
+#        and QA_PENDING→QaApprovalDashboard; +2 RunningDashboard 7d-3
+#        guard fixtures locking IPQC_WAIT/QA_PENDING removal from
+#        DeferredPhaseInfo and FQC/OQC/DONE/CANCELLED retention).
 #
 #   Migration round-trip (Rule 6 self-prep on the COPY)
 #     6. Copy real DB → /tmp; Down to PREVIOUS_MIGRATION
@@ -402,9 +413,13 @@ printf '%s\n' "${SUMMARY[@]}"
 echo ""
 echo "  TOTAL: pass=$PASS fail=$FAIL"
 echo ""
-echo "  7d-1 (domain) + 7d-2 (wire) shipped. 7d-3 will add the"
-echo "  IpqcDashboard + QaApprovalDashboard (loses IPQC_WAIT + QA_PENDING"
-echo "  entries from DeferredPhaseInfo map). 7d-4 will close out with"
+echo "  7d-1 (domain) + 7d-2 (wire) + 7d-3 (UI) shipped. 7d-3 added the"
+echo "  IpqcDashboard (4 slots + 3-button judgment + NG sub-form +"
+echo "  optimistic-on-409 revert) + QaApprovalDashboard (Q3 dual-sig"
+echo "  client guard + Approve/Reject + same-user banner) + dropped"
+echo "  IPQC_WAIT + QA_PENDING from RunningDashboard.DeferredPhaseInfo"
+echo "  (those have real dashboards now). +26 Razor fixtures (59→85)"
+echo "  + +26 Client fixtures (549→575). 7d-4 will close out with"
 echo "  checkpoint-7d-final + purge extension + LESSONS-LEARNED L20."
 echo ""
 

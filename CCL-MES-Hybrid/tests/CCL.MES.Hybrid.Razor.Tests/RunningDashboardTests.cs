@@ -421,30 +421,60 @@ public sealed class RunningDashboardTests : TestContext
 
     // ── 409 conflict ───────────────────────────────────────────────
 
-    // ── IPQC_WAIT informational branch ─────────────────────────────
-    // Wire-mirror: GET /running-surface returns MesPhase="IPQC_WAIT"
-    // on a WO post-/setting/done.
+    // ── 7d-3 architectural guard: IPQC_WAIT + QA_PENDING removed ───
+    // From 7d-3 onwards, IPQC_WAIT + QA_PENDING route to dedicated
+    // dashboards (IpqcDashboard + QaApprovalDashboard), NOT to a
+    // RunningDashboard placeholder card. If a future PR accidentally
+    // re-introduces them to DeferredPhaseInfo, that's a 7d regression —
+    // operators would see two competing surfaces fight to render.
+    //
+    // Rather than test via Render (which would need its own IPQC view
+    // mock), this test asserts the architectural invariant: the
+    // RunningDashboard's IsValidRunningPhase returns FALSE for the
+    // 7d-owned phases (forcing them through their own dashboards via
+    // the parent dispatch in WorkOrders.razor). The other phases
+    // (FQC/OQC/DONE/CANCELLED) remain valid via DeferredPhaseInfo.
 
-    [Fact]
-    public void IPQC_WAIT_phase_renders_read_only_info_card_not_error()
+    [Theory]
+    [InlineData("IPQC_WAIT")]
+    [InlineData("QA_PENDING")]
+    public void After_7d3_IPQC_WAIT_and_QA_PENDING_render_invalid_phase_inside_RunningDashboard(string phase)
     {
-        var cut = Render(this, View(phase: "IPQC_WAIT",
+        // If WorkOrders.razor accidentally sent one of these to
+        // RunningDashboard (which 7d-3 disallows), the dashboard refuses
+        // to render the action UI + falls back to the invalid_phase
+        // banner. That banner is the catchable failure signal.
+        var cut = Render(this, View(phase: phase,
             qtyDone: 0, qtyNg: 0, activeSessionId: null,
             entries: Array.Empty<RunningQtyEntryRow>()));
 
         cut.WaitForAssertion(() =>
         {
-            // Informational read-only card MUST render.
+            // No placeholder card — IPQC_WAIT + QA_PENDING removed from DeferredPhaseInfo.
+            Assert.Empty(cut.FindAll("[data-testid='running-deferred']"));
+            // Invalid_phase banner renders instead.
+            Assert.NotNull(cut.Find("[data-testid='running-invalid-phase']"));
+        });
+    }
+
+    [Theory]
+    // 7d-3 left these in DeferredPhaseInfo — they still render the
+    // placeholder card on RunningDashboard. 7e will replace FQC/OQC.
+    [InlineData("FQC_PENDING")]
+    [InlineData("OQC_PENDING")]
+    [InlineData("DONE")]
+    [InlineData("CANCELLED")]
+    public void After_7d3_remaining_deferred_phases_still_render_placeholder(string phase)
+    {
+        var cut = Render(this, View(phase: phase,
+            qtyDone: 0, qtyNg: 0, activeSessionId: null,
+            entries: Array.Empty<RunningQtyEntryRow>()));
+
+        cut.WaitForAssertion(() =>
+        {
             var card = cut.Find("[data-testid='running-deferred']");
-            Assert.Equal("IPQC_WAIT", card.GetAttribute("data-deferred-phase"));
-            // Dead-end "không ở giai đoạn chạy" error banner MUST NOT render.
+            Assert.Equal(phase, card.GetAttribute("data-deferred-phase"));
             Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
-            // Action chrome (counter / tap grid / NG row / action bar) MUST NOT render.
-            Assert.Empty(cut.FindAll("[data-testid='running-counter']"));
-            Assert.Empty(cut.FindAll("[data-testid='running-tap-grid']"));
-            Assert.Empty(cut.FindAll("[data-testid='run-start-btn']"));
-            Assert.Empty(cut.FindAll("[data-testid='run-pause-btn']"));
-            Assert.Empty(cut.FindAll("[data-testid='run-finish-btn']"));
         });
     }
 
