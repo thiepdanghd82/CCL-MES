@@ -40,7 +40,13 @@ builder.Host.UseDefaultServiceProvider((context, options) =>
 //      it (tests use this path so each factory pins its own /tmp file).
 //   2. MES_DB_PATH env var — explicit file override for ops.
 //   3. MES_DATA_DIR env var + ccl_mes.db filename — folder override.
-//   4. <repo-root>/data/ccl_mes.db default (shared with legacy Web).
+//   4. EXISTING <ancestor>/data/ccl_mes.db — prefer a real DB over a
+//      sibling .sln (Henry P10.7d-4 hardware note: dotnet run from
+//      CCL-MES-Hybrid/src/CCL.MES.Api/ used to land at the EMPTY
+//      CCL-MES-Hybrid/data/ instead of the operator's real DB at
+//      CCL-MES/data/ because the .sln walk stopped at the first .sln).
+//   5. <repo-root>/data/ccl_mes.db default (innermost .sln, shared with
+//      legacy Web — fresh checkout with no DB anywhere).
 // SqlServer provider — connection string is operator-managed; we never
 // touch it.
 // ──────────────────────────────────────────────────────────────────────
@@ -54,17 +60,33 @@ builder.Host.UseDefaultServiceProvider((context, options) =>
         var dataDir = Environment.GetEnvironmentVariable("MES_DATA_DIR");
         if (string.IsNullOrEmpty(dataDir))
         {
+            // P10.7d-4 — walk up from ContentRootPath looking for an
+            // EXISTING data/ccl_mes.db FIRST. If found at any ancestor,
+            // use that directory (matches operator's mental model —
+            // the real DB they've been using). Only if no DB file is
+            // found anywhere does the fallback (legacy .sln walk) kick
+            // in and create a fresh one. Closes Henry's "boot wrong
+            // empty DB when MES_DATA_DIR isn't set" footgun.
             var probe = builder.Environment.ContentRootPath;
             string? repoRoot = null;
+            string? innermostSln = null;
             for (var dir = new DirectoryInfo(probe); dir is not null; dir = dir.Parent)
             {
-                if (dir.GetFiles("*.sln").Length > 0)
+                if (File.Exists(Path.Combine(dir.FullName, "data", "ccl_mes.db")))
                 {
                     repoRoot = dir.FullName;
                     break;
                 }
+                // Remember the innermost .sln dir as a fallback if we
+                // never find an existing DB file.
+                if (innermostSln is null && dir.GetFiles("*.sln").Length > 0)
+                {
+                    innermostSln = dir.FullName;
+                }
             }
-            dataDir = Path.Combine(repoRoot ?? Directory.GetCurrentDirectory(), "data");
+            dataDir = Path.Combine(
+                repoRoot ?? innermostSln ?? Directory.GetCurrentDirectory(),
+                "data");
         }
         dataDir = Path.GetFullPath(dataDir);
         Directory.CreateDirectory(dataDir);
