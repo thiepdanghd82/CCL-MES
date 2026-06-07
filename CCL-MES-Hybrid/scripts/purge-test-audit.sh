@@ -275,7 +275,7 @@ fi
 if [[ "$IPQC_QA_AUDIT_COUNT" != "0" ]]; then
     echo "WO_IPQC_*/WO_QA_* test rows (most recent 8):"
     sqlite3 -column -header "$DB_PATH" \
-      "SELECT Id, datetime(T) AS T, Action, ActorUsername AS Actor,
+      "SELECT Id, datetime(Timestamp) AS T, Action, ActorUsername AS Actor,
               substr(Detail, 1, 60) AS Detail60
        FROM AuditLogs
        WHERE Action IN ('WO_IPQC_CHECK','WO_IPQC_JUDGMENT','WO_QA_APPROVE','WO_QA_APPROVE_DENIED')
