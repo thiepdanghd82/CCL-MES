@@ -206,6 +206,42 @@ api_post_admin() {
     api_assert_routed "POST $path"
 }
 
+# Henry RCA on PR #122 step 7 (2026-06-07): the earlier qc_post inline-
+# curl pattern swallowed HTTP status on empty-body responses, so a
+# server-side 404 (route missing on a stale build) reported as just
+# "POST /qc/oqc/inspect failed: " with no diagnostic. This wrapper
+# ALWAYS captures + exposes status + body via the LAST_HTTP / LAST_BODY
+# globals + routes through api_assert_routed for the L10 drift guard
+# class. Caller checks LAST_HTTP for fine-grained branching (200 vs 422
+# vs 404 etc.) and on FAIL the script PRINTS status+body so RCA is
+# 1-look.
+qc_post() {
+    # qc_post <auth_header_var_name> <path> <body_json>
+    local auth_var="$1" path="$2" body="$3"
+    local etag idem rsp
+    etag=$(etag_of "$WO_ID")
+    idem=$(uuidgen)
+    rsp=$(curl -s -w "\nHTTP:%{http_code}" -X POST "$API_BASE$path" \
+        -H "${!auth_var}" -H "Content-Type: application/json" \
+        -H "If-Match: \"$etag\"" -H "Idempotency-Key: $idem" \
+        -d "$body")
+    LAST_HTTP=$(echo "$rsp" | grep -oE 'HTTP:[0-9]+$' | cut -d: -f2)
+    LAST_BODY=$(echo "$rsp" | sed '$d')
+    # L10 drift guard fires for 404/405; other status codes flow to the
+    # caller's branching logic.
+    api_assert_routed "POST $path"
+}
+
+# Sanity-fail helper — when LAST_HTTP is unexpected, print the FULL
+# status + body so Henry's RCA is one paste away. Caller passes the
+# expected status code(s) to narrow the "what should have happened"
+# part of the diagnostic.
+qc_diag() {
+    # qc_diag <label> <expected_http>
+    echo "  [diag] $1 — HTTP $LAST_HTTP (expected $2)"
+    echo "  [diag] body: $(echo "$LAST_BODY" | head -c 400)"
+}
+
 # ── 1. Boot API ───────────────────────────────────────────────────
 TARGET_PORT="${API_BASE##*:}"
 TARGET_PORT="${TARGET_PORT%%/*}"
@@ -260,6 +296,37 @@ if [[ -z "$ADMIN_TOKEN" ]]; then
 fi
 record PASS "login admin"
 ADMIN_AUTH="Authorization: Bearer $ADMIN_TOKEN"
+
+# Build-sanity probe (Henry RCA on PR #122 step 7, 2026-06-07):
+# the previous run's API was a keep-alive from verify-p10.7e.sh booted
+# on commit f08b79d (7e-1, BEFORE WoQcReviewController landed in 7e-2).
+# Step 7's POST /qc/oqc/inspect 404'd because the route didn't exist
+# on that stale binary. Prevention: GET the new route shape against
+# any WO id (returns 200 + body, 401 if auth bad, or 404 if WO missing
+# but the route IS registered). A genuine route-missing returns 404
+# WITH the kestrel "Endpoint not found" pattern in the body — distinct
+# from the route-handler 404 which carries an ApiError JSON body.
+echo "[build-sanity] probing GET /api/v2/work-orders/0/qc/fqc — confirms 7e-2 controller is on the running binary"
+SANITY_RSP=$(curl -s -w "\nHTTP:%{http_code}" -X GET "$API_BASE/api/v2/work-orders/0/qc/fqc" \
+    -H "$ADMIN_AUTH")
+SANITY_HTTP=$(echo "$SANITY_RSP" | grep -oE 'HTTP:[0-9]+$' | cut -d: -f2)
+SANITY_BODY=$(echo "$SANITY_RSP" | sed '$d')
+# 401 means route IS registered + auth challenge (we sent a token, but
+# anything quirky in token cache => still proves the route exists).
+# 404 with ApiError JSON body { code: "wo.not_found" } proves route is
+# wired (it handled the request, looked up WO id 0, found nothing).
+# A genuine missing route returns 404 with EMPTY body — that's the
+# stale-build case Henry hit.
+if [[ "$SANITY_HTTP" == "404" && -z "$SANITY_BODY" ]]; then
+    echo "[build-sanity] ✗ stale binary detected — running API does NOT have WoQcReviewController."
+    echo "[build-sanity] body: '<empty>' (real 7e-2 route would return ApiError JSON or 401)"
+    echo "[build-sanity] Kill the keep-alive API + re-run this script. Refusing to continue."
+    echo "[build-sanity]   STALE_PID=\$(lsof -nP -iTCP:5100 -sTCP:LISTEN -t)"
+    echo "[build-sanity]   [[ -n \"\$STALE_PID\" ]] && kill -9 \$STALE_PID"
+    record FAIL "build-sanity: API on $API_BASE lacks WoQcReviewController (stale binary)"
+    exit 1
+fi
+echo "[build-sanity] ✓ HTTP=$SANITY_HTTP (route wired)"
 
 # ── 3. Self-seed 3 users ─────────────────────────────────────────
 seed_user() {
@@ -340,85 +407,71 @@ fi
 ETAG=$(etag_of "$WO_ID")
 
 # ── 7. Inspector signs (sig 1) ───────────────────────────────────
-R=$(curl -s -X POST "$API_BASE/api/v2/work-orders/$WO_ID/qc/oqc/inspect" \
-    -H "$INSPECTOR_AUTH" -H "Content-Type: application/json" \
-    -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $(uuidgen)" \
-    -d '{"note":"Inspector signed"}')
-OK=$(echo "$R" | json_field "ok")
-NEW=$(echo "$R" | json_field "eTag")
-if [[ "$OK" == "True" ]]; then
-    record PASS "POST /qc/oqc/inspect by $INSPECTOR_USER (sig 1)"
-    ETAG="$NEW"
+qc_post INSPECTOR_AUTH "/api/v2/work-orders/$WO_ID/qc/oqc/inspect" '{"note":"Inspector signed"}'
+OK=$(echo "$LAST_BODY" | json_field "ok")
+NEW=$(echo "$LAST_BODY" | json_field "eTag")
+if [[ "$LAST_HTTP" == "200" && "$OK" == "True" ]]; then
+    record PASS "POST /qc/oqc/inspect by $INSPECTOR_USER (sig 1) HTTP=$LAST_HTTP"
+    # Refresh ETag from the just-bumped server value via SQL — the
+    # in-band body ETag is also fine but SQL bypasses any client
+    # parse gotcha.
+    SLEEP_HACK=  # placeholder — qc_post does NOT auto-update ETag
 else
-    record FAIL "POST /qc/oqc/inspect failed: $R"
+    qc_diag "Inspector sig 1 unexpected" "200 with ok=True"
+    record FAIL "POST /qc/oqc/inspect failed"
     exit 1
 fi
 
 # ── 8. Q5 path ❶ — Reviewer = Inspector → 422 ─────────────────────
-R=$(curl -s -w "\nHTTP:%{http_code}" -X POST "$API_BASE/api/v2/work-orders/$WO_ID/qc/oqc/review" \
-    -H "$INSPECTOR_AUTH" -H "Content-Type: application/json" \
-    -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $(uuidgen)" \
-    -d '{}')
-HTTP_CODE=$(echo "$R" | grep -oE 'HTTP:[0-9]+$' | cut -d: -f2)
-ERR_CODE=$(echo "$R" | head -1 | python3 -c "import sys,json; print(json.load(sys.stdin).get('errorCode',''))" 2>/dev/null)
-if [[ "$HTTP_CODE" == "422" && "$ERR_CODE" == "oqc.same_user_as_inspector" ]]; then
+qc_post INSPECTOR_AUTH "/api/v2/work-orders/$WO_ID/qc/oqc/review" '{}'
+ERR_CODE=$(echo "$LAST_BODY" | json_field "errorCode")
+if [[ "$LAST_HTTP" == "422" && "$ERR_CODE" == "oqc.same_user_as_inspector" ]]; then
     record PASS "Q5 ❶: Reviewer = Inspector → 422 oqc.same_user_as_inspector (DENIED)"
 else
-    record FAIL "Q5 ❶: http=$HTTP_CODE err=$ERR_CODE (expected 422 + oqc.same_user_as_inspector)"
+    qc_diag "Q5 ❶ unexpected" "422 + oqc.same_user_as_inspector"
+    record FAIL "Q5 ❶ failed"
 fi
 
 # ── 9. Reviewer (distinct) signs (sig 2) ─────────────────────────
-R=$(curl -s -X POST "$API_BASE/api/v2/work-orders/$WO_ID/qc/oqc/review" \
-    -H "$REVIEWER_AUTH" -H "Content-Type: application/json" \
-    -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $(uuidgen)" \
-    -d '{"note":"Reviewer signed"}')
-OK=$(echo "$R" | json_field "ok")
-NEW=$(echo "$R" | json_field "eTag")
-if [[ "$OK" == "True" ]]; then
-    record PASS "POST /qc/oqc/review by $REVIEWER_USER (sig 2)"
-    ETAG="$NEW"
+qc_post REVIEWER_AUTH "/api/v2/work-orders/$WO_ID/qc/oqc/review" '{"note":"Reviewer signed"}'
+OK=$(echo "$LAST_BODY" | json_field "ok")
+if [[ "$LAST_HTTP" == "200" && "$OK" == "True" ]]; then
+    record PASS "POST /qc/oqc/review by $REVIEWER_USER (sig 2) HTTP=$LAST_HTTP"
 else
-    record FAIL "POST /qc/oqc/review failed: $R"
+    qc_diag "Reviewer sig 2 unexpected" "200 with ok=True"
+    record FAIL "POST /qc/oqc/review failed"
     exit 1
 fi
 
 # ── 10. Q5 path ❷ — Approver = Reviewer → 422 ────────────────────
-R=$(curl -s -w "\nHTTP:%{http_code}" -X POST "$API_BASE/api/v2/work-orders/$WO_ID/qc/oqc/approve" \
-    -H "$REVIEWER_AUTH" -H "Content-Type: application/json" \
-    -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $(uuidgen)" \
-    -d '{"outcome":"Approve"}')
-HTTP_CODE=$(echo "$R" | grep -oE 'HTTP:[0-9]+$' | cut -d: -f2)
-ERR_CODE=$(echo "$R" | head -1 | python3 -c "import sys,json; print(json.load(sys.stdin).get('errorCode',''))" 2>/dev/null)
-if [[ "$HTTP_CODE" == "422" && "$ERR_CODE" == "oqc.same_user_as_reviewer" ]]; then
+qc_post REVIEWER_AUTH "/api/v2/work-orders/$WO_ID/qc/oqc/approve" '{"outcome":"Approve"}'
+ERR_CODE=$(echo "$LAST_BODY" | json_field "errorCode")
+if [[ "$LAST_HTTP" == "422" && "$ERR_CODE" == "oqc.same_user_as_reviewer" ]]; then
     record PASS "Q5 ❷: Approver = Reviewer → 422 oqc.same_user_as_reviewer (DENIED)"
 else
-    record FAIL "Q5 ❷: http=$HTTP_CODE err=$ERR_CODE (expected 422 + oqc.same_user_as_reviewer)"
+    qc_diag "Q5 ❷ unexpected" "422 + oqc.same_user_as_reviewer"
+    record FAIL "Q5 ❷ failed"
 fi
 
 # ── 11. Q5 path ❸ — Approver = Inspector → 422 ───────────────────
-R=$(curl -s -w "\nHTTP:%{http_code}" -X POST "$API_BASE/api/v2/work-orders/$WO_ID/qc/oqc/approve" \
-    -H "$INSPECTOR_AUTH" -H "Content-Type: application/json" \
-    -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $(uuidgen)" \
-    -d '{"outcome":"Approve"}')
-HTTP_CODE=$(echo "$R" | grep -oE 'HTTP:[0-9]+$' | cut -d: -f2)
-ERR_CODE=$(echo "$R" | head -1 | python3 -c "import sys,json; print(json.load(sys.stdin).get('errorCode',''))" 2>/dev/null)
-if [[ "$HTTP_CODE" == "422" && "$ERR_CODE" == "oqc.same_user_as_inspector" ]]; then
+qc_post INSPECTOR_AUTH "/api/v2/work-orders/$WO_ID/qc/oqc/approve" '{"outcome":"Approve"}'
+ERR_CODE=$(echo "$LAST_BODY" | json_field "errorCode")
+if [[ "$LAST_HTTP" == "422" && "$ERR_CODE" == "oqc.same_user_as_inspector" ]]; then
     record PASS "Q5 ❸: Approver = Inspector → 422 oqc.same_user_as_inspector (DENIED)"
 else
-    record FAIL "Q5 ❸: http=$HTTP_CODE err=$ERR_CODE (expected 422 + oqc.same_user_as_inspector)"
+    qc_diag "Q5 ❸ unexpected" "422 + oqc.same_user_as_inspector"
+    record FAIL "Q5 ❸ failed"
 fi
 
 # ── 12. Approver (distinct) signs (sig 3) — happy → SHIPPED ──────
-R=$(curl -s -X POST "$API_BASE/api/v2/work-orders/$WO_ID/qc/oqc/approve" \
-    -H "$APPROVER_AUTH" -H "Content-Type: application/json" \
-    -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $(uuidgen)" \
-    -d '{"outcome":"Approve"}')
-OK=$(echo "$R" | json_field "ok")
-PHASE=$(echo "$R" | json_field "mesPhase")
-if [[ "$OK" == "True" && "$PHASE" == "SHIPPED" ]]; then
+qc_post APPROVER_AUTH "/api/v2/work-orders/$WO_ID/qc/oqc/approve" '{"outcome":"Approve"}'
+OK=$(echo "$LAST_BODY" | json_field "ok")
+PHASE=$(echo "$LAST_BODY" | json_field "mesPhase")
+if [[ "$LAST_HTTP" == "200" && "$OK" == "True" && "$PHASE" == "SHIPPED" ]]; then
     record PASS "Q5 ❹: Approver (distinct) → SHIPPED"
 else
-    record FAIL "Q5 ❹ happy: ok=$OK phase=$PHASE (expected True + SHIPPED)"
+    qc_diag "Q5 ❹ happy unexpected" "200 + ok=True + phase=SHIPPED"
+    record FAIL "Q5 ❹ happy failed: ok=$OK phase=$PHASE"
 fi
 
 # ── 13. Audit wire-mirror (R7.3) ─────────────────────────────────
