@@ -284,6 +284,13 @@
     /// "danh mục NG trống" hint inline.</summary>
     [Parameter] public IReadOnlyList<ReasonCodeOption> ScrapReasons { get; set; } = Array.Empty<ReasonCodeOption>();
 
+    /// <summary>P10.7d-3 BUG-FIX (Henry RCA on PR #119) — invoked
+    /// after a successful action that changes the WO's MesPhase
+    /// (judgment submit). Parent (WorkOrders.razor) re-fetches the
+    /// summary so the chip + dispatch see the canonical post-transition
+    /// state without the operator tapping "Tìm" again. See Lesson L21.</summary>
+    [Parameter] public EventCallback OnPhaseChanged { get; set; }
+
     // Judgment constants — match server-side enum (Domain/StateMachine).
     private const string JudgmentGoRun = "GoRun";
     private const string JudgmentStopLine = "StopLine";
@@ -526,8 +533,13 @@
             //   GoRun         → IPQC_APPROVED  (RunningDashboard takes over)
             //   StopLine      → PREPRESS       (PrepressDashboard takes over)
             //   SpecialAccept → QA_PENDING     (QaApprovalDashboard takes over)
-            // The parent (WorkOrders.razor) dispatch picks up the new phase
-            // on the next render — nothing else for us to do.
+            // P10.7d-3 BUG-FIX — bubble the phase change up so the parent
+            // re-fetches the summary + re-dispatches WITHOUT the operator
+            // tapping "Tìm" again. See Lesson L21.
+            if (resp.Ok)
+            {
+                await OnPhaseChanged.InvokeAsync();
+            }
         }
         catch (ApiException apiEx)
         {

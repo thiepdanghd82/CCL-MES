@@ -209,6 +209,14 @@
 @code {
     [Parameter, EditorRequired] public long WorkOrderId { get; set; }
 
+    /// <summary>P10.7d-3 BUG-FIX (Henry RCA on PR #119) — invoked
+    /// after a successful Approve/Reject so the parent (WorkOrders.razor)
+    /// re-fetches the summary + the dispatch picks the new phase
+    /// (IPQC_APPROVED on Approve; PREPRESS on Reject). Operator never
+    /// sees a stale QA dashboard with an "invalid_phase" dead-end.
+    /// See Lesson L21.</summary>
+    [Parameter] public EventCallback OnPhaseChanged { get; set; }
+
     private const string QaApprove = "Approve";
     private const string QaReject = "Reject";
 
@@ -313,6 +321,13 @@
             await HandleSetResponseAsync(resp);
             // Approve → IPQC_APPROVED (RunningDashboard takes over).
             // Reject  → PREPRESS (PrepressDashboard takes over).
+            // P10.7d-3 BUG-FIX — bubble the phase change up so the parent
+            // re-fetches the summary + re-dispatches without the operator
+            // tapping "Tìm" again. See Lesson L21.
+            if (resp.Ok)
+            {
+                await OnPhaseChanged.InvokeAsync();
+            }
         }
         catch (ApiException apiEx)
         {

@@ -6,6 +6,7 @@ using CCL.MES.Hybrid.Razor.Shared;
 using CCL.MES.Hybrid.Razor.Tests._Support;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.RunningSurface;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -219,6 +220,57 @@ public sealed class SettingDashboardTests : TestContext
             Assert.Single(api.SettingDoneCalls);
             Assert.Equal("v1", api.SettingDoneCalls[0].ETag);
         });
+    }
+
+    // ── L21 auto-refresh (Henry RCA on PR #119) ────────────────────
+
+    [Fact]
+    public void Setting_done_success_invokes_OnPhaseChanged()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(etag: "v1", startAt: DateTime.UtcNow.AddMinutes(-1)));
+        api.SettingDoneImpl = (_, _, _) => Task.FromResult(new RunningSurfaceSetResponse
+        {
+            Ok = true, ETag = "v2", MesPhase = "IPQC_WAIT",
+        });
+
+        var phaseChangedCount = 0;
+        var cut = RenderComponent<SettingDashboard>(p => p
+            .Add(d => d.WorkOrderId, 42L)
+            .Add(d => d.OnPhaseChanged, EventCallback.Factory.Create(this, () => phaseChangedCount++)));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-done-btn']")));
+        for (var i = 0; i < 6; i++)
+            cut.Find($"[data-testid='setting-check-{i}']").Change(true);
+        cut.Find("[data-testid='setting-done-btn']").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(1, phaseChangedCount));
+    }
+
+    [Fact]
+    public void Setting_done_409_conflict_does_NOT_invoke_OnPhaseChanged()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(etag: "v1", startAt: DateTime.UtcNow.AddMinutes(-1)));
+        api.SettingDoneImpl = (_, _, _) => Task.FromResult(new RunningSurfaceSetResponse
+        {
+            Ok = false, ErrorCode = "wo.state_conflict", ETag = "v2", MesPhase = "SETTING",
+        });
+
+        var phaseChangedCount = 0;
+        var cut = RenderComponent<SettingDashboard>(p => p
+            .Add(d => d.WorkOrderId, 42L)
+            .Add(d => d.OnPhaseChanged, EventCallback.Factory.Create(this, () => phaseChangedCount++)));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-done-btn']")));
+        for (var i = 0; i < 6; i++)
+            cut.Find($"[data-testid='setting-check-{i}']").Change(true);
+        cut.Find("[data-testid='setting-done-btn']").Click();
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-set-error']")));
+        Assert.Equal(0, phaseChangedCount);
     }
 
     // ── 409 conflict surfaces banner ───────────────────────────────

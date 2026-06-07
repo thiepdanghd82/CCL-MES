@@ -224,44 +224,45 @@ else
                         OnAdvanceRequested="OnAdvance" />
                 }
 
-                @* P10.7c-3 — SETTING phase routes to SettingDashboard. *@
+                @* P10.7c-3 — SETTING phase routes to SettingDashboard.
+                   P10.7d-3 BUG-FIX (Henry hardware verify on PR #119):
+                   OnPhaseChanged fires after /setting/done success →
+                   parent re-fetches summary → dispatch picks the new
+                   phase (IPQC_WAIT) → IpqcDashboard mounts automatically.
+                   Operator never sees a stale dead-end card. *@
                 @if (IsSettingPhase(_summary))
                 {
                     <CCL.MES.Hybrid.Razor.Shared.SettingDashboard
-                        WorkOrderId="@_summary.Id" />
+                        WorkOrderId="@_summary.Id"
+                        OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
                 }
 
-                @* P10.7d-3 — IPQC_WAIT routes to IpqcDashboard (4 slots +
-                   3-button judgment). Replaces the 7c-3 RunningDashboard
-                   placeholder card for IPQC_WAIT. *@
+                @* P10.7d-3 — IPQC_WAIT routes to IpqcDashboard. *@
                 @if (IsIpqcWaitPhase(_summary))
                 {
                     <CCL.MES.Hybrid.Razor.Shared.IpqcDashboard
                         WorkOrderId="@_summary.Id"
-                        ScrapReasons="@_scrapReasons" />
+                        ScrapReasons="@_scrapReasons"
+                        OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
                 }
 
-                @* P10.7d-3 — QA_PENDING routes to QaApprovalDashboard
-                   (Q3 dual-sig client guard + Approve/Reject). Replaces
-                   the 7c-3 RunningDashboard placeholder card for
-                   QA_PENDING. *@
+                @* P10.7d-3 — QA_PENDING routes to QaApprovalDashboard. *@
                 @if (IsQaPendingPhase(_summary))
                 {
                     <CCL.MES.Hybrid.Razor.Shared.QaApprovalDashboard
-                        WorkOrderId="@_summary.Id" />
+                        WorkOrderId="@_summary.Id"
+                        OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
                 }
 
                 @* P10.7c-3 — IPQC_APPROVED + RUNNING + PAUSED + 7e-deferred
-                   phases (FQC_PENDING / OQC_PENDING / DONE / CANCELLED)
-                   route to RunningDashboard. 7d-3 narrowed IsRunningSurfacePhase
-                   to NO LONGER include IPQC_WAIT / QA_PENDING — those have
-                   real dashboards now. *@
+                   phases (FQC_PENDING / OQC_PENDING / DONE / CANCELLED). *@
                 @if (IsRunningSurfacePhase(_summary))
                 {
                     <CCL.MES.Hybrid.Razor.Shared.RunningDashboard
                         WorkOrderId="@_summary.Id"
                         ScrapReasons="@_scrapReasons"
-                        PauseReasons="@_pauseReasons" />
+                        PauseReasons="@_pauseReasons"
+                        OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
                 }
             }
         }
@@ -482,6 +483,52 @@ else
             format: "MANUAL",
             sourceDeviceLabel: "manual-entry",
             capturedAt: DateTimeOffset.UtcNow);
+    }
+
+    /// <summary>
+    /// P10.7d-3 BUG-FIX (Henry RCA on PR #119) — invoked by each child
+    /// dashboard after a successful action that may have changed the
+    /// WO's <see cref="WorkOrderSummary.MesPhase"/>. Re-fetches the
+    /// summary so the chip + "Trạng thái MES" row + dispatch all see
+    /// the canonical post-transition state without the operator having
+    /// to tap "Tìm" again. The dispatch branches (IsPrepressPhase /
+    /// IsSettingPhase / IsIpqcWaitPhase / IsQaPendingPhase /
+    /// IsRunningSurfacePhase) re-evaluate on the next render, so the
+    /// new dashboard mounts automatically + the stale one unmounts.
+    ///
+    /// Lesson L21 — every transition-emitting dashboard MUST expose an
+    /// <c>OnPhaseChanged</c> EventCallback and the parent MUST wire it
+    /// to this handler. Anything else leaves the operator staring at
+    /// a stale dead-end card. Pattern reused verbatim by 7e/7f
+    /// surfaces (FqcDashboard / OqcDashboard).
+    /// </summary>
+    private async Task HandleDashboardPhaseChangedAsync()
+    {
+        if (_summary is null) return;
+        try
+        {
+            var fresh = await Api.GetWorkOrderByNoAsync(_summary.WoNo);
+            if (fresh is not null)
+            {
+                _summary = fresh;
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            // A failed re-fetch leaves the existing dashboard in place
+            // + surfaces the standard error path. Don't drop the
+            // operator's WO context.
+            _lookupError = LocaliseApiError(apiEx);
+        }
+        catch (HttpRequestException ex)
+        {
+            _lookupError = $"Không kết nối được máy chủ: {TrimDetail(ex.Message)}";
+        }
+        catch (Exception ex)
+        {
+            _lookupError = $"Lỗi tải lại WO: {ex.GetType().Name}: {TrimDetail(ex.Message)}";
+        }
+        StateHasChanged();
     }
 
     private async Task OnAdvance()

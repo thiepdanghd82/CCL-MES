@@ -7,6 +7,7 @@ using CCL.MES.Hybrid.Razor.Tests._Support;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.RunningSurface;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -94,7 +95,8 @@ public sealed class RunningDashboardTests : TestContext
     private static Bunit.IRenderedComponent<RunningDashboard> Render(Bunit.TestContext ctx,
         RunningSurfaceView view, IReadOnlyList<ReasonCodeOption>? scrap = null,
         IReadOnlyList<ReasonCodeOption>? pause = null,
-        Action<RecordingApi>? extraApiSetup = null)
+        Action<RecordingApi>? extraApiSetup = null,
+        EventCallback onPhaseChanged = default)
     {
         var api = (RecordingApi)ctx.Services.GetRequiredService<ICclApiClient>();
         api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(view);
@@ -102,7 +104,8 @@ public sealed class RunningDashboardTests : TestContext
         return ctx.RenderComponent<RunningDashboard>(p => p
             .Add(d => d.WorkOrderId, view.WoId)
             .Add(d => d.ScrapReasons, scrap ?? SampleScrap())
-            .Add(d => d.PauseReasons, pause ?? SamplePause()));
+            .Add(d => d.PauseReasons, pause ?? SamplePause())
+            .Add(d => d.OnPhaseChanged, onPhaseChanged));
     }
 
     // ── Initial render gate ────────────────────────────────────────
@@ -477,6 +480,110 @@ public sealed class RunningDashboardTests : TestContext
             Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
         });
     }
+
+    // ── L21 auto-refresh (Henry RCA on PR #119) ────────────────────
+    // Phase-changing actions (run/start, pause, resume, finish) MUST
+    // invoke OnPhaseChanged. Tap qty + correct do NOT (no phase change,
+    // bubbling would just churn a wasted parent summary GET).
+
+    [Fact]
+    public void Run_start_success_invokes_OnPhaseChanged()
+    {
+        var phaseChangedCount = 0;
+        var cb = EventCallback.Factory.Create(this, () => phaseChangedCount++);
+        var cut = Render(this,
+            View(phase: "IPQC_APPROVED", qtyDone: 0, qtyNg: 0),
+            extraApiSetup: api =>
+            {
+                api.RunStartImpl = (_, _, _) => Task.FromResult(new RunningSurfaceSetResponse
+                {
+                    Ok = true, ETag = "v2", MesPhase = "RUNNING",
+                });
+            },
+            onPhaseChanged: cb);
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='run-start-btn']")));
+        cut.Find("[data-testid='run-start-btn']").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(1, phaseChangedCount));
+    }
+
+    [Fact]
+    public void Run_finish_success_invokes_OnPhaseChanged()
+    {
+        var phaseChangedCount = 0;
+        var cb = EventCallback.Factory.Create(this, () => phaseChangedCount++);
+        var cut = Render(this,
+            View(qtyDone: 1000, qtyNg: 5),
+            extraApiSetup: api =>
+            {
+                api.RunFinishImpl = (_, _, _) => Task.FromResult(new RunningSurfaceSetResponse
+                {
+                    Ok = true, ETag = "v2", MesPhase = "FQC_PENDING",
+                });
+            },
+            onPhaseChanged: cb);
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='run-finish-btn']")));
+        cut.Find("[data-testid='run-finish-btn']").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='finish-confirm-btn']")));
+        cut.Find("[data-testid='finish-confirm-btn']").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(1, phaseChangedCount));
+    }
+
+    [Fact]
+    public void Tap_qty_done_does_NOT_invoke_OnPhaseChanged_no_phase_change()
+    {
+        // No MesPhase flip → no parent re-fetch needed.
+        var phaseChangedCount = 0;
+        var cb = EventCallback.Factory.Create(this, () => phaseChangedCount++);
+        var cut = Render(this, View(etag: "v1"),
+            extraApiSetup: api =>
+            {
+                api.RunQtyAddImpl = (_, _, _, _) => Task.FromResult(new RunningSurfaceSetResponse
+                {
+                    Ok = true, ETag = "v2", MesPhase = "RUNNING",
+                });
+            },
+            onPhaseChanged: cb);
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='tap-done-100']")));
+        cut.Find("[data-testid='tap-done-100']").Click();
+
+        var api = GetRecordingApi(this);
+        cut.WaitForAssertion(() => Assert.Single(api.RunQtyAddCalls));
+        Assert.Equal(0, phaseChangedCount);
+    }
+
+    [Fact]
+    public void Run_finish_409_conflict_does_NOT_invoke_OnPhaseChanged()
+    {
+        var phaseChangedCount = 0;
+        var cb = EventCallback.Factory.Create(this, () => phaseChangedCount++);
+        var cut = Render(this,
+            View(qtyDone: 1000, qtyNg: 0),
+            extraApiSetup: api =>
+            {
+                api.RunFinishImpl = (_, _, _) => Task.FromResult(new RunningSurfaceSetResponse
+                {
+                    Ok = false, ErrorCode = "wo.state_conflict",
+                    ETag = "v2", MesPhase = "RUNNING",
+                });
+            },
+            onPhaseChanged: cb);
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='run-finish-btn']")));
+        cut.Find("[data-testid='run-finish-btn']").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='finish-confirm-btn']")));
+        cut.Find("[data-testid='finish-confirm-btn']").Click();
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='running-set-error']")));
+        Assert.Equal(0, phaseChangedCount);
+    }
+
+    private static RecordingApi GetRecordingApi(Bunit.TestContext ctx)
+        => (RecordingApi)ctx.Services.GetRequiredService<ICclApiClient>();
 
     [Fact]
     public void Tap_qty_409_state_conflict_renders_set_error_banner()
