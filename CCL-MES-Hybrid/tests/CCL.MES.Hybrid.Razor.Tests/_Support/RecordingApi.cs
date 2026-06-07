@@ -7,6 +7,7 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.IpqcReview;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
@@ -44,6 +45,23 @@ public sealed class RecordingApi : ICclApiClient
     public Func<long, string, RunPauseRequest, CancellationToken, Task<RunningSurfaceSetResponse>>? RunPauseImpl { get; set; }
     public Func<long, string, CancellationToken, Task<RunningSurfaceSetResponse>>? RunResumeImpl { get; set; }
     public Func<long, string, CancellationToken, Task<RunningSurfaceSetResponse>>? RunFinishImpl { get; set; }
+
+    // P10.7d-3 — IPQC + QA Approval hooks.
+    public Func<long, CancellationToken, Task<IpqcView>>? IpqcViewImpl { get; set; }
+    public Func<long, string, SetIpqcSlotRequest, CancellationToken, Task<IpqcSetResponse>>? PutIpqcMaterialImpl { get; set; }
+    public Func<long, string, SetIpqcSlotRequest, CancellationToken, Task<IpqcSetResponse>>? PutIpqcPrintAImpl { get; set; }
+    public Func<long, string, SetIpqcSlotRequest, CancellationToken, Task<IpqcSetResponse>>? PutIpqcPrintBImpl { get; set; }
+    public Func<long, string, SetIpqcSlotRequest, CancellationToken, Task<IpqcSetResponse>>? PutIpqcPrintCImpl { get; set; }
+    public Func<long, string, SubmitIpqcJudgmentRequest, CancellationToken, Task<IpqcSetResponse>>? PostIpqcJudgmentImpl { get; set; }
+    public Func<long, string, QaApproveRequest, CancellationToken, Task<IpqcSetResponse>>? PostQaApproveImpl { get; set; }
+
+    public List<long> IpqcViewCalls { get; } = new();
+    public List<(long Id, string ETag, SetIpqcSlotRequest Req)> PutIpqcMaterialCalls { get; } = new();
+    public List<(long Id, string ETag, SetIpqcSlotRequest Req)> PutIpqcPrintACalls { get; } = new();
+    public List<(long Id, string ETag, SetIpqcSlotRequest Req)> PutIpqcPrintBCalls { get; } = new();
+    public List<(long Id, string ETag, SetIpqcSlotRequest Req)> PutIpqcPrintCCalls { get; } = new();
+    public List<(long Id, string ETag, SubmitIpqcJudgmentRequest Req)> PostIpqcJudgmentCalls { get; } = new();
+    public List<(long Id, string ETag, QaApproveRequest Req)> PostQaApproveCalls { get; } = new();
 
     public List<string> SummaryCalls { get; } = new();
     public List<(long Id, string ETag)> AdvanceCalls { get; } = new();
@@ -196,6 +214,64 @@ public sealed class RecordingApi : ICclApiClient
         return RunFinishImpl is null
             ? throw new InvalidOperationException("RunFinishImpl not set")
             : RunFinishImpl(workOrderId, ifMatchETag, ct);
+    }
+
+    // ── IPQC + QA Approval (P10.7d-3) ──────────────────────────────
+
+    public Task<IpqcView> GetIpqcViewAsync(long workOrderId, CancellationToken ct = default)
+    {
+        IpqcViewCalls.Add(workOrderId);
+        return IpqcViewImpl is null
+            ? throw new InvalidOperationException("IpqcViewImpl not set")
+            : IpqcViewImpl(workOrderId, ct);
+    }
+
+    public Task<IpqcSetResponse> PutIpqcMaterialAsync(long workOrderId, string ifMatchETag, SetIpqcSlotRequest req, CancellationToken ct = default)
+    {
+        PutIpqcMaterialCalls.Add((workOrderId, ifMatchETag, req));
+        return PutIpqcMaterialImpl is null
+            ? throw new InvalidOperationException("PutIpqcMaterialImpl not set")
+            : PutIpqcMaterialImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<IpqcSetResponse> PutIpqcPrintAAsync(long workOrderId, string ifMatchETag, SetIpqcSlotRequest req, CancellationToken ct = default)
+    {
+        PutIpqcPrintACalls.Add((workOrderId, ifMatchETag, req));
+        return PutIpqcPrintAImpl is null
+            ? throw new InvalidOperationException("PutIpqcPrintAImpl not set")
+            : PutIpqcPrintAImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<IpqcSetResponse> PutIpqcPrintBAsync(long workOrderId, string ifMatchETag, SetIpqcSlotRequest req, CancellationToken ct = default)
+    {
+        PutIpqcPrintBCalls.Add((workOrderId, ifMatchETag, req));
+        return PutIpqcPrintBImpl is null
+            ? throw new InvalidOperationException("PutIpqcPrintBImpl not set")
+            : PutIpqcPrintBImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<IpqcSetResponse> PutIpqcPrintCAsync(long workOrderId, string ifMatchETag, SetIpqcSlotRequest req, CancellationToken ct = default)
+    {
+        PutIpqcPrintCCalls.Add((workOrderId, ifMatchETag, req));
+        return PutIpqcPrintCImpl is null
+            ? throw new InvalidOperationException("PutIpqcPrintCImpl not set")
+            : PutIpqcPrintCImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<IpqcSetResponse> PostIpqcJudgmentAsync(long workOrderId, string ifMatchETag, SubmitIpqcJudgmentRequest req, CancellationToken ct = default)
+    {
+        PostIpqcJudgmentCalls.Add((workOrderId, ifMatchETag, req));
+        return PostIpqcJudgmentImpl is null
+            ? throw new InvalidOperationException("PostIpqcJudgmentImpl not set")
+            : PostIpqcJudgmentImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<IpqcSetResponse> PostQaApproveAsync(long workOrderId, string ifMatchETag, QaApproveRequest req, CancellationToken ct = default)
+    {
+        PostQaApproveCalls.Add((workOrderId, ifMatchETag, req));
+        return PostQaApproveImpl is null
+            ? throw new InvalidOperationException("PostQaApproveImpl not set")
+            : PostQaApproveImpl(workOrderId, ifMatchETag, req, ct);
     }
 
     public Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default)

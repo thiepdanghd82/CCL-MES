@@ -231,12 +231,31 @@ else
                         WorkOrderId="@_summary.Id" />
                 }
 
-                @* P10.7c-3 — IPQC_WAIT + IPQC_APPROVED + RUNNING + PAUSED
-                   all route to RunningDashboard which fan-outs internally
-                   based on the canonical MesPhase it reads from
-                   /running-surface. IPQC_WAIT renders an informational
-                   read-only "Chờ kiểm IPQC" banner (7d will close that
-                   with a dedicated IPQC review surface). *@
+                @* P10.7d-3 — IPQC_WAIT routes to IpqcDashboard (4 slots +
+                   3-button judgment). Replaces the 7c-3 RunningDashboard
+                   placeholder card for IPQC_WAIT. *@
+                @if (IsIpqcWaitPhase(_summary))
+                {
+                    <CCL.MES.Hybrid.Razor.Shared.IpqcDashboard
+                        WorkOrderId="@_summary.Id"
+                        ScrapReasons="@_scrapReasons" />
+                }
+
+                @* P10.7d-3 — QA_PENDING routes to QaApprovalDashboard
+                   (Q3 dual-sig client guard + Approve/Reject). Replaces
+                   the 7c-3 RunningDashboard placeholder card for
+                   QA_PENDING. *@
+                @if (IsQaPendingPhase(_summary))
+                {
+                    <CCL.MES.Hybrid.Razor.Shared.QaApprovalDashboard
+                        WorkOrderId="@_summary.Id" />
+                }
+
+                @* P10.7c-3 — IPQC_APPROVED + RUNNING + PAUSED + 7e-deferred
+                   phases (FQC_PENDING / OQC_PENDING / DONE / CANCELLED)
+                   route to RunningDashboard. 7d-3 narrowed IsRunningSurfacePhase
+                   to NO LONGER include IPQC_WAIT / QA_PENDING — those have
+                   real dashboards now. *@
                 @if (IsRunningSurfacePhase(_summary))
                 {
                     <CCL.MES.Hybrid.Razor.Shared.RunningDashboard
@@ -631,13 +650,13 @@ else
     private static bool IsRunningSurfacePhase(WorkOrderSummary summary)
     {
         var p = summary.MesPhase;
-        // P10.7c-3 L19-finalization (Henry RCA on WO-26-3686): the
-        // 7d-deferred phases (FQC_PENDING / QA_PENDING / OQC_PENDING /
-        // DONE / CANCELLED) ALSO route to RunningDashboard so it can
-        // render a consistent read-only placeholder card (same pattern
-        // as IPQC_WAIT). The alternative — falling through to the
-        // legacy Advance CTA — exposes the operator to a half-broken
-        // advance attempt + a stale dead-end error banner.
+        // P10.7c-3 L19-finalization + P10.7d-3 trim: the 7e-deferred phases
+        // (FQC_PENDING / OQC_PENDING / DONE / CANCELLED) still route here
+        // for the read-only placeholder card. IPQC_WAIT + QA_PENDING were
+        // DROPPED in 7d-3 — they have real dashboards now (IpqcDashboard +
+        // QaApprovalDashboard). The dispatch order in the page deliberately
+        // sits IpqcDashboard + QaApprovalDashboard BEFORE this branch so
+        // they own those phases even if a stale guard slips through.
         if (IsRunningSurfacePhaseValue(p))
             return true;
         if (!string.IsNullOrEmpty(p)) return false;
@@ -655,19 +674,40 @@ else
 
     /// <summary>Internal — true for any MesPhase that RunningDashboard
     /// knows how to render (action UI for IPQC_APPROVED/RUNNING/PAUSED;
-    /// read-only placeholder for IPQC_WAIT/FQC_PENDING/QA_PENDING/
-    /// OQC_PENDING/DONE/CANCELLED). Test surface for the dashboard's
-    /// own validity gate.</summary>
+    /// read-only placeholder for FQC_PENDING/OQC_PENDING/DONE/CANCELLED).
+    /// 7d-3 dropped IPQC_WAIT + QA_PENDING — they routed to their own
+    /// dashboards. Test surface for the dashboard's own validity gate.</summary>
     private static bool IsRunningSurfacePhaseValue(string phase) =>
-        string.Equals(phase, "IPQC_WAIT", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(phase, "IPQC_APPROVED", StringComparison.OrdinalIgnoreCase)
+        string.Equals(phase, "IPQC_APPROVED", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "RUNNING", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "PAUSED", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(phase, "QA_PENDING", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "FQC_PENDING", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "OQC_PENDING", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "DONE", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "CANCELLED", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>P10.7d-3 — IPQC_WAIT routes to IpqcDashboard. Same
+    /// canonical-MesPhase pattern as <see cref="IsSettingPhase"/>: trust
+    /// MesPhase when present, fall back to legacy CurrentStep only when
+    /// MesPhase is absent (genuinely pre-7c-3 cached summary).</summary>
+    private static bool IsIpqcWaitPhase(WorkOrderSummary summary)
+    {
+        if (string.Equals(summary.MesPhase, "IPQC_WAIT", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
+        // No legacy CurrentStep fallback — pre-7c-3 caches never saw an
+        // IPQC_WAIT-equivalent step (IpqcApproval mapped to IPQC_APPROVED).
+        return false;
+    }
+
+    /// <summary>P10.7d-3 — QA_PENDING routes to QaApprovalDashboard.</summary>
+    private static bool IsQaPendingPhase(WorkOrderSummary summary)
+    {
+        if (string.Equals(summary.MesPhase, "QA_PENDING", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
+        return false;
+    }
 
     /// <summary>Operator-visible display label for the chip + status
     /// row. Prefers canonical MesPhase; falls back to legacy CurrentStep
@@ -707,7 +747,11 @@ else
     /// error banner so the dashboards don't compete with legacy UI for
     /// operator attention.</summary>
     private static bool IsDashboardOwnedPhase(WorkOrderSummary summary) =>
-        IsPrepressPhase(summary) || IsSettingPhase(summary) || IsRunningSurfacePhase(summary);
+        IsPrepressPhase(summary)
+        || IsSettingPhase(summary)
+        || IsIpqcWaitPhase(summary)
+        || IsQaPendingPhase(summary)
+        || IsRunningSurfacePhase(summary);
 
     // P10.7a-1.3 — both VN mapper switches extracted into
     // CCL.MES.Hybrid.Client.WorkOrders.WorkOrderErrorLocaliser so the

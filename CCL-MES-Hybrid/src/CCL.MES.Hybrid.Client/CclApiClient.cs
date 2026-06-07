@@ -10,6 +10,7 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.IpqcReview;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
@@ -256,6 +257,106 @@ public sealed class CclApiClient : ICclApiClient
         }
 
         return await ReadAsAsync<RunningSurfaceSetResponse>(resp, ct);
+    }
+
+    // ── IPQC review + QA approval (P10.7d-3) ───────────────────────
+
+    public async Task<IpqcView> GetIpqcViewAsync(
+        long workOrderId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc", ct);
+        return await ReadAsAsync<IpqcView>(resp, ct);
+    }
+
+    public Task<IpqcSetResponse> PutIpqcMaterialAsync(
+        long workOrderId, string ifMatchETag,
+        SetIpqcSlotRequest req, CancellationToken ct = default)
+        => SendIpqcMutationAsync(
+            HttpMethod.Put,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/material",
+            ifMatchETag, req, ct);
+
+    public Task<IpqcSetResponse> PutIpqcPrintAAsync(
+        long workOrderId, string ifMatchETag,
+        SetIpqcSlotRequest req, CancellationToken ct = default)
+        => SendIpqcMutationAsync(
+            HttpMethod.Put,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/print-a",
+            ifMatchETag, req, ct);
+
+    public Task<IpqcSetResponse> PutIpqcPrintBAsync(
+        long workOrderId, string ifMatchETag,
+        SetIpqcSlotRequest req, CancellationToken ct = default)
+        => SendIpqcMutationAsync(
+            HttpMethod.Put,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/print-b",
+            ifMatchETag, req, ct);
+
+    public Task<IpqcSetResponse> PutIpqcPrintCAsync(
+        long workOrderId, string ifMatchETag,
+        SetIpqcSlotRequest req, CancellationToken ct = default)
+        => SendIpqcMutationAsync(
+            HttpMethod.Put,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/print-c",
+            ifMatchETag, req, ct);
+
+    public Task<IpqcSetResponse> PostIpqcJudgmentAsync(
+        long workOrderId, string ifMatchETag,
+        SubmitIpqcJudgmentRequest req, CancellationToken ct = default)
+        => SendIpqcMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/judgment",
+            ifMatchETag, req, ct);
+
+    public Task<IpqcSetResponse> PostQaApproveAsync(
+        long workOrderId, string ifMatchETag,
+        QaApproveRequest req, CancellationToken ct = default)
+        => SendIpqcMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qa/approve",
+            ifMatchETag, req, ct);
+
+    /// <summary>Shared mutation pipeline for all 6 IPQC + QA endpoints.
+    /// Mirrors <see cref="SendRunningSurfacePostAsync"/> exactly so
+    /// concurrency + idempotency-key handling stays identical to the
+    /// 7c-3 running surface. 200 + 409 both deserialise as
+    /// <see cref="IpqcSetResponse"/>; anything else gets the standard
+    /// envelope error parse + throws <see cref="ApiException"/>.</summary>
+    private async Task<IpqcSetResponse> SendIpqcMutationAsync(
+        HttpMethod method, string path, string ifMatchETag, object req, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(method, path)
+        {
+            Content = JsonContent.Create(req),
+        };
+
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+
+        // 200 (success), 409 (state conflict — carries fresh ETag), 422
+        // (qa.same_user_as_ipqc_submitter + other domain rejects) all
+        // return the typed envelope. The UI distinguishes by ErrorCode.
+        if (resp.StatusCode == HttpStatusCode.OK
+            || resp.StatusCode == HttpStatusCode.Conflict
+            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<IpqcSetResponse>(cancellationToken: ct);
+            return body ?? new IpqcSetResponse
+            {
+                Ok = false,
+                ErrorCode = "http.empty_body",
+            };
+        }
+
+        return await ReadAsAsync<IpqcSetResponse>(resp, ct);
     }
 
     public async Task<IReadOnlyList<ReasonCodeOption>> GetReasonCodesAsync(
