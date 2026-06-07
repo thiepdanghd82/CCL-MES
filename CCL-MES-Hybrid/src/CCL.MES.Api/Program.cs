@@ -244,6 +244,25 @@ builder.Services.AddAuthorization(o =>
     o.AddPolicy("QcRead", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Qc));
+
+    // P10.7d-2 — IPQC submit gate. Per SpecHub §3 role matrix: QC owns
+    // the IPQC review surface (PUT slot + judgment). Admin is god mode.
+    // (SpecHub also includes "npi" for trial pilots; the RBAC in this
+    // project doesn't model an NPI role — defer to a future role-table
+    // expansion if NPI workflow demands it.)
+    o.AddPolicy("IpqcSubmit", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Qc));
+
+    // P10.7d-2 — QA approve gate (Q3 dual-sig CRITICAL). Per SpecHub
+    // §3 QC column "Approve special-accept" + practical print-industry
+    // convention "QA Manager review", the policy includes QC and
+    // Supervisor. The dual-sig guard at the controller level prevents
+    // the IPQC submitter from also QA-approving even when both share
+    // role membership.
+    o.AddPolicy("QaApprove", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Qc, UserRole.Supervisor));
 });
 
 // ──────────────────────────────────────────────────────────────────────

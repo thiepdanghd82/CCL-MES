@@ -1,84 +1,71 @@
 #!/usr/bin/env bash
 # P10.7d-2 — Catalyst checkpoint for the IPQC + QA Approval API
-# surface. Proves the wire underneath the 7d-3 UI before Henry
-# hand-verifies + closes that PR.
+# surface + Q3 dual-sig. Proves the wire underneath the 7d-3 UI
+# before Henry hand-verifies + closes that PR.
 #
-# CRITICAL FOCUS — Q3 dual-sig:
-#   This checkpoint tests BOTH paths (distinct + same user) end-to-end
-#   on the live SQLite. The distinct-user path advances QA_PENDING →
-#   IPQC_APPROVED; the same-user attempt gets 422 +
-#   WO_QA_APPROVE_DENIED audit (NOT WO_QA_APPROVE). 4-eye QC proven on
-#   the deployed wire, not just bUnit.
+# ROLE POLICY (per §5.5.0 contract amendment):
+#   IpqcSubmit  : Admin | QC                — PUT slot + POST judgment
+#   QaApprove   : Admin | QC | Supervisor   — POST qa/approve
 #
-# Operator runs ONE command + supplies 3 args. Script self-manages API
-# (R7.2) + seeds the necessary state + exercises every endpoint +
-# verifies audit wire-mirror per Rule 7.3.
+# SELF-SEED DISCIPLINE (Henry 2026-06-07 STOP gate):
+#   This script does NOT assume any test user exists. It seeds 2
+#   DISTINCT users via the admin /admin/accounts endpoint:
+#     - ipqc-test-checkpoint (role QC) — submits IPQC judgment
+#     - qa-test-checkpoint   (role QC) — QA-approves (dual-sig OK
+#                                        because usernames differ)
+#   Idempotent: a second run that finds the users already present
+#   (409 conflict on POST) skips the seed step + logs in directly.
+#   Both users carry the username prefix that purge-test-audit.sh
+#   recognises for cleanup.
 #
-# Programmatic steps:
-#   1-3. Boot API + login admin + Scrap picker probe.
-#   4.   Reset WO IPQC + shim phase to IPQC_WAIT.
-#   5-8. PUT each of the 4 slots — material Ok, prints A/B/C mixed
-#        (PrintB NG with SC-COLOR + note so SpecialAccept path is
-#        consistent later).
-#   9.   POST /ipqc/judgment SpecialAccept (because PrintB is NG).
-#        Submitted by IPQC_USER; phase advances to QA_PENDING.
-#  10.   POST /qa/approve as IPQC_USER (SAME user) → 422 +
-#        WO_QA_APPROVE_DENIED audit. Phase stays QA_PENDING.
-#  11.   POST /qa/approve as QA_USER (DIFFERENT user) → 200 + Approve;
-#        phase advances to IPQC_APPROVED.
-#  12.   Audit wire-mirror — verify WO_IPQC_CHECK × 4 + WO_IPQC_JUDGMENT
-#        + WO_QA_APPROVE_DENIED + WO_QA_APPROVE all visible via
-#        /api/v2/audit/log.
+# CRITICAL FOCUS — Q3 dual-sig (both paths PROVEN end-to-end):
+#   step 10: SAME user (ipqc-test-checkpoint) tries to QA-approve
+#            → 422 qa.same_user_as_ipqc_submitter + WO_QA_APPROVE_DENIED
+#            audit (NOT WO_QA_APPROVE) + phase stays QA_PENDING.
+#   step 11: DISTINCT user (qa-test-checkpoint) QA-approves
+#            → 200 + IPQC_APPROVED + QaApprovedBy stamped.
 #
-# Henry-side visual checks (run with --keep-alive):
-#   * sqlite3 data/ccl_mes.db "SELECT WoNo, MesPhase, IpqcSubmittedBy,
-#     QaApprovedBy FROM WorkOrders wo JOIN WoIpqcChecks ipqc ON
-#     ipqc.WorkOrderId=wo.Id WHERE wo.Id=$WO_ID" shows phase
-#     IPQC_APPROVED + IpqcSubmittedBy=<IPQC_USER> + QaApprovedBy=<QA_USER>.
-#   * Settings → Audit Log shows: 4× WO_IPQC_CHECK + WO_IPQC_JUDGMENT +
-#     WO_QA_APPROVE_DENIED + WO_QA_APPROVE in chronological order.
+# Operator runs ONE command + supplies ONLY the WO number:
+#   bash CCL-MES-Hybrid/scripts/checkpoint-7d-2.sh <WoNo> [--keep-alive]
 #
-# R7.1 — [ctx] DB= + DB sha8 + WO + 2 users printed at startup.
+# After:
+#   bash scripts/purge-test-audit.sh   # preview cleanup
+#   bash scripts/purge-test-audit.sh --commit   # operator-driven --commit
+#
+# R7.1 — [ctx] DB= + DB sha8 + WO + 2 seeded users printed at startup.
 # R7.2 — self-managed API + --keep-alive for follow-on Catalyst verify.
 # R7.3 — every wire probe (audit GET) has a TestServer mirror in
 #        IpqcReviewControllerTests.Audit_visibility_via_wire_audit_log_endpoint.
 # S12  — per-step [N/total] labels + final_summary always prints in EXIT
 #        trap regardless of early bail; non-zero exit on any FAIL.
-#
-# Usage:
-#   bash CCL-MES-Hybrid/scripts/checkpoint-7d-2.sh <WoNo> <IpqcUser> <QaUser> [--keep-alive]
-#
-# All 3 args required. Both users must already exist in the DB with
-# Operator role. Distinct usernames required for the happy-path Approve
-# step. If they're equal, only the same-user 422 path will exercise.
 
 set -u
 set +e
 
 KEEP_ALIVE=0
 WO_NO=""
-IPQC_USER=""
-QA_USER=""
 for arg in "$@"; do
     case "$arg" in
         --keep-alive) KEEP_ALIVE=1 ;;
         --help|-h)
-            echo "usage: bash scripts/checkpoint-7d-2.sh <WoNo> <IpqcUser> <QaUser> [--keep-alive]"
+            echo "usage: bash scripts/checkpoint-7d-2.sh <WoNo> [--keep-alive]"
+            echo ""
+            echo "  Self-seeds 2 test users (ipqc-test-checkpoint + qa-test-checkpoint)"
+            echo "  via the admin /admin/accounts endpoint. Idempotent — re-running"
+            echo "  reuses the existing users."
             exit 0
             ;;
         --*) echo "unknown flag: $arg"; exit 64 ;;
         *)
             if [[ -z "$WO_NO" ]]; then WO_NO="$arg"
-            elif [[ -z "$IPQC_USER" ]]; then IPQC_USER="$arg"
-            elif [[ -z "$QA_USER" ]]; then QA_USER="$arg"
             else echo "extra positional arg: $arg"; exit 64
             fi
             ;;
     esac
 done
 
-if [[ -z "$WO_NO" || -z "$IPQC_USER" || -z "$QA_USER" ]]; then
-    echo "usage: bash scripts/checkpoint-7d-2.sh <WoNo> <IpqcUser> <QaUser> [--keep-alive]"
+if [[ -z "$WO_NO" ]]; then
+    echo "usage: bash scripts/checkpoint-7d-2.sh <WoNo> [--keep-alive]"
     exit 64
 fi
 
@@ -88,6 +75,11 @@ REPO_ROOT="$(cd "$HYBRID_ROOT/.." && pwd)"
 DB_PATH="$REPO_ROOT/data/ccl_mes.db"
 API_BASE="${API_BASE:-http://127.0.0.1:5100}"
 AUTO_BOOT_PID=""
+
+# Seeded test users (purge-test-audit.sh recognises this prefix).
+IPQC_USER="ipqc-test-checkpoint"
+QA_USER="qa-test-checkpoint"
+TEST_PASSWORD="P@ss!Checkpoint1"
 
 DB_SHA8="(missing)"
 [[ -f "$DB_PATH" ]] && DB_SHA8="$(shasum -a 256 "$DB_PATH" 2>/dev/null | awk '{print substr($1,1,8)}')"
@@ -99,19 +91,15 @@ echo "[ctx] DB sha8    = $DB_SHA8"
 echo "[ctx] API base   = $API_BASE"
 echo "[ctx] HEAD       = $(cd "$REPO_ROOT" && git rev-parse --short HEAD 2>/dev/null || echo '?')"
 echo "[ctx] WO         = $WO_NO"
-echo "[ctx] IPQC user  = $IPQC_USER  (submits judgment)"
-echo "[ctx] QA user    = $QA_USER  (approves; MUST differ from IPQC user)"
+echo "[ctx] IPQC_USER  = $IPQC_USER  (role QC; self-seeded)"
+echo "[ctx] QA_USER    = $QA_USER  (role QC; self-seeded; MUST differ from IPQC_USER)"
+echo "[ctx] role policy: IpqcSubmit=Admin|QC, QaApprove=Admin|QC|Supervisor"
 echo "===================================================================="
-
-if [[ "$IPQC_USER" == "$QA_USER" ]]; then
-    echo "[warn] IPQC_USER == QA_USER — only the same-user 422 path will exercise."
-    echo "       Pass two DISTINCT usernames for the full happy-path Approve."
-fi
 
 PASS=0
 FAIL=0
 SUMMARY=()
-TOTAL_STEPS=12
+TOTAL_STEPS=13
 CURRENT_STEP=0
 
 record() {
@@ -146,6 +134,10 @@ final_summary() {
         echo "    proven. Catalyst hand-verify next: scan WO, see IPQC_APPROVED"
         echo "    phase + audit log shows 4× WO_IPQC_CHECK + WO_IPQC_JUDGMENT"
         echo "    + WO_QA_APPROVE_DENIED + WO_QA_APPROVE."
+        echo ""
+        echo "  Cleanup (operator-driven --commit):"
+        echo "    bash scripts/purge-test-audit.sh                # preview"
+        echo "    bash scripts/purge-test-audit.sh --commit       # execute"
     fi
 }
 
@@ -176,7 +168,7 @@ login_user() {
     local rsp
     rsp=$(curl -s -X POST "$API_BASE/api/v2/auth/login" \
         -H "Content-Type: application/json" \
-        -d "{\"username\":\"$user\",\"password\":\"P@ss!1\",\"deviceId\":\"checkpoint-7d-2\"}")
+        -d "{\"username\":\"$user\",\"password\":\"$TEST_PASSWORD\",\"deviceId\":\"checkpoint-7d-2\"}")
     echo "$rsp" | json_field "accessToken"
 }
 
@@ -215,32 +207,66 @@ else
     fi
 fi
 
-# Boot probe — dual-sig flag MUST be on for this checkpoint to be
-# meaningful. If the operator turned it off, warn loudly.
+# Boot probe — dual-sig flag MUST be on for this checkpoint to be meaningful.
 if grep -q "OPS_IPQC_REQUIRE_DISTINCT_QA_APPROVER=off" /tmp/checkpoint-7d-2-api.log 2>/dev/null; then
     echo "[warn] Dual-sig flag is OFF — same-user 422 path will SKIP (flag=off)."
     echo "       Q3 contract requires flag=on in prod. Stop + fix .env if this is prod."
 fi
 
-# ── 2. Login both users ──────────────────────────────────────────
-ADMIN_TOKEN=$(login_user "admin")
+# ── 2. Login admin ───────────────────────────────────────────────
+ADMIN_RSP=$(curl -s -X POST "$API_BASE/api/v2/auth/login" \
+    -H "Content-Type: application/json" \
+    -d '{"username":"admin","password":"admin","deviceId":"checkpoint-7d-2"}')
+ADMIN_TOKEN=$(echo "$ADMIN_RSP" | json_field "accessToken")
 if [[ -z "$ADMIN_TOKEN" ]]; then
-    record FAIL "login admin failed"
+    record FAIL "login admin failed: $ADMIN_RSP"
     exit 1
 fi
+record PASS "login admin"
+ADMIN_AUTH="Authorization: Bearer $ADMIN_TOKEN"
+
+# ── 3. Self-seed IPQC + QA test users (idempotent via /admin/accounts) ─
+seed_user() {
+    local user="$1"
+    local role="$2"
+    local rsp
+    rsp=$(curl -s -w "\nHTTP:%{http_code}" -X POST "$API_BASE/api/v2/admin/accounts" \
+        -H "$ADMIN_AUTH" -H "Content-Type: application/json" \
+        -d "{\"username\":\"$user\",\"displayName\":\"P10.7d-2 checkpoint test user\",\"role\":\"$role\",\"department\":\"QC\",\"password\":\"$TEST_PASSWORD\"}")
+    local http_code
+    http_code=$(echo "$rsp" | grep -oE 'HTTP:[0-9]+$' | cut -d: -f2)
+    case "$http_code" in
+        201|200) return 0 ;;       # freshly seeded
+        409)     return 0 ;;       # already present — idempotent OK
+        *)
+            echo "  [seed] user=$user role=$role http=$http_code rsp=$(echo "$rsp" | head -1)"
+            return 1
+            ;;
+    esac
+}
+
+SEED_OK=1
+seed_user "$IPQC_USER" "QC" || SEED_OK=0
+seed_user "$QA_USER"   "QC" || SEED_OK=0
+if [[ $SEED_OK -eq 1 ]]; then
+    record PASS "self-seed 2 test users (IPQC + QA, role QC, idempotent)"
+else
+    record FAIL "self-seed users failed — see preview above"
+fi
+
+# ── 4. Login both test users ─────────────────────────────────────
 IPQC_TOKEN=$(login_user "$IPQC_USER")
 QA_TOKEN=$(login_user "$QA_USER")
 if [[ -n "$IPQC_TOKEN" && -n "$QA_TOKEN" ]]; then
-    record PASS "login admin + $IPQC_USER + $QA_USER"
+    record PASS "login $IPQC_USER + $QA_USER (test passwords)"
 else
-    record FAIL "login failed: IPQC_TOKEN='${IPQC_TOKEN:+(set)}', QA_TOKEN='${QA_TOKEN:+(set)}'. Are both users seeded in DB?"
+    record FAIL "login failed: IPQC_TOKEN='${IPQC_TOKEN:+(set)}' QA_TOKEN='${QA_TOKEN:+(set)}'"
     exit 1
 fi
-ADMIN_AUTH="Authorization: Bearer $ADMIN_TOKEN"
 IPQC_AUTH="Authorization: Bearer $IPQC_TOKEN"
 QA_AUTH="Authorization: Bearer $QA_TOKEN"
 
-# ── 3. Scrap picker probe (L17 — needed for NG slot) ─────────────
+# ── 5. Scrap picker probe (L17) ──────────────────────────────────
 SCRAP_CNT=$(curl -s -H "$IPQC_AUTH" "$API_BASE/api/v2/reason-codes?kind=Scrap" \
     | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null)
 if [[ "${SCRAP_CNT:-0}" -ge 8 ]]; then
@@ -257,7 +283,8 @@ if [[ -z "$WO_ID" ]]; then
 fi
 echo "[ctx] WO Id      = $WO_ID"
 
-# Reset using script + ensure lazy-materialised row exists.
+# Shim to IPQC_WAIT (the script handles a WO in any prior phase).
+sqlite3 "$DB_PATH" "UPDATE WorkOrders SET MesPhase='IPQC_WAIT', CurrentStep='IpqcApproval', UpdatedAt=datetime('now'), UpdatedBy='checkpoint-7d-2' WHERE Id=$WO_ID;"
 bash "$SCRIPT_DIR/reset-ipqc-for-wo.sh" --wo "$WO_NO" --commit > /tmp/checkpoint-7d-2-reset.log 2>&1
 # Ensure check row exists (lazy materialise on first GET).
 curl -s -H "$IPQC_AUTH" "$API_BASE/api/v2/work-orders/$WO_ID/ipqc" > /dev/null
@@ -269,7 +296,7 @@ else
 fi
 ETAG=$(etag_of "$WO_ID")
 
-# ── 5-8. PUT each of 4 slots ─────────────────────────────────────
+# ── 7. PUT all 4 slots ──────────────────────────────────────────
 SLOT_OK=0
 for ENTRY in 'material:Ok::' 'print-a:Ok::' 'print-b:Ng:SC-COLOR:lệch màu nhẹ' 'print-c:Ok::'; do
     SLOT="${ENTRY%%:*}"
@@ -302,7 +329,7 @@ else
     record FAIL "PUT slots: only $SLOT_OK/4 accepted"
 fi
 
-# ── 9. POST /ipqc/judgment SpecialAccept (PrintB is NG) ──────────
+# ── 8. POST /ipqc/judgment SpecialAccept (PrintB is NG) ──────────
 R=$(curl -s -X POST "$API_BASE/api/v2/work-orders/$WO_ID/ipqc/judgment" \
     -H "$IPQC_AUTH" -H "Content-Type: application/json" \
     -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $(uuidgen)" \
@@ -317,7 +344,7 @@ else
     record FAIL "/ipqc/judgment: phase=$PHASE submitter=$SUBMITTER"
 fi
 
-# ── 10. POST /qa/approve SAME user (Q3 dual-sig violation) ──────
+# ── 9. POST /qa/approve SAME user (Q3 dual-sig violation) ───────
 R=$(curl -s -w "\nHTTP:%{http_code}" -X POST "$API_BASE/api/v2/work-orders/$WO_ID/qa/approve" \
     -H "$IPQC_AUTH" -H "Content-Type: application/json" \
     -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $(uuidgen)" \
@@ -330,27 +357,21 @@ if [[ "$HTTP_CODE" == "422" && "$ERR_CODE" == "qa.same_user_as_ipqc_submitter" &
 else
     record FAIL "Same-user path: http=$HTTP_CODE err=$ERR_CODE phase=$PHASE_AFTER (expected 422 + same_user code + QA_PENDING)"
 fi
-# ETag did NOT change (no commit) — keep using the same one.
 
-# ── 11. POST /qa/approve DISTINCT user (Q3 happy path) ───────────
-if [[ "$IPQC_USER" == "$QA_USER" ]]; then
-    echo "  [skip] IPQC_USER == QA_USER — happy path requires distinct users."
-    record FAIL "Distinct-user happy path SKIPPED (users equal)"
+# ── 10. POST /qa/approve DISTINCT user (Q3 happy path) ──────────
+R=$(curl -s -X POST "$API_BASE/api/v2/work-orders/$WO_ID/qa/approve" \
+    -H "$QA_AUTH" -H "Content-Type: application/json" \
+    -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $(uuidgen)" \
+    -d '{"outcome":"Approve","qaReason":"Lô đặc biệt — chấp nhận sản xuất"}')
+PHASE=$(echo "$R" | json_field "mesPhase")
+QA_APPROVED=$(sqlite3 "$DB_PATH" "SELECT QaApprovedBy FROM WoIpqcChecks WHERE WorkOrderId=$WO_ID;")
+if [[ "$PHASE" == "IPQC_APPROVED" && "$QA_APPROVED" == "$QA_USER" ]]; then
+    record PASS "POST /qa/approve DISTINCT user ($QA_USER) → IPQC_APPROVED + QaApprovedBy stamped"
 else
-    R=$(curl -s -X POST "$API_BASE/api/v2/work-orders/$WO_ID/qa/approve" \
-        -H "$QA_AUTH" -H "Content-Type: application/json" \
-        -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $(uuidgen)" \
-        -d '{"outcome":"Approve","qaReason":"Lô đặc biệt — chấp nhận sản xuất"}')
-    PHASE=$(echo "$R" | json_field "mesPhase")
-    QA_APPROVED=$(sqlite3 "$DB_PATH" "SELECT QaApprovedBy FROM WoIpqcChecks WHERE WorkOrderId=$WO_ID;")
-    if [[ "$PHASE" == "IPQC_APPROVED" && "$QA_APPROVED" == "$QA_USER" ]]; then
-        record PASS "POST /qa/approve DISTINCT user ($QA_USER) → IPQC_APPROVED + QaApprovedBy stamped"
-    else
-        record FAIL "Distinct-user happy path: phase=$PHASE qa_approver=$QA_APPROVED"
-    fi
+    record FAIL "Distinct-user happy path: phase=$PHASE qa_approver=$QA_APPROVED"
 fi
 
-# ── 12. Audit wire-mirror (R7.3) ─────────────────────────────────
+# ── 11. Audit wire-mirror (R7.3) ─────────────────────────────────
 AUDIT_MISS=()
 for ACTION in WO_IPQC_CHECK WO_IPQC_JUDGMENT WO_QA_APPROVE_DENIED WO_QA_APPROVE; do
     AUDIT=$(curl -s -H "$ADMIN_AUTH" "$API_BASE/api/v2/audit/log?action=$ACTION&page=1&pageSize=50")
@@ -378,9 +399,13 @@ if [[ $KEEP_ALIVE -eq 1 ]]; then
         FROM WoIpqcChecks WHERE WorkOrderId=$WO_ID;
     "
     echo ""
+    sqlite3 "$DB_PATH" -header -column "
+        SELECT Username, Role FROM Users WHERE Username IN ('$IPQC_USER', '$QA_USER');
+    "
+    echo ""
     echo "  Henry next: scan WO $WO_NO in Catalyst → expect MesPhase = IPQC_APPROVED."
-    echo "  IPQC dashboard ships in 7d-3 — until then the deferred placeholder"
-    echo "  in 7c L19 will render on this phase + the chip shows IPQC_APPROVED."
+    echo "  IPQC dashboard ships in 7d-3 — until then the 7c L19 deferred"
+    echo "  placeholder will render on this phase + the chip shows IPQC_APPROVED."
 fi
 
 if [[ $FAIL -gt 0 ]]; then

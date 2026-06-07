@@ -130,7 +130,13 @@ BOM_SEED_TAGS="'checkpoint-7b-2','verify-p10.7b','checkpoint-7b-final'"
 # P10.7c-4 — actor tags written by the test scripts into domain tables
 # (WoRunSessions.StartedBy / WoPauseEvents.StartedBy /
 # WoQtyEntries.EnteredBy / WoQtyEntries.CreatedBy).
-RUNNING_ACTOR_TAGS="'checkpoint-7c-2','checkpoint-7c-final','verify-p10.7c','checkpoint-l19-walk','manual-l19-test','manual-test'"
+RUNNING_ACTOR_TAGS="'checkpoint-7c-2','checkpoint-7c-final','verify-p10.7c','checkpoint-l19-walk','manual-l19-test','manual-test','checkpoint-7d-2'"
+
+# P10.7d-2 — usernames the 7d-2 checkpoint self-seeds via the admin
+# /admin/accounts endpoint. Both have role QC + DisplayName starting
+# "P10.7d-2 checkpoint test user" so they're easy to distinguish from
+# real operator accounts.
+IPQC_QA_TEST_USERS="'ipqc-test-checkpoint','qa-test-checkpoint'"
 
 TOTAL_BEFORE=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs;")
 TESTRESET_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action='TEST_RESET' AND ActorUsername='test-tool';")
@@ -151,9 +157,13 @@ RUN_SESSION_COUNT="${RUN_SESSION_COUNT:-0}"
 
 BOM_SEED_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS);" 2>/dev/null)
 BOM_SEED_COUNT="${BOM_SEED_COUNT:-0}"
+
+# P10.7d-2 — count seeded test users
+IPQC_QA_USER_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM Users WHERE Username IN ($IPQC_QA_TEST_USERS);" 2>/dev/null)
+IPQC_QA_USER_COUNT="${IPQC_QA_USER_COUNT:-0}"
 AUDIT_PURGE_TOTAL=$((TESTRESET_COUNT + NOISE_COUNT + PREPRESS_AUDIT_COUNT + RUNNING_AUDIT_COUNT))
 DOMAIN_PURGE_TOTAL=$((QTY_ENTRY_COUNT + PAUSE_EVENT_COUNT + RUN_SESSION_COUNT))
-GRAND_TOTAL=$((AUDIT_PURGE_TOTAL + BOM_SEED_COUNT + DOMAIN_PURGE_TOTAL))
+GRAND_TOTAL=$((AUDIT_PURGE_TOTAL + BOM_SEED_COUNT + DOMAIN_PURGE_TOTAL + IPQC_QA_USER_COUNT))
 
 echo "── Pre-purge counts ──"
 echo "  TOTAL AuditLogs                                    : $TOTAL_BEFORE"
@@ -165,6 +175,7 @@ echo "  WoQtyEntries (RUNNING actor tags)                  : $QTY_ENTRY_COUNT"
 echo "  WoPauseEvents (RUNNING actor tags)                 : $PAUSE_EVENT_COUNT"
 echo "  WoRunSessions (RUNNING actor tags)                 : $RUN_SESSION_COUNT"
 echo "  ManufacturingStructures BOM seed rows              : $BOM_SEED_COUNT"
+echo "  Seeded IPQC/QA checkpoint test users               : $IPQC_QA_USER_COUNT"
 echo "  TOTAL AUDIT TO PURGE                               : $AUDIT_PURGE_TOTAL"
 echo "  TOTAL DOMAIN TO PURGE                              : $DOMAIN_PURGE_TOTAL"
 echo "  TOTAL ALL (audit + domain + BOM seed)              : $GRAND_TOTAL"
@@ -241,6 +252,14 @@ if [[ "$BOM_SEED_COUNT" != "0" ]]; then
        ORDER BY Id;"
     echo ""
 fi
+if [[ "$IPQC_QA_USER_COUNT" != "0" ]]; then
+    echo "Seeded IPQC/QA checkpoint test users (Username, Role, DisplayName):"
+    sqlite3 -column -header "$DB_PATH" \
+      "SELECT Id, Username, Role, DisplayName
+       FROM Users WHERE Username IN ($IPQC_QA_TEST_USERS)
+       ORDER BY Id;"
+    echo ""
+fi
 
 if [[ $COMMIT -eq 0 ]]; then
     echo "── DRY-RUN — no rows written. Re-run with --commit to execute. ──"
@@ -262,6 +281,7 @@ DELETE FROM WoQtyEntries WHERE EnteredBy IN ($RUNNING_ACTOR_TAGS);
 DELETE FROM WoPauseEvents WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);
 DELETE FROM WoRunSessions WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);
 DELETE FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS);
+DELETE FROM Users WHERE Username IN ($IPQC_QA_TEST_USERS);
 COMMIT;
 SQL
 PURGE_EXIT=$?
@@ -276,8 +296,10 @@ BOM_SEED_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM ManufacturingStructure
 QTY_ENTRY_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM WoQtyEntries WHERE EnteredBy IN ($RUNNING_ACTOR_TAGS);")
 PAUSE_EVENT_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM WoPauseEvents WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);")
 RUN_SESSION_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM WoRunSessions WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);")
+IPQC_QA_USER_AFTER=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM Users WHERE Username IN ($IPQC_QA_TEST_USERS);")
 AUDIT_DELETED=$((TOTAL_BEFORE - TOTAL_AFTER))
 BOM_DELETED=$((BOM_SEED_COUNT - BOM_SEED_AFTER))
+USER_DELETED=$((IPQC_QA_USER_COUNT - IPQC_QA_USER_AFTER))
 DOMAIN_DELETED=$(( (QTY_ENTRY_COUNT - QTY_ENTRY_AFTER) + (PAUSE_EVENT_COUNT - PAUSE_EVENT_AFTER) + (RUN_SESSION_COUNT - RUN_SESSION_AFTER) ))
 
 echo ""
@@ -289,13 +311,15 @@ echo "  BOM seed rows (before)          : $BOM_SEED_COUNT"
 echo "  BOM seed rows (after)           : $BOM_SEED_AFTER"
 echo "  BOM seed rows deleted           : $BOM_DELETED"
 echo "  Domain test rows deleted        : $DOMAIN_DELETED (qty/pause/session)"
+echo "  IPQC/QA test users deleted      : $USER_DELETED"
 echo ""
-if [[ "$AUDIT_DELETED" == "$AUDIT_PURGE_TOTAL" && "$BOM_DELETED" == "$BOM_SEED_COUNT" && "$DOMAIN_DELETED" == "$DOMAIN_PURGE_TOTAL" ]]; then
+if [[ "$AUDIT_DELETED" == "$AUDIT_PURGE_TOTAL" && "$BOM_DELETED" == "$BOM_SEED_COUNT" && "$DOMAIN_DELETED" == "$DOMAIN_PURGE_TOTAL" && "$USER_DELETED" == "$IPQC_QA_USER_COUNT" ]]; then
     echo "✓ Purge complete — deleted counts match preview."
 else
     echo "⚠ Deleted counts diverged from preview — investigate."
     echo "    audit  preview=$AUDIT_PURGE_TOTAL  deleted=$AUDIT_DELETED"
     echo "    bom    preview=$BOM_SEED_COUNT    deleted=$BOM_DELETED"
     echo "    domain preview=$DOMAIN_PURGE_TOTAL deleted=$DOMAIN_DELETED"
+    echo "    users  preview=$IPQC_QA_USER_COUNT deleted=$USER_DELETED"
     exit 1
 fi
