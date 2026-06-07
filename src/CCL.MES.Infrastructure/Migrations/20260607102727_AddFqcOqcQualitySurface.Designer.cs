@@ -3,6 +3,7 @@ using System;
 using CCL.MES.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CCL.MES.Infrastructure.Migrations
 {
     [DbContext(typeof(MesDbContext))]
-    partial class MesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260607102727_AddFqcOqcQualitySurface")]
+    partial class AddFqcOqcQualitySurface
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
@@ -74,7 +77,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("Timestamp");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.Customer", b =>
@@ -105,7 +108,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Customers", (string)null);
+                    b.ToTable("Customers");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.DowntimeReason", b =>
@@ -139,7 +142,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("DowntimeReasons", (string)null);
+                    b.ToTable("DowntimeReasons");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.Drawing", b =>
@@ -185,7 +188,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("ProductRevisionId", "Kind", "Title")
                         .IsUnique();
 
-                    b.ToTable("Drawings", (string)null);
+                    b.ToTable("Drawings");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.DrawingApproval", b =>
@@ -231,7 +234,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("DrawingVersionId", "Role")
                         .IsUnique();
 
-                    b.ToTable("DrawingApprovals", (string)null);
+                    b.ToTable("DrawingApprovals");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.DrawingVersion", b =>
@@ -297,7 +300,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("DrawingId", "VersionNo")
                         .IsUnique();
 
-                    b.ToTable("DrawingVersions", (string)null);
+                    b.ToTable("DrawingVersions");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.IdempotencyKey", b =>
@@ -366,7 +369,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("KeyValue", "ActorId")
                         .IsUnique();
 
-                    b.ToTable("IdempotencyKeys", (string)null);
+                    b.ToTable("IdempotencyKeys");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.IqcInspection", b =>
@@ -439,7 +442,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("ReceivedDate");
 
-                    b.ToTable("IqcInspections", (string)null);
+                    b.ToTable("IqcInspections");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.IqcResultDetail", b =>
@@ -483,7 +486,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("IqcInspectionId");
 
-                    b.ToTable("IqcResultDetails", (string)null);
+                    b.ToTable("IqcResultDetails");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.Machine", b =>
@@ -527,7 +530,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Machines", (string)null);
+                    b.ToTable("Machines");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.ManufacturingStructure", b =>
@@ -602,7 +605,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("ParentPart");
 
-                    b.ToTable("ManufacturingStructures", (string)null);
+                    b.ToTable("ManufacturingStructures");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.ProcessCatalog", b =>
@@ -656,7 +659,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("Category", "Status", "DisplayOrder");
 
-                    b.ToTable("ProcessCatalogs", (string)null);
+                    b.ToTable("ProcessCatalogs");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.Product", b =>
@@ -695,7 +698,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.ToTable("Products", (string)null);
+                    b.ToTable("Products");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.ProductRevision", b =>
@@ -783,7 +786,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("ProductId", "RevisionCode")
                         .IsUnique();
 
-                    b.ToTable("ProductRevisions", (string)null);
+                    b.ToTable("ProductRevisions");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.ProductionLog", b =>
@@ -840,7 +843,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("WorkOrderId");
 
-                    b.ToTable("ProductionLogs", (string)null);
+                    b.ToTable("ProductionLogs");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.QcCriterion", b =>
@@ -915,7 +918,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("SpecQcWindowId", "Seq")
                         .IsUnique();
 
-                    b.ToTable("QcCriteria", (string)null);
+                    b.ToTable("QcCriteria");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.QcInspection", b =>
@@ -963,7 +966,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("WorkOrderId");
 
-                    b.ToTable("QcInspections", (string)null);
+                    b.ToTable("QcInspections");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.QcResultDetail", b =>
@@ -1007,7 +1010,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("QcInspectionId");
 
-                    b.ToTable("QcResultDetails", (string)null);
+                    b.ToTable("QcResultDetails");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.RawMaterial", b =>
@@ -1117,7 +1120,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("PartNo");
 
-                    b.ToTable("RawMaterials", (string)null);
+                    b.ToTable("RawMaterials");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.ReasonCode", b =>
@@ -1170,7 +1173,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("Kind", "Active", "Sort");
 
-                    b.ToTable("ReasonCodes", (string)null);
+                    b.ToTable("ReasonCodes");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.RoutingOperation", b =>
@@ -1256,7 +1259,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("PartNo");
 
-                    b.ToTable("RoutingOperations", (string)null);
+                    b.ToTable("RoutingOperations");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecDiecut", b =>
@@ -1324,7 +1327,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("ProductRevisionId")
                         .IsUnique();
 
-                    b.ToTable("SpecDiecuts", (string)null);
+                    b.ToTable("SpecDiecuts");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecFinishing", b =>
@@ -1377,7 +1380,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("ProductRevisionId")
                         .IsUnique();
 
-                    b.ToTable("SpecFinishings", (string)null);
+                    b.ToTable("SpecFinishings");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecFlexoCuttingRow", b =>
@@ -1454,7 +1457,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("SpecPrintId", "Seq")
                         .IsUnique();
 
-                    b.ToTable("SpecFlexoCuttingRows", (string)null);
+                    b.ToTable("SpecFlexoCuttingRows");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecFlexoInkRow", b =>
@@ -1520,7 +1523,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("SpecPrintId", "Seq")
                         .IsUnique();
 
-                    b.ToTable("SpecFlexoInkRows", (string)null);
+                    b.ToTable("SpecFlexoInkRows");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecMaterial", b =>
@@ -1570,7 +1573,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("ProductRevisionId")
                         .IsUnique();
 
-                    b.ToTable("SpecMaterials", (string)null);
+                    b.ToTable("SpecMaterials");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecPrint", b =>
@@ -1641,7 +1644,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("ProductRevisionId")
                         .IsUnique();
 
-                    b.ToTable("SpecPrints", (string)null);
+                    b.ToTable("SpecPrints");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecPrintColor", b =>
@@ -1740,7 +1743,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("SpecPrintId", "Seq")
                         .IsUnique();
 
-                    b.ToTable("SpecPrintColors", (string)null);
+                    b.ToTable("SpecPrintColors");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecQcCapture", b =>
@@ -1799,7 +1802,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("SpecQcWindowId", "QcCriterionId");
 
-                    b.ToTable("SpecQcCaptures", (string)null);
+                    b.ToTable("SpecQcCaptures");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecQcWindow", b =>
@@ -1861,7 +1864,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("ProductRevisionId", "Stage");
 
-                    b.ToTable("SpecQcWindows", (string)null);
+                    b.ToTable("SpecQcWindows");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.User", b =>
@@ -1914,7 +1917,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("Username")
                         .IsUnique();
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WiStepDetail", b =>
@@ -1955,7 +1958,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("WorkInstructionId");
 
-                    b.ToTable("WiStepDetails", (string)null);
+                    b.ToTable("WiStepDetails");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoCutterCheck", b =>
@@ -2008,7 +2011,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WorkOrderId")
                         .IsUnique();
 
-                    b.ToTable("WoCutterChecks", (string)null);
+                    b.ToTable("WoCutterChecks");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoIpqcCheck", b =>
@@ -2121,7 +2124,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WorkOrderId")
                         .IsUnique();
 
-                    b.ToTable("WoIpqcChecks", (string)null);
+                    b.ToTable("WoIpqcChecks");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoMaterial", b =>
@@ -2198,7 +2201,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WorkOrderId", "BomLineIdx")
                         .IsUnique();
 
-                    b.ToTable("WoMaterials", (string)null);
+                    b.ToTable("WoMaterials");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoPauseEvent", b =>
@@ -2251,7 +2254,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("WoId");
 
-                    b.ToTable("WoPauseEvents", (string)null);
+                    b.ToTable("WoPauseEvents");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoPlateCheck", b =>
@@ -2304,7 +2307,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WorkOrderId")
                         .IsUnique();
 
-                    b.ToTable("WoPlateChecks", (string)null);
+                    b.ToTable("WoPlateChecks");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoQcCheck", b =>
@@ -2372,7 +2375,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WorkOrderId", "QcKind")
                         .IsUnique();
 
-                    b.ToTable("WoQcChecks", (string)null);
+                    b.ToTable("WoQcChecks");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoQcCheckItem", b =>
@@ -2422,7 +2425,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WoQcCheckId", "ItemKey")
                         .IsUnique();
 
-                    b.ToTable("WoQcCheckItems", (string)null);
+                    b.ToTable("WoQcCheckItems");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoQcPhoto", b =>
@@ -2480,7 +2483,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("WoQcCheckItemId");
 
-                    b.ToTable("WoQcPhotos", (string)null);
+                    b.ToTable("WoQcPhotos");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoQtyEntry", b =>
@@ -2546,7 +2549,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("WoId", "Ts");
 
-                    b.ToTable("WoQtyEntries", (string)null);
+                    b.ToTable("WoQtyEntries");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoRunSession", b =>
@@ -2591,7 +2594,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("WoId", "EndedAt");
 
-                    b.ToTable("WoRunSessions", (string)null);
+                    b.ToTable("WoRunSessions");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoStatusHistory", b =>
@@ -2637,7 +2640,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("WorkOrderId");
 
-                    b.ToTable("WoStatusHistories", (string)null);
+                    b.ToTable("WoStatusHistories");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WorkCenter", b =>
@@ -2682,7 +2685,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("Code");
 
-                    b.ToTable("WorkCenters", (string)null);
+                    b.ToTable("WorkCenters");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WorkInstruction", b =>
@@ -2731,7 +2734,7 @@ namespace CCL.MES.Infrastructure.Migrations
 
                     b.HasIndex("ProductId");
 
-                    b.ToTable("WorkInstructions", (string)null);
+                    b.ToTable("WorkInstructions");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WorkOrder", b =>
@@ -2848,7 +2851,7 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WoNo")
                         .IsUnique();
 
-                    b.ToTable("WorkOrders", (string)null);
+                    b.ToTable("WorkOrders");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.Drawing", b =>

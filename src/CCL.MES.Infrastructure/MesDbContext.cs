@@ -61,6 +61,10 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<WoQtyEntry> WoQtyEntries => Set<WoQtyEntry>();
     // P10.7d-1 — IPQC review surface (per contract §5.5).
     public DbSet<WoIpqcCheck> WoIpqcChecks => Set<WoIpqcCheck>();
+    // P10.7e-1 Q3+Q6 — DATA-DRIVEN FQC + OQC + photo evidence tables.
+    public DbSet<WoQcCheck> WoQcChecks => Set<WoQcCheck>();
+    public DbSet<WoQcCheckItem> WoQcCheckItems => Set<WoQcCheckItem>();
+    public DbSet<WoQcPhoto> WoQcPhotos => Set<WoQcPhoto>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -164,6 +168,36 @@ public class MesDbContext : DbContext, IMesDbContext
 
         // P10.7d-1 — IPQC review surface 1:1 uniqueness (contract §5.5).
         b.Entity<WoIpqcCheck>().HasIndex(x => x.WorkOrderId).IsUnique();
+
+        // P10.7e-1 Q3+Q6 — FQC + OQC + photo column shape + indices.
+        b.Entity<WoQcCheck>().Property(x => x.QcKind).HasMaxLength(8).IsRequired();
+        b.Entity<WoQcCheck>().Property(x => x.ProfileSnapshotJson).IsRequired();
+        b.Entity<WoQcCheck>().Property(x => x.Judgment).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoQcCheck>().Property(x => x.JudgmentReason).HasMaxLength(500);
+        b.Entity<WoQcCheck>().Property(x => x.InspectedBy).HasMaxLength(64);
+        b.Entity<WoQcCheck>().Property(x => x.ReviewedBy).HasMaxLength(64);
+        b.Entity<WoQcCheck>().Property(x => x.ApprovedBy).HasMaxLength(64);
+        // (WorkOrderId, QcKind) unique — 1 active row per kind per WO.
+        b.Entity<WoQcCheck>().HasIndex(x => new { x.WorkOrderId, x.QcKind }).IsUnique();
+
+        b.Entity<WoQcCheckItem>().Property(x => x.ItemKey).HasMaxLength(64).IsRequired();
+        b.Entity<WoQcCheckItem>().Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoQcCheckItem>().Property(x => x.NgReasonCode).HasMaxLength(64);
+        b.Entity<WoQcCheckItem>().Property(x => x.NgNote).HasMaxLength(500);
+        // (WoQcCheckId, ItemKey) unique — one row per item per check.
+        b.Entity<WoQcCheckItem>().HasIndex(x => new { x.WoQcCheckId, x.ItemKey }).IsUnique();
+        b.Entity<WoQcCheckItem>().HasOne(x => x.WoQcCheck)
+            .WithMany(c => c.Items)
+            .HasForeignKey(x => x.WoQcCheckId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<WoQcPhoto>().Property(x => x.Sha256).HasMaxLength(64).IsRequired();
+        b.Entity<WoQcPhoto>().Property(x => x.MimeType).HasMaxLength(32).IsRequired();
+        b.Entity<WoQcPhoto>().Property(x => x.OriginalFileName).HasMaxLength(255);
+        b.Entity<WoQcPhoto>().Property(x => x.RelativePath).HasMaxLength(512);
+        b.Entity<WoQcPhoto>().Property(x => x.UploadedBy).HasMaxLength(64);
+        b.Entity<WoQcPhoto>().HasIndex(x => x.WoQcCheckItemId);
+        b.Entity<WoQcPhoto>().HasIndex(x => x.Sha256);
 
         // Phase 8 PR #28 — uniqueness + lookup indexes cho new schema.
         // (ProductId + RevisionCode) unique để enforce A/B/C duy nhất per product.

@@ -204,6 +204,30 @@ builder.Services.Configure<CCL.MES.Application.Services.IpqcDualSigOptions>(opts
             .ParseRequireDistinctQaApprover(raw);
 });
 
+// P10.7e-1 Q5 — OQC 3-signature policy. Generalises the L20-pattern
+// (typo-safe whitelist parse + boot probe) to 3 independent
+// distinct-user invariants on the OQC sign chain
+// (Inspector → Reviewer → Approver per CCL-10-F6 form). Each flag has
+// its own env-var override OR Features:WoQcSigPolicy:<name> config
+// path. All default-ON per Lesson L20.
+builder.Services.Configure<CCL.MES.Application.Services.WoQcSigPolicyOptions>(opts =>
+{
+    opts.OqcRequireDistinctReviewer =
+        CCL.MES.Application.Services.WoQcSigPolicyOptionsLoader.ParseFlag(
+            Environment.GetEnvironmentVariable("OPS_OQC_REQUIRE_DISTINCT_REVIEWER")
+                ?? builder.Configuration["Features:WoQcSigPolicy:OqcRequireDistinctReviewer"]);
+
+    opts.OqcRequireDistinctApprover =
+        CCL.MES.Application.Services.WoQcSigPolicyOptionsLoader.ParseFlag(
+            Environment.GetEnvironmentVariable("OPS_OQC_REQUIRE_DISTINCT_APPROVER")
+                ?? builder.Configuration["Features:WoQcSigPolicy:OqcRequireDistinctApprover"]);
+
+    opts.OqcRequireApproverDistinctFromInspector =
+        CCL.MES.Application.Services.WoQcSigPolicyOptionsLoader.ParseFlag(
+            Environment.GetEnvironmentVariable("OPS_OQC_REQUIRE_APPROVER_DISTINCT_FROM_INSPECTOR")
+                ?? builder.Configuration["Features:WoQcSigPolicy:OqcRequireApproverDistinctFromInspector"]);
+});
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, opt =>
     {
@@ -468,6 +492,39 @@ using (var bootScope = app.Services.CreateScope())
             catch (Exception cfgEx)
             {
                 Console.WriteLine($"[boot] Dual-sig probe skipped: {cfgEx.GetType().Name}: {cfgEx.Message}");
+            }
+
+            // P10.7e-1 Q5 + L20 — OQC 3-sig policy boot probe. Emits
+            // one log line per flag so operators + the verify-p10.7e.sh
+            // script can confirm the deploy actually loaded all 3
+            // expected default-ON values. Per L20 standing rule, any
+            // future default-ON security flag MUST follow the same
+            // 3-piece kit (whitelist parse + log probe + verify gate).
+            try
+            {
+                var rOpts = new CCL.MES.Application.Services.WoQcSigPolicyOptions
+                {
+                    OqcRequireDistinctReviewer =
+                        CCL.MES.Application.Services.WoQcSigPolicyOptionsLoader.ParseFlag(
+                            Environment.GetEnvironmentVariable("OPS_OQC_REQUIRE_DISTINCT_REVIEWER")
+                                ?? app.Configuration["Features:WoQcSigPolicy:OqcRequireDistinctReviewer"]),
+                    OqcRequireDistinctApprover =
+                        CCL.MES.Application.Services.WoQcSigPolicyOptionsLoader.ParseFlag(
+                            Environment.GetEnvironmentVariable("OPS_OQC_REQUIRE_DISTINCT_APPROVER")
+                                ?? app.Configuration["Features:WoQcSigPolicy:OqcRequireDistinctApprover"]),
+                    OqcRequireApproverDistinctFromInspector =
+                        CCL.MES.Application.Services.WoQcSigPolicyOptionsLoader.ParseFlag(
+                            Environment.GetEnvironmentVariable("OPS_OQC_REQUIRE_APPROVER_DISTINCT_FROM_INSPECTOR")
+                                ?? app.Configuration["Features:WoQcSigPolicy:OqcRequireApproverDistinctFromInspector"]),
+                };
+                Console.WriteLine($"[config] OPS_OQC_REQUIRE_DISTINCT_REVIEWER={(rOpts.OqcRequireDistinctReviewer ? "on" : "off")}");
+                Console.WriteLine($"[config] OPS_OQC_REQUIRE_DISTINCT_APPROVER={(rOpts.OqcRequireDistinctApprover ? "on" : "off")}");
+                Console.WriteLine($"[config] OPS_OQC_REQUIRE_APPROVER_DISTINCT_FROM_INSPECTOR={(rOpts.OqcRequireApproverDistinctFromInspector ? "on" : "off")}");
+                Console.WriteLine($"[config] OPS_OQC_SIG_POLICY_STATE={rOpts.FlagState} (all_on={rOpts.AllFlagsOn})");
+            }
+            catch (Exception cfgEx)
+            {
+                Console.WriteLine($"[boot] OQC 3-sig probe skipped: {cfgEx.GetType().Name}: {cfgEx.Message}");
             }
         }
     }

@@ -77,12 +77,21 @@ public enum MesPhase
     /// STOPPED. Reworks open a fresh WO instead of reviving this row.</summary>
     CANCELLED = 11,
 
-    // P10.7e-1 Q1 contract gap (next commit): SHIPPED = 12 will be added
-    // alongside the state-machine §3.1 grid expansion (144 → 169 cells +
-    // DONE narrowed to transient + OQC_PENDING → SHIPPED RequiresSignoff
-    // for the 3-sig terminal pass). Keeping the enum at 12 phases for
-    // THIS commit keeps the existing 7a-1.4 144-cell matrix test green;
-    // the 13-phase expansion lands in 7e-1's migration commit so the
-    // contract amendment is paired with the implementation that
-    // honours it.
+    /// <summary>P10.7e-1 Q1 — terminal closed.done after OQC Pass + 3-sig
+    /// gate (Q5). SpecHub MES_QUALITY_REDESIGN_PLAN.md §Phase 2 lines
+    /// 47-48 + 59. Distinct from <see cref="DONE"/> so a future ERP
+    /// push (P10.7-BACKLOG OOS-A) can filter on "ready to invoice".
+    /// Reaching SHIPPED requires OQC Approver Pass with
+    /// Inspector ≠ Reviewer ≠ Approver. No transitions OUT of SHIPPED —
+    /// rework opens a fresh WO referencing this one.
+    ///
+    /// 7e-1 also narrows <see cref="DONE"/> semantics: new operator
+    /// flow uses DONE as a TRANSIENT post-RUNNING state (operator's
+    /// Finish click; server auto-cascades DONE → FQC_PENDING in the
+    /// same SaveChanges per the 7c-2 pattern). Legacy DONE rows from
+    /// pre-7e WOs stay valid as terminal — the §3.1 grid keeps
+    /// DONE → FQC_PENDING as RequiresCondition so a legacy row
+    /// can't accidentally advance unless the controller explicitly
+    /// drives it.</summary>
+    SHIPPED = 12,
 }

@@ -59,6 +59,10 @@ public interface IMesDbContext
     DbSet<WoQtyEntry> WoQtyEntries { get; }
     // P10.7d-1 — IPQC review surface (per contract §5.5).
     DbSet<WoIpqcCheck> WoIpqcChecks { get; }
+    // P10.7e-1 Q3+Q6 — FQC + OQC data-driven surface + photo evidence.
+    DbSet<WoQcCheck> WoQcChecks { get; }
+    DbSet<WoQcCheckItem> WoQcCheckItems { get; }
+    DbSet<WoQcPhoto> WoQcPhotos { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
