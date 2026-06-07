@@ -19,9 +19,13 @@
 #        malformed JSON robustness + IsEnabled boolean chain). Plus
 #        a handful of new Theory rows in Canonical + IsForceable for
 #        the SHIPPED-related cells.
-#     3. CCL.MES.Api.Tests ≥359 (non-soak) — unchanged in 7e-1
-#        (controller surface lands in 7e-2; this skeleton just
-#        confirms no regression).
+#     3. CCL.MES.Api.Tests ≥372 (non-soak) — was 359 at 7e-1 + 13
+#        WoQcReviewController fixtures landed in 7e-2 (L19 DTO
+#        MesPhase projection + invalid_kind 422 + FQC single-sig
+#        judgment 3 paths + Q5 OQC 3 violation paths (R=I, A=R, A=I)
+#        + Q5 happy 3-distinct → SHIPPED with BOTH WO_OQC_APPROVE +
+#        WO_SHIPPED audits + OQC Reject → FQC_PENDING re-loop +
+#        signature-out-of-order × 2 + R7.3 audit wire-mirror).
 #     3b. Concurrent soak step inherited from 7c — runs as-is.
 #     4. CCL.MES.Hybrid.Client.Tests ≥575 — unchanged in 7e-1.
 #     5. CCL.MES.Hybrid.Razor.Tests ≥99 — unchanged in 7e-1.
