@@ -869,12 +869,17 @@ else if (_detail is not null && _vm is not null)
         }
     }
 
-    private static string FormatSize(long bytes) => bytes switch
+    // NOTE: written as an if-chain rather than a relational-pattern switch
+    // expression. The Razor compiler in SDK 10.0.x parses a switch arm that
+    // begins with '<' (e.g. `< 1024 =>`) as the start of an HTML tag, which
+    // derails brace counting for the whole @code block (RZ1006). Keeping the
+    // comparison `bytes < …` (operand-first) avoids the markup mis-transition.
+    private static string FormatSize(long bytes)
     {
-        < 1024            => $"{bytes} B",
-        < 1024 * 1024     => $"{bytes / 1024.0:F1} KB",
-        _                 => $"{bytes / 1024.0 / 1024.0:F1} MB",
-    };
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / 1024.0 / 1024.0:F1} MB";
+    }
 
     private async Task OpenSandboxAsync()
     {
