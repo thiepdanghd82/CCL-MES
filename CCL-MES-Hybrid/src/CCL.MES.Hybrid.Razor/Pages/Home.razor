@@ -1,33 +1,89 @@
 @page "/"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@implements IDisposable
 @inject IAuthSession Session
 
 <PageTitle>Trang chủ — CCL MES</PageTitle>
 
-<h1 class="page-title">Xin chào, @(_displayName)</h1>
+@* P10.10 — Home dashboard (SpecHub parity: greeting + live clock +
+   role-gated module quick-access grid). KPI tiles fed by an aggregate
+   endpoint land in the dedicated Home backend increment. *@
 
-<p>Phase 10 P10.2 pilot — MAUI Blazor Hybrid client kết nối với CCL.MES.Api.</p>
+<div class="home-hero">
+    <div>
+        <h1 class="page-title">@_greeting, @(_displayName)</h1>
+        <p class="home-sub">Bảng điều khiển CCL MES — chọn một phân hệ để bắt đầu.</p>
+    </div>
+    <div class="home-clock" aria-label="Đồng hồ hệ thống">
+        <div class="home-clock-time">@_now.ToString("HH:mm:ss")</div>
+        <div class="home-clock-date">@_now.ToString("dddd, dd/MM/yyyy")</div>
+    </div>
+</div>
 
 <div class="home-tiles">
-    @if (Session.CurrentUser.IsInRole("Admin")
-         || Session.CurrentUser.IsInRole("Supervisor")
-         || Session.CurrentUser.IsInRole("Engineer")
-         || Session.CurrentUser.IsInRole("QC"))
+    @if (_canNpi)
     {
+        <a class="home-tile" href="/npi/specs">
+            <div class="home-tile-title">Engineer Spec</div>
+            <div class="home-tile-desc">Thư viện NPI Spec — tạo / import / duyệt / xuất</div>
+        </a>
         <a class="home-tile" href="/npi/workcenters">
-            <div class="home-tile-title">NPI</div>
-            <div class="home-tile-desc">Master data — Work Centers / Raw Materials / Routings</div>
+            <div class="home-tile-title">NPI Data</div>
+            <div class="home-tile-desc">Master data — Work Centers / Raw Materials / Routings / Structure</div>
         </a>
     }
+    @if (_canRun)
+    {
+        <a class="home-tile" href="/workorders">
+            <div class="home-tile-title">Sản xuất</div>
+            <div class="home-tile-desc">Work Orders — quét QR + luồng MES 5 giai đoạn</div>
+        </a>
+    }
+    <a class="home-tile" href="/settings">
+        <div class="home-tile-title">Cài đặt</div>
+        <div class="home-tile-desc">Hồ sơ / mật khẩu / giao diện / nhật ký / tài khoản</div>
+    </a>
 </div>
 
 @code {
     private string _displayName = "";
+    private string _greeting = "Xin chào";
+    private DateTime _now = DateTime.Now;
+    private System.Threading.Timer? _clock;
+
+    private bool _canNpi;
+    private bool _canRun;
 
     protected override void OnInitialized()
     {
-        _displayName = Session.CurrentUser.FindFirst("display_name")?.Value
-            ?? Session.CurrentUser.Identity?.Name
+        var u = Session.CurrentUser;
+        _displayName = u.FindFirst("display_name")?.Value
+            ?? u.Identity?.Name
             ?? "operator";
+
+        // NOTE: if-chain, not a relational-pattern switch. A switch arm
+        // beginning with '<' (e.g. `< 12 =>`) is parsed by the Razor
+        // compiler (SDK 10.0.x) as an HTML tag start, derailing brace
+        // counting for the whole @code block (RZ1006). See the same fix
+        // on SpecDetailPage/Specs.razor FormatSize.
+        var hour = _now.Hour;
+        if (hour < 12) _greeting = "Chào buổi sáng";
+        else if (hour < 18) _greeting = "Chào buổi chiều";
+        else _greeting = "Chào buổi tối";
+
+        _canNpi = u.IsInRole("Admin") || u.IsInRole("Supervisor")
+            || u.IsInRole("Engineer") || u.IsInRole("QC");
+        _canRun = u.IsInRole("Admin") || u.IsInRole("Supervisor")
+            || u.IsInRole("Operator") || u.IsInRole("QC");
+
+        // 1Hz clock — Timer callback runs off the UI thread, so marshal
+        // the re-render via InvokeAsync (ComponentBase).
+        _clock = new System.Threading.Timer(_ =>
+        {
+            _now = DateTime.Now;
+            _ = InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
     }
+
+    public void Dispose() => _clock?.Dispose();
 }

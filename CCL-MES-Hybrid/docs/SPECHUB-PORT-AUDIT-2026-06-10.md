@@ -1,0 +1,139 @@
+# SpecHub → CCL-MES Port Audit + Roadmap (2026-06-10)
+
+> Audit of the SpecHub prototype feature surface vs the CCL-MES Hybrid
+> (.NET 10 Blazor/MAUI) implementation, with a prioritised port plan for
+> the remaining gaps. **SpecHub is READ-ONLY** (CLAUDE.md §1) — it is the
+> source-of-truth; every feature is RE-IMPLEMENTED in .NET, never copied.
+>
+> Method: 3 parallel inventories — (a) SpecHub full feature surface from
+> `spechub-prototype.html` + `spechub.md` + `docs/`; (b) CCL-MES Hybrid
+> actual `.razor` pages + API controllers + entities; (c) existing
+> parity plans + P10.7 backlog. Gap = (a) − (b), reconciled against
+> the ACTUAL files on disk (planning docs were stale on Settings).
+
+---
+
+## 1. Status at a glance
+
+| SpecHub module | CCL-MES Hybrid status | Evidence |
+|---|---|---|
+| **Authentication** (login, lock, roles) | ✅ DONE | `Login.razor`, `Lock.razor`, 5-role RBAC |
+| **Scan Product / Shop Order (MES 5-phase)** | ✅ DONE (P10.7a–e) | `WorkOrders.razor` + Prepress/Setting/Running/Ipqc/Qa/Fqc/Oqc/Shipped dashboards |
+| **NPI: Routine / Structure / Raw Materials / Work Centers** | ✅ DONE (P10.5a) | `NpiRoutine/NpiStructures/NpiRawMaterials/NpiWorkCenters.razor` |
+| **NPI: Engineer Spec — list + detail** | ✅ DONE (P10.5+) | `Specs.razor` + `SpecDetailPage.razor` + `SpecsController` + `SpecsExportController` |
+| **Settings (all 9 sub-tabs)** | ✅ DONE (P10.6) | `Settings*.razor` (Profile/Password/Appearance/Accounts/AuditLog/Backup/Connection/About) |
+| **NPI: Engineer Spec — Import (xlsx) button** | ✅ DONE (P10.5c-2) | `Specs.razor:83` `OpenImportModal` + `ImportSpecModal` + `SpecsController import/preview`+`import/save` (backlog §4 was stale) |
+| **Home Dashboard (KPI tiles / recent / quick actions)** | ⚠️ PARTIAL | `Home.razor` exists but minimal vs SpecHub greeting+clock+4 KPI+focus+grid |
+| **Machine Monitoring Dashboard** | ❌ MISSING (P10.8) | no `MachineDashboard.razor`; `OeeController` backend partial |
+| **Shop Order History** | ❌ MISSING (P10.8) | no history page; forensic WO query endpoint needed |
+| **QMS: Inspection Queue (IPQC/FQC/OQC)** | ❌ MISSING (P10.9) | `Qc/Iqc/WoQcReview` controllers exist; no queue UI |
+| **QMS: QC History** | ❌ MISSING (P10.9) | no QC-history page; data exists in audit + WoQcChecks |
+| **Machine List (admin CRUD, 17 areas)** | ❌ MISSING | only read-only Work Centers grid exists |
+
+**Bottom line:** the operator shop-floor core (MES 5-phase) + NPI master
+data + Engineer Spec + Settings are **complete**. The remaining gap is
+**4 modules** — Machine Dashboard, Shop Order History, QMS (Queue + QC
+History), Home enrichment — plus 2 small items (Spec Import button,
+Machine List CRUD).
+
+---
+
+## 2. Why this is a multi-increment port, not a one-shot merge
+
+SpecHub is a single-file vanilla-JS HTML prototype with `localStorage`
+state. CCL-MES is .NET 10 + Blazor/MAUI + EF Core + SQLite with a
+contract-first, stacked-PR, verify-script discipline (CLAUDE.md). Each
+SpecHub feature must be **re-implemented** across the full stack:
+
+```
+Domain entity + EF migration  →  API controller (If-Match/Idempotency
++ audit)  →  Shared DTOs  →  Razor dashboard + components + Localiser
+(EN/VI)  →  bUnit + Api fixtures  →  verify-*.sh + checkpoint-*.sh
+```
+
+The team's own plans estimate the remaining modules at **P10.8 ≈ 28–39d,
+P10.9 ≈ 12–16d, P10.10/Home ≈ 11–15d** — i.e. tens of engineering-days,
+not a mechanical copy. This port therefore proceeds **module-by-module,
+each fully built + verified before the next**, honouring the existing
+contract/test discipline rather than mass-generating unreviewed code.
+
+---
+
+## 3. Prioritised port roadmap
+
+Ordered by value-per-effort + dependency. Each becomes its own stacked
+PR series mirroring the P10.7 cadence (scope proposal → domain → wire →
+UI → test belt).
+
+### P10.8 — Machine Dashboard + Shop Order History (highest visible value)
+- **Machine Dashboard**: plant KPI strip (Running/Idle/Setup/Down/Maint/OEE)
+  · area groups (17) · machine status cards (5 status variants) · detail
+  drawer (current state / today production / OEE / 24h timeline / speed
+  sparkline / recent WO) · status+area filters · auto-refresh (poll →
+  later SignalR). Backend: extend `OeeController` + a machine-state read
+  model derived from `WorkOrders` + `WoRunSessions`.
+- **Shop Order History**: 5 KPI tiles · period/status/customer/machine
+  filters · 10-col forensic table · detail drawer (summary / metrics /
+  personnel / downtime / audit) · filter-aware CSV export (19 cols).
+  Backend: forensic query endpoint over DONE/SHIPPED WOs.
+
+### P10.9 — QMS Inspection Queue + QC History
+- **Inspection Queue**: 3 stage tabs (IPQC/FQC/OQC) auto-built from WO
+  state (RUNNING→IPQC due; DONE→FQC+OQC due) · 5-criteria capture per
+  stage · Accept/Reject lot gate. Reuses `WoQcReview` + `Ipqc` wire.
+- **QC History**: 5 KPI stats · search + action/WO/date filters ·
+  color-coded action pills · CSV export (6-col). Read model over
+  `WoQcChecks` + audit log.
+
+### P10.10 — Home Dashboard enrichment + real-time
+- Greeting + 1Hz clock · 4 KPI tiles (Specs in library / Pending
+  approvals / My drafts / Today activity) · Today's Focus (5 recent) ·
+  modules quick-access grid · quick actions. Backend: a single
+  `GET /api/v2/home/summary` aggregate (read-only). Later: SignalR push.
+
+### Small parity items (can slot in opportunistically)
+- **Engineer Spec Import button** (backlog §4, ~1d) — toolbar button +
+  reuse existing NPI import modal + `SpecsController` preview/save.
+- **Machine List admin CRUD** — admin grid over a `Machine`/WorkCenter
+  master with 17 areas + import/export/reset-to-seed.
+
+---
+
+## 4. Execution log (this port effort)
+
+> Updated as each increment lands. Each row = a fully built + verified
+> increment (build 0 errors + tests green).
+
+| Date | Increment | Status |
+|---|---|---|
+| 2026-06-10 | Audit + roadmap (this doc) | ✅ done |
+| 2026-06-10 | Verified all "small" backlog items already shipped (Import button = P10.5c-2) | ✅ done |
+| 2026-06-10 | **P10.10 Home Dashboard enrichment** — greeting + live 1Hz clock + role-gated module quick-access grid + 4 bUnit fixtures (Razor suite 114→118 green). Re-applied the Razor-compiler `<`-pattern-switch lesson. | ✅ done |
+| — | P10.10 Home KPI tiles (needs `GET /home/summary` aggregate endpoint) | ⏭ next sub-step |
+| — | P10.8 Machine Dashboard + Shop Order History (largest module) | ⏭ queued |
+| — | P10.9 QMS Inspection Queue + QC History | ⏭ queued |
+
+> **Reality check on scope.** The audit corrected the premise: the
+> shop-floor MES core (P10.7a–e), all NPI tabs + Engineer Spec
+> (list/detail/mutations/import/export), and all Settings sub-tabs are
+> **already ported**. Every "small" backlog item is shipped too. The
+> genuine remainder is **3 large dashboard/QMS modules** the team's own
+> plans estimate at ~50–70 engineering-days combined. These are full
+> domain→API→UI→test builds re-implemented in .NET, not a mechanical
+> merge — so the port proceeds module-by-module, each verified before
+> the next, rather than mass-generating unreviewed code.
+
+---
+
+## 5. Reference — full SpecHub feature inventory
+
+The complete tab/sub-tab/table/function inventory extracted from the
+SpecHub prototype is retained alongside this audit. Top-level modules:
+Home · Scan Product (5-phase MES) · Machine Dashboard · Shop Order
+History · QMS (Inspection Queue + QC History) · Database (Routine /
+Product Structure / 1C Spec / Machine List) · Settings (7 sub-tabs).
+Data entities: `work_orders` (+10 MES tables), `downtime_reasons`,
+`ng_reasons`, `run_sessions`, `run_events`, `mes_audit_log`, OEE views.
+Nearly all MES + NPI + Settings entities already have CCL-MES
+equivalents; the gap entities are the machine-state read model + the
+forensic history/QMS read models (above).

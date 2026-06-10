@@ -274,6 +274,35 @@ html, body {
 .home-tile-title { font-weight: 600; margin-bottom: 4px; }
 .home-tile-desc  { color: #6b7280; font-size: 0.88rem; }
 
+/* P10.10 — Home hero + live clock */
+.home-hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.home-sub { color: #6b7280; margin-top: 2px; }
+.home-clock {
+    text-align: right;
+    min-width: 150px;
+}
+.home-clock-time {
+    font-variant-numeric: tabular-nums;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1.1;
+}
+.home-clock-date {
+    color: #6b7280;
+    font-size: 0.85rem;
+    text-transform: capitalize;
+}
+@container (max-width: 520px) {
+    .home-clock { text-align: left; }
+}
+
 /* ─────── Grid ─────── */
 
 .grid-toolbar {
