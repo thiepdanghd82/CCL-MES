@@ -115,6 +115,10 @@ html, body {
     flex: 1;
     padding: 20px 28px;
     overflow: auto;
+    /* Query container so descendant @container rules (home / WO detail /
+       machine dashboard / etc.) reflow against the real content width —
+       enables responsive full-screen across viewports. */
+    container-type: inline-size;
 }
 
 /* ─────── Connectivity banner ─────── */
@@ -1013,7 +1017,10 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 18px;
-    max-width: 720px;
+    /* Full-screen responsive — the scan surface + WO detail fill the
+       available width (SpecHub parity). Narrow viewports reflow via the
+       @container rules below. */
+    max-width: 100%;
 }
 
 .wo-cta-row {
@@ -4114,9 +4121,9 @@ html, body {
    verified (wide + narrow)" gate row. */
 
 .wo-shell:has(.prepress-dashboard) {
-    max-width: min(1600px, calc(100vw - 32px));
-    margin: 0 auto;
-    padding: 12px 16px;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
 }
 
 .prepress-dashboard {
@@ -5226,4 +5233,46 @@ html, body {
 .wo-step-cur .wo-step-label { color: #b45309; font-weight: 700; }
 @container (max-width: 900px) {
     .wo-stepper { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* P10.7 — WO detail 2-col layout + right sidebar (SpecHub parity) */
+.wo-detail-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 16px;
+    align-items: start;
+}
+.wo-main { min-width: 0; }
+.wo-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 12px; }
+.wo-side-panel {
+    background: var(--card);
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+}
+.wo-side-head {
+    padding: 10px 14px;
+    background: #fafbfc;
+    border-bottom: 1px solid #eef0f2;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+.wo-side-body { padding: 14px; }
+.wo-side-phase { font-weight: 700; color: #1f2937; font-size: 0.92rem; }
+.wo-dots { display: flex; gap: 6px; margin: 10px 0; }
+.wo-dot { width: 14px; height: 14px; border-radius: 50%; background: #e5e7eb; }
+.wo-dot-on { background: #2f80ed; }
+.wo-side-progress { color: #6b7280; font-variant-numeric: tabular-nums; font-size: 0.85rem; }
+.wo-side-kv { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 0.86rem; }
+.wo-side-kv span { color: #9ca3af; }
+.wo-side-kv strong { color: #1f2937; font-weight: 600; text-align: right; }
+.wo-card-actions { display: flex; gap: 8px; margin-left: auto; }
+
+@container (max-width: 1000px) {
+    .wo-detail-grid { grid-template-columns: 1fr; }
+    .wo-side { position: static; flex-direction: row; flex-wrap: wrap; }
+    .wo-side-panel { flex: 1 1 240px; }
 }

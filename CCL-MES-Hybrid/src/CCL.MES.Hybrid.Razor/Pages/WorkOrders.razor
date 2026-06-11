@@ -194,10 +194,17 @@ else
                     }
                 </div>
 
+                <div class="wo-detail-grid">
+                <div class="wo-main">
+
                 <div class="wo-card" data-mes-phase="@_summary.MesPhase" data-current-step="@_summary.CurrentStep">
                     <div class="wo-card-head">
                         <div class="wo-card-wo">@_summary.WoNo</div>
                         <div class="wo-card-step @MesPhaseCssClass(_summary)" data-testid="wo-card-phase-chip">@MesPhaseDisplay(_summary)</div>
+                        <div class="wo-card-actions">
+                            <button type="button" class="grid-btn" @onclick="OnRefreshWo" disabled="@(_lookingUp || _advancing)">↻ Refresh</button>
+                            <button type="button" class="grid-btn" @onclick="ResetState" disabled="@_advancing">← Close WO</button>
+                        </div>
                     </div>
                     <div class="wo-card-row"><span class="wo-card-label">Customer</span><span class="wo-card-value">@(_summary.CustomerName ?? "—")</span></div>
                     <div class="wo-card-row"><span class="wo-card-label">Product code</span><span class="wo-card-value">@(_summary.ProductCode ?? "—")</span></div>
@@ -337,6 +344,36 @@ else
                         PauseReasons="@_pauseReasons"
                         OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
                 }
+
+                </div>@* /wo-main *@
+
+                <aside class="wo-side">
+                    <div class="wo-side-panel">
+                        <div class="wo-side-head">① Current State</div>
+                        <div class="wo-side-body">
+                            <div class="wo-side-phase">Phase @StepIndexOf(_summary.MesPhase) / 7 · @MesPhaseDisplay(_summary)</div>
+                            <div class="wo-dots">
+                                @for (var i = 1; i <= 7; i++)
+                                {
+                                    <span class="wo-dot @(i <= StepIndexOf(_summary.MesPhase) ? "wo-dot-on" : "")"></span>
+                                }
+                            </div>
+                            <div class="wo-side-progress">@_summary.ProducedQty / @_summary.TargetQty @_summary.Uom</div>
+                        </div>
+                    </div>
+
+                    <div class="wo-side-panel">
+                        <div class="wo-side-head">▦ Spec Quick Ref</div>
+                        <div class="wo-side-body">
+                            <div class="wo-side-kv"><span>Customer</span><strong>@(_summary.CustomerName ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>Product</span><strong>@(_summary.ProductCode ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>Product name</span><strong>@(_summary.ProductName ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>Machine</span><strong>@(_summary.MachineCode ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>Target</span><strong>@_summary.TargetQty @_summary.Uom</strong></div>
+                        </div>
+                    </div>
+                </aside>
+                </div>@* /wo-detail-grid *@
             }
         }
     </div>
@@ -401,6 +438,18 @@ else
         ResetState();
         _manualCode = woNo;
         await ResolveAndShowAsync(woNo, "MANUAL", "card-open", DateTimeOffset.UtcNow);
+    }
+
+    // SpecHub header "Refresh" — re-fetch the open WO's summary in place.
+    private async Task OnRefreshWo()
+    {
+        if (_summary is null) return;
+        try
+        {
+            var fresh = await Api.GetWorkOrderByNoAsync(_summary.WoNo);
+            if (fresh is not null) _summary = fresh;
+        }
+        catch (Exception ex) { Log.LogWarning(ex, "[workorders] refresh failed"); }
     }
 
     private static string PhaseLabel(string p) => p switch
