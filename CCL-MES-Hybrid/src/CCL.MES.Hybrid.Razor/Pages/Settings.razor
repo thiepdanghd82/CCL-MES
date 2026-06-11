@@ -18,57 +18,57 @@
   what they can actually open.
 *@
 
-<PageTitle>Cài đặt — CCL MES</PageTitle>
+<PageTitle>Settings — CCL MES</PageTitle>
 
-<h1 class="page-title">Cài đặt</h1>
-<p class="page-sub">Quản lý hồ sơ, mật khẩu và cấu hình trạm.</p>
+<h1 class="page-title">Settings</h1>
+<p class="page-sub">Manage your profile, password, and station configuration.</p>
 
 <section class="settings-group">
-    <h2 class="settings-group-title">Tài khoản</h2>
+    <h2 class="settings-group-title">Account</h2>
     <div class="settings-cards">
         <a class="settings-card" href="/settings/profile">
             <span class="settings-card-icon">👤</span>
-            <span class="settings-card-title">Hồ sơ của tôi</span>
-            <span class="settings-card-sub">Tên hiển thị, vai trò, phòng ban.</span>
+            <span class="settings-card-title">My Profile</span>
+            <span class="settings-card-sub">Display name, role, department.</span>
         </a>
         <a class="settings-card" href="/settings/password">
             <span class="settings-card-icon">🔑</span>
-            <span class="settings-card-title">Đổi mật khẩu</span>
-            <span class="settings-card-sub">Đặt mật khẩu mới cho tài khoản hiện tại.</span>
+            <span class="settings-card-title">Change Password</span>
+            <span class="settings-card-sub">Set a new password for the current account.</span>
         </a>
     </div>
 </section>
 
 <section class="settings-group">
-    <h2 class="settings-group-title">Trạm</h2>
+    <h2 class="settings-group-title">Station</h2>
     <div class="settings-cards">
         @* P10.6d — Connection Mode summary, always visible to any
            authenticated role. Read-only view; the actual change
            controls live at /mode (P10.3) and are linked from inside. *@
         <a class="settings-card" href="/settings/connection">
             <span class="settings-card-icon">🔌</span>
-            <span class="settings-card-title">Chế độ kết nối</span>
-            <span class="settings-card-sub">Máy chủ, mạng, chế độ trạm — xem nhanh.</span>
+            <span class="settings-card-title">Connection</span>
+            <span class="settings-card-sub">Server, network, station mode — quick view.</span>
         </a>
         @* P10.6d — About card replaces the prior disabled placeholder. *@
         <a class="settings-card" href="/settings/about">
             <span class="settings-card-icon">ℹ️</span>
-            <span class="settings-card-title">Về ứng dụng</span>
-            <span class="settings-card-sub">Phiên bản, dữ liệu, dung lượng.</span>
+            <span class="settings-card-title">About</span>
+            <span class="settings-card-sub">Version, data, storage.</span>
         </a>
         @if (HwOptions.Value.ScanEnabled)
         {
             <AuthorizeView Roles="Admin,Supervisor,Engineer">
                 <a class="settings-card" href="/hardware">
                     <span class="settings-card-icon">🖨️</span>
-                    <span class="settings-card-title">Thiết bị</span>
-                    <span class="settings-card-sub">Máy quét, máy in, cân — đã cài đặt ở P10.3.</span>
+                    <span class="settings-card-title">Devices</span>
+                    <span class="settings-card-sub">Scanner, printer, scale — configured in P10.3.</span>
                 </a>
                 <AuthorizeView Roles="Admin,Supervisor" Context="modeCtx">
                     <a class="settings-card" href="/mode">
                         <span class="settings-card-icon">🔁</span>
-                        <span class="settings-card-title">Chế độ trạm</span>
-                        <span class="settings-card-sub">Tương tác / Kiosk + mật mã khoá.</span>
+                        <span class="settings-card-title">Station Mode</span>
+                        <span class="settings-card-sub">Interactive / Kiosk + lock passcode.</span>
                     </a>
                 </AuthorizeView>
             </AuthorizeView>
@@ -77,14 +77,14 @@
 </section>
 
 <section class="settings-group">
-    <h2 class="settings-group-title">Giao diện</h2>
+    <h2 class="settings-group-title">Appearance</h2>
     <div class="settings-cards">
         @* P10.6b — Appearance landing card. Language picker today;
            theme switcher ships in P10.6g. *@
         <a class="settings-card" href="/settings/appearance">
             <span class="settings-card-icon">🌐</span>
-            <span class="settings-card-title">Giao diện</span>
-            <span class="settings-card-sub">Ngôn ngữ Tiếng Việt / English; chủ đề sẽ ra mắt ở P10.6g.</span>
+            <span class="settings-card-title">Appearance</span>
+            <span class="settings-card-sub">Vietnamese / English language; themes arriving in P10.6g.</span>
         </a>
     </div>
 </section>
@@ -98,25 +98,25 @@
 <AuthorizeView Roles="Admin">
     <Authorized>
         <section class="settings-group">
-            <h2 class="settings-group-title">Quản trị viên</h2>
+            <h2 class="settings-group-title">Administrator</h2>
             <div class="settings-cards">
                 @* P10.6h shipped — Backup & Restore admin landing. *@
                 <a class="settings-card" href="/settings/backup">
                     <span class="settings-card-icon">💾</span>
-                    <span class="settings-card-title">Sao lưu &amp; Khôi phục</span>
-                    <span class="settings-card-sub">Snapshot SQLite + khôi phục từ file.</span>
+                    <span class="settings-card-title">Backup &amp; Restore</span>
+                    <span class="settings-card-sub">SQLite snapshot + restore from file.</span>
                 </a>
                 @* P10.6e shipped — Audit Log viewer + CSV/XLSX export. *@
                 <a class="settings-card" href="/settings/audit">
                     <span class="settings-card-icon">📜</span>
-                    <span class="settings-card-title">Nhật ký kiểm tra</span>
-                    <span class="settings-card-sub">Tra cứu + xuất CSV/XLSX.</span>
+                    <span class="settings-card-title">Audit Log</span>
+                    <span class="settings-card-sub">Search + export CSV/XLSX.</span>
                 </a>
                 @* P10.6c shipped — Account Control. *@
                 <a class="settings-card" href="/settings/accounts">
                     <span class="settings-card-icon">👥</span>
-                    <span class="settings-card-title">Quản lý tài khoản</span>
-                    <span class="settings-card-sub">Tạo / sửa / vô hiệu hoá / reset mật khẩu.</span>
+                    <span class="settings-card-title">Account Control</span>
+                    <span class="settings-card-sub">Create / edit / disable / reset password.</span>
                 </a>
             </div>
         </section>

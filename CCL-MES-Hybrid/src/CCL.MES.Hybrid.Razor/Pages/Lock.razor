@@ -5,7 +5,7 @@
 @inject IDeviceModeService Device
 @inject NavigationManager Nav
 
-<PageTitle>Đã khoá — CCL MES</PageTitle>
+<PageTitle>Locked — CCL MES</PageTitle>
 
 @*
     Lock screen placeholder for the kiosk idle workflow. W4 wires
@@ -19,11 +19,11 @@
 
 <div class="lock-shell">
     <div class="lock-card">
-        <h1 class="lock-title">Trạm đã khoá</h1>
-        <p class="lock-sub">Nhập mật mã thiết bị để mở khoá.</p>
+        <h1 class="lock-title">Station Locked</h1>
+        <p class="lock-sub">Enter the device passcode to unlock.</p>
 
         <input type="password"
-               placeholder="Mật mã"
+               placeholder="Passcode"
                autocomplete="off"
                autofocus
                @bind="_passcode" @bind:event="oninput"
@@ -38,10 +38,10 @@
         <button type="button" class="lock-btn"
                 disabled="@_busy"
                 @onclick="OnUnlock">
-            @(_busy ? "Đang kiểm tra…" : "Mở khoá")
+            @(_busy ? "Checking…" : "Unlock")
         </button>
 
-        <a href="/login" class="lock-logout">Đăng nhập tài khoản khác</a>
+        <a href="/login" class="lock-logout">Log in with a different account</a>
     </div>
 </div>
 
@@ -61,7 +61,7 @@
         _error = null;
         if (string.IsNullOrEmpty(_passcode))
         {
-            _error = "Mật mã rỗng.";
+            _error = "Passcode is empty.";
             return;
         }
         _busy = true;
@@ -70,7 +70,7 @@
             var ok = await Device.VerifyPasscodeAsync(_passcode);
             if (!ok)
             {
-                _error = "Mật mã không đúng.";
+                _error = "Incorrect passcode.";
                 return;
             }
             // W4 will navigate back to the workflow the operator was

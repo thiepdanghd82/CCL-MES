@@ -21,54 +21,54 @@
     4. Action link to /mode for change (Admin/Supervisor only).
 *@
 
-<PageTitle>Chế độ kết nối — CCL MES</PageTitle>
+<PageTitle>Connection — CCL MES</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
-    <h1 class="page-title">Chế độ kết nối</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
+    <h1 class="page-title">Connection</h1>
 </div>
 
 <section class="settings-form-card">
-    <h2 class="settings-group-title">Máy chủ</h2>
+    <h2 class="settings-group-title">Server</h2>
     <dl class="settings-meta">
-        <div><dt>Địa chỉ API</dt><dd><code>@Opts.Value.BaseUrl</code></dd></div>
+        <div><dt>API address</dt><dd><code>@Opts.Value.BaseUrl</code></dd></div>
         <div>
-            <dt>Tình trạng kết nối</dt>
+            <dt>Connection status</dt>
             <dd>
                 <span class="conn-dot @(_isConnected ? "is-up" : "is-down")"></span>
-                @(_isConnected ? "Đang kết nối — sẵn sàng đăng nhập và đọc dữ liệu." : "Mất kết nối — UI sẽ chờ mạng để tải dữ liệu.")
+                @(_isConnected ? "Connected — ready to sign in and read data." : "Disconnected — the UI will wait for the network to load data.")
             </dd>
         </div>
     </dl>
 </section>
 
 <section class="settings-form-card" style="margin-top:16px">
-    <h2 class="settings-group-title">Trạm</h2>
+    <h2 class="settings-group-title">Station</h2>
     <dl class="settings-meta">
         <div>
-            <dt>Chế độ trạm</dt>
+            <dt>Station mode</dt>
             <dd>
                 @if (Device.CurrentMode == CCL.MES.Shared.Hardware.DeviceMode.Kiosk)
                 {
-                    <span>Kiosk — bị khoá vào màn hình Work Orders.</span>
+                    <span>Kiosk — locked to the Work Orders screen.</span>
                 }
                 else
                 {
-                    <span>Tương tác — đầy đủ menu cho operator + admin.</span>
+                    <span>Interactive — full menu for operator + admin.</span>
                 }
             </dd>
         </div>
-        <div><dt>Mã thiết bị</dt><dd><code>@Device.DeviceId</code></dd></div>
+        <div><dt>Device ID</dt><dd><code>@Device.DeviceId</code></dd></div>
         <div>
-            <dt>Tính năng phần cứng</dt>
-            <dd>@(HwOptions.Value.ScanEnabled ? "Bật (P10.3 W1)" : "Tắt")</dd>
+            <dt>Hardware features</dt>
+            <dd>@(HwOptions.Value.ScanEnabled ? "On (P10.3 W1)" : "Off")</dd>
         </div>
     </dl>
 
     <AuthorizeView Roles="Admin,Supervisor">
         <div class="settings-actions">
-            <a class="grid-btn grid-btn-secondary" href="/mode">Đổi chế độ trạm</a>
-            <a class="grid-btn" href="/hardware" style="margin-left:8px">Cấu hình thiết bị</a>
+            <a class="grid-btn grid-btn-secondary" href="/mode">Change station mode</a>
+            <a class="grid-btn" href="/hardware" style="margin-left:8px">Configure devices</a>
         </div>
     </AuthorizeView>
 </section>

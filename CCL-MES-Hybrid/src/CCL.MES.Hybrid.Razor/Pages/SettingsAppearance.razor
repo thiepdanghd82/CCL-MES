@@ -29,20 +29,20 @@
       "ignored".
 *@
 
-<PageTitle>Giao diện — CCL MES</PageTitle>
+<PageTitle>Appearance — CCL MES</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
-    <h1 class="page-title">Giao diện</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
+    <h1 class="page-title">Appearance</h1>
 </div>
 
 <section class="settings-form-card">
-    <h2 class="settings-group-title">Ngôn ngữ</h2>
+    <h2 class="settings-group-title">Language</h2>
     <p class="settings-form-help">
-        Chọn ngôn ngữ giao diện. Cài đặt sẽ được lưu lại cho lần đăng nhập tiếp theo.
+        Choose the interface language. The setting will be saved for your next sign-in.
     </p>
 
-    <div class="appearance-picker" role="radiogroup" aria-label="Ngôn ngữ hiển thị">
+    <div class="appearance-picker" role="radiogroup" aria-label="Display language">
         @foreach (var opt in Options)
         {
             var isActive = opt.Code == _current;
@@ -65,33 +65,33 @@
     @if (_current == LanguageCode.English)
     {
         <div class="appearance-banner" role="status">
-            Bản dịch tiếng Anh sẽ áp dụng sau khi cập nhật ứng dụng.
-            Lựa chọn của bạn đã được lưu.
+            The English translation will apply after the app is updated.
+            Your selection has been saved.
         </div>
     }
 </section>
 
 <section class="settings-form-card" style="margin-top:16px">
-    <h2 class="settings-group-title">Chủ đề (sắp có — P10.6g)</h2>
+    <h2 class="settings-group-title">Theme (coming soon — P10.6g)</h2>
     <p class="settings-form-help">
-        Chế độ sáng / tối / theo hệ thống — sẽ ra mắt ở P10.6g. Hiện
-        ứng dụng dùng bảng màu cố định (sáng) tối ưu cho màn xưởng.
+        Light / dark / system mode — arriving in P10.6g. For now the
+        app uses a fixed (light) color palette optimized for shop-floor screens.
     </p>
     <div class="appearance-picker is-locked">
         <div class="appearance-card is-disabled" aria-disabled="true">
             <span class="appearance-card-flag">☀️</span>
-            <span class="appearance-card-title">Sáng</span>
-            <span class="appearance-card-sub">Mặc định hiện tại.</span>
+            <span class="appearance-card-title">Light</span>
+            <span class="appearance-card-sub">Current default.</span>
         </div>
         <div class="appearance-card is-disabled" aria-disabled="true">
             <span class="appearance-card-flag">🌙</span>
-            <span class="appearance-card-title">Tối</span>
-            <span class="appearance-card-sub">Chưa khả dụng.</span>
+            <span class="appearance-card-title">Dark</span>
+            <span class="appearance-card-sub">Not yet available.</span>
         </div>
         <div class="appearance-card is-disabled" aria-disabled="true">
             <span class="appearance-card-flag">🖥️</span>
-            <span class="appearance-card-title">Theo hệ thống</span>
-            <span class="appearance-card-sub">Chưa khả dụng.</span>
+            <span class="appearance-card-title">System</span>
+            <span class="appearance-card-sub">Not yet available.</span>
         </div>
     </div>
 </section>
@@ -102,9 +102,9 @@
     private static readonly LanguageOption[] Options = new[]
     {
         new LanguageOption(LanguageCode.Vietnamese, "🇻🇳", "Tiếng Việt",
-            "Đầy đủ — mọi giao diện hiện tại."),
+            "Complete — covers the entire current interface."),
         new LanguageOption(LanguageCode.English, "🇬🇧", "English",
-            "Đang chuẩn bị — sẽ kích hoạt khi resx ra mắt."),
+            "In preparation — will activate when the resx ships."),
     };
 
     protected override void OnInitialized()

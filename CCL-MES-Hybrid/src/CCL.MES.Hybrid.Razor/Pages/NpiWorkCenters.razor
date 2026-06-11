@@ -13,29 +13,29 @@
           page on a partial/transient failure
 *@
 
-<PageTitle>Trung tâm sản xuất — NPI</PageTitle>
+<PageTitle>Work Centers — NPI</PageTitle>
 
-<h1 class="page-title">Trung tâm sản xuất</h1>
+<h1 class="page-title">Work Centers</h1>
 
 <div class="grid-toolbar">
-    <input type="search" class="grid-search" placeholder="Tìm theo mã hoặc mô tả…"
+    <input type="search" class="grid-search" placeholder="Search by code or description…"
            @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKey" />
-    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Tìm</button>
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
     <div class="grid-toolbar-spacer"></div>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
 </div>
 
 @if (_loading && _data is null)
 {
-    <p class="grid-status">Đang tải…</p>
+    <p class="grid-status">Loading…</p>
 }
 else if (_error is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Không tải được dữ liệu.</strong>
+        <strong>Failed to load data.</strong>
         <div>@_error</div>
-        <button type="button" class="grid-btn" @onclick="ReloadAsync">Thử lại</button>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">Retry</button>
     </div>
 }
 else if (_data is not null)
@@ -64,7 +64,7 @@ else if (_data is not null)
                 {
                     <tr>
                         <td colspan="@_columns.Visible.Count" class="grid-empty">
-                            Không có dữ liệu phù hợp.
+                            No matching data.
                         </td>
                     </tr>
                 }
@@ -75,13 +75,13 @@ else if (_data is not null)
     <div class="grid-pager">
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
-                @onclick="() => GoToPageAsync(_page - 1)">‹ Trước</button>
+                @onclick="() => GoToPageAsync(_page - 1)">‹ Previous</button>
         <span class="grid-pager-text">
-            Trang @_page / @TotalPages — @_data.Total dòng
+            Page @_page / @TotalPages — @_data.Total rows
         </span>
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
-                @onclick="() => GoToPageAsync(_page + 1)">Sau ›</button>
+                @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
     </div>
 }
 
@@ -101,12 +101,12 @@ else if (_data is not null)
         _columns = new GridColumns("workcenters", new[]
         {
             new ColumnDef("id",          "ID"),
-            new ColumnDef("code",        "Mã trạm"),
-            new ColumnDef("description", "Mô tả"),
-            new ColumnDef("area",        "Khu vực"),
-            new ColumnDef("ideal_speed", "Tốc độ lý tưởng (pcs/h)"),
-            new ColumnDef("shift",       "Ca máy"),
-            new ColumnDef("active",      "Trạng thái"),
+            new ColumnDef("code",        "Work Center Code"),
+            new ColumnDef("description", "Description"),
+            new ColumnDef("area",        "Area"),
+            new ColumnDef("ideal_speed", "Ideal Speed (pcs/h)"),
+            new ColumnDef("shift",       "Shift Pattern"),
+            new ColumnDef("active",      "Status"),
         }, PrefStore);
         await LoadAsync();
     }
@@ -138,7 +138,7 @@ else if (_data is not null)
         }
         catch (HttpRequestException ex)
         {
-            _error = $"Không kết nối được máy chủ: {ex.Message}";
+            _error = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {

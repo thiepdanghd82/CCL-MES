@@ -33,26 +33,26 @@
        same list on next reload.
 *@
 
-<PageTitle>Nhật ký kiểm tra — CCL MES</PageTitle>
+<PageTitle>Audit Log — CCL MES</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
-    <h1 class="page-title">Nhật ký kiểm tra</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
+    <h1 class="page-title">Audit Log</h1>
 </div>
 
 <section class="settings-form-card is-wide">
-    <h2 class="settings-group-title">Bộ lọc</h2>
+    <h2 class="settings-group-title">Filters</h2>
     <div class="audit-filter-grid">
         <div class="audit-filter-field">
-            <label for="al-search">Tìm kiếm</label>
+            <label for="al-search">Search</label>
             <input id="al-search" type="text" class="modal-input"
-                   placeholder="Tìm trong tất cả cột…"
+                   placeholder="Search across all columns…"
                    @bind="_search" @bind:event="oninput" />
         </div>
         <div class="audit-filter-field">
-            <label for="al-action">Hành động</label>
+            <label for="al-action">Action</label>
             <select id="al-action" class="modal-input" @bind="_action">
-                <option value="">— Tất cả —</option>
+                <option value="">— All —</option>
                 @foreach (var a in _actions)
                 {
                     <option value="@a">@a</option>
@@ -60,18 +60,18 @@
             </select>
         </div>
         <div class="audit-filter-field">
-            <label for="al-actor">Người dùng</label>
+            <label for="al-actor">User</label>
             <input id="al-actor" type="text" class="modal-input"
                    placeholder="admin, supervisor, …"
                    @bind="_actor" @bind:event="oninput" />
         </div>
         <div class="audit-filter-field">
-            <label for="al-from">Từ ngày (UTC)</label>
+            <label for="al-from">From date (UTC)</label>
             <input id="al-from" type="date" class="modal-input"
                    @bind="_fromDate" />
         </div>
         <div class="audit-filter-field">
-            <label for="al-to">Đến ngày (UTC)</label>
+            <label for="al-to">To date (UTC)</label>
             <input id="al-to" type="date" class="modal-input"
                    @bind="_toDate" />
         </div>
@@ -79,17 +79,17 @@
     <div class="audit-filter-actions">
         <button type="button" class="grid-btn grid-btn-primary"
                 disabled="@_loading" @onclick="OnApply">
-            @(_loading ? "Đang tải…" : "Áp dụng + Tải lại")
+            @(_loading ? "Loading…" : "Apply + Reload")
         </button>
-        <button type="button" class="grid-btn" @onclick="OnReset">Đặt lại</button>
+        <button type="button" class="grid-btn" @onclick="OnReset">Reset</button>
         <span class="audit-export-spacer"></span>
         <button type="button" class="grid-btn"
                 disabled="@_exporting" @onclick="@(() => OnExport("csv"))">
-            @(_exporting ? "Đang xuất…" : "Xuất CSV")
+            @(_exporting ? "Exporting…" : "Export CSV")
         </button>
         <button type="button" class="grid-btn"
                 disabled="@_exporting" @onclick="@(() => OnExport("xlsx"))">
-            @(_exporting ? "Đang xuất…" : "Xuất XLSX")
+            @(_exporting ? "Exporting…" : "Export XLSX")
         </button>
     </div>
     @if (_filterError is not null)
@@ -105,26 +105,26 @@
 <section class="settings-form-card is-wide" style="margin-top:16px">
     <div class="audit-result-head">
         <h2 class="settings-group-title">
-            Kết quả (@_result.Total tổng — trang @_result.Page / @TotalPages, @_result.Items.Count dòng)
+            Results (@_result.Total total — page @_result.Page / @TotalPages, @_result.Items.Count rows)
         </h2>
         <div class="audit-paging">
             <button type="button" class="grid-btn" disabled="@(_loading || _result.Page <= 1)"
-                    @onclick="@(() => GoPage(_result.Page - 1))">‹ Trước</button>
-            <span class="audit-paging-pos">Trang @_result.Page</span>
+                    @onclick="@(() => GoPage(_result.Page - 1))">‹ Previous</button>
+            <span class="audit-paging-pos">Page @_result.Page</span>
             <button type="button" class="grid-btn"
                     disabled="@(_loading || _result.Page >= TotalPages)"
-                    @onclick="@(() => GoPage(_result.Page + 1))">Sau ›</button>
+                    @onclick="@(() => GoPage(_result.Page + 1))">Next ›</button>
         </div>
     </div>
 
     @if (_loading)
     {
-        <p class="settings-form-help">Đang tải…</p>
+        <p class="settings-form-help">Loading…</p>
     }
     else if (_result.Items.Count == 0)
     {
         <p class="settings-form-help">
-            Không có hàng nào khớp bộ lọc. Thử mở rộng phạm vi ngày hoặc bỏ filter người dùng.
+            No rows match the filter. Try widening the date range or clearing the user filter.
         </p>
     }
     else
@@ -145,14 +145,14 @@
                 <thead>
                     <tr>
                         <th>UTC</th>
-                        <th>Người dùng</th>
-                        <th>Vai trò</th>
-                        <th>Hành động</th>
-                        <th>Đối tượng</th>
+                        <th>User</th>
+                        <th>Role</th>
+                        <th>Action</th>
+                        <th>Target</th>
                         <th>ID</th>
                         <th>IP</th>
-                        <th>Nguồn</th>
-                        <th>Chi tiết</th>
+                        <th>Source</th>
+                        <th>Detail</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -169,7 +169,7 @@
                             <td class="audit-mono" title="@(e.IpAddress ?? "")">@(e.IpAddress ?? "—")</td>
                             <td>@e.Source</td>
                             <td class="audit-detail-cell"
-                                title="@(string.IsNullOrEmpty(e.Detail) ? "(rỗng)" : e.Detail)"
+                                title="@(string.IsNullOrEmpty(e.Detail) ? "(empty)" : e.Detail)"
                                 @onclick="@(() => ToggleExpand(e.Id))">
                                 @if (string.IsNullOrEmpty(e.Detail))
                                 {
@@ -188,11 +188,11 @@
                             <tr class="audit-expanded-row">
                                 <td colspan="9">
                                     <div class="audit-expanded-head">
-                                        <span>Chi tiết (JSON) — sự kiện <code>@e.Action</code> #@e.Id</span>
+                                        <span>Detail (JSON) — event <code>@e.Action</code> #@e.Id</span>
                                         <button type="button" class="audit-copy-btn @(_copiedId == e.Id ? "is-ok" : "")"
                                                 @onclick="@(() => CopyDetail(e.Id, e.Detail!))"
                                                 @onclick:stopPropagation="true">
-                                            @(_copiedId == e.Id ? "✔ Đã copy" : "Copy")
+                                            @(_copiedId == e.Id ? "✔ Copied" : "Copy")
                                         </button>
                                     </div>
                                     <pre class="audit-expanded-pre">@pretty</pre>
@@ -281,11 +281,11 @@
         }
         catch (ApiException ex)
         {
-            _filterError = $"Không tải được: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+            _filterError = $"Failed to load: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
         }
         catch (Exception ex)
         {
-            _filterError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+            _filterError = $"Error: {ex.GetType().Name} — {ex.Message}";
         }
         finally
         {
@@ -313,8 +313,8 @@
             // 2. Native Save dialog.
             var outcome = await Saver.SaveAsync(sandboxPath, dl.FileName);
             _exportInfo = outcome.Saved
-                ? $"✔ Đã lưu {dl.FileName} ({dl.Bytes:N0} bytes) tại {outcome.DestinationPath}."
-                : $"✔ Đã lưu {dl.FileName} ({dl.Bytes:N0} bytes) vào sandbox: {sandboxPath}.";
+                ? $"✔ Saved {dl.FileName} ({dl.Bytes:N0} bytes) at {outcome.DestinationPath}."
+                : $"✔ Saved {dl.FileName} ({dl.Bytes:N0} bytes) to sandbox: {sandboxPath}.";
 
             // 3. Reload page 1 so the AUDIT_EXPORT row just emitted
             //    appears at the top.
@@ -322,11 +322,11 @@
         }
         catch (ApiException ex)
         {
-            _filterError = $"Không xuất được: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+            _filterError = $"Export failed: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
         }
         catch (Exception ex)
         {
-            _filterError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+            _filterError = $"Error: {ex.GetType().Name} — {ex.Message}";
         }
         finally
         {

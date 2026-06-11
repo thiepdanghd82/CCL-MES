@@ -3,29 +3,29 @@
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
 
-<PageTitle>Nguyên vật liệu — NPI</PageTitle>
+<PageTitle>Raw Materials — NPI</PageTitle>
 
-<h1 class="page-title">Nguyên vật liệu</h1>
+<h1 class="page-title">Raw Materials</h1>
 
 <div class="grid-toolbar">
-    <input type="search" class="grid-search" placeholder="Tìm theo part / nhà cung cấp / site…"
+    <input type="search" class="grid-search" placeholder="Search by part / supplier / site…"
            @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKey" />
-    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Tìm</button>
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
     <div class="grid-toolbar-spacer"></div>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
 </div>
 
 @if (_loading && _data is null)
 {
-    <p class="grid-status">Đang tải…</p>
+    <p class="grid-status">Loading…</p>
 }
 else if (_error is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Không tải được dữ liệu.</strong>
+        <strong>Failed to load data.</strong>
         <div>@_error</div>
-        <button type="button" class="grid-btn" @onclick="ReloadAsync">Thử lại</button>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">Retry</button>
     </div>
 }
 else if (_data is not null)
@@ -54,7 +54,7 @@ else if (_data is not null)
                 {
                     <tr>
                         <td colspan="@_columns.Visible.Count" class="grid-empty">
-                            Không có dữ liệu phù hợp.
+                            No matching data.
                         </td>
                     </tr>
                 }
@@ -65,13 +65,13 @@ else if (_data is not null)
     <div class="grid-pager">
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
-                @onclick="() => GoToPageAsync(_page - 1)">‹ Trước</button>
+                @onclick="() => GoToPageAsync(_page - 1)">‹ Previous</button>
         <span class="grid-pager-text">
-            Trang @_page / @TotalPages — @_data.Total dòng
+            Page @_page / @TotalPages — @_data.Total rows
         </span>
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
-                @onclick="() => GoToPageAsync(_page + 1)">Sau ›</button>
+                @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
     </div>
 }
 
@@ -96,34 +96,34 @@ else if (_data is not null)
         _columns = new GridColumns("rawmaterials", new[]
         {
             new ColumnDef("part_no",            "Part No"),
-            new ColumnDef("part_desc",          "Mô tả"),
-            new ColumnDef("supplier_id",        "Nhà CC ID"),
-            new ColumnDef("supplier_name",      "Nhà cung cấp"),
-            new ColumnDef("price",              "Giá"),
-            new ColumnDef("currency",           "Tiền tệ"),
-            new ColumnDef("purch_uom",          "Đvt mua"),
-            new ColumnDef("inv_uom",            "Đvt tồn"),
+            new ColumnDef("part_desc",          "Description"),
+            new ColumnDef("supplier_id",        "Supplier ID"),
+            new ColumnDef("supplier_name",      "Supplier"),
+            new ColumnDef("price",              "Price"),
+            new ColumnDef("currency",           "Currency"),
+            new ColumnDef("purch_uom",          "Purchase UOM"),
+            new ColumnDef("inv_uom",            "Inventory UOM"),
             new ColumnDef("site",               "Site"),
-            new ColumnDef("status",             "Trạng thái"),
+            new ColumnDef("status",             "Status"),
             new ColumnDef("min_qty",            "Min Qty"),
-            new ColumnDef("leadtime",           "Leadtime (ngày)"),
+            new ColumnDef("leadtime",           "Leadtime (days)"),
             // 16 default-hidden — operator opens via column menu.
-            new ColumnDef("price_incl_tax",     "Giá có thuế", DefaultVisible: false),
-            new ColumnDef("price_uom",          "Đvt giá", DefaultVisible: false),
-            new ColumnDef("site_desc",          "Mô tả site", DefaultVisible: false),
+            new ColumnDef("price_incl_tax",     "Price incl. Tax", DefaultVisible: false),
+            new ColumnDef("price_uom",          "Price UOM", DefaultVisible: false),
+            new ColumnDef("site_desc",          "Site Description", DefaultVisible: false),
             new ColumnDef("std_multiple",       "Std multiple", DefaultVisible: false),
             new ColumnDef("std_pack",           "Std pack", DefaultVisible: false),
-            new ColumnDef("conversion",         "Hệ số đổi", DefaultVisible: false),
-            new ColumnDef("tax_code",           "Mã thuế", DefaultVisible: false),
-            new ColumnDef("tax_code_desc",      "Mô tả thuế", DefaultVisible: false),
-            new ColumnDef("country_origin",     "Nước xuất xứ", DefaultVisible: false),
+            new ColumnDef("conversion",         "Conversion Factor", DefaultVisible: false),
+            new ColumnDef("tax_code",           "Tax Code", DefaultVisible: false),
+            new ColumnDef("tax_code_desc",      "Tax Description", DefaultVisible: false),
+            new ColumnDef("country_origin",     "Country of Origin", DefaultVisible: false),
             new ColumnDef("acquisition_type",   "Acquisition", DefaultVisible: false),
-            new ColumnDef("supplier_part_no",   "Part NCC", DefaultVisible: false),
-            new ColumnDef("supplier_part_desc", "Mô tả part NCC", DefaultVisible: false),
-            new ColumnDef("net_weight",         "Trọng lượng", DefaultVisible: false),
-            new ColumnDef("net_weight_uom",     "Đvt trọng lượng", DefaultVisible: false),
-            new ColumnDef("next_order_date",    "Ngày đặt kế tiếp", DefaultVisible: false),
-            new ColumnDef("notes",              "Ghi chú", DefaultVisible: false),
+            new ColumnDef("supplier_part_no",   "Supplier Part", DefaultVisible: false),
+            new ColumnDef("supplier_part_desc", "Supplier Part Description", DefaultVisible: false),
+            new ColumnDef("net_weight",         "Weight", DefaultVisible: false),
+            new ColumnDef("net_weight_uom",     "Weight UOM", DefaultVisible: false),
+            new ColumnDef("next_order_date",    "Next Order Date", DefaultVisible: false),
+            new ColumnDef("notes",              "Notes", DefaultVisible: false),
         }, PrefStore);
         await LoadAsync();
     }
@@ -153,7 +153,7 @@ else if (_data is not null)
         }
         catch (HttpRequestException ex)
         {
-            _error = $"Không kết nối được máy chủ: {ex.Message}";
+            _error = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {

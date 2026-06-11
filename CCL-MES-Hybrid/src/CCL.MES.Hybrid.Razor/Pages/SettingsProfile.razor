@@ -16,23 +16,23 @@
   failure path lands in the inline VN banner via SpecMutationErrorMapper.
 *@
 
-<PageTitle>Hồ sơ của tôi — CCL MES</PageTitle>
+<PageTitle>My Profile — CCL MES</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
-    <h1 class="page-title">Hồ sơ của tôi</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
+    <h1 class="page-title">My Profile</h1>
 </div>
 
 @if (_loading && _profile is null)
 {
-    <p class="grid-status">Đang tải hồ sơ…</p>
+    <p class="grid-status">Loading profile…</p>
 }
 else if (_loadError is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Không tải được hồ sơ.</strong>
+        <strong>Failed to load profile.</strong>
         <div>@_loadError</div>
-        <button type="button" class="grid-btn" @onclick="LoadAsync">Thử lại</button>
+        <button type="button" class="grid-btn" @onclick="LoadAsync">Try again</button>
     </div>
 }
 else if (_profile is not null)
@@ -40,8 +40,8 @@ else if (_profile is not null)
     @if (_profile.MustChangePassword)
     {
         <div class="settings-warn" role="alert">
-            ⚠ Bạn được cấp mật khẩu tạm thời. Vui lòng vào
-            <a href="/settings/password">Đổi mật khẩu</a> để đặt mật khẩu của riêng bạn.
+            ⚠ You were issued a temporary password. Please go to
+            <a href="/settings/password">Change Password</a> to set your own password.
         </div>
     }
 
@@ -54,28 +54,28 @@ else if (_profile is not null)
            pattern Login.razor uses post-hotfix. *@
         <form @onsubmit="SubmitAsync" @onsubmit:preventDefault="true" name="profile">
             <div class="settings-field">
-                <label for="prof-username">Tên đăng nhập</label>
+                <label for="prof-username">Username</label>
                 <input id="prof-username" class="settings-input" type="text"
                        value="@_profile.Username" disabled />
-                <span class="settings-hint">Liên hệ quản trị viên nếu cần đổi.</span>
+                <span class="settings-hint">Contact your administrator if you need to change it.</span>
             </div>
             <div class="settings-field">
-                <label for="prof-role">Vai trò</label>
+                <label for="prof-role">Role</label>
                 <input id="prof-role" class="settings-input" type="text"
                        value="@_profile.Role" disabled />
             </div>
             <div class="settings-field">
-                <label for="prof-dept">Phòng ban</label>
+                <label for="prof-dept">Department</label>
                 <input id="prof-dept" class="settings-input" type="text"
                        value="@(_profile.Department ?? "—")" disabled />
             </div>
             <div class="settings-field">
-                <label for="prof-display">Tên hiển thị</label>
+                <label for="prof-display">Display name</label>
                 <input id="prof-display" class="settings-input" type="text"
                        tabindex="1" maxlength="100"
                        @bind="_form.DisplayName" @bind:event="oninput"
                        @onkeydown="OnFieldKeyDown" />
-                <span class="settings-hint">Tối đa 100 ký tự. Để trống để xoá.</span>
+                <span class="settings-hint">Up to 100 characters. Leave blank to clear.</span>
             </div>
 
             @if (_banner is not null)
@@ -86,14 +86,14 @@ else if (_profile is not null)
             <div class="settings-actions">
                 <button type="submit" class="grid-btn grid-btn-primary"
                         disabled="@_submitting" @onclick="SubmitAsync">
-                    @(_submitting ? "Đang lưu…" : "Lưu thay đổi")
+                    @(_submitting ? "Saving…" : "Save changes")
                 </button>
             </div>
         </form>
 
         <dl class="settings-meta">
-            <div><dt>Ngày tạo</dt><dd>@_profile.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</dd></div>
-            <div><dt>Sửa lần cuối</dt><dd>@(_profile.UpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</dd></div>
+            <div><dt>Created</dt><dd>@_profile.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</dd></div>
+            <div><dt>Last modified</dt><dd>@(_profile.UpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</dd></div>
         </dl>
     </section>
 }
@@ -128,7 +128,7 @@ else if (_profile is not null)
         }
         catch (HttpRequestException ex)
         {
-            _loadError = $"Không kết nối được máy chủ: {ex.Message}";
+            _loadError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -154,7 +154,7 @@ else if (_profile is not null)
             var updated = await Api.UpdateMyProfileAsync(req);
             _profile = updated;
             _form.DisplayName = updated.DisplayName ?? "";
-            _banner = "✓ Đã lưu thay đổi.";
+            _banner = "✓ Changes saved.";
             _bannerKind = "success";
         }
         catch (ApiException apiEx)
@@ -164,12 +164,12 @@ else if (_profile is not null)
         }
         catch (HttpRequestException ex)
         {
-            _banner = $"Không kết nối được máy chủ: {ex.Message}";
+            _banner = $"Could not connect to the server: {ex.Message}";
             _bannerKind = "danger";
         }
         catch (Exception ex)
         {
-            _banner = $"Lưu thất bại: {ex.Message}";
+            _banner = $"Save failed: {ex.Message}";
             _bannerKind = "danger";
         }
         finally

@@ -20,26 +20,26 @@
     layout is final; only the wiring is incomplete.
 *@
 
-<h1 class="page-title">Cấu hình thiết bị</h1>
+<h1 class="page-title">Device Configuration</h1>
 
 @if (!HwOptions.Value.ScanEnabled)
 {
     <div class="hw-gate" role="status">
-        <strong>Tính năng phần cứng đang tắt.</strong>
+        <strong>Hardware features are turned off.</strong>
         <p>
-            P10.3 (Hardware native) đang ở pha W1 — interface + stub đã sẵn,
-            nhưng giao diện thiết bị thật bật trong các pha kế tiếp (W2 = camera
-            Mac Catalyst, W3 = camera Windows + USB-HID, W4 = wire vào WO Accept
-            + /mode kiosk). Bật bằng cách đặt
-            <code>Hardware:ScanEnabled = true</code> trong
-            <code>appsettings.json</code> hoặc env override.
+            P10.3 (Hardware native) is at phase W1 — interface + stub are ready,
+            but the real device interface turns on in later phases (W2 = camera
+            Mac Catalyst, W3 = camera Windows + USB-HID, W4 = wire into WO Accept
+            + /mode kiosk). Turn it on by setting
+            <code>Hardware:ScanEnabled = true</code> in
+            <code>appsettings.json</code> or an env override.
         </p>
-        <p>Mã thiết bị (device id) của trạm này: <code>@Device.DeviceId</code></p>
+        <p>Device id of this station: <code>@Device.DeviceId</code></p>
     </div>
 }
 else
 {
-    <p>Trạm: <code>@Device.DeviceId</code></p>
+    <p>Station: <code>@Device.DeviceId</code></p>
 
     <section class="hw-section">
         <h2>Scanner</h2>
@@ -47,17 +47,17 @@ else
     </section>
 
     <section class="hw-section">
-        <h2>Máy in nhãn</h2>
+        <h2>Label Printer</h2>
         <HardwareAvailabilityRow Probe="@(() => Printer.IsAvailableAsync())"
-                                 Title="Máy in nhãn (ZPL)"
-                                 EnabledAction="(Stub — sẽ có khi quy trình in nhãn được duyệt)" />
+                                 Title="Label Printer (ZPL)"
+                                 EnabledAction="(Stub — available once the label printing workflow is approved)" />
     </section>
 
     <section class="hw-section">
-        <h2>Cân</h2>
+        <h2>Scale</h2>
         <HardwareAvailabilityRow Probe="@(() => Scale.IsAvailableAsync())"
-                                 Title="Cân điện tử"
-                                 EnabledAction="(Stub — sẽ có khi quy trình cân được duyệt)" />
+                                 Title="Electronic Scale"
+                                 EnabledAction="(Stub — available once the weighing workflow is approved)" />
     </section>
 }
 

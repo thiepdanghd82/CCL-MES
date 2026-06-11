@@ -9,68 +9,67 @@
   every authenticated role.
 *@
 
-<PageTitle>Về ứng dụng — CCL MES</PageTitle>
+<PageTitle>About — CCL MES</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
-    <h1 class="page-title">Về ứng dụng</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
+    <h1 class="page-title">About</h1>
 </div>
 
 @if (_loading)
 {
-    <p class="grid-status">Đang tải thông tin máy chủ…</p>
+    <p class="grid-status">Loading server information…</p>
 }
 else if (_loadError is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Không tải được About.</strong>
+        <strong>Failed to load About.</strong>
         <div>@_loadError</div>
-        <button type="button" class="grid-btn" @onclick="LoadAsync">Thử lại</button>
+        <button type="button" class="grid-btn" @onclick="LoadAsync">Try again</button>
     </div>
 }
 else if (_about is not null)
 {
     <section class="settings-form-card">
-        <h2 class="settings-group-title">Máy chủ</h2>
+        <h2 class="settings-group-title">Server</h2>
         <dl class="settings-meta">
-            <div><dt>Phiên bản</dt><dd>@_about.ServerVersion</dd></div>
+            <div><dt>Version</dt><dd>@_about.ServerVersion</dd></div>
             @if (!string.IsNullOrWhiteSpace(_about.InformationalVersion))
             {
                 <div><dt>Build</dt><dd>@_about.InformationalVersion</dd></div>
             }
-            <div><dt>Môi trường</dt><dd>@_about.EnvironmentName</dd></div>
-            <div><dt>Máy chủ</dt><dd>@_about.MachineName</dd></div>
-            <div><dt>Giờ máy chủ (UTC)</dt><dd>@_about.ServerTimeUtc.ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
+            <div><dt>Environment</dt><dd>@_about.EnvironmentName</dd></div>
+            <div><dt>Server</dt><dd>@_about.MachineName</dd></div>
+            <div><dt>Server time (UTC)</dt><dd>@_about.ServerTimeUtc.ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
         </dl>
     </section>
 
     <section class="settings-form-card" style="margin-top:16px">
-        <h2 class="settings-group-title">Dữ liệu</h2>
+        <h2 class="settings-group-title">Data</h2>
         <dl class="settings-meta">
-            <div><dt>Người dùng</dt><dd>@_about.UserCount</dd></div>
-            <div><dt>Khách hàng</dt><dd>@_about.CustomerCount</dd></div>
-            <div><dt>Sản phẩm</dt><dd>@_about.ProductCount</dd></div>
-            <div><dt>Phiên bản Spec</dt><dd>@_about.SpecRevisionCount</dd></div>
-            <div><dt>Phiên bản bản vẽ</dt><dd>@_about.DrawingVersionCount</dd></div>
-            <div><dt>Bản ghi nhật ký</dt><dd>@_about.AuditEntryCount</dd></div>
+            <div><dt>Users</dt><dd>@_about.UserCount</dd></div>
+            <div><dt>Customers</dt><dd>@_about.CustomerCount</dd></div>
+            <div><dt>Products</dt><dd>@_about.ProductCount</dd></div>
+            <div><dt>Spec revisions</dt><dd>@_about.SpecRevisionCount</dd></div>
+            <div><dt>Drawing versions</dt><dd>@_about.DrawingVersionCount</dd></div>
+            <div><dt>Audit entries</dt><dd>@_about.AuditEntryCount</dd></div>
         </dl>
     </section>
 
     <section class="settings-form-card" style="margin-top:16px">
-        <h2 class="settings-group-title">Bộ nhớ trên ổ đĩa</h2>
+        <h2 class="settings-group-title">On-disk storage</h2>
         <dl class="settings-meta">
-            <div><dt>Cơ sở dữ liệu</dt><dd>@FormatBytes(_about.DbFileBytes)</dd></div>
-            <div><dt>Kho bản vẽ</dt><dd>@FormatBytes(_about.BlobStoreBytes)</dd></div>
+            <div><dt>Database</dt><dd>@FormatBytes(_about.DbFileBytes)</dd></div>
+            <div><dt>Drawing store</dt><dd>@FormatBytes(_about.BlobStoreBytes)</dd></div>
             @if (!string.IsNullOrWhiteSpace(_about.DataDir))
             {
-                <div><dt>Thư mục dữ liệu</dt><dd><code>@_about.DataDir</code></dd></div>
+                <div><dt>Data directory</dt><dd><code>@_about.DataDir</code></dd></div>
             }
         </dl>
     </section>
 
     <p class="settings-hint" style="margin-top:14px">
-        Phiên bản ứng dụng Catalyst hiển thị trong Cài đặt → Chế độ
-        kết nối.
+        The Catalyst app version is shown in Settings → Connection.
     </p>
 }
 
@@ -95,7 +94,7 @@ else if (_about is not null)
         }
         catch (HttpRequestException ex)
         {
-            _loadError = $"Không kết nối được máy chủ: {ex.Message}";
+            _loadError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {

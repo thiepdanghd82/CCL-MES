@@ -3,29 +3,29 @@
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
 
-<PageTitle>Định tuyến — NPI</PageTitle>
+<PageTitle>Routing — NPI</PageTitle>
 
-<h1 class="page-title">Định tuyến công đoạn</h1>
+<h1 class="page-title">Operation Routing</h1>
 
 <div class="grid-toolbar">
-    <input type="search" class="grid-search" placeholder="Tìm theo part / op / trạm…"
+    <input type="search" class="grid-search" placeholder="Search by part / op / work center…"
            @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKey" />
-    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Tìm</button>
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
     <div class="grid-toolbar-spacer"></div>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
 </div>
 
 @if (_loading && _data is null)
 {
-    <p class="grid-status">Đang tải…</p>
+    <p class="grid-status">Loading…</p>
 }
 else if (_error is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Không tải được dữ liệu.</strong>
+        <strong>Failed to load data.</strong>
         <div>@_error</div>
-        <button type="button" class="grid-btn" @onclick="ReloadAsync">Thử lại</button>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">Retry</button>
     </div>
 }
 else if (_data is not null)
@@ -54,7 +54,7 @@ else if (_data is not null)
                 {
                     <tr>
                         <td colspan="@_columns.Visible.Count" class="grid-empty">
-                            Không có dữ liệu phù hợp.
+                            No matching data.
                         </td>
                     </tr>
                 }
@@ -65,13 +65,13 @@ else if (_data is not null)
     <div class="grid-pager">
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
-                @onclick="() => GoToPageAsync(_page - 1)">‹ Trước</button>
+                @onclick="() => GoToPageAsync(_page - 1)">‹ Previous</button>
         <span class="grid-pager-text">
-            Trang @_page / @TotalPages — @_data.Total dòng
+            Page @_page / @TotalPages — @_data.Total rows
         </span>
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
-                @onclick="() => GoToPageAsync(_page + 1)">Sau ›</button>
+                @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
     </div>
 }
 
@@ -94,21 +94,21 @@ else if (_data is not null)
         _columns = new GridColumns("routine", new[]
         {
             new ColumnDef("part_no",          "Part No"),
-            new ColumnDef("part_desc",        "Mô tả part"),
+            new ColumnDef("part_desc",        "Part Description"),
             new ColumnDef("op_no",            "Op"),
-            new ColumnDef("operation",        "Tên công đoạn"),
-            new ColumnDef("wc_no",            "Mã trạm"),
-            new ColumnDef("wc_desc",          "Tên trạm"),
+            new ColumnDef("operation",        "Operation Name"),
+            new ColumnDef("wc_no",            "Work Center Code"),
+            new ColumnDef("wc_desc",          "Work Center Name"),
             new ColumnDef("mach_setup",       "Mach setup"),
             new ColumnDef("labor_setup",      "Labor setup"),
             new ColumnDef("mach_run",         "Mach run"),
             new ColumnDef("labor_run",        "Labor run"),
-            new ColumnDef("unit",             "Đvt", DefaultVisible: false),
+            new ColumnDef("unit",             "UOM", DefaultVisible: false),
             new ColumnDef("crew",             "Crew", DefaultVisible: false),
             new ColumnDef("setup_crew",       "Setup crew", DefaultVisible: false),
             new ColumnDef("labor_class",      "Labor class", DefaultVisible: false),
             new ColumnDef("alt",              "Alt", DefaultVisible: false),
-            new ColumnDef("effectivity",      "Hiệu lực", DefaultVisible: false),
+            new ColumnDef("effectivity",      "Effectivity", DefaultVisible: false),
             new ColumnDef("efficiency",       "Efficiency", DefaultVisible: false),
             new ColumnDef("site",             "Site", DefaultVisible: false),
             new ColumnDef("routing_type",     "Routing type", DefaultVisible: false),
@@ -142,7 +142,7 @@ else if (_data is not null)
         }
         catch (HttpRequestException ex)
         {
-            _error = $"Không kết nối được máy chủ: {ex.Message}";
+            _error = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
