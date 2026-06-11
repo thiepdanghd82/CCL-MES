@@ -84,11 +84,16 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<MachineDetailDto>(resp, ct);
     }
 
-    public async Task<ShopOrderHistoryDto?> GetShopOrderHistoryAsync(string? period, string? search, CancellationToken ct = default)
+    public async Task<ShopOrderHistoryDto?> GetShopOrderHistoryAsync(
+        string? period, string? search, string? status = null,
+        string? customer = null, string? machine = null, CancellationToken ct = default)
     {
         var qs = new List<string>();
         if (!string.IsNullOrWhiteSpace(period)) qs.Add($"period={Uri.EscapeDataString(period)}");
         if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        if (!string.IsNullOrWhiteSpace(status)) qs.Add($"status={Uri.EscapeDataString(status)}");
+        if (!string.IsNullOrWhiteSpace(customer)) qs.Add($"customer={Uri.EscapeDataString(customer)}");
+        if (!string.IsNullOrWhiteSpace(machine)) qs.Add($"machine={Uri.EscapeDataString(machine)}");
         var url = $"/{ApiVersion.Prefix}/shop-orders/history" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
         using var resp = await _http.GetAsync(url, ct);
         return await ReadAsAsync<ShopOrderHistoryDto>(resp, ct);

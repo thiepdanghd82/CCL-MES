@@ -44,7 +44,8 @@ public interface ICclApiClient
     // ── Machine Dashboard (P10.8) ──────────────────────────────────
     Task<MachineDashboardDto?> GetMachineDashboardAsync(CancellationToken ct = default);
     Task<MachineDetailDto?> GetMachineDetailAsync(long workCenterId, CancellationToken ct = default);
-    Task<ShopOrderHistoryDto?> GetShopOrderHistoryAsync(string? period, string? search, CancellationToken ct = default);
+    Task<ShopOrderHistoryDto?> GetShopOrderHistoryAsync(string? period, string? search,
+        string? status = null, string? customer = null, string? machine = null, CancellationToken ct = default);
 
     // ── QMS (P10.9) ────────────────────────────────────────────────
     Task<QmsQueueDto?> GetQmsQueueAsync(CancellationToken ct = default);

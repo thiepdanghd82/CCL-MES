@@ -760,6 +760,50 @@ html, body {
 .md-today-num { font-size: 1.3rem; font-weight: 700; color: #1f2937; font-variant-numeric: tabular-nums; }
 .md-today-lbl { color: #6b7280; font-size: 0.78rem; }
 
+/* P10.8 — Shop Order History (SpecHub forensic-record parity) */
+.soh-kpi-grid { grid-template-columns: repeat(5, 1fr); }
+.soh-filters { margin-bottom: 8px; }
+.soh-filters-row { margin-bottom: 14px; gap: 8px; }
+.soh-filter-label { color: #9ca3af; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.soh-select {
+    padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px;
+    background: var(--card); font-size: 0.82rem; cursor: pointer;
+}
+
+.soh-tbl td, .soh-tbl th { white-space: nowrap; vertical-align: top; }
+.soh-tbl td.num, .soh-tbl th.num { text-align: right; }
+.soh-tbl td small { display: block; color: #9ca3af; font-size: 0.72rem; font-weight: 400; margin-top: 1px; }
+.soh-trow { cursor: pointer; }
+.soh-trow:hover { background: #f9fafb; }
+.soh-trow.is-active { background: #eff6ff; }
+.soh-cell-wo { font-weight: 700; color: #111827; }
+.soh-cell-wo small { text-transform: uppercase; }
+.soh-cell-qty strong { font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.soh-prog { width: 84px; height: 5px; background: #eef0f2; border-radius: 3px; overflow: hidden; margin-left: auto; margin-top: 3px; }
+.soh-prog-fill { height: 100%; transition: width .4s; }
+.soh-yield { font-weight: 700; font-variant-numeric: tabular-nums; }
+.soh-good { color: #16a34a; }
+.soh-warn { color: #d97706; }
+.soh-bad  { color: #dc2626; }
+.soh-status {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #fff;
+}
+.soh-status.done { background: #16a34a; }
+.soh-status.stopped { background: #dc2626; }
+
+.soh-side-row { display: grid; grid-template-columns: 1fr 60px auto; align-items: center; gap: 8px; padding: 5px 14px; font-size: 0.78rem; }
+.soh-side-key { color: #4b5563; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.soh-side-key.mono { font-weight: 700; color: #1d4ed8; }
+.soh-side-bar { height: 5px; background: #eef0f2; border-radius: 3px; overflow: hidden; }
+.soh-side-bar-fill { height: 100%; transition: width .4s; }
+.soh-side-row strong { font-variant-numeric: tabular-nums; color: #374151; text-align: right; }
+.soh-tip { background: #eff6ff; border-color: #bfdbfe; }
+.soh-tip .md-side-head { background: #dbeafe; color: #1d4ed8; }
+.soh-tip-body { padding: 10px 14px; font-size: 0.76rem; color: #4b5563; line-height: 1.6; }
+.soh-drawer { width: min(520px, 94vw); }
+.soh-drawer-sub { color: #9ca3af; font-size: 0.8rem; margin-top: 2px; }
+
 /* ─────── Grid ─────── */
 
 .grid-toolbar {

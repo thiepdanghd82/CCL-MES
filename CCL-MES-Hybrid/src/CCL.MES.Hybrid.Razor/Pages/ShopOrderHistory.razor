@@ -1,32 +1,93 @@
 @page "/shop-orders"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Globalization
+@using System.Text
 @using CCL.MES.Shared.Machines
 @inject ICclApiClient Api
+@inject IJSRuntime JS
 
 <PageTitle>Shop Order History — CCL MES</PageTitle>
 
-<h1 class="page-title">Shop Order History</h1>
-
-@* P10.8 — forensic record of closed WOs (SHIPPED / CANCELLED) with KPI
-   roll-ups + period/search filters (server-side). CSV export lands in a
-   follow-up (needs an authenticated download path). *@
-<div class="md-kpis">
-    <div class="md-kpi"><div class="md-kpi-num">@(_data?.TotalWos)</div><div class="md-kpi-label">Total WOs</div></div>
-    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@(_data?.Output)</div><div class="md-kpi-label">Output</div></div>
-    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@(_data is null ? null : _data.YieldPct + "%")</div><div class="md-kpi-label">Yield</div></div>
-    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@(_data?.Reject)</div><div class="md-kpi-label">Reject</div></div>
+@* P10.8 — SpecHub Shop-Order-History parity: forensic record of closed
+   WOs (SHIPPED/CANCELLED) with 5 KPI tiles + per-WO runtime/setup/pause/OEE
+   + Export CSV + period/status/customer/machine/search filters (server-side
+   requery; KPIs + sidebar roll-ups reflect the filtered set) + sidebar
+   (top customers/machines/downtime) + detail drawer. OEE is the honest
+   A×P×Q (blank when not computable). *@
+<div class="md-head">
+    <div>
+        <h1 class="page-title">📦 Shop Order History</h1>
+        <div class="md-subtitle">Forensic record of completed work orders · @(_data?.TotalWos ?? 0) total</div>
+    </div>
+    <button type="button" class="md-refresh" @onclick="ExportCsvAsync" disabled="@(_data is null || _data.Rows.Count == 0)">📥 Export CSV</button>
 </div>
 
-<div class="md-filters">
-    <input class="md-search" type="text" placeholder="Search WO / customer / product / machine…"
+<div class="md-kpi-grid soh-kpi-grid">
+    <div class="md-kpi md-kpi-maint">
+        <div class="md-kpi-label">Total Work Orders</div>
+        <div class="md-kpi-num">@(_data?.TotalWos ?? 0)</div>
+        <div class="md-kpi-oee-sub">@(_data?.StoppedCount ?? 0) stopped · @(_data?.DoneCount ?? 0) done</div>
+    </div>
+    <div class="md-kpi md-kpi-running">
+        <div class="md-kpi-label">Total Output</div>
+        <div class="md-kpi-num">@((_data?.Output ?? 0).ToString("N0"))</div>
+        <div class="md-kpi-oee-sub">pcs across @(_data?.TotalWos ?? 0) WOs</div>
+    </div>
+    <div class="md-kpi @YieldKpiClass">
+        <div class="md-kpi-label">Avg Yield</div>
+        <div class="md-kpi-num">@(_data?.YieldPct ?? 0)%</div>
+        <div class="md-kpi-oee-sub">target ≥ 98%</div>
+    </div>
+    <div class="md-kpi @OeeKpiClass">
+        <div class="md-kpi-label">Avg OEE</div>
+        <div class="md-kpi-num">@(_data?.AvgOeePct is { } o ? $"{o}%" : "—")</div>
+        <div class="md-kpi-oee-sub">A × P × Q across all WOs</div>
+    </div>
+    <div class="md-kpi md-kpi-setup">
+        <div class="md-kpi-label">Total Reject</div>
+        <div class="md-kpi-num">@((_data?.Reject ?? 0).ToString("N0"))</div>
+        <div class="md-kpi-oee-sub">@DefectRate.ToString("0.00", CultureInfo.InvariantCulture)% defect rate</div>
+    </div>
+</div>
+
+<div class="md-filters soh-filters">
+    <input class="md-search" type="text" placeholder="🔍 Search WO / customer / product / machine…"
            value="@_search" @onchange="OnSearchChanged" />
+    <span class="md-filter-count">@(_data?.Rows.Count ?? 0) records</span>
+</div>
+<div class="md-filters soh-filters-row">
+    <span class="soh-filter-label">Period:</span>
     <div class="md-chips">
         @foreach (var p in PeriodChips)
         {
             <button type="button" class="md-chip @(_period == p.Key ? "md-chip-on" : "")"
-                    @onclick="@(() => SetPeriodAsync(p.Key))">@p.Label</button>
+                    @onclick="@(() => SetFilterAsync(() => _period = p.Key))">@p.Label</button>
         }
     </div>
+    <span class="soh-filter-label">Status:</span>
+    <div class="md-chips">
+        @foreach (var s in StatusChips)
+        {
+            <button type="button" class="md-chip @(_status == s.Key ? "md-chip-on" : "")"
+                    @onclick="@(() => SetFilterAsync(() => _status = s.Key))">@s.Label</button>
+        }
+    </div>
+    <span class="soh-filter-label">Customer:</span>
+    <select class="soh-select" value="@_customer" @onchange="OnCustomerChanged">
+        <option value="">All customers</option>
+        @foreach (var c in (_data?.Customers ?? Array.Empty<string>()))
+        {
+            <option value="@c">@c</option>
+        }
+    </select>
+    <span class="soh-filter-label">Machine:</span>
+    <select class="soh-select" value="@_machine" @onchange="OnMachineChanged">
+        <option value="">All machines</option>
+        @foreach (var m in (_data?.Machines ?? Array.Empty<string>()))
+        {
+            <option value="@m">@m</option>
+        }
+    </select>
 </div>
 
 @if (_loading && _data is null)
@@ -43,31 +104,103 @@ else if (_data is null || _data.Rows.Count == 0)
 }
 else
 {
-    <div class="md-table-wrap">
-        <table class="md-table">
-            <thead>
-                <tr>
-                    <th>WO</th><th>Customer</th><th>Product</th><th>Machine</th>
-                    <th>Plan/Done</th><th>Yield</th><th>Status</th><th>Finished</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var r in _data.Rows)
-                {
-                    <tr>
-                        <td class="md-code">@r.WoNo</td>
-                        <td>@r.CustomerName</td>
-                        <td>@r.ProductName</td>
-                        <td>@(r.MachineCode ?? "—")</td>
-                        <td>@r.TargetQty / @r.QtyDone</td>
-                        <td>@r.YieldPct%</td>
-                        <td>@r.MesPhase</td>
-                        <td>@(r.FinishedAt?.ToString("dd/MM/yyyy HH:mm") ?? "—")</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+    <div class="md-content">
+        <div class="md-main">
+            <div class="md-table-wrap">
+                <table class="md-table soh-tbl">
+                    <thead>
+                        <tr>
+                            <th>WO / Customer</th><th>Product</th><th>Machine</th>
+                            <th class="num">Output / Plan</th><th class="num">Yield</th><th class="num">OEE</th>
+                            <th>Runtime</th><th>Pauses</th><th>Finished</th><th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _data.Rows)
+                        {
+                            <tr class="md-row soh-trow @(_selected?.WoId == r.WoId ? "is-active" : "")" @onclick="@(() => _selected = r)">
+                                <td class="soh-cell-wo">@r.WoNo<small>@r.CustomerName</small></td>
+                                <td>@(r.ProductCode ?? "—")<small>@r.ProductName</small></td>
+                                <td>@(r.MachineCode ?? "—")<small>@(r.Process ?? "")</small></td>
+                                <td class="num soh-cell-qty">
+                                    <strong>@r.QtyDone.ToString("N0")</strong><small>/ @r.TargetQty.ToString("N0")</small>
+                                    <div class="soh-prog"><div class="soh-prog-fill" style="width:@r.ProgressPct%; background:@ProgressColor(r.ProgressPct)"></div></div>
+                                </td>
+                                <td class="num soh-yield @YieldClass(r.YieldPct)">@r.YieldPct%<small>@r.QtyNg.ToString("N0") NG</small></td>
+                                <td class="num soh-yield @(r.OeePct is { } op ? YieldOeeClass(op) : "")">@(r.OeePct is { } o2 ? $"{o2}%" : "—")</td>
+                                <td>@FormatDuration(r.RuntimeSec)<small>setup @FormatDuration(r.SetupSec)</small></td>
+                                <td>@r.PauseCount<small>@(r.PauseCount > 0 ? "events" : "—")</small></td>
+                                <td>@FormatRelative(r.FinishedAt)</td>
+                                <td><span class="soh-status @(r.MesPhase == "CANCELLED" ? "stopped" : "done")">@(r.MesPhase == "CANCELLED" ? "✕ Stopped" : "✓ Done")</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <aside class="md-side">
+            <div class="md-side-card">
+                <div class="md-side-head">🏢 Top Customers</div>
+                <div class="md-side-body">@RenderAgg(_data.TopCustomers, _data.TotalWos, "#2563eb", false)</div>
+            </div>
+            <div class="md-side-card">
+                <div class="md-side-head">🏭 Top Machines</div>
+                <div class="md-side-body">@RenderAgg(_data.TopMachines, _data.TotalWos, "#16a34a", true)</div>
+            </div>
+            <div class="md-side-card">
+                <div class="md-side-head">⏸ Top Downtime Reasons</div>
+                <div class="md-side-body">@RenderAgg(_data.TopDowntimeReasons, DowntimeTotal, "#f59e0b", false, label: true, pct: true)</div>
+            </div>
+            <div class="md-side-card soh-tip">
+                <div class="md-side-head">💡 Tip</div>
+                <div class="md-side-body soh-tip-body">
+                    Click a row → detail drawer<br />
+                    Export CSV for Excel pivot tables<br />
+                    Filter date + machine → trace one incident
+                </div>
+            </div>
+        </aside>
     </div>
+}
+
+@* Row detail drawer (from the loaded row — no extra round-trip). *@
+@if (_selected is not null)
+{
+    <div class="md-drawer-overlay" @onclick="@(() => _selected = null)"></div>
+    <aside class="md-drawer soh-drawer">
+        <div class="md-drawer-head" style="border-left:4px solid @(_selected.MesPhase == "CANCELLED" ? "#dc2626" : "#16a34a"); padding-left:12px">
+            <div>
+                <h2 class="md-drawer-title">@_selected.WoNo</h2>
+                <div class="soh-drawer-sub">@_selected.CustomerName · @(_selected.ProductCode ?? "—") · @(_selected.MachineCode ?? "—")</div>
+            </div>
+            <button type="button" class="md-drawer-close" @onclick="@(() => _selected = null)">✕</button>
+        </div>
+        <div class="md-drawer-body">
+            <h3 class="md-drawer-sub">Final Summary</h3>
+            <div class="md-kv"><span>Status</span><strong><span class="soh-status @(_selected.MesPhase == "CANCELLED" ? "stopped" : "done")">@(_selected.MesPhase == "CANCELLED" ? "✕ Stopped" : "✓ Done")</span></strong></div>
+            <div class="md-kv"><span>Finished</span><strong>@(_selected.FinishedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")</strong></div>
+            <div class="md-kv"><span>Target qty</span><strong>@_selected.TargetQty.ToString("N0")</strong></div>
+            <div class="md-kv"><span>Actual output</span><strong>@_selected.QtyDone.ToString("N0")</strong></div>
+            <div class="md-kv"><span>Reject</span><strong>@_selected.QtyNg.ToString("N0")</strong></div>
+
+            <h3 class="md-drawer-sub">Performance Metrics</h3>
+            <div class="md-kv"><span>Yield</span><strong>@_selected.YieldPct%</strong></div>
+            <div class="md-kv"><span>OEE</span><strong>@(_selected.OeePct is { } oeeV ? $"{oeeV}%" : "— (no run/cycle data)")</strong></div>
+            <div class="md-kv"><span>Setup time</span><strong>@FormatDuration(_selected.SetupSec)</strong></div>
+            <div class="md-kv"><span>Total runtime</span><strong>@FormatDuration(_selected.RuntimeSec)</strong></div>
+            <div class="md-kv"><span>Pauses</span><strong>@_selected.PauseCount</strong></div>
+
+            @if (_selected.PauseReasons.Count > 0)
+            {
+                <h3 class="md-drawer-sub">⏸ Downtime Events (@_selected.PauseCount)</h3>
+                @foreach (var p in _selected.PauseReasons)
+                {
+                    <div class="md-kv"><span>@(p.Label ?? p.Key)</span><strong>@p.Count× event@(p.Count > 1 ? "s" : "")</strong></div>
+                }
+            }
+        </div>
+    </aside>
 }
 
 @code {
@@ -76,18 +209,34 @@ else
     private string? _error;
 
     private string? _period;     // null = all
+    private string? _status;     // null = all | "DONE" | "STOPPED"
+    private string _customer = "";
+    private string _machine = "";
     private string _search = "";
+
+    private ShopOrderHistoryRow? _selected;
 
     private static readonly (string? Key, string Label)[] PeriodChips =
     {
-        (null, "All"), ("today", "Today"), ("7d", "7d"), ("30d", "30d"),
+        (null, "All time"), ("today", "Today"), ("7d", "Last 7 days"), ("30d", "Last 30 days"),
     };
+
+    private static readonly (string? Key, string Label)[] StatusChips =
+    {
+        (null, "All"), ("DONE", "✓ Done"), ("STOPPED", "✕ Stopped"),
+    };
+
+    private double DefectRate => _data is { Output: > 0 } ? 100.0 * _data.Reject / _data.Output : 0;
+    private int DowntimeTotal => _data?.TopDowntimeReasons.Sum(r => r.Count) ?? 0;
+
+    private string YieldKpiClass => (_data?.YieldPct ?? 0) >= 98 ? "md-kpi-running" : (_data?.YieldPct ?? 0) >= 95 ? "md-kpi-setup" : "md-kpi-down";
+    private string OeeKpiClass => (_data?.AvgOeePct ?? 0) >= 75 ? "md-kpi-running" : (_data?.AvgOeePct ?? 0) >= 60 ? "md-kpi-setup" : "md-kpi-down";
 
     protected override Task OnInitializedAsync() => ReloadAsync();
 
-    private async Task SetPeriodAsync(string? period)
+    private async Task SetFilterAsync(Action mutate)
     {
-        _period = period;
+        mutate();
         await ReloadAsync();
     }
 
@@ -97,12 +246,115 @@ else
         await ReloadAsync();
     }
 
+    private async Task OnCustomerChanged(ChangeEventArgs e)
+    {
+        _customer = e.Value?.ToString() ?? "";
+        await ReloadAsync();
+    }
+
+    private async Task OnMachineChanged(ChangeEventArgs e)
+    {
+        _machine = e.Value?.ToString() ?? "";
+        await ReloadAsync();
+    }
+
     private async Task ReloadAsync()
     {
         _loading = true;
         _error = null;
-        try { _data = await Api.GetShopOrderHistoryAsync(_period, string.IsNullOrWhiteSpace(_search) ? null : _search); }
+        try
+        {
+            _data = await Api.GetShopOrderHistoryAsync(
+                _period,
+                string.IsNullOrWhiteSpace(_search) ? null : _search,
+                _status,
+                string.IsNullOrWhiteSpace(_customer) ? null : _customer,
+                string.IsNullOrWhiteSpace(_machine) ? null : _machine);
+        }
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }
     }
+
+    private async Task ExportCsvAsync()
+    {
+        if (_data is null || _data.Rows.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("wo,customer,product_code,product,machine,process,plan,output,ng,yield_pct,oee_pct,setup_sec,runtime_sec,pauses,status,finished");
+        foreach (var r in _data.Rows)
+        {
+            string C(string? v) => v is null ? "" : (v.Contains(',') || v.Contains('"') || v.Contains('\n') ? $"\"{v.Replace("\"", "\"\"")}\"" : v);
+            sb.Append(C(r.WoNo)).Append(',').Append(C(r.CustomerName)).Append(',').Append(C(r.ProductCode)).Append(',')
+              .Append(C(r.ProductName)).Append(',').Append(C(r.MachineCode)).Append(',').Append(C(r.Process)).Append(',')
+              .Append(r.TargetQty).Append(',').Append(r.QtyDone).Append(',').Append(r.QtyNg).Append(',')
+              .Append(r.YieldPct).Append(',').Append(r.OeePct?.ToString() ?? "").Append(',')
+              .Append(r.SetupSec).Append(',').Append(r.RuntimeSec).Append(',').Append(r.PauseCount).Append(',')
+              .Append(r.MesPhase == "CANCELLED" ? "STOPPED" : "DONE").Append(',')
+              .Append(r.FinishedAt?.ToString("yyyy-MM-dd HH:mm") ?? "").Append('\n');
+        }
+        var name = $"shop-order-history-{DateTime.Now:yyyy-MM-dd}.csv";
+        try { await JS.InvokeVoidAsync("cclMesClipboard.download", name, sb.ToString(), "text/csv;charset=utf-8"); }
+        catch { /* renderer-safe: a blocked download never bubbles */ }
+    }
+
+    private static string FormatDuration(long sec)
+    {
+        if (sec <= 0) return "—";
+        var h = sec / 3600;
+        var m = (sec % 3600) / 60;
+        return h > 0 ? $"{h}h{m:D2}m" : $"{m}m";
+    }
+
+    private static string FormatRelative(DateTime? at)
+    {
+        if (at is null) return "—";
+        var diff = DateTime.UtcNow - at.Value.ToUniversalTime();
+        if (diff.TotalHours < 1) return "just now";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        return at.Value.ToLocalTime().ToString("dd/MM/yy");
+    }
+
+    private static string ProgressColor(int pct) => pct >= 95 ? "#16a34a" : pct >= 80 ? "#f59e0b" : "#dc2626";
+    private static string YieldClass(int pct) => pct >= 98 ? "soh-good" : pct >= 95 ? "soh-warn" : "soh-bad";
+    private static string YieldOeeClass(int pct) => pct >= 75 ? "soh-good" : pct >= 60 ? "soh-warn" : "soh-bad";
+
+    private RenderFragment RenderAgg(IReadOnlyList<ShopOrderAggRow> rows, int total, string color, bool mono,
+        bool label = false, bool pct = false) => builder =>
+    {
+        if (rows.Count == 0)
+        {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "md-side-empty");
+            builder.AddContent(2, pct ? "No pauses recorded." : "No data.");
+            builder.CloseElement();
+            return;
+        }
+        var denom = total <= 0 ? 1 : total;
+        var seq = 0;
+        foreach (var r in rows)
+        {
+            var width = Math.Min(100, 100.0 * r.Count / denom);
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "soh-side-row");
+
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", mono ? "soh-side-key mono" : "soh-side-key");
+            builder.AddContent(seq++, label ? (r.Label ?? r.Key) : r.Key);
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "soh-side-bar");
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "soh-side-bar-fill");
+            builder.AddAttribute(seq++, "style", $"width:{width.ToString("0.#", CultureInfo.InvariantCulture)}%; background:{color}");
+            builder.CloseElement();
+            builder.CloseElement();
+
+            builder.OpenElement(seq++, "strong");
+            builder.AddContent(seq++, pct ? $"{r.Count} ({(100.0 * r.Count / denom).ToString("0", CultureInfo.InvariantCulture)}%)" : r.Count.ToString());
+            builder.CloseElement();
+
+            builder.CloseElement();
+        }
+    };
 }

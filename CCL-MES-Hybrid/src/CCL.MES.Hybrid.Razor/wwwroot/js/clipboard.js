@@ -40,5 +40,25 @@ window.cclMesClipboard = (() => {
         }
     }
 
-    return { copy, prettyJson };
+    // P10.8 — trigger a client-side file download (Shop Order History
+    // "Export CSV"). Same defensive try/catch posture: a blocked blob URL
+    // never bubbles to the renderer.
+    function download(filename, text, mime) {
+        try {
+            const blob = new Blob([text ?? ''], { type: mime || 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || 'export.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    return { copy, prettyJson, download };
 })();

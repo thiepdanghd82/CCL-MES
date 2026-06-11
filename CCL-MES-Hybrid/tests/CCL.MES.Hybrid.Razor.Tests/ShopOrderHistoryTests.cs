@@ -56,14 +56,14 @@ public sealed class ShopOrderHistoryTests : TestContext
 
         var cut = RenderComponent<ShopOrderHistory>();
 
-        Assert.Equal(4, cut.FindAll(".md-kpi-num").Count);
+        Assert.Equal(5, cut.FindAll(".md-kpi-num").Count);   // Total / Output / Yield / OEE / Reject
         Assert.Equal(2, cut.FindAll(".md-table tbody tr").Count);
         var markup = cut.Markup;
         Assert.Contains("WO-26-9001", markup);
         Assert.Contains("Acme", markup);
         Assert.Contains("99%", markup);
         // First call on init carries no filters.
-        Assert.Contains((null, (string?)null), _api.ShopOrderHistoryCalls);
+        Assert.Contains(_api.ShopOrderHistoryCalls, c => c is { Period: null, Search: null, Status: null });
     }
 
     [Fact]
@@ -72,9 +72,20 @@ public sealed class ShopOrderHistoryTests : TestContext
         _api.ShopOrderHistory = History();
         var cut = RenderComponent<ShopOrderHistory>();
 
-        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "7d").Click();
+        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "Last 7 days").Click();
 
         Assert.Contains(_api.ShopOrderHistoryCalls, c => c.Period == "7d");
+    }
+
+    [Fact]
+    public void Status_chip_requeries_with_status()
+    {
+        _api.ShopOrderHistory = History();
+        var cut = RenderComponent<ShopOrderHistory>();
+
+        cut.FindAll(".md-chip").First(b => b.TextContent.Contains("Stopped")).Click();
+
+        Assert.Contains(_api.ShopOrderHistoryCalls, c => c.Status == "STOPPED");
     }
 
     [Fact]
