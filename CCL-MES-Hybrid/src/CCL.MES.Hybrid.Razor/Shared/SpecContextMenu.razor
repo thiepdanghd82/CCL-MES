@@ -21,11 +21,11 @@
 
         <button type="button" class="spec-ctx-item" @onclick="OnOpenAsync">
             <span class="spec-ctx-ico">↗</span>
-            <span>Mở chi tiết</span>
+            <span>Open details</span>
         </button>
         <button type="button" class="spec-ctx-item" @onclick="OnInfoAsync">
             <span class="spec-ctx-ico">ⓘ</span>
-            <span>Xem thông tin</span>
+            <span>View info</span>
         </button>
 
         <div class="spec-ctx-divider"></div>
@@ -33,22 +33,22 @@
         <button type="button" class="spec-ctx-item"
                 @onclick="() => RequestEditClassAsync(SpecMutationAction.Edit)">
             <span class="spec-ctx-ico">📝</span>
-            <span>Sửa (Bản nháp)</span>
+            <span>Edit (Draft)</span>
         </button>
         <button type="button" class="spec-ctx-item"
                 @onclick="() => RequestEditClassAsync(SpecMutationAction.Copy)">
             <span class="spec-ctx-ico">⎘</span>
-            <span>Sao chép</span>
+            <span>Copy</span>
         </button>
         <button type="button" class="spec-ctx-item"
                 @onclick="() => RequestEditClassAsync(SpecMutationAction.Revise)">
             <span class="spec-ctx-ico">⟳</span>
-            <span>Tạo bản mới (Revise)</span>
+            <span>Create new version (Revise)</span>
         </button>
         <button type="button" class="spec-ctx-item"
                 @onclick="() => RequestEditClassAsync(SpecMutationAction.Supersede)">
             <span class="spec-ctx-ico">⊘</span>
-            <span>Đánh dấu thay thế</span>
+            <span>Mark Superseded</span>
         </button>
 
         <div class="spec-ctx-divider"></div>
@@ -57,14 +57,14 @@
         {
             <button type="button" class="spec-ctx-item" @onclick="OnRestoreAsync">
                 <span class="spec-ctx-ico">↺</span>
-                <span>Khôi phục từ Thùng rác</span>
+                <span>Restore from Trash</span>
             </button>
         }
         else
         {
             <button type="button" class="spec-ctx-item spec-ctx-item-danger" @onclick="OnTrashAsync">
                 <span class="spec-ctx-ico">🗑</span>
-                <span>Xoá vào Thùng rác</span>
+                <span>Move to Trash</span>
             </button>
         }
     </div>

@@ -10,17 +10,17 @@
 
 <Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Info"
        ClickOutsideToClose="false">
-    <Header>Sửa Spec @Spec?.SpecCode</Header>
+    <Header>Edit Spec @Spec?.SpecCode</Header>
     <Body>
         @if (Spec is null)
         {
-            <p class="grid-status">Chưa có dữ liệu Spec.</p>
+            <p class="grid-status">No Spec data yet.</p>
         }
         else
         {
             <form @onsubmit:preventDefault="true">
                 <div class="modal-field">
-                    <label for="es-title">Tiêu đề</label>
+                    <label for="es-title">Title</label>
                     <input id="es-title" type="text" class="modal-input" maxlength="200"
                            @bind="_title" @bind:event="oninput" disabled="@_submitting" />
                 </div>
@@ -32,7 +32,7 @@
                 <div class="modal-field">
                     <label for="es-inspection">Spec / Inspection level</label>
                     <input id="es-inspection" type="text" class="modal-input" maxlength="32"
-                           placeholder="VD: A166"
+                           placeholder="e.g. A166"
                            @bind="_inspectionLevel" @bind:event="oninput" disabled="@_submitting" />
                 </div>
                 <div class="modal-field">
@@ -43,7 +43,7 @@
                 <div class="modal-field">
                     <label for="es-color">ColorSpec JSON</label>
                     <textarea id="es-color" class="modal-input modal-input-textarea" rows="3"
-                              placeholder='Mảng JSON các màu, để trống = giữ nguyên'
+                              placeholder='JSON array of colors, blank = keep unchanged'
                               @bind="_colorSpecJson" @bind:event="oninput" disabled="@_submitting"></textarea>
                 </div>
                 @if (_error is not null)
@@ -55,10 +55,10 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
         <button type="button" class="op-btn op-btn-primary"
                 disabled="@(_submitting || Spec is null)" @onclick="SubmitAsync">
-            @(_submitting ? "Đang lưu…" : "Lưu thay đổi")
+            @(_submitting ? "Saving…" : "Save changes")
         </button>
     </Footer>
 </Modal>
@@ -112,7 +112,7 @@
             if (OnClose.HasDelegate) await OnClose.InvokeAsync();
         }
         catch (ApiException apiEx) { _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
-        catch (HttpRequestException ex) { _error = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _submitting = false; }
     }

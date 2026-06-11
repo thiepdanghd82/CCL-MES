@@ -20,7 +20,7 @@
 
 <div class="prepress-section">
     <div class="prepress-section-head">
-        <span class="prepress-section-title">Vật tư (BOM snapshot)</span>
+        <span class="prepress-section-title">Materials (BOM snapshot)</span>
         <span class="prepress-progress-pill" data-testid="materials-progress">
             @OkCount / @Materials.Count OK
         </span>
@@ -29,8 +29,8 @@
     @if (Materials.Count == 0)
     {
         <div class="prepress-empty" data-testid="materials-empty">
-            Không có dòng vật tư — BOM trống cho sản phẩm này. Kiểm tra
-            Routing/Structure trước khi tiếp tục.
+            No material lines — the BOM is empty for this product. Check the
+            Routing/Structure before continuing.
         </div>
     }
     else
@@ -38,15 +38,15 @@
         <table class="prepress-table">
             <thead>
                 <tr>
-                    <th>STT</th>
-                    <th>Mã VT</th>
-                    <th>Mô tả</th>
-                    <th>Yêu cầu</th>
-                    <th>Đã nhập</th>
+                    <th>No.</th>
+                    <th>Material code</th>
+                    <th>Description</th>
+                    <th>Required</th>
+                    <th>Loaded</th>
                     <th>Lot</th>
-                    <th>Trạng thái</th>
-                    <th>Ng — lý do · ghi chú</th>
-                    <th>Hành động</th>
+                    <th>Status</th>
+                    <th>NG — reason · note</th>
+                    <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -68,7 +68,7 @@
                                    value="@draft.QtyLoaded"
                                    @oninput="e => OnQtyLoadedInput(draft, e)"
                                    disabled="@Busy"
-                                   aria-label="Số lượng đã nhập" />
+                                   aria-label="Loaded quantity" />
                         </td>
                         <td>
                             <input type="text"
@@ -76,7 +76,7 @@
                                    value="@draft.LotNo"
                                    @oninput="e => OnLotNoInput(draft, e)"
                                    disabled="@Busy"
-                                   aria-label="Số lot" />
+                                   aria-label="Lot number" />
                         </td>
                         <td>
                             <span class="prepress-pill @StatusPillClass(row.Status)" data-testid="status-pill">
@@ -90,9 +90,9 @@
                                         value="@draft.NgReasonCode"
                                         @onchange="e => OnNgReasonChange(draft, e)"
                                         disabled="@Busy"
-                                        aria-label="Mã lý do NG"
+                                        aria-label="NG reason code"
                                         data-testid="material-ng-reason-picker">
-                                    <option value="">— chọn mã lỗi —</option>
+                                    <option value="">— select defect code —</option>
                                     @foreach (var rc in ScrapReasons)
                                     {
                                         <option value="@rc.Code">@rc.Code · @rc.LabelVi</option>
@@ -100,11 +100,11 @@
                                 </select>
                                 <input type="text"
                                        class="prepress-input"
-                                       placeholder="Ghi chú NG (1-500 ký tự)"
+                                       placeholder="NG note (1-500 characters)"
                                        value="@draft.NgNote"
                                        @oninput="e => OnNgNoteInput(draft, e)"
                                        disabled="@Busy"
-                                       aria-label="Ghi chú NG" />
+                                       aria-label="NG note" />
                             }
                             else
                             {
@@ -117,7 +117,7 @@
                                     data-testid="btn-ok"
                                     disabled="@(Busy || isOk)"
                                     @onclick="() => OnSubmitOk(row, draft)">
-                                Ghi OK
+                                Record OK
                             </button>
                             @if (!draft.SettingNg && !isNg)
                             {
@@ -125,9 +125,9 @@
                                         class="op-btn op-btn-danger op-btn-sm"
                                         data-testid="btn-ng-arm"
                                         disabled="@(Busy || ScrapReasons.Count == 0)"
-                                        title="@(ScrapReasons.Count == 0 ? "Danh mục mã NG trống — báo IT" : null)"
+                                        title="@(ScrapReasons.Count == 0 ? "NG code catalog is empty — report to IT" : null)"
                                         @onclick="() => draft.SettingNg = true">
-                                    Đánh NG
+                                    Mark NG
                                 </button>
                             }
                             else
@@ -137,14 +137,14 @@
                                         data-testid="btn-ng-confirm"
                                         disabled="@(Busy || !IsValidNgReason(draft.NgReasonCode))"
                                         @onclick="() => OnSubmitNg(row, draft)">
-                                    Lưu NG
+                                    Save NG
                                 </button>
                                 <button type="button"
                                         class="op-btn op-btn-secondary op-btn-sm"
                                         data-testid="btn-ng-cancel"
                                         disabled="@Busy"
                                         @onclick="() => CancelNg(draft)">
-                                    Hủy
+                                    Cancel
                                 </button>
                             }
                         </td>
@@ -259,7 +259,7 @@
     {
         "Ok"      => "OK",
         "Ng"      => "NG",
-        _         => "Chưa kiểm",
+        _         => "Not checked",
     };
 
     public sealed class MaterialDraft

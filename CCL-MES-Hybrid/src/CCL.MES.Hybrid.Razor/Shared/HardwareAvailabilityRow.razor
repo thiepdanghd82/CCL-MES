@@ -16,11 +16,11 @@
 
     @if (_state == State.Probing)
     {
-        <div class="hw-pill hw-pill-probing">Đang kiểm tra…</div>
+        <div class="hw-pill hw-pill-probing">Checking…</div>
     }
     else if (_avail?.IsAvailable == true)
     {
-        <div class="hw-pill hw-pill-ok">Sẵn sàng</div>
+        <div class="hw-pill hw-pill-ok">Ready</div>
         <div class="hw-row-msg">@EnabledAction</div>
     }
     else
@@ -48,7 +48,7 @@
         catch (Exception ex)
         {
             _avail = new HardwareAvailability(false, "probe_failed",
-                $"Lỗi khi kiểm tra: {ex.GetType().Name}: {ex.Message}");
+                $"Error during check: {ex.GetType().Name}: {ex.Message}");
         }
         finally
         {

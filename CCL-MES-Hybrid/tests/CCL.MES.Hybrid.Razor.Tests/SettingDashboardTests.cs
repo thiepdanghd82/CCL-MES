@@ -96,7 +96,7 @@ public sealed class SettingDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='setting-invalid-phase']");
-            Assert.Contains("không ở giai đoạn SETTING", banner.TextContent);
+            Assert.Contains("not in the SETTING phase", banner.TextContent);
         });
     }
 

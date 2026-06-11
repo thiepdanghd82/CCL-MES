@@ -22,10 +22,10 @@
     first activation.
 *@
 
-<PageTitle>@(_detail?.SpecCode ?? "Spec") — chi tiết</PageTitle>
+<PageTitle>@(_detail?.SpecCode ?? "Spec") — Details</PageTitle>
 
 <div class="spec-detail-header">
-    <button type="button" class="grid-btn grid-btn-link" @onclick="NavigateBack">‹ Trở lại danh sách</button>
+    <button type="button" class="grid-btn grid-btn-link" @onclick="NavigateBack">‹ Back to list</button>
     @if (_detail is not null)
     {
         <span class="spec-detail-crumb">@(_detail.SpecCode) · Rev @_detail.RevisionCode</span>
@@ -36,7 +36,7 @@
         <button type="button" class="grid-btn grid-btn-secondary"
                 disabled="@_exporting"
                 @onclick="ExportSheetPdfAsync">
-            @(_exporting ? "Đang tạo PDF…" : "🖨 In PDF")
+            @(_exporting ? "Generating PDF…" : "🖨 Print PDF")
         </button>
     }
 </div>
@@ -49,9 +49,9 @@
         @if (!string.IsNullOrEmpty(_exportSandboxPath))
         {
             <button type="button" class="grid-btn grid-btn-small"
-                    @onclick="OpenSandboxAsync">Mở file</button>
+                    @onclick="OpenSandboxAsync">Open file</button>
         }
-        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">Đóng</button>
+        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">Close</button>
     </div>
 }
 
@@ -68,19 +68,19 @@
             {
                 <button type="button" class="op-btn op-btn-success"
                         disabled="@_busy" @onclick="OnApproveAsync">
-                    @(_busy && _busyAction == "approve" ? "Đang duyệt…" : "✓ Duyệt")
+                    @(_busy && _busyAction == "approve" ? "Approving…" : "✓ Approve")
                 </button>
             }
             @if (_detail.Status == SpecRevisionStatus.Draft)
             {
                 <button type="button" class="op-btn op-btn-secondary"
                         disabled="@_busy" @onclick="() => OpenEditAsync()">
-                    📝 Sửa
+                    📝 Edit
                 </button>
             }
             <button type="button" class="op-btn op-btn-secondary"
                     disabled="@_busy" @onclick="() => OpenCopyAsync()">
-                ⎘ Sao chép
+                ⎘ Copy
             </button>
             @if (_detail.Status == SpecRevisionStatus.Approved || _detail.Status == SpecRevisionStatus.Released)
             {
@@ -90,12 +90,12 @@
                 </button>
                 <button type="button" class="op-btn op-btn-danger"
                         disabled="@_busy" @onclick="() => OpenSupersedeAsync()">
-                    ⊘ Đánh dấu thay thế
+                    ⊘ Mark Superseded
                 </button>
             }
             <button type="button" class="op-btn op-btn-secondary"
                     disabled="@_busy" @onclick="() => OpenTrashAsync()">
-                🗑 Xoá vào Thùng rác
+                🗑 Move to Trash
             </button>
 
             @if (_actionBanner is not null)
@@ -109,14 +109,14 @@
 
 @if (_detailLoading && _detail is null)
 {
-    <p class="grid-status">Đang tải chi tiết Spec…</p>
+    <p class="grid-status">Loading Spec details…</p>
 }
 else if (_detailError is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Không tải được chi tiết Spec.</strong>
+        <strong>Failed to load Spec details.</strong>
         <div>@_detailError</div>
-        <button type="button" class="grid-btn" @onclick="LoadDetailAsync">Thử lại</button>
+        <button type="button" class="grid-btn" @onclick="LoadDetailAsync">Retry</button>
     </div>
 }
 else if (_detail is not null && _vm is not null)
@@ -141,18 +141,18 @@ else if (_detail is not null && _vm is not null)
                    prev toggle when lineage has ≥2 entries (current + parent).
                    The buttons live on the inside of the panel so they don't
                    get confused with the lifecycle action bar at the top. *@
-                <div class="spec-showcard-toolbar" role="group" aria-label="Hiển thị Spec">
+                <div class="spec-showcard-toolbar" role="group" aria-label="Spec display">
                     <button type="button"
                             aria-pressed="@(!_fullMode ? "true" : "false")"
                             class="spec-showcard-mode @(!_fullMode ? "is-active" : "")"
                             @onclick="() => { _fullMode = false; _compareMode = false; StateHasChanged(); }">
-                        Tóm tắt
+                        Summary
                     </button>
                     <button type="button"
                             aria-pressed="@(_fullMode ? "true" : "false")"
                             class="spec-showcard-mode @(_fullMode ? "is-active" : "")"
                             @onclick="() => { _fullMode = true; _compareMode = false; StateHasChanged(); }">
-                        Đầy đủ
+                        Full
                     </button>
                     @if (_vmFull?.HasParentRev == true)
                     {
@@ -160,7 +160,7 @@ else if (_detail is not null && _vm is not null)
                                 aria-pressed="@(_compareMode ? "true" : "false")"
                                 class="spec-showcard-mode spec-showcard-compare @(_compareMode ? "is-active" : "")"
                                 @onclick="OnToggleCompareAsync">
-                            So sánh với rev trước @(_compareMode ? "(đang bật)" : "")
+                            Compare with previous rev @(_compareMode ? "(on)" : "")
                         </button>
                     }
                 </div>
@@ -169,14 +169,14 @@ else if (_detail is not null && _vm is not null)
                 {
                     @if (_diffResult is null && _compareLoading)
                     {
-                        <p class="grid-status">Đang tải rev trước để so sánh…</p>
+                        <p class="grid-status">Loading the previous rev to compare…</p>
                     }
                     else if (_compareError is not null)
                     {
                         <div class="modal-banner modal-banner-error" role="alert">
-                            <strong>Không tải được rev trước.</strong>
+                            <strong>Failed to load the previous rev.</strong>
                             <div>@_compareError</div>
-                            <button type="button" class="grid-btn" @onclick="OnToggleCompareAsync">Thử lại</button>
+                            <button type="button" class="grid-btn" @onclick="OnToggleCompareAsync">Retry</button>
                         </div>
                     }
                     else
@@ -233,10 +233,10 @@ else if (_detail is not null && _vm is not null)
                     OnSuperseded="OnSupersededAsync" />
 
 <SpecConfirmActionModal Open="_trashOpen"
-                        Title="@($"Xoá Spec {(_detail?.SpecCode ?? "")} vào Thùng rác?")"
-                        Message="Spec sẽ bị soft-delete. Có thể khôi phục từ tab Thùng rác. Lưu ý: server sẽ chặn nếu còn Work Order đang dùng Spec này."
-                        ConfirmLabel="Xoá vào Thùng rác"
-                        PendingLabel="Đang xoá…"
+                        Title="@($"Move Spec {(_detail?.SpecCode ?? "")} to Trash?")"
+                        Message="The Spec will be soft-deleted. It can be restored from the Trash tab. Note: the server will block this if a Work Order is still using this Spec."
+                        ConfirmLabel="Move to Trash"
+                        PendingLabel="Deleting…"
                         Severity="ModalSeverity.Danger"
                         OnConfirm="OnTrashConfirmAsync"
                         OnClose="() => { _trashOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
@@ -344,7 +344,7 @@ else if (_detail is not null && _vm is not null)
             _detail = await Api.GetSpecDetailAsync(RevisionId);
             if (_detail is null)
             {
-                _detailError = "Không tìm thấy Spec này (404).";
+                _detailError = "This Spec was not found (404).";
             }
             else
             {
@@ -358,7 +358,7 @@ else if (_detail is not null && _vm is not null)
         }
         catch (HttpRequestException ex)
         {
-            _detailError = $"Không kết nối được máy chủ: {ex.Message}";
+            _detailError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -410,7 +410,7 @@ else if (_detail is not null && _vm is not null)
             var parentDetail = await Api.GetSpecDetailAsync(parentEntry.Id);
             if (parentDetail is null)
             {
-                _compareError = $"Rev trước (id={parentEntry.Id}) đã bị xoá hoặc không truy cập được.";
+                _compareError = $"The previous rev (id={parentEntry.Id}) has been deleted or is not accessible.";
                 _compareMode = false;
                 return;
             }
@@ -424,7 +424,7 @@ else if (_detail is not null && _vm is not null)
         }
         catch (HttpRequestException ex)
         {
-            _compareError = $"Không kết nối được máy chủ: {ex.Message}";
+            _compareError = $"Could not connect to the server: {ex.Message}";
             _compareMode = false;
         }
         catch (Exception ex)
@@ -468,7 +468,7 @@ else if (_detail is not null && _vm is not null)
             _drawings = await Api.GetDrawingsByRevisionAsync(RevisionId);
         }
         catch (ApiException apiEx) { _drawingsError = apiEx.ApiError.MessageEn; }
-        catch (HttpRequestException ex) { _drawingsError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (HttpRequestException ex) { _drawingsError = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _drawingsError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _drawingsLoading = false; }
     }
@@ -482,7 +482,7 @@ else if (_detail is not null && _vm is not null)
             _qcWindows = await Api.GetQcWindowsByRevisionAsync(RevisionId);
         }
         catch (ApiException apiEx) { _qcWindowsError = apiEx.ApiError.MessageEn; }
-        catch (HttpRequestException ex) { _qcWindowsError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (HttpRequestException ex) { _qcWindowsError = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _qcWindowsError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _qcWindowsLoading = false; }
     }
@@ -506,7 +506,7 @@ else if (_detail is not null && _vm is not null)
             }
         }
         catch (ApiException apiEx) { _qcCapturesError = apiEx.ApiError.MessageEn; }
-        catch (HttpRequestException ex) { _qcCapturesError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (HttpRequestException ex) { _qcCapturesError = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _qcCapturesError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _qcCapturesLoading = false; }
     }
@@ -528,7 +528,7 @@ else if (_detail is not null && _vm is not null)
     {
         if (_drawingsLoading)
         {
-            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Đang tải bản vẽ…</p>");
+            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Loading drawings…</p>");
             return;
         }
         if (_drawingsError is not null)
@@ -536,13 +536,13 @@ else if (_detail is not null && _vm is not null)
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "grid-error");
             __builder.AddAttribute(2, "role", "alert");
-            __builder.AddMarkupContent(3, "<strong>Không tải được Drawings.</strong>");
+            __builder.AddMarkupContent(3, "<strong>Failed to load Drawings.</strong>");
             __builder.AddMarkupContent(4, $"<div>{System.Net.WebUtility.HtmlEncode(_drawingsError)}</div>");
             __builder.OpenElement(5, "button");
             __builder.AddAttribute(6, "type", "button");
             __builder.AddAttribute(7, "class", "grid-btn");
             __builder.AddAttribute(8, "onclick", EventCallback.Factory.Create(this, LoadDrawingsAsync));
-            __builder.AddContent(9, "Thử lại");
+            __builder.AddContent(9, "Retry");
             __builder.CloseElement();
             __builder.CloseElement();
             return;
@@ -561,20 +561,20 @@ else if (_detail is not null && _vm is not null)
     {
         if (_qcWindowsLoading)
         {
-            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Đang tải QC Plans…</p>");
+            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Loading QC Plans…</p>");
             return;
         }
         if (_qcWindowsError is not null)
         {
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "grid-error");
-            __builder.AddMarkupContent(2, "<strong>Không tải được QC Plans.</strong>");
+            __builder.AddMarkupContent(2, "<strong>Failed to load QC Plans.</strong>");
             __builder.AddMarkupContent(3, $"<div>{System.Net.WebUtility.HtmlEncode(_qcWindowsError)}</div>");
             __builder.OpenElement(4, "button");
             __builder.AddAttribute(5, "type", "button");
             __builder.AddAttribute(6, "class", "grid-btn");
             __builder.AddAttribute(7, "onclick", EventCallback.Factory.Create(this, LoadQcWindowsAsync));
-            __builder.AddContent(8, "Thử lại");
+            __builder.AddContent(8, "Retry");
             __builder.CloseElement();
             __builder.CloseElement();
             return;
@@ -594,20 +594,20 @@ else if (_detail is not null && _vm is not null)
     {
         if (_qcCapturesLoading || _qcWindowsLoading)
         {
-            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Đang tải QC Capture…</p>");
+            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Loading QC Capture…</p>");
             return;
         }
         if (_qcCapturesError is not null)
         {
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "grid-error");
-            __builder.AddMarkupContent(2, "<strong>Không tải được QC Capture.</strong>");
+            __builder.AddMarkupContent(2, "<strong>Failed to load QC Capture.</strong>");
             __builder.AddMarkupContent(3, $"<div>{System.Net.WebUtility.HtmlEncode(_qcCapturesError)}</div>");
             __builder.OpenElement(4, "button");
             __builder.AddAttribute(5, "type", "button");
             __builder.AddAttribute(6, "class", "grid-btn");
             __builder.AddAttribute(7, "onclick", EventCallback.Factory.Create(this, LoadQcCapturesAsync));
-            __builder.AddContent(8, "Thử lại");
+            __builder.AddContent(8, "Retry");
             __builder.CloseElement();
             __builder.CloseElement();
             return;
@@ -634,8 +634,8 @@ else if (_detail is not null && _vm is not null)
         // identity reminder + deferred notice so operator knows the path.
         __builder.AddMarkupContent(0, """
             <div class="spec-tab-stub">
-                <p>Khu vực hiển thị mẫu artwork (SVG 4-layer toggle).</p>
-                <p class="spec-deferred-note"><em>Sẽ có ở bản 5e — kèm 3 template (brady-safety / ccl-cosmetic / panel-face) khớp SpecHub.</em></p>
+                <p>Artwork preview area (SVG 4-layer toggle).</p>
+                <p class="spec-deferred-note"><em>Coming in 5e — with 3 templates (brady-safety / ccl-cosmetic / panel-face) matching SpecHub.</em></p>
             </div>
             """);
     };
@@ -659,10 +659,10 @@ else if (_detail is not null && _vm is not null)
         AddCell(__builder, "Varnish", _detail.Varnish);
         AddCell(__builder, "Pitch (mm)", _detail.LengthPitchMm?.ToString("0.##") ?? "—");
         AddCell(__builder, "Printing cavity", _detail.PrintingCavity?.ToString() ?? "—");
-        AddCell(__builder, "White underprint", _detail.WhiteUnderprint ? "Có" : "Không");
+        AddCell(__builder, "White underprint", _detail.WhiteUnderprint ? "Yes" : "No");
         __builder.CloseElement();
         __builder.CloseElement();
-        __builder.AddMarkupContent(99, "<p class=\"spec-deferred-note\"><em>Bảng Flexo print rows / Silk colors sẽ có ở bản 5c (Full showcard).</em></p>");
+        __builder.AddMarkupContent(99, "<p class=\"spec-deferred-note\"><em>The Flexo print rows / Silk colors table is coming in 5c (Full showcard).</em></p>");
         __builder.CloseElement();
     };
 
@@ -686,8 +686,8 @@ else if (_detail is not null && _vm is not null)
 
     private static string QcStageLabel(string stageKey) => stageKey switch
     {
-        "IpqcPrint" => "IPQC — In",
-        "IpqcCut"   => "IPQC — Bế",
+        "IpqcPrint" => "IPQC — Print",
+        "IpqcCut"   => "IPQC — Diecut",
         "Fqc"       => "FQC",
         "Oqc"       => "OQC",
         _            => stageKey,
@@ -695,21 +695,21 @@ else if (_detail is not null && _vm is not null)
 
     private static string DrawingSlotStatusLabel(DrawingSlotStatus s) => s switch
     {
-        DrawingSlotStatus.Draft            => "Nháp",
-        DrawingSlotStatus.PendingApproval  => "Chờ duyệt",
-        DrawingSlotStatus.Approved         => "Đã duyệt",
-        DrawingSlotStatus.Superseded       => "Đã thay thế",
-        DrawingSlotStatus.Withdrawn        => "Đã thu hồi",
+        DrawingSlotStatus.Draft            => "Draft",
+        DrawingSlotStatus.PendingApproval  => "Pending Approval",
+        DrawingSlotStatus.Approved         => "Approved",
+        DrawingSlotStatus.Superseded       => "Superseded",
+        DrawingSlotStatus.Withdrawn        => "Withdrawn",
         _                                   => s.ToString(),
     };
 
     private static string DrawingVersionStatusLabel(DrawingVersionStatus s) => s switch
     {
-        DrawingVersionStatus.Draft            => "Nháp",
-        DrawingVersionStatus.PendingApproval  => "Chờ duyệt",
-        DrawingVersionStatus.Approved         => "Đã duyệt",
-        DrawingVersionStatus.Rejected         => "Đã từ chối",
-        DrawingVersionStatus.Superseded       => "Đã thay thế",
+        DrawingVersionStatus.Draft            => "Draft",
+        DrawingVersionStatus.PendingApproval  => "Pending Approval",
+        DrawingVersionStatus.Approved         => "Approved",
+        DrawingVersionStatus.Rejected         => "Rejected",
+        DrawingVersionStatus.Superseded       => "Superseded",
         _                                      => s.ToString(),
     };
 
@@ -732,7 +732,7 @@ else if (_detail is not null && _vm is not null)
         try
         {
             var resp = await Api.ApproveSpecAsync(_detail.Id);
-            _actionBanner = $"✓ Đã duyệt — trạng thái mới: {resp.Status}";
+            _actionBanner = $"✓ Approved — new status: {resp.Status}";
             _actionBannerIsError = false;
             await LoadDetailAsync();
         }
@@ -770,8 +770,8 @@ else if (_detail is not null && _vm is not null)
     private async Task OnUpdatedAsync(SpecMutationResponse resp)
     {
         _actionBanner = resp.NoChanges == true
-            ? "Không có thay đổi để lưu."
-            : "✓ Đã lưu thay đổi.";
+            ? "No changes to save."
+            : "✓ Changes saved.";
         _actionBannerIsError = false;
         await LoadDetailAsync();
     }
@@ -791,7 +791,7 @@ else if (_detail is not null && _vm is not null)
 
     private async Task OnSupersededAsync(SpecMutationResponse resp)
     {
-        _actionBanner = $"✓ Đã đánh dấu Thay thế — trạng thái mới: {resp.Status}";
+        _actionBanner = $"✓ Marked Superseded — new status: {resp.Status}";
         _actionBannerIsError = false;
         await LoadDetailAsync();
     }
@@ -813,7 +813,7 @@ else if (_detail is not null && _vm is not null)
     {
         if (_exporting || _detail is null) return;
         _exporting = true;
-        _exportBanner = "Đang tạo PDF…";
+        _exportBanner = "Generating PDF…";
         _exportBannerKind = "info";
         _exportSandboxPath = null;
         StateHasChanged();
@@ -834,12 +834,12 @@ else if (_detail is not null && _vm is not null)
         }
         catch (HttpRequestException ex)
         {
-            _exportBanner = $"Không kết nối được máy chủ: {ex.Message}";
+            _exportBanner = $"Could not connect to the server: {ex.Message}";
             _exportBannerKind = "danger";
         }
         catch (Exception ex)
         {
-            _exportBanner = $"Xuất PDF thất bại: {ex.Message}";
+            _exportBanner = $"PDF export failed: {ex.Message}";
             _exportBannerKind = "danger";
         }
         finally
@@ -854,8 +854,8 @@ else if (_detail is not null && _vm is not null)
         if (outcome.DidSave)
         {
             _exportBanner = outcome.Opened
-                ? $"Đã lưu {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) — đã mở để xem."
-                : $"Đã lưu {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) tại {outcome.DestinationPath}.";
+                ? $"Saved {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) — opened for viewing."
+                : $"Saved {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) at {outcome.DestinationPath}.";
             _exportBannerKind = "success";
             _exportSandboxPath = null;
         }
@@ -863,8 +863,8 @@ else if (_detail is not null && _vm is not null)
         {
             _exportSandboxPath = outcome.SandboxPath;
             _exportBanner = outcome.Opened
-                ? "Bạn đã huỷ hộp thoại lưu — file vẫn nằm trong thư mục tải xuống của ứng dụng và đã được mở để xem."
-                : "Bạn đã huỷ hộp thoại lưu — file đã lưu trong thư mục tải xuống của ứng dụng (bấm Mở file để xem).";
+                ? "You cancelled the save dialog — the file is still in the app's downloads folder and has been opened for viewing."
+                : "You cancelled the save dialog — the file was saved in the app's downloads folder (click Open file to view).";
             _exportBannerKind = "warn";
         }
     }

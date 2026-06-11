@@ -44,21 +44,21 @@
     @if (_view is null && _initialError is null)
     {
         <div class="prepress-loading" data-testid="prepress-loading">
-            Đang tải checklist PREPRESS…
+            Loading PREPRESS checklist…
         </div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="prepress-initial-error">
-            <strong>Không tải được checklist PREPRESS:</strong> @_initialError
+            <strong>Could not load PREPRESS checklist:</strong> @_initialError
         </div>
     }
     else if (_invalidPhase)
     {
         <div class="wo-card-error" data-testid="prepress-invalid-phase">
-            <strong>WO không ở giai đoạn PREPRESS</strong> —
-            Hiện tại: <code>@(_view?.MesPhase ?? "?")</code>.
-            Quay lại tab Work Orders để chọn WO khác.
+            <strong>WO is not in the PREPRESS phase</strong> —
+            Current: <code>@(_view?.MesPhase ?? "?")</code>.
+            Go back to the Work Orders tab to select another WO.
         </div>
     }
     else if (_view is not null)
@@ -76,7 +76,7 @@
                 }
                 else
                 {
-                    <span class="prepress-pill prepress-pill-pending">Materials chưa sẵn sàng</span>
+                    <span class="prepress-pill prepress-pill-pending">Materials not ready</span>
                 }
             </div>
         </div>
@@ -84,11 +84,11 @@
         @if (_setError is not null)
         {
             <div class="wo-card-error" data-testid="prepress-set-error">
-                <strong>Không ghi được thay đổi:</strong> @_setError
+                <strong>Could not save change:</strong> @_setError
                 <button type="button" class="op-btn op-btn-secondary op-btn-sm"
                         @onclick="DismissSetError"
                         data-testid="prepress-set-error-dismiss">
-                    Bỏ qua
+                    Dismiss
                 </button>
             </div>
         }
@@ -96,10 +96,10 @@
         @if (_scrapReasons.Count == 0 && !_reasonsLoading)
         {
             <div class="wo-card-error" data-testid="prepress-reasons-empty">
-                <strong>Danh mục mã lỗi NG trống.</strong>
-                Server chưa seed reason codes (kind=Scrap). Báo IT —
-                khởi động lại API để chạy boot probe
-                <code>[seed] reason_codes</code>; chỉ ghi OK được cho đến khi sửa.
+                <strong>NG defect code catalog is empty.</strong>
+                The server has not seeded reason codes (kind=Scrap). Report to IT —
+                restart the API to run the boot probe
+                <code>[seed] reason_codes</code>; only OK can be recorded until this is fixed.
             </div>
         }
 
@@ -124,12 +124,12 @@
                     data-testid="prepress-advance-btn"
                     disabled="@(!_view.MaterialsReady || _busy)"
                     @onclick="OnAdvanceClicked">
-                Bắt đầu Setting (chuyển bước)
+                Start Setting (advance step)
             </button>
             @if (!_view.MaterialsReady)
             {
                 <span class="prepress-advance-hint" data-testid="prepress-advance-hint">
-                    Hoàn tất 3 checklist (Vật tư + Clichê + Dao) → nút này sẽ kích hoạt.
+                    Complete all 3 checklists (Material + Plate + Cutter) → this button becomes active.
                 </span>
             }
         </div>
@@ -202,11 +202,11 @@
         }
         catch (HttpRequestException ex)
         {
-            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+            _initialError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
-            _initialError = $"Lỗi tải checklist: {ex.GetType().Name}: {ex.Message}";
+            _initialError = $"Error loading checklist: {ex.GetType().Name}: {ex.Message}";
         }
     }
 
@@ -277,7 +277,7 @@
             }
             else
             {
-                _setError = "Máy chủ trả Ok=false không kèm mã lỗi — báo IT.";
+                _setError = "Server returned Ok=false without an error code — report to IT.";
             }
         }
         catch (ApiException apiEx)
@@ -291,7 +291,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+            _setError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {

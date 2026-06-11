@@ -14,12 +14,12 @@
     <button type="button" class="grid-btn"
             aria-expanded="@_open" aria-haspopup="true"
             @onclick="ToggleMenu">
-        Cột (@Columns.Visible.Count / @Columns.All.Count)
+        Columns (@Columns.Visible.Count / @Columns.All.Count)
     </button>
     @if (_open)
     {
         <div class="grid-cols-popover" role="menu" @onclick:stopPropagation="true">
-            <div class="grid-cols-popover-title">Hiện / Ẩn cột</div>
+            <div class="grid-cols-popover-title">Show / Hide columns</div>
             <ul class="grid-cols-list">
                 @foreach (var col in Columns.All)
                 {
@@ -34,8 +34,8 @@
                 }
             </ul>
             <div class="grid-cols-popover-foot">
-                <button type="button" class="grid-btn grid-btn-link" @onclick="OnReset">Mặc định</button>
-                <button type="button" class="grid-btn" @onclick="CloseMenu">Đóng</button>
+                <button type="button" class="grid-btn grid-btn-link" @onclick="OnReset">Default</button>
+                <button type="button" class="grid-btn" @onclick="CloseMenu">Close</button>
             </div>
         </div>
     }

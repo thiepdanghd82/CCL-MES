@@ -18,27 +18,27 @@
        Size="ModalSize.Md"
        Severity="ModalSeverity.Warning"
        ClickOutsideToClose="false">
-    <Header>Tạm dừng (PAUSE) — chọn lý do</Header>
+    <Header>Pause (PAUSE) — select a reason</Header>
     <Body>
         <div class="rs-modal-body" data-testid="pause-modal">
             @if (PauseReasons.Count == 0)
             {
                 <div class="wo-card-error" data-testid="pause-reasons-empty">
-                    <strong>Danh mục lý do PAUSE trống.</strong>
-                    Server chưa seed reason codes (kind=Pause). Báo IT.
+                    <strong>PAUSE reason catalog is empty.</strong>
+                    The server has not seeded reason codes (kind=Pause). Report to IT.
                 </div>
             }
             else
             {
                 <div class="rs-modal-field">
-                    <label class="rs-modal-label" for="pause-reason-select">Lý do tạm dừng *</label>
+                    <label class="rs-modal-label" for="pause-reason-select">Pause reason *</label>
                     <select id="pause-reason-select"
                             class="rs-input rs-select"
                             value="@_reasonCode"
                             data-testid="pause-reason-select"
                             disabled="@Busy"
                             @onchange="OnReasonChange">
-                        <option value="">— chọn lý do —</option>
+                        <option value="">— select a reason —</option>
                         @foreach (var rc in PauseReasons)
                         {
                             <option value="@rc.Code">@rc.Code · @rc.LabelVi</option>
@@ -46,7 +46,7 @@
                     </select>
                 </div>
                 <div class="rs-modal-field">
-                    <label class="rs-modal-label" for="pause-note-input">Ghi chú (tuỳ chọn, ≤ 500 ký tự)</label>
+                    <label class="rs-modal-label" for="pause-note-input">Note (optional, ≤ 500 characters)</label>
                     <input id="pause-note-input"
                            type="text"
                            class="rs-input"
@@ -64,12 +64,12 @@
                 class="op-btn op-btn-secondary"
                 data-testid="pause-cancel-btn"
                 disabled="@Busy"
-                @onclick="OnClose">Huỷ</button>
+                @onclick="OnClose">Cancel</button>
         <button type="button"
                 class="op-btn op-btn-warning"
                 data-testid="pause-confirm-btn"
                 disabled="@(!IsValid || Busy)"
-                @onclick="OnConfirmClicked">Tạm dừng</button>
+                @onclick="OnConfirmClicked">Pause</button>
     </Footer>
 </Modal>
 

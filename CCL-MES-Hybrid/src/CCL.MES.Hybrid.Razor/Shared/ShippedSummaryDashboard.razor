@@ -24,12 +24,12 @@
 <div class="rs-dashboard shipped-summary-dashboard" data-testid="shipped-summary-dashboard">
     @if (_report is null && _initialError is null)
     {
-        <div class="rs-loading" data-testid="shipped-loading">Đang tải tóm tắt WO…</div>
+        <div class="rs-loading" data-testid="shipped-loading">Loading WO summary…</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="shipped-initial-error">
-            <strong>Không tải được tóm tắt:</strong> @_initialError
+            <strong>Could not load summary:</strong> @_initialError
         </div>
     }
     else if (_report is not null)
@@ -43,7 +43,7 @@
             @if (_report.ShippedAt is { } at)
             {
                 <div class="shipped-time-pill" data-testid="shipped-time">
-                    <span class="ipqc-counter-label">Đóng đơn lúc</span>
+                    <span class="ipqc-counter-label">Shipped at</span>
                     <span class="ipqc-counter-value scan-mono">@at.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
                 </div>
             }
@@ -52,14 +52,14 @@
         <div class="shipped-stats-grid">
             @* ── Totals ────────────────────────────────────────────── *@
             <div class="rs-card shipped-stat" data-testid="shipped-totals">
-                <div class="rs-card-head"><div class="rs-card-title">Sản lượng</div></div>
+                <div class="rs-card-head"><div class="rs-card-title">Output</div></div>
                 <div class="shipped-stat-grid">
                     <div class="shipped-stat-cell">
-                        <span class="shipped-stat-label">Mục tiêu</span>
+                        <span class="shipped-stat-label">Target</span>
                         <span class="shipped-stat-value scan-mono">@_report.Totals.QtyTarget</span>
                     </div>
                     <div class="shipped-stat-cell">
-                        <span class="shipped-stat-label">Đã làm</span>
+                        <span class="shipped-stat-label">Done</span>
                         <span class="shipped-stat-value scan-mono">@_report.Totals.QtyDone</span>
                     </div>
                     <div class="shipped-stat-cell">
@@ -75,7 +75,7 @@
 
             @* ── Runtime ──────────────────────────────────────────── *@
             <div class="rs-card shipped-stat" data-testid="shipped-runtime">
-                <div class="rs-card-head"><div class="rs-card-title">Thời gian</div></div>
+                <div class="rs-card-head"><div class="rs-card-title">Time</div></div>
                 <div class="shipped-stat-grid">
                     <div class="shipped-stat-cell">
                         <span class="shipped-stat-label">Run</span>
@@ -86,7 +86,7 @@
                         <span class="shipped-stat-value scan-mono">@FormatDuration(_report.Runtime.PauseSeconds)</span>
                     </div>
                     <div class="shipped-stat-cell">
-                        <span class="shipped-stat-label">Phiên</span>
+                        <span class="shipped-stat-label">Sessions</span>
                         <span class="shipped-stat-value scan-mono">@_report.Runtime.SessionCount</span>
                     </div>
                 </div>
@@ -109,7 +109,7 @@
                         <span class="shipped-stat-value scan-mono">@FormatPct(_report.Oee.Quality)</span>
                     </div>
                     <div class="shipped-oee-cell shipped-oee-total" data-testid="shipped-oee-total">
-                        <span class="shipped-stat-label">OEE tổng</span>
+                        <span class="shipped-stat-label">OEE total</span>
                         <span class="shipped-stat-value scan-mono">@FormatPct(_report.Oee.Oee)</span>
                     </div>
                 </div>
@@ -121,7 +121,7 @@
         {
             <div class="rs-card shipped-pareto" data-testid="shipped-pareto">
                 <div class="rs-card-head">
-                    <div class="rs-card-title">Pareto Pause (top-5)</div>
+                    <div class="rs-card-title">Pause Pareto (top-5)</div>
                 </div>
                 <div class="shipped-pareto-rows">
                     @{ var top5 = _report.PausePareto.Take(5).ToList();
@@ -145,7 +145,7 @@
 
         @* ── 3-leg QC summary ────────────────────────────────────── *@
         <div class="rs-card shipped-qc" data-testid="shipped-qc-summary">
-            <div class="rs-card-head"><div class="rs-card-title">Tóm tắt QC</div></div>
+            <div class="rs-card-head"><div class="rs-card-title">QC summary</div></div>
             <div class="shipped-qc-grid">
                 @RenderQcLeg("IPQC", _report.QcSummary.Ipqc, "shipped-qc-ipqc", showAllSigs: false)
                 @RenderQcLeg("FQC", _report.QcSummary.Fqc, "shipped-qc-fqc", showAllSigs: false)
@@ -185,11 +185,11 @@
         }
         catch (HttpRequestException ex)
         {
-            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+            _initialError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
-            _initialError = $"Lỗi tải tóm tắt: {ex.GetType().Name}: {ex.Message}";
+            _initialError = $"Error loading summary: {ex.GetType().Name}: {ex.Message}";
         }
     }
 
@@ -245,16 +245,16 @@
     private static string FormatDuration(long seconds)
     {
         if (seconds < 60) return $"{seconds}s";
-        if (seconds < 3600) return $"{seconds / 60}p {seconds % 60}s";
+        if (seconds < 3600) return $"{seconds / 60}m {seconds % 60}s";
         var h = seconds / 3600;
         var m = (seconds % 3600) / 60;
-        return $"{h}h {m}p";
+        return $"{h}h {m}m";
     }
 
     private static string JudgmentDisplay(string j) => j switch
     {
         "Pass"       => "✓ Pass",
-        "Pending"    => "— Chờ",
+        "Pending"    => "— Pending",
         "Reject"     => "✗ Reject",
         "GoRun"      => "✓ Go Run",
         "StopLine"   => "✗ Stop Line",

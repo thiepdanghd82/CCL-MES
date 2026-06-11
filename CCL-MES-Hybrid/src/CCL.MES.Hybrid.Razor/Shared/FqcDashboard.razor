@@ -47,20 +47,20 @@
 <div class="rs-dashboard fqc-dashboard" data-testid="fqc-dashboard">
     @if (_view is null && _initialError is null)
     {
-        <div class="rs-loading" data-testid="fqc-loading">Đang tải trạng thái FQC…</div>
+        <div class="rs-loading" data-testid="fqc-loading">Loading FQC status…</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="fqc-initial-error">
-            <strong>Không tải được trạng thái FQC:</strong> @_initialError
+            <strong>Could not load FQC status:</strong> @_initialError
         </div>
     }
     else if (_invalidPhase)
     {
         <div class="wo-card-error" data-testid="fqc-invalid-phase">
-            <strong>WO không ở giai đoạn FQC_PENDING</strong> —
-            Hiện tại: <code>@(_view?.MesPhase ?? "?")</code>.
-            Quay lại tab Work Orders để chọn WO khác.
+            <strong>WO is not in the FQC_PENDING phase</strong> —
+            Current: <code>@(_view?.MesPhase ?? "?")</code>.
+            Go back to the Work Orders tab to select another WO.
         </div>
     }
     else if (_view is not null)
@@ -72,7 +72,7 @@
                 <span class="rs-head-phase rs-phase-fqc">@_view.MesPhase</span>
             </div>
             <div class="ipqc-counter-pill" data-testid="fqc-counter">
-                <span class="ipqc-counter-label">Item đã xác nhận</span>
+                <span class="ipqc-counter-label">Items confirmed</span>
                 <span class="ipqc-counter-value scan-mono">@ConfirmedCount/@(_view.Items.Count)</span>
             </div>
         </div>
@@ -80,19 +80,19 @@
         @if (_setError is not null)
         {
             <div class="wo-card-error" data-testid="fqc-set-error">
-                <strong>Không ghi được thay đổi:</strong> @_setError
+                <strong>Could not save change:</strong> @_setError
                 <button type="button" class="op-btn op-btn-secondary op-btn-sm"
                         @onclick="DismissSetError"
-                        data-testid="fqc-set-error-dismiss">Bỏ qua</button>
+                        data-testid="fqc-set-error-dismiss">Dismiss</button>
             </div>
         }
 
         @if (_view.Items.Count == 0)
         {
             <div class="wo-card-error" data-testid="fqc-empty-profile">
-                <strong>Profile QC trống.</strong>
-                Quản trị phải seed profile FQC (28-item MES_FQC_PROFILE) trước khi vận hành.
-                Báo IT để cấu hình.
+                <strong>QC profile is empty.</strong>
+                An administrator must seed the FQC profile (28-item MES_FQC_PROFILE) before operation.
+                Report to IT to configure.
             </div>
         }
 
@@ -124,7 +124,7 @@
                     @if (item.Status == "Ng" && item.NgReasonCode is not null)
                     {
                         <div class="ipqc-slot-ng-summary" data-testid="@($"fqc-item-{item.ItemKey}-ng-summary")">
-                            <span class="ipqc-slot-ng-label">Mã NG:</span>
+                            <span class="ipqc-slot-ng-label">NG code:</span>
                             <span class="ipqc-slot-ng-value scan-mono">@item.NgReasonCode</span>
                             @if (!string.IsNullOrEmpty(item.NgNote))
                             {
@@ -137,13 +137,13 @@
                     {
                         <div class="ipqc-ng-form" data-testid="@($"fqc-item-{item.ItemKey}-ng-form")">
                             <div class="ipqc-ng-field">
-                                <label class="rs-modal-label" for="@($"fqc-{item.ItemKey}-reason")">Mã NG</label>
+                                <label class="rs-modal-label" for="@($"fqc-{item.ItemKey}-reason")">NG code</label>
                                 <select id="@($"fqc-{item.ItemKey}-reason")"
                                         class="ipqc-input"
                                         value="@_ngReasonCode"
                                         @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
                                         data-testid="@($"fqc-item-{item.ItemKey}-ng-reason")">
-                                    <option value="">— chọn mã NG —</option>
+                                    <option value="">— select NG code —</option>
                                     @foreach (var r in ScrapReasons)
                                     {
                                         <option value="@r.Code">@r.Code — @r.LabelVi</option>
@@ -151,7 +151,7 @@
                                 </select>
                             </div>
                             <div class="ipqc-ng-field ipqc-ng-field-wide">
-                                <label class="rs-modal-label" for="@($"fqc-{item.ItemKey}-note")">Ghi chú NG (1-500 ký tự)</label>
+                                <label class="rs-modal-label" for="@($"fqc-{item.ItemKey}-note")">NG note (1-500 characters)</label>
                                 <input id="@($"fqc-{item.ItemKey}-note")"
                                        type="text"
                                        class="ipqc-input"
@@ -165,13 +165,13 @@
                                 <button type="button"
                                         class="op-btn op-btn-secondary"
                                         @onclick="CloseNgForm"
-                                        data-testid="@($"fqc-item-{item.ItemKey}-ng-cancel")">Huỷ</button>
+                                        data-testid="@($"fqc-item-{item.ItemKey}-ng-cancel")">Cancel</button>
                                 <button type="button"
                                         class="op-btn op-btn-danger"
                                         disabled="@(!CanSubmitNg() || _busy)"
                                         @onclick="@(() => OnSetNgAsync(item))"
                                         data-testid="@($"fqc-item-{item.ItemKey}-ng-submit")">
-                                    Lưu NG
+                                    Save NG
                                 </button>
                             </div>
                         </div>
@@ -192,18 +192,18 @@
         @* ── Judgment row ──────────────────────────────────────────── *@
         <div class="rs-card ipqc-judgment" data-testid="fqc-judgment">
             <div class="rs-card-head">
-                <div class="rs-card-title">Phán quyết FQC (Inspector)</div>
+                <div class="rs-card-title">FQC judgment (Inspector)</div>
                 @if (_view.IsReadyForJudgment)
                 {
                     <div class="ipqc-rollup-pill @(_view.AnyNg ? "ipqc-rollup-warn" : "ipqc-rollup-ok")"
                          data-testid="fqc-rollup-pill">
                         @if (_view.AllOk)
                         {
-                            <span>Tất cả item OK — đề xuất Pass</span>
+                            <span>All items OK — Pass recommended</span>
                         }
                         else
                         {
-                            <span>Có item NG — chọn Reject (về PREPRESS)</span>
+                            <span>One or more items NG — choose Reject (back to PREPRESS)</span>
                         }
                     </div>
                 }
@@ -211,7 +211,7 @@
                 {
                     <div class="ipqc-rollup-pill ipqc-rollup-pending"
                          data-testid="fqc-rollup-pill">
-                        Còn @(_view.Items.Count - ConfirmedCount) item chưa xác nhận
+                        @(_view.Items.Count - ConfirmedCount) item(s) not yet confirmed
                     </div>
                 }
             </div>
@@ -237,7 +237,7 @@
             {
                 <div class="ipqc-judgment-reason">
                     <label class="rs-modal-label" for="fqc-reject-reason">
-                        Lý do Reject (bắt buộc; 1-500 ký tự)
+                        Reject reason (required; 1-500 characters)
                     </label>
                     <input id="fqc-reject-reason"
                            type="text"
@@ -253,19 +253,19 @@
             @if (!_view.IsReadyForJudgment)
             {
                 <div class="rs-action-hint" data-testid="fqc-judgment-hint">
-                    Xác nhận đủ các item FQC → nút phán quyết kích hoạt.
+                    Confirm all FQC items → the judgment buttons become active.
                 </div>
             }
             else if (!_view.AnyNg)
             {
                 <div class="rs-action-hint" data-testid="fqc-judgment-hint">
-                    Tất cả item OK — chỉ <strong>Pass</strong> hợp lệ.
+                    All items OK — only <strong>Pass</strong> is valid.
                 </div>
             }
             else
             {
                 <div class="rs-action-hint" data-testid="fqc-judgment-hint">
-                    Có item NG — <strong>Reject</strong> đưa WO về PREPRESS để rework.
+                    One or more items NG — <strong>Reject</strong> sends the WO back to PREPRESS for rework.
                 </div>
             }
         </div>
@@ -332,11 +332,11 @@
         }
         catch (HttpRequestException ex)
         {
-            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+            _initialError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
-            _initialError = $"Lỗi tải trạng thái FQC: {ex.GetType().Name}: {ex.Message}";
+            _initialError = $"Error loading FQC status: {ex.GetType().Name}: {ex.Message}";
         }
     }
 
@@ -351,7 +351,7 @@
     {
         "Ok" => "✓ OK",
         "Ng" => "✗ NG",
-        _    => "— Chờ",
+        _    => "— Pending",
     };
 
     private static string StatusPillCss(string status) => status switch
@@ -419,7 +419,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+            _setError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -480,7 +480,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+            _setError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -505,6 +505,6 @@
             await ReloadAsync();
             return;
         }
-        _setError = "Máy chủ trả Ok=false không kèm mã lỗi — báo IT.";
+        _setError = "Server returned Ok=false without an error code — report to IT.";
     }
 }

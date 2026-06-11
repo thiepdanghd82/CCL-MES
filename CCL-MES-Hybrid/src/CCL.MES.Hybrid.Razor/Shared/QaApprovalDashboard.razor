@@ -38,20 +38,20 @@
 <div class="rs-dashboard qa-dashboard" data-testid="qa-dashboard">
     @if (_view is null && _initialError is null)
     {
-        <div class="rs-loading" data-testid="qa-loading">Đang tải trạng thái QA…</div>
+        <div class="rs-loading" data-testid="qa-loading">Loading QA status…</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="qa-initial-error">
-            <strong>Không tải được trạng thái QA:</strong> @_initialError
+            <strong>Could not load QA status:</strong> @_initialError
         </div>
     }
     else if (_invalidPhase)
     {
         <div class="wo-card-error" data-testid="qa-invalid-phase">
-            <strong>WO không ở giai đoạn QA_PENDING</strong> —
-            Hiện tại: <code>@(_view?.MesPhase ?? "?")</code>.
-            Quay lại tab Work Orders để chọn WO khác.
+            <strong>WO is not in the QA_PENDING phase</strong> —
+            Current: <code>@(_view?.MesPhase ?? "?")</code>.
+            Go back to the Work Orders tab to select another WO.
         </div>
     }
     else if (_view is not null)
@@ -63,7 +63,7 @@
                 <span class="rs-head-phase rs-phase-paused">@_view.MesPhase</span>
             </div>
             <div class="qa-submitter-pill" data-testid="qa-submitter">
-                <span class="qa-submitter-label">Người nộp IPQC</span>
+                <span class="qa-submitter-label">IPQC submitted by</span>
                 <span class="qa-submitter-value scan-mono">@(_view.IpqcSubmittedBy ?? "?")</span>
                 @if (_view.IpqcSubmittedAt is { } at)
                 {
@@ -75,10 +75,10 @@
         @if (_setError is not null)
         {
             <div class="wo-card-error" data-testid="qa-set-error">
-                <strong>Không ghi được thay đổi:</strong> @_setError
+                <strong>Could not save change:</strong> @_setError
                 <button type="button" class="op-btn op-btn-secondary op-btn-sm"
                         @onclick="DismissSetError"
-                        data-testid="qa-set-error-dismiss">Bỏ qua</button>
+                        data-testid="qa-set-error-dismiss">Dismiss</button>
             </div>
         }
 
@@ -86,7 +86,7 @@
         @if (IsSameAsSubmitter())
         {
             <div class="wo-card-error qa-q3-banner" data-testid="qa-q3-banner">
-                <strong>⚠ Chính sách dual-sig:</strong>
+                <strong>⚠ Dual-sig policy:</strong>
                 @CCL.MES.Hybrid.Client.IpqcReview.IpqcReviewErrorLocaliser.Q3SameUserBanner
             </div>
         }
@@ -94,16 +94,16 @@
         @* ── Context card: read-only IPQC summary ─────────────────── *@
         <div class="rs-card qa-context">
             <div class="rs-card-head">
-                <div class="rs-card-title">Tóm tắt IPQC (chỉ đọc)</div>
+                <div class="rs-card-title">IPQC summary (read-only)</div>
                 <div class="ipqc-rollup-pill @(_view.AnyNg ? "ipqc-rollup-warn" : "ipqc-rollup-ok")"
                      data-testid="qa-rollup-pill">
                     @if (_view.AllOk)
                     {
-                        <span>Tất cả OK</span>
+                        <span>All OK</span>
                     }
                     else
                     {
-                        <span>Có slot NG</span>
+                        <span>One or more slots NG</span>
                     }
                 </div>
             </div>
@@ -145,7 +145,7 @@
             @if (!string.IsNullOrWhiteSpace(_view.SpecialAcceptReason))
             {
                 <div class="qa-special-reason" data-testid="qa-special-reason">
-                    <div class="qa-special-reason-label">Lý do Special Accept (do IPQC nhập)</div>
+                    <div class="qa-special-reason-label">Special Accept reason (entered by IPQC)</div>
                     <div class="qa-special-reason-body">@_view.SpecialAcceptReason</div>
                 </div>
             }
@@ -154,12 +154,12 @@
         @* ── QA action card ──────────────────────────────────────── *@
         <div class="rs-card qa-action">
             <div class="rs-card-head">
-                <div class="rs-card-title">Phán quyết QA</div>
+                <div class="rs-card-title">QA judgment</div>
             </div>
 
             <div class="qa-reason-field">
                 <label class="rs-modal-label" for="qa-reason">
-                    Ghi chú QA (tuỳ chọn cho Approve · BẮT BUỘC cho Reject; 1-500 ký tự)
+                    QA note (optional for Approve · REQUIRED for Reject; 1-500 characters)
                 </label>
                 <input id="qa-reason"
                        type="text"
@@ -175,7 +175,7 @@
                 <button type="button"
                         class="op-btn op-btn-success ipqc-judgment-btn"
                         disabled="@(!CanApprove() || _busy)"
-                        title="@(IsSameAsSubmitter() ? "Người duyệt QA phải khác người nộp IPQC" : "")"
+                        title="@(IsSameAsSubmitter() ? "The QA approver must differ from the IPQC submitter" : "")"
                         @onclick="@(() => OnQaDecisionAsync(QaApprove))"
                         data-testid="qa-approve-btn">
                     Approve
@@ -192,14 +192,14 @@
             @if (IsSameAsSubmitter())
             {
                 <div class="rs-action-hint qa-hint-q3" data-testid="qa-hint-q3">
-                    Nút Approve đã khoá vì bạn chính là người nộp IPQC.
-                    Đăng xuất + đăng nhập bằng tài khoản QC khác để duyệt.
+                    The Approve button is locked because you are the IPQC submitter.
+                    Log out and log in with a different QC account to approve.
                 </div>
             }
             else if (string.IsNullOrEmpty(_view.IpqcSubmittedBy))
             {
                 <div class="rs-action-hint" data-testid="qa-hint-no-submitter">
-                    Chưa có thông tin người nộp IPQC — tải lại trang.
+                    No IPQC submitter information yet — reload the page.
                 </div>
             }
         </div>
@@ -255,11 +255,11 @@
         }
         catch (HttpRequestException ex)
         {
-            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+            _initialError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
-            _initialError = $"Lỗi tải trạng thái QA: {ex.GetType().Name}: {ex.Message}";
+            _initialError = $"Error loading QA status: {ex.GetType().Name}: {ex.Message}";
         }
     }
 
@@ -337,7 +337,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+            _setError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -362,7 +362,7 @@
             await ReloadAsync();
             return;
         }
-        _setError = "Máy chủ trả Ok=false không kèm mã lỗi — báo IT.";
+        _setError = "Server returned Ok=false without an error code — report to IT.";
     }
 
     // ── Display helpers (shared shape with IpqcDashboard) ───────────
@@ -371,7 +371,7 @@
     {
         "Ok" => "✓ OK",
         "Ng" => "✗ NG",
-        _    => "— Chờ",
+        _    => "— Pending",
     };
 
     private static string StatusPillCss(string status) => status switch

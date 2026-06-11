@@ -52,20 +52,20 @@
 <div class="rs-dashboard ipqc-dashboard" data-testid="ipqc-dashboard">
     @if (_view is null && _initialError is null)
     {
-        <div class="rs-loading" data-testid="ipqc-loading">Đang tải trạng thái IPQC…</div>
+        <div class="rs-loading" data-testid="ipqc-loading">Loading IPQC status…</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="ipqc-initial-error">
-            <strong>Không tải được trạng thái IPQC:</strong> @_initialError
+            <strong>Could not load IPQC status:</strong> @_initialError
         </div>
     }
     else if (_invalidPhase)
     {
         <div class="wo-card-error" data-testid="ipqc-invalid-phase">
-            <strong>WO không ở giai đoạn IPQC_WAIT</strong> —
-            Hiện tại: <code>@(_view?.MesPhase ?? "?")</code>.
-            Quay lại tab Work Orders để chọn WO khác.
+            <strong>WO is not in the IPQC_WAIT phase</strong> —
+            Current: <code>@(_view?.MesPhase ?? "?")</code>.
+            Go back to the Work Orders tab to select another WO.
         </div>
     }
     else if (_view is not null)
@@ -77,7 +77,7 @@
                 <span class="rs-head-phase rs-phase-ipqc">@_view.MesPhase</span>
             </div>
             <div class="ipqc-counter-pill" data-testid="ipqc-counter">
-                <span class="ipqc-counter-label">Slot đã xác nhận</span>
+                <span class="ipqc-counter-label">Slots confirmed</span>
                 <span class="ipqc-counter-value scan-mono">@ConfirmedCount/4</span>
             </div>
         </div>
@@ -85,10 +85,10 @@
         @if (_setError is not null)
         {
             <div class="wo-card-error" data-testid="ipqc-set-error">
-                <strong>Không ghi được thay đổi:</strong> @_setError
+                <strong>Could not save change:</strong> @_setError
                 <button type="button" class="op-btn op-btn-secondary op-btn-sm"
                         @onclick="DismissSetError"
-                        data-testid="ipqc-set-error-dismiss">Bỏ qua</button>
+                        data-testid="ipqc-set-error-dismiss">Dismiss</button>
             </div>
         }
 
@@ -121,7 +121,7 @@
                     @if (SlotStatus(slot) == "Ng" && SlotNgReason(slot) is { } persistedReason)
                     {
                         <div class="ipqc-slot-ng-summary" data-testid="@($"ipqc-slot-{slot.Key}-ng-summary")">
-                            <span class="ipqc-slot-ng-label">Mã NG:</span>
+                            <span class="ipqc-slot-ng-label">NG code:</span>
                             <span class="ipqc-slot-ng-value scan-mono">@persistedReason</span>
                             @if (SlotNgNote(slot) is { Length: > 0 } persistedNote)
                             {
@@ -134,13 +134,13 @@
                     {
                         <div class="ipqc-ng-form" data-testid="@($"ipqc-slot-{slot.Key}-ng-form")">
                             <div class="ipqc-ng-field">
-                                <label class="rs-modal-label" for="@($"ipqc-{slot.Key}-reason")">Mã NG</label>
+                                <label class="rs-modal-label" for="@($"ipqc-{slot.Key}-reason")">NG code</label>
                                 <select id="@($"ipqc-{slot.Key}-reason")"
                                         class="ipqc-input"
                                         value="@_ngReasonCode"
                                         @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
                                         data-testid="@($"ipqc-slot-{slot.Key}-ng-reason")">
-                                    <option value="">— chọn mã NG —</option>
+                                    <option value="">— select NG code —</option>
                                     @foreach (var r in ScrapReasons)
                                     {
                                         <option value="@r.Code">@r.Code — @r.LabelVi</option>
@@ -149,12 +149,12 @@
                                 @if (ScrapReasons.Count == 0)
                                 {
                                     <div class="ipqc-hint ipqc-hint-warn">
-                                        Danh mục NG trống — báo IT để seed reason codes (kind=Scrap).
+                                        NG catalog is empty — report to IT to seed reason codes (kind=Scrap).
                                     </div>
                                 }
                             </div>
                             <div class="ipqc-ng-field ipqc-ng-field-wide">
-                                <label class="rs-modal-label" for="@($"ipqc-{slot.Key}-note")">Ghi chú NG (1-500 ký tự)</label>
+                                <label class="rs-modal-label" for="@($"ipqc-{slot.Key}-note")">NG note (1-500 characters)</label>
                                 <input id="@($"ipqc-{slot.Key}-note")"
                                        type="text"
                                        class="ipqc-input"
@@ -168,13 +168,13 @@
                                 <button type="button"
                                         class="op-btn op-btn-secondary"
                                         @onclick="CloseNgForm"
-                                        data-testid="@($"ipqc-slot-{slot.Key}-ng-cancel")">Huỷ</button>
+                                        data-testid="@($"ipqc-slot-{slot.Key}-ng-cancel")">Cancel</button>
                                 <button type="button"
                                         class="op-btn op-btn-danger"
                                         disabled="@(!CanSubmitNg() || _busy)"
                                         @onclick="@(() => OnSlotNgAsync(slot))"
                                         data-testid="@($"ipqc-slot-{slot.Key}-ng-submit")">
-                                    Lưu NG
+                                    Save NG
                                 </button>
                             </div>
                         </div>
@@ -186,18 +186,18 @@
         @* ── Judgment row ───────────────────────────────────────── *@
         <div class="rs-card ipqc-judgment" data-testid="ipqc-judgment">
             <div class="rs-card-head">
-                <div class="rs-card-title">Phán quyết IPQC</div>
+                <div class="rs-card-title">IPQC judgment</div>
                 @if (_view.IsReadyForJudgment)
                 {
                     <div class="ipqc-rollup-pill @(_view.AnyNg ? "ipqc-rollup-warn" : "ipqc-rollup-ok")"
                          data-testid="ipqc-rollup-pill">
                         @if (_view.AllOk)
                         {
-                            <span>Tất cả 4 slot OK — đề xuất Go Run</span>
+                            <span>All 4 slots OK — Go Run recommended</span>
                         }
                         else
                         {
-                            <span>Có slot NG — chọn Stop Line hoặc Special Accept</span>
+                            <span>One or more slots NG — choose Stop Line or Special Accept</span>
                         }
                     </div>
                 }
@@ -205,7 +205,7 @@
                 {
                     <div class="ipqc-rollup-pill ipqc-rollup-pending"
                          data-testid="ipqc-rollup-pill">
-                        Còn @(4 - ConfirmedCount) slot chưa xác nhận
+                        @(4 - ConfirmedCount) slot(s) not yet confirmed
                     </div>
                 }
             </div>
@@ -238,7 +238,7 @@
             {
                 <div class="ipqc-judgment-reason">
                     <label class="rs-modal-label" for="ipqc-sa-reason">
-                        Lý do Special Accept (bắt buộc khi chọn Special Accept; 1-500 ký tự)
+                        Special Accept reason (required when choosing Special Accept; 1-500 characters)
                     </label>
                     <input id="ipqc-sa-reason"
                            type="text"
@@ -254,21 +254,21 @@
             @if (!_view.IsReadyForJudgment)
             {
                 <div class="rs-action-hint" data-testid="ipqc-judgment-hint">
-                    Xác nhận đủ 4 slot (Material + Print A/B/C) → các nút phán quyết kích hoạt.
+                    Confirm all 4 slots (Material + Print A/B/C) → the judgment buttons become active.
                 </div>
             }
             else if (!_view.AnyNg)
             {
                 <div class="rs-action-hint" data-testid="ipqc-judgment-hint">
-                    Tất cả 4 slot OK — chỉ <strong>Go Run</strong> hợp lệ. Stop Line + Special Accept
-                    chỉ dùng khi có slot NG.
+                    All 4 slots OK — only <strong>Go Run</strong> is valid. Stop Line + Special Accept
+                    apply only when a slot is NG.
                 </div>
             }
             else
             {
                 <div class="rs-action-hint" data-testid="ipqc-judgment-hint">
-                    Có slot NG — <strong>Go Run</strong> bị máy chủ từ chối. Chọn Stop Line (về PREPRESS)
-                    hoặc Special Accept (chờ QA duyệt).
+                    One or more slots NG — <strong>Go Run</strong> is rejected by the server. Choose Stop Line (back to PREPRESS)
+                    or Special Accept (await QA approval).
                 </div>
             }
         </div>
@@ -314,10 +314,10 @@
 
     private static readonly SlotDef[] _slots =
     {
-        new("material", "Material recheck", "Đúng cuộn, lot, code, vệ sinh sau setting"),
-        new("print-a",  "Print A — Color (ΔE)", "Đo ΔE ≤ ngưỡng spec (mặc định ≤ 2)"),
-        new("print-b",  "Print B — Registration", "Chồng màu / căn chuẩn trong dung sai"),
-        new("print-c",  "Print C — Content", "Nội dung text + barcode đúng spec"),
+        new("material", "Material recheck", "Correct roll, lot, code, cleaned after setting"),
+        new("print-a",  "Print A — Color (ΔE)", "Measure ΔE ≤ spec threshold (default ≤ 2)"),
+        new("print-b",  "Print B — Registration", "Color overlay / alignment within tolerance"),
+        new("print-c",  "Print C — Content", "Text content + barcode match spec"),
     };
 
     private int ConfirmedCount => _view is null ? 0 :
@@ -356,11 +356,11 @@
         }
         catch (HttpRequestException ex)
         {
-            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+            _initialError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
-            _initialError = $"Lỗi tải trạng thái IPQC: {ex.GetType().Name}: {ex.Message}";
+            _initialError = $"Error loading IPQC status: {ex.GetType().Name}: {ex.Message}";
         }
     }
 
@@ -404,7 +404,7 @@
     {
         "Ok" => "✓ OK",
         "Ng" => "✗ NG",
-        _    => "— Chờ",
+        _    => "— Pending",
     };
 
     private static string StatusPillCss(string status) => status switch
@@ -488,7 +488,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+            _setError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -549,7 +549,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+            _setError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -589,7 +589,7 @@
             return;
         }
 
-        _setError = "Máy chủ trả Ok=false không kèm mã lỗi — báo IT.";
+        _setError = "Server returned Ok=false without an error code — report to IT.";
     }
 
     private sealed record SlotDef(string Key, string Title, string Subtitle);

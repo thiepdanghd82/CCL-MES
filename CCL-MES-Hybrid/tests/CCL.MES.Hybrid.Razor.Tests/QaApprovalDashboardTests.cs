@@ -98,7 +98,7 @@ public sealed class QaApprovalDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='qa-invalid-phase']");
-            Assert.Contains("không ở giai đoạn QA_PENDING", banner.TextContent);
+            Assert.Contains("not in the QA_PENDING phase", banner.TextContent);
         });
     }
 

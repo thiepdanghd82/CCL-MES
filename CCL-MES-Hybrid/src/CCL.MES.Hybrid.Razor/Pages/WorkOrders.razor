@@ -41,16 +41,16 @@
     surfaces as a `network_error` banner; operator retries when LAN is back.
 *@
 
-<h1 class="page-title">Work Orders — Quét &amp; Nhận</h1>
+<h1 class="page-title">Work Orders — Scan &amp; Accept</h1>
 
 @if (!HwOptions.Value.ScanEnabled)
 {
     <div class="hw-gate" role="status">
-        <strong>Tính năng quét đang tắt.</strong>
+        <strong>Scanning is disabled.</strong>
         <p>
-            Đặt <code>Hardware:ScanEnabled = true</code> trong appsettings.json
-            (hoặc env override) để bật luồng scan→WO. Cài đặt ngay tại Settings →
-            Thiết bị nếu trạm này đã được duyệt.
+            Set <code>Hardware:ScanEnabled = true</code> in appsettings.json
+            (or via env override) to enable the scan→WO flow. Configure it under Settings →
+            Devices if this station has been approved.
         </p>
     </div>
 }
@@ -59,7 +59,7 @@ else
     <div class="wo-shell">
         @if (_availability is null)
         {
-            <div class="hw-pill hw-pill-probing">Đang kiểm tra camera…</div>
+            <div class="hw-pill hw-pill-probing">Checking camera…</div>
         }
         else if (!_availability.IsAvailable)
         {
@@ -71,14 +71,14 @@ else
                 <button type="button" class="scan-btn scan-btn-secondary"
                         disabled="@_openingSettings"
                         @onclick="OnOpenSettings">
-                    @(_openingSettings ? "Đang mở…" : "Mở System Settings")
+                    @(_openingSettings ? "Opening…" : "Open System Settings")
                 </button>
                 @if (_openSettingsFailed)
                 {
                     <div class="scan-banner-help">
-                        Không mở được Settings tự động. Vào Apple Menu → System
-                        Settings → Privacy &amp; Security → Camera để bật quyền
-                        cho CCL MES.
+                        Could not open Settings automatically. Go to Apple Menu → System
+                        Settings → Privacy &amp; Security → Camera to grant permission
+                        for CCL MES.
                     </div>
                 }
             }
@@ -89,14 +89,14 @@ else
                 <button type="button" class="scan-btn wo-cta-primary"
                         disabled="@(_scanning || _advancing || _lookingUp)"
                         @onclick="OnScan">
-                    @(_scanning ? "Đang mở camera…" : "Quét WO")
+                    @(_scanning ? "Opening camera…" : "Scan WO")
                 </button>
                 @if (_summary is not null || _lookupError is not null)
                 {
                     <button type="button" class="scan-btn scan-btn-secondary"
                             disabled="@(_scanning || _advancing)"
                             @onclick="ResetState">
-                        Quét WO khác
+                        Scan another WO
                     </button>
                 }
             </div>
@@ -112,12 +112,12 @@ else
             <div class="wo-manual-row">
                 <input type="text"
                        class="wo-manual-input scan-mono"
-                       placeholder="Nhập mã WO (vd. WO-26-3683)"
+                       placeholder="Enter WO code (e.g. WO-26-3683)"
                        value="@_manualCode"
                        @oninput="OnManualInput"
                        @onkeydown="OnManualKeyDown"
                        disabled="@(_scanning || _advancing || _lookingUp)"
-                       aria-label="Nhập mã WO thủ công"
+                       aria-label="Enter WO code manually"
                        autocomplete="off"
                        autocapitalize="off"
                        spellcheck="false" />
@@ -126,14 +126,14 @@ else
                                     || CCL.MES.Hybrid.Client.WorkOrders.WoCodeNormalizer
                                        .NormalizeForManualEntry(_manualCode) is null)"
                         @onclick="OnManualLookup">
-                    @(_lookingUp ? "Đang tra cứu…" : "Tìm")
+                    @(_lookingUp ? "Looking up…" : "Find")
                 </button>
             </div>
 
             @if (_lastScan is not null && _summary is null && _lookupError is null && _lookingUp)
             {
                 <div class="wo-lookup">
-                    <span class="hw-pill hw-pill-probing">Đang tra cứu @(_lastScan.Code)…</span>
+                    <span class="hw-pill hw-pill-probing">Looking up @(_lastScan.Code)…</span>
                 </div>
             }
 
@@ -157,13 +157,13 @@ else
                         <div class="wo-card-wo">@_summary.WoNo</div>
                         <div class="wo-card-step @MesPhaseCssClass(_summary)" data-testid="wo-card-phase-chip">@MesPhaseDisplay(_summary)</div>
                     </div>
-                    <div class="wo-card-row"><span class="wo-card-label">Khách hàng</span><span class="wo-card-value">@(_summary.CustomerName ?? "—")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Mã sản phẩm</span><span class="wo-card-value">@(_summary.ProductCode ?? "—")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Sản phẩm</span><span class="wo-card-value">@(_summary.ProductName ?? "—")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Máy</span><span class="wo-card-value">@(_summary.MachineCode ?? "—") @(_summary.MachineName is null ? "" : $"· {_summary.MachineName}")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Mục tiêu</span><span class="wo-card-value">@_summary.TargetQty @_summary.Uom</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Đã sản xuất</span><span class="wo-card-value">@_summary.ProducedQty @_summary.Uom</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Trạng thái MES</span><span class="wo-card-value scan-mono" data-testid="wo-card-phase-row">@MesPhaseDisplay(_summary)</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Customer</span><span class="wo-card-value">@(_summary.CustomerName ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Product code</span><span class="wo-card-value">@(_summary.ProductCode ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Product</span><span class="wo-card-value">@(_summary.ProductName ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Machine</span><span class="wo-card-value">@(_summary.MachineCode ?? "—") @(_summary.MachineName is null ? "" : $"· {_summary.MachineName}")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Target</span><span class="wo-card-value">@_summary.TargetQty @_summary.Uom</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Produced</span><span class="wo-card-value">@_summary.ProducedQty @_summary.Uom</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">MES status</span><span class="wo-card-value scan-mono" data-testid="wo-card-phase-row">@MesPhaseDisplay(_summary)</span></div>
 
                     @* P10.7a-1.4 — operator-grade success feedback. Today's
                        checkpoint surfaced that the operator tapped Accept
@@ -185,20 +185,20 @@ else
                         @if (_advanceResult?.Ok == true && _showSuccessBanner)
                         {
                             <div class="wo-card-success" data-testid="advance-success-banner">
-                                ✔ Đã chuyển bước: <strong>@(_advanceFromStep ?? "—")</strong>
+                                ✔ Step advanced: <strong>@(_advanceFromStep ?? "—")</strong>
                                 → <strong>@_advanceResult.CurrentStep</strong>
                             </div>
                         }
                         else if (_advanceResult is { Ok: false } && !string.IsNullOrEmpty(_advanceResult.ErrorCode))
                         {
                             <div class="wo-card-error">
-                                <strong>Không chuyển bước được:</strong> @LocaliseAdvanceError(_advanceResult.ErrorCode)
-                                <div class="wo-card-error-detail">Mã lỗi: <code>@_advanceResult.ErrorCode</code></div>
+                                <strong>Could not advance step:</strong> @LocaliseAdvanceError(_advanceResult.ErrorCode)
+                                <div class="wo-card-error-detail">Error code: <code>@_advanceResult.ErrorCode</code></div>
                             </div>
                         }
                         else if (_advanceError is not null)
                         {
-                            <div class="wo-card-error"><strong>Lỗi mạng:</strong> @_advanceError</div>
+                            <div class="wo-card-error"><strong>Network error:</strong> @_advanceError</div>
                         }
 
                         @if (_advanceResult?.Ok != true)
@@ -206,7 +206,7 @@ else
                             <button type="button" class="scan-btn wo-cta-accept"
                                     disabled="@_advancing"
                                     @onclick="OnAdvance">
-                                @(_advancing ? "Đang chuyển bước…" : "Nhận / Bắt đầu (chuyển bước)")
+                                @(_advancing ? "Advancing step…" : "Accept / Start (advance step)")
                             </button>
                         }
                     }
@@ -360,7 +360,7 @@ else
         catch (Exception ex)
         {
             _availability = new HardwareAvailability(false, "probe_failed",
-                $"Lỗi khi kiểm tra: {ex.GetType().Name}: {ex.Message}");
+                $"Error during check: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -381,7 +381,7 @@ else
         }
         catch (Exception ex)
         {
-            _lookupError = $"Lỗi quét: {ex.GetType().Name}: {ex.Message}";
+            _lookupError = $"Scan error: {ex.GetType().Name}: {ex.Message}";
             Log.LogWarning(ex, "[workorders] scan flow failed");
         }
         finally
@@ -435,7 +435,7 @@ else
             var summary = await Api.GetWorkOrderByNoAsync(woCode);
             if (summary is null)
             {
-                _lookupError = $"Không tìm thấy WO số \"{woCode}\". Kiểm tra lại mã hoặc quét lại.";
+                _lookupError = $"WO number \"{woCode}\" not found. Check the code or scan again.";
             }
             else
             {
@@ -448,11 +448,11 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _lookupError = $"Không kết nối được máy chủ: {TrimDetail(ex.Message)}";
+            _lookupError = $"Could not connect to the server: {TrimDetail(ex.Message)}";
         }
         catch (Exception ex)
         {
-            _lookupError = $"Lỗi tra cứu WO: {ex.GetType().Name}: {TrimDetail(ex.Message)}";
+            _lookupError = $"WO lookup error: {ex.GetType().Name}: {TrimDetail(ex.Message)}";
         }
         finally
         {
@@ -504,7 +504,7 @@ else
             .NormalizeForManualEntry(_manualCode);
         if (normalised is null)
         {
-            _lookupError = "Mã WO không hợp lệ — nhập ít nhất 3 ký tự.";
+            _lookupError = "Invalid WO code — enter at least 3 characters.";
             return;
         }
         ResetState(); // clear previous summary/error but keep typed text
@@ -553,11 +553,11 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _lookupError = $"Không kết nối được máy chủ: {TrimDetail(ex.Message)}";
+            _lookupError = $"Could not connect to the server: {TrimDetail(ex.Message)}";
         }
         catch (Exception ex)
         {
-            _lookupError = $"Lỗi tải lại WO: {ex.GetType().Name}: {TrimDetail(ex.Message)}";
+            _lookupError = $"WO reload error: {ex.GetType().Name}: {TrimDetail(ex.Message)}";
         }
         StateHasChanged();
     }
@@ -614,7 +614,7 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _advanceError = $"Không kết nối được máy chủ: {TrimDetail(ex.Message)}";
+            _advanceError = $"Could not connect to the server: {TrimDetail(ex.Message)}";
         }
         catch (Exception ex)
         {

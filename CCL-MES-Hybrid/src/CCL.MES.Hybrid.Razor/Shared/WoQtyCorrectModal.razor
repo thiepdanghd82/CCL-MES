@@ -17,27 +17,27 @@
        Size="ModalSize.Md"
        Severity="ModalSeverity.Warning"
        ClickOutsideToClose="false">
-    <Header>Sửa số lượng — Q5 (append-only)</Header>
+    <Header>Correct quantity — Q5 (append-only)</Header>
     <Body>
         <div class="rs-modal-body" data-testid="qty-correct-modal">
             @if (RecentEntries.Count == 0)
             {
                 <div class="wo-card-error" data-testid="qty-correct-empty">
-                    <strong>Chưa có bản ghi sản lượng nào để sửa.</strong>
-                    Nhập số bằng nút +100 / +500 / +1000 trước khi mở chức năng Sửa số.
+                    <strong>No output records yet to correct.</strong>
+                    Add quantity with the +100 / +500 / +1000 buttons before opening Correct qty.
                 </div>
             }
             else
             {
                 <div class="rs-modal-field">
-                    <label class="rs-modal-label" for="qty-correct-entry-select">Bản ghi gốc *</label>
+                    <label class="rs-modal-label" for="qty-correct-entry-select">Source record *</label>
                     <select id="qty-correct-entry-select"
                             class="rs-input rs-select"
                             value="@_linkedEntryId"
                             data-testid="qty-correct-entry-select"
                             disabled="@Busy"
                             @onchange="OnEntryChange">
-                        <option value="0">— chọn bản ghi —</option>
+                        <option value="0">— select a record —</option>
                         @foreach (var e in RecentEntries)
                         {
                             <option value="@e.EntryId">@FormatEntry(e)</option>
@@ -46,7 +46,7 @@
                 </div>
                 <div class="rs-modal-row">
                     <div class="rs-modal-field">
-                        <label class="rs-modal-label" for="qty-correct-done-input">Sửa Done (Δ, có thể âm)</label>
+                        <label class="rs-modal-label" for="qty-correct-done-input">Correct Done (Δ, may be negative)</label>
                         <input id="qty-correct-done-input"
                                type="number"
                                class="rs-input"
@@ -57,7 +57,7 @@
                                @oninput="OnDoneInput" />
                     </div>
                     <div class="rs-modal-field">
-                        <label class="rs-modal-label" for="qty-correct-ng-input">Sửa NG (Δ, có thể âm)</label>
+                        <label class="rs-modal-label" for="qty-correct-ng-input">Correct NG (Δ, may be negative)</label>
                         <input id="qty-correct-ng-input"
                                type="number"
                                class="rs-input"
@@ -69,7 +69,7 @@
                     </div>
                 </div>
                 <div class="rs-modal-field">
-                    <label class="rs-modal-label" for="qty-correct-reason-input">Lý do sửa * (1-500 ký tự)</label>
+                    <label class="rs-modal-label" for="qty-correct-reason-input">Correction reason * (1-500 characters)</label>
                     <input id="qty-correct-reason-input"
                            type="text"
                            class="rs-input"
@@ -87,12 +87,12 @@
                 class="op-btn op-btn-secondary"
                 data-testid="qty-correct-cancel-btn"
                 disabled="@Busy"
-                @onclick="OnClose">Huỷ</button>
+                @onclick="OnClose">Cancel</button>
         <button type="button"
                 class="op-btn op-btn-primary"
                 data-testid="qty-correct-confirm-btn"
                 disabled="@(!IsValid || Busy)"
-                @onclick="OnConfirmClicked">Lưu sửa</button>
+                @onclick="OnConfirmClicked">Save correction</button>
     </Footer>
 </Modal>
 

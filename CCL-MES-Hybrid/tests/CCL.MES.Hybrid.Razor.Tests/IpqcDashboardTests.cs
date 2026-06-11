@@ -129,7 +129,7 @@ public sealed class IpqcDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='ipqc-invalid-phase']");
-            Assert.Contains("không ở giai đoạn IPQC_WAIT", banner.TextContent);
+            Assert.Contains("not in the IPQC_WAIT phase", banner.TextContent);
         });
     }
 
