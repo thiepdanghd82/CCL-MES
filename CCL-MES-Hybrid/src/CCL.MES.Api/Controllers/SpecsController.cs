@@ -407,6 +407,24 @@ public sealed class SpecsController : ControllerBase
                 InspectionLevel = r.InspectionLevel,
                 ProcessCode = r.ProcessCode,
                 ColorSpecJson = r.ColorSpecJson,
+                // P10.10 — inline-edit fields
+                SubstrateType = r.SubstrateType,
+                AdhesiveType = r.AdhesiveType,
+                ThicknessUm = r.ThicknessUm,
+                PrintingCavity = r.PrintingCavity,
+                LengthPitchMm = r.LengthPitchMm,
+                ProductSizeWmm = r.ProductSizeWmm,
+                ProductSizeHmm = r.ProductSizeHmm,
+                RemarksText = r.RemarksText,
+                RemarksCutText = r.RemarksCutText,
+                Colors = r.Colors?.Select(c => new SpecColorRowInput
+                {
+                    Surface = c.Surface, Color = c.Color, InkName = c.InkName, InkCode = c.InkCode,
+                    Maker = c.Maker, Retarder = c.Retarder, Viscosity = c.Viscosity, Speed = c.Speed,
+                    Squeegee = c.Squeegee, Dry = c.Dry, TemperatureC = c.TemperatureC, TimeMin = c.TimeMin,
+                    Uv = c.Uv, EmulsionUm = c.EmulsionUm, PlateSize = c.PlateSize, Mesh = c.Mesh,
+                    AngleDeg = c.AngleDeg, PlateCode = c.PlateCode, ControlNo = c.ControlNo, Remark = c.Remark,
+                }).ToList(),
             };
             var result = await _svc.UpdateAsync(revisionId, req, ActorName());
             switch (result.Kind)

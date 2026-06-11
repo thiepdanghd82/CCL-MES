@@ -52,6 +52,49 @@ public sealed record UpdateSpecMutation
     public string? InspectionLevel { get; init; }
     public string? ProcessCode { get; init; }
     public string? ColorSpecJson { get; init; }
+
+    // P10.10 — inline-edit additions (all existing entity columns, no
+    // migration). Null = leave unchanged. Material scalars:
+    public string? SubstrateType { get; init; }
+    public string? AdhesiveType { get; init; }
+    public int? ThicknessUm { get; init; }
+    // Print-parameter scalars (SpecPrint):
+    public int? PrintingCavity { get; init; }
+    public double? LengthPitchMm { get; init; }
+    public double? ProductSizeWmm { get; init; }
+    public double? ProductSizeHmm { get; init; }
+    public string? RemarksText { get; init; }
+    public string? RemarksCutText { get; init; }
+    /// <summary>Full replacement of the structured Print colour rows.
+    /// Null = leave unchanged; non-null = replace the whole set (rows are
+    /// re-sequenced 1..N server-side).</summary>
+    public IReadOnlyList<SpecColorRowMutation>? Colors { get; init; }
+}
+
+/// <summary>P10.10 — one structured Print-process colour row for inline
+/// editing. Field names match the wire contract the API binds to.</summary>
+public sealed record SpecColorRowMutation
+{
+    public string? Surface { get; init; }
+    public string? Color { get; init; }
+    public string? InkName { get; init; }
+    public string? InkCode { get; init; }
+    public string? Maker { get; init; }
+    public string? Retarder { get; init; }
+    public double? Viscosity { get; init; }
+    public double? Speed { get; init; }
+    public string? Squeegee { get; init; }
+    public string? Dry { get; init; }
+    public double? TemperatureC { get; init; }
+    public int? TimeMin { get; init; }
+    public string? Uv { get; init; }
+    public double? EmulsionUm { get; init; }
+    public string? PlateSize { get; init; }
+    public string? Mesh { get; init; }
+    public double? AngleDeg { get; init; }
+    public string? PlateCode { get; init; }
+    public int? ControlNo { get; init; }
+    public string? Remark { get; init; }
 }
 
 /// <summary>

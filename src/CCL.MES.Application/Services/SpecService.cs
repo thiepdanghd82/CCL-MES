@@ -564,7 +564,8 @@ public class SpecService
     public async Task<UpdateResult> UpdateAsync(long revisionId, UpdateSpecRequest r, string? user)
     {
         var rev = await _db.ProductRevisions
-            .Include(x => x.Print)
+            .Include(x => x.Material)
+            .Include(x => x.Print).ThenInclude(p => p!.Colors)
             .FirstOrDefaultAsync(x => x.Id == revisionId);
         if (rev is null) return UpdateResult.NotFound();
         if (rev.IsTrashed) return UpdateResult.Trashed();
@@ -603,6 +604,62 @@ public class SpecService
                 rev.Print.ColorSpecJson = r.ColorSpecJson;
                 changed.Add("color_spec_json");
             }
+        }
+
+        // P10.10 — inline-edit: material scalars (only patch an existing
+        // Material row; null = leave unchanged).
+        if (rev.Material is not null)
+        {
+            if (r.SubstrateType is not null && r.SubstrateType != rev.Material.SubstrateType)
+            { rev.Material.SubstrateType = r.SubstrateType; changed.Add("substrate_type"); }
+            if (r.AdhesiveType is not null && r.AdhesiveType != rev.Material.AdhesiveType)
+            { rev.Material.AdhesiveType = r.AdhesiveType; changed.Add("adhesive_type"); }
+            if (r.ThicknessUm is not null && r.ThicknessUm != rev.Material.ThicknessUm)
+            { rev.Material.ThicknessUm = r.ThicknessUm; changed.Add("thickness_um"); }
+        }
+
+        // P10.10 — inline-edit: print-parameter scalars + remarks.
+        if (r.PrintingCavity is not null || r.LengthPitchMm is not null
+            || r.ProductSizeWmm is not null || r.ProductSizeHmm is not null
+            || r.RemarksText is not null || r.RemarksCutText is not null)
+        {
+            rev.Print ??= new SpecPrint();
+            if (r.PrintingCavity is not null && r.PrintingCavity != rev.Print.Cavity)
+            { rev.Print.Cavity = r.PrintingCavity; changed.Add("cavity"); }
+            if (r.LengthPitchMm is not null && r.LengthPitchMm != rev.Print.PitchMm)
+            { rev.Print.PitchMm = r.LengthPitchMm; changed.Add("pitch_mm"); }
+            if (r.ProductSizeWmm is not null && r.ProductSizeWmm != rev.Print.ProductSizeWmm)
+            { rev.Print.ProductSizeWmm = r.ProductSizeWmm; changed.Add("product_size_w"); }
+            if (r.ProductSizeHmm is not null && r.ProductSizeHmm != rev.Print.ProductSizeHmm)
+            { rev.Print.ProductSizeHmm = r.ProductSizeHmm; changed.Add("product_size_h"); }
+            if (r.RemarksText is not null && r.RemarksText != rev.Print.RemarksText)
+            { rev.Print.RemarksText = r.RemarksText; changed.Add("remarks"); }
+            if (r.RemarksCutText is not null && r.RemarksCutText != rev.Print.RemarksCutText)
+            { rev.Print.RemarksCutText = r.RemarksCutText; changed.Add("remarks_cut"); }
+        }
+
+        // P10.10 — inline-edit: replace the structured colour rows. EF deletes
+        // the orphaned children (cascade) and re-adds the supplied set,
+        // re-sequenced 1..N. The legacy ColorSpecJson blob is left as-is.
+        if (r.Colors is not null)
+        {
+            rev.Print ??= new SpecPrint();
+            rev.Print.Colors.Clear();
+            var seq = 1;
+            foreach (var c in r.Colors)
+            {
+                rev.Print.Colors.Add(new SpecPrintColor
+                {
+                    Seq = seq++,
+                    Surface = c.Surface, Color = c.Color, InkName = c.InkName, InkCode = c.InkCode,
+                    Maker = c.Maker, Retarder = c.Retarder, Viscosity = c.Viscosity, Speed = c.Speed,
+                    Squeegee = c.Squeegee, Dry = c.Dry, TemperatureC = c.TemperatureC, TimeMin = c.TimeMin,
+                    Uv = c.Uv, EmulsionUm = c.EmulsionUm, PlateSize = c.PlateSize, Mesh = c.Mesh,
+                    AngleDeg = c.AngleDeg, PlateCode = c.PlateCode, ControlNo = c.ControlNo, Remark = c.Remark,
+                });
+            }
+            rev.Print.NumColors = rev.Print.Colors.Count;
+            changed.Add("colors");
         }
 
         if (changed.Count == 0)

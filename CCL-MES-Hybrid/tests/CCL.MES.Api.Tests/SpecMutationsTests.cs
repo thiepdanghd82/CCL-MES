@@ -225,6 +225,67 @@ public sealed class SpecMutationsTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
+    public async Task Update_inline_print_params_material_and_colors_persist()
+    {
+        // P10.10 — inline-edit write path: material scalars + print params +
+        // structured colour-row replacement all persist on a Draft spec.
+        var client = await EngineerClientAsync("eng-inline");
+        var pid = await SeedProductAsync("PRD-INL");
+        var created = await CreateSpecAsync(client, pid, "INL-001");
+
+        // Seed a Material row so the material scalars are patchable.
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            db.Add(new SpecMaterial { ProductRevisionId = created.Id, SubstrateType = "OLD" });
+            await db.SaveChangesAsync();
+        }
+
+        var resp = await client.PutAsJsonAsync($"/api/v2/specs/{created.Id}", new UpdateSpecMutation
+        {
+            SubstrateType = "PET SH01",
+            AdhesiveType = "PERMANENT",
+            ThicknessUm = 25,
+            PrintingCavity = 3,
+            LengthPitchMm = 545.0,
+            ProductSizeWmm = 526.2,
+            ProductSizeHmm = 104.0,
+            RemarksText = "Inline edited remark",
+            Colors = new[]
+            {
+                new SpecColorRowMutation { Color = "RED 186 C", InkCode = "HI178", PlateCode = "SP1263-1" },
+                new SpecColorRowMutation { Color = "DENSE BLACK", InkCode = "VI20", PlateCode = "SP1263-5" },
+            },
+        });
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var rev = await db.ProductRevisions
+                .Include(x => x.Material)
+                .Include(x => x.Print).ThenInclude(p => p!.Colors)
+                .FirstAsync(x => x.Id == created.Id);
+
+            Assert.Equal("PET SH01", rev.Material!.SubstrateType);
+            Assert.Equal("PERMANENT", rev.Material.AdhesiveType);
+            Assert.Equal(25, rev.Material.ThicknessUm);
+            Assert.Equal(3, rev.Print!.Cavity);
+            Assert.Equal(545.0, rev.Print.PitchMm);
+            Assert.Equal(526.2, rev.Print.ProductSizeWmm);
+            Assert.Equal(104.0, rev.Print.ProductSizeHmm);
+            Assert.Equal("Inline edited remark", rev.Print.RemarksText);
+            Assert.Equal(2, rev.Print.Colors.Count);
+            Assert.Equal(2, rev.Print.NumColors);
+            var ordered = rev.Print.Colors.OrderBy(c => c.Seq).ToList();
+            Assert.Equal(1, ordered[0].Seq);
+            Assert.Equal("RED 186 C", ordered[0].Color);
+            Assert.Equal("HI178", ordered[0].InkCode);
+            Assert.Equal("DENSE BLACK", ordered[1].Color);
+        }
+    }
+
+    [Fact]
     public async Task Update_on_approved_returns_422_immutable_status()
     {
         var client = await EngineerClientAsync("eng-imm");
