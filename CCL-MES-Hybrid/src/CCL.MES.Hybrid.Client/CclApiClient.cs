@@ -14,6 +14,7 @@ using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
 using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
+using CCL.MES.Shared.Qms;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
@@ -91,6 +92,14 @@ public sealed class CclApiClient : ICclApiClient
         var url = $"/{ApiVersion.Prefix}/shop-orders/history" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
         using var resp = await _http.GetAsync(url, ct);
         return await ReadAsAsync<ShopOrderHistoryDto>(resp, ct);
+    }
+
+    // ── QMS (P10.9) ────────────────────────────────────────────────
+
+    public async Task<QmsQueueDto?> GetQmsQueueAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/qms/queue", ct);
+        return await ReadAsAsync<QmsQueueDto>(resp, ct);
     }
 
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)

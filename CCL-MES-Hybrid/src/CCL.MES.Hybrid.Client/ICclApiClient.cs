@@ -10,6 +10,7 @@ using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
 using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
+using CCL.MES.Shared.Qms;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
@@ -44,6 +45,9 @@ public interface ICclApiClient
     Task<MachineDashboardDto?> GetMachineDashboardAsync(CancellationToken ct = default);
     Task<MachineDetailDto?> GetMachineDetailAsync(long workCenterId, CancellationToken ct = default);
     Task<ShopOrderHistoryDto?> GetShopOrderHistoryAsync(string? period, string? search, CancellationToken ct = default);
+
+    // ── QMS (P10.9) ────────────────────────────────────────────────
+    Task<QmsQueueDto?> GetQmsQueueAsync(CancellationToken ct = default);
 
     // ── NPI (pilot scope) ──────────────────────────────────────────
     Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? search, int page, int pageSize, CancellationToken ct = default);

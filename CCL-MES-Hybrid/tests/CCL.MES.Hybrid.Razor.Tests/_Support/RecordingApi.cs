@@ -11,6 +11,7 @@ using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
 using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
+using CCL.MES.Shared.Qms;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
@@ -125,6 +126,16 @@ public sealed class RecordingApi : ICclApiClient
     {
         ShopOrderHistoryCalls.Add((period, search));
         return Task.FromResult(ShopOrderHistory);
+    }
+
+    // P10.9 — QMS Inspection Queue.
+    public QmsQueueDto? QmsQueue { get; set; } = new QmsQueueDto();
+    public int QmsQueueCalls { get; private set; }
+
+    public Task<QmsQueueDto?> GetQmsQueueAsync(CancellationToken ct = default)
+    {
+        QmsQueueCalls++;
+        return Task.FromResult(QmsQueue);
     }
 
     public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
