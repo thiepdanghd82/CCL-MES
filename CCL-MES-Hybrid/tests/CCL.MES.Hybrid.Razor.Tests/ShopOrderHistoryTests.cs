@@ -72,7 +72,7 @@ public sealed class ShopOrderHistoryTests : TestContext
         _api.ShopOrderHistory = History();
         var cut = RenderComponent<ShopOrderHistory>();
 
-        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "7 ngày").Click();
+        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "7d").Click();
 
         Assert.Contains(_api.ShopOrderHistoryCalls, c => c.Period == "7d");
     }
@@ -95,7 +95,7 @@ public sealed class ShopOrderHistoryTests : TestContext
 
         var cut = RenderComponent<ShopOrderHistory>();
 
-        Assert.Contains("Không có lệnh sản xuất", cut.Markup);
+        Assert.Contains("No shop orders", cut.Markup);
         Assert.Empty(cut.FindAll(".md-table tbody tr"));
     }
 }

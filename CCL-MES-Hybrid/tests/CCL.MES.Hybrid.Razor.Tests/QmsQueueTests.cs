@@ -72,7 +72,7 @@ public sealed class QmsQueueTests : TestContext
         // OQC bucket is empty.
         cut.FindAll(".qms-tabs .md-chip").First(b => b.TextContent.Contains("OQC")).Click();
 
-        Assert.Contains("Không có WO nào đang chờ OQC", cut.Markup);
+        Assert.Contains("No WOs waiting for OQC", cut.Markup);
         Assert.Empty(cut.FindAll(".md-table tbody tr"));
     }
 }

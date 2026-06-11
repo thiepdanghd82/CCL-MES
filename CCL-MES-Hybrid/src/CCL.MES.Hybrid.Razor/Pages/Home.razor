@@ -6,20 +6,20 @@
 @inject IAuthSession Session
 @inject ICclApiClient Api
 
-<PageTitle>Trang chủ — CCL MES</PageTitle>
+<PageTitle>Home — CCL MES</PageTitle>
 
 @* P10.10 — Home dashboard, SpecHub-style: greeting + live clock + 4 KPI
    cards (accent border + subtitle) + Today's Focus + Modules grid +
-   Quick Actions. *@
+   Quick Actions. English UI. *@
 <div class="hp-header">
     <div>
         <h1 class="page-title">@_greeting, @(_displayName)</h1>
         <div class="hp-sub">
-            @_now.ToString("dddd, dd/MM/yyyy") · CCL Design Vietnam
+            @_now.ToString("dddd, MMMM d, yyyy") · CCL Design Vietnam
             <span class="hp-badge">@_role</span>
         </div>
     </div>
-    <div class="home-clock" aria-label="Đồng hồ hệ thống">
+    <div class="home-clock" aria-label="System clock">
         <div class="home-clock-time">@_now.ToString("h:mm")</div>
         <div class="home-clock-date">@_now.ToString("tt") · @_now.ToString("HH:mm:ss")</div>
     </div>
@@ -27,22 +27,22 @@
 
 <div class="kpi-row">
     <div class="kpi-card kpi-blue">
-        <div class="kpi-label">Spec trong thư viện</div>
+        <div class="kpi-label">Specs in Library</div>
         <div class="home-kpi-num">@KpiText(_summary?.SpecsTotal)</div>
-        <div class="kpi-sub">tổng số revision đang lưu</div>
+        <div class="kpi-sub">total stored revisions</div>
     </div>
     <div class="kpi-card kpi-amber">
-        <div class="kpi-label">Chờ duyệt</div>
+        <div class="kpi-label">Pending Approvals</div>
         <div class="home-kpi-num">@KpiText(_summary?.PendingApprovals)</div>
         <div class="kpi-sub">@PendingSub</div>
     </div>
     <div class="kpi-card kpi-red">
-        <div class="kpi-label">Bản nháp</div>
+        <div class="kpi-label">Drafts</div>
         <div class="home-kpi-num">@KpiText(_summary?.Drafts)</div>
         <div class="kpi-sub">@DraftsSub</div>
     </div>
     <div class="kpi-card kpi-green">
-        <div class="kpi-label">Hoạt động hôm nay</div>
+        <div class="kpi-label">Today's Activity</div>
         <div class="home-kpi-num">@KpiText(_summary?.TodayActivity)</div>
         <div class="kpi-sub">@TodaySub</div>
     </div>
@@ -51,84 +51,84 @@
 <div class="hp-grid">
     <section class="panel">
         <div class="panel-head">
-            <span>Hôm nay cần chú ý</span>
+            <span>Today's Focus</span>
             @if (_canNpi)
             {
-                <a class="panel-link" href="/npi/specs">Xem tất cả →</a>
+                <a class="panel-link" href="/npi/specs">View all →</a>
             }
         </div>
         <div class="panel-body hp-focus-empty">
             @if (_canNpi)
             {
-                <text>Thư viện đang trống. Mở phân hệ NPI để nạp mẫu hoặc import xlsx ☕</text>
+                <text>Library is empty. Open NPI to load samples or import xlsx ☕</text>
             }
             else
             {
-                <text>Chưa có mục nào cần chú ý hôm nay ☕</text>
+                <text>Nothing needs attention today ☕</text>
             }
         </div>
     </section>
 
     <section class="panel">
-        <div class="panel-head"><span>Phân hệ</span></div>
+        <div class="panel-head"><span>Modules</span></div>
         <div class="module-grid">
             @if (_canNpi)
             {
                 <a class="module-cell" href="/npi/specs">
                     <div class="module-ico">📋</div>
                     <div class="module-name">Engineer Spec</div>
-                    <div class="module-desc">Thư viện NPI Spec</div>
+                    <div class="module-desc">NPI spec library</div>
                 </a>
                 <a class="module-cell" href="/npi/workcenters">
                     <div class="module-ico">🗂️</div>
                     <div class="module-name">NPI Data</div>
-                    <div class="module-desc">BOM / Routing / Vật liệu / WC</div>
+                    <div class="module-desc">BOM / Routing / Materials / WC</div>
                 </a>
             }
             @if (_canRun)
             {
                 <a class="module-cell" href="/workorders">
                     <div class="module-ico">🏭</div>
-                    <div class="module-name">Sản xuất</div>
-                    <div class="module-desc">Quét WO · luồng MES 5 GĐ</div>
+                    <div class="module-name">Production</div>
+                    <div class="module-desc">Scan WO · 5-stage MES flow</div>
                 </a>
             }
             <a class="module-cell" href="/machines">
                 <div class="module-ico">🖥️</div>
-                <div class="module-name">Bảng máy</div>
-                <div class="module-desc">Giám sát 43 trung tâm SX</div>
+                <div class="module-name">Machine Dashboard</div>
+                <div class="module-desc">Monitor 43 work centers</div>
             </a>
             <a class="module-cell" href="/settings">
                 <div class="module-ico">⚙️</div>
-                <div class="module-name">Cài đặt</div>
-                <div class="module-desc">Hồ sơ / tài khoản / nhật ký</div>
+                <div class="module-name">Settings</div>
+                <div class="module-desc">Profile / accounts / audit log</div>
             </a>
         </div>
     </section>
 </div>
 
 <section class="panel">
-    <div class="panel-head"><span>Thao tác nhanh</span></div>
+    <div class="panel-head"><span>Quick Actions</span></div>
     <div class="qa-row">
         @if (_canNpi)
         {
-            <a class="qa-cell" href="/npi/specs"><div class="qa-ico">＋</div><div class="qa-lbl">Spec mới</div></a>
+            <a class="qa-cell" href="/npi/specs"><div class="qa-ico">＋</div><div class="qa-lbl">New Spec</div></a>
             <a class="qa-cell" href="/npi/specs"><div class="qa-ico">⭱</div><div class="qa-lbl">Import xlsx</div></a>
         }
-        <a class="qa-cell" href="/machines"><div class="qa-ico">🖥️</div><div class="qa-lbl">Bảng máy</div></a>
-        <a class="qa-cell" href="/qms"><div class="qa-ico">✓</div><div class="qa-lbl">Hàng đợi QC</div></a>
-        <a class="qa-cell" href="/shop-orders"><div class="qa-ico">🗂️</div><div class="qa-lbl">Lịch sử SX</div></a>
+        <a class="qa-cell" href="/machines"><div class="qa-ico">🖥️</div><div class="qa-lbl">Machines</div></a>
+        <a class="qa-cell" href="/qms"><div class="qa-ico">✓</div><div class="qa-lbl">QC Queue</div></a>
+        <a class="qa-cell" href="/shop-orders"><div class="qa-ico">🗂️</div><div class="qa-lbl">History</div></a>
         @if (_isAdmin)
         {
-            <a class="qa-cell" href="/settings/accounts"><div class="qa-ico">👥</div><div class="qa-lbl">Tài khoản</div></a>
+            <a class="qa-cell" href="/settings/accounts"><div class="qa-ico">👥</div><div class="qa-lbl">Accounts</div></a>
         }
-        <a class="qa-cell" href="/settings/about"><div class="qa-ico">?</div><div class="qa-lbl">Trợ giúp</div></a>
+        <a class="qa-cell" href="/settings/about"><div class="qa-ico">?</div><div class="qa-lbl">Help</div></a>
     </div>
 </section>
 
 @code {
     private string _displayName = "";
-    private string _greeting = "Xin chào";
+    private string _greeting = "Hello";
     private string _role = "";
     private DateTime _now = DateTime.Now;
     private System.Threading.Timer? _clock;
@@ -139,9 +139,9 @@
     private HomeSummaryDto? _summary;
 
     private static string KpiText(int? n) => n?.ToString() ?? "—";
-    private string PendingSub => (_summary?.PendingApprovals ?? 0) == 0 ? "— không có chờ duyệt" : "cần duyệt";
-    private string DraftsSub => (_summary?.Drafts ?? 0) == 0 ? "— chưa có bản nháp" : "đang soạn";
-    private string TodaySub => (_summary?.TodayActivity ?? 0) == 0 ? "— ngày yên ắng" : "WO chạm hôm nay";
+    private string PendingSub => (_summary?.PendingApprovals ?? 0) == 0 ? "— all clear" : "awaiting review";
+    private string DraftsSub => (_summary?.Drafts ?? 0) == 0 ? "— no drafts" : "in progress";
+    private string TodaySub => (_summary?.TodayActivity ?? 0) == 0 ? "— quiet day" : "WOs touched today";
 
     protected override async Task OnInitializedAsync()
     {
@@ -160,9 +160,9 @@
         // NOTE: if-chain, not a relational-pattern switch — a switch arm
         // beginning with '<' breaks the Razor compiler (SDK 10.0.x, RZ1006).
         var hour = _now.Hour;
-        if (hour < 12) _greeting = "Chào buổi sáng";
-        else if (hour < 18) _greeting = "Chào buổi chiều";
-        else _greeting = "Chào buổi tối";
+        if (hour < 12) _greeting = "Good morning";
+        else if (hour < 18) _greeting = "Good afternoon";
+        else _greeting = "Good evening";
 
         _isAdmin = u.IsInRole("Admin");
         _canNpi = _isAdmin || u.IsInRole("Supervisor") || u.IsInRole("Engineer") || u.IsInRole("QC");

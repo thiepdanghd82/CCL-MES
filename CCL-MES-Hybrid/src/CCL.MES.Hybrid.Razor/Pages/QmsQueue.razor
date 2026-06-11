@@ -3,12 +3,12 @@
 @using CCL.MES.Shared.Qms
 @inject ICclApiClient Api
 
-<PageTitle>Hàng đợi kiểm tra — CCL MES</PageTitle>
+<PageTitle>Inspection Queue — CCL MES</PageTitle>
 
 <div class="md-head">
-    <h1 class="page-title">Hàng đợi kiểm tra (QMS)</h1>
+    <h1 class="page-title">Inspection Queue (QMS)</h1>
     <button type="button" class="md-refresh" @onclick="ReloadAsync" disabled="@_loading">
-        @(_loading ? "Đang tải…" : "↻ Làm mới")
+        @(_loading ? "Loading…" : "↻ Refresh")
     </button>
 </div>
 
@@ -17,11 +17,11 @@
    happens on the per-WO QC dashboards. QC History lands in slice 2. *@
 @if (_loading && _data is null)
 {
-    <p class="md-muted">Đang tải hàng đợi…</p>
+    <p class="md-muted">Loading queue…</p>
 }
 else if (_error is not null)
 {
-    <p class="md-error">Không tải được hàng đợi: @_error</p>
+    <p class="md-error">Failed to load queue: @_error</p>
 }
 else if (_data is not null)
 {
@@ -36,14 +36,14 @@ else if (_data is not null)
 
     @if (CurrentRows.Count == 0)
     {
-        <p class="md-muted">Không có WO nào đang chờ @StageLabel.</p>
+        <p class="md-muted">No WOs waiting for @StageLabel.</p>
     }
     else
     {
         <div class="md-table-wrap">
             <table class="md-table">
                 <thead>
-                    <tr><th>WO</th><th>Sản phẩm</th><th>Máy</th><th>Kế hoạch/Thực hiện</th><th>Chờ từ</th></tr>
+                    <tr><th>WO</th><th>Product</th><th>Machine</th><th>Plan/Done</th><th>Waiting since</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var r in CurrentRows)

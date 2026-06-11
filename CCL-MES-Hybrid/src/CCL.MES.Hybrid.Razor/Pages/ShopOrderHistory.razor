@@ -3,22 +3,22 @@
 @using CCL.MES.Shared.Machines
 @inject ICclApiClient Api
 
-<PageTitle>Lịch sử lệnh sản xuất — CCL MES</PageTitle>
+<PageTitle>Shop Order History — CCL MES</PageTitle>
 
-<h1 class="page-title">Lịch sử lệnh sản xuất</h1>
+<h1 class="page-title">Shop Order History</h1>
 
 @* P10.8 — forensic record of closed WOs (SHIPPED / CANCELLED) with KPI
    roll-ups + period/search filters (server-side). CSV export lands in a
    follow-up (needs an authenticated download path). *@
 <div class="md-kpis">
-    <div class="md-kpi"><div class="md-kpi-num">@(_data?.TotalWos)</div><div class="md-kpi-label">Tổng WO</div></div>
-    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@(_data?.Output)</div><div class="md-kpi-label">Sản lượng</div></div>
-    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@(_data is null ? null : _data.YieldPct + "%")</div><div class="md-kpi-label">Tỷ lệ đạt</div></div>
-    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@(_data?.Reject)</div><div class="md-kpi-label">Phế phẩm</div></div>
+    <div class="md-kpi"><div class="md-kpi-num">@(_data?.TotalWos)</div><div class="md-kpi-label">Total WOs</div></div>
+    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@(_data?.Output)</div><div class="md-kpi-label">Output</div></div>
+    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@(_data is null ? null : _data.YieldPct + "%")</div><div class="md-kpi-label">Yield</div></div>
+    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@(_data?.Reject)</div><div class="md-kpi-label">Reject</div></div>
 </div>
 
 <div class="md-filters">
-    <input class="md-search" type="text" placeholder="Tìm WO / khách / sản phẩm / máy…"
+    <input class="md-search" type="text" placeholder="Search WO / customer / product / machine…"
            value="@_search" @onchange="OnSearchChanged" />
     <div class="md-chips">
         @foreach (var p in PeriodChips)
@@ -31,15 +31,15 @@
 
 @if (_loading && _data is null)
 {
-    <p class="md-muted">Đang tải lịch sử…</p>
+    <p class="md-muted">Loading history…</p>
 }
 else if (_error is not null)
 {
-    <p class="md-error">Không tải được lịch sử: @_error</p>
+    <p class="md-error">Failed to load history: @_error</p>
 }
 else if (_data is null || _data.Rows.Count == 0)
 {
-    <p class="md-muted">Không có lệnh sản xuất nào khớp bộ lọc.</p>
+    <p class="md-muted">No shop orders match the filter.</p>
 }
 else
 {
@@ -47,8 +47,8 @@ else
         <table class="md-table">
             <thead>
                 <tr>
-                    <th>WO</th><th>Khách hàng</th><th>Sản phẩm</th><th>Máy</th>
-                    <th>Kế hoạch/Thực hiện</th><th>Tỷ lệ đạt</th><th>Trạng thái</th><th>Hoàn tất</th>
+                    <th>WO</th><th>Customer</th><th>Product</th><th>Machine</th>
+                    <th>Plan/Done</th><th>Yield</th><th>Status</th><th>Finished</th>
                 </tr>
             </thead>
             <tbody>
@@ -80,7 +80,7 @@ else
 
     private static readonly (string? Key, string Label)[] PeriodChips =
     {
-        (null, "Tất cả"), ("today", "Hôm nay"), ("7d", "7 ngày"), ("30d", "30 ngày"),
+        (null, "All"), ("today", "Today"), ("7d", "7d"), ("30d", "30d"),
     };
 
     protected override Task OnInitializedAsync() => ReloadAsync();

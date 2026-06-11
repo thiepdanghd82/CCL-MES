@@ -15,19 +15,19 @@
         <Authorized>
             <div class="app-topbar-right">
                 <div class="tb-block">
-                    <div class="tb-k">Người dùng</div>
+                    <div class="tb-k">User</div>
                     <div class="tb-v">@UserName <span class="tb-role">· @Role</span></div>
                 </div>
                 <div class="tb-block">
-                    <div class="tb-k">Ca</div>
+                    <div class="tb-k">Shift</div>
                     <div class="tb-v">@Shift</div>
                 </div>
                 <div class="tb-block">
-                    <div class="tb-k">Giờ</div>
+                    <div class="tb-k">Time</div>
                     <div class="tb-v tb-time">@_now.ToString("HH:mm:ss")</div>
                 </div>
                 <span class="tb-online">● ONLINE</span>
-                <button type="button" class="tb-logout" @onclick="LogoutAsync">⤶ Đăng xuất</button>
+                <button type="button" class="tb-logout" @onclick="LogoutAsync">⤶ Logout</button>
             </div>
         </Authorized>
     </AuthorizeView>

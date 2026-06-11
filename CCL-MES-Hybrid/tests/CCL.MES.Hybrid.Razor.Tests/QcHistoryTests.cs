@@ -68,7 +68,7 @@ public sealed class QcHistoryTests : TestContext
         _api.QcHistory = History();
         var cut = RenderComponent<QcHistory>();
 
-        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "Loại").Click();
+        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "Reject").Click();
 
         Assert.Contains(_api.QcHistoryCalls, c => c.Judgment == "reject");
     }
@@ -80,7 +80,7 @@ public sealed class QcHistoryTests : TestContext
 
         var cut = RenderComponent<QcHistory>();
 
-        Assert.Contains("Không có lượt kiểm tra", cut.Markup);
+        Assert.Contains("No QC checks", cut.Markup);
         Assert.Empty(cut.FindAll(".md-table tbody tr"));
     }
 }

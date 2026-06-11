@@ -48,8 +48,8 @@ public sealed class HomeTests : TestContext
 
         Assert.Contains("Engineer Spec", markup);
         Assert.Contains("NPI Data", markup);
-        Assert.Contains("Cài đặt", markup);
-        Assert.DoesNotContain("Sản xuất", markup);
+        Assert.Contains("Settings", markup);
+        Assert.DoesNotContain("Production", markup);
         // Tile hrefs point at the real routes.
         Assert.Contains("href=\"/npi/specs\"", markup);
         Assert.Contains("href=\"/settings\"", markup);
@@ -63,9 +63,9 @@ public sealed class HomeTests : TestContext
         var cut = RenderComponent<Home>();
         var markup = cut.Markup;
 
-        Assert.Contains("Sản xuất", markup);
+        Assert.Contains("Production", markup);
         Assert.Contains("href=\"/workorders\"", markup);
-        Assert.Contains("Cài đặt", markup);
+        Assert.Contains("Settings", markup);
         Assert.DoesNotContain("Engineer Spec", markup);
         Assert.DoesNotContain("href=\"/npi/specs\"", markup);
     }
@@ -81,9 +81,9 @@ public sealed class HomeTests : TestContext
         // Greeting is one of the 3 time-of-day variants + the username.
         Assert.Contains("ada", markup);
         Assert.True(
-            markup.Contains("Chào buổi sáng")
-            || markup.Contains("Chào buổi chiều")
-            || markup.Contains("Chào buổi tối"),
+            markup.Contains("Good morning")
+            || markup.Contains("Good afternoon")
+            || markup.Contains("Good evening"),
             "Greeting must render a time-of-day variant.");
         // The live clock element is present.
         Assert.NotEmpty(cut.FindAll(".home-clock-time"));
@@ -107,10 +107,10 @@ public sealed class HomeTests : TestContext
         Assert.Equal(4, nums.Count);
         var markup = cut.Markup;
         Assert.Contains("42", markup);   // specs total
-        Assert.Contains("Spec trong thư viện", markup);
-        Assert.Contains("Chờ duyệt", markup);
-        Assert.Contains("Bản nháp", markup);
-        Assert.Contains("Hoạt động hôm nay", markup);
+        Assert.Contains("Specs in Library", markup);
+        Assert.Contains("Pending Approvals", markup);
+        Assert.Contains("Drafts", markup);
+        Assert.Contains("Today's Activity", markup);
         Assert.Equal(1, _api.HomeSummaryCalls);
     }
 
@@ -135,7 +135,7 @@ public sealed class HomeTests : TestContext
 
         Assert.Contains("Engineer Spec", markup);
         Assert.Contains("NPI Data", markup);
-        Assert.Contains("Sản xuất", markup);
-        Assert.Contains("Cài đặt", markup);
+        Assert.Contains("Production", markup);
+        Assert.Contains("Settings", markup);
     }
 }

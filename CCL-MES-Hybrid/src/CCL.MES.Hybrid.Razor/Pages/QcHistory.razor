@@ -3,21 +3,21 @@
 @using CCL.MES.Shared.Qms
 @inject ICclApiClient Api
 
-<PageTitle>Lịch sử kiểm tra — CCL MES</PageTitle>
+<PageTitle>QC History — CCL MES</PageTitle>
 
-<h1 class="page-title">Lịch sử kiểm tra (QC)</h1>
+<h1 class="page-title">QC History</h1>
 
 @* P10.9 — forensic record of completed FQC/OQC checks (Judgment !=
    Pending) with pass/reject KPI + kind/judgment/search filters. *@
 <div class="md-kpis">
-    <div class="md-kpi"><div class="md-kpi-num">@(_data?.Total)</div><div class="md-kpi-label">Tổng lượt</div></div>
-    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@(_data?.Pass)</div><div class="md-kpi-label">Đạt</div></div>
-    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@(_data?.Reject)</div><div class="md-kpi-label">Loại</div></div>
-    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@(_data is null ? null : _data.PassRatePct + "%")</div><div class="md-kpi-label">Tỷ lệ đạt</div></div>
+    <div class="md-kpi"><div class="md-kpi-num">@(_data?.Total)</div><div class="md-kpi-label">Total</div></div>
+    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@(_data?.Pass)</div><div class="md-kpi-label">Pass</div></div>
+    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@(_data?.Reject)</div><div class="md-kpi-label">Reject</div></div>
+    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@(_data is null ? null : _data.PassRatePct + "%")</div><div class="md-kpi-label">Pass rate</div></div>
 </div>
 
 <div class="md-filters">
-    <input class="md-search" type="text" placeholder="Tìm WO…" value="@_search" @onchange="OnSearchChanged" />
+    <input class="md-search" type="text" placeholder="Search WO…" value="@_search" @onchange="OnSearchChanged" />
     <div class="md-chips">
         @foreach (var k in KindChips)
         {
@@ -36,22 +36,22 @@
 
 @if (_loading && _data is null)
 {
-    <p class="md-muted">Đang tải lịch sử…</p>
+    <p class="md-muted">Loading history…</p>
 }
 else if (_error is not null)
 {
-    <p class="md-error">Không tải được lịch sử: @_error</p>
+    <p class="md-error">Failed to load history: @_error</p>
 }
 else if (_data is null || _data.Rows.Count == 0)
 {
-    <p class="md-muted">Không có lượt kiểm tra nào khớp bộ lọc.</p>
+    <p class="md-muted">No QC checks match the filter.</p>
 }
 else
 {
     <div class="md-table-wrap">
         <table class="md-table">
             <thead>
-                <tr><th>WO</th><th>Loại</th><th>Kết quả</th><th>Người kiểm</th><th>Người duyệt</th><th>Thời gian</th></tr>
+                <tr><th>WO</th><th>Kind</th><th>Result</th><th>Inspector</th><th>Approver</th><th>Time</th></tr>
             </thead>
             <tbody>
                 @foreach (var r in _data.Rows)
@@ -81,14 +81,14 @@ else
 
     private static readonly (string? Key, string Label)[] KindChips =
     {
-        (null, "Tất cả"), ("FQC", "FQC"), ("OQC", "OQC"),
+        (null, "All"), ("FQC", "FQC"), ("OQC", "OQC"),
     };
     private static readonly (string? Key, string Label)[] JudgmentChips =
     {
-        (null, "Mọi kết quả"), ("pass", "Đạt"), ("reject", "Loại"),
+        (null, "All results"), ("pass", "Pass"), ("reject", "Reject"),
     };
 
-    private static string JudgmentLabel(string j) => j == "Pass" ? "Đạt" : "Loại";
+    private static string JudgmentLabel(string j) => j == "Pass" ? "Pass" : "Reject";
 
     protected override Task OnInitializedAsync() => ReloadAsync();
 

@@ -64,8 +64,8 @@ public sealed class MachineDashboardTests : TestContext
 
         Assert.Equal(4, nums.Count);          // Total / Running / Setup / Idle
         var markup = cut.Markup;
-        Assert.Contains("Tổng máy", markup);
-        Assert.Contains("Đang chạy", markup);
+        Assert.Contains("Total", markup);
+        Assert.Contains("Running", markup);
         Assert.Equal(1, _api.MachineDashboardCalls);
     }
 
@@ -94,7 +94,7 @@ public sealed class MachineDashboardTests : TestContext
 
         var cut = RenderComponent<MachineDashboard>();
 
-        Assert.Contains("Chưa có trung tâm sản xuất", cut.Markup);
+        Assert.Contains("No work centers", cut.Markup);
         Assert.Empty(cut.FindAll(".md-table tbody tr"));
     }
 
@@ -119,8 +119,8 @@ public sealed class MachineDashboardTests : TestContext
         _api.MachineDashboard = Board();
         var cut = RenderComponent<MachineDashboard>();
 
-        // Click the "Đang chạy" status chip.
-        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "Đang chạy").Click();
+        // Click the "Running" status chip.
+        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "Running").Click();
 
         var rows = cut.FindAll(".md-table tbody tr");
         Assert.Single(rows);                       // only the Running machine
@@ -163,7 +163,7 @@ public sealed class MachineDashboardTests : TestContext
 
         cut.Find(".md-search").Input("zzz-nope");
 
-        Assert.Contains("Không có máy nào khớp", cut.Markup);
+        Assert.Contains("No machines match", cut.Markup);
         Assert.Empty(cut.FindAll(".md-table tbody tr"));
     }
 
@@ -191,7 +191,7 @@ public sealed class MachineDashboardTests : TestContext
         Assert.Single(cut.FindAll(".md-drawer"));
         Assert.NotEmpty(_api.MachineDetailCalls);   // detail fetched for the clicked row
         var markup = cut.Markup;
-        Assert.Contains("WO đang chạy", markup);
+        Assert.Contains("Active WO", markup);
         Assert.Contains("WO-26-0001", markup);
         Assert.Contains("800", markup);              // today good
     }
