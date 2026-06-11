@@ -8,6 +8,7 @@ using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
+using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
@@ -38,6 +39,9 @@ public interface ICclApiClient
 
     // ── Home (P10.10) ──────────────────────────────────────────────
     Task<HomeSummaryDto?> GetHomeSummaryAsync(CancellationToken ct = default);
+
+    // ── Machine Dashboard (P10.8) ──────────────────────────────────
+    Task<MachineDashboardDto?> GetMachineDashboardAsync(CancellationToken ct = default);
 
     // ── NPI (pilot scope) ──────────────────────────────────────────
     Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? search, int page, int pageSize, CancellationToken ct = default);

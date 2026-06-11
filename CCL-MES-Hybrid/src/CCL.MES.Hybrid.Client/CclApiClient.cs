@@ -12,6 +12,7 @@ using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
+using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
@@ -65,6 +66,14 @@ public sealed class CclApiClient : ICclApiClient
     {
         using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/home/summary", ct);
         return await ReadAsAsync<HomeSummaryDto>(resp, ct);
+    }
+
+    // ── Machine Dashboard (P10.8) ──────────────────────────────────
+
+    public async Task<MachineDashboardDto?> GetMachineDashboardAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/machines/dashboard", ct);
+        return await ReadAsAsync<MachineDashboardDto>(resp, ct);
     }
 
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)

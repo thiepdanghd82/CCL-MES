@@ -330,6 +330,54 @@ html, body {
     margin-top: 4px;
 }
 
+/* P10.8 — Machine Dashboard */
+.md-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.md-refresh {
+    padding: 7px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: var(--card);
+    cursor: pointer;
+}
+.md-refresh:disabled { opacity: 0.6; cursor: default; }
+.md-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 14px 0 18px;
+}
+.md-kpi {
+    padding: 14px;
+    background: var(--card);
+    border: 1px solid #e5e7eb;
+    border-left-width: 4px;
+    border-radius: 8px;
+    text-align: center;
+}
+.md-kpi-running { border-left-color: #16a34a; }
+.md-kpi-setup   { border-left-color: #d97706; }
+.md-kpi-idle    { border-left-color: #9ca3af; }
+.md-kpi-num { font-size: 1.7rem; font-weight: 700; color: #1f2937; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.md-kpi-label { color: #6b7280; font-size: 0.82rem; margin-top: 4px; }
+
+.md-table-wrap { overflow-x: auto; }
+.md-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.md-table th, .md-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #eef0f2; white-space: nowrap; }
+.md-table thead th { color: #6b7280; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; }
+.md-code { font-weight: 600; }
+.md-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
+.md-pill-running { background: #dcfce7; color: #15803d; }
+.md-pill-setup   { background: #fef3c7; color: #b45309; }
+.md-pill-idle    { background: #f3f4f6; color: #6b7280; }
+.md-muted { color: #6b7280; }
+.md-error { color: #b91c1c; }
+
 /* ─────── Grid ─────── */
 
 .grid-toolbar {

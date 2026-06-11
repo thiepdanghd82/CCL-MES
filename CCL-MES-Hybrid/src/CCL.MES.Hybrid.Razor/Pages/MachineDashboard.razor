@@ -1,0 +1,118 @@
+@page "/machines"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using CCL.MES.Shared.Machines
+@inject ICclApiClient Api
+
+<PageTitle>Bảng máy — CCL MES</PageTitle>
+
+<div class="md-head">
+    <h1 class="page-title">Bảng giám sát máy</h1>
+    <button type="button" class="md-refresh" @onclick="ReloadAsync" disabled="@_loading">
+        @(_loading ? "Đang tải…" : "↻ Làm mới")
+    </button>
+</div>
+
+@* P10.8 slice 1 — plant KPI strip + flat machine table. Status cards +
+   area grouping + detail drawer land in slices 2-3. Status derives from
+   the active WO's MesPhase (Running / Setup / Idle); Down + Maintenance
+   need the ProductionLog feed and are out of slice 1. *@
+<div class="md-kpis">
+    <div class="md-kpi"><div class="md-kpi-num">@(_data?.Total)</div><div class="md-kpi-label">Tổng máy</div></div>
+    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@(_data?.Running)</div><div class="md-kpi-label">Đang chạy</div></div>
+    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@(_data?.Setup)</div><div class="md-kpi-label">Cài đặt</div></div>
+    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@(_data?.Idle)</div><div class="md-kpi-label">Rảnh</div></div>
+</div>
+
+@if (_loading && _data is null)
+{
+    <p class="md-muted">Đang tải bảng máy…</p>
+}
+else if (_error is not null)
+{
+    <p class="md-error">Không tải được bảng máy: @_error</p>
+}
+else if (_data is null || _data.Machines.Count == 0)
+{
+    <p class="md-muted">Chưa có trung tâm sản xuất nào.</p>
+}
+else
+{
+    <div class="md-table-wrap">
+        <table class="md-table">
+            <thead>
+                <tr>
+                    <th>Mã máy</th>
+                    <th>Mô tả</th>
+                    <th>Khu vực</th>
+                    <th>Trạng thái</th>
+                    <th>WO</th>
+                    <th>Giai đoạn</th>
+                    <th>Tiến độ</th>
+                    <th>NG</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var m in _data.Machines)
+                {
+                    <tr>
+                        <td class="md-code">@m.Code</td>
+                        <td>@m.Description</td>
+                        <td>@(m.Area ?? "—")</td>
+                        <td><span class="md-pill @PillClass(m.Status)">@StatusLabel(m.Status)</span></td>
+                        <td>@(m.ActiveWoNo ?? "—")</td>
+                        <td>@(m.ActiveMesPhase ?? "—")</td>
+                        <td>@Progress(m)</td>
+                        <td>@(m.QtyNg?.ToString() ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private MachineDashboardDto? _data;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _data = await Api.GetMachineDashboardAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string PillClass(string status) => status switch
+    {
+        "Running" => "md-pill-running",
+        "Setup" => "md-pill-setup",
+        _ => "md-pill-idle",
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Running" => "Đang chạy",
+        "Setup" => "Cài đặt",
+        _ => "Rảnh",
+    };
+
+    private static string Progress(MachineDashboardItem m)
+    {
+        if (m.QtyDone is null || m.TargetQty is null || m.TargetQty == 0) return "—";
+        var pct = (int)Math.Round(100.0 * m.QtyDone.Value / m.TargetQty.Value);
+        return $"{m.QtyDone}/{m.TargetQty} ({pct}%)";
+    }
+}

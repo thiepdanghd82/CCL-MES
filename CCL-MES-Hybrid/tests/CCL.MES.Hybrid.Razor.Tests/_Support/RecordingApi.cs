@@ -9,6 +9,7 @@ using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
+using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
@@ -93,6 +94,16 @@ public sealed class RecordingApi : ICclApiClient
     {
         HomeSummaryCalls++;
         return Task.FromResult(HomeSummary);
+    }
+
+    // P10.8 — Machine Dashboard. Defaults to an empty board.
+    public MachineDashboardDto? MachineDashboard { get; set; } = new MachineDashboardDto();
+    public int MachineDashboardCalls { get; private set; }
+
+    public Task<MachineDashboardDto?> GetMachineDashboardAsync(CancellationToken ct = default)
+    {
+        MachineDashboardCalls++;
+        return Task.FromResult(MachineDashboard);
     }
 
     public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)

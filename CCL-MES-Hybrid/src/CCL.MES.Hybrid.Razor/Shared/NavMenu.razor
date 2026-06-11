@@ -47,6 +47,11 @@
             <NavLink href="/workorders" class="app-nav-link">Work Orders — Quét</NavLink>
         }
 
+        @* P10.8 — Machine Dashboard (SpecHub parity). Read-only plant
+           monitoring; open to every authenticated role. *@
+        <div class="app-nav-section">GIÁM SÁT</div>
+        <NavLink href="/machines" class="app-nav-link">Bảng máy</NavLink>
+
         @* P10.6a — Settings group. The landing + Profile + Password are
            self-service (any authenticated role). Hardware + Mode stay
            gated by HardwareOptions.ScanEnabled + role; the Settings
