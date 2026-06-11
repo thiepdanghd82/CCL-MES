@@ -142,3 +142,29 @@ Data entities: `work_orders` (+10 MES tables), `downtime_reasons`,
 Nearly all MES + NPI + Settings entities already have CCL-MES
 equivalents; the gap entities are the machine-state read model + the
 forensic history/QMS read models (above).
+
+---
+
+## Execution log — 2026-06-11 · WO-detail SpecHub parity closeout
+
+Final polish on the Work-Order scan/detail surface (SpecHub Shop-Order
+parity). All increments verified live against the maccatalyst app + the
+running API on :5100.
+
+- **Sidebar (4 panels complete)**: Current State (phase X/7 + dots +
+  progress) · Spec Quick Ref · BOM Summary · Audit Trail.
+- **`d22fc7d`** — Plate/Cutter added to Spec Quick Ref
+  (`WoPlateChecks.PlateNo` / `WoCutterChecks.CutterNo`); BOM Summary rows
+  enriched with description + loaded/required + lot. **No schema migration**
+  — every field already on the prepress child tables + `PrepressView` DTO;
+  pure UI projection, §4 protocol not triggered. Demo data for WO-26-2852
+  seeded as data-only UPDATE (plate `PLT-PAN-4548-F-R4`, cutter
+  `CUT-RD-3518-8UP`, 5 lots `LOT-26-0310x`, loaded=required).
+- Full interactive materials table (No / Material code / Description /
+  Required / Loaded / Lot / Status / NG / Action) already lives in
+  `WoMaterialsList` (main panel, PREPRESS phase) — richer than SpecHub's
+  read-only grid.
+- Verified: Razor 141/141 green; prepress endpoint returns the seeded
+  plate/cutter/lots; app rebuilt (0 err) + relaunched (pid 31601).
+
+**WO-detail SpecHub design — COMPLETE.**
