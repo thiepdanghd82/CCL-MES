@@ -39,72 +39,100 @@ html, body {
 }
 
 .app-nav {
+    /* P10.10 — light sidebar, palette matched to the content panel.
+       The dark-theme vars are re-scoped to light HERE so the whole nav
+       subtree (links, sections, user box, recent-scans) flips at once
+       without touching the global tokens other surfaces rely on. */
+    --navy:    #ffffff;   /* nav background */
+    --navy-2:  #f3f4f6;   /* hover / user-box surface */
+    --line:    #e5e7eb;   /* borders */
+    --ink:     #374151;   /* nav text */
+    --ink-mut: #9ca3af;   /* muted text */
     background: var(--navy);
     color: var(--ink);
-    padding: 18px 12px;
+    padding: 16px 12px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 3px;
     border-right: 1px solid var(--line);
 }
 
 .app-nav-brand {
-    font-weight: 700;
-    font-size: 1.1rem;
+    font-weight: 800;
+    font-size: 1.05rem;
     letter-spacing: 0.04em;
-    padding: 6px 10px 16px;
+    color: #111827;
+    padding: 4px 10px 14px;
+    margin-bottom: 4px;
     border-bottom: 1px solid var(--line);
 }
 
 .app-nav-link {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 11px;
     color: var(--ink);
     text-decoration: none;
-    padding: 10px 12px;
-    border-radius: 6px;
-    font-size: 0.95rem;
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 0.92rem;
+    font-weight: 500;
+    transition: background .12s, color .12s;
 }
 
 .app-nav-link:hover {
     background: var(--navy-2);
+    color: #111827;
 }
 
 .app-nav-link.active {
-    background: var(--brand);
-    color: white;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 600;
+}
+
+.nav-ico { width: 18px; height: 18px; flex: 0 0 18px; opacity: 0.82; }
+.app-nav-link.active .nav-ico { opacity: 1; }
+
+/* NPI sub-items: indented, joined by a vertical connector line. */
+.app-nav-group { position: relative; margin-left: 19px; }
+.app-nav-group::before {
+    content: ""; position: absolute; left: 0; top: 4px; bottom: 4px;
+    width: 1.5px; background: var(--line); border-radius: 1px;
 }
 
 .app-nav-section {
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     font-weight: 700;
     color: var(--ink-mut);
-    letter-spacing: 0.08em;
+    letter-spacing: 0.07em;
     padding: 14px 12px 4px;
-    border-top: 1px solid var(--line);
-    margin-top: 6px;
+    margin-top: 2px;
 }
 
 .app-nav-userbox {
     margin-top: auto;
     padding: 12px;
     background: var(--navy-2);
-    border-radius: 6px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
 }
 
-.app-nav-userline { font-weight: 600; font-size: 0.95rem; }
+.app-nav-userline { font-weight: 600; font-size: 0.95rem; color: #111827; }
 .app-nav-userline-sub { color: var(--ink-mut); font-size: 0.8rem; }
 
 .app-nav-logout {
     margin-top: 10px;
     width: 100%;
-    background: transparent;
+    background: var(--card);
     border: 1px solid var(--line);
     color: var(--ink);
     padding: 6px 10px;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
+    font-weight: 600;
 }
-.app-nav-logout:hover { background: var(--line); }
+.app-nav-logout:hover { background: #fee2e2; border-color: #fca5a5; color: #b91c1c; }
 
 .app-main {
     display: flex;
@@ -1483,9 +1511,13 @@ html, body {
 
 /* Nav sub-link indent for NPI sub-tabs */
 .app-nav-link-sub {
-    padding-left: 28px;
-    font-size: 0.92rem;
+    padding-left: 16px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #6b7280;
 }
+.app-nav-link-sub:hover { color: #111827; }
+.app-nav-link-sub.active { background: #eff6ff; color: #1d4ed8; }
 
 /* ── P10.5a — Modal primitive ─────────────────────────────────── */
 
@@ -3556,8 +3588,8 @@ html, body {
 }
 
 .recent-scans-chip {
-    background: rgba(248,81,73,0.15);
-    color: #fca5a5;
+    background: #fee2e2;
+    color: #b91c1c;
     padding: 1px 6px;
     border-radius: 4px;
     font-size: 0.65rem;
