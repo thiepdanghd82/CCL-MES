@@ -1,0 +1,71 @@
+@implements IDisposable
+@using System.Security.Claims
+@inject IAuthSession Session
+@inject NavigationManager Nav
+
+@* P10.10 — global top bar (SpecHub parity). Brand left; user / shift /
+   live clock / online / logout right. Renders on every routed page via
+   MainLayout. The user block hides when unauthenticated. *@
+<header class="app-topbar">
+    <div class="app-topbar-brand">
+        <span class="app-topbar-logo">◆</span> CCL DESIGN
+        <span class="app-topbar-sub">— MES</span>
+    </div>
+    <AuthorizeView>
+        <Authorized>
+            <div class="app-topbar-right">
+                <div class="tb-block">
+                    <div class="tb-k">Người dùng</div>
+                    <div class="tb-v">@UserName <span class="tb-role">· @Role</span></div>
+                </div>
+                <div class="tb-block">
+                    <div class="tb-k">Ca</div>
+                    <div class="tb-v">@Shift</div>
+                </div>
+                <div class="tb-block">
+                    <div class="tb-k">Giờ</div>
+                    <div class="tb-v tb-time">@_now.ToString("HH:mm:ss")</div>
+                </div>
+                <span class="tb-online">● ONLINE</span>
+                <button type="button" class="tb-logout" @onclick="LogoutAsync">⤶ Đăng xuất</button>
+            </div>
+        </Authorized>
+    </AuthorizeView>
+</header>
+
+@code {
+    private DateTime _now = DateTime.Now;
+    private System.Threading.Timer? _clock;
+
+    private string UserName => Session.CurrentUser.FindFirst("display_name")?.Value
+        ?? Session.CurrentUser.Identity?.Name ?? "";
+    private string Role => Session.CurrentUser.FindFirst(ClaimTypes.Role)?.Value ?? "";
+
+    private string Shift
+    {
+        get
+        {
+            var h = _now.Hour;
+            if (h >= 6 && h < 14) return "A · 06:00–14:00";
+            if (h >= 14 && h < 22) return "B · 14:00–22:00";
+            return "C · 22:00–06:00";
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        _clock = new System.Threading.Timer(_ =>
+        {
+            _now = DateTime.Now;
+            _ = InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private async Task LogoutAsync()
+    {
+        await Session.SignOutAsync();
+        Nav.NavigateTo("/login", forceLoad: false, replace: true);
+    }
+
+    public void Dispose() => _clock?.Dispose();
+}
