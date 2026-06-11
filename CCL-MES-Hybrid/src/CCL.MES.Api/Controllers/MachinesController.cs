@@ -113,4 +113,51 @@ public sealed class MachinesController : ControllerBase
             Machines = items,
         });
     }
+
+    [HttpGet("{wcId:long}/detail")]
+    public async Task<ActionResult<MachineDetailDto>> Detail(long wcId, CancellationToken ct)
+    {
+        var wc = await _db.WorkCenters.AsNoTracking()
+            .Where(w => w.Id == wcId)
+            .Select(w => new { w.Id, w.Code, w.Description, w.Area, w.IdealSpeedPcsH })
+            .FirstOrDefaultAsync(ct);
+        if (wc is null) return NotFound();
+
+        var today = DateTime.UtcNow.Date;
+
+        // All WOs ever assigned to this machine, freshest first — the
+        // recent list + active-WO + today roll-up all read from this.
+        var wos = await _db.WorkOrders.AsNoTracking()
+            .Where(w => w.MachineCode == wc.Code)
+            .OrderByDescending(w => w.UpdatedAt)
+            .Select(w => new MachineWoRow
+            {
+                WoNo = w.WoNo,
+                MesPhase = w.MesPhase,
+                TargetQty = w.TargetQty,
+                QtyDone = w.QtyDoneCached,
+                QtyNg = w.QtyNgCached,
+                UpdatedAt = w.UpdatedAt,
+            })
+            .Take(50)
+            .ToListAsync(ct);
+
+        var active = wos.FirstOrDefault(w => ActivePhases.Contains(w.MesPhase));
+        var todays = wos.Where(w => w.UpdatedAt.HasValue && w.UpdatedAt.Value.Date == today).ToList();
+
+        return Ok(new MachineDetailDto
+        {
+            WorkCenterId = wc.Id,
+            Code = wc.Code,
+            Description = wc.Description,
+            Area = wc.Area,
+            IdealSpeedPcsH = wc.IdealSpeedPcsH,
+            Status = active is null ? "Idle" : StatusOf(active.MesPhase),
+            ActiveWo = active,
+            TodayWoCount = todays.Count,
+            TodayGood = todays.Sum(w => w.QtyDone),
+            TodayNg = todays.Sum(w => w.QtyNg),
+            RecentWos = wos.Take(5).ToList(),
+        });
+    }
 }

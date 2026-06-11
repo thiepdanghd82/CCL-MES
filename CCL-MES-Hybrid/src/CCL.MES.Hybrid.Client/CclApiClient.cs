@@ -76,6 +76,13 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<MachineDashboardDto>(resp, ct);
     }
 
+    public async Task<MachineDetailDto?> GetMachineDetailAsync(long workCenterId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/machines/{workCenterId}/detail", ct);
+        if (resp.StatusCode == HttpStatusCode.NotFound) return null;
+        return await ReadAsAsync<MachineDetailDto>(resp, ct);
+    }
+
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)
     {
         var req = new RefreshTokenRequest { RefreshToken = refreshToken };

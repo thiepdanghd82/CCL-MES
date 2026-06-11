@@ -42,6 +42,7 @@ public interface ICclApiClient
 
     // ── Machine Dashboard (P10.8) ──────────────────────────────────
     Task<MachineDashboardDto?> GetMachineDashboardAsync(CancellationToken ct = default);
+    Task<MachineDetailDto?> GetMachineDetailAsync(long workCenterId, CancellationToken ct = default);
 
     // ── NPI (pilot scope) ──────────────────────────────────────────
     Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? search, int page, int pageSize, CancellationToken ct = default);

@@ -43,3 +43,38 @@ public sealed record MachineDashboardDto
     public IReadOnlyList<MachineDashboardItem> Machines { get; init; }
         = Array.Empty<MachineDashboardItem>();
 }
+
+/// <summary>P10.8 slice 3 — one work-order row in a machine's history.</summary>
+public sealed record MachineWoRow
+{
+    public string WoNo { get; init; } = "";
+    public string MesPhase { get; init; } = "";
+    public int TargetQty { get; init; }
+    public int QtyDone { get; init; }
+    public int QtyNg { get; init; }
+    public DateTime? UpdatedAt { get; init; }
+}
+
+/// <summary>
+/// P10.8 slice 3 — per-machine detail for the dashboard drawer: the
+/// work-center, its active WO, today's production roll-up, and the
+/// recent WO history. Read-only.
+/// </summary>
+public sealed record MachineDetailDto
+{
+    public long WorkCenterId { get; init; }
+    public string Code { get; init; } = "";
+    public string Description { get; init; } = "";
+    public string? Area { get; init; }
+    public double? IdealSpeedPcsH { get; init; }
+
+    public string Status { get; init; } = "Idle";
+    public MachineWoRow? ActiveWo { get; init; }
+
+    public int TodayWoCount { get; init; }
+    public int TodayGood { get; init; }
+    public int TodayNg { get; init; }
+
+    public IReadOnlyList<MachineWoRow> RecentWos { get; init; }
+        = Array.Empty<MachineWoRow>();
+}

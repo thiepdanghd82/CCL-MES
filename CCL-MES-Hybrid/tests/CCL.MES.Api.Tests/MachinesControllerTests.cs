@@ -41,6 +41,16 @@ public sealed class MachinesControllerTests : IClassFixture<MesApiFactory>
         await db.SaveChangesAsync();
     }
 
+    private async Task<long> SeedWorkCenterAsync(string code, string desc, string area)
+    {
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var wc = new WorkCenter { Code = code, Description = desc, Area = area, Active = true };
+        db.WorkCenters.Add(wc);
+        await db.SaveChangesAsync();
+        return wc.Id;
+    }
+
     private async Task SeedRunningWoOnAsync(string machineCode)
     {
         using var scope = _fx.Services.CreateScope();
@@ -64,6 +74,7 @@ public sealed class MachinesControllerTests : IClassFixture<MesApiFactory>
             CurrentStep = ProcessStepCode.Running,
             MesPhase = "RUNNING",
             Status = WoStatus.InProgress,
+            UpdatedAt = DateTime.UtcNow,   // touched today → counts in the detail roll-up
         });
         await db.SaveChangesAsync();
     }
@@ -128,5 +139,33 @@ public sealed class MachinesControllerTests : IClassFixture<MesApiFactory>
         Assert.Equal(1000, m.TargetQty);
         Assert.Equal(250, m.QtyDone);
         Assert.True(dto.Running >= 1);
+    }
+
+    [Fact]
+    public async Task Detail_returns_404_for_missing_work_center()
+    {
+        var client = await AuthedClientAsync("md-detail-404");
+        var resp = await client.GetAsync("/api/v2/machines/99999999/detail");
+        Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Detail_returns_work_center_with_active_and_recent_wos()
+    {
+        var wcId = await SeedWorkCenterAsync("TST-MD-DET", "Detail press", "FLEXO");
+        await SeedRunningWoOnAsync("TST-MD-DET");
+        var client = await AuthedClientAsync("md-detail-sup");
+
+        var dto = await client.GetFromJsonAsync<MachineDetailDto>($"/api/v2/machines/{wcId}/detail");
+
+        Assert.NotNull(dto);
+        Assert.Equal("TST-MD-DET", dto!.Code);
+        Assert.Equal("FLEXO", dto.Area);
+        Assert.Equal("Running", dto.Status);
+        Assert.NotNull(dto.ActiveWo);
+        Assert.Equal("RUNNING", dto.ActiveWo!.MesPhase);
+        Assert.Single(dto.RecentWos);
+        Assert.True(dto.TodayWoCount >= 1);
+        Assert.True(dto.TodayGood >= 250);
     }
 }

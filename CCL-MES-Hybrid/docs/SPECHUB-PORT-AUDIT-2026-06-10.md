@@ -112,7 +112,7 @@ UI → test belt).
 | 2026-06-11 | **P10.10 Home KPI tiles + `GET /api/v2/home/summary`** — `HomeSummaryDto` + `HomeController` (live counts: specs total / pending approvals / drafts / today activity) + client method + 4 KPI tiles. Tests: Api 380→382, Razor 118→120, all green. | ✅ done |
 | 2026-06-11 | **P10.8 Machine Dashboard slice 1** — `MachineDashboardDto` + `MachinesController` (`GET /machines/dashboard`: WorkCenter read-model + live status Running/Setup/Idle derived from active WO's MesPhase + plant KPI counts) + client method + `MachineDashboard.razor` (KPI strip + machine table + refresh) + nav "Giám sát". Tests: Api 382→384, Razor 120→123, all green. | ✅ done |
 | 2026-06-11 | **P10.8 Machine Dashboard slice 2** — area grouping (collapsible sections per WorkCenter.Area) + status chips (All/Running/Setup/Idle) + area chips + search filter, all client-side on the loaded board. WO-join integration test (seed RUNNING WO → machine reads Running). Tests: Api 384→385, Razor 123→128, all green. | ✅ done |
-| — | P10.8 Machine Dashboard slice 3: detail drawer (today production / OEE / recent WO) + Down/Maintenance via ProductionLog | ⏭ queued |
+| 2026-06-11 | **P10.8 Machine Dashboard slice 3** — per-machine detail drawer: `MachineDetailDto` + `GET /machines/{id}/detail` (active WO + today production roll-up + recent WO history) + slide-in drawer (click a row). Tests: Api 385→387, Razor 128→130, all green. **Machine Dashboard core complete** (dashboard + filters + grouping + drawer); Down/Maintenance (ProductionLog feed) remains deferred. | ✅ done |
 | — | P10.8 Shop Order History (forensic WO + KPI + filters + CSV export) | ⏭ queued |
 | — | P10.9 QMS Inspection Queue + QC History | ⏭ queued |
 

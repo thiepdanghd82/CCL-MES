@@ -419,6 +419,49 @@ html, body {
 .md-area-name { font-weight: 700; color: #1f2937; }
 .md-area-count { color: #6b7280; font-size: 0.82rem; }
 
+/* P10.8 slice 3 — detail drawer */
+.md-row { cursor: pointer; }
+.md-row:hover { background: #f9fafb; }
+.md-drawer-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.25);
+    z-index: 40;
+}
+.md-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(420px, 92vw);
+    background: var(--card);
+    border-left: 1px solid #e5e7eb;
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.08);
+    z-index: 41;
+    padding: 18px;
+    overflow-y: auto;
+}
+.md-drawer-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+}
+.md-drawer-title { font-size: 1.3rem; font-weight: 700; margin: 0; }
+.md-drawer-close {
+    border: none; background: none; font-size: 1.1rem; cursor: pointer; color: #6b7280;
+}
+.md-drawer-sub {
+    font-size: 0.95rem; font-weight: 700; color: #374151;
+    margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #eef0f2;
+}
+.md-kv {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 4px 0; font-size: 0.9rem;
+}
+.md-kv span { color: #6b7280; }
+.md-today { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.md-today-cell {
+    background: #f9fafb; border: 1px solid #eef0f2; border-radius: 6px;
+    padding: 10px; text-align: center;
+}
+.md-today-num { font-size: 1.3rem; font-weight: 700; color: #1f2937; font-variant-numeric: tabular-nums; }
+.md-today-lbl { color: #6b7280; font-size: 0.78rem; }
+
 /* ─────── Grid ─────── */
 
 .grid-toolbar {

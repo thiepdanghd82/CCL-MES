@@ -83,7 +83,7 @@ else
                         <tbody>
                             @foreach (var m in group)
                             {
-                                <tr>
+                                <tr class="md-row" @onclick="@(() => OpenDetailAsync(m.WorkCenterId))">
                                     <td class="md-code">@m.Code</td>
                                     <td>@m.Description</td>
                                     <td><span class="md-pill @PillClass(m.Status)">@StatusLabel(m.Status)</span></td>
@@ -101,6 +101,71 @@ else
     }
 }
 
+@* P10.8 slice 3 — per-machine detail drawer. Opens on row click,
+   fetches GET /machines/{id}/detail. *@
+@if (_detailOpen)
+{
+    <div class="md-drawer-overlay" @onclick="CloseDetail"></div>
+    <aside class="md-drawer">
+        <div class="md-drawer-head">
+            <h2 class="md-drawer-title">@(_detail?.Code ?? "Chi tiết máy")</h2>
+            <button type="button" class="md-drawer-close" @onclick="CloseDetail">✕</button>
+        </div>
+        @if (_detailLoading)
+        {
+            <p class="md-muted">Đang tải chi tiết…</p>
+        }
+        else if (_detail is null)
+        {
+            <p class="md-muted">Không có dữ liệu máy.</p>
+        }
+        else
+        {
+            <div class="md-drawer-body">
+                <div class="md-kv"><span>Mô tả</span><strong>@_detail.Description</strong></div>
+                <div class="md-kv"><span>Khu vực</span><strong>@(_detail.Area ?? "—")</strong></div>
+                <div class="md-kv"><span>Trạng thái</span><strong><span class="md-pill @PillClass(_detail.Status)">@StatusLabel(_detail.Status)</span></strong></div>
+
+                <h3 class="md-drawer-sub">WO đang chạy</h3>
+                @if (_detail.ActiveWo is not null)
+                {
+                    <div class="md-kv"><span>@_detail.ActiveWo.WoNo</span><strong>@_detail.ActiveWo.MesPhase</strong></div>
+                    <div class="md-kv"><span>Tiến độ</span><strong>@RowProgress(_detail.ActiveWo)</strong></div>
+                }
+                else
+                {
+                    <p class="md-muted">Không có WO đang chạy.</p>
+                }
+
+                <h3 class="md-drawer-sub">Hôm nay</h3>
+                <div class="md-today">
+                    <div class="md-today-cell"><div class="md-today-num">@_detail.TodayWoCount</div><div class="md-today-lbl">WO</div></div>
+                    <div class="md-today-cell"><div class="md-today-num">@_detail.TodayGood</div><div class="md-today-lbl">Đạt</div></div>
+                    <div class="md-today-cell"><div class="md-today-num">@_detail.TodayNg</div><div class="md-today-lbl">NG</div></div>
+                </div>
+
+                <h3 class="md-drawer-sub">WO gần đây</h3>
+                @if (_detail.RecentWos.Count == 0)
+                {
+                    <p class="md-muted">Chưa có WO.</p>
+                }
+                else
+                {
+                    <table class="md-table">
+                        <thead><tr><th>WO</th><th>Giai đoạn</th><th>Tiến độ</th></tr></thead>
+                        <tbody>
+                            @foreach (var w in _detail.RecentWos)
+                            {
+                                <tr><td>@w.WoNo</td><td>@w.MesPhase</td><td>@RowProgress(w)</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        }
+    </aside>
+}
+
 @code {
     private MachineDashboardDto? _data;
     private bool _loading = true;
@@ -109,6 +174,10 @@ else
     private string _search = "";
     private string _statusFilter = "All";   // All | Running | Setup | Idle
     private string? _areaFilter;             // null = all areas
+
+    private bool _detailOpen;
+    private bool _detailLoading;
+    private MachineDetailDto? _detail;
 
     private static readonly (string Key, string Label)[] StatusChips =
     {
@@ -137,6 +206,29 @@ else
         .OrderBy(g => g.Key);
 
     private void OnSearch(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
+
+    private async Task OpenDetailAsync(long wcId)
+    {
+        _detailOpen = true;
+        _detailLoading = true;
+        _detail = null;
+        try { _detail = await Api.GetMachineDetailAsync(wcId); }
+        catch { _detail = null; }
+        finally { _detailLoading = false; }
+    }
+
+    private void CloseDetail()
+    {
+        _detailOpen = false;
+        _detail = null;
+    }
+
+    private static string RowProgress(MachineWoRow w)
+    {
+        if (w.TargetQty == 0) return w.QtyDone.ToString();
+        var pct = (int)Math.Round(100.0 * w.QtyDone / w.TargetQty);
+        return $"{w.QtyDone}/{w.TargetQty} ({pct}%)";
+    }
 
     protected override Task OnInitializedAsync() => ReloadAsync();
 

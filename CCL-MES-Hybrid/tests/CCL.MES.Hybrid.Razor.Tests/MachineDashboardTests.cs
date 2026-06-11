@@ -166,4 +166,47 @@ public sealed class MachineDashboardTests : TestContext
         Assert.Contains("Không có máy nào khớp", cut.Markup);
         Assert.Empty(cut.FindAll(".md-table tbody tr"));
     }
+
+    [Fact]
+    public void Clicking_a_row_opens_the_detail_drawer()
+    {
+        _api.MachineDashboard = Board();
+        _api.MachineDetail = new MachineDetailDto
+        {
+            WorkCenterId = 1, Code = "FBL01", Description = "Flexo 1", Area = "FLEXO",
+            Status = "Running",
+            ActiveWo = new MachineWoRow { WoNo = "WO-26-0001", MesPhase = "RUNNING", TargetQty = 1000, QtyDone = 250 },
+            TodayWoCount = 2, TodayGood = 800, TodayNg = 6,
+            RecentWos = new[]
+            {
+                new MachineWoRow { WoNo = "WO-26-0001", MesPhase = "RUNNING", TargetQty = 1000, QtyDone = 250 },
+            },
+        };
+        var cut = RenderComponent<MachineDashboard>();
+
+        Assert.Empty(cut.FindAll(".md-drawer"));     // closed initially
+
+        cut.FindAll(".md-row").First().Click();
+
+        Assert.Single(cut.FindAll(".md-drawer"));
+        Assert.NotEmpty(_api.MachineDetailCalls);   // detail fetched for the clicked row
+        var markup = cut.Markup;
+        Assert.Contains("WO đang chạy", markup);
+        Assert.Contains("WO-26-0001", markup);
+        Assert.Contains("800", markup);              // today good
+    }
+
+    [Fact]
+    public void Closing_the_drawer_hides_it()
+    {
+        _api.MachineDashboard = Board();
+        _api.MachineDetail = new MachineDetailDto { WorkCenterId = 1, Code = "FBL01", Status = "Running" };
+        var cut = RenderComponent<MachineDashboard>();
+
+        cut.FindAll(".md-row").First().Click();
+        Assert.Single(cut.FindAll(".md-drawer"));
+
+        cut.Find(".md-drawer-close").Click();
+        Assert.Empty(cut.FindAll(".md-drawer"));
+    }
 }

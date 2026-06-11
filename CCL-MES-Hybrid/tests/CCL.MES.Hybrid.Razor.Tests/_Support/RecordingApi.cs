@@ -106,6 +106,17 @@ public sealed class RecordingApi : ICclApiClient
         return Task.FromResult(MachineDashboard);
     }
 
+    // P10.8 slice 3 — per-machine detail. Settable per test; records the
+    // requested work-center id.
+    public MachineDetailDto? MachineDetail { get; set; }
+    public List<long> MachineDetailCalls { get; } = new();
+
+    public Task<MachineDetailDto?> GetMachineDetailAsync(long workCenterId, CancellationToken ct = default)
+    {
+        MachineDetailCalls.Add(workCenterId);
+        return Task.FromResult(MachineDetail);
+    }
+
     public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
     {
         SummaryCalls.Add(woNo);
