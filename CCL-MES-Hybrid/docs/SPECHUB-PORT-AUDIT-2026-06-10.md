@@ -25,7 +25,7 @@
 | **NPI: Engineer Spec — Import (xlsx) button** | ✅ DONE (P10.5c-2) | `Specs.razor:83` `OpenImportModal` + `ImportSpecModal` + `SpecsController import/preview`+`import/save` (backlog §4 was stale) |
 | **Home Dashboard (KPI tiles / recent / quick actions)** | ⚠️ PARTIAL | `Home.razor` exists but minimal vs SpecHub greeting+clock+4 KPI+focus+grid |
 | **Machine Monitoring Dashboard** | ❌ MISSING (P10.8) | no `MachineDashboard.razor`; `OeeController` backend partial |
-| **Shop Order History** | ❌ MISSING (P10.8) | no history page; forensic WO query endpoint needed |
+| **Shop Order History** | ✅ DONE (P10.8) | `ShopOrdersController` + `ShopOrderHistory.razor` (KPI + period/search filters); CSV export deferred |
 | **QMS: Inspection Queue (IPQC/FQC/OQC)** | ❌ MISSING (P10.9) | `Qc/Iqc/WoQcReview` controllers exist; no queue UI |
 | **QMS: QC History** | ❌ MISSING (P10.9) | no QC-history page; data exists in audit + WoQcChecks |
 | **Machine List (admin CRUD, 17 areas)** | ❌ MISSING | only read-only Work Centers grid exists |
@@ -113,8 +113,8 @@ UI → test belt).
 | 2026-06-11 | **P10.8 Machine Dashboard slice 1** — `MachineDashboardDto` + `MachinesController` (`GET /machines/dashboard`: WorkCenter read-model + live status Running/Setup/Idle derived from active WO's MesPhase + plant KPI counts) + client method + `MachineDashboard.razor` (KPI strip + machine table + refresh) + nav "Giám sát". Tests: Api 382→384, Razor 120→123, all green. | ✅ done |
 | 2026-06-11 | **P10.8 Machine Dashboard slice 2** — area grouping (collapsible sections per WorkCenter.Area) + status chips (All/Running/Setup/Idle) + area chips + search filter, all client-side on the loaded board. WO-join integration test (seed RUNNING WO → machine reads Running). Tests: Api 384→385, Razor 123→128, all green. | ✅ done |
 | 2026-06-11 | **P10.8 Machine Dashboard slice 3** — per-machine detail drawer: `MachineDetailDto` + `GET /machines/{id}/detail` (active WO + today production roll-up + recent WO history) + slide-in drawer (click a row). Tests: Api 385→387, Razor 128→130, all green. **Machine Dashboard core complete** (dashboard + filters + grouping + drawer); Down/Maintenance (ProductionLog feed) remains deferred. | ✅ done |
-| — | P10.8 Shop Order History (forensic WO + KPI + filters + CSV export) | ⏭ queued |
-| — | P10.9 QMS Inspection Queue + QC History | ⏭ queued |
+| 2026-06-11 | **P10.8 Shop Order History** — `ShopOrderHistoryDto` + `ShopOrdersController` (`GET /shop-orders/history?period=&search=`: closed WOs SHIPPED/CANCELLED + KPI roll-ups: total/output/yield/reject) + client method + `ShopOrderHistory.razor` (4 KPI tiles + period chips + search + forensic table) + nav. Tests: Api 387→390, Razor 130→134, all green (1 known macOS-SQLite soak flake, green on retry). CSV export deferred (needs authenticated download path). | ✅ done |
+| — | P10.9 QMS Inspection Queue + QC History | ⏭ next |
 
 > **Reality check on scope.** The audit corrected the premise: the
 > shop-floor MES core (P10.7a–e), all NPI tabs + Engineer Spec

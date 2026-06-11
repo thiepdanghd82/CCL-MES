@@ -117,6 +117,16 @@ public sealed class RecordingApi : ICclApiClient
         return Task.FromResult(MachineDetail);
     }
 
+    // P10.8 — Shop Order History. Records the (period, search) of each call.
+    public ShopOrderHistoryDto? ShopOrderHistory { get; set; } = new ShopOrderHistoryDto();
+    public List<(string? Period, string? Search)> ShopOrderHistoryCalls { get; } = new();
+
+    public Task<ShopOrderHistoryDto?> GetShopOrderHistoryAsync(string? period, string? search, CancellationToken ct = default)
+    {
+        ShopOrderHistoryCalls.Add((period, search));
+        return Task.FromResult(ShopOrderHistory);
+    }
+
     public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
     {
         SummaryCalls.Add(woNo);

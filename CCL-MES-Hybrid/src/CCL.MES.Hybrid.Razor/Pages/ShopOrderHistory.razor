@@ -1,0 +1,108 @@
+@page "/shop-orders"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using CCL.MES.Shared.Machines
+@inject ICclApiClient Api
+
+<PageTitle>Lịch sử lệnh sản xuất — CCL MES</PageTitle>
+
+<h1 class="page-title">Lịch sử lệnh sản xuất</h1>
+
+@* P10.8 — forensic record of closed WOs (SHIPPED / CANCELLED) with KPI
+   roll-ups + period/search filters (server-side). CSV export lands in a
+   follow-up (needs an authenticated download path). *@
+<div class="md-kpis">
+    <div class="md-kpi"><div class="md-kpi-num">@(_data?.TotalWos)</div><div class="md-kpi-label">Tổng WO</div></div>
+    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@(_data?.Output)</div><div class="md-kpi-label">Sản lượng</div></div>
+    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@(_data is null ? null : _data.YieldPct + "%")</div><div class="md-kpi-label">Tỷ lệ đạt</div></div>
+    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@(_data?.Reject)</div><div class="md-kpi-label">Phế phẩm</div></div>
+</div>
+
+<div class="md-filters">
+    <input class="md-search" type="text" placeholder="Tìm WO / khách / sản phẩm / máy…"
+           value="@_search" @onchange="OnSearchChanged" />
+    <div class="md-chips">
+        @foreach (var p in PeriodChips)
+        {
+            <button type="button" class="md-chip @(_period == p.Key ? "md-chip-on" : "")"
+                    @onclick="@(() => SetPeriodAsync(p.Key))">@p.Label</button>
+        }
+    </div>
+</div>
+
+@if (_loading && _data is null)
+{
+    <p class="md-muted">Đang tải lịch sử…</p>
+}
+else if (_error is not null)
+{
+    <p class="md-error">Không tải được lịch sử: @_error</p>
+}
+else if (_data is null || _data.Rows.Count == 0)
+{
+    <p class="md-muted">Không có lệnh sản xuất nào khớp bộ lọc.</p>
+}
+else
+{
+    <div class="md-table-wrap">
+        <table class="md-table">
+            <thead>
+                <tr>
+                    <th>WO</th><th>Khách hàng</th><th>Sản phẩm</th><th>Máy</th>
+                    <th>Kế hoạch/Thực hiện</th><th>Tỷ lệ đạt</th><th>Trạng thái</th><th>Hoàn tất</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in _data.Rows)
+                {
+                    <tr>
+                        <td class="md-code">@r.WoNo</td>
+                        <td>@r.CustomerName</td>
+                        <td>@r.ProductName</td>
+                        <td>@(r.MachineCode ?? "—")</td>
+                        <td>@r.TargetQty / @r.QtyDone</td>
+                        <td>@r.YieldPct%</td>
+                        <td>@r.MesPhase</td>
+                        <td>@(r.FinishedAt?.ToString("dd/MM/yyyy HH:mm") ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private ShopOrderHistoryDto? _data;
+    private bool _loading = true;
+    private string? _error;
+
+    private string? _period;     // null = all
+    private string _search = "";
+
+    private static readonly (string? Key, string Label)[] PeriodChips =
+    {
+        (null, "Tất cả"), ("today", "Hôm nay"), ("7d", "7 ngày"), ("30d", "30 ngày"),
+    };
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task SetPeriodAsync(string? period)
+    {
+        _period = period;
+        await ReloadAsync();
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try { _data = await Api.GetShopOrderHistoryAsync(_period, string.IsNullOrWhiteSpace(_search) ? null : _search); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+}

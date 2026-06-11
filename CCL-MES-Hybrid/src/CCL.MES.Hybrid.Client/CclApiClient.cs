@@ -83,6 +83,16 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<MachineDetailDto>(resp, ct);
     }
 
+    public async Task<ShopOrderHistoryDto?> GetShopOrderHistoryAsync(string? period, string? search, CancellationToken ct = default)
+    {
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(period)) qs.Add($"period={Uri.EscapeDataString(period)}");
+        if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        var url = $"/{ApiVersion.Prefix}/shop-orders/history" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<ShopOrderHistoryDto>(resp, ct);
+    }
+
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)
     {
         var req = new RefreshTokenRequest { RefreshToken = refreshToken };
