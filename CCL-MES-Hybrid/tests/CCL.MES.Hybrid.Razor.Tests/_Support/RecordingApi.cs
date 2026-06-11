@@ -159,6 +159,10 @@ public sealed class RecordingApi : ICclApiClient
         return Task.FromResult(QcHistory);
     }
 
+    public IReadOnlyList<ActiveWorkOrderCard> ActiveWorkOrders { get; set; } = System.Array.Empty<ActiveWorkOrderCard>();
+    public Task<IReadOnlyList<ActiveWorkOrderCard>> GetActiveWorkOrdersAsync(CancellationToken ct = default)
+        => Task.FromResult(ActiveWorkOrders);
+
     public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
     {
         SummaryCalls.Add(woNo);

@@ -52,6 +52,35 @@ public sealed class WorkOrdersController : ControllerBase
         _db = db;
     }
 
+    // P10.7 landing — active WOs for the scan surface (SpecHub "Active
+    // Work Orders" parity). Anything not yet shipped/cancelled is "active".
+    private static readonly string[] LandingActivePhases =
+    {
+        "PREPRESS", "SETTING", "IPQC_WAIT", "QA_PENDING", "IPQC_APPROVED",
+        "RUNNING", "PAUSED", "FQC_PENDING", "OQC_PENDING",
+    };
+
+    [HttpGet("active")]
+    public async Task<ActionResult<IReadOnlyList<ActiveWorkOrderCard>>> Active(CancellationToken ct)
+    {
+        var rows = await _db.WorkOrders.AsNoTracking()
+            .Where(w => LandingActivePhases.Contains(w.MesPhase))
+            .OrderByDescending(w => w.UpdatedAt)
+            .Take(50)
+            .Select(w => new ActiveWorkOrderCard
+            {
+                WoNo = w.WoNo,
+                CustomerName = w.Customer != null ? w.Customer.Name : null,
+                ProductName = w.ProductName,
+                MachineCode = w.MachineCode,
+                MesPhase = w.MesPhase,
+                TargetQty = w.TargetQty,
+                QtyDone = w.QtyDoneCached,
+            })
+            .ToListAsync(ct);
+        return Ok(rows);
+    }
+
     /// <summary>Flat list — small datasets only. Use <c>shop-orders</c>
     /// instead for the grouped operator view.</summary>
     [HttpGet]

@@ -144,6 +144,35 @@ else
                 </div>
             }
 
+            @* SpecHub "Active Work Orders" parity — landing card list when
+               no WO is open. Tap a card to open the WO (same path as a scan). *@
+            @if (_summary is null && _lookupError is null && !_lookingUp && _activeWos is not null)
+            {
+                @if (_activeWos.Count > 0)
+                {
+                    <div class="wo-section-head">⚡ Active Work Orders (@_activeWos.Count)</div>
+                    <div class="wo-card-grid">
+                        @foreach (var w in _activeWos)
+                        {
+                            <button type="button" class="wo-card" @onclick="@(() => OnOpenWoCardAsync(w.WoNo))">
+                                <div class="wo-card-head">
+                                    <span class="wo-card-no">@w.WoNo</span>
+                                    <span class="wo-card-badge @PhaseBadgeClass(w.MesPhase)">@PhaseLabel(w.MesPhase)</span>
+                                </div>
+                                <div class="wo-card-kv"><span>Customer</span><strong>@(w.CustomerName ?? "—")</strong></div>
+                                <div class="wo-card-kv"><span>Product</span><strong>@w.ProductName</strong></div>
+                                <div class="wo-card-kv"><span>Machine</span><strong>@(w.MachineCode ?? "—")</strong></div>
+                                <div class="wo-card-kv"><span>Progress</span><strong>@w.QtyDone / @w.TargetQty pcs</strong></div>
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="wo-active-empty">No active work orders. Scan or type a WO code above to begin.</div>
+                }
+            }
+
             @if (_summary is not null)
             {
                 @* P10.7c-3 BUG-FIX L19 finalization (Henry RCA on WO-26-3686):
@@ -309,6 +338,7 @@ else
     private bool _openSettingsFailed;
     private ScanResult? _lastScan;
     private WorkOrderSummary? _summary;
+    private IReadOnlyList<ActiveWorkOrderCard>? _activeWos;
     private AdvanceWorkOrderResponse? _advanceResult;
     private string? _lookupError;
     private string? _advanceError;
@@ -339,7 +369,44 @@ else
         if (HwOptions.Value.ScanEnabled)
             await Probe();
         await LoadReasonCodesAsync();
+        await LoadActiveWosAsync();
     }
+
+    private async Task LoadActiveWosAsync()
+    {
+        try { _activeWos = await Api.GetActiveWorkOrdersAsync(); }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "[workorders] load active WOs failed — landing list empty");
+            _activeWos = System.Array.Empty<ActiveWorkOrderCard>();
+        }
+    }
+
+    // SpecHub "Active Work Orders" — tap a landing card to open the WO.
+    private async Task OnOpenWoCardAsync(string woNo)
+    {
+        ResetState();
+        _manualCode = woNo;
+        await ResolveAndShowAsync(woNo, "MANUAL", "card-open", DateTimeOffset.UtcNow);
+    }
+
+    private static string PhaseLabel(string p) => p switch
+    {
+        "PREPRESS" => "PRE-PRESS",
+        "IPQC_WAIT" => "IPQC",
+        "QA_PENDING" => "QA",
+        "IPQC_APPROVED" => "READY",
+        "FQC_PENDING" => "FQC",
+        "OQC_PENDING" => "OQC",
+        _ => p,
+    };
+
+    private static string PhaseBadgeClass(string p) => p switch
+    {
+        "RUNNING" => "wo-badge-run",
+        "PAUSED" => "wo-badge-warn",
+        _ => "wo-badge-info",
+    };
 
     private async Task LoadReasonCodesAsync()
     {
