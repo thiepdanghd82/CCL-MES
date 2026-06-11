@@ -71,19 +71,19 @@ public sealed class WorkOrdersPageTests : TestContext
     public void Manual_entry_Find_button_disabled_until_three_chars()
     {
         var cut = RenderComponent<WorkOrders>();
-        var findButton = cut.Find("div.wo-manual-row button");
+        var findButton = cut.Find("button.wo-find-btn");
         Assert.True(findButton.HasAttribute("disabled"),
             "Empty manual code → Find disabled.");
 
         // Type 2 chars — still disabled.
         cut.Find("input.wo-manual-input").Input("WO");
-        findButton = cut.Find("div.wo-manual-row button");
+        findButton = cut.Find("button.wo-find-btn");
         Assert.True(findButton.HasAttribute("disabled"),
             "2 chars → Find still disabled.");
 
         // Type 3 chars — enabled.
         cut.Find("input.wo-manual-input").Input("WO-");
-        findButton = cut.Find("div.wo-manual-row button");
+        findButton = cut.Find("button.wo-find-btn");
         Assert.False(findButton.HasAttribute("disabled"),
             "3 chars → Find enabled.");
     }
@@ -96,7 +96,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3684");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -118,7 +118,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-9999");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -153,7 +153,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3684");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
         cut.WaitForElement("button.wo-cta-accept");
         cut.Find("button.wo-cta-accept").Click();
 
@@ -185,7 +185,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3684");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
         cut.WaitForElement("button.wo-cta-accept");
         cut.Find("button.wo-cta-accept").Click();
 
@@ -217,7 +217,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3684");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
         cut.WaitForElement("button.wo-cta-accept");
         cut.Find("button.wo-cta-accept").Click();
 
@@ -266,7 +266,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3685");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -335,7 +335,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3725");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         // Step 1 — IpqcDashboard mounts (summary lookup #1 = IPQC_WAIT).
         cut.WaitForAssertion(() =>
@@ -395,7 +395,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3801");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-dashboard']")));
 
@@ -437,7 +437,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3725");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -464,7 +464,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3685");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -494,7 +494,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3685");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -526,7 +526,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3686");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -560,7 +560,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3686");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -590,7 +590,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3686");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -620,7 +620,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3686");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -643,7 +643,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3686");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -670,7 +670,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3685");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {

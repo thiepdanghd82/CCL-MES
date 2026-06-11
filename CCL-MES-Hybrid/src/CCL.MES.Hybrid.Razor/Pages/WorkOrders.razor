@@ -86,31 +86,18 @@ else
         }
         else
         {
+            @*  P10.7a-1.3 — manual WO entry sits inline AFTER "Scan WO" on the
+                same row (compact, height-matched). Plain <input> + @bind:event
+                "oninput" + Enter handler — NO <InputText> per the renderer-crash
+                lesson (P10.5g / P10.6a). Find routes through the SAME
+                ResolveAndShowAsync helper the scan path uses, so audit /
+                RecentScans / lookup behave identically — no logic fork. *@
             <div class="wo-cta-row">
                 <button type="button" class="scan-btn wo-cta-primary"
                         disabled="@(_scanning || _advancing || _lookingUp)"
                         @onclick="OnScan">
                     @(_scanning ? "Opening camera…" : "Scan WO")
                 </button>
-                @if (_summary is not null || _lookupError is not null)
-                {
-                    <button type="button" class="scan-btn scan-btn-secondary"
-                            disabled="@(_scanning || _advancing)"
-                            @onclick="ResetState">
-                        Scan another WO
-                    </button>
-                }
-            </div>
-
-            @*  P10.7a-1.3 — manual entry fallback. Operator uses this when
-                the QR is torn/blurred, the scanner is broken, or for desk
-                testing without a camera. Uses plain <input> + @bind:event
-                "oninput" + Enter handler — NO <InputText> per the
-                renderer-crash lesson (P10.5g / P10.6a). The Find button
-                routes through the SAME ResolveAndShowAsync helper the
-                scan path uses, so audit/RecentScans/lookup all behave
-                identically — no logic fork. *@
-            <div class="wo-manual-row">
                 <input type="text"
                        class="wo-manual-input scan-mono"
                        placeholder="Enter WO code (e.g. WO-26-3683)"
@@ -122,13 +109,21 @@ else
                        autocomplete="off"
                        autocapitalize="off"
                        spellcheck="false" />
-                <button type="button" class="scan-btn scan-btn-secondary"
+                <button type="button" class="scan-btn scan-btn-secondary wo-find-btn"
                         disabled="@(_scanning || _advancing || _lookingUp
                                     || CCL.MES.Hybrid.Client.WorkOrders.WoCodeNormalizer
                                        .NormalizeForManualEntry(_manualCode) is null)"
                         @onclick="OnManualLookup">
                     @(_lookingUp ? "Looking up…" : "Find")
                 </button>
+                @if (_summary is not null || _lookupError is not null)
+                {
+                    <button type="button" class="scan-btn scan-btn-secondary"
+                            disabled="@(_scanning || _advancing)"
+                            @onclick="ResetState">
+                        Scan another WO
+                    </button>
+                }
             </div>
 
             @if (_lastScan is not null && _summary is null && _lookupError is null && _lookingUp)

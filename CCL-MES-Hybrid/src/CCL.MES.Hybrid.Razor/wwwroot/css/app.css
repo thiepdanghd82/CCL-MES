@@ -1196,24 +1196,21 @@ html, body {
     max-width: 100%;
 }
 
+/* P10.10 — Scan WO + compact manual entry (input + Find) share ONE row,
+   all height-matched to the primary "Scan WO" button. align-items:stretch
+   + overriding .scan-btn's align-self:flex-start makes every control the
+   same height; the input is shrunk to a fixed width instead of growing. */
 .wo-cta-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
-}
-
-/* P10.7a-1.3 — manual WO entry row below the Quét button. Plain
-   horizontal flex; the input shrinks/grows with the touch keyboard
-   exposure on Catalyst. */
-.wo-manual-row {
-    display: flex;
     align-items: stretch;
     gap: 10px;
-    margin-top: 12px;
 }
+.wo-cta-row .scan-btn { align-self: stretch; }
+
 .wo-manual-input {
-    flex: 1 1 auto;
-    min-height: 44px; /* operator-grade touch target */
+    flex: 0 1 300px;          /* compact — fixed-ish width, no grow */
+    min-height: 0;            /* let the row's stretch set the height */
     padding: 8px 12px;
     border: 1px solid #c4c4c4;
     border-radius: 6px;
@@ -1408,6 +1405,14 @@ html, body {
     border-radius: 8px;
     background: white;
 }
+
+/* P10.10 — NPI master-data grids fill the screen (full-screen table).
+   Width is already 100%; make the scroll region flex-fill the viewport
+   height so the grid spans the screen instead of leaving dead space below
+   the rows. Scoped with :has() so ONLY grid pages get the flex-column
+   layout — other surfaces (Home, dashboards) are untouched. */
+.app-content:has(.grid-scroll) { display: flex; flex-direction: column; }
+.app-content:has(.grid-scroll) .grid-scroll { flex: 1 1 auto; max-height: none; }
 
 .grid {
     width: 100%;
