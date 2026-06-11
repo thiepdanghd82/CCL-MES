@@ -39,31 +39,12 @@
         <NavLink href="/qms" class="app-nav-link">Inspection Queue</NavLink>
         <NavLink href="/qms/history" class="app-nav-link">QC History</NavLink>
 
+        @* P10.10 — the Settings hub (/settings) now lists every sub-page
+           as a card, so the per-page sub-nav links were collapsed into this
+           single "System" entry. Prefix match keeps it highlighted across
+           all /settings/* routes. *@
         <div class="app-nav-section">SETTINGS</div>
-        <NavLink href="/settings" Match="NavLinkMatch.All" class="app-nav-link">Overview</NavLink>
-        <NavLink href="/settings/profile" class="app-nav-link app-nav-link-sub">My Profile</NavLink>
-        <NavLink href="/settings/password" class="app-nav-link app-nav-link-sub">Change Password</NavLink>
-        <NavLink href="/settings/connection" class="app-nav-link app-nav-link-sub">Connection</NavLink>
-        <NavLink href="/settings/about" class="app-nav-link app-nav-link-sub">About</NavLink>
-        <NavLink href="/settings/appearance" class="app-nav-link app-nav-link-sub">Appearance</NavLink>
-        <AuthorizeView Roles="Admin" Context="bkpCtx">
-            <NavLink href="/settings/backup" class="app-nav-link app-nav-link-sub">Backup &amp; Restore</NavLink>
-        </AuthorizeView>
-        <AuthorizeView Roles="Admin" Context="audCtx">
-            <NavLink href="/settings/audit" class="app-nav-link app-nav-link-sub">Audit Log</NavLink>
-        </AuthorizeView>
-        <AuthorizeView Roles="Admin" Context="accCtx">
-            <NavLink href="/settings/accounts" class="app-nav-link app-nav-link-sub">Account Control</NavLink>
-        </AuthorizeView>
-        @if (HwOptions.Value.ScanEnabled)
-        {
-            <AuthorizeView Roles="Admin,Supervisor,Engineer">
-                <NavLink href="/hardware" class="app-nav-link app-nav-link-sub">Hardware</NavLink>
-                <AuthorizeView Roles="Admin,Supervisor" Context="modeCtx">
-                    <NavLink href="/mode" class="app-nav-link app-nav-link-sub">Station Mode</NavLink>
-                </AuthorizeView>
-            </AuthorizeView>
-        }
+        <NavLink href="/settings" class="app-nav-link">System</NavLink>
 
         <RecentScansWidget />
     </nav>
