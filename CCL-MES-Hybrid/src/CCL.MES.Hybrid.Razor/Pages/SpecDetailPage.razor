@@ -29,11 +29,55 @@
     @if (_detail is not null)
     {
         <span class="spec-detail-crumb">@(_detail.SpecCode) · Rev @_detail.RevisionCode</span>
-        @* P10.5g — Print sheet PDF. Read-level (export = read per
-           NpiSpecRead policy) so the button surfaces for every role
-           that can already view the page. Q11 _exporting guard prevents
-           double-fire while the file streams. *@
-        <button type="button" class="grid-btn grid-btn-secondary"
+
+        @* P10.10 — spec action buttons moved inline onto the header row,
+           before Print PDF, for a compact toolbar (was a separate card
+           below). Mutations gate on NpiSpecWrite (Admin/Engineer); Approve
+           only for Draft/InReview; every button disabled while a mutation
+           is in-flight via the page-level _busy guard. *@
+        @if (_vm is not null)
+        {
+            <AuthorizeView Roles="Admin,Engineer">
+                <div class="spec-detail-actions spec-detail-actions-inline">
+                    @if (_detail.Status == SpecRevisionStatus.Draft || _detail.Status == SpecRevisionStatus.InReview)
+                    {
+                        <button type="button" class="op-btn op-btn-success"
+                                disabled="@_busy" @onclick="OnApproveAsync">
+                            @(_busy && _busyAction == "approve" ? "Approving…" : "✓ Approve")
+                        </button>
+                    }
+                    @if (_detail.Status == SpecRevisionStatus.Draft)
+                    {
+                        <button type="button" class="op-btn op-btn-secondary"
+                                disabled="@_busy" @onclick="() => OpenEditAsync()">
+                            📝 Edit
+                        </button>
+                    }
+                    <button type="button" class="op-btn op-btn-secondary"
+                            disabled="@_busy" @onclick="() => OpenCopyAsync()">
+                        ⎘ Copy
+                    </button>
+                    @if (_detail.Status == SpecRevisionStatus.Approved || _detail.Status == SpecRevisionStatus.Released)
+                    {
+                        <button type="button" class="op-btn op-btn-warning"
+                                disabled="@_busy" @onclick="() => OpenReviseAsync()">
+                            ⟳ Revise
+                        </button>
+                        <button type="button" class="op-btn op-btn-danger"
+                                disabled="@_busy" @onclick="() => OpenSupersedeAsync()">
+                            ⊘ Mark Superseded
+                        </button>
+                    }
+                    <button type="button" class="op-btn op-btn-secondary"
+                            disabled="@_busy" @onclick="() => OpenTrashAsync()">
+                        🗑 Move to Trash
+                    </button>
+                </div>
+            </AuthorizeView>
+        }
+
+        @* Print sheet PDF — pushed to the far right of the toolbar. *@
+        <button type="button" class="grid-btn grid-btn-secondary spec-print-pdf"
                 disabled="@_exporting"
                 @onclick="ExportSheetPdfAsync">
             @(_exporting ? "Generating PDF…" : "🖨 Print PDF")
@@ -55,56 +99,14 @@
     </div>
 }
 
-@if (_detail is not null && _vm is not null)
+@* P10.10 — the action buttons moved into the header row (above); only the
+   post-mutation status banner stays here as a standalone line. *@
+@if (_detail is not null && _vm is not null && _actionBanner is not null)
 {
-    @* P10.5c-1 — Spec action bar. Mutations gate on the NpiSpecWrite
-       policy (Admin/Engineer); Approve only renders for Draft/InReview
-       per the legacy ApproveAsync semantics (state machine elsewhere).
-       Every button is disabled while a mutation is in-flight via the
-       page-level _busy guard so double-tap can't double-fire. *@
-    <AuthorizeView Roles="Admin,Engineer">
-        <div class="spec-detail-actions">
-            @if (_detail.Status == SpecRevisionStatus.Draft || _detail.Status == SpecRevisionStatus.InReview)
-            {
-                <button type="button" class="op-btn op-btn-success"
-                        disabled="@_busy" @onclick="OnApproveAsync">
-                    @(_busy && _busyAction == "approve" ? "Approving…" : "✓ Approve")
-                </button>
-            }
-            @if (_detail.Status == SpecRevisionStatus.Draft)
-            {
-                <button type="button" class="op-btn op-btn-secondary"
-                        disabled="@_busy" @onclick="() => OpenEditAsync()">
-                    📝 Edit
-                </button>
-            }
-            <button type="button" class="op-btn op-btn-secondary"
-                    disabled="@_busy" @onclick="() => OpenCopyAsync()">
-                ⎘ Copy
-            </button>
-            @if (_detail.Status == SpecRevisionStatus.Approved || _detail.Status == SpecRevisionStatus.Released)
-            {
-                <button type="button" class="op-btn op-btn-warning"
-                        disabled="@_busy" @onclick="() => OpenReviseAsync()">
-                    ⟳ Revise
-                </button>
-                <button type="button" class="op-btn op-btn-danger"
-                        disabled="@_busy" @onclick="() => OpenSupersedeAsync()">
-                    ⊘ Mark Superseded
-                </button>
-            }
-            <button type="button" class="op-btn op-btn-secondary"
-                    disabled="@_busy" @onclick="() => OpenTrashAsync()">
-                🗑 Move to Trash
-            </button>
-
-            @if (_actionBanner is not null)
-            {
-                <span class="spec-action-banner @(_actionBannerIsError ? "is-error" : "is-success")"
-                      role="status">@_actionBanner</span>
-            }
-        </div>
-    </AuthorizeView>
+    <div class="spec-action-banner-row">
+        <span class="spec-action-banner @(_actionBannerIsError ? "is-error" : "is-success")"
+              role="status">@_actionBanner</span>
+    </div>
 }
 
 @if (_detailLoading && _detail is null)

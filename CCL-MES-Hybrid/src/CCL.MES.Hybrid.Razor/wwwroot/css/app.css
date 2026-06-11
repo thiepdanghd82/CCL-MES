@@ -1378,7 +1378,19 @@ html, body {
     padding: 6px 8px;
 }
 
-.grid-btn-link:hover            { color: #1e3a8a; background: transparent; }
+/* P10.10 — match .grid-btn:hover:not(:disabled)'s (0,3,0) specificity so
+   the link's own hover/active/focus wins; otherwise the base button's navy
+   fill bled over the blue link text on click → invisible "Back to list". */
+.grid-btn-link:hover:not(:disabled),
+.grid-btn-link:active,
+.grid-btn-link:focus,
+.grid-btn-link:focus-visible {
+    background: #eff6ff;
+    color: #1e3a8a;
+    box-shadow: none;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
 
 /* Grid status banners */
 .grid-status   { padding: 12px 0; color: #6b7280; }
@@ -1762,7 +1774,8 @@ html, body {
 .spec-detail-header {
     display: flex;
     align-items: center;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
     margin: 0 0 12px;
 }
 
@@ -2203,6 +2216,20 @@ html, body {
     padding: 10px 12px;
     margin: 0 0 16px;
 }
+
+/* P10.10 — inline variant: action buttons sit on the header toolbar row
+   (no card chrome). Print PDF is pushed to the far right; the banner drops
+   to its own line below the toolbar. */
+.spec-detail-actions-inline {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    margin: 0;
+}
+.spec-print-pdf { margin-left: auto; }
+.spec-action-banner-row { margin: 0 0 14px; }
+.spec-action-banner-row .spec-action-banner { margin-left: 0; }
 
 .spec-action-banner {
     margin-left: auto;
