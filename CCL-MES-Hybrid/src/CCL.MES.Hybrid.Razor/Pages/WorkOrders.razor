@@ -371,6 +371,14 @@ else
                             <div class="wo-side-kv"><span>Product name</span><strong>@(_summary.ProductName ?? "—")</strong></div>
                             <div class="wo-side-kv"><span>Machine</span><strong>@(_summary.MachineCode ?? "—")</strong></div>
                             <div class="wo-side-kv"><span>Target</span><strong>@_summary.TargetQty @_summary.Uom</strong></div>
+                            @if (_prepressView?.PlateCheck?.PlateNo is { Length: > 0 } plateNo)
+                            {
+                                <div class="wo-side-kv"><span>Plate</span><strong class="scan-mono">@plateNo</strong></div>
+                            }
+                            @if (_prepressView?.CutterCheck?.CutterNo is { Length: > 0 } cutterNo)
+                            {
+                                <div class="wo-side-kv"><span>Cutter</span><strong class="scan-mono">@cutterNo</strong></div>
+                            }
                         </div>
                     </div>
 
@@ -386,8 +394,20 @@ else
                                 {
                                     <div class="wo-bom-row">
                                         <span class="wo-bom-dot @(m.Status == "Ok" ? "wo-bom-ok" : (m.Status == "Ng" ? "wo-bom-ng" : ""))"></span>
-                                        <span class="wo-bom-code">@m.MaterialCode</span>
-                                        <span class="wo-bom-qty">@m.QtyRequired.ToString("0.###") @m.Uom</span>
+                                        <div class="wo-bom-main">
+                                            <span class="wo-bom-code">@m.MaterialCode</span>
+                                            @if (m.MaterialDescription is { Length: > 0 } desc)
+                                            {
+                                                <span class="wo-bom-desc">@desc</span>
+                                            }
+                                        </div>
+                                        <div class="wo-bom-nums">
+                                            <span class="wo-bom-qty">@(m.QtyLoaded?.ToString("0.###") ?? "—") / @m.QtyRequired.ToString("0.###") @m.Uom</span>
+                                            @if (m.LotNo is { Length: > 0 } lot)
+                                            {
+                                                <span class="wo-bom-lot">Lot @lot</span>
+                                            }
+                                        </div>
                                     </div>
                                 }
                             </div>
