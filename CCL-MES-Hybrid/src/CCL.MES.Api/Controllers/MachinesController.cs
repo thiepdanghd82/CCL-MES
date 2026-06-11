@@ -51,6 +51,9 @@ public sealed class MachinesController : ControllerBase
                 w.MachineCode,
                 w.WoNo,
                 w.MesPhase,
+                Customer = w.Customer != null ? w.Customer.Name : null,
+                w.ProductName,
+                w.Uom,
                 w.TargetQty,
                 w.QtyDoneCached,
                 w.QtyNgCached,
@@ -58,14 +61,14 @@ public sealed class MachinesController : ControllerBase
             })
             .ToListAsync(ct);
 
-        var byMachine = new Dictionary<string, (string WoNo, string Phase, int Target, int Done, int Ng, DateTime? At)>(
+        var byMachine = new Dictionary<string, (string WoNo, string Phase, string? Cust, string? Prod, string Uom, int Target, int Done, int Ng, DateTime? At)>(
             StringComparer.OrdinalIgnoreCase);
         foreach (var w in activeWos)
         {
             // OrderByDescending(UpdatedAt) already ran, so the first row
             // per machine is the freshest — keep it, skip the rest.
             if (w.MachineCode is null || byMachine.ContainsKey(w.MachineCode)) continue;
-            byMachine[w.MachineCode] = (w.WoNo, w.MesPhase, w.TargetQty, w.QtyDoneCached, w.QtyNgCached, w.UpdatedAt);
+            byMachine[w.MachineCode] = (w.WoNo, w.MesPhase, w.Customer, w.ProductName, w.Uom, w.TargetQty, w.QtyDoneCached, w.QtyNgCached, w.UpdatedAt);
         }
 
         var wcs = await _db.WorkCenters.AsNoTracking()
@@ -97,6 +100,9 @@ public sealed class MachinesController : ControllerBase
                 Status = status,
                 ActiveWoNo = hasActive ? active.WoNo : null,
                 ActiveMesPhase = hasActive ? active.Phase : null,
+                CustomerName = hasActive ? active.Cust : null,
+                ProductName = hasActive ? active.Prod : null,
+                Uom = hasActive ? active.Uom : null,
                 TargetQty = hasActive ? active.Target : null,
                 QtyDone = hasActive ? active.Done : null,
                 QtyNg = hasActive ? active.Ng : null,

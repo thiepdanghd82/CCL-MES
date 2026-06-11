@@ -1,5 +1,6 @@
 @page "/machines"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Globalization
 @using System.Linq
 @using CCL.MES.Shared.Machines
 @inject ICclApiClient Api
@@ -7,21 +8,33 @@
 <PageTitle>Machine Dashboard — CCL MES</PageTitle>
 
 <div class="md-head">
-    <h1 class="page-title">Machine Dashboard</h1>
+    <div>
+        <h1 class="page-title">Machine Monitoring · Plant Floor</h1>
+        <div class="md-subtitle">Live status across all work centers · grouped by area</div>
+    </div>
     <button type="button" class="md-refresh" @onclick="ReloadAsync" disabled="@_loading">
         @(_loading ? "Loading…" : "↻ Refresh")
     </button>
 </div>
 
-@* P10.8 slice 2 — plant KPI strip (plant-wide, unfiltered) + status/area/
-   search filters + area-grouped tables. Status derives from the active
-   WO's MesPhase (Running / Setup / Idle). Detail drawer + ProductionLog
-   Down/Maintenance land in slice 3. *@
-<div class="md-kpis">
-    <div class="md-kpi"><div class="md-kpi-num">@(_data?.Total)</div><div class="md-kpi-label">Total</div></div>
-    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@(_data?.Running)</div><div class="md-kpi-label">Running</div></div>
-    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@(_data?.Setup)</div><div class="md-kpi-label">Setup</div></div>
-    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@(_data?.Idle)</div><div class="md-kpi-label">Idle</div></div>
+@* SpecHub Machine-Monitoring parity — plant KPI tiles (Running / Idle /
+   Setup / Down / Maintenance + Plant Quality), status/area/search filters,
+   area-grouped machine CARDS, real-data detail drawer. Status derives from
+   the active WO's MesPhase; Quality% = good /(good+reject) from the cached
+   qty ledger (honest — no fabricated OEE/speed). Down/Maintenance tiles are
+   shown for SpecHub parity and light up when the ProductionLog feed lands. *@
+<div class="md-kpi-grid">
+    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@CountStatus("Running")</div><div class="md-kpi-label">Running</div></div>
+    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@CountStatus("Idle")</div><div class="md-kpi-label">Idle</div></div>
+    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@CountStatus("Setup")</div><div class="md-kpi-label">Setup</div></div>
+    <div class="md-kpi md-kpi-down"><div class="md-kpi-num">@CountStatus("Down")</div><div class="md-kpi-label">Down</div></div>
+    <div class="md-kpi md-kpi-maint"><div class="md-kpi-num">@CountStatus("Maintenance")</div><div class="md-kpi-label">Maintenance</div></div>
+    <div class="md-kpi md-kpi-wide md-kpi-oee">
+        <div class="md-kpi-label">Plant Quality</div>
+        <div class="md-kpi-num md-kpi-oee-num">@(PlantQuality is { } q ? $"{q:0}%" : "—")</div>
+        <div class="md-kpi-bar"><div class="md-kpi-bar-fill" style="width:@((PlantQuality ?? 0).ToString("0", CultureInfo.InvariantCulture))%"></div></div>
+        <div class="md-kpi-oee-sub">@TodayOutput.ToString("N0") pcs produced · @CountStatus("Running") active</div>
+    </div>
 </div>
 
 @if (_loading && _data is null)
@@ -39,8 +52,9 @@ else if (_data is null || _data.Machines.Count == 0)
 else
 {
     <div class="md-filters">
-        <input class="md-search" type="text" placeholder="Search code / description…"
+        <input class="md-search" type="text" placeholder="🔍 Search WC code, WO, product, customer…"
                value="@_search" @oninput="OnSearch" />
+        <span class="md-filter-count">@Filtered.Count / @AllMachines.Count machines</span>
         <div class="md-chips">
             @foreach (var s in StatusChips)
             {
@@ -59,50 +73,156 @@ else
         </div>
     </div>
 
-    @if (Filtered.Count == 0)
-    {
-        <p class="md-muted">No machines match the filter.</p>
-    }
-    else
-    {
-        @foreach (var group in Grouped)
-        {
-            <section class="md-area">
-                <div class="md-area-head">
-                    <span class="md-area-name">@group.Key</span>
-                    <span class="md-area-count">@group.Count() machines</span>
-                </div>
-                <div class="md-table-wrap">
-                    <table class="md-table">
-                        <thead>
-                            <tr>
-                                <th>Code</th><th>Description</th><th>Status</th>
-                                <th>WO</th><th>Phase</th><th>Progress</th><th>NG</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var m in group)
+    <div class="md-content">
+        <div class="md-main">
+            @if (Filtered.Count == 0)
+            {
+                <p class="md-muted">No machines match the filter.</p>
+            }
+            else
+            {
+                @foreach (var group in Grouped)
+                {
+                    var list = group.ToList();
+                    <section class="md-area">
+                        <div class="md-area-head">
+                            <span class="md-area-name">@group.Key</span>
+                            <span class="md-area-count">· @list.Count machines · Quality @(GroupQuality(list) is { } gq ? $"{gq:0}%" : "—")</span>
+                            <span class="md-area-stats">
+                                @foreach (var s in StatusChips.Skip(1))
+                                {
+                                    var n = list.Count(m => m.Status == s.Key);
+                                    if (n > 0)
+                                    {
+                                        <span class="md-area-stat md-area-stat-@s.Key.ToLowerInvariant()">@StatusGlyph(s.Key) @n</span>
+                                    }
+                                }
+                            </span>
+                        </div>
+                        <div class="md-card-grid">
+                            @foreach (var m in list)
                             {
-                                <tr class="md-row" @onclick="@(() => OpenDetailAsync(m.WorkCenterId))">
-                                    <td class="md-code">@m.Code</td>
-                                    <td>@m.Description</td>
-                                    <td><span class="md-pill @PillClass(m.Status)">@StatusLabel(m.Status)</span></td>
-                                    <td>@(m.ActiveWoNo ?? "—")</td>
-                                    <td>@(m.ActiveMesPhase ?? "—")</td>
-                                    <td>@Progress(m)</td>
-                                    <td>@(m.QtyNg?.ToString() ?? "—")</td>
-                                </tr>
+                                <article class="md-mc-card md-mc-@m.Status.ToLowerInvariant() md-row"
+                                         @onclick="@(() => OpenDetailAsync(m.WorkCenterId))">
+                                    <div class="md-mc-head">
+                                        <div class="md-mc-head-l">
+                                            <div class="md-mc-code">@m.Code</div>
+                                            <div class="md-mc-desc">@m.Description</div>
+                                        </div>
+                                        <div class="md-mc-head-r">
+                                            <span class="md-pill @PillClass(m.Status)">@StatusLabel(m.Status)</span>
+                                            @if (Elapsed(m.LastUpdatedAt) is { Length: > 0 } el)
+                                            {
+                                                <span class="md-mc-elapsed">@el</span>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    @if (m.ActiveWoNo is not null)
+                                    {
+                                        <div class="md-mc-job">
+                                            <div class="md-mc-job-head">
+                                                <strong class="md-mc-wo">@m.ActiveWoNo</strong>
+                                                <span class="md-mc-cust">@(m.CustomerName ?? "")</span>
+                                            </div>
+                                            <div class="md-mc-prod">@(m.ProductName ?? m.ActiveMesPhase ?? "")</div>
+                                            <div class="md-mc-prog-row">
+                                                <span class="md-mc-prog-num"><strong>@((m.QtyDone ?? 0).ToString("N0"))</strong> / @((m.TargetQty ?? 0).ToString("N0")) @(m.Uom ?? "pcs")</span>
+                                                <span class="md-mc-prog-pct">@(Pct(m) is { } p ? $"{p}%" : "—")</span>
+                                            </div>
+                                            <div class="md-mc-prog-bar"><div class="md-mc-prog-fill" style="width:@((Pct(m) ?? 0))%"></div></div>
+                                        </div>
+
+                                        <div class="md-mc-stats">
+                                            <div class="md-mc-stat">
+                                                <div class="md-mc-stat-lbl">Good</div>
+                                                <div class="md-mc-stat-num">@((m.QtyDone ?? 0).ToString("N0"))</div>
+                                                <div class="md-mc-stat-sub">@(Yield(m) is { } y ? $"Yield {y.ToString("0.0", CultureInfo.InvariantCulture)}%" : "—")</div>
+                                            </div>
+                                            <div class="md-mc-stat">
+                                                <div class="md-mc-stat-lbl">Reject</div>
+                                                <div class="md-mc-stat-num">@((m.QtyNg ?? 0).ToString("N0"))</div>
+                                                <div class="md-mc-stat-sub">@(Defect(m) is { } d ? $"{d.ToString("0.0", CultureInfo.InvariantCulture)}% defect" : "—")</div>
+                                            </div>
+                                            <div class="md-mc-stat">
+                                                <div class="md-mc-stat-lbl">Produced</div>
+                                                <div class="md-mc-stat-num">@(Produced(m).ToString("N0"))</div>
+                                                <div class="md-mc-stat-sub">@(m.ActiveMesPhase ?? "—")</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="md-mc-foot">
+                                            <div class="md-mc-q-line">
+                                                <span class="md-mc-q-lbl">Quality</span>
+                                                <strong class="md-mc-q-val">@(Yield(m) is { } qy ? $"{qy.ToString("0.0", CultureInfo.InvariantCulture)}%" : "—")</strong>
+                                            </div>
+                                            <div class="md-mc-q-bar"><div class="md-mc-q-fill" style="width:@((Yield(m) ?? 0).ToString("0.#", CultureInfo.InvariantCulture))%"></div></div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="md-mc-job md-mc-job-idle">
+                                            <div class="md-mc-job-head">
+                                                <strong class="md-mc-idle-txt">◯ Idle · waiting for WO</strong>
+                                            </div>
+                                            <div class="md-mc-prod">No active work order on this machine.</div>
+                                        </div>
+                                    }
+                                </article>
                             }
-                        </tbody>
-                    </table>
+                        </div>
+                    </section>
+                }
+            }
+        </div>
+
+        <aside class="md-side">
+            <div class="md-side-card">
+                <div class="md-side-head">Recent Activity</div>
+                <div class="md-side-body md-activity">
+                    @if (RecentActivity.Count == 0)
+                    {
+                        <div class="md-side-empty">No active machines.</div>
+                    }
+                    else
+                    {
+                        @foreach (var m in RecentActivity)
+                        {
+                            <div class="md-activity-row">
+                                <span class="md-activity-time">@(m.LastUpdatedAt?.ToLocalTime().ToString("HH:mm") ?? "—")</span>
+                                <span class="md-activity-text">
+                                    <strong>@m.Code</strong> · @m.ActiveWoNo · @m.ActiveMesPhase
+                                </span>
+                            </div>
+                        }
+                    }
                 </div>
-            </section>
-        }
-    }
+            </div>
+
+            <div class="md-side-card">
+                <div class="md-side-head">Needs Attention</div>
+                <div class="md-side-body">
+                    @if (Alerts.Count == 0)
+                    {
+                        <div class="md-side-empty">No quality alerts.</div>
+                    }
+                    else
+                    {
+                        @foreach (var m in Alerts)
+                        {
+                            <div class="md-alert">
+                                <strong>@m.Code</strong> — @(Defect(m)!.Value.ToString("0.0", CultureInfo.InvariantCulture))% defect on @m.ActiveWoNo
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        </aside>
+    </div>
 }
 
-@* P10.8 slice 3 — per-machine detail drawer. Opens on row click,
-   fetches GET /machines/{id}/detail. *@
+@* Per-machine detail drawer. Opens on card click, fetches
+   GET /machines/{id}/detail. *@
 @if (_detailOpen)
 {
     <div class="md-drawer-overlay" @onclick="CloseDetail"></div>
@@ -172,7 +292,7 @@ else
     private string? _error;
 
     private string _search = "";
-    private string _statusFilter = "All";   // All | Running | Setup | Idle
+    private string _statusFilter = "All";   // All | Running | Setup | Idle | Down | Maintenance
     private string? _areaFilter;             // null = all areas
 
     private bool _detailOpen;
@@ -181,13 +301,37 @@ else
 
     private static readonly (string Key, string Label)[] StatusChips =
     {
-        ("All", "All"), ("Running", "Running"), ("Setup", "Setup"), ("Idle", "Idle"),
+        ("All", "All"), ("Running", "▶ Running"), ("Idle", "◯ Idle"), ("Setup", "⚙ Setup"),
+        ("Down", "🛑 Down"), ("Maintenance", "🔧 PM"),
     };
 
     private const string NoArea = "Other";
 
     private IReadOnlyList<MachineDashboardItem> AllMachines
         => _data?.Machines ?? Array.Empty<MachineDashboardItem>();
+
+    private int CountStatus(string status) => AllMachines.Count(m => m.Status == status);
+
+    private double TodayOutput => AllMachines.Sum(m => (double)(m.QtyDone ?? 0));
+
+    private double? PlantQuality
+    {
+        get
+        {
+            var ys = AllMachines.Select(Yield).Where(y => y is not null).Select(y => y!.Value).ToList();
+            return ys.Count == 0 ? null : ys.Average();
+        }
+    }
+
+    private List<MachineDashboardItem> RecentActivity => AllMachines
+        .Where(m => m.ActiveWoNo is not null)
+        .OrderByDescending(m => m.LastUpdatedAt ?? DateTime.MinValue)
+        .Take(12).ToList();
+
+    private List<MachineDashboardItem> Alerts => AllMachines
+        .Where(m => Defect(m) is { } d && d >= 5.0)
+        .OrderByDescending(m => Defect(m))
+        .Take(8).ToList();
 
     private List<string> Areas => AllMachines
         .Select(m => string.IsNullOrWhiteSpace(m.Area) ? NoArea : m.Area!)
@@ -198,7 +342,10 @@ else
         && (_areaFilter is null || (string.IsNullOrWhiteSpace(m.Area) ? NoArea : m.Area) == _areaFilter)
         && (string.IsNullOrWhiteSpace(_search)
             || m.Code.Contains(_search, StringComparison.OrdinalIgnoreCase)
-            || m.Description.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+            || m.Description.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || (m.ActiveWoNo ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || (m.ProductName ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || (m.CustomerName ?? "").Contains(_search, StringComparison.OrdinalIgnoreCase)))
         .ToList();
 
     private IEnumerable<IGrouping<string, MachineDashboardItem>> Grouped => Filtered
@@ -223,6 +370,53 @@ else
         _detail = null;
     }
 
+    // ── per-machine derived metrics (real, from the cached qty ledger) ──
+    private static int Produced(MachineDashboardItem m) => (m.QtyDone ?? 0) + (m.QtyNg ?? 0);
+
+    private static double? Yield(MachineDashboardItem m)
+    {
+        var p = Produced(m);
+        return p == 0 ? null : 100.0 * (m.QtyDone ?? 0) / p;
+    }
+
+    private static double? Defect(MachineDashboardItem m)
+    {
+        var p = Produced(m);
+        return p == 0 ? null : 100.0 * (m.QtyNg ?? 0) / p;
+    }
+
+    private static double? GroupQuality(IEnumerable<MachineDashboardItem> list)
+    {
+        var ys = list.Select(Yield).Where(y => y is not null).Select(y => y!.Value).ToList();
+        return ys.Count == 0 ? null : ys.Average();
+    }
+
+    private static int? Pct(MachineDashboardItem m)
+    {
+        if (m.QtyDone is null || m.TargetQty is null || m.TargetQty == 0) return null;
+        return (int)Math.Min(100, Math.Round(100.0 * m.QtyDone.Value / m.TargetQty.Value));
+    }
+
+    private static string Elapsed(DateTime? at)
+    {
+        if (at is null) return "";
+        var span = DateTime.UtcNow - at.Value;
+        if (span.TotalSeconds < 0) return "";
+        if (span.TotalMinutes < 1) return "just now";
+        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes}m";
+        if (span.TotalHours < 24) return $"{(int)span.TotalHours}h{span.Minutes:D2}m";
+        return $"{(int)span.TotalDays}d";
+    }
+
+    private static string StatusGlyph(string status) => status switch
+    {
+        "Running" => "▶",
+        "Setup" => "⚙",
+        "Down" => "🛑",
+        "Maintenance" => "🔧",
+        _ => "◯",
+    };
+
     private static string RowProgress(MachineWoRow w)
     {
         if (w.TargetQty == 0) return w.QtyDone.ToString();
@@ -245,6 +439,8 @@ else
     {
         "Running" => "md-pill-running",
         "Setup" => "md-pill-setup",
+        "Down" => "md-pill-down",
+        "Maintenance" => "md-pill-maint",
         _ => "md-pill-idle",
     };
 
@@ -252,13 +448,8 @@ else
     {
         "Running" => "Running",
         "Setup" => "Setup",
+        "Down" => "Down",
+        "Maintenance" => "Maintenance",
         _ => "Idle",
     };
-
-    private static string Progress(MachineDashboardItem m)
-    {
-        if (m.QtyDone is null || m.TargetQty is null || m.TargetQty == 0) return "—";
-        var pct = (int)Math.Round(100.0 * m.QtyDone.Value / m.TargetQty.Value);
-        return $"{m.QtyDone}/{m.TargetQty} ({pct}%)";
-    }
 }

@@ -23,6 +23,9 @@ public sealed record MachineDashboardItem
 
     public string? ActiveWoNo { get; init; }
     public string? ActiveMesPhase { get; init; }
+    public string? CustomerName { get; init; }
+    public string? ProductName { get; init; }
+    public string? Uom { get; init; }
     public int? TargetQty { get; init; }
     public int? QtyDone { get; init; }
     public int? QtyNg { get; init; }
