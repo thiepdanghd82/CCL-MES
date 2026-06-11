@@ -61,6 +61,7 @@ public interface ICclApiClient
     /// <summary>Lookup WO by number. Returns null on 404; throws <see cref="ApiException"/>
     /// on any other non-2xx so the caller can show error UI.</summary>
     Task<IReadOnlyList<ActiveWorkOrderCard>> GetActiveWorkOrdersAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<WoAuditEntry>> GetWoAuditAsync(long workOrderId, CancellationToken ct = default);
     Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default);
 
     /// <summary>Advance the WO via its existing state machine. Always returns

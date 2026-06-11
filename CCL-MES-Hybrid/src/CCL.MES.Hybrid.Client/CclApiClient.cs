@@ -154,6 +154,12 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<List<ActiveWorkOrderCard>>(resp, ct);
     }
 
+    public async Task<IReadOnlyList<WoAuditEntry>> GetWoAuditAsync(long workOrderId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/work-orders/{workOrderId}/audit", ct);
+        return await ReadAsAsync<List<WoAuditEntry>>(resp, ct);
+    }
+
     public async Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
     {
         // Path-segment encode — WO numbers may legitimately contain

@@ -5276,3 +5276,19 @@ html, body {
     .wo-side { position: static; flex-direction: row; flex-wrap: wrap; }
     .wo-side-panel { flex: 1 1 240px; }
 }
+
+/* P10.7 — WO sidebar BOM Summary + Audit Trail (SpecHub parity) */
+.wo-side-head-aside { float: right; color: #9ca3af; font-weight: 600; text-transform: none; letter-spacing: 0; }
+.wo-bom-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.84rem; }
+.wo-bom-dot { width: 9px; height: 9px; border-radius: 50%; background: #d1d5db; flex: 0 0 9px; }
+.wo-bom-ok { background: #16a34a; }
+.wo-bom-ng { background: #dc2626; }
+.wo-bom-code { font-weight: 600; color: #1f2937; }
+.wo-bom-qty { margin-left: auto; color: #9ca3af; font-variant-numeric: tabular-nums; }
+.wo-audit-list { max-height: 280px; overflow-y: auto; }
+.wo-audit-row { padding: 6px 0; border-bottom: 1px solid #f1f3f5; }
+.wo-audit-row:last-child { border-bottom: none; }
+.wo-audit-top { display: flex; justify-content: space-between; gap: 8px; }
+.wo-audit-action { font-weight: 700; color: #374151; font-size: 0.78rem; font-family: ui-monospace, monospace; }
+.wo-audit-time { color: #9ca3af; font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+.wo-audit-actor { color: #6b7280; font-size: 0.78rem; }

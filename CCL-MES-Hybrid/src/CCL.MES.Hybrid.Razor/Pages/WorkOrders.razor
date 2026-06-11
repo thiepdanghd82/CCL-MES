@@ -7,6 +7,7 @@
 @using CCL.MES.Shared.Devices
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.Hardware
+@using CCL.MES.Shared.Prepress
 @using CCL.MES.Shared.ReasonCodes
 @using CCL.MES.Shared.RecentScans
 @using CCL.MES.Shared.WorkOrders
@@ -372,6 +373,48 @@ else
                             <div class="wo-side-kv"><span>Target</span><strong>@_summary.TargetQty @_summary.Uom</strong></div>
                         </div>
                     </div>
+
+                    @if (_prepressView is not null && _prepressView.Materials.Count > 0)
+                    {
+                        <div class="wo-side-panel">
+                            <div class="wo-side-head">
+                                ▤ BOM Summary
+                                <span class="wo-side-head-aside">@_prepressView.Materials.Count materials · @_prepressView.Materials.Count(m => m.Status == "Ok") OK</span>
+                            </div>
+                            <div class="wo-side-body">
+                                @foreach (var m in _prepressView.Materials)
+                                {
+                                    <div class="wo-bom-row">
+                                        <span class="wo-bom-dot @(m.Status == "Ok" ? "wo-bom-ok" : (m.Status == "Ng" ? "wo-bom-ng" : ""))"></span>
+                                        <span class="wo-bom-code">@m.MaterialCode</span>
+                                        <span class="wo-bom-qty">@m.QtyRequired.ToString("0.###") @m.Uom</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (_woAudit is not null && _woAudit.Count > 0)
+                    {
+                        <div class="wo-side-panel">
+                            <div class="wo-side-head">
+                                🕘 Audit Trail
+                                <span class="wo-side-head-aside">@_woAudit.Count events</span>
+                            </div>
+                            <div class="wo-side-body wo-audit-list">
+                                @foreach (var a in _woAudit)
+                                {
+                                    <div class="wo-audit-row">
+                                        <div class="wo-audit-top">
+                                            <span class="wo-audit-action">@a.Action</span>
+                                            <span class="wo-audit-time">@a.Timestamp.ToLocalTime().ToString("HH:mm:ss")</span>
+                                        </div>
+                                        <div class="wo-audit-actor">@a.ActorUsername</div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
                 </aside>
                 </div>@* /wo-detail-grid *@
             }
@@ -389,6 +432,8 @@ else
     private ScanResult? _lastScan;
     private WorkOrderSummary? _summary;
     private IReadOnlyList<ActiveWorkOrderCard>? _activeWos;
+    private PrepressView? _prepressView;
+    private IReadOnlyList<WoAuditEntry>? _woAudit;
     private AdvanceWorkOrderResponse? _advanceResult;
     private string? _lookupError;
     private string? _advanceError;
@@ -450,6 +495,19 @@ else
             if (fresh is not null) _summary = fresh;
         }
         catch (Exception ex) { Log.LogWarning(ex, "[workorders] refresh failed"); }
+        await LoadSideDataAsync();
+    }
+
+    // SpecHub sidebar — BOM Summary + Audit Trail. Best-effort; never
+    // throws (panels just hide on failure).
+    private async Task LoadSideDataAsync()
+    {
+        if (_summary is null) { _prepressView = null; _woAudit = null; return; }
+        var id = _summary.Id;
+        try { _prepressView = await Api.GetPrepressViewAsync(id); }
+        catch (Exception ex) { Log.LogWarning(ex, "[workorders] BOM summary load failed"); _prepressView = null; }
+        try { _woAudit = await Api.GetWoAuditAsync(id); }
+        catch (Exception ex) { Log.LogWarning(ex, "[workorders] audit load failed"); _woAudit = null; }
     }
 
     private static string PhaseLabel(string p) => p switch
@@ -586,6 +644,7 @@ else
             else
             {
                 _summary = summary;
+                await LoadSideDataAsync();
             }
         }
         catch (ApiException apiEx)
@@ -688,6 +747,7 @@ else
             if (fresh is not null)
             {
                 _summary = fresh;
+                await LoadSideDataAsync();
             }
         }
         catch (ApiException apiEx)

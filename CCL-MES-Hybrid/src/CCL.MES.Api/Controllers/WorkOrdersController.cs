@@ -81,6 +81,28 @@ public sealed class WorkOrdersController : ControllerBase
         return Ok(rows);
     }
 
+    // P10.7 — WO-scoped audit trail for the scan-surface sidebar (SpecHub
+    // parity). Any-auth (the operator viewing the WO sees its history);
+    // the global /audit/log stays AdminOnly.
+    [HttpGet("{id:long}/audit")]
+    public async Task<ActionResult<IReadOnlyList<WoAuditEntry>>> Audit(long id, CancellationToken ct)
+    {
+        var idStr = id.ToString();
+        var rows = await _db.AuditLogs.AsNoTracking()
+            .Where(a => a.TargetType == "WorkOrder" && a.TargetId == idStr)
+            .OrderByDescending(a => a.Timestamp)
+            .Take(20)
+            .Select(a => new WoAuditEntry
+            {
+                Timestamp = a.Timestamp,
+                Action = a.Action,
+                ActorUsername = a.ActorUsername,
+                Detail = a.Detail,
+            })
+            .ToListAsync(ct);
+        return Ok(rows);
+    }
+
     /// <summary>Flat list — small datasets only. Use <c>shop-orders</c>
     /// instead for the grouped operator view.</summary>
     [HttpGet]
