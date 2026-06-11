@@ -303,6 +303,33 @@ html, body {
     .home-clock { text-align: left; }
 }
 
+/* P10.10 — Home KPI tiles */
+.home-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-top: 18px;
+}
+.home-kpi {
+    padding: 16px;
+    background: var(--card);
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    text-align: center;
+}
+.home-kpi-num {
+    font-variant-numeric: tabular-nums;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1.1;
+}
+.home-kpi-label {
+    color: #6b7280;
+    font-size: 0.82rem;
+    margin-top: 4px;
+}
+
 /* ─────── Grid ─────── */
 
 .grid-toolbar {

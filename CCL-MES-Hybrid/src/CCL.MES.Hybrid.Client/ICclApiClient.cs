@@ -6,6 +6,7 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.RunningSurface;
@@ -34,6 +35,9 @@ public interface ICclApiClient
     Task<LoginResponse> LoginAsync(string username, string password, CancellationToken ct = default);
     Task<UserInfo> GetMeAsync(CancellationToken ct = default);
     Task LogoutAsync(string refreshToken, CancellationToken ct = default);
+
+    // ── Home (P10.10) ──────────────────────────────────────────────
+    Task<HomeSummaryDto?> GetHomeSummaryAsync(CancellationToken ct = default);
 
     // ── NPI (pilot scope) ──────────────────────────────────────────
     Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? search, int page, int pageSize, CancellationToken ct = default);

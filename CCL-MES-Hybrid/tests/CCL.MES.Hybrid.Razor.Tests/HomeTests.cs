@@ -1,8 +1,10 @@
 using Bunit;
 using Bunit.TestDoubles;
+using CCL.MES.Hybrid.Client;
 using CCL.MES.Hybrid.Client.Auth;
 using CCL.MES.Hybrid.Razor.Pages;
 using CCL.MES.Hybrid.Razor.Tests._Support;
+using CCL.MES.Shared.Home;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -23,11 +25,14 @@ namespace CCL.MES.Hybrid.Razor.Tests;
 public sealed class HomeTests : TestContext
 {
     private readonly StubAuthSession _session;
+    private readonly RecordingApi _api;
 
     public HomeTests()
     {
         _session = new StubAuthSession();
+        _api = new RecordingApi();
         Services.AddSingleton<IAuthSession>(_session);
+        Services.AddSingleton<ICclApiClient>(_api);
         // Home carries [Authorize]; bUnit renders the unauthorised body
         // otherwise.
         this.AddTestAuthorization().SetAuthorized("test-user");
@@ -82,6 +87,43 @@ public sealed class HomeTests : TestContext
             "Greeting must render a time-of-day variant.");
         // The live clock element is present.
         Assert.NotEmpty(cut.FindAll(".home-clock-time"));
+    }
+
+    [Fact]
+    public void Renders_kpi_tiles_from_home_summary()
+    {
+        _session.SetUser("eng-user", "Engineer");
+        _api.HomeSummary = new HomeSummaryDto
+        {
+            SpecsTotal = 42,
+            PendingApprovals = 3,
+            Drafts = 7,
+            TodayActivity = 5,
+        };
+
+        var cut = RenderComponent<Home>();
+        var nums = cut.FindAll(".home-kpi-num");
+
+        Assert.Equal(4, nums.Count);
+        var markup = cut.Markup;
+        Assert.Contains("42", markup);   // specs total
+        Assert.Contains("Spec trong thư viện", markup);
+        Assert.Contains("Chờ duyệt", markup);
+        Assert.Contains("Bản nháp", markup);
+        Assert.Contains("Hoạt động hôm nay", markup);
+        Assert.Equal(1, _api.HomeSummaryCalls);
+    }
+
+    [Fact]
+    public void Kpi_tiles_show_dash_when_summary_unavailable()
+    {
+        _session.SetUser("op-user", "Operator");
+        _api.HomeSummary = null; // simulates a failed/empty fetch
+
+        var cut = RenderComponent<Home>();
+
+        Assert.Contains("—", cut.Markup);
+        Assert.Equal(4, cut.FindAll(".home-kpi-num").Count);
     }
 
     [Fact]

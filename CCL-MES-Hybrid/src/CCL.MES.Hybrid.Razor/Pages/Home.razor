@@ -1,7 +1,9 @@
 @page "/"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @implements IDisposable
+@using CCL.MES.Shared.Home
 @inject IAuthSession Session
+@inject ICclApiClient Api
 
 <PageTitle>Trang chủ — CCL MES</PageTitle>
 
@@ -17,6 +19,27 @@
     <div class="home-clock" aria-label="Đồng hồ hệ thống">
         <div class="home-clock-time">@_now.ToString("HH:mm:ss")</div>
         <div class="home-clock-date">@_now.ToString("dddd, dd/MM/yyyy")</div>
+    </div>
+</div>
+
+@* P10.10 — KPI tiles (SpecHub parity). Counts come from
+   GET /home/summary; "—" while loading or on error. *@
+<div class="home-kpis">
+    <div class="home-kpi">
+        <div class="home-kpi-num">@KpiText(_summary?.SpecsTotal)</div>
+        <div class="home-kpi-label">Spec trong thư viện</div>
+    </div>
+    <div class="home-kpi">
+        <div class="home-kpi-num">@KpiText(_summary?.PendingApprovals)</div>
+        <div class="home-kpi-label">Chờ duyệt</div>
+    </div>
+    <div class="home-kpi">
+        <div class="home-kpi-num">@KpiText(_summary?.Drafts)</div>
+        <div class="home-kpi-label">Bản nháp</div>
+    </div>
+    <div class="home-kpi">
+        <div class="home-kpi-num">@KpiText(_summary?.TodayActivity)</div>
+        <div class="home-kpi-label">Hoạt động hôm nay</div>
     </div>
 </div>
 
@@ -53,6 +76,17 @@
 
     private bool _canNpi;
     private bool _canRun;
+    private HomeSummaryDto? _summary;
+
+    private static string KpiText(int? n) => n?.ToString() ?? "—";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Read-only KPI fetch; failure leaves the tiles at "—" rather
+        // than blocking the page.
+        try { _summary = await Api.GetHomeSummaryAsync(); }
+        catch { _summary = null; }
+    }
 
     protected override void OnInitialized()
     {

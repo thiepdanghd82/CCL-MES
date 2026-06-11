@@ -7,6 +7,7 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.RunningSurface;
@@ -82,6 +83,17 @@ public sealed class RecordingApi : ICclApiClient
     public List<(long Id, string ETag, RunPauseRequest Req)> RunPauseCalls { get; } = new();
     public List<(long Id, string ETag)> RunResumeCalls { get; } = new();
     public List<(long Id, string ETag)> RunFinishCalls { get; } = new();
+
+    // P10.10 — Home summary. Defaults to a zero-count DTO so pages that
+    // fetch it on init render the "—"/0 tiles without a bespoke stub.
+    public HomeSummaryDto? HomeSummary { get; set; } = new HomeSummaryDto();
+    public int HomeSummaryCalls { get; private set; }
+
+    public Task<HomeSummaryDto?> GetHomeSummaryAsync(CancellationToken ct = default)
+    {
+        HomeSummaryCalls++;
+        return Task.FromResult(HomeSummary);
+    }
 
     public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
     {

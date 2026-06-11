@@ -10,6 +10,7 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.RunningSurface;
@@ -56,6 +57,14 @@ public sealed class CclApiClient : ICclApiClient
     {
         using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/auth/me", ct);
         return await ReadAsAsync<UserInfo>(resp, ct);
+    }
+
+    // ── Home (P10.10) ──────────────────────────────────────────────
+
+    public async Task<HomeSummaryDto?> GetHomeSummaryAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/home/summary", ct);
+        return await ReadAsAsync<HomeSummaryDto>(resp, ct);
     }
 
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)

@@ -109,7 +109,7 @@ UI → test belt).
 | 2026-06-10 | Audit + roadmap (this doc) | ✅ done |
 | 2026-06-10 | Verified all "small" backlog items already shipped (Import button = P10.5c-2) | ✅ done |
 | 2026-06-10 | **P10.10 Home Dashboard enrichment** — greeting + live 1Hz clock + role-gated module quick-access grid + 4 bUnit fixtures (Razor suite 114→118 green). Re-applied the Razor-compiler `<`-pattern-switch lesson. | ✅ done |
-| — | P10.10 Home KPI tiles (needs `GET /home/summary` aggregate endpoint) | ⏭ next sub-step |
+| 2026-06-11 | **P10.10 Home KPI tiles + `GET /api/v2/home/summary`** — `HomeSummaryDto` + `HomeController` (live counts: specs total / pending approvals / drafts / today activity) + client method + 4 KPI tiles. Tests: Api 380→382, Razor 118→120, all green. | ✅ done |
 | — | P10.8 Machine Dashboard + Shop Order History (largest module) | ⏭ queued |
 | — | P10.9 QMS Inspection Queue + QC History | ⏭ queued |
 
