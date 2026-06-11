@@ -48,6 +48,7 @@ public interface ICclApiClient
 
     // ── QMS (P10.9) ────────────────────────────────────────────────
     Task<QmsQueueDto?> GetQmsQueueAsync(CancellationToken ct = default);
+    Task<QcHistoryDto?> GetQcHistoryAsync(string? kind, string? judgment, string? search, CancellationToken ct = default);
 
     // ── NPI (pilot scope) ──────────────────────────────────────────
     Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? search, int page, int pageSize, CancellationToken ct = default);

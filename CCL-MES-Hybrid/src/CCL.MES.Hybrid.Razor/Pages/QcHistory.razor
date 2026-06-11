@@ -1,0 +1,107 @@
+@page "/qms/history"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using CCL.MES.Shared.Qms
+@inject ICclApiClient Api
+
+<PageTitle>Lịch sử kiểm tra — CCL MES</PageTitle>
+
+<h1 class="page-title">Lịch sử kiểm tra (QC)</h1>
+
+@* P10.9 — forensic record of completed FQC/OQC checks (Judgment !=
+   Pending) with pass/reject KPI + kind/judgment/search filters. *@
+<div class="md-kpis">
+    <div class="md-kpi"><div class="md-kpi-num">@(_data?.Total)</div><div class="md-kpi-label">Tổng lượt</div></div>
+    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@(_data?.Pass)</div><div class="md-kpi-label">Đạt</div></div>
+    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@(_data?.Reject)</div><div class="md-kpi-label">Loại</div></div>
+    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@(_data is null ? null : _data.PassRatePct + "%")</div><div class="md-kpi-label">Tỷ lệ đạt</div></div>
+</div>
+
+<div class="md-filters">
+    <input class="md-search" type="text" placeholder="Tìm WO…" value="@_search" @onchange="OnSearchChanged" />
+    <div class="md-chips">
+        @foreach (var k in KindChips)
+        {
+            <button type="button" class="md-chip @(_kind == k.Key ? "md-chip-on" : "")"
+                    @onclick="@(() => SetKindAsync(k.Key))">@k.Label</button>
+        }
+    </div>
+    <div class="md-chips">
+        @foreach (var j in JudgmentChips)
+        {
+            <button type="button" class="md-chip @(_judgment == j.Key ? "md-chip-on" : "")"
+                    @onclick="@(() => SetJudgmentAsync(j.Key))">@j.Label</button>
+        }
+    </div>
+</div>
+
+@if (_loading && _data is null)
+{
+    <p class="md-muted">Đang tải lịch sử…</p>
+}
+else if (_error is not null)
+{
+    <p class="md-error">Không tải được lịch sử: @_error</p>
+}
+else if (_data is null || _data.Rows.Count == 0)
+{
+    <p class="md-muted">Không có lượt kiểm tra nào khớp bộ lọc.</p>
+}
+else
+{
+    <div class="md-table-wrap">
+        <table class="md-table">
+            <thead>
+                <tr><th>WO</th><th>Loại</th><th>Kết quả</th><th>Người kiểm</th><th>Người duyệt</th><th>Thời gian</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in _data.Rows)
+                {
+                    <tr>
+                        <td class="md-code">@r.WoNo</td>
+                        <td>@r.QcKind</td>
+                        <td><span class="md-pill @(r.Judgment == "Pass" ? "md-pill-running" : "md-pill-idle")">@JudgmentLabel(r.Judgment)</span></td>
+                        <td>@(r.InspectedBy ?? "—")</td>
+                        <td>@(r.ApprovedBy ?? r.ReviewedBy ?? "—")</td>
+                        <td>@(r.CompletedAt?.ToString("dd/MM/yyyy HH:mm") ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private QcHistoryDto? _data;
+    private bool _loading = true;
+    private string? _error;
+
+    private string? _kind;       // null = all, else FQC | OQC
+    private string? _judgment;   // null = all, else pass | reject
+    private string _search = "";
+
+    private static readonly (string? Key, string Label)[] KindChips =
+    {
+        (null, "Tất cả"), ("FQC", "FQC"), ("OQC", "OQC"),
+    };
+    private static readonly (string? Key, string Label)[] JudgmentChips =
+    {
+        (null, "Mọi kết quả"), ("pass", "Đạt"), ("reject", "Loại"),
+    };
+
+    private static string JudgmentLabel(string j) => j == "Pass" ? "Đạt" : "Loại";
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task SetKindAsync(string? kind) { _kind = kind; await ReloadAsync(); }
+    private async Task SetJudgmentAsync(string? j) { _judgment = j; await ReloadAsync(); }
+    private async Task OnSearchChanged(ChangeEventArgs e) { _search = e.Value?.ToString() ?? ""; await ReloadAsync(); }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try { _data = await Api.GetQcHistoryAsync(_kind, _judgment, string.IsNullOrWhiteSpace(_search) ? null : _search); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+}

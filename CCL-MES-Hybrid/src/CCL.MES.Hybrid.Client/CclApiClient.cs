@@ -102,6 +102,17 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<QmsQueueDto>(resp, ct);
     }
 
+    public async Task<QcHistoryDto?> GetQcHistoryAsync(string? kind, string? judgment, string? search, CancellationToken ct = default)
+    {
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(kind)) qs.Add($"kind={Uri.EscapeDataString(kind)}");
+        if (!string.IsNullOrWhiteSpace(judgment)) qs.Add($"judgment={Uri.EscapeDataString(judgment)}");
+        if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        var url = $"/{ApiVersion.Prefix}/qms/qc-history" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<QcHistoryDto>(resp, ct);
+    }
+
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)
     {
         var req = new RefreshTokenRequest { RefreshToken = refreshToken };

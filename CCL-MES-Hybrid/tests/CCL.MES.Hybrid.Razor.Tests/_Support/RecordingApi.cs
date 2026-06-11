@@ -138,6 +138,16 @@ public sealed class RecordingApi : ICclApiClient
         return Task.FromResult(QmsQueue);
     }
 
+    // P10.9 — QC History. Records (kind, judgment, search) of each call.
+    public QcHistoryDto? QcHistory { get; set; } = new QcHistoryDto();
+    public List<(string? Kind, string? Judgment, string? Search)> QcHistoryCalls { get; } = new();
+
+    public Task<QcHistoryDto?> GetQcHistoryAsync(string? kind, string? judgment, string? search, CancellationToken ct = default)
+    {
+        QcHistoryCalls.Add((kind, judgment, search));
+        return Task.FromResult(QcHistory);
+    }
+
     public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
     {
         SummaryCalls.Add(woNo);

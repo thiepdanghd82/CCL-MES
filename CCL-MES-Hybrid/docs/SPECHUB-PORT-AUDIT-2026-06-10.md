@@ -27,7 +27,7 @@
 | **Machine Monitoring Dashboard** | ❌ MISSING (P10.8) | no `MachineDashboard.razor`; `OeeController` backend partial |
 | **Shop Order History** | ✅ DONE (P10.8) | `ShopOrdersController` + `ShopOrderHistory.razor` (KPI + period/search filters); CSV export deferred |
 | **QMS: Inspection Queue (IPQC/FQC/OQC)** | ✅ DONE (P10.9) | `QmsController` + `QmsQueue.razor` (3 stage tabs + per-stage worklist) |
-| **QMS: QC History** | ❌ MISSING (P10.9) | no QC-history page; data exists in audit + WoQcChecks |
+| **QMS: QC History** | ✅ DONE (P10.9) | `QmsController.QcHistory` + `QcHistory.razor` (completed FQC/OQC + pass/reject KPI + filters) |
 | **Machine List (admin CRUD, 17 areas)** | ❌ MISSING | only read-only Work Centers grid exists |
 
 **Bottom line:** the operator shop-floor core (MES 5-phase) + NPI master
@@ -115,8 +115,8 @@ UI → test belt).
 | 2026-06-11 | **P10.8 Machine Dashboard slice 3** — per-machine detail drawer: `MachineDetailDto` + `GET /machines/{id}/detail` (active WO + today production roll-up + recent WO history) + slide-in drawer (click a row). Tests: Api 385→387, Razor 128→130, all green. **Machine Dashboard core complete** (dashboard + filters + grouping + drawer); Down/Maintenance (ProductionLog feed) remains deferred. | ✅ done |
 | 2026-06-11 | **P10.8 Shop Order History** — `ShopOrderHistoryDto` + `ShopOrdersController` (`GET /shop-orders/history?period=&search=`: closed WOs SHIPPED/CANCELLED + KPI roll-ups: total/output/yield/reject) + client method + `ShopOrderHistory.razor` (4 KPI tiles + period chips + search + forensic table) + nav. Tests: Api 387→390, Razor 130→134, all green (1 known macOS-SQLite soak flake, green on retry). CSV export deferred (needs authenticated download path). | ✅ done |
 | 2026-06-11 | **P10.9 QMS Inspection Queue** — `QmsQueueDto` + `QmsController` (`GET /qms/queue`: WOs bucketed by QC-due stage IPQC_WAIT/FQC_PENDING/OQC_PENDING, FIFO) + client method + `QmsQueue.razor` (3 stage tabs with counts + per-stage worklist) + nav. Tests: Api 390→392, Razor 134→137, all green (1 unrelated backup-restore flake, green on retry). | ✅ done |
-| — | P10.9 QMS QC History (forensic completed-QC list over WoQcChecks + KPI/filters) | ⏭ next |
-| — | Deferred polish: Shop Order History CSV export · Machine Down/Maintenance (ProductionLog) · Home "Today's Focus" recent-specs list | ⏭ backlog |
+| 2026-06-11 | **P10.9 QMS QC History** — `QcHistoryDto` + `QmsController.QcHistory` (`GET /qms/qc-history?kind=&judgment=&search=`: completed FQC/OQC checks from WoQcChecks⋈WorkOrders, Pending excluded, pass/reject KPI) + client method + `QcHistory.razor` (KPI + kind/judgment/search filters + table) + nav. Tests: Api 392→394, Razor 137→141, all green. | ✅ done |
+| — | **SpecHub port ≈100% complete.** Remaining = optional polish only: Shop Order History CSV export · Machine Down/Maintenance (ProductionLog) · Home "Today's Focus" recent-specs list · IPQC-stage QC history (WoIpqcChecks). | ⏭ backlog |
 
 > **Reality check on scope.** The audit corrected the premise: the
 > shop-floor MES core (P10.7a–e), all NPI tabs + Engineer Spec
