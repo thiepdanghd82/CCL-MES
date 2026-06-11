@@ -96,7 +96,7 @@ public sealed class PrepressDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='prepress-initial-error']");
-            Assert.Contains("Không tìm thấy WO trên máy chủ.", banner.TextContent);
+            Assert.Contains("WO not found on the server.", banner.TextContent);
         });
     }
 
@@ -357,7 +357,7 @@ public sealed class PrepressDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var err = cut.Find("[data-testid='prepress-set-error']");
-            Assert.Contains("Một thao tác khác", err.TextContent);
+            Assert.Contains("Another operation", err.TextContent);
             Assert.Equal(2, api.PrepressViewCalls.Count);
         });
     }

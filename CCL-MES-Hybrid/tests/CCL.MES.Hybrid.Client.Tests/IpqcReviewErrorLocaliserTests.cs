@@ -23,19 +23,19 @@ public sealed class IpqcReviewErrorLocaliserTests
     // ── LocaliseApiError ───────────────────────────────────────────
 
     [Theory]
-    [InlineData("wo.not_found",                       "Không tìm thấy WO trên máy chủ.")]
-    [InlineData("wo.invalid_phase",                   "WO không ở giai đoạn cho phép hành động này — tải lại trạng thái.")]
-    [InlineData("wo.if_match_required",               "Phiên dữ liệu hết hạn — tải lại trạng thái.")]
-    [InlineData("wo.idempotency_key_required",        "Yêu cầu thiếu khóa idempotency — báo IT.")]
-    [InlineData("ipqc.invalid_status",                "Trạng thái slot phải là OK hoặc NG.")]
-    [InlineData("ipqc.invalid_reason_code",           "Mã NG không có trong danh mục — chọn lại từ danh sách.")]
-    [InlineData("ipqc.invalid_ng_note",               "Ghi chú NG bắt buộc khi đánh NG (1-500 ký tự).")]
-    [InlineData("ipqc.invalid_judgment",              "Phán quyết phải là Go Run / Stop Line / Special Accept.")]
-    [InlineData("ipqc.judgment_inconsistent",         "Có slot NG — không được chọn Go Run; chọn Stop Line hoặc Special Accept.")]
-    [InlineData("ipqc.not_ready_for_judgment",        "Phải xử lý đủ 4 slot (Material + 3 Print) trước khi phán quyết.")]
-    [InlineData("ipqc.invalid_special_accept_reason", "Lý do Special Accept bắt buộc (1-500 ký tự).")]
-    [InlineData("qa.invalid_outcome",                 "Kết quả QA phải là Approve hoặc Reject.")]
-    [InlineData("qa.invalid_qa_reason",               "Lý do QA bắt buộc (1-500 ký tự).")]
+    [InlineData("wo.not_found",                       "WO not found on the server.")]
+    [InlineData("wo.invalid_phase",                   "WO is not in a phase that allows this action — reload the state.")]
+    [InlineData("wo.if_match_required",               "Data session expired — reload the state.")]
+    [InlineData("wo.idempotency_key_required",        "Request is missing the idempotency key — contact IT.")]
+    [InlineData("ipqc.invalid_status",                "Slot status must be OK or NG.")]
+    [InlineData("ipqc.invalid_reason_code",           "NG reason code is not in the catalog — choose one from the list.")]
+    [InlineData("ipqc.invalid_ng_note",               "An NG note is required when marking NG (1-500 characters).")]
+    [InlineData("ipqc.invalid_judgment",              "Judgment must be Go Run / Stop Line / Special Accept.")]
+    [InlineData("ipqc.judgment_inconsistent",         "There is an NG slot — Go Run is not allowed; choose Stop Line or Special Accept.")]
+    [InlineData("ipqc.not_ready_for_judgment",        "All 4 slots (Material + 3 Print) must be processed before judgment.")]
+    [InlineData("ipqc.invalid_special_accept_reason", "A Special Accept reason is required (1-500 characters).")]
+    [InlineData("qa.invalid_outcome",                 "QA outcome must be Approve or Reject.")]
+    [InlineData("qa.invalid_qa_reason",               "A QA reason is required (1-500 characters).")]
     public void Locked_VN_banner_for_each_api_error_code(string code, string expected)
     {
         var error = new ApiError { Code = code, MessageEn = "ignored" };
@@ -48,7 +48,7 @@ public sealed class IpqcReviewErrorLocaliserTests
         var error = new ApiError { Code = "qa.same_user_as_ipqc_submitter", MessageEn = "ignored" };
         var msg = IpqcReviewErrorLocaliser.LocaliseApiError(422, error);
         Assert.Contains("dual-sig", msg);
-        Assert.Contains("KHÁC người nộp IPQC", msg);
+        Assert.Contains("DIFFERENT from the IPQC submitter", msg);
     }
 
     [Fact]
@@ -64,14 +64,14 @@ public sealed class IpqcReviewErrorLocaliserTests
     // ── LocaliseSetError ───────────────────────────────────────────
 
     [Theory]
-    [InlineData("wo.state_conflict",                  "Một thao tác khác đã cập nhật WO này. Đang tải lại trạng thái mới nhất — thử lại.")]
-    [InlineData("wo.if_match_required",               "Phiên dữ liệu chưa được tải lại — quét lại WO.")]
-    [InlineData("wo.idempotency_key_required",        "Yêu cầu thiếu khóa idempotency — báo IT.")]
-    [InlineData("ipqc.judgment_inconsistent",         "Có slot NG — không được chọn Go Run; chọn Stop Line hoặc Special Accept.")]
-    [InlineData("ipqc.not_ready_for_judgment",        "Phải xử lý đủ 4 slot (Material + 3 Print) trước khi phán quyết.")]
-    [InlineData("ipqc.invalid_special_accept_reason", "Lý do Special Accept bắt buộc (1-500 ký tự).")]
-    [InlineData("qa.invalid_qa_reason",               "Lý do QA bắt buộc (1-500 ký tự).")]
-    [InlineData("http.empty_body",                    "Máy chủ trả về phản hồi rỗng — báo IT.")]
+    [InlineData("wo.state_conflict",                  "Another operation has already updated this WO. Reloading the latest state — try again.")]
+    [InlineData("wo.if_match_required",               "Data session has not been reloaded — scan the WO again.")]
+    [InlineData("wo.idempotency_key_required",        "Request is missing the idempotency key — contact IT.")]
+    [InlineData("ipqc.judgment_inconsistent",         "There is an NG slot — Go Run is not allowed; choose Stop Line or Special Accept.")]
+    [InlineData("ipqc.not_ready_for_judgment",        "All 4 slots (Material + 3 Print) must be processed before judgment.")]
+    [InlineData("ipqc.invalid_special_accept_reason", "A Special Accept reason is required (1-500 characters).")]
+    [InlineData("qa.invalid_qa_reason",               "A QA reason is required (1-500 characters).")]
+    [InlineData("http.empty_body",                    "The server returned an empty response — contact IT.")]
     public void Locked_VN_banner_for_each_in_band_error_code(string code, string expected)
     {
         Assert.Equal(expected, IpqcReviewErrorLocaliser.LocaliseSetError(code));
@@ -110,7 +110,7 @@ public sealed class IpqcReviewErrorLocaliserTests
         var msg = IpqcReviewErrorLocaliser.Q3SameUserBanner;
         Assert.False(string.IsNullOrWhiteSpace(msg));
         Assert.Contains("dual-sig", msg);
-        Assert.Contains("Đăng xuất", msg);
-        Assert.Contains("tài khoản QC khác", msg);
+        Assert.Contains("Sign out", msg);
+        Assert.Contains("different QC account", msg);
     }
 }

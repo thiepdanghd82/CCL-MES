@@ -626,7 +626,7 @@ public sealed class RunningDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='running-set-error']");
-            Assert.Contains("Một thao tác khác đã cập nhật WO này", banner.TextContent);
+            Assert.Contains("Another operation has already updated this WO", banner.TextContent);
         });
     }
 }

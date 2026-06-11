@@ -25,26 +25,26 @@ public static class WoQcReviewErrorLocaliser
     public static string LocaliseApiError(int statusCode, ApiError error) =>
         error.Code switch
         {
-            "wo.not_found"                          => "Không tìm thấy WO trên máy chủ.",
-            "wo.invalid_phase"                      => "WO không ở giai đoạn cho phép hành động này — tải lại trạng thái.",
-            "wo.if_match_required"                  => "Phiên dữ liệu hết hạn — tải lại trạng thái.",
-            "wo.idempotency_key_required"           => "Yêu cầu thiếu khóa idempotency — báo IT.",
-            "qc.invalid_kind"                       => "Loại QC không hợp lệ — phải là FQC hoặc OQC.",
-            "qc.invalid_item_key"                   => "Khóa item QC không hợp lệ.",
-            "qc.invalid_status"                     => "Trạng thái item phải là OK hoặc NG.",
-            "qc.invalid_reason_code"                => "Mã NG không có trong danh mục — chọn lại từ danh sách.",
-            "qc.invalid_ng_note"                    => "Ghi chú NG bắt buộc khi đánh NG (1-500 ký tự).",
-            "qc.invalid_judgment"                   => "Phán quyết phải là Pass / Reject (FQC) hoặc Approve / Reject (OQC).",
-            "qc.judgment_inconsistent"              => "Phán quyết không khớp với rollup — kiểm tra lại item NG.",
-            "qc.not_ready_for_judgment"             => "Phải xử lý đủ các item QC trước khi phán quyết.",
-            "qc.invalid_reason"                     => "Lý do phán quyết bắt buộc (1-500 ký tự) khi Reject.",
-            "qc.invalid_photo"                      => "Tệp ảnh không hợp lệ — chọn JPG hoặc PNG.",
-            "qc.invalid_photo_mime"                 => "Ảnh phải là JPG hoặc PNG.",
-            "qc.photo_too_large"                    => "Ảnh quá lớn — tối đa 5 MB.",
-            "qc.photo_not_found"                    => "Không tìm thấy ảnh này — có thể đã bị xoá.",
-            "oqc.signature_out_of_order"            => "Phải Inspector ký trước, rồi Reviewer, sau cùng Approver.",
-            "oqc.same_user_as_inspector"            => "Reviewer/Approver phải KHÁC Inspector (chính sách 3-sig).",
-            "oqc.same_user_as_reviewer"             => "Approver phải KHÁC Reviewer (chính sách 3-sig).",
+            "wo.not_found"                          => "WO not found on the server.",
+            "wo.invalid_phase"                      => "WO is not in a phase that allows this action — reload the state.",
+            "wo.if_match_required"                  => "Data session expired — reload the state.",
+            "wo.idempotency_key_required"           => "Request is missing the idempotency key — contact IT.",
+            "qc.invalid_kind"                       => "Invalid QC kind — must be FQC or OQC.",
+            "qc.invalid_item_key"                   => "Invalid QC item key.",
+            "qc.invalid_status"                     => "Item status must be OK or NG.",
+            "qc.invalid_reason_code"                => "NG reason code is not in the catalog — choose one from the list.",
+            "qc.invalid_ng_note"                    => "An NG note is required when marking NG (1-500 characters).",
+            "qc.invalid_judgment"                   => "Judgment must be Pass / Reject (FQC) or Approve / Reject (OQC).",
+            "qc.judgment_inconsistent"              => "Judgment does not match the rollup — review the NG items.",
+            "qc.not_ready_for_judgment"             => "All QC items must be processed before judgment.",
+            "qc.invalid_reason"                     => "A judgment reason is required (1-500 characters) when rejecting.",
+            "qc.invalid_photo"                      => "Invalid image file — choose a JPG or PNG.",
+            "qc.invalid_photo_mime"                 => "The image must be a JPG or PNG.",
+            "qc.photo_too_large"                    => "Image is too large — 5 MB maximum.",
+            "qc.photo_not_found"                    => "This image was not found — it may have been deleted.",
+            "oqc.signature_out_of_order"            => "The Inspector must sign first, then the Reviewer, and finally the Approver.",
+            "oqc.same_user_as_inspector"            => "The Reviewer/Approver must be DIFFERENT from the Inspector (3-sig policy).",
+            "oqc.same_user_as_reviewer"             => "The Approver must be DIFFERENT from the Reviewer (3-sig policy).",
             _                                       => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 
@@ -52,21 +52,21 @@ public static class WoQcReviewErrorLocaliser
     /// 422) into the operator banner.</summary>
     public static string LocaliseSetError(string code) => code switch
     {
-        "wo.state_conflict"                     => "Một thao tác khác đã cập nhật WO này. Đang tải lại trạng thái mới nhất — thử lại.",
-        "wo.if_match_required"                  => "Phiên dữ liệu chưa được tải lại — quét lại WO.",
-        "wo.idempotency_key_required"           => "Yêu cầu thiếu khóa idempotency — báo IT.",
-        "qc.invalid_status"                     => "Trạng thái item phải là OK hoặc NG.",
-        "qc.invalid_reason_code"                => "Mã NG không có trong danh mục — chọn lại từ danh sách.",
-        "qc.invalid_ng_note"                    => "Ghi chú NG bắt buộc khi đánh NG (1-500 ký tự).",
-        "qc.invalid_judgment"                   => "Phán quyết phải là Pass / Reject (FQC) hoặc Approve / Reject (OQC).",
-        "qc.judgment_inconsistent"              => "Phán quyết không khớp với rollup — kiểm tra lại item NG.",
-        "qc.not_ready_for_judgment"             => "Phải xử lý đủ các item QC trước khi phán quyết.",
-        "qc.invalid_reason"                     => "Lý do phán quyết bắt buộc (1-500 ký tự) khi Reject.",
-        "oqc.signature_out_of_order"            => "Phải Inspector ký trước, rồi Reviewer, sau cùng Approver.",
-        "oqc.same_user_as_inspector"            => "Reviewer/Approver phải KHÁC Inspector (chính sách 3-sig).",
-        "oqc.same_user_as_reviewer"             => "Approver phải KHÁC Reviewer (chính sách 3-sig).",
-        "http.empty_body"                       => "Máy chủ trả về phản hồi rỗng — báo IT.",
-        _                                       => $"Mã lỗi không xác định ({code}).",
+        "wo.state_conflict"                     => "Another operation has already updated this WO. Reloading the latest state — try again.",
+        "wo.if_match_required"                  => "Data session has not been reloaded — scan the WO again.",
+        "wo.idempotency_key_required"           => "Request is missing the idempotency key — contact IT.",
+        "qc.invalid_status"                     => "Item status must be OK or NG.",
+        "qc.invalid_reason_code"                => "NG reason code is not in the catalog — choose one from the list.",
+        "qc.invalid_ng_note"                    => "An NG note is required when marking NG (1-500 characters).",
+        "qc.invalid_judgment"                   => "Judgment must be Pass / Reject (FQC) or Approve / Reject (OQC).",
+        "qc.judgment_inconsistent"              => "Judgment does not match the rollup — review the NG items.",
+        "qc.not_ready_for_judgment"             => "All QC items must be processed before judgment.",
+        "qc.invalid_reason"                     => "A judgment reason is required (1-500 characters) when rejecting.",
+        "oqc.signature_out_of_order"            => "The Inspector must sign first, then the Reviewer, and finally the Approver.",
+        "oqc.same_user_as_inspector"            => "The Reviewer/Approver must be DIFFERENT from the Inspector (3-sig policy).",
+        "oqc.same_user_as_reviewer"             => "The Approver must be DIFFERENT from the Reviewer (3-sig policy).",
+        "http.empty_body"                       => "The server returned an empty response — contact IT.",
+        _                                       => $"Unknown error code ({code}).",
     };
 
     /// <summary>Q5 client-side guard banner — current user equals
@@ -74,15 +74,15 @@ public static class WoQcReviewErrorLocaliser
     /// OqcDashboard while logged in as the Inspector; the Reviewer +
     /// Approve buttons are disabled.</summary>
     public const string Q5SameAsInspectorBanner =
-        "Bạn đã ký Inspector cho WO này — chính sách 3-sig yêu cầu " +
-        "Reviewer và Approver KHÁC Inspector. Đăng xuất và đăng nhập " +
-        "bằng tài khoản QC khác để tiếp tục.";
+        "You signed as Inspector for this WO — the 3-sig policy requires " +
+        "the Reviewer and Approver to be DIFFERENT from the Inspector. Sign out and sign in " +
+        "with a different QC account to continue.";
 
     /// <summary>Q5 client-side guard banner — current user equals
     /// <c>ReviewedBy</c> on the OQC row. Rendered when the user opens
     /// the Approve sub-form after they signed as Reviewer.</summary>
     public const string Q5SameAsReviewerBanner =
-        "Bạn đã ký Reviewer cho WO này — chính sách 3-sig yêu cầu " +
-        "Approver KHÁC Reviewer. Đăng xuất và đăng nhập bằng tài khoản " +
-        "QC khác để tiếp tục.";
+        "You signed as Reviewer for this WO — the 3-sig policy requires " +
+        "the Approver to be DIFFERENT from the Reviewer. Sign out and sign in with a different " +
+        "QC account to continue.";
 }

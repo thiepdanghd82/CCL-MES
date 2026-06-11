@@ -66,7 +66,7 @@ public static class SpecDiffVm
         var entries = new List<SpecDiffEntry>();
 
         // ── Identity / header ───────────────────────────────────────
-        AddFieldDiff(entries, DiffSection.Identity, "Tiêu đề", parent.Title, current.Title);
+        AddFieldDiff(entries, DiffSection.Identity, "Title", parent.Title, current.Title);
         AddFieldDiff(entries, DiffSection.Identity, "REF NO", parent.RefNo, current.RefNo);
         AddFieldDiff(entries, DiffSection.Identity, "Spec / Inspection level",
             parent.InspectionLevel, current.InspectionLevel);

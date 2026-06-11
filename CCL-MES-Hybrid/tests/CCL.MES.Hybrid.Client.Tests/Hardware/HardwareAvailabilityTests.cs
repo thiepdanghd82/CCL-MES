@@ -20,16 +20,16 @@ public sealed class HardwareAvailabilityTests
         Assert.False(a.IsAvailable);
         Assert.Equal("feature_disabled", a.Reason);
         Assert.NotNull(a.OperatorMessage);
-        Assert.Contains("tắt", a.OperatorMessage); // Vietnamese "off"
+        Assert.Contains("off", a.OperatorMessage);
     }
 
     [Fact]
     public void NotImplemented_carries_component_name_into_message()
     {
-        var a = HardwareAvailability.NotImplemented("Cân");
+        var a = HardwareAvailability.NotImplemented("Weigh scale");
         Assert.False(a.IsAvailable);
         Assert.Equal("not_implemented", a.Reason);
-        Assert.Contains("Cân", a.OperatorMessage!);
+        Assert.Contains("Weigh scale", a.OperatorMessage!);
     }
 
     [Fact]

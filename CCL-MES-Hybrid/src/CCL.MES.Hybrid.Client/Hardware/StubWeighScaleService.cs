@@ -11,7 +11,7 @@ namespace CCL.MES.Hybrid.Client.Hardware;
 public sealed class StubWeighScaleService : IWeighScaleService
 {
     public Task<HardwareAvailability> IsAvailableAsync(CancellationToken ct = default)
-        => Task.FromResult(HardwareAvailability.NotImplemented("Cân"));
+        => Task.FromResult(HardwareAvailability.NotImplemented("Weigh scale"));
 
     public async IAsyncEnumerable<decimal> WeightStreamGramsAsync(
         [EnumeratorCancellation] CancellationToken ct)

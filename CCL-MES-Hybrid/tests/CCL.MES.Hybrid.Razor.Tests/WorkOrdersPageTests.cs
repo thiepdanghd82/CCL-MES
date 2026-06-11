@@ -194,10 +194,10 @@ public sealed class WorkOrdersPageTests : TestContext
             // The success banner MUST NOT render on 409 (operator
             // would otherwise think the advance succeeded).
             Assert.Empty(cut.FindAll("[data-testid='advance-success-banner']"));
-            // The error banner MUST render the VN state-conflict text.
+            // The error banner MUST render the state-conflict text.
             var err = cut.Find("div.wo-card-error");
-            Assert.Contains("Một thao tác khác", err.TextContent);
-            Assert.Contains("Nhận / Bắt đầu", err.TextContent);
+            Assert.Contains("Another operation", err.TextContent);
+            Assert.Contains("Accept / Start", err.TextContent);
         });
     }
 

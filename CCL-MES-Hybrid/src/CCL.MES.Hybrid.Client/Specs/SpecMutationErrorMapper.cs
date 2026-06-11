@@ -86,68 +86,68 @@ public static class SpecMutationErrorMapper
         ArgumentNullException.ThrowIfNull(err);
         return err.Code switch
         {
-            "duplicate_spec_code"   => "Mã Spec đã tồn tại — chọn mã khác.",
-            "validation"            => string.IsNullOrWhiteSpace(err.MessageEn) ? "Dữ liệu chưa hợp lệ." : $"Dữ liệu chưa hợp lệ: {err.MessageEn}",
-            "not_found"             => "Không tìm thấy Spec (có thể đã bị xoá).",
-            "trashed"               => "Spec đang ở Thùng rác — khôi phục trước khi thực hiện.",
-            "immutable_status"      => CurrentStatusSuffix("Chỉ Bản nháp mới được sửa.", err),
-            "invalid_source_status" => CurrentStatusSuffix("Chỉ Spec đã Duyệt hoặc Phát hành mới có thể tạo Revise.", err),
-            "reason_required"       => "Lý do Revise phải có ít nhất 5 ký tự.",
-            "invalid_status"        => CurrentStatusSuffix("Chỉ Spec đã Duyệt hoặc Phát hành mới có thể đánh dấu Thay thế.", err),
-            "confirm_mismatch"      => "Mã Spec xác nhận chưa đúng — gõ lại chính xác mã hiện tại.",
-            "already_trashed"       => "Spec đã ở Thùng rác.",
+            "duplicate_spec_code"   => "Spec code already exists — choose a different code.",
+            "validation"            => string.IsNullOrWhiteSpace(err.MessageEn) ? "The data is not yet valid." : $"The data is not yet valid: {err.MessageEn}",
+            "not_found"             => "Spec not found (it may have been deleted).",
+            "trashed"               => "This Spec is in the Trash — restore it before continuing.",
+            "immutable_status"      => CurrentStatusSuffix("Only Draft revisions can be edited.", err),
+            "invalid_source_status" => CurrentStatusSuffix("Only an Approved or Released Spec can be revised.", err),
+            "reason_required"       => "The revision reason must be at least 5 characters.",
+            "invalid_status"        => CurrentStatusSuffix("Only an Approved or Released Spec can be marked as Superseded.", err),
+            "confirm_mismatch"      => "The confirmation Spec code is incorrect — retype the current code exactly.",
+            "already_trashed"       => "This Spec is already in the Trash.",
             "active_work_orders"    => ActiveWoSuffix(err),
-            "not_trashed"           => "Spec không ở Thùng rác — không cần khôi phục.",
-            "auth.invalid_credentials" or "auth.bad_claim" => "Phiên đăng nhập đã hết hạn — đăng nhập lại.",
-            "http.non_success"      => $"Lỗi máy chủ (HTTP {err.MessageEn}).",
+            "not_trashed"           => "This Spec is not in the Trash — no restore is needed.",
+            "auth.invalid_credentials" or "auth.bad_claim" => "Your session has expired — please sign in again.",
+            "http.non_success"      => $"Server error (HTTP {err.MessageEn}).",
             // P10.5c-2 — Spec xlsx import codes.
-            "import.no_file"                  => "Chưa chọn file để tải lên.",
-            "import.invalid_extension"        => "Chỉ hỗ trợ file .xlsx.",
-            "import.oversize"                 => "File vượt quá 10 MB — chọn file nhỏ hơn.",
-            "import.invalid_content"          => "File không phải định dạng xlsx hợp lệ.",
-            "import.parse_error"              => string.IsNullOrWhiteSpace(err.MessageEn) ? "Không đọc được file xlsx — sai layout hoặc file hỏng." : $"Không đọc được file xlsx: {err.MessageEn}",
-            "import.no_parsed_payload"        => "Phiên xem trước đã hết hạn — chọn lại file.",
-            "import.invalid_parsed_payload"   => "Dữ liệu xem trước không hợp lệ — chọn lại file.",
-            "import.invalid_mode"             => "Lựa chọn lưu không hợp lệ — thử lại.",
-            "import.spec_code_override_required" => "Phải nhập Mã Spec mới khi chọn Lưu thành bản sao.",
-            "import.duplicate_ref_no"         => "Đã tồn tại Spec với cùng REF NO — chọn Thay thế hoặc Lưu thành bản sao.",
-            "import.validation"               => string.IsNullOrWhiteSpace(err.MessageEn) ? "Dữ liệu chưa hợp lệ — kiểm tra Customer / Part No." : $"Dữ liệu chưa hợp lệ: {err.MessageEn}",
+            "import.no_file"                  => "No file selected to upload.",
+            "import.invalid_extension"        => "Only .xlsx files are supported.",
+            "import.oversize"                 => "The file exceeds 10 MB — choose a smaller file.",
+            "import.invalid_content"          => "The file is not a valid xlsx format.",
+            "import.parse_error"              => string.IsNullOrWhiteSpace(err.MessageEn) ? "Could not read the xlsx file — wrong layout or corrupted file." : $"Could not read the xlsx file: {err.MessageEn}",
+            "import.no_parsed_payload"        => "The preview session has expired — select the file again.",
+            "import.invalid_parsed_payload"   => "The preview data is invalid — select the file again.",
+            "import.invalid_mode"             => "Invalid save option — please try again.",
+            "import.spec_code_override_required" => "You must enter a new Spec code when choosing Save as copy.",
+            "import.duplicate_ref_no"         => "A Spec with the same REF NO already exists — choose Supersede or Save as copy.",
+            "import.validation"               => string.IsNullOrWhiteSpace(err.MessageEn) ? "The data is not yet valid — check Customer / Part No." : $"The data is not yet valid: {err.MessageEn}",
             // P10.5e-1 — Drawings upload + download codes.
-            "drawing.no_file"             => "Chưa chọn file bản vẽ để tải lên.",
-            "drawing.oversize"            => "File bản vẽ vượt quá 10 MB — chọn file nhỏ hơn.",
-            "drawing.invalid_extension"   => "Định dạng file không hợp lệ — chỉ hỗ trợ PDF / PNG / JPG / SVG / GIF / WEBP / DWG / DXF / AI.",
-            "drawing.invalid_kind"        => "Loại bản vẽ không hợp lệ.",
-            "drawing.forbidden"           => "Tài khoản không có quyền upload bản vẽ (cần Admin hoặc Engineer).",
-            "drawing.validation"          => string.IsNullOrWhiteSpace(err.MessageEn) ? "Bản vẽ chưa hợp lệ." : $"Bản vẽ chưa hợp lệ: {err.MessageEn}",
-            "drawing.not_found"           => "Không tìm thấy bản vẽ (có thể đã bị xoá).",
-            "drawing.blob_missing"        => "File bản vẽ không còn trên máy chủ — vui lòng upload lại.",
+            "drawing.no_file"             => "No drawing file selected to upload.",
+            "drawing.oversize"            => "The drawing file exceeds 10 MB — choose a smaller file.",
+            "drawing.invalid_extension"   => "Invalid file format — only PDF / PNG / JPG / SVG / GIF / WEBP / DWG / DXF / AI are supported.",
+            "drawing.invalid_kind"        => "Invalid drawing kind.",
+            "drawing.forbidden"           => "Your account is not allowed to upload drawings (Admin or Engineer required).",
+            "drawing.validation"          => string.IsNullOrWhiteSpace(err.MessageEn) ? "The drawing is not yet valid." : $"The drawing is not yet valid: {err.MessageEn}",
+            "drawing.not_found"           => "Drawing not found (it may have been deleted).",
+            "drawing.blob_missing"        => "The drawing file is no longer on the server — please upload it again.",
             // P10.5e-2 — Decide chain.
-            "drawing.invalid_role"        => "Vai trò chip không hợp lệ — chỉ chấp nhận NPI / Sản xuất / QC.",
-            "drawing.invalid_decision"    => "Quyết định không hợp lệ — chỉ chấp nhận Approve / Reject.",
-            "drawing.department_mismatch" => "Tài khoản không có quyền duyệt chip này — chuyển cho đúng Phòng/Role được phép.",
-            "drawing.comment_required"    => "Phải nhập lý do khi Reject.",
-            "drawing.invalid_state"       => "Không duyệt được vì version đã ở trạng thái Thay thế.",
+            "drawing.invalid_role"        => "Invalid chip role — only NPI / Production / QC are accepted.",
+            "drawing.invalid_decision"    => "Invalid decision — only Approve / Reject are accepted.",
+            "drawing.department_mismatch" => "Your account is not allowed to approve this chip — route it to the correct Department/Role.",
+            "drawing.comment_required"    => "A reason is required when rejecting.",
+            "drawing.invalid_state"       => "Cannot approve because this version is already Superseded.",
             // P10.5f — QC plan + capture codes.
-            "qc.forbidden"        => "Tài khoản không có quyền chỉnh sửa QC (cần Admin hoặc Engineer).",
-            "qc.invalid_stage"    => "Tên stage không hợp lệ — chỉ chấp nhận IpqcPrint / IpqcCut / Fqc / Oqc.",
-            "qc.invalid_row"      => string.IsNullOrWhiteSpace(err.MessageEn) ? "Tên tiêu chí không được để trống." : err.MessageEn,
-            "qc.invalid_result"   => "Kết quả không hợp lệ — chỉ chấp nhận Pass / Fail / Na.",
-            "qc.reason_required"  => "Phải chọn mã lý do khi kết quả là FAIL.",
-            "qc.invalid_reason"   => "Mã lý do không hợp lệ hoặc đã ngừng sử dụng.",
-            "qc.not_found"        => "Không tìm thấy QC plan / tiêu chí (có thể đã bị xoá).",
-            "qc.validation"       => string.IsNullOrWhiteSpace(err.MessageEn) ? "Dữ liệu QC chưa hợp lệ." : $"Dữ liệu QC chưa hợp lệ: {err.MessageEn}",
+            "qc.forbidden"        => "Your account is not allowed to edit QC (Admin or Engineer required).",
+            "qc.invalid_stage"    => "Invalid stage name — only IpqcPrint / IpqcCut / Fqc / Oqc are accepted.",
+            "qc.invalid_row"      => string.IsNullOrWhiteSpace(err.MessageEn) ? "The criterion name cannot be empty." : err.MessageEn,
+            "qc.invalid_result"   => "Invalid result — only Pass / Fail / Na are accepted.",
+            "qc.reason_required"  => "You must select a reason code when the result is FAIL.",
+            "qc.invalid_reason"   => "The reason code is invalid or no longer in use.",
+            "qc.not_found"        => "QC plan / criterion not found (it may have been deleted).",
+            "qc.validation"       => string.IsNullOrWhiteSpace(err.MessageEn) ? "The QC data is not yet valid." : $"The QC data is not yet valid: {err.MessageEn}",
             // P10.5g — Spec export codes.
-            "export.failed"         => string.IsNullOrWhiteSpace(err.MessageEn) ? "Xuất file thất bại — thử lại." : $"Xuất file thất bại: {err.MessageEn}",
-            "export.no_data"        => "Không có dữ liệu phù hợp với bộ lọc — đổi điều kiện rồi xuất lại.",
-            "export.save_cancelled" => "Bạn đã huỷ hộp thoại lưu — file vẫn còn trong thư mục tải xuống của ứng dụng.",
+            "export.failed"         => string.IsNullOrWhiteSpace(err.MessageEn) ? "Export failed — please try again." : $"Export failed: {err.MessageEn}",
+            "export.no_data"        => "No data matches the filter — change the conditions and export again.",
+            "export.save_cancelled" => "You cancelled the save dialog — the file is still in the app's downloads folder.",
             // P10.6a — Settings / My Profile + My Password codes.
-            "profile.not_found"            => "Không tìm thấy thông tin tài khoản — đăng nhập lại rồi thử lại.",
-            "profile.invalid_body"         => "Dữ liệu cập nhật không hợp lệ.",
-            "profile.display_name_too_long" => "Tên hiển thị không được vượt quá 100 ký tự.",
-            "auth.wrong_current"           => "Mật khẩu hiện tại không đúng.",
-            "auth.new_too_short"           => "Mật khẩu mới phải có ít nhất 4 ký tự.",
-            "auth.missing_fields"          => "Vui lòng nhập đủ thông tin.",
-            _                       => string.IsNullOrWhiteSpace(err.MessageEn) ? $"Lỗi không xác định ({err.Code})." : err.MessageEn,
+            "profile.not_found"            => "Account information not found — sign in again and retry.",
+            "profile.invalid_body"         => "The update data is invalid.",
+            "profile.display_name_too_long" => "The display name cannot exceed 100 characters.",
+            "auth.wrong_current"           => "The current password is incorrect.",
+            "auth.new_too_short"           => "The new password must be at least 4 characters.",
+            "auth.missing_fields"          => "Please fill in all the required fields.",
+            _                       => string.IsNullOrWhiteSpace(err.MessageEn) ? $"Unknown error ({err.Code})." : err.MessageEn,
         };
     }
 
@@ -170,14 +170,14 @@ public static class SpecMutationErrorMapper
     private static string CurrentStatusSuffix(string baseMessage, ApiError err)
     {
         if (err.Details is not null && err.Details.TryGetValue("currentStatus", out var status) && !string.IsNullOrWhiteSpace(status))
-            return $"{baseMessage} (Hiện tại: {status})";
+            return $"{baseMessage} (Current: {status})";
         return baseMessage;
     }
 
     private static string ActiveWoSuffix(ApiError err)
     {
         if (err.Details is not null && err.Details.TryGetValue("activeWoCount", out var raw) && int.TryParse(raw, out var count))
-            return $"Không thể xoá: {count} Work Order đang sử dụng Spec này.";
-        return "Không thể xoá: vẫn còn Work Order đang sử dụng Spec này.";
+            return $"Cannot delete: {count} Work Order(s) are still using this Spec.";
+        return "Cannot delete: there are still Work Orders using this Spec.";
     }
 }

@@ -81,7 +81,7 @@ public sealed class SettingDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='setting-initial-error']");
-            Assert.Contains("Không tìm thấy WO trên máy chủ.", banner.TextContent);
+            Assert.Contains("WO not found on the server.", banner.TextContent);
         });
     }
 
@@ -298,7 +298,7 @@ public sealed class SettingDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='setting-set-error']");
-            Assert.Contains("Một thao tác khác đã cập nhật WO này", banner.TextContent);
+            Assert.Contains("Another operation has already updated this WO", banner.TextContent);
         });
     }
 }

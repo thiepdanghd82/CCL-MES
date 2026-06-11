@@ -13,11 +13,11 @@ public sealed class SpecShowcardVmTests
     // ── Status label ────────────────────────────────────────────────
 
     [Theory]
-    [InlineData(SpecRevisionStatus.Draft,      "Bản nháp")]
-    [InlineData(SpecRevisionStatus.InReview,   "Đang xét")]
-    [InlineData(SpecRevisionStatus.Approved,   "Đã duyệt")]
-    [InlineData(SpecRevisionStatus.Released,   "Đã phát hành")]
-    [InlineData(SpecRevisionStatus.Superseded, "Đã thay thế")]
+    [InlineData(SpecRevisionStatus.Draft,      "Draft")]
+    [InlineData(SpecRevisionStatus.InReview,   "In Review")]
+    [InlineData(SpecRevisionStatus.Approved,   "Approved")]
+    [InlineData(SpecRevisionStatus.Released,   "Released")]
+    [InlineData(SpecRevisionStatus.Superseded, "Superseded")]
     public void StatusLabelVi_covers_5_states(SpecRevisionStatus status, string expected)
     {
         Assert.Equal(expected, SpecShowcardVm.StatusLabelVi(status));
@@ -68,13 +68,13 @@ public sealed class SpecShowcardVmTests
     }
 
     [Theory]
-    [InlineData("SILK",    "Lụa")]
+    [InlineData("SILK",    "Silkscreen")]
     [InlineData("FLEXO",   "Flexo")]
     [InlineData("LETTER",  "Letterpress")]
     [InlineData("INDIGO",  "Indigo")]
     [InlineData("DIECUT",  "Bế")]
-    [InlineData("UNKNOWN", "Chưa rõ")]
-    [InlineData("BOGUS",   "Chưa rõ")]
+    [InlineData("UNKNOWN", "Unknown")]
+    [InlineData("BOGUS",   "Unknown")]
     public void PlannerLabelVi_covers_palette(string code, string expected)
     {
         Assert.Equal(expected, SpecShowcardVm.PlannerLabelVi(code));
@@ -153,7 +153,7 @@ public sealed class SpecShowcardVmTests
         Assert.Equal("SP-001", vm.SpecCode);
         Assert.Equal("B", vm.RevisionCode);
         Assert.Equal(SpecRevisionStatus.Approved, vm.Status);
-        Assert.Equal("Đã duyệt", vm.StatusLabel);
+        Assert.Equal("Approved", vm.StatusLabel);
         Assert.Equal("spec-status-approved", vm.StatusCssClass);
         Assert.Equal("FLEXO", vm.PlannerCode);
         Assert.Equal("Flexo", vm.PlannerLabel);
@@ -209,7 +209,7 @@ public sealed class SpecShowcardVmTests
 
         var vm = SpecShowcardVm.FromDetail(detail);
 
-        Assert.Equal("Đã phát hành", vm.StatusLabel);
+        Assert.Equal("Released", vm.StatusLabel);
         Assert.Equal("SILK", vm.PlannerCode);
         Assert.Equal("60.0 × 30.5 mm", vm.ProductSizeDisplay);
         Assert.Equal("Note in print", vm.RemarksText);
