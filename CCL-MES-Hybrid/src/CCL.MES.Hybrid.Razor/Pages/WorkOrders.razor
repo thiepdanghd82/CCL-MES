@@ -151,18 +151,18 @@ else
                 @if (_activeWos.Count > 0)
                 {
                     <div class="wo-section-head">⚡ Active Work Orders (@_activeWos.Count)</div>
-                    <div class="wo-card-grid">
+                    <div class="woa-grid">
                         @foreach (var w in _activeWos)
                         {
-                            <button type="button" class="wo-card" @onclick="@(() => OnOpenWoCardAsync(w.WoNo))">
-                                <div class="wo-card-head">
-                                    <span class="wo-card-no">@w.WoNo</span>
-                                    <span class="wo-card-badge @PhaseBadgeClass(w.MesPhase)">@PhaseLabel(w.MesPhase)</span>
+                            <button type="button" class="woa-card" @onclick="@(() => OnOpenWoCardAsync(w.WoNo))">
+                                <div class="woa-head">
+                                    <span class="woa-no">@w.WoNo</span>
+                                    <span class="woa-badge @PhaseBadgeClass(w.MesPhase)">@PhaseLabel(w.MesPhase)</span>
                                 </div>
-                                <div class="wo-card-kv"><span>Customer</span><strong>@(w.CustomerName ?? "—")</strong></div>
-                                <div class="wo-card-kv"><span>Product</span><strong>@w.ProductName</strong></div>
-                                <div class="wo-card-kv"><span>Machine</span><strong>@(w.MachineCode ?? "—")</strong></div>
-                                <div class="wo-card-kv"><span>Progress</span><strong>@w.QtyDone / @w.TargetQty pcs</strong></div>
+                                <div class="woa-kv"><span>Customer</span><strong>@(w.CustomerName ?? "—")</strong></div>
+                                <div class="woa-kv"><span>Product</span><strong>@w.ProductName</strong></div>
+                                <div class="woa-kv"><span>Machine</span><strong>@(w.MachineCode ?? "—")</strong></div>
+                                <div class="woa-kv"><span>Progress</span><strong>@w.QtyDone / @w.TargetQty pcs</strong></div>
                             </button>
                         }
                     </div>
@@ -181,6 +181,19 @@ else
                    /setting/done while MesPhase advances through IPQC_WAIT
                    → IPQC_APPROVED → RUNNING → PAUSED → FQC_PENDING etc.,
                    making the chip + step row lie about the actual state. *@
+                @* SpecHub-style 7-step phase stepper. *@
+                <div class="wo-stepper">
+                    @for (var i = 0; i < WoSteps.Length; i++)
+                    {
+                        var idx = i + 1;
+                        var curStep = StepIndexOf(_summary.MesPhase);
+                        <div class="wo-step @(idx < curStep ? "wo-step-done" : (idx == curStep ? "wo-step-cur" : "wo-step-todo"))">
+                            <div class="wo-step-num">@(idx < curStep ? "✓" : idx.ToString())</div>
+                            <div class="wo-step-label">@WoSteps[i]</div>
+                        </div>
+                    }
+                </div>
+
                 <div class="wo-card" data-mes-phase="@_summary.MesPhase" data-current-step="@_summary.CurrentStep">
                     <div class="wo-card-head">
                         <div class="wo-card-wo">@_summary.WoNo</div>
@@ -406,6 +419,23 @@ else
         "RUNNING" => "wo-badge-run",
         "PAUSED" => "wo-badge-warn",
         _ => "wo-badge-info",
+    };
+
+    // SpecHub 7-step phase stepper.
+    private static readonly string[] WoSteps =
+        { "Pre-press", "OP Setting", "IPQC", "Ready to Run", "Running", "FQC", "OQC" };
+
+    private static int StepIndexOf(string p) => p switch
+    {
+        "PREPRESS" => 1,
+        "SETTING" => 2,
+        "IPQC_WAIT" or "QA_PENDING" => 3,
+        "IPQC_APPROVED" => 4,
+        "RUNNING" or "PAUSED" => 5,
+        "FQC_PENDING" => 6,
+        "OQC_PENDING" => 7,
+        "SHIPPED" or "DONE" => 8,
+        _ => 0,
     };
 
     private async Task LoadReasonCodesAsync()

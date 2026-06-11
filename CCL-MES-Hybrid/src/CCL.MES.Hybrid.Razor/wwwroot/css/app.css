@@ -5134,12 +5134,12 @@ html, body {
     text-transform: uppercase;
     color: #6b7280;
 }
-.wo-card-grid {
+.woa-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 12px;
 }
-.wo-card {
+.woa-card {
     text-align: left;
     background: var(--card);
     border: 1px solid #e5e7eb;
@@ -5149,12 +5149,12 @@ html, body {
     transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
     font: inherit;
 }
-.wo-card:hover {
+.woa-card:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
     border-color: #c7d2fe;
 }
-.wo-card-head {
+.woa-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -5162,8 +5162,8 @@ html, body {
     padding-bottom: 8px;
     border-bottom: 1px solid #f1f3f5;
 }
-.wo-card-no { font-weight: 800; font-size: 1.05rem; color: #111827; font-variant-numeric: tabular-nums; }
-.wo-card-badge {
+.woa-no { font-weight: 800; font-size: 1.05rem; color: #111827; font-variant-numeric: tabular-nums; }
+.woa-badge {
     padding: 2px 10px;
     border-radius: 999px;
     font-size: 0.7rem;
@@ -5173,15 +5173,15 @@ html, body {
 .wo-badge-info { background: #e0e7ff; color: #3730a3; }
 .wo-badge-run  { background: #dcfce7; color: #15803d; }
 .wo-badge-warn { background: #fef3c7; color: #b45309; }
-.wo-card-kv {
+.woa-kv {
     display: flex;
     justify-content: space-between;
     gap: 12px;
     padding: 3px 0;
     font-size: 0.86rem;
 }
-.wo-card-kv span { color: #9ca3af; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.4px; padding-top: 2px; }
-.wo-card-kv strong { color: #1f2937; font-weight: 600; text-align: right; }
+.woa-kv span { color: #9ca3af; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.4px; padding-top: 2px; }
+.woa-kv strong { color: #1f2937; font-weight: 600; text-align: right; }
 .wo-active-empty {
     margin-top: 22px;
     padding: 24px;
@@ -5190,4 +5190,40 @@ html, body {
     background: var(--card);
     border: 1px dashed #d1d5db;
     border-radius: 10px;
+}
+
+
+/* P10.7 — WO detail 7-step phase stepper (SpecHub parity) */
+.wo-stepper {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    margin: 4px 0 14px;
+}
+.wo-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--card);
+    border: 1px solid #e5e7eb;
+}
+.wo-step-num {
+    flex: 0 0 26px;
+    width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    font-weight: 700; font-size: 0.82rem;
+    background: #e5e7eb; color: #6b7280;
+}
+.wo-step-label { font-size: 0.78rem; color: #6b7280; font-weight: 600; line-height: 1.1; }
+.wo-step-done { border-color: #bbf7d0; background: #f0fdf4; }
+.wo-step-done .wo-step-num { background: #16a34a; color: #fff; }
+.wo-step-done .wo-step-label { color: #15803d; }
+.wo-step-cur { border-color: #fcd34d; background: #fffbeb; box-shadow: 0 0 0 1px #fcd34d; }
+.wo-step-cur .wo-step-num { background: #d97706; color: #fff; }
+.wo-step-cur .wo-step-label { color: #b45309; font-weight: 700; }
+@container (max-width: 900px) {
+    .wo-stepper { grid-template-columns: repeat(2, 1fr); }
 }
