@@ -97,6 +97,17 @@ public sealed class RecordingApi : ICclApiClient
         return Task.FromResult(HomeSummary);
     }
 
+    // P10.5 — NPI CSV import. Records (kind, fileName) of each call.
+    public CCL.MES.Hybrid.Client.Npi.NpiImportResultDto? NpiImport { get; set; }
+        = new CCL.MES.Hybrid.Client.Npi.NpiImportResultDto { Kind = "structures", Inserted = 0, Skipped = 0 };
+    public List<(string Kind, string FileName)> NpiImportCalls { get; } = new();
+
+    public Task<CCL.MES.Hybrid.Client.Npi.NpiImportResultDto?> ImportNpiAsync(string kind, string fileName, byte[] content, CancellationToken ct = default)
+    {
+        NpiImportCalls.Add((kind, fileName));
+        return Task.FromResult(NpiImport);
+    }
+
     // P10.8 — Machine Dashboard. Defaults to an empty board.
     public MachineDashboardDto? MachineDashboard { get; set; } = new MachineDashboardDto();
     public int MachineDashboardCalls { get; private set; }

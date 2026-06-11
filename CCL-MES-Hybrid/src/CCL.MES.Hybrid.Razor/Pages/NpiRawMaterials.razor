@@ -13,6 +13,9 @@
            value="@_search" @oninput="OnSearchInput" @onkeyup="HandleSearchKey" />
     <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
     <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
+    <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="impCtx">
+        <button type="button" class="grid-btn grid-btn-primary" @onclick="() => _importOpen = true" disabled="@_loading">⤓ Import…</button>
+    </AuthorizeView>
     <div class="grid-toolbar-spacer"></div>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
 </div>
@@ -76,12 +79,16 @@ else if (_data is not null)
     </div>
 }
 
+<NpiImportModal Kind="rawmaterials" Open="_importOpen"
+                OnClose="CloseImport" OnImported="OnImportedAsync" />
+
 @code {
     private NpiPagedRaw<NpiRawMaterial>? _data;
     private bool _loading;
     private string? _error;
     private string _search = "";
     private System.Threading.Timer? _searchDebounce;
+    private bool _importOpen;
     private int _page = 1;
     private const int PageSize = 50;
     private GridColumns _columns = default!;
@@ -144,6 +151,14 @@ else if (_data is not null)
     }
 
     public void Dispose() => _searchDebounce?.Dispose();
+
+    private void CloseImport() => _importOpen = false;
+
+    private Task OnImportedAsync()
+    {
+        _page = 1;
+        return LoadAsync();   // refresh the grid; modal stays open to show the result
+    }
 
     private Task OnSearchClickAsync()
     {

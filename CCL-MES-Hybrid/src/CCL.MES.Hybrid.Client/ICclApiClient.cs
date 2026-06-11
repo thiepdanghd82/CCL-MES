@@ -55,6 +55,7 @@ public interface ICclApiClient
     Task<NpiPagedRaw<NpiRawMaterial>> GetRawMaterialsAsync(string? search, int page, int pageSize, CancellationToken ct = default);
     Task<NpiPagedRaw<NpiRoutingOperation>> GetRoutingsAsync(string? search, int page, int pageSize, CancellationToken ct = default);
     Task<NpiPagedRaw<NpiStructure>> GetStructuresAsync(string? search, int page, int pageSize, CancellationToken ct = default);
+    Task<NpiImportResultDto?> ImportNpiAsync(string kind, string fileName, byte[] content, CancellationToken ct = default);
 
     // ── Work Orders (P10.3 W4 — scan→accept) ──────────────────────
     /// <summary>Lookup WO by number. Returns null on 404; throws <see cref="ApiException"/>

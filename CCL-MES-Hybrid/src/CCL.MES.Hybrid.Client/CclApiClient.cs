@@ -135,6 +135,17 @@ public sealed class CclApiClient : ICclApiClient
     public Task<NpiPagedRaw<NpiStructure>> GetStructuresAsync(string? search, int page, int pageSize, CancellationToken ct = default)
         => GetPagedAsync<NpiStructure>("structures", search, page, pageSize, ct);
 
+    public async Task<NpiImportResultDto?> ImportNpiAsync(string kind, string fileName, byte[] content, CancellationToken ct = default)
+    {
+        using var form = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(content);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+        form.Add(fileContent, "file", fileName);
+        using var resp = await _http.PostAsync(
+            $"/{ApiVersion.Prefix}/npi/{Uri.EscapeDataString(kind)}/import", form, ct);
+        return await ReadAsAsync<NpiImportResultDto>(resp, ct);
+    }
+
     // ── Work Orders ─────────────────────────────────────────────────
 
     public async Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
