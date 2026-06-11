@@ -143,56 +143,67 @@ else if (_detail is not null && _vm is not null)
                    prev toggle when lineage has ≥2 entries (current + parent).
                    The buttons live on the inside of the panel so they don't
                    get confused with the lifecycle action bar at the top. *@
-                <div class="spec-showcard-toolbar" role="group" aria-label="Spec display">
-                    <button type="button"
-                            aria-pressed="@(!_fullMode ? "true" : "false")"
-                            class="spec-showcard-mode @(!_fullMode ? "is-active" : "")"
-                            @onclick="() => { _fullMode = false; _compareMode = false; StateHasChanged(); }">
-                        Summary
-                    </button>
-                    <button type="button"
-                            aria-pressed="@(_fullMode ? "true" : "false")"
-                            class="spec-showcard-mode @(_fullMode ? "is-active" : "")"
-                            @onclick="() => { _fullMode = true; _compareMode = false; StateHasChanged(); }">
-                        Full
-                    </button>
-                    @if (_vmFull?.HasParentRev == true)
-                    {
-                        <button type="button"
-                                aria-pressed="@(_compareMode ? "true" : "false")"
-                                class="spec-showcard-mode spec-showcard-compare @(_compareMode ? "is-active" : "")"
-                                @onclick="OnToggleCompareAsync">
-                            Compare with previous rev @(_compareMode ? "(on)" : "")
-                        </button>
-                    }
-                </div>
-
-                @if (_compareMode)
+                @* P10.10 — inline edit mode: the Draft spec is edited directly
+                   on the showcard via SpecShowcardEdit (replaces the modal). *@
+                @if (_specEditMode)
                 {
-                    @if (_diffResult is null && _compareLoading)
-                    {
-                        <p class="grid-status">Loading the previous rev to compare…</p>
-                    }
-                    else if (_compareError is not null)
-                    {
-                        <div class="modal-banner modal-banner-error" role="alert">
-                            <strong>Failed to load the previous rev.</strong>
-                            <div>@_compareError</div>
-                            <button type="button" class="grid-btn" @onclick="OnToggleCompareAsync">Retry</button>
-                        </div>
-                    }
-                    else
-                    {
-                        <SpecDiffViewer Result="_diffResult" />
-                    }
-                }
-                else if (_fullMode)
-                {
-                    <SpecShowcardFull Vm="(_vmFull ?? _vm)" />
+                    <SpecShowcardEdit Detail="_detail"
+                                      OnSaved="OnInlineEditSavedAsync"
+                                      OnCancel="OnInlineEditCancel" />
                 }
                 else
                 {
-                    <SpecShowcardCompact Vm="_vm" />
+                    <div class="spec-showcard-toolbar" role="group" aria-label="Spec display">
+                        <button type="button"
+                                aria-pressed="@(!_fullMode ? "true" : "false")"
+                                class="spec-showcard-mode @(!_fullMode ? "is-active" : "")"
+                                @onclick="() => { _fullMode = false; _compareMode = false; StateHasChanged(); }">
+                            Summary
+                        </button>
+                        <button type="button"
+                                aria-pressed="@(_fullMode ? "true" : "false")"
+                                class="spec-showcard-mode @(_fullMode ? "is-active" : "")"
+                                @onclick="() => { _fullMode = true; _compareMode = false; StateHasChanged(); }">
+                            Full
+                        </button>
+                        @if (_vmFull?.HasParentRev == true)
+                        {
+                            <button type="button"
+                                    aria-pressed="@(_compareMode ? "true" : "false")"
+                                    class="spec-showcard-mode spec-showcard-compare @(_compareMode ? "is-active" : "")"
+                                    @onclick="OnToggleCompareAsync">
+                                Compare with previous rev @(_compareMode ? "(on)" : "")
+                            </button>
+                        }
+                    </div>
+
+                    @if (_compareMode)
+                    {
+                        @if (_diffResult is null && _compareLoading)
+                        {
+                            <p class="grid-status">Loading the previous rev to compare…</p>
+                        }
+                        else if (_compareError is not null)
+                        {
+                            <div class="modal-banner modal-banner-error" role="alert">
+                                <strong>Failed to load the previous rev.</strong>
+                                <div>@_compareError</div>
+                                <button type="button" class="grid-btn" @onclick="OnToggleCompareAsync">Retry</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <SpecDiffViewer Result="_diffResult" />
+                        }
+                    }
+                    else if (_fullMode)
+                    {
+                        <SpecShowcardFull Vm="(_vmFull ?? _vm)" />
+                    }
+                    else
+                    {
+                        <SpecShowcardCompact Vm="_vm" />
+                    }
                 }
                 break;
 
@@ -291,6 +302,7 @@ else if (_detail is not null && _vm is not null)
     private string? _actionBanner;
     private bool _actionBannerIsError;
     private bool _editOpen;
+    private bool _specEditMode;   // P10.10 — inline edit on the Specification tab
     private bool _copyOpen;
     private bool _reviseOpen;
     private bool _supersedeOpen;
@@ -755,8 +767,26 @@ else if (_detail is not null && _vm is not null)
         }
     }
 
-    private void OpenEditAsync() { _editOpen = true; StateHasChanged(); }
+    // P10.10 — Edit now enters INLINE edit mode on the Specification tab
+    // (SpecShowcardEdit) instead of the small modal.
+    private void OpenEditAsync()
+    {
+        _activeTab = "spec";
+        _compareMode = false;
+        _specEditMode = true;
+        StateHasChanged();
+    }
     private Task CloseEditAsync() { _editOpen = false; StateHasChanged(); return Task.CompletedTask; }
+
+    private void OnInlineEditCancel() { _specEditMode = false; StateHasChanged(); }
+
+    private async Task OnInlineEditSavedAsync()
+    {
+        _specEditMode = false;
+        _actionBanner = "✓ Changes saved.";
+        _actionBannerIsError = false;
+        await LoadDetailAsync();
+    }
 
     private void OpenCopyAsync() { _copyOpen = true; StateHasChanged(); }
     private Task CloseCopyAsync() { _copyOpen = false; StateHasChanged(); return Task.CompletedTask; }
