@@ -1,5 +1,6 @@
 @page "/machines"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Linq
 @using CCL.MES.Shared.Machines
 @inject ICclApiClient Api
 
@@ -12,10 +13,10 @@
     </button>
 </div>
 
-@* P10.8 slice 1 — plant KPI strip + flat machine table. Status cards +
-   area grouping + detail drawer land in slices 2-3. Status derives from
-   the active WO's MesPhase (Running / Setup / Idle); Down + Maintenance
-   need the ProductionLog feed and are out of slice 1. *@
+@* P10.8 slice 2 — plant KPI strip (plant-wide, unfiltered) + status/area/
+   search filters + area-grouped tables. Status derives from the active
+   WO's MesPhase (Running / Setup / Idle). Detail drawer + ProductionLog
+   Down/Maintenance land in slice 3. *@
 <div class="md-kpis">
     <div class="md-kpi"><div class="md-kpi-num">@(_data?.Total)</div><div class="md-kpi-label">Tổng máy</div></div>
     <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@(_data?.Running)</div><div class="md-kpi-label">Đang chạy</div></div>
@@ -37,37 +38,67 @@ else if (_data is null || _data.Machines.Count == 0)
 }
 else
 {
-    <div class="md-table-wrap">
-        <table class="md-table">
-            <thead>
-                <tr>
-                    <th>Mã máy</th>
-                    <th>Mô tả</th>
-                    <th>Khu vực</th>
-                    <th>Trạng thái</th>
-                    <th>WO</th>
-                    <th>Giai đoạn</th>
-                    <th>Tiến độ</th>
-                    <th>NG</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var m in _data.Machines)
-                {
-                    <tr>
-                        <td class="md-code">@m.Code</td>
-                        <td>@m.Description</td>
-                        <td>@(m.Area ?? "—")</td>
-                        <td><span class="md-pill @PillClass(m.Status)">@StatusLabel(m.Status)</span></td>
-                        <td>@(m.ActiveWoNo ?? "—")</td>
-                        <td>@(m.ActiveMesPhase ?? "—")</td>
-                        <td>@Progress(m)</td>
-                        <td>@(m.QtyNg?.ToString() ?? "—")</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+    <div class="md-filters">
+        <input class="md-search" type="text" placeholder="Tìm mã / mô tả…"
+               value="@_search" @oninput="OnSearch" />
+        <div class="md-chips">
+            @foreach (var s in StatusChips)
+            {
+                <button type="button" class="md-chip @(_statusFilter == s.Key ? "md-chip-on" : "")"
+                        @onclick="@(() => _statusFilter = s.Key)">@s.Label</button>
+            }
+        </div>
+        <div class="md-chips">
+            <button type="button" class="md-chip @(_areaFilter is null ? "md-chip-on" : "")"
+                    @onclick="@(() => _areaFilter = null)">Tất cả khu vực</button>
+            @foreach (var area in Areas)
+            {
+                <button type="button" class="md-chip @(_areaFilter == area ? "md-chip-on" : "")"
+                        @onclick="@(() => _areaFilter = area)">@area</button>
+            }
+        </div>
     </div>
+
+    @if (Filtered.Count == 0)
+    {
+        <p class="md-muted">Không có máy nào khớp bộ lọc.</p>
+    }
+    else
+    {
+        @foreach (var group in Grouped)
+        {
+            <section class="md-area">
+                <div class="md-area-head">
+                    <span class="md-area-name">@group.Key</span>
+                    <span class="md-area-count">@group.Count() máy</span>
+                </div>
+                <div class="md-table-wrap">
+                    <table class="md-table">
+                        <thead>
+                            <tr>
+                                <th>Mã máy</th><th>Mô tả</th><th>Trạng thái</th>
+                                <th>WO</th><th>Giai đoạn</th><th>Tiến độ</th><th>NG</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var m in group)
+                            {
+                                <tr>
+                                    <td class="md-code">@m.Code</td>
+                                    <td>@m.Description</td>
+                                    <td><span class="md-pill @PillClass(m.Status)">@StatusLabel(m.Status)</span></td>
+                                    <td>@(m.ActiveWoNo ?? "—")</td>
+                                    <td>@(m.ActiveMesPhase ?? "—")</td>
+                                    <td>@Progress(m)</td>
+                                    <td>@(m.QtyNg?.ToString() ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
+    }
 }
 
 @code {
@@ -75,24 +106,47 @@ else
     private bool _loading = true;
     private string? _error;
 
+    private string _search = "";
+    private string _statusFilter = "All";   // All | Running | Setup | Idle
+    private string? _areaFilter;             // null = all areas
+
+    private static readonly (string Key, string Label)[] StatusChips =
+    {
+        ("All", "Tất cả"), ("Running", "Đang chạy"), ("Setup", "Cài đặt"), ("Idle", "Rảnh"),
+    };
+
+    private const string NoArea = "Khác";
+
+    private IReadOnlyList<MachineDashboardItem> AllMachines
+        => _data?.Machines ?? Array.Empty<MachineDashboardItem>();
+
+    private List<string> Areas => AllMachines
+        .Select(m => string.IsNullOrWhiteSpace(m.Area) ? NoArea : m.Area!)
+        .Distinct().OrderBy(a => a).ToList();
+
+    private List<MachineDashboardItem> Filtered => AllMachines.Where(m =>
+        (_statusFilter == "All" || m.Status == _statusFilter)
+        && (_areaFilter is null || (string.IsNullOrWhiteSpace(m.Area) ? NoArea : m.Area) == _areaFilter)
+        && (string.IsNullOrWhiteSpace(_search)
+            || m.Code.Contains(_search, StringComparison.OrdinalIgnoreCase)
+            || m.Description.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+        .ToList();
+
+    private IEnumerable<IGrouping<string, MachineDashboardItem>> Grouped => Filtered
+        .GroupBy(m => string.IsNullOrWhiteSpace(m.Area) ? NoArea : m.Area!)
+        .OrderBy(g => g.Key);
+
+    private void OnSearch(ChangeEventArgs e) => _search = e.Value?.ToString() ?? "";
+
     protected override Task OnInitializedAsync() => ReloadAsync();
 
     private async Task ReloadAsync()
     {
         _loading = true;
         _error = null;
-        try
-        {
-            _data = await Api.GetMachineDashboardAsync();
-        }
-        catch (Exception ex)
-        {
-            _error = ex.Message;
-        }
-        finally
-        {
-            _loading = false;
-        }
+        try { _data = await Api.GetMachineDashboardAsync(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
     }
 
     private static string PillClass(string status) => status switch

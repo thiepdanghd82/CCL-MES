@@ -378,6 +378,47 @@ html, body {
 .md-muted { color: #6b7280; }
 .md-error { color: #b91c1c; }
 
+/* P10.8 slice 2 — filters + area groups */
+.md-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+.md-search {
+    padding: 7px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    min-width: 200px;
+    flex: 0 1 240px;
+}
+.md-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.md-chip {
+    padding: 5px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 999px;
+    background: var(--card);
+    cursor: pointer;
+    font-size: 0.82rem;
+}
+.md-chip-on {
+    background: #1f2937;
+    color: #fff;
+    border-color: #1f2937;
+}
+.md-area { margin-bottom: 18px; }
+.md-area-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #e5e7eb;
+}
+.md-area-name { font-weight: 700; color: #1f2937; }
+.md-area-count { color: #6b7280; font-size: 0.82rem; }
+
 /* ─────── Grid ─────── */
 
 .grid-toolbar {

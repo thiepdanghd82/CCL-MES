@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using CCL.MES.Api.Tests._Support;
+using CCL.MES.Domain;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Infrastructure;
 using CCL.MES.Shared.Machines;
@@ -37,6 +38,33 @@ public sealed class MachinesControllerTests : IClassFixture<MesApiFactory>
                 Active = true,
             });
         }
+        await db.SaveChangesAsync();
+    }
+
+    private async Task SeedRunningWoOnAsync(string machineCode)
+    {
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var customer = new Customer { Code = "C-" + Guid.NewGuid().ToString("N")[..6], Name = "Cust" };
+        db.Customers.Add(customer);
+        await db.SaveChangesAsync();
+        var product = new Product { ProductCode = "P-" + Guid.NewGuid().ToString("N")[..6], Name = "Prod", CustomerId = customer.Id };
+        db.Products.Add(product);
+        await db.SaveChangesAsync();
+        db.WorkOrders.Add(new WorkOrder
+        {
+            WoNo = "WO-MD-" + Guid.NewGuid().ToString("N")[..6],
+            CustomerId = customer.Id,
+            ProductId = product.Id,
+            ProductName = product.Name,
+            MachineCode = machineCode,
+            TargetQty = 1000,
+            QtyDoneCached = 250,
+            Uom = "pcs",
+            CurrentStep = ProcessStepCode.Running,
+            MesPhase = "RUNNING",
+            Status = WoStatus.InProgress,
+        });
         await db.SaveChangesAsync();
     }
 
@@ -81,5 +109,24 @@ public sealed class MachinesControllerTests : IClassFixture<MesApiFactory>
         Assert.Null(a.ActiveWoNo);
         Assert.Contains(dto.Machines, m => m.Code == "TST-MD-B" && m.Status == "Idle");
         Assert.True(dto.Idle >= 2);
+    }
+
+    [Fact]
+    public async Task Dashboard_marks_machine_running_when_a_running_wo_is_on_it()
+    {
+        await SeedWorkCentersAsync(("TST-MD-RUN", "Running press", "FLEXO"));
+        await SeedRunningWoOnAsync("TST-MD-RUN");
+        var client = await AuthedClientAsync("md-run-sup");
+
+        var dto = await client.GetFromJsonAsync<MachineDashboardDto>("/api/v2/machines/dashboard");
+
+        Assert.NotNull(dto);
+        var m = Assert.Single(dto!.Machines, x => x.Code == "TST-MD-RUN");
+        Assert.Equal("Running", m.Status);
+        Assert.NotNull(m.ActiveWoNo);
+        Assert.Equal("RUNNING", m.ActiveMesPhase);
+        Assert.Equal(1000, m.TargetQty);
+        Assert.Equal(250, m.QtyDone);
+        Assert.True(dto.Running >= 1);
     }
 }

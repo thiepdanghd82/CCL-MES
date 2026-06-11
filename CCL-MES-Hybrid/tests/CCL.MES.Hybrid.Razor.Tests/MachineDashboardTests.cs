@@ -97,4 +97,73 @@ public sealed class MachineDashboardTests : TestContext
         Assert.Contains("Chưa có trung tâm sản xuất", cut.Markup);
         Assert.Empty(cut.FindAll(".md-table tbody tr"));
     }
+
+    [Fact]
+    public void Groups_machines_by_area()
+    {
+        _api.MachineDashboard = Board();
+
+        var cut = RenderComponent<MachineDashboard>();
+        var sections = cut.FindAll(".md-area");
+
+        Assert.Equal(3, sections.Count);   // FLEXO / CNC / INSPECTION
+        var markup = cut.Markup;
+        Assert.Contains("FLEXO", markup);
+        Assert.Contains("CNC", markup);
+        Assert.Contains("INSPECTION", markup);
+    }
+
+    [Fact]
+    public void Status_chip_filters_rows()
+    {
+        _api.MachineDashboard = Board();
+        var cut = RenderComponent<MachineDashboard>();
+
+        // Click the "Đang chạy" status chip.
+        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "Đang chạy").Click();
+
+        var rows = cut.FindAll(".md-table tbody tr");
+        Assert.Single(rows);                       // only the Running machine
+        Assert.Contains("FBL01", cut.Markup);
+        Assert.DoesNotContain("ACNC3", cut.Markup); // Setup machine filtered out
+    }
+
+    [Fact]
+    public void Area_chip_filters_to_one_area()
+    {
+        _api.MachineDashboard = Board();
+        var cut = RenderComponent<MachineDashboard>();
+
+        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "CNC").Click();
+
+        Assert.Single(cut.FindAll(".md-area"));
+        Assert.Single(cut.FindAll(".md-table tbody tr"));
+        Assert.Contains("ACNC3", cut.Markup);
+        Assert.DoesNotContain("FBL01", cut.Markup);
+    }
+
+    [Fact]
+    public void Search_filters_by_code()
+    {
+        _api.MachineDashboard = Board();
+        var cut = RenderComponent<MachineDashboard>();
+
+        cut.Find(".md-search").Input("FBL");
+
+        var rows = cut.FindAll(".md-table tbody tr");
+        Assert.Single(rows);
+        Assert.Contains("FBL01", cut.Markup);
+    }
+
+    [Fact]
+    public void Filter_with_no_match_shows_placeholder()
+    {
+        _api.MachineDashboard = Board();
+        var cut = RenderComponent<MachineDashboard>();
+
+        cut.Find(".md-search").Input("zzz-nope");
+
+        Assert.Contains("Không có máy nào khớp", cut.Markup);
+        Assert.Empty(cut.FindAll(".md-table tbody tr"));
+    }
 }
