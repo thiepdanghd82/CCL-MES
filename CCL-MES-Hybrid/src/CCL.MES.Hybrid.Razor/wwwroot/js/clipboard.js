@@ -62,3 +62,42 @@ window.cclMesClipboard = (() => {
 
     return { copy, prettyJson, download };
 })();
+
+// P10.10 — grid auto-fit: measure how many rows fit the (flex-filled)
+// .grid-scroll viewport so a paginated grid fills the screen, then
+// re-measure on window resize. Keyed by a per-component id so register/
+// unregister pair up regardless of DotNetObjectReference proxy identity.
+window.cclMesGrid = (() => {
+    const regs = new Map();
+
+    function measure(sel, rowPx) {
+        const el = document.querySelector(sel);
+        if (!el || el.clientHeight <= 0) return 0;
+        const row = el.querySelector('tbody tr');
+        const rh = row && row.offsetHeight ? row.offsetHeight : rowPx;
+        const head = el.querySelector('thead');
+        const hh = head && head.offsetHeight ? head.offsetHeight : rh;
+        if (rh <= 0) return 0;
+        return Math.max(8, Math.floor((el.clientHeight - hh) / rh));
+    }
+
+    function register(id, ref, sel, rowPx) {
+        const fire = () => {
+            const n = measure(sel, rowPx);
+            if (n > 0) { try { ref.invokeMethodAsync('Fit', n); } catch (e) { /* disposed */ } }
+        };
+        let t;
+        const onResize = () => { clearTimeout(t); t = setTimeout(fire, 200); };
+        regs.set(id, onResize);
+        window.addEventListener('resize', onResize);
+        // Let the flex layout settle before the first measure.
+        setTimeout(fire, 80);
+    }
+
+    function unregister(id) {
+        const h = regs.get(id);
+        if (h) { window.removeEventListener('resize', h); regs.delete(id); }
+    }
+
+    return { register, unregister };
+})();

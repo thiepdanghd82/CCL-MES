@@ -77,6 +77,8 @@ else if (_data is not null)
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
                 @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
     </div>
+
+    <GridAutoFit OnFit="SetPageSizeAsync" />
 }
 
 <NpiImportModal Kind="structures" Open="_importOpen"
@@ -90,10 +92,21 @@ else if (_data is not null)
     private System.Threading.Timer? _searchDebounce;
     private bool _importOpen;
     private int _page = 1;
-    private const int PageSize = 50;
+    private int _pageSize = 50;
     private GridColumns _columns = default!;
 
-    private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, PageSize);
+    private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, _pageSize);
+
+    // P10.10 — GridAutoFit reports how many rows fit the viewport; resize the
+    // page to fill it, then clamp the current page into the new range.
+    private async Task SetPageSizeAsync(int rows)
+    {
+        if (rows <= 0 || rows == _pageSize) return;
+        _pageSize = rows;
+        _page = GridPagination.Clamp(_page, GridPagination.TotalPages(_data?.Total ?? 0, rows));
+        await LoadAsync();
+        StateHasChanged();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -158,7 +171,7 @@ else if (_data is not null)
         {
             _data = await Api.GetStructuresAsync(
                 string.IsNullOrWhiteSpace(_search) ? null : _search,
-                _page, PageSize);
+                _page, _pageSize);
         }
         catch (ApiException apiEx)
         {
