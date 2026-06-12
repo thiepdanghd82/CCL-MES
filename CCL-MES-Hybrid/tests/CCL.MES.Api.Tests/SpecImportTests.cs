@@ -291,7 +291,9 @@ public sealed class SpecImportTests : IClassFixture<MesApiFactory>
         var save = await saveResp.Content.ReadFromJsonAsync<SpecImportSaveResponse>();
         Assert.NotNull(save);
         Assert.True(save!.ProductRevisionId > 0);
-        Assert.False(string.IsNullOrWhiteSpace(save.SpecCode));
+        // P10.10 — the xlsx carries no IFS code, so the imported SpecCode
+        // (the app's "IFS code" cell) is intentionally left blank.
+        Assert.True(string.IsNullOrWhiteSpace(save.SpecCode));
         Assert.Equal(mode, save.Mode);
 
         // Verify SPEC_IMPORT_DEVICE audit row.

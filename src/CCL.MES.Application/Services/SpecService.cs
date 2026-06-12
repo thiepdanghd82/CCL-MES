@@ -1176,14 +1176,19 @@ public class SpecService
         var processCode = rev.Print?.ProcessCode ?? "";
         var planner = PlannerFromProcessCode(processCode);
         var isFlexo = string.Equals(processCode, "FLEXO", StringComparison.OrdinalIgnoreCase);
-        var isSilkscreen = !isFlexo
-            && (string.Equals(processCode, "SILKSCREEN", StringComparison.OrdinalIgnoreCase)
-             || string.Equals(processCode, "INDIGO", StringComparison.OrdinalIgnoreCase)
-             || string.Equals(processCode, "INDIGO_PRIMER", StringComparison.OrdinalIgnoreCase));
+        // P10.10 — indigo (HP) + letterpress (LP) fold their single PRINT
+        // process row into ExtraJson the same way flexo does, so the print-row
+        // parse below must cover all three ("ink-based"); otherwise the
+        // Printing section silently vanished on the spec sheet.
+        var isInkBased = isFlexo
+            || string.Equals(processCode, "INDIGO", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(processCode, "LETTERPRESS", StringComparison.OrdinalIgnoreCase);
+        var isSilkscreen = !isInkBased
+            && string.Equals(processCode, "SILKSCREEN", StringComparison.OrdinalIgnoreCase);
 
-        // Parse flexo printing rows từ ExtraJson (folded per Q3 PR #31b)
+        // Parse flexo/indigo/letterpress printing rows từ ExtraJson (folded per Q3)
         var flexoPrintRows = new List<FlexoPrintRow>();
-        if (isFlexo && !string.IsNullOrWhiteSpace(rev.Print?.ExtraJson))
+        if (isInkBased && !string.IsNullOrWhiteSpace(rev.Print?.ExtraJson))
         {
             try
             {

@@ -71,11 +71,46 @@ public sealed class IndigoLetterpressXlsxParserTests
         Assert.Equal("FD3", first.InkCode);
         Assert.Equal("TOYO", first.Brand);
 
-        // Print + cut process rows captured (cutter HSS-R-16).
+        // Print + cut process rows captured (cutter HSS-R-16). Cut Cavity /
+        // Packing live past column 60 — must still be captured.
         Assert.Single(spec.FlexoPrintRows);
         Assert.Single(spec.FlexoCuttingRows);
-        Assert.Equal("HSS-R-16", spec.FlexoCuttingRows[0].CutterName);
+        var cut = spec.FlexoCuttingRows[0];
+        Assert.Equal("HSS-R-16", cut.CutterName);
+        Assert.Equal(4, cut.CuttingCavity);
+        Assert.Contains("2.000", cut.Packing);
 
         Assert.DoesNotContain(spec.Warnings, w => w.Contains("silkscreen layout fallback"));
+    }
+
+    [Fact]
+    public void Letterpress_LAB_sample_parses_full_print_and_cut_rows()
+    {
+        // Mirrors the operator-reported file (LP_LAB 4L IFG5 5W30 SPGF6A):
+        // print process + the far-column cut fields (Cavity C61 / Packing C64)
+        // that the default 60-column scan window used to drop.
+        var spec = ParseFixture("LP_lab_sample.xlsx", "letterpress");
+
+        Assert.Equal("CCL-Seal-19887", spec.RefNo);
+        Assert.Equal("2455", spec.InspectionLevel);
+        Assert.Equal("IDEMITSU", spec.Customer);
+        Assert.StartsWith("LAB 4L IFG5 5W-30 SPGF-6A", spec.PartNo);
+        Assert.Equal("9701050I-000038005- label", spec.PartName);
+        Assert.Equal(212, spec.ProductSizeW);
+        Assert.Equal(110, spec.ProductSizeH);
+        Assert.Equal(9, spec.FlexoInkRows.Count);
+
+        // Print process row — Process "(L18) PRINT", Material BW-9320A.
+        Assert.Single(spec.FlexoPrintRows);
+        Assert.Contains("PRINT", spec.FlexoPrintRows[0].Process);
+        Assert.Equal("BW-9320A", spec.FlexoPrintRows[0].Material);
+
+        // Cut row — Cutter CCL-HT-2576 + Cavity 1 + Packing 2000 + Pitch 113.
+        Assert.Single(spec.FlexoCuttingRows);
+        var cut = spec.FlexoCuttingRows[0];
+        Assert.Equal("CCL-HT-2576", cut.CutterName);
+        Assert.Equal(1, cut.CuttingCavity);
+        Assert.Contains("2.000", cut.Packing);
+        Assert.Equal(113, cut.PitchMm);
     }
 }

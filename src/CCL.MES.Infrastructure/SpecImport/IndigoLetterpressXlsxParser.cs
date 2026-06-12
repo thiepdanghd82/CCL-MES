@@ -97,7 +97,7 @@ public class IndigoLetterpressXlsxParser : ISpecXlsxParser
                 ["version"]  = new(@"phiên bản|version", RegexOptions.IgnoreCase),
                 ["size"]     = new(@"kích thước sp|product size", RegexOptions.IgnoreCase),
                 ["diameter"] = new(@"đường kính|diameter", RegexOptions.IgnoreCase),
-            });
+            }, WideCol);  // LP product columns reach C62 (> default maxCol 60)
             var d = piHeaderRow + 1;
             spec.Customer = GetCell(aoa, d, Col(piMap, "customer", 1));
             spec.PartNo   = GetCell(aoa, d, Col(piMap, "partNo", 4));
@@ -143,37 +143,49 @@ public class IndigoLetterpressXlsxParser : ISpecXlsxParser
             }
         }
 
-        // ── CUT process row (single) — header carries cut-unique labels ──────
-        var cutHeaderRow = FindHeaderUnderSection(aoa,
-            new Regex(@"thông tin cắt|cutting information", RegexOptions.IgnoreCase),
-            new Regex(@"tên dao cắt|cutter name|ép dán|lamination", RegexOptions.IgnoreCase),
-            allowSameRow: true);
-        if (cutHeaderRow > 0)
+        // ── CUT process row (single) ────────────────────────────────────────
+        // The LP template puts the cut section to the RIGHT of the print
+        // section on the SAME rows, and the cut columns reach C64 (past the
+        // default maxCol 60). So locate the cut SECTION cell, then build the
+        // column map scanning ONLY from that column rightward — this both
+        // disambiguates the repeated Process / Material Size / Length pitch
+        // labels (they appear in both halves) and reaches the far columns.
+        var cutSection = FindSection(aoa, new Regex(@"thông tin cắt|cutting information", RegexOptions.IgnoreCase));
+        if (cutSection.Row > 0)
         {
-            // cut-unique labels disambiguate from the print header (Process /
-            // Material Size repeat across both halves of the LP template).
-            var cutMap = BuildColumnMap(aoa, new[] { cutHeaderRow }, new Dictionary<string, Regex>
+            var cutHeaderRow = FindHeaderRowFrom(aoa, cutSection.Row, cutSection.Col,
+                new Regex(@"tên dao cắt|cutter name|ép dán|lamination|pcs/lần cắt|cutting cavity", RegexOptions.IgnoreCase));
+            if (cutHeaderRow > 0)
             {
-                ["lamination"] = new(@"ép dán|lamination", RegexOptions.IgnoreCase),
-                ["cutter"]     = new(@"tên dao cắt|cutter name", RegexOptions.IgnoreCase),
-                ["pcsSheet"]   = new(@"cái\s*/\s*tờ|pcs\s*/\s*sheet", RegexOptions.IgnoreCase),
-                ["cutCavity"]  = new(@"pcs/lần cắt|cutting cavity", RegexOptions.IgnoreCase),
-                ["packing"]    = new(@"quy cách đóng gói|packing", RegexOptions.IgnoreCase),
-            });
-            var d = cutHeaderRow + 1;
-            var lam = GetCell(aoa, d, Col(cutMap, "lamination", 0));
-            var cutter = GetCell(aoa, d, Col(cutMap, "cutter", 0));
-            if (!string.IsNullOrWhiteSpace(lam) || !string.IsNullOrWhiteSpace(cutter))
-            {
-                spec.FlexoCuttingRows.Add(new ParsedFlexoCuttingRowDto
+                var cutMap = ColMapFrom(aoa, cutHeaderRow, cutSection.Col, WideCol, new Dictionary<string, Regex>
                 {
-                    Seq           = 1,
-                    Lamination    = NullIfEmpty(lam),
-                    CutterName    = NullIfEmpty(cutter),
-                    PcsPerSheet   = ParseInt(GetCell(aoa, d, Col(cutMap, "pcsSheet", 0))),
-                    CuttingCavity = ParseInt(GetCell(aoa, d, Col(cutMap, "cutCavity", 0))),
-                    Packing       = NullIfEmpty(GetCell(aoa, d, Col(cutMap, "packing", 0))),
+                    ["process"]    = new(@"quy trình|process", RegexOptions.IgnoreCase),
+                    ["lamination"] = new(@"ép dán|lamination", RegexOptions.IgnoreCase),
+                    ["size"]       = new(@"cỡ nguyên liệu|material\s*size", RegexOptions.IgnoreCase),
+                    ["pitch"]      = new(@"mức độ|length pitch", RegexOptions.IgnoreCase),
+                    ["cutter"]     = new(@"tên dao cắt|cutter name", RegexOptions.IgnoreCase),
+                    ["pcsSheet"]   = new(@"cái\s*/\s*tờ|pcs\s*/\s*sheet", RegexOptions.IgnoreCase),
+                    ["cutCavity"]  = new(@"pcs/lần cắt|cutting cavity", RegexOptions.IgnoreCase),
+                    ["packing"]    = new(@"quy cách đóng gói|packing", RegexOptions.IgnoreCase),
                 });
+                var d = cutHeaderRow + 1;
+                var process = GetCell(aoa, d, Col(cutMap, "process", 0));
+                var cutter = GetCell(aoa, d, Col(cutMap, "cutter", 0));
+                if (!string.IsNullOrWhiteSpace(process) || !string.IsNullOrWhiteSpace(cutter))
+                {
+                    spec.FlexoCuttingRows.Add(new ParsedFlexoCuttingRowDto
+                    {
+                        Seq           = 1,
+                        Process       = NullIfEmpty(process),
+                        Lamination    = NullIfEmpty(GetCell(aoa, d, Col(cutMap, "lamination", 0))),
+                        Size          = NullIfEmpty(GetCell(aoa, d, Col(cutMap, "size", 0))),
+                        PitchMm       = ParseDouble(GetCell(aoa, d, Col(cutMap, "pitch", 0))),
+                        CutterName    = NullIfEmpty(cutter),
+                        PcsPerSheet   = ParseInt(GetCell(aoa, d, Col(cutMap, "pcsSheet", 0))),
+                        CuttingCavity = ParseInt(GetCell(aoa, d, Col(cutMap, "cutCavity", 0))),
+                        Packing       = NullIfEmpty(GetCell(aoa, d, Col(cutMap, "packing", 0))),
+                    });
+                }
             }
         }
 
@@ -191,7 +203,7 @@ public class IndigoLetterpressXlsxParser : ISpecXlsxParser
                 ["inkDesc"] = new(@"tên mực|ink\s*description", RegexOptions.IgnoreCase),
                 ["brand"]   = new(@"^hãng\b|brand", RegexOptions.IgnoreCase),
                 ["uvPower"] = new(@"công suất uv|uv\s*power", RegexOptions.IgnoreCase),
-            });
+            }, WideCol);
             for (int r = inkHeaderRow + 1; r < inkHeaderRow + 40; r++)
             {
                 var no = GetCell(aoa, r, 1);
@@ -289,5 +301,53 @@ public class IndigoLetterpressXlsxParser : ISpecXlsxParser
             if (d is not null) return d;
         }
         return null;
+    }
+
+    /// <summary>The LP template extends past the default 60-column scan window
+    /// (cut Cutting-cavity = C61, Packing = C64, Diameter = C62).</summary>
+    private const int WideCol = 90;
+
+    /// <summary>Locate the (row, col) of the first cell matching a section
+    /// label. Returns (-1, -1) when absent.</summary>
+    private static (int Row, int Col) FindSection(string[][] aoa, Regex sectionLabel)
+    {
+        for (int r = 1; r < 60; r++)
+            for (int c = 1; c <= WideCol; c++)
+            {
+                var cell = GetCell(aoa, r, c);
+                if (!string.IsNullOrEmpty(cell) && sectionLabel.IsMatch(cell)) return (r, c);
+            }
+        return (-1, -1);
+    }
+
+    /// <summary>Find a header row at/below <paramref name="fromRow"/> that
+    /// carries <paramref name="headerLabel"/> at or right of
+    /// <paramref name="fromCol"/> (used to find the cut header in the right
+    /// half of a side-by-side print|cut layout). -1 when not found.</summary>
+    private static int FindHeaderRowFrom(string[][] aoa, int fromRow, int fromCol, Regex headerLabel)
+    {
+        for (int r = fromRow; r < fromRow + 5 && r < 60; r++)
+            for (int c = fromCol; c <= WideCol; c++)
+            {
+                var cell = GetCell(aoa, r, c);
+                if (!string.IsNullOrEmpty(cell) && headerLabel.IsMatch(cell)) return r;
+            }
+        return -1;
+    }
+
+    /// <summary>Column map restricted to [minCol, maxCol] on a single header
+    /// row — disambiguates labels that repeat across a side-by-side layout by
+    /// scanning only the relevant half.</summary>
+    private static Dictionary<string, int> ColMapFrom(
+        string[][] aoa, int headerRow, int minCol, int maxCol, Dictionary<string, Regex> fields)
+    {
+        var map = new Dictionary<string, int>();
+        foreach (var (field, rx) in fields)
+            for (int c = minCol; c <= maxCol; c++)
+            {
+                var cell = GetCell(aoa, headerRow, c);
+                if (!string.IsNullOrEmpty(cell) && rx.IsMatch(cell)) { map[field] = c; break; }
+            }
+        return map;
     }
 }

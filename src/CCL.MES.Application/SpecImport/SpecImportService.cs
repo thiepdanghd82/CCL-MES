@@ -177,10 +177,12 @@ public class SpecImportService
                 await _db.SaveChangesAsync();
             }
 
-            // Generate SpecCode — semantic gắn liền với SpecHub `spec.code` =
-            // partNo. KHÔNG enforce unique cross-product (PartNo có thể chia
-            // ranh giới khác); chỉ unique trong (ProductId, RevisionCode).
-            var specCode = parsed.PartNo;
+            // P10.10 — SpecCode IS the app's "IFS code" cell. The xlsx seal
+            // templates carry NO IFS code column, so leave it BLANK on import
+            // (was wrongly duplicating Part No into the IFS code field). The
+            // operator fills it later via Edit if the spec has one; Part No
+            // still lands in Product.ProductCode below.
+            var specCode = "";
 
             // P10.5c-3 — when overwriteRefNo=true (UpgradeRev flow) AND a
             // non-trashed rev with the same RefNo exists, supersede the
