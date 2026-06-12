@@ -82,10 +82,30 @@ public sealed record UpdateSpecMutation
     public double? ProductSizeHmm { get; init; }
     public string? RemarksText { get; init; }
     public string? RemarksCutText { get; init; }
-    /// <summary>Full replacement of the structured Print colour rows.
+    /// <summary>Full replacement of the structured Print colour rows (silk).
     /// Null = leave unchanged; non-null = replace the whole set (rows are
     /// re-sequenced 1..N server-side).</summary>
     public IReadOnlyList<SpecColorRowMutation>? Colors { get; init; }
+
+    /// <summary>P10.10 — full replacement of the flexo/indigo/letterpress ink
+    /// rows. Null = leave unchanged; non-null = replace the whole set
+    /// (re-sequenced 1..N server-side, NumColors recomputed).</summary>
+    public IReadOnlyList<SpecInkRowMutation>? InkRows { get; init; }
+}
+
+/// <summary>P10.10 — one ink row for the ink-based (flexo / indigo / letterpress)
+/// inline editor. Mirrors <c>SpecFlexoInkRow</c> entity columns.</summary>
+public sealed record SpecInkRowMutation
+{
+    public string? Color { get; init; }
+    public string? InkCode { get; init; }
+    public string? InkDescription { get; init; }
+    public string? Brand { get; init; }
+    public string? Anilox { get; init; }
+    public string? PlateCode { get; init; }
+    public double? Pressure { get; init; }
+    public double? UvPowerW { get; init; }
+    public double? IrPowerW { get; init; }
 }
 
 /// <summary>P10.10 — one structured Print-process colour row for inline

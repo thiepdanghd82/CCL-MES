@@ -456,6 +456,12 @@ public sealed class SpecsController : ControllerBase
                     Uv = c.Uv, EmulsionUm = c.EmulsionUm, PlateSize = c.PlateSize, Mesh = c.Mesh,
                     AngleDeg = c.AngleDeg, PlateCode = c.PlateCode, ControlNo = c.ControlNo, Remark = c.Remark,
                 }).ToList(),
+                InkRows = r.InkRows?.Select(i => new SpecInkRowInput
+                {
+                    Color = i.Color, InkCode = i.InkCode, InkDescription = i.InkDescription,
+                    Brand = i.Brand, Anilox = i.Anilox, PlateCode = i.PlateCode,
+                    Pressure = i.Pressure, UvPowerW = i.UvPowerW, IrPowerW = i.IrPowerW,
+                }).ToList(),
             };
             var result = await _svc.UpdateAsync(revisionId, req, ActorName());
             switch (result.Kind)

@@ -58,6 +58,55 @@
         </div>
     </div>
 
+    @if (_isInkBased)
+    {
+        <div class="spec-block-full">
+            <div class="spec-block-title-full">
+                Ink Information — @_m.InkRows.Count inks · @PlannerLabel
+                <button type="button" class="spec-edit-addrow" data-testid="spec-edit-addink" @onclick="AddInk">+ Add ink row</button>
+            </div>
+            <div class="spec-table-scroll">
+                <table class="spec-print-table-full spec-edit-table">
+                    <thead>
+                        <tr>
+                            <th>No</th><th>Color</th><th>Ink Code</th><th>Ink Description</th><th>Brand</th>
+                            <th>Anilox</th><th>Plate Code</th><th>Press.</th><th>UV W</th><th>IR W</th><th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < _m.InkRows.Count; i++)
+                        {
+                            var row = _m.InkRows[i];
+                            <tr data-testid="spec-edit-ink-row">
+                                <td>@(i + 1)</td>
+                                <td><input class="spec-cell-input wide" @bind="row.Color" /></td>
+                                <td><input class="spec-cell-input scan-mono" @bind="row.InkCode" /></td>
+                                <td><input class="spec-cell-input wide" @bind="row.InkDescription" /></td>
+                                <td><input class="spec-cell-input" @bind="row.Brand" /></td>
+                                <td><input class="spec-cell-input" @bind="row.Anilox" /></td>
+                                <td><input class="spec-cell-input scan-mono" @bind="row.PlateCode" /></td>
+                                <td><input class="spec-cell-input num" @bind="row.Pressure" /></td>
+                                <td><input class="spec-cell-input num" @bind="row.UvPowerW" /></td>
+                                <td><input class="spec-cell-input num" @bind="row.IrPowerW" /></td>
+                                <td><button type="button" class="spec-row-del" title="Remove row" @onclick="() => RemoveInk(i)">×</button></td>
+                            </tr>
+                        }
+                        @if (_m.InkRows.Count == 0)
+                        {
+                            <tr><td colspan="11" class="spec-empty-cell">No inks. Click “+ Add ink row”.</td></tr>
+                        }
+                        <tr class="spec-add-row-tr">
+                            <td colspan="11" class="spec-add-row" data-testid="spec-edit-addink-bottom" @onclick="AddInk">
+                                + Add ink row
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    else
+    {
     <div class="spec-block-full">
         <div class="spec-block-title-full">
             Print Process · Plate Parameter — @_m.Colors.Count colors
@@ -116,6 +165,7 @@
             </table>
         </div>
     </div>
+    }
 
     <div class="spec-block-full">
         <div class="spec-block-title-full">Remarks</div>
@@ -131,11 +181,24 @@
     private EditModel _m = new();
     private bool _saving;
     private string? _error;
+    // P10.10 — flexo / indigo / letterpress edit an ink-rows table; silk edits
+    // the 20-field colour table. Resolved once from the planner at load.
+    private bool _isInkBased;
+    private string _plannerCode = "SILK";
 
-    protected override void OnParametersSet() => _m = EditModel.FromDetail(Detail);
+    private string PlannerLabel => SpecShowcardVm.PlannerLabelVi(_plannerCode);
+
+    protected override void OnParametersSet()
+    {
+        _m = EditModel.FromDetail(Detail);
+        _plannerCode = SpecShowcardVm.NormalisePlannerCode(Detail.Planner, Detail.ProcessCode);
+        _isInkBased = _plannerCode is "FLEXO" or "INDIGO" or "LETTER";
+    }
 
     private void AddColor() => _m.Colors.Add(new ColorRowEdit());
     private void RemoveColor(int i) { if (i >= 0 && i < _m.Colors.Count) _m.Colors.RemoveAt(i); }
+    private void AddInk() => _m.InkRows.Add(new InkRowEdit());
+    private void RemoveInk(int i) { if (i >= 0 && i < _m.InkRows.Count) _m.InkRows.RemoveAt(i); }
 
     private async Task OnCancelAsync()
     {
@@ -163,7 +226,10 @@
                 ProductSizeWmm = ParseDouble(_m.ProductSizeWmm),
                 ProductSizeHmm = ParseDouble(_m.ProductSizeHmm),
                 RemarksText = _m.RemarksText ?? "",
-                Colors = _m.Colors.Select(c => new SpecColorRowMutation
+                // Silk persists the 20-field colour table; ink-based planners
+                // persist the ink rows. Only the active set is sent (the other
+                // is null = leave unchanged).
+                Colors = _isInkBased ? null : _m.Colors.Select(c => new SpecColorRowMutation
                 {
                     Surface = Trim(c.Surface), Color = Trim(c.Color), InkName = Trim(c.InkName),
                     InkCode = Trim(c.InkCode), Maker = Trim(c.Maker), Retarder = Trim(c.Retarder),
@@ -172,6 +238,12 @@
                     TimeMin = ParseInt(c.TimeMin), Uv = Trim(c.Uv), EmulsionUm = ParseDouble(c.EmulsionUm),
                     PlateSize = Trim(c.PlateSize), Mesh = Trim(c.Mesh), AngleDeg = ParseDouble(c.AngleDeg),
                     PlateCode = Trim(c.PlateCode), ControlNo = ParseInt(c.ControlNo), Remark = Trim(c.Remark),
+                }).ToList(),
+                InkRows = !_isInkBased ? null : _m.InkRows.Select(i => new SpecInkRowMutation
+                {
+                    Color = Trim(i.Color), InkCode = Trim(i.InkCode), InkDescription = Trim(i.InkDescription),
+                    Brand = Trim(i.Brand), Anilox = Trim(i.Anilox), PlateCode = Trim(i.PlateCode),
+                    Pressure = ParseDouble(i.Pressure), UvPowerW = ParseDouble(i.UvPowerW), IrPowerW = ParseDouble(i.IrPowerW),
                 }).ToList(),
             };
             await Api.UpdateSpecAsync(Detail.Id, req);
@@ -202,6 +274,7 @@
         public string? ProductSizeHmm { get; set; }
         public string? RemarksText { get; set; }
         public List<ColorRowEdit> Colors { get; set; } = new();
+        public List<InkRowEdit> InkRows { get; set; } = new();
 
         public static EditModel FromDetail(SpecDetailItem d)
         {
@@ -229,8 +302,27 @@
                     Uv = c.Uv, EmulsionUm = S(c.EmulsionUm), PlateSize = c.PlateSize, Mesh = c.Mesh,
                     AngleDeg = S(c.AngleDeg), PlateCode = c.PlateCode, ControlNo = I(c.ControlNo), Remark = c.Remark,
                 }).ToList(),
+                InkRows = d.FlexoInkRows.Select(i => new InkRowEdit
+                {
+                    Color = i.Color, InkCode = i.InkCode, InkDescription = i.InkDescription, Brand = i.Brand,
+                    Anilox = i.Anilox, PlateCode = i.PlateCode, Pressure = S(i.Pressure),
+                    UvPowerW = S(i.UvPowerW), IrPowerW = S(i.IrPowerW),
+                }).ToList(),
             };
         }
+    }
+
+    private sealed class InkRowEdit
+    {
+        public string? Color { get; set; }
+        public string? InkCode { get; set; }
+        public string? InkDescription { get; set; }
+        public string? Brand { get; set; }
+        public string? Anilox { get; set; }
+        public string? PlateCode { get; set; }
+        public string? Pressure { get; set; }
+        public string? UvPowerW { get; set; }
+        public string? IrPowerW { get; set; }
     }
 
     private sealed class ColorRowEdit

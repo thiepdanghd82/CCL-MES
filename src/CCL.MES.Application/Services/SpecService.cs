@@ -675,6 +675,7 @@ public class SpecService
         var rev = await _db.ProductRevisions
             .Include(x => x.Material)
             .Include(x => x.Print).ThenInclude(p => p!.Colors)
+            .Include(x => x.Print).ThenInclude(p => p!.FlexoInkRows)
             .FirstOrDefaultAsync(x => x.Id == revisionId);
         if (rev is null) return UpdateResult.NotFound();
         if (rev.IsTrashed) return UpdateResult.Trashed();
@@ -769,6 +770,27 @@ public class SpecService
             }
             rev.Print.NumColors = rev.Print.Colors.Count;
             changed.Add("colors");
+        }
+
+        // P10.10 — inline-edit: replace the flexo/indigo/letterpress ink rows.
+        // Same replace-whole-set + re-sequence pattern as colours above.
+        if (r.InkRows is not null)
+        {
+            rev.Print ??= new SpecPrint();
+            rev.Print.FlexoInkRows.Clear();
+            var inkSeq = 1;
+            foreach (var i in r.InkRows)
+            {
+                rev.Print.FlexoInkRows.Add(new SpecFlexoInkRow
+                {
+                    Seq = inkSeq++,
+                    Color = i.Color, InkCode = i.InkCode, InkDescription = i.InkDescription,
+                    Brand = i.Brand, Anilox = i.Anilox, PlateCode = i.PlateCode,
+                    Pressure = i.Pressure, UvPowerW = i.UvPowerW, IrPowerW = i.IrPowerW,
+                });
+            }
+            rev.Print.NumColors = rev.Print.FlexoInkRows.Count;
+            changed.Add("ink_rows");
         }
 
         if (changed.Count == 0)

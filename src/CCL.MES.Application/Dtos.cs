@@ -131,6 +131,25 @@ public class UpdateSpecRequest
     /// <summary>Full replacement of the structured Print colour rows; null =
     /// leave unchanged. Re-sequenced 1..N server-side.</summary>
     public List<SpecColorRowInput>? Colors { get; set; }
+
+    /// <summary>P10.10 — full replacement of the flexo/indigo/letterpress ink
+    /// rows; null = leave unchanged. Re-sequenced 1..N server-side.</summary>
+    public List<SpecInkRowInput>? InkRows { get; set; }
+}
+
+/// <summary>P10.10 — one ink row in an UpdateSpecRequest (flexo / indigo /
+/// letterpress). Mirrors <c>SpecInkRowMutation</c> on the wire.</summary>
+public class SpecInkRowInput
+{
+    public string? Color { get; set; }
+    public string? InkCode { get; set; }
+    public string? InkDescription { get; set; }
+    public string? Brand { get; set; }
+    public string? Anilox { get; set; }
+    public string? PlateCode { get; set; }
+    public double? Pressure { get; set; }
+    public double? UvPowerW { get; set; }
+    public double? IrPowerW { get; set; }
 }
 
 /// <summary>P10.10 — one Print-process colour row in an UpdateSpecRequest.

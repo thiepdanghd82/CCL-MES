@@ -427,6 +427,44 @@ public sealed class SpecMutationsTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
+    public async Task Update_inline_ink_rows_persist_for_ink_based_planner()
+    {
+        // P10.10 — the ink-based (flexo/indigo/letterpress) inline editor sends
+        // InkRows; UpdateAsync replaces the SpecPrint.FlexoInkRows set and
+        // recomputes NumColors.
+        var client = await EngineerClientAsync("eng-ink");
+        var pid = await SeedProductAsync("PRD-INK");
+        var created = await CreateSpecAsync(client, pid, "INK-001");
+
+        var resp = await client.PutAsJsonAsync($"/api/v2/specs/{created.Id}", new UpdateSpecMutation
+        {
+            ProcessCode = "INDIGO",
+            InkRows = new[]
+            {
+                new SpecInkRowMutation { Color = "CYAN", InkCode = "Q91", InkDescription = "HP INDIGO EI CYAN", Brand = "Rieckermann" },
+                new SpecInkRowMutation { Color = "MAGENTA", InkCode = "Q93", Brand = "Rieckermann", UvPowerW = 100 },
+                new SpecInkRowMutation { Color = "WHITE", InkCode = "Q73" },
+            },
+        });
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var rev = await db.ProductRevisions
+            .Include(x => x.Print).ThenInclude(p => p!.FlexoInkRows)
+            .FirstAsync(x => x.Id == created.Id);
+
+        Assert.Equal("INDIGO", rev.Print!.ProcessCode);
+        Assert.Equal(3, rev.Print.FlexoInkRows.Count);
+        Assert.Equal(3, rev.Print.NumColors);
+        var ordered = rev.Print.FlexoInkRows.OrderBy(i => i.Seq).ToList();
+        Assert.Equal(1, ordered[0].Seq);
+        Assert.Equal("CYAN", ordered[0].Color);
+        Assert.Equal("Q91", ordered[0].InkCode);
+        Assert.Equal(100, ordered[1].UvPowerW);
+    }
+
+    [Fact]
     public async Task Update_on_approved_returns_422_immutable_status()
     {
         var client = await EngineerClientAsync("eng-imm");
