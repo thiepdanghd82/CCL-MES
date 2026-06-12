@@ -51,6 +51,24 @@ public sealed class SpecMutationErrorMapperTests
     }
 
     [Fact]
+    public void DuplicateWarning_names_colliding_fields_and_asks_for_reason()
+    {
+        var err = new CCL.MES.Shared.Envelopes.ApiError
+        {
+            Code = "duplicate_warning",
+            MessageEn = "dup",
+            Details = new Dictionary<string, string> { ["dupFields"] = "partno,spec" },
+        };
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage(err);
+        Assert.Contains("Part No", msg);
+        Assert.Contains("Spec", msg);
+        Assert.Contains("reason", msg, StringComparison.OrdinalIgnoreCase);
+
+        var fields = SpecMutationErrorMapper.DuplicateFields(err);
+        Assert.Equal(new[] { "partno", "spec" }, fields);
+    }
+
+    [Fact]
     public void ActiveWorkOrders_with_count_includes_number()
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("active_work_orders", activeWoCount: 3);

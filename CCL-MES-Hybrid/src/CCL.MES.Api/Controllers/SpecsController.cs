@@ -106,6 +106,7 @@ public sealed class SpecsController : ControllerBase
                 Title = r.Title,
                 Customer = r.Customer,
                 Spec = r.Spec,
+                OverrideReason = r.OverrideReason,
                 ProcessCode = r.ProcessCode,
                 Parameters = r.Parameters.Select(p => new SpecParamDto
                 {
@@ -134,6 +135,18 @@ public sealed class SpecsController : ControllerBase
                 Status = rev.Status.ToString(),
                 Title = rev.Title,
                 ProductId = rev.ProductId,
+            });
+        }
+        catch (CCL.MES.Application.Services.DuplicateWarningException warn)
+        {
+            // Soft duplicate on IFS code / Part No / Spec — the operator must
+            // supply a reason to create anyway. DupFields lists the exact
+            // inputs to highlight.
+            return UnprocessableEntity(new SpecMutationError
+            {
+                Code = "duplicate_warning",
+                Error = warn.Message,
+                DupFields = string.Join(",", warn.Fields),
             });
         }
         catch (CCL.MES.Application.Services.DuplicateSpecException dup)

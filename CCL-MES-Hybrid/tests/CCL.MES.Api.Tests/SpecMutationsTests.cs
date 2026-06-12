@@ -216,6 +216,75 @@ public sealed class SpecMutationsTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
+    public async Task Create_duplicate_part_no_without_reason_returns_duplicate_warning()
+    {
+        // P10.10 — re-using a Part No that already has a saved spec is a SOFT
+        // duplicate: the server warns (422 duplicate_warning, DupFields=partno)
+        // instead of silently creating or hard-blocking.
+        var client = await EngineerClientAsync("eng-warn-pn");
+        var ifs = "IFS-" + Guid.NewGuid().ToString("N")[..8];
+        await client.PostAsJsonAsync("/api/v2/specs", new CreateSpecMutation
+        {
+            IfsCode = ifs, SpecCode = "WARN-PN-1", Title = "First",
+        });
+
+        var dup = await client.PostAsJsonAsync("/api/v2/specs", new CreateSpecMutation
+        {
+            IfsCode = ifs, SpecCode = "WARN-PN-2", Title = "Second same part",
+        });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, dup.StatusCode);
+        var err = await dup.Content.ReadFromJsonAsync<SpecMutationError>();
+        Assert.Equal("duplicate_warning", err!.Code);
+        Assert.Contains("partno", err.DupFields);
+    }
+
+    [Fact]
+    public async Task Create_duplicate_part_no_with_reason_creates_new_product()
+    {
+        // With an override reason the duplicate Part No is allowed: a fresh
+        // Product row (ProductCode is not unique) carries the new Rev A spec.
+        var client = await EngineerClientAsync("eng-warn-ok");
+        var ifs = "IFS-" + Guid.NewGuid().ToString("N")[..8];
+        await client.PostAsJsonAsync("/api/v2/specs", new CreateSpecMutation
+        {
+            IfsCode = ifs, SpecCode = "WARN-OK-1", Title = "First",
+        });
+
+        var ok = await client.PostAsJsonAsync("/api/v2/specs", new CreateSpecMutation
+        {
+            IfsCode = ifs, SpecCode = "WARN-OK-2", Title = "Second same part",
+            OverrideReason = "Customer requested a parallel variant",
+        });
+        Assert.Equal(HttpStatusCode.Created, ok.StatusCode);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var count = await db.Products.CountAsync(p => p.ProductCode == ifs);
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public async Task Create_duplicate_spec_number_without_reason_returns_warning()
+    {
+        // Spec number (InspectionLevel) collision warns on "spec".
+        var client = await EngineerClientAsync("eng-warn-spec");
+        var specNo = "A-" + Guid.NewGuid().ToString("N")[..6];
+        await client.PostAsJsonAsync("/api/v2/specs", new CreateSpecMutation
+        {
+            IfsCode = "IFS-" + Guid.NewGuid().ToString("N")[..8], SpecCode = "WARN-SP-1", Title = "First", Spec = specNo,
+        });
+
+        var dup = await client.PostAsJsonAsync("/api/v2/specs", new CreateSpecMutation
+        {
+            IfsCode = "IFS-" + Guid.NewGuid().ToString("N")[..8], SpecCode = "WARN-SP-2", Title = "Second", Spec = specNo,
+        });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, dup.StatusCode);
+        var err = await dup.Content.ReadFromJsonAsync<SpecMutationError>();
+        Assert.Equal("duplicate_warning", err!.Code);
+        Assert.Contains("spec", err.DupFields);
+    }
+
+    [Fact]
     public async Task Approve_then_returns_200_with_status_Approved()
     {
         var client = await EngineerClientAsync("eng-app");

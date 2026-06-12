@@ -813,6 +813,7 @@ public sealed class CclApiClient : ICclApiClient
             var details = new Dictionary<string, string>(StringComparer.Ordinal);
             if (mutErr.CurrentStatus is not null) details["currentStatus"] = mutErr.CurrentStatus;
             if (mutErr.ActiveWoCount is not null) details["activeWoCount"] = mutErr.ActiveWoCount.Value.ToString();
+            if (!string.IsNullOrWhiteSpace(mutErr.DupFields)) details["dupFields"] = mutErr.DupFields;
             throw new ApiException((int)resp.StatusCode, new ApiError
             {
                 Code = mutErr.Code,

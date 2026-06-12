@@ -1,16 +1,18 @@
 @inject ICclApiClient Api
+@using System.Linq
 @using CCL.MES.Hybrid.Client.Specs
 
 @*
-    P10.5c-1 — Create Spec modal. Form: product picker + spec code +
-    title + optional process code. Reuses <Modal> primitive (clean-room
-    P10.5a) + the _submitting guard mandated by Q11 (chặn double-click;
-    no idempotency key in P10.5 online-only).
+    P10.5c-1 — Create Spec modal. Form: Part No + IFS code + Spec + Customer +
+    Part Name + Planner. Reuses <Modal> primitive (clean-room P10.5a) + the
+    _submitting guard mandated by Q11 (chặn double-click; no idempotency key in
+    P10.5 online-only).
 
-    Server-side validation: duplicate_spec_code surfaces as VN banner
-    via SpecMutationErrorMapper. Client checks (specCode + title
-    non-empty + productId > 0) gate the submit button before the
-    network round-trip.
+    P10.10 — soft-duplicate gate. When IFS code / Part No / Spec collide with a
+    saved spec the server returns duplicate_warning: the colliding inputs are
+    highlighted, a required Reason field appears, and the primary button flips
+    to "Create anyway". Submitting with the reason creates regardless (the
+    reason is recorded in the SpecCreate audit detail).
 *@
 
 <Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Info"
@@ -22,23 +24,31 @@
                 <label for="cs-ifs">Part No <span class="modal-req">*</span></label>
                 <input id="cs-ifs" type="text" class="@FieldClass("partno", "modal-input scan-mono")" maxlength="64"
                        placeholder="e.g. 1000527330 (part / IFS no)"
-                       @bind="_ifsCode" @bind:event="oninput" @bind:after="@(() => _dupField = null)" disabled="@_submitting" />
-                @if (_dupField == "partno")
+                       @bind="_ifsCode" @bind:event="oninput" @bind:after="ClearWarning" disabled="@_submitting" />
+                @if (IsDup("partno"))
                 {
-                    <div class="modal-field-hint modal-field-hint-error">⚠ This Part No is already taken — see message below.</div>
+                    <div class="modal-field-hint modal-field-hint-error">⚠ This Part No is already on a saved spec.</div>
                 }
             </div>
             <div class="modal-field">
                 <label for="cs-code">IFS code <span class="modal-req">*</span></label>
-                <input id="cs-code" type="text" class="modal-input" maxlength="64"
+                <input id="cs-code" type="text" class="@FieldClass("ifscode", "modal-input")" maxlength="64"
                        placeholder="e.g. SP-001 or customer REF"
-                       @bind="_specCode" @bind:event="oninput" disabled="@_submitting" />
+                       @bind="_specCode" @bind:event="oninput" @bind:after="ClearWarning" disabled="@_submitting" />
+                @if (IsDup("ifscode"))
+                {
+                    <div class="modal-field-hint modal-field-hint-error">⚠ This IFS code is already on a saved spec.</div>
+                }
             </div>
             <div class="modal-field">
                 <label for="cs-spec">Spec</label>
-                <input id="cs-spec" type="text" class="modal-input" maxlength="64"
+                <input id="cs-spec" type="text" class="@FieldClass("spec", "modal-input")" maxlength="64"
                        placeholder="Spec number (syncs to spec sheet)"
-                       @bind="_spec" @bind:event="oninput" disabled="@_submitting" />
+                       @bind="_spec" @bind:event="oninput" @bind:after="ClearWarning" disabled="@_submitting" />
+                @if (IsDup("spec"))
+                {
+                    <div class="modal-field-hint modal-field-hint-error">⚠ This Spec number is already on a saved spec.</div>
+                }
             </div>
             <div class="modal-field">
                 <label for="cs-customer">Customer</label>
@@ -60,16 +70,25 @@
             </div>
             @if (_error is not null)
             {
-                <div class="modal-banner modal-banner-error" role="alert">@_error</div>
+                <div class="modal-banner @(_needReason ? "modal-banner-warning" : "modal-banner-error")" role="alert">@_error</div>
+            }
+            @if (_needReason)
+            {
+                <div class="modal-field">
+                    <label for="cs-reason">Reason for the duplicate <span class="modal-req">*</span></label>
+                    <textarea id="cs-reason" class="modal-input modal-input-textarea" maxlength="500" rows="2"
+                              placeholder="Why create a spec that duplicates an existing one?"
+                              @bind="_overrideReason" @bind:event="oninput" disabled="@_submitting"></textarea>
+                </div>
             }
         </form>
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
                 disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
-        <button type="button" class="op-btn op-btn-primary"
+        <button type="button" class="op-btn @(_needReason ? "op-btn-warning" : "op-btn-primary")"
                 disabled="@(!CanSubmit())" @onclick="SubmitAsync">
-            @(_submitting ? "Creating…" : "Create Spec")
+            @(_submitting ? "Creating…" : _needReason ? "Create anyway" : "Create Spec")
         </button>
     </Footer>
 </Modal>
@@ -85,21 +104,39 @@
     private string _customer = "";
     private string _title = "";
     private string _processCode = "";
+    private string _overrideReason = "";
 
     private bool _submitting;
     private string? _error;
-    // Field key to highlight when the server reports which input is the
-    // duplicate (currently only "partno"). Null = no field highlight.
-    private string? _dupField;
+    // Colliding identity fields reported by the server (ifscode / partno /
+    // spec). Drives both the per-input highlight and the reason gate.
+    private readonly HashSet<string> _dupFields = new(StringComparer.Ordinal);
+    // True once a duplicate_warning surfaced: the Reason field shows and the
+    // button flips to "Create anyway".
+    private bool _needReason;
+
+    private bool IsDup(string field) => _dupFields.Contains(field);
 
     private string FieldClass(string field, string baseClass) =>
-        _dupField == field ? $"{baseClass} modal-input-error" : baseClass;
+        _dupFields.Contains(field) ? $"{baseClass} modal-input-error" : baseClass;
 
     private bool CanSubmit() =>
         !_submitting
         && !string.IsNullOrWhiteSpace(_ifsCode)
         && !string.IsNullOrWhiteSpace(_specCode)
-        && !string.IsNullOrWhiteSpace(_title);
+        && !string.IsNullOrWhiteSpace(_title)
+        && (!_needReason || !string.IsNullOrWhiteSpace(_overrideReason));
+
+    // Editing any colliding field invalidates the prior duplicate verdict —
+    // drop the warning so the next submit re-checks fresh.
+    private void ClearWarning()
+    {
+        if (!_needReason && _dupFields.Count == 0) return;
+        _needReason = false;
+        _dupFields.Clear();
+        _overrideReason = "";
+        _error = null;
+    }
 
     protected override void OnParametersSet()
     {
@@ -114,7 +151,6 @@
 
         _submitting = true;
         _error = null;
-        _dupField = null;
         try
         {
             var resp = await Api.CreateSpecAsync(new CreateSpecMutation
@@ -125,6 +161,7 @@
                 Spec = string.IsNullOrWhiteSpace(_spec) ? null : _spec.Trim(),
                 Customer = string.IsNullOrWhiteSpace(_customer) ? null : _customer.Trim(),
                 ProcessCode = string.IsNullOrWhiteSpace(_processCode) ? null : _processCode.Trim(),
+                OverrideReason = _needReason && !string.IsNullOrWhiteSpace(_overrideReason) ? _overrideReason.Trim() : null,
             });
             if (OnCreated.HasDelegate) await OnCreated.InvokeAsync(resp);
             ResetForm();
@@ -133,7 +170,21 @@
         catch (ApiException apiEx)
         {
             _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
-            if (apiEx.ApiError.Code == "duplicate_part_no") _dupField = "partno";
+            _dupFields.Clear();
+            if (apiEx.ApiError.Code == "duplicate_warning")
+            {
+                foreach (var f in SpecMutationErrorMapper.DuplicateFields(apiEx.ApiError)) _dupFields.Add(f);
+                _needReason = true;
+            }
+            else if (apiEx.ApiError.Code == "duplicate_part_no")
+            {
+                _dupFields.Add("partno");
+                _needReason = false;
+            }
+            else
+            {
+                _needReason = false;
+            }
         }
         catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
@@ -154,7 +205,9 @@
         _customer = "";
         _title = "";
         _processCode = "";
+        _overrideReason = "";
         _error = null;
-        _dupField = null;
+        _needReason = false;
+        _dupFields.Clear();
     }
 }

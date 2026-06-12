@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using CCL.MES.Shared.Envelopes;
 
 namespace CCL.MES.Hybrid.Client.Specs;
@@ -86,6 +89,7 @@ public static class SpecMutationErrorMapper
         ArgumentNullException.ThrowIfNull(err);
         return err.Code switch
         {
+            "duplicate_warning"     => DuplicateWarningMessage(err),
             "duplicate_part_no"     => "This Part No already has a spec (Rev A) — change the Part No, or use Copy/Revise.",
             "duplicate_spec_code"   => "Spec code already exists — choose a different code.",
             "validation"            => string.IsNullOrWhiteSpace(err.MessageEn) ? "The data is not yet valid." : $"The data is not yet valid: {err.MessageEn}",
@@ -166,6 +170,35 @@ public static class SpecMutationErrorMapper
             MessageEn = messageEn ?? "",
             Details = details.Count == 0 ? null : details,
         });
+    }
+
+    /// <summary>P10.10 — parse the colliding identity fields from a
+    /// <c>duplicate_warning</c> error (Details["dupFields"], comma-separated:
+    /// ifscode | partno | spec). Empty when absent.</summary>
+    public static IReadOnlyList<string> DuplicateFields(ApiError err)
+    {
+        if (err.Details is not null && err.Details.TryGetValue("dupFields", out var raw) && !string.IsNullOrWhiteSpace(raw))
+            return raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return Array.Empty<string>();
+    }
+
+    private static string DuplicateWarningMessage(ApiError err)
+    {
+        var fields = DuplicateFields(err);
+        var labels = fields.Select(f => f switch
+        {
+            "ifscode" => "IFS code",
+            "partno"  => "Part No",
+            "spec"    => "Spec",
+            _          => f,
+        }).ToList();
+        var which = labels.Count switch
+        {
+            0 => "An identity field",
+            1 => labels[0],
+            _ => string.Join(", ", labels.Take(labels.Count - 1)) + " and " + labels[^1],
+        };
+        return $"{which} already exists on a saved spec. Enter a reason to create it anyway.";
     }
 
     private static string CurrentStatusSuffix(string baseMessage, ApiError err)

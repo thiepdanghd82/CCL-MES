@@ -16,6 +16,19 @@ public sealed class DuplicateSpecException : System.Exception
     public DuplicateSpecException(string message) : base(message) { }
 }
 
+/// <summary>P10.10 — soft-duplicate signal raised by CreateAsync when one or
+/// more identity fields (ifscode / partno / spec) collide with an existing
+/// active spec and no override reason was supplied. The controller maps it to
+/// a 422 <c>duplicate_warning</c> so the UI can prompt for a reason and
+/// re-submit. <see cref="Fields"/> are stable keys: ifscode | partno | spec.</summary>
+public sealed class DuplicateWarningException : System.Exception
+{
+    public IReadOnlyList<string> Fields { get; }
+    public DuplicateWarningException(IReadOnlyList<string> fields)
+        : base("Duplicate spec identity — a reason is required to create anyway.")
+        => Fields = fields;
+}
+
 /// <summary>
 /// Phase 8 PR #28 — REWRITTEN sau Spec → ProductRevision clean rewrite.
 ///
@@ -185,37 +198,47 @@ public class SpecService
     /// </summary>
     public async Task<ProductRevision> CreateAsync(CreateSpecRequest r, string? user)
     {
-        // P10.10 — resolve the product from the typed IFS code when no
-        // ProductId was supplied (dropdown replaced by an IFS-code input).
-        // Find by ProductCode; create a minimal product under an
-        // "UNASSIGNED" customer (find-or-create) when the code is new.
-        var productId = r.ProductId;
-        if (productId <= 0 && !string.IsNullOrWhiteSpace(r.IfsCode))
+        var code = r.IfsCode?.Trim();
+        var spec = string.IsNullOrWhiteSpace(r.Spec) ? null : r.Spec.Trim();
+        var overrideReason = string.IsNullOrWhiteSpace(r.OverrideReason) ? null : r.OverrideReason.Trim();
+        var hasReason = overrideReason is not null;
+
+        // P10.10 — soft-duplicate gate. A collision on IFS code (SpecCode),
+        // Part No (ProductCode) or Spec (InspectionLevel) against any ACTIVE
+        // spec only WARNS: the operator must type a reason to "create anyway"
+        // (recorded in the audit detail). With a reason we skip the scan and
+        // create regardless.
+        if (!hasReason)
         {
-            var code = r.IfsCode.Trim();
+            var dupFields = new List<string>();
+            if (!string.IsNullOrWhiteSpace(r.SpecCode)
+                && await _db.ProductRevisions.AnyAsync(x => !x.IsTrashed && x.SpecCode == r.SpecCode))
+                dupFields.Add("ifscode");
+            if (!string.IsNullOrWhiteSpace(code)
+                && await _db.ProductRevisions.AnyAsync(x => !x.IsTrashed && x.Product!.ProductCode == code))
+                dupFields.Add("partno");
+            if (spec is not null
+                && await _db.ProductRevisions.AnyAsync(x => !x.IsTrashed && x.InspectionLevel == spec))
+                dupFields.Add("spec");
+            if (dupFields.Count > 0)
+                throw new DuplicateWarningException(dupFields);
+        }
+
+        // Resolve the product from the typed IFS code when no ProductId was
+        // supplied (dropdown replaced by an IFS-code input).
+        var productId = r.ProductId;
+        if (productId <= 0 && !string.IsNullOrWhiteSpace(code))
+        {
             var product = await _db.Products.FirstOrDefaultAsync(p => p.ProductCode == code);
-            if (product is null)
+            // With an override reason, a Part No that already owns a Rev A spec
+            // gets a fresh Product row (ProductCode is NOT unique) so the new
+            // spec can hold its own Rev A. Otherwise reuse the existing product
+            // (or create the first one when the code is new).
+            var needNewProduct = product is null
+                || (hasReason && await _db.ProductRevisions.AnyAsync(x => x.ProductId == product.Id && x.RevisionCode == "A"));
+            if (needNewProduct)
             {
-                // P10.10 — resolve the customer from the typed name (find-or-create
-                // by Name, case-insensitive) so it syncs into the spec sheet's
-                // Customer cell. Blank falls back to the "UNASSIGNED" customer.
-                var customerName = r.Customer?.Trim();
-                Customer customer;
-                if (string.IsNullOrWhiteSpace(customerName))
-                {
-                    customer = await _db.Customers.FirstOrDefaultAsync(c => c.Code == "UNASSIGNED")
-                        ?? new Customer { Code = "UNASSIGNED", Name = "Unassigned" };
-                }
-                else
-                {
-                    customer = await _db.Customers.FirstOrDefaultAsync(c => c.Name == customerName)
-                        ?? new Customer { Code = DeriveCustomerCode(customerName), Name = customerName };
-                }
-                if (customer.Id == 0)
-                {
-                    _db.Customers.Add(customer);
-                    await _db.SaveChangesAsync();
-                }
+                var customer = await ResolveCustomerAsync(r.Customer);
                 product = new Product
                 {
                     ProductCode = code,
@@ -229,7 +252,9 @@ public class SpecService
         }
 
         // Guard the (ProductId, RevisionCode='A') unique constraint up-front so
-        // a duplicate surfaces as a clean error instead of a DbUpdate 500.
+        // a duplicate surfaces as a clean error instead of a DbUpdate 500. With
+        // a reason we created a fresh product above, so this only fires on the
+        // no-reason ProductId-supplied path.
         if (await _db.ProductRevisions.AnyAsync(x => x.ProductId == productId && x.RevisionCode == "A"))
             throw new DuplicateSpecException(
                 "This Part No already has a spec (Rev A). Use Copy or Revise to add a revision.");
@@ -239,7 +264,7 @@ public class SpecService
             ProductId = productId,
             SpecCode = r.SpecCode,
             Title = r.Title,
-            InspectionLevel = string.IsNullOrWhiteSpace(r.Spec) ? null : r.Spec.Trim(),
+            InspectionLevel = spec,
             RevisionCode = "A",
             Status = ProductRevisionStatus.Draft,
             Print = new SpecPrint
@@ -263,8 +288,34 @@ public class SpecService
                 revision_code = revision.RevisionCode,
                 process_code = revision.Print?.ProcessCode,
                 param_count = r.Parameters.Count,
+                override_reason = overrideReason,
             }));
         return revision;
+    }
+
+    /// <summary>P10.10 — find-or-create a Customer from the typed name (by
+    /// Name, case-insensitive). Blank falls back to the "UNASSIGNED" customer.
+    /// The returned customer is persisted (has a non-zero Id).</summary>
+    private async Task<Customer> ResolveCustomerAsync(string? customerName)
+    {
+        customerName = customerName?.Trim();
+        Customer customer;
+        if (string.IsNullOrWhiteSpace(customerName))
+        {
+            customer = await _db.Customers.FirstOrDefaultAsync(c => c.Code == "UNASSIGNED")
+                ?? new Customer { Code = "UNASSIGNED", Name = "Unassigned" };
+        }
+        else
+        {
+            customer = await _db.Customers.FirstOrDefaultAsync(c => c.Name == customerName)
+                ?? new Customer { Code = DeriveCustomerCode(customerName), Name = customerName };
+        }
+        if (customer.Id == 0)
+        {
+            _db.Customers.Add(customer);
+            await _db.SaveChangesAsync();
+        }
+        return customer;
     }
 
     /// <summary>Approve hiện rev → Status=Approved + ApprovedBy/At + EffectiveFrom=now.</summary>

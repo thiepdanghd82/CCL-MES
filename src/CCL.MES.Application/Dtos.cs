@@ -49,6 +49,11 @@ public class CreateSpecRequest
     /// so it syncs into the spec sheet's "Spec:" line. Structure TBD.</summary>
     public string? Spec { get; set; }
 
+    /// <summary>P10.10 — reason to create despite a duplicate IFS code / Part No
+    /// / Spec. When set, CreateAsync skips the duplicate scan and records the
+    /// reason in the audit detail.</summary>
+    public string? OverrideReason { get; set; }
+
     /// <summary>Process code lookup vào ProcessCatalog (default 'SILKSCREEN' khi null).</summary>
     public string? ProcessCode { get; set; }
 

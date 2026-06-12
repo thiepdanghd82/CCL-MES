@@ -25,6 +25,10 @@ public sealed record CreateSpecMutation
     public string? Customer { get; init; }
     /// <summary>Planner / process code (SILKSCREEN / FLEXO / INDIGO …).</summary>
     public string? ProcessCode { get; init; }
+    /// <summary>Reason to create despite a duplicate IFS code / Part No / Spec.
+    /// Blank on the first attempt; set after the operator acknowledges the
+    /// duplicate_warning. Recorded in the SpecCreate audit detail.</summary>
+    public string? OverrideReason { get; init; }
     public List<SpecParam> Parameters { get; init; } = new();
 }
 
@@ -141,6 +145,10 @@ public sealed record SpecMutationError
     public string Error { get; init; } = "";
     public string? CurrentStatus { get; init; }
     public int? ActiveWoCount { get; init; }
+    /// <summary>P10.10 — comma-separated colliding identity fields for
+    /// <c>duplicate_warning</c> (ifscode | partno | spec) so the UI can
+    /// highlight the exact inputs.</summary>
+    public string? DupFields { get; init; }
 }
 
 /// <summary>Product dropdown row for the Create Spec modal product
