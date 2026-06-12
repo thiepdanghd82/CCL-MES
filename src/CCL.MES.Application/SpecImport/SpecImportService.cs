@@ -224,6 +224,23 @@ public class SpecImportService
                 }
             }
 
+            // P10.10 — create-new path: if the resolved product already owns
+            // revisions (e.g. a prior import OR a manual Create Spec on the same
+            // Part No, with a different/blank RefNo so the dup-RefNo guard above
+            // didn't fire), bump to the next revision letter instead of trying
+            // a second Rev "A" — that collided on the
+            // (ProductId, RevisionCode) UNIQUE index and surfaced as a raw
+            // HTTP 500 ("Save failed. Server error (HTTP 500)").
+            if (supersededSource is null)
+            {
+                var siblingCodes = await _db.ProductRevisions
+                    .Where(r => r.ProductId == product.Id)
+                    .Select(r => r.RevisionCode)
+                    .ToListAsync();
+                if (siblingCodes.Count > 0)
+                    newRevisionCode = SpecRevisionHelpers.NextAvailableRev(siblingCodes);
+            }
+
             // PR #31b — flexo persists ink/cut/print child rows. P10.10 — indigo
             // (HP) + letterpress (LP) share that ink-row shape, so the same
             // persistence path covers all three ("ink-based"); only silkscreen

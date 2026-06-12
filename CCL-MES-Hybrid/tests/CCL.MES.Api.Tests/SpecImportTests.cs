@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using CCL.MES.Api.Tests._Support;
+using CCL.MES.Domain;
 using CCL.MES.Domain.Auth;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Infrastructure;
@@ -436,5 +437,68 @@ public sealed class SpecImportTests : IClassFixture<MesApiFactory>
             Assert.NotNull(p2.DuplicateStatus);
             Assert.False(string.IsNullOrWhiteSpace(p2.DuplicateStatus));
         }
+    }
+
+    private static string IndigoFixturePath() =>
+        Path.Combine(AppContext.BaseDirectory, "SpecImport", "Fixtures", "HP_indigo_sample.xlsx");
+
+    [Fact]
+    public async Task Save_indigo_for_product_that_already_has_revA_bumps_rev_not_500()
+    {
+        // P10.10 regression — importing an Indigo spec whose Part No already
+        // owns a Rev A (with a DIFFERENT RefNo, so the dup-RefNo guard doesn't
+        // fire) used to collide on (ProductId, RevisionCode='A') and surface a
+        // raw HTTP 500 ("Save failed. Server error (HTTP 500)"). It must now
+        // create the next revision letter and return 200.
+        var path = IndigoFixturePath();
+        Assert.True(File.Exists(path), $"Indigo fixture not found at {path}");
+        var client = await EngineerClientAsync("eng-imp-indigo");
+
+        // Pre-seed PANASONIC / 80645392 with an existing Rev A under a DIFFERENT
+        // RefNo so the import resolves the same product but can't reuse Rev A.
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var cust = new Customer { Code = "PANASONIC", Name = "PANASONIC" };
+            db.Customers.Add(cust);
+            await db.SaveChangesAsync();
+            var prod = new Product { ProductCode = "80645392", Name = "Pre-existing", CustomerId = cust.Id };
+            db.Products.Add(prod);
+            await db.SaveChangesAsync();
+            db.ProductRevisions.Add(new ProductRevision
+            {
+                ProductId = prod.Id, SpecCode = "80645392", Title = "Old", RevisionCode = "A",
+                RefNo = "CCL-OLD-0001", Status = ProductRevisionStatus.Draft,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var bytes = await File.ReadAllBytesAsync(path);
+        SpecImportPreviewResponse? preview;
+        using (var body = BuildMultipart(bytes, "HP_indigo_sample.xlsx", "indigo"))
+        {
+            var pr = await client.PostAsync("/api/v2/specs/import/preview", body);
+            Assert.Equal(HttpStatusCode.OK, pr.StatusCode);
+            preview = await pr.Content.ReadFromJsonAsync<SpecImportPreviewResponse>();
+        }
+        Assert.True(preview!.ParseOk, preview.ParseError);
+        Assert.False(preview.DuplicateRefNo);   // the Indigo RefNo differs from the seeded one
+
+        var save = await client.PostAsJsonAsync("/api/v2/specs/import/save", new SpecImportSaveRequest
+        {
+            ParsedJson = preview.ParsedJson!,
+            FileName = preview.FileName,
+            PlannerCategory = preview.PlannerCategory,
+            Mode = SpecImportSaveMode.SaveNew,
+        });
+        Assert.Equal(HttpStatusCode.OK, save.StatusCode);   // was 500 before the fix
+
+        using var verify = _fx.Services.CreateScope();
+        var vdb = verify.ServiceProvider.GetRequiredService<MesDbContext>();
+        var codes = await vdb.ProductRevisions
+            .Where(r => r.Product!.ProductCode == "80645392")
+            .Select(r => r.RevisionCode).ToListAsync();
+        Assert.Contains("A", codes);
+        Assert.Contains("B", codes);   // the import created the next revision
     }
 }
