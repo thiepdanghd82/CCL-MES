@@ -120,11 +120,12 @@ public sealed class SpecMutationsTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
-    public async Task Create_second_same_product_returns_422_duplicate_spec_code()
+    public async Task Create_second_same_product_returns_422_duplicate_part_no()
     {
-        // (ProductId, RevisionCode='A') is UNIQUE. P10.10 — CreateAsync now
-        // guards this up-front (DuplicateSpecException) and the controller
-        // maps it to a clean 422 duplicate_spec_code instead of a raw 500.
+        // (ProductId, RevisionCode='A') is UNIQUE. P10.10 — CreateAsync guards
+        // this up-front (DuplicateSpecException); the controller maps it to a
+        // clean 422 duplicate_part_no (the Part No is the colliding field, not
+        // the Spec code) so the UI can highlight the right input.
         var client = await EngineerClientAsync("eng-dup");
         var pid = await SeedProductAsync("PRD-DUP");
 
@@ -136,7 +137,7 @@ public sealed class SpecMutationsTests : IClassFixture<MesApiFactory>
         });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, dup.StatusCode);
         var err = await dup.Content.ReadFromJsonAsync<SpecMutationError>();
-        Assert.Equal("duplicate_spec_code", err!.Code);
+        Assert.Equal("duplicate_part_no", err!.Code);
     }
 
     [Fact]
@@ -191,6 +192,27 @@ public sealed class SpecMutationsTests : IClassFixture<MesApiFactory>
         var body2 = await resp2.Content.ReadFromJsonAsync<SpecMutationResponse>();
         var product2 = await db.Products.Include(p => p.Customer).FirstAsync(p => p.Id == body2!.ProductId);
         Assert.Equal(product.CustomerId, product2.CustomerId);
+    }
+
+    [Fact]
+    public async Task Create_with_spec_persists_to_inspection_level()
+    {
+        // P10.10 — the modal "Spec" field syncs into the spec sheet's "Spec:"
+        // line, stored on ProductRevision.InspectionLevel.
+        var client = await EngineerClientAsync("eng-spec");
+        var ifs = "IFS-" + Guid.NewGuid().ToString("N")[..8];
+
+        var resp = await client.PostAsJsonAsync("/api/v2/specs", new CreateSpecMutation
+        {
+            IfsCode = ifs, SpecCode = "IFS-SPEC-X", Title = "Spec with spec no", Spec = "SPEC-2026-001",
+        });
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<SpecMutationResponse>();
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var rev = await db.ProductRevisions.FirstAsync(x => x.Id == body!.Id);
+        Assert.Equal("SPEC-2026-001", rev.InspectionLevel);
     }
 
     [Fact]

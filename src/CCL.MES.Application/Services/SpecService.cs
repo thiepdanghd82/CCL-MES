@@ -232,13 +232,14 @@ public class SpecService
         // a duplicate surfaces as a clean error instead of a DbUpdate 500.
         if (await _db.ProductRevisions.AnyAsync(x => x.ProductId == productId && x.RevisionCode == "A"))
             throw new DuplicateSpecException(
-                "This IFS code already has a spec (Rev A). Use Copy or Revise to add a revision.");
+                "This Part No already has a spec (Rev A). Use Copy or Revise to add a revision.");
 
         var revision = new ProductRevision
         {
             ProductId = productId,
             SpecCode = r.SpecCode,
             Title = r.Title,
+            InspectionLevel = string.IsNullOrWhiteSpace(r.Spec) ? null : r.Spec.Trim(),
             RevisionCode = "A",
             Status = ProductRevisionStatus.Draft,
             Print = new SpecPrint

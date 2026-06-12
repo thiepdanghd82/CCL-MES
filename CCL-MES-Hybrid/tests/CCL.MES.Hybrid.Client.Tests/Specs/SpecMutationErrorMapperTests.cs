@@ -13,6 +13,7 @@ public sealed class SpecMutationErrorMapperTests
 {
     [Theory]
     [InlineData("duplicate_spec_code", "Spec code already exists — choose a different code.")]
+    [InlineData("duplicate_part_no",   "This Part No already has a spec (Rev A) — change the Part No, or use Copy/Revise.")]
     [InlineData("not_found",           "Spec not found (it may have been deleted).")]
     [InlineData("trashed",             "This Spec is in the Trash — restore it before continuing.")]
     [InlineData("reason_required",     "The revision reason must be at least 5 characters.")]

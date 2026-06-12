@@ -86,6 +86,7 @@ public static class SpecMutationErrorMapper
         ArgumentNullException.ThrowIfNull(err);
         return err.Code switch
         {
+            "duplicate_part_no"     => "This Part No already has a spec (Rev A) — change the Part No, or use Copy/Revise.",
             "duplicate_spec_code"   => "Spec code already exists — choose a different code.",
             "validation"            => string.IsNullOrWhiteSpace(err.MessageEn) ? "The data is not yet valid." : $"The data is not yet valid: {err.MessageEn}",
             "not_found"             => "Spec not found (it may have been deleted).",

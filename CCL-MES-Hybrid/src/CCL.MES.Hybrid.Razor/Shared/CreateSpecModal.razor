@@ -20,15 +20,25 @@
         <form @onsubmit:preventDefault="true">
             <div class="modal-field">
                 <label for="cs-ifs">Part No <span class="modal-req">*</span></label>
-                <input id="cs-ifs" type="text" class="modal-input scan-mono" maxlength="64"
+                <input id="cs-ifs" type="text" class="@FieldClass("partno", "modal-input scan-mono")" maxlength="64"
                        placeholder="e.g. 1000527330 (part / IFS no)"
-                       @bind="_ifsCode" @bind:event="oninput" disabled="@_submitting" />
+                       @bind="_ifsCode" @bind:event="oninput" @bind:after="@(() => _dupField = null)" disabled="@_submitting" />
+                @if (_dupField == "partno")
+                {
+                    <div class="modal-field-hint modal-field-hint-error">⚠ This Part No is already taken — see message below.</div>
+                }
             </div>
             <div class="modal-field">
                 <label for="cs-code">IFS code <span class="modal-req">*</span></label>
                 <input id="cs-code" type="text" class="modal-input" maxlength="64"
                        placeholder="e.g. SP-001 or customer REF"
                        @bind="_specCode" @bind:event="oninput" disabled="@_submitting" />
+            </div>
+            <div class="modal-field">
+                <label for="cs-spec">Spec</label>
+                <input id="cs-spec" type="text" class="modal-input" maxlength="64"
+                       placeholder="Spec number (syncs to spec sheet)"
+                       @bind="_spec" @bind:event="oninput" disabled="@_submitting" />
             </div>
             <div class="modal-field">
                 <label for="cs-customer">Customer</label>
@@ -71,12 +81,19 @@
 
     private string _ifsCode = "";
     private string _specCode = "";
+    private string _spec = "";
     private string _customer = "";
     private string _title = "";
     private string _processCode = "";
 
     private bool _submitting;
     private string? _error;
+    // Field key to highlight when the server reports which input is the
+    // duplicate (currently only "partno"). Null = no field highlight.
+    private string? _dupField;
+
+    private string FieldClass(string field, string baseClass) =>
+        _dupField == field ? $"{baseClass} modal-input-error" : baseClass;
 
     private bool CanSubmit() =>
         !_submitting
@@ -97,6 +114,7 @@
 
         _submitting = true;
         _error = null;
+        _dupField = null;
         try
         {
             var resp = await Api.CreateSpecAsync(new CreateSpecMutation
@@ -104,6 +122,7 @@
                 IfsCode = _ifsCode.Trim(),
                 SpecCode = _specCode.Trim(),
                 Title = _title.Trim(),
+                Spec = string.IsNullOrWhiteSpace(_spec) ? null : _spec.Trim(),
                 Customer = string.IsNullOrWhiteSpace(_customer) ? null : _customer.Trim(),
                 ProcessCode = string.IsNullOrWhiteSpace(_processCode) ? null : _processCode.Trim(),
             });
@@ -111,7 +130,11 @@
             ResetForm();
             if (OnClose.HasDelegate) await OnClose.InvokeAsync();
         }
-        catch (ApiException apiEx) { _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
+        catch (ApiException apiEx)
+        {
+            _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+            if (apiEx.ApiError.Code == "duplicate_part_no") _dupField = "partno";
+        }
         catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _submitting = false; }
@@ -127,9 +150,11 @@
     {
         _ifsCode = "";
         _specCode = "";
+        _spec = "";
         _customer = "";
         _title = "";
         _processCode = "";
         _error = null;
+        _dupField = null;
     }
 }

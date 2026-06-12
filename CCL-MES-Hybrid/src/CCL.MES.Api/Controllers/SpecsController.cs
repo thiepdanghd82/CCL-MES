@@ -105,6 +105,7 @@ public sealed class SpecsController : ControllerBase
                 SpecCode = r.SpecCode,
                 Title = r.Title,
                 Customer = r.Customer,
+                Spec = r.Spec,
                 ProcessCode = r.ProcessCode,
                 Parameters = r.Parameters.Select(p => new SpecParamDto
                 {
@@ -137,14 +138,17 @@ public sealed class SpecsController : ControllerBase
         }
         catch (CCL.MES.Application.Services.DuplicateSpecException dup)
         {
-            return UnprocessableEntity(new SpecMutationError { Code = "duplicate_spec_code", Error = dup.Message });
+            // The (Product, Rev A) unique constraint — the duplicate is the
+            // Part No, not the Spec code. Surfaces as duplicate_part_no so the
+            // UI can highlight the right field.
+            return UnprocessableEntity(new SpecMutationError { Code = "duplicate_part_no", Error = dup.Message });
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateException)
         {
             return UnprocessableEntity(new SpecMutationError
             {
-                Code = "duplicate_spec_code",
-                Error = "This IFS code already has a spec (Rev A). Use Copy or Revise to add a revision.",
+                Code = "duplicate_part_no",
+                Error = "This Part No already has a spec (Rev A). Use Copy or Revise to add a revision.",
             });
         }
         catch (Exception ex)

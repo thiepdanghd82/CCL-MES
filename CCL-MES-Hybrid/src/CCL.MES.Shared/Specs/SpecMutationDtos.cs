@@ -15,6 +15,10 @@ public sealed record CreateSpecMutation
     public string? IfsCode { get; init; }
     public string SpecCode { get; init; } = "";
     public string Title { get; init; } = "";
+    /// <summary>Spec number typed on the Create modal. Syncs into the spec
+    /// sheet's "Spec:" line (stored on ProductRevision.InspectionLevel).
+    /// Structure TBD by the engineer.</summary>
+    public string? Spec { get; init; }
     /// <summary>Customer name typed on the Create modal. Find-or-created on the
     /// server and assigned to the product so it syncs into the spec sheet's
     /// Customer cell. Blank falls back to the "UNASSIGNED" customer.</summary>

@@ -45,6 +45,10 @@ public class CreateSpecRequest
     /// falls back to the "UNASSIGNED" customer.</summary>
     public string? Customer { get; set; }
 
+    /// <summary>P10.10 — spec number; stored on ProductRevision.InspectionLevel
+    /// so it syncs into the spec sheet's "Spec:" line. Structure TBD.</summary>
+    public string? Spec { get; set; }
+
     /// <summary>Process code lookup vào ProcessCatalog (default 'SILKSCREEN' khi null).</summary>
     public string? ProcessCode { get; set; }
 
