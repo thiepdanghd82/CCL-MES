@@ -33,7 +33,12 @@ else
     var template = ResolveTemplate(Vm.PlannerCode);
     var isSilk = template == "SILK";
     var isFlexo = template == "FLEXO";
+    var isIndigo = template == "INDIGO";
+    var isLetter = template == "LETTER";
     var isGeneric = template == "GENERIC";
+    // P10.10 — Indigo (HP) + Letterpress (LP) share the flexo ink-row layout
+    // (product info + print/cut process + ink table + remarks).
+    var isInkBased = isFlexo || isIndigo || isLetter;
     var hasSilkColors = Vm.PrintColors.Count > 0;
     var hasFlexoPrint = Vm.FlexoPrintRows.Count > 0;
     var hasFlexoCut = Vm.FlexoCuttingRows.Count > 0;
@@ -90,7 +95,7 @@ else
         @TryRender("product-info", () => @<text>
             <div class="spec-block-full">
                 <div class="spec-block-title-full">Product Information</div>
-                @if (isFlexo || isGeneric)
+                @if (isInkBased || isGeneric)
                 {
                     <table class="spec-info-table-full">
                         <thead>
@@ -236,7 +241,7 @@ else
         }
 
         @* ─── 5b. Flexo 3 sub-tables ─────────────────────────────── *@
-        @if (isFlexo || (isGeneric && hasAnyPrintData))
+        @if (isInkBased || (isGeneric && hasAnyPrintData))
         {
             @if (hasFlexoPrint)
             {
@@ -379,7 +384,7 @@ else
         @TryRender("remarks", () => @<text>
             <div class="spec-block-full">
                 <div class="spec-block-title-full">Remarks</div>
-                @if (isFlexo)
+                @if (isInkBased)
                 {
                     <div class="spec-flexo-remarks-2col">
                         <div>
@@ -529,6 +534,8 @@ else
     {
         "SILK"   => "SILK",
         "FLEXO"  => "FLEXO",
+        "INDIGO" => "INDIGO",   // P10.10 — HP Indigo seal template
+        "LETTER" => "LETTER",   // P10.10 — Letterpress (LP) template
         _        => "GENERIC",
     };
 
@@ -536,6 +543,8 @@ else
     {
         "SILK"   => "SILKSCREEN SPECIFICATION",
         "FLEXO"  => "FLEXO SPECIFICATION",
+        "INDIGO" => "INDIGO (HP) SPECIFICATION",
+        "LETTER" => "LETTERPRESS SPECIFICATION",
         _        => "PROCESS SPECIFICATION",
     };
 
@@ -543,6 +552,8 @@ else
     {
         "SILK"   => "Silkscreen specification",
         "FLEXO"  => "Flexo specification",
+        "INDIGO" => "HP Indigo seal specification",
+        "LETTER" => "Letterpress specification",
         _        => "Process specification",
     };
 

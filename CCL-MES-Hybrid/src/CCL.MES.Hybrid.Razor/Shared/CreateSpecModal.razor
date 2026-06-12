@@ -64,9 +64,13 @@
             </div>
             <div class="modal-field">
                 <label for="cs-process">Planner</label>
-                <input id="cs-process" type="text" class="modal-input" maxlength="64"
-                       placeholder="e.g. SILKSCREEN / FLEXO / INDIGO (blank = SILKSCREEN default)"
-                       @bind="_processCode" @bind:event="oninput" disabled="@_submitting" />
+                <select id="cs-process" class="modal-input" @bind="_processCode" disabled="@_submitting">
+                    @foreach (var p in PlannerOptions)
+                    {
+                        <option value="@p.Value">@p.Label</option>
+                    }
+                </select>
+                <div class="modal-field-hint">Loads the matching spec-sheet template (Silkscreen / Flexo / Indigo / Letterpress / Diecut).</div>
             </div>
             @if (_error is not null)
             {
@@ -103,8 +107,20 @@
     private string _spec = "";
     private string _customer = "";
     private string _title = "";
-    private string _processCode = "";
+    private string _processCode = "SILKSCREEN";
     private string _overrideReason = "";
+
+    // P10.10 — planner ↔ spec-sheet template. The value is the ProcessCode the
+    // server stores; SpecShowcardVm.NormalisePlannerCode maps it to the template
+    // (SILK / FLEXO / INDIGO / LETTER / DIECUT) so the right form auto-loads.
+    private static readonly (string Value, string Label)[] PlannerOptions =
+    {
+        ("SILKSCREEN",  "Silkscreen"),
+        ("FLEXO",       "Flexo"),
+        ("INDIGO",      "Indigo (HP)"),
+        ("LETTERPRESS", "Letterpress (LP)"),
+        ("FLATBED_CUT", "Diecut"),
+    };
 
     private bool _submitting;
     private string? _error;
@@ -204,7 +220,7 @@
         _spec = "";
         _customer = "";
         _title = "";
-        _processCode = "";
+        _processCode = "SILKSCREEN";
         _overrideReason = "";
         _error = null;
         _needReason = false;
