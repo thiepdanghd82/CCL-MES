@@ -41,13 +41,13 @@ public sealed class QcHistoryTests : TestContext
 
         var cut = RenderComponent<QcHistory>();
 
-        Assert.Equal(4, cut.FindAll(".md-kpi-num").Count);
+        Assert.Equal(5, cut.FindAll(".md-kpi-num").Count);
         Assert.Equal(2, cut.FindAll(".md-table tbody tr").Count);
         var markup = cut.Markup;
         Assert.Contains("WO-26-7001", markup);
         Assert.Contains("50%", markup);
-        Assert.Single(cut.FindAll(".md-pill-running"));   // the Pass row
-        Assert.Single(cut.FindAll(".md-pill-idle"));      // the Reject row
+        Assert.Single(cut.FindAll(".soh-status.done"));      // the Pass row
+        Assert.Single(cut.FindAll(".soh-status.stopped"));   // the Reject row
         Assert.Contains((null, (string?)null, (string?)null), _api.QcHistoryCalls);
     }
 
@@ -68,7 +68,7 @@ public sealed class QcHistoryTests : TestContext
         _api.QcHistory = History();
         var cut = RenderComponent<QcHistory>();
 
-        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "Reject").Click();
+        cut.FindAll(".md-chip").First(b => b.TextContent.Contains("Reject")).Click();
 
         Assert.Contains(_api.QcHistoryCalls, c => c.Judgment == "reject");
     }

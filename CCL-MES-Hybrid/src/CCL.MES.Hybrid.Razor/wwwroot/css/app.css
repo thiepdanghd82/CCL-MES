@@ -832,6 +832,13 @@ html, body {
 .soh-drawer { width: min(520px, 94vw); }
 .soh-drawer-sub { color: #9ca3af; font-size: 0.8rem; margin-top: 2px; }
 
+/* P10.10 — QC History kind pill (reuses the Shop-Order-History skin). */
+.qc-kind-pill {
+    display: inline-block; padding: 1px 8px; border-radius: 4px;
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em;
+    background: #eef2ff; color: #4338ca;
+}
+
 /* ─────── Grid ─────── */
 
 .grid-toolbar {

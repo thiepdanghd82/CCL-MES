@@ -1,23 +1,61 @@
 @page "/qms/history"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Globalization
+@using System.Text
 @using CCL.MES.Shared.Qms
 @inject ICclApiClient Api
+@inject IJSRuntime JS
 
 <PageTitle>QC History — CCL MES</PageTitle>
 
-<h1 class="page-title">QC History</h1>
-
-@* P10.9 — forensic record of completed FQC/OQC checks (Judgment !=
-   Pending) with pass/reject KPI + kind/judgment/search filters. *@
-<div class="md-kpis">
-    <div class="md-kpi"><div class="md-kpi-num">@(_data?.Total)</div><div class="md-kpi-label">Total</div></div>
-    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@(_data?.Pass)</div><div class="md-kpi-label">Pass</div></div>
-    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@(_data?.Reject)</div><div class="md-kpi-label">Reject</div></div>
-    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@(_data is null ? null : _data.PassRatePct + "%")</div><div class="md-kpi-label">Pass rate</div></div>
+@* P10.10 — QC History redesigned to the Shop Order History forensic-record
+   layout: KPI tiles + Export CSV + kind/result/search filters + a
+   columned table with result badges + a sidebar (by-kind / top inspectors /
+   top reject reasons) + a row detail drawer. Source data unchanged
+   (completed FQC/OQC checks); KPIs come from the server (filtered set),
+   sidebar roll-ups computed client-side. *@
+<div class="md-head">
+    <div>
+        <h1 class="page-title">🔬 QC History</h1>
+        <div class="md-subtitle">Forensic record of completed FQC / OQC checks · @(_data?.Total ?? 0) checks</div>
+    </div>
+    <button type="button" class="md-refresh" @onclick="ExportCsvAsync" disabled="@(_data is null || _data.Rows.Count == 0)">📥 Export CSV</button>
 </div>
 
-<div class="md-filters">
-    <input class="md-search" type="text" placeholder="Search WO…" value="@_search" @onchange="OnSearchChanged" />
+<div class="md-kpi-grid soh-kpi-grid">
+    <div class="md-kpi md-kpi-maint">
+        <div class="md-kpi-label">Total Checks</div>
+        <div class="md-kpi-num">@(_data?.Total ?? 0)</div>
+        <div class="md-kpi-oee-sub">FQC @FqcCount · OQC @OqcCount</div>
+    </div>
+    <div class="md-kpi md-kpi-running">
+        <div class="md-kpi-label">Pass</div>
+        <div class="md-kpi-num">@(_data?.Pass ?? 0)</div>
+        <div class="md-kpi-oee-sub">@(_data?.PassRatePct ?? 0)% of checks</div>
+    </div>
+    <div class="md-kpi md-kpi-down">
+        <div class="md-kpi-label">Reject</div>
+        <div class="md-kpi-num">@(_data?.Reject ?? 0)</div>
+        <div class="md-kpi-oee-sub">@RejectRate% of checks</div>
+    </div>
+    <div class="md-kpi @PassRateKpiClass">
+        <div class="md-kpi-label">Pass Rate</div>
+        <div class="md-kpi-num">@(_data?.PassRatePct ?? 0)%</div>
+        <div class="md-kpi-oee-sub">target ≥ 98%</div>
+    </div>
+    <div class="md-kpi md-kpi-setup">
+        <div class="md-kpi-label">Distinct WOs</div>
+        <div class="md-kpi-num">@DistinctWos</div>
+        <div class="md-kpi-oee-sub">work orders inspected</div>
+    </div>
+</div>
+
+<div class="md-filters soh-filters">
+    <input class="md-search" type="text" placeholder="🔍 Search WO…" value="@_search" @onchange="OnSearchChanged" />
+    <span class="md-filter-count">@(_data?.Rows.Count ?? 0) records</span>
+</div>
+<div class="md-filters soh-filters-row">
+    <span class="soh-filter-label">Kind:</span>
     <div class="md-chips">
         @foreach (var k in KindChips)
         {
@@ -25,6 +63,7 @@
                     @onclick="@(() => SetKindAsync(k.Key))">@k.Label</button>
         }
     </div>
+    <span class="soh-filter-label">Result:</span>
     <div class="md-chips">
         @foreach (var j in JudgmentChips)
         {
@@ -48,26 +87,78 @@ else if (_data is null || _data.Rows.Count == 0)
 }
 else
 {
-    <div class="md-table-wrap">
-        <table class="md-table">
-            <thead>
-                <tr><th>WO</th><th>Kind</th><th>Result</th><th>Inspector</th><th>Approver</th><th>Time</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var r in _data.Rows)
-                {
-                    <tr>
-                        <td class="md-code">@r.WoNo</td>
-                        <td>@r.QcKind</td>
-                        <td><span class="md-pill @(r.Judgment == "Pass" ? "md-pill-running" : "md-pill-idle")">@JudgmentLabel(r.Judgment)</span></td>
-                        <td>@(r.InspectedBy ?? "—")</td>
-                        <td>@(r.ApprovedBy ?? r.ReviewedBy ?? "—")</td>
-                        <td>@(r.CompletedAt?.ToString("dd/MM/yyyy HH:mm") ?? "—")</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+    <div class="md-content">
+        <div class="md-main">
+            <div class="md-table-wrap">
+                <table class="md-table soh-tbl">
+                    <thead>
+                        <tr>
+                            <th>WO</th><th>Kind</th><th>Result</th><th>Inspector</th>
+                            <th>Reviewer</th><th>Approver</th><th>Finished</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _data.Rows)
+                        {
+                            <tr class="md-row soh-trow @(_selected?.CheckId == r.CheckId ? "is-active" : "")" @onclick="@(() => _selected = r)">
+                                <td class="soh-cell-wo">@r.WoNo</td>
+                                <td><span class="qc-kind-pill">@r.QcKind</span></td>
+                                <td><span class="soh-status @(r.Judgment == "Pass" ? "done" : "stopped")">@(r.Judgment == "Pass" ? "✓ Pass" : "✕ Reject")</span></td>
+                                <td>@(r.InspectedBy ?? "—")</td>
+                                <td>@(r.ReviewedBy ?? "—")</td>
+                                <td>@(r.ApprovedBy ?? "—")</td>
+                                <td>@FormatRelative(r.CompletedAt)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <aside class="md-side">
+            <div class="md-side-card">
+                <div class="md-side-head">▦ By Kind</div>
+                <div class="md-side-body">@RenderAgg(ByKind, _data.Rows.Count, "#2563eb", false)</div>
+            </div>
+            <div class="md-side-card">
+                <div class="md-side-head">👤 Top Inspectors</div>
+                <div class="md-side-body">@RenderAgg(TopInspectors, _data.Rows.Count, "#16a34a", false)</div>
+            </div>
+            <div class="md-side-card">
+                <div class="md-side-head">✕ Top Reject Reasons</div>
+                <div class="md-side-body">@RenderAgg(TopRejectReasons, RejectTotal, "#dc2626", false, pct: true)</div>
+            </div>
+        </aside>
     </div>
+}
+
+@if (_selected is not null)
+{
+    <div class="md-drawer-overlay" @onclick="@(() => _selected = null)"></div>
+    <aside class="md-drawer soh-drawer">
+        <div class="md-drawer-head" style="border-left:4px solid @(_selected.Judgment == "Pass" ? "#16a34a" : "#dc2626"); padding-left:12px">
+            <div>
+                <h2 class="md-drawer-title">@_selected.WoNo</h2>
+                <div class="soh-drawer-sub">@_selected.QcKind check</div>
+            </div>
+            <button type="button" class="md-drawer-close" @onclick="@(() => _selected = null)">✕</button>
+        </div>
+        <div class="md-drawer-body">
+            <h3 class="md-drawer-sub">Result</h3>
+            <div class="md-kv"><span>Judgment</span><strong><span class="soh-status @(_selected.Judgment == "Pass" ? "done" : "stopped")">@(_selected.Judgment == "Pass" ? "✓ Pass" : "✕ Reject")</span></strong></div>
+            <div class="md-kv"><span>Kind</span><strong>@_selected.QcKind</strong></div>
+            <div class="md-kv"><span>Finished</span><strong>@(_selected.CompletedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")</strong></div>
+            @if (!string.IsNullOrWhiteSpace(_selected.JudgmentReason))
+            {
+                <div class="md-kv"><span>Reason</span><strong>@_selected.JudgmentReason</strong></div>
+            }
+
+            <h3 class="md-drawer-sub">Signatures</h3>
+            <div class="md-kv"><span>Inspector</span><strong>@(_selected.InspectedBy ?? "—")</strong></div>
+            <div class="md-kv"><span>Reviewer</span><strong>@(_selected.ReviewedBy ?? "—")</strong></div>
+            <div class="md-kv"><span>Approver</span><strong>@(_selected.ApprovedBy ?? "—")</strong></div>
+        </div>
+    </aside>
 }
 
 @code {
@@ -78,6 +169,7 @@ else
     private string? _kind;       // null = all, else FQC | OQC
     private string? _judgment;   // null = all, else pass | reject
     private string _search = "";
+    private QcHistoryRow? _selected;
 
     private static readonly (string? Key, string Label)[] KindChips =
     {
@@ -85,10 +177,26 @@ else
     };
     private static readonly (string? Key, string Label)[] JudgmentChips =
     {
-        (null, "All results"), ("pass", "Pass"), ("reject", "Reject"),
+        (null, "All"), ("pass", "✓ Pass"), ("reject", "✕ Reject"),
     };
 
-    private static string JudgmentLabel(string j) => j == "Pass" ? "Pass" : "Reject";
+    private IReadOnlyList<QcHistoryRow> Rows => _data?.Rows ?? Array.Empty<QcHistoryRow>();
+    private int FqcCount => Rows.Count(r => r.QcKind == "FQC");
+    private int OqcCount => Rows.Count(r => r.QcKind == "OQC");
+    private int DistinctWos => Rows.Select(r => r.WoNo).Distinct().Count();
+    private int RejectRate => (_data?.Total ?? 0) == 0 ? 0 : (int)Math.Round(100.0 * (_data!.Reject) / _data.Total);
+    private int RejectTotal => Rows.Count(r => r.Judgment != "Pass");
+
+    private string PassRateKpiClass => (_data?.PassRatePct ?? 0) >= 98 ? "md-kpi-running" : (_data?.PassRatePct ?? 0) >= 95 ? "md-kpi-setup" : "md-kpi-down";
+
+    private List<AggRow> ByKind => Rows.GroupBy(r => r.QcKind)
+        .Select(g => new AggRow(g.Key, g.Count())).OrderByDescending(a => a.Count).ToList();
+    private List<AggRow> TopInspectors => Rows.Where(r => !string.IsNullOrEmpty(r.InspectedBy))
+        .GroupBy(r => r.InspectedBy!).Select(g => new AggRow(g.Key, g.Count()))
+        .OrderByDescending(a => a.Count).Take(5).ToList();
+    private List<AggRow> TopRejectReasons => Rows.Where(r => r.Judgment != "Pass")
+        .GroupBy(r => string.IsNullOrWhiteSpace(r.JudgmentReason) ? "(no reason)" : r.JudgmentReason!)
+        .Select(g => new AggRow(g.Key, g.Count())).OrderByDescending(a => a.Count).Take(5).ToList();
 
     protected override Task OnInitializedAsync() => ReloadAsync();
 
@@ -104,4 +212,67 @@ else
         catch (Exception ex) { _error = ex.Message; }
         finally { _loading = false; }
     }
+
+    private async Task ExportCsvAsync()
+    {
+        if (_data is null || _data.Rows.Count == 0) return;
+        var sb = new StringBuilder();
+        sb.AppendLine("wo,kind,result,reason,inspector,reviewer,approver,finished");
+        foreach (var r in _data.Rows)
+        {
+            string C(string? v) => v is null ? "" : (v.Contains(',') || v.Contains('"') || v.Contains('\n') ? $"\"{v.Replace("\"", "\"\"")}\"" : v);
+            sb.Append(C(r.WoNo)).Append(',').Append(C(r.QcKind)).Append(',').Append(C(r.Judgment)).Append(',')
+              .Append(C(r.JudgmentReason)).Append(',').Append(C(r.InspectedBy)).Append(',').Append(C(r.ReviewedBy)).Append(',')
+              .Append(C(r.ApprovedBy)).Append(',').Append(r.CompletedAt?.ToString("yyyy-MM-dd HH:mm") ?? "").Append('\n');
+        }
+        try { await JS.InvokeVoidAsync("cclMesClipboard.download", $"qc-history-{DateTime.Now:yyyy-MM-dd}.csv", sb.ToString(), "text/csv;charset=utf-8"); }
+        catch { /* renderer-safe */ }
+    }
+
+    private static string FormatRelative(DateTime? at)
+    {
+        if (at is null) return "—";
+        var diff = DateTime.UtcNow - at.Value.ToUniversalTime();
+        if (diff.TotalHours < 1) return "just now";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        return at.Value.ToLocalTime().ToString("dd/MM/yy");
+    }
+
+    private sealed record AggRow(string Key, int Count);
+
+    private RenderFragment RenderAgg(IReadOnlyList<AggRow> rows, int total, string color, bool mono, bool pct = false) => builder =>
+    {
+        if (rows.Count == 0)
+        {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "md-side-empty");
+            builder.AddContent(2, pct ? "No rejects." : "No data.");
+            builder.CloseElement();
+            return;
+        }
+        var denom = total <= 0 ? 1 : total;
+        var seq = 0;
+        foreach (var r in rows)
+        {
+            var width = Math.Min(100, 100.0 * r.Count / denom);
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "soh-side-row");
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "soh-side-key");
+            builder.AddContent(seq++, r.Key);
+            builder.CloseElement();
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "soh-side-bar");
+            builder.OpenElement(seq++, "div");
+            builder.AddAttribute(seq++, "class", "soh-side-bar-fill");
+            builder.AddAttribute(seq++, "style", $"width:{width.ToString("0.#", CultureInfo.InvariantCulture)}%; background:{color}");
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.OpenElement(seq++, "strong");
+            builder.AddContent(seq++, pct ? $"{r.Count} ({(100.0 * r.Count / denom).ToString("0", CultureInfo.InvariantCulture)}%)" : r.Count.ToString());
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+    };
 }
