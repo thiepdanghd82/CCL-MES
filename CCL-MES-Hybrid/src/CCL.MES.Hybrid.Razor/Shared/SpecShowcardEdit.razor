@@ -105,6 +105,13 @@
                     {
                         <tr><td colspan="22" class="spec-empty-cell">No colors. Click “+ Add color row”.</td></tr>
                     }
+                    @* P10.10 — add-row affordance at the bottom of the table
+                       (clickable full-width row), mirroring SpecHub. *@
+                    <tr class="spec-add-row-tr">
+                        <td colspan="22" class="spec-add-row" data-testid="spec-edit-addcolor-bottom" @onclick="AddColor">
+                            + Add color row
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>

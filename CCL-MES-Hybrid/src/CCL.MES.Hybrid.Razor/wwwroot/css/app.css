@@ -2276,6 +2276,12 @@ html, body {
     border-radius: 4px; font-size: 0.9rem; font-weight: 700; cursor: pointer;
 }
 .spec-row-del:hover { background: #dc2626; color: #fff; }
+.spec-add-row {
+    text-align: center; cursor: pointer; color: #1d4ed8; font-weight: 600;
+    font-size: 0.84rem; padding: 8px; background: #f8fafc;
+    border-top: 1px dashed #cbd5e1;
+}
+.spec-add-row:hover { background: #eff6ff; }
 
 .spec-action-banner {
     margin-left: auto;
