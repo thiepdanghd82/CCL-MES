@@ -9,8 +9,13 @@ namespace CCL.MES.Shared.Specs;
 public sealed record CreateSpecMutation
 {
     public long ProductId { get; init; }
+    /// <summary>P10.10 — IFS / product code typed by the engineer (replaces
+    /// the product dropdown). When ProductId is 0, the server resolves the
+    /// product by this code (find-or-create).</summary>
+    public string? IfsCode { get; init; }
     public string SpecCode { get; init; } = "";
     public string Title { get; init; } = "";
+    /// <summary>Planner / process code (SILKSCREEN / FLEXO / INDIGO …).</summary>
     public string? ProcessCode { get; init; }
     public List<SpecParam> Parameters { get; init; } = new();
 }

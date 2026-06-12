@@ -34,6 +34,9 @@ public class UpdateFlagsRequest
 public class CreateSpecRequest
 {
     public long ProductId { get; set; }
+    /// <summary>P10.10 — IFS / product code; when ProductId is 0 the service
+    /// resolves the product by this code (find-or-create).</summary>
+    public string? IfsCode { get; set; }
     public string SpecCode { get; set; } = "";
     public string Title { get; set; } = "";
 

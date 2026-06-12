@@ -101,6 +101,7 @@ public sealed class SpecsController : ControllerBase
             var req = new CreateSpecRequest
             {
                 ProductId = r.ProductId,
+                IfsCode = r.IfsCode,
                 SpecCode = r.SpecCode,
                 Title = r.Title,
                 ProcessCode = r.ProcessCode,
@@ -131,6 +132,18 @@ public sealed class SpecsController : ControllerBase
                 Status = rev.Status.ToString(),
                 Title = rev.Title,
                 ProductId = rev.ProductId,
+            });
+        }
+        catch (CCL.MES.Application.Services.DuplicateSpecException dup)
+        {
+            return UnprocessableEntity(new SpecMutationError { Code = "duplicate_spec_code", Error = dup.Message });
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException)
+        {
+            return UnprocessableEntity(new SpecMutationError
+            {
+                Code = "duplicate_spec_code",
+                Error = "This IFS code already has a spec (Rev A). Use Copy or Revise to add a revision.",
             });
         }
         catch (Exception ex)

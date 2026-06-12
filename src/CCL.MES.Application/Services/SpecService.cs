@@ -8,6 +8,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CCL.MES.Application.Services;
 
+/// <summary>P10.10 — thrown by CreateAsync when the resolved product already
+/// has a Rev-A spec; the controller maps it to a 422 duplicate_spec_code
+/// (instead of a raw DbUpdate 500).</summary>
+public sealed class DuplicateSpecException : System.Exception
+{
+    public DuplicateSpecException(string message) : base(message) { }
+}
+
 /// <summary>
 /// Phase 8 PR #28 — REWRITTEN sau Spec → ProductRevision clean rewrite.
 ///
@@ -177,9 +185,45 @@ public class SpecService
     /// </summary>
     public async Task<ProductRevision> CreateAsync(CreateSpecRequest r, string? user)
     {
+        // P10.10 — resolve the product from the typed IFS code when no
+        // ProductId was supplied (dropdown replaced by an IFS-code input).
+        // Find by ProductCode; create a minimal product under an
+        // "UNASSIGNED" customer (find-or-create) when the code is new.
+        var productId = r.ProductId;
+        if (productId <= 0 && !string.IsNullOrWhiteSpace(r.IfsCode))
+        {
+            var code = r.IfsCode.Trim();
+            var product = await _db.Products.FirstOrDefaultAsync(p => p.ProductCode == code);
+            if (product is null)
+            {
+                var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Code == "UNASSIGNED");
+                if (customer is null)
+                {
+                    customer = new Customer { Code = "UNASSIGNED", Name = "Unassigned" };
+                    _db.Customers.Add(customer);
+                    await _db.SaveChangesAsync();
+                }
+                product = new Product
+                {
+                    ProductCode = code,
+                    Name = string.IsNullOrWhiteSpace(r.Title) ? code : r.Title.Trim(),
+                    CustomerId = customer.Id,
+                };
+                _db.Products.Add(product);
+                await _db.SaveChangesAsync();
+            }
+            productId = product.Id;
+        }
+
+        // Guard the (ProductId, RevisionCode='A') unique constraint up-front so
+        // a duplicate surfaces as a clean error instead of a DbUpdate 500.
+        if (await _db.ProductRevisions.AnyAsync(x => x.ProductId == productId && x.RevisionCode == "A"))
+            throw new DuplicateSpecException(
+                "This IFS code already has a spec (Rev A). Use Copy or Revise to add a revision.");
+
         var revision = new ProductRevision
         {
-            ProductId = r.ProductId,
+            ProductId = productId,
             SpecCode = r.SpecCode,
             Title = r.Title,
             RevisionCode = "A",
@@ -201,7 +245,7 @@ public class SpecService
             {
                 spec_code = r.SpecCode,
                 title = r.Title,
-                product_id = r.ProductId,
+                product_id = productId,
                 revision_code = revision.RevisionCode,
                 process_code = revision.Print?.ProcessCode,
                 param_count = r.Parameters.Count,

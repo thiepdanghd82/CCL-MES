@@ -17,55 +17,36 @@
        ClickOutsideToClose="false">
     <Header>Create new Spec</Header>
     <Body>
-        @if (_loadProductsError is not null)
-        {
-            <div class="modal-banner modal-banner-error" role="alert">
-                <strong>Failed to load the product list.</strong>
-                <div>@_loadProductsError</div>
-                <button type="button" class="grid-btn" @onclick="LoadProductsAsync">Retry</button>
+        <form @onsubmit:preventDefault="true">
+            <div class="modal-field">
+                <label for="cs-ifs">IFS code <span class="modal-req">*</span></label>
+                <input id="cs-ifs" type="text" class="modal-input scan-mono" maxlength="64"
+                       placeholder="e.g. 1000527330 (product / IFS code)"
+                       @bind="_ifsCode" @bind:event="oninput" disabled="@_submitting" />
             </div>
-        }
-        else if (_products is null)
-        {
-            <p class="grid-status">Loading product list…</p>
-        }
-        else
-        {
-            <form @onsubmit:preventDefault="true">
-                <div class="modal-field">
-                    <label for="cs-product">Product <span class="modal-req">*</span></label>
-                    <select id="cs-product" class="modal-input" @bind="_productId" disabled="@_submitting">
-                        <option value="0">— Select product —</option>
-                        @foreach (var p in _products)
-                        {
-                            <option value="@p.Id">@p.ProductCode · @p.Name</option>
-                        }
-                    </select>
-                </div>
-                <div class="modal-field">
-                    <label for="cs-code">Spec Code <span class="modal-req">*</span></label>
-                    <input id="cs-code" type="text" class="modal-input" maxlength="64"
-                           placeholder="e.g. SP-001 or customer REF"
-                           @bind="_specCode" @bind:event="oninput" disabled="@_submitting" />
-                </div>
-                <div class="modal-field">
-                    <label for="cs-title">Title <span class="modal-req">*</span></label>
-                    <input id="cs-title" type="text" class="modal-input" maxlength="200"
-                           placeholder="Short description of the Spec"
-                           @bind="_title" @bind:event="oninput" disabled="@_submitting" />
-                </div>
-                <div class="modal-field">
-                    <label for="cs-process">Process code</label>
-                    <input id="cs-process" type="text" class="modal-input" maxlength="64"
-                           placeholder="e.g. SILKSCREEN / FLEXO / INDIGO (blank = SILKSCREEN default)"
-                           @bind="_processCode" @bind:event="oninput" disabled="@_submitting" />
-                </div>
-                @if (_error is not null)
-                {
-                    <div class="modal-banner modal-banner-error" role="alert">@_error</div>
-                }
-            </form>
-        }
+            <div class="modal-field">
+                <label for="cs-code">Spec Code <span class="modal-req">*</span></label>
+                <input id="cs-code" type="text" class="modal-input" maxlength="64"
+                       placeholder="e.g. SP-001 or customer REF"
+                       @bind="_specCode" @bind:event="oninput" disabled="@_submitting" />
+            </div>
+            <div class="modal-field">
+                <label for="cs-title">Title <span class="modal-req">*</span></label>
+                <input id="cs-title" type="text" class="modal-input" maxlength="200"
+                       placeholder="Short description of the Spec"
+                       @bind="_title" @bind:event="oninput" disabled="@_submitting" />
+            </div>
+            <div class="modal-field">
+                <label for="cs-process">Planner</label>
+                <input id="cs-process" type="text" class="modal-input" maxlength="64"
+                       placeholder="e.g. SILKSCREEN / FLEXO / INDIGO (blank = SILKSCREEN default)"
+                       @bind="_processCode" @bind:event="oninput" disabled="@_submitting" />
+            </div>
+            @if (_error is not null)
+            {
+                <div class="modal-banner modal-banner-error" role="alert">@_error</div>
+            }
+        </form>
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
@@ -82,10 +63,7 @@
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback<SpecMutationResponse> OnCreated { get; set; }
 
-    private List<SpecProductDropdownItem>? _products;
-    private string? _loadProductsError;
-
-    private long _productId;
+    private string _ifsCode = "";
     private string _specCode = "";
     private string _title = "";
     private string _processCode = "";
@@ -95,27 +73,13 @@
 
     private bool CanSubmit() =>
         !_submitting
-        && _productId > 0
+        && !string.IsNullOrWhiteSpace(_ifsCode)
         && !string.IsNullOrWhiteSpace(_specCode)
         && !string.IsNullOrWhiteSpace(_title);
 
-    protected override async Task OnParametersSetAsync()
+    protected override void OnParametersSet()
     {
-        if (Open && _products is null && _loadProductsError is null)
-            await LoadProductsAsync();
         if (!Open) ResetForm();
-    }
-
-    private async Task LoadProductsAsync()
-    {
-        _loadProductsError = null;
-        try
-        {
-            _products = await Api.GetSpecProductsAsync();
-        }
-        catch (ApiException apiEx) { _loadProductsError = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
-        catch (HttpRequestException ex) { _loadProductsError = $"Could not connect to the server: {ex.Message}"; }
-        catch (Exception ex) { _loadProductsError = $"{ex.GetType().Name}: {ex.Message}"; }
     }
 
     private async Task SubmitAsync()
@@ -130,7 +94,7 @@
         {
             var resp = await Api.CreateSpecAsync(new CreateSpecMutation
             {
-                ProductId = _productId,
+                IfsCode = _ifsCode.Trim(),
                 SpecCode = _specCode.Trim(),
                 Title = _title.Trim(),
                 ProcessCode = string.IsNullOrWhiteSpace(_processCode) ? null : _processCode.Trim(),
@@ -153,7 +117,7 @@
 
     private void ResetForm()
     {
-        _productId = 0;
+        _ifsCode = "";
         _specCode = "";
         _title = "";
         _processCode = "";

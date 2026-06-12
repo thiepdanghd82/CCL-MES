@@ -120,17 +120,11 @@ public sealed class SpecMutationsTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
-    public async Task Create_second_same_product_RevisionCode_A_violates_unique_constraint()
+    public async Task Create_second_same_product_returns_422_duplicate_spec_code()
     {
-        // The legacy schema enforces (ProductId, RevisionCode) UNIQUE;
-        // since fresh Create defaults RevisionCode='A', a second Create
-        // on the same product hits the DB unique constraint. CreateAsync
-        // doesn't catch DbUpdateException so the controller surfaces it
-        // as a 500. This is parity with the legacy CCL.MES.Web SpecsController
-        // — explicit duplicate-detection is only in Copy/Revise paths.
-        // The test pins this behaviour so a future controller-side guard
-        // (catch DbUpdateException → 422 duplicate) shows up as a
-        // failed test rather than a silent contract change.
+        // (ProductId, RevisionCode='A') is UNIQUE. P10.10 — CreateAsync now
+        // guards this up-front (DuplicateSpecException) and the controller
+        // maps it to a clean 422 duplicate_spec_code instead of a raw 500.
         var client = await EngineerClientAsync("eng-dup");
         var pid = await SeedProductAsync("PRD-DUP");
 
@@ -140,7 +134,31 @@ public sealed class SpecMutationsTests : IClassFixture<MesApiFactory>
         {
             ProductId = pid, SpecCode = "DUP-002", Title = "Second spec same product",
         });
-        Assert.Equal(HttpStatusCode.InternalServerError, dup.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, dup.StatusCode);
+        var err = await dup.Content.ReadFromJsonAsync<SpecMutationError>();
+        Assert.Equal("duplicate_spec_code", err!.Code);
+    }
+
+    [Fact]
+    public async Task Create_by_ifs_code_resolves_and_creates_product_when_new()
+    {
+        // P10.10 — IFS-code create path: an unknown IFS code find-or-creates
+        // a product (under the UNASSIGNED customer) and a Draft spec on it.
+        var client = await EngineerClientAsync("eng-ifs");
+        var ifs = "IFS-" + Guid.NewGuid().ToString("N")[..8];
+
+        var resp = await client.PostAsJsonAsync("/api/v2/specs", new CreateSpecMutation
+        {
+            IfsCode = ifs, SpecCode = "IFS-SPEC-1", Title = "Spec via IFS code",
+        });
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<SpecMutationResponse>();
+        Assert.True(body!.Id > 0);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var product = await db.Products.FirstAsync(p => p.ProductCode == ifs);
+        Assert.Equal(body.ProductId, product.Id);
     }
 
     [Fact]
