@@ -507,9 +507,10 @@ else if (_data is not null)
 
     private Task OnSpecCreatedAsync(SpecMutationResponse resp)
     {
-        // Refresh list so the new Draft shows up + jump to the detail page
-        // so the operator can continue authoring content.
-        Nav.NavigateTo($"/npi/specs/{resp.Id}");
+        // P10.10 — jump straight to the new Draft's detail page IN EDIT MODE
+        // (?action=edit) so the engineer fills the full spec table inline
+        // right away instead of landing on a read-only showcard.
+        Nav.NavigateTo($"/npi/specs/{resp.Id}?action=edit");
         return Task.CompletedTask;
     }
 

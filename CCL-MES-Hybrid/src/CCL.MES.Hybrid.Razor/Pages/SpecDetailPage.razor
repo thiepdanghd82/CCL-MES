@@ -342,7 +342,13 @@ else if (_detail is not null && _vm is not null)
         if (_detail is null || string.IsNullOrWhiteSpace(Action)) return;
         switch (Action.ToLowerInvariant())
         {
-            case "edit":      _editOpen = true; break;
+            // P10.10 — inline edit on the Spec tab for Draft (modal fallback
+            // for any non-Draft route, though Edit only surfaces for Draft).
+            case "edit":
+                if (_detail.Status == SpecRevisionStatus.Draft)
+                { _activeTab = "spec"; _specEditMode = true; }
+                else { _editOpen = true; }
+                break;
             case "copy":      _copyOpen = true; break;
             case "revise":    _reviseOpen = true; break;
             case "supersede": _supersedeOpen = true; break;
