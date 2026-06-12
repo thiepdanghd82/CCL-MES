@@ -19,9 +19,9 @@
     <Body>
         <form @onsubmit:preventDefault="true">
             <div class="modal-field">
-                <label for="cs-ifs">IFS code <span class="modal-req">*</span></label>
+                <label for="cs-ifs">Part No <span class="modal-req">*</span></label>
                 <input id="cs-ifs" type="text" class="modal-input scan-mono" maxlength="64"
-                       placeholder="e.g. 1000527330 (product / IFS code)"
+                       placeholder="e.g. 1000527330 (part / IFS no)"
                        @bind="_ifsCode" @bind:event="oninput" disabled="@_submitting" />
             </div>
             <div class="modal-field">
@@ -31,9 +31,9 @@
                        @bind="_specCode" @bind:event="oninput" disabled="@_submitting" />
             </div>
             <div class="modal-field">
-                <label for="cs-title">Title <span class="modal-req">*</span></label>
+                <label for="cs-title">Part Name <span class="modal-req">*</span></label>
                 <input id="cs-title" type="text" class="modal-input" maxlength="200"
-                       placeholder="Short description of the Spec"
+                       placeholder="Part / product name"
                        @bind="_title" @bind:event="oninput" disabled="@_submitting" />
             </div>
             <div class="modal-field">
