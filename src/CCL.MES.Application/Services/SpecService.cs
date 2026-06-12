@@ -196,10 +196,23 @@ public class SpecService
             var product = await _db.Products.FirstOrDefaultAsync(p => p.ProductCode == code);
             if (product is null)
             {
-                var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Code == "UNASSIGNED");
-                if (customer is null)
+                // P10.10 — resolve the customer from the typed name (find-or-create
+                // by Name, case-insensitive) so it syncs into the spec sheet's
+                // Customer cell. Blank falls back to the "UNASSIGNED" customer.
+                var customerName = r.Customer?.Trim();
+                Customer customer;
+                if (string.IsNullOrWhiteSpace(customerName))
                 {
-                    customer = new Customer { Code = "UNASSIGNED", Name = "Unassigned" };
+                    customer = await _db.Customers.FirstOrDefaultAsync(c => c.Code == "UNASSIGNED")
+                        ?? new Customer { Code = "UNASSIGNED", Name = "Unassigned" };
+                }
+                else
+                {
+                    customer = await _db.Customers.FirstOrDefaultAsync(c => c.Name == customerName)
+                        ?? new Customer { Code = DeriveCustomerCode(customerName), Name = customerName };
+                }
+                if (customer.Id == 0)
+                {
                     _db.Customers.Add(customer);
                     await _db.SaveChangesAsync();
                 }
@@ -979,6 +992,17 @@ public class SpecService
             is_critical = p.IsCritical
         });
         return JsonSerializer.Serialize(arr);
+    }
+
+    /// <summary>P10.10 — derive a stable uppercase Customer.Code from a typed
+    /// name (alnum only, collapsed, ≤32 chars). Customer.Code has no unique
+    /// index so a collision is harmless; we find by Name first, so this only
+    /// stamps the code on freshly-created customers.</summary>
+    private static string DeriveCustomerCode(string name)
+    {
+        var slug = new string(name.ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
+        if (slug.Length == 0) return "CUST";
+        return slug.Length > 32 ? slug[..32] : slug;
     }
 
     // ── Phase 8 PR #29 — read-only queries cho SpecDetailModal ────────────────

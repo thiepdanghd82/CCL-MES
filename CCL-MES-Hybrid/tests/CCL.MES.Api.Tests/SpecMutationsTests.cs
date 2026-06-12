@@ -162,6 +162,38 @@ public sealed class SpecMutationsTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
+    public async Task Create_with_customer_find_or_creates_customer_and_links_product()
+    {
+        // P10.10 — a typed Customer name find-or-creates a Customer (by Name)
+        // and assigns the resolved product to it so it syncs into the spec
+        // sheet's Customer cell.
+        var client = await EngineerClientAsync("eng-cust");
+        var ifs = "IFS-" + Guid.NewGuid().ToString("N")[..8];
+        var customerName = "Acme " + Guid.NewGuid().ToString("N")[..6];
+
+        var resp = await client.PostAsJsonAsync("/api/v2/specs", new CreateSpecMutation
+        {
+            IfsCode = ifs, SpecCode = "IFS-CUST-1", Title = "Spec with customer", Customer = customerName,
+        });
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<SpecMutationResponse>();
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var product = await db.Products.Include(p => p.Customer).FirstAsync(p => p.Id == body!.ProductId);
+        Assert.Equal(customerName, product.Customer!.Name);
+        // Second spec on a NEW part with the SAME customer reuses the customer row.
+        var ifs2 = "IFS-" + Guid.NewGuid().ToString("N")[..8];
+        var resp2 = await client.PostAsJsonAsync("/api/v2/specs", new CreateSpecMutation
+        {
+            IfsCode = ifs2, SpecCode = "IFS-CUST-2", Title = "Spec 2", Customer = customerName,
+        });
+        var body2 = await resp2.Content.ReadFromJsonAsync<SpecMutationResponse>();
+        var product2 = await db.Products.Include(p => p.Customer).FirstAsync(p => p.Id == body2!.ProductId);
+        Assert.Equal(product.CustomerId, product2.CustomerId);
+    }
+
+    [Fact]
     public async Task Approve_then_returns_200_with_status_Approved()
     {
         var client = await EngineerClientAsync("eng-app");

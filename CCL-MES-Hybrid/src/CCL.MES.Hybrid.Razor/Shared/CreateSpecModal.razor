@@ -25,10 +25,16 @@
                        @bind="_ifsCode" @bind:event="oninput" disabled="@_submitting" />
             </div>
             <div class="modal-field">
-                <label for="cs-code">Spec Code <span class="modal-req">*</span></label>
+                <label for="cs-code">IFS code <span class="modal-req">*</span></label>
                 <input id="cs-code" type="text" class="modal-input" maxlength="64"
                        placeholder="e.g. SP-001 or customer REF"
                        @bind="_specCode" @bind:event="oninput" disabled="@_submitting" />
+            </div>
+            <div class="modal-field">
+                <label for="cs-customer">Customer</label>
+                <input id="cs-customer" type="text" class="modal-input" maxlength="120"
+                       placeholder="Customer name (syncs to spec sheet)"
+                       @bind="_customer" @bind:event="oninput" disabled="@_submitting" />
             </div>
             <div class="modal-field">
                 <label for="cs-title">Part Name <span class="modal-req">*</span></label>
@@ -65,6 +71,7 @@
 
     private string _ifsCode = "";
     private string _specCode = "";
+    private string _customer = "";
     private string _title = "";
     private string _processCode = "";
 
@@ -97,6 +104,7 @@
                 IfsCode = _ifsCode.Trim(),
                 SpecCode = _specCode.Trim(),
                 Title = _title.Trim(),
+                Customer = string.IsNullOrWhiteSpace(_customer) ? null : _customer.Trim(),
                 ProcessCode = string.IsNullOrWhiteSpace(_processCode) ? null : _processCode.Trim(),
             });
             if (OnCreated.HasDelegate) await OnCreated.InvokeAsync(resp);
@@ -119,6 +127,7 @@
     {
         _ifsCode = "";
         _specCode = "";
+        _customer = "";
         _title = "";
         _processCode = "";
         _error = null;

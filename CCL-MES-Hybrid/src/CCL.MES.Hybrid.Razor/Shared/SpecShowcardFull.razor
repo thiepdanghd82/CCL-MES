@@ -96,6 +96,7 @@ else
                         <thead>
                             <tr>
                                 <th>Customer<span class="sub">Customer</span></th>
+                                <th>IFS code<span class="sub">IFS / Spec Code</span></th>
                                 <th>Part No<span class="sub">Part Code</span></th>
                                 <th>Part Name<span class="sub">Component Name</span></th>
                                 <th>Product Size<span class="sub">Product Size (mm)</span></th>
@@ -105,6 +106,7 @@ else
                         <tbody>
                             <tr>
                                 <td class="spec-info-hi">@OrDash(Vm.CustomerName)</td>
+                                <td class="spec-info-hi spec-mono">@OrDash(Vm.SpecCode)</td>
                                 <td class="spec-info-hi spec-mono">@OrDash(Vm.ProductCode)</td>
                                 <td>@OrDash(Vm.ProductName)</td>
                                 <td>@Vm.ProductSizeDisplay</td>
@@ -119,6 +121,7 @@ else
                         <thead>
                             <tr>
                                 <th>Customer<span class="sub">Customer</span></th>
+                                <th>IFS code<span class="sub">IFS / Spec Code</span></th>
                                 <th>Part No<span class="sub">Part Code</span></th>
                                 <th>Part Name<span class="sub">Product Name</span></th>
                                 <th>Material<span class="sub">Material</span></th>
@@ -131,6 +134,7 @@ else
                         <tbody>
                             <tr>
                                 <td class="spec-info-hi">@OrDash(Vm.CustomerName)</td>
+                                <td class="spec-info-hi spec-mono">@OrDash(Vm.SpecCode)</td>
                                 <td class="spec-info-hi spec-mono">@OrDash(Vm.ProductCode)</td>
                                 <td>@OrDash(Vm.ProductName)</td>
                                 <td>@OrDash(Vm.SubstrateType)</td>

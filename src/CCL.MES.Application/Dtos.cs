@@ -40,6 +40,11 @@ public class CreateSpecRequest
     public string SpecCode { get; set; } = "";
     public string Title { get; set; } = "";
 
+    /// <summary>P10.10 — customer name; find-or-created and assigned to the
+    /// resolved product so it surfaces in the spec sheet Customer cell. Blank
+    /// falls back to the "UNASSIGNED" customer.</summary>
+    public string? Customer { get; set; }
+
     /// <summary>Process code lookup vào ProcessCatalog (default 'SILKSCREEN' khi null).</summary>
     public string? ProcessCode { get; set; }
 

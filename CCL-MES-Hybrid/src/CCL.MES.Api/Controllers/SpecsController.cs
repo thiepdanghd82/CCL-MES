@@ -104,6 +104,7 @@ public sealed class SpecsController : ControllerBase
                 IfsCode = r.IfsCode,
                 SpecCode = r.SpecCode,
                 Title = r.Title,
+                Customer = r.Customer,
                 ProcessCode = r.ProcessCode,
                 Parameters = r.Parameters.Select(p => new SpecParamDto
                 {

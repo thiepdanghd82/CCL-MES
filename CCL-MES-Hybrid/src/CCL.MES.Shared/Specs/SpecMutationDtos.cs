@@ -15,6 +15,10 @@ public sealed record CreateSpecMutation
     public string? IfsCode { get; init; }
     public string SpecCode { get; init; } = "";
     public string Title { get; init; } = "";
+    /// <summary>Customer name typed on the Create modal. Find-or-created on the
+    /// server and assigned to the product so it syncs into the spec sheet's
+    /// Customer cell. Blank falls back to the "UNASSIGNED" customer.</summary>
+    public string? Customer { get; init; }
     /// <summary>Planner / process code (SILKSCREEN / FLEXO / INDIGO …).</summary>
     public string? ProcessCode { get; init; }
     public List<SpecParam> Parameters { get; init; } = new();
