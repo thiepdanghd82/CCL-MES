@@ -38,7 +38,9 @@
         <div class="app-nav-section">MONITORING</div>
         <NavLink href="/machines" class="app-nav-link">@Ico("grid")<span>Machine Dashboard</span></NavLink>
         <NavLink href="/shop-orders" class="app-nav-link">@Ico("history")<span>Shop Order History</span></NavLink>
-        <NavLink href="/qms" class="app-nav-link">@Ico("clipboard")<span>Inspection Queue</span></NavLink>
+        @* Inspection Queue uses exact match so it doesn't also light up when
+           the deeper /qms/history (QC History) route is active. *@
+        <NavLink href="/qms" Match="NavLinkMatch.All" class="app-nav-link">@Ico("clipboard")<span>Inspection Queue</span></NavLink>
         <NavLink href="/qms/history" class="app-nav-link">@Ico("shield")<span>QC History</span></NavLink>
 
         @* P10.10 — the Settings hub (/settings) now lists every sub-page
