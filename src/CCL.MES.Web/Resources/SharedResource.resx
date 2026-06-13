@@ -202,28 +202,6 @@
   <data name="settings.data.snapshot.hint" xml:space="preserve"><value>Saves a copy of the live SQLite DB into data/Backup/SQLite/ using the online-backup API (safe while serving).</value></data>
   <data name="settings.data.btn.snapshot" xml:space="preserve"><value>Create snapshot</value></data>
   <data name="settings.data.btn.snapshotting" xml:space="preserve"><value>Snapshotting…</value></data>
-  <data name="settings.data.sched.title" xml:space="preserve"><value>Scheduled backup</value></data>
-  <data name="settings.data.sched.hint" xml:space="preserve"><value>Automated nightly snapshot + blob archive + integrity verify. The off-site copy is a separate cron job (scripts/backup-offsite).</value></data>
-  <data name="settings.data.sched.enabled" xml:space="preserve"><value>Enable nightly backup</value></data>
-  <data name="settings.data.sched.hour" xml:space="preserve"><value>Hour (0–23, ICT)</value></data>
-  <data name="settings.data.sched.retention" xml:space="preserve"><value>Keep for (days)</value></data>
-  <data name="settings.data.sched.minkeep" xml:space="preserve"><value>Always keep (most recent)</value></data>
-  <data name="settings.data.sched.btn.save" xml:space="preserve"><value>Save schedule</value></data>
-  <data name="settings.data.sched.btn.saving" xml:space="preserve"><value>Saving…</value></data>
-  <data name="settings.data.sched.btn.runnow" xml:space="preserve"><value>Run backup now</value></data>
-  <data name="settings.data.sched.btn.running" xml:space="preserve"><value>Running…</value></data>
-  <data name="settings.data.sched.status.next" xml:space="preserve"><value>Next run</value></data>
-  <data name="settings.data.sched.status.last" xml:space="preserve"><value>Last run</value></data>
-  <data name="settings.data.sched.status.never" xml:space="preserve"><value>Never</value></data>
-  <data name="settings.data.sched.status.disabled" xml:space="preserve"><value>Disabled</value></data>
-  <data name="settings.data.sched.status.blobs" xml:space="preserve"><value>Blob archive</value></data>
-  <data name="settings.data.sched.status.webhook" xml:space="preserve"><value>Alert webhook</value></data>
-  <data name="settings.data.sched.on" xml:space="preserve"><value>on</value></data>
-  <data name="settings.data.sched.off" xml:space="preserve"><value>off</value></data>
-  <data name="settings.data.sched.msg.saved" xml:space="preserve"><value>Schedule saved.</value></data>
-  <data name="settings.data.sched.msg.run_ok" xml:space="preserve"><value>Backup completed: {0}</value></data>
-  <data name="settings.data.sched.msg.run_fail" xml:space="preserve"><value>Backup failed: {0}</value></data>
-  <data name="settings.data.sched.msg.err" xml:space="preserve"><value>Could not save: {0}</value></data>
   <data name="settings.data.list.empty" xml:space="preserve"><value>No snapshots yet.</value></data>
   <data name="settings.data.col.name" xml:space="preserve"><value>File name</value></data>
   <data name="settings.data.col.size" xml:space="preserve"><value>Size</value></data>
