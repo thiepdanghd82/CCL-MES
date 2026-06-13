@@ -116,5 +116,75 @@ window.cclMesDrawings = (() => {
         } catch (e) { return ''; }
     }
     function revoke(url) { try { URL.revokeObjectURL(url); } catch (e) { /* noop */ } }
-    return { toObjectUrl, revoke };
+    function openInNewWindow(url) {
+        try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) { /* noop */ }
+    }
+    return { toObjectUrl, revoke, openInNewWindow };
+})();
+
+// P10.10 — PDF rendering via PDF.js. WKWebView (Mac Catalyst) renders a blob:
+// PDF blank inside an <iframe>, so we rasterise each page onto a <canvas>.
+// Pages render at fit-to-width × the caller's zoom; rotation is applied per
+// page. The parsed document is cached by URL so zoom/rotate re-renders don't
+// re-parse the file.
+window.cclMesPdf = (() => {
+    const WORKER = '_content/CCL.MES.Hybrid.Razor/lib/pdfjs/pdf.worker.min.js';
+    const _docs = {};   // url -> pdfDoc
+
+    async function load(url) {
+        if (_docs[url]) return _docs[url];
+        const lib = window.pdfjsLib;
+        if (!lib) throw new Error('pdfjsLib not loaded');
+        try { lib.GlobalWorkerOptions.workerSrc = WORKER; } catch (e) { /* noop */ }
+        const doc = await lib.getDocument(url).promise;
+        _docs[url] = doc;
+        return doc;
+    }
+
+    async function render(elId, url, zoom, rotation) {
+        const el = document.getElementById(elId);
+        if (!el) return 0;
+        el.setAttribute('data-rendering', '1');
+        let doc;
+        try {
+            doc = await load(url);
+        } catch (e) {
+            el.innerHTML = '<div class="dwg-viewer-empty">Could not render this PDF (' + (e && e.message ? e.message : 'engine error') + ').</div>';
+            return 0;
+        }
+        const rot = ((rotation || 0) % 360 + 360) % 360;
+        // Fit-to-width off page 1, then scale by the caller's zoom factor.
+        const first = await doc.getPage(1);
+        const base = first.getViewport({ scale: 1, rotation: rot });
+        const avail = Math.max(200, (el.clientWidth || 800) - 28);
+        const scale = Math.max(0.1, (avail / base.width) * (zoom || 1));
+
+        const frag = document.createDocumentFragment();
+        for (let p = 1; p <= doc.numPages; p++) {
+            const page = await doc.getPage(p);
+            const vp = page.getViewport({ scale: scale, rotation: rot });
+            const canvas = document.createElement('canvas');
+            canvas.className = 'dwg-pdf-page';
+            const ratio = window.devicePixelRatio || 1;
+            canvas.width = Math.floor(vp.width * ratio);
+            canvas.height = Math.floor(vp.height * ratio);
+            canvas.style.width = Math.floor(vp.width) + 'px';
+            canvas.style.height = Math.floor(vp.height) + 'px';
+            const ctx = canvas.getContext('2d');
+            ctx.scale(ratio, ratio);
+            await page.render({ canvasContext: ctx, viewport: vp }).promise;
+            frag.appendChild(canvas);
+        }
+        el.innerHTML = '';
+        el.appendChild(frag);
+        el.removeAttribute('data-rendering');
+        return doc.numPages;
+    }
+
+    function dispose(url) {
+        const d = _docs[url];
+        if (d) { try { d.destroy(); } catch (e) { /* noop */ } delete _docs[url]; }
+    }
+
+    return { render, dispose };
 })();

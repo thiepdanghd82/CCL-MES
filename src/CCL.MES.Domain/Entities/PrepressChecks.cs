@@ -43,6 +43,15 @@ public class WoMaterial : BaseEntity
 
     public string? Uom { get; set; }
 
+    /// <summary>From <c>ManufacturingStructure.ScrapFactor</c> — absolute
+    /// scrap quantity per the IFS BOM (Structure). Read-only snapshot,
+    /// re-synced from BOM while the WO is in PREPRESS.</summary>
+    public double ScrapFactor { get; set; }
+
+    /// <summary>From <c>ManufacturingStructure.ScrapPct</c> — scrap
+    /// percentage per the IFS BOM. Nullable: some BOM rows omit it.</summary>
+    public double? ScrapPercent { get; set; }
+
     public double? QtyLoaded { get; set; }
     public string? LotNo { get; set; }
 

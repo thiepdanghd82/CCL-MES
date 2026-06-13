@@ -409,6 +409,16 @@ public interface ICclApiClient
         long revisionId, long versionId, DrawingDecideRequest req,
         CancellationToken ct = default);
 
+    /// <summary>P10.10 — delete an uploaded drawing version. The request
+    /// carries an NPI-team member's username + password; the server
+    /// verifies the credential + NPI-team membership before removing the
+    /// blob + metadata. Throws <c>ApiException</c> with
+    /// <c>drawing.npi_auth_failed</c> (403) when the credential is bad or
+    /// the account isn't on the NPI team.</summary>
+    Task<DrawingDeleteResponse> DeleteDrawingVersionAsync(
+        long revisionId, long versionId, DrawingDeleteRequest req,
+        CancellationToken ct = default);
+
     // ── QC Specs (P10.5b — read) ──────────────────────────────────
     /// <summary>QC windows keyed by stage. Server returns the legacy
     /// <c>Dictionary&lt;QcStage, SpecQcWindow?&gt;</c> — we expose as

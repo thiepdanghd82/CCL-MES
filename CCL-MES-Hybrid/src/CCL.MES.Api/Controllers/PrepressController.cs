@@ -95,7 +95,7 @@ public sealed class PrepressController : ControllerBase
             MesPhase = wo.MesPhase,
             MaterialsReady = wo.MaterialsReady,
             ETag = etag,
-            Materials = materials.Select(MaterialToDto).ToList(),
+            Materials = materials.Select(m => MaterialToDto(m, wo.TargetQty)).ToList(),
             PlateCheck = plate is null ? null : PlateToDto(plate),
             CutterCheck = cutter is null ? null : CutterToDto(cutter),
         });
@@ -473,14 +473,20 @@ public sealed class PrepressController : ControllerBase
 
     // ── DTO mappers ────────────────────────────────────────────────
 
-    private static PrepressMaterialRow MaterialToDto(WoMaterial m) => new()
+    private static PrepressMaterialRow MaterialToDto(WoMaterial m, int targetQty = 0) => new()
     {
         Id = m.Id,
         BomLineIdx = m.BomLineIdx,
         MaterialCode = m.MaterialCode,
         MaterialDescription = m.MaterialDescription,
+        // QPA = QtyAssembly from the BOM. QtyRequired was stored as
+        // QtyAssembly × TargetQty, so divide back to recover the per-assembly
+        // figure exactly (guard against a 0 target).
+        Qpa = targetQty != 0 ? m.QtyRequired / targetQty : 0,
         QtyRequired = m.QtyRequired,
         Uom = m.Uom,
+        ScrapFactor = m.ScrapFactor,
+        ScrapPercent = m.ScrapPercent,
         QtyLoaded = m.QtyLoaded,
         LotNo = m.LotNo,
         Status = m.Status.ToString(),

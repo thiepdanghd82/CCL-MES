@@ -38,14 +38,17 @@
         <table class="prepress-table">
             <thead>
                 <tr>
-                    <th>No.</th>
-                    <th>Material code</th>
-                    <th>Description</th>
-                    <th>Required</th>
-                    <th>Loaded</th>
+                    <th class="c-no">No.</th>
+                    <th>Part No</th>
+                    <th class="wrap desc-col">Description</th>
+                    <th class="numc">QPA (m2)</th>
+                    <th class="numc">Qty. Required</th>
+                    <th class="c-center">UoM</th>
+                    <th class="numc">Scrap Factor</th>
+                    <th class="numc">Scrap %</th>
                     <th>Lot</th>
                     <th>Status</th>
-                    <th>NG — reason · note</th>
+                    <th class="wrap">NG — reason · note</th>
                     <th>Action</th>
                 </tr>
             </thead>
@@ -58,18 +61,14 @@
                     var isNg = row.Status == "Ng";
 
                     <tr data-testid="material-row" data-bom-idx="@row.BomLineIdx">
-                        <td>@row.BomLineIdx</td>
+                        <td class="c-no">@(row.BomLineIdx + 1)</td>
                         <td class="scan-mono">@row.MaterialCode</td>
-                        <td>@(row.MaterialDescription ?? "—")</td>
-                        <td class="num">@row.QtyRequired @(row.Uom ?? "")</td>
-                        <td>
-                            <input type="number" step="any" min="0"
-                                   class="prepress-input prepress-input-num"
-                                   value="@draft.QtyLoaded"
-                                   @oninput="e => OnQtyLoadedInput(draft, e)"
-                                   disabled="@Busy"
-                                   aria-label="Loaded quantity" />
-                        </td>
+                        <td class="wrap desc-col">@(row.MaterialDescription ?? "—")</td>
+                        <td class="numc">@FormatNum(row.Qpa)</td>
+                        <td class="numc">@FormatRequired(row)</td>
+                        <td class="c-center">@(row.Uom ?? "—")</td>
+                        <td class="numc">@FormatNum(row.ScrapFactor)</td>
+                        <td class="numc">@(row.ScrapPercent is { } sp ? FormatNum(sp) + "%" : "—")</td>
                         <td>
                             <input type="text"
                                    class="prepress-input"
@@ -164,6 +163,26 @@
     private readonly Dictionary<int, MaterialDraft> _drafts = new();
 
     private int OkCount => Materials.Count(m => m.Status == "Ok");
+
+    /// <summary>Compact numeric format for the read-only BOM scrap columns —
+    /// trims trailing zeros, invariant culture so it matches the IFS export.</summary>
+    private static string FormatNum(double v) =>
+        v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Qty. Required including scrap, rounded UP to 2 decimals
+    /// (operator must load at least this much, so we never round down):
+    /// <c>(QPA × Lot) × (1 + Scrap%/100) + ScrapFactor</c>. The stored
+    /// <see cref="PrepressMaterialRow.QtyRequired"/> is the net QPA × Lot;
+    /// Scrap % is a percentage of that net, Scrap Factor an absolute add in
+    /// the same UoM.</summary>
+    private static string FormatRequired(PrepressMaterialRow row)
+    {
+        var net = row.QtyRequired;                       // QPA × Lot run
+        var pct = row.ScrapPercent ?? 0;
+        var withScrap = net * (1 + pct / 100.0) + row.ScrapFactor;
+        return (Math.Ceiling(withScrap * 100.0) / 100.0)
+            .ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     private MaterialDraft GetOrInitDraft(PrepressMaterialRow row)
     {

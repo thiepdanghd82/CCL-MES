@@ -177,6 +177,16 @@ public sealed class WorkOrdersController : ControllerBase
         if (!string.IsNullOrEmpty(etag))
             Response.Headers.ETag = $"\"{etag}\"";
 
+        // P10.10 — Part Description synced from the IFS BOM (Structure):
+        // ParentDescription of the WO's product code. First non-empty wins.
+        var partDescription = string.IsNullOrEmpty(view.ProductCode)
+            ? null
+            : await _db.ManufacturingStructures
+                .Where(ms => ms.ParentPart == view.ProductCode
+                             && ms.ParentDescription != null && ms.ParentDescription != "")
+                .Select(ms => ms.ParentDescription)
+                .FirstOrDefaultAsync();
+
         return Ok(new WorkOrderSummary
         {
             Id = view.Id,
@@ -184,6 +194,7 @@ public sealed class WorkOrdersController : ControllerBase
             CustomerName = view.CustomerName,
             ProductCode = view.ProductCode,
             ProductName = view.ProductName,
+            PartDescription = partDescription,
             MachineCode = view.MachineCode,
             MachineName = view.MachineName,
             TargetQty = view.TargetQty,

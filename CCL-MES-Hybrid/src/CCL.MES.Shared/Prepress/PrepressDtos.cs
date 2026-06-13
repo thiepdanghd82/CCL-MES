@@ -27,8 +27,15 @@ public sealed record PrepressMaterialRow
     public int BomLineIdx { get; init; }
     public string MaterialCode { get; init; } = "";
     public string? MaterialDescription { get; init; }
+    /// <summary>Quantity Per Assembly — from <c>ManufacturingStructure.QtyAssembly</c>
+    /// (the IFS BOM). Read-only; Required = QPA × WO target qty.</summary>
+    public double Qpa { get; init; }
     public double QtyRequired { get; init; }
     public string? Uom { get; init; }
+    /// <summary>From the IFS BOM (Structure) — Scrap Factor. Read-only.</summary>
+    public double ScrapFactor { get; init; }
+    /// <summary>From the IFS BOM (Structure) — Scrap %. Read-only; null when omitted.</summary>
+    public double? ScrapPercent { get; init; }
     public double? QtyLoaded { get; init; }
     public string? LotNo { get; init; }
     public string Status { get; init; } = "Pending";

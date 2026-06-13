@@ -105,6 +105,10 @@ public static class AuditAction
     // { revision_id, drawing_id, superseded_version_id, superseded_version_no,
     //   by_version_id, by_version_no, by_decided_user }.
     public const string DrawingSupersede      = "DRAWING_SUPERSEDE";
+    // P10.10 — Drawing version hard-deleted after NPI-team password auth.
+    // detail JSON: { revision_id, drawing_id, kind, version_no, filename,
+    //   sha256_short, authorized_by, authorizer_role, has_reason }.
+    public const string DrawingDelete         = "DRAWING_DELETE";
     // Refresh-samples Admin-only batch (idempotent). detail JSON: { added,
     // updated, skipped, files: [{filename, ref_no, status}] }
     public const string SpecRefreshSamples    = "SPEC_REFRESH_SAMPLES";

@@ -1,14 +1,18 @@
 using System.Security.Claims;
 using System.Text.Json;
+using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
 using CCL.MES.Application.Storage;
 using CCL.MES.Domain;
+using CCL.MES.Domain.Entities;
 using CCL.MES.Infrastructure.Storage;
 using CCL.MES.Shared;
 using CCL.MES.Shared.Drawings;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace CCL.MES.Api.Controllers;
@@ -51,6 +55,8 @@ public sealed class DrawingsApiController : ControllerBase
     private readonly IBlobStore _blobs;
     private readonly IAuditWriter _audit;
     private readonly BlobStoreOptions _blobOpts;
+    private readonly IMesDbContext _db;
+    private readonly IPasswordHasher<User> _hasher;
 
     /// <summary>API contract cap. Mirrors operator UX promise (10 MB)
     /// and the blob store's default <c>MaxBytes</c>. Multipart-form
@@ -63,12 +69,16 @@ public sealed class DrawingsApiController : ControllerBase
         DrawingsService svc,
         IBlobStore blobs,
         IAuditWriter audit,
-        IOptions<BlobStoreOptions> blobOpts)
+        IOptions<BlobStoreOptions> blobOpts,
+        IMesDbContext db,
+        IPasswordHasher<User> hasher)
     {
         _svc = svc;
         _blobs = blobs;
         _audit = audit;
         _blobOpts = blobOpts.Value;
+        _db = db;
+        _hasher = hasher;
     }
 
     // ── Upload ──────────────────────────────────────────────────────
@@ -425,6 +435,99 @@ public sealed class DrawingsApiController : ControllerBase
         catch (Exception ex)
         {
             return Problem(title: "Drawing decide failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
+    // ── Delete (P10.10) ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Hard-delete one uploaded drawing version. Gated by an NPI-team
+    /// credential typed into the request body: the server loads the named
+    /// account, verifies it is active + on the NPI team (Admin, or Engineer
+    /// with Department "npi") via <see cref="DrawingsService.CanActAs"/>, and
+    /// verifies the password with the same <see cref="IPasswordHasher{T}"/>
+    /// the login flow uses. A single generic 403 covers "no such user / wrong
+    /// password / not on NPI team" to avoid account enumeration.
+    ///
+    /// Policy <c>NpiSpecWrite</c> still gates the endpoint at the JWT layer,
+    /// so the caller must already be an editor; the body credential is a
+    /// second factor authorising the destructive action.
+    /// </summary>
+    [HttpDelete("{versionId:long}")]
+    [Authorize(Policy = "NpiSpecWrite")]
+    public async Task<IActionResult> Delete(
+        long revisionId,
+        long versionId,
+        [FromBody] DrawingDeleteRequest req,
+        CancellationToken ct)
+    {
+        try
+        {
+            if (req is null || string.IsNullOrWhiteSpace(req.Username) || string.IsNullOrWhiteSpace(req.Password))
+                return UnprocessableEntity(new DrawingMutationError
+                {
+                    Code = "drawing.npi_auth_required",
+                    Error = "Cần nhập tài khoản và mật khẩu thành viên NPI để xoá bản vẽ.",
+                });
+
+            // Verify the NPI-team credential. Generic failure — never reveal
+            // which of the three checks failed (enumeration defence).
+            var npiUser = await _db.Users.FirstOrDefaultAsync(u => u.Username == req.Username, ct);
+            var authorised =
+                npiUser is not null
+                && npiUser.IsActive
+                && DrawingsService.CanActAs(npiUser.Role, npiUser.Department, CCL.MES.Domain.DrawingApprovalRole.Npi)
+                && _hasher.VerifyHashedPassword(npiUser, npiUser.PasswordHash, req.Password) != PasswordVerificationResult.Failed;
+
+            if (!authorised)
+                return StatusCode(403, new DrawingMutationError
+                {
+                    Code = "drawing.npi_auth_failed",
+                    Error = "Tài khoản hoặc mật khẩu NPI không hợp lệ, hoặc tài khoản không thuộc NPI team.",
+                });
+
+            DrawingDeleteResult result;
+            try
+            {
+                result = await _svc.DeleteVersionAsync(
+                    revisionId: revisionId,
+                    versionId: versionId,
+                    authorizerUsername: npiUser!.Username,
+                    authorizerRole: npiUser.Role,
+                    reason: req.Reason,
+                    actor: ActorName(),
+                    actorRole: ActorRole(),
+                    ct: ct);
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)
+                                                       || ex.Message.Contains("does not belong", StringComparison.OrdinalIgnoreCase))
+            {
+                return NotFound(new DrawingMutationError
+                {
+                    Code = "drawing.not_found",
+                    Error = ex.Message,
+                });
+            }
+
+            await EmitDeviceAuditIfHeaderPresent("DRAWING_DELETE_DEVICE", new
+            {
+                revision_id = revisionId,
+                version_id = versionId,
+                drawing_id = result.DrawingId,
+                authorized_by = npiUser!.Username,
+                remaining_versions = result.RemainingVersions,
+            });
+
+            return Ok(new DrawingDeleteResponse
+            {
+                DrawingId = result.DrawingId,
+                RemainingVersions = result.RemainingVersions,
+                DrawingStatus = (CCL.MES.Shared.Drawings.DrawingSlotStatus)(int)result.DrawingStatus,
+            });
+        }
+        catch (Exception ex)
+        {
+            return Problem(title: "Drawing delete failed", detail: ex.Message, statusCode: 500);
         }
     }
 

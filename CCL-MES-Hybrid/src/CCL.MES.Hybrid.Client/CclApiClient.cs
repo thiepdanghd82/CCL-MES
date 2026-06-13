@@ -907,6 +907,27 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
             "Drawing decide returned 2xx but body was empty.");
     }
 
+    public async Task<DrawingDeleteResponse> DeleteDrawingVersionAsync(
+        long revisionId, long versionId, DrawingDeleteRequest req,
+        CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/specs/{revisionId}/drawings/{versionId}";
+        using var msg = new HttpRequestMessage(HttpMethod.Delete, path)
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(req),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        using var resp = await _http.SendAsync(msg, ct);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+
+        var body = await resp.Content.ReadFromJsonAsync<DrawingDeleteResponse>(cancellationToken: ct);
+        return body ?? throw new InvalidOperationException(
+            "Drawing delete returned 2xx but body was empty.");
+    }
+
     public async Task<long> DownloadDrawingToFileAsync(
         long revisionId, long versionId, string destinationFilePath,
         CancellationToken ct = default)

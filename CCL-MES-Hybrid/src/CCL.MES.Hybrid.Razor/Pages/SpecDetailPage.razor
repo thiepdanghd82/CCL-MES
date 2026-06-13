@@ -199,11 +199,13 @@ else if (_detail is not null && _vm is not null)
                     }
                     else if (_fullMode)
                     {
-                        <SpecShowcardFull Vm="(_vmFull ?? _vm)" DrawingPreviews="_drawingPreviews" />
+                        <SpecShowcardFull Vm="(_vmFull ?? _vm)" />
+                        <SpecDrawingShowcards Previews="_drawingPreviews" />
                     }
                     else
                     {
                         <SpecShowcardCompact Vm="_vm" />
+                        <SpecDrawingShowcards Previews="_drawingPreviews" />
                     }
                 }
                 break;
@@ -408,7 +410,7 @@ else if (_detail is not null && _vm is not null)
                     }
                     catch { /* preview is best-effort */ }
                 }
-                previews.Add(new SpecDrawingPreview(DrawingKindLabel(slot.Kind), name, isImage, isPdf, objUrl));
+                previews.Add(new SpecDrawingPreview(DrawingKindLabel(slot.Kind), name, isImage, isPdf, objUrl, DrawingKindGroup(slot.Kind)));
             }
             _drawingPreviews = previews;
             StateHasChanged();
@@ -460,6 +462,18 @@ else if (_detail is not null && _vm is not null)
         DrawingKindCode.CustomerApproval   => "Customer approval",
         DrawingKindCode.InternalProof      => "Internal proof",
         _                                  => kind.ToString(),
+    };
+
+    /// <summary>Bucket each drawing kind into one of the three collapsible
+    /// showcards below the spec sheet. Print/Cut references go with their
+    /// layout; everything customer-facing falls back to the Customer card.</summary>
+    private static SpecDrawingGroup DrawingKindGroup(DrawingKindCode kind) => kind switch
+    {
+        DrawingKindCode.NpiPrintLayout     => SpecDrawingGroup.Print,
+        DrawingKindCode.IpqcPrintReference => SpecDrawingGroup.Print,
+        DrawingKindCode.NpiCutLayout       => SpecDrawingGroup.Cut,
+        DrawingKindCode.IpqcCutReference   => SpecDrawingGroup.Cut,
+        _                                  => SpecDrawingGroup.Customer,
     };
 
     /// <summary>If the list page routed here with <c>?action=…</c>, pre-open

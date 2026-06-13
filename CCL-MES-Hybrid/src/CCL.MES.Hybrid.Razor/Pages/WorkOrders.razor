@@ -202,13 +202,13 @@ else
                             <button type="button" class="grid-btn" @onclick="ResetState" disabled="@_advancing">← Close WO</button>
                         </div>
                     </div>
-                    <div class="wo-card-row"><span class="wo-card-label">Customer</span><span class="wo-card-value">@(_summary.CustomerName ?? "—")</span></div>
                     <div class="wo-card-row"><span class="wo-card-label">Product code</span><span class="wo-card-value">@(_summary.ProductCode ?? "—")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Product</span><span class="wo-card-value">@(_summary.ProductName ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Part Desc</span><span class="wo-card-value">@(_summary.PartDescription ?? _summary.ProductName ?? "—")</span></div>
                     <div class="wo-card-row"><span class="wo-card-label">Machine</span><span class="wo-card-value">@(_summary.MachineCode ?? "—") @(_summary.MachineName is null ? "" : $"· {_summary.MachineName}")</span></div>
                     <div class="wo-card-row"><span class="wo-card-label">Target</span><span class="wo-card-value">@_summary.TargetQty @_summary.Uom</span></div>
                     <div class="wo-card-row"><span class="wo-card-label">Produced</span><span class="wo-card-value">@_summary.ProducedQty @_summary.Uom</span></div>
                     <div class="wo-card-row"><span class="wo-card-label">MES status</span><span class="wo-card-value scan-mono" data-testid="wo-card-phase-row">@MesPhaseDisplay(_summary)</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Customer</span><span class="wo-card-value">@(_summary.CustomerName ?? "—")</span></div>
 
                     @* P10.7a-1.4 — operator-grade success feedback. Today's
                        checkpoint surfaced that the operator tapped Accept
@@ -624,6 +624,20 @@ else
             capturedAt: scan.CapturedAt);
     }
 
+    /// <summary>IFS shop-order QR codes encode a multi-line payload:
+    /// <c>Shop Order No: 81091753 / Rel No: 4 / Seq No: 1 / Part No: 80640004
+    /// / Lot Size: 2000</c>. The WO number is the Shop Order No. Pull it out
+    /// so the lookup matches; a plain single value (manual entry / legacy QR)
+    /// has no "Shop Order No" line and passes through unchanged.</summary>
+    private static string ExtractWoCode(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return payload;
+        var m = System.Text.RegularExpressions.Regex.Match(
+            payload, @"shop\s*order\s*no\.?\s*[:#]?\s*([A-Za-z0-9\-_/]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return m.Success ? m.Groups[1].Value.Trim() : payload.Trim();
+    }
+
     private async Task ResolveAndShowAsync(
         string woCode, string format, string? sourceDeviceLabel, DateTimeOffset capturedAt)
     {
@@ -647,14 +661,19 @@ else
             Log.LogWarning(ex, "[workorders] scan-log POST failed — continuing with lookup");
         }
 
-        // Step 2 — lookup the WO by number.
+        // Step 2 — lookup the WO by number. IFS shop-order QR codes carry a
+        // multi-line payload ("Shop Order No: 81091753\nRel No: …\nPart No:
+        // 80640004\nLot Size: 2000"); extract the Shop Order No as the WO
+        // number. A plain code (no "Shop Order No" line) passes through
+        // unchanged so manual entry + legacy QR still work.
+        var lookupCode = ExtractWoCode(woCode);
         _lookingUp = true;
         try
         {
-            var summary = await Api.GetWorkOrderByNoAsync(woCode);
+            var summary = await Api.GetWorkOrderByNoAsync(lookupCode);
             if (summary is null)
             {
-                _lookupError = $"WO number \"{woCode}\" not found. Check the code or scan again.";
+                _lookupError = $"WO number \"{lookupCode}\" not found. Check the code or scan again.";
             }
             else
             {
@@ -684,11 +703,11 @@ else
         {
             RecentScans.Record(new RecentScanEntry
             {
-                Code = woCode,
+                Code = lookupCode,
                 Format = format,
                 Context = "wo-accept",
                 ScannedAt = DateTime.UtcNow,
-                ResolvedDisplay = _summary?.WoNo ?? woCode,
+                ResolvedDisplay = _summary?.WoNo ?? lookupCode,
                 ResolvedSubtitle = _summary is null
                     ? null
                     : $"{_summary.ProductCode ?? "—"} · {_summary.CustomerName ?? "—"}",

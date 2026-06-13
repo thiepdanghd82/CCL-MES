@@ -1,0 +1,196 @@
+@* P10.10 — drawings split out of the spec sheet into their own collapsible
+   showcards below it: Customer drawing / Print layout / Cut layout. Each card
+   header toggles its body open/closed. Each thumbnail opens a rich viewer
+   (zoom in/out, rotate, fit, fullscreen, open-external) reusing the blob URL
+   already built by the parent — no extra round-trip. *@
+@namespace CCL.MES.Hybrid.Razor.Shared
+@inject IJSRuntime JS
+
+@if (Previews is not null && Previews.Count > 0)
+{
+    <div class="spec-dwg-cards">
+        @foreach (var g in Groups)
+        {
+            var items = Previews.Where(p => p.Group == g.Group).ToList();
+            @if (items.Count > 0)
+            {
+                var open = IsOpen(g.Group);
+                <section class="spec-dwg-card @(open ? "is-open" : "is-closed")">
+                    <button type="button" class="spec-dwg-card-head"
+                            aria-expanded="@open"
+                            @onclick="() => Toggle(g.Group)">
+                        <span class="spec-dwg-card-caret">@(open ? "▾" : "▸")</span>
+                        <span class="spec-dwg-card-title">@g.Title</span>
+                        <span class="spec-dwg-card-count">@items.Count</span>
+                    </button>
+                    @if (open)
+                    {
+                        <div class="spec-dwg-card-body">
+                            <div class="spec-drawings-preview">
+                                @foreach (var d in items)
+                                {
+                                    <figure class="spec-drawing-fig">
+                                        <button type="button" class="dwg-thumb-btn"
+                                                title="Open — @d.Name"
+                                                @onclick="() => OpenViewer(d)">
+                                            @if (d.IsImage && !string.IsNullOrEmpty(d.ObjectUrl))
+                                            {
+                                                <img class="spec-drawing-img" src="@d.ObjectUrl" alt="@d.Name" loading="lazy" />
+                                            }
+                                            else if (d.IsPdf)
+                                            {
+                                                <span class="dwg-thumb-pdf">
+                                                    <span class="dwg-thumb-pdf-icon">📄</span>
+                                                    <span class="dwg-thumb-pdf-label">PDF</span>
+                                                    <span class="dwg-thumb-pdf-hint">Click to view</span>
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="spec-drawing-noimg">📄 @System.IO.Path.GetExtension(d.Name).TrimStart('.').ToUpperInvariant()</span>
+                                            }
+                                        </button>
+                                        <figcaption class="spec-drawing-cap">
+                                            <span class="spec-drawing-kind">@d.Kind</span>
+                                            <span class="spec-drawing-name" title="@d.Name">@d.Name</span>
+                                        </figcaption>
+                                    </figure>
+                                }
+                            </div>
+                        </div>
+                    }
+                </section>
+            }
+        }
+    </div>
+}
+
+@* ── Rich viewer overlay: zoom / rotate / fit / fullscreen / open-external ── *@
+@if (_viewer is not null)
+{
+    <div class="dwg-viewer-overlay" @onclick="CloseViewer">
+        <div class="dwg-viewer-box @(_full ? "is-full" : "")" @onclick:stopPropagation="true">
+            <div class="dwg-viewer-head">
+                <span class="dwg-viewer-title" title="@_viewer.Name">
+                    <span class="dwg-viewer-kind">@_viewer.Kind</span>
+                    <span class="dwg-viewer-name">@_viewer.Name</span>
+                </span>
+                <div class="dwg-viewer-tools" role="group" aria-label="Viewer controls">
+                    <button type="button" class="dwg-viewer-btn" title="Zoom out" @onclick="ZoomOut">−</button>
+                    <span class="dwg-viewer-zoom" title="Zoom level">@ZoomPct%</span>
+                    <button type="button" class="dwg-viewer-btn" title="Zoom in" @onclick="ZoomIn">+</button>
+                    <button type="button" class="dwg-viewer-btn" title="Rotate 90°" @onclick="Rotate">⟳</button>
+                    <button type="button" class="dwg-viewer-btn" title="Fit / reset (100%)" @onclick="ResetView">⤢</button>
+                    <button type="button" class="dwg-viewer-btn" title="@(_full ? "Exit fullscreen" : "Fullscreen")" @onclick="ToggleFull">@(_full ? "🗗" : "⛶")</button>
+                    @if (!string.IsNullOrEmpty(_viewer.ObjectUrl))
+                    {
+                        <button type="button" class="dwg-viewer-btn" title="Open in a new window" @onclick="OpenExternalAsync">↗</button>
+                    }
+                    <button type="button" class="dwg-viewer-btn dwg-viewer-close" title="Close" @onclick="CloseViewer">✕</button>
+                </div>
+            </div>
+            <div class="dwg-viewer-body">
+                @if (string.IsNullOrEmpty(_viewer.ObjectUrl))
+                {
+                    <div class="dwg-viewer-empty">No inline preview for this file — use “↓ Save” on the Drawings tab.</div>
+                }
+                else if (_viewer.IsImage)
+                {
+                    <img class="dwg-viewer-img"
+                         src="@_viewer.ObjectUrl" alt="@_viewer.Name"
+                         style="width:@(ZoomPct)%; transform: rotate(@(_rot)deg);" />
+                }
+                else
+                {
+                    @* PDF rasterised by PDF.js into canvases (blob PDFs render
+                       blank in a WKWebView iframe). *@
+                    <div id="@PdfHostId" class="dwg-pdf-host">
+                        <div class="dwg-viewer-empty">Rendering…</div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>The previews to bucket into the three showcards. Null/empty =
+    /// nothing renders.</summary>
+    [Parameter] public IReadOnlyList<SpecDrawingPreview>? Previews { get; set; }
+
+    private sealed record GroupDef(SpecDrawingGroup Group, string Title);
+
+    // Fixed display order requested by Henry.
+    private static readonly GroupDef[] Groups =
+    {
+        new(SpecDrawingGroup.Customer, "Customer drawing"),
+        new(SpecDrawingGroup.Print,    "Print layout"),
+        new(SpecDrawingGroup.Cut,      "Cut layout"),
+    };
+
+    // Cards start expanded; the header click collapses/re-expands them.
+    private readonly HashSet<SpecDrawingGroup> _collapsed = new();
+
+    private bool IsOpen(SpecDrawingGroup g) => !_collapsed.Contains(g);
+
+    private void Toggle(SpecDrawingGroup g)
+    {
+        if (!_collapsed.Remove(g)) _collapsed.Add(g);
+    }
+
+    // ── Viewer state ─────────────────────────────────────────────────
+    private const string PdfHostId = "dwg-pdf-host";
+    private SpecDrawingPreview? _viewer;
+    private double _zoom = 1.0;   // 1.0 = 100%
+    private int _rot;             // 0 / 90 / 180 / 270
+    private bool _full;
+    private bool _pdfDirty;       // re-render the PDF canvases after the next paint
+
+    private int ZoomPct => (int)Math.Round(_zoom * 100);
+
+    private void OpenViewer(SpecDrawingPreview d)
+    {
+        _viewer = d;
+        _zoom = 1.0;
+        _rot = 0;
+        _full = false;
+        if (d.IsPdf) _pdfDirty = true;
+    }
+
+    private async Task CloseViewer()
+    {
+        var url = _viewer?.ObjectUrl;
+        var wasPdf = _viewer?.IsPdf ?? false;
+        _viewer = null;
+        if (wasPdf && !string.IsNullOrEmpty(url))
+        {
+            try { await JS.InvokeVoidAsync("cclMesPdf.dispose", url); } catch { /* noop */ }
+        }
+    }
+
+    private void ZoomIn()  { _zoom = Math.Min(5.0, Math.Round(_zoom * 1.25, 4)); MarkPdfDirty(); }
+    private void ZoomOut() { _zoom = Math.Max(0.25, Math.Round(_zoom / 1.25, 4)); MarkPdfDirty(); }
+    private void ResetView() { _zoom = 1.0; _rot = 0; MarkPdfDirty(); }
+    private void Rotate() { _rot = (_rot + 90) % 360; MarkPdfDirty(); }
+    private void ToggleFull() { _full = !_full; MarkPdfDirty(); }
+
+    private void MarkPdfDirty() { if (_viewer?.IsPdf ?? false) _pdfDirty = true; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_pdfDirty && _viewer is { IsPdf: true, ObjectUrl: { Length: > 0 } url })
+        {
+            _pdfDirty = false;
+            try { await JS.InvokeAsync<int>("cclMesPdf.render", PdfHostId, url, _zoom, _rot); }
+            catch { /* best-effort; the host shows the fallback message */ }
+        }
+    }
+
+    private async Task OpenExternalAsync()
+    {
+        if (_viewer?.ObjectUrl is { Length: > 0 } url)
+        {
+            try { await JS.InvokeVoidAsync("cclMesDrawings.openInNewWindow", url); } catch { /* best-effort */ }
+        }
+    }
+}

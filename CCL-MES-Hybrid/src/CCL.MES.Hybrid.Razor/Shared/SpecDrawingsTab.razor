@@ -97,16 +97,25 @@ else
                                     }
                                 </span>
 
-                                <button type="button" class="grid-btn grid-btn-primary drawing-dl-btn"
-                                        disabled="@dl"
-                                        @onclick="() => OnOpenAsync(slot, v)">
-                                    @(dl ? "Opening…" : "↗ Open")
-                                </button>
-                                <button type="button" class="grid-btn drawing-dl-btn"
-                                        disabled="@dl" title="Save a copy to this device"
-                                        @onclick="() => OnDownloadAsync(slot, v)">
-                                    ↓ Save
-                                </button>
+                                <div class="drawing-version-actions">
+                                    <button type="button" class="grid-btn grid-btn-primary drawing-dl-btn"
+                                            disabled="@dl"
+                                            @onclick="() => OnOpenAsync(slot, v)">
+                                        @(dl ? "Opening…" : "↗ Open")
+                                    </button>
+                                    <button type="button" class="grid-btn drawing-dl-btn"
+                                            disabled="@dl" title="Save a copy to this device"
+                                            @onclick="() => OnDownloadAsync(slot, v)">
+                                        ↓ Save
+                                    </button>
+                                    <AuthorizeView Roles="Admin,Engineer" Context="del">
+                                        <button type="button" class="grid-btn drawing-dl-btn drawing-del-btn"
+                                                disabled="@dl" title="Delete this version (NPI password required)"
+                                                @onclick="() => OpenDeleteModal(slot, v)">
+                                            🗑 Delete
+                                        </button>
+                                    </AuthorizeView>
+                                </div>
                             </div>
                         }
                     }
@@ -139,6 +148,60 @@ else
                 {
                     <iframe class="drawing-preview-frame" src="@_previewUrl" title="@_previewName"></iframe>
                 }
+            </div>
+        </div>
+    </div>
+}
+
+@* P10.10 — Delete-version modal. Requires an NPI-team member's
+   username + password (verified server-side) before the version's blob +
+   metadata are removed. Optional reason is recorded in the audit row. *@
+@if (_deleteOpen && _deleteVersion is not null && _deleteSlot is not null)
+{
+    <div class="modal-scrim" @onclick="CloseDeleteModal">
+        <div class="modal-card modal-sm modal-severity-danger" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <span class="modal-title">Delete drawing version</span>
+                <button type="button" class="modal-close" @onclick="CloseDeleteModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="drawing-del-target">
+                    @KindLabel(_deleteSlot.Kind) · <span class="spec-mono">v@_deleteVersion.VersionNo</span>
+                    — <span class="spec-mono">@DrawingDisplayName(_deleteVersion)</span>
+                </p>
+                <p class="drawing-del-warn">
+                    Hành động này xoá vĩnh viễn bản vẽ. Cần xác thực bằng tài khoản
+                    thuộc <strong>NPI team</strong>.
+                </p>
+                @if (_deleteError is not null)
+                {
+                    <div class="modal-banner modal-banner-error" role="alert">@_deleteError</div>
+                }
+                <div class="modal-field">
+                    <label>Tài khoản NPI</label>
+                    <input class="modal-input" type="text" autocomplete="off"
+                           placeholder="username" disabled="@_deleteBusy"
+                           @bind="_deleteUser" @bind:event="oninput" />
+                </div>
+                <div class="modal-field">
+                    <label>Mật khẩu</label>
+                    <input class="modal-input" type="password" autocomplete="off"
+                           placeholder="••••••••" disabled="@_deleteBusy"
+                           @bind="_deletePassword" @bind:event="oninput" />
+                </div>
+                <div class="modal-field">
+                    <label>Lý do (tuỳ chọn)</label>
+                    <input class="modal-input" type="text" disabled="@_deleteBusy"
+                           placeholder="Ví dụ: upload nhầm file" @bind="_deleteReason" />
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button type="button" class="grid-btn" disabled="@_deleteBusy" @onclick="CloseDeleteModal">Huỷ</button>
+                <button type="button" class="grid-btn grid-btn-danger"
+                        disabled="@(_deleteBusy || string.IsNullOrWhiteSpace(_deleteUser) || string.IsNullOrWhiteSpace(_deletePassword))"
+                        @onclick="ConfirmDeleteAsync">
+                    @(_deleteBusy ? "Đang xoá…" : "Xoá bản vẽ")
+                </button>
             </div>
         </div>
     </div>
@@ -362,6 +425,88 @@ else
         ".svg" => "image/svg+xml",
         _ => "application/octet-stream",
     };
+
+    // ── P10.10 — delete-version modal (NPI password gate) ────────────
+    private bool _deleteOpen;
+    private DrawingKindSlot? _deleteSlot;
+    private DrawingVersionView? _deleteVersion;
+    private string _deleteUser = "";
+    private string _deletePassword = "";
+    private string _deleteReason = "";
+    private bool _deleteBusy;
+    private string? _deleteError;
+
+    private void OpenDeleteModal(DrawingKindSlot slot, DrawingVersionView v)
+    {
+        _deleteSlot = slot;
+        _deleteVersion = v;
+        _deleteUser = "";
+        _deletePassword = "";
+        _deleteReason = "";
+        _deleteError = null;
+        _deleteBusy = false;
+        _deleteOpen = true;
+        StateHasChanged();
+    }
+
+    private void CloseDeleteModal()
+    {
+        if (_deleteBusy) return;   // don't dismiss mid-request
+        _deleteOpen = false;
+        _deleteSlot = null;
+        _deleteVersion = null;
+        _deletePassword = "";
+        _deleteError = null;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_deleteVersion is null || _deleteSlot is null) return;
+        if (string.IsNullOrWhiteSpace(_deleteUser) || string.IsNullOrWhiteSpace(_deletePassword)) return;
+
+        _deleteBusy = true;
+        _deleteError = null;
+        StateHasChanged();
+
+        var kindKey = _deleteSlot.Kind.ToString();
+        try
+        {
+            var req = new DrawingDeleteRequest
+            {
+                Username = _deleteUser.Trim(),
+                Password = _deletePassword,
+                Reason = string.IsNullOrWhiteSpace(_deleteReason) ? null : _deleteReason.Trim(),
+            };
+            await Api.DeleteDrawingVersionAsync(RevisionId, _deleteVersion.Id, req);
+
+            _noticeByKind[kindKey] = $"Đã xoá v{_deleteVersion.VersionNo} · {DrawingDisplayName(_deleteVersion)}.";
+            _deleteBusy = false;
+            _deleteOpen = false;
+            _deleteSlot = null;
+            _deleteVersion = null;
+            _deletePassword = "";
+            if (OnReloadRequested.HasDelegate) await OnReloadRequested.InvokeAsync();
+        }
+        catch (ApiException apiEx)
+        {
+            _deleteError = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+            _deleteBusy = false;
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex)
+        {
+            _deleteError = $"Không kết nối được máy chủ: {ex.Message}";
+            _deleteBusy = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            _deleteError = $"{ex.GetType().Name}: {ex.Message}";
+            _deleteBusy = false;
+            StateHasChanged();
+        }
+    }
 
     // ── P10.5e-2 — chip rendering + decide handlers ──────────────────
 

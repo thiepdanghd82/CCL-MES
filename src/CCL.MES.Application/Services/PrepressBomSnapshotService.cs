@@ -65,11 +65,18 @@ public sealed class PrepressBomSnapshotService
             });
         }
 
-        // Materials: snapshot from BOM IFF (a) no rows yet for this WO
-        // AND (b) ProductRevision link is intact AND (c) MS has rows for
-        // this product. Otherwise skip — operator fills via 7b-2 endpoint.
-        var hasMaterials = await _db.WoMaterials.AnyAsync(m => m.WorkOrderId == workOrderId, ct);
-        if (!hasMaterials && wo.ProductRevisionId is { } revId)
+        // Materials: re-sync from the IFS BOM (Structure) by BOM-line
+        // ordinal. The BOM-sourced columns (Part No / Description /
+        // Required / UOM / Scrap Factor / Scrap %) are refreshed from
+        // ManufacturingStructure every call, but the operator-entered
+        // columns (QtyLoaded / LotNo / Status / NG) are PRESERVED. We only
+        // write when something actually changed so the WO's optimistic
+        // ETag stays stable for concurrent operators. When the BOM lookup
+        // yields no rows (BOM not imported yet / no ProductRevision link)
+        // we leave any existing rows untouched — never wipe a snapshot
+        // just because the Structure is temporarily absent.
+        var dirty = false;
+        if (wo.ProductRevisionId is { } revId)
         {
             var revision = await _db.ProductRevisions
                 .Where(r => r.Id == revId)
@@ -87,29 +94,72 @@ public sealed class PrepressBomSnapshotService
                         .Where(ms => ms.ParentPart == productCode)
                         .OrderBy(ms => ms.Id)
                         .ToListAsync(ct);
-                    for (var i = 0; i < bomRows.Count; i++)
+
+                    if (bomRows.Count > 0)
                     {
-                        var ms = bomRows[i];
-                        _db.WoMaterials.Add(new WoMaterial
+                        var existing = await _db.WoMaterials
+                            .Where(m => m.WorkOrderId == workOrderId)
+                            .ToListAsync(ct);
+                        var byIdx = existing.ToDictionary(m => m.BomLineIdx);
+
+                        for (var i = 0; i < bomRows.Count; i++)
                         {
-                            WorkOrderId = workOrderId,
-                            BomLineIdx = i,
-                            MaterialCode = ms.ComponentPart,
-                            MaterialDescription = ms.ComponentDescription,
-                            // §5.3 baseline = QtyAssembly × TargetQty.
-                            // Scrap factor NOT applied here; scrap is policy.
-                            QtyRequired = ms.QtyAssembly * wo.TargetQty,
-                            Uom = ms.Uom,
-                            Status = PrepressCheckStatus.Pending,
-                            CreatedAt = now,
-                        });
-                        materialsInserted++;
+                            var ms = bomRows[i];
+                            var reqQty = ms.QtyAssembly * wo.TargetQty;
+
+                            if (byIdx.TryGetValue(i, out var row))
+                            {
+                                // Refresh BOM-sourced fields; keep operator fields.
+                                if (row.MaterialCode != ms.ComponentPart) { row.MaterialCode = ms.ComponentPart; dirty = true; }
+                                if (row.MaterialDescription != ms.ComponentDescription) { row.MaterialDescription = ms.ComponentDescription; dirty = true; }
+                                if (row.QtyRequired != reqQty) { row.QtyRequired = reqQty; dirty = true; }
+                                if (row.Uom != ms.Uom) { row.Uom = ms.Uom; dirty = true; }
+                                if (row.ScrapFactor != ms.ScrapFactor) { row.ScrapFactor = ms.ScrapFactor; dirty = true; }
+                                if (row.ScrapPercent != ms.ScrapPct) { row.ScrapPercent = ms.ScrapPct; dirty = true; }
+                            }
+                            else
+                            {
+                                _db.WoMaterials.Add(new WoMaterial
+                                {
+                                    WorkOrderId = workOrderId,
+                                    BomLineIdx = i,
+                                    MaterialCode = ms.ComponentPart,
+                                    MaterialDescription = ms.ComponentDescription,
+                                    // §5.3 baseline = QtyAssembly × TargetQty.
+                                    QtyRequired = reqQty,
+                                    Uom = ms.Uom,
+                                    ScrapFactor = ms.ScrapFactor,
+                                    ScrapPercent = ms.ScrapPct,
+                                    Status = PrepressCheckStatus.Pending,
+                                    CreatedAt = now,
+                                });
+                                materialsInserted++;
+                                dirty = true;
+                            }
+                        }
+
+                        // BOM shrank: drop trailing rows the operator hasn't
+                        // touched. Rows with recorded work are kept so we
+                        // never destroy an operator's entry.
+                        foreach (var row in existing.Where(m => m.BomLineIdx >= bomRows.Count))
+                        {
+                            if (row.Status == PrepressCheckStatus.Pending
+                                && row.QtyLoaded is null
+                                && string.IsNullOrEmpty(row.LotNo))
+                            {
+                                _db.WoMaterials.Remove(row);
+                                dirty = true;
+                            }
+                        }
                     }
                 }
             }
         }
 
-        await _db.SaveChangesAsync(ct);
+        // Save only when plate/cutter were inserted or the BOM re-sync
+        // actually changed something — keeps the WO ETag stable otherwise.
+        if (!hasPlate || !hasCutter || dirty)
+            await _db.SaveChangesAsync(ct);
         return materialsInserted;
     }
 }

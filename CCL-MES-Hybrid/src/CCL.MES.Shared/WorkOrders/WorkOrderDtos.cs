@@ -17,6 +17,10 @@ public sealed record WorkOrderSummary
     public string? CustomerName { get; init; }
     public string? ProductCode { get; init; }
     public string? ProductName { get; init; }
+    /// <summary>P10.10 — Part Description synced from the IFS BOM (Structure):
+    /// <c>ManufacturingStructure.ParentDescription</c> resolved by the WO's
+    /// product code. Falls back to null when the product has no Structure.</summary>
+    public string? PartDescription { get; init; }
     public string? MachineCode { get; init; }
     public string? MachineName { get; init; }
     public int TargetQty { get; init; }
