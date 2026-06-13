@@ -14,7 +14,9 @@
 @using System.Security.Claims
 @using CCL.MES.Application.Services.NpiImport
 @using CCL.MES.Web.Services
-@inject NpiImportService Importer
+@* Disambiguate: NpiImportService exists in both CCL.MES.Web.Services and
+   CCL.MES.Application.Services. This Web modal injects the Web service. *@
+@inject CCL.MES.Web.Services.NpiImportService Importer
 @inject IStringLocalizer<SharedResource> Loc
 @inject AuthenticationStateProvider AuthState
 

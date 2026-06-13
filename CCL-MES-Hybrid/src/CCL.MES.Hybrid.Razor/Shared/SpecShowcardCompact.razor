@@ -62,17 +62,16 @@ else
             <div class="spec-showcard-cell">
                 <dt>Process type</dt>
                 <dd>
-                    @if (Vm.IsSilkscreen)
+                    @* P10.10 — drive the process-type flag off the canonical
+                       planner so Indigo (HP) + Letterpress (LP) read correctly
+                       instead of "Other / generic". *@
+                    @switch (Vm.PlannerCode)
                     {
-                        <span class="spec-process-flag is-silk">Silk / Indigo</span>
-                    }
-                    else if (Vm.IsFlexo)
-                    {
-                        <span class="spec-process-flag is-flexo">Flexo</span>
-                    }
-                    else
-                    {
-                        <span class="spec-process-flag">Other / generic</span>
+                        case "SILK":   <span class="spec-process-flag is-silk">Silkscreen</span>       break;
+                        case "FLEXO":  <span class="spec-process-flag is-flexo">Flexo</span>            break;
+                        case "INDIGO": <span class="spec-process-flag is-indigo">Indigo (HP)</span>     break;
+                        case "LETTER": <span class="spec-process-flag is-letter">Letterpress</span>     break;
+                        default:       <span class="spec-process-flag">Other / generic</span>           break;
                     }
                 </dd>
             </div>

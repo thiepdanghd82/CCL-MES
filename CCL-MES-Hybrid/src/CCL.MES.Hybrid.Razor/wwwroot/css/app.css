@@ -1908,8 +1908,10 @@ html, body {
     font-size: 0.82rem;
 }
 
-.spec-process-flag.is-silk  { background: #fee2e2; color: #991b1b; }
-.spec-process-flag.is-flexo { background: #dbeafe; color: #1e3a8a; }
+.spec-process-flag.is-silk   { background: #fee2e2; color: #991b1b; }
+.spec-process-flag.is-flexo  { background: #dbeafe; color: #1e3a8a; }
+.spec-process-flag.is-indigo { background: #d1fae5; color: #065f46; }
+.spec-process-flag.is-letter { background: #fef3c7; color: #92400e; }
 
 .spec-showcard-section {
     background: #f9fafb;
