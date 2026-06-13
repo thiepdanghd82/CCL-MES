@@ -324,6 +324,10 @@ public interface ICclApiClient
     /// <summary>Copy a source spec into a new Draft revision.</summary>
     Task<SpecMutationResponse> CopySpecAsync(long sourceRevisionId, CopySpecMutation req, CancellationToken ct = default);
 
+    /// <summary>P10.10 — one-click duplicate: clone a source spec onto a fresh
+    /// product (own Rev A, blank IFS code) ready to edit inline.</summary>
+    Task<SpecMutationResponse> DuplicateSpecAsync(long sourceRevisionId, CancellationToken ct = default);
+
     /// <summary>Revise an Approved/Released → new Draft + parent lineage.
     /// Reason ≥5 chars enforced server-side; client UI validates first.</summary>
     Task<SpecMutationResponse> ReviseSpecAsync(long sourceRevisionId, ReviseSpecMutation req, CancellationToken ct = default);

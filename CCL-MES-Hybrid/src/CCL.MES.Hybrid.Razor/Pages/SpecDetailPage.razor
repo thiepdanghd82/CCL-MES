@@ -54,7 +54,7 @@
                         </button>
                     }
                     <button type="button" class="op-btn op-btn-secondary"
-                            disabled="@_busy" @onclick="() => OpenCopyAsync()">
+                            disabled="@_busy" @onclick="QuickCopyAsync">
                         ⎘ Copy
                     </button>
                     @if (_detail.Status == SpecRevisionStatus.Approved || _detail.Status == SpecRevisionStatus.Released)
@@ -819,6 +819,32 @@ else if (_detail is not null && _vm is not null)
         // Operator goes to the freshly-created Draft to keep authoring.
         Nav.NavigateTo($"/npi/specs/{resp.Id}");
         return Task.CompletedTask;
+    }
+
+    // P10.10 — one-click Copy: duplicate onto a fresh product (blank IFS code)
+    // and land straight in the inline editor, no intermediate modal.
+    private async Task QuickCopyAsync()
+    {
+        if (_busy || _detail is null) return;
+        _busy = true;
+        _busyAction = "copy";
+        _actionBanner = null;
+        try
+        {
+            var resp = await Api.DuplicateSpecAsync(_detail.Id);
+            Nav.NavigateTo($"/npi/specs/{resp.Id}?action=edit");
+        }
+        catch (ApiException apiEx)
+        {
+            _actionBanner = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+            _actionBannerIsError = true;
+        }
+        catch (Exception ex)
+        {
+            _actionBanner = $"{ex.GetType().Name}: {ex.Message}";
+            _actionBannerIsError = true;
+        }
+        finally { _busy = false; }
     }
 
     private Task OnRevisedAsync(SpecMutationResponse resp)

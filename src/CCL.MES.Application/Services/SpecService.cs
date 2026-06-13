@@ -457,6 +457,77 @@ public class SpecService
     }
 
     /// <summary>
+    /// P10.10 — one-click "Copy" → an independent editable duplicate. Unlike
+    /// <see cref="CopyAsync"/> (operator picks a target product + a unique spec
+    /// code), this clones the source onto a BRAND-NEW product row (ProductCode
+    /// is not unique) so the copy owns its own Rev A and the operator can edit
+    /// Part No / Customer / Part Name without disturbing the source. SpecCode
+    /// (the app's "IFS code") starts BLANK; Title gets a " (copy)" suffix. The
+    /// caller then opens it in the inline editor. Content is deep-cloned via
+    /// the shared <see cref="CloneSpecContent"/> helper.
+    /// </summary>
+    public async Task<CopyResult> DuplicateAsync(long sourceRevisionId, string? user)
+    {
+        var src = await _db.ProductRevisions
+            .Include(rev => rev.Product).ThenInclude(p => p!.Customer)
+            .Include(rev => rev.Material)
+            .Include(rev => rev.Print).ThenInclude(p => p!.Colors)
+            .Include(rev => rev.Print).ThenInclude(p => p!.FlexoCuttingRows)
+            .Include(rev => rev.Print).ThenInclude(p => p!.FlexoInkRows)
+            .Include(rev => rev.Diecut)
+            .Include(rev => rev.Finishing)
+            .Include(rev => rev.QcWindows).ThenInclude(w => w.Criteria)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(rev => rev.Id == sourceRevisionId);
+        if (src is null) return CopyResult.SourceNotFound();
+
+        var customerId = src.Product?.CustomerId ?? 0;
+        if (customerId == 0)
+        {
+            var fallback = await ResolveCustomerAsync(src.Product?.Customer?.Name);
+            customerId = fallback.Id;
+        }
+        var newProduct = new Product
+        {
+            ProductCode = src.Product?.ProductCode ?? "",
+            Name = string.IsNullOrWhiteSpace(src.Product?.Name) ? src.Title : src.Product!.Name,
+            CustomerId = customerId,
+        };
+        _db.Products.Add(newProduct);
+        await _db.SaveChangesAsync();
+
+        var dest = new ProductRevision
+        {
+            ProductId        = newProduct.Id,
+            SpecCode         = "",                 // IFS code blank — fill on edit
+            Title            = string.IsNullOrWhiteSpace(src.Title) ? "(copy)" : $"{src.Title} (copy)",
+            RevisionCode     = "A",
+            Status           = ProductRevisionStatus.Draft,
+            ParentRevisionId = null,
+            ChangeSummary    = null,
+            RefNo            = src.RefNo,
+            InspectionLevel  = src.InspectionLevel,
+        };
+        var (qcWindowCount, qcCriterionCount) = CloneSpecContent(src, dest);
+        _db.ProductRevisions.Add(dest);
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.SpecCopy, user ?? "anonymous", actorRole: "",
+            targetType: "ProductRevision", targetId: dest.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                source_id   = src.Id,
+                new_id      = dest.Id,
+                new_product = newProduct.Id,
+                mode        = "duplicate",
+                qc_windows  = qcWindowCount,
+                qc_criteria = qcCriterionCount,
+            }));
+        return CopyResult.Ok(dest);
+    }
+
+    /// <summary>
     /// Phase 8 PR-L2 — Single source of clone logic shared between
     /// <see cref="CopyAsync"/> and <see cref="ReviseAsync"/>. Deep-clones
     /// SOURCE content into DEST per the approved Q6 rule:
@@ -673,6 +744,7 @@ public class SpecService
     public async Task<UpdateResult> UpdateAsync(long revisionId, UpdateSpecRequest r, string? user)
     {
         var rev = await _db.ProductRevisions
+            .Include(x => x.Product).ThenInclude(p => p!.Customer)
             .Include(x => x.Material)
             .Include(x => x.Print).ThenInclude(p => p!.Colors)
             .Include(x => x.Print).ThenInclude(p => p!.FlexoInkRows)
@@ -686,6 +758,33 @@ public class SpecService
         {
             rev.Title = r.Title;
             changed.Add("title");
+        }
+
+        // P10.10 — identity header. SpecCode = the app's "IFS code". Customer /
+        // PartNo / PartName patch the revision's product in place (the inline
+        // editor is reached on a freshly-created / copied / drafted product,
+        // owned by this revision, so an in-place edit is isolated).
+        if (r.SpecCode is not null && r.SpecCode != rev.SpecCode)
+        {
+            rev.SpecCode = r.SpecCode;
+            changed.Add("spec_code");
+        }
+        if (rev.Product is not null)
+        {
+            if (r.PartNo is not null && r.PartNo != rev.Product.ProductCode)
+            { rev.Product.ProductCode = r.PartNo; changed.Add("part_no"); }
+            if (r.PartName is not null && r.PartName != rev.Product.Name)
+            { rev.Product.Name = r.PartName; changed.Add("part_name"); }
+            if (r.Customer is not null)
+            {
+                var cname = r.Customer.Trim();
+                if (!string.Equals(cname, rev.Product.Customer?.Name, StringComparison.Ordinal))
+                {
+                    var customer = await ResolveCustomerAsync(cname);
+                    rev.Product.CustomerId = customer.Id;
+                    changed.Add("customer");
+                }
+            }
         }
         if (r.RefNo is not null && r.RefNo != rev.RefNo)
         {

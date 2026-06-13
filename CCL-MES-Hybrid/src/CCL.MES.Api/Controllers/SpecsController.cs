@@ -251,6 +251,44 @@ public sealed class SpecsController : ControllerBase
         }
     }
 
+    // P10.10 — one-click duplicate: clones the source onto a fresh product (own
+    // Rev A, blank IFS code) so the operator lands straight in the inline editor
+    // with everything editable. No body — everything is derived from the source.
+    [HttpPost("{revisionId:long}/duplicate")]
+    [Authorize(Policy = "NpiSpecWrite")]
+    public async Task<IActionResult> Duplicate(long revisionId)
+    {
+        try
+        {
+            var result = await _svc.DuplicateAsync(revisionId, ActorName());
+            switch (result.Kind)
+            {
+                case CopyResultKind.Ok:
+                    await EmitDeviceAuditIfHeaderPresent("SPEC_COPY_DEVICE", new
+                    {
+                        source_rev_id = revisionId,
+                        new_rev_id = result.Revision!.Id,
+                        mode = "duplicate",
+                    });
+                    return StatusCode(201, new SpecMutationResponse
+                    {
+                        Id = result.Revision!.Id,
+                        SpecCode = result.Revision.SpecCode,
+                        Revision = result.Revision.RevisionCode,
+                        ProductId = result.Revision.ProductId,
+                    });
+                case CopyResultKind.SourceNotFound:
+                    return NotFound(new SpecMutationError { Code = "not_found", Error = result.Error ?? "" });
+                default:
+                    return Problem("Unexpected duplicate result");
+            }
+        }
+        catch (Exception ex)
+        {
+            return Problem(title: "Spec duplicate failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
     [HttpPost("{revisionId:long}/revise")]
     [Authorize(Policy = "NpiSpecWrite")]
     public async Task<IActionResult> Revise(long revisionId, [FromBody] ReviseSpecMutation r)
@@ -438,6 +476,11 @@ public sealed class SpecsController : ControllerBase
                 InspectionLevel = r.InspectionLevel,
                 ProcessCode = r.ProcessCode,
                 ColorSpecJson = r.ColorSpecJson,
+                // P10.10 — identity header
+                SpecCode = r.SpecCode,
+                Customer = r.Customer,
+                PartNo = r.PartNo,
+                PartName = r.PartName,
                 // P10.10 — inline-edit fields
                 SubstrateType = r.SubstrateType,
                 AdhesiveType = r.AdhesiveType,

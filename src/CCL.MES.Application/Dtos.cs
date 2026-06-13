@@ -116,6 +116,13 @@ public class UpdateSpecRequest
     /// <summary>Optional ColorSpecJson replacement (caller supplies the full array). Null = leave unchanged.</summary>
     public string? ColorSpecJson { get; set; }
 
+    // P10.10 — identity header. SpecCode = app "IFS code"; Customer / PartNo /
+    // PartName patch the revision's product (Customer find-or-created).
+    public string? SpecCode { get; set; }
+    public string? Customer { get; set; }
+    public string? PartNo { get; set; }
+    public string? PartName { get; set; }
+
     // P10.10 — inline-edit additions. All existing columns (no migration).
     // Null = leave unchanged. Material scalars:
     public string? SubstrateType { get; set; }

@@ -40,7 +40,13 @@
     </div>
 
     <div class="spec-block-full">
-        <div class="spec-block-title-full">Product Information · Material</div>
+        <div class="spec-block-title-full">Product Information</div>
+        <div class="spec-edit-grid">
+            <label>IFS code<input class="spec-edit-input scan-mono" @bind="_m.SpecCode" /></label>
+            <label>Customer<input class="spec-edit-input" @bind="_m.Customer" /></label>
+            <label>Part No<input class="spec-edit-input scan-mono" @bind="_m.PartNo" /></label>
+            <label>Part Name<input class="spec-edit-input" @bind="_m.PartName" /></label>
+        </div>
         <div class="spec-edit-grid">
             <label>Material (substrate)<input class="spec-edit-input" @bind="_m.SubstrateType" /></label>
             <label>Adhesive<input class="spec-edit-input" @bind="_m.AdhesiveType" /></label>
@@ -218,6 +224,10 @@
                 RefNo = Trim(_m.RefNo),
                 InspectionLevel = Trim(_m.InspectionLevel),
                 ProcessCode = Trim(_m.ProcessCode),
+                SpecCode = Trim(_m.SpecCode),
+                Customer = Trim(_m.Customer),
+                PartNo = Trim(_m.PartNo),
+                PartName = Trim(_m.PartName),
                 SubstrateType = Trim(_m.SubstrateType),
                 AdhesiveType = Trim(_m.AdhesiveType),
                 ThicknessUm = ParseInt(_m.ThicknessUm),
@@ -265,6 +275,10 @@
         public string? RefNo { get; set; }
         public string? InspectionLevel { get; set; }
         public string? ProcessCode { get; set; }
+        public string? SpecCode { get; set; }
+        public string? Customer { get; set; }
+        public string? PartNo { get; set; }
+        public string? PartName { get; set; }
         public string? SubstrateType { get; set; }
         public string? AdhesiveType { get; set; }
         public string? ThicknessUm { get; set; }
@@ -286,6 +300,10 @@
                 RefNo = d.RefNo ?? "",
                 InspectionLevel = d.InspectionLevel ?? "",
                 ProcessCode = d.ProcessCode,
+                SpecCode = d.SpecCode,
+                Customer = d.CustomerName ?? "",
+                PartNo = d.ProductCode,
+                PartName = d.ProductName,
                 SubstrateType = d.SubstrateType ?? "",
                 AdhesiveType = d.AdhesiveType ?? "",
                 ThicknessUm = I(d.ThicknessUm),

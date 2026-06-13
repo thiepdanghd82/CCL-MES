@@ -70,6 +70,14 @@ public sealed record UpdateSpecMutation
     public string? ProcessCode { get; init; }
     public string? ColorSpecJson { get; init; }
 
+    // P10.10 — identity header (editable in the inline editor). Null = leave
+    // unchanged. SpecCode IS the app's "IFS code" cell; Customer / PartNo /
+    // PartName patch the revision's product (Customer find-or-created).
+    public string? SpecCode { get; init; }
+    public string? Customer { get; init; }
+    public string? PartNo { get; init; }
+    public string? PartName { get; init; }
+
     // P10.10 — inline-edit additions (all existing entity columns, no
     // migration). Null = leave unchanged. Material scalars:
     public string? SubstrateType { get; init; }

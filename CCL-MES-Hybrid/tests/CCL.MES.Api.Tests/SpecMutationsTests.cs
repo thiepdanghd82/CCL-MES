@@ -285,6 +285,62 @@ public sealed class SpecMutationsTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
+    public async Task Duplicate_clones_onto_new_product_with_blank_ifs_code()
+    {
+        // P10.10 — one-click Copy → independent duplicate on a FRESH product
+        // (own Rev A, blank IFS code), ready to edit inline.
+        var client = await EngineerClientAsync("eng-dup1");
+        var pid = await SeedProductAsync("PRD-DUP1");
+        var created = await CreateSpecAsync(client, pid, "DUP1-001");
+
+        var resp = await client.PostAsync($"/api/v2/specs/{created.Id}/duplicate", content: null);
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<SpecMutationResponse>();
+        Assert.True(body!.Id > 0 && body.Id != created.Id);
+        Assert.NotEqual(pid, body.ProductId);                 // fresh product row
+        Assert.True(string.IsNullOrWhiteSpace(body.SpecCode)); // blank IFS code
+        Assert.Equal("A", body.Revision);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var rev = await db.ProductRevisions.FirstAsync(x => x.Id == body.Id);
+        Assert.EndsWith("(copy)", rev.Title);
+    }
+
+    [Fact]
+    public async Task Update_identity_header_patches_product_isolated_from_source()
+    {
+        // Editing IFS code / Customer / Part No / Part Name on a DUPLICATE
+        // patches the duplicate's own product without touching the source.
+        var client = await EngineerClientAsync("eng-ident");
+        var pid = await SeedProductAsync("PRD-IDENT");
+        var created = await CreateSpecAsync(client, pid, "IDENT-001");
+        var dupResp = await client.PostAsync($"/api/v2/specs/{created.Id}/duplicate", content: null);
+        var dup = await dupResp.Content.ReadFromJsonAsync<SpecMutationResponse>();
+
+        var upd = await client.PutAsJsonAsync($"/api/v2/specs/{dup!.Id}", new UpdateSpecMutation
+        {
+            SpecCode = "IFS-9999", Customer = "NEW CUSTOMER", PartNo = "NEW-PART-NO", PartName = "New Part Name",
+        });
+        Assert.Equal(HttpStatusCode.OK, upd.StatusCode);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var dupRev = await db.ProductRevisions.Include(x => x.Product).ThenInclude(p => p!.Customer)
+            .FirstAsync(x => x.Id == dup.Id);
+        Assert.Equal("IFS-9999", dupRev.SpecCode);
+        Assert.Equal("NEW-PART-NO", dupRev.Product!.ProductCode);
+        Assert.Equal("New Part Name", dupRev.Product.Name);
+        Assert.Equal("NEW CUSTOMER", dupRev.Product.Customer!.Name);
+
+        // Source untouched.
+        var srcRev = await db.ProductRevisions.Include(x => x.Product)
+            .FirstAsync(x => x.Id == created.Id);
+        Assert.Equal("PRD-IDENT", srcRev.Product!.ProductCode);
+        Assert.NotEqual(dupRev.ProductId, srcRev.ProductId);
+    }
+
+    [Fact]
     public async Task Approve_then_returns_200_with_status_Approved()
     {
         var client = await EngineerClientAsync("eng-app");
