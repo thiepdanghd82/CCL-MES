@@ -308,6 +308,29 @@ public sealed class SpecMutationsTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
+    public async Task NewVersion_clones_next_rev_on_same_product_keeps_ifs_code()
+    {
+        // P10.10 — "Update ver": next revision of THIS spec on the SAME product,
+        // keeping the IFS code, linked to the source.
+        var client = await EngineerClientAsync("eng-ver");
+        var pid = await SeedProductAsync("PRD-VER");
+        var created = await CreateSpecAsync(client, pid, "VER-001");
+
+        var resp = await client.PostAsync($"/api/v2/specs/{created.Id}/new-version", content: null);
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<SpecMutationResponse>();
+        Assert.Equal(pid, body!.ProductId);          // SAME product
+        Assert.Equal("B", body.Revision);            // next rev letter
+        Assert.Equal("VER-001", body.SpecCode);      // IFS code preserved
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var rev = await db.ProductRevisions.FirstAsync(x => x.Id == body.Id);
+        Assert.Equal(created.Id, rev.ParentRevisionId);   // lineage to source
+        Assert.Equal(ProductRevisionStatus.Draft, rev.Status);
+    }
+
+    [Fact]
     public async Task Update_identity_header_patches_product_isolated_from_source()
     {
         // Editing IFS code / Customer / Part No / Part Name on a DUPLICATE

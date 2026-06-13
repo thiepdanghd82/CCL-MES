@@ -289,6 +289,43 @@ public sealed class SpecsController : ControllerBase
         }
     }
 
+    // P10.10 — "Update ver": clone the source as the NEXT revision on the SAME
+    // product (keeps IFS code, lineage), Draft, ready to edit inline. No body.
+    [HttpPost("{revisionId:long}/new-version")]
+    [Authorize(Policy = "NpiSpecWrite")]
+    public async Task<IActionResult> NewVersion(long revisionId)
+    {
+        try
+        {
+            var result = await _svc.NewVersionAsync(revisionId, ActorName());
+            switch (result.Kind)
+            {
+                case CopyResultKind.Ok:
+                    await EmitDeviceAuditIfHeaderPresent("SPEC_COPY_DEVICE", new
+                    {
+                        source_rev_id = revisionId,
+                        new_rev_id = result.Revision!.Id,
+                        mode = "new_version",
+                    });
+                    return StatusCode(201, new SpecMutationResponse
+                    {
+                        Id = result.Revision!.Id,
+                        SpecCode = result.Revision.SpecCode,
+                        Revision = result.Revision.RevisionCode,
+                        ProductId = result.Revision.ProductId,
+                    });
+                case CopyResultKind.SourceNotFound:
+                    return NotFound(new SpecMutationError { Code = "not_found", Error = result.Error ?? "" });
+                default:
+                    return Problem("Unexpected new-version result");
+            }
+        }
+        catch (Exception ex)
+        {
+            return Problem(title: "Spec new-version failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
     [HttpPost("{revisionId:long}/revise")]
     [Authorize(Policy = "NpiSpecWrite")]
     public async Task<IActionResult> Revise(long revisionId, [FromBody] ReviseSpecMutation r)

@@ -54,7 +54,7 @@
                         </button>
                     }
                     <button type="button" class="op-btn op-btn-secondary"
-                            disabled="@_busy" @onclick="QuickCopyAsync">
+                            disabled="@_busy" @onclick="@(() => _copyChoiceOpen = true)">
                         ⎘ Copy
                     </button>
                     @if (_detail.Status == SpecRevisionStatus.Approved || _detail.Status == SpecRevisionStatus.Released)
@@ -235,6 +235,27 @@ else if (_detail is not null && _vm is not null)
 <EditSpecModal Open="_editOpen" Spec="_detail"
                OnClose="CloseEditAsync"
                OnUpdated="OnUpdatedAsync" />
+<Modal Open="_copyChoiceOpen" OnClose="@(() => { _copyChoiceOpen = false; return Task.CompletedTask; })"
+       Size="ModalSize.Sm" Severity="ModalSeverity.Info" ClickOutsideToClose="true">
+    <Header>Copy new Spec</Header>
+    <Body>
+        <p class="copy-choice-lead">How do you want to copy this spec?</p>
+        <div class="copy-choice-grid">
+            <button type="button" class="copy-choice-card" disabled="@_busy" @onclick="UpdateVerAsync">
+                <span class="copy-choice-title">🔁 Update ver</span>
+                <span class="copy-choice-sub">New version of THIS spec — same product &amp; IFS code, next revision (B, C…), linked to the current rev.</span>
+            </button>
+            <button type="button" class="copy-choice-card copy-choice-card-primary" disabled="@_busy" @onclick="NewCopyAsync">
+                <span class="copy-choice-title">✚ New</span>
+                <span class="copy-choice-sub">Brand-new independent spec — fresh product, blank IFS code. Edit everything freely.</span>
+            </button>
+        </div>
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary" disabled="@_busy"
+                @onclick="@(() => _copyChoiceOpen = false)">Cancel</button>
+    </Footer>
+</Modal>
 <CopySpecModal Open="_copyOpen" SourceSpec="_detail"
                OnClose="CloseCopyAsync"
                OnCopied="OnCopiedAsync" />
@@ -303,6 +324,7 @@ else if (_detail is not null && _vm is not null)
     private bool _actionBannerIsError;
     private bool _editOpen;
     private bool _specEditMode;   // P10.10 — inline edit on the Specification tab
+    private bool _copyChoiceOpen; // P10.10 — "Copy new Spec" Update-ver / New chooser
     private bool _copyOpen;
     private bool _reviseOpen;
     private bool _supersedeOpen;
@@ -328,8 +350,18 @@ else if (_detail is not null && _vm is not null)
 
     private bool IsActiveTab(string key) => string.Equals(_activeTab, key, StringComparison.OrdinalIgnoreCase);
 
-    protected override async Task OnInitializedAsync()
+    private long _loadedRevisionId;
+
+    // Load + apply the queued ?action on first render AND on every navigation to
+    // a different spec id. The component instance is REUSED when navigating
+    // spec→spec (e.g. after Copy/Revise), so OnInitializedAsync alone would not
+    // re-run — which left ?action=edit unapplied and the operator stuck on the
+    // read-only sheet (couldn't edit Customer / IFS code / Part No after Copy).
+    protected override async Task OnParametersSetAsync()
     {
+        if (RevisionId == _loadedRevisionId) return;
+        _loadedRevisionId = RevisionId;
+        _specEditMode = false;
         await LoadDetailAsync();
         ApplyQueuedAction();
     }
@@ -821,17 +853,22 @@ else if (_detail is not null && _vm is not null)
         return Task.CompletedTask;
     }
 
-    // P10.10 — one-click Copy: duplicate onto a fresh product (blank IFS code)
-    // and land straight in the inline editor, no intermediate modal.
-    private async Task QuickCopyAsync()
+    // P10.10 — "Copy new Spec" chooser. Both paths land in the inline editor.
+    //  · New        → independent duplicate on a fresh product (blank IFS code).
+    //  · Update ver → next revision of THIS spec on the same product.
+    private Task NewCopyAsync() => RunCopyAsync(() => Api.DuplicateSpecAsync(_detail!.Id));
+    private Task UpdateVerAsync() => RunCopyAsync(() => Api.NewVersionSpecAsync(_detail!.Id));
+
+    private async Task RunCopyAsync(Func<Task<SpecMutationResponse>> action)
     {
         if (_busy || _detail is null) return;
         _busy = true;
         _busyAction = "copy";
         _actionBanner = null;
+        _copyChoiceOpen = false;
         try
         {
-            var resp = await Api.DuplicateSpecAsync(_detail.Id);
+            var resp = await action();
             Nav.NavigateTo($"/npi/specs/{resp.Id}?action=edit");
         }
         catch (ApiException apiEx)

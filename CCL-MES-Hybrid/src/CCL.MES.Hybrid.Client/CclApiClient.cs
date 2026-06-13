@@ -697,6 +697,9 @@ public sealed class CclApiClient : ICclApiClient
     public Task<SpecMutationResponse> DuplicateSpecAsync(long sourceRevisionId, CancellationToken ct = default) =>
         SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{sourceRevisionId}/duplicate", body: null, ct);
 
+    public Task<SpecMutationResponse> NewVersionSpecAsync(long sourceRevisionId, CancellationToken ct = default) =>
+        SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{sourceRevisionId}/new-version", body: null, ct);
+
     public Task<SpecMutationResponse> ReviseSpecAsync(long sourceRevisionId, ReviseSpecMutation req, CancellationToken ct = default) =>
         SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{sourceRevisionId}/revise", req, ct);
 

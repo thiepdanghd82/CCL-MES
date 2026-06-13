@@ -2132,6 +2132,20 @@ html, body {
     color: #6b7280;
 }
 
+/* P10.10 — "Copy new Spec" chooser cards (Update ver / New). */
+.copy-choice-lead { margin: 0 0 12px; color: #374151; font-size: 0.95rem; }
+.copy-choice-grid { display: flex; flex-direction: column; gap: 10px; }
+.copy-choice-card {
+    display: flex; flex-direction: column; gap: 4px; text-align: left;
+    padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 8px;
+    background: white; cursor: pointer; transition: border-color .12s, box-shadow .12s, background .12s;
+}
+.copy-choice-card:hover:not(:disabled) { border-color: #1d4ed8; box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.10); }
+.copy-choice-card:disabled { opacity: .6; cursor: default; }
+.copy-choice-card-primary { border-color: #bfdbfe; background: #eff6ff; }
+.copy-choice-title { font-weight: 700; font-size: 0.98rem; color: #111827; }
+.copy-choice-sub { font-size: 0.82rem; color: #6b7280; line-height: 1.35; }
+
 /* P10.10 — field-level duplicate highlight. Red border + soft glow so the
    operator sees exactly which input collided (e.g. Part No already taken). */
 .modal-input-error {

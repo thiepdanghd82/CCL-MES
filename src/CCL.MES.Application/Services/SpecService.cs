@@ -528,6 +528,65 @@ public class SpecService
     }
 
     /// <summary>
+    /// P10.10 — "Update ver": a new VERSION of the same spec. Clones the source
+    /// onto the SAME product with the next revision letter (B, C, …), keeps the
+    /// IFS code (SpecCode is shared across a product's revisions), and links
+    /// back to the source via ParentRevisionId (lineage). Works on any source
+    /// status (unlike Revise which gates on Approved/Released). New rev is a
+    /// Draft; the source is left as-is. The caller opens it in the inline editor.
+    /// </summary>
+    public async Task<CopyResult> NewVersionAsync(long sourceRevisionId, string? user)
+    {
+        var src = await _db.ProductRevisions
+            .Include(rev => rev.Material)
+            .Include(rev => rev.Print).ThenInclude(p => p!.Colors)
+            .Include(rev => rev.Print).ThenInclude(p => p!.FlexoCuttingRows)
+            .Include(rev => rev.Print).ThenInclude(p => p!.FlexoInkRows)
+            .Include(rev => rev.Diecut)
+            .Include(rev => rev.Finishing)
+            .Include(rev => rev.QcWindows).ThenInclude(w => w.Criteria)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(rev => rev.Id == sourceRevisionId);
+        if (src is null) return CopyResult.SourceNotFound();
+
+        var existingCodes = await _db.ProductRevisions
+            .Where(rev => rev.ProductId == src.ProductId)
+            .Select(rev => rev.RevisionCode)
+            .ToListAsync();
+        var revCode = SpecRevisionHelpers.NextAvailableRev(existingCodes);
+
+        var dest = new ProductRevision
+        {
+            ProductId        = src.ProductId,
+            SpecCode         = src.SpecCode,        // same IFS code across the family
+            Title            = src.Title,
+            RevisionCode     = revCode,
+            Status           = ProductRevisionStatus.Draft,
+            ParentRevisionId = src.Id,              // lineage
+            ChangeSummary    = $"New version from rev {src.RevisionCode}",
+            RefNo            = src.RefNo,
+            InspectionLevel  = src.InspectionLevel,
+        };
+        var (qcWindowCount, qcCriterionCount) = CloneSpecContent(src, dest);
+        _db.ProductRevisions.Add(dest);
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.SpecCopy, user ?? "anonymous", actorRole: "",
+            targetType: "ProductRevision", targetId: dest.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                source_id    = src.Id,
+                new_id       = dest.Id,
+                new_rev      = dest.RevisionCode,
+                mode         = "new_version",
+                qc_windows   = qcWindowCount,
+                qc_criteria  = qcCriterionCount,
+            }));
+        return CopyResult.Ok(dest);
+    }
+
+    /// <summary>
     /// Phase 8 PR-L2 — Single source of clone logic shared between
     /// <see cref="CopyAsync"/> and <see cref="ReviseAsync"/>. Deep-clones
     /// SOURCE content into DEST per the approved Q6 rule:

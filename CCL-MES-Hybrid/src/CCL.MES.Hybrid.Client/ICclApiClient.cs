@@ -328,6 +328,10 @@ public interface ICclApiClient
     /// product (own Rev A, blank IFS code) ready to edit inline.</summary>
     Task<SpecMutationResponse> DuplicateSpecAsync(long sourceRevisionId, CancellationToken ct = default);
 
+    /// <summary>P10.10 — "Update ver": clone the source as the next revision on
+    /// the same product (keeps IFS code, lineage) ready to edit inline.</summary>
+    Task<SpecMutationResponse> NewVersionSpecAsync(long sourceRevisionId, CancellationToken ct = default);
+
     /// <summary>Revise an Approved/Released → new Draft + parent lineage.
     /// Reason ≥5 chars enforced server-side; client UI validates first.</summary>
     Task<SpecMutationResponse> ReviseSpecAsync(long sourceRevisionId, ReviseSpecMutation req, CancellationToken ct = default);
