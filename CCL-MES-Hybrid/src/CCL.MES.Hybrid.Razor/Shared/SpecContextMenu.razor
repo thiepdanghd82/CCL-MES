@@ -40,11 +40,8 @@
             <span class="spec-ctx-ico">⎘</span>
             <span>Copy</span>
         </button>
-        <button type="button" class="spec-ctx-item"
-                @onclick="() => RequestEditClassAsync(SpecMutationAction.Revise)">
-            <span class="spec-ctx-ico">⟳</span>
-            <span>Create new version (Revise)</span>
-        </button>
+        @* P10.10 — "Create new version (Revise)" removed: the new-version flow
+           now lives inside the Copy chooser ("Update ver"). *@
         <button type="button" class="spec-ctx-item"
                 @onclick="() => RequestEditClassAsync(SpecMutationAction.Supersede)">
             <span class="spec-ctx-ico">⊘</span>
