@@ -1191,6 +1191,31 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
         return await ReadAsAsync<RestoreResultDto>(resp, ct);
     }
 
+    // ── Scheduled backup (P-Backup) ─────────────────────────────────
+
+    public async Task<BackupScheduleStatusDto> GetBackupScheduleAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/backup/schedule", ct);
+        return await ReadAsAsync<BackupScheduleStatusDto>(resp, ct);
+    }
+
+    public async Task<BackupScheduleStatusDto> SetBackupScheduleAsync(
+        BackupScheduleUpdateRequest req, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Put, $"/{ApiVersion.Prefix}/backup/schedule")
+        {
+            Content = JsonContent.Create(req),
+        };
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<BackupScheduleStatusDto>(resp, ct);
+    }
+
+    public async Task<BackupRunResultDto> RunBackupNowAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.PostAsync($"/{ApiVersion.Prefix}/backup/run-now", content: null, ct);
+        return await ReadAsAsync<BackupRunResultDto>(resp, ct);
+    }
+
     /// <summary>
     /// Shared helper for the 4 export endpoints — GETs the server URL with
     /// <see cref="HttpCompletionOption.ResponseHeadersRead"/> so the body

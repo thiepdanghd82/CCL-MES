@@ -62,6 +62,91 @@
 </section>
 
 <section class="settings-form-card is-wide" style="margin-top:16px">
+    <h2 class="settings-group-title">Scheduled backup</h2>
+    <p class="settings-form-help">
+        Automated nightly snapshot + blob archive + integrity verify. Choose the
+        run hour (ICT) and retention. The off-site copy is a separate cron job
+        (<code>scripts/backup-offsite</code>).
+    </p>
+
+    @if (_schedLoading)
+    {
+        <p class="settings-form-help">Loading…</p>
+    }
+    else if (_sched is not null)
+    {
+        <dl class="backup-status-grid">
+            <dt>Status</dt>
+            <dd>@(_sched.Enabled ? "Enabled" : "Disabled")</dd>
+            <dt>Next run</dt>
+            <dd>
+                @(_sched.Enabled && _sched.NextRunAtUtc is not null
+                    ? _sched.NextRunAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture)
+                    : "—")
+            </dd>
+            <dt>Last run</dt>
+            <dd>
+                @if (_sched.LastRunAtUtc is null)
+                {
+                    <span>Never (this session)</span>
+                }
+                else
+                {
+                    <span>
+                        @_sched.LastRunAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture)
+                        @(_sched.LastRunOk == true ? " ✔" : " ✗")
+                        @if (!string.IsNullOrEmpty(_sched.LastSqliteFile)) { <text> — </text><code>@_sched.LastSqliteFile</code> }
+                    </span>
+                }
+            </dd>
+            <dt>Blob archive</dt>
+            <dd>@(_sched.BlobsEnabled ? "on" : "off")</dd>
+            <dt>Alert webhook</dt>
+            <dd>@(_sched.WebhookConfigured ? "on" : "off")</dd>
+        </dl>
+
+        <div class="backup-sched-form">
+            <label class="backup-sched-check">
+                <input type="checkbox" @bind="_fEnabled" disabled="@_savingSched" />
+                Enable nightly backup
+            </label>
+            <label>
+                Hour (0–23, ICT)
+                <input type="number" min="0" max="23" @bind="_fHour" disabled="@_savingSched" />
+            </label>
+            <label>
+                Keep for (days)
+                <input type="number" min="1" max="3650" @bind="_fRetention" disabled="@_savingSched" />
+            </label>
+            <label>
+                Always keep (most recent)
+                <input type="number" min="1" max="1000" @bind="_fMinKeep" disabled="@_savingSched" />
+            </label>
+        </div>
+
+        <div class="backup-restore-row" style="margin-top:12px">
+            <button type="button" class="grid-btn grid-btn-primary"
+                    disabled="@(_savingSched || _runningNow)" @onclick="OnSaveSchedule">
+                @(_savingSched ? "Saving…" : "Save schedule")
+            </button>
+            <button type="button" class="grid-btn"
+                    disabled="@(_savingSched || _runningNow)" @onclick="OnRunNow">
+                @(_runningNow ? "Running…" : "Run backup now")
+            </button>
+        </div>
+
+        @if (_schedError is not null)
+        {
+            <div class="settings-form-error">@_schedError</div>
+        }
+        @if (_schedOk is not null)
+        {
+            <div class="settings-form-success">@_schedOk</div>
+        }
+    }
+</section>
+
+<section class="settings-form-card is-wide" style="margin-top:16px">
     <h2 class="settings-group-title">Restore from file</h2>
     <p class="settings-form-help">
         Upload a <code>.db</code> or <code>.bak</code> file created by
@@ -192,9 +277,107 @@
     // copy; matches the source row's FileName for ~1.5s after click.
     private string _shaCopiedFor = "";
 
+    // Scheduled-backup state.
+    private bool _schedLoading = true;
+    private BackupScheduleStatusDto? _sched;
+    private bool _fEnabled;
+    private int _fHour = 2;
+    private int _fRetention = 30;
+    private int _fMinKeep = 10;
+    private bool _savingSched;
+    private bool _runningNow;
+    private string? _schedError;
+    private string? _schedOk;
+
     protected override async Task OnInitializedAsync()
     {
         await Reload();
+        await LoadSchedule();
+    }
+
+    private async Task LoadSchedule()
+    {
+        _schedLoading = true;
+        _schedError = null;
+        try
+        {
+            _sched = await Api.GetBackupScheduleAsync();
+            _fEnabled = _sched.Enabled;
+            _fHour = _sched.Hour;
+            _fRetention = _sched.RetentionDays;
+            _fMinKeep = _sched.MinKeep;
+        }
+        catch (ApiException ex)
+        {
+            _schedError = $"Failed to load schedule: {ex.ApiError.Code} ({ex.StatusCode}).";
+        }
+        catch (Exception ex)
+        {
+            _schedError = $"Error: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _schedLoading = false;
+        }
+    }
+
+    private async Task OnSaveSchedule()
+    {
+        _savingSched = true;
+        _schedError = null;
+        _schedOk = null;
+        try
+        {
+            _sched = await Api.SetBackupScheduleAsync(new BackupScheduleUpdateRequest
+            {
+                Enabled = _fEnabled,
+                Hour = _fHour,
+                RetentionDays = _fRetention,
+                MinKeep = _fMinKeep,
+            });
+            _schedOk = "Schedule saved.";
+        }
+        catch (ApiException ex)
+        {
+            _schedError = $"Could not save: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _schedError = $"Error: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _savingSched = false;
+        }
+    }
+
+    private async Task OnRunNow()
+    {
+        _runningNow = true;
+        _schedError = null;
+        _schedOk = null;
+        try
+        {
+            var r = await Api.RunBackupNowAsync();
+            _schedOk = r.Ok
+                ? $"Backup completed: {r.SqliteFile} ({r.SqliteMb:F1} MB), pruned {r.Pruned}."
+                : null;
+            if (!r.Ok) _schedError = $"Backup failed: {r.Error ?? r.Integrity}";
+            await Reload();
+            await LoadSchedule();
+        }
+        catch (ApiException ex)
+        {
+            _schedError = $"Run failed: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _schedError = $"Error: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _runningNow = false;
+        }
     }
 
     private async Task Reload()

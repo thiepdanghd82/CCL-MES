@@ -522,4 +522,7 @@ public sealed class RecordingApi : ICclApiClient
     public Task<List<BackupSnapshotDto>> ListBackupsAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<BackupSnapshotDto> CreateBackupAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<RestoreResultDto> RestoreBackupAsync(Stream a, string b, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<BackupScheduleStatusDto> GetBackupScheduleAsync(CancellationToken c = default) => throw new NotImplementedException();
+    public Task<BackupScheduleStatusDto> SetBackupScheduleAsync(BackupScheduleUpdateRequest r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<BackupRunResultDto> RunBackupNowAsync(CancellationToken c = default) => throw new NotImplementedException();
 }

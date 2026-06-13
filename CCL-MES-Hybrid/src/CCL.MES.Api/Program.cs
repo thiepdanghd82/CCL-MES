@@ -352,6 +352,19 @@ builder.Services.AddScoped<CCL.MES.Api.Services.UserProfileService>();
 // itself does no auth (called only by the controller).
 builder.Services.AddSingleton<CCL.MES.Api.Services.BackupApiService>();
 
+// P-Backup — automated nightly backup worker (local "3 copies" of IBM
+// 3-2-1). OFF by default; enable via Settings → Backup or OPS_BACKUP_SCHEDULE=1.
+// Reuses BackupApiService's online-safe snapshot, verifies + prunes, alerts
+// via OPS_BACKUP_WEBHOOK. Off-site copy = scripts/backup-offsite.{sh,ps1}.
+// Registered as a singleton so BackupController can inject it for
+// status / schedule-edit / run-now, then backed by the hosted service.
+builder.Services.AddHttpClient(); // IHttpClientFactory for webhook alerts
+builder.Services.AddSingleton<CCL.MES.Api.Services.BackupScheduleStore>();
+builder.Services.AddScoped<CCL.MES.Api.Services.BackupVerifier>();
+builder.Services.AddSingleton<CCL.MES.Api.Services.BackupSchedulerService>();
+builder.Services.AddHostedService(sp =>
+    sp.GetRequiredService<CCL.MES.Api.Services.BackupSchedulerService>());
+
 // P10.6e — Admin Audit Log viewer + CSV/XLSX export. Scoped because
 // the service depends on IMesDbContext (per-request scope). The
 // IAuditLogExporter instances (CSV + XLSX) are already registered as

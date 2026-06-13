@@ -558,6 +558,19 @@ public interface ICclApiClient
     /// Throws <see cref="ApiException"/> on 403 / 422 with a stable
     /// <c>backup.*</c> error code.</summary>
     Task<RestoreResultDto> RestoreBackupAsync(Stream content, string fileName, CancellationToken ct = default);
+
+    // ── Scheduled backup — Admin-only (P-Backup) ────────────────────
+    /// <summary>Get the automated backup scheduler status (enabled, hour,
+    /// retention, next/last run).</summary>
+    Task<BackupScheduleStatusDto> GetBackupScheduleAsync(CancellationToken ct = default);
+
+    /// <summary>Edit the schedule (enable/hour/retention/min-keep). Persists
+    /// + re-arms the worker. Throws <see cref="ApiException"/> on 403 / 422
+    /// (<c>backup.invalid_schedule</c>).</summary>
+    Task<BackupScheduleStatusDto> SetBackupScheduleAsync(BackupScheduleUpdateRequest req, CancellationToken ct = default);
+
+    /// <summary>Run one backup cycle now (snapshot + blob + verify + prune).</summary>
+    Task<BackupRunResultDto> RunBackupNowAsync(CancellationToken ct = default);
 }
 
 /// <summary>
