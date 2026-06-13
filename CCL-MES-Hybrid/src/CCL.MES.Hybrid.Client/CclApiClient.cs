@@ -933,6 +933,16 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
         return new FileInfo(destinationFilePath).Length;
     }
 
+    public async Task<byte[]> DownloadDrawingBytesAsync(
+        long revisionId, long versionId, CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/specs/{revisionId}/drawings/{versionId}/file";
+        using var resp = await _http.GetAsync(path, ct);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+        return await resp.Content.ReadAsByteArrayAsync(ct);
+    }
+
     // ── QC Specs ────────────────────────────────────────────────────
 
     public async Task<Dictionary<string, QcWindowItem?>> GetQcWindowsByRevisionAsync(long revisionId, CancellationToken ct = default)

@@ -198,7 +198,7 @@ else if (_detail is not null && _vm is not null)
                     }
                     else if (_fullMode)
                     {
-                        <SpecShowcardFull Vm="(_vmFull ?? _vm)" />
+                        <SpecShowcardFull Vm="(_vmFull ?? _vm)" DrawingPreviews="_drawingPreviews" />
                     }
                     else
                     {
@@ -301,6 +301,9 @@ else if (_detail is not null && _vm is not null)
     private List<DrawingKindSlot>? _drawings;
     private bool _drawingsLoading;
     private string? _drawingsError;
+    private IReadOnlyList<SpecDrawingPreview>? _drawingPreviews;   // P10.10 — showcard image previews
+
+    private static readonly string[] _imageExts = { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp" };
 
     private Dictionary<string, QcWindowItem?>? _qcWindows;
     private bool _qcWindowsLoading;
@@ -362,9 +365,83 @@ else if (_detail is not null && _vm is not null)
         if (RevisionId == _loadedRevisionId) return;
         _loadedRevisionId = RevisionId;
         _specEditMode = false;
+        _drawingPreviews = null;
         await LoadDetailAsync();
         ApplyQueuedAction();
+        await BuildDrawingPreviewsAsync();
     }
+
+    // P10.10 — fetch image-drawing thumbnails (current version of each slot)
+    // for the spec showcard. Best-effort: failures/large/non-image files just
+    // render as labeled tiles. Names follow IFS_PartNo.
+    private async Task BuildDrawingPreviewsAsync()
+    {
+        if (_detail is null) return;
+        try
+        {
+            var slots = _drawings ?? await Api.GetDrawingsByRevisionAsync(RevisionId);
+            _drawings ??= slots.ToList();
+            var previews = new List<SpecDrawingPreview>();
+            foreach (var slot in slots)
+            {
+                if (slot.CurrentVersionId is null) continue;
+                var v = slot.Versions.FirstOrDefault(x => x.Id == slot.CurrentVersionId.Value);
+                if (v is null) continue;
+                var ext = System.IO.Path.GetExtension(v.FileName);
+                var isImage = _imageExts.Contains(ext.ToLowerInvariant());
+                var name = DrawingPreviewName(_detail.SpecCode, _detail.ProductCode, v.FileName);
+                string? dataUrl = null;
+                if (isImage && v.FileSize > 0 && v.FileSize <= 4 * 1024 * 1024)
+                {
+                    try
+                    {
+                        var bytes = await Api.DownloadDrawingBytesAsync(RevisionId, v.Id);
+                        dataUrl = $"data:{MimeForExt(ext)};base64,{Convert.ToBase64String(bytes)}";
+                    }
+                    catch { /* preview is best-effort */ }
+                }
+                previews.Add(new SpecDrawingPreview(DrawingKindLabel(slot.Kind), name, isImage, dataUrl));
+            }
+            _drawingPreviews = previews;
+            StateHasChanged();
+        }
+        catch { /* best-effort previews */ }
+    }
+
+    private static string DrawingPreviewName(string? ifs, string? part, string original)
+    {
+        var ext = System.IO.Path.GetExtension(original);
+        var i = (ifs ?? "").Trim(); var p = (part ?? "").Trim();
+        var b = i.Length > 0 && p.Length > 0 ? $"{i}_{p}"
+              : p.Length > 0 ? p : i.Length > 0 ? i : System.IO.Path.GetFileNameWithoutExtension(original);
+        var bad = System.IO.Path.GetInvalidFileNameChars();
+        var clean = new string(b.Select(c => bad.Contains(c) || c == ' ' ? '_' : c).ToArray());
+        return (string.IsNullOrWhiteSpace(clean) ? "drawing" : clean) + ext;
+    }
+
+    private static string MimeForExt(string ext) => ext.ToLowerInvariant() switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".gif" => "image/gif",
+        ".webp" => "image/webp",
+        ".bmp" => "image/bmp",
+        _ => "application/octet-stream",
+    };
+
+    private static string DrawingKindLabel(DrawingKindCode kind) => kind switch
+    {
+        DrawingKindCode.CustomerDrawing    => "Customer drawing",
+        DrawingKindCode.NpiPrintLayout     => "Print layout (NPI)",
+        DrawingKindCode.NpiCutLayout       => "Cut layout (NPI)",
+        DrawingKindCode.IpqcPrintReference => "IPQC Print reference",
+        DrawingKindCode.IpqcCutReference   => "IPQC Cut reference",
+        DrawingKindCode.FqcChecksheet      => "FQC Checksheet",
+        DrawingKindCode.OqcChecksheet      => "OQC Checksheet",
+        DrawingKindCode.CustomerApproval   => "Customer approval",
+        DrawingKindCode.InternalProof      => "Internal proof",
+        _                                  => kind.ToString(),
+    };
 
     /// <summary>If the list page routed here with <c>?action=…</c>, pre-open
     /// the matching mutation modal. Called after LoadDetailAsync so the
@@ -527,6 +604,8 @@ else if (_detail is not null && _vm is not null)
         catch (HttpRequestException ex) { _drawingsError = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _drawingsError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _drawingsLoading = false; }
+        // Refresh the showcard image previews after an upload/reload.
+        await BuildDrawingPreviewsAsync();
     }
 
     private async Task LoadQcWindowsAsync()
@@ -610,6 +689,8 @@ else if (_detail is not null && _vm is not null)
         __builder.AddAttribute(1, "RevisionId", RevisionId);
         __builder.AddAttribute(2, "Slots", _drawings);
         __builder.AddAttribute(3, "OnReloadRequested", EventCallback.Factory.Create(this, LoadDrawingsAsync));
+        __builder.AddAttribute(4, "IfsCode", _detail?.SpecCode);
+        __builder.AddAttribute(5, "PartNo", _detail?.ProductCode);
         __builder.CloseComponent();
     };
 

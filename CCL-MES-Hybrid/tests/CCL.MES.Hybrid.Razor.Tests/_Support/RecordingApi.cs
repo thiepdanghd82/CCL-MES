@@ -489,6 +489,7 @@ public sealed class RecordingApi : ICclApiClient
     public Task<SpecMutationResponse> CopySpecAsync(long s, CopySpecMutation r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> DuplicateSpecAsync(long s, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> NewVersionSpecAsync(long s, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<byte[]> DownloadDrawingBytesAsync(long r, long v, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> ReviseSpecAsync(long s, ReviseSpecMutation r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> SupersedeSpecAsync(long r, SupersedeSpecMutation req, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> TrashSpecAsync(long r, CancellationToken c = default) => throw new NotImplementedException();

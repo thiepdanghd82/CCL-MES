@@ -154,6 +154,33 @@ else
             </div>
         </text>)
 
+        @* ─── 3.5 Drawings (P10.10 — image previews + labels) ─────── *@
+        @if (DrawingPreviews is not null && DrawingPreviews.Count > 0)
+        {
+            <div class="spec-block-full">
+                <div class="spec-block-title-full">Drawings</div>
+                <div class="spec-drawings-preview">
+                    @foreach (var d in DrawingPreviews)
+                    {
+                        <figure class="spec-drawing-fig">
+                            @if (d.IsImage && !string.IsNullOrEmpty(d.ImageDataUrl))
+                            {
+                                <img class="spec-drawing-img" src="@d.ImageDataUrl" alt="@d.Name" loading="lazy" />
+                            }
+                            else
+                            {
+                                <div class="spec-drawing-noimg" title="Open it from the Drawings tab">📄 @System.IO.Path.GetExtension(d.Name).TrimStart('.').ToUpperInvariant()</div>
+                            }
+                            <figcaption class="spec-drawing-cap">
+                                <span class="spec-drawing-kind">@d.Kind</span>
+                                <span class="spec-drawing-name spec-mono" title="@d.Name">@d.Name</span>
+                            </figcaption>
+                        </figure>
+                    }
+                </div>
+            </div>
+        }
+
         @* ─── 4. Print Parameters (silk only — flexo skips) ───────── *@
         @if (isSilk)
         {
@@ -505,6 +532,10 @@ else
 
 @code {
     [Parameter] public SpecShowcardVm? Vm { get; set; }
+    /// <summary>P10.10 — uploaded drawing previews (image thumbnails + labels).
+    /// Null/empty = the Drawings section is hidden (keeps existing callers +
+    /// tests unchanged).</summary>
+    [Parameter] public IReadOnlyList<SpecDrawingPreview>? DrawingPreviews { get; set; }
 
     /// <summary>Lesson #27 — wrap each section in a try/catch so a
     /// single bad sub-spec block can't blank the entire showcard.

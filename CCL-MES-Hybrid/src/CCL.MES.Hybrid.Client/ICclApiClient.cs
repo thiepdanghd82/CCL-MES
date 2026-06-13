@@ -393,6 +393,11 @@ public interface ICclApiClient
         long revisionId, long versionId, string destinationFilePath,
         CancellationToken ct = default);
 
+    /// <summary>P10.10 — fetch a drawing version's raw bytes (for an inline
+    /// image preview in the spec showcard). Use only for small image types.</summary>
+    Task<byte[]> DownloadDrawingBytesAsync(
+        long revisionId, long versionId, CancellationToken ct = default);
+
     /// <summary>P10.5e-2 — Decide on a 3-role approval chip (Npi /
     /// Production / Qc) for a specific version. Comment is REQUIRED
     /// server-side when <paramref name="req"/>.Decision = Rejected;

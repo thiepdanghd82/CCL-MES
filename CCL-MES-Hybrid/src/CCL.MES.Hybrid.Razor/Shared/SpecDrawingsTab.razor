@@ -82,7 +82,7 @@ else
                             var dl = _downloadingVersionId == v.Id;
                             <div class="drawing-version-row drawing-version-@v.Status.ToString().ToLowerInvariant()">
                                 <span class="spec-mono drawing-vno">v@v.VersionNo</span>
-                                <span class="drawing-fname" title="@v.FileName">@v.FileName</span>
+                                <span class="drawing-fname" title="@($"{DrawingDisplayName(v)}  ·  original: {v.FileName}")">@DrawingDisplayName(v)</span>
                                 <span class="drawing-size">@FormatBytes(v.FileSize)</span>
                                 <span class="drawing-status-pill drawing-status-@v.Status.ToString().ToLowerInvariant()">
                                     @DrawingVersionStatusLabel(v.Status)
@@ -96,10 +96,10 @@ else
                                     }
                                 </span>
 
-                                <button type="button" class="grid-btn drawing-dl-btn"
+                                <button type="button" class="grid-btn grid-btn-primary drawing-dl-btn"
                                         disabled="@dl"
                                         @onclick="() => OnDownloadAsync(slot, v)">
-                                    @(dl ? "Downloading…" : "↓ Download")
+                                    @(dl ? "Opening…" : "↗ Open")
                                 </button>
                             </div>
                         }
@@ -126,6 +126,33 @@ else
     [Parameter] public long RevisionId { get; set; }
     [Parameter] public IReadOnlyList<DrawingKindSlot>? Slots { get; set; }
     [Parameter] public EventCallback OnReloadRequested { get; set; }
+    // P10.10 — drive the displayed/opened drawing name off the spec's IFS code
+    // + Part No (IFS_PartNo) instead of the raw uploaded filename.
+    [Parameter] public string? IfsCode { get; set; }
+    [Parameter] public string? PartNo { get; set; }
+
+    /// <summary>Auto name a drawing as "IFScode_PartNo.ext" (keeping the
+    /// uploaded extension). Falls back to Part No / IFS code / the original
+    /// name when one side is missing.</summary>
+    private string DrawingDisplayName(DrawingVersionView v)
+    {
+        var ext = System.IO.Path.GetExtension(v.FileName);
+        var ifs = (IfsCode ?? "").Trim();
+        var part = (PartNo ?? "").Trim();
+        string baseName =
+            ifs.Length > 0 && part.Length > 0 ? $"{ifs}_{part}"
+            : part.Length > 0 ? part
+            : ifs.Length > 0 ? ifs
+            : System.IO.Path.GetFileNameWithoutExtension(v.FileName);
+        return Sanitize(baseName) + ext;
+    }
+
+    private static string Sanitize(string s)
+    {
+        var bad = System.IO.Path.GetInvalidFileNameChars();
+        var cleaned = new string(s.Select(c => bad.Contains(c) || c == ' ' ? '_' : c).ToArray());
+        return string.IsNullOrWhiteSpace(cleaned) ? "drawing" : cleaned;
+    }
 
     private string? _submittingKind;
     private long _downloadingVersionId;
@@ -208,12 +235,14 @@ else
         try
         {
             var safeDir = FileOpener.GetSafeDownloadDirectory();
-            // Keep the original filename so QuickLook picks the right
-            // associated app; prefix with version-id to avoid collisions
-            // across re-downloads of the same kind.
-            var dest = Path.Combine(safeDir, $"drawing-{v.Id}-{v.FileName}");
+            // P10.10 — open under the auto IFS_PartNo name (keeps the extension
+            // so QuickLook picks the right app); version suffix avoids
+            // collisions across re-opens of different versions.
+            var openName = System.IO.Path.GetFileNameWithoutExtension(DrawingDisplayName(v))
+                + $"_v{v.VersionNo}" + System.IO.Path.GetExtension(v.FileName);
+            var dest = Path.Combine(safeDir, openName);
             var size = await Api.DownloadDrawingToFileAsync(RevisionId, v.Id, dest);
-            _noticeByKind[kindKey] = $"Downloaded v{v.VersionNo} ({FormatBytes(size)}).";
+            _noticeByKind[kindKey] = $"Opened v{v.VersionNo} · {openName} ({FormatBytes(size)}).";
             var opened = await FileOpener.TryOpenAsync(dest);
             if (!opened)
             {

@@ -2134,6 +2134,29 @@ html, body {
     color: #6b7280;
 }
 
+/* P10.10 — drawing previews inside the spec showcard. */
+.spec-drawings-preview {
+    display: flex; flex-wrap: wrap; gap: 14px; padding: 4px 0;
+}
+.spec-drawing-fig {
+    margin: 0; width: 200px; border: 1px solid #e5e7eb; border-radius: 8px;
+    overflow: hidden; background: #fff; display: flex; flex-direction: column;
+}
+.spec-drawing-img {
+    width: 100%; height: 150px; object-fit: contain; background: #f8fafc;
+    display: block; border-bottom: 1px solid #eef2f7;
+}
+.spec-drawing-noimg {
+    height: 150px; display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: #64748b; background: #f1f5f9; font-size: 1.1rem;
+    border-bottom: 1px solid #eef2f7;
+}
+.spec-drawing-cap {
+    padding: 7px 9px; display: flex; flex-direction: column; gap: 2px;
+}
+.spec-drawing-kind { font-size: 0.72rem; font-weight: 700; color: #1d4ed8; text-transform: uppercase; letter-spacing: .02em; }
+.spec-drawing-name { font-size: 0.78rem; color: #374151; word-break: break-all; }
+
 /* P10.10 — "Copy new Spec" chooser cards (Update ver / New). */
 .copy-choice-lead { margin: 0 0 12px; color: #374151; font-size: 0.95rem; }
 .copy-choice-grid { display: flex; flex-direction: column; gap: 10px; }
