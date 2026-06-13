@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer")]
 @inject ICclApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 @inject CCL.MES.Hybrid.Client.Files.IFileOpener FileOpener
 @inject CCL.MES.Hybrid.Client.Files.IFileSaver FileSaver
 @using CCL.MES.Hybrid.Client.Specs
@@ -304,6 +305,7 @@ else if (_detail is not null && _vm is not null)
     private IReadOnlyList<SpecDrawingPreview>? _drawingPreviews;   // P10.10 — showcard image previews
 
     private static readonly string[] _imageExts = { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp" };
+    private readonly List<string> _previewObjectUrls = new();   // blob: URLs to revoke on reload
 
     private Dictionary<string, QcWindowItem?>? _qcWindows;
     private bool _qcWindowsLoading;
@@ -379,6 +381,7 @@ else if (_detail is not null && _vm is not null)
         if (_detail is null) return;
         try
         {
+            await RevokePreviewUrlsAsync();   // free the previous batch
             var slots = _drawings ?? await Api.GetDrawingsByRevisionAsync(RevisionId);
             _drawings ??= slots.ToList();
             var previews = new List<SpecDrawingPreview>();
@@ -387,25 +390,40 @@ else if (_detail is not null && _vm is not null)
                 if (slot.CurrentVersionId is null) continue;
                 var v = slot.Versions.FirstOrDefault(x => x.Id == slot.CurrentVersionId.Value);
                 if (v is null) continue;
-                var ext = System.IO.Path.GetExtension(v.FileName);
-                var isImage = _imageExts.Contains(ext.ToLowerInvariant());
+                var ext = System.IO.Path.GetExtension(v.FileName).ToLowerInvariant();
+                var isImage = _imageExts.Contains(ext);
+                var isPdf = ext == ".pdf";
                 var name = DrawingPreviewName(_detail.SpecCode, _detail.ProductCode, v.FileName);
-                string? dataUrl = null;
-                if (isImage && v.FileSize > 0 && v.FileSize <= 4 * 1024 * 1024)
+                string? objUrl = null;
+                // Render images + PDFs inline via a blob: URL (reliable in
+                // WKWebView); cap to keep base64 round-trips reasonable.
+                if ((isImage || isPdf) && v.FileSize > 0 && v.FileSize <= 12 * 1024 * 1024)
                 {
                     try
                     {
                         var bytes = await Api.DownloadDrawingBytesAsync(RevisionId, v.Id);
-                        dataUrl = $"data:{MimeForExt(ext)};base64,{Convert.ToBase64String(bytes)}";
+                        var b64 = Convert.ToBase64String(bytes);
+                        objUrl = await JS.InvokeAsync<string>("cclMesDrawings.toObjectUrl", b64, MimeForExt(ext));
+                        if (!string.IsNullOrEmpty(objUrl)) _previewObjectUrls.Add(objUrl);
                     }
                     catch { /* preview is best-effort */ }
                 }
-                previews.Add(new SpecDrawingPreview(DrawingKindLabel(slot.Kind), name, isImage, dataUrl));
+                previews.Add(new SpecDrawingPreview(DrawingKindLabel(slot.Kind), name, isImage, isPdf, objUrl));
             }
             _drawingPreviews = previews;
             StateHasChanged();
         }
         catch { /* best-effort previews */ }
+    }
+
+    private async Task RevokePreviewUrlsAsync()
+    {
+        if (_previewObjectUrls.Count == 0) return;
+        foreach (var u in _previewObjectUrls)
+        {
+            try { await JS.InvokeVoidAsync("cclMesDrawings.revoke", u); } catch { /* noop */ }
+        }
+        _previewObjectUrls.Clear();
     }
 
     private static string DrawingPreviewName(string? ifs, string? part, string original)
@@ -426,6 +444,7 @@ else if (_detail is not null && _vm is not null)
         ".gif" => "image/gif",
         ".webp" => "image/webp",
         ".bmp" => "image/bmp",
+        ".pdf" => "application/pdf",
         _ => "application/octet-stream",
     };
 

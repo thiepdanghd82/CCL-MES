@@ -101,3 +101,20 @@ window.cclMesGrid = (() => {
 
     return { register, unregister };
 })();
+
+// P10.10 — drawing preview blob URLs. WKWebView renders PDFs/images reliably
+// from a blob: URL (data: PDFs + the native Launcher are flaky on Catalyst).
+window.cclMesDrawings = (() => {
+    function toObjectUrl(base64, mime) {
+        try {
+            const bin = atob(base64);
+            const len = bin.length;
+            const arr = new Uint8Array(len);
+            for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+            const blob = new Blob([arr], { type: mime || 'application/octet-stream' });
+            return URL.createObjectURL(blob);
+        } catch (e) { return ''; }
+    }
+    function revoke(url) { try { URL.revokeObjectURL(url); } catch (e) { /* noop */ } }
+    return { toObjectUrl, revoke };
+})();

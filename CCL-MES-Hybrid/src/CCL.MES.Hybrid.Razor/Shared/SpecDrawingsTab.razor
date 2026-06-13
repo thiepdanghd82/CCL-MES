@@ -2,6 +2,7 @@
 @inject IFilePickerService FilePicker
 @inject IFileOpener FileOpener
 @inject IAuthSession Session
+@inject IJSRuntime JS
 @using CCL.MES.Hybrid.Client.Files
 @using CCL.MES.Hybrid.Client.Specs
 @using CCL.MES.Shared.Drawings
@@ -98,8 +99,13 @@ else
 
                                 <button type="button" class="grid-btn grid-btn-primary drawing-dl-btn"
                                         disabled="@dl"
-                                        @onclick="() => OnDownloadAsync(slot, v)">
+                                        @onclick="() => OnOpenAsync(slot, v)">
                                     @(dl ? "Opening…" : "↗ Open")
+                                </button>
+                                <button type="button" class="grid-btn drawing-dl-btn"
+                                        disabled="@dl" title="Save a copy to this device"
+                                        @onclick="() => OnDownloadAsync(slot, v)">
+                                    ↓ Save
                                 </button>
                             </div>
                         }
@@ -107,6 +113,34 @@ else
                 </div>
             </div>
         }
+    </div>
+}
+
+@* P10.10 — in-app drawing preview (reliable in WKWebView via a blob URL;
+   the native Launcher / data: PDFs are flaky on Catalyst). *@
+@if (_previewOpen)
+{
+    <div class="drawing-preview-overlay" @onclick="ClosePreviewAsync">
+        <div class="drawing-preview-box" @onclick:stopPropagation="true">
+            <div class="drawing-preview-head">
+                <span class="drawing-preview-title spec-mono" title="@_previewName">@_previewName</span>
+                <button type="button" class="drawing-preview-close" @onclick="ClosePreviewAsync">✕</button>
+            </div>
+            <div class="drawing-preview-body">
+                @if (string.IsNullOrEmpty(_previewUrl))
+                {
+                    <div class="drawing-preview-empty">Loading…</div>
+                }
+                else if (_previewIsImage)
+                {
+                    <img class="drawing-preview-img" src="@_previewUrl" alt="@_previewName" />
+                }
+                else
+                {
+                    <iframe class="drawing-preview-frame" src="@_previewUrl" title="@_previewName"></iframe>
+                }
+            </div>
+        </div>
     </div>
 }
 
@@ -267,6 +301,67 @@ else
             StateHasChanged();
         }
     }
+
+    // ── P10.10 — in-app drawing preview ──────────────────────────────
+    private bool _previewOpen;
+    private string? _previewUrl;       // blob: URL
+    private string? _previewName;
+    private bool _previewIsImage;
+    private static readonly string[] _imageExts = { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp" };
+
+    private async Task OnOpenAsync(DrawingKindSlot slot, DrawingVersionView v)
+    {
+        if (_downloadingVersionId != 0) return;
+        var kindKey = slot.Kind.ToString();
+        _errorByKind[kindKey] = null;
+        _noticeByKind[kindKey] = null;
+        _downloadingVersionId = v.Id;
+        StateHasChanged();
+        try
+        {
+            var ext = System.IO.Path.GetExtension(v.FileName).ToLowerInvariant();
+            _previewIsImage = _imageExts.Contains(ext);
+            _previewName = DrawingDisplayName(v);
+            var bytes = await Api.DownloadDrawingBytesAsync(RevisionId, v.Id);
+            var b64 = Convert.ToBase64String(bytes);
+            _previewUrl = await JS.InvokeAsync<string>("cclMesDrawings.toObjectUrl", b64, MimeForExt(ext));
+            if (string.IsNullOrEmpty(_previewUrl))
+            {
+                _errorByKind[kindKey] = "Could not build a preview for this file — use ↓ Save instead.";
+            }
+            else
+            {
+                _previewOpen = true;
+            }
+        }
+        catch (ApiException apiEx) { _errorByKind[kindKey] = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
+        catch (HttpRequestException ex) { _errorByKind[kindKey] = $"Could not connect to the server: {ex.Message}"; }
+        catch (Exception ex) { _errorByKind[kindKey] = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _downloadingVersionId = 0; StateHasChanged(); }
+    }
+
+    private async Task ClosePreviewAsync()
+    {
+        _previewOpen = false;
+        if (!string.IsNullOrEmpty(_previewUrl))
+        {
+            try { await JS.InvokeVoidAsync("cclMesDrawings.revoke", _previewUrl); } catch { /* noop */ }
+        }
+        _previewUrl = null;
+        StateHasChanged();
+    }
+
+    private static string MimeForExt(string ext) => ext switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".gif" => "image/gif",
+        ".webp" => "image/webp",
+        ".bmp" => "image/bmp",
+        ".pdf" => "application/pdf",
+        ".svg" => "image/svg+xml",
+        _ => "application/octet-stream",
+    };
 
     // ── P10.5e-2 — chip rendering + decide handlers ──────────────────
 

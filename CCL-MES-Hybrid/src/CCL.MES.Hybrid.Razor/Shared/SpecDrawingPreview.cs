@@ -1,12 +1,13 @@
 namespace CCL.MES.Hybrid.Razor.Shared;
 
 /// <summary>
-/// P10.10 — one drawing preview rendered inside the spec showcard. Image
-/// types carry a base64 <see cref="ImageDataUrl"/> for an inline thumbnail;
-/// non-image types (e.g. PDF/DWG) render as a labeled tile only.
+/// P10.10 — one drawing preview rendered inside the spec showcard. Images +
+/// PDFs carry a JS-created blob <see cref="ObjectUrl"/> (WKWebView renders both
+/// reliably from a blob: URL); other types render as a labeled tile only.
 /// </summary>
 public sealed record SpecDrawingPreview(
     string Kind,
     string Name,
     bool IsImage,
-    string? ImageDataUrl);
+    bool IsPdf,
+    string? ObjectUrl);

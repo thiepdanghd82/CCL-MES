@@ -163,9 +163,13 @@ else
                     @foreach (var d in DrawingPreviews)
                     {
                         <figure class="spec-drawing-fig">
-                            @if (d.IsImage && !string.IsNullOrEmpty(d.ImageDataUrl))
+                            @if (d.IsImage && !string.IsNullOrEmpty(d.ObjectUrl))
                             {
-                                <img class="spec-drawing-img" src="@d.ImageDataUrl" alt="@d.Name" loading="lazy" />
+                                <img class="spec-drawing-img" src="@d.ObjectUrl" alt="@d.Name" loading="lazy" />
+                            }
+                            else if (d.IsPdf && !string.IsNullOrEmpty(d.ObjectUrl))
+                            {
+                                <iframe class="spec-drawing-pdf" src="@d.ObjectUrl" title="@d.Name"></iframe>
                             }
                             else
                             {
