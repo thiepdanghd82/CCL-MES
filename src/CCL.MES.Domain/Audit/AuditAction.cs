@@ -17,7 +17,20 @@ public static class AuditAction
     // actor_filter, from, to, rows, filename, content_length }.
     public const string AuditExport           = "AUDIT_EXPORT";
     public const string BackupCreate          = "BACKUP_CREATE";
+    // P-Backup (Ops Control v1.3 backupScheduler.js port) — automated
+    // nightly backup cycle outcome. detail JSON: { sqlite_file, sqlite_mb,
+    // blob_file?, blob_mb?, verify_ok, integrity, row_counts, drops?,
+    // pruned, duration_ms }. Source = "Scheduler".
+    public const string BackupCycle           = "BACKUP_CYCLE";
+    // P-Backup — a backup cycle (or one of its steps) failed. Emitted even
+    // when no webhook is configured so a multi-day backup outage is never
+    // invisible (Ops Control Sprint 1.7 audit §7 lesson). detail JSON:
+    // { step, error }. Source = "Scheduler".
+    public const string BackupFailed          = "BACKUP_FAILED";
     public const string BackupRestore         = "BACKUP_RESTORE";          // emitted by scripts/BackupRestore (Source = Console)
+    // P-Backup — admin changed the backup schedule via Settings → Backup.
+    // detail JSON: { enabled, hour, retention_days, min_keep }.
+    public const string BackupScheduleChange  = "BACKUP_SCHEDULE_CHANGE";
     public const string IqcApprove            = "IQC_APPROVE";             // Phase 6 Bước 7 — pass/fail in Detail
     public const string IqcCreate             = "IQC_CREATE";              // Phase 6 Bước 7
     public const string LoginDisabled         = "LOGIN_DISABLED";          // valid creds but IsActive = false

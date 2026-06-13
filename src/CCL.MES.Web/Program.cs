@@ -235,6 +235,21 @@ builder.Services.AddScoped<CCL.MES.Application.SpecImport.SpecImportService>();
 // contract in src/CCL.MES.Web/Services/SpecTrashPurgeService.cs.
 builder.Services.AddHostedService<CCL.MES.Web.Services.SpecTrashPurgeService>();
 
+// P-Backup — automated nightly backup worker (Ops Control v1.3
+// backupScheduler.js port). OFF by default; enable with OPS_BACKUP_SCHEDULE=1.
+// Reuses BackupService's online-safe snapshot path, verifies + prunes, and
+// alerts via OPS_BACKUP_WEBHOOK. Off-site copy is the separate
+// scripts/backup-offsite.{sh,ps1} cron job. See BackupSchedulerService.cs.
+builder.Services.AddHttpClient(); // IHttpClientFactory for webhook alerts
+builder.Services.AddScoped<CCL.MES.Web.Services.BackupVerifier>();
+builder.Services.AddSingleton<CCL.MES.Web.Services.BackupScheduleStore>();
+// Register the worker as a singleton so the admin Settings → Backup page can
+// inject it for status / schedule-edit / run-now, then back the hosted service
+// with that same instance (one scheduler, one in-memory reschedule signal).
+builder.Services.AddSingleton<CCL.MES.Web.Services.BackupSchedulerService>();
+builder.Services.AddHostedService(sp =>
+    sp.GetRequiredService<CCL.MES.Web.Services.BackupSchedulerService>());
+
 var app = builder.Build();
 
 // DB init + seed (Phase 5 — single path for SQLite + SQL Server via
