@@ -381,7 +381,11 @@ else if (_detail is not null && _vm is not null)
                 { _activeTab = "spec"; _specEditMode = true; }
                 else { _editOpen = true; }
                 break;
-            case "copy":      _copyOpen = true; break;
+            // P10.10 — right-click "Copy" in the list opens the same
+            // "Copy new Spec" chooser (Update ver / New) as the detail Copy
+            // button. The legacy CopySpecModal stays on ?action=copy-to.
+            case "copy":      _copyChoiceOpen = true; break;
+            case "copy-to":   _copyOpen = true; break;
             case "revise":    _reviseOpen = true; break;
             case "supersede": _supersedeOpen = true; break;
         }
