@@ -1,7 +1,10 @@
 @page "/settings/data"
 @attribute [Authorize(Policy = "AdminOnly")]
 @using CCL.MES.Web.Services
+@using CCL.MES.Application.Audit
 @inject BackupService BackupSvc
+@inject BackupSchedulerService Scheduler
+@inject IAuditWriter Audit
 @inject IStringLocalizer<SharedResource> Loc
 
 @*  Phase 5 — RBAC gate kept.
@@ -35,6 +38,74 @@ else
         @if (!string.IsNullOrEmpty(_message))
         {
             <div class="alert @(_ok ? "ok" : "err")">@_message</div>
+        }
+    </div>
+
+    <div class="settings-card">
+        <h2 class="settings-section">@Loc["settings.data.sched.title"]</h2>
+        <p class="muted">@Loc["settings.data.sched.hint"]</p>
+
+        @if (_status is not null)
+        {
+            <ul class="kv-list">
+                <li>
+                    <span>@Loc["settings.data.sched.status.next"]</span>
+                    <strong>
+                        @(_status.Enabled
+                            ? (_status.NextRunAtUtc?.ToString("yyyy-MM-dd HH:mm 'UTC'") ?? "—")
+                            : Loc["settings.data.sched.status.disabled"].Value)
+                    </strong>
+                </li>
+                <li>
+                    <span>@Loc["settings.data.sched.status.last"]</span>
+                    <strong>
+                        @(_status.LastRun is null
+                            ? Loc["settings.data.sched.status.never"].Value
+                            : $"{_status.LastRun.StartedAtUtc:yyyy-MM-dd HH:mm 'UTC'} {(_status.LastRun.Ok ? "✓" : "✗")}")
+                    </strong>
+                </li>
+                <li>
+                    <span>@Loc["settings.data.sched.status.blobs"]</span>
+                    <strong>@(_status.BlobsEnabled ? Loc["settings.data.sched.on"] : Loc["settings.data.sched.off"])</strong>
+                </li>
+                <li>
+                    <span>@Loc["settings.data.sched.status.webhook"]</span>
+                    <strong>@(_status.WebhookConfigured ? Loc["settings.data.sched.on"] : Loc["settings.data.sched.off"])</strong>
+                </li>
+            </ul>
+
+            <div class="form-grid">
+                <label class="check">
+                    <input type="checkbox" @bind="_formEnabled" />
+                    @Loc["settings.data.sched.enabled"]
+                </label>
+                <label>
+                    @Loc["settings.data.sched.hour"]
+                    <input type="number" min="0" max="23" @bind="_formHour" />
+                </label>
+                <label>
+                    @Loc["settings.data.sched.retention"]
+                    <input type="number" min="1" max="3650" @bind="_formRetentionDays" />
+                </label>
+                <label>
+                    @Loc["settings.data.sched.minkeep"]
+                    <input type="number" min="1" max="1000" @bind="_formMinKeep" />
+                </label>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-primary" @onclick="SaveSchedule" disabled="@_busy">
+                    @(_busy ? Loc["settings.data.sched.btn.saving"] : Loc["settings.data.sched.btn.save"])
+                </button>
+                <button class="btn" @onclick="RunNow" disabled="@_busy">
+                    @(_running ? Loc["settings.data.sched.btn.running"] : Loc["settings.data.sched.btn.runnow"])
+                </button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_schedMessage))
+            {
+                <div class="alert @(_schedOk ? "ok" : "err")">@_schedMessage</div>
+            }
         }
     </div>
 
@@ -91,11 +162,76 @@ dotnet run -- --from &lt;snapshot-filename&gt;</pre>
     private bool _ok;
     private bool _busy;
 
-    protected override void OnInitialized() => Reload();
+    // Scheduler card state.
+    private BackupScheduleStatus? _status;
+    private bool _formEnabled;
+    private int _formHour;
+    private int _formRetentionDays;
+    private int _formMinKeep;
+    private bool _running;
+    private string? _schedMessage;
+    private bool _schedOk;
+
+    protected override void OnInitialized()
+    {
+        Reload();
+        LoadStatus();
+    }
 
     private void Reload()
     {
         _snapshots = BackupSvc.ListSnapshots();
+    }
+
+    private void LoadStatus()
+    {
+        _status = Scheduler.GetStatus();
+        _formEnabled = _status.Enabled;
+        _formHour = _status.Hour;
+        _formRetentionDays = _status.RetentionDays;
+        _formMinKeep = _status.MinKeep;
+    }
+
+    private async Task SaveSchedule()
+    {
+        _busy = true;
+        _schedMessage = null;
+        StateHasChanged();
+        if (AuthState is null) { _busy = false; return; }
+        var auth = await AuthState;
+        var (actor, _) = auth.User.AuditIdentity();
+        try
+        {
+            _status = await Scheduler.SetScheduleAsync(
+                _formEnabled, _formHour, _formRetentionDays, _formMinKeep, actor, Audit);
+            _schedOk = true;
+            _schedMessage = Loc["settings.data.sched.msg.saved"].Value;
+        }
+        catch (Exception ex)
+        {
+            _schedOk = false;
+            _schedMessage = string.Format(Loc["settings.data.sched.msg.err"].Value, ex.Message);
+        }
+        _busy = false;
+    }
+
+    private async Task RunNow()
+    {
+        _busy = true;
+        _running = true;
+        _schedMessage = null;
+        StateHasChanged();
+        // Task.Run keeps the SignalR circuit responsive — a cycle on a large
+        // DB is synchronous-bound (SQLite online backup + tar).
+        var summary = await Task.Run(() => Scheduler.RunBackupCycleAsync(force: true));
+        _schedOk = summary.Ok;
+        _schedMessage = summary.Ok
+            ? string.Format(Loc["settings.data.sched.msg.run_ok"].Value, summary.SqliteFile)
+            : string.Format(Loc["settings.data.sched.msg.run_fail"].Value, summary.Error ?? summary.Integrity);
+        _running = false;
+        _busy = false;
+        LoadStatus();
+        Reload();
     }
 
     private async Task DoSnapshot()

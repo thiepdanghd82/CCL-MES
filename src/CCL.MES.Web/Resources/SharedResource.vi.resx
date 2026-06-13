@@ -202,6 +202,28 @@
   <data name="settings.data.snapshot.hint" xml:space="preserve"><value>Tạo bản sao DB SQLite vào data/Backup/SQLite/ qua online-backup API (an toàn khi server đang phục vụ).</value></data>
   <data name="settings.data.btn.snapshot" xml:space="preserve"><value>Tạo snapshot</value></data>
   <data name="settings.data.btn.snapshotting" xml:space="preserve"><value>Đang tạo…</value></data>
+  <data name="settings.data.sched.title" xml:space="preserve"><value>Backup theo lịch</value></data>
+  <data name="settings.data.sched.hint" xml:space="preserve"><value>Tự động snapshot + nén blob + kiểm tra toàn vẹn hàng đêm. Bản off-site là cron job riêng (scripts/backup-offsite).</value></data>
+  <data name="settings.data.sched.enabled" xml:space="preserve"><value>Bật backup hàng đêm</value></data>
+  <data name="settings.data.sched.hour" xml:space="preserve"><value>Giờ chạy (0–23, ICT)</value></data>
+  <data name="settings.data.sched.retention" xml:space="preserve"><value>Giữ trong (ngày)</value></data>
+  <data name="settings.data.sched.minkeep" xml:space="preserve"><value>Luôn giữ (mới nhất)</value></data>
+  <data name="settings.data.sched.btn.save" xml:space="preserve"><value>Lưu lịch</value></data>
+  <data name="settings.data.sched.btn.saving" xml:space="preserve"><value>Đang lưu…</value></data>
+  <data name="settings.data.sched.btn.runnow" xml:space="preserve"><value>Chạy backup ngay</value></data>
+  <data name="settings.data.sched.btn.running" xml:space="preserve"><value>Đang chạy…</value></data>
+  <data name="settings.data.sched.status.next" xml:space="preserve"><value>Lần chạy kế</value></data>
+  <data name="settings.data.sched.status.last" xml:space="preserve"><value>Lần chạy gần nhất</value></data>
+  <data name="settings.data.sched.status.never" xml:space="preserve"><value>Chưa có</value></data>
+  <data name="settings.data.sched.status.disabled" xml:space="preserve"><value>Đang tắt</value></data>
+  <data name="settings.data.sched.status.blobs" xml:space="preserve"><value>Nén blob</value></data>
+  <data name="settings.data.sched.status.webhook" xml:space="preserve"><value>Webhook cảnh báo</value></data>
+  <data name="settings.data.sched.on" xml:space="preserve"><value>bật</value></data>
+  <data name="settings.data.sched.off" xml:space="preserve"><value>tắt</value></data>
+  <data name="settings.data.sched.msg.saved" xml:space="preserve"><value>Đã lưu lịch.</value></data>
+  <data name="settings.data.sched.msg.run_ok" xml:space="preserve"><value>Backup hoàn tất: {0}</value></data>
+  <data name="settings.data.sched.msg.run_fail" xml:space="preserve"><value>Backup thất bại: {0}</value></data>
+  <data name="settings.data.sched.msg.err" xml:space="preserve"><value>Không lưu được: {0}</value></data>
   <data name="settings.data.list.empty" xml:space="preserve"><value>Chưa có snapshot nào.</value></data>
   <data name="settings.data.col.name" xml:space="preserve"><value>Tên file</value></data>
   <data name="settings.data.col.size" xml:space="preserve"><value>Kích thước</value></data>
