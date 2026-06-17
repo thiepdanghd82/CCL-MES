@@ -12,9 +12,23 @@
         <h1 class="page-title">Machine Monitoring · Plant Floor</h1>
         <div class="md-subtitle">Live status across all work centers · grouped by area</div>
     </div>
-    <button type="button" class="md-refresh" @onclick="ReloadAsync" disabled="@_loading">
-        @(_loading ? "Loading…" : "↻ Refresh")
-    </button>
+    <div class="md-head-actions">
+        <div class="md-viewtoggle" role="group" aria-label="View mode">
+            <button type="button" class="md-vt-btn @(_viewMode == MdView.Grid ? "is-on" : "")"
+                    title="Grid view" aria-pressed="@(_viewMode == MdView.Grid)"
+                    @onclick="@(() => _viewMode = MdView.Grid)">
+                <span class="md-vt-ico">▦</span><span class="md-vt-lbl">Grid</span>
+            </button>
+            <button type="button" class="md-vt-btn @(_viewMode == MdView.List ? "is-on" : "")"
+                    title="List view" aria-pressed="@(_viewMode == MdView.List)"
+                    @onclick="@(() => _viewMode = MdView.List)">
+                <span class="md-vt-ico">☰</span><span class="md-vt-lbl">List</span>
+            </button>
+        </div>
+        <button type="button" class="md-refresh" @onclick="ReloadAsync" disabled="@_loading">
+            @(_loading ? "Loading…" : "↻ Refresh")
+        </button>
+    </div>
 </div>
 
 @* SpecHub Machine-Monitoring parity — plant KPI tiles (Running / Idle /
@@ -78,6 +92,63 @@ else
             @if (Filtered.Count == 0)
             {
                 <p class="md-muted">No machines match the filter.</p>
+            }
+            else if (_viewMode == MdView.List)
+            {
+                <div class="md-list-scroll">
+                <table class="md-list-tbl">
+                    <thead>
+                        <tr>
+                            <th>Work center</th>
+                            <th>Area</th>
+                            <th>Status</th>
+                            <th>WO</th>
+                            <th>Customer</th>
+                            <th>Product</th>
+                            <th>Progress</th>
+                            <th class="num">Good</th>
+                            <th class="num">Reject</th>
+                            <th class="num">Quality</th>
+                            <th>Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var group in Grouped)
+                        {
+                            @foreach (var m in group.ToList())
+                            {
+                                <tr class="md-list-row md-list-@m.Status.ToLowerInvariant()"
+                                    @onclick="@(() => OpenDetailAsync(m.WorkCenterId))">
+                                    <td><strong>@m.Code</strong><div class="md-list-sub">@m.Description</div></td>
+                                    <td>@group.Key</td>
+                                    <td><span class="md-pill @PillClass(m.Status)">@StatusLabel(m.Status)</span></td>
+                                    <td>@(m.ActiveWoNo is { } wo ? wo : "—")</td>
+                                    <td>@(m.CustomerName ?? "—")</td>
+                                    <td>@(m.ProductName ?? m.ActiveMesPhase ?? "—")</td>
+                                    <td>
+                                        @if (m.ActiveWoNo is not null)
+                                        {
+                                            <div class="md-list-prog">
+                                                <span>@((m.QtyDone ?? 0).ToString("N0")) / @((m.TargetQty ?? 0).ToString("N0")) @(m.Uom ?? "pcs")</span>
+                                                <span class="md-list-pct">@(Pct(m) is { } p ? $"{p}%" : "—")</span>
+                                            </div>
+                                            <div class="md-mc-prog-bar"><div class="md-mc-prog-fill" style="width:@((Pct(m) ?? 0))%"></div></div>
+                                        }
+                                        else
+                                        {
+                                            <span class="md-muted">— idle —</span>
+                                        }
+                                    </td>
+                                    <td class="num">@(m.ActiveWoNo is not null ? (m.QtyDone ?? 0).ToString("N0") : "—")</td>
+                                    <td class="num">@(m.ActiveWoNo is not null ? (m.QtyNg ?? 0).ToString("N0") : "—")</td>
+                                    <td class="num">@(Yield(m) is { } y ? $"{y.ToString("0.0", CultureInfo.InvariantCulture)}%" : "—")</td>
+                                    <td class="md-list-upd">@(Elapsed(m.LastUpdatedAt) is { Length: > 0 } el ? el : "—")</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+                </div>
             }
             else
             {
@@ -287,6 +358,9 @@ else
 }
 
 @code {
+    private enum MdView { Grid, List }
+    private MdView _viewMode = MdView.Grid;   // card grid default; ☰ switches to a flat table
+
     private MachineDashboardDto? _data;
     private bool _loading = true;
     private string? _error;

@@ -35,7 +35,11 @@ html, body {
 .app-shell {
     display: grid;
     grid-template-columns: 240px 1fr;
-    min-height: 100vh;
+    /* Fixed viewport-height shell so .app-content becomes the single
+       vertical scroll container — this is what lets every table header
+       freeze (position: sticky) while rows scroll under it. */
+    grid-template-rows: 100vh;
+    height: 100vh;
 }
 
 .app-nav {
@@ -55,6 +59,7 @@ html, body {
     flex-direction: column;
     gap: 3px;
     border-right: 1px solid var(--line);
+    overflow-y: auto;   /* sidebar scrolls on its own now the shell is fixed-height */
 }
 
 .app-nav-brand {
@@ -137,16 +142,32 @@ html, body {
 .app-main {
     display: flex;
     flex-direction: column;
+    min-height: 0;   /* let the flex child (.app-content) actually scroll */
 }
 
 .app-content {
     flex: 1;
+    min-height: 0;
     padding: 20px 28px;
     overflow: auto;
     /* Query container so descendant @container rules (home / WO detail /
        machine dashboard / etc.) reflow against the real content width —
        enables responsive full-screen across viewports. */
     container-type: inline-size;
+}
+
+/* ─────── Global frozen table headers ───────
+   Every table header in the scrolling content area stays pinned to the top
+   while its rows scroll. `:where()` keeps this at ZERO specificity so each
+   table's own header colour / position rules still win; tables that set no
+   header background fall back to the tint below so rows never show through.
+   This applies to ALL current + future tables automatically — do NOT add
+   per-table sticky-header CSS (see LESSONS-LEARNED L24). */
+:where(.app-content thead th) {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: #f8fafc;
 }
 
 /* ─────── Connectivity banner ─────── */
@@ -610,6 +631,68 @@ html, body {
     cursor: pointer;
 }
 .md-refresh:disabled { opacity: 0.6; cursor: default; }
+
+/* Grid / List view toggle. */
+.md-head-actions { display: flex; align-items: center; gap: 10px; }
+.md-viewtoggle {
+    display: inline-flex;
+    border: 1px solid #d1d5db;
+    border-radius: 7px;
+    overflow: hidden;
+    background: var(--card);
+}
+.md-vt-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 12px; border: 0; background: transparent; cursor: pointer;
+    color: #4b5563; font-size: 0.85rem; font-weight: 600;
+}
+.md-vt-btn + .md-vt-btn { border-left: 1px solid #e5e7eb; }
+.md-vt-btn:hover { background: #f3f4f6; }
+.md-vt-btn.is-on { background: #2563eb; color: #fff; }
+.md-vt-ico { font-size: 1rem; line-height: 1; }
+
+/* List (table) view — self-contained scroll area so the header freezes
+   while the rows scroll under it. */
+.md-list-scroll {
+    max-height: calc(100vh - 230px);
+    overflow: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: var(--card);
+}
+.md-list-tbl {
+    width: 100%;
+    border-collapse: separate;   /* separate so sticky th borders don't detach */
+    border-spacing: 0;
+    font-size: 0.86rem;
+    background: var(--card);
+}
+.md-list-tbl th, .md-list-tbl td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #eef2f7;
+    text-align: left;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+.md-list-tbl thead th {
+    position: sticky; top: 0; z-index: 3;
+    background: #eef2f7; color: #374151; font-weight: 600;
+    border-bottom: 2px solid #cbd5e1;
+    box-shadow: 0 1px 0 #cbd5e1;
+}
+.md-list-tbl td.num, .md-list-tbl th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.md-list-row { cursor: pointer; }
+.md-list-row:hover { background: #f1f5f9; }
+.md-list-sub { color: #9ca3af; font-size: 0.74rem; margin-top: 1px; }
+.md-list-prog { display: flex; justify-content: space-between; gap: 10px; min-width: 150px; }
+.md-list-pct { color: #2563eb; font-weight: 700; font-variant-numeric: tabular-nums; }
+.md-list-upd { color: #6b7280; font-size: 0.78rem; }
+/* status accent on the leading cell */
+.md-list-row td:first-child { border-left: 3px solid transparent; }
+.md-list-running td:first-child { border-left-color: #16a34a; }
+.md-list-setup   td:first-child { border-left-color: #d97706; }
+.md-list-down    td:first-child { border-left-color: #dc2626; }
+.md-list-maintenance td:first-child { border-left-color: #2563eb; }
 
 /* ── plant KPI tiles ── */
 .md-kpi-grid {
