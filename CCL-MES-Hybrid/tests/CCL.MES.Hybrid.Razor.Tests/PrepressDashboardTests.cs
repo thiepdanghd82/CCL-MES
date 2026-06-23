@@ -678,6 +678,30 @@ public sealed class PrepressDashboardTests : TestContext
     }
 
     [Fact]
+    public void Special_accepted_row_shows_distinct_OK_special_accept_status()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        var materials = new List<PrepressMaterialRow>
+        {
+            // Reloaded server state after a special-accept: OK + deviation kept.
+            new() { Id = 1, BomLineIdx = 1, MaterialCode = "M-001", Status = "Ok",
+                    NgReasonCode = "SC-COLOR", NgNote = "concession" },
+            // A clean OK for contrast.
+            new() { Id = 2, BomLineIdx = 2, MaterialCode = "M-002", Status = "Ok" },
+        };
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView(materials: materials));
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() =>
+        {
+            var pills = cut.FindAll("[data-testid='status-pill']");
+            Assert.Contains("Special Accept", pills[0].TextContent);          // deviation row
+            Assert.DoesNotContain("Special Accept", pills[1].TextContent);    // clean OK
+        });
+    }
+
+    [Fact]
     public void Engineer_special_accept_calls_api_with_reason()
     {
         _session.SetUser("eng.demo", "Engineer");
