@@ -596,6 +596,51 @@ public sealed class PrepressDashboardTests : TestContext
         });
     }
 
+    [Fact]
+    public void Manual_part_scan_matching_line_code_auto_records_ok()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        var call = 0;
+        api.PrepressViewImpl = (_, _) => Task.FromResult(
+            call++ == 0 ? SampleView() : SampleView(etag: "new=="));
+        api.PutPrepressMaterialImpl = (_, _, _, _, _) =>
+            Task.FromResult(new PrepressSetResponse { Ok = true, ETag = "new==" });
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='part-scan']")));
+
+        // Row 0 is M-001 (BomLineIdx 1). Typing its own code + commit auto-OKs.
+        cut.FindAll("[data-testid='part-scan']")[0].Change("M-001");
+
+        cut.WaitForAssertion(() =>
+        {
+            var put = Assert.Single(api.PutPrepressMaterialCalls);
+            Assert.Equal(1, put.BomLineIdx);
+            Assert.Equal("Ok", put.Req.Status);
+        });
+    }
+
+    [Fact]
+    public void Manual_part_scan_mismatch_does_not_ok_and_asks_for_special_accept()
+    {
+        _hwOptions.ScanEnabled = true;   // so the status line is rendered
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='part-scan']")));
+
+        // Wrong code on row 0 (M-001) → must NOT auto-OK.
+        cut.FindAll("[data-testid='part-scan']")[0].Change("WRONG-CODE");
+
+        cut.WaitForAssertion(() =>
+        {
+            var status = cut.Find("[data-testid='prepress-scan-status']");
+            Assert.Contains("Special Accept", status.TextContent);
+        });
+        Assert.Empty(api.PutPrepressMaterialCalls);
+    }
+
     // ── Special accept (role-gated) ─────────────────────────────────
 
     private static void ArmNgWithReason(IRenderedComponent<PrepressDashboard> cut)

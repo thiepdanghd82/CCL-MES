@@ -63,4 +63,9 @@ public static class PrepressErrorLocaliser
 
     /// <summary>Banner when the scanned material row was already OK.</summary>
     public static string ScanAlreadyOk(string materialCode) => $"{materialCode} is already OK.";
+
+    /// <summary>Banner when a manually-typed Part Scan does NOT match the
+    /// line's own code — operator must use Special Accept to override.</summary>
+    public static string ScanMismatch(string typedPart, string lineCode) =>
+        $"Typed {typedPart} ≠ line {lineCode} — use Special Accept to record OK.";
 }

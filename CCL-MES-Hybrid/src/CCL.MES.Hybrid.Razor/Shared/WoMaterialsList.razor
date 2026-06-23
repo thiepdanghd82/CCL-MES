@@ -53,7 +53,7 @@
                     <th>Lot</th>
                     <th>Status</th>
                     <th class="wrap">NG — reason · note</th>
-                    <th>Action</th>
+                    <th class="c-center">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -78,6 +78,7 @@
                                    class="prepress-input scan-mono @(IsManualScan(row.BomLineIdx) ? "scan-manual" : null)"
                                    value="@ScanPart(row.BomLineIdx)"
                                    @oninput="e => OnPartScanInput.InvokeAsync((row.BomLineIdx, e.Value?.ToString() ?? string.Empty))"
+                                   @onchange="e => OnPartScanCommit.InvokeAsync((row.BomLineIdx, e.Value?.ToString() ?? string.Empty))"
                                    disabled="@Busy"
                                    aria-label="Part scan (manual entry allowed)"
                                    data-testid="part-scan" />
@@ -201,8 +202,13 @@
     /// flag) for the Part Scan / Part Description columns. Null = none.</summary>
     [Parameter] public IReadOnlyDictionary<int, (string Part, string Desc, bool Manual)>? ScannedByRow { get; set; }
 
-    /// <summary>Operator typed a Part Scan by hand → (BomLineIdx, value).</summary>
+    /// <summary>Operator typed a Part Scan by hand → (BomLineIdx, value). Fires per keystroke (live value + purple).</summary>
     [Parameter] public EventCallback<(int BomLineIdx, string Value)> OnPartScanInput { get; set; }
+
+    /// <summary>Manual Part Scan committed (Enter/blur) → (BomLineIdx, value).
+    /// Parent validates against the row's own code: match → auto-OK like a
+    /// scan; mismatch → requires Special Accept.</summary>
+    [Parameter] public EventCallback<(int BomLineIdx, string Value)> OnPartScanCommit { get; set; }
 
     /// <summary>PD leader / Supervisor concedes a material despite a defect.</summary>
     [Parameter] public EventCallback<SpecialAcceptIntent> OnSpecialAccept { get; set; }
