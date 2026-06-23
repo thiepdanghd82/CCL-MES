@@ -34,18 +34,17 @@
 *@
 
 @using System.Linq
+@using Microsoft.AspNetCore.Components.Web
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.Hardware
 @using CCL.MES.Hybrid.Client.Prepress
 @using CCL.MES.Hybrid.Client.RecentScans
 @using CCL.MES.Shared.Devices
 @using CCL.MES.Shared.Envelopes
-@using CCL.MES.Shared.Hardware
 @using CCL.MES.Shared.Prepress
 @using CCL.MES.Shared.ReasonCodes
 @using CCL.MES.Shared.RecentScans
 @inject ICclApiClient Api
-@inject IBarcodeScannerService Scanner
 @inject IRecentScansService RecentScans
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
 
@@ -115,13 +114,18 @@
         @if (HwOptions.Value.ScanEnabled)
         {
             <div class="prepress-scan-bar" data-testid="prepress-scan-bar">
-                <button type="button"
-                        class="op-btn op-btn-primary"
-                        data-testid="prepress-scan-btn"
-                        disabled="@(_busy || _scanning)"
-                        @onclick="ScanMaterialsLoopAsync">
-                    @(_scanning ? "Opening camera…" : "Scan materials")
-                </button>
+                <label class="prepress-scan-label" for="prepress-scan-input">Scan material</label>
+                <input id="prepress-scan-input"
+                       type="text"
+                       class="prepress-scan-input"
+                       data-testid="prepress-scan-input"
+                       placeholder="Point the scanner at a material label, then it auto-matches…"
+                       value="@_scanInput"
+                       @oninput="OnScanInput"
+                       @onkeydown="OnScanKeyDown"
+                       disabled="@_busy"
+                       autocomplete="off"
+                       autofocus />
                 <span class="prepress-scan-count" data-testid="prepress-scan-count">
                     @MaterialsOkCount/@_view.Materials.Count materials OK
                 </span>
@@ -179,7 +183,7 @@
     private IReadOnlyList<ReasonCodeOption> _scrapReasons = Array.Empty<ReasonCodeOption>();
     private bool _reasonsLoading;
 
-    private bool _scanning;
+    private string _scanInput = string.Empty;
     private string? _scanStatus;
 
     private int MaterialsOkCount =>
@@ -346,53 +350,38 @@
 
     private void DismissSetError() => _setError = null;
 
-    // ── Scan materials (PREPRESS) ───────────────────────────────────────
-    // Loop the shipped one-shot scanner: scan → match against THIS WO's BOM
-    // (MaterialBarcodeMatcher, exact part-no only) → auto-record OK via the
-    // existing PUT path. Re-opens the camera after each decode until the
-    // operator cancels (ScanOnceAsync → null). No Catalyst stream needed.
-    private async Task ScanMaterialsLoopAsync()
+    // ── Scan materials (PREPRESS) — USB wedge (Zebra DS2208) ────────────
+    // The DS2208 runs HID keyboard-wedge by default: it types the barcode
+    // into the focused field + an Enter suffix. So the scan UX is a single
+    // always-focused <input>; on Enter we match the payload against THIS
+    // WO's BOM (MaterialBarcodeMatcher, exact part-no only) and auto-record
+    // OK via the existing PUT path. No camera / no scanner SDK needed.
+    private void OnScanInput(ChangeEventArgs e)
     {
-        if (_view is null || _scanning) return;
-        _scanning = true;
-        _scanStatus = null;
-        try
-        {
-            while (_view is not null)
-            {
-                ScanResult? result;
-                try
-                {
-                    result = await Scanner.ScanOnceAsync();
-                }
-                catch (Exception ex)
-                {
-                    _scanStatus = $"Scanner error: {ex.GetType().Name} — try again.";
-                    break;
-                }
-
-                if (result is null) break;   // operator cancelled / no device
-
-                await LogMaterialScanAsync(result);
-                await HandleMaterialScanAsync(result);
-                StateHasChanged();           // surface progress between scans
-            }
-        }
-        finally
-        {
-            _scanning = false;
-        }
+        _scanInput = e.Value?.ToString() ?? string.Empty;
     }
 
-    private async Task HandleMaterialScanAsync(ScanResult scan)
+    private async Task OnScanKeyDown(KeyboardEventArgs e)
     {
-        if (_view is null) return;
-        var match = MaterialBarcodeMatcher.Match(_view.Materials, scan.Code);
+        // DS2208 default suffix is Enter (CR). Tab also accepted in case a
+        // station configured a Tab suffix.
+        if (e.Key is not ("Enter" or "Tab")) return;
+        await SubmitScanAsync();
+    }
+
+    private async Task SubmitScanAsync()
+    {
+        var code = _scanInput;
+        _scanInput = string.Empty;          // clear for the next scan
+        if (_view is null || string.IsNullOrWhiteSpace(code)) return;
+
+        await LogMaterialScanAsync(code);   // best-effort forensic
+        var match = MaterialBarcodeMatcher.Match(_view.Materials, code);
 
         if (match.Outcome != MaterialMatchOutcome.Single)
         {
             _scanStatus = PrepressErrorLocaliser.ScanOutcomeMessage(match.Outcome, match.PartNo);
-            RecordRecentScan(scan, match.PartNo, resolved: false);
+            RecordRecentScan(match.PartNo, resolved: false);
             return;
         }
 
@@ -400,7 +389,7 @@
         if (string.Equals(row.Status, "Ok", StringComparison.OrdinalIgnoreCase))
         {
             _scanStatus = PrepressErrorLocaliser.ScanAlreadyOk(row.MaterialCode);
-            RecordRecentScan(scan, row.MaterialCode, resolved: true);
+            RecordRecentScan(row.MaterialCode, resolved: true);
             return;
         }
 
@@ -417,21 +406,21 @@
         if (ok)
             _scanStatus = PrepressErrorLocaliser.ScanRecordedOk(row.MaterialCode);
         // else: GuardedPutAsync already surfaced _setError + reloaded the view.
-        RecordRecentScan(scan, row.MaterialCode, resolved: ok);
+        RecordRecentScan(row.MaterialCode, resolved: ok);
     }
 
-    private async Task LogMaterialScanAsync(ScanResult scan)
+    private async Task LogMaterialScanAsync(string code)
     {
-        // Forensic trail — best-effort; never block the scan loop.
+        // Forensic trail — best-effort; never block the operator.
         try
         {
             await Api.LogScanAsync(new ScanLogRequest
             {
-                Payload = scan.Code,
-                Format = scan.Format ?? string.Empty,
+                Payload = code,
+                Format = "wedge",
                 Context = "prepress-materials",
-                SourceDeviceLabel = scan.SourceDevice,
-                ClientTimestamp = scan.CapturedAt,
+                SourceDeviceLabel = "DS2208",
+                ClientTimestamp = DateTimeOffset.UtcNow,
             });
         }
         catch (Exception)
@@ -440,14 +429,14 @@
         }
     }
 
-    private void RecordRecentScan(ScanResult scan, string code, bool resolved)
+    private void RecordRecentScan(string code, bool resolved)
     {
         try
         {
             RecentScans.Record(new RecentScanEntry
             {
                 Code = code,
-                Format = scan.Format ?? string.Empty,
+                Format = "wedge",
                 Context = "prepress-materials",
                 ScannedAt = DateTime.UtcNow,
                 ResolvedDisplay = code,

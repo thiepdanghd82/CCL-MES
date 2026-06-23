@@ -7,7 +7,6 @@ using CCL.MES.Hybrid.Client.RecentScans;
 using CCL.MES.Hybrid.Razor.Shared;
 using CCL.MES.Hybrid.Razor.Tests._Support;
 using CCL.MES.Shared.Envelopes;
-using CCL.MES.Shared.Hardware;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.ReasonCodes;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,11 +26,10 @@ namespace CCL.MES.Hybrid.Razor.Tests;
 /// </summary>
 public sealed class PrepressDashboardTests : TestContext
 {
-    // Scan deps (added by the "Scan materials" feature). Mutate _hwOptions /
-    // _scanner inside a test BEFORE rendering to drive the scan flow; the
-    // defaults (ScanEnabled=false, no-op scanner) keep every pre-existing
-    // fixture rendering exactly as before.
-    private readonly StubScannerService _scanner = new();
+    // Scan dep (USB wedge "Scan materials" feature). Mutate _hwOptions
+    // inside a test BEFORE rendering to enable the scan input; the default
+    // (ScanEnabled=false) keeps every pre-existing fixture rendering exactly
+    // as before.
     private readonly HardwareOptions _hwOptions = new();
 
     public PrepressDashboardTests()
@@ -41,7 +39,6 @@ public sealed class PrepressDashboardTests : TestContext
         // with a non-empty picker. Empty-list scenario overrides below.
         api.ReasonCodesImpl = (_, _) => Task.FromResult<IReadOnlyList<ReasonCodeOption>>(SampleScrapReasons());
         Services.AddSingleton<ICclApiClient>(api);
-        Services.AddSingleton<IBarcodeScannerService>(_scanner);
         Services.AddSingleton<IRecentScansService>(new InMemoryRecentScansService());
         Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(_hwOptions));
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
@@ -50,11 +47,13 @@ public sealed class PrepressDashboardTests : TestContext
         this.AddTestAuthorization().SetAuthorized("test-user");
     }
 
-    private void QueueScans(params string[] codes)
+    // Simulate a Zebra DS2208 wedge scan: type the payload into the box, then
+    // the scanner's Enter suffix submits.
+    private static void WedgeScan(IRenderedComponent<PrepressDashboard> cut, string payload)
     {
-        var q = new Queue<string>(codes);
-        _scanner.ScanImpl = () => Task.FromResult<ScanResult?>(
-            q.Count > 0 ? new ScanResult(q.Dequeue(), "QR", DateTimeOffset.UtcNow, "camera") : null);
+        var input = cut.Find("[data-testid='prepress-scan-input']");
+        input.Input(payload);
+        input.KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter" });
     }
 
     private static IReadOnlyList<ReasonCodeOption> SampleScrapReasons() => new List<ReasonCodeOption>
@@ -488,10 +487,10 @@ public sealed class PrepressDashboardTests : TestContext
         });
     }
 
-    // ── Scan materials ──────────────────────────────────────────────
+    // ── Scan materials (USB wedge) ──────────────────────────────────
 
     [Fact]
-    public void Scan_button_hidden_when_scan_disabled()
+    public void Scan_input_hidden_when_scan_disabled()
     {
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
         api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
@@ -499,11 +498,11 @@ public sealed class PrepressDashboardTests : TestContext
         var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
 
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='prepress-dashboard']")));
-        Assert.Empty(cut.FindAll("[data-testid='prepress-scan-btn']"));
+        Assert.Empty(cut.FindAll("[data-testid='prepress-scan-input']"));
     }
 
     [Fact]
-    public void Scan_button_visible_when_scan_enabled()
+    public void Scan_input_visible_when_scan_enabled()
     {
         _hwOptions.ScanEnabled = true;
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
@@ -511,11 +510,11 @@ public sealed class PrepressDashboardTests : TestContext
 
         var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
 
-        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='prepress-scan-btn']")));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='prepress-scan-input']")));
     }
 
     [Fact]
-    public void Scanning_known_material_records_it_ok()
+    public void Wedge_scan_of_known_material_records_it_ok()
     {
         _hwOptions.ScanEnabled = true;
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
@@ -536,12 +535,11 @@ public sealed class PrepressDashboardTests : TestContext
         api.PutPrepressMaterialImpl = (_, _, _, _, _) =>
             Task.FromResult(new PrepressSetResponse { Ok = true, ETag = "new==" });
 
-        // Real label for part 30031145 (live scan).
-        QueueScans("30031145/80/(BU'488) / BU'-0112N (215mm x 1000M)");
-
         var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
-        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='prepress-scan-btn']")));
-        cut.Find("[data-testid='prepress-scan-btn']").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='prepress-scan-input']")));
+
+        // Real DS2208 label for part 30031145 (live scan).
+        WedgeScan(cut, "30031145/80/(BU'488) / BU'-0112N (215mm x 1000M)");
 
         cut.WaitForAssertion(() =>
         {
@@ -554,17 +552,17 @@ public sealed class PrepressDashboardTests : TestContext
     }
 
     [Fact]
-    public void Scanning_unknown_material_shows_not_in_bom_and_does_not_put()
+    public void Wedge_scan_of_unknown_material_shows_not_in_bom_and_does_not_put()
     {
         _hwOptions.ScanEnabled = true;
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
         // SampleView default BOM = M-001 / M-002, so 99999999 is unknown.
         api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
-        QueueScans("99999999/1/(z) some desc");
 
         var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
-        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='prepress-scan-btn']")));
-        cut.Find("[data-testid='prepress-scan-btn']").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='prepress-scan-input']")));
+
+        WedgeScan(cut, "99999999/1/(z) some desc");
 
         cut.WaitForAssertion(() =>
         {
