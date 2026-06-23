@@ -310,11 +310,11 @@
                     Status = "Ok",
                 });
             if (_setError is null)
-                _scanStatus = PrepressErrorLocaliser.ScanRecordedOk(row.MaterialCode);
+                _scanStatus = PrepressErrorLocaliser.ScanRecordedOk(row.MaterialCode ?? "");
         }
         else
         {
-            _scanStatus = PrepressErrorLocaliser.ScanMismatch(part, row.MaterialCode);
+            _scanStatus = PrepressErrorLocaliser.ScanMismatch(part, row.MaterialCode ?? "");
         }
     }
 

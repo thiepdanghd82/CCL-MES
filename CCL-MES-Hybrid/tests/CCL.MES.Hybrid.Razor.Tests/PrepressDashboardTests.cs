@@ -643,9 +643,9 @@ public sealed class PrepressDashboardTests : TestContext
 
     // ── Special accept (role-gated) ─────────────────────────────────
 
-    private static void ArmNgWithReason(IRenderedComponent<PrepressDashboard> cut)
+    private static void ArmSpecialAcceptWithReason(IRenderedComponent<PrepressDashboard> cut)
     {
-        cut.FindAll("[data-testid='btn-ng-arm']")[0].Click();
+        cut.FindAll("[data-testid='btn-special-accept-arm']")[0].Click();
         cut.Find("[data-testid='material-ng-reason-picker']").Change("SC-COLOR");
     }
 
@@ -689,8 +689,8 @@ public sealed class PrepressDashboardTests : TestContext
             Task.FromResult(new PrepressSetResponse { Ok = true, ETag = "new==" });
 
         var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='btn-ng-arm']")));
-        ArmNgWithReason(cut);
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='btn-special-accept-arm']")));
+        ArmSpecialAcceptWithReason(cut);
         cut.Find("[data-testid='btn-special-accept']").Click();
 
         cut.WaitForAssertion(() =>

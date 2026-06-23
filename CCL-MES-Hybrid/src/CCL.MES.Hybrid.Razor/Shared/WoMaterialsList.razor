@@ -94,8 +94,8 @@
                                    aria-label="Lot number" />
                         </td>
                         <td>
-                            <span class="prepress-pill @StatusPillClass(row.Status)" data-testid="status-pill">
-                                @StatusLabel(row.Status)
+                            <span class="prepress-pill @RowPillClass(row)" data-testid="status-pill">
+                                @RowStatusLabel(row)
                             </span>
                         </td>
                         <td>
@@ -141,7 +141,7 @@
                                         data-testid="btn-ng-arm"
                                         disabled="@(Busy || ScrapReasons.Count == 0)"
                                         title="@(ScrapReasons.Count == 0 ? "NG code catalog is empty — report to IT" : null)"
-                                        @onclick="() => draft.SettingNg = true">
+                                        @onclick="() => ArmNg(draft, special: false)">
                                     Mark NG
                                 </button>
                                 @if (_canSpecialAccept)
@@ -151,29 +151,33 @@
                                             data-testid="btn-special-accept-arm"
                                             disabled="@(Busy || ScrapReasons.Count == 0)"
                                             title="PD leader / Supervisor concession — pick the defect, then confirm"
-                                            @onclick="() => draft.SettingNg = true">
+                                            @onclick="() => ArmNg(draft, special: true)">
                                         ✓ Special Accept
                                     </button>
                                 }
                             }
                             else
                             {
-                                <button type="button"
-                                        class="op-btn op-btn-danger op-btn-sm"
-                                        data-testid="btn-ng-confirm"
-                                        disabled="@(Busy || !IsValidNgReason(draft.NgReasonCode))"
-                                        @onclick="() => OnSubmitNg(row, draft)">
-                                    Save NG
-                                </button>
-                                @if (_canSpecialAccept)
+                                @if (draft.SpecialAcceptMode)
                                 {
+                                    @* Special-accept mode: NG (Save NG) is deactivated; only confirm SA. *@
                                     <button type="button"
                                             class="op-btn op-btn-special op-btn-sm"
                                             data-testid="btn-special-accept"
                                             disabled="@(Busy || !IsValidNgReason(draft.NgReasonCode))"
                                             title="PD leader / Supervisor concession — records OK with the defect kept on record"
                                             @onclick="() => OnSubmitSpecialAccept(row, draft)">
-                                        ✓ Special Accept
+                                        ✓ Confirm Special Accept
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button type="button"
+                                            class="op-btn op-btn-danger op-btn-sm"
+                                            data-testid="btn-ng-confirm"
+                                            disabled="@(Busy || !IsValidNgReason(draft.NgReasonCode))"
+                                            @onclick="() => OnSubmitNg(row, draft)">
+                                        Save NG
                                     </button>
                                 }
                                 <button type="button"
@@ -327,11 +331,13 @@
             PartScan = string.IsNullOrWhiteSpace(ScanPart(row.BomLineIdx)) ? null : ScanPart(row.BomLineIdx),
         });
         draft.SettingNg = false;
+        draft.SpecialAcceptMode = false;
     }
 
     private void CancelNg(MaterialDraft draft)
     {
         draft.SettingNg = false;
+        draft.SpecialAcceptMode = false;
         draft.NgReasonCode = "";
         draft.NgNote = "";
     }
@@ -344,6 +350,24 @@
             return v;
         return null;
     }
+
+    private void ArmNg(MaterialDraft draft, bool special)
+    {
+        draft.SettingNg = true;
+        draft.SpecialAcceptMode = special;
+    }
+
+    // A row that is OK but still carries an NG reason was special-accepted
+    // (concession) — distinct from a clean OK.
+    private static bool IsSpecialAccept(PrepressMaterialRow r) =>
+        string.Equals(r.Status, "Ok", StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(r.NgReasonCode);
+
+    private static string RowStatusLabel(PrepressMaterialRow r) =>
+        IsSpecialAccept(r) ? "OK · Special Accept" : StatusLabel(r.Status);
+
+    private static string RowPillClass(PrepressMaterialRow r) =>
+        IsSpecialAccept(r) ? "prepress-pill-special" : StatusPillClass(r.Status);
 
     private static string StatusPillClass(string status) => status switch
     {
@@ -366,6 +390,7 @@
         public string NgReasonCode { get; set; } = "";
         public string NgNote { get; set; } = "";
         public bool SettingNg { get; set; }
+        public bool SpecialAcceptMode { get; set; }
     }
 
     public sealed class MaterialSetIntent

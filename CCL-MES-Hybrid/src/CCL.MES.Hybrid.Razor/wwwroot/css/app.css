@@ -4722,18 +4722,23 @@ html, body {
     font-weight: 600;
 }
 
+/* Keep this a real table-cell (NOT display:flex — that detaches the cell
+   from the row and breaks the bottom border alignment). Center the buttons
+   horizontally; the cell's vertical-align:middle centers them vertically
+   even when a neighbour cell (long description) makes the row taller. */
 .prepress-actions {
-    display: flex;
-    flex-wrap: nowrap;
-    gap: 8px;
-    align-items: center;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
 }
 
-/* Record OK + Mark NG sit on one row at an equal box size. */
+/* Record OK + Mark NG + Special Accept sit inline, centered, equal box size. */
 .prepress-actions .op-btn {
-    flex: 0 0 auto;
+    display: inline-block;
     min-width: 96px;
+    margin: 0 4px;
     text-align: center;
+    vertical-align: middle;
 }
 
 .op-btn-sm {
@@ -4823,6 +4828,14 @@ html, body {
 .scan-manual {
     color: #6b21a8 !important;
     font-weight: 600;
+}
+
+/* Status pill for a special-accepted row (OK kept with the defect on record). */
+.prepress-pill-special {
+    background: #ede9fe;
+    color: #6b21a8;
+    border: 1px solid #c4b5fd;
+    white-space: nowrap;
 }
 
 /* Special Accept button — PD leader / Supervisor concession. */
