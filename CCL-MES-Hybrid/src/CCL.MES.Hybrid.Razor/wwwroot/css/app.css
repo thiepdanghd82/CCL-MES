@@ -4859,8 +4859,12 @@ html, body {
 }
 
 .prepress-table {
-    table-layout: fixed;
-    min-width: 1080px;
+    /* auto (not fixed): with 14 columns + no colgroup, fixed layout squeezed
+       the Action cell so its 3 buttons overflowed + were clipped ("broken
+       line"). Auto sizes each column to its content; the section scrolls
+       horizontally (overflow-x: auto above) on narrow screens. */
+    table-layout: auto;
+    min-width: 1400px;
 }
 
 .prepress-table colgroup col.col-idx       { width: 56px; }

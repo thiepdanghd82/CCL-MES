@@ -613,23 +613,23 @@ public sealed class PrepressDashboardTests : TestContext
 
         var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='btn-ng-arm']")));
-        ArmNgWithReason(cut);
 
-        Assert.Empty(cut.FindAll("[data-testid='btn-special-accept']"));
+        // Visible in the default action row (no arming needed) — but not for Operator.
+        Assert.Empty(cut.FindAll("[data-testid='btn-special-accept-arm']"));
     }
 
     [Fact]
-    public void Special_accept_button_visible_for_engineer()
+    public void Special_accept_button_visible_for_engineer_in_default_row()
     {
         _session.SetUser("eng.demo", "Engineer");
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
         api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
 
         var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='btn-ng-arm']")));
-        ArmNgWithReason(cut);
 
-        Assert.NotEmpty(cut.FindAll("[data-testid='btn-special-accept']"));
+        // Shown right next to Mark NG, before any NG arming.
+        cut.WaitForAssertion(() =>
+            Assert.NotEmpty(cut.FindAll("[data-testid='btn-special-accept-arm']")));
     }
 
     [Fact]

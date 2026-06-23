@@ -143,6 +143,17 @@
                                         @onclick="() => draft.SettingNg = true">
                                     Mark NG
                                 </button>
+                                @if (_canSpecialAccept)
+                                {
+                                    <button type="button"
+                                            class="op-btn op-btn-special op-btn-sm"
+                                            data-testid="btn-special-accept-arm"
+                                            disabled="@(Busy || ScrapReasons.Count == 0)"
+                                            title="PD leader / Supervisor concession — pick the defect, then confirm"
+                                            @onclick="() => draft.SettingNg = true">
+                                        ✓ Special Accept
+                                    </button>
+                                }
                             }
                             else
                             {
