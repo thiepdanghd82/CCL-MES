@@ -4722,6 +4722,24 @@ html, body {
     font-weight: 600;
 }
 
+/* Plate / Cutter check: input row on the left (grows), Record/Mark buttons
+   pushed to the END of the line (like the Materials Action column). */
+.prepress-checkrow {
+    display: flex;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.prepress-checkrow .prepress-row-form {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.prepress-checkrow .prepress-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+    margin-bottom: 2px;
+}
+
 /* Keep this a real table-cell (NOT display:flex — that detaches the cell
    from the row and breaks the bottom border alignment). Center the buttons
    horizontally; the cell's vertical-align:middle centers them vertically
