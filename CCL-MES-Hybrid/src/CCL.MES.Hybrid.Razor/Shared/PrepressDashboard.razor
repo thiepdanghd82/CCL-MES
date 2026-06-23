@@ -47,6 +47,7 @@
 @inject ICclApiClient Api
 @inject IRecentScansService RecentScans
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
+@implements IDisposable
 
 <div class="prepress-dashboard" data-testid="prepress-dashboard">
     @if (_view is null && _initialError is null)
@@ -360,15 +361,34 @@
 
     private void DismissSetError() => _setError = null;
 
+    public void Dispose() => _scanDebounce?.Dispose();
+
     // ── Scan materials (PREPRESS) — USB wedge (Zebra DS2208) ────────────
     // The DS2208 runs HID keyboard-wedge by default: it types the barcode
     // into the focused field + an Enter suffix. So the scan UX is a single
     // always-focused <input>; on Enter we match the payload against THIS
     // WO's BOM (MaterialBarcodeMatcher, exact part-no only) and auto-record
     // OK via the existing PUT path. No camera / no scanner SDK needed.
+    // Wedge auto-submit: a Zebra DS2208 types the whole barcode in a burst
+    // then stops. We don't rely on its Enter suffix reaching the WebView —
+    // instead, 250 ms after the last keystroke we submit the buffer
+    // automatically (the "auto xlookup" the operator expects). Manual typing
+    // works too (submits after a pause); Enter/blur still submit instantly.
+    private System.Threading.Timer? _scanDebounce;
+
     private void OnScanInput(ChangeEventArgs e)
     {
         _scanInput = e.Value?.ToString() ?? string.Empty;
+        _scanDebounce?.Dispose();
+        _scanDebounce = new System.Threading.Timer(_ =>
+        {
+            _ = InvokeAsync(async () =>
+            {
+                try { await SubmitScanAsync(); }
+                catch { /* never let a timer callback crash the renderer */ }
+                StateHasChanged();
+            });
+        }, null, dueTime: 250, period: System.Threading.Timeout.Infinite);
     }
 
     private async Task OnScanKeyDown(KeyboardEventArgs e)
