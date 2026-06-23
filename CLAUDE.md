@@ -41,16 +41,15 @@ fail CI.
 
 ## 1. Vùng cấm — TUYỆT ĐỐI KHÔNG ĐỤNG
 
-Trong workspace có 4 thư mục anh em không thuộc CCL-MES — **chỉ ĐỌC,
-không sửa, không chạy**:
+CCL-MES là project duy nhất còn active trong workspace. Các project anh
+em cũ (CMES — bản rewrite TS đã bỏ; SpecHub — prototype) đã được **archive
+2026-06-23** thành tarball tại `../_archive/` (xem `../_archive/MANIFEST.md`
++ `checksums.sha256`), không còn nằm dạng source cây thư mục nữa. Nếu cần
+tham chiếu: `tar xzf ../_archive/<name>-2026-06.tar.gz`. **Không giải nén
+vào trong cây CCL-MES.**
 
-- `Ops Control v1.2/` — sibling project, dùng learn pattern (deploy,
-  CLAUDE.md style, DATA_DIR resolution).
-- `CMES/` — cũ, không liên quan.
-- `Old ver ( DO NOT USE)/` — legacy.
-- `SpecHub/` — sibling project khác.
-
-Khi commit, verify: `git diff --name-only | grep -E "Ops Control v1\.2|^CMES/|Old ver|SpecHub"` → empty.
+Khi commit, verify không lẫn file ngoài phạm vi:
+`git diff --name-only | grep -E "^CMES/|SpecHub|_archive"` → empty.
 
 ## 2. Deployment topology
 

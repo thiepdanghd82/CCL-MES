@@ -1,8 +1,10 @@
 name: CI
 
-# Phase 9 T2b — `dotnet test` gate on every push to main + every PR.
-# No deploy, no secret, no live-DB touch — the test suite uses isolated
-# /tmp SQLite per [Fact] (see tests/CCL.MES.Tests/Integration/_Support/
+# `dotnet test` gate on every push to main + every PR. Two jobs run in
+# parallel: `test` (legacy CCL.MES.sln — T1 unit + T2 integration) and
+# `hybrid-test` (the CCL-MES-Hybrid Api + Razor + Client suites).
+# No deploy, no secret, no live-DB touch — the suites use isolated /tmp
+# SQLite per [Fact] (see tests/CCL.MES.Tests/Integration/_Support/
 # IsolatedDbFixture.cs). Mirrors the dev box (.NET SDK 10.0.300, ubuntu).
 
 on:
@@ -61,5 +63,64 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results
+          path: TestResults/
+          retention-days: 7
+
+  hybrid-test:
+    name: Build + xUnit (Hybrid — Api + Razor + Client)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # The Hybrid stack lives in its own solution (CCL-MES-Hybrid.sln) which
+    # also contains the MAUI app `CCL.MES.Hybrid` (net10.0-maccatalyst /
+    # -windows) — that project CANNOT build on ubuntu (no Catalyst/Windows
+    # workload). So we DO NOT build the whole .sln; we drive `dotnet test`
+    # at each of the 3 net10.0 test projects directly. Their ProjectReference
+    # graphs pull in Api/Shared/Hybrid.Razor/Hybrid.Client + the read-only
+    # legacy Domain/Application/Infrastructure — but never the MAUI project.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK 10.0.300
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.300'
+
+      # `dotnet test` restores + builds each project. We keep them as separate
+      # steps so a failure log points at the exact suite (Api vs Razor vs
+      # Client). --blame captures a hang dump if a [Fact] never returns.
+      - name: Test — Hybrid Api (.Api.Tests)
+        run: |
+          dotnet test CCL-MES-Hybrid/tests/CCL.MES.Api.Tests/CCL.MES.Api.Tests.csproj \
+            --configuration Release \
+            --logger "trx;LogFileName=hybrid-api.trx" \
+            --results-directory TestResults \
+            --blame \
+            --verbosity normal
+
+      - name: Test — Hybrid Razor (bUnit)
+        run: |
+          dotnet test CCL-MES-Hybrid/tests/CCL.MES.Hybrid.Razor.Tests/CCL.MES.Hybrid.Razor.Tests.csproj \
+            --configuration Release \
+            --logger "trx;LogFileName=hybrid-razor.trx" \
+            --results-directory TestResults \
+            --blame \
+            --verbosity normal
+
+      - name: Test — Hybrid Client (auth/JWT)
+        run: |
+          dotnet test CCL-MES-Hybrid/tests/CCL.MES.Hybrid.Client.Tests/CCL.MES.Hybrid.Client.Tests.csproj \
+            --configuration Release \
+            --logger "trx;LogFileName=hybrid-client.trx" \
+            --results-directory TestResults \
+            --blame \
+            --verbosity normal
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-test-results
           path: TestResults/
           retention-days: 7
