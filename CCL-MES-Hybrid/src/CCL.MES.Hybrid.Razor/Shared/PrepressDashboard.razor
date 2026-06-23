@@ -122,6 +122,7 @@
                        placeholder="Point the scanner at a material label, then it auto-matches…"
                        value="@_scanInput"
                        @oninput="OnScanInput"
+                       @onchange="OnScanCommitted"
                        @onkeydown="OnScanKeyDown"
                        disabled="@_busy"
                        autocomplete="off"
@@ -139,6 +140,7 @@
         <WoMaterialsList Materials="_view.Materials"
                          Busy="_busy"
                          ScrapReasons="_scrapReasons"
+                         ScannedByRow="_scannedByRow"
                          OnSetMaterial="OnSetMaterial" />
 
         <WoPlateCheck Row="_view.PlateCheck"
@@ -186,6 +188,11 @@
     private string _scanInput = string.Empty;
     private string? _scanStatus;
 
+    // Per-row scanned data (BomLineIdx → part code + description) shown in the
+    // "Part Scan" / "Part Description" columns. Client-side confirmation that
+    // the scan synced to the right line; survives the post-PUT reload.
+    private readonly Dictionary<int, (string Part, string Desc)> _scannedByRow = new();
+
     private int MaterialsOkCount =>
         _view?.Materials.Count(m => string.Equals(m.Status, "Ok", StringComparison.OrdinalIgnoreCase)) ?? 0;
 
@@ -198,6 +205,9 @@
             _initialError = null;
             _setError = null;
             _invalidPhase = false;
+            _scanStatus = null;
+            _scanInput = string.Empty;
+            _scannedByRow.Clear();
             await LoadScrapReasonsAsync();
             await ReloadAsync();
         }
@@ -369,6 +379,15 @@
         await SubmitScanAsync();
     }
 
+    // Fallback: fires when the field commits (Enter or blur) — covers a
+    // scanner whose suffix keydown isn't surfaced to the WebView. Idempotent
+    // with OnScanKeyDown because SubmitScanAsync clears the buffer first.
+    private async Task OnScanCommitted(ChangeEventArgs e)
+    {
+        _scanInput = e.Value?.ToString() ?? _scanInput;
+        await SubmitScanAsync();
+    }
+
     private async Task SubmitScanAsync()
     {
         var code = _scanInput;
@@ -380,18 +399,16 @@
 
         if (match.Outcome != MaterialMatchOutcome.Single)
         {
+            // AllOk / NoMatch / EmptyCode — nothing to confirm.
             _scanStatus = PrepressErrorLocaliser.ScanOutcomeMessage(match.Outcome, match.PartNo);
-            RecordRecentScan(match.PartNo, resolved: false);
+            RecordRecentScan(match.PartNo, resolved: match.Outcome == MaterialMatchOutcome.AllOk);
             return;
         }
 
-        var row = match.Row!;
-        if (string.Equals(row.Status, "Ok", StringComparison.OrdinalIgnoreCase))
-        {
-            _scanStatus = PrepressErrorLocaliser.ScanAlreadyOk(row.MaterialCode);
-            RecordRecentScan(row.MaterialCode, resolved: true);
-            return;
-        }
+        var row = match.Row!;   // first not-yet-OK line of that part
+        // Sync the scanned data into the row's Part Scan / Part Description
+        // columns BEFORE the PUT so the operator sees it land immediately.
+        _scannedByRow[row.BomLineIdx] = (match.PartNo, match.Description);
 
         // Reuse the proven PUT path — GuardedPutAsync handles If-Match /
         // Idempotency-Key / ETag refresh / 409 retry + sets _setError on

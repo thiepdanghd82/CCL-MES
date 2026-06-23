@@ -9,20 +9,22 @@ public enum MaterialMatchOutcome
     EmptyCode,
     /// <summary>Part number not present in this WO's BOM.</summary>
     NoMatch,
-    /// <summary>Exactly one BOM row matched — safe to auto-record OK.</summary>
+    /// <summary>A BOM row was selected to confirm (first not-yet-OK line of that part).</summary>
     Single,
-    /// <summary>Part number appears on more than one BOM line — operator picks manually.</summary>
-    Multiple,
+    /// <summary>Every BOM line for that part number is already OK.</summary>
+    AllOk,
 }
 
 /// <summary>Result of <see cref="MaterialBarcodeMatcher.Match"/>.</summary>
 /// <param name="Outcome">Match classification.</param>
-/// <param name="Row">The matched row when <see cref="MaterialMatchOutcome.Single"/>; otherwise null.</param>
-/// <param name="PartNo">The part number extracted from the scan (for operator-facing messages).</param>
+/// <param name="Row">The row to confirm when <see cref="MaterialMatchOutcome.Single"/>; otherwise null.</param>
+/// <param name="PartNo">The part number extracted from the scan (for the Part Scan column + messages).</param>
+/// <param name="Description">The descriptive remainder of the scan (for the Part Description column).</param>
 public readonly record struct MaterialMatchResult(
     MaterialMatchOutcome Outcome,
     PrepressMaterialRow? Row,
-    string PartNo);
+    string PartNo,
+    string Description);
 
 /// <summary>
 /// Pure matcher: scanned material label → the WO's BOM row to confirm.
@@ -60,13 +62,29 @@ public static class MaterialBarcodeMatcher
         return (slash >= 0 ? s[..slash] : s).Trim();
     }
 
-    /// <summary>Match a scan against this WO's BOM rows (exact part number only).</summary>
+    /// <summary>Descriptive remainder = everything after the first '/', trimmed
+    /// (the label text the operator eyeballs against the BOM Description).</summary>
+    public static string ExtractDescription(string? scannedCode)
+    {
+        var s = (scannedCode ?? string.Empty).Trim();
+        var slash = s.IndexOf('/');
+        return slash >= 0 && slash + 1 < s.Length ? s[(slash + 1)..].Trim() : string.Empty;
+    }
+
+    /// <summary>
+    /// Pick the BOM row a scan should confirm. Exact part-number match only.
+    /// When a part appears on several BOM lines (e.g. the same component on
+    /// two lines), each scan confirms the FIRST line not yet OK — so scanning
+    /// the part N times confirms the N lines in order. If every matching line
+    /// is already OK → <see cref="MaterialMatchOutcome.AllOk"/>.
+    /// </summary>
     public static MaterialMatchResult Match(
         IReadOnlyList<PrepressMaterialRow> materials, string? scannedCode)
     {
         var partNo = ExtractPartNo(scannedCode);
+        var description = ExtractDescription(scannedCode);
         if (partNo.Length == 0)
-            return new MaterialMatchResult(MaterialMatchOutcome.EmptyCode, null, string.Empty);
+            return new MaterialMatchResult(MaterialMatchOutcome.EmptyCode, null, string.Empty, description);
 
         var hits = materials
             .Where(m => string.Equals(
@@ -75,11 +93,14 @@ public static class MaterialBarcodeMatcher
                 StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        return hits.Count switch
-        {
-            0 => new MaterialMatchResult(MaterialMatchOutcome.NoMatch, null, partNo),
-            1 => new MaterialMatchResult(MaterialMatchOutcome.Single, hits[0], partNo),
-            _ => new MaterialMatchResult(MaterialMatchOutcome.Multiple, null, partNo),
-        };
+        if (hits.Count == 0)
+            return new MaterialMatchResult(MaterialMatchOutcome.NoMatch, null, partNo, description);
+
+        var target = hits.FirstOrDefault(m =>
+            !string.Equals(m.Status, "Ok", StringComparison.OrdinalIgnoreCase));
+
+        return target is not null
+            ? new MaterialMatchResult(MaterialMatchOutcome.Single, target, partNo, description)
+            : new MaterialMatchResult(MaterialMatchOutcome.AllOk, hits[0], partNo, description);
     }
 }

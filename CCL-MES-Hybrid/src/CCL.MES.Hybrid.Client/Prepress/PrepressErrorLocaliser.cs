@@ -52,7 +52,7 @@ public static class PrepressErrorLocaliser
     public static string ScanOutcomeMessage(MaterialMatchOutcome outcome, string partNo) => outcome switch
     {
         MaterialMatchOutcome.NoMatch   => $"Part {partNo} is not in this WO's BOM — record by hand if correct.",
-        MaterialMatchOutcome.Multiple  => $"Part {partNo} is on more than one BOM line — record it by hand.",
+        MaterialMatchOutcome.AllOk     => $"All BOM lines for {partNo} are already OK.",
         MaterialMatchOutcome.EmptyCode => "Could not read a part number from the scan — try again.",
         _                              => "",
     };

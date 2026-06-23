@@ -46,6 +46,8 @@
                     <th class="c-center">UoM</th>
                     <th class="numc">Scrap Factor</th>
                     <th class="numc">Scrap %</th>
+                    <th>Part Scan</th>
+                    <th class="wrap">Part Description</th>
                     <th>Lot</th>
                     <th>Status</th>
                     <th class="wrap">NG — reason · note</th>
@@ -69,6 +71,8 @@
                         <td class="c-center">@(row.Uom ?? "—")</td>
                         <td class="numc">@FormatNum(row.ScrapFactor)</td>
                         <td class="numc">@(row.ScrapPercent is { } sp ? FormatNum(sp) + "%" : "—")</td>
+                        <td class="scan-mono" data-testid="part-scan">@ScanPart(row.BomLineIdx)</td>
+                        <td class="wrap" data-testid="part-scan-desc">@ScanDesc(row.BomLineIdx)</td>
                         <td>
                             <input type="text"
                                    class="prepress-input"
@@ -160,9 +164,19 @@
     [Parameter] public IReadOnlyList<ReasonCodeOption> ScrapReasons { get; set; } = Array.Empty<ReasonCodeOption>();
     [Parameter] public EventCallback<MaterialSetIntent> OnSetMaterial { get; set; }
 
+    /// <summary>Per-row scanned data (BomLineIdx → part + description) shown
+    /// in the Part Scan / Part Description columns. Null = nothing scanned.</summary>
+    [Parameter] public IReadOnlyDictionary<int, (string Part, string Desc)>? ScannedByRow { get; set; }
+
     private readonly Dictionary<int, MaterialDraft> _drafts = new();
 
     private int OkCount => Materials.Count(m => m.Status == "Ok");
+
+    private string ScanPart(int bomLineIdx) =>
+        ScannedByRow is not null && ScannedByRow.TryGetValue(bomLineIdx, out var v) ? v.Part : "—";
+
+    private string ScanDesc(int bomLineIdx) =>
+        ScannedByRow is not null && ScannedByRow.TryGetValue(bomLineIdx, out var v) ? v.Desc : "—";
 
     /// <summary>Compact numeric format for the read-only BOM scrap columns —
     /// trims trailing zeros, invariant culture so it matches the IFS export.</summary>

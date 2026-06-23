@@ -84,12 +84,35 @@ public class MaterialBarcodeMatcherTests
     }
 
     [Fact]
-    public void Same_part_on_two_bom_lines_is_Multiple()
+    public void Same_part_on_two_bom_lines_confirms_first_unconfirmed_then_second()
     {
-        var bom = new[] { Row("30031145", 0), Row("30031145", 3) };
-        var r = MaterialBarcodeMatcher.Match(bom, Scan3);
-        Assert.Equal(MaterialMatchOutcome.Multiple, r.Outcome);
-        Assert.Null(r.Row);
+        // Both pending → first scan picks line 0.
+        var bothPending = new[] { Row("30031145", 0), Row("30031145", 3) };
+        var r1 = MaterialBarcodeMatcher.Match(bothPending, Scan3);
+        Assert.Equal(MaterialMatchOutcome.Single, r1.Outcome);
+        Assert.Equal(0, r1.Row!.BomLineIdx);
+
+        // Line 0 already OK → next scan picks line 3.
+        var firstDone = new[] { Row("30031145", 0, status: "Ok"), Row("30031145", 3) };
+        var r2 = MaterialBarcodeMatcher.Match(firstDone, Scan3);
+        Assert.Equal(MaterialMatchOutcome.Single, r2.Outcome);
+        Assert.Equal(3, r2.Row!.BomLineIdx);
+    }
+
+    [Fact]
+    public void All_matching_lines_already_ok_is_AllOk()
+    {
+        var allOk = new[] { Row("30031145", 0, status: "Ok"), Row("30031145", 3, status: "Ok") };
+        var r = MaterialBarcodeMatcher.Match(allOk, Scan3);
+        Assert.Equal(MaterialMatchOutcome.AllOk, r.Outcome);
+    }
+
+    [Fact]
+    public void Description_is_the_remainder_after_part_number()
+    {
+        Assert.Equal("80/(BU'488) / BU'-0112N (215mm x 1000M)",
+            MaterialBarcodeMatcher.ExtractDescription(Scan3));
+        Assert.Equal(string.Empty, MaterialBarcodeMatcher.ExtractDescription("30031145"));
     }
 
     [Theory]
