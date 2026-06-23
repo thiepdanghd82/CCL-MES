@@ -33,12 +33,21 @@
     banners) so no input renderer concerns.
 *@
 
+@using System.Linq
 @using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.Hardware
 @using CCL.MES.Hybrid.Client.Prepress
+@using CCL.MES.Hybrid.Client.RecentScans
+@using CCL.MES.Shared.Devices
 @using CCL.MES.Shared.Envelopes
+@using CCL.MES.Shared.Hardware
 @using CCL.MES.Shared.Prepress
 @using CCL.MES.Shared.ReasonCodes
+@using CCL.MES.Shared.RecentScans
 @inject ICclApiClient Api
+@inject IBarcodeScannerService Scanner
+@inject IRecentScansService RecentScans
+@inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
 
 <div class="prepress-dashboard" data-testid="prepress-dashboard">
     @if (_view is null && _initialError is null)
@@ -103,6 +112,26 @@
             </div>
         }
 
+        @if (HwOptions.Value.ScanEnabled)
+        {
+            <div class="prepress-scan-bar" data-testid="prepress-scan-bar">
+                <button type="button"
+                        class="op-btn op-btn-primary"
+                        data-testid="prepress-scan-btn"
+                        disabled="@(_busy || _scanning)"
+                        @onclick="ScanMaterialsLoopAsync">
+                    @(_scanning ? "Opening camera…" : "Scan materials")
+                </button>
+                <span class="prepress-scan-count" data-testid="prepress-scan-count">
+                    @MaterialsOkCount/@_view.Materials.Count materials OK
+                </span>
+                @if (_scanStatus is not null)
+                {
+                    <span class="prepress-scan-status" data-testid="prepress-scan-status">@_scanStatus</span>
+                }
+            </div>
+        }
+
         <WoMaterialsList Materials="_view.Materials"
                          Busy="_busy"
                          ScrapReasons="_scrapReasons"
@@ -149,6 +178,12 @@
 
     private IReadOnlyList<ReasonCodeOption> _scrapReasons = Array.Empty<ReasonCodeOption>();
     private bool _reasonsLoading;
+
+    private bool _scanning;
+    private string? _scanStatus;
+
+    private int MaterialsOkCount =>
+        _view?.Materials.Count(m => string.Equals(m.Status, "Ok", StringComparison.OrdinalIgnoreCase)) ?? 0;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -310,4 +345,119 @@
     }
 
     private void DismissSetError() => _setError = null;
+
+    // ── Scan materials (PREPRESS) ───────────────────────────────────────
+    // Loop the shipped one-shot scanner: scan → match against THIS WO's BOM
+    // (MaterialBarcodeMatcher, exact part-no only) → auto-record OK via the
+    // existing PUT path. Re-opens the camera after each decode until the
+    // operator cancels (ScanOnceAsync → null). No Catalyst stream needed.
+    private async Task ScanMaterialsLoopAsync()
+    {
+        if (_view is null || _scanning) return;
+        _scanning = true;
+        _scanStatus = null;
+        try
+        {
+            while (_view is not null)
+            {
+                ScanResult? result;
+                try
+                {
+                    result = await Scanner.ScanOnceAsync();
+                }
+                catch (Exception ex)
+                {
+                    _scanStatus = $"Scanner error: {ex.GetType().Name} — try again.";
+                    break;
+                }
+
+                if (result is null) break;   // operator cancelled / no device
+
+                await LogMaterialScanAsync(result);
+                await HandleMaterialScanAsync(result);
+                StateHasChanged();           // surface progress between scans
+            }
+        }
+        finally
+        {
+            _scanning = false;
+        }
+    }
+
+    private async Task HandleMaterialScanAsync(ScanResult scan)
+    {
+        if (_view is null) return;
+        var match = MaterialBarcodeMatcher.Match(_view.Materials, scan.Code);
+
+        if (match.Outcome != MaterialMatchOutcome.Single)
+        {
+            _scanStatus = PrepressErrorLocaliser.ScanOutcomeMessage(match.Outcome, match.PartNo);
+            RecordRecentScan(scan, match.PartNo, resolved: false);
+            return;
+        }
+
+        var row = match.Row!;
+        if (string.Equals(row.Status, "Ok", StringComparison.OrdinalIgnoreCase))
+        {
+            _scanStatus = PrepressErrorLocaliser.ScanAlreadyOk(row.MaterialCode);
+            RecordRecentScan(scan, row.MaterialCode, resolved: true);
+            return;
+        }
+
+        // Reuse the proven PUT path — GuardedPutAsync handles If-Match /
+        // Idempotency-Key / ETag refresh / 409 retry + sets _setError on
+        // failure.
+        await OnSetMaterial(new WoMaterialsList.MaterialSetIntent
+        {
+            BomLineIdx = row.BomLineIdx,
+            Status = "Ok",
+        });
+
+        var ok = _setError is null;
+        if (ok)
+            _scanStatus = PrepressErrorLocaliser.ScanRecordedOk(row.MaterialCode);
+        // else: GuardedPutAsync already surfaced _setError + reloaded the view.
+        RecordRecentScan(scan, row.MaterialCode, resolved: ok);
+    }
+
+    private async Task LogMaterialScanAsync(ScanResult scan)
+    {
+        // Forensic trail — best-effort; never block the scan loop.
+        try
+        {
+            await Api.LogScanAsync(new ScanLogRequest
+            {
+                Payload = scan.Code,
+                Format = scan.Format ?? string.Empty,
+                Context = "prepress-materials",
+                SourceDeviceLabel = scan.SourceDevice,
+                ClientTimestamp = scan.CapturedAt,
+            });
+        }
+        catch (Exception)
+        {
+            // ignored — audit is secondary to the operator's task
+        }
+    }
+
+    private void RecordRecentScan(ScanResult scan, string code, bool resolved)
+    {
+        try
+        {
+            RecentScans.Record(new RecentScanEntry
+            {
+                Code = code,
+                Format = scan.Format ?? string.Empty,
+                Context = "prepress-materials",
+                ScannedAt = DateTime.UtcNow,
+                ResolvedDisplay = code,
+                ResolvedSubtitle = _view?.WoNo,
+                Resolved = resolved,
+            });
+        }
+        catch (Exception)
+        {
+            // ignored — a Preferences hiccup must not break scanning
+        }
+    }
 }

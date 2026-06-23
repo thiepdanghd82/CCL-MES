@@ -2,9 +2,12 @@ using System.Net;
 using Bunit;
 using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client;
+using CCL.MES.Hybrid.Client.Hardware;
+using CCL.MES.Hybrid.Client.RecentScans;
 using CCL.MES.Hybrid.Razor.Shared;
 using CCL.MES.Hybrid.Razor.Tests._Support;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.Hardware;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.ReasonCodes;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +27,13 @@ namespace CCL.MES.Hybrid.Razor.Tests;
 /// </summary>
 public sealed class PrepressDashboardTests : TestContext
 {
+    // Scan deps (added by the "Scan materials" feature). Mutate _hwOptions /
+    // _scanner inside a test BEFORE rendering to drive the scan flow; the
+    // defaults (ScanEnabled=false, no-op scanner) keep every pre-existing
+    // fixture rendering exactly as before.
+    private readonly StubScannerService _scanner = new();
+    private readonly HardwareOptions _hwOptions = new();
+
     public PrepressDashboardTests()
     {
         var api = new RecordingApi();
@@ -31,10 +41,20 @@ public sealed class PrepressDashboardTests : TestContext
         // with a non-empty picker. Empty-list scenario overrides below.
         api.ReasonCodesImpl = (_, _) => Task.FromResult<IReadOnlyList<ReasonCodeOption>>(SampleScrapReasons());
         Services.AddSingleton<ICclApiClient>(api);
+        Services.AddSingleton<IBarcodeScannerService>(_scanner);
+        Services.AddSingleton<IRecentScansService>(new InMemoryRecentScansService());
+        Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(_hwOptions));
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
             typeof(NullLogger<>));
         Services.AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(NullLoggerFactory.Instance);
         this.AddTestAuthorization().SetAuthorized("test-user");
+    }
+
+    private void QueueScans(params string[] codes)
+    {
+        var q = new Queue<string>(codes);
+        _scanner.ScanImpl = () => Task.FromResult<ScanResult?>(
+            q.Count > 0 ? new ScanResult(q.Dequeue(), "QR", DateTimeOffset.UtcNow, "camera") : null);
     }
 
     private static IReadOnlyList<ReasonCodeOption> SampleScrapReasons() => new List<ReasonCodeOption>
@@ -466,5 +486,91 @@ public sealed class PrepressDashboardTests : TestContext
         {
             Assert.NotNull(cut.Find("[data-testid='materials-empty']"));
         });
+    }
+
+    // ── Scan materials ──────────────────────────────────────────────
+
+    [Fact]
+    public void Scan_button_hidden_when_scan_disabled()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='prepress-dashboard']")));
+        Assert.Empty(cut.FindAll("[data-testid='prepress-scan-btn']"));
+    }
+
+    [Fact]
+    public void Scan_button_visible_when_scan_enabled()
+    {
+        _hwOptions.ScanEnabled = true;
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='prepress-scan-btn']")));
+    }
+
+    [Fact]
+    public void Scanning_known_material_records_it_ok()
+    {
+        _hwOptions.ScanEnabled = true;
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+
+        var pending = new List<PrepressMaterialRow>
+        {
+            new() { Id = 1, BomLineIdx = 1, MaterialCode = "30031145", Status = "Pending" },
+            new() { Id = 2, BomLineIdx = 2, MaterialCode = "30030532", Status = "Pending" },
+        };
+        var afterOk = new List<PrepressMaterialRow>
+        {
+            new() { Id = 1, BomLineIdx = 1, MaterialCode = "30031145", Status = "Ok" },
+            new() { Id = 2, BomLineIdx = 2, MaterialCode = "30030532", Status = "Pending" },
+        };
+        var call = 0;
+        api.PrepressViewImpl = (_, _) => Task.FromResult(
+            call++ == 0 ? SampleView(materials: pending) : SampleView(etag: "new==", materials: afterOk));
+        api.PutPrepressMaterialImpl = (_, _, _, _, _) =>
+            Task.FromResult(new PrepressSetResponse { Ok = true, ETag = "new==" });
+
+        // Real label for part 30031145 (live scan).
+        QueueScans("30031145/80/(BU'488) / BU'-0112N (215mm x 1000M)");
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='prepress-scan-btn']")));
+        cut.Find("[data-testid='prepress-scan-btn']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var put = Assert.Single(api.PutPrepressMaterialCalls);
+            Assert.Equal(1, put.BomLineIdx);                 // the 30031145 line
+            Assert.Equal("Ok", put.Req.Status);
+            var status = cut.Find("[data-testid='prepress-scan-status']");
+            Assert.Contains("recorded OK", status.TextContent);
+        });
+    }
+
+    [Fact]
+    public void Scanning_unknown_material_shows_not_in_bom_and_does_not_put()
+    {
+        _hwOptions.ScanEnabled = true;
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        // SampleView default BOM = M-001 / M-002, so 99999999 is unknown.
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+        QueueScans("99999999/1/(z) some desc");
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='prepress-scan-btn']")));
+        cut.Find("[data-testid='prepress-scan-btn']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var status = cut.Find("[data-testid='prepress-scan-status']");
+            Assert.Contains("not in this WO's BOM", status.TextContent);
+        });
+        Assert.Empty(api.PutPrepressMaterialCalls);
     }
 }

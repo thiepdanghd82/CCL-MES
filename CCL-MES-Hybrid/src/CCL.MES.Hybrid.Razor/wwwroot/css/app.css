@@ -4773,6 +4773,27 @@ html, body {
     font-size: 0.85rem;
 }
 
+/* Scan materials bar (PREPRESS) — sits above the materials checklist. */
+.prepress-scan-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    margin-bottom: 4px;
+}
+
+.prepress-scan-count {
+    color: #374151;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.prepress-scan-status {
+    color: #1d4ed8;
+    font-size: 0.9rem;
+}
+
 /* ── P10.7b-3 fix-2 — S9 Design Rules: responsive PREPRESS dashboard ─
    Apply to the PrepressDashboard hosted inside WorkOrders.razor. The
    wo-shell parent currently has a fixed inner max-width; the dashboard
