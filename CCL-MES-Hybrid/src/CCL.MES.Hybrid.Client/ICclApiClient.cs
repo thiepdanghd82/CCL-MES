@@ -110,6 +110,14 @@ public interface ICclApiClient
         long workOrderId, string ifMatchETag,
         SetPrepressCutterRequest req, CancellationToken ct = default);
 
+    /// <summary>Special-accept a material (PD leader / Supervisor concession):
+    /// records the row OK but retains the deviation. 403 if the caller's role
+    /// is not Admin/Supervisor/Engineer; otherwise same If-Match/Idempotency
+    /// contract as the PUT endpoints.</summary>
+    Task<PrepressSetResponse> SpecialAcceptMaterialAsync(
+        long workOrderId, int bomLineIdx, string ifMatchETag,
+        SpecialAcceptMaterialRequest req, CancellationToken ct = default);
+
     // ── Running Surface (P10.7c-3 — SETTING + RUNNING + PAUSED) ───
     /// <summary>Read view backing the SETTING / RUNNING / PAUSED
     /// dashboards. Single round-trip carries every field needed to

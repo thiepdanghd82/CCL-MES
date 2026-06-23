@@ -4819,6 +4819,22 @@ html, body {
     font-size: 0.9rem;
 }
 
+/* Manually-typed Part Scan / Description (special-accept case) — dark purple. */
+.scan-manual {
+    color: #6b21a8 !important;
+    font-weight: 600;
+}
+
+/* Special Accept button — PD leader / Supervisor concession. */
+.op-btn-special {
+    background: #7c3aed;
+    border-color: #6d28d9;
+    color: #fff;
+}
+.op-btn-special:hover:not(:disabled) {
+    background: #6d28d9;
+}
+
 /* ── P10.7b-3 fix-2 — S9 Design Rules: responsive PREPRESS dashboard ─
    Apply to the PrepressDashboard hosted inside WorkOrders.razor. The
    wo-shell parent currently has a fixed inner max-width; the dashboard

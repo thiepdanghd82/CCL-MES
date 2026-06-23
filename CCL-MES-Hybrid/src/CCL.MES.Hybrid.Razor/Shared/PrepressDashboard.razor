@@ -142,7 +142,9 @@
                          Busy="_busy"
                          ScrapReasons="_scrapReasons"
                          ScannedByRow="_scannedByRow"
-                         OnSetMaterial="OnSetMaterial" />
+                         OnSetMaterial="OnSetMaterial"
+                         OnPartScanInput="OnPartScanInput"
+                         OnSpecialAccept="OnSpecialAccept" />
 
         <WoPlateCheck Row="_view.PlateCheck"
                       Busy="_busy"
@@ -189,10 +191,10 @@
     private string _scanInput = string.Empty;
     private string? _scanStatus;
 
-    // Per-row scanned data (BomLineIdx → part code + description) shown in the
-    // "Part Scan" / "Part Description" columns. Client-side confirmation that
-    // the scan synced to the right line; survives the post-PUT reload.
-    private readonly Dictionary<int, (string Part, string Desc)> _scannedByRow = new();
+    // Per-row scanned data (BomLineIdx → part + description + manual flag)
+    // shown in the "Part Scan" / "Part Description" columns. Manual=true when
+    // the operator typed it by hand (rendered dark purple). Survives reload.
+    private readonly Dictionary<int, (string Part, string Desc, bool Manual)> _scannedByRow = new();
 
     private int MaterialsOkCount =>
         _view?.Materials.Count(m => string.Equals(m.Status, "Ok", StringComparison.OrdinalIgnoreCase)) ?? 0;
@@ -273,6 +275,28 @@
                     LotNo = intent.LotNo,
                     NgReasonCode = intent.NgReasonCode,
                     NgNote = intent.NgNote,
+                }));
+    }
+
+    // Manual entry into a row's Part Scan cell (special-accept case) — flag
+    // Manual=true so the columns render dark purple.
+    private void OnPartScanInput((int BomLineIdx, string Value) arg)
+    {
+        var desc = _scannedByRow.TryGetValue(arg.BomLineIdx, out var prev) ? prev.Desc : string.Empty;
+        _scannedByRow[arg.BomLineIdx] = (arg.Value, desc, true);
+    }
+
+    private async Task OnSpecialAccept(WoMaterialsList.SpecialAcceptIntent intent)
+    {
+        if (_view is null) return;
+        await GuardedPutAsync(async ifMatch =>
+            await Api.SpecialAcceptMaterialAsync(
+                WorkOrderId, intent.BomLineIdx, ifMatch,
+                new SpecialAcceptMaterialRequest
+                {
+                    NgReasonCode = intent.NgReasonCode,
+                    Note = intent.NgNote,
+                    PartScan = intent.PartScan,
                 }));
     }
 
@@ -423,7 +447,7 @@
             // (re-scan of a done part) still refresh the Part Scan/Description
             // columns so a complete re-scan corrects an earlier partial read.
             if (match.Outcome == MaterialMatchOutcome.AllOk && match.Row is not null)
-                _scannedByRow[match.Row.BomLineIdx] = (match.PartNo, match.Description);
+                _scannedByRow[match.Row.BomLineIdx] = (match.PartNo, match.Description, false);
             _scanStatus = PrepressErrorLocaliser.ScanOutcomeMessage(match.Outcome, match.PartNo);
             RecordRecentScan(match.PartNo, resolved: match.Outcome == MaterialMatchOutcome.AllOk);
             return;
@@ -432,7 +456,7 @@
         var row = match.Row!;   // first not-yet-OK line of that part
         // Sync the scanned data into the row's Part Scan / Part Description
         // columns BEFORE the PUT so the operator sees it land immediately.
-        _scannedByRow[row.BomLineIdx] = (match.PartNo, match.Description);
+        _scannedByRow[row.BomLineIdx] = (match.PartNo, match.Description, false);
 
         // Reuse the proven PUT path — GuardedPutAsync handles If-Match /
         // Idempotency-Key / ETag refresh / 409 retry + sets _setError on

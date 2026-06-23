@@ -2,6 +2,7 @@ using System.Net;
 using Bunit;
 using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client;
+using CCL.MES.Hybrid.Client.Auth;
 using CCL.MES.Hybrid.Client.Hardware;
 using CCL.MES.Hybrid.Client.RecentScans;
 using CCL.MES.Hybrid.Razor.Shared;
@@ -31,6 +32,7 @@ public sealed class PrepressDashboardTests : TestContext
     // (ScanEnabled=false) keeps every pre-existing fixture rendering exactly
     // as before.
     private readonly HardwareOptions _hwOptions = new();
+    private readonly StubAuthSession _session = new();
 
     public PrepressDashboardTests()
     {
@@ -38,8 +40,10 @@ public sealed class PrepressDashboardTests : TestContext
         // Default Scrap reason list — 3 codes — so every fixture starts
         // with a non-empty picker. Empty-list scenario overrides below.
         api.ReasonCodesImpl = (_, _) => Task.FromResult<IReadOnlyList<ReasonCodeOption>>(SampleScrapReasons());
+        _session.SetUser("op.demo", "Operator");   // default: cannot special-accept
         Services.AddSingleton<ICclApiClient>(api);
         Services.AddSingleton<IRecentScansService>(new InMemoryRecentScansService());
+        Services.AddSingleton<IAuthSession>(_session);
         Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(_hwOptions));
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
             typeof(NullLogger<>));
@@ -570,5 +574,85 @@ public sealed class PrepressDashboardTests : TestContext
             Assert.Contains("not in this WO's BOM", status.TextContent);
         });
         Assert.Empty(api.PutPrepressMaterialCalls);
+    }
+
+    [Fact]
+    public void Manual_part_scan_renders_dark_purple()
+    {
+        _hwOptions.ScanEnabled = true;
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='part-scan']")));
+
+        var input = cut.FindAll("[data-testid='part-scan']")[0];
+        input.Input("M-001");   // manual typing into the Part Scan cell
+
+        cut.WaitForAssertion(() =>
+        {
+            var cell = cut.FindAll("[data-testid='part-scan']")[0];
+            Assert.Contains("scan-manual", cell.GetAttribute("class"));
+        });
+    }
+
+    // ── Special accept (role-gated) ─────────────────────────────────
+
+    private static void ArmNgWithReason(IRenderedComponent<PrepressDashboard> cut)
+    {
+        cut.FindAll("[data-testid='btn-ng-arm']")[0].Click();
+        cut.Find("[data-testid='material-ng-reason-picker']").Change("SC-COLOR");
+    }
+
+    [Fact]
+    public void Special_accept_button_hidden_for_operator()
+    {
+        _session.SetUser("op.demo", "Operator");
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='btn-ng-arm']")));
+        ArmNgWithReason(cut);
+
+        Assert.Empty(cut.FindAll("[data-testid='btn-special-accept']"));
+    }
+
+    [Fact]
+    public void Special_accept_button_visible_for_engineer()
+    {
+        _session.SetUser("eng.demo", "Engineer");
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='btn-ng-arm']")));
+        ArmNgWithReason(cut);
+
+        Assert.NotEmpty(cut.FindAll("[data-testid='btn-special-accept']"));
+    }
+
+    [Fact]
+    public void Engineer_special_accept_calls_api_with_reason()
+    {
+        _session.SetUser("eng.demo", "Engineer");
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        var call = 0;
+        api.PrepressViewImpl = (_, _) => Task.FromResult(
+            call++ == 0 ? SampleView() : SampleView(etag: "new=="));
+        api.SpecialAcceptMaterialImpl = (_, _, _, _, _) =>
+            Task.FromResult(new PrepressSetResponse { Ok = true, ETag = "new==" });
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='btn-ng-arm']")));
+        ArmNgWithReason(cut);
+        cut.Find("[data-testid='btn-special-accept']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var sa = Assert.Single(api.SpecialAcceptMaterialCalls);
+            Assert.Equal(1, sa.BomLineIdx);              // first row (M-001, BomLineIdx 1)
+            Assert.Equal("SC-COLOR", sa.Req.NgReasonCode);
+        });
     }
 }

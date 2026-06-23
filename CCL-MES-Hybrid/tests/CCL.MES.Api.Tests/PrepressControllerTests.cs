@@ -170,6 +170,27 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         return req;
     }
 
+    private async Task<HttpClient> ClientAsRoleAsync(string user, string role)
+    {
+        await _fx.SeedUserAsync(user, "P@ss!1", role);
+        var client = _fx.CreateClient();
+        await _fx.LoginAndAuthenticateAsync(client, user, "P@ss!1");
+        return client;
+    }
+
+    private static HttpRequestMessage PostSpecialAccept(long id, int idx, string body,
+        string? ifMatch, string? idem)
+    {
+        var req = new HttpRequestMessage(HttpMethod.Post,
+            $"/api/v2/work-orders/{id}/materials/{idx}/special-accept")
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json"),
+        };
+        if (ifMatch is not null) req.Headers.TryAddWithoutValidation("If-Match", ifMatch);
+        if (idem is not null) req.Headers.TryAddWithoutValidation("Idempotency-Key", idem);
+        return req;
+    }
+
     // ── GET ────────────────────────────────────────────────────────
 
     [Fact]
@@ -532,5 +553,51 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         var body = await audit.Content.ReadAsStringAsync();
         Assert.Contains($"\"targetId\":\"{woId}\"", body);
         Assert.Contains("\\\"bom_line_idx\\\":0", body);
+    }
+
+    // ── Special accept (role-gated) ─────────────────────────────────
+
+    [Fact]
+    public async Task Special_accept_forbidden_for_operator_returns_403()
+    {
+        await SeedScrapReasonAsync();
+        var (woId, _) = await SeedWoWithBomAsync("WO-SA-403", "PROD-SA403");
+        var client = await OperatorClientAsync("op-sa-403");
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        var resp = await client.SendAsync(PostSpecialAccept(woId, 0,
+            "{\"ngReasonCode\":\"SC-COLOR\",\"note\":\"concession\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+        var err = (await resp.Content.ReadFromJsonAsync<ApiError>())!;
+        Assert.Equal("prepress.special_accept_forbidden", err.Code);
+    }
+
+    [Fact]
+    public async Task Special_accept_by_engineer_records_ok_keeping_deviation()
+    {
+        await SeedScrapReasonAsync();
+        var (woId, _) = await SeedWoWithBomAsync("WO-SA-ENG", "PROD-SAENG");
+        var client = await ClientAsRoleAsync("eng-sa", UserRole.Engineer);
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        var resp = await client.SendAsync(PostSpecialAccept(woId, 0,
+            "{\"ngReasonCode\":\"SC-COLOR\",\"note\":\"accepted by PD leader\",\"partScan\":\"COMP-X\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var body = (await resp.Content.ReadFromJsonAsync<PrepressSetResponse>())!;
+        Assert.True(body.Ok);
+
+        // Row is OK (counts toward MaterialsReady) but the deviation is kept.
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var row = await db.WoMaterials.AsNoTracking()
+            .FirstAsync(m => m.WorkOrderId == woId && m.BomLineIdx == 0);
+        Assert.Equal(PrepressCheckStatus.Ok, row.Status);
+        Assert.Equal("SC-COLOR", row.NgReasonCode);
     }
 }

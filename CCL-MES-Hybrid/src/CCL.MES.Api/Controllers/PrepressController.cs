@@ -5,6 +5,7 @@ using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
 using CCL.MES.Domain;
 using CCL.MES.Domain.Audit;
+using CCL.MES.Domain.Auth;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Domain.StateMachine;
 using CCL.MES.Shared;
@@ -149,6 +150,65 @@ public sealed class PrepressController : ControllerBase
                 lot_no = row.LotNo,
                 ng_reason_code = row.NgReasonCode,
                 ng_note = row.NgNote,
+            });
+    }
+
+    // ── POST /materials/{bom_line_idx}/special-accept ──────────────
+    // A PD leader (Engineer) or Supervisor concedes a material despite a
+    // defect: the row is recorded OK (so MaterialsReady can roll up and the
+    // WO can advance) but the deviation is retained (NgReasonCode + note) and
+    // audited with special_accept=true. Role-gated to Admin/Supervisor/Engineer.
+
+    private static readonly string[] SpecialAcceptRoles =
+        { UserRole.Admin, UserRole.Supervisor, UserRole.Engineer };
+
+    [HttpPost("{id:long}/materials/{bomLineIdx:int}/special-accept")]
+    public async Task<IActionResult> SpecialAcceptMaterial(
+        long id, int bomLineIdx, [FromBody] SpecialAcceptMaterialRequest? req)
+    {
+        var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+        if (!SpecialAcceptRoles.Contains(role))
+            return StatusCode(StatusCodes.Status403Forbidden, ApiError.Of(
+                "prepress.special_accept_forbidden",
+                "Only a PD leader (Engineer) or Supervisor can special-accept a material."));
+
+        var pre = await PreludeAsync(id, actor, role, "prepress_material_special_accept");
+        if (pre.Error is not null) return pre.Error;
+
+        // The defect being conceded must still be a real Scrap code + note.
+        var ngErr = await ValidateNgAsync(PrepressCheckStatus.Ng, req?.NgReasonCode, req?.Note);
+        if (ngErr is not null) return ngErr;
+
+        var row = await _db.WoMaterials
+            .FirstOrDefaultAsync(m => m.WorkOrderId == id && m.BomLineIdx == bomLineIdx);
+        if (row is null)
+            return NotFound(ApiError.Of("wo.material_row_not_found",
+                $"No wo_materials row for wo_id={id}, bom_line_idx={bomLineIdx}."));
+
+        // Concession → OK, but keep the deviation on the row for the record.
+        row.Status = PrepressCheckStatus.Ok;
+        row.NgReasonCode = req!.NgReasonCode;
+        row.NgNote = req.Note;
+        row.CheckedBy = actor;
+        row.CheckedAt = DateTime.UtcNow;
+        row.UpdatedAt = DateTime.UtcNow;
+        row.UpdatedBy = actor;
+
+        return await CommitAndAuditAsync(id, pre.WoForUpdate!,
+            AuditAction.WoPrepressMaterialSet, actor, role,
+            extraDetail: new
+            {
+                bom_line_idx = bomLineIdx,
+                material_code = row.MaterialCode,
+                to_status = "Ok",
+                special_accept = true,
+                approver = actor,
+                approver_role = role,
+                ng_reason_code = row.NgReasonCode,
+                note = row.NgNote,
+                part_scan = req.PartScan,
             });
     }
 

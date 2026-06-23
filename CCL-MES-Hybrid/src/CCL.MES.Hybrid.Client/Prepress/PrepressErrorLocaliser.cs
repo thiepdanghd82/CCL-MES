@@ -26,6 +26,7 @@ public static class PrepressErrorLocaliser
             "prepress.invalid_status"           => "Invalid status — only Pending / OK / NG are accepted.",
             "prepress.invalid_reason_code"      => "NG reason code is not in the Scrap catalog — choose a valid code.",
             "prepress.invalid_ng_note"          => "An NG note is required when setting NG (1-500 characters).",
+            "prepress.special_accept_forbidden" => "Only a PD leader (Engineer) or Supervisor can special-accept a material.",
             _                                   => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 

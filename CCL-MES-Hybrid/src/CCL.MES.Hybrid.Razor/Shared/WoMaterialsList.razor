@@ -15,8 +15,10 @@
     refetch doesn't mid-type clobber.
 *@
 
+@using CCL.MES.Hybrid.Client.Auth
 @using CCL.MES.Shared.Prepress
 @using CCL.MES.Shared.ReasonCodes
+@inject IAuthSession Session
 
 <div class="prepress-section">
     <div class="prepress-section-head">
@@ -71,8 +73,17 @@
                         <td class="c-center">@(row.Uom ?? "—")</td>
                         <td class="numc">@FormatNum(row.ScrapFactor)</td>
                         <td class="numc">@(row.ScrapPercent is { } sp ? FormatNum(sp) + "%" : "—")</td>
-                        <td class="scan-mono" data-testid="part-scan">@ScanPart(row.BomLineIdx)</td>
-                        <td class="wrap" data-testid="part-scan-desc">@ScanDesc(row.BomLineIdx)</td>
+                        <td>
+                            <input type="text"
+                                   class="prepress-input scan-mono @(IsManualScan(row.BomLineIdx) ? "scan-manual" : null)"
+                                   value="@ScanPart(row.BomLineIdx)"
+                                   @oninput="e => OnPartScanInput.InvokeAsync((row.BomLineIdx, e.Value?.ToString() ?? string.Empty))"
+                                   disabled="@Busy"
+                                   aria-label="Part scan (manual entry allowed)"
+                                   data-testid="part-scan" />
+                        </td>
+                        <td class="wrap @(IsManualScan(row.BomLineIdx) ? "scan-manual" : null)"
+                            data-testid="part-scan-desc">@ScanDesc(row.BomLineIdx)</td>
                         <td>
                             <input type="text"
                                    class="prepress-input"
@@ -142,6 +153,17 @@
                                         @onclick="() => OnSubmitNg(row, draft)">
                                     Save NG
                                 </button>
+                                @if (_canSpecialAccept)
+                                {
+                                    <button type="button"
+                                            class="op-btn op-btn-special op-btn-sm"
+                                            data-testid="btn-special-accept"
+                                            disabled="@(Busy || !IsValidNgReason(draft.NgReasonCode))"
+                                            title="PD leader / Supervisor concession — records OK with the defect kept on record"
+                                            @onclick="() => OnSubmitSpecialAccept(row, draft)">
+                                        ✓ Special Accept
+                                    </button>
+                                }
                                 <button type="button"
                                         class="op-btn op-btn-secondary op-btn-sm"
                                         data-testid="btn-ng-cancel"
@@ -164,19 +186,32 @@
     [Parameter] public IReadOnlyList<ReasonCodeOption> ScrapReasons { get; set; } = Array.Empty<ReasonCodeOption>();
     [Parameter] public EventCallback<MaterialSetIntent> OnSetMaterial { get; set; }
 
-    /// <summary>Per-row scanned data (BomLineIdx → part + description) shown
-    /// in the Part Scan / Part Description columns. Null = nothing scanned.</summary>
-    [Parameter] public IReadOnlyDictionary<int, (string Part, string Desc)>? ScannedByRow { get; set; }
+    /// <summary>Per-row scanned data (BomLineIdx → part + description + manual
+    /// flag) for the Part Scan / Part Description columns. Null = none.</summary>
+    [Parameter] public IReadOnlyDictionary<int, (string Part, string Desc, bool Manual)>? ScannedByRow { get; set; }
+
+    /// <summary>Operator typed a Part Scan by hand → (BomLineIdx, value).</summary>
+    [Parameter] public EventCallback<(int BomLineIdx, string Value)> OnPartScanInput { get; set; }
+
+    /// <summary>PD leader / Supervisor concedes a material despite a defect.</summary>
+    [Parameter] public EventCallback<SpecialAcceptIntent> OnSpecialAccept { get; set; }
 
     private readonly Dictionary<int, MaterialDraft> _drafts = new();
 
     private int OkCount => Materials.Count(m => m.Status == "Ok");
 
+    // Special accept is a PD-leader (Engineer) / Supervisor concession.
+    private bool _canSpecialAccept =>
+        Session.CurrentUserInfo?.Role is "Admin" or "Supervisor" or "Engineer";
+
     private string ScanPart(int bomLineIdx) =>
-        ScannedByRow is not null && ScannedByRow.TryGetValue(bomLineIdx, out var v) ? v.Part : "—";
+        ScannedByRow is not null && ScannedByRow.TryGetValue(bomLineIdx, out var v) ? v.Part : "";
 
     private string ScanDesc(int bomLineIdx) =>
-        ScannedByRow is not null && ScannedByRow.TryGetValue(bomLineIdx, out var v) ? v.Desc : "—";
+        ScannedByRow is not null && ScannedByRow.TryGetValue(bomLineIdx, out var v) && v.Desc.Length > 0 ? v.Desc : "—";
+
+    private bool IsManualScan(int bomLineIdx) =>
+        ScannedByRow is not null && ScannedByRow.TryGetValue(bomLineIdx, out var v) && v.Manual;
 
     /// <summary>Compact numeric format for the read-only BOM scrap columns —
     /// trims trailing zeros, invariant culture so it matches the IFS export.</summary>
@@ -265,6 +300,18 @@
         draft.SettingNg = false;
     }
 
+    private async Task OnSubmitSpecialAccept(PrepressMaterialRow row, MaterialDraft draft)
+    {
+        await OnSpecialAccept.InvokeAsync(new SpecialAcceptIntent
+        {
+            BomLineIdx = row.BomLineIdx,
+            NgReasonCode = string.IsNullOrWhiteSpace(draft.NgReasonCode) ? null : draft.NgReasonCode,
+            NgNote = string.IsNullOrWhiteSpace(draft.NgNote) ? null : draft.NgNote,
+            PartScan = string.IsNullOrWhiteSpace(ScanPart(row.BomLineIdx)) ? null : ScanPart(row.BomLineIdx),
+        });
+        draft.SettingNg = false;
+    }
+
     private void CancelNg(MaterialDraft draft)
     {
         draft.SettingNg = false;
@@ -312,5 +359,13 @@
         public string? LotNo { get; init; }
         public string? NgReasonCode { get; init; }
         public string? NgNote { get; init; }
+    }
+
+    public sealed class SpecialAcceptIntent
+    {
+        public int BomLineIdx { get; init; }
+        public string? NgReasonCode { get; init; }
+        public string? NgNote { get; init; }
+        public string? PartScan { get; init; }
     }
 }
