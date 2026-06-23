@@ -177,9 +177,19 @@ public sealed class PrepressController : ControllerBase
         var pre = await PreludeAsync(id, actor, role, "prepress_material_special_accept");
         if (pre.Error is not null) return pre.Error;
 
-        // The defect being conceded must still be a real Scrap code + note.
-        var ngErr = await ValidateNgAsync(PrepressCheckStatus.Ng, req?.NgReasonCode, req?.Note);
-        if (ngErr is not null) return ngErr;
+        // Special accept needs a real defect code; the justification note is
+        // OPTIONAL (unlike Mark NG, which requires a note).
+        if (string.IsNullOrWhiteSpace(req?.NgReasonCode))
+            return UnprocessableEntity(ApiError.Of("prepress.invalid_reason_code",
+                "A defect code is required to special-accept."));
+        if (req.Note is { Length: > 500 })
+            return UnprocessableEntity(ApiError.Of("prepress.invalid_ng_note",
+                "Note must be 500 characters or fewer."));
+        var reasonOk = await _db.ReasonCodes.AsNoTracking()
+            .AnyAsync(r => r.Code == req.NgReasonCode && r.Kind == ReasonCodeKind.Scrap);
+        if (!reasonOk)
+            return UnprocessableEntity(ApiError.Of("prepress.invalid_reason_code",
+                $"NgReasonCode '{req.NgReasonCode}' is not a registered Scrap reason."));
 
         var row = await _db.WoMaterials
             .FirstOrDefaultAsync(m => m.WorkOrderId == id && m.BomLineIdx == bomLineIdx);

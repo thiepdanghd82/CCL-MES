@@ -576,6 +576,23 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
+    public async Task Special_accept_without_note_succeeds()
+    {
+        await SeedScrapReasonAsync();
+        var (woId, _) = await SeedWoWithBomAsync("WO-SA-NN", "PROD-SANN");
+        var client = await ClientAsRoleAsync("eng-sann", UserRole.Engineer);
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        // Note omitted — special accept only requires a defect code.
+        var resp = await client.SendAsync(PostSpecialAccept(woId, 0,
+            "{\"ngReasonCode\":\"SC-COLOR\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
+
+    [Fact]
     public async Task Special_accept_by_engineer_records_ok_keeping_deviation()
     {
         await SeedScrapReasonAsync();
