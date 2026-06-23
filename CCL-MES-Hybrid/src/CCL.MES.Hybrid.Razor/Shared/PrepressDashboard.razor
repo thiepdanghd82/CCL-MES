@@ -388,7 +388,7 @@
                 catch { /* never let a timer callback crash the renderer */ }
                 StateHasChanged();
             });
-        }, null, dueTime: 250, period: System.Threading.Timeout.Infinite);
+        }, null, dueTime: 500, period: System.Threading.Timeout.Infinite);
     }
 
     private async Task OnScanKeyDown(KeyboardEventArgs e)
@@ -419,7 +419,11 @@
 
         if (match.Outcome != MaterialMatchOutcome.Single)
         {
-            // AllOk / NoMatch / EmptyCode — nothing to confirm.
+            // AllOk / NoMatch / EmptyCode — nothing to confirm. On AllOk
+            // (re-scan of a done part) still refresh the Part Scan/Description
+            // columns so a complete re-scan corrects an earlier partial read.
+            if (match.Outcome == MaterialMatchOutcome.AllOk && match.Row is not null)
+                _scannedByRow[match.Row.BomLineIdx] = (match.PartNo, match.Description);
             _scanStatus = PrepressErrorLocaliser.ScanOutcomeMessage(match.Outcome, match.PartNo);
             RecordRecentScan(match.PartNo, resolved: match.Outcome == MaterialMatchOutcome.AllOk);
             return;
