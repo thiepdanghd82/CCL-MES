@@ -10,7 +10,7 @@ namespace CCL.MES.Tests.Integration;
 /// <summary>
 /// Phương án C — Bước 1. Coverage cho parser CSV thư viện + seeder idempotent
 /// (CheckItemLibrary + mở rộng ReasonCode). Dùng file v2 thật để khóa số lượng
-/// (101 item / 4 line) và chứng minh chạy 2 lần ra cùng kết quả.
+/// (106 item / 5 line incl FINISHING) và chứng minh chạy 2 lần ra cùng kết quả.
 /// </summary>
 public sealed class QcCheckLibrarySeederTests : IDisposable
 {
@@ -75,22 +75,23 @@ public sealed class QcCheckLibrarySeederTests : IDisposable
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
-            var c = Path.Combine(dir.FullName, "IPQC_Library_CMES_v2.csv");
+            var c = Path.Combine(dir.FullName, "IPQC_Library_CMES_v3.csv");
             if (File.Exists(c)) return c;
         }
-        throw new FileNotFoundException("IPQC_Library_CMES_v2.csv not found above test bin.");
+        throw new FileNotFoundException("IPQC_Library_CMES_v3.csv not found above test bin.");
     }
 
     [Fact]
-    public void Real_library_parses_to_101_items_across_4_lines()
+    public void Real_library_parses_to_106_items_across_5_lines()
     {
         var rows = QcCheckLibraryCsv.Parse(File.ReadAllText(RealCsvPath()));
-        Assert.Equal(101, rows.Count);
+        Assert.Equal(106, rows.Count);   // v3: +5 FINISHING (Q2)
         var byLine = rows.GroupBy(r => r.ProcessLine).ToDictionary(g => g.Key, g => g.Count());
         Assert.Equal(34, byLine["LABEL"]);
         Assert.Equal(15, byLine["DIGITAL"]);
         Assert.Equal(25, byLine["SILK"]);
         Assert.Equal(27, byLine["PRESS_CNC"]);
+        Assert.Equal(5, byLine["FINISHING"]);
     }
 
     [Fact]
@@ -102,13 +103,13 @@ public sealed class QcCheckLibrarySeederTests : IDisposable
         DbSeeder.CheckLibrarySeedResult r1;
         using (var db = _fx.NewContext())
             r1 = await DbSeeder.SeedCheckItemLibraryAsync(db, rows);
-        Assert.Equal(101, r1.LibInserted);
+        Assert.Equal(106, r1.LibInserted);
         Assert.Equal(0, r1.LibUpdated);
         Assert.True(r1.ReasonAdded > 0, "phải thêm ít nhất 1 defect code vào ReasonCode");
 
         using (var db = _fx.NewContext())
         {
-            Assert.Equal(101, await db.CheckItemLibraries.CountAsync());
+            Assert.Equal(106, await db.CheckItemLibraries.CountAsync());
             // Mọi defect code thư viện đều có trong ReasonCode(Scrap).
             var defects = rows.Where(x => !string.IsNullOrEmpty(x.DefectCode))
                               .Select(x => x.DefectCode!).Distinct().ToList();
@@ -126,7 +127,7 @@ public sealed class QcCheckLibrarySeederTests : IDisposable
         Assert.Equal(0, r2.ReasonAdded);
 
         using (var db = _fx.NewContext())
-            Assert.Equal(101, await db.CheckItemLibraries.CountAsync());   // không nhân đôi
+            Assert.Equal(106, await db.CheckItemLibraries.CountAsync());   // không nhân đôi
     }
 
     [Fact]

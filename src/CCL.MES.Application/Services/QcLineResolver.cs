@@ -20,6 +20,7 @@ public static class QcLineResolver
     public const string Digital = ProcessLineMapSeed.Digital;
     public const string Silk = ProcessLineMapSeed.Silk;
     public const string PressCnc = ProcessLineMapSeed.PressCnc;
+    public const string Finishing = ProcessLineMapSeed.Finishing;
     public const string None = ProcessLineMapSeed.None;
     public const string Unmapped = "UNMAPPED";
 
@@ -40,7 +41,7 @@ public static class QcLineResolver
         public IReadOnlyList<string> Unmapped { get; init; } = Array.Empty<string>();
     }
 
-    private static readonly string[] LineOrder = { Label, Digital, Silk, PressCnc };
+    private static readonly string[] LineOrder = { Label, Digital, Silk, PressCnc, Finishing };
 
     /// <summary>Chiếu từ seed sang MapEntry (cho unit test dùng đúng bộ luật production).</summary>
     public static IReadOnlyList<MapEntry> MapFromSeed() =>

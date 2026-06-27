@@ -15,6 +15,7 @@ public static class ProcessLineMapSeed
     public const string Digital = "DIGITAL";
     public const string Silk = "SILK";
     public const string PressCnc = "PRESS_CNC";
+    public const string Finishing = "FINISHING"; // Q2 — cán/ép dán/xẻ (line thứ 5)
     public const string None = "NONE";
 
     public const string MatchProcessCode = "ProcessCode";
@@ -35,12 +36,14 @@ public static class ProcessLineMapSeed
         new(MatchWcPrefix, "LP",  Label, 102, "Letterpress"),
         // DIGITAL: HP Indigo · Zebra.
         new(MatchWcPrefix, "IDG", Digital, 110),
-        // SILK: SS(Sheet) · SS-Auto · SS(R2R) · SheetCut(SS).
+        // SILK: SS(Sheet) · SS-Auto · SS(R2R). (Q1: SheetCut(SS) KHÔNG phải in lụa → PRESS_CNC.)
         new(MatchWcPrefix, "ASS",   Silk, 120, "SS-Auto(Sheet)"),
         new(MatchWcPrefix, "MSS",   Silk, 121, "SS(Sheet)"),
         new(MatchWcPrefix, "ARSS",  Silk, 122),
         new(MatchWcPrefix, "MAGSS", Silk, 123),
-        new(MatchWcPrefix, "R2S",   Silk, 124, "SheetCut(SS) / R2R"),
+        new(MatchWcPrefix, "R2R",   Silk, 124, "SS(R2R) roll silk"),
+        // Q1: máy SheetCut (R2SC*) là công đoạn CẮT → PRESS_CNC (longest-match thắng R2R nếu có).
+        new(MatchWcPrefix, "R2SC",  PressCnc, 138, "SheetCut(SS) — cắt, không in lụa"),
         // PRESS_CNC: FB · Power press · RDC · CNC · Laser · Punching · Drill.
         new(MatchWcPrefix, "FBL",  PressCnc, 130, "FB die-cut"),
         new(MatchWcPrefix, "PPSC", PressCnc, 131, "Power press"),
@@ -51,8 +54,9 @@ public static class ProcessLineMapSeed
         new(MatchWcPrefix, "PUNC", PressCnc, 136, "Punching"),
         new(MatchWcPrefix, "MDRH", PressCnc, 137, "Drill (CNC)"),
         // appearance LABEL: Laminate · Magic (longest-match cho MAGSS→SILK ở trên).
-        new(MatchWcPrefix, "LAM", Label, 140, "Laminate → bộ appearance LABEL"),
-        new(MatchWcPrefix, "MAG", Label, 141, "Magic → appearance LABEL"),
+        // Q2: cán/ép dán/magic → line FINISHING riêng (KHÔNG dội bộ print LABEL/SILK).
+        new(MatchWcPrefix, "LAM", Finishing, 140, "Laminate (Roll/Label) → FINISHING"),
+        new(MatchWcPrefix, "MAG", Finishing, 141, "Magic (LAM.&Slit) → FINISHING"),
         // NONE: pre-press · sấy · manual · FQC · OQC (không sinh item IPQC).
         new(MatchWcPrefix, "FXPP", None, 150, "Pre-press"),
         new(MatchWcPrefix, "OVS",  None, 151, "Oven drying"),
@@ -71,15 +75,19 @@ public static class ProcessLineMapSeed
         new(MatchOpKeyword, "SS(SHEET)",   Silk, 220),
         new(MatchOpKeyword, "SS-AUTO",     Silk, 221),
         new(MatchOpKeyword, "SS(R2R)",     Silk, 222),
-        new(MatchOpKeyword, "SHEETCUT",    Silk, 223),
+        new(MatchOpKeyword, "SHEETCUT",    PressCnc, 223), // Q1: SheetCut = cắt, không SILK
         new(MatchOpKeyword, "POWER PRESS", PressCnc, 230),
         new(MatchOpKeyword, "RDC",         PressCnc, 231),
         new(MatchOpKeyword, "LASER",       PressCnc, 232),
         new(MatchOpKeyword, "PUNCH",       PressCnc, 233),
         new(MatchOpKeyword, "DRILL",       PressCnc, 234),
-        new(MatchOpKeyword, "LAMINAT",     Label, 240),
-        new(MatchOpKeyword, "MAGIC",       Label, 241),
-        new(MatchOpKeyword, "SLIT",        Label, 242),
+        // Q2: cán/ép dán/xẻ → FINISHING (gồm "SILK LAMINATION" — máy cán, không phải in lụa).
+        new(MatchOpKeyword, "LAMINAT",     Finishing, 240),
+        new(MatchOpKeyword, "LAMINATION",  Finishing, 241),
+        new(MatchOpKeyword, "ÉP DÁN",      Finishing, 242),
+        new(MatchOpKeyword, "MAGIC",       Finishing, 243),
+        new(MatchOpKeyword, "SLIT",        Finishing, 244),
+        new(MatchOpKeyword, "XẺ",          Finishing, 245),
         new(MatchOpKeyword, "PRE- PREPARE",None, 250),
         new(MatchOpKeyword, "PRE-PRESS",   None, 251),
         new(MatchOpKeyword, "BAKING",      None, 252),

@@ -129,13 +129,24 @@ DIGITAL = [
  ("D4",G_D,"Đọc mã vạch + seri biến đổi","Barcode/QR + variable serial","Quét đạt cấp ≥ spec; đúng nội dung & seri; không trùng","Scan grade ≥ spec; no dup serial","Máy quét/verifier 100% đầu chuyền","Critical","Functional","BARCODE","",True,"ISO 15415/15416","Có mã vạch/seri","Indigo dữ liệu biến đổi"),
 ]
 
-LINES = [("LBL","IN NHÃN / LABEL",LABEL),("DGT","IN SỐ / DIGITAL",DIGITAL),("SLK","IN LỤA / SILK",SILK),("PNC","DẬP-CNC / PRESS-CNC",PNC)]
+# Phương án C — Q2: line thứ 5 FINISHING (cán/ép dán/xẻ). Op cán KHÔNG còn dội bộ
+# print (LABEL/SILK) lên nữa — có bộ kiểm hoàn thiện riêng (bong/nhăn/bám lớp cán).
+FINISHING = [
+ ("A1",G_A,"Bong/phồng/bóng khí lớp cán","Peel/Blister/Bubble","Lớp cán bám chắc, không bong, phồng, bóng khí","Laminate bonded; no peel/blister/bubble","Soi mắt nghiêng + gập nhẹ + đèn","Critical","Visual","PEEL","",True,"","","Lỗi cán phổ biến nhất"),
+ ("A2",G_A,"Nhăn/gấp lớp cán","Wrinkle/Fold","Lớp cán phẳng, không nhăn, gấp nếp","Laminate flat; no wrinkle/fold","Soi mắt nghiêng + đèn","Major","Visual","WRINKLE","",True,"","",""),
+ ("A3",G_A,"Bong mép/hở mép cán","Edge lift","Mép cán dính kín, không bong, hở mép","Edges sealed; no edge lift","Soi mắt + sờ/gẩy nhẹ mép","Major","Visual","EDGELIFT","",True,"","",""),
+ ("A4",G_A,"Xước/bẩn bề mặt cán","Scratch/Dirt on laminate","Bề mặt cán sạch, không xước, bẩn, đốm","Clean laminate; no scratch/dirt","Soi mắt nghiêng dưới đèn chuẩn","Major","Visual","SCRATCH","",True,"","",""),
+ ("D1",G_D,"Độ bám lớp cán — Tape test","Laminate adhesion (tape)","Dán & bóc băng keo: lớp cán không tách/bong","Apply/peel tape: no delamination","Băng keo chuẩn, bóc 1 lần dứt khoát","Critical","Functional","ADHESION","",True,"","","Phá hủy; FAI + định kỳ/ca"),
+]
+
+LINES = [("LBL","IN NHÃN / LABEL",LABEL),("DGT","IN SỐ / DIGITAL",DIGITAL),("SLK","IN LỤA / SILK",SILK),("PNC","DẬP-CNC / PRESS-CNC",PNC),("FIN","HOÀN THIỆN / FINISHING",FINISHING)]
 
 # ---- defect catalog (Pareto) -> NG reason dropdown -----------------------
 DEFECTS = {
  "LBL":[("MISREG","Lệch (Mis-register)",34887,40.3),("DIRTY","Bẩn (Dirty)",22548,26.0),("BURR","Bavia, keo (Burr/Glue)",8785,10.1),("SCRATCH","Xước (Scratch)",5175,6.0),("FULLCUT","Cắt sâu, thủng (Full-cut)",3593,4.2),("DENT","Lõm/Gãy/Hằn (Dent)",3536,4.1),("MOTTLE","Loang, sọc (Mottled)",1802,2.1),("PEEL","Bong/phồng ép dán (Peel-off)",1647,1.9),("SMEAR","Đốm bẩn (Smear)",1094,1.3),("MISSING","Khuyết, thiếu (Missing)",893,1.0),("LOWPRESS","Thiếu áp lực/mất nét",883,1.0),("UNEVEN","Không đều (Uneven)",687,0.8),("SIZE","Kích thước (Size)",531,0.6),("OTHER","Lỗi khác (Other)",287,0.3),("COLOR","NG màu (Color)",120,0.1),("PINHOLE","Lỗ pin (Pin hole)",73,0.1),("BARCODE","Mã vạch (Barcode)",23,0.0),("CONTENT","Sai nội dung/seri (Content)",None,None)],
  "SLK":[("DIRTY","Bẩn (Dirty)",10488,72.6),("OTHER","Lỗi khác (Other)",2047,14.2),("MISREG","Lệch (Mis-register)",1252,8.7),("SCRATCH","Xước (Scratch)",209,1.4),("UNEVEN","Không đều (Uneven)",170,1.2),("COLOR","NG màu (Color)",57,0.4),("SMEAR","Đốm bẩn (Smear)",44,0.3),("PEEL","Bong mực (Peel-off)",44,0.3),("DENT","Lõm (Dent)",37,0.3),("PINHOLE","Lỗ pin (Pin hole)",28,0.2),("DUST","Bụi (Dust)",22,0.2),("MISSING","Mất nét/Incomplete",18,0.1),("FULLCUT","Cắt sâu (Full-cut)",8,0.1),("BARCODE","Mã vạch (Barcode)",7,0.0),("DOT","Chấm (Dot)",5,0.0),("BURR","Bavia (Burr)",2,0.0),("CONTENT","Sai nội dung (Content)",None,None)],
  "DGT":[("CONTENT","Sai nội dung/seri (Content)",None,None),("DROPOUT","Mất nét/vạch trắng (Dropout)",None,None),("BANDING","Sọc ngang (Banding)",None,None),("COLORDRIFT","Trôi màu / ΔE (Color drift)",None,None),("GHOST","Bóng ma (Ghosting)",None,None),("DIRTY","Sương nền/spray (Fog)",None,None),("MISREG","Lệch (Mis-register)",None,None),("COLOR","NG màu (Color)",None,None),("SCRATCH","Xước (Scratch)",None,None),("BARCODE","Mã vạch/seri (Barcode)",None,None),("OTHER","Lỗi khác (Other)",None,None)],
+ "FIN":[("PEEL","Bong/phồng lớp cán (Peel/Blister)",None,None),("WRINKLE","Nhăn/gấp (Wrinkle/Fold)",None,None),("EDGELIFT","Bong mép (Edge lift)",None,None),("SCRATCH","Xước/bẩn (Scratch/Dirt)",None,None),("ADHESION","Bám lớp cán (Adhesion)",None,None)],
  "PNC":[("CRACK","Gãy (Crack)",853,16.3),("OTHER","Lỗi khác (Other)",716,13.7),("DENT","Sứt mẻ (Dent/Chip)",663,12.7),("BURR","Bavia (Burr)",563,10.8),("CONVEX","Lồi lõm (Convex)",541,10.3),("FRAY","Sơ, dắt (Fray)",510,9.8),("FULLCUT","Cắt sâu (Full-cut)",412,7.9),("PAINTCRK","Vỡ sơn (Paint crack)",382,7.3),("SCRATCH","Trầy xước (Scratch)",275,5.3),("PRESSDEV","Dập lệch (Press deviated)",136,2.6),("GLUE","NG keo (Glue)",114,2.2),("OIL","Dính dầu (Oil)",57,1.1),("DIRTY","Loang (Dirty)",7,0.1),("SIZE","Kích thước (Size)",None,None)],
 }
 
@@ -205,6 +216,7 @@ ws.row_dimensions[1].height=30
 ws.freeze_panes="E2"
 
 r=2
+lib_csv=[]   # Phương án C: thu thập để xuất song song CSV (nguồn seed của app)
 for pref,lname,rows in LINES:
     for it in rows:
         code,grp,nvi,nen,avi,aen,meth,sev,insp,dfc,par,short,iso,cond,note = it
@@ -212,7 +224,8 @@ for pref,lname,rows in LINES:
         vals=[f"{pref}-{code}",pref if pref!="LBL" else "LABEL", grp, code, nvi, nen, avi, aen, meth,
               f"{SYM[sev]} {sev}", AQL[sev], sampling, insp, dfc, (par if par else ""),
               "Y" if short else "", iso, cond, note]
-        vals[1] = {"LBL":"LABEL","DGT":"DIGITAL","SLK":"SILK","PNC":"PRESS_CNC"}[pref]
+        vals[1] = {"LBL":"LABEL","DGT":"DIGITAL","SLK":"SILK","PNC":"PRESS_CNC","FIN":"FINISHING"}[pref]
+        lib_csv.append(list(vals))
         for ci,v in enumerate(vals,1):
             c=ws.cell(row=r,column=ci,value=v); c.font=N; c.border=border
             c.alignment = ctr if ci in (2,3,4,10,11,13,14,15,16) else wrap
@@ -235,8 +248,8 @@ for i,(h,w) in enumerate(zip(dh,dw),1):
     ws.column_dimensions[get_column_letter(i)].width=w
 ws.row_dimensions[1].height=24; ws.freeze_panes="A2"
 r=2
-lname={"LBL":"LABEL","DGT":"DIGITAL","SLK":"SILK","PNC":"PRESS_CNC"}
-for pref in ["LBL","DGT","SLK","PNC"]:
+lname={"LBL":"LABEL","DGT":"DIGITAL","SLK":"SILK","PNC":"PRESS_CNC","FIN":"FINISHING"}
+for pref in ["LBL","DGT","SLK","PNC","FIN"]:
     cum=0.0
     for code,name,cnt,pct in DEFECTS[pref]:
         cum = cum+(pct or 0)
@@ -274,9 +287,18 @@ for row in AQLT:
     r+=1
 ws.cell(row=r+1,column=1,value="Quy tắc: lỗi ≤ Ac → NHẬN lô; ≥ Re → LOẠI. ↓/↑ = chuyển plan cỡ lô liền kề. Test chức năng (D) phá hủy → mẫu nhỏ theo spec.").font=N
 
-out="IPQC_Library_CMES_v2.xlsx"
+out="IPQC_Library_CMES_v3.xlsx"
 wb.save(out)
 print("SAVED:",out)
+
+# Phương án C — xuất CSV v3 (nguồn seed của app; 19 cột map theo vị trí).
+import csv as _csv
+CSV_HEADER=["ItemID","ProcessLine","Group","Code","ItemVI","ItemEN","AcceptVI","AcceptEN",
+            "Method","Severity","AQL","Sampling","InspType","DefectCode","Pareto","ShortForm","ISO","AppliesWhen","Note"]
+with open("IPQC_Library_CMES_v3.csv","w",encoding="utf-8-sig",newline="") as f:
+    w=_csv.writer(f); w.writerow(CSV_HEADER); w.writerows(lib_csv)
+print("SAVED: IPQC_Library_CMES_v3.csv  (rows=%d)"%len(lib_csv))
+
 print("LIBRARY rows:", sum(len(r) for _,_,r in LINES))
 for pref,lname,rows in LINES:
     sc=sum(1 for x in rows if x[11])

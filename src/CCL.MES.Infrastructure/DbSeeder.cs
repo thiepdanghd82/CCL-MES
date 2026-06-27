@@ -37,7 +37,7 @@ public static class DbSeeder
         await SeedRecoveryDataAsync(db);
 
         // Phương án C — Bước 1: thư viện hạng mục kiểm. Best-effort: resolve CSV
-        // (env MES_QC_LIBRARY_CSV > walk-up tìm IPQC_Library_CMES_v2.csv). Idempotent;
+        // (env MES_QC_LIBRARY_CSV > walk-up tìm IPQC_Library_CMES_v3.csv). Idempotent;
         // bỏ qua nếu không tìm thấy file (deploy không kèm CSV → dùng python importer).
         try
         {
@@ -396,6 +396,16 @@ public static class DbSeeder
         return await SeedCheckItemLibraryAsync(db, parsed.Rows);
     }
 
+    /// <summary>Resolve CSV thư viện rồi seed (idempotent). NOOP nếu không tìm thấy file.
+    /// Dùng cho boot của Hybrid API (nó không gọi full <see cref="SeedAsync"/>) → tránh
+    /// "seed quên chạy". Trả null khi không có CSV.</summary>
+    public static async Task<CheckLibrarySeedResult?> SeedCheckItemLibraryAutoAsync(MesDbContext db)
+    {
+        var path = ResolveQcLibraryCsvPath();
+        if (path is null) return null;
+        return await SeedCheckItemLibraryFromFileAsync(db, path);
+    }
+
     public readonly record struct ProcessLineMapSeedResult(int Inserted, int Updated, int Total);
 
     /// <summary>Phương án C — Bước 6: seed/upsert bảng map process→QC line
@@ -434,13 +444,13 @@ public static class DbSeeder
     }
 
     /// <summary>Resolve CSV thư viện: env <c>MES_QC_LIBRARY_CSV</c> trước; nếu không,
-    /// đi ngược từ thư mục build tìm <c>IPQC_Library_CMES_v2.csv</c>. Null nếu không thấy.</summary>
+    /// đi ngược từ thư mục build tìm <c>IPQC_Library_CMES_v3.csv</c>. Null nếu không thấy.</summary>
     private static string? ResolveQcLibraryCsvPath()
     {
         var env = Environment.GetEnvironmentVariable("MES_QC_LIBRARY_CSV");
         if (!string.IsNullOrWhiteSpace(env) && File.Exists(env)) return env;
 
-        const string fileName = "IPQC_Library_CMES_v2.csv";
+        const string fileName = "IPQC_Library_CMES_v3.csv";
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
             var candidate = Path.Combine(dir.FullName, fileName);

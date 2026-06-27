@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 import_qc_library.py — Phương án C, Bước 1.
-Nạp THƯ VIỆN HẠNG MỤC KIỂM (IPQC/FQC/OQC) từ IPQC_Library_CMES_v2.csv vào
+Nạp THƯ VIỆN HẠNG MỤC KIỂM (IPQC/FQC/OQC) từ IPQC_Library_CMES_v3.csv vào
 bảng CheckItemLibraries của CCL-MES SQLite, đồng thời mở rộng ReasonCode
 (Kind=Scrap) theo các Defect code trong thư viện.
 
@@ -17,7 +17,7 @@ Tiền đề: chạy `dotnet run --project src/CCL.MES.Web` 1 lần để EF t�
   CheckItemLibraries (migration AddCheckItemLibrary), HOẶC app đã boot.
 
 Cách dùng:
-  python3 tools/import_qc_library.py --csv IPQC_Library_CMES_v2.csv --db data/ccl_mes.db
+  python3 tools/import_qc_library.py --csv IPQC_Library_CMES_v3.csv --db data/ccl_mes.db
 """
 import argparse
 import csv
@@ -69,7 +69,7 @@ def read_rows(path):
 
 def main():
     ap = argparse.ArgumentParser(description="Nạp thư viện hạng mục kiểm vào CCL-MES SQLite.")
-    ap.add_argument("--csv", default="IPQC_Library_CMES_v2.csv", help="File CSV thư viện.")
+    ap.add_argument("--csv", default="IPQC_Library_CMES_v3.csv", help="File CSV thư viện.")
     ap.add_argument("--db", default="data/ccl_mes.db", help="Đường dẫn file SQLite.")
     args = ap.parse_args()
 

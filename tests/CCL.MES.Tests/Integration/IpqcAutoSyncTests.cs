@@ -25,10 +25,10 @@ public sealed class IpqcAutoSyncTests : IDisposable
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
-            var c = Path.Combine(dir.FullName, "IPQC_Library_CMES_v2.csv");
+            var c = Path.Combine(dir.FullName, "IPQC_Library_CMES_v3.csv");
             if (File.Exists(c)) return c;
         }
-        throw new FileNotFoundException("IPQC_Library_CMES_v2.csv not found above test bin.");
+        throw new FileNotFoundException("IPQC_Library_CMES_v3.csv not found above test bin.");
     }
 
     private async Task<long> SeedProductWithRoutingAsync(string productCode, (string op, string desc, string wc)[] ops)

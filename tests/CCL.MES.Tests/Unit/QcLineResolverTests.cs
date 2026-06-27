@@ -25,15 +25,15 @@ public sealed class QcLineResolverTests
     [InlineData("IDG01", QcLineResolver.Digital)]
     [InlineData("ASS08", QcLineResolver.Silk)]
     [InlineData("MSS01", QcLineResolver.Silk)]
-    [InlineData("R2SC3", QcLineResolver.Silk)]      // SheetCut(SS) — quyết định #5
+    [InlineData("R2SC3", QcLineResolver.PressCnc)]  // Q1: SheetCut(SS) = cắt, KHÔNG silk
+    [InlineData("LAMR3", QcLineResolver.Finishing)] // Q2: Laminate → FINISHING
+    [InlineData("LAML1", QcLineResolver.Finishing)] // Q2: Laminate (Label) → FINISHING
     [InlineData("FBL02", QcLineResolver.PressCnc)]
     [InlineData("PPSC1", QcLineResolver.PressCnc)]
     [InlineData("RDC12", QcLineResolver.PressCnc)]
     [InlineData("PUNC1", QcLineResolver.PressCnc)]
     [InlineData("MDRH1", QcLineResolver.PressCnc)]
-    [InlineData("LAML1", QcLineResolver.Label)]
-    [InlineData("LAMR3", QcLineResolver.Label)]
-    [InlineData("MAGSS", QcLineResolver.Silk)]      // longest-match MAGSS→SILK, không phải MAG→LABEL
+    [InlineData("MAGSS", QcLineResolver.Silk)]      // longest-match MAGSS→SILK, không phải MAG→FINISHING
     [InlineData("FXPP1", QcLineResolver.None)]
     [InlineData("OVS1", QcLineResolver.None)]
     [InlineData("UVS1", QcLineResolver.None)]
@@ -61,6 +61,24 @@ public sealed class QcLineResolverTests
     [Fact]
     public void Silk_wcdesc_keyword_classifies_silk_when_wc_prefix_unknown()
         => Assert.Equal(QcLineResolver.Silk, Classify("print", "ZZZ9", "SS(Sheet)"));
+
+    // ── Q1: SheetCut(SS) → PRESS_CNC, KHÔNG lẫn với SS(Sheet) in lụa ──
+    [Fact]
+    public void Q1_sheetcut_is_presscnc_not_silk()
+    {
+        Assert.Equal(QcLineResolver.PressCnc, Classify("(PRESS) LAM.&Cut", "ZZZ9", "SheetCut (SS)"));
+        Assert.Equal(QcLineResolver.Silk, Classify("SILK SHEET", "ZZZ9", "SS(Sheet)"));   // in lụa thật giữ SILK
+    }
+
+    // ── Q2: cán (kể cả "SILK LAMINATION") → FINISHING, KHÔNG LABEL/SILK ──
+    [Fact]
+    public void Q2_lamination_is_finishing_not_label_or_silk()
+    {
+        Assert.Equal(QcLineResolver.Finishing, Classify("SILK LAMINATION / Ép dán in lụa", "LAMR3", "Laminate (Roll)"));
+        Assert.Equal(QcLineResolver.Finishing, Classify("(SEAL) LAM / Ép dán In nhãn", "LAML1", "Laminate (Label)"));
+        // keyword fallback khi WC prefix lạ:
+        Assert.Equal(QcLineResolver.Finishing, Classify("LAMINATION step", "ZZZ9", "unknown"));
+    }
 
     // ── WC hoàn toàn lạ → Unmapped (loud, không đoán) ───────────────
 
