@@ -67,12 +67,21 @@ builder.Host.UseDefaultServiceProvider((context, options) =>
             // found anywhere does the fallback (legacy .sln walk) kick
             // in and create a fresh one. Closes Henry's "boot wrong
             // empty DB when MES_DATA_DIR isn't set" footgun.
+            //
+            // 2026-06-23 — require Length > 0 too: a stale 0-byte
+            // CCL-MES-Hybrid/data/ccl_mes.db stub (left by an earlier
+            // `dotnet run` before this fix) is a closer ancestor than the
+            // real CCL-MES/data/ccl_mes.db, so a bare File.Exists check
+            // stopped at the empty stub and the API booted a schema-less
+            // DB → login 500 `no such table: Users`. An empty file is
+            // never a real DB, so skip it and keep walking.
             var probe = builder.Environment.ContentRootPath;
             string? repoRoot = null;
             string? innermostSln = null;
             for (var dir = new DirectoryInfo(probe); dir is not null; dir = dir.Parent)
             {
-                if (File.Exists(Path.Combine(dir.FullName, "data", "ccl_mes.db")))
+                var candidate = Path.Combine(dir.FullName, "data", "ccl_mes.db");
+                if (File.Exists(candidate) && new FileInfo(candidate).Length > 0)
                 {
                     repoRoot = dir.FullName;
                     break;

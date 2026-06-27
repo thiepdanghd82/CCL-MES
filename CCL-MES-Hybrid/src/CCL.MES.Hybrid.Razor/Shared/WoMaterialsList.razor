@@ -15,8 +15,10 @@
     refetch doesn't mid-type clobber.
 *@
 
+@using CCL.MES.Hybrid.Client.Auth
 @using CCL.MES.Shared.Prepress
 @using CCL.MES.Shared.ReasonCodes
+@inject IAuthSession Session
 
 <div class="prepress-section">
     <div class="prepress-section-head">
@@ -46,10 +48,12 @@
                     <th class="c-center">UoM</th>
                     <th class="numc">Scrap Factor</th>
                     <th class="numc">Scrap %</th>
+                    <th>Part Scan</th>
+                    <th class="wrap">Part Description</th>
                     <th>Lot</th>
                     <th>Status</th>
                     <th class="wrap">NG — reason · note</th>
-                    <th>Action</th>
+                    <th class="c-center">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -71,6 +75,18 @@
                         <td class="numc">@(row.ScrapPercent is { } sp ? FormatNum(sp) + "%" : "—")</td>
                         <td>
                             <input type="text"
+                                   class="prepress-input scan-mono @(IsManualScan(row.BomLineIdx) ? "scan-manual" : null)"
+                                   value="@ScanPart(row.BomLineIdx)"
+                                   @oninput="e => OnPartScanInput.InvokeAsync((row.BomLineIdx, e.Value?.ToString() ?? string.Empty))"
+                                   @onchange="e => OnPartScanCommit.InvokeAsync((row.BomLineIdx, e.Value?.ToString() ?? string.Empty))"
+                                   disabled="@Busy"
+                                   aria-label="Part scan (manual entry allowed)"
+                                   data-testid="part-scan" />
+                        </td>
+                        <td class="wrap @(IsManualScan(row.BomLineIdx) ? "scan-manual" : null)"
+                            data-testid="part-scan-desc">@ScanDesc(row.BomLineIdx)</td>
+                        <td>
+                            <input type="text"
                                    class="prepress-input"
                                    value="@draft.LotNo"
                                    @oninput="e => OnLotNoInput(draft, e)"
@@ -78,8 +94,8 @@
                                    aria-label="Lot number" />
                         </td>
                         <td>
-                            <span class="prepress-pill @StatusPillClass(row.Status)" data-testid="status-pill">
-                                @StatusLabel(row.Status)
+                            <span class="prepress-pill @RowPillClass(row)" data-testid="status-pill">
+                                @RowStatusLabel(row)
                             </span>
                         </td>
                         <td>
@@ -125,19 +141,45 @@
                                         data-testid="btn-ng-arm"
                                         disabled="@(Busy || ScrapReasons.Count == 0)"
                                         title="@(ScrapReasons.Count == 0 ? "NG code catalog is empty — report to IT" : null)"
-                                        @onclick="() => draft.SettingNg = true">
+                                        @onclick="() => ArmNg(draft, special: false)">
                                     Mark NG
                                 </button>
+                                @if (_canSpecialAccept)
+                                {
+                                    <button type="button"
+                                            class="op-btn op-btn-special op-btn-sm"
+                                            data-testid="btn-special-accept-arm"
+                                            disabled="@(Busy || ScrapReasons.Count == 0)"
+                                            title="PD leader / Supervisor concession — pick the defect, then confirm"
+                                            @onclick="() => ArmNg(draft, special: true)">
+                                        ✓ Special Accept
+                                    </button>
+                                }
                             }
                             else
                             {
-                                <button type="button"
-                                        class="op-btn op-btn-danger op-btn-sm"
-                                        data-testid="btn-ng-confirm"
-                                        disabled="@(Busy || !IsValidNgReason(draft.NgReasonCode))"
-                                        @onclick="() => OnSubmitNg(row, draft)">
-                                    Save NG
-                                </button>
+                                @if (draft.SpecialAcceptMode)
+                                {
+                                    @* Special-accept mode: NG (Save NG) is deactivated; only confirm SA. *@
+                                    <button type="button"
+                                            class="op-btn op-btn-special op-btn-sm"
+                                            data-testid="btn-special-accept"
+                                            disabled="@(Busy || !IsValidNgReason(draft.NgReasonCode))"
+                                            title="PD leader / Supervisor concession — records OK with the defect kept on record"
+                                            @onclick="() => OnSubmitSpecialAccept(row, draft)">
+                                        ✓ Confirm Special Accept
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button type="button"
+                                            class="op-btn op-btn-danger op-btn-sm"
+                                            data-testid="btn-ng-confirm"
+                                            disabled="@(Busy || !IsValidNgReason(draft.NgReasonCode))"
+                                            @onclick="() => OnSubmitNg(row, draft)">
+                                        Save NG
+                                    </button>
+                                }
                                 <button type="button"
                                         class="op-btn op-btn-secondary op-btn-sm"
                                         data-testid="btn-ng-cancel"
@@ -160,9 +202,37 @@
     [Parameter] public IReadOnlyList<ReasonCodeOption> ScrapReasons { get; set; } = Array.Empty<ReasonCodeOption>();
     [Parameter] public EventCallback<MaterialSetIntent> OnSetMaterial { get; set; }
 
+    /// <summary>Per-row scanned data (BomLineIdx → part + description + manual
+    /// flag) for the Part Scan / Part Description columns. Null = none.</summary>
+    [Parameter] public IReadOnlyDictionary<int, (string Part, string Desc, bool Manual)>? ScannedByRow { get; set; }
+
+    /// <summary>Operator typed a Part Scan by hand → (BomLineIdx, value). Fires per keystroke (live value + purple).</summary>
+    [Parameter] public EventCallback<(int BomLineIdx, string Value)> OnPartScanInput { get; set; }
+
+    /// <summary>Manual Part Scan committed (Enter/blur) → (BomLineIdx, value).
+    /// Parent validates against the row's own code: match → auto-OK like a
+    /// scan; mismatch → requires Special Accept.</summary>
+    [Parameter] public EventCallback<(int BomLineIdx, string Value)> OnPartScanCommit { get; set; }
+
+    /// <summary>PD leader / Supervisor concedes a material despite a defect.</summary>
+    [Parameter] public EventCallback<SpecialAcceptIntent> OnSpecialAccept { get; set; }
+
     private readonly Dictionary<int, MaterialDraft> _drafts = new();
 
     private int OkCount => Materials.Count(m => m.Status == "Ok");
+
+    // Special accept is a PD-leader (Engineer) / Supervisor concession.
+    private bool _canSpecialAccept =>
+        Session.CurrentUserInfo?.Role is "Admin" or "Supervisor" or "Engineer";
+
+    private string ScanPart(int bomLineIdx) =>
+        ScannedByRow is not null && ScannedByRow.TryGetValue(bomLineIdx, out var v) ? v.Part : "";
+
+    private string ScanDesc(int bomLineIdx) =>
+        ScannedByRow is not null && ScannedByRow.TryGetValue(bomLineIdx, out var v) && v.Desc.Length > 0 ? v.Desc : "—";
+
+    private bool IsManualScan(int bomLineIdx) =>
+        ScannedByRow is not null && ScannedByRow.TryGetValue(bomLineIdx, out var v) && v.Manual;
 
     /// <summary>Compact numeric format for the read-only BOM scrap columns —
     /// trims trailing zeros, invariant culture so it matches the IFS export.</summary>
@@ -251,9 +321,23 @@
         draft.SettingNg = false;
     }
 
+    private async Task OnSubmitSpecialAccept(PrepressMaterialRow row, MaterialDraft draft)
+    {
+        await OnSpecialAccept.InvokeAsync(new SpecialAcceptIntent
+        {
+            BomLineIdx = row.BomLineIdx,
+            NgReasonCode = string.IsNullOrWhiteSpace(draft.NgReasonCode) ? null : draft.NgReasonCode,
+            NgNote = string.IsNullOrWhiteSpace(draft.NgNote) ? null : draft.NgNote,
+            PartScan = string.IsNullOrWhiteSpace(ScanPart(row.BomLineIdx)) ? null : ScanPart(row.BomLineIdx),
+        });
+        draft.SettingNg = false;
+        draft.SpecialAcceptMode = false;
+    }
+
     private void CancelNg(MaterialDraft draft)
     {
         draft.SettingNg = false;
+        draft.SpecialAcceptMode = false;
         draft.NgReasonCode = "";
         draft.NgNote = "";
     }
@@ -266,6 +350,24 @@
             return v;
         return null;
     }
+
+    private void ArmNg(MaterialDraft draft, bool special)
+    {
+        draft.SettingNg = true;
+        draft.SpecialAcceptMode = special;
+    }
+
+    // A row that is OK but still carries an NG reason was special-accepted
+    // (concession) — distinct from a clean OK.
+    private static bool IsSpecialAccept(PrepressMaterialRow r) =>
+        string.Equals(r.Status, "Ok", StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(r.NgReasonCode);
+
+    private static string RowStatusLabel(PrepressMaterialRow r) =>
+        IsSpecialAccept(r) ? "OK · Special Accept" : StatusLabel(r.Status);
+
+    private static string RowPillClass(PrepressMaterialRow r) =>
+        IsSpecialAccept(r) ? "prepress-pill-special" : StatusPillClass(r.Status);
 
     private static string StatusPillClass(string status) => status switch
     {
@@ -288,6 +390,7 @@
         public string NgReasonCode { get; set; } = "";
         public string NgNote { get; set; } = "";
         public bool SettingNg { get; set; }
+        public bool SpecialAcceptMode { get; set; }
     }
 
     public sealed class MaterialSetIntent
@@ -298,5 +401,13 @@
         public string? LotNo { get; init; }
         public string? NgReasonCode { get; init; }
         public string? NgNote { get; init; }
+    }
+
+    public sealed class SpecialAcceptIntent
+    {
+        public int BomLineIdx { get; init; }
+        public string? NgReasonCode { get; init; }
+        public string? NgNote { get; init; }
+        public string? PartScan { get; init; }
     }
 }

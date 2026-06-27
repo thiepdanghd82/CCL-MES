@@ -222,6 +222,19 @@ public sealed class RecordingApi : ICclApiClient
             : PutPrepressCutterImpl(workOrderId, ifMatchETag, req, ct);
     }
 
+    public Func<long, int, string, SpecialAcceptMaterialRequest, CancellationToken, Task<PrepressSetResponse>>? SpecialAcceptMaterialImpl { get; set; }
+    public List<(long Id, int BomLineIdx, string ETag, SpecialAcceptMaterialRequest Req)> SpecialAcceptMaterialCalls { get; } = new();
+
+    public Task<PrepressSetResponse> SpecialAcceptMaterialAsync(
+        long workOrderId, int bomLineIdx, string ifMatchETag,
+        SpecialAcceptMaterialRequest req, CancellationToken ct = default)
+    {
+        SpecialAcceptMaterialCalls.Add((workOrderId, bomLineIdx, ifMatchETag, req));
+        return SpecialAcceptMaterialImpl is null
+            ? Task.FromResult(new PrepressSetResponse { Ok = true, ETag = "special==" })
+            : SpecialAcceptMaterialImpl(workOrderId, bomLineIdx, ifMatchETag, req, ct);
+    }
+
     public Task<IReadOnlyList<ReasonCodeOption>> GetReasonCodesAsync(string? kind, CancellationToken ct = default)
     {
         ReasonCodesCalls.Add(kind);

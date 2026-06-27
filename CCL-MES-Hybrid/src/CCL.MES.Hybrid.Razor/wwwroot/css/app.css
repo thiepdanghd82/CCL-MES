@@ -4722,18 +4722,41 @@ html, body {
     font-weight: 600;
 }
 
-.prepress-actions {
+/* Plate / Cutter check: input row on the left (grows), Record/Mark buttons
+   pushed to the END of the line (like the Materials Action column). */
+.prepress-checkrow {
     display: flex;
-    flex-wrap: nowrap;
-    gap: 8px;
-    align-items: center;
+    align-items: flex-end;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.prepress-checkrow .prepress-row-form {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.prepress-checkrow .prepress-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+    margin-bottom: 2px;
 }
 
-/* Record OK + Mark NG sit on one row at an equal box size. */
-.prepress-actions .op-btn {
-    flex: 0 0 auto;
-    min-width: 96px;
+/* Keep this a real table-cell (NOT display:flex — that detaches the cell
+   from the row and breaks the bottom border alignment). Center the buttons
+   horizontally; the cell's vertical-align:middle centers them vertically
+   even when a neighbour cell (long description) makes the row taller. */
+.prepress-actions {
     text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+/* Record OK + Mark NG + Special Accept sit inline, centered, equal box size. */
+.prepress-actions .op-btn {
+    display: inline-block;
+    min-width: 96px;
+    margin: 0 4px;
+    text-align: center;
+    vertical-align: middle;
 }
 
 .op-btn-sm {
@@ -4773,6 +4796,76 @@ html, body {
     font-size: 0.85rem;
 }
 
+/* Scan materials bar (PREPRESS) — USB wedge (Zebra DS2208) input box. */
+.prepress-scan-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    margin-bottom: 4px;
+}
+
+.prepress-scan-label {
+    font-weight: 600;
+    color: #111827;
+}
+
+.prepress-scan-input {
+    flex: 1 1 280px;
+    min-width: 220px;
+    max-width: 420px;
+    padding: 9px 12px;
+    font-size: 1rem;
+    border: 2px solid #1d4ed8;
+    border-radius: 6px;
+    outline: none;
+}
+
+.prepress-scan-input:focus {
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.25);
+}
+
+.prepress-scan-input:disabled {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+}
+
+.prepress-scan-count {
+    color: #374151;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.prepress-scan-status {
+    color: #1d4ed8;
+    font-size: 0.9rem;
+}
+
+/* Manually-typed Part Scan / Description (special-accept case) — dark purple. */
+.scan-manual {
+    color: #6b21a8 !important;
+    font-weight: 600;
+}
+
+/* Status pill for a special-accepted row (OK kept with the defect on record). */
+.prepress-pill-special {
+    background: #ede9fe;
+    color: #6b21a8;
+    border: 1px solid #c4b5fd;
+    white-space: nowrap;
+}
+
+/* Special Accept button — PD leader / Supervisor concession. */
+.op-btn-special {
+    background: #7c3aed;
+    border-color: #6d28d9;
+    color: #fff;
+}
+.op-btn-special:hover:not(:disabled) {
+    background: #6d28d9;
+}
+
 /* ── P10.7b-3 fix-2 — S9 Design Rules: responsive PREPRESS dashboard ─
    Apply to the PrepressDashboard hosted inside WorkOrders.razor. The
    wo-shell parent currently has a fixed inner max-width; the dashboard
@@ -4797,8 +4890,12 @@ html, body {
 }
 
 .prepress-table {
-    table-layout: fixed;
-    min-width: 1080px;
+    /* auto (not fixed): with 14 columns + no colgroup, fixed layout squeezed
+       the Action cell so its 3 buttons overflowed + were clipped ("broken
+       line"). Auto sizes each column to its content; the section scrolls
+       horizontally (overflow-x: auto above) on narrow screens. */
+    table-layout: auto;
+    min-width: 1400px;
 }
 
 .prepress-table colgroup col.col-idx       { width: 56px; }

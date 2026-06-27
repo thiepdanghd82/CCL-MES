@@ -251,6 +251,13 @@ public sealed class CclApiClient : ICclApiClient
             $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/cutter-check",
             ifMatchETag, req, ct);
 
+    public Task<PrepressSetResponse> SpecialAcceptMaterialAsync(
+        long workOrderId, int bomLineIdx, string ifMatchETag,
+        SpecialAcceptMaterialRequest req, CancellationToken ct = default)
+        => SendPrepressWriteAsync(HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/materials/{bomLineIdx}/special-accept",
+            ifMatchETag, req, ct);
+
     // ── Running Surface (P10.7c-3) ──────────────────────────────────
 
     public async Task<RunningSurfaceView> GetRunningSurfaceViewAsync(
@@ -597,10 +604,14 @@ public sealed class CclApiClient : ICclApiClient
         return rows;
     }
 
-    private async Task<PrepressSetResponse> SendPrepressPutAsync(
+    private Task<PrepressSetResponse> SendPrepressPutAsync(
         string path, string ifMatchETag, object req, CancellationToken ct)
+        => SendPrepressWriteAsync(HttpMethod.Put, path, ifMatchETag, req, ct);
+
+    private async Task<PrepressSetResponse> SendPrepressWriteAsync(
+        HttpMethod method, string path, string ifMatchETag, object req, CancellationToken ct)
     {
-        using var msg = new HttpRequestMessage(HttpMethod.Put, path)
+        using var msg = new HttpRequestMessage(method, path)
         {
             Content = JsonContent.Create(req),
         };

@@ -26,6 +26,7 @@ public static class PrepressErrorLocaliser
             "prepress.invalid_status"           => "Invalid status — only Pending / OK / NG are accepted.",
             "prepress.invalid_reason_code"      => "NG reason code is not in the Scrap catalog — choose a valid code.",
             "prepress.invalid_ng_note"          => "An NG note is required when setting NG (1-500 characters).",
+            "prepress.special_accept_forbidden" => "Only a PD leader (Engineer) or Supervisor can special-accept a material.",
             _                                   => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 
@@ -42,4 +43,29 @@ public static class PrepressErrorLocaliser
         "http.empty_body"             => "The server returned an empty response — contact IT.",
         _                             => $"Unknown error code ({code}).",
     };
+
+    // ── Scan materials (PREPRESS) — client-side match outcomes ──────────
+    // These are NOT server errors: the barcode is matched against the WO's
+    // BOM in-app (MaterialBarcodeMatcher) before any PUT. Wording lives here
+    // so the scan flow stays testable without booting MAUI.
+
+    /// <summary>Banner for a non-success scan match (NoMatch / Multiple / EmptyCode).</summary>
+    public static string ScanOutcomeMessage(MaterialMatchOutcome outcome, string partNo) => outcome switch
+    {
+        MaterialMatchOutcome.NoMatch   => $"Part {partNo} is not in this WO's BOM — record by hand if correct.",
+        MaterialMatchOutcome.AllOk     => $"All BOM lines for {partNo} are already OK.",
+        MaterialMatchOutcome.EmptyCode => "Could not read a part number from the scan — try again.",
+        _                              => "",
+    };
+
+    /// <summary>Banner when the scanned material row was just recorded OK.</summary>
+    public static string ScanRecordedOk(string materialCode) => $"✓ {materialCode} recorded OK.";
+
+    /// <summary>Banner when the scanned material row was already OK.</summary>
+    public static string ScanAlreadyOk(string materialCode) => $"{materialCode} is already OK.";
+
+    /// <summary>Banner when a manually-typed Part Scan does NOT match the
+    /// line's own code — operator must use Special Accept to override.</summary>
+    public static string ScanMismatch(string typedPart, string lineCode) =>
+        $"Typed {typedPart} ≠ line {lineCode} — use Special Accept to record OK.";
 }

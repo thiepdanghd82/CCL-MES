@@ -80,6 +80,20 @@ public sealed record SetPrepressMaterialRequest
     public string? NgNote { get; init; }
 }
 
+/// <summary>Request body for POST
+/// <c>/work-orders/{id}/materials/{bom_line_idx}/special-accept</c>. A PD
+/// leader (Engineer) or Supervisor concedes a material despite a defect: the
+/// row is recorded OK (counts toward MaterialsReady → advance) but the
+/// deviation is retained — <see cref="NgReasonCode"/> (Scrap catalog) + the
+/// 1-500 char <see cref="Note"/> justification are required. <see cref="PartScan"/>
+/// is the (optionally manually-entered) scanned part code for traceability.</summary>
+public sealed record SpecialAcceptMaterialRequest
+{
+    public string? NgReasonCode { get; init; }
+    public string? Note { get; init; }
+    public string? PartScan { get; init; }
+}
+
 /// <summary>P10.7b-2 — request body for PUT
 /// <c>/work-orders/{id}/plate-check</c>. Same NG rules.</summary>
 public sealed record SetPrepressPlateRequest

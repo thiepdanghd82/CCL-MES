@@ -33,12 +33,21 @@
     banners) so no input renderer concerns.
 *@
 
+@using System.Linq
+@using Microsoft.AspNetCore.Components.Web
 @using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.Hardware
 @using CCL.MES.Hybrid.Client.Prepress
+@using CCL.MES.Hybrid.Client.RecentScans
+@using CCL.MES.Shared.Devices
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.Prepress
 @using CCL.MES.Shared.ReasonCodes
+@using CCL.MES.Shared.RecentScans
 @inject ICclApiClient Api
+@inject IRecentScansService RecentScans
+@inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
+@implements IDisposable
 
 <div class="prepress-dashboard" data-testid="prepress-dashboard">
     @if (_view is null && _initialError is null)
@@ -103,10 +112,40 @@
             </div>
         }
 
+        @if (HwOptions.Value.ScanEnabled)
+        {
+            <div class="prepress-scan-bar" data-testid="prepress-scan-bar">
+                <label class="prepress-scan-label" for="prepress-scan-input">Scan material</label>
+                <input id="prepress-scan-input"
+                       type="text"
+                       class="prepress-scan-input"
+                       data-testid="prepress-scan-input"
+                       placeholder="Point the scanner at a material label, then it auto-matches…"
+                       value="@_scanInput"
+                       @oninput="OnScanInput"
+                       @onchange="OnScanCommitted"
+                       @onkeydown="OnScanKeyDown"
+                       disabled="@_busy"
+                       autocomplete="off"
+                       autofocus />
+                <span class="prepress-scan-count" data-testid="prepress-scan-count">
+                    @MaterialsOkCount/@_view.Materials.Count materials OK
+                </span>
+                @if (_scanStatus is not null)
+                {
+                    <span class="prepress-scan-status" data-testid="prepress-scan-status">@_scanStatus</span>
+                }
+            </div>
+        }
+
         <WoMaterialsList Materials="_view.Materials"
                          Busy="_busy"
                          ScrapReasons="_scrapReasons"
-                         OnSetMaterial="OnSetMaterial" />
+                         ScannedByRow="_scannedByRow"
+                         OnSetMaterial="OnSetMaterial"
+                         OnPartScanInput="OnPartScanInput"
+                         OnPartScanCommit="OnPartScanCommit"
+                         OnSpecialAccept="OnSpecialAccept" />
 
         <WoPlateCheck Row="_view.PlateCheck"
                       Busy="_busy"
@@ -150,6 +189,17 @@
     private IReadOnlyList<ReasonCodeOption> _scrapReasons = Array.Empty<ReasonCodeOption>();
     private bool _reasonsLoading;
 
+    private string _scanInput = string.Empty;
+    private string? _scanStatus;
+
+    // Per-row scanned data (BomLineIdx → part + description + manual flag)
+    // shown in the "Part Scan" / "Part Description" columns. Manual=true when
+    // the operator typed it by hand (rendered dark purple). Survives reload.
+    private readonly Dictionary<int, (string Part, string Desc, bool Manual)> _scannedByRow = new();
+
+    private int MaterialsOkCount =>
+        _view?.Materials.Count(m => string.Equals(m.Status, "Ok", StringComparison.OrdinalIgnoreCase)) ?? 0;
+
     protected override async Task OnParametersSetAsync()
     {
         if (WorkOrderId != _lastLoadedWoId)
@@ -159,6 +209,9 @@
             _initialError = null;
             _setError = null;
             _invalidPhase = false;
+            _scanStatus = null;
+            _scanInput = string.Empty;
+            _scannedByRow.Clear();
             await LoadScrapReasonsAsync();
             await ReloadAsync();
         }
@@ -223,6 +276,59 @@
                     LotNo = intent.LotNo,
                     NgReasonCode = intent.NgReasonCode,
                     NgNote = intent.NgNote,
+                }));
+    }
+
+    // Manual entry into a row's Part Scan cell (special-accept case) — flag
+    // Manual=true so the columns render dark purple.
+    private void OnPartScanInput((int BomLineIdx, string Value) arg)
+    {
+        var desc = _scannedByRow.TryGetValue(arg.BomLineIdx, out var prev) ? prev.Desc : string.Empty;
+        _scannedByRow[arg.BomLineIdx] = (arg.Value, desc, true);
+    }
+
+    // Manual Part Scan committed (scanner-down fallback). Validate against THIS
+    // row's own code: exact match → auto-OK like a real scan; mismatch → leave
+    // it (purple) + tell the operator to use Special Accept.
+    private async Task OnPartScanCommit((int BomLineIdx, string Value) arg)
+    {
+        if (_view is null) return;
+        var row = _view.Materials.FirstOrDefault(m => m.BomLineIdx == arg.BomLineIdx);
+        if (row is null) return;
+
+        var part = MaterialBarcodeMatcher.ExtractPartNo(arg.Value);
+        _scannedByRow[arg.BomLineIdx] =
+            (part, MaterialBarcodeMatcher.ExtractDescription(arg.Value), true);   // manual → purple
+        if (part.Length == 0) return;
+
+        if (string.Equals(part, (row.MaterialCode ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.Equals(row.Status, "Ok", StringComparison.OrdinalIgnoreCase))
+                await OnSetMaterial(new WoMaterialsList.MaterialSetIntent
+                {
+                    BomLineIdx = row.BomLineIdx,
+                    Status = "Ok",
+                });
+            if (_setError is null)
+                _scanStatus = PrepressErrorLocaliser.ScanRecordedOk(row.MaterialCode ?? "");
+        }
+        else
+        {
+            _scanStatus = PrepressErrorLocaliser.ScanMismatch(part, row.MaterialCode ?? "");
+        }
+    }
+
+    private async Task OnSpecialAccept(WoMaterialsList.SpecialAcceptIntent intent)
+    {
+        if (_view is null) return;
+        await GuardedPutAsync(async ifMatch =>
+            await Api.SpecialAcceptMaterialAsync(
+                WorkOrderId, intent.BomLineIdx, ifMatch,
+                new SpecialAcceptMaterialRequest
+                {
+                    NgReasonCode = intent.NgReasonCode,
+                    Note = intent.NgNote,
+                    PartScan = intent.PartScan,
                 }));
     }
 
@@ -310,4 +416,134 @@
     }
 
     private void DismissSetError() => _setError = null;
+
+    public void Dispose() => _scanDebounce?.Dispose();
+
+    // ── Scan materials (PREPRESS) — USB wedge (Zebra DS2208) ────────────
+    // The DS2208 runs HID keyboard-wedge by default: it types the barcode
+    // into the focused field + an Enter suffix. So the scan UX is a single
+    // always-focused <input>; on Enter we match the payload against THIS
+    // WO's BOM (MaterialBarcodeMatcher, exact part-no only) and auto-record
+    // OK via the existing PUT path. No camera / no scanner SDK needed.
+    // Wedge auto-submit: a Zebra DS2208 types the whole barcode in a burst
+    // then stops. We don't rely on its Enter suffix reaching the WebView —
+    // instead, 250 ms after the last keystroke we submit the buffer
+    // automatically (the "auto xlookup" the operator expects). Manual typing
+    // works too (submits after a pause); Enter/blur still submit instantly.
+    private System.Threading.Timer? _scanDebounce;
+
+    private void OnScanInput(ChangeEventArgs e)
+    {
+        _scanInput = e.Value?.ToString() ?? string.Empty;
+        _scanDebounce?.Dispose();
+        _scanDebounce = new System.Threading.Timer(_ =>
+        {
+            _ = InvokeAsync(async () =>
+            {
+                try { await SubmitScanAsync(); }
+                catch { /* never let a timer callback crash the renderer */ }
+                StateHasChanged();
+            });
+        }, null, dueTime: 500, period: System.Threading.Timeout.Infinite);
+    }
+
+    private async Task OnScanKeyDown(KeyboardEventArgs e)
+    {
+        // DS2208 default suffix is Enter (CR). Tab also accepted in case a
+        // station configured a Tab suffix.
+        if (e.Key is not ("Enter" or "Tab")) return;
+        await SubmitScanAsync();
+    }
+
+    // Fallback: fires when the field commits (Enter or blur) — covers a
+    // scanner whose suffix keydown isn't surfaced to the WebView. Idempotent
+    // with OnScanKeyDown because SubmitScanAsync clears the buffer first.
+    private async Task OnScanCommitted(ChangeEventArgs e)
+    {
+        _scanInput = e.Value?.ToString() ?? _scanInput;
+        await SubmitScanAsync();
+    }
+
+    private async Task SubmitScanAsync()
+    {
+        var code = _scanInput;
+        _scanInput = string.Empty;          // clear for the next scan
+        if (_view is null || string.IsNullOrWhiteSpace(code)) return;
+
+        await LogMaterialScanAsync(code);   // best-effort forensic
+        var match = MaterialBarcodeMatcher.Match(_view.Materials, code);
+
+        if (match.Outcome != MaterialMatchOutcome.Single)
+        {
+            // AllOk / NoMatch / EmptyCode — nothing to confirm. On AllOk
+            // (re-scan of a done part) still refresh the Part Scan/Description
+            // columns so a complete re-scan corrects an earlier partial read.
+            if (match.Outcome == MaterialMatchOutcome.AllOk && match.Row is not null)
+                _scannedByRow[match.Row.BomLineIdx] = (match.PartNo, match.Description, false);
+            _scanStatus = PrepressErrorLocaliser.ScanOutcomeMessage(match.Outcome, match.PartNo);
+            RecordRecentScan(match.PartNo, resolved: match.Outcome == MaterialMatchOutcome.AllOk);
+            return;
+        }
+
+        var row = match.Row!;   // first not-yet-OK line of that part
+        // Sync the scanned data into the row's Part Scan / Part Description
+        // columns BEFORE the PUT so the operator sees it land immediately.
+        _scannedByRow[row.BomLineIdx] = (match.PartNo, match.Description, false);
+
+        // Reuse the proven PUT path — GuardedPutAsync handles If-Match /
+        // Idempotency-Key / ETag refresh / 409 retry + sets _setError on
+        // failure.
+        await OnSetMaterial(new WoMaterialsList.MaterialSetIntent
+        {
+            BomLineIdx = row.BomLineIdx,
+            Status = "Ok",
+        });
+
+        var ok = _setError is null;
+        if (ok)
+            _scanStatus = PrepressErrorLocaliser.ScanRecordedOk(row.MaterialCode);
+        // else: GuardedPutAsync already surfaced _setError + reloaded the view.
+        RecordRecentScan(row.MaterialCode, resolved: ok);
+    }
+
+    private async Task LogMaterialScanAsync(string code)
+    {
+        // Forensic trail — best-effort; never block the operator.
+        try
+        {
+            await Api.LogScanAsync(new ScanLogRequest
+            {
+                Payload = code,
+                Format = "wedge",
+                Context = "prepress-materials",
+                SourceDeviceLabel = "DS2208",
+                ClientTimestamp = DateTimeOffset.UtcNow,
+            });
+        }
+        catch (Exception)
+        {
+            // ignored — audit is secondary to the operator's task
+        }
+    }
+
+    private void RecordRecentScan(string code, bool resolved)
+    {
+        try
+        {
+            RecentScans.Record(new RecentScanEntry
+            {
+                Code = code,
+                Format = "wedge",
+                Context = "prepress-materials",
+                ScannedAt = DateTime.UtcNow,
+                ResolvedDisplay = code,
+                ResolvedSubtitle = _view?.WoNo,
+                Resolved = resolved,
+            });
+        }
+        catch (Exception)
+        {
+            // ignored — a Preferences hiccup must not break scanning
+        }
+    }
 }
