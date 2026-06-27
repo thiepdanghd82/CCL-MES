@@ -92,6 +92,7 @@
 ### Data-driven QC engine (Phương án C)
 
 - [L25 — Suspected regression? Prove it against a stashed baseline before blaming your change — a `Category=Soak` SQLite-macOS flake fails the same way whether your code is present or not](#l25)
+- [L26 — Classification rules (process→line) belong in a DATA table, not hardcoded keyword/StartsWith lists; and a lazy-materialise that can no-op MUST report a status, never fall back silently](#l26)
 
 ---
 
@@ -355,6 +356,18 @@
 | **Root cause** | Đây là flake interleaving SQLite-trên-macOS đã được tài liệu hoá (CLAUDE.md §P10.7c-4: "soak filter inversion as dedicated Step 2.5 with 2-attempt policy for the documented SQLite macOS interleaving flake"), gắn `[Trait("Category","Soak")]`. Optimistic-lock qua WorkOrders RowVersion trigger không serialize tuyệt đối dưới 10 request song song trong WebApplicationFactory + SQLite — số winner phụ thuộc timing, không phụ thuộc code Plan C. |
 | **Fix** | `git stash push -u` toàn bộ thay đổi → chạy CHÍNH test đó trên baseline 4 lần: kết quả 1✅ / 1❌(4) / 1✅ / 1❌(7) → baseline cũng flaky. `git stash pop` khôi phục. Kết luận: KHÔNG phải regression. CI/verify chạy soak riêng (`--filter Category!=Soak` cho suite chính; soak 2-attempt). Báo cáo "đã chạy/đã xanh" của Plan C dùng `Category!=Soak` cho con số ổn định. |
 | **Cơ chế chặn tái phát** | (a) **Quy trình bắt buộc**: nghi regression mà test nằm NGOÀI vùng mình sửa → `git stash -u` + chạy ≥3 lần trên baseline TRƯỚC khi tuyên bố. Nếu baseline cũng fail → flake, không phải mình. (b) Suite chính chạy `--filter Category!=Soak`; soak tests luôn tách + 2-attempt (đã có trong `verify-p10.7c.sh` Step 2.5). (c) Bài học phụ — **commit data-driven đụng EF shared files** (MesDbContext/IMesDbContext/MesDbContextModelSnapshot) KHÔNG path-split được khi không có `git add -p`; gộp theo compile-unit (B1+B2 chung 1 commit) thay vì cố tách theo bước → mỗi commit vẫn biên dịch. |
+
+---
+
+<a id="l26"></a>
+### L26 — Classification rules belong in a DATA table, not hardcoded keyword lists; a lazy-materialise that can no-op MUST report a status, never silently fall back
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | `/code-review` của Phương án C ra finding #3 + #7: `QcLineResolver` map process→QC line bằng ~30 `ContainsAny`/`StartsWith` hardcode trong code. (#7) `wc.StartsWith("SS") && !wc.StartsWith("SSC")` quá rộng — mã WC mới 'SS01'/'SSX' bị phân loại SILK sai. Thêm máy/đổi quy ước WC = sửa code resolver mỗi lần (không scale 10 nhà máy). Finding #2: auto-sync materialize no-op (không routing/library) IM LẶNG lùi về 4-slot → operator không biết bộ item chưa nạp; nếu routing tới sau, WO kẹt 4-slot vĩnh viễn (materialize chỉ chạy lúc tạo row). |
+| **Root cause** | (a) Luật phân loại là DỮ LIỆU vận hành (thay đổi theo nhà máy/thiết bị) nhưng bị nhốt trong code. (b) `WorkCenter.Area` auto-derive trong import sai (Power press PPSC1 → "SILKSCREEN") nên không dùng được → resolver buộc đoán bằng substring lỏng. (c) Lazy-materialise chỉ có 2 nhánh (materialize / no-op) + không trả trạng thái → caller/UI không phân biệt "đã nạp" vs "bỏ qua vì unmapped" vs "thư viện trống". |
+| **Fix** | (a) **Bảng `ProcessLineMap`** (MatchType ProcessCode/WorkCenterPrefix/OpKeyword → QcLine LABEL/DIGITAL/SILK/PRESS_CNC/NONE, Sort, Active) + `ProcessLineMapSeed.DefaultEntries()` dùng CHUNG cho DbSeeder (upsert idempotent) và unit test. Resolver `Resolve(ops, map)` tra bảng: ProcessCode → WorkCenterPrefix (DÀI nhất) → OpKeyword (chứa, Sort nhỏ) → Unmapped. Gỡ TOÀN BỘ keyword hardcode + cái `StartsWith("SS")` rộng → 'SS01' nay Unmapped. NONE = hợp lệ (pre-press/sấy/FQC/OQC), khác Unmapped. (b) Map theo định danh máy (WC prefix) thay vì động từ "CUT" → tránh nhập nhằng 'SheetCut(SS)'. (c) `TryAutoSyncAsync` trả status; GET self-heal khi check rỗng + pristine; DTO `autoSyncStatus` ∈ {Materialized, SkippedUnmapped, SkippedNoLibrary, LegacyManual} + UI banner cảnh báo; KHÔNG đè dữ liệu operator (slot ≠ Pending → LegacyManual). |
+| **Cơ chế chặn tái phát** | `QcLineResolverTests` (data-driven qua `MapFromSeed()`; khoá 'SS01'/'SSX'/'SS7'→Unmapped + routing thật 8064) · `IpqcAutoSyncTests.ProcessLineMap_seed_is_idempotent` · `IpqcAutoSyncControllerTests` (F2a self-heal khi routing tới sau · F2b SkippedUnmapped không nạp item · F2c không đè slot legacy) · `CheckItemLibraryControllerTests.ProcessMap_endpoint_*`. Quy tắc: luật phân loại mới → THÊM DÒNG vào `ProcessLineMapSeed`, KHÔNG thêm `if/StartsWith` vào resolver (PR review reject). |
 
 ---
 

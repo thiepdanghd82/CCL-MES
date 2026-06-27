@@ -11,8 +11,13 @@
 | 2 | Refactor IPQC 4-slot | ✅ **Shadow table**: giữ 4 cột cũ + thêm `WoIpqcCheckItem` + parity test | 2026-06-26 |
 | 3 | FQC/OQC có theo điều kiện? | ✅ **Luôn có** (12-phase bắt buộc qua FQC_PENDING/OQC_PENDING); routing chỉ làm giàu item; KHÔNG bỏ cổng hàng xuất | 2026-06-26 |
 | 4 | Bảng mới vs mở rộng | ✅ Bảng mới `CheckItemLibrary`; **mở rộng `ReasonCode`** (không tạo DefectCode mới) | 2026-06-26 |
-| 5 | Map process → QC line | ✅ **4 line** (LABEL · **DIGITAL** · SILK · PRESS_CNC); map là **dữ liệu**, khóa theo ProcessCatalog | 2026-06-26 |
+| 5 | Map process → QC line | ✅ **ĐÃ THOẢ** (review-fix F6, 2026-06-27): map là **DỮ LIỆU** qua bảng `ProcessLineMap` (MatchType ProcessCode/WorkCenterPrefix/OpKeyword → QcLine LABEL/DIGITAL/SILK/PRESS_CNC/NONE); resolver tra bảng, KHÔNG còn keyword hardcode. Sửa map = sửa seed. | 2026-06-26 → 2026-06-27 |
 | + | Tắt API :5100 + MAUI khi migration | ✅ Tắt trước Bước 1/2 (tránh khóa SQLite) | 2026-06-26 |
+
+> **Review-fix (2026-06-27)** — /code-review 8 finding: FIX **F1** (chặn slot-PUT khi WO ở mode item, 422) ·
+> **F2** (self-heal materialize + `autoSyncStatus` không im lặng) · **F4** (CSV strict: skip bad row + exit
+> non-zero) · **F5** (auth `NpiRead` cho library/process-map) · **F6** (map data-driven `ProcessLineMap` →
+> đóng **#3** + **#7**). HOÃN **B-#4/B-#5** ([BACKLOG.md](BACKLOG.md)).
 
 ## 2 · Ranh giới BẤT BIẾN (đã định vị file:line ở Bước 0)
 - [ ] 12-phase state-machine (169-cell) — không đổi hành vi
@@ -23,7 +28,7 @@
 - [ ] RowVersion / atomic SaveChanges (If-Match + Idem-Key) — không nới lỏng
 - [ ] EF migration theo CLAUDE.md §4 (isolated /tmp DB, KHÔNG `ef migrations remove`, type-affinity strip)
 
-## 3 · Map Process → QC Line (v1, là DỮ LIỆU — sửa qua seed, khóa theo ProcessCatalog 17 code)
+## 3 · Map Process → QC Line — bảng `ProcessLineMap` (DỮ LIỆU, sửa qua seed `ProcessLineMapSeed`; xem `/api/v2/qc/library/process-map`)
 | QC Line | Process / Work Centre | Ghi chú |
 |---|---|---|
 | **LABEL** (in nhãn) | Flexo (Gallus/Brotech) · Letterpress | In có khuôn |
