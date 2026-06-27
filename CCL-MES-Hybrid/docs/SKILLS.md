@@ -40,6 +40,7 @@
 - [S10 — Preserve debug artifacts on FAIL (don't auto-clean api.log + TMP_DIR before the operator can read them)](#s10)
 - [S11 — Assert-bound-port on every script that boots an API (lsof + log grep for "Overriding address")](#s11)
 - [S12 — Checkpoint scripts: per-step `[N/total]` labels + always-print SUMMARY (silence = no verify)](#s12)
+- [S13 — Data-driven QC auto-sync: resolver (routing→line) + lazy-materialize-from-library + freeze snapshot (Phương án C B3-B6)](#s13)
 
 ---
 
@@ -509,3 +510,23 @@ echo "==== SUMMARY ===="   # ← dead code, never executes
 The `exit 1` MUST go through the cleanup trap. NEVER bare-`exit` from inside a mid-script step.
 
 **In-process integration tests vs wire checkpoint**: in-process xUnit fixtures (the 22 `RunningSurfaceControllerTests` for 7c-2) cover endpoint logic but DO NOT prove the wire path on the real DB. The checkpoint script is what produces the **audit log proof** Henry needs to see in the Settings UI. Both are required — in-process catches code regressions, checkpoint catches deploy + DB + integration regressions. See [L10](./LESSONS-LEARNED.md#l10) for the wire-mirror principle (R7.3 mandates each operator-facing wire probe has a parallel TestServer mirror; S12 is the operational discipline that makes the wire side reproducible).
+
+---
+
+<a id="s13"></a>
+### S13 — Data-driven QC auto-sync: resolver (routing→line) + lazy-materialize-from-library + freeze snapshot
+
+**When to use**: wiring a per-process / per-routing checklist (IPQC/FQC/OQC items) so a WO auto-loads the right item set instead of a hardcoded N-slot form. The pattern from Phương án C B3-B6.
+
+**Recipe** (mirrors the FQC/OQC `WoQcReviewController` lazy-materialise):
+
+1. **Resolver thuần** (`QcLineResolver`) — input = routing rows of the part, output = process-line set. Derive from the RELIABLE signals (`Operation Description` keywords + WorkCenter code prefix), NEVER from auto-derived fields like `WorkCenter.Area` (wrong on real data) or `RoutingType` (constant). Unclassified op → `Unmapped` list, log + ask — don't guess. Lock with a test that pins classification to REAL routing rows of a real part (e.g. `QcLineResolverTests` on 8064xxxx).
+2. **Materializer thuần** (`IpqcLibraryMaterializer.Build(libraryRows, lines)`) — build `(ProfileSnapshotJson, items)` from the library subset; deterministic order (line → sort → id).
+3. **Lazy-materialise on first GET** in the controller: resolve part → routing → lines → query library subset (stage + lines + product-scope) → materialize items + **FREEZE** the snapshot column. Guard: if already frozen OR no routing OR empty library → NO-OP (fall back to legacy behaviour) so every pre-existing WO + existing test is untouched (additive).
+4. **Rollup overload** that prefers the data-driven items when present, falls back to legacy slots when empty — keeps the legacy-parity tests green.
+5. **Scope NG codes by line** (B5): dropdown lists only `Scrap ∩ DefectCode(line)`; server still 422s a non-catalog code.
+6. **Admin read API + page** (B6): list/lines/scoped-reason endpoints; edit is via the idempotent importer, not the UI (master data has its own lifecycle).
+
+**Invariants to keep**: state-machine + dual-sig untouched (additive only); freeze = editing the library NEVER mutates an in-flight WO (prove live: old WO item-count unchanged after a library edit, new WO picks up the change).
+
+**Cơ chế chặn**: `QcLineResolverTests`, `IpqcDataDrivenTests` (rollup parity + materializer), `IpqcAutoSyncTests` (end-to-end resolve→materialize→freeze + no-routing fallback), `CheckItemLibraryControllerTests` (scope), `IpqcDashboardItemsTests` (UI items-mode). See [L25](./LESSONS-LEARNED.md#l25) + `docs/lessons-learned/02-ipqc-data-driven-autosync.md`.
