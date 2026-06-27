@@ -41,19 +41,30 @@ def now():
 
 
 def read_rows(path):
+    """F4 (finding #8): parse strict. Trả (rows, blank_skipped, bad).
+    blank = dòng trống (bỏ lặng). bad = dòng dữ liệu THIẾU cột (<19) hoặc rỗng
+    field BẮT BUỘC → KHÔNG seed im lặng (log + caller exit non-zero)."""
     with open(path, encoding="utf-8-sig", newline="") as f:
         recs = list(csv.reader(f))
-    rows, skipped = [], 0
-    for r in recs[1:]:                       # bỏ header
+    rows, blank_skipped, bad = [], 0, []
+    for n, r in enumerate(recs[1:], start=2):    # bỏ header; n = số dòng file
         if not r or not (r[0] or "").strip():
-            skipped += 1
+            blank_skipped += 1
+            continue
+        item_id = (r[0] or "").strip()
+        if len(r) < len(COLS):
+            bad.append(f"row {n} (ItemId='{item_id}'): chỉ {len(r)} cột (<{len(COLS)})")
             continue
         d = {}
         for i, name in enumerate(COLS):
             v = (r[i].strip() if i < len(r) and r[i] is not None else "")
             d[name] = v if (v != "" or name in NOT_NULL) else None
+        missing = [name for name in NOT_NULL if not (d.get(name) or "").strip()]
+        if missing:
+            bad.append(f"row {n} (ItemId='{item_id}'): rỗng field bắt buộc {missing}")
+            continue
         rows.append(d)
-    return rows, skipped
+    return rows, blank_skipped, bad
 
 
 def main():
@@ -67,9 +78,11 @@ def main():
     if not os.path.exists(args.csv):
         sys.exit(f"ERROR: không thấy CSV {args.csv}.")
 
-    rows, skipped = read_rows(args.csv)
+    rows, blank_skipped, bad = read_rows(args.csv)
+    for b in bad:
+        print(f"[csv] bad row — {b}")
     print(f"DB   : {args.db}")
-    print(f"CSV  : {args.csv}  (rows={len(rows)}, skipped={skipped})")
+    print(f"CSV  : {args.csv}  (parsed={len(rows)}, blank={blank_skipped}, bad={len(bad)})")
 
     conn = sqlite3.connect(args.db)
     cur = conn.cursor()
@@ -144,6 +157,10 @@ def main():
     print(f"  reason_added = {reason_added}")
     print(f"AFTER : CheckItemLibraries={after_lib}, ReasonCode(Scrap)={after_scrap}")
     print("OK (idempotent — chạy lại sẽ ra 0/0/0).")
+
+    # F4 (finding #8): hàng lỗi → exit non-zero để CI/ops không bỏ sót.
+    if bad:
+        sys.exit(f"ERROR: {len(bad)} hàng CSV lỗi đã bị bỏ — sửa file rồi chạy lại.")
 
 
 if __name__ == "__main__":

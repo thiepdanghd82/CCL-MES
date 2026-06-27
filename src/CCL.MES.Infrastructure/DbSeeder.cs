@@ -53,6 +53,17 @@ public static class DbSeeder
             Console.WriteLine($"[seed] check_item_library skipped — {ex.GetType().Name}: {ex.Message}");
         }
 
+        // Phương án C — Bước 6: map process→QC line (data-driven, quyết định #5).
+        try
+        {
+            var m = await SeedProcessLineMapAsync(db);
+            Console.WriteLine($"[seed] process_line_map inserted={m.Inserted} updated={m.Updated} total={m.Total}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[seed] process_line_map skipped — {ex.GetType().Name}: {ex.Message}");
+        }
+
         if (await db.WorkOrders.AnyAsync()) return;
 
         // Máy
@@ -377,8 +388,49 @@ public static class DbSeeder
     public static async Task<CheckLibrarySeedResult> SeedCheckItemLibraryFromFileAsync(MesDbContext db, string path)
     {
         if (!File.Exists(path)) return new CheckLibrarySeedResult(0, 0, 0);
-        var rows = QcCheckLibraryCsv.Parse(await File.ReadAllTextAsync(path));
-        return await SeedCheckItemLibraryAsync(db, rows);
+        // F4 (finding #8): parse strict — log hàng lỗi, KHÔNG seed im lặng.
+        var parsed = QcCheckLibraryCsv.ParseDetailed(await File.ReadAllTextAsync(path));
+        foreach (var s in parsed.Skipped) Console.WriteLine($"[csv] bad row — {s}");
+        if (parsed.Skipped.Count > 0)
+            Console.WriteLine($"[csv] {Path.GetFileName(path)}: parsed={parsed.Rows.Count} skipped={parsed.Skipped.Count}");
+        return await SeedCheckItemLibraryAsync(db, parsed.Rows);
+    }
+
+    public readonly record struct ProcessLineMapSeedResult(int Inserted, int Updated, int Total);
+
+    /// <summary>Phương án C — Bước 6: seed/upsert bảng map process→QC line
+    /// (<see cref="ProcessLineMap"/>) từ <see cref="ProcessLineMapSeed.DefaultEntries"/>.
+    /// Idempotent theo natural key (MatchType, MatchValue) — chạy 2 lần ra cùng số dòng.
+    /// Chỉ cập nhật khi QcLine/Sort/Note đổi; KHÔNG đụng Active (admin có thể tắt thủ công).</summary>
+    public static async Task<ProcessLineMapSeedResult> SeedProcessLineMapAsync(MesDbContext db)
+    {
+        var existing = await db.ProcessLineMaps.ToListAsync();
+        var byKey = existing.ToDictionary(x => (x.MatchType, x.MatchValue));
+
+        int inserted = 0, updated = 0;
+        foreach (var e in ProcessLineMapSeed.DefaultEntries())
+        {
+            if (byKey.TryGetValue((e.MatchType, e.MatchValue), out var cur))
+            {
+                bool changed = false;
+                if (cur.QcLine != e.QcLine) { cur.QcLine = e.QcLine; changed = true; }
+                if (cur.Sort != e.Sort) { cur.Sort = e.Sort; changed = true; }
+                if (!string.Equals(cur.Note, e.Note, StringComparison.Ordinal)) { cur.Note = e.Note; changed = true; }
+                if (changed) { cur.UpdatedAt = DateTime.UtcNow; cur.UpdatedBy = "seed"; updated++; }
+            }
+            else
+            {
+                db.ProcessLineMaps.Add(new ProcessLineMap
+                {
+                    MatchType = e.MatchType, MatchValue = e.MatchValue, QcLine = e.QcLine,
+                    Sort = e.Sort, Note = e.Note, Active = true, CreatedBy = "seed",
+                });
+                inserted++;
+            }
+        }
+        await db.SaveChangesAsync();
+        return new ProcessLineMapSeedResult(inserted, updated,
+            await db.ProcessLineMaps.CountAsync());
     }
 
     /// <summary>Resolve CSV thư viện: env <c>MES_QC_LIBRARY_CSV</c> trước; nếu không,

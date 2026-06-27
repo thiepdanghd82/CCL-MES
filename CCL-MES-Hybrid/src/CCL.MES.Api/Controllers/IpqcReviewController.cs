@@ -99,34 +99,51 @@ public sealed class IpqcReviewController : ControllerBase
 
         var check = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
             .FirstOrDefaultAsync(c => c.WorkOrderId == id, ct);
+
+        string autoSync;
         if (check is null)
         {
             // Lazy-materialise row + AUTO-SYNC items (Phương án C Bước 4).
             // Concurrent first-readers race on the UNIQUE index — losers refetch.
+            var fresh = NewPendingCheck(id);
+            autoSync = await TryAutoSyncAsync(wo, fresh, ct);
             try
             {
-                var fresh = new WoIpqcCheck
-                {
-                    WorkOrderId = id,
-                    MaterialStatus = IpqcCheckStatus.Pending,
-                    PrintAStatus = IpqcCheckStatus.Pending,
-                    PrintBStatus = IpqcCheckStatus.Pending,
-                    PrintCStatus = IpqcCheckStatus.Pending,
-                    Judgment = IpqcJudgment.Pending,
-                    QaOutcome = QaOutcome.Pending,
-                };
-                await MaterializeItemsIfNeededAsync(wo, fresh, ct);
                 _db.WoIpqcChecks.Add(fresh);
                 await _db.SaveChangesAsync(ct);
             }
             catch (DbUpdateException)
             {
-                // Race lost; another caller already inserted. Refetch.
                 if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
                     dbCtx.ChangeTracker.Clear();
             }
             check = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
                 .FirstOrDefaultAsync(c => c.WorkOrderId == id, ct);
+        }
+        else if (check.Items.Count == 0 && IsPristine(check))
+        {
+            // F2 (finding #2) — SELF-HEAL: check tạo trước khi có routing/library
+            // (mode 4-slot rỗng) nhưng CHƯA nhập gì → thử materialize lại (an toàn).
+            var tracked = await _db.WoIpqcChecks.Include(c => c.Items)
+                .FirstOrDefaultAsync(c => c.WorkOrderId == id, ct);
+            autoSync = tracked is null ? "LegacyManual" : await TryAutoSyncAsync(wo, tracked, ct);
+            if (tracked is not null && tracked.Items.Count > 0)
+            {
+                try { await _db.SaveChangesAsync(ct); }
+                catch (DbUpdateException)
+                {
+                    if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
+                        dbCtx.ChangeTracker.Clear();
+                }
+                check = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
+                    .FirstOrDefaultAsync(c => c.WorkOrderId == id, ct);
+            }
+        }
+        else
+        {
+            // Đã materialize (Materialized) hoặc đã nhập tay 4-slot (LegacyManual,
+            // KHÔNG tự chuyển — giữ dữ liệu operator, QA quyết).
+            autoSync = check.Items.Count > 0 ? AutoSyncMaterialized : "LegacyManual";
         }
 
         var etag = Convert.ToBase64String(wo.RowVersion);
@@ -163,6 +180,7 @@ public sealed class IpqcReviewController : ControllerBase
             AllOk = allOk,
             AnyNg = anyNg,
             ResolvedLines = check?.ResolvedLines,
+            AutoSyncStatus = autoSync,
             Items = checkItems.Select(i => new IpqcViewItem
             {
                 ItemKey = i.ItemKey,
@@ -231,6 +249,13 @@ public sealed class IpqcReviewController : ControllerBase
         }
 
         var check = await GetOrCreateCheckAsync(id, wo);
+
+        // F1 (finding #1): WO đã materialize bộ item data-driven → slot-PUT legacy
+        // vô nghĩa (rollup tính theo items, sẽ bỏ qua slot). Từ chối thẳng để 2 đường
+        // ghi không phân kỳ; operator phải dùng PUT /ipqc/item/{itemKey}.
+        if (check.Items.Count > 0)
+            return Invalid("ipqc.slot_write_in_item_mode",
+                "WO này dùng IPQC data-driven (auto-sync). Dùng endpoint /ipqc/item/{itemKey}, không phải slot legacy.");
 
         WoIpqcCheckService.SetSlot(check, slot, status,
             status == IpqcCheckStatus.Ng ? req.NgReasonCode : null,
@@ -457,77 +482,98 @@ public sealed class IpqcReviewController : ControllerBase
 
     // ── Helpers ────────────────────────────────────────────────────
 
-    /// <summary>Lazy-materialise the IPQC check row if absent (catches
-    /// pre-migration WOs that were in PREPRESS at migration time + later
-    /// advanced past SETTING). Idempotent under UNIQUE index race.</summary>
+    // F2 — autoSyncStatus tokens (DERIVE; trùng IpqcView.AutoSyncStatus doc).
+    private const string AutoSyncMaterialized = "Materialized";
+    private const string AutoSyncSkippedUnmapped = "SkippedUnmapped";
+    private const string AutoSyncSkippedNoLibrary = "SkippedNoLibrary";
+    private const string AutoSyncLegacyManual = "LegacyManual";
+
+    private static WoIpqcCheck NewPendingCheck(long woId) => new()
+    {
+        WorkOrderId = woId,
+        MaterialStatus = IpqcCheckStatus.Pending,
+        PrintAStatus = IpqcCheckStatus.Pending,
+        PrintBStatus = IpqcCheckStatus.Pending,
+        PrintCStatus = IpqcCheckStatus.Pending,
+        Judgment = IpqcJudgment.Pending,
+        QaOutcome = QaOutcome.Pending,
+    };
+
+    /// <summary>Check chưa có bất kỳ dữ liệu operator nào (an toàn để self-heal materialize).</summary>
+    private static bool IsPristine(WoIpqcCheck c) =>
+        c.Judgment == IpqcJudgment.Pending
+        && c.MaterialStatus == IpqcCheckStatus.Pending
+        && c.PrintAStatus == IpqcCheckStatus.Pending
+        && c.PrintBStatus == IpqcCheckStatus.Pending
+        && c.PrintCStatus == IpqcCheckStatus.Pending;
+
+    /// <summary>Lazy-materialise the IPQC check row if absent. Idempotent under UNIQUE
+    /// index race. Auto-sync khi tạo mới qua mutation path (wo != null).</summary>
     private async Task<WoIpqcCheck> GetOrCreateCheckAsync(long woId, WorkOrder? wo = null)
     {
         var check = await _db.WoIpqcChecks.Include(c => c.Items)
             .FirstOrDefaultAsync(c => c.WorkOrderId == woId);
         if (check is not null) return check;
 
-        check = new WoIpqcCheck
-        {
-            WorkOrderId = woId,
-            MaterialStatus = IpqcCheckStatus.Pending,
-            PrintAStatus = IpqcCheckStatus.Pending,
-            PrintBStatus = IpqcCheckStatus.Pending,
-            PrintCStatus = IpqcCheckStatus.Pending,
-            Judgment = IpqcJudgment.Pending,
-            QaOutcome = QaOutcome.Pending,
-        };
-        // Auto-sync items (Phương án C Bước 4) khi materialize lần đầu qua
-        // mutation path. wo có thể null (caller cũ) → bỏ qua, giữ legacy.
+        check = NewPendingCheck(woId);
         if (wo is not null)
-            await MaterializeItemsIfNeededAsync(wo, check, CancellationToken.None);
+            await TryAutoSyncAsync(wo, check, CancellationToken.None);
         _db.WoIpqcChecks.Add(check);
         return check;
     }
 
     /// <summary>
-    /// Phương án C — Bước 4. Auto-sync: resolve routing của mã hàng → tập QC
-    /// line → lấy subset <see cref="CheckItemLibrary"/> (IPQC, active, scope SP)
-    /// → materialize items + ĐÓNG BĂNG snapshot vào <paramref name="check"/>.
-    ///
-    /// No-op (giữ legacy 4 slot) khi: đã đóng băng (freeze) · không có productCode
-    /// · không có routing · resolve ra 0 line · thư viện trống cho line đó.
+    /// Phương án C — Bước 4 + F2. Auto-sync: resolve routing → tập QC line (qua
+    /// <see cref="ProcessLineMap"/>) → subset <see cref="CheckItemLibrary"/> →
+    /// materialize items + ĐÓNG BĂNG snapshot vào <paramref name="check"/>.
+    /// Trả về trạng thái (KHÔNG im lặng — finding #2):
+    ///   Materialized · SkippedUnmapped (op không map được) · SkippedNoLibrary
+    ///   (ra line nhưng thư viện trống) · LegacyManual (đã freeze / không routing / 0 line).
     /// Mutate in-place; caller SaveChanges trong cùng transaction.
     /// </summary>
-    private async Task MaterializeItemsIfNeededAsync(WorkOrder wo, WoIpqcCheck check, CancellationToken ct)
+    private async Task<string> TryAutoSyncAsync(WorkOrder wo, WoIpqcCheck check, CancellationToken ct)
     {
-        // FREEZE: đã có snapshot/items → không re-resolve (sửa thư viện không hồi tố).
-        if (!string.IsNullOrWhiteSpace(check.ItemsProfileSnapshotJson)) return;
-        if (check.Items.Count > 0) return;
+        // FREEZE: đã có snapshot/items → đã materialize rồi (sửa thư viện không hồi tố).
+        if (!string.IsNullOrWhiteSpace(check.ItemsProfileSnapshotJson) || check.Items.Count > 0)
+            return AutoSyncMaterialized;
 
         var productCode = await _db.Products.AsNoTracking()
             .Where(p => p.Id == wo.ProductId)
             .Select(p => p.ProductCode)
             .FirstOrDefaultAsync(ct);
-        if (string.IsNullOrWhiteSpace(productCode)) return;
+        if (string.IsNullOrWhiteSpace(productCode)) return AutoSyncLegacyManual;
 
         var ops = await _db.RoutingOperations.AsNoTracking()
             .Where(r => r.PartNo == productCode)
             .Select(r => new { r.OpNo, r.Operation, r.WorkCenterNo, r.WorkCenterDescription })
             .ToListAsync(ct);
-        if (ops.Count == 0) return;
+        if (ops.Count == 0) return AutoSyncLegacyManual;
 
+        var map = await _db.ProcessLineMaps.AsNoTracking()
+            .Where(m => m.Active)
+            .Select(m => new QcLineResolver.MapEntry(m.MatchType, m.MatchValue, m.QcLine, m.Sort))
+            .ToListAsync(ct);
         var resolution = QcLineResolver.Resolve(ops.Select(o =>
-            new QcLineResolver.RoutingOp(o.OpNo, o.Operation, o.WorkCenterNo, o.WorkCenterDescription)));
-        if (resolution.Lines.Count == 0) return;
+            new QcLineResolver.RoutingOp(o.OpNo, o.Operation, o.WorkCenterNo, o.WorkCenterDescription)), map);
+
+        if (resolution.Lines.Count == 0)
+            // Có op không map được → cảnh báo Unmapped; ngược lại (toàn NONE/không routing) → legacy.
+            return resolution.Unmapped.Count > 0 ? AutoSyncSkippedUnmapped : AutoSyncLegacyManual;
 
         var lines = resolution.Lines.ToList();
         var lib = await _db.CheckItemLibraries.AsNoTracking()
             .Where(c => c.Active && c.QcStage == "IPQC" && lines.Contains(c.ProcessLine)
                      && (c.ProductCode == null || c.ProductCode == productCode))
             .ToListAsync(ct);
-        if (lib.Count == 0) return;
+        if (lib.Count == 0) return AutoSyncSkippedNoLibrary;
 
         var built = IpqcLibraryMaterializer.Build(lib, lines);
-        if (built.Items.Count == 0) return;
+        if (built.Items.Count == 0) return AutoSyncSkippedNoLibrary;
 
         check.ItemsProfileSnapshotJson = built.ProfileSnapshotJson;
         check.ResolvedLines = string.Join(",", lines);
         foreach (var it in built.Items) check.Items.Add(it);
+        return AutoSyncMaterialized;
     }
 
     private async Task<IActionResult?> ValidateNgAsync(string? ngReasonCode, string? ngNote)

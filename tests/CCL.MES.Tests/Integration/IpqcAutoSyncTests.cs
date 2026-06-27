@@ -54,8 +54,10 @@ public sealed class IpqcAutoSyncTests : IDisposable
             .Select(p => p.ProductCode).FirstAsync();
         var ops = await db.RoutingOperations.Where(r => r.PartNo == productCode)
             .Select(r => new { r.OpNo, r.Operation, r.WorkCenterNo, r.WorkCenterDescription }).ToListAsync();
+        var map = await db.ProcessLineMaps.Where(m => m.Active)
+            .Select(m => new QcLineResolver.MapEntry(m.MatchType, m.MatchValue, m.QcLine, m.Sort)).ToListAsync();
         var resolution = QcLineResolver.Resolve(ops.Select(o =>
-            new QcLineResolver.RoutingOp(o.OpNo, o.Operation, o.WorkCenterNo, o.WorkCenterDescription)));
+            new QcLineResolver.RoutingOp(o.OpNo, o.Operation, o.WorkCenterNo, o.WorkCenterDescription)), map);
         var lines = resolution.Lines.ToList();
         var lib = await db.CheckItemLibraries
             .Where(c => c.Active && c.QcStage == "IPQC" && lines.Contains(c.ProcessLine)
@@ -68,6 +70,7 @@ public sealed class IpqcAutoSyncTests : IDisposable
     {
         using var db = _fx.NewContext();
         await DbSeeder.SeedCheckItemLibraryFromFileAsync(db, RealCsvPath());
+        await DbSeeder.SeedProcessLineMapAsync(db); // F6 — map data-driven
     }
 
     [Fact]
@@ -99,10 +102,11 @@ public sealed class IpqcAutoSyncTests : IDisposable
     public async Task Digital_part_80645392_materializes_digital_items_not_silk()
     {
         await SeedLibraryAsync();
+        // Lưu ý quyết định #5: máy SheetCut(SS) R2SC* → SILK (đã unit-test riêng).
+        // Test này dùng các op DIGITAL+PRESS_CNC rõ ràng để khẳng định phân loại in số.
         var pid = await SeedProductWithRoutingAsync("80645392", new[]
         {
             ("20", "(HP INDIGO) PRINT / In máy kts", "IDG01"),
-            ("31", "(PRESS) LAM.&Cut / Ép &Cắt", "R2SC3"),
             ("60", "(PRESS) CUT / Cắt", "PPSC1"),
             ("80", "FQC & PACKING", "MAN1"),
             ("90", "OQC Inspection", "MAN2"),
@@ -131,6 +135,18 @@ public sealed class IpqcAutoSyncTests : IDisposable
         Assert.Contains(result.Items, i => i.ProcessLine == "SILK");
         Assert.Contains(result.Items, i => i.ProcessLine == "PRESS_CNC");
         Assert.DoesNotContain(result.Items, i => i.ProcessLine == "DIGITAL");
+    }
+
+    [Fact]
+    public async Task ProcessLineMap_seed_is_idempotent()
+    {
+        DbSeeder.ProcessLineMapSeedResult r1, r2;
+        using (var db = _fx.NewContext()) r1 = await DbSeeder.SeedProcessLineMapAsync(db);
+        using (var db = _fx.NewContext()) r2 = await DbSeeder.SeedProcessLineMapAsync(db);
+        Assert.True(r1.Inserted > 0);
+        Assert.Equal(0, r2.Inserted);
+        Assert.Equal(0, r2.Updated);
+        Assert.Equal(r1.Total, r2.Total); // cùng số dòng sau 2 lần
     }
 
     [Fact]

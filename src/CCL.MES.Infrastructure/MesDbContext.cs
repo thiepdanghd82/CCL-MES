@@ -64,6 +64,8 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<WoIpqcCheck> WoIpqcChecks => Set<WoIpqcCheck>();
     // Phương án C — Bước 2: data-driven IPQC items (shadow, additive).
     public DbSet<WoIpqcCheckItem> WoIpqcCheckItems => Set<WoIpqcCheckItem>();
+    // Phương án C — Bước 6: map process→QC line (data-driven, quyết định #5).
+    public DbSet<ProcessLineMap> ProcessLineMaps => Set<ProcessLineMap>();
     // P10.7e-1 Q3+Q6 — DATA-DRIVEN FQC + OQC + photo evidence tables.
     public DbSet<WoQcCheck> WoQcChecks => Set<WoQcCheck>();
     public DbSet<WoQcCheckItem> WoQcCheckItems => Set<WoQcCheckItem>();
@@ -185,6 +187,13 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<WoIpqcCheckItem>().Property(x => x.NgReasonCode).HasMaxLength(64);
         b.Entity<WoIpqcCheckItem>().Property(x => x.NgNote).HasMaxLength(500);
         b.Entity<WoIpqcCheckItem>().HasIndex(x => new { x.WoIpqcCheckId, x.ItemKey }).IsUnique();
+
+        // Phương án C — Bước 6: map process→QC line (data-driven).
+        b.Entity<ProcessLineMap>().Property(x => x.MatchType).HasMaxLength(32).IsRequired();
+        b.Entity<ProcessLineMap>().Property(x => x.MatchValue).HasMaxLength(128).IsRequired();
+        b.Entity<ProcessLineMap>().Property(x => x.QcLine).HasMaxLength(16).IsRequired();
+        b.Entity<ProcessLineMap>().Property(x => x.Note).HasMaxLength(256);
+        b.Entity<ProcessLineMap>().HasIndex(x => new { x.MatchType, x.MatchValue }).IsUnique();
         b.Entity<WoIpqcCheckItem>().HasOne(x => x.WoIpqcCheck)
             .WithMany(c => c.Items)
             .HasForeignKey(x => x.WoIpqcCheckId)

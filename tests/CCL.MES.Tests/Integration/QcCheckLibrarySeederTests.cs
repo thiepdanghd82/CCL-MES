@@ -39,6 +39,36 @@ public sealed class QcCheckLibrarySeederTests : IDisposable
         Assert.Null(r.ParetoPct);                        // ô rỗng → null
     }
 
+    // ── F4 (finding #8): CSV strict — bỏ hàng lỗi, không seed im lặng ─
+
+    [Fact]
+    public void ParseDetailed_skips_truncated_and_missing_required_rows()
+    {
+        var header = "ItemID,Line,Group,Code,ItemVI,ItemEN,AccVI,AccEN,Method,Sev,AQL,Sampling,Type,Defect,Pareto,Short,ISO,When,Note\n";
+        var good = "LBL-A1,LABEL,A,A1,Nội dung,Content,tc,tc,Soi,Crit,0.65,FAI,Visual,CONTENT,,Y,,,note\n";
+        var truncated = "LBL-A2,LABEL,A,A2\n";                       // chỉ 4 cột (<19)
+        var missingReq = "LBL-A3,,A,A3,x,x,y,y,Soi,Crit,,,Visual,D,,,,,n\n"; // ProcessLine rỗng
+        var result = QcCheckLibraryCsv.ParseDetailed(header + good + truncated + missingReq);
+
+        Assert.Single(result.Rows);                       // chỉ hàng tốt
+        Assert.Equal("LBL-A1", result.Rows[0].ItemId);
+        Assert.Equal(2, result.Skipped.Count);            // truncated + missing-required
+        // KHÔNG có item ProcessLine='' lọt vào.
+        Assert.DoesNotContain(result.Rows, r => r.ProcessLine.Length == 0);
+    }
+
+    [Fact]
+    public async Task Seed_does_not_create_empty_processline_item_from_bad_row()
+    {
+        var header = "ItemID,Line,Group,Code,ItemVI,ItemEN,AccVI,AccEN,Method,Sev,AQL,Sampling,Type,Defect,Pareto,Short,ISO,When,Note\n";
+        var truncated = "BAD-1,LABEL,A,A1\n";  // thiếu cột
+        var parsed = QcCheckLibraryCsv.ParseDetailed(header + truncated);
+        using var db = _fx.NewContext();
+        await DbSeeder.SeedCheckItemLibraryAsync(db, parsed.Rows);
+        Assert.Equal(0, await db.CheckItemLibraries.CountAsync());
+        Assert.Single(parsed.Skipped);
+    }
+
     // ── Seeder (integration) — file v2 thật ─────────────────────────
 
     private static string RealCsvPath()

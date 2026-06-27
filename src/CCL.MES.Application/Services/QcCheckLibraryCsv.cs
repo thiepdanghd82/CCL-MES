@@ -37,16 +37,52 @@ public sealed class QcCheckLibraryRow
 /// </summary>
 public static class QcCheckLibraryCsv
 {
-    public static IReadOnlyList<QcCheckLibraryRow> Parse(string text)
+    /// <summary>Số cột tối thiểu (file v2 = 19 cột).</summary>
+    public const int ExpectedColumns = 19;
+
+    // F4 (finding #8): các cột BẮT BUỘC non-empty (tên cho thông báo skip).
+    private static readonly (int Idx, string Name)[] RequiredFields =
+    {
+        (1, "ProcessLine"), (2, "GroupLabel"), (3, "Code"),
+        (4, "ItemVi"), (5, "ItemEn"), (6, "AcceptanceVi"), (7, "AcceptanceEn"),
+    };
+
+    /// <summary>Kết quả parse có chẩn đoán: hàng hợp lệ + danh sách hàng bị bỏ (lý do).</summary>
+    public sealed record ParseResult(IReadOnlyList<QcCheckLibraryRow> Rows, IReadOnlyList<string> Skipped);
+
+    /// <summary>Parse + bỏ hàng lỗi (xem <see cref="ParseDetailed"/>). Giữ chữ ký cũ.</summary>
+    public static IReadOnlyList<QcCheckLibraryRow> Parse(string text) => ParseDetailed(text).Rows;
+
+    /// <summary>
+    /// F4 (finding #8): parse strict. Hàng dữ liệu (ItemId non-empty) mà THIẾU cột
+    /// (&lt; <see cref="ExpectedColumns"/>) HOẶC rỗng field BẮT BUỘC → KHÔNG seed im lặng:
+    /// bỏ hàng + ghi lý do vào <see cref="ParseResult.Skipped"/>. Dòng trống (ItemId rỗng)
+    /// vẫn bỏ lặng (không tính skip). Caller log + (importer) exit non-zero nếu skipped &gt; 0.
+    /// </summary>
+    public static ParseResult ParseDetailed(string text)
     {
         var records = ParseRecords(text);
         var rows = new List<QcCheckLibraryRow>();
+        var skipped = new List<string>();
         for (int i = 1; i < records.Count; i++)   // bỏ header (record 0)
         {
             var f = records[i];
             string G(int idx) => idx < f.Count ? f[idx].Trim() : "";
             var itemId = G(0);
-            if (itemId.Length == 0) continue;
+            if (itemId.Length == 0) continue;     // dòng trống — bỏ lặng
+
+            if (f.Count < ExpectedColumns)
+            {
+                skipped.Add($"row {i} (ItemId='{itemId}'): chỉ {f.Count} cột (<{ExpectedColumns})");
+                continue;
+            }
+            var missing = RequiredFields.FirstOrDefault(rf => G(rf.Idx).Length == 0);
+            if (missing.Name is not null)
+            {
+                skipped.Add($"row {i} (ItemId='{itemId}'): rỗng field bắt buộc '{missing.Name}'");
+                continue;
+            }
+
             rows.Add(new QcCheckLibraryRow
             {
                 ItemId = itemId,
@@ -70,7 +106,7 @@ public static class QcCheckLibraryCsv
                 Note = NullIfEmpty(G(18)),
             });
         }
-        return rows;
+        return new ParseResult(rows, skipped);
     }
 
     private static string? NullIfEmpty(string s) => s.Length == 0 ? null : s;

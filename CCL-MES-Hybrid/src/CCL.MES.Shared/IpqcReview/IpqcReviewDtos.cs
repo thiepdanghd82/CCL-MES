@@ -70,6 +70,12 @@ public sealed record IpqcView
     /// = WO chưa/không auto-sync được → dùng 4 slot legacy ở trên.</summary>
     public string? ResolvedLines { get; init; }
 
+    /// <summary>Phương án C — F2 (finding #2): trạng thái auto-sync để UI cảnh báo,
+    /// KHÔNG im lặng. DERIVE (không cột DB). "Materialized" · "SkippedUnmapped"
+    /// (routing có op không map được) · "SkippedNoLibrary" (ra line nhưng thư viện trống)
+    /// · "LegacyManual" (không routing / đã nhập tay 4-slot → giữ thủ công).</summary>
+    public string AutoSyncStatus { get; init; } = "LegacyManual";
+
     /// <summary>Bộ hạng mục IPQC materialize từ thư viện theo process line.
     /// Rỗng = mode legacy 4 slot (UI render 4 slot cũ). Có phần tử = mode
     /// data-driven (UI render danh sách này; rollup tính trên đây).</summary>

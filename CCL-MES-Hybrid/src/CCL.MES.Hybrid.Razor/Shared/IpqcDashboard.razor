@@ -92,6 +92,14 @@
             </div>
         }
 
+        @* F2 (finding #2) — cảnh báo auto-sync bị bỏ qua, KHÔNG im lặng *@
+        @if (AutoSyncWarning is { } warn)
+        {
+            <div class="wo-card-warn" data-testid="ipqc-autosync-warning">
+                <strong>⚠ Auto-sync chưa nạp bộ hạng mục:</strong> @warn
+            </div>
+        }
+
         @* ── Phương án C: data-driven items (auto-sync) ───────────── *@
         @if (ItemsMode)
         {
@@ -414,6 +422,14 @@
     /// <summary>Phương án C — data-driven khi server trả về Items (auto-sync
     /// đã materialize từ thư viện). Rỗng → mode 4-slot legacy.</summary>
     private bool ItemsMode => _view is not null && _view.Items.Count > 0;
+
+    /// <summary>F2 — câu cảnh báo khi auto-sync KHÔNG nạp được bộ item (null = không cảnh báo).</summary>
+    private string? AutoSyncWarning => _view?.AutoSyncStatus switch
+    {
+        "SkippedUnmapped" => "Routing có công đoạn chưa khai báo trong bảng map process→line. Báo kỹ thuật bổ sung map; tạm dùng 4-slot thủ công.",
+        "SkippedNoLibrary" => "Đã suy ra QC line nhưng thư viện hạng mục trống cho line đó. Báo QC nạp thư viện.",
+        _ => null,
+    };
 
     private int TotalCount => ItemsMode ? _view!.Items.Count : 4;
 

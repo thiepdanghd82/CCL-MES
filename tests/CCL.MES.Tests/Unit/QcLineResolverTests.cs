@@ -5,158 +5,126 @@ using Op = CCL.MES.Application.Services.QcLineResolver.RoutingOp;
 namespace CCL.MES.Tests.Unit;
 
 /// <summary>
-/// Phương án C — Bước 3. Khóa phân loại resolver bằng ROUTING THẬT của các mã
-/// hàng 8064xxxx (đối soát <c>RoutingOperations 260525-52014.csv</c> trong DB live).
-/// Mỗi fixture là routing y nguyên đã dump từ <c>sqlite3</c> — đổi rule mà lệch
-/// kết quả mong đợi → fail CI.
+/// Phương án C — Bước 3/6 (data-driven). Resolver giờ tra bảng map
+/// (<see cref="ProcessLineMapSeed"/> qua <see cref="QcLineResolver.MapFromSeed"/>) —
+/// KHÔNG keyword hardcode. Khóa phân loại bằng routing THẬT 8064xxxx + đóng finding #7
+/// (mã WC 'SS01'/'SSX' KHÔNG còn rơi vào SILK).
 /// </summary>
 public sealed class QcLineResolverTests
 {
-    // ── Phân loại từng operation ────────────────────────────────────
+    private static readonly IReadOnlyList<QcLineResolver.MapEntry> Map = QcLineResolver.MapFromSeed();
+
+    private static string Classify(string? op, string wc, string? wcDesc = null) =>
+        QcLineResolver.Classify(new Op(null, op, wc, wcDesc), Map);
+
+    // ── Phân loại theo WorkCenterPrefix (máy thật) ──────────────────
 
     [Theory]
-    [InlineData("(GALLUS) PRINT / In nhãn", "GFL01", QcLineResolver.ClsLabel)]
-    [InlineData("(BROTECH) PRINT / In nhãn", "BFL01", QcLineResolver.ClsLabel)]
-    [InlineData("(HP INDIGO) PRINT / In máy kts", "IDG01", QcLineResolver.ClsDigital)]
-    [InlineData("SILK SEMI_AUTO SHEET/In dạng tờ-P1", "ASS08", QcLineResolver.ClsSilk)]
-    [InlineData("(SILK)SEMI_AUTOSHEET/In dạng tờ-P1", "MSS01", QcLineResolver.ClsSilk)]
-    [InlineData("(RDC) LAM.&Cut / Ép&Cắt dao tròn", "RDC12", QcLineResolver.ClsPressCnc)]
-    [InlineData("(PRESS) CUT / Cắt", "PPSC1", QcLineResolver.ClsPressCnc)]
-    [InlineData("(PRESS) LAM.&Cut / Ép &Cắt", "R2SC3", QcLineResolver.ClsPressCnc)] // LAM.&Cut → cut thắng
-    [InlineData("DRILL HOLE / Khoan lỗ", "MDRH1", QcLineResolver.ClsPressCnc)]
-    [InlineData("PUNCHING / Đục lỗ", "PUNC1", QcLineResolver.ClsPressCnc)]
-    [InlineData("(SEAL) LAM. & CUT / Ép dán và cắt", "FBL02", QcLineResolver.ClsPressCnc)]
-    [InlineData("(SEAL) LAM / Ép dán In nhãn", "LAML1", QcLineResolver.ClsAppearance)]
-    [InlineData("(PRESS) LAM. ROLL/ Ép dán cuộn", "LAMR3", QcLineResolver.ClsAppearance)]
-    [InlineData("PRE- PREPARE / Chuẩn bị trước SX", "FXPP1", QcLineResolver.ClsSkip)]
-    [InlineData("BAKING (SHEET)", "OVS1", QcLineResolver.ClsSkip)]
-    [InlineData("UV Tunnel furnace surface dry", "UVS1", QcLineResolver.ClsSkip)]
-    [InlineData("TAPPING / Dán băng dính", "MAN3", QcLineResolver.ClsSkip)]
-    [InlineData("FQC & PACKING/Kiểm tra và đóng gói", "MAN1", QcLineResolver.ClsFqc)]
-    [InlineData("OQC Inspection", "MAN2", QcLineResolver.ClsOqc)]
-    public void Classify_real_operations(string op, string wc, string expected)
-    {
-        Assert.Equal(expected, QcLineResolver.Classify(new Op(null, op, wc, null)));
-    }
+    [InlineData("GFL01", QcLineResolver.Label)]
+    [InlineData("BFL01", QcLineResolver.Label)]
+    [InlineData("IDG01", QcLineResolver.Digital)]
+    [InlineData("ASS08", QcLineResolver.Silk)]
+    [InlineData("MSS01", QcLineResolver.Silk)]
+    [InlineData("R2SC3", QcLineResolver.Silk)]      // SheetCut(SS) — quyết định #5
+    [InlineData("FBL02", QcLineResolver.PressCnc)]
+    [InlineData("PPSC1", QcLineResolver.PressCnc)]
+    [InlineData("RDC12", QcLineResolver.PressCnc)]
+    [InlineData("PUNC1", QcLineResolver.PressCnc)]
+    [InlineData("MDRH1", QcLineResolver.PressCnc)]
+    [InlineData("LAML1", QcLineResolver.Label)]
+    [InlineData("LAMR3", QcLineResolver.Label)]
+    [InlineData("MAGSS", QcLineResolver.Silk)]      // longest-match MAGSS→SILK, không phải MAG→LABEL
+    [InlineData("FXPP1", QcLineResolver.None)]
+    [InlineData("OVS1", QcLineResolver.None)]
+    [InlineData("UVS1", QcLineResolver.None)]
+    [InlineData("MAN1", QcLineResolver.None)]
+    [InlineData("MAN2", QcLineResolver.None)]
+    [InlineData("MAN3", QcLineResolver.None)]
+    public void Classify_by_workcenter_prefix(string wc, string expected)
+        => Assert.Equal(expected, Classify("any op", wc));
 
-    // ── Resolve toàn routing (real 8064 parts) ──────────────────────
+    // ── Finding #7: 'SS' rộng đã bị gỡ → SS01/SSX KHÔNG còn là SILK ──
+
+    [Theory]
+    [InlineData("SS01")]
+    [InlineData("SSX")]
+    [InlineData("SS7")]
+    public void Bare_SS_prefix_no_longer_classifies_silk(string wc)
+        => Assert.Equal(QcLineResolver.Unmapped, Classify("mystery op", wc));
+
+    // ── OpKeyword dự phòng (WC prefix lạ, khớp Operation/WC-desc) ────
+
+    [Fact]
+    public void Indigo_keyword_classifies_digital_when_wc_prefix_unknown()
+        => Assert.Equal(QcLineResolver.Digital, Classify("(HP INDIGO) PRINT", "ZZZ9", "unknown rig"));
+
+    [Fact]
+    public void Silk_wcdesc_keyword_classifies_silk_when_wc_prefix_unknown()
+        => Assert.Equal(QcLineResolver.Silk, Classify("print", "ZZZ9", "SS(Sheet)"));
+
+    // ── WC hoàn toàn lạ → Unmapped (loud, không đoán) ───────────────
+
+    [Fact]
+    public void Unknown_workcenter_and_op_is_unmapped()
+        => Assert.Equal(QcLineResolver.Unmapped, Classify("QUANTUM TELEPORT", "NGF1", "NextGen rig"));
+
+    [Fact]
+    public void Empty_map_yields_unmapped()
+        => Assert.Equal(QcLineResolver.Unmapped,
+            QcLineResolver.Classify(new Op(null, "x", "GFL01", null), System.Array.Empty<QcLineResolver.MapEntry>()));
+
+    // ── Resolve toàn routing thật ───────────────────────────────────
+
+    private static QcLineResolver.Resolution Resolve(params Op[] ops) => QcLineResolver.Resolve(ops, Map);
 
     [Fact]
     public void Resolve_80644935_label_flexo_plus_cut()
     {
-        // Gallus + Brotech flexo PRINT, RDC LAM.&Cut, FQC, OQC.
-        var ops = new[]
-        {
-            new Op("10", "PRE- PREPARE / Chuẩn bị trước SX", "FXPP1", null),
-            new Op("20", "(GALLUS) PRINT / In nhãn", "GFL01", null),
-            new Op("25", "(GALLUS) PRINT / In nhãn", "GFL01", null),
-            new Op("27", "(BROTECH) PRINT / In nhãn", "BFL01", null),
-            new Op("30", "(RDC) LAM.&Cut / Ép&Cắt dao tròn", "RDC12", null),
-            new Op("50", "FQC & PACKING/Kiểm tra và đóng gói", "MAN1", null),
-            new Op("60", "OQC Inspection", "MAN2", null),
-        };
-        var r = QcLineResolver.Resolve(ops);
+        var r = Resolve(
+            new Op("10", "PRE- PREPARE", "FXPP1", "Pre-press"),
+            new Op("20", "(GALLUS) PRINT", "GFL01", "Flexo (Gallus 4C)"),
+            new Op("27", "(BROTECH) PRINT", "BFL01", "Flexo (Brotech)"),
+            new Op("30", "(RDC) LAM.&Cut", "RDC12", "RDC12(350)"),
+            new Op("50", "FQC & PACKING", "MAN1", "FQC & Packaging"),
+            new Op("60", "OQC Inspection", "MAN2", "OQC"));
         Assert.Equal(new[] { QcLineResolver.Label, QcLineResolver.PressCnc }, r.Lines);
-        Assert.True(r.HasFqc);
-        Assert.True(r.HasOqc);
         Assert.Empty(r.Unmapped);
     }
 
     [Fact]
-    public void Resolve_80645392_digital_indigo_plus_cut()
+    public void Resolve_silk_plus_cut_prepress_is_none_not_unmapped()
     {
-        var ops = new[]
-        {
-            new Op("10", "PRE- PREPARE / Chuẩn bị trước SX", "FXPP1", null),
-            new Op("20", "(HP INDIGO) PRINT / In máy kts", "IDG01", null),
-            new Op("31", "(PRESS) LAM.&Cut / Ép &Cắt", "R2SC3", null),
-            new Op("50", "DRILL HOLE / Khoan lỗ", "MDRH1", null),
-            new Op("60", "(PRESS) CUT / Cắt", "PPSC1", null),
-            new Op("71", "TAPPING / Dán băng dính", "MAN3", null),
-            new Op("80", "FQC & PACKING/Kiểm tra và đóng gói", "MAN1", null),
-            new Op("90", "OQC Inspection", "MAN2", null),
-        };
-        var r = QcLineResolver.Resolve(ops);
-        Assert.Equal(new[] { QcLineResolver.Digital, QcLineResolver.PressCnc }, r.Lines);
-        Assert.True(r.HasFqc);
-        Assert.True(r.HasOqc);
-        Assert.Empty(r.Unmapped);
-    }
-
-    [Fact]
-    public void Resolve_80640044_silk_plus_cut()
-    {
-        var ops = new[]
-        {
-            new Op("10", "PRE- PREPARE / Chuẩn bị trước SX", "FXPP1", null),
-            new Op("20", "SILK SEMI_AUTO SHEET/In dạng tờ-P1", "ASS08", null),
-            new Op("40", "BAKING (SHEET)", "OVS1", null),
-            new Op("210", "UV Tunnel furnace surface dry", "UVS1", null),
-            new Op("230", "SILK LAMINATION / Ép dán in lụa", "LAMR3", null),
-            new Op("250", "PUNCHING / Đục lỗ", "PUNC1", null),
-            new Op("260", "(PRESS) CUT / Cắt", "PPSC1", null),
-            new Op("280", "FQC & PACKING/Kiểm tra và đóng gói", "MAN1", null),
-            new Op("290", "OQC Inspection", "MAN2", null),
-        };
-        var r = QcLineResolver.Resolve(ops);
-        // SILK in + PRESS_CNC cắt. (LABEL từ LAMINATION cũng vào do appearance.)
+        var r = Resolve(
+            new Op("10", "PRE- PREPARE", "FXPP1", "Pre-press"),
+            new Op("20", "SILK SEMI_AUTO SHEET", "ASS08", "SS-Auto(Sheet)"),
+            new Op("40", "BAKING (SHEET)", "OVS1", "Oven drying"),
+            new Op("260", "(PRESS) CUT", "PPSC1", "Power press"),
+            new Op("280", "FQC & PACKING", "MAN1", "FQC & Packaging"),
+            new Op("290", "OQC Inspection", "MAN2", "OQC"));
         Assert.Contains(QcLineResolver.Silk, r.Lines);
         Assert.Contains(QcLineResolver.PressCnc, r.Lines);
-        Assert.True(r.HasFqc);
-        Assert.True(r.HasOqc);
-        Assert.Empty(r.Unmapped);
+        Assert.Empty(r.Unmapped); // pre-press/baking/FQC/OQC = NONE, không Unmapped
     }
 
     [Fact]
-    public void Resolve_80640002_cut_only_label_appearance()
+    public void Resolve_collects_unmapped_for_unknown_machine()
     {
-        var ops = new[]
-        {
-            new Op("10", "PRE- PREPARE / Chuẩn bị trước SX", "FXPP1", null),
-            new Op("20", "(SEAL) LAM / Ép dán In nhãn", "LAML1", null),
-            new Op("30", "(SEAL) LAM. & CUT / Ép dán và cắt", "FBL02", null),
-            new Op("70", "FQC & PACKING/Kiểm tra và đóng gói", "MAN1", null),
-            new Op("80", "OQC Inspection", "MAN2", null),
-        };
-        var r = QcLineResolver.Resolve(ops);
-        Assert.Equal(new[] { QcLineResolver.Label, QcLineResolver.PressCnc }, r.Lines);
-        Assert.True(r.HasFqc);
-        Assert.True(r.HasOqc);
-        Assert.Empty(r.Unmapped);
-    }
-
-    // ── Hành vi biên ────────────────────────────────────────────────
-
-    [Fact]
-    public void Resolve_empty_routing_yields_no_lines()
-    {
-        var r = QcLineResolver.Resolve(Array.Empty<Op>());
-        Assert.Empty(r.Lines);
-        Assert.False(r.HasFqc);
-        Assert.False(r.HasOqc);
-    }
-
-    [Fact]
-    public void Unknown_operation_goes_to_unmapped_not_guessed()
-    {
-        var ops = new[] { new Op("99", "QUANTUM TELEPORT / Dịch chuyển", "ZZZ9", null) };
-        var r = QcLineResolver.Resolve(ops);
-        Assert.Empty(r.Lines);
+        var r = Resolve(
+            new Op("10", "(GALLUS) PRINT", "GFL01", "Flexo"),
+            new Op("20", "MYSTERY", "NGF1", "NextGen"));
+        Assert.Equal(new[] { QcLineResolver.Label }, r.Lines);
         var u = Assert.Single(r.Unmapped);
-        Assert.Contains("ZZZ9", u);
+        Assert.Contains("NGF1", u);
     }
 
     [Fact]
     public void Lines_order_is_stable_label_digital_silk_presscnc()
     {
-        var ops = new[]
-        {
-            new Op("1", "(PRESS) CUT / Cắt", "PPSC1", null),
-            new Op("2", "SILK SHEET", "ASS08", null),
-            new Op("3", "(HP INDIGO) PRINT", "IDG01", null),
-            new Op("4", "(GALLUS) PRINT", "GFL01", null),
-        };
-        var r = QcLineResolver.Resolve(ops);
+        var r = Resolve(
+            new Op("1", "(PRESS) CUT", "PPSC1", "Power press"),
+            new Op("2", "SILK", "ASS08", "SS-Auto"),
+            new Op("3", "INDIGO", "IDG01", "Indigo6800"),
+            new Op("4", "FLEXO", "GFL01", "Flexo"));
         Assert.Equal(
             new[] { QcLineResolver.Label, QcLineResolver.Digital, QcLineResolver.Silk, QcLineResolver.PressCnc },
             r.Lines);
