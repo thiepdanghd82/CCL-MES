@@ -57,6 +57,14 @@ DỮ LIỆU) → materialize đúng subset **thư viện hạng mục kiểm** v
 `legacy 1010 · API 437 (excl soak) · Client 594 · Razor 155`.
 **Soak flake** `Concurrent_run_qty_add_N_equals_10` là **pre-existing** (đã chứng minh bằng git-stash chạy baseline 4× cũng flaky — CLAUDE.md L25; `Category=Soak`, chạy riêng 2-attempt). KHÔNG do PR này.
 
+## Migration round-trip từ DB rỗng (portability)
+- Apply 7 migration từ `/tmp` DB sạch → đủ schema 4 bảng Plan C (cột + FK cascade + unique index).
+- Boot app trỏ DB rỗng → seed = **canonical = live**: `process_line_map=57` · `check_item_library=106` (5 line) · `reason_codes` Pause8/Recovery6/Scrap39.
+- Down→up round-trip sạch (qua `database update <target>`, KHÔNG `ef migrations remove`).
+
+## Known / benign
+- 1 **warning** SQLite "non-transactional table-rebuild" ở chiều **DOWN** `AddIpqcCheckItems` (bỏ 2 cột = rebuild bảng). Chỉ ảnh hưởng rollback (hiếm, thủ công); chiều UP/deploy là CreateTable+AddColumn thuần (an toàn). Không chặn.
+
 ## Migration + backup
 - 3 migration (`AddCheckItemLibrary`, `AddIpqcCheckItems`, `AddProcessLineMap`) — 0 type-affinity, up/down sạch, **đã áp live** (Phase C).
 - FINISHING (Q2) KHÔNG cần migration (QcLine/ProcessLine lưu string).

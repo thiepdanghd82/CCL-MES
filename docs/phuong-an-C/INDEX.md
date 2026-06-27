@@ -53,9 +53,11 @@
 | 6 | Admin endpoint + trang xem thư viện | P1 | ✅ | feat/phuong-an-C | +5 API | LL-02 | LL-02 |
 | 7 | Checkpoint theo từng Operation | P2 | ⬜ **bỏ** (không cần — process-line scoping đã đủ) | — | — | — | — |
 
-> **GATE A ✅ (live API :5100, 4 mã 8064):** LABEL 80644935→61 item · DIGITAL 80645392→42 ·
-> SILK 80640044→52 · CUT 80640002→61. Idempotent re-GET, freeze snapshot, dual-sig + state-machine giữ nguyên.
-> **GATE B ✅:** B9 dropdown scope (LABEL,PRESS_CNC=24 mã ≠ SILK=14 mã) · B10 no-retro (WO cũ 61→61, WO mới 60).
+> **GATE A ✅ (live API :5100, 4 mã 8064 — map data-driven sau Q1/Q2):** LABEL 80644935→**61** ·
+> DIGITAL 80645392→**42** (SheetCut→PRESS_CNC, QĐ#6) · SILK 80640044→**57** (+FINISHING, QĐ#7) ·
+> CUT 80640002→**32** (PRESS_CNC+FINISHING). Idempotent re-GET, freeze snapshot, dual-sig + state-machine giữ nguyên. Ca unmapped→SkippedUnmapped (loud).
+> **GATE B ✅:** B9 dropdown scope theo line; mã sai→422 · B10 no-retro (WO cũ giữ snapshot; WO mới nhận bản mới).
+> **Round-trip portability ✅:** fresh /tmp DB = live (map 57 · library 106/5-line · reason codes); down→up sạch. **Sẵn sàng PR.**
 
 ## 5 · Nghiệm thu (chi tiết ở [acceptance.md](acceptance.md) — tạo sau Bước 4)
 **GATE A — sau Bước 4 (lõi P0):** *(dùng mã 8064xxxx thay 20000000C — cùng họ part)*
