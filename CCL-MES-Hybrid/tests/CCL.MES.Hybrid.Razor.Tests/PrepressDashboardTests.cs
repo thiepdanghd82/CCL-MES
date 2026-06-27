@@ -96,7 +96,7 @@ public sealed class PrepressDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='prepress-initial-error']");
-            Assert.Contains("Không tìm thấy WO trên máy chủ.", banner.TextContent);
+            Assert.Contains("WO not found on the server.", banner.TextContent);
         });
     }
 
@@ -227,7 +227,7 @@ public sealed class PrepressDashboardTests : TestContext
 
         // Choose a valid Scrap code via the <select> + type a note.
         cut.Find("[data-testid='material-ng-reason-picker']").Change("SC-MAT-DAMAGE");
-        cut.FindAll("input[aria-label='Ghi chú NG']")[0].Input("biên cuộn rách");
+        cut.FindAll("input[aria-label='NG note']")[0].Input("biên cuộn rách");
 
         firstRow = cut.FindAll("[data-testid='material-row']")[0];
         var confirmAfter = firstRow.QuerySelector("[data-testid='btn-ng-confirm']")!;
@@ -323,7 +323,7 @@ public sealed class PrepressDashboardTests : TestContext
 
         var plateArm = cut.Find("[data-testid='plate-btn-ng-arm']");
         Assert.True(plateArm.HasAttribute("disabled"));
-        Assert.Contains("Danh mục mã NG trống",
+        Assert.Contains("NG code catalog is empty",
             plateArm.GetAttribute("title") ?? "");
     }
 
@@ -357,7 +357,7 @@ public sealed class PrepressDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var err = cut.Find("[data-testid='prepress-set-error']");
-            Assert.Contains("Một thao tác khác", err.TextContent);
+            Assert.Contains("Another operation", err.TextContent);
             Assert.Equal(2, api.PrepressViewCalls.Count);
         });
     }
@@ -376,7 +376,7 @@ public sealed class PrepressDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='prepress-invalid-phase']");
-            Assert.Contains("không ở giai đoạn PREPRESS", banner.TextContent);
+            Assert.Contains("not in the PREPRESS phase", banner.TextContent);
             Assert.Empty(cut.FindAll("[data-testid='material-row']"));
             Assert.Empty(cut.FindAll("[data-testid='prepress-advance-btn']"));
         });

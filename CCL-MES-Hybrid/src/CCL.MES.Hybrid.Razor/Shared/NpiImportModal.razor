@@ -1,0 +1,76 @@
+@using CCL.MES.Hybrid.Client.Npi
+@using Microsoft.AspNetCore.Components.Forms
+@inject ICclApiClient Api
+
+@* P10.5 follow-up — CSV import for the NPI grids (SpecHub "Import…"
+   parity). Uploads to POST /npi/{kind}/import; appends matched rows. *@
+<Modal Open="Open" OnClose="OnClose" ClickOutsideToClose="!_busy">
+    <Header>Import @KindLabel (CSV)</Header>
+    <Body>
+        <p class="md-muted">
+            Choose a CSV exported from IFS. Rows are appended; columns are
+            matched by header name (e.g. <code>Parent Part No</code>,
+            <code>Component Part</code>).
+        </p>
+        <InputFile OnChange="OnFileAsync" accept=".csv,text/csv" disabled="@_busy" />
+        @if (_busy)
+        {
+            <p class="md-muted" style="margin-top:10px;">Importing… please wait.</p>
+        }
+        @if (_result is not null)
+        {
+            <p class="grid-status" style="margin-top:10px;">
+                ✔ Imported <strong>@_result.Inserted</strong> rows
+                (@_result.Skipped skipped).
+            </p>
+        }
+        @if (_error is not null)
+        {
+            <p class="md-error" style="margin-top:10px;">@_error</p>
+        }
+    </Body>
+    <Footer>
+        <button type="button" class="grid-btn" @onclick="OnClose" disabled="@_busy">Close</button>
+    </Footer>
+</Modal>
+
+@code {
+    [Parameter] public string Kind { get; set; } = "structures";
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnImported { get; set; }
+
+    private bool _busy;
+    private string? _error;
+    private NpiImportResultDto? _result;
+
+    private string KindLabel => Kind switch
+    {
+        "routings" => "Routings",
+        "rawmaterials" => "Raw Materials",
+        _ => "Structure (BOM)",
+    };
+
+    private async Task OnFileAsync(InputFileChangeEventArgs e)
+    {
+        _busy = true;
+        _error = null;
+        _result = null;
+        try
+        {
+            using var ms = new MemoryStream();
+            await e.File.OpenReadStream(256L * 1024 * 1024).CopyToAsync(ms);
+            _result = await Api.ImportNpiAsync(Kind, e.File.Name, ms.ToArray());
+            if (_result is not null)
+                await OnImported.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

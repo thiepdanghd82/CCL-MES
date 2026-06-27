@@ -39,12 +39,14 @@ namespace CCL.MES.Api.Controllers;
 public sealed class BackupController : ControllerBase
 {
     private readonly BackupApiService _svc;
+    private readonly BackupSchedulerService _scheduler;
     private readonly IAuditWriter _audit;
     private const long MaxRestoreBytes = 512L * 1024 * 1024;   // 512 MB hard cap
 
-    public BackupController(BackupApiService svc, IAuditWriter audit)
+    public BackupController(BackupApiService svc, BackupSchedulerService scheduler, IAuditWriter audit)
     {
         _svc = svc;
+        _scheduler = scheduler;
         _audit = audit;
     }
 
@@ -187,6 +189,51 @@ public sealed class BackupController : ControllerBase
                     MessageEn = "Restore failed — check server logs. Pre-restore snapshot may exist for rollback.",
                 });
         }
+    }
+
+    // ── Scheduled backup (P-Backup) ─────────────────────────────────
+
+    /// <summary>GET /api/v2/backup/schedule — current scheduler status.</summary>
+    [HttpGet("schedule")]
+    public IActionResult GetSchedule() => Ok(_scheduler.GetStatus());
+
+    /// <summary>
+    /// PUT /api/v2/backup/schedule — edit the schedule (enable/hour/retention/
+    /// min-keep). Persists to backup-schedule.json + re-arms the worker.
+    /// </summary>
+    [HttpPut("schedule")]
+    public async Task<IActionResult> SetSchedule([FromBody] BackupScheduleUpdateRequest req)
+    {
+        try
+        {
+            var status = await _scheduler.SetScheduleAsync(req, ActorName(), _audit);
+            return Ok(status);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            return UnprocessableEntity(new ApiError
+            {
+                Code = "backup.invalid_schedule",
+                MessageEn = ex.Message,
+            });
+        }
+    }
+
+    /// <summary>
+    /// POST /api/v2/backup/run-now — trigger one backup cycle immediately
+    /// (snapshot + blob tarball + verify + prune). Audits BACKUP_CYCLE.
+    /// </summary>
+    [HttpPost("run-now")]
+    public async Task<IActionResult> RunNow(CancellationToken ct)
+    {
+        if (!_svc.IsSqlite)
+            return UnprocessableEntity(new ApiError
+            {
+                Code = "backup.sqlserver_unsupported",
+                MessageEn = "Backup is supported only on the SQLite provider.",
+            });
+        var result = await _scheduler.RunBackupCycleAsync(force: true, ct);
+        return Ok(result);
     }
 
     private string ActorName() => User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";

@@ -10,7 +10,7 @@
 
 <div class="prepress-section">
     <div class="prepress-section-head">
-        <span class="prepress-section-title">Kiểm tra clichê</span>
+        <span class="prepress-section-title">Plate check</span>
         <span class="prepress-pill @StatusPillClass(Row?.Status ?? "Pending")" data-testid="plate-status-pill">
             @StatusLabel(Row?.Status ?? "Pending")
         </span>
@@ -18,28 +18,28 @@
 
     <div class="prepress-row-form">
         <div class="prepress-form-cell">
-            <label for="plate-no-input">Số/mã clichê</label>
+            <label for="plate-no-input">Plate number/code</label>
             <input id="plate-no-input"
                    type="text"
                    class="prepress-input"
                    value="@_plateNo"
                    @oninput="OnPlateNoInput"
                    disabled="@Busy"
-                   aria-label="Số clichê" />
+                   aria-label="Plate number" />
         </div>
 
         @if (IsNgOrArming)
         {
             <div class="prepress-form-cell">
-                <label for="plate-ng-reason">Mã lý do NG (scrap)</label>
+                <label for="plate-ng-reason">NG reason code (scrap)</label>
                 <select id="plate-ng-reason"
                         class="prepress-input prepress-select"
                         value="@_ngReason"
                         @onchange="OnNgReasonChange"
                         disabled="@Busy"
-                        aria-label="Mã lý do NG clichê"
+                        aria-label="Plate NG reason code"
                         data-testid="plate-ng-reason-picker">
-                    <option value="">— chọn mã lỗi —</option>
+                    <option value="">— select defect code —</option>
                     @foreach (var rc in ScrapReasons)
                     {
                         <option value="@rc.Code">@rc.Code · @rc.LabelVi</option>
@@ -47,14 +47,14 @@
                 </select>
             </div>
             <div class="prepress-form-cell prepress-form-cell-wide">
-                <label for="plate-ng-note">Ghi chú NG (1-500 ký tự)</label>
+                <label for="plate-ng-note">NG note (1-500 characters)</label>
                 <input id="plate-ng-note"
                        type="text"
                        class="prepress-input"
                        value="@_ngNote"
                        @oninput="OnNgNoteInput"
                        disabled="@Busy"
-                       aria-label="Ghi chú NG clichê" />
+                       aria-label="Plate NG note" />
             </div>
         }
     </div>
@@ -65,7 +65,7 @@
                 data-testid="plate-btn-ok"
                 disabled="@(Busy || (Row?.Status == "Ok"))"
                 @onclick="OnSubmitOk">
-            Ghi clichê OK
+            Record plate OK
         </button>
         @if (!_armingNg && (Row?.Status != "Ng"))
         {
@@ -73,9 +73,9 @@
                     class="op-btn op-btn-danger"
                     data-testid="plate-btn-ng-arm"
                     disabled="@(Busy || ScrapReasons.Count == 0)"
-                    title="@(ScrapReasons.Count == 0 ? "Danh mục mã NG trống — báo IT" : null)"
+                    title="@(ScrapReasons.Count == 0 ? "NG code catalog is empty — report to IT" : null)"
                     @onclick="() => _armingNg = true">
-                Đánh NG
+                Mark NG
             </button>
         }
         else
@@ -85,14 +85,14 @@
                     data-testid="plate-btn-ng-confirm"
                     disabled="@(Busy || !IsValidNgReason(_ngReason))"
                     @onclick="OnSubmitNg">
-                Lưu NG
+                Save NG
             </button>
             <button type="button"
                     class="op-btn op-btn-secondary"
                     data-testid="plate-btn-ng-cancel"
                     disabled="@Busy"
                     @onclick="CancelNg">
-                Hủy
+                Cancel
             </button>
         }
     </div>
@@ -100,7 +100,7 @@
     @if (Row?.CheckedBy is not null)
     {
         <div class="prepress-checked-by" data-testid="plate-checked-by">
-            Người kiểm: <strong>@Row.CheckedBy</strong>
+            Checked by: <strong>@Row.CheckedBy</strong>
             @if (Row.CheckedAt is not null)
             {
                 <span> · @Row.CheckedAt.Value.ToLocalTime().ToString("HH:mm dd/MM")</span>
@@ -190,7 +190,7 @@
     {
         "Ok"      => "OK",
         "Ng"      => "NG",
-        _         => "Chưa kiểm",
+        _         => "Not checked",
     };
 
     public sealed class PlateSetIntent

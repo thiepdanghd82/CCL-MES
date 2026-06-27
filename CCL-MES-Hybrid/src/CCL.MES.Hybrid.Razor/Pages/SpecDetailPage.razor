@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer")]
 @inject ICclApiClient Api
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 @inject CCL.MES.Hybrid.Client.Files.IFileOpener FileOpener
 @inject CCL.MES.Hybrid.Client.Files.IFileSaver FileSaver
 @using CCL.MES.Hybrid.Client.Specs
@@ -22,21 +23,65 @@
     first activation.
 *@
 
-<PageTitle>@(_detail?.SpecCode ?? "Spec") — chi tiết</PageTitle>
+<PageTitle>@(_detail?.SpecCode ?? "Spec") — Details</PageTitle>
 
 <div class="spec-detail-header">
-    <button type="button" class="grid-btn grid-btn-link" @onclick="NavigateBack">‹ Trở lại danh sách</button>
+    <button type="button" class="grid-btn grid-btn-link" @onclick="NavigateBack">‹ Back to list</button>
     @if (_detail is not null)
     {
         <span class="spec-detail-crumb">@(_detail.SpecCode) · Rev @_detail.RevisionCode</span>
-        @* P10.5g — Print sheet PDF. Read-level (export = read per
-           NpiSpecRead policy) so the button surfaces for every role
-           that can already view the page. Q11 _exporting guard prevents
-           double-fire while the file streams. *@
-        <button type="button" class="grid-btn grid-btn-secondary"
+
+        @* P10.10 — spec action buttons moved inline onto the header row,
+           before Print PDF, for a compact toolbar (was a separate card
+           below). Mutations gate on NpiSpecWrite (Admin/Engineer); Approve
+           only for Draft/InReview; every button disabled while a mutation
+           is in-flight via the page-level _busy guard. *@
+        @if (_vm is not null)
+        {
+            <AuthorizeView Roles="Admin,Engineer">
+                <div class="spec-detail-actions spec-detail-actions-inline">
+                    @if (_detail.Status == SpecRevisionStatus.Draft || _detail.Status == SpecRevisionStatus.InReview)
+                    {
+                        <button type="button" class="op-btn op-btn-success"
+                                disabled="@_busy" @onclick="OnApproveAsync">
+                            @(_busy && _busyAction == "approve" ? "Approving…" : "✓ Approve")
+                        </button>
+                    }
+                    @if (_detail.Status == SpecRevisionStatus.Draft)
+                    {
+                        <button type="button" class="op-btn op-btn-secondary"
+                                disabled="@_busy" @onclick="() => OpenEditAsync()">
+                            📝 Edit
+                        </button>
+                    }
+                    <button type="button" class="op-btn op-btn-secondary"
+                            disabled="@_busy" @onclick="@(() => _copyChoiceOpen = true)">
+                        ⎘ Copy
+                    </button>
+                    @if (_detail.Status == SpecRevisionStatus.Approved || _detail.Status == SpecRevisionStatus.Released)
+                    {
+                        <button type="button" class="op-btn op-btn-warning"
+                                disabled="@_busy" @onclick="() => OpenReviseAsync()">
+                            ⟳ Revise
+                        </button>
+                        <button type="button" class="op-btn op-btn-danger"
+                                disabled="@_busy" @onclick="() => OpenSupersedeAsync()">
+                            ⊘ Mark Superseded
+                        </button>
+                    }
+                    <button type="button" class="op-btn op-btn-secondary"
+                            disabled="@_busy" @onclick="() => OpenTrashAsync()">
+                        🗑 Move to Trash
+                    </button>
+                </div>
+            </AuthorizeView>
+        }
+
+        @* Print sheet PDF — pushed to the far right of the toolbar. *@
+        <button type="button" class="grid-btn grid-btn-secondary spec-print-pdf"
                 disabled="@_exporting"
                 @onclick="ExportSheetPdfAsync">
-            @(_exporting ? "Đang tạo PDF…" : "🖨 In PDF")
+            @(_exporting ? "Generating PDF…" : "🖨 Print PDF")
         </button>
     }
 </div>
@@ -49,74 +94,32 @@
         @if (!string.IsNullOrEmpty(_exportSandboxPath))
         {
             <button type="button" class="grid-btn grid-btn-small"
-                    @onclick="OpenSandboxAsync">Mở file</button>
+                    @onclick="OpenSandboxAsync">Open file</button>
         }
-        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">Đóng</button>
+        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">Close</button>
     </div>
 }
 
-@if (_detail is not null && _vm is not null)
+@* P10.10 — the action buttons moved into the header row (above); only the
+   post-mutation status banner stays here as a standalone line. *@
+@if (_detail is not null && _vm is not null && _actionBanner is not null)
 {
-    @* P10.5c-1 — Spec action bar. Mutations gate on the NpiSpecWrite
-       policy (Admin/Engineer); Approve only renders for Draft/InReview
-       per the legacy ApproveAsync semantics (state machine elsewhere).
-       Every button is disabled while a mutation is in-flight via the
-       page-level _busy guard so double-tap can't double-fire. *@
-    <AuthorizeView Roles="Admin,Engineer">
-        <div class="spec-detail-actions">
-            @if (_detail.Status == SpecRevisionStatus.Draft || _detail.Status == SpecRevisionStatus.InReview)
-            {
-                <button type="button" class="op-btn op-btn-success"
-                        disabled="@_busy" @onclick="OnApproveAsync">
-                    @(_busy && _busyAction == "approve" ? "Đang duyệt…" : "✓ Duyệt")
-                </button>
-            }
-            @if (_detail.Status == SpecRevisionStatus.Draft)
-            {
-                <button type="button" class="op-btn op-btn-secondary"
-                        disabled="@_busy" @onclick="() => OpenEditAsync()">
-                    📝 Sửa
-                </button>
-            }
-            <button type="button" class="op-btn op-btn-secondary"
-                    disabled="@_busy" @onclick="() => OpenCopyAsync()">
-                ⎘ Sao chép
-            </button>
-            @if (_detail.Status == SpecRevisionStatus.Approved || _detail.Status == SpecRevisionStatus.Released)
-            {
-                <button type="button" class="op-btn op-btn-warning"
-                        disabled="@_busy" @onclick="() => OpenReviseAsync()">
-                    ⟳ Revise
-                </button>
-                <button type="button" class="op-btn op-btn-danger"
-                        disabled="@_busy" @onclick="() => OpenSupersedeAsync()">
-                    ⊘ Đánh dấu thay thế
-                </button>
-            }
-            <button type="button" class="op-btn op-btn-secondary"
-                    disabled="@_busy" @onclick="() => OpenTrashAsync()">
-                🗑 Xoá vào Thùng rác
-            </button>
-
-            @if (_actionBanner is not null)
-            {
-                <span class="spec-action-banner @(_actionBannerIsError ? "is-error" : "is-success")"
-                      role="status">@_actionBanner</span>
-            }
-        </div>
-    </AuthorizeView>
+    <div class="spec-action-banner-row">
+        <span class="spec-action-banner @(_actionBannerIsError ? "is-error" : "is-success")"
+              role="status">@_actionBanner</span>
+    </div>
 }
 
 @if (_detailLoading && _detail is null)
 {
-    <p class="grid-status">Đang tải chi tiết Spec…</p>
+    <p class="grid-status">Loading Spec details…</p>
 }
 else if (_detailError is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Không tải được chi tiết Spec.</strong>
+        <strong>Failed to load Spec details.</strong>
         <div>@_detailError</div>
-        <button type="button" class="grid-btn" @onclick="LoadDetailAsync">Thử lại</button>
+        <button type="button" class="grid-btn" @onclick="LoadDetailAsync">Retry</button>
     </div>
 }
 else if (_detail is not null && _vm is not null)
@@ -141,56 +144,69 @@ else if (_detail is not null && _vm is not null)
                    prev toggle when lineage has ≥2 entries (current + parent).
                    The buttons live on the inside of the panel so they don't
                    get confused with the lifecycle action bar at the top. *@
-                <div class="spec-showcard-toolbar" role="group" aria-label="Hiển thị Spec">
-                    <button type="button"
-                            aria-pressed="@(!_fullMode ? "true" : "false")"
-                            class="spec-showcard-mode @(!_fullMode ? "is-active" : "")"
-                            @onclick="() => { _fullMode = false; _compareMode = false; StateHasChanged(); }">
-                        Tóm tắt
-                    </button>
-                    <button type="button"
-                            aria-pressed="@(_fullMode ? "true" : "false")"
-                            class="spec-showcard-mode @(_fullMode ? "is-active" : "")"
-                            @onclick="() => { _fullMode = true; _compareMode = false; StateHasChanged(); }">
-                        Đầy đủ
-                    </button>
-                    @if (_vmFull?.HasParentRev == true)
-                    {
-                        <button type="button"
-                                aria-pressed="@(_compareMode ? "true" : "false")"
-                                class="spec-showcard-mode spec-showcard-compare @(_compareMode ? "is-active" : "")"
-                                @onclick="OnToggleCompareAsync">
-                            So sánh với rev trước @(_compareMode ? "(đang bật)" : "")
-                        </button>
-                    }
-                </div>
-
-                @if (_compareMode)
+                @* P10.10 — inline edit mode: the Draft spec is edited directly
+                   on the showcard via SpecShowcardEdit (replaces the modal). *@
+                @if (_specEditMode)
                 {
-                    @if (_diffResult is null && _compareLoading)
-                    {
-                        <p class="grid-status">Đang tải rev trước để so sánh…</p>
-                    }
-                    else if (_compareError is not null)
-                    {
-                        <div class="modal-banner modal-banner-error" role="alert">
-                            <strong>Không tải được rev trước.</strong>
-                            <div>@_compareError</div>
-                            <button type="button" class="grid-btn" @onclick="OnToggleCompareAsync">Thử lại</button>
-                        </div>
-                    }
-                    else
-                    {
-                        <SpecDiffViewer Result="_diffResult" />
-                    }
-                }
-                else if (_fullMode)
-                {
-                    <SpecShowcardFull Vm="(_vmFull ?? _vm)" />
+                    <SpecShowcardEdit Detail="_detail"
+                                      OnSaved="OnInlineEditSavedAsync"
+                                      OnCancel="OnInlineEditCancel" />
                 }
                 else
                 {
-                    <SpecShowcardCompact Vm="_vm" />
+                    <div class="spec-showcard-toolbar" role="group" aria-label="Spec display">
+                        <button type="button"
+                                aria-pressed="@(!_fullMode ? "true" : "false")"
+                                class="spec-showcard-mode @(!_fullMode ? "is-active" : "")"
+                                @onclick="() => { _fullMode = false; _compareMode = false; StateHasChanged(); }">
+                            Summary
+                        </button>
+                        <button type="button"
+                                aria-pressed="@(_fullMode ? "true" : "false")"
+                                class="spec-showcard-mode @(_fullMode ? "is-active" : "")"
+                                @onclick="() => { _fullMode = true; _compareMode = false; StateHasChanged(); }">
+                            Full
+                        </button>
+                        @if (_vmFull?.HasParentRev == true)
+                        {
+                            <button type="button"
+                                    aria-pressed="@(_compareMode ? "true" : "false")"
+                                    class="spec-showcard-mode spec-showcard-compare @(_compareMode ? "is-active" : "")"
+                                    @onclick="OnToggleCompareAsync">
+                                Compare with previous rev @(_compareMode ? "(on)" : "")
+                            </button>
+                        }
+                    </div>
+
+                    @if (_compareMode)
+                    {
+                        @if (_diffResult is null && _compareLoading)
+                        {
+                            <p class="grid-status">Loading the previous rev to compare…</p>
+                        }
+                        else if (_compareError is not null)
+                        {
+                            <div class="modal-banner modal-banner-error" role="alert">
+                                <strong>Failed to load the previous rev.</strong>
+                                <div>@_compareError</div>
+                                <button type="button" class="grid-btn" @onclick="OnToggleCompareAsync">Retry</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <SpecDiffViewer Result="_diffResult" />
+                        }
+                    }
+                    else if (_fullMode)
+                    {
+                        <SpecShowcardFull Vm="(_vmFull ?? _vm)" />
+                        <SpecDrawingShowcards Previews="_drawingPreviews" />
+                    }
+                    else
+                    {
+                        <SpecShowcardCompact Vm="_vm" />
+                        <SpecDrawingShowcards Previews="_drawingPreviews" />
+                    }
                 }
                 break;
 
@@ -222,6 +238,27 @@ else if (_detail is not null && _vm is not null)
 <EditSpecModal Open="_editOpen" Spec="_detail"
                OnClose="CloseEditAsync"
                OnUpdated="OnUpdatedAsync" />
+<Modal Open="_copyChoiceOpen" OnClose="@(() => { _copyChoiceOpen = false; return Task.CompletedTask; })"
+       Size="ModalSize.Sm" Severity="ModalSeverity.Info" ClickOutsideToClose="true">
+    <Header>Copy new Spec</Header>
+    <Body>
+        <p class="copy-choice-lead">How do you want to copy this spec?</p>
+        <div class="copy-choice-grid">
+            <button type="button" class="copy-choice-card" disabled="@_busy" @onclick="UpdateVerAsync">
+                <span class="copy-choice-title">🔁 Update ver</span>
+                <span class="copy-choice-sub">New version of THIS spec — same product &amp; IFS code, next revision (B, C…), linked to the current rev.</span>
+            </button>
+            <button type="button" class="copy-choice-card copy-choice-card-primary" disabled="@_busy" @onclick="NewCopyAsync">
+                <span class="copy-choice-title">✚ New</span>
+                <span class="copy-choice-sub">Brand-new independent spec — fresh product, blank IFS code. Edit everything freely.</span>
+            </button>
+        </div>
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary" disabled="@_busy"
+                @onclick="@(() => _copyChoiceOpen = false)">Cancel</button>
+    </Footer>
+</Modal>
 <CopySpecModal Open="_copyOpen" SourceSpec="_detail"
                OnClose="CloseCopyAsync"
                OnCopied="OnCopiedAsync" />
@@ -233,10 +270,10 @@ else if (_detail is not null && _vm is not null)
                     OnSuperseded="OnSupersededAsync" />
 
 <SpecConfirmActionModal Open="_trashOpen"
-                        Title="@($"Xoá Spec {(_detail?.SpecCode ?? "")} vào Thùng rác?")"
-                        Message="Spec sẽ bị soft-delete. Có thể khôi phục từ tab Thùng rác. Lưu ý: server sẽ chặn nếu còn Work Order đang dùng Spec này."
-                        ConfirmLabel="Xoá vào Thùng rác"
-                        PendingLabel="Đang xoá…"
+                        Title="@($"Move Spec {(_detail?.SpecCode ?? "")} to Trash?")"
+                        Message="The Spec will be soft-deleted. It can be restored from the Trash tab. Note: the server will block this if a Work Order is still using this Spec."
+                        ConfirmLabel="Move to Trash"
+                        PendingLabel="Deleting…"
                         Severity="ModalSeverity.Danger"
                         OnConfirm="OnTrashConfirmAsync"
                         OnClose="() => { _trashOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
@@ -267,6 +304,10 @@ else if (_detail is not null && _vm is not null)
     private List<DrawingKindSlot>? _drawings;
     private bool _drawingsLoading;
     private string? _drawingsError;
+    private IReadOnlyList<SpecDrawingPreview>? _drawingPreviews;   // P10.10 — showcard image previews
+
+    private static readonly string[] _imageExts = { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp" };
+    private readonly List<string> _previewObjectUrls = new();   // blob: URLs to revoke on reload
 
     private Dictionary<string, QcWindowItem?>? _qcWindows;
     private bool _qcWindowsLoading;
@@ -289,6 +330,8 @@ else if (_detail is not null && _vm is not null)
     private string? _actionBanner;
     private bool _actionBannerIsError;
     private bool _editOpen;
+    private bool _specEditMode;   // P10.10 — inline edit on the Specification tab
+    private bool _copyChoiceOpen; // P10.10 — "Copy new Spec" Update-ver / New chooser
     private bool _copyOpen;
     private bool _reviseOpen;
     private bool _supersedeOpen;
@@ -314,11 +357,124 @@ else if (_detail is not null && _vm is not null)
 
     private bool IsActiveTab(string key) => string.Equals(_activeTab, key, StringComparison.OrdinalIgnoreCase);
 
-    protected override async Task OnInitializedAsync()
+    private long _loadedRevisionId;
+
+    // Load + apply the queued ?action on first render AND on every navigation to
+    // a different spec id. The component instance is REUSED when navigating
+    // spec→spec (e.g. after Copy/Revise), so OnInitializedAsync alone would not
+    // re-run — which left ?action=edit unapplied and the operator stuck on the
+    // read-only sheet (couldn't edit Customer / IFS code / Part No after Copy).
+    protected override async Task OnParametersSetAsync()
     {
+        if (RevisionId == _loadedRevisionId) return;
+        _loadedRevisionId = RevisionId;
+        _specEditMode = false;
+        _drawingPreviews = null;
         await LoadDetailAsync();
         ApplyQueuedAction();
+        await BuildDrawingPreviewsAsync();
     }
+
+    // P10.10 — fetch image-drawing thumbnails (current version of each slot)
+    // for the spec showcard. Best-effort: failures/large/non-image files just
+    // render as labeled tiles. Names follow IFS_PartNo.
+    private async Task BuildDrawingPreviewsAsync()
+    {
+        if (_detail is null) return;
+        try
+        {
+            await RevokePreviewUrlsAsync();   // free the previous batch
+            var slots = _drawings ?? await Api.GetDrawingsByRevisionAsync(RevisionId);
+            _drawings ??= slots.ToList();
+            var previews = new List<SpecDrawingPreview>();
+            foreach (var slot in slots)
+            {
+                if (slot.CurrentVersionId is null) continue;
+                var v = slot.Versions.FirstOrDefault(x => x.Id == slot.CurrentVersionId.Value);
+                if (v is null) continue;
+                var ext = System.IO.Path.GetExtension(v.FileName).ToLowerInvariant();
+                var isImage = _imageExts.Contains(ext);
+                var isPdf = ext == ".pdf";
+                var name = DrawingPreviewName(_detail.SpecCode, _detail.ProductCode, v.FileName);
+                string? objUrl = null;
+                // Render images + PDFs inline via a blob: URL (reliable in
+                // WKWebView); cap to keep base64 round-trips reasonable.
+                if ((isImage || isPdf) && v.FileSize > 0 && v.FileSize <= 12 * 1024 * 1024)
+                {
+                    try
+                    {
+                        var bytes = await Api.DownloadDrawingBytesAsync(RevisionId, v.Id);
+                        var b64 = Convert.ToBase64String(bytes);
+                        objUrl = await JS.InvokeAsync<string>("cclMesDrawings.toObjectUrl", b64, MimeForExt(ext));
+                        if (!string.IsNullOrEmpty(objUrl)) _previewObjectUrls.Add(objUrl);
+                    }
+                    catch { /* preview is best-effort */ }
+                }
+                previews.Add(new SpecDrawingPreview(DrawingKindLabel(slot.Kind), name, isImage, isPdf, objUrl, DrawingKindGroup(slot.Kind)));
+            }
+            _drawingPreviews = previews;
+            StateHasChanged();
+        }
+        catch { /* best-effort previews */ }
+    }
+
+    private async Task RevokePreviewUrlsAsync()
+    {
+        if (_previewObjectUrls.Count == 0) return;
+        foreach (var u in _previewObjectUrls)
+        {
+            try { await JS.InvokeVoidAsync("cclMesDrawings.revoke", u); } catch { /* noop */ }
+        }
+        _previewObjectUrls.Clear();
+    }
+
+    private static string DrawingPreviewName(string? ifs, string? part, string original)
+    {
+        var ext = System.IO.Path.GetExtension(original);
+        var i = (ifs ?? "").Trim(); var p = (part ?? "").Trim();
+        var b = i.Length > 0 && p.Length > 0 ? $"{i}_{p}"
+              : p.Length > 0 ? p : i.Length > 0 ? i : System.IO.Path.GetFileNameWithoutExtension(original);
+        var bad = System.IO.Path.GetInvalidFileNameChars();
+        var clean = new string(b.Select(c => bad.Contains(c) || c == ' ' ? '_' : c).ToArray());
+        return (string.IsNullOrWhiteSpace(clean) ? "drawing" : clean) + ext;
+    }
+
+    private static string MimeForExt(string ext) => ext.ToLowerInvariant() switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".gif" => "image/gif",
+        ".webp" => "image/webp",
+        ".bmp" => "image/bmp",
+        ".pdf" => "application/pdf",
+        _ => "application/octet-stream",
+    };
+
+    private static string DrawingKindLabel(DrawingKindCode kind) => kind switch
+    {
+        DrawingKindCode.CustomerDrawing    => "Customer drawing",
+        DrawingKindCode.NpiPrintLayout     => "Print layout (NPI)",
+        DrawingKindCode.NpiCutLayout       => "Cut layout (NPI)",
+        DrawingKindCode.IpqcPrintReference => "IPQC Print reference",
+        DrawingKindCode.IpqcCutReference   => "IPQC Cut reference",
+        DrawingKindCode.FqcChecksheet      => "FQC Checksheet",
+        DrawingKindCode.OqcChecksheet      => "OQC Checksheet",
+        DrawingKindCode.CustomerApproval   => "Customer approval",
+        DrawingKindCode.InternalProof      => "Internal proof",
+        _                                  => kind.ToString(),
+    };
+
+    /// <summary>Bucket each drawing kind into one of the three collapsible
+    /// showcards below the spec sheet. Print/Cut references go with their
+    /// layout; everything customer-facing falls back to the Customer card.</summary>
+    private static SpecDrawingGroup DrawingKindGroup(DrawingKindCode kind) => kind switch
+    {
+        DrawingKindCode.NpiPrintLayout     => SpecDrawingGroup.Print,
+        DrawingKindCode.IpqcPrintReference => SpecDrawingGroup.Print,
+        DrawingKindCode.NpiCutLayout       => SpecDrawingGroup.Cut,
+        DrawingKindCode.IpqcCutReference   => SpecDrawingGroup.Cut,
+        _                                  => SpecDrawingGroup.Customer,
+    };
 
     /// <summary>If the list page routed here with <c>?action=…</c>, pre-open
     /// the matching mutation modal. Called after LoadDetailAsync so the
@@ -328,8 +484,18 @@ else if (_detail is not null && _vm is not null)
         if (_detail is null || string.IsNullOrWhiteSpace(Action)) return;
         switch (Action.ToLowerInvariant())
         {
-            case "edit":      _editOpen = true; break;
-            case "copy":      _copyOpen = true; break;
+            // P10.10 — inline edit on the Spec tab for Draft (modal fallback
+            // for any non-Draft route, though Edit only surfaces for Draft).
+            case "edit":
+                if (_detail.Status == SpecRevisionStatus.Draft)
+                { _activeTab = "spec"; _specEditMode = true; }
+                else { _editOpen = true; }
+                break;
+            // P10.10 — right-click "Copy" in the list opens the same
+            // "Copy new Spec" chooser (Update ver / New) as the detail Copy
+            // button. The legacy CopySpecModal stays on ?action=copy-to.
+            case "copy":      _copyChoiceOpen = true; break;
+            case "copy-to":   _copyOpen = true; break;
             case "revise":    _reviseOpen = true; break;
             case "supersede": _supersedeOpen = true; break;
         }
@@ -344,7 +510,7 @@ else if (_detail is not null && _vm is not null)
             _detail = await Api.GetSpecDetailAsync(RevisionId);
             if (_detail is null)
             {
-                _detailError = "Không tìm thấy Spec này (404).";
+                _detailError = "This Spec was not found (404).";
             }
             else
             {
@@ -358,7 +524,7 @@ else if (_detail is not null && _vm is not null)
         }
         catch (HttpRequestException ex)
         {
-            _detailError = $"Không kết nối được máy chủ: {ex.Message}";
+            _detailError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -410,7 +576,7 @@ else if (_detail is not null && _vm is not null)
             var parentDetail = await Api.GetSpecDetailAsync(parentEntry.Id);
             if (parentDetail is null)
             {
-                _compareError = $"Rev trước (id={parentEntry.Id}) đã bị xoá hoặc không truy cập được.";
+                _compareError = $"The previous rev (id={parentEntry.Id}) has been deleted or is not accessible.";
                 _compareMode = false;
                 return;
             }
@@ -424,7 +590,7 @@ else if (_detail is not null && _vm is not null)
         }
         catch (HttpRequestException ex)
         {
-            _compareError = $"Không kết nối được máy chủ: {ex.Message}";
+            _compareError = $"Could not connect to the server: {ex.Message}";
             _compareMode = false;
         }
         catch (Exception ex)
@@ -468,9 +634,11 @@ else if (_detail is not null && _vm is not null)
             _drawings = await Api.GetDrawingsByRevisionAsync(RevisionId);
         }
         catch (ApiException apiEx) { _drawingsError = apiEx.ApiError.MessageEn; }
-        catch (HttpRequestException ex) { _drawingsError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (HttpRequestException ex) { _drawingsError = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _drawingsError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _drawingsLoading = false; }
+        // Refresh the showcard image previews after an upload/reload.
+        await BuildDrawingPreviewsAsync();
     }
 
     private async Task LoadQcWindowsAsync()
@@ -482,7 +650,7 @@ else if (_detail is not null && _vm is not null)
             _qcWindows = await Api.GetQcWindowsByRevisionAsync(RevisionId);
         }
         catch (ApiException apiEx) { _qcWindowsError = apiEx.ApiError.MessageEn; }
-        catch (HttpRequestException ex) { _qcWindowsError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (HttpRequestException ex) { _qcWindowsError = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _qcWindowsError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _qcWindowsLoading = false; }
     }
@@ -506,7 +674,7 @@ else if (_detail is not null && _vm is not null)
             }
         }
         catch (ApiException apiEx) { _qcCapturesError = apiEx.ApiError.MessageEn; }
-        catch (HttpRequestException ex) { _qcCapturesError = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (HttpRequestException ex) { _qcCapturesError = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _qcCapturesError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _qcCapturesLoading = false; }
     }
@@ -528,7 +696,7 @@ else if (_detail is not null && _vm is not null)
     {
         if (_drawingsLoading)
         {
-            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Đang tải bản vẽ…</p>");
+            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Loading drawings…</p>");
             return;
         }
         if (_drawingsError is not null)
@@ -536,13 +704,13 @@ else if (_detail is not null && _vm is not null)
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "grid-error");
             __builder.AddAttribute(2, "role", "alert");
-            __builder.AddMarkupContent(3, "<strong>Không tải được Drawings.</strong>");
+            __builder.AddMarkupContent(3, "<strong>Failed to load Drawings.</strong>");
             __builder.AddMarkupContent(4, $"<div>{System.Net.WebUtility.HtmlEncode(_drawingsError)}</div>");
             __builder.OpenElement(5, "button");
             __builder.AddAttribute(6, "type", "button");
             __builder.AddAttribute(7, "class", "grid-btn");
             __builder.AddAttribute(8, "onclick", EventCallback.Factory.Create(this, LoadDrawingsAsync));
-            __builder.AddContent(9, "Thử lại");
+            __builder.AddContent(9, "Retry");
             __builder.CloseElement();
             __builder.CloseElement();
             return;
@@ -554,6 +722,8 @@ else if (_detail is not null && _vm is not null)
         __builder.AddAttribute(1, "RevisionId", RevisionId);
         __builder.AddAttribute(2, "Slots", _drawings);
         __builder.AddAttribute(3, "OnReloadRequested", EventCallback.Factory.Create(this, LoadDrawingsAsync));
+        __builder.AddAttribute(4, "IfsCode", _detail?.SpecCode);
+        __builder.AddAttribute(5, "PartNo", _detail?.ProductCode);
         __builder.CloseComponent();
     };
 
@@ -561,20 +731,20 @@ else if (_detail is not null && _vm is not null)
     {
         if (_qcWindowsLoading)
         {
-            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Đang tải QC Plans…</p>");
+            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Loading QC Plans…</p>");
             return;
         }
         if (_qcWindowsError is not null)
         {
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "grid-error");
-            __builder.AddMarkupContent(2, "<strong>Không tải được QC Plans.</strong>");
+            __builder.AddMarkupContent(2, "<strong>Failed to load QC Plans.</strong>");
             __builder.AddMarkupContent(3, $"<div>{System.Net.WebUtility.HtmlEncode(_qcWindowsError)}</div>");
             __builder.OpenElement(4, "button");
             __builder.AddAttribute(5, "type", "button");
             __builder.AddAttribute(6, "class", "grid-btn");
             __builder.AddAttribute(7, "onclick", EventCallback.Factory.Create(this, LoadQcWindowsAsync));
-            __builder.AddContent(8, "Thử lại");
+            __builder.AddContent(8, "Retry");
             __builder.CloseElement();
             __builder.CloseElement();
             return;
@@ -594,20 +764,20 @@ else if (_detail is not null && _vm is not null)
     {
         if (_qcCapturesLoading || _qcWindowsLoading)
         {
-            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Đang tải QC Capture…</p>");
+            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Loading QC Capture…</p>");
             return;
         }
         if (_qcCapturesError is not null)
         {
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "grid-error");
-            __builder.AddMarkupContent(2, "<strong>Không tải được QC Capture.</strong>");
+            __builder.AddMarkupContent(2, "<strong>Failed to load QC Capture.</strong>");
             __builder.AddMarkupContent(3, $"<div>{System.Net.WebUtility.HtmlEncode(_qcCapturesError)}</div>");
             __builder.OpenElement(4, "button");
             __builder.AddAttribute(5, "type", "button");
             __builder.AddAttribute(6, "class", "grid-btn");
             __builder.AddAttribute(7, "onclick", EventCallback.Factory.Create(this, LoadQcCapturesAsync));
-            __builder.AddContent(8, "Thử lại");
+            __builder.AddContent(8, "Retry");
             __builder.CloseElement();
             __builder.CloseElement();
             return;
@@ -634,8 +804,8 @@ else if (_detail is not null && _vm is not null)
         // identity reminder + deferred notice so operator knows the path.
         __builder.AddMarkupContent(0, """
             <div class="spec-tab-stub">
-                <p>Khu vực hiển thị mẫu artwork (SVG 4-layer toggle).</p>
-                <p class="spec-deferred-note"><em>Sẽ có ở bản 5e — kèm 3 template (brady-safety / ccl-cosmetic / panel-face) khớp SpecHub.</em></p>
+                <p>Artwork preview area (SVG 4-layer toggle).</p>
+                <p class="spec-deferred-note"><em>Coming in 5e — with 3 templates (brady-safety / ccl-cosmetic / panel-face) matching SpecHub.</em></p>
             </div>
             """);
     };
@@ -659,10 +829,10 @@ else if (_detail is not null && _vm is not null)
         AddCell(__builder, "Varnish", _detail.Varnish);
         AddCell(__builder, "Pitch (mm)", _detail.LengthPitchMm?.ToString("0.##") ?? "—");
         AddCell(__builder, "Printing cavity", _detail.PrintingCavity?.ToString() ?? "—");
-        AddCell(__builder, "White underprint", _detail.WhiteUnderprint ? "Có" : "Không");
+        AddCell(__builder, "White underprint", _detail.WhiteUnderprint ? "Yes" : "No");
         __builder.CloseElement();
         __builder.CloseElement();
-        __builder.AddMarkupContent(99, "<p class=\"spec-deferred-note\"><em>Bảng Flexo print rows / Silk colors sẽ có ở bản 5c (Full showcard).</em></p>");
+        __builder.AddMarkupContent(99, "<p class=\"spec-deferred-note\"><em>The Flexo print rows / Silk colors table is coming in 5c (Full showcard).</em></p>");
         __builder.CloseElement();
     };
 
@@ -686,8 +856,8 @@ else if (_detail is not null && _vm is not null)
 
     private static string QcStageLabel(string stageKey) => stageKey switch
     {
-        "IpqcPrint" => "IPQC — In",
-        "IpqcCut"   => "IPQC — Bế",
+        "IpqcPrint" => "IPQC — Print",
+        "IpqcCut"   => "IPQC — Diecut",
         "Fqc"       => "FQC",
         "Oqc"       => "OQC",
         _            => stageKey,
@@ -695,21 +865,21 @@ else if (_detail is not null && _vm is not null)
 
     private static string DrawingSlotStatusLabel(DrawingSlotStatus s) => s switch
     {
-        DrawingSlotStatus.Draft            => "Nháp",
-        DrawingSlotStatus.PendingApproval  => "Chờ duyệt",
-        DrawingSlotStatus.Approved         => "Đã duyệt",
-        DrawingSlotStatus.Superseded       => "Đã thay thế",
-        DrawingSlotStatus.Withdrawn        => "Đã thu hồi",
+        DrawingSlotStatus.Draft            => "Draft",
+        DrawingSlotStatus.PendingApproval  => "Pending Approval",
+        DrawingSlotStatus.Approved         => "Approved",
+        DrawingSlotStatus.Superseded       => "Superseded",
+        DrawingSlotStatus.Withdrawn        => "Withdrawn",
         _                                   => s.ToString(),
     };
 
     private static string DrawingVersionStatusLabel(DrawingVersionStatus s) => s switch
     {
-        DrawingVersionStatus.Draft            => "Nháp",
-        DrawingVersionStatus.PendingApproval  => "Chờ duyệt",
-        DrawingVersionStatus.Approved         => "Đã duyệt",
-        DrawingVersionStatus.Rejected         => "Đã từ chối",
-        DrawingVersionStatus.Superseded       => "Đã thay thế",
+        DrawingVersionStatus.Draft            => "Draft",
+        DrawingVersionStatus.PendingApproval  => "Pending Approval",
+        DrawingVersionStatus.Approved         => "Approved",
+        DrawingVersionStatus.Rejected         => "Rejected",
+        DrawingVersionStatus.Superseded       => "Superseded",
         _                                      => s.ToString(),
     };
 
@@ -732,7 +902,7 @@ else if (_detail is not null && _vm is not null)
         try
         {
             var resp = await Api.ApproveSpecAsync(_detail.Id);
-            _actionBanner = $"✓ Đã duyệt — trạng thái mới: {resp.Status}";
+            _actionBanner = $"✓ Approved — new status: {resp.Status}";
             _actionBannerIsError = false;
             await LoadDetailAsync();
         }
@@ -753,8 +923,26 @@ else if (_detail is not null && _vm is not null)
         }
     }
 
-    private void OpenEditAsync() { _editOpen = true; StateHasChanged(); }
+    // P10.10 — Edit now enters INLINE edit mode on the Specification tab
+    // (SpecShowcardEdit) instead of the small modal.
+    private void OpenEditAsync()
+    {
+        _activeTab = "spec";
+        _compareMode = false;
+        _specEditMode = true;
+        StateHasChanged();
+    }
     private Task CloseEditAsync() { _editOpen = false; StateHasChanged(); return Task.CompletedTask; }
+
+    private void OnInlineEditCancel() { _specEditMode = false; StateHasChanged(); }
+
+    private async Task OnInlineEditSavedAsync()
+    {
+        _specEditMode = false;
+        _actionBanner = "✓ Changes saved.";
+        _actionBannerIsError = false;
+        await LoadDetailAsync();
+    }
 
     private void OpenCopyAsync() { _copyOpen = true; StateHasChanged(); }
     private Task CloseCopyAsync() { _copyOpen = false; StateHasChanged(); return Task.CompletedTask; }
@@ -770,8 +958,8 @@ else if (_detail is not null && _vm is not null)
     private async Task OnUpdatedAsync(SpecMutationResponse resp)
     {
         _actionBanner = resp.NoChanges == true
-            ? "Không có thay đổi để lưu."
-            : "✓ Đã lưu thay đổi.";
+            ? "No changes to save."
+            : "✓ Changes saved.";
         _actionBannerIsError = false;
         await LoadDetailAsync();
     }
@@ -783,6 +971,37 @@ else if (_detail is not null && _vm is not null)
         return Task.CompletedTask;
     }
 
+    // P10.10 — "Copy new Spec" chooser. Both paths land in the inline editor.
+    //  · New        → independent duplicate on a fresh product (blank IFS code).
+    //  · Update ver → next revision of THIS spec on the same product.
+    private Task NewCopyAsync() => RunCopyAsync(() => Api.DuplicateSpecAsync(_detail!.Id));
+    private Task UpdateVerAsync() => RunCopyAsync(() => Api.NewVersionSpecAsync(_detail!.Id));
+
+    private async Task RunCopyAsync(Func<Task<SpecMutationResponse>> action)
+    {
+        if (_busy || _detail is null) return;
+        _busy = true;
+        _busyAction = "copy";
+        _actionBanner = null;
+        _copyChoiceOpen = false;
+        try
+        {
+            var resp = await action();
+            Nav.NavigateTo($"/npi/specs/{resp.Id}?action=edit");
+        }
+        catch (ApiException apiEx)
+        {
+            _actionBanner = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+            _actionBannerIsError = true;
+        }
+        catch (Exception ex)
+        {
+            _actionBanner = $"{ex.GetType().Name}: {ex.Message}";
+            _actionBannerIsError = true;
+        }
+        finally { _busy = false; }
+    }
+
     private Task OnRevisedAsync(SpecMutationResponse resp)
     {
         Nav.NavigateTo($"/npi/specs/{resp.Id}");
@@ -791,7 +1010,7 @@ else if (_detail is not null && _vm is not null)
 
     private async Task OnSupersededAsync(SpecMutationResponse resp)
     {
-        _actionBanner = $"✓ Đã đánh dấu Thay thế — trạng thái mới: {resp.Status}";
+        _actionBanner = $"✓ Marked Superseded — new status: {resp.Status}";
         _actionBannerIsError = false;
         await LoadDetailAsync();
     }
@@ -813,7 +1032,7 @@ else if (_detail is not null && _vm is not null)
     {
         if (_exporting || _detail is null) return;
         _exporting = true;
-        _exportBanner = "Đang tạo PDF…";
+        _exportBanner = "Generating PDF…";
         _exportBannerKind = "info";
         _exportSandboxPath = null;
         StateHasChanged();
@@ -834,12 +1053,12 @@ else if (_detail is not null && _vm is not null)
         }
         catch (HttpRequestException ex)
         {
-            _exportBanner = $"Không kết nối được máy chủ: {ex.Message}";
+            _exportBanner = $"Could not connect to the server: {ex.Message}";
             _exportBannerKind = "danger";
         }
         catch (Exception ex)
         {
-            _exportBanner = $"Xuất PDF thất bại: {ex.Message}";
+            _exportBanner = $"PDF export failed: {ex.Message}";
             _exportBannerKind = "danger";
         }
         finally
@@ -854,8 +1073,8 @@ else if (_detail is not null && _vm is not null)
         if (outcome.DidSave)
         {
             _exportBanner = outcome.Opened
-                ? $"Đã lưu {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) — đã mở để xem."
-                : $"Đã lưu {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) tại {outcome.DestinationPath}.";
+                ? $"Saved {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) — opened for viewing."
+                : $"Saved {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) at {outcome.DestinationPath}.";
             _exportBannerKind = "success";
             _exportSandboxPath = null;
         }
@@ -863,18 +1082,23 @@ else if (_detail is not null && _vm is not null)
         {
             _exportSandboxPath = outcome.SandboxPath;
             _exportBanner = outcome.Opened
-                ? "Bạn đã huỷ hộp thoại lưu — file vẫn nằm trong thư mục tải xuống của ứng dụng và đã được mở để xem."
-                : "Bạn đã huỷ hộp thoại lưu — file đã lưu trong thư mục tải xuống của ứng dụng (bấm Mở file để xem).";
+                ? "You cancelled the save dialog — the file is still in the app's downloads folder and has been opened for viewing."
+                : "You cancelled the save dialog — the file was saved in the app's downloads folder (click Open file to view).";
             _exportBannerKind = "warn";
         }
     }
 
-    private static string FormatSize(long bytes) => bytes switch
+    // NOTE: written as an if-chain rather than a relational-pattern switch
+    // expression. The Razor compiler in SDK 10.0.x parses a switch arm that
+    // begins with '<' (e.g. `< 1024 =>`) as the start of an HTML tag, which
+    // derails brace counting for the whole @code block (RZ1006). Keeping the
+    // comparison `bytes < …` (operand-first) avoids the markup mis-transition.
+    private static string FormatSize(long bytes)
     {
-        < 1024            => $"{bytes} B",
-        < 1024 * 1024     => $"{bytes / 1024.0:F1} KB",
-        _                 => $"{bytes / 1024.0 / 1024.0:F1} MB",
-    };
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / 1024.0 / 1024.0:F1} MB";
+    }
 
     private async Task OpenSandboxAsync()
     {

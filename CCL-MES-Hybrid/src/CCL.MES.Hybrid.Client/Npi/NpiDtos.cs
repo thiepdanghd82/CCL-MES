@@ -128,3 +128,11 @@ public sealed record NpiStructure
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
 }
+
+/// <summary>P10.5 follow-up — result of an NPI CSV import.</summary>
+public sealed record NpiImportResultDto
+{
+    public string Kind { get; init; } = "";
+    public int Inserted { get; init; }
+    public int Skipped { get; init; }
+}

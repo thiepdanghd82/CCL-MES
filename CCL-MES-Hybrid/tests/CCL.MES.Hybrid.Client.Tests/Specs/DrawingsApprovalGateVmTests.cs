@@ -134,7 +134,7 @@ public sealed class DrawingsApprovalGateVmTests
 
     [Theory]
     [InlineData(DrawingApprovalRole.Npi,        "NPI")]
-    [InlineData(DrawingApprovalRole.Production, "Sản xuất")]
+    [InlineData(DrawingApprovalRole.Production, "Production")]
     [InlineData(DrawingApprovalRole.Qc,         "QC")]
     public void TooltipForNotAuthorized_carries_role_name(DrawingApprovalRole chip, string expectedDept)
     {

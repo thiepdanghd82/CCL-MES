@@ -18,14 +18,14 @@ public static class PrepressErrorLocaliser
     public static string LocaliseApiError(int statusCode, ApiError error) =>
         error.Code switch
         {
-            "wo.not_found"                      => "Không tìm thấy WO trên máy chủ.",
-            "wo.material_row_not_found"         => "Không tìm thấy dòng vật tư — tải lại checklist.",
-            "wo.invalid_phase"                  => "WO không ở giai đoạn PREPRESS — không thể ghi check.",
-            "wo.if_match_required"              => "Phiên dữ liệu hết hạn — tải lại checklist.",
-            "wo.idempotency_key_required"       => "Yêu cầu thiếu khóa idempotency — báo IT.",
-            "prepress.invalid_status"           => "Trạng thái không hợp lệ — chỉ chấp nhận Pending / OK / NG.",
-            "prepress.invalid_reason_code"      => "Mã lỗi NG không có trong danh mục Scrap — chọn mã hợp lệ.",
-            "prepress.invalid_ng_note"          => "Ghi chú NG bắt buộc khi đặt NG (1-500 ký tự).",
+            "wo.not_found"                      => "WO not found on the server.",
+            "wo.material_row_not_found"         => "Material row not found — reload the checklist.",
+            "wo.invalid_phase"                  => "WO is not in the PREPRESS phase — cannot record the check.",
+            "wo.if_match_required"              => "Data session expired — reload the checklist.",
+            "wo.idempotency_key_required"       => "Request is missing the idempotency key — contact IT.",
+            "prepress.invalid_status"           => "Invalid status — only Pending / OK / NG are accepted.",
+            "prepress.invalid_reason_code"      => "NG reason code is not in the Scrap catalog — choose a valid code.",
+            "prepress.invalid_ng_note"          => "An NG note is required when setting NG (1-500 characters).",
             _                                   => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 
@@ -36,10 +36,10 @@ public static class PrepressErrorLocaliser
     /// first.</summary>
     public static string LocaliseSetError(string code) => code switch
     {
-        "wo.state_conflict"           => "Một thao tác khác đã cập nhật checklist này. Đang tải lại trạng thái mới nhất — thử ghi lại.",
-        "wo.if_match_required"        => "Phiên dữ liệu chưa được tải lại — quét lại WO.",
-        "wo.idempotency_key_required" => "Yêu cầu thiếu khóa idempotency — báo IT.",
-        "http.empty_body"             => "Máy chủ trả về phản hồi rỗng — báo IT.",
-        _                             => $"Mã lỗi không xác định ({code}).",
+        "wo.state_conflict"           => "Another operation has already updated this checklist. Reloading the latest state — try recording again.",
+        "wo.if_match_required"        => "Data session has not been reloaded — scan the WO again.",
+        "wo.idempotency_key_required" => "Request is missing the idempotency key — contact IT.",
+        "http.empty_body"             => "The server returned an empty response — contact IT.",
+        _                             => $"Unknown error code ({code}).",
     };
 }

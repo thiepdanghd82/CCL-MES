@@ -40,5 +40,151 @@ window.cclMesClipboard = (() => {
         }
     }
 
-    return { copy, prettyJson };
+    // P10.8 — trigger a client-side file download (Shop Order History
+    // "Export CSV"). Same defensive try/catch posture: a blocked blob URL
+    // never bubbles to the renderer.
+    function download(filename, text, mime) {
+        try {
+            const blob = new Blob([text ?? ''], { type: mime || 'text/csv;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename || 'export.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    return { copy, prettyJson, download };
+})();
+
+// P10.10 — grid auto-fit: measure how many rows fit the (flex-filled)
+// .grid-scroll viewport so a paginated grid fills the screen, then
+// re-measure on window resize. Keyed by a per-component id so register/
+// unregister pair up regardless of DotNetObjectReference proxy identity.
+window.cclMesGrid = (() => {
+    const regs = new Map();
+
+    function measure(sel, rowPx) {
+        const el = document.querySelector(sel);
+        if (!el || el.clientHeight <= 0) return 0;
+        const row = el.querySelector('tbody tr');
+        const rh = row && row.offsetHeight ? row.offsetHeight : rowPx;
+        const head = el.querySelector('thead');
+        const hh = head && head.offsetHeight ? head.offsetHeight : rh;
+        if (rh <= 0) return 0;
+        return Math.max(8, Math.floor((el.clientHeight - hh) / rh));
+    }
+
+    function register(id, ref, sel, rowPx) {
+        const fire = () => {
+            const n = measure(sel, rowPx);
+            if (n > 0) { try { ref.invokeMethodAsync('Fit', n); } catch (e) { /* disposed */ } }
+        };
+        let t;
+        const onResize = () => { clearTimeout(t); t = setTimeout(fire, 200); };
+        regs.set(id, onResize);
+        window.addEventListener('resize', onResize);
+        // Let the flex layout settle before the first measure.
+        setTimeout(fire, 80);
+    }
+
+    function unregister(id) {
+        const h = regs.get(id);
+        if (h) { window.removeEventListener('resize', h); regs.delete(id); }
+    }
+
+    return { register, unregister };
+})();
+
+// P10.10 — drawing preview blob URLs. WKWebView renders PDFs/images reliably
+// from a blob: URL (data: PDFs + the native Launcher are flaky on Catalyst).
+window.cclMesDrawings = (() => {
+    function toObjectUrl(base64, mime) {
+        try {
+            const bin = atob(base64);
+            const len = bin.length;
+            const arr = new Uint8Array(len);
+            for (let i = 0; i < len; i++) arr[i] = bin.charCodeAt(i);
+            const blob = new Blob([arr], { type: mime || 'application/octet-stream' });
+            return URL.createObjectURL(blob);
+        } catch (e) { return ''; }
+    }
+    function revoke(url) { try { URL.revokeObjectURL(url); } catch (e) { /* noop */ } }
+    function openInNewWindow(url) {
+        try { window.open(url, '_blank', 'noopener,noreferrer'); } catch (e) { /* noop */ }
+    }
+    return { toObjectUrl, revoke, openInNewWindow };
+})();
+
+// P10.10 — PDF rendering via PDF.js. WKWebView (Mac Catalyst) renders a blob:
+// PDF blank inside an <iframe>, so we rasterise each page onto a <canvas>.
+// Pages render at fit-to-width × the caller's zoom; rotation is applied per
+// page. The parsed document is cached by URL so zoom/rotate re-renders don't
+// re-parse the file.
+window.cclMesPdf = (() => {
+    const WORKER = '_content/CCL.MES.Hybrid.Razor/lib/pdfjs/pdf.worker.min.js';
+    const _docs = {};   // url -> pdfDoc
+
+    async function load(url) {
+        if (_docs[url]) return _docs[url];
+        const lib = window.pdfjsLib;
+        if (!lib) throw new Error('pdfjsLib not loaded');
+        try { lib.GlobalWorkerOptions.workerSrc = WORKER; } catch (e) { /* noop */ }
+        const doc = await lib.getDocument(url).promise;
+        _docs[url] = doc;
+        return doc;
+    }
+
+    async function render(elId, url, zoom, rotation) {
+        const el = document.getElementById(elId);
+        if (!el) return 0;
+        el.setAttribute('data-rendering', '1');
+        let doc;
+        try {
+            doc = await load(url);
+        } catch (e) {
+            el.innerHTML = '<div class="dwg-viewer-empty">Could not render this PDF (' + (e && e.message ? e.message : 'engine error') + ').</div>';
+            return 0;
+        }
+        const rot = ((rotation || 0) % 360 + 360) % 360;
+        // Fit-to-width off page 1, then scale by the caller's zoom factor.
+        const first = await doc.getPage(1);
+        const base = first.getViewport({ scale: 1, rotation: rot });
+        const avail = Math.max(200, (el.clientWidth || 800) - 28);
+        const scale = Math.max(0.1, (avail / base.width) * (zoom || 1));
+
+        const frag = document.createDocumentFragment();
+        for (let p = 1; p <= doc.numPages; p++) {
+            const page = await doc.getPage(p);
+            const vp = page.getViewport({ scale: scale, rotation: rot });
+            const canvas = document.createElement('canvas');
+            canvas.className = 'dwg-pdf-page';
+            const ratio = window.devicePixelRatio || 1;
+            canvas.width = Math.floor(vp.width * ratio);
+            canvas.height = Math.floor(vp.height * ratio);
+            canvas.style.width = Math.floor(vp.width) + 'px';
+            canvas.style.height = Math.floor(vp.height) + 'px';
+            const ctx = canvas.getContext('2d');
+            ctx.scale(ratio, ratio);
+            await page.render({ canvasContext: ctx, viewport: vp }).promise;
+            frag.appendChild(canvas);
+        }
+        el.innerHTML = '';
+        el.appendChild(frag);
+        el.removeAttribute('data-rendering');
+        return doc.numPages;
+    }
+
+    function dispose(url) {
+        const d = _docs[url];
+        if (d) { try { d.destroy(); } catch (e) { /* noop */ } delete _docs[url]; }
+    }
+
+    return { render, dispose };
 })();

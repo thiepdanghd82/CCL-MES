@@ -12,21 +12,21 @@
 
 @if (Result is null)
 {
-    <p class="spec-diff-empty">Không có dữ liệu so sánh.</p>
+    <p class="spec-diff-empty">No comparison data.</p>
 }
 else if (!Result.HasDiff)
 {
     <div class="spec-diff-banner">
-        <strong>Không có khác biệt</strong> giữa rev @Result.CurrentRev và rev @Result.ParentRev.
+        <strong>No differences</strong> between rev @Result.CurrentRev and rev @Result.ParentRev.
     </div>
 }
 else
 {
     <div class="spec-diff-viewer">
         <div class="spec-diff-banner">
-            So sánh rev <strong>@Result.CurrentRev</strong>
-            (hiện tại) với rev <strong>@Result.ParentRev</strong> (trước) —
-            <strong>@Result.Entries.Count</strong> thay đổi.
+            Comparing rev <strong>@Result.CurrentRev</strong>
+            (current) with rev <strong>@Result.ParentRev</strong> (previous) —
+            <strong>@Result.Entries.Count</strong> changes.
         </div>
 
         @foreach (var group in Result.Entries.GroupBy(e => e.Section))
@@ -37,9 +37,9 @@ else
                     <thead>
                         <tr>
                             <th>Field</th>
-                            <th>Trước (rev @Result.ParentRev)</th>
-                            <th>Sau (rev @Result.CurrentRev)</th>
-                            <th>Loại</th>
+                            <th>Before (rev @Result.ParentRev)</th>
+                            <th>After (rev @Result.CurrentRev)</th>
+                            <th>Type</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -79,9 +79,9 @@ else
 
     private static string KindLabel(SpecDiffVm.ChangeType kind) => kind switch
     {
-        SpecDiffVm.ChangeType.Added   => "Thêm mới",
-        SpecDiffVm.ChangeType.Removed => "Đã xoá",
-        SpecDiffVm.ChangeType.Changed => "Sửa",
+        SpecDiffVm.ChangeType.Added   => "Added",
+        SpecDiffVm.ChangeType.Removed => "Removed",
+        SpecDiffVm.ChangeType.Changed => "Changed",
         _                             => kind.ToString(),
     };
 

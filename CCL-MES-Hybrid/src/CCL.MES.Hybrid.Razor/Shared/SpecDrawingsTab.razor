@@ -2,6 +2,7 @@
 @inject IFilePickerService FilePicker
 @inject IFileOpener FileOpener
 @inject IAuthSession Session
+@inject IJSRuntime JS
 @using CCL.MES.Hybrid.Client.Files
 @using CCL.MES.Hybrid.Client.Specs
 @using CCL.MES.Shared.Drawings
@@ -29,7 +30,7 @@
 
 @if (Slots is null || Slots.Count == 0)
 {
-    <p class="grid-status">Chưa có bản vẽ nào cho revision này.</p>
+    <p class="grid-status">No drawings yet for this revision.</p>
 }
 else
 {
@@ -51,7 +52,7 @@ else
                         <button type="button" class="grid-btn grid-btn-primary drawing-upload-btn"
                                 disabled="@submitting"
                                 @onclick="() => OnUploadAsync(slot)">
-                            @(submitting ? "Đang tải lên…" : "⤒ Tải lên bản mới")
+                            @(submitting ? "Uploading…" : "⤒ Upload new version")
                         </button>
                     </AuthorizeView>
                 </div>
@@ -59,7 +60,7 @@ else
                 @if (error is not null)
                 {
                     <div class="modal-banner modal-banner-error drawing-card-error" role="alert">
-                        <strong>Upload thất bại.</strong>
+                        <strong>Upload failed.</strong>
                         <div>@error</div>
                     </div>
                 }
@@ -73,7 +74,7 @@ else
                 <div class="drawing-slot-versions">
                     @if (slot.Versions.Count == 0)
                     {
-                        <span class="spec-empty-inline">Chưa có bản tải lên.</span>
+                        <span class="spec-empty-inline">No uploads yet.</span>
                     }
                     else
                     {
@@ -82,7 +83,7 @@ else
                             var dl = _downloadingVersionId == v.Id;
                             <div class="drawing-version-row drawing-version-@v.Status.ToString().ToLowerInvariant()">
                                 <span class="spec-mono drawing-vno">v@v.VersionNo</span>
-                                <span class="drawing-fname" title="@v.FileName">@v.FileName</span>
+                                <span class="drawing-fname" title="@($"{DrawingDisplayName(v)}  ·  original: {v.FileName}")">@DrawingDisplayName(v)</span>
                                 <span class="drawing-size">@FormatBytes(v.FileSize)</span>
                                 <span class="drawing-status-pill drawing-status-@v.Status.ToString().ToLowerInvariant()">
                                     @DrawingVersionStatusLabel(v.Status)
@@ -96,17 +97,113 @@ else
                                     }
                                 </span>
 
-                                <button type="button" class="grid-btn drawing-dl-btn"
-                                        disabled="@dl"
-                                        @onclick="() => OnDownloadAsync(slot, v)">
-                                    @(dl ? "Đang tải…" : "↓ Tải về")
-                                </button>
+                                <div class="drawing-version-actions">
+                                    <button type="button" class="grid-btn grid-btn-primary drawing-dl-btn"
+                                            disabled="@dl"
+                                            @onclick="() => OnOpenAsync(slot, v)">
+                                        @(dl ? "Opening…" : "↗ Open")
+                                    </button>
+                                    <button type="button" class="grid-btn drawing-dl-btn"
+                                            disabled="@dl" title="Save a copy to this device"
+                                            @onclick="() => OnDownloadAsync(slot, v)">
+                                        ↓ Save
+                                    </button>
+                                    <AuthorizeView Roles="Admin,Engineer" Context="del">
+                                        <button type="button" class="grid-btn drawing-dl-btn drawing-del-btn"
+                                                disabled="@dl" title="Delete this version (NPI password required)"
+                                                @onclick="() => OpenDeleteModal(slot, v)">
+                                            🗑 Delete
+                                        </button>
+                                    </AuthorizeView>
+                                </div>
                             </div>
                         }
                     }
                 </div>
             </div>
         }
+    </div>
+}
+
+@* P10.10 — in-app drawing preview (reliable in WKWebView via a blob URL;
+   the native Launcher / data: PDFs are flaky on Catalyst). *@
+@if (_previewOpen)
+{
+    <div class="drawing-preview-overlay" @onclick="ClosePreviewAsync">
+        <div class="drawing-preview-box" @onclick:stopPropagation="true">
+            <div class="drawing-preview-head">
+                <span class="drawing-preview-title spec-mono" title="@_previewName">@_previewName</span>
+                <button type="button" class="drawing-preview-close" @onclick="ClosePreviewAsync">✕</button>
+            </div>
+            <div class="drawing-preview-body">
+                @if (string.IsNullOrEmpty(_previewUrl))
+                {
+                    <div class="drawing-preview-empty">Loading…</div>
+                }
+                else if (_previewIsImage)
+                {
+                    <img class="drawing-preview-img" src="@_previewUrl" alt="@_previewName" />
+                }
+                else
+                {
+                    <iframe class="drawing-preview-frame" src="@_previewUrl" title="@_previewName"></iframe>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@* P10.10 — Delete-version modal. Requires an NPI-team member's
+   username + password (verified server-side) before the version's blob +
+   metadata are removed. Optional reason is recorded in the audit row. *@
+@if (_deleteOpen && _deleteVersion is not null && _deleteSlot is not null)
+{
+    <div class="modal-scrim" @onclick="CloseDeleteModal">
+        <div class="modal-card modal-sm modal-severity-danger" @onclick:stopPropagation="true">
+            <div class="modal-head">
+                <span class="modal-title">Delete drawing version</span>
+                <button type="button" class="modal-close" @onclick="CloseDeleteModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <p class="drawing-del-target">
+                    @KindLabel(_deleteSlot.Kind) · <span class="spec-mono">v@_deleteVersion.VersionNo</span>
+                    — <span class="spec-mono">@DrawingDisplayName(_deleteVersion)</span>
+                </p>
+                <p class="drawing-del-warn">
+                    Hành động này xoá vĩnh viễn bản vẽ. Cần xác thực bằng tài khoản
+                    thuộc <strong>NPI team</strong>.
+                </p>
+                @if (_deleteError is not null)
+                {
+                    <div class="modal-banner modal-banner-error" role="alert">@_deleteError</div>
+                }
+                <div class="modal-field">
+                    <label>Tài khoản NPI</label>
+                    <input class="modal-input" type="text" autocomplete="off"
+                           placeholder="username" disabled="@_deleteBusy"
+                           @bind="_deleteUser" @bind:event="oninput" />
+                </div>
+                <div class="modal-field">
+                    <label>Mật khẩu</label>
+                    <input class="modal-input" type="password" autocomplete="off"
+                           placeholder="••••••••" disabled="@_deleteBusy"
+                           @bind="_deletePassword" @bind:event="oninput" />
+                </div>
+                <div class="modal-field">
+                    <label>Lý do (tuỳ chọn)</label>
+                    <input class="modal-input" type="text" disabled="@_deleteBusy"
+                           placeholder="Ví dụ: upload nhầm file" @bind="_deleteReason" />
+                </div>
+            </div>
+            <div class="modal-foot">
+                <button type="button" class="grid-btn" disabled="@_deleteBusy" @onclick="CloseDeleteModal">Huỷ</button>
+                <button type="button" class="grid-btn grid-btn-danger"
+                        disabled="@(_deleteBusy || string.IsNullOrWhiteSpace(_deleteUser) || string.IsNullOrWhiteSpace(_deletePassword))"
+                        @onclick="ConfirmDeleteAsync">
+                    @(_deleteBusy ? "Đang xoá…" : "Xoá bản vẽ")
+                </button>
+            </div>
+        </div>
     </div>
 }
 
@@ -126,6 +223,33 @@ else
     [Parameter] public long RevisionId { get; set; }
     [Parameter] public IReadOnlyList<DrawingKindSlot>? Slots { get; set; }
     [Parameter] public EventCallback OnReloadRequested { get; set; }
+    // P10.10 — drive the displayed/opened drawing name off the spec's IFS code
+    // + Part No (IFS_PartNo) instead of the raw uploaded filename.
+    [Parameter] public string? IfsCode { get; set; }
+    [Parameter] public string? PartNo { get; set; }
+
+    /// <summary>Auto name a drawing as "IFScode_PartNo.ext" (keeping the
+    /// uploaded extension). Falls back to Part No / IFS code / the original
+    /// name when one side is missing.</summary>
+    private string DrawingDisplayName(DrawingVersionView v)
+    {
+        var ext = System.IO.Path.GetExtension(v.FileName);
+        var ifs = (IfsCode ?? "").Trim();
+        var part = (PartNo ?? "").Trim();
+        string baseName =
+            ifs.Length > 0 && part.Length > 0 ? $"{ifs}_{part}"
+            : part.Length > 0 ? part
+            : ifs.Length > 0 ? ifs
+            : System.IO.Path.GetFileNameWithoutExtension(v.FileName);
+        return Sanitize(baseName) + ext;
+    }
+
+    private static string Sanitize(string s)
+    {
+        var bad = System.IO.Path.GetInvalidFileNameChars();
+        var cleaned = new string(s.Select(c => bad.Contains(c) || c == ' ' ? '_' : c).ToArray());
+        return string.IsNullOrWhiteSpace(cleaned) ? "drawing" : cleaned;
+    }
 
     private string? _submittingKind;
     private long _downloadingVersionId;
@@ -170,7 +294,7 @@ else
             {
                 var resp = await Api.UploadDrawingAsync(
                     RevisionId, kindKey, pick.Content, pick.FileName);
-                _noticeByKind[kindKey] = $"Đã tải lên v{resp.VersionNo} · {pick.FileName} ({FormatBytes(resp.SizeBytes)}).";
+                _noticeByKind[kindKey] = $"Uploaded v{resp.VersionNo} · {pick.FileName} ({FormatBytes(resp.SizeBytes)}).";
             }
             if (OnReloadRequested.HasDelegate) await OnReloadRequested.InvokeAsync();
         }
@@ -180,11 +304,11 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _errorByKind[kindKey] = $"Không kết nối được máy chủ: {ex.Message}";
+            _errorByKind[kindKey] = $"Could not connect to the server: {ex.Message}";
         }
         catch (TaskCanceledException)
         {
-            _errorByKind[kindKey] = "Tải lên quá lâu (vượt 90 giây) — kiểm tra mạng rồi thử lại.";
+            _errorByKind[kindKey] = "Upload took too long (over 90 seconds) — check your network and try again.";
         }
         catch (Exception ex)
         {
@@ -208,16 +332,18 @@ else
         try
         {
             var safeDir = FileOpener.GetSafeDownloadDirectory();
-            // Keep the original filename so QuickLook picks the right
-            // associated app; prefix with version-id to avoid collisions
-            // across re-downloads of the same kind.
-            var dest = Path.Combine(safeDir, $"drawing-{v.Id}-{v.FileName}");
+            // P10.10 — open under the auto IFS_PartNo name (keeps the extension
+            // so QuickLook picks the right app); version suffix avoids
+            // collisions across re-opens of different versions.
+            var openName = System.IO.Path.GetFileNameWithoutExtension(DrawingDisplayName(v))
+                + $"_v{v.VersionNo}" + System.IO.Path.GetExtension(v.FileName);
+            var dest = Path.Combine(safeDir, openName);
             var size = await Api.DownloadDrawingToFileAsync(RevisionId, v.Id, dest);
-            _noticeByKind[kindKey] = $"Đã tải về v{v.VersionNo} ({FormatBytes(size)}).";
+            _noticeByKind[kindKey] = $"Opened v{v.VersionNo} · {openName} ({FormatBytes(size)}).";
             var opened = await FileOpener.TryOpenAsync(dest);
             if (!opened)
             {
-                _noticeByKind[kindKey] = $"Đã lưu file vào {dest} (không mở được tự động).";
+                _noticeByKind[kindKey] = $"Saved the file to {dest} (could not open automatically).";
             }
         }
         catch (ApiException apiEx)
@@ -226,7 +352,7 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _errorByKind[kindKey] = $"Không kết nối được máy chủ: {ex.Message}";
+            _errorByKind[kindKey] = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -235,6 +361,149 @@ else
         finally
         {
             _downloadingVersionId = 0;
+            StateHasChanged();
+        }
+    }
+
+    // ── P10.10 — in-app drawing preview ──────────────────────────────
+    private bool _previewOpen;
+    private string? _previewUrl;       // blob: URL
+    private string? _previewName;
+    private bool _previewIsImage;
+    private static readonly string[] _imageExts = { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp" };
+
+    private async Task OnOpenAsync(DrawingKindSlot slot, DrawingVersionView v)
+    {
+        if (_downloadingVersionId != 0) return;
+        var kindKey = slot.Kind.ToString();
+        _errorByKind[kindKey] = null;
+        _noticeByKind[kindKey] = null;
+        _downloadingVersionId = v.Id;
+        StateHasChanged();
+        try
+        {
+            var ext = System.IO.Path.GetExtension(v.FileName).ToLowerInvariant();
+            _previewIsImage = _imageExts.Contains(ext);
+            _previewName = DrawingDisplayName(v);
+            var bytes = await Api.DownloadDrawingBytesAsync(RevisionId, v.Id);
+            var b64 = Convert.ToBase64String(bytes);
+            _previewUrl = await JS.InvokeAsync<string>("cclMesDrawings.toObjectUrl", b64, MimeForExt(ext));
+            if (string.IsNullOrEmpty(_previewUrl))
+            {
+                _errorByKind[kindKey] = "Could not build a preview for this file — use ↓ Save instead.";
+            }
+            else
+            {
+                _previewOpen = true;
+            }
+        }
+        catch (ApiException apiEx) { _errorByKind[kindKey] = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
+        catch (HttpRequestException ex) { _errorByKind[kindKey] = $"Could not connect to the server: {ex.Message}"; }
+        catch (Exception ex) { _errorByKind[kindKey] = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _downloadingVersionId = 0; StateHasChanged(); }
+    }
+
+    private async Task ClosePreviewAsync()
+    {
+        _previewOpen = false;
+        if (!string.IsNullOrEmpty(_previewUrl))
+        {
+            try { await JS.InvokeVoidAsync("cclMesDrawings.revoke", _previewUrl); } catch { /* noop */ }
+        }
+        _previewUrl = null;
+        StateHasChanged();
+    }
+
+    private static string MimeForExt(string ext) => ext switch
+    {
+        ".png" => "image/png",
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".gif" => "image/gif",
+        ".webp" => "image/webp",
+        ".bmp" => "image/bmp",
+        ".pdf" => "application/pdf",
+        ".svg" => "image/svg+xml",
+        _ => "application/octet-stream",
+    };
+
+    // ── P10.10 — delete-version modal (NPI password gate) ────────────
+    private bool _deleteOpen;
+    private DrawingKindSlot? _deleteSlot;
+    private DrawingVersionView? _deleteVersion;
+    private string _deleteUser = "";
+    private string _deletePassword = "";
+    private string _deleteReason = "";
+    private bool _deleteBusy;
+    private string? _deleteError;
+
+    private void OpenDeleteModal(DrawingKindSlot slot, DrawingVersionView v)
+    {
+        _deleteSlot = slot;
+        _deleteVersion = v;
+        _deleteUser = "";
+        _deletePassword = "";
+        _deleteReason = "";
+        _deleteError = null;
+        _deleteBusy = false;
+        _deleteOpen = true;
+        StateHasChanged();
+    }
+
+    private void CloseDeleteModal()
+    {
+        if (_deleteBusy) return;   // don't dismiss mid-request
+        _deleteOpen = false;
+        _deleteSlot = null;
+        _deleteVersion = null;
+        _deletePassword = "";
+        _deleteError = null;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_deleteVersion is null || _deleteSlot is null) return;
+        if (string.IsNullOrWhiteSpace(_deleteUser) || string.IsNullOrWhiteSpace(_deletePassword)) return;
+
+        _deleteBusy = true;
+        _deleteError = null;
+        StateHasChanged();
+
+        var kindKey = _deleteSlot.Kind.ToString();
+        try
+        {
+            var req = new DrawingDeleteRequest
+            {
+                Username = _deleteUser.Trim(),
+                Password = _deletePassword,
+                Reason = string.IsNullOrWhiteSpace(_deleteReason) ? null : _deleteReason.Trim(),
+            };
+            await Api.DeleteDrawingVersionAsync(RevisionId, _deleteVersion.Id, req);
+
+            _noticeByKind[kindKey] = $"Đã xoá v{_deleteVersion.VersionNo} · {DrawingDisplayName(_deleteVersion)}.";
+            _deleteBusy = false;
+            _deleteOpen = false;
+            _deleteSlot = null;
+            _deleteVersion = null;
+            _deletePassword = "";
+            if (OnReloadRequested.HasDelegate) await OnReloadRequested.InvokeAsync();
+        }
+        catch (ApiException apiEx)
+        {
+            _deleteError = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+            _deleteBusy = false;
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex)
+        {
+            _deleteError = $"Không kết nối được máy chủ: {ex.Message}";
+            _deleteBusy = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            _deleteError = $"{ex.GetType().Name}: {ex.Message}";
+            _deleteBusy = false;
             StateHasChanged();
         }
     }
@@ -268,9 +537,9 @@ else
         if (a.ActedBy is not null && a.ActedAt is not null)
         {
             var ts = a.ActedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
-            title = $"{ApprovalRoleLabel(a.Role)} — {ApprovalStatusLabel(a.Status)} bởi {a.ActedBy} · {ts}";
+            title = $"{ApprovalRoleLabel(a.Role)} — {ApprovalStatusLabel(a.Status)} by {a.ActedBy} · {ts}";
             if (!string.IsNullOrWhiteSpace(a.Comment))
-                title += $"\nLý do: {a.Comment}";
+                title += $"\nReason: {a.Comment}";
         }
         else if (availability == DrawingsApprovalGateVm.ChipAvailability.NotAuthorized)
         {
@@ -350,9 +619,9 @@ else
         // surface correctly without drift.
         if (_decideKindKey is not null)
         {
-            var summary = $"Đã ghi nhận quyết định cho v{_decideVersionNo}";
+            var summary = $"Recorded the decision for v{_decideVersionNo}";
             if (resp.SupersededCount > 0)
-                summary += $" · {resp.SupersededCount} version cũ được đánh dấu Superseded.";
+                summary += $" · {resp.SupersededCount} older version(s) marked Superseded.";
             _noticeByKind[_decideKindKey] = summary;
         }
         if (OnReloadRequested.HasDelegate) await OnReloadRequested.InvokeAsync();
@@ -360,7 +629,7 @@ else
 
     private static string KindLabel(DrawingKindCode kind) => kind switch
     {
-        DrawingKindCode.CustomerDrawing    => "Bản vẽ khách hàng",
+        DrawingKindCode.CustomerDrawing    => "Customer drawing",
         DrawingKindCode.NpiPrintLayout     => "Print layout (NPI)",
         DrawingKindCode.NpiCutLayout       => "Cut layout (NPI)",
         DrawingKindCode.IpqcPrintReference => "IPQC Print reference",
@@ -374,37 +643,37 @@ else
 
     private static string DrawingSlotStatusLabel(DrawingSlotStatus s) => s switch
     {
-        DrawingSlotStatus.Draft             => "Bản nháp",
-        DrawingSlotStatus.PendingApproval   => "Chờ duyệt",
-        DrawingSlotStatus.Approved          => "Đã duyệt",
-        DrawingSlotStatus.Superseded        => "Thay thế",
-        DrawingSlotStatus.Withdrawn         => "Đã rút",
+        DrawingSlotStatus.Draft             => "Draft",
+        DrawingSlotStatus.PendingApproval   => "Pending Approval",
+        DrawingSlotStatus.Approved          => "Approved",
+        DrawingSlotStatus.Superseded        => "Superseded",
+        DrawingSlotStatus.Withdrawn         => "Withdrawn",
         _                                   => s.ToString(),
     };
 
     private static string DrawingVersionStatusLabel(DrawingVersionStatus s) => s switch
     {
-        DrawingVersionStatus.Draft             => "Bản nháp",
-        DrawingVersionStatus.PendingApproval   => "Chờ duyệt",
-        DrawingVersionStatus.Approved          => "Đã duyệt",
-        DrawingVersionStatus.Rejected          => "Đã từ chối",
-        DrawingVersionStatus.Superseded        => "Thay thế",
+        DrawingVersionStatus.Draft             => "Draft",
+        DrawingVersionStatus.PendingApproval   => "Pending Approval",
+        DrawingVersionStatus.Approved          => "Approved",
+        DrawingVersionStatus.Rejected          => "Rejected",
+        DrawingVersionStatus.Superseded        => "Superseded",
         _                                          => s.ToString(),
     };
 
     public static string ApprovalRoleLabel(DrawingApprovalRole r) => r switch
     {
         DrawingApprovalRole.Npi        => "NPI",
-        DrawingApprovalRole.Production => "Sản xuất",
+        DrawingApprovalRole.Production => "Production",
         DrawingApprovalRole.Qc         => "QC",
         _                                  => r.ToString(),
     };
 
     public static string ApprovalStatusLabel(DrawingApprovalStatus s) => s switch
     {
-        DrawingApprovalStatus.Pending  => "Chờ",
-        DrawingApprovalStatus.Approved => "Duyệt",
-        DrawingApprovalStatus.Rejected => "Từ chối",
+        DrawingApprovalStatus.Pending  => "Pending",
+        DrawingApprovalStatus.Approved => "Approved",
+        DrawingApprovalStatus.Rejected => "Rejected",
         _                                  => s.ToString(),
     };
 

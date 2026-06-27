@@ -29,10 +29,10 @@
 @if (_entries.Count > 0)
 {
     <div class="app-nav-section recent-scans-section">
-        <span class="recent-scans-title">QUÉT GẦN ĐÂY</span>
+        <span class="recent-scans-title">RECENT SCANS</span>
         <button type="button" class="recent-scans-clear"
-                title="Xoá lịch sử quét cục bộ"
-                @onclick="OnClear">Xoá</button>
+                title="Clear local scan history"
+                @onclick="OnClear">Clear</button>
     </div>
     <ul class="recent-scans-list">
         @foreach (var e in _entries)
@@ -49,7 +49,7 @@
                         @FormatRelative(e.ScannedAt)
                         @if (!e.Resolved)
                         {
-                            <span class="recent-scans-chip">không tìm thấy</span>
+                            <span class="recent-scans-chip">not found</span>
                         }
                     </span>
                 </button>
@@ -92,17 +92,17 @@
     private async Task OnClear()
     {
         var confirmed = await Js.InvokeAsync<bool>(
-            "confirm", "Xoá toàn bộ lịch sử quét cục bộ?");
+            "confirm", "Clear all local scan history?");
         if (confirmed) RecentScans.Clear();
     }
 
     private static string FormatRelative(DateTime utc)
     {
         var diff = DateTime.UtcNow - utc;
-        if (diff.TotalSeconds < 60) return "vừa xong";
-        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes} phút trước";
-        if (diff.TotalHours < 24)   return $"{(int)diff.TotalHours} giờ trước";
-        if (diff.TotalDays < 7)     return $"{(int)diff.TotalDays} ngày trước";
+        if (diff.TotalSeconds < 60) return "just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes} min ago";
+        if (diff.TotalHours < 24)   return $"{(int)diff.TotalHours} h ago";
+        if (diff.TotalDays < 7)     return $"{(int)diff.TotalDays} d ago";
         return utc.ToLocalTime().ToString("dd/MM HH:mm");
     }
 }

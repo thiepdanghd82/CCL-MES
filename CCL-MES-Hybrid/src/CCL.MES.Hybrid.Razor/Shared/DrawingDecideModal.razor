@@ -26,13 +26,13 @@
         @if (Open)
         {
             <p class="modal-help">
-                Phê duyệt chip <strong>@RoleLabel(Role)</strong> cho
+                Approve the <strong>@RoleLabel(Role)</strong> chip for
                 <strong>v@VersionNo</strong> · @KindLabel(Kind).
             </p>
 
             <div class="modal-field">
-                <label>Quyết định</label>
-                <div class="decide-toggle-row" role="radiogroup" aria-label="Quyết định">
+                <label>Decision</label>
+                <div class="decide-toggle-row" role="radiogroup" aria-label="Decision">
                     <button type="button" role="radio" aria-checked="@(_decision == "Approved" ? "true" : "false")"
                             class="decide-toggle decide-toggle-approve @(_decision == "Approved" ? "is-active" : "")"
                             disabled="@_submitting"
@@ -50,14 +50,14 @@
 
             <div class="modal-field">
                 <label for="decide-comment">
-                    Lý do
+                    Reason
                     @if (_decision == "Rejected")
                     {
                         <span class="modal-req">*</span>
                     }
                     else
                     {
-                        <span class="modal-help-inline">(tùy chọn khi Approve)</span>
+                        <span class="modal-help-inline">(optional on Approve)</span>
                     }
                 </label>
                 <textarea id="decide-comment" class="modal-input modal-input-textarea"
@@ -76,7 +76,7 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
         <button type="button" class="op-btn @SubmitButtonClass"
                 disabled="@(!CanSubmit())" @onclick="SubmitAsync">
             @SubmitLabel()
@@ -114,14 +114,14 @@
 
     private string SubmitLabel()
     {
-        if (_submitting) return "Đang gửi…";
-        return _decision == "Rejected" ? "Xác nhận Reject" : "Xác nhận Approve";
+        if (_submitting) return "Submitting…";
+        return _decision == "Rejected" ? "Confirm Reject" : "Confirm Approve";
     }
 
     private string CommentPlaceholder() =>
         _decision == "Rejected"
-            ? "Bắt buộc khi Reject — nêu rõ lý do để người thiết kế chỉnh sửa."
-            : "Có thể để trống.";
+            ? "Required on Reject — state the reason clearly so the designer can revise."
+            : "Can be left blank.";
 
     private bool CanSubmit()
     {
@@ -163,7 +163,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _error = $"Không kết nối được máy chủ: {ex.Message}";
+            _error = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -193,14 +193,14 @@
     private static string RoleLabel(DrawingApprovalRole r) => r switch
     {
         DrawingApprovalRole.Npi        => "NPI",
-        DrawingApprovalRole.Production => "Sản xuất",
+        DrawingApprovalRole.Production => "Production",
         DrawingApprovalRole.Qc         => "QC",
         _                              => r.ToString(),
     };
 
     private static string KindLabel(DrawingKindCode kind) => kind switch
     {
-        DrawingKindCode.CustomerDrawing    => "Bản vẽ khách hàng",
+        DrawingKindCode.CustomerDrawing    => "Customer drawing",
         DrawingKindCode.NpiPrintLayout     => "Print layout (NPI)",
         DrawingKindCode.NpiCutLayout       => "Cut layout (NPI)",
         DrawingKindCode.IpqcPrintReference => "IPQC Print reference",

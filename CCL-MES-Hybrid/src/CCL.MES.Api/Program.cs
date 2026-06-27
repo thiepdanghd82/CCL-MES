@@ -352,6 +352,19 @@ builder.Services.AddScoped<CCL.MES.Api.Services.UserProfileService>();
 // itself does no auth (called only by the controller).
 builder.Services.AddSingleton<CCL.MES.Api.Services.BackupApiService>();
 
+// P-Backup — automated nightly backup worker (local "3 copies" of IBM
+// 3-2-1). OFF by default; enable via Settings → Backup or OPS_BACKUP_SCHEDULE=1.
+// Reuses BackupApiService's online-safe snapshot, verifies + prunes, alerts
+// via OPS_BACKUP_WEBHOOK. Off-site copy = scripts/backup-offsite.{sh,ps1}.
+// Registered as a singleton so BackupController can inject it for
+// status / schedule-edit / run-now, then backed by the hosted service.
+builder.Services.AddHttpClient(); // IHttpClientFactory for webhook alerts
+builder.Services.AddSingleton<CCL.MES.Api.Services.BackupScheduleStore>();
+builder.Services.AddScoped<CCL.MES.Api.Services.BackupVerifier>();
+builder.Services.AddSingleton<CCL.MES.Api.Services.BackupSchedulerService>();
+builder.Services.AddHostedService(sp =>
+    sp.GetRequiredService<CCL.MES.Api.Services.BackupSchedulerService>());
+
 // P10.6e — Admin Audit Log viewer + CSV/XLSX export. Scoped because
 // the service depends on IMesDbContext (per-request scope). The
 // IAuditLogExporter instances (CSV + XLSX) are already registered as
@@ -535,6 +548,25 @@ using (var bootScope = app.Services.CreateScope())
             catch (Exception cfgEx)
             {
                 Console.WriteLine($"[boot] OQC 3-sig probe skipped: {cfgEx.GetType().Name}: {cfgEx.Message}");
+            }
+
+            // P10.7e-3 FIX (Henry RCA on PR #123) — QC profile boot probe
+            // per L23. Default profiles are embedded compile-time constants
+            // (no DB seed required), but the boot line lets ops grep at deploy
+            // and verify-p10.7e.sh assert the canonical counts so a future
+            // profile shrink (admin edits the const) trips CI rather than
+            // surfacing as silent 0/0 on the operator dashboard.
+            try
+            {
+                var fqcCount = CCL.MES.Application.Services.QcProfileSeed
+                    .CountItems(CCL.MES.Application.Services.QcProfileSeed.FqcProfileJson);
+                var oqcCount = CCL.MES.Application.Services.QcProfileSeed
+                    .CountItems(CCL.MES.Application.Services.QcProfileSeed.OqcProfileJson);
+                Console.WriteLine($"[seed] qc_profiles fqc={fqcCount} oqc={oqcCount}");
+            }
+            catch (Exception probeEx)
+            {
+                Console.WriteLine($"[boot] qc_profiles probe skipped: {probeEx.GetType().Name}: {probeEx.Message}");
             }
         }
     }

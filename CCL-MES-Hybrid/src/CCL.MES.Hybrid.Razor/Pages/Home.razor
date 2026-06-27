@@ -1,33 +1,179 @@
 @page "/"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@implements IDisposable
+@using System.Security.Claims
+@using CCL.MES.Shared.Home
 @inject IAuthSession Session
+@inject ICclApiClient Api
 
-<PageTitle>Trang chủ — CCL MES</PageTitle>
+<PageTitle>Home — CCL MES</PageTitle>
 
-<h1 class="page-title">Xin chào, @(_displayName)</h1>
-
-<p>Phase 10 P10.2 pilot — MAUI Blazor Hybrid client kết nối với CCL.MES.Api.</p>
-
-<div class="home-tiles">
-    @if (Session.CurrentUser.IsInRole("Admin")
-         || Session.CurrentUser.IsInRole("Supervisor")
-         || Session.CurrentUser.IsInRole("Engineer")
-         || Session.CurrentUser.IsInRole("QC"))
-    {
-        <a class="home-tile" href="/npi/workcenters">
-            <div class="home-tile-title">NPI</div>
-            <div class="home-tile-desc">Master data — Work Centers / Raw Materials / Routings</div>
-        </a>
-    }
+@* P10.10 — Home dashboard, SpecHub-style: greeting + live clock + 4 KPI
+   cards (accent border + subtitle) + Today's Focus + Modules grid +
+   Quick Actions. English UI. *@
+<div class="hp-header">
+    <div>
+        <h1 class="page-title">@_greeting, @(_displayName)</h1>
+        <div class="hp-sub">
+            @_now.ToString("dddd, MMMM d, yyyy") · CCL Design Vietnam
+            <span class="hp-badge">@_role</span>
+        </div>
+    </div>
+    <div class="home-clock" aria-label="System clock">
+        <div class="home-clock-time">@_now.ToString("h:mm")</div>
+        <div class="home-clock-date">@_now.ToString("tt") · @_now.ToString("HH:mm:ss")</div>
+    </div>
 </div>
+
+<div class="kpi-row">
+    <div class="kpi-card kpi-blue">
+        <div class="kpi-label">Specs in Library</div>
+        <div class="home-kpi-num">@KpiText(_summary?.SpecsTotal)</div>
+        <div class="kpi-sub">total stored revisions</div>
+    </div>
+    <div class="kpi-card kpi-amber">
+        <div class="kpi-label">Pending Approvals</div>
+        <div class="home-kpi-num">@KpiText(_summary?.PendingApprovals)</div>
+        <div class="kpi-sub">@PendingSub</div>
+    </div>
+    <div class="kpi-card kpi-red">
+        <div class="kpi-label">Drafts</div>
+        <div class="home-kpi-num">@KpiText(_summary?.Drafts)</div>
+        <div class="kpi-sub">@DraftsSub</div>
+    </div>
+    <div class="kpi-card kpi-green">
+        <div class="kpi-label">Today's Activity</div>
+        <div class="home-kpi-num">@KpiText(_summary?.TodayActivity)</div>
+        <div class="kpi-sub">@TodaySub</div>
+    </div>
+</div>
+
+<div class="hp-grid">
+    <section class="panel">
+        <div class="panel-head">
+            <span>Today's Focus</span>
+            @if (_canNpi)
+            {
+                <a class="panel-link" href="/npi/specs">View all →</a>
+            }
+        </div>
+        <div class="panel-body hp-focus-empty">
+            @if (_canNpi)
+            {
+                <text>Library is empty. Open NPI to load samples or import xlsx ☕</text>
+            }
+            else
+            {
+                <text>Nothing needs attention today ☕</text>
+            }
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-head"><span>Modules</span></div>
+        <div class="module-grid">
+            @if (_canNpi)
+            {
+                <a class="module-cell" href="/npi/specs">
+                    <div class="module-ico">📋</div>
+                    <div class="module-name">Engineer Spec</div>
+                    <div class="module-desc">NPI spec library</div>
+                </a>
+                <a class="module-cell" href="/npi/workcenters">
+                    <div class="module-ico">🗂️</div>
+                    <div class="module-name">NPI Data</div>
+                    <div class="module-desc">BOM / Routing / Materials / WC</div>
+                </a>
+            }
+            @if (_canRun)
+            {
+                <a class="module-cell" href="/workorders">
+                    <div class="module-ico">🏭</div>
+                    <div class="module-name">Production</div>
+                    <div class="module-desc">Scan WO · 5-stage MES flow</div>
+                </a>
+            }
+            <a class="module-cell" href="/machines">
+                <div class="module-ico">🖥️</div>
+                <div class="module-name">Machine Dashboard</div>
+                <div class="module-desc">Monitor 43 work centers</div>
+            </a>
+            <a class="module-cell" href="/settings">
+                <div class="module-ico">⚙️</div>
+                <div class="module-name">Settings</div>
+                <div class="module-desc">Profile / accounts / audit log</div>
+            </a>
+        </div>
+    </section>
+</div>
+
+<section class="panel">
+    <div class="panel-head"><span>Quick Actions</span></div>
+    <div class="qa-row">
+        @if (_canNpi)
+        {
+            <a class="qa-cell" href="/npi/specs"><div class="qa-ico">＋</div><div class="qa-lbl">New Spec</div></a>
+            <a class="qa-cell" href="/npi/specs"><div class="qa-ico">⭱</div><div class="qa-lbl">Import xlsx</div></a>
+        }
+        <a class="qa-cell" href="/machines"><div class="qa-ico">🖥️</div><div class="qa-lbl">Machines</div></a>
+        <a class="qa-cell" href="/qms"><div class="qa-ico">✓</div><div class="qa-lbl">QC Queue</div></a>
+        <a class="qa-cell" href="/shop-orders"><div class="qa-ico">🗂️</div><div class="qa-lbl">History</div></a>
+        @if (_isAdmin)
+        {
+            <a class="qa-cell" href="/settings/accounts"><div class="qa-ico">👥</div><div class="qa-lbl">Accounts</div></a>
+        }
+        <a class="qa-cell" href="/settings/about"><div class="qa-ico">?</div><div class="qa-lbl">Help</div></a>
+    </div>
+</section>
 
 @code {
     private string _displayName = "";
+    private string _greeting = "Hello";
+    private string _role = "";
+    private DateTime _now = DateTime.Now;
+    private System.Threading.Timer? _clock;
+
+    private bool _canNpi;
+    private bool _canRun;
+    private bool _isAdmin;
+    private HomeSummaryDto? _summary;
+
+    private static string KpiText(int? n) => n?.ToString() ?? "—";
+    private string PendingSub => (_summary?.PendingApprovals ?? 0) == 0 ? "— all clear" : "awaiting review";
+    private string DraftsSub => (_summary?.Drafts ?? 0) == 0 ? "— no drafts" : "in progress";
+    private string TodaySub => (_summary?.TodayActivity ?? 0) == 0 ? "— quiet day" : "WOs touched today";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _summary = await Api.GetHomeSummaryAsync(); }
+        catch { _summary = null; }
+    }
 
     protected override void OnInitialized()
     {
-        _displayName = Session.CurrentUser.FindFirst("display_name")?.Value
-            ?? Session.CurrentUser.Identity?.Name
+        var u = Session.CurrentUser;
+        _displayName = u.FindFirst("display_name")?.Value
+            ?? u.Identity?.Name
             ?? "operator";
+        _role = u.FindFirst(ClaimTypes.Role)?.Value ?? "";
+
+        // NOTE: if-chain, not a relational-pattern switch — a switch arm
+        // beginning with '<' breaks the Razor compiler (SDK 10.0.x, RZ1006).
+        var hour = _now.Hour;
+        if (hour < 12) _greeting = "Good morning";
+        else if (hour < 18) _greeting = "Good afternoon";
+        else _greeting = "Good evening";
+
+        _isAdmin = u.IsInRole("Admin");
+        _canNpi = _isAdmin || u.IsInRole("Supervisor") || u.IsInRole("Engineer") || u.IsInRole("QC");
+        _canRun = _isAdmin || u.IsInRole("Supervisor") || u.IsInRole("Operator") || u.IsInRole("QC");
+
+        _clock = new System.Threading.Timer(_ =>
+        {
+            _now = DateTime.Now;
+            _ = InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
     }
+
+    public void Dispose() => _clock?.Dispose();
 }

@@ -15,7 +15,7 @@
 
 @if (Windows is null || Windows.Count == 0)
 {
-    <p class="grid-status">Chưa có QC plan để capture.</p>
+    <p class="grid-status">No QC plan to capture yet.</p>
 }
 else
 {
@@ -28,7 +28,7 @@ else
     @if (!canEdit)
     {
         <div class="modal-banner modal-banner-warning" role="note">
-            Tài khoản hiện tại chỉ xem kết quả QC. Cần Admin hoặc Engineer để Ghi nhận.
+            The current account can only view QC results. Admin or Engineer is required to Record.
         </div>
     }
 
@@ -44,20 +44,20 @@ else
         <div class="qc-cap-stage-card">
             <div class="qc-stage-card-head">
                 <strong>@StageLabel(stage)</strong>
-                <span class="qc-stage-count">@window.Criteria.Count tiêu chí</span>
+                <span class="qc-stage-count">@window.Criteria.Count criteria</span>
             </div>
 
             <table class="qc-capture-table">
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Tiêu chí</th>
+                        <th>Criterion</th>
                         <th>Latest</th>
                         <th>Measurement</th>
-                        <th>Lý do</th>
-                        <th>Người ghi</th>
-                        <th>Thời gian</th>
-                        @if (canEdit) { <th class="qc-col-narrow">Ghi nhận</th> }
+                        <th>Reason</th>
+                        <th>Recorded by</th>
+                        <th>Time</th>
+                        @if (canEdit) { <th class="qc-col-narrow">Record</th> }
                     </tr>
                 </thead>
                 <tbody>
@@ -78,7 +78,7 @@ else
                             <td>
                                 @if (last is null)
                                 {
-                                    <span class="qc-capture-pill qc-capture-pending">Chưa có</span>
+                                    <span class="qc-capture-pill qc-capture-pending">None</span>
                                 }
                                 else
                                 {
@@ -94,7 +94,7 @@ else
                                 <td>
                                     <button type="button" class="grid-btn grid-btn-primary qc-cap-btn"
                                             @onclick="() => OpenCaptureModal(crit, stage)">
-                                        + Ghi nhận
+                                        + Record
                                     </button>
                                 </td>
                             }
@@ -104,13 +104,13 @@ else
                             <tr class="qc-history-row">
                                 <td colspan="@(canEdit ? 8 : 7)">
                                     <details class="qc-history-details">
-                                        <summary>Xem lịch sử (@historyList.Count bản ghi)</summary>
+                                        <summary>View history (@historyList.Count records)</summary>
                                         <table class="qc-history-table">
                                             <thead>
                                                 <tr>
-                                                    <th>Thời gian</th><th>Kết quả</th>
-                                                    <th>Measurement</th><th>Lý do</th>
-                                                    <th>Người</th><th>Comment</th>
+                                                    <th>Time</th><th>Result</th>
+                                                    <th>Measurement</th><th>Reason</th>
+                                                    <th>By</th><th>Comment</th>
                                                 </tr>
                                             </thead>
                                             <tbody>

@@ -66,3 +66,29 @@ public sealed record DrawingDecideResponse
     public DrawingSlotStatus DrawingStatus { get; init; }
     public int SupersededCount { get; init; }
 }
+
+/// <summary>
+/// P10.10 — Delete request body. Deleting an uploaded drawing version
+/// requires authenticating an NPI-team member (Admin, or Engineer whose
+/// Department is "npi"). The operator types that member's username +
+/// password; the server verifies the credential AND that the account is
+/// on the NPI team before the version (blob + metadata) is removed.
+/// </summary>
+public sealed record DrawingDeleteRequest
+{
+    public string Username { get; init; } = "";
+    public string Password { get; init; } = "";
+    /// <summary>Optional free-text reason recorded in the audit row.</summary>
+    public string? Reason { get; init; }
+}
+
+/// <summary>
+/// P10.10 — Delete response. Mirrors <c>DrawingDeleteResult</c>; the UI
+/// uses it to refresh the slot after a version is removed.
+/// </summary>
+public sealed record DrawingDeleteResponse
+{
+    public long DrawingId { get; init; }
+    public int RemainingVersions { get; init; }
+    public DrawingSlotStatus DrawingStatus { get; init; }
+}

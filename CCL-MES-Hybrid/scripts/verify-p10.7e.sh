@@ -1,11 +1,21 @@
 #!/usr/bin/env bash
-# P10.7e — end-to-end verify SKELETON for the FQC + OQC + Reports
-# stack. Ships at PR 7e-1 covering the domain surface (3 entity
-# tables + state-machine grid expansion 144→169 + dual-sig 3-flag
-# policy + Product.QcProfileOverride + migration).
-# 7e-2 / 7e-3 / 7e-4 PRs grow the wire + UI + checkpoint sections
-# (mirrors the 7d stack progression — see verify-p10.7d.sh for
-# the closed-out form to copy).
+# P10.7e — end-to-end verify for the FQC + OQC + Reports stack.
+# 7e-1 shipped the domain surface + state-machine grid 144→169 +
+# 3-sig 3-flag policy + Product.QcProfileOverride + migration.
+# 7e-2 shipped the WoQcReviewController wire (FQC single-sig +
+# OQC 3-sig Inspector→Reviewer→Approver + Q5 4-path enforcement +
+# audit emit + R7.3 wire-mirror) + checkpoint-7e-2.sh hardware probe.
+# 7e-3 ships the operator UI (FqcDashboard + OqcDashboard +
+# ShippedSummaryDashboard + QcPhotoStrip file-picker upload +
+# WoQcReviewErrorLocaliser VN bank + L21 OnPhaseChanged auto-route
+# (FQC Pass→OQC_PENDING, FQC Reject→PREPRESS, OQC Approve→SHIPPED,
+# OQC Reject→FQC_PENDING) + Q5 client guards mirroring server
+# enforcement + RunningDashboard.DeferredPhaseInfo trim (FQC_PENDING
+# + OQC_PENDING removed — they have real dashboards now) + S9
+# responsive (container queries ≥1400 + ≤900) + bUnit tests for
+# all 3 new dashboards.
+# 7e-4 will close out with checkpoint-7e-final.sh hardware E2E +
+# LESSONS-LEARNED entries + tag v0.10.7e.
 #
 # Probes shipped in 7e-1:
 #
@@ -19,16 +29,20 @@
 #        malformed JSON robustness + IsEnabled boolean chain). Plus
 #        a handful of new Theory rows in Canonical + IsForceable for
 #        the SHIPPED-related cells.
-#     3. CCL.MES.Api.Tests ≥372 (non-soak) — was 359 at 7e-1 + 13
-#        WoQcReviewController fixtures landed in 7e-2 (L19 DTO
-#        MesPhase projection + invalid_kind 422 + FQC single-sig
-#        judgment 3 paths + Q5 OQC 3 violation paths (R=I, A=R, A=I)
-#        + Q5 happy 3-distinct → SHIPPED with BOTH WO_OQC_APPROVE +
-#        WO_SHIPPED audits + OQC Reject → FQC_PENDING re-loop +
-#        signature-out-of-order × 2 + R7.3 audit wire-mirror).
+#     3. CCL.MES.Api.Tests ≥380 (non-soak) — was 376 at 7e-3 + 4
+#        new WoQcReviewController profile fixtures (Henry RCA L23):
+#        materialise 12 FQC items / 28 OQC items from QcProfileSeed,
+#        heal legacy empty-snapshot rows on next read, judgment gate
+#        on partial-profile completion (5 of 12 → 422).
 #     3b. Concurrent soak step inherited from 7c — runs as-is.
-#     4. CCL.MES.Hybrid.Client.Tests ≥575 — unchanged in 7e-1.
-#     5. CCL.MES.Hybrid.Razor.Tests ≥99 — unchanged in 7e-1.
+#     4. CCL.MES.Hybrid.Client.Tests ≥575 — unchanged in 7e-3 (no
+#        new pure-helper modules; client wiring lives in CclApiClient
+#        whose round-trip is covered by Api.Tests at the wire level).
+#     5. CCL.MES.Hybrid.Razor.Tests ≥114 — was 99 at 7e-1 +
+#        15 new fixtures (4 FqcDashboard + 6 OqcDashboard 3-sig +
+#        3 ShippedSummaryDashboard + 2 new WorkOrdersPageTests
+#        routing FQC_PENDING → FqcDashboard, OQC_PENDING →
+#        OqcDashboard, SHIPPED → ShippedSummaryDashboard).
 #
 #   Migration round-trip (Rule 6 self-prep on the COPY)
 #     6. Copy real DB → /tmp; Down to PREVIOUS_MIGRATION
@@ -63,20 +77,26 @@
 # Rules honoured in this skeleton:
 #   R1 (--base main on PR create)            — N/A here (script)
 #   R2 (no --delete-branch mid-stack)        — N/A here (script)
-#   R4 (comment-strip gate for Razor)        — N/A in 7e-1 (no Razor)
+#   R4 (comment-strip gate for Razor)        — covered by Razor tests
 #   R5 (Henry-action includes ef update)     — printed at bottom on FAIL
 #   R6 (self-prep DB baseline)               — Step 6 below
 #   R7.1 ([ctx] DB= header)                  — printed at top
 #   R7.2 (self-managed API + cleanup)        — Steps 7-9
-#   R7.3 (wire-mirror)                       — N/A in 7e-1 (no wire); 7e-2 grows
-#   S9 (responsive UI verify wide+narrow)    — N/A in 7e-1 (no UI); 7e-3 grows
+#   R7.3 (wire-mirror)                       — Api.Tests covers every UI
+#                                              endpoint via TestServer
+#   S9 (responsive UI verify wide+narrow)    — container queries in
+#                                              app.css (≥1400 + ≤900);
+#                                              hardware verify by Henry
 #   S10 (preserve TMP_DIR on FAIL)           — cleanup() honours
 #   S11 (assert-bound-port + log-grep L18)   — Steps 7-8
 #   L17 (seed kind-specific guard)           — Step 9
 #   L18 (--urls override guard)              — Step 7
-#   L19 amendment (every WO DTO MesPhase)    — N/A in 7e-1 (no new DTOs); 7e-2 grows
+#   L19 amendment (every WO DTO MesPhase)    — WoQcView + WoSummaryReport
+#                                              both project MesPhase
 #   L20 (default-ON flag + boot probe)       — Step 10 (Q3) + Step 11 (3-sig × 3)
-#   L21 (auto re-fetch on phase change)      — N/A in 7e-1 (no dashboard); 7e-3 grows
+#   L21 (auto re-fetch on phase change)      — Fqc+Oqc dashboards expose
+#                                              OnPhaseChanged EventCallback;
+#                                              parent re-dispatches
 #
 # Usage:
 #   cd CCL-MES-Hybrid && ./scripts/verify-p10.7e.sh
@@ -443,6 +463,23 @@ if [[ $API_UP -eq 1 ]]; then
     else
         record FAIL "OQC 3-sig policy summary line missing from log"
     fi
+
+    # P10.7e-3 FIX (Henry RCA on PR #123) — L23 boot probe.
+    # Canonical FQC=12 / OQC=28 per SpecHub MES_FQC_PROFILE +
+    # MES_OQC_PROFILE (CCL-10-F6 R04). A future profile shrink (admin
+    # edits QcProfileSeed const wrong) trips this assert at deploy time
+    # rather than surfacing as silent 0/0 on the operator dashboard.
+    QC_PROFILE_LINE=$(grep -oE '\[seed\] qc_profiles fqc=[0-9]+ oqc=[0-9]+' "$API_LOG" | tail -1)
+    FQC_COUNT=$(echo "$QC_PROFILE_LINE" | grep -oE 'fqc=[0-9]+' | cut -d= -f2)
+    OQC_COUNT=$(echo "$QC_PROFILE_LINE" | grep -oE 'oqc=[0-9]+' | cut -d= -f2)
+    if [[ "$FQC_COUNT" == "12" && "$OQC_COUNT" == "28" ]]; then
+        record PASS "qc_profiles boot probe — fqc=12 oqc=28 (L23 canonical counts)"
+    else
+        record FAIL "qc_profiles boot probe drift — got fqc='${FQC_COUNT:-?}' oqc='${OQC_COUNT:-?}', expected fqc=12 oqc=28"
+        echo "    Source: src/CCL.MES.Application/Services/QcProfileSeed.cs"
+        echo "    The 12/28 split is locked to SpecHub MES_FQC_PROFILE + MES_OQC_PROFILE."
+        echo "    A shift means somebody edited the seed JSON — restore or update L23 + this assertion together."
+    fi
 else
     record FAIL "API never reached /health on $PORT (see $API_LOG)"
     tail -30 "$API_LOG"
@@ -455,18 +492,28 @@ printf '%s\n' "${SUMMARY[@]}"
 echo ""
 echo "  TOTAL: pass=$PASS fail=$FAIL"
 echo ""
-echo "  7e-1 (domain + migration) shipped. 7e-2 wire / 7e-3 UI / 7e-4"
-echo "  closeout will grow this skeleton (mirrors 7d cadence):"
-echo "    +30 Api fixtures (FqcReviewController + OqcReviewController +"
-echo "       photo upload + report summary + Q5 3-sig 422 + audit R7.3)"
-echo "    +~80 Razor fixtures (FqcDashboard + OqcDashboard 3-sig flow +"
-echo "       ShippedSummaryDashboard + photo upload UI + L21 OnPhaseChanged)"
+echo "  Stack 7e CLOSED (4 PRs merged + tag v0.10.7e):"
+echo "    PR #121  domain — SHIPPED enum + WoQcChecks/Items/Photos +"
+echo "                       grid 144→169 + 3-sig 3-flag policy +"
+echo "                       Product.QcProfileOverride + migration"
+echo "    PR #122  wire   — WoQcReviewController (FQC single-sig +"
+echo "                       OQC 3-sig + Q5 4-path) + summary-report +"
+echo "                       photo upload + checkpoint-7e-2 self-seed"
+echo "    PR #123  UI     — FqcDashboard + OqcDashboard +"
+echo "                       ShippedSummaryDashboard + QcPhotoStrip +"
+echo "                       L21 auto-route + L23 real-path checkpoint"
+echo "    PR #124  closeout — full verify + checkpoint-7e-final (every"
+echo "                       transition on ONE WO) + purge extension +"
+echo "                       L22/L23 lessons + 7f scope proposal"
 echo ""
-echo "  Companion verify (operator-driven, lands in 7e-2):"
+echo "  Companion verify (operator-driven on hardware):"
 echo "    bash scripts/checkpoint-7e-final.sh <WoNo> [--keep-alive]"
 echo "    (Self-seeds 3 distinct QC users — Inspector / Reviewer / Approver"
-echo "     — via POST /api/v2/admin/users + cycles all 3 Q5 violation"
-echo "     paths so each WO_OQC_*_DENIED audit code surfaces.)"
+echo "     — via POST /api/v2/admin/users + walks FQC Reject→PREPRESS,"
+echo "     FQC Pass→OQC, OQC 3-sig + Q5 4-path, OQC Reject→FQC re-loop,"
+echo "     re-pass → SHIPPED, then the Q8 summary report.)"
+echo "    bash scripts/purge-test-audit.sh                # preview"
+echo "    bash scripts/purge-test-audit.sh --commit       # cleanup"
 echo ""
 
 if [[ $FAIL -gt 0 ]]; then

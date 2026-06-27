@@ -7,13 +7,17 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
+using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
+using CCL.MES.Shared.Qms;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
+using CCL.MES.Shared.WoQcReview;
 using CCL.MES.Shared.WorkOrders;
 
 namespace CCL.MES.Hybrid.Razor.Tests._Support;
@@ -81,6 +85,88 @@ public sealed class RecordingApi : ICclApiClient
     public List<(long Id, string ETag, RunPauseRequest Req)> RunPauseCalls { get; } = new();
     public List<(long Id, string ETag)> RunResumeCalls { get; } = new();
     public List<(long Id, string ETag)> RunFinishCalls { get; } = new();
+
+    // P10.10 — Home summary. Defaults to a zero-count DTO so pages that
+    // fetch it on init render the "—"/0 tiles without a bespoke stub.
+    public HomeSummaryDto? HomeSummary { get; set; } = new HomeSummaryDto();
+    public int HomeSummaryCalls { get; private set; }
+
+    public Task<HomeSummaryDto?> GetHomeSummaryAsync(CancellationToken ct = default)
+    {
+        HomeSummaryCalls++;
+        return Task.FromResult(HomeSummary);
+    }
+
+    // P10.5 — NPI CSV import. Records (kind, fileName) of each call.
+    public CCL.MES.Hybrid.Client.Npi.NpiImportResultDto? NpiImport { get; set; }
+        = new CCL.MES.Hybrid.Client.Npi.NpiImportResultDto { Kind = "structures", Inserted = 0, Skipped = 0 };
+    public List<(string Kind, string FileName)> NpiImportCalls { get; } = new();
+
+    public Task<CCL.MES.Hybrid.Client.Npi.NpiImportResultDto?> ImportNpiAsync(string kind, string fileName, byte[] content, CancellationToken ct = default)
+    {
+        NpiImportCalls.Add((kind, fileName));
+        return Task.FromResult(NpiImport);
+    }
+
+    // P10.8 — Machine Dashboard. Defaults to an empty board.
+    public MachineDashboardDto? MachineDashboard { get; set; } = new MachineDashboardDto();
+    public int MachineDashboardCalls { get; private set; }
+
+    public Task<MachineDashboardDto?> GetMachineDashboardAsync(CancellationToken ct = default)
+    {
+        MachineDashboardCalls++;
+        return Task.FromResult(MachineDashboard);
+    }
+
+    // P10.8 slice 3 — per-machine detail. Settable per test; records the
+    // requested work-center id.
+    public MachineDetailDto? MachineDetail { get; set; }
+    public List<long> MachineDetailCalls { get; } = new();
+
+    public Task<MachineDetailDto?> GetMachineDetailAsync(long workCenterId, CancellationToken ct = default)
+    {
+        MachineDetailCalls.Add(workCenterId);
+        return Task.FromResult(MachineDetail);
+    }
+
+    // P10.8 — Shop Order History. Records the filters of each call.
+    public ShopOrderHistoryDto? ShopOrderHistory { get; set; } = new ShopOrderHistoryDto();
+    public List<(string? Period, string? Search, string? Status, string? Customer, string? Machine)> ShopOrderHistoryCalls { get; } = new();
+
+    public Task<ShopOrderHistoryDto?> GetShopOrderHistoryAsync(string? period, string? search,
+        string? status = null, string? customer = null, string? machine = null, CancellationToken ct = default)
+    {
+        ShopOrderHistoryCalls.Add((period, search, status, customer, machine));
+        return Task.FromResult(ShopOrderHistory);
+    }
+
+    // P10.9 — QMS Inspection Queue.
+    public QmsQueueDto? QmsQueue { get; set; } = new QmsQueueDto();
+    public int QmsQueueCalls { get; private set; }
+
+    public Task<QmsQueueDto?> GetQmsQueueAsync(CancellationToken ct = default)
+    {
+        QmsQueueCalls++;
+        return Task.FromResult(QmsQueue);
+    }
+
+    // P10.9 — QC History. Records (kind, judgment, search) of each call.
+    public QcHistoryDto? QcHistory { get; set; } = new QcHistoryDto();
+    public List<(string? Kind, string? Judgment, string? Search)> QcHistoryCalls { get; } = new();
+
+    public Task<QcHistoryDto?> GetQcHistoryAsync(string? kind, string? judgment, string? search, CancellationToken ct = default)
+    {
+        QcHistoryCalls.Add((kind, judgment, search));
+        return Task.FromResult(QcHistory);
+    }
+
+    public IReadOnlyList<ActiveWorkOrderCard> ActiveWorkOrders { get; set; } = System.Array.Empty<ActiveWorkOrderCard>();
+    public Task<IReadOnlyList<ActiveWorkOrderCard>> GetActiveWorkOrdersAsync(CancellationToken ct = default)
+        => Task.FromResult(ActiveWorkOrders);
+
+    public IReadOnlyList<WoAuditEntry> WoAudit { get; set; } = System.Array.Empty<WoAuditEntry>();
+    public Task<IReadOnlyList<WoAuditEntry>> GetWoAuditAsync(long workOrderId, CancellationToken ct = default)
+        => Task.FromResult(WoAudit);
 
     public Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
     {
@@ -274,6 +360,103 @@ public sealed class RecordingApi : ICclApiClient
             : PostQaApproveImpl(workOrderId, ifMatchETag, req, ct);
     }
 
+    // ── P10.7e-3 — WoQc (FQC + OQC + photo + summary) hooks ───────
+    public Func<long, string, CancellationToken, Task<WoQcView>>? WoQcViewImpl { get; set; }
+    public Func<long, string, string, string, SetWoQcItemRequest, CancellationToken, Task<WoQcSetResponse>>? PutWoQcItemImpl { get; set; }
+    public Func<long, string, SubmitFqcJudgmentRequest, CancellationToken, Task<WoQcSetResponse>>? PostFqcJudgmentImpl { get; set; }
+    public Func<long, string, OqcInspectRequest, CancellationToken, Task<WoQcSetResponse>>? PostOqcInspectImpl { get; set; }
+    public Func<long, string, OqcReviewRequest, CancellationToken, Task<WoQcSetResponse>>? PostOqcReviewImpl { get; set; }
+    public Func<long, string, OqcApproveRequest, CancellationToken, Task<WoQcSetResponse>>? PostOqcApproveImpl { get; set; }
+    public Func<long, string, string, CancellationToken, Task<IReadOnlyList<WoQcPhotoDto>>>? WoQcPhotosImpl { get; set; }
+    public Func<long, string, string, string, Stream, string, string, CancellationToken, Task<WoQcPhotoUploadResponse>>? UploadWoQcPhotoImpl { get; set; }
+    public Func<long, string, string, long, string, CancellationToken, Task<WoQcSetResponse>>? DeleteWoQcPhotoImpl { get; set; }
+    public Func<long, CancellationToken, Task<WoSummaryReport>>? WoSummaryReportImpl { get; set; }
+
+    public List<(long Id, string Kind)> WoQcViewCalls { get; } = new();
+    public List<(long Id, string Kind, string ItemKey, string ETag, SetWoQcItemRequest Req)> PutWoQcItemCalls { get; } = new();
+    public List<(long Id, string ETag, SubmitFqcJudgmentRequest Req)> PostFqcJudgmentCalls { get; } = new();
+    public List<(long Id, string ETag)> PostOqcInspectCalls { get; } = new();
+    public List<(long Id, string ETag)> PostOqcReviewCalls { get; } = new();
+    public List<(long Id, string ETag, OqcApproveRequest Req)> PostOqcApproveCalls { get; } = new();
+    public List<long> WoSummaryReportCalls { get; } = new();
+
+    public Task<WoQcView> GetWoQcViewAsync(long workOrderId, string kind, CancellationToken ct = default)
+    {
+        WoQcViewCalls.Add((workOrderId, kind));
+        return WoQcViewImpl is null
+            ? throw new InvalidOperationException("WoQcViewImpl not set")
+            : WoQcViewImpl(workOrderId, kind, ct);
+    }
+
+    public Task<WoQcSetResponse> PutWoQcItemAsync(long workOrderId, string kind, string itemKey, string ifMatchETag, SetWoQcItemRequest req, CancellationToken ct = default)
+    {
+        PutWoQcItemCalls.Add((workOrderId, kind, itemKey, ifMatchETag, req));
+        return PutWoQcItemImpl is null
+            ? throw new InvalidOperationException("PutWoQcItemImpl not set")
+            : PutWoQcItemImpl(workOrderId, kind, itemKey, ifMatchETag, req, ct);
+    }
+
+    public Task<WoQcSetResponse> PostFqcJudgmentAsync(long workOrderId, string ifMatchETag, SubmitFqcJudgmentRequest req, CancellationToken ct = default)
+    {
+        PostFqcJudgmentCalls.Add((workOrderId, ifMatchETag, req));
+        return PostFqcJudgmentImpl is null
+            ? throw new InvalidOperationException("PostFqcJudgmentImpl not set")
+            : PostFqcJudgmentImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<WoQcSetResponse> PostOqcInspectAsync(long workOrderId, string ifMatchETag, OqcInspectRequest req, CancellationToken ct = default)
+    {
+        PostOqcInspectCalls.Add((workOrderId, ifMatchETag));
+        return PostOqcInspectImpl is null
+            ? throw new InvalidOperationException("PostOqcInspectImpl not set")
+            : PostOqcInspectImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<WoQcSetResponse> PostOqcReviewAsync(long workOrderId, string ifMatchETag, OqcReviewRequest req, CancellationToken ct = default)
+    {
+        PostOqcReviewCalls.Add((workOrderId, ifMatchETag));
+        return PostOqcReviewImpl is null
+            ? throw new InvalidOperationException("PostOqcReviewImpl not set")
+            : PostOqcReviewImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<WoQcSetResponse> PostOqcApproveAsync(long workOrderId, string ifMatchETag, OqcApproveRequest req, CancellationToken ct = default)
+    {
+        PostOqcApproveCalls.Add((workOrderId, ifMatchETag, req));
+        return PostOqcApproveImpl is null
+            ? throw new InvalidOperationException("PostOqcApproveImpl not set")
+            : PostOqcApproveImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<IReadOnlyList<WoQcPhotoDto>> GetWoQcPhotosAsync(long workOrderId, string kind, string itemKey, CancellationToken ct = default)
+    {
+        return WoQcPhotosImpl is null
+            ? Task.FromResult<IReadOnlyList<WoQcPhotoDto>>(Array.Empty<WoQcPhotoDto>())
+            : WoQcPhotosImpl(workOrderId, kind, itemKey, ct);
+    }
+
+    public Task<WoQcPhotoUploadResponse> UploadWoQcPhotoAsync(long workOrderId, string kind, string itemKey, string ifMatchETag, Stream content, string fileName, string mimeType, CancellationToken ct = default)
+    {
+        return UploadWoQcPhotoImpl is null
+            ? throw new InvalidOperationException("UploadWoQcPhotoImpl not set")
+            : UploadWoQcPhotoImpl(workOrderId, kind, itemKey, ifMatchETag, content, fileName, mimeType, ct);
+    }
+
+    public Task<WoQcSetResponse> DeleteWoQcPhotoAsync(long workOrderId, string kind, string itemKey, long photoId, string ifMatchETag, CancellationToken ct = default)
+    {
+        return DeleteWoQcPhotoImpl is null
+            ? throw new InvalidOperationException("DeleteWoQcPhotoImpl not set")
+            : DeleteWoQcPhotoImpl(workOrderId, kind, itemKey, photoId, ifMatchETag, ct);
+    }
+
+    public Task<WoSummaryReport> GetWoSummaryReportAsync(long workOrderId, CancellationToken ct = default)
+    {
+        WoSummaryReportCalls.Add(workOrderId);
+        return WoSummaryReportImpl is null
+            ? throw new InvalidOperationException("WoSummaryReportImpl not set")
+            : WoSummaryReportImpl(workOrderId, ct);
+    }
+
     public Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default)
     {
         ScanLogCalls.Add(req);
@@ -304,6 +487,9 @@ public sealed class RecordingApi : ICclApiClient
     public Task<SpecMutationResponse> CreateSpecAsync(CreateSpecMutation r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> ApproveSpecAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> CopySpecAsync(long s, CopySpecMutation r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecMutationResponse> DuplicateSpecAsync(long s, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<SpecMutationResponse> NewVersionSpecAsync(long s, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<byte[]> DownloadDrawingBytesAsync(long r, long v, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> ReviseSpecAsync(long s, ReviseSpecMutation r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> SupersedeSpecAsync(long r, SupersedeSpecMutation req, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> TrashSpecAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
@@ -315,6 +501,7 @@ public sealed class RecordingApi : ICclApiClient
     public Task<DrawingUploadResponse> UploadDrawingAsync(long a, string b, Stream s, string n, string? r = null, CancellationToken c = default) => throw new NotImplementedException();
     public Task<long> DownloadDrawingToFileAsync(long a, long b, string c, CancellationToken d = default) => throw new NotImplementedException();
     public Task<DrawingDecideResponse> DecideDrawingAsync(long a, long b, DrawingDecideRequest r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<DrawingDeleteResponse> DeleteDrawingVersionAsync(long a, long b, DrawingDeleteRequest r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<Dictionary<string, QcWindowItem?>> GetQcWindowsByRevisionAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<List<QcCaptureItem>> GetQcCapturesByRevisionAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<List<QcReasonCode>> GetQcReasonCodesAsync(CancellationToken c = default) => throw new NotImplementedException();
@@ -336,4 +523,7 @@ public sealed class RecordingApi : ICclApiClient
     public Task<List<BackupSnapshotDto>> ListBackupsAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<BackupSnapshotDto> CreateBackupAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<RestoreResultDto> RestoreBackupAsync(Stream a, string b, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<BackupScheduleStatusDto> GetBackupScheduleAsync(CancellationToken c = default) => throw new NotImplementedException();
+    public Task<BackupScheduleStatusDto> SetBackupScheduleAsync(BackupScheduleUpdateRequest r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<BackupRunResultDto> RunBackupNowAsync(CancellationToken c = default) => throw new NotImplementedException();
 }

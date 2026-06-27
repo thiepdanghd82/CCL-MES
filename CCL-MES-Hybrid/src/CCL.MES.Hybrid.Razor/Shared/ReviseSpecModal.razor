@@ -11,26 +11,26 @@
 
 <Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Warning"
        ClickOutsideToClose="false">
-    <Header>Tạo Revise của Spec @SourceSpec?.SpecCode</Header>
+    <Header>Create Revise of Spec @SourceSpec?.SpecCode</Header>
     <Body>
         @if (SourceSpec is null)
         {
-            <p class="grid-status">Chưa có Spec nguồn.</p>
+            <p class="grid-status">No source Spec yet.</p>
         }
         else
         {
             <p class="modal-helper">
-                Bản nháp mới sẽ được tạo + bản nguồn (@SourceSpec.SpecCode Rev @SourceSpec.RevisionCode)
-                sẽ tự đánh dấu <strong>Đã thay thế</strong>. Hành động này không thể tự hoàn tác.
+                A new draft will be created + the source (@SourceSpec.SpecCode Rev @SourceSpec.RevisionCode)
+                will automatically be marked <strong>Superseded</strong>. This action cannot be undone automatically.
             </p>
             <form @onsubmit:preventDefault="true">
                 <div class="modal-field">
-                    <label for="rv-reason">Lý do Revise <span class="modal-req">*</span></label>
+                    <label for="rv-reason">Revise reason <span class="modal-req">*</span></label>
                     <textarea id="rv-reason" class="modal-input modal-input-textarea" rows="4"
-                              maxlength="500" placeholder="Tối thiểu 5 ký tự"
+                              maxlength="500" placeholder="At least 5 characters"
                               @bind="_reason" @bind:event="oninput" disabled="@_submitting"></textarea>
                     <div class="modal-helper-line">
-                        @(_reason?.Trim().Length ?? 0) / 5 ký tự tối thiểu
+                        @(_reason?.Trim().Length ?? 0) / 5 characters minimum
                     </div>
                 </div>
                 @if (_error is not null)
@@ -42,10 +42,10 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
         <button type="button" class="op-btn op-btn-warning"
                 disabled="@(!CanSubmit())" @onclick="SubmitAsync">
-            @(_submitting ? "Đang tạo Revise…" : "Tạo Revise")
+            @(_submitting ? "Creating Revise…" : "Create Revise")
         </button>
     </Footer>
 </Modal>
@@ -90,7 +90,7 @@
             if (OnClose.HasDelegate) await OnClose.InvokeAsync();
         }
         catch (ApiException apiEx) { _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
-        catch (HttpRequestException ex) { _error = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _submitting = false; }
     }

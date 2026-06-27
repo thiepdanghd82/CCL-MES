@@ -42,12 +42,12 @@
             case Stage.Uploading:
             case Stage.Saving:
                 <p class="grid-status import-busy">
-                    @(_stage == Stage.Uploading ? "Đang tải lên + đọc file…" : "Đang lưu vào hệ thống…")
+                    @(_stage == Stage.Uploading ? "Uploading + reading file…" : "Saving to the system…")
                 </p>
                 break;
             case Stage.PreviewError:
                 <div class="modal-banner modal-banner-error" role="alert">
-                    <strong>Không đọc được file xlsx.</strong>
+                    <strong>Could not read the xlsx file.</strong>
                     <div>@_error</div>
                 </div>
                 @if (_warnings.Count > 0)
@@ -59,7 +59,7 @@
                 break;
             case Stage.SaveError:
                 <div class="modal-banner modal-banner-error" role="alert">
-                    <strong>Lưu thất bại.</strong>
+                    <strong>Save failed.</strong>
                     <div>@_error</div>
                 </div>
                 @if (_preview is not null)
@@ -72,8 +72,8 @@
                 break;
             case Stage.SaveOk:
                 <div class="modal-banner modal-banner-success" role="status">
-                    <strong>Đã lưu Spec mới.</strong>
-                    <div>Spec <code>@_saveResponse?.SpecCode</code> — @_saveResponse?.RowsParsed dòng dữ liệu.</div>
+                    <strong>New Spec saved.</strong>
+                    <div>Spec <code>@_saveResponse?.SpecCode</code> — @_saveResponse?.RowsParsed data rows.</div>
                 </div>
                 break;
         }
@@ -83,23 +83,23 @@
         {
             case Stage.Choose:
                 <button type="button" class="op-btn op-btn-secondary"
-                        disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+                        disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
                 <button type="button" class="op-btn op-btn-primary"
                         disabled="@(!CanUpload())" @onclick="StartUploadAsync">
-                    @(_submitting ? "Đang tải…" : "Chọn file + xem trước")
+                    @(_submitting ? "Loading…" : "Choose file + preview")
                 </button>
                 break;
 
             case Stage.Uploading:
             case Stage.Saving:
-                <button type="button" class="op-btn op-btn-secondary" disabled="true">Đang xử lý…</button>
+                <button type="button" class="op-btn op-btn-secondary" disabled="true">Processing…</button>
                 break;
 
             case Stage.PreviewError:
                 <button type="button" class="op-btn op-btn-secondary"
-                        @onclick="ResetToChooseAsync">Chọn file khác</button>
+                        @onclick="ResetToChooseAsync">Choose another file</button>
                 <button type="button" class="op-btn op-btn-primary"
-                        @onclick="StartUploadAsync">Thử lại</button>
+                        @onclick="StartUploadAsync">Retry</button>
                 break;
 
             case Stage.PreviewOk:
@@ -108,13 +108,13 @@
 
             case Stage.SaveError:
                 <button type="button" class="op-btn op-btn-secondary"
-                        @onclick="ResetToChooseAsync">Chọn file khác</button>
+                        @onclick="ResetToChooseAsync">Choose another file</button>
                 <button type="button" class="op-btn op-btn-primary"
-                        @onclick="() => SaveAsync(_lastMode)">Thử lại</button>
+                        @onclick="() => SaveAsync(_lastMode)">Retry</button>
                 break;
 
             case Stage.SaveOk:
-                <button type="button" class="op-btn op-btn-primary" @onclick="RequestCloseAsync">Đóng</button>
+                <button type="button" class="op-btn op-btn-primary" @onclick="RequestCloseAsync">Close</button>
                 break;
         }
     </Footer>
@@ -129,11 +129,11 @@
 
     private static readonly (string Code, string Label)[] CategoryOptions = new[]
     {
-        ("silkscreen", "Lụa (Silkscreen)"),
+        ("silkscreen", "Silkscreen"),
         ("flexo",       "Flexo"),
         ("letterpress", "Letterpress"),
         ("indigo",      "Indigo"),
-        ("diecut",      "Bế (Die-cut)"),
+        ("diecut",      "Diecut"),
     };
 
     private Stage _stage = Stage.Choose;
@@ -162,13 +162,13 @@
 
     private string StageTitle => _stage switch
     {
-        Stage.Choose       => "Import Spec từ file xlsx",
-        Stage.Uploading    => "Đang tải file…",
-        Stage.PreviewOk    => "Xem trước Spec",
-        Stage.PreviewError => "Lỗi đọc file",
-        Stage.Saving       => "Đang lưu…",
-        Stage.SaveOk       => "Hoàn tất",
-        Stage.SaveError    => "Lỗi lưu",
+        Stage.Choose       => "Import Spec from xlsx file",
+        Stage.Uploading    => "Uploading file…",
+        Stage.PreviewOk    => "Spec preview",
+        Stage.PreviewError => "File read error",
+        Stage.Saving       => "Saving…",
+        Stage.SaveOk       => "Complete",
+        Stage.SaveError    => "Save error",
         _                  => "Import Spec",
     };
 
@@ -182,9 +182,9 @@
     private RenderFragment RenderChooseStage() => __builder =>
     {
         <text>
-        <p class="import-help">Chọn loại quy trình của Spec rồi bấm <strong>Chọn file</strong> để mở hộp thoại hệ thống.</p>
+        <p class="import-help">Select the Spec's process type, then click <strong>Choose file</strong> to open the system dialog.</p>
         <div class="modal-field">
-            <label>Loại quy trình <span class="modal-req">*</span></label>
+            <label>Process type <span class="modal-req">*</span></label>
             <div class="import-category-row" role="radiogroup" aria-label="Planner category">
                 @foreach (var opt in CategoryOptions)
                 {
@@ -197,8 +197,8 @@
             </div>
         </div>
         <p class="import-help-note">
-            File phải là <code>.xlsx</code> hợp lệ, kích thước ≤ 10 MB. Khi mở
-            hộp thoại, hệ điều hành sẽ chỉ cho chọn file đúng định dạng.
+            The file must be a valid <code>.xlsx</code>, size ≤ 10 MB. When the
+            dialog opens, the operating system will only allow files of the correct format.
         </p>
         @if (_error is not null)
         {
@@ -216,15 +216,15 @@
             var vm = SpecShowcardVm.FromImportSummary(_preview.Summary, _preview.FileName);
             <div class="import-preview-meta">
                 <span><strong>File:</strong> <code>@_preview.FileName</code></span>
-                <span><strong>Kích thước:</strong> @FormatBytes(_preview.FileSizeBytes)</span>
-                <span><strong>Quy trình:</strong> @ResolveCategoryLabel(_preview.PlannerCategory)</span>
+                <span><strong>Size:</strong> @FormatBytes(_preview.FileSizeBytes)</span>
+                <span><strong>Process:</strong> @ResolveCategoryLabel(_preview.PlannerCategory)</span>
             </div>
             <SpecShowcardCompact Vm="vm" />
         }
         @if (_preview.Warnings.Count > 0)
         {
             <details class="import-warnings-block" open>
-                <summary>Cảnh báo khi đọc file (@_preview.Warnings.Count)</summary>
+                <summary>Warnings while reading the file (@_preview.Warnings.Count)</summary>
                 <ul class="import-warnings">
                     @foreach (var w in _preview.Warnings) { <li>@w</li> }
                 </ul>
@@ -244,27 +244,27 @@
         @if (isDraft)
         {
             <div class="modal-banner modal-banner-error" role="alert">
-                <strong>Trùng Spec đang ở trạng thái Bản nháp.</strong>
+                <strong>Duplicate Spec is in Draft status.</strong>
                 <div>
-                    Mã Spec <code>@_preview!.DuplicateSpecCode</code> (id @_preview.DuplicateRevisionId)
-                    đã có REF NO này. Hệ thống không cho phép thay thế bản nháp —
-                    sửa trực tiếp bản nháp đó hoặc đổi REF NO trong file rồi import lại.
+                    Spec code <code>@_preview!.DuplicateSpecCode</code> (id @_preview.DuplicateRevisionId)
+                    already has this REF NO. The system does not allow replacing a draft —
+                    edit that draft directly or change the REF NO in the file and import again.
                 </div>
             </div>
         }
         else
         {
             <div class="modal-banner modal-banner-warning" role="alert">
-                <strong>Đã tồn tại Spec @ResolveDupStatusLabel(_preview!.DuplicateStatus) với cùng REF NO.</strong>
+                <strong>A Spec @ResolveDupStatusLabel(_preview!.DuplicateStatus) with the same REF NO already exists.</strong>
                 <div>
-                    Mã Spec hiện có: <code>@_preview.DuplicateSpecCode</code>.
-                    Chọn hành động bên dưới.
+                    Existing Spec code: <code>@_preview.DuplicateSpecCode</code>.
+                    Choose an action below.
                 </div>
             </div>
             <div class="modal-field">
-                <label for="import-copy-code">Mã Spec mới (nếu "Lưu thành bản sao")</label>
+                <label for="import-copy-code">New Spec code (if "Save as copy")</label>
                 <input id="import-copy-code" type="text" class="modal-input" maxlength="64"
-                       placeholder="@($"VD: {_preview.DuplicateSpecCode}-COPY")"
+                       placeholder="@($"e.g. {_preview.DuplicateSpecCode}-COPY")"
                        @bind="_copySpecCode" @bind:event="oninput" disabled="@_submitting" />
             </div>
         }
@@ -279,28 +279,28 @@
         @if (isDraftDup)
         {
             <button type="button" class="op-btn op-btn-secondary"
-                    @onclick="RequestCloseAsync">Hủy</button>
+                    @onclick="RequestCloseAsync">Cancel</button>
         }
         else if (_preview.DuplicateRefNo)
         {
             <button type="button" class="op-btn op-btn-secondary"
-                    disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+                    disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
             <button type="button" class="op-btn op-btn-secondary"
                     disabled="@_submitting" @onclick="() => SaveAsync(SpecImportSaveMode.SaveAsCopy)">
-                @(_submitting && _lastMode == SpecImportSaveMode.SaveAsCopy ? "Đang lưu…" : "Lưu thành bản sao")
+                @(_submitting && _lastMode == SpecImportSaveMode.SaveAsCopy ? "Saving…" : "Save as copy")
             </button>
             <button type="button" class="op-btn op-btn-warning"
                     disabled="@_submitting" @onclick="() => SaveAsync(SpecImportSaveMode.UpgradeRev)">
-                @(_submitting && _lastMode == SpecImportSaveMode.UpgradeRev ? "Đang lưu…" : "Thay thế (Upgrade Rev)")
+                @(_submitting && _lastMode == SpecImportSaveMode.UpgradeRev ? "Saving…" : "Supersede (Upgrade Rev)")
             </button>
         }
         else
         {
             <button type="button" class="op-btn op-btn-secondary"
-                    disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+                    disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
             <button type="button" class="op-btn op-btn-primary"
                     disabled="@_submitting" @onclick="() => SaveAsync(SpecImportSaveMode.SaveNew)">
-                @(_submitting ? "Đang lưu…" : "Lưu vào hệ thống")
+                @(_submitting ? "Saving…" : "Save to system")
             </button>
         }
         </text>
@@ -335,7 +335,7 @@
             await DisposePickedFileAsync();
             if (!_preview.ParseOk)
             {
-                _error = string.IsNullOrWhiteSpace(_preview.ParseError) ? "Không đọc được file xlsx." : _preview.ParseError;
+                _error = string.IsNullOrWhiteSpace(_preview.ParseError) ? "Could not read the xlsx file." : _preview.ParseError;
                 _warnings = _preview.Warnings;
                 _stage = Stage.PreviewError;
             }
@@ -351,12 +351,12 @@
         }
         catch (HttpRequestException ex)
         {
-            _error = $"Không kết nối được máy chủ: {ex.Message}";
+            _error = $"Could not connect to the server: {ex.Message}";
             _stage = Stage.PreviewError;
         }
         catch (TaskCanceledException)
         {
-            _error = "Tải file quá lâu (vượt 90 giây). Kiểm tra mạng rồi thử lại.";
+            _error = "The file upload took too long (over 90 seconds). Check your network and try again.";
             _stage = Stage.PreviewError;
         }
         catch (Exception ex)
@@ -376,14 +376,14 @@
         if (_submitting) return;
         if (_preview is null || string.IsNullOrWhiteSpace(_preview.ParsedJson))
         {
-            _error = "Phiên xem trước đã hết hạn — chọn lại file.";
+            _error = "The preview session has expired — choose the file again.";
             _stage = Stage.PreviewError;
             StateHasChanged();
             return;
         }
         if (mode == SpecImportSaveMode.SaveAsCopy && string.IsNullOrWhiteSpace(_copySpecCode))
         {
-            _error = "Phải nhập Mã Spec mới khi chọn Lưu thành bản sao.";
+            _error = "You must enter a new Spec code when choosing Save as copy.";
             _stage = Stage.SaveError;
             StateHasChanged();
             return;
@@ -415,7 +415,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _error = $"Không kết nối được máy chủ: {ex.Message}";
+            _error = $"Could not connect to the server: {ex.Message}";
             _stage = Stage.SaveError;
         }
         catch (Exception ex)
@@ -480,12 +480,12 @@
 
     private static string ResolveDupStatusLabel(string? raw) => (raw ?? "") switch
     {
-        "Draft"      => "Bản nháp",
-        "InReview"   => "Đang xét",
-        "Approved"   => "Đã duyệt",
-        "Released"   => "Đã phát hành",
-        "Superseded" => "Đã thay thế",
-        _            => raw ?? "(không rõ)",
+        "Draft"      => "Draft",
+        "InReview"   => "In Review",
+        "Approved"   => "Approved",
+        "Released"   => "Released",
+        "Superseded" => "Superseded",
+        _            => raw ?? "(unknown)",
     };
 
     private static string FormatBytes(long bytes)

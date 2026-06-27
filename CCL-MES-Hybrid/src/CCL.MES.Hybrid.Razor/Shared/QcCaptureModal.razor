@@ -19,14 +19,14 @@
         @if (Open)
         {
             <p class="modal-help">
-                Ghi nhận kết quả cho tiêu chí
+                Record the result for criterion
                 <strong>@(Criterion?.Name ?? "—")</strong>
                 · Stage <strong>@StageLabel</strong>.
             </p>
 
             <div class="modal-field">
-                <label>Kết quả <span class="modal-req">*</span></label>
-                <div class="qc-result-row" role="radiogroup" aria-label="Kết quả">
+                <label>Result <span class="modal-req">*</span></label>
+                <div class="qc-result-row" role="radiogroup" aria-label="Result">
                     @foreach (var opt in new[] { QcCaptureResult.Pass, QcCaptureResult.Fail, QcCaptureResult.Na })
                     {
                         var active = _result == opt;
@@ -41,22 +41,22 @@
             </div>
 
             <div class="modal-field">
-                <label for="qc-measurement">Measurement (tùy chọn)</label>
+                <label for="qc-measurement">Measurement (optional)</label>
                 <input id="qc-measurement" type="text" class="modal-input" maxlength="200"
-                       placeholder="VD: 12.5mm / OK / ±0.1"
+                       placeholder="e.g. 12.5mm / OK / ±0.1"
                        @bind="_measurement" @bind:event="oninput" disabled="@_submitting" />
             </div>
 
             <div class="modal-field">
                 <label for="qc-reason">
-                    Mã lý do
+                    Reason code
                     @if (_result == QcCaptureResult.Fail) { <span class="modal-req">*</span> }
-                    else { <span class="modal-help-inline">(bắt buộc khi FAIL)</span> }
+                    else { <span class="modal-help-inline">(required on FAIL)</span> }
                 </label>
                 <select id="qc-reason" class="modal-input"
                         @bind="_reasonCode" @bind:event="onchange"
                         disabled="@(_submitting || _result != QcCaptureResult.Fail)">
-                    <option value="">— Chọn mã lý do —</option>
+                    <option value="">— Select reason code —</option>
                     @foreach (var r in ScrapReasons)
                     {
                         <option value="@r.Code">@r.Code · @r.LabelVi</option>
@@ -65,7 +65,7 @@
             </div>
 
             <div class="modal-field">
-                <label for="qc-comment">Ghi chú</label>
+                <label for="qc-comment">Comment</label>
                 <textarea id="qc-comment" class="modal-input modal-input-textarea"
                           maxlength="500" rows="2"
                           @bind="_comment" @bind:event="oninput"
@@ -81,10 +81,10 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
         <button type="button" class="op-btn @SubmitClass"
                 disabled="@(!CanSubmit())" @onclick="SubmitAsync">
-            @(_submitting ? "Đang ghi nhận…" : SubmitLabel)
+            @(_submitting ? "Recording…" : SubmitLabel)
         </button>
     </Footer>
 </Modal>
@@ -120,12 +120,12 @@
 
     private string SubmitLabel => _result switch
     {
-        QcCaptureResult.Fail => "Ghi nhận FAIL",
-        QcCaptureResult.Pass => "Ghi nhận PASS",
-        _                    => "Ghi nhận N/A",
+        QcCaptureResult.Fail => "Record FAIL",
+        QcCaptureResult.Pass => "Record PASS",
+        _                    => "Record N/A",
     };
 
-    private string Title => $"Capture QC · v{Criterion?.Seq ?? 0} — {Criterion?.Name ?? "(không tên)"}";
+    private string Title => $"Capture QC · v{Criterion?.Seq ?? 0} — {Criterion?.Name ?? "(unnamed)"}";
 
     private bool CanSubmit()
     {
@@ -172,7 +172,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _error = $"Không kết nối được máy chủ: {ex.Message}";
+            _error = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {

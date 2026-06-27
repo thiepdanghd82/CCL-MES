@@ -18,22 +18,22 @@ public static class RunningSurfaceErrorLocaliser
     public static string LocaliseApiError(int statusCode, ApiError error) =>
         error.Code switch
         {
-            "wo.not_found"                          => "Không tìm thấy WO trên máy chủ.",
-            "wo.invalid_phase"                      => "WO không ở giai đoạn cho phép hành động này — tải lại trạng thái.",
-            "wo.if_match_required"                  => "Phiên dữ liệu hết hạn — tải lại trạng thái.",
-            "wo.idempotency_key_required"           => "Yêu cầu thiếu khóa idempotency — báo IT.",
-            "running.setting_not_started"           => "WO chưa vào giai đoạn SETTING — không thể đánh dấu hoàn tất.",
-            "running.invalid_body"                  => "Dữ liệu gửi không hợp lệ — báo IT.",
-            "running.invalid_qty_delta"             => "Số lượng phải lớn hơn 0 (dùng \"Sửa số\" cho âm).",
-            "running.invalid_reason_code"           => "Mã lỗi không có trong danh mục — chọn lại từ danh sách.",
-            "running.invalid_ng_note"               => "Ghi chú NG bắt buộc khi nhập số NG (1-500 ký tự).",
-            "running.invalid_note"                  => "Ghi chú dài quá 500 ký tự — rút gọn lại.",
-            "running.invalid_correction_reason"     => "Lý do sửa bắt buộc (1-500 ký tự).",
-            "running.linked_entry_not_found"        => "Không tìm thấy bản ghi gốc cần sửa — tải lại danh sách.",
-            "running.linked_entry_wrong_wo"         => "Bản ghi cần sửa không thuộc WO này — chọn lại từ danh sách.",
-            "running.no_active_session"             => "Chưa có phiên RUNNING — bấm \"Bắt đầu chạy\" trước.",
-            "running.no_active_pause"               => "Không có phiên PAUSE nào đang mở — tải lại trạng thái.",
-            "running.no_production"                 => "Chưa có sản lượng nào — không thể kết thúc WO.",
+            "wo.not_found"                          => "WO not found on the server.",
+            "wo.invalid_phase"                      => "WO is not in a phase that allows this action — reload the state.",
+            "wo.if_match_required"                  => "Data session expired — reload the state.",
+            "wo.idempotency_key_required"           => "Request is missing the idempotency key — contact IT.",
+            "running.setting_not_started"           => "WO has not entered the SETTING phase — cannot mark it complete.",
+            "running.invalid_body"                  => "Invalid request data — contact IT.",
+            "running.invalid_qty_delta"             => "Quantity must be greater than 0 (use \"Correct count\" for negative values).",
+            "running.invalid_reason_code"           => "Reason code is not in the catalog — choose one from the list.",
+            "running.invalid_ng_note"               => "An NG note is required when entering an NG count (1-500 characters).",
+            "running.invalid_note"                  => "Note is longer than 500 characters — shorten it.",
+            "running.invalid_correction_reason"     => "A correction reason is required (1-500 characters).",
+            "running.linked_entry_not_found"        => "The original record to correct was not found — reload the list.",
+            "running.linked_entry_wrong_wo"         => "The record to correct does not belong to this WO — choose one from the list.",
+            "running.no_active_session"             => "No RUNNING session yet — tap \"Start run\" first.",
+            "running.no_active_pause"               => "No PAUSE session is open — reload the state.",
+            "running.no_production"                 => "No production yet — cannot finish the WO.",
             _                                       => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 
@@ -44,10 +44,10 @@ public static class RunningSurfaceErrorLocaliser
     /// first.</summary>
     public static string LocaliseSetError(string code) => code switch
     {
-        "wo.state_conflict"           => "Một thao tác khác đã cập nhật WO này. Đang tải lại trạng thái mới nhất — thử lại.",
-        "wo.if_match_required"        => "Phiên dữ liệu chưa được tải lại — quét lại WO.",
-        "wo.idempotency_key_required" => "Yêu cầu thiếu khóa idempotency — báo IT.",
-        "http.empty_body"             => "Máy chủ trả về phản hồi rỗng — báo IT.",
-        _                             => $"Mã lỗi không xác định ({code}).",
+        "wo.state_conflict"           => "Another operation has already updated this WO. Reloading the latest state — try again.",
+        "wo.if_match_required"        => "Data session has not been reloaded — scan the WO again.",
+        "wo.idempotency_key_required" => "Request is missing the idempotency key — contact IT.",
+        "http.empty_body"             => "The server returned an empty response — contact IT.",
+        _                             => $"Unknown error code ({code}).",
     };
 }

@@ -1,78 +1,98 @@
 @inject ICclApiClient Api
+@using System.Linq
 @using CCL.MES.Hybrid.Client.Specs
 
 @*
-    P10.5c-1 — Create Spec modal. Form: product picker + spec code +
-    title + optional process code. Reuses <Modal> primitive (clean-room
-    P10.5a) + the _submitting guard mandated by Q11 (chặn double-click;
-    no idempotency key in P10.5 online-only).
+    P10.5c-1 — Create Spec modal. Form: Part No + IFS code + Spec + Customer +
+    Part Name + Planner. Reuses <Modal> primitive (clean-room P10.5a) + the
+    _submitting guard mandated by Q11 (chặn double-click; no idempotency key in
+    P10.5 online-only).
 
-    Server-side validation: duplicate_spec_code surfaces as VN banner
-    via SpecMutationErrorMapper. Client checks (specCode + title
-    non-empty + productId > 0) gate the submit button before the
-    network round-trip.
+    P10.10 — soft-duplicate gate. When IFS code / Part No / Spec collide with a
+    saved spec the server returns duplicate_warning: the colliding inputs are
+    highlighted, a required Reason field appears, and the primary button flips
+    to "Create anyway". Submitting with the reason creates regardless (the
+    reason is recorded in the SpecCreate audit detail).
 *@
 
 <Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Info"
        ClickOutsideToClose="false">
-    <Header>Tạo Spec mới</Header>
+    <Header>Create new Spec</Header>
     <Body>
-        @if (_loadProductsError is not null)
-        {
-            <div class="modal-banner modal-banner-error" role="alert">
-                <strong>Không tải được danh sách sản phẩm.</strong>
-                <div>@_loadProductsError</div>
-                <button type="button" class="grid-btn" @onclick="LoadProductsAsync">Thử lại</button>
-            </div>
-        }
-        else if (_products is null)
-        {
-            <p class="grid-status">Đang tải danh sách sản phẩm…</p>
-        }
-        else
-        {
-            <form @onsubmit:preventDefault="true">
-                <div class="modal-field">
-                    <label for="cs-product">Sản phẩm <span class="modal-req">*</span></label>
-                    <select id="cs-product" class="modal-input" @bind="_productId" disabled="@_submitting">
-                        <option value="0">— Chọn sản phẩm —</option>
-                        @foreach (var p in _products)
-                        {
-                            <option value="@p.Id">@p.ProductCode · @p.Name</option>
-                        }
-                    </select>
-                </div>
-                <div class="modal-field">
-                    <label for="cs-code">Mã Spec <span class="modal-req">*</span></label>
-                    <input id="cs-code" type="text" class="modal-input" maxlength="64"
-                           placeholder="VD: SP-001 hoặc REF của khách hàng"
-                           @bind="_specCode" @bind:event="oninput" disabled="@_submitting" />
-                </div>
-                <div class="modal-field">
-                    <label for="cs-title">Tiêu đề <span class="modal-req">*</span></label>
-                    <input id="cs-title" type="text" class="modal-input" maxlength="200"
-                           placeholder="Mô tả ngắn của Spec"
-                           @bind="_title" @bind:event="oninput" disabled="@_submitting" />
-                </div>
-                <div class="modal-field">
-                    <label for="cs-process">Process code</label>
-                    <input id="cs-process" type="text" class="modal-input" maxlength="64"
-                           placeholder="VD: SILKSCREEN / FLEXO / INDIGO (để trống = SILKSCREEN mặc định)"
-                           @bind="_processCode" @bind:event="oninput" disabled="@_submitting" />
-                </div>
-                @if (_error is not null)
+        <form @onsubmit:preventDefault="true">
+            <div class="modal-field">
+                <label for="cs-ifs">Part No <span class="modal-req">*</span></label>
+                <input id="cs-ifs" type="text" class="@FieldClass("partno", "modal-input scan-mono")" maxlength="64"
+                       placeholder="e.g. 1000527330 (part / IFS no)"
+                       @bind="_ifsCode" @bind:event="oninput" @bind:after="ClearWarning" disabled="@_submitting" />
+                @if (IsDup("partno"))
                 {
-                    <div class="modal-banner modal-banner-error" role="alert">@_error</div>
+                    <div class="modal-field-hint modal-field-hint-error">⚠ This Part No is already on a saved spec.</div>
                 }
-            </form>
-        }
+            </div>
+            <div class="modal-field">
+                <label for="cs-code">IFS code <span class="modal-req">*</span></label>
+                <input id="cs-code" type="text" class="@FieldClass("ifscode", "modal-input")" maxlength="64"
+                       placeholder="e.g. SP-001 or customer REF"
+                       @bind="_specCode" @bind:event="oninput" @bind:after="ClearWarning" disabled="@_submitting" />
+                @if (IsDup("ifscode"))
+                {
+                    <div class="modal-field-hint modal-field-hint-error">⚠ This IFS code is already on a saved spec.</div>
+                }
+            </div>
+            <div class="modal-field">
+                <label for="cs-spec">Spec</label>
+                <input id="cs-spec" type="text" class="@FieldClass("spec", "modal-input")" maxlength="64"
+                       placeholder="Spec number (syncs to spec sheet)"
+                       @bind="_spec" @bind:event="oninput" @bind:after="ClearWarning" disabled="@_submitting" />
+                @if (IsDup("spec"))
+                {
+                    <div class="modal-field-hint modal-field-hint-error">⚠ This Spec number is already on a saved spec.</div>
+                }
+            </div>
+            <div class="modal-field">
+                <label for="cs-customer">Customer</label>
+                <input id="cs-customer" type="text" class="modal-input" maxlength="120"
+                       placeholder="Customer name (syncs to spec sheet)"
+                       @bind="_customer" @bind:event="oninput" disabled="@_submitting" />
+            </div>
+            <div class="modal-field">
+                <label for="cs-title">Part Name <span class="modal-req">*</span></label>
+                <input id="cs-title" type="text" class="modal-input" maxlength="200"
+                       placeholder="Part / product name"
+                       @bind="_title" @bind:event="oninput" disabled="@_submitting" />
+            </div>
+            <div class="modal-field">
+                <label for="cs-process">Planner</label>
+                <select id="cs-process" class="modal-input" @bind="_processCode" disabled="@_submitting">
+                    @foreach (var p in PlannerOptions)
+                    {
+                        <option value="@p.Value">@p.Label</option>
+                    }
+                </select>
+                <div class="modal-field-hint">Loads the matching spec-sheet template (Silkscreen / Flexo / Indigo / Letterpress / Diecut).</div>
+            </div>
+            @if (_error is not null)
+            {
+                <div class="modal-banner @(_needReason ? "modal-banner-warning" : "modal-banner-error")" role="alert">@_error</div>
+            }
+            @if (_needReason)
+            {
+                <div class="modal-field">
+                    <label for="cs-reason">Reason for the duplicate <span class="modal-req">*</span></label>
+                    <textarea id="cs-reason" class="modal-input modal-input-textarea" maxlength="500" rows="2"
+                              placeholder="Why create a spec that duplicates an existing one?"
+                              @bind="_overrideReason" @bind:event="oninput" disabled="@_submitting"></textarea>
+                </div>
+            }
+        </form>
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
-        <button type="button" class="op-btn op-btn-primary"
+                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
+        <button type="button" class="op-btn @(_needReason ? "op-btn-warning" : "op-btn-primary")"
                 disabled="@(!CanSubmit())" @onclick="SubmitAsync">
-            @(_submitting ? "Đang tạo…" : "Tạo Spec")
+            @(_submitting ? "Creating…" : _needReason ? "Create anyway" : "Create Spec")
         </button>
     </Footer>
 </Modal>
@@ -82,40 +102,61 @@
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback<SpecMutationResponse> OnCreated { get; set; }
 
-    private List<SpecProductDropdownItem>? _products;
-    private string? _loadProductsError;
-
-    private long _productId;
+    private string _ifsCode = "";
     private string _specCode = "";
+    private string _spec = "";
+    private string _customer = "";
     private string _title = "";
-    private string _processCode = "";
+    private string _processCode = "SILKSCREEN";
+    private string _overrideReason = "";
+
+    // P10.10 — planner ↔ spec-sheet template. The value is the ProcessCode the
+    // server stores; SpecShowcardVm.NormalisePlannerCode maps it to the template
+    // (SILK / FLEXO / INDIGO / LETTER / DIECUT) so the right form auto-loads.
+    private static readonly (string Value, string Label)[] PlannerOptions =
+    {
+        ("SILKSCREEN",  "Silkscreen"),
+        ("FLEXO",       "Flexo"),
+        ("INDIGO",      "Indigo (HP)"),
+        ("LETTERPRESS", "Letterpress (LP)"),
+        ("FLATBED_CUT", "Diecut"),
+    };
 
     private bool _submitting;
     private string? _error;
+    // Colliding identity fields reported by the server (ifscode / partno /
+    // spec). Drives both the per-input highlight and the reason gate.
+    private readonly HashSet<string> _dupFields = new(StringComparer.Ordinal);
+    // True once a duplicate_warning surfaced: the Reason field shows and the
+    // button flips to "Create anyway".
+    private bool _needReason;
+
+    private bool IsDup(string field) => _dupFields.Contains(field);
+
+    private string FieldClass(string field, string baseClass) =>
+        _dupFields.Contains(field) ? $"{baseClass} modal-input-error" : baseClass;
 
     private bool CanSubmit() =>
         !_submitting
-        && _productId > 0
+        && !string.IsNullOrWhiteSpace(_ifsCode)
         && !string.IsNullOrWhiteSpace(_specCode)
-        && !string.IsNullOrWhiteSpace(_title);
+        && !string.IsNullOrWhiteSpace(_title)
+        && (!_needReason || !string.IsNullOrWhiteSpace(_overrideReason));
 
-    protected override async Task OnParametersSetAsync()
+    // Editing any colliding field invalidates the prior duplicate verdict —
+    // drop the warning so the next submit re-checks fresh.
+    private void ClearWarning()
     {
-        if (Open && _products is null && _loadProductsError is null)
-            await LoadProductsAsync();
-        if (!Open) ResetForm();
+        if (!_needReason && _dupFields.Count == 0) return;
+        _needReason = false;
+        _dupFields.Clear();
+        _overrideReason = "";
+        _error = null;
     }
 
-    private async Task LoadProductsAsync()
+    protected override void OnParametersSet()
     {
-        _loadProductsError = null;
-        try
-        {
-            _products = await Api.GetSpecProductsAsync();
-        }
-        catch (ApiException apiEx) { _loadProductsError = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
-        catch (HttpRequestException ex) { _loadProductsError = $"Không kết nối được máy chủ: {ex.Message}"; }
-        catch (Exception ex) { _loadProductsError = $"{ex.GetType().Name}: {ex.Message}"; }
+        if (!Open) ResetForm();
     }
 
     private async Task SubmitAsync()
@@ -130,17 +171,38 @@
         {
             var resp = await Api.CreateSpecAsync(new CreateSpecMutation
             {
-                ProductId = _productId,
+                IfsCode = _ifsCode.Trim(),
                 SpecCode = _specCode.Trim(),
                 Title = _title.Trim(),
+                Spec = string.IsNullOrWhiteSpace(_spec) ? null : _spec.Trim(),
+                Customer = string.IsNullOrWhiteSpace(_customer) ? null : _customer.Trim(),
                 ProcessCode = string.IsNullOrWhiteSpace(_processCode) ? null : _processCode.Trim(),
+                OverrideReason = _needReason && !string.IsNullOrWhiteSpace(_overrideReason) ? _overrideReason.Trim() : null,
             });
             if (OnCreated.HasDelegate) await OnCreated.InvokeAsync(resp);
             ResetForm();
             if (OnClose.HasDelegate) await OnClose.InvokeAsync();
         }
-        catch (ApiException apiEx) { _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
-        catch (HttpRequestException ex) { _error = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (ApiException apiEx)
+        {
+            _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
+            _dupFields.Clear();
+            if (apiEx.ApiError.Code == "duplicate_warning")
+            {
+                foreach (var f in SpecMutationErrorMapper.DuplicateFields(apiEx.ApiError)) _dupFields.Add(f);
+                _needReason = true;
+            }
+            else if (apiEx.ApiError.Code == "duplicate_part_no")
+            {
+                _dupFields.Add("partno");
+                _needReason = false;
+            }
+            else
+            {
+                _needReason = false;
+            }
+        }
+        catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _submitting = false; }
     }
@@ -153,10 +215,15 @@
 
     private void ResetForm()
     {
-        _productId = 0;
+        _ifsCode = "";
         _specCode = "";
+        _spec = "";
+        _customer = "";
         _title = "";
-        _processCode = "";
+        _processCode = "SILKSCREEN";
+        _overrideReason = "";
         _error = null;
+        _needReason = false;
+        _dupFields.Clear();
     }
 }

@@ -8,33 +8,33 @@
 
 <PageTitle>Mode — CCL MES</PageTitle>
 
-<h1 class="page-title">Chế độ trạm</h1>
+<h1 class="page-title">Station Mode</h1>
 
 @if (!HwOptions.Value.ScanEnabled)
 {
     <div class="hw-gate" role="status">
-        <strong>Tính năng phần cứng đang tắt.</strong>
+        <strong>Hardware features are turned off.</strong>
         <p>
-            Trang /mode bật cùng /hardware khi cờ
-            <code>Hardware:ScanEnabled = true</code>. W1 chỉ render
-            khung; logic kiosk + lock-screen ship ở W4.
+            The /mode page turns on together with /hardware when the
+            <code>Hardware:ScanEnabled = true</code> flag is set. W1 only renders
+            the frame; the kiosk + lock-screen logic ships in W4.
         </p>
     </div>
 }
 else
 {
-    <p>Trạm: <code>@Device.DeviceId</code></p>
+    <p>Station: <code>@Device.DeviceId</code></p>
 
     <section class="mode-section">
-        <h2>Chế độ</h2>
+        <h2>Mode</h2>
         <p class="mode-help">
-            Chế độ <strong>Interactive</strong> — màn hình đầy đủ, không tự
-            khoá. Dùng ở bàn office / NPI / giám sát viên.<br />
-            Chế độ <strong>Kiosk</strong> — ẩn sidebar sau lần điều hướng đầu;
-            sau N phút không thao tác → khoá màn hình (nhập mật mã để mở).
-            JWT không bị huỷ — chỉ chặn truy cập UI. Mặc định N=10 phút.<br />
-            Chế độ <strong>Headless</strong> — chỉ scanner, không UI.
-            Reserve cho P10.4+.
+            <strong>Interactive</strong> mode — full screen, no auto
+            lock. Used at the office desk / NPI / supervisor.<br />
+            <strong>Kiosk</strong> mode — hides the sidebar after the first navigation;
+            after N minutes of inactivity → locks the screen (enter the passcode to unlock).
+            The JWT is not revoked — only UI access is blocked. Default N=10 minutes.<br />
+            <strong>Headless</strong> mode — scanner only, no UI.
+            Reserved for P10.4+.
         </p>
 
         <fieldset class="mode-picker" disabled="@_saving">
@@ -59,11 +59,11 @@ else
     </section>
 
     <section class="mode-section">
-        <h2>Ngưỡng idle (phút)</h2>
+        <h2>Idle threshold (minutes)</h2>
         <p class="mode-help">
-            Áp dụng cho Kiosk. Range 1..120. Mặc định 10. Sau khi thay
-            đổi, khoá tự động trên trạm này dùng giá trị mới ngay (không
-            cần khởi động lại app).
+            Applies to Kiosk. Range 1..120. Default 10. After a change,
+            auto lock on this station uses the new value immediately (no
+            need to restart the app).
         </p>
         <input type="number" min="1" max="120" step="1"
                value="@Device.IdleMinutes"
@@ -73,21 +73,21 @@ else
     </section>
 
     <section class="mode-section">
-        <h2>Mật mã thiết bị</h2>
+        <h2>Device passcode</h2>
         <p class="mode-help">
-            Dùng để mở lock-screen ở chế độ Kiosk. KHÔNG phải mật khẩu
-            tài khoản. Lưu trên thiết bị này (không đồng bộ server).
-            Nhập trống để xoá.
+            Used to unlock the lock-screen in Kiosk mode. This is NOT the
+            account password. Stored on this device (not synced to the server).
+            Leave blank to clear.
         </p>
         <input type="password"
-               placeholder="Nhập mật mã mới rồi nhấn Lưu"
+               placeholder="Enter a new passcode then click Save"
                autocomplete="off"
                disabled="@_saving"
                @bind="_passcodeInput"
                class="mode-input" />
         <button type="button" class="mode-btn"
                 disabled="@_saving"
-                @onclick="OnSavePasscode">Lưu mật mã</button>
+                @onclick="OnSavePasscode">Save passcode</button>
         @if (_passcodeFeedback is not null)
         {
             <div class="mode-feedback">@_passcodeFeedback</div>
@@ -135,8 +135,8 @@ else
         {
             await Device.SetPasscodeAsync(string.IsNullOrEmpty(_passcodeInput) ? null : _passcodeInput);
             _passcodeFeedback = string.IsNullOrEmpty(_passcodeInput)
-                ? "Đã xoá mật mã."
-                : "Đã lưu mật mã.";
+                ? "Passcode cleared."
+                : "Passcode saved.";
             _passcodeInput = "";
         }
         finally { _saving = false; }

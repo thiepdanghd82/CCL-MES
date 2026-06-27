@@ -61,25 +61,25 @@ public sealed record HardwareAvailability(
 
     public static HardwareAvailability FeatureDisabled() =>
         new(false, "feature_disabled",
-            "Tính năng phần cứng đang tắt. Liên hệ quản trị viên để kích hoạt.");
+            "Hardware features are off. Contact your administrator to enable.");
 
     public static HardwareAvailability NotImplemented(string componentName) =>
         new(false, "not_implemented",
-            $"{componentName} chưa được triển khai. Sẽ có ở pha sau.");
+            $"{componentName} is not implemented yet. Coming in a later phase.");
 
     public static HardwareAvailability PermissionDenied(string componentName) =>
         new(false, "permission_denied",
-            $"Quyền {componentName} chưa được cấp. Vào System Settings → Privacy rồi thử lại.");
+            $"{componentName} permission not granted. Open System Settings → Privacy and try again.");
 
     public static HardwareAvailability NoDevice(string componentName) =>
         new(false, "no_device",
-            $"Không tìm thấy {componentName} nào. Kiểm tra kết nối thiết bị.");
+            $"No {componentName} found. Check the device connection.");
 
     public static HardwareAvailability Busy(string componentName) =>
         new(false, "busy",
-            $"{componentName} đang được dùng bởi một phiên khác. Đóng phiên hiện tại rồi thử lại.");
+            $"{componentName} is in use by another session. Close the current session and try again.");
 
     public static HardwareAvailability PlatformUnsupported(string componentName) =>
         new(false, "platform_unsupported",
-            $"{componentName} không hỗ trợ trên nền tảng này.");
+            $"{componentName} is not supported on this platform.");
 }

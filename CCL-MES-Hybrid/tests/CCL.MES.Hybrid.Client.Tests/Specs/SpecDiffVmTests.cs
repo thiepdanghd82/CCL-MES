@@ -97,7 +97,7 @@ public sealed class SpecDiffVmTests
         Assert.Single(result.Entries);
         var entry = result.Entries[0];
         Assert.Equal(SpecDiffVm.DiffSection.Identity, entry.Section);
-        Assert.Equal("Tiêu đề", entry.FieldLabel);
+        Assert.Equal("Title", entry.FieldLabel);
         Assert.Equal("Old Title", entry.OldValue);
         Assert.Equal("New Title", entry.NewValue);
         Assert.Equal(SpecDiffVm.ChangeType.Changed, entry.Kind);
@@ -238,7 +238,7 @@ public sealed class SpecDiffVmTests
         var result = SpecDiffVm.Compare(current, parent);
 
         Assert.True(result.HasDiff);
-        Assert.Contains(result.Entries, e => e.FieldLabel == "Tiêu đề");
+        Assert.Contains(result.Entries, e => e.FieldLabel == "Title");
         Assert.Contains(result.Entries, e => e.FieldLabel == "Printing cavity");
         Assert.Contains(result.Entries, e => e.FieldLabel == "Substrate type");
         Assert.Contains(result.Entries, e => e.FieldLabel == "Print remarks" && e.Kind == SpecDiffVm.ChangeType.Added);

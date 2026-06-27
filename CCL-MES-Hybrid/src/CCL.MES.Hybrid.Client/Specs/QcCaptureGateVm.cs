@@ -40,8 +40,8 @@ public static class QcCaptureGateVm
     {
         if (IsCaptureValid(result, ngReasonCode)) return null;
         return result == QcCaptureResult.Fail
-            ? "Phải chọn mã lý do khi kết quả là FAIL."
-            : "Dữ liệu chưa đầy đủ.";
+            ? "You must select a reason code when the result is FAIL."
+            : "The data is incomplete.";
     }
 
     /// <summary>Filter the full active reason-code list to the subset

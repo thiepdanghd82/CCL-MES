@@ -28,27 +28,27 @@
 <h1 class="page-title">Engineer Spec</h1>
 
 <div class="grid-toolbar">
-    <input type="search" class="grid-search" placeholder="Tìm theo Customer / Part No / Part Name…"
+    <input type="search" class="grid-search" placeholder="Search by Customer / Part No / Part Name…"
            @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKey" />
-    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Tìm</button>
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
 
     <div class="spec-view-chips" role="tablist">
         <button type="button" role="tab" aria-selected="@(IsView("active"))"
                 class="spec-view-chip @(IsView("active") ? "is-active" : "")"
-                @onclick='() => SetViewAsync("active")'>Đang dùng</button>
+                @onclick='() => SetViewAsync("active")'>Active</button>
         <button type="button" role="tab" aria-selected="@(IsView("trash"))"
                 class="spec-view-chip @(IsView("trash") ? "is-active" : "")"
-                @onclick='() => SetViewAsync("trash")'>Thùng rác</button>
+                @onclick='() => SetViewAsync("trash")'>Trash</button>
         <button type="button" role="tab" aria-selected="@(IsView("all"))"
                 class="spec-view-chip @(IsView("all") ? "is-active" : "")"
-                @onclick='() => SetViewAsync("all")'>Tất cả</button>
+                @onclick='() => SetViewAsync("all")'>All</button>
     </div>
 
     @* P10.5c-3 — Planner chip filter (SpecHub parity). Click to filter
        by planner code; click the active chip again to clear. Combines
        with search + view chip. *@
-    <div class="spec-planner-chips" role="group" aria-label="Lọc theo Planner">
+    <div class="spec-planner-chips" role="group" aria-label="Filter by Planner">
         @foreach (var p in PlannerChips)
         {
             var active = IsPlanner(p.Code);
@@ -64,7 +64,7 @@
        so the operator can't fire two downloads in parallel — Q11 rule.
        Filter (search + view chip + planner chip) is forwarded to the
        server so the file mirrors what the operator currently sees. *@
-    <div class="spec-export-group" role="group" aria-label="Xuất danh sách">
+    <div class="spec-export-group" role="group" aria-label="Export list">
         <button type="button" class="grid-btn grid-btn-secondary"
                 disabled="@_exporting"
                 @onclick="@(() => ExportListAsync("csv"))">⬇ CSV</button>
@@ -82,7 +82,7 @@
         <button type="button" class="grid-btn grid-btn-secondary"
                 @onclick="OpenImportModal">⤓ Import xlsx</button>
         <button type="button" class="grid-btn grid-btn-primary"
-                @onclick="OpenCreateModal">＋ Tạo Spec</button>
+                @onclick="OpenCreateModal">＋ Create Spec</button>
     </AuthorizeView>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
 </div>
@@ -97,22 +97,22 @@
         @if (!string.IsNullOrEmpty(_exportSandboxPath))
         {
             <button type="button" class="grid-btn grid-btn-small"
-                    @onclick="OpenSandboxAsync">Mở file</button>
+                    @onclick="OpenSandboxAsync">Open file</button>
         }
-        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">Đóng</button>
+        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">Close</button>
     </div>
 }
 
 @if (_loading && _data is null)
 {
-    <p class="grid-status">Đang tải…</p>
+    <p class="grid-status">Loading…</p>
 }
 else if (_error is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Không tải được danh sách Spec.</strong>
+        <strong>Failed to load the Spec list.</strong>
         <div>@_error</div>
-        <button type="button" class="grid-btn" @onclick="ReloadAsync">Thử lại</button>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">Retry</button>
     </div>
 }
 else if (_data is not null)
@@ -151,7 +151,7 @@ else if (_data is not null)
                 {
                     <tr>
                         <td colspan="@(_columns.Visible.Count + 1)" class="grid-empty">
-                            Không có Spec nào phù hợp.
+                            No matching Spec found.
                         </td>
                     </tr>
                 }
@@ -162,13 +162,13 @@ else if (_data is not null)
     <div class="grid-pager">
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
-                @onclick="() => GoToPageAsync(_page - 1)">‹ Trước</button>
+                @onclick="() => GoToPageAsync(_page - 1)">‹ Prev</button>
         <span class="grid-pager-text">
-            Trang @_page / @TotalPages — @_data.Total dòng
+            Page @_page / @TotalPages — @_data.Total rows
         </span>
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
-                @onclick="() => GoToPageAsync(_page + 1)">Sau ›</button>
+                @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
     </div>
 }
 
@@ -196,19 +196,19 @@ else if (_data is not null)
    id + spec code, so no detail-page round-trip needed for the common
    "tidy the list" workflow. *@
 <SpecConfirmActionModal Open="_trashOpen"
-                        Title="@($"Xoá Spec {_pendingSpecCode} vào Thùng rác?")"
-                        Message="Spec sẽ bị soft-delete. Có thể khôi phục từ tab Thùng rác. Lưu ý: server sẽ chặn nếu còn Work Order đang dùng Spec này."
-                        ConfirmLabel="Xoá vào Thùng rác"
-                        PendingLabel="Đang xoá…"
+                        Title="@($"Move Spec {_pendingSpecCode} to Trash?")"
+                        Message="The Spec will be soft-deleted. It can be restored from the Trash tab. Note: the server will block this if a Work Order is still using this Spec."
+                        ConfirmLabel="Move to Trash"
+                        PendingLabel="Deleting…"
                         Severity="ModalSeverity.Danger"
                         OnConfirm="OnTrashConfirmAsync"
                         OnClose="() => { _trashOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
 
 <SpecConfirmActionModal Open="_restoreOpen"
-                        Title="@($"Khôi phục Spec {_pendingSpecCode}?")"
-                        Message="Spec sẽ rời Thùng rác và quay lại danh sách Đang dùng."
-                        ConfirmLabel="Khôi phục"
-                        PendingLabel="Đang khôi phục…"
+                        Title="@($"Restore Spec {_pendingSpecCode}?")"
+                        Message="The Spec will leave the Trash and return to the Active list."
+                        ConfirmLabel="Restore"
+                        PendingLabel="Restoring…"
                         Severity="ModalSeverity.Warning"
                         OnConfirm="OnRestoreConfirmAsync"
                         OnClose="() => { _restoreOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
@@ -228,11 +228,11 @@ else if (_data is not null)
     // PlannerFromProcessCode output + SpecShowcardVm planner codes.
     private static readonly (string Code, string Label, string CssClass)[] PlannerChips = new[]
     {
-        ("SILK",   "Lụa",         "spec-planner-silk"),
+        ("SILK",   "Silkscreen",  "spec-planner-silk"),
         ("FLEXO",  "Flexo",       "spec-planner-flexo"),
         ("LETTER", "Letterpress", "spec-planner-letter"),
         ("INDIGO", "Indigo",      "spec-planner-indigo"),
-        ("DIECUT", "Bế",          "spec-planner-diecut"),
+        ("DIECUT", "Diecut",      "spec-planner-diecut"),
     };
 
     // P10.5c-3 — inline edit state. Only one cell editable at a time;
@@ -296,7 +296,7 @@ else if (_data is not null)
     {
         if (_exporting) return;
         _exporting = true;
-        _exportBanner = $"Đang xuất {format.ToUpperInvariant()}…";
+        _exportBanner = $"Exporting {format.ToUpperInvariant()}…";
         _exportBannerKind = "info";
         _exportSandboxPath = null;
         StateHasChanged();
@@ -326,12 +326,12 @@ else if (_data is not null)
         }
         catch (HttpRequestException ex)
         {
-            _exportBanner = $"Không kết nối được máy chủ: {ex.Message}";
+            _exportBanner = $"Could not connect to the server: {ex.Message}";
             _exportBannerKind = "danger";
         }
         catch (Exception ex)
         {
-            _exportBanner = $"Xuất file thất bại: {ex.Message}";
+            _exportBanner = $"File export failed: {ex.Message}";
             _exportBannerKind = "danger";
         }
         finally
@@ -346,8 +346,8 @@ else if (_data is not null)
         if (outcome.DidSave)
         {
             _exportBanner = outcome.Opened
-                ? $"Đã lưu {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) — đã mở để xem."
-                : $"Đã lưu {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) tại {outcome.DestinationPath}.";
+                ? $"Saved {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) — opened for viewing."
+                : $"Saved {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) at {outcome.DestinationPath}.";
             _exportBannerKind = "success";
             _exportSandboxPath = null;
         }
@@ -355,18 +355,23 @@ else if (_data is not null)
         {
             _exportSandboxPath = outcome.SandboxPath;
             _exportBanner = outcome.Opened
-                ? $"Bạn đã huỷ hộp thoại lưu — file vẫn nằm trong thư mục tải xuống của ứng dụng và đã được mở để xem."
-                : $"Bạn đã huỷ hộp thoại lưu — file đã lưu trong thư mục tải xuống của ứng dụng (bấm Mở file để xem).";
+                ? $"You cancelled the save dialog — the file is still in the app's downloads folder and has been opened for viewing."
+                : $"You cancelled the save dialog — the file was saved in the app's downloads folder (click Open file to view).";
             _exportBannerKind = "warn";
         }
     }
 
-    private static string FormatSize(long bytes) => bytes switch
+    // NOTE: written as an if-chain rather than a relational-pattern switch
+    // expression. The Razor compiler in SDK 10.0.x parses a switch arm that
+    // begins with '<' (e.g. `< 1024 =>`) as the start of an HTML tag, which
+    // derails brace counting for the whole @code block (RZ1006). Keeping the
+    // comparison `bytes < …` (operand-first) avoids the markup mis-transition.
+    private static string FormatSize(long bytes)
     {
-        < 1024            => $"{bytes} B",
-        < 1024 * 1024     => $"{bytes / 1024.0:F1} KB",
-        _                 => $"{bytes / 1024.0 / 1024.0:F1} MB",
-    };
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / 1024.0 / 1024.0:F1} MB";
+    }
 
     private async Task OpenSandboxAsync()
     {
@@ -392,24 +397,24 @@ else if (_data is not null)
         {
             new ColumnDef("planner",    "Planner"),
             new ColumnDef("ref_no",     "REF NO"),
-            new ColumnDef("customer",   "Khách hàng"),
+            new ColumnDef("customer",   "Customer"),
             new ColumnDef("part_no",    "Part No"),
-            new ColumnDef("part_name",  "Tên Part"),
-            new ColumnDef("colors",     "Màu"),
+            new ColumnDef("part_name",  "Part Name"),
+            new ColumnDef("colors",     "Color"),
             new ColumnDef("cavity",     "Cavity"),
             new ColumnDef("pitch",      "Pitch (mm)"),
             new ColumnDef("inspection", "Spec"),
-            new ColumnDef("status",     "Trạng thái"),
+            new ColumnDef("status",     "Status"),
             new ColumnDef("rev",        "Rev"),
-            new ColumnDef("rev_date",   "Ngày Rev"),
-            new ColumnDef("rev_by",     "Người"),
+            new ColumnDef("rev_date",   "Rev Date"),
+            new ColumnDef("rev_by",     "By"),
 
             // Legacy hidden cols — operator can opt in via columns menu.
-            new ColumnDef("spec_code",     "Mã Spec",      DefaultVisible: false),
-            new ColumnDef("title",         "Tiêu đề",      DefaultVisible: false),
+            new ColumnDef("spec_code",     "Spec Code",    DefaultVisible: false),
+            new ColumnDef("title",         "Title",        DefaultVisible: false),
             new ColumnDef("process_code",  "Process code", DefaultVisible: false),
-            new ColumnDef("effective_from","Hiệu lực từ",  DefaultVisible: false),
-            new ColumnDef("approved_by",   "Người duyệt",  DefaultVisible: false),
+            new ColumnDef("effective_from","Effective From", DefaultVisible: false),
+            new ColumnDef("approved_by",   "Approved By",  DefaultVisible: false),
         }, PrefStore);
         await LoadAsync();
     }
@@ -446,7 +451,7 @@ else if (_data is not null)
         }
         catch (HttpRequestException ex)
         {
-            _error = $"Không kết nối được máy chủ: {ex.Message}";
+            _error = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
@@ -502,9 +507,10 @@ else if (_data is not null)
 
     private Task OnSpecCreatedAsync(SpecMutationResponse resp)
     {
-        // Refresh list so the new Draft shows up + jump to the detail page
-        // so the operator can continue authoring content.
-        Nav.NavigateTo($"/npi/specs/{resp.Id}");
+        // P10.10 — jump straight to the new Draft's detail page IN EDIT MODE
+        // (?action=edit) so the engineer fills the full spec table inline
+        // right away instead of landing on a read-only showcard.
+        Nav.NavigateTo($"/npi/specs/{resp.Id}?action=edit");
         return Task.CompletedTask;
     }
 
@@ -637,7 +643,7 @@ else if (_data is not null)
             __builder.AddAttribute(1, "class", "spec-inline-edit-shell");
             __builder.AddAttribute(2, "role", "button");
             __builder.AddAttribute(3, "tabindex", "0");
-            __builder.AddAttribute(4, "title", "Bấm để chỉnh sửa nhanh");
+            __builder.AddAttribute(4, "title", "Click to quick-edit");
             __builder.AddAttribute(5, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, _ => BeginInlineEdit(row.Id, fieldKey, current)));
             __builder.AddAttribute(6, "onclick:stopPropagation", true);
             __builder.AddContent(7, display);
@@ -721,7 +727,7 @@ else if (_data is not null)
         }
         catch (HttpRequestException ex)
         {
-            _inlineError = $"Không kết nối được máy chủ: {ex.Message}";
+            _inlineError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {

@@ -6,13 +6,17 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
+using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
+using CCL.MES.Shared.Qms;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
+using CCL.MES.Shared.WoQcReview;
 using CCL.MES.Shared.WorkOrders;
 
 namespace CCL.MES.Hybrid.Client;
@@ -34,15 +38,31 @@ public interface ICclApiClient
     Task<UserInfo> GetMeAsync(CancellationToken ct = default);
     Task LogoutAsync(string refreshToken, CancellationToken ct = default);
 
+    // ── Home (P10.10) ──────────────────────────────────────────────
+    Task<HomeSummaryDto?> GetHomeSummaryAsync(CancellationToken ct = default);
+
+    // ── Machine Dashboard (P10.8) ──────────────────────────────────
+    Task<MachineDashboardDto?> GetMachineDashboardAsync(CancellationToken ct = default);
+    Task<MachineDetailDto?> GetMachineDetailAsync(long workCenterId, CancellationToken ct = default);
+    Task<ShopOrderHistoryDto?> GetShopOrderHistoryAsync(string? period, string? search,
+        string? status = null, string? customer = null, string? machine = null, CancellationToken ct = default);
+
+    // ── QMS (P10.9) ────────────────────────────────────────────────
+    Task<QmsQueueDto?> GetQmsQueueAsync(CancellationToken ct = default);
+    Task<QcHistoryDto?> GetQcHistoryAsync(string? kind, string? judgment, string? search, CancellationToken ct = default);
+
     // ── NPI (pilot scope) ──────────────────────────────────────────
     Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? search, int page, int pageSize, CancellationToken ct = default);
     Task<NpiPagedRaw<NpiRawMaterial>> GetRawMaterialsAsync(string? search, int page, int pageSize, CancellationToken ct = default);
     Task<NpiPagedRaw<NpiRoutingOperation>> GetRoutingsAsync(string? search, int page, int pageSize, CancellationToken ct = default);
     Task<NpiPagedRaw<NpiStructure>> GetStructuresAsync(string? search, int page, int pageSize, CancellationToken ct = default);
+    Task<NpiImportResultDto?> ImportNpiAsync(string kind, string fileName, byte[] content, CancellationToken ct = default);
 
     // ── Work Orders (P10.3 W4 — scan→accept) ──────────────────────
     /// <summary>Lookup WO by number. Returns null on 404; throws <see cref="ApiException"/>
     /// on any other non-2xx so the caller can show error UI.</summary>
+    Task<IReadOnlyList<ActiveWorkOrderCard>> GetActiveWorkOrdersAsync(CancellationToken ct = default);
+    Task<IReadOnlyList<WoAuditEntry>> GetWoAuditAsync(long workOrderId, CancellationToken ct = default);
     Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default);
 
     /// <summary>Advance the WO via its existing state machine. Always returns
@@ -198,6 +218,67 @@ public interface ICclApiClient
         long workOrderId, string ifMatchETag,
         QaApproveRequest req, CancellationToken ct = default);
 
+    // ── FQC + OQC review (P10.7e-3 — operator dashboards) ─────────
+    /// <summary>Read view for FQC ({kind}="fqc") or OQC ({kind}="oqc").
+    /// Returns items + judgment + 3-sig state + ETag + MesPhase.</summary>
+    Task<WoQcView> GetWoQcViewAsync(long workOrderId, string kind, CancellationToken ct = default);
+
+    /// <summary>PUT 1 item Status (Ok/Ng). On NG, NgReasonCode (from
+    /// reason-code catalog kind=Scrap) + NgNote (1-500 chars) required.</summary>
+    Task<WoQcSetResponse> PutWoQcItemAsync(
+        long workOrderId, string kind, string itemKey, string ifMatchETag,
+        SetWoQcItemRequest req, CancellationToken ct = default);
+
+    /// <summary>FQC single-sig Inspector judgment (Pass | Reject).
+    /// Transition: Pass → OQC_PENDING; Reject → PREPRESS (Q2 transient).</summary>
+    Task<WoQcSetResponse> PostFqcJudgmentAsync(
+        long workOrderId, string ifMatchETag,
+        SubmitFqcJudgmentRequest req, CancellationToken ct = default);
+
+    /// <summary>OQC sig 1 — Inspector commits the items.</summary>
+    Task<WoQcSetResponse> PostOqcInspectAsync(
+        long workOrderId, string ifMatchETag,
+        OqcInspectRequest req, CancellationToken ct = default);
+
+    /// <summary>OQC sig 2 — Reviewer. Server enforces Q5 invariant
+    /// Reviewer ≠ Inspector (OqcRequireDistinctReviewer default on);
+    /// violation: 422 + ErrorCode = "oqc.same_user_as_inspector" +
+    /// WO_OQC_REVIEW_DENIED audit. Mirror this gate client-side.</summary>
+    Task<WoQcSetResponse> PostOqcReviewAsync(
+        long workOrderId, string ifMatchETag,
+        OqcReviewRequest req, CancellationToken ct = default);
+
+    /// <summary>OQC sig 3 — Approver. Server enforces 2 Q5 invariants
+    /// (Approver ≠ Reviewer; Approver ≠ Inspector). On Approve happy
+    /// path: WO advances OQC_PENDING → SHIPPED + emits WO_OQC_APPROVE +
+    /// WO_SHIPPED audits. On Reject: WO → FQC_PENDING re-loop.</summary>
+    Task<WoQcSetResponse> PostOqcApproveAsync(
+        long workOrderId, string ifMatchETag,
+        OqcApproveRequest req, CancellationToken ct = default);
+
+    /// <summary>List photo metadata for one item (no blob payload).</summary>
+    Task<IReadOnlyList<WoQcPhotoDto>> GetWoQcPhotosAsync(
+        long workOrderId, string kind, string itemKey, CancellationToken ct = default);
+
+    /// <summary>POST a JPEG/PNG photo (multipart/form-data, single "file"
+    /// field, 5 MiB cap). Server SHA-256 + audit WoQcPhotoAdd; response
+    /// carries new ETag + canonical MesPhase (L19) + uploaded photo
+    /// metadata.</summary>
+    Task<WoQcPhotoUploadResponse> UploadWoQcPhotoAsync(
+        long workOrderId, string kind, string itemKey, string ifMatchETag,
+        Stream content, string fileName, string mimeType,
+        CancellationToken ct = default);
+
+    /// <summary>DELETE a single photo by id. Audit WoQcPhotoDelete +
+    /// blob removal best-effort.</summary>
+    Task<WoQcSetResponse> DeleteWoQcPhotoAsync(
+        long workOrderId, string kind, string itemKey, long photoId, string ifMatchETag,
+        CancellationToken ct = default);
+
+    /// <summary>Q8 — live-recomputed summary report for the
+    /// ShippedSummaryDashboard. Includes OEE + pause Pareto + 3-leg QC.</summary>
+    Task<WoSummaryReport> GetWoSummaryReportAsync(long workOrderId, CancellationToken ct = default);
+
     // ── Reason codes (P10.7b-3 — operator-facing picker) ──────────
     /// <summary>List active reason codes filtered by kind ("Pause" /
     /// "Scrap" / "Recovery"; omit for every kind). The PREPRESS dashboard
@@ -242,6 +323,14 @@ public interface ICclApiClient
 
     /// <summary>Copy a source spec into a new Draft revision.</summary>
     Task<SpecMutationResponse> CopySpecAsync(long sourceRevisionId, CopySpecMutation req, CancellationToken ct = default);
+
+    /// <summary>P10.10 — one-click duplicate: clone a source spec onto a fresh
+    /// product (own Rev A, blank IFS code) ready to edit inline.</summary>
+    Task<SpecMutationResponse> DuplicateSpecAsync(long sourceRevisionId, CancellationToken ct = default);
+
+    /// <summary>P10.10 — "Update ver": clone the source as the next revision on
+    /// the same product (keeps IFS code, lineage) ready to edit inline.</summary>
+    Task<SpecMutationResponse> NewVersionSpecAsync(long sourceRevisionId, CancellationToken ct = default);
 
     /// <summary>Revise an Approved/Released → new Draft + parent lineage.
     /// Reason ≥5 chars enforced server-side; client UI validates first.</summary>
@@ -304,6 +393,11 @@ public interface ICclApiClient
         long revisionId, long versionId, string destinationFilePath,
         CancellationToken ct = default);
 
+    /// <summary>P10.10 — fetch a drawing version's raw bytes (for an inline
+    /// image preview in the spec showcard). Use only for small image types.</summary>
+    Task<byte[]> DownloadDrawingBytesAsync(
+        long revisionId, long versionId, CancellationToken ct = default);
+
     /// <summary>P10.5e-2 — Decide on a 3-role approval chip (Npi /
     /// Production / Qc) for a specific version. Comment is REQUIRED
     /// server-side when <paramref name="req"/>.Decision = Rejected;
@@ -313,6 +407,16 @@ public interface ICclApiClient
     /// gate but the server is still the source of truth.</summary>
     Task<DrawingDecideResponse> DecideDrawingAsync(
         long revisionId, long versionId, DrawingDecideRequest req,
+        CancellationToken ct = default);
+
+    /// <summary>P10.10 — delete an uploaded drawing version. The request
+    /// carries an NPI-team member's username + password; the server
+    /// verifies the credential + NPI-team membership before removing the
+    /// blob + metadata. Throws <c>ApiException</c> with
+    /// <c>drawing.npi_auth_failed</c> (403) when the credential is bad or
+    /// the account isn't on the NPI team.</summary>
+    Task<DrawingDeleteResponse> DeleteDrawingVersionAsync(
+        long revisionId, long versionId, DrawingDeleteRequest req,
         CancellationToken ct = default);
 
     // ── QC Specs (P10.5b — read) ──────────────────────────────────
@@ -464,6 +568,19 @@ public interface ICclApiClient
     /// Throws <see cref="ApiException"/> on 403 / 422 with a stable
     /// <c>backup.*</c> error code.</summary>
     Task<RestoreResultDto> RestoreBackupAsync(Stream content, string fileName, CancellationToken ct = default);
+
+    // ── Scheduled backup — Admin-only (P-Backup) ────────────────────
+    /// <summary>Get the automated backup scheduler status (enabled, hour,
+    /// retention, next/last run).</summary>
+    Task<BackupScheduleStatusDto> GetBackupScheduleAsync(CancellationToken ct = default);
+
+    /// <summary>Edit the schedule (enable/hour/retention/min-keep). Persists
+    /// + re-arms the worker. Throws <see cref="ApiException"/> on 403 / 422
+    /// (<c>backup.invalid_schedule</c>).</summary>
+    Task<BackupScheduleStatusDto> SetBackupScheduleAsync(BackupScheduleUpdateRequest req, CancellationToken ct = default);
+
+    /// <summary>Run one backup cycle now (snapshot + blob + verify + prune).</summary>
+    Task<BackupRunResultDto> RunBackupNowAsync(CancellationToken ct = default);
 }
 
 /// <summary>

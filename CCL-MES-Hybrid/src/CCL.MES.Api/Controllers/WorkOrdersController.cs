@@ -52,6 +52,57 @@ public sealed class WorkOrdersController : ControllerBase
         _db = db;
     }
 
+    // P10.7 landing — active WOs for the scan surface (SpecHub "Active
+    // Work Orders" parity). Anything not yet shipped/cancelled is "active".
+    private static readonly string[] LandingActivePhases =
+    {
+        "PREPRESS", "SETTING", "IPQC_WAIT", "QA_PENDING", "IPQC_APPROVED",
+        "RUNNING", "PAUSED", "FQC_PENDING", "OQC_PENDING",
+    };
+
+    [HttpGet("active")]
+    public async Task<ActionResult<IReadOnlyList<ActiveWorkOrderCard>>> Active(CancellationToken ct)
+    {
+        var rows = await _db.WorkOrders.AsNoTracking()
+            .Where(w => LandingActivePhases.Contains(w.MesPhase))
+            .OrderByDescending(w => w.UpdatedAt)
+            .Take(50)
+            .Select(w => new ActiveWorkOrderCard
+            {
+                WoNo = w.WoNo,
+                CustomerName = w.Customer != null ? w.Customer.Name : null,
+                ProductName = w.ProductName,
+                MachineCode = w.MachineCode,
+                MesPhase = w.MesPhase,
+                TargetQty = w.TargetQty,
+                QtyDone = w.QtyDoneCached,
+            })
+            .ToListAsync(ct);
+        return Ok(rows);
+    }
+
+    // P10.7 — WO-scoped audit trail for the scan-surface sidebar (SpecHub
+    // parity). Any-auth (the operator viewing the WO sees its history);
+    // the global /audit/log stays AdminOnly.
+    [HttpGet("{id:long}/audit")]
+    public async Task<ActionResult<IReadOnlyList<WoAuditEntry>>> Audit(long id, CancellationToken ct)
+    {
+        var idStr = id.ToString();
+        var rows = await _db.AuditLogs.AsNoTracking()
+            .Where(a => a.TargetType == "WorkOrder" && a.TargetId == idStr)
+            .OrderByDescending(a => a.Timestamp)
+            .Take(20)
+            .Select(a => new WoAuditEntry
+            {
+                Timestamp = a.Timestamp,
+                Action = a.Action,
+                ActorUsername = a.ActorUsername,
+                Detail = a.Detail,
+            })
+            .ToListAsync(ct);
+        return Ok(rows);
+    }
+
     /// <summary>Flat list — small datasets only. Use <c>shop-orders</c>
     /// instead for the grouped operator view.</summary>
     [HttpGet]
@@ -126,6 +177,16 @@ public sealed class WorkOrdersController : ControllerBase
         if (!string.IsNullOrEmpty(etag))
             Response.Headers.ETag = $"\"{etag}\"";
 
+        // P10.10 — Part Description synced from the IFS BOM (Structure):
+        // ParentDescription of the WO's product code. First non-empty wins.
+        var partDescription = string.IsNullOrEmpty(view.ProductCode)
+            ? null
+            : await _db.ManufacturingStructures
+                .Where(ms => ms.ParentPart == view.ProductCode
+                             && ms.ParentDescription != null && ms.ParentDescription != "")
+                .Select(ms => ms.ParentDescription)
+                .FirstOrDefaultAsync();
+
         return Ok(new WorkOrderSummary
         {
             Id = view.Id,
@@ -133,6 +194,7 @@ public sealed class WorkOrdersController : ControllerBase
             CustomerName = view.CustomerName,
             ProductCode = view.ProductCode,
             ProductName = view.ProductName,
+            PartDescription = partDescription,
             MachineCode = view.MachineCode,
             MachineName = view.MachineName,
             TargetQty = view.TargetQty,

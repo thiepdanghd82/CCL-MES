@@ -7,6 +7,7 @@
 @using CCL.MES.Shared.Devices
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.Hardware
+@using CCL.MES.Shared.Prepress
 @using CCL.MES.Shared.ReasonCodes
 @using CCL.MES.Shared.RecentScans
 @using CCL.MES.Shared.WorkOrders
@@ -41,16 +42,16 @@
     surfaces as a `network_error` banner; operator retries when LAN is back.
 *@
 
-<h1 class="page-title">Work Orders — Quét &amp; Nhận</h1>
+<h1 class="page-title">Work Orders — Scan &amp; Accept</h1>
 
 @if (!HwOptions.Value.ScanEnabled)
 {
     <div class="hw-gate" role="status">
-        <strong>Tính năng quét đang tắt.</strong>
+        <strong>Scanning is disabled.</strong>
         <p>
-            Đặt <code>Hardware:ScanEnabled = true</code> trong appsettings.json
-            (hoặc env override) để bật luồng scan→WO. Cài đặt ngay tại Settings →
-            Thiết bị nếu trạm này đã được duyệt.
+            Set <code>Hardware:ScanEnabled = true</code> in appsettings.json
+            (or via env override) to enable the scan→WO flow. Configure it under Settings →
+            Devices if this station has been approved.
         </p>
     </div>
 }
@@ -59,7 +60,7 @@ else
     <div class="wo-shell">
         @if (_availability is null)
         {
-            <div class="hw-pill hw-pill-probing">Đang kiểm tra camera…</div>
+            <div class="hw-pill hw-pill-probing">Checking camera…</div>
         }
         else if (!_availability.IsAvailable)
         {
@@ -71,69 +72,64 @@ else
                 <button type="button" class="scan-btn scan-btn-secondary"
                         disabled="@_openingSettings"
                         @onclick="OnOpenSettings">
-                    @(_openingSettings ? "Đang mở…" : "Mở System Settings")
+                    @(_openingSettings ? "Opening…" : "Open System Settings")
                 </button>
                 @if (_openSettingsFailed)
                 {
                     <div class="scan-banner-help">
-                        Không mở được Settings tự động. Vào Apple Menu → System
-                        Settings → Privacy &amp; Security → Camera để bật quyền
-                        cho CCL MES.
+                        Could not open Settings automatically. Go to Apple Menu → System
+                        Settings → Privacy &amp; Security → Camera to grant permission
+                        for CCL MES.
                     </div>
                 }
             }
         }
         else
         {
+            @*  P10.7a-1.3 — manual WO entry sits inline AFTER "Scan WO" on the
+                same row (compact, height-matched). Plain <input> + @bind:event
+                "oninput" + Enter handler — NO <InputText> per the renderer-crash
+                lesson (P10.5g / P10.6a). Find routes through the SAME
+                ResolveAndShowAsync helper the scan path uses, so audit /
+                RecentScans / lookup behave identically — no logic fork. *@
             <div class="wo-cta-row">
                 <button type="button" class="scan-btn wo-cta-primary"
                         disabled="@(_scanning || _advancing || _lookingUp)"
                         @onclick="OnScan">
-                    @(_scanning ? "Đang mở camera…" : "Quét WO")
+                    @(_scanning ? "Opening camera…" : "Scan WO")
+                </button>
+                <input type="text"
+                       class="wo-manual-input scan-mono"
+                       placeholder="Enter WO code (e.g. WO-26-3683)"
+                       value="@_manualCode"
+                       @oninput="OnManualInput"
+                       @onkeydown="OnManualKeyDown"
+                       disabled="@(_scanning || _advancing || _lookingUp)"
+                       aria-label="Enter WO code manually"
+                       autocomplete="off"
+                       autocapitalize="off"
+                       spellcheck="false" />
+                <button type="button" class="scan-btn scan-btn-secondary wo-find-btn"
+                        disabled="@(_scanning || _advancing || _lookingUp
+                                    || CCL.MES.Hybrid.Client.WorkOrders.WoCodeNormalizer
+                                       .NormalizeForManualEntry(_manualCode) is null)"
+                        @onclick="OnManualLookup">
+                    @(_lookingUp ? "Looking up…" : "Find")
                 </button>
                 @if (_summary is not null || _lookupError is not null)
                 {
                     <button type="button" class="scan-btn scan-btn-secondary"
                             disabled="@(_scanning || _advancing)"
                             @onclick="ResetState">
-                        Quét WO khác
+                        Scan another WO
                     </button>
                 }
-            </div>
-
-            @*  P10.7a-1.3 — manual entry fallback. Operator uses this when
-                the QR is torn/blurred, the scanner is broken, or for desk
-                testing without a camera. Uses plain <input> + @bind:event
-                "oninput" + Enter handler — NO <InputText> per the
-                renderer-crash lesson (P10.5g / P10.6a). The Find button
-                routes through the SAME ResolveAndShowAsync helper the
-                scan path uses, so audit/RecentScans/lookup all behave
-                identically — no logic fork. *@
-            <div class="wo-manual-row">
-                <input type="text"
-                       class="wo-manual-input scan-mono"
-                       placeholder="Nhập mã WO (vd. WO-26-3683)"
-                       value="@_manualCode"
-                       @oninput="OnManualInput"
-                       @onkeydown="OnManualKeyDown"
-                       disabled="@(_scanning || _advancing || _lookingUp)"
-                       aria-label="Nhập mã WO thủ công"
-                       autocomplete="off"
-                       autocapitalize="off"
-                       spellcheck="false" />
-                <button type="button" class="scan-btn scan-btn-secondary"
-                        disabled="@(_scanning || _advancing || _lookingUp
-                                    || CCL.MES.Hybrid.Client.WorkOrders.WoCodeNormalizer
-                                       .NormalizeForManualEntry(_manualCode) is null)"
-                        @onclick="OnManualLookup">
-                    @(_lookingUp ? "Đang tra cứu…" : "Tìm")
-                </button>
             </div>
 
             @if (_lastScan is not null && _summary is null && _lookupError is null && _lookingUp)
             {
                 <div class="wo-lookup">
-                    <span class="hw-pill hw-pill-probing">Đang tra cứu @(_lastScan.Code)…</span>
+                    <span class="hw-pill hw-pill-probing">Looking up @(_lastScan.Code)…</span>
                 </div>
             }
 
@@ -144,6 +140,35 @@ else
                 </div>
             }
 
+            @* SpecHub "Active Work Orders" parity — landing card list when
+               no WO is open. Tap a card to open the WO (same path as a scan). *@
+            @if (_summary is null && _lookupError is null && !_lookingUp && _activeWos is not null)
+            {
+                @if (_activeWos.Count > 0)
+                {
+                    <div class="wo-section-head">⚡ Active Work Orders (@_activeWos.Count)</div>
+                    <div class="woa-grid">
+                        @foreach (var w in _activeWos)
+                        {
+                            <button type="button" class="woa-card" @onclick="@(() => OnOpenWoCardAsync(w.WoNo))">
+                                <div class="woa-head">
+                                    <span class="woa-no">@w.WoNo</span>
+                                    <span class="woa-badge @PhaseBadgeClass(w.MesPhase)">@PhaseLabel(w.MesPhase)</span>
+                                </div>
+                                <div class="woa-kv"><span>Customer</span><strong>@(w.CustomerName ?? "—")</strong></div>
+                                <div class="woa-kv"><span>Product</span><strong>@w.ProductName</strong></div>
+                                <div class="woa-kv"><span>Machine</span><strong>@(w.MachineCode ?? "—")</strong></div>
+                                <div class="woa-kv"><span>Progress</span><strong>@w.QtyDone / @w.TargetQty pcs</strong></div>
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="wo-active-empty">No active work orders. Scan or type a WO code above to begin.</div>
+                }
+            }
+
             @if (_summary is not null)
             {
                 @* P10.7c-3 BUG-FIX L19 finalization (Henry RCA on WO-26-3686):
@@ -152,18 +177,38 @@ else
                    /setting/done while MesPhase advances through IPQC_WAIT
                    → IPQC_APPROVED → RUNNING → PAUSED → FQC_PENDING etc.,
                    making the chip + step row lie about the actual state. *@
+                @* SpecHub-style 7-step phase stepper. *@
+                <div class="wo-stepper">
+                    @for (var i = 0; i < WoSteps.Length; i++)
+                    {
+                        var idx = i + 1;
+                        var curStep = StepIndexOf(_summary.MesPhase);
+                        <div class="wo-step @(idx < curStep ? "wo-step-done" : (idx == curStep ? "wo-step-cur" : "wo-step-todo"))">
+                            <div class="wo-step-num">@(idx < curStep ? "✓" : idx.ToString())</div>
+                            <div class="wo-step-label">@WoSteps[i]</div>
+                        </div>
+                    }
+                </div>
+
+                <div class="wo-detail-grid">
+                <div class="wo-main">
+
                 <div class="wo-card" data-mes-phase="@_summary.MesPhase" data-current-step="@_summary.CurrentStep">
                     <div class="wo-card-head">
                         <div class="wo-card-wo">@_summary.WoNo</div>
                         <div class="wo-card-step @MesPhaseCssClass(_summary)" data-testid="wo-card-phase-chip">@MesPhaseDisplay(_summary)</div>
+                        <div class="wo-card-actions">
+                            <button type="button" class="grid-btn" @onclick="OnRefreshWo" disabled="@(_lookingUp || _advancing)">↻ Refresh</button>
+                            <button type="button" class="grid-btn" @onclick="ResetState" disabled="@_advancing">← Close WO</button>
+                        </div>
                     </div>
-                    <div class="wo-card-row"><span class="wo-card-label">Khách hàng</span><span class="wo-card-value">@(_summary.CustomerName ?? "—")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Mã sản phẩm</span><span class="wo-card-value">@(_summary.ProductCode ?? "—")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Sản phẩm</span><span class="wo-card-value">@(_summary.ProductName ?? "—")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Máy</span><span class="wo-card-value">@(_summary.MachineCode ?? "—") @(_summary.MachineName is null ? "" : $"· {_summary.MachineName}")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Mục tiêu</span><span class="wo-card-value">@_summary.TargetQty @_summary.Uom</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Đã sản xuất</span><span class="wo-card-value">@_summary.ProducedQty @_summary.Uom</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Trạng thái MES</span><span class="wo-card-value scan-mono" data-testid="wo-card-phase-row">@MesPhaseDisplay(_summary)</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Product code</span><span class="wo-card-value">@(_summary.ProductCode ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Part Desc</span><span class="wo-card-value">@(_summary.PartDescription ?? _summary.ProductName ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Machine</span><span class="wo-card-value">@(_summary.MachineCode ?? "—") @(_summary.MachineName is null ? "" : $"· {_summary.MachineName}")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Target</span><span class="wo-card-value">@_summary.TargetQty @_summary.Uom</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Produced</span><span class="wo-card-value">@_summary.ProducedQty @_summary.Uom</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">MES status</span><span class="wo-card-value scan-mono" data-testid="wo-card-phase-row">@MesPhaseDisplay(_summary)</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">Customer</span><span class="wo-card-value">@(_summary.CustomerName ?? "—")</span></div>
 
                     @* P10.7a-1.4 — operator-grade success feedback. Today's
                        checkpoint surfaced that the operator tapped Accept
@@ -185,20 +230,20 @@ else
                         @if (_advanceResult?.Ok == true && _showSuccessBanner)
                         {
                             <div class="wo-card-success" data-testid="advance-success-banner">
-                                ✔ Đã chuyển bước: <strong>@(_advanceFromStep ?? "—")</strong>
+                                ✔ Step advanced: <strong>@(_advanceFromStep ?? "—")</strong>
                                 → <strong>@_advanceResult.CurrentStep</strong>
                             </div>
                         }
                         else if (_advanceResult is { Ok: false } && !string.IsNullOrEmpty(_advanceResult.ErrorCode))
                         {
                             <div class="wo-card-error">
-                                <strong>Không chuyển bước được:</strong> @LocaliseAdvanceError(_advanceResult.ErrorCode)
-                                <div class="wo-card-error-detail">Mã lỗi: <code>@_advanceResult.ErrorCode</code></div>
+                                <strong>Could not advance step:</strong> @LocaliseAdvanceError(_advanceResult.ErrorCode)
+                                <div class="wo-card-error-detail">Error code: <code>@_advanceResult.ErrorCode</code></div>
                             </div>
                         }
                         else if (_advanceError is not null)
                         {
-                            <div class="wo-card-error"><strong>Lỗi mạng:</strong> @_advanceError</div>
+                            <div class="wo-card-error"><strong>Network error:</strong> @_advanceError</div>
                         }
 
                         @if (_advanceResult?.Ok != true)
@@ -206,7 +251,7 @@ else
                             <button type="button" class="scan-btn wo-cta-accept"
                                     disabled="@_advancing"
                                     @onclick="OnAdvance">
-                                @(_advancing ? "Đang chuyển bước…" : "Nhận / Bắt đầu (chuyển bước)")
+                                @(_advancing ? "Advancing step…" : "Accept / Start (advance step)")
                             </button>
                         }
                     }
@@ -254,8 +299,39 @@ else
                         OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
                 }
 
+                @* P10.7e-3 — FQC_PENDING routes to FqcDashboard.
+                   L21 OnPhaseChanged: Pass → OQC_PENDING dispatches to
+                   OqcDashboard; Reject → PREPRESS dispatches to
+                   PrepressDashboard. *@
+                @if (IsFqcPendingPhase(_summary))
+                {
+                    <CCL.MES.Hybrid.Razor.Shared.FqcDashboard
+                        WorkOrderId="@_summary.Id"
+                        ScrapReasons="@_scrapReasons"
+                        OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
+                }
+
+                @* P10.7e-3 — OQC_PENDING routes to OqcDashboard with 3-sig
+                   Q5 chain. L21: Approve → SHIPPED ShippedSummaryDashboard;
+                   Reject → FQC_PENDING FqcDashboard re-mounts. *@
+                @if (IsOqcPendingPhase(_summary))
+                {
+                    <CCL.MES.Hybrid.Razor.Shared.OqcDashboard
+                        WorkOrderId="@_summary.Id"
+                        ScrapReasons="@_scrapReasons"
+                        OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
+                }
+
+                @* P10.7e-3 — SHIPPED routes to ShippedSummaryDashboard. *@
+                @if (IsShippedPhase(_summary))
+                {
+                    <CCL.MES.Hybrid.Razor.Shared.ShippedSummaryDashboard
+                        WorkOrderId="@_summary.Id" />
+                }
+
                 @* P10.7c-3 — IPQC_APPROVED + RUNNING + PAUSED + 7e-deferred
-                   phases (FQC_PENDING / OQC_PENDING / DONE / CANCELLED). *@
+                   phases (DONE / CANCELLED). FQC_PENDING + OQC_PENDING +
+                   SHIPPED dropped in 7e-3 — they have real dashboards now. *@
                 @if (IsRunningSurfacePhase(_summary))
                 {
                     <CCL.MES.Hybrid.Razor.Shared.RunningDashboard
@@ -264,6 +340,98 @@ else
                         PauseReasons="@_pauseReasons"
                         OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
                 }
+
+                </div>@* /wo-main *@
+
+                <aside class="wo-side">
+                    <div class="wo-side-panel">
+                        <div class="wo-side-head">① Current State</div>
+                        <div class="wo-side-body">
+                            <div class="wo-side-phase">Phase @StepIndexOf(_summary.MesPhase) / 7 · @MesPhaseDisplay(_summary)</div>
+                            <div class="wo-dots">
+                                @for (var i = 1; i <= 7; i++)
+                                {
+                                    <span class="wo-dot @(i <= StepIndexOf(_summary.MesPhase) ? "wo-dot-on" : "")"></span>
+                                }
+                            </div>
+                            <div class="wo-side-progress">@_summary.ProducedQty / @_summary.TargetQty @_summary.Uom</div>
+                        </div>
+                    </div>
+
+                    <div class="wo-side-panel">
+                        <div class="wo-side-head">▦ Spec Quick Ref</div>
+                        <div class="wo-side-body">
+                            <div class="wo-side-kv"><span>Customer</span><strong>@(_summary.CustomerName ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>Product</span><strong>@(_summary.ProductCode ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>Product name</span><strong>@(_summary.ProductName ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>Machine</span><strong>@(_summary.MachineCode ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>Target</span><strong>@_summary.TargetQty @_summary.Uom</strong></div>
+                            @if (_prepressView?.PlateCheck?.PlateNo is { Length: > 0 } plateNo)
+                            {
+                                <div class="wo-side-kv"><span>Plate</span><strong class="scan-mono">@plateNo</strong></div>
+                            }
+                            @if (_prepressView?.CutterCheck?.CutterNo is { Length: > 0 } cutterNo)
+                            {
+                                <div class="wo-side-kv"><span>Cutter</span><strong class="scan-mono">@cutterNo</strong></div>
+                            }
+                        </div>
+                    </div>
+
+                    @if (_prepressView is not null && _prepressView.Materials.Count > 0)
+                    {
+                        <div class="wo-side-panel">
+                            <div class="wo-side-head">
+                                ▤ BOM Summary
+                                <span class="wo-side-head-aside">@_prepressView.Materials.Count materials · @_prepressView.Materials.Count(m => m.Status == "Ok") OK</span>
+                            </div>
+                            <div class="wo-side-body">
+                                @foreach (var m in _prepressView.Materials)
+                                {
+                                    <div class="wo-bom-row">
+                                        <span class="wo-bom-dot @(m.Status == "Ok" ? "wo-bom-ok" : (m.Status == "Ng" ? "wo-bom-ng" : ""))"></span>
+                                        <div class="wo-bom-main">
+                                            <span class="wo-bom-code">@m.MaterialCode</span>
+                                            @if (m.MaterialDescription is { Length: > 0 } desc)
+                                            {
+                                                <span class="wo-bom-desc">@desc</span>
+                                            }
+                                        </div>
+                                        <div class="wo-bom-nums">
+                                            <span class="wo-bom-qty">@(m.QtyLoaded?.ToString("0.###") ?? "—") / @m.QtyRequired.ToString("0.###") @m.Uom</span>
+                                            @if (m.LotNo is { Length: > 0 } lot)
+                                            {
+                                                <span class="wo-bom-lot">Lot @lot</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    @if (_woAudit is not null && _woAudit.Count > 0)
+                    {
+                        <div class="wo-side-panel">
+                            <div class="wo-side-head">
+                                🕘 Audit Trail
+                                <span class="wo-side-head-aside">@_woAudit.Count events</span>
+                            </div>
+                            <div class="wo-side-body wo-audit-list">
+                                @foreach (var a in _woAudit)
+                                {
+                                    <div class="wo-audit-row">
+                                        <div class="wo-audit-top">
+                                            <span class="wo-audit-action">@a.Action</span>
+                                            <span class="wo-audit-time">@a.Timestamp.ToLocalTime().ToString("HH:mm:ss")</span>
+                                        </div>
+                                        <div class="wo-audit-actor">@a.ActorUsername</div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </aside>
+                </div>@* /wo-detail-grid *@
             }
         }
     </div>
@@ -278,6 +446,9 @@ else
     private bool _openSettingsFailed;
     private ScanResult? _lastScan;
     private WorkOrderSummary? _summary;
+    private IReadOnlyList<ActiveWorkOrderCard>? _activeWos;
+    private PrepressView? _prepressView;
+    private IReadOnlyList<WoAuditEntry>? _woAudit;
     private AdvanceWorkOrderResponse? _advanceResult;
     private string? _lookupError;
     private string? _advanceError;
@@ -308,7 +479,86 @@ else
         if (HwOptions.Value.ScanEnabled)
             await Probe();
         await LoadReasonCodesAsync();
+        await LoadActiveWosAsync();
     }
+
+    private async Task LoadActiveWosAsync()
+    {
+        try { _activeWos = await Api.GetActiveWorkOrdersAsync(); }
+        catch (Exception ex)
+        {
+            Log.LogWarning(ex, "[workorders] load active WOs failed — landing list empty");
+            _activeWos = System.Array.Empty<ActiveWorkOrderCard>();
+        }
+    }
+
+    // SpecHub "Active Work Orders" — tap a landing card to open the WO.
+    private async Task OnOpenWoCardAsync(string woNo)
+    {
+        ResetState();
+        _manualCode = woNo;
+        await ResolveAndShowAsync(woNo, "MANUAL", "card-open", DateTimeOffset.UtcNow);
+    }
+
+    // SpecHub header "Refresh" — re-fetch the open WO's summary in place.
+    private async Task OnRefreshWo()
+    {
+        if (_summary is null) return;
+        try
+        {
+            var fresh = await Api.GetWorkOrderByNoAsync(_summary.WoNo);
+            if (fresh is not null) _summary = fresh;
+        }
+        catch (Exception ex) { Log.LogWarning(ex, "[workorders] refresh failed"); }
+        await LoadSideDataAsync();
+    }
+
+    // SpecHub sidebar — BOM Summary + Audit Trail. Best-effort; never
+    // throws (panels just hide on failure).
+    private async Task LoadSideDataAsync()
+    {
+        if (_summary is null) { _prepressView = null; _woAudit = null; return; }
+        var id = _summary.Id;
+        try { _prepressView = await Api.GetPrepressViewAsync(id); }
+        catch (Exception ex) { Log.LogWarning(ex, "[workorders] BOM summary load failed"); _prepressView = null; }
+        try { _woAudit = await Api.GetWoAuditAsync(id); }
+        catch (Exception ex) { Log.LogWarning(ex, "[workorders] audit load failed"); _woAudit = null; }
+    }
+
+    private static string PhaseLabel(string p) => p switch
+    {
+        "PREPRESS" => "PRE-PRESS",
+        "IPQC_WAIT" => "IPQC",
+        "QA_PENDING" => "QA",
+        "IPQC_APPROVED" => "READY",
+        "FQC_PENDING" => "FQC",
+        "OQC_PENDING" => "OQC",
+        _ => p,
+    };
+
+    private static string PhaseBadgeClass(string p) => p switch
+    {
+        "RUNNING" => "wo-badge-run",
+        "PAUSED" => "wo-badge-warn",
+        _ => "wo-badge-info",
+    };
+
+    // SpecHub 7-step phase stepper.
+    private static readonly string[] WoSteps =
+        { "Pre-press", "OP Setting", "IPQC", "Ready to Run", "Running", "FQC", "OQC" };
+
+    private static int StepIndexOf(string p) => p switch
+    {
+        "PREPRESS" => 1,
+        "SETTING" => 2,
+        "IPQC_WAIT" or "QA_PENDING" => 3,
+        "IPQC_APPROVED" => 4,
+        "RUNNING" or "PAUSED" => 5,
+        "FQC_PENDING" => 6,
+        "OQC_PENDING" => 7,
+        "SHIPPED" or "DONE" => 8,
+        _ => 0,
+    };
 
     private async Task LoadReasonCodesAsync()
     {
@@ -329,7 +579,7 @@ else
         catch (Exception ex)
         {
             _availability = new HardwareAvailability(false, "probe_failed",
-                $"Lỗi khi kiểm tra: {ex.GetType().Name}: {ex.Message}");
+                $"Error during check: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -350,7 +600,7 @@ else
         }
         catch (Exception ex)
         {
-            _lookupError = $"Lỗi quét: {ex.GetType().Name}: {ex.Message}";
+            _lookupError = $"Scan error: {ex.GetType().Name}: {ex.Message}";
             Log.LogWarning(ex, "[workorders] scan flow failed");
         }
         finally
@@ -372,6 +622,20 @@ else
             format: scan.Format ?? string.Empty,
             sourceDeviceLabel: scan.SourceDevice,
             capturedAt: scan.CapturedAt);
+    }
+
+    /// <summary>IFS shop-order QR codes encode a multi-line payload:
+    /// <c>Shop Order No: 81091753 / Rel No: 4 / Seq No: 1 / Part No: 80640004
+    /// / Lot Size: 2000</c>. The WO number is the Shop Order No. Pull it out
+    /// so the lookup matches; a plain single value (manual entry / legacy QR)
+    /// has no "Shop Order No" line and passes through unchanged.</summary>
+    private static string ExtractWoCode(string payload)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return payload;
+        var m = System.Text.RegularExpressions.Regex.Match(
+            payload, @"shop\s*order\s*no\.?\s*[:#]?\s*([A-Za-z0-9\-_/]+)",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return m.Success ? m.Groups[1].Value.Trim() : payload.Trim();
     }
 
     private async Task ResolveAndShowAsync(
@@ -397,18 +661,24 @@ else
             Log.LogWarning(ex, "[workorders] scan-log POST failed — continuing with lookup");
         }
 
-        // Step 2 — lookup the WO by number.
+        // Step 2 — lookup the WO by number. IFS shop-order QR codes carry a
+        // multi-line payload ("Shop Order No: 81091753\nRel No: …\nPart No:
+        // 80640004\nLot Size: 2000"); extract the Shop Order No as the WO
+        // number. A plain code (no "Shop Order No" line) passes through
+        // unchanged so manual entry + legacy QR still work.
+        var lookupCode = ExtractWoCode(woCode);
         _lookingUp = true;
         try
         {
-            var summary = await Api.GetWorkOrderByNoAsync(woCode);
+            var summary = await Api.GetWorkOrderByNoAsync(lookupCode);
             if (summary is null)
             {
-                _lookupError = $"Không tìm thấy WO số \"{woCode}\". Kiểm tra lại mã hoặc quét lại.";
+                _lookupError = $"WO number \"{lookupCode}\" not found. Check the code or scan again.";
             }
             else
             {
                 _summary = summary;
+                await LoadSideDataAsync();
             }
         }
         catch (ApiException apiEx)
@@ -417,11 +687,11 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _lookupError = $"Không kết nối được máy chủ: {TrimDetail(ex.Message)}";
+            _lookupError = $"Could not connect to the server: {TrimDetail(ex.Message)}";
         }
         catch (Exception ex)
         {
-            _lookupError = $"Lỗi tra cứu WO: {ex.GetType().Name}: {TrimDetail(ex.Message)}";
+            _lookupError = $"WO lookup error: {ex.GetType().Name}: {TrimDetail(ex.Message)}";
         }
         finally
         {
@@ -433,11 +703,11 @@ else
         {
             RecentScans.Record(new RecentScanEntry
             {
-                Code = woCode,
+                Code = lookupCode,
                 Format = format,
                 Context = "wo-accept",
                 ScannedAt = DateTime.UtcNow,
-                ResolvedDisplay = _summary?.WoNo ?? woCode,
+                ResolvedDisplay = _summary?.WoNo ?? lookupCode,
                 ResolvedSubtitle = _summary is null
                     ? null
                     : $"{_summary.ProductCode ?? "—"} · {_summary.CustomerName ?? "—"}",
@@ -473,7 +743,7 @@ else
             .NormalizeForManualEntry(_manualCode);
         if (normalised is null)
         {
-            _lookupError = "Mã WO không hợp lệ — nhập ít nhất 3 ký tự.";
+            _lookupError = "Invalid WO code — enter at least 3 characters.";
             return;
         }
         ResetState(); // clear previous summary/error but keep typed text
@@ -511,6 +781,7 @@ else
             if (fresh is not null)
             {
                 _summary = fresh;
+                await LoadSideDataAsync();
             }
         }
         catch (ApiException apiEx)
@@ -522,11 +793,11 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _lookupError = $"Không kết nối được máy chủ: {TrimDetail(ex.Message)}";
+            _lookupError = $"Could not connect to the server: {TrimDetail(ex.Message)}";
         }
         catch (Exception ex)
         {
-            _lookupError = $"Lỗi tải lại WO: {ex.GetType().Name}: {TrimDetail(ex.Message)}";
+            _lookupError = $"WO reload error: {ex.GetType().Name}: {TrimDetail(ex.Message)}";
         }
         StateHasChanged();
     }
@@ -583,7 +854,7 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _advanceError = $"Không kết nối được máy chủ: {TrimDetail(ex.Message)}";
+            _advanceError = $"Could not connect to the server: {TrimDetail(ex.Message)}";
         }
         catch (Exception ex)
         {
@@ -721,15 +992,15 @@ else
 
     /// <summary>Internal — true for any MesPhase that RunningDashboard
     /// knows how to render (action UI for IPQC_APPROVED/RUNNING/PAUSED;
-    /// read-only placeholder for FQC_PENDING/OQC_PENDING/DONE/CANCELLED).
-    /// 7d-3 dropped IPQC_WAIT + QA_PENDING — they routed to their own
-    /// dashboards. Test surface for the dashboard's own validity gate.</summary>
+    /// read-only placeholder for DONE/CANCELLED). 7d-3 dropped IPQC_WAIT +
+    /// QA_PENDING; 7e-3 dropped FQC_PENDING + OQC_PENDING + SHIPPED — all
+    /// route to their own dashboards. Only DONE + CANCELLED remain as
+    /// terminal placeholders. Test surface for the dashboard's own
+    /// validity gate.</summary>
     private static bool IsRunningSurfacePhaseValue(string phase) =>
         string.Equals(phase, "IPQC_APPROVED", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "RUNNING", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "PAUSED", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(phase, "FQC_PENDING", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(phase, "OQC_PENDING", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "DONE", StringComparison.OrdinalIgnoreCase)
         || string.Equals(phase, "CANCELLED", StringComparison.OrdinalIgnoreCase);
 
@@ -751,6 +1022,35 @@ else
     private static bool IsQaPendingPhase(WorkOrderSummary summary)
     {
         if (string.Equals(summary.MesPhase, "QA_PENDING", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
+        return false;
+    }
+
+    /// <summary>P10.7e-3 — FQC_PENDING routes to FqcDashboard. Pre-7e-3
+    /// cached summaries with MesPhase missing keep the legacy
+    /// RunningDashboard placeholder path.</summary>
+    private static bool IsFqcPendingPhase(WorkOrderSummary summary)
+    {
+        if (string.Equals(summary.MesPhase, "FQC_PENDING", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
+        return false;
+    }
+
+    /// <summary>P10.7e-3 — OQC_PENDING routes to OqcDashboard.</summary>
+    private static bool IsOqcPendingPhase(WorkOrderSummary summary)
+    {
+        if (string.Equals(summary.MesPhase, "OQC_PENDING", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
+        return false;
+    }
+
+    /// <summary>P10.7e-3 — SHIPPED routes to ShippedSummaryDashboard.</summary>
+    private static bool IsShippedPhase(WorkOrderSummary summary)
+    {
+        if (string.Equals(summary.MesPhase, "SHIPPED", StringComparison.OrdinalIgnoreCase))
             return true;
         if (!string.IsNullOrEmpty(summary.MesPhase)) return false;
         return false;
@@ -784,6 +1084,7 @@ else
             "FQC_PENDING"    => "wo-phase-fqc-pending",
             "OQC_PENDING"    => "wo-phase-oqc-pending",
             "DONE"           => "wo-phase-done",
+            "SHIPPED"        => "wo-phase-shipped",
             "CANCELLED"      => "wo-phase-cancelled",
             _                => "wo-phase-other",
         };
@@ -798,6 +1099,9 @@ else
         || IsSettingPhase(summary)
         || IsIpqcWaitPhase(summary)
         || IsQaPendingPhase(summary)
+        || IsFqcPendingPhase(summary)
+        || IsOqcPendingPhase(summary)
+        || IsShippedPhase(summary)
         || IsRunningSurfacePhase(summary);
 
     // P10.7a-1.3 — both VN mapper switches extracted into

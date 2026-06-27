@@ -262,7 +262,7 @@ public sealed record SpecShowcardVm
         return new SpecShowcardVm
         {
             Id = 0,
-            SpecCode = s.PartNo ?? "(chưa có)",
+            SpecCode = s.PartNo ?? "(none)",
             Title = !string.IsNullOrWhiteSpace(s.PartName) ? s.PartName! : (s.PartNo ?? fileName),
             RevisionCode = "A",
             Status = SpecRevisionStatus.Draft,
@@ -283,7 +283,7 @@ public sealed record SpecShowcardVm
             RemarksText = s.RemarksLeft,
             RemarksCutText = s.RemarksRight,
             CreatedAt = DateTime.UtcNow,
-            CreatedBy = "(xem trước)",
+            CreatedBy = "(preview)",
             ComplianceChips = BuildComplianceChips(s.InspectionLevel),
         };
     }
@@ -303,11 +303,11 @@ public sealed record SpecShowcardVm
     /// <summary>VN label cho 5-state status (Q2 — keep 5-state).</summary>
     public static string StatusLabelVi(SpecRevisionStatus status) => status switch
     {
-        SpecRevisionStatus.Draft       => "Bản nháp",       // i18n: spec.status.draft
-        SpecRevisionStatus.InReview    => "Đang xét",       // i18n: spec.status.in_review
-        SpecRevisionStatus.Approved    => "Đã duyệt",       // i18n: spec.status.approved
-        SpecRevisionStatus.Released    => "Đã phát hành",   // i18n: spec.status.released
-        SpecRevisionStatus.Superseded  => "Đã thay thế",    // i18n: spec.status.superseded
+        SpecRevisionStatus.Draft       => "Draft",       // i18n: spec.status.draft
+        SpecRevisionStatus.InReview    => "In Review",       // i18n: spec.status.in_review
+        SpecRevisionStatus.Approved    => "Approved",       // i18n: spec.status.approved
+        SpecRevisionStatus.Released    => "Released",   // i18n: spec.status.released
+        SpecRevisionStatus.Superseded  => "Superseded",    // i18n: spec.status.superseded
         _                              => status.ToString(),
     };
 
@@ -349,12 +349,12 @@ public sealed record SpecShowcardVm
 
     public static string PlannerLabelVi(string plannerCode) => plannerCode switch
     {
-        "SILK"    => "Lụa",            // i18n: spec.planner.silk
+        "SILK"    => "Silkscreen",            // i18n: spec.planner.silk
         "FLEXO"   => "Flexo",          // i18n: spec.planner.flexo
         "LETTER"  => "Letterpress",    // i18n: spec.planner.letter
         "INDIGO"  => "Indigo",         // i18n: spec.planner.indigo
         "DIECUT"  => "Bế",             // i18n: spec.planner.diecut
-        _         => "Chưa rõ",        // i18n: spec.planner.unknown
+        _         => "Unknown",        // i18n: spec.planner.unknown
     };
 
     public static string PlannerCssClassFor(string plannerCode) => plannerCode switch

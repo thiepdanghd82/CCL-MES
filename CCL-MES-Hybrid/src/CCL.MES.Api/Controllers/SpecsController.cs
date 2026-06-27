@@ -101,8 +101,12 @@ public sealed class SpecsController : ControllerBase
             var req = new CreateSpecRequest
             {
                 ProductId = r.ProductId,
+                IfsCode = r.IfsCode,
                 SpecCode = r.SpecCode,
                 Title = r.Title,
+                Customer = r.Customer,
+                Spec = r.Spec,
+                OverrideReason = r.OverrideReason,
                 ProcessCode = r.ProcessCode,
                 Parameters = r.Parameters.Select(p => new SpecParamDto
                 {
@@ -131,6 +135,33 @@ public sealed class SpecsController : ControllerBase
                 Status = rev.Status.ToString(),
                 Title = rev.Title,
                 ProductId = rev.ProductId,
+            });
+        }
+        catch (CCL.MES.Application.Services.DuplicateWarningException warn)
+        {
+            // Soft duplicate on IFS code / Part No / Spec — the operator must
+            // supply a reason to create anyway. DupFields lists the exact
+            // inputs to highlight.
+            return UnprocessableEntity(new SpecMutationError
+            {
+                Code = "duplicate_warning",
+                Error = warn.Message,
+                DupFields = string.Join(",", warn.Fields),
+            });
+        }
+        catch (CCL.MES.Application.Services.DuplicateSpecException dup)
+        {
+            // The (Product, Rev A) unique constraint — the duplicate is the
+            // Part No, not the Spec code. Surfaces as duplicate_part_no so the
+            // UI can highlight the right field.
+            return UnprocessableEntity(new SpecMutationError { Code = "duplicate_part_no", Error = dup.Message });
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException)
+        {
+            return UnprocessableEntity(new SpecMutationError
+            {
+                Code = "duplicate_part_no",
+                Error = "This Part No already has a spec (Rev A). Use Copy or Revise to add a revision.",
             });
         }
         catch (Exception ex)
@@ -217,6 +248,81 @@ public sealed class SpecsController : ControllerBase
         catch (Exception ex)
         {
             return Problem(title: "Spec copy failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
+    // P10.10 — one-click duplicate: clones the source onto a fresh product (own
+    // Rev A, blank IFS code) so the operator lands straight in the inline editor
+    // with everything editable. No body — everything is derived from the source.
+    [HttpPost("{revisionId:long}/duplicate")]
+    [Authorize(Policy = "NpiSpecWrite")]
+    public async Task<IActionResult> Duplicate(long revisionId)
+    {
+        try
+        {
+            var result = await _svc.DuplicateAsync(revisionId, ActorName());
+            switch (result.Kind)
+            {
+                case CopyResultKind.Ok:
+                    await EmitDeviceAuditIfHeaderPresent("SPEC_COPY_DEVICE", new
+                    {
+                        source_rev_id = revisionId,
+                        new_rev_id = result.Revision!.Id,
+                        mode = "duplicate",
+                    });
+                    return StatusCode(201, new SpecMutationResponse
+                    {
+                        Id = result.Revision!.Id,
+                        SpecCode = result.Revision.SpecCode,
+                        Revision = result.Revision.RevisionCode,
+                        ProductId = result.Revision.ProductId,
+                    });
+                case CopyResultKind.SourceNotFound:
+                    return NotFound(new SpecMutationError { Code = "not_found", Error = result.Error ?? "" });
+                default:
+                    return Problem("Unexpected duplicate result");
+            }
+        }
+        catch (Exception ex)
+        {
+            return Problem(title: "Spec duplicate failed", detail: ex.Message, statusCode: 500);
+        }
+    }
+
+    // P10.10 — "Update ver": clone the source as the NEXT revision on the SAME
+    // product (keeps IFS code, lineage), Draft, ready to edit inline. No body.
+    [HttpPost("{revisionId:long}/new-version")]
+    [Authorize(Policy = "NpiSpecWrite")]
+    public async Task<IActionResult> NewVersion(long revisionId)
+    {
+        try
+        {
+            var result = await _svc.NewVersionAsync(revisionId, ActorName());
+            switch (result.Kind)
+            {
+                case CopyResultKind.Ok:
+                    await EmitDeviceAuditIfHeaderPresent("SPEC_COPY_DEVICE", new
+                    {
+                        source_rev_id = revisionId,
+                        new_rev_id = result.Revision!.Id,
+                        mode = "new_version",
+                    });
+                    return StatusCode(201, new SpecMutationResponse
+                    {
+                        Id = result.Revision!.Id,
+                        SpecCode = result.Revision.SpecCode,
+                        Revision = result.Revision.RevisionCode,
+                        ProductId = result.Revision.ProductId,
+                    });
+                case CopyResultKind.SourceNotFound:
+                    return NotFound(new SpecMutationError { Code = "not_found", Error = result.Error ?? "" });
+                default:
+                    return Problem("Unexpected new-version result");
+            }
+        }
+        catch (Exception ex)
+        {
+            return Problem(title: "Spec new-version failed", detail: ex.Message, statusCode: 500);
         }
     }
 
@@ -407,6 +513,35 @@ public sealed class SpecsController : ControllerBase
                 InspectionLevel = r.InspectionLevel,
                 ProcessCode = r.ProcessCode,
                 ColorSpecJson = r.ColorSpecJson,
+                // P10.10 — identity header
+                SpecCode = r.SpecCode,
+                Customer = r.Customer,
+                PartNo = r.PartNo,
+                PartName = r.PartName,
+                // P10.10 — inline-edit fields
+                SubstrateType = r.SubstrateType,
+                AdhesiveType = r.AdhesiveType,
+                ThicknessUm = r.ThicknessUm,
+                PrintingCavity = r.PrintingCavity,
+                LengthPitchMm = r.LengthPitchMm,
+                ProductSizeWmm = r.ProductSizeWmm,
+                ProductSizeHmm = r.ProductSizeHmm,
+                RemarksText = r.RemarksText,
+                RemarksCutText = r.RemarksCutText,
+                Colors = r.Colors?.Select(c => new SpecColorRowInput
+                {
+                    Surface = c.Surface, Color = c.Color, InkName = c.InkName, InkCode = c.InkCode,
+                    Maker = c.Maker, Retarder = c.Retarder, Viscosity = c.Viscosity, Speed = c.Speed,
+                    Squeegee = c.Squeegee, Dry = c.Dry, TemperatureC = c.TemperatureC, TimeMin = c.TimeMin,
+                    Uv = c.Uv, EmulsionUm = c.EmulsionUm, PlateSize = c.PlateSize, Mesh = c.Mesh,
+                    AngleDeg = c.AngleDeg, PlateCode = c.PlateCode, ControlNo = c.ControlNo, Remark = c.Remark,
+                }).ToList(),
+                InkRows = r.InkRows?.Select(i => new SpecInkRowInput
+                {
+                    Color = i.Color, InkCode = i.InkCode, InkDescription = i.InkDescription,
+                    Brand = i.Brand, Anilox = i.Anilox, PlateCode = i.PlateCode,
+                    Pressure = i.Pressure, UvPowerW = i.UvPowerW, IrPowerW = i.IrPowerW,
+                }).ToList(),
             };
             var result = await _svc.UpdateAsync(revisionId, req, ActorName());
             switch (result.Kind)

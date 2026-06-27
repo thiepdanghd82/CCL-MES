@@ -1,0 +1,177 @@
+@*
+    P10.7e-3 — shared photo strip + file-picker for FQC + OQC dashboards.
+
+    Hosted inline inside a slot card. Renders:
+      - 0-N thumbnails as <img> sourced from the binary content endpoint
+        (server returns the JPEG/PNG bytes; browser caches by URL).
+        Each thumbnail has a tooltip with original filename + size +
+        uploaded-by.
+      - 1 "Thêm ảnh" button (plain <input type="file" accept="image/*">
+        styled as a button). Camera capture defers to 7f per Henry's
+        scope note.
+      - Optional 1 Delete button per thumbnail (visible only when the
+        WO is in the matching pending phase + caller has QcEdit
+        permission — gated externally via Disabled).
+
+    Concurrency: every mutation routes through the WoQc endpoints
+    which require If-Match + Idempotency-Key. The parent dashboard
+    refreshes its WoQcView on success so the strip re-renders with the
+    new photo id list.
+
+    Rule 4: plain <input> + plain <button>. NO <InputFile> — the Razor
+    component crashes on iOS Safari per the renderer-trap lesson.
+*@
+
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.WoQcReview
+@using CCL.MES.Shared.WoQcReview
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Logging
+@inject ICclApiClient Api
+@inject ILogger<QcPhotoStrip> Log
+
+<div class="qc-photo-strip" data-testid="@($"qc-photo-strip-{ItemKey}")">
+    <div class="qc-photo-thumb-row">
+        @if (PhotoIds is null || PhotoIds.Count == 0)
+        {
+            <div class="qc-photo-empty">No photos yet</div>
+        }
+        else
+        {
+            @foreach (var id in PhotoIds)
+            {
+                <div class="qc-photo-thumb" data-testid="@($"qc-photo-thumb-{ItemKey}-{id}")">
+                    <img src="@PhotoContentUrl(id)" alt="QC photo" loading="lazy" />
+                    @if (!Disabled)
+                    {
+                        <button type="button"
+                                class="op-btn op-btn-danger op-btn-sm qc-photo-delete"
+                                title="Delete photo"
+                                @onclick="@(() => OnDelete(id))"
+                                data-testid="@($"qc-photo-delete-{ItemKey}-{id}")">×</button>
+                    }
+                </div>
+            }
+        }
+    </div>
+
+    @* P10.7e-3 — Blazor InputFile renders <input type=file> via interop.
+       We wrap it in a label so the click target is the styled button. *@
+    <label class="op-btn op-btn-secondary qc-photo-add-btn @(Disabled ? "is-disabled" : "")"
+           data-testid="@($"qc-photo-add-{ItemKey}")">
+        @(_uploading ? "Uploading…" : "+ Add photo")
+        <InputFile OnChange="OnFilePicked"
+                   accept="image/jpeg,image/png"
+                   disabled="@(Disabled || _uploading)"
+                   class="qc-photo-file-input" />
+    </label>
+
+    @if (_uploadError is not null)
+    {
+        <div class="qc-photo-error" data-testid="@($"qc-photo-error-{ItemKey}")">@_uploadError</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public long WorkOrderId { get; set; }
+    [Parameter, EditorRequired] public string Kind { get; set; } = "";  // "fqc" | "oqc"
+    [Parameter, EditorRequired] public string ItemKey { get; set; } = "";
+
+    [Parameter] public IReadOnlyList<long>? PhotoIds { get; set; }
+
+    /// <summary>Current ETag from the parent's WoQcView; required for
+    /// every photo mutation per the If-Match contract.</summary>
+    [Parameter] public string ETag { get; set; } = "";
+
+    /// <summary>Disable upload + delete (e.g. WO already past the pending
+    /// phase or operator lacks QcEdit permission).</summary>
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Called after a successful upload OR delete so the parent
+    /// re-fetches the WoQcView (refreshes PhotoIds + ETag).</summary>
+    [Parameter] public EventCallback OnPhotosChanged { get; set; }
+
+    private bool _uploading;
+    private string? _uploadError;
+
+    private string PhotoContentUrl(long photoId) =>
+        $"/{ApiVersion.Prefix}/work-orders/{WorkOrderId}/qc/{Kind}/items/{Uri.EscapeDataString(ItemKey)}/photos/{photoId}/content";
+
+    private async Task OnFilePicked(InputFileChangeEventArgs e)
+    {
+        if (Disabled || _uploading) return;
+        var file = e.File;
+        if (file is null) return;
+
+        // 5 MiB cap mirrors server limit. Single-file flow per FR.
+        const long MaxBytes = 5L * 1024 * 1024;
+        if (file.Size > MaxBytes)
+        {
+            _uploadError = "Photo too large — maximum 5 MB.";
+            return;
+        }
+
+        var mime = file.ContentType?.ToLowerInvariant();
+        if (mime != "image/jpeg" && mime != "image/png")
+        {
+            _uploadError = "Photo must be JPG or PNG.";
+            return;
+        }
+
+        _uploading = true;
+        _uploadError = null;
+        try
+        {
+            await using var stream = file.OpenReadStream(MaxBytes);
+            var resp = await Api.UploadWoQcPhotoAsync(
+                WorkOrderId, Kind, ItemKey, ETag,
+                stream, file.Name ?? "photo.jpg", mime);
+            if (!resp.Ok)
+            {
+                _uploadError = WoQcReviewErrorLocaliser.LocaliseSetError(
+                    resp.ErrorCode ?? "http.empty_body");
+                return;
+            }
+            await OnPhotosChanged.InvokeAsync();
+        }
+        catch (ApiException apiEx)
+        {
+            _uploadError = WoQcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+        }
+        catch (Exception ex)
+        {
+            _uploadError = $"Photo upload failed: {ex.GetType().Name}: {ex.Message}";
+            Log.LogWarning(ex, "[qc-photo] upload failed");
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task OnDelete(long photoId)
+    {
+        if (Disabled || _uploading) return;
+        _uploadError = null;
+        try
+        {
+            var resp = await Api.DeleteWoQcPhotoAsync(WorkOrderId, Kind, ItemKey, photoId, ETag);
+            if (!resp.Ok)
+            {
+                _uploadError = WoQcReviewErrorLocaliser.LocaliseSetError(
+                    resp.ErrorCode ?? "http.empty_body");
+                return;
+            }
+            await OnPhotosChanged.InvokeAsync();
+        }
+        catch (ApiException apiEx)
+        {
+            _uploadError = WoQcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+        }
+        catch (Exception ex)
+        {
+            _uploadError = $"Photo delete failed: {ex.GetType().Name}: {ex.Message}";
+            Log.LogWarning(ex, "[qc-photo] delete failed");
+        }
+    }
+}

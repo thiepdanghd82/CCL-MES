@@ -34,8 +34,25 @@ public class UpdateFlagsRequest
 public class CreateSpecRequest
 {
     public long ProductId { get; set; }
+    /// <summary>P10.10 — IFS / product code; when ProductId is 0 the service
+    /// resolves the product by this code (find-or-create).</summary>
+    public string? IfsCode { get; set; }
     public string SpecCode { get; set; } = "";
     public string Title { get; set; } = "";
+
+    /// <summary>P10.10 — customer name; find-or-created and assigned to the
+    /// resolved product so it surfaces in the spec sheet Customer cell. Blank
+    /// falls back to the "UNASSIGNED" customer.</summary>
+    public string? Customer { get; set; }
+
+    /// <summary>P10.10 — spec number; stored on ProductRevision.InspectionLevel
+    /// so it syncs into the spec sheet's "Spec:" line. Structure TBD.</summary>
+    public string? Spec { get; set; }
+
+    /// <summary>P10.10 — reason to create despite a duplicate IFS code / Part No
+    /// / Spec. When set, CreateAsync skips the duplicate scan and records the
+    /// reason in the audit detail.</summary>
+    public string? OverrideReason { get; set; }
 
     /// <summary>Process code lookup vào ProcessCatalog (default 'SILKSCREEN' khi null).</summary>
     public string? ProcessCode { get; set; }
@@ -98,6 +115,74 @@ public class UpdateSpecRequest
     public string? ProcessCode { get; set; }
     /// <summary>Optional ColorSpecJson replacement (caller supplies the full array). Null = leave unchanged.</summary>
     public string? ColorSpecJson { get; set; }
+
+    // P10.10 — identity header. SpecCode = app "IFS code"; Customer / PartNo /
+    // PartName patch the revision's product (Customer find-or-created).
+    public string? SpecCode { get; set; }
+    public string? Customer { get; set; }
+    public string? PartNo { get; set; }
+    public string? PartName { get; set; }
+
+    // P10.10 — inline-edit additions. All existing columns (no migration).
+    // Null = leave unchanged. Material scalars:
+    public string? SubstrateType { get; set; }
+    public string? AdhesiveType { get; set; }
+    public int? ThicknessUm { get; set; }
+    // Print-parameter scalars:
+    public int? PrintingCavity { get; set; }
+    public double? LengthPitchMm { get; set; }
+    public double? ProductSizeWmm { get; set; }
+    public double? ProductSizeHmm { get; set; }
+    public string? RemarksText { get; set; }
+    public string? RemarksCutText { get; set; }
+    /// <summary>Full replacement of the structured Print colour rows; null =
+    /// leave unchanged. Re-sequenced 1..N server-side.</summary>
+    public List<SpecColorRowInput>? Colors { get; set; }
+
+    /// <summary>P10.10 — full replacement of the flexo/indigo/letterpress ink
+    /// rows; null = leave unchanged. Re-sequenced 1..N server-side.</summary>
+    public List<SpecInkRowInput>? InkRows { get; set; }
+}
+
+/// <summary>P10.10 — one ink row in an UpdateSpecRequest (flexo / indigo /
+/// letterpress). Mirrors <c>SpecInkRowMutation</c> on the wire.</summary>
+public class SpecInkRowInput
+{
+    public string? Color { get; set; }
+    public string? InkCode { get; set; }
+    public string? InkDescription { get; set; }
+    public string? Brand { get; set; }
+    public string? Anilox { get; set; }
+    public string? PlateCode { get; set; }
+    public double? Pressure { get; set; }
+    public double? UvPowerW { get; set; }
+    public double? IrPowerW { get; set; }
+}
+
+/// <summary>P10.10 — one Print-process colour row in an UpdateSpecRequest.
+/// Field names mirror <c>SpecColorRowMutation</c> on the wire.</summary>
+public class SpecColorRowInput
+{
+    public string? Surface { get; set; }
+    public string? Color { get; set; }
+    public string? InkName { get; set; }
+    public string? InkCode { get; set; }
+    public string? Maker { get; set; }
+    public string? Retarder { get; set; }
+    public double? Viscosity { get; set; }
+    public double? Speed { get; set; }
+    public string? Squeegee { get; set; }
+    public string? Dry { get; set; }
+    public double? TemperatureC { get; set; }
+    public int? TimeMin { get; set; }
+    public string? Uv { get; set; }
+    public double? EmulsionUm { get; set; }
+    public string? PlateSize { get; set; }
+    public string? Mesh { get; set; }
+    public double? AngleDeg { get; set; }
+    public string? PlateCode { get; set; }
+    public int? ControlNo { get; set; }
+    public string? Remark { get; set; }
 }
 
 public class SpecParamDto

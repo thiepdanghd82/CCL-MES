@@ -41,6 +41,8 @@ public static class DependencyInjection
         // PR #31b — flexo parser + category-keyed factory dispatch.
         services.AddSingleton<SilkscreenXlsxParser>();
         services.AddSingleton<FlexoXlsxParser>();
+        // P10.10 — dedicated Indigo (HP) + Letterpress (LP) parser.
+        services.AddSingleton<IndigoLetterpressXlsxParser>();
         services.AddSingleton<ISpecXlsxParserFactory, SpecXlsxParserFactory>();
         // Giữ ISpecXlsxParser registration cho backward-compat callers (PR #31a)
         // — resolve về silkscreen default (caller mới phải dùng factory thay vì

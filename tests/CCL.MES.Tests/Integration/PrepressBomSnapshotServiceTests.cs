@@ -212,4 +212,106 @@ public sealed class PrepressBomSnapshotServiceTests : IDisposable
         Assert.False(await db.WoCutterChecks.AnyAsync());
         Assert.False(await db.WoMaterials.AnyAsync());
     }
+
+    // ── P10.10 — Scrap Factor / Scrap % snapshot + re-sync ──────────
+
+    private async Task SeedBomScrapAsync(string productCode,
+        params (string Comp, double Qty, string Uom, double ScrapFactor, double? ScrapPct)[] lines)
+    {
+        using var db = _fx.NewContext();
+        foreach (var (Comp, Qty, Uom, ScrapFactor, ScrapPct) in lines)
+        {
+            db.ManufacturingStructures.Add(new ManufacturingStructure
+            {
+                ParentPart = productCode,
+                ComponentPart = Comp,
+                ComponentDescription = "Desc " + Comp,
+                QtyAssembly = Qty,
+                Uom = Uom,
+                ScrapFactor = ScrapFactor,
+                ScrapPct = ScrapPct,
+            });
+        }
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Materials_snapshot_carries_scrap_factor_and_percent_from_BOM()
+    {
+        using (var d = _fx.NewContext())
+        {
+            var product = await d.Products.SingleAsync(p => p.Id == _fx.SeedProductId);
+            await SeedBomScrapAsync(product.ProductCode,
+                ("COMP-A", 0.01105, "m2", 3.825, 3),
+                ("COMP-B", 0.000051, "kg", 0.1, null));
+        }
+
+        var woId = await SeedWoAsync("WO-7B-SCRAP-1");
+        using var db = _fx.NewContext();
+        await new PrepressBomSnapshotService(db).MaterializeAsync(woId);
+
+        var mats = await db.WoMaterials
+            .Where(m => m.WorkOrderId == woId)
+            .OrderBy(m => m.BomLineIdx)
+            .ToListAsync();
+        Assert.Equal(2, mats.Count);
+        Assert.Equal(3.825, mats[0].ScrapFactor, precision: 4);
+        Assert.Equal(3, mats[0].ScrapPercent);
+        Assert.Equal(0.1, mats[1].ScrapFactor, precision: 4);
+        Assert.Null(mats[1].ScrapPercent);
+    }
+
+    [Fact]
+    public async Task Re_sync_refreshes_BOM_columns_but_preserves_operator_entries()
+    {
+        using (var d = _fx.NewContext())
+        {
+            var product = await d.Products.SingleAsync(p => p.Id == _fx.SeedProductId);
+            await SeedBomScrapAsync(product.ProductCode,
+                ("COMP-A", 1.0, "kg", 2.0, 5));
+        }
+
+        var woId = await SeedWoAsync("WO-7B-SCRAP-2", targetQty: 100);
+        using (var d1 = _fx.NewContext())
+            await new PrepressBomSnapshotService(d1).MaterializeAsync(woId);
+
+        // Operator records a loaded qty + lot + marks OK.
+        using (var d2 = _fx.NewContext())
+        {
+            var row = await d2.WoMaterials.SingleAsync(m => m.WorkOrderId == woId);
+            row.QtyLoaded = 99.5;
+            row.LotNo = "LOT-26-9999";
+            row.Status = PrepressCheckStatus.Ok;
+            row.CheckedBy = "operator1";
+            await d2.SaveChangesAsync();
+        }
+
+        // BOM (Structure) changes upstream: scrap + qty + description edited.
+        using (var d3 = _fx.NewContext())
+        {
+            var product = await d3.Products.SingleAsync(p => p.Id == _fx.SeedProductId);
+            var ms = await d3.ManufacturingStructures.SingleAsync(m => m.ParentPart == product.ProductCode);
+            ms.ScrapFactor = 7.7;
+            ms.ScrapPct = 9;
+            ms.QtyAssembly = 2.0;          // → QtyRequired = 2.0 × 100 = 200
+            ms.ComponentDescription = "Updated desc";
+            await d3.SaveChangesAsync();
+        }
+
+        // Re-scan: re-sync should refresh BOM columns, keep operator columns.
+        using var db = _fx.NewContext();
+        await new PrepressBomSnapshotService(db).MaterializeAsync(woId);
+
+        var after = await db.WoMaterials.SingleAsync(m => m.WorkOrderId == woId);
+        // BOM-sourced refreshed:
+        Assert.Equal(7.7, after.ScrapFactor, precision: 4);
+        Assert.Equal(9, after.ScrapPercent);
+        Assert.Equal(200.0, after.QtyRequired, precision: 3);
+        Assert.Equal("Updated desc", after.MaterialDescription);
+        // Operator entries preserved:
+        Assert.Equal(99.5, after.QtyLoaded);
+        Assert.Equal("LOT-26-9999", after.LotNo);
+        Assert.Equal(PrepressCheckStatus.Ok, after.Status);
+        Assert.Equal("operator1", after.CheckedBy);
+    }
 }

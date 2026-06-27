@@ -40,8 +40,16 @@ public static class WoQcReadinessRollup
     /// (lazy-materialise case — caller treats this as "not ready",
     /// same semantics as "all items Pending").
     /// </summary>
+    /// <param name="check">The check row (with Items loaded).</param>
+    /// <param name="profileExpectedItemCount">P10.7e-3 FIX — number of
+    /// items declared in the profile snapshot. When positive, readiness
+    /// requires every profile item to have a non-Pending row (operator
+    /// must touch all 12 FQC items / 28 OQC items). When 0 (legacy
+    /// callsites or empty profile), falls back to the row-only count
+    /// for backward compatibility.</param>
     public static (bool IsReadyForJudgment, bool AllOk, bool AnyNg) Compute(
-        WoQcCheck? check)
+        WoQcCheck? check,
+        int profileExpectedItemCount = 0)
     {
         if (check is null) return (false, false, false);
         var items = check.Items;
@@ -50,6 +58,7 @@ public static class WoQcReadinessRollup
         var allNonPending = true;
         var allOk = true;
         var anyNg = false;
+        var nonPendingCount = 0;
         foreach (var it in items)
         {
             if (it.Status == IpqcCheckStatus.Pending)
@@ -58,13 +67,23 @@ public static class WoQcReadinessRollup
                 allOk = false;
                 continue;
             }
+            nonPendingCount++;
             if (it.Status == IpqcCheckStatus.Ng)
             {
                 anyNg = true;
                 allOk = false;
             }
         }
-        return (allNonPending, allOk, anyNg);
+        // P10.7e-3 FIX — when the caller knows the profile-expected count,
+        // require the operator to have touched every profile item.
+        // Otherwise: e.g. operator marked 5 of 12 items Ok + 7 untouched
+        // = no persisted Pending rows but still 7 items unanswered →
+        // judgment must stay gated. The legacy row-only rule
+        // (allNonPending) silently passed this case before the fix.
+        var ready = profileExpectedItemCount > 0
+            ? (nonPendingCount >= profileExpectedItemCount && allNonPending)
+            : allNonPending;
+        return (ready, allOk, anyNg);
     }
 
     /// <summary>

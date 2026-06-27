@@ -1,0 +1,38 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@* P10.10 — invisible helper that makes a paginated .grid fill the screen:
+   it measures the (flex-filled) .grid-scroll height + the real row/header
+   heights and reports how many rows fit, so the host grid can set its
+   page size to exactly fill the viewport ("phân full dòng thì chuyển
+   trang"). Re-fires on window resize. Renders nothing. JS calls are
+   try/catch-guarded so a headless/bUnit render (no JS) is a no-op. *@
+
+@code {
+    [Parameter] public EventCallback<int> OnFit { get; set; }
+    /// <summary>Fallback row height (px) when no row is rendered yet.</summary>
+    [Parameter] public int RowPx { get; set; } = 36;
+    [Parameter] public string ScrollSelector { get; set; } = ".grid-scroll";
+
+    private readonly string _id = "gaf-" + Guid.NewGuid().ToString("N");
+    private DotNetObjectReference<GridAutoFit>? _ref;
+    private bool _registered;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _registered) return;
+        _registered = true;
+        _ref = DotNetObjectReference.Create(this);
+        try { await JS.InvokeVoidAsync("cclMesGrid.register", _id, _ref, ScrollSelector, RowPx); }
+        catch { /* renderer-safe — no JS host (tests) → leaves the default page size */ }
+    }
+
+    [JSInvokable]
+    public Task Fit(int rows) => rows > 0 ? OnFit.InvokeAsync(rows) : Task.CompletedTask;
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("cclMesGrid.unregister", _id); } catch { /* ignore */ }
+        _ref?.Dispose();
+    }
+}

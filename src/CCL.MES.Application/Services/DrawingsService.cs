@@ -554,6 +554,101 @@ public class DrawingsService
         if (anyDecided)  return DrawingVersionStatus.PendingApproval;
         return DrawingVersionStatus.Draft;
     }
+
+    /// <summary>
+    /// Hard-delete one <see cref="DrawingVersion"/> (blob + metadata + the 3
+    /// approval rows) after an NPI-team member has been authenticated at the
+    /// API boundary. The authorizer's identity is recorded in the
+    /// <see cref="AuditAction.DrawingDelete"/> row for traceability. Re-points
+    /// <see cref="Drawing.CurrentVersionId"/> to the newest remaining version
+    /// (or null when the chain is now empty) and resets the slot to Draft when
+    /// nothing remains. The blob delete is best-effort — a missing file does
+    /// NOT roll back the metadata removal. Single EF transaction.
+    /// </summary>
+    public async Task<DrawingDeleteResult> DeleteVersionAsync(
+        long revisionId,
+        long versionId,
+        string authorizerUsername,
+        string authorizerRole,
+        string? reason,
+        string actor,
+        string actorRole,
+        CancellationToken ct = default)
+    {
+        var version = await _db.DrawingVersions
+            .Include(v => v.Drawing)
+                .ThenInclude(d => d!.Versions)
+            .Include(v => v.Approvals)
+            .FirstOrDefaultAsync(v => v.Id == versionId, ct);
+        if (version is null || version.Drawing is null)
+            throw new InvalidOperationException($"DrawingVersion {versionId} not found.");
+        if (version.Drawing.ProductRevisionId != revisionId)
+            throw new InvalidOperationException("Version does not belong to revision.");
+
+        var drawing = version.Drawing;
+        var storageKey = version.StorageKey;
+        var versionNo = version.VersionNo;
+        var fileName = version.FileName;
+        var sha = version.FileHash ?? "";
+
+        var dbCtx = (DbContext)_db;
+        await using var tx = await dbCtx.Database.BeginTransactionAsync(ct);
+        try
+        {
+            if (version.Approvals.Count > 0)
+                _db.DrawingApprovals.RemoveRange(version.Approvals);
+            _db.DrawingVersions.Remove(version);
+            await _db.SaveChangesAsync(ct);
+
+            // Re-point the current pointer + slot status from what remains.
+            var remaining = drawing.Versions
+                .Where(v => v.Id != versionId)
+                .OrderByDescending(v => v.VersionNo)
+                .ToList();
+            if (remaining.Count == 0)
+            {
+                drawing.CurrentVersionId = null;
+                drawing.Status = DrawingStatus.Draft;
+            }
+            else if (drawing.CurrentVersionId == versionId)
+            {
+                drawing.CurrentVersionId = remaining[0].Id;
+            }
+            drawing.UpdatedAt = DateTime.UtcNow;
+            drawing.UpdatedBy = string.IsNullOrWhiteSpace(actor) ? "anonymous" : actor;
+            await _db.SaveChangesAsync(ct);
+
+            // Best-effort blob removal — don't fail the txn if it's already gone.
+            try { await _blobs.DeleteAsync(storageKey, ct); } catch { /* blob may be missing */ }
+
+            await _audit.EmitAsync(
+                AuditAction.DrawingDelete,
+                actor: string.IsNullOrWhiteSpace(actor) ? "anonymous" : actor,
+                actorRole: actorRole ?? "",
+                targetType: "DrawingVersion",
+                targetId: versionId.ToString(),
+                detail: JsonSerializer.Serialize(new
+                {
+                    revision_id     = revisionId,
+                    drawing_id      = drawing.Id,
+                    kind            = drawing.Kind.ToString(),
+                    version_no      = versionNo,
+                    filename        = fileName,
+                    sha256_short    = sha.Length >= 8 ? sha[..8] : sha,
+                    authorized_by   = authorizerUsername,
+                    authorizer_role = authorizerRole ?? "",
+                    has_reason      = !string.IsNullOrWhiteSpace(reason),
+                }));
+
+            await tx.CommitAsync(ct);
+            return new DrawingDeleteResult(drawing.Id, remaining.Count, drawing.Status);
+        }
+        catch
+        {
+            await tx.RollbackAsync(ct);
+            throw;
+        }
+    }
 }
 
 // ── DTOs ──────────────────────────────────────────────────────────────
@@ -606,3 +701,8 @@ public sealed record DrawingDecideResult(
     DrawingVersionStatus VersionStatus,
     DrawingStatus DrawingStatus,
     int SupersededCount);
+
+public sealed record DrawingDeleteResult(
+    long DrawingId,
+    int RemainingVersions,
+    DrawingStatus DrawingStatus);

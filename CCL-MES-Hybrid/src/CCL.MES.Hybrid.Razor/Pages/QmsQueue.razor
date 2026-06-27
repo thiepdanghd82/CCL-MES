@@ -1,0 +1,95 @@
+@page "/qms"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using CCL.MES.Shared.Qms
+@inject ICclApiClient Api
+
+<PageTitle>Inspection Queue — CCL MES</PageTitle>
+
+<div class="md-head">
+    <h1 class="page-title">Inspection Queue (QMS)</h1>
+    <button type="button" class="md-refresh" @onclick="ReloadAsync" disabled="@_loading">
+        @(_loading ? "Loading…" : "↻ Refresh")
+    </button>
+</div>
+
+@* P10.9 — Inspection Queue: WOs due for each QC stage, auto-built from
+   MesPhase (IPQC_WAIT / FQC_PENDING / OQC_PENDING). The actual capture
+   happens on the per-WO QC dashboards. QC History lands in slice 2. *@
+@if (_loading && _data is null)
+{
+    <p class="md-muted">Loading queue…</p>
+}
+else if (_error is not null)
+{
+    <p class="md-error">Failed to load queue: @_error</p>
+}
+else if (_data is not null)
+{
+    <div class="md-chips qms-tabs">
+        <button type="button" class="md-chip @(_stage == "ipqc" ? "md-chip-on" : "")"
+                @onclick="@(() => _stage = "ipqc")">IPQC (@_data.IpqcCount)</button>
+        <button type="button" class="md-chip @(_stage == "fqc" ? "md-chip-on" : "")"
+                @onclick="@(() => _stage = "fqc")">FQC (@_data.FqcCount)</button>
+        <button type="button" class="md-chip @(_stage == "oqc" ? "md-chip-on" : "")"
+                @onclick="@(() => _stage = "oqc")">OQC (@_data.OqcCount)</button>
+    </div>
+
+    @if (CurrentRows.Count == 0)
+    {
+        <p class="md-muted">No WOs waiting for @StageLabel.</p>
+    }
+    else
+    {
+        <div class="md-table-wrap">
+            <table class="md-table">
+                <thead>
+                    <tr><th>WO</th><th>Product</th><th>Machine</th><th>Plan/Done</th><th>Waiting since</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in CurrentRows)
+                    {
+                        <tr>
+                            <td class="md-code">@r.WoNo</td>
+                            <td>@r.ProductName</td>
+                            <td>@(r.MachineCode ?? "—")</td>
+                            <td>@r.TargetQty / @r.QtyDone</td>
+                            <td>@(r.UpdatedAt?.ToString("dd/MM HH:mm") ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private QmsQueueDto? _data;
+    private bool _loading = true;
+    private string? _error;
+    private string _stage = "ipqc";   // ipqc | fqc | oqc
+
+    private IReadOnlyList<QmsQueueRow> CurrentRows => _stage switch
+    {
+        "fqc" => _data?.Fqc ?? Array.Empty<QmsQueueRow>(),
+        "oqc" => _data?.Oqc ?? Array.Empty<QmsQueueRow>(),
+        _ => _data?.Ipqc ?? Array.Empty<QmsQueueRow>(),
+    };
+
+    private string StageLabel => _stage switch
+    {
+        "fqc" => "FQC",
+        "oqc" => "OQC",
+        _ => "IPQC",
+    };
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try { _data = await Api.GetQmsQueueAsync(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+}

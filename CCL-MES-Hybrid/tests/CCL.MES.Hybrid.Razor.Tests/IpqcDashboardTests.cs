@@ -112,7 +112,7 @@ public sealed class IpqcDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='ipqc-initial-error']");
-            Assert.Contains("Không tìm thấy WO", banner.TextContent);
+            Assert.Contains("WO not found", banner.TextContent);
         });
     }
 
@@ -129,7 +129,7 @@ public sealed class IpqcDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='ipqc-invalid-phase']");
-            Assert.Contains("không ở giai đoạn IPQC_WAIT", banner.TextContent);
+            Assert.Contains("not in the IPQC_WAIT phase", banner.TextContent);
         });
     }
 
@@ -494,7 +494,7 @@ public sealed class IpqcDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='ipqc-set-error']");
-            Assert.Contains("đã cập nhật WO", banner.TextContent);
+            Assert.Contains("already updated this WO", banner.TextContent);
             // Reload count: initial + after-conflict refetch = 2.
             Assert.Equal(2, api.IpqcViewCalls.Count);
         });

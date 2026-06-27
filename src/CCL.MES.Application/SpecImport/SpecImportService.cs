@@ -177,10 +177,12 @@ public class SpecImportService
                 await _db.SaveChangesAsync();
             }
 
-            // Generate SpecCode — semantic gắn liền với SpecHub `spec.code` =
-            // partNo. KHÔNG enforce unique cross-product (PartNo có thể chia
-            // ranh giới khác); chỉ unique trong (ProductId, RevisionCode).
-            var specCode = parsed.PartNo;
+            // P10.10 — SpecCode IS the app's "IFS code" cell. The xlsx seal
+            // templates carry NO IFS code column, so leave it BLANK on import
+            // (was wrongly duplicating Part No into the IFS code field). The
+            // operator fills it later via Edit if the spec has one; Part No
+            // still lands in Product.ProductCode below.
+            var specCode = "";
 
             // P10.5c-3 — when overwriteRefNo=true (UpgradeRev flow) AND a
             // non-trashed rev with the same RefNo exists, supersede the
@@ -224,15 +226,38 @@ public class SpecImportService
                 }
             }
 
-            var isFlexo = string.Equals(parsed.Category, "flexo", StringComparison.OrdinalIgnoreCase);
-            // PR #31b — flexo NumColors = số ink row; silk = số print row.
-            var numColors = isFlexo ? parsed.FlexoInkRows.Count : parsed.PrintRows.Count;
-            // Flexo cavity/pitch lấy từ first cuttingRow (tự nhiên ánh xạ);
+            // P10.10 — create-new path: if the resolved product already owns
+            // revisions (e.g. a prior import OR a manual Create Spec on the same
+            // Part No, with a different/blank RefNo so the dup-RefNo guard above
+            // didn't fire), bump to the next revision letter instead of trying
+            // a second Rev "A" — that collided on the
+            // (ProductId, RevisionCode) UNIQUE index and surfaced as a raw
+            // HTTP 500 ("Save failed. Server error (HTTP 500)").
+            if (supersededSource is null)
+            {
+                var siblingCodes = await _db.ProductRevisions
+                    .Where(r => r.ProductId == product.Id)
+                    .Select(r => r.RevisionCode)
+                    .ToListAsync();
+                if (siblingCodes.Count > 0)
+                    newRevisionCode = SpecRevisionHelpers.NextAvailableRev(siblingCodes);
+            }
+
+            // PR #31b — flexo persists ink/cut/print child rows. P10.10 — indigo
+            // (HP) + letterpress (LP) share that ink-row shape, so the same
+            // persistence path covers all three ("ink-based"); only silkscreen
+            // uses the 20-field-per-colour SpecPrintColor table.
+            var isInkBased = string.Equals(parsed.Category, "flexo", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(parsed.Category, "indigo", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(parsed.Category, "letterpress", StringComparison.OrdinalIgnoreCase);
+            // NumColors = số ink row (ink-based); silk = số print row.
+            var numColors = isInkBased ? parsed.FlexoInkRows.Count : parsed.PrintRows.Count;
+            // Ink-based cavity/pitch lấy từ first cuttingRow (tự nhiên ánh xạ);
             // silk dùng PrintingCavity + LengthPitchMm trực tiếp từ R8.
-            int? cavity = isFlexo
+            int? cavity = isInkBased
                 ? parsed.FlexoCuttingRows.FirstOrDefault()?.CuttingCavity
                 : parsed.PrintingCavity;
-            double? pitchMm = isFlexo
+            double? pitchMm = isInkBased
                 ? parsed.FlexoCuttingRows.FirstOrDefault()?.PitchMm
                 : parsed.LengthPitchMm;
 
@@ -260,11 +285,11 @@ public class SpecImportService
                     ProductSizeHmm = parsed.ProductSizeH,
                     RemarksText = parsed.RemarksLeft,
                     RemarksCutText = parsed.RemarksRight,
-                    ColorSpecJson = isFlexo ? null : SerializeColorsForLegacy(parsed.PrintRows),
+                    ColorSpecJson = isInkBased ? null : SerializeColorsForLegacy(parsed.PrintRows),
                     // PR #31b — fold flexo printing rows (substrate/cylinder/tension)
                     // vào ExtraJson per Q3. Operator ít cần column-wise query.
-                    ExtraJson = isFlexo ? SerializeFlexoPrintRows(parsed.FlexoPrintRows) : null,
-                    Colors = isFlexo ? new List<SpecPrintColor>() : parsed.PrintRows.Select(r => new SpecPrintColor
+                    ExtraJson = isInkBased ? SerializeFlexoPrintRows(parsed.FlexoPrintRows) : null,
+                    Colors = isInkBased ? new List<SpecPrintColor>() : parsed.PrintRows.Select(r => new SpecPrintColor
                     {
                         Seq          = r.Seq,
                         Surface      = r.Surface,
@@ -289,7 +314,7 @@ public class SpecImportService
                         Remark       = r.Remark,
                     }).ToList(),
                     // PR #31b — Flexo cutting + ink child rows.
-                    FlexoCuttingRows = isFlexo ? parsed.FlexoCuttingRows.Select(c => new SpecFlexoCuttingRow
+                    FlexoCuttingRows = isInkBased ? parsed.FlexoCuttingRows.Select(c => new SpecFlexoCuttingRow
                     {
                         Seq             = c.Seq,
                         Process         = c.Process,
@@ -307,7 +332,7 @@ public class SpecImportService
                         HeadTension     = c.HeadTension,
                         RollTension     = c.RollTension,
                     }).ToList() : new List<SpecFlexoCuttingRow>(),
-                    FlexoInkRows = isFlexo ? parsed.FlexoInkRows.Select(i => new SpecFlexoInkRow
+                    FlexoInkRows = isInkBased ? parsed.FlexoInkRows.Select(i => new SpecFlexoInkRow
                     {
                         Seq             = i.Seq,
                         Color           = i.Color,
@@ -357,13 +382,13 @@ public class SpecImportService
                     parent_revision_id = supersededSource?.Id,
                     superseded_source_id = supersededSource?.Id,
                     superseded_source_rev = supersededSource?.RevisionCode,
-                    rows_parsed = isFlexo
+                    rows_parsed = isInkBased
                         ? parsed.FlexoInkRows.Count + parsed.FlexoCuttingRows.Count + parsed.FlexoPrintRows.Count
                         : parsed.PrintRows.Count,
-                    flexo_ink_rows = isFlexo ? parsed.FlexoInkRows.Count : 0,
-                    flexo_cutting_rows = isFlexo ? parsed.FlexoCuttingRows.Count : 0,
-                    flexo_print_rows = isFlexo ? parsed.FlexoPrintRows.Count : 0,
-                    silk_print_rows = isFlexo ? 0 : parsed.PrintRows.Count,
+                    flexo_ink_rows = isInkBased ? parsed.FlexoInkRows.Count : 0,
+                    flexo_cutting_rows = isInkBased ? parsed.FlexoCuttingRows.Count : 0,
+                    flexo_print_rows = isInkBased ? parsed.FlexoPrintRows.Count : 0,
+                    silk_print_rows = isInkBased ? 0 : parsed.PrintRows.Count,
                     warnings = parsed.Warnings.Take(20).ToArray(),  // cap to ≤4KB
                     created_new_product = createdNewProduct,
                 }));
@@ -376,7 +401,7 @@ public class SpecImportService
                 ProductId = product.Id,
                 SpecCode = revision.SpecCode,
                 RefNo = revision.RefNo ?? "",
-                RowsParsed = isFlexo
+                RowsParsed = isInkBased
                     ? parsed.FlexoInkRows.Count + parsed.FlexoCuttingRows.Count + parsed.FlexoPrintRows.Count
                     : parsed.PrintRows.Count,
                 CreatedNewProduct = createdNewProduct,

@@ -9,9 +9,26 @@ namespace CCL.MES.Shared.Specs;
 public sealed record CreateSpecMutation
 {
     public long ProductId { get; init; }
+    /// <summary>P10.10 — IFS / product code typed by the engineer (replaces
+    /// the product dropdown). When ProductId is 0, the server resolves the
+    /// product by this code (find-or-create).</summary>
+    public string? IfsCode { get; init; }
     public string SpecCode { get; init; } = "";
     public string Title { get; init; } = "";
+    /// <summary>Spec number typed on the Create modal. Syncs into the spec
+    /// sheet's "Spec:" line (stored on ProductRevision.InspectionLevel).
+    /// Structure TBD by the engineer.</summary>
+    public string? Spec { get; init; }
+    /// <summary>Customer name typed on the Create modal. Find-or-created on the
+    /// server and assigned to the product so it syncs into the spec sheet's
+    /// Customer cell. Blank falls back to the "UNASSIGNED" customer.</summary>
+    public string? Customer { get; init; }
+    /// <summary>Planner / process code (SILKSCREEN / FLEXO / INDIGO …).</summary>
     public string? ProcessCode { get; init; }
+    /// <summary>Reason to create despite a duplicate IFS code / Part No / Spec.
+    /// Blank on the first attempt; set after the operator acknowledges the
+    /// duplicate_warning. Recorded in the SpecCreate audit detail.</summary>
+    public string? OverrideReason { get; init; }
     public List<SpecParam> Parameters { get; init; } = new();
 }
 
@@ -52,6 +69,77 @@ public sealed record UpdateSpecMutation
     public string? InspectionLevel { get; init; }
     public string? ProcessCode { get; init; }
     public string? ColorSpecJson { get; init; }
+
+    // P10.10 — identity header (editable in the inline editor). Null = leave
+    // unchanged. SpecCode IS the app's "IFS code" cell; Customer / PartNo /
+    // PartName patch the revision's product (Customer find-or-created).
+    public string? SpecCode { get; init; }
+    public string? Customer { get; init; }
+    public string? PartNo { get; init; }
+    public string? PartName { get; init; }
+
+    // P10.10 — inline-edit additions (all existing entity columns, no
+    // migration). Null = leave unchanged. Material scalars:
+    public string? SubstrateType { get; init; }
+    public string? AdhesiveType { get; init; }
+    public int? ThicknessUm { get; init; }
+    // Print-parameter scalars (SpecPrint):
+    public int? PrintingCavity { get; init; }
+    public double? LengthPitchMm { get; init; }
+    public double? ProductSizeWmm { get; init; }
+    public double? ProductSizeHmm { get; init; }
+    public string? RemarksText { get; init; }
+    public string? RemarksCutText { get; init; }
+    /// <summary>Full replacement of the structured Print colour rows (silk).
+    /// Null = leave unchanged; non-null = replace the whole set (rows are
+    /// re-sequenced 1..N server-side).</summary>
+    public IReadOnlyList<SpecColorRowMutation>? Colors { get; init; }
+
+    /// <summary>P10.10 — full replacement of the flexo/indigo/letterpress ink
+    /// rows. Null = leave unchanged; non-null = replace the whole set
+    /// (re-sequenced 1..N server-side, NumColors recomputed).</summary>
+    public IReadOnlyList<SpecInkRowMutation>? InkRows { get; init; }
+}
+
+/// <summary>P10.10 — one ink row for the ink-based (flexo / indigo / letterpress)
+/// inline editor. Mirrors <c>SpecFlexoInkRow</c> entity columns.</summary>
+public sealed record SpecInkRowMutation
+{
+    public string? Color { get; init; }
+    public string? InkCode { get; init; }
+    public string? InkDescription { get; init; }
+    public string? Brand { get; init; }
+    public string? Anilox { get; init; }
+    public string? PlateCode { get; init; }
+    public double? Pressure { get; init; }
+    public double? UvPowerW { get; init; }
+    public double? IrPowerW { get; init; }
+}
+
+/// <summary>P10.10 — one structured Print-process colour row for inline
+/// editing. Field names match the wire contract the API binds to.</summary>
+public sealed record SpecColorRowMutation
+{
+    public string? Surface { get; init; }
+    public string? Color { get; init; }
+    public string? InkName { get; init; }
+    public string? InkCode { get; init; }
+    public string? Maker { get; init; }
+    public string? Retarder { get; init; }
+    public double? Viscosity { get; init; }
+    public double? Speed { get; init; }
+    public string? Squeegee { get; init; }
+    public string? Dry { get; init; }
+    public double? TemperatureC { get; init; }
+    public int? TimeMin { get; init; }
+    public string? Uv { get; init; }
+    public double? EmulsionUm { get; init; }
+    public string? PlateSize { get; init; }
+    public string? Mesh { get; init; }
+    public double? AngleDeg { get; init; }
+    public string? PlateCode { get; init; }
+    public int? ControlNo { get; init; }
+    public string? Remark { get; init; }
 }
 
 /// <summary>
@@ -85,6 +173,10 @@ public sealed record SpecMutationError
     public string Error { get; init; } = "";
     public string? CurrentStatus { get; init; }
     public int? ActiveWoCount { get; init; }
+    /// <summary>P10.10 — comma-separated colliding identity fields for
+    /// <c>duplicate_warning</c> (ifscode | partno | spec) so the UI can
+    /// highlight the exact inputs.</summary>
+    public string? DupFields { get; init; }
 }
 
 /// <summary>Product dropdown row for the Create Spec modal product

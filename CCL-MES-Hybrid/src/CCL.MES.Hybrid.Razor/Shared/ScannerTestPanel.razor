@@ -14,14 +14,14 @@
 <div class="scan-panel">
     @if (_avail is null)
     {
-        <div class="hw-pill hw-pill-probing">Đang kiểm tra…</div>
+        <div class="hw-pill hw-pill-probing">Checking…</div>
     }
     else if (_avail.IsAvailable)
     {
         <button type="button" class="scan-btn"
                 disabled="@_scanning"
                 @onclick="OnTestScan">
-            @(_scanning ? "Đang mở camera…" : "Quét thử")
+            @(_scanning ? "Opening camera…" : "Test scan")
         </button>
 
         @if (_lastResult is not null)
@@ -40,14 +40,14 @@
                     <span class="scan-value">@(_lastResult.SourceDevice ?? "—")</span>
                 </div>
                 <div class="scan-result-row">
-                    <span class="scan-label">Lúc</span>
+                    <span class="scan-label">At</span>
                     <span class="scan-value">@_lastResult.CapturedAt.ToLocalTime().ToString("HH:mm:ss")</span>
                 </div>
             </div>
         }
         @if (_cancelled)
         {
-            <div class="scan-cancelled">Đã huỷ.</div>
+            <div class="scan-cancelled">Cancelled.</div>
         }
         @if (_error is not null)
         {
@@ -64,14 +64,14 @@
             <button type="button" class="scan-btn scan-btn-secondary"
                     disabled="@_opening"
                     @onclick="OnOpenSettings">
-                @(_opening ? "Đang mở…" : "Mở System Settings")
+                @(_opening ? "Opening…" : "Open System Settings")
             </button>
             @if (_openSettingsFailed)
             {
                 <div class="scan-banner-help">
-                    Không mở được Settings tự động. Vào Apple Menu → System
-                    Settings → Privacy &amp; Security → Camera để bật quyền
-                    cho CCL MES.
+                    Could not open Settings automatically. Go to Apple Menu → System
+                    Settings → Privacy &amp; Security → Camera to grant permission
+                    for CCL MES.
                 </div>
             }
         }
@@ -98,7 +98,7 @@
         catch (Exception ex)
         {
             _avail = new HardwareAvailability(false, "probe_failed",
-                $"Lỗi khi kiểm tra: {ex.GetType().Name}: {ex.Message}");
+                $"Error during check: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -126,7 +126,7 @@
         }
         catch (Exception ex)
         {
-            _error = $"Lỗi quét: {ex.GetType().Name}: {ex.Message}";
+            _error = $"Scan error: {ex.GetType().Name}: {ex.Message}";
         }
         finally
         {

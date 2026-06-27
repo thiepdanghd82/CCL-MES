@@ -2,30 +2,34 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
+@implements IDisposable
 
-<PageTitle>Nguyên vật liệu — NPI</PageTitle>
+<PageTitle>Raw Materials — NPI</PageTitle>
 
-<h1 class="page-title">Nguyên vật liệu</h1>
+<h1 class="page-title">Raw Materials</h1>
 
 <div class="grid-toolbar">
-    <input type="search" class="grid-search" placeholder="Tìm theo part / nhà cung cấp / site…"
-           @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKey" />
-    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Tìm</button>
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+    <input type="search" class="grid-search" placeholder="Search by part / supplier / site…"
+           value="@_search" @oninput="OnSearchInput" @onkeyup="HandleSearchKey" />
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
+    <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="impCtx">
+        <button type="button" class="grid-btn grid-btn-primary" @onclick="() => _importOpen = true" disabled="@_loading">⤓ Import…</button>
+    </AuthorizeView>
     <div class="grid-toolbar-spacer"></div>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
 </div>
 
 @if (_loading && _data is null)
 {
-    <p class="grid-status">Đang tải…</p>
+    <p class="grid-status">Loading…</p>
 }
 else if (_error is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Không tải được dữ liệu.</strong>
+        <strong>Failed to load data.</strong>
         <div>@_error</div>
-        <button type="button" class="grid-btn" @onclick="ReloadAsync">Thử lại</button>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">Retry</button>
     </div>
 }
 else if (_data is not null)
@@ -54,7 +58,7 @@ else if (_data is not null)
                 {
                     <tr>
                         <td colspan="@_columns.Visible.Count" class="grid-empty">
-                            Không có dữ liệu phù hợp.
+                            No matching data.
                         </td>
                     </tr>
                 }
@@ -65,26 +69,44 @@ else if (_data is not null)
     <div class="grid-pager">
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
-                @onclick="() => GoToPageAsync(_page - 1)">‹ Trước</button>
+                @onclick="() => GoToPageAsync(_page - 1)">‹ Previous</button>
         <span class="grid-pager-text">
-            Trang @_page / @TotalPages — @_data.Total dòng
+            Page @_page / @TotalPages — @_data.Total rows
         </span>
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
-                @onclick="() => GoToPageAsync(_page + 1)">Sau ›</button>
+                @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
     </div>
+
+    <GridAutoFit OnFit="SetPageSizeAsync" />
 }
+
+<NpiImportModal Kind="rawmaterials" Open="_importOpen"
+                OnClose="CloseImport" OnImported="OnImportedAsync" />
 
 @code {
     private NpiPagedRaw<NpiRawMaterial>? _data;
     private bool _loading;
     private string? _error;
     private string _search = "";
+    private System.Threading.Timer? _searchDebounce;
+    private bool _importOpen;
     private int _page = 1;
-    private const int PageSize = 50;
+    private int _pageSize = 50;
     private GridColumns _columns = default!;
 
-    private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, PageSize);
+    private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, _pageSize);
+
+    // P10.10 — GridAutoFit reports how many rows fit the viewport; resize the
+    // page to fill it, then clamp the current page into the new range.
+    private async Task SetPageSizeAsync(int rows)
+    {
+        if (rows <= 0 || rows == _pageSize) return;
+        _pageSize = rows;
+        _page = GridPagination.Clamp(_page, GridPagination.TotalPages(_data?.Total ?? 0, rows));
+        await LoadAsync();
+        StateHasChanged();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -96,40 +118,60 @@ else if (_data is not null)
         _columns = new GridColumns("rawmaterials", new[]
         {
             new ColumnDef("part_no",            "Part No"),
-            new ColumnDef("part_desc",          "Mô tả"),
-            new ColumnDef("supplier_id",        "Nhà CC ID"),
-            new ColumnDef("supplier_name",      "Nhà cung cấp"),
-            new ColumnDef("price",              "Giá"),
-            new ColumnDef("currency",           "Tiền tệ"),
-            new ColumnDef("purch_uom",          "Đvt mua"),
-            new ColumnDef("inv_uom",            "Đvt tồn"),
+            new ColumnDef("part_desc",          "Description"),
+            new ColumnDef("supplier_id",        "Supplier ID"),
+            new ColumnDef("supplier_name",      "Supplier"),
+            new ColumnDef("price",              "Price"),
+            new ColumnDef("currency",           "Currency"),
+            new ColumnDef("purch_uom",          "Purchase UOM"),
+            new ColumnDef("inv_uom",            "Inventory UOM"),
             new ColumnDef("site",               "Site"),
-            new ColumnDef("status",             "Trạng thái"),
+            new ColumnDef("status",             "Status"),
             new ColumnDef("min_qty",            "Min Qty"),
-            new ColumnDef("leadtime",           "Leadtime (ngày)"),
+            new ColumnDef("leadtime",           "Leadtime (days)"),
             // 16 default-hidden — operator opens via column menu.
-            new ColumnDef("price_incl_tax",     "Giá có thuế", DefaultVisible: false),
-            new ColumnDef("price_uom",          "Đvt giá", DefaultVisible: false),
-            new ColumnDef("site_desc",          "Mô tả site", DefaultVisible: false),
+            new ColumnDef("price_incl_tax",     "Price incl. Tax", DefaultVisible: false),
+            new ColumnDef("price_uom",          "Price UOM", DefaultVisible: false),
+            new ColumnDef("site_desc",          "Site Description", DefaultVisible: false),
             new ColumnDef("std_multiple",       "Std multiple", DefaultVisible: false),
             new ColumnDef("std_pack",           "Std pack", DefaultVisible: false),
-            new ColumnDef("conversion",         "Hệ số đổi", DefaultVisible: false),
-            new ColumnDef("tax_code",           "Mã thuế", DefaultVisible: false),
-            new ColumnDef("tax_code_desc",      "Mô tả thuế", DefaultVisible: false),
-            new ColumnDef("country_origin",     "Nước xuất xứ", DefaultVisible: false),
+            new ColumnDef("conversion",         "Conversion Factor", DefaultVisible: false),
+            new ColumnDef("tax_code",           "Tax Code", DefaultVisible: false),
+            new ColumnDef("tax_code_desc",      "Tax Description", DefaultVisible: false),
+            new ColumnDef("country_origin",     "Country of Origin", DefaultVisible: false),
             new ColumnDef("acquisition_type",   "Acquisition", DefaultVisible: false),
-            new ColumnDef("supplier_part_no",   "Part NCC", DefaultVisible: false),
-            new ColumnDef("supplier_part_desc", "Mô tả part NCC", DefaultVisible: false),
-            new ColumnDef("net_weight",         "Trọng lượng", DefaultVisible: false),
-            new ColumnDef("net_weight_uom",     "Đvt trọng lượng", DefaultVisible: false),
-            new ColumnDef("next_order_date",    "Ngày đặt kế tiếp", DefaultVisible: false),
-            new ColumnDef("notes",              "Ghi chú", DefaultVisible: false),
+            new ColumnDef("supplier_part_no",   "Supplier Part", DefaultVisible: false),
+            new ColumnDef("supplier_part_desc", "Supplier Part Description", DefaultVisible: false),
+            new ColumnDef("net_weight",         "Weight", DefaultVisible: false),
+            new ColumnDef("net_weight_uom",     "Weight UOM", DefaultVisible: false),
+            new ColumnDef("next_order_date",    "Next Order Date", DefaultVisible: false),
+            new ColumnDef("notes",              "Notes", DefaultVisible: false),
         }, PrefStore);
         await LoadAsync();
     }
 
     private Task HandleSearchKey(KeyboardEventArgs e)
         => e.Key == "Enter" ? OnSearchClickAsync() : Task.CompletedTask;
+
+    // SpecHub-style live search — debounce 300ms then reload from page 1.
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        _searchDebounce?.Dispose();
+        _searchDebounce = new System.Threading.Timer(
+            _ => InvokeAsync(() => { _page = 1; return LoadAsync(); }),
+            null, 300, System.Threading.Timeout.Infinite);
+    }
+
+    public void Dispose() => _searchDebounce?.Dispose();
+
+    private void CloseImport() => _importOpen = false;
+
+    private Task OnImportedAsync()
+    {
+        _page = 1;
+        return LoadAsync();   // refresh the grid; modal stays open to show the result
+    }
 
     private Task OnSearchClickAsync()
     {
@@ -145,7 +187,7 @@ else if (_data is not null)
         {
             _data = await Api.GetRawMaterialsAsync(
                 string.IsNullOrWhiteSpace(_search) ? null : _search,
-                _page, PageSize);
+                _page, _pageSize);
         }
         catch (ApiException apiEx)
         {
@@ -153,7 +195,7 @@ else if (_data is not null)
         }
         catch (HttpRequestException ex)
         {
-            _error = $"Không kết nối được máy chủ: {ex.Message}";
+            _error = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {

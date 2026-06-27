@@ -98,7 +98,7 @@ public sealed class QaApprovalDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='qa-invalid-phase']");
-            Assert.Contains("không ở giai đoạn QA_PENDING", banner.TextContent);
+            Assert.Contains("not in the QA_PENDING phase", banner.TextContent);
         });
     }
 
@@ -118,7 +118,7 @@ public sealed class QaApprovalDashboardTests : TestContext
             // Banner present.
             var banner = cut.Find("[data-testid='qa-q3-banner']");
             Assert.Contains("dual-sig", banner.TextContent);
-            Assert.Contains("một người khác duyệt", banner.TextContent);
+            Assert.Contains("a different person to approve QA", banner.TextContent);
             // Hint near the buttons.
             Assert.NotNull(cut.Find("[data-testid='qa-hint-q3']"));
             // Approve disabled.

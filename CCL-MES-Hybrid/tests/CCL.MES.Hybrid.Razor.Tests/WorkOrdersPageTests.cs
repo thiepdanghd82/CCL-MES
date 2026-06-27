@@ -71,19 +71,19 @@ public sealed class WorkOrdersPageTests : TestContext
     public void Manual_entry_Find_button_disabled_until_three_chars()
     {
         var cut = RenderComponent<WorkOrders>();
-        var findButton = cut.Find("div.wo-manual-row button");
+        var findButton = cut.Find("button.wo-find-btn");
         Assert.True(findButton.HasAttribute("disabled"),
             "Empty manual code → Find disabled.");
 
         // Type 2 chars — still disabled.
         cut.Find("input.wo-manual-input").Input("WO");
-        findButton = cut.Find("div.wo-manual-row button");
+        findButton = cut.Find("button.wo-find-btn");
         Assert.True(findButton.HasAttribute("disabled"),
             "2 chars → Find still disabled.");
 
         // Type 3 chars — enabled.
         cut.Find("input.wo-manual-input").Input("WO-");
-        findButton = cut.Find("div.wo-manual-row button");
+        findButton = cut.Find("button.wo-find-btn");
         Assert.False(findButton.HasAttribute("disabled"),
             "3 chars → Find enabled.");
     }
@@ -96,7 +96,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3684");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -118,12 +118,12 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-9999");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
             var err = cut.Find("div.scan-error");
-            Assert.Contains("Không tìm thấy", err.TextContent);
+            Assert.Contains("not found", err.TextContent);
             Assert.Contains("WO-26-9999", err.TextContent);
         });
     }
@@ -153,7 +153,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3684");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
         cut.WaitForElement("button.wo-cta-accept");
         cut.Find("button.wo-cta-accept").Click();
 
@@ -163,7 +163,7 @@ public sealed class WorkOrdersPageTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='advance-success-banner']");
-            Assert.Contains("Đã chuyển bước:", banner.TextContent);
+            Assert.Contains("Step advanced:", banner.TextContent);
             Assert.Contains("Fqc", banner.TextContent);
             Assert.Contains("Oqc", banner.TextContent);
         });
@@ -185,7 +185,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3684");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
         cut.WaitForElement("button.wo-cta-accept");
         cut.Find("button.wo-cta-accept").Click();
 
@@ -194,10 +194,10 @@ public sealed class WorkOrdersPageTests : TestContext
             // The success banner MUST NOT render on 409 (operator
             // would otherwise think the advance succeeded).
             Assert.Empty(cut.FindAll("[data-testid='advance-success-banner']"));
-            // The error banner MUST render the VN state-conflict text.
+            // The error banner MUST render the state-conflict text.
             var err = cut.Find("div.wo-card-error");
-            Assert.Contains("Một thao tác khác", err.TextContent);
-            Assert.Contains("Nhận / Bắt đầu", err.TextContent);
+            Assert.Contains("Another operation", err.TextContent);
+            Assert.Contains("Accept / Start", err.TextContent);
         });
     }
 
@@ -217,7 +217,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3684");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
         cut.WaitForElement("button.wo-cta-accept");
         cut.Find("button.wo-cta-accept").Click();
 
@@ -228,7 +228,7 @@ public sealed class WorkOrdersPageTests : TestContext
         {
             var btn = cut.Find("button.wo-cta-accept");
             Assert.True(btn.HasAttribute("disabled"));
-            Assert.Contains("Đang chuyển bước", btn.TextContent);
+            Assert.Contains("Advancing step", btn.TextContent);
         });
 
         // Let the advance finish so the test fixture tears down cleanly.
@@ -266,7 +266,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3685");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -335,7 +335,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3725");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         // Step 1 — IpqcDashboard mounts (summary lookup #1 = IPQC_WAIT).
         cut.WaitForAssertion(() =>
@@ -395,7 +395,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3801");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-dashboard']")));
 
@@ -437,7 +437,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3725");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -464,7 +464,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3685");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -494,7 +494,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3685");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -526,7 +526,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3686");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -542,42 +542,40 @@ public sealed class WorkOrdersPageTests : TestContext
     }
 
     [Fact]
-    public void FQC_PENDING_routes_to_placeholder_card_not_dead_end_error()
+    public void FQC_PENDING_routes_to_FqcDashboard_not_placeholder()
     {
+        // P10.7e-3 — FQC_PENDING now has a real dashboard. The legacy
+        // placeholder card was removed from RunningDashboard.DeferredPhaseInfo;
+        // dispatch sits FqcDashboard BEFORE the running surface branch.
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
         api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
             SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "FQC_PENDING" });
-        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
-            new CCL.MES.Shared.RunningSurface.RunningSurfaceView
+        api.WoQcViewImpl = (_, _, _) => Task.FromResult(
+            new CCL.MES.Shared.WoQcReview.WoQcView
             {
                 WoId = 42, WoNo = "WO-26-3686", MesPhase = "FQC_PENDING",
-                ETag = "RV", TargetQty = 12000, QtyDoneCached = 12000,
+                ETag = "v1", QcKind = "FQC",
+                Items = new List<CCL.MES.Shared.WoQcReview.WoQcViewItem>(),
             });
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3686");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
-            // Placeholder card MUST render with FQC_PENDING discriminator.
-            var card = cut.Find("[data-testid='running-deferred']");
-            Assert.Equal("FQC_PENDING", card.GetAttribute("data-deferred-phase"));
-            // Card title MUST be the operator-facing "Chờ kiểm FQC".
-            Assert.Contains("Chờ kiểm FQC", card.TextContent);
-            // Dead-end "WO không ở giai đoạn chạy" error MUST NOT render.
-            Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
-            // Legacy Advance CTA MUST NOT render either.
+            Assert.NotNull(cut.Find("[data-testid='fqc-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='running-deferred']"));
             Assert.Empty(cut.FindAll("button.wo-cta-accept"));
         });
     }
 
     [Theory]
-    // P10.7d-3 — QA_PENDING REMOVED from the deferred list (has a real
-    // dashboard now). Theory covers only the 7e-deferred + terminal phases.
-    [InlineData("OQC_PENDING", "Chờ kiểm OQC")]
-    [InlineData("DONE", "WO đã hoàn tất")]
-    [InlineData("CANCELLED", "WO đã huỷ")]
+    // P10.7e-3 — FQC_PENDING + OQC_PENDING + SHIPPED were REMOVED from
+    // DeferredPhaseInfo (real dashboards now). Theory covers only DONE +
+    // CANCELLED — the remaining terminal placeholders on RunningDashboard.
+    [InlineData("DONE", "WO completed")]
+    [InlineData("CANCELLED", "WO cancelled")]
     public void Deferred_phases_each_render_consistent_placeholder_card(string mesPhase, string expectedTitleFragment)
     {
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
@@ -592,7 +590,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3686");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -603,6 +601,54 @@ public sealed class WorkOrdersPageTests : TestContext
             Assert.Empty(cut.FindAll("[data-testid='running-invalid-phase']"));
             // No legacy Advance CTA — dashboard owns the workflow.
             Assert.Empty(cut.FindAll("button.wo-cta-accept"));
+        });
+    }
+
+    [Fact]
+    public void OQC_PENDING_routes_to_OqcDashboard()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "OQC_PENDING" });
+        api.WoQcViewImpl = (_, _, _) => Task.FromResult(
+            new CCL.MES.Shared.WoQcReview.WoQcView
+            {
+                WoId = 42, WoNo = "WO-26-3686", MesPhase = "OQC_PENDING",
+                ETag = "v1", QcKind = "OQC",
+                Items = new List<CCL.MES.Shared.WoQcReview.WoQcViewItem>(),
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3686");
+        cut.Find("button.wo-find-btn").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='oqc-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='running-deferred']"));
+        });
+    }
+
+    [Fact]
+    public void SHIPPED_routes_to_ShippedSummaryDashboard()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.SummaryImpl = (woNo, ct) => Task.FromResult<WorkOrderSummary?>(
+            SampleSummary(woNo) with { CurrentStep = "OpSetting", MesPhase = "SHIPPED" });
+        api.WoSummaryReportImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.WoQcReview.WoSummaryReport
+            {
+                WoId = 42, WoNo = "WO-26-3686", MesPhase = "SHIPPED",
+            });
+
+        var cut = RenderComponent<WorkOrders>();
+        cut.Find("input.wo-manual-input").Input("WO-26-3686");
+        cut.Find("button.wo-find-btn").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='shipped-summary-dashboard']"));
+            Assert.Empty(cut.FindAll("[data-testid='running-deferred']"));
         });
     }
 
@@ -624,7 +670,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         var cut = RenderComponent<WorkOrders>();
         cut.Find("input.wo-manual-input").Input("WO-26-3685");
-        cut.Find("div.wo-manual-row button").Click();
+        cut.Find("button.wo-find-btn").Click();
 
         cut.WaitForAssertion(() =>
         {

@@ -8,6 +8,27 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CCL.MES.Application.Services;
 
+/// <summary>P10.10 — thrown by CreateAsync when the resolved product already
+/// has a Rev-A spec; the controller maps it to a 422 duplicate_spec_code
+/// (instead of a raw DbUpdate 500).</summary>
+public sealed class DuplicateSpecException : System.Exception
+{
+    public DuplicateSpecException(string message) : base(message) { }
+}
+
+/// <summary>P10.10 — soft-duplicate signal raised by CreateAsync when one or
+/// more identity fields (ifscode / partno / spec) collide with an existing
+/// active spec and no override reason was supplied. The controller maps it to
+/// a 422 <c>duplicate_warning</c> so the UI can prompt for a reason and
+/// re-submit. <see cref="Fields"/> are stable keys: ifscode | partno | spec.</summary>
+public sealed class DuplicateWarningException : System.Exception
+{
+    public IReadOnlyList<string> Fields { get; }
+    public DuplicateWarningException(IReadOnlyList<string> fields)
+        : base("Duplicate spec identity — a reason is required to create anyway.")
+        => Fields = fields;
+}
+
 /// <summary>
 /// Phase 8 PR #28 — REWRITTEN sau Spec → ProductRevision clean rewrite.
 ///
@@ -177,11 +198,73 @@ public class SpecService
     /// </summary>
     public async Task<ProductRevision> CreateAsync(CreateSpecRequest r, string? user)
     {
+        var code = r.IfsCode?.Trim();
+        var spec = string.IsNullOrWhiteSpace(r.Spec) ? null : r.Spec.Trim();
+        var overrideReason = string.IsNullOrWhiteSpace(r.OverrideReason) ? null : r.OverrideReason.Trim();
+        var hasReason = overrideReason is not null;
+
+        // P10.10 — soft-duplicate gate. A collision on IFS code (SpecCode),
+        // Part No (ProductCode) or Spec (InspectionLevel) against any ACTIVE
+        // spec only WARNS: the operator must type a reason to "create anyway"
+        // (recorded in the audit detail). With a reason we skip the scan and
+        // create regardless.
+        if (!hasReason)
+        {
+            var dupFields = new List<string>();
+            if (!string.IsNullOrWhiteSpace(r.SpecCode)
+                && await _db.ProductRevisions.AnyAsync(x => !x.IsTrashed && x.SpecCode == r.SpecCode))
+                dupFields.Add("ifscode");
+            if (!string.IsNullOrWhiteSpace(code)
+                && await _db.ProductRevisions.AnyAsync(x => !x.IsTrashed && x.Product!.ProductCode == code))
+                dupFields.Add("partno");
+            if (spec is not null
+                && await _db.ProductRevisions.AnyAsync(x => !x.IsTrashed && x.InspectionLevel == spec))
+                dupFields.Add("spec");
+            if (dupFields.Count > 0)
+                throw new DuplicateWarningException(dupFields);
+        }
+
+        // Resolve the product from the typed IFS code when no ProductId was
+        // supplied (dropdown replaced by an IFS-code input).
+        var productId = r.ProductId;
+        if (productId <= 0 && !string.IsNullOrWhiteSpace(code))
+        {
+            var product = await _db.Products.FirstOrDefaultAsync(p => p.ProductCode == code);
+            // With an override reason, a Part No that already owns a Rev A spec
+            // gets a fresh Product row (ProductCode is NOT unique) so the new
+            // spec can hold its own Rev A. Otherwise reuse the existing product
+            // (or create the first one when the code is new).
+            var needNewProduct = product is null
+                || (hasReason && await _db.ProductRevisions.AnyAsync(x => x.ProductId == product.Id && x.RevisionCode == "A"));
+            if (needNewProduct)
+            {
+                var customer = await ResolveCustomerAsync(r.Customer);
+                product = new Product
+                {
+                    ProductCode = code,
+                    Name = string.IsNullOrWhiteSpace(r.Title) ? code : r.Title.Trim(),
+                    CustomerId = customer.Id,
+                };
+                _db.Products.Add(product);
+                await _db.SaveChangesAsync();
+            }
+            productId = product.Id;
+        }
+
+        // Guard the (ProductId, RevisionCode='A') unique constraint up-front so
+        // a duplicate surfaces as a clean error instead of a DbUpdate 500. With
+        // a reason we created a fresh product above, so this only fires on the
+        // no-reason ProductId-supplied path.
+        if (await _db.ProductRevisions.AnyAsync(x => x.ProductId == productId && x.RevisionCode == "A"))
+            throw new DuplicateSpecException(
+                "This Part No already has a spec (Rev A). Use Copy or Revise to add a revision.");
+
         var revision = new ProductRevision
         {
-            ProductId = r.ProductId,
+            ProductId = productId,
             SpecCode = r.SpecCode,
             Title = r.Title,
+            InspectionLevel = spec,
             RevisionCode = "A",
             Status = ProductRevisionStatus.Draft,
             Print = new SpecPrint
@@ -201,12 +284,38 @@ public class SpecService
             {
                 spec_code = r.SpecCode,
                 title = r.Title,
-                product_id = r.ProductId,
+                product_id = productId,
                 revision_code = revision.RevisionCode,
                 process_code = revision.Print?.ProcessCode,
                 param_count = r.Parameters.Count,
+                override_reason = overrideReason,
             }));
         return revision;
+    }
+
+    /// <summary>P10.10 — find-or-create a Customer from the typed name (by
+    /// Name, case-insensitive). Blank falls back to the "UNASSIGNED" customer.
+    /// The returned customer is persisted (has a non-zero Id).</summary>
+    private async Task<Customer> ResolveCustomerAsync(string? customerName)
+    {
+        customerName = customerName?.Trim();
+        Customer customer;
+        if (string.IsNullOrWhiteSpace(customerName))
+        {
+            customer = await _db.Customers.FirstOrDefaultAsync(c => c.Code == "UNASSIGNED")
+                ?? new Customer { Code = "UNASSIGNED", Name = "Unassigned" };
+        }
+        else
+        {
+            customer = await _db.Customers.FirstOrDefaultAsync(c => c.Name == customerName)
+                ?? new Customer { Code = DeriveCustomerCode(customerName), Name = customerName };
+        }
+        if (customer.Id == 0)
+        {
+            _db.Customers.Add(customer);
+            await _db.SaveChangesAsync();
+        }
+        return customer;
     }
 
     /// <summary>Approve hiện rev → Status=Approved + ApprovedBy/At + EffectiveFrom=now.</summary>
@@ -344,6 +453,136 @@ public class SpecService
                     },
                 }));
 
+        return CopyResult.Ok(dest);
+    }
+
+    /// <summary>
+    /// P10.10 — one-click "Copy" → an independent editable duplicate. Unlike
+    /// <see cref="CopyAsync"/> (operator picks a target product + a unique spec
+    /// code), this clones the source onto a BRAND-NEW product row (ProductCode
+    /// is not unique) so the copy owns its own Rev A and the operator can edit
+    /// Part No / Customer / Part Name without disturbing the source. SpecCode
+    /// (the app's "IFS code") starts BLANK; Title gets a " (copy)" suffix. The
+    /// caller then opens it in the inline editor. Content is deep-cloned via
+    /// the shared <see cref="CloneSpecContent"/> helper.
+    /// </summary>
+    public async Task<CopyResult> DuplicateAsync(long sourceRevisionId, string? user)
+    {
+        var src = await _db.ProductRevisions
+            .Include(rev => rev.Product).ThenInclude(p => p!.Customer)
+            .Include(rev => rev.Material)
+            .Include(rev => rev.Print).ThenInclude(p => p!.Colors)
+            .Include(rev => rev.Print).ThenInclude(p => p!.FlexoCuttingRows)
+            .Include(rev => rev.Print).ThenInclude(p => p!.FlexoInkRows)
+            .Include(rev => rev.Diecut)
+            .Include(rev => rev.Finishing)
+            .Include(rev => rev.QcWindows).ThenInclude(w => w.Criteria)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(rev => rev.Id == sourceRevisionId);
+        if (src is null) return CopyResult.SourceNotFound();
+
+        var customerId = src.Product?.CustomerId ?? 0;
+        if (customerId == 0)
+        {
+            var fallback = await ResolveCustomerAsync(src.Product?.Customer?.Name);
+            customerId = fallback.Id;
+        }
+        var newProduct = new Product
+        {
+            ProductCode = src.Product?.ProductCode ?? "",
+            Name = string.IsNullOrWhiteSpace(src.Product?.Name) ? src.Title : src.Product!.Name,
+            CustomerId = customerId,
+        };
+        _db.Products.Add(newProduct);
+        await _db.SaveChangesAsync();
+
+        var dest = new ProductRevision
+        {
+            ProductId        = newProduct.Id,
+            SpecCode         = "",                 // IFS code blank — fill on edit
+            Title            = string.IsNullOrWhiteSpace(src.Title) ? "(copy)" : $"{src.Title} (copy)",
+            RevisionCode     = "A",
+            Status           = ProductRevisionStatus.Draft,
+            ParentRevisionId = null,
+            ChangeSummary    = null,
+            RefNo            = src.RefNo,
+            InspectionLevel  = src.InspectionLevel,
+        };
+        var (qcWindowCount, qcCriterionCount) = CloneSpecContent(src, dest);
+        _db.ProductRevisions.Add(dest);
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.SpecCopy, user ?? "anonymous", actorRole: "",
+            targetType: "ProductRevision", targetId: dest.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                source_id   = src.Id,
+                new_id      = dest.Id,
+                new_product = newProduct.Id,
+                mode        = "duplicate",
+                qc_windows  = qcWindowCount,
+                qc_criteria = qcCriterionCount,
+            }));
+        return CopyResult.Ok(dest);
+    }
+
+    /// <summary>
+    /// P10.10 — "Update ver": a new VERSION of the same spec. Clones the source
+    /// onto the SAME product with the next revision letter (B, C, …), keeps the
+    /// IFS code (SpecCode is shared across a product's revisions), and links
+    /// back to the source via ParentRevisionId (lineage). Works on any source
+    /// status (unlike Revise which gates on Approved/Released). New rev is a
+    /// Draft; the source is left as-is. The caller opens it in the inline editor.
+    /// </summary>
+    public async Task<CopyResult> NewVersionAsync(long sourceRevisionId, string? user)
+    {
+        var src = await _db.ProductRevisions
+            .Include(rev => rev.Material)
+            .Include(rev => rev.Print).ThenInclude(p => p!.Colors)
+            .Include(rev => rev.Print).ThenInclude(p => p!.FlexoCuttingRows)
+            .Include(rev => rev.Print).ThenInclude(p => p!.FlexoInkRows)
+            .Include(rev => rev.Diecut)
+            .Include(rev => rev.Finishing)
+            .Include(rev => rev.QcWindows).ThenInclude(w => w.Criteria)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(rev => rev.Id == sourceRevisionId);
+        if (src is null) return CopyResult.SourceNotFound();
+
+        var existingCodes = await _db.ProductRevisions
+            .Where(rev => rev.ProductId == src.ProductId)
+            .Select(rev => rev.RevisionCode)
+            .ToListAsync();
+        var revCode = SpecRevisionHelpers.NextAvailableRev(existingCodes);
+
+        var dest = new ProductRevision
+        {
+            ProductId        = src.ProductId,
+            SpecCode         = src.SpecCode,        // same IFS code across the family
+            Title            = src.Title,
+            RevisionCode     = revCode,
+            Status           = ProductRevisionStatus.Draft,
+            ParentRevisionId = src.Id,              // lineage
+            ChangeSummary    = $"New version from rev {src.RevisionCode}",
+            RefNo            = src.RefNo,
+            InspectionLevel  = src.InspectionLevel,
+        };
+        var (qcWindowCount, qcCriterionCount) = CloneSpecContent(src, dest);
+        _db.ProductRevisions.Add(dest);
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.SpecCopy, user ?? "anonymous", actorRole: "",
+            targetType: "ProductRevision", targetId: dest.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                source_id    = src.Id,
+                new_id       = dest.Id,
+                new_rev      = dest.RevisionCode,
+                mode         = "new_version",
+                qc_windows   = qcWindowCount,
+                qc_criteria  = qcCriterionCount,
+            }));
         return CopyResult.Ok(dest);
     }
 
@@ -564,7 +803,10 @@ public class SpecService
     public async Task<UpdateResult> UpdateAsync(long revisionId, UpdateSpecRequest r, string? user)
     {
         var rev = await _db.ProductRevisions
-            .Include(x => x.Print)
+            .Include(x => x.Product).ThenInclude(p => p!.Customer)
+            .Include(x => x.Material)
+            .Include(x => x.Print).ThenInclude(p => p!.Colors)
+            .Include(x => x.Print).ThenInclude(p => p!.FlexoInkRows)
             .FirstOrDefaultAsync(x => x.Id == revisionId);
         if (rev is null) return UpdateResult.NotFound();
         if (rev.IsTrashed) return UpdateResult.Trashed();
@@ -575,6 +817,33 @@ public class SpecService
         {
             rev.Title = r.Title;
             changed.Add("title");
+        }
+
+        // P10.10 — identity header. SpecCode = the app's "IFS code". Customer /
+        // PartNo / PartName patch the revision's product in place (the inline
+        // editor is reached on a freshly-created / copied / drafted product,
+        // owned by this revision, so an in-place edit is isolated).
+        if (r.SpecCode is not null && r.SpecCode != rev.SpecCode)
+        {
+            rev.SpecCode = r.SpecCode;
+            changed.Add("spec_code");
+        }
+        if (rev.Product is not null)
+        {
+            if (r.PartNo is not null && r.PartNo != rev.Product.ProductCode)
+            { rev.Product.ProductCode = r.PartNo; changed.Add("part_no"); }
+            if (r.PartName is not null && r.PartName != rev.Product.Name)
+            { rev.Product.Name = r.PartName; changed.Add("part_name"); }
+            if (r.Customer is not null)
+            {
+                var cname = r.Customer.Trim();
+                if (!string.Equals(cname, rev.Product.Customer?.Name, StringComparison.Ordinal))
+                {
+                    var customer = await ResolveCustomerAsync(cname);
+                    rev.Product.CustomerId = customer.Id;
+                    changed.Add("customer");
+                }
+            }
         }
         if (r.RefNo is not null && r.RefNo != rev.RefNo)
         {
@@ -603,6 +872,83 @@ public class SpecService
                 rev.Print.ColorSpecJson = r.ColorSpecJson;
                 changed.Add("color_spec_json");
             }
+        }
+
+        // P10.10 — inline-edit: material scalars (only patch an existing
+        // Material row; null = leave unchanged).
+        if (rev.Material is not null)
+        {
+            if (r.SubstrateType is not null && r.SubstrateType != rev.Material.SubstrateType)
+            { rev.Material.SubstrateType = r.SubstrateType; changed.Add("substrate_type"); }
+            if (r.AdhesiveType is not null && r.AdhesiveType != rev.Material.AdhesiveType)
+            { rev.Material.AdhesiveType = r.AdhesiveType; changed.Add("adhesive_type"); }
+            if (r.ThicknessUm is not null && r.ThicknessUm != rev.Material.ThicknessUm)
+            { rev.Material.ThicknessUm = r.ThicknessUm; changed.Add("thickness_um"); }
+        }
+
+        // P10.10 — inline-edit: print-parameter scalars + remarks.
+        if (r.PrintingCavity is not null || r.LengthPitchMm is not null
+            || r.ProductSizeWmm is not null || r.ProductSizeHmm is not null
+            || r.RemarksText is not null || r.RemarksCutText is not null)
+        {
+            rev.Print ??= new SpecPrint();
+            if (r.PrintingCavity is not null && r.PrintingCavity != rev.Print.Cavity)
+            { rev.Print.Cavity = r.PrintingCavity; changed.Add("cavity"); }
+            if (r.LengthPitchMm is not null && r.LengthPitchMm != rev.Print.PitchMm)
+            { rev.Print.PitchMm = r.LengthPitchMm; changed.Add("pitch_mm"); }
+            if (r.ProductSizeWmm is not null && r.ProductSizeWmm != rev.Print.ProductSizeWmm)
+            { rev.Print.ProductSizeWmm = r.ProductSizeWmm; changed.Add("product_size_w"); }
+            if (r.ProductSizeHmm is not null && r.ProductSizeHmm != rev.Print.ProductSizeHmm)
+            { rev.Print.ProductSizeHmm = r.ProductSizeHmm; changed.Add("product_size_h"); }
+            if (r.RemarksText is not null && r.RemarksText != rev.Print.RemarksText)
+            { rev.Print.RemarksText = r.RemarksText; changed.Add("remarks"); }
+            if (r.RemarksCutText is not null && r.RemarksCutText != rev.Print.RemarksCutText)
+            { rev.Print.RemarksCutText = r.RemarksCutText; changed.Add("remarks_cut"); }
+        }
+
+        // P10.10 — inline-edit: replace the structured colour rows. EF deletes
+        // the orphaned children (cascade) and re-adds the supplied set,
+        // re-sequenced 1..N. The legacy ColorSpecJson blob is left as-is.
+        if (r.Colors is not null)
+        {
+            rev.Print ??= new SpecPrint();
+            rev.Print.Colors.Clear();
+            var seq = 1;
+            foreach (var c in r.Colors)
+            {
+                rev.Print.Colors.Add(new SpecPrintColor
+                {
+                    Seq = seq++,
+                    Surface = c.Surface, Color = c.Color, InkName = c.InkName, InkCode = c.InkCode,
+                    Maker = c.Maker, Retarder = c.Retarder, Viscosity = c.Viscosity, Speed = c.Speed,
+                    Squeegee = c.Squeegee, Dry = c.Dry, TemperatureC = c.TemperatureC, TimeMin = c.TimeMin,
+                    Uv = c.Uv, EmulsionUm = c.EmulsionUm, PlateSize = c.PlateSize, Mesh = c.Mesh,
+                    AngleDeg = c.AngleDeg, PlateCode = c.PlateCode, ControlNo = c.ControlNo, Remark = c.Remark,
+                });
+            }
+            rev.Print.NumColors = rev.Print.Colors.Count;
+            changed.Add("colors");
+        }
+
+        // P10.10 — inline-edit: replace the flexo/indigo/letterpress ink rows.
+        // Same replace-whole-set + re-sequence pattern as colours above.
+        if (r.InkRows is not null)
+        {
+            rev.Print ??= new SpecPrint();
+            rev.Print.FlexoInkRows.Clear();
+            var inkSeq = 1;
+            foreach (var i in r.InkRows)
+            {
+                rev.Print.FlexoInkRows.Add(new SpecFlexoInkRow
+                {
+                    Seq = inkSeq++,
+                    Color = i.Color, InkCode = i.InkCode, InkDescription = i.InkDescription,
+                    Brand = i.Brand, Anilox = i.Anilox, PlateCode = i.PlateCode,
+                    Pressure = i.Pressure, UvPowerW = i.UvPowerW, IrPowerW = i.IrPowerW,
+                });
+            }
+            rev.Print.NumColors = rev.Print.FlexoInkRows.Count;
+            changed.Add("ink_rows");
         }
 
         if (changed.Count == 0)
@@ -880,6 +1226,17 @@ public class SpecService
         return JsonSerializer.Serialize(arr);
     }
 
+    /// <summary>P10.10 — derive a stable uppercase Customer.Code from a typed
+    /// name (alnum only, collapsed, ≤32 chars). Customer.Code has no unique
+    /// index so a collision is harmless; we find by Name first, so this only
+    /// stamps the code on freshly-created customers.</summary>
+    private static string DeriveCustomerCode(string name)
+    {
+        var slug = new string(name.ToUpperInvariant().Where(char.IsLetterOrDigit).ToArray());
+        if (slug.Length == 0) return "CUST";
+        return slug.Length > 32 ? slug[..32] : slug;
+    }
+
     // ── Phase 8 PR #29 — read-only queries cho SpecDetailModal ────────────────
 
     /// <summary>
@@ -977,14 +1334,19 @@ public class SpecService
         var processCode = rev.Print?.ProcessCode ?? "";
         var planner = PlannerFromProcessCode(processCode);
         var isFlexo = string.Equals(processCode, "FLEXO", StringComparison.OrdinalIgnoreCase);
-        var isSilkscreen = !isFlexo
-            && (string.Equals(processCode, "SILKSCREEN", StringComparison.OrdinalIgnoreCase)
-             || string.Equals(processCode, "INDIGO", StringComparison.OrdinalIgnoreCase)
-             || string.Equals(processCode, "INDIGO_PRIMER", StringComparison.OrdinalIgnoreCase));
+        // P10.10 — indigo (HP) + letterpress (LP) fold their single PRINT
+        // process row into ExtraJson the same way flexo does, so the print-row
+        // parse below must cover all three ("ink-based"); otherwise the
+        // Printing section silently vanished on the spec sheet.
+        var isInkBased = isFlexo
+            || string.Equals(processCode, "INDIGO", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(processCode, "LETTERPRESS", StringComparison.OrdinalIgnoreCase);
+        var isSilkscreen = !isInkBased
+            && string.Equals(processCode, "SILKSCREEN", StringComparison.OrdinalIgnoreCase);
 
-        // Parse flexo printing rows từ ExtraJson (folded per Q3 PR #31b)
+        // Parse flexo/indigo/letterpress printing rows từ ExtraJson (folded per Q3)
         var flexoPrintRows = new List<FlexoPrintRow>();
-        if (isFlexo && !string.IsNullOrWhiteSpace(rev.Print?.ExtraJson))
+        if (isInkBased && !string.IsNullOrWhiteSpace(rev.Print?.ExtraJson))
         {
             try
             {

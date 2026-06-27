@@ -10,16 +10,16 @@
        Size="ModalSize.Sm"
        Severity="ModalSeverity.Danger"
        ClickOutsideToClose="false">
-    <Header>Kết thúc WO @WoNo?</Header>
+    <Header>Finish WO @WoNo?</Header>
     <Body>
         <div class="rs-modal-body" data-testid="finish-modal">
-            <p>Bạn sắp chuyển WO sang <strong>FQC_PENDING</strong>. Sản lượng đã ghi:</p>
+            <p>You are about to move the WO to <strong>FQC_PENDING</strong>. Recorded output:</p>
             <ul class="rs-finish-summary">
-                <li><span>Tổng Done</span> <strong class="scan-mono">@QtyDoneCached</strong></li>
-                <li><span>Tổng NG</span> <strong class="scan-mono">@QtyNgCached</strong></li>
-                <li><span>Mục tiêu</span> <strong class="scan-mono">@TargetQty</strong></li>
+                <li><span>Total Done</span> <strong class="scan-mono">@QtyDoneCached</strong></li>
+                <li><span>Total NG</span> <strong class="scan-mono">@QtyNgCached</strong></li>
+                <li><span>Target</span> <strong class="scan-mono">@TargetQty</strong></li>
             </ul>
-            <p class="rs-finish-warn">Sau khi kết thúc, không thể nhập thêm sản lượng vào WO này.</p>
+            <p class="rs-finish-warn">After finishing, no further output can be added to this WO.</p>
         </div>
     </Body>
     <Footer>
@@ -27,12 +27,12 @@
                 class="op-btn op-btn-secondary"
                 data-testid="finish-cancel-btn"
                 disabled="@Busy"
-                @onclick="OnClose">Huỷ</button>
+                @onclick="OnClose">Cancel</button>
         <button type="button"
                 class="op-btn op-btn-danger"
                 data-testid="finish-confirm-btn"
                 disabled="@Busy"
-                @onclick="OnConfirmClicked">Kết thúc WO</button>
+                @onclick="OnConfirmClicked">Finish WO</button>
     </Footer>
 </Modal>
 

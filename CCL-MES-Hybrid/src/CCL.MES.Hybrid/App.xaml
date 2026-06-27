@@ -6,7 +6,10 @@
     <Application.Resources>
         <ResourceDictionary>
 
-            <Color x:Key="PageBackgroundColor">#512bdf</Color>
+            <!-- Brand blue (matches the web brand token / diamond logo
+                 #2f80ed); replaces the default MAUI purple #512bdf that
+                 showed on the window chrome. -->
+            <Color x:Key="PageBackgroundColor">#2f80ed</Color>
             <Color x:Key="PrimaryTextColor">White</Color>
 
             <Style TargetType="Label">
@@ -17,7 +20,7 @@
             <Style TargetType="Button">
                 <Setter Property="TextColor" Value="{DynamicResource PrimaryTextColor}" />
                 <Setter Property="FontFamily" Value="OpenSansRegular" />
-                <Setter Property="BackgroundColor" Value="#2b0b98" />
+                <Setter Property="BackgroundColor" Value="#1f5ec7" />
                 <Setter Property="Padding" Value="14,10" />
             </Style>
 

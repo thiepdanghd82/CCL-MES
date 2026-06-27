@@ -18,7 +18,7 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
         <button type="button" class="@($"op-btn {ConfirmButtonClass()}")"
                 disabled="@_submitting" @onclick="ConfirmAsync">
             @(_submitting ? PendingLabel : ConfirmLabel)
@@ -30,8 +30,8 @@
     [Parameter] public bool Open { get; set; }
     [Parameter, EditorRequired] public string Title { get; set; } = "";
     [Parameter, EditorRequired] public string Message { get; set; } = "";
-    [Parameter] public string ConfirmLabel { get; set; } = "Xác nhận";
-    [Parameter] public string PendingLabel { get; set; } = "Đang thực hiện…";
+    [Parameter] public string ConfirmLabel { get; set; } = "Confirm";
+    [Parameter] public string PendingLabel { get; set; } = "Processing…";
     [Parameter] public ModalSeverity Severity { get; set; } = ModalSeverity.Warning;
     [Parameter] public EventCallback OnClose { get; set; }
 
@@ -71,7 +71,7 @@
         {
             _error = CCL.MES.Hybrid.Client.Specs.SpecMutationErrorMapper.ToVietnameseMessage(apiEx);
         }
-        catch (HttpRequestException ex) { _error = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _submitting = false; }
     }

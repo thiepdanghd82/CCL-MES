@@ -17,7 +17,7 @@
 
 @if (Windows is null || Windows.Count == 0)
 {
-    <p class="grid-status">Chưa có dữ liệu QC.</p>
+    <p class="grid-status">No QC data yet.</p>
 }
 else
 {
@@ -25,8 +25,8 @@ else
     @if (!canEdit)
     {
         <div class="modal-banner modal-banner-warning" role="note">
-            Tài khoản hiện tại (vai trò <strong>@(Session.CurrentUserInfo?.Role ?? "—")</strong>)
-            chỉ xem được QC plans. Cần Admin hoặc Engineer để chỉnh sửa.
+            The current account (role <strong>@(Session.CurrentUserInfo?.Role ?? "—")</strong>)
+            can only view QC plans. Admin or Engineer is required to edit.
         </div>
     }
 
@@ -42,16 +42,16 @@ else
             <div class="qc-stage-card @(submitting ? "is-busy" : "")">
                 <div class="qc-stage-card-head">
                     <strong>@StageLabel(stage)</strong>
-                    <span class="qc-stage-count">@stageRows.Count tiêu chí</span>
+                    <span class="qc-stage-count">@stageRows.Count criteria</span>
                     @if (canEdit)
                     {
                         <button type="button" class="grid-btn"
                                 disabled="@submitting"
-                                @onclick="() => AddRow(key)">+ Thêm dòng</button>
+                                @onclick="() => AddRow(key)">+ Add row</button>
                         <button type="button" class="grid-btn grid-btn-primary"
                                 disabled="@submitting"
                                 @onclick="() => SaveStageAsync(stage)">
-                            @(submitting ? "Đang lưu…" : "Lưu stage")
+                            @(submitting ? "Saving…" : "Save stage")
                         </button>
                     }
                 </div>
@@ -81,7 +81,7 @@ else
                         <tbody>
                             @if (stageRows.Count == 0)
                             {
-                                <tr><td colspan="@(canEdit ? 7 : 6)" class="spec-empty-cell">— Chưa có tiêu chí —</td></tr>
+                                <tr><td colspan="@(canEdit ? 7 : 6)" class="spec-empty-cell">— No criteria yet —</td></tr>
                             }
                             @for (int i = 0; i < stageRows.Count; i++)
                             {
@@ -124,7 +124,7 @@ else
                                         <td class="qc-col-narrow">
                                             <button type="button" class="grid-btn qc-row-del"
                                                     disabled="@submitting"
-                                                    aria-label="Xoá dòng"
+                                                    aria-label="Delete row"
                                                     @onclick="() => DeleteRow(key, idx)">✕</button>
                                         </td>
                                     }
@@ -229,7 +229,7 @@ else
         {
             if (string.IsNullOrWhiteSpace(row.Name))
             {
-                _errorByStage[key] = "Tên tiêu chí không được để trống.";
+                _errorByStage[key] = "The criterion name cannot be empty.";
                 StateHasChanged();
                 return;
             }
@@ -255,7 +255,7 @@ else
                 }).ToList(),
             };
             var resp = await Api.UpsertQcPlanStageAsync(RevisionId, req);
-            _noticeByStage[key] = $"Đã lưu {resp.Window.Criteria.Count} tiêu chí cho stage {StageLabel(stage)}.";
+            _noticeByStage[key] = $"Saved {resp.Window.Criteria.Count} criteria for stage {StageLabel(stage)}.";
             if (OnReloadRequested.HasDelegate) await OnReloadRequested.InvokeAsync();
         }
         catch (ApiException apiEx)
@@ -264,7 +264,7 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _errorByStage[key] = $"Không kết nối được máy chủ: {ex.Message}";
+            _errorByStage[key] = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {

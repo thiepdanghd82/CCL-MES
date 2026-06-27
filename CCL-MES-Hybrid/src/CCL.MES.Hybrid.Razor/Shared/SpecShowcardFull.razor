@@ -25,7 +25,7 @@
 @if (Vm is null)
 {
     <div class="spec-showcard-full spec-showcard-empty">
-        <p>Chưa có dữ liệu showcard.</p>
+        <p>No showcard data yet.</p>
     </div>
 }
 else
@@ -33,7 +33,12 @@ else
     var template = ResolveTemplate(Vm.PlannerCode);
     var isSilk = template == "SILK";
     var isFlexo = template == "FLEXO";
+    var isIndigo = template == "INDIGO";
+    var isLetter = template == "LETTER";
     var isGeneric = template == "GENERIC";
+    // P10.10 — Indigo (HP) + Letterpress (LP) share the flexo ink-row layout
+    // (product info + print/cut process + ink table + remarks).
+    var isInkBased = isFlexo || isIndigo || isLetter;
     var hasSilkColors = Vm.PrintColors.Count > 0;
     var hasFlexoPrint = Vm.FlexoPrintRows.Count > 0;
     var hasFlexoCut = Vm.FlexoCuttingRows.Count > 0;
@@ -46,7 +51,7 @@ else
         @TryRender("doc-header", () => @<text>
             <div class="spec-doc-header">
                 <div class="spec-doc-header-left">
-                    <div class="spec-doc-co">Công ty TNHH CCL Design Việt Nam</div>
+                    <div class="spec-doc-co">CCL Design Vietnam Co. Ltd</div>
                     <div class="spec-doc-co-sub">CCL Design Vietnam Co. Ltd</div>
                 </div>
                 <div class="spec-doc-header-center">
@@ -80,8 +85,8 @@ else
             <div class="spec-generic-warning" role="note">
                 <span aria-hidden="true">⚠</span>
                 <span>
-                    Template chuẩn cho dòng <strong>@Vm.PlannerLabel</strong>
-                    sẽ bổ sung khi có sample thực — hiển thị các phần đã có dữ liệu.
+                    The standard template for the <strong>@Vm.PlannerLabel</strong> line
+                    will be added once a real sample is available — showing the sections that already have data.
                 </span>
             </div>
         }
@@ -89,22 +94,24 @@ else
         @* ─── 3. Product Information ──────────────────────────────── *@
         @TryRender("product-info", () => @<text>
             <div class="spec-block-full">
-                <div class="spec-block-title-full">Product Information · Thông tin sản phẩm</div>
-                @if (isFlexo || isGeneric)
+                <div class="spec-block-title-full">Product Information</div>
+                @if (isInkBased || isGeneric)
                 {
                     <table class="spec-info-table-full">
                         <thead>
                             <tr>
-                                <th>Customer<span class="sub">Khách hàng</span></th>
-                                <th>Part No<span class="sub">Mã SP</span></th>
-                                <th>Part Name<span class="sub">Tên linh kiện</span></th>
-                                <th>Product Size<span class="sub">Kích thước SP (mm)</span></th>
-                                <th>Substrate<span class="sub">Nguyên liệu</span></th>
+                                <th>Customer<span class="sub">Customer</span></th>
+                                <th>IFS code<span class="sub">IFS / Spec Code</span></th>
+                                <th>Part No<span class="sub">Part Code</span></th>
+                                <th>Part Name<span class="sub">Component Name</span></th>
+                                <th>Product Size<span class="sub">Product Size (mm)</span></th>
+                                <th>Substrate<span class="sub">Material</span></th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <td class="spec-info-hi">@OrDash(Vm.CustomerName)</td>
+                                <td class="spec-info-hi spec-mono">@OrDash(Vm.SpecCode)</td>
                                 <td class="spec-info-hi spec-mono">@OrDash(Vm.ProductCode)</td>
                                 <td>@OrDash(Vm.ProductName)</td>
                                 <td>@Vm.ProductSizeDisplay</td>
@@ -118,12 +125,13 @@ else
                     <table class="spec-info-table-full">
                         <thead>
                             <tr>
-                                <th>Customer<span class="sub">Khách hàng</span></th>
-                                <th>Part No<span class="sub">Mã SP</span></th>
-                                <th>Part Name<span class="sub">Tên SP</span></th>
-                                <th>Material<span class="sub">Nguyên liệu</span></th>
-                                <th>Mat. Size<span class="sub">Cỡ NL</span></th>
-                                <th>Lam.<span class="sub">Ép dán</span></th>
+                                <th>Customer<span class="sub">Customer</span></th>
+                                <th>IFS code<span class="sub">IFS / Spec Code</span></th>
+                                <th>Part No<span class="sub">Part Code</span></th>
+                                <th>Part Name<span class="sub">Product Name</span></th>
+                                <th>Material<span class="sub">Material</span></th>
+                                <th>Mat. Size<span class="sub">Material Size</span></th>
+                                <th>Lam.<span class="sub">Lamination</span></th>
                                 <th>Lam. Size</th>
                                 <th>Lam. Cav.</th>
                             </tr>
@@ -131,6 +139,7 @@ else
                         <tbody>
                             <tr>
                                 <td class="spec-info-hi">@OrDash(Vm.CustomerName)</td>
+                                <td class="spec-info-hi spec-mono">@OrDash(Vm.SpecCode)</td>
                                 <td class="spec-info-hi spec-mono">@OrDash(Vm.ProductCode)</td>
                                 <td>@OrDash(Vm.ProductName)</td>
                                 <td>@OrDash(Vm.SubstrateType)</td>
@@ -150,28 +159,28 @@ else
         {
             @TryRender("print-params", () => @<text>
                 <div class="spec-block-full">
-                    <div class="spec-block-title-full">Print Parameters · Thông số in</div>
+                    <div class="spec-block-title-full">Print Parameters</div>
                     <div class="spec-params-grid">
                         <div>
-                            <div class="lbl">Printing cavity<span class="muted">Số lượng/1 lần in</span></div>
+                            <div class="lbl">Printing cavity<span class="muted">Quantity per print</span></div>
                             <div class="val">@OrDash(Vm.PrintParams.PrintingCavity?.ToString(CultureInfo.InvariantCulture))</div>
                         </div>
                         <div>
-                            <div class="lbl">Length pitch<span class="muted">Bước nhảy (mm)</span></div>
+                            <div class="lbl">Length pitch<span class="muted">Pitch (mm)</span></div>
                             <div class="val">@(Vm.PrintParams.LengthPitchMm is null ? "—" : Vm.PrintParams.LengthPitchMm.Value.ToString("N1", CultureInfo.InvariantCulture))</div>
                         </div>
                         <div>
-                            <div class="lbl">Product size<span class="muted">Kích thước SP</span></div>
+                            <div class="lbl">Product size<span class="muted">Product Size</span></div>
                             <div class="val">@Vm.ProductSizeDisplay</div>
                         </div>
                         <div>
-                            <div class="lbl">Adhesive<span class="muted">Keo dán</span></div>
+                            <div class="lbl">Adhesive<span class="muted">Adhesive</span></div>
                             <div class="val">@OrDash(Vm.PrintParams.AdhesiveType)</div>
                         </div>
                     </div>
                     <div class="spec-silk-legend">
                         <strong>Squeegee codes:</strong> A=65° / B=75° / C=85° ·
-                        <strong>Drying codes:</strong> N=Nhiệt / U=UV / S=Self-dry
+                        <strong>Drying codes:</strong> N=Heat / U=UV / S=Self-dry
                     </div>
                 </div>
             </text>)
@@ -232,14 +241,14 @@ else
         }
 
         @* ─── 5b. Flexo 3 sub-tables ─────────────────────────────── *@
-        @if (isFlexo || (isGeneric && hasAnyPrintData))
+        @if (isInkBased || (isGeneric && hasAnyPrintData))
         {
             @if (hasFlexoPrint)
             {
                 @TryRender("flexo-print", () => @<text>
                     <div class="spec-block-full">
                         <div class="spec-block-title-full">
-                            Thông tin in · Printing — @Vm.FlexoPrintRows.Count processes
+                            Printing — @Vm.FlexoPrintRows.Count processes
                         </div>
                         <div class="spec-table-scroll">
                             <table class="spec-print-table-full">
@@ -281,7 +290,7 @@ else
                 @TryRender("flexo-cut", () => @<text>
                     <div class="spec-block-full">
                         <div class="spec-block-title-full">
-                            Thông tin cắt · Cutting — @Vm.FlexoCuttingRows.Count processes
+                            Cutting — @Vm.FlexoCuttingRows.Count processes
                         </div>
                         <div class="spec-table-scroll">
                             <table class="spec-print-table-full">
@@ -326,7 +335,7 @@ else
                 @TryRender("flexo-ink", () => @<text>
                     <div class="spec-block-full">
                         <div class="spec-block-title-full">
-                            Thông tin mực · Ink — @Vm.FlexoInkRows.Count inks
+                            Ink — @Vm.FlexoInkRows.Count inks
                         </div>
                         <div class="spec-table-scroll">
                             <table class="spec-print-table-full">
@@ -366,7 +375,7 @@ else
         {
             <div class="spec-block-full">
                 <p class="spec-generic-empty">
-                    Chưa có dữ liệu sub-spec cho dòng @Vm.PlannerLabel.
+                    No sub-spec data yet for the @Vm.PlannerLabel line.
                 </p>
             </div>
         }
@@ -374,16 +383,16 @@ else
         @* ─── 6. Remarks ──────────────────────────────────────────── *@
         @TryRender("remarks", () => @<text>
             <div class="spec-block-full">
-                <div class="spec-block-title-full">Remarks · Ghi chú</div>
-                @if (isFlexo)
+                <div class="spec-block-title-full">Remarks</div>
+                @if (isInkBased)
                 {
                     <div class="spec-flexo-remarks-2col">
                         <div>
-                            <div class="lbl">Print remarks · Ghi chú in</div>
+                            <div class="lbl">Print remarks</div>
                             <div>@(string.IsNullOrEmpty(Vm.RemarksText) ? "—" : $"※ {Vm.RemarksText}")</div>
                         </div>
                         <div>
-                            <div class="lbl">Cut remarks · Ghi chú cắt</div>
+                            <div class="lbl">Cut remarks</div>
                             <div>@(string.IsNullOrEmpty(Vm.RemarksCutText) ? "—" : $"※ {Vm.RemarksCutText}")</div>
                         </div>
                     </div>
@@ -400,20 +409,20 @@ else
         @* ─── 7. Revision History ─────────────────────────────────── *@
         @TryRender("revision-history", () => @<text>
             <div class="spec-block-full">
-                <div class="spec-block-title-full">Revision History · Lịch sử thay đổi</div>
+                <div class="spec-block-title-full">Revision History</div>
                 <table class="spec-rev-table-full">
                     <thead>
                         <tr>
                             <th>Rev</th>
-                            <th>Contents · Nội dung</th>
-                            <th>Date · Ngày</th>
-                            <th>By · Bởi</th>
+                            <th>Contents</th>
+                            <th>Date</th>
+                            <th>By</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (Vm.Lineage.Count == 0)
                         {
-                            <tr><td colspan="4" class="spec-empty-cell">— Không có lịch sử —</td></tr>
+                            <tr><td colspan="4" class="spec-empty-cell">— No history —</td></tr>
                         }
                         @foreach (var lr in Vm.Lineage)
                         {
@@ -433,25 +442,25 @@ else
         @* ─── 8. Approval Signatures ──────────────────────────────── *@
         @TryRender("signatures", () => @<text>
             <div class="spec-block-full">
-                <div class="spec-block-title-full">Approval Signatures · Chữ ký phê duyệt</div>
+                <div class="spec-block-title-full">Approval Signatures</div>
                 <div class="spec-signoff-grid">
                     <div>
-                        <div class="role">Người tạo R&amp;D · Issued by R&amp;D</div>
+                        <div class="role">Issued by R&amp;D</div>
                         <div class="name">@OrDash(Vm.CreatedBy)</div>
                         <div class="date">Date: @Vm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</div>
                     </div>
                     <div>
-                        <div class="role">Xác nhận bởi R&amp;D · Confirmed by R&amp;D</div>
+                        <div class="role">Confirmed by R&amp;D</div>
                         <div class="name">@OrDash(Vm.ApprovedBy)</div>
                         <div class="date">Date: @(Vm.ApprovedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
                     </div>
                     <div>
-                        <div class="role">Released by · Phát hành</div>
+                        <div class="role">Released by</div>
                         <div class="name">@OrDash(Vm.ReleasedBy)</div>
                         <div class="date">Date: @(Vm.ReleasedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
                     </div>
                     <div>
-                        <div class="role">Updated by · Cập nhật</div>
+                        <div class="role">Updated by</div>
                         <div class="name">@OrDash(Vm.UpdatedBy)</div>
                         <div class="date">Date: @(Vm.UpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
                     </div>
@@ -462,19 +471,19 @@ else
         @* ─── 9. Change Log (audit trail) ─────────────────────────── *@
         @TryRender("change-log", () => @<text>
             <div class="spec-block-full">
-                <div class="spec-block-title-full">Change Log · Nhật ký thay đổi</div>
+                <div class="spec-block-title-full">Change Log</div>
                 @if (Vm.AuditEntries.Count == 0)
                 {
-                    <p class="spec-empty-cell">— Chưa có nhật ký —</p>
+                    <p class="spec-empty-cell">— No log entries yet —</p>
                 }
                 else
                 {
                     <table class="spec-rev-table-full">
                         <thead>
                             <tr>
-                                <th>Thời gian</th>
-                                <th>Hành động</th>
-                                <th>Người</th>
+                                <th>Time</th>
+                                <th>Action</th>
+                                <th>By</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -516,7 +525,7 @@ else
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "spec-section-error");
             __builder.AddAttribute(2, "role", "alert");
-            __builder.AddContent(3, $"Không hiển thị được phần [{sectionId}]: {ex.GetType().Name}");
+            __builder.AddContent(3, $"Could not display section [{sectionId}]: {ex.GetType().Name}");
             __builder.CloseElement();
         }
     };
@@ -525,6 +534,8 @@ else
     {
         "SILK"   => "SILK",
         "FLEXO"  => "FLEXO",
+        "INDIGO" => "INDIGO",   // P10.10 — HP Indigo seal template
+        "LETTER" => "LETTER",   // P10.10 — Letterpress (LP) template
         _        => "GENERIC",
     };
 
@@ -532,14 +543,18 @@ else
     {
         "SILK"   => "SILKSCREEN SPECIFICATION",
         "FLEXO"  => "FLEXO SPECIFICATION",
+        "INDIGO" => "INDIGO (HP) SPECIFICATION",
+        "LETTER" => "LETTERPRESS SPECIFICATION",
         _        => "PROCESS SPECIFICATION",
     };
 
     private static string CategoryHeaderSubtitle(string template) => template switch
     {
-        "SILK"   => "Quy cách in lụa",
-        "FLEXO"  => "Quy cách in flexo",
-        _        => "Quy cách quy trình",
+        "SILK"   => "Silkscreen specification",
+        "FLEXO"  => "Flexo specification",
+        "INDIGO" => "HP Indigo seal specification",
+        "LETTER" => "Letterpress specification",
+        _        => "Process specification",
     };
 
     private static string OrDash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
@@ -549,15 +564,15 @@ else
 
     private static string LocalizeAction(string action) => action switch
     {
-        "SPEC_CREATE"     => "Tạo Spec",
-        "SPEC_APPROVE"    => "Duyệt",
-        "SPEC_RELEASE"    => "Phát hành",
-        "SPEC_REVISE"     => "Tạo Revise",
-        "SPEC_SUPERSEDE"  => "Đánh dấu Thay thế",
-        "SPEC_TRASH"      => "Xoá vào Thùng rác",
-        "SPEC_RESTORE"    => "Khôi phục",
-        "SPEC_IMPORT"     => "Import từ xlsx",
-        "SPEC_UPDATE"     => "Sửa",
+        "SPEC_CREATE"     => "Create Spec",
+        "SPEC_APPROVE"    => "Approve",
+        "SPEC_RELEASE"    => "Release",
+        "SPEC_REVISE"     => "Create Revise",
+        "SPEC_SUPERSEDE"  => "Mark Superseded",
+        "SPEC_TRASH"      => "Move to Trash",
+        "SPEC_RESTORE"    => "Restore",
+        "SPEC_IMPORT"     => "Import from xlsx",
+        "SPEC_UPDATE"     => "Edit",
         _                 => action,
     };
 }

@@ -34,6 +34,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- P10.10 — Indigo (HP) + Letterpress (LP) parser fixtures (copies of the
+         real Data/Specs reference files) ship next to the test binary. -->
+    <Content Include="SpecImport\Fixtures\*.xlsx" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\CCL.MES.Api\CCL.MES.Api.csproj" />
     <ProjectReference Include="..\..\src\CCL.MES.Shared\CCL.MES.Shared.csproj" />
     <!-- Legacy refs needed for test seed (User entity, IPasswordHasher target). -->

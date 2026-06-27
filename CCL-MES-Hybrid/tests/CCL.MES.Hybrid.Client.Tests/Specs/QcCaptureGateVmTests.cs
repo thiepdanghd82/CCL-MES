@@ -57,7 +57,7 @@ public sealed class QcCaptureGateVmTests
     {
         var msg = QcCaptureGateVm.ExplainInvalid(QcCaptureResult.Fail, null);
         Assert.NotNull(msg);
-        Assert.Contains("mã lý do", msg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("reason code", msg, StringComparison.OrdinalIgnoreCase);
     }
 
     // ── ScrapKindOnly — only Scrap-kind survives + sort order ───────

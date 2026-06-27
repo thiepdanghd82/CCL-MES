@@ -5,12 +5,12 @@
 @inject IAuthSession Session
 @inject NavigationManager Nav
 
-<PageTitle>Đăng nhập — CCL MES</PageTitle>
+<PageTitle>Log in — CCL MES</PageTitle>
 
 <div class="login-shell">
     <div class="login-card">
         <h1 class="login-title">CCL · MES</h1>
-        <p class="login-sub">Đăng nhập với tài khoản hệ thống</p>
+        <p class="login-sub">Log in with your system account</p>
 
         @*
             Wiring notes (P10.6a hotfix — repeat of 3fff2d0):
@@ -43,7 +43,7 @@
         *@
         <form @onsubmit="HandleSubmitAsync" @onsubmit:preventDefault="true" name="login">
             <div class="login-field">
-                <label for="login-username">Tên đăng nhập</label>
+                <label for="login-username">Username</label>
                 <input id="login-username" type="text" class="login-input"
                        tabindex="1"
                        @bind="_form.Username" @bind:event="oninput"
@@ -51,7 +51,7 @@
                        autocomplete="off" autofocus />
             </div>
             <div class="login-field">
-                <label for="login-password">Mật khẩu</label>
+                <label for="login-password">Password</label>
                 <input id="login-password" type="password" class="login-input"
                        tabindex="2"
                        @bind="_form.Password" @bind:event="oninput"
@@ -72,7 +72,7 @@
 
             <button type="submit" class="login-submit" tabindex="3"
                     disabled="@_submitting" @onclick="HandleSubmitAsync">
-                @(_submitting ? "Đang đăng nhập…" : "Đăng nhập")
+                @(_submitting ? "Logging in…" : "Log in")
             </button>
         </form>
     </div>
@@ -163,11 +163,11 @@
 
     private static string LocaliseError(string code) => code switch
     {
-        "auth.invalid_credentials" => "Sai tên đăng nhập hoặc mật khẩu.",
-        "auth.missing_fields"      => "Vui lòng nhập đủ thông tin.",
-        "auth.network_error"       => "Không thể kết nối máy chủ. Kiểm tra mạng rồi thử lại.",
-        "auth.timeout"             => "Máy chủ phản hồi quá lâu. Thử lại.",
-        _                          => "Đăng nhập thất bại. Vui lòng thử lại.",
+        "auth.invalid_credentials" => "Incorrect username or password.",
+        "auth.missing_fields"      => "Please fill in all fields.",
+        "auth.network_error"       => "Could not connect to the server. Check your network and try again.",
+        "auth.timeout"             => "The server took too long to respond. Please try again.",
+        _                          => "Login failed. Please try again.",
     };
 
     /// <summary>Cap the error-detail text so a multi-line exception
@@ -183,10 +183,10 @@
 
     private sealed class LoginForm
     {
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Bắt buộc")]
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Required")]
         public string Username { get; set; } = "";
 
-        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Bắt buộc")]
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Required")]
         public string Password { get; set; } = "";
     }
 }

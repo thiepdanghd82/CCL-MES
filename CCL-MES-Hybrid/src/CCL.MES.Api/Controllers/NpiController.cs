@@ -18,7 +18,32 @@ namespace CCL.MES.Api.Controllers;
 public sealed class NpiController : ControllerBase
 {
     private readonly NpiService _svc;
-    public NpiController(NpiService svc) => _svc = svc;
+    private readonly NpiImportService _import;
+    public NpiController(NpiService svc, NpiImportService import)
+    {
+        _svc = svc;
+        _import = import;
+    }
+
+    // P10.5 follow-up — CSV import for the three big grids (SpecHub
+    // "Import…" parity). Write surface → tighten to editor roles even
+    // though the read grids are open to QC too.
+    [HttpPost("{kind}/import")]
+    [Authorize(Roles = "Admin,Supervisor,Engineer")]
+    [RequestSizeLimit(256L * 1024 * 1024)]
+    public async Task<IActionResult> Import(string kind, IFormFile? file, CancellationToken ct)
+    {
+        var k = (kind ?? "").ToLowerInvariant();
+        if (k is not ("structures" or "routings" or "rawmaterials"))
+            return NotFound();
+        if (file is null || file.Length == 0)
+            return UnprocessableEntity(new { code = "import.no_file", error = "No CSV file was uploaded." });
+
+        await using var stream = file.OpenReadStream();
+        var actor = User.Identity?.Name;
+        var result = await _import.ImportAsync(k, stream, actor, ct);
+        return Ok(result);
+    }
 
     [HttpGet("workcenters")]
     public async Task<IActionResult> WorkCenters(

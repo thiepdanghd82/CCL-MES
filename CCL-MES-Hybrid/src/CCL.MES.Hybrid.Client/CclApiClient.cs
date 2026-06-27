@@ -10,13 +10,17 @@ using CCL.MES.Shared.Backup;
 using CCL.MES.Shared.Devices;
 using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
+using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
+using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
+using CCL.MES.Shared.Qms;
 using CCL.MES.Shared.RunningSurface;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
 using CCL.MES.Shared.Specs;
+using CCL.MES.Shared.WoQcReview;
 using CCL.MES.Shared.WorkOrders;
 using Microsoft.Extensions.Options;
 
@@ -57,6 +61,63 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<UserInfo>(resp, ct);
     }
 
+    // ── Home (P10.10) ──────────────────────────────────────────────
+
+    public async Task<HomeSummaryDto?> GetHomeSummaryAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/home/summary", ct);
+        return await ReadAsAsync<HomeSummaryDto>(resp, ct);
+    }
+
+    // ── Machine Dashboard (P10.8) ──────────────────────────────────
+
+    public async Task<MachineDashboardDto?> GetMachineDashboardAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/machines/dashboard", ct);
+        return await ReadAsAsync<MachineDashboardDto>(resp, ct);
+    }
+
+    public async Task<MachineDetailDto?> GetMachineDetailAsync(long workCenterId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/machines/{workCenterId}/detail", ct);
+        if (resp.StatusCode == HttpStatusCode.NotFound) return null;
+        return await ReadAsAsync<MachineDetailDto>(resp, ct);
+    }
+
+    public async Task<ShopOrderHistoryDto?> GetShopOrderHistoryAsync(
+        string? period, string? search, string? status = null,
+        string? customer = null, string? machine = null, CancellationToken ct = default)
+    {
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(period)) qs.Add($"period={Uri.EscapeDataString(period)}");
+        if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        if (!string.IsNullOrWhiteSpace(status)) qs.Add($"status={Uri.EscapeDataString(status)}");
+        if (!string.IsNullOrWhiteSpace(customer)) qs.Add($"customer={Uri.EscapeDataString(customer)}");
+        if (!string.IsNullOrWhiteSpace(machine)) qs.Add($"machine={Uri.EscapeDataString(machine)}");
+        var url = $"/{ApiVersion.Prefix}/shop-orders/history" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<ShopOrderHistoryDto>(resp, ct);
+    }
+
+    // ── QMS (P10.9) ────────────────────────────────────────────────
+
+    public async Task<QmsQueueDto?> GetQmsQueueAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/qms/queue", ct);
+        return await ReadAsAsync<QmsQueueDto>(resp, ct);
+    }
+
+    public async Task<QcHistoryDto?> GetQcHistoryAsync(string? kind, string? judgment, string? search, CancellationToken ct = default)
+    {
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(kind)) qs.Add($"kind={Uri.EscapeDataString(kind)}");
+        if (!string.IsNullOrWhiteSpace(judgment)) qs.Add($"judgment={Uri.EscapeDataString(judgment)}");
+        if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        var url = $"/{ApiVersion.Prefix}/qms/qc-history" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<QcHistoryDto>(resp, ct);
+    }
+
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)
     {
         var req = new RefreshTokenRequest { RefreshToken = refreshToken };
@@ -79,7 +140,30 @@ public sealed class CclApiClient : ICclApiClient
     public Task<NpiPagedRaw<NpiStructure>> GetStructuresAsync(string? search, int page, int pageSize, CancellationToken ct = default)
         => GetPagedAsync<NpiStructure>("structures", search, page, pageSize, ct);
 
+    public async Task<NpiImportResultDto?> ImportNpiAsync(string kind, string fileName, byte[] content, CancellationToken ct = default)
+    {
+        using var form = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(content);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+        form.Add(fileContent, "file", fileName);
+        using var resp = await _http.PostAsync(
+            $"/{ApiVersion.Prefix}/npi/{Uri.EscapeDataString(kind)}/import", form, ct);
+        return await ReadAsAsync<NpiImportResultDto>(resp, ct);
+    }
+
     // ── Work Orders ─────────────────────────────────────────────────
+
+    public async Task<IReadOnlyList<ActiveWorkOrderCard>> GetActiveWorkOrdersAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/work-orders/active", ct);
+        return await ReadAsAsync<List<ActiveWorkOrderCard>>(resp, ct);
+    }
+
+    public async Task<IReadOnlyList<WoAuditEntry>> GetWoAuditAsync(long workOrderId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/work-orders/{workOrderId}/audit", ct);
+        return await ReadAsAsync<List<WoAuditEntry>>(resp, ct);
+    }
 
     public async Task<WorkOrderSummary?> GetWorkOrderByNoAsync(string woNo, CancellationToken ct = default)
     {
@@ -359,6 +443,149 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<IpqcSetResponse>(resp, ct);
     }
 
+    // ── FQC + OQC review (P10.7e-3) ────────────────────────────────
+
+    public async Task<WoQcView> GetWoQcViewAsync(
+        long workOrderId, string kind, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/{kind}", ct);
+        return await ReadAsAsync<WoQcView>(resp, ct);
+    }
+
+    public Task<WoQcSetResponse> PutWoQcItemAsync(
+        long workOrderId, string kind, string itemKey, string ifMatchETag,
+        SetWoQcItemRequest req, CancellationToken ct = default)
+        => SendWoQcMutationAsync(
+            HttpMethod.Put,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/{kind}/items/{Uri.EscapeDataString(itemKey)}",
+            ifMatchETag, req, ct);
+
+    public Task<WoQcSetResponse> PostFqcJudgmentAsync(
+        long workOrderId, string ifMatchETag,
+        SubmitFqcJudgmentRequest req, CancellationToken ct = default)
+        => SendWoQcMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/fqc/judgment",
+            ifMatchETag, req, ct);
+
+    public Task<WoQcSetResponse> PostOqcInspectAsync(
+        long workOrderId, string ifMatchETag,
+        OqcInspectRequest req, CancellationToken ct = default)
+        => SendWoQcMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/oqc/inspect",
+            ifMatchETag, req, ct);
+
+    public Task<WoQcSetResponse> PostOqcReviewAsync(
+        long workOrderId, string ifMatchETag,
+        OqcReviewRequest req, CancellationToken ct = default)
+        => SendWoQcMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/oqc/review",
+            ifMatchETag, req, ct);
+
+    public Task<WoQcSetResponse> PostOqcApproveAsync(
+        long workOrderId, string ifMatchETag,
+        OqcApproveRequest req, CancellationToken ct = default)
+        => SendWoQcMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/oqc/approve",
+            ifMatchETag, req, ct);
+
+    private async Task<WoQcSetResponse> SendWoQcMutationAsync(
+        HttpMethod method, string path, string ifMatchETag, object req, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(method, path)
+        {
+            Content = JsonContent.Create(req),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+        if (resp.StatusCode == HttpStatusCode.OK
+            || resp.StatusCode == HttpStatusCode.Conflict
+            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<WoQcSetResponse>(cancellationToken: ct);
+            return body ?? new WoQcSetResponse { Ok = false, ErrorCode = "http.empty_body" };
+        }
+        return await ReadAsAsync<WoQcSetResponse>(resp, ct);
+    }
+
+    public async Task<IReadOnlyList<WoQcPhotoDto>> GetWoQcPhotosAsync(
+        long workOrderId, string kind, string itemKey, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/{kind}/items/{Uri.EscapeDataString(itemKey)}/photos",
+            ct);
+        var rows = await ReadAsAsync<List<WoQcPhotoDto>>(resp, ct);
+        return rows;
+    }
+
+    public async Task<WoQcPhotoUploadResponse> UploadWoQcPhotoAsync(
+        long workOrderId, string kind, string itemKey, string ifMatchETag,
+        Stream content, string fileName, string mimeType, CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/{kind}/items/{Uri.EscapeDataString(itemKey)}/photos";
+
+        using var msg = new HttpRequestMessage(HttpMethod.Post, path);
+        var form = new MultipartFormDataContent();
+        var streamContent = new StreamContent(content);
+        streamContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mimeType);
+        form.Add(streamContent, "file", fileName);
+        msg.Content = form;
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+        if (resp.StatusCode == HttpStatusCode.OK
+            || resp.StatusCode == HttpStatusCode.Conflict
+            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<WoQcPhotoUploadResponse>(cancellationToken: ct);
+            return body ?? new WoQcPhotoUploadResponse { Ok = false, ErrorCode = "http.empty_body" };
+        }
+        return await ReadAsAsync<WoQcPhotoUploadResponse>(resp, ct);
+    }
+
+    public async Task<WoQcSetResponse> DeleteWoQcPhotoAsync(
+        long workOrderId, string kind, string itemKey, long photoId, string ifMatchETag,
+        CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qc/{kind}/items/{Uri.EscapeDataString(itemKey)}/photos/{photoId}";
+        using var msg = new HttpRequestMessage(HttpMethod.Delete, path);
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+        if (resp.StatusCode == HttpStatusCode.OK
+            || resp.StatusCode == HttpStatusCode.Conflict
+            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<WoQcSetResponse>(cancellationToken: ct);
+            return body ?? new WoQcSetResponse { Ok = false, ErrorCode = "http.empty_body" };
+        }
+        return await ReadAsAsync<WoQcSetResponse>(resp, ct);
+    }
+
+    public async Task<WoSummaryReport> GetWoSummaryReportAsync(long workOrderId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/summary-report", ct);
+        return await ReadAsAsync<WoSummaryReport>(resp, ct);
+    }
+
     public async Task<IReadOnlyList<ReasonCodeOption>> GetReasonCodesAsync(
         string? kind, CancellationToken ct = default)
     {
@@ -466,6 +693,12 @@ public sealed class CclApiClient : ICclApiClient
 
     public Task<SpecMutationResponse> CopySpecAsync(long sourceRevisionId, CopySpecMutation req, CancellationToken ct = default) =>
         SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{sourceRevisionId}/copy", req, ct);
+
+    public Task<SpecMutationResponse> DuplicateSpecAsync(long sourceRevisionId, CancellationToken ct = default) =>
+        SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{sourceRevisionId}/duplicate", body: null, ct);
+
+    public Task<SpecMutationResponse> NewVersionSpecAsync(long sourceRevisionId, CancellationToken ct = default) =>
+        SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{sourceRevisionId}/new-version", body: null, ct);
 
     public Task<SpecMutationResponse> ReviseSpecAsync(long sourceRevisionId, ReviseSpecMutation req, CancellationToken ct = default) =>
         SendSpecMutationAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/specs/{sourceRevisionId}/revise", req, ct);
@@ -586,6 +819,7 @@ public sealed class CclApiClient : ICclApiClient
             var details = new Dictionary<string, string>(StringComparer.Ordinal);
             if (mutErr.CurrentStatus is not null) details["currentStatus"] = mutErr.CurrentStatus;
             if (mutErr.ActiveWoCount is not null) details["activeWoCount"] = mutErr.ActiveWoCount.Value.ToString();
+            if (!string.IsNullOrWhiteSpace(mutErr.DupFields)) details["dupFields"] = mutErr.DupFields;
             throw new ApiException((int)resp.StatusCode, new ApiError
             {
                 Code = mutErr.Code,
@@ -673,6 +907,27 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
             "Drawing decide returned 2xx but body was empty.");
     }
 
+    public async Task<DrawingDeleteResponse> DeleteDrawingVersionAsync(
+        long revisionId, long versionId, DrawingDeleteRequest req,
+        CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/specs/{revisionId}/drawings/{versionId}";
+        using var msg = new HttpRequestMessage(HttpMethod.Delete, path)
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(req),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        using var resp = await _http.SendAsync(msg, ct);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+
+        var body = await resp.Content.ReadFromJsonAsync<DrawingDeleteResponse>(cancellationToken: ct);
+        return body ?? throw new InvalidOperationException(
+            "Drawing delete returned 2xx but body was empty.");
+    }
+
     public async Task<long> DownloadDrawingToFileAsync(
         long revisionId, long versionId, string destinationFilePath,
         CancellationToken ct = default)
@@ -697,6 +952,16 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
         await sourceStream.CopyToAsync(fileStream, ct);
         await fileStream.FlushAsync(ct);
         return new FileInfo(destinationFilePath).Length;
+    }
+
+    public async Task<byte[]> DownloadDrawingBytesAsync(
+        long revisionId, long versionId, CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/specs/{revisionId}/drawings/{versionId}/file";
+        using var resp = await _http.GetAsync(path, ct);
+        if (!resp.IsSuccessStatusCode)
+            await ThrowOnSpecMutationFailureAsync(resp, ct);
+        return await resp.Content.ReadAsByteArrayAsync(ct);
     }
 
     // ── QC Specs ────────────────────────────────────────────────────
@@ -945,6 +1210,31 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
         multipart.Add(streamContent, "file", fileName);
         using var resp = await _http.PostAsync($"/{ApiVersion.Prefix}/backup/restore", multipart, ct);
         return await ReadAsAsync<RestoreResultDto>(resp, ct);
+    }
+
+    // ── Scheduled backup (P-Backup) ─────────────────────────────────
+
+    public async Task<BackupScheduleStatusDto> GetBackupScheduleAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/backup/schedule", ct);
+        return await ReadAsAsync<BackupScheduleStatusDto>(resp, ct);
+    }
+
+    public async Task<BackupScheduleStatusDto> SetBackupScheduleAsync(
+        BackupScheduleUpdateRequest req, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Put, $"/{ApiVersion.Prefix}/backup/schedule")
+        {
+            Content = JsonContent.Create(req),
+        };
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<BackupScheduleStatusDto>(resp, ct);
+    }
+
+    public async Task<BackupRunResultDto> RunBackupNowAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.PostAsync($"/{ApiVersion.Prefix}/backup/run-now", content: null, ct);
+        return await ReadAsAsync<BackupRunResultDto>(resp, ct);
     }
 
     /// <summary>

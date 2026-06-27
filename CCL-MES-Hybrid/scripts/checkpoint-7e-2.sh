@@ -383,7 +383,7 @@ else
     record FAIL "Scrap picker thin: $SCRAP_CNT"
 fi
 
-# ── Resolve WO + shim to OQC_PENDING + seed OQC check row ─────────
+# ── Resolve WO + shim to OQC_PENDING ──────────────────────────────
 WO_ID=$(sqlite3 "$DB_PATH" "SELECT Id FROM WorkOrders WHERE WoNo='$WO_NO' LIMIT 1;" 2>/dev/null)
 if [[ -z "$WO_ID" ]]; then
     record FAIL "WO $WO_NO not found"
@@ -391,20 +391,82 @@ if [[ -z "$WO_ID" ]]; then
 fi
 echo "[ctx] WO Id      = $WO_ID"
 
-# Shim WO to OQC_PENDING + seed a Pending OQC check with 1 Ok item.
+# P10.7e-3 FIX (Henry RCA on PR #123) — L23:
+# Phase shim stays SQL (no API for backward phase transitions yet) but
+# the QC check materialisation NOW goes through the REAL API path
+# operators use. Pre-fix: direct INSERT of a stub check with empty
+# profile + single "appearance" item masked the operator-visible 0/0
+# gap. The real-path probe below will FAIL if QcProfileSeed regresses
+# (silently shrinks to 0 items, etc.) the way the production UI would.
 sqlite3 "$DB_PATH" "UPDATE WorkOrders SET MesPhase='OQC_PENDING', CurrentStep='Oqc', UpdatedAt=datetime('now'), UpdatedBy='$ACTOR_TAG' WHERE Id=$WO_ID;"
+# Wipe prior check + items so the GET below truly lazy-materialises
+# from QcProfileSeed via the controller path (not from a stale stub).
+sqlite3 "$DB_PATH" "DELETE FROM WoQcCheckItems WHERE WoQcCheckId IN (SELECT Id FROM WoQcChecks WHERE WorkOrderId=$WO_ID AND QcKind='OQC');"
 sqlite3 "$DB_PATH" "DELETE FROM WoQcChecks WHERE WorkOrderId=$WO_ID AND QcKind='OQC';"
-sqlite3 "$DB_PATH" "INSERT INTO WoQcChecks (WorkOrderId, QcKind, ProfileSnapshotJson, Judgment, CreatedAt) VALUES ($WO_ID, 'OQC', '{}', 'Pending', datetime('now'));"
-OQC_CHECK_ID=$(sqlite3 "$DB_PATH" "SELECT Id FROM WoQcChecks WHERE WorkOrderId=$WO_ID AND QcKind='OQC';")
-sqlite3 "$DB_PATH" "DELETE FROM WoQcCheckItems WHERE WoQcCheckId=$OQC_CHECK_ID;"
-sqlite3 "$DB_PATH" "INSERT INTO WoQcCheckItems (WoQcCheckId, ItemKey, Status, CreatedAt) VALUES ($OQC_CHECK_ID, 'appearance', 'Ok', datetime('now'));"
 NEW_PHASE=$(sqlite3 "$DB_PATH" "SELECT MesPhase FROM WorkOrders WHERE Id=$WO_ID;")
 if [[ "$NEW_PHASE" == "OQC_PENDING" ]]; then
-    record PASS "reset WO to OQC_PENDING + seed OQC check (1 item Ok)"
+    record PASS "reset WO to OQC_PENDING (cleared stub check; profile will materialise via API)"
 else
     record FAIL "reset failed — phase is $NEW_PHASE"
 fi
+
+# ── 6.1 Real materialise: GET /qc/oqc → profile seeded from
+#       QcProfileSeed (28-item canonical) + items synthesised as Pending.
+#       This is the exact path the operator's OqcDashboard hits.
+GET_RSP=$(curl -s -w "\nHTTP:%{http_code}" -X GET "$API_BASE/api/v2/work-orders/$WO_ID/qc/oqc" \
+    -H "$INSPECTOR_AUTH")
+LAST_HTTP=$(echo "$GET_RSP" | grep -oE 'HTTP:[0-9]+$' | cut -d: -f2)
+LAST_BODY=$(echo "$GET_RSP" | sed '$d')
+api_assert_routed "GET /qc/oqc"
+if [[ "$LAST_HTTP" != "200" ]]; then
+    qc_diag "GET /qc/oqc materialisation failed" "200"
+    record FAIL "GET /qc/oqc returned $LAST_HTTP — profile materialisation broken"
+    exit 1
+fi
+ITEM_COUNT=$(echo "$LAST_BODY" | python3 -c "import sys,json; v=json.load(sys.stdin); print(len(v.get('items',[])))")
+if [[ "$ITEM_COUNT" -ge 28 ]]; then
+    record PASS "GET /qc/oqc materialised $ITEM_COUNT items via QcProfileSeed (≥28 required)"
+else
+    qc_diag "Profile materialisation thin" "≥28 items (canonical OQC profile)"
+    record FAIL "L23 — GET /qc/oqc returned only $ITEM_COUNT items; QcProfileSeed broken or shrunk"
+    exit 1
+fi
+
+# Extract item keys from the response so we can PUT each via the real
+# wire path — this is what the OqcDashboard would do as the operator
+# taps OK on every row.
+ITEM_KEYS=$(echo "$LAST_BODY" | python3 -c "import sys,json; v=json.load(sys.stdin); print(' '.join(i['itemKey'] for i in v.get('items',[])))")
+
+# ── 6.2 Mark every item Ok via PUT — REAL endpoint per operator flow.
+#       Each PUT bumps RowVersion via the trigger; capture the latest
+#       ETag from the in-band response for the next PUT.
 ETAG=$(etag_of "$WO_ID")
+PUT_FAILED=0
+PUT_COUNT=0
+for KEY in $ITEM_KEYS; do
+    IDEM=$(uuidgen)
+    PUT_RSP=$(curl -s -w "\nHTTP:%{http_code}" -X PUT \
+        "$API_BASE/api/v2/work-orders/$WO_ID/qc/oqc/items/$KEY" \
+        -H "$INSPECTOR_AUTH" -H "Content-Type: application/json" \
+        -H "If-Match: \"$ETAG\"" -H "Idempotency-Key: $IDEM" \
+        -d '{"status":"Ok"}')
+    PUT_HTTP=$(echo "$PUT_RSP" | grep -oE 'HTTP:[0-9]+$' | cut -d: -f2)
+    PUT_BODY=$(echo "$PUT_RSP" | sed '$d')
+    if [[ "$PUT_HTTP" != "200" ]]; then
+        echo "  [diag] PUT items/$KEY → HTTP $PUT_HTTP"
+        echo "  [diag] body: $(echo "$PUT_BODY" | head -c 200)"
+        PUT_FAILED=$((PUT_FAILED + 1))
+        break
+    fi
+    ETAG=$(echo "$PUT_BODY" | json_field "eTag")
+    PUT_COUNT=$((PUT_COUNT + 1))
+done
+if [[ "$PUT_FAILED" -eq 0 && "$PUT_COUNT" -eq "$ITEM_COUNT" ]]; then
+    record PASS "PUT /qc/oqc/items × $PUT_COUNT — every profile item marked Ok via real wire"
+else
+    record FAIL "PUT /qc/oqc/items — $PUT_COUNT/$ITEM_COUNT succeeded ($PUT_FAILED failed)"
+    exit 1
+fi
 
 # ── 7. Inspector signs (sig 1) ───────────────────────────────────
 qc_post INSPECTOR_AUTH "/api/v2/work-orders/$WO_ID/qc/oqc/inspect" '{"note":"Inspector signed"}'

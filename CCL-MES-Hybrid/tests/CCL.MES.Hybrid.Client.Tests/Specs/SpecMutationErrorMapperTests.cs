@@ -12,13 +12,14 @@ namespace CCL.MES.Hybrid.Client.Tests.Specs;
 public sealed class SpecMutationErrorMapperTests
 {
     [Theory]
-    [InlineData("duplicate_spec_code", "Mã Spec đã tồn tại — chọn mã khác.")]
-    [InlineData("not_found",           "Không tìm thấy Spec (có thể đã bị xoá).")]
-    [InlineData("trashed",             "Spec đang ở Thùng rác — khôi phục trước khi thực hiện.")]
-    [InlineData("reason_required",     "Lý do Revise phải có ít nhất 5 ký tự.")]
-    [InlineData("confirm_mismatch",    "Mã Spec xác nhận chưa đúng — gõ lại chính xác mã hiện tại.")]
-    [InlineData("already_trashed",     "Spec đã ở Thùng rác.")]
-    [InlineData("not_trashed",         "Spec không ở Thùng rác — không cần khôi phục.")]
+    [InlineData("duplicate_spec_code", "Spec code already exists — choose a different code.")]
+    [InlineData("duplicate_part_no",   "This Part No already has a spec (Rev A) — change the Part No, or use Copy/Revise.")]
+    [InlineData("not_found",           "Spec not found (it may have been deleted).")]
+    [InlineData("trashed",             "This Spec is in the Trash — restore it before continuing.")]
+    [InlineData("reason_required",     "The revision reason must be at least 5 characters.")]
+    [InlineData("confirm_mismatch",    "The confirmation Spec code is incorrect — retype the current code exactly.")]
+    [InlineData("already_trashed",     "This Spec is already in the Trash.")]
+    [InlineData("not_trashed",         "This Spec is not in the Trash — no restore is needed.")]
     public void Simple_codes_map_to_VN_strings(string code, string expected)
     {
         Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code));
@@ -29,24 +30,42 @@ public sealed class SpecMutationErrorMapperTests
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("validation", messageEn: "ProductId required");
         Assert.Contains("ProductId required", msg);
-        Assert.StartsWith("Dữ liệu chưa hợp lệ", msg);
+        Assert.StartsWith("The data is not yet valid", msg);
     }
 
     [Fact]
     public void Validation_with_blank_messageEn_uses_generic_VN()
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("validation");
-        Assert.Equal("Dữ liệu chưa hợp lệ.", msg);
+        Assert.Equal("The data is not yet valid.", msg);
     }
 
     [Theory]
-    [InlineData("immutable_status", "Approved",  "Chỉ Bản nháp mới được sửa. (Hiện tại: Approved)")]
-    [InlineData("immutable_status", null,        "Chỉ Bản nháp mới được sửa.")]
-    [InlineData("invalid_source_status", "Draft",  "Chỉ Spec đã Duyệt hoặc Phát hành mới có thể tạo Revise. (Hiện tại: Draft)")]
-    [InlineData("invalid_status",        "Released",  "Chỉ Spec đã Duyệt hoặc Phát hành mới có thể đánh dấu Thay thế. (Hiện tại: Released)")]
+    [InlineData("immutable_status", "Approved",  "Only Draft revisions can be edited. (Current: Approved)")]
+    [InlineData("immutable_status", null,        "Only Draft revisions can be edited.")]
+    [InlineData("invalid_source_status", "Draft",  "Only an Approved or Released Spec can be revised. (Current: Draft)")]
+    [InlineData("invalid_status",        "Released",  "Only an Approved or Released Spec can be marked as Superseded. (Current: Released)")]
     public void Status_aware_codes_append_currentStatus(string code, string? status, string expected)
     {
         Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code, currentStatus: status));
+    }
+
+    [Fact]
+    public void DuplicateWarning_names_colliding_fields_and_asks_for_reason()
+    {
+        var err = new CCL.MES.Shared.Envelopes.ApiError
+        {
+            Code = "duplicate_warning",
+            MessageEn = "dup",
+            Details = new Dictionary<string, string> { ["dupFields"] = "partno,spec" },
+        };
+        var msg = SpecMutationErrorMapper.ToVietnameseMessage(err);
+        Assert.Contains("Part No", msg);
+        Assert.Contains("Spec", msg);
+        Assert.Contains("reason", msg, StringComparison.OrdinalIgnoreCase);
+
+        var fields = SpecMutationErrorMapper.DuplicateFields(err);
+        Assert.Equal(new[] { "partno", "spec" }, fields);
     }
 
     [Fact]
@@ -60,7 +79,7 @@ public sealed class SpecMutationErrorMapperTests
     public void ActiveWorkOrders_without_count_falls_back_to_generic()
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("active_work_orders");
-        Assert.Contains("vẫn còn Work Order", msg);
+        Assert.Contains("there are still Work Orders", msg);
     }
 
     [Fact]
@@ -80,8 +99,8 @@ public sealed class SpecMutationErrorMapperTests
     [Fact]
     public void Auth_codes_map_to_session_expired_VN()
     {
-        Assert.StartsWith("Phiên đăng nhập", SpecMutationErrorMapper.ToVietnameseMessage("auth.invalid_credentials"));
-        Assert.StartsWith("Phiên đăng nhập", SpecMutationErrorMapper.ToVietnameseMessage("auth.bad_claim"));
+        Assert.StartsWith("Your session has expired", SpecMutationErrorMapper.ToVietnameseMessage("auth.invalid_credentials"));
+        Assert.StartsWith("Your session has expired", SpecMutationErrorMapper.ToVietnameseMessage("auth.bad_claim"));
     }
 
     [Fact]
@@ -103,7 +122,7 @@ public sealed class SpecMutationErrorMapperTests
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("http.non_success", messageEn: "404");
         Assert.DoesNotContain("HTTP HTTP", msg);
         Assert.Contains("HTTP 404", msg);
-        Assert.Equal("Lỗi máy chủ (HTTP 404).", msg);
+        Assert.Equal("Server error (HTTP 404).", msg);
     }
 
     [Fact]
@@ -115,7 +134,7 @@ public sealed class SpecMutationErrorMapperTests
             MessageEn = "Already exists",
         });
         var msg = SpecMutationErrorMapper.ToVietnameseMessage(ex);
-        Assert.Equal("Mã Spec đã tồn tại — chọn mã khác.", msg);
+        Assert.Equal("Spec code already exists — choose a different code.", msg);
     }
 
     [Fact]
@@ -134,15 +153,15 @@ public sealed class SpecMutationErrorMapperTests
     // ── P10.5c-2 — Spec xlsx import codes ───────────────────────────
 
     [Theory]
-    [InlineData("import.no_file",                 "Chưa chọn file để tải lên.")]
-    [InlineData("import.invalid_extension",       "Chỉ hỗ trợ file .xlsx.")]
-    [InlineData("import.oversize",                "File vượt quá 10 MB — chọn file nhỏ hơn.")]
-    [InlineData("import.invalid_content",         "File không phải định dạng xlsx hợp lệ.")]
-    [InlineData("import.no_parsed_payload",       "Phiên xem trước đã hết hạn — chọn lại file.")]
-    [InlineData("import.invalid_parsed_payload",  "Dữ liệu xem trước không hợp lệ — chọn lại file.")]
-    [InlineData("import.invalid_mode",            "Lựa chọn lưu không hợp lệ — thử lại.")]
-    [InlineData("import.spec_code_override_required", "Phải nhập Mã Spec mới khi chọn Lưu thành bản sao.")]
-    [InlineData("import.duplicate_ref_no",        "Đã tồn tại Spec với cùng REF NO — chọn Thay thế hoặc Lưu thành bản sao.")]
+    [InlineData("import.no_file",                 "No file selected to upload.")]
+    [InlineData("import.invalid_extension",       "Only .xlsx files are supported.")]
+    [InlineData("import.oversize",                "The file exceeds 10 MB — choose a smaller file.")]
+    [InlineData("import.invalid_content",         "The file is not a valid xlsx format.")]
+    [InlineData("import.no_parsed_payload",       "The preview session has expired — select the file again.")]
+    [InlineData("import.invalid_parsed_payload",  "The preview data is invalid — select the file again.")]
+    [InlineData("import.invalid_mode",            "Invalid save option — please try again.")]
+    [InlineData("import.spec_code_override_required", "You must enter a new Spec code when choosing Save as copy.")]
+    [InlineData("import.duplicate_ref_no",        "A Spec with the same REF NO already exists — choose Supersede or Save as copy.")]
     public void Import_simple_codes_map_to_VN(string code, string expected)
     {
         Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code));
@@ -152,7 +171,7 @@ public sealed class SpecMutationErrorMapperTests
     public void Import_parse_error_with_blank_message_uses_generic_VN()
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("import.parse_error");
-        Assert.StartsWith("Không đọc được file xlsx", msg);
+        Assert.StartsWith("Could not read the xlsx file", msg);
     }
 
     [Fact]
@@ -160,7 +179,7 @@ public sealed class SpecMutationErrorMapperTests
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("import.parse_error", messageEn: "Header row missing");
         Assert.Contains("Header row missing", msg);
-        Assert.StartsWith("Không đọc được file xlsx", msg);
+        Assert.StartsWith("Could not read the xlsx file", msg);
     }
 
     [Fact]
@@ -168,14 +187,14 @@ public sealed class SpecMutationErrorMapperTests
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("import.validation", messageEn: "Customer field required");
         Assert.Contains("Customer field required", msg);
-        Assert.StartsWith("Dữ liệu chưa hợp lệ", msg);
+        Assert.StartsWith("The data is not yet valid", msg);
     }
 
     [Fact]
     public void Import_validation_with_blank_message_uses_generic_VN()
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("import.validation");
-        Assert.Equal("Dữ liệu chưa hợp lệ — kiểm tra Customer / Part No.", msg);
+        Assert.Equal("The data is not yet valid — check Customer / Part No.", msg);
     }
 
     [Fact]
@@ -190,12 +209,12 @@ public sealed class SpecMutationErrorMapperTests
     // ── P10.5e-1 — Drawings upload + download codes ─────────────────
 
     [Theory]
-    [InlineData("drawing.no_file",           "Chưa chọn file bản vẽ để tải lên.")]
-    [InlineData("drawing.oversize",          "File bản vẽ vượt quá 10 MB — chọn file nhỏ hơn.")]
-    [InlineData("drawing.invalid_kind",      "Loại bản vẽ không hợp lệ.")]
-    [InlineData("drawing.forbidden",         "Tài khoản không có quyền upload bản vẽ (cần Admin hoặc Engineer).")]
-    [InlineData("drawing.not_found",         "Không tìm thấy bản vẽ (có thể đã bị xoá).")]
-    [InlineData("drawing.blob_missing",      "File bản vẽ không còn trên máy chủ — vui lòng upload lại.")]
+    [InlineData("drawing.no_file",           "No drawing file selected to upload.")]
+    [InlineData("drawing.oversize",          "The drawing file exceeds 10 MB — choose a smaller file.")]
+    [InlineData("drawing.invalid_kind",      "Invalid drawing kind.")]
+    [InlineData("drawing.forbidden",         "Your account is not allowed to upload drawings (Admin or Engineer required).")]
+    [InlineData("drawing.not_found",         "Drawing not found (it may have been deleted).")]
+    [InlineData("drawing.blob_missing",      "The drawing file is no longer on the server — please upload it again.")]
     public void Drawing_simple_codes_map_to_VN(string code, string expected)
     {
         Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code));
@@ -215,25 +234,25 @@ public sealed class SpecMutationErrorMapperTests
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("drawing.validation", messageEn: "ProductRevision 999 not found.");
         Assert.Contains("ProductRevision 999 not found", msg);
-        Assert.StartsWith("Bản vẽ chưa hợp lệ", msg);
+        Assert.StartsWith("The drawing is not yet valid", msg);
     }
 
     [Fact]
     public void Drawing_validation_blank_message_uses_generic_VN()
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("drawing.validation");
-        Assert.Equal("Bản vẽ chưa hợp lệ.", msg);
+        Assert.Equal("The drawing is not yet valid.", msg);
     }
 
     // ── P10.5f — QC plan + capture codes ───────────────────────────
 
     [Theory]
-    [InlineData("qc.forbidden",        "Tài khoản không có quyền chỉnh sửa QC (cần Admin hoặc Engineer).")]
-    [InlineData("qc.invalid_stage",    "Tên stage không hợp lệ — chỉ chấp nhận IpqcPrint / IpqcCut / Fqc / Oqc.")]
-    [InlineData("qc.invalid_result",   "Kết quả không hợp lệ — chỉ chấp nhận Pass / Fail / Na.")]
-    [InlineData("qc.reason_required",  "Phải chọn mã lý do khi kết quả là FAIL.")]
-    [InlineData("qc.invalid_reason",   "Mã lý do không hợp lệ hoặc đã ngừng sử dụng.")]
-    [InlineData("qc.not_found",        "Không tìm thấy QC plan / tiêu chí (có thể đã bị xoá).")]
+    [InlineData("qc.forbidden",        "Your account is not allowed to edit QC (Admin or Engineer required).")]
+    [InlineData("qc.invalid_stage",    "Invalid stage name — only IpqcPrint / IpqcCut / Fqc / Oqc are accepted.")]
+    [InlineData("qc.invalid_result",   "Invalid result — only Pass / Fail / Na are accepted.")]
+    [InlineData("qc.reason_required",  "You must select a reason code when the result is FAIL.")]
+    [InlineData("qc.invalid_reason",   "The reason code is invalid or no longer in use.")]
+    [InlineData("qc.not_found",        "QC plan / criterion not found (it may have been deleted).")]
     public void Qc_simple_codes_map_to_VN(string code, string expected)
     {
         Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code));
@@ -243,7 +262,7 @@ public sealed class SpecMutationErrorMapperTests
     public void Qc_invalid_row_blank_falls_back_to_generic_VN()
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("qc.invalid_row");
-        Assert.Equal("Tên tiêu chí không được để trống.", msg);
+        Assert.Equal("The criterion name cannot be empty.", msg);
     }
 
     [Fact]
@@ -257,7 +276,7 @@ public sealed class SpecMutationErrorMapperTests
     public void Qc_validation_blank_message_uses_generic_VN()
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("qc.validation");
-        Assert.Equal("Dữ liệu QC chưa hợp lệ.", msg);
+        Assert.Equal("The QC data is not yet valid.", msg);
     }
 
     [Fact]
@@ -265,14 +284,14 @@ public sealed class SpecMutationErrorMapperTests
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("qc.validation", messageEn: "Stage missing");
         Assert.Contains("Stage missing", msg);
-        Assert.StartsWith("Dữ liệu QC chưa hợp lệ", msg);
+        Assert.StartsWith("The QC data is not yet valid", msg);
     }
 
     // ── P10.5g — Spec export codes ──────────────────────────────────
 
     [Theory]
-    [InlineData("export.no_data",        "Không có dữ liệu phù hợp với bộ lọc — đổi điều kiện rồi xuất lại.")]
-    [InlineData("export.save_cancelled", "Bạn đã huỷ hộp thoại lưu — file vẫn còn trong thư mục tải xuống của ứng dụng.")]
+    [InlineData("export.no_data",        "No data matches the filter — change the conditions and export again.")]
+    [InlineData("export.save_cancelled", "You cancelled the save dialog — the file is still in the app's downloads folder.")]
     public void Export_simple_codes_map_to_VN(string code, string expected)
     {
         Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code));
@@ -282,7 +301,7 @@ public sealed class SpecMutationErrorMapperTests
     public void Export_failed_with_blank_message_uses_generic_VN()
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("export.failed");
-        Assert.StartsWith("Xuất file thất bại", msg);
+        Assert.StartsWith("Export failed", msg);
     }
 
     [Fact]
@@ -290,18 +309,18 @@ public sealed class SpecMutationErrorMapperTests
     {
         var msg = SpecMutationErrorMapper.ToVietnameseMessage("export.failed", messageEn: "ClosedXML threw on row 17");
         Assert.Contains("ClosedXML threw on row 17", msg);
-        Assert.StartsWith("Xuất file thất bại", msg);
+        Assert.StartsWith("Export failed", msg);
     }
 
     // ── P10.6a — Settings / My Profile + My Password codes ──────────
 
     [Theory]
-    [InlineData("profile.not_found",             "Không tìm thấy thông tin tài khoản — đăng nhập lại rồi thử lại.")]
-    [InlineData("profile.invalid_body",          "Dữ liệu cập nhật không hợp lệ.")]
-    [InlineData("profile.display_name_too_long", "Tên hiển thị không được vượt quá 100 ký tự.")]
-    [InlineData("auth.wrong_current",            "Mật khẩu hiện tại không đúng.")]
-    [InlineData("auth.new_too_short",            "Mật khẩu mới phải có ít nhất 4 ký tự.")]
-    [InlineData("auth.missing_fields",           "Vui lòng nhập đủ thông tin.")]
+    [InlineData("profile.not_found",             "Account information not found — sign in again and retry.")]
+    [InlineData("profile.invalid_body",          "The update data is invalid.")]
+    [InlineData("profile.display_name_too_long", "The display name cannot exceed 100 characters.")]
+    [InlineData("auth.wrong_current",            "The current password is incorrect.")]
+    [InlineData("auth.new_too_short",            "The new password must be at least 4 characters.")]
+    [InlineData("auth.missing_fields",           "Please fill in all the required fields.")]
     public void Settings_codes_map_to_VN(string code, string expected)
     {
         Assert.Equal(expected, SpecMutationErrorMapper.ToVietnameseMessage(code));

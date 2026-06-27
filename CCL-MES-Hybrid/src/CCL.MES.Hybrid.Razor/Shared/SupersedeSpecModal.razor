@@ -10,24 +10,24 @@
 
 <Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Danger"
        ClickOutsideToClose="false">
-    <Header>Đánh dấu Spec @SourceSpec?.SpecCode đã thay thế</Header>
+    <Header>Mark Spec @SourceSpec?.SpecCode as superseded</Header>
     <Body>
         @if (SourceSpec is null)
         {
-            <p class="grid-status">Chưa có Spec.</p>
+            <p class="grid-status">No Spec yet.</p>
         }
         else
         {
             <p class="modal-helper">
-                Đánh dấu Spec này là <strong>Đã thay thế</strong> sẽ khoá khả năng phát hành tiếp.
-                Hành động này không tự hoàn tác (cần tạo Revise mới nếu muốn quay lại quy trình).
+                Marking this Spec as <strong>Superseded</strong> will lock further release.
+                This action does not undo automatically (you must create a new Revise to return to the workflow).
             </p>
             <form @onsubmit:preventDefault="true">
                 <div class="modal-field">
                     <label for="ss-confirm">
-                        Gõ chính xác mã Spec
+                        Type the Spec code exactly
                         <code class="modal-confirm-target">@SourceSpec.SpecCode</code>
-                        để xác nhận <span class="modal-req">*</span>
+                        to confirm <span class="modal-req">*</span>
                     </label>
                     <input id="ss-confirm" type="text" class="modal-input"
                            autocomplete="off" autocorrect="off" spellcheck="false"
@@ -42,10 +42,10 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Hủy</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
         <button type="button" class="op-btn op-btn-danger"
                 disabled="@(!CanSubmit())" @onclick="SubmitAsync">
-            @(_submitting ? "Đang đánh dấu…" : "Đánh dấu thay thế")
+            @(_submitting ? "Marking…" : "Mark Superseded")
         </button>
     </Footer>
 </Modal>
@@ -90,7 +90,7 @@
             if (OnClose.HasDelegate) await OnClose.InvokeAsync();
         }
         catch (ApiException apiEx) { _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
-        catch (HttpRequestException ex) { _error = $"Không kết nối được máy chủ: {ex.Message}"; }
+        catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _submitting = false; }
     }

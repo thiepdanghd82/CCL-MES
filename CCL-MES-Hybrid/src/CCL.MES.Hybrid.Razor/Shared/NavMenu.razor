@@ -1,14 +1,7 @@
 @*
-  Left-side navigation. Items render with role-gating via <AuthorizeView>:
-  the NPI grid is visible to any user the API would let read NPI (matches
-  the NpiRead policy: Admin / Supervisor / Engineer / QC). Operator-only
-  users see the welcome page until P10.5 ships a shop-floor screen.
-
-  P10.3 W1: Settings group (Hardware + Mode) only renders when the
-  HardwareOptions.ScanEnabled flag is on. Hides the buttons entirely
-  rather than greying them out so operators don't see a feature they
-  can't use. The routes still mount so deep-links from /hardware
-  state pages work for an admin who manually flipped the flag locally.
+  Left-side navigation. Items render with role-gating via <AuthorizeView>.
+  English UI (P10.10 EN pass). NpiRead policy gates the master-data grids;
+  the Spec sub-link tightens to NpiSpecRead (Admin/Supervisor/Engineer).
 *@
 @using CCL.MES.Hybrid.Client.Hardware
 @inject IAuthSession Session
@@ -19,80 +12,44 @@
     <div class="app-nav-brand">CCL · MES</div>
 
     <nav>
-        <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link">Trang chủ</NavLink>
+        <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link">@Ico("home")<span>Home</span></NavLink>
 
-        @* P10.5a — NPI Data sub-group. Five read-only grids from legacy
-           Phase 7 master data. Engineer Spec list ships in P10.5b.
-           NpiRead policy gates the four master-data grids; the Spec
-           sub-link tightens to NpiSpecRead (Admin / Supervisor / Engineer
-           only — same as legacy /npi/engineer-spec). *@
         <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
             <div class="app-nav-section">NPI DATA</div>
-            <NavLink href="/npi/structure" class="app-nav-link app-nav-link-sub">Cấu trúc (BOM)</NavLink>
-            <NavLink href="/npi/routine" class="app-nav-link app-nav-link-sub">Định tuyến</NavLink>
-            <NavLink href="/npi/rawmaterials" class="app-nav-link app-nav-link-sub">Nguyên vật liệu</NavLink>
-            <NavLink href="/npi/workcenters" class="app-nav-link app-nav-link-sub">Trung tâm sản xuất</NavLink>
-            <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="specCtx">
-                <NavLink href="/npi/specs" class="app-nav-link app-nav-link-sub">Engineer Spec</NavLink>
-            </AuthorizeView>
-        </AuthorizeView>
-
-        @if (HwOptions.Value.ScanEnabled)
-        {
-            @* P10.3 W4 — Work Orders scan→Accept surface. Open to every authenticated
-               role because Operator + QC routinely need to advance WOs on the floor.
-               Server-side authorization on the advance endpoint stays at the
-               FallbackPolicy = RequireAuthenticatedUser. *@
-            <div class="app-nav-section">SẢN XUẤT</div>
-            <NavLink href="/workorders" class="app-nav-link">Work Orders — Quét</NavLink>
-        }
-
-        @* P10.6a — Settings group. The landing + Profile + Password are
-           self-service (any authenticated role). Hardware + Mode stay
-           gated by HardwareOptions.ScanEnabled + role; the Settings
-           landing also surfaces the same gates as cards so operators
-           who can't reach Hardware/Mode just don't see those cards.
-           Remaining sub-tabs (Appearance / Accounts / Audit / About /
-           Backup) ship in P10.6b-h. *@
-        <div class="app-nav-section">CÀI ĐẶT</div>
-        <NavLink href="/settings" Match="NavLinkMatch.All" class="app-nav-link">Tổng quan</NavLink>
-        <NavLink href="/settings/profile" class="app-nav-link app-nav-link-sub">Hồ sơ của tôi</NavLink>
-        <NavLink href="/settings/password" class="app-nav-link app-nav-link-sub">Đổi mật khẩu</NavLink>
-        @* P10.6d — About + Connection Mode (read-only / link-out cards;
-           the actual Hardware + Mode change controls stay where P10.3 W1
-           put them). *@
-        <NavLink href="/settings/connection" class="app-nav-link app-nav-link-sub">Chế độ kết nối</NavLink>
-        <NavLink href="/settings/about" class="app-nav-link app-nav-link-sub">Về ứng dụng</NavLink>
-        @* P10.6b — Appearance (language picker; theme deferred to 6g). *@
-        <NavLink href="/settings/appearance" class="app-nav-link app-nav-link-sub">Giao diện</NavLink>
-        @* P10.6h — Backup/Restore — Admin only (page itself is
-           [Authorize(Roles="Admin")] + every API endpoint is
-           AdminOnly policy). *@
-        <AuthorizeView Roles="Admin" Context="bkpCtx">
-            <NavLink href="/settings/backup" class="app-nav-link app-nav-link-sub">Sao lưu &amp; Khôi phục</NavLink>
-        </AuthorizeView>
-        @* P10.6e — Audit Log viewer + CSV/XLSX export — Admin only. *@
-        <AuthorizeView Roles="Admin" Context="audCtx">
-            <NavLink href="/settings/audit" class="app-nav-link app-nav-link-sub">Nhật ký kiểm tra</NavLink>
-        </AuthorizeView>
-        @* P10.6c — Account Control — Admin only. *@
-        <AuthorizeView Roles="Admin" Context="accCtx">
-            <NavLink href="/settings/accounts" class="app-nav-link app-nav-link-sub">Quản lý tài khoản</NavLink>
-        </AuthorizeView>
-        @if (HwOptions.Value.ScanEnabled)
-        {
-            <AuthorizeView Roles="Admin,Supervisor,Engineer">
-                <NavLink href="/hardware" class="app-nav-link app-nav-link-sub">Thiết bị</NavLink>
-                <AuthorizeView Roles="Admin,Supervisor" Context="modeCtx">
-                    <NavLink href="/mode" class="app-nav-link app-nav-link-sub">Chế độ trạm</NavLink>
+            <div class="app-nav-group">
+                <NavLink href="/npi/structure" class="app-nav-link app-nav-link-sub"><span>Structure (BOM)</span></NavLink>
+                <NavLink href="/npi/routine" class="app-nav-link app-nav-link-sub"><span>Routings</span></NavLink>
+                <NavLink href="/npi/rawmaterials" class="app-nav-link app-nav-link-sub"><span>Raw Materials</span></NavLink>
+                <NavLink href="/npi/workcenters" class="app-nav-link app-nav-link-sub"><span>Work Centers</span></NavLink>
+                <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="specCtx">
+                    <NavLink href="/npi/specs" class="app-nav-link app-nav-link-sub"><span>Engineer Spec</span></NavLink>
                 </AuthorizeView>
-            </AuthorizeView>
+            </div>
+        </AuthorizeView>
+
+        @if (HwOptions.Value.ScanEnabled)
+        {
+            <div class="app-nav-section">PRODUCTION</div>
+            <NavLink href="/workorders" class="app-nav-link">@Ico("scan")<span>Work Orders — Scan</span></NavLink>
         }
 
-        @* P10.6f — Recent Scans sidebar widget (SpecHub §11 port).
-           Self-hides when empty; renders a "QUÉT GẦN ĐÂY" section + up
-           to 5 rows; tap re-opens the scan surface. Client-only —
-           backed by MAUI Preferences via IRecentScansService. *@
+        @* P10.8 — Machine Dashboard + Shop Order History + QMS (SpecHub
+           parity). Read-only monitoring; open to every authenticated role. *@
+        <div class="app-nav-section">MONITORING</div>
+        <NavLink href="/machines" class="app-nav-link">@Ico("grid")<span>Machine Dashboard</span></NavLink>
+        <NavLink href="/shop-orders" class="app-nav-link">@Ico("history")<span>Shop Order History</span></NavLink>
+        @* Inspection Queue uses exact match so it doesn't also light up when
+           the deeper /qms/history (QC History) route is active. *@
+        <NavLink href="/qms" Match="NavLinkMatch.All" class="app-nav-link">@Ico("clipboard")<span>Inspection Queue</span></NavLink>
+        <NavLink href="/qms/history" class="app-nav-link">@Ico("shield")<span>QC History</span></NavLink>
+
+        @* P10.10 — the Settings hub (/settings) now lists every sub-page
+           as a card, so the per-page sub-nav links were collapsed into this
+           single "System" entry. Prefix match keeps it highlighted across
+           all /settings/* routes. *@
+        <div class="app-nav-section">SETTINGS</div>
+        <NavLink href="/settings" class="app-nav-link">@Ico("gear")<span>System</span></NavLink>
+
         <RecentScansWidget />
     </nav>
 
@@ -100,14 +57,13 @@
         <Authorized>
             <div class="app-nav-userbox">
                 <div class="app-nav-userline">
-                    @* Show the display_name claim when present, fall back to identity name. *@
                     @(context.User.FindFirst("display_name")?.Value ?? context.User.Identity?.Name ?? "")
                 </div>
                 <div class="app-nav-userline-sub">
                     @context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
                 </div>
                 <button type="button" class="app-nav-logout"
-                        @onclick="LogoutAsync">Đăng xuất</button>
+                        @onclick="LogoutAsync">Logout</button>
             </div>
         </Authorized>
     </AuthorizeView>
@@ -118,5 +74,25 @@
     {
         await Session.SignOutAsync();
         Nav.NavigateTo("/login", forceLoad: false, replace: true);
+    }
+
+    // P10.10 — inline line icons (Feather-style, 24-grid, stroke=currentColor
+    // so they inherit the nav text/active colour). Kept here rather than as
+    // 12 verbose inline <svg> blocks so the role-gating markup stays readable.
+    private static MarkupString Ico(string name)
+    {
+        var p = name switch
+        {
+            "home" => "<path d='M3 9.6 12 3l9 6.6'/><path d='M5 9v11h14V9'/>",
+            "scan" => "<path d='M4 7V5.5A1.5 1.5 0 0 1 5.5 4H7'/><path d='M17 4h1.5A1.5 1.5 0 0 1 20 5.5V7'/><path d='M20 17v1.5a1.5 1.5 0 0 1-1.5 1.5H17'/><path d='M7 20H5.5A1.5 1.5 0 0 1 4 18.5V17'/><path d='M4 12h16'/>",
+            "grid" => "<rect x='3' y='3' width='7' height='7' rx='1.2'/><rect x='14' y='3' width='7' height='7' rx='1.2'/><rect x='3' y='14' width='7' height='7' rx='1.2'/><rect x='14' y='14' width='7' height='7' rx='1.2'/>",
+            "history" => "<circle cx='12' cy='12' r='9'/><path d='M12 7v5l3.5 2'/>",
+            "clipboard" => "<rect x='6' y='4' width='12' height='17' rx='2'/><path d='M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1'/><path d='M9 13l2 2 4-4'/>",
+            "shield" => "<path d='M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z'/><path d='M9 12l2 2 4-4'/>",
+            "gear" => "<circle cx='12' cy='12' r='3'/><path d='M19.4 13a7.8 7.8 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1l-.4-2.6h-3.8l-.4 2.6a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.8 7.8 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 1.7 1l.4 2.6h3.8l.4-2.6a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.4z'/>",
+            _ => "",
+        };
+        return new MarkupString(
+            $"<svg class='nav-ico' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>{p}</svg>");
     }
 }

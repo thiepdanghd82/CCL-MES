@@ -16,15 +16,15 @@ public static class WorkOrderErrorLocaliser
     public static string LocaliseApiError(int statusCode, ApiError error) =>
         error.Code switch
         {
-            "work_order.not_found"        => "Không tìm thấy WO trên máy chủ.",
-            "device.invalid_id"           => "Mã thiết bị không hợp lệ — báo IT.",
-            "device.not_seen"             => "Trạm chưa nhận diện được — thử lại sau.",
-            "scan.empty_payload"          => "Payload quét rỗng — quét lại.",
+            "work_order.not_found"        => "WO not found on the server.",
+            "device.invalid_id"           => "Invalid device ID — contact IT.",
+            "device.not_seen"             => "Station not recognized yet — try again later.",
+            "scan.empty_payload"          => "Empty scan payload — scan again.",
             // P10.7a-1.3 codes — should not surface in normal flow because
             // the client always sends both headers; mapped for
             // defence-in-depth.
-            "wo.if_match_required"        => "Phiên dữ liệu hết hạn — quét lại WO.",
-            "wo.idempotency_key_required" => "Yêu cầu thiếu khóa idempotency — báo IT.",
+            "wo.if_match_required"        => "Data session expired — scan the WO again.",
+            "wo.idempotency_key_required" => "Request is missing the idempotency key — contact IT.",
             _                             => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 
@@ -35,25 +35,25 @@ public static class WorkOrderErrorLocaliser
     /// kiosk got there first.</summary>
     public static string LocaliseAdvanceError(string code) => code switch
     {
-        "WorkOrderNotFound"           => "Không tìm thấy WO.",
-        "AlreadyAtFinalStep"          => "WO đã đến bước cuối (Closed).",
-        "RequiresSpecAndMaterials"    => "Thiếu bản vẽ kỹ thuật hoặc vật tư chưa sẵn sàng.",
+        "WorkOrderNotFound"           => "WO not found.",
+        "AlreadyAtFinalStep"          => "WO has reached the final step (Closed).",
+        "RequiresSpecAndMaterials"    => "Missing the technical drawing or materials are not ready.",
         // P10.7a-1.3 amendment — operator-actionable copy. UI confirm-setup
         // (start/end timer + 4-eye lock) ships in P10.7c per breakdown §8;
         // until then the legacy `SetupConfirmed` bool is the gate + only
         // admin tools can flip it. Telling the operator to "báo admin"
         // is the right answer for this window.
-        "RequiresSetupConfirmed"      => "Setup máy chưa được xác nhận. UI xác nhận setup ship trong P10.7c — báo admin/IT để xác nhận trạng thái.",
-        "IpqcNotPassed"               => "IPQC chưa Pass.",
-        "NoProductionYet"             => "Chưa có sản lượng — không thể chuyển sang FQC.",
-        "FqcNotPassed"                => "FQC chưa Pass.",
-        "OqcOrRohsNotMet"             => "OQC chưa Pass hoặc RoHS chưa OK.",
-        "InvalidStepTransition"       => "Chuyển bước không hợp lệ.",
+        "RequiresSetupConfirmed"      => "Machine setup has not been confirmed. The setup-confirmation UI ships in P10.7c — contact admin/IT to confirm the status.",
+        "IpqcNotPassed"               => "IPQC has not passed yet.",
+        "NoProductionYet"             => "No production yet — cannot move to FQC.",
+        "FqcNotPassed"                => "FQC has not passed yet.",
+        "OqcOrRohsNotMet"             => "OQC has not passed or RoHS is not OK.",
+        "InvalidStepTransition"       => "Invalid step transition.",
         // P10.7a-1.3 — concurrency + idempotency codes from the
         // RowVersion + Idempotency-Key contract retrofit.
-        "wo.state_conflict"           => "Một thao tác khác đã cập nhật WO này. Bấm 'Nhận / Bắt đầu' lần nữa để thử lại với phiên bản mới nhất.",
-        "wo.if_match_required"        => "Phiên dữ liệu chưa được tải lại — quét lại WO.",
-        "wo.idempotency_key_required" => "Yêu cầu thiếu khóa idempotency — báo IT.",
-        _                             => $"Mã lỗi không xác định ({code}).",
+        "wo.state_conflict"           => "Another operation has already updated this WO. Tap 'Accept / Start' again to retry with the latest version.",
+        "wo.if_match_required"        => "Data session has not been reloaded — scan the WO again.",
+        "wo.idempotency_key_required" => "Request is missing the idempotency key — contact IT.",
+        _                             => $"Unknown error code ({code}).",
     };
 }

@@ -30,22 +30,22 @@
        rollback exists via the snapshot list.
 *@
 
-<PageTitle>Sao lưu &amp; Khôi phục — CCL MES</PageTitle>
+<PageTitle>Backup &amp; Restore — CCL MES</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
-    <h1 class="page-title">Sao lưu &amp; Khôi phục</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
+    <h1 class="page-title">Backup &amp; Restore</h1>
 </div>
 
 <section class="settings-form-card is-wide">
-    <h2 class="settings-group-title">Tạo bản sao lưu</h2>
+    <h2 class="settings-group-title">Create a backup</h2>
     <p class="settings-form-help">
-        Tạo snapshot của SQLite database ngay lập tức. Snapshot dùng
-        SQLite online backup API, an toàn khi server đang phục vụ.
+        Create a snapshot of the SQLite database immediately. The snapshot
+        uses the SQLite online backup API and is safe while the server is serving.
     </p>
     <button type="button" class="grid-btn grid-btn-primary"
             disabled="@_creating" @onclick="OnCreate">
-        @(_creating ? "Đang tạo…" : "Tạo snapshot mới")
+        @(_creating ? "Creating…" : "Create new snapshot")
     </button>
     @if (_createError is not null)
     {
@@ -54,7 +54,7 @@
     @if (_createOk is not null)
     {
         <div class="settings-form-success">
-            ✔ Đã tạo: <code>@_createOk.FileName</code>
+            ✔ Created: <code>@_createOk.FileName</code>
             (@FormatBytes(_createOk.SizeBytes)) — SHA-256:
             <code class="backup-sha">@ShortSha(_createOk.Sha256)</code>
         </div>
@@ -62,12 +62,97 @@
 </section>
 
 <section class="settings-form-card is-wide" style="margin-top:16px">
-    <h2 class="settings-group-title">Khôi phục từ file</h2>
+    <h2 class="settings-group-title">Scheduled backup</h2>
     <p class="settings-form-help">
-        Tải lên file <code>.db</code> hoặc <code>.bak</code> được tạo bởi
-        chính ứng dụng này. Server sẽ kiểm tra header SQLite + schema
-        TRƯỚC khi áp dụng và sẽ tự động tạo bản
-        <strong>pre-restore</strong> để quay lui khi cần.
+        Automated nightly snapshot + blob archive + integrity verify. Choose the
+        run hour (ICT) and retention. The off-site copy is a separate cron job
+        (<code>scripts/backup-offsite</code>).
+    </p>
+
+    @if (_schedLoading)
+    {
+        <p class="settings-form-help">Loading…</p>
+    }
+    else if (_sched is not null)
+    {
+        <dl class="backup-status-grid">
+            <dt>Status</dt>
+            <dd>@(_sched.Enabled ? "Enabled" : "Disabled")</dd>
+            <dt>Next run</dt>
+            <dd>
+                @(_sched.Enabled && _sched.NextRunAtUtc is not null
+                    ? _sched.NextRunAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture)
+                    : "—")
+            </dd>
+            <dt>Last run</dt>
+            <dd>
+                @if (_sched.LastRunAtUtc is null)
+                {
+                    <span>Never (this session)</span>
+                }
+                else
+                {
+                    <span>
+                        @_sched.LastRunAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture)
+                        @(_sched.LastRunOk == true ? " ✔" : " ✗")
+                        @if (!string.IsNullOrEmpty(_sched.LastSqliteFile)) { <text> — </text><code>@_sched.LastSqliteFile</code> }
+                    </span>
+                }
+            </dd>
+            <dt>Blob archive</dt>
+            <dd>@(_sched.BlobsEnabled ? "on" : "off")</dd>
+            <dt>Alert webhook</dt>
+            <dd>@(_sched.WebhookConfigured ? "on" : "off")</dd>
+        </dl>
+
+        <div class="backup-sched-form">
+            <label class="backup-sched-check">
+                <input type="checkbox" @bind="_fEnabled" disabled="@_savingSched" />
+                Enable nightly backup
+            </label>
+            <label>
+                Hour (0–23, ICT)
+                <input type="number" min="0" max="23" @bind="_fHour" disabled="@_savingSched" />
+            </label>
+            <label>
+                Keep for (days)
+                <input type="number" min="1" max="3650" @bind="_fRetention" disabled="@_savingSched" />
+            </label>
+            <label>
+                Always keep (most recent)
+                <input type="number" min="1" max="1000" @bind="_fMinKeep" disabled="@_savingSched" />
+            </label>
+        </div>
+
+        <div class="backup-restore-row" style="margin-top:12px">
+            <button type="button" class="grid-btn grid-btn-primary"
+                    disabled="@(_savingSched || _runningNow)" @onclick="OnSaveSchedule">
+                @(_savingSched ? "Saving…" : "Save schedule")
+            </button>
+            <button type="button" class="grid-btn"
+                    disabled="@(_savingSched || _runningNow)" @onclick="OnRunNow">
+                @(_runningNow ? "Running…" : "Run backup now")
+            </button>
+        </div>
+
+        @if (_schedError is not null)
+        {
+            <div class="settings-form-error">@_schedError</div>
+        }
+        @if (_schedOk is not null)
+        {
+            <div class="settings-form-success">@_schedOk</div>
+        }
+    }
+</section>
+
+<section class="settings-form-card is-wide" style="margin-top:16px">
+    <h2 class="settings-group-title">Restore from file</h2>
+    <p class="settings-form-help">
+        Upload a <code>.db</code> or <code>.bak</code> file created by
+        this application. The server will verify the SQLite header + schema
+        BEFORE applying it and will automatically create a
+        <strong>pre-restore</strong> backup so you can roll back if needed.
     </p>
     <div class="backup-restore-row">
         <input type="file" accept=".db,.bak,application/octet-stream"
@@ -75,13 +160,13 @@
         <button type="button" class="grid-btn grid-btn-danger"
                 disabled="@(_restoring || _pickedName is null)"
                 @onclick="OnRestoreClicked">
-            @(_restoring ? "Đang khôi phục…" : "Khôi phục")
+            @(_restoring ? "Restoring…" : "Restore")
         </button>
     </div>
     @if (_pickedName is not null && !_restoring)
     {
         <div class="settings-form-help" style="margin-top:8px">
-            Đã chọn: <code>@_pickedName</code> (@FormatBytes(_pickedSize))
+            Selected: <code>@_pickedName</code> (@FormatBytes(_pickedSize))
         </div>
     }
     @if (_restoreError is not null)
@@ -91,26 +176,26 @@
     @if (_restoreOk is not null)
     {
         <div class="settings-form-success">
-            ✔ Khôi phục thành công. Bản pre-restore:
-            <code>@_restoreOk.PreRestoreSnapshot</code>. Khuyến nghị
-            khởi động lại ứng dụng để chắc chắn mọi service đọc DB mới.
+            ✔ Restore succeeded. Pre-restore backup:
+            <code>@_restoreOk.PreRestoreSnapshot</code>. We recommend
+            restarting the application to ensure every service reads the new DB.
         </div>
     }
 </section>
 
 <section class="settings-form-card is-wide" style="margin-top:16px">
-    <h2 class="settings-group-title">Danh sách bản sao (@_snapshots.Count)</h2>
+    <h2 class="settings-group-title">Snapshot list (@_snapshots.Count)</h2>
     @if (_listError is not null)
     {
         <div class="settings-form-error">@_listError</div>
     }
     else if (_loading)
     {
-        <p class="settings-form-help">Đang tải…</p>
+        <p class="settings-form-help">Loading…</p>
     }
     else if (_snapshots.Count == 0)
     {
-        <p class="settings-form-help">Chưa có snapshot. Tạo bản đầu tiên bên trên.</p>
+        <p class="settings-form-help">No snapshots yet. Create the first one above.</p>
     }
     else
     {
@@ -125,11 +210,11 @@
                 </colgroup>
                 <thead>
                     <tr>
-                        <th>Tên file</th>
-                        <th>Kích thước</th>
+                        <th>File name</th>
+                        <th>Size</th>
                         <th>SHA-256</th>
-                        <th>Tạo lúc (UTC)</th>
-                        <th>Loại</th>
+                        <th>Created (UTC)</th>
+                        <th>Type</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -192,9 +277,107 @@
     // copy; matches the source row's FileName for ~1.5s after click.
     private string _shaCopiedFor = "";
 
+    // Scheduled-backup state.
+    private bool _schedLoading = true;
+    private BackupScheduleStatusDto? _sched;
+    private bool _fEnabled;
+    private int _fHour = 2;
+    private int _fRetention = 30;
+    private int _fMinKeep = 10;
+    private bool _savingSched;
+    private bool _runningNow;
+    private string? _schedError;
+    private string? _schedOk;
+
     protected override async Task OnInitializedAsync()
     {
         await Reload();
+        await LoadSchedule();
+    }
+
+    private async Task LoadSchedule()
+    {
+        _schedLoading = true;
+        _schedError = null;
+        try
+        {
+            _sched = await Api.GetBackupScheduleAsync();
+            _fEnabled = _sched.Enabled;
+            _fHour = _sched.Hour;
+            _fRetention = _sched.RetentionDays;
+            _fMinKeep = _sched.MinKeep;
+        }
+        catch (ApiException ex)
+        {
+            _schedError = $"Failed to load schedule: {ex.ApiError.Code} ({ex.StatusCode}).";
+        }
+        catch (Exception ex)
+        {
+            _schedError = $"Error: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _schedLoading = false;
+        }
+    }
+
+    private async Task OnSaveSchedule()
+    {
+        _savingSched = true;
+        _schedError = null;
+        _schedOk = null;
+        try
+        {
+            _sched = await Api.SetBackupScheduleAsync(new BackupScheduleUpdateRequest
+            {
+                Enabled = _fEnabled,
+                Hour = _fHour,
+                RetentionDays = _fRetention,
+                MinKeep = _fMinKeep,
+            });
+            _schedOk = "Schedule saved.";
+        }
+        catch (ApiException ex)
+        {
+            _schedError = $"Could not save: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _schedError = $"Error: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _savingSched = false;
+        }
+    }
+
+    private async Task OnRunNow()
+    {
+        _runningNow = true;
+        _schedError = null;
+        _schedOk = null;
+        try
+        {
+            var r = await Api.RunBackupNowAsync();
+            _schedOk = r.Ok
+                ? $"Backup completed: {r.SqliteFile} ({r.SqliteMb:F1} MB), pruned {r.Pruned}."
+                : null;
+            if (!r.Ok) _schedError = $"Backup failed: {r.Error ?? r.Integrity}";
+            await Reload();
+            await LoadSchedule();
+        }
+        catch (ApiException ex)
+        {
+            _schedError = $"Run failed: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _schedError = $"Error: {ex.GetType().Name} — {ex.Message}";
+        }
+        finally
+        {
+            _runningNow = false;
+        }
     }
 
     private async Task Reload()
@@ -208,11 +391,11 @@
         }
         catch (ApiException ex)
         {
-            _listError = $"Không tải được danh sách: {ex.ApiError.Code} ({ex.StatusCode}).";
+            _listError = $"Failed to load the list: {ex.ApiError.Code} ({ex.StatusCode}).";
         }
         catch (Exception ex)
         {
-            _listError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+            _listError = $"Error: {ex.GetType().Name} — {ex.Message}";
         }
         finally
         {
@@ -232,11 +415,11 @@
         }
         catch (ApiException ex)
         {
-            _createError = $"Không tạo được snapshot: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+            _createError = $"Failed to create snapshot: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
         }
         catch (Exception ex)
         {
-            _createError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+            _createError = $"Error: {ex.GetType().Name} — {ex.Message}";
         }
         finally
         {
@@ -269,7 +452,7 @@
         }
         catch (Exception ex)
         {
-            _restoreError = $"Không đọc được file: {ex.Message}";
+            _restoreError = $"Could not read the file: {ex.Message}";
         }
     }
 
@@ -278,9 +461,9 @@
         if (_pickedName is null) return;
 
         var confirmed = await Js.InvokeAsync<bool>("confirm",
-            $"Sẽ GHI ĐÈ database hiện tại bằng \"{_pickedName}\"."
-            + " Server sẽ tự tạo bản pre-restore để rollback."
-            + " Chắc chắn tiếp tục?");
+            $"This will OVERWRITE the current database with \"{_pickedName}\"."
+            + " The server will automatically create a pre-restore backup for rollback."
+            + " Are you sure you want to continue?");
         if (!confirmed) return;
 
         _restoring = true;
@@ -298,11 +481,11 @@
         }
         catch (ApiException ex)
         {
-            _restoreError = $"Không khôi phục được: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+            _restoreError = $"Restore failed: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
         }
         catch (Exception ex)
         {
-            _restoreError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+            _restoreError = $"Error: {ex.GetType().Name} — {ex.Message}";
         }
         finally
         {

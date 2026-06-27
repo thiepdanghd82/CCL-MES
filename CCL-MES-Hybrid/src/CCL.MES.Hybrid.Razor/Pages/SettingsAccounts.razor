@@ -33,24 +33,24 @@
       <input> + Lưu button.
 *@
 
-<PageTitle>Quản lý tài khoản — CCL MES</PageTitle>
+<PageTitle>Account Control — CCL MES</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Cài đặt</a>
-    <h1 class="page-title">Quản lý tài khoản</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
+    <h1 class="page-title">Account Control</h1>
 </div>
 
 <section class="settings-form-card is-wide">
     <div class="audit-result-head">
-        <h2 class="settings-group-title">Người dùng (@_result.Total tổng)</h2>
+        <h2 class="settings-group-title">Users (@_result.Total total)</h2>
         <div class="audit-filter-actions" style="margin-top:0">
             <input id="ac-search" type="text" class="modal-input"
-                   placeholder="Tìm theo username / display / role…"
+                   placeholder="Search by username / display / role…"
                    style="width:280px"
                    @bind="_search" @bind:event="oninput"
                    @bind:after="OnApplySearch" />
             <button type="button" class="grid-btn grid-btn-primary"
-                    @onclick="OpenCreateModal">+ Tạo tài khoản</button>
+                    @onclick="OpenCreateModal">+ Create account</button>
         </div>
     </div>
 
@@ -69,11 +69,11 @@
 
     @if (_loading)
     {
-        <p class="settings-form-help">Đang tải…</p>
+        <p class="settings-form-help">Loading…</p>
     }
     else if (_result.Items.Count == 0)
     {
-        <p class="settings-form-help">Không có tài khoản nào khớp.</p>
+        <p class="settings-form-help">No matching accounts.</p>
     }
     else
     {
@@ -93,12 +93,12 @@
                     <tr>
                         <th>Username</th>
                         <th>Display name</th>
-                        <th>Vai trò</th>
-                        <th>Phòng ban</th>
-                        <th>Trạng thái</th>
-                        <th>Đổi MK?</th>
-                        <th>Đăng nhập gần nhất</th>
-                        <th>Hành động</th>
+                        <th>Role</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                        <th>Change PW?</th>
+                        <th>Last login</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -106,7 +106,7 @@
                     {
                         var isSelf = u.Id == _selfId;
                         <tr>
-                            <td class="audit-mono" title="@u.Username">@u.Username @if (isSelf) { <span class="acc-self">(bạn)</span> }</td>
+                            <td class="audit-mono" title="@u.Username">@u.Username @if (isSelf) { <span class="acc-self">(you)</span> }</td>
                             <td>
                                 <input type="text" class="modal-input acc-inline"
                                        value="@(u.DisplayName ?? "")"
@@ -150,13 +150,13 @@
                                     {
                                         <button type="button" class="audit-copy-btn"
                                                 disabled="@isSelf"
-                                                title="Vô hiệu hoá"
+                                                title="Disable"
                                                 @onclick="@(() => OnToggleActive(u, false))">Disable</button>
                                     }
                                     else
                                     {
                                         <button type="button" class="audit-copy-btn"
-                                                title="Kích hoạt lại"
+                                                title="Re-enable"
                                                 @onclick="@(() => OnToggleActive(u, true))">Enable</button>
                                     }
                                 </div>
@@ -169,11 +169,11 @@
 
         <div class="audit-paging" style="margin-top:10px">
             <button type="button" class="grid-btn" disabled="@(_loading || _result.Page <= 1)"
-                    @onclick="@(() => LoadPage(_result.Page - 1))">‹ Trước</button>
-            <span class="audit-paging-pos">Trang @_result.Page / @TotalPages</span>
+                    @onclick="@(() => LoadPage(_result.Page - 1))">‹ Previous</button>
+            <span class="audit-paging-pos">Page @_result.Page / @TotalPages</span>
             <button type="button" class="grid-btn"
                     disabled="@(_loading || _result.Page >= TotalPages)"
-                    @onclick="@(() => LoadPage(_result.Page + 1))">Sau ›</button>
+                    @onclick="@(() => LoadPage(_result.Page + 1))">Next ›</button>
         </div>
     }
 </section>
@@ -183,7 +183,7 @@
 {
     <div class="acc-modal-scrim" @onclick="CloseCreateModal">
         <div class="acc-modal" @onclick:stopPropagation="true">
-            <h3 class="acc-modal-title">Tạo tài khoản mới</h3>
+            <h3 class="acc-modal-title">Create new account</h3>
             <div class="acc-modal-grid">
                 <div>
                     <label>Username *</label>
@@ -197,7 +197,7 @@
                            @bind="_newDisplay" @bind:event="oninput" />
                 </div>
                 <div>
-                    <label>Vai trò *</label>
+                    <label>Role *</label>
                     <select class="modal-input" @bind="_newRole">
                         @foreach (var r in Roles)
                         {
@@ -206,12 +206,12 @@
                     </select>
                 </div>
                 <div>
-                    <label>Phòng ban</label>
+                    <label>Department</label>
                     <input type="text" class="modal-input"
                            @bind="_newDept" @bind:event="oninput" />
                 </div>
                 <div style="grid-column: span 2">
-                    <label>Mật khẩu tạm (operator sẽ bị bắt đổi lần đăng nhập đầu) *</label>
+                    <label>Temporary password (the operator will be forced to change it on first sign-in) *</label>
                     <input type="password" class="modal-input"
                            @bind="_newPassword" @bind:event="oninput"
                            autocomplete="new-password" />
@@ -222,10 +222,10 @@
                 <div class="settings-form-error">@_createError</div>
             }
             <div class="acc-modal-actions">
-                <button type="button" class="grid-btn" @onclick="CloseCreateModal" disabled="@_creating">Huỷ</button>
+                <button type="button" class="grid-btn" @onclick="CloseCreateModal" disabled="@_creating">Cancel</button>
                 <button type="button" class="grid-btn grid-btn-primary"
                         @onclick="OnCreateSubmit" disabled="@_creating">
-                    @(_creating ? "Đang tạo…" : "Tạo")
+                    @(_creating ? "Creating…" : "Create")
                 </button>
             </div>
         </div>
@@ -237,15 +237,15 @@
 {
     <div class="acc-modal-scrim" @onclick="CloseResetModal">
         <div class="acc-modal acc-modal-narrow" @onclick:stopPropagation="true">
-            <h3 class="acc-modal-title">Reset mật khẩu — @_resetTarget.Username</h3>
+            <h3 class="acc-modal-title">Reset password — @_resetTarget.Username</h3>
             <p class="settings-form-help">
-                User sẽ bị bắt đổi mật khẩu ở lần đăng nhập kế tiếp
-                (MustChangePassword=true). Session hiện tại của họ
-                KHÔNG bị huỷ — nếu cần huỷ session, dùng nút Disable
-                rồi Enable lại.
+                The user will be forced to change their password at the
+                next sign-in (MustChangePassword=true). Their current
+                session is NOT revoked — if you need to revoke the session,
+                use the Disable button and then Enable again.
             </p>
             <div>
-                <label>Mật khẩu tạm mới *</label>
+                <label>New temporary password *</label>
                 <input type="password" class="modal-input"
                        @bind="_resetPassword" @bind:event="oninput"
                        autocomplete="new-password" />
@@ -255,10 +255,10 @@
                 <div class="settings-form-error">@_resetError</div>
             }
             <div class="acc-modal-actions">
-                <button type="button" class="grid-btn" @onclick="CloseResetModal" disabled="@_resetting">Huỷ</button>
+                <button type="button" class="grid-btn" @onclick="CloseResetModal" disabled="@_resetting">Cancel</button>
                 <button type="button" class="grid-btn grid-btn-danger"
                         @onclick="OnResetSubmit" disabled="@_resetting">
-                    @(_resetting ? "Đang reset…" : "Reset")
+                    @(_resetting ? "Resetting…" : "Reset")
                 </button>
             </div>
         </div>
@@ -323,11 +323,11 @@
         }
         catch (ApiException ex)
         {
-            _listError = $"Không tải được: {ex.ApiError.Code} ({ex.StatusCode}).";
+            _listError = $"Failed to load: {ex.ApiError.Code} ({ex.StatusCode}).";
         }
         catch (Exception ex)
         {
-            _listError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+            _listError = $"Error: {ex.GetType().Name} — {ex.Message}";
         }
         finally
         {
@@ -348,10 +348,10 @@
 
     private async Task OnToggleActive(AccountDto u, bool target)
     {
-        var label = target ? "kích hoạt" : "vô hiệu hoá";
+        var label = target ? "enable" : "disable";
         var msg = target
-            ? $"Kích hoạt lại tài khoản '{u.Username}'?"
-            : $"Vô hiệu hoá '{u.Username}'? Tất cả refresh-token của user này sẽ bị huỷ ngay; access-token còn sống tối đa 15 phút.";
+            ? $"Re-enable account '{u.Username}'?"
+            : $"Disable '{u.Username}'? All of this user's refresh tokens will be revoked immediately; access tokens remain valid for up to 15 minutes.";
         var ok = await Js.InvokeAsync<bool>("confirm", msg);
         if (!ok) return;
         await Patch(u.Id, new UpdateAccountRequest { IsActive = target });
@@ -364,16 +364,16 @@
         try
         {
             var dto = await Api.UpdateAccountAsync(userId, req);
-            _actionInfo = $"✔ Đã cập nhật {dto.Username}.";
+            _actionInfo = $"✔ Updated {dto.Username}.";
             await LoadPage(_result.Page);
         }
         catch (ApiException ex)
         {
-            _actionError = $"Không cập nhật được: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+            _actionError = $"Update failed: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
         }
         catch (Exception ex)
         {
-            _actionError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+            _actionError = $"Error: {ex.GetType().Name} — {ex.Message}";
         }
     }
 
@@ -410,7 +410,7 @@
                 Department = string.IsNullOrWhiteSpace(_newDept) ? null : _newDept,
                 Password = _newPassword,
             });
-            _actionInfo = $"✔ Đã tạo {dto.Username} ({dto.Role}). User sẽ bị bắt đổi mật khẩu lần đăng nhập đầu.";
+            _actionInfo = $"✔ Created {dto.Username} ({dto.Role}). The user will be forced to change their password on first sign-in.";
             _createOpen = false;
             await LoadPage(1);
         }
@@ -420,7 +420,7 @@
         }
         catch (Exception ex)
         {
-            _createError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+            _createError = $"Error: {ex.GetType().Name} — {ex.Message}";
         }
         finally
         {
@@ -452,7 +452,7 @@
         {
             var dto = await Api.ResetAccountPasswordAsync(_resetTarget.Id,
                 new ResetPasswordRequest { NewPassword = _resetPassword });
-            _actionInfo = $"✔ Đã reset mật khẩu cho {dto.Username}. MustChangePassword = true.";
+            _actionInfo = $"✔ Reset password for {dto.Username}. MustChangePassword = true.";
             _resetTarget = null;
             await LoadPage(_result.Page);
         }
@@ -462,7 +462,7 @@
         }
         catch (Exception ex)
         {
-            _resetError = $"Lỗi: {ex.GetType().Name} — {ex.Message}";
+            _resetError = $"Error: {ex.GetType().Name} — {ex.Message}";
         }
         finally
         {

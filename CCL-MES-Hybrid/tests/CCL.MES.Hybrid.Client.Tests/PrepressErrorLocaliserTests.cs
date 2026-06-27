@@ -14,14 +14,14 @@ namespace CCL.MES.Hybrid.Client.Tests;
 public sealed class PrepressErrorLocaliserTests
 {
     [Theory]
-    [InlineData("wo.not_found", "Không tìm thấy WO trên máy chủ.")]
-    [InlineData("wo.material_row_not_found", "Không tìm thấy dòng vật tư — tải lại checklist.")]
-    [InlineData("wo.invalid_phase", "WO không ở giai đoạn PREPRESS — không thể ghi check.")]
-    [InlineData("wo.if_match_required", "Phiên dữ liệu hết hạn — tải lại checklist.")]
-    [InlineData("wo.idempotency_key_required", "Yêu cầu thiếu khóa idempotency — báo IT.")]
-    [InlineData("prepress.invalid_status", "Trạng thái không hợp lệ — chỉ chấp nhận Pending / OK / NG.")]
-    [InlineData("prepress.invalid_reason_code", "Mã lỗi NG không có trong danh mục Scrap — chọn mã hợp lệ.")]
-    [InlineData("prepress.invalid_ng_note", "Ghi chú NG bắt buộc khi đặt NG (1-500 ký tự).")]
+    [InlineData("wo.not_found", "WO not found on the server.")]
+    [InlineData("wo.material_row_not_found", "Material row not found — reload the checklist.")]
+    [InlineData("wo.invalid_phase", "WO is not in the PREPRESS phase — cannot record the check.")]
+    [InlineData("wo.if_match_required", "Data session expired — reload the checklist.")]
+    [InlineData("wo.idempotency_key_required", "Request is missing the idempotency key — contact IT.")]
+    [InlineData("prepress.invalid_status", "Invalid status — only Pending / OK / NG are accepted.")]
+    [InlineData("prepress.invalid_reason_code", "NG reason code is not in the Scrap catalog — choose a valid code.")]
+    [InlineData("prepress.invalid_ng_note", "An NG note is required when setting NG (1-500 characters).")]
     public void Locked_VN_banner_for_each_api_error_code(string code, string expected)
     {
         var error = new ApiError { Code = code, MessageEn = "ignored" };
@@ -34,7 +34,7 @@ public sealed class PrepressErrorLocaliserTests
         var error = new ApiError { Code = "wo.invalid_phase", MessageEn = "ignored" };
         var msg = PrepressErrorLocaliser.LocaliseApiError(422, error);
         Assert.Contains("PREPRESS", msg);
-        Assert.Contains("không thể ghi check", msg);
+        Assert.Contains("cannot record the check", msg);
     }
 
     [Fact]
@@ -48,10 +48,10 @@ public sealed class PrepressErrorLocaliserTests
     }
 
     [Theory]
-    [InlineData("wo.state_conflict", "Một thao tác khác đã cập nhật checklist này. Đang tải lại trạng thái mới nhất — thử ghi lại.")]
-    [InlineData("wo.if_match_required", "Phiên dữ liệu chưa được tải lại — quét lại WO.")]
-    [InlineData("wo.idempotency_key_required", "Yêu cầu thiếu khóa idempotency — báo IT.")]
-    [InlineData("http.empty_body", "Máy chủ trả về phản hồi rỗng — báo IT.")]
+    [InlineData("wo.state_conflict", "Another operation has already updated this checklist. Reloading the latest state — try recording again.")]
+    [InlineData("wo.if_match_required", "Data session has not been reloaded — scan the WO again.")]
+    [InlineData("wo.idempotency_key_required", "Request is missing the idempotency key — contact IT.")]
+    [InlineData("http.empty_body", "The server returned an empty response — contact IT.")]
     public void Locked_VN_banner_for_in_band_set_error(string code, string expected)
     {
         Assert.Equal(expected, PrepressErrorLocaliser.LocaliseSetError(code));

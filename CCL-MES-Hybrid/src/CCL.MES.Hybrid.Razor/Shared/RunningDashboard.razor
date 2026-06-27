@@ -38,12 +38,12 @@
 <div class="rs-dashboard" data-testid="running-dashboard">
     @if (_view is null && _initialError is null)
     {
-        <div class="rs-loading" data-testid="running-loading">Đang tải trạng thái chạy…</div>
+        <div class="rs-loading" data-testid="running-loading">Loading run status…</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="running-initial-error">
-            <strong>Không tải được trạng thái RUNNING:</strong> @_initialError
+            <strong>Could not load RUNNING status:</strong> @_initialError
         </div>
     }
     else if (_view is not null && DeferredPhaseInfo.TryGetValue(_view.MesPhase, out var deferred))
@@ -75,8 +75,8 @@
                 @if (_view.QtyDoneCached > 0 || _view.QtyNgCached > 0)
                 {
                     <div class="rs-ipqc-wait-stats">
-                        <span>Done đã ghi: <strong class="scan-mono">@_view.QtyDoneCached</strong></span>
-                        <span>NG đã ghi: <strong class="scan-mono">@_view.QtyNgCached</strong></span>
+                        <span>Done recorded: <strong class="scan-mono">@_view.QtyDoneCached</strong></span>
+                        <span>NG recorded: <strong class="scan-mono">@_view.QtyNgCached</strong></span>
                     </div>
                 }
             </div>
@@ -85,9 +85,9 @@
     else if (_invalidPhase)
     {
         <div class="wo-card-error" data-testid="running-invalid-phase">
-            <strong>WO không ở giai đoạn chạy</strong> —
-            Hiện tại: <code>@(_view?.MesPhase ?? "?")</code>.
-            Quay lại tab Work Orders để chọn WO khác.
+            <strong>WO is not in a running phase</strong> —
+            Current: <code>@(_view?.MesPhase ?? "?")</code>.
+            Go back to the Work Orders tab to select another WO.
         </div>
     }
     else if (_view is not null)
@@ -101,7 +101,7 @@
             @if (_view.MesPhase == "PAUSED" && _view.ActivePauseStartAt is not null)
             {
                 <div class="rs-head-pause" data-testid="running-pause-banner">
-                    <span class="rs-pause-label">Đang tạm dừng</span>
+                    <span class="rs-pause-label">Paused</span>
                     <span class="rs-pause-reason">@(_view.ActivePauseReasonCode ?? "?")</span>
                 </div>
             }
@@ -110,10 +110,10 @@
         @if (_setError is not null)
         {
             <div class="wo-card-error" data-testid="running-set-error">
-                <strong>Không ghi được thay đổi:</strong> @_setError
+                <strong>Could not save change:</strong> @_setError
                 <button type="button" class="op-btn op-btn-secondary op-btn-sm"
                         @onclick="DismissSetError"
-                        data-testid="running-set-error-dismiss">Bỏ qua</button>
+                        data-testid="running-set-error-dismiss">Dismiss</button>
             </div>
         }
 
@@ -121,14 +121,14 @@
         {
             <div class="rs-card rs-card-stretch">
                 <div class="rs-card-head">
-                    <div class="rs-card-title">IPQC đã duyệt — bắt đầu chạy</div>
+                    <div class="rs-card-title">IPQC approved — start running</div>
                 </div>
                 <div class="rs-action-bar">
                     <button type="button"
                             class="op-btn op-btn-primary rs-primary-btn"
                             data-testid="run-start-btn"
                             disabled="@_busy"
-                            @onclick="OnRunStartAsync">Bắt đầu chạy</button>
+                            @onclick="OnRunStartAsync">Start running</button>
                 </div>
             </div>
         }
@@ -144,14 +144,14 @@
                     <div class="rs-counter-value scan-mono" data-testid="counter-ng">@_view.QtyNgCached</div>
                 </div>
                 <div class="rs-counter-cell rs-counter-target">
-                    <div class="rs-counter-label">Mục tiêu</div>
+                    <div class="rs-counter-label">Target</div>
                     <div class="rs-counter-value scan-mono" data-testid="counter-target">@_view.TargetQty</div>
                 </div>
             </div>
 
             <div class="rs-card">
                 <div class="rs-card-head">
-                    <div class="rs-card-title">Thêm sản lượng (Done)</div>
+                    <div class="rs-card-title">Add output (Done)</div>
                 </div>
                 <div class="rs-tap-grid" data-testid="running-tap-grid">
                     @foreach (var amt in TapAmounts)
@@ -167,18 +167,18 @@
                 @if (_view.MesPhase == "PAUSED")
                 {
                     <div class="rs-tap-hint" data-testid="running-tap-paused-hint">
-                        Đang tạm dừng — bấm "Tiếp tục chạy" để mở lại nút bấm.
+                        Paused — tap "Resume running" to re-enable the buttons.
                     </div>
                 }
             </div>
 
             <div class="rs-card">
                 <div class="rs-card-head">
-                    <div class="rs-card-title">Loại NG (Reject)</div>
+                    <div class="rs-card-title">Reject NG (Reject)</div>
                 </div>
                 <div class="rs-ng-row">
                     <div class="rs-ng-field">
-                        <label class="rs-modal-label" for="ng-amount-input">Số lượng NG</label>
+                        <label class="rs-modal-label" for="ng-amount-input">NG quantity</label>
                         <input id="ng-amount-input"
                                type="number"
                                class="rs-input"
@@ -190,14 +190,14 @@
                                @oninput="OnNgAmountInput" />
                     </div>
                     <div class="rs-ng-field">
-                        <label class="rs-modal-label" for="ng-reason-select">Mã lỗi NG *</label>
+                        <label class="rs-modal-label" for="ng-reason-select">NG defect code *</label>
                         <select id="ng-reason-select"
                                 class="rs-input rs-select"
                                 value="@_ngReasonCode"
                                 data-testid="ng-reason-select"
                                 disabled="@(_busy || _view.MesPhase != "RUNNING" || ScrapReasons.Count == 0)"
                                 @onchange="OnNgReasonChange">
-                            <option value="">— chọn mã lỗi —</option>
+                            <option value="">— select defect code —</option>
                             @foreach (var rc in ScrapReasons)
                             {
                                 <option value="@rc.Code">@rc.Code · @rc.LabelVi</option>
@@ -205,7 +205,7 @@
                         </select>
                     </div>
                     <div class="rs-ng-field rs-ng-field-wide">
-                        <label class="rs-modal-label" for="ng-note-input">Ghi chú * (1-500 ký tự)</label>
+                        <label class="rs-modal-label" for="ng-note-input">Note * (1-500 characters)</label>
                         <input id="ng-note-input"
                                type="text"
                                class="rs-input"
@@ -220,13 +220,13 @@
                                 class="op-btn op-btn-warning rs-ng-btn"
                                 data-testid="ng-submit-btn"
                                 disabled="@(_busy || _view.MesPhase != "RUNNING" || !IsNgValid())"
-                                @onclick="OnNgSubmitAsync">Ghi NG</button>
+                                @onclick="OnNgSubmitAsync">Record NG</button>
                     </div>
                 </div>
                 @if (ScrapReasons.Count == 0)
                 {
                     <div class="wo-card-error" data-testid="running-scrap-reasons-empty">
-                        <strong>Danh mục NG trống.</strong> Server chưa seed reason codes (kind=Scrap). Báo IT.
+                        <strong>NG catalog is empty.</strong> The server has not seeded reason codes (kind=Scrap). Report to IT.
                     </div>
                 }
             </div>
@@ -238,7 +238,7 @@
                             class="op-btn op-btn-warning"
                             data-testid="run-pause-btn"
                             disabled="@_busy"
-                            @onclick="OpenPauseModal">Tạm dừng</button>
+                            @onclick="OpenPauseModal">Pause</button>
                 }
                 else if (_view.MesPhase == "PAUSED")
                 {
@@ -246,20 +246,20 @@
                             class="op-btn op-btn-primary"
                             data-testid="run-resume-btn"
                             disabled="@_busy"
-                            @onclick="OnRunResumeAsync">Tiếp tục chạy</button>
+                            @onclick="OnRunResumeAsync">Resume running</button>
                 }
 
                 <button type="button"
                         class="op-btn op-btn-secondary"
                         data-testid="run-correct-btn"
                         disabled="@(_busy || _view.RecentEntries.Count == 0)"
-                        @onclick="OpenCorrectModal">Sửa số</button>
+                        @onclick="OpenCorrectModal">Correct qty</button>
 
                 <button type="button"
                         class="op-btn op-btn-danger"
                         data-testid="run-finish-btn"
                         disabled="@(_busy || _view.QtyDoneCached <= 0)"
-                        @onclick="OpenFinishModal">Kết thúc WO</button>
+                        @onclick="OpenFinishModal">Finish WO</button>
             </div>
         }
 
@@ -343,11 +343,11 @@
         }
         catch (HttpRequestException ex)
         {
-            _initialError = $"Không kết nối được máy chủ: {ex.Message}";
+            _initialError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {
-            _initialError = $"Lỗi tải trạng thái: {ex.GetType().Name}: {ex.Message}";
+            _initialError = $"Error loading status: {ex.GetType().Name}: {ex.Message}";
         }
     }
 
@@ -365,30 +365,22 @@
     /// consistent read-only info card instead of a dead-end error banner.
     /// 7d-3 REMOVED IPQC_WAIT + QA_PENDING entries — those have real
     /// dashboards (IpqcDashboard + QaApprovalDashboard) hosted by
-    /// WorkOrders.razor BEFORE this dispatch. 7e will replace FQC +
-    /// OQC entries; DONE / CANCELLED entries stay as terminal info cards.
+    /// WorkOrders.razor BEFORE this dispatch. 7e-3 REMOVED FQC_PENDING +
+    /// OQC_PENDING entries — those now route to FqcDashboard +
+    /// OqcDashboard. SHIPPED also routes to its own dashboard. Only
+    /// DONE / CANCELLED remain as terminal info cards.
     /// Maintain THIS map (not the render branch) to add new placeholders.</summary>
     private static readonly Dictionary<string, DeferredPhase> DeferredPhaseInfo = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["FQC_PENDING"] = new(
-            Title: "Chờ kiểm FQC",
-            Body: "Sản xuất đã kết thúc. WO đang chờ FQC kiểm chất lượng đầu ra.",
-            Hint: "Màn hình FQC sẽ có ở bản 7e — tạm thời FQC review thực hiện ngoài app; khi FQC duyệt, WO sẽ chuyển sang OQC_PENDING.",
-            HeadPhaseCss: "rs-phase-other"),
-        ["OQC_PENDING"] = new(
-            Title: "Chờ kiểm OQC",
-            Body: "FQC đã duyệt. WO đang chờ OQC trước khi đóng đơn.",
-            Hint: "Màn hình OQC sẽ có ở bản 7e — tạm thời OQC review thực hiện ngoài app.",
-            HeadPhaseCss: "rs-phase-other"),
         ["DONE"] = new(
-            Title: "WO đã hoàn tất",
-            Body: "WO đã đóng đơn. Không còn thao tác sản xuất nào trên WO này.",
-            Hint: "Quét WO khác để bắt đầu công việc mới.",
+            Title: "WO completed",
+            Body: "The WO is closed. No further production actions are available on this WO.",
+            Hint: "Scan another WO to start new work.",
             HeadPhaseCss: "rs-phase-other"),
         ["CANCELLED"] = new(
-            Title: "WO đã huỷ",
-            Body: "WO đã bị huỷ. Không thể chạy hoặc nhập thêm sản lượng.",
-            Hint: "Quét WO khác để bắt đầu công việc mới.",
+            Title: "WO cancelled",
+            Body: "The WO has been cancelled. It cannot be run or accept further output.",
+            Hint: "Scan another WO to start new work.",
             HeadPhaseCss: "rs-phase-other"),
     };
 
@@ -442,7 +434,7 @@
             }
             else
             {
-                _setError = "Máy chủ trả Ok=false không kèm mã lỗi — báo IT.";
+                _setError = "Server returned Ok=false without an error code — report to IT.";
             }
         }
         catch (ApiException apiEx)
@@ -453,7 +445,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _setError = $"Không kết nối được máy chủ: {ex.Message}";
+            _setError = $"Could not connect to the server: {ex.Message}";
         }
         catch (Exception ex)
         {

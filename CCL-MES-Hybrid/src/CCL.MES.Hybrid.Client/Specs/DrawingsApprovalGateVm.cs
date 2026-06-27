@@ -109,9 +109,9 @@ public static class DrawingsApprovalGateVm
     /// teammate without guessing.</summary>
     public static string TooltipForNotAuthorized(DrawingApprovalRole chip) => chip switch
     {
-        DrawingApprovalRole.Npi        => "Chỉ Admin hoặc Engineer Phòng NPI mới duyệt được chip này.",
-        DrawingApprovalRole.Production => "Chỉ Admin, Supervisor, hoặc Engineer Phòng Sản xuất mới duyệt được chip này.",
-        DrawingApprovalRole.Qc         => "Chỉ Admin hoặc Engineer Phòng QC mới duyệt được chip này.",
-        _                              => "Tài khoản không có quyền action chip này.",
+        DrawingApprovalRole.Npi        => "Only an Admin or an NPI Department Engineer can approve this chip.",
+        DrawingApprovalRole.Production => "Only an Admin, a Supervisor, or a Production Department Engineer can approve this chip.",
+        DrawingApprovalRole.Qc         => "Only an Admin or a QC Department Engineer can approve this chip.",
+        _                              => "Your account is not allowed to action this chip.",
     };
 }
