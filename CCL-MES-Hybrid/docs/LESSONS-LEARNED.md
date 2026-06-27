@@ -93,6 +93,7 @@
 
 - [L25 — Suspected regression? Prove it against a stashed baseline before blaming your change — a `Category=Soak` SQLite-macOS flake fails the same way whether your code is present or not](#l25)
 - [L26 — Classification rules (process→line) belong in a DATA table, not hardcoded keyword/StartsWith lists; and a lazy-materialise that can no-op MUST report a status, never fall back silently](#l26)
+- [L27 — A new taxonomy value (QC line) added with ZERO migration when stored as a string token; and re-verify GATE numbers against the current MAP, not a frozen baseline from the old logic](#l27)
 
 ---
 
@@ -368,6 +369,18 @@
 | **Root cause** | (a) Luật phân loại là DỮ LIỆU vận hành (thay đổi theo nhà máy/thiết bị) nhưng bị nhốt trong code. (b) `WorkCenter.Area` auto-derive trong import sai (Power press PPSC1 → "SILKSCREEN") nên không dùng được → resolver buộc đoán bằng substring lỏng. (c) Lazy-materialise chỉ có 2 nhánh (materialize / no-op) + không trả trạng thái → caller/UI không phân biệt "đã nạp" vs "bỏ qua vì unmapped" vs "thư viện trống". |
 | **Fix** | (a) **Bảng `ProcessLineMap`** (MatchType ProcessCode/WorkCenterPrefix/OpKeyword → QcLine LABEL/DIGITAL/SILK/PRESS_CNC/NONE, Sort, Active) + `ProcessLineMapSeed.DefaultEntries()` dùng CHUNG cho DbSeeder (upsert idempotent) và unit test. Resolver `Resolve(ops, map)` tra bảng: ProcessCode → WorkCenterPrefix (DÀI nhất) → OpKeyword (chứa, Sort nhỏ) → Unmapped. Gỡ TOÀN BỘ keyword hardcode + cái `StartsWith("SS")` rộng → 'SS01' nay Unmapped. NONE = hợp lệ (pre-press/sấy/FQC/OQC), khác Unmapped. (b) Map theo định danh máy (WC prefix) thay vì động từ "CUT" → tránh nhập nhằng 'SheetCut(SS)'. (c) `TryAutoSyncAsync` trả status; GET self-heal khi check rỗng + pristine; DTO `autoSyncStatus` ∈ {Materialized, SkippedUnmapped, SkippedNoLibrary, LegacyManual} + UI banner cảnh báo; KHÔNG đè dữ liệu operator (slot ≠ Pending → LegacyManual). |
 | **Cơ chế chặn tái phát** | `QcLineResolverTests` (data-driven qua `MapFromSeed()`; khoá 'SS01'/'SSX'/'SS7'→Unmapped + routing thật 8064) · `IpqcAutoSyncTests.ProcessLineMap_seed_is_idempotent` · `IpqcAutoSyncControllerTests` (F2a self-heal khi routing tới sau · F2b SkippedUnmapped không nạp item · F2c không đè slot legacy) · `CheckItemLibraryControllerTests.ProcessMap_endpoint_*`. Quy tắc: luật phân loại mới → THÊM DÒNG vào `ProcessLineMapSeed`, KHÔNG thêm `if/StartsWith` vào resolver (PR review reject). |
+
+---
+
+<a id="l27"></a>
+### L27 — Taxonomy value added with zero migration (string token); re-verify GATE numbers against the MAP, not a frozen baseline
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Sau khi seed map data-driven (F6) lên live, re-verify GATE A: 2/4 mã 8064 LỆCH baseline hardcode (80645392: 42→67, 80640044: 52→86). Thoạt nhìn như regression F6. Đồng thời cần thêm "line" QC thứ 5 (FINISHING) cho công đoạn cán — lo phải thêm migration + enum. |
+| **Root cause** | (a) Số 42/52 baseline là kết quả của resolver KEYWORD CŨ (desc "SILK"/"CUT" thắng máy). Map data-driven ưu tiên ĐỊNH DANH MÁY nên phân loại khác — đúng QC hơn nhưng khác số cũ. So GATE với baseline cũ = báo "sai" cho một mapping thực ra ĐÚNG. (b) `ProcessLineMap.QcLine` + `CheckItemLibrary.ProcessLine` + `WoIpqcCheckItem.ProcessLine` đều lưu **string** (HasMaxLength, KHÔNG HasConversion&lt;enum&gt;) → thêm giá trị "FINISHING" chỉ là dữ liệu seed, KHÔNG cần migration/đổi schema. |
+| **Fix** | (a) Sửa GIÁ TRỊ map cho khớp QC thật (QĐ#6 SheetCut(SS)→PRESS_CNC; QĐ#7 Laminate/Slit/Magic→line mới FINISHING + 5 item FIN-* trong thư viện v3). (b) Thêm FINISHING = thêm const + dòng seed + item thư viện — 0 migration. (c) Re-verify GATE bằng cách: mỗi delta vs baseline cũ PHẢI giải thích được bằng một dòng map; delta KHÔNG giải thích được mới là regression. Kết quả mới: 61/42/57/32 — mọi delta khớp QĐ#6/#7. |
+| **Cơ chế chặn tái phát** | `QcLineResolverTests.Q1_sheetcut_is_presscnc_not_silk` + `Q2_lamination_is_finishing_not_label_or_silk` (khoá phân loại mới) · `Real_library_parses_to_106_items_across_5_lines` (khoá 5 line + FINISHING=5) · `IpqcAutoSyncControllerTests`/live GATE A (số khớp map). Quy tắc: taxonomy QC mở rộng bằng DỮ LIỆU (string token + seed), không enum-migration; GATE verify theo map hiện hành, baseline cũ chỉ để truy delta. |
 
 ---
 

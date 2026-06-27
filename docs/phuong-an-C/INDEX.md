@@ -11,7 +11,9 @@
 | 2 | Refactor IPQC 4-slot | ✅ **Shadow table**: giữ 4 cột cũ + thêm `WoIpqcCheckItem` + parity test | 2026-06-26 |
 | 3 | FQC/OQC có theo điều kiện? | ✅ **Luôn có** (12-phase bắt buộc qua FQC_PENDING/OQC_PENDING); routing chỉ làm giàu item; KHÔNG bỏ cổng hàng xuất | 2026-06-26 |
 | 4 | Bảng mới vs mở rộng | ✅ Bảng mới `CheckItemLibrary`; **mở rộng `ReasonCode`** (không tạo DefectCode mới) | 2026-06-26 |
-| 5 | Map process → QC line | ✅ **ĐÃ THOẢ** (review-fix F6, 2026-06-27): map là **DỮ LIỆU** qua bảng `ProcessLineMap` (MatchType ProcessCode/WorkCenterPrefix/OpKeyword → QcLine LABEL/DIGITAL/SILK/PRESS_CNC/NONE); resolver tra bảng, KHÔNG còn keyword hardcode. Sửa map = sửa seed. | 2026-06-26 → 2026-06-27 |
+| 5 | Map process → QC line | ✅ **ĐÃ THOẢ** (review-fix F6, 2026-06-27): map là **DỮ LIỆU** qua bảng `ProcessLineMap` (MatchType ProcessCode/WorkCenterPrefix/OpKeyword → QcLine LABEL/DIGITAL/SILK/PRESS_CNC/FINISHING/NONE); resolver tra bảng, KHÔNG còn keyword hardcode. Sửa map = sửa seed. | 2026-06-26 → 2026-06-27 |
+| 6 | **SheetCut(SS) → line nào?** | ✅ **PRESS_CNC** (công đoạn CẮT, KHÔNG phải in lụa). Giữ SS(Sheet)/SS-Auto/SS(R2R)=SILK. | 2026-06-27 |
+| 7 | **Cán/ép dán/xẻ (Laminate/Slit/Magic) → line nào?** | ✅ Line thứ 5 **FINISHING** (5 item FIN-*: bong/nhăn/bong mép/xước/độ bám cán). KHÔNG dội bộ print LABEL/SILK lên op cán nữa. | 2026-06-27 |
 | + | Tắt API :5100 + MAUI khi migration | ✅ Tắt trước Bước 1/2 (tránh khóa SQLite) | 2026-06-26 |
 
 > **Review-fix (2026-06-27)** — /code-review 8 finding: FIX **F1** (chặn slot-PUT khi WO ở mode item, 422) ·
@@ -32,11 +34,11 @@
 | QC Line | Process / Work Centre | Ghi chú |
 |---|---|---|
 | **LABEL** (in nhãn) | Flexo (Gallus/Brotech) · Letterpress | In có khuôn |
-| **DIGITAL** (in số) | **HP Indigo 6800** · Zebra *(thermal/variable — xác nhận)* | In KHÔNG khuôn. **Đã có 15 mục trong `IPQC_Library_CMES_v2`** (DGT-*): banding/sọc · dropout/vạch trắng · ghosting/bóng ma · trôi màu ΔE lot-to-lot · bám ElectroInk · seri biến đổi không trùng |
-| **SILK** (in lụa) | SS (Sheet/R2R/Auto) · SheetCut (SS) | |
-| **PRESS_CNC** (dập/cắt) | FB · Power press · RDC · CNC · Laser · Punching · Drill | |
-| *(LABEL appearance)* | Laminate · Slit · Magic (ép dán/xẻ) | Dùng bộ appearance LABEL — giữ item bong/phồng A7 |
-| *(không sinh IPQC item)* | Pre-press · Ink Mixing · Oven/UV drying · Manual · AOI | Đánh dấu rõ; AOI là kiểm tự động riêng |
+| **DIGITAL** (in số) | **HP Indigo 6800** · Zebra *(thermal/variable — xác nhận)* | In KHÔNG khuôn (15 mục DGT-*): banding · dropout · ghosting · trôi màu ΔE · bám ElectroInk · seri biến đổi |
+| **SILK** (in lụa) | SS(Sheet) · SS(R2R) · SS-Auto | **QĐ#6**: SheetCut(SS) KHÔNG thuộc đây |
+| **PRESS_CNC** (dập/cắt) | FB · Power press · RDC · CNC · Laser · Punching · Drill · **SheetCut(SS)** (QĐ#6) | |
+| **FINISHING** (hoàn thiện) | Laminate (Roll/Label) · Slit · Magic (ép dán/xẻ) · op "LAMINATION/Ép dán" | **QĐ#7**: line thứ 5, 5 item FIN-* (bong/nhăn/bong mép/xước/độ-bám-cán); KHÔNG dội bộ print |
+| *(không sinh IPQC item)* | Pre-press · Ink Mixing · Oven/UV drying · Manual · AOI · FQC · OQC | QcLine=NONE |
 | *(unmapped)* | — | Code lạ → log `unmapped process <code>` + hỏi người duyệt, KHÔNG đoán |
 
 ## 4 · Tiến độ 7 bước
