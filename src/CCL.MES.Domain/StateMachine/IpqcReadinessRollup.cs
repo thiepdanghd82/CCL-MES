@@ -57,6 +57,26 @@ public static class IpqcReadinessRollup
     }
 
     /// <summary>
+    /// Phương án C — Bước 2: rollup data-driven. Khi <paramref name="items"/>
+    /// có phần tử (WO đã materialize bộ thư viện), tính trên N item; rỗng/null
+    /// → LÙI VỀ 4 slot legacy (<see cref="Compute(WoIpqcCheck?)"/>) để giữ
+    /// parity tuyệt đối với WO cũ. Cùng hợp đồng: ready = mọi item non-Pending;
+    /// allOk = mọi item Ok; anyNg = có ≥1 item Ng.
+    /// </summary>
+    public static (bool IsReadyForJudgment, bool AllOk, bool AnyNg) Compute(
+        WoIpqcCheck? check, IReadOnlyCollection<WoIpqcCheckItem>? items)
+    {
+        if (items is { Count: > 0 })
+        {
+            var ready = items.All(i => i.Status != IpqcCheckStatus.Pending);
+            var allOk = items.All(i => i.Status == IpqcCheckStatus.Ok);
+            var anyNg = items.Any(i => i.Status == IpqcCheckStatus.Ng);
+            return (ready, allOk, anyNg);
+        }
+        return Compute(check);
+    }
+
+    /// <summary>
     /// Convenience: is the given judgment <i>consistent</i> with the
     /// current slot results? Used by the controller to reject e.g. an
     /// operator submitting GoRun while one of the 4 slots is NG.
@@ -65,8 +85,14 @@ public static class IpqcReadinessRollup
     /// </summary>
     public static bool IsJudgmentConsistent(
         WoIpqcCheck? check, IpqcJudgment proposed)
+        => IsJudgmentConsistent(check, null, proposed);
+
+    /// <summary>Phương án C — Bước 2: bản items-aware (xem
+    /// <see cref="Compute(WoIpqcCheck?, IReadOnlyCollection{WoIpqcCheckItem}?)"/>).</summary>
+    public static bool IsJudgmentConsistent(
+        WoIpqcCheck? check, IReadOnlyCollection<WoIpqcCheckItem>? items, IpqcJudgment proposed)
     {
-        var (ready, allOk, anyNg) = Compute(check);
+        var (ready, allOk, anyNg) = Compute(check, items);
         if (!ready) return false; // can't judge until 4 slots resolved
         return proposed switch
         {

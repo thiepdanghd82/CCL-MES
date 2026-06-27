@@ -31,6 +31,7 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<SpecQcCapture> SpecQcCaptures => Set<SpecQcCapture>();
     public DbSet<ReasonCode> ReasonCodes => Set<ReasonCode>();
     public DbSet<ProcessCatalog> ProcessCatalogs => Set<ProcessCatalog>();
+    public DbSet<CheckItemLibrary> CheckItemLibraries => Set<CheckItemLibrary>();
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
     public DbSet<WoStatusHistory> WoStatusHistories => Set<WoStatusHistory>();
     public DbSet<QcInspection> QcInspections => Set<QcInspection>();
@@ -61,6 +62,8 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<WoQtyEntry> WoQtyEntries => Set<WoQtyEntry>();
     // P10.7d-1 — IPQC review surface (per contract §5.5).
     public DbSet<WoIpqcCheck> WoIpqcChecks => Set<WoIpqcCheck>();
+    // Phương án C — Bước 2: data-driven IPQC items (shadow, additive).
+    public DbSet<WoIpqcCheckItem> WoIpqcCheckItems => Set<WoIpqcCheckItem>();
     // P10.7e-1 Q3+Q6 — DATA-DRIVEN FQC + OQC + photo evidence tables.
     public DbSet<WoQcCheck> WoQcChecks => Set<WoQcCheck>();
     public DbSet<WoQcCheckItem> WoQcCheckItems => Set<WoQcCheckItem>();
@@ -168,6 +171,24 @@ public class MesDbContext : DbContext, IMesDbContext
 
         // P10.7d-1 — IPQC review surface 1:1 uniqueness (contract §5.5).
         b.Entity<WoIpqcCheck>().HasIndex(x => x.WorkOrderId).IsUnique();
+
+        // Phương án C — Bước 2: data-driven IPQC items (mirror WoQcCheckItem).
+        b.Entity<WoIpqcCheckItem>().Property(x => x.ItemKey).HasMaxLength(64).IsRequired();
+        b.Entity<WoIpqcCheckItem>().Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.ProcessLine).HasMaxLength(16);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.GroupLabel).HasMaxLength(128);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.Label).HasMaxLength(512);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.AcceptanceCriteria).HasMaxLength(512);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.Method).HasMaxLength(256);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.Severity).HasMaxLength(64);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.DefectCode).HasMaxLength(64);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.NgReasonCode).HasMaxLength(64);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.NgNote).HasMaxLength(500);
+        b.Entity<WoIpqcCheckItem>().HasIndex(x => new { x.WoIpqcCheckId, x.ItemKey }).IsUnique();
+        b.Entity<WoIpqcCheckItem>().HasOne(x => x.WoIpqcCheck)
+            .WithMany(c => c.Items)
+            .HasForeignKey(x => x.WoIpqcCheckId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // P10.7e-1 Q3+Q6 — FQC + OQC + photo column shape + indices.
         b.Entity<WoQcCheck>().Property(x => x.QcKind).HasMaxLength(8).IsRequired();
@@ -352,6 +373,11 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<RawMaterial>().HasIndex(x => x.PartNo);
         b.Entity<RoutingOperation>().HasIndex(x => x.PartNo);
         b.Entity<ManufacturingStructure>().HasIndex(x => x.ParentPart);
+
+        // Phương án C — thư viện hạng mục kiểm. ItemId là natural key (upsert
+        // idempotent theo ItemId); resolver lookup theo (ProcessLine, QcStage).
+        b.Entity<CheckItemLibrary>().HasIndex(x => x.ItemId).IsUnique();
+        b.Entity<CheckItemLibrary>().HasIndex(x => new { x.ProcessLine, x.QcStage });
 
         // Auth — Username must be unique; login lookup hits this index every sign-in.
         b.Entity<User>().HasIndex(x => x.Username).IsUnique();

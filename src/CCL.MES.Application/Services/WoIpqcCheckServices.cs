@@ -67,6 +67,36 @@ public static class WoIpqcCheckService
     }
 
     /// <summary>
+    /// Phương án C — Bước 2/4: đánh OK/NG cho 1 item data-driven theo
+    /// <paramref name="itemKey"/>. Trả về false khi không tìm thấy item
+    /// (controller emit 422 invalid_item). Caller đã validate NG-reason +
+    /// note trước khi gọi. Mutate in-place; controller lo SaveChanges.
+    /// </summary>
+    public static bool SetItem(
+        WoIpqcCheck check,
+        string itemKey,
+        IpqcCheckStatus status,
+        string? ngReasonCode,
+        string? ngNote,
+        string actor,
+        DateTime nowUtc)
+    {
+        var item = check.Items.FirstOrDefault(
+            i => string.Equals(i.ItemKey, itemKey, StringComparison.OrdinalIgnoreCase));
+        if (item is null) return false;
+
+        item.Status = status;
+        item.NgReasonCode = status == IpqcCheckStatus.Ng ? ngReasonCode : null;
+        item.NgNote = status == IpqcCheckStatus.Ng ? ngNote : null;
+        item.UpdatedAt = nowUtc;
+        item.UpdatedBy = actor;
+
+        check.UpdatedAt = nowUtc;
+        check.UpdatedBy = actor;
+        return true;
+    }
+
+    /// <summary>
     /// Apply a judgment write. Caller checks
     /// <see cref="CCL.MES.Domain.StateMachine.IpqcReadinessRollup.IsJudgmentConsistent"/>
     /// BEFORE calling so an inconsistent judgment never reaches this

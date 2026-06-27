@@ -1,0 +1,123 @@
+using System.Text;
+using System.Text.Json;
+using CCL.MES.Domain;
+using CCL.MES.Domain.Entities;
+
+namespace CCL.MES.Application.Services;
+
+/// <summary>
+/// Phương án C — Bước 4 (lõi thuần). Dựng bộ hạng mục IPQC data-driven từ
+/// subset <see cref="CheckItemLibrary"/> (đã lọc theo process line resolve từ
+/// routing + QcStage=IPQC + Active) → trả về:
+///   1. <c>ProfileSnapshotJson</c> (shape giống <see cref="QcProfileSeed"/>:
+///      {name, sections:[{id,title,items:[{key,label,spec,method,severity,defect,line}]}]})
+///      để FREEZE vào <see cref="WoIpqcCheck.ItemsProfileSnapshotJson"/>.
+///   2. Danh sách <see cref="WoIpqcCheckItem"/> (Status=Pending) materialize vào check.
+///
+/// Thuần + tĩnh — controller (Bước 4) lọc thư viện + gọi đây + 1 SaveChanges
+/// atomic. Sửa thư viện sau đó KHÔNG hồi tố (snapshot đã đóng băng).
+/// </summary>
+public static class IpqcLibraryMaterializer
+{
+    // Thứ tự process line ổn định (khớp QcLineResolver).
+    private static readonly string[] LineOrder =
+        { QcLineResolver.Label, QcLineResolver.Digital, QcLineResolver.Silk, QcLineResolver.PressCnc };
+
+    public sealed record Result(string ProfileSnapshotJson, IReadOnlyList<WoIpqcCheckItem> Items);
+
+    /// <summary>
+    /// Dựng snapshot + items từ thư viện đã lọc. <paramref name="resolvedLines"/>
+    /// quyết định thứ tự nhóm. Item rỗng → snapshot tối thiểu (sections rỗng) +
+    /// items rỗng (caller tự quyết fallback về 4 slot legacy).
+    /// </summary>
+    public static Result Build(
+        IReadOnlyList<CheckItemLibrary> libraryRows,
+        IReadOnlyList<string> resolvedLines)
+    {
+        var rows = (libraryRows ?? Array.Empty<CheckItemLibrary>())
+            .Where(r => r.Active)
+            .OrderBy(r => LineIndex(r.ProcessLine))
+            .ThenBy(r => r.Sort)
+            .ThenBy(r => r.ItemId, StringComparer.Ordinal)
+            .ToList();
+
+        var items = new List<WoIpqcCheckItem>(rows.Count);
+        var sort = 0;
+        foreach (var r in rows)
+        {
+            items.Add(new WoIpqcCheckItem
+            {
+                ItemKey = r.ItemId,
+                ProcessLine = r.ProcessLine,
+                GroupLabel = r.GroupLabel,
+                Label = string.IsNullOrWhiteSpace(r.ItemVi) ? r.ItemEn : r.ItemVi,
+                AcceptanceCriteria = string.IsNullOrWhiteSpace(r.AcceptanceVi) ? r.AcceptanceEn : r.AcceptanceVi,
+                Method = r.Method,
+                Severity = r.Severity,
+                DefectCode = r.DefectCode,
+                Status = IpqcCheckStatus.Pending,
+                Sort = (sort += 10),
+            });
+        }
+
+        return new Result(BuildSnapshotJson(rows, resolvedLines), items);
+    }
+
+    /// <summary>Snapshot JSON theo nhóm GroupLabel (giữ shape QcProfileSeed để
+    /// rollup/UI tái dùng). Đóng băng đúng-thời-điểm.</summary>
+    public static string BuildSnapshotJson(
+        IReadOnlyList<CheckItemLibrary> rows,
+        IReadOnlyList<string> resolvedLines)
+    {
+        var lines = resolvedLines is { Count: > 0 }
+            ? string.Join(",", resolvedLines)
+            : string.Join(",", rows.Select(r => r.ProcessLine).Distinct());
+
+        var opts = new JsonWriterOptions { Indented = false };
+        using var ms = new MemoryStream();
+        using (var w = new Utf8JsonWriter(ms, opts))
+        {
+            w.WriteStartObject();
+            w.WriteString("name", "IPQC — auto-sync theo routing");
+            w.WriteString("lines", lines);
+            w.WriteString("source", "CheckItemLibrary");
+            w.WriteStartArray("sections");
+
+            // Nhóm theo (ProcessLine, GroupLabel) giữ thứ tự xuất hiện.
+            foreach (var grp in rows
+                .GroupBy(r => (Line: r.ProcessLine, Group: r.GroupLabel)))
+            {
+                w.WriteStartObject();
+                w.WriteString("id", $"{grp.Key.Line}:{grp.Key.Group}");
+                w.WriteString("line", grp.Key.Line);
+                w.WriteString("title", grp.Key.Group);
+                w.WriteStartArray("items");
+                foreach (var r in grp)
+                {
+                    w.WriteStartObject();
+                    w.WriteString("key", r.ItemId);
+                    w.WriteString("label", string.IsNullOrWhiteSpace(r.ItemVi) ? r.ItemEn : r.ItemVi);
+                    w.WriteString("spec", string.IsNullOrWhiteSpace(r.AcceptanceVi) ? r.AcceptanceEn : r.AcceptanceVi);
+                    if (!string.IsNullOrWhiteSpace(r.Method)) w.WriteString("method", r.Method);
+                    if (!string.IsNullOrWhiteSpace(r.Severity)) w.WriteString("severity", r.Severity);
+                    if (!string.IsNullOrWhiteSpace(r.DefectCode)) w.WriteString("defect", r.DefectCode);
+                    w.WriteString("line", r.ProcessLine);
+                    w.WriteEndObject();
+                }
+                w.WriteEndArray();
+                w.WriteEndObject();
+            }
+
+            w.WriteEndArray();
+            w.WriteEndObject();
+        }
+        return Encoding.UTF8.GetString(ms.ToArray());
+    }
+
+    private static int LineIndex(string? line)
+    {
+        for (var i = 0; i < LineOrder.Length; i++)
+            if (string.Equals(LineOrder[i], line, StringComparison.Ordinal)) return i;
+        return LineOrder.Length; // unknown line cuối
+    }
+}
