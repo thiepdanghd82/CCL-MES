@@ -1,6 +1,8 @@
 # Phương án C — QC engine data-driven + auto-sync theo Routine
 
-> Nhánh `feat/phuong-an-C` · 9 commit (`7bda3fd..36a5ee2`) · 53 files, +15004/−47.
+> Nhánh `feat/phuong-an-C` · **11 commit Plan C** (`7bda3fd..8dd745d`) + 1 commit PR-meta, trên mốc `532a96e`.
+> **Stacked**: base=`feat/prepress-scan-special-accept`; PR này CHỈ chứa commit Plan C (+PR-meta).
+> **Thứ tự merge: p10.8 → prepress → Plan C.**
 > **Chưa merge** — chờ duyệt (có thể ultrareview trước).
 
 ## Tóm tắt
