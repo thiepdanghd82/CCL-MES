@@ -23,7 +23,7 @@ namespace CCL.MES.Api.Controllers;
 /// Auth: any authenticated (reference data; admin-edit UI để sau).
 /// </summary>
 [ApiController]
-[Authorize]
+[Authorize(Policy = "NpiRead")] // F5 — QC/NPI read (Admin/Supervisor/Engineer/QC), không phải mọi user
 [Route(ApiVersion.Prefix + "/check-item-library")]
 public sealed class CheckItemLibraryController : ControllerBase
 {
@@ -51,6 +51,22 @@ public sealed class CheckItemLibraryController : ControllerBase
                 QcStage = c.QcStage, GroupLabel = c.GroupLabel, Code = c.Code,
                 ItemVi = c.ItemVi, AcceptanceVi = c.AcceptanceVi, Method = c.Method,
                 Severity = c.Severity, DefectCode = c.DefectCode, Active = c.Active, Sort = c.Sort,
+            })
+            .ToListAsync(ct);
+        return Ok(rows);
+    }
+
+    /// <summary>Phương án C — Bước 6. Xem bảng map process→QC line hiện hành
+    /// (data-driven, quyết định #5). Sửa map qua seed (UI sửa = backlog).</summary>
+    [HttpGet("~/" + ApiVersion.Prefix + "/qc/library/process-map")]
+    public async Task<ActionResult<IReadOnlyList<ProcessLineMapDto>>> ProcessMap(CancellationToken ct = default)
+    {
+        var rows = await _db.ProcessLineMaps.AsNoTracking()
+            .OrderBy(m => m.Sort).ThenBy(m => m.MatchType).ThenBy(m => m.MatchValue)
+            .Select(m => new ProcessLineMapDto
+            {
+                MatchType = m.MatchType, MatchValue = m.MatchValue, QcLine = m.QcLine,
+                Sort = m.Sort, Active = m.Active, Note = m.Note,
             })
             .ToListAsync(ct);
         return Ok(rows);

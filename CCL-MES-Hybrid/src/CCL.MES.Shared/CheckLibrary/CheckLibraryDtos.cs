@@ -25,3 +25,14 @@ public sealed record CheckLibraryLineDto
     public string QcStage { get; init; } = "";
     public int Count { get; init; }
 }
+
+/// <summary>Phương án C — Bước 6. 1 luật map process→QC line (data-driven, quyết định #5).</summary>
+public sealed record ProcessLineMapDto
+{
+    public string MatchType { get; init; } = "";
+    public string MatchValue { get; init; } = "";
+    public string QcLine { get; init; } = "";
+    public int Sort { get; init; }
+    public bool Active { get; init; }
+    public string? Note { get; init; }
+}

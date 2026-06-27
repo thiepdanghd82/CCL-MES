@@ -22,9 +22,10 @@ public sealed class CheckItemLibraryControllerTests : IClassFixture<MesApiFactor
     private readonly MesApiFactory _fx;
     public CheckItemLibraryControllerTests(MesApiFactory fx) => _fx = fx;
 
-    private async Task<HttpClient> ClientAsync(string user)
+    // F5 — endpoints gate trên NpiRead (Admin/Supervisor/Engineer/QC). QC = read hợp lệ.
+    private async Task<HttpClient> ClientAsync(string user, string role = UserRole.Qc)
     {
-        await _fx.SeedUserAsync(user, "P@ss!1", UserRole.Operator);
+        await _fx.SeedUserAsync(user, "P@ss!1", role);
         var client = _fx.CreateClient();
         await _fx.LoginAndAuthenticateAsync(client, user, "P@ss!1");
         return client;
@@ -114,5 +115,47 @@ public sealed class CheckItemLibraryControllerTests : IClassFixture<MesApiFactor
         var client = _fx.CreateClient();
         var resp = await client.GetAsync("/api/v2/check-item-library/lines");
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
+    }
+
+    // ── F5: auth nhất quán (NpiRead) ────────────────────────────────
+
+    [Fact]
+    public async Task Operator_without_qc_read_is_forbidden()
+    {
+        var client = await ClientAsync("lib-operator", UserRole.Operator);
+        var resp = await client.GetAsync("/api/v2/check-item-library/lines");
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Qc_role_can_read()
+    {
+        await SeedAsync();
+        var client = await ClientAsync("lib-qc", UserRole.Qc);
+        var resp = await client.GetAsync("/api/v2/check-item-library/lines");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
+
+    // ── F6: endpoint xem bảng map process→line ──────────────────────
+
+    [Fact]
+    public async Task ProcessMap_endpoint_returns_seeded_rows()
+    {
+        using (var scope = _fx.Services.CreateScope())
+            await DbSeeder.SeedProcessLineMapAsync(scope.ServiceProvider.GetRequiredService<MesDbContext>());
+
+        var client = await ClientAsync("map-qc", UserRole.Qc);
+        var rows = await client.GetFromJsonAsync<List<ProcessLineMapDto>>("/api/v2/qc/library/process-map");
+        Assert.NotNull(rows);
+        Assert.Contains(rows!, m => m.MatchValue == "GFL" && m.QcLine == "LABEL");
+        Assert.Contains(rows!, m => m.MatchValue == "IDG" && m.QcLine == "DIGITAL");
+    }
+
+    [Fact]
+    public async Task ProcessMap_endpoint_forbidden_for_operator()
+    {
+        var client = await ClientAsync("map-op", UserRole.Operator);
+        var resp = await client.GetAsync("/api/v2/qc/library/process-map");
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
 }
