@@ -23,7 +23,7 @@ Seed live: `[seed] check_item_library inserted=… (106 item/5 line)` · `[seed]
 | A8 | Idempotent | live re-GET ×3 WO51 | — | 57/57/57; DB đúng 57 rows; seed map run2 = 0/0 (test) | ✅ |
 | A+ | Ca unmapped LOUD (không im lặng) | WO-PAC-Q-UNMAP (NGF1) | live GET | 0 item, `autoSyncStatus=SkippedUnmapped` (UI banner cảnh báo) | ✅ |
 
-**Kết luận Gate A:** ✅ ĐẠT (data-driven) · ngày 2026-06-27 · mọi số khớp map; delta vs hardcode cũ do QĐ Q1 (SheetCut→PRESS_CNC) + Q2 (Laminate→FINISHING).
+**Kết luận Gate A:** ✅ **ĐẠT** (data-driven) · build SHA `36a5ee2` · nhánh `feat/phuong-an-C` · ngày 2026-06-27 · verify: agent (Claude Code) trên live API :5100 — chờ Henry duyệt. Mọi số khớp map; delta vs hardcode cũ do QĐ#6 (SheetCut→PRESS_CNC) + QĐ#7 (Laminate→FINISHING).
 
 ---
 
@@ -33,7 +33,7 @@ Seed live: `[seed] check_item_library inserted=… (106 item/5 line)` · `[seed]
 | B9 | Dropdown mã lỗi scope theo line; mã sai → 422 | `CheckItemLibraryControllerTests` | `/check-item-library/reason-codes?lines=` | scope theo line (đã test); non-Scrap → 422 | ✅ |
 | B10| Admin sửa thư viện → WO mới nhận bản mới; WO cũ giữ snapshot | `IpqcAutoSyncTests.Freeze_*` + live | — | WO cũ (39-48) giữ snapshot freeze; WO mới (49-53) dùng map+lib v3 mới | ✅ |
 
-**Kết luận Gate B:** ✅ ĐẠT · ngày 2026-06-27.
+**Kết luận Gate B:** ✅ **ĐẠT** · build SHA `36a5ee2` · ngày 2026-06-27 · verify: agent — chờ Henry duyệt.
 
 ---
 

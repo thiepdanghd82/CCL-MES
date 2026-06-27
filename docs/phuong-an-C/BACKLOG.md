@@ -34,6 +34,22 @@ test `IpqcAutoSyncTests` + `IpqcAutoSyncControllerTests` khoá hành vi để re
 hiệu lực (chỉ item-PUT cho WO data-driven). F5 đã có scope theo line ở tầng đọc
 (`/check-item-library/reason-codes?lines=`).
 
+## B-#DR1 — ProcessLineMapSeed là upsert (no sync-delete) → đổi tên/bỏ key để lại orphan row
+**Bối cảnh (delta-review 2026-06-27):** `DbSeeder.SeedProcessLineMapAsync` insert/update theo
+natural key (MatchType, MatchValue) nhưng KHÔNG xoá row không còn trong seed. Khi Q1 đổi tên
+key `R2S`→`R2R`/`R2SC`, row `R2S` cũ thành **orphan** trên DB đã seed.
+
+**Hiện trạng:** vô hại về chức năng (longest-match cho `R2SC` (4 ký tự) thắng `R2S` (3)). Đã
+**dọn tay** orphan `R2S` trên live lần này → live map = 57 = canonical seed.
+
+**Cần làm (sau):** bước **prune có bảo vệ** — chỉ xoá row gốc-seed không còn trong
+`ProcessLineMapSeed.DefaultEntries()`, **CHỪA** row admin tự thêm (vd cờ `CreatedBy='seed'`
+hoặc cột `IsSeedManaged`), HOẶC reconcile (seed = nguồn chân lý cho row seed-origin). KHÔNG
+sync-delete mù (sẽ xoá nhầm row admin).
+
+**Rủi ro nếu để lâu:** mỗi lần rename/bỏ key map tương lai cần nhớ dọn tay; quên → orphan
+tích tụ (vẫn vô hại nhờ longest-match nhưng map ≠ canonical, khó audit).
+
 ---
 *Khi làm: tạo nhánh riêng, thêm parity test trước khi refactor (B-#4 đụng freeze +
 race — rủi ro cao). Không gộp vào PR review-fix này.*
