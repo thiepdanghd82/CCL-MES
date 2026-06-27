@@ -97,15 +97,15 @@ public sealed class IpqcReviewController : ControllerBase
         if (wo is null)
             return NotFound(ApiError.Of("wo.not_found", $"No work order with id {id}."));
 
-        var check = await _db.WoIpqcChecks.AsNoTracking()
+        var check = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
             .FirstOrDefaultAsync(c => c.WorkOrderId == id, ct);
         if (check is null)
         {
-            // Lazy-materialise blank row. Concurrent first-readers race
-            // on the UNIQUE index — losers refetch.
+            // Lazy-materialise row + AUTO-SYNC items (Phương án C Bước 4).
+            // Concurrent first-readers race on the UNIQUE index — losers refetch.
             try
             {
-                _db.WoIpqcChecks.Add(new WoIpqcCheck
+                var fresh = new WoIpqcCheck
                 {
                     WorkOrderId = id,
                     MaterialStatus = IpqcCheckStatus.Pending,
@@ -114,7 +114,9 @@ public sealed class IpqcReviewController : ControllerBase
                     PrintCStatus = IpqcCheckStatus.Pending,
                     Judgment = IpqcJudgment.Pending,
                     QaOutcome = QaOutcome.Pending,
-                });
+                };
+                await MaterializeItemsIfNeededAsync(wo, fresh, ct);
+                _db.WoIpqcChecks.Add(fresh);
                 await _db.SaveChangesAsync(ct);
             }
             catch (DbUpdateException)
@@ -123,12 +125,13 @@ public sealed class IpqcReviewController : ControllerBase
                 if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
                     dbCtx.ChangeTracker.Clear();
             }
-            check = await _db.WoIpqcChecks.AsNoTracking()
+            check = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
                 .FirstOrDefaultAsync(c => c.WorkOrderId == id, ct);
         }
 
         var etag = Convert.ToBase64String(wo.RowVersion);
-        var (ready, allOk, anyNg) = IpqcReadinessRollup.Compute(check);
+        var checkItems = check?.Items?.OrderBy(i => i.Sort).ToList() ?? new List<WoIpqcCheckItem>();
+        var (ready, allOk, anyNg) = IpqcReadinessRollup.Compute(check, checkItems);
 
         var view = new IpqcView
         {
@@ -159,6 +162,21 @@ public sealed class IpqcReviewController : ControllerBase
             IsReadyForJudgment = ready,
             AllOk = allOk,
             AnyNg = anyNg,
+            ResolvedLines = check?.ResolvedLines,
+            Items = checkItems.Select(i => new IpqcViewItem
+            {
+                ItemKey = i.ItemKey,
+                ProcessLine = i.ProcessLine,
+                GroupLabel = i.GroupLabel,
+                Label = i.Label,
+                AcceptanceCriteria = i.AcceptanceCriteria,
+                Method = i.Method,
+                Severity = i.Severity,
+                DefectCode = i.DefectCode,
+                Status = i.Status.ToString(),
+                NgReasonCode = i.NgReasonCode,
+                NgNote = i.NgNote,
+            }).ToList(),
         };
 
         Response.Headers.ETag = $"\"{etag}\"";
@@ -212,7 +230,7 @@ public sealed class IpqcReviewController : ControllerBase
             if (ngErr is not null) return ngErr;
         }
 
-        var check = await GetOrCreateCheckAsync(id);
+        var check = await GetOrCreateCheckAsync(id, wo);
 
         WoIpqcCheckService.SetSlot(check, slot, status,
             status == IpqcCheckStatus.Ng ? req.NgReasonCode : null,
@@ -224,6 +242,60 @@ public sealed class IpqcReviewController : ControllerBase
             new
             {
                 slot = slot.ToString(),
+                status = status.ToString(),
+                ng_reason_code = status == IpqcCheckStatus.Ng ? req.NgReasonCode : null,
+                ng_note = status == IpqcCheckStatus.Ng ? req.NgNote : null,
+            });
+    }
+
+    // ── PUT /work-orders/{id}/ipqc/item/{itemKey} (Phương án C B4) ──
+
+    /// <summary>Đánh OK/NG cho 1 hạng mục IPQC data-driven (auto-sync).
+    /// Cùng hợp đồng atomic + NG-validation như slot legacy; 422
+    /// <c>ipqc.invalid_item</c> nếu key không thuộc bộ đã materialize.</summary>
+    [HttpPut("{id:long}/ipqc/item/{itemKey}"), Authorize(Policy = "IpqcSubmit")]
+    public async Task<IActionResult> PutItem(
+        long id, string itemKey, [FromBody] SetIpqcItemRequest? req)
+    {
+        var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+        var pre = await PreludeAsync(id, actor, role, $"ipqc_item_{itemKey}");
+        if (pre.Error is not null) return pre.Error;
+        var wo = pre.WoForUpdate!;
+
+        if (wo.MesPhase != "IPQC_WAIT")
+            return Invalid("wo.invalid_phase",
+                $"ipqc/item requires MesPhase = IPQC_WAIT; current = {wo.MesPhase}.");
+
+        if (req is null || string.IsNullOrWhiteSpace(req.Status))
+            return Invalid("ipqc.invalid_status", "Status is required (\"Ok\" or \"Ng\").");
+        if (!Enum.TryParse<IpqcCheckStatus>(req.Status, ignoreCase: true, out var status)
+            || status == IpqcCheckStatus.Pending)
+            return Invalid("ipqc.invalid_status",
+                $"Status must be \"Ok\" or \"Ng\"; got \"{req.Status}\".");
+
+        if (status == IpqcCheckStatus.Ng)
+        {
+            var ngErr = await ValidateNgAsync(req.NgReasonCode, req.NgNote);
+            if (ngErr is not null) return ngErr;
+        }
+
+        var check = await GetOrCreateCheckAsync(id, wo);
+
+        var ok = WoIpqcCheckService.SetItem(check, itemKey, status,
+            status == IpqcCheckStatus.Ng ? req.NgReasonCode : null,
+            status == IpqcCheckStatus.Ng ? req.NgNote : null,
+            actor, DateTime.UtcNow);
+        if (!ok)
+            return Invalid("ipqc.invalid_item",
+                $"Item \"{itemKey}\" không thuộc bộ hạng mục IPQC của WO này.");
+
+        return await CommitAndAuditAsync(id, wo, check, actor, role,
+            AuditAction.WoIpqcCheck,
+            new
+            {
+                item_key = itemKey,
                 status = status.ToString(),
                 ng_reason_code = status == IpqcCheckStatus.Ng ? req.NgReasonCode : null,
                 ng_note = status == IpqcCheckStatus.Ng ? req.NgNote : null,
@@ -255,12 +327,13 @@ public sealed class IpqcReviewController : ControllerBase
             return Invalid("ipqc.invalid_judgment",
                 $"Judgment must be GoRun / StopLine / SpecialAccept; got \"{req.Judgment}\".");
 
-        var check = await GetOrCreateCheckAsync(id);
-        var (ready, _, _) = IpqcReadinessRollup.Compute(check);
+        var check = await GetOrCreateCheckAsync(id, wo);
+        var judgItems = check.Items?.ToList();
+        var (ready, _, _) = IpqcReadinessRollup.Compute(check, judgItems);
         if (!ready)
             return Invalid("ipqc.not_ready_for_judgment",
-                "All 4 slots (Material + PrintA + PrintB + PrintC) must be resolved before judgment.");
-        if (!IpqcReadinessRollup.IsJudgmentConsistent(check, judgment))
+                "Mọi hạng mục IPQC phải được xác nhận (OK/NG) trước khi phán định.");
+        if (!IpqcReadinessRollup.IsJudgmentConsistent(check, judgItems, judgment))
             return Invalid("ipqc.judgment_inconsistent",
                 $"Judgment \"{judgment}\" is inconsistent with slot results " +
                 $"(GoRun requires all OK; SpecialAccept requires at least one NG).");
@@ -321,7 +394,7 @@ public sealed class IpqcReviewController : ControllerBase
             return Invalid("qa.invalid_outcome",
                 $"Outcome must be Approve or Reject; got \"{req.Outcome}\".");
 
-        var check = await GetOrCreateCheckAsync(id);
+        var check = await GetOrCreateCheckAsync(id, wo);
 
         // Q3 CRITICAL — dual-sig guard.
         // Always read the IPQC submitter for audit purposes, even when
@@ -387,9 +460,10 @@ public sealed class IpqcReviewController : ControllerBase
     /// <summary>Lazy-materialise the IPQC check row if absent (catches
     /// pre-migration WOs that were in PREPRESS at migration time + later
     /// advanced past SETTING). Idempotent under UNIQUE index race.</summary>
-    private async Task<WoIpqcCheck> GetOrCreateCheckAsync(long woId)
+    private async Task<WoIpqcCheck> GetOrCreateCheckAsync(long woId, WorkOrder? wo = null)
     {
-        var check = await _db.WoIpqcChecks.FirstOrDefaultAsync(c => c.WorkOrderId == woId);
+        var check = await _db.WoIpqcChecks.Include(c => c.Items)
+            .FirstOrDefaultAsync(c => c.WorkOrderId == woId);
         if (check is not null) return check;
 
         check = new WoIpqcCheck
@@ -402,8 +476,58 @@ public sealed class IpqcReviewController : ControllerBase
             Judgment = IpqcJudgment.Pending,
             QaOutcome = QaOutcome.Pending,
         };
+        // Auto-sync items (Phương án C Bước 4) khi materialize lần đầu qua
+        // mutation path. wo có thể null (caller cũ) → bỏ qua, giữ legacy.
+        if (wo is not null)
+            await MaterializeItemsIfNeededAsync(wo, check, CancellationToken.None);
         _db.WoIpqcChecks.Add(check);
         return check;
+    }
+
+    /// <summary>
+    /// Phương án C — Bước 4. Auto-sync: resolve routing của mã hàng → tập QC
+    /// line → lấy subset <see cref="CheckItemLibrary"/> (IPQC, active, scope SP)
+    /// → materialize items + ĐÓNG BĂNG snapshot vào <paramref name="check"/>.
+    ///
+    /// No-op (giữ legacy 4 slot) khi: đã đóng băng (freeze) · không có productCode
+    /// · không có routing · resolve ra 0 line · thư viện trống cho line đó.
+    /// Mutate in-place; caller SaveChanges trong cùng transaction.
+    /// </summary>
+    private async Task MaterializeItemsIfNeededAsync(WorkOrder wo, WoIpqcCheck check, CancellationToken ct)
+    {
+        // FREEZE: đã có snapshot/items → không re-resolve (sửa thư viện không hồi tố).
+        if (!string.IsNullOrWhiteSpace(check.ItemsProfileSnapshotJson)) return;
+        if (check.Items.Count > 0) return;
+
+        var productCode = await _db.Products.AsNoTracking()
+            .Where(p => p.Id == wo.ProductId)
+            .Select(p => p.ProductCode)
+            .FirstOrDefaultAsync(ct);
+        if (string.IsNullOrWhiteSpace(productCode)) return;
+
+        var ops = await _db.RoutingOperations.AsNoTracking()
+            .Where(r => r.PartNo == productCode)
+            .Select(r => new { r.OpNo, r.Operation, r.WorkCenterNo, r.WorkCenterDescription })
+            .ToListAsync(ct);
+        if (ops.Count == 0) return;
+
+        var resolution = QcLineResolver.Resolve(ops.Select(o =>
+            new QcLineResolver.RoutingOp(o.OpNo, o.Operation, o.WorkCenterNo, o.WorkCenterDescription)));
+        if (resolution.Lines.Count == 0) return;
+
+        var lines = resolution.Lines.ToList();
+        var lib = await _db.CheckItemLibraries.AsNoTracking()
+            .Where(c => c.Active && c.QcStage == "IPQC" && lines.Contains(c.ProcessLine)
+                     && (c.ProductCode == null || c.ProductCode == productCode))
+            .ToListAsync(ct);
+        if (lib.Count == 0) return;
+
+        var built = IpqcLibraryMaterializer.Build(lib, lines);
+        if (built.Items.Count == 0) return;
+
+        check.ItemsProfileSnapshotJson = built.ProfileSnapshotJson;
+        check.ResolvedLines = string.Join(",", lines);
+        foreach (var it in built.Items) check.Items.Add(it);
     }
 
     private async Task<IActionResult?> ValidateNgAsync(string? ngReasonCode, string? ngNote)
@@ -518,7 +642,7 @@ public sealed class IpqcReviewController : ControllerBase
 
         Response.Headers.ETag = $"\"{newEtagRaw}\"";
 
-        var (ready, allOk, anyNg) = IpqcReadinessRollup.Compute(check);
+        var (ready, allOk, anyNg) = IpqcReadinessRollup.Compute(check, check.Items?.ToList());
 
         var detailObj = new
         {

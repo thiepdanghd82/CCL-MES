@@ -357,6 +357,34 @@ public sealed class RecordingApi : ICclApiClient
             : PutIpqcPrintCImpl(workOrderId, ifMatchETag, req, ct);
     }
 
+    // Phương án C — Bước 6: thư viện read.
+    public Func<string?, string?, string?, CancellationToken, Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>>>? GetCheckLibraryImpl { get; set; }
+    public Func<CancellationToken, Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>>>? GetCheckLibraryLinesImpl { get; set; }
+
+    public Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>> GetCheckLibraryAsync(
+        string? line = null, string? stage = null, string? q = null, CancellationToken ct = default)
+        => GetCheckLibraryImpl is null
+            ? Task.FromResult<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>>(Array.Empty<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>())
+            : GetCheckLibraryImpl(line, stage, q, ct);
+
+    public Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>> GetCheckLibraryLinesAsync(
+        CancellationToken ct = default)
+        => GetCheckLibraryLinesImpl is null
+            ? Task.FromResult<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>>(Array.Empty<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>())
+            : GetCheckLibraryLinesImpl(ct);
+
+    // Phương án C — Bước 4: item-level IPQC PUT (data-driven).
+    public Func<long, string, string, SetIpqcItemRequest, CancellationToken, Task<IpqcSetResponse>>? PutIpqcItemImpl { get; set; }
+    public List<(long Id, string ETag, string ItemKey, SetIpqcItemRequest Req)> PutIpqcItemCalls { get; } = new();
+
+    public Task<IpqcSetResponse> PutIpqcItemAsync(long workOrderId, string ifMatchETag, string itemKey, SetIpqcItemRequest req, CancellationToken ct = default)
+    {
+        PutIpqcItemCalls.Add((workOrderId, ifMatchETag, itemKey, req));
+        return PutIpqcItemImpl is null
+            ? Task.FromResult(new IpqcSetResponse { Ok = true, ETag = ifMatchETag, MesPhase = "IPQC_WAIT" })
+            : PutIpqcItemImpl(workOrderId, ifMatchETag, itemKey, req, ct);
+    }
+
     public Task<IpqcSetResponse> PostIpqcJudgmentAsync(long workOrderId, string ifMatchETag, SubmitIpqcJudgmentRequest req, CancellationToken ct = default)
     {
         PostIpqcJudgmentCalls.Add((workOrderId, ifMatchETag, req));

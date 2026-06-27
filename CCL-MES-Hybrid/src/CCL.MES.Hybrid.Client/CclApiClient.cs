@@ -392,6 +392,14 @@ public sealed class CclApiClient : ICclApiClient
             $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/print-c",
             ifMatchETag, req, ct);
 
+    public Task<IpqcSetResponse> PutIpqcItemAsync(
+        long workOrderId, string ifMatchETag, string itemKey,
+        SetIpqcItemRequest req, CancellationToken ct = default)
+        => SendIpqcMutationAsync(
+            HttpMethod.Put,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/item/{Uri.EscapeDataString(itemKey)}",
+            ifMatchETag, req, ct);
+
     public Task<IpqcSetResponse> PostIpqcJudgmentAsync(
         long workOrderId, string ifMatchETag,
         SubmitIpqcJudgmentRequest req, CancellationToken ct = default)
@@ -602,6 +610,25 @@ public sealed class CclApiClient : ICclApiClient
         using var resp = await _http.GetAsync(path, ct);
         var rows = await ReadAsAsync<List<ReasonCodeOption>>(resp, ct);
         return rows;
+    }
+
+    public async Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>> GetCheckLibraryAsync(
+        string? line = null, string? stage = null, string? q = null, CancellationToken ct = default)
+    {
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(line)) qs.Add($"line={Uri.EscapeDataString(line)}");
+        if (!string.IsNullOrWhiteSpace(stage)) qs.Add($"stage={Uri.EscapeDataString(stage)}");
+        if (!string.IsNullOrWhiteSpace(q)) qs.Add($"q={Uri.EscapeDataString(q)}");
+        var path = $"/{ApiVersion.Prefix}/check-item-library" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
+        using var resp = await _http.GetAsync(path, ct);
+        return await ReadAsAsync<List<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>>(resp, ct);
+    }
+
+    public async Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>> GetCheckLibraryLinesAsync(
+        CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/check-item-library/lines", ct);
+        return await ReadAsAsync<List<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>>(resp, ct);
     }
 
     private Task<PrepressSetResponse> SendPrepressPutAsync(

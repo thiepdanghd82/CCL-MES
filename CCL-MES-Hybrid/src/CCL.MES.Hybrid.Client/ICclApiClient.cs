@@ -206,6 +206,21 @@ public interface ICclApiClient
         long workOrderId, string ifMatchETag,
         SetIpqcSlotRequest req, CancellationToken ct = default);
 
+    /// <summary>Phương án C — Bước 6: liệt kê thư viện hạng mục kiểm (read).</summary>
+    Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>> GetCheckLibraryAsync(
+        string? line = null, string? stage = null, string? q = null, CancellationToken ct = default);
+
+    /// <summary>Phương án C — Bước 6: tổng quan thư viện theo process line.</summary>
+    Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>> GetCheckLibraryLinesAsync(
+        CancellationToken ct = default);
+
+    /// <summary>Phương án C — Bước 4: đánh OK/NG 1 hạng mục IPQC data-driven
+    /// (auto-sync). Same contract as <see cref="PutIpqcMaterialAsync"/>;
+    /// 422 ipqc.invalid_item nếu key không thuộc bộ đã materialize.</summary>
+    Task<IpqcSetResponse> PutIpqcItemAsync(
+        long workOrderId, string ifMatchETag, string itemKey,
+        SetIpqcItemRequest req, CancellationToken ct = default);
+
     /// <summary>Submit IPQC judgment (GoRun / StopLine / SpecialAccept).
     /// Server validates: all 4 slots non-Pending; GoRun rejected when
     /// any slot=Ng; SpecialAccept requires reason 1-500 chars.

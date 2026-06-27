@@ -63,6 +63,43 @@ public sealed record IpqcView
     /// <summary>True iff at least one slot = Ng. When true, judgment
     /// must be StopLine or SpecialAccept; GoRun is server-rejected.</summary>
     public bool AnyNg { get; init; }
+
+    // ── Phương án C — Bước 2/4: data-driven items (auto-sync) ────────
+
+    /// <summary>QC line đã resolve từ routing (vd "LABEL,PRESS_CNC"). Rỗng
+    /// = WO chưa/không auto-sync được → dùng 4 slot legacy ở trên.</summary>
+    public string? ResolvedLines { get; init; }
+
+    /// <summary>Bộ hạng mục IPQC materialize từ thư viện theo process line.
+    /// Rỗng = mode legacy 4 slot (UI render 4 slot cũ). Có phần tử = mode
+    /// data-driven (UI render danh sách này; rollup tính trên đây).</summary>
+    public IReadOnlyList<IpqcViewItem> Items { get; init; } = Array.Empty<IpqcViewItem>();
+}
+
+/// <summary>Phương án C — 1 hạng mục IPQC data-driven trong view.</summary>
+public sealed record IpqcViewItem
+{
+    public string ItemKey { get; init; } = "";
+    public string? ProcessLine { get; init; }
+    public string? GroupLabel { get; init; }
+    public string? Label { get; init; }
+    public string? AcceptanceCriteria { get; init; }
+    public string? Method { get; init; }
+    public string? Severity { get; init; }
+    public string? DefectCode { get; init; }
+    public string Status { get; init; } = "Pending";
+    public string? NgReasonCode { get; init; }
+    public string? NgNote { get; init; }
+}
+
+/// <summary>Phương án C — request body cho PUT
+/// <c>/work-orders/{id}/ipqc/item/{itemKey}</c> (đánh OK/NG 1 hạng mục
+/// data-driven). Cùng luật NG như slot legacy.</summary>
+public sealed record SetIpqcItemRequest
+{
+    public string? Status { get; init; }
+    public string? NgReasonCode { get; init; }
+    public string? NgNote { get; init; }
 }
 
 /// <summary>
