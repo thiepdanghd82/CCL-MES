@@ -270,6 +270,56 @@ Phase 6 close-out 2026-05-31. Final report: [`docs/PHASE6-REPORT-2026-05-31.md`]
 - **P10.7e-3** (2026-06-08, PR #123, SHAs `26d88d0` + `a2862e9` + `ce65cb0` + `13dab5d`): UI + L21 + L23 fix. `FqcDashboard.razor` (12-item profile grid + per-item Ok/Ng + reason picker + judgment Pass/Reject gated on rollup readiness) + `OqcDashboard.razor` (28-item grid + 3-sig banner mirroring `Q3SameUserBanner` + client guards mirroring server Q5 enforcement) + `ShippedSummaryDashboard.razor` (read-only summary card from `/summary-report`) + `QcPhotoStrip` file-picker upload UI + `WoQcReviewErrorLocaliser` VN bank. L21 `OnPhaseChanged` auto-route: FQC Pass→OQC_PENDING, FQC Reject→PREPRESS, OQC Approve→SHIPPED, OQC Reject→FQC_PENDING all re-dispatch without an operator "Tìm" tap. `RunningDashboard.DeferredPhaseInfo` drops FQC_PENDING + OQC_PENDING (real dashboards own them now); `IsRunningSurfacePhaseValue` narrows. **L23 fix (Henry RCA on PR #123)**: checkpoint-7e-2's shortcut INSERT of a stub check with empty profile masked the operator-visible 0/0 gap; fixed by seeding default QC profiles (`[seed] qc_profiles fqc=12 oqc=28` boot probe) + driving the REAL materialisation path (GET /qc + PUT items) in the checkpoint. L22 stale-binary + L23 seed-trống lessons codified. Razor 99→114.
 - **P10.7e-4** (2026-06-10, PR #124 — test belt closeout): `verify-p10.7e.sh` matured to closed-out form (footer prints the 4-PR stack history + companion-script invocation + purge cleanup). `checkpoint-7e-final.sh` (26 steps per S12; walks EVERY 7e transition on ONE WO via SQL phase-shims between cycles + the real materialisation path per L23: Cycle 1 FQC Reject→PREPRESS; Cycle 2 FQC Pass→OQC_PENDING; Cycle 3 OQC 3-sig + Q5 ❶❷❸ all 3 violation paths + OQC Reject→FQC_PENDING re-loop; Cycle 4 re-pass the loop all the way to SHIPPED via 3 distinct sigs; Cycle 5 Q8 `/summary-report` returns SHIPPED + totals + qcSummary; audit wire-mirror 9/9 outgoing-quality codes; L21 wire assertion `/by-no/{wo}/summary` = SHIPPED). Refuses to run when any of the 3 OQC 3-sig flags is OFF (Q5 violations can't be proven). L22 (kill stale :5100 + build-sanity probe before route exercise) + L23 (real-path checkpoint, never shortcut INSERT) guards inline. `purge-test-audit.sh` extended for `WO_FQC_*` / `WO_OQC_*` / `WO_SHIPPED` audit rows (Action ∈ enum + ActorUsername IN the 3 seeded OQC test users) + `WoQcChecks`/`WoQcCheckItems`/`WoQcPhotos` rows (signature columns ∈ test users; child-first dependency-order delete) + the 3 `oqc-test-*` users. 7f scope proposal drafted at `CCL-MES-Hybrid/docs/p10.7f-scope-proposal.md` (Report xlsx export per CCL-10-F6 form + per-product threshold admin UI + Catalyst camera capture + ERP/IFS push) for Henry approval BEFORE closing 7e stack + tagging v0.10.7e.
 
+#### P10.8 + Prepress-scan + Plan C — bottom-up stack merge (2026-06-27)
+
+Three stacked PRs merged into `main` bottom-up the same day, each via a **merge
+commit** (no squash — preserves per-step history). Merge order enforced
+PR #126 → #124 → #125 because Plan C + prepress build directly on the
+IPQC/FQC/OQC surface that p10.8 consolidates (overlap on `IpqcDashboard.razor`,
+`CclApiClient`, `Program.cs`, `NavMenu.razor`, `MesDbContextModelSnapshot.cs` —
+the rebase-to-main dependency probe CONFLICTED, proving the stack can't detach).
+
+- **P10.8 — Machine Dashboard + p10.7e/9/10 consolidation + SpecHub UI port**
+  (PR #126, **merge `df4f593`**, 63 commits · 188 files · +21,647/−2,043). Bundles
+  the never-tagged p10.7e outgoing-quality surface (WoQc photo + FQC/OQC/Shipped
+  dashboards) + p10.8 Machine Dashboard (read-model + `GET /machines/dashboard`
+  + area/status/search filters + per-machine detail drawer + Grid/List toggle) +
+  p10.9 QMS (Inspection Queue + QC History) + p10.10 Home KPI
+  (`GET /api/v2/home/summary`) + SpecHub UI port (top bar, sidebar, WO-detail
+  7-step stepper, NPI CSV import + inline Spec editor Indigo/HP + Letterpress,
+  Shop Order History) + EN i18n + nightly backup scheduler (3-2-1). 1 migration
+  `20260613081233_AddWoMaterialScrapColumns` (WoMaterials.ScrapFactor/Percent).
+- **Prepress scan-materials + Special-Accept** (PR #124, **merge `f2c83bb`**,
+  14 commits). Client-side barcode→BOM matcher (`MaterialBarcodeMatcher`:
+  segment-before-`/` → exact `MaterialCode` → strip `-<digits>` → leading 8-digit
+  run; mã-số only, OCR-noise-safe) wired into `PrepressDashboard` scan loop
+  reusing the shipped `ScanOnceAsync` one-shot + `GuardedPutAsync` (If-Match/Idem).
+  No API contract change. +17 `MaterialBarcodeMatcherTests` + 13 PrepressDashboard
+  scan fixtures + `OeeServiceComputeTests`. CI gains a `hybrid-test` job.
+- **Plan C — data-driven QC engine** (PR #125, **merge `85d002e`**, ~12 commits).
+  `CheckItemLibrary` master data (106 items / 5 lines: LABEL 34 · PRESS_CNC 27 ·
+  SILK 25 · DIGITAL 15 · FINISHING 5) → `QcLineResolver` (data-driven
+  `ProcessLineMap`, 57 entries, longest-prefix WorkCenterPrefix + ProcessCode +
+  OpKeyword) → `IpqcLibraryMaterializer` (frozen `ItemsProfileSnapshotJson`) →
+  `WoIpqcCheckItem` shadow table (keeps 4 legacy slots). `autoSyncStatus` derived
+  flag (Materialized / SkippedUnmapped / SkippedNoLibrary / LegacyManual) so the
+  UI never silently falls back. F1 slot-guard (422 `ipqc.slot_write_in_item_mode`)
+  + F2 self-heal `TryAutoSyncAsync` + F5 library endpoints under `NpiRead`. 3
+  migrations `AddCheckItemLibrary` + `AddIpqcCheckItems` + `AddProcessLineMap`
+  (lines STRING-typed → FINISHING needs no migration). Library importer reads
+  `IPQC_Library_CMES_v3.csv`. DbSeeder upserts idempotent + NON-deleting (DR-1).
+  Hybrid API boot seeds `process_line_map total=57` + `check_item_library` (probe).
+  +17 Api tests (QcLineResolver / DataDriven / AutoSync / Library).
+
+Post-merge smoke on `main` (isolated port 5101 + seeded DB, live :5100 untouched):
+boot migration-check up-to-date; admin 200 across Machine Dashboard / QMS queue /
+QC History / Home KPI / IPQC / FQC / OQC + library (5 lines/106) + process-map (57);
+operator 403 on policy-gated QC + library routes; 401 unauth. Full suite **2140
+tests, 0 fail** (legacy 950 · Client 594 · Razor 155 · Api 441). The
+`Concurrent_run_qty_add` soak flake (L25, SQLite-macOS interleaving) is the only
+intermittent — passes on isolated retry. maccatalyst app build red is local
+toolchain only (Xcode 26.6 vs required 26.5), not code; CI builds non-app projects.
+
 ## 11. References
 
 - [README.md](README.md) — user-facing quick start
