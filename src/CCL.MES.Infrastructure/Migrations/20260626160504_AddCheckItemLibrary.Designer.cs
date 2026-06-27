@@ -3,6 +3,7 @@ using System;
 using CCL.MES.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CCL.MES.Infrastructure.Migrations
 {
     [DbContext(typeof(MesDbContext))]
-    partial class MesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260626160504_AddCheckItemLibrary")]
+    partial class AddCheckItemLibrary
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
@@ -763,57 +766,6 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("Category", "Status", "DisplayOrder");
 
                     b.ToTable("ProcessCatalogs");
-                });
-
-            modelBuilder.Entity("CCL.MES.Domain.Entities.ProcessLineMap", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("Active")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("MatchType")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("MatchValue")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Note")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("QcLine")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Sort")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MatchType", "MatchValue")
-                        .IsUnique();
-
-                    b.ToTable("ProcessLineMaps");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.Product", b =>
@@ -2187,9 +2139,6 @@ namespace CCL.MES.Infrastructure.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ItemsProfileSnapshotJson")
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Judgment")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -2263,10 +2212,6 @@ namespace CCL.MES.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("ResolvedLines")
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("SpecialAcceptReason")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
@@ -2286,84 +2231,6 @@ namespace CCL.MES.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("WoIpqcChecks");
-                });
-
-            modelBuilder.Entity("CCL.MES.Domain.Entities.WoIpqcCheckItem", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("AcceptanceCriteria")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DefectCode")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("GroupLabel")
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ItemKey")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Label")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Method")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("NgNote")
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("NgReasonCode")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ProcessLine")
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Severity")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Sort")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.Property<long>("WoIpqcCheckId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WoIpqcCheckId", "ItemKey")
-                        .IsUnique();
-
-                    b.ToTable("WoIpqcCheckItems");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoMaterial", b =>
@@ -3351,17 +3218,6 @@ namespace CCL.MES.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("CCL.MES.Domain.Entities.WoIpqcCheckItem", b =>
-                {
-                    b.HasOne("CCL.MES.Domain.Entities.WoIpqcCheck", "WoIpqcCheck")
-                        .WithMany("Items")
-                        .HasForeignKey("WoIpqcCheckId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("WoIpqcCheck");
-                });
-
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoQcCheckItem", b =>
                 {
                     b.HasOne("CCL.MES.Domain.Entities.WoQcCheck", "WoQcCheck")
@@ -3471,11 +3327,6 @@ namespace CCL.MES.Infrastructure.Migrations
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecQcWindow", b =>
                 {
                     b.Navigation("Criteria");
-                });
-
-            modelBuilder.Entity("CCL.MES.Domain.Entities.WoIpqcCheck", b =>
-                {
-                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoQcCheck", b =>

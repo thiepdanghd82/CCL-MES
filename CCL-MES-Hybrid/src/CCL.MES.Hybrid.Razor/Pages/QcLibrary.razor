@@ -1,0 +1,123 @@
+@page "/qc/library"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Shared.CheckLibrary
+@inject ICclApiClient Api
+
+@*
+    Phương án C — Bước 6. Trình duyệt THƯ VIỆN hạng mục kiểm (read-only).
+    Master data dùng cho auto-sync (Bước 4). Sửa qua import idempotent
+    (tools/import_qc_library.py) — không sửa tại đây (quyết định #4).
+*@
+
+<PageTitle>QC Library — Thư viện hạng mục kiểm</PageTitle>
+
+<h1 class="page-title">Thư viện hạng mục kiểm (QC Library)</h1>
+<p class="grid-subtitle">Master data auto-sync theo process line. Sửa qua import idempotent.</p>
+
+<div class="grid-toolbar">
+    <label>Process line:</label>
+    <select class="grid-search" value="@_line" @onchange="OnLineChanged" data-testid="qclib-line">
+        <option value="">— Tất cả —</option>
+        @foreach (var l in _lines)
+        {
+            <option value="@l.ProcessLine">@l.ProcessLine (@l.Count)</option>
+        }
+    </select>
+    <input type="search" class="grid-search" placeholder="Tìm theo mã / nội dung…"
+           value="@_q" @oninput="@(e => _q = e.Value?.ToString() ?? "")" @onkeyup="HandleKey"
+           data-testid="qclib-search" />
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+</div>
+
+@if (_error is not null)
+{
+    <div class="grid-error" role="alert" data-testid="qclib-error">
+        <strong>Lỗi tải thư viện.</strong> <div>@_error</div>
+    </div>
+}
+else if (_loading && _items is null)
+{
+    <p class="grid-status">Đang tải…</p>
+}
+else if (_items is not null)
+{
+    <p class="grid-status" data-testid="qclib-count">@_items.Count hạng mục</p>
+    <div class="grid-scroll">
+        <table class="grid grid-sticky">
+            <thead>
+                <tr>
+                    <th class="grid-h">Line</th>
+                    <th class="grid-h">ItemId</th>
+                    <th class="grid-h">Nhóm</th>
+                    <th class="grid-h">Nội dung</th>
+                    <th class="grid-h">Chấp nhận</th>
+                    <th class="grid-h">Severity</th>
+                    <th class="grid-h">Defect</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var it in _items)
+                {
+                    <tr data-testid="@($"qclib-row-{it.ItemId}")">
+                        <td><span class="ipqc-line-chip">@it.ProcessLine</span></td>
+                        <td class="scan-mono">@it.ItemId</td>
+                        <td>@it.GroupLabel</td>
+                        <td>@it.ItemVi</td>
+                        <td>@it.AcceptanceVi</td>
+                        <td>@it.Severity</td>
+                        <td class="scan-mono">@it.DefectCode</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<CheckLibraryLineDto> _lines = Array.Empty<CheckLibraryLineDto>();
+    private IReadOnlyList<CheckLibraryItemDto>? _items;
+    private string _line = "";
+    private string _q = "";
+    private bool _loading;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _lines = await Api.GetCheckLibraryLinesAsync(); }
+        catch { /* non-fatal — list still loads */ }
+        await ReloadAsync();
+    }
+
+    private async Task OnLineChanged(ChangeEventArgs e)
+    {
+        _line = e.Value?.ToString() ?? "";
+        await ReloadAsync();
+    }
+
+    private async Task HandleKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _items = await Api.GetCheckLibraryAsync(
+                string.IsNullOrWhiteSpace(_line) ? null : _line,
+                stage: null,
+                q: string.IsNullOrWhiteSpace(_q) ? null : _q);
+        }
+        catch (Exception ex)
+        {
+            _error = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

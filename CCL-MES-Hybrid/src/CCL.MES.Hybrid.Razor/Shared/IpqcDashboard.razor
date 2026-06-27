@@ -77,8 +77,8 @@
                 <span class="rs-head-phase rs-phase-ipqc">@_view.MesPhase</span>
             </div>
             <div class="ipqc-counter-pill" data-testid="ipqc-counter">
-                <span class="ipqc-counter-label">Slots confirmed</span>
-                <span class="ipqc-counter-value scan-mono">@ConfirmedCount/4</span>
+                <span class="ipqc-counter-label">@(ItemsMode ? "Hạng mục đã xác nhận" : "Slots confirmed")</span>
+                <span class="ipqc-counter-value scan-mono">@ConfirmedCount/@TotalCount</span>
             </div>
         </div>
 
@@ -92,7 +92,105 @@
             </div>
         }
 
-        @* ── 4 slot cards ─────────────────────────────────────────── *@
+        @* F2 (finding #2) — cảnh báo auto-sync bị bỏ qua, KHÔNG im lặng *@
+        @if (AutoSyncWarning is { } warn)
+        {
+            <div class="wo-card-warn" data-testid="ipqc-autosync-warning">
+                <strong>⚠ Auto-sync chưa nạp bộ hạng mục:</strong> @warn
+            </div>
+        }
+
+        @* ── Phương án C: data-driven items (auto-sync) ───────────── *@
+        @if (ItemsMode)
+        {
+            <div class="ipqc-resolved-banner" data-testid="ipqc-resolved-lines">
+                <span class="ipqc-resolved-label">QC line tự nạp theo routing:</span>
+                <span class="ipqc-resolved-value scan-mono">@_view!.ResolvedLines</span>
+                <span class="ipqc-resolved-count">@_view!.Items.Count hạng mục</span>
+            </div>
+
+            @foreach (var grp in _view!.Items.GroupBy(i => (i.ProcessLine, i.GroupLabel)))
+            {
+                <div class="ipqc-item-group" data-testid="@($"ipqc-group-{grp.Key.ProcessLine}-{Slug(grp.Key.GroupLabel)}")">
+                    <div class="ipqc-item-group-head">
+                        <span class="ipqc-line-chip">@grp.Key.ProcessLine</span>
+                        <span class="ipqc-group-title">@grp.Key.GroupLabel</span>
+                    </div>
+                    @foreach (var item in grp)
+                    {
+                        <div class="rs-card ipqc-item @ItemCssClass(item)" data-testid="@($"ipqc-item-{item.ItemKey}")">
+                            <div class="rs-card-head">
+                                <div class="rs-card-title">@item.Label</div>
+                                <div class="ipqc-status-pill @StatusPillCss(item.Status)"
+                                     data-testid="@($"ipqc-item-{item.ItemKey}-status")">@StatusDisplay(item.Status)</div>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(item.AcceptanceCriteria))
+                            {
+                                <div class="ipqc-slot-subtitle">@item.AcceptanceCriteria</div>
+                            }
+                            <div class="ipqc-slot-actions">
+                                <button type="button" class="op-btn op-btn-success ipqc-slot-btn"
+                                        disabled="@_busy"
+                                        @onclick="@(() => OnItemOkAsync(item.ItemKey))"
+                                        data-testid="@($"ipqc-item-{item.ItemKey}-ok")">OK</button>
+                                <button type="button" class="op-btn op-btn-danger ipqc-slot-btn"
+                                        disabled="@_busy"
+                                        @onclick="@(() => OpenItemNgForm(item))"
+                                        data-testid="@($"ipqc-item-{item.ItemKey}-ng")">NG</button>
+                            </div>
+
+                            @if (item.Status == "Ng" && !string.IsNullOrWhiteSpace(item.NgReasonCode))
+                            {
+                                <div class="ipqc-slot-ng-summary">
+                                    <span class="ipqc-slot-ng-label">NG code:</span>
+                                    <span class="ipqc-slot-ng-value scan-mono">@item.NgReasonCode</span>
+                                    @if (!string.IsNullOrWhiteSpace(item.NgNote))
+                                    {
+                                        <div class="ipqc-slot-ng-note">@item.NgNote</div>
+                                    }
+                                </div>
+                            }
+
+                            @if (_openNgFor == item.ItemKey)
+                            {
+                                <div class="ipqc-ng-form" data-testid="@($"ipqc-item-{item.ItemKey}-ng-form")">
+                                    <div class="ipqc-ng-field">
+                                        <label class="rs-modal-label">NG code</label>
+                                        <select class="ipqc-input" value="@_ngReasonCode"
+                                                @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
+                                                data-testid="@($"ipqc-item-{item.ItemKey}-ng-reason")">
+                                            <option value="">— select NG code —</option>
+                                            @foreach (var r in ScopedScrapReasons)
+                                            {
+                                                <option value="@r.Code">@r.Code — @r.LabelVi</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="ipqc-ng-field ipqc-ng-field-wide">
+                                        <label class="rs-modal-label">NG note (1-500)</label>
+                                        <input type="text" class="ipqc-input" maxlength="500" value="@_ngNote"
+                                               @oninput="@(e => _ngNote = e.Value?.ToString() ?? "")"
+                                               data-testid="@($"ipqc-item-{item.ItemKey}-ng-note")" />
+                                    </div>
+                                    <div class="ipqc-ng-actions">
+                                        <button type="button" class="op-btn op-btn-secondary"
+                                                @onclick="CloseNgForm"
+                                                data-testid="@($"ipqc-item-{item.ItemKey}-ng-cancel")">Cancel</button>
+                                        <button type="button" class="op-btn op-btn-danger"
+                                                disabled="@(!CanSubmitNg() || _busy)"
+                                                @onclick="@(() => OnItemNgAsync(item.ItemKey))"
+                                                data-testid="@($"ipqc-item-{item.ItemKey}-ng-submit")">Save NG</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        }
+        else
+        {
+        @* ── 4 slot cards (legacy fallback) ───────────────────────── *@
         <div class="ipqc-slot-grid">
             @foreach (var slot in _slots)
             {
@@ -182,6 +280,7 @@
                 </div>
             }
         </div>
+        }
 
         @* ── Judgment row ───────────────────────────────────────── *@
         <div class="rs-card ipqc-judgment" data-testid="ipqc-judgment">
@@ -320,11 +419,113 @@
         new("print-c",  "Print C — Content", "Text content + barcode match spec"),
     };
 
-    private int ConfirmedCount => _view is null ? 0 :
-        (_view.MaterialStatus != "Pending" ? 1 : 0)
-        + (_view.PrintAStatus != "Pending" ? 1 : 0)
-        + (_view.PrintBStatus != "Pending" ? 1 : 0)
-        + (_view.PrintCStatus != "Pending" ? 1 : 0);
+    /// <summary>Phương án C — data-driven khi server trả về Items (auto-sync
+    /// đã materialize từ thư viện). Rỗng → mode 4-slot legacy.</summary>
+    private bool ItemsMode => _view is not null && _view.Items.Count > 0;
+
+    /// <summary>F2 — câu cảnh báo khi auto-sync KHÔNG nạp được bộ item (null = không cảnh báo).</summary>
+    private string? AutoSyncWarning => _view?.AutoSyncStatus switch
+    {
+        "SkippedUnmapped" => "Routing có công đoạn chưa khai báo trong bảng map process→line. Báo kỹ thuật bổ sung map; tạm dùng 4-slot thủ công.",
+        "SkippedNoLibrary" => "Đã suy ra QC line nhưng thư viện hạng mục trống cho line đó. Báo QC nạp thư viện.",
+        _ => null,
+    };
+
+    private int TotalCount => ItemsMode ? _view!.Items.Count : 4;
+
+    private int ConfirmedCount => _view is null ? 0
+        : ItemsMode
+            ? _view.Items.Count(i => i.Status != "Pending")
+            : (_view.MaterialStatus != "Pending" ? 1 : 0)
+              + (_view.PrintAStatus != "Pending" ? 1 : 0)
+              + (_view.PrintBStatus != "Pending" ? 1 : 0)
+              + (_view.PrintCStatus != "Pending" ? 1 : 0);
+
+    private static string Slug(string? s) =>
+        new string((s ?? "").Where(char.IsLetterOrDigit).ToArray());
+
+    /// <summary>Phương án C — Bước 5: mã lỗi NG SCOPE theo process line. Lọc
+    /// catalog Scrap về đúng những DefectCode của bộ item đã materialize (vốn
+    /// đã line-scoped). Rỗng → lùi về full catalog (an toàn, không chặn cứng).</summary>
+    private IReadOnlyList<ReasonCodeOption> ScopedScrapReasons
+    {
+        get
+        {
+            if (!ItemsMode) return ScrapReasons;
+            var allow = _view!.Items
+                .Where(i => !string.IsNullOrWhiteSpace(i.DefectCode))
+                .Select(i => i.DefectCode!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (allow.Count == 0) return ScrapReasons;
+            var scoped = ScrapReasons.Where(r => allow.Contains(r.Code)).ToList();
+            return scoped.Count > 0 ? scoped : ScrapReasons;
+        }
+    }
+
+    private static string ItemCssClass(IpqcViewItem item) => item.Status switch
+    {
+        "Ok" => "ipqc-slot-ok",
+        "Ng" => "ipqc-slot-ng",
+        _    => "ipqc-slot-pending",
+    };
+
+    // ── Item (data-driven) mutation calls ───────────────────────────
+
+    private Task OnItemOkAsync(string itemKey) =>
+        SubmitItemAsync(itemKey, new SetIpqcItemRequest { Status = "Ok" });
+
+    private void OpenItemNgForm(IpqcViewItem item)
+    {
+        if (_busy) return;
+        _openNgFor = item.ItemKey;
+        // Gợi ý mã lỗi mặc định của hạng mục (từ thư viện) nếu hợp lệ trong catalog.
+        _ngReasonCode = (!string.IsNullOrWhiteSpace(item.NgReasonCode)
+            ? item.NgReasonCode
+            : (ScrapReasons.Any(r => r.Code == item.DefectCode) ? item.DefectCode : "")) ?? "";
+        _ngNote = item.NgNote ?? "";
+    }
+
+    private async Task OnItemNgAsync(string itemKey)
+    {
+        if (!CanSubmitNg()) return;
+        await SubmitItemAsync(itemKey, new SetIpqcItemRequest
+        {
+            Status = "Ng",
+            NgReasonCode = _ngReasonCode,
+            NgNote = _ngNote,
+        });
+    }
+
+    private async Task SubmitItemAsync(string itemKey, SetIpqcItemRequest req)
+    {
+        if (_view is null || _busy) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var resp = await Api.PutIpqcItemAsync(WorkOrderId, _view.ETag, itemKey, req);
+            await HandleSetResponseAsync(resp);
+            if (resp.Ok) CloseNgForm();
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = IpqcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = $"Could not connect to the server: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {

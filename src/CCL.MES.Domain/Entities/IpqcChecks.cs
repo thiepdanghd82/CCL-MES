@@ -92,4 +92,56 @@ public class WoIpqcCheck : BaseEntity
     //    RowVersion via the existing SQLite UPDATE trigger so an
     //    optimistic-lock conflict at the entity level is impossible
     //    without the parent first conflicting. ───────────────────────
+
+    // ── Phương án C — Bước 2: data-driven IPQC (SHADOW, additive) ────
+    // Giữ NGUYÊN 4 slot cứng ở trên (legacy parity). Khi auto-sync
+    // (Bước 4) materialize được bộ item từ CheckItemLibrary theo process
+    // line resolve từ routing, các item rơi vào collection dưới đây và
+    // <see cref="ItemsProfileSnapshotJson"/> đóng băng đúng-thời-điểm
+    // (mirror WoQcCheck.ProfileSnapshotJson — sửa thư viện KHÔNG hồi tố).
+    // Rollup ưu tiên Items khi có; rỗng → lùi về 4 slot cũ.
+
+    /// <summary>Snapshot thư viện đóng băng lúc materialize (shape giống
+    /// QcProfileSeed: {name, sections:[{id,title,items:[{key,label,spec,method,...}]}]}).
+    /// NULL = WO cũ chưa materialize item → dùng 4 slot legacy.</summary>
+    public string? ItemsProfileSnapshotJson { get; set; }
+
+    /// <summary>QC line đã resolve cho WO này (vd "LABEL,PRESS_CNC") — audit/hiển thị.</summary>
+    [MaxLength(128)] public string? ResolvedLines { get; set; }
+
+    public ICollection<WoIpqcCheckItem> Items { get; set; } = new List<WoIpqcCheckItem>();
+}
+
+/// <summary>
+/// Phương án C — Bước 2. Hạng mục IPQC data-driven (1:nhiều với
+/// <see cref="WoIpqcCheck"/>), mirror <c>WoQcCheckItem</c>. Mỗi item bắt
+/// nguồn từ <see cref="CheckItemLibrary"/> (qua resolver+auto-sync Bước 3/4)
+/// nhưng được FREEZE vào row khi tạo — sửa thư viện sau đó không đổi item
+/// đang chạy. Natural lookup = (WoIpqcCheckId, ItemKey).
+/// </summary>
+public class WoIpqcCheckItem : BaseEntity
+{
+    public long WoIpqcCheckId { get; set; }
+    public WoIpqcCheck? WoIpqcCheck { get; set; }
+
+    /// <summary>Khóa item — dùng <see cref="CheckItemLibrary.ItemId"/> (vd "LBL-A1");
+    /// item legacy materialize từ 4 slot dùng key "material/print-a/print-b/print-c".</summary>
+    [MaxLength(64)] public string ItemKey { get; set; } = "";
+
+    /// <summary>QC line nguồn (LABEL/DIGITAL/SILK/PRESS_CNC) — cho scope mã lỗi (Bước 5).</summary>
+    [MaxLength(16)] public string? ProcessLine { get; set; }
+
+    [MaxLength(128)] public string? GroupLabel { get; set; }
+    [MaxLength(512)] public string? Label { get; set; }
+    [MaxLength(512)] public string? AcceptanceCriteria { get; set; }
+    [MaxLength(256)] public string? Method { get; set; }
+    [MaxLength(64)] public string? Severity { get; set; }
+    /// <summary>Mã defect mặc định của hạng mục (gợi ý khi đánh NG) — từ thư viện.</summary>
+    [MaxLength(64)] public string? DefectCode { get; set; }
+
+    public IpqcCheckStatus Status { get; set; } = IpqcCheckStatus.Pending;
+    [MaxLength(64)] public string? NgReasonCode { get; set; }
+    [MaxLength(500)] public string? NgNote { get; set; }
+
+    public int Sort { get; set; }
 }

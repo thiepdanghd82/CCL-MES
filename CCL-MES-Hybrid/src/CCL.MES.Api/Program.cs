@@ -506,6 +506,30 @@ using (var bootScope = app.Services.CreateScope())
                 Console.WriteLine($"[boot] Reason-code seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
             }
 
+            // Phương án C — Bước 1/6: thư viện hạng mục + map process→line.
+            // Hybrid API KHÔNG gọi full DbSeeder.SeedAsync (tránh demo data +
+            // write contention), nên seed riêng ở đây — chống "seed quên chạy"
+            // (auto-sync F6 cần ProcessLineMaps có dữ liệu). Idempotent, best-effort.
+            try
+            {
+                var lib = await CCL.MES.Infrastructure.DbSeeder.SeedCheckItemLibraryAutoAsync(bootDb);
+                if (lib is { } r)
+                    Console.WriteLine($"[seed] check_item_library inserted={r.LibInserted} updated={r.LibUpdated} reason_added={r.ReasonAdded}");
+            }
+            catch (Exception seedEx)
+            {
+                Console.WriteLine($"[boot] check_item_library seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
+            }
+            try
+            {
+                var m = await CCL.MES.Infrastructure.DbSeeder.SeedProcessLineMapAsync(bootDb);
+                Console.WriteLine($"[seed] process_line_map inserted={m.Inserted} updated={m.Updated} total={m.Total}");
+            }
+            catch (Exception seedEx)
+            {
+                Console.WriteLine($"[boot] process_line_map seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
+            }
+
             // P10.7d-1 §5.5.1 — dual-sig boot probe. Default-ON discipline:
             // anything other than an explicit OFF token leaves the gate
             // enforced. Emitting the flag state at boot lets operators

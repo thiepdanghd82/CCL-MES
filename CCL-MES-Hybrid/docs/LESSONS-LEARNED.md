@@ -89,6 +89,12 @@
 - [L23 — Checkpoint MUST walk the real materialisation path; shortcut INSERTs mask data-bed gaps (seed-trống / profile-trống) that operators WILL hit](#l23)
 - [L24 — ALL data tables freeze their header on scroll via ONE global rule; never add per-table sticky CSS — and verify the maccatalyst build by exit code, never by grepping stdout](#l24)
 
+### Data-driven QC engine (Phương án C)
+
+- [L25 — Suspected regression? Prove it against a stashed baseline before blaming your change — a `Category=Soak` SQLite-macOS flake fails the same way whether your code is present or not](#l25)
+- [L26 — Classification rules (process→line) belong in a DATA table, not hardcoded keyword/StartsWith lists; and a lazy-materialise that can no-op MUST report a status, never fall back silently](#l26)
+- [L27 — A new taxonomy value (QC line) added with ZERO migration when stored as a string token; and re-verify GATE numbers against the current MAP, not a frozen baseline from the old logic](#l27)
+
 ---
 
 ## Lesson cards
@@ -339,6 +345,42 @@
 | **Root cause** | (1) `position: sticky; top: 0` pins to the **nearest scrolling ancestor**. The app's real scroll root was the document body (`.app-shell { min-height: 100vh }` let content grow past the viewport, so `.app-content`'s `overflow:auto` never engaged), so per-table sticky in non-scroll-container tables had nothing to pin to. (2) A pipeline's exit code is the **last** command's (`head`, always 0); `set -o pipefail` was absent; and `cmd \| grep \| head && open` lets a build failure fall through to relaunch. Grepping stdout for "Build succeeded" is not verification — `-v q` prints nothing for an up-to-date build and a hard `NETSDK1147` error prints to a line `head` can hide. |
 | **Fix** | (1) **Make `.app-content` the single bounded scroll container** (`.app-shell { height: 100vh; grid-template-rows: 100vh }` + `min-height: 0` on `.app-main`/`.app-content` + `overflow-y:auto` on `.app-nav` so the sidebar scrolls itself). Then **ONE global zero-specificity rule** freezes every table header: `:where(.app-content thead th){ position: sticky; top: 0; z-index: 4; background: #f8fafc; }`. `:where()` = 0 specificity, so each table's own header colour/position still wins and tables with no header background get the tint fallback (rows never bleed through). This covers all current tables (Shop Order History, Machine List, every NPI-data table, QC History, audit log, accounts, backup, spec sub-tables) AND every future table automatically — no per-table CSS. Tables that ALSO need their own bounded vertical scroll (very long, e.g. Machine List) may add a local `.md-list-scroll`-style wrapper, but the header freeze itself is never re-implemented. (2) **Build verification by exit code**: `set -o pipefail` + read `${PIPESTATUS[0]}`/`$?`, or grep for `"error\|Error(s)"` and assert `0 Error(s)`; then **confirm the change actually reached the bundle** (`grep -c <new-token> "<App>/Contents/Resources/wwwroot/_content/CCL.MES.Hybrid.Razor/css/app.css"`) before `open`. Never gate `open` on a `\| head` of build stdout. |
 | **Cơ chế chặn tái phát** | (a) **Standing CSS rule (this file + the comment block at `:where(.app-content thead th)` in `app.css`)**: frozen table headers are GLOBAL. Any PR that adds `position: sticky` to a `thead th` for an individual table, or wraps a table solely to get a sticky header, is redundant and rejected in review — the global rule already covers it. New tables inherit the freeze for free; the author does nothing. (b) **Standing build rule**: a maccatalyst rebuild is "done" only when (i) the build exit code is 0 / `0 Error(s)` AND (ii) a freshly-added token is grep-confirmed inside the `.app` bundle's static assets. The `cmd | grep | head && open` shape is banned — it hid a 2-day-stale bundle. If `NETSDK1147` appears, the workload is gone (SDK bumped) → `sudo dotnet workload restore` from `CCL-MES-Hybrid/src/CCL.MES.Hybrid` before any further "fixed it" claim. (c) **Class lesson**: cross-cutting UI affordances (sticky headers, focus rings, page-title styling) belong in ONE global rule keyed off the shell, not sprinkled per-component; and any "build + relaunch" one-liner must fail loudly, never silently relaunch stale bits. |
+
+---
+
+<a id="l25"></a>
+### L25 — Prove a suspected regression against a stashed baseline before blaming your change; a `Category=Soak` flake fails the same way regardless
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Sau khi land Phương án C (B2-B4), `dotnet test CCL.MES.Api.Tests` báo 1 fail: `Concurrent_run_qty_add_N_equals_10_exactly_one_winner` — kỳ vọng 1 winner, nhận 4–8. Chạy isolated vẫn fail (số winner dao động 7/5/4). Test ở `RunningSurfaceController` — KHÔNG phải surface mà Plan C đụng (IPQC), nhưng "fail ngay sau thay đổi của mình" → dễ kết luận nhầm là regression do mình. |
+| **Root cause** | Đây là flake interleaving SQLite-trên-macOS đã được tài liệu hoá (CLAUDE.md §P10.7c-4: "soak filter inversion as dedicated Step 2.5 with 2-attempt policy for the documented SQLite macOS interleaving flake"), gắn `[Trait("Category","Soak")]`. Optimistic-lock qua WorkOrders RowVersion trigger không serialize tuyệt đối dưới 10 request song song trong WebApplicationFactory + SQLite — số winner phụ thuộc timing, không phụ thuộc code Plan C. |
+| **Fix** | `git stash push -u` toàn bộ thay đổi → chạy CHÍNH test đó trên baseline 4 lần: kết quả 1✅ / 1❌(4) / 1✅ / 1❌(7) → baseline cũng flaky. `git stash pop` khôi phục. Kết luận: KHÔNG phải regression. CI/verify chạy soak riêng (`--filter Category!=Soak` cho suite chính; soak 2-attempt). Báo cáo "đã chạy/đã xanh" của Plan C dùng `Category!=Soak` cho con số ổn định. |
+| **Cơ chế chặn tái phát** | (a) **Quy trình bắt buộc**: nghi regression mà test nằm NGOÀI vùng mình sửa → `git stash -u` + chạy ≥3 lần trên baseline TRƯỚC khi tuyên bố. Nếu baseline cũng fail → flake, không phải mình. (b) Suite chính chạy `--filter Category!=Soak`; soak tests luôn tách + 2-attempt (đã có trong `verify-p10.7c.sh` Step 2.5). (c) Bài học phụ — **commit data-driven đụng EF shared files** (MesDbContext/IMesDbContext/MesDbContextModelSnapshot) KHÔNG path-split được khi không có `git add -p`; gộp theo compile-unit (B1+B2 chung 1 commit) thay vì cố tách theo bước → mỗi commit vẫn biên dịch. |
+
+---
+
+<a id="l26"></a>
+### L26 — Classification rules belong in a DATA table, not hardcoded keyword lists; a lazy-materialise that can no-op MUST report a status, never silently fall back
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | `/code-review` của Phương án C ra finding #3 + #7: `QcLineResolver` map process→QC line bằng ~30 `ContainsAny`/`StartsWith` hardcode trong code. (#7) `wc.StartsWith("SS") && !wc.StartsWith("SSC")` quá rộng — mã WC mới 'SS01'/'SSX' bị phân loại SILK sai. Thêm máy/đổi quy ước WC = sửa code resolver mỗi lần (không scale 10 nhà máy). Finding #2: auto-sync materialize no-op (không routing/library) IM LẶNG lùi về 4-slot → operator không biết bộ item chưa nạp; nếu routing tới sau, WO kẹt 4-slot vĩnh viễn (materialize chỉ chạy lúc tạo row). |
+| **Root cause** | (a) Luật phân loại là DỮ LIỆU vận hành (thay đổi theo nhà máy/thiết bị) nhưng bị nhốt trong code. (b) `WorkCenter.Area` auto-derive trong import sai (Power press PPSC1 → "SILKSCREEN") nên không dùng được → resolver buộc đoán bằng substring lỏng. (c) Lazy-materialise chỉ có 2 nhánh (materialize / no-op) + không trả trạng thái → caller/UI không phân biệt "đã nạp" vs "bỏ qua vì unmapped" vs "thư viện trống". |
+| **Fix** | (a) **Bảng `ProcessLineMap`** (MatchType ProcessCode/WorkCenterPrefix/OpKeyword → QcLine LABEL/DIGITAL/SILK/PRESS_CNC/NONE, Sort, Active) + `ProcessLineMapSeed.DefaultEntries()` dùng CHUNG cho DbSeeder (upsert idempotent) và unit test. Resolver `Resolve(ops, map)` tra bảng: ProcessCode → WorkCenterPrefix (DÀI nhất) → OpKeyword (chứa, Sort nhỏ) → Unmapped. Gỡ TOÀN BỘ keyword hardcode + cái `StartsWith("SS")` rộng → 'SS01' nay Unmapped. NONE = hợp lệ (pre-press/sấy/FQC/OQC), khác Unmapped. (b) Map theo định danh máy (WC prefix) thay vì động từ "CUT" → tránh nhập nhằng 'SheetCut(SS)'. (c) `TryAutoSyncAsync` trả status; GET self-heal khi check rỗng + pristine; DTO `autoSyncStatus` ∈ {Materialized, SkippedUnmapped, SkippedNoLibrary, LegacyManual} + UI banner cảnh báo; KHÔNG đè dữ liệu operator (slot ≠ Pending → LegacyManual). |
+| **Cơ chế chặn tái phát** | `QcLineResolverTests` (data-driven qua `MapFromSeed()`; khoá 'SS01'/'SSX'/'SS7'→Unmapped + routing thật 8064) · `IpqcAutoSyncTests.ProcessLineMap_seed_is_idempotent` · `IpqcAutoSyncControllerTests` (F2a self-heal khi routing tới sau · F2b SkippedUnmapped không nạp item · F2c không đè slot legacy) · `CheckItemLibraryControllerTests.ProcessMap_endpoint_*`. Quy tắc: luật phân loại mới → THÊM DÒNG vào `ProcessLineMapSeed`, KHÔNG thêm `if/StartsWith` vào resolver (PR review reject). |
+
+---
+
+<a id="l27"></a>
+### L27 — Taxonomy value added with zero migration (string token); re-verify GATE numbers against the MAP, not a frozen baseline
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Sau khi seed map data-driven (F6) lên live, re-verify GATE A: 2/4 mã 8064 LỆCH baseline hardcode (80645392: 42→67, 80640044: 52→86). Thoạt nhìn như regression F6. Đồng thời cần thêm "line" QC thứ 5 (FINISHING) cho công đoạn cán — lo phải thêm migration + enum. |
+| **Root cause** | (a) Số 42/52 baseline là kết quả của resolver KEYWORD CŨ (desc "SILK"/"CUT" thắng máy). Map data-driven ưu tiên ĐỊNH DANH MÁY nên phân loại khác — đúng QC hơn nhưng khác số cũ. So GATE với baseline cũ = báo "sai" cho một mapping thực ra ĐÚNG. (b) `ProcessLineMap.QcLine` + `CheckItemLibrary.ProcessLine` + `WoIpqcCheckItem.ProcessLine` đều lưu **string** (HasMaxLength, KHÔNG HasConversion&lt;enum&gt;) → thêm giá trị "FINISHING" chỉ là dữ liệu seed, KHÔNG cần migration/đổi schema. |
+| **Fix** | (a) Sửa GIÁ TRỊ map cho khớp QC thật (QĐ#6 SheetCut(SS)→PRESS_CNC; QĐ#7 Laminate/Slit/Magic→line mới FINISHING + 5 item FIN-* trong thư viện v3). (b) Thêm FINISHING = thêm const + dòng seed + item thư viện — 0 migration. (c) Re-verify GATE bằng cách: mỗi delta vs baseline cũ PHẢI giải thích được bằng một dòng map; delta KHÔNG giải thích được mới là regression. Kết quả mới: 61/42/57/32 — mọi delta khớp QĐ#6/#7. |
+| **Cơ chế chặn tái phát** | `QcLineResolverTests.Q1_sheetcut_is_presscnc_not_silk` + `Q2_lamination_is_finishing_not_label_or_silk` (khoá phân loại mới) · `Real_library_parses_to_106_items_across_5_lines` (khoá 5 line + FINISHING=5) · `IpqcAutoSyncControllerTests`/live GATE A (số khớp map). Quy tắc: taxonomy QC mở rộng bằng DỮ LIỆU (string token + seed), không enum-migration; GATE verify theo map hiện hành, baseline cũ chỉ để truy delta. |
 
 ---
 

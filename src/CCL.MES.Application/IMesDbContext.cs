@@ -59,6 +59,11 @@ public interface IMesDbContext
     DbSet<WoQtyEntry> WoQtyEntries { get; }
     // P10.7d-1 — IPQC review surface (per contract §5.5).
     DbSet<WoIpqcCheck> WoIpqcChecks { get; }
+    // Phương án C — Bước 1/2: thư viện hạng mục + IPQC items data-driven.
+    DbSet<CheckItemLibrary> CheckItemLibraries { get; }
+    DbSet<WoIpqcCheckItem> WoIpqcCheckItems { get; }
+    // Phương án C — Bước 6: map process→QC line (data-driven, quyết định #5).
+    DbSet<ProcessLineMap> ProcessLineMaps { get; }
     // P10.7e-1 Q3+Q6 — FQC + OQC data-driven surface + photo evidence.
     DbSet<WoQcCheck> WoQcChecks { get; }
     DbSet<WoQcCheckItem> WoQcCheckItems { get; }
