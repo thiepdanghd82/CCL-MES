@@ -384,6 +384,17 @@
 
 ---
 
+### L28 — QC Library admin (import xlsx + inline edit): one upsert, app-managed concurrency, freeze-safe
+
+| | |
+|---|---|
+| **Triệu chứng** | `/qc/library` (CheckItemLibrary, 106 item/5 line) chỉ đọc; cần (1) import .xlsx, (2) thêm/sửa/ẩn dòng trực tiếp — NHƯNG: (a) dễ phân nhánh logic upsert giữa boot-seed CSV và UI-import → divergence; (b) SQLite KHÔNG có rowversion native cho optimistic-concurrency; (c) sửa/import thư viện có nguy cơ hồi tố WO đang chạy. |
+| **Root cause** | (a) Boot seed (`DbSeeder.SeedCheckItemLibraryAsync`) đã có upsert idempotent + mở rộng ReasonCode; viết importer riêng cho UI sẽ nhân đôi luật. (b) `[Timestamp] byte[]` kiểu WorkOrder cần SQLite trigger (phức tạp). (c) Materialize đóng băng ở `WoIpqcCheck.ItemsProfileSnapshotJson` + `Items` — nhưng phải có test KHẲNG ĐỊNH edit master không đụng vào đó. |
+| **Fix** | (a) Tách `CheckItemLibraryImporter` (Application, dùng `IMesDbContext`) chứa `ApplyRow` + `UpsertAsync` (idempotent theo `ItemId` + ReasonCode); **`DbSeeder` delegate vào nó** → CSV seed + XLSX import đi CHUNG một upsert. `ImportAsync` thêm validate strict `ProcessLine ∈ {LABEL,DIGITAL,SILK,PRESS_CNC,FINISHING}` + per-row errors; Severity/Group **lenient** (dữ liệu v3 là "◆ Critical"/"A·…"). (b) `RowVersion` = **string app-managed** (GUID, bump mỗi update thật) + `IsConcurrencyToken()` (không trigger); PUT set `Entry().Property(RowVersion).OriginalValue = If-Match` → 409 khi stale. Migration additive (type-affinity strip). (c) Mọi mutation chỉ chạm `CheckItemLibraries`/`ReasonCodes`; write = class `NpiRead` AND method `Roles=Admin,Supervisor,Engineer` (QC read-only, operator 403); hard-delete Admin-only; mọi mutation có audit (`CHECK_ITEM_LIBRARY_*`). |
+| **Cơ chế chặn tái phát** | `CheckItemLibraryImporterTests`: `Import_inserts_then_reimport_is_idempotent` (re-import = 0 net), `Import_rejects_invalid_processline_without_silent_seed`, `Xlsx_parse_skips_row_missing_required_field`, **`Import_does_not_retro_change_a_materialized_WO_snapshot`** (freeze). `CheckItemLibraryControllerTests`: `Import_rejects_non_xlsx_with_422`, `Import_valid_xlsx_inserts_rows`, `Add_then_duplicate_returns_422`, `Edit_happy_then_stale_returns_409`, `SoftDelete_hides_from_default_list_but_visible_with_includeInactive`, `Operator_cannot_write_add`, `Engineer_can_add`. Quy tắc: master-data admin → một upsert dùng chung (seed+import), concurrency token string app-managed trên SQLite, freeze = test khẳng định snapshot WO không đổi. |
+
+---
+
 ## Adding a new lesson
 
 When a new bug class costs ≥2 hours of investigation:

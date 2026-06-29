@@ -530,3 +530,44 @@ The `exit 1` MUST go through the cleanup trap. NEVER bare-`exit` from inside a m
 **Invariants to keep**: state-machine + dual-sig untouched (additive only); freeze = editing the library NEVER mutates an in-flight WO (prove live: old WO item-count unchanged after a library edit, new WO picks up the change).
 
 **Cơ chế chặn**: `QcLineResolverTests`, `IpqcDataDrivenTests` (rollup parity + materializer), `IpqcAutoSyncTests` (end-to-end resolve→materialize→freeze + no-routing fallback), `CheckItemLibraryControllerTests` (scope), `IpqcDashboardItemsTests` (UI items-mode). See [L25](./LESSONS-LEARNED.md#l25) + `docs/lessons-learned/02-ipqc-data-driven-autosync.md`.
+
+---
+
+### S14 — Master-data admin: import xlsx + inline edit (one upsert · app-managed RowVersion · freeze guard)
+
+Adding admin write (import + add/edit/soft-delete) to a read-only reference table
+(e.g. `CheckItemLibrary` at `/qc/library`). Pattern proven on `feat/qc-library-admin`.
+
+1. **One shared upsert.** Put the idempotent upsert (match by natural key, "update
+   only on real change", side-effects like ReasonCode expansion) in an Application
+   service (`CheckItemLibraryImporter.UpsertAsync(IMesDbContext, rows, actor)`).
+   The boot seeder **delegates** to it (`DbSeeder` → `UpsertAsync`) so CSV-seed and
+   UI-import never diverge. `ImportAsync` wraps it with input validation + per-row
+   errors.
+2. **Parser per format, ONE row shape + ONE `ParseResult`.** `QcCheckLibraryCsv`
+   (positional CSV) and `QcCheckLibraryXlsx` (ClosedXML — already a dep, no new
+   NU1903 package) both emit `QcCheckLibraryCsv.ParseResult` → same downstream.
+   Endpoint accepts `.xlsx` only (422 otherwise) + a `template` download endpoint.
+3. **Validation = strict where defined, lenient where data is messy.** ProcessLine
+   ∈ a fixed set → reject; Severity/Group are free-text in real data ("◆ Critical",
+   "A·…") → don't enum-gate or you'll skip the existing library on re-import.
+4. **Optimistic concurrency on SQLite WITHOUT a trigger.** App-managed `string
+   RowVersion` (new GUID on every real update) + `IsConcurrencyToken()`. On PUT set
+   `((DbContext)db).Entry(e).Property(x => x.RowVersion).OriginalValue = ifMatch`,
+   bump the value, SaveChanges → `DbUpdateConcurrencyException` → 409. Migration is a
+   plain additive TEXT column (type-affinity strip per CLAUDE.md §4.5).
+5. **Write policy = class read-policy AND method roles.** Class `[Authorize(NpiRead)]`
+   + method `[Authorize(Roles="Admin,Supervisor,Engineer")]` → QC stays read-only,
+   operator 403, no new policy needed. Hard-delete `[Authorize(Roles="Admin")]`.
+   Every mutation emits an audit code (`CHECK_ITEM_LIBRARY_ADD/EDIT/DEACTIVATE/DELETE/IMPORT`).
+6. **Soft-delete first.** `PATCH {id}/active` toggles `Active`; list hides inactive by
+   default, `?includeInactive=true` for the admin grid. Hard-delete is the Admin-only
+   exception.
+7. **Freeze guard is a TEST, not a comment.** Master edits touch only the master
+   table; assert a materialized WO snapshot/item is byte-for-byte unchanged after an
+   edit (`Import_does_not_retro_change_a_materialized_WO_snapshot`).
+
+**Cơ chế chặn**: `CheckItemLibraryImporterTests` (idempotent · enum-reject · xlsx
+missing-col skip · freeze) + `CheckItemLibraryControllerTests` (422 non-xlsx · valid
+import · dup 422 · stale 409 · soft-delete visibility · operator 403 · engineer 200).
+See [L28](./LESSONS-LEARNED.md). Builds on [S13](#s13-—-data-driven-qc-auto-sync-resolver-routingline--lazy-materialize-from-library--freeze-snapshot).
