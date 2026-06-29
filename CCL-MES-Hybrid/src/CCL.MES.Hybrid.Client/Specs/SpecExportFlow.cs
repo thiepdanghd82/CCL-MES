@@ -16,7 +16,9 @@ public interface ISpecExportDownloads
         string destinationFilePath, CancellationToken ct = default);
 
     Task<long> DownloadSpecSheetPdfAsync(
-        long revisionId, string destinationFilePath, CancellationToken ct = default);
+        long revisionId, string destinationFilePath,
+        string? pageSize = null, string? orientation = null,
+        CancellationToken ct = default);
 }
 
 /// <summary>
@@ -69,8 +71,10 @@ public sealed class SpecExportFlow
             => _inner.DownloadSpecListExportAsync(format, search, view, planner, destinationFilePath, ct);
 
         public Task<long> DownloadSpecSheetPdfAsync(
-            long revisionId, string destinationFilePath, CancellationToken ct = default)
-            => _inner.DownloadSpecSheetPdfAsync(revisionId, destinationFilePath, ct);
+            long revisionId, string destinationFilePath,
+            string? pageSize = null, string? orientation = null,
+            CancellationToken ct = default)
+            => _inner.DownloadSpecSheetPdfAsync(revisionId, destinationFilePath, pageSize, orientation, ct);
     }
 
     /// <summary>
@@ -121,13 +125,15 @@ public sealed class SpecExportFlow
         string refNoOrSpecCode,
         string revisionCode,
         bool openAfterSave,
+        string? pageSize = null,
+        string? orientation = null,
         CancellationToken ct = default)
     {
         var sandboxDir = _opener.GetSafeDownloadDirectory();
         var stampedName = StampedSheetFilename(refNoOrSpecCode, revisionCode, DateTime.Now);
         var sandboxPath = Path.Combine(sandboxDir, stampedName);
 
-        var bytes = await _api.DownloadSpecSheetPdfAsync(revisionId, sandboxPath, ct);
+        var bytes = await _api.DownloadSpecSheetPdfAsync(revisionId, sandboxPath, pageSize, orientation, ct);
         var save = await _saver.SaveAsync(sandboxPath, stampedName, ct);
         return await FinaliseAsync(save, sandboxPath, stampedName, openAfterSave, bytes, ct);
     }

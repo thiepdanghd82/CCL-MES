@@ -123,6 +123,18 @@ public sealed class SpecExportFlowTests
     }
 
     [Fact]
+    public async Task ExportSheetPdfAsync_forwards_page_options_to_api()
+    {
+        var (flow, api, _, _) = BuildFlow(SaveOutcome.Success("/tmp/operator/sheet.pdf"));
+        await flow.ExportSheetPdfAsync(
+            revisionId: 7, refNoOrSpecCode: "REF-7", revisionCode: "A",
+            openAfterSave: false, pageSize: "A3", orientation: "Landscape");
+
+        Assert.Equal("A3", api.LastSheetPageSize);
+        Assert.Equal("Landscape", api.LastSheetOrientation);
+    }
+
+    [Fact]
     public async Task ExportListAsync_throws_on_unknown_format()
     {
         var (flow, _, _, _) = BuildFlow(SaveOutcome.Cancelled);
@@ -197,6 +209,8 @@ public sealed class SpecExportFlowTests
         public string? LastListView { get; private set; }
         public string? LastListPlanner { get; private set; }
         public long? LastSheetRevisionId { get; private set; }
+        public string? LastSheetPageSize { get; private set; }
+        public string? LastSheetOrientation { get; private set; }
 
         public Task<long> DownloadSpecListExportAsync(
             string format, string? search, string view, string? planner,
@@ -213,10 +227,14 @@ public sealed class SpecExportFlowTests
         }
 
         public Task<long> DownloadSpecSheetPdfAsync(
-            long revisionId, string destinationFilePath, CancellationToken ct = default)
+            long revisionId, string destinationFilePath,
+            string? pageSize = null, string? orientation = null,
+            CancellationToken ct = default)
         {
             SheetDownloadCalls++;
             LastSheetRevisionId = revisionId;
+            LastSheetPageSize = pageSize;
+            LastSheetOrientation = orientation;
             Directory.CreateDirectory(Path.GetDirectoryName(destinationFilePath)!);
             File.WriteAllBytes(destinationFilePath, new byte[] { 1, 2, 3, 4 });
             return Task.FromResult<long>(4);

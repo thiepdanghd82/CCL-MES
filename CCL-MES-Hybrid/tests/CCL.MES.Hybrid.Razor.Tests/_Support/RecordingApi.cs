@@ -549,7 +549,7 @@ public sealed class RecordingApi : ICclApiClient
     public Task<QcPlanUpsertResponse> UpsertQcPlanStageAsync(long r, QcPlanUpsertRequest req, CancellationToken c = default) => throw new NotImplementedException();
     public Task<QcCaptureItem> CreateQcCaptureAsync(long r, QcCaptureCreateRequest req, CancellationToken c = default) => throw new NotImplementedException();
     public Task<long> DownloadSpecListExportAsync(string a, string? b, string d, string? e, string f, CancellationToken c = default) => throw new NotImplementedException();
-    public Task<long> DownloadSpecSheetPdfAsync(long a, string b, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<long> DownloadSpecSheetPdfAsync(long a, string b, string? ps = null, string? o = null, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SettingsProfileDto> GetMyProfileAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<SettingsProfileDto> UpdateMyProfileAsync(UpdateProfileRequest r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<ChangePasswordResponse> ChangeMyPasswordAsync(ChangePasswordRequest r, CancellationToken c = default) => throw new NotImplementedException();

@@ -1086,9 +1086,18 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
     }
 
     public Task<long> DownloadSpecSheetPdfAsync(
-        long revisionId, string destinationFilePath, CancellationToken ct = default)
+        long revisionId, string destinationFilePath,
+        string? pageSize = null, string? orientation = null,
+        CancellationToken ct = default)
     {
         var path = $"/{ApiVersion.Prefix}/specs/export/{revisionId}/sheet/pdf";
+        var q = new List<string>();
+        if (!string.IsNullOrWhiteSpace(pageSize))
+            q.Add($"pageSize={Uri.EscapeDataString(pageSize)}");
+        if (!string.IsNullOrWhiteSpace(orientation))
+            q.Add($"orientation={Uri.EscapeDataString(orientation)}");
+        if (q.Count > 0)
+            path += "?" + string.Join("&", q);
         return StreamToFileAsync(path, destinationFilePath, ct);
     }
 

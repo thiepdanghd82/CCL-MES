@@ -3,6 +3,7 @@ using CCL.MES.Application.SpecDetail;
 using CCL.MES.Application.SpecExport;
 using CCL.MES.Domain;
 using CCL.MES.Infrastructure.SpecExport;
+using MigraDoc.DocumentObjectModel;
 using Xunit;
 
 namespace CCL.MES.Tests.Integration;
@@ -55,6 +56,92 @@ public class SpecPdfDispatchTests
         var bytes = new PdfSpecSheetExporter().Export(BuildGenericEmpty("INDIGO"), Ctx);
         Assert.NotEmpty(bytes);
         AssertPdfMagicHeader(bytes);
+    }
+
+    // ── Print PDF paper size + orientation (toolbar pickers) ───────────
+
+    [Fact]
+    public void Detail_sheet_defaults_to_A4_portrait()
+    {
+        var setup = SpecPdfDocumentBuilder
+            .BuildDetailSheet(BuildFlexo(), Ctx).LastSection.PageSetup;
+        Assert.Equal(PageFormat.A4, setup.PageFormat);
+        Assert.Equal(Orientation.Portrait, setup.Orientation);
+    }
+
+    [Theory]
+    [InlineData("A3", "Landscape", PageFormat.A3, Orientation.Landscape)]
+    [InlineData("letter", "landscape", PageFormat.Letter, Orientation.Landscape)]
+    [InlineData("Legal", "Portrait", PageFormat.Legal, Orientation.Portrait)]
+    [InlineData("bogus", "bogus", PageFormat.A4, Orientation.Portrait)] // unknown → safe defaults
+    public void Detail_sheet_applies_page_size_and_orientation(
+        string pageSize, string orientation, PageFormat expectedFormat, Orientation expectedOrientation)
+    {
+        var setup = SpecPdfDocumentBuilder
+            .BuildDetailSheet(BuildFlexo(), Ctx, pageSize, orientation).LastSection.PageSetup;
+        Assert.Equal(expectedFormat, setup.PageFormat);
+        Assert.Equal(expectedOrientation, setup.Orientation);
+    }
+
+    [Fact]
+    public void Detail_sheet_landscape_A3_renders_non_empty_pdf()
+    {
+        var bytes = new PdfSpecSheetExporter().Export(BuildFlexo(), Ctx, "A3", "Landscape");
+        Assert.NotEmpty(bytes);
+        AssertPdfMagicHeader(bytes);
+    }
+
+    [Theory]
+    [InlineData("Portrait", false)]
+    [InlineData("Landscape", true)]
+    public void Rendered_pdf_page_width_exceeds_height_only_in_landscape(
+        string orientation, bool expectWide)
+    {
+        var bytes = new PdfSpecSheetExporter().Export(BuildFlexo(), Ctx, "A4", orientation);
+        using var ms = new MemoryStream(bytes);
+        var pdf = PdfSharp.Pdf.IO.PdfReader.Open(ms, PdfSharp.Pdf.IO.PdfDocumentOpenMode.ReadOnly);
+        var page = pdf.Pages[0];
+        var isWide = page.Width.Point > page.Height.Point;
+        Assert.Equal(expectWide, isWide);
+    }
+
+    // Fit-to-page: detail-sheet tables must widen to fill the chosen paper so
+    // landscape / A3 don't leave a big right-hand gap (SpecHub parity fix).
+    private static double WidestTableCm(MigraDoc.DocumentObjectModel.Document doc)
+    {
+        double max = 0;
+        var section = doc.LastSection!;
+        foreach (var item in section.Elements)
+        {
+            if (item is MigraDoc.DocumentObjectModel.Tables.Table t)
+            {
+                double sum = 0;
+                foreach (MigraDoc.DocumentObjectModel.Tables.Column c in t.Columns)
+                    sum += c.Width.Centimeter;
+                if (sum > max) max = sum;
+            }
+        }
+        return max;
+    }
+
+    [Fact]
+    public void Detail_sheet_tables_scale_wider_to_fill_landscape_and_a3()
+    {
+        var portraitA4 = WidestTableCm(
+            SpecPdfDocumentBuilder.BuildDetailSheet(BuildFlexo(), Ctx, "A4", "Portrait"));
+        var landscapeA4 = WidestTableCm(
+            SpecPdfDocumentBuilder.BuildDetailSheet(BuildFlexo(), Ctx, "A4", "Landscape"));
+        var landscapeA3 = WidestTableCm(
+            SpecPdfDocumentBuilder.BuildDetailSheet(BuildFlexo(), Ctx, "A3", "Landscape"));
+
+        // Landscape widens vs portrait; A3 widens further still.
+        Assert.True(landscapeA4 > portraitA4 + 1.0,
+            $"landscape ({landscapeA4:F1}cm) should exceed portrait ({portraitA4:F1}cm)");
+        Assert.True(landscapeA3 > landscapeA4 + 1.0,
+            $"A3 landscape ({landscapeA3:F1}cm) should exceed A4 landscape ({landscapeA4:F1}cm)");
+        // A4 landscape widest table fills most of the ~27.3cm content width.
+        Assert.True(landscapeA4 > 24.0,
+            $"A4 landscape table ({landscapeA4:F1}cm) should fill most of the 27.3cm content area");
     }
 
     [Fact]

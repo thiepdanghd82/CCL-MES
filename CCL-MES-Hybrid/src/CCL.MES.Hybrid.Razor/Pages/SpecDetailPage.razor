@@ -5,6 +5,7 @@
 @inject IJSRuntime JS
 @inject CCL.MES.Hybrid.Client.Files.IFileOpener FileOpener
 @inject CCL.MES.Hybrid.Client.Files.IFileSaver FileSaver
+@inject CCL.MES.Hybrid.Client.Printing.IDocumentPrintService DirectPrint
 @using CCL.MES.Hybrid.Client.Specs
 @using CCL.MES.Hybrid.Client.Files
 @using CCL.MES.Hybrid.Razor.Shared
@@ -77,12 +78,34 @@
             </AuthorizeView>
         }
 
-        @* Print sheet PDF — pushed to the far right of the toolbar. *@
-        <button type="button" class="grid-btn grid-btn-secondary spec-print-pdf"
-                disabled="@_exporting"
-                @onclick="ExportSheetPdfAsync">
-            @(_exporting ? "Generating PDF…" : "🖨 Print PDF")
-        </button>
+        @* Print sheet PDF — pushed to the far right of the toolbar.
+           Paper size + orientation pickers feed the server-side PDF render. *@
+        <div class="spec-print-group" title="Khổ giấy & hướng giấy cho PDF">
+            <select class="spec-print-select" disabled="@_exporting"
+                    aria-label="Khổ giấy" @bind="_pdfPageSize">
+                <option value="A4">A4</option>
+                <option value="A3">A3</option>
+                <option value="A5">A5</option>
+                <option value="Letter">Letter</option>
+                <option value="Legal">Legal</option>
+            </select>
+            <select class="spec-print-select" disabled="@_exporting"
+                    aria-label="Hướng giấy" @bind="_pdfOrientation">
+                <option value="Portrait">Dọc (Portrait)</option>
+                <option value="Landscape">Ngang (Landscape)</option>
+            </select>
+            <button type="button" class="grid-btn grid-btn-secondary spec-print-direct"
+                    disabled="@_exporting"
+                    title="In trực tiếp bản spec đang xem qua hộp thoại in của hệ thống"
+                    @onclick="PrintDirectAsync">
+                🖨 In trực tiếp
+            </button>
+            <button type="button" class="grid-btn grid-btn-secondary spec-print-pdf"
+                    disabled="@_exporting"
+                    @onclick="ExportSheetPdfAsync">
+                @(_exporting ? "Generating PDF…" : "🖨 Print PDF")
+            </button>
+        </div>
     }
 </div>
 
@@ -199,7 +222,9 @@ else if (_detail is not null && _vm is not null)
                     }
                     else if (_fullMode)
                     {
-                        <SpecShowcardFull Vm="(_vmFull ?? _vm)" />
+                        <div class="spec-print-area">
+                            <SpecShowcardFull Vm="(_vmFull ?? _vm)" />
+                        </div>
                         <SpecDrawingShowcards Previews="_drawingPreviews" />
                     }
                     else
@@ -344,6 +369,11 @@ else if (_detail is not null && _vm is not null)
     private string? _exportBanner;
     private string _exportBannerKind = "info";
     private string? _exportSandboxPath;
+
+    // Print PDF paper options (bound to the toolbar pickers). Defaults mirror
+    // the historical server render (A4 portrait).
+    private string _pdfPageSize = "A4";
+    private string _pdfOrientation = "Portrait";
 
     private static readonly (string Key, string Label)[] _tabs = new[]
     {
@@ -1043,7 +1073,9 @@ else if (_detail is not null && _vm is not null)
                 _detail.Id,
                 _detail.RefNo ?? _detail.SpecCode,
                 _detail.RevisionCode,
-                openAfterSave: true);
+                openAfterSave: true,
+                pageSize: _pdfPageSize,
+                orientation: _pdfOrientation);
             RenderExportOutcome(outcome);
         }
         catch (ApiException apiEx)
@@ -1059,6 +1091,60 @@ else if (_detail is not null && _vm is not null)
         catch (Exception ex)
         {
             _exportBanner = $"PDF export failed: {ex.Message}";
+            _exportBannerKind = "danger";
+        }
+        finally
+        {
+            _exporting = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Direct print — sends the on-screen full spec to the system print
+    /// dialog (printer or "Save as PDF") via window.print(). The toolbar
+    /// paper-size + orientation feed a temporary @page rule; app.css
+    /// @media print isolates the .spec-print-area so app chrome is hidden.
+    /// Switches into Full mode first so there is always a sheet to print.
+    /// </summary>
+    private async Task PrintDirectAsync()
+    {
+        if (_detail is null || _exporting) return;
+        _exporting = true;
+        _exportBanner = "Đang chuẩn bị bản in…";
+        _exportBannerKind = "info";
+        _exportSandboxPath = null;
+        StateHasChanged();
+        try
+        {
+            // Build the server PDF at the chosen paper + orientation (already
+            // full-page-fit), then hand it to the OS print panel (printer
+            // chooser). Web hosts / no native bridge → fall back to opening it.
+            var jobName = $"Spec {_detail.RefNo ?? _detail.SpecCode} Rev {_detail.RevisionCode}";
+            var dir = FileOpener.GetSafeDownloadDirectory();
+            var path = System.IO.Path.Combine(dir,
+                $"SpecPrint_{_detail.RefNo ?? _detail.SpecCode}_{_detail.RevisionCode}.pdf");
+
+            await Api.DownloadSpecSheetPdfAsync(_detail.Id, path, _pdfPageSize, _pdfOrientation);
+
+            if (DirectPrint.IsSupported)
+            {
+                var shown = await DirectPrint.PrintPdfFileAsync(path, jobName);
+                _exportBanner = shown
+                    ? "Đã mở hộp thoại in."
+                    : "Không mở được hộp thoại in — đã lưu PDF, hãy mở để in.";
+                _exportBannerKind = shown ? "info" : "danger";
+                if (!shown) { _exportSandboxPath = path; }
+            }
+            else
+            {
+                // Web fallback: try browser print, else point to the PDF.
+                await JS.InvokeVoidAsync("cclMesPrint.printSpec", _pdfPageSize, _pdfOrientation);
+            }
+        }
+        catch (Exception ex)
+        {
+            _exportBanner = $"In trực tiếp lỗi: {ex.Message}. Hãy dùng \"Print PDF\" rồi in từ trình xem PDF.";
             _exportBannerKind = "danger";
         }
         finally

@@ -496,10 +496,15 @@ public interface ICclApiClient
     /// Stream the single-spec sheet PDF (mirror of web PR #31d) to
     /// <paramref name="destinationFilePath"/>. Same chunked-download
     /// semantics as <see cref="DownloadSpecListExportAsync"/>.
+    /// <paramref name="pageSize"/> (A4 / A3 / A5 / Letter / Legal) and
+    /// <paramref name="orientation"/> (Portrait / Landscape) pick the PDF
+    /// paper; null on either falls back to the server default (A4 portrait).
     /// </summary>
     Task<long> DownloadSpecSheetPdfAsync(
         long revisionId,
         string destinationFilePath,
+        string? pageSize = null,
+        string? orientation = null,
         CancellationToken ct = default);
 
     // ── Settings — My Profile + My Password (P10.6a) ────────────────

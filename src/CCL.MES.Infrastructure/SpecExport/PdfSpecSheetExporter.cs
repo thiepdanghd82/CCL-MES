@@ -25,11 +25,15 @@ public class PdfSpecSheetExporter
     /// Build PDF bytes cho 1 spec detail. Filename pattern (caller decide):
     /// `SpecSheet_<RefNo>_Rev<RevCode>_<yyyyMMdd>.pdf`.
     /// </summary>
-    public byte[] Export(SpecDetailDto detail, SpecExportContext context)
+    public byte[] Export(
+        SpecDetailDto detail,
+        SpecExportContext context,
+        string? pageSize = null,
+        string? orientation = null)
     {
         EnsureFontResolverInitialized();
 
-        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(detail, context);
+        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(detail, context, pageSize, orientation);
         var renderer = new PdfDocumentRenderer { Document = doc };
         renderer.RenderDocument();
 

@@ -67,7 +67,10 @@ public static class SpecPdfDocumentBuilder
     /// (4 sub-section per category — silk colors / flexo print / flexo cut /
     /// flexo ink + signatures).
     /// </summary>
-    public static Document BuildEmpty(string title, MigraDocOrientation orientation = MigraDocOrientation.Landscape)
+    public static Document BuildEmpty(
+        string title,
+        MigraDocOrientation orientation = MigraDocOrientation.Landscape,
+        PageFormat pageFormat = PageFormat.A4)
     {
         // Local alias to keep the API parameter name self-explanatory.
         // (Keeps `MigraDocOrientation` only in the parameter signature.)
@@ -80,7 +83,7 @@ public static class SpecPdfDocumentBuilder
         styles["Normal"]!.Font.Size = StyleConstants.TableFontPt;
 
         var section = doc.AddSection();
-        section.PageSetup.PageFormat = PageFormat.A4;
+        section.PageSetup.PageFormat = pageFormat;
         section.PageSetup.Orientation = orientation;
         section.PageSetup.TopMargin = "1.5cm";
         section.PageSetup.BottomMargin = "1.5cm";
@@ -90,6 +93,65 @@ public static class SpecPdfDocumentBuilder
         section.PageSetup.FooterDistance = "0.6cm";
 
         return doc;
+    }
+
+    /// <summary>
+    /// Map a caller-supplied paper-size token (case-insensitive) to a MigraDoc
+    /// <see cref="PageFormat"/>. Unknown / empty → A4 (the standard sheet size).
+    /// Kept string-based so the API + client layers never reference MigraDoc.
+    /// </summary>
+    public static PageFormat ParsePageFormat(string? pageSize) =>
+        (pageSize?.Trim().ToUpperInvariant()) switch
+        {
+            "A3" => PageFormat.A3,
+            "A5" => PageFormat.A5,
+            "LETTER" => PageFormat.Letter,
+            "LEGAL" => PageFormat.Legal,
+            _ => PageFormat.A4,
+        };
+
+    /// <summary>
+    /// Map a caller-supplied orientation token (case-insensitive) to a MigraDoc
+    /// <see cref="MigraDocOrientation"/>. Unknown / empty → Portrait (the detail
+    /// sheet's historical default).
+    /// </summary>
+    public static MigraDocOrientation ParseOrientation(string? orientation) =>
+        string.Equals(orientation?.Trim(), "Landscape", StringComparison.OrdinalIgnoreCase)
+            ? MigraDocOrientation.Landscape
+            : MigraDocOrientation.Portrait;
+
+    // ── Fit-to-page width scaling (SpecHub parity) ───────────────────────
+    // The detail-sheet tables were authored with fixed cm widths that fill an
+    // A4 PORTRAIT content area (~18.6 cm). On wider papers / landscape they
+    // left a big right-hand gap. We scale every detail-sheet column width by
+    // (page content width / A4-portrait base) so the sheet fills the chosen
+    // paper — exactly the "scale snapshot to fit the sheet" trick SpecHub used.
+    // A4 portrait → scale 1.0 (unchanged); A4 landscape → ~1.47; A3 → bigger.
+    private const double BaseContentWidthCm = 18.6; // A4 portrait minus 1.2cm×2 margins
+
+    [ThreadStatic] private static double _sheetWidthScale;
+
+    /// <summary>Scaled centimetre Unit for detail-sheet columns. Falls back to
+    /// 1.0 (no scaling) when called outside a BuildDetailSheet scope.</summary>
+    private static Unit Cm(double cm)
+        => Unit.FromCentimeter(cm * (_sheetWidthScale > 0 ? _sheetWidthScale : 1.0));
+
+    /// <summary>Portrait content width (cm) for a paper format, minus the
+    /// 1.2cm × 2 side margins used by <see cref="BuildEmpty"/>.</summary>
+    private static double ContentWidthScale(PageFormat fmt, MigraDocOrientation orient)
+    {
+        // (portraitWidthCm, portraitHeightCm)
+        (double w, double h) = fmt switch
+        {
+            PageFormat.A3 => (29.7, 42.0),
+            PageFormat.A5 => (14.8, 21.0),
+            PageFormat.Letter => (21.59, 27.94),
+            PageFormat.Legal => (21.59, 35.56),
+            _ => (21.0, 29.7), // A4
+        };
+        var pageWidthCm = orient == MigraDocOrientation.Landscape ? h : w;
+        var contentCm = pageWidthCm - 2.4;
+        return contentCm / BaseContentWidthCm;
     }
 
     /// <summary>
@@ -202,12 +264,35 @@ public static class SpecPdfDocumentBuilder
     /// Build single-spec detail sheet PDF (PR #31d Q4). Reuse BuildEmpty +
     /// StyleConstants từ PR #31c. 9 section mirror web detail render.
     /// </summary>
-    public static Document BuildDetailSheet(SpecDetailDto detail, SpecExportContext context)
+    public static Document BuildDetailSheet(
+        SpecDetailDto detail,
+        SpecExportContext context,
+        string? pageSize = null,
+        string? orientation = null)
     {
+        var fmt = ParsePageFormat(pageSize);
+        var orient = ParseOrientation(orientation);
         var doc = BuildEmpty(
             title: $"Spec Sheet {detail.RefNo ?? detail.SpecCode} Rev {detail.RevisionCode}",
-            orientation: MigraDocOrientation.Portrait);
+            orientation: orient,
+            pageFormat: fmt);
         var section = doc.LastSection;
+
+        // Scale detail-sheet column widths to fill the chosen paper.
+        _sheetWidthScale = ContentWidthScale(fmt, orient);
+        try
+        {
+            return BuildDetailSheetBody(doc, section, detail, context);
+        }
+        finally
+        {
+            _sheetWidthScale = 0; // reset so other builds (list view) are unscaled
+        }
+    }
+
+    private static Document BuildDetailSheetBody(
+        Document doc, Section section, SpecDetailDto detail, SpecExportContext context)
+    {
 
         // Page footer
         var ftr = section.Footers.Primary.AddParagraph();
@@ -289,9 +374,9 @@ public static class SpecPdfDocumentBuilder
         t.Borders.Bottom.Width = 1.5;
         // PR-A: navy header band bottom border (đồng nhất app theme)
         t.Borders.Bottom.Color = Color.Parse(StyleConstants.PrimaryColorHex);
-        t.AddColumn(Unit.FromCentimeter(6));
-        t.AddColumn(Unit.FromCentimeter(7));
-        t.AddColumn(Unit.FromCentimeter(5));
+        t.AddColumn(Cm(6));
+        t.AddColumn(Cm(7));
+        t.AddColumn(Cm(5));
         var row = t.AddRow();
         // Left
         var pCo = row.Cells[0].AddParagraph("Công ty TNHH CCL Design Việt Nam");
@@ -426,7 +511,7 @@ public static class SpecPdfDocumentBuilder
             ? new[] { d.CustomerName ?? "—", d.ProductCode, d.ProductName, "—",
                       d.ProductSizeDisplay, d.SubstrateType ?? "—" }
             : SilkProductValues(d);
-        foreach (var _ in headers) t.AddColumn(Unit.FromCentimeter(2.8));
+        foreach (var _ in headers) t.AddColumn(Cm(2.8));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -475,7 +560,7 @@ public static class SpecPdfDocumentBuilder
         var t = section.AddTable();
         ApplyTableBorders(t);
         t.Format.Font.Size = 8;
-        for (int i = 0; i < 4; i++) t.AddColumn(Unit.FromCentimeter(4.5));
+        for (int i = 0; i < 4; i++) t.AddColumn(Cm(4.5));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -507,7 +592,7 @@ public static class SpecPdfDocumentBuilder
         // 8 essential cols (rest fit in landscape would be needed) — portrait constraint
         var hdr = new[] { "No", "Sur", "Color", "Ink Code", "Maker", "Mesh", "Plate Code", "Remark" };
         var widths = new[] { 0.7, 0.8, 3.2, 1.8, 1.5, 1.5, 2.0, 6.5 };
-        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Cm(widths[i]));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -536,7 +621,7 @@ public static class SpecPdfDocumentBuilder
         t.Format.Font.Size = 7;
         var hdr = new[] { "Process", "Material", "Size", "Cyl", "Pitch", "Speed", "Plt Cav" };
         var widths = new[] { 3.5, 3.5, 2.0, 1.5, 2.0, 2.0, 1.5 };
-        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Cm(widths[i]));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -564,7 +649,7 @@ public static class SpecPdfDocumentBuilder
         t.Format.Font.Size = 7;
         var hdr = new[] { "Process", "Lamination", "Cutter Name", "Pcs/Sh", "Cavity", "Pitch", "Packing" };
         var widths = new[] { 3.5, 2.5, 3.0, 1.3, 1.3, 1.5, 2.9 };
-        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Cm(widths[i]));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -592,7 +677,7 @@ public static class SpecPdfDocumentBuilder
         t.Format.Font.Size = 7;
         var hdr = new[] { "No", "Color", "Ink Code", "Description", "Brand", "Anilox", "Plate", "UV" };
         var widths = new[] { 0.7, 2.5, 1.8, 4.0, 1.8, 1.8, 1.8, 1.6 };
-        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Cm(widths[i]));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -620,8 +705,8 @@ public static class SpecPdfDocumentBuilder
             var t = section.AddTable();
             ApplyTableBorders(t);
             t.Format.Font.Size = 8;
-            t.AddColumn(Unit.FromCentimeter(9));
-            t.AddColumn(Unit.FromCentimeter(9));
+            t.AddColumn(Cm(9));
+            t.AddColumn(Cm(9));
             var hRow = t.AddRow();
             hRow.HeadingFormat = true;
             hRow.Format.Font.Bold = true;
@@ -645,10 +730,10 @@ public static class SpecPdfDocumentBuilder
         var t = section.AddTable();
         ApplyTableBorders(t);
         t.Format.Font.Size = 8;
-        t.AddColumn(Unit.FromCentimeter(1.5));
-        t.AddColumn(Unit.FromCentimeter(11.5));
-        t.AddColumn(Unit.FromCentimeter(2.5));
-        t.AddColumn(Unit.FromCentimeter(2.5));
+        t.AddColumn(Cm(1.5));
+        t.AddColumn(Cm(11.5));
+        t.AddColumn(Cm(2.5));
+        t.AddColumn(Cm(2.5));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -681,7 +766,7 @@ public static class SpecPdfDocumentBuilder
         var t = section.AddTable();
         ApplyTableBorders(t);
         t.Format.Font.Size = 7;
-        for (int i = 0; i < 4; i++) t.AddColumn(Unit.FromCentimeter(4.5));
+        for (int i = 0; i < 4; i++) t.AddColumn(Cm(4.5));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;

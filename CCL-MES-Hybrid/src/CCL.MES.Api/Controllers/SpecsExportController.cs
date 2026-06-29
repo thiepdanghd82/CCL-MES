@@ -95,7 +95,10 @@ public sealed class SpecsExportController : ControllerBase
     /// tail so future kinds (xlsx-sheet, csv-sheet) can slot in.
     /// </summary>
     [HttpGet("{revisionId:long}/sheet/pdf")]
-    public async Task<IActionResult> SheetPdf(long revisionId)
+    public async Task<IActionResult> SheetPdf(
+        long revisionId,
+        [FromQuery] string? pageSize = null,
+        [FromQuery] string? orientation = null)
     {
         try
         {
@@ -110,7 +113,7 @@ public sealed class SpecsExportController : ControllerBase
                 GeneratedBy: ActorName(),
                 Culture: CultureInfo.InvariantCulture);
 
-            var bytes = _sheetPdf.Export(detail, ctx);
+            var bytes = _sheetPdf.Export(detail, ctx, pageSize, orientation);
             var filename = SpecExportFilename.SheetPdf(
                 detail.RefNo, detail.SpecCode, detail.RevisionCode, ctx.GeneratedAt);
 
@@ -128,6 +131,8 @@ public sealed class SpecsExportController : ControllerBase
                     ref_no = detail.RefNo,
                     spec_code = detail.SpecCode,
                     revision_code = detail.RevisionCode,
+                    page_size = pageSize,
+                    orientation,
                     filename,
                     content_length = bytes.Length,
                 }));

@@ -2542,7 +2542,53 @@ html, body {
     padding: 0;
     margin: 0;
 }
-.spec-print-pdf { margin-left: auto; }
+.spec-print-pdf { margin-left: 0; }
+/* Print PDF cluster: paper-size + orientation pickers next to the button,
+   pushed to the far right of the toolbar (mirrors the old single-button layout). */
+.spec-print-group {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.spec-print-select {
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--border, #cdd5df);
+    border-radius: 6px;
+    background: #fff;
+    font-size: 0.82rem;
+    color: #1f2933;
+    cursor: pointer;
+}
+.spec-print-select:disabled { opacity: 0.55; cursor: default; }
+
+/* Direct print (🖨 In trực tiếp) — isolate the full spec sheet so the
+   system print dialog renders ONLY the spec, not the app shell/toolbar.
+   Visibility (not display:none) keeps table layout intact; the print area
+   is lifted to the page origin so blank chrome leaves no leading gap. */
+@media print {
+    html, body {
+        height: auto !important;
+        overflow: visible !important;
+        background: #fff !important;
+    }
+    body * { visibility: hidden !important; }
+    .spec-print-area, .spec-print-area * { visibility: visible !important; }
+    .spec-print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    /* Let long tables break across pages instead of being clipped. */
+    .spec-print-area table { page-break-inside: auto; }
+    .spec-print-area tr { page-break-inside: avoid; }
+}
 .spec-action-banner-row { margin: 0 0 14px; }
 .spec-action-banner-row .spec-action-banner { margin-left: 0; }
 

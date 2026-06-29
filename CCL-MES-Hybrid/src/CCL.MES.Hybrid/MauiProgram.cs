@@ -3,6 +3,7 @@ using CCL.MES.Hybrid.Client;
 using CCL.MES.Hybrid.Client.Auth;
 using CCL.MES.Hybrid.Client.Connectivity;
 using CCL.MES.Hybrid.Client.Hardware;
+using CCL.MES.Hybrid.Client.Printing;
 using CCL.MES.Hybrid.Razor;
 using CCL.MES.Hybrid.Services;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -169,6 +170,10 @@ public static class MauiProgram
         // when no logged-in user.
         builder.Services.AddHostedService<DeviceHeartbeatHostedService>();
 
+        // Direct-print bridge. Default no-op (web window.print() can't open
+        // the maccatalyst print panel); Catalyst replaces it below.
+        builder.Services.AddSingleton<IDocumentPrintService, NoopDocumentPrintService>();
+
 #if MACCATALYST || IOS
         // P10.3 W2 — Mac Catalyst camera scanner (AVFoundation). Drops
         // in over the StubBarcodeScannerService + StubDeviceSettings-
@@ -177,6 +182,9 @@ public static class MauiProgram
             CCL.MES.Hybrid.Platforms.MacCatalyst.CatalystBarcodeScanner>());
         builder.Services.Replace(ServiceDescriptor.Singleton<IDeviceSettingsLauncher,
             CCL.MES.Hybrid.Platforms.MacCatalyst.MauiCatalystDeviceSettingsLauncher>());
+        // Native print panel (printer chooser + fit-to-paper) for the spec sheet.
+        builder.Services.Replace(ServiceDescriptor.Singleton<IDocumentPrintService,
+            CCL.MES.Hybrid.Platforms.MacCatalyst.CatalystDocumentPrintService>());
 #endif
 
         return builder.Build();

@@ -188,3 +188,45 @@ window.cclMesPdf = (() => {
 
     return { render, dispose };
 })();
+
+// ── Direct print (cclMesPrint) ───────────────────────────────────────
+// Print the on-screen full spec straight to the system print dialog
+// (printer or "Save as PDF"). A temporary @page rule carries the paper
+// size + orientation chosen in the toolbar; the actual element isolation
+// (hide app chrome, show only .spec-print-area) lives in app.css @media
+// print. The @page <style> is removed after printing so it never leaks
+// into the next print.
+window.cclMesPrint = (() => {
+    const STYLE_ID = 'ccl-print-page-style';
+
+    function applyPageRule(pageSize, orientation) {
+        const prev = document.getElementById(STYLE_ID);
+        if (prev) prev.remove();
+        const size = (pageSize || 'A4').trim();
+        const orient = (orientation || '').trim().toLowerCase() === 'landscape'
+            ? 'landscape' : 'portrait';
+        const style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.textContent = '@page { size: ' + size + ' ' + orient + '; margin: 10mm; }';
+        document.head.appendChild(style);
+    }
+
+    function clearPageRule() {
+        const s = document.getElementById(STYLE_ID);
+        if (s) s.remove();
+    }
+
+    function printSpec(pageSize, orientation) {
+        applyPageRule(pageSize, orientation);
+        // Let the @page rule settle before opening the print panel.
+        window.setTimeout(function () {
+            try { window.print(); }
+            finally { /* afterprint listener clears the rule */ }
+        }, 60);
+    }
+
+    // Clean up the injected @page rule once printing finishes / is cancelled.
+    window.addEventListener('afterprint', clearPageRule);
+
+    return { printSpec };
+})();
