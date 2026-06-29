@@ -59,4 +59,13 @@ public class CheckItemLibrary : BaseEntity
 
     public bool Active { get; set; } = true;
     public int Sort { get; set; }
+
+    /// <summary>
+    /// Optimistic-concurrency token for inline edit (Bước 2 admin). App-managed
+    /// string (new GUID on every real update — see DbSeeder.ApplyRow bump +
+    /// CheckItemLibraryController.Update). Configured as an EF concurrency token
+    /// in MesDbContext so a stale If-Match PUT raises DbUpdateConcurrencyException
+    /// → 409. SQLite has no native rowversion, hence the app-managed string.
+    /// </summary>
+    public string RowVersion { get; set; } = Guid.NewGuid().ToString("N");
 }

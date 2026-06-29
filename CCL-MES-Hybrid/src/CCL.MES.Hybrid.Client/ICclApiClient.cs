@@ -206,13 +206,38 @@ public interface ICclApiClient
         long workOrderId, string ifMatchETag,
         SetIpqcSlotRequest req, CancellationToken ct = default);
 
-    /// <summary>Phương án C — Bước 6: liệt kê thư viện hạng mục kiểm (read).</summary>
+    /// <summary>Phương án C — Bước 6: liệt kê thư viện hạng mục kiểm (read).
+    /// <paramref name="includeInactive"/> = true cho trang admin (hiện cả dòng đã soft-delete).</summary>
     Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>> GetCheckLibraryAsync(
-        string? line = null, string? stage = null, string? q = null, CancellationToken ct = default);
+        string? line = null, string? stage = null, string? q = null,
+        bool includeInactive = false, CancellationToken ct = default);
 
     /// <summary>Phương án C — Bước 6: tổng quan thư viện theo process line.</summary>
     Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>> GetCheckLibraryLinesAsync(
         CancellationToken ct = default);
+
+    // ── QC Library admin (feat/qc-library-admin) ────────────────────
+    /// <summary>Bước 1 — import .xlsx (idempotent). Trả summary inserted/updated/skipped + errors.</summary>
+    Task<CCL.MES.Shared.CheckLibrary.CheckLibraryImportResultDto?> ImportCheckLibraryAsync(
+        string fileName, byte[] content, CancellationToken ct = default);
+
+    /// <summary>Bước 1 — tải template .xlsx (bytes) để điền.</summary>
+    Task<byte[]> DownloadCheckLibraryTemplateAsync(CancellationToken ct = default);
+
+    /// <summary>Bước 2 — thêm 1 dòng (422 nếu trùng/invalid).</summary>
+    Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> AddCheckLibraryItemAsync(
+        CCL.MES.Shared.CheckLibrary.UpsertCheckLibraryItemRequest req, CancellationToken ct = default);
+
+    /// <summary>Bước 2 — sửa 1 dòng (RowVersion = If-Match → 409 nếu stale).</summary>
+    Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> UpdateCheckLibraryItemAsync(
+        long id, CCL.MES.Shared.CheckLibrary.UpsertCheckLibraryItemRequest req, CancellationToken ct = default);
+
+    /// <summary>Bước 2 — soft-delete toggle Active.</summary>
+    Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> SetCheckLibraryActiveAsync(
+        long id, bool active, CancellationToken ct = default);
+
+    /// <summary>Bước 2 — hard-delete (Admin).</summary>
+    Task DeleteCheckLibraryItemAsync(long id, CancellationToken ct = default);
 
     /// <summary>Phương án C — Bước 4: đánh OK/NG 1 hạng mục IPQC data-driven
     /// (auto-sync). Same contract as <see cref="PutIpqcMaterialAsync"/>;

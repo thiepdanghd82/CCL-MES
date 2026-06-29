@@ -362,10 +362,53 @@ public sealed class RecordingApi : ICclApiClient
     public Func<CancellationToken, Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>>>? GetCheckLibraryLinesImpl { get; set; }
 
     public Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>> GetCheckLibraryAsync(
-        string? line = null, string? stage = null, string? q = null, CancellationToken ct = default)
+        string? line = null, string? stage = null, string? q = null,
+        bool includeInactive = false, CancellationToken ct = default)
         => GetCheckLibraryImpl is null
             ? Task.FromResult<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>>(Array.Empty<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>())
             : GetCheckLibraryImpl(line, stage, q, ct);
+
+    // QC Library admin — settable stubs for bUnit tests.
+    public Func<string, byte[], CancellationToken, Task<CCL.MES.Shared.CheckLibrary.CheckLibraryImportResultDto?>>? ImportCheckLibraryImpl { get; set; }
+    public Func<CCL.MES.Shared.CheckLibrary.UpsertCheckLibraryItemRequest, CancellationToken, Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>>? AddCheckLibraryImpl { get; set; }
+    public Func<long, CCL.MES.Shared.CheckLibrary.UpsertCheckLibraryItemRequest, CancellationToken, Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>>? UpdateCheckLibraryImpl { get; set; }
+    public List<(long Id, bool Active)> SetActiveCalls { get; } = new();
+    public List<long> DeleteCalls { get; } = new();
+
+    public Task<CCL.MES.Shared.CheckLibrary.CheckLibraryImportResultDto?> ImportCheckLibraryAsync(
+        string fileName, byte[] content, CancellationToken ct = default)
+        => ImportCheckLibraryImpl is null
+            ? Task.FromResult<CCL.MES.Shared.CheckLibrary.CheckLibraryImportResultDto?>(
+                new CCL.MES.Shared.CheckLibrary.CheckLibraryImportResultDto())
+            : ImportCheckLibraryImpl(fileName, content, ct);
+
+    public Task<byte[]> DownloadCheckLibraryTemplateAsync(CancellationToken ct = default)
+        => Task.FromResult(Array.Empty<byte>());
+
+    public Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> AddCheckLibraryItemAsync(
+        CCL.MES.Shared.CheckLibrary.UpsertCheckLibraryItemRequest req, CancellationToken ct = default)
+        => AddCheckLibraryImpl is null
+            ? Task.FromResult(new CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto { ItemId = req.ItemId, ProcessLine = req.ProcessLine })
+            : AddCheckLibraryImpl(req, ct);
+
+    public Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> UpdateCheckLibraryItemAsync(
+        long id, CCL.MES.Shared.CheckLibrary.UpsertCheckLibraryItemRequest req, CancellationToken ct = default)
+        => UpdateCheckLibraryImpl is null
+            ? Task.FromResult(new CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto { Id = id, ItemId = req.ItemId, ProcessLine = req.ProcessLine })
+            : UpdateCheckLibraryImpl(id, req, ct);
+
+    public Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> SetCheckLibraryActiveAsync(
+        long id, bool active, CancellationToken ct = default)
+    {
+        SetActiveCalls.Add((id, active));
+        return Task.FromResult(new CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto { Id = id, Active = active });
+    }
+
+    public Task DeleteCheckLibraryItemAsync(long id, CancellationToken ct = default)
+    {
+        DeleteCalls.Add(id);
+        return Task.CompletedTask;
+    }
 
     public Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>> GetCheckLibraryLinesAsync(
         CancellationToken ct = default)

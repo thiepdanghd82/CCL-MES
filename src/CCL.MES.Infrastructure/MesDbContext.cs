@@ -387,6 +387,8 @@ public class MesDbContext : DbContext, IMesDbContext
         // idempotent theo ItemId); resolver lookup theo (ProcessLine, QcStage).
         b.Entity<CheckItemLibrary>().HasIndex(x => x.ItemId).IsUnique();
         b.Entity<CheckItemLibrary>().HasIndex(x => new { x.ProcessLine, x.QcStage });
+        // QC Library admin (Bước 2) — app-managed optimistic-concurrency token.
+        b.Entity<CheckItemLibrary>().Property(x => x.RowVersion).IsConcurrencyToken();
 
         // Auth — Username must be unique; login lookup hits this index every sign-in.
         b.Entity<User>().HasIndex(x => x.Username).IsUnique();

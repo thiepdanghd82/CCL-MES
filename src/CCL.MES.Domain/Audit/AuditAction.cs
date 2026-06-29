@@ -31,6 +31,14 @@ public static class AuditAction
     // P-Backup — admin changed the backup schedule via Settings → Backup.
     // detail JSON: { enabled, hour, retention_days, min_keep }.
     public const string BackupScheduleChange  = "BACKUP_SCHEDULE_CHANGE";
+    // QC Library admin (feat/qc-library-admin) — master-data mutations.
+    // detail JSON: import { parsed, inserted, updated, skipped, errors_count };
+    // add/edit/deactivate/delete { item_id, id }.
+    public const string CheckItemLibraryAdd        = "CHECK_ITEM_LIBRARY_ADD";
+    public const string CheckItemLibraryDeactivate = "CHECK_ITEM_LIBRARY_DEACTIVATE";
+    public const string CheckItemLibraryDelete     = "CHECK_ITEM_LIBRARY_DELETE";
+    public const string CheckItemLibraryEdit       = "CHECK_ITEM_LIBRARY_EDIT";
+    public const string CheckItemLibraryImport     = "CHECK_ITEM_LIBRARY_IMPORT";
     public const string IqcApprove            = "IQC_APPROVE";             // Phase 6 Bước 7 — pass/fail in Detail
     public const string IqcCreate             = "IQC_CREATE";              // Phase 6 Bước 7
     public const string LoginDisabled         = "LOGIN_DISABLED";          // valid creds but IsActive = false

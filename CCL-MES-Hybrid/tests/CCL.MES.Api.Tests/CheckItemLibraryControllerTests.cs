@@ -158,4 +158,127 @@ public sealed class CheckItemLibraryControllerTests : IClassFixture<MesApiFactor
         var resp = await client.GetAsync("/api/v2/qc/library/process-map");
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
+
+    // ══════════ QC Library admin (feat/qc-library-admin) ══════════
+
+    private static byte[] BuildXlsx(params (string ItemId, string Line)[] rows)
+    {
+        using var wb = new ClosedXML.Excel.XLWorkbook();
+        var ws = wb.Worksheets.Add("lib");
+        var headers = new[]
+        {
+            "ItemId","ProcessLine","GroupLabel","Code","ItemVi","ItemEn","AcceptanceVi","AcceptanceEn",
+            "Method","Severity","Aql","Sampling","CheckType","DefectCode","ParetoPct","ShortForm","IsoRef","AppliesWhen","Note",
+        };
+        for (int c = 0; c < headers.Length; c++) ws.Cell(1, c + 1).Value = headers[c];
+        int r = 2;
+        foreach (var (id, line) in rows)
+        {
+            var vals = new[] { id, line, "A·NQ", "A1", "vi", "en", "acc", "acc", "Visual", "", "", "", "", "", "", "", "", "", "" };
+            for (int c = 0; c < vals.Length; c++) ws.Cell(r, c + 1).Value = vals[c];
+            r++;
+        }
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        return ms.ToArray();
+    }
+
+    private static MultipartFormDataContent FileForm(byte[] bytes, string name)
+    {
+        var form = new MultipartFormDataContent();
+        var fc = new ByteArrayContent(bytes);
+        fc.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        form.Add(fc, "file", name);
+        return form;
+    }
+
+    private static UpsertCheckLibraryItemRequest NewItem(string itemId, string line = "LABEL") => new()
+    {
+        ItemId = itemId, ProcessLine = line, GroupLabel = "A·NQ", Code = "A1",
+        ItemVi = "vi", ItemEn = "en", AcceptanceVi = "acc", AcceptanceEn = "acc", Active = true,
+    };
+
+    [Fact]
+    public async Task Import_rejects_non_xlsx_with_422()
+    {
+        var client = await ClientAsync("imp-admin", UserRole.Admin);
+        var resp = await client.PostAsync("/api/v2/check-item-library/import",
+            FileForm(new byte[] { 1, 2, 3 }, "data.csv"));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Import_valid_xlsx_inserts_rows()
+    {
+        var client = await ClientAsync("imp-admin2", UserRole.Admin);
+        var resp = await client.PostAsync("/api/v2/check-item-library/import",
+            FileForm(BuildXlsx(("CTRL-IMP-1", "LABEL"), ("CTRL-IMP-2", "PRESS_CNC")), "lib.xlsx"));
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var res = await resp.Content.ReadFromJsonAsync<CheckLibraryImportResultDto>();
+        Assert.NotNull(res);
+        Assert.True(res!.Inserted >= 2, $"expected >=2 inserted, got {res.Inserted}");
+    }
+
+    [Fact]
+    public async Task Add_then_duplicate_returns_422()
+    {
+        var client = await ClientAsync("add-admin", UserRole.Admin);
+        var ok = await client.PostAsJsonAsync("/api/v2/check-item-library", NewItem("CTRL-ADD-1"));
+        Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
+        var dup = await client.PostAsJsonAsync("/api/v2/check-item-library", NewItem("CTRL-ADD-1"));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, dup.StatusCode);
+    }
+
+    [Fact]
+    public async Task Edit_happy_then_stale_returns_409()
+    {
+        var client = await ClientAsync("edit-admin", UserRole.Admin);
+        var created = await (await client.PostAsJsonAsync("/api/v2/check-item-library", NewItem("CTRL-EDIT-1")))
+            .Content.ReadFromJsonAsync<CheckLibraryItemDto>();
+        Assert.NotNull(created);
+        var staleToken = created!.RowVersion;
+
+        // Happy edit (correct RowVersion).
+        var edit1 = NewItem("CTRL-EDIT-1") with { ItemVi = "đổi lần 1", RowVersion = created.RowVersion };
+        var r1 = await client.PutAsJsonAsync($"/api/v2/check-item-library/{created.Id}", edit1);
+        Assert.Equal(HttpStatusCode.OK, r1.StatusCode);
+
+        // Stale edit (old RowVersion) → 409.
+        var edit2 = NewItem("CTRL-EDIT-1") with { ItemVi = "đổi lần 2", RowVersion = staleToken };
+        var r2 = await client.PutAsJsonAsync($"/api/v2/check-item-library/{created.Id}", edit2);
+        Assert.Equal(HttpStatusCode.Conflict, r2.StatusCode);
+    }
+
+    [Fact]
+    public async Task SoftDelete_hides_from_default_list_but_visible_with_includeInactive()
+    {
+        var client = await ClientAsync("sd-admin", UserRole.Admin);
+        var created = await (await client.PostAsJsonAsync("/api/v2/check-item-library", NewItem("CTRL-SD-1")))
+            .Content.ReadFromJsonAsync<CheckLibraryItemDto>();
+        Assert.NotNull(created);
+
+        var patch = await client.PatchAsync($"/api/v2/check-item-library/{created!.Id}/active?active=false", null);
+        Assert.Equal(HttpStatusCode.OK, patch.StatusCode);
+
+        var def = await client.GetFromJsonAsync<List<CheckLibraryItemDto>>("/api/v2/check-item-library");
+        Assert.DoesNotContain(def!, x => x.ItemId == "CTRL-SD-1");
+        var all = await client.GetFromJsonAsync<List<CheckLibraryItemDto>>("/api/v2/check-item-library?includeInactive=true");
+        Assert.Contains(all!, x => x.ItemId == "CTRL-SD-1");
+    }
+
+    [Fact]
+    public async Task Operator_cannot_write_add()
+    {
+        var client = await ClientAsync("write-op", UserRole.Operator);
+        var resp = await client.PostAsJsonAsync("/api/v2/check-item-library", NewItem("CTRL-OP-1"));
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    [Fact]
+    public async Task Engineer_can_add()
+    {
+        var client = await ClientAsync("write-eng", UserRole.Engineer);
+        var resp = await client.PostAsJsonAsync("/api/v2/check-item-library", NewItem("CTRL-ENG-1"));
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
 }

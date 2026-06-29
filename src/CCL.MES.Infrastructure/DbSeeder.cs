@@ -335,52 +335,12 @@ public static class DbSeeder
     /// Sửa master KHÔNG hồi tố check đang chạy (freeze ProfileSnapshotJson — ranh giới Bước 4).</para>
     /// </summary>
     public static async Task<CheckLibrarySeedResult> SeedCheckItemLibraryAsync(
-        MesDbContext db, IReadOnlyList<QcCheckLibraryRow> rows)
+        MesDbContext db, IReadOnlyList<QcCheckLibraryRow> rows, string actor = "seed")
     {
-        var existing = await db.CheckItemLibraries.ToListAsync();
-        var byItemId = existing.ToDictionary(x => x.ItemId, StringComparer.Ordinal);
-
-        int inserted = 0, updated = 0, sort = 0;
-        foreach (var r in rows)
-        {
-            sort += 10;
-            if (byItemId.TryGetValue(r.ItemId, out var cur))
-            {
-                if (ApplyRow(cur, r, sort)) { cur.UpdatedAt = DateTime.UtcNow; cur.UpdatedBy = "seed"; updated++; }
-            }
-            else
-            {
-                var e = new CheckItemLibrary { ItemId = r.ItemId, CreatedBy = "seed" };
-                ApplyRow(e, r, sort);
-                db.CheckItemLibraries.Add(e);
-                byItemId[r.ItemId] = e;
-                inserted++;
-            }
-        }
-
-        // Mở rộng ReasonCode (Scrap) theo Defect code thư viện (quyết định #4).
-        var existingScrap = new HashSet<string>(
-            await db.ReasonCodes.Where(c => c.Kind == ReasonCodeKind.Scrap).Select(c => c.Code).ToListAsync(),
-            StringComparer.Ordinal);
-        var defectCodes = rows
-            .Select(r => r.DefectCode?.Trim())
-            .Where(c => !string.IsNullOrEmpty(c))
-            .Select(c => c!)
-            .Distinct(StringComparer.Ordinal)
-            .Where(c => !existingScrap.Contains(c))
-            .ToList();
-        int reasonSort = 200;
-        foreach (var code in defectCodes)
-        {
-            db.ReasonCodes.Add(new ReasonCode
-            {
-                Code = code, LabelEn = code, LabelVi = code,
-                Kind = ReasonCodeKind.Scrap, Sort = reasonSort += 10, CreatedBy = "seed",
-            });
-        }
-
-        await db.SaveChangesAsync();
-        return new CheckLibrarySeedResult(inserted, updated, defectCodes.Count);
+        // Delegate to the shared importer (Application) so boot-seed + UI import
+        // share ONE idempotent upsert (no divergence). MesDbContext : IMesDbContext.
+        var r = await CheckItemLibraryImporter.UpsertAsync(db, rows, actor);
+        return new CheckLibrarySeedResult(r.Inserted, r.Updated, r.ReasonAdded);
     }
 
     /// <summary>Đọc CSV thư viện từ <paramref name="path"/> rồi gọi
@@ -457,35 +417,6 @@ public static class DbSeeder
             if (File.Exists(candidate)) return candidate;
         }
         return null;
-    }
-
-    /// <summary>Cập nhật field từ row vào entity; trả true nếu CÓ thay đổi (cho upsert idempotent).</summary>
-    private static bool ApplyRow(CheckItemLibrary e, QcCheckLibraryRow r, int sort)
-    {
-        bool changed = false;
-        void Set(string cur, string val, Action<string> set) { if (!string.Equals(cur, val, StringComparison.Ordinal)) { set(val); changed = true; } }
-        void SetN(string? cur, string? val, Action<string?> set) { if (!string.Equals(cur, val, StringComparison.Ordinal)) { set(val); changed = true; } }
-
-        Set(e.ProcessLine, r.ProcessLine, v => e.ProcessLine = v);
-        Set(e.GroupLabel, r.GroupLabel, v => e.GroupLabel = v);
-        Set(e.Code, r.Code, v => e.Code = v);
-        Set(e.ItemVi, r.ItemVi, v => e.ItemVi = v);
-        Set(e.ItemEn, r.ItemEn, v => e.ItemEn = v);
-        Set(e.AcceptanceVi, r.AcceptanceVi, v => e.AcceptanceVi = v);
-        Set(e.AcceptanceEn, r.AcceptanceEn, v => e.AcceptanceEn = v);
-        SetN(e.Method, r.Method, v => e.Method = v);
-        SetN(e.Severity, r.Severity, v => e.Severity = v);
-        SetN(e.Aql, r.Aql, v => e.Aql = v);
-        SetN(e.Sampling, r.Sampling, v => e.Sampling = v);
-        SetN(e.CheckType, r.CheckType, v => e.CheckType = v);
-        SetN(e.DefectCode, r.DefectCode, v => e.DefectCode = v);
-        SetN(e.ParetoPct, r.ParetoPct, v => e.ParetoPct = v);
-        SetN(e.ShortForm, r.ShortForm, v => e.ShortForm = v);
-        SetN(e.IsoRef, r.IsoRef, v => e.IsoRef = v);
-        SetN(e.AppliesWhen, r.AppliesWhen, v => e.AppliesWhen = v);
-        SetN(e.Note, r.Note, v => e.Note = v);
-        if (e.Sort != sort) { e.Sort = sort; changed = true; }
-        return changed;
     }
 
     /// <summary>

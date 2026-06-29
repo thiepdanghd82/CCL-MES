@@ -613,15 +613,73 @@ public sealed class CclApiClient : ICclApiClient
     }
 
     public async Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>> GetCheckLibraryAsync(
-        string? line = null, string? stage = null, string? q = null, CancellationToken ct = default)
+        string? line = null, string? stage = null, string? q = null,
+        bool includeInactive = false, CancellationToken ct = default)
     {
         var qs = new List<string>();
         if (!string.IsNullOrWhiteSpace(line)) qs.Add($"line={Uri.EscapeDataString(line)}");
         if (!string.IsNullOrWhiteSpace(stage)) qs.Add($"stage={Uri.EscapeDataString(stage)}");
         if (!string.IsNullOrWhiteSpace(q)) qs.Add($"q={Uri.EscapeDataString(q)}");
+        if (includeInactive) qs.Add("includeInactive=true");
         var path = $"/{ApiVersion.Prefix}/check-item-library" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
         using var resp = await _http.GetAsync(path, ct);
         return await ReadAsAsync<List<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>>(resp, ct);
+    }
+
+    // ── QC Library admin ────────────────────────────────────────────
+    public async Task<CCL.MES.Shared.CheckLibrary.CheckLibraryImportResultDto?> ImportCheckLibraryAsync(
+        string fileName, byte[] content, CancellationToken ct = default)
+    {
+        using var form = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(content);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        form.Add(fileContent, "file", fileName);
+        using var resp = await _http.PostAsync($"/{ApiVersion.Prefix}/check-item-library/import", form, ct);
+        return await ReadAsAsync<CCL.MES.Shared.CheckLibrary.CheckLibraryImportResultDto>(resp, ct);
+    }
+
+    public async Task<byte[]> DownloadCheckLibraryTemplateAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/check-item-library/template", ct);
+        if (!resp.IsSuccessStatusCode) await ThrowOnNonSuccess(resp, ct);
+        return await resp.Content.ReadAsByteArrayAsync(ct);
+    }
+
+    public async Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> AddCheckLibraryItemAsync(
+        CCL.MES.Shared.CheckLibrary.UpsertCheckLibraryItemRequest req, CancellationToken ct = default)
+    {
+        using var resp = await _http.PostAsJsonAsync($"/{ApiVersion.Prefix}/check-item-library", req, ct);
+        return await ReadAsAsync<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>(resp, ct);
+    }
+
+    public async Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> UpdateCheckLibraryItemAsync(
+        long id, CCL.MES.Shared.CheckLibrary.UpsertCheckLibraryItemRequest req, CancellationToken ct = default)
+    {
+        // RowVersion travels in the body; mirror it into If-Match for the server.
+        using var msg = new HttpRequestMessage(HttpMethod.Put, $"/{ApiVersion.Prefix}/check-item-library/{id}")
+        {
+            Content = JsonContent.Create(req),
+        };
+        if (!string.IsNullOrWhiteSpace(req.RowVersion))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{req.RowVersion}\"");
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>(resp, ct);
+    }
+
+    public async Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> SetCheckLibraryActiveAsync(
+        long id, bool active, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Patch,
+            $"/{ApiVersion.Prefix}/check-item-library/{id}/active?active={(active ? "true" : "false")}");
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>(resp, ct);
+    }
+
+    public async Task DeleteCheckLibraryItemAsync(long id, CancellationToken ct = default)
+    {
+        using var resp = await _http.DeleteAsync($"/{ApiVersion.Prefix}/check-item-library/{id}", ct);
+        if (!resp.IsSuccessStatusCode) await ThrowOnNonSuccess(resp, ct);
     }
 
     public async Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>> GetCheckLibraryLinesAsync(
