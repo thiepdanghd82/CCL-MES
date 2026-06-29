@@ -2,18 +2,21 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Shared.CheckLibrary
+@using CCL.MES.Shared.Envelopes
+@using Microsoft.AspNetCore.Components.Forms
 @inject ICclApiClient Api
+@inject CCL.MES.Hybrid.Client.Files.IFileOpener FileOpener
 
 @*
-    Phương án C — Bước 6. Trình duyệt THƯ VIỆN hạng mục kiểm (read-only).
-    Master data dùng cho auto-sync (Bước 4). Sửa qua import idempotent
-    (tools/import_qc_library.py) — không sửa tại đây (quyết định #4).
+    QC Library admin (feat/qc-library-admin). Read for all NPI/QC roles;
+    import .xlsx + inline add/edit/soft-delete for Admin/Supervisor/Engineer.
+    Sửa/import KHÔNG hồi tố WO đang chạy (freeze snapshot) — chỉ áp WO MỚI.
 *@
 
 <PageTitle>QC Library — Thư viện hạng mục kiểm</PageTitle>
 
 <h1 class="page-title">Thư viện hạng mục kiểm (QC Library)</h1>
-<p class="grid-subtitle">Master data auto-sync theo process line. Sửa qua import idempotent.</p>
+<p class="grid-subtitle">Master data auto-sync theo process line. Sửa/Import chỉ áp cho WO MỚI — WO đang chạy giữ snapshot.</p>
 
 <div class="grid-toolbar">
     <label>Process line:</label>
@@ -28,7 +31,79 @@
            value="@_q" @oninput="@(e => _q = e.Value?.ToString() ?? "")" @onkeyup="HandleKey"
            data-testid="qclib-search" />
     <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+
+    <AuthorizeView Roles="Admin,Supervisor,Engineer">
+        <label class="qclib-inactive-toggle">
+            <input type="checkbox" checked="@_includeInactive" @onchange="OnIncludeInactiveChanged"
+                   data-testid="qclib-include-inactive" />
+            Hiện dòng đã ẩn
+        </label>
+        <span class="qclib-toolbar-spacer"></span>
+        <label class="grid-btn grid-btn-secondary qclib-import-label" data-testid="qclib-import">
+            🖈 Import Excel
+            <InputFile OnChange="OnImportFileAsync" accept=".xlsx" disabled="@_busy"
+                       style="display:none" />
+        </label>
+        <button type="button" class="grid-btn grid-btn-secondary" @onclick="DownloadTemplateAsync"
+                disabled="@_busy" data-testid="qclib-template">⬇ Tải template .xlsx</button>
+        <button type="button" class="grid-btn grid-btn-primary" @onclick="StartAdd"
+                disabled="@_busy" data-testid="qclib-add">＋ Thêm dòng</button>
+    </AuthorizeView>
 </div>
+
+@if (_banner is not null)
+{
+    <div class="grid-export-banner is-@_bannerKind" role="status" data-testid="qclib-banner">
+        <span>@_banner</span>
+        @if (_importErrors.Count > 0)
+        {
+            <details class="qclib-import-errors">
+                <summary>@_importErrors.Count dòng lỗi/bỏ qua</summary>
+                <ul>@foreach (var e in _importErrors) { <li>@e</li> }</ul>
+            </details>
+        }
+        <button type="button" class="grid-btn-link" @onclick="() => { _banner = null; _importErrors.Clear(); }">Đóng</button>
+    </div>
+}
+
+@* ── Add / edit form (Admin/Supervisor/Engineer) ── *@
+@if (_edit is not null)
+{
+    <div class="qclib-edit-card" data-testid="qclib-edit-form">
+        <h3 class="qclib-edit-title">@(_editId is null ? "Thêm hạng mục" : $"Sửa hạng mục #{_editId}")</h3>
+        <div class="qclib-edit-grid">
+            <label>ItemId*<input @bind="_edit.ItemId" data-testid="qclib-f-itemid" /></label>
+            <label>Process line*
+                <select @bind="_edit.ProcessLine" data-testid="qclib-f-line">
+                    @foreach (var ln in AllowedLines) { <option value="@ln">@ln</option> }
+                </select>
+            </label>
+            <label>QC stage<input @bind="_edit.QcStage" /></label>
+            <label>Group*<input @bind="_edit.GroupLabel" data-testid="qclib-f-group" /></label>
+            <label>Code*<input @bind="_edit.Code" /></label>
+            <label>Sort<input type="number" @bind="_edit.Sort" /></label>
+            <label class="qclib-edit-wide">Nội dung (VI)*<input @bind="_edit.ItemVi" /></label>
+            <label class="qclib-edit-wide">Content (EN)*<input @bind="_edit.ItemEn" /></label>
+            <label class="qclib-edit-wide">Chấp nhận (VI)*<input @bind="_edit.AcceptanceVi" /></label>
+            <label class="qclib-edit-wide">Acceptance (EN)*<input @bind="_edit.AcceptanceEn" /></label>
+            <label>Method<input @bind="_edit.Method" /></label>
+            <label>Severity<input @bind="_edit.Severity" /></label>
+            <label>Defect code<input @bind="_edit.DefectCode" /></label>
+            <label>Product code<input @bind="_edit.ProductCode" /></label>
+            <label class="qclib-edit-check"><input type="checkbox" @bind="_edit.Active" /> Active</label>
+        </div>
+        @if (_editError is not null)
+        {
+            <div class="grid-error" role="alert" data-testid="qclib-edit-error">@_editError</div>
+        }
+        <div class="qclib-edit-actions">
+            <button type="button" class="grid-btn grid-btn-primary" @onclick="SaveEditAsync"
+                    disabled="@_busy" data-testid="qclib-save">Lưu</button>
+            <button type="button" class="grid-btn" @onclick="() => { _edit = null; _editError = null; }"
+                    disabled="@_busy">Hủy</button>
+        </div>
+    </div>
+}
 
 @if (_error is not null)
 {
@@ -54,12 +129,16 @@ else if (_items is not null)
                     <th class="grid-h">Chấp nhận</th>
                     <th class="grid-h">Severity</th>
                     <th class="grid-h">Defect</th>
+                    <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="_">
+                        <th class="grid-h">Trạng thái</th>
+                        <th class="grid-h">Thao tác</th>
+                    </AuthorizeView>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var it in _items)
                 {
-                    <tr data-testid="@($"qclib-row-{it.ItemId}")">
+                    <tr data-testid="@($"qclib-row-{it.ItemId}")" class="@(it.Active ? "" : "qclib-row-inactive")">
                         <td><span class="ipqc-line-chip">@it.ProcessLine</span></td>
                         <td class="scan-mono">@it.ItemId</td>
                         <td>@it.GroupLabel</td>
@@ -67,6 +146,17 @@ else if (_items is not null)
                         <td>@it.AcceptanceVi</td>
                         <td>@it.Severity</td>
                         <td class="scan-mono">@it.DefectCode</td>
+                        <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="_">
+                            <td>@(it.Active ? "Active" : "Đã ẩn")</td>
+                            <td class="qclib-row-actions">
+                                <button type="button" class="grid-btn grid-btn-small" @onclick="() => StartEdit(it)"
+                                        disabled="@_busy" data-testid="@($"qclib-edit-{it.ItemId}")">Sửa</button>
+                                <button type="button" class="grid-btn grid-btn-small" @onclick="() => ToggleActiveAsync(it)"
+                                        disabled="@_busy" data-testid="@($"qclib-toggle-{it.ItemId}")">
+                                    @(it.Active ? "Ẩn" : "Hiện")
+                                </button>
+                            </td>
+                        </AuthorizeView>
                     </tr>
                 }
             </tbody>
@@ -75,49 +165,160 @@ else if (_items is not null)
 }
 
 @code {
+    private static readonly string[] AllowedLines = { "LABEL", "DIGITAL", "SILK", "PRESS_CNC", "FINISHING" };
+
     private IReadOnlyList<CheckLibraryLineDto> _lines = Array.Empty<CheckLibraryLineDto>();
     private IReadOnlyList<CheckLibraryItemDto>? _items;
     private string _line = "";
     private string _q = "";
     private bool _loading;
+    private bool _busy;
+    private bool _includeInactive;
     private string? _error;
+
+    private string? _banner;
+    private string _bannerKind = "info";
+    private readonly List<string> _importErrors = new();
+
+    // Edit/add form state.
+    private UpsertCheckLibraryItemRequest? _edit;
+    private long? _editId; // null = add
 
     protected override async Task OnInitializedAsync()
     {
         try { _lines = await Api.GetCheckLibraryLinesAsync(); }
-        catch { /* non-fatal — list still loads */ }
+        catch { /* non-fatal */ }
         await ReloadAsync();
     }
 
-    private async Task OnLineChanged(ChangeEventArgs e)
+    private async Task OnLineChanged(ChangeEventArgs e) { _line = e.Value?.ToString() ?? ""; await ReloadAsync(); }
+    private async Task OnIncludeInactiveChanged(ChangeEventArgs e)
     {
-        _line = e.Value?.ToString() ?? "";
+        _includeInactive = e.Value is bool b && b;
         await ReloadAsync();
     }
-
-    private async Task HandleKey(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await ReloadAsync();
-    }
+    private async Task HandleKey(KeyboardEventArgs e) { if (e.Key == "Enter") await ReloadAsync(); }
 
     private async Task ReloadAsync()
     {
-        _loading = true;
-        _error = null;
+        _loading = true; _error = null;
         try
         {
             _items = await Api.GetCheckLibraryAsync(
-                string.IsNullOrWhiteSpace(_line) ? null : _line,
-                stage: null,
-                q: string.IsNullOrWhiteSpace(_q) ? null : _q);
+                string.IsNullOrWhiteSpace(_line) ? null : _line, stage: null,
+                q: string.IsNullOrWhiteSpace(_q) ? null : _q, includeInactive: _includeInactive);
+            _lines = await Api.GetCheckLibraryLinesAsync();
         }
-        catch (Exception ex)
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _loading = false; }
+    }
+
+    // ── Import .xlsx ──
+    private async Task OnImportFileAsync(InputFileChangeEventArgs e)
+    {
+        _busy = true; _banner = null; _importErrors.Clear();
+        try
         {
-            _error = $"{ex.GetType().Name}: {ex.Message}";
+            var f = e.File;
+            using var ms = new MemoryStream();
+            await f.OpenReadStream(maxAllowedSize: 5_000_000).CopyToAsync(ms);
+            var res = await Api.ImportCheckLibraryAsync(f.Name, ms.ToArray());
+            if (res is not null)
+            {
+                _banner = $"Import: {res.Inserted} thêm · {res.Updated} cập nhật · {res.Skipped} bỏ qua. " +
+                          "Chỉ áp cho WO MỚI; WO đang chạy giữ snapshot.";
+                _bannerKind = res.Skipped > 0 ? "warning" : "info";
+                _importErrors.AddRange(res.Errors);
+            }
+            await ReloadAsync();
         }
-        finally
+        catch (ApiException ax) { _banner = $"Import lỗi: {ax.ApiError.MessageEn}"; _bannerKind = "danger"; }
+        catch (Exception ex) { _banner = $"Import lỗi: {ex.Message}"; _bannerKind = "danger"; }
+        finally { _busy = false; }
+    }
+
+    private async Task DownloadTemplateAsync()
+    {
+        _busy = true;
+        try
         {
-            _loading = false;
+            var bytes = await Api.DownloadCheckLibraryTemplateAsync();
+            var path = System.IO.Path.Combine(FileOpener.GetSafeDownloadDirectory(), "CheckItemLibrary_Template.xlsx");
+            await System.IO.File.WriteAllBytesAsync(path, bytes);
+            await FileOpener.TryOpenAsync(path);
+            _banner = "Đã mở template .xlsx — điền rồi Import Excel."; _bannerKind = "info"; _importErrors.Clear();
         }
+        catch (Exception ex) { _banner = $"Tải template lỗi: {ex.Message}"; _bannerKind = "danger"; }
+        finally { _busy = false; }
+    }
+
+    // ── Add / edit ──
+    private void StartAdd()
+    {
+        _editId = null;
+        _edit = new UpsertCheckLibraryItemRequest { ProcessLine = "LABEL", QcStage = "IPQC", Active = true, Sort = 0 };
+        _editError = null;
+    }
+
+    private void StartEdit(CheckLibraryItemDto it)
+    {
+        _editId = it.Id;
+        _edit = new UpsertCheckLibraryItemRequest
+        {
+            ItemId = it.ItemId, ProcessLine = it.ProcessLine, ProductCode = it.ProductCode, QcStage = it.QcStage,
+            GroupLabel = it.GroupLabel, Code = it.Code, ItemVi = it.ItemVi, ItemEn = it.ItemEn,
+            AcceptanceVi = it.AcceptanceVi, AcceptanceEn = it.AcceptanceEn, Method = it.Method,
+            Severity = it.Severity, DefectCode = it.DefectCode, Sort = it.Sort, Active = it.Active,
+            RowVersion = it.RowVersion,
+        };
+        _editError = null;
+    }
+
+    private string? _editError;
+
+    private async Task SaveEditAsync()
+    {
+        if (_edit is null) return;
+        var err = ClientValidate(_edit);
+        if (err is not null) { _editError = err; return; }
+        _busy = true; _editError = null;
+        try
+        {
+            if (_editId is null) await Api.AddCheckLibraryItemAsync(_edit);
+            else await Api.UpdateCheckLibraryItemAsync(_editId.Value, _edit);
+            _edit = null; _editId = null;
+            _banner = "Đã lưu."; _bannerKind = "info"; _importErrors.Clear();
+            await ReloadAsync();
+        }
+        catch (ApiException ax)
+        {
+            if (ax.ApiError.Code == "check_library.stale")
+            {
+                _editError = "Dòng đã bị người khác sửa — đang tải lại, mở lại để sửa.";
+                _edit = null; _editId = null;
+                await ReloadAsync();
+            }
+            else { _editError = ax.ApiError.MessageEn; }
+        }
+        catch (Exception ex) { _editError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task ToggleActiveAsync(CheckLibraryItemDto it)
+    {
+        _busy = true;
+        try { await Api.SetCheckLibraryActiveAsync(it.Id, !it.Active); await ReloadAsync(); }
+        catch (Exception ex) { _banner = $"Lỗi: {ex.Message}"; _bannerKind = "danger"; }
+        finally { _busy = false; }
+    }
+
+    private static string? ClientValidate(UpsertCheckLibraryItemRequest r)
+    {
+        if (string.IsNullOrWhiteSpace(r.ItemId)) return "ItemId bắt buộc.";
+        if (!AllowedLines.Contains(r.ProcessLine)) return $"Process line phải ∈ {string.Join("/", AllowedLines)}.";
+        foreach (var (v, n) in new[] { (r.GroupLabel, "Group"), (r.Code, "Code"), (r.ItemVi, "Nội dung VI"),
+            (r.ItemEn, "Content EN"), (r.AcceptanceVi, "Chấp nhận VI"), (r.AcceptanceEn, "Acceptance EN") })
+            if (string.IsNullOrWhiteSpace(v)) return $"{n} bắt buộc.";
+        return null;
     }
 }
