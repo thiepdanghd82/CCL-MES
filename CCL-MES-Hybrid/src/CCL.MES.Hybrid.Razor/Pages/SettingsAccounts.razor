@@ -159,6 +159,10 @@
                                                 title="Re-enable"
                                                 @onclick="@(() => OnToggleActive(u, true))">Enable</button>
                                     }
+                                    <button type="button" class="audit-copy-btn acc-danger"
+                                            disabled="@(isSelf || u.Role == "Sys")"
+                                            title="Delete account permanently"
+                                            @onclick="@(() => OnDeleteAccount(u))">Delete</button>
                                 </div>
                             </td>
                         </tr>
@@ -355,6 +359,32 @@
         var ok = await Js.InvokeAsync<bool>("confirm", msg);
         if (!ok) return;
         await Patch(u.Id, new UpdateAccountRequest { IsActive = target });
+    }
+
+    private async Task OnDeleteAccount(AccountDto u)
+    {
+        _actionError = null;
+        _actionInfo = null;
+        var ok = await Js.InvokeAsync<bool>("confirm",
+            $"Permanently delete account '{u.Username}' ({u.Role})? This cannot be undone. " +
+            "Their audit history is kept, but the login is removed for good.");
+        if (!ok) return;
+        try
+        {
+            var dto = await Api.DeleteAccountAsync(u.Id);
+            _actionInfo = $"✔ Deleted account {dto.Username}.";
+            // If the deleted row was the last on this page, step back a page.
+            var page = _result.Items.Count <= 1 && _result.Page > 1 ? _result.Page - 1 : _result.Page;
+            await LoadPage(page);
+        }
+        catch (ApiException ex)
+        {
+            _actionError = $"Delete failed: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+        }
+        catch (Exception ex)
+        {
+            _actionError = $"Error: {ex.GetType().Name} — {ex.Message}";
+        }
     }
 
     private async Task Patch(long userId, UpdateAccountRequest req)

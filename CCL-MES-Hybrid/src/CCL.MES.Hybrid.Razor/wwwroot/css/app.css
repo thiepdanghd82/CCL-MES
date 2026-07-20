@@ -1485,6 +1485,59 @@ html, body {
     box-sizing: border-box;
 }
 
+/* GridSearchBox — wrapper carries the flex sizing; the input fills it and
+   leaves room on the right for the custom faded "×" clear button. */
+.grid-search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 320px;
+    max-width: 460px;
+}
+
+.grid-search-wrap .grid-search {
+    flex: 1 1 auto;
+    max-width: none;
+    width: 100%;
+    padding-right: 30px;
+}
+
+/* Hide the native WebKit/Catalyst clear affordance (shows as "Xóa" in a
+   Vietnamese locale) — we render our own icon instead. */
+.grid-search::-webkit-search-cancel-button,
+.grid-search::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.grid-search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: #9aa0a6;
+    opacity: 0.5;
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.grid-search-clear:hover {
+    opacity: 1;
+    color: #374151;
+    background: rgba(0, 0, 0, 0.06);
+}
+
 .grid-btn {
     padding: 8px 14px;
     background: #1d4ed8;
@@ -4441,6 +4494,15 @@ html, body {
 
 .audit-copy-btn.is-ok { color: #16A34A; border-color: #16A34A; }
 
+/* Danger action (Delete account) — muted red until hover. */
+.audit-copy-btn.acc-danger { color: #b91c1c; }
+.audit-copy-btn.acc-danger:hover:not(:disabled) {
+    color: #fff;
+    background: #dc2626;
+    border-color: #dc2626;
+}
+.audit-copy-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* ── P10.6c — Account Control admin page ────────────────────── */
 
 .accounts-table { min-width: 1200px; }
@@ -6055,3 +6117,72 @@ html, body {
 .wo-audit-action { font-weight: 700; color: #374151; font-size: 0.78rem; font-family: ui-monospace, monospace; }
 .wo-audit-time { color: #9ca3af; font-size: 0.76rem; font-variant-numeric: tabular-nums; }
 .wo-audit-actor { color: #6b7280; font-size: 0.78rem; }
+
+/* ── Quality → Traceability grid + detail drawer (S9 responsive) ───── */
+.trace-grid { min-width: 1100px; table-layout: fixed; }
+.trace-row { cursor: pointer; }
+.trace-row:hover { background: #f5f8ff; }
+.trace-wo code { font-weight: 700; }
+.trace-sub { color: #6b7280; font-size: 0.76rem; margin-top: 2px; }
+.trace-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
+.trace-scan-status { margin: 0 0 10px; padding: 6px 12px; background: #eef2ff;
+    border: 1px solid #c7d2fe; border-radius: 6px; font-size: 0.85rem; color: #3730a3; }
+
+/* chips — layout only; colour comes from the tone class or wo-phase-* */
+.trace-chip { display: inline-block; padding: 1px 8px; border-radius: 999px;
+    font-size: 0.72rem; font-weight: 600; line-height: 1.5; border: 1px solid transparent; }
+.trace-chip-ok      { background: #dcfce7; color: #166534; border-color: #86efac; }
+.trace-chip-ng      { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+.trace-chip-warn    { background: #fef9c3; color: #854d0e; border-color: #fde047; }
+.trace-chip-pending { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.trace-chip-none    { background: transparent; color: #9ca3af; border-color: #e5e7eb; }
+
+/* detail drawer — right-side sheet, full-width on narrow viewports (S9) */
+.trace-drawer-scrim { position: fixed; inset: 0; background: rgba(15,23,42,0.35); z-index: 40; }
+.trace-drawer { position: fixed; top: 0; right: 0; bottom: 0; z-index: 41;
+    width: min(460px, 100vw); background: #fff; box-shadow: -8px 0 24px rgba(0,0,0,0.15);
+    padding: 18px 20px; overflow-y: auto; }
+.trace-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.trace-drawer-title { margin: 0; font-size: 1.15rem; font-family: ui-monospace, monospace; }
+.trace-detail-h { margin: 16px 0 6px; font-size: 0.8rem; text-transform: uppercase;
+    letter-spacing: 0.04em; color: #6b7280; border-bottom: 1px solid #eef2f7; padding-bottom: 3px; }
+.trace-detail-section { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.trace-kv { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 3px 0; font-size: 0.86rem; }
+.trace-kv > span { color: #6b7280; }
+
+@media (max-width: 520px) { .trace-drawer { width: 100vw; } }
+
+/* ── Traceability detail modal (4 tabs, generic renderer, S9) ──────── */
+.trace-modal-scrim { position: fixed; inset: 0; background: rgba(15,23,42,0.45);
+    z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px; overflow-y: auto; }
+.trace-modal { background: #fff; border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+    width: min(1600px, 100vw - 32px); max-height: calc(100vh - 48px); display: flex; flex-direction: column;
+    outline: none; }
+.trace-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    padding: 16px 20px; border-bottom: 1px solid #eef2f7; }
+.trace-modal-title { margin: 0; font-size: 1.2rem; font-family: ui-monospace, monospace; }
+.trace-modal-body { padding: 16px 20px; overflow-y: auto; }
+
+.trace-tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid #e5e7eb; flex-wrap: wrap; }
+.trace-tab { border: none; background: transparent; padding: 10px 16px; cursor: pointer;
+    font-size: 0.9rem; font-weight: 600; color: #6b7280; border-bottom: 2px solid transparent; }
+.trace-tab:hover { color: #374151; }
+.trace-tab-active { color: #1d4ed8; border-bottom-color: #1d4ed8; }
+.trace-tab-dot { color: #16a34a; font-size: 0.6rem; margin-left: 5px; vertical-align: middle; }
+
+.trace-meta { margin-bottom: 10px; }
+.trace-kv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2px 24px; margin-bottom: 14px; }
+.trace-items-scroll { max-width: 100%; }
+.trace-items { min-width: 640px; }
+
+.trace-empty { display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 48px 16px; color: #9ca3af; text-align: center; }
+.trace-empty-icon { font-size: 2rem; }
+
+@container (max-width: 700px) { .trace-kv-grid { grid-template-columns: 1fr; } }
+
+/* Traceability real-time Live/Offline badge */
+.trace-live { font-size: 0.78rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.trace-live-on  { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
+.trace-live-off { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }

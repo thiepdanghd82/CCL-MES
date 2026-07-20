@@ -122,6 +122,7 @@ public static class AuditAction
     // status }.
     public const string SpecTrash             = "SPEC_TRASH";
     public const string UserCreate            = "USER_CREATE";
+    public const string UserDelete            = "USER_DELETE";
     public const string UserDisplayChange     = "USER_DISPLAY_CHANGE";
     public const string UserResetPassword     = "USER_RESET_PASSWORD";
     public const string UserRoleChange        = "USER_ROLE_CHANGE";
@@ -374,6 +375,13 @@ public static class AuditAction
     /// SpecHub quality cycle. Future ERP push (P10.7-BACKLOG OOS-A)
     /// triggers on this audit code.</summary>
     public const string WoShipped             = "WO_SHIPPED";
+
+    // Quality → Traceability frozen-snapshot freeze (one per phase). detail
+    // JSON is deliberately lean: { wo_no, phase, version, item_count }.
+    public const string WoTraceProductFreeze  = "WO_TRACE_PRODUCT_FREEZE";
+    public const string WoTraceIpqcFreeze     = "WO_TRACE_IPQC_FREEZE";
+    public const string WoTraceFqcFreeze      = "WO_TRACE_FQC_FREEZE";
+    public const string WoTraceOqcFreeze      = "WO_TRACE_OQC_FREEZE";
 
     /// <summary>P10.7e-1 Q6 — photo evidence uploaded. detail JSON:
     /// { wo_id, kind: "FQC"|"OQC", item_key, photo_blob_id,

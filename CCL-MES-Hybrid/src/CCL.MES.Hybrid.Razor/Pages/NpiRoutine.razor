@@ -2,15 +2,14 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
-@implements IDisposable
 
 <PageTitle>Routing — NPI</PageTitle>
 
 <h1 class="page-title">Operation Routing</h1>
 
 <div class="grid-toolbar">
-    <input type="search" class="grid-search" placeholder="Search by part / op / work center…"
-           value="@_search" @oninput="OnSearchInput" @onkeyup="HandleSearchKey" />
+    <GridSearchBox @bind-Value="_search" OnSearch="OnSearchClickAsync"
+                   Placeholder="Search by part / op / work center…" />
     <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
     <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
     <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="impCtx">
@@ -89,7 +88,6 @@ else if (_data is not null)
     private bool _loading;
     private string? _error;
     private string _search = "";
-    private System.Threading.Timer? _searchDebounce;
     private bool _importOpen;
     private int _page = 1;
     private int _pageSize = 50;
@@ -138,21 +136,6 @@ else if (_data is not null)
         }, PrefStore);
         await LoadAsync();
     }
-
-    private Task HandleSearchKey(KeyboardEventArgs e)
-        => e.Key == "Enter" ? OnSearchClickAsync() : Task.CompletedTask;
-
-    // SpecHub-style live search — debounce 300ms then reload from page 1.
-    private void OnSearchInput(ChangeEventArgs e)
-    {
-        _search = e.Value?.ToString() ?? "";
-        _searchDebounce?.Dispose();
-        _searchDebounce = new System.Threading.Timer(
-            _ => InvokeAsync(() => { _page = 1; return LoadAsync(); }),
-            null, 300, System.Threading.Timeout.Infinite);
-    }
-
-    public void Dispose() => _searchDebounce?.Dispose();
 
     private void CloseImport() => _importOpen = false;
 

@@ -39,6 +39,31 @@ public sealed class AuthControllerTests : IClassFixture<MesApiFactory>
         Assert.Equal("NPI", body.User.Department);
     }
 
+    // Lesson L26 — Username is matched CASE-INSENSITIVELY (NOCASE column
+    // collation). An admin-reset user must sign in regardless of the case
+    // they type; a case-sensitive lookup used to return 401 and mask the
+    // (correct) password behind an "invalid credentials" error.
+    // Distinct stored name per case (the class fixture shares one DB, and
+    // Username is now UNIQUE case-insensitively), typed as a different case.
+    [Theory]
+    [InlineData("CaseUserAlpha", "caseuseralpha")]   // stored mixed, typed lower
+    [InlineData("caseuserbeta",  "CASEUSERBETA")]    // stored lower, typed upper
+    [InlineData("CaseUserGamma", "cAsEuSeRgAmMa")]   // stored mixed, typed mixed
+    public async Task Login_username_is_case_insensitive(string stored, string typed)
+    {
+        await _fx.SeedUserAsync(stored, "Pa55w.rd!", UserRole.Supervisor);
+        var client = _fx.CreateClient();
+
+        var resp = await client.PostAsJsonAsync("/api/v2/auth/login",
+            new LoginRequest { Username = typed, Password = "Pa55w.rd!" });
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<LoginResponse>();
+        Assert.False(string.IsNullOrEmpty(body!.AccessToken));
+        // The stored (display) casing is returned, not what the user typed.
+        Assert.Equal(stored, body.User.Username);
+    }
+
     [Fact]
     public async Task Login_with_wrong_password_returns_401_generic_error()
     {

@@ -1,0 +1,168 @@
+@using CCL.MES.Shared.Quality
+@inject ICclApiClient Api
+
+@*
+    Read-only frozen-trace detail. 4 sub-tabs [Product|IPQC|FQC|OQC]. ONE
+    generic renderer walks header (key-value) + items (columns derived from
+    the item keys + the union of each item's Extra bag) so every phase and
+    every product variant renders with no per-phase hardcoding. A phase with
+    no frozen snapshot shows an empty-state (never a live fallback / error).
+*@
+
+<div class="trace-modal-scrim" @onclick="Close">
+    <div class="trace-modal" @onclick:stopPropagation="true"
+         tabindex="0" @onkeydown="OnKeyDown" @ref="_modalRef">
+        <div class="trace-modal-head">
+            <div>
+                <h2 class="trace-modal-title">@WoNo</h2>
+                <div class="trace-sub">@(_detail?.ProductName ?? "")</div>
+            </div>
+            <button type="button" class="grid-btn" @onclick="Close" aria-label="Close">✕</button>
+        </div>
+
+        <div class="trace-tabs" role="tablist">
+            @foreach (var t in _tabs)
+            {
+                <button type="button" role="tab"
+                        class="trace-tab @(t.Phase == _active ? "trace-tab-active" : "")"
+                        @onclick="() => _active = t.Phase">
+                    @t.Label
+                    @if (Phase(t.Phase) is not null) { <span class="trace-tab-dot" title="Frozen">●</span> }
+                </button>
+            }
+        </div>
+
+        <div class="trace-modal-body">
+            @if (_loading)
+            {
+                <p class="grid-status">Loading…</p>
+            }
+            else if (_error is not null)
+            {
+                <div class="grid-error" role="alert">@_error</div>
+            }
+            else
+            {
+                var phase = Phase(_active);
+                @if (phase is null)
+                {
+                    <div class="trace-empty">
+                        <div class="trace-empty-icon">◷</div>
+                        <div>Chưa chốt dữ liệu @TabLabel(_active) — data not frozen yet.</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="trace-meta">
+                        <span class="trace-sub">Version @phase.Version · frozen @phase.FrozenAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") by @phase.FrozenBy</span>
+                        @if (!string.IsNullOrEmpty(phase.Payload.Variant)) { <span class="trace-sub">· variant @phase.Payload.Variant</span> }
+                    </div>
+
+                    @* header — generic key-value list *@
+                    <div class="trace-kv-grid">
+                        @foreach (var kv in phase.Payload.Header)
+                        {
+                            <div class="trace-kv"><span>@kv.Label</span><b>@(string.IsNullOrEmpty(kv.Value) ? "—" : kv.Value)</b></div>
+                        }
+                    </div>
+
+                    @* items — generic table, columns derived from item keys + Extra union *@
+                    @if (phase.Payload.Items.Count > 0)
+                    {
+                        var extraKeys = phase.Payload.Items
+                            .SelectMany(i => i.Extra?.Keys ?? Enumerable.Empty<string>())
+                            .Distinct().ToList();
+                        <div class="grid-scroll trace-items-scroll">
+                            <table class="grid grid-sticky trace-items">
+                                <thead>
+                                    <tr>
+                                        <th class="grid-h">Item</th>
+                                        <th class="grid-h">Status</th>
+                                        <th class="grid-h">NG reason</th>
+                                        <th class="grid-h">NG note</th>
+                                        @foreach (var k in extraKeys) { <th class="grid-h">@k</th> }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var it in phase.Payload.Items)
+                                    {
+                                        <tr>
+                                            <td>@it.Label</td>
+                                            <td><span class="trace-chip @StatusTone(it.Status)">@(it.Status ?? "—")</span></td>
+                                            <td>@(it.NgReason ?? "—")</td>
+                                            <td>@(it.NgNote ?? "—")</td>
+                                            @foreach (var k in extraKeys)
+                                            {
+                                                <td class="trace-mono">@(it.Extra is not null && it.Extra.TryGetValue(k, out var v) ? (v ?? "—") : "—")</td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="trace-sub">No inspected items recorded for this phase.</p>
+                    }
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string WoNo { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private TraceabilityDetailDto? _detail;
+    private bool _loading = true;
+    private string? _error;
+    private string _active = TracePhase.Product;
+    private ElementReference _modalRef;
+
+    private readonly (string Phase, string Label)[] _tabs =
+    {
+        (TracePhase.Product, "Product data"),
+        (TracePhase.Ipqc, "IPQC"),
+        (TracePhase.Fqc, "FQC"),
+        (TracePhase.Oqc, "OQC"),
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true; _error = null; _detail = null;
+        try { _detail = await Api.GetTraceabilityDetailAsync(WoNo); }
+        catch (ApiException apiEx) { _error = apiEx.ApiError.MessageEn; }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _loading = false; }
+    }
+
+    private TracePhaseDto? Phase(string phase) => _detail is null ? null : phase switch
+    {
+        TracePhase.Product => _detail.Product,
+        TracePhase.Ipqc => _detail.Ipqc,
+        TracePhase.Fqc => _detail.Fqc,
+        TracePhase.Oqc => _detail.Oqc,
+        _ => null,
+    };
+
+    private Task Close() => OnClose.InvokeAsync();
+
+    private Task OnKeyDown(KeyboardEventArgs e) => e.Key == "Escape" ? Close() : Task.CompletedTask;
+
+    private static string TabLabel(string phase) => phase switch
+    {
+        TracePhase.Product => "Product", TracePhase.Ipqc => "IPQC",
+        TracePhase.Fqc => "FQC", TracePhase.Oqc => "OQC", _ => phase,
+    };
+
+    private static string StatusTone(string? status) => status switch
+    {
+        "Ok" or "Pass" or "GoRun" => "trace-chip-ok",
+        "Ng" or "Reject" or "StopLine" => "trace-chip-ng",
+        "SpecialAccept" => "trace-chip-warn",
+        null or "" => "trace-chip-none",
+        _ => "trace-chip-pending",
+    };
+}

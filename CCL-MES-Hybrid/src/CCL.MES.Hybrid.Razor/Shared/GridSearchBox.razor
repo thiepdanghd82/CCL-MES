@@ -1,0 +1,70 @@
+@implements IDisposable
+
+@*
+    Shared grid search box — SpecHub-style live search that actually renders.
+    Two fixes over the old per-page inline input:
+      1. Auto-search: the debounced reload fires through OnSearch (an
+         EventCallback) AND calls StateHasChanged, so results refresh without
+         a manual "Search" click. The old inline Timer callback mutated state
+         but never re-rendered.
+      2. Quick clear: a faded "×" button (shown only when non-empty) resets
+         the box; the native WebKit/Catalyst "Xóa" cancel button is hidden via
+         CSS (.grid-search::-webkit-search-cancel-button).
+*@
+
+<span class="grid-search-wrap">
+    <input type="search" class="grid-search" placeholder="@Placeholder"
+           value="@Value" @oninput="OnInputAsync" @onkeyup="OnKeyAsync" />
+    @if (!string.IsNullOrEmpty(Value))
+    {
+        <button type="button" class="grid-search-clear" tabindex="-1"
+                title="Xoá tìm kiếm" aria-label="Xoá tìm kiếm"
+                @onclick="ClearAsync">×</button>
+    }
+</span>
+
+@code {
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+
+    /// <summary>Fired after the debounce elapses, on Enter, and on clear.</summary>
+    [Parameter] public EventCallback OnSearch { get; set; }
+
+    [Parameter] public string Placeholder { get; set; } = "Search…";
+    [Parameter] public int DebounceMs { get; set; } = 300;
+
+    private System.Threading.Timer? _debounce;
+
+    private async Task OnInputAsync(ChangeEventArgs e)
+    {
+        Value = e.Value?.ToString() ?? "";
+        await ValueChanged.InvokeAsync(Value);
+        _debounce?.Dispose();
+        _debounce = new System.Threading.Timer(
+            _ => InvokeAsync(FireSearchAsync),
+            null, DebounceMs, System.Threading.Timeout.Infinite);
+    }
+
+    private Task OnKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key != "Enter") return Task.CompletedTask;
+        _debounce?.Dispose();
+        return FireSearchAsync();
+    }
+
+    private async Task ClearAsync()
+    {
+        _debounce?.Dispose();
+        Value = "";
+        await ValueChanged.InvokeAsync("");
+        await FireSearchAsync();
+    }
+
+    private async Task FireSearchAsync()
+    {
+        await OnSearch.InvokeAsync();
+        StateHasChanged();
+    }
+
+    public void Dispose() => _debounce?.Dispose();
+}

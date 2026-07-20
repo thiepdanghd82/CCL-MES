@@ -78,16 +78,27 @@ public sealed class WoQcReviewController : ControllerBase
     private readonly WoQcSigPolicyOptions _sigPolicy;
     private readonly IBlobStore _blobs;
 
+    private readonly Services.ITraceFreezeService _trace;
+
     public WoQcReviewController(
         IMesDbContext db,
         IAuditWriter audit,
         IOptions<WoQcSigPolicyOptions> sigPolicy,
-        IBlobStore blobs)
+        IBlobStore blobs,
+        Services.ITraceFreezeService trace)
     {
         _db = db;
         _audit = audit;
         _sigPolicy = sigPolicy.Value;
         _blobs = blobs;
+        _trace = trace;
+    }
+
+    // Best-effort trace freeze — never breaks the confirm; idempotent in service.
+    private async Task FreezeSafe(long woId, string phase, string actor)
+    {
+        try { await _trace.FreezeAsync(woId, phase, actor); }
+        catch { /* best-effort */ }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -395,7 +406,7 @@ public sealed class WoQcReviewController : ControllerBase
             ? AuditAction.WoFqcJudgment
             : AuditAction.WoFqcRejectToPrepress;
 
-        return await CommitAndAuditAsync(id, wo, check, actor, role,
+        var result = await CommitAndAuditAsync(id, wo, check, actor, role,
             auditAction,
             new
             {
@@ -403,6 +414,10 @@ public sealed class WoQcReviewController : ControllerBase
                 judgment_reason = judgment == WoQcJudgment.Reject ? req.JudgmentReason : null,
                 inspected_by = actor,
             });
+        // Freeze FQC snapshot when the judgment concludes Pass.
+        if (result is OkObjectResult && judgment == WoQcJudgment.Pass)
+            await FreezeSafe(id, CCL.MES.Shared.Quality.TracePhase.Fqc, actor);
+        return result;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -600,6 +615,9 @@ public sealed class WoQcReviewController : ControllerBase
                     shipped_at = now,
                     oqc_approver = actor,
                 }));
+            // Freeze OQC snapshot on approve (WO shipped).
+            if (resp is OkObjectResult)
+                await FreezeSafe(id, CCL.MES.Shared.Quality.TracePhase.Oqc, actor);
             return resp;
         }
 
@@ -1283,14 +1301,10 @@ public sealed class WoQcReviewController : ControllerBase
             .Select(s => new { s.StartedAt, s.EndedAt })
             .ToListAsync(ct);
         var sessionCount = sessions.Count;
-        long runSeconds = 0;
         var now = DateTime.UtcNow;
-        foreach (var s in sessions)
-        {
-            var ended = s.EndedAt ?? now;
-            if (ended > s.StartedAt)
-                runSeconds += (long)(ended - s.StartedAt).TotalSeconds;
-        }
+        // Shared formula (WoRuntimeMath) — same seconds the Traceability list uses.
+        long runSeconds = WoRuntimeMath.ElapsedSeconds(
+            sessions.Select(s => new WoRuntimeMath.Span(s.StartedAt, s.EndedAt)), now);
 
         var pauseEvents = await _db.WoPauseEvents.AsNoTracking()
             .Where(p => p.WoId == id)
@@ -1305,8 +1319,7 @@ public sealed class WoQcReviewController : ControllerBase
         var paretoBuckets = new Dictionary<string, (int Count, long Seconds)>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in pauseEvents)
         {
-            var ended = p.EndedAt ?? now;
-            var secs = ended > p.StartedAt ? (long)(ended - p.StartedAt).TotalSeconds : 0;
+            var secs = WoRuntimeMath.ElapsedSeconds(new WoRuntimeMath.Span(p.StartedAt, p.EndedAt), now);
             pauseSeconds += secs;
             var code = string.IsNullOrEmpty(p.ReasonCode) ? "(unknown)" : p.ReasonCode;
             if (!paretoBuckets.TryGetValue(code, out var b)) b = (0, 0);

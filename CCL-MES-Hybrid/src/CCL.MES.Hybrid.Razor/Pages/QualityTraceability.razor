@@ -1,0 +1,210 @@
+@page "/quality/traceability"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,QC")]
+@using CCL.MES.Shared.Quality
+@using CCL.MES.Hybrid.Client.Hardware
+@using CCL.MES.Hybrid.Client.Realtime
+@inject ICclApiClient Api
+@inject IBarcodeScannerService Scanner
+@inject IShopfloorLiveService Live
+@inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
+@implements IDisposable
+
+@*
+    Quality → Traceability. Lists Work Orders that have ≥1 FROZEN snapshot
+    (append-only WoTraceSnapshots). Search by scan or typing (WoNo,
+    case-insensitive). Double-click a row → TraceabilityDetailDialog with 4
+    sub-tabs [Product|IPQC|FQC|OQC], each rendered from the DEAD PayloadJson
+    (no live source read). A phase not yet frozen shows an empty-state tab.
+*@
+
+<PageTitle>Traceability data — Quality</PageTitle>
+<h1 class="page-title">Traceability data</h1>
+
+<div class="grid-toolbar">
+    <GridSearchBox @bind-Value="_search" OnSearch="OnSearchAsync"
+                   Placeholder="Scan or type Work Order…" />
+    @if (HwOptions.Value.ScanEnabled)
+    {
+        <button type="button" class="grid-btn" @onclick="OnScanAsync" disabled="@(_scanning || _loading)">
+            @(_scanning ? "Scanning…" : "⧉ Scan")
+        </button>
+    }
+    <button type="button" class="grid-btn" @onclick="OnSearchAsync" disabled="@_loading">Search</button>
+    <div class="grid-toolbar-spacer"></div>
+    <span class="trace-live @(Live.IsConnected ? "trace-live-on" : "trace-live-off")"
+          title="@(Live.IsConnected ? "Real-time updates on" : "Offline — polling every 20s")">
+        @(Live.IsConnected ? "● Live" : "○ Offline")
+    </span>
+</div>
+
+@if (_scanStatus is not null) { <div class="trace-scan-status">@_scanStatus</div> }
+
+@if (_loading && _data is null)
+{
+    <p class="grid-status">Loading…</p>
+}
+else if (_error is not null)
+{
+    <div class="grid-error" role="alert">
+        <strong>Failed to load traceability data.</strong>
+        <div>@_error</div>
+        <button type="button" class="grid-btn" @onclick="OnSearchAsync">Retry</button>
+    </div>
+}
+else if (_data is not null)
+{
+    <div class="grid-scroll">
+        <table class="grid grid-sticky trace-grid">
+            <thead>
+                <tr>
+                    <th class="grid-h">Work Order</th>
+                    <th class="grid-h">Product</th>
+                    <th class="grid-h">MES phase</th>
+                    <th class="grid-h">Frozen phases</th>
+                    <th class="grid-h">Last scan</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in _data.Items)
+                {
+                    <tr class="trace-row" @ondblclick="() => OpenDetail(r.WoNo)" title="Double-click for full detail">
+                        <td>
+                            <div><code>@r.WoNo</code></div>
+                            @if (!string.IsNullOrEmpty(r.Customer)) { <div class="trace-sub">@r.Customer</div> }
+                        </td>
+                        <td>
+                            <div>@r.ProductName</div>
+                            @if (!string.IsNullOrEmpty(r.ProductCode)) { <div class="trace-sub">@r.ProductCode</div> }
+                        </td>
+                        <td><span class="trace-chip trace-chip-pending">@r.CurrentMesPhase</span></td>
+                        <td>
+                            @foreach (var ph in TracePhase.All)
+                            {
+                                <span class="trace-chip @(r.FrozenPhases.Contains(ph) ? "trace-chip-ok" : "trace-chip-none")">@PhaseLabel(ph)</span>
+                            }
+                        </td>
+                        <td class="trace-mono">@r.LastScannedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                    </tr>
+                }
+                @if (_data.Items.Count == 0)
+                {
+                    <tr><td colspan="5" class="grid-empty">No work orders scanned yet.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="grid-pager">
+        <button type="button" class="grid-btn" disabled="@(_page <= 1 || _loading)" @onclick="() => GoToPageAsync(_page - 1)">‹ Previous</button>
+        <span class="grid-pager-text">Page @_page / @TotalPages — @_data.Total rows</span>
+        <button type="button" class="grid-btn" disabled="@(_page >= TotalPages || _loading)" @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
+    </div>
+}
+
+@if (_openWoNo is not null)
+{
+    <TraceabilityDetailDialog WoNo="@_openWoNo" OnClose="CloseDetail" />
+}
+
+@code {
+    private NpiPagedRaw<TraceListRow>? _data;
+    private bool _loading;
+    private string? _error;
+    private string _search = "";
+    private int _page = 1;
+    private const int PageSize = 50;
+    private bool _scanning;
+    private string? _scanStatus;
+    private string? _openWoNo;
+
+    private System.Threading.Timer? _debounce;
+    private System.Threading.Timer? _poll;
+
+    private int TotalPages => _data is null || _data.Total <= 0 ? 1 : (int)Math.Ceiling(_data.Total / (double)PageSize);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Live.Changed += OnLiveChanged;
+        Live.StateChanged += OnLiveStateChanged;
+        await Live.EnsureStartedAsync();
+        UpdatePolling();
+        await LoadAsync();
+    }
+
+    // notify-then-pull: any change reason re-pulls the list; debounce a burst
+    // of scans into a single reload (~400ms).
+    private void OnLiveChanged(string reason)
+    {
+        _debounce?.Dispose();
+        _debounce = new System.Threading.Timer(
+            _ => InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); }),
+            null, 400, System.Threading.Timeout.Infinite);
+    }
+
+    private void OnLiveStateChanged()
+        => InvokeAsync(() => { UpdatePolling(); StateHasChanged(); });
+
+    // Fallback: when the hub is down, poll every 20s; stop once it reconnects.
+    private void UpdatePolling()
+    {
+        if (Live.IsConnected)
+        {
+            _poll?.Dispose(); _poll = null;
+        }
+        else if (_poll is null)
+        {
+            _poll = new System.Threading.Timer(
+                _ => InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); }),
+                null, 20000, 20000);
+        }
+    }
+
+    private Task OnSearchAsync() { _page = 1; return LoadAsync(); }
+    private Task GoToPageAsync(int page) { _page = page < 1 ? 1 : (page > TotalPages ? TotalPages : page); return LoadAsync(); }
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _error = null;
+        try { _data = await Api.GetTraceabilityAsync(string.IsNullOrWhiteSpace(_search) ? null : _search, _page, PageSize); }
+        catch (ApiException apiEx) { _error = apiEx.ApiError.MessageEn; }
+        catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _loading = false; }
+    }
+
+    private async Task OnScanAsync()
+    {
+        _scanning = true; _scanStatus = null;
+        try
+        {
+            var result = await Scanner.ScanOnceAsync();
+            if (result is null) { _scanStatus = "Scan cancelled or no hardware."; return; }
+            _search = result.Code.Trim();
+            _scanStatus = $"Scanned: {_search}";
+            _page = 1;
+            await LoadAsync();
+        }
+        catch (Exception ex) { _scanStatus = $"Scan error: {ex.GetType().Name}: {ex.Message}"; }
+        finally { _scanning = false; }
+    }
+
+    private void OpenDetail(string woNo) => _openWoNo = woNo;
+    private void CloseDetail() => _openWoNo = null;
+
+    public void Dispose()
+    {
+        Live.Changed -= OnLiveChanged;
+        Live.StateChanged -= OnLiveStateChanged;
+        _debounce?.Dispose();
+        _poll?.Dispose();
+    }
+
+    private static string PhaseLabel(string phase) => phase switch
+    {
+        TracePhase.Product => "Product",
+        TracePhase.Ipqc => "IPQC",
+        TracePhase.Fqc => "FQC",
+        TracePhase.Oqc => "OQC",
+        _ => phase,
+    };
+}

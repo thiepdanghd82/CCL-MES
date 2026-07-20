@@ -244,6 +244,47 @@ public sealed class AccountControlService
         return AccountMutationResult.Success(ToDto(user));
     }
 
+    // ── Delete ──────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Permanently remove a user row. Same guard set as reset/update:
+    ///   - sys-role accounts are audit-only (403);
+    ///   - self-delete is refused (an admin can't remove their own login);
+    ///   - deleting the LAST active admin is refused (zero-admin lockout).
+    /// There are no FK references to Users (audit + WO rows carry the
+    /// username as a plain string), so the row deletes cleanly; the
+    /// audit trail keeps the historical username.
+    /// </summary>
+    public async Task<AccountMutationResult> DeleteAsync(
+        long userId, ClaimsPrincipal actor, CancellationToken ct)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+        if (user is null) return AccountMutationResult.Failed(AccountResult.NotFound);
+
+        if (UserRole.IsSystemAccount(user.Role))
+            return AccountMutationResult.Failed(AccountResult.SysAccountProtected);
+
+        if (IsActor(user, actor))
+            return AccountMutationResult.Failed(AccountResult.SelfModificationBlocked);
+
+        // Refuse if this is the last active admin — deleting it would leave
+        // the system with no way in (mirrors the demote/disable guard).
+        if (user.Role == UserRole.Admin && user.IsActive
+            && await ActiveAdminCountAsync(ct) <= 1)
+        {
+            return AccountMutationResult.Failed(AccountResult.LastAdminProtected);
+        }
+
+        // Snapshot for the audit + response BEFORE the row is gone.
+        var dto = ToDto(user);
+        // Kill any live sessions immediately; the access token lives out its
+        // ≤15-min natural TTL but no new pair can be minted.
+        _refreshStore.RevokeAllForUser(user.Id);
+        _db.Users.Remove(user);
+        await _db.SaveChangesAsync(ct);
+        return AccountMutationResult.Success(dto);
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────
 
     private Task<int> ActiveAdminCountAsync(CancellationToken ct) =>

@@ -54,6 +54,9 @@ public static class ServiceCollectionExtensions
         })
         .AddHttpMessageHandler<AuthorizationDelegatingHandler>();
 
+        // Real-time shopfloor hub — ONE shared connection (notify-then-pull).
+        services.AddSingleton<Realtime.IShopfloorLiveService, Realtime.ShopfloorLiveService>();
+
         // P10.3 hardware abstraction. The host project MAY override any of
         // these with platform-specific impls (Catalyst AVFoundation in W2,
         // Windows MediaCapture+ZXing in W3, Maui Preferences-backed

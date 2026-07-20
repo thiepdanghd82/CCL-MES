@@ -193,6 +193,28 @@ public sealed class AccountControlController : ControllerBase
         return Ok(dto);
     }
 
+    [HttpDelete("{id:long}")]
+    public async Task<IActionResult> Delete(long id, CancellationToken ct)
+    {
+        var result = await _svc.DeleteAsync(id, User, ct);
+        if (result.Outcome != AccountResult.Success)
+            return MapError(result.Outcome);
+
+        var dto = result.Account!;
+        await _audit.EmitAsync(
+            action: AuditAction.UserDelete,
+            actor: ActorName(),
+            actorRole: ActorRole(),
+            targetType: "User",
+            targetId: dto.Id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            detail: JsonSerializer.Serialize(new
+            {
+                username = dto.Username,
+                role = dto.Role,
+            }));
+        return Ok(dto);
+    }
+
     // ── Error mapping ───────────────────────────────────────────────
 
     private IActionResult MapError(AccountResult code) => code switch

@@ -68,6 +68,8 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<ProcessLineMap> ProcessLineMaps => Set<ProcessLineMap>();
     // P10.7e-1 Q3+Q6 — DATA-DRIVEN FQC + OQC + photo evidence tables.
     public DbSet<WoQcCheck> WoQcChecks => Set<WoQcCheck>();
+    public DbSet<WoTraceSnapshot> WoTraceSnapshots => Set<WoTraceSnapshot>();
+    public DbSet<WoTraceIndex> WoTraceIndexes => Set<WoTraceIndex>();
     public DbSet<WoQcCheckItem> WoQcCheckItems => Set<WoQcCheckItem>();
     public DbSet<WoQcPhoto> WoQcPhotos => Set<WoQcPhoto>();
 
@@ -388,8 +390,27 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<CheckItemLibrary>().HasIndex(x => x.ItemId).IsUnique();
         b.Entity<CheckItemLibrary>().HasIndex(x => new { x.ProcessLine, x.QcStage });
 
-        // Auth — Username must be unique; login lookup hits this index every sign-in.
+        // Auth — Username is unique and matched CASE-INSENSITIVELY. The
+        // column carries a NOCASE collation so both the login lookup
+        // (WHERE Username = @p) and the unique index treat "OQC" == "oqc":
+        // an admin-reset user can sign in regardless of the case they type,
+        // and "OQC"/"oqc" can never become two distinct rows. See Lesson
+        // L26 (LESSONS-LEARNED.md) — case-sensitive lookup masked a correct
+        // password behind a 401 after reset.
+        b.Entity<User>().Property(x => x.Username).UseCollation("NOCASE");
         b.Entity<User>().HasIndex(x => x.Username).IsUnique();
+
+        // Quality → Traceability frozen snapshots: unique per (WO, phase,
+        // version) so a re-freeze must bump Version; WoNo/WoId indexed for
+        // the list search + merged read. No FK to source entities by design.
+        b.Entity<WoTraceSnapshot>().HasIndex(x => new { x.WoId, x.Phase, x.Version }).IsUnique();
+        b.Entity<WoTraceSnapshot>().HasIndex(x => x.WoNo);
+        b.Entity<WoTraceSnapshot>().HasIndex(x => x.WoId);
+
+        // Real-time Traceability index — one MUTABLE row per WO (drives the
+        // live list). Unique on WoId + WoNo so a scan/find upsert can't dup.
+        b.Entity<WoTraceIndex>().HasIndex(x => x.WoId).IsUnique();
+        b.Entity<WoTraceIndex>().HasIndex(x => x.WoNo).IsUnique();
 
         // Phase 6 Bước 5 — audit log indexes for Syslog filter UX.
         // Sort hiển thị thường theo Timestamp DESC; filter theo

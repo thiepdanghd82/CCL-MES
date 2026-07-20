@@ -59,11 +59,13 @@ public sealed class RunningSurfaceController : ControllerBase
 {
     private readonly IMesDbContext _db;
     private readonly IAuditWriter _audit;
+    private readonly Services.ITraceFreezeService _trace;
 
-    public RunningSurfaceController(IMesDbContext db, IAuditWriter audit)
+    public RunningSurfaceController(IMesDbContext db, IAuditWriter audit, Services.ITraceFreezeService trace)
     {
         _db = db;
         _audit = audit;
+        _trace = trace;
     }
 
     // ── GET /running-surface ───────────────────────────────────────
@@ -165,9 +167,22 @@ public sealed class RunningSurfaceController : ControllerBase
 
         var stamped = WoSettingService.MarkSettingStart(wo, DateTime.UtcNow);
 
-        return await CommitAndAuditAsync(id, wo, actor, role,
+        var result = await CommitAndAuditAsync(id, wo, actor, role,
             AuditAction.WoSettingStart,
             new { setting_start_stamped = stamped });
+        // WO has left PREPRESS → freeze the Product-data snapshot (material +
+        // plate + cutter are complete + immutable now). Best-effort.
+        if (result is OkObjectResult)
+            await FreezeSafe(id, CCL.MES.Shared.Quality.TracePhase.Product, actor);
+        return result;
+    }
+
+    // Best-effort trace freeze — a snapshot failure must NEVER break the
+    // confirm that triggered it. Idempotent by ContentHash in the service.
+    private async Task FreezeSafe(long woId, string phase, string actor)
+    {
+        try { await _trace.FreezeAsync(woId, phase, actor); }
+        catch { /* best-effort side-effect; confirm already committed */ }
     }
 
     // ── POST /setting/done ─────────────────────────────────────────
