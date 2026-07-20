@@ -19,3 +19,4 @@ _archive/**/*.tar.gz
 
 # Runtime uploads (drawings PDF) — not source code
 data/blobs/
+scripts/RecoverAdmin/recover.audit.log

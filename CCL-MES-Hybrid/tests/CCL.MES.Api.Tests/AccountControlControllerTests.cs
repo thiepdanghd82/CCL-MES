@@ -66,6 +66,7 @@ public sealed class AccountControlControllerTests : IClassFixture<MesApiFactory>
     [InlineData("GET",   "/api/v2/admin/users/1")]
     [InlineData("PATCH", "/api/v2/admin/users/1")]
     [InlineData("POST",  "/api/v2/admin/users/1/reset-password")]
+    [InlineData("DELETE","/api/v2/admin/users/1")]
     public async Task Engineer_auth_gets_403_on_every_account_route(string verb, string url)
     {
         var client = await EngineerClientAsync($"eng-acc-{verb}-{url.GetHashCode():x}");
@@ -125,6 +126,25 @@ public sealed class AccountControlControllerTests : IClassFixture<MesApiFactory>
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
         var body = await resp.Content.ReadAsStringAsync();
         Assert.Contains("accounts.username_in_use", body);
+    }
+
+    // Lesson L26 — username uniqueness is CASE-INSENSITIVE. Creating "oqc"
+    // when "OQC" already exists must be refused, otherwise two rows that log
+    // in with the same (NOCASE) name could coexist.
+    [Fact]
+    public async Task Create_duplicate_username_different_case_returns_422_username_in_use()
+    {
+        var client = await AdminClientAsync("admin-acc-dupe-case");
+        await _fx.SeedUserAsync("DupCaseUser", "x", UserRole.Operator);
+
+        var resp = await client.PostAsJsonAsync("/api/v2/admin/users", new CreateAccountRequest
+        {
+            Username = "dupcaseuser",     // same name, different case
+            Role = UserRole.Operator,
+            Password = "Anything!1",
+        });
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        Assert.Contains("accounts.username_in_use", await resp.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -203,6 +223,46 @@ public sealed class AccountControlControllerTests : IClassFixture<MesApiFactory>
             new ResetPasswordRequest { NewPassword = "NewTemp!1" });
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
         Assert.Contains("accounts.self_action_forbidden", await resp.Content.ReadAsStringAsync());
+    }
+
+    // ── Delete ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Admin_can_delete_other_user_and_the_row_is_gone()
+    {
+        var client = await AdminClientAsync("admin-acc-del");
+        var target = await _fx.SeedUserAsync("del-target", "P@ss!1", UserRole.Operator);
+
+        var resp = await client.DeleteAsync($"/api/v2/admin/users/{target.Id}");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var dto = (await resp.Content.ReadFromJsonAsync<AccountDto>())!;
+        Assert.Equal("del-target", dto.Username);
+
+        // Row is really gone — GET by id → 404.
+        var after = await client.GetAsync($"/api/v2/admin/users/{target.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, after.StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_self_via_admin_route_is_refused()
+    {
+        var client = await AdminClientAsync("admin-acc-self-del");
+        var list = await client.GetFromJsonAsync<AccountPagedResult>(
+            "/api/v2/admin/users?search=admin-acc-self-del&page=1&pageSize=5");
+        var selfId = list!.Items.Single(u => u.Username == "admin-acc-self-del").Id;
+
+        var resp = await client.DeleteAsync($"/api/v2/admin/users/{selfId}");
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        Assert.Contains("accounts.self_action_forbidden", await resp.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Delete_nonexistent_user_returns_404()
+    {
+        var client = await AdminClientAsync("admin-acc-del-404");
+        var resp = await client.DeleteAsync("/api/v2/admin/users/99999999");
+        Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
+        Assert.Contains("accounts.not_found", await resp.Content.ReadAsStringAsync());
     }
 
     // ── Last-admin lockout ─────────────────────────────────────────

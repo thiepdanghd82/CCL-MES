@@ -70,15 +70,25 @@ public sealed class IpqcReviewController : ControllerBase
     private readonly IMesDbContext _db;
     private readonly IAuditWriter _audit;
     private readonly IpqcDualSigOptions _dualSig;
+    private readonly Services.ITraceFreezeService _trace;
 
     public IpqcReviewController(
         IMesDbContext db,
         IAuditWriter audit,
-        IOptions<IpqcDualSigOptions> dualSig)
+        IOptions<IpqcDualSigOptions> dualSig,
+        Services.ITraceFreezeService trace)
     {
         _db = db;
         _audit = audit;
         _dualSig = dualSig.Value;
+        _trace = trace;
+    }
+
+    // Best-effort trace freeze — never breaks the confirm; idempotent in service.
+    private async Task FreezeSafe(long woId, string phase, string actor)
+    {
+        try { await _trace.FreezeAsync(woId, phase, actor); }
+        catch { /* best-effort */ }
     }
 
     // ── GET /work-orders/{id}/ipqc ─────────────────────────────────
@@ -384,7 +394,7 @@ public sealed class IpqcReviewController : ControllerBase
             _ => wo.MesPhase,
         };
 
-        return await CommitAndAuditAsync(id, wo, check, actor, role,
+        var result = await CommitAndAuditAsync(id, wo, check, actor, role,
             AuditAction.WoIpqcJudgment,
             new
             {
@@ -392,6 +402,10 @@ public sealed class IpqcReviewController : ControllerBase
                 special_accept_reason = judgment == IpqcJudgment.SpecialAccept
                     ? req.SpecialAcceptReason : null,
             });
+        // Freeze IPQC snapshot the moment the judgment concludes OK (GoRun).
+        if (result is OkObjectResult && judgment == IpqcJudgment.GoRun)
+            await FreezeSafe(id, CCL.MES.Shared.Quality.TracePhase.Ipqc, actor);
+        return result;
     }
 
     // ── POST /work-orders/{id}/qa/approve ──────────────────────────
@@ -468,7 +482,7 @@ public sealed class IpqcReviewController : ControllerBase
 
         wo.MesPhase = outcome == QaOutcome.Approve ? "IPQC_APPROVED" : "PREPRESS";
 
-        return await CommitAndAuditAsync(id, wo, check, actor, role,
+        var result = await CommitAndAuditAsync(id, wo, check, actor, role,
             AuditAction.WoQaApprove,
             new
             {
@@ -478,6 +492,10 @@ public sealed class IpqcReviewController : ControllerBase
                 qa_approved_by = actor,
                 flag_state = _dualSig.FlagState,
             });
+        // SpecialAccept path concluding OK via QA → freeze IPQC snapshot.
+        if (result is OkObjectResult && outcome == QaOutcome.Approve)
+            await FreezeSafe(id, CCL.MES.Shared.Quality.TracePhase.Ipqc, actor);
+        return result;
     }
 
     // ── Helpers ────────────────────────────────────────────────────

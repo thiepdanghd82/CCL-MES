@@ -412,6 +412,10 @@ public sealed class RecordingApi : ICclApiClient
     public Func<long, string, string, string, Stream, string, string, CancellationToken, Task<WoQcPhotoUploadResponse>>? UploadWoQcPhotoImpl { get; set; }
     public Func<long, string, string, long, string, CancellationToken, Task<WoQcSetResponse>>? DeleteWoQcPhotoImpl { get; set; }
     public Func<long, CancellationToken, Task<WoSummaryReport>>? WoSummaryReportImpl { get; set; }
+    public Func<string?, int, int, CancellationToken, Task<NpiPagedRaw<CCL.MES.Shared.Quality.TraceListRow>>>? TraceabilityImpl { get; set; }
+    public List<(string? Search, int Page, int PageSize)> TraceabilityCalls { get; } = new();
+    public Func<string, CancellationToken, Task<CCL.MES.Shared.Quality.TraceabilityDetailDto>>? TraceabilityDetailImpl { get; set; }
+    public List<string> TraceabilityDetailCalls { get; } = new();
 
     public List<(long Id, string Kind)> WoQcViewCalls { get; } = new();
     public List<(long Id, string Kind, string ItemKey, string ETag, SetWoQcItemRequest Req)> PutWoQcItemCalls { get; } = new();
@@ -498,6 +502,24 @@ public sealed class RecordingApi : ICclApiClient
             : WoSummaryReportImpl(workOrderId, ct);
     }
 
+    public Task<NpiPagedRaw<CCL.MES.Shared.Quality.TraceListRow>> GetTraceabilityAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        TraceabilityCalls.Add((search, page, pageSize));
+        return TraceabilityImpl is null
+            ? throw new InvalidOperationException("TraceabilityImpl not set")
+            : TraceabilityImpl(search, page, pageSize, ct);
+    }
+
+    public Task<CCL.MES.Shared.Quality.TraceabilityDetailDto> GetTraceabilityDetailAsync(
+        string woNo, CancellationToken ct = default)
+    {
+        TraceabilityDetailCalls.Add(woNo);
+        return TraceabilityDetailImpl is null
+            ? throw new InvalidOperationException("TraceabilityDetailImpl not set")
+            : TraceabilityDetailImpl(woNo, ct);
+    }
+
     public Task<ScanLogResponse> LogScanAsync(ScanLogRequest req, CancellationToken ct = default)
     {
         ScanLogCalls.Add(req);
@@ -561,6 +583,7 @@ public sealed class RecordingApi : ICclApiClient
     public Task<AccountDto> CreateAccountAsync(CreateAccountRequest r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<AccountDto> UpdateAccountAsync(long a, UpdateAccountRequest r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<AccountDto> ResetAccountPasswordAsync(long a, ResetPasswordRequest r, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<AccountDto> DeleteAccountAsync(long a, CancellationToken c = default) => throw new NotImplementedException();
     public Task<List<BackupSnapshotDto>> ListBackupsAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<BackupSnapshotDto> CreateBackupAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<RestoreResultDto> RestoreBackupAsync(Stream a, string b, CancellationToken c = default) => throw new NotImplementedException();

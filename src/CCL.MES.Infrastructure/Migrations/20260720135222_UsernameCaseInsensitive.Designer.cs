@@ -3,6 +3,7 @@ using System;
 using CCL.MES.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace CCL.MES.Infrastructure.Migrations
 {
     [DbContext(typeof(MesDbContext))]
-    partial class MesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260720135222_UsernameCaseInsensitive")]
+    partial class UsernameCaseInsensitive
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.8");
@@ -2887,142 +2890,6 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WorkOrderId");
 
                     b.ToTable("WoStatusHistories");
-                });
-
-            modelBuilder.Entity("CCL.MES.Domain.Entities.WoTraceIndex", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CurrentMesPhase")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Customer")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("FirstScannedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("FqcFrozen")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IpqcFrozen")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("LastScannedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("LastUpdatedAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("LatestFrozenAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("OqcFrozen")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ProductCode")
-                        .HasColumnType("TEXT");
-
-                    b.Property<bool>("ProductFrozen")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ProductName")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.Property<long>("WoId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("WoNo")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WoId")
-                        .IsUnique();
-
-                    b.HasIndex("WoNo")
-                        .IsUnique();
-
-                    b.ToTable("WoTraceIndexes");
-                });
-
-            modelBuilder.Entity("CCL.MES.Domain.Entities.WoTraceSnapshot", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ContentHash")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("FrozenAtUtc")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FrozenBy")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PayloadJson")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Phase")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("SchemaVersion")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long>("WoId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("WoNo")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WoId");
-
-                    b.HasIndex("WoNo");
-
-                    b.HasIndex("WoId", "Phase", "Version")
-                        .IsUnique();
-
-                    b.ToTable("WoTraceSnapshots");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WorkCenter", b =>

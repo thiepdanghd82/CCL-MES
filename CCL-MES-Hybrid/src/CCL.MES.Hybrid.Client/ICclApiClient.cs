@@ -8,6 +8,7 @@ using CCL.MES.Shared.Drawings;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Home;
 using CCL.MES.Shared.IpqcReview;
+using CCL.MES.Shared.Quality;
 using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.Qms;
@@ -302,6 +303,15 @@ public interface ICclApiClient
     /// ShippedSummaryDashboard. Includes OEE + pause Pareto + 3-leg QC.</summary>
     Task<WoSummaryReport> GetWoSummaryReportAsync(long workOrderId, CancellationToken ct = default);
 
+    /// <summary>Quality → Traceability list (QcRead) — WOs with ≥1 frozen
+    /// snapshot; search matches WoNo (case-insensitive). Snapshot-based.</summary>
+    Task<NpiPagedRaw<TraceListRow>> GetTraceabilityAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default);
+
+    /// <summary>Merged frozen detail for one WO (newest version of each of
+    /// the 4 phases) — read straight from PayloadJson, no live JOIN.</summary>
+    Task<TraceabilityDetailDto> GetTraceabilityDetailAsync(string woNo, CancellationToken ct = default);
+
     // ── Reason codes (P10.7b-3 — operator-facing picker) ──────────
     /// <summary>List active reason codes filtered by kind ("Pause" /
     /// "Scrap" / "Recovery"; omit for every kind). The PREPRESS dashboard
@@ -572,6 +582,12 @@ public interface ICclApiClient
     /// next login. Throws 422 <c>accounts.self_action_forbidden</c>
     /// when invoked against the caller's own id.</summary>
     Task<AccountDto> ResetAccountPasswordAsync(long userId, ResetPasswordRequest req, CancellationToken ct = default);
+
+    /// <summary>Permanently delete a user. Returns the deleted account's
+    /// details (for the confirmation toast). Throws <see cref="ApiException"/>
+    /// on 404 (not found), 403 (sys account), or 422
+    /// (<c>accounts.self_action_forbidden</c> / <c>accounts.last_admin</c>).</summary>
+    Task<AccountDto> DeleteAccountAsync(long userId, CancellationToken ct = default);
 
     // ── Backup / Restore — Admin-only (P10.6h) ──────────────────────
     /// <summary>List existing snapshots in the server's backup dir.

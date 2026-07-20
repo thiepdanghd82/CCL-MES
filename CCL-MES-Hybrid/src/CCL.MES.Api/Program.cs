@@ -385,6 +385,10 @@ builder.Services.AddScoped<CCL.MES.Api.Services.AuditLogQueryService>();
 // IPasswordHasher (singleton) + IRefreshTokenStore (singleton). The
 // AdminOnly policy on AccountControlController is the only gate.
 builder.Services.AddScoped<CCL.MES.Api.Services.AccountControlService>();
+// Quality → Traceability: real-time index + frozen-snapshot freeze + backfill.
+builder.Services.AddScoped<CCL.MES.Api.Services.ITraceIndexService, CCL.MES.Api.Services.TraceIndexService>();
+builder.Services.AddScoped<CCL.MES.Api.Services.ITraceFreezeService, CCL.MES.Api.Services.TraceFreezeService>();
+builder.Services.AddScoped<CCL.MES.Api.Services.TraceBackfillService>();
 
 // P10.5e-1 — Drawings upload + download orchestrator. Legacy Phase 8
 // PR-D-5b service composed of IMesDbContext + IBlobStore (registered

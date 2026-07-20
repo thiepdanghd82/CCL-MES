@@ -45,11 +45,21 @@ public sealed class WorkOrdersController : ControllerBase
     private readonly WorkOrderService _svc;
     private readonly IAuditWriter _audit;
     private readonly IMesDbContext _db;
-    public WorkOrdersController(WorkOrderService svc, IAuditWriter audit, IMesDbContext db)
+    private readonly Services.ITraceIndexService _traceIndex;
+    public WorkOrdersController(WorkOrderService svc, IAuditWriter audit, IMesDbContext db,
+        Services.ITraceIndexService traceIndex)
     {
         _svc = svc;
         _audit = audit;
         _db = db;
+        _traceIndex = traceIndex;
+    }
+
+    // Best-effort real-time index touch — a scan/find/advance surfaces the WO
+    // in Traceability + notifies subscribers. Never breaks the primary action.
+    private async Task TraceTouchSafe(string woNo)
+    {
+        try { await _traceIndex.TouchAsync(woNo); } catch { /* best-effort */ }
     }
 
     // P10.7 landing — active WOs for the scan surface (SpecHub "Active
@@ -149,6 +159,10 @@ public sealed class WorkOrdersController : ControllerBase
         var view = await _svc.GetDrawerAsync(woNo);
         if (view is null)
             return NotFound(ApiError.Of("work_order.not_found", $"No work order with number '{woNo}'."));
+
+        // A scan/find surfaces the WO in Traceability in real time (upsert
+        // index + notify) — even before any phase is frozen.
+        await TraceTouchSafe(woNo);
 
         // P10.7a-1.3 — the drawer view doesn't carry RowVersion, so
         // round-trip via the entity to expose ETag for the optimistic
@@ -399,6 +413,9 @@ public sealed class WorkOrdersController : ControllerBase
                 targetId: deviceId,
                 detail: detail);
         }
+
+        // Phase changed → refresh the Traceability index (CurrentMesPhase) + notify.
+        if (result.Ok) await TraceTouchSafe(woNo);
 
         return Ok(new AdvanceWorkOrderResponse
         {

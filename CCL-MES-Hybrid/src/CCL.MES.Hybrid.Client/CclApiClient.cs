@@ -594,6 +594,24 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<WoQcSetResponse>(resp, ct);
     }
 
+    public async Task<NpiPagedRaw<CCL.MES.Shared.Quality.TraceListRow>> GetTraceabilityAsync(
+        string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        var qs = $"page={page}&pageSize={pageSize}";
+        if (!string.IsNullOrWhiteSpace(search))
+            qs += $"&search={Uri.EscapeDataString(search)}";
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/quality/traceability?{qs}", ct);
+        return await ReadAsAsync<NpiPagedRaw<CCL.MES.Shared.Quality.TraceListRow>>(resp, ct);
+    }
+
+    public async Task<CCL.MES.Shared.Quality.TraceabilityDetailDto> GetTraceabilityDetailAsync(
+        string woNo, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/quality/traceability/{Uri.EscapeDataString(woNo)}", ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.TraceabilityDetailDto>(resp, ct);
+    }
+
     public async Task<WoSummaryReport> GetWoSummaryReportAsync(long workOrderId, CancellationToken ct = default)
     {
         using var resp = await _http.GetAsync(
@@ -1222,6 +1240,13 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
     {
         using var resp = await _http.PostAsJsonAsync(
             $"/{ApiVersion.Prefix}/admin/users/{userId}/reset-password", req, ct);
+        return await ReadAsAsync<AccountDto>(resp, ct);
+    }
+
+    public async Task<AccountDto> DeleteAccountAsync(long userId, CancellationToken ct = default)
+    {
+        using var resp = await _http.DeleteAsync(
+            $"/{ApiVersion.Prefix}/admin/users/{userId}", ct);
         return await ReadAsAsync<AccountDto>(resp, ct);
     }
 

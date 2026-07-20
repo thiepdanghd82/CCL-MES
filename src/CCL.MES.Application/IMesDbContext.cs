@@ -67,6 +67,10 @@ public interface IMesDbContext
     // P10.7e-1 Q3+Q6 — FQC + OQC data-driven surface + photo evidence.
     DbSet<WoQcCheck> WoQcChecks { get; }
     DbSet<WoQcCheckItem> WoQcCheckItems { get; }
+    // Quality → Traceability frozen snapshots (append-only, immutable).
+    DbSet<WoTraceSnapshot> WoTraceSnapshots { get; }
+    // Real-time Traceability index — one mutable row per WO (drives the list).
+    DbSet<WoTraceIndex> WoTraceIndexes { get; }
     DbSet<WoQcPhoto> WoQcPhotos { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
