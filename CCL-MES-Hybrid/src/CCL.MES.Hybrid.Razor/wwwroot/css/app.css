@@ -541,7 +541,7 @@ html, body {
     display: inline-block;
     margin-left: 6px;
     padding: 1px 8px;
-    border: 1px solid #c7d2fe;
+    border: 1px solid var(--indigo-bg);
     border-radius: 999px;
     color: var(--brand);
     font-size: 0.7rem;
@@ -1035,7 +1035,7 @@ html, body {
 .qc-kind-pill {
     display: inline-block; padding: 1px 8px; border-radius: 4px;
     font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em;
-    background: #eef2ff; color: #4338ca;
+    background: var(--indigo-bg); color: var(--indigo);
 }
 
 /* ─────── Grid ─────── */
@@ -1500,7 +1500,7 @@ html, body {
 .shop-pill-done                      { background: #dcfce7; color: #166534; }
 .shop-pill-cancelled                 { background: #fee2e2; color: #991b1b; }
 .shop-pill-paused                    { background: #fef3c7; color: #92400e; }
-.shop-pill-qa                        { background: #ede9fe; color: #5b21b6; }
+.shop-pill-qa                        { background: var(--indigo-bg); color: var(--indigo); }
 .shop-pill-pre-press                 { background: #fee2e2; color: #991b1b; }
 .shop-pill-setting                   { background: #fef3c7; color: #92400e; }
 
@@ -1882,7 +1882,7 @@ html, body {
 }
 
 /* Header tone variants — header band picks up severity color */
-.modal-severity-info    .modal-head { background: #eef2ff; }
+.modal-severity-info    .modal-head { background: var(--indigo-bg); }
 .modal-severity-success .modal-head { background: #ecfdf5; }
 .modal-severity-warning .modal-head { background: #fef3c7; }
 .modal-severity-danger  .modal-head { background: #fee2e2; }
@@ -2010,7 +2010,7 @@ html, body {
     text-align: left;
 }
 
-.spec-ctx-item:hover:not(:disabled) { background: #eef2ff; color: var(--brand-2); }
+.spec-ctx-item:hover:not(:disabled) { background: var(--indigo-bg); color: var(--brand-2); }
 .spec-ctx-item.is-deferred {
     color: var(--c-soft);
     cursor: not-allowed;
@@ -2908,9 +2908,9 @@ html, body {
    the row-level chip. Each planner family gets its own active hue
    so the operator can tell at a glance which planner is filtered. */
 .spec-planner-filter-chip.is-active.spec-planner-silk    { background: var(--brand-ink); }
-.spec-planner-filter-chip.is-active.spec-planner-flexo   { background: #6d28d9; }
+.spec-planner-filter-chip.is-active.spec-planner-flexo   { background: var(--indigo); }
 .spec-planner-filter-chip.is-active.spec-planner-letter  { background: #b45309; }
-.spec-planner-filter-chip.is-active.spec-planner-indigo  { background: #4338ca; }
+.spec-planner-filter-chip.is-active.spec-planner-indigo  { background: var(--indigo); }
 .spec-planner-filter-chip.is-active.spec-planner-diecut  { background: #be123c; }
 
 /* Inline edit shell — wraps editable cell content. Click target +
@@ -3212,7 +3212,7 @@ html, body {
 
 .spec-flexo-remarks-2col > div {
     background: var(--c-bg);
-    border-left: 4px solid #6d28d9;
+    border-left: 4px solid var(--indigo);
     padding: 8px 12px;
 }
 
@@ -3478,7 +3478,7 @@ html, body {
 .drawing-status-pendingapproval { background: #fef3c7; color: #92400e; }
 .drawing-status-approved        { background: #dcfce7; color: #166534; }
 .drawing-status-rejected        { background: #fee2e2; color: #991b1b; }
-.drawing-status-superseded      { background: #e0e7ff; color: #3730a3; }
+.drawing-status-superseded      { background: var(--indigo-bg); color: var(--indigo); }
 .drawing-status-withdrawn       { background: #fce7f3; color: #831843; }
 
 .drawing-approval-strip {
@@ -4984,26 +4984,26 @@ html, body {
 
 /* Manually-typed Part Scan / Description (special-accept case) — dark purple. */
 .scan-manual {
-    color: #6b21a8 !important;
+    color: var(--indigo) !important;
     font-weight: 600;
 }
 
 /* Status pill for a special-accepted row (OK kept with the defect on record). */
 .prepress-pill-special {
-    background: #ede9fe;
-    color: #6b21a8;
+    background: var(--indigo-bg);
+    color: var(--indigo);
     border: 1px solid #c4b5fd;
     white-space: nowrap;
 }
 
 /* Special Accept button — PD leader / Supervisor concession. */
 .op-btn-special {
-    background: #7c3aed;
-    border-color: #6d28d9;
+    background: var(--indigo);
+    border-color: var(--indigo);
     color: var(--c-card);
 }
 .op-btn-special:hover:not(:disabled) {
-    background: #6d28d9;
+    background: var(--indigo);
 }
 
 /* ── P10.7b-3 fix-2 — S9 Design Rules: responsive PREPRESS dashboard ─
@@ -5490,14 +5490,14 @@ html, body {
    canonical MesPhase post-/setting/done. Maintained as a 1-to-1 client
    map so the styling survives even when the server adds new phases. */
 .wo-phase-new            { background: var(--c-line); color: var(--c-ink-3); }
-.wo-phase-prepress       { background: #ddd6fe; color: #5b21b6; }
+.wo-phase-prepress       { background: var(--indigo-bg); color: var(--indigo); }
 .wo-phase-setting        { background: #fef3c7; color: #92400e; }
 .wo-phase-ipqc-wait      { background: #fde68a; color: #78350f; }
 .wo-phase-ipqc-approved  { background: var(--brand-bg); color: var(--brand-ink); }
 .wo-phase-running        { background: #dcfce7; color: #15803d; }
 .wo-phase-paused         { background: #fee2e2; color: #b91c1c; }
-.wo-phase-fqc-pending    { background: #cffafe; color: #155e75; }
-.wo-phase-oqc-pending    { background: #e0e7ff; color: #3730a3; }
+.wo-phase-fqc-pending    { background: var(--accent-bg); color: #155e75; }
+.wo-phase-oqc-pending    { background: var(--indigo-bg); color: var(--indigo); }
 .wo-phase-done           { background: #dcfce7; color: #166534; }
 .wo-phase-cancelled      { background: #fee2e2; color: #991b1b; }
 .wo-phase-other          { background: var(--c-divider); color: var(--c-ink-4); }
@@ -5526,7 +5526,7 @@ html, body {
     align-items: flex-end;
     gap: 2px;
     padding: 8px 14px;
-    background: #ecfeff;
+    background: var(--accent-bg);
     border: 1px solid #67e8f9;
     border-radius: 8px;
 }
@@ -5783,8 +5783,8 @@ html, body {
    width — sidebar collapse reflow per Lesson #27.
    ═══════════════════════════════════════════════════════════════════ */
 
-.rs-phase-fqc        { background: #cffafe; color: #155e75; }
-.rs-phase-oqc        { background: #e0e7ff; color: #3730a3; }
+.rs-phase-fqc        { background: var(--accent-bg); color: #155e75; }
+.rs-phase-oqc        { background: var(--indigo-bg); color: var(--indigo); }
 .rs-phase-shipped    { background: #dcfce7; color: #166534; }
 .wo-phase-shipped    { background: #dcfce7; color: #166534; }
 
@@ -6057,7 +6057,7 @@ html, body {
 .woa-card:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
-    border-color: #c7d2fe;
+    border-color: var(--indigo-bg);
 }
 .woa-head {
     display: flex;
@@ -6075,7 +6075,7 @@ html, body {
     font-weight: 700;
     letter-spacing: 0.4px;
 }
-.wo-badge-info { background: #e0e7ff; color: #3730a3; }
+.wo-badge-info { background: var(--indigo-bg); color: var(--indigo); }
 .wo-badge-run  { background: #dcfce7; color: #15803d; }
 .wo-badge-warn { background: #fef3c7; color: #b45309; }
 .woa-kv {
@@ -6203,8 +6203,8 @@ html, body {
 .trace-wo code { font-weight: 700; }
 .trace-sub { color: var(--c-muted); font-size: 0.76rem; margin-top: 2px; }
 .trace-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; }
-.trace-scan-status { margin: 0 0 10px; padding: 6px 12px; background: #eef2ff;
-    border: 1px solid #c7d2fe; border-radius: 6px; font-size: 0.85rem; color: #3730a3; }
+.trace-scan-status { margin: 0 0 10px; padding: 6px 12px; background: var(--indigo-bg);
+    border: 1px solid var(--indigo-bg); border-radius: 6px; font-size: 0.85rem; color: var(--indigo); }
 
 /* chips — layout only; colour comes from the tone class or wo-phase-* */
 .trace-chip { display: inline-block; padding: 1px 8px; border-radius: 999px;
