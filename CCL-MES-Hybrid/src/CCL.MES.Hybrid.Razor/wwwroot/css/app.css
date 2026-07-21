@@ -7,7 +7,7 @@
     /* ── Dark-surface + base tokens (UNCHANGED — .app-nav re-scopes these
          same names to light for the sidebar subtree; other dark chrome uses
          them at :root value). Kept intact so that scoped system keeps working. */
-    --navy:    #161b22;
+    --navy:    var(--navy);
     --navy-2:  #1f2730;
     --line:    #2b333d;
     --ink:     #e6edf3;
@@ -1324,7 +1324,7 @@ html, body {
     min-height: 100vh;
     display: grid;
     place-items: center;
-    background: linear-gradient(135deg, #161b22, var(--c-ink));
+    background: linear-gradient(135deg, var(--navy), var(--c-ink));
 }
 
 .lock-card {
@@ -2064,9 +2064,9 @@ html, body {
 
 .spec-tab:hover { color: var(--brand-2); }
 .spec-tab.is-active {
-    color: #161b22;
+    color: var(--navy);
     font-weight: 600;
-    border-bottom-color: #161b22;
+    border-bottom-color: var(--navy);
 }
 
 .spec-tab-panel { padding: 0 0 32px; }
@@ -2074,7 +2074,7 @@ html, body {
 .spec-showcard {
     background: white;
     border: 1px solid var(--c-line);
-    border-top: 4px solid #161b22;     /* navy header per Henry's brief */
+    border-top: 4px solid var(--navy);     /* navy header per Henry's brief */
     border-radius: 10px;
     padding: 18px 22px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
@@ -2119,7 +2119,7 @@ html, body {
     text-align: right;
 }
 
-.spec-showcard-rev strong { font-family: ui-monospace, monospace; color: #161b22; }
+.spec-showcard-rev strong { font-family: ui-monospace, monospace; color: var(--navy); }
 
 .spec-showcard-empty { color: var(--c-muted); font-style: italic; }
 
