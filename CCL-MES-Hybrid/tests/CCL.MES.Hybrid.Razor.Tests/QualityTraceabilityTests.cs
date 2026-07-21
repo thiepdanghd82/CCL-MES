@@ -69,18 +69,25 @@ public sealed class QualityTraceabilityTests : TestContext
             {
                 Phase = TracePhase.Product, WoNo = "WO-TR-1", Variant = "PC-1",
                 Header = new() { new TraceKv { Label = "Product code", Value = "80640004" } },
+                // NOTE: deliberately NO "no" key — proves the No. column comes
+                // from the loop index (works for old snapshots that lack it).
                 Items = new()
                 {
                     // Clean OK row with a persisted scan + BOM-resolved description.
                     new TraceItem { Key = "mat-0", Label = "30030532", Status = "Ok", Extra = new()
-                        { ["no"] = "1", ["partNo"] = "30030532", ["description"] = "BOPP GLOSS",
+                        { ["partNo"] = "30030532", ["description"] = "BOPP GLOSS",
                           ["qpaM2"] = "0.000004", ["qtyRequired"] = "0.003875", ["uom"] = "kg",
                           ["partScan"] = "30030532-0145", ["partDescription"] = "BOPP GLOSS", ["lotNo"] = "L1" } },
                     // Special-accept row: Status Ok WITH a retained NG reason.
                     new TraceItem { Key = "mat-1", Label = "30031145", Status = "Ok", NgReason = "SC-MAT-DAMAGE", NgNote = "edge nick", Extra = new()
-                        { ["no"] = "2", ["partNo"] = "30031145", ["description"] = "BW488",
+                        { ["partNo"] = "30031145", ["description"] = "BW488",
                           ["qpaM2"] = "0.003000", ["qtyRequired"] = "3", ["uom"] = "m2",
                           ["partScan"] = "30031145", ["partDescription"] = "BW488", ["lotNo"] = "L2" } },
+                },
+                Tools = new()
+                {
+                    new TraceTool { Type = "Plate", NumberOrCode = "PL-77", Status = "Ok", CheckedBy = "op", CheckedAt = "2026-07-21 09:00" },
+                    new TraceTool { Type = "Cutter", NumberOrCode = "CT-12", Status = "Ng", NgReason = "SC-CUTTER-WORN", CheckedBy = "op", CheckedAt = "2026-07-21 09:05" },
                 },
             },
         },
@@ -197,10 +204,11 @@ public sealed class QualityTraceabilityTests : TestContext
         var cut = RenderComponent<QualityTraceability>();
         cut.Find("tr.trace-row").TriggerEvent("ondblclick", new MouseEventArgs());
 
-        // Simulate floating-window.js reporting the final rect after a drag.
-        var dlg = cut.FindComponent<TraceabilityDetailDialog>();
+        // Simulate floating-window.js reporting the final rect after a drag —
+        // the JSInvokable now lives on the shared FloatingWindow chrome.
+        var win = cut.FindComponent<FloatingWindow>();
         var rect = new WindowRect { X = 120, Y = 80, W = 900, H = 600, Maximized = false };
-        await cut.InvokeAsync(() => dlg.Instance.OnRectChanged_JS(rect));
+        await cut.InvokeAsync(() => win.Instance.OnRectChanged_JS(rect));
 
         // Parent persisted it under the WoNo…
         Assert.Equal(rect, _winStore.Get("WO-A"));
@@ -276,6 +284,43 @@ public sealed class QualityTraceabilityTests : TestContext
         var m = cut.Markup;
         Assert.Contains("OK · Special Accept", m);          // Ok + retained NG reason
         Assert.Contains("SC-MAT-DAMAGE · edge nick", m);    // NG reason · note combined
+    }
+
+    [Fact]
+    public void Product_no_column_is_1_based_from_loop_index_even_without_no_key()
+    {
+        // Detail() items carry NO "no" key (old-snapshot shape) → the column must
+        // still read 1, 2 from the loop index.
+        _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
+        var cut = RenderComponent<TraceabilityDetailDialog>(p => p
+            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.OnClose, () => { }));
+
+        var nos = cut.FindAll(".trace-prod tbody tr td.trace-prod-no").Select(td => td.TextContent.Trim()).ToArray();
+        Assert.Equal(new[] { "1", "2" }, nos);
+    }
+
+    [Fact]
+    public void Product_has_two_sections_and_tools_table_renders_variable_rows()
+    {
+        _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
+        var cut = RenderComponent<TraceabilityDetailDialog>(p => p
+            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.OnClose, () => { }));
+
+        // Bold section headings.
+        var sections = cut.FindAll(".trace-prod-section").Select(h => h.TextContent.Trim()).ToArray();
+        Assert.Equal(new[] { "1. Materials confirmed", "2. Tools confirmed" }, sections);
+
+        // Tools table = flexible list from payload.Tools (2 rows here, N in general).
+        Assert.Single(cut.FindAll(".trace-tools"));
+        Assert.Equal(2, cut.FindAll(".trace-tools tbody tr").Count);
+        var m = cut.Markup;
+        Assert.Contains("Plate", m);
+        Assert.Contains("PL-77", m);
+        Assert.Contains("Cutter", m);
+        Assert.Contains("SC-CUTTER-WORN", m);
+        // Plate/Cutter moved OUT of the meta header.
+        Assert.DoesNotContain("Plate check", m);
+        Assert.DoesNotContain("Cutter check", m);
     }
 
     [Fact]

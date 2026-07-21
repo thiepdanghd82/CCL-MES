@@ -151,6 +151,43 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<NpiImportResultDto>(resp, ct);
     }
 
+    public async Task<NpiWorkCenter> CreateWorkCenterAsync(NpiWorkCenterUpsert body, CancellationToken ct = default)
+    {
+        using var resp = await _http.PostAsJsonAsync($"/{ApiVersion.Prefix}/npi/workcenters", body, ct);
+        return await ReadAsAsync<NpiWorkCenter>(resp, ct);
+    }
+
+    public async Task<NpiWorkCenter> UpdateWorkCenterAsync(long id, NpiWorkCenterUpsert body, CancellationToken ct = default)
+    {
+        using var resp = await _http.PutAsJsonAsync($"/{ApiVersion.Prefix}/npi/workcenters/{id}", body, ct);
+        return await ReadAsAsync<NpiWorkCenter>(resp, ct);
+    }
+
+    public async Task DeleteWorkCenterAsync(long id, CancellationToken ct = default)
+    {
+        using var resp = await _http.DeleteAsync($"/{ApiVersion.Prefix}/npi/workcenters/{id}", ct);
+        if (!resp.IsSuccessStatusCode) await ThrowOnNonSuccess(resp, ct);
+    }
+
+    public async Task<NpiWorkCenterImportReport> ImportWorkCentersAsync(string fileName, byte[] content, CancellationToken ct = default)
+    {
+        using var form = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(content);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+        form.Add(fileContent, "file", fileName);
+        using var resp = await _http.PostAsync($"/{ApiVersion.Prefix}/npi/workcenters/import", form, ct);
+        return await ReadAsAsync<NpiWorkCenterImportReport>(resp, ct);
+    }
+
+    public async Task<string> ExportWorkCentersCsvAsync(string? search, CancellationToken ct = default)
+    {
+        var url = $"/{ApiVersion.Prefix}/npi/workcenters/export?format=csv";
+        if (!string.IsNullOrWhiteSpace(search)) url += $"&search={Uri.EscapeDataString(search)}";
+        using var resp = await _http.GetAsync(url, ct);
+        if (!resp.IsSuccessStatusCode) await ThrowOnNonSuccess(resp, ct);
+        return await resp.Content.ReadAsStringAsync(ct);
+    }
+
     // ── Work Orders ─────────────────────────────────────────────────
 
     public async Task<IReadOnlyList<ActiveWorkOrderCard>> GetActiveWorkOrdersAsync(CancellationToken ct = default)

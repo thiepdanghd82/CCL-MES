@@ -36,6 +36,22 @@ public sealed record TraceItem
     public Dictionary<string, string?>? Extra { get; init; }
 }
 
+/// <summary>One confirmed tool (Plate / Cutter / … ) frozen into the Product
+/// snapshot. The list is variable-length — a silkscreen code can carry up to
+/// ~10 tools — so the renderer walks <see cref="TracePayload.Tools"/> and draws
+/// N rows without any fixed 2-slot layout.</summary>
+public sealed record TraceTool
+{
+    public string Type { get; init; } = "";          // Plate | Cutter | Screen | …
+    public string? Name { get; init; }
+    public string? NumberOrCode { get; init; }
+    public string? Status { get; init; }             // Ok | Ng | Pending | null
+    public string? NgReason { get; init; }
+    public string? CheckedBy { get; init; }
+    /// <summary>Pre-formatted local timestamp string (frozen literal).</summary>
+    public string? CheckedAt { get; init; }
+}
+
 public sealed record TracePayload
 {
     public string Phase { get; init; } = "";
@@ -45,6 +61,10 @@ public sealed record TracePayload
     public string FrozenBy { get; init; } = "";
     public List<TraceKv> Header { get; init; } = new();
     public List<TraceItem> Items { get; init; } = new();
+    /// <summary>Confirmed tools (Product phase). Additive — a snapshot frozen
+    /// before this field deserialises to an empty list, so old snapshots keep
+    /// rendering (plate/cutter still show in their original Header meta).</summary>
+    public List<TraceTool> Tools { get; init; } = new();
 }
 
 // ── Read models (merged detail + list) ──────────────────────────────────

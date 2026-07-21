@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+#
+# CI gate — every SHOWCARD / detail-dialog component in the Hybrid Razor UI must
+# reuse the shared <FloatingWindow> chrome (drag / 8-way resize / traffic-lights
+# / rect persistence) instead of hand-rolling its own window. See
+# .claude/skills/cmes-floating-showcard/SKILL.md + LESSONS-LEARNED.md L34.
+#
+# A NEW component named *DetailDialog.razor or *Showcard*.razor that does NOT
+# reference <FloatingWindow> fails the gate. Pre-existing inline "showcards"
+# (spec-sheet card layouts — NOT draggable windows) are allow-listed below with
+# a reason; add to ALLOW only for genuinely non-window surfaces.
+#
+# Usage: bash scripts/gate-floating-showcard.sh   (exit 0 = pass, 1 = fail)
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+RAZOR="$ROOT/src/CCL.MES.Hybrid.Razor"
+
+# Allow-listed non-window surfaces (basename → reason):
+#   FloatingWindow.razor      — IS the chrome primitive.
+#   SpecShowcard{Compact,Full,Edit}.razor — inline spec-sheet CARD layouts
+#     embedded in a page (not overlays / not draggable windows).
+#   SpecDrawingShowcards.razor — inline collapsible drawing cards + a bespoke
+#     zoom/rotate image-viewer overlay (its own controls; not a data window).
+ALLOW=(
+  "FloatingWindow.razor"
+  "SpecShowcardCompact.razor"
+  "SpecShowcardFull.razor"
+  "SpecShowcardEdit.razor"
+  "SpecDrawingShowcards.razor"
+)
+
+is_allowed() {
+  local base="$1"
+  for a in "${ALLOW[@]}"; do [ "$base" = "$a" ] && return 0; done
+  return 1
+}
+
+fail=0
+checked=0
+while IFS= read -r f; do
+  base="$(basename "$f")"
+  is_allowed "$base" && continue
+  checked=$((checked + 1))
+  if ! grep -q "<FloatingWindow" "$f"; then
+    echo "[gate:FAIL] $base is a showcard/detail-dialog but does NOT wrap <FloatingWindow>."
+    echo "            → Wrap its body in <FloatingWindow> (see cmes-floating-showcard skill),"
+    echo "              or, if it is genuinely NOT a draggable window, add it to ALLOW with a reason."
+    fail=1
+  fi
+done < <(find "$RAZOR" \( -type d \( -name bin -o -name obj \) -prune \) -o \
+              -type f \( -iname "*Showcard*.razor" -o -iname "*DetailDialog*.razor" \) -print)
+
+if [ "$fail" = 0 ]; then
+  echo "[gate:OK] $checked showcard/detail-dialog component(s) wrap <FloatingWindow>."
+fi
+exit $fail

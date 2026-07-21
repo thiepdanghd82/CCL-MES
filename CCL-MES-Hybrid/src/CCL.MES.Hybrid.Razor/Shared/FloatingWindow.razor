@@ -1,0 +1,207 @@
+@namespace CCL.MES.Hybrid.Razor.Shared
+@using CCL.MES.Hybrid.Client.Windows
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@*
+    Reusable floating-window chrome (desktop-app style): drag by the header,
+    resize from 8 edge/corner handles, bring-to-front on click, double-click
+    header to maximize/restore, minimize/maximize/close traffic-lights, keyboard
+    (Esc close · arrows move · Shift+arrows resize). Geometry lives in
+    wwwroot/js/floating-window.js (Pointer Events, WKWebView-safe); this
+    component only owns the DOM + interop wiring. NOT a modal — non-blocking, and
+    several windows can be open at once, each with its own WindowId + rect.
+
+    Any new SHOWCARD / detail dialog MUST wrap its body in this component instead
+    of hand-rolling window chrome (see .claude/skills/cmes-floating-showcard).
+
+    Slots: HeaderContent (rich title, overrides Title/Subtitle) · HeaderExtra
+    (right of the title, before the traffic-lights) · TabBar (row under the
+    header, e.g. a tab strip) · ChildContent (the scrollable body).
+*@
+
+<div class="trace-win" tabindex="0" @ref="_rootRef"
+     role="dialog" aria-label="@AriaLabel"
+     style="visibility:hidden"
+     @onkeydown="OnKeyDown">
+
+    @* 8 resize handles (wired by floating-window.js via data-fw-handle) *@
+    <div class="fw-handle fw-n"  data-fw-handle="n"></div>
+    <div class="fw-handle fw-s"  data-fw-handle="s"></div>
+    <div class="fw-handle fw-e"  data-fw-handle="e"></div>
+    <div class="fw-handle fw-w"  data-fw-handle="w"></div>
+    <div class="fw-handle fw-ne" data-fw-handle="ne"></div>
+    <div class="fw-handle fw-nw" data-fw-handle="nw"></div>
+    <div class="fw-handle fw-se" data-fw-handle="se"></div>
+    <div class="fw-handle fw-sw" data-fw-handle="sw"></div>
+
+    <div class="trace-win-inner">
+        <div class="trace-win-head" @ref="_headRef">
+            <div class="trace-win-headtext">
+                @if (HeaderContent is not null)
+                {
+                    @HeaderContent
+                }
+                else
+                {
+                    <h2 class="trace-win-title trace-modal-title">@Title</h2>
+                    @if (!string.IsNullOrEmpty(Subtitle)) { <div class="trace-sub">@Subtitle</div> }
+                }
+            </div>
+            @HeaderExtra
+            @* Window controls, top-RIGHT (Windows-style): minimize · maximize ·
+               close (close outermost right). data-fw-nodrag so they never drag.
+               Inline-SVG glyphs (crisp + centred); reveal on hover of the cluster. *@
+            <div class="fw-traffic" data-fw-nodrag>
+                @if (ShowMinimize)
+                {
+                    <button type="button" class="fw-light fw-light-min" data-fw-nodrag
+                            @onclick="Minimize" aria-label="Minimize" title="Thu nhỏ">
+                        <svg class="fw-ico" viewBox="0 0 24 24" aria-hidden="true">
+                            <line x1="6" y1="12" x2="18" y2="12" />
+                        </svg>
+                    </button>
+                }
+                @if (ShowMaximize)
+                {
+                    <button type="button" class="fw-light fw-light-max @(_maximized ? "is-max" : "")" data-fw-nodrag
+                            @onclick="Maximize" aria-label="Maximize" title="Phóng to / khôi phục">
+                        <svg class="fw-ico fw-ico-maximize" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="5.5" y="5.5" width="13" height="13" rx="2" />
+                        </svg>
+                        <svg class="fw-ico fw-ico-restore" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="8.5" y="4.5" width="11" height="11" rx="1.8" />
+                            <rect x="4.5" y="8.5" width="11" height="11" rx="1.8" />
+                        </svg>
+                    </button>
+                }
+                <button type="button" class="fw-light fw-light-close" data-fw-nodrag
+                        @onclick="Close" aria-label="Close" title="Đóng (Esc)">
+                    <svg class="fw-ico" viewBox="0 0 24 24" aria-hidden="true">
+                        <line x1="6.5" y1="6.5" x2="17.5" y2="17.5" />
+                        <line x1="17.5" y1="6.5" x2="6.5" y2="17.5" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        @TabBar
+
+        <div class="trace-win-body trace-modal-body">
+            @ChildContent
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>Simple title text (ignored when <see cref="HeaderContent"/> is set).</summary>
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Subtitle { get; set; }
+    /// <summary>Rich header (left side) — overrides Title/Subtitle.</summary>
+    [Parameter] public RenderFragment? HeaderContent { get; set; }
+    /// <summary>Extra header content between the title and the traffic-lights.</summary>
+    [Parameter] public RenderFragment? HeaderExtra { get; set; }
+    /// <summary>Optional row under the header (e.g. a tab strip).</summary>
+    [Parameter] public RenderFragment? TabBar { get; set; }
+    /// <summary>The scrollable window body.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public string? AriaLabel { get; set; }
+    [Parameter] public bool ShowMinimize { get; set; } = true;
+    [Parameter] public bool ShowMaximize { get; set; } = true;
+
+    /// <summary>Stable id shared with floating-window.js for this window's
+    /// drag/resize/z-order state. Defaults to a fresh id so the component still
+    /// renders standalone (e.g. bUnit) without a parent supplying one.</summary>
+    [Parameter] public string WindowId { get; set; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>Restored rect (from the per-session store); null → the JS side
+    /// computes a centred default offset by <see cref="CascadeIndex"/>.</summary>
+    [Parameter] public WindowRect? Rect { get; set; }
+
+    /// <summary>0-based open order — cascades a new window ~24px off the last.</summary>
+    [Parameter] public int CascadeIndex { get; set; }
+
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>Fires with the final rect on pointer-up / resize / maximize /
+    /// keyboard nudge so the parent can persist it (via FloatingWindowStore).</summary>
+    [Parameter] public EventCallback<WindowRect> OnRectChanged { get; set; }
+
+    /// <summary>Minimum size passed to the JS layer (px).</summary>
+    [Parameter] public int MinWidth { get; set; } = 480;
+    [Parameter] public int MinHeight { get; set; } = 320;
+
+    private ElementReference _rootRef;
+    private ElementReference _headRef;
+    private DotNetObjectReference<FloatingWindow>? _self;
+    // Cosmetic mirror of the JS maximized state, to swap the maximize/restore
+    // icon. Synced via OnRectChanged_JS (button, double-click, keyboard, JS).
+    private bool _maximized;
+
+    protected override void OnInitialized() => _maximized = Rect?.Maximized ?? false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _self = DotNetObjectReference.Create(this);
+        var opts = new
+        {
+            cascade = CascadeIndex,
+            minW = MinWidth,
+            minH = MinHeight,
+            rect = Rect is null ? null : new { x = Rect.X, y = Rect.Y, w = Rect.W, h = Rect.H, maximized = Rect.Maximized },
+        };
+        try { await JS.InvokeVoidAsync("cclMesFloat.init", WindowId, _rootRef, _headRef, opts, _self); }
+        catch (Exception) { /* JS not present (e.g. test host) — window stays static */ }
+    }
+
+    /// <summary>Called from floating-window.js with the final geometry.</summary>
+    [JSInvokable]
+    public Task OnRectChanged_JS(WindowRect rect)
+    {
+        if (_maximized != rect.Maximized) { _maximized = rect.Maximized; StateHasChanged(); }
+        return OnRectChanged.InvokeAsync(rect);
+    }
+
+    private Task Close() => OnClose.InvokeAsync();
+
+    private async Task Minimize()
+    {
+        try { await JS.InvokeVoidAsync("cclMesFloat.toggleMinimize", WindowId); }
+        catch (Exception) { /* JS not present */ }
+    }
+
+    private async Task Maximize()
+    {
+        try { await JS.InvokeVoidAsync("cclMesFloat.toggleMaximize", WindowId); }
+        catch (Exception) { /* JS not present */ }
+    }
+
+    // Keyboard: Esc closes; arrows move; Shift+arrows resize (16px steps).
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") { await Close(); return; }
+
+        const double step = 16;
+        double dx = 0, dy = 0, dw = 0, dh = 0;
+        var resize = e.ShiftKey;
+        switch (e.Key)
+        {
+            case "ArrowLeft":  if (resize) dw = -step; else dx = -step; break;
+            case "ArrowRight": if (resize) dw =  step; else dx =  step; break;
+            case "ArrowUp":    if (resize) dh = -step; else dy = -step; break;
+            case "ArrowDown":  if (resize) dh =  step; else dy =  step; break;
+            default: return;
+        }
+        try { await JS.InvokeVoidAsync("cclMesFloat.nudge", WindowId, dx, dy, dw, dh); }
+        catch (Exception) { /* JS not present */ }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("cclMesFloat.dispose", WindowId); }
+        catch (Exception) { /* JS not present / already gone */ }
+        _self?.Dispose();
+    }
+}

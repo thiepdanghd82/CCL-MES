@@ -530,3 +530,54 @@ The `exit 1` MUST go through the cleanup trap. NEVER bare-`exit` from inside a m
 **Invariants to keep**: state-machine + dual-sig untouched (additive only); freeze = editing the library NEVER mutates an in-flight WO (prove live: old WO item-count unchanged after a library edit, new WO picks up the change).
 
 **Cơ chế chặn**: `QcLineResolverTests`, `IpqcDataDrivenTests` (rollup parity + materializer), `IpqcAutoSyncTests` (end-to-end resolve→materialize→freeze + no-routing fallback), `CheckItemLibraryControllerTests` (scope), `IpqcDashboardItemsTests` (UI items-mode). See [L25](./LESSONS-LEARNED.md#l25) + `docs/lessons-learned/02-ipqc-data-driven-autosync.md`.
+
+---
+
+## S13 — Reusable window chrome: `<FloatingWindow>` for every showcard (L34)
+
+A SHOWCARD (detail/monitor window a user drags, resizes, or keeps open alongside
+others) MUST wrap `Shared/FloatingWindow.razor` — never hand-roll `.trace-win` /
+`.fw-handle` / `.fw-traffic` or `cclMesFloat.*` interop. Reference impl:
+`TraceabilityDetailDialog.razor` (host: `QualityTraceability.razor` for N-window
+cascade + `IFloatingWindowStore` persistence).
+
+Transactional surfaces (Create/Edit/Copy/Import forms, Pause/Finish/QtyCorrect
+confirms) stay centred `<Modal>` — that IS the right pattern; don't float them.
+`Modal` exposes opt-in `Float="true"` (renders through `<FloatingWindow>`) for the
+rare case a modal genuinely becomes keep-open.
+
+**Enforced**: `scripts/gate-floating-showcard.sh` fails a PR adding a
+`*DetailDialog.razor` / `*Showcard*.razor` without `<FloatingWindow>` (allowlist
+= inline Spec*Showcard cards + the primitive itself). Skill:
+`.claude/skills/cmes-floating-showcard/SKILL.md`. Tests: `FloatingWindowTests` +
+`QualityTraceabilityTests`. See [L34](./LESSONS-LEARNED.md#l34).
+
+---
+
+## S14 — Row actions: one shared `RowContextMenu`, never an "Actions" column (L35)
+
+Per-row actions (Copy / Edit / Delete / …) use `Shared/RowContextMenu.razor`
+opened THREE ways that share one state: right-click (`@oncontextmenu`), long-press
+(~500ms, for touch / WKWebView), and a **⋯ kebab** button in a narrow trailing
+column. RBAC by omission — build only permitted `ContextMenuItem`s; no items →
+don't open + hide the kebab (server still enforces 403). Reference:
+`NpiWorkCenters.razor`.
+
+Do NOT add an inline `<th>Actions</th>` column of buttons. **Enforced**:
+`scripts/gate-row-actions.sh` fails a new grid with an "Actions" header (allowlist
+= grandfathered surfaces + AuditLog's data "Action" column). Skill:
+`.claude/skills/cmes-row-context-menu/SKILL.md`. Tests: `RowContextMenuTests` +
+`NpiWorkCentersTests`. See [L35](./LESSONS-LEARNED.md#l35).
+
+---
+
+## S9 addendum — full-screen surfaces must fill (no fix-width dead bands) (L36)
+
+A full-screen page (login, lock, kiosk, splash) must FILL the viewport — never
+centre a full-screen shell with `display:grid/flex + place-items:center`, whose
+track sizes to CONTENT width and leaves dead bands. Use a **block/fill wrapper**
+(`display:block; min-height:100vh`) with the child at `width:100%`. A fluid split
+uses `flex` ratios + `clamp()` padding/type + the responsive matrix
+(desktop / tablet-portrait / phone / short-height) + `env(safe-area-inset-*)` +
+≥16px inputs. Screenshot the matrix when adding/altering any full-screen surface.
+See [L36](./LESSONS-LEARNED.md#l36). Reference: `Login.razor` + `.login-*`.

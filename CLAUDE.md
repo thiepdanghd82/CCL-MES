@@ -31,6 +31,21 @@ không tái phạm lesson cũ:
 mà cột `Cơ chế chặn tái phát` để trống. Prose không ship — markdown không
 fail CI.
 
+**UI showcard rule (L34):** mọi SHOWCARD / detail-dialog mới trong
+`CCL-MES-Hybrid/src/CCL.MES.Hybrid.Razor` PHẢI bọc component dùng chung
+`Shared/FloatingWindow.razor` (drag / resize 8 hướng / traffic-light /
+persist rect) — KHÔNG tự vẽ chrome. Surface transactional (form / confirm)
+giữ `<Modal>` căn giữa (float là opt-in `Float="true"`). Enforce:
+`CCL-MES-Hybrid/scripts/gate-floating-showcard.sh` + skill
+`.claude/skills/cmes-floating-showcard/SKILL.md`.
+
+**UI row-action rule (L35):** hành động trên dòng grid (Copy/Edit/Delete/…)
+dùng `Shared/RowContextMenu.razor` (chuột phải + long-press + nút ⋯ kebab,
+chung 1 state) — KHÔNG thêm cột "Actions" nút inline. RBAC-by-omission (chỉ
+build item được phép; server vẫn 403). Enforce:
+`CCL-MES-Hybrid/scripts/gate-row-actions.sh` + skill
+`.claude/skills/cmes-row-context-menu/SKILL.md`.
+
 ## 0. Quick start
 
 - **Boot server**: `bash START_SERVER.command` (macOS) hoặc

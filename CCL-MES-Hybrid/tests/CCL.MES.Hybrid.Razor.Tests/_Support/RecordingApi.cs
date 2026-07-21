@@ -108,6 +108,34 @@ public sealed class RecordingApi : ICclApiClient
         return Task.FromResult(NpiImport);
     }
 
+    // WorkCenter write surface — injectable impls (default: echo / empty).
+    public Func<CCL.MES.Hybrid.Client.Npi.NpiWorkCenterUpsert, CCL.MES.Hybrid.Client.Npi.NpiWorkCenter>? CreateWorkCenterImpl { get; set; }
+    public Func<long, CCL.MES.Hybrid.Client.Npi.NpiWorkCenterUpsert, CCL.MES.Hybrid.Client.Npi.NpiWorkCenter>? UpdateWorkCenterImpl { get; set; }
+    public List<long> DeleteWorkCenterCalls { get; } = new();
+    public Func<string, byte[], CCL.MES.Hybrid.Client.Npi.NpiWorkCenterImportReport>? ImportWorkCentersImpl { get; set; }
+    public Func<string?, string>? ExportWorkCentersImpl { get; set; }
+
+    public Task<CCL.MES.Hybrid.Client.Npi.NpiWorkCenter> CreateWorkCenterAsync(CCL.MES.Hybrid.Client.Npi.NpiWorkCenterUpsert body, CancellationToken ct = default)
+        => Task.FromResult(CreateWorkCenterImpl?.Invoke(body)
+            ?? new CCL.MES.Hybrid.Client.Npi.NpiWorkCenter { Id = 1, Code = body.Code, Description = body.Description, Area = body.Area, IdealSpeedPcsH = body.IdealSpeedPcsH, ShiftPattern = body.ShiftPattern, Active = body.Active ?? true });
+
+    public Task<CCL.MES.Hybrid.Client.Npi.NpiWorkCenter> UpdateWorkCenterAsync(long id, CCL.MES.Hybrid.Client.Npi.NpiWorkCenterUpsert body, CancellationToken ct = default)
+        => Task.FromResult(UpdateWorkCenterImpl?.Invoke(id, body)
+            ?? new CCL.MES.Hybrid.Client.Npi.NpiWorkCenter { Id = id, Code = body.Code, Description = body.Description, Area = body.Area, IdealSpeedPcsH = body.IdealSpeedPcsH, ShiftPattern = body.ShiftPattern, Active = body.Active ?? true });
+
+    public Task DeleteWorkCenterAsync(long id, CancellationToken ct = default)
+    {
+        DeleteWorkCenterCalls.Add(id);
+        return Task.CompletedTask;
+    }
+
+    public Task<CCL.MES.Hybrid.Client.Npi.NpiWorkCenterImportReport> ImportWorkCentersAsync(string fileName, byte[] content, CancellationToken ct = default)
+        => Task.FromResult(ImportWorkCentersImpl?.Invoke(fileName, content)
+            ?? new CCL.MES.Hybrid.Client.Npi.NpiWorkCenterImportReport());
+
+    public Task<string> ExportWorkCentersCsvAsync(string? search, CancellationToken ct = default)
+        => Task.FromResult(ExportWorkCentersImpl?.Invoke(search) ?? "");
+
     // P10.8 — Machine Dashboard. Defaults to an empty board.
     public MachineDashboardDto? MachineDashboard { get; set; } = new MachineDashboardDto();
     public int MachineDashboardCalls { get; private set; }
@@ -538,7 +566,9 @@ public sealed class RecordingApi : ICclApiClient
     public Task<LoginResponse> LoginAsync(string username, string password, CancellationToken ct = default) => throw new NotImplementedException();
     public Task<UserInfo> GetMeAsync(CancellationToken ct = default) => throw new NotImplementedException();
     public Task LogoutAsync(string refreshToken, CancellationToken ct = default) => throw new NotImplementedException();
-    public Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? s, int p, int z, CancellationToken c = default) => throw new NotImplementedException();
+    public NpiPagedRaw<NpiWorkCenter>? WorkCenters { get; set; }
+    public Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? s, int p, int z, CancellationToken c = default)
+        => Task.FromResult(WorkCenters ?? new NpiPagedRaw<NpiWorkCenter> { Items = System.Array.Empty<NpiWorkCenter>(), Total = 0, Page = 1, PageSize = 20 });
     public Task<NpiPagedRaw<NpiRawMaterial>> GetRawMaterialsAsync(string? s, int p, int z, CancellationToken c = default) => throw new NotImplementedException();
     public Task<NpiPagedRaw<NpiRoutingOperation>> GetRoutingsAsync(string? s, int p, int z, CancellationToken c = default) => throw new NotImplementedException();
     public Task<NpiPagedRaw<NpiStructure>> GetStructuresAsync(string? s, int p, int z, CancellationToken c = default) => throw new NotImplementedException();

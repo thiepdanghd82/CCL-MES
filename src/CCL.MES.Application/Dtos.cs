@@ -355,3 +355,15 @@ public record UpdateWorkCenterRequest(
     double? IdealSpeedPcsH,
     string? ShiftPattern,
     bool? Active);
+
+// Hybrid NPI — WorkCenter create/edit/import/export (Admin write surface).
+public record WorkCenterImportError(int Row, string Reason);
+public record WorkCenterImportReport(int Inserted, int Updated, int Skipped, List<WorkCenterImportError> Errors);
+
+/// <summary>Soft validation failure on the WorkCenter write path; the API maps
+/// <see cref="Code"/> to an HTTP status (code_in_use → 409, else 422).</summary>
+public sealed class WorkCenterValidationException : Exception
+{
+    public string Code { get; }
+    public WorkCenterValidationException(string code, string message) : base(message) => Code = code;
+}

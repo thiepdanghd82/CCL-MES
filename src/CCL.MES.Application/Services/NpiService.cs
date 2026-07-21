@@ -228,6 +228,144 @@ public class NpiService
         return newRow;
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // Hybrid NPI — Admin write surface: Create / Delete / Import (upsert) /
+    // Export. WorkCenter has NO RowVersion → last-write-wins + audit (the
+    // table is ~43 rows, single-editor master data; ETag would be overkill).
+    // ═══════════════════════════════════════════════════════════════════
+
+    // WC_CODE_RE mirror of WorkCenterCsvTarget — 3-12 upper alnum + `-` `_`.
+    private static readonly System.Text.RegularExpressions.Regex WcCodeRe =
+        new(@"^[A-Z0-9_-]{3,12}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static string ValidateCode(string? code)
+    {
+        var c = (code ?? "").Trim().ToUpperInvariant();
+        if (c.Length == 0)
+            throw new WorkCenterValidationException("workcenters.code_required", "Code is required.");
+        if (!WcCodeRe.IsMatch(c))
+            throw new WorkCenterValidationException("workcenters.code_invalid", "Code must be 3–12 chars of A–Z, 0–9, '-' or '_'.");
+        return c;
+    }
+
+    public async Task<WorkCenter> CreateWorkCenterAsync(UpdateWorkCenterRequest r, string? user)
+    {
+        var code = ValidateCode(r.Code);
+        if (r.IdealSpeedPcsH is < 0)
+            throw new WorkCenterValidationException("workcenters.speed_negative", "Ideal speed must be ≥ 0.");
+        if (await _db.WorkCenters.AnyAsync(x => x.Code == code))
+            throw new WorkCenterValidationException("workcenters.code_in_use", $"WC Code '{code}' already exists.");
+
+        var row = new WorkCenter
+        {
+            Code = code,
+            Description = r.Description ?? "",
+            Area = r.Area,
+            IdealSpeedPcsH = r.IdealSpeedPcsH,
+            ShiftPattern = r.ShiftPattern,
+            Active = r.Active ?? true,
+            CreatedBy = user,
+        };
+        _db.WorkCenters.Add(row);
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.WcCreate, user ?? "anonymous", actorRole: "",
+            targetType: "WorkCenter", targetId: row.Id.ToString(),
+            detail: JsonSerializer.Serialize(new { wc_id = row.Id, code = row.Code }));
+        return row;
+    }
+
+    public async Task<bool> DeleteWorkCenterAsync(long id, string? user)
+    {
+        var row = await _db.WorkCenters.FirstOrDefaultAsync(x => x.Id == id);
+        if (row is null) return false;
+        _db.WorkCenters.Remove(row);
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.WcDelete, user ?? "anonymous", actorRole: "",
+            targetType: "WorkCenter", targetId: id.ToString(),
+            detail: JsonSerializer.Serialize(new { wc_id = id, code = row.Code }));
+        return true;
+    }
+
+    /// <summary>Import WorkCenters from CSV — UPSERT by Code (idempotent,
+    /// NON-deleting), one bad row never aborts the batch. Uses the shared
+    /// <see cref="NpiImport.WorkCenterCsvTarget"/> for header aliases + strict
+    /// code validation, then merges into the existing rows.</summary>
+    public async Task<WorkCenterImportReport> ImportWorkCentersAsync(Stream csv, string? user)
+    {
+        var parsed = NpiImport.NpiCsvParser.Parse(csv, new NpiImport.WorkCenterCsvTarget());
+        var errors = new List<WorkCenterImportError>();
+        if (parsed.MissingRequired.Count > 0)
+        {
+            errors.Add(new WorkCenterImportError(0, $"Missing required column(s): {string.Join(", ", parsed.MissingRequired)}"));
+            return new WorkCenterImportReport(0, 0, parsed.Parsed, errors);
+        }
+        // Aggregate parser skip reasons (bad code format / short row) as row-0 lines.
+        foreach (var kv in parsed.SkipReasons)
+            errors.Add(new WorkCenterImportError(0, $"{kv.Value} row(s) skipped: {kv.Key}"));
+
+        var byCode = new Dictionary<string, WorkCenter>(StringComparer.OrdinalIgnoreCase);
+        foreach (var w in await _db.WorkCenters.ToListAsync()) byCode[w.Code] = w;
+
+        int inserted = 0, updated = 0, skipped = parsed.Skipped, rowNo = 0;
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var wc in parsed.Rows)
+        {
+            rowNo++;
+            if (!seen.Add(wc.Code))
+            {
+                skipped++;
+                errors.Add(new WorkCenterImportError(rowNo, $"Duplicate code '{wc.Code}' in file — first row wins."));
+                continue;
+            }
+            if (byCode.TryGetValue(wc.Code, out var existing))
+            {
+                existing.Description = wc.Description;
+                existing.Area = wc.Area;
+                existing.IdealSpeedPcsH = wc.IdealSpeedPcsH;
+                existing.ShiftPattern = wc.ShiftPattern;
+                if (wc.Active is not null) existing.Active = wc.Active;
+                existing.UpdatedAt = DateTime.UtcNow;
+                existing.UpdatedBy = user;
+                updated++;
+            }
+            else
+            {
+                wc.Active ??= true;
+                wc.CreatedBy = user;
+                _db.WorkCenters.Add(wc);
+                byCode[wc.Code] = wc;
+                inserted++;
+            }
+        }
+        await _db.SaveChangesAsync();
+
+        await _audit.EmitAsync(
+            AuditAction.WcImport, user ?? "anonymous", actorRole: "",
+            targetType: "WorkCenter", targetId: "-",
+            detail: JsonSerializer.Serialize(new { inserted, updated, skipped, parsed = parsed.Parsed }));
+        return new WorkCenterImportReport(inserted, updated, skipped, errors);
+    }
+
+    /// <summary>All WorkCenters matching the (optional) search filter — same
+    /// predicate as the grid so Export mirrors what the operator is viewing.</summary>
+    public async Task<List<WorkCenter>> ExportWorkCentersAsync(string? search)
+    {
+        var q = _db.WorkCenters.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(x => x.Code.Contains(s)
+                || x.Description.Contains(s)
+                || (x.Area != null && x.Area.Contains(s))
+                || (x.ShiftPattern != null && x.ShiftPattern.Contains(s)));
+        }
+        return await q.OrderBy(x => x.Code).ToListAsync();
+    }
+
     /// <summary>
     /// Phase 8 — Toggle Active flag via context menu. Audit WC_ACTIVE_TOGGLE
     /// ghi from → to. Idempotent: gọi với active = current value chỉ no-op.

@@ -1,0 +1,93 @@
+---
+name: cmes-floating-showcard
+description: >
+  How to build a SHOWCARD / detail dialog in CCL-MES Hybrid. Every keep-open-
+  alongside detail window MUST reuse the shared <FloatingWindow> chrome — never
+  hand-roll drag/resize/traffic-lights. Use when adding a new tab/showcard/detail
+  dialog, or reviewing one.
+---
+
+# CMES floating showcard
+
+**Rule (enforced):** any SHOWCARD — a detail/view/monitor window a user would
+plausibly move, resize, or keep open alongside others — is built by wrapping its
+body in `Shared/FloatingWindow.razor`. Do **not** re-create `.trace-win` /
+`.fw-handle` / `.fw-traffic` markup or the `cclMesFloat` JS interop by hand.
+
+CI gate: `scripts/gate-floating-showcard.sh` fails a PR that adds a
+`*DetailDialog.razor` / `*Showcard*.razor` component without `<FloatingWindow>`.
+Lesson: `docs/LESSONS-LEARNED.md` **L34**.
+
+## Showcard vs. modal — pick the pattern
+
+| Use `<FloatingWindow>` (showcard) | Use `<Modal>` (centred scrim) |
+| --- | --- |
+| Detail/monitor view, may open several at once, user drags/resizes/keeps open | Transactional: fill a form or confirm, then close |
+| e.g. Traceability detail, a live monitor, a multi-record inspector | e.g. Create/Edit/Confirm/Import forms, yes/no confirms |
+
+A transactional `<Modal>` can opt into showcard chrome with `Float="true"` (it
+renders through `<FloatingWindow>`) — only when it truly becomes keep-open.
+
+## Minimal example
+
+```razor
+@using CCL.MES.Hybrid.Client.Windows
+
+<FloatingWindow Title="@Code" Subtitle="@_name"
+                AriaLabel="@($"Detail {Code}")"
+                WindowId="@WindowId" Rect="Rect" CascadeIndex="CascadeIndex"
+                OnClose="OnClose" OnRectChanged="OnRectChanged">
+    <TabBar>            @* optional row under the header, e.g. a tab strip *@
+        ...
+    </TabBar>
+    <ChildContent>     @* the scrollable body *@
+        ...
+    </ChildContent>
+</FloatingWindow>
+
+@code {
+    [Parameter] public string Code { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+    // Pass-through so the PARENT owns multi-window state + persistence:
+    [Parameter] public string WindowId { get; set; } = Guid.NewGuid().ToString("N");
+    [Parameter] public WindowRect? Rect { get; set; }
+    [Parameter] public int CascadeIndex { get; set; }
+    [Parameter] public EventCallback<WindowRect> OnRectChanged { get; set; }
+}
+```
+
+### Parent hosts N windows (cascade + persistence)
+
+The parent page keeps a list of open windows, each with a stable `Id`, a
+cascade index, and a restored rect from the session store. Mirror
+`QualityTraceability.razor`:
+
+```csharp
+@inject CCL.MES.Hybrid.Client.Windows.IFloatingWindowStore WinStore
+// open: reuse if already open (bring-to-front), else add with WinStore.Get(key)
+// OnRectChanged: WinStore.Save(key, rect)
+```
+
+`IFloatingWindowStore` is registered in `AddCclHybridClient`. `WindowId`
+distinguishes windows in `floating-window.js`; `CascadeIndex` offsets a new one.
+
+## Parity checklist (must all hold)
+
+- [ ] Drag by header; 8-way resize (N/S/E/W + 4 corners).
+- [ ] Traffic-lights: minimize · maximize/restore · close (close outermost).
+- [ ] Keyboard: Esc closes, arrows move, Shift+arrows resize.
+- [ ] Multiple windows open independently + bring-to-front on click.
+- [ ] Rect persists per session (reopen restores position/size).
+- [ ] `DisposeAsync` runs `cclMesFloat.dispose` — no orphan listeners (RendererCrashBoundary).
+- [ ] S9 responsive body (overflow-x auto, sticky heads, container queries).
+- [ ] `role="dialog"` + `aria-label`.
+
+`FloatingWindow` already provides all of the above — you inherit them by wrapping.
+Cover new content with bUnit (see `FloatingWindowTests` + `QualityTraceabilityTests`).
+
+## Do NOT
+
+- Hand-write `.trace-win` / `.fw-handle` / `.fw-traffic` or call `cclMesFloat.*`
+  directly in a page — that is what `FloatingWindow` is for.
+- Force `Float="true"` on a confirm/edit modal just to make it draggable —
+  transactional surfaces stay centred modals.
