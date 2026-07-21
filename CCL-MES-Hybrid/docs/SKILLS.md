@@ -581,3 +581,31 @@ uses `flex` ratios + `clamp()` padding/type + the responsive matrix
 (desktop / tablet-portrait / phone / short-height) + `env(safe-area-inset-*)` +
 ≥16px inputs. Screenshot the matrix when adding/altering any full-screen surface.
 See [L36](./LESSONS-LEARNED.md#l36). Reference: `Login.razor` + `.login-*`.
+
+---
+
+## S15 — Colours go through design tokens; re-tone = swap token values, never find/replace hex (L37)
+
+`app.css` is token-driven: a flat semantic layer in `:root`
+(`--c-ink*/--c-bg/--c-card/--c-line*/--brand*/--accent/--indigo/--ok|ng|warn*`)
+is defined once and **never re-scoped**, so `var()` resolves to a constant
+everywhere. **New or changed colours edit a token, they do NOT introduce a raw
+hex** in a rule. Re-toning the app = change the VALUES in `:root` only — that one
+swap propagates to every surface (that is the entire payoff of token-ising).
+
+**Do NOT** re-tone by find/replacing hex across the file — it leaves the app
+un-token-ised (the next re-tone still edits 1000+ literals) and desyncs surfaces.
+
+Migrating a hex-hardcoded stylesheet to tokens = **3 phases, each verified +
+committed**: (1) add the token layer with values = CURRENT colours (unused defs →
+byte-identical render); (2) route hex → `var(--token)` per role-group, one commit
+each, token value = the hex it replaces → no-op; (3) swap `:root` values to the
+new palette. If you script step 2, **strip CSS comments before parsing
+declarations** — a comment containing `word:` (`RULE:`, `:root`) fools a naive
+declaration parser into treating the next `--token: #hex` DEFINITION as a normal
+property, producing a circular `--x: var(--x)` that silently kills the token
+(grep `^\s*--[a-z0-9-]+\s*:\s*var\(` must return nothing).
+
+**Enforced**: `scripts/gate-no-hardcoded-hex.sh` (ratchets raw hex outside
+`:root`; a new hardcoded colour fails — route it to a token or bump the baseline
+with a note). See [L37](./LESSONS-LEARNED.md#l37).
