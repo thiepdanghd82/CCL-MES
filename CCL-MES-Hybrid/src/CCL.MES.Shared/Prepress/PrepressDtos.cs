@@ -38,6 +38,10 @@ public sealed record PrepressMaterialRow
     public double? ScrapPercent { get; init; }
     public double? QtyLoaded { get; init; }
     public string? LotNo { get; init; }
+    /// <summary>Persisted scanned part code (traceability). Null = none.</summary>
+    public string? PartScan { get; init; }
+    /// <summary>Persisted BOM-resolved description for the scanned part.</summary>
+    public string? PartScanDescription { get; init; }
     public string Status { get; init; } = "Pending";
     public string? NgReasonCode { get; init; }
     public string? NgNote { get; init; }
@@ -78,6 +82,16 @@ public sealed record SetPrepressMaterialRequest
     public string? LotNo { get; init; }
     public string? NgReasonCode { get; init; }
     public string? NgNote { get; init; }
+
+    /// <summary>Scanned (or manually-entered) part code for traceability.
+    /// When present the server persists it on the row (so a freeze snapshot can
+    /// carry it); when null the existing value is left untouched.</summary>
+    public string? PartScan { get; init; }
+
+    /// <summary>Description resolved from the matched BOM row (client-side), so
+    /// a bare code still gets a real description. Persisted alongside
+    /// <see cref="PartScan"/>.</summary>
+    public string? PartScanDescription { get; init; }
 }
 
 /// <summary>Request body for POST

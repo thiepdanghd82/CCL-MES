@@ -129,6 +129,8 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<WoMaterial>().Property(x => x.MaterialDescription).HasMaxLength(200);
         b.Entity<WoMaterial>().Property(x => x.Uom).HasMaxLength(16);
         b.Entity<WoMaterial>().Property(x => x.LotNo).HasMaxLength(64);
+        b.Entity<WoMaterial>().Property(x => x.PartScan).HasMaxLength(120);
+        b.Entity<WoMaterial>().Property(x => x.PartScanDescription).HasMaxLength(200);
         b.Entity<WoMaterial>().Property(x => x.NgReasonCode).HasMaxLength(40);
         b.Entity<WoMaterial>().Property(x => x.NgNote).HasMaxLength(500);
         b.Entity<WoMaterial>().Property(x => x.CheckedBy).HasMaxLength(80);

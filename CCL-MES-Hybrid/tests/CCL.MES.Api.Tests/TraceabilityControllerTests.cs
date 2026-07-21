@@ -100,6 +100,33 @@ public sealed class TraceabilityControllerTests : IClassFixture<MesApiFactory>
         Assert.Equal("LOT-ORIG", item.Extra!["lotNo"]);
     }
 
+    // ── Product payload: carries part_scan + part_description, drops scrap ──
+    [Fact]
+    public async Task Product_freeze_carries_part_scan_and_description_and_drops_scrap()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var woId = await SeedWoWithMaterialsAsync($"PSCAN-{tag}", ("30030532", "L1", PrepressCheckStatus.Ok));
+        await MutateMaterialAsync(woId, m =>
+        {
+            m.MaterialDescription = "BOPP GLOSS";
+            m.PartScan = "30030532-0145";        // bare code, resolved via BOM row
+            m.PartScanDescription = "BOPP GLOSS";
+        });
+        await FreezeAsync(woId, TracePhase.Product);
+
+        var client = await ClientAsync($"pscan-qc-{tag}", "QC");
+        var detail = await client.GetFromJsonAsync<TraceabilityDetailDto>($"/api/v2/quality/traceability/PSCAN-{tag}");
+        var item = Assert.Single(detail!.Product!.Payload.Items);
+
+        Assert.Equal("30030532-0145", item.Extra!["partScan"]);
+        Assert.Equal("BOPP GLOSS", item.Extra!["partDescription"]);
+        Assert.Equal("1", item.Extra!["no"]);
+        Assert.Equal("30030532", item.Extra!["partNo"]);
+        // Scrap keys are no longer frozen into the Product payload.
+        Assert.False(item.Extra!.ContainsKey("scrapFactor"));
+        Assert.False(item.Extra!.ContainsKey("scrapPercent"));
+    }
+
     // ── Idempotent + version bump ──
     [Fact]
     public async Task Freeze_is_idempotent_by_content_hash_then_bumps_version_on_real_change()

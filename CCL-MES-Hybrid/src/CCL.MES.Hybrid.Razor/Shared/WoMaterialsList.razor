@@ -401,6 +401,10 @@
         public string? LotNo { get; init; }
         public string? NgReasonCode { get; init; }
         public string? NgNote { get; init; }
+        /// <summary>Scanned part code + resolved description to persist for
+        /// traceability (null → leave the row's existing values untouched).</summary>
+        public string? PartScan { get; init; }
+        public string? PartScanDescription { get; init; }
     }
 
     public sealed class SpecialAcceptIntent

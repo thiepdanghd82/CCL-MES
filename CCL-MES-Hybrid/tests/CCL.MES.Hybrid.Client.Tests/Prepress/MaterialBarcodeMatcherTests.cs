@@ -13,8 +13,8 @@ namespace CCL.MES.Hybrid.Client.Tests.Prepress;
 /// </summary>
 public class MaterialBarcodeMatcherTests
 {
-    private static PrepressMaterialRow Row(string code, int idx = 0, string status = "Pending") =>
-        new() { BomLineIdx = idx, MaterialCode = code, Status = status };
+    private static PrepressMaterialRow Row(string code, int idx = 0, string status = "Pending", string? desc = null) =>
+        new() { BomLineIdx = idx, MaterialCode = code, Status = status, MaterialDescription = desc };
 
     // Three live scans (raw payload before the first '/').
     private const string Scan1 = "30030532/50/(LU29) / lukitape #. 1407V1 (245mm x 50M)";
@@ -113,6 +113,56 @@ public class MaterialBarcodeMatcherTests
         Assert.Equal("80/(BU'488) / BU'-0112N (215mm x 1000M)",
             MaterialBarcodeMatcher.ExtractDescription(Scan3));
         Assert.Equal(string.Empty, MaterialBarcodeMatcher.ExtractDescription("30031145"));
+    }
+
+    // ── Part Description sync (L33): resolve from the matched BOM row ──
+
+    [Fact]
+    public void Bare_code_still_gets_description_from_matched_bom_row()
+    {
+        // A bare code (no "/desc") used to yield "" → "—". Now the matched row's
+        // real description flows through.
+        var bom = new[] { Row("30030491-0145", 0, desc: "BOPP GLOSS 25um") };
+        var r = MaterialBarcodeMatcher.Match(bom, "30030491-0145");
+        Assert.Equal(MaterialMatchOutcome.Single, r.Outcome);
+        Assert.Equal("BOPP GLOSS 25um", r.Description);
+    }
+
+    [Fact]
+    public void Matched_row_description_wins_over_noisy_scan_remainder()
+    {
+        var bom = new[] { Row("30031145", 0, desc: "BW488 CLEAR") };
+        // Scan3 remainder is the OCR-noisy "BU'488 …"; the BOM desc must win.
+        var r = MaterialBarcodeMatcher.Match(bom, Scan3);
+        Assert.Equal("BW488 CLEAR", r.Description);
+    }
+
+    [Fact]
+    public void Falls_back_to_scan_remainder_when_bom_row_has_no_description()
+    {
+        var bom = new[] { Row("30031145", 0, desc: null) };
+        var r = MaterialBarcodeMatcher.Match(bom, Scan3);
+        Assert.Equal("80/(BU'488) / BU'-0112N (215mm x 1000M)", r.Description);
+    }
+
+    [Fact]
+    public void No_match_bare_code_yields_empty_description_no_crash()
+    {
+        var bom = new[] { Row("30030532", 0, desc: "X") };
+        var r = MaterialBarcodeMatcher.Match(bom, "99999999");   // bare, unknown
+        Assert.Equal(MaterialMatchOutcome.NoMatch, r.Outcome);
+        Assert.Equal(string.Empty, r.Description);
+    }
+
+    [Fact]
+    public void ResolveDescription_prefers_row_then_scan()
+    {
+        Assert.Equal("ROW DESC",
+            MaterialBarcodeMatcher.ResolveDescription(Row("A", desc: "ROW DESC"), "A/scan desc"));
+        Assert.Equal("scan desc",
+            MaterialBarcodeMatcher.ResolveDescription(Row("A", desc: null), "A/scan desc"));
+        Assert.Equal(string.Empty,
+            MaterialBarcodeMatcher.ResolveDescription(null, "bare"));
     }
 
     [Theory]
