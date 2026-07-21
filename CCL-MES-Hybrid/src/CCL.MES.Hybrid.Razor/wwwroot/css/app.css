@@ -214,7 +214,7 @@ html, body {
 
 .app-conn-banner {
     background: rgba(241, 181, 0, 0.15);
-    color: #8a6500;
+    color: var(--warn-ink);
     border-bottom: 1px solid var(--warn);
     padding: 8px 16px;
     display: flex;
@@ -564,7 +564,7 @@ html, body {
     padding: 16px 18px;
 }
 .kpi-blue  { border-left-color: var(--brand); }
-.kpi-amber { border-left-color: #d97706; }
+.kpi-amber { border-left-color: var(--warn-fg); }
 .kpi-red   { border-left-color: var(--ng); }
 .kpi-green { border-left-color: var(--ok); }
 .kpi-label {
@@ -768,7 +768,7 @@ html, body {
 /* status accent on the leading cell */
 .md-list-row td:first-child { border-left: 3px solid transparent; }
 .md-list-running td:first-child { border-left-color: var(--ok); }
-.md-list-setup   td:first-child { border-left-color: #d97706; }
+.md-list-setup   td:first-child { border-left-color: var(--warn-fg); }
 .md-list-down    td:first-child { border-left-color: var(--ng); }
 .md-list-maintenance td:first-child { border-left-color: var(--brand); }
 
@@ -788,7 +788,7 @@ html, body {
 }
 .md-kpi-running { border-left-color: var(--ok); }
 .md-kpi-idle    { border-left-color: var(--c-soft); }
-.md-kpi-setup   { border-left-color: #d97706; }
+.md-kpi-setup   { border-left-color: var(--warn-fg); }
 .md-kpi-down    { border-left-color: var(--ng); }
 .md-kpi-maint   { border-left-color: var(--brand); }
 .md-kpi-oee     { border-left-color: var(--ok); display: flex; flex-direction: column; justify-content: center; }
@@ -807,7 +807,7 @@ html, body {
 .md-code { font-weight: 600; }
 .md-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.74rem; font-weight: 700; }
 .md-pill-running { background: var(--ok-bg); color: var(--ok); }
-.md-pill-setup   { background: #fef3c7; color: #b45309; }
+.md-pill-setup   { background: var(--warn-bg); color: var(--warn-fg); }
 .md-pill-idle    { background: var(--c-divider); color: var(--c-muted); }
 .md-pill-down    { background: var(--ng-bg); color: var(--ng); }
 .md-pill-maint   { background: var(--brand-bg); color: var(--brand-2); }
@@ -864,7 +864,7 @@ html, body {
 .md-area-stats { margin-left: auto; display: flex; gap: 6px; }
 .md-area-stat { font-size: 0.74rem; font-weight: 700; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; font-variant-numeric: tabular-nums; }
 .md-area-stat-running { color: var(--ok); }
-.md-area-stat-setup { color: #d97706; }
+.md-area-stat-setup { color: var(--warn-fg); }
 .md-area-stat-idle { color: var(--c-soft); }
 .md-area-stat-down { color: var(--ng); }
 .md-area-stat-maintenance { color: var(--brand); }
@@ -889,7 +889,7 @@ html, body {
 }
 .md-mc-card:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.08); }
 .md-mc-running { border-left-color: var(--ok); }
-.md-mc-setup   { border-left-color: #d97706; }
+.md-mc-setup   { border-left-color: var(--warn-fg); }
 .md-mc-idle    { border-left-color: var(--c-line-2); }
 .md-mc-down    { border-left-color: var(--ng); }
 .md-mc-maintenance { border-left-color: var(--brand); }
@@ -1010,7 +1010,7 @@ html, body {
 .soh-prog-fill { height: 100%; transition: width .4s; }
 .soh-yield { font-weight: 700; font-variant-numeric: tabular-nums; }
 .soh-good { color: var(--ok); }
-.soh-warn { color: #d97706; }
+.soh-warn { color: var(--warn-fg); }
 .soh-bad  { color: var(--ng); }
 .soh-status {
     display: inline-block; padding: 2px 8px; border-radius: 4px;
@@ -1174,7 +1174,7 @@ html, body {
 }
 .hw-pill-probing { background: var(--c-divider); color: var(--c-ink-4); }
 .hw-pill-ok      { background: rgba(34, 197, 94, 0.12); color: var(--ok-ink); }
-.hw-pill-warn    { background: rgba(241, 181, 0, 0.18); color: #8a6500; }
+.hw-pill-warn    { background: rgba(241, 181, 0, 0.18); color: var(--warn-ink); }
 
 /* Scanner test panel inside /hardware */
 .scan-panel {
@@ -1499,10 +1499,10 @@ html, body {
 .shop-pill-running, .shop-pill-ready { background: var(--brand-bg); color: var(--brand-ink); }
 .shop-pill-done                      { background: var(--ok-bg); color: var(--ok-ink); }
 .shop-pill-cancelled                 { background: var(--ng-bg); color: var(--ng-ink); }
-.shop-pill-paused                    { background: #fef3c7; color: #92400e; }
+.shop-pill-paused                    { background: var(--warn-bg); color: var(--warn-ink); }
 .shop-pill-qa                        { background: var(--indigo-bg); color: var(--indigo); }
 .shop-pill-pre-press                 { background: var(--ng-bg); color: var(--ng-ink); }
-.shop-pill-setting                   { background: #fef3c7; color: #92400e; }
+.shop-pill-setting                   { background: var(--warn-bg); color: var(--warn-ink); }
 
 .wo-card-row {
     display: grid;
@@ -1884,12 +1884,12 @@ html, body {
 /* Header tone variants — header band picks up severity color */
 .modal-severity-info    .modal-head { background: var(--indigo-bg); }
 .modal-severity-success .modal-head { background: var(--ok-bg); }
-.modal-severity-warning .modal-head { background: #fef3c7; }
+.modal-severity-warning .modal-head { background: var(--warn-bg); }
 .modal-severity-danger  .modal-head { background: var(--ng-bg); }
 
 .modal-severity-info    .modal-title { color: var(--brand-ink); }
 .modal-severity-success .modal-title { color: var(--ok-ink); }
-.modal-severity-warning .modal-title { color: #92400e; }
+.modal-severity-warning .modal-title { color: var(--warn-ink); }
 .modal-severity-danger  .modal-title { color: var(--ng-ink); }
 
 /* ── P10.5b — Spec list view chips + planner palette + status pills */
@@ -1961,7 +1961,7 @@ html, body {
 }
 
 .spec-status-draft        { background: var(--c-line); color: var(--c-ink-3); }
-.spec-status-in-review    { background: #fef3c7; color: #92400e; }
+.spec-status-in-review    { background: var(--warn-bg); color: var(--warn-ink); }
 .spec-status-approved     { background: var(--ok-bg); color: var(--ok-ink); }
 .spec-status-released     { background: var(--brand-bg); color: var(--brand-ink); }
 .spec-status-superseded   { background: var(--c-divider); color: var(--c-muted); text-decoration: line-through; }
@@ -2163,7 +2163,7 @@ html, body {
 .spec-process-flag.is-silk   { background: var(--ng-bg); color: var(--ng-ink); }
 .spec-process-flag.is-flexo  { background: var(--brand-bg); color: var(--brand-ink); }
 .spec-process-flag.is-indigo { background: var(--ok-bg); color: var(--ok-ink); }
-.spec-process-flag.is-letter { background: #fef3c7; color: #92400e; }
+.spec-process-flag.is-letter { background: var(--warn-bg); color: var(--warn-ink); }
 
 .spec-showcard-section {
     background: var(--c-bg);
@@ -2259,7 +2259,7 @@ html, body {
 .drawing-size { color: var(--c-muted); font-size: 0.82rem; }
 
 .drawing-status-draft           { color: var(--c-ink-3); }
-.drawing-status-pendingapproval { color: #92400e; }
+.drawing-status-pendingapproval { color: var(--warn-ink); }
 .drawing-status-approved        { color: var(--ok-ink); }
 .drawing-status-rejected        { color: var(--ng-ink); }
 .drawing-status-superseded      { color: var(--c-muted); }
@@ -2343,8 +2343,8 @@ html, body {
 .op-btn-secondary:hover:not(:disabled)  { background: var(--c-divider); }
 .op-btn-success    { background: var(--ok); color: white; }
 .op-btn-success:hover:not(:disabled)    { background: var(--ok-ink); }
-.op-btn-warning    { background: #b45309; color: white; }
-.op-btn-warning:hover:not(:disabled)    { background: #92400e; }
+.op-btn-warning    { background: var(--warn-fg); color: white; }
+.op-btn-warning:hover:not(:disabled)    { background: var(--warn-ink); }
 .op-btn-danger     { background: var(--ng); color: white; }
 .op-btn-danger:hover:not(:disabled)     { background: var(--ng-ink); }
 
@@ -2505,7 +2505,7 @@ html, body {
 .grid-btn-danger { background: var(--ng); color: var(--c-card); border-color: var(--ng); }
 .grid-btn-danger:hover:not(:disabled) { background: var(--ng-ink); border-color: var(--ng-ink); }
 .drawing-del-target { font-size: 0.9rem; color: var(--c-ink); margin: 0 0 6px; }
-.drawing-del-warn { font-size: 0.82rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; margin: 0 0 12px; }
+.drawing-del-warn { font-size: 0.82rem; color: var(--warn-ink); background: var(--warn-bg); border: 1px solid var(--warn-bg); border-radius: 8px; padding: 8px 10px; margin: 0 0 12px; }
 
 /* P10.10 — in-app drawing preview overlay (Drawings tab Open). */
 .drawing-preview-overlay {
@@ -2625,8 +2625,8 @@ html, body {
 }
 
 .modal-confirm-target {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
     border-radius: 4px;
     padding: 1px 6px;
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
@@ -2756,9 +2756,9 @@ html, body {
 }
 
 .modal-banner-warning {
-    background: #fef3c7;
-    color: #78350f;
-    border: 1px solid #fde68a;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    border: 1px solid var(--warn-bg);
 }
 
 .grid-btn-secondary {
@@ -2848,8 +2848,8 @@ html, body {
 
 .import-warnings-block {
     margin-top: 12px;
-    border: 1px solid #fde68a;
-    background: #fffbeb;
+    border: 1px solid var(--warn-bg);
+    background: var(--warn-bg);
     border-radius: 6px;
     padding: 6px 10px;
     font-size: 0.85rem;
@@ -2858,14 +2858,14 @@ html, body {
 .import-warnings-block summary {
     cursor: pointer;
     font-weight: 600;
-    color: #78350f;
+    color: var(--warn-ink);
     padding: 2px 0;
 }
 
 .import-warnings {
     margin: 4px 0 0;
     padding: 0 0 0 20px;
-    color: #78350f;
+    color: var(--warn-ink);
 }
 
 .import-warnings li {
@@ -2909,7 +2909,7 @@ html, body {
    so the operator can tell at a glance which planner is filtered. */
 .spec-planner-filter-chip.is-active.spec-planner-silk    { background: var(--brand-ink); }
 .spec-planner-filter-chip.is-active.spec-planner-flexo   { background: var(--indigo); }
-.spec-planner-filter-chip.is-active.spec-planner-letter  { background: #b45309; }
+.spec-planner-filter-chip.is-active.spec-planner-letter  { background: var(--warn-fg); }
 .spec-planner-filter-chip.is-active.spec-planner-indigo  { background: var(--indigo); }
 .spec-planner-filter-chip.is-active.spec-planner-diecut  { background: #be123c; }
 
@@ -3001,8 +3001,8 @@ html, body {
 }
 
 .spec-showcard-compare.is-active {
-    background: #c2410c;
-    border-color: #c2410c;
+    background: var(--warn-fg);
+    border-color: var(--warn-fg);
 }
 
 /* Full showcard — outer frame */
@@ -3087,9 +3087,9 @@ html, body {
 
 /* Generic fallback warning */
 .spec-generic-warning {
-    background: #fffbeb;
-    color: #78350f;
-    border: 1px solid #fde68a;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    border: 1px solid var(--warn-bg);
     border-radius: 6px;
     padding: 6px 12px;
     margin: 12px 16px;
@@ -3152,7 +3152,7 @@ html, body {
     font-weight: 400;
 }
 
-.spec-info-hi { background: #fef9c3; font-weight: 600; }
+.spec-info-hi { background: var(--warn-bg); font-weight: 600; }
 
 .spec-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
 
@@ -3300,9 +3300,9 @@ html, body {
 }
 
 .spec-diff-banner {
-    background: #fef3c7;
-    color: #78350f;
-    border-bottom: 1px solid #fde68a;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    border-bottom: 1px solid var(--warn-bg);
     padding: 8px 12px;
     font-size: 0.88rem;
 }
@@ -3348,7 +3348,7 @@ html, body {
 
 .spec-diff-row-added .spec-diff-new   { background: rgba(34, 197, 94, 0.10); color: var(--ok-ink); }
 .spec-diff-row-removed .spec-diff-old { background: rgba(248, 81, 73, 0.10); color: var(--ng-ink); }
-.spec-diff-row-changed .spec-diff-old { background: rgba(245, 158, 11, 0.08); color: #92400e; }
+.spec-diff-row-changed .spec-diff-old { background: rgba(245, 158, 11, 0.08); color: var(--warn-ink); }
 .spec-diff-row-changed .spec-diff-new { background: rgba(34, 197, 94, 0.10); color: var(--ok-ink); }
 
 .spec-diff-old del { text-decoration: line-through; opacity: 0.75; }
@@ -3365,7 +3365,7 @@ html, body {
 
 .spec-diff-badge-added   { background: var(--ok-bg); color: var(--ok-ink); }
 .spec-diff-badge-removed { background: var(--ng-bg); color: var(--ng-ink); }
-.spec-diff-badge-changed { background: #fef3c7; color: #92400e; }
+.spec-diff-badge-changed { background: var(--warn-bg); color: var(--warn-ink); }
 
 /* ── P10.5e-1 — Drawings tab (upload + download + version chain) ── */
 
@@ -3475,7 +3475,7 @@ html, body {
 }
 
 .drawing-status-draft           { background: var(--c-line); color: var(--c-ink-3); }
-.drawing-status-pendingapproval { background: #fef3c7; color: #92400e; }
+.drawing-status-pendingapproval { background: var(--warn-bg); color: var(--warn-ink); }
 .drawing-status-approved        { background: var(--ok-bg); color: var(--ok-ink); }
 .drawing-status-rejected        { background: var(--ng-bg); color: var(--ng-ink); }
 .drawing-status-superseded      { background: var(--indigo-bg); color: var(--indigo); }
@@ -3494,7 +3494,7 @@ html, body {
     border: 1px solid transparent;
 }
 
-.drawing-approval-chip-pending  { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.drawing-approval-chip-pending  { background: var(--warn-bg); color: var(--warn-ink); border-color: var(--warn-bg); }
 .drawing-approval-chip-approved { background: var(--ok-bg); color: var(--ok-ink); border-color: var(--ok-bg); }
 .drawing-approval-chip-rejected { background: var(--ng-bg); color: var(--ng-ink); border-color: var(--ng-bg); }
 
@@ -3547,9 +3547,9 @@ html, body {
 }
 
 .drawing-approval-chip.is-actionable.drawing-approval-chip-pending {
-    background: #fef3c7;
-    border-color: #fde68a;
-    color: #92400e;
+    background: var(--warn-bg);
+    border-color: var(--warn-bg);
+    color: var(--warn-ink);
 }
 
 .drawing-approval-chip.is-decided {
@@ -3592,9 +3592,9 @@ html, body {
 }
 
 .decide-toggle-reject.is-active {
-    background: #c2410c;
+    background: var(--warn-fg);
     color: white;
-    border-color: #c2410c;
+    border-color: var(--warn-fg);
 }
 
 .modal-counter {
@@ -3751,7 +3751,7 @@ html, body {
 .qc-capture-pass    { background: var(--ok-bg); color: var(--ok-ink); }
 .qc-capture-fail    { background: var(--ng-bg); color: var(--ng-ink); }
 .qc-capture-na      { background: var(--c-line); color: var(--c-ink-3); }
-.qc-capture-pending { background: #fef3c7; color: #92400e; }
+.qc-capture-pending { background: var(--warn-bg); color: var(--warn-ink); }
 
 .qc-cap-btn { font-size: 0.78rem; padding: 2px 10px; }
 
@@ -3793,7 +3793,7 @@ html, body {
 .qc-result-toggle:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .qc-result-toggle.is-active.qc-result-pass { background: var(--ok-ink); color: white; border-color: var(--ok-ink); }
-.qc-result-toggle.is-active.qc-result-fail { background: #c2410c; color: white; border-color: #c2410c; }
+.qc-result-toggle.is-active.qc-result-fail { background: var(--warn-fg); color: white; border-color: var(--warn-fg); }
 .qc-result-toggle.is-active.qc-result-na   { background: #475569; color: white; border-color: #475569; }
 
 /* ── P10.5g — Spec list/sheet export ──────────────────────────── */
@@ -3836,7 +3836,7 @@ html, body {
 
 .grid-export-banner span        { flex: 1; word-break: break-word; }
 .grid-export-banner.is-success  { background: var(--ok-bg); border-left-color: var(--ok); color: var(--ok-ink); }
-.grid-export-banner.is-warn     { background: #FEF6DC; border-left-color: #B45309; color: #6F3500; }
+.grid-export-banner.is-warn     { background: var(--warn-bg); border-left-color: var(--warn-fg); color: #6F3500; }
 .grid-export-banner.is-danger   { background: var(--ng-bg); border-left-color: #C00000; color: var(--ng-ink); }
 
 /* ── P10.6a — Settings shell + Profile + Password ─────────────── */
@@ -3899,8 +3899,8 @@ html, body {
 }
 
 .settings-warn {
-    background: #FEF6DC;
-    border-left: 4px solid #B45309;
+    background: var(--warn-bg);
+    border-left: 4px solid var(--warn-fg);
     color: #6F3500;
     padding: 10px 14px;
     border-radius: 6px;
@@ -4359,7 +4359,7 @@ html, body {
 
 .backup-chip-pre {
     background: rgba(241,181,0,0.15);
-    color: #92400e;
+    color: var(--warn-ink);
 }
 
 .settings-form-error {
@@ -5158,7 +5158,7 @@ html, body {
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
-.rs-phase-setting  { background: #fef3c7; color: #92400e; }
+.rs-phase-setting  { background: var(--warn-bg); color: var(--warn-ink); }
 .rs-phase-ipqc     { background: var(--brand-bg); color: var(--brand-ink); }
 .rs-phase-running  { background: var(--ok-bg); color: var(--ok); }
 .rs-phase-paused   { background: var(--ng-bg); color: var(--ng); }
@@ -5491,8 +5491,8 @@ html, body {
    map so the styling survives even when the server adds new phases. */
 .wo-phase-new            { background: var(--c-line); color: var(--c-ink-3); }
 .wo-phase-prepress       { background: var(--indigo-bg); color: var(--indigo); }
-.wo-phase-setting        { background: #fef3c7; color: #92400e; }
-.wo-phase-ipqc-wait      { background: #fde68a; color: #78350f; }
+.wo-phase-setting        { background: var(--warn-bg); color: var(--warn-ink); }
+.wo-phase-ipqc-wait      { background: var(--warn-bg); color: var(--warn-ink); }
 .wo-phase-ipqc-approved  { background: var(--brand-bg); color: var(--brand-ink); }
 .wo-phase-running        { background: var(--ok-bg); color: var(--ok); }
 .wo-phase-paused         { background: var(--ng-bg); color: var(--ng); }
@@ -5603,7 +5603,7 @@ html, body {
     grid-template-columns: 1fr 1fr;
     gap: 8px;
     padding: 10px;
-    background: #fffbeb;
+    background: var(--warn-bg);
     border: 1px solid #fcd34d;
     border-radius: 6px;
 }
@@ -5643,7 +5643,7 @@ html, body {
     padding: 4px 8px;
     border-radius: 4px;
 }
-.ipqc-hint-warn { background: #fef3c7; color: #92400e; }
+.ipqc-hint-warn { background: var(--warn-bg); color: var(--warn-ink); }
 
 /* ── Judgment row ──────────────────────────────────────────────── */
 
@@ -5673,7 +5673,7 @@ html, body {
     font-weight: 600;
 }
 .ipqc-rollup-ok      { background: var(--ok-bg); color: var(--ok-ink); }
-.ipqc-rollup-warn    { background: #fef3c7; color: #92400e; }
+.ipqc-rollup-warn    { background: var(--warn-bg); color: var(--warn-ink); }
 .ipqc-rollup-pending { background: var(--c-divider); color: var(--c-ink-4); }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -5686,13 +5686,13 @@ html, body {
     align-items: flex-end;
     gap: 2px;
     padding: 8px 14px;
-    background: #fef9c3;
-    border: 1px solid #fde68a;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-bg);
     border-radius: 8px;
 }
-.qa-submitter-label { font-size: 12px; color: #92400e; }
-.qa-submitter-value { font-size: 15px; font-weight: 700; color: #78350f; }
-.qa-submitter-time  { font-size: 11px; color: #92400e; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.qa-submitter-label { font-size: 12px; color: var(--warn-ink); }
+.qa-submitter-value { font-size: 15px; font-weight: 700; color: var(--warn-ink); }
+.qa-submitter-time  { font-size: 11px; color: var(--warn-ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 .qa-q3-banner {
     /* Re-uses .wo-card-error red skin but adds a stronger left rail to
@@ -5730,12 +5730,12 @@ html, body {
 .qa-special-reason {
     margin-top: 4px;
     padding: 10px 12px;
-    background: #fef9c3;
-    border: 1px solid #fde68a;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-bg);
     border-radius: 6px;
 }
-.qa-special-reason-label { font-size: 12px; font-weight: 600; color: #92400e; margin-bottom: 4px; }
-.qa-special-reason-body  { color: #78350f; }
+.qa-special-reason-label { font-size: 12px; font-weight: 600; color: var(--warn-ink); margin-bottom: 4px; }
+.qa-special-reason-body  { color: var(--warn-ink); }
 
 .qa-action-buttons {
     display: grid;
@@ -6004,8 +6004,8 @@ html, body {
 
 /* Q5 banner reuses .qa-q3-banner skin (same yellow scrim). */
 .ipqc-status-warn {
-    background: #fef3c7;
-    color: #78350f;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
     border: 1px solid #fcd34d;
 }
 
@@ -6077,7 +6077,7 @@ html, body {
 }
 .wo-badge-info { background: var(--indigo-bg); color: var(--indigo); }
 .wo-badge-run  { background: var(--ok-bg); color: var(--ok); }
-.wo-badge-warn { background: #fef3c7; color: #b45309; }
+.wo-badge-warn { background: var(--warn-bg); color: var(--warn-fg); }
 .woa-kv {
     display: flex;
     justify-content: space-between;
@@ -6126,9 +6126,9 @@ html, body {
 .wo-step-done { border-color: var(--ok-bg); background: var(--ok-bg); }
 .wo-step-done .wo-step-num { background: var(--ok); color: var(--c-card); }
 .wo-step-done .wo-step-label { color: var(--ok); }
-.wo-step-cur { border-color: #fcd34d; background: #fffbeb; box-shadow: 0 0 0 1px #fcd34d; }
-.wo-step-cur .wo-step-num { background: #d97706; color: var(--c-card); }
-.wo-step-cur .wo-step-label { color: #b45309; font-weight: 700; }
+.wo-step-cur { border-color: #fcd34d; background: var(--warn-bg); box-shadow: 0 0 0 1px #fcd34d; }
+.wo-step-cur .wo-step-num { background: var(--warn-fg); color: var(--c-card); }
+.wo-step-cur .wo-step-label { color: var(--warn-fg); font-weight: 700; }
 @container (max-width: 900px) {
     .wo-stepper { grid-template-columns: repeat(2, 1fr); }
 }
@@ -6211,7 +6211,7 @@ html, body {
     font-size: 0.72rem; font-weight: 600; line-height: 1.5; border: 1px solid transparent; }
 .trace-chip-ok      { background: var(--ok-bg); color: var(--ok-ink); border-color: #86efac; }
 .trace-chip-ng      { background: var(--ng-bg); color: var(--ng-ink); border-color: #fca5a5; }
-.trace-chip-warn    { background: #fef9c3; color: #854d0e; border-color: #fde047; }
+.trace-chip-warn    { background: var(--warn-bg); color: var(--warn-ink); border-color: #fde047; }
 .trace-chip-pending { background: var(--c-divider); color: #475569; border-color: var(--c-line-2); }
 .trace-chip-none    { background: transparent; color: var(--c-soft); border-color: var(--c-line); }
 
@@ -6388,7 +6388,7 @@ html, body {
 .wc-hint { font-weight: 400; font-size: 0.76rem; color: var(--c-muted); }
 
 .wc-report { font-size: 0.88rem; }
-.wc-report-errs { margin: 8px 0 0; padding-left: 18px; color: #b45309; max-height: 180px; overflow-y: auto; }
+.wc-report-errs { margin: 8px 0 0; padding-left: 18px; color: var(--warn-fg); max-height: 180px; overflow-y: auto; }
 .wc-report-errs li { margin: 2px 0; }
 
 /* ── RowContextMenu (right-click / long-press / kebab row actions) ────── */
