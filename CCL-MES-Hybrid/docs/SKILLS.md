@@ -606,6 +606,7 @@ declaration parser into treating the next `--token: #hex` DEFINITION as a normal
 property, producing a circular `--x: var(--x)` that silently kills the token
 (grep `^\s*--[a-z0-9-]+\s*:\s*var\(` must return nothing).
 
-**Enforced**: `scripts/gate-no-hardcoded-hex.sh` (ratchets raw hex outside
-`:root`; a new hardcoded colour fails — route it to a token or bump the baseline
-with a note). See [L37](./LESSONS-LEARNED.md#l37).
+**Enforced**: `scripts/gate-no-hardcoded-hex.sh` (ratchets raw hex in rule
+usages — token DEFINITIONS, whether `:root` or a scoped re-scope like the dark
+chrome, are exempt; a new hardcoded colour in a rule fails — route it to a token
+or bump the baseline with a note). See [L37](./LESSONS-LEARNED.md#l37).
