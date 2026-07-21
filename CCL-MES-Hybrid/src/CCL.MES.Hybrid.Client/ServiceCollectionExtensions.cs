@@ -108,6 +108,11 @@ public static class ServiceCollectionExtensions
         // out of scope for P10.6b — it ships in P10.6g.
         services.AddSingleton<ILanguageService, InMemoryLanguageService>();
 
+        // Traceability floating showcards — per-session rect memory so a
+        // re-opened Work Order restores where the operator left it. Singleton
+        // (survives page navigation); the toolbar "reset" clears it.
+        services.AddSingleton<Windows.IFloatingWindowStore, Windows.InMemoryFloatingWindowStore>();
+
         return services;
     }
 

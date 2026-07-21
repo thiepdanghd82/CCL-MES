@@ -6176,6 +6176,12 @@ html, body {
 .trace-items-scroll { max-width: 100%; }
 .trace-items { min-width: 640px; }
 
+/* Product tab — fixed 11-column BOM-snapshot layout (frozen literals). */
+.trace-prod { min-width: 1100px; }
+.trace-prod-no  { width: 48px; text-align: right; color: #6b7280; }
+.trace-prod-num { text-align: right; font-family: ui-monospace, monospace; white-space: nowrap; }
+.trace-prod th.trace-prod-num { text-align: right; }
+
 .trace-empty { display: flex; flex-direction: column; align-items: center; gap: 8px;
     padding: 48px 16px; color: #9ca3af; text-align: center; }
 .trace-empty-icon { font-size: 2rem; }
@@ -6186,3 +6192,88 @@ html, body {
 .trace-live { font-size: 0.78rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
 .trace-live-on  { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
 .trace-live-off { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+
+/* ── Traceability floating showcards (drag + 8-way resize, Pointer Events) ──
+   Non-modal: no scrim, so the list underneath stays interactive. Position +
+   size are driven by floating-window.js via transform/width/height on the
+   root; CSS only paints the chrome + handle hit-areas/cursors. */
+/* IMPORTANT: the card itself is overflow:VISIBLE so the 8 resize handles
+   (direct children, negative offsets → they straddle the edge) are never
+   clipped. The rounded-corner clip + body scroll live on .trace-win-inner
+   instead, which does NOT contain the handles. Putting overflow:hidden on
+   .trace-win clips the handles' hit-area to nothing (Lesson L32). */
+.trace-win { position: fixed; top: 0; left: 0; border-radius: 10px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.28);
+    display: flex; flex-direction: column; overflow: visible; outline: none;
+    will-change: transform, width, height; }
+.trace-win:focus-visible { box-shadow: 0 0 0 2px #93c5fd, 0 12px 40px rgba(0,0,0,0.28); }
+.trace-win-max { border-radius: 0; }
+
+/* Clipping + chrome layer — fills the card, holds head/tabs/body, owns the
+   rounded corners + scroll. Sits BELOW the handles (which have z-index). */
+.trace-win-inner { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; }
+.trace-win-max .trace-win-inner { border-radius: 0; }
+
+.trace-win-head { display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 8px 12px 8px 16px; border-bottom: 1px solid #eef2f7; flex: none;
+    cursor: grab; user-select: none; touch-action: none; }
+.trace-win-head:active { cursor: grabbing; }
+.trace-win-headtext { min-width: 0; }
+.trace-win-title { margin: 0; font-size: 1.1rem; font-family: ui-monospace, monospace; }
+
+/* Window controls, top-RIGHT (Windows-style): minimize · maximize · close.
+   margin-left:auto pins the cluster to the right edge. z-index sits ABOVE the
+   resize handles so the N/NE handles overlapping the header can't steal the
+   buttons' clicks. Glyphs (− + ×) reveal on hover of the cluster. */
+.fw-traffic { display: flex; align-items: center; gap: 14px; flex: none;
+    margin-left: auto; position: relative; z-index: 30; }
+.fw-light { width: 26px; height: 26px; border-radius: 50%; padding: 0; border: none;
+    cursor: pointer; position: relative; line-height: 0; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.18); }
+.fw-light:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.fw-light-close { background: #ff5f57; }
+.fw-light-min   { background: #febc2e; }
+.fw-light-max   { background: #28c840; }
+/* Inline-SVG glyphs — dead-centre + uniform stroke weight (Unicode × − +
+   render off-centre & inconsistently across WKWebView/Windows). Absolutely
+   centred via top/left 50% + translate(-50%,-50%); reveal on hover/focus. */
+.fw-ico { position: absolute; top: 50%; left: 50%; width: 15px; height: 15px;
+    transform: translate(-50%, -50%); color: rgba(0,0,0,0.62);
+    opacity: 0; transition: opacity .1s; pointer-events: none; overflow: visible; }
+.fw-ico line, .fw-ico rect { fill: none; stroke: currentColor; stroke-width: 2.4;
+    stroke-linecap: round; stroke-linejoin: round; }
+.fw-traffic:hover .fw-ico, .fw-light:focus-visible .fw-ico { opacity: 1; }
+/* Maximize shows a single square; restore (when maximized) two stacked squares. */
+.fw-light-max .fw-ico-restore { display: none; }
+.fw-light-max.is-max .fw-ico-maximize { display: none; }
+.fw-light-max.is-max .fw-ico-restore { display: block; }
+
+.trace-win .trace-tabs { flex: none; }
+.trace-win-body { padding: 12px 16px; overflow: auto; flex: 1 1 auto;
+    container-type: inline-size; }
+
+/* Minimized: header-only strip — hide tabs, body and resize handles. */
+.trace-win-min .trace-tabs,
+.trace-win-min .trace-win-body { display: none; }
+.trace-win-min .fw-handle { display: none; }
+.trace-win-min .trace-win-head { border-bottom: none; }
+
+/* 8 resize handles — WIDE hit-areas (edges 18px, corners 24px) straddling the
+   card edge (half in / half out) so both the outer rim and the inner rim change
+   the cursor. z-index 20 sits ABOVE the sticky table head inside the body
+   (which forms its own stacking context and would otherwise cover the inner
+   rim → cursor wouldn't change). The traffic cluster (z-index 30) still wins
+   over the top handles so the buttons stay clickable. */
+.fw-handle { position: absolute; z-index: 20; touch-action: none; }
+.trace-win-max .fw-handle { display: none; }   /* maximized: no resize */
+/* The ONLY resize affordance is the native OS double-arrow cursor
+   (row/col/nwse/nesw-resize) — no custom overlay icon. */
+.fw-n  { top: -9px;   left: 16px; right: 16px; height: 18px; cursor: row-resize; }
+.fw-s  { bottom: -9px; left: 16px; right: 16px; height: 18px; cursor: row-resize; }
+.fw-e  { right: -9px;  top: 16px; bottom: 16px; width: 18px;  cursor: col-resize; }
+.fw-w  { left: -9px;   top: 16px; bottom: 16px; width: 18px;  cursor: col-resize; }
+.fw-ne { top: -10px;    right: -10px; width: 24px; height: 24px; cursor: nesw-resize; }
+.fw-nw { top: -10px;    left: -10px;  width: 24px; height: 24px; cursor: nwse-resize; }
+.fw-se { bottom: -10px; right: -10px; width: 24px; height: 24px; cursor: nwse-resize; }
+.fw-sw { bottom: -10px; left: -10px;  width: 24px; height: 24px; cursor: nesw-resize; }
+

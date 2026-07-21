@@ -55,6 +55,18 @@ public class WoMaterial : BaseEntity
     public double? QtyLoaded { get; set; }
     public string? LotNo { get; set; }
 
+    /// <summary>The scanned (or manually-entered) part code recorded against
+    /// this BOM line during PREPRESS, kept for traceability. Nullable — set
+    /// only when a scan/manual confirm carried a code. Previously lived only in
+    /// the audit detail; persisted here so a Product freeze snapshot can carry
+    /// it (Lesson L33).</summary>
+    public string? PartScan { get; set; }
+
+    /// <summary>Description resolved from the MATCHED BOM row at scan time (not
+    /// the noisy scan remainder), stored so a bare code still freezes a real
+    /// description. Nullable.</summary>
+    public string? PartScanDescription { get; set; }
+
     public PrepressCheckStatus Status { get; set; } = PrepressCheckStatus.Pending;
 
     /// <summary>Required when <see cref="Status"/> = NG — references

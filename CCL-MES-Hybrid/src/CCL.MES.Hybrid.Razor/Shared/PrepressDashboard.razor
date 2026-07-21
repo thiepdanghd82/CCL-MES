@@ -276,6 +276,8 @@
                     LotNo = intent.LotNo,
                     NgReasonCode = intent.NgReasonCode,
                     NgNote = intent.NgNote,
+                    PartScan = intent.PartScan,
+                    PartScanDescription = intent.PartScanDescription,
                 }));
     }
 
@@ -297,17 +299,24 @@
         if (row is null) return;
 
         var part = MaterialBarcodeMatcher.ExtractPartNo(arg.Value);
-        _scannedByRow[arg.BomLineIdx] =
-            (part, MaterialBarcodeMatcher.ExtractDescription(arg.Value), true);   // manual → purple
+        var partMatchesRow = string.Equals(part, (row.MaterialCode ?? "").Trim(), StringComparison.OrdinalIgnoreCase);
+        // Description from the BOM row when the code matches it (a bare code
+        // still gets the real description); else the scan remainder.
+        var desc = partMatchesRow
+            ? MaterialBarcodeMatcher.ResolveDescription(row, arg.Value)
+            : MaterialBarcodeMatcher.ExtractDescription(arg.Value);
+        _scannedByRow[arg.BomLineIdx] = (part, desc, true);   // manual → purple
         if (part.Length == 0) return;
 
-        if (string.Equals(part, (row.MaterialCode ?? "").Trim(), StringComparison.OrdinalIgnoreCase))
+        if (partMatchesRow)
         {
             if (!string.Equals(row.Status, "Ok", StringComparison.OrdinalIgnoreCase))
                 await OnSetMaterial(new WoMaterialsList.MaterialSetIntent
                 {
                     BomLineIdx = row.BomLineIdx,
                     Status = "Ok",
+                    PartScan = part,
+                    PartScanDescription = string.IsNullOrWhiteSpace(desc) ? null : desc,
                 });
             if (_setError is null)
                 _scanStatus = PrepressErrorLocaliser.ScanRecordedOk(row.MaterialCode ?? "");
@@ -497,6 +506,8 @@
         {
             BomLineIdx = row.BomLineIdx,
             Status = "Ok",
+            PartScan = match.PartNo,
+            PartScanDescription = string.IsNullOrWhiteSpace(match.Description) ? null : match.Description,
         });
 
         var ok = _setError is null;

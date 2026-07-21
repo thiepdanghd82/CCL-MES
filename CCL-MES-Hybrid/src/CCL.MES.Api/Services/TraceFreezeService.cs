@@ -137,23 +137,27 @@ public sealed class TraceFreezeService : ITraceFreezeService
         var items = mats.Select(m => new TraceItem
         {
             Key = $"mat-{m.BomLineIdx}",
-            // No. | Part No — the label carries the human line identity.
-            Label = $"{m.BomLineIdx + 1}. {m.MaterialCode}",
+            Label = m.MaterialCode,          // Part No (No. is its own frozen field below)
             Status = m.Status.ToString(),
             NgReason = m.NgReasonCode,
             NgNote = m.NgNote,
+            // The Product tab renders a FIXED layout from these keys (No. | Part No |
+            // Description | QPA(m²) | Qty.Required | UoM | Part Scan | Part Description |
+            // Lot | Status | NG). All values are FROZEN literals — no live link.
             Extra = new Dictionary<string, string?>
             {
+                ["no"] = (m.BomLineIdx + 1).ToString(),
                 ["partNo"] = m.MaterialCode,
                 ["description"] = m.MaterialDescription,
-                // QPA(m²) is a LIVE link in PrepressController (QtyRequired /
-                // targetQty). Freeze it to a FIXED number here.
-                ["qpaM2"] = wo.TargetQty > 0 ? (m.QtyRequired / wo.TargetQty).ToString("0.######") : "0",
+                // QPA(m²) was a LIVE link in PrepressController (QtyRequired /
+                // targetQty). Freeze it to a FIXED 6-dp number (culture decimal
+                // separator, matching the source sheet).
+                ["qpaM2"] = wo.TargetQty > 0 ? (m.QtyRequired / wo.TargetQty).ToString("0.000000") : "0",
                 ["qtyRequired"] = m.QtyRequired.ToString("0.######"),
-                ["uom"] = m.Uom,
+                ["uom"] = m.Uom?.ToLowerInvariant(),
+                ["partScan"] = m.PartScan,
+                ["partDescription"] = m.PartScanDescription,
                 ["lotNo"] = m.LotNo,
-                ["scrapFactor"] = m.ScrapFactor.ToString("0.###"),
-                ["scrapPercent"] = m.ScrapPercent?.ToString("0.##"),
             },
         }).ToList();
 

@@ -1,125 +1,242 @@
 @using CCL.MES.Shared.Quality
+@using CCL.MES.Hybrid.Client.Windows
 @inject ICclApiClient Api
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 @*
-    Read-only frozen-trace detail. 4 sub-tabs [Product|IPQC|FQC|OQC]. ONE
-    generic renderer walks header (key-value) + items (columns derived from
-    the item keys + the union of each item's Extra bag) so every phase and
-    every product variant renders with no per-phase hardcoding. A phase with
-    no frozen snapshot shows an empty-state (never a live fallback / error).
+    Read-only frozen-trace detail as a FLOATING WINDOW (app-desktop style):
+    drag by the header, resize from 8 edge/corner handles, bring-to-front on
+    click, double-click header to maximize/restore. NOT a modal — the list
+    underneath stays interactive, and several showcards can be open at once.
+
+    The window chrome (drag/resize/z-order) is driven by wwwroot/js/
+    floating-window.js via Pointer Events (WKWebView-safe). The CONTENT is
+    unchanged from the original dialog: 4 sub-tabs [Product|IPQC|FQC|OQC], ONE
+    generic renderer over header (key-value) + items (columns derived from the
+    item keys + the union of each item's Extra bag), and an empty-state for a
+    phase with no frozen snapshot (never a live fallback / error).
 *@
 
-<div class="trace-modal-scrim" @onclick="Close">
-    <div class="trace-modal" @onclick:stopPropagation="true"
-         tabindex="0" @onkeydown="OnKeyDown" @ref="_modalRef">
-        <div class="trace-modal-head">
-            <div>
-                <h2 class="trace-modal-title">@WoNo</h2>
-                <div class="trace-sub">@(_detail?.ProductName ?? "")</div>
-            </div>
-            <button type="button" class="grid-btn" @onclick="Close" aria-label="Close">✕</button>
-        </div>
+<div class="trace-win" tabindex="0" @ref="_rootRef"
+     role="dialog" aria-label="@($"Traceability {WoNo}")"
+     style="visibility:hidden"
+     @onkeydown="OnKeyDown">
 
-        <div class="trace-tabs" role="tablist">
-            @foreach (var t in _tabs)
-            {
-                <button type="button" role="tab"
-                        class="trace-tab @(t.Phase == _active ? "trace-tab-active" : "")"
-                        @onclick="() => _active = t.Phase">
-                    @t.Label
-                    @if (Phase(t.Phase) is not null) { <span class="trace-tab-dot" title="Frozen">●</span> }
-                </button>
-            }
-        </div>
+    @* 8 resize handles (wired by floating-window.js via data-fw-handle) *@
+    <div class="fw-handle fw-n"  data-fw-handle="n"></div>
+    <div class="fw-handle fw-s"  data-fw-handle="s"></div>
+    <div class="fw-handle fw-e"  data-fw-handle="e"></div>
+    <div class="fw-handle fw-w"  data-fw-handle="w"></div>
+    <div class="fw-handle fw-ne" data-fw-handle="ne"></div>
+    <div class="fw-handle fw-nw" data-fw-handle="nw"></div>
+    <div class="fw-handle fw-se" data-fw-handle="se"></div>
+    <div class="fw-handle fw-sw" data-fw-handle="sw"></div>
 
-        <div class="trace-modal-body">
-            @if (_loading)
+    <div class="trace-win-inner">
+    <div class="trace-win-head" @ref="_headRef">
+        <div class="trace-win-headtext">
+            <h2 class="trace-win-title trace-modal-title">@WoNo</h2>
+            <div class="trace-sub">@(_detail?.ProductName ?? "")</div>
+        </div>
+        @* Window controls, top-RIGHT (Windows-style): minimize · maximize ·
+           close (close outermost right). data-fw-nodrag so they never drag.
+           Glyphs are inline SVG (crisp + perfectly centred in WKWebView, unlike
+           Unicode); they reveal on hover of the cluster. The maximize button
+           swaps to a "restore" icon (two stacked squares) when maximized. *@
+        <div class="fw-traffic" data-fw-nodrag>
+            <button type="button" class="fw-light fw-light-min" data-fw-nodrag
+                    @onclick="Minimize" aria-label="Minimize" title="Thu nhỏ">
+                <svg class="fw-ico" viewBox="0 0 24 24" aria-hidden="true">
+                    <line x1="6" y1="12" x2="18" y2="12" />
+                </svg>
+            </button>
+            <button type="button" class="fw-light fw-light-max @(_maximized ? "is-max" : "")" data-fw-nodrag
+                    @onclick="Maximize" aria-label="Maximize" title="Phóng to / khôi phục">
+                <svg class="fw-ico fw-ico-maximize" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="5.5" y="5.5" width="13" height="13" rx="2" />
+                </svg>
+                <svg class="fw-ico fw-ico-restore" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="8.5" y="4.5" width="11" height="11" rx="1.8" />
+                    <rect x="4.5" y="8.5" width="11" height="11" rx="1.8" />
+                </svg>
+            </button>
+            <button type="button" class="fw-light fw-light-close" data-fw-nodrag
+                    @onclick="Close" aria-label="Close" title="Đóng (Esc)">
+                <svg class="fw-ico" viewBox="0 0 24 24" aria-hidden="true">
+                    <line x1="6.5" y1="6.5" x2="17.5" y2="17.5" />
+                    <line x1="17.5" y1="6.5" x2="6.5" y2="17.5" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <div class="trace-tabs" role="tablist">
+        @foreach (var t in _tabs)
+        {
+            <button type="button" role="tab"
+                    class="trace-tab @(t.Phase == _active ? "trace-tab-active" : "")"
+                    @onclick="() => _active = t.Phase">
+                @t.Label
+                @if (Phase(t.Phase) is not null) { <span class="trace-tab-dot" title="Frozen">●</span> }
+            </button>
+        }
+    </div>
+
+    <div class="trace-win-body trace-modal-body">
+        @if (_loading)
+        {
+            <p class="grid-status">Loading…</p>
+        }
+        else if (_error is not null)
+        {
+            <div class="grid-error" role="alert">@_error</div>
+        }
+        else
+        {
+            var phase = Phase(_active);
+            @if (phase is null)
             {
-                <p class="grid-status">Loading…</p>
-            }
-            else if (_error is not null)
-            {
-                <div class="grid-error" role="alert">@_error</div>
+                <div class="trace-empty">
+                    <div class="trace-empty-icon">◷</div>
+                    <div>Chưa chốt dữ liệu @TabLabel(_active) — data not frozen yet.</div>
+                </div>
             }
             else
             {
-                var phase = Phase(_active);
-                @if (phase is null)
+                <div class="trace-meta">
+                    <span class="trace-sub">Version @phase.Version · frozen @phase.FrozenAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") by @phase.FrozenBy</span>
+                    @if (!string.IsNullOrEmpty(phase.Payload.Variant)) { <span class="trace-sub">· variant @phase.Payload.Variant</span> }
+                </div>
+
+                @* header — generic key-value list *@
+                <div class="trace-kv-grid">
+                    @foreach (var kv in phase.Payload.Header)
+                    {
+                        <div class="trace-kv"><span>@kv.Label</span><b>@(string.IsNullOrEmpty(kv.Value) ? "—" : kv.Value)</b></div>
+                    }
+                </div>
+
+                @* items — Product uses a FIXED column layout (matches the BOM
+                   snapshot source); IPQC/FQC/OQC keep the generic renderer. *@
+                @if (phase.Payload.Items.Count == 0)
                 {
-                    <div class="trace-empty">
-                        <div class="trace-empty-icon">◷</div>
-                        <div>Chưa chốt dữ liệu @TabLabel(_active) — data not frozen yet.</div>
+                    <p class="trace-sub">No inspected items recorded for this phase.</p>
+                }
+                else if (_active == TracePhase.Product)
+                {
+                    <div class="grid-scroll trace-items-scroll">
+                        <table class="grid grid-sticky trace-items trace-prod">
+                            <thead>
+                                <tr>
+                                    <th class="grid-h trace-prod-no">No.</th>
+                                    <th class="grid-h">Part No</th>
+                                    <th class="grid-h">Description</th>
+                                    <th class="grid-h trace-prod-num">QPA (m²)</th>
+                                    <th class="grid-h trace-prod-num">Qty. Required</th>
+                                    <th class="grid-h">UoM</th>
+                                    <th class="grid-h">Part Scan</th>
+                                    <th class="grid-h">Part Description</th>
+                                    <th class="grid-h">Lot</th>
+                                    <th class="grid-h">Status</th>
+                                    <th class="grid-h">NG — reason · note</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var it in phase.Payload.Items)
+                                {
+                                    var st = ProductStatus(it);
+                                    <tr>
+                                        <td class="trace-prod-no">@E(it, "no")</td>
+                                        <td class="trace-mono">@E(it, "partNo")</td>
+                                        <td>@E(it, "description")</td>
+                                        <td class="trace-prod-num">@E(it, "qpaM2")</td>
+                                        <td class="trace-prod-num">@E(it, "qtyRequired")</td>
+                                        <td>@E(it, "uom")</td>
+                                        <td class="trace-mono">@E(it, "partScan")</td>
+                                        <td>@E(it, "partDescription")</td>
+                                        <td class="trace-mono">@E(it, "lotNo")</td>
+                                        <td><span class="trace-chip @st.Tone">@st.Label</span></td>
+                                        <td>@NgCombined(it)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
                     </div>
                 }
                 else
                 {
-                    <div class="trace-meta">
-                        <span class="trace-sub">Version @phase.Version · frozen @phase.FrozenAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") by @phase.FrozenBy</span>
-                        @if (!string.IsNullOrEmpty(phase.Payload.Variant)) { <span class="trace-sub">· variant @phase.Payload.Variant</span> }
-                    </div>
-
-                    @* header — generic key-value list *@
-                    <div class="trace-kv-grid">
-                        @foreach (var kv in phase.Payload.Header)
-                        {
-                            <div class="trace-kv"><span>@kv.Label</span><b>@(string.IsNullOrEmpty(kv.Value) ? "—" : kv.Value)</b></div>
-                        }
-                    </div>
-
-                    @* items — generic table, columns derived from item keys + Extra union *@
-                    @if (phase.Payload.Items.Count > 0)
-                    {
-                        var extraKeys = phase.Payload.Items
-                            .SelectMany(i => i.Extra?.Keys ?? Enumerable.Empty<string>())
-                            .Distinct().ToList();
-                        <div class="grid-scroll trace-items-scroll">
-                            <table class="grid grid-sticky trace-items">
-                                <thead>
+                    var extraKeys = phase.Payload.Items
+                        .SelectMany(i => i.Extra?.Keys ?? Enumerable.Empty<string>())
+                        .Distinct().ToList();
+                    <div class="grid-scroll trace-items-scroll">
+                        <table class="grid grid-sticky trace-items">
+                            <thead>
+                                <tr>
+                                    <th class="grid-h">Item</th>
+                                    <th class="grid-h">Status</th>
+                                    <th class="grid-h">NG reason</th>
+                                    <th class="grid-h">NG note</th>
+                                    @foreach (var k in extraKeys) { <th class="grid-h">@k</th> }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var it in phase.Payload.Items)
+                                {
                                     <tr>
-                                        <th class="grid-h">Item</th>
-                                        <th class="grid-h">Status</th>
-                                        <th class="grid-h">NG reason</th>
-                                        <th class="grid-h">NG note</th>
-                                        @foreach (var k in extraKeys) { <th class="grid-h">@k</th> }
+                                        <td>@it.Label</td>
+                                        <td><span class="trace-chip @StatusTone(it.Status)">@(it.Status ?? "—")</span></td>
+                                        <td>@(it.NgReason ?? "—")</td>
+                                        <td>@(it.NgNote ?? "—")</td>
+                                        @foreach (var k in extraKeys)
+                                        {
+                                            <td class="trace-mono">@(it.Extra is not null && it.Extra.TryGetValue(k, out var v) ? (v ?? "—") : "—")</td>
+                                        }
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var it in phase.Payload.Items)
-                                    {
-                                        <tr>
-                                            <td>@it.Label</td>
-                                            <td><span class="trace-chip @StatusTone(it.Status)">@(it.Status ?? "—")</span></td>
-                                            <td>@(it.NgReason ?? "—")</td>
-                                            <td>@(it.NgNote ?? "—")</td>
-                                            @foreach (var k in extraKeys)
-                                            {
-                                                <td class="trace-mono">@(it.Extra is not null && it.Extra.TryGetValue(k, out var v) ? (v ?? "—") : "—")</td>
-                                            }
-                                        </tr>
-                                    }
-                                </tbody>
-                            </table>
-                        </div>
-                    }
-                    else
-                    {
-                        <p class="trace-sub">No inspected items recorded for this phase.</p>
-                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
                 }
             }
-        </div>
+        }
     </div>
+    </div>@* /.trace-win-inner *@
 </div>
 
 @code {
     [Parameter, EditorRequired] public string WoNo { get; set; } = "";
     [Parameter] public EventCallback OnClose { get; set; }
 
+    /// <summary>Stable id shared with floating-window.js for this window's
+    /// drag/resize/z-order state. Defaults to a fresh id so the component
+    /// still renders standalone (e.g. bUnit) without a parent supplying one.</summary>
+    [Parameter] public string WindowId { get; set; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>Restored rect (from the per-session store); null → the JS side
+    /// computes a centred default offset by <see cref="CascadeIndex"/>.</summary>
+    [Parameter] public WindowRect? Rect { get; set; }
+
+    /// <summary>0-based open order — cascades a new window ~24px off the last.</summary>
+    [Parameter] public int CascadeIndex { get; set; }
+
+    /// <summary>Fires with the final rect on pointer-up / resize / maximize /
+    /// keyboard nudge so the parent can persist it.</summary>
+    [Parameter] public EventCallback<WindowRect> OnRectChanged { get; set; }
+
     private TraceabilityDetailDto? _detail;
     private bool _loading = true;
     private string? _error;
     private string _active = TracePhase.Product;
-    private ElementReference _modalRef;
+    private string? _loadedWoNo;
+    // Cosmetic mirror of the JS-side maximized state, purely to swap the button
+    // icon (maximize ⇄ restore). Kept in sync via OnRectChanged_JS, which fires
+    // for the button, the header double-click, AND keyboard/JS changes.
+    private bool _maximized;
+
+    private ElementReference _rootRef;
+    private ElementReference _headRef;
+    private DotNetObjectReference<TraceabilityDetailDialog>? _self;
 
     private readonly (string Phase, string Label)[] _tabs =
     {
@@ -129,13 +246,43 @@
         (TracePhase.Oqc, "OQC"),
     };
 
+    protected override void OnInitialized()
+        => _maximized = Rect?.Maximized ?? false;   // reopened-maximized shows restore icon
+
     protected override async Task OnParametersSetAsync()
     {
+        // Only (re)load when the target WO actually changes — a parent
+        // re-render (e.g. a live re-pull) must not reload/flicker an open card.
+        if (_loadedWoNo == WoNo) return;
+        _loadedWoNo = WoNo;
         _loading = true; _error = null; _detail = null;
         try { _detail = await Api.GetTraceabilityDetailAsync(WoNo); }
         catch (ApiException apiEx) { _error = apiEx.ApiError.MessageEn; }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _loading = false; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _self = DotNetObjectReference.Create(this);
+        var opts = new
+        {
+            cascade = CascadeIndex,
+            minW = 480,
+            minH = 320,
+            rect = Rect is null ? null : new { x = Rect.X, y = Rect.Y, w = Rect.W, h = Rect.H, maximized = Rect.Maximized },
+        };
+        try { await JS.InvokeVoidAsync("cclMesFloat.init", WindowId, _rootRef, _headRef, opts, _self); }
+        catch (Exception) { /* JS not present (e.g. test host) — window stays static */ }
+    }
+
+    /// <summary>Called from floating-window.js with the final geometry.</summary>
+    [JSInvokable]
+    public Task OnRectChanged_JS(WindowRect rect)
+    {
+        if (_maximized != rect.Maximized) { _maximized = rect.Maximized; StateHasChanged(); }
+        return OnRectChanged.InvokeAsync(rect);
     }
 
     private TracePhaseDto? Phase(string phase) => _detail is null ? null : phase switch
@@ -149,7 +296,47 @@
 
     private Task Close() => OnClose.InvokeAsync();
 
-    private Task OnKeyDown(KeyboardEventArgs e) => e.Key == "Escape" ? Close() : Task.CompletedTask;
+    // Traffic-light controls delegate to floating-window.js (geometry lives
+    // there). Swallow when JS is absent (e.g. bUnit host) so the buttons are
+    // still clickable without throwing.
+    private async Task Minimize()
+    {
+        try { await JS.InvokeVoidAsync("cclMesFloat.toggleMinimize", WindowId); }
+        catch (Exception) { /* JS not present */ }
+    }
+
+    private async Task Maximize()
+    {
+        try { await JS.InvokeVoidAsync("cclMesFloat.toggleMaximize", WindowId); }
+        catch (Exception) { /* JS not present */ }
+    }
+
+    // Keyboard: Esc closes; arrows move; Shift+arrows resize (16px steps).
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") { await Close(); return; }
+
+        const double step = 16;
+        double dx = 0, dy = 0, dw = 0, dh = 0;
+        var resize = e.ShiftKey;
+        switch (e.Key)
+        {
+            case "ArrowLeft":  if (resize) dw = -step; else dx = -step; break;
+            case "ArrowRight": if (resize) dw =  step; else dx =  step; break;
+            case "ArrowUp":    if (resize) dh = -step; else dy = -step; break;
+            case "ArrowDown":  if (resize) dh =  step; else dy =  step; break;
+            default: return;
+        }
+        try { await JS.InvokeVoidAsync("cclMesFloat.nudge", WindowId, dx, dy, dw, dh); }
+        catch (Exception) { /* JS not present */ }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("cclMesFloat.dispose", WindowId); }
+        catch (Exception) { /* JS not present / already gone */ }
+        _self?.Dispose();
+    }
 
     private static string TabLabel(string phase) => phase switch
     {
@@ -165,4 +352,32 @@
         null or "" => "trace-chip-none",
         _ => "trace-chip-pending",
     };
+
+    // ── Product-tab helpers (fixed layout) ───────────────────────────
+    private static string E(TraceItem it, string key)
+        => it.Extra is not null && it.Extra.TryGetValue(key, out var v) && !string.IsNullOrEmpty(v) ? v! : "—";
+
+    // A special-accept row is stored as Status=Ok WITH a retained NG reason
+    // (the concession) — surface it distinctly from a clean OK.
+    private static (string Label, string Tone) ProductStatus(TraceItem it)
+    {
+        var ok = string.Equals(it.Status, "Ok", StringComparison.OrdinalIgnoreCase);
+        var hasDeviation = !string.IsNullOrEmpty(it.NgReason);
+        return it.Status switch
+        {
+            "Ng" => ("NG", "trace-chip-ng"),
+            _ when ok && hasDeviation => ("OK · Special Accept", "trace-chip-warn"),
+            _ when ok => ("OK", "trace-chip-ok"),
+            "Pending" or null or "" => ("Pending", "trace-chip-none"),
+            _ => (it.Status!, "trace-chip-pending"),
+        };
+    }
+
+    private static string NgCombined(TraceItem it)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(it.NgReason)) parts.Add(it.NgReason!);
+        if (!string.IsNullOrEmpty(it.NgNote)) parts.Add(it.NgNote!);
+        return parts.Count == 0 ? "—" : string.Join(" · ", parts);
+    }
 }

@@ -71,6 +71,19 @@ public static class MaterialBarcodeMatcher
         return slash >= 0 && slash + 1 < s.Length ? s[(slash + 1)..].Trim() : string.Empty;
     }
 
+    /// <summary>Part Description = the description of the MATCHED BOM row, NOT
+    /// the noisy remainder of the scan. A bare code (e.g. "30030491-0145" with
+    /// no "/desc") has no scan-remainder, so <see cref="ExtractDescription"/>
+    /// would yield "" → "—". Once a row is matched we already KNOW the real
+    /// component description; use it. Fall back to the scan remainder only when
+    /// the row has no description (legacy IFS rows) but the scan carried one.</summary>
+    public static string ResolveDescription(PrepressMaterialRow? row, string? scannedCode)
+    {
+        if (row is not null && !string.IsNullOrWhiteSpace(row.MaterialDescription))
+            return row.MaterialDescription!.Trim();
+        return ExtractDescription(scannedCode);
+    }
+
     /// <summary>
     /// Pick the BOM row a scan should confirm. Exact part-number match only.
     /// When a part appears on several BOM lines (e.g. the same component on
@@ -99,8 +112,11 @@ public static class MaterialBarcodeMatcher
         var target = hits.FirstOrDefault(m =>
             !string.Equals(m.Status, "Ok", StringComparison.OrdinalIgnoreCase));
 
+        // Description now resolves from the matched BOM row (real component
+        // description), falling back to the scan remainder only for a legacy
+        // row without one — so a bare code still populates Part Description.
         return target is not null
-            ? new MaterialMatchResult(MaterialMatchOutcome.Single, target, partNo, description)
-            : new MaterialMatchResult(MaterialMatchOutcome.AllOk, hits[0], partNo, description);
+            ? new MaterialMatchResult(MaterialMatchOutcome.Single, target, partNo, ResolveDescription(target, scannedCode))
+            : new MaterialMatchResult(MaterialMatchOutcome.AllOk, hits[0], partNo, ResolveDescription(hits[0], scannedCode));
     }
 }

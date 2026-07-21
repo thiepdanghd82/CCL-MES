@@ -131,6 +131,10 @@ public sealed class PrepressController : ControllerBase
         row.Status = newStatus;
         row.QtyLoaded = req?.QtyLoaded ?? row.QtyLoaded;
         row.LotNo = req?.LotNo ?? row.LotNo;
+        // Persist scanned part + BOM-resolved description ONLY when the request
+        // carried them (a plain OK/NG must not wipe a previously-scanned code).
+        if (!string.IsNullOrWhiteSpace(req?.PartScan)) row.PartScan = req!.PartScan;
+        if (!string.IsNullOrWhiteSpace(req?.PartScanDescription)) row.PartScanDescription = req!.PartScanDescription;
         row.NgReasonCode = newStatus == PrepressCheckStatus.Ng ? req!.NgReasonCode : null;
         row.NgNote = newStatus == PrepressCheckStatus.Ng ? req!.NgNote : null;
         row.CheckedBy = actor;
@@ -148,6 +152,8 @@ public sealed class PrepressController : ControllerBase
                 to_status = newStatus.ToString(),
                 qty_loaded = row.QtyLoaded,
                 lot_no = row.LotNo,
+                part_scan = row.PartScan,
+                part_scan_description = row.PartScanDescription,
                 ng_reason_code = row.NgReasonCode,
                 ng_note = row.NgNote,
             });
@@ -201,6 +207,13 @@ public sealed class PrepressController : ControllerBase
         row.Status = PrepressCheckStatus.Ok;
         row.NgReasonCode = req!.NgReasonCode;
         row.NgNote = req.Note;
+        // Persist the scanned code + resolve the description server-side from
+        // the BOM row (the scan string may be a bare code with no description).
+        if (!string.IsNullOrWhiteSpace(req.PartScan))
+        {
+            row.PartScan = req.PartScan;
+            row.PartScanDescription = row.MaterialDescription;
+        }
         row.CheckedBy = actor;
         row.CheckedAt = DateTime.UtcNow;
         row.UpdatedAt = DateTime.UtcNow;
@@ -218,7 +231,8 @@ public sealed class PrepressController : ControllerBase
                 approver_role = role,
                 ng_reason_code = row.NgReasonCode,
                 note = row.NgNote,
-                part_scan = req.PartScan,
+                part_scan = row.PartScan,
+                part_scan_description = row.PartScanDescription,
             });
     }
 
@@ -559,6 +573,8 @@ public sealed class PrepressController : ControllerBase
         ScrapPercent = m.ScrapPercent,
         QtyLoaded = m.QtyLoaded,
         LotNo = m.LotNo,
+        PartScan = m.PartScan,
+        PartScanDescription = m.PartScanDescription,
         Status = m.Status.ToString(),
         NgReasonCode = m.NgReasonCode,
         NgNote = m.NgNote,
