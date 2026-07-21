@@ -46,6 +46,13 @@ build item được phép; server vẫn 403). Enforce:
 `CCL-MES-Hybrid/scripts/gate-row-actions.sh` + skill
 `.claude/skills/cmes-row-context-menu/SKILL.md`.
 
+**UI colour rule (L37):** MỌI màu trong `app.css` đi qua **design token
+semantic** ở `:root` (`--c-*/--brand*/--accent/--indigo/--ok|ng|warn*`) —
+KHÔNG hardcode hex trong rule. Đổi tone = **swap GIÁ TRỊ token** trong `:root`
+(1 chỗ → lan toàn app), KHÔNG find/replace hex. Enforce:
+`CCL-MES-Hybrid/scripts/gate-no-hardcoded-hex.sh` (ratchet hex ngoài `:root`) +
+SKILLS.md S15.
+
 ## 0. Quick start
 
 - **Boot server**: `bash START_SERVER.command` (macOS) hoặc
