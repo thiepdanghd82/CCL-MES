@@ -7,16 +7,16 @@
     /* ── Dark-surface + base tokens (UNCHANGED — .app-nav re-scopes these
          same names to light for the sidebar subtree; other dark chrome uses
          them at :root value). Kept intact so that scoped system keeps working. */
-    --navy:    var(--navy);
-    --navy-2:  #1f2730;
-    --line:    #2b333d;
-    --ink:     #e6edf3;
-    --ink-mut: #8b949e;
-    --brand:   #2f80ed;
-    --brand-2: #1f5ec7;
-    --error:   #f85149;
-    --warn:    #f1b500;
-    --bg:      #f6f8fa;
+    --navy: #12203a;
+    --navy-2: #1b2d4d;
+    --line: #24365a;
+    --ink: #e6edf9;
+    --ink-mut: #93a4c4;
+    --brand: #2e5bff;
+    --brand-2: #2347c5;
+    --error: #d9534f;
+    --warn: #e8a33d;
+    --bg: #f4f7ff;
     --card:    #ffffff;
 
     /* ─────────────────────────────────────────────────────────────────────
@@ -28,33 +28,33 @@
        ───────────────────────────────────────────────────────────────────── */
 
     /* Content ink (dark text on light surfaces) */
-    --c-ink:     var(--c-ink);   /* headings / strongest */
-    --c-ink-2:   #1f2937;   /* strong body */
-    --c-ink-3:   #374151;   /* body */
-    --c-muted:   #6b7280;   /* secondary / muted */
-    --c-soft:    #9ca3af;   /* placeholder / icon / faint */
+    --c-ink: #1e2a3a;   /* headings / strongest */
+    --c-ink-2: #1f2a3d;   /* strong body */
+    --c-ink-3: #334155;   /* body */
+    --c-muted: #66788f;   /* secondary / muted */
+    --c-soft: #93a4c4;   /* placeholder / icon / faint */
 
     /* Content surfaces + lines */
-    --c-bg:      #f6f8fa;   /* app background */
+    --c-bg: #f4f7ff;   /* app background */
     --c-card:    #ffffff;   /* card / panel */
-    --c-surface: #f5f8fc;   /* raised / muted surface */
-    --c-line:    #e5e7eb;   /* border */
-    --c-line-2:  #eef0f2;   /* subtle border */
-    --c-divider: #f3f4f6;   /* hover fill / divider */
+    --c-surface: #f5f8ff;   /* raised / muted surface */
+    --c-line: #e3e9f5;   /* border */
+    --c-line-2: #eef2fb;   /* subtle border */
+    --c-divider: #eef2fb;   /* hover fill / divider */
 
     /* Brand + accents */
     --brand-ink:  #1e3a8a;  /* deep brand text/heading */
-    --brand-bg:   #eff6ff;  /* link / active tint */
-    --brand-soft: #93c5fd;  /* soft brand line */
+    --brand-bg: #eaf0ff;  /* link / active tint */
+    --brand-soft: #93b4ff;  /* soft brand line */
     --accent:     #38bdf8;  /* cyan accent */
-    --accent-bg:  #ecfeff;  /* cyan tint */
+    --accent-bg: #e0f2ff;  /* cyan tint */
     --indigo:     #4f46e5;  /* indigo (spec/process) */
-    --indigo-bg:  #e0e7ff;  /* indigo tint */
+    --indigo-bg: #e7e9ff;  /* indigo tint */
 
     /* Status — semantic (meaning preserved across retheme) */
-    --ok:      #16a34a;  --ok-ink: #166534;  --ok-bg: #dcfce7;  --ok-soft: #86efac;
-    --ng:      #dc2626;  --ng-ink: #991b1b;  --ng-bg: #fee2e2;  --ng-soft: #fca5a5;
-    --warn-fg: #b45309;  --warn-ink: #92400e; --warn-bg: #fef3c7; --warn-soft: #fcd34d;
+    --ok:      #16a34a;  --ok-ink: #15803d;  --ok-bg: #e6f7ee;  --ok-soft: #86e0ac;
+    --ng: #d9534f;  --ng-ink: #b91c1c;  --ng-bg: #fdeceb;  --ng-soft: #f2a6a4;
+    --warn-fg: #b7791f;  --warn-ink: #92400e; --warn-bg: #fbf1de; --warn-soft: #f0c674;
     --accent-ink: #155e75;  /* teal-deep */
 }
 
