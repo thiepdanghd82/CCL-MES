@@ -59,6 +59,14 @@ public interface ICclApiClient
     Task<NpiPagedRaw<NpiStructure>> GetStructuresAsync(string? search, int page, int pageSize, CancellationToken ct = default);
     Task<NpiImportResultDto?> ImportNpiAsync(string kind, string fileName, byte[] content, CancellationToken ct = default);
 
+    // WorkCenter write surface (Admin) — create/edit/delete + upsert import + export.
+    Task<NpiWorkCenter> CreateWorkCenterAsync(NpiWorkCenterUpsert body, CancellationToken ct = default);
+    Task<NpiWorkCenter> UpdateWorkCenterAsync(long id, NpiWorkCenterUpsert body, CancellationToken ct = default);
+    Task DeleteWorkCenterAsync(long id, CancellationToken ct = default);
+    Task<NpiWorkCenterImportReport> ImportWorkCentersAsync(string fileName, byte[] content, CancellationToken ct = default);
+    /// <summary>Returns the CSV text (UTF-8 with BOM) for the current search filter.</summary>
+    Task<string> ExportWorkCentersCsvAsync(string? search, CancellationToken ct = default);
+
     // ── Work Orders (P10.3 W4 — scan→accept) ──────────────────────
     /// <summary>Lookup WO by number. Returns null on 404; throws <see cref="ApiException"/>
     /// on any other non-2xx so the caller can show error UI.</summary>

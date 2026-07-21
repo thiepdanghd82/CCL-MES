@@ -136,3 +136,30 @@ public sealed record NpiImportResultDto
     public int Inserted { get; init; }
     public int Skipped { get; init; }
 }
+
+/// <summary>Create/edit body for a WorkCenter (Admin write surface).</summary>
+public sealed record NpiWorkCenterUpsert
+{
+    public string Code { get; init; } = "";
+    public string Description { get; init; } = "";
+    public string? Area { get; init; }
+    public double? IdealSpeedPcsH { get; init; }
+    public string? ShiftPattern { get; init; }
+    public bool? Active { get; init; }
+}
+
+/// <summary>Per-row / file-level import problem (row 0 = file-level).</summary>
+public sealed record NpiWorkCenterImportError
+{
+    public int Row { get; init; }
+    public string Reason { get; init; } = "";
+}
+
+/// <summary>Report from the WorkCenter upsert import (never aborts on one bad row).</summary>
+public sealed record NpiWorkCenterImportReport
+{
+    public int Inserted { get; init; }
+    public int Updated { get; init; }
+    public int Skipped { get; init; }
+    public List<NpiWorkCenterImportError> Errors { get; init; } = new();
+}

@@ -29,26 +29,46 @@
 
 @if (Open)
 {
-    <div class="modal-scrim @(SeverityClass) @(SizeClass)"
-         role="dialog" aria-modal="true"
-         @onclick="OnScrimClick"
-         @onkeydown="OnKeyDown"
-         tabindex="-1">
-        <div class="modal-card" @onclick:stopPropagation="true">
-            @if (Header is not null)
-            {
-                <div class="modal-head">
-                    <div class="modal-title">@Header</div>
-                    <button type="button" class="modal-close" aria-label="Close" @onclick="CloseAsync">×</button>
-                </div>
-            }
+    @if (Float)
+    {
+        @* Opt-in SHOWCARD mode: render the same Header/Body/Footer inside the
+           shared FloatingWindow chrome (drag / 8-way resize / traffic-lights /
+           persistence) instead of a centred scrim. Default OFF so the 13
+           transactional modals are untouched — a caller sets Float="true" only
+           when the surface is a keep-open-alongside showcard. *@
+        <FloatingWindow HeaderContent="Header" AriaLabel="@AriaLabel"
+                        WindowId="@WindowId" ShowMinimize="ShowMinimize" ShowMaximize="ShowMaximize"
+                        OnClose="CloseAsync">
             <div class="modal-body">@Body</div>
             @if (Footer is not null)
             {
                 <div class="modal-foot">@Footer</div>
             }
+        </FloatingWindow>
+    }
+    else
+    {
+        <div class="modal-scrim @(SeverityClass) @(SizeClass)"
+             role="dialog" aria-modal="true"
+             @onclick="OnScrimClick"
+             @onkeydown="OnKeyDown"
+             tabindex="-1">
+            <div class="modal-card" @onclick:stopPropagation="true">
+                @if (Header is not null)
+                {
+                    <div class="modal-head">
+                        <div class="modal-title">@Header</div>
+                        <button type="button" class="modal-close" aria-label="Close" @onclick="CloseAsync">×</button>
+                    </div>
+                }
+                <div class="modal-body">@Body</div>
+                @if (Footer is not null)
+                {
+                    <div class="modal-foot">@Footer</div>
+                }
+            </div>
         </div>
-    </div>
+    }
 }
 
 @code {
@@ -73,6 +93,16 @@
     [Parameter] public RenderFragment? Header { get; set; }
     [Parameter] public RenderFragment? Body { get; set; }
     [Parameter] public RenderFragment? Footer { get; set; }
+
+    /// <summary>Opt-in: render as a draggable/resizable SHOWCARD (FloatingWindow
+    /// chrome) instead of a centred scrim. Default false — only for
+    /// keep-open-alongside detail surfaces, never transactional confirms.</summary>
+    [Parameter] public bool Float { get; set; }
+    /// <summary>aria-label + window id used only in <see cref="Float"/> mode.</summary>
+    [Parameter] public string? AriaLabel { get; set; }
+    [Parameter] public string WindowId { get; set; } = Guid.NewGuid().ToString("N");
+    [Parameter] public bool ShowMinimize { get; set; } = true;
+    [Parameter] public bool ShowMaximize { get; set; } = true;
 
     private string SizeClass => Size switch
     {

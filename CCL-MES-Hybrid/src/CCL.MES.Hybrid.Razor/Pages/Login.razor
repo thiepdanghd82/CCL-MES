@@ -8,9 +8,47 @@
 <PageTitle>Log in — CCL MES</PageTitle>
 
 <div class="login-shell">
+  <div class="login-split">
+
+    @* ── Hero (left) — dark aurora panel, hidden < 900px ── *@
+    <div class="login-hero">
+        <div class="login-aurora" aria-hidden="true">
+            <span class="login-blob b1"></span>
+            <span class="login-blob b2"></span>
+            <span class="login-blob b3"></span>
+        </div>
+        <div class="login-hero-in">
+            <div class="login-brand">
+                <span class="login-logo-box sm">C</span>
+                <span class="login-brand-name">CCL Design</span>
+                <span class="login-brand-sep">MES</span>
+            </div>
+            <div class="login-hero-mid">
+                <h2 class="login-slogan">Make today,<br><span class="login-grad">ship tomorrow.</span></h2>
+                <p class="login-desc">Manufacturing Execution System của CCL Design Vietnam — điều hành sản xuất realtime từ NPI đến xuất xưởng.</p>
+                <ul class="login-feats">
+                    <li>Truy xuất nguồn gốc từng Work Order</li>
+                    <li>IPQC / FQC / OQC theo thời gian thực</li>
+                    <li>Bảng điều khiển máy &amp; tiến độ dây chuyền</li>
+                </ul>
+            </div>
+            <div class="login-hero-bottom">
+                <div class="login-stats">
+                    <div><b>5</b><small>Roles</small></div>
+                    <div><b>12</b><small>MES phases</small></div>
+                    <div><b>100%</b><small>Traceable</small></div>
+                </div>
+                <div class="login-foot-brand">CCL Design Vietnam · Manufacturing</div>
+            </div>
+        </div>
+    </div>
+
+    @* ── Form (right) — white card with accent bar ── *@
+    <div class="login-form-col">
     <div class="login-card">
-        <h1 class="login-title">CCL · MES</h1>
-        <p class="login-sub">Log in with your system account</p>
+        <span class="login-logo-box">C</span>
+        <h1 class="login-title">Welcome back 👋</h1>
+        <p class="login-sub">Sign in to CCL MES</p>
 
         @*
             Wiring notes (P10.6a hotfix — repeat of 3fff2d0):
@@ -72,10 +110,17 @@
 
             <button type="submit" class="login-submit" tabindex="3"
                     disabled="@_submitting" @onclick="HandleSubmitAsync">
-                @(_submitting ? "Logging in…" : "Log in")
+                @(_submitting ? "Logging in…" : "Sign in")
             </button>
         </form>
+
+        <div class="login-foot">
+            Don't have an account? <a href="#" @onclick:preventDefault="true">Contact the NPI team</a>
+        </div>
     </div>
+    </div>@* /.login-form-col *@
+
+  </div>@* /.login-split *@
 </div>
 
 @code {

@@ -1,89 +1,34 @@
 @using CCL.MES.Shared.Quality
 @using CCL.MES.Hybrid.Client.Windows
 @inject ICclApiClient Api
-@inject IJSRuntime JS
-@implements IAsyncDisposable
 
 @*
-    Read-only frozen-trace detail as a FLOATING WINDOW (app-desktop style):
-    drag by the header, resize from 8 edge/corner handles, bring-to-front on
-    click, double-click header to maximize/restore. NOT a modal — the list
-    underneath stays interactive, and several showcards can be open at once.
-
-    The window chrome (drag/resize/z-order) is driven by wwwroot/js/
-    floating-window.js via Pointer Events (WKWebView-safe). The CONTENT is
-    unchanged from the original dialog: 4 sub-tabs [Product|IPQC|FQC|OQC], ONE
-    generic renderer over header (key-value) + items (columns derived from the
-    item keys + the union of each item's Extra bag), and an empty-state for a
-    phase with no frozen snapshot (never a live fallback / error).
+    Read-only frozen-trace detail. The window CHROME (drag / 8-way resize /
+    traffic-lights / keyboard / rect persistence) is the shared
+    <FloatingWindow> component — this dialog only supplies the CONTENT: 4
+    sub-tabs [Product|IPQC|FQC|OQC]. Product uses a fixed 2-section layout
+    (Materials + Tools); IPQC/FQC/OQC use ONE generic renderer over header
+    (key-value) + items. A phase with no frozen snapshot shows an empty-state.
 *@
 
-<div class="trace-win" tabindex="0" @ref="_rootRef"
-     role="dialog" aria-label="@($"Traceability {WoNo}")"
-     style="visibility:hidden"
-     @onkeydown="OnKeyDown">
-
-    @* 8 resize handles (wired by floating-window.js via data-fw-handle) *@
-    <div class="fw-handle fw-n"  data-fw-handle="n"></div>
-    <div class="fw-handle fw-s"  data-fw-handle="s"></div>
-    <div class="fw-handle fw-e"  data-fw-handle="e"></div>
-    <div class="fw-handle fw-w"  data-fw-handle="w"></div>
-    <div class="fw-handle fw-ne" data-fw-handle="ne"></div>
-    <div class="fw-handle fw-nw" data-fw-handle="nw"></div>
-    <div class="fw-handle fw-se" data-fw-handle="se"></div>
-    <div class="fw-handle fw-sw" data-fw-handle="sw"></div>
-
-    <div class="trace-win-inner">
-    <div class="trace-win-head" @ref="_headRef">
-        <div class="trace-win-headtext">
-            <h2 class="trace-win-title trace-modal-title">@WoNo</h2>
-            <div class="trace-sub">@(_detail?.ProductName ?? "")</div>
+<FloatingWindow Title="@WoNo" Subtitle="@(_detail?.ProductName ?? "")"
+                AriaLabel="@($"Traceability {WoNo}")"
+                WindowId="@WindowId" Rect="Rect" CascadeIndex="CascadeIndex"
+                OnClose="OnClose" OnRectChanged="OnRectChanged">
+    <TabBar>
+        <div class="trace-tabs" role="tablist">
+            @foreach (var t in _tabs)
+            {
+                <button type="button" role="tab"
+                        class="trace-tab @(t.Phase == _active ? "trace-tab-active" : "")"
+                        @onclick="() => _active = t.Phase">
+                    @t.Label
+                    @if (Phase(t.Phase) is not null) { <span class="trace-tab-dot" title="Frozen">●</span> }
+                </button>
+            }
         </div>
-        @* Window controls, top-RIGHT (Windows-style): minimize · maximize ·
-           close (close outermost right). data-fw-nodrag so they never drag.
-           Glyphs are inline SVG (crisp + perfectly centred in WKWebView, unlike
-           Unicode); they reveal on hover of the cluster. The maximize button
-           swaps to a "restore" icon (two stacked squares) when maximized. *@
-        <div class="fw-traffic" data-fw-nodrag>
-            <button type="button" class="fw-light fw-light-min" data-fw-nodrag
-                    @onclick="Minimize" aria-label="Minimize" title="Thu nhỏ">
-                <svg class="fw-ico" viewBox="0 0 24 24" aria-hidden="true">
-                    <line x1="6" y1="12" x2="18" y2="12" />
-                </svg>
-            </button>
-            <button type="button" class="fw-light fw-light-max @(_maximized ? "is-max" : "")" data-fw-nodrag
-                    @onclick="Maximize" aria-label="Maximize" title="Phóng to / khôi phục">
-                <svg class="fw-ico fw-ico-maximize" viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="5.5" y="5.5" width="13" height="13" rx="2" />
-                </svg>
-                <svg class="fw-ico fw-ico-restore" viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="8.5" y="4.5" width="11" height="11" rx="1.8" />
-                    <rect x="4.5" y="8.5" width="11" height="11" rx="1.8" />
-                </svg>
-            </button>
-            <button type="button" class="fw-light fw-light-close" data-fw-nodrag
-                    @onclick="Close" aria-label="Close" title="Đóng (Esc)">
-                <svg class="fw-ico" viewBox="0 0 24 24" aria-hidden="true">
-                    <line x1="6.5" y1="6.5" x2="17.5" y2="17.5" />
-                    <line x1="17.5" y1="6.5" x2="6.5" y2="17.5" />
-                </svg>
-            </button>
-        </div>
-    </div>
-
-    <div class="trace-tabs" role="tablist">
-        @foreach (var t in _tabs)
-        {
-            <button type="button" role="tab"
-                    class="trace-tab @(t.Phase == _active ? "trace-tab-active" : "")"
-                    @onclick="() => _active = t.Phase">
-                @t.Label
-                @if (Phase(t.Phase) is not null) { <span class="trace-tab-dot" title="Frozen">●</span> }
-            </button>
-        }
-    </div>
-
-    <div class="trace-win-body trace-modal-body">
+    </TabBar>
+    <ChildContent>
         @if (_loading)
         {
             <p class="grid-status">Loading…</p>
@@ -117,14 +62,14 @@
                     }
                 </div>
 
-                @* items — Product uses a FIXED column layout (matches the BOM
-                   snapshot source); IPQC/FQC/OQC keep the generic renderer. *@
+                @* items — Product uses a FIXED 2-section layout; IPQC/FQC/OQC keep the generic renderer. *@
                 @if (phase.Payload.Items.Count == 0)
                 {
                     <p class="trace-sub">No inspected items recorded for this phase.</p>
                 }
                 else if (_active == TracePhase.Product)
                 {
+                    <h3 class="trace-prod-section">1. Materials confirmed</h3>
                     <div class="grid-scroll trace-items-scroll">
                         <table class="grid grid-sticky trace-items trace-prod">
                             <thead>
@@ -143,11 +88,15 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                @{ var _mno = 0; }
                                 @foreach (var it in phase.Payload.Items)
                                 {
                                     var st = ProductStatus(it);
+                                    _mno++;
                                     <tr>
-                                        <td class="trace-prod-no">@E(it, "no")</td>
+                                        @* No. from the loop index → correct even for OLD frozen
+                                           snapshots that predate the "no" payload key. *@
+                                        <td class="trace-prod-no">@_mno</td>
                                         <td class="trace-mono">@E(it, "partNo")</td>
                                         <td>@E(it, "description")</td>
                                         <td class="trace-prod-num">@E(it, "qpaM2")</td>
@@ -163,6 +112,50 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <h3 class="trace-prod-section">2. Tools confirmed</h3>
+                    @if (phase.Payload.Tools.Count == 0)
+                    {
+                        <p class="trace-sub">No tools recorded for this Work Order.</p>
+                    }
+                    else
+                    {
+                        @* Variable-length: 2 tools today (Plate/Cutter); N tools when
+                           an upstream multi-tool source (e.g. silkscreen) is captured —
+                           renderer + freeze need NO change, just more list elements. *@
+                        <div class="grid-scroll trace-items-scroll">
+                            <table class="grid grid-sticky trace-items trace-tools">
+                                <thead>
+                                    <tr>
+                                        <th class="grid-h trace-prod-no">No.</th>
+                                        <th class="grid-h">Tool</th>
+                                        <th class="grid-h">Number / code</th>
+                                        <th class="grid-h">Status</th>
+                                        <th class="grid-h">Checked by</th>
+                                        <th class="grid-h">Checked at</th>
+                                        <th class="grid-h">NG reason</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @{ var _tno = 0; }
+                                    @foreach (var t in phase.Payload.Tools)
+                                    {
+                                        var ts = ToolStatus(t.Status);
+                                        _tno++;
+                                        <tr>
+                                            <td class="trace-prod-no">@_tno</td>
+                                            <td>@(string.IsNullOrEmpty(t.Type) ? "—" : t.Type)@(string.IsNullOrEmpty(t.Name) ? "" : $" · {t.Name}")</td>
+                                            <td class="trace-mono">@Dash(t.NumberOrCode)</td>
+                                            <td><span class="trace-chip @ts.Tone">@ts.Label</span></td>
+                                            <td>@Dash(t.CheckedBy)</td>
+                                            <td class="trace-mono">@Dash(t.CheckedAt)</td>
+                                            <td>@Dash(t.NgReason)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 }
                 else
                 {
@@ -200,28 +193,17 @@
                 }
             }
         }
-    </div>
-    </div>@* /.trace-win-inner *@
-</div>
+    </ChildContent>
+</FloatingWindow>
 
 @code {
     [Parameter, EditorRequired] public string WoNo { get; set; } = "";
     [Parameter] public EventCallback OnClose { get; set; }
 
-    /// <summary>Stable id shared with floating-window.js for this window's
-    /// drag/resize/z-order state. Defaults to a fresh id so the component
-    /// still renders standalone (e.g. bUnit) without a parent supplying one.</summary>
+    /// <summary>Passed straight through to <see cref="FloatingWindow"/>.</summary>
     [Parameter] public string WindowId { get; set; } = Guid.NewGuid().ToString("N");
-
-    /// <summary>Restored rect (from the per-session store); null → the JS side
-    /// computes a centred default offset by <see cref="CascadeIndex"/>.</summary>
     [Parameter] public WindowRect? Rect { get; set; }
-
-    /// <summary>0-based open order — cascades a new window ~24px off the last.</summary>
     [Parameter] public int CascadeIndex { get; set; }
-
-    /// <summary>Fires with the final rect on pointer-up / resize / maximize /
-    /// keyboard nudge so the parent can persist it.</summary>
     [Parameter] public EventCallback<WindowRect> OnRectChanged { get; set; }
 
     private TraceabilityDetailDto? _detail;
@@ -229,14 +211,6 @@
     private string? _error;
     private string _active = TracePhase.Product;
     private string? _loadedWoNo;
-    // Cosmetic mirror of the JS-side maximized state, purely to swap the button
-    // icon (maximize ⇄ restore). Kept in sync via OnRectChanged_JS, which fires
-    // for the button, the header double-click, AND keyboard/JS changes.
-    private bool _maximized;
-
-    private ElementReference _rootRef;
-    private ElementReference _headRef;
-    private DotNetObjectReference<TraceabilityDetailDialog>? _self;
 
     private readonly (string Phase, string Label)[] _tabs =
     {
@@ -246,13 +220,10 @@
         (TracePhase.Oqc, "OQC"),
     };
 
-    protected override void OnInitialized()
-        => _maximized = Rect?.Maximized ?? false;   // reopened-maximized shows restore icon
-
     protected override async Task OnParametersSetAsync()
     {
-        // Only (re)load when the target WO actually changes — a parent
-        // re-render (e.g. a live re-pull) must not reload/flicker an open card.
+        // Only (re)load when the target WO actually changes — a parent re-render
+        // (e.g. a live re-pull) must not reload/flicker an open card.
         if (_loadedWoNo == WoNo) return;
         _loadedWoNo = WoNo;
         _loading = true; _error = null; _detail = null;
@@ -260,29 +231,6 @@
         catch (ApiException apiEx) { _error = apiEx.ApiError.MessageEn; }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _loading = false; }
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        _self = DotNetObjectReference.Create(this);
-        var opts = new
-        {
-            cascade = CascadeIndex,
-            minW = 480,
-            minH = 320,
-            rect = Rect is null ? null : new { x = Rect.X, y = Rect.Y, w = Rect.W, h = Rect.H, maximized = Rect.Maximized },
-        };
-        try { await JS.InvokeVoidAsync("cclMesFloat.init", WindowId, _rootRef, _headRef, opts, _self); }
-        catch (Exception) { /* JS not present (e.g. test host) — window stays static */ }
-    }
-
-    /// <summary>Called from floating-window.js with the final geometry.</summary>
-    [JSInvokable]
-    public Task OnRectChanged_JS(WindowRect rect)
-    {
-        if (_maximized != rect.Maximized) { _maximized = rect.Maximized; StateHasChanged(); }
-        return OnRectChanged.InvokeAsync(rect);
     }
 
     private TracePhaseDto? Phase(string phase) => _detail is null ? null : phase switch
@@ -293,50 +241,6 @@
         TracePhase.Oqc => _detail.Oqc,
         _ => null,
     };
-
-    private Task Close() => OnClose.InvokeAsync();
-
-    // Traffic-light controls delegate to floating-window.js (geometry lives
-    // there). Swallow when JS is absent (e.g. bUnit host) so the buttons are
-    // still clickable without throwing.
-    private async Task Minimize()
-    {
-        try { await JS.InvokeVoidAsync("cclMesFloat.toggleMinimize", WindowId); }
-        catch (Exception) { /* JS not present */ }
-    }
-
-    private async Task Maximize()
-    {
-        try { await JS.InvokeVoidAsync("cclMesFloat.toggleMaximize", WindowId); }
-        catch (Exception) { /* JS not present */ }
-    }
-
-    // Keyboard: Esc closes; arrows move; Shift+arrows resize (16px steps).
-    private async Task OnKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape") { await Close(); return; }
-
-        const double step = 16;
-        double dx = 0, dy = 0, dw = 0, dh = 0;
-        var resize = e.ShiftKey;
-        switch (e.Key)
-        {
-            case "ArrowLeft":  if (resize) dw = -step; else dx = -step; break;
-            case "ArrowRight": if (resize) dw =  step; else dx =  step; break;
-            case "ArrowUp":    if (resize) dh = -step; else dy = -step; break;
-            case "ArrowDown":  if (resize) dh =  step; else dy =  step; break;
-            default: return;
-        }
-        try { await JS.InvokeVoidAsync("cclMesFloat.nudge", WindowId, dx, dy, dw, dh); }
-        catch (Exception) { /* JS not present */ }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        try { await JS.InvokeVoidAsync("cclMesFloat.dispose", WindowId); }
-        catch (Exception) { /* JS not present / already gone */ }
-        _self?.Dispose();
-    }
 
     private static string TabLabel(string phase) => phase switch
     {
@@ -356,6 +260,16 @@
     // ── Product-tab helpers (fixed layout) ───────────────────────────
     private static string E(TraceItem it, string key)
         => it.Extra is not null && it.Extra.TryGetValue(key, out var v) && !string.IsNullOrEmpty(v) ? v! : "—";
+
+    private static string Dash(string? v) => string.IsNullOrEmpty(v) ? "—" : v!;
+
+    private static (string Label, string Tone) ToolStatus(string? status) => status switch
+    {
+        "Ng" => ("NG", "trace-chip-ng"),
+        "Ok" => ("OK", "trace-chip-ok"),
+        "Pending" or null or "" => ("Pending", "trace-chip-none"),
+        _ => (status!, "trace-chip-pending"),
+    };
 
     // A special-accept row is stored as Status=Ok WITH a retained NG reason
     // (the concession) — surface it distinctly from a clean OK.

@@ -1,0 +1,99 @@
+@namespace CCL.MES.Hybrid.Razor.Shared
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@*
+    Generic right-click / long-press / kebab row-action menu. The CALLER supplies
+    the anchor (mouse or button coords) + a list of <ContextMenuItem>; this
+    component renders them at the pointer, CLAMPS inside the viewport, and closes
+    on: outside-click, Esc, selecting an item, or scroll/zoom/blur (JS). a11y:
+    role=menu/menuitem, first item focused, Arrow Up/Down roving, Enter/Space
+    (native button) activates. Reused by every grid row action — do NOT hand-roll
+    an "Actions" column (see .claude/skills/cmes-row-context-menu). Geometry lives
+    in wwwroot/js/context-menu.js.
+*@
+
+@if (Open)
+{
+    <div class="row-ctx-scrim" @onclick="CloseAsync"
+         @oncontextmenu="CloseAsync" @oncontextmenu:preventDefault="true"></div>
+    <div class="row-ctx-menu" @ref="_menuRef" style="left:@(Anchor.X)px; top:@(Anchor.Y)px; visibility:hidden;"
+         role="menu" tabindex="-1" aria-label="@AriaLabel"
+         @onclick:stopPropagation="true" @onkeydown="OnKeyDownAsync">
+        @foreach (var item in Items)
+        {
+            @if (item.IsDivider)
+            {
+                <div class="row-ctx-divider" role="separator"></div>
+            }
+            else
+            {
+                <button type="button" role="menuitem"
+                        class="row-ctx-item @(item.Danger ? "row-ctx-item-danger" : "")"
+                        disabled="@item.Disabled"
+                        @onclick="() => SelectAsync(item)">
+                    @if (!string.IsNullOrEmpty(item.Icon)) { <span class="row-ctx-ico">@item.Icon</span> }
+                    <span class="row-ctx-label">@item.Label</span>
+                </button>
+            }
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public (double X, double Y) Anchor { get; set; }
+    [Parameter] public IReadOnlyList<ContextMenuItem> Items { get; set; } = System.Array.Empty<ContextMenuItem>();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public string AriaLabel { get; set; } = "Row actions";
+
+    private ElementReference _menuRef;
+    private DotNetObjectReference<RowContextMenu>? _self;
+    private bool _placed;
+
+    protected override void OnParametersSet()
+    {
+        // Re-place whenever the menu (re)opens with a fresh anchor.
+        if (!Open) _placed = false;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Open && !_placed)
+        {
+            _placed = true;
+            _self ??= DotNetObjectReference.Create(this);
+            try { await JS.InvokeVoidAsync("cclMesMenu.place", _menuRef, Anchor.X, Anchor.Y, _self); }
+            catch (Exception) { /* JS not present (test host) — menu stays at raw anchor */ }
+        }
+    }
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+
+    /// <summary>Called from context-menu.js on scroll / zoom / blur.</summary>
+    [JSInvokable]
+    public Task CloseFromJs() => OnClose.InvokeAsync();
+
+    private async Task SelectAsync(ContextMenuItem item)
+    {
+        if (item.Disabled) return;
+        if (item.OnClick.HasDelegate) await item.OnClick.InvokeAsync();
+        await CloseAsync();
+    }
+
+    private async Task OnKeyDownAsync(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Escape": await CloseAsync(); break;
+            case "ArrowDown": try { await JS.InvokeVoidAsync("cclMesMenu.move", _menuRef, 1); } catch { } break;
+            case "ArrowUp":   try { await JS.InvokeVoidAsync("cclMesMenu.move", _menuRef, -1); } catch { } break;
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _self?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

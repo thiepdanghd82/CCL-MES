@@ -127,6 +127,34 @@ public sealed class TraceabilityControllerTests : IClassFixture<MesApiFactory>
         Assert.False(item.Extra!.ContainsKey("scrapPercent"));
     }
 
+    // ── Plate + Cutter freeze into Tools[], not the meta header ──
+    [Fact]
+    public async Task Product_freeze_maps_plate_and_cutter_into_tools_not_header()
+    {
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var woId = await SeedWoWithMaterialsAsync($"TOOLS-{tag}", ("M1", "L1", PrepressCheckStatus.Ok));
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            db.WoPlateChecks.Add(new WoPlateCheck { WorkOrderId = woId, Status = PrepressCheckStatus.Ok, PlateNo = "PL-77", CheckedBy = "op" });
+            db.WoCutterChecks.Add(new WoCutterCheck { WorkOrderId = woId, Status = PrepressCheckStatus.Ng, CutterNo = "CT-12", NgReasonCode = "SC-CUTTER-WORN", CheckedBy = "op" });
+            await db.SaveChangesAsync();
+        }
+        await FreezeAsync(woId, TracePhase.Product);
+
+        var client = await ClientAsync($"tools-qc-{tag}", "QC");
+        var detail = await client.GetFromJsonAsync<TraceabilityDetailDto>($"/api/v2/quality/traceability/TOOLS-{tag}");
+        var payload = detail!.Product!.Payload;
+
+        Assert.Equal(2, payload.Tools.Count);
+        Assert.Equal("Plate", payload.Tools[0].Type);
+        Assert.Equal("PL-77", payload.Tools[0].NumberOrCode);
+        Assert.Equal("Cutter", payload.Tools[1].Type);
+        Assert.Equal("SC-CUTTER-WORN", payload.Tools[1].NgReason);
+        // No longer in the meta header.
+        Assert.DoesNotContain(payload.Header, h => h.Label == "Plate check" || h.Label == "Cutter check");
+    }
+
     // ── Idempotent + version bump ──
     [Fact]
     public async Task Freeze_is_idempotent_by_content_hash_then_bumps_version_on_real_change()

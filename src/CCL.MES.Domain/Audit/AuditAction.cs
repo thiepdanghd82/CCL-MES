@@ -131,6 +131,9 @@ public static class AuditAction
     public const string UserSetActive         = "USER_SET_ACTIVE";
     public const string WcActiveToggle        = "WC_ACTIVE_TOGGLE";        // Phase 8 — WorkCenter active flag flip; detail JSON: { wc_id, code, from, to }
     public const string WcCopy                = "WC_COPY";                 // Phase 8 — WorkCenter duplicate via context menu; detail JSON: { src_id, src_code, new_id, new_code }
+    public const string WcCreate              = "WC_CREATE";               // Hybrid NPI — WorkCenter row created (Admin); detail JSON: { wc_id, code }
+    public const string WcDelete              = "WC_DELETE";               // Hybrid NPI — WorkCenter row deleted (Admin); detail JSON: { wc_id, code }
+    public const string WcImport              = "WC_IMPORT";               // Hybrid NPI — WorkCenter CSV upsert (Admin); detail JSON: { inserted, updated, skipped, parsed }
     public const string WcUpdate              = "WC_UPDATE";               // Phase 8 — WorkCenter row edit via context menu; detail JSON: { wc_id, code, changes: {...} }
     public const string WoAdvance             = "WO_ADVANCE";
     /// <summary>P10.7b-2 — operator set the status of a single wo_materials

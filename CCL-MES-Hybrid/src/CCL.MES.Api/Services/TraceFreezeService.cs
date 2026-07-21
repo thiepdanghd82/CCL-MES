@@ -123,6 +123,11 @@ public sealed class TraceFreezeService : ITraceFreezeService
         var mats = await _db.WoMaterials.AsNoTracking()
             .Where(m => m.WorkOrderId == wo.Id).OrderBy(m => m.BomLineIdx).ToListAsync(ct);
 
+        // Plate + Cutter moved OUT of the meta header into the "Tools confirmed"
+        // list below (section 2). The list is variable-length — today it maps
+        // the two 1:1 checks, but a silkscreen code with N tools just adds more
+        // elements here with NO renderer/freeze change (N-tool ready; awaiting a
+        // multi-tool capture source upstream — we never fabricate tools).
         var header = new List<TraceKv>
         {
             new() { Label = "Product code", Value = product?.ProductCode ?? "" },
@@ -130,9 +135,23 @@ public sealed class TraceFreezeService : ITraceFreezeService
             new() { Label = "Customer", Value = customer?.Name ?? "" },
             new() { Label = "Target qty", Value = $"{wo.TargetQty} {wo.Uom}" },
             new() { Label = "MES status", Value = wo.MesPhase },
-            new() { Label = "Plate check", Value = CheckKv(plate?.Status, plate?.PlateNo, plate?.NgReasonCode, plate?.CheckedBy, plate?.CheckedAt) },
-            new() { Label = "Cutter check", Value = CheckKv(cutter?.Status, cutter?.CutterNo, cutter?.NgReasonCode, cutter?.CheckedBy, cutter?.CheckedAt) },
         };
+
+        var tools = new List<TraceTool>();
+        if (plate is not null)
+            tools.Add(new TraceTool
+            {
+                Type = "Plate", NumberOrCode = plate.PlateNo, Status = plate.Status.ToString(),
+                NgReason = plate.NgReasonCode, CheckedBy = plate.CheckedBy,
+                CheckedAt = plate.CheckedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+            });
+        if (cutter is not null)
+            tools.Add(new TraceTool
+            {
+                Type = "Cutter", NumberOrCode = cutter.CutterNo, Status = cutter.Status.ToString(),
+                NgReason = cutter.NgReasonCode, CheckedBy = cutter.CheckedBy,
+                CheckedAt = cutter.CheckedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+            });
 
         var items = mats.Select(m => new TraceItem
         {
@@ -164,19 +183,8 @@ public sealed class TraceFreezeService : ITraceFreezeService
         return new TracePayload
         {
             Phase = TracePhase.Product, WoNo = wo.WoNo, Variant = product?.ProductCode,
-            Header = header, Items = items,
+            Header = header, Items = items, Tools = tools,
         };
-    }
-
-    private static string CheckKv(PrepressCheckStatus? status, string? no, string? ngReason, string? by, DateTime? at)
-    {
-        if (status is null) return "—";
-        var parts = new List<string> { status.ToString()! };
-        if (!string.IsNullOrEmpty(no)) parts.Add($"#{no}");
-        if (!string.IsNullOrEmpty(ngReason)) parts.Add($"NG {ngReason}");
-        if (!string.IsNullOrEmpty(by)) parts.Add($"by {by}");
-        if (at is not null) parts.Add(at.Value.ToString("yyyy-MM-dd HH:mm"));
-        return string.Join(" · ", parts);
     }
 
     // ── IPQC ────────────────────────────────────────────────────────

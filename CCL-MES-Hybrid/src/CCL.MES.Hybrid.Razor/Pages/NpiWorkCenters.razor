@@ -1,16 +1,21 @@
 @page "/npi/workcenters"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
+@using CCL.MES.Hybrid.Client.Npi
+@using CCL.MES.Hybrid.Client.Files
+@using CCL.MES.Hybrid.Razor.Shared
+@using Microsoft.AspNetCore.Components.Authorization
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
+@inject IFilePickerService FilePicker
+@inject IJSRuntime JS
+@implements IDisposable
 
 @*
-    P10.5a — Work Centers grid. Standardised pattern shared with
-    /npi/structure, /npi/routine, /npi/rawmaterials:
-        - Toolbar: search + Tải lại + GridColumnsMenu
-        - Sticky/freeze table header inside a scroll container
-        - Server-side pagination (default 20/page)
-        - Lesson #27 (try/catch + inline error banner) — never crash the
-          page on a partial/transient failure
+    Work Centers grid. READ for Admin/Supervisor/Engineer/QC; WRITE (Add / Edit /
+    Delete / Import) is Admin-only — buttons gated by <AuthorizeView Roles="Admin">
+    AND the API re-checks the role server-side (never trust the hidden button).
+    Export (CSV) is open to any viewer. The add/edit form is a transactional
+    surface → centred <Modal> (L34: NOT a FloatingWindow).
 *@
 
 <PageTitle>Work Centers — NPI</PageTitle>
@@ -22,9 +27,19 @@
                    Placeholder="Search by code or description…" />
     <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
     <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
+    <button type="button" class="grid-btn" @onclick="ExportCsvAsync" disabled="@(_loading || _busy)">⭳ Export CSV</button>
+    <AuthorizeView Roles="Admin">
+        <button type="button" class="grid-btn" @onclick="OpenImport" disabled="@_busy">⭱ Import</button>
+        <button type="button" class="grid-btn grid-btn-primary" @onclick="OpenAdd" disabled="@_busy">+ Add</button>
+    </AuthorizeView>
     <div class="grid-toolbar-spacer"></div>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
 </div>
+
+@if (_toast is not null)
+{
+    <div class="grid-status" role="status">@_toast</div>
+}
 
 @if (_loading && _data is null)
 {
@@ -48,24 +63,36 @@ else if (_data is not null)
                     {
                         <th class="grid-h @ColClass(col.Id)">@col.Label</th>
                     }
+                    @if (_isAdmin) { <th class="grid-h wc-kebab-col" aria-label="Actions"></th> }
                 </tr>
             </thead>
             <tbody>
                 @foreach (var row in _data.Items)
                 {
-                    <tr>
+                    <tr class="wc-row"
+                        @oncontextmenu="e => OpenMenuAt(row, e.ClientX, e.ClientY)" @oncontextmenu:preventDefault="true"
+                        @onpointerdown="e => LongPressStart(row, e)" @onpointerup="LongPressCancel"
+                        @onpointerleave="LongPressCancel" @onpointermove="LongPressCancel">
                         @foreach (var col in _columns.Visible)
                         {
                             <td>@RenderCell(row, col.Id)</td>
+                        }
+                        @if (_isAdmin)
+                        {
+                            <td class="wc-kebab-col">
+                                @* 3rd entry point to the SAME menu — visible affordance since
+                                   right-click is hard to discover + WKWebView touch may not fire it. *@
+                                <button type="button" class="row-kebab" data-fw-nodrag
+                                        @onclick="e => OpenMenuAt(row, e.ClientX, e.ClientY)" @onclick:stopPropagation="true"
+                                        aria-haspopup="menu" aria-label="Actions" title="Actions">⋯</button>
+                            </td>
                         }
                     </tr>
                 }
                 @if (_data.Items.Count == 0)
                 {
                     <tr>
-                        <td colspan="@_columns.Visible.Count" class="grid-empty">
-                            No matching data.
-                        </td>
+                        <td colspan="@(_columns.Visible.Count + (_isAdmin ? 1 : 0))" class="grid-empty">No matching data.</td>
                     </tr>
                 }
             </tbody>
@@ -76,9 +103,7 @@ else if (_data is not null)
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
                 @onclick="() => GoToPageAsync(_page - 1)">‹ Previous</button>
-        <span class="grid-pager-text">
-            Page @_page / @TotalPages — @_data.Total rows
-        </span>
+        <span class="grid-pager-text">Page @_page / @TotalPages — @_data.Total rows</span>
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
                 @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
@@ -87,19 +112,146 @@ else if (_data is not null)
     <GridAutoFit OnFit="SetPageSizeAsync" />
 }
 
+@* ── Row actions: right-click / long-press / kebab all open THIS one menu ── *@
+<RowContextMenu Open="_menuRow is not null" Anchor="_menuAnchor" Items="_menuItems"
+                AriaLabel="@($"Actions for {_menuRow?.Code}")" OnClose="CloseMenu" />
+
+@* ── Add / Edit modal (transactional → centred Modal, not FloatingWindow) ── *@
+<Modal Open="_formOpen" OnClose="CloseForm" Size="ModalSize.Md"
+       Severity="ModalSeverity.Info" ClickOutsideToClose="false">
+    <Header>@(_editId is null ? "Add Work Center" : $"Edit Work Center — {_form.Code}")</Header>
+    <Body>
+        @if (_formError is not null) { <div class="grid-error" role="alert">@_formError</div> }
+        <div class="wc-form">
+            <label>Code <span class="wc-req">*</span>
+                <input class="op-input" @bind="_form.Code" maxlength="12"
+                       disabled="@(_editId is not null && false)" placeholder="e.g. PR-01" />
+                <small class="wc-hint">3–12 chars: A–Z, 0–9, '-', '_'</small>
+            </label>
+            <label>Description
+                <input class="op-input" @bind="_form.Description" maxlength="200" />
+            </label>
+            <label>Area
+                <input class="op-input" @bind="_form.Area" maxlength="80" />
+            </label>
+            <label>Ideal Speed (pcs/h)
+                <input class="op-input" type="number" min="0" step="any" @bind="_form.IdealSpeedPcsH" />
+            </label>
+            <label>Shift Pattern
+                <select class="op-input" @bind="_form.ShiftPattern">
+                    <option value="">—</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="A+B">A+B</option>
+                    <option value="A+B+C">A+B+C</option>
+                </select>
+            </label>
+            <label class="wc-check">
+                <input type="checkbox" @bind="_form.Active" /> Active
+            </label>
+        </div>
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary" @onclick="CloseForm" disabled="@_busy">Cancel</button>
+        <button type="button" class="op-btn op-btn-primary" @onclick="SaveFormAsync" disabled="@_busy">
+            @(_busy ? "Saving…" : "Save")
+        </button>
+    </Footer>
+</Modal>
+
+@* ── Delete confirm ── *@
+<Modal Open="_deleteRow is not null" OnClose="() => _deleteRow = null" Size="ModalSize.Sm"
+       Severity="ModalSeverity.Danger" ClickOutsideToClose="false">
+    <Header>Delete Work Center</Header>
+    <Body>
+        @if (_formError is not null) { <div class="grid-error" role="alert">@_formError</div> }
+        <p>Delete <code>@_deleteRow?.Code</code> — @_deleteRow?.Description? This cannot be undone.</p>
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary" @onclick="() => _deleteRow = null" disabled="@_busy">Cancel</button>
+        <button type="button" class="op-btn op-btn-danger" @onclick="ConfirmDeleteAsync" disabled="@_busy">
+            @(_busy ? "Deleting…" : "Delete")
+        </button>
+    </Footer>
+</Modal>
+
+@* ── Import modal ── *@
+<Modal Open="_importOpen" OnClose="CloseImport" Size="ModalSize.Md" Severity="ModalSeverity.Info">
+    <Header>Import Work Centers (CSV)</Header>
+    <Body>
+        <p class="wc-hint">Upsert by <b>Code</b> (existing rows updated, new rows inserted; nothing is deleted).
+           Columns: Code, Description, Area, Ideal Speed (pcs/h), Shift Pattern, Active.</p>
+        @if (_importError is not null) { <div class="grid-error" role="alert">@_importError</div> }
+        @if (_importReport is not null)
+        {
+            <div class="wc-report">
+                <div><b>@_importReport.Inserted</b> inserted · <b>@_importReport.Updated</b> updated · <b>@_importReport.Skipped</b> skipped</div>
+                @if (_importReport.Errors.Count > 0)
+                {
+                    <ul class="wc-report-errs">
+                        @foreach (var e in _importReport.Errors)
+                        {
+                            <li>@(e.Row > 0 ? $"Row {e.Row}: " : "")@e.Reason</li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary" @onclick="CloseImport" disabled="@_busy">Close</button>
+        <button type="button" class="op-btn op-btn-primary" @onclick="PickAndImportAsync" disabled="@_busy">
+            @(_busy ? "Importing…" : "Choose CSV…")
+        </button>
+    </Footer>
+</Modal>
+
 @code {
     private NpiPagedRaw<NpiWorkCenter>? _data;
     private bool _loading;
+    private bool _busy;
     private string? _error;
+    private string? _toast;
     private string _search = "";
     private int _page = 1;
     private int _pageSize = 20;
     private GridColumns _columns = default!;
 
+    // Add/Edit form state.
+    private bool _formOpen;
+    private long? _editId;
+    private string? _formError;
+    private FormModel _form = new();
+
+    private NpiWorkCenter? _deleteRow;
+
+    // Import state.
+    private bool _importOpen;
+    private string? _importError;
+    private NpiWorkCenterImportReport? _importReport;
+
+    // Row-action menu (right-click / long-press / kebab → one menu).
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+    private bool _isAdmin;
+    private NpiWorkCenter? _menuRow;
+    private (double X, double Y) _menuAnchor;
+    private IReadOnlyList<ContextMenuItem> _menuItems = System.Array.Empty<ContextMenuItem>();
+    private System.Threading.Timer? _longPress;
+    private (double X, double Y) _pressAt;
+
     private int TotalPages => GridPagination.TotalPages(_data?.Total ?? 0, _pageSize);
 
-    // P10.10 — GridAutoFit reports how many rows fit the viewport; resize the
-    // page to fill it, then clamp the current page into the new range.
+    private sealed class FormModel
+    {
+        public string Code { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string? Area { get; set; }
+        public double? IdealSpeedPcsH { get; set; }
+        public string? ShiftPattern { get; set; }
+        public bool Active { get; set; } = true;
+    }
+
     private async Task SetPageSizeAsync(int rows)
     {
         if (rows <= 0 || rows == _pageSize) return;
@@ -111,6 +263,8 @@ else if (_data is not null)
 
     protected override async Task OnInitializedAsync()
     {
+        if (AuthState is not null)
+            _isAdmin = (await AuthState).User.IsInRole("Admin");
         _columns = new GridColumns("workcenters", new[]
         {
             new ColumnDef("id",          "ID"),
@@ -124,53 +278,178 @@ else if (_data is not null)
         await LoadAsync();
     }
 
-    private Task OnSearchClickAsync()
-    {
-        // Reset page on new search — operator expects to see the first
-        // match, not page 5 of the previous filter.
-        _page = 1;
-        return LoadAsync();
-    }
+    private Task OnSearchClickAsync() { _page = 1; return LoadAsync(); }
 
     private async Task LoadAsync()
     {
-        _loading = true;
-        _error = null;
+        _loading = true; _error = null;
         try
         {
-            _data = await Api.GetWorkCentersAsync(
-                string.IsNullOrWhiteSpace(_search) ? null : _search,
-                _page, _pageSize);
+            _data = await Api.GetWorkCentersAsync(string.IsNullOrWhiteSpace(_search) ? null : _search, _page, _pageSize);
         }
-        catch (ApiException apiEx)
-        {
-            _error = apiEx.ApiError.MessageEn;
-        }
-        catch (HttpRequestException ex)
-        {
-            _error = $"Could not connect to the server: {ex.Message}";
-        }
-        catch (Exception ex)
-        {
-            _error = $"{ex.GetType().Name}: {ex.Message}";
-        }
-        finally
-        {
-            _loading = false;
-        }
+        catch (ApiException apiEx) { _error = apiEx.ApiError.MessageEn; }
+        catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _loading = false; }
     }
 
-    private Task ReloadAsync()
+    private Task ReloadAsync() { _page = 1; return LoadAsync(); }
+    private Task GoToPageAsync(int page) { _page = GridPagination.Clamp(page, TotalPages); return LoadAsync(); }
+
+    // ── Add / Edit ──
+    private void OpenAdd()
     {
-        _page = 1;
-        return LoadAsync();
+        _editId = null; _formError = null; _toast = null;
+        _form = new FormModel();
+        _formOpen = true;
     }
 
-    private Task GoToPageAsync(int page)
+    private void OpenEdit(NpiWorkCenter row)
     {
-        _page = GridPagination.Clamp(page, TotalPages);
-        return LoadAsync();
+        _editId = row.Id; _formError = null; _toast = null;
+        _form = new FormModel
+        {
+            Code = row.Code,
+            Description = row.Description ?? "",
+            Area = row.Area,
+            IdealSpeedPcsH = row.IdealSpeedPcsH,
+            ShiftPattern = row.ShiftPattern,
+            Active = row.Active ?? true,
+        };
+        _formOpen = true;
     }
+
+    // ── Row-action menu (right-click / long-press / kebab) ──
+    private void OpenMenuAt(NpiWorkCenter row, double x, double y)
+    {
+        // Only Admin has any actions → non-admin never opens the menu.
+        if (!_isAdmin) return;
+        _menuRow = row;
+        _menuAnchor = (x, y);
+        _menuItems = new[]
+        {
+            new ContextMenuItem { Label = "Copy", Icon = "⎘", OnClick = EventCallback.Factory.Create(this, () => OpenCopy(row)) },
+            new ContextMenuItem { Label = "Edit", Icon = "📝", OnClick = EventCallback.Factory.Create(this, () => OpenEdit(row)) },
+            ContextMenuItem.Divider,
+            new ContextMenuItem { Label = "Delete", Icon = "🗑", Danger = true, OnClick = EventCallback.Factory.Create(this, () => OpenDelete(row)) },
+        };
+    }
+
+    private void CloseMenu() => _menuRow = null;
+
+    // Touch / WKWebView long-press (~500ms) — contextmenu may not fire on touch.
+    private void LongPressStart(NpiWorkCenter row, PointerEventArgs e)
+    {
+        if (!_isAdmin || e.Button != 0) return;
+        _pressAt = (e.ClientX, e.ClientY);
+        _longPress?.Dispose();
+        _longPress = new System.Threading.Timer(
+            _ => InvokeAsync(() => { OpenMenuAt(row, _pressAt.X, _pressAt.Y); StateHasChanged(); }),
+            null, 500, System.Threading.Timeout.Infinite);
+    }
+    private void LongPressCancel() { _longPress?.Dispose(); _longPress = null; }
+
+    // Copy → open the Add modal pre-filled from the row; Code left BLANK so the
+    // operator must enter a new unique code (server also enforces uniqueness).
+    private void OpenCopy(NpiWorkCenter row)
+    {
+        _editId = null; _formError = null; _toast = null;
+        _form = new FormModel
+        {
+            Code = "",
+            Description = row.Description ?? "",
+            Area = row.Area,
+            IdealSpeedPcsH = row.IdealSpeedPcsH,
+            ShiftPattern = row.ShiftPattern,
+            Active = row.Active ?? true,
+        };
+        _formOpen = true;
+    }
+
+    private void CloseForm() { _formOpen = false; _formError = null; }
+
+    private async Task SaveFormAsync()
+    {
+        _busy = true; _formError = null;
+        var body = new NpiWorkCenterUpsert
+        {
+            Code = (_form.Code ?? "").Trim(),
+            Description = _form.Description ?? "",
+            Area = string.IsNullOrWhiteSpace(_form.Area) ? null : _form.Area,
+            IdealSpeedPcsH = _form.IdealSpeedPcsH,
+            ShiftPattern = string.IsNullOrWhiteSpace(_form.ShiftPattern) ? null : _form.ShiftPattern,
+            Active = _form.Active,
+        };
+        try
+        {
+            if (_editId is null) await Api.CreateWorkCenterAsync(body);
+            else await Api.UpdateWorkCenterAsync(_editId.Value, body);
+            _formOpen = false;
+            _toast = _editId is null ? $"Added {body.Code}." : $"Saved {body.Code}.";
+            await LoadAsync();
+        }
+        catch (ApiException apiEx) { _formError = apiEx.ApiError.MessageEn; }
+        catch (Exception ex) { _formError = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    // ── Delete ──
+    private void OpenDelete(NpiWorkCenter row) { _deleteRow = row; _formError = null; _toast = null; }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_deleteRow is null) return;
+        _busy = true; _formError = null;
+        try
+        {
+            await Api.DeleteWorkCenterAsync(_deleteRow.Id);
+            _toast = $"Deleted {_deleteRow.Code}.";
+            _deleteRow = null;
+            await LoadAsync();
+        }
+        catch (ApiException apiEx) { _formError = apiEx.ApiError.MessageEn; }
+        catch (Exception ex) { _formError = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    // ── Import ──
+    private void OpenImport() { _importOpen = true; _importError = null; _importReport = null; _toast = null; }
+    private void CloseImport() { _importOpen = false; }
+
+    private async Task PickAndImportAsync()
+    {
+        _busy = true; _importError = null;
+        try
+        {
+            await using var picked = await FilePicker.PickFileAsync(new[] { "csv" });
+            if (picked is null) { _importError = "No file selected."; return; }
+            using var ms = new MemoryStream();
+            await picked.Content.CopyToAsync(ms);
+            _importReport = await Api.ImportWorkCentersAsync(picked.FileName, ms.ToArray());
+            await LoadAsync();
+        }
+        catch (ApiException apiEx) { _importError = apiEx.ApiError.MessageEn; }
+        catch (Exception ex) { _importError = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    // ── Export (fetch CSV text → JS download, reusing clipboard.js) ──
+    private async Task ExportCsvAsync()
+    {
+        _busy = true; _toast = null; _error = null;
+        try
+        {
+            var csv = await Api.ExportWorkCentersCsvAsync(string.IsNullOrWhiteSpace(_search) ? null : _search);
+            try { await JS.InvokeVoidAsync("cclMesClipboard.download", "workcenters.csv", csv, "text/csv;charset=utf-8"); }
+            catch (Exception) { /* JS absent (test host) */ }
+            _toast = "Export ready — workcenters.csv";
+        }
+        catch (ApiException apiEx) { _error = apiEx.ApiError.MessageEn; }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    public void Dispose() => _longPress?.Dispose();
 
     private static string ColClass(string columnId) => columnId switch
     {
@@ -192,12 +471,7 @@ else if (_data is not null)
             case "ideal_speed": __builder.AddContent(0, row.IdealSpeedPcsH?.ToString("0.##") ?? "—"); break;
             case "shift":       __builder.AddContent(0, row.ShiftPattern ?? "—"); break;
             case "active":
-                __builder.AddContent(0, row.Active switch
-                {
-                    true  => "✓ Active",
-                    false => "× Inactive",
-                    _      => "—",
-                });
+                __builder.AddContent(0, row.Active switch { true => "✓ Active", false => "× Inactive", _ => "—" });
                 break;
         }
     };
