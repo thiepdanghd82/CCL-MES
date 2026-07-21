@@ -84,15 +84,20 @@ html, body {
 }
 
 .app-nav {
-    /* P10.10 — light sidebar, palette matched to the content panel.
-       The dark-theme vars are re-scoped to light HERE so the whole nav
-       subtree (links, sections, user box, recent-scans) flips at once
-       without touching the global tokens other surfaces rely on. */
-    --navy:    #ffffff;   /* nav background */
-    --navy-2:  #f3f4f6;   /* hover / user-box surface */
-    --line:    #e5e7eb;   /* borders */
-    --ink:     #374151;   /* nav text */
-    --ink-mut: #9ca3af;   /* muted text */
+    /* DARK navy sidebar (synced to the top bar + login hero). Re-scope the
+       dark-surface tokens AND the content tokens the nav subtree consumes so the
+       whole sidebar (links, sections, brand, user box) flips at once — nothing
+       else in the app is affected (scoped override, the P10.10 pattern). */
+    --navy:    #12203a;   /* nav background (navy) */
+    --navy-2:  #1b2d4d;   /* hover / user-box surface */
+    --line:    #24365a;   /* borders */
+    --ink:     #dbe4f5;   /* nav text (light on navy) */
+    --ink-mut: #8fa3c8;   /* muted text */
+    --c-ink:   #eaf1ff;   /* brand / userline / headings on navy */
+    --c-muted: #8fa3c8;
+    --card:    #16264a;   /* any inner surface */
+    --brand-bg: rgba(46,91,255,.22);  /* active-item tint on navy */
+    --brand-2:  #93b4ff;              /* active-item text on navy */
     background: var(--navy);
     color: var(--ink);
     padding: 16px 12px;
@@ -477,6 +482,20 @@ html, body {
 
 /* ═══════════ P10.10 — global top bar (SpecHub parity) ═══════════ */
 .app-topbar {
+    /* DARK navy top bar (synced to sidebar + login hero). Re-scope the content
+       tokens the bar subtree uses so brand / labels / values / logout flip to
+       light; scoped override, no other surface affected. */
+    --card:      #1e3a8a;               /* bar background (navy) */
+    --c-line:    rgba(255,255,255,.16);
+    --c-line-2:  rgba(255,255,255,.16);
+    --c-divider: rgba(255,255,255,.12);
+    --c-ink:     #ffffff;               /* brand */
+    --c-ink-2:   #eaf1ff;               /* values */
+    --c-ink-3:   #dbe4f5;               /* logout text */
+    --c-soft:    #a8bce0;               /* labels / sub */
+    --c-muted:   #a8bce0;               /* role */
+    --brand:     #93b4ff;               /* logo (lighter on navy) */
+    --ok:        #4ade80;               /* ONLINE (lighter green on navy) */
     display: flex;
     align-items: center;
     justify-content: space-between;
