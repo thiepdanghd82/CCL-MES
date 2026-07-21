@@ -4,6 +4,9 @@
    MAUI bundle stays small. */
 
 :root {
+    /* ── Dark-surface + base tokens (UNCHANGED — .app-nav re-scopes these
+         same names to light for the sidebar subtree; other dark chrome uses
+         them at :root value). Kept intact so that scoped system keeps working. */
     --navy:    #161b22;
     --navy-2:  #1f2730;
     --line:    #2b333d;
@@ -15,6 +18,43 @@
     --warn:    #f1b500;
     --bg:      #f6f8fa;
     --card:    #ffffff;
+
+    /* ─────────────────────────────────────────────────────────────────────
+       SEMANTIC DESIGN-TOKEN LAYER (P-tokenise). Flat, defined once here, never
+       re-scoped → var(--c-*) resolves to a constant everywhere, so routing a
+       hardcoded hex to its token is a visual no-op (Phase 1/2). Retheme =
+       change these VALUES only (Phase 3). Values below = CURRENT colours.
+       RULE: new colours in app.css MUST use a token here — no raw hex (L37).
+       ───────────────────────────────────────────────────────────────────── */
+
+    /* Content ink (dark text on light surfaces) */
+    --c-ink:     #111827;   /* headings / strongest */
+    --c-ink-2:   #1f2937;   /* strong body */
+    --c-ink-3:   #374151;   /* body */
+    --c-muted:   #6b7280;   /* secondary / muted */
+    --c-soft:    #9ca3af;   /* placeholder / icon / faint */
+
+    /* Content surfaces + lines */
+    --c-bg:      #f6f8fa;   /* app background */
+    --c-card:    #ffffff;   /* card / panel */
+    --c-surface: #f5f8fc;   /* raised / muted surface */
+    --c-line:    #e5e7eb;   /* border */
+    --c-line-2:  #eef0f2;   /* subtle border */
+    --c-divider: #f3f4f6;   /* hover fill / divider */
+
+    /* Brand + accents */
+    --brand-ink:  #1e3a8a;  /* deep brand text/heading */
+    --brand-bg:   #eff6ff;  /* link / active tint */
+    --brand-soft: #93c5fd;  /* soft brand line */
+    --accent:     #38bdf8;  /* cyan accent */
+    --accent-bg:  #ecfeff;  /* cyan tint */
+    --indigo:     #4f46e5;  /* indigo (spec/process) */
+    --indigo-bg:  #e0e7ff;  /* indigo tint */
+
+    /* Status — semantic (meaning preserved across retheme) */
+    --ok:      #16a34a;  --ok-ink: #166534;  --ok-bg: #dcfce7;
+    --ng:      #dc2626;  --ng-ink: #991b1b;  --ng-bg: #fee2e2;
+    --warn-fg: #b45309;  --warn-ink: #92400e; --warn-bg: #fef3c7;
 }
 
 html, body {
