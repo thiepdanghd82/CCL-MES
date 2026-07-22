@@ -1810,7 +1810,7 @@ html, body {
     padding-left: 16px;
     font-size: 0.88rem;
     font-weight: 500;
-    color: var(--c-muted);
+    color: var(--ink);   /* match .app-nav-link brightness (was --c-muted, too dim) */
 }
 .app-nav-link-sub:hover { color: var(--c-ink); }
 .app-nav-link-sub.active { background: var(--brand-bg); color: var(--brand-2); }
