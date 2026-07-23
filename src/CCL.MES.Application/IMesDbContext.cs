@@ -34,6 +34,9 @@ public interface IMesDbContext
     DbSet<WoLeg> WoLegs { get; }
     DbSet<WoLegDependency> WoLegDependencies { get; }
     DbSet<ProcessLegMap> ProcessLegMaps { get; }
+    // P11.5 — Semi-Stock decoupling (keep-stock).
+    DbSet<SemiLot> SemiLots { get; }
+    DbSet<SemiAllocation> SemiAllocations { get; }
     DbSet<QcInspection> QcInspections { get; }
     DbSet<QcResultDetail> QcResultDetails { get; }
     DbSet<Machine> Machines { get; }

@@ -39,6 +39,9 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<WoLeg> WoLegs => Set<WoLeg>();
     public DbSet<WoLegDependency> WoLegDependencies => Set<WoLegDependency>();
     public DbSet<ProcessLegMap> ProcessLegMaps => Set<ProcessLegMap>();
+    // P11.5 — Semi-Stock decoupling (keep-stock bán thành phẩm).
+    public DbSet<SemiLot> SemiLots => Set<SemiLot>();
+    public DbSet<SemiAllocation> SemiAllocations => Set<SemiAllocation>();
     public DbSet<QcInspection> QcInspections => Set<QcInspection>();
     public DbSet<QcResultDetail> QcResultDetails => Set<QcResultDetail>();
     public DbSet<Machine> Machines => Set<Machine>();
@@ -263,6 +266,21 @@ public class MesDbContext : DbContext, IMesDbContext
             b.Entity(surface).Property<long?>("WoLegId");
             b.Entity(surface).HasIndex("WoLegId");
         }
+
+        // ── P11.5 — Semi-Stock decoupling (keep-stock) ─────────────────
+        b.Entity<SemiLot>().Property(x => x.LotNo).HasMaxLength(64).IsRequired();
+        b.Entity<SemiLot>().Property(x => x.SemiKind).HasMaxLength(16).IsRequired();
+        b.Entity<SemiLot>().Property(x => x.Status).HasMaxLength(16).IsRequired();
+        // L38 — RowVersion: EF gửi X'' lúc INSERT (không IsRowVersion), trigger
+        // randomblob(8) bump; IsConcurrencyToken → 2 assembly reserve cùng lô
+        // không over-sell (optimistic lock).
+        b.Entity<SemiLot>().Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+        b.Entity<SemiLot>().HasIndex(x => x.LotNo).IsUnique();          // barcode natural key
+        b.Entity<SemiLot>().HasIndex(x => new { x.SemiKind, x.Status, x.SpecRevisionId }); // FEFO lookup
+        b.Entity<SemiLot>().HasIndex(x => x.SourceWorkOrderId);          // genealogy
+
+        b.Entity<SemiAllocation>().HasIndex(x => new { x.WorkOrderId, x.AssemblyLegId });
+        b.Entity<SemiAllocation>().HasIndex(x => x.SemiLotId);
         b.Entity<WoIpqcCheckItem>().HasOne(x => x.WoIpqcCheck)
             .WithMany(c => c.Items)
             .HasForeignKey(x => x.WoIpqcCheckId)
