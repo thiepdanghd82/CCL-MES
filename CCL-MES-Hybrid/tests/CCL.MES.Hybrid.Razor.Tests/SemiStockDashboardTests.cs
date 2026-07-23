@@ -30,9 +30,10 @@ public sealed class SemiStockDashboardTests : TestContext
     }
 
     private static SemiLotRow Lot(long id, string lotNo, int avail, int reserved = 0,
-        string status = "AVAILABLE", bool expiring = false, DateTime? expiryAt = null) => new()
+        string status = "AVAILABLE", bool expiring = false, DateTime? expiryAt = null,
+        string semiKind = "PRINTED_SEMI") => new()
     {
-        Id = id, LotNo = lotNo, SemiKind = "PRINTED_SEMI", SourceWorkOrderId = 1,
+        Id = id, LotNo = lotNo, SemiKind = semiKind, SourceWorkOrderId = 1,
         QtyProduced = avail + reserved, QtyAvailable = avail, QtyReserved = reserved,
         Status = status, Expiring = expiring, ExpiryAt = expiryAt,
     };
@@ -74,79 +75,84 @@ public sealed class SemiStockDashboardTests : TestContext
         Assert.NotNull(cut.Find("[data-testid='semi-empty']"));
     }
 
+    // ── Lọc client-side: đổi Loại/Trạng thái KHÔNG gọi GET, chỉ hẹp rows tại
+    //    chỗ (đồng bộ) → không re-render async giữa change-event select native
+    //    trong WKWebView → hết đóng băng. GET chỉ initial/Tải lại/sau nhập lô. ──
+
+    private SemiStockView MixedView() => View(
+        Lot(1, "SEMI-IN-A", 400, semiKind: "PRINTED_SEMI", status: "AVAILABLE"),
+        Lot(2, "SEMI-TP-B", 300, semiKind: "TAPE_SEMI", status: "AVAILABLE"),
+        Lot(3, "SEMI-IN-C", 0, semiKind: "PRINTED_SEMI", status: "DEPLETED"));
+
     [Fact]
-    public void Filter_kind_change_reloads_with_kind_param()
+    public void Change_filter_kind_narrows_rows_client_side_without_reload()
     {
-        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(MixedView());
         var cut = RenderComponent<SemiStockDashboard>();
+        Assert.Equal(3, cut.FindAll("[data-testid^='semi-row-']").Count);
 
         cut.Find("[data-testid='semi-filter-kind']").Change("TAPE_SEMI");
 
-        // 1st call = initial (null kind), 2nd = after filter.
-        Assert.Equal(2, _api.SemiLotsCalls.Count);
-        Assert.Equal("TAPE_SEMI", _api.SemiLotsCalls[^1].Kind);
+        // chỉ lô TAPE hiện; KHÔNG GET mới (chỉ 1 lần initial).
+        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));
+        Assert.NotNull(cut.Find("[data-testid='semi-row-2']"));
+        Assert.Single(_api.SemiLotsCalls);
     }
 
-    // ── Select re-render mid-change fix (@onchange + @key, không @bind:after) ──
+    [Fact]
+    public void Change_filter_status_narrows_rows_client_side_without_reload()
+    {
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(MixedView());
+        var cut = RenderComponent<SemiStockDashboard>();
+
+        cut.Find("[data-testid='semi-filter-status']").Change("DEPLETED");
+
+        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));
+        Assert.NotNull(cut.Find("[data-testid='semi-row-3']"));
+        Assert.Single(_api.SemiLotsCalls);
+    }
 
     [Fact]
-    public void Change_filter_kind_triggers_reload_with_new_param()
+    public void Consecutive_filter_changes_narrow_each_time_without_intermediate_action()
     {
-        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
+        // Bug cũ: đổi filter lần 2 phải click ra ngoài / bị đóng băng. Giờ đổi
+        // Loại → Trạng thái → Loại liên tiếp, rows hẹp đúng mỗi lần, KHÔNG thao
+        // tác trung gian, KHÔNG GET thêm.
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(MixedView());
         var cut = RenderComponent<SemiStockDashboard>();
 
         cut.Find("[data-testid='semi-filter-kind']").Change("PRINTED_SEMI");
-
-        Assert.Equal(2, _api.SemiLotsCalls.Count);           // initial + 1 filter
-        Assert.Equal("PRINTED_SEMI", _api.SemiLotsCalls[^1].Kind);
-        Assert.Null(_api.SemiLotsCalls[^1].Status);          // status vẫn "Tất cả" = null
-    }
-
-    [Fact]
-    public void Change_filter_status_triggers_reload()
-    {
-        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
-        var cut = RenderComponent<SemiStockDashboard>();
+        Assert.Equal(2, cut.FindAll("[data-testid^='semi-row-']").Count);   // IN-A + IN-C
 
         cut.Find("[data-testid='semi-filter-status']").Change("AVAILABLE");
+        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));           // IN-A (PRINTED+AVAILABLE)
+        Assert.NotNull(cut.Find("[data-testid='semi-row-1']"));
 
-        Assert.Equal(2, _api.SemiLotsCalls.Count);
-        Assert.Equal("AVAILABLE", _api.SemiLotsCalls[^1].Status);
-        Assert.Null(_api.SemiLotsCalls[^1].Kind);
-    }
-
-    [Fact]
-    public void Consecutive_filter_changes_each_reload_without_intermediate_action()
-    {
-        // Bug cũ: đổi filter lần 2 cần click ra ngoài trước. Giờ: đổi Loại →
-        // Trạng thái → Loại liên tiếp, mỗi lần 1 GET với đúng tham số, KHÔNG
-        // thao tác trung gian.
-        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
-        var cut = RenderComponent<SemiStockDashboard>();
-
-        cut.Find("[data-testid='semi-filter-kind']").Change("PRINTED_SEMI");
-        cut.Find("[data-testid='semi-filter-status']").Change("EXPIRED");
         cut.Find("[data-testid='semi-filter-kind']").Change("TAPE_SEMI");
+        // TAPE + AVAILABLE → chỉ TP-B.
+        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));
+        Assert.NotNull(cut.Find("[data-testid='semi-row-2']"));
 
-        Assert.Equal(4, _api.SemiLotsCalls.Count);           // initial + 3 change
-        var last = _api.SemiLotsCalls[^1];
-        Assert.Equal("TAPE_SEMI", last.Kind);                // kind mới nhất
-        Assert.Equal("EXPIRED", last.Status);                // status vẫn giữ từ lần đổi trước
-        // Select vẫn tồn tại + tương tác được sau chuỗi đổi (không bị thay node).
+        Assert.Single(_api.SemiLotsCalls);                                  // không GET thêm lần nào
+        // select vẫn còn + tương tác được sau chuỗi đổi.
         Assert.NotNull(cut.Find("[data-testid='semi-filter-kind']"));
         Assert.NotNull(cut.Find("[data-testid='semi-filter-status']"));
     }
 
     [Fact]
-    public void Filter_selects_never_disabled_during_busy()
+    public void Filter_selects_are_uncontrolled_and_never_disabled()
     {
-        // disabled=_busy chỉ áp nút, KHÔNG áp select (disable select giữa reload
-        // cũng làm mất focus/kẹt tương tác).
+        // UNCONTROLLED (không value=) + không disabled → Blazor không ghi
+        // value-back/khoá node <select> native lúc re-render (nguyên nhân kẹt).
         _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
         var cut = RenderComponent<SemiStockDashboard>();
 
-        Assert.False(cut.Find("[data-testid='semi-filter-kind']").HasAttribute("disabled"));
-        Assert.False(cut.Find("[data-testid='semi-filter-status']").HasAttribute("disabled"));
+        var kind = cut.Find("[data-testid='semi-filter-kind']");
+        var status = cut.Find("[data-testid='semi-filter-status']");
+        Assert.False(kind.HasAttribute("disabled"));
+        Assert.False(status.HasAttribute("disabled"));
+        Assert.False(kind.HasAttribute("value"));      // uncontrolled
+        Assert.False(status.HasAttribute("value"));
     }
 
     [Fact]

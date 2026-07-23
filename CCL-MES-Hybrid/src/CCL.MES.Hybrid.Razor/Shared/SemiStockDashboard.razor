@@ -57,11 +57,12 @@
     <div class="semi-toolbar" data-testid="semi-filters">
         <label class="semi-filter">
             <span>Loại</span>
-            @* @onchange (không @bind:after) + @key ổn định + value controlled:
-               tránh Blazor tái tạo/ghi-đè node <select> native lúc reload async
-               giữa change-event trong MAUI WebView → chọn liên tiếp không kẹt. *@
+            @* Lọc client-side: @onchange set field (sync, KHÔNG reload async) +
+               @key ổn định + UNCONTROLLED (không value=) → Blazor không tái tạo
+               hay ghi value-back vào <select> native WKWebView → chọn liên tiếp
+               không kẹt/đóng băng. *@
             <select @key="@("semi-filter-kind")" class="semi-select" data-testid="semi-filter-kind"
-                    value="@_filterKind" @onchange="OnKindChanged">
+                    @onchange="OnKindChanged">
                 <option value="">Tất cả</option>
                 <option value="PRINTED_SEMI">In (PRINTED_SEMI)</option>
                 <option value="TAPE_SEMI">Tape (TAPE_SEMI)</option>
@@ -70,7 +71,7 @@
         <label class="semi-filter">
             <span>Trạng thái</span>
             <select @key="@("semi-filter-status")" class="semi-select" data-testid="semi-filter-status"
-                    value="@_filterStatus" @onchange="OnStatusChanged">
+                    @onchange="OnStatusChanged">
                 <option value="">Tất cả</option>
                 <option value="AVAILABLE">Khả dụng</option>
                 <option value="DEPLETED">Đã hết</option>
@@ -296,27 +297,28 @@
         await ReloadAsync();
     }
 
+    // Lọc CLIENT-SIDE (kind + status + search) — pattern MachineDashboard.
+    // Đổi filter KHÔNG gọi GET/await → không có re-render async giữa change-event
+    // của <select> native trong WKWebView → hết đóng băng. GET chỉ tải toàn bộ
+    // kho (initial / Tải lại / sau nhập lô).
     private List<SemiLotRow> FilteredLots()
     {
         if (_view is null) return new();
         var q = _view.Lots.AsEnumerable();
+        if (!string.IsNullOrEmpty(_filterKind))
+            q = q.Where(l => string.Equals(l.SemiKind, _filterKind, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(_filterStatus))
+            q = q.Where(l => string.Equals(l.Status, _filterStatus, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(_search))
             q = q.Where(l => l.LotNo.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
         return q.ToList();
     }
 
-    // Đổi Loại → set field NGAY (đồng bộ) rồi reload. KHÔNG @bind:after (tránh
-    // Blazor ghi value-back vào <select> đúng lúc change-event async re-render).
-    private Task OnKindChanged(ChangeEventArgs e)
-    {
-        _filterKind = e.Value?.ToString() ?? "";
-        return ReloadAsync();
-    }
-    private Task OnStatusChanged(ChangeEventArgs e)
-    {
-        _filterStatus = e.Value?.ToString() ?? "";
-        return ReloadAsync();
-    }
+    // Đổi Loại/Trạng thái = set field ĐỒNG BỘ, KHÔNG async/reload. Blazor
+    // re-render sau handler (sync) → FilteredLots áp filter. Select UNCONTROLLED
+    // (không value=) → Blazor không ghi value-back vào node native → không kẹt.
+    private void OnKindChanged(ChangeEventArgs e) => _filterKind = e.Value?.ToString() ?? "";
+    private void OnStatusChanged(ChangeEventArgs e) => _filterStatus = e.Value?.ToString() ?? "";
 
     private async Task ReloadAsync()
     {
@@ -324,10 +326,8 @@
         _busy = true; _banner = null;
         try
         {
-            var view = await Api.GetSemiLotsAsync(
-                string.IsNullOrEmpty(_filterKind) ? null : _filterKind,
-                null,
-                string.IsNullOrEmpty(_filterStatus) ? null : _filterStatus);
+            // Tải TOÀN BỘ kho (lọc kind/status/search làm client-side).
+            var view = await Api.GetSemiLotsAsync();
             if (seq != _reloadSeq) return;   // reload mới hơn đã chạy → bỏ kết quả cũ
             _view = view;                    // KHÔNG set _view=null trước đó → bảng cũ giữ tới khi có data mới
             _initialError = null;
