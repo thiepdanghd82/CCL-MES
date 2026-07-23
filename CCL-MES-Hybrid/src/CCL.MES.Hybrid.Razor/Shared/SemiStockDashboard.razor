@@ -1,33 +1,60 @@
 @*
-    P11.5-3 — Kho bán thành phẩm (semi-stock warehouse) operator surface.
+    P11.5-3 — Kho bán thành phẩm (semi-stock warehouse) — REDESIGN chuyên nghiệp.
 
-    Reads GET /api/v2/semi-lots (FEFO order + cờ Expiring + tổng). Cho phép
-    operator "nhập kho" 1 lô semi (barcode LotNo + kind + qty) qua POST
-    /semi-lots. Reserve/consume nằm ở LegsDashboard (assembly leg) — màn này
-    chỉ quản kho + cảnh báo FEFO/expiry.
+    Tầng trình bày: KPI stat-cards + toolbar lọc/search + data-grid (sticky
+    head, zebra, progress-bar tồn, status pill, đếm ngược hạn) + nhập kho =
+    <Modal> (L34 transactional) + row action = <RowContextMenu> (L35). Backend
+    + hợp đồng dữ liệu GIỮ NGUYÊN: GetSemiLotsAsync / PostSemiLotAsync.
 
-    Rule 4: plain <button> + plain <input>/<select> (không <InputText>).
-    S9: container-query responsive + table-layout fixed + overflow-x auto.
-    Mọi banner qua SemiStockErrorLocaliser (xUnit lock wording).
+    Rule 4: plain <button>/<input>/<select>. L37: màu qua design token (scoped
+    .razor.css). S9: container-query desktop grid ↔ mobile card-stack.
+    Banner qua SemiStockErrorLocaliser (wording locked — không đổi chuỗi).
 *@
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.Routing
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.Routing
 @inject ICclApiClient Api
+@implements IDisposable
 
 <div class="semi-dashboard" data-testid="semi-dashboard">
-    <div class="semi-head">
-        <span class="semi-head-title">Kho bán thành phẩm</span>
-        @if (_view is not null)
-        {
-            <span class="semi-head-totals" data-testid="semi-totals">
-                Khả dụng <strong>@_view.TotalAvailable</strong> · Đang giữ <strong>@_view.TotalReserved</strong>
-            </span>
-        }
+
+    @* ── 1. HEADER + KPI stat-cards ─────────────────────────────── *@
+    <div class="semi-header">
+        <div class="semi-title-wrap">
+            <span class="semi-ico-hdr">@Ico("box")</span>
+            <div>
+                <h2 class="semi-title">Kho bán thành phẩm</h2>
+                <p class="semi-subtitle">Tồn kho semi in/tape · xuất FEFO cho công đoạn dán</p>
+            </div>
+        </div>
     </div>
 
-    <div class="semi-filters" data-testid="semi-filters">
+    <div class="semi-kpis" data-testid="semi-totals">
+        <div class="semi-kpi semi-kpi-ok">
+            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("check")</span><span class="semi-kpi-label">Khả dụng</span></div>
+            <div class="semi-kpi-num" data-testid="semi-kpi-available">@(_view?.TotalAvailable.ToString() ?? "—")</div>
+            <div class="semi-kpi-sub">đơn vị sẵn sàng xuất</div>
+        </div>
+        <div class="semi-kpi semi-kpi-hold">
+            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("lock")</span><span class="semi-kpi-label">Đang giữ</span></div>
+            <div class="semi-kpi-num" data-testid="semi-kpi-reserved">@(_view?.TotalReserved.ToString() ?? "—")</div>
+            <div class="semi-kpi-sub">đã reserve cho WO</div>
+        </div>
+        <div class="semi-kpi @(ExpiringCount > 0 ? "semi-kpi-warn" : "semi-kpi-muted")">
+            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("clock")</span><span class="semi-kpi-label">Sắp/đã hết hạn</span></div>
+            <div class="semi-kpi-num" data-testid="semi-kpi-expiring">@(_view is null ? "—" : ExpiringCount.ToString())</div>
+            <div class="semi-kpi-sub">lô cần ưu tiên xuất</div>
+        </div>
+        <div class="semi-kpi semi-kpi-total">
+            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("box")</span><span class="semi-kpi-label">Tổng số lô</span></div>
+            <div class="semi-kpi-num" data-testid="semi-kpi-count">@(_view is null ? "—" : _view.Lots.Count.ToString())</div>
+            <div class="semi-kpi-sub">lô trong bộ lọc</div>
+        </div>
+    </div>
+
+    @* ── 2. TOOLBAR (lọc + search + actions) ────────────────────── *@
+    <div class="semi-toolbar" data-testid="semi-filters">
         <label class="semi-filter">
             <span>Loại</span>
             <select class="semi-select" data-testid="semi-filter-kind" @bind="_filterKind" @bind:after="ReloadAsync">
@@ -45,10 +72,16 @@
                 <option value="EXPIRED">Quá hạn</option>
             </select>
         </label>
+        <label class="semi-filter semi-filter-search">
+            <span>Tìm mã lô</span>
+            <input type="search" class="semi-input" data-testid="semi-search" placeholder="Quét/nhập mã lô…"
+                   @bind="_search" @bind:event="oninput" />
+        </label>
+        <div class="semi-toolbar-spacer"></div>
         <button type="button" class="btn btn-ghost semi-refresh" data-testid="semi-refresh"
-                disabled="@_busy" @onclick="ReloadAsync">Tải lại</button>
+                disabled="@_busy" @onclick="ReloadAsync">↻ Tải lại</button>
         <button type="button" class="btn btn-primary semi-add-toggle" data-testid="semi-add-toggle"
-                @onclick="() => _showAdd = !_showAdd">@(_showAdd ? "Đóng nhập kho" : "＋ Nhập lô vào kho")</button>
+                @onclick="OpenAdd">＋ Nhập lô vào kho</button>
     </div>
 
     @if (_banner is not null)
@@ -56,52 +89,15 @@
         <div class="wo-card-error" data-testid="semi-banner">@_banner</div>
     }
 
-    @if (_showAdd)
-    {
-        <div class="semi-add" data-testid="semi-add-form">
-            <div class="semi-add-row">
-                <label class="semi-field">
-                    <span>Mã lô (quét)</span>
-                    <input type="text" class="semi-input" data-testid="semi-add-lotno" maxlength="80"
-                           placeholder="Quét barcode lô…" @bind="_addLotNo" @bind:event="oninput" />
-                </label>
-                <label class="semi-field">
-                    <span>Loại</span>
-                    <select class="semi-select" data-testid="semi-add-kind" @bind="_addKind">
-                        <option value="PRINTED_SEMI">In (PRINTED_SEMI)</option>
-                        <option value="TAPE_SEMI">Tape (TAPE_SEMI)</option>
-                    </select>
-                </label>
-                <label class="semi-field">
-                    <span>Số lượng</span>
-                    <input type="number" min="1" class="semi-input" data-testid="semi-add-qty" @bind="_addQty" />
-                </label>
-            </div>
-            <div class="semi-add-row">
-                <label class="semi-field">
-                    <span>WO nguồn (id)</span>
-                    <input type="number" min="0" class="semi-input" data-testid="semi-add-source" @bind="_addSourceWoId" />
-                </label>
-                <label class="semi-field">
-                    <span>Spec revision (id, tuỳ chọn)</span>
-                    <input type="number" min="0" class="semi-input" data-testid="semi-add-spec" @bind="_addSpecId" />
-                </label>
-                <label class="semi-field">
-                    <span>Hạn dùng (tuỳ chọn)</span>
-                    <input type="date" class="semi-input" data-testid="semi-add-expiry" @bind="_addExpiry" />
-                </label>
-            </div>
-            <div class="semi-add-actions">
-                <button type="button" class="btn btn-primary" data-testid="semi-add-submit"
-                        disabled="@(_busy || string.IsNullOrWhiteSpace(_addLotNo) || _addQty <= 0)"
-                        @onclick="SubmitLotAsync">Nhập kho</button>
-            </div>
-        </div>
-    }
-
+    @* ── 4. DATA GRID / states ──────────────────────────────────── *@
     @if (_view is null && _initialError is null)
     {
-        <div class="semi-loading" data-testid="semi-loading">Đang tải kho…</div>
+        <div class="semi-skeleton" data-testid="semi-loading" aria-busy="true">
+            @for (var i = 0; i < 5; i++)
+            {
+                <div class="semi-skel-row"></div>
+            }
+        </div>
     }
     else if (_initialError is not null)
     {
@@ -114,13 +110,19 @@
         @if (_view.Lots.Any(l => l.Expiring))
         {
             <div class="semi-expiry-banner" data-testid="semi-expiry-banner">
-                ⚠️ @_view.Lots.Count(l => l.Expiring) lô sắp/đã hết hạn — ưu tiên xuất trước (FEFO).
+                <span class="semi-expiry-ico">@Ico("clock")</span>
+                @ExpiringCount lô sắp/đã hết hạn — ưu tiên xuất trước (FEFO).
             </div>
         }
 
-        @if (_view.Lots.Count == 0)
+        @if (FilteredLots() is var rows && rows.Count == 0)
         {
-            <div class="semi-empty" data-testid="semi-empty">Kho trống theo bộ lọc hiện tại.</div>
+            <div class="semi-empty" data-testid="semi-empty">
+                <div class="semi-empty-ico">@Ico("box")</div>
+                <div class="semi-empty-title">Kho trống theo bộ lọc</div>
+                <div class="semi-empty-sub">Chưa có lô bán thành phẩm nào khớp. Nhập lô mới để bắt đầu.</div>
+                <button type="button" class="btn btn-primary" @onclick="OpenAdd">＋ Nhập lô vào kho</button>
+            </div>
         }
         else
         {
@@ -130,27 +132,43 @@
                         <tr>
                             <th>Mã lô</th><th>Loại</th><th>Spec</th><th>WO nguồn</th>
                             <th class="semi-num">SX</th><th class="semi-num">Khả dụng</th><th class="semi-num">Đang giữ</th>
+                            <th class="semi-col-fill">Tồn</th>
                             <th>Trạng thái</th><th>Hạn dùng</th>
+                            <th class="semi-kebab-col" aria-label="Actions"></th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var lot in _view.Lots)
+                        @foreach (var lot in rows)
                         {
-                            <tr class="@(lot.Expiring ? "semi-row-expiring" : "")" data-testid="semi-row-@lot.Id">
+                            <tr class="semi-row @(lot.Expiring ? "semi-row-expiring" : "")" data-testid="semi-row-@lot.Id"
+                                @oncontextmenu="e => OpenMenuAt(lot, e.ClientX, e.ClientY)" @oncontextmenu:preventDefault="true"
+                                @onpointerdown="e => LongPressStart(lot, e)" @onpointerup="LongPressCancel"
+                                @onpointerleave="LongPressCancel" @onpointermove="LongPressCancel">
                                 <td class="semi-lotno">@lot.LotNo</td>
-                                <td>@KindLabel(lot.SemiKind)</td>
-                                <td>@(lot.SpecRevisionId?.ToString() ?? "—")</td>
-                                <td>@lot.SourceWorkOrderId</td>
+                                <td><span class="semi-kind-tag">@KindLabel(lot.SemiKind)</span></td>
+                                <td class="semi-dim">@(lot.SpecRevisionId?.ToString() ?? "—")</td>
+                                <td class="semi-dim">#@lot.SourceWorkOrderId</td>
                                 <td class="semi-num">@lot.QtyProduced</td>
-                                <td class="semi-num">@lot.QtyAvailable</td>
-                                <td class="semi-num">@lot.QtyReserved</td>
+                                <td class="semi-num semi-num-ok">@lot.QtyAvailable</td>
+                                <td class="semi-num semi-num-hold">@lot.QtyReserved</td>
+                                <td class="semi-col-fill">
+                                    <div class="semi-bar" title="Khả dụng @lot.QtyAvailable · giữ @lot.QtyReserved / SX @lot.QtyProduced">
+                                        <span class="semi-bar-avail" style="width:@Pct(lot.QtyAvailable, lot.QtyProduced)%"></span>
+                                        <span class="semi-bar-hold" style="width:@Pct(lot.QtyReserved, lot.QtyProduced)%"></span>
+                                    </div>
+                                </td>
                                 <td><span class="semi-status semi-status-@lot.Status.ToLowerInvariant()">@StatusLabel(lot.Status)</span></td>
-                                <td>
-                                    @(lot.ExpiryAt?.ToString("yyyy-MM-dd") ?? "—")
+                                <td class="@(lot.Expiring ? "semi-expiry-cell semi-expiry-hot" : "semi-expiry-cell")">
+                                    <span class="semi-expiry-text">@ExpiryCountdown(lot.ExpiryAt)</span>
                                     @if (lot.Expiring)
                                     {
                                         <span class="semi-expiring-tag" data-testid="semi-expiring-@lot.Id">FEFO</span>
                                     }
+                                </td>
+                                <td class="semi-kebab-col">
+                                    <button type="button" class="row-kebab" data-fw-nodrag data-testid="semi-kebab-@lot.Id"
+                                            @onclick="e => OpenMenuAt(lot, e.ClientX, e.ClientY)" @onclick:stopPropagation="true"
+                                            aria-haspopup="menu" aria-label="Hành động" title="Hành động">⋯</button>
                                 </td>
                             </tr>
                         }
@@ -161,6 +179,76 @@
     }
 </div>
 
+@* ── Row action menu (right-click / long-press / kebab → 1 menu) ── *@
+<RowContextMenu Open="_menuLot is not null" Anchor="_menuAnchor" Items="_menuItems"
+                AriaLabel="@($"Hành động lô {_menuLot?.LotNo}")" OnClose="CloseMenu" />
+
+@* ── Nhập kho = Modal transactional (L34) ───────────────────────── *@
+<Modal Open="_showAdd" OnClose="CloseAdd" Size="ModalSize.Md" Severity="ModalSeverity.Info">
+    <Header>Nhập lô vào kho bán thành phẩm</Header>
+    <Body>
+        <div class="semi-add-form" data-testid="semi-add-form">
+            <label class="semi-field semi-field-scan">
+                <span class="semi-field-lbl"><span class="semi-scan-ico">@Ico("barcode")</span> Mã lô (quét)</span>
+                <input type="text" class="semi-input semi-input-scan" data-testid="semi-add-lotno" maxlength="80"
+                       autofocus placeholder="Quét barcode lô hoặc nhập tay…" @bind="_addLotNo" @bind:event="oninput" />
+            </label>
+            <div class="semi-add-grid">
+                <label class="semi-field">
+                    <span class="semi-field-lbl">Loại</span>
+                    <select class="semi-select" data-testid="semi-add-kind" @bind="_addKind">
+                        <option value="PRINTED_SEMI">In (PRINTED_SEMI)</option>
+                        <option value="TAPE_SEMI">Tape (TAPE_SEMI)</option>
+                    </select>
+                </label>
+                <label class="semi-field">
+                    <span class="semi-field-lbl">Số lượng</span>
+                    <input type="number" min="1" class="semi-input" data-testid="semi-add-qty" @bind="_addQty" />
+                </label>
+                <label class="semi-field">
+                    <span class="semi-field-lbl">WO nguồn (id)</span>
+                    <input type="number" min="0" class="semi-input" data-testid="semi-add-source" @bind="_addSourceWoId" />
+                </label>
+                <label class="semi-field">
+                    <span class="semi-field-lbl">Spec revision (tuỳ chọn)</span>
+                    <input type="number" min="0" class="semi-input" data-testid="semi-add-spec" @bind="_addSpecId" />
+                </label>
+                <label class="semi-field semi-field-wide">
+                    <span class="semi-field-lbl">Hạn dùng (tuỳ chọn)</span>
+                    <input type="date" class="semi-input" data-testid="semi-add-expiry" @bind="_addExpiry" />
+                </label>
+            </div>
+        </div>
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary" @onclick="CloseAdd">Huỷ</button>
+        <button type="button" class="op-btn op-btn-primary" data-testid="semi-add-submit"
+                disabled="@(_busy || string.IsNullOrWhiteSpace(_addLotNo) || _addQty <= 0)"
+                @onclick="SubmitLotAsync">Nhập kho</button>
+    </Footer>
+</Modal>
+
+@* ── Genealogy (WO nguồn) — Modal info read-only ────────────────── *@
+<Modal Open="_genealogy is not null" OnClose="() => _genealogy = null" Size="ModalSize.Sm" Severity="ModalSeverity.Info">
+    <Header>Nguồn gốc lô</Header>
+    <Body>
+        @if (_genealogy is not null)
+        {
+            <dl class="semi-genea" data-testid="semi-genealogy">
+                <dt>Mã lô</dt><dd class="semi-lotno">@_genealogy.LotNo</dd>
+                <dt>Loại</dt><dd>@KindLabel(_genealogy.SemiKind)</dd>
+                <dt>WO nguồn</dt><dd>#@_genealogy.SourceWorkOrderId</dd>
+                <dt>Spec revision</dt><dd>@(_genealogy.SpecRevisionId?.ToString() ?? "—")</dd>
+                <dt>Sản xuất / khả dụng / giữ</dt><dd>@_genealogy.QtyProduced / @_genealogy.QtyAvailable / @_genealogy.QtyReserved</dd>
+                <dt>Hạn dùng</dt><dd>@(_genealogy.ExpiryAt?.ToString("yyyy-MM-dd") ?? "—") · @ExpiryCountdown(_genealogy.ExpiryAt)</dd>
+            </dl>
+        }
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-primary" @onclick="() => _genealogy = null">Đóng</button>
+    </Footer>
+</Modal>
+
 @code {
     private SemiStockView? _view;
     private string? _initialError;
@@ -170,7 +258,9 @@
 
     private string _filterKind = "";
     private string _filterStatus = "";
+    private string _search = "";
 
+    // Nhập kho modal
     private bool _showAdd;
     private string _addLotNo = "";
     private string _addKind = "PRINTED_SEMI";
@@ -179,11 +269,32 @@
     private long _addSpecId = 0;
     private DateTime? _addExpiry;
 
+    // Row action menu
+    private SemiLotRow? _menuLot;
+    private (double X, double Y) _menuAnchor;
+    private (double X, double Y) _pressAt;
+    private IReadOnlyList<ContextMenuItem> _menuItems = System.Array.Empty<ContextMenuItem>();
+    private System.Threading.Timer? _longPress;
+
+    // Genealogy modal
+    private SemiLotRow? _genealogy;
+
+    private int ExpiringCount => _view?.Lots.Count(l => l.Expiring) ?? 0;
+
     protected override async Task OnInitializedAsync()
     {
         if (_loaded) return;
         _loaded = true;
         await ReloadAsync();
+    }
+
+    private List<SemiLotRow> FilteredLots()
+    {
+        if (_view is null) return new();
+        var q = _view.Lots.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(_search))
+            q = q.Where(l => l.LotNo.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
+        return q.ToList();
     }
 
     private async Task ReloadAsync()
@@ -201,6 +312,13 @@
         catch (Exception ex) { _initialError = ex.Message; }
         finally { _busy = false; }
     }
+
+    private void OpenAdd()
+    {
+        _banner = null;
+        _showAdd = true;
+    }
+    private void CloseAdd() => _showAdd = false;
 
     private async Task SubmitLotAsync()
     {
@@ -229,6 +347,45 @@
         finally { _busy = false; }
     }
 
+    // ── Row action menu (right-click / long-press / kebab) ─────────
+    private void OpenMenuAt(SemiLotRow lot, double x, double y)
+    {
+        _menuLot = lot;
+        _menuAnchor = (x, y);
+        _menuItems = new[]
+        {
+            new ContextMenuItem { Label = "Xem WO nguồn", Icon = "⤴", OnClick = EventCallback.Factory.Create(this, () => OpenGenealogy(lot)) },
+        };
+    }
+    private void CloseMenu() => _menuLot = null;
+    private void OpenGenealogy(SemiLotRow lot) { _menuLot = null; _genealogy = lot; }
+
+    private void LongPressStart(SemiLotRow lot, PointerEventArgs e)
+    {
+        if (e.Button != 0) return;
+        _pressAt = (e.ClientX, e.ClientY);
+        _longPress?.Dispose();
+        _longPress = new System.Threading.Timer(
+            _ => InvokeAsync(() => { OpenMenuAt(lot, _pressAt.X, _pressAt.Y); StateHasChanged(); }),
+            null, 500, System.Threading.Timeout.Infinite);
+    }
+    private void LongPressCancel() { _longPress?.Dispose(); _longPress = null; }
+
+    public void Dispose() => _longPress?.Dispose();
+
+    // ── Presentation helpers ───────────────────────────────────────
+    private static int Pct(int part, int whole) => whole <= 0 ? 0 : (int)Math.Round(100.0 * part / whole);
+
+    /// <summary>Đếm ngược tương đối theo UTC (khớp cờ Expiring server = +7d).</summary>
+    private static string ExpiryCountdown(DateTime? expiry)
+    {
+        if (expiry is null) return "—";
+        var days = (expiry.Value.Date - DateTime.UtcNow.Date).Days;
+        if (days < 0) return $"quá hạn {-days} ngày";
+        if (days == 0) return "hôm nay";
+        return $"còn {days} ngày";
+    }
+
     private static string KindLabel(string kind) => kind switch
     {
         "PRINTED_SEMI" => "In",
@@ -243,4 +400,20 @@
         "EXPIRED"   => "Quá hạn",
         _           => status,
     };
+
+    // Inline line icons (Feather-style, stroke=currentColor → inherit màu token).
+    private static MarkupString Ico(string name)
+    {
+        var p = name switch
+        {
+            "box"     => "<path d='M3 7.5 12 3l9 4.5-9 4.5z'/><path d='M3 7.5V17l9 4.5V12'/><path d='M21 7.5V17l-9 4.5'/>",
+            "check"   => "<path d='M20 6 9 17l-5-5'/>",
+            "lock"    => "<rect x='5' y='11' width='14' height='9' rx='2'/><path d='M8 11V8a4 4 0 0 1 8 0v3'/>",
+            "clock"   => "<circle cx='12' cy='12' r='9'/><path d='M12 7v5l3.5 2'/>",
+            "barcode" => "<path d='M4 6v12M7 6v12M10 6v12M13 6v12M16 6v12M20 6v12'/>",
+            _         => "",
+        };
+        return new MarkupString(
+            $"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>{p}</svg>");
+    }
 }
