@@ -1,4 +1,5 @@
 using CCL.MES.Domain.Entities;
+using CCL.MES.Domain.Routing;
 
 namespace CCL.MES.Domain.StateMachine;
 
@@ -96,6 +97,7 @@ public static class WorkOrderStateMachine
     {
         MesPhase.NEW,
         MesPhase.PREPRESS,
+        MesPhase.SPLIT,     // P11-1 — fork umbrella (chỉ WO ≥2 leg); nằm giữa PREPRESS và SETTING trên timeline.
         MesPhase.SETTING,
         MesPhase.IPQC_WAIT,
         MesPhase.QA_PENDING,
@@ -159,6 +161,10 @@ public static class WorkOrderStateMachine
         // source of truth for the SHIPPED vs DONE vs CANCELLED
         // discrimination (e.g. the ERP-push filter at OOS-A).
         MesPhase.SHIPPED        => ProcessStepCode.Closed,
+        // P11-1 — SPLIT collapses to legacy PrePressCheck slot (cùng slot
+        // production giai đoạn đầu) nên legacy Razor đọc CurrentStep không
+        // vỡ. MesPhase là source-of-truth cho phân biệt SPLIT vs PREPRESS.
+        MesPhase.SPLIT          => ProcessStepCode.PrePressCheck,
         _                       => ProcessStepCode.PrePressCheck,
     };
 
@@ -214,6 +220,13 @@ public static class WorkOrderStateMachine
 
             // PREPRESS
             (MesPhase.PREPRESS, MesPhase.SETTING) => MesTransitionKind.RequiresCondition,
+            // P11-1 — fork: WO ≥2 leg đi PREPRESS → SPLIT thay vì → SETTING.
+            // Cell RequiresCondition (predicate: ≥2 leg + DAG hợp lệ). WO
+            // 1-leg KHÔNG dùng cell này (đi thẳng → SETTING ở trên).
+            (MesPhase.PREPRESS, MesPhase.SPLIT) => MesTransitionKind.RequiresCondition,
+
+            // P11-1 — join: SPLIT → FQC_PENDING khi mọi leg terminal LEG_DONE.
+            (MesPhase.SPLIT, MesPhase.FQC_PENDING) => MesTransitionKind.RequiresCondition,
 
             // SETTING
             (MesPhase.SETTING, MesPhase.IPQC_WAIT) => MesTransitionKind.Allowed,
@@ -313,6 +326,16 @@ public static class WorkOrderStateMachine
         => ClassifyTransition(from, to) == MesTransitionKind.RecoveryOnly;
 
     /// <summary>
+    /// P11-1 — một leg là TERMINAL của routing DAG khi KHÔNG có leg nào
+    /// phụ thuộc vào nó (nó không là predecessor của cạnh nào). Join gate
+    /// <c>SPLIT → FQC_PENDING</c> chỉ yêu cầu các terminal leg đạt
+    /// <c>LegPhase.LEG_DONE</c> (leg giữa chừng như PRINT/TAPE đã done
+    /// gián tiếp vì ASSEMBLY — successor của chúng — mới là terminal).
+    /// </summary>
+    public static bool IsTerminalLeg(WorkOrder wo, WoLeg leg)
+        => wo.LegEdges.All(e => e.DependsOnLegId != leg.Id);
+
+    /// <summary>
     /// Domain-level "may this transition fire?" check. Returns
     /// <c>false</c> + a reason if (a) the matrix forbids the edge,
     /// (b) a <see cref="MesTransitionKind.RequiresCondition"/> cell's
@@ -392,6 +415,28 @@ public static class WorkOrderStateMachine
         if (from == MesPhase.RUNNING && to == MesPhase.PAUSED)
         {
             return new TransitionResult(true);
+        }
+
+        // P11-1 — fork: PREPRESS → SPLIT chỉ hợp lệ khi WO có ≥2 leg +
+        // routing DAG hợp lệ (no-cycle, assembly đủ input, terminal tới
+        // FQC). WO 1-leg KHÔNG đi cell này (đi PREPRESS → SETTING).
+        if (from == MesPhase.PREPRESS && to == MesPhase.SPLIT)
+        {
+            return wo.Legs.Count >= 2 && RoutingDagValidator.IsValid(wo).ok
+                ? new TransitionResult(true)
+                : new TransitionResult(false, WoErrorCode.InvalidRoutingDag);
+        }
+
+        // P11-1 — join: SPLIT → FQC_PENDING khi MỌI leg terminal (không
+        // có successor trong DAG) đạt LegPhase.LEG_DONE. Reject 1 leg
+        // (Q10) giữ WO ở SPLIT tới khi leg đó re-pass.
+        if (from == MesPhase.SPLIT && to == MesPhase.FQC_PENDING)
+        {
+            return wo.Legs.Count > 0
+                && wo.Legs.Where(l => IsTerminalLeg(wo, l))
+                          .All(l => l.LegPhase == nameof(LegPhase.LEG_DONE))
+                ? new TransitionResult(true)
+                : new TransitionResult(false, WoErrorCode.LegsNotAllDone);
         }
 
         // Defensive default — every RequiresCondition cell above should

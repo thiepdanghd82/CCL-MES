@@ -47,9 +47,10 @@ public sealed class WorkOrderStateMachineFullMatrixTests
     [Fact]
     public void Matrix_covers_every_pair_exactly_once()
     {
-        // Sanity guard: 13 × 13 = 169 cells (P10.7e-1 Q1 — added SHIPPED).
+        // Sanity guard: 14 × 14 = 196 cells (P11-1 — added SPLIT fork
+        // umbrella; was 13 × 13 = 169 in P10.7e-1 after SHIPPED).
         var phases = Enum.GetValues<MesPhase>();
-        Assert.Equal(13, phases.Length);
+        Assert.Equal(14, phases.Length);
 
         var seen = new HashSet<(MesPhase, MesPhase)>();
         foreach (var row in AllCellsData())
@@ -58,7 +59,7 @@ public sealed class WorkOrderStateMachineFullMatrixTests
             var to   = (MesPhase)row[1];
             Assert.True(seen.Add((from, to)), $"Duplicate cell ({from}, {to})");
         }
-        Assert.Equal(169, seen.Count);
+        Assert.Equal(196, seen.Count);
     }
 
     [Fact]
@@ -79,19 +80,18 @@ public sealed class WorkOrderStateMachineFullMatrixTests
         Assert.Equal(4, allowed);       // 4 unconditional happy edges (unchanged from 7d)
         // P10.7c-1 Q6 — adds PAUSED → FQC_PENDING as condition.
         // P10.7e-1 Q1 — adds DONE → FQC_PENDING as condition (transient DONE).
-        Assert.Equal(5, condition);     // PREPRESS→SETTING + RUNNING→FQC + RUNNING→PAUSED + PAUSED→FQC + DONE→FQC
+        // P11-1 — adds PREPRESS→SPLIT (fork) + SPLIT→FQC_PENDING (join) as condition (+2).
+        Assert.Equal(7, condition);     // +PREPRESS→SPLIT +SPLIT→FQC on top of the 5 above
         // P10.7e-1 Q1 — replaces OQC_PENDING → DONE (was signoff) with
         // OQC_PENDING → SHIPPED. Count stays at 9 (target shifted only).
         Assert.Equal(9, signoff);       // IPQC × 3, QA × 2, FQC × 2, OQC × 2 (SHIPPED + FQC re-loop)
-        // P10.7e-1 Q1 — recovery count grows: (a) DONE is no longer
-        // terminal-blocked, so DONE → CANCELLED becomes RecoveryOnly
-        // (+1); (b) OQC_PENDING → DONE retained as RecoveryOnly for
-        // legacy admin/sys bypass (was signoff in 7d) (+1). Total
-        // non-terminal sources → CANCELLED = 11 (incl. DONE). Plus
-        // SETTING → PREPRESS = 1. Plus OQC_PENDING → DONE = 1. Total
-        // recovery: 13.
-        Assert.Equal(13, recovery);
-        Assert.Equal(31, nonBlocked.Count);
+        // P10.7e-1 Q1 — recovery = 13 (see history below).
+        // P11-1 — SPLIT is a new non-terminal source, so SPLIT → CANCELLED
+        // becomes RecoveryOnly (+1) → 14. Non-terminal sources → CANCELLED
+        // = 12 (incl. DONE + SPLIT). Plus SETTING → PREPRESS = 1. Plus
+        // OQC_PENDING → DONE = 1. Total recovery: 14.
+        Assert.Equal(14, recovery);
+        Assert.Equal(34, nonBlocked.Count);
     }
 
     public static IEnumerable<object[]> AllCells => AllCellsData();
@@ -132,6 +132,9 @@ public sealed class WorkOrderStateMachineFullMatrixTests
             (MesPhase.NEW, MesPhase.PREPRESS) => MesTransitionKind.Allowed,
 
             (MesPhase.PREPRESS, MesPhase.SETTING) => MesTransitionKind.RequiresCondition,
+            // P11-1 — fork (WO ≥2 leg) + join. Both RequiresCondition.
+            (MesPhase.PREPRESS, MesPhase.SPLIT)   => MesTransitionKind.RequiresCondition,
+            (MesPhase.SPLIT, MesPhase.FQC_PENDING) => MesTransitionKind.RequiresCondition,
 
             (MesPhase.SETTING, MesPhase.IPQC_WAIT) => MesTransitionKind.Allowed,
             (MesPhase.SETTING, MesPhase.PREPRESS) => MesTransitionKind.RecoveryOnly,

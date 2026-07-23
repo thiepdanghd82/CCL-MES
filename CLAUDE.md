@@ -342,6 +342,48 @@ tests, 0 fail** (legacy 950 · Client 594 · Razor 155 · Api 441). The
 intermittent — passes on isolated retry. maccatalyst app build red is local
 toolchain only (Xcode 26.6 vs required 26.5), not code; CI builds non-app projects.
 
+### P11 — Multi-Method Routing DAG (fork-join) — 3-lớp stack (PR #135, branch `feat/p11-routing-domain`)
+
+Bài toán: in nhãn/silkscreen có **nhiều phương pháp in** (Flexo/LP/HP/Silkscreen)
+× **nhiều cách cắt** (Flatbed/Magic/RDC/PowerPunch/CNC), in+cắt **gộp inline
+(T1)** hoặc **tách (T2)**; silkscreen thêm nhánh **tape + assembly** hội tụ giữa
+chừng **(T3)**. Mô hình bằng **routing DAG operation**, KHÔNG fork-join phẳng.
+Scope + Q&A đã chốt: [`docs/p11-scope-proposal.md`](CCL-MES-Hybrid/docs/p11-scope-proposal.md)
+(Q2 DAG · Q4 PRINT∥TAPE soft / ASSEMBLY hard · Q6 IPQC per-khu-vực + FQC per-family · Q10 rework leg-level).
+
+- **P11-1 Domain** (SHA `bd9d608`): `MesPhase +SPLIT=13` (umbrella; WO ≥2 leg mới
+  vào — WO 1-leg giữ `PREPRESS→SETTING` tuyến tính) · `WoLeg` + `WoLegDependency`
+  (DAG node + cạnh) + `ProcessLegMap` (data-driven, mirror `ProcessLineMap`) ·
+  `RoutingLegResolver` (routing op → leg DAG, tái dùng `QcLineResolver.Classify`) +
+  `RoutingDagValidator` (no-cycle + assembly-inputs + terminal-reaches-FQC) ·
+  state-machine cell `PREPRESS→SPLIT` (fork) + `SPLIT→FQC_PENDING` (join,
+  `IsTerminalLeg`) · `WoLegId?` shadow ×8 surface · migration `AddRoutingLegDag`
+  (3 bảng + trigger RowVersion per-leg; type-affinity stripped; backfill 0-touch).
+- **P11-2 Wire** (SHA `e7c281b`): `RoutingController` 4 endpoint atomic (mirror 7c-2):
+  `GET {id}/legs` · `POST {id}/legs/materialize` (fork) · `POST {id}/legs/{legId}/advance`
+  (+ join cascade) · `POST {id}/legs/{legId}/rework` (Q10). Concurrency **per-leg**
+  (If-Match trên `WoLeg.RowVersion`). `RoutingLegGate` (HARD gate ASSEMBLY chặn
+  RUNNING tới khi PRINT+TAPE done+đủ qty; SOFT advisory). **L38** — RowVersion fix:
+  `IsConcurrencyToken().ValueGeneratedNever()` (EF gửi `X''` lúc INSERT; KHÔNG
+  `IsRowVersion()` → NOT NULL fail, KHÔNG AlterColumn default → rebuild drop trigger).
+- **P11-3 UI** (SHA `a27c264`): `LegsDashboard.razor` (N thẻ leg + gate banner +
+  advance/rework + join → `OnPhaseChanged` L21 → FqcDashboard) · WorkOrders.razor
+  `IsSplitPhase` dispatch + materialize CTA · client 4 method + `RoutingErrorLocaliser`
+  · scoped `LegsDashboard.razor.css` (design-token, S9). 
+- **P11-4 test-belt** (SHA `cdf797b`+): `verify-p11.sh` (build + 4 suite + soak +
+  migration round-trip + 3 gate) · `checkpoint-p11-final.sh` → `p11-live-verify.sh`
+  (8 scenario qua wire thật trên copy DB: auth/401 · header 428/400/409 · T1 no-fork ·
+  T2 join · T3 HARD-gate+join · unmapped 422 · rework · concurrency) · `purge-test-audit.sh`
+  +P11 (`WO_SPLIT_*`/`WO_LEG_*` + WoLegs/WoLegDependencies WoNo LIKE 'WO-P11%') ·
+  LESSONS **L38**.
+
+Verification: **2372 automated** (Domain 1088 · Api 485 · Client 608 · Razor 191, 0 fail)
++ live e2e 8 scenario + checkpoint fork→join. Migration đã áp live (Phase A→C,
+rollback bị auto-classifier chặn — đúng playbook; forward-only), **live DB byte-safe**
+(WoLegs=0, WorkOrders=27). ⚠ Keyword **TAPE-vs-ASSEMBLY** trong `RoutingLegMapSeed`
+chờ Ops xác nhận với routing IFS thật (đánh dấu `⚠ Ops confirm`). **P11.5 Semi-Stock**
+(keep-stock decoupling: SemiLot + FROM_STOCK allocation) deferred — scope §3B proposal.
+
 ## 11. References
 
 - [README.md](README.md) — user-facing quick start

@@ -34,6 +34,14 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<CheckItemLibrary> CheckItemLibraries => Set<CheckItemLibrary>();
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
     public DbSet<WoStatusHistory> WoStatusHistories => Set<WoStatusHistory>();
+    // P11-1 — Multi-Method Routing DAG (fork-join): leg nodes + dependency
+    // edges + data-driven op→leg map. WO 1-leg cũ có 0 row WoLeg.
+    public DbSet<WoLeg> WoLegs => Set<WoLeg>();
+    public DbSet<WoLegDependency> WoLegDependencies => Set<WoLegDependency>();
+    public DbSet<ProcessLegMap> ProcessLegMaps => Set<ProcessLegMap>();
+    // P11.5 — Semi-Stock decoupling (keep-stock bán thành phẩm).
+    public DbSet<SemiLot> SemiLots => Set<SemiLot>();
+    public DbSet<SemiAllocation> SemiAllocations => Set<SemiAllocation>();
     public DbSet<QcInspection> QcInspections => Set<QcInspection>();
     public DbSet<QcResultDetail> QcResultDetails => Set<QcResultDetail>();
     public DbSet<Machine> Machines => Set<Machine>();
@@ -198,6 +206,81 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<ProcessLineMap>().Property(x => x.QcLine).HasMaxLength(16).IsRequired();
         b.Entity<ProcessLineMap>().Property(x => x.Note).HasMaxLength(256);
         b.Entity<ProcessLineMap>().HasIndex(x => new { x.MatchType, x.MatchValue }).IsUnique();
+
+        // ── P11-1 — Multi-Method Routing DAG (fork-join) ───────────────
+        // WoLeg: enum-as-string + per-leg RowVersion (SQLite trigger sinh
+        // randomblob(8) mỗi INSERT/UPDATE, cùng pattern WorkOrder — trigger
+        // ở migration AddRoutingLegDag).
+        b.Entity<WoLeg>().Property(x => x.LegKind).HasMaxLength(16).IsRequired();
+        b.Entity<WoLeg>().Property(x => x.Method).HasMaxLength(32);
+        b.Entity<WoLeg>().Property(x => x.ProcessLine).HasMaxLength(16);
+        b.Entity<WoLeg>().Property(x => x.SurfaceProfile).HasMaxLength(8).IsRequired();
+        b.Entity<WoLeg>().Property(x => x.InputSource).HasMaxLength(16).IsRequired();
+        b.Entity<WoLeg>().Property(x => x.LegPhase).HasMaxLength(16).IsRequired();
+        // P11-2 fix — per-leg concurrency token, nhưng KHÔNG store-generated:
+        // EF GỬI giá trị (X'' rỗng) lúc INSERT nên cột BLOB NOT NULL không bị
+        // NULL, rồi trigger SQLite randomblob(8) bump. IsConcurrencyToken vẫn
+        // đưa RowVersion vào WHERE của UPDATE → optimistic-lock (soak 409).
+        // Khác WorkOrders (IsRowVersion + DB default) nhưng tránh table-rebuild
+        // AlterColumn (drop trigger). Không cần đổi schema đã áp trên live.
+        b.Entity<WoLeg>().Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+        b.Entity<WoLeg>().HasIndex(x => new { x.WorkOrderId, x.Sequence }).IsUnique();
+        b.Entity<WoLeg>().HasIndex(x => x.WorkOrderId);
+        b.Entity<WoLeg>().HasOne(x => x.WorkOrder)
+            .WithMany(w => w.Legs)
+            .HasForeignKey(x => x.WorkOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // WoLegDependency: cạnh DAG. (WO, Leg, DependsOn) unique. KHÔNG cấu
+        // hình FK EF tới WoLeg (2 đường Leg/DependsOn → tránh multiple
+        // cascade path SQLite); toàn vẹn tham chiếu enforce ở
+        // RoutingDagValidator + service layer (loose-coupling, giống
+        // SpecQcCapture.NgReasonCode).
+        b.Entity<WoLegDependency>().Property(x => x.DependencyGate).HasMaxLength(8).IsRequired();
+        b.Entity<WoLegDependency>().HasIndex(x => new { x.WorkOrderId, x.LegId, x.DependsOnLegId }).IsUnique();
+        b.Entity<WoLegDependency>().HasIndex(x => x.WorkOrderId);
+        b.Entity<WoLegDependency>().HasOne<WorkOrder>()
+            .WithMany(w => w.LegEdges)
+            .HasForeignKey(x => x.WorkOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ProcessLegMap: data-driven op→leg (mirror ProcessLineMap).
+        b.Entity<ProcessLegMap>().Property(x => x.MatchType).HasMaxLength(32).IsRequired();
+        b.Entity<ProcessLegMap>().Property(x => x.MatchValue).HasMaxLength(128).IsRequired();
+        b.Entity<ProcessLegMap>().Property(x => x.LegKind).HasMaxLength(16).IsRequired();
+        b.Entity<ProcessLegMap>().Property(x => x.Method).HasMaxLength(32);
+        b.Entity<ProcessLegMap>().Property(x => x.ProcessLine).HasMaxLength(16);
+        b.Entity<ProcessLegMap>().Property(x => x.Note).HasMaxLength(256);
+        b.Entity<ProcessLegMap>().HasIndex(x => new { x.MatchType, x.MatchValue }).IsUnique();
+
+        // Leg-scoping column (shadow, nullable) trên 8 surface bảng P10.7.
+        // null = WO 1-leg cũ (controllers hiện set null tới khi P11-2 wire).
+        // Shadow → KHÔNG chạm 8 file entity, migration vẫn thêm cột.
+        foreach (var surface in new[]
+                 {
+                     typeof(WoMaterial), typeof(WoPlateCheck), typeof(WoCutterCheck),
+                     typeof(WoRunSession), typeof(WoPauseEvent), typeof(WoQtyEntry),
+                     typeof(WoIpqcCheck), typeof(WoIpqcCheckItem),
+                 })
+        {
+            b.Entity(surface).Property<long?>("WoLegId");
+            b.Entity(surface).HasIndex("WoLegId");
+        }
+
+        // ── P11.5 — Semi-Stock decoupling (keep-stock) ─────────────────
+        b.Entity<SemiLot>().Property(x => x.LotNo).HasMaxLength(64).IsRequired();
+        b.Entity<SemiLot>().Property(x => x.SemiKind).HasMaxLength(16).IsRequired();
+        b.Entity<SemiLot>().Property(x => x.Status).HasMaxLength(16).IsRequired();
+        // L38 — RowVersion: EF gửi X'' lúc INSERT (không IsRowVersion), trigger
+        // randomblob(8) bump; IsConcurrencyToken → 2 assembly reserve cùng lô
+        // không over-sell (optimistic lock).
+        b.Entity<SemiLot>().Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+        b.Entity<SemiLot>().HasIndex(x => x.LotNo).IsUnique();          // barcode natural key
+        b.Entity<SemiLot>().HasIndex(x => new { x.SemiKind, x.Status, x.SpecRevisionId }); // FEFO lookup
+        b.Entity<SemiLot>().HasIndex(x => x.SourceWorkOrderId);          // genealogy
+
+        b.Entity<SemiAllocation>().HasIndex(x => new { x.WorkOrderId, x.AssemblyLegId });
+        b.Entity<SemiAllocation>().HasIndex(x => x.SemiLotId);
         b.Entity<WoIpqcCheckItem>().HasOne(x => x.WoIpqcCheck)
             .WithMany(c => c.Items)
             .HasForeignKey(x => x.WoIpqcCheckId)

@@ -1,0 +1,353 @@
+@*
+    P11-3 — Multi-Method Routing DAG (fork-join) operator dashboard.
+
+    Hosted by WorkOrders.razor khi WO ở MesPhase = SPLIT (đã fork ≥2 leg).
+    Owns LegsView state + mọi call (GET legs, advance, rework). Mỗi leg là
+    1 thẻ: kind/method/process-line + phase + gate banner + nút tiến/rework.
+
+    Concurrency: advance/rework dùng If-Match trên LEG ETag (per-leg). 409
+    wo.state_conflict → refetch + banner. 422 gate/phase → banner qua
+    RoutingErrorLocaliser. Join (LegSetResponse.Joined) → OnPhaseChanged
+    bubble → parent re-fetch summary → FqcDashboard mount (L21).
+
+    Rule 4: plain <button>, plain <input>.
+*@
+
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.Routing
+@using CCL.MES.Shared.Envelopes
+@using CCL.MES.Shared.Routing
+@inject ICclApiClient Api
+
+<div class="legs-dashboard" data-testid="legs-dashboard">
+    @if (_view is null && _initialError is null)
+    {
+        <div class="legs-loading" data-testid="legs-loading">Đang tải công đoạn…</div>
+    }
+    else if (_initialError is not null)
+    {
+        <div class="wo-card-error" data-testid="legs-initial-error">
+            <strong>Không tải được công đoạn:</strong> @_initialError
+        </div>
+    }
+    else if (_view is not null)
+    {
+        <div class="legs-head">
+            <span class="legs-head-wo">@_view.WoNo</span>
+            <span class="legs-head-phase legs-phase-split" data-testid="legs-wo-phase">@_view.MesPhase</span>
+            <span class="legs-head-count">@_view.Legs.Count công đoạn song song</span>
+        </div>
+
+        @if (_banner is not null)
+        {
+            <div class="wo-card-error" data-testid="legs-banner">@_banner</div>
+        }
+
+        <div class="legs-grid" data-testid="legs-grid">
+            @foreach (var leg in _view.Legs.OrderBy(l => l.Sequence))
+            {
+                <div class="legs-card @LegKindCss(leg.LegKind)" data-testid="leg-card-@leg.Sequence" data-leg-phase="@leg.LegPhase">
+                    <div class="legs-card-head">
+                        <span class="legs-kind" data-testid="leg-kind-@leg.Sequence">@LegKindLabel(leg.LegKind)</span>
+                        <span class="legs-method">@leg.Method</span>
+                        @if (leg.IsTerminal)
+                        {
+                            <span class="legs-terminal" title="Công đoạn cuối — quyết định gộp FQC">⤳ cuối</span>
+                        }
+                    </div>
+                    <div class="legs-card-row">
+                        <span class="legs-line">@leg.ProcessLine</span>
+                        <span class="legs-phase-chip @LegPhaseCss(leg.LegPhase)" data-testid="leg-phase-@leg.Sequence">@LegPhaseLabel(leg.LegPhase)</span>
+                    </div>
+
+                    @if (leg.HardBlocked)
+                    {
+                        <div class="legs-gate legs-gate-hard" data-testid="leg-hard-@leg.Sequence">
+                            ⛔ Chờ bán thành phẩm (in/tape) xong mới chạy được.
+                        </div>
+                    }
+                    else if (leg.SoftWaiting)
+                    {
+                        <div class="legs-gate legs-gate-soft" data-testid="leg-soft-@leg.Sequence">
+                            ⏳ Công đoạn trước chưa xong (vẫn chạy song song được).
+                        </div>
+                    }
+
+                    <div class="legs-card-actions">
+                        @{ var next = NextPhase(leg.LegPhase); }
+                        @if (next is not null)
+                        {
+                            <button type="button" class="btn btn-primary legs-advance"
+                                    data-testid="leg-advance-@leg.Sequence"
+                                    disabled="@(_busy || (next == "RUNNING" && leg.HardBlocked))"
+                                    @onclick="() => AdvanceAsync(leg, next!)">
+                                @AdvanceLabel(leg.LegPhase, next!)
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="legs-done-tag" data-testid="leg-done-@leg.Sequence">✓ Xong</span>
+                        }
+                        @if (leg.LegPhase != "PREPRESS")
+                        {
+                            <button type="button" class="btn btn-ghost legs-rework"
+                                    data-testid="leg-rework-@leg.Sequence"
+                                    disabled="@_busy"
+                                    @onclick="() => OpenReworkAsync(leg)">
+                                NG / làm lại
+                            </button>
+                        }
+                    </div>
+
+                    @if (IsFromStockAssembly(leg))
+                    {
+                        <div class="legs-semi" data-testid="leg-semi-@leg.Sequence">
+                            <span class="legs-semi-label">Kho bán thành phẩm</span>
+                            <div class="legs-semi-actions">
+                                <button type="button" class="btn btn-ghost legs-semi-reserve"
+                                        data-testid="leg-semi-reserve-@leg.Sequence"
+                                        disabled="@_busy"
+                                        @onclick="() => OpenReserve(leg)">
+                                    Giữ lô (FEFO)
+                                </button>
+                                <button type="button" class="btn btn-ghost legs-semi-consume"
+                                        data-testid="leg-semi-consume-@leg.Sequence"
+                                        disabled="@_busy"
+                                        @onclick="() => ConsumeSemiAsync(leg)">
+                                    Đã dùng xong
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (_reworkLeg is not null)
+        {
+            <div class="legs-rework-modal" data-testid="legs-rework-modal">
+                <div class="legs-rework-body">
+                    <div class="legs-rework-title">NG công đoạn @LegKindLabel(_reworkLeg.LegKind) — về PREPRESS</div>
+                    <input type="text" class="legs-rework-input" data-testid="legs-rework-reason"
+                           maxlength="500" placeholder="Lý do NG / rework…" @bind="_reworkReason" @bind:event="oninput" />
+                    <div class="legs-rework-actions">
+                        <button type="button" class="btn btn-ghost" data-testid="legs-rework-cancel"
+                                @onclick="() => _reworkLeg = null">Huỷ</button>
+                        <button type="button" class="btn btn-primary" data-testid="legs-rework-confirm"
+                                disabled="@(_busy || string.IsNullOrWhiteSpace(_reworkReason))"
+                                @onclick="ConfirmReworkAsync">Xác nhận NG</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (_reserveLeg is not null)
+        {
+            <div class="legs-rework-modal" data-testid="legs-semi-modal">
+                <div class="legs-rework-body">
+                    <div class="legs-rework-title">Giữ bán thành phẩm cho @LegKindLabel(_reserveLeg.LegKind)</div>
+                    <label class="legs-semi-field">
+                        <span>Loại</span>
+                        <select class="legs-semi-select" data-testid="legs-semi-kind" @bind="_reserveKind">
+                            <option value="PRINTED_SEMI">In (PRINTED_SEMI)</option>
+                            <option value="TAPE_SEMI">Tape (TAPE_SEMI)</option>
+                        </select>
+                    </label>
+                    <label class="legs-semi-field">
+                        <span>Số lượng</span>
+                        <input type="number" min="1" class="legs-rework-input" data-testid="legs-semi-qty" @bind="_reserveQty" />
+                    </label>
+                    <label class="legs-semi-field">
+                        <span>Mã lô cụ thể (trống → FEFO tự chọn)</span>
+                        <input type="text" class="legs-rework-input" data-testid="legs-semi-lotno"
+                               maxlength="80" placeholder="Quét lô hoặc để trống…" @bind="_reserveLotNo" @bind:event="oninput" />
+                    </label>
+                    <div class="legs-rework-actions">
+                        <button type="button" class="btn btn-ghost" data-testid="legs-semi-cancel"
+                                @onclick="() => _reserveLeg = null">Huỷ</button>
+                        <button type="button" class="btn btn-primary" data-testid="legs-semi-confirm"
+                                disabled="@(_busy || _reserveQty <= 0)"
+                                @onclick="ConfirmReserveAsync">Giữ lô</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public long WorkOrderId { get; set; }
+
+    /// <summary>L21 — bubble lên WorkOrders.razor khi WO đổi phase (join
+    /// SPLIT → FQC_PENDING) để parent re-fetch summary + re-dispatch.</summary>
+    [Parameter] public EventCallback OnPhaseChanged { get; set; }
+
+    private LegsView? _view;
+    private string? _initialError;
+    private string? _banner;
+    private bool _busy;
+    private long _lastLoadedWoId = -1;
+
+    private LegRow? _reworkLeg;
+    private string _reworkReason = "";
+
+    // P11.5-3 — semi-stock reserve modal state (ASSEMBLY + FROM_STOCK legs).
+    private LegRow? _reserveLeg;
+    private string _reserveKind = "PRINTED_SEMI";
+    private int _reserveQty;
+    private string _reserveLotNo = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (WorkOrderId != _lastLoadedWoId)
+        {
+            _lastLoadedWoId = WorkOrderId;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _initialError = null;
+        try { _view = await Api.GetLegsViewAsync(WorkOrderId); }
+        catch (ApiException ex) { _initialError = RoutingErrorLocaliser.LocaliseApiError(ex.StatusCode, ex.ApiError); }
+        catch (Exception ex) { _initialError = ex.Message; }
+    }
+
+    private async Task AdvanceAsync(LegRow leg, string toPhase)
+    {
+        if (_busy) return;
+        _busy = true; _banner = null;
+        try
+        {
+            var resp = await Api.AdvanceLegAsync(WorkOrderId, leg.LegId, leg.LegETag, toPhase);
+            if (resp.Ok)
+            {
+                if (resp.Joined)
+                {
+                    // WO đã rời SPLIT → FQC_PENDING: nhường quyền cho parent.
+                    await OnPhaseChanged.InvokeAsync();
+                    return;
+                }
+                if (resp.SoftWaiting)
+                    _banner = "Đã chạy — lưu ý công đoạn trước chưa xong (song song).";
+                await LoadAsync();
+            }
+            else { _banner = RoutingErrorLocaliser.LocaliseSetError(resp.ErrorCode ?? ""); await LoadAsync(); }
+        }
+        catch (ApiException ex) { _banner = RoutingErrorLocaliser.LocaliseApiError(ex.StatusCode, ex.ApiError); }
+        catch (Exception ex) { _banner = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private Task OpenReworkAsync(LegRow leg) { _reworkLeg = leg; _reworkReason = ""; return Task.CompletedTask; }
+
+    private async Task ConfirmReworkAsync()
+    {
+        if (_busy || _reworkLeg is null || string.IsNullOrWhiteSpace(_reworkReason)) return;
+        _busy = true; _banner = null;
+        var leg = _reworkLeg;
+        try
+        {
+            var resp = await Api.ReworkLegAsync(WorkOrderId, leg.LegId, leg.LegETag, _reworkReason.Trim());
+            if (resp.Ok) { _reworkLeg = null; await LoadAsync(); }
+            else { _banner = RoutingErrorLocaliser.LocaliseSetError(resp.ErrorCode ?? ""); await LoadAsync(); }
+        }
+        catch (ApiException ex) { _banner = RoutingErrorLocaliser.LocaliseApiError(ex.StatusCode, ex.ApiError); }
+        catch (Exception ex) { _banner = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    // ── P11.5-3 semi-stock reserve/consume (ASSEMBLY + FROM_STOCK) ──
+
+    private static bool IsFromStockAssembly(LegRow leg) =>
+        string.Equals(leg.LegKind, "ASSEMBLY", StringComparison.OrdinalIgnoreCase)
+        && string.Equals(leg.InputSource, "FROM_STOCK", StringComparison.OrdinalIgnoreCase);
+
+    private void OpenReserve(LegRow leg)
+    {
+        _reserveLeg = leg;
+        _reserveKind = "PRINTED_SEMI";
+        _reserveQty = _view?.TargetQty ?? 0;
+        _reserveLotNo = "";
+    }
+
+    private async Task ConfirmReserveAsync()
+    {
+        if (_busy || _reserveLeg is null || _reserveQty <= 0) return;
+        _busy = true; _banner = null;
+        var leg = _reserveLeg;
+        try
+        {
+            var resp = await Api.ReserveSemiAsync(WorkOrderId, leg.LegId, new ReserveSemiRequest
+            {
+                Qty = _reserveQty,
+                SemiKind = _reserveKind,
+                LotNo = string.IsNullOrWhiteSpace(_reserveLotNo) ? null : _reserveLotNo.Trim(),
+            });
+            if (resp.Ok) { _reserveLeg = null; await LoadAsync(); }
+            else { _banner = SemiStockErrorLocaliser.LocaliseSetError(resp.ErrorCode ?? ""); await LoadAsync(); }
+        }
+        catch (ApiException ex) { _banner = SemiStockErrorLocaliser.LocaliseApiError(ex.StatusCode, ex.ApiError); }
+        catch (Exception ex) { _banner = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task ConsumeSemiAsync(LegRow leg)
+    {
+        if (_busy) return;
+        _busy = true; _banner = null;
+        try
+        {
+            var resp = await Api.ConsumeSemiAsync(WorkOrderId, leg.LegId);
+            if (resp.Ok) await LoadAsync();
+            else { _banner = SemiStockErrorLocaliser.LocaliseSetError(resp.ErrorCode ?? ""); await LoadAsync(); }
+        }
+        catch (ApiException ex) { _banner = SemiStockErrorLocaliser.LocaliseApiError(ex.StatusCode, ex.ApiError); }
+        catch (Exception ex) { _banner = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    // LegFlow client-side (mirror Domain RoutingLegGate.LegFlow).
+    private static readonly string[] Flow = { "PREPRESS", "SETTING", "IPQC_WAIT", "IPQC_APPROVED", "RUNNING", "LEG_DONE" };
+    private static string? NextPhase(string current)
+    {
+        var i = Array.IndexOf(Flow, current);
+        return (i < 0 || i >= Flow.Length - 1) ? null : Flow[i + 1];
+    }
+
+    private static string AdvanceLabel(string from, string to) => to switch
+    {
+        "SETTING"       => "Bắt đầu setup",
+        "IPQC_WAIT"     => "Setup xong → IPQC",
+        "IPQC_APPROVED" => "IPQC duyệt",
+        "RUNNING"       => "Bắt đầu chạy",
+        "LEG_DONE"      => "Hoàn tất công đoạn",
+        _               => $"→ {to}",
+    };
+
+    private static string LegKindLabel(string kind) => kind switch
+    {
+        "PRINT"     => "IN",
+        "CUT"       => "CẮT",
+        "TAPE"      => "CẮT TAPE",
+        "ASSEMBLY"  => "DÁN (assembly)",
+        "PRINT_CUT" => "IN + BẾ",
+        _           => kind,
+    };
+
+    private static string LegPhaseLabel(string phase) => phase switch
+    {
+        "PREPRESS"      => "Chuẩn bị",
+        "SETTING"       => "Setup",
+        "IPQC_WAIT"     => "Chờ IPQC",
+        "IPQC_APPROVED" => "IPQC duyệt",
+        "RUNNING"       => "Đang chạy",
+        "PAUSED"        => "Tạm dừng",
+        "LEG_DONE"      => "Xong",
+        _               => phase,
+    };
+
+    private static string LegKindCss(string kind) => "legs-kind-" + kind.ToLowerInvariant().Replace("_", "-");
+    private static string LegPhaseCss(string phase) => "legs-ph-" + phase.ToLowerInvariant();
+}

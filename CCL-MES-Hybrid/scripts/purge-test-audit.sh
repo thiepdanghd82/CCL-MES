@@ -381,6 +381,13 @@ DELETE FROM WoQcChecks WHERE $QC_CHECK_PRED;
 DELETE FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS);
 DELETE FROM Users WHERE Username IN ($IPQC_QA_TEST_USERS);
 DELETE FROM Users WHERE Username IN ($OQC_TEST_USERS);
+-- P11 — routing DAG fork-join test rows. Test WO luôn có WoNo prefix
+-- 'WO-P11' (checkpoint-p11-2 / checkpoint-p11-final / p11-live-verify /
+-- p11-selftest); WO production KHÔNG dùng prefix này. Audit Detail JSON
+-- mang wo_no nên LIKE '%WO-P11%' bắt trọn. Child-first: audit → edges → legs.
+DELETE FROM AuditLogs WHERE Action IN ('WO_SPLIT_FORKED','WO_SPLIT_JOINED','WO_LEG_CREATED','WO_LEG_DONE','WO_LEG_PHASE_ADVANCED','WO_LEG_REWORK') AND Detail LIKE '%WO-P11%';
+DELETE FROM WoLegDependencies WHERE WorkOrderId IN (SELECT Id FROM WorkOrders WHERE WoNo LIKE 'WO-P11%');
+DELETE FROM WoLegs WHERE WorkOrderId IN (SELECT Id FROM WorkOrders WHERE WoNo LIKE 'WO-P11%');
 COMMIT;
 SQL
 PURGE_EXIT=$?

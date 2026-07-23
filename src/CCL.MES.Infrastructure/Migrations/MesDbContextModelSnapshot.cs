@@ -765,6 +765,67 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.ToTable("ProcessCatalogs");
                 });
 
+            modelBuilder.Entity("CCL.MES.Domain.Entities.ProcessLegMap", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LegKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MatchType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MatchValue")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProcessLine")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MatchType", "MatchValue")
+                        .IsUnique();
+
+                    b.ToTable("ProcessLegMaps");
+                });
+
             modelBuilder.Entity("CCL.MES.Domain.Entities.ProcessLineMap", b =>
                 {
                     b.Property<long>("Id")
@@ -1414,6 +1475,116 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("PartNo");
 
                     b.ToTable("RoutingOperations");
+                });
+
+            modelBuilder.Entity("CCL.MES.Domain.Entities.SemiAllocation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("AssemblyLegId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("QtyConsumed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QtyReserved")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SemiLotId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("WorkOrderId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SemiLotId");
+
+                    b.HasIndex("WorkOrderId", "AssemblyLegId");
+
+                    b.ToTable("SemiAllocations");
+                });
+
+            modelBuilder.Entity("CCL.MES.Domain.Entities.SemiLot", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ExpiryAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LotNo")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("QtyAvailable")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QtyProduced")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QtyReserved")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("SemiKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("SourceWorkOrderId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("SpecRevisionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LotNo")
+                        .IsUnique();
+
+                    b.HasIndex("SourceWorkOrderId");
+
+                    b.HasIndex("SemiKind", "Status", "SpecRevisionId");
+
+                    b.ToTable("SemiLots");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.SpecDiecut", b =>
@@ -2158,10 +2329,15 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("WoLegId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("WorkOrderId")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("WoLegId");
 
                     b.HasIndex("WorkOrderId")
                         .IsUnique();
@@ -2278,10 +2454,15 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("WoLegId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("WorkOrderId")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("WoLegId");
 
                     b.HasIndex("WorkOrderId")
                         .IsUnique();
@@ -2359,12 +2540,143 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<long>("WoIpqcCheckId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("WoLegId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("WoLegId");
 
                     b.HasIndex("WoIpqcCheckId", "ItemKey")
                         .IsUnique();
 
                     b.ToTable("WoIpqcCheckItems");
+                });
+
+            modelBuilder.Entity("CCL.MES.Domain.Entities.WoLeg", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InputSource")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LegDoneAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LegKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LegPhase")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProcessLine")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("QtyDoneCached")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QtyNgCached")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("BLOB");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("SpecRevisionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SurfaceProfile")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("WorkOrderId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("WorkOrderId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("WoLegs");
+                });
+
+            modelBuilder.Entity("CCL.MES.Domain.Entities.WoLegDependency", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DependencyGate")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("DependsOnLegId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("LegId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("RequiredQty")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("WorkOrderId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("WorkOrderId", "LegId", "DependsOnLegId")
+                        .IsUnique();
+
+                    b.ToTable("WoLegDependencies");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoMaterial", b =>
@@ -2445,10 +2757,15 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("WoLegId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("WorkOrderId")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("WoLegId");
 
                     b.HasIndex("WorkOrderId");
 
@@ -2502,11 +2819,16 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<long>("WoId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("WoLegId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("RunSessionId");
 
                     b.HasIndex("WoId");
+
+                    b.HasIndex("WoLegId");
 
                     b.ToTable("WoPauseEvents");
                 });
@@ -2553,10 +2875,15 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<string>("UpdatedBy")
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("WoLegId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<long>("WorkOrderId")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("WoLegId");
 
                     b.HasIndex("WorkOrderId")
                         .IsUnique();
@@ -2793,6 +3120,9 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<long>("WoId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("WoLegId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("LinkedEntryId");
@@ -2800,6 +3130,8 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("RunSessionId");
 
                     b.HasIndex("WoId");
+
+                    b.HasIndex("WoLegId");
 
                     b.HasIndex("WoId", "Ts");
 
@@ -2842,9 +3174,14 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<long>("WoId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<long?>("WoLegId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("WoId");
+
+                    b.HasIndex("WoLegId");
 
                     b.HasIndex("WoId", "EndedAt");
 
@@ -3507,6 +3844,26 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Navigation("WoIpqcCheck");
                 });
 
+            modelBuilder.Entity("CCL.MES.Domain.Entities.WoLeg", b =>
+                {
+                    b.HasOne("CCL.MES.Domain.Entities.WorkOrder", "WorkOrder")
+                        .WithMany("Legs")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WorkOrder");
+                });
+
+            modelBuilder.Entity("CCL.MES.Domain.Entities.WoLegDependency", b =>
+                {
+                    b.HasOne("CCL.MES.Domain.Entities.WorkOrder", null)
+                        .WithMany("LegEdges")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CCL.MES.Domain.Entities.WoQcCheckItem", b =>
                 {
                     b.HasOne("CCL.MES.Domain.Entities.WoQcCheck", "WoQcCheck")
@@ -3638,6 +3995,10 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Navigation("History");
 
                     b.Navigation("Inspections");
+
+                    b.Navigation("LegEdges");
+
+                    b.Navigation("Legs");
                 });
 #pragma warning restore 612, 618
         }

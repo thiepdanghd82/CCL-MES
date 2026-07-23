@@ -204,12 +204,17 @@ public sealed class WorkOrderStateMachineCanonicalTests
     // ── CanonicalFlow ────────────────────────────────────────────────
 
     [Fact]
-    public void CanonicalFlow_lists_all_13_phases_in_canonical_order()
+    public void CanonicalFlow_lists_all_14_phases_in_canonical_order()
     {
-        // P10.7e-1 Q1 — SHIPPED appended at index 12 (after CANCELLED).
-        Assert.Equal(13, WorkOrderStateMachine.CanonicalFlow.Length);
+        // P10.7e-1 Q1 — SHIPPED appended (after CANCELLED).
+        // P11-1 — SPLIT inserted at index 2 (after PREPRESS, before
+        // SETTING) so the timeline UI renders fork in position; downstream
+        // indices shift +1 (CANCELLED 11→12, SHIPPED 12→13).
+        Assert.Equal(14, WorkOrderStateMachine.CanonicalFlow.Length);
         Assert.Equal(MesPhase.NEW,       WorkOrderStateMachine.CanonicalFlow[0]);
-        Assert.Equal(MesPhase.CANCELLED, WorkOrderStateMachine.CanonicalFlow[11]);
-        Assert.Equal(MesPhase.SHIPPED,   WorkOrderStateMachine.CanonicalFlow[12]);
+        Assert.Equal(MesPhase.PREPRESS,  WorkOrderStateMachine.CanonicalFlow[1]);
+        Assert.Equal(MesPhase.SPLIT,     WorkOrderStateMachine.CanonicalFlow[2]);
+        Assert.Equal(MesPhase.CANCELLED, WorkOrderStateMachine.CanonicalFlow[12]);
+        Assert.Equal(MesPhase.SHIPPED,   WorkOrderStateMachine.CanonicalFlow[13]);
     }
 }

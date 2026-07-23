@@ -72,6 +72,13 @@ public class WorkOrder : BaseEntity
     public List<WoStatusHistory> History { get; set; } = new();
     public List<QcInspection> Inspections { get; set; } = new();
 
+    // P11-1 — Multi-Method Routing DAG (fork-join). ADDITIVE: WO 1-leg
+    // (mọi WO legacy + combined-inline T1) có Legs.Count == 0 và chạy
+    // tuyến tính PREPRESS → SETTING như cũ. WO ≥2 leg vào MesPhase.SPLIT;
+    // join SPLIT → FQC_PENDING khi mọi leg terminal đạt LegPhase.LEG_DONE.
+    public List<WoLeg> Legs { get; set; } = new();
+    public List<WoLegDependency> LegEdges { get; set; } = new();
+
     /// <summary>Lần kiểm QC gần nhất theo loại (IPQC/FQC/OQC).</summary>
     public QcInspection? LastQc(QcType type) =>
         Inspections.Where(i => i.Type == type).OrderByDescending(i => i.Id).FirstOrDefault();

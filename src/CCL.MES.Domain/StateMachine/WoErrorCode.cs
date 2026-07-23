@@ -34,4 +34,22 @@ public enum WoErrorCode
 
     /// <summary>Service layer: the requested WO id does not exist.</summary>
     WorkOrderNotFound,
+
+    // ── P11-1 — Multi-Method Routing DAG (fork-join) ────────────────
+
+    /// <summary>SPLIT → FQC_PENDING: chưa phải mọi leg terminal đạt
+    /// LegPhase.LEG_DONE (join gate chưa thỏa).</summary>
+    LegsNotAllDone,
+
+    /// <summary>PREPRESS → SPLIT: routing DAG không hợp lệ (cycle, leg
+    /// mồ côi, hoặc &lt;2 leg). Xem <c>RoutingDagValidator</c>.</summary>
+    InvalidRoutingDag,
+
+    /// <summary>ASSEMBLY leg thiếu input tiên quyết (không đủ dep PRINT +
+    /// TAPE khi InputSource=IN_LINE).</summary>
+    AssemblyInputsMissing,
+
+    /// <summary>Routing op không map được sang leg (RoutingLegMap thiếu
+    /// luật) — caller log loud + hỏi người duyệt, KHÔNG đoán.</summary>
+    RoutingUnmapped,
 }

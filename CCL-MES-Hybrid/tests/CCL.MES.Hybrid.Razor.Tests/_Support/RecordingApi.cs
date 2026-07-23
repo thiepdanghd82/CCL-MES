@@ -343,6 +343,84 @@ public sealed class RecordingApi : ICclApiClient
             : RunFinishImpl(workOrderId, ifMatchETag, ct);
     }
 
+    // ── Multi-Method Routing DAG (P11-3) ───────────────────────────
+
+    public Func<long, CancellationToken, Task<CCL.MES.Shared.Routing.LegsView>>? LegsViewImpl { get; set; }
+    public Func<long, string, CancellationToken, Task<CCL.MES.Shared.Routing.LegMaterializeResponse>>? MaterializeLegsImpl { get; set; }
+    public Func<long, long, string, string, CancellationToken, Task<CCL.MES.Shared.Routing.LegSetResponse>>? AdvanceLegImpl { get; set; }
+    public Func<long, long, string, string, CancellationToken, Task<CCL.MES.Shared.Routing.LegSetResponse>>? ReworkLegImpl { get; set; }
+    public List<long> LegsViewCalls { get; } = new();
+    public List<(long WoId, long LegId, string ETag, string ToPhase)> AdvanceLegCalls { get; } = new();
+    public List<(long WoId, long LegId, string ETag, string Reason)> ReworkLegCalls { get; } = new();
+
+    public Task<CCL.MES.Shared.Routing.LegsView> GetLegsViewAsync(long workOrderId, CancellationToken ct = default)
+    {
+        LegsViewCalls.Add(workOrderId);
+        return LegsViewImpl is null
+            ? throw new InvalidOperationException("LegsViewImpl not set")
+            : LegsViewImpl(workOrderId, ct);
+    }
+
+    public Task<CCL.MES.Shared.Routing.LegMaterializeResponse> MaterializeLegsAsync(long workOrderId, string ifMatchETag, CancellationToken ct = default)
+        => MaterializeLegsImpl is null
+            ? throw new InvalidOperationException("MaterializeLegsImpl not set")
+            : MaterializeLegsImpl(workOrderId, ifMatchETag, ct);
+
+    public Task<CCL.MES.Shared.Routing.LegSetResponse> AdvanceLegAsync(long workOrderId, long legId, string legIfMatchETag, string toPhase, CancellationToken ct = default)
+    {
+        AdvanceLegCalls.Add((workOrderId, legId, legIfMatchETag, toPhase));
+        return AdvanceLegImpl is null
+            ? throw new InvalidOperationException("AdvanceLegImpl not set")
+            : AdvanceLegImpl(workOrderId, legId, legIfMatchETag, toPhase, ct);
+    }
+
+    public Task<CCL.MES.Shared.Routing.LegSetResponse> ReworkLegAsync(long workOrderId, long legId, string legIfMatchETag, string reason, CancellationToken ct = default)
+    {
+        ReworkLegCalls.Add((workOrderId, legId, legIfMatchETag, reason));
+        return ReworkLegImpl is null
+            ? throw new InvalidOperationException("ReworkLegImpl not set")
+            : ReworkLegImpl(workOrderId, legId, legIfMatchETag, reason, ct);
+    }
+
+    // ── Semi-Stock decoupling (P11.5) ──────────────────────────────
+
+    public Func<string?, long?, string?, CancellationToken, Task<CCL.MES.Shared.Routing.SemiStockView>>? SemiLotsImpl { get; set; }
+    public Func<CCL.MES.Shared.Routing.PostSemiLotRequest, CancellationToken, Task<CCL.MES.Shared.Routing.SemiSetResponse>>? PostSemiLotImpl { get; set; }
+    public Func<long, long, CCL.MES.Shared.Routing.ReserveSemiRequest, CancellationToken, Task<CCL.MES.Shared.Routing.SemiSetResponse>>? ReserveSemiImpl { get; set; }
+    public Func<long, long, CancellationToken, Task<CCL.MES.Shared.Routing.SemiSetResponse>>? ConsumeSemiImpl { get; set; }
+    public List<(string? Kind, long? Spec, string? Status)> SemiLotsCalls { get; } = new();
+    public List<(long WoId, long LegId, CCL.MES.Shared.Routing.ReserveSemiRequest Req)> ReserveSemiCalls { get; } = new();
+    public List<(long WoId, long LegId)> ConsumeSemiCalls { get; } = new();
+
+    public Task<CCL.MES.Shared.Routing.SemiStockView> GetSemiLotsAsync(string? kind = null, long? spec = null, string? status = null, CancellationToken ct = default)
+    {
+        SemiLotsCalls.Add((kind, spec, status));
+        return SemiLotsImpl is null
+            ? throw new InvalidOperationException("SemiLotsImpl not set")
+            : SemiLotsImpl(kind, spec, status, ct);
+    }
+
+    public Task<CCL.MES.Shared.Routing.SemiSetResponse> PostSemiLotAsync(CCL.MES.Shared.Routing.PostSemiLotRequest req, CancellationToken ct = default)
+        => PostSemiLotImpl is null
+            ? throw new InvalidOperationException("PostSemiLotImpl not set")
+            : PostSemiLotImpl(req, ct);
+
+    public Task<CCL.MES.Shared.Routing.SemiSetResponse> ReserveSemiAsync(long workOrderId, long legId, CCL.MES.Shared.Routing.ReserveSemiRequest req, CancellationToken ct = default)
+    {
+        ReserveSemiCalls.Add((workOrderId, legId, req));
+        return ReserveSemiImpl is null
+            ? throw new InvalidOperationException("ReserveSemiImpl not set")
+            : ReserveSemiImpl(workOrderId, legId, req, ct);
+    }
+
+    public Task<CCL.MES.Shared.Routing.SemiSetResponse> ConsumeSemiAsync(long workOrderId, long legId, CancellationToken ct = default)
+    {
+        ConsumeSemiCalls.Add((workOrderId, legId));
+        return ConsumeSemiImpl is null
+            ? throw new InvalidOperationException("ConsumeSemiImpl not set")
+            : ConsumeSemiImpl(workOrderId, legId, ct);
+    }
+
     // ── IPQC + QA Approval (P10.7d-3) ──────────────────────────────
 
     public Task<IpqcView> GetIpqcViewAsync(long workOrderId, CancellationToken ct = default)
