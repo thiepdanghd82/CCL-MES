@@ -547,6 +547,23 @@ html, body {
 }
 .tb-logout:hover { background: var(--c-divider); }
 
+/* i18n Phase-2 — EN/VI flag toggle (syncs with Settings → Appearance). */
+.tb-lang {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--c-line-2);
+    background: var(--card);
+    border-radius: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--c-ink-3);
+}
+.tb-lang:hover { background: var(--c-divider); }
+.tb-lang-flag { font-size: 1rem; line-height: 1; }
+.tb-lang-code { font-weight: 700; letter-spacing: 0.5px; }
+
 /* ═══════════ P10.10 — Home page (SpecHub parity) ═══════════ */
 .hp-header {
     display: flex;

@@ -3,6 +3,7 @@
   English UI (P10.10 EN pass). NpiRead policy gates the master-data grids;
   the Spec sub-link tightens to NpiSpecRead (Admin/Supervisor/Engineer).
 *@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client.Hardware
 @inject IAuthSession Session
 @inject NavigationManager Nav
@@ -12,52 +13,52 @@
     <div class="app-nav-brand">CCL · MES</div>
 
     <nav>
-        <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link">@Ico("home")<span>Home</span></NavLink>
+        <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link">@Ico("home")<span>@T("nav.home")</span></NavLink>
 
         <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
-            <div class="app-nav-section">NPI DATA</div>
+            <div class="app-nav-section">@T("nav.section.npi")</div>
             <div class="app-nav-group">
-                <NavLink href="/npi/structure" class="app-nav-link app-nav-link-sub"><span>Structure (BOM)</span></NavLink>
-                <NavLink href="/npi/routine" class="app-nav-link app-nav-link-sub"><span>Routings</span></NavLink>
-                <NavLink href="/npi/rawmaterials" class="app-nav-link app-nav-link-sub"><span>Raw Materials</span></NavLink>
-                <NavLink href="/npi/workcenters" class="app-nav-link app-nav-link-sub"><span>Work Centers</span></NavLink>
+                <NavLink href="/npi/structure" class="app-nav-link app-nav-link-sub"><span>@T("nav.npi.structure")</span></NavLink>
+                <NavLink href="/npi/routine" class="app-nav-link app-nav-link-sub"><span>@T("nav.npi.routings")</span></NavLink>
+                <NavLink href="/npi/rawmaterials" class="app-nav-link app-nav-link-sub"><span>@T("nav.npi.rawmaterials")</span></NavLink>
+                <NavLink href="/npi/workcenters" class="app-nav-link app-nav-link-sub"><span>@T("nav.npi.workcenters")</span></NavLink>
                 <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="specCtx">
-                    <NavLink href="/npi/specs" class="app-nav-link app-nav-link-sub"><span>Engineer Spec</span></NavLink>
+                    <NavLink href="/npi/specs" class="app-nav-link app-nav-link-sub"><span>@T("nav.npi.spec")</span></NavLink>
                 </AuthorizeView>
             </div>
         </AuthorizeView>
 
         @if (HwOptions.Value.ScanEnabled)
         {
-            <div class="app-nav-section">PRODUCTION</div>
-            <NavLink href="/workorders" class="app-nav-link">@Ico("scan")<span>Work Orders — Scan</span></NavLink>
-            <NavLink href="/warehouse/semi-products" class="app-nav-link">@Ico("box")<span>Kho bán thành phẩm</span></NavLink>
+            <div class="app-nav-section">@T("nav.section.production")</div>
+            <NavLink href="/workorders" class="app-nav-link">@Ico("scan")<span>@T("nav.workorders")</span></NavLink>
+            <NavLink href="/warehouse/semi-products" class="app-nav-link">@Ico("box")<span>@T("nav.semiproducts")</span></NavLink>
         }
 
         @* P10.8 — Machine Dashboard + Shop Order History + QMS (SpecHub
            parity). Read-only monitoring; open to every authenticated role. *@
-        <div class="app-nav-section">MONITORING</div>
-        <NavLink href="/machines" class="app-nav-link">@Ico("grid")<span>Machine Dashboard</span></NavLink>
-        <NavLink href="/shop-orders" class="app-nav-link">@Ico("history")<span>Shop Order History</span></NavLink>
+        <div class="app-nav-section">@T("nav.section.monitoring")</div>
+        <NavLink href="/machines" class="app-nav-link">@Ico("grid")<span>@T("nav.machines")</span></NavLink>
+        <NavLink href="/shop-orders" class="app-nav-link">@Ico("history")<span>@T("nav.shoporders")</span></NavLink>
         @* Inspection Queue uses exact match so it doesn't also light up when
            the deeper /qms/history (QC History) route is active. *@
-        <NavLink href="/qms" Match="NavLinkMatch.All" class="app-nav-link">@Ico("clipboard")<span>Inspection Queue</span></NavLink>
-        <NavLink href="/qms/history" class="app-nav-link">@Ico("shield")<span>QC History</span></NavLink>
-        <NavLink href="/qc/library" class="app-nav-link">@Ico("clipboard")<span>QC Library</span></NavLink>
+        <NavLink href="/qms" Match="NavLinkMatch.All" class="app-nav-link">@Ico("clipboard")<span>@T("nav.inspectionqueue")</span></NavLink>
+        <NavLink href="/qms/history" class="app-nav-link">@Ico("shield")<span>@T("nav.qchistory")</span></NavLink>
+        <NavLink href="/qc/library" class="app-nav-link">@Ico("clipboard")<span>@T("nav.qclibrary")</span></NavLink>
 
         @* Quality Control — traceability across the 8 quality legs per WO.
            Gated to the QcRead policy roles (Admin/Supervisor/QC). *@
         <AuthorizeView Roles="Admin,Supervisor,QC" Context="qcCtx">
-            <div class="app-nav-section">QUALITY CONTROL</div>
-            <NavLink href="/quality/traceability" class="app-nav-link">@Ico("shield")<span>Traceability data</span></NavLink>
+            <div class="app-nav-section">@T("nav.section.quality")</div>
+            <NavLink href="/quality/traceability" class="app-nav-link">@Ico("shield")<span>@T("nav.traceability")</span></NavLink>
         </AuthorizeView>
 
         @* P10.10 — the Settings hub (/settings) now lists every sub-page
            as a card, so the per-page sub-nav links were collapsed into this
            single "System" entry. Prefix match keeps it highlighted across
            all /settings/* routes. *@
-        <div class="app-nav-section">SETTINGS</div>
-        <NavLink href="/settings" class="app-nav-link">@Ico("gear")<span>System</span></NavLink>
+        <div class="app-nav-section">@T("nav.section.settings")</div>
+        <NavLink href="/settings" class="app-nav-link">@Ico("gear")<span>@T("nav.system")</span></NavLink>
 
         <RecentScansWidget />
     </nav>
@@ -72,7 +73,7 @@
                     @context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
                 </div>
                 <button type="button" class="app-nav-logout"
-                        @onclick="LogoutAsync">Logout</button>
+                        @onclick="LogoutAsync">@T("common.logout")</button>
             </div>
         </Authorized>
     </AuthorizeView>

@@ -108,6 +108,13 @@ public static class ServiceCollectionExtensions
         // out of scope for P10.6b — it ships in P10.6g.
         services.AddSingleton<ILanguageService, InMemoryLanguageService>();
 
+        // i18n Phase-2 (option B) — dict-based translator that swaps UI
+        // strings live off ILanguageService.Current. Catalog is immutable
+        // (singleton); translator is a stateless reader (singleton). This
+        // is the "future translation service" the P10.6b comment promised.
+        services.AddSingleton<ITranslationCatalog, TranslationCatalog>();
+        services.AddSingleton<ITranslator, Translator>();
+
         // Traceability floating showcards — per-session rect memory so a
         // re-opened Work Order restores where the operator left it. Singleton
         // (survives page navigation); the toolbar "reset" clears it.
