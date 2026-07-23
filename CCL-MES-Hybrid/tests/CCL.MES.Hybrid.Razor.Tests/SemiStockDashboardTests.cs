@@ -228,4 +228,25 @@ public sealed class SemiStockDashboardTests : TestContext
         Assert.Contains("Kho trống", empty.TextContent);
         Assert.NotNull(empty.QuerySelector("button"));
     }
+
+    [Fact]
+    public void Icons_carry_explicit_pixel_size_not_unbounded()
+    {
+        // Regression: <svg> sinh từ MarkupString KHÔNG nhận scope attribute của
+        // scoped .razor.css → phải nhúng size inline, nếu không SVG nở kín màn
+        // hình (giant-icon bug). Khoá: mọi icon có width + inline style px.
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View());  // empty → box icon 44
+        var cut = RenderComponent<SemiStockDashboard>();
+
+        var svgs = cut.FindAll("svg");
+        Assert.NotEmpty(svgs);
+        foreach (var svg in svgs)
+        {
+            Assert.True(svg.HasAttribute("width"), "svg thiếu width → sẽ nở vô hạn");
+            Assert.Contains("px", svg.GetAttribute("style") ?? "");
+        }
+        // empty-state box icon phải là 44px tường minh.
+        var emptyIco = cut.Find("[data-testid='semi-empty'] svg");
+        Assert.Equal("44", emptyIco.GetAttribute("width"));
+    }
 }

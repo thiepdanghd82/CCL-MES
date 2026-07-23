@@ -22,7 +22,7 @@
     @* ── 1. HEADER + KPI stat-cards ─────────────────────────────── *@
     <div class="semi-header">
         <div class="semi-title-wrap">
-            <span class="semi-ico-hdr">@Ico("box")</span>
+            <span class="semi-ico-hdr">@Ico("box", 22)</span>
             <div>
                 <h2 class="semi-title">Kho bán thành phẩm</h2>
                 <p class="semi-subtitle">Tồn kho semi in/tape · xuất FEFO cho công đoạn dán</p>
@@ -32,22 +32,22 @@
 
     <div class="semi-kpis" data-testid="semi-totals">
         <div class="semi-kpi semi-kpi-ok">
-            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("check")</span><span class="semi-kpi-label">Khả dụng</span></div>
+            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("check", 15)</span><span class="semi-kpi-label">Khả dụng</span></div>
             <div class="semi-kpi-num" data-testid="semi-kpi-available">@(_view?.TotalAvailable.ToString() ?? "—")</div>
             <div class="semi-kpi-sub">đơn vị sẵn sàng xuất</div>
         </div>
         <div class="semi-kpi semi-kpi-hold">
-            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("lock")</span><span class="semi-kpi-label">Đang giữ</span></div>
+            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("lock", 15)</span><span class="semi-kpi-label">Đang giữ</span></div>
             <div class="semi-kpi-num" data-testid="semi-kpi-reserved">@(_view?.TotalReserved.ToString() ?? "—")</div>
             <div class="semi-kpi-sub">đã reserve cho WO</div>
         </div>
         <div class="semi-kpi @(ExpiringCount > 0 ? "semi-kpi-warn" : "semi-kpi-muted")">
-            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("clock")</span><span class="semi-kpi-label">Sắp/đã hết hạn</span></div>
+            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("clock", 15)</span><span class="semi-kpi-label">Sắp/đã hết hạn</span></div>
             <div class="semi-kpi-num" data-testid="semi-kpi-expiring">@(_view is null ? "—" : ExpiringCount.ToString())</div>
             <div class="semi-kpi-sub">lô cần ưu tiên xuất</div>
         </div>
         <div class="semi-kpi semi-kpi-total">
-            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("box")</span><span class="semi-kpi-label">Tổng số lô</span></div>
+            <div class="semi-kpi-top"><span class="semi-kpi-ico">@Ico("box", 15)</span><span class="semi-kpi-label">Tổng số lô</span></div>
             <div class="semi-kpi-num" data-testid="semi-kpi-count">@(_view is null ? "—" : _view.Lots.Count.ToString())</div>
             <div class="semi-kpi-sub">lô trong bộ lọc</div>
         </div>
@@ -110,7 +110,7 @@
         @if (_view.Lots.Any(l => l.Expiring))
         {
             <div class="semi-expiry-banner" data-testid="semi-expiry-banner">
-                <span class="semi-expiry-ico">@Ico("clock")</span>
+                <span class="semi-expiry-ico">@Ico("clock", 16)</span>
                 @ExpiringCount lô sắp/đã hết hạn — ưu tiên xuất trước (FEFO).
             </div>
         }
@@ -118,7 +118,7 @@
         @if (FilteredLots() is var rows && rows.Count == 0)
         {
             <div class="semi-empty" data-testid="semi-empty">
-                <div class="semi-empty-ico">@Ico("box")</div>
+                <div class="semi-empty-ico">@Ico("box", 44)</div>
                 <div class="semi-empty-title">Kho trống theo bộ lọc</div>
                 <div class="semi-empty-sub">Chưa có lô bán thành phẩm nào khớp. Nhập lô mới để bắt đầu.</div>
                 <button type="button" class="btn btn-primary" @onclick="OpenAdd">＋ Nhập lô vào kho</button>
@@ -189,7 +189,7 @@
     <Body>
         <div class="semi-add-form" data-testid="semi-add-form">
             <label class="semi-field semi-field-scan">
-                <span class="semi-field-lbl"><span class="semi-scan-ico">@Ico("barcode")</span> Mã lô (quét)</span>
+                <span class="semi-field-lbl"><span class="semi-scan-ico">@Ico("barcode", 15)</span> Mã lô (quét)</span>
                 <input type="text" class="semi-input semi-input-scan" data-testid="semi-add-lotno" maxlength="80"
                        autofocus placeholder="Quét barcode lô hoặc nhập tay…" @bind="_addLotNo" @bind:event="oninput" />
             </label>
@@ -402,7 +402,10 @@
     };
 
     // Inline line icons (Feather-style, stroke=currentColor → inherit màu token).
-    private static MarkupString Ico(string name)
+    // Kích thước qua INLINE style (px) — scoped .razor.css KHÔNG áp được cho
+    // <svg> sinh từ MarkupString (thiếu scope attribute), nên phải nhúng size
+    // trực tiếp, nếu không SVG nở kín container (L: giant-icon bug).
+    private static MarkupString Ico(string name, int px = 16)
     {
         var p = name switch
         {
@@ -414,6 +417,8 @@
             _         => "",
         };
         return new MarkupString(
-            $"<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>{p}</svg>");
+            $"<svg width='{px}' height='{px}' viewBox='0 0 24 24' fill='none' stroke='currentColor' " +
+            $"stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true' " +
+            $"style='width:{px}px;height:{px}px;display:block;flex:none'>{p}</svg>");
     }
 }
