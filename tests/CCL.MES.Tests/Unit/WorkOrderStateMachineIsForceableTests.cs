@@ -38,6 +38,7 @@ public sealed class WorkOrderStateMachineIsForceableTests
         MesPhase.QA_PENDING, MesPhase.IPQC_APPROVED, MesPhase.RUNNING, MesPhase.PAUSED,
         MesPhase.FQC_PENDING, MesPhase.OQC_PENDING, MesPhase.DONE, MesPhase.CANCELLED,
         MesPhase.SHIPPED,  // P10.7e-1 Q1
+        MesPhase.SPLIT,    // P11-1 — fork umbrella (non-terminal → force-cancel-able)
     };
 
     private static readonly (MesPhase From, MesPhase To)[] ForceableCells = new[]
@@ -59,6 +60,9 @@ public sealed class WorkOrderStateMachineIsForceableTests
         // P10.7e-1 Q1 — OQC_PENDING → DONE shifts from RequiresSignoff
         // (7d) to RecoveryOnly (7e-1) for legacy admin bypass.
         (MesPhase.OQC_PENDING,   MesPhase.DONE),
+        // P11-1 — SPLIT is non-terminal → force-cancel-able (admin can
+        // cancel a stuck-mid-fork WO).
+        (MesPhase.SPLIT,         MesPhase.CANCELLED),
     };
 
     public static IEnumerable<object[]> All169Cells()
@@ -80,22 +84,23 @@ public sealed class WorkOrderStateMachineIsForceableTests
     // ── Meta: matrix coverage + count totals ──────────────────────
 
     [Fact]
-    public void Matrix_covers_exactly_169_cells_once()
+    public void Matrix_covers_exactly_196_cells_once()
     {
+        // P11-1 — 14 × 14 = 196 (was 13 × 13 = 169 in 7e-1 after SHIPPED).
         var seen = new HashSet<(MesPhase, MesPhase)>();
         foreach (var pair in All169Cells())
         {
             var key = ((MesPhase)pair[0], (MesPhase)pair[1]);
             Assert.True(seen.Add(key), $"Duplicate cell in matrix: {key}");
         }
-        Assert.Equal(169, seen.Count);
+        Assert.Equal(196, seen.Count);
     }
 
     [Fact]
-    public void Forceable_set_has_exactly_thirteen_cells_and_zero_overlap_with_blocked()
+    public void Forceable_set_has_exactly_fourteen_cells_and_zero_overlap_with_blocked()
     {
         // P10.7e-1 Q1 — 11 → 13 forceable cells (added DONE → CANCELLED
-        // + OQC_PENDING → DONE per the contract amendment).
+        // + OQC_PENDING → DONE). P11-1 — 13 → 14 (added SPLIT → CANCELLED).
         var forceable = 0;
         foreach (var pair in All169Cells())
         {
@@ -104,7 +109,7 @@ public sealed class WorkOrderStateMachineIsForceableTests
             if (WorkOrderStateMachine.IsForceablePhase(from, to))
                 forceable++;
         }
-        Assert.Equal(13, forceable);
+        Assert.Equal(14, forceable);
         Assert.Equal(ForceableCells.Length, forceable);
     }
 

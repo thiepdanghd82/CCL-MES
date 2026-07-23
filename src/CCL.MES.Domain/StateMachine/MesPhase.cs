@@ -94,4 +94,18 @@ public enum MesPhase
     /// can't accidentally advance unless the controller explicitly
     /// drives it.</summary>
     SHIPPED = 12,
+
+    /// <summary>P11-1 — WO forked: production đang chạy song song trên
+    /// ≥2 <c>WoLeg</c> (multi-method routing DAG: in ∥ cắt-tape →
+    /// assembly → cắt). WO chỉ vào SPLIT khi <c>WorkOrder.Legs.Count ≥ 2</c>;
+    /// WO 1-leg (mọi WO legacy + line combined-inline) KHÔNG BAO GIỜ vào
+    /// SPLIT và giữ nguyên luồng tuyến tính <c>PREPRESS → SETTING</c>.
+    /// Join: khi mọi leg terminal (không có successor trong DAG) đạt
+    /// <c>LegPhase.LEG_DONE</c>, controller lái <c>SPLIT → FQC_PENDING</c>
+    /// (RequiresCondition, xem <see cref="WorkOrderStateMachine"/>).
+    /// FQC/OQC/SHIPPED giữ nguyên WO-level sau join. Backward-compat:
+    /// <c>ProjectToLegacy(SPLIT)</c> = <c>ProcessStepCode.PrePressCheck</c>
+    /// nên legacy Razor không vỡ. Append cuối enum (=13) để KHÔNG dịch
+    /// giá trị số của 12 phase cũ.</summary>
+    SPLIT = 13,
 }

@@ -64,6 +64,17 @@ public static class DbSeeder
             Console.WriteLine($"[seed] process_line_map skipped — {ex.GetType().Name}: {ex.Message}");
         }
 
+        // P11-1 — map op→leg (routing DAG đa phương pháp, data-driven).
+        try
+        {
+            var lm = await SeedProcessLegMapAsync(db);
+            Console.WriteLine($"[seed] process_leg_map inserted={lm.Inserted} updated={lm.Updated} total={lm.Total}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[seed] process_leg_map skipped — {ex.GetType().Name}: {ex.Message}");
+        }
+
         if (await db.WorkOrders.AnyAsync()) return;
 
         // Máy
@@ -441,6 +452,44 @@ public static class DbSeeder
         await db.SaveChangesAsync();
         return new ProcessLineMapSeedResult(inserted, updated,
             await db.ProcessLineMaps.CountAsync());
+    }
+
+    /// <summary>P11-1 — seed/upsert bảng map op→leg (<see cref="ProcessLegMap"/>)
+    /// từ <see cref="RoutingLegMapSeed.DefaultEntries"/>. Idempotent theo natural
+    /// key (MatchType, MatchValue) — NON-deleting (DR-1): admin có thể tắt Active
+    /// thủ công, seed không xoá. Chỉ cập nhật khi LegKind/Method/ProcessLine/Sort/Note đổi.</summary>
+    public static async Task<ProcessLineMapSeedResult> SeedProcessLegMapAsync(MesDbContext db)
+    {
+        var existing = await db.ProcessLegMaps.ToListAsync();
+        var byKey = existing.ToDictionary(x => (x.MatchType, x.MatchValue));
+
+        int inserted = 0, updated = 0;
+        foreach (var e in RoutingLegMapSeed.DefaultEntries())
+        {
+            if (byKey.TryGetValue((e.MatchType, e.MatchValue), out var cur))
+            {
+                bool changed = false;
+                if (cur.LegKind != e.LegKind) { cur.LegKind = e.LegKind; changed = true; }
+                if (cur.Method != e.Method) { cur.Method = e.Method; changed = true; }
+                if (cur.ProcessLine != e.ProcessLine) { cur.ProcessLine = e.ProcessLine; changed = true; }
+                if (cur.Sort != e.Sort) { cur.Sort = e.Sort; changed = true; }
+                if (!string.Equals(cur.Note, e.Note, StringComparison.Ordinal)) { cur.Note = e.Note; changed = true; }
+                if (changed) { cur.UpdatedAt = DateTime.UtcNow; cur.UpdatedBy = "seed"; updated++; }
+            }
+            else
+            {
+                db.ProcessLegMaps.Add(new ProcessLegMap
+                {
+                    MatchType = e.MatchType, MatchValue = e.MatchValue, LegKind = e.LegKind,
+                    Method = e.Method, ProcessLine = e.ProcessLine, Sort = e.Sort,
+                    Note = e.Note, Active = true, CreatedBy = "seed",
+                });
+                inserted++;
+            }
+        }
+        await db.SaveChangesAsync();
+        return new ProcessLineMapSeedResult(inserted, updated,
+            await db.ProcessLegMaps.CountAsync());
     }
 
     /// <summary>Resolve CSV thư viện: env <c>MES_QC_LIBRARY_CSV</c> trước; nếu không,

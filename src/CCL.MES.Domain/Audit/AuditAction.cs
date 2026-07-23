@@ -161,6 +161,19 @@ public static class AuditAction
     public const string WoFlagsUpdate         = "WO_FLAGS_UPDATE";
 
     // ───────────────────────────────────────────────────────────────
+    // P11-1 — Multi-Method Routing DAG (fork-join). Reserved additive
+    // (emit thực tế ở P11-2 controller); khai báo sẵn để test parity +
+    // audit-grep ổn định. JSON envelope: { wo_id, wo_no, leg_id,
+    // leg_kind, method, process_line, from_phase, to_phase, ok }.
+    // ───────────────────────────────────────────────────────────────
+    public const string WoLegCreated          = "WO_LEG_CREATED";
+    public const string WoLegDone             = "WO_LEG_DONE";
+    public const string WoLegPhaseAdvanced    = "WO_LEG_PHASE_ADVANCED";
+    public const string WoLegRework           = "WO_LEG_REWORK";          // reject leg → PREPRESS (Q10)
+    public const string WoSplitForked         = "WO_SPLIT_FORKED";        // PREPRESS → SPLIT
+    public const string WoSplitJoined         = "WO_SPLIT_JOINED";        // SPLIT → FQC_PENDING
+
+    // ───────────────────────────────────────────────────────────────
     // P10.7a-1 — canonical MES audit codes reserved per
     // docs/P10.7-WO-STATE-CONTRACT.md §3.2 + §7.1. Reserving in this
     // PR (additive) so feature branches downstream do not invent

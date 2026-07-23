@@ -34,6 +34,11 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<CheckItemLibrary> CheckItemLibraries => Set<CheckItemLibrary>();
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
     public DbSet<WoStatusHistory> WoStatusHistories => Set<WoStatusHistory>();
+    // P11-1 — Multi-Method Routing DAG (fork-join): leg nodes + dependency
+    // edges + data-driven op→leg map. WO 1-leg cũ có 0 row WoLeg.
+    public DbSet<WoLeg> WoLegs => Set<WoLeg>();
+    public DbSet<WoLegDependency> WoLegDependencies => Set<WoLegDependency>();
+    public DbSet<ProcessLegMap> ProcessLegMaps => Set<ProcessLegMap>();
     public DbSet<QcInspection> QcInspections => Set<QcInspection>();
     public DbSet<QcResultDetail> QcResultDetails => Set<QcResultDetail>();
     public DbSet<Machine> Machines => Set<Machine>();
@@ -198,6 +203,60 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<ProcessLineMap>().Property(x => x.QcLine).HasMaxLength(16).IsRequired();
         b.Entity<ProcessLineMap>().Property(x => x.Note).HasMaxLength(256);
         b.Entity<ProcessLineMap>().HasIndex(x => new { x.MatchType, x.MatchValue }).IsUnique();
+
+        // ── P11-1 — Multi-Method Routing DAG (fork-join) ───────────────
+        // WoLeg: enum-as-string + per-leg RowVersion (SQLite trigger sinh
+        // randomblob(8) mỗi INSERT/UPDATE, cùng pattern WorkOrder — trigger
+        // ở migration AddRoutingLegDag).
+        b.Entity<WoLeg>().Property(x => x.LegKind).HasMaxLength(16).IsRequired();
+        b.Entity<WoLeg>().Property(x => x.Method).HasMaxLength(32);
+        b.Entity<WoLeg>().Property(x => x.ProcessLine).HasMaxLength(16);
+        b.Entity<WoLeg>().Property(x => x.SurfaceProfile).HasMaxLength(8).IsRequired();
+        b.Entity<WoLeg>().Property(x => x.InputSource).HasMaxLength(16).IsRequired();
+        b.Entity<WoLeg>().Property(x => x.LegPhase).HasMaxLength(16).IsRequired();
+        b.Entity<WoLeg>().Property(x => x.RowVersion).IsRowVersion();
+        b.Entity<WoLeg>().HasIndex(x => new { x.WorkOrderId, x.Sequence }).IsUnique();
+        b.Entity<WoLeg>().HasIndex(x => x.WorkOrderId);
+        b.Entity<WoLeg>().HasOne(x => x.WorkOrder)
+            .WithMany(w => w.Legs)
+            .HasForeignKey(x => x.WorkOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // WoLegDependency: cạnh DAG. (WO, Leg, DependsOn) unique. KHÔNG cấu
+        // hình FK EF tới WoLeg (2 đường Leg/DependsOn → tránh multiple
+        // cascade path SQLite); toàn vẹn tham chiếu enforce ở
+        // RoutingDagValidator + service layer (loose-coupling, giống
+        // SpecQcCapture.NgReasonCode).
+        b.Entity<WoLegDependency>().Property(x => x.DependencyGate).HasMaxLength(8).IsRequired();
+        b.Entity<WoLegDependency>().HasIndex(x => new { x.WorkOrderId, x.LegId, x.DependsOnLegId }).IsUnique();
+        b.Entity<WoLegDependency>().HasIndex(x => x.WorkOrderId);
+        b.Entity<WoLegDependency>().HasOne<WorkOrder>()
+            .WithMany(w => w.LegEdges)
+            .HasForeignKey(x => x.WorkOrderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // ProcessLegMap: data-driven op→leg (mirror ProcessLineMap).
+        b.Entity<ProcessLegMap>().Property(x => x.MatchType).HasMaxLength(32).IsRequired();
+        b.Entity<ProcessLegMap>().Property(x => x.MatchValue).HasMaxLength(128).IsRequired();
+        b.Entity<ProcessLegMap>().Property(x => x.LegKind).HasMaxLength(16).IsRequired();
+        b.Entity<ProcessLegMap>().Property(x => x.Method).HasMaxLength(32);
+        b.Entity<ProcessLegMap>().Property(x => x.ProcessLine).HasMaxLength(16);
+        b.Entity<ProcessLegMap>().Property(x => x.Note).HasMaxLength(256);
+        b.Entity<ProcessLegMap>().HasIndex(x => new { x.MatchType, x.MatchValue }).IsUnique();
+
+        // Leg-scoping column (shadow, nullable) trên 8 surface bảng P10.7.
+        // null = WO 1-leg cũ (controllers hiện set null tới khi P11-2 wire).
+        // Shadow → KHÔNG chạm 8 file entity, migration vẫn thêm cột.
+        foreach (var surface in new[]
+                 {
+                     typeof(WoMaterial), typeof(WoPlateCheck), typeof(WoCutterCheck),
+                     typeof(WoRunSession), typeof(WoPauseEvent), typeof(WoQtyEntry),
+                     typeof(WoIpqcCheck), typeof(WoIpqcCheckItem),
+                 })
+        {
+            b.Entity(surface).Property<long?>("WoLegId");
+            b.Entity(surface).HasIndex("WoLegId");
+        }
         b.Entity<WoIpqcCheckItem>().HasOne(x => x.WoIpqcCheck)
             .WithMany(c => c.Items)
             .HasForeignKey(x => x.WoIpqcCheckId)
