@@ -4,12 +4,13 @@
     state-sync pattern.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Prepress
 @using CCL.MES.Shared.ReasonCodes
 
 <div class="prepress-section">
     <div class="prepress-section-head">
-        <span class="prepress-section-title">Cutter check</span>
+        <span class="prepress-section-title">@T("wocutter.section.title")</span>
         <span class="prepress-pill @StatusPillClass(Row?.Status ?? "Pending")" data-testid="cutter-status-pill">
             @StatusLabel(Row?.Status ?? "Pending")
         </span>
@@ -18,28 +19,28 @@
     <div class="prepress-checkrow">
     <div class="prepress-row-form">
         <div class="prepress-form-cell">
-            <label for="cutter-no-input">Cutter number/code</label>
+            <label for="cutter-no-input">@T("wocutter.number.label")</label>
             <input id="cutter-no-input"
                    type="text"
                    class="prepress-input"
                    value="@_cutterNo"
                    @oninput="OnCutterNoInput"
                    disabled="@Busy"
-                   aria-label="Cutter number" />
+                   aria-label="@T("wocutter.number.aria")" />
         </div>
 
         @if (IsNgOrArming)
         {
             <div class="prepress-form-cell">
-                <label for="cutter-ng-reason">NG reason code (scrap)</label>
+                <label for="cutter-ng-reason">@T("wocutter.ng.reason.label")</label>
                 <select id="cutter-ng-reason"
                         class="prepress-input prepress-select"
                         value="@_ngReason"
                         @onchange="OnNgReasonChange"
                         disabled="@Busy"
-                        aria-label="Cutter NG reason code"
+                        aria-label="@T("wocutter.ng.reason.aria")"
                         data-testid="cutter-ng-reason-picker">
-                    <option value="">— select defect code —</option>
+                    <option value="">@T("wocutter.ng.reason.placeholder")</option>
                     @foreach (var rc in ScrapReasons)
                     {
                         <option value="@rc.Code">@rc.Code · @rc.LabelVi</option>
@@ -47,14 +48,14 @@
                 </select>
             </div>
             <div class="prepress-form-cell prepress-form-cell-wide">
-                <label for="cutter-ng-note">NG note (1-500 characters)</label>
+                <label for="cutter-ng-note">@T("wocutter.ng.note.label")</label>
                 <input id="cutter-ng-note"
                        type="text"
                        class="prepress-input"
                        value="@_ngNote"
                        @oninput="OnNgNoteInput"
                        disabled="@Busy"
-                       aria-label="Cutter NG note" />
+                       aria-label="@T("wocutter.ng.note.aria")" />
             </div>
         }
     </div>
@@ -65,7 +66,7 @@
                 data-testid="cutter-btn-ok"
                 disabled="@(Busy || (Row?.Status == "Ok"))"
                 @onclick="OnSubmitOk">
-            Record cutter OK
+            @T("wocutter.btn.ok")
         </button>
         @if (!_armingNg && (Row?.Status != "Ng"))
         {
@@ -73,9 +74,9 @@
                     class="op-btn op-btn-danger"
                     data-testid="cutter-btn-ng-arm"
                     disabled="@(Busy || ScrapReasons.Count == 0)"
-                    title="@(ScrapReasons.Count == 0 ? "NG code catalog is empty — report to IT" : null)"
+                    title="@(ScrapReasons.Count == 0 ? T("wocutter.ng.catalog.empty") : null)"
                     @onclick="() => _armingNg = true">
-                Mark NG
+                @T("wocutter.btn.ng.arm")
             </button>
         }
         else
@@ -85,14 +86,14 @@
                     data-testid="cutter-btn-ng-confirm"
                     disabled="@(Busy || !IsValidNgReason(_ngReason))"
                     @onclick="OnSubmitNg">
-                Save NG
+                @T("wocutter.btn.ng.save")
             </button>
             <button type="button"
                     class="op-btn op-btn-secondary"
                     data-testid="cutter-btn-ng-cancel"
                     disabled="@Busy"
                     @onclick="CancelNg">
-                Cancel
+                @T("wocutter.btn.cancel")
             </button>
         }
     </div>
@@ -101,7 +102,7 @@
     @if (Row?.CheckedBy is not null)
     {
         <div class="prepress-checked-by" data-testid="cutter-checked-by">
-            Checked by: <strong>@Row.CheckedBy</strong>
+            @T("wocutter.checkedby.label") <strong>@Row.CheckedBy</strong>
             @if (Row.CheckedAt is not null)
             {
                 <span> · @Row.CheckedAt.Value.ToLocalTime().ToString("HH:mm dd/MM")</span>
@@ -187,11 +188,11 @@
         _         => "prepress-pill-pending",
     };
 
-    private static string StatusLabel(string status) => status switch
+    private string StatusLabel(string status) => status switch
     {
         "Ok"      => "OK",
         "Ng"      => "NG",
-        _         => "Not checked",
+        _         => T("wocutter.status.notchecked"),
     };
 
     public sealed class CutterSetIntent

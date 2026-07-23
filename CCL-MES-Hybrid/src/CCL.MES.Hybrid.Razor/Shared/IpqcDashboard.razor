@@ -42,6 +42,7 @@
     judgment + POST qa/approve).
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.IpqcReview
 @using CCL.MES.Shared.Envelopes
@@ -52,20 +53,20 @@
 <div class="rs-dashboard ipqc-dashboard" data-testid="ipqc-dashboard">
     @if (_view is null && _initialError is null)
     {
-        <div class="rs-loading" data-testid="ipqc-loading">Loading IPQC status…</div>
+        <div class="rs-loading" data-testid="ipqc-loading">@T("ipqc.loading")</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="ipqc-initial-error">
-            <strong>Could not load IPQC status:</strong> @_initialError
+            <strong>@T("ipqc.initial.error")</strong> @_initialError
         </div>
     }
     else if (_invalidPhase)
     {
         <div class="wo-card-error" data-testid="ipqc-invalid-phase">
-            <strong>WO is not in the IPQC_WAIT phase</strong> —
-            Current: <code>@(_view?.MesPhase ?? "?")</code>.
-            Go back to the Work Orders tab to select another WO.
+            <strong>@T("ipqc.invalidphase.title")</strong> —
+            @T("ipqc.invalidphase.current") <code>@(_view?.MesPhase ?? "?")</code>.
+            @T("ipqc.invalidphase.hint")
         </div>
     }
     else if (_view is not null)
@@ -77,7 +78,7 @@
                 <span class="rs-head-phase rs-phase-ipqc">@_view.MesPhase</span>
             </div>
             <div class="ipqc-counter-pill" data-testid="ipqc-counter">
-                <span class="ipqc-counter-label">@(ItemsMode ? "Hạng mục đã xác nhận" : "Slots confirmed")</span>
+                <span class="ipqc-counter-label">@(ItemsMode ? T("ipqc.counter.items") : T("ipqc.counter.slots"))</span>
                 <span class="ipqc-counter-value scan-mono">@ConfirmedCount/@TotalCount</span>
             </div>
         </div>
@@ -85,10 +86,10 @@
         @if (_setError is not null)
         {
             <div class="wo-card-error" data-testid="ipqc-set-error">
-                <strong>Could not save change:</strong> @_setError
+                <strong>@T("ipqc.seterror.title")</strong> @_setError
                 <button type="button" class="op-btn op-btn-secondary op-btn-sm"
                         @onclick="DismissSetError"
-                        data-testid="ipqc-set-error-dismiss">Dismiss</button>
+                        data-testid="ipqc-set-error-dismiss">@T("ipqc.dismiss")</button>
             </div>
         }
 
@@ -96,7 +97,7 @@
         @if (AutoSyncWarning is { } warn)
         {
             <div class="wo-card-warn" data-testid="ipqc-autosync-warning">
-                <strong>⚠ Auto-sync chưa nạp bộ hạng mục:</strong> @warn
+                <strong>@T("ipqc.autosync.title")</strong> @warn
             </div>
         }
 
@@ -104,9 +105,9 @@
         @if (ItemsMode)
         {
             <div class="ipqc-resolved-banner" data-testid="ipqc-resolved-lines">
-                <span class="ipqc-resolved-label">QC line tự nạp theo routing:</span>
+                <span class="ipqc-resolved-label">@T("ipqc.resolved.label")</span>
                 <span class="ipqc-resolved-value scan-mono">@_view!.ResolvedLines</span>
-                <span class="ipqc-resolved-count">@_view!.Items.Count hạng mục</span>
+                <span class="ipqc-resolved-count">@T("ipqc.resolved.count", _view!.Items.Count)</span>
             </div>
 
             @foreach (var grp in _view!.Items.GroupBy(i => (i.ProcessLine, i.GroupLabel)))
@@ -132,17 +133,17 @@
                                 <button type="button" class="op-btn op-btn-success ipqc-slot-btn"
                                         disabled="@_busy"
                                         @onclick="@(() => OnItemOkAsync(item.ItemKey))"
-                                        data-testid="@($"ipqc-item-{item.ItemKey}-ok")">OK</button>
+                                        data-testid="@($"ipqc-item-{item.ItemKey}-ok")">@T("ipqc.btn.ok")</button>
                                 <button type="button" class="op-btn op-btn-danger ipqc-slot-btn"
                                         disabled="@_busy"
                                         @onclick="@(() => OpenItemNgForm(item))"
-                                        data-testid="@($"ipqc-item-{item.ItemKey}-ng")">NG</button>
+                                        data-testid="@($"ipqc-item-{item.ItemKey}-ng")">@T("ipqc.btn.ng")</button>
                             </div>
 
                             @if (item.Status == "Ng" && !string.IsNullOrWhiteSpace(item.NgReasonCode))
                             {
                                 <div class="ipqc-slot-ng-summary">
-                                    <span class="ipqc-slot-ng-label">NG code:</span>
+                                    <span class="ipqc-slot-ng-label">@T("ipqc.ng.code.label")</span>
                                     <span class="ipqc-slot-ng-value scan-mono">@item.NgReasonCode</span>
                                     @if (!string.IsNullOrWhiteSpace(item.NgNote))
                                     {
@@ -155,11 +156,11 @@
                             {
                                 <div class="ipqc-ng-form" data-testid="@($"ipqc-item-{item.ItemKey}-ng-form")">
                                     <div class="ipqc-ng-field">
-                                        <label class="rs-modal-label">NG code</label>
+                                        <label class="rs-modal-label">@T("ipqc.ng.code")</label>
                                         <select class="ipqc-input" value="@_ngReasonCode"
                                                 @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
                                                 data-testid="@($"ipqc-item-{item.ItemKey}-ng-reason")">
-                                            <option value="">— select NG code —</option>
+                                            <option value="">@T("ipqc.ng.select")</option>
                                             @foreach (var r in ScopedScrapReasons)
                                             {
                                                 <option value="@r.Code">@r.Code — @r.LabelVi</option>
@@ -167,7 +168,7 @@
                                         </select>
                                     </div>
                                     <div class="ipqc-ng-field ipqc-ng-field-wide">
-                                        <label class="rs-modal-label">NG note (1-500)</label>
+                                        <label class="rs-modal-label">@T("ipqc.ng.note.short")</label>
                                         <input type="text" class="ipqc-input" maxlength="500" value="@_ngNote"
                                                @oninput="@(e => _ngNote = e.Value?.ToString() ?? "")"
                                                data-testid="@($"ipqc-item-{item.ItemKey}-ng-note")" />
@@ -175,11 +176,11 @@
                                     <div class="ipqc-ng-actions">
                                         <button type="button" class="op-btn op-btn-secondary"
                                                 @onclick="CloseNgForm"
-                                                data-testid="@($"ipqc-item-{item.ItemKey}-ng-cancel")">Cancel</button>
+                                                data-testid="@($"ipqc-item-{item.ItemKey}-ng-cancel")">@T("ipqc.btn.cancel")</button>
                                         <button type="button" class="op-btn op-btn-danger"
                                                 disabled="@(!CanSubmitNg() || _busy)"
                                                 @onclick="@(() => OnItemNgAsync(item.ItemKey))"
-                                                data-testid="@($"ipqc-item-{item.ItemKey}-ng-submit")">Save NG</button>
+                                                data-testid="@($"ipqc-item-{item.ItemKey}-ng-submit")">@T("ipqc.btn.savng")</button>
                                     </div>
                                 </div>
                             }
@@ -197,29 +198,29 @@
                 <div class="rs-card ipqc-slot @SlotCssClass(slot)"
                      data-testid="@($"ipqc-slot-{slot.Key}")">
                     <div class="rs-card-head">
-                        <div class="rs-card-title">@slot.Title</div>
+                        <div class="rs-card-title">@T($"ipqc.slot.{slot.Key}.title")</div>
                         <div class="ipqc-status-pill @StatusPillCss(SlotStatus(slot))"
                              data-testid="@($"ipqc-slot-{slot.Key}-status")">@StatusDisplay(SlotStatus(slot))</div>
                     </div>
-                    <div class="ipqc-slot-subtitle">@slot.Subtitle</div>
+                    <div class="ipqc-slot-subtitle">@T($"ipqc.slot.{slot.Key}.subtitle")</div>
 
                     <div class="ipqc-slot-actions">
                         <button type="button"
                                 class="op-btn op-btn-success ipqc-slot-btn"
                                 disabled="@_busy"
                                 @onclick="@(() => OnSlotOkAsync(slot))"
-                                data-testid="@($"ipqc-slot-{slot.Key}-ok")">OK</button>
+                                data-testid="@($"ipqc-slot-{slot.Key}-ok")">@T("ipqc.btn.ok")</button>
                         <button type="button"
                                 class="op-btn op-btn-danger ipqc-slot-btn"
                                 disabled="@_busy"
                                 @onclick="@(() => OpenNgForm(slot.Key))"
-                                data-testid="@($"ipqc-slot-{slot.Key}-ng")">NG</button>
+                                data-testid="@($"ipqc-slot-{slot.Key}-ng")">@T("ipqc.btn.ng")</button>
                     </div>
 
                     @if (SlotStatus(slot) == "Ng" && SlotNgReason(slot) is { } persistedReason)
                     {
                         <div class="ipqc-slot-ng-summary" data-testid="@($"ipqc-slot-{slot.Key}-ng-summary")">
-                            <span class="ipqc-slot-ng-label">NG code:</span>
+                            <span class="ipqc-slot-ng-label">@T("ipqc.ng.code.label")</span>
                             <span class="ipqc-slot-ng-value scan-mono">@persistedReason</span>
                             @if (SlotNgNote(slot) is { Length: > 0 } persistedNote)
                             {
@@ -232,13 +233,13 @@
                     {
                         <div class="ipqc-ng-form" data-testid="@($"ipqc-slot-{slot.Key}-ng-form")">
                             <div class="ipqc-ng-field">
-                                <label class="rs-modal-label" for="@($"ipqc-{slot.Key}-reason")">NG code</label>
+                                <label class="rs-modal-label" for="@($"ipqc-{slot.Key}-reason")">@T("ipqc.ng.code")</label>
                                 <select id="@($"ipqc-{slot.Key}-reason")"
                                         class="ipqc-input"
                                         value="@_ngReasonCode"
                                         @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
                                         data-testid="@($"ipqc-slot-{slot.Key}-ng-reason")">
-                                    <option value="">— select NG code —</option>
+                                    <option value="">@T("ipqc.ng.select")</option>
                                     @foreach (var r in ScrapReasons)
                                     {
                                         <option value="@r.Code">@r.Code — @r.LabelVi</option>
@@ -247,12 +248,12 @@
                                 @if (ScrapReasons.Count == 0)
                                 {
                                     <div class="ipqc-hint ipqc-hint-warn">
-                                        NG catalog is empty — report to IT to seed reason codes (kind=Scrap).
+                                        @T("ipqc.ng.catalog.empty")
                                     </div>
                                 }
                             </div>
                             <div class="ipqc-ng-field ipqc-ng-field-wide">
-                                <label class="rs-modal-label" for="@($"ipqc-{slot.Key}-note")">NG note (1-500 characters)</label>
+                                <label class="rs-modal-label" for="@($"ipqc-{slot.Key}-note")">@T("ipqc.ng.note.long")</label>
                                 <input id="@($"ipqc-{slot.Key}-note")"
                                        type="text"
                                        class="ipqc-input"
@@ -266,13 +267,13 @@
                                 <button type="button"
                                         class="op-btn op-btn-secondary"
                                         @onclick="CloseNgForm"
-                                        data-testid="@($"ipqc-slot-{slot.Key}-ng-cancel")">Cancel</button>
+                                        data-testid="@($"ipqc-slot-{slot.Key}-ng-cancel")">@T("ipqc.btn.cancel")</button>
                                 <button type="button"
                                         class="op-btn op-btn-danger"
                                         disabled="@(!CanSubmitNg() || _busy)"
                                         @onclick="@(() => OnSlotNgAsync(slot))"
                                         data-testid="@($"ipqc-slot-{slot.Key}-ng-submit")">
-                                    Save NG
+                                    @T("ipqc.btn.savng")
                                 </button>
                             </div>
                         </div>
@@ -285,18 +286,18 @@
         @* ── Judgment row ───────────────────────────────────────── *@
         <div class="rs-card ipqc-judgment" data-testid="ipqc-judgment">
             <div class="rs-card-head">
-                <div class="rs-card-title">IPQC judgment</div>
+                <div class="rs-card-title">@T("ipqc.judgment.title")</div>
                 @if (_view.IsReadyForJudgment)
                 {
                     <div class="ipqc-rollup-pill @(_view.AnyNg ? "ipqc-rollup-warn" : "ipqc-rollup-ok")"
                          data-testid="ipqc-rollup-pill">
                         @if (_view.AllOk)
                         {
-                            <span>All 4 slots OK — Go Run recommended</span>
+                            <span>@T("ipqc.rollup.allok")</span>
                         }
                         else
                         {
-                            <span>One or more slots NG — choose Stop Line or Special Accept</span>
+                            <span>@T("ipqc.rollup.anyng")</span>
                         }
                     </div>
                 }
@@ -304,7 +305,7 @@
                 {
                     <div class="ipqc-rollup-pill ipqc-rollup-pending"
                          data-testid="ipqc-rollup-pill">
-                        @(4 - ConfirmedCount) slot(s) not yet confirmed
+                        @T("ipqc.rollup.pending", 4 - ConfirmedCount)
                     </div>
                 }
             </div>
@@ -315,21 +316,21 @@
                         disabled="@(!CanGoRun() || _busy)"
                         @onclick="@(() => OnSubmitJudgmentAsync(JudgmentGoRun))"
                         data-testid="ipqc-judgment-gorun">
-                    Go Run
+                    @T("ipqc.judgment.gorun")
                 </button>
                 <button type="button"
                         class="op-btn op-btn-warning ipqc-judgment-btn"
                         disabled="@(!CanStopLine() || _busy)"
                         @onclick="@(() => OnSubmitJudgmentAsync(JudgmentStopLine))"
                         data-testid="ipqc-judgment-stopline">
-                    Stop Line
+                    @T("ipqc.judgment.stopline")
                 </button>
                 <button type="button"
                         class="op-btn op-btn-danger ipqc-judgment-btn"
                         disabled="@(!CanSpecialAccept() || _busy)"
                         @onclick="@(() => OnSubmitJudgmentAsync(JudgmentSpecialAccept))"
                         data-testid="ipqc-judgment-specialaccept">
-                    Special Accept
+                    @T("ipqc.judgment.specialaccept")
                 </button>
             </div>
 
@@ -337,7 +338,7 @@
             {
                 <div class="ipqc-judgment-reason">
                     <label class="rs-modal-label" for="ipqc-sa-reason">
-                        Special Accept reason (required when choosing Special Accept; 1-500 characters)
+                        @T("ipqc.sa.reason.label")
                     </label>
                     <input id="ipqc-sa-reason"
                            type="text"
@@ -353,21 +354,19 @@
             @if (!_view.IsReadyForJudgment)
             {
                 <div class="rs-action-hint" data-testid="ipqc-judgment-hint">
-                    Confirm all 4 slots (Material + Print A/B/C) → the judgment buttons become active.
+                    @T("ipqc.hint.notready")
                 </div>
             }
             else if (!_view.AnyNg)
             {
                 <div class="rs-action-hint" data-testid="ipqc-judgment-hint">
-                    All 4 slots OK — only <strong>Go Run</strong> is valid. Stop Line + Special Accept
-                    apply only when a slot is NG.
+                    @T("ipqc.hint.allok")
                 </div>
             }
             else
             {
                 <div class="rs-action-hint" data-testid="ipqc-judgment-hint">
-                    One or more slots NG — <strong>Go Run</strong> is rejected by the server. Choose Stop Line (back to PREPRESS)
-                    or Special Accept (await QA approval).
+                    @T("ipqc.hint.anyng")
                 </div>
             }
         </div>
@@ -426,8 +425,8 @@
     /// <summary>F2 — câu cảnh báo khi auto-sync KHÔNG nạp được bộ item (null = không cảnh báo).</summary>
     private string? AutoSyncWarning => _view?.AutoSyncStatus switch
     {
-        "SkippedUnmapped" => "Routing có công đoạn chưa khai báo trong bảng map process→line. Báo kỹ thuật bổ sung map; tạm dùng 4-slot thủ công.",
-        "SkippedNoLibrary" => "Đã suy ra QC line nhưng thư viện hạng mục trống cho line đó. Báo QC nạp thư viện.",
+        "SkippedUnmapped" => T("ipqc.autosync.skipped.unmapped"),
+        "SkippedNoLibrary" => T("ipqc.autosync.skipped.nolibrary"),
         _ => null,
     };
 
@@ -515,7 +514,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _setError = $"Could not connect to the server: {ex.Message}";
+            _setError = T("ipqc.error.connect", ex.Message);
         }
         catch (Exception ex)
         {
@@ -557,11 +556,11 @@
         }
         catch (HttpRequestException ex)
         {
-            _initialError = $"Could not connect to the server: {ex.Message}";
+            _initialError = T("ipqc.error.connect", ex.Message);
         }
         catch (Exception ex)
         {
-            _initialError = $"Error loading IPQC status: {ex.GetType().Name}: {ex.Message}";
+            _initialError = T("ipqc.error.loading", $"{ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -601,11 +600,11 @@
         _     => "ipqc-slot-pending",
     };
 
-    private static string StatusDisplay(string status) => status switch
+    private string StatusDisplay(string status) => status switch
     {
-        "Ok" => "✓ OK",
-        "Ng" => "✗ NG",
-        _    => "— Pending",
+        "Ok" => T("ipqc.status.ok"),
+        "Ng" => T("ipqc.status.ng"),
+        _    => T("ipqc.status.pending"),
     };
 
     private static string StatusPillCss(string status) => status switch
@@ -689,7 +688,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _setError = $"Could not connect to the server: {ex.Message}";
+            _setError = T("ipqc.error.connect", ex.Message);
         }
         catch (Exception ex)
         {
@@ -750,7 +749,7 @@
         }
         catch (HttpRequestException ex)
         {
-            _setError = $"Could not connect to the server: {ex.Message}";
+            _setError = T("ipqc.error.connect", ex.Message);
         }
         catch (Exception ex)
         {
@@ -790,7 +789,7 @@
             return;
         }
 
-        _setError = "Server returned Ok=false without an error code — report to IT.";
+        _setError = T("ipqc.error.no_code");
     }
 
     private sealed record SlotDef(string Key, string Title, string Subtitle);

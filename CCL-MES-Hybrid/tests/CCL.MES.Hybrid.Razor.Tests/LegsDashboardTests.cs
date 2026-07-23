@@ -23,6 +23,7 @@ public sealed class LegsDashboardTests : TestContext
     public LegsDashboardTests()
     {
         Services.AddSingleton<ICclApiClient>(_api);
+        Services.AddI18n();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         this.AddTestAuthorization().SetAuthorized("op");
     }

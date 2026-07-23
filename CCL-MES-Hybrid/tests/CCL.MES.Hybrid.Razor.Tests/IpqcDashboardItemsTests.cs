@@ -22,6 +22,7 @@ public sealed class IpqcDashboardItemsTests : TestContext
     public IpqcDashboardItemsTests()
     {
         Services.AddSingleton<ICclApiClient>(new RecordingApi());
+        Services.AddI18n();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         Services.AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(NullLoggerFactory.Instance);
         this.AddTestAuthorization().SetAuthorized("qc-user");

@@ -1,3 +1,5 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
 @*
     P10.7c-3 — Finish confirm dialog (RUNNING|PAUSED → FQC_PENDING).
 
@@ -10,16 +12,16 @@
        Size="ModalSize.Sm"
        Severity="ModalSeverity.Danger"
        ClickOutsideToClose="false">
-    <Header>Finish WO @WoNo?</Header>
+    <Header>@T("wofinish.header", WoNo)</Header>
     <Body>
         <div class="rs-modal-body" data-testid="finish-modal">
-            <p>You are about to move the WO to <strong>FQC_PENDING</strong>. Recorded output:</p>
+            <p>@T("wofinish.about.pre") <strong>FQC_PENDING</strong>@T("wofinish.about.post")</p>
             <ul class="rs-finish-summary">
-                <li><span>Total Done</span> <strong class="scan-mono">@QtyDoneCached</strong></li>
-                <li><span>Total NG</span> <strong class="scan-mono">@QtyNgCached</strong></li>
-                <li><span>Target</span> <strong class="scan-mono">@TargetQty</strong></li>
+                <li><span>@T("wofinish.total.done")</span> <strong class="scan-mono">@QtyDoneCached</strong></li>
+                <li><span>@T("wofinish.total.ng")</span> <strong class="scan-mono">@QtyNgCached</strong></li>
+                <li><span>@T("wofinish.target")</span> <strong class="scan-mono">@TargetQty</strong></li>
             </ul>
-            <p class="rs-finish-warn">After finishing, no further output can be added to this WO.</p>
+            <p class="rs-finish-warn">@T("wofinish.warn")</p>
         </div>
     </Body>
     <Footer>
@@ -27,12 +29,12 @@
                 class="op-btn op-btn-secondary"
                 data-testid="finish-cancel-btn"
                 disabled="@Busy"
-                @onclick="OnClose">Cancel</button>
+                @onclick="OnClose">@T("wofinish.cancel")</button>
         <button type="button"
                 class="op-btn op-btn-danger"
                 data-testid="finish-confirm-btn"
                 disabled="@Busy"
-                @onclick="OnConfirmClicked">Finish WO</button>
+                @onclick="OnConfirmClicked">@T("wofinish.confirm")</button>
     </Footer>
 </Modal>
 

@@ -42,6 +42,7 @@ public sealed class PrepressDashboardTests : TestContext
         api.ReasonCodesImpl = (_, _) => Task.FromResult<IReadOnlyList<ReasonCodeOption>>(SampleScrapReasons());
         _session.SetUser("op.demo", "Operator");   // default: cannot special-accept
         Services.AddSingleton<ICclApiClient>(api);
+        Services.AddI18n();
         Services.AddSingleton<IRecentScansService>(new InMemoryRecentScansService());
         Services.AddSingleton<IAuthSession>(_session);
         Services.AddSingleton(Microsoft.Extensions.Options.Options.Create(_hwOptions));
@@ -250,7 +251,7 @@ public sealed class PrepressDashboardTests : TestContext
 
         // Choose a valid Scrap code via the <select> + type a note.
         cut.Find("[data-testid='material-ng-reason-picker']").Change("SC-MAT-DAMAGE");
-        cut.FindAll("input[aria-label='NG note']")[0].Input("biên cuộn rách");
+        cut.FindAll("input[aria-label='Ghi chú NG']")[0].Input("biên cuộn rách");
 
         firstRow = cut.FindAll("[data-testid='material-row']")[0];
         var confirmAfter = firstRow.QuerySelector("[data-testid='btn-ng-confirm']")!;
@@ -346,7 +347,7 @@ public sealed class PrepressDashboardTests : TestContext
 
         var plateArm = cut.Find("[data-testid='plate-btn-ng-arm']");
         Assert.True(plateArm.HasAttribute("disabled"));
-        Assert.Contains("NG code catalog is empty",
+        Assert.Contains("Danh mục mã lỗi NG đang trống — báo IT",
             plateArm.GetAttribute("title") ?? "");
     }
 
@@ -399,7 +400,7 @@ public sealed class PrepressDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='prepress-invalid-phase']");
-            Assert.Contains("not in the PREPRESS phase", banner.TextContent);
+            Assert.Contains("WO không ở công đoạn PREPRESS", banner.TextContent);
             Assert.Empty(cut.FindAll("[data-testid='material-row']"));
             Assert.Empty(cut.FindAll("[data-testid='prepress-advance-btn']"));
         });
@@ -470,7 +471,7 @@ public sealed class PrepressDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var pill = cut.Find("[data-testid='materials-progress']");
-            Assert.Contains("1 / 3 OK", pill.TextContent);
+            Assert.Contains("1 / 3 Đạt", pill.TextContent);
         });
     }
 
@@ -696,8 +697,8 @@ public sealed class PrepressDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var pills = cut.FindAll("[data-testid='status-pill']");
-            Assert.Contains("Special Accept", pills[0].TextContent);          // deviation row
-            Assert.DoesNotContain("Special Accept", pills[1].TextContent);    // clean OK
+            Assert.Contains("Chấp nhận đặc biệt", pills[0].TextContent);          // deviation row
+            Assert.DoesNotContain("Chấp nhận đặc biệt", pills[1].TextContent);    // clean OK
         });
     }
 

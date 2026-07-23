@@ -5,42 +5,44 @@
     Rule 4: plain <input>, no <InputText>.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Prepress
 @using CCL.MES.Shared.ReasonCodes
 
 <div class="prepress-section">
     <div class="prepress-section-head">
-        <span class="prepress-section-title">Plate check</span>
+        <span class="prepress-section-title">@T("woplate.section.title")</span>
         <span class="prepress-pill @StatusPillClass(Row?.Status ?? "Pending")" data-testid="plate-status-pill">
             @StatusLabel(Row?.Status ?? "Pending")
         </span>
+        @* StatusLabel maps: Ok→"OK", Ng→"NG" (raw tokens), else→woplate.status.pending *@
     </div>
 
     <div class="prepress-checkrow">
     <div class="prepress-row-form">
         <div class="prepress-form-cell">
-            <label for="plate-no-input">Plate number/code</label>
+            <label for="plate-no-input">@T("woplate.plateno.label")</label>
             <input id="plate-no-input"
                    type="text"
                    class="prepress-input"
                    value="@_plateNo"
                    @oninput="OnPlateNoInput"
                    disabled="@Busy"
-                   aria-label="Plate number" />
+                   aria-label="@T("woplate.plateno.aria")" />
         </div>
 
         @if (IsNgOrArming)
         {
             <div class="prepress-form-cell">
-                <label for="plate-ng-reason">NG reason code (scrap)</label>
+                <label for="plate-ng-reason">@T("woplate.ngreason.label")</label>
                 <select id="plate-ng-reason"
                         class="prepress-input prepress-select"
                         value="@_ngReason"
                         @onchange="OnNgReasonChange"
                         disabled="@Busy"
-                        aria-label="Plate NG reason code"
+                        aria-label="@T("woplate.ngreason.aria")"
                         data-testid="plate-ng-reason-picker">
-                    <option value="">— select defect code —</option>
+                    <option value="">@T("woplate.ngreason.placeholder")</option>
                     @foreach (var rc in ScrapReasons)
                     {
                         <option value="@rc.Code">@rc.Code · @rc.LabelVi</option>
@@ -48,14 +50,14 @@
                 </select>
             </div>
             <div class="prepress-form-cell prepress-form-cell-wide">
-                <label for="plate-ng-note">NG note (1-500 characters)</label>
+                <label for="plate-ng-note">@T("woplate.ngnote.label")</label>
                 <input id="plate-ng-note"
                        type="text"
                        class="prepress-input"
                        value="@_ngNote"
                        @oninput="OnNgNoteInput"
                        disabled="@Busy"
-                       aria-label="Plate NG note" />
+                       aria-label="@T("woplate.ngnote.aria")" />
             </div>
         }
     </div>
@@ -66,7 +68,7 @@
                 data-testid="plate-btn-ok"
                 disabled="@(Busy || (Row?.Status == "Ok"))"
                 @onclick="OnSubmitOk">
-            Record plate OK
+            @T("woplate.btn.ok")
         </button>
         @if (!_armingNg && (Row?.Status != "Ng"))
         {
@@ -74,9 +76,9 @@
                     class="op-btn op-btn-danger"
                     data-testid="plate-btn-ng-arm"
                     disabled="@(Busy || ScrapReasons.Count == 0)"
-                    title="@(ScrapReasons.Count == 0 ? "NG code catalog is empty — report to IT" : null)"
+                    title="@(ScrapReasons.Count == 0 ? T("woplate.ng.empty.title") : null)"
                     @onclick="() => _armingNg = true">
-                Mark NG
+                @T("woplate.btn.ng.arm")
             </button>
         }
         else
@@ -86,14 +88,14 @@
                     data-testid="plate-btn-ng-confirm"
                     disabled="@(Busy || !IsValidNgReason(_ngReason))"
                     @onclick="OnSubmitNg">
-                Save NG
+                @T("woplate.btn.ng.save")
             </button>
             <button type="button"
                     class="op-btn op-btn-secondary"
                     data-testid="plate-btn-ng-cancel"
                     disabled="@Busy"
                     @onclick="CancelNg">
-                Cancel
+                @T("woplate.btn.cancel")
             </button>
         }
     </div>
@@ -102,7 +104,7 @@
     @if (Row?.CheckedBy is not null)
     {
         <div class="prepress-checked-by" data-testid="plate-checked-by">
-            Checked by: <strong>@Row.CheckedBy</strong>
+            @T("woplate.checkedby.label") <strong>@Row.CheckedBy</strong>
             @if (Row.CheckedAt is not null)
             {
                 <span> · @Row.CheckedAt.Value.ToLocalTime().ToString("HH:mm dd/MM")</span>
@@ -188,11 +190,11 @@
         _         => "prepress-pill-pending",
     };
 
-    private static string StatusLabel(string status) => status switch
+    private string StatusLabel(string status) => status switch
     {
         "Ok"      => "OK",
         "Ng"      => "NG",
-        _         => "Not checked",
+        _         => T("woplate.status.pending"),
     };
 
     public sealed class PlateSetIntent

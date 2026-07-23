@@ -24,7 +24,29 @@ public sealed partial class TranslationCatalog : ITranslationCatalog
         RegisterTopBar();   // batch 1
         RegisterAppearance();// batch 1
         RegisterLogin();    // batch 2B
-        // Batches 2C–2F append their Register* calls here.
+
+        // batch 2C — WorkOrders + operational dashboards (P10.7/P11).
+        RegisterWorkOrders();
+        RegisterPrepress();
+        RegisterIpqc();
+        RegisterQaApproval();
+        RegisterRunning();
+        RegisterSetting();
+        RegisterLegs();
+        RegisterSemi();
+        RegisterFqc();
+        RegisterOqc();
+        RegisterShipped();
+        RegisterWoMaterials();
+        RegisterWoPlate();
+        RegisterWoCutter();
+        RegisterWoPause();
+        RegisterWoQty();
+        RegisterWoFinish();
+        RegisterQcPhoto();
+        RegisterHardwareRow();
+        RegisterTraceDetail();
+        // Batches 2D–2F append their Register* calls here.
     }
 
     /// <summary>Register one key with both language slots. Called from the

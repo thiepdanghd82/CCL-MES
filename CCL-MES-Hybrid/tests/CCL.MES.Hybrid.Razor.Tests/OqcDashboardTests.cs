@@ -27,6 +27,7 @@ public sealed class OqcDashboardTests : TestContext
         var api = new RecordingApi();
         _session = new StubAuthSession();
         Services.AddSingleton<ICclApiClient>(api);
+        Services.AddI18n();
         Services.AddSingleton<IAuthSession>(_session);
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
             typeof(NullLogger<>));

@@ -28,6 +28,7 @@ public sealed class RunningDashboardTests : TestContext
     {
         var api = new RecordingApi();
         Services.AddSingleton<ICclApiClient>(api);
+        Services.AddI18n();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
             typeof(NullLogger<>));
         Services.AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(NullLoggerFactory.Instance);

@@ -44,30 +44,30 @@
 @using CCL.MES.Shared.Prepress
 @using CCL.MES.Shared.ReasonCodes
 @using CCL.MES.Shared.RecentScans
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @inject IRecentScansService RecentScans
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
-@implements IDisposable
 
 <div class="prepress-dashboard" data-testid="prepress-dashboard">
     @if (_view is null && _initialError is null)
     {
         <div class="prepress-loading" data-testid="prepress-loading">
-            Loading PREPRESS checklist…
+            @T("prepress.loading")
         </div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="prepress-initial-error">
-            <strong>Could not load PREPRESS checklist:</strong> @_initialError
+            <strong>@T("prepress.initial_error")</strong> @_initialError
         </div>
     }
     else if (_invalidPhase)
     {
         <div class="wo-card-error" data-testid="prepress-invalid-phase">
-            <strong>WO is not in the PREPRESS phase</strong> —
-            Current: <code>@(_view?.MesPhase ?? "?")</code>.
-            Go back to the Work Orders tab to select another WO.
+            <strong>@T("prepress.invalid_phase.title")</strong> —
+            @T("prepress.invalid_phase.current") <code>@(_view?.MesPhase ?? "?")</code>.
+            @T("prepress.invalid_phase.hint")
         </div>
     }
     else if (_view is not null)
@@ -81,11 +81,11 @@
             <div class="prepress-head-rollup" data-testid="prepress-rollup-pill">
                 @if (_view.MaterialsReady)
                 {
-                    <span class="prepress-pill prepress-pill-ok">Materials Ready ✓</span>
+                    <span class="prepress-pill prepress-pill-ok">@T("prepress.rollup.ready")</span>
                 }
                 else
                 {
-                    <span class="prepress-pill prepress-pill-pending">Materials not ready</span>
+                    <span class="prepress-pill prepress-pill-pending">@T("prepress.rollup.not_ready")</span>
                 }
             </div>
         </div>
@@ -93,11 +93,11 @@
         @if (_setError is not null)
         {
             <div class="wo-card-error" data-testid="prepress-set-error">
-                <strong>Could not save change:</strong> @_setError
+                <strong>@T("prepress.set_error")</strong> @_setError
                 <button type="button" class="op-btn op-btn-secondary op-btn-sm"
                         @onclick="DismissSetError"
                         data-testid="prepress-set-error-dismiss">
-                    Dismiss
+                    @T("prepress.dismiss")
                 </button>
             </div>
         }
@@ -105,22 +105,21 @@
         @if (_scrapReasons.Count == 0 && !_reasonsLoading)
         {
             <div class="wo-card-error" data-testid="prepress-reasons-empty">
-                <strong>NG defect code catalog is empty.</strong>
-                The server has not seeded reason codes (kind=Scrap). Report to IT —
-                restart the API to run the boot probe
-                <code>[seed] reason_codes</code>; only OK can be recorded until this is fixed.
+                <strong>@T("prepress.reasons_empty.title")</strong>
+                @T("prepress.reasons_empty.body")
+                <code>[seed] reason_codes</code>; @T("prepress.reasons_empty.hint")
             </div>
         }
 
         @if (HwOptions.Value.ScanEnabled)
         {
             <div class="prepress-scan-bar" data-testid="prepress-scan-bar">
-                <label class="prepress-scan-label" for="prepress-scan-input">Scan material</label>
+                <label class="prepress-scan-label" for="prepress-scan-input">@T("prepress.scan.label")</label>
                 <input id="prepress-scan-input"
                        type="text"
                        class="prepress-scan-input"
                        data-testid="prepress-scan-input"
-                       placeholder="Point the scanner at a material label, then it auto-matches…"
+                       placeholder="@T("prepress.scan.placeholder")"
                        value="@_scanInput"
                        @oninput="OnScanInput"
                        @onchange="OnScanCommitted"
@@ -129,7 +128,7 @@
                        autocomplete="off"
                        autofocus />
                 <span class="prepress-scan-count" data-testid="prepress-scan-count">
-                    @MaterialsOkCount/@_view.Materials.Count materials OK
+                    @T("prepress.scan.count", MaterialsOkCount, _view.Materials.Count)
                 </span>
                 @if (_scanStatus is not null)
                 {
@@ -163,12 +162,12 @@
                     data-testid="prepress-advance-btn"
                     disabled="@(!_view.MaterialsReady || _busy)"
                     @onclick="OnAdvanceClicked">
-                Start Setting (advance step)
+                @T("prepress.advance.button")
             </button>
             @if (!_view.MaterialsReady)
             {
                 <span class="prepress-advance-hint" data-testid="prepress-advance-hint">
-                    Complete all 3 checklists (Material + Plate + Cutter) → this button becomes active.
+                    @T("prepress.advance.hint")
                 </span>
             }
         </div>
@@ -426,7 +425,11 @@
 
     private void DismissSetError() => _setError = null;
 
-    public void Dispose() => _scanDebounce?.Dispose();
+    public override void Dispose()
+    {
+        _scanDebounce?.Dispose();
+        base.Dispose();
+    }
 
     // ── Scan materials (PREPRESS) — USB wedge (Zebra DS2208) ────────────
     // The DS2208 runs HID keyboard-wedge by default: it types the barcode

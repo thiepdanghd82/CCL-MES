@@ -22,6 +22,7 @@ public sealed class SemiStockDashboardTests : TestContext
     public SemiStockDashboardTests()
     {
         Services.AddSingleton<ICclApiClient>(_api);
+        Services.AddI18n();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         this.AddTestAuthorization().SetAuthorized("op");
         // RowContextMenu invokes cclMesMenu.place via JS on open — loose so the
@@ -313,5 +314,26 @@ public sealed class SemiStockDashboardTests : TestContext
         // empty-state box icon phải là 44px tường minh.
         var emptyIco = cut.Find("[data-testid='semi-empty'] svg");
         Assert.Equal("44", emptyIco.GetAttribute("width"));
+    }
+
+    [Fact]
+    public void Language_flip_re_renders_dashboard_live()
+    {
+        // i18n Phase-2 (batch 2C) — SemiStockDashboard (@inherits
+        // LocalizedComponentBase) re-renders into the new language WITHOUT a
+        // reload when ILanguageService flips. Proves the picker takes effect live.
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
+        var cut = RenderComponent<SemiStockDashboard>();
+        Assert.Contains("Kho bán thành phẩm", cut.Markup);          // semi.title VI (default)
+
+        var lang = (CCL.MES.Hybrid.Client.Localization.InMemoryLanguageService)
+            Services.GetRequiredService<CCL.MES.Hybrid.Client.Localization.ILanguageService>();
+        lang.Set(CCL.MES.Shared.Localization.LanguageCode.English);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Semi-Finished Store", cut.Markup);     // semi.title EN
+            Assert.DoesNotContain("Kho bán thành phẩm", cut.Markup);
+        });
     }
 }

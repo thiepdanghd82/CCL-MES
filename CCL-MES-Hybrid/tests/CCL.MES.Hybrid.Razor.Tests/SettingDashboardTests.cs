@@ -29,6 +29,7 @@ public sealed class SettingDashboardTests : TestContext
     {
         var api = new RecordingApi();
         Services.AddSingleton<ICclApiClient>(api);
+        Services.AddI18n();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
             typeof(NullLogger<>));
         Services.AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(NullLoggerFactory.Instance);
@@ -96,7 +97,7 @@ public sealed class SettingDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='setting-invalid-phase']");
-            Assert.Contains("not in the SETTING phase", banner.TextContent);
+            Assert.Contains("Lệnh SX không ở bước SETTING", banner.TextContent);
         });
     }
 

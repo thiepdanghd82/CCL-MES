@@ -28,6 +28,7 @@
     Rule 4: plain <button>, plain <input> in modals.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.RunningSurface
 @using CCL.MES.Shared.Envelopes
@@ -38,12 +39,12 @@
 <div class="rs-dashboard" data-testid="running-dashboard">
     @if (_view is null && _initialError is null)
     {
-        <div class="rs-loading" data-testid="running-loading">Loading run status…</div>
+        <div class="rs-loading" data-testid="running-loading">@T("running.loading")</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="running-initial-error">
-            <strong>Could not load RUNNING status:</strong> @_initialError
+            <strong>@T("running.initial.error")</strong> @_initialError
         </div>
     }
     else if (_view is not null && DeferredPhaseInfo.TryGetValue(_view.MesPhase, out var deferred))
@@ -67,16 +68,16 @@
              data-testid="running-deferred"
              data-deferred-phase="@_view.MesPhase">
             <div class="rs-card-head">
-                <div class="rs-card-title">@deferred.Title</div>
+                <div class="rs-card-title">@T(deferred.TitleKey)</div>
             </div>
             <div class="rs-ipqc-wait-body">
-                <p>@deferred.Body</p>
-                <p class="rs-ipqc-wait-hint">@deferred.Hint</p>
+                <p>@T(deferred.BodyKey)</p>
+                <p class="rs-ipqc-wait-hint">@T(deferred.HintKey)</p>
                 @if (_view.QtyDoneCached > 0 || _view.QtyNgCached > 0)
                 {
                     <div class="rs-ipqc-wait-stats">
-                        <span>Done recorded: <strong class="scan-mono">@_view.QtyDoneCached</strong></span>
-                        <span>NG recorded: <strong class="scan-mono">@_view.QtyNgCached</strong></span>
+                        <span>@T("running.done.recorded") <strong class="scan-mono">@_view.QtyDoneCached</strong></span>
+                        <span>@T("running.ng.recorded") <strong class="scan-mono">@_view.QtyNgCached</strong></span>
                     </div>
                 }
             </div>
@@ -85,9 +86,9 @@
     else if (_invalidPhase)
     {
         <div class="wo-card-error" data-testid="running-invalid-phase">
-            <strong>WO is not in a running phase</strong> —
-            Current: <code>@(_view?.MesPhase ?? "?")</code>.
-            Go back to the Work Orders tab to select another WO.
+            <strong>@T("running.invalid.phase")</strong> —
+            @T("running.invalid.current") <code>@(_view?.MesPhase ?? "?")</code>.
+            @T("running.invalid.goback")
         </div>
     }
     else if (_view is not null)
@@ -101,7 +102,7 @@
             @if (_view.MesPhase == "PAUSED" && _view.ActivePauseStartAt is not null)
             {
                 <div class="rs-head-pause" data-testid="running-pause-banner">
-                    <span class="rs-pause-label">Paused</span>
+                    <span class="rs-pause-label">@T("running.paused.label")</span>
                     <span class="rs-pause-reason">@(_view.ActivePauseReasonCode ?? "?")</span>
                 </div>
             }
@@ -110,10 +111,10 @@
         @if (_setError is not null)
         {
             <div class="wo-card-error" data-testid="running-set-error">
-                <strong>Could not save change:</strong> @_setError
+                <strong>@T("running.set.error")</strong> @_setError
                 <button type="button" class="op-btn op-btn-secondary op-btn-sm"
                         @onclick="DismissSetError"
-                        data-testid="running-set-error-dismiss">Dismiss</button>
+                        data-testid="running-set-error-dismiss">@T("running.dismiss")</button>
             </div>
         }
 
@@ -121,14 +122,14 @@
         {
             <div class="rs-card rs-card-stretch">
                 <div class="rs-card-head">
-                    <div class="rs-card-title">IPQC approved — start running</div>
+                    <div class="rs-card-title">@T("running.ipqc.approved.title")</div>
                 </div>
                 <div class="rs-action-bar">
                     <button type="button"
                             class="op-btn op-btn-primary rs-primary-btn"
                             data-testid="run-start-btn"
                             disabled="@_busy"
-                            @onclick="OnRunStartAsync">Start running</button>
+                            @onclick="OnRunStartAsync">@T("running.start")</button>
                 </div>
             </div>
         }
@@ -136,22 +137,22 @@
         {
             <div class="rs-counter" data-testid="running-counter">
                 <div class="rs-counter-cell rs-counter-done">
-                    <div class="rs-counter-label">Done</div>
+                    <div class="rs-counter-label">@T("running.counter.done")</div>
                     <div class="rs-counter-value scan-mono" data-testid="counter-done">@_view.QtyDoneCached</div>
                 </div>
                 <div class="rs-counter-cell rs-counter-ng">
-                    <div class="rs-counter-label">NG</div>
+                    <div class="rs-counter-label">@T("running.counter.ng")</div>
                     <div class="rs-counter-value scan-mono" data-testid="counter-ng">@_view.QtyNgCached</div>
                 </div>
                 <div class="rs-counter-cell rs-counter-target">
-                    <div class="rs-counter-label">Target</div>
+                    <div class="rs-counter-label">@T("running.counter.target")</div>
                     <div class="rs-counter-value scan-mono" data-testid="counter-target">@_view.TargetQty</div>
                 </div>
             </div>
 
             <div class="rs-card">
                 <div class="rs-card-head">
-                    <div class="rs-card-title">Add output (Done)</div>
+                    <div class="rs-card-title">@T("running.addoutput.title")</div>
                 </div>
                 <div class="rs-tap-grid" data-testid="running-tap-grid">
                     @foreach (var amt in TapAmounts)
@@ -167,18 +168,18 @@
                 @if (_view.MesPhase == "PAUSED")
                 {
                     <div class="rs-tap-hint" data-testid="running-tap-paused-hint">
-                        Paused — tap "Resume running" to re-enable the buttons.
+                        @T("running.tap.paused.hint")
                     </div>
                 }
             </div>
 
             <div class="rs-card">
                 <div class="rs-card-head">
-                    <div class="rs-card-title">Reject NG (Reject)</div>
+                    <div class="rs-card-title">@T("running.ng.title")</div>
                 </div>
                 <div class="rs-ng-row">
                     <div class="rs-ng-field">
-                        <label class="rs-modal-label" for="ng-amount-input">NG quantity</label>
+                        <label class="rs-modal-label" for="ng-amount-input">@T("running.ng.quantity")</label>
                         <input id="ng-amount-input"
                                type="number"
                                class="rs-input"
@@ -190,14 +191,14 @@
                                @oninput="OnNgAmountInput" />
                     </div>
                     <div class="rs-ng-field">
-                        <label class="rs-modal-label" for="ng-reason-select">NG defect code *</label>
+                        <label class="rs-modal-label" for="ng-reason-select">@T("running.ng.defectcode")</label>
                         <select id="ng-reason-select"
                                 class="rs-input rs-select"
                                 value="@_ngReasonCode"
                                 data-testid="ng-reason-select"
                                 disabled="@(_busy || _view.MesPhase != "RUNNING" || ScrapReasons.Count == 0)"
                                 @onchange="OnNgReasonChange">
-                            <option value="">— select defect code —</option>
+                            <option value="">@T("running.ng.defectcode.placeholder")</option>
                             @foreach (var rc in ScrapReasons)
                             {
                                 <option value="@rc.Code">@rc.Code · @rc.LabelVi</option>
@@ -205,7 +206,7 @@
                         </select>
                     </div>
                     <div class="rs-ng-field rs-ng-field-wide">
-                        <label class="rs-modal-label" for="ng-note-input">Note * (1-500 characters)</label>
+                        <label class="rs-modal-label" for="ng-note-input">@T("running.ng.note")</label>
                         <input id="ng-note-input"
                                type="text"
                                class="rs-input"
@@ -220,13 +221,13 @@
                                 class="op-btn op-btn-warning rs-ng-btn"
                                 data-testid="ng-submit-btn"
                                 disabled="@(_busy || _view.MesPhase != "RUNNING" || !IsNgValid())"
-                                @onclick="OnNgSubmitAsync">Record NG</button>
+                                @onclick="OnNgSubmitAsync">@T("running.ng.submit")</button>
                     </div>
                 </div>
                 @if (ScrapReasons.Count == 0)
                 {
                     <div class="wo-card-error" data-testid="running-scrap-reasons-empty">
-                        <strong>NG catalog is empty.</strong> The server has not seeded reason codes (kind=Scrap). Report to IT.
+                        <strong>@T("running.scrap.empty.strong")</strong> @T("running.scrap.empty.body")
                     </div>
                 }
             </div>
@@ -238,7 +239,7 @@
                             class="op-btn op-btn-warning"
                             data-testid="run-pause-btn"
                             disabled="@_busy"
-                            @onclick="OpenPauseModal">Pause</button>
+                            @onclick="OpenPauseModal">@T("running.pause")</button>
                 }
                 else if (_view.MesPhase == "PAUSED")
                 {
@@ -246,20 +247,20 @@
                             class="op-btn op-btn-primary"
                             data-testid="run-resume-btn"
                             disabled="@_busy"
-                            @onclick="OnRunResumeAsync">Resume running</button>
+                            @onclick="OnRunResumeAsync">@T("running.resume")</button>
                 }
 
                 <button type="button"
                         class="op-btn op-btn-secondary"
                         data-testid="run-correct-btn"
                         disabled="@(_busy || _view.RecentEntries.Count == 0)"
-                        @onclick="OpenCorrectModal">Correct qty</button>
+                        @onclick="OpenCorrectModal">@T("running.correct")</button>
 
                 <button type="button"
                         class="op-btn op-btn-danger"
                         data-testid="run-finish-btn"
                         disabled="@(_busy || _view.QtyDoneCached <= 0)"
-                        @onclick="OpenFinishModal">Finish WO</button>
+                        @onclick="OpenFinishModal">@T("running.finish")</button>
             </div>
         }
 
@@ -373,18 +374,18 @@
     private static readonly Dictionary<string, DeferredPhase> DeferredPhaseInfo = new(StringComparer.OrdinalIgnoreCase)
     {
         ["DONE"] = new(
-            Title: "WO completed",
-            Body: "The WO is closed. No further production actions are available on this WO.",
-            Hint: "Scan another WO to start new work.",
+            TitleKey: "running.deferred.done.title",
+            BodyKey: "running.deferred.done.body",
+            HintKey: "running.deferred.scan.hint",
             HeadPhaseCss: "rs-phase-other"),
         ["CANCELLED"] = new(
-            Title: "WO cancelled",
-            Body: "The WO has been cancelled. It cannot be run or accept further output.",
-            Hint: "Scan another WO to start new work.",
+            TitleKey: "running.deferred.cancelled.title",
+            BodyKey: "running.deferred.cancelled.body",
+            HintKey: "running.deferred.scan.hint",
             HeadPhaseCss: "rs-phase-other"),
     };
 
-    private sealed record DeferredPhase(string Title, string Body, string Hint, string HeadPhaseCss);
+    private sealed record DeferredPhase(string TitleKey, string BodyKey, string HintKey, string HeadPhaseCss);
 
     private string PhaseCssClass() => _view?.MesPhase switch
     {

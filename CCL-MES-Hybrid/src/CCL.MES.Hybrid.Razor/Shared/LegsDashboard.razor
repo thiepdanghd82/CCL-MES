@@ -13,6 +13,7 @@
     Rule 4: plain <button>, plain <input>.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.Routing
 @using CCL.MES.Shared.Envelopes
@@ -22,12 +23,12 @@
 <div class="legs-dashboard" data-testid="legs-dashboard">
     @if (_view is null && _initialError is null)
     {
-        <div class="legs-loading" data-testid="legs-loading">Đang tải công đoạn…</div>
+        <div class="legs-loading" data-testid="legs-loading">@T("legs.loading")</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="legs-initial-error">
-            <strong>Không tải được công đoạn:</strong> @_initialError
+            <strong>@T("legs.load.failed")</strong> @_initialError
         </div>
     }
     else if (_view is not null)
@@ -35,7 +36,7 @@
         <div class="legs-head">
             <span class="legs-head-wo">@_view.WoNo</span>
             <span class="legs-head-phase legs-phase-split" data-testid="legs-wo-phase">@_view.MesPhase</span>
-            <span class="legs-head-count">@_view.Legs.Count công đoạn song song</span>
+            <span class="legs-head-count">@T("legs.head.count", _view.Legs.Count)</span>
         </div>
 
         @if (_banner is not null)
@@ -52,7 +53,7 @@
                         <span class="legs-method">@leg.Method</span>
                         @if (leg.IsTerminal)
                         {
-                            <span class="legs-terminal" title="Công đoạn cuối — quyết định gộp FQC">⤳ cuối</span>
+                            <span class="legs-terminal" title="@T("legs.terminal.title")">@T("legs.terminal")</span>
                         }
                     </div>
                     <div class="legs-card-row">
@@ -63,13 +64,13 @@
                     @if (leg.HardBlocked)
                     {
                         <div class="legs-gate legs-gate-hard" data-testid="leg-hard-@leg.Sequence">
-                            ⛔ Chờ bán thành phẩm (in/tape) xong mới chạy được.
+                            @T("legs.gate.hard")
                         </div>
                     }
                     else if (leg.SoftWaiting)
                     {
                         <div class="legs-gate legs-gate-soft" data-testid="leg-soft-@leg.Sequence">
-                            ⏳ Công đoạn trước chưa xong (vẫn chạy song song được).
+                            @T("legs.gate.soft")
                         </div>
                     }
 
@@ -86,7 +87,7 @@
                         }
                         else
                         {
-                            <span class="legs-done-tag" data-testid="leg-done-@leg.Sequence">✓ Xong</span>
+                            <span class="legs-done-tag" data-testid="leg-done-@leg.Sequence">@T("legs.done")</span>
                         }
                         @if (leg.LegPhase != "PREPRESS")
                         {
@@ -94,7 +95,7 @@
                                     data-testid="leg-rework-@leg.Sequence"
                                     disabled="@_busy"
                                     @onclick="() => OpenReworkAsync(leg)">
-                                NG / làm lại
+                                @T("legs.rework")
                             </button>
                         }
                     </div>
@@ -102,19 +103,19 @@
                     @if (IsFromStockAssembly(leg))
                     {
                         <div class="legs-semi" data-testid="leg-semi-@leg.Sequence">
-                            <span class="legs-semi-label">Kho bán thành phẩm</span>
+                            <span class="legs-semi-label">@T("legs.semi.label")</span>
                             <div class="legs-semi-actions">
                                 <button type="button" class="btn btn-ghost legs-semi-reserve"
                                         data-testid="leg-semi-reserve-@leg.Sequence"
                                         disabled="@_busy"
                                         @onclick="() => OpenReserve(leg)">
-                                    Giữ lô (FEFO)
+                                    @T("legs.semi.reserve")
                                 </button>
                                 <button type="button" class="btn btn-ghost legs-semi-consume"
                                         data-testid="leg-semi-consume-@leg.Sequence"
                                         disabled="@_busy"
                                         @onclick="() => ConsumeSemiAsync(leg)">
-                                    Đã dùng xong
+                                    @T("legs.semi.consume")
                                 </button>
                             </div>
                         </div>
@@ -127,15 +128,15 @@
         {
             <div class="legs-rework-modal" data-testid="legs-rework-modal">
                 <div class="legs-rework-body">
-                    <div class="legs-rework-title">NG công đoạn @LegKindLabel(_reworkLeg.LegKind) — về PREPRESS</div>
+                    <div class="legs-rework-title">@T("legs.rework.title", LegKindLabel(_reworkLeg.LegKind))</div>
                     <input type="text" class="legs-rework-input" data-testid="legs-rework-reason"
-                           maxlength="500" placeholder="Lý do NG / rework…" @bind="_reworkReason" @bind:event="oninput" />
+                           maxlength="500" placeholder="@T("legs.rework.reason.placeholder")" @bind="_reworkReason" @bind:event="oninput" />
                     <div class="legs-rework-actions">
                         <button type="button" class="btn btn-ghost" data-testid="legs-rework-cancel"
-                                @onclick="() => _reworkLeg = null">Huỷ</button>
+                                @onclick="() => _reworkLeg = null">@T("legs.cancel")</button>
                         <button type="button" class="btn btn-primary" data-testid="legs-rework-confirm"
                                 disabled="@(_busy || string.IsNullOrWhiteSpace(_reworkReason))"
-                                @onclick="ConfirmReworkAsync">Xác nhận NG</button>
+                                @onclick="ConfirmReworkAsync">@T("legs.rework.confirm")</button>
                     </div>
                 </div>
             </div>
@@ -145,29 +146,29 @@
         {
             <div class="legs-rework-modal" data-testid="legs-semi-modal">
                 <div class="legs-rework-body">
-                    <div class="legs-rework-title">Giữ bán thành phẩm cho @LegKindLabel(_reserveLeg.LegKind)</div>
+                    <div class="legs-rework-title">@T("legs.semi.modal.title", LegKindLabel(_reserveLeg.LegKind))</div>
                     <label class="legs-semi-field">
-                        <span>Loại</span>
+                        <span>@T("legs.semi.kind")</span>
                         <select class="legs-semi-select" data-testid="legs-semi-kind" @bind="_reserveKind">
-                            <option value="PRINTED_SEMI">In (PRINTED_SEMI)</option>
-                            <option value="TAPE_SEMI">Tape (TAPE_SEMI)</option>
+                            <option value="PRINTED_SEMI">@T("legs.semi.kind.printed", "PRINTED_SEMI")</option>
+                            <option value="TAPE_SEMI">@T("legs.semi.kind.tape", "TAPE_SEMI")</option>
                         </select>
                     </label>
                     <label class="legs-semi-field">
-                        <span>Số lượng</span>
+                        <span>@T("legs.semi.qty")</span>
                         <input type="number" min="1" class="legs-rework-input" data-testid="legs-semi-qty" @bind="_reserveQty" />
                     </label>
                     <label class="legs-semi-field">
-                        <span>Mã lô cụ thể (trống → FEFO tự chọn)</span>
+                        <span>@T("legs.semi.lotno")</span>
                         <input type="text" class="legs-rework-input" data-testid="legs-semi-lotno"
-                               maxlength="80" placeholder="Quét lô hoặc để trống…" @bind="_reserveLotNo" @bind:event="oninput" />
+                               maxlength="80" placeholder="@T("legs.semi.lotno.placeholder")" @bind="_reserveLotNo" @bind:event="oninput" />
                     </label>
                     <div class="legs-rework-actions">
                         <button type="button" class="btn btn-ghost" data-testid="legs-semi-cancel"
-                                @onclick="() => _reserveLeg = null">Huỷ</button>
+                                @onclick="() => _reserveLeg = null">@T("legs.cancel")</button>
                         <button type="button" class="btn btn-primary" data-testid="legs-semi-confirm"
                                 disabled="@(_busy || _reserveQty <= 0)"
-                                @onclick="ConfirmReserveAsync">Giữ lô</button>
+                                @onclick="ConfirmReserveAsync">@T("legs.semi.confirm")</button>
                     </div>
                 </div>
             </div>
@@ -230,7 +231,7 @@
                     return;
                 }
                 if (resp.SoftWaiting)
-                    _banner = "Đã chạy — lưu ý công đoạn trước chưa xong (song song).";
+                    _banner = T("legs.banner.soft.running");
                 await LoadAsync();
             }
             else { _banner = RoutingErrorLocaliser.LocaliseSetError(resp.ErrorCode ?? ""); await LoadAsync(); }
@@ -316,35 +317,35 @@
         return (i < 0 || i >= Flow.Length - 1) ? null : Flow[i + 1];
     }
 
-    private static string AdvanceLabel(string from, string to) => to switch
+    private string AdvanceLabel(string from, string to) => to switch
     {
-        "SETTING"       => "Bắt đầu setup",
-        "IPQC_WAIT"     => "Setup xong → IPQC",
-        "IPQC_APPROVED" => "IPQC duyệt",
-        "RUNNING"       => "Bắt đầu chạy",
-        "LEG_DONE"      => "Hoàn tất công đoạn",
+        "SETTING"       => T("legs.advance.setting"),
+        "IPQC_WAIT"     => T("legs.advance.ipqc_wait"),
+        "IPQC_APPROVED" => T("legs.advance.ipqc_approved"),
+        "RUNNING"       => T("legs.advance.running"),
+        "LEG_DONE"      => T("legs.advance.leg_done"),
         _               => $"→ {to}",
     };
 
-    private static string LegKindLabel(string kind) => kind switch
+    private string LegKindLabel(string kind) => kind switch
     {
-        "PRINT"     => "IN",
-        "CUT"       => "CẮT",
-        "TAPE"      => "CẮT TAPE",
-        "ASSEMBLY"  => "DÁN (assembly)",
-        "PRINT_CUT" => "IN + BẾ",
+        "PRINT"     => T("legs.kind.print"),
+        "CUT"       => T("legs.kind.cut"),
+        "TAPE"      => T("legs.kind.tape"),
+        "ASSEMBLY"  => T("legs.kind.assembly"),
+        "PRINT_CUT" => T("legs.kind.print_cut"),
         _           => kind,
     };
 
-    private static string LegPhaseLabel(string phase) => phase switch
+    private string LegPhaseLabel(string phase) => phase switch
     {
-        "PREPRESS"      => "Chuẩn bị",
-        "SETTING"       => "Setup",
-        "IPQC_WAIT"     => "Chờ IPQC",
-        "IPQC_APPROVED" => "IPQC duyệt",
-        "RUNNING"       => "Đang chạy",
-        "PAUSED"        => "Tạm dừng",
-        "LEG_DONE"      => "Xong",
+        "PREPRESS"      => T("legs.phase.prepress"),
+        "SETTING"       => T("legs.phase.setting"),
+        "IPQC_WAIT"     => T("legs.phase.ipqc_wait"),
+        "IPQC_APPROVED" => T("legs.phase.ipqc_approved"),
+        "RUNNING"       => T("legs.phase.running"),
+        "PAUSED"        => T("legs.phase.paused"),
+        "LEG_DONE"      => T("legs.phase.leg_done"),
         _               => phase,
     };
 

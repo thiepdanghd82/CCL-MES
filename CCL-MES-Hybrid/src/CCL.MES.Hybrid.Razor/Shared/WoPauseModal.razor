@@ -10,6 +10,7 @@
     POST /run/pause; we just emit OnConfirm with a populated request.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.ReasonCodes
 @using CCL.MES.Shared.RunningSurface
 
@@ -18,27 +19,27 @@
        Size="ModalSize.Md"
        Severity="ModalSeverity.Warning"
        ClickOutsideToClose="false">
-    <Header>Pause (PAUSE) — select a reason</Header>
+    <Header>@T("wopause.header")</Header>
     <Body>
         <div class="rs-modal-body" data-testid="pause-modal">
             @if (PauseReasons.Count == 0)
             {
                 <div class="wo-card-error" data-testid="pause-reasons-empty">
-                    <strong>PAUSE reason catalog is empty.</strong>
-                    The server has not seeded reason codes (kind=Pause). Report to IT.
+                    <strong>@T("wopause.empty.title")</strong>
+                    @T("wopause.empty.body")
                 </div>
             }
             else
             {
                 <div class="rs-modal-field">
-                    <label class="rs-modal-label" for="pause-reason-select">Pause reason *</label>
+                    <label class="rs-modal-label" for="pause-reason-select">@T("wopause.reason.label")</label>
                     <select id="pause-reason-select"
                             class="rs-input rs-select"
                             value="@_reasonCode"
                             data-testid="pause-reason-select"
                             disabled="@Busy"
                             @onchange="OnReasonChange">
-                        <option value="">— select a reason —</option>
+                        <option value="">@T("wopause.reason.placeholder")</option>
                         @foreach (var rc in PauseReasons)
                         {
                             <option value="@rc.Code">@rc.Code · @rc.LabelVi</option>
@@ -46,7 +47,7 @@
                     </select>
                 </div>
                 <div class="rs-modal-field">
-                    <label class="rs-modal-label" for="pause-note-input">Note (optional, ≤ 500 characters)</label>
+                    <label class="rs-modal-label" for="pause-note-input">@T("wopause.note.label")</label>
                     <input id="pause-note-input"
                            type="text"
                            class="rs-input"
@@ -64,12 +65,12 @@
                 class="op-btn op-btn-secondary"
                 data-testid="pause-cancel-btn"
                 disabled="@Busy"
-                @onclick="OnClose">Cancel</button>
+                @onclick="OnClose">@T("wopause.cancel")</button>
         <button type="button"
                 class="op-btn op-btn-warning"
                 data-testid="pause-confirm-btn"
                 disabled="@(!IsValid || Busy)"
-                @onclick="OnConfirmClicked">Pause</button>
+                @onclick="OnConfirmClicked">@T("wopause.confirm")</button>
     </Footer>
 </Modal>
 

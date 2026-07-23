@@ -131,7 +131,7 @@ public sealed class QualityTraceabilityTests : TestContext
         Assert.Empty(cut.FindAll(".trace-modal-scrim"));
         // role/aria for the floating dialog.
         Assert.Equal("dialog", cut.Find(".trace-win").GetAttribute("role"));
-        Assert.Contains("Traceability WO-TR-1", cut.Find(".trace-win").GetAttribute("aria-label"));
+        Assert.Contains("Truy xuất WO-TR-1", cut.Find(".trace-win").GetAttribute("aria-label"));
     }
 
     [Fact]
@@ -264,8 +264,8 @@ public sealed class QualityTraceabilityTests : TestContext
 
         // Fixed Product columns, in order — No. + Part No are SEPARATE columns.
         var heads = cut.FindAll(".trace-prod thead th").Select(h => h.TextContent.Trim()).ToArray();
-        Assert.Equal(new[] { "No.", "Part No", "Description", "QPA (m²)", "Qty. Required",
-            "UoM", "Part Scan", "Part Description", "Lot", "Status", "NG — reason · note" }, heads);
+        Assert.Equal(new[] { "STT", "Mã linh kiện", "Mô tả", "QPA (m²)", "SL yêu cầu",
+            "ĐVT", "Quét linh kiện", "Mô tả linh kiện", "Lô", "Trạng thái", "NG — lý do · ghi chú" }, heads);
 
         // Dropped columns are gone.
         Assert.DoesNotContain("Scrap Factor", m);
@@ -312,7 +312,7 @@ public sealed class QualityTraceabilityTests : TestContext
 
         // Bold section headings.
         var sections = cut.FindAll(".trace-prod-section").Select(h => h.TextContent.Trim()).ToArray();
-        Assert.Equal(new[] { "1. Materials confirmed", "2. Tools confirmed" }, sections);
+        Assert.Equal(new[] { "1. Vật tư đã xác nhận", "2. Công cụ đã xác nhận" }, sections);
 
         // Tools table = flexible list from payload.Tools (2 rows here, N in general).
         Assert.Single(cut.FindAll(".trace-tools"));
@@ -338,7 +338,7 @@ public sealed class QualityTraceabilityTests : TestContext
 
         // Generic renderer: Item/Status/NG columns + a column derived from Extra.
         var heads = cut.FindAll(".trace-items:not(.trace-prod) thead th").Select(h => h.TextContent.Trim()).ToArray();
-        Assert.Contains("Item", heads);
+        Assert.Contains("Hạng mục", heads);
         Assert.Contains("processLine", heads);   // Extra key becomes a column
         Assert.Empty(cut.FindAll(".trace-prod"));
     }
@@ -354,6 +354,6 @@ public sealed class QualityTraceabilityTests : TestContext
         var fqcTab = cut.FindAll(".trace-tab").First(b => b.TextContent.Contains("FQC"));
         fqcTab.Click();
         Assert.Single(cut.FindAll(".trace-empty"));
-        Assert.Contains("not frozen yet", cut.Markup);
+        Assert.Contains("Chưa chốt dữ liệu FQC — dữ liệu chưa được đóng băng.", cut.Markup);
     }
 }
