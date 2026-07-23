@@ -1,11 +1,12 @@
 @page "/login"
 @layout EmptyLayout
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @inject IAuthSession Session
 @inject NavigationManager Nav
 
-<PageTitle>Log in — CCL MES</PageTitle>
+<PageTitle>@T("login.pagetitle")</PageTitle>
 
 <div class="login-shell">
   <div class="login-split">
@@ -24,21 +25,21 @@
                 <span class="login-brand-sep">MES</span>
             </div>
             <div class="login-hero-mid">
-                <h2 class="login-slogan">Make today,<br><span class="login-grad">ship tomorrow.</span></h2>
-                <p class="login-desc">Manufacturing Execution System của CCL Design Vietnam — điều hành sản xuất realtime từ NPI đến xuất xưởng.</p>
+                <h2 class="login-slogan">@T("login.slogan1")<br><span class="login-grad">@T("login.slogan2")</span></h2>
+                <p class="login-desc">@T("login.desc")</p>
                 <ul class="login-feats">
-                    <li>Truy xuất nguồn gốc từng Work Order</li>
-                    <li>IPQC / FQC / OQC theo thời gian thực</li>
-                    <li>Bảng điều khiển máy &amp; tiến độ dây chuyền</li>
+                    <li>@T("login.feat1")</li>
+                    <li>@T("login.feat2")</li>
+                    <li>@T("login.feat3")</li>
                 </ul>
             </div>
             <div class="login-hero-bottom">
                 <div class="login-stats">
-                    <div><b>5</b><small>Roles</small></div>
-                    <div><b>12</b><small>MES phases</small></div>
-                    <div><b>100%</b><small>Traceable</small></div>
+                    <div><b>5</b><small>@T("login.stat.roles")</small></div>
+                    <div><b>12</b><small>@T("login.stat.phases")</small></div>
+                    <div><b>100%</b><small>@T("login.stat.traceable")</small></div>
                 </div>
-                <div class="login-foot-brand">CCL Design Vietnam · Manufacturing</div>
+                <div class="login-foot-brand">@T("login.footbrand")</div>
             </div>
         </div>
     </div>
@@ -47,8 +48,8 @@
     <div class="login-form-col">
     <div class="login-card">
         <span class="login-logo-box">C</span>
-        <h1 class="login-title">Welcome back 👋</h1>
-        <p class="login-sub">Sign in to CCL MES</p>
+        <h1 class="login-title">@T("login.welcome")</h1>
+        <p class="login-sub">@T("login.sub")</p>
 
         @*
             Wiring notes (P10.6a hotfix — repeat of 3fff2d0):
@@ -81,7 +82,7 @@
         *@
         <form @onsubmit="HandleSubmitAsync" @onsubmit:preventDefault="true" name="login">
             <div class="login-field">
-                <label for="login-username">Username</label>
+                <label for="login-username">@T("login.username")</label>
                 <input id="login-username" type="text" class="login-input"
                        tabindex="1"
                        @bind="_form.Username" @bind:event="oninput"
@@ -89,7 +90,7 @@
                        autocomplete="off" autofocus />
             </div>
             <div class="login-field">
-                <label for="login-password">Password</label>
+                <label for="login-password">@T("login.password")</label>
                 <input id="login-password" type="password" class="login-input"
                        tabindex="2"
                        @bind="_form.Password" @bind:event="oninput"
@@ -110,12 +111,12 @@
 
             <button type="submit" class="login-submit" tabindex="3"
                     disabled="@_submitting" @onclick="HandleSubmitAsync">
-                @(_submitting ? "Logging in…" : "Sign in")
+                @(_submitting ? T("login.submitting") : T("login.submit"))
             </button>
         </form>
 
         <div class="login-foot">
-            Don't have an account? <a href="#" @onclick:preventDefault="true">Contact the NPI team</a>
+            @T("login.noaccount") <a href="#" @onclick:preventDefault="true">@T("login.contact")</a>
         </div>
     </div>
     </div>@* /.login-form-col *@
@@ -206,13 +207,13 @@
         }
     }
 
-    private static string LocaliseError(string code) => code switch
+    private string LocaliseError(string code) => code switch
     {
-        "auth.invalid_credentials" => "Incorrect username or password.",
-        "auth.missing_fields"      => "Please fill in all fields.",
-        "auth.network_error"       => "Could not connect to the server. Check your network and try again.",
-        "auth.timeout"             => "The server took too long to respond. Please try again.",
-        _                          => "Login failed. Please try again.",
+        "auth.invalid_credentials" => T("login.err.invalid"),
+        "auth.missing_fields"      => T("login.err.missing"),
+        "auth.network_error"       => T("login.err.network"),
+        "auth.timeout"             => T("login.err.timeout"),
+        _                          => T("login.err.generic"),
     };
 
     /// <summary>Cap the error-detail text so a multi-line exception

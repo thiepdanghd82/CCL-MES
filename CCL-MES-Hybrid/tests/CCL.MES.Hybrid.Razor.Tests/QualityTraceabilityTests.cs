@@ -39,6 +39,10 @@ public sealed class QualityTraceabilityTests : TestContext
         Services.AddSingleton<IBarcodeScannerService>(new StubScannerService());
         Services.AddSingleton<IFloatingWindowStore>(_winStore);
         Services.AddSingleton(Options.Create(new HardwareOptions { ScanEnabled = false }));
+        // i18n Phase-2 — FloatingWindow (wrapped by TraceabilityDetailDialog) tooltips.
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Localization.ILanguageService, CCL.MES.Hybrid.Client.Localization.InMemoryLanguageService>();
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Localization.ITranslationCatalog, CCL.MES.Hybrid.Client.Localization.TranslationCatalog>();
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Localization.ITranslator, CCL.MES.Hybrid.Client.Localization.Translator>();
         this.AddTestAuthorization().SetAuthorized("qc-user");
         // The floating-window chrome calls cclMesFloat.* JS interop in
         // OnAfterRender / Dispose; the test host has no JS engine, so run the

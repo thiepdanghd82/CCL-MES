@@ -57,4 +57,21 @@ public sealed class TranslationCatalogTests
         foreach (var key in new[] { "nav.home", "topbar.user", "common.logout", "appearance.title" })
             Assert.NotNull(catalog.Lookup(key, LanguageCode.English));
     }
+
+    [Fact]
+    public void Batch2b_login_shell_surfaces_are_covered()
+    {
+        var catalog = new TranslationCatalog();
+        foreach (var key in new[]
+        {
+            "login.welcome", "login.submit", "login.err.invalid",
+            "common.minimize", "common.maximize", "common.close", "common.close.esc", "conn.offline",
+        })
+        {
+            Assert.NotNull(catalog.Lookup(key, LanguageCode.Vietnamese));
+            Assert.NotNull(catalog.Lookup(key, LanguageCode.English));
+        }
+        Assert.Equal("Sai tên đăng nhập hoặc mật khẩu.", catalog.Lookup("login.err.invalid", LanguageCode.Vietnamese));
+        Assert.Equal("Incorrect username or password.", catalog.Lookup("login.err.invalid", LanguageCode.English));
+    }
 }

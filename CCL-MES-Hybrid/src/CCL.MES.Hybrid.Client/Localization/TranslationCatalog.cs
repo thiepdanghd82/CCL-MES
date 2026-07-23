@@ -23,7 +23,8 @@ public sealed partial class TranslationCatalog : ITranslationCatalog
         RegisterNav();      // batch 1
         RegisterTopBar();   // batch 1
         RegisterAppearance();// batch 1
-        // Batches 2B–2F append their Register* calls here.
+        RegisterLogin();    // batch 2B
+        // Batches 2C–2F append their Register* calls here.
     }
 
     /// <summary>Register one key with both language slots. Called from the
