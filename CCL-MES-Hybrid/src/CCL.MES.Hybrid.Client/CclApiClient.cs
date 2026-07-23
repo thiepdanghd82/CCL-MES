@@ -356,6 +356,61 @@ public sealed class CclApiClient : ICclApiClient
             $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/run/finish",
             ifMatchETag, new RunFinishRequest(), ct);
 
+    // ── Multi-Method Routing DAG (P11-3) ──────────────────────────
+
+    public async Task<CCL.MES.Shared.Routing.LegsView> GetLegsViewAsync(
+        long workOrderId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/legs", ct);
+        return await ReadAsAsync<CCL.MES.Shared.Routing.LegsView>(resp, ct);
+    }
+
+    public async Task<CCL.MES.Shared.Routing.LegMaterializeResponse> MaterializeLegsAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/legs/materialize")
+        { Content = JsonContent.Create(new { }) };
+        AddLegHeaders(msg, ifMatchETag);
+        using var resp = await _http.SendAsync(msg, ct);
+        if (resp.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict)
+            return await resp.Content.ReadFromJsonAsync<CCL.MES.Shared.Routing.LegMaterializeResponse>(cancellationToken: ct)
+                   ?? new CCL.MES.Shared.Routing.LegMaterializeResponse { Ok = false, ErrorCode = "http.empty_body" };
+        return await ReadAsAsync<CCL.MES.Shared.Routing.LegMaterializeResponse>(resp, ct);
+    }
+
+    public Task<CCL.MES.Shared.Routing.LegSetResponse> AdvanceLegAsync(
+        long workOrderId, long legId, string legIfMatchETag, string toPhase, CancellationToken ct = default)
+        => SendLegPostAsync($"/{ApiVersion.Prefix}/work-orders/{workOrderId}/legs/{legId}/advance",
+            legIfMatchETag, new CCL.MES.Shared.Routing.LegAdvanceRequest { ToPhase = toPhase }, ct);
+
+    public Task<CCL.MES.Shared.Routing.LegSetResponse> ReworkLegAsync(
+        long workOrderId, long legId, string legIfMatchETag, string reason, CancellationToken ct = default)
+        => SendLegPostAsync($"/{ApiVersion.Prefix}/work-orders/{workOrderId}/legs/{legId}/rework",
+            legIfMatchETag, new CCL.MES.Shared.Routing.LegReworkRequest { Reason = reason }, ct);
+
+    private void AddLegHeaders(HttpRequestMessage msg, string ifMatchETag)
+    {
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+    }
+
+    private async Task<CCL.MES.Shared.Routing.LegSetResponse> SendLegPostAsync(
+        string path, string ifMatchETag, object req, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(req) };
+        AddLegHeaders(msg, ifMatchETag);
+        using var resp = await _http.SendAsync(msg, ct);
+        if (resp.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict)
+            return await resp.Content.ReadFromJsonAsync<CCL.MES.Shared.Routing.LegSetResponse>(cancellationToken: ct)
+                   ?? new CCL.MES.Shared.Routing.LegSetResponse { Ok = false, ErrorCode = "http.empty_body" };
+        return await ReadAsAsync<CCL.MES.Shared.Routing.LegSetResponse>(resp, ct);
+    }
+
     private async Task<RunningSurfaceSetResponse> SendRunningSurfacePostAsync(
         string path, string ifMatchETag, object req, CancellationToken ct)
     {

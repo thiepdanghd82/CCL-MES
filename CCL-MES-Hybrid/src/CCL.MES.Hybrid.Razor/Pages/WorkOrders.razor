@@ -267,6 +267,29 @@ else
                     <CCL.MES.Hybrid.Razor.Shared.PrepressDashboard
                         WorkOrderId="@_summary.Id"
                         OnAdvanceRequested="OnAdvance" />
+
+                    @* P11-3 — fork multi-leg: nếu routing có ≥2 công đoạn (in ∥
+                       cắt tape → assembly → cắt), tách thành các leg song song
+                       (PREPRESS → SPLIT). WO đơn công đoạn (T1) → không fork. *@
+                    <div class="wo-fork-cta" data-testid="wo-fork-cta">
+                        <button type="button" class="btn btn-ghost" data-testid="wo-materialize"
+                                disabled="@_forkBusy" @onclick="MaterializeLegsAsync">
+                            Tách công đoạn (multi-leg)
+                        </button>
+                        @if (_forkMsg is not null)
+                        {
+                            <span class="wo-fork-msg" data-testid="wo-fork-msg">@_forkMsg</span>
+                        }
+                    </div>
+                }
+
+                @* P11-3 — SPLIT (đã fork ≥2 leg) routes to LegsDashboard.
+                   L21: join SPLIT → FQC_PENDING → parent re-fetch → FqcDashboard. *@
+                @if (IsSplitPhase(_summary))
+                {
+                    <CCL.MES.Hybrid.Razor.Shared.LegsDashboard
+                        WorkOrderId="@_summary.Id"
+                        OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
                 }
 
                 @* P10.7c-3 — SETTING phase routes to SettingDashboard.
@@ -1102,7 +1125,49 @@ else
         || IsFqcPendingPhase(summary)
         || IsOqcPendingPhase(summary)
         || IsShippedPhase(summary)
+        || IsSplitPhase(summary)
         || IsRunningSurfacePhase(summary);
+
+    // P11-3 — SPLIT (multi-leg fork) owned by LegsDashboard.
+    private static bool IsSplitPhase(WorkOrderSummary summary) =>
+        string.Equals(summary.MesPhase, "SPLIT", StringComparison.OrdinalIgnoreCase);
+
+    // P11-3 — fork trigger: materialize routing → leg DAG. forked=true →
+    // WO thành SPLIT, L21 re-fetch mount LegsDashboard; forked=false (T1)
+    // → thông báo WO đơn công đoạn.
+    private bool _forkBusy;
+    private string? _forkMsg;
+
+    private async Task MaterializeLegsAsync()
+    {
+        if (_forkBusy || _summary is null) return;
+        _forkBusy = true; _forkMsg = null;
+        try
+        {
+            var view = await Api.GetLegsViewAsync(_summary.Id);
+            var resp = await Api.MaterializeLegsAsync(_summary.Id, view.WoETag);
+            if (resp.Ok && resp.Forked)
+            {
+                await HandleDashboardPhaseChangedAsync(); // → SPLIT → LegsDashboard
+            }
+            else if (resp.Ok)
+            {
+                _forkMsg = $"WO đơn công đoạn ({resp.LegCount} leg) — không tách.";
+            }
+            else
+            {
+                _forkMsg = CCL.MES.Hybrid.Client.Routing.RoutingErrorLocaliser
+                    .LocaliseSetError(resp.ErrorCode ?? "");
+            }
+        }
+        catch (ApiException ex)
+        {
+            _forkMsg = CCL.MES.Hybrid.Client.Routing.RoutingErrorLocaliser
+                .LocaliseApiError(ex.StatusCode, ex.ApiError);
+        }
+        catch (Exception ex) { _forkMsg = ex.Message; }
+        finally { _forkBusy = false; }
+    }
 
     // P10.7a-1.3 — both VN mapper switches extracted into
     // CCL.MES.Hybrid.Client.WorkOrders.WorkOrderErrorLocaliser so the

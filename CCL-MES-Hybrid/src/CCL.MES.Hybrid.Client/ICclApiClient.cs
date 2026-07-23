@@ -13,6 +13,7 @@ using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.Qms;
 using CCL.MES.Shared.RunningSurface;
+using CCL.MES.Shared.Routing;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
@@ -178,6 +179,27 @@ public interface ICclApiClient
     /// session. Requires QtyDoneCached &gt; 0.</summary>
     Task<RunningSurfaceSetResponse> PostRunFinishAsync(
         long workOrderId, string ifMatchETag, CancellationToken ct = default);
+
+    // ── Multi-Method Routing DAG (P11-3 — leg fork-join surface) ───
+
+    /// <summary>Scan picker view: WO + legs (phase + gate flags + per-leg
+    /// ETag) + edges. Không cần If-Match (đọc). Throws on 404/401.</summary>
+    Task<LegsView> GetLegsViewAsync(long workOrderId, CancellationToken ct = default);
+
+    /// <summary>Fork PREPRESS → SPLIT: resolve routing → leg DAG. If-Match
+    /// trên WO. forked=false nếu WO đơn công đoạn (T1) hoặc đã fork.</summary>
+    Task<LegMaterializeResponse> MaterializeLegsAsync(
+        long workOrderId, string ifMatchETag, CancellationToken ct = default);
+
+    /// <summary>Tiến 1 leg sang phase kế tiếp. If-Match trên LEG ETag.
+    /// Join cascade SPLIT → FQC_PENDING khi leg terminal cuối LEG_DONE.
+    /// 409 carry fresh leg ETag; 422 gate/phase.</summary>
+    Task<LegSetResponse> AdvanceLegAsync(
+        long workOrderId, long legId, string legIfMatchETag, string toPhase, CancellationToken ct = default);
+
+    /// <summary>Reject 1 leg → PREPRESS (Q10). If-Match trên LEG ETag.</summary>
+    Task<LegSetResponse> ReworkLegAsync(
+        long workOrderId, long legId, string legIfMatchETag, string reason, CancellationToken ct = default);
 
     // ── IPQC review + QA approval (P10.7d-3 — operator dashboards) ─
 

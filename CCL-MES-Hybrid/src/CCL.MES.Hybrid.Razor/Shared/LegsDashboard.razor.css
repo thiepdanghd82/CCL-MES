@@ -1,0 +1,106 @@
+/* P11-3 — LegsDashboard scoped styling. Design tokens qua var(--*)
+   (không hardcode hex → không đụng hex gate). S9 responsive qua
+   container query + grid auto-fit. */
+
+.legs-dashboard {
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.legs-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.legs-head-wo { font-weight: 700; font-size: 1.05rem; color: var(--c-ink, #111); }
+.legs-head-phase {
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: .8rem;
+    font-weight: 600;
+    background: var(--indigo, #4f46e5);
+    color: #fff;
+}
+.legs-head-count { color: var(--c-ink-3, #666); font-size: .85rem; }
+
+.legs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.legs-card {
+    border: 1px solid var(--c-line, #e2e2e2);
+    border-radius: 12px;
+    padding: 12px;
+    background: var(--c-card, #fff);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.legs-card-head { display: flex; align-items: baseline; gap: 8px; }
+.legs-kind { font-weight: 700; color: var(--c-ink, #111); }
+.legs-method { color: var(--c-ink-3, #666); font-size: .85rem; }
+.legs-terminal { margin-left: auto; font-size: .75rem; color: var(--accent, #0a7); }
+
+.legs-card-row { display: flex; align-items: center; justify-content: space-between; }
+.legs-line { font-size: .75rem; color: var(--c-ink-4, #888); letter-spacing: .04em; }
+.legs-phase-chip {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 600;
+    background: var(--c-soft, #f1f1f4);
+    color: var(--c-ink-2, #333);
+}
+.legs-ph-running { background: var(--brand-soft, #e8eefc); color: var(--brand, #2b57d6); }
+.legs-ph-leg_done { background: color-mix(in srgb, var(--ok, #16a34a) 18%, transparent); color: var(--ok, #16a34a); }
+
+.legs-gate { font-size: .8rem; border-radius: 8px; padding: 6px 8px; }
+.legs-gate-hard { background: var(--warn-bg, #fdecec); color: var(--ng, #dc2626); }
+.legs-gate-soft { background: var(--warn-bg, #fff7e6); color: var(--warn-fg, #b45309); }
+
+.legs-card-actions { display: flex; gap: 8px; margin-top: auto; align-items: center; }
+.legs-done-tag { color: var(--ok, #16a34a); font-weight: 600; }
+
+.legs-rework-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 40;
+}
+.legs-rework-body {
+    background: var(--c-card, #fff);
+    border-radius: 12px;
+    padding: 16px;
+    width: min(420px, 92vw);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.legs-rework-title { font-weight: 700; color: var(--c-ink, #111); }
+.legs-rework-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--c-line, #ddd);
+    border-radius: 8px;
+    background: var(--c-bg, #fff);
+    color: var(--c-ink, #111);
+}
+.legs-rework-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.wo-fork-cta { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.wo-fork-msg { font-size: .82rem; color: var(--c-ink-3, #666); }
+
+/* S9 — hẹp: xếp 1 cột, nút full-width dễ chạm trên máy quét cầm tay. */
+@container (max-width: 560px) {
+    .legs-grid { grid-template-columns: 1fr; }
+    .legs-card-actions { flex-direction: column; align-items: stretch; }
+    .legs-card-actions .btn { width: 100%; }
+}
