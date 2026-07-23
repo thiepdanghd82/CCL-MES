@@ -1,5 +1,6 @@
 @page "/settings/profile"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @inject NavigationManager Nav
 @using CCL.MES.Hybrid.Client.Specs
@@ -16,23 +17,23 @@
   failure path lands in the inline VN banner via SpecMutationErrorMapper.
 *@
 
-<PageTitle>My Profile — CCL MES</PageTitle>
+<PageTitle>@T("profile.pagetitle")</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
-    <h1 class="page-title">My Profile</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">@T("common.back.settings")</a>
+    <h1 class="page-title">@T("profile.title")</h1>
 </div>
 
 @if (_loading && _profile is null)
 {
-    <p class="grid-status">Loading profile…</p>
+    <p class="grid-status">@T("profile.loading")</p>
 }
 else if (_loadError is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Failed to load profile.</strong>
+        <strong>@T("profile.load.failed")</strong>
         <div>@_loadError</div>
-        <button type="button" class="grid-btn" @onclick="LoadAsync">Try again</button>
+        <button type="button" class="grid-btn" @onclick="LoadAsync">@T("profile.load.retry")</button>
     </div>
 }
 else if (_profile is not null)
@@ -40,8 +41,8 @@ else if (_profile is not null)
     @if (_profile.MustChangePassword)
     {
         <div class="settings-warn" role="alert">
-            ⚠ You were issued a temporary password. Please go to
-            <a href="/settings/password">Change Password</a> to set your own password.
+            ⚠ @T("profile.mustchange.prefix")
+            <a href="/settings/password">@T("profile.mustchange.link")</a> @T("profile.mustchange.suffix")
         </div>
     }
 
@@ -54,28 +55,28 @@ else if (_profile is not null)
            pattern Login.razor uses post-hotfix. *@
         <form @onsubmit="SubmitAsync" @onsubmit:preventDefault="true" name="profile">
             <div class="settings-field">
-                <label for="prof-username">Username</label>
+                <label for="prof-username">@T("profile.field.username")</label>
                 <input id="prof-username" class="settings-input" type="text"
                        value="@_profile.Username" disabled />
-                <span class="settings-hint">Contact your administrator if you need to change it.</span>
+                <span class="settings-hint">@T("profile.hint.username")</span>
             </div>
             <div class="settings-field">
-                <label for="prof-role">Role</label>
+                <label for="prof-role">@T("profile.field.role")</label>
                 <input id="prof-role" class="settings-input" type="text"
                        value="@_profile.Role" disabled />
             </div>
             <div class="settings-field">
-                <label for="prof-dept">Department</label>
+                <label for="prof-dept">@T("profile.field.department")</label>
                 <input id="prof-dept" class="settings-input" type="text"
                        value="@(_profile.Department ?? "—")" disabled />
             </div>
             <div class="settings-field">
-                <label for="prof-display">Display name</label>
+                <label for="prof-display">@T("profile.field.displayname")</label>
                 <input id="prof-display" class="settings-input" type="text"
                        tabindex="1" maxlength="100"
                        @bind="_form.DisplayName" @bind:event="oninput"
                        @onkeydown="OnFieldKeyDown" />
-                <span class="settings-hint">Up to 100 characters. Leave blank to clear.</span>
+                <span class="settings-hint">@T("profile.hint.displayname")</span>
             </div>
 
             @if (_banner is not null)
@@ -86,14 +87,14 @@ else if (_profile is not null)
             <div class="settings-actions">
                 <button type="submit" class="grid-btn grid-btn-primary"
                         disabled="@_submitting" @onclick="SubmitAsync">
-                    @(_submitting ? "Saving…" : "Save changes")
+                    @(_submitting ? T("profile.action.saving") : T("profile.action.save"))
                 </button>
             </div>
         </form>
 
         <dl class="settings-meta">
-            <div><dt>Created</dt><dd>@_profile.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</dd></div>
-            <div><dt>Last modified</dt><dd>@(_profile.UpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</dd></div>
+            <div><dt>@T("profile.meta.created")</dt><dd>@_profile.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</dd></div>
+            <div><dt>@T("profile.meta.modified")</dt><dd>@(_profile.UpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</dd></div>
         </dl>
     </section>
 }
@@ -128,7 +129,7 @@ else if (_profile is not null)
         }
         catch (HttpRequestException ex)
         {
-            _loadError = $"Could not connect to the server: {ex.Message}";
+            _loadError = T("profile.error.connect", ex.Message);
         }
         catch (Exception ex)
         {
@@ -154,7 +155,7 @@ else if (_profile is not null)
             var updated = await Api.UpdateMyProfileAsync(req);
             _profile = updated;
             _form.DisplayName = updated.DisplayName ?? "";
-            _banner = "✓ Changes saved.";
+            _banner = T("profile.banner.saved");
             _bannerKind = "success";
         }
         catch (ApiException apiEx)
@@ -164,12 +165,12 @@ else if (_profile is not null)
         }
         catch (HttpRequestException ex)
         {
-            _banner = $"Could not connect to the server: {ex.Message}";
+            _banner = T("profile.error.connect", ex.Message);
             _bannerKind = "danger";
         }
         catch (Exception ex)
         {
-            _banner = $"Save failed: {ex.Message}";
+            _banner = T("profile.error.save", ex.Message);
             _bannerKind = "danger";
         }
         finally

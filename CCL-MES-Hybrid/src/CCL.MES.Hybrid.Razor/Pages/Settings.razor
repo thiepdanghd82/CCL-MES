@@ -1,5 +1,6 @@
 @page "/settings"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject NavigationManager Nav
 @inject Microsoft.Extensions.Options.IOptions<CCL.MES.Hybrid.Client.Hardware.HardwareOptions> HwOptions
 
@@ -18,57 +19,57 @@
   what they can actually open.
 *@
 
-<PageTitle>Settings — CCL MES</PageTitle>
+<PageTitle>@T("settings.pagetitle")</PageTitle>
 
-<h1 class="page-title">Settings</h1>
-<p class="page-sub">Manage your profile, password, and station configuration.</p>
+<h1 class="page-title">@T("settings.title")</h1>
+<p class="page-sub">@T("settings.subtitle")</p>
 
 <section class="settings-group">
-    <h2 class="settings-group-title">Account</h2>
+    <h2 class="settings-group-title">@T("settings.group.account")</h2>
     <div class="settings-cards">
         <a class="settings-card" href="/settings/profile">
             <span class="settings-card-icon">👤</span>
-            <span class="settings-card-title">My Profile</span>
-            <span class="settings-card-sub">Display name, role, department.</span>
+            <span class="settings-card-title">@T("settings.profile.title")</span>
+            <span class="settings-card-sub">@T("settings.profile.sub")</span>
         </a>
         <a class="settings-card" href="/settings/password">
             <span class="settings-card-icon">🔑</span>
-            <span class="settings-card-title">Change Password</span>
-            <span class="settings-card-sub">Set a new password for the current account.</span>
+            <span class="settings-card-title">@T("settings.password.title")</span>
+            <span class="settings-card-sub">@T("settings.password.sub")</span>
         </a>
     </div>
 </section>
 
 <section class="settings-group">
-    <h2 class="settings-group-title">Station</h2>
+    <h2 class="settings-group-title">@T("settings.group.station")</h2>
     <div class="settings-cards">
         @* P10.6d — Connection Mode summary, always visible to any
            authenticated role. Read-only view; the actual change
            controls live at /mode (P10.3) and are linked from inside. *@
         <a class="settings-card" href="/settings/connection">
             <span class="settings-card-icon">🔌</span>
-            <span class="settings-card-title">Connection</span>
-            <span class="settings-card-sub">Server, network, station mode — quick view.</span>
+            <span class="settings-card-title">@T("settings.connection.title")</span>
+            <span class="settings-card-sub">@T("settings.connection.sub")</span>
         </a>
         @* P10.6d — About card replaces the prior disabled placeholder. *@
         <a class="settings-card" href="/settings/about">
             <span class="settings-card-icon">ℹ️</span>
-            <span class="settings-card-title">About</span>
-            <span class="settings-card-sub">Version, data, storage.</span>
+            <span class="settings-card-title">@T("settings.about.title")</span>
+            <span class="settings-card-sub">@T("settings.about.sub")</span>
         </a>
         @if (HwOptions.Value.ScanEnabled)
         {
             <AuthorizeView Roles="Admin,Supervisor,Engineer">
                 <a class="settings-card" href="/hardware">
                     <span class="settings-card-icon">🖨️</span>
-                    <span class="settings-card-title">Devices</span>
-                    <span class="settings-card-sub">Scanner, printer, scale — configured in P10.3.</span>
+                    <span class="settings-card-title">@T("settings.devices.title")</span>
+                    <span class="settings-card-sub">@T("settings.devices.sub")</span>
                 </a>
                 <AuthorizeView Roles="Admin,Supervisor" Context="modeCtx">
                     <a class="settings-card" href="/mode">
                         <span class="settings-card-icon">🔁</span>
-                        <span class="settings-card-title">Station Mode</span>
-                        <span class="settings-card-sub">Interactive / Kiosk + lock passcode.</span>
+                        <span class="settings-card-title">@T("settings.stationmode.title")</span>
+                        <span class="settings-card-sub">@T("settings.stationmode.sub")</span>
                     </a>
                 </AuthorizeView>
             </AuthorizeView>
@@ -77,14 +78,14 @@
 </section>
 
 <section class="settings-group">
-    <h2 class="settings-group-title">Appearance</h2>
+    <h2 class="settings-group-title">@T("settings.group.appearance")</h2>
     <div class="settings-cards">
         @* P10.6b — Appearance landing card. Language picker today;
            theme switcher ships in P10.6g. *@
         <a class="settings-card" href="/settings/appearance">
             <span class="settings-card-icon">🌐</span>
-            <span class="settings-card-title">Appearance</span>
-            <span class="settings-card-sub">Vietnamese / English language; themes arriving in P10.6g.</span>
+            <span class="settings-card-title">@T("settings.appearance.title")</span>
+            <span class="settings-card-sub">@T("settings.appearance.sub")</span>
         </a>
     </div>
 </section>
@@ -98,25 +99,25 @@
 <AuthorizeView Roles="Admin">
     <Authorized>
         <section class="settings-group">
-            <h2 class="settings-group-title">Administrator</h2>
+            <h2 class="settings-group-title">@T("settings.group.administrator")</h2>
             <div class="settings-cards">
                 @* P10.6h shipped — Backup & Restore admin landing. *@
                 <a class="settings-card" href="/settings/backup">
                     <span class="settings-card-icon">💾</span>
-                    <span class="settings-card-title">Backup &amp; Restore</span>
-                    <span class="settings-card-sub">SQLite snapshot + restore from file.</span>
+                    <span class="settings-card-title">@T("settings.backup.title")</span>
+                    <span class="settings-card-sub">@T("settings.backup.sub")</span>
                 </a>
                 @* P10.6e shipped — Audit Log viewer + CSV/XLSX export. *@
                 <a class="settings-card" href="/settings/audit">
                     <span class="settings-card-icon">📜</span>
-                    <span class="settings-card-title">Audit Log</span>
-                    <span class="settings-card-sub">Search + export CSV/XLSX.</span>
+                    <span class="settings-card-title">@T("settings.audit.title")</span>
+                    <span class="settings-card-sub">@T("settings.audit.sub")</span>
                 </a>
                 @* P10.6c shipped — Account Control. *@
                 <a class="settings-card" href="/settings/accounts">
                     <span class="settings-card-icon">👥</span>
-                    <span class="settings-card-title">Account Control</span>
-                    <span class="settings-card-sub">Create / edit / disable / reset password.</span>
+                    <span class="settings-card-title">@T("settings.accounts.title")</span>
+                    <span class="settings-card-sub">@T("settings.accounts.sub")</span>
                 </a>
             </div>
         </section>

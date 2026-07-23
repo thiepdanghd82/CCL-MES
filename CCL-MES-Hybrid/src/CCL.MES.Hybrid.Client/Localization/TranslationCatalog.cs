@@ -46,7 +46,17 @@ public sealed partial class TranslationCatalog : ITranslationCatalog
         RegisterQcPhoto();
         RegisterHardwareRow();
         RegisterTraceDetail();
-        // Batches 2D–2F append their Register* calls here.
+
+        // batch 2D — Settings pages.
+        RegisterSettings();
+        RegisterAbout();
+        RegisterAccounts();
+        RegisterAuditLog();
+        RegisterBackup();
+        RegisterConnection();
+        RegisterPassword();
+        RegisterProfile();
+        // Batches 2E–2F append their Register* calls here.
     }
 
     /// <summary>Register one key with both language slots. Called from the

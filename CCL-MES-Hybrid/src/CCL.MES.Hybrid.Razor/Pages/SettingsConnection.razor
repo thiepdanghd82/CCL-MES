@@ -4,7 +4,7 @@
 @inject CCL.MES.Hybrid.Client.Hardware.IDeviceModeService Device
 @inject CCL.MES.Hybrid.Client.Connectivity.IConnectivityMonitor Monitor
 @inject Microsoft.Extensions.Options.IOptions<CCL.MES.Hybrid.Client.Hardware.HardwareOptions> HwOptions
-@implements IDisposable
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 
 @*
   P10.6d — Connection Mode page. READ-ONLY summary card pointing at
@@ -21,54 +21,54 @@
     4. Action link to /mode for change (Admin/Supervisor only).
 *@
 
-<PageTitle>Connection — CCL MES</PageTitle>
+<PageTitle>@T("connection.pagetitle")</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
-    <h1 class="page-title">Connection</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">@T("common.back.settings")</a>
+    <h1 class="page-title">@T("connection.title")</h1>
 </div>
 
 <section class="settings-form-card">
-    <h2 class="settings-group-title">Server</h2>
+    <h2 class="settings-group-title">@T("connection.server.title")</h2>
     <dl class="settings-meta">
-        <div><dt>API address</dt><dd><code>@Opts.Value.BaseUrl</code></dd></div>
+        <div><dt>@T("connection.server.apiaddress")</dt><dd><code>@Opts.Value.BaseUrl</code></dd></div>
         <div>
-            <dt>Connection status</dt>
+            <dt>@T("connection.server.status")</dt>
             <dd>
                 <span class="conn-dot @(_isConnected ? "is-up" : "is-down")"></span>
-                @(_isConnected ? "Connected — ready to sign in and read data." : "Disconnected — the UI will wait for the network to load data.")
+                @(_isConnected ? T("connection.server.connected") : T("connection.server.disconnected"))
             </dd>
         </div>
     </dl>
 </section>
 
 <section class="settings-form-card" style="margin-top:16px">
-    <h2 class="settings-group-title">Station</h2>
+    <h2 class="settings-group-title">@T("connection.station.title")</h2>
     <dl class="settings-meta">
         <div>
-            <dt>Station mode</dt>
+            <dt>@T("connection.station.mode")</dt>
             <dd>
                 @if (Device.CurrentMode == CCL.MES.Shared.Hardware.DeviceMode.Kiosk)
                 {
-                    <span>Kiosk — locked to the Work Orders screen.</span>
+                    <span>@T("connection.station.mode.kiosk")</span>
                 }
                 else
                 {
-                    <span>Interactive — full menu for operator + admin.</span>
+                    <span>@T("connection.station.mode.interactive")</span>
                 }
             </dd>
         </div>
-        <div><dt>Device ID</dt><dd><code>@Device.DeviceId</code></dd></div>
+        <div><dt>@T("connection.station.deviceid")</dt><dd><code>@Device.DeviceId</code></dd></div>
         <div>
-            <dt>Hardware features</dt>
-            <dd>@(HwOptions.Value.ScanEnabled ? "On (P10.3 W1)" : "Off")</dd>
+            <dt>@T("connection.station.hardware")</dt>
+            <dd>@(HwOptions.Value.ScanEnabled ? T("connection.station.hardware.on") : T("connection.station.hardware.off"))</dd>
         </div>
     </dl>
 
     <AuthorizeView Roles="Admin,Supervisor">
         <div class="settings-actions">
-            <a class="grid-btn grid-btn-secondary" href="/mode">Change station mode</a>
-            <a class="grid-btn" href="/hardware" style="margin-left:8px">Configure devices</a>
+            <a class="grid-btn grid-btn-secondary" href="/mode">@T("connection.action.changemode")</a>
+            <a class="grid-btn" href="/hardware" style="margin-left:8px">@T("connection.action.configuredevices")</a>
         </div>
     </AuthorizeView>
 </section>
@@ -78,6 +78,7 @@
 
     protected override void OnInitialized()
     {
+        base.OnInitialized(); // subscribe to language changes (LocalizedComponentBase)
         _isConnected = Monitor.IsConnected;
         Monitor.ConnectivityChanged += Handle;
     }
@@ -88,8 +89,9 @@
         InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
         Monitor.ConnectivityChanged -= Handle;
+        base.Dispose(); // unsubscribe
     }
 }
