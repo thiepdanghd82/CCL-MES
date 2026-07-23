@@ -201,6 +201,27 @@ public interface ICclApiClient
     Task<LegSetResponse> ReworkLegAsync(
         long workOrderId, long legId, string legIfMatchETag, string reason, CancellationToken ct = default);
 
+    // ── Semi-Stock decoupling (P11.5 — keep-stock bán thành phẩm) ──
+
+    /// <summary>Kho bán thành phẩm (FEFO order + cờ Expiring + tổng). Đọc,
+    /// không cần If-Match. Filter tuỳ chọn kind/spec/status.</summary>
+    Task<SemiStockView> GetSemiLotsAsync(
+        string? kind = null, long? spec = null, string? status = null, CancellationToken ct = default);
+
+    /// <summary>Post 1 lô semi vào kho (Semi WO done). Chỉ Idempotency-Key.
+    /// 409 semi.lot_exists nếu LotNo trùng; 422 validate.</summary>
+    Task<SemiSetResponse> PostSemiLotAsync(PostSemiLotRequest req, CancellationToken ct = default);
+
+    /// <summary>Assembly giữ lô FEFO (LotNo trống → auto). Chỉ Idempotency-Key
+    /// (optimistic-lock qua SemiLot.RowVersion). 409 semi.lot_conflict;
+    /// 422 semi.insufficient_stock (no-partial) / not_assembly / leg_in_line.</summary>
+    Task<SemiSetResponse> ReserveSemiAsync(
+        long workOrderId, long legId, ReserveSemiRequest req, CancellationToken ct = default);
+
+    /// <summary>Assembly done → consume mọi lô đang reserve cho leg (lô rỗng
+    /// → DEPLETED). Chỉ Idempotency-Key. 422 semi.nothing_reserved.</summary>
+    Task<SemiSetResponse> ConsumeSemiAsync(long workOrderId, long legId, CancellationToken ct = default);
+
     // ── IPQC review + QA approval (P10.7d-3 — operator dashboards) ─
 
     /// <summary>Read view backing the IpqcDashboard + QaApprovalDashboard.

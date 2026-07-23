@@ -399,6 +399,49 @@ public sealed class CclApiClient : ICclApiClient
         msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
     }
 
+    // ── Semi-Stock decoupling (P11.5) ─────────────────────────────
+
+    public async Task<CCL.MES.Shared.Routing.SemiStockView> GetSemiLotsAsync(
+        string? kind = null, long? spec = null, string? status = null, CancellationToken ct = default)
+    {
+        var qs = new List<string>();
+        if (!string.IsNullOrWhiteSpace(kind)) qs.Add($"kind={Uri.EscapeDataString(kind)}");
+        if (spec is not null) qs.Add($"spec={spec}");
+        if (!string.IsNullOrWhiteSpace(status)) qs.Add($"status={Uri.EscapeDataString(status)}");
+        var path = $"/{ApiVersion.Prefix}/semi-lots" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
+        using var resp = await _http.GetAsync(path, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Routing.SemiStockView>(resp, ct);
+    }
+
+    public Task<CCL.MES.Shared.Routing.SemiSetResponse> PostSemiLotAsync(
+        CCL.MES.Shared.Routing.PostSemiLotRequest req, CancellationToken ct = default)
+        => SendSemiPostAsync($"/{ApiVersion.Prefix}/semi-lots", req, ct);
+
+    public Task<CCL.MES.Shared.Routing.SemiSetResponse> ReserveSemiAsync(
+        long workOrderId, long legId, CCL.MES.Shared.Routing.ReserveSemiRequest req, CancellationToken ct = default)
+        => SendSemiPostAsync($"/{ApiVersion.Prefix}/work-orders/{workOrderId}/legs/{legId}/semi/reserve", req, ct);
+
+    public Task<CCL.MES.Shared.Routing.SemiSetResponse> ConsumeSemiAsync(
+        long workOrderId, long legId, CancellationToken ct = default)
+        => SendSemiPostAsync($"/{ApiVersion.Prefix}/work-orders/{workOrderId}/legs/{legId}/semi/consume", new { }, ct);
+
+    /// <summary>Semi reserve/consume/post dùng optimistic-lock nội bộ
+    /// (SemiLot.RowVersion) — chỉ cần Idempotency-Key, KHÔNG If-Match. 200 +
+    /// 409 (carry ErrorCode semi.lot_*) → typed body; else → ApiException.</summary>
+    private async Task<CCL.MES.Shared.Routing.SemiSetResponse> SendSemiPostAsync(
+        string path, object req, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Post, path) { Content = JsonContent.Create(req) };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+        using var resp = await _http.SendAsync(msg, ct);
+        if (resp.StatusCode is HttpStatusCode.OK or HttpStatusCode.Conflict)
+            return await resp.Content.ReadFromJsonAsync<CCL.MES.Shared.Routing.SemiSetResponse>(cancellationToken: ct)
+                   ?? new CCL.MES.Shared.Routing.SemiSetResponse { Ok = false, ErrorCode = "http.empty_body" };
+        return await ReadAsAsync<CCL.MES.Shared.Routing.SemiSetResponse>(resp, ct);
+    }
+
     private async Task<CCL.MES.Shared.Routing.LegSetResponse> SendLegPostAsync(
         string path, string ifMatchETag, object req, CancellationToken ct)
     {

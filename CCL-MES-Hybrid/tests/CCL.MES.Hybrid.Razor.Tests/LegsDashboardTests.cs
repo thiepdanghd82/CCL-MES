@@ -141,4 +141,78 @@ public sealed class LegsDashboardTests : TestContext
         var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
         Assert.NotNull(cut.Find("[data-testid='legs-initial-error']"));
     }
+
+    // ── P11.5-3 semi-stock reserve/consume (FROM_STOCK assembly) ───
+
+    // T3 view nhưng ASSEMBLY leg là FROM_STOCK (xuất kho bán thành phẩm).
+    private static LegsView T3FromStockView(string asmPhase = "IPQC_APPROVED")
+    {
+        var v = T3View(asmPhase: asmPhase);
+        v.Legs[2] = new LegRow
+        {
+            LegId = 102, Sequence = 2, LegKind = "ASSEMBLY", Method = "ASSEMBLY-m",
+            ProcessLine = "SILK", LegPhase = asmPhase, LegETag = "etag2",
+            InputSource = "FROM_STOCK",
+        };
+        return v;
+    }
+
+    [Fact]
+    public void From_stock_assembly_shows_semi_actions_in_line_legs_do_not()
+    {
+        _api.LegsViewImpl = (_, _) => Task.FromResult(T3FromStockView());
+        var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
+
+        // ASSEMBLY (seq 2) FROM_STOCK → có nút giữ/consume.
+        Assert.NotNull(cut.Find("[data-testid='leg-semi-reserve-2']"));
+        Assert.NotNull(cut.Find("[data-testid='leg-semi-consume-2']"));
+        // PRINT (seq 0, IN_LINE mặc định) → KHÔNG có semi block.
+        Assert.Empty(cut.FindAll("[data-testid='leg-semi-0']"));
+    }
+
+    [Fact]
+    public void Reserve_modal_defaults_qty_to_target_and_calls_api_fefo()
+    {
+        _api.LegsViewImpl = (_, _) => Task.FromResult(T3FromStockView());
+        _api.ReserveSemiImpl = (_, _, _, _) => Task.FromResult(new SemiSetResponse { Ok = true, Allocated = 1000 });
+        var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
+
+        cut.Find("[data-testid='leg-semi-reserve-2']").Click();          // open modal
+        Assert.NotNull(cut.Find("[data-testid='legs-semi-modal']"));
+        // LotNo trống → FEFO auto. Confirm ngay (qty default = TargetQty 1000).
+        cut.Find("[data-testid='legs-semi-confirm']").Click();
+
+        var call = Assert.Single(_api.ReserveSemiCalls);
+        Assert.Equal(102L, call.LegId);
+        Assert.Equal(1000, call.Req.Qty);
+        Assert.Equal("PRINTED_SEMI", call.Req.SemiKind);
+        Assert.Null(call.Req.LotNo);
+    }
+
+    [Fact]
+    public void Reserve_insufficient_stock_shows_localised_banner()
+    {
+        _api.LegsViewImpl = (_, _) => Task.FromResult(T3FromStockView());
+        _api.ReserveSemiImpl = (_, _, _, _) => throw new ApiException(422,
+            new CCL.MES.Shared.Envelopes.ApiError { Code = "semi.insufficient_stock", MessageEn = "no stock" });
+        var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
+
+        cut.Find("[data-testid='leg-semi-reserve-2']").Click();
+        cut.Find("[data-testid='legs-semi-confirm']").Click();
+
+        Assert.Contains("Kho không đủ", cut.Find("[data-testid='legs-banner']").TextContent);
+    }
+
+    [Fact]
+    public void Consume_click_calls_api_for_leg()
+    {
+        _api.LegsViewImpl = (_, _) => Task.FromResult(T3FromStockView());
+        _api.ConsumeSemiImpl = (_, _, _) => Task.FromResult(new SemiSetResponse { Ok = true, Allocated = 1000 });
+        var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
+
+        cut.Find("[data-testid='leg-semi-consume-2']").Click();
+
+        var call = Assert.Single(_api.ConsumeSemiCalls);
+        Assert.Equal(102L, call.LegId);
+    }
 }

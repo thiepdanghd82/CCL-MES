@@ -1,0 +1,13 @@
+@page "/warehouse/semi-products"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<PageTitle>Kho bán thành phẩm — CCL MES</PageTitle>
+
+@*
+    P11.5-3 — page host cho kho bán thành phẩm (semi-stock). Logic nằm trong
+    SemiStockDashboard component (testable qua bUnit). Open cho mọi role đã
+    đăng nhập (server SemiStockController [Authorize] any-auth).
+*@
+<div class="page-semi-warehouse">
+    <SemiStockDashboard />
+</div>

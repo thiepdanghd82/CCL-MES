@@ -98,9 +98,36 @@
 .wo-fork-cta { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .wo-fork-msg { font-size: .82rem; color: var(--c-ink-3, #666); }
 
+/* P11.5-3 — semi-stock reserve/consume block on FROM_STOCK assembly legs. */
+.legs-semi {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--c-line, #e2e2e2);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.legs-semi-label {
+    font-size: .72rem;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--c-ink-4, #888);
+}
+.legs-semi-actions { display: flex; gap: 8px; }
+.legs-semi-field { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: var(--c-ink-3, #666); }
+.legs-semi-select {
+    padding: 8px 10px;
+    border: 1px solid var(--c-line, #ddd);
+    border-radius: 8px;
+    background: var(--c-bg, #fff);
+    color: var(--c-ink, #111);
+}
+
 /* S9 — hẹp: xếp 1 cột, nút full-width dễ chạm trên máy quét cầm tay. */
 @container (max-width: 560px) {
     .legs-grid { grid-template-columns: 1fr; }
     .legs-card-actions { flex-direction: column; align-items: stretch; }
     .legs-card-actions .btn { width: 100%; }
+    .legs-semi-actions { flex-direction: column; align-items: stretch; }
+    .legs-semi-actions .btn { width: 100%; }
 }

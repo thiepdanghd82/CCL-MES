@@ -1,0 +1,112 @@
+/* P11.5-3 — SemiStockDashboard scoped styling. Design tokens qua var(--*)
+   (không hardcode hex → không đụng hex gate). S9 responsive qua container
+   query + table-layout fixed + overflow-x auto wrap. */
+
+.semi-dashboard {
+    container-type: inline-size;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.semi-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.semi-head-title { font-weight: 700; font-size: 1.1rem; color: var(--c-ink, #111); }
+.semi-head-totals { color: var(--c-ink-3, #666); font-size: .85rem; }
+.semi-head-totals strong { color: var(--c-ink, #111); }
+
+.semi-filters { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.semi-filter { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--c-ink-4, #888); }
+.semi-select, .semi-input {
+    padding: 8px 10px;
+    border: 1px solid var(--c-line, #ddd);
+    border-radius: 8px;
+    background: var(--c-bg, #fff);
+    color: var(--c-ink, #111);
+}
+.semi-refresh, .semi-add-toggle { align-self: flex-end; }
+.semi-add-toggle { margin-left: auto; }
+
+.semi-add {
+    border: 1px solid var(--c-line, #e2e2e2);
+    border-radius: 12px;
+    padding: 12px;
+    background: var(--c-surface, #f5f8ff);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.semi-add-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.semi-field { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--c-ink-4, #888); flex: 1 1 180px; }
+.semi-add-actions { display: flex; justify-content: flex-end; }
+
+.semi-expiry-banner {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--warn-bg, #fbf1de);
+    color: var(--warn-ink, #92400e);
+    font-size: .85rem;
+    font-weight: 600;
+}
+.semi-empty, .semi-loading { color: var(--c-ink-3, #666); font-size: .9rem; padding: 12px 0; }
+
+.semi-table-wrap { overflow-x: auto; }
+.semi-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    min-width: 720px;
+}
+.semi-table th, .semi-table td {
+    padding: 8px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--c-line-2, #eef2fb);
+    font-size: .85rem;
+    color: var(--c-ink-2, #333);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.semi-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--c-surface, #f5f8ff);
+    color: var(--c-ink-4, #888);
+    font-weight: 600;
+    font-size: .75rem;
+    letter-spacing: .03em;
+}
+.semi-table .semi-num { text-align: right; }
+.semi-lotno { font-weight: 600; color: var(--c-ink, #111); }
+.semi-row-expiring { background: color-mix(in srgb, var(--warn-soft, #f0c674) 22%, transparent); }
+
+.semi-status {
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+}
+.semi-status-available { background: var(--ok-bg, #e6f7ee); color: var(--ok-ink, #15803d); }
+.semi-status-depleted { background: var(--c-soft, #f1f1f4); color: var(--c-ink-3, #666); }
+.semi-status-expired { background: var(--ng-bg, #fdeceb); color: var(--ng-ink, #b91c1c); }
+
+.semi-expiring-tag {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: .68rem;
+    font-weight: 700;
+    background: var(--warn-soft, #f0c674);
+    color: var(--warn-ink, #92400e);
+}
+
+/* S9 — hẹp: filter + form xếp dọc, nút full-width. */
+@container (max-width: 640px) {
+    .semi-filters { flex-direction: column; align-items: stretch; }
+    .semi-add-toggle { margin-left: 0; }
+    .semi-add-row { flex-direction: column; }
+}

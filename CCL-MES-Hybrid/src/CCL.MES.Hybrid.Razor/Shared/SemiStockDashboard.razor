@@ -1,0 +1,246 @@
+@*
+    P11.5-3 — Kho bán thành phẩm (semi-stock warehouse) operator surface.
+
+    Reads GET /api/v2/semi-lots (FEFO order + cờ Expiring + tổng). Cho phép
+    operator "nhập kho" 1 lô semi (barcode LotNo + kind + qty) qua POST
+    /semi-lots. Reserve/consume nằm ở LegsDashboard (assembly leg) — màn này
+    chỉ quản kho + cảnh báo FEFO/expiry.
+
+    Rule 4: plain <button> + plain <input>/<select> (không <InputText>).
+    S9: container-query responsive + table-layout fixed + overflow-x auto.
+    Mọi banner qua SemiStockErrorLocaliser (xUnit lock wording).
+*@
+@using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.Routing
+@using CCL.MES.Shared.Envelopes
+@using CCL.MES.Shared.Routing
+@inject ICclApiClient Api
+
+<div class="semi-dashboard" data-testid="semi-dashboard">
+    <div class="semi-head">
+        <span class="semi-head-title">Kho bán thành phẩm</span>
+        @if (_view is not null)
+        {
+            <span class="semi-head-totals" data-testid="semi-totals">
+                Khả dụng <strong>@_view.TotalAvailable</strong> · Đang giữ <strong>@_view.TotalReserved</strong>
+            </span>
+        }
+    </div>
+
+    <div class="semi-filters" data-testid="semi-filters">
+        <label class="semi-filter">
+            <span>Loại</span>
+            <select class="semi-select" data-testid="semi-filter-kind" @bind="_filterKind" @bind:after="ReloadAsync">
+                <option value="">Tất cả</option>
+                <option value="PRINTED_SEMI">In (PRINTED_SEMI)</option>
+                <option value="TAPE_SEMI">Tape (TAPE_SEMI)</option>
+            </select>
+        </label>
+        <label class="semi-filter">
+            <span>Trạng thái</span>
+            <select class="semi-select" data-testid="semi-filter-status" @bind="_filterStatus" @bind:after="ReloadAsync">
+                <option value="">Tất cả</option>
+                <option value="AVAILABLE">Khả dụng</option>
+                <option value="DEPLETED">Đã hết</option>
+                <option value="EXPIRED">Quá hạn</option>
+            </select>
+        </label>
+        <button type="button" class="btn btn-ghost semi-refresh" data-testid="semi-refresh"
+                disabled="@_busy" @onclick="ReloadAsync">Tải lại</button>
+        <button type="button" class="btn btn-primary semi-add-toggle" data-testid="semi-add-toggle"
+                @onclick="() => _showAdd = !_showAdd">@(_showAdd ? "Đóng nhập kho" : "＋ Nhập lô vào kho")</button>
+    </div>
+
+    @if (_banner is not null)
+    {
+        <div class="wo-card-error" data-testid="semi-banner">@_banner</div>
+    }
+
+    @if (_showAdd)
+    {
+        <div class="semi-add" data-testid="semi-add-form">
+            <div class="semi-add-row">
+                <label class="semi-field">
+                    <span>Mã lô (quét)</span>
+                    <input type="text" class="semi-input" data-testid="semi-add-lotno" maxlength="80"
+                           placeholder="Quét barcode lô…" @bind="_addLotNo" @bind:event="oninput" />
+                </label>
+                <label class="semi-field">
+                    <span>Loại</span>
+                    <select class="semi-select" data-testid="semi-add-kind" @bind="_addKind">
+                        <option value="PRINTED_SEMI">In (PRINTED_SEMI)</option>
+                        <option value="TAPE_SEMI">Tape (TAPE_SEMI)</option>
+                    </select>
+                </label>
+                <label class="semi-field">
+                    <span>Số lượng</span>
+                    <input type="number" min="1" class="semi-input" data-testid="semi-add-qty" @bind="_addQty" />
+                </label>
+            </div>
+            <div class="semi-add-row">
+                <label class="semi-field">
+                    <span>WO nguồn (id)</span>
+                    <input type="number" min="0" class="semi-input" data-testid="semi-add-source" @bind="_addSourceWoId" />
+                </label>
+                <label class="semi-field">
+                    <span>Spec revision (id, tuỳ chọn)</span>
+                    <input type="number" min="0" class="semi-input" data-testid="semi-add-spec" @bind="_addSpecId" />
+                </label>
+                <label class="semi-field">
+                    <span>Hạn dùng (tuỳ chọn)</span>
+                    <input type="date" class="semi-input" data-testid="semi-add-expiry" @bind="_addExpiry" />
+                </label>
+            </div>
+            <div class="semi-add-actions">
+                <button type="button" class="btn btn-primary" data-testid="semi-add-submit"
+                        disabled="@(_busy || string.IsNullOrWhiteSpace(_addLotNo) || _addQty <= 0)"
+                        @onclick="SubmitLotAsync">Nhập kho</button>
+            </div>
+        </div>
+    }
+
+    @if (_view is null && _initialError is null)
+    {
+        <div class="semi-loading" data-testid="semi-loading">Đang tải kho…</div>
+    }
+    else if (_initialError is not null)
+    {
+        <div class="wo-card-error" data-testid="semi-initial-error">
+            <strong>Không tải được kho:</strong> @_initialError
+        </div>
+    }
+    else if (_view is not null)
+    {
+        @if (_view.Lots.Any(l => l.Expiring))
+        {
+            <div class="semi-expiry-banner" data-testid="semi-expiry-banner">
+                ⚠️ @_view.Lots.Count(l => l.Expiring) lô sắp/đã hết hạn — ưu tiên xuất trước (FEFO).
+            </div>
+        }
+
+        @if (_view.Lots.Count == 0)
+        {
+            <div class="semi-empty" data-testid="semi-empty">Kho trống theo bộ lọc hiện tại.</div>
+        }
+        else
+        {
+            <div class="semi-table-wrap">
+                <table class="semi-table" data-testid="semi-table">
+                    <thead>
+                        <tr>
+                            <th>Mã lô</th><th>Loại</th><th>Spec</th><th>WO nguồn</th>
+                            <th class="semi-num">SX</th><th class="semi-num">Khả dụng</th><th class="semi-num">Đang giữ</th>
+                            <th>Trạng thái</th><th>Hạn dùng</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var lot in _view.Lots)
+                        {
+                            <tr class="@(lot.Expiring ? "semi-row-expiring" : "")" data-testid="semi-row-@lot.Id">
+                                <td class="semi-lotno">@lot.LotNo</td>
+                                <td>@KindLabel(lot.SemiKind)</td>
+                                <td>@(lot.SpecRevisionId?.ToString() ?? "—")</td>
+                                <td>@lot.SourceWorkOrderId</td>
+                                <td class="semi-num">@lot.QtyProduced</td>
+                                <td class="semi-num">@lot.QtyAvailable</td>
+                                <td class="semi-num">@lot.QtyReserved</td>
+                                <td><span class="semi-status semi-status-@lot.Status.ToLowerInvariant()">@StatusLabel(lot.Status)</span></td>
+                                <td>
+                                    @(lot.ExpiryAt?.ToString("yyyy-MM-dd") ?? "—")
+                                    @if (lot.Expiring)
+                                    {
+                                        <span class="semi-expiring-tag" data-testid="semi-expiring-@lot.Id">FEFO</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private SemiStockView? _view;
+    private string? _initialError;
+    private string? _banner;
+    private bool _busy;
+    private bool _loaded;
+
+    private string _filterKind = "";
+    private string _filterStatus = "";
+
+    private bool _showAdd;
+    private string _addLotNo = "";
+    private string _addKind = "PRINTED_SEMI";
+    private int _addQty = 0;
+    private long _addSourceWoId = 0;
+    private long _addSpecId = 0;
+    private DateTime? _addExpiry;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (_loaded) return;
+        _loaded = true;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _busy = true; _banner = null;
+        try
+        {
+            _view = await Api.GetSemiLotsAsync(
+                string.IsNullOrEmpty(_filterKind) ? null : _filterKind,
+                null,
+                string.IsNullOrEmpty(_filterStatus) ? null : _filterStatus);
+            _initialError = null;
+        }
+        catch (ApiException ex) { _initialError = SemiStockErrorLocaliser.LocaliseApiError(ex.StatusCode, ex.ApiError); }
+        catch (Exception ex) { _initialError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task SubmitLotAsync()
+    {
+        if (_busy || string.IsNullOrWhiteSpace(_addLotNo) || _addQty <= 0) return;
+        _busy = true; _banner = null;
+        try
+        {
+            var resp = await Api.PostSemiLotAsync(new PostSemiLotRequest
+            {
+                LotNo = _addLotNo.Trim(),
+                SemiKind = _addKind,
+                Qty = _addQty,
+                SourceWorkOrderId = _addSourceWoId,
+                SpecRevisionId = _addSpecId > 0 ? _addSpecId : null,
+                ExpiryAt = _addExpiry,
+            });
+            if (resp.Ok)
+            {
+                _addLotNo = ""; _addQty = 0; _addExpiry = null; _showAdd = false;
+                await ReloadAsync();
+            }
+            else { _banner = SemiStockErrorLocaliser.LocaliseSetError(resp.ErrorCode ?? ""); }
+        }
+        catch (ApiException ex) { _banner = SemiStockErrorLocaliser.LocaliseApiError(ex.StatusCode, ex.ApiError); }
+        catch (Exception ex) { _banner = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private static string KindLabel(string kind) => kind switch
+    {
+        "PRINTED_SEMI" => "In",
+        "TAPE_SEMI"    => "Tape",
+        _              => kind,
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "AVAILABLE" => "Khả dụng",
+        "DEPLETED"  => "Đã hết",
+        "EXPIRED"   => "Quá hạn",
+        _           => status,
+    };
+}
