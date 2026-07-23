@@ -204,6 +204,25 @@ public sealed class RoutingController : ControllerBase
                 $"Leg {legId} không thể vào {toPhase} từ {leg!.LegPhase} ({check.Error})."));
         }
 
+        // P11.5-2 — gate FROM_STOCK/MIXED: assembly xuất kho phải reserve đủ
+        // semi trước khi vào RUNNING (RoutingLegGate chỉ gác in-line HARD;
+        // stock-satisfaction cần SemiAllocation → kiểm ở đây).
+        if (toPhase == LegPhase.RUNNING
+            && string.Equals(leg!.LegKind, nameof(LegKind.ASSEMBLY), StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(leg.InputSource, nameof(InputSource.IN_LINE), StringComparison.OrdinalIgnoreCase))
+        {
+            var allocs = await _db.SemiAllocations.AsNoTracking()
+                .Where(a => a.WorkOrderId == id && a.AssemblyLegId == legId).ToListAsync(ct);
+            // MIXED: cộng phần in-line đã done (qty của các HARD predecessor LEG_DONE).
+            int inlineDone = wo.LegEdges.Where(e => e.LegId == leg.Id)
+                .Select(e => wo.Legs.FirstOrDefault(l => l.Id == e.DependsOnLegId))
+                .Where(l => l is not null && l.LegPhase == nameof(LegPhase.LEG_DONE))
+                .Sum(l => l!.QtyDoneCached);
+            if (!SemiStockAllocator.IsSatisfied(allocs, legId, wo.TargetQty, inlineDone))
+                return UnprocessableEntity(ApiError.Of("leg.inputs_not_ready",
+                    $"Assembly chưa đủ semi từ kho (cần {wo.TargetQty}) — reserve thêm trước khi chạy."));
+        }
+
         var now = DateTime.UtcNow;
         leg!.LegPhase = toPhase.ToString();
         leg.UpdatedAt = now; leg.UpdatedBy = actor;
