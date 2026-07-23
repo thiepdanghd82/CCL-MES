@@ -57,7 +57,11 @@
     <div class="semi-toolbar" data-testid="semi-filters">
         <label class="semi-filter">
             <span>Loại</span>
-            <select class="semi-select" data-testid="semi-filter-kind" @bind="_filterKind" @bind:after="ReloadAsync">
+            @* @onchange (không @bind:after) + @key ổn định + value controlled:
+               tránh Blazor tái tạo/ghi-đè node <select> native lúc reload async
+               giữa change-event trong MAUI WebView → chọn liên tiếp không kẹt. *@
+            <select @key="@("semi-filter-kind")" class="semi-select" data-testid="semi-filter-kind"
+                    value="@_filterKind" @onchange="OnKindChanged">
                 <option value="">Tất cả</option>
                 <option value="PRINTED_SEMI">In (PRINTED_SEMI)</option>
                 <option value="TAPE_SEMI">Tape (TAPE_SEMI)</option>
@@ -65,7 +69,8 @@
         </label>
         <label class="semi-filter">
             <span>Trạng thái</span>
-            <select class="semi-select" data-testid="semi-filter-status" @bind="_filterStatus" @bind:after="ReloadAsync">
+            <select @key="@("semi-filter-status")" class="semi-select" data-testid="semi-filter-status"
+                    value="@_filterStatus" @onchange="OnStatusChanged">
                 <option value="">Tất cả</option>
                 <option value="AVAILABLE">Khả dụng</option>
                 <option value="DEPLETED">Đã hết</option>
@@ -259,6 +264,9 @@
     private string _filterKind = "";
     private string _filterStatus = "";
     private string _search = "";
+    // Monotonic reload token: response cũ đến sau KHÔNG ghi đè filter mới hơn
+    // (đổi filter liên tiếp nhanh). Không khoá/disable select.
+    private int _reloadSeq;
 
     // Nhập kho modal
     private bool _showAdd;
@@ -297,20 +305,36 @@
         return q.ToList();
     }
 
+    // Đổi Loại → set field NGAY (đồng bộ) rồi reload. KHÔNG @bind:after (tránh
+    // Blazor ghi value-back vào <select> đúng lúc change-event async re-render).
+    private Task OnKindChanged(ChangeEventArgs e)
+    {
+        _filterKind = e.Value?.ToString() ?? "";
+        return ReloadAsync();
+    }
+    private Task OnStatusChanged(ChangeEventArgs e)
+    {
+        _filterStatus = e.Value?.ToString() ?? "";
+        return ReloadAsync();
+    }
+
     private async Task ReloadAsync()
     {
+        var seq = ++_reloadSeq;
         _busy = true; _banner = null;
         try
         {
-            _view = await Api.GetSemiLotsAsync(
+            var view = await Api.GetSemiLotsAsync(
                 string.IsNullOrEmpty(_filterKind) ? null : _filterKind,
                 null,
                 string.IsNullOrEmpty(_filterStatus) ? null : _filterStatus);
+            if (seq != _reloadSeq) return;   // reload mới hơn đã chạy → bỏ kết quả cũ
+            _view = view;                    // KHÔNG set _view=null trước đó → bảng cũ giữ tới khi có data mới
             _initialError = null;
         }
-        catch (ApiException ex) { _initialError = SemiStockErrorLocaliser.LocaliseApiError(ex.StatusCode, ex.ApiError); }
-        catch (Exception ex) { _initialError = ex.Message; }
-        finally { _busy = false; }
+        catch (ApiException ex) { if (seq == _reloadSeq) _initialError = SemiStockErrorLocaliser.LocaliseApiError(ex.StatusCode, ex.ApiError); }
+        catch (Exception ex) { if (seq == _reloadSeq) _initialError = ex.Message; }
+        finally { if (seq == _reloadSeq) _busy = false; }
     }
 
     private void OpenAdd()

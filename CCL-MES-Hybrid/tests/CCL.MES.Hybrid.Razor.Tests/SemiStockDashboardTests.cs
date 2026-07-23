@@ -87,6 +87,68 @@ public sealed class SemiStockDashboardTests : TestContext
         Assert.Equal("TAPE_SEMI", _api.SemiLotsCalls[^1].Kind);
     }
 
+    // ── Select re-render mid-change fix (@onchange + @key, không @bind:after) ──
+
+    [Fact]
+    public void Change_filter_kind_triggers_reload_with_new_param()
+    {
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
+        var cut = RenderComponent<SemiStockDashboard>();
+
+        cut.Find("[data-testid='semi-filter-kind']").Change("PRINTED_SEMI");
+
+        Assert.Equal(2, _api.SemiLotsCalls.Count);           // initial + 1 filter
+        Assert.Equal("PRINTED_SEMI", _api.SemiLotsCalls[^1].Kind);
+        Assert.Null(_api.SemiLotsCalls[^1].Status);          // status vẫn "Tất cả" = null
+    }
+
+    [Fact]
+    public void Change_filter_status_triggers_reload()
+    {
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
+        var cut = RenderComponent<SemiStockDashboard>();
+
+        cut.Find("[data-testid='semi-filter-status']").Change("AVAILABLE");
+
+        Assert.Equal(2, _api.SemiLotsCalls.Count);
+        Assert.Equal("AVAILABLE", _api.SemiLotsCalls[^1].Status);
+        Assert.Null(_api.SemiLotsCalls[^1].Kind);
+    }
+
+    [Fact]
+    public void Consecutive_filter_changes_each_reload_without_intermediate_action()
+    {
+        // Bug cũ: đổi filter lần 2 cần click ra ngoài trước. Giờ: đổi Loại →
+        // Trạng thái → Loại liên tiếp, mỗi lần 1 GET với đúng tham số, KHÔNG
+        // thao tác trung gian.
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
+        var cut = RenderComponent<SemiStockDashboard>();
+
+        cut.Find("[data-testid='semi-filter-kind']").Change("PRINTED_SEMI");
+        cut.Find("[data-testid='semi-filter-status']").Change("EXPIRED");
+        cut.Find("[data-testid='semi-filter-kind']").Change("TAPE_SEMI");
+
+        Assert.Equal(4, _api.SemiLotsCalls.Count);           // initial + 3 change
+        var last = _api.SemiLotsCalls[^1];
+        Assert.Equal("TAPE_SEMI", last.Kind);                // kind mới nhất
+        Assert.Equal("EXPIRED", last.Status);                // status vẫn giữ từ lần đổi trước
+        // Select vẫn tồn tại + tương tác được sau chuỗi đổi (không bị thay node).
+        Assert.NotNull(cut.Find("[data-testid='semi-filter-kind']"));
+        Assert.NotNull(cut.Find("[data-testid='semi-filter-status']"));
+    }
+
+    [Fact]
+    public void Filter_selects_never_disabled_during_busy()
+    {
+        // disabled=_busy chỉ áp nút, KHÔNG áp select (disable select giữa reload
+        // cũng làm mất focus/kẹt tương tác).
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
+        var cut = RenderComponent<SemiStockDashboard>();
+
+        Assert.False(cut.Find("[data-testid='semi-filter-kind']").HasAttribute("disabled"));
+        Assert.False(cut.Find("[data-testid='semi-filter-status']").HasAttribute("disabled"));
+    }
+
     [Fact]
     public void Post_lot_submits_with_entered_fields_then_reloads()
     {
