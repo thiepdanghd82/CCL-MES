@@ -55,29 +55,33 @@
 
     @* ── 2. TOOLBAR (lọc + search + actions) ────────────────────── *@
     <div class="semi-toolbar" data-testid="semi-filters">
-        <label class="semi-filter">
+        @* Segmented chip-buttons thay <select> native: WKWebView native picker
+           kẹt sau re-render (mọi biến thể <select> đều lỗi). <button> KHÔNG có
+           picker → không thể kẹt (pattern MachineDashboard). Lọc client-side. *@
+        <div class="semi-filter">
             <span>Loại</span>
-            @* Lọc client-side: @onchange set field (sync, KHÔNG reload async) +
-               @key ổn định + UNCONTROLLED (không value=) → Blazor không tái tạo
-               hay ghi value-back vào <select> native WKWebView → chọn liên tiếp
-               không kẹt/đóng băng. *@
-            <select @key="@("semi-filter-kind")" class="semi-select" data-testid="semi-filter-kind"
-                    @onchange="OnKindChanged">
-                <option value="">Tất cả</option>
-                <option value="PRINTED_SEMI">In (PRINTED_SEMI)</option>
-                <option value="TAPE_SEMI">Tape (TAPE_SEMI)</option>
-            </select>
-        </label>
-        <label class="semi-filter">
+            <div class="semi-seg" data-testid="semi-filter-kind" role="group" aria-label="Lọc theo loại">
+                @foreach (var opt in KindOptions)
+                {
+                    <button type="button" class="semi-seg-btn @(_filterKind == opt.Val ? "is-on" : "")"
+                            data-testid="@($"semi-kind-{(opt.Val == "" ? "all" : opt.Val)}")"
+                            aria-pressed="@(_filterKind == opt.Val)"
+                            @onclick="() => _filterKind = opt.Val">@opt.Label</button>
+                }
+            </div>
+        </div>
+        <div class="semi-filter">
             <span>Trạng thái</span>
-            <select @key="@("semi-filter-status")" class="semi-select" data-testid="semi-filter-status"
-                    @onchange="OnStatusChanged">
-                <option value="">Tất cả</option>
-                <option value="AVAILABLE">Khả dụng</option>
-                <option value="DEPLETED">Đã hết</option>
-                <option value="EXPIRED">Quá hạn</option>
-            </select>
-        </label>
+            <div class="semi-seg" data-testid="semi-filter-status" role="group" aria-label="Lọc theo trạng thái">
+                @foreach (var opt in StatusOptions)
+                {
+                    <button type="button" class="semi-seg-btn @(_filterStatus == opt.Val ? "is-on" : "")"
+                            data-testid="@($"semi-status-{(opt.Val == "" ? "all" : opt.Val)}")"
+                            aria-pressed="@(_filterStatus == opt.Val)"
+                            @onclick="() => _filterStatus = opt.Val">@opt.Label</button>
+                }
+            </div>
+        </div>
         <label class="semi-filter semi-filter-search">
             <span>Tìm mã lô</span>
             <input type="search" class="semi-input" data-testid="semi-search" placeholder="Quét/nhập mã lô…"
@@ -314,11 +318,16 @@
         return q.ToList();
     }
 
-    // Đổi Loại/Trạng thái = set field ĐỒNG BỘ, KHÔNG async/reload. Blazor
-    // re-render sau handler (sync) → FilteredLots áp filter. Select UNCONTROLLED
-    // (không value=) → Blazor không ghi value-back vào node native → không kẹt.
-    private void OnKindChanged(ChangeEventArgs e) => _filterKind = e.Value?.ToString() ?? "";
-    private void OnStatusChanged(ChangeEventArgs e) => _filterStatus = e.Value?.ToString() ?? "";
+    // Chip-buttons thay <select> native → đổi filter là @onclick set field
+    // (client-side). Không native picker → re-render không xung đột → không kẹt.
+    private static readonly (string Val, string Label)[] KindOptions =
+    {
+        ("", "Tất cả"), ("PRINTED_SEMI", "In"), ("TAPE_SEMI", "Tape"),
+    };
+    private static readonly (string Val, string Label)[] StatusOptions =
+    {
+        ("", "Tất cả"), ("AVAILABLE", "Khả dụng"), ("DEPLETED", "Đã hết"), ("EXPIRED", "Quá hạn"),
+    };
 
     private async Task ReloadAsync()
     {

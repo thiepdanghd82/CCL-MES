@@ -75,9 +75,9 @@ public sealed class SemiStockDashboardTests : TestContext
         Assert.NotNull(cut.Find("[data-testid='semi-empty']"));
     }
 
-    // ── Lọc client-side: đổi Loại/Trạng thái KHÔNG gọi GET, chỉ hẹp rows tại
-    //    chỗ (đồng bộ) → không re-render async giữa change-event select native
-    //    trong WKWebView → hết đóng băng. GET chỉ initial/Tải lại/sau nhập lô. ──
+    // ── Lọc = segmented CHIP-BUTTONS (thay <select> native — WKWebView native
+    //    picker kẹt sau re-render). Click chip = @onclick set field client-side,
+    //    KHÔNG picker → không kẹt. GET chỉ initial/Tải lại/sau nhập lô. ──
 
     private SemiStockView MixedView() => View(
         Lot(1, "SEMI-IN-A", 400, semiKind: "PRINTED_SEMI", status: "AVAILABLE"),
@@ -85,27 +85,26 @@ public sealed class SemiStockDashboardTests : TestContext
         Lot(3, "SEMI-IN-C", 0, semiKind: "PRINTED_SEMI", status: "DEPLETED"));
 
     [Fact]
-    public void Change_filter_kind_narrows_rows_client_side_without_reload()
+    public void Click_kind_chip_narrows_rows_client_side_without_reload()
     {
         _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(MixedView());
         var cut = RenderComponent<SemiStockDashboard>();
         Assert.Equal(3, cut.FindAll("[data-testid^='semi-row-']").Count);
 
-        cut.Find("[data-testid='semi-filter-kind']").Change("TAPE_SEMI");
+        cut.Find("[data-testid='semi-kind-TAPE_SEMI']").Click();
 
-        // chỉ lô TAPE hiện; KHÔNG GET mới (chỉ 1 lần initial).
-        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));
+        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));   // chỉ lô TAPE
         Assert.NotNull(cut.Find("[data-testid='semi-row-2']"));
-        Assert.Single(_api.SemiLotsCalls);
+        Assert.Single(_api.SemiLotsCalls);                          // KHÔNG GET mới
     }
 
     [Fact]
-    public void Change_filter_status_narrows_rows_client_side_without_reload()
+    public void Click_status_chip_narrows_rows_client_side_without_reload()
     {
         _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(MixedView());
         var cut = RenderComponent<SemiStockDashboard>();
 
-        cut.Find("[data-testid='semi-filter-status']").Change("DEPLETED");
+        cut.Find("[data-testid='semi-status-DEPLETED']").Click();
 
         Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));
         Assert.NotNull(cut.Find("[data-testid='semi-row-3']"));
@@ -113,46 +112,44 @@ public sealed class SemiStockDashboardTests : TestContext
     }
 
     [Fact]
-    public void Consecutive_filter_changes_narrow_each_time_without_intermediate_action()
+    public void Consecutive_chip_clicks_narrow_each_time_without_intermediate_action()
     {
-        // Bug cũ: đổi filter lần 2 phải click ra ngoài / bị đóng băng. Giờ đổi
+        // Bug cũ: đổi filter lần 2 bị đóng băng (native select). Chip-button: click
         // Loại → Trạng thái → Loại liên tiếp, rows hẹp đúng mỗi lần, KHÔNG thao
-        // tác trung gian, KHÔNG GET thêm.
+        // tác trung gian, KHÔNG GET thêm, KHÔNG picker native để kẹt.
         _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(MixedView());
         var cut = RenderComponent<SemiStockDashboard>();
 
-        cut.Find("[data-testid='semi-filter-kind']").Change("PRINTED_SEMI");
+        cut.Find("[data-testid='semi-kind-PRINTED_SEMI']").Click();
         Assert.Equal(2, cut.FindAll("[data-testid^='semi-row-']").Count);   // IN-A + IN-C
 
-        cut.Find("[data-testid='semi-filter-status']").Change("AVAILABLE");
-        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));           // IN-A (PRINTED+AVAILABLE)
+        cut.Find("[data-testid='semi-status-AVAILABLE']").Click();
+        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));           // IN-A
         Assert.NotNull(cut.Find("[data-testid='semi-row-1']"));
 
-        cut.Find("[data-testid='semi-filter-kind']").Change("TAPE_SEMI");
-        // TAPE + AVAILABLE → chỉ TP-B.
-        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));
+        cut.Find("[data-testid='semi-kind-TAPE_SEMI']").Click();
+        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));           // TP-B (TAPE+AVAILABLE)
         Assert.NotNull(cut.Find("[data-testid='semi-row-2']"));
 
         Assert.Single(_api.SemiLotsCalls);                                  // không GET thêm lần nào
-        // select vẫn còn + tương tác được sau chuỗi đổi.
-        Assert.NotNull(cut.Find("[data-testid='semi-filter-kind']"));
-        Assert.NotNull(cut.Find("[data-testid='semi-filter-status']"));
     }
 
     [Fact]
-    public void Filter_selects_are_uncontrolled_and_never_disabled()
+    public void Active_chip_reflects_selection_and_group_has_no_native_select()
     {
-        // UNCONTROLLED (không value=) + không disabled → Blazor không ghi
-        // value-back/khoá node <select> native lúc re-render (nguyên nhân kẹt).
-        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(MixedView());
         var cut = RenderComponent<SemiStockDashboard>();
 
-        var kind = cut.Find("[data-testid='semi-filter-kind']");
-        var status = cut.Find("[data-testid='semi-filter-status']");
-        Assert.False(kind.HasAttribute("disabled"));
-        Assert.False(status.HasAttribute("disabled"));
-        Assert.False(kind.HasAttribute("value"));      // uncontrolled
-        Assert.False(status.HasAttribute("value"));
+        // Mặc định "Tất cả" active.
+        Assert.Contains("is-on", cut.Find("[data-testid='semi-kind-all']").GetAttribute("class"));
+
+        cut.Find("[data-testid='semi-kind-TAPE_SEMI']").Click();
+        Assert.Contains("is-on", cut.Find("[data-testid='semi-kind-TAPE_SEMI']").GetAttribute("class"));
+        Assert.DoesNotContain("is-on", cut.Find("[data-testid='semi-kind-all']").GetAttribute("class"));
+
+        // KHÔNG còn <select> native trong 2 group filter (nguồn bug WKWebView).
+        Assert.Empty(cut.FindAll("[data-testid='semi-filter-kind'] select"));
+        Assert.Empty(cut.FindAll("[data-testid='semi-filter-status'] select"));
     }
 
     [Fact]

@@ -6476,6 +6476,15 @@ tr.wc-row:hover { background: var(--c-bg); }
     background: var(--c-bg); color: var(--c-ink); font-size: .88rem; }
 .semi-input:focus, .semi-select:focus { outline: 2px solid var(--brand-soft); outline-offset: 1px; }
 .semi-filter-search .semi-input { width: 100%; }
+/* Segmented chip filter (thay <select> native — không kẹt WKWebView). */
+.semi-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px;
+    background: var(--c-surface); border: 1px solid var(--c-line); }
+.semi-seg-btn { border: none; background: transparent; cursor: pointer; white-space: nowrap;
+    padding: 6px 12px; border-radius: 7px; font-size: .82rem; font-weight: 600;
+    color: var(--c-muted); transition: background .12s, color .12s; }
+.semi-seg-btn:hover { color: var(--c-ink); }
+.semi-seg-btn:focus-visible { outline: 2px solid var(--brand-soft); outline-offset: 1px; }
+.semi-seg-btn.is-on { background: var(--card); color: var(--brand-2); border: 1px solid var(--c-line); }
 
 .semi-expiry-banner { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 8px;
     background: var(--warn-bg); color: var(--warn-ink); font-size: .85rem; font-weight: 600; }
