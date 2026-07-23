@@ -30,9 +30,10 @@ public sealed class SemiStockDashboardTests : TestContext
     }
 
     private static SemiLotRow Lot(long id, string lotNo, int avail, int reserved = 0,
-        string status = "AVAILABLE", bool expiring = false, DateTime? expiryAt = null) => new()
+        string status = "AVAILABLE", bool expiring = false, DateTime? expiryAt = null,
+        string semiKind = "PRINTED_SEMI") => new()
     {
-        Id = id, LotNo = lotNo, SemiKind = "PRINTED_SEMI", SourceWorkOrderId = 1,
+        Id = id, LotNo = lotNo, SemiKind = semiKind, SourceWorkOrderId = 1,
         QtyProduced = avail + reserved, QtyAvailable = avail, QtyReserved = reserved,
         Status = status, Expiring = expiring, ExpiryAt = expiryAt,
     };
@@ -74,17 +75,81 @@ public sealed class SemiStockDashboardTests : TestContext
         Assert.NotNull(cut.Find("[data-testid='semi-empty']"));
     }
 
+    // ── Lọc = segmented CHIP-BUTTONS (thay <select> native — WKWebView native
+    //    picker kẹt sau re-render). Click chip = @onclick set field client-side,
+    //    KHÔNG picker → không kẹt. GET chỉ initial/Tải lại/sau nhập lô. ──
+
+    private SemiStockView MixedView() => View(
+        Lot(1, "SEMI-IN-A", 400, semiKind: "PRINTED_SEMI", status: "AVAILABLE"),
+        Lot(2, "SEMI-TP-B", 300, semiKind: "TAPE_SEMI", status: "AVAILABLE"),
+        Lot(3, "SEMI-IN-C", 0, semiKind: "PRINTED_SEMI", status: "DEPLETED"));
+
     [Fact]
-    public void Filter_kind_change_reloads_with_kind_param()
+    public void Click_kind_chip_narrows_rows_client_side_without_reload()
     {
-        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(View(Lot(1, "SEMI-A", 400)));
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(MixedView());
+        var cut = RenderComponent<SemiStockDashboard>();
+        Assert.Equal(3, cut.FindAll("[data-testid^='semi-row-']").Count);
+
+        cut.Find("[data-testid='semi-kind-TAPE_SEMI']").Click();
+
+        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));   // chỉ lô TAPE
+        Assert.NotNull(cut.Find("[data-testid='semi-row-2']"));
+        Assert.Single(_api.SemiLotsCalls);                          // KHÔNG GET mới
+    }
+
+    [Fact]
+    public void Click_status_chip_narrows_rows_client_side_without_reload()
+    {
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(MixedView());
         var cut = RenderComponent<SemiStockDashboard>();
 
-        cut.Find("[data-testid='semi-filter-kind']").Change("TAPE_SEMI");
+        cut.Find("[data-testid='semi-status-DEPLETED']").Click();
 
-        // 1st call = initial (null kind), 2nd = after filter.
-        Assert.Equal(2, _api.SemiLotsCalls.Count);
-        Assert.Equal("TAPE_SEMI", _api.SemiLotsCalls[^1].Kind);
+        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));
+        Assert.NotNull(cut.Find("[data-testid='semi-row-3']"));
+        Assert.Single(_api.SemiLotsCalls);
+    }
+
+    [Fact]
+    public void Consecutive_chip_clicks_narrow_each_time_without_intermediate_action()
+    {
+        // Bug cũ: đổi filter lần 2 bị đóng băng (native select). Chip-button: click
+        // Loại → Trạng thái → Loại liên tiếp, rows hẹp đúng mỗi lần, KHÔNG thao
+        // tác trung gian, KHÔNG GET thêm, KHÔNG picker native để kẹt.
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(MixedView());
+        var cut = RenderComponent<SemiStockDashboard>();
+
+        cut.Find("[data-testid='semi-kind-PRINTED_SEMI']").Click();
+        Assert.Equal(2, cut.FindAll("[data-testid^='semi-row-']").Count);   // IN-A + IN-C
+
+        cut.Find("[data-testid='semi-status-AVAILABLE']").Click();
+        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));           // IN-A
+        Assert.NotNull(cut.Find("[data-testid='semi-row-1']"));
+
+        cut.Find("[data-testid='semi-kind-TAPE_SEMI']").Click();
+        Assert.Single(cut.FindAll("[data-testid^='semi-row-']"));           // TP-B (TAPE+AVAILABLE)
+        Assert.NotNull(cut.Find("[data-testid='semi-row-2']"));
+
+        Assert.Single(_api.SemiLotsCalls);                                  // không GET thêm lần nào
+    }
+
+    [Fact]
+    public void Active_chip_reflects_selection_and_group_has_no_native_select()
+    {
+        _api.SemiLotsImpl = (_, _, _, _) => Task.FromResult(MixedView());
+        var cut = RenderComponent<SemiStockDashboard>();
+
+        // Mặc định "Tất cả" active.
+        Assert.Contains("is-on", cut.Find("[data-testid='semi-kind-all']").GetAttribute("class"));
+
+        cut.Find("[data-testid='semi-kind-TAPE_SEMI']").Click();
+        Assert.Contains("is-on", cut.Find("[data-testid='semi-kind-TAPE_SEMI']").GetAttribute("class"));
+        Assert.DoesNotContain("is-on", cut.Find("[data-testid='semi-kind-all']").GetAttribute("class"));
+
+        // KHÔNG còn <select> native trong 2 group filter (nguồn bug WKWebView).
+        Assert.Empty(cut.FindAll("[data-testid='semi-filter-kind'] select"));
+        Assert.Empty(cut.FindAll("[data-testid='semi-filter-status'] select"));
     }
 
     [Fact]

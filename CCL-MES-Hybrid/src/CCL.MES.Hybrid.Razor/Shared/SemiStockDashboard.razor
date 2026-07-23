@@ -55,23 +55,33 @@
 
     @* ── 2. TOOLBAR (lọc + search + actions) ────────────────────── *@
     <div class="semi-toolbar" data-testid="semi-filters">
-        <label class="semi-filter">
+        @* Segmented chip-buttons thay <select> native: WKWebView native picker
+           kẹt sau re-render (mọi biến thể <select> đều lỗi). <button> KHÔNG có
+           picker → không thể kẹt (pattern MachineDashboard). Lọc client-side. *@
+        <div class="semi-filter">
             <span>Loại</span>
-            <select class="semi-select" data-testid="semi-filter-kind" @bind="_filterKind" @bind:after="ReloadAsync">
-                <option value="">Tất cả</option>
-                <option value="PRINTED_SEMI">In (PRINTED_SEMI)</option>
-                <option value="TAPE_SEMI">Tape (TAPE_SEMI)</option>
-            </select>
-        </label>
-        <label class="semi-filter">
+            <div class="semi-seg" data-testid="semi-filter-kind" role="group" aria-label="Lọc theo loại">
+                @foreach (var opt in KindOptions)
+                {
+                    <button type="button" class="semi-seg-btn @(_filterKind == opt.Val ? "is-on" : "")"
+                            data-testid="@($"semi-kind-{(opt.Val == "" ? "all" : opt.Val)}")"
+                            aria-pressed="@(_filterKind == opt.Val)"
+                            @onclick="() => _filterKind = opt.Val">@opt.Label</button>
+                }
+            </div>
+        </div>
+        <div class="semi-filter">
             <span>Trạng thái</span>
-            <select class="semi-select" data-testid="semi-filter-status" @bind="_filterStatus" @bind:after="ReloadAsync">
-                <option value="">Tất cả</option>
-                <option value="AVAILABLE">Khả dụng</option>
-                <option value="DEPLETED">Đã hết</option>
-                <option value="EXPIRED">Quá hạn</option>
-            </select>
-        </label>
+            <div class="semi-seg" data-testid="semi-filter-status" role="group" aria-label="Lọc theo trạng thái">
+                @foreach (var opt in StatusOptions)
+                {
+                    <button type="button" class="semi-seg-btn @(_filterStatus == opt.Val ? "is-on" : "")"
+                            data-testid="@($"semi-status-{(opt.Val == "" ? "all" : opt.Val)}")"
+                            aria-pressed="@(_filterStatus == opt.Val)"
+                            @onclick="() => _filterStatus = opt.Val">@opt.Label</button>
+                }
+            </div>
+        </div>
         <label class="semi-filter semi-filter-search">
             <span>Tìm mã lô</span>
             <input type="search" class="semi-input" data-testid="semi-search" placeholder="Quét/nhập mã lô…"
@@ -259,6 +269,9 @@
     private string _filterKind = "";
     private string _filterStatus = "";
     private string _search = "";
+    // Monotonic reload token: response cũ đến sau KHÔNG ghi đè filter mới hơn
+    // (đổi filter liên tiếp nhanh). Không khoá/disable select.
+    private int _reloadSeq;
 
     // Nhập kho modal
     private bool _showAdd;
@@ -288,29 +301,49 @@
         await ReloadAsync();
     }
 
+    // Lọc CLIENT-SIDE (kind + status + search) — pattern MachineDashboard.
+    // Đổi filter KHÔNG gọi GET/await → không có re-render async giữa change-event
+    // của <select> native trong WKWebView → hết đóng băng. GET chỉ tải toàn bộ
+    // kho (initial / Tải lại / sau nhập lô).
     private List<SemiLotRow> FilteredLots()
     {
         if (_view is null) return new();
         var q = _view.Lots.AsEnumerable();
+        if (!string.IsNullOrEmpty(_filterKind))
+            q = q.Where(l => string.Equals(l.SemiKind, _filterKind, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(_filterStatus))
+            q = q.Where(l => string.Equals(l.Status, _filterStatus, StringComparison.OrdinalIgnoreCase));
         if (!string.IsNullOrWhiteSpace(_search))
             q = q.Where(l => l.LotNo.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase));
         return q.ToList();
     }
 
+    // Chip-buttons thay <select> native → đổi filter là @onclick set field
+    // (client-side). Không native picker → re-render không xung đột → không kẹt.
+    private static readonly (string Val, string Label)[] KindOptions =
+    {
+        ("", "Tất cả"), ("PRINTED_SEMI", "In"), ("TAPE_SEMI", "Tape"),
+    };
+    private static readonly (string Val, string Label)[] StatusOptions =
+    {
+        ("", "Tất cả"), ("AVAILABLE", "Khả dụng"), ("DEPLETED", "Đã hết"), ("EXPIRED", "Quá hạn"),
+    };
+
     private async Task ReloadAsync()
     {
+        var seq = ++_reloadSeq;
         _busy = true; _banner = null;
         try
         {
-            _view = await Api.GetSemiLotsAsync(
-                string.IsNullOrEmpty(_filterKind) ? null : _filterKind,
-                null,
-                string.IsNullOrEmpty(_filterStatus) ? null : _filterStatus);
+            // Tải TOÀN BỘ kho (lọc kind/status/search làm client-side).
+            var view = await Api.GetSemiLotsAsync();
+            if (seq != _reloadSeq) return;   // reload mới hơn đã chạy → bỏ kết quả cũ
+            _view = view;                    // KHÔNG set _view=null trước đó → bảng cũ giữ tới khi có data mới
             _initialError = null;
         }
-        catch (ApiException ex) { _initialError = SemiStockErrorLocaliser.LocaliseApiError(ex.StatusCode, ex.ApiError); }
-        catch (Exception ex) { _initialError = ex.Message; }
-        finally { _busy = false; }
+        catch (ApiException ex) { if (seq == _reloadSeq) _initialError = SemiStockErrorLocaliser.LocaliseApiError(ex.StatusCode, ex.ApiError); }
+        catch (Exception ex) { if (seq == _reloadSeq) _initialError = ex.Message; }
+        finally { if (seq == _reloadSeq) _busy = false; }
     }
 
     private void OpenAdd()
