@@ -30,6 +30,10 @@ public interface IMesDbContext
     DbSet<ProcessCatalog> ProcessCatalogs { get; }
     DbSet<WorkOrder> WorkOrders { get; }
     DbSet<WoStatusHistory> WoStatusHistories { get; }
+    // P11-1/P11-2 — Multi-Method Routing DAG (fork-join).
+    DbSet<WoLeg> WoLegs { get; }
+    DbSet<WoLegDependency> WoLegDependencies { get; }
+    DbSet<ProcessLegMap> ProcessLegMaps { get; }
     DbSet<QcInspection> QcInspections { get; }
     DbSet<QcResultDetail> QcResultDetails { get; }
     DbSet<Machine> Machines { get; }

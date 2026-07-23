@@ -214,7 +214,13 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<WoLeg>().Property(x => x.SurfaceProfile).HasMaxLength(8).IsRequired();
         b.Entity<WoLeg>().Property(x => x.InputSource).HasMaxLength(16).IsRequired();
         b.Entity<WoLeg>().Property(x => x.LegPhase).HasMaxLength(16).IsRequired();
-        b.Entity<WoLeg>().Property(x => x.RowVersion).IsRowVersion();
+        // P11-2 fix — per-leg concurrency token, nhưng KHÔNG store-generated:
+        // EF GỬI giá trị (X'' rỗng) lúc INSERT nên cột BLOB NOT NULL không bị
+        // NULL, rồi trigger SQLite randomblob(8) bump. IsConcurrencyToken vẫn
+        // đưa RowVersion vào WHERE của UPDATE → optimistic-lock (soak 409).
+        // Khác WorkOrders (IsRowVersion + DB default) nhưng tránh table-rebuild
+        // AlterColumn (drop trigger). Không cần đổi schema đã áp trên live.
+        b.Entity<WoLeg>().Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
         b.Entity<WoLeg>().HasIndex(x => new { x.WorkOrderId, x.Sequence }).IsUnique();
         b.Entity<WoLeg>().HasIndex(x => x.WorkOrderId);
         b.Entity<WoLeg>().HasOne(x => x.WorkOrder)
