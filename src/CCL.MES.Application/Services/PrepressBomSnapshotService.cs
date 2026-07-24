@@ -1,5 +1,6 @@
 using CCL.MES.Domain;
 using CCL.MES.Domain.Entities;
+using CCL.MES.Domain.Routing;
 using Microsoft.EntityFrameworkCore;
 
 namespace CCL.MES.Application.Services;
@@ -160,6 +161,108 @@ public sealed class PrepressBomSnapshotService
         // actually changed something — keeps the WO ETag stable otherwise.
         if (!hasPlate || !hasCutter || dirty)
             await _db.SaveChangesAsync(ct);
+        return materialsInserted;
+    }
+
+    /// <summary>
+    /// P11 per-leg (Henry-approved): materialise the PREPRESS surface for ONE
+    /// <see cref="WoLeg"/>, scoped by <c>WoLegId = legId</c> — mirror the golden
+    /// structure of a 1-leg WO (81092000) but per branch:
+    /// <list type="bullet">
+    /// <item><b>Materials</b> — Option A: FULL BOM per leg (⚠ Ops-confirm: no
+    /// material→leg split rule yet; each leg snapshots every BOM line, same as
+    /// the 1-leg WO, only <c>WoLegId</c> differs).</item>
+    /// <item><b>Plate/Cutter</b> — only when the leg's kind needs it
+    /// (<see cref="LegPrepressTools"/>): PRINT→plate, CUT/TAPE→cutter,
+    /// PRINT_CUT→both, ASSEMBLY→neither.</item>
+    /// </list>
+    /// Idempotent — existence scoped by <c>WoLegId</c> so re-running never
+    /// duplicates and legs never collide. WO 1-leg (WoLegId NULL) path is the
+    /// method above and is left completely untouched (parity).
+    /// Returns the number of <see cref="WoMaterial"/> rows inserted.
+    /// </summary>
+    public async Task<int> MaterializeForLegAsync(long legId, CancellationToken ct = default)
+    {
+        // WoLegId is a SHADOW property (configured in MesDbContext, not a CLR
+        // member) — read via EF.Property in LINQ + write via Entry().Property()
+        // after the entity is tracked. Keeps the 8 entity classes untouched.
+        var ctx = (DbContext)_db;
+
+        var leg = await _db.WoLegs.FirstOrDefaultAsync(l => l.Id == legId, ct);
+        if (leg is null) return 0;
+        var wo = await _db.WorkOrders.FirstOrDefaultAsync(w => w.Id == leg.WorkOrderId, ct);
+        if (wo is null) return 0;
+
+        var now = DateTime.UtcNow;
+        var materialsInserted = 0;
+        var dirty = false;
+
+        // Plate/Cutter: per Q-B only the relevant leg kinds get a tool check.
+        if (LegPrepressTools.NeedsPlate(leg.LegKind)
+            && !await _db.WoPlateChecks.AnyAsync(p => EF.Property<long?>(p, "WoLegId") == legId, ct))
+        {
+            var plate = new WoPlateCheck { WorkOrderId = wo.Id, Status = PrepressCheckStatus.Pending, CreatedAt = now };
+            _db.WoPlateChecks.Add(plate);
+            ctx.Entry(plate).Property("WoLegId").CurrentValue = legId;
+            dirty = true;
+        }
+        if (LegPrepressTools.NeedsCutter(leg.LegKind)
+            && !await _db.WoCutterChecks.AnyAsync(c => EF.Property<long?>(c, "WoLegId") == legId, ct))
+        {
+            var cutter = new WoCutterCheck { WorkOrderId = wo.Id, Status = PrepressCheckStatus.Pending, CreatedAt = now };
+            _db.WoCutterChecks.Add(cutter);
+            ctx.Entry(cutter).Property("WoLegId").CurrentValue = legId;
+            dirty = true;
+        }
+
+        // Materials — Option A full BOM per leg. Same resolution as WO-level
+        // (ProductRevision → ProductCode → ManufacturingStructures) but the
+        // snapshot rows carry WoLegId. Frozen: existing per-leg rows are not
+        // BOM-refreshed (mirror §5.3 freeze); insert-if-missing only.
+        var productCode = wo.ProductRevisionId is { } revId
+            ? await _db.ProductRevisions.Where(r => r.Id == revId)
+                .Join(_db.Products, r => r.ProductId, p => p.Id, (r, p) => p.ProductCode)
+                .FirstOrDefaultAsync(ct)
+            : null;
+        if (!string.IsNullOrEmpty(productCode))
+        {
+            var bomRows = await _db.ManufacturingStructures
+                .Where(ms => ms.ParentPart == productCode)
+                .OrderBy(ms => ms.Id)
+                .ToListAsync(ct);
+            if (bomRows.Count > 0)
+            {
+                var existingIdx = (await _db.WoMaterials
+                    .Where(m => EF.Property<long?>(m, "WoLegId") == legId)
+                    .Select(m => m.BomLineIdx).ToListAsync(ct))
+                    .ToHashSet();
+
+                for (var i = 0; i < bomRows.Count; i++)
+                {
+                    if (existingIdx.Contains(i)) continue; // idempotent per (WoLegId, BomLineIdx)
+                    var ms = bomRows[i];
+                    var mat = new WoMaterial
+                    {
+                        WorkOrderId = wo.Id,
+                        BomLineIdx = i,
+                        MaterialCode = ms.ComponentPart,
+                        MaterialDescription = ms.ComponentDescription,
+                        QtyRequired = ms.QtyAssembly * wo.TargetQty,
+                        Uom = ms.Uom,
+                        ScrapFactor = ms.ScrapFactor,
+                        ScrapPercent = ms.ScrapPct,
+                        Status = PrepressCheckStatus.Pending,
+                        CreatedAt = now,
+                    };
+                    _db.WoMaterials.Add(mat);
+                    ctx.Entry(mat).Property("WoLegId").CurrentValue = legId;
+                    materialsInserted++;
+                    dirty = true;
+                }
+            }
+        }
+
+        if (dirty) await _db.SaveChangesAsync(ct);
         return materialsInserted;
     }
 }

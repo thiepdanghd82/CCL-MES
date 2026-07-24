@@ -168,10 +168,14 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<Machine>().HasIndex(x => x.Code).IsUnique();
 
         // P10.7b-1 — PREPRESS row uniqueness.
-        b.Entity<WoMaterial>().HasIndex(x => new { x.WorkOrderId, x.BomLineIdx }).IsUnique();
+        // P11 per-leg: WO-level uniqueness (1-leg / 81092000-style) kept as a
+        // PARTIAL index filtered to WoLegId IS NULL so per-leg rows (WoLegId set)
+        // coexist. The WoLegId-IS-NOT-NULL partial uniques are added after the
+        // shadow-property loop below.
+        b.Entity<WoMaterial>().HasIndex(x => new { x.WorkOrderId, x.BomLineIdx }).IsUnique().HasFilter("\"WoLegId\" IS NULL");
         b.Entity<WoMaterial>().HasIndex(x => x.WorkOrderId);
-        b.Entity<WoPlateCheck>().HasIndex(x => x.WorkOrderId).IsUnique();
-        b.Entity<WoCutterCheck>().HasIndex(x => x.WorkOrderId).IsUnique();
+        b.Entity<WoPlateCheck>().HasIndex(x => x.WorkOrderId).IsUnique().HasFilter("\"WoLegId\" IS NULL");
+        b.Entity<WoCutterCheck>().HasIndex(x => x.WorkOrderId).IsUnique().HasFilter("\"WoLegId\" IS NULL");
 
         // P10.7c-1 — RUNNING + PAUSED child tables (contract §5.4).
         b.Entity<WoRunSession>().HasIndex(x => x.WoId);
@@ -184,7 +188,8 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<WoQtyEntry>().HasIndex(x => x.LinkedEntryId);
 
         // P10.7d-1 — IPQC review surface 1:1 uniqueness (contract §5.5).
-        b.Entity<WoIpqcCheck>().HasIndex(x => x.WorkOrderId).IsUnique();
+        // P11 per-leg: partial to WoLegId IS NULL (per-leg partial added below).
+        b.Entity<WoIpqcCheck>().HasIndex(x => x.WorkOrderId).IsUnique().HasFilter("\"WoLegId\" IS NULL");
 
         // Phương án C — Bước 2: data-driven IPQC items (mirror WoQcCheckItem).
         b.Entity<WoIpqcCheckItem>().Property(x => x.ItemKey).HasMaxLength(64).IsRequired();
@@ -266,6 +271,15 @@ public class MesDbContext : DbContext, IMesDbContext
             b.Entity(surface).Property<long?>("WoLegId");
             b.Entity(surface).HasIndex("WoLegId");
         }
+
+        // P11 per-leg (Henry-approved 2026-07-24): PARTIAL unique indexes scoped
+        // by WoLegId so each leg materialises its own Pre-press / IPQC surface
+        // without colliding with sibling legs or the WO-level (NULL) rows. Pairs
+        // with the WoLegId-IS-NULL partial uniques above → 1-leg parity intact.
+        b.Entity<WoMaterial>().HasIndex("WorkOrderId", "WoLegId", "BomLineIdx").IsUnique().HasFilter("\"WoLegId\" IS NOT NULL");
+        b.Entity<WoPlateCheck>().HasIndex("WorkOrderId", "WoLegId").IsUnique().HasFilter("\"WoLegId\" IS NOT NULL");
+        b.Entity<WoCutterCheck>().HasIndex("WorkOrderId", "WoLegId").IsUnique().HasFilter("\"WoLegId\" IS NOT NULL");
+        b.Entity<WoIpqcCheck>().HasIndex("WorkOrderId", "WoLegId").IsUnique().HasFilter("\"WoLegId\" IS NOT NULL");
 
         // ── P11.5 — Semi-Stock decoupling (keep-stock) ─────────────────
         b.Entity<SemiLot>().Property(x => x.LotNo).HasMaxLength(64).IsRequired();

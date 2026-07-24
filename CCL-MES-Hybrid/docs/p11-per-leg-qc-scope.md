@@ -59,8 +59,14 @@
 > đỏ vì index cũ** — chưa commit. Chờ Henry duyệt migration để: tạo migration →
 > test xanh → tiếp IPQC/Setting/Running per-leg + wire.
 >
-> **❓ CẦN HENRY**: duyệt migration 4-index (partial-index, forward-only) theo
-> Phase A→B→C? (không có cách per-leg nào KHÔNG đụng schema — column-only là bất khả thi.)
+> **✅ HENRY DUYỆT (2026-07-24)** — migration `AddPerLegPartialUniqueIndexes`
+> đã tạo (partial-index, forward-only): drop 4 unique cũ → tạo 8 partial (4×
+> `WHERE WoLegId IS NULL` giữ parity + 4× `WHERE WoLegId IS NOT NULL` per-leg).
+> **Phase B done**: generate + apply trên `/tmp` (§4.3), verify `.schema`; suite
+> Domain **1108** + Hybrid Api **495** + per-leg unit **23** = xanh; **live DB
+> KHÔNG áp** (0 row PerLegPartial trong `__EFMigrationsHistory` của live).
+> **Phase C (áp live) = Henry chạy khi sẵn sàng** (`dotnet ef database update`
+> hoặc để boot Web migrate). Domain per-leg Prepress đã unblock + commit.
 >
 > ---
 >
