@@ -59,7 +59,7 @@
                 <div class="trace-kv-grid">
                     @foreach (var kv in phase.Payload.Header)
                     {
-                        <div class="trace-kv"><span>@kv.Label</span><b>@(string.IsNullOrEmpty(kv.Value) ? "—" : kv.Value)</b></div>
+                        <div class="trace-kv"><span>@HeaderLabel(kv.Label)</span><b>@(string.IsNullOrEmpty(kv.Value) ? "—" : StatusText(kv.Value))</b></div>
                     }
                 </div>
 
@@ -178,8 +178,8 @@
                                 @foreach (var it in phase.Payload.Items)
                                 {
                                     <tr>
-                                        <td>@it.Label</td>
-                                        <td><span class="trace-chip @StatusTone(it.Status)">@(it.Status ?? "—")</span></td>
+                                        <td>@ItemLabel(it.Label)</td>
+                                        <td><span class="trace-chip @StatusTone(it.Status)">@(string.IsNullOrEmpty(it.Status) ? "—" : StatusText(it.Status))</span></td>
                                         <td>@(it.NgReason ?? "—")</td>
                                         <td>@(it.NgNote ?? "—")</td>
                                         @foreach (var k in extraKeys)
@@ -255,6 +255,64 @@
         ? T("trace.tab.product")
         : fallback;
 
+    // Frozen HEADER labels are baked English (TraceFreezeService). Map the
+    // known vocabulary → translated at render; anything unknown renders raw.
+    private string HeaderLabel(string? raw) => raw switch
+    {
+        "Product code" => T("trace.hdr.productcode"),
+        "Part description" => T("trace.hdr.partdescription"),
+        "Customer" => T("trace.hdr.customer"),
+        "Target qty" => T("trace.hdr.targetqty"),
+        "MES status" => T("trace.hdr.messtatus"),
+        "Plate check" => T("trace.hdr.platecheck"),
+        "Cutter check" => T("trace.hdr.cuttercheck"),
+        "Judgment" => T("trace.hdr.judgment"),
+        "Judgment reason" => T("trace.hdr.judgmentreason"),
+        "Special-accept reason" => T("trace.hdr.specialacceptreason"),
+        "IPQC submitted by" => T("trace.hdr.ipqcsubmittedby"),
+        "QA outcome" => T("trace.hdr.qaoutcome"),
+        "QA reason" => T("trace.hdr.qareason"),
+        "QA approved by" => T("trace.hdr.qaapprovedby"),
+        "Inspected by" => T("trace.hdr.inspectedby"),
+        "Reviewed by" => T("trace.hdr.reviewedby"),
+        "Approved by" => T("trace.hdr.approvedby"),
+        _ => raw ?? "",
+    };
+
+    // Localize the fixed IPQC slot item labels; Plan-C dynamic library labels
+    // (and FQC/OQC item keys) fall through as captured.
+    private string ItemLabel(string? raw) => raw switch
+    {
+        "Material" => T("trace.item.material"),
+        "Print A (Colour)" => T("trace.item.printa"),
+        "Print B (Registration)" => T("trace.item.printb"),
+        "Print C (Content)" => T("trace.item.printc"),
+        _ => raw ?? "",
+    };
+
+    // Localize a status VALUE (chip text / frozen header status). Only the
+    // known enum tokens match — data values (product code, customer, phase
+    // token like IPQC_APPROVED, "1000 pcs") fall through unchanged.
+    private string StatusText(string? raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return "—";
+        return raw.ToLowerInvariant() switch
+        {
+            "ok" => T("trace.st.ok"),
+            "ng" => T("trace.st.ng"),
+            "pending" => T("trace.st.pending"),
+            "pass" => T("trace.st.pass"),
+            "reject" => T("trace.st.reject"),
+            "gorun" => T("trace.st.gorun"),
+            "stopline" => T("trace.st.stopline"),
+            "specialaccept" => T("trace.st.specialaccept"),
+            "approved" => T("trace.st.approved"),
+            "rejected" => T("trace.st.rejected"),
+            "none" => T("trace.st.none"),
+            _ => raw,
+        };
+    }
+
     private static string StatusTone(string? status) => status switch
     {
         "Ok" or "Pass" or "GoRun" => "trace-chip-ok",
@@ -270,26 +328,26 @@
 
     private static string Dash(string? v) => string.IsNullOrEmpty(v) ? "—" : v!;
 
-    private static (string Label, string Tone) ToolStatus(string? status) => status switch
+    private (string Label, string Tone) ToolStatus(string? status) => status switch
     {
-        "Ng" => ("NG", "trace-chip-ng"),
-        "Ok" => ("OK", "trace-chip-ok"),
-        "Pending" or null or "" => ("Pending", "trace-chip-none"),
+        "Ng" => (T("trace.st.ng"), "trace-chip-ng"),
+        "Ok" => (T("trace.st.ok"), "trace-chip-ok"),
+        "Pending" or null or "" => (T("trace.st.pending"), "trace-chip-none"),
         _ => (status!, "trace-chip-pending"),
     };
 
     // A special-accept row is stored as Status=Ok WITH a retained NG reason
     // (the concession) — surface it distinctly from a clean OK.
-    private static (string Label, string Tone) ProductStatus(TraceItem it)
+    private (string Label, string Tone) ProductStatus(TraceItem it)
     {
         var ok = string.Equals(it.Status, "Ok", StringComparison.OrdinalIgnoreCase);
         var hasDeviation = !string.IsNullOrEmpty(it.NgReason);
         return it.Status switch
         {
-            "Ng" => ("NG", "trace-chip-ng"),
-            _ when ok && hasDeviation => ("OK · Special Accept", "trace-chip-warn"),
-            _ when ok => ("OK", "trace-chip-ok"),
-            "Pending" or null or "" => ("Pending", "trace-chip-none"),
+            "Ng" => (T("trace.st.ng"), "trace-chip-ng"),
+            _ when ok && hasDeviation => (T("trace.st.ok.specialaccept"), "trace-chip-warn"),
+            _ when ok => (T("trace.st.ok"), "trace-chip-ok"),
+            "Pending" or null or "" => (T("trace.st.pending"), "trace-chip-none"),
             _ => (it.Status!, "trace-chip-pending"),
         };
     }

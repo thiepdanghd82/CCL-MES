@@ -258,8 +258,9 @@ public sealed class QualityTraceabilityTests : TestContext
 
         Assert.Equal(4, cut.FindAll(".trace-tab").Count);
         var m = cut.Markup;
-        // Header key-value still present.
-        Assert.Contains("Product code", m);
+        // Header key-value still present (label localized VI-default; the baked
+        // English label "Product code" is mapped to the translation at render).
+        Assert.Contains("Mã sản phẩm", m);
         Assert.Contains("80640004", m);
 
         // Fixed Product columns, in order — No. + Part No are SEPARATE columns.
@@ -286,7 +287,7 @@ public sealed class QualityTraceabilityTests : TestContext
             .Add(x => x.WoNo, "WO-TR-1").Add(x => x.OnClose, () => { }));
 
         var m = cut.Markup;
-        Assert.Contains("OK · Special Accept", m);          // Ok + retained NG reason
+        Assert.Contains("OK · Chấp nhận đặc biệt", m);      // Ok + retained NG reason (VI-default)
         Assert.Contains("SC-MAT-DAMAGE · edge nick", m);    // NG reason · note combined
     }
 

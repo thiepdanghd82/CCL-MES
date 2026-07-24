@@ -37,5 +37,51 @@ public sealed partial class TranslationCatalog
         Add("trace.col.ngreason",            "Lý do NG",                                             "NG reason");
         Add("trace.col.item",                "Hạng mục",                                             "Item");
         Add("trace.col.ngnote",              "Ghi chú NG",                                           "NG note");
+
+        // Frozen-snapshot HEADER labels. The English text is baked into the
+        // immutable JSON at freeze time (TraceFreezeService) so it cannot be
+        // localized at the source without re-freezing history — instead the
+        // dialog maps the known baked English label → these keys at render.
+        Add("trace.hdr.productcode",         "Mã sản phẩm",                                          "Product code");
+        Add("trace.hdr.partdescription",     "Mô tả sản phẩm",                                       "Part description");
+        Add("trace.hdr.customer",            "Khách hàng",                                           "Customer");
+        Add("trace.hdr.targetqty",           "SL mục tiêu",                                          "Target qty");
+        Add("trace.hdr.messtatus",           "Trạng thái MES",                                       "MES status");
+        Add("trace.hdr.platecheck",          "Kiểm bản in",                                          "Plate check");
+        Add("trace.hdr.cuttercheck",         "Kiểm khuôn cắt",                                       "Cutter check");
+        Add("trace.hdr.judgment",            "Phán định",                                            "Judgment");
+        // QC-tab (IPQC / FQC / OQC) frozen header labels.
+        Add("trace.hdr.judgmentreason",      "Lý do phán định",                                      "Judgment reason");
+        Add("trace.hdr.specialacceptreason", "Lý do chấp nhận đặc biệt",                             "Special-accept reason");
+        Add("trace.hdr.ipqcsubmittedby",     "IPQC gửi bởi",                                         "IPQC submitted by");
+        Add("trace.hdr.qaoutcome",           "Kết quả QA",                                           "QA outcome");
+        Add("trace.hdr.qareason",            "Lý do QA",                                             "QA reason");
+        Add("trace.hdr.qaapprovedby",        "QA phê duyệt bởi",                                     "QA approved by");
+        Add("trace.hdr.inspectedby",         "Người kiểm",                                           "Inspected by");
+        Add("trace.hdr.reviewedby",          "Người soát",                                           "Reviewed by");
+        Add("trace.hdr.approvedby",          "Người duyệt",                                          "Approved by");
+
+        // Fixed IPQC slot item labels (baked at freeze; Plan-C dynamic library
+        // labels come from master data and are left as captured).
+        Add("trace.item.material",           "Vật tư",                                               "Material");
+        Add("trace.item.printa",             "In A (Màu)",                                           "Print A (Colour)");
+        Add("trace.item.printb",             "In B (Chồng màu)",                                     "Print B (Registration)");
+        Add("trace.item.printc",             "In C (Nội dung)",                                      "Print C (Content)");
+
+        // Status VALUES (chips + frozen header status values). Only the known
+        // enum tokens are mapped; data values (product code, customer, phase
+        // token) never match and fall through unchanged.
+        Add("trace.st.ok",                   "OK",                                                   "OK");
+        Add("trace.st.ng",                   "NG",                                                   "NG");
+        Add("trace.st.pending",              "Chờ",                                                  "Pending");
+        Add("trace.st.pass",                 "Đạt",                                                  "Pass");
+        Add("trace.st.reject",               "Loại",                                                 "Reject");
+        Add("trace.st.gorun",                "Cho chạy",                                             "Go Run");
+        Add("trace.st.stopline",             "Dừng chuyền",                                          "Stop Line");
+        Add("trace.st.specialaccept",        "Chấp nhận đặc biệt",                                   "Special Accept");
+        Add("trace.st.ok.specialaccept",     "OK · Chấp nhận đặc biệt",                              "OK · Special Accept");
+        Add("trace.st.approved",             "Đã duyệt",                                             "Approved");
+        Add("trace.st.rejected",             "Từ chối",                                              "Rejected");
+        Add("trace.st.none",                 "—",                                                    "—");
     }
 }
