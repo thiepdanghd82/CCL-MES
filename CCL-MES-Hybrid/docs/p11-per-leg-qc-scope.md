@@ -16,6 +16,54 @@
 >
 > ---
 >
+> ---
+>
+> ## 🛑 STOP-GATE (phát hiện khi implement 2026-07-24) — CẦN HENRY DUYỆT MIGRATION
+>
+> Ground-truth ban đầu chỉ verify **cột** `WoLegId` tồn tại — **BỎ SÓT** rằng 4
+> bảng có **UNIQUE INDEX key theo `WorkOrderId`** chặn hoàn toàn per-leg (nhiều
+> row cùng WO). Unit test parity đã lộ ra: `UNIQUE constraint failed:
+> WoMaterials.WorkOrderId, WoMaterials.BomLineIdx`.
+>
+> | Bảng | UNIQUE index hiện tại | Vì sao chặn per-leg |
+> |---|---|---|
+> | `WoMaterials` | `(WorkOrderId, BomLineIdx)` | Option A full-BOM: 4 leg × BomLineIdx 0..5 cùng WorkOrderId → đụng |
+> | `WoPlateChecks` | `(WorkOrderId)` | >1 leg cần plate/WO → đụng |
+> | `WoCutterChecks` | `(WorkOrderId)` | T3 có CUT **và** TAPE (đều cần cutter theo Q-B) → 2 row/WO → đụng |
+> | `WoIpqcChecks` | `(WorkOrderId)` | per-leg IPQC = 1 check/leg = tới 4/WO → đụng |
+> | `WoIpqcCheckItems` | `(WoIpqcCheckId, ItemKey)` | ✅ OK — scoped theo check |
+>
+> ⇒ **Per-leg BẮT BUỘC đổi 4 unique index** để thêm `WoLegId`. Đây là **migration
+> schema** → theo HARD CONSTRAINT tôi **DỪNG, chưa tạo migration, chưa áp live**.
+>
+> ### Đề xuất migration (chờ Henry duyệt — Phase A→B→C, forward-only)
+> Giữ **1:1 cho WO 1-nhánh** (WoLegId NULL) + cho phép per-leg → dùng **2 partial
+> index** mỗi bảng (SQLite hỗ trợ `CREATE UNIQUE INDEX … WHERE`):
+> ```
+> -- WoMaterials
+> UNIQUE (WorkOrderId, BomLineIdx)            WHERE WoLegId IS NULL      -- 1-nhánh cũ giữ nguyên
+> UNIQUE (WorkOrderId, WoLegId, BomLineIdx)   WHERE WoLegId IS NOT NULL  -- per-leg
+> -- WoPlateChecks / WoCutterChecks / WoIpqcChecks
+> UNIQUE (WorkOrderId)                        WHERE WoLegId IS NULL
+> UNIQUE (WorkOrderId, WoLegId)               WHERE WoLegId IS NOT NULL
+> ```
+> - **Parity tuyệt đối**: index `WHERE WoLegId IS NULL` giữ y hệt ràng buộc cũ cho
+>   81092000-style → LegacyParity không đổi.
+> - EF Core: `.HasIndex(...).IsUnique().HasFilter("WoLegId IS NULL")` +
+>   `.HasFilter("WoLegId IS NOT NULL")` (drop 4 index cũ, tạo 8 index mới).
+> - Migration generate trên `/tmp` DB (§4.3), verify `.schema`, **KHÔNG áp live**
+>   tới khi Henry chạy Phase C.
+>
+> **Trạng thái code**: domain `LegPrepressTools` + `PrepressBomSnapshotService.
+> MaterializeForLegAsync` + unit test ĐÃ viết (đúng logic), nhưng **1 parity test
+> đỏ vì index cũ** — chưa commit. Chờ Henry duyệt migration để: tạo migration →
+> test xanh → tiếp IPQC/Setting/Running per-leg + wire.
+>
+> **❓ CẦN HENRY**: duyệt migration 4-index (partial-index, forward-only) theo
+> Phase A→B→C? (không có cách per-leg nào KHÔNG đụng schema — column-only là bất khả thi.)
+>
+> ---
+>
 > **(Bản gốc SCOPE PROPOSAL bên dưới — giữ nguyên làm căn cứ.)**
 > Mọi số liệu dưới đây verify trên **COPY** live DB (`/tmp/p11-perleg-inspect.db`,
 > `cp` từ `data/ccl_mes.db`) — **live NEVER written**. Không đụng schema.
