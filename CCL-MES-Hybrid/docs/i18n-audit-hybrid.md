@@ -189,3 +189,65 @@ Thứ tự theo tần suất operator gặp. Ước lượng key = số chuỗi 
 # resx vắng mặt: find src/CCL.MES.Hybrid.Razor -name '*.resx' → 0
 # IStringLocalizer vắng mặt: grep -rl IStringLocalizer src/CCL.MES.Hybrid.Razor → 0
 ```
+
+---
+
+## 6. Kết quả migrate (Pha 2 — option B, ĐÃ TRIỂN KHAI)
+
+Đã chọn **phương án (B)** (§4): dict translator `ITranslator.T(key)` live theo
+`ILanguageService.Current`, component `@inherits LocalizedComponentBase` (hoặc
+`@inject ITranslator` cho component IAsyncDisposable/JS-interop) subscribe
+`Changed` → re-render. Picker Settings/TopBar giờ **đổi ngôn ngữ LIVE, không
+cần restart** (khắc phục "đường đứt" §3).
+
+### Các batch (mỗi batch 1 commit, chưa merge — chờ review từng batch)
+
+| Batch | Surface | Files | Keys | Commit |
+|---|---|---|---|---|
+| 2A | translator + picker live + TopBar flag + NavMenu | — | (hạ tầng) | `2ee16e8` |
+| 2B | Login + shell (FloatingWindow/ConnectivityBanner) | 3 | 29 | `13a855d` |
+| 2C | WorkOrders + 20 dashboard vận hành P10.7/P11 | 20 | 540 | `1233f75` |
+| 2D | Settings pages | 8 | 241 | `cbf742d` |
+| 2E | SpecHub-port (Home/ShopOrders/Spec*) | 17 | 616 | `53d3c70` |
+| 2F | NPI/QMS/monitoring + spec modals + misc | 24 | 506 | `8ec6be8` |
+
+**Catalog: ~1974 key**, mỗi key có **VI + EN non-empty** (test parity
+`TranslationCatalogTests.Every_key_has_both_languages_non_empty` enforce mọi
+batch). Verify sau mỗi batch: **Razor.Tests 216/216 · Client.Tests 629/629 · 3
+gate PASS**. Test live-switch (`NavMenuI18nTests` + `SemiStockDashboard.
+Language_flip_re_renders_dashboard_live`) chứng minh picker tác dụng ngay.
+
+### %EN/%VI sau migrate
+
+Đo lại bằng heuristic §0 (đếm chuỗi visible KHÔNG bọc `@T`):
+**EN 1436 → ~132 · VI 113 → ~6** (giảm ~91% chuỗi hardcode). ~132 "EN" còn lại
+KHÔNG phải UI chưa dịch mà là **false-positive + cố ý giữ**:
+- **C# trong `@code`** heuristic thô bắt nhầm (generic `List<T>`, so sánh `a < b`,
+  lambda `=> x`, fallback log strings). Self-audit chặt từng batch (loại `@code`)
+  đã xác nhận **0 chuỗi UI hiển thị còn sót**.
+- **Cố ý giữ**: token/enum/code hiển thị raw (`PRINTED_SEMI`, `IPQC_APPROVED`,
+  phase codes, tên cột CSV `Parent Part No`), tên printer-tech (Silkscreen/Flexo/
+  Indigo/Letterpress), brand ("CCL Design", company name), format (CSV/Excel/PDF),
+  và **`Modal.razor aria-label="Close"`** (a11y-only; migrate buộc `ITranslator`
+  vào ~22 file test render `<Modal>` — không tương xứng cho 1 aria).
+
+### Do-not-touch — giữ nguyên (verify đối kháng từng file, 0 vi phạm)
+
+`data-testid` · 7 `*ErrorLocaliser` (wording VI locked, KHÔNG gộp vào translator)
+· chuỗi audit/log kỹ thuật · token/enum · class CSS/route/preference key ·
+cấu trúc `Modal`/`FloatingWindow`/`RowContextMenu` (L34/L35).
+
+### Nâng cấp lên (A) resx khi nào
+
+Chuyển sang `IStringLocalizer`/resx (§4 phương án A) khi phát sinh nhu cầu
+**format culture-aware** (số/ngày/tiền theo locale) — chưa cần cho MES xưởng
+(qty/lot là số thuần). Key đã đặt theo namespace mirror `SharedResource.resx`
+nên migrate B→A không mất key.
+
+### Quy trình đã dùng (Workflow đa-agent)
+
+Mỗi batch: **workflow N agent song song** (migrate 1 file + tự viết catalog
+partial + verify đối kháng "chỉ đổi display/lifecycle đúng/không đụng do-not-
+touch") → main-loop assemble serial (wire `Register*` vào ctor + helper
+`TestI18n.AddI18n()` + DI cho test class) → **workflow fix-assertion song song**
+(cập nhật assertion literal → VI-default byte-exact) → verify xanh → commit.
