@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @*
     P10.5b — Compact-mode Spec showcard. Renders identity + status +
     planner + compliance + remarks + approval stamps. NO sub-spec tables
@@ -14,7 +15,7 @@
 @if (Vm is null)
 {
     <div class="spec-showcard">
-        <p class="spec-showcard-empty">No showcard data yet.</p>
+        <p class="spec-showcard-empty">@T("speccompact.empty")</p>
     </div>
 }
 else
@@ -27,40 +28,40 @@ else
                 <span class="spec-status-pill @Vm.StatusCssClass">@Vm.StatusLabel</span>
             </div>
             <div class="spec-showcard-title">@Vm.Title</div>
-            <div class="spec-showcard-rev">Rev <strong>@Vm.RevisionCode</strong></div>
+            <div class="spec-showcard-rev">@T("speccompact.rev") <strong>@Vm.RevisionCode</strong></div>
         </div>
 
         <dl class="spec-showcard-grid">
             <div class="spec-showcard-cell">
-                <dt>REF NO</dt>
+                <dt>@T("speccompact.field.refNo")</dt>
                 <dd class="spec-mono">@(Vm.RefNo ?? "—")</dd>
             </div>
             <div class="spec-showcard-cell">
-                <dt>Customer</dt>
+                <dt>@T("speccompact.field.customer")</dt>
                 <dd>@(Vm.CustomerName ?? "—")</dd>
             </div>
             <div class="spec-showcard-cell">
-                <dt>Part No</dt>
+                <dt>@T("speccompact.field.partNo")</dt>
                 <dd class="spec-mono">@Vm.ProductCode</dd>
             </div>
             <div class="spec-showcard-cell">
-                <dt>Part Name</dt>
+                <dt>@T("speccompact.field.partName")</dt>
                 <dd>@Vm.ProductName</dd>
             </div>
             <div class="spec-showcard-cell">
-                <dt>Process</dt>
+                <dt>@T("speccompact.field.process")</dt>
                 <dd class="spec-mono">@Vm.ProcessCode</dd>
             </div>
             <div class="spec-showcard-cell">
-                <dt>Spec</dt>
+                <dt>@T("speccompact.field.spec")</dt>
                 <dd>@(Vm.InspectionLevel ?? "—")</dd>
             </div>
             <div class="spec-showcard-cell">
-                <dt>Product size</dt>
+                <dt>@T("speccompact.field.productSize")</dt>
                 <dd>@Vm.ProductSizeDisplay</dd>
             </div>
             <div class="spec-showcard-cell">
-                <dt>Process type</dt>
+                <dt>@T("speccompact.field.processType")</dt>
                 <dd>
                     @* P10.10 — drive the process-type flag off the canonical
                        planner so Indigo (HP) + Letterpress (LP) read correctly
@@ -71,7 +72,7 @@ else
                         case "FLEXO":  <span class="spec-process-flag is-flexo">Flexo</span>            break;
                         case "INDIGO": <span class="spec-process-flag is-indigo">Indigo (HP)</span>     break;
                         case "LETTER": <span class="spec-process-flag is-letter">Letterpress</span>     break;
-                        default:       <span class="spec-process-flag">Other / generic</span>           break;
+                        default:       <span class="spec-process-flag">@T("speccompact.processType.other")</span>           break;
                     }
                 </dd>
             </div>
@@ -80,7 +81,7 @@ else
         @if (Vm.ComplianceChips.Count > 0)
         {
             <div class="spec-showcard-section">
-                <div class="spec-showcard-section-title">Compliance</div>
+                <div class="spec-showcard-section-title">@T("speccompact.section.compliance")</div>
                 <div class="spec-compliance-row">
                     @foreach (var chip in Vm.ComplianceChips)
                     {
@@ -93,48 +94,48 @@ else
         @if (!string.IsNullOrWhiteSpace(Vm.RemarksText) || !string.IsNullOrWhiteSpace(Vm.RemarksCutText))
         {
             <div class="spec-showcard-section">
-                <div class="spec-showcard-section-title">Remarks</div>
+                <div class="spec-showcard-section-title">@T("speccompact.section.remarks")</div>
                 @if (!string.IsNullOrWhiteSpace(Vm.RemarksText))
                 {
-                    <p class="spec-showcard-note"><strong>Print:</strong> @Vm.RemarksText</p>
+                    <p class="spec-showcard-note"><strong>@T("speccompact.remarks.print")</strong> @Vm.RemarksText</p>
                 }
                 @if (!string.IsNullOrWhiteSpace(Vm.RemarksCutText))
                 {
-                    <p class="spec-showcard-note"><strong>Diecut:</strong> @Vm.RemarksCutText</p>
+                    <p class="spec-showcard-note"><strong>@T("speccompact.remarks.diecut")</strong> @Vm.RemarksCutText</p>
                 }
             </div>
         }
 
         <div class="spec-showcard-stamps">
             <div class="spec-showcard-stamp">
-                <span class="spec-stamp-label">Created:</span>
+                <span class="spec-stamp-label">@T("speccompact.stamp.created")</span>
                 <span class="spec-stamp-value">@(Vm.CreatedBy ?? "—") · @Vm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</span>
             </div>
             @if (Vm.UpdatedAt is not null)
             {
                 <div class="spec-showcard-stamp">
-                    <span class="spec-stamp-label">Updated:</span>
+                    <span class="spec-stamp-label">@T("speccompact.stamp.updated")</span>
                     <span class="spec-stamp-value">@(Vm.UpdatedBy ?? "—") · @Vm.UpdatedAt.Value.ToLocalTime().ToString("yyyy-MM-dd")</span>
                 </div>
             }
             @if (Vm.ApprovedAt is not null)
             {
                 <div class="spec-showcard-stamp">
-                    <span class="spec-stamp-label">Approved:</span>
+                    <span class="spec-stamp-label">@T("speccompact.stamp.approved")</span>
                     <span class="spec-stamp-value">@(Vm.ApprovedBy ?? "—") · @Vm.ApprovedAt.Value.ToLocalTime().ToString("yyyy-MM-dd")</span>
                 </div>
             }
             @if (Vm.ReleasedAt is not null)
             {
                 <div class="spec-showcard-stamp">
-                    <span class="spec-stamp-label">Released:</span>
+                    <span class="spec-stamp-label">@T("speccompact.stamp.released")</span>
                     <span class="spec-stamp-value">@(Vm.ReleasedBy ?? "—") · @Vm.ReleasedAt.Value.ToLocalTime().ToString("yyyy-MM-dd")</span>
                 </div>
             }
         </div>
 
         <p class="spec-showcard-note spec-showcard-deferred">
-            <em>All sub-spec content (Material / Print rows / Flexo / Silk) is coming in 5c (Full mode).</em>
+            <em>@T("speccompact.deferred")</em>
         </p>
     </div>
 }

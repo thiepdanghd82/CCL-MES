@@ -1,5 +1,6 @@
 @page "/npi/specs"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
 @inject NavigationManager Nav
@@ -23,32 +24,32 @@
     ICclApiClient → API → SpecService through NpiSpecWrite policy.
 *@
 
-<PageTitle>Engineer Spec — NPI</PageTitle>
+<PageTitle>@T("specs.page.title")</PageTitle>
 
-<h1 class="page-title">Engineer Spec</h1>
+<h1 class="page-title">@T("specs.heading")</h1>
 
 <div class="grid-toolbar">
-    <input type="search" class="grid-search" placeholder="Search by Customer / Part No / Part Name…"
+    <input type="search" class="grid-search" placeholder="@T("specs.search.placeholder")"
            @bind="_search" @bind:event="oninput" @onkeyup="HandleSearchKey" />
-    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">@T("specs.search")</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">@T("specs.reload")</button>
 
     <div class="spec-view-chips" role="tablist">
         <button type="button" role="tab" aria-selected="@(IsView("active"))"
                 class="spec-view-chip @(IsView("active") ? "is-active" : "")"
-                @onclick='() => SetViewAsync("active")'>Active</button>
+                @onclick='() => SetViewAsync("active")'>@T("specs.view.active")</button>
         <button type="button" role="tab" aria-selected="@(IsView("trash"))"
                 class="spec-view-chip @(IsView("trash") ? "is-active" : "")"
-                @onclick='() => SetViewAsync("trash")'>Trash</button>
+                @onclick='() => SetViewAsync("trash")'>@T("specs.view.trash")</button>
         <button type="button" role="tab" aria-selected="@(IsView("all"))"
                 class="spec-view-chip @(IsView("all") ? "is-active" : "")"
-                @onclick='() => SetViewAsync("all")'>All</button>
+                @onclick='() => SetViewAsync("all")'>@T("specs.view.all")</button>
     </div>
 
     @* P10.5c-3 — Planner chip filter (SpecHub parity). Click to filter
        by planner code; click the active chip again to clear. Combines
        with search + view chip. *@
-    <div class="spec-planner-chips" role="group" aria-label="Filter by Planner">
+    <div class="spec-planner-chips" role="group" aria-label="@T("specs.planner.filter.aria")">
         @foreach (var p in PlannerChips)
         {
             var active = IsPlanner(p.Code);
@@ -64,7 +65,7 @@
        so the operator can't fire two downloads in parallel — Q11 rule.
        Filter (search + view chip + planner chip) is forwarded to the
        server so the file mirrors what the operator currently sees. *@
-    <div class="spec-export-group" role="group" aria-label="Export list">
+    <div class="spec-export-group" role="group" aria-label="@T("specs.export.aria")">
         <button type="button" class="grid-btn grid-btn-secondary"
                 disabled="@_exporting"
                 @onclick="@(() => ExportListAsync("csv"))">⬇ CSV</button>
@@ -80,9 +81,9 @@
        don't see the affordance. *@
     <AuthorizeView Roles="Admin,Engineer">
         <button type="button" class="grid-btn grid-btn-secondary"
-                @onclick="OpenImportModal">⤓ Import xlsx</button>
+                @onclick="OpenImportModal">⤓ @T("specs.import.xlsx")</button>
         <button type="button" class="grid-btn grid-btn-primary"
-                @onclick="OpenCreateModal">＋ Create Spec</button>
+                @onclick="OpenCreateModal">＋ @T("specs.create")</button>
     </AuthorizeView>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
 </div>
@@ -97,22 +98,22 @@
         @if (!string.IsNullOrEmpty(_exportSandboxPath))
         {
             <button type="button" class="grid-btn grid-btn-small"
-                    @onclick="OpenSandboxAsync">Open file</button>
+                    @onclick="OpenSandboxAsync">@T("specs.export.openfile")</button>
         }
-        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">Close</button>
+        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">@T("common.close")</button>
     </div>
 }
 
 @if (_loading && _data is null)
 {
-    <p class="grid-status">Loading…</p>
+    <p class="grid-status">@T("specs.loading")</p>
 }
 else if (_error is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Failed to load the Spec list.</strong>
+        <strong>@T("specs.load.failed")</strong>
         <div>@_error</div>
-        <button type="button" class="grid-btn" @onclick="ReloadAsync">Retry</button>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">@T("specs.retry")</button>
     </div>
 }
 else if (_data is not null)
@@ -151,7 +152,7 @@ else if (_data is not null)
                 {
                     <tr>
                         <td colspan="@(_columns.Visible.Count + 1)" class="grid-empty">
-                            No matching Spec found.
+                            @T("specs.empty")
                         </td>
                     </tr>
                 }
@@ -162,13 +163,13 @@ else if (_data is not null)
     <div class="grid-pager">
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
-                @onclick="() => GoToPageAsync(_page - 1)">‹ Prev</button>
+                @onclick="() => GoToPageAsync(_page - 1)">‹ @T("specs.pager.prev")</button>
         <span class="grid-pager-text">
-            Page @_page / @TotalPages — @_data.Total rows
+            @T("specs.pager.status", _page, TotalPages, _data.Total)
         </span>
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
-                @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
+                @onclick="() => GoToPageAsync(_page + 1)">@T("specs.pager.next") ›</button>
     </div>
 }
 
@@ -196,19 +197,19 @@ else if (_data is not null)
    id + spec code, so no detail-page round-trip needed for the common
    "tidy the list" workflow. *@
 <SpecConfirmActionModal Open="_trashOpen"
-                        Title="@($"Move Spec {_pendingSpecCode} to Trash?")"
-                        Message="The Spec will be soft-deleted. It can be restored from the Trash tab. Note: the server will block this if a Work Order is still using this Spec."
-                        ConfirmLabel="Move to Trash"
-                        PendingLabel="Deleting…"
+                        Title="@T("specs.trash.title", _pendingSpecCode)"
+                        Message="@T("specs.trash.message")"
+                        ConfirmLabel="@T("specs.trash.confirm")"
+                        PendingLabel="@T("specs.trash.pending")"
                         Severity="ModalSeverity.Danger"
                         OnConfirm="OnTrashConfirmAsync"
                         OnClose="() => { _trashOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
 
 <SpecConfirmActionModal Open="_restoreOpen"
-                        Title="@($"Restore Spec {_pendingSpecCode}?")"
-                        Message="The Spec will leave the Trash and return to the Active list."
-                        ConfirmLabel="Restore"
-                        PendingLabel="Restoring…"
+                        Title="@T("specs.restore.title", _pendingSpecCode)"
+                        Message="@T("specs.restore.message")"
+                        ConfirmLabel="@T("specs.restore.confirm")"
+                        PendingLabel="@T("specs.restore.pending")"
                         Severity="ModalSeverity.Warning"
                         OnConfirm="OnRestoreConfirmAsync"
                         OnClose="() => { _restoreOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
@@ -395,26 +396,26 @@ else if (_data is not null)
         // expose via columns menu.
         _columns = new GridColumns("specs", new[]
         {
-            new ColumnDef("planner",    "Planner"),
-            new ColumnDef("ref_no",     "REF NO"),
-            new ColumnDef("customer",   "Customer"),
-            new ColumnDef("part_no",    "Part No"),
-            new ColumnDef("part_name",  "Part Name"),
-            new ColumnDef("colors",     "Color"),
-            new ColumnDef("cavity",     "Cavity"),
-            new ColumnDef("pitch",      "Pitch (mm)"),
-            new ColumnDef("inspection", "Spec"),
-            new ColumnDef("status",     "Status"),
-            new ColumnDef("rev",        "Rev"),
-            new ColumnDef("rev_date",   "Rev Date"),
-            new ColumnDef("rev_by",     "By"),
+            new ColumnDef("planner",    T("specs.col.planner")),
+            new ColumnDef("ref_no",     T("specs.col.ref_no")),
+            new ColumnDef("customer",   T("specs.col.customer")),
+            new ColumnDef("part_no",    T("specs.col.part_no")),
+            new ColumnDef("part_name",  T("specs.col.part_name")),
+            new ColumnDef("colors",     T("specs.col.colors")),
+            new ColumnDef("cavity",     T("specs.col.cavity")),
+            new ColumnDef("pitch",      T("specs.col.pitch")),
+            new ColumnDef("inspection", T("specs.col.inspection")),
+            new ColumnDef("status",     T("specs.col.status")),
+            new ColumnDef("rev",        T("specs.col.rev")),
+            new ColumnDef("rev_date",   T("specs.col.rev_date")),
+            new ColumnDef("rev_by",     T("specs.col.rev_by")),
 
             // Legacy hidden cols — operator can opt in via columns menu.
-            new ColumnDef("spec_code",     "Spec Code",    DefaultVisible: false),
-            new ColumnDef("title",         "Title",        DefaultVisible: false),
-            new ColumnDef("process_code",  "Process code", DefaultVisible: false),
-            new ColumnDef("effective_from","Effective From", DefaultVisible: false),
-            new ColumnDef("approved_by",   "Approved By",  DefaultVisible: false),
+            new ColumnDef("spec_code",     T("specs.col.spec_code"),      DefaultVisible: false),
+            new ColumnDef("title",         T("specs.col.title"),          DefaultVisible: false),
+            new ColumnDef("process_code",  T("specs.col.process_code"),   DefaultVisible: false),
+            new ColumnDef("effective_from",T("specs.col.effective_from"), DefaultVisible: false),
+            new ColumnDef("approved_by",   T("specs.col.approved_by"),    DefaultVisible: false),
         }, PrefStore);
         await LoadAsync();
     }
@@ -643,7 +644,7 @@ else if (_data is not null)
             __builder.AddAttribute(1, "class", "spec-inline-edit-shell");
             __builder.AddAttribute(2, "role", "button");
             __builder.AddAttribute(3, "tabindex", "0");
-            __builder.AddAttribute(4, "title", "Click to quick-edit");
+            __builder.AddAttribute(4, "title", T("specs.inline.quickedit"));
             __builder.AddAttribute(5, "onclick", EventCallback.Factory.Create<MouseEventArgs>(this, _ => BeginInlineEdit(row.Id, fieldKey, current)));
             __builder.AddAttribute(6, "onclick:stopPropagation", true);
             __builder.AddContent(7, display);

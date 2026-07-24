@@ -23,6 +23,7 @@ public sealed class ShopOrderHistoryTests : TestContext
     {
         _api = new RecordingApi();
         Services.AddSingleton<ICclApiClient>(_api);
+        Services.AddI18n();
         this.AddTestAuthorization().SetAuthorized("test-user");
     }
 
@@ -72,7 +73,7 @@ public sealed class ShopOrderHistoryTests : TestContext
         _api.ShopOrderHistory = History();
         var cut = RenderComponent<ShopOrderHistory>();
 
-        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "Last 7 days").Click();
+        cut.FindAll(".md-chip").First(b => b.TextContent.Trim() == "7 ngày qua").Click();
 
         Assert.Contains(_api.ShopOrderHistoryCalls, c => c.Period == "7d");
     }
@@ -83,7 +84,7 @@ public sealed class ShopOrderHistoryTests : TestContext
         _api.ShopOrderHistory = History();
         var cut = RenderComponent<ShopOrderHistory>();
 
-        cut.FindAll(".md-chip").First(b => b.TextContent.Contains("Stopped")).Click();
+        cut.FindAll(".md-chip").First(b => b.TextContent.Contains("Dừng")).Click();
 
         Assert.Contains(_api.ShopOrderHistoryCalls, c => c.Status == "STOPPED");
     }
@@ -106,7 +107,7 @@ public sealed class ShopOrderHistoryTests : TestContext
 
         var cut = RenderComponent<ShopOrderHistory>();
 
-        Assert.Contains("No shop orders", cut.Markup);
+        Assert.Contains("Không có lệnh SX nào khớp bộ lọc.", cut.Markup);
         Assert.Empty(cut.FindAll(".md-table tbody tr"));
     }
 }

@@ -56,7 +56,26 @@ public sealed partial class TranslationCatalog : ITranslationCatalog
         RegisterConnection();
         RegisterPassword();
         RegisterProfile();
-        // Batches 2E–2F append their Register* calls here.
+
+        // batch 2E — SpecHub-port surface (Home / ShopOrders / Spec* / etc.).
+        RegisterHome();
+        RegisterShopOrders();
+        RegisterSpecDetail();
+        RegisterSpecs();
+        RegisterGridSearch();
+        RegisterNpiImport();
+        RegisterRecentScans();
+        RegisterSpecConfirm();
+        RegisterSpecMenu();
+        RegisterSpecDiff();
+        RegisterSpecDrawCard();
+        RegisterSpecDrawTab();
+        RegisterSpecQcCap();
+        RegisterSpecQcPlan();
+        RegisterSpecCompact();
+        RegisterSpecEdit();
+        RegisterSpecFull();
+        // Batch 2F appends its Register* calls here.
     }
 
     /// <summary>Register one key with both language slots. Called from the

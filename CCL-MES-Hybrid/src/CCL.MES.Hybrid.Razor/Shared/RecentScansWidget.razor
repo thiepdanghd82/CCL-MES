@@ -19,9 +19,9 @@
   from P10.5g + P10.6a hotfix layer. The widget mounts/unmounts cleanly
   whenever the operator logs in/out via the surrounding <AuthorizeView>.
 *@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client.RecentScans
 @using CCL.MES.Shared.RecentScans
-@implements IDisposable
 @inject IRecentScansService RecentScans
 @inject NavigationManager Nav
 @inject IJSRuntime Js
@@ -29,10 +29,10 @@
 @if (_entries.Count > 0)
 {
     <div class="app-nav-section recent-scans-section">
-        <span class="recent-scans-title">RECENT SCANS</span>
+        <span class="recent-scans-title">@T("recentscans.title")</span>
         <button type="button" class="recent-scans-clear"
-                title="Clear local scan history"
-                @onclick="OnClear">Clear</button>
+                title="@T("recentscans.clear.tooltip")"
+                @onclick="OnClear">@T("recentscans.clear")</button>
     </div>
     <ul class="recent-scans-list">
         @foreach (var e in _entries)
@@ -49,7 +49,7 @@
                         @FormatRelative(e.ScannedAt)
                         @if (!e.Resolved)
                         {
-                            <span class="recent-scans-chip">not found</span>
+                            <span class="recent-scans-chip">@T("recentscans.notfound")</span>
                         }
                     </span>
                 </button>
@@ -63,13 +63,15 @@
 
     protected override void OnInitialized()
     {
+        base.OnInitialized(); // subscribe to language changes (LocalizedComponentBase)
         _entries = RecentScans.GetRecent();
         RecentScans.Changed += OnStoreChanged;
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
         RecentScans.Changed -= OnStoreChanged;
+        base.Dispose(); // unsubscribe
     }
 
     private void OnStoreChanged(object? sender, EventArgs e)
@@ -92,17 +94,17 @@
     private async Task OnClear()
     {
         var confirmed = await Js.InvokeAsync<bool>(
-            "confirm", "Clear all local scan history?");
+            "confirm", T("recentscans.clear.confirm"));
         if (confirmed) RecentScans.Clear();
     }
 
-    private static string FormatRelative(DateTime utc)
+    private string FormatRelative(DateTime utc)
     {
         var diff = DateTime.UtcNow - utc;
-        if (diff.TotalSeconds < 60) return "just now";
-        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes} min ago";
-        if (diff.TotalHours < 24)   return $"{(int)diff.TotalHours} h ago";
-        if (diff.TotalDays < 7)     return $"{(int)diff.TotalDays} d ago";
+        if (diff.TotalSeconds < 60) return T("recentscans.time.justnow");
+        if (diff.TotalMinutes < 60) return T("recentscans.time.min", (int)diff.TotalMinutes);
+        if (diff.TotalHours < 24)   return T("recentscans.time.hour", (int)diff.TotalHours);
+        if (diff.TotalDays < 7)     return T("recentscans.time.day", (int)diff.TotalDays);
         return utc.ToLocalTime().ToString("dd/MM HH:mm");
     }
 }

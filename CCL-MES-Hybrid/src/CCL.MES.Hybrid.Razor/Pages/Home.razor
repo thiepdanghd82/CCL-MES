@@ -1,25 +1,25 @@
 @page "/"
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
-@implements IDisposable
 @using System.Security.Claims
 @using CCL.MES.Shared.Home
 @inject IAuthSession Session
 @inject ICclApiClient Api
 
-<PageTitle>Home — CCL MES</PageTitle>
+<PageTitle>@T("home.pagetitle")</PageTitle>
 
 @* P10.10 — Home dashboard, SpecHub-style: greeting + live clock + 4 KPI
    cards (accent border + subtitle) + Today's Focus + Modules grid +
    Quick Actions. English UI. *@
 <div class="hp-header">
     <div>
-        <h1 class="page-title">@_greeting, @(_displayName)</h1>
+        <h1 class="page-title">@T(_greetingKey), @(_displayName)</h1>
         <div class="hp-sub">
-            @_now.ToString("dddd, MMMM d, yyyy") · CCL Design Vietnam
+            @_now.ToString("dddd, MMMM d, yyyy") · @T("home.company")
             <span class="hp-badge">@_role</span>
         </div>
     </div>
-    <div class="home-clock" aria-label="System clock">
+    <div class="home-clock" aria-label="@T("home.clock.aria")">
         <div class="home-clock-time">@_now.ToString("h:mm")</div>
         <div class="home-clock-date">@_now.ToString("tt") · @_now.ToString("HH:mm:ss")</div>
     </div>
@@ -27,108 +27,108 @@
 
 <div class="kpi-row">
     <div class="kpi-card kpi-blue">
-        <div class="kpi-label">Specs in Library</div>
+        <div class="kpi-label">@T("home.kpi.specs")</div>
         <div class="home-kpi-num">@KpiText(_summary?.SpecsTotal)</div>
-        <div class="kpi-sub">total stored revisions</div>
+        <div class="kpi-sub">@T("home.kpi.specs.sub")</div>
     </div>
     <div class="kpi-card kpi-amber">
-        <div class="kpi-label">Pending Approvals</div>
+        <div class="kpi-label">@T("home.kpi.pending")</div>
         <div class="home-kpi-num">@KpiText(_summary?.PendingApprovals)</div>
-        <div class="kpi-sub">@PendingSub</div>
+        <div class="kpi-sub">@T(PendingSubKey)</div>
     </div>
     <div class="kpi-card kpi-red">
-        <div class="kpi-label">Drafts</div>
+        <div class="kpi-label">@T("home.kpi.drafts")</div>
         <div class="home-kpi-num">@KpiText(_summary?.Drafts)</div>
-        <div class="kpi-sub">@DraftsSub</div>
+        <div class="kpi-sub">@T(DraftsSubKey)</div>
     </div>
     <div class="kpi-card kpi-green">
-        <div class="kpi-label">Today's Activity</div>
+        <div class="kpi-label">@T("home.kpi.today")</div>
         <div class="home-kpi-num">@KpiText(_summary?.TodayActivity)</div>
-        <div class="kpi-sub">@TodaySub</div>
+        <div class="kpi-sub">@T(TodaySubKey)</div>
     </div>
 </div>
 
 <div class="hp-grid">
     <section class="panel">
         <div class="panel-head">
-            <span>Today's Focus</span>
+            <span>@T("home.focus.title")</span>
             @if (_canNpi)
             {
-                <a class="panel-link" href="/npi/specs">View all →</a>
+                <a class="panel-link" href="/npi/specs">@T("home.focus.viewall")</a>
             }
         </div>
         <div class="panel-body hp-focus-empty">
             @if (_canNpi)
             {
-                <text>Library is empty. Open NPI to load samples or import xlsx ☕</text>
+                <text>@T("home.focus.empty.npi")</text>
             }
             else
             {
-                <text>Nothing needs attention today ☕</text>
+                <text>@T("home.focus.empty.none")</text>
             }
         </div>
     </section>
 
     <section class="panel">
-        <div class="panel-head"><span>Modules</span></div>
+        <div class="panel-head"><span>@T("home.modules.title")</span></div>
         <div class="module-grid">
             @if (_canNpi)
             {
                 <a class="module-cell" href="/npi/specs">
                     <div class="module-ico">📋</div>
-                    <div class="module-name">Engineer Spec</div>
-                    <div class="module-desc">NPI spec library</div>
+                    <div class="module-name">@T("home.module.spec.name")</div>
+                    <div class="module-desc">@T("home.module.spec.desc")</div>
                 </a>
                 <a class="module-cell" href="/npi/workcenters">
                     <div class="module-ico">🗂️</div>
-                    <div class="module-name">NPI Data</div>
-                    <div class="module-desc">BOM / Routing / Materials / WC</div>
+                    <div class="module-name">@T("home.module.npi.name")</div>
+                    <div class="module-desc">@T("home.module.npi.desc")</div>
                 </a>
             }
             @if (_canRun)
             {
                 <a class="module-cell" href="/workorders">
                     <div class="module-ico">🏭</div>
-                    <div class="module-name">Production</div>
-                    <div class="module-desc">Scan WO · 5-stage MES flow</div>
+                    <div class="module-name">@T("home.module.production.name")</div>
+                    <div class="module-desc">@T("home.module.production.desc")</div>
                 </a>
             }
             <a class="module-cell" href="/machines">
                 <div class="module-ico">🖥️</div>
-                <div class="module-name">Machine Dashboard</div>
-                <div class="module-desc">Monitor 43 work centers</div>
+                <div class="module-name">@T("home.module.machines.name")</div>
+                <div class="module-desc">@T("home.module.machines.desc")</div>
             </a>
             <a class="module-cell" href="/settings">
                 <div class="module-ico">⚙️</div>
-                <div class="module-name">Settings</div>
-                <div class="module-desc">Profile / accounts / audit log</div>
+                <div class="module-name">@T("home.module.settings.name")</div>
+                <div class="module-desc">@T("home.module.settings.desc")</div>
             </a>
         </div>
     </section>
 </div>
 
 <section class="panel">
-    <div class="panel-head"><span>Quick Actions</span></div>
+    <div class="panel-head"><span>@T("home.qa.title")</span></div>
     <div class="qa-row">
         @if (_canNpi)
         {
-            <a class="qa-cell" href="/npi/specs"><div class="qa-ico">＋</div><div class="qa-lbl">New Spec</div></a>
-            <a class="qa-cell" href="/npi/specs"><div class="qa-ico">⭱</div><div class="qa-lbl">Import xlsx</div></a>
+            <a class="qa-cell" href="/npi/specs"><div class="qa-ico">＋</div><div class="qa-lbl">@T("home.qa.newspec")</div></a>
+            <a class="qa-cell" href="/npi/specs"><div class="qa-ico">⭱</div><div class="qa-lbl">@T("home.qa.import")</div></a>
         }
-        <a class="qa-cell" href="/machines"><div class="qa-ico">🖥️</div><div class="qa-lbl">Machines</div></a>
-        <a class="qa-cell" href="/qms"><div class="qa-ico">✓</div><div class="qa-lbl">QC Queue</div></a>
-        <a class="qa-cell" href="/shop-orders"><div class="qa-ico">🗂️</div><div class="qa-lbl">History</div></a>
+        <a class="qa-cell" href="/machines"><div class="qa-ico">🖥️</div><div class="qa-lbl">@T("home.qa.machines")</div></a>
+        <a class="qa-cell" href="/qms"><div class="qa-ico">✓</div><div class="qa-lbl">@T("home.qa.qcqueue")</div></a>
+        <a class="qa-cell" href="/shop-orders"><div class="qa-ico">🗂️</div><div class="qa-lbl">@T("home.qa.history")</div></a>
         @if (_isAdmin)
         {
-            <a class="qa-cell" href="/settings/accounts"><div class="qa-ico">👥</div><div class="qa-lbl">Accounts</div></a>
+            <a class="qa-cell" href="/settings/accounts"><div class="qa-ico">👥</div><div class="qa-lbl">@T("home.qa.accounts")</div></a>
         }
-        <a class="qa-cell" href="/settings/about"><div class="qa-ico">?</div><div class="qa-lbl">Help</div></a>
+        <a class="qa-cell" href="/settings/about"><div class="qa-ico">?</div><div class="qa-lbl">@T("home.qa.help")</div></a>
     </div>
 </section>
 
 @code {
     private string _displayName = "";
-    private string _greeting = "Hello";
+    private string _greetingKey = "home.greeting.hello";
     private string _role = "";
     private DateTime _now = DateTime.Now;
     private System.Threading.Timer? _clock;
@@ -139,9 +139,9 @@
     private HomeSummaryDto? _summary;
 
     private static string KpiText(int? n) => n?.ToString() ?? "—";
-    private string PendingSub => (_summary?.PendingApprovals ?? 0) == 0 ? "— all clear" : "awaiting review";
-    private string DraftsSub => (_summary?.Drafts ?? 0) == 0 ? "— no drafts" : "in progress";
-    private string TodaySub => (_summary?.TodayActivity ?? 0) == 0 ? "— quiet day" : "WOs touched today";
+    private string PendingSubKey => (_summary?.PendingApprovals ?? 0) == 0 ? "home.kpi.pending.sub.clear" : "home.kpi.pending.sub.review";
+    private string DraftsSubKey => (_summary?.Drafts ?? 0) == 0 ? "home.kpi.drafts.sub.none" : "home.kpi.drafts.sub.progress";
+    private string TodaySubKey => (_summary?.TodayActivity ?? 0) == 0 ? "home.kpi.today.sub.quiet" : "home.kpi.today.sub.touched";
 
     protected override async Task OnInitializedAsync()
     {
@@ -151,18 +151,20 @@
 
     protected override void OnInitialized()
     {
+        base.OnInitialized(); // subscribe to language changes (LocalizedComponentBase)
+
         var u = Session.CurrentUser;
         _displayName = u.FindFirst("display_name")?.Value
             ?? u.Identity?.Name
-            ?? "operator";
+            ?? T("home.operator.fallback");
         _role = u.FindFirst(ClaimTypes.Role)?.Value ?? "";
 
         // NOTE: if-chain, not a relational-pattern switch — a switch arm
         // beginning with '<' breaks the Razor compiler (SDK 10.0.x, RZ1006).
         var hour = _now.Hour;
-        if (hour < 12) _greeting = "Good morning";
-        else if (hour < 18) _greeting = "Good afternoon";
-        else _greeting = "Good evening";
+        if (hour < 12) _greetingKey = "home.greeting.morning";
+        else if (hour < 18) _greetingKey = "home.greeting.afternoon";
+        else _greetingKey = "home.greeting.evening";
 
         _isAdmin = u.IsInRole("Admin");
         _canNpi = _isAdmin || u.IsInRole("Supervisor") || u.IsInRole("Engineer") || u.IsInRole("QC");
@@ -175,5 +177,9 @@
         }, null, 1000, 1000);
     }
 
-    public void Dispose() => _clock?.Dispose();
+    public override void Dispose()
+    {
+        _clock?.Dispose();
+        base.Dispose(); // unsubscribe from language changes
+    }
 }

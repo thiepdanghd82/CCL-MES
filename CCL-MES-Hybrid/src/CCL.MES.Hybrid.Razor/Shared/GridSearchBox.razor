@@ -1,4 +1,4 @@
-@implements IDisposable
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 
 @*
     Shared grid search box — SpecHub-style live search that actually renders.
@@ -13,12 +13,12 @@
 *@
 
 <span class="grid-search-wrap">
-    <input type="search" class="grid-search" placeholder="@Placeholder"
+    <input type="search" class="grid-search" placeholder="@(Placeholder ?? T("gridsearch.placeholder"))"
            value="@Value" @oninput="OnInputAsync" @onkeyup="OnKeyAsync" />
     @if (!string.IsNullOrEmpty(Value))
     {
         <button type="button" class="grid-search-clear" tabindex="-1"
-                title="Xoá tìm kiếm" aria-label="Xoá tìm kiếm"
+                title="@T("gridsearch.clear")" aria-label="@T("gridsearch.clear")"
                 @onclick="ClearAsync">×</button>
     }
 </span>
@@ -30,7 +30,7 @@
     /// <summary>Fired after the debounce elapses, on Enter, and on clear.</summary>
     [Parameter] public EventCallback OnSearch { get; set; }
 
-    [Parameter] public string Placeholder { get; set; } = "Search…";
+    [Parameter] public string? Placeholder { get; set; }
     [Parameter] public int DebounceMs { get; set; } = 300;
 
     private System.Threading.Timer? _debounce;
@@ -66,5 +66,9 @@
         StateHasChanged();
     }
 
-    public void Dispose() => _debounce?.Dispose();
+    public override void Dispose()
+    {
+        _debounce?.Dispose();
+        base.Dispose();
+    }
 }

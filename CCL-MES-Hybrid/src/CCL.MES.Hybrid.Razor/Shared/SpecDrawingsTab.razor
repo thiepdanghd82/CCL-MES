@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @inject IFilePickerService FilePicker
 @inject IFileOpener FileOpener
@@ -30,7 +31,7 @@
 
 @if (Slots is null || Slots.Count == 0)
 {
-    <p class="grid-status">No drawings yet for this revision.</p>
+    <p class="grid-status">@T("specdrawtab.empty.norevision")</p>
 }
 else
 {
@@ -52,7 +53,7 @@ else
                         <button type="button" class="grid-btn grid-btn-primary drawing-upload-btn"
                                 disabled="@submitting"
                                 @onclick="() => OnUploadAsync(slot)">
-                            @(submitting ? "Uploading…" : "⤒ Upload new version")
+                            @(submitting ? @T("specdrawtab.upload.busy") : @T("specdrawtab.upload.new"))
                         </button>
                     </AuthorizeView>
                 </div>
@@ -60,7 +61,7 @@ else
                 @if (error is not null)
                 {
                     <div class="modal-banner modal-banner-error drawing-card-error" role="alert">
-                        <strong>Upload failed.</strong>
+                        <strong>@T("specdrawtab.upload.failed")</strong>
                         <div>@error</div>
                     </div>
                 }
@@ -74,7 +75,7 @@ else
                 <div class="drawing-slot-versions">
                     @if (slot.Versions.Count == 0)
                     {
-                        <span class="spec-empty-inline">No uploads yet.</span>
+                        <span class="spec-empty-inline">@T("specdrawtab.version.none")</span>
                     }
                     else
                     {
@@ -83,7 +84,7 @@ else
                             var dl = _downloadingVersionId == v.Id;
                             <div class="drawing-version-row drawing-version-@v.Status.ToString().ToLowerInvariant()">
                                 <span class="spec-mono drawing-vno">v@v.VersionNo</span>
-                                <span class="drawing-fname" title="@($"{DrawingDisplayName(v)}  ·  original: {v.FileName}")">@DrawingDisplayName(v)</span>
+                                <span class="drawing-fname" title="@T("specdrawtab.version.fname.title", DrawingDisplayName(v), v.FileName)">@DrawingDisplayName(v)</span>
                                 <span class="drawing-size">@FormatBytes(v.FileSize)</span>
                                 <span class="drawing-status-pill drawing-status-@v.Status.ToString().ToLowerInvariant()">
                                     @DrawingVersionStatusLabel(v.Status)
@@ -101,18 +102,18 @@ else
                                     <button type="button" class="grid-btn grid-btn-primary drawing-dl-btn"
                                             disabled="@dl"
                                             @onclick="() => OnOpenAsync(slot, v)">
-                                        @(dl ? "Opening…" : "↗ Open")
+                                        @(dl ? @T("specdrawtab.action.open.busy") : @T("specdrawtab.action.open"))
                                     </button>
                                     <button type="button" class="grid-btn drawing-dl-btn"
-                                            disabled="@dl" title="Save a copy to this device"
+                                            disabled="@dl" title="@T("specdrawtab.action.save.title")"
                                             @onclick="() => OnDownloadAsync(slot, v)">
-                                        ↓ Save
+                                        @T("specdrawtab.action.save")
                                     </button>
                                     <AuthorizeView Roles="Admin,Engineer" Context="del">
                                         <button type="button" class="grid-btn drawing-dl-btn drawing-del-btn"
-                                                disabled="@dl" title="Delete this version (NPI password required)"
+                                                disabled="@dl" title="@T("specdrawtab.action.delete.title")"
                                                 @onclick="() => OpenDeleteModal(slot, v)">
-                                            🗑 Delete
+                                            @T("specdrawtab.action.delete")
                                         </button>
                                     </AuthorizeView>
                                 </div>
@@ -138,7 +139,7 @@ else
             <div class="drawing-preview-body">
                 @if (string.IsNullOrEmpty(_previewUrl))
                 {
-                    <div class="drawing-preview-empty">Loading…</div>
+                    <div class="drawing-preview-empty">@T("specdrawtab.preview.loading")</div>
                 }
                 else if (_previewIsImage)
                 {
@@ -161,7 +162,7 @@ else
     <div class="modal-scrim" @onclick="CloseDeleteModal">
         <div class="modal-card modal-sm modal-severity-danger" @onclick:stopPropagation="true">
             <div class="modal-head">
-                <span class="modal-title">Delete drawing version</span>
+                <span class="modal-title">@T("specdrawtab.delete.title")</span>
                 <button type="button" class="modal-close" @onclick="CloseDeleteModal">✕</button>
             </div>
             <div class="modal-body">
@@ -170,37 +171,36 @@ else
                     — <span class="spec-mono">@DrawingDisplayName(_deleteVersion)</span>
                 </p>
                 <p class="drawing-del-warn">
-                    Hành động này xoá vĩnh viễn bản vẽ. Cần xác thực bằng tài khoản
-                    thuộc <strong>NPI team</strong>.
+                    @T("specdrawtab.delete.warn") <strong>@T("specdrawtab.delete.warn.team")</strong>@T("specdrawtab.delete.warn.tail")
                 </p>
                 @if (_deleteError is not null)
                 {
                     <div class="modal-banner modal-banner-error" role="alert">@_deleteError</div>
                 }
                 <div class="modal-field">
-                    <label>Tài khoản NPI</label>
+                    <label>@T("specdrawtab.delete.field.user")</label>
                     <input class="modal-input" type="text" autocomplete="off"
-                           placeholder="username" disabled="@_deleteBusy"
+                           placeholder="@T("specdrawtab.delete.field.user.ph")" disabled="@_deleteBusy"
                            @bind="_deleteUser" @bind:event="oninput" />
                 </div>
                 <div class="modal-field">
-                    <label>Mật khẩu</label>
+                    <label>@T("specdrawtab.delete.field.pwd")</label>
                     <input class="modal-input" type="password" autocomplete="off"
                            placeholder="••••••••" disabled="@_deleteBusy"
                            @bind="_deletePassword" @bind:event="oninput" />
                 </div>
                 <div class="modal-field">
-                    <label>Lý do (tuỳ chọn)</label>
+                    <label>@T("specdrawtab.delete.field.reason")</label>
                     <input class="modal-input" type="text" disabled="@_deleteBusy"
-                           placeholder="Ví dụ: upload nhầm file" @bind="_deleteReason" />
+                           placeholder="@T("specdrawtab.delete.field.reason.ph")" @bind="_deleteReason" />
                 </div>
             </div>
             <div class="modal-foot">
-                <button type="button" class="grid-btn" disabled="@_deleteBusy" @onclick="CloseDeleteModal">Huỷ</button>
+                <button type="button" class="grid-btn" disabled="@_deleteBusy" @onclick="CloseDeleteModal">@T("specdrawtab.delete.cancel")</button>
                 <button type="button" class="grid-btn grid-btn-danger"
                         disabled="@(_deleteBusy || string.IsNullOrWhiteSpace(_deleteUser) || string.IsNullOrWhiteSpace(_deletePassword))"
                         @onclick="ConfirmDeleteAsync">
-                    @(_deleteBusy ? "Đang xoá…" : "Xoá bản vẽ")
+                    @(_deleteBusy ? @T("specdrawtab.delete.confirm.busy") : @T("specdrawtab.delete.confirm"))
                 </button>
             </div>
         </div>
@@ -294,7 +294,7 @@ else
             {
                 var resp = await Api.UploadDrawingAsync(
                     RevisionId, kindKey, pick.Content, pick.FileName);
-                _noticeByKind[kindKey] = $"Uploaded v{resp.VersionNo} · {pick.FileName} ({FormatBytes(resp.SizeBytes)}).";
+                _noticeByKind[kindKey] = T("specdrawtab.notice.uploaded", resp.VersionNo, pick.FileName, FormatBytes(resp.SizeBytes));
             }
             if (OnReloadRequested.HasDelegate) await OnReloadRequested.InvokeAsync();
         }
@@ -304,11 +304,11 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _errorByKind[kindKey] = $"Could not connect to the server: {ex.Message}";
+            _errorByKind[kindKey] = T("specdrawtab.err.connect", ex.Message);
         }
         catch (TaskCanceledException)
         {
-            _errorByKind[kindKey] = "Upload took too long (over 90 seconds) — check your network and try again.";
+            _errorByKind[kindKey] = T("specdrawtab.err.upload.timeout");
         }
         catch (Exception ex)
         {
@@ -339,11 +339,11 @@ else
                 + $"_v{v.VersionNo}" + System.IO.Path.GetExtension(v.FileName);
             var dest = Path.Combine(safeDir, openName);
             var size = await Api.DownloadDrawingToFileAsync(RevisionId, v.Id, dest);
-            _noticeByKind[kindKey] = $"Opened v{v.VersionNo} · {openName} ({FormatBytes(size)}).";
+            _noticeByKind[kindKey] = T("specdrawtab.notice.opened", v.VersionNo, openName, FormatBytes(size));
             var opened = await FileOpener.TryOpenAsync(dest);
             if (!opened)
             {
-                _noticeByKind[kindKey] = $"Saved the file to {dest} (could not open automatically).";
+                _noticeByKind[kindKey] = T("specdrawtab.notice.saved", dest);
             }
         }
         catch (ApiException apiEx)
@@ -352,7 +352,7 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _errorByKind[kindKey] = $"Could not connect to the server: {ex.Message}";
+            _errorByKind[kindKey] = T("specdrawtab.err.connect", ex.Message);
         }
         catch (Exception ex)
         {
@@ -390,7 +390,7 @@ else
             _previewUrl = await JS.InvokeAsync<string>("cclMesDrawings.toObjectUrl", b64, MimeForExt(ext));
             if (string.IsNullOrEmpty(_previewUrl))
             {
-                _errorByKind[kindKey] = "Could not build a preview for this file — use ↓ Save instead.";
+                _errorByKind[kindKey] = T("specdrawtab.err.preview");
             }
             else
             {
@@ -398,7 +398,7 @@ else
             }
         }
         catch (ApiException apiEx) { _errorByKind[kindKey] = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
-        catch (HttpRequestException ex) { _errorByKind[kindKey] = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _errorByKind[kindKey] = T("specdrawtab.err.connect", ex.Message); }
         catch (Exception ex) { _errorByKind[kindKey] = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _downloadingVersionId = 0; StateHasChanged(); }
     }
@@ -480,7 +480,7 @@ else
             };
             await Api.DeleteDrawingVersionAsync(RevisionId, _deleteVersion.Id, req);
 
-            _noticeByKind[kindKey] = $"Đã xoá v{_deleteVersion.VersionNo} · {DrawingDisplayName(_deleteVersion)}.";
+            _noticeByKind[kindKey] = T("specdrawtab.notice.deleted", _deleteVersion.VersionNo, DrawingDisplayName(_deleteVersion));
             _deleteBusy = false;
             _deleteOpen = false;
             _deleteSlot = null;
@@ -496,7 +496,7 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _deleteError = $"Không kết nối được máy chủ: {ex.Message}";
+            _deleteError = T("specdrawtab.err.connect", ex.Message);
             _deleteBusy = false;
             StateHasChanged();
         }
@@ -537,9 +537,9 @@ else
         if (a.ActedBy is not null && a.ActedAt is not null)
         {
             var ts = a.ActedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
-            title = $"{ApprovalRoleLabel(a.Role)} — {ApprovalStatusLabel(a.Status)} by {a.ActedBy} · {ts}";
+            title = T("specdrawtab.chip.title.acted", ApprovalRoleLabel(a.Role), ApprovalStatusLabel(a.Status), a.ActedBy, ts);
             if (!string.IsNullOrWhiteSpace(a.Comment))
-                title += $"\nReason: {a.Comment}";
+                title += "\n" + T("specdrawtab.chip.title.reason", a.Comment);
         }
         else if (availability == DrawingsApprovalGateVm.ChipAvailability.NotAuthorized)
         {
@@ -547,7 +547,7 @@ else
         }
         else
         {
-            title = $"{ApprovalRoleLabel(a.Role)} — {ApprovalStatusLabel(a.Status)}";
+            title = T("specdrawtab.chip.title.pending", ApprovalRoleLabel(a.Role), ApprovalStatusLabel(a.Status));
         }
 
         if (availability == DrawingsApprovalGateVm.ChipAvailability.Actionable
@@ -575,7 +575,7 @@ else
         }
     };
 
-    private static void RenderChipContent(RenderTreeBuilder __builder, DrawingApprovalView a)
+    private void RenderChipContent(RenderTreeBuilder __builder, DrawingApprovalView a)
     {
         __builder.AddContent(10, ApprovalRoleLabel(a.Role));
         __builder.AddContent(11, " · ");
@@ -619,61 +619,61 @@ else
         // surface correctly without drift.
         if (_decideKindKey is not null)
         {
-            var summary = $"Recorded the decision for v{_decideVersionNo}";
+            var summary = T("specdrawtab.notice.decided", _decideVersionNo);
             if (resp.SupersededCount > 0)
-                summary += $" · {resp.SupersededCount} older version(s) marked Superseded.";
+                summary += T("specdrawtab.notice.decided.superseded", resp.SupersededCount);
             _noticeByKind[_decideKindKey] = summary;
         }
         if (OnReloadRequested.HasDelegate) await OnReloadRequested.InvokeAsync();
     }
 
-    private static string KindLabel(DrawingKindCode kind) => kind switch
+    private string KindLabel(DrawingKindCode kind) => kind switch
     {
-        DrawingKindCode.CustomerDrawing    => "Customer drawing",
-        DrawingKindCode.NpiPrintLayout     => "Print layout (NPI)",
-        DrawingKindCode.NpiCutLayout       => "Cut layout (NPI)",
-        DrawingKindCode.IpqcPrintReference => "IPQC Print reference",
-        DrawingKindCode.IpqcCutReference   => "IPQC Cut reference",
-        DrawingKindCode.FqcChecksheet      => "FQC Checksheet",
-        DrawingKindCode.OqcChecksheet      => "OQC Checksheet",
-        DrawingKindCode.CustomerApproval   => "Customer approval",
-        DrawingKindCode.InternalProof      => "Internal proof",
+        DrawingKindCode.CustomerDrawing    => T("specdrawtab.kind.customerdrawing"),
+        DrawingKindCode.NpiPrintLayout     => T("specdrawtab.kind.npiprintlayout"),
+        DrawingKindCode.NpiCutLayout       => T("specdrawtab.kind.npicutlayout"),
+        DrawingKindCode.IpqcPrintReference => T("specdrawtab.kind.ipqcprintref"),
+        DrawingKindCode.IpqcCutReference   => T("specdrawtab.kind.ipqccutref"),
+        DrawingKindCode.FqcChecksheet      => T("specdrawtab.kind.fqcchecksheet"),
+        DrawingKindCode.OqcChecksheet      => T("specdrawtab.kind.oqcchecksheet"),
+        DrawingKindCode.CustomerApproval   => T("specdrawtab.kind.customerapproval"),
+        DrawingKindCode.InternalProof      => T("specdrawtab.kind.internalproof"),
         _                                  => kind.ToString(),
     };
 
-    private static string DrawingSlotStatusLabel(DrawingSlotStatus s) => s switch
+    private string DrawingSlotStatusLabel(DrawingSlotStatus s) => s switch
     {
-        DrawingSlotStatus.Draft             => "Draft",
-        DrawingSlotStatus.PendingApproval   => "Pending Approval",
-        DrawingSlotStatus.Approved          => "Approved",
-        DrawingSlotStatus.Superseded        => "Superseded",
-        DrawingSlotStatus.Withdrawn         => "Withdrawn",
+        DrawingSlotStatus.Draft             => T("specdrawtab.slotstatus.draft"),
+        DrawingSlotStatus.PendingApproval   => T("specdrawtab.slotstatus.pending"),
+        DrawingSlotStatus.Approved          => T("specdrawtab.slotstatus.approved"),
+        DrawingSlotStatus.Superseded        => T("specdrawtab.slotstatus.superseded"),
+        DrawingSlotStatus.Withdrawn         => T("specdrawtab.slotstatus.withdrawn"),
         _                                   => s.ToString(),
     };
 
-    private static string DrawingVersionStatusLabel(DrawingVersionStatus s) => s switch
+    private string DrawingVersionStatusLabel(DrawingVersionStatus s) => s switch
     {
-        DrawingVersionStatus.Draft             => "Draft",
-        DrawingVersionStatus.PendingApproval   => "Pending Approval",
-        DrawingVersionStatus.Approved          => "Approved",
-        DrawingVersionStatus.Rejected          => "Rejected",
-        DrawingVersionStatus.Superseded        => "Superseded",
+        DrawingVersionStatus.Draft             => T("specdrawtab.verstatus.draft"),
+        DrawingVersionStatus.PendingApproval   => T("specdrawtab.verstatus.pending"),
+        DrawingVersionStatus.Approved          => T("specdrawtab.verstatus.approved"),
+        DrawingVersionStatus.Rejected          => T("specdrawtab.verstatus.rejected"),
+        DrawingVersionStatus.Superseded        => T("specdrawtab.verstatus.superseded"),
         _                                          => s.ToString(),
     };
 
-    public static string ApprovalRoleLabel(DrawingApprovalRole r) => r switch
+    public string ApprovalRoleLabel(DrawingApprovalRole r) => r switch
     {
-        DrawingApprovalRole.Npi        => "NPI",
-        DrawingApprovalRole.Production => "Production",
-        DrawingApprovalRole.Qc         => "QC",
+        DrawingApprovalRole.Npi        => T("specdrawtab.approlerole.npi"),
+        DrawingApprovalRole.Production => T("specdrawtab.approlerole.production"),
+        DrawingApprovalRole.Qc         => T("specdrawtab.approlerole.qc"),
         _                                  => r.ToString(),
     };
 
-    public static string ApprovalStatusLabel(DrawingApprovalStatus s) => s switch
+    public string ApprovalStatusLabel(DrawingApprovalStatus s) => s switch
     {
-        DrawingApprovalStatus.Pending  => "Pending",
-        DrawingApprovalStatus.Approved => "Approved",
-        DrawingApprovalStatus.Rejected => "Rejected",
+        DrawingApprovalStatus.Pending  => T("specdrawtab.appstatus.pending"),
+        DrawingApprovalStatus.Approved => T("specdrawtab.appstatus.approved"),
+        DrawingApprovalStatus.Rejected => T("specdrawtab.appstatus.rejected"),
         _                                  => s.ToString(),
     };
 

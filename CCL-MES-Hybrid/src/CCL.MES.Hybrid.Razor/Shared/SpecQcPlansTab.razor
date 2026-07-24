@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @inject IAuthSession Session
 @using CCL.MES.Hybrid.Client.Specs
@@ -17,7 +18,7 @@
 
 @if (Windows is null || Windows.Count == 0)
 {
-    <p class="grid-status">No QC data yet.</p>
+    <p class="grid-status">@T("specqcplan.empty")</p>
 }
 else
 {
@@ -25,8 +26,7 @@ else
     @if (!canEdit)
     {
         <div class="modal-banner modal-banner-warning" role="note">
-            The current account (role <strong>@(Session.CurrentUserInfo?.Role ?? "—")</strong>)
-            can only view QC plans. Admin or Engineer is required to edit.
+            @T("specqcplan.readonly.prefix") <strong>@(Session.CurrentUserInfo?.Role ?? "—")</strong>@T("specqcplan.readonly.suffix")
         </div>
     }
 
@@ -42,16 +42,16 @@ else
             <div class="qc-stage-card @(submitting ? "is-busy" : "")">
                 <div class="qc-stage-card-head">
                     <strong>@StageLabel(stage)</strong>
-                    <span class="qc-stage-count">@stageRows.Count criteria</span>
+                    <span class="qc-stage-count">@T("specqcplan.count", stageRows.Count)</span>
                     @if (canEdit)
                     {
                         <button type="button" class="grid-btn"
                                 disabled="@submitting"
-                                @onclick="() => AddRow(key)">+ Add row</button>
+                                @onclick="() => AddRow(key)">@T("specqcplan.addrow")</button>
                         <button type="button" class="grid-btn grid-btn-primary"
                                 disabled="@submitting"
                                 @onclick="() => SaveStageAsync(stage)">
-                            @(submitting ? "Saving…" : "Save stage")
+                            @(submitting ? @T("specqcplan.saving") : @T("specqcplan.savestage"))
                         </button>
                     }
                 </div>
@@ -70,18 +70,18 @@ else
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th>Criterion <span class="modal-req">*</span></th>
-                                <th>Target</th>
-                                <th>Tolerance</th>
-                                <th>Method</th>
-                                <th>Frequency</th>
+                                <th>@T("specqcplan.col.criterion") <span class="modal-req">*</span></th>
+                                <th>@T("specqcplan.col.target")</th>
+                                <th>@T("specqcplan.col.tolerance")</th>
+                                <th>@T("specqcplan.col.method")</th>
+                                <th>@T("specqcplan.col.frequency")</th>
                                 @if (canEdit) { <th class="qc-col-narrow"></th> }
                             </tr>
                         </thead>
                         <tbody>
                             @if (stageRows.Count == 0)
                             {
-                                <tr><td colspan="@(canEdit ? 7 : 6)" class="spec-empty-cell">— No criteria yet —</td></tr>
+                                <tr><td colspan="@(canEdit ? 7 : 6)" class="spec-empty-cell">@T("specqcplan.nocriteria")</td></tr>
                             }
                             @for (int i = 0; i < stageRows.Count; i++)
                             {
@@ -124,7 +124,7 @@ else
                                         <td class="qc-col-narrow">
                                             <button type="button" class="grid-btn qc-row-del"
                                                     disabled="@submitting"
-                                                    aria-label="Delete row"
+                                                    aria-label="@T("specqcplan.delrow")"
                                                     @onclick="() => DeleteRow(key, idx)">✕</button>
                                         </td>
                                     }
@@ -229,7 +229,7 @@ else
         {
             if (string.IsNullOrWhiteSpace(row.Name))
             {
-                _errorByStage[key] = "The criterion name cannot be empty.";
+                _errorByStage[key] = T("specqcplan.err.nameempty");
                 StateHasChanged();
                 return;
             }
@@ -255,7 +255,7 @@ else
                 }).ToList(),
             };
             var resp = await Api.UpsertQcPlanStageAsync(RevisionId, req);
-            _noticeByStage[key] = $"Saved {resp.Window.Criteria.Count} criteria for stage {StageLabel(stage)}.";
+            _noticeByStage[key] = T("specqcplan.saved", resp.Window.Criteria.Count, StageLabel(stage));
             if (OnReloadRequested.HasDelegate) await OnReloadRequested.InvokeAsync();
         }
         catch (ApiException apiEx)
@@ -264,7 +264,7 @@ else
         }
         catch (HttpRequestException ex)
         {
-            _errorByStage[key] = $"Could not connect to the server: {ex.Message}";
+            _errorByStage[key] = T("specqcplan.err.connect", ex.Message);
         }
         catch (Exception ex)
         {
@@ -277,12 +277,12 @@ else
         }
     }
 
-    private static string StageLabel(QcStage stage) => stage switch
+    private string StageLabel(QcStage stage) => stage switch
     {
-        QcStage.IpqcPrint => "IPQC · Print",
-        QcStage.IpqcCut   => "IPQC · Cut",
-        QcStage.Fqc       => "FQC · Final",
-        QcStage.Oqc       => "OQC · Outgoing",
+        QcStage.IpqcPrint => T("specqcplan.stage.ipqcprint"),
+        QcStage.IpqcCut   => T("specqcplan.stage.ipqccut"),
+        QcStage.Fqc       => T("specqcplan.stage.fqc"),
+        QcStage.Oqc       => T("specqcplan.stage.oqc"),
         _                 => stage.ToString(),
     };
 

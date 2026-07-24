@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Specs
 @using CCL.MES.Hybrid.Client.Specs
 @using System.Globalization
@@ -15,11 +16,11 @@
 
 <div class="spec-edit" data-testid="spec-edit">
     <div class="spec-edit-bar">
-        <div class="spec-edit-title">✏️ Editing @Detail.SpecCode · Rev @Detail.RevisionCode <span class="spec-edit-hint">— cells below are editable</span></div>
+        <div class="spec-edit-title">✏️ @T("specedit.editing", Detail.SpecCode, Detail.RevisionCode) <span class="spec-edit-hint">@T("specedit.editableHint")</span></div>
         <div class="spec-edit-actions">
-            <button type="button" class="op-btn op-btn-secondary" disabled="@_saving" @onclick="OnCancelAsync">Cancel</button>
+            <button type="button" class="op-btn op-btn-secondary" disabled="@_saving" @onclick="OnCancelAsync">@T("specedit.cancel")</button>
             <button type="button" class="op-btn op-btn-success" data-testid="spec-edit-save" disabled="@_saving" @onclick="SaveAsync">
-                @(_saving ? "Saving…" : "💾 Save changes")
+                @(_saving ? T("specedit.saving") : T("specedit.save"))
             </button>
         </div>
     </div>
@@ -30,37 +31,37 @@
     }
 
     <div class="spec-block-full">
-        <div class="spec-block-title-full">Header</div>
+        <div class="spec-block-title-full">@T("specedit.section.header")</div>
         <div class="spec-edit-grid">
-            <label>Title<input class="spec-edit-input" @bind="_m.Title" /></label>
-            <label>REF NO<input class="spec-edit-input scan-mono" @bind="_m.RefNo" /></label>
-            <label>Spec / Inspection level<input class="spec-edit-input" @bind="_m.InspectionLevel" /></label>
-            <label>Process code<input class="spec-edit-input" @bind="_m.ProcessCode" /></label>
+            <label>@T("specedit.field.title")<input class="spec-edit-input" @bind="_m.Title" /></label>
+            <label>@T("specedit.field.refNo")<input class="spec-edit-input scan-mono" @bind="_m.RefNo" /></label>
+            <label>@T("specedit.field.inspectionLevel")<input class="spec-edit-input" @bind="_m.InspectionLevel" /></label>
+            <label>@T("specedit.field.processCode")<input class="spec-edit-input" @bind="_m.ProcessCode" /></label>
         </div>
     </div>
 
     <div class="spec-block-full">
-        <div class="spec-block-title-full">Product Information</div>
+        <div class="spec-block-title-full">@T("specedit.section.product")</div>
         <div class="spec-edit-grid">
-            <label>IFS code<input class="spec-edit-input scan-mono" @bind="_m.SpecCode" /></label>
-            <label>Customer<input class="spec-edit-input" @bind="_m.Customer" /></label>
-            <label>Part No<input class="spec-edit-input scan-mono" @bind="_m.PartNo" /></label>
-            <label>Part Name<input class="spec-edit-input" @bind="_m.PartName" /></label>
+            <label>@T("specedit.field.ifsCode")<input class="spec-edit-input scan-mono" @bind="_m.SpecCode" /></label>
+            <label>@T("specedit.field.customer")<input class="spec-edit-input" @bind="_m.Customer" /></label>
+            <label>@T("specedit.field.partNo")<input class="spec-edit-input scan-mono" @bind="_m.PartNo" /></label>
+            <label>@T("specedit.field.partName")<input class="spec-edit-input" @bind="_m.PartName" /></label>
         </div>
         <div class="spec-edit-grid">
-            <label>Material (substrate)<input class="spec-edit-input" @bind="_m.SubstrateType" /></label>
-            <label>Adhesive<input class="spec-edit-input" @bind="_m.AdhesiveType" /></label>
-            <label>Thickness (µm)<input class="spec-edit-input" @bind="_m.ThicknessUm" /></label>
+            <label>@T("specedit.field.substrate")<input class="spec-edit-input" @bind="_m.SubstrateType" /></label>
+            <label>@T("specedit.field.adhesive")<input class="spec-edit-input" @bind="_m.AdhesiveType" /></label>
+            <label>@T("specedit.field.thickness")<input class="spec-edit-input" @bind="_m.ThicknessUm" /></label>
         </div>
     </div>
 
     <div class="spec-block-full">
-        <div class="spec-block-title-full">Print Parameters</div>
+        <div class="spec-block-title-full">@T("specedit.section.printParams")</div>
         <div class="spec-edit-grid">
-            <label>Printing cavity<input class="spec-edit-input" @bind="_m.PrintingCavity" /></label>
-            <label>Length pitch (mm)<input class="spec-edit-input" @bind="_m.LengthPitchMm" /></label>
-            <label>Product size W (mm)<input class="spec-edit-input" @bind="_m.ProductSizeWmm" /></label>
-            <label>Product size H (mm)<input class="spec-edit-input" @bind="_m.ProductSizeHmm" /></label>
+            <label>@T("specedit.field.printingCavity")<input class="spec-edit-input" @bind="_m.PrintingCavity" /></label>
+            <label>@T("specedit.field.lengthPitch")<input class="spec-edit-input" @bind="_m.LengthPitchMm" /></label>
+            <label>@T("specedit.field.productSizeW")<input class="spec-edit-input" @bind="_m.ProductSizeWmm" /></label>
+            <label>@T("specedit.field.productSizeH")<input class="spec-edit-input" @bind="_m.ProductSizeHmm" /></label>
         </div>
     </div>
 
@@ -68,15 +69,15 @@
     {
         <div class="spec-block-full">
             <div class="spec-block-title-full">
-                Ink Information — @_m.InkRows.Count inks · @PlannerLabel
-                <button type="button" class="spec-edit-addrow" data-testid="spec-edit-addink" @onclick="AddInk">+ Add ink row</button>
+                @T("specedit.ink.info", _m.InkRows.Count) · @PlannerLabel
+                <button type="button" class="spec-edit-addrow" data-testid="spec-edit-addink" @onclick="AddInk">@T("specedit.ink.addRow")</button>
             </div>
             <div class="spec-table-scroll">
                 <table class="spec-print-table-full spec-edit-table">
                     <thead>
                         <tr>
-                            <th>No</th><th>Color</th><th>Ink Code</th><th>Ink Description</th><th>Brand</th>
-                            <th>Anilox</th><th>Plate Code</th><th>Press.</th><th>UV W</th><th>IR W</th><th></th>
+                            <th>@T("specedit.col.no")</th><th>@T("specedit.col.color")</th><th>@T("specedit.col.inkCode")</th><th>@T("specedit.col.inkDescription")</th><th>@T("specedit.col.brand")</th>
+                            <th>@T("specedit.col.anilox")</th><th>@T("specedit.col.plateCode")</th><th>@T("specedit.col.pressure")</th><th>@T("specedit.col.uvW")</th><th>@T("specedit.col.irW")</th><th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -94,16 +95,16 @@
                                 <td><input class="spec-cell-input num" @bind="row.Pressure" /></td>
                                 <td><input class="spec-cell-input num" @bind="row.UvPowerW" /></td>
                                 <td><input class="spec-cell-input num" @bind="row.IrPowerW" /></td>
-                                <td><button type="button" class="spec-row-del" title="Remove row" @onclick="() => RemoveInk(i)">×</button></td>
+                                <td><button type="button" class="spec-row-del" title="@T("specedit.removeRow")" @onclick="() => RemoveInk(i)">×</button></td>
                             </tr>
                         }
                         @if (_m.InkRows.Count == 0)
                         {
-                            <tr><td colspan="11" class="spec-empty-cell">No inks. Click “+ Add ink row”.</td></tr>
+                            <tr><td colspan="11" class="spec-empty-cell">@T("specedit.ink.empty")</td></tr>
                         }
                         <tr class="spec-add-row-tr">
                             <td colspan="11" class="spec-add-row" data-testid="spec-edit-addink-bottom" @onclick="AddInk">
-                                + Add ink row
+                                @T("specedit.ink.addRow")
                             </td>
                         </tr>
                     </tbody>
@@ -115,16 +116,16 @@
     {
     <div class="spec-block-full">
         <div class="spec-block-title-full">
-            Print Process · Plate Parameter — @_m.Colors.Count colors
-            <button type="button" class="spec-edit-addrow" data-testid="spec-edit-addcolor" @onclick="AddColor">+ Add color row</button>
+            @T("specedit.color.info", _m.Colors.Count)
+            <button type="button" class="spec-edit-addrow" data-testid="spec-edit-addcolor" @onclick="AddColor">@T("specedit.color.addRow")</button>
         </div>
         <div class="spec-table-scroll">
             <table class="spec-print-table-full spec-edit-table">
                 <thead>
                     <tr>
-                        <th>No</th><th>Surf</th><th>Color</th><th>Ink Name</th><th>Ink Code</th><th>Maker</th>
-                        <th>Retarder</th><th>Visc</th><th>Speed</th><th>Squee.</th><th>Dry</th><th>°C</th><th>min</th>
-                        <th>UV</th><th>Emul.</th><th>Plate Size</th><th>Mesh</th><th>Angle</th><th>Plate Code</th><th>Ctrl#</th><th>Remark</th><th></th>
+                        <th>@T("specedit.col.no")</th><th>@T("specedit.col.surf")</th><th>@T("specedit.col.color")</th><th>@T("specedit.col.inkName")</th><th>@T("specedit.col.inkCode")</th><th>@T("specedit.col.maker")</th>
+                        <th>@T("specedit.col.retarder")</th><th>@T("specedit.col.visc")</th><th>@T("specedit.col.speed")</th><th>@T("specedit.col.squeegee")</th><th>@T("specedit.col.dry")</th><th>@T("specedit.col.tempC")</th><th>@T("specedit.col.min")</th>
+                        <th>@T("specedit.col.uv")</th><th>@T("specedit.col.emul")</th><th>@T("specedit.col.plateSize")</th><th>@T("specedit.col.mesh")</th><th>@T("specedit.col.angle")</th><th>@T("specedit.col.plateCode")</th><th>@T("specedit.col.ctrlNo")</th><th>@T("specedit.col.remark")</th><th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -153,18 +154,18 @@
                             <td><input class="spec-cell-input scan-mono" @bind="row.PlateCode" /></td>
                             <td><input class="spec-cell-input num" @bind="row.ControlNo" /></td>
                             <td><input class="spec-cell-input wide" @bind="row.Remark" /></td>
-                            <td><button type="button" class="spec-row-del" title="Remove row" @onclick="() => RemoveColor(i)">×</button></td>
+                            <td><button type="button" class="spec-row-del" title="@T("specedit.removeRow")" @onclick="() => RemoveColor(i)">×</button></td>
                         </tr>
                     }
                     @if (_m.Colors.Count == 0)
                     {
-                        <tr><td colspan="22" class="spec-empty-cell">No colors. Click “+ Add color row”.</td></tr>
+                        <tr><td colspan="22" class="spec-empty-cell">@T("specedit.color.empty")</td></tr>
                     }
                     @* P10.10 — add-row affordance at the bottom of the table
                        (clickable full-width row), mirroring SpecHub. *@
                     <tr class="spec-add-row-tr">
                         <td colspan="22" class="spec-add-row" data-testid="spec-edit-addcolor-bottom" @onclick="AddColor">
-                            + Add color row
+                            @T("specedit.color.addRow")
                         </td>
                     </tr>
                 </tbody>
@@ -174,7 +175,7 @@
     }
 
     <div class="spec-block-full">
-        <div class="spec-block-title-full">Remarks</div>
+        <div class="spec-block-title-full">@T("specedit.section.remarks")</div>
         <textarea class="spec-edit-input spec-edit-textarea" rows="2" @bind="_m.RemarksText"></textarea>
     </div>
 </div>
@@ -260,7 +261,7 @@
             if (OnSaved.HasDelegate) await OnSaved.InvokeAsync();
         }
         catch (ApiException apiEx) { _error = SpecMutationErrorMapper.ToVietnameseMessage(apiEx); }
-        catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _error = T("specedit.error.connect", ex.Message); }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _saving = false; }
     }

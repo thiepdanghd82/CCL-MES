@@ -29,6 +29,7 @@ public sealed class NpiWorkCentersTests : TestContext
             Total = 1, Page = 1, PageSize = 20,
         };
         Services.AddSingleton<ICclApiClient>(_api);
+        Services.AddI18n();
         Services.AddSingleton<IGridPreferenceStore>(new InMemoryGridPreferenceStore());
         Services.AddSingleton<IFilePickerService>(new StubFilePickerService());
         JSInterop.Mode = JSRuntimeMode.Loose;

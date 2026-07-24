@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject IAuthSession Session
 @using CCL.MES.Hybrid.Client.Specs
 @using CCL.MES.Shared.QcSpecs
@@ -15,7 +16,7 @@
 
 @if (Windows is null || Windows.Count == 0)
 {
-    <p class="grid-status">No QC plan to capture yet.</p>
+    <p class="grid-status">@T("specqccap.empty")</p>
 }
 else
 {
@@ -28,7 +29,7 @@ else
     @if (!canEdit)
     {
         <div class="modal-banner modal-banner-warning" role="note">
-            The current account can only view QC results. Admin or Engineer is required to Record.
+            @T("specqccap.readonly.banner")
         </div>
     }
 
@@ -44,20 +45,20 @@ else
         <div class="qc-cap-stage-card">
             <div class="qc-stage-card-head">
                 <strong>@StageLabel(stage)</strong>
-                <span class="qc-stage-count">@window.Criteria.Count criteria</span>
+                <span class="qc-stage-count">@T("specqccap.criteria.count", window.Criteria.Count)</span>
             </div>
 
             <table class="qc-capture-table">
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Criterion</th>
-                        <th>Latest</th>
-                        <th>Measurement</th>
-                        <th>Reason</th>
-                        <th>Recorded by</th>
-                        <th>Time</th>
-                        @if (canEdit) { <th class="qc-col-narrow">Record</th> }
+                        <th>@T("specqccap.col.criterion")</th>
+                        <th>@T("specqccap.col.latest")</th>
+                        <th>@T("specqccap.col.measurement")</th>
+                        <th>@T("specqccap.col.reason")</th>
+                        <th>@T("specqccap.col.recordedby")</th>
+                        <th>@T("specqccap.col.time")</th>
+                        @if (canEdit) { <th class="qc-col-narrow">@T("specqccap.col.record")</th> }
                     </tr>
                 </thead>
                 <tbody>
@@ -72,13 +73,13 @@ else
                                 <strong>@crit.Name</strong>
                                 @if (!string.IsNullOrWhiteSpace(crit.PassCriteria))
                                 {
-                                    <div class="qc-criterion-hint">Target: @crit.PassCriteria</div>
+                                    <div class="qc-criterion-hint">@T("specqccap.target"): @crit.PassCriteria</div>
                                 }
                             </td>
                             <td>
                                 @if (last is null)
                                 {
-                                    <span class="qc-capture-pill qc-capture-pending">None</span>
+                                    <span class="qc-capture-pill qc-capture-pending">@T("specqccap.none")</span>
                                 }
                                 else
                                 {
@@ -94,7 +95,7 @@ else
                                 <td>
                                     <button type="button" class="grid-btn grid-btn-primary qc-cap-btn"
                                             @onclick="() => OpenCaptureModal(crit, stage)">
-                                        + Record
+                                        @T("specqccap.btn.record")
                                     </button>
                                 </td>
                             }
@@ -104,13 +105,13 @@ else
                             <tr class="qc-history-row">
                                 <td colspan="@(canEdit ? 8 : 7)">
                                     <details class="qc-history-details">
-                                        <summary>View history (@historyList.Count records)</summary>
+                                        <summary>@T("specqccap.history.summary", historyList.Count)</summary>
                                         <table class="qc-history-table">
                                             <thead>
                                                 <tr>
-                                                    <th>Time</th><th>Result</th>
-                                                    <th>Measurement</th><th>Reason</th>
-                                                    <th>By</th><th>Comment</th>
+                                                    <th>@T("specqccap.col.time")</th><th>@T("specqccap.hist.result")</th>
+                                                    <th>@T("specqccap.col.measurement")</th><th>@T("specqccap.col.reason")</th>
+                                                    <th>@T("specqccap.hist.by")</th><th>@T("specqccap.hist.comment")</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
