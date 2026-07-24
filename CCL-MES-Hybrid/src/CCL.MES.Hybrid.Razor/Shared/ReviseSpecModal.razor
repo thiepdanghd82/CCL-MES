@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @using CCL.MES.Hybrid.Client.Specs
 
@@ -11,26 +12,26 @@
 
 <Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Warning"
        ClickOutsideToClose="false">
-    <Header>Create Revise of Spec @SourceSpec?.SpecCode</Header>
+    <Header>@T("revisespec.header", SourceSpec?.SpecCode ?? "")</Header>
     <Body>
         @if (SourceSpec is null)
         {
-            <p class="grid-status">No source Spec yet.</p>
+            <p class="grid-status">@T("revisespec.no.source")</p>
         }
         else
         {
             <p class="modal-helper">
-                A new draft will be created + the source (@SourceSpec.SpecCode Rev @SourceSpec.RevisionCode)
-                will automatically be marked <strong>Superseded</strong>. This action cannot be undone automatically.
+                @T("revisespec.helper.pre", SourceSpec.SpecCode, SourceSpec.RevisionCode)
+                <strong>@T("revisespec.helper.superseded")</strong>@T("revisespec.helper.post")
             </p>
             <form @onsubmit:preventDefault="true">
                 <div class="modal-field">
-                    <label for="rv-reason">Revise reason <span class="modal-req">*</span></label>
+                    <label for="rv-reason">@T("revisespec.reason.label") <span class="modal-req">*</span></label>
                     <textarea id="rv-reason" class="modal-input modal-input-textarea" rows="4"
-                              maxlength="500" placeholder="At least 5 characters"
+                              maxlength="500" placeholder="@T("revisespec.reason.placeholder")"
                               @bind="_reason" @bind:event="oninput" disabled="@_submitting"></textarea>
                     <div class="modal-helper-line">
-                        @(_reason?.Trim().Length ?? 0) / 5 characters minimum
+                        @T("revisespec.reason.counter", (_reason?.Trim().Length ?? 0))
                     </div>
                 </div>
                 @if (_error is not null)
@@ -42,10 +43,10 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">@T("revisespec.cancel")</button>
         <button type="button" class="op-btn op-btn-warning"
                 disabled="@(!CanSubmit())" @onclick="SubmitAsync">
-            @(_submitting ? "Creating Revise…" : "Create Revise")
+            @(_submitting ? T("revisespec.submitting") : T("revisespec.submit"))
         </button>
     </Footer>
 </Modal>

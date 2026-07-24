@@ -75,7 +75,31 @@ public sealed partial class TranslationCatalog : ITranslationCatalog
         RegisterSpecCompact();
         RegisterSpecEdit();
         RegisterSpecFull();
-        // Batch 2F appends its Register* calls here.
+        // batch 2F — NPI grids + monitoring + spec modals + misc.
+        RegisterMachine();
+        RegisterQcHistory();
+        RegisterNpiWc();
+        RegisterQualTrace();
+        RegisterQcLib();
+        RegisterMode();
+        RegisterQms();
+        RegisterNpiStruct();
+        RegisterNpiRoute();
+        RegisterNpiRaw();
+        RegisterHardware();
+        RegisterLock();
+        RegisterSemiWh();
+        RegisterImportSpec();
+        RegisterCreateSpec();
+        RegisterEditSpec();
+        RegisterCopySpec();
+        RegisterReviseSpec();
+        RegisterSupersede();
+        RegisterQcCapture();
+        RegisterDrawingDecide();
+        RegisterScanner();
+        RegisterGridCols();
+        RegisterCrash();
     }
 
     /// <summary>Register one key with both language slots. Called from the

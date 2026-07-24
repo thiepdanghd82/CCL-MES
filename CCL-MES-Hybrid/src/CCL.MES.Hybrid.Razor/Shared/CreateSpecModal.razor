@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @using System.Linq
 @using CCL.MES.Hybrid.Client.Specs
@@ -17,60 +18,60 @@
 
 <Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Info"
        ClickOutsideToClose="false">
-    <Header>Create new Spec</Header>
+    <Header>@T("createspec.header")</Header>
     <Body>
         <form @onsubmit:preventDefault="true">
             <div class="modal-field">
-                <label for="cs-ifs">Part No <span class="modal-req">*</span></label>
+                <label for="cs-ifs">@T("createspec.field.partno") <span class="modal-req">*</span></label>
                 <input id="cs-ifs" type="text" class="@FieldClass("partno", "modal-input scan-mono")" maxlength="64"
-                       placeholder="e.g. 1000527330 (part / IFS no)"
+                       placeholder="@T("createspec.field.partno.ph")"
                        @bind="_ifsCode" @bind:event="oninput" @bind:after="ClearWarning" disabled="@_submitting" />
                 @if (IsDup("partno"))
                 {
-                    <div class="modal-field-hint modal-field-hint-error">⚠ This Part No is already on a saved spec.</div>
+                    <div class="modal-field-hint modal-field-hint-error">⚠ @T("createspec.dup.partno")</div>
                 }
             </div>
             <div class="modal-field">
-                <label for="cs-code">IFS code <span class="modal-req">*</span></label>
+                <label for="cs-code">@T("createspec.field.ifscode") <span class="modal-req">*</span></label>
                 <input id="cs-code" type="text" class="@FieldClass("ifscode", "modal-input")" maxlength="64"
-                       placeholder="e.g. SP-001 or customer REF"
+                       placeholder="@T("createspec.field.ifscode.ph")"
                        @bind="_specCode" @bind:event="oninput" @bind:after="ClearWarning" disabled="@_submitting" />
                 @if (IsDup("ifscode"))
                 {
-                    <div class="modal-field-hint modal-field-hint-error">⚠ This IFS code is already on a saved spec.</div>
+                    <div class="modal-field-hint modal-field-hint-error">⚠ @T("createspec.dup.ifscode")</div>
                 }
             </div>
             <div class="modal-field">
-                <label for="cs-spec">Spec</label>
+                <label for="cs-spec">@T("createspec.field.spec")</label>
                 <input id="cs-spec" type="text" class="@FieldClass("spec", "modal-input")" maxlength="64"
-                       placeholder="Spec number (syncs to spec sheet)"
+                       placeholder="@T("createspec.field.spec.ph")"
                        @bind="_spec" @bind:event="oninput" @bind:after="ClearWarning" disabled="@_submitting" />
                 @if (IsDup("spec"))
                 {
-                    <div class="modal-field-hint modal-field-hint-error">⚠ This Spec number is already on a saved spec.</div>
+                    <div class="modal-field-hint modal-field-hint-error">⚠ @T("createspec.dup.spec")</div>
                 }
             </div>
             <div class="modal-field">
-                <label for="cs-customer">Customer</label>
+                <label for="cs-customer">@T("createspec.field.customer")</label>
                 <input id="cs-customer" type="text" class="modal-input" maxlength="120"
-                       placeholder="Customer name (syncs to spec sheet)"
+                       placeholder="@T("createspec.field.customer.ph")"
                        @bind="_customer" @bind:event="oninput" disabled="@_submitting" />
             </div>
             <div class="modal-field">
-                <label for="cs-title">Part Name <span class="modal-req">*</span></label>
+                <label for="cs-title">@T("createspec.field.partname") <span class="modal-req">*</span></label>
                 <input id="cs-title" type="text" class="modal-input" maxlength="200"
-                       placeholder="Part / product name"
+                       placeholder="@T("createspec.field.partname.ph")"
                        @bind="_title" @bind:event="oninput" disabled="@_submitting" />
             </div>
             <div class="modal-field">
-                <label for="cs-process">Planner</label>
+                <label for="cs-process">@T("createspec.field.planner")</label>
                 <select id="cs-process" class="modal-input" @bind="_processCode" disabled="@_submitting">
                     @foreach (var p in PlannerOptions)
                     {
                         <option value="@p.Value">@p.Label</option>
                     }
                 </select>
-                <div class="modal-field-hint">Loads the matching spec-sheet template (Silkscreen / Flexo / Indigo / Letterpress / Diecut).</div>
+                <div class="modal-field-hint">@T("createspec.field.planner.hint")</div>
             </div>
             @if (_error is not null)
             {
@@ -79,9 +80,9 @@
             @if (_needReason)
             {
                 <div class="modal-field">
-                    <label for="cs-reason">Reason for the duplicate <span class="modal-req">*</span></label>
+                    <label for="cs-reason">@T("createspec.reason.label") <span class="modal-req">*</span></label>
                     <textarea id="cs-reason" class="modal-input modal-input-textarea" maxlength="500" rows="2"
-                              placeholder="Why create a spec that duplicates an existing one?"
+                              placeholder="@T("createspec.reason.ph")"
                               @bind="_overrideReason" @bind:event="oninput" disabled="@_submitting"></textarea>
                 </div>
             }
@@ -89,10 +90,10 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">@T("createspec.btn.cancel")</button>
         <button type="button" class="op-btn @(_needReason ? "op-btn-warning" : "op-btn-primary")"
                 disabled="@(!CanSubmit())" @onclick="SubmitAsync">
-            @(_submitting ? "Creating…" : _needReason ? "Create anyway" : "Create Spec")
+            @(_submitting ? T("createspec.btn.creating") : _needReason ? T("createspec.btn.createanyway") : T("createspec.btn.create"))
         </button>
     </Footer>
 </Modal>
@@ -202,7 +203,7 @@
                 _needReason = false;
             }
         }
-        catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _error = T("createspec.error.connect", ex.Message); }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _submitting = false; }
     }

@@ -243,10 +243,10 @@ public sealed class QualityTraceabilityTests : TestContext
         var cut = RenderComponent<QualityTraceability>();
 
         // Stub starts disconnected → Offline.
-        Assert.Contains("Offline", cut.Find(".trace-live").TextContent);
+        Assert.Contains("Ngoại tuyến", cut.Find(".trace-live").TextContent);
 
         _live.SetConnected(true);
-        cut.WaitForAssertion(() => Assert.Contains("Live", cut.Find(".trace-live").TextContent));
+        cut.WaitForAssertion(() => Assert.Contains("Trực tuyến", cut.Find(".trace-live").TextContent));
     }
 
     [Fact]

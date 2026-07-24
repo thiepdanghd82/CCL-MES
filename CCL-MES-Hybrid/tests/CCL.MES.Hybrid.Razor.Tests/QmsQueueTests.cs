@@ -21,6 +21,7 @@ public sealed class QmsQueueTests : TestContext
     {
         _api = new RecordingApi();
         Services.AddSingleton<ICclApiClient>(_api);
+        Services.AddI18n();
         this.AddTestAuthorization().SetAuthorized("test-user");
     }
 
@@ -72,7 +73,7 @@ public sealed class QmsQueueTests : TestContext
         // OQC bucket is empty.
         cut.FindAll(".qms-tabs .md-chip").First(b => b.TextContent.Contains("OQC")).Click();
 
-        Assert.Contains("No WOs waiting for OQC", cut.Markup);
+        Assert.Contains("Không có lệnh SX nào đang chờ OQC.", cut.Markup);
         Assert.Empty(cut.FindAll(".md-table tbody tr"));
     }
 }

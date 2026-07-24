@@ -1,5 +1,6 @@
 @page "/npi/workcenters"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client.Npi
 @using CCL.MES.Hybrid.Client.Files
 @using CCL.MES.Hybrid.Razor.Shared
@@ -8,7 +9,6 @@
 @inject IGridPreferenceStore PrefStore
 @inject IFilePickerService FilePicker
 @inject IJSRuntime JS
-@implements IDisposable
 
 @*
     Work Centers grid. READ for Admin/Supervisor/Engineer/QC; WRITE (Add / Edit /
@@ -18,19 +18,19 @@
     surface → centred <Modal> (L34: NOT a FloatingWindow).
 *@
 
-<PageTitle>Work Centers — NPI</PageTitle>
+<PageTitle>@T("npiwc.pagetitle")</PageTitle>
 
-<h1 class="page-title">Work Centers</h1>
+<h1 class="page-title">@T("npiwc.heading")</h1>
 
 <div class="grid-toolbar">
     <GridSearchBox @bind-Value="_search" OnSearch="OnSearchClickAsync"
-                   Placeholder="Search by code or description…" />
-    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
-    <button type="button" class="grid-btn" @onclick="ExportCsvAsync" disabled="@(_loading || _busy)">⭳ Export CSV</button>
+                   Placeholder="@T("npiwc.search.placeholder")" />
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">@T("npiwc.action.search")</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">@T("npiwc.action.reload")</button>
+    <button type="button" class="grid-btn" @onclick="ExportCsvAsync" disabled="@(_loading || _busy)">⭳ @T("npiwc.action.exportcsv")</button>
     <AuthorizeView Roles="Admin">
-        <button type="button" class="grid-btn" @onclick="OpenImport" disabled="@_busy">⭱ Import</button>
-        <button type="button" class="grid-btn grid-btn-primary" @onclick="OpenAdd" disabled="@_busy">+ Add</button>
+        <button type="button" class="grid-btn" @onclick="OpenImport" disabled="@_busy">⭱ @T("npiwc.action.import")</button>
+        <button type="button" class="grid-btn grid-btn-primary" @onclick="OpenAdd" disabled="@_busy">+ @T("npiwc.action.add")</button>
     </AuthorizeView>
     <div class="grid-toolbar-spacer"></div>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
@@ -43,14 +43,14 @@
 
 @if (_loading && _data is null)
 {
-    <p class="grid-status">Loading…</p>
+    <p class="grid-status">@T("npiwc.loading")</p>
 }
 else if (_error is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Failed to load data.</strong>
+        <strong>@T("npiwc.error.loadfailed")</strong>
         <div>@_error</div>
-        <button type="button" class="grid-btn" @onclick="ReloadAsync">Retry</button>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">@T("npiwc.action.retry")</button>
     </div>
 }
 else if (_data is not null)
@@ -63,7 +63,7 @@ else if (_data is not null)
                     {
                         <th class="grid-h @ColClass(col.Id)">@col.Label</th>
                     }
-                    @if (_isAdmin) { <th class="grid-h wc-kebab-col" aria-label="Actions"></th> }
+                    @if (_isAdmin) { <th class="grid-h wc-kebab-col" aria-label="@T("npiwc.col.actions")"></th> }
                 </tr>
             </thead>
             <tbody>
@@ -84,7 +84,7 @@ else if (_data is not null)
                                    right-click is hard to discover + WKWebView touch may not fire it. *@
                                 <button type="button" class="row-kebab" data-fw-nodrag
                                         @onclick="e => OpenMenuAt(row, e.ClientX, e.ClientY)" @onclick:stopPropagation="true"
-                                        aria-haspopup="menu" aria-label="Actions" title="Actions">⋯</button>
+                                        aria-haspopup="menu" aria-label="@T("npiwc.col.actions")" title="@T("npiwc.col.actions")">⋯</button>
                             </td>
                         }
                     </tr>
@@ -92,7 +92,7 @@ else if (_data is not null)
                 @if (_data.Items.Count == 0)
                 {
                     <tr>
-                        <td colspan="@(_columns.Visible.Count + (_isAdmin ? 1 : 0))" class="grid-empty">No matching data.</td>
+                        <td colspan="@(_columns.Visible.Count + (_isAdmin ? 1 : 0))" class="grid-empty">@T("npiwc.empty")</td>
                     </tr>
                 }
             </tbody>
@@ -102,11 +102,11 @@ else if (_data is not null)
     <div class="grid-pager">
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
-                @onclick="() => GoToPageAsync(_page - 1)">‹ Previous</button>
-        <span class="grid-pager-text">Page @_page / @TotalPages — @_data.Total rows</span>
+                @onclick="() => GoToPageAsync(_page - 1)">‹ @T("npiwc.pager.previous")</button>
+        <span class="grid-pager-text">@T("npiwc.pager.status", _page, TotalPages, _data.Total)</span>
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
-                @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
+                @onclick="() => GoToPageAsync(_page + 1)">@T("npiwc.pager.next") ›</button>
     </div>
 
     <GridAutoFit OnFit="SetPageSizeAsync" />
@@ -114,30 +114,30 @@ else if (_data is not null)
 
 @* ── Row actions: right-click / long-press / kebab all open THIS one menu ── *@
 <RowContextMenu Open="_menuRow is not null" Anchor="_menuAnchor" Items="_menuItems"
-                AriaLabel="@($"Actions for {_menuRow?.Code}")" OnClose="CloseMenu" />
+                AriaLabel="@T("npiwc.menu.aria", _menuRow?.Code ?? "")" OnClose="CloseMenu" />
 
 @* ── Add / Edit modal (transactional → centred Modal, not FloatingWindow) ── *@
 <Modal Open="_formOpen" OnClose="CloseForm" Size="ModalSize.Md"
        Severity="ModalSeverity.Info" ClickOutsideToClose="false">
-    <Header>@(_editId is null ? "Add Work Center" : $"Edit Work Center — {_form.Code}")</Header>
+    <Header>@(_editId is null ? T("npiwc.form.title.add") : T("npiwc.form.title.edit", _form.Code))</Header>
     <Body>
         @if (_formError is not null) { <div class="grid-error" role="alert">@_formError</div> }
         <div class="wc-form">
-            <label>Code <span class="wc-req">*</span>
+            <label>@T("npiwc.field.code") <span class="wc-req">*</span>
                 <input class="op-input" @bind="_form.Code" maxlength="12"
-                       disabled="@(_editId is not null && false)" placeholder="e.g. PR-01" />
-                <small class="wc-hint">3–12 chars: A–Z, 0–9, '-', '_'</small>
+                       disabled="@(_editId is not null && false)" placeholder="@T("npiwc.field.code.placeholder")" />
+                <small class="wc-hint">@T("npiwc.field.code.hint")</small>
             </label>
-            <label>Description
+            <label>@T("npiwc.field.description")
                 <input class="op-input" @bind="_form.Description" maxlength="200" />
             </label>
-            <label>Area
+            <label>@T("npiwc.field.area")
                 <input class="op-input" @bind="_form.Area" maxlength="80" />
             </label>
-            <label>Ideal Speed (pcs/h)
+            <label>@T("npiwc.field.idealspeed")
                 <input class="op-input" type="number" min="0" step="any" @bind="_form.IdealSpeedPcsH" />
             </label>
-            <label>Shift Pattern
+            <label>@T("npiwc.field.shiftpattern")
                 <select class="op-input" @bind="_form.ShiftPattern">
                     <option value="">—</option>
                     <option value="A">A</option>
@@ -148,14 +148,14 @@ else if (_data is not null)
                 </select>
             </label>
             <label class="wc-check">
-                <input type="checkbox" @bind="_form.Active" /> Active
+                <input type="checkbox" @bind="_form.Active" /> @T("npiwc.field.active")
             </label>
         </div>
     </Body>
     <Footer>
-        <button type="button" class="op-btn op-btn-secondary" @onclick="CloseForm" disabled="@_busy">Cancel</button>
+        <button type="button" class="op-btn op-btn-secondary" @onclick="CloseForm" disabled="@_busy">@T("npiwc.action.cancel")</button>
         <button type="button" class="op-btn op-btn-primary" @onclick="SaveFormAsync" disabled="@_busy">
-            @(_busy ? "Saving…" : "Save")
+            @(_busy ? T("npiwc.action.saving") : T("npiwc.action.save"))
         </button>
     </Footer>
 </Modal>
@@ -163,36 +163,36 @@ else if (_data is not null)
 @* ── Delete confirm ── *@
 <Modal Open="_deleteRow is not null" OnClose="() => _deleteRow = null" Size="ModalSize.Sm"
        Severity="ModalSeverity.Danger" ClickOutsideToClose="false">
-    <Header>Delete Work Center</Header>
+    <Header>@T("npiwc.delete.title")</Header>
     <Body>
         @if (_formError is not null) { <div class="grid-error" role="alert">@_formError</div> }
-        <p>Delete <code>@_deleteRow?.Code</code> — @_deleteRow?.Description? This cannot be undone.</p>
+        <p>@T("npiwc.delete.prefix") <code>@_deleteRow?.Code</code> — @_deleteRow?.Description@T("npiwc.delete.suffix")</p>
     </Body>
     <Footer>
-        <button type="button" class="op-btn op-btn-secondary" @onclick="() => _deleteRow = null" disabled="@_busy">Cancel</button>
+        <button type="button" class="op-btn op-btn-secondary" @onclick="() => _deleteRow = null" disabled="@_busy">@T("npiwc.action.cancel")</button>
         <button type="button" class="op-btn op-btn-danger" @onclick="ConfirmDeleteAsync" disabled="@_busy">
-            @(_busy ? "Deleting…" : "Delete")
+            @(_busy ? T("npiwc.action.deleting") : T("npiwc.action.delete"))
         </button>
     </Footer>
 </Modal>
 
 @* ── Import modal ── *@
 <Modal Open="_importOpen" OnClose="CloseImport" Size="ModalSize.Md" Severity="ModalSeverity.Info">
-    <Header>Import Work Centers (CSV)</Header>
+    <Header>@T("npiwc.import.title")</Header>
     <Body>
-        <p class="wc-hint">Upsert by <b>Code</b> (existing rows updated, new rows inserted; nothing is deleted).
-           Columns: Code, Description, Area, Ideal Speed (pcs/h), Shift Pattern, Active.</p>
+        <p class="wc-hint">@T("npiwc.import.hint")
+           @T("npiwc.import.columns")</p>
         @if (_importError is not null) { <div class="grid-error" role="alert">@_importError</div> }
         @if (_importReport is not null)
         {
             <div class="wc-report">
-                <div><b>@_importReport.Inserted</b> inserted · <b>@_importReport.Updated</b> updated · <b>@_importReport.Skipped</b> skipped</div>
+                <div><b>@_importReport.Inserted</b> @T("npiwc.import.inserted") · <b>@_importReport.Updated</b> @T("npiwc.import.updated") · <b>@_importReport.Skipped</b> @T("npiwc.import.skipped")</div>
                 @if (_importReport.Errors.Count > 0)
                 {
                     <ul class="wc-report-errs">
                         @foreach (var e in _importReport.Errors)
                         {
-                            <li>@(e.Row > 0 ? $"Row {e.Row}: " : "")@e.Reason</li>
+                            <li>@(e.Row > 0 ? T("npiwc.import.rowprefix", e.Row) : "")@e.Reason</li>
                         }
                     </ul>
                 }
@@ -200,9 +200,9 @@ else if (_data is not null)
         }
     </Body>
     <Footer>
-        <button type="button" class="op-btn op-btn-secondary" @onclick="CloseImport" disabled="@_busy">Close</button>
+        <button type="button" class="op-btn op-btn-secondary" @onclick="CloseImport" disabled="@_busy">@T("npiwc.action.close")</button>
         <button type="button" class="op-btn op-btn-primary" @onclick="PickAndImportAsync" disabled="@_busy">
-            @(_busy ? "Importing…" : "Choose CSV…")
+            @(_busy ? T("npiwc.import.importing") : T("npiwc.import.choosecsv"))
         </button>
     </Footer>
 </Modal>
@@ -267,13 +267,13 @@ else if (_data is not null)
             _isAdmin = (await AuthState).User.IsInRole("Admin");
         _columns = new GridColumns("workcenters", new[]
         {
-            new ColumnDef("id",          "ID"),
-            new ColumnDef("code",        "Work Center Code"),
-            new ColumnDef("description", "Description"),
-            new ColumnDef("area",        "Area"),
-            new ColumnDef("ideal_speed", "Ideal Speed (pcs/h)"),
-            new ColumnDef("shift",       "Shift Pattern"),
-            new ColumnDef("active",      "Status"),
+            new ColumnDef("id",          T("npiwc.col.id")),
+            new ColumnDef("code",        T("npiwc.col.code")),
+            new ColumnDef("description", T("npiwc.col.description")),
+            new ColumnDef("area",        T("npiwc.col.area")),
+            new ColumnDef("ideal_speed", T("npiwc.col.idealspeed")),
+            new ColumnDef("shift",       T("npiwc.col.shift")),
+            new ColumnDef("active",      T("npiwc.col.status")),
         }, PrefStore);
         await LoadAsync();
     }
@@ -288,7 +288,7 @@ else if (_data is not null)
             _data = await Api.GetWorkCentersAsync(string.IsNullOrWhiteSpace(_search) ? null : _search, _page, _pageSize);
         }
         catch (ApiException apiEx) { _error = apiEx.ApiError.MessageEn; }
-        catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _error = T("npiwc.error.connect", ex.Message); }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _loading = false; }
     }
@@ -328,10 +328,10 @@ else if (_data is not null)
         _menuAnchor = (x, y);
         _menuItems = new[]
         {
-            new ContextMenuItem { Label = "Copy", Icon = "⎘", OnClick = EventCallback.Factory.Create(this, () => OpenCopy(row)) },
-            new ContextMenuItem { Label = "Edit", Icon = "📝", OnClick = EventCallback.Factory.Create(this, () => OpenEdit(row)) },
+            new ContextMenuItem { Label = T("npiwc.menu.copy"), Icon = "⎘", OnClick = EventCallback.Factory.Create(this, () => OpenCopy(row)) },
+            new ContextMenuItem { Label = T("npiwc.menu.edit"), Icon = "📝", OnClick = EventCallback.Factory.Create(this, () => OpenEdit(row)) },
             ContextMenuItem.Divider,
-            new ContextMenuItem { Label = "Delete", Icon = "🗑", Danger = true, OnClick = EventCallback.Factory.Create(this, () => OpenDelete(row)) },
+            new ContextMenuItem { Label = T("npiwc.menu.delete"), Icon = "🗑", Danger = true, OnClick = EventCallback.Factory.Create(this, () => OpenDelete(row)) },
         };
     }
 
@@ -385,7 +385,7 @@ else if (_data is not null)
             if (_editId is null) await Api.CreateWorkCenterAsync(body);
             else await Api.UpdateWorkCenterAsync(_editId.Value, body);
             _formOpen = false;
-            _toast = _editId is null ? $"Added {body.Code}." : $"Saved {body.Code}.";
+            _toast = _editId is null ? T("npiwc.toast.added", body.Code) : T("npiwc.toast.saved", body.Code);
             await LoadAsync();
         }
         catch (ApiException apiEx) { _formError = apiEx.ApiError.MessageEn; }
@@ -403,7 +403,7 @@ else if (_data is not null)
         try
         {
             await Api.DeleteWorkCenterAsync(_deleteRow.Id);
-            _toast = $"Deleted {_deleteRow.Code}.";
+            _toast = T("npiwc.toast.deleted", _deleteRow.Code);
             _deleteRow = null;
             await LoadAsync();
         }
@@ -422,7 +422,7 @@ else if (_data is not null)
         try
         {
             await using var picked = await FilePicker.PickFileAsync(new[] { "csv" });
-            if (picked is null) { _importError = "No file selected."; return; }
+            if (picked is null) { _importError = T("npiwc.import.nofile"); return; }
             using var ms = new MemoryStream();
             await picked.Content.CopyToAsync(ms);
             _importReport = await Api.ImportWorkCentersAsync(picked.FileName, ms.ToArray());
@@ -442,14 +442,18 @@ else if (_data is not null)
             var csv = await Api.ExportWorkCentersCsvAsync(string.IsNullOrWhiteSpace(_search) ? null : _search);
             try { await JS.InvokeVoidAsync("cclMesClipboard.download", "workcenters.csv", csv, "text/csv;charset=utf-8"); }
             catch (Exception) { /* JS absent (test host) */ }
-            _toast = "Export ready — workcenters.csv";
+            _toast = T("npiwc.toast.exportready");
         }
         catch (ApiException apiEx) { _error = apiEx.ApiError.MessageEn; }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _busy = false; }
     }
 
-    public void Dispose() => _longPress?.Dispose();
+    public override void Dispose()
+    {
+        _longPress?.Dispose();
+        base.Dispose(); // unsubscribe from language changes (LocalizedComponentBase)
+    }
 
     private static string ColClass(string columnId) => columnId switch
     {
@@ -460,7 +464,7 @@ else if (_data is not null)
         _              => "",
     };
 
-    private static RenderFragment RenderCell(NpiWorkCenter row, string columnId) => __builder =>
+    private RenderFragment RenderCell(NpiWorkCenter row, string columnId) => __builder =>
     {
         switch (columnId)
         {
@@ -471,7 +475,7 @@ else if (_data is not null)
             case "ideal_speed": __builder.AddContent(0, row.IdealSpeedPcsH?.ToString("0.##") ?? "—"); break;
             case "shift":       __builder.AddContent(0, row.ShiftPattern ?? "—"); break;
             case "active":
-                __builder.AddContent(0, row.Active switch { true => "✓ Active", false => "× Inactive", _ => "—" });
+                __builder.AddContent(0, row.Active switch { true => "✓ " + T("npiwc.status.active"), false => "× " + T("npiwc.status.inactive"), _ => "—" });
                 break;
         }
     };

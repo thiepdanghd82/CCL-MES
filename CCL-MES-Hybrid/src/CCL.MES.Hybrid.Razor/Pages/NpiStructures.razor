@@ -1,19 +1,20 @@
 @page "/npi/structure"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
 
-<PageTitle>Structure (BOM) — NPI</PageTitle>
+<PageTitle>@T("npistruct.page.title")</PageTitle>
 
-<h1 class="page-title">Structure (BOM)</h1>
+<h1 class="page-title">@T("npistruct.heading")</h1>
 
 <div class="grid-toolbar">
     <GridSearchBox @bind-Value="_search" OnSearch="OnSearchClickAsync"
-                   Placeholder="Search by part / description…" />
-    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
+                   Placeholder="@T("npistruct.search.placeholder")" />
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">@T("npistruct.action.search")</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">@T("npistruct.action.reload")</button>
     <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="impCtx">
-        <button type="button" class="grid-btn grid-btn-primary" @onclick="() => _importOpen = true" disabled="@_loading">⤓ Import…</button>
+        <button type="button" class="grid-btn grid-btn-primary" @onclick="() => _importOpen = true" disabled="@_loading">⤓ @T("npistruct.action.import")</button>
     </AuthorizeView>
     <div class="grid-toolbar-spacer"></div>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
@@ -21,14 +22,14 @@
 
 @if (_loading && _data is null)
 {
-    <p class="grid-status">Loading…</p>
+    <p class="grid-status">@T("npistruct.status.loading")</p>
 }
 else if (_error is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Failed to load data.</strong>
+        <strong>@T("npistruct.error.load_failed")</strong>
         <div>@_error</div>
-        <button type="button" class="grid-btn" @onclick="ReloadAsync">Retry</button>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">@T("npistruct.action.retry")</button>
     </div>
 }
 else if (_data is not null)
@@ -57,7 +58,7 @@ else if (_data is not null)
                 {
                     <tr>
                         <td colspan="@_columns.Visible.Count" class="grid-empty">
-                            No matching data.
+                            @T("npistruct.grid.empty")
                         </td>
                     </tr>
                 }
@@ -68,13 +69,13 @@ else if (_data is not null)
     <div class="grid-pager">
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
-                @onclick="() => GoToPageAsync(_page - 1)">‹ Previous</button>
+                @onclick="() => GoToPageAsync(_page - 1)">‹ @T("npistruct.pager.previous")</button>
         <span class="grid-pager-text">
-            Page @_page / @TotalPages — @_data.Total rows
+            @T("npistruct.pager.status", _page, TotalPages, _data.Total)
         </span>
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
-                @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
+                @onclick="() => GoToPageAsync(_page + 1)">@T("npistruct.pager.next") ›</button>
     </div>
 
     <GridAutoFit OnFit="SetPageSizeAsync" />

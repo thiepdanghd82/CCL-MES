@@ -18,6 +18,7 @@
 *@
 @inherits Microsoft.AspNetCore.Components.ErrorBoundaryBase
 @inject IJSRuntime JS
+@inject CCL.MES.Hybrid.Client.Localization.ITranslator Loc
 
 @if (CurrentException is null)
 {
@@ -26,13 +27,13 @@
 else
 {
     <div class="renderer-crash-card" role="alert">
-        <h2>⚠ Có lỗi không xác định</h2>
-        <p>Một thành phần giao diện vừa gặp lỗi. Bạn có thể tải lại trang để tiếp tục — dữ liệu chưa lưu có thể mất.</p>
+        <h2>⚠ @Loc.T("crash.title")</h2>
+        <p>@Loc.T("crash.body")</p>
         <details>
-            <summary>Chi tiết lỗi</summary>
+            <summary>@Loc.T("crash.details")</summary>
             <pre>@CurrentException.GetType().Name: @CurrentException.Message</pre>
         </details>
-        <button type="button" class="renderer-crash-reload" @onclick="ReloadAsync">Tải lại</button>
+        <button type="button" class="renderer-crash-reload" @onclick="ReloadAsync">@Loc.T("crash.reload")</button>
     </div>
 }
 

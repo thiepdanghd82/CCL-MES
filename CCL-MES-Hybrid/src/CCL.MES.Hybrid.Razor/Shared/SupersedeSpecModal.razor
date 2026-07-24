@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @using CCL.MES.Hybrid.Client.Specs
 
@@ -10,24 +11,23 @@
 
 <Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Danger"
        ClickOutsideToClose="false">
-    <Header>Mark Spec @SourceSpec?.SpecCode as superseded</Header>
+    <Header>@T("supersede.header", SourceSpec?.SpecCode ?? "")</Header>
     <Body>
         @if (SourceSpec is null)
         {
-            <p class="grid-status">No Spec yet.</p>
+            <p class="grid-status">@T("supersede.nosource")</p>
         }
         else
         {
             <p class="modal-helper">
-                Marking this Spec as <strong>Superseded</strong> will lock further release.
-                This action does not undo automatically (you must create a new Revise to return to the workflow).
+                @T("supersede.helper.pre") <strong>@T("supersede.helper.superseded")</strong> @T("supersede.helper.post")
             </p>
             <form @onsubmit:preventDefault="true">
                 <div class="modal-field">
                     <label for="ss-confirm">
-                        Type the Spec code exactly
+                        @T("supersede.confirm.pre")
                         <code class="modal-confirm-target">@SourceSpec.SpecCode</code>
-                        to confirm <span class="modal-req">*</span>
+                        @T("supersede.confirm.post") <span class="modal-req">*</span>
                     </label>
                     <input id="ss-confirm" type="text" class="modal-input"
                            autocomplete="off" autocorrect="off" spellcheck="false"
@@ -42,10 +42,10 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">@T("supersede.cancel")</button>
         <button type="button" class="op-btn op-btn-danger"
                 disabled="@(!CanSubmit())" @onclick="SubmitAsync">
-            @(_submitting ? "Marking…" : "Mark Superseded")
+            @(_submitting ? T("supersede.marking") : T("supersede.mark"))
         </button>
     </Footer>
 </Modal>

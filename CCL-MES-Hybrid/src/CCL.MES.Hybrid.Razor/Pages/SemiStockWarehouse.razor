@@ -1,7 +1,8 @@
 @page "/warehouse/semi-products"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 
-<PageTitle>Kho bán thành phẩm — CCL MES</PageTitle>
+<PageTitle>@T("semiwh.pagetitle") — CCL MES</PageTitle>
 
 @*
     P11.5-3 — page host cho kho bán thành phẩm (semi-stock). Logic nằm trong

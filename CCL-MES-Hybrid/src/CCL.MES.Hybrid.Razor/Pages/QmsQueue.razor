@@ -1,14 +1,15 @@
 @page "/qms"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Qms
 @inject ICclApiClient Api
 
-<PageTitle>Inspection Queue — CCL MES</PageTitle>
+<PageTitle>@T("qms.pagetitle") — CCL MES</PageTitle>
 
 <div class="md-head">
-    <h1 class="page-title">Inspection Queue (QMS)</h1>
+    <h1 class="page-title">@T("qms.title")</h1>
     <button type="button" class="md-refresh" @onclick="ReloadAsync" disabled="@_loading">
-        @(_loading ? "Loading…" : "↻ Refresh")
+        @(_loading ? T("qms.loading") : "↻ " + T("qms.refresh"))
     </button>
 </div>
 
@@ -17,11 +18,11 @@
    happens on the per-WO QC dashboards. QC History lands in slice 2. *@
 @if (_loading && _data is null)
 {
-    <p class="md-muted">Loading queue…</p>
+    <p class="md-muted">@T("qms.loading.queue")</p>
 }
 else if (_error is not null)
 {
-    <p class="md-error">Failed to load queue: @_error</p>
+    <p class="md-error">@T("qms.load.failed", _error)</p>
 }
 else if (_data is not null)
 {
@@ -36,14 +37,14 @@ else if (_data is not null)
 
     @if (CurrentRows.Count == 0)
     {
-        <p class="md-muted">No WOs waiting for @StageLabel.</p>
+        <p class="md-muted">@T("qms.empty", StageLabel)</p>
     }
     else
     {
         <div class="md-table-wrap">
             <table class="md-table">
                 <thead>
-                    <tr><th>WO</th><th>Product</th><th>Machine</th><th>Plan/Done</th><th>Waiting since</th></tr>
+                    <tr><th>WO</th><th>@T("qms.col.product")</th><th>@T("qms.col.machine")</th><th>@T("qms.col.plandone")</th><th>@T("qms.col.waitingsince")</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var r in CurrentRows)
