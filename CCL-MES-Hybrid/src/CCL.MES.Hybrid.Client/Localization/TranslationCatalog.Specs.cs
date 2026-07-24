@@ -17,6 +17,7 @@ public sealed partial class TranslationCatalog
         Add("specs.view.all",            "Tất cả",                                    "All");
 
         Add("specs.planner.filter.aria", "Lọc theo Bộ phận in",                       "Filter by Planner");
+        Add("specs.planner.all",         "Tất cả loại",                               "All types");
         Add("specs.export.aria",         "Xuất danh sách",                            "Export list");
         Add("specs.export.openfile",     "Mở file",                                   "Open file");
 

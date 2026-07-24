@@ -652,7 +652,17 @@ public sealed class RecordingApi : ICclApiClient
     public Task<NpiPagedRaw<NpiStructure>> GetStructuresAsync(string? s, int p, int z, CancellationToken c = default) => throw new NotImplementedException();
     public Task<HeartbeatResponse> HeartbeatAsync(HeartbeatRequest req, CancellationToken c = default) => throw new NotImplementedException();
     public Task<DeviceInfoResponse?> GetDeviceInfoAsync(CancellationToken c = default) => throw new NotImplementedException();
-    public Task<NpiPagedRaw<SpecListItem>> GetSpecsAsync(string? s, int p, int z, string? v, string? planner = null, CancellationToken c = default) => throw new NotImplementedException();
+    // Specs list — records each call's args (esp. planner) so the toolbar
+    // filter tests can assert what was forwarded to the server.
+    public List<(string? Search, int Page, int Size, string? View, string? Planner)> GetSpecsCalls { get; } = new();
+    public Func<string?, int, int, string?, string?, Task<NpiPagedRaw<SpecListItem>>>? GetSpecsImpl { get; set; }
+    public Task<NpiPagedRaw<SpecListItem>> GetSpecsAsync(string? s, int p, int z, string? v, string? planner = null, CancellationToken c = default)
+    {
+        GetSpecsCalls.Add((s, p, z, v, planner));
+        return GetSpecsImpl is not null
+            ? GetSpecsImpl(s, p, z, v, planner)
+            : Task.FromResult(new NpiPagedRaw<SpecListItem> { Items = Array.Empty<SpecListItem>(), Total = 0, Page = p, PageSize = z });
+    }
     public Task<SpecDetailItem?> GetSpecDetailAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<List<SpecProductDropdownItem>> GetSpecProductsAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> CreateSpecAsync(CreateSpecMutation r, CancellationToken c = default) => throw new NotImplementedException();

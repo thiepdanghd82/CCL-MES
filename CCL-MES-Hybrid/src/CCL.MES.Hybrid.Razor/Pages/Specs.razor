@@ -50,6 +50,14 @@
        by planner code; click the active chip again to clear. Combines
        with search + view chip. *@
     <div class="spec-planner-chips" role="group" aria-label="@T("specs.planner.filter.aria")">
+        @* "All types" clears the planner-TYPE axis (independent of the
+           active/trash/all VIEW axis). Fixes the "stuck on Silkscreen"
+           trap: the view "Tất cả" only changes _view, not _planner. *@
+        <button type="button"
+                data-testid="specs-planner-all"
+                aria-pressed="@(_planner is null ? "true" : "false")"
+                class="spec-planner-filter-chip spec-planner-all @(_planner is null ? "is-active" : "")"
+                @onclick="ClearPlannerAsync">@T("specs.planner.all")</button>
         @foreach (var p in PlannerChips)
         {
             var active = IsPlanner(p.Code);
@@ -283,6 +291,16 @@ else if (_data is not null)
         // Click active chip → clear filter. Click another chip → switch
         // (one planner at a time per SpecHub semantics).
         _planner = IsPlanner(code) ? null : code;
+        _page = 1;
+        return LoadAsync();
+    }
+
+    /// <summary>Clear the planner-TYPE filter ("All types" chip). No-op when
+    /// already unfiltered so it never fires a redundant reload.</summary>
+    private Task ClearPlannerAsync()
+    {
+        if (_planner is null) return Task.CompletedTask;
+        _planner = null;
         _page = 1;
         return LoadAsync();
     }

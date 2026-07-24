@@ -2798,11 +2798,27 @@ html, body {
     border: 1px solid var(--warn-bg);
 }
 
-.grid-btn-secondary {
-    background: var(--c-ink-4);
-    color: white;
+/* Compound selector (0,2,0) so it beats BOTH duplicate `.grid-btn` blocks
+   (@~1094 light bg + @~1656 brand bg) regardless of source order. The old
+   `.grid-btn-secondary` referenced the UNDEFINED token --c-ink-4 → background
+   resolved to `transparent` → white text on the light page = invisible.
+   Fixed to a defined dark ink token + white text (readable contrast). */
+.grid-btn.grid-btn-secondary {
+    background: var(--c-ink-3);
+    color: var(--c-card);
+    border: 1px solid var(--c-ink-3);
 }
-.grid-btn-secondary:hover:not(:disabled) { background: var(--c-ink-3); }
+.grid-btn.grid-btn-secondary:hover:not(:disabled) {
+    background: var(--c-ink-2);
+    border-color: var(--c-ink-2);
+}
+/* (0,2,1) beats `.grid-btn:disabled` (0,1,1) → disabled stays a distinct
+   muted-light chip, never colliding with the dark enabled background. */
+.grid-btn.grid-btn-secondary:disabled {
+    background: var(--c-surface);
+    color: var(--c-soft);
+    border-color: var(--c-line);
+}
 
 .import-help {
     font-size: 0.92rem;
@@ -2944,6 +2960,10 @@ html, body {
 /* Active state colour borrows the planner palette already used by
    the row-level chip. Each planner family gets its own active hue
    so the operator can tell at a glance which planner is filtered. */
+/* "All types" chip carries no planner-family class → give its active state
+   an explicit neutral fill (base .is-active only sets white text, so without
+   this the active chip would be white-on-white). */
+.spec-planner-filter-chip.is-active.spec-planner-all     { background: var(--c-ink-3); }
 .spec-planner-filter-chip.is-active.spec-planner-silk    { background: var(--brand-ink); }
 .spec-planner-filter-chip.is-active.spec-planner-flexo   { background: var(--indigo); }
 .spec-planner-filter-chip.is-active.spec-planner-letter  { background: var(--warn-fg); }
