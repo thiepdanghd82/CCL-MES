@@ -9,12 +9,22 @@ public sealed partial class TranslationCatalog
         Add("legs.loading",                  "Đang tải công đoạn…",                                          "Loading legs…");
         Add("legs.load.failed",              "Không tải được công đoạn:",                                    "Could not load legs:");
         Add("legs.head.count",               "{0} công đoạn song song",                                      "{0} parallel legs");
+        Add("legs.head.progress",            "{0}/{1} công đoạn xong",                                        "{0}/{1} legs done");
+
+        // Nhãn CHẶNG của sơ đồ DAG (nhánh song song → hội tụ → kết thúc).
+        Add("legs.stage.branch",             "Nhánh song song",                                              "Parallel branches");
+        Add("legs.stage.converge",           "Hội tụ",                                                       "Converge");
+        Add("legs.stage.terminal",           "Kết thúc → FQC",                                               "Final → FQC");
 
         Add("legs.terminal",                 "⤳ cuối",                                                       "⤳ final");
         Add("legs.terminal.title",           "Công đoạn cuối — quyết định gộp FQC",                          "Final leg — decides the FQC join");
 
         Add("legs.gate.hard",                "⛔ Chờ bán thành phẩm (in/tape) xong mới chạy được.",          "⛔ Wait for the semi-finished stock (print/tape) before running.");
+        Add("legs.gate.hard.title",          "Chưa chạy được",                                               "Can't run yet");
+        Add("legs.gate.hard.hint",           "Hoàn tất nhánh IN + TAPE (đủ số lượng) rồi mới bắt đầu chạy.",  "Finish the PRINT + TAPE branches (full qty) before you can start running.");
         Add("legs.gate.soft",                "⏳ Công đoạn trước chưa xong (vẫn chạy song song được).",       "⏳ The previous leg is not finished yet (you can still run in parallel).");
+        Add("legs.gate.soft.title",          "Chạy song song được",                                          "Can run in parallel");
+        Add("legs.advance.blocked.tooltip",  "Chờ nhánh in/tape xong mới bắt đầu chạy được.",                "Finish the print/tape branches before you can start running.");
 
         Add("legs.done",                     "✓ Xong",                                                       "✓ Done");
         Add("legs.rework",                   "NG / làm lại",                                                 "NG / rework");

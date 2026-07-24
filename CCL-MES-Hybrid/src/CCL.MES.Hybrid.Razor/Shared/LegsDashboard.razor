@@ -37,89 +37,132 @@
             <span class="legs-head-wo">@_view.WoNo</span>
             <span class="legs-head-phase legs-phase-split" data-testid="legs-wo-phase">@_view.MesPhase</span>
             <span class="legs-head-count">@T("legs.head.count", _view.Legs.Count)</span>
+            <span class="legs-head-prog" title="@T("legs.head.progress", DoneCount(), LegTotal())">
+                <span class="legs-head-prog-bar"><span class="legs-head-prog-fill" style="width:@(DonePct())%"></span></span>
+                <span class="legs-head-prog-text">@T("legs.head.progress", DoneCount(), LegTotal())</span>
+            </span>
         </div>
 
         @if (_banner is not null)
         {
-            <div class="wo-card-error" data-testid="legs-banner">@_banner</div>
+            <div class="wo-card-error legs-alert" data-testid="legs-banner">
+                <span class="legs-alert-ico" aria-hidden="true">⚠️</span><span>@_banner</span>
+            </div>
         }
 
-        <div class="legs-grid" data-testid="legs-grid">
-            @foreach (var leg in _view.Legs.OrderBy(l => l.Sequence))
+        @* Visual DAG: nhánh song song (PRINT∥TAPE) → hội tụ ASSEMBLY → terminal CUT (→FQC).
+           Stage suy từ LegKind (Edges chưa expose ở test) — robust cả khi chỉ có Legs. *@
+        <div class="legs-flow" data-testid="legs-grid">
+            @{ var stages = BuildStages(); }
+            @for (var si = 0; si < stages.Count; si++)
             {
-                <div class="legs-card @LegKindCss(leg.LegKind)" data-testid="leg-card-@leg.Sequence" data-leg-phase="@leg.LegPhase">
-                    <div class="legs-card-head">
-                        <span class="legs-kind" data-testid="leg-kind-@leg.Sequence">@LegKindLabel(leg.LegKind)</span>
-                        <span class="legs-method">@leg.Method</span>
-                        @if (leg.IsTerminal)
+                if (si > 0)
+                {
+                    <div class="legs-connector" aria-hidden="true">@((MarkupString)ConnectorSvg)</div>
+                }
+                var stage = stages[si];
+                <div class="legs-stage legs-stage-@stage.Type">
+                    <div class="legs-stage-label">@StageLabel(stage.Type)</div>
+                    <div class="legs-stage-cards">
+                        @foreach (var leg in stage.Legs)
                         {
-                            <span class="legs-terminal" title="@T("legs.terminal.title")">@T("legs.terminal")</span>
-                        }
-                    </div>
-                    <div class="legs-card-row">
-                        <span class="legs-line">@leg.ProcessLine</span>
-                        <span class="legs-phase-chip @LegPhaseCss(leg.LegPhase)" data-testid="leg-phase-@leg.Sequence">@LegPhaseLabel(leg.LegPhase)</span>
-                    </div>
+                            <div class="legs-card @LegKindCss(leg.LegKind)" data-testid="leg-card-@leg.Sequence" data-leg-phase="@leg.LegPhase">
+                                <div class="legs-card-head">
+                                    <span class="legs-ico" aria-hidden="true">@((MarkupString)LegKindIcon(leg.LegKind))</span>
+                                    <span class="legs-kind" data-testid="leg-kind-@leg.Sequence">@LegKindLabel(leg.LegKind)</span>
+                                    <span class="legs-method">@leg.Method</span>
+                                </div>
+                                <div class="legs-card-row">
+                                    <span class="legs-line">@leg.ProcessLine</span>
+                                    @if (leg.IsTerminal)
+                                    {
+                                        <span class="legs-terminal" title="@T("legs.terminal.title")">@T("legs.terminal")</span>
+                                    }
+                                    <span class="legs-phase-chip @LegPhaseCss(leg.LegPhase)" data-testid="leg-phase-@leg.Sequence">@LegPhaseLabel(leg.LegPhase)</span>
+                                </div>
 
-                    @if (leg.HardBlocked)
-                    {
-                        <div class="legs-gate legs-gate-hard" data-testid="leg-hard-@leg.Sequence">
-                            @T("legs.gate.hard")
-                        </div>
-                    }
-                    else if (leg.SoftWaiting)
-                    {
-                        <div class="legs-gate legs-gate-soft" data-testid="leg-soft-@leg.Sequence">
-                            @T("legs.gate.soft")
-                        </div>
-                    }
+                                <div class="legs-stepper" aria-hidden="true">
+                                    @{ var curIdx = PhaseIndex(leg.LegPhase); }
+                                    @for (var i = 0; i < Flow.Length; i++)
+                                    {
+                                        <span class="legs-stepper-dot @(i < curIdx ? "is-done" : i == curIdx ? "is-cur" : "")"
+                                              title="@LegPhaseLabel(Flow[i])"></span>
+                                    }
+                                </div>
 
-                    <div class="legs-card-actions">
-                        @{ var next = NextPhase(leg.LegPhase); }
-                        @if (next is not null)
-                        {
-                            <button type="button" class="btn btn-primary legs-advance"
-                                    data-testid="leg-advance-@leg.Sequence"
-                                    disabled="@(_busy || (next == "RUNNING" && leg.HardBlocked))"
-                                    @onclick="() => AdvanceAsync(leg, next!)">
-                                @AdvanceLabel(leg.LegPhase, next!)
-                            </button>
-                        }
-                        else
-                        {
-                            <span class="legs-done-tag" data-testid="leg-done-@leg.Sequence">@T("legs.done")</span>
-                        }
-                        @if (leg.LegPhase != "PREPRESS")
-                        {
-                            <button type="button" class="btn btn-ghost legs-rework"
-                                    data-testid="leg-rework-@leg.Sequence"
-                                    disabled="@_busy"
-                                    @onclick="() => OpenReworkAsync(leg)">
-                                @T("legs.rework")
-                            </button>
-                        }
-                    </div>
+                                @if (leg.HardBlocked)
+                                {
+                                    <div class="legs-gate legs-gate-hard" data-testid="leg-hard-@leg.Sequence" role="alert">
+                                        <span class="legs-gate-ico" aria-hidden="true">⛔</span>
+                                        <span class="legs-gate-body">
+                                            <span class="legs-gate-title">@T("legs.gate.hard.title")</span>
+                                            <span class="legs-gate-reason">@T("legs.gate.hard")</span>
+                                            <span class="legs-gate-hint">@T("legs.gate.hard.hint")</span>
+                                        </span>
+                                    </div>
+                                }
+                                else if (leg.SoftWaiting)
+                                {
+                                    <div class="legs-gate legs-gate-soft" data-testid="leg-soft-@leg.Sequence">
+                                        <span class="legs-gate-ico" aria-hidden="true">⏳</span>
+                                        <span class="legs-gate-body">
+                                            <span class="legs-gate-title">@T("legs.gate.soft.title")</span>
+                                            <span class="legs-gate-reason">@T("legs.gate.soft")</span>
+                                        </span>
+                                    </div>
+                                }
 
-                    @if (IsFromStockAssembly(leg))
-                    {
-                        <div class="legs-semi" data-testid="leg-semi-@leg.Sequence">
-                            <span class="legs-semi-label">@T("legs.semi.label")</span>
-                            <div class="legs-semi-actions">
-                                <button type="button" class="btn btn-ghost legs-semi-reserve"
-                                        data-testid="leg-semi-reserve-@leg.Sequence"
-                                        disabled="@_busy"
-                                        @onclick="() => OpenReserve(leg)">
-                                    @T("legs.semi.reserve")
-                                </button>
-                                <button type="button" class="btn btn-ghost legs-semi-consume"
-                                        data-testid="leg-semi-consume-@leg.Sequence"
-                                        disabled="@_busy"
-                                        @onclick="() => ConsumeSemiAsync(leg)">
-                                    @T("legs.semi.consume")
-                                </button>
+                                <div class="legs-card-actions">
+                                    @{ var next = NextPhase(leg.LegPhase); }
+                                    @if (next is not null)
+                                    {
+                                        var runBlocked = next == "RUNNING" && leg.HardBlocked;
+                                        <button type="button" class="btn btn-primary legs-advance"
+                                                data-testid="leg-advance-@leg.Sequence"
+                                                disabled="@(_busy || runBlocked)"
+                                                title="@(runBlocked ? T("legs.advance.blocked.tooltip") : null)"
+                                                @onclick="() => AdvanceAsync(leg, next!)">
+                                            @AdvanceLabel(leg.LegPhase, next!)
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="legs-done-tag" data-testid="leg-done-@leg.Sequence">@T("legs.done")</span>
+                                    }
+                                    @if (leg.LegPhase != "PREPRESS")
+                                    {
+                                        <button type="button" class="btn btn-ghost legs-rework"
+                                                data-testid="leg-rework-@leg.Sequence"
+                                                disabled="@_busy"
+                                                @onclick="() => OpenReworkAsync(leg)">
+                                            @T("legs.rework")
+                                        </button>
+                                    }
+                                </div>
+
+                                @if (IsFromStockAssembly(leg))
+                                {
+                                    <div class="legs-semi" data-testid="leg-semi-@leg.Sequence">
+                                        <span class="legs-semi-label"><span class="legs-semi-ico" aria-hidden="true">📦</span>@T("legs.semi.label")</span>
+                                        <div class="legs-semi-actions">
+                                            <button type="button" class="btn btn-ghost legs-semi-reserve"
+                                                    data-testid="leg-semi-reserve-@leg.Sequence"
+                                                    disabled="@_busy"
+                                                    @onclick="() => OpenReserve(leg)">
+                                                @T("legs.semi.reserve")
+                                            </button>
+                                            <button type="button" class="btn btn-ghost legs-semi-consume"
+                                                    data-testid="leg-semi-consume-@leg.Sequence"
+                                                    disabled="@_busy"
+                                                    @onclick="() => ConsumeSemiAsync(leg)">
+                                                @T("legs.semi.consume")
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
                             </div>
-                        </div>
-                    }
+                        }
+                    </div>
                 </div>
             }
         </div>
@@ -351,4 +394,71 @@
 
     private static string LegKindCss(string kind) => "legs-kind-" + kind.ToLowerInvariant().Replace("_", "-");
     private static string LegPhaseCss(string phase) => "legs-ph-" + phase.ToLowerInvariant();
+
+    // ── P11-3 visual-DAG helpers (presentation only — no contract change) ──
+
+    private int DoneCount() => _view?.Legs.Count(l => string.Equals(l.LegPhase, "LEG_DONE", StringComparison.Ordinal)) ?? 0;
+    private int LegTotal() => _view?.Legs.Count ?? 0;
+    private int DonePct() { var t = LegTotal(); return t > 0 ? (int)Math.Round(100.0 * DoneCount() / t) : 0; }
+
+    /// <summary>Index của phase trong LegFlow (0..5) cho mini-stepper; -1 nếu lạ.</summary>
+    private static int PhaseIndex(string phase) => Array.IndexOf(Flow, phase);
+
+    /// <summary>
+    /// Gom leg (đã sort theo Sequence) thành các CHẶNG của DAG để bố cục lane:
+    /// PRINT/TAPE liền kề → 1 chặng "branch" (nhánh song song); ASSEMBLY →
+    /// "converge" (hội tụ); CUT/PRINT_CUT → "terminal" (kết thúc → FQC).
+    /// Suy thuần từ LegKind nên robust cả khi LegsView.Edges chưa populate.
+    /// </summary>
+    private List<(string Type, List<LegRow> Legs)> BuildStages()
+    {
+        var stages = new List<(string, List<LegRow>)>();
+        if (_view is null) return stages;
+        List<LegRow>? branch = null;
+        foreach (var leg in _view.Legs.OrderBy(l => l.Sequence))
+        {
+            var k = (leg.LegKind ?? "").ToUpperInvariant();
+            if (k is "PRINT" or "TAPE")
+            {
+                branch ??= new List<LegRow>();
+                branch.Add(leg);
+            }
+            else
+            {
+                if (branch is not null) { stages.Add(("branch", branch)); branch = null; }
+                stages.Add((k == "ASSEMBLY" ? "converge" : "terminal", new List<LegRow> { leg }));
+            }
+        }
+        if (branch is not null) stages.Add(("branch", branch));
+        return stages;
+    }
+
+    private string StageLabel(string type) => type switch
+    {
+        "branch"   => T("legs.stage.branch"),
+        "converge" => T("legs.stage.converge"),
+        "terminal" => T("legs.stage.terminal"),
+        _          => "",
+    };
+
+    // Inline SVG icon theo kind (stroke=currentColor — không hex, không asset).
+    private static string LegKindIcon(string kind) => kind.ToUpperInvariant() switch
+    {
+        "PRINT"     => IcoPrint,
+        "TAPE"      => IcoTape,
+        "CUT"       => IcoCut,
+        "ASSEMBLY"  => IcoAssembly,
+        "PRINT_CUT" => IcoPrint,
+        _           => IcoDot,
+    };
+
+    private const string SvgOpen = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">";
+    private const string IcoPrint = SvgOpen + "<rect x=\"6\" y=\"3\" width=\"12\" height=\"6\" rx=\"1\"/><path d=\"M6 14H4a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-2\"/><rect x=\"6\" y=\"14\" width=\"12\" height=\"7\" rx=\"1\"/></svg>";
+    private const string IcoCut = SvgOpen + "<circle cx=\"6\" cy=\"6\" r=\"3\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><path d=\"M8.6 8.5 21 18M8.6 15.5 21 6\"/></svg>";
+    private const string IcoTape = SvgOpen + "<circle cx=\"12\" cy=\"12\" r=\"8\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M20 12h2M2 12h2\"/></svg>";
+    private const string IcoAssembly = SvgOpen + "<path d=\"M4 6h6v6H4zM14 12h6v6h-6z\"/><path d=\"M10 9h4a2 2 0 0 1 2 2v1\"/></svg>";
+    private const string IcoDot = SvgOpen + "<circle cx=\"12\" cy=\"12\" r=\"7\"/></svg>";
+
+    // Mũi tên nối chặng (ngang trên desktop; CSS xoay dọc trên mobile).
+    private const string ConnectorSvg = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 12h13\"/><path d=\"m13 7 5 5-5 5\"/></svg>";
 }
