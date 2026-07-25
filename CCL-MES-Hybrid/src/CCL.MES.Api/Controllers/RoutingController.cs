@@ -167,6 +167,19 @@ public sealed class RoutingController : ControllerBase
             wo.MesPhase = nameof(MesPhase.SPLIT);
             wo.UpdatedAt = DateTime.UtcNow; wo.UpdatedBy = actor;
             await _db.SaveChangesAsync();
+
+            // P11 per-leg (Henry-approved): eager-materialise EACH leg's own
+            // PREPRESS (full BOM + plate/cutter by kind) + IPQC (by leg.ProcessLine,
+            // per-area partition) surface, scoped WoLegId — same transaction as the
+            // fork. Both materialisers are idempotent + no-throw on missing BOM/library.
+            var prepress = new PrepressBomSnapshotService(_db);
+            var ipqcLeg = new IpqcLegMaterializer(_db);
+            foreach (var l in wo.Legs)
+            {
+                await prepress.MaterializeForLegAsync(l.Id, ct);
+                await ipqcLeg.MaterializeForLegAsync(l.Id, ct);
+            }
+
             await tx.CommitAsync(ct);
         }
 
