@@ -1,6 +1,15 @@
 # P11 — Per-leg BẮT BUỘC check-flow (Pre-press → OP Setting → IPQC → Running)
 
-> **Status: SCOPE PROPOSAL — chờ Henry duyệt TRƯỚC khi code phần còn lại.**
+> **Status: APPROVED (Henry 2026-07-25) — đang triển khai.**
+> ## ✅ Quyết định
+> - **Q1 Setting store** → **Reuse `WoRunSession`** (WoLegId + StartedAt/EndedAt), **KHÔNG migration**.
+> - **Q2 Gate** → **CHẶN (blocking)** + cập nhật ~8–12 routing test churn. Gate chỉ áp
+>   khi leg CÓ surface materialized (multi-leg) → WO 1-leg parity nguyên.
+> - **Q3 Drill-in** → **Nhúng inline** trong thẻ leg (tái dùng 3 dashboard + `[Parameter] WoLegId`).
+>
+> ---
+>
+> **(SCOPE PROPOSAL gốc bên dưới.)**
 > Verify trên COPY (`/tmp/p11-checkflow-inspect.db`) — live NEVER written.
 > Nối tiếp [`p11-per-leg-qc-scope.md`](p11-per-leg-qc-scope.md) (đã APPROVED).
 
