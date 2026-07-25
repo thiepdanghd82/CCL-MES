@@ -16,6 +16,10 @@ public sealed partial class TranslationCatalog
         Add("legs.stage.converge",           "Hội tụ",                                                       "Converge");
         Add("legs.stage.terminal",           "Kết thúc → FQC",                                               "Final → FQC");
 
+        // Per-leg readiness chips (this leg's OWN materialised check set).
+        Add("legs.ready.materials",          "Vật tư {0}/{1}",                                               "Materials {0}/{1}");
+        Add("legs.ready.ipqc",               "IPQC {0}/{1}",                                                 "IPQC {0}/{1}");
+
         Add("legs.terminal",                 "⤳ cuối",                                                       "⤳ final");
         Add("legs.terminal.title",           "Công đoạn cuối — quyết định gộp FQC",                          "Final leg — decides the FQC join");
 

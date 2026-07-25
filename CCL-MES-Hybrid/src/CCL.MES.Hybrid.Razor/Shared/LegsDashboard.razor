@@ -90,6 +90,26 @@
                                     }
                                 </div>
 
+                                @* P11 per-leg readiness — this leg's OWN materialised
+                                   Pre-press (materials) + IPQC (by leg.ProcessLine) check set. *@
+                                @if (leg.MaterialsTotal > 0 || leg.IpqcItemsTotal > 0)
+                                {
+                                    <div class="legs-readiness" data-testid="leg-readiness-@leg.Sequence">
+                                        @if (leg.MaterialsTotal > 0)
+                                        {
+                                            <span class="legs-ready-chip @(leg.MaterialsOk == leg.MaterialsTotal ? "is-ok" : "")">
+                                                @T("legs.ready.materials", leg.MaterialsOk, leg.MaterialsTotal)
+                                            </span>
+                                        }
+                                        @if (leg.IpqcItemsTotal > 0)
+                                        {
+                                            <span class="legs-ready-chip @(leg.IpqcItemsOk == leg.IpqcItemsTotal ? "is-ok" : "")">
+                                                @T("legs.ready.ipqc", leg.IpqcItemsOk, leg.IpqcItemsTotal)
+                                            </span>
+                                        }
+                                    </div>
+                                }
+
                                 @if (leg.HardBlocked)
                                 {
                                     <div class="legs-gate legs-gate-hard" data-testid="leg-hard-@leg.Sequence" role="alert">

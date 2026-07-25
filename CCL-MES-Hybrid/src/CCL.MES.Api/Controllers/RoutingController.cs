@@ -3,6 +3,7 @@ using System.Text.Json;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
+using CCL.MES.Domain;
 using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Domain.Routing;
@@ -69,6 +70,13 @@ public sealed class RoutingController : ControllerBase
         foreach (var l in wo.Legs.OrderBy(l => l.Sequence))
         {
             var (soft, hard) = DependencyStatus(wo, l);
+            // P11 per-leg readiness — count this leg's OWN materialised rows
+            // (scoped WoLegId shadow). Cheap per-leg counts; legs are few.
+            var legId = l.Id;
+            var matsTotal = await _db.WoMaterials.CountAsync(m => EF.Property<long?>(m, "WoLegId") == legId, ct);
+            var matsOk = await _db.WoMaterials.CountAsync(m => EF.Property<long?>(m, "WoLegId") == legId && m.Status == PrepressCheckStatus.Ok, ct);
+            var ipqcTotal = await _db.WoIpqcCheckItems.CountAsync(i => EF.Property<long?>(i, "WoLegId") == legId, ct);
+            var ipqcOk = await _db.WoIpqcCheckItems.CountAsync(i => EF.Property<long?>(i, "WoLegId") == legId && i.Status == IpqcCheckStatus.Ok, ct);
             view.Legs.Add(new LegRow
             {
                 LegId = l.Id, Sequence = l.Sequence, LegKind = l.LegKind,
@@ -78,6 +86,8 @@ public sealed class RoutingController : ControllerBase
                 QtyNgCached = l.QtyNgCached, LegDoneAt = l.LegDoneAt, LegETag = B64(l.RowVersion),
                 IsTerminal = WorkOrderStateMachine.IsTerminalLeg(wo, l),
                 SoftWaiting = soft, HardBlocked = hard,
+                MaterialsTotal = matsTotal, MaterialsOk = matsOk,
+                IpqcItemsTotal = ipqcTotal, IpqcItemsOk = ipqcOk,
             });
         }
         Response.Headers.ETag = $"\"{view.WoETag}\"";

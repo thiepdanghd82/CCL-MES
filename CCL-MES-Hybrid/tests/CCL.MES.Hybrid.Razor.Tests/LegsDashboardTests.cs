@@ -238,6 +238,26 @@ public sealed class LegsDashboardTests : TestContext
     }
 
     [Fact]
+    public void Per_leg_readiness_chips_show_ipqc_and_materials_counts()
+    {
+        var v = T3View();
+        v.Legs[0] = new LegRow
+        {
+            LegId = 100, Sequence = 0, LegKind = "PRINT", Method = "m", ProcessLine = "SILK",
+            LegPhase = "PREPRESS", LegETag = "e0",
+            MaterialsTotal = 6, MaterialsOk = 6, IpqcItemsTotal = 25, IpqcItemsOk = 10,
+        };
+        _api.LegsViewImpl = (_, _) => Task.FromResult(v);
+        var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
+
+        var badge = cut.Find("[data-testid='leg-readiness-0']");
+        Assert.Contains("IPQC 10/25", badge.TextContent);
+        Assert.Contains("Vật tư 6/6", badge.TextContent);   // vi-default
+        // A leg with no materialised surface shows no readiness chip.
+        Assert.Empty(cut.FindAll("[data-testid='leg-readiness-1']"));
+    }
+
+    [Fact]
     public void Hard_gate_shows_red_alert_banner_with_title_and_disables_advance()
     {
         _api.LegsViewImpl = (_, _) => Task.FromResult(T3View(asmPhase: "IPQC_APPROVED", asmHard: true));

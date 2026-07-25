@@ -6677,6 +6677,11 @@ tr.wc-row:hover { background: var(--c-bg); }
 .legs-ph-paused  { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-soft); }
 .legs-ph-leg_done { background: var(--ok-bg); color: var(--ok-ink); border: 1px solid var(--ok-soft); }
 
+/* per-leg readiness chips (this leg's own Pre-press + IPQC surface) */
+.legs-readiness { display: flex; gap: 6px; flex-wrap: wrap; }
+.legs-ready-chip { font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--c-surface); color: var(--c-muted); border: 1px solid var(--c-line); }
+.legs-ready-chip.is-ok { background: var(--ok-bg); color: var(--ok-ink); border-color: var(--ok-soft); }
+
 /* mini phase stepper */
 .legs-stepper { display: flex; align-items: center; gap: 5px; }
 .legs-stepper-dot { flex: 1; height: 6px; border-radius: 999px; background: var(--c-line); }
