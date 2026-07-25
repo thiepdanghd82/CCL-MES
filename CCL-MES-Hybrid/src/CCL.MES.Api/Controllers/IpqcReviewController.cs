@@ -100,15 +100,29 @@ public sealed class IpqcReviewController : ControllerBase
     /// correctly. Idempotent — controller serialises with the UNIQUE
     /// index so concurrent first-reads can't double-insert.</summary>
     [HttpGet("{id:long}/ipqc")]
-    public async Task<IActionResult> Get(long id, CancellationToken ct = default)
+    public async Task<IActionResult> Get(long id, long? legId = null, CancellationToken ct = default)
     {
         var wo = await _db.WorkOrders.AsNoTracking()
             .FirstOrDefaultAsync(w => w.Id == id, ct);
         if (wo is null)
             return NotFound(ApiError.Of("wo.not_found", $"No work order with id {id}."));
 
+        // P11 per-leg: when a legId is given, read THAT leg's own IPQC check
+        // (materialised at fork, per leg.ProcessLine). Short-circuit the WO-level
+        // lazy/self-heal flow. Idempotent ensure so a legacy fork still gets rows.
+        if (legId is not null)
+        {
+            await new IpqcLegMaterializer(_db).MaterializeForLegAsync(legId.Value, ct);
+            var legCheck = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
+                .FirstOrDefaultAsync(c => EF.Property<long?>(c, "WoLegId") == legId, ct);
+            return Ok(BuildView(wo, legCheck,
+                (legCheck?.Items.Count ?? 0) > 0 ? AutoSyncMaterialized : "LegacyManual"));
+        }
+
+        // WO-level (1-leg / legacy) — filter WoLegId IS NULL so per-leg rows of a
+        // forked WO are never picked up here (correctness).
         var check = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
-            .FirstOrDefaultAsync(c => c.WorkOrderId == id, ct);
+            .FirstOrDefaultAsync(c => c.WorkOrderId == id && EF.Property<long?>(c, "WoLegId") == null, ct);
 
         string autoSync;
         if (check is null)
@@ -128,7 +142,7 @@ public sealed class IpqcReviewController : ControllerBase
                     dbCtx.ChangeTracker.Clear();
             }
             check = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
-                .FirstOrDefaultAsync(c => c.WorkOrderId == id, ct);
+                .FirstOrDefaultAsync(c => c.WorkOrderId == id && EF.Property<long?>(c, "WoLegId") == null, ct);
         }
         else if (check.Items.Count == 0 && IsPristine(check))
         {
@@ -146,7 +160,7 @@ public sealed class IpqcReviewController : ControllerBase
                         dbCtx.ChangeTracker.Clear();
                 }
                 check = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
-                    .FirstOrDefaultAsync(c => c.WorkOrderId == id, ct);
+                    .FirstOrDefaultAsync(c => c.WorkOrderId == id && EF.Property<long?>(c, "WoLegId") == null, ct);
             }
         }
         else
@@ -156,6 +170,13 @@ public sealed class IpqcReviewController : ControllerBase
             autoSync = check.Items.Count > 0 ? AutoSyncMaterialized : "LegacyManual";
         }
 
+        return Ok(BuildView(wo, check, autoSync));
+    }
+
+    /// <summary>Build the IPQC view DTO from a check (WO-level or per-leg).
+    /// Extracted so the per-leg branch reuses the exact same shape.</summary>
+    private static IpqcView BuildView(WorkOrder wo, WoIpqcCheck? check, string autoSync)
+    {
         var etag = Convert.ToBase64String(wo.RowVersion);
         var checkItems = check?.Items?.OrderBy(i => i.Sort).ToList() ?? new List<WoIpqcCheckItem>();
         var (ready, allOk, anyNg) = IpqcReadinessRollup.Compute(check, checkItems);
@@ -207,8 +228,7 @@ public sealed class IpqcReviewController : ControllerBase
             }).ToList(),
         };
 
-        Response.Headers.ETag = $"\"{etag}\"";
-        return Ok(view);
+        return view;
     }
 
     // ── PUT /work-orders/{id}/ipqc/{slot} (IpqcSubmit policy) ─────
