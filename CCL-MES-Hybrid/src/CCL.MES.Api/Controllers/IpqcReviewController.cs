@@ -310,7 +310,7 @@ public sealed class IpqcReviewController : ControllerBase
     /// <c>ipqc.invalid_item</c> nếu key không thuộc bộ đã materialize.</summary>
     [HttpPut("{id:long}/ipqc/item/{itemKey}"), Authorize(Policy = "IpqcSubmit")]
     public async Task<IActionResult> PutItem(
-        long id, string itemKey, [FromBody] SetIpqcItemRequest? req)
+        long id, string itemKey, [FromBody] SetIpqcItemRequest? req, long? legId = null)
     {
         var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
         var role = User.FindFirstValue(ClaimTypes.Role) ?? "";
@@ -319,9 +319,22 @@ public sealed class IpqcReviewController : ControllerBase
         if (pre.Error is not null) return pre.Error;
         var wo = pre.WoForUpdate!;
 
-        if (wo.MesPhase != "IPQC_WAIT")
+        // Phase gate: per-leg keys off the LEG's phase (WO stays in SPLIT while
+        // legs run their own flow); WO-level keys off wo.MesPhase (unchanged).
+        WoLeg? leg = null;
+        if (legId is not null)
+        {
+            leg = await _db.WoLegs.FirstOrDefaultAsync(l => l.Id == legId && l.WorkOrderId == id);
+            if (leg is null) return NotFound(ApiError.Of("leg.not_found", $"No leg {legId} on WO {id}."));
+            if (leg.LegPhase != "IPQC_WAIT")
+                return Invalid("leg.invalid_phase",
+                    $"ipqc/item requires the leg's LegPhase = IPQC_WAIT; current = {leg.LegPhase}.");
+        }
+        else if (wo.MesPhase != "IPQC_WAIT")
+        {
             return Invalid("wo.invalid_phase",
                 $"ipqc/item requires MesPhase = IPQC_WAIT; current = {wo.MesPhase}.");
+        }
 
         if (req is null || string.IsNullOrWhiteSpace(req.Status))
             return Invalid("ipqc.invalid_status", "Status is required (\"Ok\" or \"Ng\").");
@@ -336,7 +349,9 @@ public sealed class IpqcReviewController : ControllerBase
             if (ngErr is not null) return ngErr;
         }
 
-        var check = await GetOrCreateCheckAsync(id, wo);
+        var check = legId is null
+            ? await GetOrCreateCheckAsync(id, wo)
+            : await GetOrCreateLegCheckAsync(legId.Value);
 
         var ok = WoIpqcCheckService.SetItem(check, itemKey, status,
             status == IpqcCheckStatus.Ng ? req.NgReasonCode : null,
@@ -350,11 +365,25 @@ public sealed class IpqcReviewController : ControllerBase
             AuditAction.WoIpqcCheck,
             new
             {
+                wo_leg_id = legId,
                 item_key = itemKey,
                 status = status.ToString(),
                 ng_reason_code = status == IpqcCheckStatus.Ng ? req.NgReasonCode : null,
                 ng_note = status == IpqcCheckStatus.Ng ? req.NgNote : null,
             });
+    }
+
+    /// <summary>P11 per-leg: the leg's own IPQC check (materialised at fork by
+    /// leg.ProcessLine). Idempotently ensures it exists, then returns it TRACKED
+    /// so SetItem mutations persist.</summary>
+    private async Task<WoIpqcCheck> GetOrCreateLegCheckAsync(long legId)
+    {
+        var check = await _db.WoIpqcChecks.Include(c => c.Items)
+            .FirstOrDefaultAsync(c => EF.Property<long?>(c, "WoLegId") == legId);
+        if (check is not null) return check;
+        await new IpqcLegMaterializer(_db).MaterializeForLegAsync(legId);
+        return await _db.WoIpqcChecks.Include(c => c.Items)
+            .FirstAsync(c => EF.Property<long?>(c, "WoLegId") == legId);
     }
 
     // ── POST /work-orders/{id}/ipqc/judgment ───────────────────────

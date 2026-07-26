@@ -227,6 +227,14 @@ public sealed class RoutingController : ControllerBase
                 $"Leg {legId} không thể vào {toPhase} từ {leg!.LegPhase} ({check.Error})."));
         }
 
+        // P11 per-leg check-flow gate (Q2 blocking) — a leg may only enter
+        // IPQC_APPROVED once its OWN IPQC items are all Ok. Vacuously true when
+        // the leg has no per-leg IPQC surface (parity: 1-leg / legacy unaffected).
+        if (toPhase == LegPhase.IPQC_APPROVED
+            && !await new PerLegCheckGate(_db).IpqcAllOkAsync(legId, ct))
+            return UnprocessableEntity(ApiError.Of("leg.ipqc_incomplete",
+                $"Leg {legId} chưa qua IPQC (còn hạng mục chưa OK) — không thể vào {toPhase}."));
+
         // P11.5-2 — gate FROM_STOCK/MIXED: assembly xuất kho phải reserve đủ
         // semi trước khi vào RUNNING (RoutingLegGate chỉ gác in-line HARD;
         // stock-satisfaction cần SemiAllocation → kiểm ở đây).
