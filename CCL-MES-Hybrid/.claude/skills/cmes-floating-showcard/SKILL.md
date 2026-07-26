@@ -91,3 +91,22 @@ Cover new content with bUnit (see `FloatingWindowTests` + `QualityTraceabilityTe
   directly in a page — that is what `FloatingWindow` is for.
 - Force `Float="true"` on a confirm/edit modal just to make it draggable —
   transactional surfaces stay centred modals.
+
+## Showcards can be INLINE — the gate scans markup, not just filenames (P11)
+
+A showcard need NOT live in a `*Showcard*.razor` / `*DetailDialog*.razor` file.
+The per-leg IPQC inspector was first hand-rolled as an inline overlay INSIDE
+`LegsDashboard.razor` (a plain `<div role="dialog">` with only a `× Close` — no
+drag/resize/traffic-lights). It dodged the old **filename-based** gate.
+
+**Enforcement (extended):** `gate-floating-showcard.sh` now ALSO flags any `.razor`
+that writes a literal `role="dialog"` but does **not** wrap `<FloatingWindow>`
+(the two dialog primitives `FloatingWindow.razor` + `Modal.razor` are allow-listed).
+So an inline showcard now FAILs CI with the exact `file:line`. A prompt asking for
+a showcard also trips a `UserPromptSubmit` hook that echoes this workflow.
+
+**Fix pattern (inline → showcard):** extract the inspector body into a small
+component that wraps `<FloatingWindow>` (rich `HeaderContent` = the record identity,
+`ChildContent` = the reused body), and let the PARENT own the multi-window list +
+`IFloatingWindowStore` persistence (mirror `QualityTraceability.razor`). See
+`IpqcLegShowcard.razor` (component) + `LegsDashboard.razor` `_ipqcWins` (parent host).

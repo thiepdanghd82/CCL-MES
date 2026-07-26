@@ -476,6 +476,19 @@
 | **Fix** | **(A) Tách `Shared/FloatingWindow.razor`** — đóng gói `_rootRef/_headRef`, `cclMesFloat.init/dispose/nudge/toggleMax/Min`, 8 handle, cụm traffic-light (SVG glyph + maximize⇄restore theo state đồng bộ qua `OnRectChanged_JS`), keyboard (Esc/mũi tên/Shift), `WindowId`/`Rect`/`CascadeIndex`/`OnClose`/`OnRectChanged` + persist qua `IFloatingWindowStore`. Slot: `HeaderContent`/`HeaderExtra`/`TabBar`/`ChildContent`. `TraceabilityDetailDialog` refactor để **BỌC** `<FloatingWindow>` (chỉ còn cung cấp NỘI DUNG 4 tab) — parity 100%, không hồi quy. **(B) Audit** mọi surface: SHOWCARD (giữ-mở-song-song, xem/giám sát) → BẮT BUỘC `<FloatingWindow>`; **transactional** (form Create/Edit/Copy/Import + confirm Pause/Finish/QtyCorrect) → GIỮ modal căn giữa (đúng pattern; ép float làm hại UX). `Modal.razor` thêm **opt-in `Float="true"`** (render qua `<FloatingWindow>`) mặc định OFF → 13 modal không đổi. **(C) Chặn tái phạm**: skill `.claude/skills/cmes-floating-showcard/SKILL.md` + gate CI `scripts/gate-floating-showcard.sh` (PR thêm `*DetailDialog/*Showcard*.razor` mà KHÔNG có `<FloatingWindow>` → fail; allowlist các Spec*Showcard inline + FloatingWindow.razor kèm lý do). |
 | **Cơ chế chặn tái phát** | Gate `scripts/gate-floating-showcard.sh` (đã test: PASS trên cây hiện tại, FAIL khi chèn `FakeDetailDialog.razor` không có `<FloatingWindow>`). bUnit `FloatingWindowTests`: `Renders_full_window_chrome` (8 handle + 3 traffic-light + role/aria + ChildContent) · `Close_button_raises_OnClose` · `Rect_callback_reports_rect_and_toggles_maximize_icon` · `Minimize_and_maximize_toggles_can_be_hidden` · `Modal_default_is_a_centred_scrim_not_a_floating_window` · `Modal_float_mode_renders_the_floating_window_chrome`. `QualityTraceabilityTests` (169) chứng minh parity sau refactor. **Quy tắc: showcard/detail-dialog mới PHẢI bọc `<FloatingWindow>`, KHÔNG tự vẽ chrome; transactional giữ `<Modal>` (float là opt-in).** |
 
+**L34 addendum (P11 — 2026-07-26): showcard INLINE lọt gate filename-based.** IPQC per-leg
+inspector ban đầu bị hand-roll INLINE trong `LegsDashboard.razor` (`<div role="dialog">`
+chỉ có `× Close`, không chrome) → gate cũ (chỉ quét tên file `*Showcard*/*DetailDialog*`)
+KHÔNG bắt. **Vá:** gate nay **quét markup** — mọi `.razor` có literal `role="dialog"` mà
+KHÔNG bọc `<FloatingWindow>` → FAIL kèm `file:line` (allowlist 2 primitive
+`FloatingWindow.razor` + `Modal.razor`; page dùng component `<Modal>` không có literal
+`role="dialog"` nên không báo nhầm). Đã chứng minh: PASS cây đã sửa; chèn fake inline
+`role="dialog"` vào `Home.razor` → FAIL(`Home.razor:187`), gỡ → PASS. Thêm **hook
+`UserPromptSubmit`** (`.claude/settings.json` → `scripts/hook-showcard-reminder.sh`) nhắc
+quy trình khi prompt nhắc showcard/inspector. **Fix inline→showcard:** tách body ra
+component bọc `<FloatingWindow>` (`IpqcLegShowcard.razor`) + parent giữ multi-window state
+qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceability`).
+
 ---
 
 <a id="l35"></a>
