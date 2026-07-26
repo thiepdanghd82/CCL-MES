@@ -6780,3 +6780,112 @@ tr.wc-row:hover { background: var(--c-bg); }
     .legs-rework-actions { flex-direction: column-reverse; }
     .legs-rework-actions .btn { width: 100%; }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   PRINT — WYSIWYG Spec Full sheet (native WKWebView print, P11.x)
+   ----------------------------------------------------------------------
+   window.print() is a no-op inside WKWebView; the native
+   UIPrintInteractionController rasterises the LIVE DOM with THIS media
+   type applied (WKWebView.ViewPrintFormatter). So the printed page / saved
+   PDF is exactly the on-screen Spec Full sheet: hide all app chrome, lift
+   the sheet to the top of the page, and tune the wide print-process table
+   so ~18 columns never overflow the sheet.
+
+   Colours use :root design tokens or CSS keywords only (L37 hex gate).
+   Default @page is A4 landscape (wide sheet); the operator can switch to
+   A3 / portrait / scale in the native print panel.
+   ══════════════════════════════════════════════════════════════════════ */
+@media print {
+    @page {
+        size: A4 landscape;
+        margin: 8mm;
+    }
+
+    html, body {
+        background: white !important;
+        width: auto !important;
+        height: auto !important;
+        overflow: visible !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Only the Spec Full sheet prints. Hide everything via the visibility
+       technique (keeps unknown chrome out too), then reveal + lift just the
+       sheet subtree to the page origin. */
+    body * { visibility: hidden !important; }
+    .spec-showcard-full,
+    .spec-showcard-full * { visibility: visible !important; }
+
+    /* Neutralise positioned ancestors so the absolute sheet anchors to the
+       page, not to a relatively-positioned wrapper. */
+    .app-shell,
+    .app-main,
+    .app-content {
+        position: static !important;
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
+    /* Belt-and-braces: drop the biggest chrome outright so no reserved
+       whitespace lands on the page. */
+    .app-nav,
+    .app-topbar,
+    .connectivity-banner,
+    .spec-detail-actions,
+    .spec-tabs,
+    .spec-showcard-toolbar,
+    .spec-dwg-cards,
+    .grid-export-banner,
+    .spec-action-banner-row,
+    .spec-print-pdf,
+    #blazor-error-ui {
+        display: none !important;
+    }
+
+    .spec-showcard-full {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+    }
+
+    /* Print the colour blocks (navy doc header, table header fills). */
+    .spec-doc-header,
+    .spec-info-table-full th,
+    .spec-print-table-full th,
+    .spec-rev-table-full th {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Wide tables must fit the sheet — fixed layout + wrapping so no column
+       spills off the page edge. */
+    .spec-info-table-full,
+    .spec-print-table-full,
+    .spec-rev-table-full {
+        width: 100% !important;
+        table-layout: fixed !important;
+        font-size: 7pt !important;
+    }
+    .spec-info-table-full th, .spec-info-table-full td,
+    .spec-print-table-full th, .spec-print-table-full td,
+    .spec-rev-table-full th, .spec-rev-table-full td {
+        word-break: break-word !important;
+        overflow-wrap: anywhere !important;
+        padding: 2px 3px !important;
+    }
+
+    /* Keep sections + table rows from splitting across a page break. */
+    .spec-block-full { page-break-inside: avoid; }
+    .spec-doc-header { page-break-inside: avoid; page-break-after: avoid; }
+    tr { page-break-inside: avoid; }
+    thead { display: table-header-group; } /* repeat header on each page */
+}

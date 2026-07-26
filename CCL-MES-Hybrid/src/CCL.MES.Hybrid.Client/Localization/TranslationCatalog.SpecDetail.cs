@@ -26,6 +26,8 @@ public sealed partial class TranslationCatalog
         Add("specdetail.pdf.print",                      "🖨 In PDF",                                                    "🖨 Print PDF");
         Add("specdetail.pdf.generating",                 "Đang tạo PDF…",                                                "Generating PDF…");
         Add("specdetail.pdf.failed",                     "Xuất PDF thất bại: {0}",                                       "PDF export failed: {0}");
+        // P11.x — native WebView print (hộp in hệ điều hành, WYSIWYG).
+        Add("specdetail.print.native.opened",            "Đã mở hộp in của hệ điều hành — chọn khổ giấy (A4/A3), hướng, tỷ lệ hoặc Lưu thành PDF.", "Opened the system print panel — choose paper size (A4/A3), orientation, scale, or Save as PDF.");
 
         // Export banner actions + outcome messages.
         Add("specdetail.export.openfile",                "Mở tệp",                                                       "Open file");

@@ -3,6 +3,7 @@ using CCL.MES.Hybrid.Client.Files;
 using CCL.MES.Hybrid.Client.Grid;
 using CCL.MES.Hybrid.Client.Hardware;
 using CCL.MES.Hybrid.Client.Localization;
+using CCL.MES.Hybrid.Client.Printing;
 using CCL.MES.Hybrid.Client.RecentScans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -94,6 +95,14 @@ public static class ServiceCollectionExtensions
         // SaveOutcome.Cancelled, so export flows degrade to "file kept
         // in sandbox" UX without crashing.
         services.AddSingleton<IFileSaver, StubFileSaver>();
+
+        // P11.x — native WebView print abstraction. window.print() is a
+        // no-op inside WKWebView on Mac Catalyst, so the MAUI host replaces
+        // this with CatalystPrintService (UIPrintInteractionController +
+        // WKWebView.ViewPrintFormatter — WYSIWYG native print panel). Tests
+        // + non-Catalyst hosts keep the stub (IsNativePrintSupported=false)
+        // so the Spec sheet Print button falls back to the MigraDoc PDF.
+        services.AddSingleton<IPrintService, StubPrintService>();
 
         // P10.6f — Recent Scans sidebar widget store. MAUI host replaces
         // with MauiRecentScansService (Preferences-backed) so the list

@@ -663,7 +663,14 @@ public sealed class RecordingApi : ICclApiClient
             ? GetSpecsImpl(s, p, z, v, planner)
             : Task.FromResult(new NpiPagedRaw<SpecListItem> { Items = Array.Empty<SpecListItem>(), Total = 0, Page = p, PageSize = z });
     }
-    public Task<SpecDetailItem?> GetSpecDetailAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
+    // P11.x — SpecDetailPage print-button test hooks. Default to throwing
+    // when unset so other tests' accidental calls stay loud.
+    public Func<long, CancellationToken, Task<SpecDetailItem?>>? GetSpecDetailImpl { get; set; }
+    public Func<long, string, CancellationToken, Task<long>>? DownloadSpecSheetPdfImpl { get; set; }
+    public List<(long RevisionId, string DestPath)> DownloadSpecSheetPdfCalls { get; } = new();
+
+    public Task<SpecDetailItem?> GetSpecDetailAsync(long r, CancellationToken c = default)
+        => GetSpecDetailImpl is not null ? GetSpecDetailImpl(r, c) : throw new NotImplementedException();
     public Task<List<SpecProductDropdownItem>> GetSpecProductsAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> CreateSpecAsync(CreateSpecMutation r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecMutationResponse> ApproveSpecAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
@@ -678,7 +685,9 @@ public sealed class RecordingApi : ICclApiClient
     public Task<SpecMutationResponse> UpdateSpecAsync(long r, UpdateSpecMutation req, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecImportPreviewResponse> ImportPreviewSpecAsync(Stream a, string b, string c2, CancellationToken c = default) => throw new NotImplementedException();
     public Task<SpecImportSaveResponse> ImportSaveSpecAsync(SpecImportSaveRequest req, CancellationToken c = default) => throw new NotImplementedException();
-    public Task<List<DrawingKindSlot>> GetDrawingsByRevisionAsync(long r, CancellationToken c = default) => throw new NotImplementedException();
+    public Func<long, CancellationToken, Task<List<DrawingKindSlot>>>? GetDrawingsByRevisionImpl { get; set; }
+    public Task<List<DrawingKindSlot>> GetDrawingsByRevisionAsync(long r, CancellationToken c = default)
+        => GetDrawingsByRevisionImpl is not null ? GetDrawingsByRevisionImpl(r, c) : throw new NotImplementedException();
     public Task<DrawingUploadResponse> UploadDrawingAsync(long a, string b, Stream s, string n, string? r = null, CancellationToken c = default) => throw new NotImplementedException();
     public Task<long> DownloadDrawingToFileAsync(long a, long b, string c, CancellationToken d = default) => throw new NotImplementedException();
     public Task<DrawingDecideResponse> DecideDrawingAsync(long a, long b, DrawingDecideRequest r, CancellationToken c = default) => throw new NotImplementedException();
@@ -689,7 +698,11 @@ public sealed class RecordingApi : ICclApiClient
     public Task<QcPlanUpsertResponse> UpsertQcPlanStageAsync(long r, QcPlanUpsertRequest req, CancellationToken c = default) => throw new NotImplementedException();
     public Task<QcCaptureItem> CreateQcCaptureAsync(long r, QcCaptureCreateRequest req, CancellationToken c = default) => throw new NotImplementedException();
     public Task<long> DownloadSpecListExportAsync(string a, string? b, string d, string? e, string f, CancellationToken c = default) => throw new NotImplementedException();
-    public Task<long> DownloadSpecSheetPdfAsync(long a, string b, CancellationToken c = default) => throw new NotImplementedException();
+    public Task<long> DownloadSpecSheetPdfAsync(long a, string b, CancellationToken c = default)
+    {
+        DownloadSpecSheetPdfCalls.Add((a, b));
+        return DownloadSpecSheetPdfImpl is not null ? DownloadSpecSheetPdfImpl(a, b, c) : Task.FromResult(0L);
+    }
     public Task<SettingsProfileDto> GetMyProfileAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<SettingsProfileDto> UpdateMyProfileAsync(UpdateProfileRequest r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<ChangePasswordResponse> ChangeMyPasswordAsync(ChangePasswordRequest r, CancellationToken c = default) => throw new NotImplementedException();
