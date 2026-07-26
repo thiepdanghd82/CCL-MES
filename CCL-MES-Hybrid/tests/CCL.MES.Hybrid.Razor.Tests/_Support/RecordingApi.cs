@@ -423,7 +423,7 @@ public sealed class RecordingApi : ICclApiClient
 
     // ── IPQC + QA Approval (P10.7d-3) ──────────────────────────────
 
-    public Task<IpqcView> GetIpqcViewAsync(long workOrderId, CancellationToken ct = default)
+    public Task<IpqcView> GetIpqcViewAsync(long workOrderId, long? legId = null, CancellationToken ct = default)
     {
         IpqcViewCalls.Add(workOrderId);
         return IpqcViewImpl is null
@@ -483,7 +483,7 @@ public sealed class RecordingApi : ICclApiClient
     public Func<long, string, string, SetIpqcItemRequest, CancellationToken, Task<IpqcSetResponse>>? PutIpqcItemImpl { get; set; }
     public List<(long Id, string ETag, string ItemKey, SetIpqcItemRequest Req)> PutIpqcItemCalls { get; } = new();
 
-    public Task<IpqcSetResponse> PutIpqcItemAsync(long workOrderId, string ifMatchETag, string itemKey, SetIpqcItemRequest req, CancellationToken ct = default)
+    public Task<IpqcSetResponse> PutIpqcItemAsync(long workOrderId, string ifMatchETag, string itemKey, SetIpqcItemRequest req, long? legId = null, CancellationToken ct = default)
     {
         PutIpqcItemCalls.Add((workOrderId, ifMatchETag, itemKey, req));
         return PutIpqcItemImpl is null

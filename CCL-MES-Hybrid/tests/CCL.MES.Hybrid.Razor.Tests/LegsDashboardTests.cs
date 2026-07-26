@@ -238,6 +238,21 @@ public sealed class LegsDashboardTests : TestContext
     }
 
     [Fact]
+    public void Ipqc_wait_leg_shows_per_leg_ipqc_drill_in_toggle()
+    {
+        // ASSEMBLY leg (seq 2) at IPQC_WAIT → the leg card offers the per-leg
+        // IPQC drill-in toggle; a PREPRESS leg (seq 0) does not.
+        var v = T3View(asmPhase: "IPQC_WAIT");
+        _api.LegsViewImpl = (_, _) => Task.FromResult(v);
+        var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
+
+        Assert.NotNull(cut.Find("[data-testid='leg-ipqc-toggle-2']"));
+        Assert.Empty(cut.FindAll("[data-testid='leg-ipqc-toggle-0']"));
+        // Panel is collapsed until toggled.
+        Assert.Empty(cut.FindAll("[data-testid='leg-ipqc-panel-2']"));
+    }
+
+    [Fact]
     public void Per_leg_readiness_chips_show_ipqc_and_materials_counts()
     {
         var v = T3View();

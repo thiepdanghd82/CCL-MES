@@ -6677,6 +6677,13 @@ tr.wc-row:hover { background: var(--c-bg); }
 .legs-ph-paused  { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-soft); }
 .legs-ph-leg_done { background: var(--ok-bg); color: var(--ok-ink); border: 1px solid var(--ok-soft); }
 
+/* per-leg IPQC drill-in (host the IpqcDashboard scoped to the leg) */
+.legs-ipqc-toggle { width: 100%; justify-content: flex-start; margin-top: 2px; }
+.legs-ipqc-panel {
+    margin-top: 8px; border: 1px solid var(--brand-soft); border-radius: 12px;
+    background: var(--c-surface); padding: 10px; max-height: 60vh; overflow: auto;
+}
+
 /* per-leg readiness chips (this leg's own Pre-press + IPQC surface) */
 .legs-readiness { display: flex; gap: 6px; flex-wrap: wrap; }
 .legs-ready-chip { font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--c-surface); color: var(--c-muted); border: 1px solid var(--c-line); }

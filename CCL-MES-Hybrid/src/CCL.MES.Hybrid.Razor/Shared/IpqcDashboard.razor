@@ -283,7 +283,10 @@
         </div>
         }
 
-        @* ── Judgment row ───────────────────────────────────────── *@
+        @* ── Judgment row (WO-level only; per-leg legs advance via the
+             LegsDashboard leg card once their IPQC items are all OK) ── *@
+        @if (WoLegId is null)
+        {
         <div class="rs-card ipqc-judgment" data-testid="ipqc-judgment">
             <div class="rs-card-head">
                 <div class="rs-card-title">@T("ipqc.judgment.title")</div>
@@ -370,11 +373,17 @@
                 </div>
             }
         </div>
+        }
     }
 </div>
 
 @code {
     [Parameter, EditorRequired] public long WorkOrderId { get; set; }
+
+    /// <summary>P11 per-leg: when set, this dashboard reads/writes THAT leg's
+    /// own IPQC surface (scoped WoLegId, by leg.ProcessLine). Null = WO-level
+    /// (1-leg / legacy) — unchanged.</summary>
+    [Parameter] public long? WoLegId { get; set; }
 
     /// <summary>Scrap reason codes for the NG dropdowns. Loaded by the
     /// parent (WorkOrders.razor) once on init + handed in so the
@@ -400,6 +409,7 @@
     private bool _busy;
     private bool _invalidPhase;
     private long _lastLoadedWoId;
+    private long? _lastLoadedLegId;
 
     // NG-form local state — single open at a time (one of the 4 slot keys).
     // Plain string keys ("material" / "print-a" / "print-b" / "print-c") so
@@ -502,7 +512,7 @@
         _setError = null;
         try
         {
-            var resp = await Api.PutIpqcItemAsync(WorkOrderId, _view.ETag, itemKey, req);
+            var resp = await Api.PutIpqcItemAsync(WorkOrderId, _view.ETag, itemKey, req, WoLegId);
             await HandleSetResponseAsync(resp);
             if (resp.Ok) CloseNgForm();
         }
@@ -528,9 +538,10 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (WorkOrderId != _lastLoadedWoId)
+        if (WorkOrderId != _lastLoadedWoId || WoLegId != _lastLoadedLegId)
         {
             _lastLoadedWoId = WorkOrderId;
+            _lastLoadedLegId = WoLegId;
             _view = null;
             _initialError = null;
             _setError = null;
@@ -547,7 +558,7 @@
     {
         try
         {
-            _view = await Api.GetIpqcViewAsync(WorkOrderId);
+            _view = await Api.GetIpqcViewAsync(WorkOrderId, WoLegId);
             _invalidPhase = _view.MesPhase != "IPQC_WAIT";
         }
         catch (ApiException apiEx)

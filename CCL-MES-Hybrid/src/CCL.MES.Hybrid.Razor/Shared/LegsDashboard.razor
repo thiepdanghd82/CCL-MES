@@ -160,6 +160,26 @@
                                     }
                                 </div>
 
+                                @* P11 drill-in: khi leg ở IPQC_WAIT, mở bộ IPQC
+                                   RIÊNG của leg (scoped WoLegId theo process line)
+                                   để công nhân tick từng hạng mục ngay tại chỗ. *@
+                                @if (leg.LegPhase == "IPQC_WAIT")
+                                {
+                                    <button type="button" class="btn btn-ghost legs-ipqc-toggle"
+                                            data-testid="leg-ipqc-toggle-@leg.Sequence"
+                                            @onclick="() => ToggleIpqcPanel(leg.LegId)">
+                                        @(_ipqcPanelLegId == leg.LegId ? T("legs.ipqc.close") : T("legs.ipqc.open"))
+                                    </button>
+                                    @if (_ipqcPanelLegId == leg.LegId)
+                                    {
+                                        <div class="legs-ipqc-panel" data-testid="leg-ipqc-panel-@leg.Sequence">
+                                            <IpqcDashboard WorkOrderId="WorkOrderId" WoLegId="leg.LegId"
+                                                           ScrapReasons="ScrapReasons"
+                                                           OnPhaseChanged="OnPhaseChanged" />
+                                        </div>
+                                    }
+                                }
+
                                 @if (IsFromStockAssembly(leg))
                                 {
                                     <div class="legs-semi" data-testid="leg-semi-@leg.Sequence">
@@ -245,6 +265,14 @@
     /// <summary>L21 — bubble lên WorkOrders.razor khi WO đổi phase (join
     /// SPLIT → FQC_PENDING) để parent re-fetch summary + re-dispatch.</summary>
     [Parameter] public EventCallback OnPhaseChanged { get; set; }
+
+    /// <summary>Scrap reason codes forwarded to the per-leg IPQC drill-in
+    /// (NG dropdowns). Passed through from WorkOrders.razor.</summary>
+    [Parameter] public IReadOnlyList<CCL.MES.Shared.ReasonCodes.ReasonCodeOption> ScrapReasons { get; set; }
+        = Array.Empty<CCL.MES.Shared.ReasonCodes.ReasonCodeOption>();
+
+    /// <summary>P11 drill-in: the leg whose per-leg IPQC panel is expanded.</summary>
+    private long? _ipqcPanelLegId;
 
     private LegsView? _view;
     private string? _initialError;
@@ -414,6 +442,9 @@
 
     private static string LegKindCss(string kind) => "legs-kind-" + kind.ToLowerInvariant().Replace("_", "-");
     private static string LegPhaseCss(string phase) => "legs-ph-" + phase.ToLowerInvariant();
+
+    private void ToggleIpqcPanel(long legId) =>
+        _ipqcPanelLegId = _ipqcPanelLegId == legId ? null : legId;
 
     // ── P11-3 visual-DAG helpers (presentation only — no contract change) ──
 

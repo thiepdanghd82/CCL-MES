@@ -20,6 +20,10 @@ public sealed partial class TranslationCatalog
         Add("legs.ready.materials",          "Vật tư {0}/{1}",                                               "Materials {0}/{1}");
         Add("legs.ready.ipqc",               "IPQC {0}/{1}",                                                 "IPQC {0}/{1}");
 
+        // Per-leg IPQC drill-in toggle.
+        Add("legs.ipqc.open",                "▸ Mở kiểm IPQC của công đoạn",                                 "▸ Open this leg's IPQC");
+        Add("legs.ipqc.close",               "▾ Đóng kiểm IPQC",                                             "▾ Close IPQC");
+
         Add("legs.terminal",                 "⤳ cuối",                                                       "⤳ final");
         Add("legs.terminal.title",           "Công đoạn cuối — quyết định gộp FQC",                          "Final leg — decides the FQC join");
 

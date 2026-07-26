@@ -229,7 +229,7 @@ public interface ICclApiClient
     /// fields + current ETag + 3 server-computed rollup flags
     /// (IsReadyForJudgment / AllOk / AnyNg) so the dashboard can render
     /// every state branch without a second hop. Throws on 404 / 401.</summary>
-    Task<IpqcView> GetIpqcViewAsync(long workOrderId, CancellationToken ct = default);
+    Task<IpqcView> GetIpqcViewAsync(long workOrderId, long? legId = null, CancellationToken ct = default);
 
     /// <summary>Set the Material recheck slot (status Pending/Ok/Ng +
     /// optional NG reason/note). On 200 the response carries the bumped
@@ -271,7 +271,7 @@ public interface ICclApiClient
     /// 422 ipqc.invalid_item nếu key không thuộc bộ đã materialize.</summary>
     Task<IpqcSetResponse> PutIpqcItemAsync(
         long workOrderId, string ifMatchETag, string itemKey,
-        SetIpqcItemRequest req, CancellationToken ct = default);
+        SetIpqcItemRequest req, long? legId = null, CancellationToken ct = default);
 
     /// <summary>Submit IPQC judgment (GoRun / StopLine / SpecialAccept).
     /// Server validates: all 4 slots non-Pending; GoRun rejected when
