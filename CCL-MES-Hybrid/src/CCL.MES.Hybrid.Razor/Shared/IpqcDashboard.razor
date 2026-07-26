@@ -72,11 +72,14 @@
     else if (_view is not null)
     {
         <div class="rs-head">
-            <div class="rs-head-wo">
-                <span class="rs-head-label">WO</span>
-                <span class="rs-head-wo-no">@_view.WoNo</span>
-                <span class="rs-head-phase rs-phase-ipqc">@_view.MesPhase</span>
-            </div>
+            @if (WoLegId is null)
+            {
+                <div class="rs-head-wo">
+                    <span class="rs-head-label">WO</span>
+                    <span class="rs-head-wo-no">@_view.WoNo</span>
+                    <span class="rs-head-phase rs-phase-ipqc">@_view.MesPhase</span>
+                </div>
+            }
             <div class="ipqc-counter-pill" data-testid="ipqc-counter">
                 <span class="ipqc-counter-label">@(ItemsMode ? T("ipqc.counter.items") : T("ipqc.counter.slots"))</span>
                 <span class="ipqc-counter-value scan-mono">@ConfirmedCount/@TotalCount</span>

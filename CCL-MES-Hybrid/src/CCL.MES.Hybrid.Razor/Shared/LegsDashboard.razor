@@ -161,23 +161,15 @@
                                 </div>
 
                                 @* P11 drill-in: khi leg ở IPQC_WAIT, mở bộ IPQC
-                                   RIÊNG của leg (scoped WoLegId theo process line)
-                                   để công nhân tick từng hạng mục ngay tại chỗ. *@
+                                   RIÊNG của leg trong CỬA SỔ TOÀN MÀN HÌNH (đủ chỗ
+                                   cho công nhân đọc + tick), không nhồi trong thẻ. *@
                                 @if (leg.LegPhase == "IPQC_WAIT")
                                 {
-                                    <button type="button" class="btn btn-ghost legs-ipqc-toggle"
+                                    <button type="button" class="btn btn-primary legs-ipqc-toggle"
                                             data-testid="leg-ipqc-toggle-@leg.Sequence"
-                                            @onclick="() => ToggleIpqcPanel(leg.LegId)">
-                                        @(_ipqcPanelLegId == leg.LegId ? T("legs.ipqc.close") : T("legs.ipqc.open"))
+                                            @onclick="() => _ipqcPanelLegId = leg.LegId">
+                                        <span class="legs-ipqc-toggle-ico" aria-hidden="true">🔍</span> @T("legs.ipqc.open")
                                     </button>
-                                    @if (_ipqcPanelLegId == leg.LegId)
-                                    {
-                                        <div class="legs-ipqc-panel" data-testid="leg-ipqc-panel-@leg.Sequence">
-                                            <IpqcDashboard WorkOrderId="WorkOrderId" WoLegId="leg.LegId"
-                                                           ScrapReasons="ScrapReasons"
-                                                           OnPhaseChanged="OnPhaseChanged" />
-                                        </div>
-                                    }
                                 }
 
                                 @if (IsFromStockAssembly(leg))
@@ -252,6 +244,35 @@
                         <button type="button" class="btn btn-primary" data-testid="legs-semi-confirm"
                                 disabled="@(_busy || _reserveQty <= 0)"
                                 @onclick="ConfirmReserveAsync">@T("legs.semi.confirm")</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* P11 per-leg IPQC — full-screen focused workspace (đủ chỗ cho công nhân). *@
+        @if (IpqcPanelLeg() is { } ipqcLeg)
+        {
+            <div class="legs-ipqc-overlay" data-testid="legs-ipqc-overlay" @onclick="CloseIpqcPanelAsync">
+                <div class="legs-ipqc-modal @LegKindCss(ipqcLeg.LegKind)" @onclick:stopPropagation="true" role="dialog"
+                     data-testid="leg-ipqc-panel-@ipqcLeg.Sequence">
+                    <div class="legs-ipqc-modal-head">
+                        <span class="legs-ipqc-modal-ico" aria-hidden="true">@((MarkupString)LegKindIcon(ipqcLeg.LegKind))</span>
+                        <div class="legs-ipqc-modal-title">
+                            <span class="legs-ipqc-modal-kind">@LegKindLabel(ipqcLeg.LegKind)</span>
+                            <span class="legs-ipqc-modal-sub">
+                                <span class="legs-line">@ipqcLeg.ProcessLine</span>
+                                <span>@ipqcLeg.Method · @T("legs.ipqc.modal.title")</span>
+                            </span>
+                        </div>
+                        <button type="button" class="btn btn-ghost legs-ipqc-modal-close"
+                                data-testid="legs-ipqc-close" @onclick="CloseIpqcPanelAsync">
+                            ✕ @T("legs.ipqc.close")
+                        </button>
+                    </div>
+                    <div class="legs-ipqc-modal-body">
+                        <IpqcDashboard WorkOrderId="WorkOrderId" WoLegId="ipqcLeg.LegId"
+                                       ScrapReasons="ScrapReasons"
+                                       OnPhaseChanged="OnPhaseChanged" />
                     </div>
                 </div>
             </div>
@@ -443,8 +464,17 @@
     private static string LegKindCss(string kind) => "legs-kind-" + kind.ToLowerInvariant().Replace("_", "-");
     private static string LegPhaseCss(string phase) => "legs-ph-" + phase.ToLowerInvariant();
 
-    private void ToggleIpqcPanel(long legId) =>
-        _ipqcPanelLegId = _ipqcPanelLegId == legId ? null : legId;
+    /// <summary>The leg whose IPQC workspace is open (null = none).</summary>
+    private LegRow? IpqcPanelLeg() => _ipqcPanelLegId is null || _view is null
+        ? null : _view.Legs.FirstOrDefault(l => l.LegId == _ipqcPanelLegId);
+
+    /// <summary>Close the per-leg IPQC workspace + re-pull legs so the leg card
+    /// readiness chips / phase reflect what the operator just ticked.</summary>
+    private async Task CloseIpqcPanelAsync()
+    {
+        _ipqcPanelLegId = null;
+        await LoadAsync();
+    }
 
     // ── P11-3 visual-DAG helpers (presentation only — no contract change) ──
 

@@ -6677,11 +6677,50 @@ tr.wc-row:hover { background: var(--c-bg); }
 .legs-ph-paused  { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-soft); }
 .legs-ph-leg_done { background: var(--ok-bg); color: var(--ok-ink); border: 1px solid var(--ok-soft); }
 
-/* per-leg IPQC drill-in (host the IpqcDashboard scoped to the leg) */
-.legs-ipqc-toggle { width: 100%; justify-content: flex-start; margin-top: 2px; }
-.legs-ipqc-panel {
-    margin-top: 8px; border: 1px solid var(--brand-soft); border-radius: 12px;
-    background: var(--c-surface); padding: 10px; max-height: 60vh; overflow: auto;
+/* per-leg IPQC drill-in — FULL-SCREEN focused workspace (worker touch surface) */
+.legs-ipqc-toggle { width: 100%; margin-top: 2px; }
+.legs-ipqc-toggle-ico { font-size: 1rem; }
+.legs-ipqc-overlay {
+    position: fixed; inset: 0; z-index: 70; background: rgba(30, 42, 58, .55);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.legs-ipqc-modal {
+    background: var(--c-bg); border: 1px solid var(--c-line); border-top: 4px solid var(--c-line);
+    border-radius: 16px; width: min(1200px, 96vw); height: min(88vh, 920px);
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 24px 64px rgba(30, 42, 58, .35);
+}
+.legs-ipqc-modal-head {
+    display: flex; align-items: center; gap: 12px; padding: 14px 18px;
+    background: var(--c-card); border-bottom: 1px solid var(--c-line); flex: 0 0 auto;
+}
+.legs-ipqc-modal-ico { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--c-surface); color: var(--c-muted); }
+.legs-ipqc-modal-ico svg { width: 22px; height: 22px; }
+.legs-ipqc-modal-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.legs-ipqc-modal-kind { font-size: 1.15rem; font-weight: 800; color: var(--c-ink); line-height: 1.1; }
+.legs-ipqc-modal-sub { display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--c-muted); font-weight: 600; }
+.legs-ipqc-modal-close { margin-left: auto; flex: 0 0 auto; min-height: 44px; }
+.legs-ipqc-modal-body { flex: 1 1 auto; overflow: auto; padding: 16px 18px; background: var(--c-bg); }
+
+/* kind accent on the modal top border + icon (reuse per-kind tints) */
+.legs-ipqc-modal.legs-kind-print { border-top-color: var(--brand); }
+.legs-ipqc-modal.legs-kind-print .legs-ipqc-modal-ico { background: var(--brand-bg); color: var(--brand); }
+.legs-ipqc-modal.legs-kind-tape { border-top-color: var(--accent); }
+.legs-ipqc-modal.legs-kind-tape .legs-ipqc-modal-ico { background: var(--accent-bg); color: var(--accent-ink); }
+.legs-ipqc-modal.legs-kind-cut { border-top-color: var(--warn-fg); }
+.legs-ipqc-modal.legs-kind-cut .legs-ipqc-modal-ico { background: var(--warn-bg); color: var(--warn-fg); }
+.legs-ipqc-modal.legs-kind-assembly { border-top-color: var(--indigo); }
+.legs-ipqc-modal.legs-kind-assembly .legs-ipqc-modal-ico { background: var(--indigo-bg); color: var(--indigo); }
+
+/* comfortable multi-column item grid + big touch targets inside the modal */
+.legs-ipqc-modal .ipqc-item-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; align-items: start; }
+.legs-ipqc-modal .ipqc-item-group-head { grid-column: 1 / -1; }
+.legs-ipqc-modal .op-btn { min-height: 48px; }
+
+@container (max-width: 640px) {
+    .legs-ipqc-overlay { padding: 0; }
+    .legs-ipqc-modal { width: 100vw; height: 100vh; border-radius: 0; border-top-width: 4px; }
+    .legs-ipqc-modal .ipqc-item-group { grid-template-columns: 1fr; }
 }
 
 /* per-leg readiness chips (this leg's own Pre-press + IPQC surface) */
