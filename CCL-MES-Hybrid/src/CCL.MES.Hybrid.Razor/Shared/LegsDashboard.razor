@@ -16,9 +16,12 @@
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.Routing
+@using CCL.MES.Hybrid.Client.Windows
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.Routing
 @inject ICclApiClient Api
+@inject IFloatingWindowStore WinStore
+@inject IJSRuntime JS
 
 <div class="legs-dashboard" data-testid="legs-dashboard">
     @if (_view is null && _initialError is null)
@@ -160,14 +163,14 @@
                                     }
                                 </div>
 
-                                @* P11 drill-in: khi leg ở IPQC_WAIT, mở bộ IPQC
-                                   RIÊNG của leg trong CỬA SỔ TOÀN MÀN HÌNH (đủ chỗ
-                                   cho công nhân đọc + tick), không nhồi trong thẻ. *@
+                                @* P11 drill-in: khi leg ở IPQC_WAIT, mở bộ IPQC RIÊNG
+                                   của leg trong SHOWCARD nổi (FloatingWindow, L34):
+                                   kéo/resize/traffic-light/nhiều cửa sổ + nhớ vị trí. *@
                                 @if (leg.LegPhase == "IPQC_WAIT")
                                 {
                                     <button type="button" class="btn btn-primary legs-ipqc-toggle"
                                             data-testid="leg-ipqc-toggle-@leg.Sequence"
-                                            @onclick="() => _ipqcPanelLegId = leg.LegId">
+                                            @onclick="() => OpenIpqcWinAsync(leg)">
                                         <span class="legs-ipqc-toggle-ico" aria-hidden="true">🔍</span> @T("legs.ipqc.open")
                                     </button>
                                 }
@@ -249,33 +252,21 @@
             </div>
         }
 
-        @* P11 per-leg IPQC — full-screen focused workspace (đủ chỗ cho công nhân). *@
-        @if (IpqcPanelLeg() is { } ipqcLeg)
+        @* P11 per-leg IPQC — SHOWCARD nổi (L34): nhiều leg mở cùng lúc, độc lập,
+           bring-to-front, nhớ vị trí/kích thước qua IFloatingWindowStore. *@
+        @foreach (var w in _ipqcWins)
         {
-            <div class="legs-ipqc-overlay" data-testid="legs-ipqc-overlay" @onclick="CloseIpqcPanelAsync">
-                <div class="legs-ipqc-modal @LegKindCss(ipqcLeg.LegKind)" @onclick:stopPropagation="true" role="dialog"
-                     data-testid="leg-ipqc-panel-@ipqcLeg.Sequence">
-                    <div class="legs-ipqc-modal-head">
-                        <span class="legs-ipqc-modal-ico" aria-hidden="true">@((MarkupString)LegKindIcon(ipqcLeg.LegKind))</span>
-                        <div class="legs-ipqc-modal-title">
-                            <span class="legs-ipqc-modal-kind">@LegKindLabel(ipqcLeg.LegKind)</span>
-                            <span class="legs-ipqc-modal-sub">
-                                <span class="legs-line">@ipqcLeg.ProcessLine</span>
-                                <span>@ipqcLeg.Method · @T("legs.ipqc.modal.title")</span>
-                            </span>
-                        </div>
-                        <button type="button" class="btn btn-ghost legs-ipqc-modal-close"
-                                data-testid="legs-ipqc-close" @onclick="CloseIpqcPanelAsync">
-                            ✕ @T("legs.ipqc.close")
-                        </button>
-                    </div>
-                    <div class="legs-ipqc-modal-body">
-                        <IpqcDashboard WorkOrderId="WorkOrderId" WoLegId="ipqcLeg.LegId"
-                                       ScrapReasons="ScrapReasons"
-                                       OnPhaseChanged="OnPhaseChanged" />
-                    </div>
-                </div>
-            </div>
+            @if (LegOf(w.LegId) is { } wleg)
+            {
+                <IpqcLegShowcard @key="w.Id" WorkOrderId="WorkOrderId" WoLegId="w.LegId"
+                                 KindLabel="@LegKindLabel(wleg.LegKind)" IconSvg="@LegKindIcon(wleg.LegKind)"
+                                 KindCss="@LegKindCss(wleg.LegKind)" Method="@wleg.Method" ProcessLine="@wleg.ProcessLine"
+                                 ScrapReasons="ScrapReasons"
+                                 WindowId="@w.Id" Rect="w.Rect" CascadeIndex="w.Cascade"
+                                 OnRectChanged="r => OnWinRectChanged(w.LegId, r)"
+                                 OnClose="() => CloseIpqcWinAsync(w.Id)"
+                                 OnPhaseChanged="OnPhaseChanged" />
+            }
         }
     }
 </div>
@@ -292,8 +283,38 @@
     [Parameter] public IReadOnlyList<CCL.MES.Shared.ReasonCodes.ReasonCodeOption> ScrapReasons { get; set; }
         = Array.Empty<CCL.MES.Shared.ReasonCodes.ReasonCodeOption>();
 
-    /// <summary>P11 drill-in: the leg whose per-leg IPQC panel is expanded.</summary>
-    private long? _ipqcPanelLegId;
+    /// <summary>P11 per-leg IPQC showcards open now (L34 floating windows). Each
+    /// carries a stable Id shared with floating-window.js + its restored rect.</summary>
+    private sealed record OpenLegWin(long LegId, string Id, WindowRect? Rect, int Cascade);
+    private readonly List<OpenLegWin> _ipqcWins = new();
+    private const int MaxIpqcWins = 4;
+
+    private LegRow? LegOf(long legId) => _view?.Legs.FirstOrDefault(l => l.LegId == legId);
+    private string WinKey(long legId) => $"ipqc-leg-{WorkOrderId}-{legId}";
+
+    /// <summary>Open (or bring-to-front) the leg's IPQC showcard.</summary>
+    private async Task OpenIpqcWinAsync(LegRow leg)
+    {
+        var existing = _ipqcWins.FirstOrDefault(w => w.LegId == leg.LegId);
+        if (existing is not null)
+        {
+            try { await JS.InvokeVoidAsync("cclMesFloat.bringToFront", existing.Id); } catch { /* JS absent */ }
+            return;
+        }
+        if (_ipqcWins.Count >= MaxIpqcWins) return;
+        _ipqcWins.Add(new OpenLegWin(leg.LegId, Guid.NewGuid().ToString("N"),
+            WinStore.Get(WinKey(leg.LegId)), _ipqcWins.Count));
+    }
+
+    /// <summary>Close a showcard + re-pull legs so the leg-card readiness/phase
+    /// reflect what the operator just ticked.</summary>
+    private async Task CloseIpqcWinAsync(string id)
+    {
+        _ipqcWins.RemoveAll(w => w.Id == id);
+        await LoadAsync();
+    }
+
+    private void OnWinRectChanged(long legId, WindowRect rect) => WinStore.Save(WinKey(legId), rect);
 
     private LegsView? _view;
     private string? _initialError;
@@ -463,18 +484,6 @@
 
     private static string LegKindCss(string kind) => "legs-kind-" + kind.ToLowerInvariant().Replace("_", "-");
     private static string LegPhaseCss(string phase) => "legs-ph-" + phase.ToLowerInvariant();
-
-    /// <summary>The leg whose IPQC workspace is open (null = none).</summary>
-    private LegRow? IpqcPanelLeg() => _ipqcPanelLegId is null || _view is null
-        ? null : _view.Legs.FirstOrDefault(l => l.LegId == _ipqcPanelLegId);
-
-    /// <summary>Close the per-leg IPQC workspace + re-pull legs so the leg card
-    /// readiness chips / phase reflect what the operator just ticked.</summary>
-    private async Task CloseIpqcPanelAsync()
-    {
-        _ipqcPanelLegId = null;
-        await LoadAsync();
-    }
 
     // ── P11-3 visual-DAG helpers (presentation only — no contract change) ──
 

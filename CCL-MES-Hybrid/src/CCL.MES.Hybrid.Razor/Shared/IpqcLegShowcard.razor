@@ -1,0 +1,60 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Hybrid.Client.Windows
+@using CCL.MES.Shared.ReasonCodes
+
+@*
+    P11 per-leg IPQC inspector as a proper L34 SHOWCARD — the body (leg header +
+    "QC line auto-loaded" + item OK/NG grid + "Items confirmed x/y") is wrapped in
+    the shared <FloatingWindow> so it gets drag / 8-way resize / traffic-lights /
+    Esc+arrows / rect persistence for free. NEVER hand-roll window chrome.
+    See .claude/skills/cmes-floating-showcard. The parent (LegsDashboard) owns the
+    multi-window state + IFloatingWindowStore persistence (mirror QualityTraceability).
+*@
+
+<FloatingWindow AriaLabel="@T("legs.ipqc.aria", KindLabel)"
+                WindowId="@WindowId" Rect="Rect" CascadeIndex="CascadeIndex"
+                OnClose="OnClose" OnRectChanged="OnRectChanged"
+                MinWidth="560" MinHeight="440">
+    <HeaderContent>
+        <div class="legs-ipqc-fw-head @KindCss">
+            <span class="legs-ipqc-fw-ico" aria-hidden="true">@((MarkupString)IconSvg)</span>
+            <div class="legs-ipqc-fw-title">
+                <span class="legs-ipqc-fw-kind" data-testid="legs-ipqc-showcard-kind">@KindLabel</span>
+                <span class="legs-ipqc-fw-sub">
+                    <span class="legs-line">@ProcessLine</span>
+                    <span>@Method · @T("legs.ipqc.modal.title")</span>
+                </span>
+            </div>
+        </div>
+    </HeaderContent>
+    <ChildContent>
+        <div class="legs-ipqc-body" data-testid="legs-ipqc-showcard-body">
+            <IpqcDashboard WorkOrderId="WorkOrderId" WoLegId="WoLegId"
+                           ScrapReasons="ScrapReasons" OnPhaseChanged="OnPhaseChanged" />
+        </div>
+    </ChildContent>
+</FloatingWindow>
+
+@code {
+    [Parameter, EditorRequired] public long WorkOrderId { get; set; }
+    [Parameter, EditorRequired] public long WoLegId { get; set; }
+
+    // Presentational identity of the leg (computed by the parent from LegRow).
+    [Parameter] public string KindLabel { get; set; } = "";
+    [Parameter] public string IconSvg { get; set; } = "";
+    [Parameter] public string KindCss { get; set; } = "";
+    [Parameter] public string Method { get; set; } = "";
+    [Parameter] public string ProcessLine { get; set; } = "";
+
+    [Parameter] public IReadOnlyList<ReasonCodeOption> ScrapReasons { get; set; } = Array.Empty<ReasonCodeOption>();
+
+    // Pass-through so the PARENT owns multi-window state + persistence (L34).
+    [Parameter] public string WindowId { get; set; } = Guid.NewGuid().ToString("N");
+    [Parameter] public WindowRect? Rect { get; set; }
+    [Parameter] public int CascadeIndex { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<WindowRect> OnRectChanged { get; set; }
+
+    /// <summary>Bubble leg phase change (advance/judgment) up to WorkOrders.razor (L21).</summary>
+    [Parameter] public EventCallback OnPhaseChanged { get; set; }
+}

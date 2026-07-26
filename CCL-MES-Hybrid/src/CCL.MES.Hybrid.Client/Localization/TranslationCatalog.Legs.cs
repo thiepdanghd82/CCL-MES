@@ -24,6 +24,7 @@ public sealed partial class TranslationCatalog
         Add("legs.ipqc.open",                "Kiểm IPQC công đoạn",                                          "Open leg IPQC");
         Add("legs.ipqc.close",               "Đóng",                                                         "Close");
         Add("legs.ipqc.modal.title",         "Kiểm tra IPQC",                                                "IPQC inspection");
+        Add("legs.ipqc.aria",                "Kiểm IPQC công đoạn {0}",                                      "Leg IPQC inspection — {0}");
 
         Add("legs.terminal",                 "⤳ cuối",                                                       "⤳ final");
         Add("legs.terminal.title",           "Công đoạn cuối — quyết định gộp FQC",                          "Final leg — decides the FQC join");
