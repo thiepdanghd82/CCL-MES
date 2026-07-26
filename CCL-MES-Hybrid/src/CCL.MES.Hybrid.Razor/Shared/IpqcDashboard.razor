@@ -559,7 +559,9 @@
         try
         {
             _view = await Api.GetIpqcViewAsync(WorkOrderId, WoLegId);
-            _invalidPhase = _view.MesPhase != "IPQC_WAIT";
+            // Per-leg: the WO stays SPLIT while the LEG sits at IPQC_WAIT, so the
+            // WO-phase guard must not fire (the leg phase is enforced server-side).
+            _invalidPhase = WoLegId is null && _view.MesPhase != "IPQC_WAIT";
         }
         catch (ApiException apiEx)
         {
