@@ -1,8 +1,11 @@
 using System.Globalization;
+using CCL.MES.Application;
 using CCL.MES.Application.SpecDetail;
 using CCL.MES.Application.SpecExport;
 using CCL.MES.Domain;
 using CCL.MES.Infrastructure.SpecExport;
+using MigraDoc.DocumentObjectModel;
+using MigraDoc.DocumentObjectModel.Tables;
 using Xunit;
 
 namespace CCL.MES.Tests.Integration;
@@ -235,4 +238,70 @@ public class SpecPdfDispatchTests
             PaperSpeed: 30.0, CuttingSpeed: 30.0, CuttingPressure: 4.5,
             HeadTension: null, RollTension: null)).ToList(),
     };
+
+    // ── PR (detail-2page): landscape + auto-fit ≤ 2 pages + hairline ─────
+
+    [Fact]
+    public void Detail_sheet_is_A4_landscape()
+    {
+        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx);
+        Assert.Equal(Orientation.Landscape, doc.LastSection.PageSetup.Orientation);
+        Assert.Equal(PageFormat.A4, doc.LastSection.PageSetup.PageFormat);
+    }
+
+    [Fact]
+    public void Silk_sheet_fits_two_pages_at_normal_step()
+    {
+        // BuildSilk() carries 10 colours + the full 9 sections. Landscape +
+        // the 21-col one-line-per-row table must land ≤ 2 pages WITHOUT any
+        // font step-down (step 0).
+        using var pdf = PdfSpecSheetExporter.RenderFitted(BuildSilk(), Ctx, out var step);
+        Assert.True(pdf.PageCount <= 2, $"expected ≤2 pages, got {pdf.PageCount}");
+        Assert.Equal(0, step);
+    }
+
+    [Fact]
+    public void Long_silk_spec_auto_fits_two_pages_by_shrinking_font()
+    {
+        // A deliberately long spec (24 colours + 12 revisions + 15 audit rows)
+        // that would overflow at the normal font. The exporter's auto-fit must
+        // shrink the body font (step > 0) until it fits ≤ 2 pages — never 3+.
+        using var pdf = PdfSpecSheetExporter.RenderFitted(BuildLongSilk(), Ctx, out var step);
+        Assert.True(pdf.PageCount <= 2, $"expected ≤2 pages, got {pdf.PageCount}");
+    }
+
+    [Fact]
+    public void Detail_tables_use_hairline_borders()
+    {
+        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx);
+        var tables = doc.LastSection.Elements.OfType<Table>().ToList();
+        Assert.NotEmpty(tables);
+        // Every bordered data table draws a hairline (≤ 0.25pt). The doc-header
+        // layout table has Borders.Width = 0 (only a navy bottom rule), so it
+        // is naturally excluded by the > 0 guard.
+        foreach (var t in tables.Where(t => t.Borders.Width.Point > 0))
+            Assert.True(t.Borders.Width.Point <= 0.25 + 1e-9,
+                $"table border {t.Borders.Width.Point}pt exceeds hairline 0.25");
+    }
+
+    private static SpecDetailDto BuildLongSilk()
+    {
+        var s = BuildSilk();
+        s.PrintColors = Enumerable.Range(1, 24).Select(i => new SpecPrintColorRow(
+            Seq: i, Surface: "Top", Color: $"Long Colour Name {i}", InkName: $"Ink Name {i}",
+            InkCode: $"IC-{i:D3}", Maker: "Sakata", Retarder: "R-A", Viscosity: 22.0, Speed: 80.0,
+            Squeegee: "YR", Dry: "OVEN", TemperatureC: 80.0, TimeMin: 5, Uv: "Y",
+            EmulsionUm: 12.0, PlateSize: "300x300", Mesh: "180T", AngleDeg: 22.5,
+            PlateCode: $"PL-{i:D3}", ControlNo: i, Remark: "batch note")).ToList();
+        s.Lineage = Enumerable.Range(1, 12).Select(i => new RevisionLineageEntry(
+            Id: i, RevisionCode: ((char)('A' + i - 1)).ToString(),
+            ChangeSummary: $"Revision {i} — adjusted ink + plate parameters for run {i}",
+            CreatedAt: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(i),
+            CreatedBy: "verify")).ToList();
+        s.AuditEntries = Enumerable.Range(1, 15).Select(i => new SpecAuditEntry(
+            Timestamp: new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc).AddHours(i),
+            Action: "SPEC_EXPORT", ActorUsername: "admin", ActorRole: "Engineer",
+            Detail: null)).ToList();
+        return s;
+    }
 }
