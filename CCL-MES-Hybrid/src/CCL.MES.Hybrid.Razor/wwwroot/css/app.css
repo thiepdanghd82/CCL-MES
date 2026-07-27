@@ -3213,6 +3213,14 @@ html, body {
 
 .spec-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
 
+/* Print Process / flexo tables are wide (up to 21 cols). Keep every row on
+   ONE line (content-sized columns via the default auto layout); when the
+   viewport is too narrow the .spec-table-scroll wrapper scrolls horizontally
+   instead of wrapping cells. This is the same shape the print sheet uses, so
+   on-screen Full view and the printed PDF stay WYSIWYG. */
+.spec-print-table-full th,
+.spec-print-table-full td { white-space: nowrap; }
+
 .spec-table-scroll {
     overflow-x: auto;
     border: 1px solid var(--c-line);
@@ -6866,30 +6874,54 @@ tr.wc-row:hover { background: var(--c-bg); }
         print-color-adjust: exact !important;
     }
 
-    /* Wide tables must fit the sheet — fixed layout + wrapping so no column
-       spills off the page edge. Unclip the on-screen horizontal scroller so
-       the WHOLE table prints (landscape has the width for it). */
+    /* Unclip the on-screen horizontal scroller so the WHOLE table prints
+       (landscape has the width for the 21-column process table). */
     .spec-table-scroll { overflow: visible !important; }
+
+    /* Print Process / flexo tables — content-sized columns, ONE line per row
+       (WYSIWYG with the on-screen Full view). NOT table-layout:fixed (that
+       divides width evenly → long cells wrap 2-3 lines). Header + body share
+       ONE uniform font token; if a row is still too wide for the page, drop
+       the token value rather than wrap. */
+    .spec-print-table-full {
+        width: 100% !important;
+        table-layout: auto !important;
+        font-size: var(--spec-print-table-fs) !important;
+    }
+    .spec-print-table-full th,
+    .spec-print-table-full td {
+        white-space: nowrap !important;      /* one line per row — no wrap */
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+        font-size: var(--spec-print-table-fs) !important;   /* uniform */
+        padding: 1.5px 5px !important;
+    }
+
+    /* Product Info + Revision — content-sized columns too; long cells
+       (Material) may wrap onto a second line, short columns stay on one. */
     .spec-info-table-full,
-    .spec-print-table-full,
     .spec-rev-table-full {
         width: 100% !important;
-        table-layout: fixed !important;
-        font-size: 6.5pt !important;
+        table-layout: auto !important;
+        font-size: var(--spec-print-table-fs) !important;
     }
     .spec-info-table-full th, .spec-info-table-full td,
-    .spec-print-table-full th, .spec-print-table-full td,
     .spec-rev-table-full th, .spec-rev-table-full td {
-        word-break: break-word !important;
-        overflow-wrap: anywhere !important;
-        padding: 1.5px 2.5px !important;
+        padding: 1.5px 5px !important;
     }
 
     /* ── Vertical compaction — squeeze the stacked sections so the whole
        sheet lands in ~2 LANDSCAPE pages (landscape trades height for width,
        so the sheet MUST be short vertically). Fonts/paddings shrink; the
        colour bands + table structure stay intact. ── */
-    .spec-showcard-full { font-size: 8pt !important; line-height: 1.2 !important; }
+    .spec-showcard-full {
+        font-size: 8pt !important;
+        line-height: 1.2 !important;
+        /* Single uniform font-size token for every data table on the sheet.
+           6pt keeps the 21-col process row on ONE landscape line without
+           clipping; bump here (one place) if a customer needs larger print. */
+        --spec-print-table-fs: 6pt;
+    }
     .spec-doc-header { padding: 4px 10px !important; }
     .spec-doc-category { font-size: 12pt !important; }
     .spec-doc-co, .spec-doc-header-right { font-size: 8pt !important; }
@@ -6903,6 +6935,12 @@ tr.wc-row:hover { background: var(--c-bg); }
     }
     .spec-params-grid, .spec-signoff-grid { gap: 5px !important; }
     .spec-params-grid > *, .spec-signoff-grid > * { padding: 4px 8px !important; }
+    /* Print Params values were oversized vs the label — bring them to a
+       consistent, compact scale (label 7pt / value 9.5pt) like the design. */
+    .spec-params-grid .lbl { font-size: 7pt !important; }
+    .spec-params-grid .lbl .muted { font-size: 6pt !important; }
+    .spec-params-grid .val { font-size: 9.5pt !important; }
+    .spec-silk-legend { font-size: 7pt !important; padding: 3px 8px !important; }
     .spec-remarks-full { padding: 3px 8px !important; }
     .spec-audit-action { font-size: 7.5pt !important; }
 
