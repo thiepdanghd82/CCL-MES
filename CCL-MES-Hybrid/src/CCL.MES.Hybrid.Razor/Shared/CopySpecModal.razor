@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @using CCL.MES.Hybrid.Client.Specs
 
@@ -9,31 +10,31 @@
 
 <Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Info"
        ClickOutsideToClose="false">
-    <Header>Copy Spec @SourceSpec?.SpecCode</Header>
+    <Header>@T("copyspec.header") @SourceSpec?.SpecCode</Header>
     <Body>
         @if (_loadProductsError is not null)
         {
             <div class="modal-banner modal-banner-error" role="alert">
-                <strong>Failed to load the product list.</strong>
+                <strong>@T("copyspec.load.failed")</strong>
                 <div>@_loadProductsError</div>
-                <button type="button" class="grid-btn" @onclick="LoadProductsAsync">Retry</button>
+                <button type="button" class="grid-btn" @onclick="LoadProductsAsync">@T("copyspec.retry")</button>
             </div>
         }
         else if (_products is null)
         {
-            <p class="grid-status">Loading product list…</p>
+            <p class="grid-status">@T("copyspec.loading")</p>
         }
         else if (SourceSpec is null)
         {
-            <p class="grid-status">No source Spec yet.</p>
+            <p class="grid-status">@T("copyspec.nosource")</p>
         }
         else
         {
             <form @onsubmit:preventDefault="true">
                 <div class="modal-field">
-                    <label for="cp-product">Target product <span class="modal-req">*</span></label>
+                    <label for="cp-product">@T("copyspec.field.product") <span class="modal-req">*</span></label>
                     <select id="cp-product" class="modal-input" @bind="_productId" disabled="@_submitting">
-                        <option value="0">— Select product —</option>
+                        <option value="0">@T("copyspec.product.select")</option>
                         @foreach (var p in _products)
                         {
                             <option value="@p.Id">@p.ProductCode · @p.Name</option>
@@ -41,12 +42,12 @@
                     </select>
                 </div>
                 <div class="modal-field">
-                    <label for="cp-code">New Spec Code <span class="modal-req">*</span></label>
+                    <label for="cp-code">@T("copyspec.field.speccode") <span class="modal-req">*</span></label>
                     <input id="cp-code" type="text" class="modal-input" maxlength="64"
                            @bind="_specCode" @bind:event="oninput" disabled="@_submitting" />
                 </div>
                 <div class="modal-field">
-                    <label for="cp-title">New Title <span class="modal-req">*</span></label>
+                    <label for="cp-title">@T("copyspec.field.title") <span class="modal-req">*</span></label>
                     <input id="cp-title" type="text" class="modal-input" maxlength="200"
                            @bind="_title" @bind:event="oninput" disabled="@_submitting" />
                 </div>
@@ -59,10 +60,10 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">@T("copyspec.cancel")</button>
         <button type="button" class="op-btn op-btn-primary"
                 disabled="@(!CanSubmit())" @onclick="SubmitAsync">
-            @(_submitting ? "Copying…" : "Copy")
+            @(_submitting ? T("copyspec.copying") : T("copyspec.copy"))
         </button>
     </Footer>
 </Modal>

@@ -488,10 +488,11 @@ public sealed class CclApiClient : ICclApiClient
     // ── IPQC review + QA approval (P10.7d-3) ───────────────────────
 
     public async Task<IpqcView> GetIpqcViewAsync(
-        long workOrderId, CancellationToken ct = default)
+        long workOrderId, long? legId = null, CancellationToken ct = default)
     {
+        var q = legId is null ? "" : $"?legId={legId}";
         using var resp = await _http.GetAsync(
-            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc", ct);
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc{q}", ct);
         return await ReadAsAsync<IpqcView>(resp, ct);
     }
 
@@ -529,10 +530,10 @@ public sealed class CclApiClient : ICclApiClient
 
     public Task<IpqcSetResponse> PutIpqcItemAsync(
         long workOrderId, string ifMatchETag, string itemKey,
-        SetIpqcItemRequest req, CancellationToken ct = default)
+        SetIpqcItemRequest req, long? legId = null, CancellationToken ct = default)
         => SendIpqcMutationAsync(
             HttpMethod.Put,
-            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/item/{Uri.EscapeDataString(itemKey)}",
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/item/{Uri.EscapeDataString(itemKey)}{(legId is null ? "" : $"?legId={legId}")}",
             ifMatchETag, req, ct);
 
     public Task<IpqcSetResponse> PostIpqcJudgmentAsync(

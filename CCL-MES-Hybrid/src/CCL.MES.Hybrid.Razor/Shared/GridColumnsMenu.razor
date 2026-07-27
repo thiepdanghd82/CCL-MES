@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @*
     P10.5a — Dropdown column-visibility toggle. Used by every NPI grid
     so the operator can hide rarely-used columns. Persists via
@@ -14,12 +15,12 @@
     <button type="button" class="grid-btn"
             aria-expanded="@_open" aria-haspopup="true"
             @onclick="ToggleMenu">
-        Columns (@Columns.Visible.Count / @Columns.All.Count)
+        @T("gridcols.button", Columns.Visible.Count, Columns.All.Count)
     </button>
     @if (_open)
     {
         <div class="grid-cols-popover" role="menu" @onclick:stopPropagation="true">
-            <div class="grid-cols-popover-title">Show / Hide columns</div>
+            <div class="grid-cols-popover-title">@T("gridcols.title")</div>
             <ul class="grid-cols-list">
                 @foreach (var col in Columns.All)
                 {
@@ -34,8 +35,8 @@
                 }
             </ul>
             <div class="grid-cols-popover-foot">
-                <button type="button" class="grid-btn grid-btn-link" @onclick="OnReset">Default</button>
-                <button type="button" class="grid-btn" @onclick="CloseMenu">Close</button>
+                <button type="button" class="grid-btn grid-btn-link" @onclick="OnReset">@T("gridcols.default")</button>
+                <button type="button" class="grid-btn" @onclick="CloseMenu">@T("common.close")</button>
             </div>
         </div>
     }

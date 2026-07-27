@@ -1,5 +1,6 @@
 @page "/quality/traceability"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,QC")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Quality
 @using CCL.MES.Hybrid.Client.Hardware
 @using CCL.MES.Hybrid.Client.Realtime
@@ -9,7 +10,6 @@
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
 @inject IJSRuntime JS
 @inject CCL.MES.Hybrid.Client.Windows.IFloatingWindowStore WinStore
-@implements IDisposable
 
 @*
     Quality → Traceability. Lists Work Orders that have ≥1 FROZEN snapshot
@@ -19,28 +19,28 @@
     (no live source read). A phase not yet frozen shows an empty-state tab.
 *@
 
-<PageTitle>Traceability data — Quality</PageTitle>
-<h1 class="page-title">Traceability data</h1>
+<PageTitle>@T("qualtrace.page.title")</PageTitle>
+<h1 class="page-title">@T("qualtrace.heading")</h1>
 
 <div class="grid-toolbar">
     <GridSearchBox @bind-Value="_search" OnSearch="OnSearchAsync"
-                   Placeholder="Scan or type Work Order…" />
+                   Placeholder="@T("qualtrace.search.placeholder")" />
     @if (HwOptions.Value.ScanEnabled)
     {
         <button type="button" class="grid-btn" @onclick="OnScanAsync" disabled="@(_scanning || _loading)">
-            @(_scanning ? "Scanning…" : "⧉ Scan")
+            @(_scanning ? T("qualtrace.scanning") : $"⧉ {T("qualtrace.scan")}")
         </button>
     }
-    <button type="button" class="grid-btn" @onclick="OnSearchAsync" disabled="@_loading">Search</button>
+    <button type="button" class="grid-btn" @onclick="OnSearchAsync" disabled="@_loading">@T("qualtrace.search")</button>
     @if (_wins.Count > 0)
     {
         <button type="button" class="grid-btn" @onclick="ResetWindowsAsync"
-                title="Đưa các cửa sổ về giữa màn hình">⤢ Reset windows</button>
+                title="@T("qualtrace.reset.title")">⤢ @T("qualtrace.reset")</button>
     }
     <div class="grid-toolbar-spacer"></div>
     <span class="trace-live @(Live.IsConnected ? "trace-live-on" : "trace-live-off")"
-          title="@(Live.IsConnected ? "Real-time updates on" : "Offline — polling every 20s")">
-        @(Live.IsConnected ? "● Live" : "○ Offline")
+          title="@(Live.IsConnected ? T("qualtrace.live.on.title") : T("qualtrace.live.off.title"))">
+        @(Live.IsConnected ? $"● {T("qualtrace.live.on")}" : $"○ {T("qualtrace.live.off")}")
     </span>
 </div>
 
@@ -48,14 +48,14 @@
 
 @if (_loading && _data is null)
 {
-    <p class="grid-status">Loading…</p>
+    <p class="grid-status">@T("qualtrace.loading")</p>
 }
 else if (_error is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Failed to load traceability data.</strong>
+        <strong>@T("qualtrace.load.failed")</strong>
         <div>@_error</div>
-        <button type="button" class="grid-btn" @onclick="OnSearchAsync">Retry</button>
+        <button type="button" class="grid-btn" @onclick="OnSearchAsync">@T("qualtrace.retry")</button>
     </div>
 }
 else if (_data is not null)
@@ -64,17 +64,17 @@ else if (_data is not null)
         <table class="grid grid-sticky trace-grid">
             <thead>
                 <tr>
-                    <th class="grid-h">Work Order</th>
-                    <th class="grid-h">Product</th>
-                    <th class="grid-h">MES phase</th>
-                    <th class="grid-h">Frozen phases</th>
-                    <th class="grid-h">Last scan</th>
+                    <th class="grid-h">@T("qualtrace.col.workorder")</th>
+                    <th class="grid-h">@T("qualtrace.col.product")</th>
+                    <th class="grid-h">@T("qualtrace.col.mesphase")</th>
+                    <th class="grid-h">@T("qualtrace.col.frozenphases")</th>
+                    <th class="grid-h">@T("qualtrace.col.lastscan")</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var r in _data.Items)
                 {
-                    <tr class="trace-row" @ondblclick="() => OpenDetail(r.WoNo)" title="Double-click for full detail">
+                    <tr class="trace-row" @ondblclick="() => OpenDetail(r.WoNo)" title="@T("qualtrace.row.dblclick")">
                         <td>
                             <div><code>@r.WoNo</code></div>
                             @if (!string.IsNullOrEmpty(r.Customer)) { <div class="trace-sub">@r.Customer</div> }
@@ -95,16 +95,16 @@ else if (_data is not null)
                 }
                 @if (_data.Items.Count == 0)
                 {
-                    <tr><td colspan="5" class="grid-empty">No work orders scanned yet.</td></tr>
+                    <tr><td colspan="5" class="grid-empty">@T("qualtrace.empty")</td></tr>
                 }
             </tbody>
         </table>
     </div>
 
     <div class="grid-pager">
-        <button type="button" class="grid-btn" disabled="@(_page <= 1 || _loading)" @onclick="() => GoToPageAsync(_page - 1)">‹ Previous</button>
-        <span class="grid-pager-text">Page @_page / @TotalPages — @_data.Total rows</span>
-        <button type="button" class="grid-btn" disabled="@(_page >= TotalPages || _loading)" @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
+        <button type="button" class="grid-btn" disabled="@(_page <= 1 || _loading)" @onclick="() => GoToPageAsync(_page - 1)">‹ @T("qualtrace.pager.previous")</button>
+        <span class="grid-pager-text">@T("qualtrace.pager.status", _page, TotalPages, _data.Total)</span>
+        <button type="button" class="grid-btn" disabled="@(_page >= TotalPages || _loading)" @onclick="() => GoToPageAsync(_page + 1)">@T("qualtrace.pager.next") ›</button>
     </div>
 }
 
@@ -184,7 +184,7 @@ else if (_data is not null)
         _loading = true; _error = null;
         try { _data = await Api.GetTraceabilityAsync(string.IsNullOrWhiteSpace(_search) ? null : _search, _page, PageSize); }
         catch (ApiException apiEx) { _error = apiEx.ApiError.MessageEn; }
-        catch (HttpRequestException ex) { _error = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _error = T("qualtrace.error.connect", ex.Message); }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _loading = false; }
     }
@@ -195,13 +195,13 @@ else if (_data is not null)
         try
         {
             var result = await Scanner.ScanOnceAsync();
-            if (result is null) { _scanStatus = "Scan cancelled or no hardware."; return; }
+            if (result is null) { _scanStatus = T("qualtrace.scan.cancelled"); return; }
             _search = result.Code.Trim();
-            _scanStatus = $"Scanned: {_search}";
+            _scanStatus = T("qualtrace.scan.scanned", _search);
             _page = 1;
             await LoadAsync();
         }
-        catch (Exception ex) { _scanStatus = $"Scan error: {ex.GetType().Name}: {ex.Message}"; }
+        catch (Exception ex) { _scanStatus = T("qualtrace.scan.error", $"{ex.GetType().Name}: {ex.Message}"); }
         finally { _scanning = false; }
     }
 
@@ -217,7 +217,7 @@ else if (_data is not null)
         }
         if (_wins.Count >= MaxWindows)
         {
-            _scanStatus = $"Đang mở tối đa {MaxWindows} cửa sổ — đóng bớt để mở thêm.";
+            _scanStatus = T("qualtrace.win.max", MaxWindows);
             return;
         }
         _scanStatus = null;
@@ -241,12 +241,13 @@ else if (_data is not null)
         }
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
         Live.Changed -= OnLiveChanged;
         Live.StateChanged -= OnLiveStateChanged;
         _debounce?.Dispose();
         _poll?.Dispose();
+        base.Dispose(); // unsubscribe from language changes (LocalizedComponentBase)
     }
 
     private static string PhaseLabel(string phase) => phase switch

@@ -35,6 +35,7 @@ public sealed class QaApprovalDashboardTests : TestContext
         var api = new RecordingApi();
         _session = new StubAuthSession();
         Services.AddSingleton<ICclApiClient>(api);
+        Services.AddI18n();
         Services.AddSingleton<IAuthSession>(_session);
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
             typeof(NullLogger<>));
@@ -98,7 +99,7 @@ public sealed class QaApprovalDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='qa-invalid-phase']");
-            Assert.Contains("not in the QA_PENDING phase", banner.TextContent);
+            Assert.Contains("WO không ở giai đoạn QA_PENDING", banner.TextContent);
         });
     }
 

@@ -3,6 +3,7 @@ using CCL.MES.Hybrid.Client.Files;
 using CCL.MES.Hybrid.Client.Grid;
 using CCL.MES.Hybrid.Client.Hardware;
 using CCL.MES.Hybrid.Client.Localization;
+using CCL.MES.Hybrid.Client.Printing;
 using CCL.MES.Hybrid.Client.RecentScans;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -95,6 +96,14 @@ public static class ServiceCollectionExtensions
         // in sandbox" UX without crashing.
         services.AddSingleton<IFileSaver, StubFileSaver>();
 
+        // P11.x — native WebView print abstraction. window.print() is a
+        // no-op inside WKWebView on Mac Catalyst, so the MAUI host replaces
+        // this with CatalystPrintService (UIPrintInteractionController +
+        // WKWebView.ViewPrintFormatter — WYSIWYG native print panel). Tests
+        // + non-Catalyst hosts keep the stub (IsNativePrintSupported=false)
+        // so the Spec sheet Print button falls back to the MigraDoc PDF.
+        services.AddSingleton<IPrintService, StubPrintService>();
+
         // P10.6f — Recent Scans sidebar widget store. MAUI host replaces
         // with MauiRecentScansService (Preferences-backed) so the list
         // survives app restarts. Tests + non-MAUI consumers keep the
@@ -107,6 +116,13 @@ public static class ServiceCollectionExtensions
         // MAUI hosts keep the in-memory default. Theme switcher is
         // out of scope for P10.6b — it ships in P10.6g.
         services.AddSingleton<ILanguageService, InMemoryLanguageService>();
+
+        // i18n Phase-2 (option B) — dict-based translator that swaps UI
+        // strings live off ILanguageService.Current. Catalog is immutable
+        // (singleton); translator is a stateless reader (singleton). This
+        // is the "future translation service" the P10.6b comment promised.
+        services.AddSingleton<ITranslationCatalog, TranslationCatalog>();
+        services.AddSingleton<ITranslator, Translator>();
 
         // Traceability floating showcards — per-session rect memory so a
         // re-opened Work Order restores where the operator left it. Singleton

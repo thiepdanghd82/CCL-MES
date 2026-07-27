@@ -388,6 +388,17 @@ DELETE FROM Users WHERE Username IN ($OQC_TEST_USERS);
 DELETE FROM AuditLogs WHERE Action IN ('WO_SPLIT_FORKED','WO_SPLIT_JOINED','WO_LEG_CREATED','WO_LEG_DONE','WO_LEG_PHASE_ADVANCED','WO_LEG_REWORK') AND Detail LIKE '%WO-P11%';
 DELETE FROM WoLegDependencies WHERE WorkOrderId IN (SELECT Id FROM WorkOrders WHERE WoNo LIKE 'WO-P11%');
 DELETE FROM WoLegs WHERE WorkOrderId IN (SELECT Id FROM WorkOrders WHERE WoNo LIKE 'WO-P11%');
+-- P11 tape-demo — seed-p11-tape-demo.sh --commit rows. Tags: WoNo prefix
+-- 'WO-DEMO-T3-', Product 'PDEMO-T3-', Customer 'CDEMO-', lot 'SEMI-DEMO-'.
+-- Child-first: allocations → lots → audit → edges → legs → WO → Product → Customer.
+DELETE FROM SemiAllocations WHERE WorkOrderId IN (SELECT Id FROM WorkOrders WHERE WoNo LIKE 'WO-DEMO-T3-%');
+DELETE FROM SemiLots WHERE LotNo LIKE 'SEMI-DEMO-%';
+DELETE FROM AuditLogs WHERE Action IN ('WO_SPLIT_FORKED','WO_SPLIT_JOINED','WO_LEG_CREATED','WO_LEG_DONE','WO_LEG_PHASE_ADVANCED','WO_LEG_REWORK','SEMI_LOT_POST','SEMI_LOT_RESERVE','SEMI_LOT_CONSUME') AND (Detail LIKE '%WO-DEMO-T3-%' OR Detail LIKE '%SEMI-DEMO-%');
+DELETE FROM WoLegDependencies WHERE WorkOrderId IN (SELECT Id FROM WorkOrders WHERE WoNo LIKE 'WO-DEMO-T3-%');
+DELETE FROM WoLegs WHERE WorkOrderId IN (SELECT Id FROM WorkOrders WHERE WoNo LIKE 'WO-DEMO-T3-%');
+DELETE FROM WorkOrders WHERE WoNo LIKE 'WO-DEMO-T3-%';
+DELETE FROM Products WHERE ProductCode LIKE 'PDEMO-T3-%';
+DELETE FROM Customers WHERE Code LIKE 'CDEMO-%';
 COMMIT;
 SQL
 PURGE_EXIT=$?

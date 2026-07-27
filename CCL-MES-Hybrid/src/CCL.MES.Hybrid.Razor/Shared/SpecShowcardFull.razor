@@ -19,13 +19,14 @@
     detail page toggles between the two.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Specs
 @using System.Globalization
 
 @if (Vm is null)
 {
     <div class="spec-showcard-full spec-showcard-empty">
-        <p>No showcard data yet.</p>
+        <p>@T("specfull.empty")</p>
     </div>
 }
 else
@@ -59,9 +60,9 @@ else
                     <div class="spec-doc-category-sub">@CategoryHeaderSubtitle(template)</div>
                 </div>
                 <div class="spec-doc-header-right">
-                    <div><strong>REF NO:</strong> <code>@(Vm.RefNo ?? "—")</code></div>
+                    <div><strong>@T("specfull.doc.refno")</strong> <code>@(Vm.RefNo ?? "—")</code></div>
                     <div>
-                        Spec: <strong>@(Vm.InspectionLevel ?? "—")</strong>
+                        @T("specfull.doc.spec"): <strong>@(Vm.InspectionLevel ?? "—")</strong>
                         <span class="spec-status-stamp @Vm.StatusCssClass">@Vm.StatusLabel</span>
                     </div>
                 </div>
@@ -71,7 +72,7 @@ else
         @* ─── 2. Compliance strip ─────────────────────────────────── *@
         @TryRender("compliance", () => @<text>
             <div class="spec-compliance-strip">
-                <span class="spec-compliance-label">Compliance:</span>
+                <span class="spec-compliance-label">@T("specfull.compliance.label")</span>
                 @foreach (var chip in Vm.ComplianceChips)
                 {
                     <span class="spec-compliance-chip-full">@chip</span>
@@ -85,8 +86,7 @@ else
             <div class="spec-generic-warning" role="note">
                 <span aria-hidden="true">⚠</span>
                 <span>
-                    The standard template for the <strong>@Vm.PlannerLabel</strong> line
-                    will be added once a real sample is available — showing the sections that already have data.
+                    @T("specfull.generic.warning.pre") <strong>@Vm.PlannerLabel</strong> @T("specfull.generic.warning.post")
                 </span>
             </div>
         }
@@ -94,18 +94,18 @@ else
         @* ─── 3. Product Information ──────────────────────────────── *@
         @TryRender("product-info", () => @<text>
             <div class="spec-block-full">
-                <div class="spec-block-title-full">Product Information</div>
+                <div class="spec-block-title-full">@T("specfull.product.title")</div>
                 @if (isInkBased || isGeneric)
                 {
                     <table class="spec-info-table-full">
                         <thead>
                             <tr>
-                                <th>Customer<span class="sub">Customer</span></th>
-                                <th>IFS code<span class="sub">IFS / Spec Code</span></th>
-                                <th>Part No<span class="sub">Part Code</span></th>
-                                <th>Part Name<span class="sub">Component Name</span></th>
-                                <th>Product Size<span class="sub">Product Size (mm)</span></th>
-                                <th>Substrate<span class="sub">Material</span></th>
+                                <th>@T("specfull.col.customer")<span class="sub">@T("specfull.col.customer.sub")</span></th>
+                                <th>@T("specfull.col.ifscode")<span class="sub">@T("specfull.col.ifscode.sub")</span></th>
+                                <th>@T("specfull.col.partno")<span class="sub">@T("specfull.col.partno.sub")</span></th>
+                                <th>@T("specfull.col.partname")<span class="sub">@T("specfull.col.partname.sub.component")</span></th>
+                                <th>@T("specfull.col.productsize")<span class="sub">@T("specfull.col.productsize.sub")</span></th>
+                                <th>@T("specfull.col.substrate")<span class="sub">@T("specfull.col.substrate.sub")</span></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -125,15 +125,15 @@ else
                     <table class="spec-info-table-full">
                         <thead>
                             <tr>
-                                <th>Customer<span class="sub">Customer</span></th>
-                                <th>IFS code<span class="sub">IFS / Spec Code</span></th>
-                                <th>Part No<span class="sub">Part Code</span></th>
-                                <th>Part Name<span class="sub">Product Name</span></th>
-                                <th>Material<span class="sub">Material</span></th>
-                                <th>Mat. Size<span class="sub">Material Size</span></th>
-                                <th>Lam.<span class="sub">Lamination</span></th>
-                                <th>Lam. Size</th>
-                                <th>Lam. Cav.</th>
+                                <th>@T("specfull.col.customer")<span class="sub">@T("specfull.col.customer.sub")</span></th>
+                                <th>@T("specfull.col.ifscode")<span class="sub">@T("specfull.col.ifscode.sub")</span></th>
+                                <th>@T("specfull.col.partno")<span class="sub">@T("specfull.col.partno.sub")</span></th>
+                                <th>@T("specfull.col.partname")<span class="sub">@T("specfull.col.partname.sub.product")</span></th>
+                                <th>@T("specfull.col.material")<span class="sub">@T("specfull.col.material.sub")</span></th>
+                                <th>@T("specfull.col.matsize")<span class="sub">@T("specfull.col.matsize.sub")</span></th>
+                                <th>@T("specfull.col.lam")<span class="sub">@T("specfull.col.lam.sub")</span></th>
+                                <th>@T("specfull.col.lamsize")</th>
+                                <th>@T("specfull.col.lamcav")</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -159,28 +159,28 @@ else
         {
             @TryRender("print-params", () => @<text>
                 <div class="spec-block-full">
-                    <div class="spec-block-title-full">Print Parameters</div>
+                    <div class="spec-block-title-full">@T("specfull.printparams.title")</div>
                     <div class="spec-params-grid">
                         <div>
-                            <div class="lbl">Printing cavity<span class="muted">Quantity per print</span></div>
+                            <div class="lbl">@T("specfull.printparams.cavity")<span class="muted">@T("specfull.printparams.cavity.sub")</span></div>
                             <div class="val">@OrDash(Vm.PrintParams.PrintingCavity?.ToString(CultureInfo.InvariantCulture))</div>
                         </div>
                         <div>
-                            <div class="lbl">Length pitch<span class="muted">Pitch (mm)</span></div>
+                            <div class="lbl">@T("specfull.printparams.pitch")<span class="muted">@T("specfull.printparams.pitch.sub")</span></div>
                             <div class="val">@(Vm.PrintParams.LengthPitchMm is null ? "—" : Vm.PrintParams.LengthPitchMm.Value.ToString("N1", CultureInfo.InvariantCulture))</div>
                         </div>
                         <div>
-                            <div class="lbl">Product size<span class="muted">Product Size</span></div>
+                            <div class="lbl">@T("specfull.printparams.productsize")<span class="muted">@T("specfull.printparams.productsize.sub")</span></div>
                             <div class="val">@Vm.ProductSizeDisplay</div>
                         </div>
                         <div>
-                            <div class="lbl">Adhesive<span class="muted">Adhesive</span></div>
+                            <div class="lbl">@T("specfull.printparams.adhesive")<span class="muted">@T("specfull.printparams.adhesive.sub")</span></div>
                             <div class="val">@OrDash(Vm.PrintParams.AdhesiveType)</div>
                         </div>
                     </div>
                     <div class="spec-silk-legend">
-                        <strong>Squeegee codes:</strong> A=65° / B=75° / C=85° ·
-                        <strong>Drying codes:</strong> N=Heat / U=UV / S=Self-dry
+                        <strong>@T("specfull.silk.legend.squeegee")</strong> A=65° / B=75° / C=85° ·
+                        <strong>@T("specfull.silk.legend.drying")</strong> N=@T("specfull.silk.legend.heat") / U=UV / S=@T("specfull.silk.legend.selfdry")
                     </div>
                 </div>
             </text>)
@@ -192,18 +192,18 @@ else
             @TryRender("silk-colors", () => @<text>
                 <div class="spec-block-full">
                     <div class="spec-block-title-full">
-                        Print Process · Sấy · Plate Parameter — @Vm.PrintColors.Count colors
+                        @T("specfull.silk.table.title", Vm.PrintColors.Count)
                     </div>
                     <div class="spec-table-scroll">
                         <table class="spec-print-table-full">
                             <thead>
                                 <tr>
-                                    <th>No</th><th>Surf</th><th>Color</th><th>Ink Name</th>
-                                    <th>Ink Code</th><th>Maker</th><th>Retarder</th>
-                                    <th>Visc</th><th>Speed</th><th>Squee.</th>
-                                    <th>Dry</th><th>°C</th><th>min</th><th>UV</th>
-                                    <th>Emul.</th><th>Plate Size</th><th>Mesh</th>
-                                    <th>Angle</th><th>Plate Code</th><th>Ctrl#</th><th>Remark</th>
+                                    <th>@T("specfull.col.no")</th><th>@T("specfull.col.surf")</th><th>@T("specfull.col.color")</th><th>@T("specfull.col.inkname")</th>
+                                    <th>@T("specfull.col.inkcode")</th><th>@T("specfull.col.maker")</th><th>@T("specfull.col.retarder")</th>
+                                    <th>@T("specfull.col.visc")</th><th>@T("specfull.col.speed")</th><th>@T("specfull.col.squee")</th>
+                                    <th>@T("specfull.col.dry")</th><th>°C</th><th>@T("specfull.col.min")</th><th>UV</th>
+                                    <th>@T("specfull.col.emul")</th><th>@T("specfull.col.platesize")</th><th>@T("specfull.col.mesh")</th>
+                                    <th>@T("specfull.col.angle")</th><th>@T("specfull.col.platecode")</th><th>@T("specfull.col.ctrl")</th><th>@T("specfull.col.remark")</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -248,16 +248,16 @@ else
                 @TryRender("flexo-print", () => @<text>
                     <div class="spec-block-full">
                         <div class="spec-block-title-full">
-                            Printing — @Vm.FlexoPrintRows.Count processes
+                            @T("specfull.flexo.print.title", Vm.FlexoPrintRows.Count)
                         </div>
                         <div class="spec-table-scroll">
                             <table class="spec-print-table-full">
                                 <thead>
                                     <tr>
-                                        <th>Process</th><th>Material</th><th>Thickness</th><th>Size</th>
-                                        <th>Cylinder</th><th>Pitch</th><th>Speed</th>
-                                        <th>T.Head</th><th>T.End</th><th>T.Roll</th>
-                                        <th>Plate Cav.</th><th>Tension</th>
+                                        <th>@T("specfull.col.process")</th><th>@T("specfull.col.material")</th><th>@T("specfull.col.thickness")</th><th>@T("specfull.col.size")</th>
+                                        <th>@T("specfull.col.cylinder")</th><th>@T("specfull.col.pitch")</th><th>@T("specfull.col.speed")</th>
+                                        <th>@T("specfull.col.thead")</th><th>@T("specfull.col.tend")</th><th>@T("specfull.col.troll")</th>
+                                        <th>@T("specfull.col.platecav")</th><th>@T("specfull.col.tension")</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -290,17 +290,17 @@ else
                 @TryRender("flexo-cut", () => @<text>
                     <div class="spec-block-full">
                         <div class="spec-block-title-full">
-                            Cutting — @Vm.FlexoCuttingRows.Count processes
+                            @T("specfull.flexo.cut.title", Vm.FlexoCuttingRows.Count)
                         </div>
                         <div class="spec-table-scroll">
                             <table class="spec-print-table-full">
                                 <thead>
                                     <tr>
-                                        <th>Process</th><th>Lamination</th><th>Size</th>
-                                        <th>Cutter Lot</th><th>Cutter Name</th>
-                                        <th>Pcs/Sheet</th><th>Cavity</th><th>Pitch</th>
-                                        <th>Packing</th><th>Paper Sp.</th><th>Cut Sp.</th>
-                                        <th>Cut Pres.</th><th>Head T.</th><th>Roll T.</th>
+                                        <th>@T("specfull.col.process")</th><th>@T("specfull.col.lamination")</th><th>@T("specfull.col.size")</th>
+                                        <th>@T("specfull.col.cutterlot")</th><th>@T("specfull.col.cuttername")</th>
+                                        <th>@T("specfull.col.pcssheet")</th><th>@T("specfull.col.cavity")</th><th>@T("specfull.col.pitch")</th>
+                                        <th>@T("specfull.col.packing")</th><th>@T("specfull.col.papersp")</th><th>@T("specfull.col.cutsp")</th>
+                                        <th>@T("specfull.col.cutpres")</th><th>@T("specfull.col.headt")</th><th>@T("specfull.col.rollt")</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -335,16 +335,16 @@ else
                 @TryRender("flexo-ink", () => @<text>
                     <div class="spec-block-full">
                         <div class="spec-block-title-full">
-                            Ink — @Vm.FlexoInkRows.Count inks
+                            @T("specfull.flexo.ink.title", Vm.FlexoInkRows.Count)
                         </div>
                         <div class="spec-table-scroll">
                             <table class="spec-print-table-full">
                                 <thead>
                                     <tr>
-                                        <th>No</th><th>Color</th><th>Ink Code</th>
-                                        <th>Description</th><th>Brand</th><th>Anilox</th>
-                                        <th>Plate Code</th><th>Pressure</th>
-                                        <th>UV Power</th><th>IR Power</th>
+                                        <th>@T("specfull.col.no")</th><th>@T("specfull.col.color")</th><th>@T("specfull.col.inkcode")</th>
+                                        <th>@T("specfull.col.description")</th><th>@T("specfull.col.brand")</th><th>@T("specfull.col.anilox")</th>
+                                        <th>@T("specfull.col.platecode")</th><th>@T("specfull.col.pressure")</th>
+                                        <th>@T("specfull.col.uvpower")</th><th>@T("specfull.col.irpower")</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -375,7 +375,7 @@ else
         {
             <div class="spec-block-full">
                 <p class="spec-generic-empty">
-                    No sub-spec data yet for the @Vm.PlannerLabel line.
+                    @T("specfull.generic.empty", Vm.PlannerLabel)
                 </p>
             </div>
         }
@@ -383,16 +383,16 @@ else
         @* ─── 6. Remarks ──────────────────────────────────────────── *@
         @TryRender("remarks", () => @<text>
             <div class="spec-block-full">
-                <div class="spec-block-title-full">Remarks</div>
+                <div class="spec-block-title-full">@T("specfull.remarks.title")</div>
                 @if (isInkBased)
                 {
                     <div class="spec-flexo-remarks-2col">
                         <div>
-                            <div class="lbl">Print remarks</div>
+                            <div class="lbl">@T("specfull.remarks.print")</div>
                             <div>@(string.IsNullOrEmpty(Vm.RemarksText) ? "—" : $"※ {Vm.RemarksText}")</div>
                         </div>
                         <div>
-                            <div class="lbl">Cut remarks</div>
+                            <div class="lbl">@T("specfull.remarks.cut")</div>
                             <div>@(string.IsNullOrEmpty(Vm.RemarksCutText) ? "—" : $"※ {Vm.RemarksCutText}")</div>
                         </div>
                     </div>
@@ -409,20 +409,20 @@ else
         @* ─── 7. Revision History ─────────────────────────────────── *@
         @TryRender("revision-history", () => @<text>
             <div class="spec-block-full">
-                <div class="spec-block-title-full">Revision History</div>
+                <div class="spec-block-title-full">@T("specfull.revision.title")</div>
                 <table class="spec-rev-table-full">
                     <thead>
                         <tr>
-                            <th>Rev</th>
-                            <th>Contents</th>
-                            <th>Date</th>
-                            <th>By</th>
+                            <th>@T("specfull.col.rev")</th>
+                            <th>@T("specfull.col.contents")</th>
+                            <th>@T("specfull.col.date")</th>
+                            <th>@T("specfull.col.by")</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (Vm.Lineage.Count == 0)
                         {
-                            <tr><td colspan="4" class="spec-empty-cell">— No history —</td></tr>
+                            <tr><td colspan="4" class="spec-empty-cell">@T("specfull.revision.empty")</td></tr>
                         }
                         @foreach (var lr in Vm.Lineage)
                         {
@@ -442,27 +442,27 @@ else
         @* ─── 8. Approval Signatures ──────────────────────────────── *@
         @TryRender("signatures", () => @<text>
             <div class="spec-block-full">
-                <div class="spec-block-title-full">Approval Signatures</div>
+                <div class="spec-block-title-full">@T("specfull.signatures.title")</div>
                 <div class="spec-signoff-grid">
                     <div>
-                        <div class="role">Issued by R&amp;D</div>
+                        <div class="role">@T("specfull.sign.issued")</div>
                         <div class="name">@OrDash(Vm.CreatedBy)</div>
-                        <div class="date">Date: @Vm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</div>
+                        <div class="date">@T("specfull.sign.date"): @Vm.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</div>
                     </div>
                     <div>
-                        <div class="role">Confirmed by R&amp;D</div>
+                        <div class="role">@T("specfull.sign.confirmed")</div>
                         <div class="name">@OrDash(Vm.ApprovedBy)</div>
-                        <div class="date">Date: @(Vm.ApprovedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
+                        <div class="date">@T("specfull.sign.date"): @(Vm.ApprovedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
                     </div>
                     <div>
-                        <div class="role">Released by</div>
+                        <div class="role">@T("specfull.sign.released")</div>
                         <div class="name">@OrDash(Vm.ReleasedBy)</div>
-                        <div class="date">Date: @(Vm.ReleasedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
+                        <div class="date">@T("specfull.sign.date"): @(Vm.ReleasedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
                     </div>
                     <div>
-                        <div class="role">Updated by</div>
+                        <div class="role">@T("specfull.sign.updated")</div>
                         <div class="name">@OrDash(Vm.UpdatedBy)</div>
-                        <div class="date">Date: @(Vm.UpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
+                        <div class="date">@T("specfull.sign.date"): @(Vm.UpdatedAt?.ToLocalTime().ToString("yyyy-MM-dd") ?? "—")</div>
                     </div>
                 </div>
             </div>
@@ -471,19 +471,19 @@ else
         @* ─── 9. Change Log (audit trail) ─────────────────────────── *@
         @TryRender("change-log", () => @<text>
             <div class="spec-block-full">
-                <div class="spec-block-title-full">Change Log</div>
+                <div class="spec-block-title-full">@T("specfull.changelog.title")</div>
                 @if (Vm.AuditEntries.Count == 0)
                 {
-                    <p class="spec-empty-cell">— No log entries yet —</p>
+                    <p class="spec-empty-cell">@T("specfull.changelog.empty")</p>
                 }
                 else
                 {
                     <table class="spec-rev-table-full">
                         <thead>
                             <tr>
-                                <th>Time</th>
-                                <th>Action</th>
-                                <th>By</th>
+                                <th>@T("specfull.col.time")</th>
+                                <th>@T("specfull.col.action")</th>
+                                <th>@T("specfull.col.by")</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -525,7 +525,7 @@ else
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "spec-section-error");
             __builder.AddAttribute(2, "role", "alert");
-            __builder.AddContent(3, $"Could not display section [{sectionId}]: {ex.GetType().Name}");
+            __builder.AddContent(3, T("specfull.section.error", sectionId, ex.GetType().Name));
             __builder.CloseElement();
         }
     };
@@ -539,22 +539,22 @@ else
         _        => "GENERIC",
     };
 
-    private static string CategoryHeaderLabel(string template) => template switch
+    private string CategoryHeaderLabel(string template) => template switch
     {
-        "SILK"   => "SILKSCREEN SPECIFICATION",
-        "FLEXO"  => "FLEXO SPECIFICATION",
-        "INDIGO" => "INDIGO (HP) SPECIFICATION",
-        "LETTER" => "LETTERPRESS SPECIFICATION",
-        _        => "PROCESS SPECIFICATION",
+        "SILK"   => T("specfull.category.silk"),
+        "FLEXO"  => T("specfull.category.flexo"),
+        "INDIGO" => T("specfull.category.indigo"),
+        "LETTER" => T("specfull.category.letter"),
+        _        => T("specfull.category.generic"),
     };
 
-    private static string CategoryHeaderSubtitle(string template) => template switch
+    private string CategoryHeaderSubtitle(string template) => template switch
     {
-        "SILK"   => "Silkscreen specification",
-        "FLEXO"  => "Flexo specification",
-        "INDIGO" => "HP Indigo seal specification",
-        "LETTER" => "Letterpress specification",
-        _        => "Process specification",
+        "SILK"   => T("specfull.category.silk.sub"),
+        "FLEXO"  => T("specfull.category.flexo.sub"),
+        "INDIGO" => T("specfull.category.indigo.sub"),
+        "LETTER" => T("specfull.category.letter.sub"),
+        _        => T("specfull.category.generic.sub"),
     };
 
     private static string OrDash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
@@ -562,17 +562,17 @@ else
     private static string OrDashNum(double? v, string fmt) =>
         v is null ? "—" : v.Value.ToString(fmt, CultureInfo.InvariantCulture);
 
-    private static string LocalizeAction(string action) => action switch
+    private string LocalizeAction(string action) => action switch
     {
-        "SPEC_CREATE"     => "Create Spec",
-        "SPEC_APPROVE"    => "Approve",
-        "SPEC_RELEASE"    => "Release",
-        "SPEC_REVISE"     => "Create Revise",
-        "SPEC_SUPERSEDE"  => "Mark Superseded",
-        "SPEC_TRASH"      => "Move to Trash",
-        "SPEC_RESTORE"    => "Restore",
-        "SPEC_IMPORT"     => "Import from xlsx",
-        "SPEC_UPDATE"     => "Edit",
+        "SPEC_CREATE"     => T("specfull.action.create"),
+        "SPEC_APPROVE"    => T("specfull.action.approve"),
+        "SPEC_RELEASE"    => T("specfull.action.release"),
+        "SPEC_REVISE"     => T("specfull.action.revise"),
+        "SPEC_SUPERSEDE"  => T("specfull.action.supersede"),
+        "SPEC_TRASH"      => T("specfull.action.trash"),
+        "SPEC_RESTORE"    => T("specfull.action.restore"),
+        "SPEC_IMPORT"     => T("specfull.action.import"),
+        "SPEC_UPDATE"     => T("specfull.action.update"),
         _                 => action,
     };
 }

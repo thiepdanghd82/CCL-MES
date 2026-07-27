@@ -1,12 +1,13 @@
 @page "/qms/history"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using System.Globalization
 @using System.Text
 @using CCL.MES.Shared.Qms
 @inject ICclApiClient Api
 @inject IJSRuntime JS
 
-<PageTitle>QC History — CCL MES</PageTitle>
+<PageTitle>@T("qchistory.pagetitle")</PageTitle>
 
 @* P10.10 — QC History redesigned to the Shop Order History forensic-record
    layout: KPI tiles + Export CSV + kind/result/search filters + a
@@ -16,46 +17,46 @@
    sidebar roll-ups computed client-side. *@
 <div class="md-head">
     <div>
-        <h1 class="page-title">🔬 QC History</h1>
-        <div class="md-subtitle">Forensic record of completed FQC / OQC checks · @(_data?.Total ?? 0) checks</div>
+        <h1 class="page-title">🔬 @T("qchistory.title")</h1>
+        <div class="md-subtitle">@T("qchistory.subtitle", _data?.Total ?? 0)</div>
     </div>
-    <button type="button" class="md-refresh" @onclick="ExportCsvAsync" disabled="@(_data is null || _data.Rows.Count == 0)">📥 Export CSV</button>
+    <button type="button" class="md-refresh" @onclick="ExportCsvAsync" disabled="@(_data is null || _data.Rows.Count == 0)">📥 @T("qchistory.export.csv")</button>
 </div>
 
 <div class="md-kpi-grid soh-kpi-grid">
     <div class="md-kpi md-kpi-maint">
-        <div class="md-kpi-label">Total Checks</div>
+        <div class="md-kpi-label">@T("qchistory.kpi.total")</div>
         <div class="md-kpi-num">@(_data?.Total ?? 0)</div>
         <div class="md-kpi-oee-sub">FQC @FqcCount · OQC @OqcCount</div>
     </div>
     <div class="md-kpi md-kpi-running">
-        <div class="md-kpi-label">Pass</div>
+        <div class="md-kpi-label">@T("qchistory.kpi.pass")</div>
         <div class="md-kpi-num">@(_data?.Pass ?? 0)</div>
-        <div class="md-kpi-oee-sub">@(_data?.PassRatePct ?? 0)% of checks</div>
+        <div class="md-kpi-oee-sub">@T("qchistory.kpi.pct.ofchecks", _data?.PassRatePct ?? 0)</div>
     </div>
     <div class="md-kpi md-kpi-down">
-        <div class="md-kpi-label">Reject</div>
+        <div class="md-kpi-label">@T("qchistory.kpi.reject")</div>
         <div class="md-kpi-num">@(_data?.Reject ?? 0)</div>
-        <div class="md-kpi-oee-sub">@RejectRate% of checks</div>
+        <div class="md-kpi-oee-sub">@T("qchistory.kpi.pct.ofchecks", RejectRate)</div>
     </div>
     <div class="md-kpi @PassRateKpiClass">
-        <div class="md-kpi-label">Pass Rate</div>
+        <div class="md-kpi-label">@T("qchistory.kpi.passrate")</div>
         <div class="md-kpi-num">@(_data?.PassRatePct ?? 0)%</div>
-        <div class="md-kpi-oee-sub">target ≥ 98%</div>
+        <div class="md-kpi-oee-sub">@T("qchistory.kpi.target")</div>
     </div>
     <div class="md-kpi md-kpi-setup">
-        <div class="md-kpi-label">Distinct WOs</div>
+        <div class="md-kpi-label">@T("qchistory.kpi.distinctwos")</div>
         <div class="md-kpi-num">@DistinctWos</div>
-        <div class="md-kpi-oee-sub">work orders inspected</div>
+        <div class="md-kpi-oee-sub">@T("qchistory.kpi.distinctwos.sub")</div>
     </div>
 </div>
 
 <div class="md-filters soh-filters">
-    <input class="md-search" type="text" placeholder="🔍 Search WO…" value="@_search" @onchange="OnSearchChanged" />
-    <span class="md-filter-count">@(_data?.Rows.Count ?? 0) records</span>
+    <input class="md-search" type="text" placeholder="@T("qchistory.search.placeholder")" value="@_search" @onchange="OnSearchChanged" />
+    <span class="md-filter-count">@T("qchistory.filter.records", _data?.Rows.Count ?? 0)</span>
 </div>
 <div class="md-filters soh-filters-row">
-    <span class="soh-filter-label">Kind:</span>
+    <span class="soh-filter-label">@T("qchistory.filter.kind")</span>
     <div class="md-chips">
         @foreach (var k in KindChips)
         {
@@ -63,7 +64,7 @@
                     @onclick="@(() => SetKindAsync(k.Key))">@k.Label</button>
         }
     </div>
-    <span class="soh-filter-label">Result:</span>
+    <span class="soh-filter-label">@T("qchistory.filter.result")</span>
     <div class="md-chips">
         @foreach (var j in JudgmentChips)
         {
@@ -75,15 +76,15 @@
 
 @if (_loading && _data is null)
 {
-    <p class="md-muted">Loading history…</p>
+    <p class="md-muted">@T("qchistory.loading")</p>
 }
 else if (_error is not null)
 {
-    <p class="md-error">Failed to load history: @_error</p>
+    <p class="md-error">@T("qchistory.error.load", _error)</p>
 }
 else if (_data is null || _data.Rows.Count == 0)
 {
-    <p class="md-muted">No QC checks match the filter.</p>
+    <p class="md-muted">@T("qchistory.empty")</p>
 }
 else
 {
@@ -93,8 +94,8 @@ else
                 <table class="md-table soh-tbl">
                     <thead>
                         <tr>
-                            <th>WO</th><th>Kind</th><th>Result</th><th>Inspector</th>
-                            <th>Reviewer</th><th>Approver</th><th>Finished</th>
+                            <th>@T("qchistory.col.wo")</th><th>@T("qchistory.col.kind")</th><th>@T("qchistory.col.result")</th><th>@T("qchistory.col.inspector")</th>
+                            <th>@T("qchistory.col.reviewer")</th><th>@T("qchistory.col.approver")</th><th>@T("qchistory.col.finished")</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -103,7 +104,7 @@ else
                             <tr class="md-row soh-trow @(_selected?.CheckId == r.CheckId ? "is-active" : "")" @onclick="@(() => _selected = r)">
                                 <td class="soh-cell-wo">@r.WoNo</td>
                                 <td><span class="qc-kind-pill">@r.QcKind</span></td>
-                                <td><span class="soh-status @(r.Judgment == "Pass" ? "done" : "stopped")">@(r.Judgment == "Pass" ? "✓ Pass" : "✕ Reject")</span></td>
+                                <td><span class="soh-status @(r.Judgment == "Pass" ? "done" : "stopped")">@(r.Judgment == "Pass" ? T("qchistory.badge.pass") : T("qchistory.badge.reject"))</span></td>
                                 <td>@(r.InspectedBy ?? "—")</td>
                                 <td>@(r.ReviewedBy ?? "—")</td>
                                 <td>@(r.ApprovedBy ?? "—")</td>
@@ -117,15 +118,15 @@ else
 
         <aside class="md-side">
             <div class="md-side-card">
-                <div class="md-side-head">▦ By Kind</div>
+                <div class="md-side-head">▦ @T("qchistory.side.bykind")</div>
                 <div class="md-side-body">@RenderAgg(ByKind, _data.Rows.Count, "#2563eb", false)</div>
             </div>
             <div class="md-side-card">
-                <div class="md-side-head">👤 Top Inspectors</div>
+                <div class="md-side-head">👤 @T("qchistory.side.topinspectors")</div>
                 <div class="md-side-body">@RenderAgg(TopInspectors, _data.Rows.Count, "#16a34a", false)</div>
             </div>
             <div class="md-side-card">
-                <div class="md-side-head">✕ Top Reject Reasons</div>
+                <div class="md-side-head">✕ @T("qchistory.side.topreject")</div>
                 <div class="md-side-body">@RenderAgg(TopRejectReasons, RejectTotal, "#dc2626", false, pct: true)</div>
             </div>
         </aside>
@@ -139,24 +140,24 @@ else
         <div class="md-drawer-head" style="border-left:4px solid @(_selected.Judgment == "Pass" ? "#16a34a" : "#dc2626"); padding-left:12px">
             <div>
                 <h2 class="md-drawer-title">@_selected.WoNo</h2>
-                <div class="soh-drawer-sub">@_selected.QcKind check</div>
+                <div class="soh-drawer-sub">@T("qchistory.drawer.sub", _selected.QcKind)</div>
             </div>
             <button type="button" class="md-drawer-close" @onclick="@(() => _selected = null)">✕</button>
         </div>
         <div class="md-drawer-body">
-            <h3 class="md-drawer-sub">Result</h3>
-            <div class="md-kv"><span>Judgment</span><strong><span class="soh-status @(_selected.Judgment == "Pass" ? "done" : "stopped")">@(_selected.Judgment == "Pass" ? "✓ Pass" : "✕ Reject")</span></strong></div>
-            <div class="md-kv"><span>Kind</span><strong>@_selected.QcKind</strong></div>
-            <div class="md-kv"><span>Finished</span><strong>@(_selected.CompletedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")</strong></div>
+            <h3 class="md-drawer-sub">@T("qchistory.drawer.result")</h3>
+            <div class="md-kv"><span>@T("qchistory.drawer.judgment")</span><strong><span class="soh-status @(_selected.Judgment == "Pass" ? "done" : "stopped")">@(_selected.Judgment == "Pass" ? T("qchistory.badge.pass") : T("qchistory.badge.reject"))</span></strong></div>
+            <div class="md-kv"><span>@T("qchistory.drawer.kind")</span><strong>@_selected.QcKind</strong></div>
+            <div class="md-kv"><span>@T("qchistory.drawer.finished")</span><strong>@(_selected.CompletedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")</strong></div>
             @if (!string.IsNullOrWhiteSpace(_selected.JudgmentReason))
             {
-                <div class="md-kv"><span>Reason</span><strong>@_selected.JudgmentReason</strong></div>
+                <div class="md-kv"><span>@T("qchistory.drawer.reason")</span><strong>@_selected.JudgmentReason</strong></div>
             }
 
-            <h3 class="md-drawer-sub">Signatures</h3>
-            <div class="md-kv"><span>Inspector</span><strong>@(_selected.InspectedBy ?? "—")</strong></div>
-            <div class="md-kv"><span>Reviewer</span><strong>@(_selected.ReviewedBy ?? "—")</strong></div>
-            <div class="md-kv"><span>Approver</span><strong>@(_selected.ApprovedBy ?? "—")</strong></div>
+            <h3 class="md-drawer-sub">@T("qchistory.drawer.signatures")</h3>
+            <div class="md-kv"><span>@T("qchistory.drawer.inspector")</span><strong>@(_selected.InspectedBy ?? "—")</strong></div>
+            <div class="md-kv"><span>@T("qchistory.drawer.reviewer")</span><strong>@(_selected.ReviewedBy ?? "—")</strong></div>
+            <div class="md-kv"><span>@T("qchistory.drawer.approver")</span><strong>@(_selected.ApprovedBy ?? "—")</strong></div>
         </div>
     </aside>
 }
@@ -171,14 +172,14 @@ else
     private string _search = "";
     private QcHistoryRow? _selected;
 
-    private static readonly (string? Key, string Label)[] KindChips =
-    {
-        (null, "All"), ("FQC", "FQC"), ("OQC", "OQC"),
-    };
-    private static readonly (string? Key, string Label)[] JudgmentChips =
-    {
-        (null, "All"), ("pass", "✓ Pass"), ("reject", "✕ Reject"),
-    };
+    private (string? Key, string Label)[] KindChips =>
+    [
+        (null, T("qchistory.chip.all")), ("FQC", "FQC"), ("OQC", "OQC"),
+    ];
+    private (string? Key, string Label)[] JudgmentChips =>
+    [
+        (null, T("qchistory.chip.all")), ("pass", T("qchistory.badge.pass")), ("reject", T("qchistory.badge.reject")),
+    ];
 
     private IReadOnlyList<QcHistoryRow> Rows => _data?.Rows ?? Array.Empty<QcHistoryRow>();
     private int FqcCount => Rows.Count(r => r.QcKind == "FQC");
@@ -195,7 +196,7 @@ else
         .GroupBy(r => r.InspectedBy!).Select(g => new AggRow(g.Key, g.Count()))
         .OrderByDescending(a => a.Count).Take(5).ToList();
     private List<AggRow> TopRejectReasons => Rows.Where(r => r.Judgment != "Pass")
-        .GroupBy(r => string.IsNullOrWhiteSpace(r.JudgmentReason) ? "(no reason)" : r.JudgmentReason!)
+        .GroupBy(r => string.IsNullOrWhiteSpace(r.JudgmentReason) ? T("qchistory.side.noreason") : r.JudgmentReason!)
         .Select(g => new AggRow(g.Key, g.Count())).OrderByDescending(a => a.Count).Take(5).ToList();
 
     protected override Task OnInitializedAsync() => ReloadAsync();
@@ -229,13 +230,13 @@ else
         catch { /* renderer-safe */ }
     }
 
-    private static string FormatRelative(DateTime? at)
+    private string FormatRelative(DateTime? at)
     {
         if (at is null) return "—";
         var diff = DateTime.UtcNow - at.Value.ToUniversalTime();
-        if (diff.TotalHours < 1) return "just now";
-        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
-        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        if (diff.TotalHours < 1) return T("qchistory.time.justnow");
+        if (diff.TotalHours < 24) return T("qchistory.time.hours", (int)diff.TotalHours);
+        if (diff.TotalDays < 7) return T("qchistory.time.days", (int)diff.TotalDays);
         return at.Value.ToLocalTime().ToString("dd/MM/yy");
     }
 
@@ -247,7 +248,7 @@ else
         {
             builder.OpenElement(0, "div");
             builder.AddAttribute(1, "class", "md-side-empty");
-            builder.AddContent(2, pct ? "No rejects." : "No data.");
+            builder.AddContent(2, pct ? T("qchistory.side.norejects") : T("qchistory.side.nodata"));
             builder.CloseElement();
             return;
         }

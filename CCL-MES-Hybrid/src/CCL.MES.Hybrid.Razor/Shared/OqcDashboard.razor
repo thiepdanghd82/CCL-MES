@@ -32,6 +32,7 @@
     WoQcReviewControllerTests.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.Auth
 @using CCL.MES.Hybrid.Client.WoQcReview
@@ -44,20 +45,20 @@
 <div class="rs-dashboard oqc-dashboard" data-testid="oqc-dashboard">
     @if (_view is null && _initialError is null)
     {
-        <div class="rs-loading" data-testid="oqc-loading">Loading OQC status…</div>
+        <div class="rs-loading" data-testid="oqc-loading">@T("oqc.loading")</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="oqc-initial-error">
-            <strong>Could not load OQC status:</strong> @_initialError
+            <strong>@T("oqc.load.error")</strong> @_initialError
         </div>
     }
     else if (_invalidPhase)
     {
         <div class="wo-card-error" data-testid="oqc-invalid-phase">
-            <strong>WO is not in the OQC_PENDING phase</strong> —
-            Current: <code>@(_view?.MesPhase ?? "?")</code>.
-            Go back to the Work Orders tab to select another WO.
+            <strong>@T("oqc.invalid.phase.title")</strong> —
+            @T("oqc.invalid.phase.current") <code>@(_view?.MesPhase ?? "?")</code>.
+            @T("oqc.invalid.phase.hint")
         </div>
     }
     else if (_view is not null)
@@ -69,7 +70,7 @@
                 <span class="rs-head-phase rs-phase-oqc">@_view.MesPhase</span>
             </div>
             <div class="ipqc-counter-pill" data-testid="oqc-counter">
-                <span class="ipqc-counter-label">Items · Sigs</span>
+                <span class="ipqc-counter-label">@T("oqc.counter.label")</span>
                 <span class="ipqc-counter-value scan-mono">@ConfirmedCount/@(_view.Items.Count) · @SignatureCount/3</span>
             </div>
         </div>
@@ -78,21 +79,21 @@
         @if (CurrentSigStage == SigStage.ReviewerSigning && IsSameAs(_view.InspectedBy))
         {
             <div class="wo-card-error qa-q3-banner" data-testid="oqc-q5-banner-inspector">
-                <strong>⚠ 3-sig policy:</strong>
+                <strong>@T("oqc.sig.policy.label")</strong>
                 @WoQcReviewErrorLocaliser.Q5SameAsInspectorBanner
             </div>
         }
         @if (CurrentSigStage == SigStage.ApproverSigning && IsSameAs(_view.ReviewedBy))
         {
             <div class="wo-card-error qa-q3-banner" data-testid="oqc-q5-banner-reviewer">
-                <strong>⚠ 3-sig policy:</strong>
+                <strong>@T("oqc.sig.policy.label")</strong>
                 @WoQcReviewErrorLocaliser.Q5SameAsReviewerBanner
             </div>
         }
         @if (CurrentSigStage == SigStage.ApproverSigning && IsSameAs(_view.InspectedBy))
         {
             <div class="wo-card-error qa-q3-banner" data-testid="oqc-q5-banner-approver-inspector">
-                <strong>⚠ 3-sig policy:</strong>
+                <strong>@T("oqc.sig.policy.label")</strong>
                 @WoQcReviewErrorLocaliser.Q5SameAsInspectorBanner
             </div>
         }
@@ -100,10 +101,10 @@
         @if (_setError is not null)
         {
             <div class="wo-card-error" data-testid="oqc-set-error">
-                <strong>Could not save change:</strong> @_setError
+                <strong>@T("oqc.save.error")</strong> @_setError
                 <button type="button" class="op-btn op-btn-secondary op-btn-sm"
                         @onclick="DismissSetError"
-                        data-testid="oqc-set-error-dismiss">Dismiss</button>
+                        data-testid="oqc-set-error-dismiss">@T("oqc.dismiss")</button>
             </div>
         }
 
@@ -111,14 +112,14 @@
               auditor sees the chain at a glance) ──────────────────── *@
         <div class="rs-card oqc-sig-row" data-testid="oqc-sig-row">
             <div class="rs-card-head">
-                <div class="rs-card-title">OQC 3-sig chain</div>
+                <div class="rs-card-title">@T("oqc.sig.chain.title")</div>
             </div>
             <div class="oqc-sig-grid">
                 <div class="oqc-sig-cell @(string.IsNullOrEmpty(_view.InspectedBy) ? "oqc-sig-pending" : "oqc-sig-done")"
                      data-testid="oqc-sig-inspector">
-                    <div class="oqc-sig-label">1 · Inspector</div>
+                    <div class="oqc-sig-label">@T("oqc.sig.inspector")</div>
                     <div class="oqc-sig-value scan-mono">
-                        @(string.IsNullOrEmpty(_view.InspectedBy) ? "— Pending" : _view.InspectedBy)
+                        @(string.IsNullOrEmpty(_view.InspectedBy) ? T("oqc.pending") : _view.InspectedBy)
                     </div>
                     @if (_view.InspectedAt is { } at1)
                     {
@@ -127,9 +128,9 @@
                 </div>
                 <div class="oqc-sig-cell @(string.IsNullOrEmpty(_view.ReviewedBy) ? "oqc-sig-pending" : "oqc-sig-done")"
                      data-testid="oqc-sig-reviewer">
-                    <div class="oqc-sig-label">2 · Reviewer</div>
+                    <div class="oqc-sig-label">@T("oqc.sig.reviewer")</div>
                     <div class="oqc-sig-value scan-mono">
-                        @(string.IsNullOrEmpty(_view.ReviewedBy) ? "— Pending" : _view.ReviewedBy)
+                        @(string.IsNullOrEmpty(_view.ReviewedBy) ? T("oqc.pending") : _view.ReviewedBy)
                     </div>
                     @if (_view.ReviewedAt is { } at2)
                     {
@@ -138,9 +139,9 @@
                 </div>
                 <div class="oqc-sig-cell @(string.IsNullOrEmpty(_view.ApprovedBy) ? "oqc-sig-pending" : "oqc-sig-done")"
                      data-testid="oqc-sig-approver">
-                    <div class="oqc-sig-label">3 · Approver</div>
+                    <div class="oqc-sig-label">@T("oqc.sig.approver")</div>
                     <div class="oqc-sig-value scan-mono">
-                        @(string.IsNullOrEmpty(_view.ApprovedBy) ? "— Pending" : _view.ApprovedBy)
+                        @(string.IsNullOrEmpty(_view.ApprovedBy) ? T("oqc.pending") : _view.ApprovedBy)
                     </div>
                     @if (_view.ApprovedAt is { } at3)
                     {
@@ -153,8 +154,8 @@
         @if (_view.Items.Count == 0)
         {
             <div class="wo-card-error" data-testid="oqc-empty-profile">
-                <strong>OQC profile is empty.</strong>
-                An administrator must seed the OQC profile before operation. Report to IT to configure.
+                <strong>@T("oqc.empty.profile.title")</strong>
+                @T("oqc.empty.profile.hint")
             </div>
         }
 
@@ -177,19 +178,19 @@
                                     class="op-btn op-btn-success ipqc-slot-btn"
                                     disabled="@_busy"
                                     @onclick="@(() => OnSetOkAsync(item))"
-                                    data-testid="@($"oqc-item-{item.ItemKey}-ok")">OK</button>
+                                    data-testid="@($"oqc-item-{item.ItemKey}-ok")">@T("oqc.btn.ok")</button>
                             <button type="button"
                                     class="op-btn op-btn-danger ipqc-slot-btn"
                                     disabled="@_busy"
                                     @onclick="@(() => OpenNgForm(item.ItemKey))"
-                                    data-testid="@($"oqc-item-{item.ItemKey}-ng")">NG</button>
+                                    data-testid="@($"oqc-item-{item.ItemKey}-ng")">@T("oqc.btn.ng")</button>
                         </div>
                     }
 
                     @if (item.Status == "Ng" && item.NgReasonCode is not null)
                     {
                         <div class="ipqc-slot-ng-summary" data-testid="@($"oqc-item-{item.ItemKey}-ng-summary")">
-                            <span class="ipqc-slot-ng-label">NG code:</span>
+                            <span class="ipqc-slot-ng-label">@T("oqc.ng.code.label")</span>
                             <span class="ipqc-slot-ng-value scan-mono">@item.NgReasonCode</span>
                             @if (!string.IsNullOrEmpty(item.NgNote))
                             {
@@ -202,13 +203,13 @@
                     {
                         <div class="ipqc-ng-form" data-testid="@($"oqc-item-{item.ItemKey}-ng-form")">
                             <div class="ipqc-ng-field">
-                                <label class="rs-modal-label" for="@($"oqc-{item.ItemKey}-reason")">NG code</label>
+                                <label class="rs-modal-label" for="@($"oqc-{item.ItemKey}-reason")">@T("oqc.ng.code.field")</label>
                                 <select id="@($"oqc-{item.ItemKey}-reason")"
                                         class="ipqc-input"
                                         value="@_ngReasonCode"
                                         @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
                                         data-testid="@($"oqc-item-{item.ItemKey}-ng-reason")">
-                                    <option value="">— select NG code —</option>
+                                    <option value="">@T("oqc.ng.code.select")</option>
                                     @foreach (var r in ScrapReasons)
                                     {
                                         <option value="@r.Code">@r.Code — @r.LabelVi</option>
@@ -216,7 +217,7 @@
                                 </select>
                             </div>
                             <div class="ipqc-ng-field ipqc-ng-field-wide">
-                                <label class="rs-modal-label" for="@($"oqc-{item.ItemKey}-note")">NG note (1-500 characters)</label>
+                                <label class="rs-modal-label" for="@($"oqc-{item.ItemKey}-note")">@T("oqc.ng.note.field")</label>
                                 <input id="@($"oqc-{item.ItemKey}-note")"
                                        type="text"
                                        class="ipqc-input"
@@ -230,13 +231,13 @@
                                 <button type="button"
                                         class="op-btn op-btn-secondary"
                                         @onclick="CloseNgForm"
-                                        data-testid="@($"oqc-item-{item.ItemKey}-ng-cancel")">Cancel</button>
+                                        data-testid="@($"oqc-item-{item.ItemKey}-ng-cancel")">@T("oqc.cancel")</button>
                                 <button type="button"
                                         class="op-btn op-btn-danger"
                                         disabled="@(!CanSubmitNg() || _busy)"
                                         @onclick="@(() => OnSetNgAsync(item))"
                                         data-testid="@($"oqc-item-{item.ItemKey}-ng-submit")">
-                                    Save NG
+                                    @T("oqc.ng.save")
                                 </button>
                             </div>
                         </div>
@@ -261,7 +262,7 @@
                 @if (CurrentSigStage == SigStage.InspectorSigning && _view.AnyNg)
                 {
                     <div class="ipqc-rollup-pill ipqc-rollup-warn" data-testid="oqc-rollup-pill">
-                        <span>One or more items NG — Inspector signs to advance; the Approver will Reject back to FQC.</span>
+                        <span>@T("oqc.rollup.anyng")</span>
                     </div>
                 }
             </div>
@@ -269,8 +270,8 @@
             @if (CurrentSigStage == SigStage.ItemsPending)
             {
                 <div class="rs-action-hint" data-testid="oqc-stage-hint">
-                    @(_view.Items.Count - ConfirmedCount) item(s) not yet confirmed.
-                    Complete them, then tap <strong>Inspector sign</strong>.
+                    @T("oqc.stage.pending.hint", _view.Items.Count - ConfirmedCount)
+                    <strong>@T("oqc.stage.pending.hint.action")</strong>.
                 </div>
             }
             else if (CurrentSigStage == SigStage.InspectorSigning)
@@ -281,10 +282,10 @@
                             disabled="@_busy"
                             @onclick="OnInspectorSignAsync"
                             data-testid="oqc-btn-inspector-sign">
-                        1 · Inspector sign
+                        @T("oqc.btn.inspector.sign")
                     </button>
                     <div class="rs-action-hint">
-                        I confirm I have inspected @_view.Items.Count items per the OQC profile.
+                        @T("oqc.inspector.hint", _view.Items.Count)
                     </div>
                 </div>
             }
@@ -294,13 +295,13 @@
                     <button type="button"
                             class="op-btn op-btn-primary ipqc-judgment-btn"
                             disabled="@(!CanReview() || _busy)"
-                            title="@(IsSameAs(_view.InspectedBy) ? "Reviewer must differ from Inspector" : "")"
+                            title="@(IsSameAs(_view.InspectedBy) ? T("oqc.reviewer.differ.title") : "")"
                             @onclick="OnReviewerSignAsync"
                             data-testid="oqc-btn-reviewer-sign">
-                        2 · Reviewer sign
+                        @T("oqc.btn.reviewer.sign")
                     </button>
                     <div class="rs-action-hint">
-                        The Reviewer confirms the result the Inspector signed
+                        @T("oqc.reviewer.hint")
                         (<span class="scan-mono">@_view.InspectedBy</span>).
                     </div>
                 </div>
@@ -309,7 +310,7 @@
             {
                 <div class="qa-reason-field">
                     <label class="rs-modal-label" for="oqc-reject-reason">
-                        Reject reason (required when rejecting; 1-500 characters)
+                        @T("oqc.reject.reason.field")
                     </label>
                     <input id="oqc-reject-reason"
                            type="text"
@@ -324,24 +325,25 @@
                     <button type="button"
                             class="op-btn op-btn-success ipqc-judgment-btn"
                             disabled="@(!CanApprove() || _busy)"
-                            title="@(IsSameAs(_view.InspectedBy) ? "Approver must differ from Inspector" : IsSameAs(_view.ReviewedBy) ? "Approver must differ from Reviewer" : "")"
+                            title="@(IsSameAs(_view.InspectedBy) ? T("oqc.approver.differ.inspector.title") : IsSameAs(_view.ReviewedBy) ? T("oqc.approver.differ.reviewer.title") : "")"
                             @onclick="@(() => OnApproverDecisionAsync(OqcOutcomeApprove))"
                             data-testid="oqc-btn-approve">
-                        Approve → SHIPPED
+                        @T("oqc.btn.approve")
                     </button>
                     <button type="button"
                             class="op-btn op-btn-danger ipqc-judgment-btn"
                             disabled="@(!CanReject() || _busy)"
-                            title="@(IsSameAs(_view.InspectedBy) ? "Approver must differ from Inspector" : IsSameAs(_view.ReviewedBy) ? "Approver must differ from Reviewer" : "")"
+                            title="@(IsSameAs(_view.InspectedBy) ? T("oqc.approver.differ.inspector.title") : IsSameAs(_view.ReviewedBy) ? T("oqc.approver.differ.reviewer.title") : "")"
                             @onclick="@(() => OnApproverDecisionAsync(OqcOutcomeReject))"
                             data-testid="oqc-btn-reject">
-                        Reject → FQC
+                        @T("oqc.btn.reject")
                     </button>
                 </div>
                 <div class="rs-action-hint" data-testid="oqc-stage-approver-hint">
-                    The Approver makes the final decision. Inspector =
+                    @T("oqc.approver.hint")
                     <span class="scan-mono">@_view.InspectedBy</span>,
-                    Reviewer = <span class="scan-mono">@_view.ReviewedBy</span>.
+                    @T("oqc.approver.hint.reviewer")
+                    <span class="scan-mono">@_view.ReviewedBy</span>.
                 </div>
             }
         </div>
@@ -394,10 +396,10 @@
 
     private string StageTitle => CurrentSigStage switch
     {
-        SigStage.ItemsPending     => "Inspecting OQC items",
-        SigStage.InspectorSigning => "1 · Inspector sign",
-        SigStage.ReviewerSigning  => "2 · Reviewer sign",
-        SigStage.ApproverSigning  => "3 · Approver decision",
+        SigStage.ItemsPending     => T("oqc.stage.title.inspecting"),
+        SigStage.InspectorSigning => T("oqc.stage.title.inspector"),
+        SigStage.ReviewerSigning  => T("oqc.stage.title.reviewer"),
+        SigStage.ApproverSigning  => T("oqc.stage.title.approver"),
         _                         => "OQC",
     };
 
@@ -455,11 +457,11 @@
         }
         catch (HttpRequestException ex)
         {
-            _initialError = $"Could not connect to the server: {ex.Message}";
+            _initialError = T("oqc.error.connect", ex.Message);
         }
         catch (Exception ex)
         {
-            _initialError = $"Error loading OQC status: {ex.GetType().Name}: {ex.Message}";
+            _initialError = T("oqc.error.loading", $"{ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -470,11 +472,11 @@
         _     => "ipqc-slot-pending",
     };
 
-    private static string StatusDisplay(string status) => status switch
+    private string StatusDisplay(string status) => status switch
     {
-        "Ok" => "✓ OK",
-        "Ng" => "✗ NG",
-        _    => "— Pending",
+        "Ok" => T("oqc.status.ok"),
+        "Ng" => T("oqc.status.ng"),
+        _    => T("oqc.status.pending"),
     };
 
     private static string StatusPillCss(string status) => status switch
@@ -540,7 +542,7 @@
             if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
             await ReloadAsync();
         }
-        catch (HttpRequestException ex) { _setError = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _setError = T("oqc.error.connect", ex.Message); }
         catch (Exception ex) { _setError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _busy = false; }
     }
@@ -567,7 +569,7 @@
             if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
             await ReloadAsync();
         }
-        catch (HttpRequestException ex) { _setError = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _setError = T("oqc.error.connect", ex.Message); }
         catch (Exception ex) { _setError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _busy = false; }
     }
@@ -599,7 +601,7 @@
             if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
             await ReloadAsync();
         }
-        catch (HttpRequestException ex) { _setError = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _setError = T("oqc.error.connect", ex.Message); }
         catch (Exception ex) { _setError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _busy = false; }
     }
@@ -662,7 +664,7 @@
             if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
             await ReloadAsync();
         }
-        catch (HttpRequestException ex) { _setError = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _setError = T("oqc.error.connect", ex.Message); }
         catch (Exception ex) { _setError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _busy = false; }
     }
@@ -676,6 +678,6 @@
             await ReloadAsync();
             return;
         }
-        _setError = "Server returned Ok=false without an error code — report to IT.";
+        _setError = T("oqc.error.no.code");
     }
 }

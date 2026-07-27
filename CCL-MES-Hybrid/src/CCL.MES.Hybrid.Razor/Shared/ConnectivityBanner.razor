@@ -1,6 +1,6 @@
 @using CCL.MES.Hybrid.Client.Connectivity
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject IConnectivityMonitor Monitor
-@implements IDisposable
 
 @*
   Q4 lock: Phase 10 has NO offline-write queue. When the device loses
@@ -13,7 +13,7 @@
 {
     <div class="app-conn-banner" role="alert" aria-live="polite">
         <span class="app-conn-dot"></span>
-        <span>Mất kết nối — đang chờ mạng để tải dữ liệu.</span>
+        <span>@T("conn.offline")</span>
     </div>
 }
 
@@ -22,6 +22,7 @@
 
     protected override void OnInitialized()
     {
+        base.OnInitialized(); // subscribe to language changes (LocalizedComponentBase)
         _isConnected = Monitor.IsConnected;
         Monitor.ConnectivityChanged += Handle;
     }
@@ -32,8 +33,9 @@
         InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose()
+    public override void Dispose()
     {
         Monitor.ConnectivityChanged -= Handle;
+        base.Dispose(); // unsubscribe
     }
 }

@@ -547,6 +547,23 @@ html, body {
 }
 .tb-logout:hover { background: var(--c-divider); }
 
+/* i18n Phase-2 — EN/VI flag toggle (syncs with Settings → Appearance). */
+.tb-lang {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--c-line-2);
+    background: var(--card);
+    border-radius: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--c-ink-3);
+}
+.tb-lang:hover { background: var(--c-divider); }
+.tb-lang-flag { font-size: 1rem; line-height: 1; }
+.tb-lang-code { font-weight: 700; letter-spacing: 0.5px; }
+
 /* ═══════════ P10.10 — Home page (SpecHub parity) ═══════════ */
 .hp-header {
     display: flex;
@@ -2781,11 +2798,27 @@ html, body {
     border: 1px solid var(--warn-bg);
 }
 
-.grid-btn-secondary {
-    background: var(--c-ink-4);
-    color: white;
+/* Compound selector (0,2,0) so it beats BOTH duplicate `.grid-btn` blocks
+   (@~1094 light bg + @~1656 brand bg) regardless of source order. The old
+   `.grid-btn-secondary` referenced the UNDEFINED token --c-ink-4 → background
+   resolved to `transparent` → white text on the light page = invisible.
+   Fixed to a defined dark ink token + white text (readable contrast). */
+.grid-btn.grid-btn-secondary {
+    background: var(--c-ink-3);
+    color: var(--c-card);
+    border: 1px solid var(--c-ink-3);
 }
-.grid-btn-secondary:hover:not(:disabled) { background: var(--c-ink-3); }
+.grid-btn.grid-btn-secondary:hover:not(:disabled) {
+    background: var(--c-ink-2);
+    border-color: var(--c-ink-2);
+}
+/* (0,2,1) beats `.grid-btn:disabled` (0,1,1) → disabled stays a distinct
+   muted-light chip, never colliding with the dark enabled background. */
+.grid-btn.grid-btn-secondary:disabled {
+    background: var(--c-surface);
+    color: var(--c-soft);
+    border-color: var(--c-line);
+}
 
 .import-help {
     font-size: 0.92rem;
@@ -2927,6 +2960,10 @@ html, body {
 /* Active state colour borrows the planner palette already used by
    the row-level chip. Each planner family gets its own active hue
    so the operator can tell at a glance which planner is filtered. */
+/* "All types" chip carries no planner-family class → give its active state
+   an explicit neutral fill (base .is-active only sets white text, so without
+   this the active chip would be white-on-white). */
+.spec-planner-filter-chip.is-active.spec-planner-all     { background: var(--c-ink-3); }
 .spec-planner-filter-chip.is-active.spec-planner-silk    { background: var(--brand-ink); }
 .spec-planner-filter-chip.is-active.spec-planner-flexo   { background: var(--indigo); }
 .spec-planner-filter-chip.is-active.spec-planner-letter  { background: var(--warn-fg); }
@@ -3175,6 +3212,14 @@ html, body {
 .spec-info-hi { background: var(--warn-bg); font-weight: 600; }
 
 .spec-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
+
+/* Print Process / flexo tables are wide (up to 21 cols). Keep every row on
+   ONE line (content-sized columns via the default auto layout); when the
+   viewport is too narrow the .spec-table-scroll wrapper scrolls horizontally
+   instead of wrapping cells. This is the same shape the print sheet uses, so
+   on-screen Full view and the printed PDF stay WYSIWYG. */
+.spec-print-table-full th,
+.spec-print-table-full td { white-space: nowrap; }
 
 .spec-table-scroll {
     overflow-x: auto;
@@ -6553,3 +6598,355 @@ tr.wc-row:hover { background: var(--c-bg); }
     .semi-refresh, .semi-add-toggle { width: 100%; }
 }
 @container (max-width: 480px) { .semi-kpis { grid-template-columns: 1fr; } }
+
+/* ══════════════════════════════════════════════════════════════════════
+   P11-3 — Routing fork-join operator surface (LegsDashboard).
+   NOTE: maccatalyst host loads ONLY this global app.css — the scoped
+   LegsDashboard.razor.css is DEAD, so every leg style lives here.
+   Token-based (L37): status/gate colours via --ok/--ng/--warn*/--brand*.
+   ══════════════════════════════════════════════════════════════════════ */
+.legs-dashboard { display: flex; flex-direction: column; gap: 14px; }
+
+/* skeleton loading */
+.legs-loading {
+    min-height: 96px; border-radius: 14px;
+    border: 1px solid var(--c-line);
+    background: linear-gradient(100deg, var(--c-surface) 30%, var(--c-divider) 50%, var(--c-surface) 70%);
+    background-size: 200% 100%;
+    animation: legs-shimmer 1.3s ease-in-out infinite;
+    color: transparent;
+}
+@keyframes legs-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* header */
+.legs-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.legs-head-wo { font-size: 1.15rem; font-weight: 800; color: var(--c-ink); letter-spacing: .2px; }
+.legs-head-phase { font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; padding: 3px 10px; border-radius: 999px; }
+.legs-phase-split { background: var(--indigo-bg); color: var(--indigo); border: 1px solid var(--indigo); }
+.legs-head-count { font-size: .82rem; color: var(--c-muted); font-weight: 600; }
+.legs-head-prog { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: .8rem; color: var(--c-muted); font-weight: 700; }
+.legs-head-prog-bar { width: 120px; height: 8px; border-radius: 999px; background: var(--c-line); overflow: hidden; }
+.legs-head-prog-fill { display: block; height: 100%; background: var(--ok); border-radius: 999px; transition: width .3s ease; }
+
+/* banner / alert */
+.legs-alert { display: flex; align-items: center; gap: 9px; }
+.legs-alert-ico { flex: 0 0 auto; }
+
+/* ── DAG flow: stages side-by-side with connectors ── */
+.legs-flow { display: flex; align-items: stretch; gap: 4px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 6px; }
+.legs-stage { display: flex; flex-direction: column; gap: 8px; min-width: 232px; }
+.legs-stage-label { font-size: .66rem; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--c-soft); padding-left: 4px; }
+.legs-stage-terminal .legs-stage-label { color: var(--ok-ink); }
+.legs-stage-branch .legs-stage-label { color: var(--brand); }
+.legs-stage-converge .legs-stage-label { color: var(--indigo); }
+.legs-stage-cards { display: flex; flex-direction: column; gap: 10px; height: 100%; }
+/* parallel-branch cards get a left rail hinting they converge */
+.legs-stage-branch .legs-stage-cards { position: relative; padding-left: 12px; }
+.legs-stage-branch .legs-stage-cards::before {
+    content: ""; position: absolute; left: 3px; top: 14px; bottom: 14px;
+    width: 2px; border-radius: 2px; background: var(--brand-soft);
+}
+.legs-connector { align-self: center; flex: 0 0 30px; display: flex; align-items: center; justify-content: center; color: var(--brand-soft); }
+.legs-connector svg { width: 30px; height: 30px; }
+
+/* ── leg card ── */
+.legs-card {
+    background: var(--c-card); border: 1px solid var(--c-line);
+    border-top: 3px solid var(--c-line); border-radius: 14px;
+    padding: 12px 13px; display: flex; flex-direction: column; gap: 9px;
+    box-shadow: 0 1px 2px rgba(30, 42, 58, .05);
+}
+.legs-card-head { display: flex; align-items: center; gap: 9px; }
+.legs-ico { flex: 0 0 34px; width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: var(--c-surface); color: var(--c-muted); }
+.legs-ico svg { width: 19px; height: 19px; }
+.legs-kind { font-size: 1.02rem; font-weight: 800; color: var(--c-ink); line-height: 1.1; }
+.legs-method { font-size: .8rem; color: var(--c-muted); font-weight: 600; margin-left: auto; text-align: right; }
+.legs-card-row { display: flex; align-items: center; gap: 8px; }
+.legs-line { font-size: .68rem; font-weight: 700; letter-spacing: .4px; color: var(--indigo); background: var(--indigo-bg); border-radius: 6px; padding: 2px 7px; }
+.legs-terminal { font-size: .64rem; font-weight: 800; color: var(--ok-ink); background: var(--ok-bg); border: 1px solid var(--ok-soft); border-radius: 999px; padding: 2px 8px; }
+.legs-phase-chip { margin-left: auto; font-size: .72rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+
+/* per-kind accents */
+.legs-kind-print    { border-top-color: var(--brand); }
+.legs-kind-print    .legs-ico { background: var(--brand-bg); color: var(--brand); }
+.legs-kind-print-cut { border-top-color: var(--brand); }
+.legs-kind-print-cut .legs-ico { background: var(--brand-bg); color: var(--brand); }
+.legs-kind-tape     { border-top-color: var(--accent); }
+.legs-kind-tape     .legs-ico { background: var(--accent-bg); color: var(--accent-ink); }
+.legs-kind-cut      { border-top-color: var(--warn-fg); }
+.legs-kind-cut      .legs-ico { background: var(--warn-bg); color: var(--warn-fg); }
+.legs-kind-assembly { border-top-color: var(--indigo); }
+.legs-kind-assembly .legs-ico { background: var(--indigo-bg); color: var(--indigo); }
+
+/* phase status pill */
+.legs-ph-prepress { background: var(--c-surface); color: var(--c-muted); border: 1px solid var(--c-line); }
+.legs-ph-setting, .legs-ph-ipqc_wait, .legs-ph-ipqc_approved { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-soft); }
+.legs-ph-running { background: var(--brand-bg); color: var(--brand-ink); border: 1px solid var(--brand-soft); }
+.legs-ph-paused  { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-soft); }
+.legs-ph-leg_done { background: var(--ok-bg); color: var(--ok-ink); border: 1px solid var(--ok-soft); }
+
+/* per-leg IPQC — rendered via <FloatingWindow> (L34 showcard). Only the header
+   content + body item grid are styled here; window chrome comes from FloatingWindow. */
+.legs-ipqc-toggle { width: 100%; margin-top: 2px; }
+.legs-ipqc-toggle-ico { font-size: 1rem; }
+
+/* rich header (HeaderContent slot) — leg identity + accent icon */
+.legs-ipqc-fw-head { display: flex; align-items: center; gap: 10px; }
+.legs-ipqc-fw-ico { flex: 0 0 34px; width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: var(--c-surface); color: var(--c-muted); }
+.legs-ipqc-fw-ico svg { width: 19px; height: 19px; }
+.legs-ipqc-fw-title { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.legs-ipqc-fw-kind { font-size: 1.02rem; font-weight: 800; color: var(--c-ink); line-height: 1.1; }
+.legs-ipqc-fw-sub { display: flex; align-items: center; gap: 8px; font-size: .76rem; color: var(--c-muted); font-weight: 600; }
+.legs-ipqc-fw-head.legs-kind-print .legs-ipqc-fw-ico { background: var(--brand-bg); color: var(--brand); }
+.legs-ipqc-fw-head.legs-kind-tape .legs-ipqc-fw-ico { background: var(--accent-bg); color: var(--accent-ink); }
+.legs-ipqc-fw-head.legs-kind-cut .legs-ipqc-fw-ico { background: var(--warn-bg); color: var(--warn-fg); }
+.legs-ipqc-fw-head.legs-kind-assembly .legs-ipqc-fw-ico { background: var(--indigo-bg); color: var(--indigo); }
+
+/* comfortable multi-column item grid + big touch targets inside the showcard body.
+   auto-fill responds to the (resizable) window width → no container query needed. */
+.legs-ipqc-body .ipqc-item-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; align-items: start; }
+.legs-ipqc-body .ipqc-item-group-head { grid-column: 1 / -1; }
+.legs-ipqc-body .op-btn { min-height: 48px; }
+
+/* per-leg readiness chips (this leg's own Pre-press + IPQC surface) */
+.legs-readiness { display: flex; gap: 6px; flex-wrap: wrap; }
+.legs-ready-chip { font-size: .7rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--c-surface); color: var(--c-muted); border: 1px solid var(--c-line); }
+.legs-ready-chip.is-ok { background: var(--ok-bg); color: var(--ok-ink); border-color: var(--ok-soft); }
+
+/* mini phase stepper */
+.legs-stepper { display: flex; align-items: center; gap: 5px; }
+.legs-stepper-dot { flex: 1; height: 6px; border-radius: 999px; background: var(--c-line); }
+.legs-stepper-dot.is-done { background: var(--ok); }
+.legs-stepper-dot.is-cur { background: var(--brand); box-shadow: 0 0 0 2px var(--brand-bg); }
+
+/* gate banners */
+.legs-gate { display: flex; gap: 9px; align-items: flex-start; border-radius: 10px; padding: 9px 11px; font-size: .8rem; line-height: 1.35; }
+.legs-gate-ico { flex: 0 0 auto; font-size: 1rem; line-height: 1.2; }
+.legs-gate-body { display: flex; flex-direction: column; gap: 2px; }
+.legs-gate-title { font-weight: 800; }
+.legs-gate-reason { opacity: .92; }
+.legs-gate-hint { font-size: .72rem; opacity: .78; }
+.legs-gate-hard { background: var(--ng-bg); color: var(--ng-ink); border: 1px solid var(--ng-soft); }
+.legs-gate-soft { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-soft); }
+
+/* actions + buttons (no global .btn in app.css → style within the dashboard) */
+.legs-card-actions { display: flex; gap: 8px; margin-top: 2px; flex-wrap: wrap; }
+.legs-dashboard .btn {
+    font: inherit; font-weight: 700; font-size: .85rem; border-radius: 10px;
+    padding: 0 15px; min-height: 44px; display: inline-flex; align-items: center;
+    justify-content: center; gap: 6px; cursor: pointer; border: 1px solid transparent;
+    transition: filter .12s ease, background .12s ease;
+}
+.legs-dashboard .btn:disabled { opacity: .5; cursor: not-allowed; }
+.legs-dashboard .btn-primary { background: var(--brand); color: var(--c-card); border-color: var(--brand); }
+.legs-dashboard .btn-primary:not(:disabled):hover { filter: brightness(1.06); }
+.legs-dashboard .btn-ghost { background: var(--c-surface); color: var(--c-muted); border-color: var(--c-line); }
+.legs-dashboard .btn-ghost:not(:disabled):hover { background: var(--c-divider); color: var(--c-ink); }
+.legs-advance { flex: 1 1 auto; }
+.legs-rework { flex: 0 0 auto; }
+.legs-done-tag {
+    flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center;
+    min-height: 44px; border-radius: 10px; background: var(--ok-bg); color: var(--ok-ink);
+    font-weight: 800; font-size: .85rem; border: 1px solid var(--ok-soft);
+}
+
+/* semi-stock block (ASSEMBLY + FROM_STOCK) */
+.legs-semi { border-top: 1px dashed var(--c-line); padding-top: 9px; display: flex; flex-direction: column; gap: 7px; }
+.legs-semi-label { font-size: .74rem; font-weight: 800; color: var(--indigo); display: flex; align-items: center; gap: 6px; }
+.legs-semi-ico { font-size: .95rem; }
+.legs-semi-actions { display: flex; gap: 8px; }
+.legs-semi-actions .btn { flex: 1 1 0; }
+
+/* modals (hand-rolled overlay, centred — L34 transactional style) */
+.legs-rework-modal { position: fixed; inset: 0; z-index: 60; background: rgba(30, 42, 58, .44); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.legs-rework-body { background: var(--c-card); border: 1px solid var(--c-line); border-radius: 16px; padding: 20px; width: min(440px, 92vw); display: flex; flex-direction: column; gap: 14px; box-shadow: 0 18px 50px rgba(30, 42, 58, .28); }
+.legs-rework-title { font-size: 1.02rem; font-weight: 800; color: var(--c-ink); }
+.legs-rework-input, .legs-semi-select {
+    font: inherit; width: 100%; min-height: 44px; padding: 0 12px;
+    border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-card); color: var(--c-ink);
+}
+.legs-rework-input:focus, .legs-semi-select:focus { outline: none; border-color: var(--brand-soft); box-shadow: 0 0 0 3px var(--brand-bg); }
+.legs-semi-field { display: flex; flex-direction: column; gap: 5px; font-size: .8rem; font-weight: 700; color: var(--c-muted); }
+.legs-rework-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.legs-rework-actions .btn { min-width: 112px; }
+
+/* ── responsive: desktop DAG ↔ tablet stack ↔ mobile full-width ── */
+@container (max-width: 900px) {
+    .legs-flow { flex-direction: column; align-items: stretch; overflow-x: visible; }
+    .legs-stage { min-width: 0; }
+    .legs-connector { flex-basis: auto; height: 24px; transform: rotate(90deg); }
+    .legs-connector svg { width: 24px; height: 24px; }
+    .legs-stage-branch .legs-stage-cards { flex-direction: row; flex-wrap: wrap; }
+    .legs-stage-branch .legs-stage-cards > .legs-card { flex: 1 1 240px; }
+}
+@container (max-width: 560px) {
+    .legs-stage-branch .legs-stage-cards { flex-direction: column; }
+    .legs-card-actions { flex-direction: column; }
+    .legs-card-actions .btn, .legs-advance, .legs-rework, .legs-done-tag { width: 100%; flex: 1 1 auto; }
+    .legs-head-prog { margin-left: 0; width: 100%; }
+    .legs-head-prog-bar { flex: 1; width: auto; }
+    .legs-rework-actions { flex-direction: column-reverse; }
+    .legs-rework-actions .btn { width: 100%; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   PRINT — WYSIWYG Spec Full sheet (native WKWebView print, P11.x)
+   ----------------------------------------------------------------------
+   window.print() is a no-op inside WKWebView; the native
+   UIPrintInteractionController rasterises the LIVE DOM with THIS media
+   type applied (WKWebView.ViewPrintFormatter). So the printed page / saved
+   PDF is exactly the on-screen Spec Full sheet: hide all app chrome, lift
+   the sheet to the top of the page, and tune the wide print-process table
+   so ~18 columns never overflow the sheet.
+
+   Colours use :root design tokens or CSS keywords only (L37 hex gate).
+   Default @page is A4 landscape (wide sheet); the operator can switch to
+   A3 / portrait / scale in the native print panel.
+   ══════════════════════════════════════════════════════════════════════ */
+@media print {
+    @page {
+        size: A4 landscape;
+        margin: 8mm;
+    }
+
+    html, body {
+        background: white !important;
+        width: auto !important;
+        height: auto !important;
+        overflow: visible !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Only the Spec Full sheet prints. Hide everything via the visibility
+       technique (keeps unknown chrome out too), then reveal + lift just the
+       sheet subtree to the page origin. */
+    body * { visibility: hidden !important; }
+    .spec-showcard-full,
+    .spec-showcard-full * { visibility: visible !important; }
+
+    /* Neutralise positioned ancestors so the absolute sheet anchors to the
+       page, not to a relatively-positioned wrapper. */
+    .app-shell,
+    .app-main,
+    .app-content {
+        position: static !important;
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
+    /* Belt-and-braces: drop the biggest chrome outright so no reserved
+       whitespace lands on the page. */
+    .app-nav,
+    .app-topbar,
+    .connectivity-banner,
+    .spec-detail-actions,
+    .spec-tabs,
+    .spec-showcard-toolbar,
+    .spec-dwg-cards,
+    .grid-export-banner,
+    .spec-action-banner-row,
+    .spec-print-pdf,
+    #blazor-error-ui {
+        display: none !important;
+    }
+
+    .spec-showcard-full {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+    }
+
+    /* Print the colour blocks (navy doc header, table header fills). */
+    .spec-doc-header,
+    .spec-info-table-full th,
+    .spec-print-table-full th,
+    .spec-rev-table-full th {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Unclip the on-screen horizontal scroller so the WHOLE table prints
+       (landscape has the width for the 21-column process table). */
+    .spec-table-scroll { overflow: visible !important; }
+
+    /* Print Process / flexo tables — content-sized columns, ONE line per row
+       (WYSIWYG with the on-screen Full view). NOT table-layout:fixed (that
+       divides width evenly → long cells wrap 2-3 lines). Header + body share
+       ONE uniform font token; if a row is still too wide for the page, drop
+       the token value rather than wrap. */
+    .spec-print-table-full {
+        width: 100% !important;
+        table-layout: auto !important;
+        font-size: var(--spec-print-table-fs) !important;
+    }
+    .spec-print-table-full th,
+    .spec-print-table-full td {
+        white-space: nowrap !important;      /* one line per row — no wrap */
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+        font-size: var(--spec-print-table-fs) !important;   /* uniform */
+        padding: 1.5px 5px !important;
+    }
+
+    /* Product Info + Revision — content-sized columns too; long cells
+       (Material) may wrap onto a second line, short columns stay on one. */
+    .spec-info-table-full,
+    .spec-rev-table-full {
+        width: 100% !important;
+        table-layout: auto !important;
+        font-size: var(--spec-print-table-fs) !important;
+    }
+    .spec-info-table-full th, .spec-info-table-full td,
+    .spec-rev-table-full th, .spec-rev-table-full td {
+        padding: 1.5px 5px !important;
+    }
+
+    /* ── Vertical compaction — squeeze the stacked sections so the whole
+       sheet lands in ~2 LANDSCAPE pages (landscape trades height for width,
+       so the sheet MUST be short vertically). Fonts/paddings shrink; the
+       colour bands + table structure stay intact. ── */
+    .spec-showcard-full {
+        font-size: 8pt !important;
+        line-height: 1.2 !important;
+        /* Single uniform font-size token for every data table on the sheet.
+           6pt keeps the 21-col process row on ONE landscape line without
+           clipping; bump here (one place) if a customer needs larger print. */
+        --spec-print-table-fs: 6pt;
+    }
+    .spec-doc-header { padding: 4px 10px !important; }
+    .spec-doc-category { font-size: 12pt !important; }
+    .spec-doc-co, .spec-doc-header-right { font-size: 8pt !important; }
+    .spec-doc-co-sub, .spec-doc-category-sub { font-size: 6.5pt !important; }
+    .spec-compliance-strip { padding: 2px 10px !important; font-size: 7.5pt !important; }
+    .spec-block-full { padding: 3px 10px !important; }
+    .spec-block-title-full {
+        font-size: 8pt !important;
+        margin-bottom: 2px !important;
+        padding-bottom: 1px !important;
+    }
+    .spec-params-grid, .spec-signoff-grid { gap: 5px !important; }
+    .spec-params-grid > *, .spec-signoff-grid > * { padding: 4px 8px !important; }
+    /* Print Params values were oversized vs the label — bring them to a
+       consistent, compact scale (label 7pt / value 9.5pt) like the design. */
+    .spec-params-grid .lbl { font-size: 7pt !important; }
+    .spec-params-grid .lbl .muted { font-size: 6pt !important; }
+    .spec-params-grid .val { font-size: 9.5pt !important; }
+    .spec-silk-legend { font-size: 7pt !important; padding: 3px 8px !important; }
+    .spec-remarks-full { padding: 3px 8px !important; }
+    .spec-audit-action { font-size: 7.5pt !important; }
+
+    /* Keep sections + table rows from splitting across a page break. */
+    .spec-block-full { page-break-inside: avoid; }
+    .spec-doc-header { page-break-inside: avoid; page-break-after: avoid; }
+    tr { page-break-inside: avoid; }
+    thead { display: table-header-group; } /* repeat header on each page */
+}

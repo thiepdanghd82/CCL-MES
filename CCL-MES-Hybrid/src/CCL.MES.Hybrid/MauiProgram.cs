@@ -177,6 +177,17 @@ public static class MauiProgram
             CCL.MES.Hybrid.Platforms.MacCatalyst.CatalystBarcodeScanner>());
         builder.Services.Replace(ServiceDescriptor.Singleton<IDeviceSettingsLauncher,
             CCL.MES.Hybrid.Platforms.MacCatalyst.MauiCatalystDeviceSettingsLauncher>());
+
+        // P11.x — native WebView print. window.print() is a no-op inside
+        // WKWebView, so drive UIPrintInteractionController over the live DOM
+        // (WKWebView.ViewPrintFormatter) — WYSIWYG native print panel with
+        // A4/A3 + orientation + scale + Save-as-PDF. The WKWebView ref is
+        // captured in MainPage.OnBlazorWebViewInitialized. Non-Catalyst
+        // hosts keep StubPrintService → the Spec Print button falls back to
+        // the server MigraDoc PDF.
+        builder.Services.Replace(ServiceDescriptor.Singleton<
+            CCL.MES.Hybrid.Client.Printing.IPrintService,
+            CCL.MES.Hybrid.Platforms.MacCatalyst.CatalystPrintService>());
 #endif
 
         return builder.Build();

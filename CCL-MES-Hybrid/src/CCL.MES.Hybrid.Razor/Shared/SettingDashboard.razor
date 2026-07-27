@@ -34,31 +34,31 @@
     here other than the checklist checkboxes which are <input type="checkbox">.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using System.Timers
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.RunningSurface
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.RunningSurface
-@implements IDisposable
 @inject ICclApiClient Api
 
 <div class="rs-dashboard" data-testid="setting-dashboard">
     @if (_view is null && _initialError is null)
     {
-        <div class="rs-loading" data-testid="setting-loading">Loading SETTING status…</div>
+        <div class="rs-loading" data-testid="setting-loading">@T("setting.loading")</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="setting-initial-error">
-            <strong>Could not load SETTING status:</strong> @_initialError
+            <strong>@T("setting.error.load")</strong> @_initialError
         </div>
     }
     else if (_invalidPhase)
     {
         <div class="wo-card-error" data-testid="setting-invalid-phase">
-            <strong>WO is not in the SETTING phase</strong> —
-            Current: <code>@(_view?.MesPhase ?? "?")</code>.
-            Go back to the Work Orders tab to select another WO.
+            <strong>@T("setting.invalidphase.title")</strong> —
+            @T("setting.invalidphase.current") <code>@(_view?.MesPhase ?? "?")</code>.
+            @T("setting.invalidphase.hint")
         </div>
     }
     else if (_view is not null)
@@ -70,7 +70,7 @@
                 <span class="rs-head-phase rs-phase-setting">@_view.MesPhase</span>
             </div>
             <div class="rs-head-timer" data-testid="setting-timer">
-                <span class="rs-timer-label">Setting time</span>
+                <span class="rs-timer-label">@T("setting.timer.label")</span>
                 <span class="rs-timer-value scan-mono">@FormatTimer()</span>
             </div>
         </div>
@@ -78,17 +78,17 @@
         @if (_setError is not null)
         {
             <div class="wo-card-error" data-testid="setting-set-error">
-                <strong>Could not save change:</strong> @_setError
+                <strong>@T("setting.error.save")</strong> @_setError
                 <button type="button" class="op-btn op-btn-secondary op-btn-sm"
                         @onclick="DismissSetError"
-                        data-testid="setting-set-error-dismiss">Dismiss</button>
+                        data-testid="setting-set-error-dismiss">@T("setting.dismiss")</button>
             </div>
         }
 
         <div class="rs-card">
             <div class="rs-card-head">
-                <div class="rs-card-title">Setting checklist</div>
-                <div class="rs-card-pill">@CheckedCount/@_checklist.Count confirmed</div>
+                <div class="rs-card-title">@T("setting.checklist.title")</div>
+                <div class="rs-card-pill">@T("setting.checklist.confirmed", CheckedCount, _checklist.Count)</div>
             </div>
             <ul class="rs-checklist" data-testid="setting-checklist">
                 @for (var i = 0; i < _checklist.Count; i++)
@@ -101,7 +101,7 @@
                                    checked="@item.Checked"
                                    data-testid="@($"setting-check-{idx}")"
                                    @onchange="@(e => OnCheckToggle(idx, e))" />
-                            <span class="rs-checklist-text">@item.Label</span>
+                            <span class="rs-checklist-text">@T(item.LabelKey)</span>
                         </label>
                     </li>
                 }
@@ -114,12 +114,12 @@
                     data-testid="setting-done-btn"
                     disabled="@(!AllChecked || _busy)"
                     @onclick="OnSettingDoneAsync">
-                Finish Setting (advance to IPQC)
+                @T("setting.done.button")
             </button>
             @if (!AllChecked)
             {
                 <span class="rs-action-hint" data-testid="setting-action-hint">
-                    Check all @_checklist.Count items → the button becomes active.
+                    @T("setting.action.hint", _checklist.Count)
                 </span>
             }
         </div>
@@ -140,12 +140,12 @@
     // Order matters — operators learn the sequence + we use index in test-ids.
     private readonly List<ChecklistItem> _checklist = new()
     {
-        new("Mount die / plate in the correct position, tightened"),
-        new("Mount the correct-size cutter, inspect the blade"),
-        new("Ink + materials matching the order, premixed and ready"),
-        new("Color registration / alignment complete"),
-        new("Run a first sample — compare against spec"),
-        new("Machine cleaned + workplace safety before running"),
+        new("setting.checklist.item0"),
+        new("setting.checklist.item1"),
+        new("setting.checklist.item2"),
+        new("setting.checklist.item3"),
+        new("setting.checklist.item4"),
+        new("setting.checklist.item5"),
     };
 
     private RunningSurfaceView? _view;
@@ -301,16 +301,17 @@
 
     private void DismissSetError() => _setError = null;
 
-    public void Dispose()
+    public override void Dispose()
     {
         _ticker?.Dispose();
         _ticker = null;
+        base.Dispose();
     }
 
     private sealed class ChecklistItem
     {
-        public ChecklistItem(string label) { Label = label; }
-        public string Label { get; }
+        public ChecklistItem(string labelKey) { LabelKey = labelKey; }
+        public string LabelKey { get; }
         public bool Checked { get; set; }
     }
 }

@@ -53,6 +53,17 @@ KHÔNG hardcode hex trong rule. Đổi tone = **swap GIÁ TRỊ token** trong `:
 `CCL-MES-Hybrid/scripts/gate-no-hardcoded-hex.sh` (ratchet hex ngoài `:root`) +
 SKILLS.md S15.
 
+**Spec print/PDF rule (L39):** in tờ Spec / tài liệu WYSIWYG trên maccatalyst
+đi qua **native `IPrintService`** (`UIPrintInteractionController` +
+`WKWebView.ViewPrintFormatter`) — KHÔNG `window.print()` (no-op trong WKWebView).
+Print-CSS ở **global `app.css`** (`@media print`, scoped `.razor.css` chết);
+bảng rộng = `table-layout:auto` + `white-space:nowrap` + **1 token**
+`--spec-print-table-fs` (mỗi hàng 1 dòng, font đều), KHÔNG `fixed`+wrap;
+on-screen == bản in. MigraDoc (`SpecPdfDocumentBuilder`) = **fallback** A4
+landscape đủ-cột + auto-fit `PageCount`≤2 + hairline 0.25. Enforce:
+`CCL-MES-Hybrid/scripts/gate-spec-print.sh` + skill
+`.claude/skills/cmes-spec-print/SKILL.md` + hook `hook-spec-print-reminder.sh`.
+
 ## 0. Quick start
 
 - **Boot server**: `bash START_SERVER.command` (macOS) hoặc

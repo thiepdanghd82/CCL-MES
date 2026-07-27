@@ -39,6 +39,10 @@ public sealed class QualityTraceabilityTests : TestContext
         Services.AddSingleton<IBarcodeScannerService>(new StubScannerService());
         Services.AddSingleton<IFloatingWindowStore>(_winStore);
         Services.AddSingleton(Options.Create(new HardwareOptions { ScanEnabled = false }));
+        // i18n Phase-2 — FloatingWindow (wrapped by TraceabilityDetailDialog) tooltips.
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Localization.ILanguageService, CCL.MES.Hybrid.Client.Localization.InMemoryLanguageService>();
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Localization.ITranslationCatalog, CCL.MES.Hybrid.Client.Localization.TranslationCatalog>();
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Localization.ITranslator, CCL.MES.Hybrid.Client.Localization.Translator>();
         this.AddTestAuthorization().SetAuthorized("qc-user");
         // The floating-window chrome calls cclMesFloat.* JS interop in
         // OnAfterRender / Dispose; the test host has no JS engine, so run the
@@ -127,7 +131,7 @@ public sealed class QualityTraceabilityTests : TestContext
         Assert.Empty(cut.FindAll(".trace-modal-scrim"));
         // role/aria for the floating dialog.
         Assert.Equal("dialog", cut.Find(".trace-win").GetAttribute("role"));
-        Assert.Contains("Traceability WO-TR-1", cut.Find(".trace-win").GetAttribute("aria-label"));
+        Assert.Contains("Truy xuất WO-TR-1", cut.Find(".trace-win").GetAttribute("aria-label"));
     }
 
     [Fact]
@@ -239,10 +243,10 @@ public sealed class QualityTraceabilityTests : TestContext
         var cut = RenderComponent<QualityTraceability>();
 
         // Stub starts disconnected → Offline.
-        Assert.Contains("Offline", cut.Find(".trace-live").TextContent);
+        Assert.Contains("Ngoại tuyến", cut.Find(".trace-live").TextContent);
 
         _live.SetConnected(true);
-        cut.WaitForAssertion(() => Assert.Contains("Live", cut.Find(".trace-live").TextContent));
+        cut.WaitForAssertion(() => Assert.Contains("Trực tuyến", cut.Find(".trace-live").TextContent));
     }
 
     [Fact]
@@ -254,14 +258,15 @@ public sealed class QualityTraceabilityTests : TestContext
 
         Assert.Equal(4, cut.FindAll(".trace-tab").Count);
         var m = cut.Markup;
-        // Header key-value still present.
-        Assert.Contains("Product code", m);
+        // Header key-value still present (label localized VI-default; the baked
+        // English label "Product code" is mapped to the translation at render).
+        Assert.Contains("Mã sản phẩm", m);
         Assert.Contains("80640004", m);
 
         // Fixed Product columns, in order — No. + Part No are SEPARATE columns.
         var heads = cut.FindAll(".trace-prod thead th").Select(h => h.TextContent.Trim()).ToArray();
-        Assert.Equal(new[] { "No.", "Part No", "Description", "QPA (m²)", "Qty. Required",
-            "UoM", "Part Scan", "Part Description", "Lot", "Status", "NG — reason · note" }, heads);
+        Assert.Equal(new[] { "STT", "Mã linh kiện", "Mô tả", "QPA (m²)", "SL yêu cầu",
+            "ĐVT", "Quét linh kiện", "Mô tả linh kiện", "Lô", "Trạng thái", "NG — lý do · ghi chú" }, heads);
 
         // Dropped columns are gone.
         Assert.DoesNotContain("Scrap Factor", m);
@@ -282,7 +287,7 @@ public sealed class QualityTraceabilityTests : TestContext
             .Add(x => x.WoNo, "WO-TR-1").Add(x => x.OnClose, () => { }));
 
         var m = cut.Markup;
-        Assert.Contains("OK · Special Accept", m);          // Ok + retained NG reason
+        Assert.Contains("OK · Chấp nhận đặc biệt", m);      // Ok + retained NG reason (VI-default)
         Assert.Contains("SC-MAT-DAMAGE · edge nick", m);    // NG reason · note combined
     }
 
@@ -308,7 +313,7 @@ public sealed class QualityTraceabilityTests : TestContext
 
         // Bold section headings.
         var sections = cut.FindAll(".trace-prod-section").Select(h => h.TextContent.Trim()).ToArray();
-        Assert.Equal(new[] { "1. Materials confirmed", "2. Tools confirmed" }, sections);
+        Assert.Equal(new[] { "1. Vật tư đã xác nhận", "2. Công cụ đã xác nhận" }, sections);
 
         // Tools table = flexible list from payload.Tools (2 rows here, N in general).
         Assert.Single(cut.FindAll(".trace-tools"));
@@ -334,7 +339,7 @@ public sealed class QualityTraceabilityTests : TestContext
 
         // Generic renderer: Item/Status/NG columns + a column derived from Extra.
         var heads = cut.FindAll(".trace-items:not(.trace-prod) thead th").Select(h => h.TextContent.Trim()).ToArray();
-        Assert.Contains("Item", heads);
+        Assert.Contains("Hạng mục", heads);
         Assert.Contains("processLine", heads);   // Extra key becomes a column
         Assert.Empty(cut.FindAll(".trace-prod"));
     }
@@ -350,6 +355,6 @@ public sealed class QualityTraceabilityTests : TestContext
         var fqcTab = cut.FindAll(".trace-tab").First(b => b.TextContent.Contains("FQC"));
         fqcTab.Click();
         Assert.Single(cut.FindAll(".trace-empty"));
-        Assert.Contains("not frozen yet", cut.Markup);
+        Assert.Contains("Chưa chốt dữ liệu FQC — dữ liệu chưa được đóng băng.", cut.Markup);
     }
 }

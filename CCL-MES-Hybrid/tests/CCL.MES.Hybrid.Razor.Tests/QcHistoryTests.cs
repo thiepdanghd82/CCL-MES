@@ -21,6 +21,7 @@ public sealed class QcHistoryTests : TestContext
     {
         _api = new RecordingApi();
         Services.AddSingleton<ICclApiClient>(_api);
+        Services.AddI18n();
         this.AddTestAuthorization().SetAuthorized("test-user");
     }
 
@@ -68,7 +69,7 @@ public sealed class QcHistoryTests : TestContext
         _api.QcHistory = History();
         var cut = RenderComponent<QcHistory>();
 
-        cut.FindAll(".md-chip").First(b => b.TextContent.Contains("Reject")).Click();
+        cut.FindAll(".md-chip").First(b => b.TextContent.Contains("Loại")).Click();
 
         Assert.Contains(_api.QcHistoryCalls, c => c.Judgment == "reject");
     }
@@ -80,7 +81,7 @@ public sealed class QcHistoryTests : TestContext
 
         var cut = RenderComponent<QcHistory>();
 
-        Assert.Contains("No QC checks", cut.Markup);
+        Assert.Contains("Không có lượt kiểm QC nào khớp bộ lọc.", cut.Markup);
         Assert.Empty(cut.FindAll(".md-table tbody tr"));
     }
 }

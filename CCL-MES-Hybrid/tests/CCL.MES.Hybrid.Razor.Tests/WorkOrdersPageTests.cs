@@ -40,6 +40,7 @@ public sealed class WorkOrdersPageTests : TestContext
         // ScanEnabled=true so the scan + manual entry UI render.
         var api = new RecordingApi();
         Services.AddSingleton<ICclApiClient>(api);
+        Services.AddI18n();
         Services.AddSingleton<IBarcodeScannerService, StubScannerService>();
         Services.AddSingleton<IDeviceSettingsLauncher, StubDeviceSettingsLauncher>();
         Services.AddSingleton<IRecentScansService, InMemoryRecentScansService>();
@@ -163,7 +164,7 @@ public sealed class WorkOrdersPageTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='advance-success-banner']");
-            Assert.Contains("Step advanced:", banner.TextContent);
+            Assert.Contains("Đã chuyển bước:", banner.TextContent);
             Assert.Contains("Fqc", banner.TextContent);
             Assert.Contains("Oqc", banner.TextContent);
         });
@@ -228,7 +229,7 @@ public sealed class WorkOrdersPageTests : TestContext
         {
             var btn = cut.Find("button.wo-cta-accept");
             Assert.True(btn.HasAttribute("disabled"));
-            Assert.Contains("Advancing step", btn.TextContent);
+            Assert.Contains("Đang chuyển bước…", btn.TextContent);
         });
 
         // Let the advance finish so the test fixture tears down cleanly.
@@ -574,8 +575,8 @@ public sealed class WorkOrdersPageTests : TestContext
     // P10.7e-3 — FQC_PENDING + OQC_PENDING + SHIPPED were REMOVED from
     // DeferredPhaseInfo (real dashboards now). Theory covers only DONE +
     // CANCELLED — the remaining terminal placeholders on RunningDashboard.
-    [InlineData("DONE", "WO completed")]
-    [InlineData("CANCELLED", "WO cancelled")]
+    [InlineData("DONE", "WO đã hoàn tất")]
+    [InlineData("CANCELLED", "WO đã huỷ")]
     public void Deferred_phases_each_render_consistent_placeholder_card(string mesPhase, string expectedTitleFragment)
     {
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();

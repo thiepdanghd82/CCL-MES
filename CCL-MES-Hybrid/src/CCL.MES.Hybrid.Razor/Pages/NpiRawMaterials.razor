@@ -1,19 +1,20 @@
 @page "/npi/rawmaterials"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
 
-<PageTitle>Raw Materials — NPI</PageTitle>
+<PageTitle>@T("npiraw.pagetitle")</PageTitle>
 
-<h1 class="page-title">Raw Materials</h1>
+<h1 class="page-title">@T("npiraw.title")</h1>
 
 <div class="grid-toolbar">
     <GridSearchBox @bind-Value="_search" OnSearch="OnSearchClickAsync"
-                   Placeholder="Search by part / supplier / site…" />
-    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
+                   Placeholder="@T("npiraw.search.placeholder")" />
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">@T("npiraw.search")</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">@T("npiraw.reload")</button>
     <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="impCtx">
-        <button type="button" class="grid-btn grid-btn-primary" @onclick="() => _importOpen = true" disabled="@_loading">⤓ Import…</button>
+        <button type="button" class="grid-btn grid-btn-primary" @onclick="() => _importOpen = true" disabled="@_loading">⤓ @T("npiraw.import")</button>
     </AuthorizeView>
     <div class="grid-toolbar-spacer"></div>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
@@ -21,14 +22,14 @@
 
 @if (_loading && _data is null)
 {
-    <p class="grid-status">Loading…</p>
+    <p class="grid-status">@T("npiraw.loading")</p>
 }
 else if (_error is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Failed to load data.</strong>
+        <strong>@T("npiraw.error.load")</strong>
         <div>@_error</div>
-        <button type="button" class="grid-btn" @onclick="ReloadAsync">Retry</button>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">@T("npiraw.retry")</button>
     </div>
 }
 else if (_data is not null)
@@ -57,7 +58,7 @@ else if (_data is not null)
                 {
                     <tr>
                         <td colspan="@_columns.Visible.Count" class="grid-empty">
-                            No matching data.
+                            @T("npiraw.empty")
                         </td>
                     </tr>
                 }
@@ -68,13 +69,13 @@ else if (_data is not null)
     <div class="grid-pager">
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
-                @onclick="() => GoToPageAsync(_page - 1)">‹ Previous</button>
+                @onclick="() => GoToPageAsync(_page - 1)">‹ @T("npiraw.pager.prev")</button>
         <span class="grid-pager-text">
-            Page @_page / @TotalPages — @_data.Total rows
+            @T("npiraw.pager.status", _page, TotalPages, _data.Total)
         </span>
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
-                @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
+                @onclick="() => GoToPageAsync(_page + 1)">@T("npiraw.pager.next") ›</button>
     </div>
 
     <GridAutoFit OnFit="SetPageSizeAsync" />
@@ -115,35 +116,35 @@ else if (_data is not null)
         // on with a "+" override sentinel.
         _columns = new GridColumns("rawmaterials", new[]
         {
-            new ColumnDef("part_no",            "Part No"),
-            new ColumnDef("part_desc",          "Description"),
-            new ColumnDef("supplier_id",        "Supplier ID"),
-            new ColumnDef("supplier_name",      "Supplier"),
-            new ColumnDef("price",              "Price"),
-            new ColumnDef("currency",           "Currency"),
-            new ColumnDef("purch_uom",          "Purchase UOM"),
-            new ColumnDef("inv_uom",            "Inventory UOM"),
-            new ColumnDef("site",               "Site"),
-            new ColumnDef("status",             "Status"),
-            new ColumnDef("min_qty",            "Min Qty"),
-            new ColumnDef("leadtime",           "Leadtime (days)"),
+            new ColumnDef("part_no",            T("npiraw.col.part_no")),
+            new ColumnDef("part_desc",          T("npiraw.col.part_desc")),
+            new ColumnDef("supplier_id",        T("npiraw.col.supplier_id")),
+            new ColumnDef("supplier_name",      T("npiraw.col.supplier_name")),
+            new ColumnDef("price",              T("npiraw.col.price")),
+            new ColumnDef("currency",           T("npiraw.col.currency")),
+            new ColumnDef("purch_uom",          T("npiraw.col.purch_uom")),
+            new ColumnDef("inv_uom",            T("npiraw.col.inv_uom")),
+            new ColumnDef("site",               T("npiraw.col.site")),
+            new ColumnDef("status",             T("npiraw.col.status")),
+            new ColumnDef("min_qty",            T("npiraw.col.min_qty")),
+            new ColumnDef("leadtime",           T("npiraw.col.leadtime")),
             // 16 default-hidden — operator opens via column menu.
-            new ColumnDef("price_incl_tax",     "Price incl. Tax", DefaultVisible: false),
-            new ColumnDef("price_uom",          "Price UOM", DefaultVisible: false),
-            new ColumnDef("site_desc",          "Site Description", DefaultVisible: false),
-            new ColumnDef("std_multiple",       "Std multiple", DefaultVisible: false),
-            new ColumnDef("std_pack",           "Std pack", DefaultVisible: false),
-            new ColumnDef("conversion",         "Conversion Factor", DefaultVisible: false),
-            new ColumnDef("tax_code",           "Tax Code", DefaultVisible: false),
-            new ColumnDef("tax_code_desc",      "Tax Description", DefaultVisible: false),
-            new ColumnDef("country_origin",     "Country of Origin", DefaultVisible: false),
-            new ColumnDef("acquisition_type",   "Acquisition", DefaultVisible: false),
-            new ColumnDef("supplier_part_no",   "Supplier Part", DefaultVisible: false),
-            new ColumnDef("supplier_part_desc", "Supplier Part Description", DefaultVisible: false),
-            new ColumnDef("net_weight",         "Weight", DefaultVisible: false),
-            new ColumnDef("net_weight_uom",     "Weight UOM", DefaultVisible: false),
-            new ColumnDef("next_order_date",    "Next Order Date", DefaultVisible: false),
-            new ColumnDef("notes",              "Notes", DefaultVisible: false),
+            new ColumnDef("price_incl_tax",     T("npiraw.col.price_incl_tax"), DefaultVisible: false),
+            new ColumnDef("price_uom",          T("npiraw.col.price_uom"), DefaultVisible: false),
+            new ColumnDef("site_desc",          T("npiraw.col.site_desc"), DefaultVisible: false),
+            new ColumnDef("std_multiple",       T("npiraw.col.std_multiple"), DefaultVisible: false),
+            new ColumnDef("std_pack",           T("npiraw.col.std_pack"), DefaultVisible: false),
+            new ColumnDef("conversion",         T("npiraw.col.conversion"), DefaultVisible: false),
+            new ColumnDef("tax_code",           T("npiraw.col.tax_code"), DefaultVisible: false),
+            new ColumnDef("tax_code_desc",      T("npiraw.col.tax_code_desc"), DefaultVisible: false),
+            new ColumnDef("country_origin",     T("npiraw.col.country_origin"), DefaultVisible: false),
+            new ColumnDef("acquisition_type",   T("npiraw.col.acquisition_type"), DefaultVisible: false),
+            new ColumnDef("supplier_part_no",   T("npiraw.col.supplier_part_no"), DefaultVisible: false),
+            new ColumnDef("supplier_part_desc", T("npiraw.col.supplier_part_desc"), DefaultVisible: false),
+            new ColumnDef("net_weight",         T("npiraw.col.net_weight"), DefaultVisible: false),
+            new ColumnDef("net_weight_uom",     T("npiraw.col.net_weight_uom"), DefaultVisible: false),
+            new ColumnDef("next_order_date",    T("npiraw.col.next_order_date"), DefaultVisible: false),
+            new ColumnDef("notes",              T("npiraw.col.notes"), DefaultVisible: false),
         }, PrefStore);
         await LoadAsync();
     }

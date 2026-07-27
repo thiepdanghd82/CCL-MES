@@ -6,6 +6,7 @@
     a "Mở Settings" button that fires the Catalyst deep-link via
     IDeviceSettingsLauncher.
 *@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client.Hardware
 @using CCL.MES.Shared.Hardware
 @inject IBarcodeScannerService Scanner
@@ -14,40 +15,40 @@
 <div class="scan-panel">
     @if (_avail is null)
     {
-        <div class="hw-pill hw-pill-probing">Checking…</div>
+        <div class="hw-pill hw-pill-probing">@T("scanner.checking")</div>
     }
     else if (_avail.IsAvailable)
     {
         <button type="button" class="scan-btn"
                 disabled="@_scanning"
                 @onclick="OnTestScan">
-            @(_scanning ? "Opening camera…" : "Test scan")
+            @(_scanning ? T("scanner.opening.camera") : T("scanner.test.scan"))
         </button>
 
         @if (_lastResult is not null)
         {
             <div class="scan-result">
                 <div class="scan-result-row">
-                    <span class="scan-label">Payload</span>
+                    <span class="scan-label">@T("scanner.payload")</span>
                     <span class="scan-value scan-mono">@_lastResult.Code</span>
                 </div>
                 <div class="scan-result-row">
-                    <span class="scan-label">Format</span>
+                    <span class="scan-label">@T("scanner.format")</span>
                     <span class="scan-value">@_lastResult.Format</span>
                 </div>
                 <div class="scan-result-row">
-                    <span class="scan-label">Camera</span>
+                    <span class="scan-label">@T("scanner.camera")</span>
                     <span class="scan-value">@(_lastResult.SourceDevice ?? "—")</span>
                 </div>
                 <div class="scan-result-row">
-                    <span class="scan-label">At</span>
+                    <span class="scan-label">@T("scanner.at")</span>
                     <span class="scan-value">@_lastResult.CapturedAt.ToLocalTime().ToString("HH:mm:ss")</span>
                 </div>
             </div>
         }
         @if (_cancelled)
         {
-            <div class="scan-cancelled">Cancelled.</div>
+            <div class="scan-cancelled">@T("scanner.cancelled")</div>
         }
         @if (_error is not null)
         {
@@ -64,14 +65,12 @@
             <button type="button" class="scan-btn scan-btn-secondary"
                     disabled="@_opening"
                     @onclick="OnOpenSettings">
-                @(_opening ? "Opening…" : "Open System Settings")
+                @(_opening ? T("scanner.opening") : T("scanner.open.settings"))
             </button>
             @if (_openSettingsFailed)
             {
                 <div class="scan-banner-help">
-                    Could not open Settings automatically. Go to Apple Menu → System
-                    Settings → Privacy &amp; Security → Camera to grant permission
-                    for CCL MES.
+                    @T("scanner.open.settings.help")
                 </div>
             }
         }

@@ -2340,7 +2340,12 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WoLegId");
 
                     b.HasIndex("WorkOrderId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"WoLegId\" IS NULL");
+
+                    b.HasIndex("WorkOrderId", "WoLegId")
+                        .IsUnique()
+                        .HasFilter("\"WoLegId\" IS NOT NULL");
 
                     b.ToTable("WoCutterChecks");
                 });
@@ -2465,7 +2470,12 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WoLegId");
 
                     b.HasIndex("WorkOrderId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"WoLegId\" IS NULL");
+
+                    b.HasIndex("WorkOrderId", "WoLegId")
+                        .IsUnique()
+                        .HasFilter("\"WoLegId\" IS NOT NULL");
 
                     b.ToTable("WoIpqcChecks");
                 });
@@ -2770,7 +2780,12 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WorkOrderId");
 
                     b.HasIndex("WorkOrderId", "BomLineIdx")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"WoLegId\" IS NULL");
+
+                    b.HasIndex("WorkOrderId", "WoLegId", "BomLineIdx")
+                        .IsUnique()
+                        .HasFilter("\"WoLegId\" IS NOT NULL");
 
                     b.ToTable("WoMaterials");
                 });
@@ -2886,7 +2901,12 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("WoLegId");
 
                     b.HasIndex("WorkOrderId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"WoLegId\" IS NULL");
+
+                    b.HasIndex("WorkOrderId", "WoLegId")
+                        .IsUnique()
+                        .HasFilter("\"WoLegId\" IS NOT NULL");
 
                     b.ToTable("WoPlateChecks");
                 });

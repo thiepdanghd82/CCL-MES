@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Quality
 @using CCL.MES.Hybrid.Client.Windows
 @inject ICclApiClient Api
@@ -12,7 +13,7 @@
 *@
 
 <FloatingWindow Title="@WoNo" Subtitle="@(_detail?.ProductName ?? "")"
-                AriaLabel="@($"Traceability {WoNo}")"
+                AriaLabel="@T("trace.aria.window", WoNo)"
                 WindowId="@WindowId" Rect="Rect" CascadeIndex="CascadeIndex"
                 OnClose="OnClose" OnRectChanged="OnRectChanged">
     <TabBar>
@@ -22,8 +23,8 @@
                 <button type="button" role="tab"
                         class="trace-tab @(t.Phase == _active ? "trace-tab-active" : "")"
                         @onclick="() => _active = t.Phase">
-                    @t.Label
-                    @if (Phase(t.Phase) is not null) { <span class="trace-tab-dot" title="Frozen">●</span> }
+                    @TabDisplay(t.Phase, t.Label)
+                    @if (Phase(t.Phase) is not null) { <span class="trace-tab-dot" title="@T("trace.frozen.tooltip")">●</span> }
                 </button>
             }
         </div>
@@ -31,7 +32,7 @@
     <ChildContent>
         @if (_loading)
         {
-            <p class="grid-status">Loading…</p>
+            <p class="grid-status">@T("trace.loading")</p>
         }
         else if (_error is not null)
         {
@@ -44,47 +45,47 @@
             {
                 <div class="trace-empty">
                     <div class="trace-empty-icon">◷</div>
-                    <div>Chưa chốt dữ liệu @TabLabel(_active) — data not frozen yet.</div>
+                    <div>@T("trace.empty.notfrozen", TabDisplay(_active, TabLabel(_active)))</div>
                 </div>
             }
             else
             {
                 <div class="trace-meta">
-                    <span class="trace-sub">Version @phase.Version · frozen @phase.FrozenAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") by @phase.FrozenBy</span>
-                    @if (!string.IsNullOrEmpty(phase.Payload.Variant)) { <span class="trace-sub">· variant @phase.Payload.Variant</span> }
+                    <span class="trace-sub">@T("trace.meta.frozen", phase.Version, phase.FrozenAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"), phase.FrozenBy)</span>
+                    @if (!string.IsNullOrEmpty(phase.Payload.Variant)) { <span class="trace-sub">@T("trace.meta.variant", phase.Payload.Variant)</span> }
                 </div>
 
                 @* header — generic key-value list *@
                 <div class="trace-kv-grid">
                     @foreach (var kv in phase.Payload.Header)
                     {
-                        <div class="trace-kv"><span>@kv.Label</span><b>@(string.IsNullOrEmpty(kv.Value) ? "—" : kv.Value)</b></div>
+                        <div class="trace-kv"><span>@HeaderLabel(kv.Label)</span><b>@(string.IsNullOrEmpty(kv.Value) ? "—" : StatusText(kv.Value))</b></div>
                     }
                 </div>
 
                 @* items — Product uses a FIXED 2-section layout; IPQC/FQC/OQC keep the generic renderer. *@
                 @if (phase.Payload.Items.Count == 0)
                 {
-                    <p class="trace-sub">No inspected items recorded for this phase.</p>
+                    <p class="trace-sub">@T("trace.items.none")</p>
                 }
                 else if (_active == TracePhase.Product)
                 {
-                    <h3 class="trace-prod-section">1. Materials confirmed</h3>
+                    <h3 class="trace-prod-section">@T("trace.prod.materials.section")</h3>
                     <div class="grid-scroll trace-items-scroll">
                         <table class="grid grid-sticky trace-items trace-prod">
                             <thead>
                                 <tr>
-                                    <th class="grid-h trace-prod-no">No.</th>
-                                    <th class="grid-h">Part No</th>
-                                    <th class="grid-h">Description</th>
-                                    <th class="grid-h trace-prod-num">QPA (m²)</th>
-                                    <th class="grid-h trace-prod-num">Qty. Required</th>
-                                    <th class="grid-h">UoM</th>
-                                    <th class="grid-h">Part Scan</th>
-                                    <th class="grid-h">Part Description</th>
-                                    <th class="grid-h">Lot</th>
-                                    <th class="grid-h">Status</th>
-                                    <th class="grid-h">NG — reason · note</th>
+                                    <th class="grid-h trace-prod-no">@T("trace.col.no")</th>
+                                    <th class="grid-h">@T("trace.col.partno")</th>
+                                    <th class="grid-h">@T("trace.col.description")</th>
+                                    <th class="grid-h trace-prod-num">@T("trace.col.qpa")</th>
+                                    <th class="grid-h trace-prod-num">@T("trace.col.qtyrequired")</th>
+                                    <th class="grid-h">@T("trace.col.uom")</th>
+                                    <th class="grid-h">@T("trace.col.partscan")</th>
+                                    <th class="grid-h">@T("trace.col.partdescription")</th>
+                                    <th class="grid-h">@T("trace.col.lot")</th>
+                                    <th class="grid-h">@T("trace.col.status")</th>
+                                    <th class="grid-h">@T("trace.col.ng.reasonnote")</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -113,10 +114,10 @@
                         </table>
                     </div>
 
-                    <h3 class="trace-prod-section">2. Tools confirmed</h3>
+                    <h3 class="trace-prod-section">@T("trace.prod.tools.section")</h3>
                     @if (phase.Payload.Tools.Count == 0)
                     {
-                        <p class="trace-sub">No tools recorded for this Work Order.</p>
+                        <p class="trace-sub">@T("trace.tools.none")</p>
                     }
                     else
                     {
@@ -127,13 +128,13 @@
                             <table class="grid grid-sticky trace-items trace-tools">
                                 <thead>
                                     <tr>
-                                        <th class="grid-h trace-prod-no">No.</th>
-                                        <th class="grid-h">Tool</th>
-                                        <th class="grid-h">Number / code</th>
-                                        <th class="grid-h">Status</th>
-                                        <th class="grid-h">Checked by</th>
-                                        <th class="grid-h">Checked at</th>
-                                        <th class="grid-h">NG reason</th>
+                                        <th class="grid-h trace-prod-no">@T("trace.col.no")</th>
+                                        <th class="grid-h">@T("trace.col.tool")</th>
+                                        <th class="grid-h">@T("trace.col.numbercode")</th>
+                                        <th class="grid-h">@T("trace.col.status")</th>
+                                        <th class="grid-h">@T("trace.col.checkedby")</th>
+                                        <th class="grid-h">@T("trace.col.checkedat")</th>
+                                        <th class="grid-h">@T("trace.col.ngreason")</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -166,10 +167,10 @@
                         <table class="grid grid-sticky trace-items">
                             <thead>
                                 <tr>
-                                    <th class="grid-h">Item</th>
-                                    <th class="grid-h">Status</th>
-                                    <th class="grid-h">NG reason</th>
-                                    <th class="grid-h">NG note</th>
+                                    <th class="grid-h">@T("trace.col.item")</th>
+                                    <th class="grid-h">@T("trace.col.status")</th>
+                                    <th class="grid-h">@T("trace.col.ngreason")</th>
+                                    <th class="grid-h">@T("trace.col.ngnote")</th>
                                     @foreach (var k in extraKeys) { <th class="grid-h">@k</th> }
                                 </tr>
                             </thead>
@@ -177,8 +178,8 @@
                                 @foreach (var it in phase.Payload.Items)
                                 {
                                     <tr>
-                                        <td>@it.Label</td>
-                                        <td><span class="trace-chip @StatusTone(it.Status)">@(it.Status ?? "—")</span></td>
+                                        <td>@ItemLabel(it.Label)</td>
+                                        <td><span class="trace-chip @StatusTone(it.Status)">@(string.IsNullOrEmpty(it.Status) ? "—" : StatusText(it.Status))</span></td>
                                         <td>@(it.NgReason ?? "—")</td>
                                         <td>@(it.NgNote ?? "—")</td>
                                         @foreach (var k in extraKeys)
@@ -248,6 +249,70 @@
         TracePhase.Fqc => "FQC", TracePhase.Oqc => "OQC", _ => phase,
     };
 
+    // Display label for a tab: the Product tab is a translated phrase; the
+    // QC phases (IPQC/FQC/OQC) are raw technical tokens kept as-is.
+    private string TabDisplay(string phase, string fallback) => phase == TracePhase.Product
+        ? T("trace.tab.product")
+        : fallback;
+
+    // Frozen HEADER labels are baked English (TraceFreezeService). Map the
+    // known vocabulary → translated at render; anything unknown renders raw.
+    private string HeaderLabel(string? raw) => raw switch
+    {
+        "Product code" => T("trace.hdr.productcode"),
+        "Part description" => T("trace.hdr.partdescription"),
+        "Customer" => T("trace.hdr.customer"),
+        "Target qty" => T("trace.hdr.targetqty"),
+        "MES status" => T("trace.hdr.messtatus"),
+        "Plate check" => T("trace.hdr.platecheck"),
+        "Cutter check" => T("trace.hdr.cuttercheck"),
+        "Judgment" => T("trace.hdr.judgment"),
+        "Judgment reason" => T("trace.hdr.judgmentreason"),
+        "Special-accept reason" => T("trace.hdr.specialacceptreason"),
+        "IPQC submitted by" => T("trace.hdr.ipqcsubmittedby"),
+        "QA outcome" => T("trace.hdr.qaoutcome"),
+        "QA reason" => T("trace.hdr.qareason"),
+        "QA approved by" => T("trace.hdr.qaapprovedby"),
+        "Inspected by" => T("trace.hdr.inspectedby"),
+        "Reviewed by" => T("trace.hdr.reviewedby"),
+        "Approved by" => T("trace.hdr.approvedby"),
+        _ => raw ?? "",
+    };
+
+    // Localize the fixed IPQC slot item labels; Plan-C dynamic library labels
+    // (and FQC/OQC item keys) fall through as captured.
+    private string ItemLabel(string? raw) => raw switch
+    {
+        "Material" => T("trace.item.material"),
+        "Print A (Colour)" => T("trace.item.printa"),
+        "Print B (Registration)" => T("trace.item.printb"),
+        "Print C (Content)" => T("trace.item.printc"),
+        _ => raw ?? "",
+    };
+
+    // Localize a status VALUE (chip text / frozen header status). Only the
+    // known enum tokens match — data values (product code, customer, phase
+    // token like IPQC_APPROVED, "1000 pcs") fall through unchanged.
+    private string StatusText(string? raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return "—";
+        return raw.ToLowerInvariant() switch
+        {
+            "ok" => T("trace.st.ok"),
+            "ng" => T("trace.st.ng"),
+            "pending" => T("trace.st.pending"),
+            "pass" => T("trace.st.pass"),
+            "reject" => T("trace.st.reject"),
+            "gorun" => T("trace.st.gorun"),
+            "stopline" => T("trace.st.stopline"),
+            "specialaccept" => T("trace.st.specialaccept"),
+            "approved" => T("trace.st.approved"),
+            "rejected" => T("trace.st.rejected"),
+            "none" => T("trace.st.none"),
+            _ => raw,
+        };
+    }
+
     private static string StatusTone(string? status) => status switch
     {
         "Ok" or "Pass" or "GoRun" => "trace-chip-ok",
@@ -263,26 +328,26 @@
 
     private static string Dash(string? v) => string.IsNullOrEmpty(v) ? "—" : v!;
 
-    private static (string Label, string Tone) ToolStatus(string? status) => status switch
+    private (string Label, string Tone) ToolStatus(string? status) => status switch
     {
-        "Ng" => ("NG", "trace-chip-ng"),
-        "Ok" => ("OK", "trace-chip-ok"),
-        "Pending" or null or "" => ("Pending", "trace-chip-none"),
+        "Ng" => (T("trace.st.ng"), "trace-chip-ng"),
+        "Ok" => (T("trace.st.ok"), "trace-chip-ok"),
+        "Pending" or null or "" => (T("trace.st.pending"), "trace-chip-none"),
         _ => (status!, "trace-chip-pending"),
     };
 
     // A special-accept row is stored as Status=Ok WITH a retained NG reason
     // (the concession) — surface it distinctly from a clean OK.
-    private static (string Label, string Tone) ProductStatus(TraceItem it)
+    private (string Label, string Tone) ProductStatus(TraceItem it)
     {
         var ok = string.Equals(it.Status, "Ok", StringComparison.OrdinalIgnoreCase);
         var hasDeviation = !string.IsNullOrEmpty(it.NgReason);
         return it.Status switch
         {
-            "Ng" => ("NG", "trace-chip-ng"),
-            _ when ok && hasDeviation => ("OK · Special Accept", "trace-chip-warn"),
-            _ when ok => ("OK", "trace-chip-ok"),
-            "Pending" or null or "" => ("Pending", "trace-chip-none"),
+            "Ng" => (T("trace.st.ng"), "trace-chip-ng"),
+            _ when ok && hasDeviation => (T("trace.st.ok.specialaccept"), "trace-chip-warn"),
+            _ when ok => (T("trace.st.ok"), "trace-chip-ok"),
+            "Pending" or null or "" => (T("trace.st.pending"), "trace-chip-none"),
             _ => (it.Status!, "trace-chip-pending"),
         };
     }

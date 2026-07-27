@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Components.WebView;
-#if DEBUG && (MACCATALYST || IOS)
+#if MACCATALYST || IOS
 using Foundation;
 using WebKit;
+using CCL.MES.Hybrid.Platforms.MacCatalyst;
 #endif
 
 namespace CCL.MES.Hybrid;
@@ -29,6 +30,26 @@ public partial class MainPage : ContentPage
     }
 #endif
 
+#if MACCATALYST || IOS
+    /// <summary>
+    /// JS→native print bridge. <c>window.cclMesPrint.print()</c> posts to
+    /// this handler (via <c>window.webkit.messageHandlers.cclMesPrint</c>),
+    /// which presents the exact same native print panel the Blazor Print
+    /// button drives through <see cref="CatalystPrintService"/> — so a
+    /// Cmd/Ctrl+P keyboard shortcut prints WYSIWYG too. ALWAYS-ON (release
+    /// + debug) because <c>window.print()</c> is a no-op in WKWebView.
+    /// </summary>
+    private sealed class CclPrintBridge : NSObject, IWKScriptMessageHandler
+    {
+        public void DidReceiveScriptMessage(WKUserContentController userContentController, WKScriptMessage message)
+        {
+            var wk = CatalystWebViewHolder.WebView;
+            if (wk is not null)
+                _ = CatalystPrintService.PresentAsync(wk, jobName: "CCL-MES Spec Sheet");
+        }
+    }
+#endif
+
     /// <summary>
     /// BlazorWebView initialised hook. In DEBUG builds we attach two
     /// Catalyst-only diagnostics:
@@ -44,6 +65,27 @@ public partial class MainPage : ContentPage
     /// </summary>
     private void OnBlazorWebViewInitialized(object? sender, BlazorWebViewInitializedEventArgs e)
     {
+#if MACCATALYST || IOS
+        // ALWAYS-ON (release + debug): capture the WKWebView ref so the
+        // native print service can drive UIPrintInteractionController over
+        // the live DOM, and register the cclMesPrint JS→native bridge so
+        // window.cclMesPrint.print() (Cmd/Ctrl+P) prints WYSIWYG. Guarded
+        // so a failure here never blocks WebView init.
+        try
+        {
+            if (e.WebView is WebKit.WKWebView wk)
+            {
+                CatalystWebViewHolder.WebView = wk;
+                wk.Configuration.UserContentController.AddScriptMessageHandler(
+                    new CclPrintBridge(), "cclMesPrint");
+                Console.WriteLine("[print] WKWebView ref captured + cclMesPrint bridge installed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[print] FAIL capturing WKWebView / installing print bridge: " + ex);
+        }
+#endif
 #if DEBUG && (MACCATALYST || IOS)
         try
         {

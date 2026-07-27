@@ -23,6 +23,7 @@ public sealed class MachineDashboardTests : TestContext
     {
         _api = new RecordingApi();
         Services.AddSingleton<ICclApiClient>(_api);
+        Services.AddI18n();
         this.AddTestAuthorization().SetAuthorized("test-user");
     }
 
@@ -64,7 +65,7 @@ public sealed class MachineDashboardTests : TestContext
 
         Assert.Equal(6, nums.Count);          // Running / Idle / Setup / Down / Maintenance / Plant Quality
         var markup = cut.Markup;
-        Assert.Contains("Plant Quality", markup);
+        Assert.Contains("Chất lượng xưởng", markup);
         Assert.Contains("Running", markup);
         Assert.Equal(1, _api.MachineDashboardCalls);
     }
@@ -85,7 +86,7 @@ public sealed class MachineDashboardTests : TestContext
         Assert.Contains("FBL01", markup);
         Assert.Contains("WO-26-0001", markup);
         Assert.Contains("25%", markup);              // progress pct
-        Assert.Contains("Yield 98.8%", markup);      // real quality metric
+        Assert.Contains("Hiệu suất 98.8%", markup);      // real quality metric
     }
 
     [Fact]
@@ -95,7 +96,7 @@ public sealed class MachineDashboardTests : TestContext
 
         var cut = RenderComponent<MachineDashboard>();
 
-        Assert.Contains("No work centers", cut.Markup);
+        Assert.Contains("Không có trung tâm sản xuất.", cut.Markup);
         Assert.Empty(cut.FindAll(".md-mc-card"));
     }
 
@@ -167,7 +168,7 @@ public sealed class MachineDashboardTests : TestContext
 
         cut.Find(".md-search").Input("zzz-nope");
 
-        Assert.Contains("No machines match", cut.Markup);
+        Assert.Contains("Không có máy nào khớp bộ lọc.", cut.Markup);
         Assert.Empty(cut.FindAll(".md-mc-card"));
     }
 
@@ -195,7 +196,7 @@ public sealed class MachineDashboardTests : TestContext
         Assert.Single(cut.FindAll(".md-drawer"));
         Assert.NotEmpty(_api.MachineDetailCalls);   // detail fetched for the clicked row
         var markup = cut.Markup;
-        Assert.Contains("Active WO", markup);
+        Assert.Contains("Lệnh SX đang chạy", markup);
         Assert.Contains("WO-26-0001", markup);
         Assert.Contains("800", markup);              // today good
     }

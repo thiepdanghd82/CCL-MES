@@ -1,10 +1,12 @@
 @page "/npi/specs/{RevisionId:long}"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject CCL.MES.Hybrid.Client.Files.IFileOpener FileOpener
 @inject CCL.MES.Hybrid.Client.Files.IFileSaver FileSaver
+@inject CCL.MES.Hybrid.Client.Printing.IPrintService Print
 @using CCL.MES.Hybrid.Client.Specs
 @using CCL.MES.Hybrid.Client.Files
 @using CCL.MES.Hybrid.Razor.Shared
@@ -23,13 +25,13 @@
     first activation.
 *@
 
-<PageTitle>@(_detail?.SpecCode ?? "Spec") — Details</PageTitle>
+<PageTitle>@(_detail?.SpecCode ?? @T("specdetail.title.spec")) — @T("specdetail.title.details")</PageTitle>
 
 <div class="spec-detail-header">
-    <button type="button" class="grid-btn grid-btn-link" @onclick="NavigateBack">‹ Back to list</button>
+    <button type="button" class="grid-btn grid-btn-link" @onclick="NavigateBack">‹ @T("specdetail.back.list")</button>
     @if (_detail is not null)
     {
-        <span class="spec-detail-crumb">@(_detail.SpecCode) · Rev @_detail.RevisionCode</span>
+        <span class="spec-detail-crumb">@(_detail.SpecCode) · @T("specdetail.crumb.rev") @_detail.RevisionCode</span>
 
         @* P10.10 — spec action buttons moved inline onto the header row,
            before Print PDF, for a compact toolbar (was a separate card
@@ -44,44 +46,45 @@
                     {
                         <button type="button" class="op-btn op-btn-success"
                                 disabled="@_busy" @onclick="OnApproveAsync">
-                            @(_busy && _busyAction == "approve" ? "Approving…" : "✓ Approve")
+                            @(_busy && _busyAction == "approve" ? @T("specdetail.action.approving") : @T("specdetail.action.approve"))
                         </button>
                     }
                     @if (_detail.Status == SpecRevisionStatus.Draft)
                     {
                         <button type="button" class="op-btn op-btn-secondary"
                                 disabled="@_busy" @onclick="() => OpenEditAsync()">
-                            📝 Edit
+                            📝 @T("specdetail.action.edit")
                         </button>
                     }
                     <button type="button" class="op-btn op-btn-secondary"
                             disabled="@_busy" @onclick="@(() => _copyChoiceOpen = true)">
-                        ⎘ Copy
+                        ⎘ @T("specdetail.action.copy")
                     </button>
                     @if (_detail.Status == SpecRevisionStatus.Approved || _detail.Status == SpecRevisionStatus.Released)
                     {
                         <button type="button" class="op-btn op-btn-warning"
                                 disabled="@_busy" @onclick="() => OpenReviseAsync()">
-                            ⟳ Revise
+                            ⟳ @T("specdetail.action.revise")
                         </button>
                         <button type="button" class="op-btn op-btn-danger"
                                 disabled="@_busy" @onclick="() => OpenSupersedeAsync()">
-                            ⊘ Mark Superseded
+                            ⊘ @T("specdetail.action.supersede")
                         </button>
                     }
                     <button type="button" class="op-btn op-btn-secondary"
                             disabled="@_busy" @onclick="() => OpenTrashAsync()">
-                        🗑 Move to Trash
+                        🗑 @T("specdetail.action.trash")
                     </button>
                 </div>
             </AuthorizeView>
         }
 
-        @* Print sheet PDF — pushed to the far right of the toolbar. *@
+        @* Print sheet — native WebView print (WYSIWYG) on Mac Catalyst;
+           falls back to the server MigraDoc PDF on other hosts. *@
         <button type="button" class="grid-btn grid-btn-secondary spec-print-pdf"
                 disabled="@_exporting"
-                @onclick="ExportSheetPdfAsync">
-            @(_exporting ? "Generating PDF…" : "🖨 Print PDF")
+                @onclick="PrintSheetAsync">
+            @(_exporting ? @T("specdetail.pdf.generating") : @T("specdetail.pdf.print"))
         </button>
     }
 </div>
@@ -94,9 +97,9 @@
         @if (!string.IsNullOrEmpty(_exportSandboxPath))
         {
             <button type="button" class="grid-btn grid-btn-small"
-                    @onclick="OpenSandboxAsync">Open file</button>
+                    @onclick="OpenSandboxAsync">@T("specdetail.export.openfile")</button>
         }
-        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">Close</button>
+        <button type="button" class="grid-btn-link" @onclick="ClearExportBanner">@T("common.close")</button>
     </div>
 }
 
@@ -112,14 +115,14 @@
 
 @if (_detailLoading && _detail is null)
 {
-    <p class="grid-status">Loading Spec details…</p>
+    <p class="grid-status">@T("specdetail.loading")</p>
 }
 else if (_detailError is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Failed to load Spec details.</strong>
+        <strong>@T("specdetail.load.failed")</strong>
         <div>@_detailError</div>
-        <button type="button" class="grid-btn" @onclick="LoadDetailAsync">Retry</button>
+        <button type="button" class="grid-btn" @onclick="LoadDetailAsync">@T("specdetail.retry")</button>
     </div>
 }
 else if (_detail is not null && _vm is not null)
@@ -131,7 +134,7 @@ else if (_detail is not null && _vm is not null)
                     aria-selected="@(IsActiveTab(tab.Key))"
                     class="spec-tab @(IsActiveTab(tab.Key) ? "is-active" : "")"
                     @onclick='() => SetActiveTabAsync(tab.Key)'>
-                @tab.Label
+                @T(tab.LabelKey)
             </button>
         }
     </div>
@@ -154,18 +157,18 @@ else if (_detail is not null && _vm is not null)
                 }
                 else
                 {
-                    <div class="spec-showcard-toolbar" role="group" aria-label="Spec display">
+                    <div class="spec-showcard-toolbar" role="group" aria-label="@T("specdetail.display.aria")">
                         <button type="button"
                                 aria-pressed="@(!_fullMode ? "true" : "false")"
                                 class="spec-showcard-mode @(!_fullMode ? "is-active" : "")"
                                 @onclick="() => { _fullMode = false; _compareMode = false; StateHasChanged(); }">
-                            Summary
+                            @T("specdetail.mode.summary")
                         </button>
                         <button type="button"
                                 aria-pressed="@(_fullMode ? "true" : "false")"
                                 class="spec-showcard-mode @(_fullMode ? "is-active" : "")"
                                 @onclick="() => { _fullMode = true; _compareMode = false; StateHasChanged(); }">
-                            Full
+                            @T("specdetail.mode.full")
                         </button>
                         @if (_vmFull?.HasParentRev == true)
                         {
@@ -173,7 +176,7 @@ else if (_detail is not null && _vm is not null)
                                     aria-pressed="@(_compareMode ? "true" : "false")"
                                     class="spec-showcard-mode spec-showcard-compare @(_compareMode ? "is-active" : "")"
                                     @onclick="OnToggleCompareAsync">
-                                Compare with previous rev @(_compareMode ? "(on)" : "")
+                                @T("specdetail.mode.compare") @(_compareMode ? @T("specdetail.mode.compare.on") : "")
                             </button>
                         }
                     </div>
@@ -182,14 +185,14 @@ else if (_detail is not null && _vm is not null)
                     {
                         @if (_diffResult is null && _compareLoading)
                         {
-                            <p class="grid-status">Loading the previous rev to compare…</p>
+                            <p class="grid-status">@T("specdetail.compare.loading")</p>
                         }
                         else if (_compareError is not null)
                         {
                             <div class="modal-banner modal-banner-error" role="alert">
-                                <strong>Failed to load the previous rev.</strong>
+                                <strong>@T("specdetail.compare.failed")</strong>
                                 <div>@_compareError</div>
-                                <button type="button" class="grid-btn" @onclick="OnToggleCompareAsync">Retry</button>
+                                <button type="button" class="grid-btn" @onclick="OnToggleCompareAsync">@T("specdetail.retry")</button>
                             </div>
                         }
                         else
@@ -240,23 +243,23 @@ else if (_detail is not null && _vm is not null)
                OnUpdated="OnUpdatedAsync" />
 <Modal Open="_copyChoiceOpen" OnClose="@(() => { _copyChoiceOpen = false; return Task.CompletedTask; })"
        Size="ModalSize.Sm" Severity="ModalSeverity.Info" ClickOutsideToClose="true">
-    <Header>Copy new Spec</Header>
+    <Header>@T("specdetail.copy.header")</Header>
     <Body>
-        <p class="copy-choice-lead">How do you want to copy this spec?</p>
+        <p class="copy-choice-lead">@T("specdetail.copy.lead")</p>
         <div class="copy-choice-grid">
             <button type="button" class="copy-choice-card" disabled="@_busy" @onclick="UpdateVerAsync">
-                <span class="copy-choice-title">🔁 Update ver</span>
-                <span class="copy-choice-sub">New version of THIS spec — same product &amp; IFS code, next revision (B, C…), linked to the current rev.</span>
+                <span class="copy-choice-title">🔁 @T("specdetail.copy.updatever.title")</span>
+                <span class="copy-choice-sub">@T("specdetail.copy.updatever.sub")</span>
             </button>
             <button type="button" class="copy-choice-card copy-choice-card-primary" disabled="@_busy" @onclick="NewCopyAsync">
-                <span class="copy-choice-title">✚ New</span>
-                <span class="copy-choice-sub">Brand-new independent spec — fresh product, blank IFS code. Edit everything freely.</span>
+                <span class="copy-choice-title">✚ @T("specdetail.copy.new.title")</span>
+                <span class="copy-choice-sub">@T("specdetail.copy.new.sub")</span>
             </button>
         </div>
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary" disabled="@_busy"
-                @onclick="@(() => _copyChoiceOpen = false)">Cancel</button>
+                @onclick="@(() => _copyChoiceOpen = false)">@T("specdetail.cancel")</button>
     </Footer>
 </Modal>
 <CopySpecModal Open="_copyOpen" SourceSpec="_detail"
@@ -270,10 +273,10 @@ else if (_detail is not null && _vm is not null)
                     OnSuperseded="OnSupersededAsync" />
 
 <SpecConfirmActionModal Open="_trashOpen"
-                        Title="@($"Move Spec {(_detail?.SpecCode ?? "")} to Trash?")"
-                        Message="The Spec will be soft-deleted. It can be restored from the Trash tab. Note: the server will block this if a Work Order is still using this Spec."
-                        ConfirmLabel="Move to Trash"
-                        PendingLabel="Deleting…"
+                        Title="@T("specdetail.trash.title", _detail?.SpecCode ?? "")"
+                        Message="@T("specdetail.trash.message")"
+                        ConfirmLabel="@T("specdetail.action.trash")"
+                        PendingLabel="@T("specdetail.trash.pending")"
                         Severity="ModalSeverity.Danger"
                         OnConfirm="OnTrashConfirmAsync"
                         OnClose="() => { _trashOpen = false; StateHasChanged(); return Task.CompletedTask; }" />
@@ -345,14 +348,14 @@ else if (_detail is not null && _vm is not null)
     private string _exportBannerKind = "info";
     private string? _exportSandboxPath;
 
-    private static readonly (string Key, string Label)[] _tabs = new[]
+    private static readonly (string Key, string LabelKey)[] _tabs = new[]
     {
-        ("spec",       "Specification"),
-        ("drawings",   "Drawings"),
-        ("qc-plans",   "QC Plans"),
-        ("qc-capture", "QC Capture"),
-        ("artwork",    "Artwork"),
-        ("setup",      "Setup"),
+        ("spec",       "specdetail.tab.spec"),
+        ("drawings",   "specdetail.tab.drawings"),
+        ("qc-plans",   "specdetail.tab.qcplans"),
+        ("qc-capture", "specdetail.tab.qccapture"),
+        ("artwork",    "specdetail.tab.artwork"),
+        ("setup",      "specdetail.tab.setup"),
     };
 
     private bool IsActiveTab(string key) => string.Equals(_activeTab, key, StringComparison.OrdinalIgnoreCase);
@@ -450,17 +453,17 @@ else if (_detail is not null && _vm is not null)
         _ => "application/octet-stream",
     };
 
-    private static string DrawingKindLabel(DrawingKindCode kind) => kind switch
+    private string DrawingKindLabel(DrawingKindCode kind) => kind switch
     {
-        DrawingKindCode.CustomerDrawing    => "Customer drawing",
-        DrawingKindCode.NpiPrintLayout     => "Print layout (NPI)",
-        DrawingKindCode.NpiCutLayout       => "Cut layout (NPI)",
-        DrawingKindCode.IpqcPrintReference => "IPQC Print reference",
-        DrawingKindCode.IpqcCutReference   => "IPQC Cut reference",
-        DrawingKindCode.FqcChecksheet      => "FQC Checksheet",
-        DrawingKindCode.OqcChecksheet      => "OQC Checksheet",
-        DrawingKindCode.CustomerApproval   => "Customer approval",
-        DrawingKindCode.InternalProof      => "Internal proof",
+        DrawingKindCode.CustomerDrawing    => T("specdetail.drawingkind.customerdrawing"),
+        DrawingKindCode.NpiPrintLayout     => T("specdetail.drawingkind.npiprintlayout"),
+        DrawingKindCode.NpiCutLayout       => T("specdetail.drawingkind.npicutlayout"),
+        DrawingKindCode.IpqcPrintReference => T("specdetail.drawingkind.ipqcprintref"),
+        DrawingKindCode.IpqcCutReference   => T("specdetail.drawingkind.ipqccutref"),
+        DrawingKindCode.FqcChecksheet      => T("specdetail.drawingkind.fqcchecksheet"),
+        DrawingKindCode.OqcChecksheet      => T("specdetail.drawingkind.oqcchecksheet"),
+        DrawingKindCode.CustomerApproval   => T("specdetail.drawingkind.customerapproval"),
+        DrawingKindCode.InternalProof      => T("specdetail.drawingkind.internalproof"),
         _                                  => kind.ToString(),
     };
 
@@ -510,7 +513,7 @@ else if (_detail is not null && _vm is not null)
             _detail = await Api.GetSpecDetailAsync(RevisionId);
             if (_detail is null)
             {
-                _detailError = "This Spec was not found (404).";
+                _detailError = T("specdetail.error.notfound");
             }
             else
             {
@@ -524,7 +527,7 @@ else if (_detail is not null && _vm is not null)
         }
         catch (HttpRequestException ex)
         {
-            _detailError = $"Could not connect to the server: {ex.Message}";
+            _detailError = T("specdetail.error.connect", ex.Message);
         }
         catch (Exception ex)
         {
@@ -576,7 +579,7 @@ else if (_detail is not null && _vm is not null)
             var parentDetail = await Api.GetSpecDetailAsync(parentEntry.Id);
             if (parentDetail is null)
             {
-                _compareError = $"The previous rev (id={parentEntry.Id}) has been deleted or is not accessible.";
+                _compareError = T("specdetail.compare.prev.missing", parentEntry.Id);
                 _compareMode = false;
                 return;
             }
@@ -590,7 +593,7 @@ else if (_detail is not null && _vm is not null)
         }
         catch (HttpRequestException ex)
         {
-            _compareError = $"Could not connect to the server: {ex.Message}";
+            _compareError = T("specdetail.error.connect", ex.Message);
             _compareMode = false;
         }
         catch (Exception ex)
@@ -634,7 +637,7 @@ else if (_detail is not null && _vm is not null)
             _drawings = await Api.GetDrawingsByRevisionAsync(RevisionId);
         }
         catch (ApiException apiEx) { _drawingsError = apiEx.ApiError.MessageEn; }
-        catch (HttpRequestException ex) { _drawingsError = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _drawingsError = T("specdetail.error.connect", ex.Message); }
         catch (Exception ex) { _drawingsError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _drawingsLoading = false; }
         // Refresh the showcard image previews after an upload/reload.
@@ -650,7 +653,7 @@ else if (_detail is not null && _vm is not null)
             _qcWindows = await Api.GetQcWindowsByRevisionAsync(RevisionId);
         }
         catch (ApiException apiEx) { _qcWindowsError = apiEx.ApiError.MessageEn; }
-        catch (HttpRequestException ex) { _qcWindowsError = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _qcWindowsError = T("specdetail.error.connect", ex.Message); }
         catch (Exception ex) { _qcWindowsError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _qcWindowsLoading = false; }
     }
@@ -674,7 +677,7 @@ else if (_detail is not null && _vm is not null)
             }
         }
         catch (ApiException apiEx) { _qcCapturesError = apiEx.ApiError.MessageEn; }
-        catch (HttpRequestException ex) { _qcCapturesError = $"Could not connect to the server: {ex.Message}"; }
+        catch (HttpRequestException ex) { _qcCapturesError = T("specdetail.error.connect", ex.Message); }
         catch (Exception ex) { _qcCapturesError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _qcCapturesLoading = false; }
     }
@@ -696,7 +699,7 @@ else if (_detail is not null && _vm is not null)
     {
         if (_drawingsLoading)
         {
-            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Loading drawings…</p>");
+            __builder.AddMarkupContent(0, $"<p class=\"grid-status\">{System.Net.WebUtility.HtmlEncode(T("specdetail.drawings.loading"))}</p>");
             return;
         }
         if (_drawingsError is not null)
@@ -704,13 +707,13 @@ else if (_detail is not null && _vm is not null)
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "grid-error");
             __builder.AddAttribute(2, "role", "alert");
-            __builder.AddMarkupContent(3, "<strong>Failed to load Drawings.</strong>");
+            __builder.AddMarkupContent(3, $"<strong>{System.Net.WebUtility.HtmlEncode(T("specdetail.drawings.failed"))}</strong>");
             __builder.AddMarkupContent(4, $"<div>{System.Net.WebUtility.HtmlEncode(_drawingsError)}</div>");
             __builder.OpenElement(5, "button");
             __builder.AddAttribute(6, "type", "button");
             __builder.AddAttribute(7, "class", "grid-btn");
             __builder.AddAttribute(8, "onclick", EventCallback.Factory.Create(this, LoadDrawingsAsync));
-            __builder.AddContent(9, "Retry");
+            __builder.AddContent(9, T("specdetail.retry"));
             __builder.CloseElement();
             __builder.CloseElement();
             return;
@@ -731,20 +734,20 @@ else if (_detail is not null && _vm is not null)
     {
         if (_qcWindowsLoading)
         {
-            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Loading QC Plans…</p>");
+            __builder.AddMarkupContent(0, $"<p class=\"grid-status\">{System.Net.WebUtility.HtmlEncode(T("specdetail.qcplans.loading"))}</p>");
             return;
         }
         if (_qcWindowsError is not null)
         {
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "grid-error");
-            __builder.AddMarkupContent(2, "<strong>Failed to load QC Plans.</strong>");
+            __builder.AddMarkupContent(2, $"<strong>{System.Net.WebUtility.HtmlEncode(T("specdetail.qcplans.failed"))}</strong>");
             __builder.AddMarkupContent(3, $"<div>{System.Net.WebUtility.HtmlEncode(_qcWindowsError)}</div>");
             __builder.OpenElement(4, "button");
             __builder.AddAttribute(5, "type", "button");
             __builder.AddAttribute(6, "class", "grid-btn");
             __builder.AddAttribute(7, "onclick", EventCallback.Factory.Create(this, LoadQcWindowsAsync));
-            __builder.AddContent(8, "Retry");
+            __builder.AddContent(8, T("specdetail.retry"));
             __builder.CloseElement();
             __builder.CloseElement();
             return;
@@ -764,20 +767,20 @@ else if (_detail is not null && _vm is not null)
     {
         if (_qcCapturesLoading || _qcWindowsLoading)
         {
-            __builder.AddMarkupContent(0, "<p class=\"grid-status\">Loading QC Capture…</p>");
+            __builder.AddMarkupContent(0, $"<p class=\"grid-status\">{System.Net.WebUtility.HtmlEncode(T("specdetail.qccapture.loading"))}</p>");
             return;
         }
         if (_qcCapturesError is not null)
         {
             __builder.OpenElement(0, "div");
             __builder.AddAttribute(1, "class", "grid-error");
-            __builder.AddMarkupContent(2, "<strong>Failed to load QC Capture.</strong>");
+            __builder.AddMarkupContent(2, $"<strong>{System.Net.WebUtility.HtmlEncode(T("specdetail.qccapture.failed"))}</strong>");
             __builder.AddMarkupContent(3, $"<div>{System.Net.WebUtility.HtmlEncode(_qcCapturesError)}</div>");
             __builder.OpenElement(4, "button");
             __builder.AddAttribute(5, "type", "button");
             __builder.AddAttribute(6, "class", "grid-btn");
             __builder.AddAttribute(7, "onclick", EventCallback.Factory.Create(this, LoadQcCapturesAsync));
-            __builder.AddContent(8, "Retry");
+            __builder.AddContent(8, T("specdetail.retry"));
             __builder.CloseElement();
             __builder.CloseElement();
             return;
@@ -802,10 +805,10 @@ else if (_detail is not null && _vm is not null)
         // + 3 template variants land in 5e (per SpecHub parity plan §2.7
         // gap "Artwork SVG 4-layer toggle"). For now render the spec
         // identity reminder + deferred notice so operator knows the path.
-        __builder.AddMarkupContent(0, """
+        __builder.AddMarkupContent(0, $"""
             <div class="spec-tab-stub">
-                <p>Artwork preview area (SVG 4-layer toggle).</p>
-                <p class="spec-deferred-note"><em>Coming in 5e — with 3 templates (brady-safety / ccl-cosmetic / panel-face) matching SpecHub.</em></p>
+                <p>{System.Net.WebUtility.HtmlEncode(T("specdetail.artwork.preview"))}</p>
+                <p class="spec-deferred-note"><em>{System.Net.WebUtility.HtmlEncode(T("specdetail.artwork.deferred"))}</em></p>
             </div>
             """);
     };
@@ -817,22 +820,22 @@ else if (_detail is not null && _vm is not null)
         __builder.AddAttribute(1, "class", "spec-setup");
         __builder.OpenElement(2, "div");
         __builder.AddAttribute(3, "class", "spec-showcard-section");
-        __builder.AddMarkupContent(4, "<div class=\"spec-showcard-section-title\">Press / Material</div>");
+        __builder.AddMarkupContent(4, $"<div class=\"spec-showcard-section-title\">{System.Net.WebUtility.HtmlEncode(T("specdetail.setup.section.pressmaterial"))}</div>");
         __builder.OpenElement(5, "dl");
         __builder.AddAttribute(6, "class", "spec-showcard-grid");
-        AddCell(__builder, "Substrate", _detail.SubstrateType);
-        AddCell(__builder, "Brand", _detail.SubstrateBrand);
-        AddCell(__builder, "Adhesive", _detail.AdhesiveType);
-        AddCell(__builder, "Adhesive brand", _detail.AdhesiveBrand);
-        AddCell(__builder, "Thickness (µm)", _detail.ThicknessUm?.ToString() ?? "—");
-        AddCell(__builder, "Lamination", _detail.Lamination);
-        AddCell(__builder, "Varnish", _detail.Varnish);
-        AddCell(__builder, "Pitch (mm)", _detail.LengthPitchMm?.ToString("0.##") ?? "—");
-        AddCell(__builder, "Printing cavity", _detail.PrintingCavity?.ToString() ?? "—");
-        AddCell(__builder, "White underprint", _detail.WhiteUnderprint ? "Yes" : "No");
+        AddCell(__builder, T("specdetail.setup.substrate"), _detail.SubstrateType);
+        AddCell(__builder, T("specdetail.setup.brand"), _detail.SubstrateBrand);
+        AddCell(__builder, T("specdetail.setup.adhesive"), _detail.AdhesiveType);
+        AddCell(__builder, T("specdetail.setup.adhesivebrand"), _detail.AdhesiveBrand);
+        AddCell(__builder, T("specdetail.setup.thickness"), _detail.ThicknessUm?.ToString() ?? "—");
+        AddCell(__builder, T("specdetail.setup.lamination"), _detail.Lamination);
+        AddCell(__builder, T("specdetail.setup.varnish"), _detail.Varnish);
+        AddCell(__builder, T("specdetail.setup.pitch"), _detail.LengthPitchMm?.ToString("0.##") ?? "—");
+        AddCell(__builder, T("specdetail.setup.printingcavity"), _detail.PrintingCavity?.ToString() ?? "—");
+        AddCell(__builder, T("specdetail.setup.whiteunderprint"), _detail.WhiteUnderprint ? T("specdetail.yes") : T("specdetail.no"));
         __builder.CloseElement();
         __builder.CloseElement();
-        __builder.AddMarkupContent(99, "<p class=\"spec-deferred-note\"><em>The Flexo print rows / Silk colors table is coming in 5c (Full showcard).</em></p>");
+        __builder.AddMarkupContent(99, $"<p class=\"spec-deferred-note\"><em>{System.Net.WebUtility.HtmlEncode(T("specdetail.setup.deferred"))}</em></p>");
         __builder.CloseElement();
     };
 
@@ -902,7 +905,7 @@ else if (_detail is not null && _vm is not null)
         try
         {
             var resp = await Api.ApproveSpecAsync(_detail.Id);
-            _actionBanner = $"✓ Approved — new status: {resp.Status}";
+            _actionBanner = T("specdetail.banner.approved", resp.Status ?? "");
             _actionBannerIsError = false;
             await LoadDetailAsync();
         }
@@ -939,7 +942,7 @@ else if (_detail is not null && _vm is not null)
     private async Task OnInlineEditSavedAsync()
     {
         _specEditMode = false;
-        _actionBanner = "✓ Changes saved.";
+        _actionBanner = T("specdetail.banner.saved");
         _actionBannerIsError = false;
         await LoadDetailAsync();
     }
@@ -958,8 +961,8 @@ else if (_detail is not null && _vm is not null)
     private async Task OnUpdatedAsync(SpecMutationResponse resp)
     {
         _actionBanner = resp.NoChanges == true
-            ? "No changes to save."
-            : "✓ Changes saved.";
+            ? T("specdetail.banner.nochanges")
+            : T("specdetail.banner.saved");
         _actionBannerIsError = false;
         await LoadDetailAsync();
     }
@@ -1010,7 +1013,7 @@ else if (_detail is not null && _vm is not null)
 
     private async Task OnSupersededAsync(SpecMutationResponse resp)
     {
-        _actionBanner = $"✓ Marked Superseded — new status: {resp.Status}";
+        _actionBanner = T("specdetail.banner.superseded", resp.Status ?? "");
         _actionBannerIsError = false;
         await LoadDetailAsync();
     }
@@ -1020,6 +1023,55 @@ else if (_detail is not null && _vm is not null)
         if (_detail is null) return;
         await Api.TrashSpecAsync(_detail.Id);
         Nav.NavigateTo("/npi/specs");
+    }
+
+    // ── P11.x — Print sheet (native WebView print → MigraDoc fallback) ──
+
+    /// <summary>
+    /// Print the Spec Full sheet. On Mac Catalyst this drives the native
+    /// OS print panel over the LIVE DOM (WYSIWYG — the operator picks
+    /// A4/A3, orientation, scale, Save-as-PDF), so the print matches the
+    /// on-screen sheet exactly. We first switch to Full mode + let it
+    /// render so the printed DOM is the full sheet (the @media print CSS
+    /// hides all chrome and expands the sheet to the page). On non-Catalyst
+    /// hosts (Windows / tests) native print is unavailable → fall back to
+    /// the existing server MigraDoc sheet PDF.
+    /// </summary>
+    private async Task PrintSheetAsync()
+    {
+        if (_exporting || _detail is null) return;
+
+        // Native path only when the host supports it (Mac Catalyst).
+        if (Print.IsNativePrintSupported)
+        {
+            // Ensure the Full sheet is the rendered surface before printing.
+            if (_activeTab != "spec" || _specEditMode || _compareMode || !_fullMode)
+            {
+                _specEditMode = false;
+                _compareMode = false;
+                _fullMode = true;
+                await SetActiveTabAsync("spec");
+                StateHasChanged();
+                // Let Blazor flush the Full-mode render before the OS
+                // snapshots the DOM for printing.
+                await Task.Delay(120);
+            }
+
+            var jobName = $"SpecSheet_{_detail.RefNo ?? _detail.SpecCode}_{_detail.RevisionCode}";
+            var presented = await Print.PrintCurrentViewAsync(jobName);
+            if (presented)
+            {
+                _exportBanner = T("specdetail.print.native.opened");
+                _exportBannerKind = "info";
+                _exportSandboxPath = null;
+                StateHasChanged();
+                return;
+            }
+            // presented == false → native unavailable at runtime; fall
+            // through to the MigraDoc download path.
+        }
+
+        await ExportSheetPdfAsync();
     }
 
     // ── P10.5g — Per-spec sheet PDF export ───────────────────────────
@@ -1032,7 +1084,7 @@ else if (_detail is not null && _vm is not null)
     {
         if (_exporting || _detail is null) return;
         _exporting = true;
-        _exportBanner = "Generating PDF…";
+        _exportBanner = T("specdetail.pdf.generating");
         _exportBannerKind = "info";
         _exportSandboxPath = null;
         StateHasChanged();
@@ -1053,12 +1105,12 @@ else if (_detail is not null && _vm is not null)
         }
         catch (HttpRequestException ex)
         {
-            _exportBanner = $"Could not connect to the server: {ex.Message}";
+            _exportBanner = T("specdetail.error.connect", ex.Message);
             _exportBannerKind = "danger";
         }
         catch (Exception ex)
         {
-            _exportBanner = $"PDF export failed: {ex.Message}";
+            _exportBanner = T("specdetail.pdf.failed", ex.Message);
             _exportBannerKind = "danger";
         }
         finally
@@ -1073,8 +1125,8 @@ else if (_detail is not null && _vm is not null)
         if (outcome.DidSave)
         {
             _exportBanner = outcome.Opened
-                ? $"Saved {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) — opened for viewing."
-                : $"Saved {outcome.SuggestedFileName} ({FormatSize(outcome.DownloadedBytes)}) at {outcome.DestinationPath}.";
+                ? T("specdetail.export.saved.opened", outcome.SuggestedFileName ?? "", FormatSize(outcome.DownloadedBytes))
+                : T("specdetail.export.saved.at", outcome.SuggestedFileName ?? "", FormatSize(outcome.DownloadedBytes), outcome.DestinationPath ?? "");
             _exportBannerKind = "success";
             _exportSandboxPath = null;
         }
@@ -1082,8 +1134,8 @@ else if (_detail is not null && _vm is not null)
         {
             _exportSandboxPath = outcome.SandboxPath;
             _exportBanner = outcome.Opened
-                ? "You cancelled the save dialog — the file is still in the app's downloads folder and has been opened for viewing."
-                : "You cancelled the save dialog — the file was saved in the app's downloads folder (click Open file to view).";
+                ? T("specdetail.export.cancelled.opened")
+                : T("specdetail.export.cancelled.saved");
             _exportBannerKind = "warn";
         }
     }

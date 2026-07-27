@@ -1,7 +1,9 @@
 using Bunit;
+using CCL.MES.Hybrid.Client.Localization;
 using CCL.MES.Hybrid.Client.Windows;
 using CCL.MES.Hybrid.Razor.Shared;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace CCL.MES.Hybrid.Razor.Tests;
@@ -18,6 +20,10 @@ public sealed class FloatingWindowTests : TestContext
     {
         // cclMesFloat.* interop has no engine in the test host.
         JSInterop.Mode = JSRuntimeMode.Loose;
+        // i18n Phase-2: FloatingWindow tooltips route through ITranslator.
+        Services.AddSingleton<ILanguageService, InMemoryLanguageService>();
+        Services.AddSingleton<ITranslationCatalog, TranslationCatalog>();
+        Services.AddSingleton<ITranslator, Translator>();
     }
 
     private IRenderedComponent<FloatingWindow> RenderWin(bool closed = false, System.Action? onClose = null)

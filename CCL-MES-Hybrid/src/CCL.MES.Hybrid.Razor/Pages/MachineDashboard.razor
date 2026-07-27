@@ -1,32 +1,33 @@
 @page "/machines"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using System.Globalization
 @using System.Linq
 @using CCL.MES.Shared.Machines
 @inject ICclApiClient Api
 
-<PageTitle>Machine Dashboard — CCL MES</PageTitle>
+<PageTitle>@T("machine.page.title")</PageTitle>
 
 <div class="md-head">
     <div>
-        <h1 class="page-title">Machine Monitoring · Plant Floor</h1>
-        <div class="md-subtitle">Live status across all work centers · grouped by area</div>
+        <h1 class="page-title">@T("machine.head.title")</h1>
+        <div class="md-subtitle">@T("machine.head.subtitle")</div>
     </div>
     <div class="md-head-actions">
-        <div class="md-viewtoggle" role="group" aria-label="View mode">
+        <div class="md-viewtoggle" role="group" aria-label="@T("machine.view.mode")">
             <button type="button" class="md-vt-btn @(_viewMode == MdView.Grid ? "is-on" : "")"
-                    title="Grid view" aria-pressed="@(_viewMode == MdView.Grid)"
+                    title="@T("machine.view.grid")" aria-pressed="@(_viewMode == MdView.Grid)"
                     @onclick="@(() => _viewMode = MdView.Grid)">
-                <span class="md-vt-ico">▦</span><span class="md-vt-lbl">Grid</span>
+                <span class="md-vt-ico">▦</span><span class="md-vt-lbl">@T("machine.view.grid")</span>
             </button>
             <button type="button" class="md-vt-btn @(_viewMode == MdView.List ? "is-on" : "")"
-                    title="List view" aria-pressed="@(_viewMode == MdView.List)"
+                    title="@T("machine.view.list")" aria-pressed="@(_viewMode == MdView.List)"
                     @onclick="@(() => _viewMode = MdView.List)">
-                <span class="md-vt-ico">☰</span><span class="md-vt-lbl">List</span>
+                <span class="md-vt-ico">☰</span><span class="md-vt-lbl">@T("machine.view.list")</span>
             </button>
         </div>
         <button type="button" class="md-refresh" @onclick="ReloadAsync" disabled="@_loading">
-            @(_loading ? "Loading…" : "↻ Refresh")
+            @(_loading ? T("machine.loading.short") : T("machine.refresh"))
         </button>
     </div>
 </div>
@@ -44,31 +45,31 @@
     <div class="md-kpi md-kpi-down"><div class="md-kpi-num">@CountStatus("Down")</div><div class="md-kpi-label">Down</div></div>
     <div class="md-kpi md-kpi-maint"><div class="md-kpi-num">@CountStatus("Maintenance")</div><div class="md-kpi-label">Maintenance</div></div>
     <div class="md-kpi md-kpi-wide md-kpi-oee">
-        <div class="md-kpi-label">Plant Quality</div>
+        <div class="md-kpi-label">@T("machine.kpi.plantquality")</div>
         <div class="md-kpi-num md-kpi-oee-num">@(PlantQuality is { } q ? $"{q:0}%" : "—")</div>
         <div class="md-kpi-bar"><div class="md-kpi-bar-fill" style="width:@((PlantQuality ?? 0).ToString("0", CultureInfo.InvariantCulture))%"></div></div>
-        <div class="md-kpi-oee-sub">@TodayOutput.ToString("N0") pcs produced · @CountStatus("Running") active</div>
+        <div class="md-kpi-oee-sub">@T("machine.kpi.output.summary", TodayOutput.ToString("N0"), CountStatus("Running"))</div>
     </div>
 </div>
 
 @if (_loading && _data is null)
 {
-    <p class="md-muted">Loading machines…</p>
+    <p class="md-muted">@T("machine.loading.machines")</p>
 }
 else if (_error is not null)
 {
-    <p class="md-error">Failed to load machines: @_error</p>
+    <p class="md-error">@T("machine.error.load", _error)</p>
 }
 else if (_data is null || _data.Machines.Count == 0)
 {
-    <p class="md-muted">No work centers.</p>
+    <p class="md-muted">@T("machine.empty.workcenters")</p>
 }
 else
 {
     <div class="md-filters">
-        <input class="md-search" type="text" placeholder="🔍 Search WC code, WO, product, customer…"
+        <input class="md-search" type="text" placeholder="@T("machine.search.placeholder")"
                value="@_search" @oninput="OnSearch" />
-        <span class="md-filter-count">@Filtered.Count / @AllMachines.Count machines</span>
+        <span class="md-filter-count">@T("machine.filter.count", Filtered.Count, AllMachines.Count)</span>
         <div class="md-chips">
             @foreach (var s in StatusChips)
             {
@@ -78,7 +79,7 @@ else
         </div>
         <div class="md-chips">
             <button type="button" class="md-chip @(_areaFilter is null ? "md-chip-on" : "")"
-                    @onclick="@(() => _areaFilter = null)">All areas</button>
+                    @onclick="@(() => _areaFilter = null)">@T("machine.filter.allareas")</button>
             @foreach (var area in Areas)
             {
                 <button type="button" class="md-chip @(_areaFilter == area ? "md-chip-on" : "")"
@@ -91,7 +92,7 @@ else
         <div class="md-main">
             @if (Filtered.Count == 0)
             {
-                <p class="md-muted">No machines match the filter.</p>
+                <p class="md-muted">@T("machine.empty.filter")</p>
             }
             else if (_viewMode == MdView.List)
             {
@@ -99,17 +100,17 @@ else
                 <table class="md-list-tbl">
                     <thead>
                         <tr>
-                            <th>Work center</th>
-                            <th>Area</th>
-                            <th>Status</th>
-                            <th>WO</th>
-                            <th>Customer</th>
-                            <th>Product</th>
-                            <th>Progress</th>
-                            <th class="num">Good</th>
-                            <th class="num">Reject</th>
-                            <th class="num">Quality</th>
-                            <th>Updated</th>
+                            <th>@T("machine.col.workcenter")</th>
+                            <th>@T("machine.col.area")</th>
+                            <th>@T("machine.col.status")</th>
+                            <th>@T("machine.col.wo")</th>
+                            <th>@T("machine.col.customer")</th>
+                            <th>@T("machine.col.product")</th>
+                            <th>@T("machine.col.progress")</th>
+                            <th class="num">@T("machine.col.good")</th>
+                            <th class="num">@T("machine.col.reject")</th>
+                            <th class="num">@T("machine.col.quality")</th>
+                            <th>@T("machine.col.updated")</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -136,7 +137,7 @@ else
                                         }
                                         else
                                         {
-                                            <span class="md-muted">— idle —</span>
+                                            <span class="md-muted">@T("machine.list.idle")</span>
                                         }
                                     </td>
                                     <td class="num">@(m.ActiveWoNo is not null ? (m.QtyDone ?? 0).ToString("N0") : "—")</td>
@@ -158,7 +159,7 @@ else
                     <section class="md-area">
                         <div class="md-area-head">
                             <span class="md-area-name">@group.Key</span>
-                            <span class="md-area-count">· @list.Count machines · Quality @(GroupQuality(list) is { } gq ? $"{gq:0}%" : "—")</span>
+                            <span class="md-area-count">· @T("machine.area.count", list.Count) · @T("machine.area.quality", GroupQuality(list) is { } gq ? $"{gq:0}%" : "—")</span>
                             <span class="md-area-stats">
                                 @foreach (var s in StatusChips.Skip(1))
                                 {
@@ -206,17 +207,17 @@ else
 
                                         <div class="md-mc-stats">
                                             <div class="md-mc-stat">
-                                                <div class="md-mc-stat-lbl">Good</div>
+                                                <div class="md-mc-stat-lbl">@T("machine.stat.good")</div>
                                                 <div class="md-mc-stat-num">@((m.QtyDone ?? 0).ToString("N0"))</div>
-                                                <div class="md-mc-stat-sub">@(Yield(m) is { } y ? $"Yield {y.ToString("0.0", CultureInfo.InvariantCulture)}%" : "—")</div>
+                                                <div class="md-mc-stat-sub">@(Yield(m) is { } y ? T("machine.stat.yield", y.ToString("0.0", CultureInfo.InvariantCulture)) : "—")</div>
                                             </div>
                                             <div class="md-mc-stat">
-                                                <div class="md-mc-stat-lbl">Reject</div>
+                                                <div class="md-mc-stat-lbl">@T("machine.stat.reject")</div>
                                                 <div class="md-mc-stat-num">@((m.QtyNg ?? 0).ToString("N0"))</div>
-                                                <div class="md-mc-stat-sub">@(Defect(m) is { } d ? $"{d.ToString("0.0", CultureInfo.InvariantCulture)}% defect" : "—")</div>
+                                                <div class="md-mc-stat-sub">@(Defect(m) is { } d ? T("machine.stat.defect", d.ToString("0.0", CultureInfo.InvariantCulture)) : "—")</div>
                                             </div>
                                             <div class="md-mc-stat">
-                                                <div class="md-mc-stat-lbl">Produced</div>
+                                                <div class="md-mc-stat-lbl">@T("machine.stat.produced")</div>
                                                 <div class="md-mc-stat-num">@(Produced(m).ToString("N0"))</div>
                                                 <div class="md-mc-stat-sub">@(m.ActiveMesPhase ?? "—")</div>
                                             </div>
@@ -224,7 +225,7 @@ else
 
                                         <div class="md-mc-foot">
                                             <div class="md-mc-q-line">
-                                                <span class="md-mc-q-lbl">Quality</span>
+                                                <span class="md-mc-q-lbl">@T("machine.card.quality")</span>
                                                 <strong class="md-mc-q-val">@(Yield(m) is { } qy ? $"{qy.ToString("0.0", CultureInfo.InvariantCulture)}%" : "—")</strong>
                                             </div>
                                             <div class="md-mc-q-bar"><div class="md-mc-q-fill" style="width:@((Yield(m) ?? 0).ToString("0.#", CultureInfo.InvariantCulture))%"></div></div>
@@ -234,9 +235,9 @@ else
                                     {
                                         <div class="md-mc-job md-mc-job-idle">
                                             <div class="md-mc-job-head">
-                                                <strong class="md-mc-idle-txt">◯ Idle · waiting for WO</strong>
+                                                <strong class="md-mc-idle-txt">@T("machine.card.idle.waiting")</strong>
                                             </div>
-                                            <div class="md-mc-prod">No active work order on this machine.</div>
+                                            <div class="md-mc-prod">@T("machine.card.idle.none")</div>
                                         </div>
                                     }
                                 </article>
@@ -249,11 +250,11 @@ else
 
         <aside class="md-side">
             <div class="md-side-card">
-                <div class="md-side-head">Recent Activity</div>
+                <div class="md-side-head">@T("machine.side.recent")</div>
                 <div class="md-side-body md-activity">
                     @if (RecentActivity.Count == 0)
                     {
-                        <div class="md-side-empty">No active machines.</div>
+                        <div class="md-side-empty">@T("machine.side.recent.empty")</div>
                     }
                     else
                     {
@@ -271,18 +272,18 @@ else
             </div>
 
             <div class="md-side-card">
-                <div class="md-side-head">Needs Attention</div>
+                <div class="md-side-head">@T("machine.side.attention")</div>
                 <div class="md-side-body">
                     @if (Alerts.Count == 0)
                     {
-                        <div class="md-side-empty">No quality alerts.</div>
+                        <div class="md-side-empty">@T("machine.side.attention.empty")</div>
                     }
                     else
                     {
                         @foreach (var m in Alerts)
                         {
                             <div class="md-alert">
-                                <strong>@m.Code</strong> — @(Defect(m)!.Value.ToString("0.0", CultureInfo.InvariantCulture))% defect on @m.ActiveWoNo
+                                <strong>@m.Code</strong> — @T("machine.side.alert", Defect(m)!.Value.ToString("0.0", CultureInfo.InvariantCulture), m.ActiveWoNo ?? "")
                             </div>
                         }
                     }
@@ -299,51 +300,51 @@ else
     <div class="md-drawer-overlay" @onclick="CloseDetail"></div>
     <aside class="md-drawer">
         <div class="md-drawer-head">
-            <h2 class="md-drawer-title">@(_detail?.Code ?? "Machine detail")</h2>
+            <h2 class="md-drawer-title">@(_detail?.Code ?? T("machine.drawer.title"))</h2>
             <button type="button" class="md-drawer-close" @onclick="CloseDetail">✕</button>
         </div>
         @if (_detailLoading)
         {
-            <p class="md-muted">Loading detail…</p>
+            <p class="md-muted">@T("machine.drawer.loading")</p>
         }
         else if (_detail is null)
         {
-            <p class="md-muted">No machine data.</p>
+            <p class="md-muted">@T("machine.drawer.nodata")</p>
         }
         else
         {
             <div class="md-drawer-body">
-                <div class="md-kv"><span>Description</span><strong>@_detail.Description</strong></div>
-                <div class="md-kv"><span>Area</span><strong>@(_detail.Area ?? "—")</strong></div>
-                <div class="md-kv"><span>Status</span><strong><span class="md-pill @PillClass(_detail.Status)">@StatusLabel(_detail.Status)</span></strong></div>
+                <div class="md-kv"><span>@T("machine.drawer.description")</span><strong>@_detail.Description</strong></div>
+                <div class="md-kv"><span>@T("machine.drawer.area")</span><strong>@(_detail.Area ?? "—")</strong></div>
+                <div class="md-kv"><span>@T("machine.drawer.status")</span><strong><span class="md-pill @PillClass(_detail.Status)">@StatusLabel(_detail.Status)</span></strong></div>
 
-                <h3 class="md-drawer-sub">Active WO</h3>
+                <h3 class="md-drawer-sub">@T("machine.drawer.activewo")</h3>
                 @if (_detail.ActiveWo is not null)
                 {
                     <div class="md-kv"><span>@_detail.ActiveWo.WoNo</span><strong>@_detail.ActiveWo.MesPhase</strong></div>
-                    <div class="md-kv"><span>Progress</span><strong>@RowProgress(_detail.ActiveWo)</strong></div>
+                    <div class="md-kv"><span>@T("machine.drawer.progress")</span><strong>@RowProgress(_detail.ActiveWo)</strong></div>
                 }
                 else
                 {
-                    <p class="md-muted">No active WO.</p>
+                    <p class="md-muted">@T("machine.drawer.noactivewo")</p>
                 }
 
-                <h3 class="md-drawer-sub">Today</h3>
+                <h3 class="md-drawer-sub">@T("machine.drawer.today")</h3>
                 <div class="md-today">
-                    <div class="md-today-cell"><div class="md-today-num">@_detail.TodayWoCount</div><div class="md-today-lbl">WO</div></div>
-                    <div class="md-today-cell"><div class="md-today-num">@_detail.TodayGood</div><div class="md-today-lbl">Good</div></div>
-                    <div class="md-today-cell"><div class="md-today-num">@_detail.TodayNg</div><div class="md-today-lbl">NG</div></div>
+                    <div class="md-today-cell"><div class="md-today-num">@_detail.TodayWoCount</div><div class="md-today-lbl">@T("machine.drawer.today.wo")</div></div>
+                    <div class="md-today-cell"><div class="md-today-num">@_detail.TodayGood</div><div class="md-today-lbl">@T("machine.drawer.today.good")</div></div>
+                    <div class="md-today-cell"><div class="md-today-num">@_detail.TodayNg</div><div class="md-today-lbl">@T("machine.drawer.today.ng")</div></div>
                 </div>
 
-                <h3 class="md-drawer-sub">Recent WOs</h3>
+                <h3 class="md-drawer-sub">@T("machine.drawer.recentwos")</h3>
                 @if (_detail.RecentWos.Count == 0)
                 {
-                    <p class="md-muted">No WOs.</p>
+                    <p class="md-muted">@T("machine.drawer.nowos")</p>
                 }
                 else
                 {
                     <table class="md-table">
-                        <thead><tr><th>WO</th><th>Phase</th><th>Progress</th></tr></thead>
+                        <thead><tr><th>@T("machine.drawer.col.wo")</th><th>@T("machine.drawer.col.phase")</th><th>@T("machine.drawer.col.progress")</th></tr></thead>
                         <tbody>
                             @foreach (var w in _detail.RecentWos)
                             {

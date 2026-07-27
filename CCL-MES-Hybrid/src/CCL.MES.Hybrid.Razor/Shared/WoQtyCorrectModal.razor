@@ -10,6 +10,7 @@
     Rule 4: plain <select> + <input>, NO <InputText>.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.RunningSurface
 
 <Modal Open="@Open"
@@ -17,27 +18,27 @@
        Size="ModalSize.Md"
        Severity="ModalSeverity.Warning"
        ClickOutsideToClose="false">
-    <Header>Correct quantity — Q5 (append-only)</Header>
+    <Header>@T("woqty.header")</Header>
     <Body>
         <div class="rs-modal-body" data-testid="qty-correct-modal">
             @if (RecentEntries.Count == 0)
             {
                 <div class="wo-card-error" data-testid="qty-correct-empty">
-                    <strong>No output records yet to correct.</strong>
-                    Add quantity with the +100 / +500 / +1000 buttons before opening Correct qty.
+                    <strong>@T("woqty.empty.title")</strong>
+                    @T("woqty.empty.body")
                 </div>
             }
             else
             {
                 <div class="rs-modal-field">
-                    <label class="rs-modal-label" for="qty-correct-entry-select">Source record *</label>
+                    <label class="rs-modal-label" for="qty-correct-entry-select">@T("woqty.source.label")</label>
                     <select id="qty-correct-entry-select"
                             class="rs-input rs-select"
                             value="@_linkedEntryId"
                             data-testid="qty-correct-entry-select"
                             disabled="@Busy"
                             @onchange="OnEntryChange">
-                        <option value="0">— select a record —</option>
+                        <option value="0">@T("woqty.source.placeholder")</option>
                         @foreach (var e in RecentEntries)
                         {
                             <option value="@e.EntryId">@FormatEntry(e)</option>
@@ -46,7 +47,7 @@
                 </div>
                 <div class="rs-modal-row">
                     <div class="rs-modal-field">
-                        <label class="rs-modal-label" for="qty-correct-done-input">Correct Done (Δ, may be negative)</label>
+                        <label class="rs-modal-label" for="qty-correct-done-input">@T("woqty.done.label")</label>
                         <input id="qty-correct-done-input"
                                type="number"
                                class="rs-input"
@@ -57,7 +58,7 @@
                                @oninput="OnDoneInput" />
                     </div>
                     <div class="rs-modal-field">
-                        <label class="rs-modal-label" for="qty-correct-ng-input">Correct NG (Δ, may be negative)</label>
+                        <label class="rs-modal-label" for="qty-correct-ng-input">@T("woqty.ng.label")</label>
                         <input id="qty-correct-ng-input"
                                type="number"
                                class="rs-input"
@@ -69,7 +70,7 @@
                     </div>
                 </div>
                 <div class="rs-modal-field">
-                    <label class="rs-modal-label" for="qty-correct-reason-input">Correction reason * (1-500 characters)</label>
+                    <label class="rs-modal-label" for="qty-correct-reason-input">@T("woqty.reason.label")</label>
                     <input id="qty-correct-reason-input"
                            type="text"
                            class="rs-input"
@@ -87,12 +88,12 @@
                 class="op-btn op-btn-secondary"
                 data-testid="qty-correct-cancel-btn"
                 disabled="@Busy"
-                @onclick="OnClose">Cancel</button>
+                @onclick="OnClose">@T("woqty.cancel")</button>
         <button type="button"
                 class="op-btn op-btn-primary"
                 data-testid="qty-correct-confirm-btn"
                 disabled="@(!IsValid || Busy)"
-                @onclick="OnConfirmClicked">Save correction</button>
+                @onclick="OnConfirmClicked">@T("woqty.save")</button>
     </Footer>
 </Modal>
 

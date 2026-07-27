@@ -1,12 +1,13 @@
 @page "/shop-orders"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using System.Globalization
 @using System.Text
 @using CCL.MES.Shared.Machines
 @inject ICclApiClient Api
 @inject IJSRuntime JS
 
-<PageTitle>Shop Order History — CCL MES</PageTitle>
+<PageTitle>@T("shoporders.pagetitle")</PageTitle>
 
 @* P10.8 — SpecHub Shop-Order-History parity: forensic record of closed
    WOs (SHIPPED/CANCELLED) with 5 KPI tiles + per-WO runtime/setup/pause/OEE
@@ -16,47 +17,47 @@
    A×P×Q (blank when not computable). *@
 <div class="md-head">
     <div>
-        <h1 class="page-title">📦 Shop Order History</h1>
-        <div class="md-subtitle">Forensic record of completed work orders · @(_data?.TotalWos ?? 0) total</div>
+        <h1 class="page-title">📦 @T("shoporders.title")</h1>
+        <div class="md-subtitle">@T("shoporders.subtitle", _data?.TotalWos ?? 0)</div>
     </div>
-    <button type="button" class="md-refresh" @onclick="ExportCsvAsync" disabled="@(_data is null || _data.Rows.Count == 0)">📥 Export CSV</button>
+    <button type="button" class="md-refresh" @onclick="ExportCsvAsync" disabled="@(_data is null || _data.Rows.Count == 0)">📥 @T("shoporders.export.csv")</button>
 </div>
 
 <div class="md-kpi-grid soh-kpi-grid">
     <div class="md-kpi md-kpi-maint">
-        <div class="md-kpi-label">Total Work Orders</div>
+        <div class="md-kpi-label">@T("shoporders.kpi.totalwos")</div>
         <div class="md-kpi-num">@(_data?.TotalWos ?? 0)</div>
-        <div class="md-kpi-oee-sub">@(_data?.StoppedCount ?? 0) stopped · @(_data?.DoneCount ?? 0) done</div>
+        <div class="md-kpi-oee-sub">@T("shoporders.kpi.totalwos.sub", _data?.StoppedCount ?? 0, _data?.DoneCount ?? 0)</div>
     </div>
     <div class="md-kpi md-kpi-running">
-        <div class="md-kpi-label">Total Output</div>
+        <div class="md-kpi-label">@T("shoporders.kpi.output")</div>
         <div class="md-kpi-num">@((_data?.Output ?? 0).ToString("N0"))</div>
-        <div class="md-kpi-oee-sub">pcs across @(_data?.TotalWos ?? 0) WOs</div>
+        <div class="md-kpi-oee-sub">@T("shoporders.kpi.output.sub", _data?.TotalWos ?? 0)</div>
     </div>
     <div class="md-kpi @YieldKpiClass">
-        <div class="md-kpi-label">Avg Yield</div>
+        <div class="md-kpi-label">@T("shoporders.kpi.yield")</div>
         <div class="md-kpi-num">@(_data?.YieldPct ?? 0)%</div>
-        <div class="md-kpi-oee-sub">target ≥ 98%</div>
+        <div class="md-kpi-oee-sub">@T("shoporders.kpi.yield.sub")</div>
     </div>
     <div class="md-kpi @OeeKpiClass">
-        <div class="md-kpi-label">Avg OEE</div>
+        <div class="md-kpi-label">@T("shoporders.kpi.oee")</div>
         <div class="md-kpi-num">@(_data?.AvgOeePct is { } o ? $"{o}%" : "—")</div>
-        <div class="md-kpi-oee-sub">A × P × Q across all WOs</div>
+        <div class="md-kpi-oee-sub">@T("shoporders.kpi.oee.sub")</div>
     </div>
     <div class="md-kpi md-kpi-setup">
-        <div class="md-kpi-label">Total Reject</div>
+        <div class="md-kpi-label">@T("shoporders.kpi.reject")</div>
         <div class="md-kpi-num">@((_data?.Reject ?? 0).ToString("N0"))</div>
-        <div class="md-kpi-oee-sub">@DefectRate.ToString("0.00", CultureInfo.InvariantCulture)% defect rate</div>
+        <div class="md-kpi-oee-sub">@T("shoporders.kpi.reject.sub", DefectRate.ToString("0.00", CultureInfo.InvariantCulture))</div>
     </div>
 </div>
 
 <div class="md-filters soh-filters">
-    <input class="md-search" type="text" placeholder="🔍 Search WO / customer / product / machine…"
+    <input class="md-search" type="text" placeholder="@T("shoporders.search.placeholder")"
            value="@_search" @onchange="OnSearchChanged" />
-    <span class="md-filter-count">@(_data?.Rows.Count ?? 0) records</span>
+    <span class="md-filter-count">@T("shoporders.records", _data?.Rows.Count ?? 0)</span>
 </div>
 <div class="md-filters soh-filters-row">
-    <span class="soh-filter-label">Period:</span>
+    <span class="soh-filter-label">@T("shoporders.filter.period")</span>
     <div class="md-chips">
         @foreach (var p in PeriodChips)
         {
@@ -64,7 +65,7 @@
                     @onclick="@(() => SetFilterAsync(() => _period = p.Key))">@p.Label</button>
         }
     </div>
-    <span class="soh-filter-label">Status:</span>
+    <span class="soh-filter-label">@T("shoporders.filter.status")</span>
     <div class="md-chips">
         @foreach (var s in StatusChips)
         {
@@ -72,17 +73,17 @@
                     @onclick="@(() => SetFilterAsync(() => _status = s.Key))">@s.Label</button>
         }
     </div>
-    <span class="soh-filter-label">Customer:</span>
+    <span class="soh-filter-label">@T("shoporders.filter.customer")</span>
     <select class="soh-select" value="@_customer" @onchange="OnCustomerChanged">
-        <option value="">All customers</option>
+        <option value="">@T("shoporders.filter.allcustomers")</option>
         @foreach (var c in (_data?.Customers ?? Array.Empty<string>()))
         {
             <option value="@c">@c</option>
         }
     </select>
-    <span class="soh-filter-label">Machine:</span>
+    <span class="soh-filter-label">@T("shoporders.filter.machine")</span>
     <select class="soh-select" value="@_machine" @onchange="OnMachineChanged">
-        <option value="">All machines</option>
+        <option value="">@T("shoporders.filter.allmachines")</option>
         @foreach (var m in (_data?.Machines ?? Array.Empty<string>()))
         {
             <option value="@m">@m</option>
@@ -92,15 +93,15 @@
 
 @if (_loading && _data is null)
 {
-    <p class="md-muted">Loading history…</p>
+    <p class="md-muted">@T("shoporders.loading")</p>
 }
 else if (_error is not null)
 {
-    <p class="md-error">Failed to load history: @_error</p>
+    <p class="md-error">@T("shoporders.error.load", _error)</p>
 }
 else if (_data is null || _data.Rows.Count == 0)
 {
-    <p class="md-muted">No shop orders match the filter.</p>
+    <p class="md-muted">@T("shoporders.empty")</p>
 }
 else
 {
@@ -110,9 +111,9 @@ else
                 <table class="md-table soh-tbl">
                     <thead>
                         <tr>
-                            <th>WO / Customer</th><th>Product</th><th>Machine</th>
-                            <th class="num">Output / Plan</th><th class="num">Yield</th><th class="num">OEE</th>
-                            <th>Runtime</th><th>Pauses</th><th>Finished</th><th>Status</th>
+                            <th>@T("shoporders.th.wocustomer")</th><th>@T("shoporders.th.product")</th><th>@T("shoporders.th.machine")</th>
+                            <th class="num">@T("shoporders.th.outputplan")</th><th class="num">@T("shoporders.th.yield")</th><th class="num">@T("shoporders.th.oee")</th>
+                            <th>@T("shoporders.th.runtime")</th><th>@T("shoporders.th.pauses")</th><th>@T("shoporders.th.finished")</th><th>@T("shoporders.th.status")</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -126,12 +127,12 @@ else
                                     <strong>@r.QtyDone.ToString("N0")</strong><small>/ @r.TargetQty.ToString("N0")</small>
                                     <div class="soh-prog"><div class="soh-prog-fill" style="width:@r.ProgressPct%; background:@ProgressColor(r.ProgressPct)"></div></div>
                                 </td>
-                                <td class="num soh-yield @YieldClass(r.YieldPct)">@r.YieldPct%<small>@r.QtyNg.ToString("N0") NG</small></td>
+                                <td class="num soh-yield @YieldClass(r.YieldPct)">@r.YieldPct%<small>@T("shoporders.cell.ng", r.QtyNg.ToString("N0"))</small></td>
                                 <td class="num soh-yield @(r.OeePct is { } op ? YieldOeeClass(op) : "")">@(r.OeePct is { } o2 ? $"{o2}%" : "—")</td>
-                                <td>@FormatDuration(r.RuntimeSec)<small>setup @FormatDuration(r.SetupSec)</small></td>
-                                <td>@r.PauseCount<small>@(r.PauseCount > 0 ? "events" : "—")</small></td>
+                                <td>@FormatDuration(r.RuntimeSec)<small>@T("shoporders.cell.setup", FormatDuration(r.SetupSec))</small></td>
+                                <td>@r.PauseCount<small>@(r.PauseCount > 0 ? T("shoporders.cell.events") : "—")</small></td>
                                 <td>@FormatRelative(r.FinishedAt)</td>
-                                <td><span class="soh-status @(r.MesPhase == "CANCELLED" ? "stopped" : "done")">@(r.MesPhase == "CANCELLED" ? "✕ Stopped" : "✓ Done")</span></td>
+                                <td><span class="soh-status @(r.MesPhase == "CANCELLED" ? "stopped" : "done")">@(r.MesPhase == "CANCELLED" ? T("shoporders.status.stopped") : T("shoporders.status.done"))</span></td>
                             </tr>
                         }
                     </tbody>
@@ -141,23 +142,23 @@ else
 
         <aside class="md-side">
             <div class="md-side-card">
-                <div class="md-side-head">🏢 Top Customers</div>
+                <div class="md-side-head">🏢 @T("shoporders.side.topcustomers")</div>
                 <div class="md-side-body">@RenderAgg(_data.TopCustomers, _data.TotalWos, "#2563eb", false)</div>
             </div>
             <div class="md-side-card">
-                <div class="md-side-head">🏭 Top Machines</div>
+                <div class="md-side-head">🏭 @T("shoporders.side.topmachines")</div>
                 <div class="md-side-body">@RenderAgg(_data.TopMachines, _data.TotalWos, "#16a34a", true)</div>
             </div>
             <div class="md-side-card">
-                <div class="md-side-head">⏸ Top Downtime Reasons</div>
+                <div class="md-side-head">⏸ @T("shoporders.side.topdowntime")</div>
                 <div class="md-side-body">@RenderAgg(_data.TopDowntimeReasons, DowntimeTotal, "#f59e0b", false, label: true, pct: true)</div>
             </div>
             <div class="md-side-card soh-tip">
-                <div class="md-side-head">💡 Tip</div>
+                <div class="md-side-head">💡 @T("shoporders.side.tip")</div>
                 <div class="md-side-body soh-tip-body">
-                    Click a row → detail drawer<br />
-                    Export CSV for Excel pivot tables<br />
-                    Filter date + machine → trace one incident
+                    @T("shoporders.tip.row")<br />
+                    @T("shoporders.tip.export")<br />
+                    @T("shoporders.tip.filter")
                 </div>
             </div>
         </aside>
@@ -177,26 +178,26 @@ else
             <button type="button" class="md-drawer-close" @onclick="@(() => _selected = null)">✕</button>
         </div>
         <div class="md-drawer-body">
-            <h3 class="md-drawer-sub">Final Summary</h3>
-            <div class="md-kv"><span>Status</span><strong><span class="soh-status @(_selected.MesPhase == "CANCELLED" ? "stopped" : "done")">@(_selected.MesPhase == "CANCELLED" ? "✕ Stopped" : "✓ Done")</span></strong></div>
-            <div class="md-kv"><span>Finished</span><strong>@(_selected.FinishedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")</strong></div>
-            <div class="md-kv"><span>Target qty</span><strong>@_selected.TargetQty.ToString("N0")</strong></div>
-            <div class="md-kv"><span>Actual output</span><strong>@_selected.QtyDone.ToString("N0")</strong></div>
-            <div class="md-kv"><span>Reject</span><strong>@_selected.QtyNg.ToString("N0")</strong></div>
+            <h3 class="md-drawer-sub">@T("shoporders.drawer.finalsummary")</h3>
+            <div class="md-kv"><span>@T("shoporders.drawer.status")</span><strong><span class="soh-status @(_selected.MesPhase == "CANCELLED" ? "stopped" : "done")">@(_selected.MesPhase == "CANCELLED" ? T("shoporders.status.stopped") : T("shoporders.status.done"))</span></strong></div>
+            <div class="md-kv"><span>@T("shoporders.drawer.finished")</span><strong>@(_selected.FinishedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm") ?? "—")</strong></div>
+            <div class="md-kv"><span>@T("shoporders.drawer.targetqty")</span><strong>@_selected.TargetQty.ToString("N0")</strong></div>
+            <div class="md-kv"><span>@T("shoporders.drawer.actualoutput")</span><strong>@_selected.QtyDone.ToString("N0")</strong></div>
+            <div class="md-kv"><span>@T("shoporders.drawer.reject")</span><strong>@_selected.QtyNg.ToString("N0")</strong></div>
 
-            <h3 class="md-drawer-sub">Performance Metrics</h3>
-            <div class="md-kv"><span>Yield</span><strong>@_selected.YieldPct%</strong></div>
-            <div class="md-kv"><span>OEE</span><strong>@(_selected.OeePct is { } oeeV ? $"{oeeV}%" : "— (no run/cycle data)")</strong></div>
-            <div class="md-kv"><span>Setup time</span><strong>@FormatDuration(_selected.SetupSec)</strong></div>
-            <div class="md-kv"><span>Total runtime</span><strong>@FormatDuration(_selected.RuntimeSec)</strong></div>
-            <div class="md-kv"><span>Pauses</span><strong>@_selected.PauseCount</strong></div>
+            <h3 class="md-drawer-sub">@T("shoporders.drawer.perfmetrics")</h3>
+            <div class="md-kv"><span>@T("shoporders.drawer.yield")</span><strong>@_selected.YieldPct%</strong></div>
+            <div class="md-kv"><span>@T("shoporders.drawer.oee")</span><strong>@(_selected.OeePct is { } oeeV ? $"{oeeV}%" : T("shoporders.drawer.oee.none"))</strong></div>
+            <div class="md-kv"><span>@T("shoporders.drawer.setuptime")</span><strong>@FormatDuration(_selected.SetupSec)</strong></div>
+            <div class="md-kv"><span>@T("shoporders.drawer.totalruntime")</span><strong>@FormatDuration(_selected.RuntimeSec)</strong></div>
+            <div class="md-kv"><span>@T("shoporders.drawer.pauses")</span><strong>@_selected.PauseCount</strong></div>
 
             @if (_selected.PauseReasons.Count > 0)
             {
-                <h3 class="md-drawer-sub">⏸ Downtime Events (@_selected.PauseCount)</h3>
+                <h3 class="md-drawer-sub">⏸ @T("shoporders.drawer.downtimeevents", _selected.PauseCount)</h3>
                 @foreach (var p in _selected.PauseReasons)
                 {
-                    <div class="md-kv"><span>@(p.Label ?? p.Key)</span><strong>@p.Count× event@(p.Count > 1 ? "s" : "")</strong></div>
+                    <div class="md-kv"><span>@(p.Label ?? p.Key)</span><strong>@T("shoporders.drawer.eventcount", p.Count)</strong></div>
                 }
             }
         </div>
@@ -216,14 +217,18 @@ else
 
     private ShopOrderHistoryRow? _selected;
 
-    private static readonly (string? Key, string Label)[] PeriodChips =
+    private (string? Key, string Label)[] PeriodChips =>
+    new (string? Key, string Label)[]
     {
-        (null, "All time"), ("today", "Today"), ("7d", "Last 7 days"), ("30d", "Last 30 days"),
+        (null, T("shoporders.period.all")), ("today", T("shoporders.period.today")),
+        ("7d", T("shoporders.period.7d")), ("30d", T("shoporders.period.30d")),
     };
 
-    private static readonly (string? Key, string Label)[] StatusChips =
+    private (string? Key, string Label)[] StatusChips =>
+    new (string? Key, string Label)[]
     {
-        (null, "All"), ("DONE", "✓ Done"), ("STOPPED", "✕ Stopped"),
+        (null, T("shoporders.statuschip.all")), ("DONE", T("shoporders.status.done")),
+        ("STOPPED", T("shoporders.status.stopped")),
     };
 
     private double DefectRate => _data is { Output: > 0 } ? 100.0 * _data.Reject / _data.Output : 0;
@@ -325,7 +330,7 @@ else
         {
             builder.OpenElement(0, "div");
             builder.AddAttribute(1, "class", "md-side-empty");
-            builder.AddContent(2, pct ? "No pauses recorded." : "No data.");
+            builder.AddContent(2, pct ? T("shoporders.side.nopauses") : T("shoporders.side.nodata"));
             builder.CloseElement();
             return;
         }

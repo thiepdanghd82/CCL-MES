@@ -1,5 +1,6 @@
 @page "/settings/audit"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using System.Globalization
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.Files
@@ -33,26 +34,26 @@
        same list on next reload.
 *@
 
-<PageTitle>Audit Log — CCL MES</PageTitle>
+<PageTitle>@T("auditlog.pagetitle")</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
-    <h1 class="page-title">Audit Log</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">@T("common.back.settings")</a>
+    <h1 class="page-title">@T("auditlog.title")</h1>
 </div>
 
 <section class="settings-form-card is-wide">
-    <h2 class="settings-group-title">Filters</h2>
+    <h2 class="settings-group-title">@T("auditlog.filters.title")</h2>
     <div class="audit-filter-grid">
         <div class="audit-filter-field">
-            <label for="al-search">Search</label>
+            <label for="al-search">@T("auditlog.filter.search")</label>
             <input id="al-search" type="text" class="modal-input"
-                   placeholder="Search across all columns…"
+                   placeholder="@T("auditlog.filter.search.placeholder")"
                    @bind="_search" @bind:event="oninput" />
         </div>
         <div class="audit-filter-field">
-            <label for="al-action">Action</label>
+            <label for="al-action">@T("auditlog.filter.action")</label>
             <select id="al-action" class="modal-input" @bind="_action">
-                <option value="">— All —</option>
+                <option value="">@T("auditlog.filter.action.all")</option>
                 @foreach (var a in _actions)
                 {
                     <option value="@a">@a</option>
@@ -60,18 +61,18 @@
             </select>
         </div>
         <div class="audit-filter-field">
-            <label for="al-actor">User</label>
+            <label for="al-actor">@T("auditlog.filter.user")</label>
             <input id="al-actor" type="text" class="modal-input"
-                   placeholder="admin, supervisor, …"
+                   placeholder="@T("auditlog.filter.user.placeholder")"
                    @bind="_actor" @bind:event="oninput" />
         </div>
         <div class="audit-filter-field">
-            <label for="al-from">From date (UTC)</label>
+            <label for="al-from">@T("auditlog.filter.from")</label>
             <input id="al-from" type="date" class="modal-input"
                    @bind="_fromDate" />
         </div>
         <div class="audit-filter-field">
-            <label for="al-to">To date (UTC)</label>
+            <label for="al-to">@T("auditlog.filter.to")</label>
             <input id="al-to" type="date" class="modal-input"
                    @bind="_toDate" />
         </div>
@@ -79,17 +80,17 @@
     <div class="audit-filter-actions">
         <button type="button" class="grid-btn grid-btn-primary"
                 disabled="@_loading" @onclick="OnApply">
-            @(_loading ? "Loading…" : "Apply + Reload")
+            @(_loading ? T("auditlog.loading") : T("auditlog.apply"))
         </button>
-        <button type="button" class="grid-btn" @onclick="OnReset">Reset</button>
+        <button type="button" class="grid-btn" @onclick="OnReset">@T("auditlog.reset")</button>
         <span class="audit-export-spacer"></span>
         <button type="button" class="grid-btn"
                 disabled="@_exporting" @onclick="@(() => OnExport("csv"))">
-            @(_exporting ? "Exporting…" : "Export CSV")
+            @(_exporting ? T("auditlog.exporting") : T("auditlog.export.csv"))
         </button>
         <button type="button" class="grid-btn"
                 disabled="@_exporting" @onclick="@(() => OnExport("xlsx"))">
-            @(_exporting ? "Exporting…" : "Export XLSX")
+            @(_exporting ? T("auditlog.exporting") : T("auditlog.export.xlsx"))
         </button>
     </div>
     @if (_filterError is not null)
@@ -105,26 +106,26 @@
 <section class="settings-form-card is-wide" style="margin-top:16px">
     <div class="audit-result-head">
         <h2 class="settings-group-title">
-            Results (@_result.Total total — page @_result.Page / @TotalPages, @_result.Items.Count rows)
+            @T("auditlog.results.head", _result.Total, _result.Page, TotalPages, _result.Items.Count)
         </h2>
         <div class="audit-paging">
             <button type="button" class="grid-btn" disabled="@(_loading || _result.Page <= 1)"
-                    @onclick="@(() => GoPage(_result.Page - 1))">‹ Previous</button>
-            <span class="audit-paging-pos">Page @_result.Page</span>
+                    @onclick="@(() => GoPage(_result.Page - 1))">@T("auditlog.paging.prev")</button>
+            <span class="audit-paging-pos">@T("auditlog.paging.page", _result.Page)</span>
             <button type="button" class="grid-btn"
                     disabled="@(_loading || _result.Page >= TotalPages)"
-                    @onclick="@(() => GoPage(_result.Page + 1))">Next ›</button>
+                    @onclick="@(() => GoPage(_result.Page + 1))">@T("auditlog.paging.next")</button>
         </div>
     </div>
 
     @if (_loading)
     {
-        <p class="settings-form-help">Loading…</p>
+        <p class="settings-form-help">@T("auditlog.loading")</p>
     }
     else if (_result.Items.Count == 0)
     {
         <p class="settings-form-help">
-            No rows match the filter. Try widening the date range or clearing the user filter.
+            @T("auditlog.empty")
         </p>
     }
     else
@@ -144,15 +145,15 @@
                 </colgroup>
                 <thead>
                     <tr>
-                        <th>UTC</th>
-                        <th>User</th>
-                        <th>Role</th>
-                        <th>Action</th>
-                        <th>Target</th>
-                        <th>ID</th>
-                        <th>IP</th>
-                        <th>Source</th>
-                        <th>Detail</th>
+                        <th>@T("auditlog.col.utc")</th>
+                        <th>@T("auditlog.col.user")</th>
+                        <th>@T("auditlog.col.role")</th>
+                        <th>@T("auditlog.col.action")</th>
+                        <th>@T("auditlog.col.target")</th>
+                        <th>@T("auditlog.col.id")</th>
+                        <th>@T("auditlog.col.ip")</th>
+                        <th>@T("auditlog.col.source")</th>
+                        <th>@T("auditlog.col.detail")</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -169,7 +170,7 @@
                             <td class="audit-mono" title="@(e.IpAddress ?? "")">@(e.IpAddress ?? "—")</td>
                             <td>@e.Source</td>
                             <td class="audit-detail-cell"
-                                title="@(string.IsNullOrEmpty(e.Detail) ? "(empty)" : e.Detail)"
+                                title="@(string.IsNullOrEmpty(e.Detail) ? T("auditlog.detail.empty.title") : e.Detail)"
                                 @onclick="@(() => ToggleExpand(e.Id))">
                                 @if (string.IsNullOrEmpty(e.Detail))
                                 {
@@ -188,11 +189,11 @@
                             <tr class="audit-expanded-row">
                                 <td colspan="9">
                                     <div class="audit-expanded-head">
-                                        <span>Detail (JSON) — event <code>@e.Action</code> #@e.Id</span>
+                                        <span>@T("auditlog.detail.json.head.prefix") <code>@e.Action</code> @T("auditlog.detail.json.head.suffix", e.Id)</span>
                                         <button type="button" class="audit-copy-btn @(_copiedId == e.Id ? "is-ok" : "")"
                                                 @onclick="@(() => CopyDetail(e.Id, e.Detail!))"
                                                 @onclick:stopPropagation="true">
-                                            @(_copiedId == e.Id ? "✔ Copied" : "Copy")
+                                            @(_copiedId == e.Id ? T("auditlog.copy.done") : T("auditlog.copy"))
                                         </button>
                                     </div>
                                     <pre class="audit-expanded-pre">@pretty</pre>

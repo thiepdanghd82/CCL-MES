@@ -9,6 +9,7 @@
       - ok                 : green pill "Sẵn sàng" + EnabledAction body
       - not available      : amber pill "@reason" + OperatorMessage body
 *@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Hardware
 
 <div class="hw-row">
@@ -16,16 +17,16 @@
 
     @if (_state == State.Probing)
     {
-        <div class="hw-pill hw-pill-probing">Checking…</div>
+        <div class="hw-pill hw-pill-probing">@T("hw.pill.probing")</div>
     }
     else if (_avail?.IsAvailable == true)
     {
-        <div class="hw-pill hw-pill-ok">Ready</div>
+        <div class="hw-pill hw-pill-ok">@T("hw.pill.ready")</div>
         <div class="hw-row-msg">@EnabledAction</div>
     }
     else
     {
-        <div class="hw-pill hw-pill-warn">@(_avail?.Reason ?? "unknown")</div>
+        <div class="hw-pill hw-pill-warn">@(_avail?.Reason ?? T("hw.reason.unknown"))</div>
         <div class="hw-row-msg">@(_avail?.OperatorMessage ?? "")</div>
     }
 </div>

@@ -51,7 +51,47 @@ while IFS= read -r f; do
 done < <(find "$RAZOR" \( -type d \( -name bin -o -name obj \) -prune \) -o \
               -type f \( -iname "*Showcard*.razor" -o -iname "*DetailDialog*.razor" \) -print)
 
+# ── INLINE showcard scan (P11 — L34 gap fix) ──────────────────────────────
+# A showcard can be hand-rolled INLINE in ANY .razor (not just *Showcard*/
+# *DetailDialog* files) — e.g. the per-leg IPQC inspector that lived inside
+# LegsDashboard.razor. Signature of hand-rolled window chrome = a literal
+# role="dialog" (FloatingWindow renders that for you). So: any .razor that
+# writes role="dialog" ITSELF but does NOT wrap <FloatingWindow> is a showcard
+# that dodged the filename check → FAIL. The two dialog PRIMITIVES are allowed:
+#   FloatingWindow.razor — the showcard chrome itself.
+#   Modal.razor          — the centred transactional-modal primitive (forms/confirm).
+# A transactional <Modal> USED in a page carries no literal role="dialog" (the
+# Modal component supplies it), so pages using <Modal> are never flagged.
+DIALOG_ALLOW=(
+  "FloatingWindow.razor"
+  "Modal.razor"
+)
+is_dialog_allowed() {
+  local base="$1"
+  for a in "${DIALOG_ALLOW[@]}"; do [ "$base" = "$a" ] && return 0; done
+  return 1
+}
+
+while IFS= read -r f; do
+  base="$(basename "$f")"
+  is_dialog_allowed "$base" && continue
+  # literal role="dialog" in this file?
+  if grep -nq 'role="dialog"' "$f"; then
+    checked=$((checked + 1))
+    if ! grep -q "<FloatingWindow" "$f"; then
+      line="$(grep -n 'role="dialog"' "$f" | head -1 | cut -d: -f1)"
+      echo "[gate:FAIL] $base:$line hand-rolls a dialog (role=\"dialog\") WITHOUT <FloatingWindow>."
+      echo "            → A keep-open detail/inspector window is a SHOWCARD: extract its body"
+      echo "              into a component that wraps <FloatingWindow> + let the parent own the"
+      echo "              multi-window state (IFloatingWindowStore) — see cmes-floating-showcard."
+      echo "              A transactional form/confirm must use the <Modal> component instead."
+      fail=1
+    fi
+  fi
+done < <(find "$RAZOR" \( -type d \( -name bin -o -name obj \) -prune \) -o \
+              -type f -iname "*.razor" -print)
+
 if [ "$fail" = 0 ]; then
-  echo "[gate:OK] $checked showcard/detail-dialog component(s) wrap <FloatingWindow>."
+  echo "[gate:OK] $checked showcard/detail-dialog surface(s) wrap <FloatingWindow> (filename + inline scan)."
 fi
 exit $fail

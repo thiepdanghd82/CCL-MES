@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @using CCL.MES.Hybrid.Client.Specs
 @using CCL.MES.Shared.Drawings
@@ -26,38 +27,38 @@
         @if (Open)
         {
             <p class="modal-help">
-                Approve the <strong>@RoleLabel(Role)</strong> chip for
+                @T("drawingdecide.help.prefix") <strong>@RoleLabel(Role)</strong> @T("drawingdecide.help.chipfor")
                 <strong>v@VersionNo</strong> · @KindLabel(Kind).
             </p>
 
             <div class="modal-field">
-                <label>Decision</label>
-                <div class="decide-toggle-row" role="radiogroup" aria-label="Decision">
+                <label>@T("drawingdecide.decision")</label>
+                <div class="decide-toggle-row" role="radiogroup" aria-label="@T("drawingdecide.decision")">
                     <button type="button" role="radio" aria-checked="@(_decision == "Approved" ? "true" : "false")"
                             class="decide-toggle decide-toggle-approve @(_decision == "Approved" ? "is-active" : "")"
                             disabled="@_submitting"
                             @onclick='() => { _decision = "Approved"; _error = null; StateHasChanged(); }'>
-                        ✓ Approve
+                        ✓ @T("drawingdecide.approve")
                     </button>
                     <button type="button" role="radio" aria-checked="@(_decision == "Rejected" ? "true" : "false")"
                             class="decide-toggle decide-toggle-reject @(_decision == "Rejected" ? "is-active" : "")"
                             disabled="@_submitting"
                             @onclick='() => { _decision = "Rejected"; _error = null; StateHasChanged(); }'>
-                        ✗ Reject
+                        ✗ @T("drawingdecide.reject")
                     </button>
                 </div>
             </div>
 
             <div class="modal-field">
                 <label for="decide-comment">
-                    Reason
+                    @T("drawingdecide.reason")
                     @if (_decision == "Rejected")
                     {
                         <span class="modal-req">*</span>
                     }
                     else
                     {
-                        <span class="modal-help-inline">(optional on Approve)</span>
+                        <span class="modal-help-inline">@T("drawingdecide.reason.optional")</span>
                     }
                 </label>
                 <textarea id="decide-comment" class="modal-input modal-input-textarea"
@@ -76,7 +77,7 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">@T("drawingdecide.cancel")</button>
         <button type="button" class="op-btn @SubmitButtonClass"
                 disabled="@(!CanSubmit())" @onclick="SubmitAsync">
             @SubmitLabel()
@@ -109,19 +110,21 @@
         : "op-btn-primary";
 
     private string Title => _decision == "Rejected"
-        ? $"Reject chip {RoleLabel(Role)} · v{VersionNo}"
-        : $"Approve chip {RoleLabel(Role)} · v{VersionNo}";
+        ? T("drawingdecide.title.reject", RoleLabel(Role), VersionNo)
+        : T("drawingdecide.title.approve", RoleLabel(Role), VersionNo);
 
     private string SubmitLabel()
     {
-        if (_submitting) return "Submitting…";
-        return _decision == "Rejected" ? "Confirm Reject" : "Confirm Approve";
+        if (_submitting) return T("drawingdecide.submitting");
+        return _decision == "Rejected"
+            ? T("drawingdecide.confirm.reject")
+            : T("drawingdecide.confirm.approve");
     }
 
     private string CommentPlaceholder() =>
         _decision == "Rejected"
-            ? "Required on Reject — state the reason clearly so the designer can revise."
-            : "Can be left blank.";
+            ? T("drawingdecide.placeholder.reject")
+            : T("drawingdecide.placeholder.approve");
 
     private bool CanSubmit()
     {

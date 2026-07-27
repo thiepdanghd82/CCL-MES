@@ -3,6 +3,7 @@ using System.Text.Json;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
+using CCL.MES.Domain;
 using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Domain.Routing;
@@ -69,6 +70,13 @@ public sealed class RoutingController : ControllerBase
         foreach (var l in wo.Legs.OrderBy(l => l.Sequence))
         {
             var (soft, hard) = DependencyStatus(wo, l);
+            // P11 per-leg readiness — count this leg's OWN materialised rows
+            // (scoped WoLegId shadow). Cheap per-leg counts; legs are few.
+            var legId = l.Id;
+            var matsTotal = await _db.WoMaterials.CountAsync(m => EF.Property<long?>(m, "WoLegId") == legId, ct);
+            var matsOk = await _db.WoMaterials.CountAsync(m => EF.Property<long?>(m, "WoLegId") == legId && m.Status == PrepressCheckStatus.Ok, ct);
+            var ipqcTotal = await _db.WoIpqcCheckItems.CountAsync(i => EF.Property<long?>(i, "WoLegId") == legId, ct);
+            var ipqcOk = await _db.WoIpqcCheckItems.CountAsync(i => EF.Property<long?>(i, "WoLegId") == legId && i.Status == IpqcCheckStatus.Ok, ct);
             view.Legs.Add(new LegRow
             {
                 LegId = l.Id, Sequence = l.Sequence, LegKind = l.LegKind,
@@ -78,6 +86,8 @@ public sealed class RoutingController : ControllerBase
                 QtyNgCached = l.QtyNgCached, LegDoneAt = l.LegDoneAt, LegETag = B64(l.RowVersion),
                 IsTerminal = WorkOrderStateMachine.IsTerminalLeg(wo, l),
                 SoftWaiting = soft, HardBlocked = hard,
+                MaterialsTotal = matsTotal, MaterialsOk = matsOk,
+                IpqcItemsTotal = ipqcTotal, IpqcItemsOk = ipqcOk,
             });
         }
         Response.Headers.ETag = $"\"{view.WoETag}\"";
@@ -167,6 +177,19 @@ public sealed class RoutingController : ControllerBase
             wo.MesPhase = nameof(MesPhase.SPLIT);
             wo.UpdatedAt = DateTime.UtcNow; wo.UpdatedBy = actor;
             await _db.SaveChangesAsync();
+
+            // P11 per-leg (Henry-approved): eager-materialise EACH leg's own
+            // PREPRESS (full BOM + plate/cutter by kind) + IPQC (by leg.ProcessLine,
+            // per-area partition) surface, scoped WoLegId — same transaction as the
+            // fork. Both materialisers are idempotent + no-throw on missing BOM/library.
+            var prepress = new PrepressBomSnapshotService(_db);
+            var ipqcLeg = new IpqcLegMaterializer(_db);
+            foreach (var l in wo.Legs)
+            {
+                await prepress.MaterializeForLegAsync(l.Id, ct);
+                await ipqcLeg.MaterializeForLegAsync(l.Id, ct);
+            }
+
             await tx.CommitAsync(ct);
         }
 
@@ -203,6 +226,14 @@ public sealed class RoutingController : ControllerBase
             return UnprocessableEntity(ApiError.Of(code,
                 $"Leg {legId} không thể vào {toPhase} từ {leg!.LegPhase} ({check.Error})."));
         }
+
+        // P11 per-leg check-flow gate (Q2 blocking) — a leg may only enter
+        // IPQC_APPROVED once its OWN IPQC items are all Ok. Vacuously true when
+        // the leg has no per-leg IPQC surface (parity: 1-leg / legacy unaffected).
+        if (toPhase == LegPhase.IPQC_APPROVED
+            && !await new PerLegCheckGate(_db).IpqcAllOkAsync(legId, ct))
+            return UnprocessableEntity(ApiError.Of("leg.ipqc_incomplete",
+                $"Leg {legId} chưa qua IPQC (còn hạng mục chưa OK) — không thể vào {toPhase}."));
 
         // P11.5-2 — gate FROM_STOCK/MIXED: assembly xuất kho phải reserve đủ
         // semi trước khi vào RUNNING (RoutingLegGate chỉ gác in-line HARD;

@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @using CCL.MES.Hybrid.Client.Specs
 
@@ -10,40 +11,40 @@
 
 <Modal Open="@Open" OnClose="@RequestCloseAsync" Size="ModalSize.Md" Severity="ModalSeverity.Info"
        ClickOutsideToClose="false">
-    <Header>Edit Spec @Spec?.SpecCode</Header>
+    <Header>@T("editspec.header", Spec?.SpecCode ?? "")</Header>
     <Body>
         @if (Spec is null)
         {
-            <p class="grid-status">No Spec data yet.</p>
+            <p class="grid-status">@T("editspec.no_data")</p>
         }
         else
         {
             <form @onsubmit:preventDefault="true">
                 <div class="modal-field">
-                    <label for="es-title">Title</label>
+                    <label for="es-title">@T("editspec.field.title")</label>
                     <input id="es-title" type="text" class="modal-input" maxlength="200"
                            @bind="_title" @bind:event="oninput" disabled="@_submitting" />
                 </div>
                 <div class="modal-field">
-                    <label for="es-refno">REF NO</label>
+                    <label for="es-refno">@T("editspec.field.refno")</label>
                     <input id="es-refno" type="text" class="modal-input" maxlength="64"
                            @bind="_refNo" @bind:event="oninput" disabled="@_submitting" />
                 </div>
                 <div class="modal-field">
-                    <label for="es-inspection">Spec / Inspection level</label>
+                    <label for="es-inspection">@T("editspec.field.inspection_level")</label>
                     <input id="es-inspection" type="text" class="modal-input" maxlength="32"
-                           placeholder="e.g. A166"
+                           placeholder="@T("editspec.inspection_level.placeholder")"
                            @bind="_inspectionLevel" @bind:event="oninput" disabled="@_submitting" />
                 </div>
                 <div class="modal-field">
-                    <label for="es-process">Process code</label>
+                    <label for="es-process">@T("editspec.field.process_code")</label>
                     <input id="es-process" type="text" class="modal-input" maxlength="64"
                            @bind="_processCode" @bind:event="oninput" disabled="@_submitting" />
                 </div>
                 <div class="modal-field">
-                    <label for="es-color">ColorSpec JSON</label>
+                    <label for="es-color">@T("editspec.field.color_json")</label>
                     <textarea id="es-color" class="modal-input modal-input-textarea" rows="3"
-                              placeholder='JSON array of colors, blank = keep unchanged'
+                              placeholder="@T("editspec.color_json.placeholder")"
                               @bind="_colorSpecJson" @bind:event="oninput" disabled="@_submitting"></textarea>
                 </div>
                 @if (_error is not null)
@@ -55,10 +56,10 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">@T("editspec.cancel")</button>
         <button type="button" class="op-btn op-btn-primary"
                 disabled="@(_submitting || Spec is null)" @onclick="SubmitAsync">
-            @(_submitting ? "Saving…" : "Save changes")
+            @(_submitting ? T("editspec.saving") : T("editspec.save"))
         </button>
     </Footer>
 </Modal>

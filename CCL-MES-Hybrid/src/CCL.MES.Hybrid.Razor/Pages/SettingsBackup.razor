@@ -1,5 +1,6 @@
 @page "/settings/backup"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using System.Globalization
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Shared.Backup
@@ -30,22 +31,21 @@
        rollback exists via the snapshot list.
 *@
 
-<PageTitle>Backup &amp; Restore — CCL MES</PageTitle>
+<PageTitle>@T("backup.pagetitle")</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
-    <h1 class="page-title">Backup &amp; Restore</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">@T("common.back.settings")</a>
+    <h1 class="page-title">@T("backup.title")</h1>
 </div>
 
 <section class="settings-form-card is-wide">
-    <h2 class="settings-group-title">Create a backup</h2>
+    <h2 class="settings-group-title">@T("backup.create.title")</h2>
     <p class="settings-form-help">
-        Create a snapshot of the SQLite database immediately. The snapshot
-        uses the SQLite online backup API and is safe while the server is serving.
+        @T("backup.create.help")
     </p>
     <button type="button" class="grid-btn grid-btn-primary"
             disabled="@_creating" @onclick="OnCreate">
-        @(_creating ? "Creating…" : "Create new snapshot")
+        @(_creating ? T("backup.create.busy") : T("backup.create.button"))
     </button>
     @if (_createError is not null)
     {
@@ -54,41 +54,39 @@
     @if (_createOk is not null)
     {
         <div class="settings-form-success">
-            ✔ Created: <code>@_createOk.FileName</code>
-            (@FormatBytes(_createOk.SizeBytes)) — SHA-256:
+            @T("backup.create.success.prefix") <code>@_createOk.FileName</code>
+            (@FormatBytes(_createOk.SizeBytes)) — @T("backup.create.success.sha")
             <code class="backup-sha">@ShortSha(_createOk.Sha256)</code>
         </div>
     }
 </section>
 
 <section class="settings-form-card is-wide" style="margin-top:16px">
-    <h2 class="settings-group-title">Scheduled backup</h2>
+    <h2 class="settings-group-title">@T("backup.sched.title")</h2>
     <p class="settings-form-help">
-        Automated nightly snapshot + blob archive + integrity verify. Choose the
-        run hour (ICT) and retention. The off-site copy is a separate cron job
-        (<code>scripts/backup-offsite</code>).
+        @T("backup.sched.help")
     </p>
 
     @if (_schedLoading)
     {
-        <p class="settings-form-help">Loading…</p>
+        <p class="settings-form-help">@T("backup.loading")</p>
     }
     else if (_sched is not null)
     {
         <dl class="backup-status-grid">
-            <dt>Status</dt>
-            <dd>@(_sched.Enabled ? "Enabled" : "Disabled")</dd>
-            <dt>Next run</dt>
+            <dt>@T("backup.sched.status")</dt>
+            <dd>@(_sched.Enabled ? T("backup.sched.status.enabled") : T("backup.sched.status.disabled"))</dd>
+            <dt>@T("backup.sched.nextrun")</dt>
             <dd>
                 @(_sched.Enabled && _sched.NextRunAtUtc is not null
                     ? _sched.NextRunAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'", CultureInfo.InvariantCulture)
                     : "—")
             </dd>
-            <dt>Last run</dt>
+            <dt>@T("backup.sched.lastrun")</dt>
             <dd>
                 @if (_sched.LastRunAtUtc is null)
                 {
-                    <span>Never (this session)</span>
+                    <span>@T("backup.sched.lastrun.never")</span>
                 }
                 else
                 {
@@ -99,27 +97,27 @@
                     </span>
                 }
             </dd>
-            <dt>Blob archive</dt>
-            <dd>@(_sched.BlobsEnabled ? "on" : "off")</dd>
-            <dt>Alert webhook</dt>
-            <dd>@(_sched.WebhookConfigured ? "on" : "off")</dd>
+            <dt>@T("backup.sched.blobarchive")</dt>
+            <dd>@(_sched.BlobsEnabled ? T("backup.on") : T("backup.off"))</dd>
+            <dt>@T("backup.sched.webhook")</dt>
+            <dd>@(_sched.WebhookConfigured ? T("backup.on") : T("backup.off"))</dd>
         </dl>
 
         <div class="backup-sched-form">
             <label class="backup-sched-check">
                 <input type="checkbox" @bind="_fEnabled" disabled="@_savingSched" />
-                Enable nightly backup
+                @T("backup.sched.enable")
             </label>
             <label>
-                Hour (0–23, ICT)
+                @T("backup.sched.hour")
                 <input type="number" min="0" max="23" @bind="_fHour" disabled="@_savingSched" />
             </label>
             <label>
-                Keep for (days)
+                @T("backup.sched.retention")
                 <input type="number" min="1" max="3650" @bind="_fRetention" disabled="@_savingSched" />
             </label>
             <label>
-                Always keep (most recent)
+                @T("backup.sched.minkeep")
                 <input type="number" min="1" max="1000" @bind="_fMinKeep" disabled="@_savingSched" />
             </label>
         </div>
@@ -127,11 +125,11 @@
         <div class="backup-restore-row" style="margin-top:12px">
             <button type="button" class="grid-btn grid-btn-primary"
                     disabled="@(_savingSched || _runningNow)" @onclick="OnSaveSchedule">
-                @(_savingSched ? "Saving…" : "Save schedule")
+                @(_savingSched ? T("backup.sched.save.busy") : T("backup.sched.save"))
             </button>
             <button type="button" class="grid-btn"
                     disabled="@(_savingSched || _runningNow)" @onclick="OnRunNow">
-                @(_runningNow ? "Running…" : "Run backup now")
+                @(_runningNow ? T("backup.sched.runnow.busy") : T("backup.sched.runnow"))
             </button>
         </div>
 
@@ -147,12 +145,9 @@
 </section>
 
 <section class="settings-form-card is-wide" style="margin-top:16px">
-    <h2 class="settings-group-title">Restore from file</h2>
+    <h2 class="settings-group-title">@T("backup.restore.title")</h2>
     <p class="settings-form-help">
-        Upload a <code>.db</code> or <code>.bak</code> file created by
-        this application. The server will verify the SQLite header + schema
-        BEFORE applying it and will automatically create a
-        <strong>pre-restore</strong> backup so you can roll back if needed.
+        @T("backup.restore.help")
     </p>
     <div class="backup-restore-row">
         <input type="file" accept=".db,.bak,application/octet-stream"
@@ -160,13 +155,13 @@
         <button type="button" class="grid-btn grid-btn-danger"
                 disabled="@(_restoring || _pickedName is null)"
                 @onclick="OnRestoreClicked">
-            @(_restoring ? "Restoring…" : "Restore")
+            @(_restoring ? T("backup.restore.busy") : T("backup.restore.button"))
         </button>
     </div>
     @if (_pickedName is not null && !_restoring)
     {
         <div class="settings-form-help" style="margin-top:8px">
-            Selected: <code>@_pickedName</code> (@FormatBytes(_pickedSize))
+            @T("backup.restore.selected") <code>@_pickedName</code> (@FormatBytes(_pickedSize))
         </div>
     }
     @if (_restoreError is not null)
@@ -176,26 +171,25 @@
     @if (_restoreOk is not null)
     {
         <div class="settings-form-success">
-            ✔ Restore succeeded. Pre-restore backup:
-            <code>@_restoreOk.PreRestoreSnapshot</code>. We recommend
-            restarting the application to ensure every service reads the new DB.
+            @T("backup.restore.success.prefix")
+            <code>@_restoreOk.PreRestoreSnapshot</code>. @T("backup.restore.success.suffix")
         </div>
     }
 </section>
 
 <section class="settings-form-card is-wide" style="margin-top:16px">
-    <h2 class="settings-group-title">Snapshot list (@_snapshots.Count)</h2>
+    <h2 class="settings-group-title">@T("backup.list.title", _snapshots.Count)</h2>
     @if (_listError is not null)
     {
         <div class="settings-form-error">@_listError</div>
     }
     else if (_loading)
     {
-        <p class="settings-form-help">Loading…</p>
+        <p class="settings-form-help">@T("backup.loading")</p>
     }
     else if (_snapshots.Count == 0)
     {
-        <p class="settings-form-help">No snapshots yet. Create the first one above.</p>
+        <p class="settings-form-help">@T("backup.list.empty")</p>
     }
     else
     {
@@ -210,11 +204,11 @@
                 </colgroup>
                 <thead>
                     <tr>
-                        <th>File name</th>
-                        <th>Size</th>
-                        <th>SHA-256</th>
-                        <th>Created (UTC)</th>
-                        <th>Type</th>
+                        <th>@T("backup.list.col.filename")</th>
+                        <th>@T("backup.list.col.size")</th>
+                        <th>@T("backup.list.col.sha")</th>
+                        <th>@T("backup.list.col.created")</th>
+                        <th>@T("backup.list.col.type")</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -231,7 +225,7 @@
                                         <button type="button"
                                                 class="audit-copy-btn @(_shaCopiedFor == s.FileName ? "is-ok" : "")"
                                                 @onclick="@(() => CopySha(s.FileName, s.Sha256))">
-                                            @(_shaCopiedFor == s.FileName ? "✔" : "Copy")
+                                            @(_shaCopiedFor == s.FileName ? "✔" : T("backup.list.copy"))
                                         </button>
                                     }
                                 </div>
@@ -240,11 +234,11 @@
                             <td>
                                 @if (s.IsPreRestore)
                                 {
-                                    <span class="backup-chip backup-chip-pre">pre-restore</span>
+                                    <span class="backup-chip backup-chip-pre">@T("backup.chip.prerestore")</span>
                                 }
                                 else
                                 {
-                                    <span class="backup-chip">snapshot</span>
+                                    <span class="backup-chip">@T("backup.chip.snapshot")</span>
                                 }
                             </td>
                         </tr>
@@ -335,7 +329,7 @@
                 RetentionDays = _fRetention,
                 MinKeep = _fMinKeep,
             });
-            _schedOk = "Schedule saved.";
+            _schedOk = T("backup.sched.save.ok");
         }
         catch (ApiException ex)
         {
@@ -461,9 +455,7 @@
         if (_pickedName is null) return;
 
         var confirmed = await Js.InvokeAsync<bool>("confirm",
-            $"This will OVERWRITE the current database with \"{_pickedName}\"."
-            + " The server will automatically create a pre-restore backup for rollback."
-            + " Are you sure you want to continue?");
+            T("backup.restore.confirm", _pickedName));
         if (!confirmed) return;
 
         _restoring = true;

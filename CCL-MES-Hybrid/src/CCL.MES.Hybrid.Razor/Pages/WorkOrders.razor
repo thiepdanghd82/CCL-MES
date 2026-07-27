@@ -1,5 +1,6 @@
 @page "/workorders"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.Hardware
 @using CCL.MES.Hybrid.Client.RecentScans
@@ -19,7 +20,7 @@
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
 @inject Microsoft.Extensions.Logging.ILogger<WorkOrders> Log
 
-<PageTitle>Work Orders — CCL MES</PageTitle>
+<PageTitle>@T("wo.pagetitle")</PageTitle>
 
 @*
     P10.3 W4 — primary scan→Accept/Start surface. Operator flow:
@@ -42,16 +43,14 @@
     surfaces as a `network_error` banner; operator retries when LAN is back.
 *@
 
-<h1 class="page-title">Work Orders — Scan &amp; Accept</h1>
+<h1 class="page-title">@T("wo.heading")</h1>
 
 @if (!HwOptions.Value.ScanEnabled)
 {
     <div class="hw-gate" role="status">
-        <strong>Scanning is disabled.</strong>
+        <strong>@T("wo.scandisabled.title")</strong>
         <p>
-            Set <code>Hardware:ScanEnabled = true</code> in appsettings.json
-            (or via env override) to enable the scan→WO flow. Configure it under Settings →
-            Devices if this station has been approved.
+            @T("wo.scandisabled.body.pre") <code>Hardware:ScanEnabled = true</code> @T("wo.scandisabled.body.post")
         </p>
     </div>
 }
@@ -60,7 +59,7 @@ else
     <div class="wo-shell">
         @if (_availability is null)
         {
-            <div class="hw-pill hw-pill-probing">Checking camera…</div>
+            <div class="hw-pill hw-pill-probing">@T("wo.camera.checking")</div>
         }
         else if (!_availability.IsAvailable)
         {
@@ -72,14 +71,12 @@ else
                 <button type="button" class="scan-btn scan-btn-secondary"
                         disabled="@_openingSettings"
                         @onclick="OnOpenSettings">
-                    @(_openingSettings ? "Opening…" : "Open System Settings")
+                    @(_openingSettings ? T("wo.settings.opening") : T("wo.settings.open"))
                 </button>
                 @if (_openSettingsFailed)
                 {
                     <div class="scan-banner-help">
-                        Could not open Settings automatically. Go to Apple Menu → System
-                        Settings → Privacy &amp; Security → Camera to grant permission
-                        for CCL MES.
+                        @T("wo.settings.openfailed")
                     </div>
                 }
             }
@@ -96,16 +93,16 @@ else
                 <button type="button" class="scan-btn wo-cta-primary"
                         disabled="@(_scanning || _advancing || _lookingUp)"
                         @onclick="OnScan">
-                    @(_scanning ? "Opening camera…" : "Scan WO")
+                    @(_scanning ? T("wo.scan.opening") : T("wo.scan.button"))
                 </button>
                 <input type="text"
                        class="wo-manual-input scan-mono"
-                       placeholder="Enter WO code (e.g. WO-26-3683)"
+                       placeholder="@T("wo.manual.placeholder")"
                        value="@_manualCode"
                        @oninput="OnManualInput"
                        @onkeydown="OnManualKeyDown"
                        disabled="@(_scanning || _advancing || _lookingUp)"
-                       aria-label="Enter WO code manually"
+                       aria-label="@T("wo.manual.arialabel")"
                        autocomplete="off"
                        autocapitalize="off"
                        spellcheck="false" />
@@ -114,14 +111,14 @@ else
                                     || CCL.MES.Hybrid.Client.WorkOrders.WoCodeNormalizer
                                        .NormalizeForManualEntry(_manualCode) is null)"
                         @onclick="OnManualLookup">
-                    @(_lookingUp ? "Looking up…" : "Find")
+                    @(_lookingUp ? T("wo.lookup.busy") : T("wo.find"))
                 </button>
                 @if (_summary is not null || _lookupError is not null)
                 {
                     <button type="button" class="scan-btn scan-btn-secondary"
                             disabled="@(_scanning || _advancing)"
                             @onclick="ResetState">
-                        Scan another WO
+                        @T("wo.scananother")
                     </button>
                 }
             </div>
@@ -129,7 +126,7 @@ else
             @if (_lastScan is not null && _summary is null && _lookupError is null && _lookingUp)
             {
                 <div class="wo-lookup">
-                    <span class="hw-pill hw-pill-probing">Looking up @(_lastScan.Code)…</span>
+                    <span class="hw-pill hw-pill-probing">@T("wo.lookup.progress", _lastScan.Code)</span>
                 </div>
             }
 
@@ -146,7 +143,7 @@ else
             {
                 @if (_activeWos.Count > 0)
                 {
-                    <div class="wo-section-head">⚡ Active Work Orders (@_activeWos.Count)</div>
+                    <div class="wo-section-head">⚡ @T("wo.active.head", _activeWos.Count)</div>
                     <div class="woa-grid">
                         @foreach (var w in _activeWos)
                         {
@@ -155,17 +152,17 @@ else
                                     <span class="woa-no">@w.WoNo</span>
                                     <span class="woa-badge @PhaseBadgeClass(w.MesPhase)">@PhaseLabel(w.MesPhase)</span>
                                 </div>
-                                <div class="woa-kv"><span>Customer</span><strong>@(w.CustomerName ?? "—")</strong></div>
-                                <div class="woa-kv"><span>Product</span><strong>@w.ProductName</strong></div>
-                                <div class="woa-kv"><span>Machine</span><strong>@(w.MachineCode ?? "—")</strong></div>
-                                <div class="woa-kv"><span>Progress</span><strong>@w.QtyDone / @w.TargetQty pcs</strong></div>
+                                <div class="woa-kv"><span>@T("wo.field.customer")</span><strong>@(w.CustomerName ?? "—")</strong></div>
+                                <div class="woa-kv"><span>@T("wo.field.product")</span><strong>@w.ProductName</strong></div>
+                                <div class="woa-kv"><span>@T("wo.field.machine")</span><strong>@(w.MachineCode ?? "—")</strong></div>
+                                <div class="woa-kv"><span>@T("wo.field.progress")</span><strong>@w.QtyDone / @w.TargetQty @T("wo.unit.pcs")</strong></div>
                             </button>
                         }
                     </div>
                 }
                 else
                 {
-                    <div class="wo-active-empty">No active work orders. Scan or type a WO code above to begin.</div>
+                    <div class="wo-active-empty">@T("wo.active.empty")</div>
                 }
             }
 
@@ -198,17 +195,17 @@ else
                         <div class="wo-card-wo">@_summary.WoNo</div>
                         <div class="wo-card-step @MesPhaseCssClass(_summary)" data-testid="wo-card-phase-chip">@MesPhaseDisplay(_summary)</div>
                         <div class="wo-card-actions">
-                            <button type="button" class="grid-btn" @onclick="OnRefreshWo" disabled="@(_lookingUp || _advancing)">↻ Refresh</button>
-                            <button type="button" class="grid-btn" @onclick="ResetState" disabled="@_advancing">← Close WO</button>
+                            <button type="button" class="grid-btn" @onclick="OnRefreshWo" disabled="@(_lookingUp || _advancing)">↻ @T("wo.refresh")</button>
+                            <button type="button" class="grid-btn" @onclick="ResetState" disabled="@_advancing">← @T("wo.closewo")</button>
                         </div>
                     </div>
-                    <div class="wo-card-row"><span class="wo-card-label">Product code</span><span class="wo-card-value">@(_summary.ProductCode ?? "—")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Part Desc</span><span class="wo-card-value">@(_summary.PartDescription ?? _summary.ProductName ?? "—")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Machine</span><span class="wo-card-value">@(_summary.MachineCode ?? "—") @(_summary.MachineName is null ? "" : $"· {_summary.MachineName}")</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Target</span><span class="wo-card-value">@_summary.TargetQty @_summary.Uom</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Produced</span><span class="wo-card-value">@_summary.ProducedQty @_summary.Uom</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">MES status</span><span class="wo-card-value scan-mono" data-testid="wo-card-phase-row">@MesPhaseDisplay(_summary)</span></div>
-                    <div class="wo-card-row"><span class="wo-card-label">Customer</span><span class="wo-card-value">@(_summary.CustomerName ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">@T("wo.field.productcode")</span><span class="wo-card-value">@(_summary.ProductCode ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">@T("wo.field.partdesc")</span><span class="wo-card-value">@(_summary.PartDescription ?? _summary.ProductName ?? "—")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">@T("wo.field.machine")</span><span class="wo-card-value">@(_summary.MachineCode ?? "—") @(_summary.MachineName is null ? "" : $"· {_summary.MachineName}")</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">@T("wo.field.target")</span><span class="wo-card-value">@_summary.TargetQty @_summary.Uom</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">@T("wo.field.produced")</span><span class="wo-card-value">@_summary.ProducedQty @_summary.Uom</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">@T("wo.field.messtatus")</span><span class="wo-card-value scan-mono" data-testid="wo-card-phase-row">@MesPhaseDisplay(_summary)</span></div>
+                    <div class="wo-card-row"><span class="wo-card-label">@T("wo.field.customer")</span><span class="wo-card-value">@(_summary.CustomerName ?? "—")</span></div>
 
                     @* P10.7a-1.4 — operator-grade success feedback. Today's
                        checkpoint surfaced that the operator tapped Accept
@@ -230,20 +227,20 @@ else
                         @if (_advanceResult?.Ok == true && _showSuccessBanner)
                         {
                             <div class="wo-card-success" data-testid="advance-success-banner">
-                                ✔ Step advanced: <strong>@(_advanceFromStep ?? "—")</strong>
+                                ✔ @T("wo.advance.success"): <strong>@(_advanceFromStep ?? "—")</strong>
                                 → <strong>@_advanceResult.CurrentStep</strong>
                             </div>
                         }
                         else if (_advanceResult is { Ok: false } && !string.IsNullOrEmpty(_advanceResult.ErrorCode))
                         {
                             <div class="wo-card-error">
-                                <strong>Could not advance step:</strong> @LocaliseAdvanceError(_advanceResult.ErrorCode)
-                                <div class="wo-card-error-detail">Error code: <code>@_advanceResult.ErrorCode</code></div>
+                                <strong>@T("wo.advance.failed"):</strong> @LocaliseAdvanceError(_advanceResult.ErrorCode)
+                                <div class="wo-card-error-detail">@T("wo.advance.errorcode"): <code>@_advanceResult.ErrorCode</code></div>
                             </div>
                         }
                         else if (_advanceError is not null)
                         {
-                            <div class="wo-card-error"><strong>Network error:</strong> @_advanceError</div>
+                            <div class="wo-card-error"><strong>@T("wo.networkerror"):</strong> @_advanceError</div>
                         }
 
                         @if (_advanceResult?.Ok != true)
@@ -251,7 +248,7 @@ else
                             <button type="button" class="scan-btn wo-cta-accept"
                                     disabled="@_advancing"
                                     @onclick="OnAdvance">
-                                @(_advancing ? "Advancing step…" : "Accept / Start (advance step)")
+                                @(_advancing ? T("wo.advance.busy") : T("wo.advance.button"))
                             </button>
                         }
                     }
@@ -274,7 +271,7 @@ else
                     <div class="wo-fork-cta" data-testid="wo-fork-cta">
                         <button type="button" class="btn btn-ghost" data-testid="wo-materialize"
                                 disabled="@_forkBusy" @onclick="MaterializeLegsAsync">
-                            Tách công đoạn (multi-leg)
+                            @T("wo.fork.button")
                         </button>
                         @if (_forkMsg is not null)
                         {
@@ -289,6 +286,7 @@ else
                 {
                     <CCL.MES.Hybrid.Razor.Shared.LegsDashboard
                         WorkOrderId="@_summary.Id"
+                        ScrapReasons="@_scrapReasons"
                         OnPhaseChanged="HandleDashboardPhaseChangedAsync" />
                 }
 
@@ -368,9 +366,9 @@ else
 
                 <aside class="wo-side">
                     <div class="wo-side-panel">
-                        <div class="wo-side-head">① Current State</div>
+                        <div class="wo-side-head">① @T("wo.side.currentstate")</div>
                         <div class="wo-side-body">
-                            <div class="wo-side-phase">Phase @StepIndexOf(_summary.MesPhase) / 7 · @MesPhaseDisplay(_summary)</div>
+                            <div class="wo-side-phase">@T("wo.side.phase", StepIndexOf(_summary.MesPhase)) · @MesPhaseDisplay(_summary)</div>
                             <div class="wo-dots">
                                 @for (var i = 1; i <= 7; i++)
                                 {
@@ -382,20 +380,20 @@ else
                     </div>
 
                     <div class="wo-side-panel">
-                        <div class="wo-side-head">▦ Spec Quick Ref</div>
+                        <div class="wo-side-head">▦ @T("wo.side.specquickref")</div>
                         <div class="wo-side-body">
-                            <div class="wo-side-kv"><span>Customer</span><strong>@(_summary.CustomerName ?? "—")</strong></div>
-                            <div class="wo-side-kv"><span>Product</span><strong>@(_summary.ProductCode ?? "—")</strong></div>
-                            <div class="wo-side-kv"><span>Product name</span><strong>@(_summary.ProductName ?? "—")</strong></div>
-                            <div class="wo-side-kv"><span>Machine</span><strong>@(_summary.MachineCode ?? "—")</strong></div>
-                            <div class="wo-side-kv"><span>Target</span><strong>@_summary.TargetQty @_summary.Uom</strong></div>
+                            <div class="wo-side-kv"><span>@T("wo.field.customer")</span><strong>@(_summary.CustomerName ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>@T("wo.field.product")</span><strong>@(_summary.ProductCode ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>@T("wo.field.productname")</span><strong>@(_summary.ProductName ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>@T("wo.field.machine")</span><strong>@(_summary.MachineCode ?? "—")</strong></div>
+                            <div class="wo-side-kv"><span>@T("wo.field.target")</span><strong>@_summary.TargetQty @_summary.Uom</strong></div>
                             @if (_prepressView?.PlateCheck?.PlateNo is { Length: > 0 } plateNo)
                             {
-                                <div class="wo-side-kv"><span>Plate</span><strong class="scan-mono">@plateNo</strong></div>
+                                <div class="wo-side-kv"><span>@T("wo.field.plate")</span><strong class="scan-mono">@plateNo</strong></div>
                             }
                             @if (_prepressView?.CutterCheck?.CutterNo is { Length: > 0 } cutterNo)
                             {
-                                <div class="wo-side-kv"><span>Cutter</span><strong class="scan-mono">@cutterNo</strong></div>
+                                <div class="wo-side-kv"><span>@T("wo.field.cutter")</span><strong class="scan-mono">@cutterNo</strong></div>
                             }
                         </div>
                     </div>
@@ -404,8 +402,8 @@ else
                     {
                         <div class="wo-side-panel">
                             <div class="wo-side-head">
-                                ▤ BOM Summary
-                                <span class="wo-side-head-aside">@_prepressView.Materials.Count materials · @_prepressView.Materials.Count(m => m.Status == "Ok") OK</span>
+                                ▤ @T("wo.side.bomsummary")
+                                <span class="wo-side-head-aside">@T("wo.bom.aside", _prepressView.Materials.Count, _prepressView.Materials.Count(m => m.Status == "Ok"))</span>
                             </div>
                             <div class="wo-side-body">
                                 @foreach (var m in _prepressView.Materials)
@@ -423,7 +421,7 @@ else
                                             <span class="wo-bom-qty">@(m.QtyLoaded?.ToString("0.###") ?? "—") / @m.QtyRequired.ToString("0.###") @m.Uom</span>
                                             @if (m.LotNo is { Length: > 0 } lot)
                                             {
-                                                <span class="wo-bom-lot">Lot @lot</span>
+                                                <span class="wo-bom-lot">@T("wo.bom.lot", lot)</span>
                                             }
                                         </div>
                                     </div>
@@ -436,8 +434,8 @@ else
                     {
                         <div class="wo-side-panel">
                             <div class="wo-side-head">
-                                🕘 Audit Trail
-                                <span class="wo-side-head-aside">@_woAudit.Count events</span>
+                                🕘 @T("wo.side.audittrail")
+                                <span class="wo-side-head-aside">@T("wo.audit.events", _woAudit.Count)</span>
                             </div>
                             <div class="wo-side-body wo-audit-list">
                                 @foreach (var a in _woAudit)

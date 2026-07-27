@@ -1,51 +1,35 @@
 @page "/settings/appearance"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
-@using CCL.MES.Hybrid.Client.Localization
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Localization
-@implements IDisposable
-@inject ILanguageService Language
 
 @*
   P10.6b — Appearance / Language picker page.
+  i18n Phase-2: the picker now takes effect LIVE. Selecting a language
+  calls ILanguageService.Set → every LocalizedComponentBase re-renders,
+  including this page. The old "will apply after the app is updated"
+  disclaimer is gone — the swap is real now.
 
-  Scope (locked per Henry):
-    - Language picker (Tiếng Việt / English) — Preferences-backed.
-    - Theme switcher DEFERRED to P10.6g (IMP-2 conditional).
-    - Persisted via ILanguageService; survives app restart.
-
-  Catalyst safety:
-    - NO <InputText> anywhere. Picker is a button-card group with
-      plain @onclick — the simplest possible interaction. Avoids the
-      ChangeEventArgs→string ArgumentException trap that bit Login
-      in P10.5g (proven in BackgroundCrashContainmentTests).
-    - Page state mirrors ILanguageService.Current via subscription
-      to the Changed event; service is the single source of truth.
-
-  Real-effect caveat:
-    - The resx string-swap layer ships in a follow-up PR. Operator's
-      choice is recorded today but the UI labels stay Vietnamese
-      until the resx PR lands. The page surfaces a disclaimer banner
-      so the operator isn't surprised when their EN selection looks
-      "ignored".
+  Catalyst safety: NO <InputText>. Picker is a button-card group with
+  plain @onclick (avoids the ChangeEventArgs→string trap).
+  Theme switcher stays deferred to P10.6g.
 *@
 
-<PageTitle>Appearance — CCL MES</PageTitle>
+<PageTitle>@T("appearance.pagetitle")</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
-    <h1 class="page-title">Appearance</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">@T("common.back.settings")</a>
+    <h1 class="page-title">@T("appearance.title")</h1>
 </div>
 
 <section class="settings-form-card">
-    <h2 class="settings-group-title">Language</h2>
-    <p class="settings-form-help">
-        Choose the interface language. The setting will be saved for your next sign-in.
-    </p>
+    <h2 class="settings-group-title">@T("common.language")</h2>
+    <p class="settings-form-help">@T("appearance.language.help")</p>
 
-    <div class="appearance-picker" role="radiogroup" aria-label="Display language">
+    <div class="appearance-picker" role="radiogroup" aria-label="@T("appearance.aria.language")">
         @foreach (var opt in Options)
         {
-            var isActive = opt.Code == _current;
+            var isActive = opt.Code == LanguageService.Current;
             <button type="button"
                     role="radio"
                     aria-checked="@(isActive ? "true" : "false")"
@@ -53,7 +37,7 @@
                     @onclick="@(() => OnSelect(opt.Code))">
                 <span class="appearance-card-flag">@opt.Flag</span>
                 <span class="appearance-card-title">@opt.Native</span>
-                <span class="appearance-card-sub">@opt.Hint</span>
+                <span class="appearance-card-sub">@T(opt.HintKey)</span>
                 @if (isActive)
                 {
                     <span class="appearance-card-check" aria-hidden="true">✓</span>
@@ -61,78 +45,43 @@
             </button>
         }
     </div>
-
-    @if (_current == LanguageCode.English)
-    {
-        <div class="appearance-banner" role="status">
-            The English translation will apply after the app is updated.
-            Your selection has been saved.
-        </div>
-    }
 </section>
 
 <section class="settings-form-card" style="margin-top:16px">
-    <h2 class="settings-group-title">Theme (coming soon — P10.6g)</h2>
-    <p class="settings-form-help">
-        Light / dark / system mode — arriving in P10.6g. For now the
-        app uses a fixed (light) color palette optimized for shop-floor screens.
-    </p>
+    <h2 class="settings-group-title">@T("appearance.theme.title")</h2>
+    <p class="settings-form-help">@T("appearance.theme.help")</p>
     <div class="appearance-picker is-locked">
         <div class="appearance-card is-disabled" aria-disabled="true">
             <span class="appearance-card-flag">☀️</span>
-            <span class="appearance-card-title">Light</span>
-            <span class="appearance-card-sub">Current default.</span>
+            <span class="appearance-card-title">@T("appearance.theme.light")</span>
+            <span class="appearance-card-sub">@T("appearance.theme.light.sub")</span>
         </div>
         <div class="appearance-card is-disabled" aria-disabled="true">
             <span class="appearance-card-flag">🌙</span>
-            <span class="appearance-card-title">Dark</span>
-            <span class="appearance-card-sub">Not yet available.</span>
+            <span class="appearance-card-title">@T("appearance.theme.dark")</span>
+            <span class="appearance-card-sub">@T("appearance.theme.dark.sub")</span>
         </div>
         <div class="appearance-card is-disabled" aria-disabled="true">
             <span class="appearance-card-flag">🖥️</span>
-            <span class="appearance-card-title">System</span>
-            <span class="appearance-card-sub">Not yet available.</span>
+            <span class="appearance-card-title">@T("appearance.theme.system")</span>
+            <span class="appearance-card-sub">@T("appearance.theme.system.sub")</span>
         </div>
     </div>
 </section>
 
 @code {
-    private LanguageCode _current;
-
     private static readonly LanguageOption[] Options = new[]
     {
-        new LanguageOption(LanguageCode.Vietnamese, "🇻🇳", "Tiếng Việt",
-            "Complete — covers the entire current interface."),
-        new LanguageOption(LanguageCode.English, "🇬🇧", "English",
-            "In preparation — will activate when the resx ships."),
+        new LanguageOption(LanguageCode.Vietnamese, "🇻🇳", "Tiếng Việt", "appearance.lang.vi.hint"),
+        new LanguageOption(LanguageCode.English, "🇬🇧", "English", "appearance.lang.en.hint"),
     };
-
-    protected override void OnInitialized()
-    {
-        _current = Language.Current;
-        Language.Changed += OnLanguageChanged;
-    }
-
-    public void Dispose()
-    {
-        Language.Changed -= OnLanguageChanged;
-    }
-
-    private void OnLanguageChanged(object? sender, EventArgs e)
-    {
-        InvokeAsync(() =>
-        {
-            _current = Language.Current;
-            StateHasChanged();
-        });
-    }
 
     private void OnSelect(LanguageCode code)
     {
-        // Idempotent — the service swallows no-op writes, so a double-
-        // tap on the active card does nothing.
-        Language.Set(code);
+        // Idempotent — the service swallows no-op writes. LocalizedComponentBase
+        // re-renders this page (and the rest of the app) on the Changed event.
+        LanguageService.Set(code);
     }
 
-    private sealed record LanguageOption(LanguageCode Code, string Flag, string Native, string Hint);
+    private sealed record LanguageOption(LanguageCode Code, string Flag, string Native, string HintKey);
 }

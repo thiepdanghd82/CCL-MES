@@ -59,6 +59,43 @@ public static class SpecPdfDocumentBuilder
         public const double TableFontPt    = 8;
         public const double HeaderFontPt   = 8.5;
         public const double FooterFontPt   = 7.5;
+
+        // PR (detail-2page): hairline table borders. 0.25pt reads as a thin
+        // rule on screen + print (was 0.4 = visibly heavy). Kept in one place
+        // so the whole detail sheet stays consistent.
+        public const double DetailBorderWidthPt = 0.25;
+    }
+
+    /// <summary>
+    /// PR (detail-2page) — tunable layout profile for the detail sheet so the
+    /// exporter can AUTO-FIT the sheet to ≤ 2 pages: start at step 0 (normal),
+    /// and if the rendered <c>PdfDocument.PageCount</c> exceeds 2, rebuild one
+    /// step tighter (smaller body font + denser padding + tighter section
+    /// spacing). Section titles + headers stay readable; only the body/table
+    /// metrics shrink. Border width stays hairline at every step.
+    /// </summary>
+    public sealed class DetailLayout
+    {
+        public double TableBodyPt      { get; init; }   // flexo / remarks / rev / approval / changelog
+        public double SmallTablePt     { get; init; }   // dense wide tables (product info, silk 21-col)
+        public double SectionTitlePt   { get; init; }
+        public double HeaderRowPt      { get; init; }
+        public double BorderWidth      { get; init; } = StyleConstants.DetailBorderWidthPt;
+        public double PadV             { get; init; }   // cell top/bottom padding
+        public double PadH             { get; init; }   // cell left/right padding
+        public double SectionSpaceBefore { get; init; }
+
+        /// <summary>Largest step index <see cref="ForStep"/> accepts distinctly;
+        /// the exporter's auto-fit loop stops shrinking here.</summary>
+        public const int MaxStep = 3;
+
+        public static DetailLayout ForStep(int step) => step switch
+        {
+            <= 0 => new DetailLayout { TableBodyPt = 7.5, SmallTablePt = 6.5, SectionTitlePt = 8.5, HeaderRowPt = 7.5, PadV = 0.6, PadH = 1.5, SectionSpaceBefore = 5 },
+            1    => new DetailLayout { TableBodyPt = 7.0, SmallTablePt = 6.0, SectionTitlePt = 8.0, HeaderRowPt = 7.0, PadV = 0.5, PadH = 1.3, SectionSpaceBefore = 4 },
+            2    => new DetailLayout { TableBodyPt = 6.5, SmallTablePt = 5.5, SectionTitlePt = 7.5, HeaderRowPt = 6.5, PadV = 0.4, PadH = 1.1, SectionSpaceBefore = 3 },
+            _    => new DetailLayout { TableBodyPt = 6.0, SmallTablePt = 5.5, SectionTitlePt = 7.0, HeaderRowPt = 6.0, PadV = 0.4, PadH = 1.0, SectionSpaceBefore = 2 },
+        };
     }
 
     /// <summary>
@@ -202,11 +239,20 @@ public static class SpecPdfDocumentBuilder
     /// Build single-spec detail sheet PDF (PR #31d Q4). Reuse BuildEmpty +
     /// StyleConstants từ PR #31c. 9 section mirror web detail render.
     /// </summary>
-    public static Document BuildDetailSheet(SpecDetailDto detail, SpecExportContext context)
+    public static Document BuildDetailSheet(
+        SpecDetailDto detail,
+        SpecExportContext context,
+        MigraDocOrientation orientation = MigraDocOrientation.Landscape,
+        int compactStep = 0)
     {
+        // PR (detail-2page): A4 LANDSCAPE by default. The wide "Print Process"
+        // table (21 cols) fits ONE line per row in landscape → the sheet drops
+        // from 3 pages (portrait,每 row wrapping 2-3 lines) to ≤ 2. Orientation
+        // stays a parameter so a caller can force Portrait if ever needed.
+        var layout = DetailLayout.ForStep(compactStep);
         var doc = BuildEmpty(
             title: $"Spec Sheet {detail.RefNo ?? detail.SpecCode} Rev {detail.RevisionCode}",
-            orientation: MigraDocOrientation.Portrait);
+            orientation: orientation);
         var section = doc.LastSection;
 
         // Page footer
@@ -233,33 +279,33 @@ public static class SpecPdfDocumentBuilder
         if (template == "GENERIC")
             AppendGenericWarning(section, detail);
         // 3. Product Information
-        AppendProductInfo(section, detail);
+        AppendProductInfo(section, detail, layout);
         // 4. Print Parameters (silk only)
         if (template == "SILK")
-            AppendPrintParams(section, detail);
+            AppendPrintParams(section, detail, layout);
         // 5/5b/5c. Silk / Flexo 3 sub-tables / Generic data-driven sections
         if (template == "SILK")
         {
-            AppendSilkPrintProcess(section, detail);
+            AppendSilkPrintProcess(section, detail, layout);
         }
         else if (template == "FLEXO")
         {
-            AppendFlexoPrinting(section, detail);
-            AppendFlexoCutting(section, detail);
-            AppendFlexoInk(section, detail);
+            AppendFlexoPrinting(section, detail, layout);
+            AppendFlexoCutting(section, detail, layout);
+            AppendFlexoInk(section, detail, layout);
         }
         else // GENERIC
         {
-            AppendGenericPrintSections(section, detail);
+            AppendGenericPrintSections(section, detail, layout);
         }
         // 6. Remarks
-        AppendRemarks(section, detail);
+        AppendRemarks(section, detail, layout);
         // 7. Revision History
-        AppendRevisionHistory(section, detail);
+        AppendRevisionHistory(section, detail, layout);
         // 8. Approval Signatures (Option A render-only)
-        AppendApprovalSignatures(section, detail);
+        AppendApprovalSignatures(section, detail, layout);
         // 9. Change Log (audit timeline) — chỉ render top 10 entries cho PDF
-        AppendChangeLog(section, detail);
+        AppendChangeLog(section, detail, layout);
 
         return doc;
     }
@@ -368,17 +414,17 @@ public static class SpecPdfDocumentBuilder
     /// guard on empty rows via `spec-empty` cell). If NONE have data,
     /// emit an italic muted paragraph stating no print/cut/ink rows.
     /// </summary>
-    private static void AppendGenericPrintSections(Section section, SpecDetailDto d)
+    private static void AppendGenericPrintSections(Section section, SpecDetailDto d, DetailLayout layout)
     {
         var hasSilkColors = d.PrintColors.Count > 0;
         var hasFlexoPrint = d.FlexoPrintRows.Count > 0;
         var hasFlexoCut   = d.FlexoCuttingRows.Count > 0;
         var hasFlexoInk   = d.FlexoInkRows.Count > 0;
 
-        if (hasSilkColors) AppendSilkPrintProcess(section, d);
-        if (hasFlexoPrint) AppendFlexoPrinting(section, d);
-        if (hasFlexoCut)   AppendFlexoCutting(section, d);
-        if (hasFlexoInk)   AppendFlexoInk(section, d);
+        if (hasSilkColors) AppendSilkPrintProcess(section, d, layout);
+        if (hasFlexoPrint) AppendFlexoPrinting(section, d, layout);
+        if (hasFlexoCut)   AppendFlexoCutting(section, d, layout);
+        if (hasFlexoInk)   AppendFlexoInk(section, d, layout);
 
         if (!hasSilkColors && !hasFlexoPrint && !hasFlexoCut && !hasFlexoInk)
         {
@@ -401,24 +447,28 @@ public static class SpecPdfDocumentBuilder
         p.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
     }
 
-    private static void AppendSectionTitle(Section section, string title, string? bgHex = null)
+    private static void AppendSectionTitle(Section section, string title, DetailLayout layout, string? bgHex = null)
     {
         var p = section.AddParagraph(title);
-        p.Format.SpaceBefore = 6;
+        p.Format.SpaceBefore = layout.SectionSpaceBefore;
+        p.Format.SpaceAfter = 1;
         p.Format.Font.Bold = true;
-        p.Format.Font.Size = StyleConstants.HeaderFontPt;
+        p.Format.Font.Size = layout.SectionTitlePt;
         p.Format.Shading.Color = Color.Parse(bgHex ?? StyleConstants.HeaderBgHex);
         p.Format.Borders.Color = Color.Parse(StyleConstants.BorderColorHex);
-        p.Format.Borders.Width = 0.4;
+        p.Format.Borders.Width = layout.BorderWidth;
         p.Format.LeftIndent = "0.1cm";
+        // Never orphan a section title at the bottom of a page — keep it with
+        // the table/paragraph that follows so nothing spills to a stray page.
+        p.Format.KeepWithNext = true;
     }
 
-    private static void AppendProductInfo(Section section, SpecDetailDto d)
+    private static void AppendProductInfo(Section section, SpecDetailDto d, DetailLayout layout)
     {
-        AppendSectionTitle(section, "Product Information · Thông tin sản phẩm");
+        AppendSectionTitle(section, "Product Information · Thông tin sản phẩm", layout);
         var t = section.AddTable();
-        ApplyTableBorders(t);
-        t.Format.Font.Size = 7.5;
+        ApplyTableBorders(t, layout);
+        t.Format.Font.Size = layout.SmallTablePt;
         var headers = d.IsFlexo
             ? new[] { "Customer", "Part No", "Part Name", "Version", "Size", "Substrate" }
             : new[] { "Customer", "Part No", "Part Name", "Material", "Mat Size", "Lamination", "Lam Size", "Lam Cav" };
@@ -469,12 +519,12 @@ public static class SpecPdfDocumentBuilder
         }
     }
 
-    private static void AppendPrintParams(Section section, SpecDetailDto d)
+    private static void AppendPrintParams(Section section, SpecDetailDto d, DetailLayout layout)
     {
-        AppendSectionTitle(section, "Print Parameters · Thông số in");
+        AppendSectionTitle(section, "Print Parameters · Thông số in", layout);
         var t = section.AddTable();
-        ApplyTableBorders(t);
-        t.Format.Font.Size = 8;
+        ApplyTableBorders(t, layout);
+        t.Format.Font.Size = layout.TableBodyPt;
         for (int i = 0; i < 4; i++) t.AddColumn(Unit.FromCentimeter(4.5));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
@@ -491,9 +541,9 @@ public static class SpecPdfDocumentBuilder
         dRow.Cells[3].AddParagraph(d.AdhesiveType ?? "—");
     }
 
-    private static void AppendSilkPrintProcess(Section section, SpecDetailDto d)
+    private static void AppendSilkPrintProcess(Section section, SpecDetailDto d, DetailLayout layout)
     {
-        AppendSectionTitle(section, $"Print Process — {d.PrintColors.Count} colors");
+        AppendSectionTitle(section, $"Print Process · Drying · Plate Parameter — {d.PrintColors.Count} colors", layout);
         if (d.PrintColors.Count == 0)
         {
             var p = section.AddParagraph("— No print rows —");
@@ -502,38 +552,71 @@ public static class SpecPdfDocumentBuilder
             return;
         }
         var t = section.AddTable();
-        ApplyTableBorders(t);
-        t.Format.Font.Size = 6.5;
-        // 8 essential cols (rest fit in landscape would be needed) — portrait constraint
-        var hdr = new[] { "No", "Sur", "Color", "Ink Code", "Maker", "Mesh", "Plate Code", "Remark" };
-        var widths = new[] { 0.7, 0.8, 3.2, 1.8, 1.5, 1.5, 2.0, 6.5 };
+        ApplyTableBorders(t, layout);
+        t.Format.Font.Size = layout.SmallTablePt;
+        // PR (detail-2page): FULL 21-column silk table (was cut to 8 under the
+        // old portrait constraint — data loss). In A4 landscape the usable
+        // width (~27.3cm) holds every field ON ONE LINE per row, matching the
+        // on-screen SpecShowcardFull. Widths ≈ content length so short codes
+        // (Mesh/Angle/UV) stay narrow and Color/Ink Name get room → no wrap.
+        var hdr = new[]
+        {
+            "No", "Surf", "Color", "Ink Name", "Ink Code", "Maker", "Retarder",
+            "Visc", "Speed", "Squee", "Dry", "°C", "min", "UV", "Emul",
+            "Plate Size", "Mesh", "Angle", "Plate Code", "Ctrl#", "Remark",
+        };
+        var widths = new[]
+        {
+            0.6, 0.7, 1.7, 1.7, 1.4, 1.3, 1.0,
+            0.8, 0.8, 0.9, 0.9, 0.7, 0.7, 0.7, 0.9,
+            1.5, 1.0, 0.9, 1.5, 0.8, 2.2,
+        };
         for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
         var hRow = t.AddRow();
-        hRow.HeadingFormat = true;
+        hRow.HeadingFormat = true;   // repeat header on each page
         hRow.Format.Font.Bold = true;
+        hRow.Format.Font.Size = layout.HeaderRowPt;
         hRow.Shading.Color = Color.Parse(StyleConstants.HeaderBgHex);
         for (int i = 0; i < hdr.Length; i++) hRow.Cells[i].AddParagraph(hdr[i]);
+
+        string Num(double? v, string fmt) => v?.ToString(fmt, CultureInfo.InvariantCulture) ?? "—";
+        var alt = false;
         foreach (var c in d.PrintColors)
         {
             var row = t.AddRow();
-            row.Cells[0].AddParagraph(c.Seq.ToString());
+            if (alt) row.Shading.Color = Color.Parse(StyleConstants.AltRowBgHex);
+            alt = !alt;
+            row.Cells[0].AddParagraph(c.Seq.ToString(CultureInfo.InvariantCulture));
             row.Cells[1].AddParagraph(c.Surface ?? "—");
             row.Cells[2].AddParagraph(c.Color ?? "—");
-            row.Cells[3].AddParagraph(c.InkCode ?? "—");
-            row.Cells[4].AddParagraph(c.Maker ?? "—");
-            row.Cells[5].AddParagraph(c.Mesh ?? "—");
-            row.Cells[6].AddParagraph(c.PlateCode ?? "—");
-            row.Cells[7].AddParagraph(c.Remark ?? "—");
+            row.Cells[3].AddParagraph(c.InkName ?? "—");
+            row.Cells[4].AddParagraph(c.InkCode ?? "—");
+            row.Cells[5].AddParagraph(c.Maker ?? "—");
+            row.Cells[6].AddParagraph(c.Retarder ?? "—");
+            row.Cells[7].AddParagraph(Num(c.Viscosity, "N0"));
+            row.Cells[8].AddParagraph(Num(c.Speed, "N0"));
+            row.Cells[9].AddParagraph(c.Squeegee ?? "—");
+            row.Cells[10].AddParagraph(c.Dry ?? "—");
+            row.Cells[11].AddParagraph(Num(c.TemperatureC, "N0"));
+            row.Cells[12].AddParagraph(c.TimeMin?.ToString(CultureInfo.InvariantCulture) ?? "—");
+            row.Cells[13].AddParagraph(c.Uv ?? "—");
+            row.Cells[14].AddParagraph(Num(c.EmulsionUm, "N0"));
+            row.Cells[15].AddParagraph(c.PlateSize ?? "—");
+            row.Cells[16].AddParagraph(c.Mesh ?? "—");
+            row.Cells[17].AddParagraph(Num(c.AngleDeg, "N1"));
+            row.Cells[18].AddParagraph(c.PlateCode ?? "—");
+            row.Cells[19].AddParagraph(c.ControlNo?.ToString(CultureInfo.InvariantCulture) ?? "—");
+            row.Cells[20].AddParagraph(c.Remark ?? "—");
         }
     }
 
-    private static void AppendFlexoPrinting(Section section, SpecDetailDto d)
+    private static void AppendFlexoPrinting(Section section, SpecDetailDto d, DetailLayout layout)
     {
-        AppendSectionTitle(section, $"Printing Information — {d.FlexoPrintRows.Count} processes", "#CEE0FA");
+        AppendSectionTitle(section, $"Printing Information — {d.FlexoPrintRows.Count} processes", layout, "#CEE0FA");
         if (d.FlexoPrintRows.Count == 0) { AppendEmpty(section); return; }
         var t = section.AddTable();
-        ApplyTableBorders(t);
-        t.Format.Font.Size = 7;
+        ApplyTableBorders(t, layout);
+        t.Format.Font.Size = layout.TableBodyPt;
         var hdr = new[] { "Process", "Material", "Size", "Cyl", "Pitch", "Speed", "Plt Cav" };
         var widths = new[] { 3.5, 3.5, 2.0, 1.5, 2.0, 2.0, 1.5 };
         for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
@@ -555,13 +638,13 @@ public static class SpecPdfDocumentBuilder
         }
     }
 
-    private static void AppendFlexoCutting(Section section, SpecDetailDto d)
+    private static void AppendFlexoCutting(Section section, SpecDetailDto d, DetailLayout layout)
     {
-        AppendSectionTitle(section, $"Cutting Information — {d.FlexoCuttingRows.Count} processes", "#FFEACC");
+        AppendSectionTitle(section, $"Cutting Information — {d.FlexoCuttingRows.Count} processes", layout, "#FFEACC");
         if (d.FlexoCuttingRows.Count == 0) { AppendEmpty(section); return; }
         var t = section.AddTable();
-        ApplyTableBorders(t);
-        t.Format.Font.Size = 7;
+        ApplyTableBorders(t, layout);
+        t.Format.Font.Size = layout.TableBodyPt;
         var hdr = new[] { "Process", "Lamination", "Cutter Name", "Pcs/Sh", "Cavity", "Pitch", "Packing" };
         var widths = new[] { 3.5, 2.5, 3.0, 1.3, 1.3, 1.5, 2.9 };
         for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
@@ -583,13 +666,13 @@ public static class SpecPdfDocumentBuilder
         }
     }
 
-    private static void AppendFlexoInk(Section section, SpecDetailDto d)
+    private static void AppendFlexoInk(Section section, SpecDetailDto d, DetailLayout layout)
     {
-        AppendSectionTitle(section, $"Ink Information — {d.FlexoInkRows.Count} inks", "#D8F0D6");
+        AppendSectionTitle(section, $"Ink Information — {d.FlexoInkRows.Count} inks", layout, "#D8F0D6");
         if (d.FlexoInkRows.Count == 0) { AppendEmpty(section); return; }
         var t = section.AddTable();
-        ApplyTableBorders(t);
-        t.Format.Font.Size = 7;
+        ApplyTableBorders(t, layout);
+        t.Format.Font.Size = layout.TableBodyPt;
         var hdr = new[] { "No", "Color", "Ink Code", "Description", "Brand", "Anilox", "Plate", "UV" };
         var widths = new[] { 0.7, 2.5, 1.8, 4.0, 1.8, 1.8, 1.8, 1.6 };
         for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
@@ -612,14 +695,14 @@ public static class SpecPdfDocumentBuilder
         }
     }
 
-    private static void AppendRemarks(Section section, SpecDetailDto d)
+    private static void AppendRemarks(Section section, SpecDetailDto d, DetailLayout layout)
     {
-        AppendSectionTitle(section, "Remarks · Ghi chú");
+        AppendSectionTitle(section, "Remarks · Ghi chú", layout);
         if (d.IsFlexo)
         {
             var t = section.AddTable();
-            ApplyTableBorders(t);
-            t.Format.Font.Size = 8;
+            ApplyTableBorders(t, layout);
+            t.Format.Font.Size = layout.TableBodyPt;
             t.AddColumn(Unit.FromCentimeter(9));
             t.AddColumn(Unit.FromCentimeter(9));
             var hRow = t.AddRow();
@@ -634,17 +717,17 @@ public static class SpecPdfDocumentBuilder
         else
         {
             var p = section.AddParagraph(string.IsNullOrEmpty(d.RemarksText) ? "—" : $"※ {d.RemarksText}");
-            p.Format.Font.Size = 8;
+            p.Format.Font.Size = layout.TableBodyPt;
             p.Format.SpaceBefore = 2;
         }
     }
 
-    private static void AppendRevisionHistory(Section section, SpecDetailDto d)
+    private static void AppendRevisionHistory(Section section, SpecDetailDto d, DetailLayout layout)
     {
-        AppendSectionTitle(section, "Revision History · Lịch sử thay đổi");
+        AppendSectionTitle(section, "Revision History · Lịch sử thay đổi", layout);
         var t = section.AddTable();
-        ApplyTableBorders(t);
-        t.Format.Font.Size = 8;
+        ApplyTableBorders(t, layout);
+        t.Format.Font.Size = layout.TableBodyPt;
         t.AddColumn(Unit.FromCentimeter(1.5));
         t.AddColumn(Unit.FromCentimeter(11.5));
         t.AddColumn(Unit.FromCentimeter(2.5));
@@ -675,12 +758,12 @@ public static class SpecPdfDocumentBuilder
         }
     }
 
-    private static void AppendApprovalSignatures(Section section, SpecDetailDto d)
+    private static void AppendApprovalSignatures(Section section, SpecDetailDto d, DetailLayout layout)
     {
-        AppendSectionTitle(section, "Approval Signatures · Chữ ký phê duyệt");
+        AppendSectionTitle(section, "Approval Signatures · Chữ ký phê duyệt", layout);
         var t = section.AddTable();
-        ApplyTableBorders(t);
-        t.Format.Font.Size = 7;
+        ApplyTableBorders(t, layout);
+        t.Format.Font.Size = layout.TableBodyPt;
         for (int i = 0; i < 4; i++) t.AddColumn(Unit.FromCentimeter(4.5));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
@@ -710,9 +793,9 @@ public static class SpecPdfDocumentBuilder
         note.Format.SpaceBefore = 2;
     }
 
-    private static void AppendChangeLog(Section section, SpecDetailDto d)
+    private static void AppendChangeLog(Section section, SpecDetailDto d, DetailLayout layout)
     {
-        AppendSectionTitle(section, "Change Log · Audit timeline", "#FEF3C7");
+        AppendSectionTitle(section, "Change Log · Audit timeline", layout, "#FEF3C7");
         if (d.AuditEntries.Count == 0)
         {
             var p = section.AddParagraph("— No audit entries —");
@@ -723,7 +806,7 @@ public static class SpecPdfDocumentBuilder
         foreach (var a in d.AuditEntries.Take(15))
         {
             var p = section.AddParagraph();
-            p.Format.Font.Size = 7;
+            p.Format.Font.Size = layout.TableBodyPt;
             var ts = p.AddFormattedText($"{a.Timestamp:yyyy-MM-dd HH:mm} ", TextFormat.NotBold);
             ts.Color = Color.Parse(StyleConstants.MutedColorHex);
             var act = p.AddFormattedText(a.Action, TextFormat.Bold);
@@ -740,13 +823,13 @@ public static class SpecPdfDocumentBuilder
         p.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
     }
 
-    private static void ApplyTableBorders(Table t)
+    private static void ApplyTableBorders(Table t, DetailLayout layout)
     {
         t.Borders.Color = Color.Parse(StyleConstants.BorderColorHex);
-        t.Borders.Width = 0.4;
-        t.LeftPadding = 2;
-        t.RightPadding = 2;
-        t.TopPadding = 1.5;
-        t.BottomPadding = 1.5;
+        t.Borders.Width = layout.BorderWidth;   // hairline (0.25pt)
+        t.LeftPadding = layout.PadH;
+        t.RightPadding = layout.PadH;
+        t.TopPadding = layout.PadV;
+        t.BottomPadding = layout.PadV;
     }
 }

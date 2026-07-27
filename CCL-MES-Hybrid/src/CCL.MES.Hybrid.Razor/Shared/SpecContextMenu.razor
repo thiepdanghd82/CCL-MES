@@ -11,6 +11,8 @@
     Trash is exposed only in active/all views; Restore only in trash view.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
 @if (Open)
 {
     <div class="spec-ctx-scrim" @onclick="OnClose" @onclick:stopPropagation="true"></div>
@@ -21,11 +23,11 @@
 
         <button type="button" class="spec-ctx-item" @onclick="OnOpenAsync">
             <span class="spec-ctx-ico">↗</span>
-            <span>Open details</span>
+            <span>@T("specmenu.open")</span>
         </button>
         <button type="button" class="spec-ctx-item" @onclick="OnInfoAsync">
             <span class="spec-ctx-ico">ⓘ</span>
-            <span>View info</span>
+            <span>@T("specmenu.info")</span>
         </button>
 
         <div class="spec-ctx-divider"></div>
@@ -33,19 +35,19 @@
         <button type="button" class="spec-ctx-item"
                 @onclick="() => RequestEditClassAsync(SpecMutationAction.Edit)">
             <span class="spec-ctx-ico">📝</span>
-            <span>Edit (Draft)</span>
+            <span>@T("specmenu.edit")</span>
         </button>
         <button type="button" class="spec-ctx-item"
                 @onclick="() => RequestEditClassAsync(SpecMutationAction.Copy)">
             <span class="spec-ctx-ico">⎘</span>
-            <span>Copy</span>
+            <span>@T("specmenu.copy")</span>
         </button>
         @* P10.10 — "Create new version (Revise)" removed: the new-version flow
            now lives inside the Copy chooser ("Update ver"). *@
         <button type="button" class="spec-ctx-item"
                 @onclick="() => RequestEditClassAsync(SpecMutationAction.Supersede)">
             <span class="spec-ctx-ico">⊘</span>
-            <span>Mark Superseded</span>
+            <span>@T("specmenu.supersede")</span>
         </button>
 
         <div class="spec-ctx-divider"></div>
@@ -54,14 +56,14 @@
         {
             <button type="button" class="spec-ctx-item" @onclick="OnRestoreAsync">
                 <span class="spec-ctx-ico">↺</span>
-                <span>Restore from Trash</span>
+                <span>@T("specmenu.restore")</span>
             </button>
         }
         else
         {
             <button type="button" class="spec-ctx-item spec-ctx-item-danger" @onclick="OnTrashAsync">
                 <span class="spec-ctx-ico">🗑</span>
-                <span>Move to Trash</span>
+                <span>@T("specmenu.trash")</span>
             </button>
         }
     </div>

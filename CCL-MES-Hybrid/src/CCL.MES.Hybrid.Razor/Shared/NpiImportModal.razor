@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client.Npi
 @using Microsoft.AspNetCore.Components.Forms
 @inject ICclApiClient Api
@@ -5,23 +6,21 @@
 @* P10.5 follow-up — CSV import for the NPI grids (SpecHub "Import…"
    parity). Uploads to POST /npi/{kind}/import; appends matched rows. *@
 <Modal Open="Open" OnClose="OnClose" ClickOutsideToClose="!_busy">
-    <Header>Import @KindLabel (CSV)</Header>
+    <Header>@T("npiimport.header", KindLabel)</Header>
     <Body>
         <p class="md-muted">
-            Choose a CSV exported from IFS. Rows are appended; columns are
-            matched by header name (e.g. <code>Parent Part No</code>,
-            <code>Component Part</code>).
+            @T("npiimport.instructions.before") <code>Parent Part No</code>,
+            <code>Component Part</code>@T("npiimport.instructions.after")
         </p>
         <InputFile OnChange="OnFileAsync" accept=".csv,text/csv" disabled="@_busy" />
         @if (_busy)
         {
-            <p class="md-muted" style="margin-top:10px;">Importing… please wait.</p>
+            <p class="md-muted" style="margin-top:10px;">@T("npiimport.importing")</p>
         }
         @if (_result is not null)
         {
             <p class="grid-status" style="margin-top:10px;">
-                ✔ Imported <strong>@_result.Inserted</strong> rows
-                (@_result.Skipped skipped).
+                ✔ @T("npiimport.result", _result.Inserted, _result.Skipped)
             </p>
         }
         @if (_error is not null)
@@ -30,7 +29,7 @@
         }
     </Body>
     <Footer>
-        <button type="button" class="grid-btn" @onclick="OnClose" disabled="@_busy">Close</button>
+        <button type="button" class="grid-btn" @onclick="OnClose" disabled="@_busy">@T("common.close")</button>
     </Footer>
 </Modal>
 
@@ -46,9 +45,9 @@
 
     private string KindLabel => Kind switch
     {
-        "routings" => "Routings",
-        "rawmaterials" => "Raw Materials",
-        _ => "Structure (BOM)",
+        "routings" => T("npiimport.kind.routings"),
+        "rawmaterials" => T("npiimport.kind.rawmaterials"),
+        _ => T("npiimport.kind.structure"),
     };
 
     private async Task OnFileAsync(InputFileChangeEventArgs e)

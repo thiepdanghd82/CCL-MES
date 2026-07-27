@@ -1,5 +1,6 @@
 @page "/settings/about"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @using CCL.MES.Hybrid.Client.Specs
 
@@ -9,67 +10,67 @@
   every authenticated role.
 *@
 
-<PageTitle>About — CCL MES</PageTitle>
+<PageTitle>@T("about.pagetitle")</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
-    <h1 class="page-title">About</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">@T("common.back.settings")</a>
+    <h1 class="page-title">@T("about.title")</h1>
 </div>
 
 @if (_loading)
 {
-    <p class="grid-status">Loading server information…</p>
+    <p class="grid-status">@T("about.loading")</p>
 }
 else if (_loadError is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Failed to load About.</strong>
+        <strong>@T("about.load.failed")</strong>
         <div>@_loadError</div>
-        <button type="button" class="grid-btn" @onclick="LoadAsync">Try again</button>
+        <button type="button" class="grid-btn" @onclick="LoadAsync">@T("about.retry")</button>
     </div>
 }
 else if (_about is not null)
 {
     <section class="settings-form-card">
-        <h2 class="settings-group-title">Server</h2>
+        <h2 class="settings-group-title">@T("about.server")</h2>
         <dl class="settings-meta">
-            <div><dt>Version</dt><dd>@_about.ServerVersion</dd></div>
+            <div><dt>@T("about.version")</dt><dd>@_about.ServerVersion</dd></div>
             @if (!string.IsNullOrWhiteSpace(_about.InformationalVersion))
             {
-                <div><dt>Build</dt><dd>@_about.InformationalVersion</dd></div>
+                <div><dt>@T("about.build")</dt><dd>@_about.InformationalVersion</dd></div>
             }
-            <div><dt>Environment</dt><dd>@_about.EnvironmentName</dd></div>
-            <div><dt>Server</dt><dd>@_about.MachineName</dd></div>
-            <div><dt>Server time (UTC)</dt><dd>@_about.ServerTimeUtc.ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
+            <div><dt>@T("about.environment")</dt><dd>@_about.EnvironmentName</dd></div>
+            <div><dt>@T("about.server.machine")</dt><dd>@_about.MachineName</dd></div>
+            <div><dt>@T("about.servertime.utc")</dt><dd>@_about.ServerTimeUtc.ToString("yyyy-MM-dd HH:mm:ss")</dd></div>
         </dl>
     </section>
 
     <section class="settings-form-card" style="margin-top:16px">
-        <h2 class="settings-group-title">Data</h2>
+        <h2 class="settings-group-title">@T("about.data")</h2>
         <dl class="settings-meta">
-            <div><dt>Users</dt><dd>@_about.UserCount</dd></div>
-            <div><dt>Customers</dt><dd>@_about.CustomerCount</dd></div>
-            <div><dt>Products</dt><dd>@_about.ProductCount</dd></div>
-            <div><dt>Spec revisions</dt><dd>@_about.SpecRevisionCount</dd></div>
-            <div><dt>Drawing versions</dt><dd>@_about.DrawingVersionCount</dd></div>
-            <div><dt>Audit entries</dt><dd>@_about.AuditEntryCount</dd></div>
+            <div><dt>@T("about.users")</dt><dd>@_about.UserCount</dd></div>
+            <div><dt>@T("about.customers")</dt><dd>@_about.CustomerCount</dd></div>
+            <div><dt>@T("about.products")</dt><dd>@_about.ProductCount</dd></div>
+            <div><dt>@T("about.specrevisions")</dt><dd>@_about.SpecRevisionCount</dd></div>
+            <div><dt>@T("about.drawingversions")</dt><dd>@_about.DrawingVersionCount</dd></div>
+            <div><dt>@T("about.auditentries")</dt><dd>@_about.AuditEntryCount</dd></div>
         </dl>
     </section>
 
     <section class="settings-form-card" style="margin-top:16px">
-        <h2 class="settings-group-title">On-disk storage</h2>
+        <h2 class="settings-group-title">@T("about.storage")</h2>
         <dl class="settings-meta">
-            <div><dt>Database</dt><dd>@FormatBytes(_about.DbFileBytes)</dd></div>
-            <div><dt>Drawing store</dt><dd>@FormatBytes(_about.BlobStoreBytes)</dd></div>
+            <div><dt>@T("about.database")</dt><dd>@FormatBytes(_about.DbFileBytes)</dd></div>
+            <div><dt>@T("about.drawingstore")</dt><dd>@FormatBytes(_about.BlobStoreBytes)</dd></div>
             @if (!string.IsNullOrWhiteSpace(_about.DataDir))
             {
-                <div><dt>Data directory</dt><dd><code>@_about.DataDir</code></dd></div>
+                <div><dt>@T("about.datadir")</dt><dd><code>@_about.DataDir</code></dd></div>
             }
         </dl>
     </section>
 
     <p class="settings-hint" style="margin-top:14px">
-        The Catalyst app version is shown in Settings → Connection.
+        @T("about.catalyst.hint")
     </p>
 }
 

@@ -29,6 +29,7 @@ public sealed class IpqcDashboardTests : TestContext
     {
         var api = new RecordingApi();
         Services.AddSingleton<ICclApiClient>(api);
+        Services.AddI18n();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
             typeof(NullLogger<>));
         Services.AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(NullLoggerFactory.Instance);
@@ -129,7 +130,7 @@ public sealed class IpqcDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var banner = cut.Find("[data-testid='ipqc-invalid-phase']");
-            Assert.Contains("not in the IPQC_WAIT phase", banner.TextContent);
+            Assert.Contains("Lệnh SX không ở công đoạn IPQC_WAIT", banner.TextContent);
         });
     }
 

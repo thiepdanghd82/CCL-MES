@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @*
     P10.5c-1 — Generic confirm-only modal used by Trash / Restore /
     Approve. Caller passes the action label + severity + the async
@@ -18,7 +19,7 @@
     </Body>
     <Footer>
         <button type="button" class="op-btn op-btn-secondary"
-                disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
+                disabled="@_submitting" @onclick="RequestCloseAsync">@T("specconfirm.cancel")</button>
         <button type="button" class="@($"op-btn {ConfirmButtonClass()}")"
                 disabled="@_submitting" @onclick="ConfirmAsync">
             @(_submitting ? PendingLabel : ConfirmLabel)

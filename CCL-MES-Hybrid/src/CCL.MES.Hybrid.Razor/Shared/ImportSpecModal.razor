@@ -1,3 +1,4 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @inject IFilePickerService FilePicker
 @using CCL.MES.Hybrid.Client.Files
@@ -42,12 +43,12 @@
             case Stage.Uploading:
             case Stage.Saving:
                 <p class="grid-status import-busy">
-                    @(_stage == Stage.Uploading ? "Uploading + reading file…" : "Saving to the system…")
+                    @(_stage == Stage.Uploading ? T("importspec.busy.uploading") : T("importspec.busy.saving"))
                 </p>
                 break;
             case Stage.PreviewError:
                 <div class="modal-banner modal-banner-error" role="alert">
-                    <strong>Could not read the xlsx file.</strong>
+                    <strong>@T("importspec.previewerror.title")</strong>
                     <div>@_error</div>
                 </div>
                 @if (_warnings.Count > 0)
@@ -59,7 +60,7 @@
                 break;
             case Stage.SaveError:
                 <div class="modal-banner modal-banner-error" role="alert">
-                    <strong>Save failed.</strong>
+                    <strong>@T("importspec.saveerror.title")</strong>
                     <div>@_error</div>
                 </div>
                 @if (_preview is not null)
@@ -72,8 +73,8 @@
                 break;
             case Stage.SaveOk:
                 <div class="modal-banner modal-banner-success" role="status">
-                    <strong>New Spec saved.</strong>
-                    <div>Spec <code>@_saveResponse?.SpecCode</code> — @_saveResponse?.RowsParsed data rows.</div>
+                    <strong>@T("importspec.saveok.title")</strong>
+                    <div>@T("importspec.saveok.spec.prefix") <code>@_saveResponse?.SpecCode</code> @T("importspec.saveok.rows", _saveResponse?.RowsParsed ?? 0)</div>
                 </div>
                 break;
         }
@@ -83,23 +84,23 @@
         {
             case Stage.Choose:
                 <button type="button" class="op-btn op-btn-secondary"
-                        disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
+                        disabled="@_submitting" @onclick="RequestCloseAsync">@T("importspec.action.cancel")</button>
                 <button type="button" class="op-btn op-btn-primary"
                         disabled="@(!CanUpload())" @onclick="StartUploadAsync">
-                    @(_submitting ? "Loading…" : "Choose file + preview")
+                    @(_submitting ? T("importspec.action.loading") : T("importspec.action.choose.preview"))
                 </button>
                 break;
 
             case Stage.Uploading:
             case Stage.Saving:
-                <button type="button" class="op-btn op-btn-secondary" disabled="true">Processing…</button>
+                <button type="button" class="op-btn op-btn-secondary" disabled="true">@T("importspec.action.processing")</button>
                 break;
 
             case Stage.PreviewError:
                 <button type="button" class="op-btn op-btn-secondary"
-                        @onclick="ResetToChooseAsync">Choose another file</button>
+                        @onclick="ResetToChooseAsync">@T("importspec.action.choose.another")</button>
                 <button type="button" class="op-btn op-btn-primary"
-                        @onclick="StartUploadAsync">Retry</button>
+                        @onclick="StartUploadAsync">@T("importspec.action.retry")</button>
                 break;
 
             case Stage.PreviewOk:
@@ -108,13 +109,13 @@
 
             case Stage.SaveError:
                 <button type="button" class="op-btn op-btn-secondary"
-                        @onclick="ResetToChooseAsync">Choose another file</button>
+                        @onclick="ResetToChooseAsync">@T("importspec.action.choose.another")</button>
                 <button type="button" class="op-btn op-btn-primary"
-                        @onclick="() => SaveAsync(_lastMode)">Retry</button>
+                        @onclick="() => SaveAsync(_lastMode)">@T("importspec.action.retry")</button>
                 break;
 
             case Stage.SaveOk:
-                <button type="button" class="op-btn op-btn-primary" @onclick="RequestCloseAsync">Close</button>
+                <button type="button" class="op-btn op-btn-primary" @onclick="RequestCloseAsync">@T("common.close")</button>
                 break;
         }
     </Footer>
@@ -162,14 +163,14 @@
 
     private string StageTitle => _stage switch
     {
-        Stage.Choose       => "Import Spec from xlsx file",
-        Stage.Uploading    => "Uploading file…",
-        Stage.PreviewOk    => "Spec preview",
-        Stage.PreviewError => "File read error",
-        Stage.Saving       => "Saving…",
-        Stage.SaveOk       => "Complete",
-        Stage.SaveError    => "Save error",
-        _                  => "Import Spec",
+        Stage.Choose       => T("importspec.title.choose"),
+        Stage.Uploading    => T("importspec.title.uploading"),
+        Stage.PreviewOk    => T("importspec.title.previewok"),
+        Stage.PreviewError => T("importspec.title.previewerror"),
+        Stage.Saving       => T("importspec.title.saving"),
+        Stage.SaveOk       => T("importspec.title.saveok"),
+        Stage.SaveError    => T("importspec.title.saveerror"),
+        _                  => T("importspec.title.default"),
     };
 
     protected override void OnParametersSet()
@@ -182,10 +183,10 @@
     private RenderFragment RenderChooseStage() => __builder =>
     {
         <text>
-        <p class="import-help">Select the Spec's process type, then click <strong>Choose file</strong> to open the system dialog.</p>
+        <p class="import-help">@T("importspec.help.prefix") <strong>@T("importspec.help.choosefile")</strong> @T("importspec.help.suffix")</p>
         <div class="modal-field">
-            <label>Process type <span class="modal-req">*</span></label>
-            <div class="import-category-row" role="radiogroup" aria-label="Planner category">
+            <label>@T("importspec.field.processtype") <span class="modal-req">*</span></label>
+            <div class="import-category-row" role="radiogroup" aria-label="@T("importspec.aria.plannercategory")">
                 @foreach (var opt in CategoryOptions)
                 {
                     var isSel = string.Equals(_category, opt.Code, StringComparison.OrdinalIgnoreCase);
@@ -197,8 +198,7 @@
             </div>
         </div>
         <p class="import-help-note">
-            The file must be a valid <code>.xlsx</code>, size ≤ 10 MB. When the
-            dialog opens, the operating system will only allow files of the correct format.
+            @T("importspec.helpnote.prefix") <code>.xlsx</code> @T("importspec.helpnote.suffix")
         </p>
         @if (_error is not null)
         {
@@ -215,16 +215,16 @@
         {
             var vm = SpecShowcardVm.FromImportSummary(_preview.Summary, _preview.FileName);
             <div class="import-preview-meta">
-                <span><strong>File:</strong> <code>@_preview.FileName</code></span>
-                <span><strong>Size:</strong> @FormatBytes(_preview.FileSizeBytes)</span>
-                <span><strong>Process:</strong> @ResolveCategoryLabel(_preview.PlannerCategory)</span>
+                <span><strong>@T("importspec.meta.file")</strong> <code>@_preview.FileName</code></span>
+                <span><strong>@T("importspec.meta.size")</strong> @FormatBytes(_preview.FileSizeBytes)</span>
+                <span><strong>@T("importspec.meta.process")</strong> @ResolveCategoryLabel(_preview.PlannerCategory)</span>
             </div>
             <SpecShowcardCompact Vm="vm" />
         }
         @if (_preview.Warnings.Count > 0)
         {
             <details class="import-warnings-block" open>
-                <summary>Warnings while reading the file (@_preview.Warnings.Count)</summary>
+                <summary>@T("importspec.warnings.summary", _preview.Warnings.Count)</summary>
                 <ul class="import-warnings">
                     @foreach (var w in _preview.Warnings) { <li>@w</li> }
                 </ul>
@@ -244,27 +244,26 @@
         @if (isDraft)
         {
             <div class="modal-banner modal-banner-error" role="alert">
-                <strong>Duplicate Spec is in Draft status.</strong>
+                <strong>@T("importspec.dup.draft.title")</strong>
                 <div>
-                    Spec code <code>@_preview!.DuplicateSpecCode</code> (id @_preview.DuplicateRevisionId)
-                    already has this REF NO. The system does not allow replacing a draft —
-                    edit that draft directly or change the REF NO in the file and import again.
+                    @T("importspec.dup.draft.speccode") <code>@_preview!.DuplicateSpecCode</code> @T("importspec.dup.draft.id", _preview.DuplicateRevisionId)
+                    @T("importspec.dup.draft.body")
                 </div>
             </div>
         }
         else
         {
             <div class="modal-banner modal-banner-warning" role="alert">
-                <strong>A Spec @ResolveDupStatusLabel(_preview!.DuplicateStatus) with the same REF NO already exists.</strong>
+                <strong>@T("importspec.dup.exists.title", ResolveDupStatusLabel(_preview!.DuplicateStatus))</strong>
                 <div>
-                    Existing Spec code: <code>@_preview.DuplicateSpecCode</code>.
-                    Choose an action below.
+                    @T("importspec.dup.exists.speccode") <code>@_preview.DuplicateSpecCode</code>.
+                    @T("importspec.dup.exists.chooseaction")
                 </div>
             </div>
             <div class="modal-field">
-                <label for="import-copy-code">New Spec code (if "Save as copy")</label>
+                <label for="import-copy-code">@T("importspec.field.newspeccode")</label>
                 <input id="import-copy-code" type="text" class="modal-input" maxlength="64"
-                       placeholder="@($"e.g. {_preview.DuplicateSpecCode}-COPY")"
+                       placeholder="@T("importspec.placeholder.copycode", _preview.DuplicateSpecCode)"
                        @bind="_copySpecCode" @bind:event="oninput" disabled="@_submitting" />
             </div>
         }
@@ -279,28 +278,28 @@
         @if (isDraftDup)
         {
             <button type="button" class="op-btn op-btn-secondary"
-                    @onclick="RequestCloseAsync">Cancel</button>
+                    @onclick="RequestCloseAsync">@T("importspec.action.cancel")</button>
         }
         else if (_preview.DuplicateRefNo)
         {
             <button type="button" class="op-btn op-btn-secondary"
-                    disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
+                    disabled="@_submitting" @onclick="RequestCloseAsync">@T("importspec.action.cancel")</button>
             <button type="button" class="op-btn op-btn-secondary"
                     disabled="@_submitting" @onclick="() => SaveAsync(SpecImportSaveMode.SaveAsCopy)">
-                @(_submitting && _lastMode == SpecImportSaveMode.SaveAsCopy ? "Saving…" : "Save as copy")
+                @(_submitting && _lastMode == SpecImportSaveMode.SaveAsCopy ? T("importspec.action.saving") : T("importspec.action.saveascopy"))
             </button>
             <button type="button" class="op-btn op-btn-warning"
                     disabled="@_submitting" @onclick="() => SaveAsync(SpecImportSaveMode.UpgradeRev)">
-                @(_submitting && _lastMode == SpecImportSaveMode.UpgradeRev ? "Saving…" : "Supersede (Upgrade Rev)")
+                @(_submitting && _lastMode == SpecImportSaveMode.UpgradeRev ? T("importspec.action.saving") : T("importspec.action.supersede"))
             </button>
         }
         else
         {
             <button type="button" class="op-btn op-btn-secondary"
-                    disabled="@_submitting" @onclick="RequestCloseAsync">Cancel</button>
+                    disabled="@_submitting" @onclick="RequestCloseAsync">@T("importspec.action.cancel")</button>
             <button type="button" class="op-btn op-btn-primary"
                     disabled="@_submitting" @onclick="() => SaveAsync(SpecImportSaveMode.SaveNew)">
-                @(_submitting ? "Saving…" : "Save to system")
+                @(_submitting ? T("importspec.action.saving") : T("importspec.action.savetosystem"))
             </button>
         }
         </text>

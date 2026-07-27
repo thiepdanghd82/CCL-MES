@@ -13,21 +13,25 @@
     Rule 4: plain <button>, plain <input>.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.Routing
+@using CCL.MES.Hybrid.Client.Windows
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.Routing
 @inject ICclApiClient Api
+@inject IFloatingWindowStore WinStore
+@inject IJSRuntime JS
 
 <div class="legs-dashboard" data-testid="legs-dashboard">
     @if (_view is null && _initialError is null)
     {
-        <div class="legs-loading" data-testid="legs-loading">Đang tải công đoạn…</div>
+        <div class="legs-loading" data-testid="legs-loading">@T("legs.loading")</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="legs-initial-error">
-            <strong>Không tải được công đoạn:</strong> @_initialError
+            <strong>@T("legs.load.failed")</strong> @_initialError
         </div>
     }
     else if (_view is not null)
@@ -35,90 +39,165 @@
         <div class="legs-head">
             <span class="legs-head-wo">@_view.WoNo</span>
             <span class="legs-head-phase legs-phase-split" data-testid="legs-wo-phase">@_view.MesPhase</span>
-            <span class="legs-head-count">@_view.Legs.Count công đoạn song song</span>
+            <span class="legs-head-count">@T("legs.head.count", _view.Legs.Count)</span>
+            <span class="legs-head-prog" title="@T("legs.head.progress", DoneCount(), LegTotal())">
+                <span class="legs-head-prog-bar"><span class="legs-head-prog-fill" style="width:@(DonePct())%"></span></span>
+                <span class="legs-head-prog-text">@T("legs.head.progress", DoneCount(), LegTotal())</span>
+            </span>
         </div>
 
         @if (_banner is not null)
         {
-            <div class="wo-card-error" data-testid="legs-banner">@_banner</div>
+            <div class="wo-card-error legs-alert" data-testid="legs-banner">
+                <span class="legs-alert-ico" aria-hidden="true">⚠️</span><span>@_banner</span>
+            </div>
         }
 
-        <div class="legs-grid" data-testid="legs-grid">
-            @foreach (var leg in _view.Legs.OrderBy(l => l.Sequence))
+        @* Visual DAG: nhánh song song (PRINT∥TAPE) → hội tụ ASSEMBLY → terminal CUT (→FQC).
+           Stage suy từ LegKind (Edges chưa expose ở test) — robust cả khi chỉ có Legs. *@
+        <div class="legs-flow" data-testid="legs-grid">
+            @{ var stages = BuildStages(); }
+            @for (var si = 0; si < stages.Count; si++)
             {
-                <div class="legs-card @LegKindCss(leg.LegKind)" data-testid="leg-card-@leg.Sequence" data-leg-phase="@leg.LegPhase">
-                    <div class="legs-card-head">
-                        <span class="legs-kind" data-testid="leg-kind-@leg.Sequence">@LegKindLabel(leg.LegKind)</span>
-                        <span class="legs-method">@leg.Method</span>
-                        @if (leg.IsTerminal)
+                if (si > 0)
+                {
+                    <div class="legs-connector" aria-hidden="true">@((MarkupString)ConnectorSvg)</div>
+                }
+                var stage = stages[si];
+                <div class="legs-stage legs-stage-@stage.Type">
+                    <div class="legs-stage-label">@StageLabel(stage.Type)</div>
+                    <div class="legs-stage-cards">
+                        @foreach (var leg in stage.Legs)
                         {
-                            <span class="legs-terminal" title="Công đoạn cuối — quyết định gộp FQC">⤳ cuối</span>
-                        }
-                    </div>
-                    <div class="legs-card-row">
-                        <span class="legs-line">@leg.ProcessLine</span>
-                        <span class="legs-phase-chip @LegPhaseCss(leg.LegPhase)" data-testid="leg-phase-@leg.Sequence">@LegPhaseLabel(leg.LegPhase)</span>
-                    </div>
+                            <div class="legs-card @LegKindCss(leg.LegKind)" data-testid="leg-card-@leg.Sequence" data-leg-phase="@leg.LegPhase">
+                                <div class="legs-card-head">
+                                    <span class="legs-ico" aria-hidden="true">@((MarkupString)LegKindIcon(leg.LegKind))</span>
+                                    <span class="legs-kind" data-testid="leg-kind-@leg.Sequence">@LegKindLabel(leg.LegKind)</span>
+                                    <span class="legs-method">@leg.Method</span>
+                                </div>
+                                <div class="legs-card-row">
+                                    <span class="legs-line">@leg.ProcessLine</span>
+                                    @if (leg.IsTerminal)
+                                    {
+                                        <span class="legs-terminal" title="@T("legs.terminal.title")">@T("legs.terminal")</span>
+                                    }
+                                    <span class="legs-phase-chip @LegPhaseCss(leg.LegPhase)" data-testid="leg-phase-@leg.Sequence">@LegPhaseLabel(leg.LegPhase)</span>
+                                </div>
 
-                    @if (leg.HardBlocked)
-                    {
-                        <div class="legs-gate legs-gate-hard" data-testid="leg-hard-@leg.Sequence">
-                            ⛔ Chờ bán thành phẩm (in/tape) xong mới chạy được.
-                        </div>
-                    }
-                    else if (leg.SoftWaiting)
-                    {
-                        <div class="legs-gate legs-gate-soft" data-testid="leg-soft-@leg.Sequence">
-                            ⏳ Công đoạn trước chưa xong (vẫn chạy song song được).
-                        </div>
-                    }
+                                <div class="legs-stepper" aria-hidden="true">
+                                    @{ var curIdx = PhaseIndex(leg.LegPhase); }
+                                    @for (var i = 0; i < Flow.Length; i++)
+                                    {
+                                        <span class="legs-stepper-dot @(i < curIdx ? "is-done" : i == curIdx ? "is-cur" : "")"
+                                              title="@LegPhaseLabel(Flow[i])"></span>
+                                    }
+                                </div>
 
-                    <div class="legs-card-actions">
-                        @{ var next = NextPhase(leg.LegPhase); }
-                        @if (next is not null)
-                        {
-                            <button type="button" class="btn btn-primary legs-advance"
-                                    data-testid="leg-advance-@leg.Sequence"
-                                    disabled="@(_busy || (next == "RUNNING" && leg.HardBlocked))"
-                                    @onclick="() => AdvanceAsync(leg, next!)">
-                                @AdvanceLabel(leg.LegPhase, next!)
-                            </button>
-                        }
-                        else
-                        {
-                            <span class="legs-done-tag" data-testid="leg-done-@leg.Sequence">✓ Xong</span>
-                        }
-                        @if (leg.LegPhase != "PREPRESS")
-                        {
-                            <button type="button" class="btn btn-ghost legs-rework"
-                                    data-testid="leg-rework-@leg.Sequence"
-                                    disabled="@_busy"
-                                    @onclick="() => OpenReworkAsync(leg)">
-                                NG / làm lại
-                            </button>
-                        }
-                    </div>
+                                @* P11 per-leg readiness — this leg's OWN materialised
+                                   Pre-press (materials) + IPQC (by leg.ProcessLine) check set. *@
+                                @if (leg.MaterialsTotal > 0 || leg.IpqcItemsTotal > 0)
+                                {
+                                    <div class="legs-readiness" data-testid="leg-readiness-@leg.Sequence">
+                                        @if (leg.MaterialsTotal > 0)
+                                        {
+                                            <span class="legs-ready-chip @(leg.MaterialsOk == leg.MaterialsTotal ? "is-ok" : "")">
+                                                @T("legs.ready.materials", leg.MaterialsOk, leg.MaterialsTotal)
+                                            </span>
+                                        }
+                                        @if (leg.IpqcItemsTotal > 0)
+                                        {
+                                            <span class="legs-ready-chip @(leg.IpqcItemsOk == leg.IpqcItemsTotal ? "is-ok" : "")">
+                                                @T("legs.ready.ipqc", leg.IpqcItemsOk, leg.IpqcItemsTotal)
+                                            </span>
+                                        }
+                                    </div>
+                                }
 
-                    @if (IsFromStockAssembly(leg))
-                    {
-                        <div class="legs-semi" data-testid="leg-semi-@leg.Sequence">
-                            <span class="legs-semi-label">Kho bán thành phẩm</span>
-                            <div class="legs-semi-actions">
-                                <button type="button" class="btn btn-ghost legs-semi-reserve"
-                                        data-testid="leg-semi-reserve-@leg.Sequence"
-                                        disabled="@_busy"
-                                        @onclick="() => OpenReserve(leg)">
-                                    Giữ lô (FEFO)
-                                </button>
-                                <button type="button" class="btn btn-ghost legs-semi-consume"
-                                        data-testid="leg-semi-consume-@leg.Sequence"
-                                        disabled="@_busy"
-                                        @onclick="() => ConsumeSemiAsync(leg)">
-                                    Đã dùng xong
-                                </button>
+                                @if (leg.HardBlocked)
+                                {
+                                    <div class="legs-gate legs-gate-hard" data-testid="leg-hard-@leg.Sequence" role="alert">
+                                        <span class="legs-gate-ico" aria-hidden="true">⛔</span>
+                                        <span class="legs-gate-body">
+                                            <span class="legs-gate-title">@T("legs.gate.hard.title")</span>
+                                            <span class="legs-gate-reason">@T("legs.gate.hard")</span>
+                                            <span class="legs-gate-hint">@T("legs.gate.hard.hint")</span>
+                                        </span>
+                                    </div>
+                                }
+                                else if (leg.SoftWaiting)
+                                {
+                                    <div class="legs-gate legs-gate-soft" data-testid="leg-soft-@leg.Sequence">
+                                        <span class="legs-gate-ico" aria-hidden="true">⏳</span>
+                                        <span class="legs-gate-body">
+                                            <span class="legs-gate-title">@T("legs.gate.soft.title")</span>
+                                            <span class="legs-gate-reason">@T("legs.gate.soft")</span>
+                                        </span>
+                                    </div>
+                                }
+
+                                <div class="legs-card-actions">
+                                    @{ var next = NextPhase(leg.LegPhase); }
+                                    @if (next is not null)
+                                    {
+                                        var runBlocked = next == "RUNNING" && leg.HardBlocked;
+                                        <button type="button" class="btn btn-primary legs-advance"
+                                                data-testid="leg-advance-@leg.Sequence"
+                                                disabled="@(_busy || runBlocked)"
+                                                title="@(runBlocked ? T("legs.advance.blocked.tooltip") : null)"
+                                                @onclick="() => AdvanceAsync(leg, next!)">
+                                            @AdvanceLabel(leg.LegPhase, next!)
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="legs-done-tag" data-testid="leg-done-@leg.Sequence">@T("legs.done")</span>
+                                    }
+                                    @if (leg.LegPhase != "PREPRESS")
+                                    {
+                                        <button type="button" class="btn btn-ghost legs-rework"
+                                                data-testid="leg-rework-@leg.Sequence"
+                                                disabled="@_busy"
+                                                @onclick="() => OpenReworkAsync(leg)">
+                                            @T("legs.rework")
+                                        </button>
+                                    }
+                                </div>
+
+                                @* P11 drill-in: khi leg ở IPQC_WAIT, mở bộ IPQC RIÊNG
+                                   của leg trong SHOWCARD nổi (FloatingWindow, L34):
+                                   kéo/resize/traffic-light/nhiều cửa sổ + nhớ vị trí. *@
+                                @if (leg.LegPhase == "IPQC_WAIT")
+                                {
+                                    <button type="button" class="btn btn-primary legs-ipqc-toggle"
+                                            data-testid="leg-ipqc-toggle-@leg.Sequence"
+                                            @onclick="() => OpenIpqcWinAsync(leg)">
+                                        <span class="legs-ipqc-toggle-ico" aria-hidden="true">🔍</span> @T("legs.ipqc.open")
+                                    </button>
+                                }
+
+                                @if (IsFromStockAssembly(leg))
+                                {
+                                    <div class="legs-semi" data-testid="leg-semi-@leg.Sequence">
+                                        <span class="legs-semi-label"><span class="legs-semi-ico" aria-hidden="true">📦</span>@T("legs.semi.label")</span>
+                                        <div class="legs-semi-actions">
+                                            <button type="button" class="btn btn-ghost legs-semi-reserve"
+                                                    data-testid="leg-semi-reserve-@leg.Sequence"
+                                                    disabled="@_busy"
+                                                    @onclick="() => OpenReserve(leg)">
+                                                @T("legs.semi.reserve")
+                                            </button>
+                                            <button type="button" class="btn btn-ghost legs-semi-consume"
+                                                    data-testid="leg-semi-consume-@leg.Sequence"
+                                                    disabled="@_busy"
+                                                    @onclick="() => ConsumeSemiAsync(leg)">
+                                                @T("legs.semi.consume")
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
                             </div>
-                        </div>
-                    }
+                        }
+                    </div>
                 </div>
             }
         </div>
@@ -127,15 +206,15 @@
         {
             <div class="legs-rework-modal" data-testid="legs-rework-modal">
                 <div class="legs-rework-body">
-                    <div class="legs-rework-title">NG công đoạn @LegKindLabel(_reworkLeg.LegKind) — về PREPRESS</div>
+                    <div class="legs-rework-title">@T("legs.rework.title", LegKindLabel(_reworkLeg.LegKind))</div>
                     <input type="text" class="legs-rework-input" data-testid="legs-rework-reason"
-                           maxlength="500" placeholder="Lý do NG / rework…" @bind="_reworkReason" @bind:event="oninput" />
+                           maxlength="500" placeholder="@T("legs.rework.reason.placeholder")" @bind="_reworkReason" @bind:event="oninput" />
                     <div class="legs-rework-actions">
                         <button type="button" class="btn btn-ghost" data-testid="legs-rework-cancel"
-                                @onclick="() => _reworkLeg = null">Huỷ</button>
+                                @onclick="() => _reworkLeg = null">@T("legs.cancel")</button>
                         <button type="button" class="btn btn-primary" data-testid="legs-rework-confirm"
                                 disabled="@(_busy || string.IsNullOrWhiteSpace(_reworkReason))"
-                                @onclick="ConfirmReworkAsync">Xác nhận NG</button>
+                                @onclick="ConfirmReworkAsync">@T("legs.rework.confirm")</button>
                     </div>
                 </div>
             </div>
@@ -145,32 +224,49 @@
         {
             <div class="legs-rework-modal" data-testid="legs-semi-modal">
                 <div class="legs-rework-body">
-                    <div class="legs-rework-title">Giữ bán thành phẩm cho @LegKindLabel(_reserveLeg.LegKind)</div>
+                    <div class="legs-rework-title">@T("legs.semi.modal.title", LegKindLabel(_reserveLeg.LegKind))</div>
                     <label class="legs-semi-field">
-                        <span>Loại</span>
+                        <span>@T("legs.semi.kind")</span>
                         <select class="legs-semi-select" data-testid="legs-semi-kind" @bind="_reserveKind">
-                            <option value="PRINTED_SEMI">In (PRINTED_SEMI)</option>
-                            <option value="TAPE_SEMI">Tape (TAPE_SEMI)</option>
+                            <option value="PRINTED_SEMI">@T("legs.semi.kind.printed", "PRINTED_SEMI")</option>
+                            <option value="TAPE_SEMI">@T("legs.semi.kind.tape", "TAPE_SEMI")</option>
                         </select>
                     </label>
                     <label class="legs-semi-field">
-                        <span>Số lượng</span>
+                        <span>@T("legs.semi.qty")</span>
                         <input type="number" min="1" class="legs-rework-input" data-testid="legs-semi-qty" @bind="_reserveQty" />
                     </label>
                     <label class="legs-semi-field">
-                        <span>Mã lô cụ thể (trống → FEFO tự chọn)</span>
+                        <span>@T("legs.semi.lotno")</span>
                         <input type="text" class="legs-rework-input" data-testid="legs-semi-lotno"
-                               maxlength="80" placeholder="Quét lô hoặc để trống…" @bind="_reserveLotNo" @bind:event="oninput" />
+                               maxlength="80" placeholder="@T("legs.semi.lotno.placeholder")" @bind="_reserveLotNo" @bind:event="oninput" />
                     </label>
                     <div class="legs-rework-actions">
                         <button type="button" class="btn btn-ghost" data-testid="legs-semi-cancel"
-                                @onclick="() => _reserveLeg = null">Huỷ</button>
+                                @onclick="() => _reserveLeg = null">@T("legs.cancel")</button>
                         <button type="button" class="btn btn-primary" data-testid="legs-semi-confirm"
                                 disabled="@(_busy || _reserveQty <= 0)"
-                                @onclick="ConfirmReserveAsync">Giữ lô</button>
+                                @onclick="ConfirmReserveAsync">@T("legs.semi.confirm")</button>
                     </div>
                 </div>
             </div>
+        }
+
+        @* P11 per-leg IPQC — SHOWCARD nổi (L34): nhiều leg mở cùng lúc, độc lập,
+           bring-to-front, nhớ vị trí/kích thước qua IFloatingWindowStore. *@
+        @foreach (var w in _ipqcWins)
+        {
+            @if (LegOf(w.LegId) is { } wleg)
+            {
+                <IpqcLegShowcard @key="w.Id" WorkOrderId="WorkOrderId" WoLegId="w.LegId"
+                                 KindLabel="@LegKindLabel(wleg.LegKind)" IconSvg="@LegKindIcon(wleg.LegKind)"
+                                 KindCss="@LegKindCss(wleg.LegKind)" Method="@wleg.Method" ProcessLine="@wleg.ProcessLine"
+                                 ScrapReasons="ScrapReasons"
+                                 WindowId="@w.Id" Rect="w.Rect" CascadeIndex="w.Cascade"
+                                 OnRectChanged="r => OnWinRectChanged(w.LegId, r)"
+                                 OnClose="() => CloseIpqcWinAsync(w.Id)"
+                                 OnPhaseChanged="OnPhaseChanged" />
+            }
         }
     }
 </div>
@@ -181,6 +277,44 @@
     /// <summary>L21 — bubble lên WorkOrders.razor khi WO đổi phase (join
     /// SPLIT → FQC_PENDING) để parent re-fetch summary + re-dispatch.</summary>
     [Parameter] public EventCallback OnPhaseChanged { get; set; }
+
+    /// <summary>Scrap reason codes forwarded to the per-leg IPQC drill-in
+    /// (NG dropdowns). Passed through from WorkOrders.razor.</summary>
+    [Parameter] public IReadOnlyList<CCL.MES.Shared.ReasonCodes.ReasonCodeOption> ScrapReasons { get; set; }
+        = Array.Empty<CCL.MES.Shared.ReasonCodes.ReasonCodeOption>();
+
+    /// <summary>P11 per-leg IPQC showcards open now (L34 floating windows). Each
+    /// carries a stable Id shared with floating-window.js + its restored rect.</summary>
+    private sealed record OpenLegWin(long LegId, string Id, WindowRect? Rect, int Cascade);
+    private readonly List<OpenLegWin> _ipqcWins = new();
+    private const int MaxIpqcWins = 4;
+
+    private LegRow? LegOf(long legId) => _view?.Legs.FirstOrDefault(l => l.LegId == legId);
+    private string WinKey(long legId) => $"ipqc-leg-{WorkOrderId}-{legId}";
+
+    /// <summary>Open (or bring-to-front) the leg's IPQC showcard.</summary>
+    private async Task OpenIpqcWinAsync(LegRow leg)
+    {
+        var existing = _ipqcWins.FirstOrDefault(w => w.LegId == leg.LegId);
+        if (existing is not null)
+        {
+            try { await JS.InvokeVoidAsync("cclMesFloat.bringToFront", existing.Id); } catch { /* JS absent */ }
+            return;
+        }
+        if (_ipqcWins.Count >= MaxIpqcWins) return;
+        _ipqcWins.Add(new OpenLegWin(leg.LegId, Guid.NewGuid().ToString("N"),
+            WinStore.Get(WinKey(leg.LegId)), _ipqcWins.Count));
+    }
+
+    /// <summary>Close a showcard + re-pull legs so the leg-card readiness/phase
+    /// reflect what the operator just ticked.</summary>
+    private async Task CloseIpqcWinAsync(string id)
+    {
+        _ipqcWins.RemoveAll(w => w.Id == id);
+        await LoadAsync();
+    }
+
+    private void OnWinRectChanged(long legId, WindowRect rect) => WinStore.Save(WinKey(legId), rect);
 
     private LegsView? _view;
     private string? _initialError;
@@ -230,7 +364,7 @@
                     return;
                 }
                 if (resp.SoftWaiting)
-                    _banner = "Đã chạy — lưu ý công đoạn trước chưa xong (song song).";
+                    _banner = T("legs.banner.soft.running");
                 await LoadAsync();
             }
             else { _banner = RoutingErrorLocaliser.LocaliseSetError(resp.ErrorCode ?? ""); await LoadAsync(); }
@@ -316,38 +450,105 @@
         return (i < 0 || i >= Flow.Length - 1) ? null : Flow[i + 1];
     }
 
-    private static string AdvanceLabel(string from, string to) => to switch
+    private string AdvanceLabel(string from, string to) => to switch
     {
-        "SETTING"       => "Bắt đầu setup",
-        "IPQC_WAIT"     => "Setup xong → IPQC",
-        "IPQC_APPROVED" => "IPQC duyệt",
-        "RUNNING"       => "Bắt đầu chạy",
-        "LEG_DONE"      => "Hoàn tất công đoạn",
+        "SETTING"       => T("legs.advance.setting"),
+        "IPQC_WAIT"     => T("legs.advance.ipqc_wait"),
+        "IPQC_APPROVED" => T("legs.advance.ipqc_approved"),
+        "RUNNING"       => T("legs.advance.running"),
+        "LEG_DONE"      => T("legs.advance.leg_done"),
         _               => $"→ {to}",
     };
 
-    private static string LegKindLabel(string kind) => kind switch
+    private string LegKindLabel(string kind) => kind switch
     {
-        "PRINT"     => "IN",
-        "CUT"       => "CẮT",
-        "TAPE"      => "CẮT TAPE",
-        "ASSEMBLY"  => "DÁN (assembly)",
-        "PRINT_CUT" => "IN + BẾ",
+        "PRINT"     => T("legs.kind.print"),
+        "CUT"       => T("legs.kind.cut"),
+        "TAPE"      => T("legs.kind.tape"),
+        "ASSEMBLY"  => T("legs.kind.assembly"),
+        "PRINT_CUT" => T("legs.kind.print_cut"),
         _           => kind,
     };
 
-    private static string LegPhaseLabel(string phase) => phase switch
+    private string LegPhaseLabel(string phase) => phase switch
     {
-        "PREPRESS"      => "Chuẩn bị",
-        "SETTING"       => "Setup",
-        "IPQC_WAIT"     => "Chờ IPQC",
-        "IPQC_APPROVED" => "IPQC duyệt",
-        "RUNNING"       => "Đang chạy",
-        "PAUSED"        => "Tạm dừng",
-        "LEG_DONE"      => "Xong",
+        "PREPRESS"      => T("legs.phase.prepress"),
+        "SETTING"       => T("legs.phase.setting"),
+        "IPQC_WAIT"     => T("legs.phase.ipqc_wait"),
+        "IPQC_APPROVED" => T("legs.phase.ipqc_approved"),
+        "RUNNING"       => T("legs.phase.running"),
+        "PAUSED"        => T("legs.phase.paused"),
+        "LEG_DONE"      => T("legs.phase.leg_done"),
         _               => phase,
     };
 
     private static string LegKindCss(string kind) => "legs-kind-" + kind.ToLowerInvariant().Replace("_", "-");
     private static string LegPhaseCss(string phase) => "legs-ph-" + phase.ToLowerInvariant();
+
+    // ── P11-3 visual-DAG helpers (presentation only — no contract change) ──
+
+    private int DoneCount() => _view?.Legs.Count(l => string.Equals(l.LegPhase, "LEG_DONE", StringComparison.Ordinal)) ?? 0;
+    private int LegTotal() => _view?.Legs.Count ?? 0;
+    private int DonePct() { var t = LegTotal(); return t > 0 ? (int)Math.Round(100.0 * DoneCount() / t) : 0; }
+
+    /// <summary>Index của phase trong LegFlow (0..5) cho mini-stepper; -1 nếu lạ.</summary>
+    private static int PhaseIndex(string phase) => Array.IndexOf(Flow, phase);
+
+    /// <summary>
+    /// Gom leg (đã sort theo Sequence) thành các CHẶNG của DAG để bố cục lane:
+    /// PRINT/TAPE liền kề → 1 chặng "branch" (nhánh song song); ASSEMBLY →
+    /// "converge" (hội tụ); CUT/PRINT_CUT → "terminal" (kết thúc → FQC).
+    /// Suy thuần từ LegKind nên robust cả khi LegsView.Edges chưa populate.
+    /// </summary>
+    private List<(string Type, List<LegRow> Legs)> BuildStages()
+    {
+        var stages = new List<(string, List<LegRow>)>();
+        if (_view is null) return stages;
+        List<LegRow>? branch = null;
+        foreach (var leg in _view.Legs.OrderBy(l => l.Sequence))
+        {
+            var k = (leg.LegKind ?? "").ToUpperInvariant();
+            if (k is "PRINT" or "TAPE")
+            {
+                branch ??= new List<LegRow>();
+                branch.Add(leg);
+            }
+            else
+            {
+                if (branch is not null) { stages.Add(("branch", branch)); branch = null; }
+                stages.Add((k == "ASSEMBLY" ? "converge" : "terminal", new List<LegRow> { leg }));
+            }
+        }
+        if (branch is not null) stages.Add(("branch", branch));
+        return stages;
+    }
+
+    private string StageLabel(string type) => type switch
+    {
+        "branch"   => T("legs.stage.branch"),
+        "converge" => T("legs.stage.converge"),
+        "terminal" => T("legs.stage.terminal"),
+        _          => "",
+    };
+
+    // Inline SVG icon theo kind (stroke=currentColor — không hex, không asset).
+    private static string LegKindIcon(string kind) => kind.ToUpperInvariant() switch
+    {
+        "PRINT"     => IcoPrint,
+        "TAPE"      => IcoTape,
+        "CUT"       => IcoCut,
+        "ASSEMBLY"  => IcoAssembly,
+        "PRINT_CUT" => IcoPrint,
+        _           => IcoDot,
+    };
+
+    private const string SvgOpen = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\">";
+    private const string IcoPrint = SvgOpen + "<rect x=\"6\" y=\"3\" width=\"12\" height=\"6\" rx=\"1\"/><path d=\"M6 14H4a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-2\"/><rect x=\"6\" y=\"14\" width=\"12\" height=\"7\" rx=\"1\"/></svg>";
+    private const string IcoCut = SvgOpen + "<circle cx=\"6\" cy=\"6\" r=\"3\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><path d=\"M8.6 8.5 21 18M8.6 15.5 21 6\"/></svg>";
+    private const string IcoTape = SvgOpen + "<circle cx=\"12\" cy=\"12\" r=\"8\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M20 12h2M2 12h2\"/></svg>";
+    private const string IcoAssembly = SvgOpen + "<path d=\"M4 6h6v6H4zM14 12h6v6h-6z\"/><path d=\"M10 9h4a2 2 0 0 1 2 2v1\"/></svg>";
+    private const string IcoDot = SvgOpen + "<circle cx=\"12\" cy=\"12\" r=\"7\"/></svg>";
+
+    // Mũi tên nối chặng (ngang trên desktop; CSS xoay dọc trên mobile).
+    private const string ConnectorSvg = "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 12h13\"/><path d=\"m13 7 5 5-5 5\"/></svg>";
 }

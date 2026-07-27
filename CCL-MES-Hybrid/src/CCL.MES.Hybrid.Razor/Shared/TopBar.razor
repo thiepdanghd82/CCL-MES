@@ -1,11 +1,14 @@
-@implements IDisposable
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using System.Security.Claims
+@using CCL.MES.Shared.Localization
 @inject IAuthSession Session
 @inject NavigationManager Nav
 
 @* P10.10 — global top bar (SpecHub parity). Brand left; user / shift /
-   live clock / online / logout right. Renders on every routed page via
-   MainLayout. The user block hides when unauthenticated. *@
+   live clock / language / online / logout right. Renders on every routed
+   page via MainLayout. The user block hides when unauthenticated.
+   i18n Phase-2: the flag button flips EN⇄VI live (same ILanguageService
+   state as Settings → Appearance). *@
 <header class="app-topbar">
     <div class="app-topbar-brand">
         <span class="app-topbar-logo">◆</span> CCL DESIGN
@@ -15,19 +18,25 @@
         <Authorized>
             <div class="app-topbar-right">
                 <div class="tb-block">
-                    <div class="tb-k">User</div>
+                    <div class="tb-k">@T("topbar.user")</div>
                     <div class="tb-v">@UserName <span class="tb-role">· @Role</span></div>
                 </div>
                 <div class="tb-block">
-                    <div class="tb-k">Shift</div>
+                    <div class="tb-k">@T("topbar.shift")</div>
                     <div class="tb-v">@Shift</div>
                 </div>
                 <div class="tb-block">
-                    <div class="tb-k">Time</div>
+                    <div class="tb-k">@T("topbar.time")</div>
                     <div class="tb-v tb-time">@_now.ToString("HH:mm:ss")</div>
                 </div>
-                <span class="tb-online">● ONLINE</span>
-                <button type="button" class="tb-logout" @onclick="LogoutAsync">⤶ Logout</button>
+                <button type="button" class="tb-lang" data-testid="topbar-lang-toggle"
+                        title="@T("topbar.lang.switch")" aria-label="@T("topbar.lang.switch")"
+                        @onclick="ToggleLanguage">
+                    <span class="tb-lang-flag">@(LanguageService.Current == LanguageCode.Vietnamese ? "🇻🇳" : "🇬🇧")</span>
+                    <span class="tb-lang-code">@(LanguageService.Current == LanguageCode.Vietnamese ? "VI" : "EN")</span>
+                </button>
+                <span class="tb-online">● @T("common.online")</span>
+                <button type="button" class="tb-logout" @onclick="LogoutAsync">⤶ @T("common.logout")</button>
             </div>
         </Authorized>
     </AuthorizeView>
@@ -54,11 +63,19 @@
 
     protected override void OnInitialized()
     {
+        base.OnInitialized(); // subscribe to language changes (LocalizedComponentBase)
         _clock = new System.Threading.Timer(_ =>
         {
             _now = DateTime.Now;
             _ = InvokeAsync(StateHasChanged);
         }, null, 1000, 1000);
+    }
+
+    private void ToggleLanguage()
+    {
+        LanguageService.Set(LanguageService.Current == LanguageCode.Vietnamese
+            ? LanguageCode.English
+            : LanguageCode.Vietnamese);
     }
 
     private async Task LogoutAsync()
@@ -67,5 +84,9 @@
         Nav.NavigateTo("/login", forceLoad: false, replace: true);
     }
 
-    public void Dispose() => _clock?.Dispose();
+    public override void Dispose()
+    {
+        _clock?.Dispose();
+        base.Dispose(); // unsubscribe
+    }
 }

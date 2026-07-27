@@ -4,6 +4,7 @@
    (zoom in/out, rotate, fit, fullscreen, open-external) reusing the blob URL
    already built by the parent — no extra round-trip. *@
 @namespace CCL.MES.Hybrid.Razor.Shared
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject IJSRuntime JS
 
 @if (Previews is not null && Previews.Count > 0)
@@ -20,7 +21,7 @@
                             aria-expanded="@open"
                             @onclick="() => Toggle(g.Group)">
                         <span class="spec-dwg-card-caret">@(open ? "▾" : "▸")</span>
-                        <span class="spec-dwg-card-title">@g.Title</span>
+                        <span class="spec-dwg-card-title">@T(g.TitleKey)</span>
                         <span class="spec-dwg-card-count">@items.Count</span>
                     </button>
                     @if (open)
@@ -31,7 +32,7 @@
                                 {
                                     <figure class="spec-drawing-fig">
                                         <button type="button" class="dwg-thumb-btn"
-                                                title="Open — @d.Name"
+                                                title="@T("specdrawcard.thumb.open", d.Name)"
                                                 @onclick="() => OpenViewer(d)">
                                             @if (d.IsImage && !string.IsNullOrEmpty(d.ObjectUrl))
                                             {
@@ -42,7 +43,7 @@
                                                 <span class="dwg-thumb-pdf">
                                                     <span class="dwg-thumb-pdf-icon">📄</span>
                                                     <span class="dwg-thumb-pdf-label">PDF</span>
-                                                    <span class="dwg-thumb-pdf-hint">Click to view</span>
+                                                    <span class="dwg-thumb-pdf-hint">@T("specdrawcard.pdf.clickToView")</span>
                                                 </span>
                                             }
                                             else
@@ -75,24 +76,24 @@
                     <span class="dwg-viewer-kind">@_viewer.Kind</span>
                     <span class="dwg-viewer-name">@_viewer.Name</span>
                 </span>
-                <div class="dwg-viewer-tools" role="group" aria-label="Viewer controls">
-                    <button type="button" class="dwg-viewer-btn" title="Zoom out" @onclick="ZoomOut">−</button>
-                    <span class="dwg-viewer-zoom" title="Zoom level">@ZoomPct%</span>
-                    <button type="button" class="dwg-viewer-btn" title="Zoom in" @onclick="ZoomIn">+</button>
-                    <button type="button" class="dwg-viewer-btn" title="Rotate 90°" @onclick="Rotate">⟳</button>
-                    <button type="button" class="dwg-viewer-btn" title="Fit / reset (100%)" @onclick="ResetView">⤢</button>
-                    <button type="button" class="dwg-viewer-btn" title="@(_full ? "Exit fullscreen" : "Fullscreen")" @onclick="ToggleFull">@(_full ? "🗗" : "⛶")</button>
+                <div class="dwg-viewer-tools" role="group" aria-label="@T("specdrawcard.viewer.controls")">
+                    <button type="button" class="dwg-viewer-btn" title="@T("specdrawcard.viewer.zoomOut")" @onclick="ZoomOut">−</button>
+                    <span class="dwg-viewer-zoom" title="@T("specdrawcard.viewer.zoomLevel")">@ZoomPct%</span>
+                    <button type="button" class="dwg-viewer-btn" title="@T("specdrawcard.viewer.zoomIn")" @onclick="ZoomIn">+</button>
+                    <button type="button" class="dwg-viewer-btn" title="@T("specdrawcard.viewer.rotate")" @onclick="Rotate">⟳</button>
+                    <button type="button" class="dwg-viewer-btn" title="@T("specdrawcard.viewer.fitReset")" @onclick="ResetView">⤢</button>
+                    <button type="button" class="dwg-viewer-btn" title="@(_full ? T("specdrawcard.viewer.exitFullscreen") : T("specdrawcard.viewer.fullscreen"))" @onclick="ToggleFull">@(_full ? "🗗" : "⛶")</button>
                     @if (!string.IsNullOrEmpty(_viewer.ObjectUrl))
                     {
-                        <button type="button" class="dwg-viewer-btn" title="Open in a new window" @onclick="OpenExternalAsync">↗</button>
+                        <button type="button" class="dwg-viewer-btn" title="@T("specdrawcard.viewer.openNewWindow")" @onclick="OpenExternalAsync">↗</button>
                     }
-                    <button type="button" class="dwg-viewer-btn dwg-viewer-close" title="Close" @onclick="CloseViewer">✕</button>
+                    <button type="button" class="dwg-viewer-btn dwg-viewer-close" title="@T("common.close")" @onclick="CloseViewer">✕</button>
                 </div>
             </div>
             <div class="dwg-viewer-body">
                 @if (string.IsNullOrEmpty(_viewer.ObjectUrl))
                 {
-                    <div class="dwg-viewer-empty">No inline preview for this file — use “↓ Save” on the Drawings tab.</div>
+                    <div class="dwg-viewer-empty">@T("specdrawcard.viewer.noPreview")</div>
                 }
                 else if (_viewer.IsImage)
                 {
@@ -105,7 +106,7 @@
                     @* PDF rasterised by PDF.js into canvases (blob PDFs render
                        blank in a WKWebView iframe). *@
                     <div id="@PdfHostId" class="dwg-pdf-host">
-                        <div class="dwg-viewer-empty">Rendering…</div>
+                        <div class="dwg-viewer-empty">@T("specdrawcard.viewer.rendering")</div>
                     </div>
                 }
             </div>
@@ -118,14 +119,14 @@
     /// nothing renders.</summary>
     [Parameter] public IReadOnlyList<SpecDrawingPreview>? Previews { get; set; }
 
-    private sealed record GroupDef(SpecDrawingGroup Group, string Title);
+    private sealed record GroupDef(SpecDrawingGroup Group, string TitleKey);
 
     // Fixed display order requested by Henry.
     private static readonly GroupDef[] Groups =
     {
-        new(SpecDrawingGroup.Customer, "Customer drawing"),
-        new(SpecDrawingGroup.Print,    "Print layout"),
-        new(SpecDrawingGroup.Cut,      "Cut layout"),
+        new(SpecDrawingGroup.Customer, "specdrawcard.group.customer"),
+        new(SpecDrawingGroup.Print,    "specdrawcard.group.print"),
+        new(SpecDrawingGroup.Cut,      "specdrawcard.group.cut"),
     };
 
     // Cards start expanded; the header click collapses/re-expands them.

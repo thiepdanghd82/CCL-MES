@@ -1,5 +1,6 @@
 @page "/settings/accounts"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using System.Globalization
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Shared.Accounts
@@ -33,24 +34,24 @@
       <input> + Lưu button.
 *@
 
-<PageTitle>Account Control — CCL MES</PageTitle>
+<PageTitle>@T("accounts.pagetitle")</PageTitle>
 
 <div class="settings-page-header">
-    <a class="grid-btn grid-btn-link" href="/settings">‹ Settings</a>
-    <h1 class="page-title">Account Control</h1>
+    <a class="grid-btn grid-btn-link" href="/settings">@T("common.back.settings")</a>
+    <h1 class="page-title">@T("accounts.title")</h1>
 </div>
 
 <section class="settings-form-card is-wide">
     <div class="audit-result-head">
-        <h2 class="settings-group-title">Users (@_result.Total total)</h2>
+        <h2 class="settings-group-title">@T("accounts.users.count", _result.Total)</h2>
         <div class="audit-filter-actions" style="margin-top:0">
             <input id="ac-search" type="text" class="modal-input"
-                   placeholder="Search by username / display / role…"
+                   placeholder="@T("accounts.search.placeholder")"
                    style="width:280px"
                    @bind="_search" @bind:event="oninput"
                    @bind:after="OnApplySearch" />
             <button type="button" class="grid-btn grid-btn-primary"
-                    @onclick="OpenCreateModal">+ Create account</button>
+                    @onclick="OpenCreateModal">@T("accounts.create.button")</button>
         </div>
     </div>
 
@@ -69,11 +70,11 @@
 
     @if (_loading)
     {
-        <p class="settings-form-help">Loading…</p>
+        <p class="settings-form-help">@T("accounts.loading")</p>
     }
     else if (_result.Items.Count == 0)
     {
-        <p class="settings-form-help">No matching accounts.</p>
+        <p class="settings-form-help">@T("accounts.empty")</p>
     }
     else
     {
@@ -91,14 +92,14 @@
                 </colgroup>
                 <thead>
                     <tr>
-                        <th>Username</th>
-                        <th>Display name</th>
-                        <th>Role</th>
-                        <th>Department</th>
-                        <th>Status</th>
-                        <th>Change PW?</th>
-                        <th>Last login</th>
-                        <th>Actions</th>
+                        <th>@T("accounts.col.username")</th>
+                        <th>@T("accounts.col.display")</th>
+                        <th>@T("accounts.col.role")</th>
+                        <th>@T("accounts.col.department")</th>
+                        <th>@T("accounts.col.status")</th>
+                        <th>@T("accounts.col.changepw")</th>
+                        <th>@T("accounts.col.lastlogin")</th>
+                        <th>@T("accounts.col.actions")</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -106,7 +107,7 @@
                     {
                         var isSelf = u.Id == _selfId;
                         <tr>
-                            <td class="audit-mono" title="@u.Username">@u.Username @if (isSelf) { <span class="acc-self">(you)</span> }</td>
+                            <td class="audit-mono" title="@u.Username">@u.Username @if (isSelf) { <span class="acc-self">@T("accounts.self")</span> }</td>
                             <td>
                                 <input type="text" class="modal-input acc-inline"
                                        value="@(u.DisplayName ?? "")"
@@ -131,11 +132,11 @@
                             <td>
                                 @if (u.IsActive)
                                 {
-                                    <span class="backup-chip">Active</span>
+                                    <span class="backup-chip">@T("accounts.status.active")</span>
                                 }
                                 else
                                 {
-                                    <span class="backup-chip backup-chip-pre">Disabled</span>
+                                    <span class="backup-chip backup-chip-pre">@T("accounts.status.disabled")</span>
                                 }
                             </td>
                             <td>@(u.MustChangePassword ? "✓" : "—")</td>
@@ -144,25 +145,25 @@
                                 <div class="acc-actions">
                                     <button type="button" class="audit-copy-btn"
                                             disabled="@isSelf"
-                                            title="Reset password"
-                                            @onclick="@(() => OpenResetModal(u))">Reset</button>
+                                            title="@T("accounts.action.reset.title")"
+                                            @onclick="@(() => OpenResetModal(u))">@T("accounts.action.reset")</button>
                                     @if (u.IsActive)
                                     {
                                         <button type="button" class="audit-copy-btn"
                                                 disabled="@isSelf"
-                                                title="Disable"
-                                                @onclick="@(() => OnToggleActive(u, false))">Disable</button>
+                                                title="@T("accounts.action.disable.title")"
+                                                @onclick="@(() => OnToggleActive(u, false))">@T("accounts.action.disable")</button>
                                     }
                                     else
                                     {
                                         <button type="button" class="audit-copy-btn"
-                                                title="Re-enable"
-                                                @onclick="@(() => OnToggleActive(u, true))">Enable</button>
+                                                title="@T("accounts.action.enable.title")"
+                                                @onclick="@(() => OnToggleActive(u, true))">@T("accounts.action.enable")</button>
                                     }
                                     <button type="button" class="audit-copy-btn acc-danger"
                                             disabled="@(isSelf || u.Role == "Sys")"
-                                            title="Delete account permanently"
-                                            @onclick="@(() => OnDeleteAccount(u))">Delete</button>
+                                            title="@T("accounts.action.delete.title")"
+                                            @onclick="@(() => OnDeleteAccount(u))">@T("accounts.action.delete")</button>
                                 </div>
                             </td>
                         </tr>
@@ -173,11 +174,11 @@
 
         <div class="audit-paging" style="margin-top:10px">
             <button type="button" class="grid-btn" disabled="@(_loading || _result.Page <= 1)"
-                    @onclick="@(() => LoadPage(_result.Page - 1))">‹ Previous</button>
-            <span class="audit-paging-pos">Page @_result.Page / @TotalPages</span>
+                    @onclick="@(() => LoadPage(_result.Page - 1))">@T("accounts.paging.prev")</button>
+            <span class="audit-paging-pos">@T("accounts.paging.pos", _result.Page, TotalPages)</span>
             <button type="button" class="grid-btn"
                     disabled="@(_loading || _result.Page >= TotalPages)"
-                    @onclick="@(() => LoadPage(_result.Page + 1))">Next ›</button>
+                    @onclick="@(() => LoadPage(_result.Page + 1))">@T("accounts.paging.next")</button>
         </div>
     }
 </section>
@@ -187,21 +188,21 @@
 {
     <div class="acc-modal-scrim" @onclick="CloseCreateModal">
         <div class="acc-modal" @onclick:stopPropagation="true">
-            <h3 class="acc-modal-title">Create new account</h3>
+            <h3 class="acc-modal-title">@T("accounts.create.title")</h3>
             <div class="acc-modal-grid">
                 <div>
-                    <label>Username *</label>
+                    <label>@T("accounts.field.username")</label>
                     <input type="text" class="modal-input"
                            @bind="_newUsername" @bind:event="oninput"
                            autocomplete="off" />
                 </div>
                 <div>
-                    <label>Display name</label>
+                    <label>@T("accounts.field.display")</label>
                     <input type="text" class="modal-input"
                            @bind="_newDisplay" @bind:event="oninput" />
                 </div>
                 <div>
-                    <label>Role *</label>
+                    <label>@T("accounts.field.role")</label>
                     <select class="modal-input" @bind="_newRole">
                         @foreach (var r in Roles)
                         {
@@ -210,12 +211,12 @@
                     </select>
                 </div>
                 <div>
-                    <label>Department</label>
+                    <label>@T("accounts.field.department")</label>
                     <input type="text" class="modal-input"
                            @bind="_newDept" @bind:event="oninput" />
                 </div>
                 <div style="grid-column: span 2">
-                    <label>Temporary password (the operator will be forced to change it on first sign-in) *</label>
+                    <label>@T("accounts.field.temppassword")</label>
                     <input type="password" class="modal-input"
                            @bind="_newPassword" @bind:event="oninput"
                            autocomplete="new-password" />
@@ -226,10 +227,10 @@
                 <div class="settings-form-error">@_createError</div>
             }
             <div class="acc-modal-actions">
-                <button type="button" class="grid-btn" @onclick="CloseCreateModal" disabled="@_creating">Cancel</button>
+                <button type="button" class="grid-btn" @onclick="CloseCreateModal" disabled="@_creating">@T("accounts.button.cancel")</button>
                 <button type="button" class="grid-btn grid-btn-primary"
                         @onclick="OnCreateSubmit" disabled="@_creating">
-                    @(_creating ? "Creating…" : "Create")
+                    @(_creating ? T("accounts.button.creating") : T("accounts.button.create"))
                 </button>
             </div>
         </div>
@@ -241,15 +242,12 @@
 {
     <div class="acc-modal-scrim" @onclick="CloseResetModal">
         <div class="acc-modal acc-modal-narrow" @onclick:stopPropagation="true">
-            <h3 class="acc-modal-title">Reset password — @_resetTarget.Username</h3>
+            <h3 class="acc-modal-title">@T("accounts.reset.title", _resetTarget.Username)</h3>
             <p class="settings-form-help">
-                The user will be forced to change their password at the
-                next sign-in (MustChangePassword=true). Their current
-                session is NOT revoked — if you need to revoke the session,
-                use the Disable button and then Enable again.
+                @T("accounts.reset.help")
             </p>
             <div>
-                <label>New temporary password *</label>
+                <label>@T("accounts.field.newpassword")</label>
                 <input type="password" class="modal-input"
                        @bind="_resetPassword" @bind:event="oninput"
                        autocomplete="new-password" />
@@ -259,10 +257,10 @@
                 <div class="settings-form-error">@_resetError</div>
             }
             <div class="acc-modal-actions">
-                <button type="button" class="grid-btn" @onclick="CloseResetModal" disabled="@_resetting">Cancel</button>
+                <button type="button" class="grid-btn" @onclick="CloseResetModal" disabled="@_resetting">@T("accounts.button.cancel")</button>
                 <button type="button" class="grid-btn grid-btn-danger"
                         @onclick="OnResetSubmit" disabled="@_resetting">
-                    @(_resetting ? "Resetting…" : "Reset")
+                    @(_resetting ? T("accounts.button.resetting") : T("accounts.button.reset"))
                 </button>
             </div>
         </div>
@@ -327,11 +325,11 @@
         }
         catch (ApiException ex)
         {
-            _listError = $"Failed to load: {ex.ApiError.Code} ({ex.StatusCode}).";
+            _listError = T("accounts.error.load", ex.ApiError.Code, ex.StatusCode);
         }
         catch (Exception ex)
         {
-            _listError = $"Error: {ex.GetType().Name} — {ex.Message}";
+            _listError = T("accounts.error.generic", ex.GetType().Name, ex.Message);
         }
         finally
         {
@@ -352,10 +350,9 @@
 
     private async Task OnToggleActive(AccountDto u, bool target)
     {
-        var label = target ? "enable" : "disable";
         var msg = target
-            ? $"Re-enable account '{u.Username}'?"
-            : $"Disable '{u.Username}'? All of this user's refresh tokens will be revoked immediately; access tokens remain valid for up to 15 minutes.";
+            ? T("accounts.confirm.enable", u.Username)
+            : T("accounts.confirm.disable", u.Username);
         var ok = await Js.InvokeAsync<bool>("confirm", msg);
         if (!ok) return;
         await Patch(u.Id, new UpdateAccountRequest { IsActive = target });
@@ -366,24 +363,23 @@
         _actionError = null;
         _actionInfo = null;
         var ok = await Js.InvokeAsync<bool>("confirm",
-            $"Permanently delete account '{u.Username}' ({u.Role})? This cannot be undone. " +
-            "Their audit history is kept, but the login is removed for good.");
+            T("accounts.confirm.delete", u.Username, u.Role));
         if (!ok) return;
         try
         {
             var dto = await Api.DeleteAccountAsync(u.Id);
-            _actionInfo = $"✔ Deleted account {dto.Username}.";
+            _actionInfo = T("accounts.info.deleted", dto.Username);
             // If the deleted row was the last on this page, step back a page.
             var page = _result.Items.Count <= 1 && _result.Page > 1 ? _result.Page - 1 : _result.Page;
             await LoadPage(page);
         }
         catch (ApiException ex)
         {
-            _actionError = $"Delete failed: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+            _actionError = T("accounts.error.delete", ex.ApiError.MessageEn, ex.ApiError.Code);
         }
         catch (Exception ex)
         {
-            _actionError = $"Error: {ex.GetType().Name} — {ex.Message}";
+            _actionError = T("accounts.error.generic", ex.GetType().Name, ex.Message);
         }
     }
 
@@ -394,16 +390,16 @@
         try
         {
             var dto = await Api.UpdateAccountAsync(userId, req);
-            _actionInfo = $"✔ Updated {dto.Username}.";
+            _actionInfo = T("accounts.info.updated", dto.Username);
             await LoadPage(_result.Page);
         }
         catch (ApiException ex)
         {
-            _actionError = $"Update failed: {ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+            _actionError = T("accounts.error.update", ex.ApiError.MessageEn, ex.ApiError.Code);
         }
         catch (Exception ex)
         {
-            _actionError = $"Error: {ex.GetType().Name} — {ex.Message}";
+            _actionError = T("accounts.error.generic", ex.GetType().Name, ex.Message);
         }
     }
 
@@ -440,17 +436,17 @@
                 Department = string.IsNullOrWhiteSpace(_newDept) ? null : _newDept,
                 Password = _newPassword,
             });
-            _actionInfo = $"✔ Created {dto.Username} ({dto.Role}). The user will be forced to change their password on first sign-in.";
+            _actionInfo = T("accounts.info.created", dto.Username, dto.Role);
             _createOpen = false;
             await LoadPage(1);
         }
         catch (ApiException ex)
         {
-            _createError = $"{ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+            _createError = T("accounts.error.modal", ex.ApiError.MessageEn, ex.ApiError.Code);
         }
         catch (Exception ex)
         {
-            _createError = $"Error: {ex.GetType().Name} — {ex.Message}";
+            _createError = T("accounts.error.generic", ex.GetType().Name, ex.Message);
         }
         finally
         {
@@ -482,17 +478,17 @@
         {
             var dto = await Api.ResetAccountPasswordAsync(_resetTarget.Id,
                 new ResetPasswordRequest { NewPassword = _resetPassword });
-            _actionInfo = $"✔ Reset password for {dto.Username}. MustChangePassword = true.";
+            _actionInfo = T("accounts.info.reset", dto.Username);
             _resetTarget = null;
             await LoadPage(_result.Page);
         }
         catch (ApiException ex)
         {
-            _resetError = $"{ex.ApiError.MessageEn} ({ex.ApiError.Code}).";
+            _resetError = T("accounts.error.modal", ex.ApiError.MessageEn, ex.ApiError.Code);
         }
         catch (Exception ex)
         {
-            _resetError = $"Error: {ex.GetType().Name} — {ex.Message}";
+            _resetError = T("accounts.error.generic", ex.GetType().Name, ex.Message);
         }
         finally
         {

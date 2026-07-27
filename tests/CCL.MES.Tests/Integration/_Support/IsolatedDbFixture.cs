@@ -60,6 +60,8 @@ public sealed class IsolatedDbFixture : IDisposable
     public long SeedCustomerId { get; private set; }
     public long SeedProductId  { get; private set; }
     public long SeedRevisionId { get; private set; }
+    /// <summary>ProductCode of the seeded product (BOM ParentPart join key).</summary>
+    public string SeedProductCode => "TST-001";
 
     public IsolatedDbFixture()
     {

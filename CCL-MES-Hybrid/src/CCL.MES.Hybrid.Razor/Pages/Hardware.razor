@@ -1,5 +1,6 @@
 @page "/hardware"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client.Hardware
 @using CCL.MES.Shared.Hardware
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
@@ -8,7 +9,7 @@
 @inject IWeighScaleService Scale
 @inject IDeviceModeService Device
 
-<PageTitle>Hardware — CCL MES</PageTitle>
+<PageTitle>@T("hardware.page.title")</PageTitle>
 
 @*
     W1 page skeleton. The three hardware blocks render their availability
@@ -20,44 +21,41 @@
     layout is final; only the wiring is incomplete.
 *@
 
-<h1 class="page-title">Device Configuration</h1>
+<h1 class="page-title">@T("hardware.heading")</h1>
 
 @if (!HwOptions.Value.ScanEnabled)
 {
     <div class="hw-gate" role="status">
-        <strong>Hardware features are turned off.</strong>
+        <strong>@T("hardware.gate.title")</strong>
         <p>
-            P10.3 (Hardware native) is at phase W1 — interface + stub are ready,
-            but the real device interface turns on in later phases (W2 = camera
-            Mac Catalyst, W3 = camera Windows + USB-HID, W4 = wire into WO Accept
-            + /mode kiosk). Turn it on by setting
-            <code>Hardware:ScanEnabled = true</code> in
-            <code>appsettings.json</code> or an env override.
+            @T("hardware.gate.body.pre")
+            <code>Hardware:ScanEnabled = true</code> @T("hardware.gate.body.in")
+            <code>appsettings.json</code> @T("hardware.gate.body.post")
         </p>
-        <p>Device id of this station: <code>@Device.DeviceId</code></p>
+        <p>@T("hardware.gate.deviceid"): <code>@Device.DeviceId</code></p>
     </div>
 }
 else
 {
-    <p>Station: <code>@Device.DeviceId</code></p>
+    <p>@T("hardware.station"): <code>@Device.DeviceId</code></p>
 
     <section class="hw-section">
-        <h2>Scanner</h2>
+        <h2>@T("hardware.section.scanner")</h2>
         <ScannerTestPanel />
     </section>
 
     <section class="hw-section">
-        <h2>Label Printer</h2>
+        <h2>@T("hardware.section.printer")</h2>
         <HardwareAvailabilityRow Probe="@(() => Printer.IsAvailableAsync())"
-                                 Title="Label Printer (ZPL)"
-                                 EnabledAction="(Stub — available once the label printing workflow is approved)" />
+                                 Title="@T("hardware.printer.title")"
+                                 EnabledAction="@T("hardware.printer.stub")" />
     </section>
 
     <section class="hw-section">
-        <h2>Scale</h2>
+        <h2>@T("hardware.section.scale")</h2>
         <HardwareAvailabilityRow Probe="@(() => Scale.IsAvailableAsync())"
-                                 Title="Electronic Scale"
-                                 EnabledAction="(Stub — available once the weighing workflow is approved)" />
+                                 Title="@T("hardware.scale.title")"
+                                 EnabledAction="@T("hardware.scale.stub")" />
     </section>
 }
 

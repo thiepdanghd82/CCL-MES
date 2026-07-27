@@ -23,6 +23,18 @@ public sealed class LegRow
     public bool SoftWaiting { get; set; }
     /// <summary>HARD dependency chưa xong — leg không vào RUNNING được.</summary>
     public bool HardBlocked { get; set; }
+
+    // P11 per-leg readiness (scoped WoLegId) — each leg has its OWN materialised
+    // Pre-press + IPQC surface. These summarise it for the scan-picker card so a
+    // worker sees "this leg's checks" without opening a separate dashboard.
+    /// <summary>WoMaterial rows materialised for this leg (0 = none / BOM absent).</summary>
+    public int MaterialsTotal { get; set; }
+    /// <summary>WoMaterial rows for this leg with Status = Ok.</summary>
+    public int MaterialsOk { get; set; }
+    /// <summary>WoIpqcCheckItem rows materialised for this leg (by leg.ProcessLine).</summary>
+    public int IpqcItemsTotal { get; set; }
+    /// <summary>WoIpqcCheckItem rows for this leg with Status = Ok.</summary>
+    public int IpqcItemsOk { get; set; }
 }
 
 /// <summary>P11-2 — 1 cạnh DAG.</summary>

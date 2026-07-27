@@ -1,5 +1,6 @@
 @page "/qc/library"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Shared.CheckLibrary
 @inject ICclApiClient Api
@@ -10,48 +11,48 @@
     (tools/import_qc_library.py) — không sửa tại đây (quyết định #4).
 *@
 
-<PageTitle>QC Library — Thư viện hạng mục kiểm</PageTitle>
+<PageTitle>@T("qclib.pagetitle")</PageTitle>
 
-<h1 class="page-title">Thư viện hạng mục kiểm (QC Library)</h1>
-<p class="grid-subtitle">Master data auto-sync theo process line. Sửa qua import idempotent.</p>
+<h1 class="page-title">@T("qclib.heading")</h1>
+<p class="grid-subtitle">@T("qclib.subtitle")</p>
 
 <div class="grid-toolbar">
-    <label>Process line:</label>
+    <label>@T("qclib.filter.line")</label>
     <select class="grid-search" value="@_line" @onchange="OnLineChanged" data-testid="qclib-line">
-        <option value="">— Tất cả —</option>
+        <option value="">@T("qclib.filter.all")</option>
         @foreach (var l in _lines)
         {
             <option value="@l.ProcessLine">@l.ProcessLine (@l.Count)</option>
         }
     </select>
-    <input type="search" class="grid-search" placeholder="Tìm theo mã / nội dung…"
+    <input type="search" class="grid-search" placeholder="@T("qclib.search.placeholder")"
            value="@_q" @oninput="@(e => _q = e.Value?.ToString() ?? "")" @onkeyup="HandleKey"
            data-testid="qclib-search" />
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Tải lại</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">@T("qclib.reload")</button>
 </div>
 
 @if (_error is not null)
 {
     <div class="grid-error" role="alert" data-testid="qclib-error">
-        <strong>Lỗi tải thư viện.</strong> <div>@_error</div>
+        <strong>@T("qclib.error.load")</strong> <div>@_error</div>
     </div>
 }
 else if (_loading && _items is null)
 {
-    <p class="grid-status">Đang tải…</p>
+    <p class="grid-status">@T("qclib.loading")</p>
 }
 else if (_items is not null)
 {
-    <p class="grid-status" data-testid="qclib-count">@_items.Count hạng mục</p>
+    <p class="grid-status" data-testid="qclib-count">@T("qclib.count", _items.Count)</p>
     <div class="grid-scroll">
         <table class="grid grid-sticky">
             <thead>
                 <tr>
-                    <th class="grid-h">Line</th>
+                    <th class="grid-h">@T("qclib.col.line")</th>
                     <th class="grid-h">ItemId</th>
-                    <th class="grid-h">Nhóm</th>
-                    <th class="grid-h">Nội dung</th>
-                    <th class="grid-h">Chấp nhận</th>
+                    <th class="grid-h">@T("qclib.col.group")</th>
+                    <th class="grid-h">@T("qclib.col.content")</th>
+                    <th class="grid-h">@T("qclib.col.acceptance")</th>
                     <th class="grid-h">Severity</th>
                     <th class="grid-h">Defect</th>
                 </tr>

@@ -1,19 +1,20 @@
 @page "/npi/routine"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @inject ICclApiClient Api
 @inject IGridPreferenceStore PrefStore
 
-<PageTitle>Routing — NPI</PageTitle>
+<PageTitle>@T("npiroute.pagetitle")</PageTitle>
 
-<h1 class="page-title">Operation Routing</h1>
+<h1 class="page-title">@T("npiroute.heading")</h1>
 
 <div class="grid-toolbar">
     <GridSearchBox @bind-Value="_search" OnSearch="OnSearchClickAsync"
-                   Placeholder="Search by part / op / work center…" />
-    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">Search</button>
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">Reload</button>
+                   Placeholder="@T("npiroute.search.placeholder")" />
+    <button type="button" class="grid-btn" @onclick="OnSearchClickAsync" disabled="@_loading">@T("npiroute.search")</button>
+    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">@T("npiroute.reload")</button>
     <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="impCtx">
-        <button type="button" class="grid-btn grid-btn-primary" @onclick="() => _importOpen = true" disabled="@_loading">⤓ Import…</button>
+        <button type="button" class="grid-btn grid-btn-primary" @onclick="() => _importOpen = true" disabled="@_loading">⤓ @T("npiroute.import")</button>
     </AuthorizeView>
     <div class="grid-toolbar-spacer"></div>
     <GridColumnsMenu Columns="_columns" OnChanged="StateHasChanged" />
@@ -21,14 +22,14 @@
 
 @if (_loading && _data is null)
 {
-    <p class="grid-status">Loading…</p>
+    <p class="grid-status">@T("npiroute.loading")</p>
 }
 else if (_error is not null)
 {
     <div class="grid-error" role="alert">
-        <strong>Failed to load data.</strong>
+        <strong>@T("npiroute.error.title")</strong>
         <div>@_error</div>
-        <button type="button" class="grid-btn" @onclick="ReloadAsync">Retry</button>
+        <button type="button" class="grid-btn" @onclick="ReloadAsync">@T("npiroute.retry")</button>
     </div>
 }
 else if (_data is not null)
@@ -57,7 +58,7 @@ else if (_data is not null)
                 {
                     <tr>
                         <td colspan="@_columns.Visible.Count" class="grid-empty">
-                            No matching data.
+                            @T("npiroute.empty")
                         </td>
                     </tr>
                 }
@@ -68,13 +69,13 @@ else if (_data is not null)
     <div class="grid-pager">
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsFirstPage(_page) || _loading)"
-                @onclick="() => GoToPageAsync(_page - 1)">‹ Previous</button>
+                @onclick="() => GoToPageAsync(_page - 1)">‹ @T("npiroute.pager.prev")</button>
         <span class="grid-pager-text">
-            Page @_page / @TotalPages — @_data.Total rows
+            @T("npiroute.pager.info", _page, TotalPages, _data.Total)
         </span>
         <button type="button" class="grid-btn"
                 disabled="@(GridPagination.IsLastPage(_page, TotalPages) || _loading)"
-                @onclick="() => GoToPageAsync(_page + 1)">Next ›</button>
+                @onclick="() => GoToPageAsync(_page + 1)">@T("npiroute.pager.next") ›</button>
     </div>
 
     <GridAutoFit OnFit="SetPageSizeAsync" />

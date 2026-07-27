@@ -29,6 +29,7 @@ public sealed class NpiWorkCentersTests : TestContext
             Total = 1, Page = 1, PageSize = 20,
         };
         Services.AddSingleton<ICclApiClient>(_api);
+        Services.AddI18n();
         Services.AddSingleton<IGridPreferenceStore>(new InMemoryGridPreferenceStore());
         Services.AddSingleton<IFilePickerService>(new StubFilePickerService());
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -46,11 +47,11 @@ public sealed class NpiWorkCentersTests : TestContext
         cut.WaitForState(() => cut.FindAll("tbody tr").Count > 0);
 
         var m = cut.Markup;
-        Assert.Contains("+ Add", m);
-        Assert.Contains("⭱ Import", m);
-        Assert.Contains("⭳ Export CSV", m);
+        Assert.Contains("+ Thêm", m);
+        Assert.Contains("⭱ Nhập", m);
+        Assert.Contains("⭳ Xuất CSV", m);
         Assert.Single(cut.FindAll("button.row-kebab"));      // ⋯ entry point
-        Assert.DoesNotContain(">Actions<", m);               // no inline Actions column
+        Assert.DoesNotContain(">Hành động<", m);             // no inline Actions column
     }
 
     [Fact]
@@ -61,8 +62,8 @@ public sealed class NpiWorkCentersTests : TestContext
         cut.WaitForState(() => cut.FindAll("tbody tr").Count > 0);
 
         var m = cut.Markup;
-        Assert.Contains("⭳ Export CSV", m);      // export open to viewers
-        Assert.DoesNotContain("+ Add", m);
+        Assert.Contains("⭳ Xuất CSV", m);      // export open to viewers
+        Assert.DoesNotContain("+ Thêm", m);
         Assert.Empty(cut.FindAll("button.row-kebab"));
 
         // Right-click a row → still nothing (no permitted items).
@@ -81,7 +82,7 @@ public sealed class NpiWorkCentersTests : TestContext
         cut.Find("tbody tr").TriggerEvent("oncontextmenu", new Microsoft.AspNetCore.Components.Web.MouseEventArgs { ClientX = 30, ClientY = 40 });
         var menu = cut.Find(".row-ctx-menu");
         var labels = cut.FindAll(".row-ctx-menu .row-ctx-label").Select(l => l.TextContent.Trim()).ToArray();
-        Assert.Equal(new[] { "Copy", "Edit", "Delete" }, labels);
+        Assert.Equal(new[] { "Sao chép", "Sửa", "Xoá" }, labels);
 
         // Scrim closes it; kebab re-opens the same menu.
         cut.Find(".row-ctx-scrim").Click();
@@ -99,15 +100,15 @@ public sealed class NpiWorkCentersTests : TestContext
 
         // Edit → centred modal titled with the row code.
         cut.Find("button.row-kebab").Click();
-        cut.FindAll(".row-ctx-item").First(b => b.TextContent.Contains("Edit")).Click();
-        Assert.Contains("Edit Work Center — PR-01", cut.Markup);
+        cut.FindAll(".row-ctx-item").First(b => b.TextContent.Contains("Sửa")).Click();
+        Assert.Contains("Sửa trung tâm sản xuất — PR-01", cut.Markup);
 
         // Copy → Add modal, Code field blank (must enter a new unique code).
-        cut.Find(".op-btn").TextContent.Contains("Cancel");
-        cut.FindAll(".op-btn").First(b => b.TextContent.Contains("Cancel")).Click();
+        cut.Find(".op-btn").TextContent.Contains("Huỷ");
+        cut.FindAll(".op-btn").First(b => b.TextContent.Contains("Huỷ")).Click();
         cut.Find("button.row-kebab").Click();
-        cut.FindAll(".row-ctx-item").First(b => b.TextContent.Contains("Copy")).Click();
-        Assert.Contains("Add Work Center", cut.Markup);
+        cut.FindAll(".row-ctx-item").First(b => b.TextContent.Contains("Sao chép")).Click();
+        Assert.Contains("Thêm trung tâm sản xuất", cut.Markup);
         Assert.Equal("", cut.Find(".wc-form input").GetAttribute("value") ?? "");
     }
 
@@ -121,15 +122,15 @@ public sealed class NpiWorkCentersTests : TestContext
         var cut = RenderComponent<NpiWorkCenters>();
         cut.WaitForState(() => cut.FindAll("tbody tr").Count > 0);
 
-        cut.FindAll("button").First(b => b.TextContent.Contains("+ Add")).Click();
+        cut.FindAll("button").First(b => b.TextContent.Contains("+ Thêm")).Click();
 
         // Centred Modal (NOT a floating window — transactional form, L34).
         Assert.Single(cut.FindAll(".modal-scrim"));
         Assert.Empty(cut.FindAll(".trace-win"));
-        Assert.Contains("Add Work Center", cut.Markup);
+        Assert.Contains("Thêm trung tâm sản xuất", cut.Markup);
 
         cut.Find(".wc-form input").Change("PR-99");        // Code field
-        cut.FindAll(".op-btn").First(b => b.TextContent.Contains("Save")).Click();
+        cut.FindAll(".op-btn").First(b => b.TextContent.Contains("Lưu")).Click();
 
         cut.WaitForAssertion(() => Assert.NotNull(sent));
         Assert.Equal("PR-99", sent!.Code);

@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "for f in CCL-MES-Hybrid/scripts/hook-showcard-reminder.sh scripts/hook-showcard-reminder.sh; do [ -f \"$f\" ] && exec bash \"$f\"; done; true"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "for f in CCL-MES-Hybrid/scripts/hook-spec-print-reminder.sh scripts/hook-spec-print-reminder.sh; do [ -f \"$f\" ] && exec bash \"$f\"; done; true"
+          }
+        ]
+      }
+    ]
+  }
+}

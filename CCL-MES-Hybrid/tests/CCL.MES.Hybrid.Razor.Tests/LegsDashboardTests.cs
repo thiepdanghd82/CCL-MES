@@ -3,6 +3,7 @@ using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client;
 using CCL.MES.Hybrid.Razor.Shared;
 using CCL.MES.Hybrid.Razor.Tests._Support;
+using CCL.MES.Shared.IpqcReview;
 using CCL.MES.Shared.Routing;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +24,11 @@ public sealed class LegsDashboardTests : TestContext
     public LegsDashboardTests()
     {
         Services.AddSingleton<ICclApiClient>(_api);
+        Services.AddI18n();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Windows.IFloatingWindowStore,
+            CCL.MES.Hybrid.Client.Windows.InMemoryFloatingWindowStore>();
+        JSInterop.Mode = JSRuntimeMode.Loose;   // FloatingWindow interop is no-op in tests
         this.AddTestAuthorization().SetAuthorized("op");
     }
 
@@ -214,5 +219,94 @@ public sealed class LegsDashboardTests : TestContext
 
         var call = Assert.Single(_api.ConsumeSemiCalls);
         Assert.Equal(102L, call.LegId);
+    }
+
+    // ── P11-3 redesign — visual DAG lane + gate alert ──
+
+    [Fact]
+    public void Dag_lanes_group_print_tape_branch_then_converge_then_terminal()
+    {
+        _api.LegsViewImpl = (_, _) => Task.FromResult(T3View());
+        var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
+
+        // T3 → 3 chặng: nhánh song song (PRINT∥TAPE) → hội tụ (ASSEMBLY) → terminal (CUT).
+        var branch = cut.Find(".legs-stage-branch");
+        Assert.Contains("leg-card-0", branch.InnerHtml);   // PRINT
+        Assert.Contains("leg-card-1", branch.InnerHtml);   // TAPE
+        var converge = cut.Find(".legs-stage-converge");
+        Assert.Contains("leg-card-2", converge.InnerHtml); // ASSEMBLY
+        var terminal = cut.Find(".legs-stage-terminal");
+        Assert.Contains("leg-card-3", terminal.InnerHtml); // CUT
+        // 3 chặng → 2 mũi tên nối hội tụ.
+        Assert.Equal(2, cut.FindAll(".legs-connector").Count);
+    }
+
+    [Fact]
+    public void Ipqc_wait_leg_shows_per_leg_ipqc_drill_in_toggle()
+    {
+        // ASSEMBLY leg (seq 2) at IPQC_WAIT → the leg card offers the per-leg
+        // IPQC showcard toggle; a PREPRESS leg (seq 0) does not.
+        var v = T3View(asmPhase: "IPQC_WAIT");
+        _api.LegsViewImpl = (_, _) => Task.FromResult(v);
+        var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
+
+        Assert.NotNull(cut.Find("[data-testid='leg-ipqc-toggle-2']"));
+        Assert.Empty(cut.FindAll("[data-testid='leg-ipqc-toggle-0']"));
+        // No showcard open until the toggle is clicked.
+        Assert.Empty(cut.FindAll("[data-testid='legs-ipqc-showcard-body']"));
+    }
+
+    [Fact]
+    public void Opening_a_leg_ipqc_renders_a_floating_window_showcard()
+    {
+        // L34: the per-leg IPQC inspector is a FloatingWindow showcard (drag/
+        // resize/traffic-lights), NOT a hand-rolled inline modal.
+        var v = T3View(asmPhase: "IPQC_WAIT");
+        _api.LegsViewImpl = (_, _) => Task.FromResult(v);
+        _api.IpqcViewImpl = (_, _) => Task.FromResult(new IpqcView
+        {
+            WoId = 42, WoNo = "WO-P11-T3", MesPhase = "SPLIT", ETag = "e",
+            ResolvedLines = "FINISHING", Items = System.Array.Empty<IpqcViewItem>(),
+        });
+        var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
+
+        cut.Find("[data-testid='leg-ipqc-toggle-2']").Click();
+
+        // Showcard body + its FloatingWindow chrome (.trace-win / role=dialog) render.
+        Assert.NotNull(cut.Find("[data-testid='legs-ipqc-showcard-body']"));
+        Assert.NotNull(cut.Find(".trace-win[role='dialog']"));
+        Assert.Contains("DÁN", cut.Find("[data-testid='legs-ipqc-showcard-kind']").TextContent);
+    }
+
+    [Fact]
+    public void Per_leg_readiness_chips_show_ipqc_and_materials_counts()
+    {
+        var v = T3View();
+        v.Legs[0] = new LegRow
+        {
+            LegId = 100, Sequence = 0, LegKind = "PRINT", Method = "m", ProcessLine = "SILK",
+            LegPhase = "PREPRESS", LegETag = "e0",
+            MaterialsTotal = 6, MaterialsOk = 6, IpqcItemsTotal = 25, IpqcItemsOk = 10,
+        };
+        _api.LegsViewImpl = (_, _) => Task.FromResult(v);
+        var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
+
+        var badge = cut.Find("[data-testid='leg-readiness-0']");
+        Assert.Contains("IPQC 10/25", badge.TextContent);
+        Assert.Contains("Vật tư 6/6", badge.TextContent);   // vi-default
+        // A leg with no materialised surface shows no readiness chip.
+        Assert.Empty(cut.FindAll("[data-testid='leg-readiness-1']"));
+    }
+
+    [Fact]
+    public void Hard_gate_shows_red_alert_banner_with_title_and_disables_advance()
+    {
+        _api.LegsViewImpl = (_, _) => Task.FromResult(T3View(asmPhase: "IPQC_APPROVED", asmHard: true));
+        var cut = RenderComponent<LegsDashboard>(p => p.Add(x => x.WorkOrderId, 42));
+
+        var gate = cut.Find("[data-testid='leg-hard-2']");
+        Assert.Contains("legs-gate-hard", gate.ClassList);          // token đỏ (var(--ng))
+        Assert.Contains("Chưa chạy được", gate.TextContent);        // tiêu đề gate (vi-default)
+        Assert.True(cut.Find("[data-testid='leg-advance-2']").HasAttribute("disabled"));
     }
 }

@@ -1,6 +1,7 @@
 using CCL.MES.Application.Services;
 using CCL.MES.Domain;
 using CCL.MES.Domain.Entities;
+using CCL.MES.Infrastructure;
 using CCL.MES.Tests.Integration._Support;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -313,5 +314,109 @@ public sealed class PrepressBomSnapshotServiceTests : IDisposable
         Assert.Equal("LOT-26-9999", after.LotNo);
         Assert.Equal(PrepressCheckStatus.Ok, after.Status);
         Assert.Equal("operator1", after.CheckedBy);
+    }
+
+    // ── P11 per-leg (MaterializeForLegAsync) ────────────────────────────
+
+    private async Task<long> SeedLegAsync(long woId, string legKind, string processLine, int seq = 0)
+    {
+        using var db = _fx.NewContext();
+        var leg = new CCL.MES.Domain.Entities.WoLeg
+        {
+            WorkOrderId = woId, Sequence = seq, LegKind = legKind, Method = legKind + "-m",
+            ProcessLine = processLine, SurfaceProfile = "FULL", InputSource = "IN_LINE",
+            LegPhase = "PREPRESS", CreatedAt = DateTime.UtcNow,
+        };
+        db.WoLegs.Add(leg);
+        await db.SaveChangesAsync();
+        return leg.Id;
+    }
+
+    private static Task<int> LegMatCount(MesDbContext db, long legId) =>
+        db.WoMaterials.CountAsync(m => EF.Property<long?>(m, "WoLegId") == legId);
+
+    [Fact]
+    public async Task MaterializeForLeg_print_leg_gets_plate_full_bom_no_cutter()
+    {
+        await SeedBomAsync(_fx.SeedProductCode, ("C1", 1.0, "pcs"), ("C2", 2.0, "kg"), ("C3", 0.5, "m2"));
+        var woId = await SeedWoAsync(targetQty: 100);
+        var legId = await SeedLegAsync(woId, "PRINT", "SILK");
+
+        using var db = _fx.NewContext();
+        var inserted = await new PrepressBomSnapshotService(db).MaterializeForLegAsync(legId);
+
+        Assert.Equal(3, inserted);                                   // full BOM per leg (Option A)
+        Assert.Equal(3, await LegMatCount(db, legId));
+        Assert.Equal(1, await db.WoPlateChecks.CountAsync(p => EF.Property<long?>(p, "WoLegId") == legId));
+        Assert.Equal(0, await db.WoCutterChecks.CountAsync(c => EF.Property<long?>(c, "WoLegId") == legId));
+    }
+
+    [Fact]
+    public async Task MaterializeForLeg_cut_leg_gets_cutter_no_plate()
+    {
+        await SeedBomAsync(_fx.SeedProductCode, ("C1", 1.0, "pcs"));
+        var woId = await SeedWoAsync();
+        var legId = await SeedLegAsync(woId, "CUT", "PRESS_CNC");
+
+        using var db = _fx.NewContext();
+        await new PrepressBomSnapshotService(db).MaterializeForLegAsync(legId);
+
+        Assert.Equal(0, await db.WoPlateChecks.CountAsync(p => EF.Property<long?>(p, "WoLegId") == legId));
+        Assert.Equal(1, await db.WoCutterChecks.CountAsync(c => EF.Property<long?>(c, "WoLegId") == legId));
+    }
+
+    [Fact]
+    public async Task MaterializeForLeg_assembly_leg_gets_neither_tool_but_full_bom()
+    {
+        await SeedBomAsync(_fx.SeedProductCode, ("C1", 1.0, "pcs"), ("C2", 2.0, "kg"));
+        var woId = await SeedWoAsync();
+        var legId = await SeedLegAsync(woId, "ASSEMBLY", "FINISHING");
+
+        using var db = _fx.NewContext();
+        await new PrepressBomSnapshotService(db).MaterializeForLegAsync(legId);
+
+        Assert.Equal(2, await LegMatCount(db, legId));
+        Assert.Equal(0, await db.WoPlateChecks.CountAsync(p => EF.Property<long?>(p, "WoLegId") == legId));
+        Assert.Equal(0, await db.WoCutterChecks.CountAsync(c => EF.Property<long?>(c, "WoLegId") == legId));
+    }
+
+    [Fact]
+    public async Task MaterializeForLeg_is_idempotent()
+    {
+        await SeedBomAsync(_fx.SeedProductCode, ("C1", 1.0, "pcs"), ("C2", 2.0, "kg"));
+        var woId = await SeedWoAsync();
+        var legId = await SeedLegAsync(woId, "PRINT", "SILK");
+
+        int first, second;
+        using (var d1 = _fx.NewContext()) first = await new PrepressBomSnapshotService(d1).MaterializeForLegAsync(legId);
+        using (var d2 = _fx.NewContext()) second = await new PrepressBomSnapshotService(d2).MaterializeForLegAsync(legId);
+
+        Assert.Equal(2, first);
+        Assert.Equal(0, second);   // re-run inserts nothing
+        using var db = _fx.NewContext();
+        Assert.Equal(2, await LegMatCount(db, legId));
+        Assert.Equal(1, await db.WoPlateChecks.CountAsync(p => EF.Property<long?>(p, "WoLegId") == legId));
+    }
+
+    [Fact]
+    public async Task MaterializeForLeg_does_not_touch_wo_level_null_leg_rows_parity()
+    {
+        await SeedBomAsync(_fx.SeedProductCode, ("C1", 1.0, "pcs"), ("C2", 2.0, "kg"), ("C3", 3.0, "m2"));
+        var woId = await SeedWoAsync();
+        var legId = await SeedLegAsync(woId, "PRINT", "SILK");
+
+        // WO-level (legacy 1-leg style) materialize → rows with WoLegId NULL.
+        using (var d0 = _fx.NewContext()) await new PrepressBomSnapshotService(d0).MaterializeAsync(woId);
+        // Per-leg materialize → rows with WoLegId = legId, coexisting.
+        using (var d1 = _fx.NewContext()) await new PrepressBomSnapshotService(d1).MaterializeForLegAsync(legId);
+
+        using var db = _fx.NewContext();
+        // Legacy WO-level rows are unchanged: 3 material + 1 plate + 1 cutter, all NULL-leg.
+        Assert.Equal(3, await db.WoMaterials.CountAsync(m => EF.Property<long?>(m, "WoLegId") == null));
+        Assert.Equal(1, await db.WoPlateChecks.CountAsync(p => EF.Property<long?>(p, "WoLegId") == null));
+        Assert.Equal(1, await db.WoCutterChecks.CountAsync(c => EF.Property<long?>(c, "WoLegId") == null));
+        // Per-leg rows are separate: 3 material + 1 plate (PRINT), 0 cutter.
+        Assert.Equal(3, await LegMatCount(db, legId));
+        Assert.Equal(1, await db.WoPlateChecks.CountAsync(p => EF.Property<long?>(p, "WoLegId") == legId));
     }
 }

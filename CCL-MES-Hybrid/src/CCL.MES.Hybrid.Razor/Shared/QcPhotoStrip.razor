@@ -22,6 +22,7 @@
     component crashes on iOS Safari per the renderer-trap lesson.
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Client.WoQcReview
 @using CCL.MES.Shared.WoQcReview
@@ -34,19 +35,19 @@
     <div class="qc-photo-thumb-row">
         @if (PhotoIds is null || PhotoIds.Count == 0)
         {
-            <div class="qc-photo-empty">No photos yet</div>
+            <div class="qc-photo-empty">@T("qcphoto.empty")</div>
         }
         else
         {
             @foreach (var id in PhotoIds)
             {
                 <div class="qc-photo-thumb" data-testid="@($"qc-photo-thumb-{ItemKey}-{id}")">
-                    <img src="@PhotoContentUrl(id)" alt="QC photo" loading="lazy" />
+                    <img src="@PhotoContentUrl(id)" alt="@T("qcphoto.img.alt")" loading="lazy" />
                     @if (!Disabled)
                     {
                         <button type="button"
                                 class="op-btn op-btn-danger op-btn-sm qc-photo-delete"
-                                title="Delete photo"
+                                title="@T("qcphoto.delete.title")"
                                 @onclick="@(() => OnDelete(id))"
                                 data-testid="@($"qc-photo-delete-{ItemKey}-{id}")">×</button>
                     }
@@ -59,7 +60,7 @@
        We wrap it in a label so the click target is the styled button. *@
     <label class="op-btn op-btn-secondary qc-photo-add-btn @(Disabled ? "is-disabled" : "")"
            data-testid="@($"qc-photo-add-{ItemKey}")">
-        @(_uploading ? "Uploading…" : "+ Add photo")
+        @(_uploading ? T("qcphoto.uploading") : T("qcphoto.add"))
         <InputFile OnChange="OnFilePicked"
                    accept="image/jpeg,image/png"
                    disabled="@(Disabled || _uploading)"
@@ -107,14 +108,14 @@
         const long MaxBytes = 5L * 1024 * 1024;
         if (file.Size > MaxBytes)
         {
-            _uploadError = "Photo too large — maximum 5 MB.";
+            _uploadError = T("qcphoto.error.too_large");
             return;
         }
 
         var mime = file.ContentType?.ToLowerInvariant();
         if (mime != "image/jpeg" && mime != "image/png")
         {
-            _uploadError = "Photo must be JPG or PNG.";
+            _uploadError = T("qcphoto.error.bad_type");
             return;
         }
 
@@ -140,7 +141,7 @@
         }
         catch (Exception ex)
         {
-            _uploadError = $"Photo upload failed: {ex.GetType().Name}: {ex.Message}";
+            _uploadError = T("qcphoto.error.upload_failed", $"{ex.GetType().Name}: {ex.Message}");
             Log.LogWarning(ex, "[qc-photo] upload failed");
         }
         finally
@@ -170,7 +171,7 @@
         }
         catch (Exception ex)
         {
-            _uploadError = $"Photo delete failed: {ex.GetType().Name}: {ex.Message}";
+            _uploadError = T("qcphoto.error.delete_failed", $"{ex.GetType().Name}: {ex.Message}");
             Log.LogWarning(ex, "[qc-photo] delete failed");
         }
     }

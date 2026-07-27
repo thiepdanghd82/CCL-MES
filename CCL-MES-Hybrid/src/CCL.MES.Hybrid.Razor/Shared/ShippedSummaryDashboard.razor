@@ -16,6 +16,7 @@
     handle responsive ≥1400 (3-col stats) and ≤900 (1-col stacked).
 *@
 
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.WoQcReview
@@ -24,12 +25,12 @@
 <div class="rs-dashboard shipped-summary-dashboard" data-testid="shipped-summary-dashboard">
     @if (_report is null && _initialError is null)
     {
-        <div class="rs-loading" data-testid="shipped-loading">Loading WO summary…</div>
+        <div class="rs-loading" data-testid="shipped-loading">@T("shipped.loading")</div>
     }
     else if (_initialError is not null)
     {
         <div class="wo-card-error" data-testid="shipped-initial-error">
-            <strong>Could not load summary:</strong> @_initialError
+            <strong>@T("shipped.load.failed")</strong> @_initialError
         </div>
     }
     else if (_report is not null)
@@ -43,7 +44,7 @@
             @if (_report.ShippedAt is { } at)
             {
                 <div class="shipped-time-pill" data-testid="shipped-time">
-                    <span class="ipqc-counter-label">Shipped at</span>
+                    <span class="ipqc-counter-label">@T("shipped.shippedat")</span>
                     <span class="ipqc-counter-value scan-mono">@at.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
                 </div>
             }
@@ -52,14 +53,14 @@
         <div class="shipped-stats-grid">
             @* ── Totals ────────────────────────────────────────────── *@
             <div class="rs-card shipped-stat" data-testid="shipped-totals">
-                <div class="rs-card-head"><div class="rs-card-title">Output</div></div>
+                <div class="rs-card-head"><div class="rs-card-title">@T("shipped.output")</div></div>
                 <div class="shipped-stat-grid">
                     <div class="shipped-stat-cell">
-                        <span class="shipped-stat-label">Target</span>
+                        <span class="shipped-stat-label">@T("shipped.target")</span>
                         <span class="shipped-stat-value scan-mono">@_report.Totals.QtyTarget</span>
                     </div>
                     <div class="shipped-stat-cell">
-                        <span class="shipped-stat-label">Done</span>
+                        <span class="shipped-stat-label">@T("shipped.done")</span>
                         <span class="shipped-stat-value scan-mono">@_report.Totals.QtyDone</span>
                     </div>
                     <div class="shipped-stat-cell">
@@ -67,7 +68,7 @@
                         <span class="shipped-stat-value scan-mono">@_report.Totals.QtyNg</span>
                     </div>
                     <div class="shipped-stat-cell">
-                        <span class="shipped-stat-label">NG %</span>
+                        <span class="shipped-stat-label">@T("shipped.ngpct")</span>
                         <span class="shipped-stat-value scan-mono">@FormatNgPct(_report.Totals)</span>
                     </div>
                 </div>
@@ -75,18 +76,18 @@
 
             @* ── Runtime ──────────────────────────────────────────── *@
             <div class="rs-card shipped-stat" data-testid="shipped-runtime">
-                <div class="rs-card-head"><div class="rs-card-title">Time</div></div>
+                <div class="rs-card-head"><div class="rs-card-title">@T("shipped.time")</div></div>
                 <div class="shipped-stat-grid">
                     <div class="shipped-stat-cell">
-                        <span class="shipped-stat-label">Run</span>
+                        <span class="shipped-stat-label">@T("shipped.run")</span>
                         <span class="shipped-stat-value scan-mono">@FormatDuration(_report.Runtime.RunSeconds)</span>
                     </div>
                     <div class="shipped-stat-cell">
-                        <span class="shipped-stat-label">Pause</span>
+                        <span class="shipped-stat-label">@T("shipped.pause")</span>
                         <span class="shipped-stat-value scan-mono">@FormatDuration(_report.Runtime.PauseSeconds)</span>
                     </div>
                     <div class="shipped-stat-cell">
-                        <span class="shipped-stat-label">Sessions</span>
+                        <span class="shipped-stat-label">@T("shipped.sessions")</span>
                         <span class="shipped-stat-value scan-mono">@_report.Runtime.SessionCount</span>
                     </div>
                 </div>
@@ -97,19 +98,19 @@
                 <div class="rs-card-head"><div class="rs-card-title">OEE</div></div>
                 <div class="shipped-oee-grid">
                     <div class="shipped-oee-cell">
-                        <span class="shipped-stat-label">Availability</span>
+                        <span class="shipped-stat-label">@T("shipped.availability")</span>
                         <span class="shipped-stat-value scan-mono">@FormatPct(_report.Oee.Availability)</span>
                     </div>
                     <div class="shipped-oee-cell">
-                        <span class="shipped-stat-label">Performance</span>
+                        <span class="shipped-stat-label">@T("shipped.performance")</span>
                         <span class="shipped-stat-value scan-mono">@FormatPct(_report.Oee.Performance)</span>
                     </div>
                     <div class="shipped-oee-cell">
-                        <span class="shipped-stat-label">Quality</span>
+                        <span class="shipped-stat-label">@T("shipped.quality")</span>
                         <span class="shipped-stat-value scan-mono">@FormatPct(_report.Oee.Quality)</span>
                     </div>
                     <div class="shipped-oee-cell shipped-oee-total" data-testid="shipped-oee-total">
-                        <span class="shipped-stat-label">OEE total</span>
+                        <span class="shipped-stat-label">@T("shipped.oee.total")</span>
                         <span class="shipped-stat-value scan-mono">@FormatPct(_report.Oee.Oee)</span>
                     </div>
                 </div>
@@ -121,7 +122,7 @@
         {
             <div class="rs-card shipped-pareto" data-testid="shipped-pareto">
                 <div class="rs-card-head">
-                    <div class="rs-card-title">Pause Pareto (top-5)</div>
+                    <div class="rs-card-title">@T("shipped.pareto.title")</div>
                 </div>
                 <div class="shipped-pareto-rows">
                     @{ var top5 = _report.PausePareto.Take(5).ToList();
@@ -145,7 +146,7 @@
 
         @* ── 3-leg QC summary ────────────────────────────────────── *@
         <div class="rs-card shipped-qc" data-testid="shipped-qc-summary">
-            <div class="rs-card-head"><div class="rs-card-title">QC summary</div></div>
+            <div class="rs-card-head"><div class="rs-card-title">@T("shipped.qc.summary")</div></div>
             <div class="shipped-qc-grid">
                 @RenderQcLeg("IPQC", _report.QcSummary.Ipqc, "shipped-qc-ipqc", showAllSigs: false)
                 @RenderQcLeg("FQC", _report.QcSummary.Fqc, "shipped-qc-fqc", showAllSigs: false)
@@ -205,21 +206,21 @@
             @if (!string.IsNullOrEmpty(leg.SubmittedBy))
             {
                 <div class="shipped-qc-sig-row">
-                    <span class="shipped-qc-sig-label">Inspector</span>
+                    <span class="shipped-qc-sig-label">@T("shipped.sig.inspector")</span>
                     <span class="shipped-qc-sig-value scan-mono">@leg.SubmittedBy</span>
                 </div>
             }
             @if (showAllSigs && !string.IsNullOrEmpty(leg.Reviewer))
             {
                 <div class="shipped-qc-sig-row">
-                    <span class="shipped-qc-sig-label">Reviewer</span>
+                    <span class="shipped-qc-sig-label">@T("shipped.sig.reviewer")</span>
                     <span class="shipped-qc-sig-value scan-mono">@leg.Reviewer</span>
                 </div>
             }
             @if (!string.IsNullOrEmpty(leg.Approver))
             {
                 <div class="shipped-qc-sig-row">
-                    <span class="shipped-qc-sig-label">Approver</span>
+                    <span class="shipped-qc-sig-label">@T("shipped.sig.approver")</span>
                     <span class="shipped-qc-sig-value scan-mono">@leg.Approver</span>
                 </div>
             }
@@ -251,15 +252,15 @@
         return $"{h}h {m}m";
     }
 
-    private static string JudgmentDisplay(string j) => j switch
+    private string JudgmentDisplay(string j) => j switch
     {
-        "Pass"       => "✓ Pass",
-        "Pending"    => "— Pending",
-        "Reject"     => "✗ Reject",
-        "GoRun"      => "✓ Go Run",
-        "StopLine"   => "✗ Stop Line",
-        "SpecialAccept" => "⚠ Special Accept",
-        _            => j,
+        "Pass"          => T("shipped.judgment.pass"),
+        "Pending"       => T("shipped.judgment.pending"),
+        "Reject"        => T("shipped.judgment.reject"),
+        "GoRun"         => T("shipped.judgment.gorun"),
+        "StopLine"      => T("shipped.judgment.stopline"),
+        "SpecialAccept" => T("shipped.judgment.specialaccept"),
+        _               => j,
     };
 
     private static string JudgmentCss(string j) => j switch
