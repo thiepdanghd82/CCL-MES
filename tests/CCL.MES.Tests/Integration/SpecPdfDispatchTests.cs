@@ -299,6 +299,70 @@ public class SpecPdfDispatchTests
         Assert.DoesNotContain(titles, s => s.Contains("Change Log"));
     }
 
+    // ── PR (auto-fill): 3-line rows + vertical fill + flexible revision ──
+
+    private static string CellText(Cell c) =>
+        string.Concat(c.Elements.OfType<Paragraph>()
+            .SelectMany(p => p.Elements.OfType<Text>()).Select(t => t.Content));
+
+    private static Table SilkProcessTable(Document doc) =>
+        doc.LastSection.Elements.OfType<Table>().First(t => t.Columns.Count == 21);
+
+    private static Table RevisionTable(Document doc) =>
+        doc.LastSection.Elements.OfType<Table>()
+            .First(t => t.Columns.Count == 4 && CellText(t.Rows[0].Cells[0]) == "Rev");
+
+    [Fact]
+    public void Process_and_revision_rows_have_three_line_min_height()
+    {
+        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx);
+        var silk = SilkProcessTable(doc);
+        // Row 0 = header; data rows carry the ≥3-line minimum height.
+        for (int r = 1; r < silk.Rows.Count; r++)
+            Assert.True(silk.Rows[r].Height.Centimeter >=
+                SpecPdfDocumentBuilder.DetailLayout.ProcessRowMinCm - 1e-9,
+                $"silk row {r} height {silk.Rows[r].Height.Centimeter}cm below 3-line min");
+
+        var rev = RevisionTable(doc);
+        for (int r = 1; r < rev.Rows.Count; r++)
+            Assert.True(rev.Rows[r].Height.Centimeter >=
+                SpecPdfDocumentBuilder.DetailLayout.RevisionRowMinCm - 1e-9);
+    }
+
+    [Fact]
+    public void Row_fill_grows_row_height()
+    {
+        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx, rowFillCm: 0.5);
+        var silk = SilkProcessTable(doc);
+        Assert.Equal(SpecPdfDocumentBuilder.DetailLayout.ProcessRowMinCm + 0.5,
+            silk.Rows[1].Height.Centimeter, 3);
+    }
+
+    [Fact]
+    public void Revision_history_is_flexible_one_row_per_entry()
+    {
+        var spec = BuildSilk();
+        spec.Lineage = Enumerable.Range(1, 7).Select(i => new RevisionLineageEntry(
+            Id: i, RevisionCode: ((char)('A' + i - 1)).ToString(),
+            ChangeSummary: $"Revision {i}",
+            CreatedAt: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(i),
+            CreatedBy: "verify")).ToList();
+        var rev = RevisionTable(SpecPdfDocumentBuilder.BuildDetailSheet(spec, Ctx));
+        // 1 header + 7 data rows — uncapped, exactly the lineage count.
+        Assert.Equal(8, rev.Rows.Count);
+    }
+
+    [Fact]
+    public void Vertical_fill_grows_short_sheet_without_adding_a_page()
+    {
+        // A short spec leaves room below → the fill phase grows rows (>0) while
+        // holding the page count. Proves the sheet fills toward the bottom.
+        using var pdf = PdfSpecSheetExporter.RenderFitted(
+            BuildSilk(), Ctx, out _, out var rowFillCm);
+        Assert.True(pdf.PageCount <= 2, $"expected ≤2 pages, got {pdf.PageCount}");
+        Assert.True(rowFillCm > 0, "short sheet should have grown its rows to fill");
+    }
+
     private static SpecDetailDto BuildLongSilk()
     {
         var s = BuildSilk();

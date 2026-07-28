@@ -34,31 +34,78 @@ public class PdfSpecSheetExporter
         return ms.ToArray();
     }
 
+    /// <summary>Upper bound (cm) for the per-row vertical-fill search — a row
+    /// never grows more than this even on a nearly-empty sheet, so a 1-row
+    /// table doesn't balloon into one giant band.</summary>
+    private const double MaxRowFillCm = 1.4;
+
     /// <summary>
     /// PR (detail-2page) — AUTO-FIT render. MigraDoc can't report page count
     /// before rendering, so render at the current compact step, read
     /// <see cref="PdfDocument.PageCount"/>, and if it exceeds 2 rebuild ONE
     /// step tighter (smaller body font + denser padding) and re-render — up to
     /// <see cref="SpecPdfDocumentBuilder.DetailLayout.MaxStep"/> times. Returns
-    /// the first document at ≤ 2 pages (or the tightest attempt). Exposed for
-    /// tests to assert the fitted page count without re-implementing the loop.
+    /// the first document at ≤ 2 pages (or the tightest attempt).
     /// </summary>
     public static PdfDocument RenderFitted(
         SpecDetailDto detail, SpecExportContext context, out int usedStep)
+        => RenderFitted(detail, context, out usedStep, out _);
+
+    /// <summary>
+    /// As <see cref="RenderFitted(SpecDetailDto, SpecExportContext, out int)"/>,
+    /// plus a SECOND phase — vertical AUTO-FILL. After fitting to ≤ 2 pages we
+    /// binary-search <c>rowFillCm</c> (extra height on every Print-Process +
+    /// Revision row) for the LARGEST value that keeps the same page count, so
+    /// the sheet grows down to ~1cm off the bottom margin instead of leaving a
+    /// big empty band. Bounded by <see cref="MaxRowFillCm"/> so a sparse sheet
+    /// doesn't over-stretch. <paramref name="usedRowFillCm"/> exposes the
+    /// chosen fill for tests.
+    /// </summary>
+    public static PdfDocument RenderFitted(
+        SpecDetailDto detail, SpecExportContext context,
+        out int usedStep, out double usedRowFillCm)
     {
         EnsureFontResolverInitialized();
 
-        PdfDocumentRenderer renderer = null!;
+        // ── Phase 1: FIT to ≤ 2 pages by shrinking the font tier ──────────
+        PdfDocument fitted = null!;
+        int fittedPages = int.MaxValue;
         usedStep = 0;
         for (int step = 0; step <= SpecPdfDocumentBuilder.DetailLayout.MaxStep; step++)
         {
             usedStep = step;
-            var doc = SpecPdfDocumentBuilder.BuildDetailSheet(detail, context, compactStep: step);
-            renderer = new PdfDocumentRenderer { Document = doc };
-            renderer.RenderDocument();
-            if (renderer.PdfDocument.PageCount <= 2)
-                break;
+            fitted = Render(detail, context, step, rowFillCm: 0);
+            fittedPages = fitted.PageCount;
+            if (fittedPages <= 2) break;
         }
+
+        // ── Phase 2: FILL vertically — grow rows while page count holds ───
+        double lo = 0, hi = MaxRowFillCm;
+        PdfDocument best = fitted;
+        usedRowFillCm = 0;
+        for (int iter = 0; iter < 8; iter++)
+        {
+            double mid = (lo + hi) / 2;
+            var probe = Render(detail, context, usedStep, mid);
+            if (probe.PageCount <= fittedPages)
+            {
+                lo = mid; best = probe; usedRowFillCm = mid; // still fits → keep, try taller
+            }
+            else
+            {
+                hi = mid;                                    // spilled → back off
+            }
+        }
+        return best;
+    }
+
+    private static PdfDocument Render(
+        SpecDetailDto detail, SpecExportContext context, int step, double rowFillCm)
+    {
+        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(
+            detail, context, compactStep: step, rowFillCm: rowFillCm);
+        var renderer = new PdfDocumentRenderer { Document = doc };
+        renderer.RenderDocument();
         return renderer.PdfDocument;
     }
 

@@ -3213,6 +3213,15 @@ html, body {
 
 .spec-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
 
+/* Print Process + Revision data rows sit ~3 lines tall (roomier than the tight
+   1-line default), content vertically centred. Text still stays on ONE line
+   (nowrap) — this is ROW HEIGHT, not wrap. On-screen == print == PDF. */
+.spec-print-table-full tbody td,
+.spec-rev-table-full tbody td {
+    height: 2.3rem;
+    vertical-align: middle;
+}
+
 /* Print Process / flexo tables are wide (up to 21 cols). Keep every row on
    ONE line (content-sized columns via the default auto layout); when the
    viewport is too narrow the .spec-table-scroll wrapper scrolls horizontally
@@ -6918,6 +6927,16 @@ tr.wc-row:hover { background: var(--c-bg); }
     .spec-rev-table-full th, .spec-rev-table-full td {
         border-width: 0.5px !important;
     }
+
+    /* Vertical AUTO-FILL (print): the sheet claims the printable page height
+       and its Print-Process + Revision rows grow roomier so the content sits
+       near the bottom margin instead of stranding a big empty band. CSS can't
+       measure the exact remaining space (MigraDoc does that precisely for the
+       server PDF) — these taller rows are the best-effort browser equivalent;
+       any small leftover stays blank rather than over-stretching. */
+    .spec-showcard-full { min-height: 18.5cm; } /* A4 landscape − top − ~1cm bottom */
+    .spec-print-table-full tbody td,
+    .spec-rev-table-full tbody td { height: 2.6rem !important; }
 
     /* ── Vertical compaction — squeeze the stacked sections so the whole
        sheet lands in ~2 LANDSCAPE pages (landscape trades height for width,
