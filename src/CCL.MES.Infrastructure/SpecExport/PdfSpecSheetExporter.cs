@@ -34,10 +34,11 @@ public class PdfSpecSheetExporter
         return ms.ToArray();
     }
 
-    /// <summary>Upper bound (cm) for the per-row vertical-fill search — a row
-    /// never grows more than this even on a nearly-empty sheet, so a 1-row
-    /// table doesn't balloon into one giant band.</summary>
-    private const double MaxRowFillCm = 1.4;
+    /// <summary>Upper bound (cm) for the per-row vertical-fill search. Kept LOW
+    /// so a short sheet fills a LITTLE (rows stay a clean, comfortable band) —
+    /// never the grotesque tall boxes a large fill produced. Professional look
+    /// beats filling the very last centimetre.</summary>
+    private const double MaxRowFillCm = 0.30;
 
     /// <summary>
     /// PR (detail-2page) — AUTO-FIT render. MigraDoc can't report page count

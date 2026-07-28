@@ -332,19 +332,19 @@ public class SpecPdfDispatchTests
     }
 
     [Fact]
-    public void Rows_are_natural_height_until_fill_grows_them()
+    public void Rows_use_comfortable_tier_height_plus_bounded_fill()
     {
-        // rowFill = 0 → natural minimum (no forced tall band).
+        var rowMin = SpecPdfDocumentBuilder.DetailLayout.ForStep(0).RowMinCm;
+
+        // rowFill = 0 → the comfortable per-tier minimum (not a forced tall band).
         var natural = SilkProcessTable(
             SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx));
-        Assert.Equal(SpecPdfDocumentBuilder.DetailLayout.NaturalRowMinCm,
-            natural.Rows[1].Height.Centimeter, 3);
+        Assert.Equal(rowMin, natural.Rows[1].Height.Centimeter, 3);
 
-        // rowFill = 0.5 → natural + 0.5.
+        // A fill adds ON TOP of the tier minimum.
         var filled = SilkProcessTable(
-            SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx, rowFillCm: 0.5));
-        Assert.Equal(SpecPdfDocumentBuilder.DetailLayout.NaturalRowMinCm + 0.5,
-            filled.Rows[1].Height.Centimeter, 3);
+            SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx, rowFillCm: 0.3));
+        Assert.Equal(rowMin + 0.3, filled.Rows[1].Height.Centimeter, 3);
     }
 
     [Fact]
