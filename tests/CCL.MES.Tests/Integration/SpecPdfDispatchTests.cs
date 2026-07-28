@@ -271,17 +271,32 @@ public class SpecPdfDispatchTests
     }
 
     [Fact]
-    public void Detail_tables_use_hairline_borders()
+    public void Detail_tables_use_half_hairline_borders()
     {
         var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx);
         var tables = doc.LastSection.Elements.OfType<Table>().ToList();
         Assert.NotEmpty(tables);
-        // Every bordered data table draws a hairline (≤ 0.25pt). The doc-header
-        // layout table has Borders.Width = 0 (only a navy bottom rule), so it
-        // is naturally excluded by the > 0 guard.
+        // Border rule was halved 0.25 → 0.125pt for the exported sheet. The
+        // doc-header layout table has Borders.Width = 0 (only a navy bottom
+        // rule), so it is naturally excluded by the > 0 guard.
+        Assert.Equal(0.125, SpecPdfDocumentBuilder.StyleConstants.DetailBorderWidthPt);
         foreach (var t in tables.Where(t => t.Borders.Width.Point > 0))
-            Assert.True(t.Borders.Width.Point <= 0.25 + 1e-9,
-                $"table border {t.Borders.Width.Point}pt exceeds hairline 0.25");
+            Assert.True(Math.Abs(t.Borders.Width.Point - 0.125) < 1e-9,
+                $"table border {t.Borders.Width.Point}pt is not the halved 0.125");
+    }
+
+    [Fact]
+    public void Exported_sheet_omits_the_change_log_section()
+    {
+        // The audit Change Log is on-screen only — it must NOT appear in the
+        // exported/printed PDF (BuildDetailSheet drops section 9). Assert no
+        // section-title paragraph carries the Change Log heading.
+        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx);
+        var titles = doc.LastSection.Elements
+            .OfType<Paragraph>()
+            .SelectMany(p => p.Elements.OfType<Text>())
+            .Select(t => t.Content);
+        Assert.DoesNotContain(titles, s => s.Contains("Change Log"));
     }
 
     private static SpecDetailDto BuildLongSilk()

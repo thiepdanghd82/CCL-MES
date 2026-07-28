@@ -6849,6 +6849,7 @@ tr.wc-row:hover { background: var(--c-bg); }
     .grid-export-banner,
     .spec-action-banner-row,
     .spec-print-pdf,
+    .spec-block-changelog,
     #blazor-error-ui {
         display: none !important;
     }
@@ -6908,6 +6909,14 @@ tr.wc-row:hover { background: var(--c-bg); }
     .spec-info-table-full th, .spec-info-table-full td,
     .spec-rev-table-full th, .spec-rev-table-full td {
         padding: 1.5px 5px !important;
+    }
+
+    /* Halve the table rule weight for print/export only — on-screen keeps the
+       1px grid; the printed sheet reads finer at 0.5px (½ the on-screen nét). */
+    .spec-info-table-full th, .spec-info-table-full td,
+    .spec-print-table-full th, .spec-print-table-full td,
+    .spec-rev-table-full th, .spec-rev-table-full td {
+        border-width: 0.5px !important;
     }
 
     /* ── Vertical compaction — squeeze the stacked sections so the whole
