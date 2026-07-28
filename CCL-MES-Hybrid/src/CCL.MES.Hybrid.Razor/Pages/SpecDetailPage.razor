@@ -6,7 +6,6 @@
 @inject IJSRuntime JS
 @inject CCL.MES.Hybrid.Client.Files.IFileOpener FileOpener
 @inject CCL.MES.Hybrid.Client.Files.IFileSaver FileSaver
-@inject CCL.MES.Hybrid.Client.Printing.IPrintService Print
 @using CCL.MES.Hybrid.Client.Specs
 @using CCL.MES.Hybrid.Client.Files
 @using CCL.MES.Hybrid.Razor.Shared
@@ -79,11 +78,12 @@
             </AuthorizeView>
         }
 
-        @* Print sheet — native WebView print (WYSIWYG) on Mac Catalyst;
-           falls back to the server MigraDoc PDF on other hosts. *@
+        @* Print sheet — server MigraDoc PDF (guaranteed 1-page A4 landscape).
+           Chosen over native WebView print because the OS paginates the DOM
+           by height and can't fit-to-one-page (it spilled to 3 pages). *@
         <button type="button" class="grid-btn grid-btn-secondary spec-print-pdf"
                 disabled="@_exporting"
-                @onclick="PrintSheetAsync">
+                @onclick="ExportSheetPdfAsync">
             @(_exporting ? @T("specdetail.pdf.generating") : @T("specdetail.pdf.print"))
         </button>
     }
@@ -1023,55 +1023,6 @@ else if (_detail is not null && _vm is not null)
         if (_detail is null) return;
         await Api.TrashSpecAsync(_detail.Id);
         Nav.NavigateTo("/npi/specs");
-    }
-
-    // ── P11.x — Print sheet (native WebView print → MigraDoc fallback) ──
-
-    /// <summary>
-    /// Print the Spec Full sheet. On Mac Catalyst this drives the native
-    /// OS print panel over the LIVE DOM (WYSIWYG — the operator picks
-    /// A4/A3, orientation, scale, Save-as-PDF), so the print matches the
-    /// on-screen sheet exactly. We first switch to Full mode + let it
-    /// render so the printed DOM is the full sheet (the @media print CSS
-    /// hides all chrome and expands the sheet to the page). On non-Catalyst
-    /// hosts (Windows / tests) native print is unavailable → fall back to
-    /// the existing server MigraDoc sheet PDF.
-    /// </summary>
-    private async Task PrintSheetAsync()
-    {
-        if (_exporting || _detail is null) return;
-
-        // Native path only when the host supports it (Mac Catalyst).
-        if (Print.IsNativePrintSupported)
-        {
-            // Ensure the Full sheet is the rendered surface before printing.
-            if (_activeTab != "spec" || _specEditMode || _compareMode || !_fullMode)
-            {
-                _specEditMode = false;
-                _compareMode = false;
-                _fullMode = true;
-                await SetActiveTabAsync("spec");
-                StateHasChanged();
-                // Let Blazor flush the Full-mode render before the OS
-                // snapshots the DOM for printing.
-                await Task.Delay(120);
-            }
-
-            var jobName = $"SpecSheet_{_detail.RefNo ?? _detail.SpecCode}_{_detail.RevisionCode}";
-            var presented = await Print.PrintCurrentViewAsync(jobName);
-            if (presented)
-            {
-                _exportBanner = T("specdetail.print.native.opened");
-                _exportBannerKind = "info";
-                _exportSandboxPath = null;
-                StateHasChanged();
-                return;
-            }
-            // presented == false → native unavailable at runtime; fall
-            // through to the MigraDoc download path.
-        }
-
-        await ExportSheetPdfAsync();
     }
 
     // ── P10.5g — Per-spec sheet PDF export ───────────────────────────
