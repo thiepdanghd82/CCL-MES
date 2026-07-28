@@ -3213,12 +3213,14 @@ html, body {
 
 .spec-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
 
-/* Print Process + Revision data rows sit ~3 lines tall (roomier than the tight
-   1-line default), content vertically centred. Text still stays on ONE line
-   (nowrap) — this is ROW HEIGHT, not wrap. On-screen == print == PDF. */
+/* Print Process + Revision data rows use a MODERATE row height (roomier than
+   a tight 1-line default, not a forced-tall band), content vertically centred.
+   Text stays on ONE line (nowrap) — this is ROW HEIGHT, not wrap. Kept moderate
+   so the printed/exported sheet does NOT inflate onto a blank extra page (L39);
+   the server MigraDoc PDF fills the page precisely via its measured auto-fit. */
 .spec-print-table-full tbody td,
 .spec-rev-table-full tbody td {
-    height: 2.3rem;
+    height: 1.7rem;
     vertical-align: middle;
 }
 
@@ -6928,15 +6930,11 @@ tr.wc-row:hover { background: var(--c-bg); }
         border-width: 0.5px !important;
     }
 
-    /* Vertical AUTO-FILL (print): the sheet claims the printable page height
-       and its Print-Process + Revision rows grow roomier so the content sits
-       near the bottom margin instead of stranding a big empty band. CSS can't
-       measure the exact remaining space (MigraDoc does that precisely for the
-       server PDF) — these taller rows are the best-effort browser equivalent;
-       any small leftover stays blank rather than over-stretching. */
-    .spec-showcard-full { min-height: 18.5cm; } /* A4 landscape − top − ~1cm bottom */
-    .spec-print-table-full tbody td,
-    .spec-rev-table-full tbody td { height: 2.6rem !important; }
+    /* NOTE: no min-height / forced-tall rows on the printed sheet — a browser
+       can't measure remaining page space, so forcing height only risks spilling
+       onto a blank extra page. Rows keep the moderate on-screen height; the
+       content just ends where it ends. The server MigraDoc PDF is the surface
+       that fills the page precisely (measured auto-fit). See Lesson L39. */
 
     /* ── Vertical compaction — squeeze the stacked sections so the whole
        sheet lands in ~2 LANDSCAPE pages (landscape trades height for width,

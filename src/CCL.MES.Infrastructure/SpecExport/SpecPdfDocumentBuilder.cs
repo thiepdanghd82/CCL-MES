@@ -94,11 +94,12 @@ public static class SpecPdfDocumentBuilder
         /// ForStep (independent of the font tier).</summary>
         public double RowFillCm { get; set; }
 
-        /// <summary>Default minimum row height (~3 lines of body text) for the
-        /// Print Process + Revision tables — roomier than the natural 1-line
-        /// height, before any auto-fill is added.</summary>
-        public const double ProcessRowMinCm = 0.72;
-        public const double RevisionRowMinCm = 0.80;
+        /// <summary>Natural ~1-line minimum row height for fillable rows. The
+        /// exporter's BOUNDED auto-fit grows rows ON TOP of this (RowFillCm)
+        /// only as far as the page allows — we do NOT force a tall "3-line"
+        /// minimum here, because a fixed tall row inflates content and spills
+        /// onto an extra (blank) page. See Lesson L39.</summary>
+        public const double NaturalRowMinCm = 0.30;
 
         /// <summary>Largest step index <see cref="ForStep"/> accepts distinctly;
         /// the exporter's auto-fit loop stops shrinking here.</summary>
@@ -113,7 +114,6 @@ public static class SpecPdfDocumentBuilder
         };
     }
 
-    /// <summary>
     /// <summary>Usable content width of the detail sheet = A4 landscape
     /// (29.7cm) − left/right margins (1.2cm each). Detail tables scale their
     /// columns to fill this so nothing is stranded at ~60% width with a big
@@ -617,7 +617,7 @@ public static class SpecPdfDocumentBuilder
         foreach (var c in d.PrintColors)
         {
             var row = t.AddRow();
-            SetFillRow(row, DetailLayout.ProcessRowMinCm, layout);
+            SetFillRow(row, layout);
             if (alt) row.Shading.Color = Color.Parse(StyleConstants.AltRowBgHex);
             alt = !alt;
             row.Cells[0].AddParagraph(c.Seq.ToString(CultureInfo.InvariantCulture));
@@ -662,7 +662,7 @@ public static class SpecPdfDocumentBuilder
         foreach (var r in d.FlexoPrintRows)
         {
             var row = t.AddRow();
-            SetFillRow(row, DetailLayout.ProcessRowMinCm, layout);
+            SetFillRow(row, layout);
             row.Cells[0].AddParagraph(r.Process ?? "—");
             row.Cells[1].AddParagraph(r.Material ?? "—");
             row.Cells[2].AddParagraph(r.Size ?? "—");
@@ -691,7 +691,7 @@ public static class SpecPdfDocumentBuilder
         foreach (var c in d.FlexoCuttingRows)
         {
             var row = t.AddRow();
-            SetFillRow(row, DetailLayout.ProcessRowMinCm, layout);
+            SetFillRow(row, layout);
             row.Cells[0].AddParagraph(c.Process ?? "—");
             row.Cells[1].AddParagraph(c.Lamination ?? "—");
             row.Cells[2].AddParagraph(c.CutterName ?? "—");
@@ -720,7 +720,7 @@ public static class SpecPdfDocumentBuilder
         foreach (var i in d.FlexoInkRows)
         {
             var row = t.AddRow();
-            SetFillRow(row, DetailLayout.ProcessRowMinCm, layout);
+            SetFillRow(row, layout);
             row.Cells[0].AddParagraph(i.Seq.ToString());
             row.Cells[1].AddParagraph(i.Color ?? "—");
             row.Cells[2].AddParagraph(i.InkCode ?? "—");
@@ -781,7 +781,7 @@ public static class SpecPdfDocumentBuilder
         if (d.Lineage.Count == 0)
         {
             var row = t.AddRow();
-            SetFillRow(row, DetailLayout.RevisionRowMinCm, layout);
+            SetFillRow(row, layout);
             var cell0 = row.Cells[0]; cell0.MergeRight = 3;
             var p = cell0.AddParagraph("— No revision history —");
             p.Format.Font.Italic = true;
@@ -793,7 +793,7 @@ public static class SpecPdfDocumentBuilder
         foreach (var lr in d.Lineage)
         {
             var row = t.AddRow();
-            SetFillRow(row, DetailLayout.RevisionRowMinCm, layout);
+            SetFillRow(row, layout);
             row.Cells[0].AddParagraph(lr.RevisionCode);
             row.Cells[1].AddParagraph(lr.ChangeSummary ?? "—");
             row.Cells[2].AddParagraph(lr.CreatedAt.ToString("yyyy-MM-dd"));
@@ -877,15 +877,15 @@ public static class SpecPdfDocumentBuilder
         foreach (var w in weights) t.AddColumn(Unit.FromCentimeter(w * scale));
     }
 
-    /// <summary>Give a data row a minimum height (≈ 3 lines) PLUS the current
-    /// vertical-fill amount, using <see cref="RowHeightRule.AtLeast"/> so a
-    /// taller cell still expands the row (never clips). The exporter's fill
-    /// loop grows <see cref="DetailLayout.RowFillCm"/> so the sheet reaches
-    /// ~1cm off the bottom margin.</summary>
-    private static void SetFillRow(Row row, double baseMinCm, DetailLayout layout)
+    /// <summary>Give a fillable data row its natural 1-line minimum PLUS the
+    /// current bounded auto-fill amount (<see cref="DetailLayout.RowFillCm"/>),
+    /// using <see cref="RowHeightRule.AtLeast"/> so a taller cell still expands
+    /// (never clips). At RowFillCm = 0 the row is natural height — no forced
+    /// inflation — so the sheet never spills onto a blank extra page (L39).</summary>
+    private static void SetFillRow(Row row, DetailLayout layout)
     {
         row.HeightRule = RowHeightRule.AtLeast;
-        row.Height = Unit.FromCentimeter(baseMinCm + layout.RowFillCm);
+        row.Height = Unit.FromCentimeter(DetailLayout.NaturalRowMinCm + layout.RowFillCm);
         row.VerticalAlignment = VerticalAlignment.Center;
     }
 

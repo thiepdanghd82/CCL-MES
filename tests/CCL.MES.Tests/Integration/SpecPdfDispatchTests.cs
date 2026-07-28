@@ -313,29 +313,38 @@ public class SpecPdfDispatchTests
             .First(t => t.Columns.Count == 4 && CellText(t.Rows[0].Cells[0]) == "Rev");
 
     [Fact]
-    public void Process_and_revision_rows_have_three_line_min_height()
+    public void Sample_sheet_is_one_page_with_no_blank_trailing_page()
     {
-        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx);
-        var silk = SilkProcessTable(doc);
-        // Row 0 = header; data rows carry the ≥3-line minimum height.
-        for (int r = 1; r < silk.Rows.Count; r++)
-            Assert.True(silk.Rows[r].Height.Centimeter >=
-                SpecPdfDocumentBuilder.DetailLayout.ProcessRowMinCm - 1e-9,
-                $"silk row {r} height {silk.Rows[r].Height.Centimeter}cm below 3-line min");
+        // Regression (L39): forced 3-line rows inflated content onto a 2nd/3rd
+        // (blank) page. A normal spec must render exactly ONE page, and the
+        // auto-fill must NOT add a page beyond the natural fit.
+        using var pdf = PdfSpecSheetExporter.RenderFitted(
+            BuildSilk(), Ctx, out var step, out _);
+        Assert.Equal(1, pdf.PageCount);
 
-        var rev = RevisionTable(doc);
-        for (int r = 1; r < rev.Rows.Count; r++)
-            Assert.True(rev.Rows[r].Height.Centimeter >=
-                SpecPdfDocumentBuilder.DetailLayout.RevisionRowMinCm - 1e-9);
+        // The filled result must have the SAME page count as the un-filled
+        // (rowFill = 0) render at that step → fill never spilled a blank page.
+        var natural = SpecPdfDocumentBuilder.BuildDetailSheet(
+            BuildSilk(), Ctx, compactStep: step, rowFillCm: 0);
+        var r = new MigraDoc.Rendering.PdfDocumentRenderer { Document = natural };
+        r.RenderDocument();
+        Assert.Equal(r.PdfDocument.PageCount, pdf.PageCount);
     }
 
     [Fact]
-    public void Row_fill_grows_row_height()
+    public void Rows_are_natural_height_until_fill_grows_them()
     {
-        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx, rowFillCm: 0.5);
-        var silk = SilkProcessTable(doc);
-        Assert.Equal(SpecPdfDocumentBuilder.DetailLayout.ProcessRowMinCm + 0.5,
-            silk.Rows[1].Height.Centimeter, 3);
+        // rowFill = 0 → natural minimum (no forced tall band).
+        var natural = SilkProcessTable(
+            SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx));
+        Assert.Equal(SpecPdfDocumentBuilder.DetailLayout.NaturalRowMinCm,
+            natural.Rows[1].Height.Centimeter, 3);
+
+        // rowFill = 0.5 → natural + 0.5.
+        var filled = SilkProcessTable(
+            SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx, rowFillCm: 0.5));
+        Assert.Equal(SpecPdfDocumentBuilder.DetailLayout.NaturalRowMinCm + 0.5,
+            filled.Rows[1].Height.Centimeter, 3);
     }
 
     [Fact]
@@ -359,7 +368,7 @@ public class SpecPdfDispatchTests
         // holding the page count. Proves the sheet fills toward the bottom.
         using var pdf = PdfSpecSheetExporter.RenderFitted(
             BuildSilk(), Ctx, out _, out var rowFillCm);
-        Assert.True(pdf.PageCount <= 2, $"expected ≤2 pages, got {pdf.PageCount}");
+        Assert.Equal(1, pdf.PageCount);
         Assert.True(rowFillCm > 0, "short sheet should have grown its rows to fill");
     }
 

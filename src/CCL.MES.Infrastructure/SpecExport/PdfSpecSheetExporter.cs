@@ -67,7 +67,15 @@ public class PdfSpecSheetExporter
     {
         EnsureFontResolverInitialized();
 
-        // ── Phase 1: FIT to ≤ 2 pages by shrinking the font tier ──────────
+        // ONE bounded mechanism (no competing loops). Rows sit at their NATURAL
+        // height (rowFillCm = 0) — no forced tall minimum — so the FIT phase
+        // measures the true content page count and never spills onto a blank
+        // extra page.
+
+        // ── Phase 1: FIT — smallest font tier whose natural render hits the
+        // TARGET page count (prefer 1). A genuinely long spec that can't reach
+        // 1 even at the smallest font settles at its minimum (2+). ───────────
+        const int target = 1;
         PdfDocument fitted = null!;
         int fittedPages = int.MaxValue;
         usedStep = 0;
@@ -76,10 +84,13 @@ public class PdfSpecSheetExporter
             usedStep = step;
             fitted = Render(detail, context, step, rowFillCm: 0);
             fittedPages = fitted.PageCount;
-            if (fittedPages <= 2) break;
+            if (fittedPages <= target) break;   // fit the target → stop shrinking
         }
 
-        // ── Phase 2: FILL vertically — grow rows while page count holds ───
+        // ── Phase 2: FILL — grow row height (Print Process + Revision) to the
+        // LARGEST value that keeps the SAME page count, so content ends near
+        // the bottom margin without ever adding a page. Bounded by
+        // MaxRowFillCm so a sparse sheet doesn't balloon one giant row. ──────
         double lo = 0, hi = MaxRowFillCm;
         PdfDocument best = fitted;
         usedRowFillCm = 0;
