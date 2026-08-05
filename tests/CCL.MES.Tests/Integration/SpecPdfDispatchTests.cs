@@ -340,6 +340,36 @@ public class SpecPdfDispatchTests
     }
 
     [Fact]
+    public void Header_band_section_bands_and_tables_share_one_flush_inset()
+    {
+        // Regression for the L/R "staircase": doc header inset 8pt, tables PadH,
+        // section bands 0.1cm → three different left+right edges. Now every
+        // table uses PadH symmetric, and every shaded section band insets by
+        // ∓PadH → all boxes line up flush on both edges.
+        var layout = SpecPdfDocumentBuilder.DetailLayout.ForStep(0);
+        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx);
+        var sec = doc.LastSection;
+
+        var tables = sec.Elements.OfType<Table>().ToList();
+        Assert.NotEmpty(tables);
+        foreach (var t in tables)
+        {
+            Assert.Equal(layout.PadH, t.LeftPadding.Point, 3);
+            Assert.Equal(layout.PadH, t.RightPadding.Point, 3);
+        }
+
+        var bands = sec.Elements.OfType<Paragraph>()
+            .Where(p => !p.Format.Shading.Color.IsEmpty)
+            .ToList();
+        Assert.NotEmpty(bands);
+        foreach (var p in bands)
+        {
+            Assert.Equal(-layout.PadH, p.Format.LeftIndent.Point, 3);
+            Assert.Equal(layout.PadH, p.Format.RightIndent.Point, 3);
+        }
+    }
+
+    [Fact]
     public void Xlsx_sheet_exporter_produces_a_valid_workbook()
     {
         var bytes = new XlsxSpecSheetExporter().Export(BuildSilk(), Ctx);

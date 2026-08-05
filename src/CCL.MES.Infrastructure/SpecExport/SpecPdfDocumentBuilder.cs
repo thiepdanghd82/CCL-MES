@@ -300,7 +300,7 @@ public static class SpecPdfDocumentBuilder
         var template = ResolvePdfTemplate(detail.Planner);
 
         // 1. Doc header
-        AppendDocHeader(section, detail, template);
+        AppendDocHeader(section, detail, layout, template);
         // 2. Compliance strip
         AppendComplianceStrip(section, detail);
         // 2b. Generic warning chip (PR-B Q5 — honest fallback signal in PDF too)
@@ -355,12 +355,14 @@ public static class SpecPdfDocumentBuilder
     /// PR-B: <paramref name="template"/> drives the center-block label + subtitle.
     /// SILK / FLEXO render identical to PR-A; GENERIC swaps in "SPEC" + generic subtitle.
     /// </summary>
-    private static void AppendDocHeader(Section section, SpecDetailDto d, string template = "SILK")
+    private static void AppendDocHeader(Section section, SpecDetailDto d, DetailLayout layout, string template = "SILK")
     {
         // Professional NAVY BAND header (mirrors the on-screen navy strip):
         // full-width navy-filled row, white text — company left / title centre /
         // REF + spec identity right. A subtle gold rule under the band separates
-        // it from the body.
+        // it from the body. Horizontal padding == layout.PadH so the band's L/R
+        // edges line up FLUSH with every content table below (no left/right
+        // staircase — the header used to inset 8pt vs the tables' PadH).
         var navy  = Color.Parse(StyleConstants.PrimaryColorHex);
         var band  = Colors.White;                       // text on the navy band
         var faint = Color.Parse("#C7D3EA");             // muted white-blue on navy
@@ -369,7 +371,7 @@ public static class SpecPdfDocumentBuilder
         t.Borders.Width = 0;
         t.Borders.Bottom.Width = 1.2;
         t.Borders.Bottom.Color = Color.Parse(StyleConstants.AccentColorHex); // slim accent rule
-        t.LeftPadding = 8; t.RightPadding = 8; t.TopPadding = 5; t.BottomPadding = 5;
+        t.LeftPadding = layout.PadH; t.RightPadding = layout.PadH; t.TopPadding = 5; t.BottomPadding = 5;
         t.AddColumn(Unit.FromCentimeter(UsableWidthCm * 6.0 / 18.0));
         t.AddColumn(Unit.FromCentimeter(UsableWidthCm * 7.0 / 18.0));
         t.AddColumn(Unit.FromCentimeter(UsableWidthCm * 5.0 / 18.0));
@@ -487,7 +489,12 @@ public static class SpecPdfDocumentBuilder
         p.Format.Shading.Color = Color.Parse(bgHex ?? StyleConstants.HeaderBgHex);
         p.Format.Borders.Color = Color.Parse(StyleConstants.BorderColorHex);
         p.Format.Borders.Width = layout.BorderWidth;
-        p.Format.LeftIndent = "0.1cm";
+        // Match the content-table box exactly: a shaded paragraph spans
+        // [margin+LeftIndent, margin−RightIndent]; a table border box extends
+        // PadH OUTSIDE the grid. Negative left / positive right indent by PadH
+        // makes the section band flush with the tables (kills the L/R staircase).
+        p.Format.LeftIndent = Unit.FromPoint(-layout.PadH);
+        p.Format.RightIndent = Unit.FromPoint(layout.PadH);
         // Never orphan a section title at the bottom of a page — keep it with
         // the table/paragraph that follows so nothing spills to a stray page.
         p.Format.KeepWithNext = true;
