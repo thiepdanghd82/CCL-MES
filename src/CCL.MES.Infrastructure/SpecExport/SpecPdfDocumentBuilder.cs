@@ -584,67 +584,122 @@ public static class SpecPdfDocumentBuilder
         var t = section.AddTable();
         ApplyTableBorders(t, layout);
         t.Format.Font.Size = layout.SmallTablePt;
-        // PR (detail-2page): FULL 21-column silk table (was cut to 8 under the
-        // old portrait constraint — data loss). In A4 landscape the usable
-        // width (~27.3cm) holds every field ON ONE LINE per row, matching the
-        // on-screen SpecShowcardFull. Widths ≈ content length so short codes
-        // (Mesh/Angle/UV) stay narrow and Color/Ink Name get room → no wrap.
-        var hdr = new[]
-        {
-            "No", "Surf", "Color", "Ink Name", "Ink Code", "Maker", "Retarder",
-            "Visc", "Speed", "Squee", "Dry", "°C", "min", "UV", "Emul",
-            "Plate Size", "Mesh", "Angle", "Plate Code", "Ctrl#", "Remark",
-        };
-        // Relative column WEIGHTS (not absolute cm). Long-content columns
-        // (Color / Ink Name / Plate Code / Remark) get more; short codes stay
-        // narrow. The weights are then SCALED to exactly fill the usable page
-        // width so (a) the table isn't stranded at ~60% width with a big right
-        // gap, and (b) long cells like "VIC-710 BLACK (1can=18kg)" fit on one
-        // line instead of wrapping 2-3 rows.
-        var weights = new[]
-        {
-            0.7, 0.8, 2.3, 3.3, 1.5, 1.5, 1.1,
-            0.9, 0.9, 1.0, 1.0, 0.8, 0.8, 0.8, 1.0,
-            1.7, 1.1, 1.0, 1.8, 0.9, 1.6,
-        };
-        AddScaledColumns(t, weights);
+
+        // ONE grid definition drives header + every data row → header can never
+        // drift from data (same columns, same per-column alignment). Widths are
+        // MEASURED from real content so no header is cramped (the old hand-tuned
+        // weights under-sized "Retarder" to a 0.3pt gap from "Visc" while
+        // over-provisioning Ink Name) and everything scales to exactly the
+        // usable page width. See BuildSilkGrid.
+        var (headers, rows, widths, aligns) = BuildSilkGrid(d, layout);
+        foreach (var wcm in widths) t.AddColumn(Unit.FromCentimeter(wcm));
+
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;   // repeat header on each page
         hRow.Format.Font.Bold = true;
         hRow.Format.Font.Size = layout.HeaderRowPt;
         hRow.Shading.Color = Color.Parse(StyleConstants.HeaderBgHex);
-        for (int i = 0; i < hdr.Length; i++) hRow.Cells[i].AddParagraph(hdr[i]);
+        for (int i = 0; i < headers.Length; i++)
+        {
+            hRow.Cells[i].AddParagraph(headers[i]);
+            hRow.Cells[i].Format.Alignment = aligns[i];   // header == data
+        }
 
-        string Num(double? v, string fmt) => v?.ToString(fmt, CultureInfo.InvariantCulture) ?? "—";
         var alt = false;
-        foreach (var c in d.PrintColors)
+        foreach (var cells in rows)
         {
             var row = t.AddRow();
             SetFillRow(row, layout);
             if (alt) row.Shading.Color = Color.Parse(StyleConstants.AltRowBgHex);
             alt = !alt;
-            row.Cells[0].AddParagraph(c.Seq.ToString(CultureInfo.InvariantCulture));
-            row.Cells[1].AddParagraph(c.Surface ?? "—");
-            row.Cells[2].AddParagraph(c.Color ?? "—");
-            row.Cells[3].AddParagraph(c.InkName ?? "—");
-            row.Cells[4].AddParagraph(c.InkCode ?? "—");
-            row.Cells[5].AddParagraph(c.Maker ?? "—");
-            row.Cells[6].AddParagraph(c.Retarder ?? "—");
-            row.Cells[7].AddParagraph(Num(c.Viscosity, "N0"));
-            row.Cells[8].AddParagraph(Num(c.Speed, "N0"));
-            row.Cells[9].AddParagraph(c.Squeegee ?? "—");
-            row.Cells[10].AddParagraph(c.Dry ?? "—");
-            row.Cells[11].AddParagraph(Num(c.TemperatureC, "N0"));
-            row.Cells[12].AddParagraph(c.TimeMin?.ToString(CultureInfo.InvariantCulture) ?? "—");
-            row.Cells[13].AddParagraph(c.Uv ?? "—");
-            row.Cells[14].AddParagraph(Num(c.EmulsionUm, "N0"));
-            row.Cells[15].AddParagraph(c.PlateSize ?? "—");
-            row.Cells[16].AddParagraph(c.Mesh ?? "—");
-            row.Cells[17].AddParagraph(Num(c.AngleDeg, "N1"));
-            row.Cells[18].AddParagraph(c.PlateCode ?? "—");
-            row.Cells[19].AddParagraph(c.ControlNo?.ToString(CultureInfo.InvariantCulture) ?? "—");
-            row.Cells[20].AddParagraph(c.Remark ?? "—");
+            for (int i = 0; i < cells.Length; i++)
+            {
+                row.Cells[i].AddParagraph(cells[i]);
+                row.Cells[i].Format.Alignment = aligns[i];   // same as header
+            }
         }
+    }
+
+    /// <summary>Usable content width (cm) the silk grid fills exactly — exposed
+    /// so a test can assert the sum-of-columns invariant.</summary>
+    public static double DetailUsableWidthCm => UsableWidthCm;
+
+    /// <summary>Per-column paragraph alignment for the 21-column silk grid —
+    /// numeric columns CENTRED (so a single digit sits under its header instead
+    /// of hugging the left edge), codes/text LEFT. Applied identically to the
+    /// header row and every data row so a column reads as one straight lane.</summary>
+    private static readonly ParagraphAlignment[] SilkColumnAlign =
+    {
+        ParagraphAlignment.Center, // No
+        ParagraphAlignment.Left,   // Surf
+        ParagraphAlignment.Left,   // Color
+        ParagraphAlignment.Left,   // Ink Name
+        ParagraphAlignment.Left,   // Ink Code
+        ParagraphAlignment.Left,   // Maker
+        ParagraphAlignment.Left,   // Retarder
+        ParagraphAlignment.Center, // Visc
+        ParagraphAlignment.Center, // Speed
+        ParagraphAlignment.Left,   // Squee
+        ParagraphAlignment.Left,   // Dry
+        ParagraphAlignment.Center, // °C
+        ParagraphAlignment.Center, // min
+        ParagraphAlignment.Center, // UV
+        ParagraphAlignment.Center, // Emul
+        ParagraphAlignment.Left,   // Plate Size
+        ParagraphAlignment.Left,   // Mesh
+        ParagraphAlignment.Center, // Angle
+        ParagraphAlignment.Left,   // Plate Code
+        ParagraphAlignment.Center, // Ctrl#
+        ParagraphAlignment.Left,   // Remark
+    };
+
+    /// <summary>Extra breathing width (in "characters") added to every silk
+    /// column on top of its measured content — keeps a header off its border.</summary>
+    private const double SilkColPadCh = 1.6;
+
+    /// <summary>
+    /// Build the silk print-process grid: the 21 headers, the per-row data
+    /// strings, and the per-column widths (cm) that sum to EXACTLY the usable
+    /// page width. Column width = max(header, longest data) measured in
+    /// characters, with the header scaled by the header/body font ratio so a
+    /// bold header at the larger <see cref="DetailLayout.HeaderRowPt"/> never
+    /// clips. Exposed (internal) so a test can assert width==usable, cell counts
+    /// match, and no header column is under-sized.
+    /// </summary>
+    public static (string[] Headers, string[][] Rows, double[] WidthsCm, ParagraphAlignment[] Aligns) BuildSilkGrid(SpecDetailDto d, DetailLayout layout)
+    {
+        var headers = new[]
+        {
+            "No", "Surf", "Color", "Ink Name", "Ink Code", "Maker", "Retarder",
+            "Visc", "Speed", "Squee", "Dry", "°C", "min", "UV", "Emul",
+            "Plate Size", "Mesh", "Angle", "Plate Code", "Ctrl#", "Remark",
+        };
+        string Num(double? v, string fmt) => v?.ToString(fmt, CultureInfo.InvariantCulture) ?? "—";
+        var rows = d.PrintColors.Select(c => new[]
+        {
+            c.Seq.ToString(CultureInfo.InvariantCulture), c.Surface ?? "—", c.Color ?? "—",
+            c.InkName ?? "—", c.InkCode ?? "—", c.Maker ?? "—", c.Retarder ?? "—",
+            Num(c.Viscosity, "N0"), Num(c.Speed, "N0"), c.Squeegee ?? "—", c.Dry ?? "—",
+            Num(c.TemperatureC, "N0"), c.TimeMin?.ToString(CultureInfo.InvariantCulture) ?? "—",
+            c.Uv ?? "—", Num(c.EmulsionUm, "N0"), c.PlateSize ?? "—", c.Mesh ?? "—",
+            Num(c.AngleDeg, "N1"), c.PlateCode ?? "—",
+            c.ControlNo?.ToString(CultureInfo.InvariantCulture) ?? "—", c.Remark ?? "—",
+        }).ToArray();
+
+        // Header is bold at HeaderRowPt (> body SmallTablePt) → its glyphs are
+        // wider per char; size the column for the header at THAT ratio so it fits.
+        double ratio = layout.SmallTablePt > 0 ? layout.HeaderRowPt / layout.SmallTablePt : 1.0;
+        var weights = new double[headers.Length];
+        for (int i = 0; i < headers.Length; i++)
+        {
+            double dataMax = 0;
+            foreach (var r in rows) dataMax = Math.Max(dataMax, r[i].Length);
+            weights[i] = Math.Max(headers[i].Length * ratio, dataMax) + SilkColPadCh;
+        }
+        double sum = weights.Sum();
+        double scale = UsableWidthCm / sum;
+        var widths = weights.Select(w => w * scale).ToArray();
+        return (headers, rows, widths, SilkColumnAlign);
     }
 
     private static void AppendFlexoPrinting(Section section, SpecDetailDto d, DetailLayout layout)

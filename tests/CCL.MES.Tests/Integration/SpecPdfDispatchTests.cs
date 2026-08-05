@@ -286,6 +286,59 @@ public class SpecPdfDispatchTests
                 $"table border {t.Borders.Width.Point}pt is not the halved 0.125");
     }
 
+    // ── Silk Print-Process grid: header ↔ data alignment (RCA fix) ─────────
+
+    [Fact]
+    public void Silk_grid_columns_sum_to_exactly_the_usable_width()
+    {
+        // Invariant: 21 columns whose widths fill the usable page width EXACTLY
+        // → MigraDoc never re-flows, header + data share one geometry.
+        var (headers, rows, widths, aligns) =
+            SpecPdfDocumentBuilder.BuildSilkGrid(BuildSilk(), SpecPdfDocumentBuilder.DetailLayout.ForStep(0));
+
+        Assert.Equal(21, headers.Length);
+        Assert.Equal(21, widths.Length);
+        Assert.Equal(21, aligns.Length);
+        foreach (var r in rows) Assert.Equal(21, r.Length);   // every data row 1:1 with header
+
+        Assert.Equal(SpecPdfDocumentBuilder.DetailUsableWidthCm, widths.Sum(), 2);
+    }
+
+    [Fact]
+    public void Silk_grid_every_column_is_wide_enough_for_its_header()
+    {
+        // Regression for the "Retarder" cramp: the old hand-tuned weights left
+        // "Retarder" 0.3pt from "Visc" (they rendered as one word). Each column
+        // must now clear its header label with margin at the header font.
+        var layout = SpecPdfDocumentBuilder.DetailLayout.ForStep(0);
+        var (headers, _, widths, _) = SpecPdfDocumentBuilder.BuildSilkGrid(BuildSilk(), layout);
+
+        const double cmPerPt = 2.54 / 72.0;
+        // Conservative upper bound on a bold header word width (≈0.55 em/char).
+        double headerCharCm = layout.HeaderRowPt * cmPerPt * 0.55;
+        for (int i = 0; i < headers.Length; i++)
+        {
+            double need = headers[i].Length * headerCharCm;
+            Assert.True(widths[i] >= need,
+                $"column '{headers[i]}' is {widths[i]:F2}cm, header needs ≥ {need:F2}cm → clips.");
+        }
+    }
+
+    [Fact]
+    public void Silk_grid_numeric_columns_centre_text_columns_left()
+    {
+        // Alignment map is the SAME array applied to header + every data row, so
+        // a single digit sits under its header instead of hugging the left edge.
+        var (headers, _, _, aligns) =
+            SpecPdfDocumentBuilder.BuildSilkGrid(BuildSilk(), SpecPdfDocumentBuilder.DetailLayout.ForStep(0));
+
+        MigraDoc.DocumentObjectModel.ParagraphAlignment A(string h) => aligns[System.Array.IndexOf(headers, h)];
+        foreach (var num in new[] { "No", "Visc", "Speed", "°C", "min", "UV", "Emul", "Angle", "Ctrl#" })
+            Assert.Equal(MigraDoc.DocumentObjectModel.ParagraphAlignment.Center, A(num));
+        foreach (var txt in new[] { "Surf", "Color", "Ink Name", "Ink Code", "Maker", "Retarder", "Squee", "Dry", "Plate Size", "Mesh", "Plate Code", "Remark" })
+            Assert.Equal(MigraDoc.DocumentObjectModel.ParagraphAlignment.Left, A(txt));
+    }
+
     [Fact]
     public void Xlsx_sheet_exporter_produces_a_valid_workbook()
     {
