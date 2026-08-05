@@ -46,6 +46,7 @@ public sealed class SpecsExportController : ControllerBase
     private readonly XlsxSpecListExporter _xlsx;
     private readonly PdfSpecListExporter _pdf;
     private readonly PdfSpecSheetExporter _sheetPdf;
+    private readonly XlsxSpecSheetExporter _sheetXlsx;
     private readonly IAuditWriter _audit;
 
     public SpecsExportController(
@@ -54,6 +55,7 @@ public sealed class SpecsExportController : ControllerBase
         XlsxSpecListExporter xlsx,
         PdfSpecListExporter pdf,
         PdfSpecSheetExporter sheetPdf,
+        XlsxSpecSheetExporter sheetXlsx,
         IAuditWriter audit)
     {
         _spec = spec;
@@ -61,6 +63,7 @@ public sealed class SpecsExportController : ControllerBase
         _xlsx = xlsx;
         _pdf = pdf;
         _sheetPdf = sheetPdf;
+        _sheetXlsx = sheetXlsx;
         _audit = audit;
     }
 
@@ -146,6 +149,57 @@ public sealed class SpecsExportController : ControllerBase
         {
             return Problem(
                 title: "Spec sheet PDF export failed",
+                detail: ex.Message,
+                statusCode: 500);
+        }
+    }
+
+    /// <summary>Single-spec detail sheet → Excel (.xlsx). Companion to
+    /// <see cref="SheetPdf"/>; same sections as a structured worksheet.</summary>
+    [HttpGet("{revisionId:long}/sheet/xlsx")]
+    public async Task<IActionResult> SheetXlsx(long revisionId)
+    {
+        try
+        {
+            var detail = await _spec.SpecDetailAsync(revisionId);
+            if (detail is null)
+                return NotFound(new { code = "not_found", revisionId });
+
+            var ctx = new SpecExportContext(
+                Title: $"Spec Sheet {detail.RefNo ?? detail.SpecCode} Rev {detail.RevisionCode}",
+                FilterDescription: null,
+                GeneratedAt: DateTime.UtcNow.ToLocalTime(),
+                GeneratedBy: ActorName(),
+                Culture: CultureInfo.InvariantCulture);
+
+            var bytes = _sheetXlsx.Export(detail, ctx);
+            var filename = SpecExportFilename.SheetXlsx(
+                detail.RefNo, detail.SpecCode, detail.RevisionCode, ctx.GeneratedAt);
+
+            await _audit.EmitAsync(
+                action: AuditAction.SpecExport,
+                actor: ActorName(),
+                actorRole: User.FindFirstValue(ClaimTypes.Role) ?? "",
+                targetType: "ProductRevision",
+                targetId: revisionId.ToString(CultureInfo.InvariantCulture),
+                detail: JsonSerializer.Serialize(new
+                {
+                    format = "xlsx",
+                    kind = "sheet",
+                    revision_id = revisionId,
+                    ref_no = detail.RefNo,
+                    spec_code = detail.SpecCode,
+                    revision_code = detail.RevisionCode,
+                    filename,
+                    content_length = bytes.Length,
+                }));
+
+            return File(bytes, _sheetXlsx.ContentType, filename);
+        }
+        catch (Exception ex)
+        {
+            return Problem(
+                title: "Spec sheet Excel export failed",
                 detail: ex.Message,
                 statusCode: 500);
         }
@@ -263,11 +317,17 @@ public static class SpecExportFilename
     /// downstream Catalyst <c>UIDocumentPicker</c> validation.
     /// </summary>
     public static string SheetPdf(string? refNo, string specCode, string revisionCode, DateTime generatedAt)
+        => SheetName(refNo, specCode, revisionCode, generatedAt, "pdf");
+
+    public static string SheetXlsx(string? refNo, string specCode, string revisionCode, DateTime generatedAt)
+        => SheetName(refNo, specCode, revisionCode, generatedAt, "xlsx");
+
+    private static string SheetName(string? refNo, string specCode, string revisionCode, DateTime generatedAt, string ext)
     {
         var ts = generatedAt.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
         var head = SanitizeFilenameToken(refNo ?? specCode ?? "spec");
         var rev = SanitizeFilenameToken(revisionCode);
-        return $"SpecSheet_{head}_Rev{rev}_{ts}.pdf";
+        return $"SpecSheet_{head}_Rev{rev}_{ts}.{ext}";
     }
 
     /// <summary>

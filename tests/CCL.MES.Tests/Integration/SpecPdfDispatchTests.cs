@@ -271,17 +271,115 @@ public class SpecPdfDispatchTests
     }
 
     [Fact]
-    public void Detail_tables_use_hairline_borders()
+    public void Detail_tables_use_half_hairline_borders()
     {
         var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx);
         var tables = doc.LastSection.Elements.OfType<Table>().ToList();
         Assert.NotEmpty(tables);
-        // Every bordered data table draws a hairline (≤ 0.25pt). The doc-header
-        // layout table has Borders.Width = 0 (only a navy bottom rule), so it
-        // is naturally excluded by the > 0 guard.
+        // Border rule was halved 0.25 → 0.125pt for the exported sheet. The
+        // doc-header layout table has Borders.Width = 0 (only a navy bottom
+        // rule), so it is naturally excluded by the > 0 guard.
+        Assert.Equal(0.125, SpecPdfDocumentBuilder.StyleConstants.DetailBorderWidthPt);
         foreach (var t in tables.Where(t => t.Borders.Width.Point > 0))
-            Assert.True(t.Borders.Width.Point <= 0.25 + 1e-9,
-                $"table border {t.Borders.Width.Point}pt exceeds hairline 0.25");
+            Assert.True(Math.Abs(t.Borders.Width.Point - 0.125) < 1e-9,
+                $"table border {t.Borders.Width.Point}pt is not the halved 0.125");
+    }
+
+    [Fact]
+    public void Xlsx_sheet_exporter_produces_a_valid_workbook()
+    {
+        var bytes = new XlsxSpecSheetExporter().Export(BuildSilk(), Ctx);
+        Assert.NotEmpty(bytes);
+        // .xlsx is a ZIP container → starts with the "PK" local-file signature.
+        Assert.Equal((byte)'P', bytes[0]);
+        Assert.Equal((byte)'K', bytes[1]);
+    }
+
+    [Fact]
+    public void Exported_sheet_omits_the_change_log_section()
+    {
+        // The audit Change Log is on-screen only — it must NOT appear in the
+        // exported/printed PDF (BuildDetailSheet drops section 9). Assert no
+        // section-title paragraph carries the Change Log heading.
+        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx);
+        var titles = doc.LastSection.Elements
+            .OfType<Paragraph>()
+            .SelectMany(p => p.Elements.OfType<Text>())
+            .Select(t => t.Content);
+        Assert.DoesNotContain(titles, s => s.Contains("Change Log"));
+    }
+
+    // ── PR (auto-fill): 3-line rows + vertical fill + flexible revision ──
+
+    private static string CellText(Cell c) =>
+        string.Concat(c.Elements.OfType<Paragraph>()
+            .SelectMany(p => p.Elements.OfType<Text>()).Select(t => t.Content));
+
+    private static Table SilkProcessTable(Document doc) =>
+        doc.LastSection.Elements.OfType<Table>().First(t => t.Columns.Count == 21);
+
+    private static Table RevisionTable(Document doc) =>
+        doc.LastSection.Elements.OfType<Table>()
+            .First(t => t.Columns.Count == 4 && CellText(t.Rows[0].Cells[0]) == "Rev");
+
+    [Fact]
+    public void Sample_sheet_is_one_page_with_no_blank_trailing_page()
+    {
+        // Regression (L39): forced 3-line rows inflated content onto a 2nd/3rd
+        // (blank) page. A normal spec must render exactly ONE page, and the
+        // auto-fill must NOT add a page beyond the natural fit.
+        using var pdf = PdfSpecSheetExporter.RenderFitted(
+            BuildSilk(), Ctx, out var step, out _);
+        Assert.Equal(1, pdf.PageCount);
+
+        // The filled result must have the SAME page count as the un-filled
+        // (rowFill = 0) render at that step → fill never spilled a blank page.
+        var natural = SpecPdfDocumentBuilder.BuildDetailSheet(
+            BuildSilk(), Ctx, compactStep: step, rowFillCm: 0);
+        var r = new MigraDoc.Rendering.PdfDocumentRenderer { Document = natural };
+        r.RenderDocument();
+        Assert.Equal(r.PdfDocument.PageCount, pdf.PageCount);
+    }
+
+    [Fact]
+    public void Rows_use_comfortable_tier_height_plus_bounded_fill()
+    {
+        var rowMin = SpecPdfDocumentBuilder.DetailLayout.ForStep(0).RowMinCm;
+
+        // rowFill = 0 → the comfortable per-tier minimum (not a forced tall band).
+        var natural = SilkProcessTable(
+            SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx));
+        Assert.Equal(rowMin, natural.Rows[1].Height.Centimeter, 3);
+
+        // A fill adds ON TOP of the tier minimum.
+        var filled = SilkProcessTable(
+            SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx, rowFillCm: 0.3));
+        Assert.Equal(rowMin + 0.3, filled.Rows[1].Height.Centimeter, 3);
+    }
+
+    [Fact]
+    public void Revision_history_is_flexible_one_row_per_entry()
+    {
+        var spec = BuildSilk();
+        spec.Lineage = Enumerable.Range(1, 7).Select(i => new RevisionLineageEntry(
+            Id: i, RevisionCode: ((char)('A' + i - 1)).ToString(),
+            ChangeSummary: $"Revision {i}",
+            CreatedAt: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(i),
+            CreatedBy: "verify")).ToList();
+        var rev = RevisionTable(SpecPdfDocumentBuilder.BuildDetailSheet(spec, Ctx));
+        // 1 header + 7 data rows — uncapped, exactly the lineage count.
+        Assert.Equal(8, rev.Rows.Count);
+    }
+
+    [Fact]
+    public void Vertical_fill_grows_short_sheet_without_adding_a_page()
+    {
+        // A short spec leaves room below → the fill phase grows rows (>0) while
+        // holding the page count. Proves the sheet fills toward the bottom.
+        using var pdf = PdfSpecSheetExporter.RenderFitted(
+            BuildSilk(), Ctx, out _, out var rowFillCm);
+        Assert.Equal(1, pdf.PageCount);
+        Assert.True(rowFillCm > 0, "short sheet should have grown its rows to fill");
     }
 
     private static SpecDetailDto BuildLongSilk()

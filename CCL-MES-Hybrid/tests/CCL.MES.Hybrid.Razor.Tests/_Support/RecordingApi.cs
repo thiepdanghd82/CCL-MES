@@ -703,6 +703,12 @@ public sealed class RecordingApi : ICclApiClient
         DownloadSpecSheetPdfCalls.Add((a, b));
         return DownloadSpecSheetPdfImpl is not null ? DownloadSpecSheetPdfImpl(a, b, c) : Task.FromResult(0L);
     }
+    public List<(long RevisionId, string DestPath)> DownloadSpecSheetXlsxCalls { get; } = new();
+    public Task<long> DownloadSpecSheetXlsxAsync(long a, string b, CancellationToken c = default)
+    {
+        DownloadSpecSheetXlsxCalls.Add((a, b));
+        return Task.FromResult(0L);
+    }
     public Task<SettingsProfileDto> GetMyProfileAsync(CancellationToken c = default) => throw new NotImplementedException();
     public Task<SettingsProfileDto> UpdateMyProfileAsync(UpdateProfileRequest r, CancellationToken c = default) => throw new NotImplementedException();
     public Task<ChangePasswordResponse> ChangeMyPasswordAsync(ChangePasswordRequest r, CancellationToken c = default) => throw new NotImplementedException();

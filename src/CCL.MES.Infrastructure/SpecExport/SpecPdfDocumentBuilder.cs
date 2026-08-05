@@ -60,10 +60,12 @@ public static class SpecPdfDocumentBuilder
         public const double HeaderFontPt   = 8.5;
         public const double FooterFontPt   = 7.5;
 
-        // PR (detail-2page): hairline table borders. 0.25pt reads as a thin
-        // rule on screen + print (was 0.4 = visibly heavy). Kept in one place
-        // so the whole detail sheet stays consistent.
-        public const double DetailBorderWidthPt = 0.25;
+        // PR (detail-2page): hairline table borders. Halved 0.25 → 0.125pt so
+        // the exported sheet reads even finer (½ the previous weight). Kept in
+        // one place — DetailLayout.BorderWidth + ApplyTableBorders + section
+        // titles all read from here — so the whole detail sheet stays uniform.
+        // List-view export keeps its own 0.4pt (see BuildListView).
+        public const double DetailBorderWidthPt = 0.125;
     }
 
     /// <summary>
@@ -85,18 +87,40 @@ public static class SpecPdfDocumentBuilder
         public double PadH             { get; init; }   // cell left/right padding
         public double SectionSpaceBefore { get; init; }
 
-        /// <summary>Largest step index <see cref="ForStep"/> accepts distinctly;
-        /// the exporter's auto-fit loop stops shrinking here.</summary>
-        public const int MaxStep = 3;
+        /// <summary>Comfortable MINIMUM row height (cm) for fillable rows at this
+        /// tier. Roomy at the large tiers (few rows → airy, professional) and
+        /// compact at the small tiers (many rows → pack them to still fit one
+        /// page). Content is vertically centred so it never floats at the top.</summary>
+        public double RowMinCm         { get; init; }
+
+        /// <summary>Vertical auto-FILL — a SMALL bounded amount added on top of
+        /// <see cref="RowMinCm"/> so a short sheet fills a little more of the
+        /// page without stretching rows into grotesque bands. Binary-searched by
+        /// the exporter (capped low). NOT part of ForStep.</summary>
+        public double RowFillCm { get; set; }
+
+        /// <summary>Largest step index <see cref="ForStep"/> accepts distinctly.
+        /// The auto-fit keeps shrinking the font tier up to here so the sheet
+        /// ALWAYS lands on one landscape page (only an extreme spec spills).</summary>
+        public const int MaxStep = 6;
 
         public static DetailLayout ForStep(int step) => step switch
         {
-            <= 0 => new DetailLayout { TableBodyPt = 7.5, SmallTablePt = 6.5, SectionTitlePt = 8.5, HeaderRowPt = 7.5, PadV = 0.6, PadH = 1.5, SectionSpaceBefore = 5 },
-            1    => new DetailLayout { TableBodyPt = 7.0, SmallTablePt = 6.0, SectionTitlePt = 8.0, HeaderRowPt = 7.0, PadV = 0.5, PadH = 1.3, SectionSpaceBefore = 4 },
-            2    => new DetailLayout { TableBodyPt = 6.5, SmallTablePt = 5.5, SectionTitlePt = 7.5, HeaderRowPt = 6.5, PadV = 0.4, PadH = 1.1, SectionSpaceBefore = 3 },
-            _    => new DetailLayout { TableBodyPt = 6.0, SmallTablePt = 5.5, SectionTitlePt = 7.0, HeaderRowPt = 6.0, PadV = 0.4, PadH = 1.0, SectionSpaceBefore = 2 },
+            <= 0 => new DetailLayout { TableBodyPt = 7.5, SmallTablePt = 6.5, SectionTitlePt = 8.5, HeaderRowPt = 7.5, PadV = 0.6, PadH = 1.5, SectionSpaceBefore = 5.0, RowMinCm = 0.46 },
+            1    => new DetailLayout { TableBodyPt = 7.0, SmallTablePt = 6.0, SectionTitlePt = 8.0, HeaderRowPt = 7.0, PadV = 0.5, PadH = 1.3, SectionSpaceBefore = 4.0, RowMinCm = 0.42 },
+            2    => new DetailLayout { TableBodyPt = 6.5, SmallTablePt = 5.5, SectionTitlePt = 7.5, HeaderRowPt = 6.5, PadV = 0.4, PadH = 1.1, SectionSpaceBefore = 3.0, RowMinCm = 0.38 },
+            3    => new DetailLayout { TableBodyPt = 6.0, SmallTablePt = 5.2, SectionTitlePt = 7.0, HeaderRowPt = 6.0, PadV = 0.35, PadH = 1.0, SectionSpaceBefore = 2.5, RowMinCm = 0.34 },
+            4    => new DetailLayout { TableBodyPt = 5.5, SmallTablePt = 4.9, SectionTitlePt = 6.5, HeaderRowPt = 5.5, PadV = 0.3, PadH = 0.9, SectionSpaceBefore = 2.0, RowMinCm = 0.30 },
+            5    => new DetailLayout { TableBodyPt = 5.0, SmallTablePt = 4.6, SectionTitlePt = 6.0, HeaderRowPt = 5.0, PadV = 0.28, PadH = 0.8, SectionSpaceBefore = 1.6, RowMinCm = 0.28 },
+            _    => new DetailLayout { TableBodyPt = 4.6, SmallTablePt = 4.3, SectionTitlePt = 5.6, HeaderRowPt = 4.6, PadV = 0.25, PadH = 0.7, SectionSpaceBefore = 1.3, RowMinCm = 0.26 },
         };
     }
+
+    /// <summary>Usable content width of the detail sheet = A4 landscape
+    /// (29.7cm) − left/right margins (1.2cm each). Detail tables scale their
+    /// columns to fill this so nothing is stranded at ~60% width with a big
+    /// right-hand gap.</summary>
+    private const double UsableWidthCm = 27.3;
 
     /// <summary>
     /// Build empty Document với CCL standard styles + page setup A4 landscape.
@@ -243,13 +267,17 @@ public static class SpecPdfDocumentBuilder
         SpecDetailDto detail,
         SpecExportContext context,
         MigraDocOrientation orientation = MigraDocOrientation.Landscape,
-        int compactStep = 0)
+        int compactStep = 0,
+        double rowFillCm = 0.0)
     {
         // PR (detail-2page): A4 LANDSCAPE by default. The wide "Print Process"
         // table (21 cols) fits ONE line per row in landscape → the sheet drops
         // from 3 pages (portrait,每 row wrapping 2-3 lines) to ≤ 2. Orientation
         // stays a parameter so a caller can force Portrait if ever needed.
+        // rowFillCm grows fillable rows so the sheet fills down toward the
+        // bottom margin (the exporter binary-searches it).
         var layout = DetailLayout.ForStep(compactStep);
+        layout.RowFillCm = rowFillCm;
         var doc = BuildEmpty(
             title: $"Spec Sheet {detail.RefNo ?? detail.SpecCode} Rev {detail.RevisionCode}",
             orientation: orientation);
@@ -304,8 +332,9 @@ public static class SpecPdfDocumentBuilder
         AppendRevisionHistory(section, detail, layout);
         // 8. Approval Signatures (Option A render-only)
         AppendApprovalSignatures(section, detail, layout);
-        // 9. Change Log (audit timeline) — chỉ render top 10 entries cho PDF
-        AppendChangeLog(section, detail, layout);
+        // 9. Change Log — INTENTIONALLY omitted from the exported/printed sheet
+        // (the audit timeline stays on-screen only). AppendChangeLog is kept as
+        // a private helper in case a future "full audit" export needs it.
 
         return doc;
     }
@@ -328,57 +357,58 @@ public static class SpecPdfDocumentBuilder
     /// </summary>
     private static void AppendDocHeader(Section section, SpecDetailDto d, string template = "SILK")
     {
-        // 3-col table layout: company / center title / right block (REF NO + stamp)
+        // Professional NAVY BAND header (mirrors the on-screen navy strip):
+        // full-width navy-filled row, white text — company left / title centre /
+        // REF + spec identity right. A subtle gold rule under the band separates
+        // it from the body.
+        var navy  = Color.Parse(StyleConstants.PrimaryColorHex);
+        var band  = Colors.White;                       // text on the navy band
+        var faint = Color.Parse("#C7D3EA");             // muted white-blue on navy
+
         var t = section.AddTable();
-        t.Borders.Color = Color.Parse(StyleConstants.BorderColorHex);
         t.Borders.Width = 0;
-        t.Borders.Bottom.Width = 1.5;
-        // PR-A: navy header band bottom border (đồng nhất app theme)
-        t.Borders.Bottom.Color = Color.Parse(StyleConstants.PrimaryColorHex);
-        t.AddColumn(Unit.FromCentimeter(6));
-        t.AddColumn(Unit.FromCentimeter(7));
-        t.AddColumn(Unit.FromCentimeter(5));
+        t.Borders.Bottom.Width = 1.2;
+        t.Borders.Bottom.Color = Color.Parse(StyleConstants.AccentColorHex); // slim accent rule
+        t.LeftPadding = 8; t.RightPadding = 8; t.TopPadding = 5; t.BottomPadding = 5;
+        t.AddColumn(Unit.FromCentimeter(UsableWidthCm * 6.0 / 18.0));
+        t.AddColumn(Unit.FromCentimeter(UsableWidthCm * 7.0 / 18.0));
+        t.AddColumn(Unit.FromCentimeter(UsableWidthCm * 5.0 / 18.0));
         var row = t.AddRow();
-        // Left
+        row.Shading.Color = navy;
+        row.VerticalAlignment = VerticalAlignment.Center;
+
+        // Left — company
         var pCo = row.Cells[0].AddParagraph("Công ty TNHH CCL Design Việt Nam");
-        pCo.Format.Font.Bold = true;
-        pCo.Format.Font.Size = 9;
+        pCo.Format.Font.Bold = true; pCo.Format.Font.Size = 9.5; pCo.Format.Font.Color = band;
         var pCoSub = row.Cells[0].AddParagraph("CCL Design Vietnam Co. Ltd");
-        pCoSub.Format.Font.Size = 7;
-        pCoSub.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
-        // Center (PR-B template-aware)
-        var centerLabel = template switch
+        pCoSub.Format.Font.Size = 7; pCoSub.Format.Font.Color = faint;
+
+        // Centre — full title + subtitle
+        var (title, subtitle) = template switch
         {
-            "FLEXO" => "SEAL",
-            "SILK"  => "SILK",
-            _       => "SPEC",
+            "FLEXO" => ("FLEXO LABEL SPECIFICATION", "Thông số kỹ thuật sản phẩm tiêu chuẩn In Nhãn Flexo"),
+            "SILK"  => ("SILKSCREEN SPECIFICATION",  "Thông số kỹ thuật sản phẩm tiêu chuẩn In Lụa"),
+            _       => ("PRODUCT SPECIFICATION",      "Thông số kỹ thuật sản phẩm"),
         };
-        var centerSubtitle = template switch
-        {
-            "FLEXO" => "Thông số kỹ thuật sản phẩm tiêu chuẩn In Nhãn Flexo",
-            "SILK"  => "Thông số kỹ thuật sản phẩm tiêu chuẩn In Lụa",
-            _       => "Thông số kỹ thuật sản phẩm · Generic preview",
-        };
-        var pCenter = row.Cells[1].AddParagraph(centerLabel);
+        var pCenter = row.Cells[1].AddParagraph(title);
         pCenter.Format.Alignment = ParagraphAlignment.Center;
-        pCenter.Format.Font.Size = 16;
-        pCenter.Format.Font.Bold = true;
-        pCenter.Format.Font.Color = // PR-A: unified navy — silk + flexo cùng PrimaryColorHex (KHÔNG còn AccentColorHex split silk-red)
-            Color.Parse(StyleConstants.PrimaryColorHex);
-        var pSub = row.Cells[1].AddParagraph(centerSubtitle);
+        pCenter.Format.Font.Size = 15; pCenter.Format.Font.Bold = true; pCenter.Format.Font.Color = band;
+        var pSub = row.Cells[1].AddParagraph(subtitle);
         pSub.Format.Alignment = ParagraphAlignment.Center;
-        pSub.Format.Font.Size = 7;
-        pSub.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
-        // Right
+        pSub.Format.Font.Size = 7; pSub.Format.Font.Color = faint;
+
+        // Right — REF NO + spec identity (Spec code · Rev · Status). No more
+        // mislabelled "Inspection: <specCode>".
         var pRef = row.Cells[2].AddParagraph($"REF NO: {d.RefNo ?? "—"}");
         pRef.Format.Alignment = ParagraphAlignment.Right;
-        pRef.Format.Font.Size = 9;
-        pRef.Format.Font.Bold = true;
-        pRef.Format.Font.Color = // PR-A: unified navy — silk + flexo cùng PrimaryColorHex (KHÔNG còn AccentColorHex split silk-red)
-            Color.Parse(StyleConstants.PrimaryColorHex);
-        var pStamp = row.Cells[2].AddParagraph($"Inspection: {d.InspectionLevel ?? "—"}  [{d.StatusDisplay}]");
+        pRef.Format.Font.Size = 9.5; pRef.Format.Font.Bold = true; pRef.Format.Font.Color = band;
+        var specBits = new System.Collections.Generic.List<string>();
+        if (!string.IsNullOrWhiteSpace(d.SpecCode)) specBits.Add($"Spec {d.SpecCode}");
+        specBits.Add($"Rev {d.RevisionCode}");
+        if (!string.IsNullOrWhiteSpace(d.InspectionLevel)) specBits.Add($"Insp {d.InspectionLevel}");
+        var pStamp = row.Cells[2].AddParagraph(string.Join("  ·  ", specBits) + $"   [{d.StatusDisplay}]");
         pStamp.Format.Alignment = ParagraphAlignment.Right;
-        pStamp.Format.Font.Size = 8;
+        pStamp.Format.Font.Size = 7.5; pStamp.Format.Font.Color = faint;
     }
 
     /// <summary>
@@ -476,7 +506,7 @@ public static class SpecPdfDocumentBuilder
             ? new[] { d.CustomerName ?? "—", d.ProductCode, d.ProductName, "—",
                       d.ProductSizeDisplay, d.SubstrateType ?? "—" }
             : SilkProductValues(d);
-        foreach (var _ in headers) t.AddColumn(Unit.FromCentimeter(2.8));
+        foreach (var _ in headers) t.AddColumn(Unit.FromCentimeter(UsableWidthCm / headers.Length));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -525,7 +555,7 @@ public static class SpecPdfDocumentBuilder
         var t = section.AddTable();
         ApplyTableBorders(t, layout);
         t.Format.Font.Size = layout.TableBodyPt;
-        for (int i = 0; i < 4; i++) t.AddColumn(Unit.FromCentimeter(4.5));
+        for (int i = 0; i < 4; i++) t.AddColumn(Unit.FromCentimeter(UsableWidthCm / 4));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -565,13 +595,19 @@ public static class SpecPdfDocumentBuilder
             "Visc", "Speed", "Squee", "Dry", "°C", "min", "UV", "Emul",
             "Plate Size", "Mesh", "Angle", "Plate Code", "Ctrl#", "Remark",
         };
-        var widths = new[]
+        // Relative column WEIGHTS (not absolute cm). Long-content columns
+        // (Color / Ink Name / Plate Code / Remark) get more; short codes stay
+        // narrow. The weights are then SCALED to exactly fill the usable page
+        // width so (a) the table isn't stranded at ~60% width with a big right
+        // gap, and (b) long cells like "VIC-710 BLACK (1can=18kg)" fit on one
+        // line instead of wrapping 2-3 rows.
+        var weights = new[]
         {
-            0.6, 0.7, 1.7, 1.7, 1.4, 1.3, 1.0,
-            0.8, 0.8, 0.9, 0.9, 0.7, 0.7, 0.7, 0.9,
-            1.5, 1.0, 0.9, 1.5, 0.8, 2.2,
+            0.7, 0.8, 2.3, 3.3, 1.5, 1.5, 1.1,
+            0.9, 0.9, 1.0, 1.0, 0.8, 0.8, 0.8, 1.0,
+            1.7, 1.1, 1.0, 1.8, 0.9, 1.6,
         };
-        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        AddScaledColumns(t, weights);
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;   // repeat header on each page
         hRow.Format.Font.Bold = true;
@@ -584,6 +620,7 @@ public static class SpecPdfDocumentBuilder
         foreach (var c in d.PrintColors)
         {
             var row = t.AddRow();
+            SetFillRow(row, layout);
             if (alt) row.Shading.Color = Color.Parse(StyleConstants.AltRowBgHex);
             alt = !alt;
             row.Cells[0].AddParagraph(c.Seq.ToString(CultureInfo.InvariantCulture));
@@ -619,7 +656,7 @@ public static class SpecPdfDocumentBuilder
         t.Format.Font.Size = layout.TableBodyPt;
         var hdr = new[] { "Process", "Material", "Size", "Cyl", "Pitch", "Speed", "Plt Cav" };
         var widths = new[] { 3.5, 3.5, 2.0, 1.5, 2.0, 2.0, 1.5 };
-        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        AddScaledColumns(t, widths);
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -628,6 +665,7 @@ public static class SpecPdfDocumentBuilder
         foreach (var r in d.FlexoPrintRows)
         {
             var row = t.AddRow();
+            SetFillRow(row, layout);
             row.Cells[0].AddParagraph(r.Process ?? "—");
             row.Cells[1].AddParagraph(r.Material ?? "—");
             row.Cells[2].AddParagraph(r.Size ?? "—");
@@ -647,7 +685,7 @@ public static class SpecPdfDocumentBuilder
         t.Format.Font.Size = layout.TableBodyPt;
         var hdr = new[] { "Process", "Lamination", "Cutter Name", "Pcs/Sh", "Cavity", "Pitch", "Packing" };
         var widths = new[] { 3.5, 2.5, 3.0, 1.3, 1.3, 1.5, 2.9 };
-        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        AddScaledColumns(t, widths);
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -656,6 +694,7 @@ public static class SpecPdfDocumentBuilder
         foreach (var c in d.FlexoCuttingRows)
         {
             var row = t.AddRow();
+            SetFillRow(row, layout);
             row.Cells[0].AddParagraph(c.Process ?? "—");
             row.Cells[1].AddParagraph(c.Lamination ?? "—");
             row.Cells[2].AddParagraph(c.CutterName ?? "—");
@@ -675,7 +714,7 @@ public static class SpecPdfDocumentBuilder
         t.Format.Font.Size = layout.TableBodyPt;
         var hdr = new[] { "No", "Color", "Ink Code", "Description", "Brand", "Anilox", "Plate", "UV" };
         var widths = new[] { 0.7, 2.5, 1.8, 4.0, 1.8, 1.8, 1.8, 1.6 };
-        for (int i = 0; i < hdr.Length; i++) t.AddColumn(Unit.FromCentimeter(widths[i]));
+        AddScaledColumns(t, widths);
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -684,6 +723,7 @@ public static class SpecPdfDocumentBuilder
         foreach (var i in d.FlexoInkRows)
         {
             var row = t.AddRow();
+            SetFillRow(row, layout);
             row.Cells[0].AddParagraph(i.Seq.ToString());
             row.Cells[1].AddParagraph(i.Color ?? "—");
             row.Cells[2].AddParagraph(i.InkCode ?? "—");
@@ -703,8 +743,8 @@ public static class SpecPdfDocumentBuilder
             var t = section.AddTable();
             ApplyTableBorders(t, layout);
             t.Format.Font.Size = layout.TableBodyPt;
-            t.AddColumn(Unit.FromCentimeter(9));
-            t.AddColumn(Unit.FromCentimeter(9));
+            t.AddColumn(Unit.FromCentimeter(UsableWidthCm / 2));
+            t.AddColumn(Unit.FromCentimeter(UsableWidthCm / 2));
             var hRow = t.AddRow();
             hRow.HeadingFormat = true;
             hRow.Format.Font.Bold = true;
@@ -728,10 +768,11 @@ public static class SpecPdfDocumentBuilder
         var t = section.AddTable();
         ApplyTableBorders(t, layout);
         t.Format.Font.Size = layout.TableBodyPt;
-        t.AddColumn(Unit.FromCentimeter(1.5));
-        t.AddColumn(Unit.FromCentimeter(11.5));
-        t.AddColumn(Unit.FromCentimeter(2.5));
-        t.AddColumn(Unit.FromCentimeter(2.5));
+        // Rev / Contents / Date / By — weights scaled to fill the page width.
+        t.AddColumn(Unit.FromCentimeter(UsableWidthCm * 1.5 / 18.0));
+        t.AddColumn(Unit.FromCentimeter(UsableWidthCm * 11.5 / 18.0));
+        t.AddColumn(Unit.FromCentimeter(UsableWidthCm * 2.5 / 18.0));
+        t.AddColumn(Unit.FromCentimeter(UsableWidthCm * 2.5 / 18.0));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -743,14 +784,19 @@ public static class SpecPdfDocumentBuilder
         if (d.Lineage.Count == 0)
         {
             var row = t.AddRow();
+            SetFillRow(row, layout);
             var cell0 = row.Cells[0]; cell0.MergeRight = 3;
             var p = cell0.AddParagraph("— No revision history —");
             p.Format.Font.Italic = true;
             p.Format.Alignment = ParagraphAlignment.Center;
         }
+        // Revision History is FLEXIBLE — one row per lineage entry, uncapped.
+        // Few revisions → rows grow taller (auto-fill); many → the table just
+        // extends (and overflows to page 2 naturally if genuinely long).
         foreach (var lr in d.Lineage)
         {
             var row = t.AddRow();
+            SetFillRow(row, layout);
             row.Cells[0].AddParagraph(lr.RevisionCode);
             row.Cells[1].AddParagraph(lr.ChangeSummary ?? "—");
             row.Cells[2].AddParagraph(lr.CreatedAt.ToString("yyyy-MM-dd"));
@@ -764,7 +810,7 @@ public static class SpecPdfDocumentBuilder
         var t = section.AddTable();
         ApplyTableBorders(t, layout);
         t.Format.Font.Size = layout.TableBodyPt;
-        for (int i = 0; i < 4; i++) t.AddColumn(Unit.FromCentimeter(4.5));
+        for (int i = 0; i < 4; i++) t.AddColumn(Unit.FromCentimeter(UsableWidthCm / 4));
         var hRow = t.AddRow();
         hRow.HeadingFormat = true;
         hRow.Format.Font.Bold = true;
@@ -821,6 +867,30 @@ public static class SpecPdfDocumentBuilder
         p.Format.Font.Size = 8;
         p.Format.Font.Italic = true;
         p.Format.Font.Color = Color.Parse(StyleConstants.MutedColorHex);
+    }
+
+    /// <summary>Add columns whose RELATIVE weights are scaled to fill the
+    /// usable page width — so a table never strands at ~60% width with a big
+    /// right-hand gap (the "vỡ" look). Long-content columns just carry a
+    /// bigger weight.</summary>
+    private static void AddScaledColumns(Table t, double[] weights)
+    {
+        double sum = 0; foreach (var w in weights) sum += w;
+        double scale = UsableWidthCm / sum;
+        foreach (var w in weights) t.AddColumn(Unit.FromCentimeter(w * scale));
+    }
+
+    /// <summary>Give a fillable data row its COMFORTABLE per-tier minimum
+    /// (<see cref="DetailLayout.RowMinCm"/>) PLUS the small bounded auto-fill
+    /// (<see cref="DetailLayout.RowFillCm"/>), using <see cref="RowHeightRule.AtLeast"/>
+    /// so a taller cell still expands (never clips). Content is vertically
+    /// centred so it sits mid-row, not floating at the top. The fill is capped
+    /// low so rows stay a clean, uniform band — never a grotesque tall box.</summary>
+    private static void SetFillRow(Row row, DetailLayout layout)
+    {
+        row.HeightRule = RowHeightRule.AtLeast;
+        row.Height = Unit.FromCentimeter(layout.RowMinCm + layout.RowFillCm);
+        row.VerticalAlignment = VerticalAlignment.Center;
     }
 
     private static void ApplyTableBorders(Table t, DetailLayout layout)

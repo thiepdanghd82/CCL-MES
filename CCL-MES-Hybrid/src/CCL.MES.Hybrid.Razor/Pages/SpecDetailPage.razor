@@ -79,13 +79,26 @@
             </AuthorizeView>
         }
 
-        @* Print sheet — native WebView print (WYSIWYG) on Mac Catalyst;
-           falls back to the server MigraDoc PDF on other hosts. *@
-        <button type="button" class="grid-btn grid-btn-secondary spec-print-pdf"
-                disabled="@_exporting"
-                @onclick="PrintSheetAsync">
-            @(_exporting ? @T("specdetail.pdf.generating") : @T("specdetail.pdf.print"))
-        </button>
+        @* Print / export toolbar — pushed to the far right.
+           In: native OS print panel (printer / A4-A3 / dọc-ngang / Save-PDF).
+           PDF: server MigraDoc 1-page A4 landscape. Excel: .xlsx worksheet. *@
+        <div class="spec-print-group spec-print-pdf" role="group" aria-label="@T("specdetail.print.group.aria")">
+            @if (Print.IsNativePrintSupported)
+            {
+                <button type="button" class="grid-btn grid-btn-secondary"
+                        disabled="@_exporting" @onclick="PrintNativeAsync">
+                    @T("specdetail.print.native")
+                </button>
+            }
+            <button type="button" class="grid-btn grid-btn-secondary"
+                    disabled="@_exporting" @onclick="ExportSheetPdfAsync">
+                @(_exporting && _exportKind == "pdf" ? @T("specdetail.pdf.generating") : @T("specdetail.export.pdf"))
+            </button>
+            <button type="button" class="grid-btn grid-btn-secondary"
+                    disabled="@_exporting" @onclick="ExportSheetXlsxAsync">
+                @(_exporting && _exportKind == "xlsx" ? @T("specdetail.pdf.generating") : @T("specdetail.export.excel"))
+            </button>
+        </div>
     }
 </div>
 
@@ -1025,65 +1038,50 @@ else if (_detail is not null && _vm is not null)
         Nav.NavigateTo("/npi/specs");
     }
 
-    // ── P11.x — Print sheet (native WebView print → MigraDoc fallback) ──
+    // ── Print / export toolbar — In (native) · PDF (MigraDoc) · Excel ──
 
-    /// <summary>
-    /// Print the Spec Full sheet. On Mac Catalyst this drives the native
-    /// OS print panel over the LIVE DOM (WYSIWYG — the operator picks
-    /// A4/A3, orientation, scale, Save-as-PDF), so the print matches the
-    /// on-screen sheet exactly. We first switch to Full mode + let it
-    /// render so the printed DOM is the full sheet (the @media print CSS
-    /// hides all chrome and expands the sheet to the page). On non-Catalyst
-    /// hosts (Windows / tests) native print is unavailable → fall back to
-    /// the existing server MigraDoc sheet PDF.
-    /// </summary>
-    private async Task PrintSheetAsync()
+    private string? _exportKind;   // "pdf" / "xlsx" — drives the per-button spinner
+
+    /// <summary>In: native OS print panel (printer / A4-A3 / dọc-ngang /
+    /// Save-PDF) over the live WYSIWYG sheet. Only shown when the host
+    /// supports native print (Mac Catalyst).</summary>
+    private async Task PrintNativeAsync()
     {
-        if (_exporting || _detail is null) return;
+        if (_exporting || _detail is null || !Print.IsNativePrintSupported) return;
 
-        // Native path only when the host supports it (Mac Catalyst).
-        if (Print.IsNativePrintSupported)
+        // Make the Full sheet the rendered surface before the OS snapshots it.
+        if (_activeTab != "spec" || _specEditMode || _compareMode || !_fullMode)
         {
-            // Ensure the Full sheet is the rendered surface before printing.
-            if (_activeTab != "spec" || _specEditMode || _compareMode || !_fullMode)
-            {
-                _specEditMode = false;
-                _compareMode = false;
-                _fullMode = true;
-                await SetActiveTabAsync("spec");
-                StateHasChanged();
-                // Let Blazor flush the Full-mode render before the OS
-                // snapshots the DOM for printing.
-                await Task.Delay(120);
-            }
-
-            var jobName = $"SpecSheet_{_detail.RefNo ?? _detail.SpecCode}_{_detail.RevisionCode}";
-            var presented = await Print.PrintCurrentViewAsync(jobName);
-            if (presented)
-            {
-                _exportBanner = T("specdetail.print.native.opened");
-                _exportBannerKind = "info";
-                _exportSandboxPath = null;
-                StateHasChanged();
-                return;
-            }
-            // presented == false → native unavailable at runtime; fall
-            // through to the MigraDoc download path.
+            _specEditMode = false;
+            _compareMode = false;
+            _fullMode = true;
+            await SetActiveTabAsync("spec");
+            StateHasChanged();
+            await Task.Delay(120);
         }
-
-        await ExportSheetPdfAsync();
+        var jobName = $"SpecSheet_{_detail.RefNo ?? _detail.SpecCode}_{_detail.RevisionCode}";
+        await Print.PrintCurrentViewAsync(jobName);
     }
 
-    // ── P10.5g — Per-spec sheet PDF export ───────────────────────────
+    /// <summary>Xuất PDF — server MigraDoc 1-page A4 landscape.</summary>
+    private Task ExportSheetPdfAsync() =>
+        RunSheetExportAsync("pdf", (flow, d) =>
+            flow.ExportSheetPdfAsync(d.Id, d.RefNo ?? d.SpecCode, d.RevisionCode, openAfterSave: true));
 
-    /// <summary>Q11 _exporting guard + Q4 try/catch wrap. Sandboxes
-    /// the bytes via IFileOpener first, then defers the save dialog to
-    /// the operator via IFileSaver. RefNo (or SpecCode fallback) + Rev
-    /// shape the on-disk filename.</summary>
-    private async Task ExportSheetPdfAsync()
+    /// <summary>Xuất Excel — server .xlsx worksheet.</summary>
+    private Task ExportSheetXlsxAsync() =>
+        RunSheetExportAsync("xlsx", (flow, d) =>
+            flow.ExportSheetXlsxAsync(d.Id, d.RefNo ?? d.SpecCode, d.RevisionCode, openAfterSave: true));
+
+    /// <summary>Q11 _exporting guard + Q4 try/catch wrap shared by the PDF +
+    /// Excel exports. Sandboxes the bytes then defers the Save dialog to the
+    /// operator via IFileSaver.</summary>
+    private async Task RunSheetExportAsync(
+        string kind, Func<SpecExportFlow, SpecDetailItem, Task<SpecExportFlowOutcome>> run)
     {
         if (_exporting || _detail is null) return;
         _exporting = true;
+        _exportKind = kind;
         _exportBanner = T("specdetail.pdf.generating");
         _exportBannerKind = "info";
         _exportSandboxPath = null;
@@ -1091,12 +1089,7 @@ else if (_detail is not null && _vm is not null)
         try
         {
             var flow = new SpecExportFlow(Api, FileOpener, FileSaver);
-            var outcome = await flow.ExportSheetPdfAsync(
-                _detail.Id,
-                _detail.RefNo ?? _detail.SpecCode,
-                _detail.RevisionCode,
-                openAfterSave: true);
-            RenderExportOutcome(outcome);
+            RenderExportOutcome(await run(flow, _detail));
         }
         catch (ApiException apiEx)
         {
@@ -1116,6 +1109,7 @@ else if (_detail is not null && _vm is not null)
         finally
         {
             _exporting = false;
+            _exportKind = null;
             StateHasChanged();
         }
     }

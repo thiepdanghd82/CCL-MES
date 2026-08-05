@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Bunit;
 using Bunit.TestDoubles;
@@ -18,31 +16,14 @@ using Xunit;
 namespace CCL.MES.Hybrid.Razor.Tests;
 
 /// <summary>
-/// P11.x — the Spec sheet "Print" button routes through <see cref="IPrintService"/>.
-/// On a host that supports native WebView print (Mac Catalyst) it must take
-/// the native path (WYSIWYG OS print panel) and NOT hit the server MigraDoc
-/// download; on a host without native print (Windows / tests) it must fall
-/// back to the MigraDoc sheet PDF. These render the REAL page so a future
-/// re-wire that drops the fallback (or double-prints) surfaces in CI.
+/// The Spec sheet print/export toolbar: In (native — hidden on non-Catalyst
+/// hosts) · PDF (server MigraDoc) · Excel (server .xlsx). These render the REAL
+/// page against a stub host (native print unavailable) so the PDF + Excel
+/// buttons must route to their respective server downloads.
 /// </summary>
 public sealed class SpecDetailPrintTests : TestContext
 {
-    private sealed class FakePrintService : IPrintService
-    {
-        public bool NativeSupported { get; init; }
-        public bool ReturnValue { get; init; }
-        public List<string?> Calls { get; } = new();
-
-        public bool IsNativePrintSupported => NativeSupported;
-
-        public Task<bool> PrintCurrentViewAsync(string? jobName = null)
-        {
-            Calls.Add(jobName);
-            return Task.FromResult(ReturnValue);
-        }
-    }
-
-    private RecordingApi WireCommon(IPrintService print)
+    private RecordingApi WireCommon()
     {
         var api = new RecordingApi
         {
@@ -61,42 +42,35 @@ public sealed class SpecDetailPrintTests : TestContext
         Services.AddI18n();
         Services.AddSingleton<IFileOpener>(new StubFileOpener());
         Services.AddSingleton<IFileSaver>(new StubFileSaver());
-        Services.AddSingleton(print);
+        Services.AddSingleton<IPrintService>(new StubPrintService()); // native unavailable → In hidden
         this.AddTestAuthorization().SetAuthorized("engineer");
         return api;
     }
 
     [Fact]
-    public void Native_print_supported_uses_native_path_and_skips_migradoc()
+    public void Pdf_button_downloads_the_migradoc_sheet_pdf()
     {
-        var print = new FakePrintService { NativeSupported = true, ReturnValue = true };
-        var api = WireCommon(print);
-
+        var api = WireCommon();
         var cut = RenderComponent<SpecDetailPage>(p => p.Add(x => x.RevisionId, 42L));
-        cut.Find(".spec-print-pdf").Click();
 
-        // The handler switches to Full mode + awaits a render flush before
-        // presenting, so poll until the native call lands.
-        cut.WaitForAssertion(() => Assert.Single(print.Calls));
-        // Native panel presented with a spec-scoped job name…
-        Assert.StartsWith("SpecSheet_", print.Calls[0]);
-        // …and the server MigraDoc PDF was NOT downloaded.
-        Assert.Empty(api.DownloadSpecSheetPdfCalls);
-        // Operator sees the "system print panel opened" info banner.
-        cut.WaitForAssertion(() => Assert.NotNull(cut.Find(".grid-export-banner.is-info")));
+        // Native print unavailable → only PDF + Excel buttons render.
+        var buttons = cut.FindAll(".spec-print-group button");
+        Assert.Equal(2, buttons.Count);
+        buttons[0].Click();   // PDF
+
+        cut.WaitForAssertion(() => Assert.Single(api.DownloadSpecSheetPdfCalls));
+        Assert.Empty(api.DownloadSpecSheetXlsxCalls);
     }
 
     [Fact]
-    public void No_native_print_falls_back_to_migradoc_download()
+    public void Excel_button_downloads_the_sheet_xlsx()
     {
-        var print = new FakePrintService { NativeSupported = false, ReturnValue = false };
-        var api = WireCommon(print);
-
+        var api = WireCommon();
         var cut = RenderComponent<SpecDetailPage>(p => p.Add(x => x.RevisionId, 42L));
-        cut.Find(".spec-print-pdf").Click();
 
-        // Native never attempted; MigraDoc fallback downloaded the sheet.
-        cut.WaitForAssertion(() => Assert.Single(api.DownloadSpecSheetPdfCalls));
-        Assert.Empty(print.Calls);
+        cut.FindAll(".spec-print-group button")[1].Click();   // Excel
+
+        cut.WaitForAssertion(() => Assert.Single(api.DownloadSpecSheetXlsxCalls));
+        Assert.Empty(api.DownloadSpecSheetPdfCalls);
     }
 }

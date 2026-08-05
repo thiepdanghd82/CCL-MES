@@ -2711,6 +2711,7 @@ html, body {
     margin: 0;
 }
 .spec-print-pdf { margin-left: auto; }
+.spec-print-group { display: inline-flex; gap: 6px; margin-left: auto; }
 .spec-action-banner-row { margin: 0 0 14px; }
 .spec-action-banner-row .spec-action-banner { margin-left: 0; }
 
@@ -3212,6 +3213,17 @@ html, body {
 .spec-info-hi { background: var(--warn-bg); font-weight: 600; }
 
 .spec-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
+
+/* Print Process + Revision data rows use a MODERATE row height (roomier than
+   a tight 1-line default, not a forced-tall band), content vertically centred.
+   Text stays on ONE line (nowrap) — this is ROW HEIGHT, not wrap. Kept moderate
+   so the printed/exported sheet does NOT inflate onto a blank extra page (L39);
+   the server MigraDoc PDF fills the page precisely via its measured auto-fit. */
+.spec-print-table-full tbody td,
+.spec-rev-table-full tbody td {
+    height: 1.7rem;
+    vertical-align: middle;
+}
 
 /* Print Process / flexo tables are wide (up to 21 cols). Keep every row on
    ONE line (content-sized columns via the default auto layout); when the
@@ -6849,6 +6861,7 @@ tr.wc-row:hover { background: var(--c-bg); }
     .grid-export-banner,
     .spec-action-banner-row,
     .spec-print-pdf,
+    .spec-block-changelog,
     #blazor-error-ui {
         display: none !important;
     }
@@ -6909,6 +6922,20 @@ tr.wc-row:hover { background: var(--c-bg); }
     .spec-rev-table-full th, .spec-rev-table-full td {
         padding: 1.5px 5px !important;
     }
+
+    /* Halve the table rule weight for print/export only — on-screen keeps the
+       1px grid; the printed sheet reads finer at 0.5px (½ the on-screen nét). */
+    .spec-info-table-full th, .spec-info-table-full td,
+    .spec-print-table-full th, .spec-print-table-full td,
+    .spec-rev-table-full th, .spec-rev-table-full td {
+        border-width: 0.5px !important;
+    }
+
+    /* NOTE: no min-height / forced-tall rows on the printed sheet — a browser
+       can't measure remaining page space, so forcing height only risks spilling
+       onto a blank extra page. Rows keep the moderate on-screen height; the
+       content just ends where it ends. The server MigraDoc PDF is the surface
+       that fills the page precisely (measured auto-fit). See Lesson L39. */
 
     /* ── Vertical compaction — squeeze the stacked sections so the whole
        sheet lands in ~2 LANDSCAPE pages (landscape trades height for width,

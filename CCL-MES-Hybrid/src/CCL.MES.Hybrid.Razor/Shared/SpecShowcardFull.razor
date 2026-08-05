@@ -469,8 +469,10 @@ else
         </text>)
 
         @* ─── 9. Change Log (audit trail) ─────────────────────────── *@
+        @* spec-block-changelog: stable hook so @media print can hide the audit
+           trail from the printed/exported sheet while keeping it on-screen. *@
         @TryRender("change-log", () => @<text>
-            <div class="spec-block-full">
+            <div class="spec-block-full spec-block-changelog" data-section="change-log">
                 <div class="spec-block-title-full">@T("specfull.changelog.title")</div>
                 @if (Vm.AuditEntries.Count == 0)
                 {
