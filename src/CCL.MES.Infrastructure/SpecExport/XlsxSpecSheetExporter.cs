@@ -8,10 +8,18 @@ namespace CCL.MES.Infrastructure.SpecExport;
 /// <summary>
 /// Single-spec DETAIL sheet → Excel (.xlsx). Companion to
 /// <see cref="PdfSpecSheetExporter"/>: same sections (header · product info ·
-/// print params · print process · remarks · revision history · approval), but
-/// as a structured, editable worksheet — one section per band, the wide Print
-/// Process table as a proper filterable grid. Uses the same navy palette as the
-/// PDF (<see cref="SpecPdfDocumentBuilder.StyleConstants"/>).
+/// print params · print process · remarks · revision history · approval), laid
+/// out to mirror the on-screen showcard + the MigraDoc PDF. Uses the same navy
+/// palette (<see cref="SpecPdfDocumentBuilder.StyleConstants"/>).
+///
+/// This is a DOCUMENT, not a data-grid:
+///   • no auto-filter (headers stay clean, never clipped by a dropdown arrow);
+///   • numeric cells carry real numbers (+ number-format), NOT text — so Excel
+///     shows no green "number stored as text" triangle and columns right/centre
+///     align naturally. Codes with leading zeros / letters / "*" stay TEXT;
+///   • column widths are measured from the actual header + cell content so a
+///     long header ("Retarder" / "Plate Code" / "Remark") is never cut;
+///   • section titles are single-language (export language = English by default).
 ///
 /// Change Log is intentionally omitted (on-screen only), matching the PDF.
 /// </summary>
@@ -23,13 +31,30 @@ public class XlsxSpecSheetExporter
     private static readonly XLColor SectionBg = XLColor.FromHtml(SpecPdfDocumentBuilder.StyleConstants.HeaderBgHex);
     private static readonly XLColor HeaderBg  = XLColor.FromHtml(SpecPdfDocumentBuilder.StyleConstants.ColHeaderBgHex);
     private static readonly XLColor AltBg      = XLColor.FromHtml(SpecPdfDocumentBuilder.StyleConstants.AltRowBgHex);
+    private static readonly XLColor BorderClr  = XLColor.FromHtml(SpecPdfDocumentBuilder.StyleConstants.BorderColorHex);
+
     private const int Width = 21;   // widest section (silk print process) → sheet width
+
+    // Column-width auto-measure bounds (Excel width units ≈ characters).
+    private const double MinColWidth = 6.0;
+    private const double MaxColWidth = 44.0;
+    private const double ColWidthPad = 2.4;
+
+    /// <summary>Numeric intent for a column — drives cell DataType + alignment.</summary>
+    private enum Kind { Text, Int, Dec1 }
+
+    private sealed record Col(string Header, Kind Kind = Kind.Text);
 
     public byte[] Export(SpecDetailDto d, SpecExportContext context)
     {
         using var wb = new XLWorkbook();
         var ws = wb.Worksheets.Add("Spec Sheet");
         var template = ResolveTemplate(d.Planner);
+
+        // Per-column max content length (header + values), seeded 0 → measured
+        // as Table() writes. Merged banners (title/meta/section/remarks) do NOT
+        // contribute, so a long banner never inflates a column.
+        var w = new double[Width];
         int r = 1;
 
         // ── Title band (navy) ────────────────────────────────────────────
@@ -73,31 +98,31 @@ public class XlsxSpecSheetExporter
         }
 
         // ── Product Information ──────────────────────────────────────────
-        Section(ws, ref r, "Product Information · Thông tin sản phẩm");
+        Section(ws, ref r, "Product Information");
         if (d.IsFlexo)
-            Table(ws, ref r,
-                new[] { "Customer", "Part No", "Part Name", "Version", "Size", "Substrate" },
-                new[] { new[] { d.CustomerName ?? "—", d.ProductCode, d.ProductName, "—", d.ProductSizeDisplay, d.SubstrateType ?? "—" } });
+            Table(ws, ref r, w,
+                new[] { new Col("Customer"), new Col("Part No"), new Col("Part Name"),
+                        new Col("Version"), new Col("Size"), new Col("Substrate") },
+                new[] { new object?[] { d.CustomerName, d.ProductCode, d.ProductName, "—", d.ProductSizeDisplay, d.SubstrateType } });
         else
         {
             var ex = ParseSilkMaterialExtra(d.MaterialExtraJson);
-            Table(ws, ref r,
-                new[] { "Customer", "Part No", "Part Name", "Material", "Mat Size", "Lamination", "Lam Size", "Lam Cav" },
-                new[] { new[] { d.CustomerName ?? "—", d.ProductCode, d.ProductName, d.SubstrateType ?? "—",
-                                ex.MaterialSize ?? "—", ex.LaminationTape ?? "—", ex.LaminationSize ?? "—", ex.LaminationCavity ?? "—" } });
+            Table(ws, ref r, w,
+                new[] { new Col("Customer"), new Col("Part No"), new Col("Part Name"), new Col("Material"),
+                        new Col("Mat Size"), new Col("Lamination"), new Col("Lam Size"), new Col("Lam Cav") },
+                new[] { new object?[] { d.CustomerName, d.ProductCode, d.ProductName, d.SubstrateType,
+                                        ex.MaterialSize, ex.LaminationTape, ex.LaminationSize, ex.LaminationCavity } });
         }
         r++;
 
         // ── Print Parameters (silk) ──────────────────────────────────────
         if (template == "SILK")
         {
-            Section(ws, ref r, "Print Parameters · Thông số in");
-            Table(ws, ref r,
-                new[] { "Printing Cavity", "Length Pitch (mm)", "Product Size", "Adhesive" },
-                new[] { new[] {
-                    d.PrintingCavity?.ToString(CultureInfo.InvariantCulture) ?? "—",
-                    d.LengthPitchMm?.ToString("N1", CultureInfo.InvariantCulture) ?? "—",
-                    d.ProductSizeDisplay, d.AdhesiveType ?? "—" } });
+            Section(ws, ref r, "Print Parameters");
+            Table(ws, ref r, w,
+                new[] { new Col("Printing Cavity", Kind.Int), new Col("Length Pitch (mm)", Kind.Dec1),
+                        new Col("Product Size"), new Col("Adhesive") },
+                new[] { new object?[] { d.PrintingCavity, d.LengthPitchMm, d.ProductSizeDisplay, d.AdhesiveType } });
             r++;
         }
 
@@ -105,17 +130,22 @@ public class XlsxSpecSheetExporter
         if (template == "SILK" && d.PrintColors.Count > 0)
         {
             Section(ws, ref r, $"Print Process · Drying · Plate Parameter — {d.PrintColors.Count} colors");
-            var hdr = new[] { "No", "Surf", "Color", "Ink Name", "Ink Code", "Maker", "Retarder",
-                "Visc", "Speed", "Squee", "Dry", "°C", "min", "UV", "Emul",
-                "Plate Size", "Mesh", "Angle", "Plate Code", "Ctrl#", "Remark" };
-            string N(double? v, string f) => v?.ToString(f, CultureInfo.InvariantCulture) ?? "—";
-            var rows = d.PrintColors.Select(c => new[] {
-                c.Seq.ToString(CultureInfo.InvariantCulture), c.Surface ?? "—", c.Color ?? "—", c.InkName ?? "—",
-                c.InkCode ?? "—", c.Maker ?? "—", c.Retarder ?? "—", N(c.Viscosity, "N0"), N(c.Speed, "N0"),
-                c.Squeegee ?? "—", c.Dry ?? "—", N(c.TemperatureC, "N0"), c.TimeMin?.ToString(CultureInfo.InvariantCulture) ?? "—",
-                c.Uv ?? "—", N(c.EmulsionUm, "N0"), c.PlateSize ?? "—", c.Mesh ?? "—", N(c.AngleDeg, "N1"),
-                c.PlateCode ?? "—", c.ControlNo?.ToString(CultureInfo.InvariantCulture) ?? "—", c.Remark ?? "—" }).ToArray();
-            Table(ws, ref r, hdr, rows, filter: true);
+            var cols = new[]
+            {
+                new Col("No", Kind.Int), new Col("Surf"), new Col("Color"), new Col("Ink Name"),
+                new Col("Ink Code"), new Col("Maker"), new Col("Retarder"), new Col("Visc", Kind.Int),
+                new Col("Speed", Kind.Int), new Col("Squee"), new Col("Dry"), new Col("°C", Kind.Int),
+                new Col("min", Kind.Int), new Col("UV", Kind.Int), new Col("Emul", Kind.Int),
+                new Col("Plate Size"), new Col("Mesh"), new Col("Angle", Kind.Dec1),
+                new Col("Plate Code"), new Col("Ctrl#", Kind.Int), new Col("Remark"),
+            };
+            var rows = d.PrintColors.Select(c => new object?[]
+            {
+                c.Seq, c.Surface, c.Color, c.InkName, c.InkCode, c.Maker, c.Retarder,
+                c.Viscosity, c.Speed, c.Squeegee, c.Dry, c.TemperatureC, c.TimeMin,
+                c.Uv, c.EmulsionUm, c.PlateSize, c.Mesh, c.AngleDeg, c.PlateCode, c.ControlNo, c.Remark,
+            }).ToArray();
+            Table(ws, ref r, w, cols, rows);
             r++;
         }
         else if (template == "FLEXO")
@@ -123,61 +153,70 @@ public class XlsxSpecSheetExporter
             if (d.FlexoPrintRows.Count > 0)
             {
                 Section(ws, ref r, $"Printing Information — {d.FlexoPrintRows.Count} processes");
-                Table(ws, ref r,
-                    new[] { "Process", "Material", "Size", "Cyl", "Pitch", "Speed", "Plt Cav" },
-                    d.FlexoPrintRows.Select(p => new[] { p.Process ?? "—", p.Material ?? "—", p.Size ?? "—",
-                        p.Cylinders ?? "—", p.PitchMm ?? "—", p.Speed ?? "—", p.PlateCavity ?? "—" }).ToArray());
+                Table(ws, ref r, w,
+                    new[] { new Col("Process"), new Col("Material"), new Col("Size"), new Col("Cyl"),
+                            new Col("Pitch", Kind.Dec1), new Col("Speed", Kind.Int), new Col("Plt Cav") },
+                    d.FlexoPrintRows.Select(p => new object?[] { p.Process, p.Material, p.Size,
+                        p.Cylinders, p.PitchMm, p.Speed, p.PlateCavity }).ToArray());
                 r++;
             }
             if (d.FlexoCuttingRows.Count > 0)
             {
                 Section(ws, ref r, $"Cutting Information — {d.FlexoCuttingRows.Count} processes");
-                Table(ws, ref r,
-                    new[] { "Process", "Lamination", "Cutter Name", "Pcs/Sh", "Cavity", "Pitch", "Packing" },
-                    d.FlexoCuttingRows.Select(c => new[] { c.Process ?? "—", c.Lamination ?? "—", c.CutterName ?? "—",
-                        c.PcsPerSheet?.ToString(CultureInfo.InvariantCulture) ?? "—", c.CuttingCavity?.ToString(CultureInfo.InvariantCulture) ?? "—",
-                        c.PitchMm?.ToString("N1", CultureInfo.InvariantCulture) ?? "—", c.Packing ?? "—" }).ToArray());
+                Table(ws, ref r, w,
+                    new[] { new Col("Process"), new Col("Lamination"), new Col("Cutter Name"),
+                            new Col("Pcs/Sh", Kind.Int), new Col("Cavity", Kind.Int), new Col("Pitch", Kind.Dec1), new Col("Packing") },
+                    d.FlexoCuttingRows.Select(c => new object?[] { c.Process, c.Lamination, c.CutterName,
+                        c.PcsPerSheet, c.CuttingCavity, c.PitchMm, c.Packing }).ToArray());
                 r++;
             }
             if (d.FlexoInkRows.Count > 0)
             {
                 Section(ws, ref r, $"Ink Information — {d.FlexoInkRows.Count} inks");
-                Table(ws, ref r,
-                    new[] { "No", "Color", "Ink Code", "Description", "Brand", "Anilox", "Plate", "UV" },
-                    d.FlexoInkRows.Select(i => new[] { i.Seq.ToString(CultureInfo.InvariantCulture), i.Color ?? "—", i.InkCode ?? "—",
-                        i.InkDescription ?? "—", i.Brand ?? "—", i.Anilox ?? "—", i.PlateCode ?? "—",
-                        i.UvPowerW?.ToString("N0", CultureInfo.InvariantCulture) ?? "—" }).ToArray());
+                Table(ws, ref r, w,
+                    new[] { new Col("No", Kind.Int), new Col("Color"), new Col("Ink Code"), new Col("Description"),
+                            new Col("Brand"), new Col("Anilox"), new Col("Plate"), new Col("UV", Kind.Int) },
+                    d.FlexoInkRows.Select(i => new object?[] { i.Seq, i.Color, i.InkCode,
+                        i.InkDescription, i.Brand, i.Anilox, i.PlateCode, i.UvPowerW }).ToArray());
                 r++;
             }
         }
 
         // ── Remarks ──────────────────────────────────────────────────────
-        Section(ws, ref r, "Remarks · Ghi chú");
+        Section(ws, ref r, "Remarks");
         var rm = ws.Range(r, 1, r, Width).Merge();
         rm.Value = string.IsNullOrEmpty(d.RemarksText) ? "—" : d.RemarksText;
+        rm.Style.Alignment.WrapText = true;
         r += 2;
 
         // ── Revision History (flexible — one row per lineage) ────────────
-        Section(ws, ref r, "Revision History · Lịch sử thay đổi");
-        Table(ws, ref r, new[] { "Rev", "Contents", "Date", "By" },
+        Section(ws, ref r, "Revision History");
+        Table(ws, ref r, w,
+            new[] { new Col("Rev"), new Col("Contents"), new Col("Date"), new Col("By") },
             d.Lineage.Count == 0
-                ? new[] { new[] { "—", "No revision history", "—", "—" } }
-                : d.Lineage.Select(l => new[] { l.RevisionCode, l.ChangeSummary ?? "—",
-                    l.CreatedAt.ToString("yyyy-MM-dd"), l.CreatedBy ?? "—" }).ToArray());
+                ? new[] { new object?[] { "—", "No revision history", "—", "—" } }
+                : d.Lineage.Select(l => new object?[] { l.RevisionCode, l.ChangeSummary,
+                    l.CreatedAt.ToString("yyyy-MM-dd"), l.CreatedBy }).ToArray());
         r++;
 
         // ── Approval Signatures ──────────────────────────────────────────
-        Section(ws, ref r, "Approval Signatures · Chữ ký phê duyệt");
-        Table(ws, ref r,
-            new[] { "R&D Issued", "R&D Confirmed", "PD Confirmed", "QA Confirmed" },
+        Section(ws, ref r, "Approval Signatures");
+        Table(ws, ref r, w,
+            new[] { new Col("R&D Issued"), new Col("R&D Confirmed"), new Col("PD Confirmed"), new Col("QA Confirmed") },
             new[]
             {
-                new[] { d.CreatedBy ?? "—", d.ApprovedBy ?? "—", "—", "—" },
-                new[] { $"Date: {d.CreatedAt:yyyy-MM-dd}", $"Date: {d.ApprovedAt?.ToString("yyyy-MM-dd") ?? "—"}", "Date: —", "Date: —" },
+                new object?[] { d.CreatedBy, d.ApprovedBy, "—", "—" },
+                new object?[] { $"Date: {d.CreatedAt:yyyy-MM-dd}", $"Date: {d.ApprovedAt?.ToString("yyyy-MM-dd") ?? "—"}", "Date: —", "Date: —" },
             });
 
         // ── Sheet finish ─────────────────────────────────────────────────
-        ws.Columns(1, Width).AdjustToContents(8.0, 40.0);
+        // Explicit widths measured from real content (header + cells) — no
+        // AdjustToContents guessing, no auto-filter arrow eating header space.
+        for (int c = 0; c < Width; c++)
+        {
+            double want = (w[c] <= 0 ? MinColWidth : w[c] + ColWidthPad);
+            ws.Column(c + 1).Width = Math.Clamp(want, MinColWidth, MaxColWidth);
+        }
         ws.SheetView.FreezeRows(2);
 
         using var ms = new MemoryStream();
@@ -196,33 +235,89 @@ public class XlsxSpecSheetExporter
         r++;
     }
 
-    /// <summary>Header row (grey fill, bold, centred) + data rows (alt shading),
-    /// thin borders. Optionally attach an Excel auto-filter to the range.</summary>
-    private static void Table(IXLWorksheet ws, ref int r, string[] headers, string[][] rows, bool filter = false)
+    /// <summary>
+    /// Header row (grey fill, bold, centred) + typed data rows (alt shading,
+    /// numeric = real number + format + centre, text = left), thin borders.
+    /// Records each column's widest content into <paramref name="w"/> so the
+    /// sheet-finish step can size columns without clipping any header.
+    /// </summary>
+    private static void Table(IXLWorksheet ws, ref int r, double[] w, Col[] cols, object?[][] rows)
     {
         int startRow = r;
-        for (int c = 0; c < headers.Length; c++) ws.Cell(r, c + 1).Value = headers[c];
-        var hRange = ws.Range(r, 1, r, headers.Length);
+
+        // Header row.
+        for (int c = 0; c < cols.Length; c++)
+        {
+            var cell = ws.Cell(r, c + 1);
+            cell.Value = cols[c].Header;
+            Measure(w, c, cols[c].Header);
+        }
+        var hRange = ws.Range(r, 1, r, cols.Length);
         hRange.Style.Font.Bold = true;
         hRange.Style.Fill.BackgroundColor = HeaderBg;
         hRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
         r++;
 
+        // Data rows.
         bool alt = false;
         foreach (var row in rows)
         {
-            for (int c = 0; c < row.Length; c++) ws.Cell(r, c + 1).Value = row[c];
-            if (alt) ws.Range(r, 1, r, headers.Length).Style.Fill.BackgroundColor = AltBg;
+            for (int c = 0; c < cols.Length; c++)
+                WriteCell(ws.Cell(r, c + 1), c < row.Length ? row[c] : null, cols[c].Kind, w, c);
+            if (alt) ws.Range(r, 1, r, cols.Length).Style.Fill.BackgroundColor = AltBg;
             alt = !alt;
             r++;
         }
 
-        var full = ws.Range(startRow, 1, r - 1, headers.Length);
+        var full = ws.Range(startRow, 1, r - 1, cols.Length);
         full.Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
         full.Style.Border.InsideBorder = XLBorderStyleValues.Hair;
-        full.Style.Border.OutsideBorderColor = XLColor.FromHtml(SpecPdfDocumentBuilder.StyleConstants.BorderColorHex);
-        full.Style.Border.InsideBorderColor = XLColor.FromHtml(SpecPdfDocumentBuilder.StyleConstants.BorderColorHex);
-        if (filter) ws.Range(startRow, 1, r - 1, headers.Length).SetAutoFilter();
+        full.Style.Border.OutsideBorderColor = BorderClr;
+        full.Style.Border.InsideBorderColor = BorderClr;
+    }
+
+    /// <summary>
+    /// Write one cell honouring its <see cref="Kind"/>. Numeric kinds parse the
+    /// value to a real number (int/double/decimal or a numeric string) and set
+    /// the cell as a NUMBER with a format + centre alignment — killing the
+    /// "number stored as text" triangle. Non-numeric / blank values, and any
+    /// value on a <see cref="Kind.Text"/> column (codes, "700*950", leading-zero
+    /// part numbers), stay left-aligned text with an em-dash placeholder.
+    /// </summary>
+    private static void WriteCell(IXLCell cell, object? v, Kind kind, double[] w, int col)
+    {
+        double? num = kind == Kind.Text ? null : ToNumber(v);
+        if (num.HasValue)
+        {
+            cell.Value = num.Value;
+            cell.Style.NumberFormat.Format = kind == Kind.Int ? "0" : "0.0";
+            cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+            Measure(w, col, num.Value.ToString(kind == Kind.Int ? "0" : "0.0", CultureInfo.InvariantCulture));
+            return;
+        }
+
+        var s = v?.ToString();
+        if (string.IsNullOrWhiteSpace(s)) s = "—";
+        cell.Value = s;
+        cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+        Measure(w, col, s);
+    }
+
+    private static double? ToNumber(object? v) => v switch
+    {
+        null            => null,
+        double dd       => dd,
+        float ff        => ff,
+        int ii          => ii,
+        long ll         => ll,
+        decimal mm      => (double)mm,
+        string ss when double.TryParse(ss, NumberStyles.Any, CultureInfo.InvariantCulture, out var p) => p,
+        _               => null,
+    };
+
+    private static void Measure(double[] w, int col, string text)
+    {
+        if (col >= 0 && col < w.Length && text.Length > w[col]) w[col] = text.Length;
     }
 
     private static string ResolveTemplate(string planner) => (planner ?? "UNKNOWN").Trim().ToUpperInvariant() switch

@@ -4,6 +4,7 @@ using CCL.MES.Application.SpecDetail;
 using CCL.MES.Application.SpecExport;
 using CCL.MES.Domain;
 using CCL.MES.Infrastructure.SpecExport;
+using ClosedXML.Excel;
 using MigraDoc.DocumentObjectModel;
 using MigraDoc.DocumentObjectModel.Tables;
 using Xunit;
@@ -285,6 +286,89 @@ public class SpecPdfDispatchTests
                 $"table border {t.Borders.Width.Point}pt is not the halved 0.125");
     }
 
+    // ── Silk Print-Process grid: header ↔ data alignment (RCA fix) ─────────
+
+    [Fact]
+    public void Silk_grid_columns_sum_to_exactly_the_usable_width()
+    {
+        // Invariant: 21 columns whose widths fill the usable page width EXACTLY
+        // → MigraDoc never re-flows, header + data share one geometry.
+        var (headers, rows, widths, aligns) =
+            SpecPdfDocumentBuilder.BuildSilkGrid(BuildSilk(), SpecPdfDocumentBuilder.DetailLayout.ForStep(0));
+
+        Assert.Equal(21, headers.Length);
+        Assert.Equal(21, widths.Length);
+        Assert.Equal(21, aligns.Length);
+        foreach (var r in rows) Assert.Equal(21, r.Length);   // every data row 1:1 with header
+
+        Assert.Equal(SpecPdfDocumentBuilder.DetailUsableWidthCm, widths.Sum(), 2);
+    }
+
+    [Fact]
+    public void Silk_grid_every_column_is_wide_enough_for_its_header()
+    {
+        // Regression for the "Retarder" cramp: the old hand-tuned weights left
+        // "Retarder" 0.3pt from "Visc" (they rendered as one word). Each column
+        // must now clear its header label with margin at the header font.
+        var layout = SpecPdfDocumentBuilder.DetailLayout.ForStep(0);
+        var (headers, _, widths, _) = SpecPdfDocumentBuilder.BuildSilkGrid(BuildSilk(), layout);
+
+        const double cmPerPt = 2.54 / 72.0;
+        // Conservative upper bound on a bold header word width (≈0.55 em/char).
+        double headerCharCm = layout.HeaderRowPt * cmPerPt * 0.55;
+        for (int i = 0; i < headers.Length; i++)
+        {
+            double need = headers[i].Length * headerCharCm;
+            Assert.True(widths[i] >= need,
+                $"column '{headers[i]}' is {widths[i]:F2}cm, header needs ≥ {need:F2}cm → clips.");
+        }
+    }
+
+    [Fact]
+    public void Silk_grid_numeric_columns_centre_text_columns_left()
+    {
+        // Alignment map is the SAME array applied to header + every data row, so
+        // a single digit sits under its header instead of hugging the left edge.
+        var (headers, _, _, aligns) =
+            SpecPdfDocumentBuilder.BuildSilkGrid(BuildSilk(), SpecPdfDocumentBuilder.DetailLayout.ForStep(0));
+
+        MigraDoc.DocumentObjectModel.ParagraphAlignment A(string h) => aligns[System.Array.IndexOf(headers, h)];
+        foreach (var num in new[] { "No", "Visc", "Speed", "°C", "min", "UV", "Emul", "Angle", "Ctrl#" })
+            Assert.Equal(MigraDoc.DocumentObjectModel.ParagraphAlignment.Center, A(num));
+        foreach (var txt in new[] { "Surf", "Color", "Ink Name", "Ink Code", "Maker", "Retarder", "Squee", "Dry", "Plate Size", "Mesh", "Plate Code", "Remark" })
+            Assert.Equal(MigraDoc.DocumentObjectModel.ParagraphAlignment.Left, A(txt));
+    }
+
+    [Fact]
+    public void Header_band_section_bands_and_tables_share_one_flush_inset()
+    {
+        // Regression for the L/R "staircase": doc header inset 8pt, tables PadH,
+        // section bands 0.1cm → three different left+right edges. Now every
+        // table uses PadH symmetric, and every shaded section band insets by
+        // ∓PadH → all boxes line up flush on both edges.
+        var layout = SpecPdfDocumentBuilder.DetailLayout.ForStep(0);
+        var doc = SpecPdfDocumentBuilder.BuildDetailSheet(BuildSilk(), Ctx);
+        var sec = doc.LastSection;
+
+        var tables = sec.Elements.OfType<Table>().ToList();
+        Assert.NotEmpty(tables);
+        foreach (var t in tables)
+        {
+            Assert.Equal(layout.PadH, t.LeftPadding.Point, 3);
+            Assert.Equal(layout.PadH, t.RightPadding.Point, 3);
+        }
+
+        var bands = sec.Elements.OfType<Paragraph>()
+            .Where(p => !p.Format.Shading.Color.IsEmpty)
+            .ToList();
+        Assert.NotEmpty(bands);
+        foreach (var p in bands)
+        {
+            Assert.Equal(-layout.PadH, p.Format.LeftIndent.Point, 3);
+            Assert.Equal(layout.PadH, p.Format.RightIndent.Point, 3);
+        }
+    }
+
     [Fact]
     public void Xlsx_sheet_exporter_produces_a_valid_workbook()
     {
@@ -293,6 +377,76 @@ public class SpecPdfDispatchTests
         // .xlsx is a ZIP container → starts with the "PK" local-file signature.
         Assert.Equal((byte)'P', bytes[0]);
         Assert.Equal((byte)'K', bytes[1]);
+    }
+
+    // ── XLSX format (balanced-like-app): numeric cells, no autofilter,
+    //    single-language titles, header-fitting column widths ───────────────
+
+    private static IXLWorksheet OpenSheet(SpecDetailDto d)
+    {
+        var bytes = new XlsxSpecSheetExporter().Export(d, Ctx);
+        // Keep the workbook alive via the returned worksheet's Workbook handle.
+        var wb = new XLWorkbook(new MemoryStream(bytes));
+        return wb.Worksheet(1);
+    }
+
+    private static IXLCell HeaderCell(IXLWorksheet ws, string header) =>
+        ws.CellsUsed().First(c => c.GetString() == header);
+
+    [Fact]
+    public void Xlsx_numeric_columns_are_real_numbers_not_text()
+    {
+        // "SỐ = SỐ": Visc / °C / Ctrl# / Angle carry real numbers (no green
+        // "stored as text" triangle) — while a code column stays TEXT.
+        var ws = OpenSheet(BuildSilk());
+
+        foreach (var num in new[] { "Visc", "°C", "Ctrl#", "Angle" })
+        {
+            var h = HeaderCell(ws, num);
+            var below = ws.Cell(h.Address.RowNumber + 1, h.Address.ColumnNumber);
+            Assert.Equal(XLDataType.Number, below.DataType);
+        }
+
+        // Leading-letter code stays text (IC-001) — never coerced to a number.
+        var codeHdr = HeaderCell(ws, "Ink Code");
+        var codeCell = ws.Cell(codeHdr.Address.RowNumber + 1, codeHdr.Address.ColumnNumber);
+        Assert.Equal(XLDataType.Text, codeCell.DataType);
+    }
+
+    [Fact]
+    public void Xlsx_has_no_autofilter_it_is_a_document_not_a_grid()
+    {
+        var ws = OpenSheet(BuildSilk());
+        Assert.False(ws.AutoFilter.IsEnabled);
+    }
+
+    [Fact]
+    public void Xlsx_section_titles_are_single_language()
+    {
+        var ws = OpenSheet(BuildSilk());
+        var strings = ws.CellsUsed().Select(c => c.GetString()).ToList();
+
+        Assert.Contains(strings, s => s == "Product Information");
+        Assert.Contains(strings, s => s == "Revision History");
+        Assert.Contains(strings, s => s == "Approval Signatures");
+        // No bilingual "· <Vietnamese>" suffix leaked into any cell.
+        foreach (var vn in new[] { "Thông tin", "Thông số", "Ghi chú", "Lịch sử", "Chữ ký", "sản phẩm" })
+            Assert.DoesNotContain(strings, s => s.Contains(vn));
+    }
+
+    [Fact]
+    public void Xlsx_long_headers_get_columns_wide_enough_not_to_clip()
+    {
+        // Each header must fit in its column (width ≥ header length) so
+        // "Retarder / Plate Code / Plate Size / Remark" are never cut.
+        var ws = OpenSheet(BuildSilk());
+        foreach (var header in new[] { "Retarder", "Plate Code", "Plate Size", "Remark", "Printing Cavity" })
+        {
+            var h = HeaderCell(ws, header);
+            var width = ws.Column(h.Address.ColumnNumber).Width;
+            Assert.True(width >= header.Length,
+                $"column for '{header}' is {width:F1} wide — narrower than the {header.Length}-char header (clips).");
+        }
     }
 
     [Fact]
