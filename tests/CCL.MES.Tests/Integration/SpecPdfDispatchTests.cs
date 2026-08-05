@@ -286,6 +286,16 @@ public class SpecPdfDispatchTests
     }
 
     [Fact]
+    public void Xlsx_sheet_exporter_produces_a_valid_workbook()
+    {
+        var bytes = new XlsxSpecSheetExporter().Export(BuildSilk(), Ctx);
+        Assert.NotEmpty(bytes);
+        // .xlsx is a ZIP container → starts with the "PK" local-file signature.
+        Assert.Equal((byte)'P', bytes[0]);
+        Assert.Equal((byte)'K', bytes[1]);
+    }
+
+    [Fact]
     public void Exported_sheet_omits_the_change_log_section()
     {
         // The audit Change Log is on-screen only — it must NOT appear in the

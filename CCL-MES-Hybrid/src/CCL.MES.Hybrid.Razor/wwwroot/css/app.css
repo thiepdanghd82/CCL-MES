@@ -2711,6 +2711,7 @@ html, body {
     margin: 0;
 }
 .spec-print-pdf { margin-left: auto; }
+.spec-print-group { display: inline-flex; gap: 6px; margin-left: auto; }
 .spec-action-banner-row { margin: 0 0 14px; }
 .spec-action-banner-row .spec-action-banner { margin-left: 0; }
 

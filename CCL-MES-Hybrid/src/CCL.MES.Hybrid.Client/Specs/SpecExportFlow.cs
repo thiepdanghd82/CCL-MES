@@ -17,6 +17,9 @@ public interface ISpecExportDownloads
 
     Task<long> DownloadSpecSheetPdfAsync(
         long revisionId, string destinationFilePath, CancellationToken ct = default);
+
+    Task<long> DownloadSpecSheetXlsxAsync(
+        long revisionId, string destinationFilePath, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -71,6 +74,10 @@ public sealed class SpecExportFlow
         public Task<long> DownloadSpecSheetPdfAsync(
             long revisionId, string destinationFilePath, CancellationToken ct = default)
             => _inner.DownloadSpecSheetPdfAsync(revisionId, destinationFilePath, ct);
+
+        public Task<long> DownloadSpecSheetXlsxAsync(
+            long revisionId, string destinationFilePath, CancellationToken ct = default)
+            => _inner.DownloadSpecSheetXlsxAsync(revisionId, destinationFilePath, ct);
     }
 
     /// <summary>
@@ -132,6 +139,24 @@ public sealed class SpecExportFlow
         return await FinaliseAsync(save, sandboxPath, stampedName, openAfterSave, bytes, ct);
     }
 
+    /// <summary>Per-spec sheet EXCEL flow — identical shape to
+    /// <see cref="ExportSheetPdfAsync"/>, just the .xlsx endpoint + filename.</summary>
+    public async Task<SpecExportFlowOutcome> ExportSheetXlsxAsync(
+        long revisionId,
+        string refNoOrSpecCode,
+        string revisionCode,
+        bool openAfterSave,
+        CancellationToken ct = default)
+    {
+        var sandboxDir = _opener.GetSafeDownloadDirectory();
+        var stampedName = StampedSheetFilename(refNoOrSpecCode, revisionCode, DateTime.Now, "xlsx");
+        var sandboxPath = Path.Combine(sandboxDir, stampedName);
+
+        var bytes = await _api.DownloadSpecSheetXlsxAsync(revisionId, sandboxPath, ct);
+        var save = await _saver.SaveAsync(sandboxPath, stampedName, ct);
+        return await FinaliseAsync(save, sandboxPath, stampedName, openAfterSave, bytes, ct);
+    }
+
     private async Task<SpecExportFlowOutcome> FinaliseAsync(
         SaveOutcome save, string sandboxPath, string stampedName,
         bool openAfterSave, long downloadedBytes, CancellationToken ct)
@@ -170,12 +195,13 @@ public sealed class SpecExportFlow
     /// Catalyst save dialog accepts the suggested name without
     /// rewriting it.
     /// </summary>
-    public static string StampedSheetFilename(string refNoOrSpecCode, string revisionCode, DateTime now)
+    public static string StampedSheetFilename(
+        string refNoOrSpecCode, string revisionCode, DateTime now, string ext = "pdf")
     {
         var ts = now.ToString("yyyyMMdd-HHmmss", System.Globalization.CultureInfo.InvariantCulture);
         var head = Sanitize(refNoOrSpecCode ?? "spec");
         var rev = Sanitize(revisionCode ?? "");
-        return $"SpecSheet_{head}_Rev{rev}_{ts}.pdf";
+        return $"SpecSheet_{head}_Rev{rev}_{ts}.{ext}";
     }
 
     private static string Sanitize(string raw)

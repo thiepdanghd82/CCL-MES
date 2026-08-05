@@ -1246,6 +1246,13 @@ MessageEn = ((int)resp.StatusCode).ToString(System.Globalization.CultureInfo.Inv
         return StreamToFileAsync(path, destinationFilePath, ct);
     }
 
+    public Task<long> DownloadSpecSheetXlsxAsync(
+        long revisionId, string destinationFilePath, CancellationToken ct = default)
+    {
+        var path = $"/{ApiVersion.Prefix}/specs/export/{revisionId}/sheet/xlsx";
+        return StreamToFileAsync(path, destinationFilePath, ct);
+    }
+
     // ── Settings — My Profile + My Password (P10.6a) ────────────────
 
     public async Task<SettingsProfileDto> GetMyProfileAsync(CancellationToken ct = default)

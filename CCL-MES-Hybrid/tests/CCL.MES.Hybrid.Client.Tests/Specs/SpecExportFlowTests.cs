@@ -221,5 +221,17 @@ public sealed class SpecExportFlowTests
             File.WriteAllBytes(destinationFilePath, new byte[] { 1, 2, 3, 4 });
             return Task.FromResult<long>(4);
         }
+
+        public int SheetXlsxDownloadCalls { get; private set; }
+
+        public Task<long> DownloadSpecSheetXlsxAsync(
+            long revisionId, string destinationFilePath, CancellationToken ct = default)
+        {
+            SheetXlsxDownloadCalls++;
+            LastSheetRevisionId = revisionId;
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationFilePath)!);
+            File.WriteAllBytes(destinationFilePath, new byte[] { 1, 2, 3, 4, 5 });
+            return Task.FromResult<long>(5);
+        }
     }
 }

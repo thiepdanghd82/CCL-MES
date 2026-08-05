@@ -57,6 +57,8 @@ public static class DependencyInjection
         services.AddSingleton<PdfSpecListExporter>();
         // PR #31d — single-spec detail sheet PDF exporter (reuse PDF builder layer)
         services.AddSingleton<PdfSpecSheetExporter>();
+        // Detail sheet → Excel (companion to the PDF sheet exporter).
+        services.AddSingleton<XlsxSpecSheetExporter>();
         // Resolve by format string — controller pattern. ISpecListExporter
         // multi-impl đăng ký để future PR thêm exporter (JSON, PDF detail, …)
         // chỉ cần thêm dòng dưới.

@@ -563,6 +563,13 @@ public interface ICclApiClient
         string destinationFilePath,
         CancellationToken ct = default);
 
+    /// <summary>Single-spec detail sheet → Excel (.xlsx). Same chunked-
+    /// download semantics as <see cref="DownloadSpecSheetPdfAsync"/>.</summary>
+    Task<long> DownloadSpecSheetXlsxAsync(
+        long revisionId,
+        string destinationFilePath,
+        CancellationToken ct = default);
+
     // ── Settings — My Profile + My Password (P10.6a) ────────────────
     /// <summary>Fetch the signed-in user's profile (Username + Role
     /// from claims; DisplayName + Department + MustChangePassword
