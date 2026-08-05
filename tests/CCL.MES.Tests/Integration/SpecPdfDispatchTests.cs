@@ -4,6 +4,7 @@ using CCL.MES.Application.SpecDetail;
 using CCL.MES.Application.SpecExport;
 using CCL.MES.Domain;
 using CCL.MES.Infrastructure.SpecExport;
+using ClosedXML.Excel;
 using MigraDoc.DocumentObjectModel;
 using MigraDoc.DocumentObjectModel.Tables;
 using Xunit;
@@ -293,6 +294,76 @@ public class SpecPdfDispatchTests
         // .xlsx is a ZIP container → starts with the "PK" local-file signature.
         Assert.Equal((byte)'P', bytes[0]);
         Assert.Equal((byte)'K', bytes[1]);
+    }
+
+    // ── XLSX format (balanced-like-app): numeric cells, no autofilter,
+    //    single-language titles, header-fitting column widths ───────────────
+
+    private static IXLWorksheet OpenSheet(SpecDetailDto d)
+    {
+        var bytes = new XlsxSpecSheetExporter().Export(d, Ctx);
+        // Keep the workbook alive via the returned worksheet's Workbook handle.
+        var wb = new XLWorkbook(new MemoryStream(bytes));
+        return wb.Worksheet(1);
+    }
+
+    private static IXLCell HeaderCell(IXLWorksheet ws, string header) =>
+        ws.CellsUsed().First(c => c.GetString() == header);
+
+    [Fact]
+    public void Xlsx_numeric_columns_are_real_numbers_not_text()
+    {
+        // "SỐ = SỐ": Visc / °C / Ctrl# / Angle carry real numbers (no green
+        // "stored as text" triangle) — while a code column stays TEXT.
+        var ws = OpenSheet(BuildSilk());
+
+        foreach (var num in new[] { "Visc", "°C", "Ctrl#", "Angle" })
+        {
+            var h = HeaderCell(ws, num);
+            var below = ws.Cell(h.Address.RowNumber + 1, h.Address.ColumnNumber);
+            Assert.Equal(XLDataType.Number, below.DataType);
+        }
+
+        // Leading-letter code stays text (IC-001) — never coerced to a number.
+        var codeHdr = HeaderCell(ws, "Ink Code");
+        var codeCell = ws.Cell(codeHdr.Address.RowNumber + 1, codeHdr.Address.ColumnNumber);
+        Assert.Equal(XLDataType.Text, codeCell.DataType);
+    }
+
+    [Fact]
+    public void Xlsx_has_no_autofilter_it_is_a_document_not_a_grid()
+    {
+        var ws = OpenSheet(BuildSilk());
+        Assert.False(ws.AutoFilter.IsEnabled);
+    }
+
+    [Fact]
+    public void Xlsx_section_titles_are_single_language()
+    {
+        var ws = OpenSheet(BuildSilk());
+        var strings = ws.CellsUsed().Select(c => c.GetString()).ToList();
+
+        Assert.Contains(strings, s => s == "Product Information");
+        Assert.Contains(strings, s => s == "Revision History");
+        Assert.Contains(strings, s => s == "Approval Signatures");
+        // No bilingual "· <Vietnamese>" suffix leaked into any cell.
+        foreach (var vn in new[] { "Thông tin", "Thông số", "Ghi chú", "Lịch sử", "Chữ ký", "sản phẩm" })
+            Assert.DoesNotContain(strings, s => s.Contains(vn));
+    }
+
+    [Fact]
+    public void Xlsx_long_headers_get_columns_wide_enough_not_to_clip()
+    {
+        // Each header must fit in its column (width ≥ header length) so
+        // "Retarder / Plate Code / Plate Size / Remark" are never cut.
+        var ws = OpenSheet(BuildSilk());
+        foreach (var header in new[] { "Retarder", "Plate Code", "Plate Size", "Remark", "Printing Cavity" })
+        {
+            var h = HeaderCell(ws, header);
+            var width = ws.Column(h.Address.ColumnNumber).Width;
+            Assert.True(width >= header.Length,
+                $"column for '{header}' is {width:F1} wide — narrower than the {header.Length}-char header (clips).");
+        }
     }
 
     [Fact]
