@@ -35,22 +35,30 @@
             <NavLink href="/warehouse/semi-products" class="app-nav-link">@Ico("box")<span>@T("nav.semiproducts")</span></NavLink>
         }
 
-        @* P10.8 — Machine Dashboard + Shop Order History + QMS (SpecHub
-           parity). Read-only monitoring; open to every authenticated role. *@
+        @* P10.8 — Machine Dashboard + Shop Order History (SpecHub parity).
+           Read-only monitoring; open to every authenticated role. The QC
+           surfaces moved to the CCL-QMS group below. *@
         <div class="app-nav-section">@T("nav.section.monitoring")</div>
         <NavLink href="/machines" class="app-nav-link">@Ico("grid")<span>@T("nav.machines")</span></NavLink>
         <NavLink href="/shop-orders" class="app-nav-link">@Ico("history")<span>@T("nav.shoporders")</span></NavLink>
-        @* Inspection Queue uses exact match so it doesn't also light up when
-           the deeper /qms/history (QC History) route is active. *@
-        <NavLink href="/qms" Match="NavLinkMatch.All" class="app-nav-link">@Ico("clipboard")<span>@T("nav.inspectionqueue")</span></NavLink>
-        <NavLink href="/qms/history" class="app-nav-link">@Ico("shield")<span>@T("nav.qchistory")</span></NavLink>
-        <NavLink href="/qc/library" class="app-nav-link">@Ico("clipboard")<span>@T("nav.qclibrary")</span></NavLink>
 
-        @* Quality Control — traceability across the 8 quality legs per WO.
-           Gated to the QcRead policy roles (Admin/Supervisor/QC). *@
-        <AuthorizeView Roles="Admin,Supervisor,QC" Context="qcCtx">
-            <div class="app-nav-section">@T("nav.section.quality")</div>
-            <NavLink href="/quality/traceability" class="app-nav-link">@Ico("shield")<span>@T("nav.traceability")</span></NavLink>
+        @* CCL-QMS — one home for every quality surface, mirroring the NPI DATA
+           group (section header + indented sub-links). Gated to the QcRead
+           policy roles (Admin/Supervisor/QC); RBAC-by-omission — the server
+           still enforces on each route. IPQC/FQC/OQC are stage-scoped views of
+           the same Inspection Queue (/qms/{stage}); Match.All on the hub link
+           stops /qms lighting up on the deeper stage/history routes. *@
+        <AuthorizeView Roles="Admin,Supervisor,QC" Context="qmsCtx">
+            <div class="app-nav-section">@T("nav.section.qms")</div>
+            <div class="app-nav-group">
+                <NavLink href="/qms" Match="NavLinkMatch.All" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.queue")</span></NavLink>
+                <NavLink href="/qms/ipqc" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.ipqc")</span></NavLink>
+                <NavLink href="/qms/fqc" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.fqc")</span></NavLink>
+                <NavLink href="/qms/oqc" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.oqc")</span></NavLink>
+                <NavLink href="/qms/history" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.history")</span></NavLink>
+                <NavLink href="/qc/library" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.library")</span></NavLink>
+                <NavLink href="/quality/traceability" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.traceability")</span></NavLink>
+            </div>
         </AuthorizeView>
 
         @* P10.10 — the Settings hub (/settings) now lists every sub-page

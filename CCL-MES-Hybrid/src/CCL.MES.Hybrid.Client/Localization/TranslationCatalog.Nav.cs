@@ -22,12 +22,17 @@ public sealed partial class TranslationCatalog
         Add("nav.section.monitoring",  "GIÁM SÁT",                  "MONITORING");
         Add("nav.machines",           "Bảng điều khiển máy",       "Machine Dashboard");
         Add("nav.shoporders",         "Lịch sử lệnh SX",           "Shop Order History");
-        Add("nav.inspectionqueue",    "Hàng chờ kiểm",             "Inspection Queue");
-        Add("nav.qchistory",          "Lịch sử QC",                "QC History");
-        Add("nav.qclibrary",          "Thư viện QC",               "QC Library");
 
-        Add("nav.section.quality",     "KIỂM SOÁT CHẤT LƯỢNG",      "QUALITY CONTROL");
-        Add("nav.traceability",       "Dữ liệu truy xuất",         "Traceability data");
+        // CCL-QMS group — mirrors the NPI DATA group. IPQC/FQC/OQC are
+        // stage-scoped views of the same Inspection Queue (/qms/{stage}).
+        Add("nav.section.qms",         "CCL-QMS",                   "CCL-QMS");
+        Add("nav.qms.queue",          "Hàng chờ kiểm",             "Inspection Queue");
+        Add("nav.qms.ipqc",           "IPQC — Kiểm trong chuyền",  "IPQC — In-Process");
+        Add("nav.qms.fqc",            "FQC — Kiểm cuối",           "FQC — Final");
+        Add("nav.qms.oqc",            "OQC — Kiểm xuất hàng",      "OQC — Outgoing");
+        Add("nav.qms.history",        "Lịch sử QC",                "QC History");
+        Add("nav.qms.library",        "Thư viện QC",               "QC Library");
+        Add("nav.qms.traceability",   "Dữ liệu truy xuất",         "Traceability data");
 
         Add("nav.section.settings",    "CÀI ĐẶT",                   "SETTINGS");
         Add("nav.system",             "Hệ thống",                  "System");
