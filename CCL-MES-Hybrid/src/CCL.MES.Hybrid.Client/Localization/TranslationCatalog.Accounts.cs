@@ -72,10 +72,10 @@ public sealed partial class TranslationCatalog
         Add("accounts.confirm.delete",         "Xóa vĩnh viễn tài khoản '{0}' ({1})? Không thể hoàn tác. Lịch sử kiểm toán được giữ lại, nhưng thông tin đăng nhập bị xóa vĩnh viễn.", "Permanently delete account '{0}' ({1})? This cannot be undone. Their audit history is kept, but the login is removed for good.");
 
         // ── Success / info banners ─────────────────────────────────────
-        Add("accounts.info.deleted",           "✔ Đã xóa tài khoản {0}.",                                                 "✔ Deleted account {0}.");
-        Add("accounts.info.updated",           "✔ Đã cập nhật {0}.",                                                      "✔ Updated {0}.");
-        Add("accounts.info.created",           "✔ Đã tạo {0} ({1}). Người dùng sẽ buộc phải đổi mật khẩu ở lần đăng nhập đầu tiên.", "✔ Created {0} ({1}). The user will be forced to change their password on first sign-in.");
-        Add("accounts.info.reset",             "✔ Đã đặt lại mật khẩu cho {0}. MustChangePassword = true.",               "✔ Reset password for {0}. MustChangePassword = true.");
+        Add("accounts.info.deleted",           "Đã xóa tài khoản {0}.",                                                 "Deleted account {0}.");
+        Add("accounts.info.updated",           "Đã cập nhật {0}.",                                                      "Updated {0}.");
+        Add("accounts.info.created",           "Đã tạo {0} ({1}). Người dùng sẽ buộc phải đổi mật khẩu ở lần đăng nhập đầu tiên.", "Created {0} ({1}). The user will be forced to change their password on first sign-in.");
+        Add("accounts.info.reset",             "Đã đặt lại mật khẩu cho {0}. MustChangePassword = true.",               "Reset password for {0}. MustChangePassword = true.");
 
         // ── Error banners ──────────────────────────────────────────────
         Add("accounts.error.load",             "Tải thất bại: {0} ({1}).",                                                "Failed to load: {0} ({1}).");

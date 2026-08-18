@@ -20,8 +20,8 @@ public sealed partial class TranslationCatalog
         Add("qccapture.field.reason.select",          "— Chọn mã lý do —",                            "— Select reason code —");
         Add("qccapture.field.comment",                "Ghi chú",                                      "Comment");
 
-        Add("qccapture.result.pass",                  "✓ ĐẠT",                                        "✓ PASS");
-        Add("qccapture.result.fail",                  "✗ KHÔNG ĐẠT",                                  "✗ FAIL");
+        Add("qccapture.result.pass",                  "ĐẠT",                                        "PASS");
+        Add("qccapture.result.fail",                  "KHÔNG ĐẠT",                                  "FAIL");
         Add("qccapture.result.na",                    "— N/A",                                        "— N/A");
 
         Add("qccapture.action.cancel",                "Hủy",                                          "Cancel");

@@ -17,10 +17,10 @@
    sidebar roll-ups computed client-side. *@
 <div class="md-head">
     <div>
-        <h1 class="page-title">🔬 @T("qchistory.title")</h1>
+        <PageHead TitleKey="qchistory.title" />
         <div class="md-subtitle">@T("qchistory.subtitle", _data?.Total ?? 0)</div>
     </div>
-    <button type="button" class="md-refresh" @onclick="ExportCsvAsync" disabled="@(_data is null || _data.Rows.Count == 0)">📥 @T("qchistory.export.csv")</button>
+    <button type="button" class="md-refresh" @onclick="ExportCsvAsync" disabled="@(_data is null || _data.Rows.Count == 0)"><Icon Name="import" /> @T("qchistory.export.csv")</button>
 </div>
 
 <div class="md-kpi-grid soh-kpi-grid">
@@ -122,7 +122,7 @@ else
                 <div class="md-side-body">@RenderAgg(ByKind, _data.Rows.Count, "#2563eb", false)</div>
             </div>
             <div class="md-side-card">
-                <div class="md-side-head">👤 @T("qchistory.side.topinspectors")</div>
+                <div class="md-side-head"><Icon Name="user" /> @T("qchistory.side.topinspectors")</div>
                 <div class="md-side-body">@RenderAgg(TopInspectors, _data.Rows.Count, "#16a34a", false)</div>
             </div>
             <div class="md-side-card">

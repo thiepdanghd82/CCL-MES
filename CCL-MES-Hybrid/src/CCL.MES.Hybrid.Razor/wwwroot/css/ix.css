@@ -712,3 +712,76 @@
 /* 11.8 — Rail: khối user ở đáy đã bỏ khỏi NavMenu (trùng với top bar).
    Giữ rule để bản cũ nếu còn sót không đè lên danh sách Recent Scans. */
 .app-nav-userbox { position: static; }
+
+/* ═══ 12. KHUNG ĐẦU TRANG (D6.2) ══════════════════════════════════════════ */
+.ix-page-head-main { min-width: 0; }
+.ix-page-eyebrow {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ix-ink-mut);
+    margin-bottom: var(--sp-1);
+}
+/* Tiêu đề nằm trong khung này bỏ margin dưới — khoảng cách do khung lo, nếu
+   không sẽ cộng dồn hai lần và đẩy nội dung xuống lệch so với trang chưa migrate. */
+.ix-page-head .page-title { margin: 0; }
+.ix-page-head .ix-page-sub { margin-top: var(--sp-1); }
+
+/* D6.9 — Razor cho h1 nhận focus khi điều hướng SPA, app.css chỉ khử ring cho
+   .page-title nên 4 module QMS (dùng class khác) hiện một khung xanh quanh tiêu
+   đề. Khử chung cho mọi heading nhận focus theo cách đó. */
+h1:focus, h2:focus, .qms-section-title:focus, .qms-module-title:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+/* ═══ 13. ICON (D6.1) ═════════════════════════════════════════════════════
+   Icon thừa hưởng currentColor + cỡ chữ của phần tử cha ⇒ đổi màu/độ lớn bằng
+   cách đổi text của cha, không có "màu icon" riêng để lệch khỏi palette. */
+.ix-icon { display: inline-block; vertical-align: -0.125em; flex: 0 0 auto; }
+/* Ô icon lớn trên thẻ module / quick action / settings — trước đây là emoji
+   màu, nay là nét đơn sắc nên cần cỡ tường minh. */
+.module-ico .ix-icon, .qa-ico .ix-icon, .settings-card-icon .ix-icon,
+.appearance-card-flag .ix-icon { width: 1.5em; height: 1.5em; }
+.module-ico, .qa-ico, .settings-card-icon { color: var(--ix-ink-mut); }
+.md-side-head .ix-icon, .spec-ctx-ico .ix-icon { color: var(--ix-ink-mut); }
+
+/* ═══ 14. DỌN NỐT SAU AUDIT (D6.5–D6.8) ══════════════════════════════════ */
+
+/* D6.5 — Lưới Modules ở Home: 5 thẻ trong lưới 2 cột để lại một ô trống đọc
+   như thẻ hỏng. Cho lưới tự xếp theo bề rộng thay vì chốt số cột. */
+.module-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: var(--sp-3);
+}
+
+/* D6.6 — PLANNER là LOẠI QUY TRÌNH, không phải trạng thái.
+   Trước đây mỗi planner một màu đặc (silk đỏ · flexo xanh dương …) trông y hệt
+   pill trạng thái ⇒ mắt đọc "INDIGO" là "đạt". Hạ về nhãn trung tính: cùng một
+   hình, phân biệt bằng CHỮ, không bằng màu. Màu để dành cho tình trạng. */
+.spec-planner-chip, .spec-planner-silk, .spec-planner-flexo, .spec-planner-indigo,
+.spec-planner-letter, .spec-planner-diecut, .spec-planner-screen {
+    background: var(--ix-idle-tint) !important;
+    color: var(--ix-idle-ink) !important;
+    border: var(--ix-hairline) solid var(--ix-idle-line);
+    font-weight: 600;
+    letter-spacing: .04em;
+}
+
+/* D6.7 — Bảng Specs dùng sọc ngựa vằn trong khi lưới NPI dùng hairline.
+   Một sản phẩm chỉ nên có MỘT cách vẽ bảng. Giữ hairline (đọc tốt hơn ở bảng
+   nhiều cột, và không cộng thêm một nền màu nữa vào nền vốn đã nhiều lớp). */
+.grid tbody tr:nth-child(odd) td,
+.grid tbody tr:nth-child(even) td { background: transparent; }
+.grid tbody tr:hover td { background: var(--ix-accent-tint); }
+
+/* D6.8 — Card máy còn viền trái màu dày sau khi ô KPI đã hạ về hairline.
+   Trạng thái máy đã có pill ở góc phải — viền màu là lần nói thứ hai. */
+.md-mc-card {
+    border-left-width: var(--ix-hairline);
+    border-left-color: var(--ix-line);
+    box-shadow: none;
+}
+.md-mc-card:hover { transform: none; box-shadow: var(--el-1); }

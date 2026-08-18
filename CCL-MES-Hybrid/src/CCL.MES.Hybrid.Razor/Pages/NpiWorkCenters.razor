@@ -20,7 +20,7 @@
 
 <PageTitle>@T("npiwc.pagetitle")</PageTitle>
 
-<h1 class="page-title">@T("npiwc.heading")</h1>
+<PageHead TitleKey="npiwc.heading" />
 
 <div class="grid-toolbar">
     <GridSearchBox @bind-Value="_search" OnSearch="OnSearchClickAsync"
@@ -329,9 +329,9 @@ else if (_data is not null)
         _menuItems = new[]
         {
             new ContextMenuItem { Label = T("npiwc.menu.copy"), Icon = "⎘", OnClick = EventCallback.Factory.Create(this, () => OpenCopy(row)) },
-            new ContextMenuItem { Label = T("npiwc.menu.edit"), Icon = "📝", OnClick = EventCallback.Factory.Create(this, () => OpenEdit(row)) },
+            new ContextMenuItem { Label = T("npiwc.menu.edit"), Icon = "✎", OnClick = EventCallback.Factory.Create(this, () => OpenEdit(row)) },
             ContextMenuItem.Divider,
-            new ContextMenuItem { Label = T("npiwc.menu.delete"), Icon = "🗑", Danger = true, OnClick = EventCallback.Factory.Create(this, () => OpenDelete(row)) },
+            new ContextMenuItem { Label = T("npiwc.menu.delete"), Icon = "✕", Danger = true, OnClick = EventCallback.Factory.Create(this, () => OpenDelete(row)) },
         };
     }
 

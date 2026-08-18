@@ -43,7 +43,7 @@
     surfaces as a `network_error` banner; operator retries when LAN is back.
 *@
 
-<h1 class="page-title">@T("wo.heading")</h1>
+<PageHead TitleKey="wo.heading" />
 
 @if (!HwOptions.Value.ScanEnabled)
 {
@@ -434,7 +434,7 @@ else
                     {
                         <div class="wo-side-panel">
                             <div class="wo-side-head">
-                                🕘 @T("wo.side.audittrail")
+                                <Icon Name="clock" /> @T("wo.side.audittrail")
                                 <span class="wo-side-head-aside">@T("wo.audit.events", _woAudit.Count)</span>
                             </div>
                             <div class="wo-side-body wo-audit-list">

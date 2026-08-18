@@ -41,14 +41,14 @@
                                             else if (d.IsPdf)
                                             {
                                                 <span class="dwg-thumb-pdf">
-                                                    <span class="dwg-thumb-pdf-icon">📄</span>
+                                                    <span class="dwg-thumb-pdf-icon"><Icon Name="document" /></span>
                                                     <span class="dwg-thumb-pdf-label">PDF</span>
                                                     <span class="dwg-thumb-pdf-hint">@T("specdrawcard.pdf.clickToView")</span>
                                                 </span>
                                             }
                                             else
                                             {
-                                                <span class="spec-drawing-noimg">📄 @System.IO.Path.GetExtension(d.Name).TrimStart('.').ToUpperInvariant()</span>
+                                                <span class="spec-drawing-noimg"><Icon Name="document" /> @System.IO.Path.GetExtension(d.Name).TrimStart('.').ToUpperInvariant()</span>
                                             }
                                         </button>
                                         <figcaption class="spec-drawing-cap">
@@ -82,7 +82,7 @@
                     <button type="button" class="dwg-viewer-btn" title="@T("specdrawcard.viewer.zoomIn")" @onclick="ZoomIn">+</button>
                     <button type="button" class="dwg-viewer-btn" title="@T("specdrawcard.viewer.rotate")" @onclick="Rotate">⟳</button>
                     <button type="button" class="dwg-viewer-btn" title="@T("specdrawcard.viewer.fitReset")" @onclick="ResetView">⤢</button>
-                    <button type="button" class="dwg-viewer-btn" title="@(_full ? T("specdrawcard.viewer.exitFullscreen") : T("specdrawcard.viewer.fullscreen"))" @onclick="ToggleFull">@(_full ? "🗗" : "⛶")</button>
+                    <button type="button" class="dwg-viewer-btn" title="@(_full ? T("specdrawcard.viewer.exitFullscreen") : T("specdrawcard.viewer.fullscreen"))" @onclick="ToggleFull">@if (_full) { <Icon Name="expand" /> } else { <text>⛶</text> }</button>
                     @if (!string.IsNullOrEmpty(_viewer.ObjectUrl))
                     {
                         <button type="button" class="dwg-viewer-btn" title="@T("specdrawcard.viewer.openNewWindow")" @onclick="OpenExternalAsync">↗</button>

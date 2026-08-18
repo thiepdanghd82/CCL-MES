@@ -24,7 +24,7 @@ public sealed partial class TranslationCatalog
         Add("machine.empty.workcenters",    "Không có trung tâm sản xuất.",                             "No work centers.");
         Add("machine.empty.filter",         "Không có máy nào khớp bộ lọc.",                            "No machines match the filter.");
 
-        Add("machine.search.placeholder",   "🔍 Tìm mã WC, lệnh SX, sản phẩm, khách hàng…",             "🔍 Search WC code, WO, product, customer…");
+        Add("machine.search.placeholder",   "Tìm mã WC, lệnh SX, sản phẩm, khách hàng…",             "Search WC code, WO, product, customer…");
         Add("machine.filter.count",         "{0} / {1} máy",                                            "{0} / {1} machines");
         Add("machine.filter.allareas",      "Tất cả khu vực",                                           "All areas");
 

@@ -47,6 +47,6 @@ public sealed partial class TranslationCatalog
         Add("auditlog.detail.json.head.prefix",   "Chi tiết (JSON) — sự kiện",                                 "Detail (JSON) — event");
         Add("auditlog.detail.json.head.suffix",   "#{0}",                                                      "#{0}");
         Add("auditlog.copy",                      "Sao chép",                                                  "Copy");
-        Add("auditlog.copy.done",                 "✔ Đã sao chép",                                             "✔ Copied");
+        Add("auditlog.copy.done",                 "Đã sao chép",                                             "Copied");
     }
 }

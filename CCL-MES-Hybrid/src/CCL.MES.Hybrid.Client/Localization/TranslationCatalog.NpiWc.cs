@@ -71,7 +71,7 @@ public sealed partial class TranslationCatalog
         Add("npiwc.import.inserted",        "đã thêm",                                           "inserted");
         Add("npiwc.import.updated",         "đã cập nhật",                                       "updated");
         Add("npiwc.import.skipped",         "đã bỏ qua",                                         "skipped");
-        Add("npiwc.import.rowprefix",       "Dòng {0}: ",                                        "Row {0}: ");
+        Add("npiwc.import.rowprefix",       "Dòng {0}:",                                        "Row {0}:");
         Add("npiwc.import.nofile",          "Chưa chọn tệp.",                                    "No file selected.");
         Add("npiwc.import.importing",       "Đang nhập…",                                        "Importing…");
         Add("npiwc.import.choosecsv",       "Chọn CSV…",                                         "Choose CSV…");

@@ -21,19 +21,19 @@
 
 <PageTitle>@T("settings.pagetitle")</PageTitle>
 
-<h1 class="page-title">@T("settings.title")</h1>
+<PageHead TitleKey="settings.title" />
 <p class="page-sub">@T("settings.subtitle")</p>
 
 <section class="settings-group">
     <h2 class="settings-group-title">@T("settings.group.account")</h2>
     <div class="settings-cards">
         <a class="settings-card" href="/settings/profile">
-            <span class="settings-card-icon">👤</span>
+            <span class="settings-card-icon"><Icon Name="user" /></span>
             <span class="settings-card-title">@T("settings.profile.title")</span>
             <span class="settings-card-sub">@T("settings.profile.sub")</span>
         </a>
         <a class="settings-card" href="/settings/password">
-            <span class="settings-card-icon">🔑</span>
+            <span class="settings-card-icon"><Icon Name="key" /></span>
             <span class="settings-card-title">@T("settings.password.title")</span>
             <span class="settings-card-sub">@T("settings.password.sub")</span>
         </a>
@@ -47,7 +47,7 @@
            authenticated role. Read-only view; the actual change
            controls live at /mode (P10.3) and are linked from inside. *@
         <a class="settings-card" href="/settings/connection">
-            <span class="settings-card-icon">🔌</span>
+            <span class="settings-card-icon"><Icon Name="plug" /></span>
             <span class="settings-card-title">@T("settings.connection.title")</span>
             <span class="settings-card-sub">@T("settings.connection.sub")</span>
         </a>
@@ -61,13 +61,13 @@
         {
             <AuthorizeView Roles="Admin,Supervisor,Engineer">
                 <a class="settings-card" href="/hardware">
-                    <span class="settings-card-icon">🖨️</span>
+                    <span class="settings-card-icon"><Icon Name="printer" /></span>
                     <span class="settings-card-title">@T("settings.devices.title")</span>
                     <span class="settings-card-sub">@T("settings.devices.sub")</span>
                 </a>
                 <AuthorizeView Roles="Admin,Supervisor" Context="modeCtx">
                     <a class="settings-card" href="/mode">
-                        <span class="settings-card-icon">🔁</span>
+                        <span class="settings-card-icon"><Icon Name="repeat" /></span>
                         <span class="settings-card-title">@T("settings.stationmode.title")</span>
                         <span class="settings-card-sub">@T("settings.stationmode.sub")</span>
                     </a>
@@ -83,7 +83,7 @@
         @* P10.6b — Appearance landing card. Language picker today;
            theme switcher ships in P10.6g. *@
         <a class="settings-card" href="/settings/appearance">
-            <span class="settings-card-icon">🌐</span>
+            <span class="settings-card-icon"><Icon Name="globe" /></span>
             <span class="settings-card-title">@T("settings.appearance.title")</span>
             <span class="settings-card-sub">@T("settings.appearance.sub")</span>
         </a>
@@ -103,19 +103,19 @@
             <div class="settings-cards">
                 @* P10.6h shipped — Backup & Restore admin landing. *@
                 <a class="settings-card" href="/settings/backup">
-                    <span class="settings-card-icon">💾</span>
+                    <span class="settings-card-icon"><Icon Name="save" /></span>
                     <span class="settings-card-title">@T("settings.backup.title")</span>
                     <span class="settings-card-sub">@T("settings.backup.sub")</span>
                 </a>
                 @* P10.6e shipped — Audit Log viewer + CSV/XLSX export. *@
                 <a class="settings-card" href="/settings/audit">
-                    <span class="settings-card-icon">📜</span>
+                    <span class="settings-card-icon"><Icon Name="log" /></span>
                     <span class="settings-card-title">@T("settings.audit.title")</span>
                     <span class="settings-card-sub">@T("settings.audit.sub")</span>
                 </a>
                 @* P10.6c shipped — Account Control. *@
                 <a class="settings-card" href="/settings/accounts">
-                    <span class="settings-card-icon">👥</span>
+                    <span class="settings-card-icon"><Icon Name="users" /></span>
                     <span class="settings-card-title">@T("settings.accounts.title")</span>
                     <span class="settings-card-sub">@T("settings.accounts.sub")</span>
                 </a>

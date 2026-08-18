@@ -171,14 +171,14 @@
                                     <button type="button" class="btn btn-primary legs-ipqc-toggle"
                                             data-testid="leg-ipqc-toggle-@leg.Sequence"
                                             @onclick="() => OpenIpqcWinAsync(leg)">
-                                        <span class="legs-ipqc-toggle-ico" aria-hidden="true">🔍</span> @T("legs.ipqc.open")
+                                        <span class="legs-ipqc-toggle-ico" aria-hidden="true"><Icon Name="search" /></span> @T("legs.ipqc.open")
                                     </button>
                                 }
 
                                 @if (IsFromStockAssembly(leg))
                                 {
                                     <div class="legs-semi" data-testid="leg-semi-@leg.Sequence">
-                                        <span class="legs-semi-label"><span class="legs-semi-ico" aria-hidden="true">📦</span>@T("legs.semi.label")</span>
+                                        <span class="legs-semi-label"><span class="legs-semi-ico" aria-hidden="true"><Icon Name="package" /></span>@T("legs.semi.label")</span>
                                         <div class="legs-semi-actions">
                                             <button type="button" class="btn btn-ghost legs-semi-reserve"
                                                     data-testid="leg-semi-reserve-@leg.Sequence"

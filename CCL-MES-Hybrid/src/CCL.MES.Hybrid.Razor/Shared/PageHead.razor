@@ -1,0 +1,59 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+@*
+  CCL iX — khung đầu trang dùng chung (D6.2).
+
+  Audit 20 tab: 0/33 trang dùng khung chuẩn; 25 trang chỉ có <h1 class="page-title">
+  trần, 8 trang không có gì. Hệ quả: mỗi trang tự quyết có phụ đề hay không, hành
+  động đặt đâu, có đường kẻ ngăn hay không.
+
+  Pattern lấy từ chính 4 module QMS mới nhất trong repo (eyebrow + tiêu đề ink) —
+  không phát minh cái mới, chỉ nhân cái đã đúng ra toàn app.
+
+  QUAN TRỌNG: vẫn render ra <h1 class="page-title"> y như cũ. Đó là lý do 25 trang
+  migrate được mà không test nào vỡ — bUnit đang bám vào class/nội dung đó.
+*@
+<div class="ix-page-head">
+    <div class="ix-page-head-main">
+        @if (!string.IsNullOrWhiteSpace(EyebrowText))
+        {
+            <div class="ix-page-eyebrow">@EyebrowText</div>
+        }
+        <h1 class="page-title">@TitleText</h1>
+        @if (!string.IsNullOrWhiteSpace(SubtitleText))
+        {
+            <div class="ix-page-sub">@SubtitleText</div>
+        }
+    </div>
+    @if (Actions is not null)
+    {
+        <div class="ix-page-actions">@Actions</div>
+    }
+</div>
+
+@code {
+    /// <summary>Khoá i18n của tiêu đề. Dùng cái này khi tiêu đề là chuỗi tĩnh.</summary>
+    [Parameter] public string? TitleKey { get; set; }
+
+    /// <summary>Tiêu đề đã dựng sẵn (tiêu đề tính toán, vd lời chào có tên người dùng).</summary>
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public string? SubtitleKey { get; set; }
+    [Parameter] public string? Subtitle { get; set; }
+
+    /// <summary>Nhãn nhỏ phía trên tiêu đề — dùng cho ngữ cảnh (module, stage, ca).</summary>
+    [Parameter] public string? EyebrowKey { get; set; }
+    [Parameter] public string? Eyebrow { get; set; }
+
+    /// <summary>Hành động của trang. Nhớ: chỉ MỘT nút primary.</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    private string TitleText => Resolve(Title, TitleKey);
+    private string SubtitleText => Resolve(Subtitle, SubtitleKey);
+    private string EyebrowText => Resolve(Eyebrow, EyebrowKey);
+
+    private string Resolve(string? literal, string? key)
+        => !string.IsNullOrWhiteSpace(literal) ? literal!
+         : !string.IsNullOrWhiteSpace(key) ? T(key!)
+         : "";
+}

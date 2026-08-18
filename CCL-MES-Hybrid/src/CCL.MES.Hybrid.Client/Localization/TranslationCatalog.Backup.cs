@@ -18,7 +18,7 @@ public sealed partial class TranslationCatalog
                                                "Create a snapshot of the SQLite database immediately. The snapshot uses the SQLite online backup API and is safe while the server is serving.");
         Add("backup.create.button",            "Tạo bản chụp mới",                                     "Create new snapshot");
         Add("backup.create.busy",              "Đang tạo…",                                            "Creating…");
-        Add("backup.create.success.prefix",    "✔ Đã tạo:",                                            "✔ Created:");
+        Add("backup.create.success.prefix",    "Đã tạo:",                                            "Created:");
         Add("backup.create.success.sha",       "SHA-256:",                                             "SHA-256:");
 
         // Scheduled backup
@@ -52,7 +52,7 @@ public sealed partial class TranslationCatalog
         Add("backup.restore.selected",         "Đã chọn:",                                             "Selected:");
         Add("backup.restore.confirm",          "Thao tác này sẽ GHI ĐÈ cơ sở dữ liệu hiện tại bằng \"{0}\". Máy chủ sẽ tự động tạo một bản sao lưu tiền-phục-hồi để quay lại. Bạn có chắc chắn muốn tiếp tục?",
                                                "This will OVERWRITE the current database with \"{0}\". The server will automatically create a pre-restore backup for rollback. Are you sure you want to continue?");
-        Add("backup.restore.success.prefix",   "✔ Phục hồi thành công. Bản sao lưu tiền-phục-hồi:",     "✔ Restore succeeded. Pre-restore backup:");
+        Add("backup.restore.success.prefix",   "Phục hồi thành công. Bản sao lưu tiền-phục-hồi:",     "Restore succeeded. Pre-restore backup:");
         Add("backup.restore.success.suffix",   "Chúng tôi khuyến nghị khởi động lại ứng dụng để mọi dịch vụ đọc được cơ sở dữ liệu mới.",
                                                "We recommend restarting the application to ensure every service reads the new DB.");
 

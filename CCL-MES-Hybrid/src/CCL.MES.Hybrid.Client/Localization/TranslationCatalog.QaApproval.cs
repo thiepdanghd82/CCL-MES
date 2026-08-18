@@ -17,7 +17,7 @@ public sealed partial class TranslationCatalog
         Add("qa.save.error",               "Không lưu được thay đổi:",                                      "Could not save change:");
         Add("qa.dismiss",                  "Bỏ qua",                                                        "Dismiss");
 
-        Add("qa.dualsig.policy",           "⚠ Chính sách chữ ký kép:",                                     "⚠ Dual-sig policy:");
+        Add("qa.dualsig.policy",           "Chính sách chữ ký kép:",                                     "Dual-sig policy:");
 
         Add("qa.ipqc.summary",             "Tóm tắt IPQC (chỉ đọc)",                                        "IPQC summary (read-only)");
         Add("qa.rollup.allok",             "Tất cả OK",                                                     "All OK");

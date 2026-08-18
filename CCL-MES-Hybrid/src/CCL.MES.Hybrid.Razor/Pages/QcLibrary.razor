@@ -18,7 +18,7 @@
 
 <PageTitle>@T("qclib.pagetitle")</PageTitle>
 
-<h1 class="page-title">@T("qclib.heading")</h1>
+<PageHead TitleKey="qclib.heading" />
 <p class="grid-subtitle">@T("qclib.subtitle")</p>
 
 <div class="qclib-toolbar">
@@ -356,7 +356,7 @@ else if (_items is not null)
         {
             items.Add(new ContextMenuItem { Label = T("qclib.menu.copy"), Icon = "⎘", OnClick = EventCallback.Factory.Create(this, () => CopyRow(row)) });
             items.Add(ContextMenuItem.Divider);
-            items.Add(new ContextMenuItem { Label = T("qclib.menu.delete"), Icon = "🗑", Danger = true, OnClick = EventCallback.Factory.Create(this, () => DeleteAsync(row)) });
+            items.Add(new ContextMenuItem { Label = T("qclib.menu.delete"), Icon = "✕", Danger = true, OnClick = EventCallback.Factory.Create(this, () => DeleteAsync(row)) });
         }
         _menuItems = items;
     }

@@ -22,7 +22,7 @@ public sealed partial class TranslationCatalog
         Add("qchistory.kpi.distinctwos.sub",    "lệnh sản xuất đã kiểm",                        "work orders inspected");
 
         // Filters
-        Add("qchistory.search.placeholder",     "🔍 Tìm LSX…",                                  "🔍 Search WO…");
+        Add("qchistory.search.placeholder",     "Tìm LSX…",                                  "Search WO…");
         Add("qchistory.filter.records",         "{0} bản ghi",                                  "{0} records");
         Add("qchistory.filter.kind",            "Loại kiểm:",                                   "Kind:");
         Add("qchistory.filter.result",          "Kết quả:",                                     "Result:");
@@ -43,8 +43,8 @@ public sealed partial class TranslationCatalog
         Add("qchistory.col.finished",           "Hoàn tất",                                     "Finished");
 
         // Result badges
-        Add("qchistory.badge.pass",             "✓ Đạt",                                        "✓ Pass");
-        Add("qchistory.badge.reject",           "✕ Loại",                                       "✕ Reject");
+        Add("qchistory.badge.pass",             "Đạt",                                        "Pass");
+        Add("qchistory.badge.reject",           "Loại",                                       "Reject");
 
         // Sidebar
         Add("qchistory.side.bykind",            "Theo loại",                                    "By Kind");

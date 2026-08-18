@@ -17,10 +17,10 @@
    A×P×Q (blank when not computable). *@
 <div class="md-head">
     <div>
-        <h1 class="page-title">📦 @T("shoporders.title")</h1>
+        <PageHead TitleKey="shoporders.title" />
         <div class="md-subtitle">@T("shoporders.subtitle", _data?.TotalWos ?? 0)</div>
     </div>
-    <button type="button" class="md-refresh" @onclick="ExportCsvAsync" disabled="@(_data is null || _data.Rows.Count == 0)">📥 @T("shoporders.export.csv")</button>
+    <button type="button" class="md-refresh" @onclick="ExportCsvAsync" disabled="@(_data is null || _data.Rows.Count == 0)"><Icon Name="import" /> @T("shoporders.export.csv")</button>
 </div>
 
 <div class="md-kpi-grid soh-kpi-grid">
@@ -143,11 +143,11 @@ else
 
         <aside class="md-side">
             <div class="md-side-card">
-                <div class="md-side-head">🏢 @T("shoporders.side.topcustomers")</div>
+                <div class="md-side-head"><Icon Name="building" /> @T("shoporders.side.topcustomers")</div>
                 <div class="md-side-body">@RenderAgg(_data.TopCustomers, _data.TotalWos, "#2563eb", false)</div>
             </div>
             <div class="md-side-card">
-                <div class="md-side-head">🏭 @T("shoporders.side.topmachines")</div>
+                <div class="md-side-head"><Icon Name="factory" /> @T("shoporders.side.topmachines")</div>
                 <div class="md-side-body">@RenderAgg(_data.TopMachines, _data.TotalWos, "#16a34a", true)</div>
             </div>
             <div class="md-side-card">
@@ -155,7 +155,7 @@ else
                 <div class="md-side-body">@RenderAgg(_data.TopDowntimeReasons, DowntimeTotal, "#f59e0b", false, label: true, pct: true)</div>
             </div>
             <div class="md-side-card soh-tip">
-                <div class="md-side-head">💡 @T("shoporders.side.tip")</div>
+                <div class="md-side-head"><Icon Name="bulb" /> @T("shoporders.side.tip")</div>
                 <div class="md-side-body soh-tip-body">
                     @T("shoporders.tip.row")<br />
                     @T("shoporders.tip.export")<br />

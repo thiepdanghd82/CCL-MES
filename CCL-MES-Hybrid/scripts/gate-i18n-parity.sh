@@ -42,6 +42,15 @@ for f in glob.glob(os.path.join(loc,'TranslationCatalog*.cs')):
         keys.setdefault(k,[]).append(os.path.basename(f))
         if not vi.strip() or not en.strip(): empty.append(k)
 dups={k:v for k,v in keys.items() if len(v)>1}
+# (D) Icon KHÔNG được nằm trong chuỗi dịch: emoji là ảnh do OS vẽ (đổi hình
+# theo máy, mang màu riêng, không nhận currentColor), và người dịch không nên
+# phải mang theo nó. Icon thuộc về markup — dùng <Icon Name="…" />.
+EMO=re.compile('[\U0001F300-\U0001FAFF\u2600-\u27BF]')
+emoji=[]
+for f in glob.glob(os.path.join(loc,'TranslationCatalog*.cs')):
+    for m in re.finditer(r'Add\(\s*"([^"]+)"\s*,\s*"([^"]*)"\s*,\s*"([^"]*)"', open(f,encoding='utf-8').read()):
+        if EMO.search(m.group(2)) or EMO.search(m.group(3)):
+            emoji.append(m.group(1))
 VI=re.compile(r'[ăâđêôơưĂÂĐÊÔƠƯáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]')
 # Bỏ qua comment ĐÚNG CÁCH: phải theo TRẠNG THÁI khối, không chỉ nhìn ký tự
 # đầu dòng — dòng tiếp theo của một comment @* … *@ / /* … */ nhiều dòng không
@@ -75,7 +84,7 @@ raw=0
 for f in glob.glob(os.path.join(razor,'**','*.razor'),recursive=True):
     for t in code_lines(f):
         if VI.search(t): raw+=1
-print(json.dumps({"keys":len(keys),"dups":list(dups)[:5],"ndups":len(dups),"empty":empty[:5],"nempty":len(empty),"raw":raw}))
+print(json.dumps({"keys":len(keys),"dups":list(dups)[:5],"ndups":len(dups),"empty":empty[:5],"nempty":len(empty),"raw":raw,"nemoji":len(emoji),"emoji":emoji[:5]}))
 PY
 }
 
@@ -94,7 +103,8 @@ out="$(scan "$LOC" "$RAZOR")"
 eval "$(python3 -c "
 import json,sys
 d=json.loads('''$out''')
-print(f'KEYS={d[\"keys\"]}; NDUPS={d[\"ndups\"]}; NEMPTY={d[\"nempty\"]}; RAW={d[\"raw\"]}')
+print(f'KEYS={d[\"keys\"]}; NDUPS={d[\"ndups\"]}; NEMPTY={d[\"nempty\"]}; RAW={d[\"raw\"]}; NEMOJI={d[\"nemoji\"]}')
+print('EMOJIK=\"'+','.join(d['emoji'])+'\"')
 print('DUPS=\"'+','.join(d['dups'])+'\"'); print('EMPTIES=\"'+','.join(d['empty'])+'\"')
 ")"
 
@@ -102,6 +112,7 @@ echo "[gate:i18n] key trong catalog        = $KEYS"
 echo "[gate:i18n] key trùng                = $NDUPS (bắt buộc 0)"
 echo "[gate:i18n] key thiếu VI hoặc EN     = $NEMPTY (bắt buộc 0)"
 echo "[gate:i18n] dòng .razor còn VI trần  = $RAW (baseline $BASELINE_RAW_VI)"
+echo "[gate:i18n] chuỗi dịch chứa icon     = $NEMOJI (bắt buộc 0)"
 
 rc=0
 if [ "$NDUPS" -gt 0 ]; then
@@ -119,5 +130,11 @@ if [ "$RAW" -gt "$BASELINE_RAW_VI" ]; then
   echo "  Đưa vào TranslationCatalog (kể cả aria-label / title / placeholder)."
   rc=1
 fi
-[ $rc -eq 0 ] && echo "[gate:i18n:OK] catalog lành, không có chuỗi cứng mới."
+if [ "$NEMOJI" -gt 0 ]; then
+  echo "[gate:i18n:FAIL] icon nằm trong chuỗi dịch: $EMOJIK"
+  echo "  Emoji là ảnh do OS vẽ — đổi hình theo máy, mang màu riêng, không nhận currentColor."
+  echo "  Đưa icon ra markup: <Icon Name=\"…\" />. Chuỗi dịch chỉ chứa CHỮ."
+  rc=1
+fi
+[ $rc -eq 0 ] && echo "[gate:i18n:OK] catalog lành, không chuỗi cứng, không icon trong bản dịch."
 exit $rc

@@ -11,7 +11,7 @@
 <PageTitle>@T("qms.dash.pagetitle") — CCL MES</PageTitle>
 
 <div class="md-head">
-    <h1 class="page-title">@T("qms.dash.title")</h1>
+    <PageHead TitleKey="qms.dash.title" />
     <button type="button" class="md-refresh" @onclick="ReloadAsync" disabled="@_loading">
         @(_loading ? T("qms.loading") : "↻ " + T("qms.refresh"))
     </button>

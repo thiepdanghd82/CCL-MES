@@ -10,7 +10,7 @@
 
 <div class="md-head">
     <div>
-        <h1 class="page-title">@T("machine.head.title")</h1>
+        <PageHead TitleKey="machine.head.title" />
         <div class="md-subtitle">@T("machine.head.subtitle")</div>
     </div>
     <div class="md-head-actions">
@@ -377,7 +377,7 @@ else
     private static readonly (string Key, string Label)[] StatusChips =
     {
         ("All", "All"), ("Running", "▶ Running"), ("Idle", "◯ Idle"), ("Setup", "⚙ Setup"),
-        ("Down", "🛑 Down"), ("Maintenance", "🔧 PM"),
+        ("Down", "■ Down"), ("Maintenance", "⚙ PM"),
     };
 
     private const string NoArea = "Other";
@@ -487,8 +487,8 @@ else
     {
         "Running" => "▶",
         "Setup" => "⚙",
-        "Down" => "🛑",
-        "Maintenance" => "🔧",
+        "Down" => "■",
+        "Maintenance" => "⚙",
         _ => "◯",
     };
 
