@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
+using CCL.MES.Api.Policies;
 using CCL.MES.Application.Services;
 using CCL.MES.Application.Storage;
 using CCL.MES.Domain;
@@ -477,18 +478,21 @@ public sealed class WoQcReviewController : ControllerBase
 
         var check = await GetOrCreateCheckAsync(id, KindOqc);
 
-        if (string.IsNullOrEmpty(check.InspectedBy))
-            return Invalid("oqc.signature_out_of_order",
-                "Inspector must sign before Reviewer.");
+        // Luật chuỗi chữ ký sống trong OqcSignaturePolicy (thuần, unit-test được);
+        // controller chỉ thực thi phán quyết.
+        var orderV = OqcSignaturePolicy.CheckOrder(
+            OqcSignatureStep.Review, check.InspectedBy, check.ReviewedBy);
+        if (!orderV.Allowed)
+            return Invalid(orderV.ErrorCode!, orderV.Message!);
 
-        // Q5 invariant — Reviewer ≠ Inspector.
-        if (_sigPolicy.OqcRequireDistinctReviewer
-            && string.Equals(check.InspectedBy, actor, StringComparison.OrdinalIgnoreCase))
+        var distinctV = OqcSignaturePolicy.CheckDistinct(
+            OqcSignatureStep.Review, check.InspectedBy, check.ReviewedBy, actor, _sigPolicy);
+        if (!distinctV.Allowed)
         {
             var denyDetail = JsonSerializer.Serialize(new
             {
                 wo_id = id,
-                reason = "same_user_as_inspector",
+                reason = distinctV.DenyReason,
                 attempted_by = actor,
                 inspected_by = check.InspectedBy,
                 flag_state = _sigPolicy.FlagState,
@@ -542,12 +546,10 @@ public sealed class WoQcReviewController : ControllerBase
 
         var check = await GetOrCreateCheckAsync(id, KindOqc);
 
-        if (string.IsNullOrEmpty(check.InspectedBy))
-            return Invalid("oqc.signature_out_of_order",
-                "Inspector must sign before Approver.");
-        if (string.IsNullOrEmpty(check.ReviewedBy))
-            return Invalid("oqc.signature_out_of_order",
-                "Reviewer must sign before Approver.");
+        var approveOrderV = OqcSignaturePolicy.CheckOrder(
+            OqcSignatureStep.Approve, check.InspectedBy, check.ReviewedBy);
+        if (!approveOrderV.Allowed)
+            return Invalid(approveOrderV.ErrorCode!, approveOrderV.Message!);
 
         if (req is null || string.IsNullOrWhiteSpace(req.Outcome))
             return Invalid("qc.invalid_judgment",
@@ -566,20 +568,16 @@ public sealed class WoQcReviewController : ControllerBase
                     "JudgmentReason is required (1-500 chars) for Reject.");
         }
 
-        // Q5 invariants — Approver ≠ Reviewer AND Approver ≠ Inspector.
-        if (_sigPolicy.OqcRequireDistinctApprover
-            && string.Equals(check.ReviewedBy, actor, StringComparison.OrdinalIgnoreCase))
+        // Q5 — tách vai. CỐ Ý gọi ở ĐÚNG vị trí cũ (sau phần kiểm outcome/lý do
+        // reject) để mã lỗi trả về không đổi với request vừa sai outcome vừa
+        // trùng vai.
+        var approveDistinctV = OqcSignaturePolicy.CheckDistinct(
+            OqcSignatureStep.Approve, check.InspectedBy, check.ReviewedBy, actor, _sigPolicy);
+        if (!approveDistinctV.Allowed)
         {
             return await DenyApprove(id, wo, actor, role, check,
-                "same_user_as_reviewer",
-                "oqc.same_user_as_reviewer");
-        }
-        if (_sigPolicy.OqcRequireApproverDistinctFromInspector
-            && string.Equals(check.InspectedBy, actor, StringComparison.OrdinalIgnoreCase))
-        {
-            return await DenyApprove(id, wo, actor, role, check,
-                "same_user_as_inspector",
-                "oqc.same_user_as_inspector");
+                approveDistinctV.DenyReason!,
+                approveDistinctV.ErrorCode!);
         }
 
         var now = DateTime.UtcNow;

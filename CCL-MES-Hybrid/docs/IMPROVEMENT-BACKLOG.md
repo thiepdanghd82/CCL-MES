@@ -54,6 +54,12 @@
 **Thứ tự đề xuất** (nặng → nhẹ, mỗi cái một PR):
 `WoQcReview` → `IpqcReview` → `Prepress` → `Routing` → `SemiStock`
 
+**Đã làm — lát 1/n:** `OqcSignaturePolicy` tách khỏi `WoQcReviewController` (L47). Luật 3 chữ ký giờ là hàm thuần + 16 unit test chạy 33 ms. LOC controller gần như không đổi (1502 → 1500) — lát này mua **khả năng kiểm chứng**, không mua số dòng.
+
+**Còn lại của riêng `WoQcReviewController`:** tách `QcGate` (điều kiện readiness/ngưỡng), đường ảnh (4 endpoint photo ~340 dòng), `summary-report`. Đó mới là phần kéo được ratchet xuống.
+
+**Nợ vị trí:** `OqcSignaturePolicy` đang đặt ở `CCL.MES.Api/Policies/` vì `src/CCL.MES.Domain` là baseline read-only tới khi cutover xong (A1). Sau cutover nên chuyển về Domain.
+
 **Nghiệm thu**
 - [ ] Tách `SignaturePolicy` (3 chữ ký, Inspector≠Reviewer≠Approver) ra Domain, unit-test không cần `WebApplicationFactory`
 - [ ] `QcGate`, `LegAdvancePolicy`, `SemiStockPolicy` tương tự
