@@ -1,0 +1,74 @@
+@page "/qms/dashboard"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Shared.Qms
+@inject ICclApiClient Api
+
+@* QMS overview — the "Tổng quan" module from the QA mini-QMS mock. Minimal
+   KPI-by-stage read model reusing the existing Inspection Queue endpoint
+   (GetQmsQueueAsync); each card links down to its stage-scoped queue. No new
+   DTO / API — counts come straight off QmsQueueDto. *@
+<PageTitle>@T("qms.dash.pagetitle") — CCL MES</PageTitle>
+
+<div class="md-head">
+    <h1 class="page-title">@T("qms.dash.title")</h1>
+    <button type="button" class="md-refresh" @onclick="ReloadAsync" disabled="@_loading">
+        @(_loading ? T("qms.loading") : "↻ " + T("qms.refresh"))
+    </button>
+</div>
+
+@if (_error is not null)
+{
+    <p class="md-error">@T("qms.load.failed", _error)</p>
+}
+
+<div class="kpi-row">
+    <NavLink href="/qms/ipqc" class="kpi-card kpi-blue" data-testid="qms-dash-ipqc">
+        <div class="kpi-label">@T("qms.dash.ipqc")</div>
+        <div class="home-kpi-num">@Count(_data?.IpqcCount)</div>
+        <div class="kpi-sub">@T("qms.dash.open")</div>
+    </NavLink>
+    <NavLink href="/qms/fqc" class="kpi-card kpi-amber" data-testid="qms-dash-fqc">
+        <div class="kpi-label">@T("qms.dash.fqc")</div>
+        <div class="home-kpi-num">@Count(_data?.FqcCount)</div>
+        <div class="kpi-sub">@T("qms.dash.open")</div>
+    </NavLink>
+    <NavLink href="/qms/oqc" class="kpi-card kpi-green" data-testid="qms-dash-oqc">
+        <div class="kpi-label">@T("qms.dash.oqc")</div>
+        <div class="home-kpi-num">@Count(_data?.OqcCount)</div>
+        <div class="kpi-sub">@T("qms.dash.open")</div>
+    </NavLink>
+    <div class="kpi-card kpi-red" data-testid="qms-dash-total">
+        <div class="kpi-label">@T("qms.dash.total")</div>
+        <div class="home-kpi-num">@Count(Total)</div>
+        <div class="kpi-sub">@T("qms.dash.sub.waiting")</div>
+    </div>
+</div>
+
+<div class="home-tiles">
+    <NavLink href="/qms" Match="NavLinkMatch.All" class="home-tile" data-testid="qms-dash-queue">
+        <div class="home-tile-title">@T("qms.dash.queue")</div>
+        <div class="home-tile-desc">@T("qms.dash.queue.desc")</div>
+    </NavLink>
+</div>
+
+@code {
+    private QmsQueueDto? _data;
+    private bool _loading = true;
+    private string? _error;
+
+    private int? Total => _data is null ? null : _data.IpqcCount + _data.FqcCount + _data.OqcCount;
+
+    private static string Count(int? n) => n?.ToString() ?? "—";
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try { _data = await Api.GetQmsQueueAsync(); }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _loading = false; }
+    }
+}

@@ -1832,6 +1832,50 @@ html, body {
 .app-nav-link-sub:hover { color: var(--c-ink); }
 .app-nav-link-sub.active { background: var(--brand-bg); color: var(--brand-2); }
 
+/* ── QC QMS Data — 2-line nav items (bold title + muted uppercase subtitle),
+   mirroring the QA mini-QMS mock: a left accent bar lights on active. All
+   colours come from the .app-nav scoped tokens — no raw hex (L37 gate). */
+.app-nav-qms { display: flex; flex-direction: column; gap: 2px; margin: 2px 0; }
+
+.app-nav-link-2line {
+    display: grid;
+    grid-template-columns: 3px 1fr;
+    align-items: stretch;
+    text-decoration: none;
+    color: var(--ink);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: background .12s, color .12s;
+}
+.app-nav-link-2line .nav-bar { background: transparent; }
+.app-nav-link-2line .nav-2line-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 12px;
+    min-width: 0;
+}
+.app-nav-link-2line .nav-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--ink);
+}
+.app-nav-link-2line .nav-sub {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    line-height: 1.2;
+    color: var(--ink-mut);
+}
+.app-nav-link-2line:hover { background: var(--navy-2); }
+.app-nav-link-2line:hover .nav-title { color: var(--c-ink); }
+.app-nav-link-2line.active { background: var(--brand-bg); }
+.app-nav-link-2line.active .nav-bar { background: var(--brand-2); }
+.app-nav-link-2line.active .nav-title { color: var(--brand-2); font-weight: 800; }
+.app-nav-link-2line.active .nav-sub { color: var(--brand-2); }
+
 /* ── P10.5a — Modal primitive ─────────────────────────────────── */
 
 .modal-scrim {

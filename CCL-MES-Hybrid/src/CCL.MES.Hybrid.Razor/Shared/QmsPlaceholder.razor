@@ -1,0 +1,25 @@
+@* Reusable scaffold for QMS sub-pages that don't yet have a full Hybrid UI
+   (IQC list wiring, iCRA/CAPA board). Presentational only — the parent passes
+   already-translated strings so the route resolves (no 404 / dead link) and
+   language flips at the page level. Uses existing .md-* / .home-tile* classes
+   (no new CSS). *@
+<div class="md-head">
+    <h1 class="page-title">@Title</h1>
+</div>
+@if (!string.IsNullOrWhiteSpace(Subtitle))
+{
+    <p class="md-muted">@Subtitle</p>
+}
+<div class="home-tiles">
+    <div class="home-tile" data-testid="qms-placeholder-card">
+        <div class="home-tile-title">@Heading</div>
+        <div class="home-tile-desc">@Description</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string Heading { get; set; } = "";
+    [Parameter] public string Description { get; set; } = "";
+}

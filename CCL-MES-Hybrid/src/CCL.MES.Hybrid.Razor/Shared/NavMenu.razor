@@ -42,19 +42,54 @@
         <NavLink href="/machines" class="app-nav-link">@Ico("grid")<span>@T("nav.machines")</span></NavLink>
         <NavLink href="/shop-orders" class="app-nav-link">@Ico("history")<span>@T("nav.shoporders")</span></NavLink>
 
-        @* CCL-QMS — one home for every quality surface, mirroring the NPI DATA
-           group (section header + indented sub-links). Gated to the QcRead
-           policy roles (Admin/Supervisor/QC); RBAC-by-omission — the server
-           still enforces on each route. IPQC/FQC/OQC are stage-scoped views of
-           the same Inspection Queue (/qms/{stage}); Match.All on the hub link
-           stops /qms lighting up on the deeper stage/history routes. *@
+        @* QC QMS Data — mirrors the QA mini-QMS mock: 5 primary modules as
+           2-line items (bold VN title + muted uppercase subtitle) with a left
+           accent bar on active. Gated to the QcRead roles (RBAC-by-omission;
+           the server still 403s each route). The compact links below keep the
+           remaining QC surfaces reachable so nothing is lost. Match.All on the
+           /qms hub link stops it lighting up on the deeper /qms/* routes. *@
         <AuthorizeView Roles="Admin,Supervisor,QC" Context="qmsCtx">
-            <div class="app-nav-section">@T("nav.section.qms")</div>
+            <div class="app-nav-section">@T("nav.qms.title")</div>
+            <div class="app-nav-qms">
+                <NavLink href="/qms/dashboard" class="app-nav-link-2line" data-testid="nav-qms-dashboard">
+                    <span class="nav-bar"></span>
+                    <span class="nav-2line-body">
+                        <span class="nav-title">@T("nav.qms.m.dashboard")</span>
+                        <span class="nav-sub">@T("nav.qms.m.dashboard.sub")</span>
+                    </span>
+                </NavLink>
+                <NavLink href="/qms/iqc" class="app-nav-link-2line" data-testid="nav-qms-iqc">
+                    <span class="nav-bar"></span>
+                    <span class="nav-2line-body">
+                        <span class="nav-title">@T("nav.qms.m.iqc")</span>
+                        <span class="nav-sub">@T("nav.qms.m.iqc.sub")</span>
+                    </span>
+                </NavLink>
+                <NavLink href="/qms/ipqc" class="app-nav-link-2line" data-testid="nav-qms-ipqc">
+                    <span class="nav-bar"></span>
+                    <span class="nav-2line-body">
+                        <span class="nav-title">@T("nav.qms.m.ipqc")</span>
+                        <span class="nav-sub">@T("nav.qms.m.ipqc.sub")</span>
+                    </span>
+                </NavLink>
+                <NavLink href="/qms/oqc" class="app-nav-link-2line" data-testid="nav-qms-oqc">
+                    <span class="nav-bar"></span>
+                    <span class="nav-2line-body">
+                        <span class="nav-title">@T("nav.qms.m.oqc")</span>
+                        <span class="nav-sub">@T("nav.qms.m.oqc.sub")</span>
+                    </span>
+                </NavLink>
+                <NavLink href="/qms/icra" class="app-nav-link-2line" data-testid="nav-qms-icra">
+                    <span class="nav-bar"></span>
+                    <span class="nav-2line-body">
+                        <span class="nav-title">@T("nav.qms.m.icra")</span>
+                        <span class="nav-sub">@T("nav.qms.m.icra.sub")</span>
+                    </span>
+                </NavLink>
+            </div>
             <div class="app-nav-group">
                 <NavLink href="/qms" Match="NavLinkMatch.All" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.queue")</span></NavLink>
-                <NavLink href="/qms/ipqc" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.ipqc")</span></NavLink>
                 <NavLink href="/qms/fqc" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.fqc")</span></NavLink>
-                <NavLink href="/qms/oqc" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.oqc")</span></NavLink>
                 <NavLink href="/qms/history" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.history")</span></NavLink>
                 <NavLink href="/qc/library" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.library")</span></NavLink>
                 <NavLink href="/quality/traceability" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.traceability")</span></NavLink>
