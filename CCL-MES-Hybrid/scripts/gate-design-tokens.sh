@@ -19,24 +19,29 @@ set -euo pipefail
 BASELINE_RAW_FS=527   # đo 2026-08-18, trước khi bắt đầu chuyển dần sang var(--fs-*)
 
 here="$(cd "$(dirname "$0")" && pwd)"
-CSS="$here/../src/CCL.MES.Hybrid.Razor/wwwroot/css/app.css"
+CSSDIR="$here/../src/CCL.MES.Hybrid.Razor/wwwroot/css"
+CSS="$CSSDIR/app.css"
+IX="$CSSDIR/ix.css"      # CCL iX foundation — cùng thang, quét chung
 [ -f "$CSS" ] || { echo "[gate:tokens] không thấy app.css tại $CSS"; exit 2; }
+[ -f "$IX" ]  || { echo "[gate:tokens] không thấy ix.css tại $IX"; exit 2; }
 
 count_raw_fs() {
-  python3 - "$1" <<'PY'
+  python3 - "$@" <<'PY2'
 import re,sys
-css=open(sys.argv[1],encoding='utf-8').read()
-vals=re.findall(r'font-size\s*:\s*([^;}\n]+)',css)
-print(sum(1 for v in vals if 'var(' not in v))
-PY
+n=0
+for path in sys.argv[1:]:
+    css=open(path,encoding='utf-8').read()
+    n+=sum(1 for v in re.findall(r'font-size\s*:\s*([^;}\n]+)',css) if 'var(' not in v)
+print(n)
+PY2
 }
 
 if [ "${1:-}" = "--self-test" ]; then
   tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
   cp "$CSS" "$tmp"
-  before="$(count_raw_fs "$CSS")"
+  before="$(count_raw_fs "$CSS" "$IX")"
   printf '\n.gate-selftest-fs { font-size: 13px; }\n' >> "$tmp"
-  after="$(count_raw_fs "$tmp")"
+  after="$(count_raw_fs "$tmp" "$IX")"
   [ "$after" -gt "$before" ] \
     && { echo "[gate:tokens] self-test OK (font-size literal bị bắt: $before -> $after)"; exit 0; } \
     || { echo "[gate:tokens] self-test FAILED — detector không bắt được"; exit 1; }
@@ -44,17 +49,17 @@ fi
 
 rc=0
 for need in '\-\-fs-md' '\-\-fs-base' '\-\-sp-4' '\-\-r-md' '\-\-mo-base' '\-\-focus-ring' '\-\-d-tap' '\-\-d-row-h' '\-\-d-font'; do
-  if ! grep -qE "$need\s*:" "$CSS"; then
+  if ! grep -qE "$need\s*:" "$CSS" "$IX"; then
     echo "[gate:tokens:FAIL] thiếu token bắt buộc trong :root → $(echo "$need" | tr -d '\\')"
     rc=1
   fi
 done
-if ! grep -q 'data-density="shopfloor"' "$CSS"; then
+if ! grep -q 'data-density="shopfloor"' "$CSS" "$IX"; then
   echo "[gate:tokens:FAIL] mất khối [data-density=\"shopfloor\"] — density xưởng bị tháo."
   rc=1
 fi
 
-raw="$(count_raw_fs "$CSS")"
+raw="$(count_raw_fs "$CSS" "$IX")"
 echo "[gate:tokens] font-size không dùng var() = $raw (baseline $BASELINE_RAW_FS)"
 if [ "$raw" -gt "$BASELINE_RAW_FS" ]; then
   echo "[gate:tokens:FAIL] có cỡ chữ mới đặt bằng số thay vì bậc thang."

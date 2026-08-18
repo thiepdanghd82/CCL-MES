@@ -6,6 +6,10 @@ public sealed partial class TranslationCatalog
     private void RegisterNav()
     {
         //     key                       vi                          en
+        // CCL iX — điều khiển rail (nguyên tắc 5: thu gọn do người dùng chủ động).
+        Add("nav.rail.collapse",      "Thu gọn",                   "Collapse");
+        Add("nav.rail.expand",        "Mở rộng",                   "Expand");
+
         Add("nav.home",               "Trang chủ",                 "Home");
 
         Add("nav.section.npi",        "DỮ LIỆU NPI",               "NPI DATA");

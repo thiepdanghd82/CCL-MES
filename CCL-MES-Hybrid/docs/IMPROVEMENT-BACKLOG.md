@@ -19,6 +19,9 @@
 | ✅ D2 | Hai density `office` / `shopfloor` (tap 44px, font 16px) | `:root[data-density="shopfloor"]` + 4 class tiện ích |
 | ✅ D5 | 4 gate mới + runner `gate-all.sh` + job CI `gates` | 8/8 PASS, self-test PASS→FAIL→PASS |
 | ✅ — | Lesson L40–L43, mỗi lesson có cơ chế chặn | `LESSONS-LEARNED.md` |
+| ✅ D3a | **CCL iX foundation** — 6 nguyên tắc + rail/page-head/tile/pill/toolbar/grid/nút, và lớp tương thích restyle class cũ (toàn app đổi diện mạo, Razor churn tối thiểu) | `ix.css` 520 dòng, 0 hex thô, 0 font-size thô |
+| ✅ D2b | Công tắc density trong Settings → Giao diện + rail thu gọn có nhớ | 6 bUnit test, ảnh 2 density |
+| ✅ — | Trang tham chiếu thiết kế link CSS thật (không trôi) | `docs/design-system/index.html` |
 
 ---
 
@@ -178,7 +181,8 @@ nơi nào dùng** — offline-first mới là ý định, chưa là năng lực.
 **Work-class** W5 · **Agent** `cmes-shopfloor-ux` · **Skill** `cmes-design-tokens`
 
 **Nghiệm thu**
-- [ ] `StatusPill` map `MesPhase`/`LegPhase` → màu + nhãn ở **một chỗ duy nhất**
+- [x] ~~Bộ pill trạng thái một cách vẽ duy nhất~~ — CSS xong (`.ix-pill*`)
+- [ ] `StatusPill` **component Razor** map `MesPhase`/`LegPhase` → pill ở **một chỗ duy nhất** (hiện mỗi màn còn tự map)
 - [ ] `DataGrid` · `StepTimeline` · `SignaturePad` · `EvidenceCard` thành component chung
 - [ ] `app.css` xếp `@layer reset → tokens → primitives → patterns`, còn ≤ **2.000** dòng
 - [ ] `gate-design-tokens` BASELINE **527 → ≤200**

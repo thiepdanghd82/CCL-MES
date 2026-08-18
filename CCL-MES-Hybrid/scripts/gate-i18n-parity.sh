@@ -15,7 +15,15 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-BASELINE_RAW_VI=99    # dòng .razor còn chuỗi tiếng Việt trần, đo 2026-08-18
+# Đo lại 2026-08-18 SAU khi scanner biết trạng thái comment: 99 → 7.
+# 92/99 con số cũ là BÁO ĐỘNG GIẢ — dòng tiếp theo của comment @* … *@ nhiều
+# dòng (cùng lớp bẫy với L37: parser không strip comment trước khi đọc).
+# 7 dòng còn lại là NỢ THẬT, trừ đúng 1 ngoại lệ hợp lệ:
+#   QcLibrary.razor:264,292      nhãn nhóm "A·Ngoại quan" — phải lấy từ master data
+#   WorkOrders.razor:1153        thông báo fork WO chưa dịch
+#   Routes.razor:24,30,32        "Đang xác thực…" / 404 chưa dịch
+#   SettingsAppearance.razor:144 "Tiếng Việt" — HỢP LỆ, endonym không được dịch
+BASELINE_RAW_VI=7
 
 here="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$here/.."
@@ -35,12 +43,38 @@ for f in glob.glob(os.path.join(loc,'TranslationCatalog*.cs')):
         if not vi.strip() or not en.strip(): empty.append(k)
 dups={k:v for k,v in keys.items() if len(v)>1}
 VI=re.compile(r'[ăâđêôơưĂÂĐÊÔƠƯáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]')
+# Bỏ qua comment ĐÚNG CÁCH: phải theo TRẠNG THÁI khối, không chỉ nhìn ký tự
+# đầu dòng — dòng tiếp theo của một comment @* … *@ / /* … */ nhiều dòng không
+# bắt đầu bằng dấu comment nào, nên cách cũ đếm nhầm chúng là chuỗi bỏ quên.
+def code_lines(path):
+    in_razor=in_block=False
+    for ln in open(path,encoding='utf-8'):
+        t=ln
+        if in_razor:
+            if '*@' in t: in_razor=False; t=t.split('*@',1)[1]
+            else: continue
+        if in_block:
+            if '*/' in t: in_block=False; t=t.split('*/',1)[1]
+            else: continue
+        # cắt phần comment mở ra khỏi phần code còn lại trên cùng dòng
+        while True:
+            i=t.find('@*'); j=t.find('/*'); k=t.find('//')
+            first=min([x for x in (i,j,k) if x>=0], default=-1)
+            if first<0: break
+            if first==k: t=t[:k]; break
+            close='*@' if first==i else '*/'
+            end=t.find(close, first+2)
+            if end<0:
+                t=t[:first]
+                if first==i: in_razor=True
+                else: in_block=True
+                break
+            t=t[:first]+t[end+2:]
+        yield t
 raw=0
 for f in glob.glob(os.path.join(razor,'**','*.razor'),recursive=True):
-    for ln in open(f,encoding='utf-8'):
-        s=ln.strip()
-        if s.startswith(('@*','//','/*','*')): continue
-        if VI.search(ln): raw+=1
+    for t in code_lines(f):
+        if VI.search(t): raw+=1
 print(json.dumps({"keys":len(keys),"dups":list(dups)[:5],"ndups":len(dups),"empty":empty[:5],"nempty":len(empty),"raw":raw}))
 PY
 }

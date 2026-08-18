@@ -9,6 +9,13 @@ description: >
 
 # CMES design tokens
 
+**Nền tảng: CCL iX** — `CCL-MES-Hybrid/src/CCL.MES.Hybrid.Razor/wwwroot/css/ix.css`
+(nạp SAU `app.css`). Sáu nguyên tắc + toàn bộ pattern nằm ở đầu file đó.
+**Trang tham chiếu sống:** mở `CCL-MES-Hybrid/docs/design-system/index.html`
+trong trình duyệt — nó link CSS THẬT nên không bao giờ trôi khỏi code.
+Xem nhanh biến thể: `?density=shopfloor` · `?rail=collapsed`.
+
+
 **Rule (enforced):** mọi **kích thước** trong `app.css` đi qua token, y như
 mọi **màu** đã đi qua token từ L37. Cỡ chữ dùng `var(--fs-*)`, khoảng cách
 dùng `var(--sp-*)`, và mọi surface operator phải chạy đúng ở **cả hai density**.
@@ -67,6 +74,19 @@ trong PR (xem `cmes-verify-evidence`).
    - Bậc mới ⇒ thêm vào `:root`, đặt tên theo hệ, dùng ≥2 nơi.
    - Ngoại lệ ⇒ viết `/* one-off: <lý do> */` ngay dòng đó và bump BASELINE.
 3. **Không bao giờ** chọn cách "chỉnh 0.9 lên 1.08 cho vừa mắt".
+
+## Ở đâu viết cái gì
+
+| Việc | File |
+|---|---|
+| Thêm/đổi token (thang, density, trạng thái) | `ix.css` §`:root` |
+| Pattern dùng lại (tile, pill, toolbar, grid, nút) | `ix.css` §3–§8 |
+| Đổi diện mạo class markup CŨ (không sửa Razor) | `ix.css` §10 lớp tương thích |
+| Style riêng của MỘT component | `.razor.css` scoped |
+| Print-CSS | **luôn** `app.css` global (L39 — scoped chết trên maccatalyst) |
+
+⚠ **Không đụng** `.spec-*-table-full` / `.spec-print-*` — L39 quản, on-screen
+phải == bản in.
 
 ## Bố cục app.css
 

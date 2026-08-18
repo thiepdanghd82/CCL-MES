@@ -1,4 +1,5 @@
 @inherits LayoutComponentBase
+@inject Microsoft.JSInterop.IJSRuntime JS
 @*
   Top-level layout. Sidebar nav on the left, content + connectivity
   banner stacked on the right. Carbon-style minimalism — operators care
@@ -10,8 +11,8 @@
   Tab+Enter focus workaround (dotnet/maui#13934).
 *@
 
-<div class="app-shell">
-    <NavMenu />
+<div class="app-shell" data-rail="@(_railCollapsed ? "collapsed" : null)">
+    <NavMenu RailCollapsed="_railCollapsed" OnToggleRail="ToggleRailAsync" />
     <main class="app-main">
         <TopBar />
         <ConnectivityBanner />
@@ -23,3 +24,36 @@
     </main>
 </div>
 <MacCatalystKeyboardFix />
+
+@code {
+    // CCL iX nguyên tắc 5 — "khung là hằng số": rail KHÔNG tự đổi độ rộng.
+    // Thu gọn chỉ xảy ra khi người dùng bấm, và lựa chọn đó được nhớ lại
+    // (localStorage qua cclMesDensity.railGet/railSet — dùng chung cơ chế với
+    // mật độ hiển thị thay vì dựng thêm một preference service).
+    private bool _railCollapsed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var collapsed = await JS.InvokeAsync<bool>("cclMesDensity.railGet");
+            if (collapsed != _railCollapsed)
+            {
+                _railCollapsed = collapsed;
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // JS chưa sẵn sàng → rail mở. Không để lỗi interop nổi lên
+            // renderer (L1) — layout là nơi tệ nhất để ném exception.
+        }
+    }
+
+    private async Task ToggleRailAsync()
+    {
+        _railCollapsed = !_railCollapsed;
+        try { await JS.InvokeVoidAsync("cclMesDensity.railSet", _railCollapsed); } catch { }
+    }
+}

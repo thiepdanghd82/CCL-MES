@@ -39,6 +39,11 @@ bash CCL-MES-Hybrid/scripts/gate-all.sh
 8 gate + SUMMARY. Rồi chạy thật và **dán output thật** — "đã test rồi" không
 phải bằng chứng. Chi tiết: skill `cmes-verify-evidence`.
 
+**Nền tảng thiết kế (CCL iX):** `CCL-MES-Hybrid/src/CCL.MES.Hybrid.Razor/wwwroot/css/ix.css`
+— sáu nguyên tắc ở đầu file. Trang tham chiếu sống:
+[`CCL-MES-Hybrid/docs/design-system/index.html`](CCL-MES-Hybrid/docs/design-system/index.html)
+(mở bằng trình duyệt; `?density=shopfloor`, `?rail=collapsed`).
+
 **Việc còn nợ, đã xếp thành task chạy được:**
 [`CCL-MES-Hybrid/docs/IMPROVEMENT-BACKLOG.md`](CCL-MES-Hybrid/docs/IMPROVEMENT-BACKLOG.md)
 — mỗi mục gắn sẵn work-class · agent · skill · tiêu chí nghiệm thu đo được.
