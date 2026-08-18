@@ -7265,11 +7265,11 @@ tr.wc-row:hover { background: var(--c-bg); }
 .qclib-scroll { overflow-x: auto; border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-card); }
 .qclib-grid {
     border-collapse: separate; border-spacing: 0; color: var(--c-ink-3);
-    width: 100%; min-width: 1180px; max-width: 2400px; margin-inline: auto;
-    font-size: clamp(0.86rem, 0.64rem + 0.42vw, 1.1rem);
-    --qclib-tick-w: clamp(46px, 3vw, 70px);
+    width: 100%; min-width: 1180px;
+    font-size: clamp(0.86rem, 0.64rem + 0.42vw, 1.12rem);
+    --qclib-tick-w: clamp(46px, 3vw, 78px);
     --qclib-band-h: clamp(30px, 2vw, 46px);
-    --qclib-rpad: clamp(8px, 0.55vw, 15px);
+    --qclib-rpad: clamp(8px, 0.55vw, 16px);
 }
 .qclib-grid th, .qclib-grid td { padding: 0; }
 
@@ -7278,18 +7278,18 @@ tr.wc-row:hover { background: var(--c-bg); }
     position: sticky; background: var(--c-surface); font-weight: 700;
     border-bottom: 1px solid var(--c-line); z-index: 2;
 }
-.qclib-band th { top: 0; height: var(--qclib-band-h); font-size: clamp(0.6rem, 0.5rem + 0.2vw, 0.78rem); letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-muted); padding: 0 10px; }
+.qclib-band th { top: 0; height: var(--qclib-band-h); font-size: clamp(0.68rem, 0.58rem + 0.22vw, 0.9rem); font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-muted); padding: 0 10px; }
 .qclib-cols th { top: var(--qclib-band-h); z-index: 1; }
 .qclib-band-print { background: var(--indigo-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
 .qclib-band-cut { background: var(--warn-bg) !important; color: var(--warn-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
 .qclib-band-stage { background: var(--brand-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
-.qclib-tick-h { width: var(--qclib-tick-w); text-align: center; font-size: clamp(0.66rem, 0.56rem + 0.22vw, 0.82rem); font-weight: 700; color: var(--c-muted); padding: 8px 2px; white-space: nowrap; }
+.qclib-tick-h { width: var(--qclib-tick-w); text-align: center; font-size: clamp(0.78rem, 0.68rem + 0.28vw, 0.98rem); font-weight: 700; color: var(--c-ink-3); padding: 9px 2px; white-space: nowrap; }
 .qclib-tick-h.qclib-stage-h { background: var(--brand-bg); color: var(--brand-ink); }
 
 /* ── Content columns (fluid) ─────────────────────────────────────────── */
 .qclib-kebab-col { width: clamp(36px, 2.4vw, 50px); text-align: center; }
 .qclib-c-id { width: clamp(92px, 7vw, 150px); text-align: left; padding-left: 12px !important; }
-.qclib-c-content { width: auto; min-width: clamp(260px, 22vw, 560px); text-align: left; }
+.qclib-c-content { width: 100%; min-width: clamp(260px, 22vw, 560px); text-align: left; }  /* greedy — absorbs slack so the table always fills full width */
 .qclib-c-sev { width: clamp(104px, 8vw, 150px); text-align: left; }
 .qclib-c-def { width: clamp(118px, 9vw, 170px); text-align: left; }
 .qclib-band th.qclib-c-id, .qclib-band th.qclib-c-content, .qclib-band th.qclib-c-sev, .qclib-band th.qclib-c-def { vertical-align: middle; color: var(--c-ink-2); font-size: clamp(0.64rem, 0.54rem + 0.2vw, 0.8rem); }
