@@ -399,7 +399,16 @@ public static class DbSeeder
     public static async Task<CheckLibrarySeedResult> SeedCheckItemLibraryFromFileAsync(MesDbContext db, string path)
     {
         if (!File.Exists(path)) return new CheckLibrarySeedResult(0, 0, 0);
-        // F4 (finding #8): parse strict — log hàng lỗi, KHÔNG seed im lặng.
+
+        // v5: nguồn là sheet IPQC_FQC_OQC_MAP trong .xlsx (ma trận tick-box).
+        if (path.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            using var fs = File.OpenRead(path);
+            var v5 = QcLibrary.QcLibraryV5Parser.Parse(fs);
+            return await SeedCheckItemLibraryAsync(db, v5);
+        }
+
+        // Legacy .csv (v1..v3) — parse strict, log hàng lỗi, KHÔNG seed im lặng.
         var parsed = QcCheckLibraryCsv.ParseDetailed(await File.ReadAllTextAsync(path));
         foreach (var s in parsed.Skipped) Console.WriteLine($"[csv] bad row — {s}");
         if (parsed.Skipped.Count > 0)
@@ -499,12 +508,14 @@ public static class DbSeeder
         var env = Environment.GetEnvironmentVariable("MES_QC_LIBRARY_CSV");
         if (!string.IsNullOrWhiteSpace(env) && File.Exists(env)) return env;
 
-        const string fileName = "IPQC_Library_CMES_v3.csv";
+        // v5 (xlsx, ma trận tick-box) là nguồn hiện hành; giữ fallback v3.csv nếu còn.
+        string[] fileNames = { "IPQC_Library_CMES_v5.xlsx", "IPQC_Library_CMES_v3.csv" };
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            var candidate = Path.Combine(dir.FullName, fileName);
-            if (File.Exists(candidate)) return candidate;
-        }
+            foreach (var fileName in fileNames)
+            {
+                var candidate = Path.Combine(dir.FullName, fileName);
+                if (File.Exists(candidate)) return candidate;
+            }
         return null;
     }
 

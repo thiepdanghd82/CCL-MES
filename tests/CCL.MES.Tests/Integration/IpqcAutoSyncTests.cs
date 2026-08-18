@@ -21,14 +21,14 @@ public sealed class IpqcAutoSyncTests : IDisposable
     public IpqcAutoSyncTests() => _fx = new IsolatedDbFixture();
     public void Dispose() => _fx.Dispose();
 
-    private static string RealCsvPath()
+    private static string RealV5Path()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
-            var c = Path.Combine(dir.FullName, "IPQC_Library_CMES_v3.csv");
+            var c = Path.Combine(dir.FullName, "IPQC_Library_CMES_v5.xlsx");
             if (File.Exists(c)) return c;
         }
-        throw new FileNotFoundException("IPQC_Library_CMES_v3.csv not found above test bin.");
+        throw new FileNotFoundException("IPQC_Library_CMES_v5.xlsx not found above test bin.");
     }
 
     private async Task<long> SeedProductWithRoutingAsync(string productCode, (string op, string desc, string wc)[] ops)
@@ -69,12 +69,16 @@ public sealed class IpqcAutoSyncTests : IDisposable
     private async Task SeedLibraryAsync()
     {
         using var db = _fx.NewContext();
-        await DbSeeder.SeedCheckItemLibraryFromFileAsync(db, RealCsvPath());
+        await DbSeeder.SeedCheckItemLibraryFromFileAsync(db, RealV5Path());
         await DbSeeder.SeedProcessLineMapAsync(db); // F6 — map data-driven
     }
 
+    // v5 chỉ có 2 line thư viện: LABEL + SILK (không DIGITAL / PRESS_CNC /
+    // FINISHING). Resolver vẫn map routing → nhiều line, nhưng chỉ line nào có
+    // hạng mục v5 (LABEL/SILK, cờ Ipqc) mới materialize.
+
     [Fact]
-    public async Task Label_part_80644935_materializes_label_and_presscnc_items()
+    public async Task Label_part_80644935_materializes_label_items_only()
     {
         await SeedLibraryAsync();
         var pid = await SeedProductWithRoutingAsync("80644935", new[]
@@ -89,21 +93,17 @@ public sealed class IpqcAutoSyncTests : IDisposable
         var result = await RunAutoSyncAsync(pid);
 
         Assert.NotEmpty(result.Items);
-        // Mọi item thuộc LABEL hoặc PRESS_CNC (không lẫn DIGITAL/SILK).
-        Assert.All(result.Items, i => Assert.Contains(i.ProcessLine, new[] { "LABEL", "PRESS_CNC" }));
-        Assert.Contains(result.Items, i => i.ProcessLine == "LABEL");
-        Assert.Contains(result.Items, i => i.ProcessLine == "PRESS_CNC");
+        // v5: chỉ hạng mục LABEL (PRESS_CNC không có trong thư viện v5).
+        Assert.All(result.Items, i => Assert.Equal("LABEL", i.ProcessLine));
         // Snapshot đóng băng + đếm khớp số item.
         Assert.Equal(result.Items.Count, QcProfileSeed.CountItems(result.ProfileSnapshotJson));
-        Assert.Contains("LABEL,PRESS_CNC", result.ProfileSnapshotJson);
     }
 
     [Fact]
-    public async Task Digital_part_80645392_materializes_digital_items_not_silk()
+    public async Task Digital_part_80645392_has_no_v5_library_items()
     {
         await SeedLibraryAsync();
-        // Lưu ý quyết định #5: máy SheetCut(SS) R2SC* → SILK (đã unit-test riêng).
-        // Test này dùng các op DIGITAL+PRESS_CNC rõ ràng để khẳng định phân loại in số.
+        // Routing DIGITAL + PRESS_CNC — v5 KHÔNG có line này → materialize rỗng.
         var pid = await SeedProductWithRoutingAsync("80645392", new[]
         {
             ("20", "(HP INDIGO) PRINT / In máy kts", "IDG01"),
@@ -113,13 +113,13 @@ public sealed class IpqcAutoSyncTests : IDisposable
         });
         var result = await RunAutoSyncAsync(pid);
 
-        Assert.Contains(result.Items, i => i.ProcessLine == "DIGITAL");
+        Assert.Empty(result.Items);
         Assert.DoesNotContain(result.Items, i => i.ProcessLine == "SILK");
         Assert.DoesNotContain(result.Items, i => i.ProcessLine == "LABEL");
     }
 
     [Fact]
-    public async Task Silk_part_80640044_materializes_silk_items_not_digital()
+    public async Task Silk_part_80640044_materializes_silk_items_only()
     {
         await SeedLibraryAsync();
         var pid = await SeedProductWithRoutingAsync("80640044", new[]
@@ -132,8 +132,9 @@ public sealed class IpqcAutoSyncTests : IDisposable
         });
         var result = await RunAutoSyncAsync(pid);
 
-        Assert.Contains(result.Items, i => i.ProcessLine == "SILK");
-        Assert.Contains(result.Items, i => i.ProcessLine == "PRESS_CNC");
+        Assert.NotEmpty(result.Items);
+        // v5: chỉ hạng mục SILK (PRESS_CNC không có trong thư viện v5).
+        Assert.All(result.Items, i => Assert.Equal("SILK", i.ProcessLine));
         Assert.DoesNotContain(result.Items, i => i.ProcessLine == "DIGITAL");
     }
 

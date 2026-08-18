@@ -6,7 +6,7 @@ namespace CCL.MES.Application.Services;
 /// Phương án C — Bước 1. Một dòng thư viện hạng mục kiểm đọc từ
 /// <c>IPQC_Library_CMES_v2.csv</c> (19 cột). Thuần dữ liệu — không EF.
 /// </summary>
-public sealed class QcCheckLibraryRow
+public sealed record QcCheckLibraryRow
 {
     public string ItemId { get; init; } = "";
     public string ProcessLine { get; init; } = "";
