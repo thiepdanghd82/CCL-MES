@@ -40,7 +40,7 @@ public sealed class CheckItemLibraryControllerTests : IClassFixture<MesApiFactor
             if (!await db.CheckItemLibraries.AnyAsync(c => c.ItemId == id))
                 db.CheckItemLibraries.Add(new CheckItemLibrary
                 {
-                    ItemId = id, ProcessLine = line, QcStage = "IPQC", GroupLabel = "G", Code = id,
+                    ItemId = id, ProcessLine = line, Ipqc = true, GroupLabel = "G", Code = id,
                     ItemVi = "vi " + id, ItemEn = "en", AcceptanceVi = "acc", AcceptanceEn = "acc",
                     DefectCode = defect, Active = true, Sort = 10,
                 });

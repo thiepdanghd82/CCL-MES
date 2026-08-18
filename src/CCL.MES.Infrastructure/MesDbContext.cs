@@ -484,10 +484,11 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<RoutingOperation>().HasIndex(x => x.PartNo);
         b.Entity<ManufacturingStructure>().HasIndex(x => x.ParentPart);
 
-        // Phương án C — thư viện hạng mục kiểm. ItemId là natural key (upsert
-        // idempotent theo ItemId); resolver lookup theo (ProcessLine, QcStage).
+        // Thư viện hạng mục kiểm (re-model v5). ItemId là natural key (upsert
+        // idempotent theo ItemId); resolver lookup theo ProcessLine + cờ stage
+        // Ipqc/Fqc/Oqc (thay QcStage cũ).
         b.Entity<CheckItemLibrary>().HasIndex(x => x.ItemId).IsUnique();
-        b.Entity<CheckItemLibrary>().HasIndex(x => new { x.ProcessLine, x.QcStage });
+        b.Entity<CheckItemLibrary>().HasIndex(x => x.ProcessLine);
 
         // Auth — Username is unique and matched CASE-INSENSITIVELY. The
         // column carries a NOCASE collation so both the login lookup

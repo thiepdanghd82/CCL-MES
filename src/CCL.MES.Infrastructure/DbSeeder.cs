@@ -514,6 +514,7 @@ public static class DbSeeder
         bool changed = false;
         void Set(string cur, string val, Action<string> set) { if (!string.Equals(cur, val, StringComparison.Ordinal)) { set(val); changed = true; } }
         void SetN(string? cur, string? val, Action<string?> set) { if (!string.Equals(cur, val, StringComparison.Ordinal)) { set(val); changed = true; } }
+        void SetB(bool cur, bool val, Action<bool> set) { if (cur != val) { set(val); changed = true; } }
 
         Set(e.ProcessLine, r.ProcessLine, v => e.ProcessLine = v);
         Set(e.GroupLabel, r.GroupLabel, v => e.GroupLabel = v);
@@ -528,11 +529,26 @@ public static class DbSeeder
         SetN(e.Sampling, r.Sampling, v => e.Sampling = v);
         SetN(e.CheckType, r.CheckType, v => e.CheckType = v);
         SetN(e.DefectCode, r.DefectCode, v => e.DefectCode = v);
-        SetN(e.ParetoPct, r.ParetoPct, v => e.ParetoPct = v);
-        SetN(e.ShortForm, r.ShortForm, v => e.ShortForm = v);
         SetN(e.IsoRef, r.IsoRef, v => e.IsoRef = v);
         SetN(e.AppliesWhen, r.AppliesWhen, v => e.AppliesWhen = v);
         SetN(e.Note, r.Note, v => e.Note = v);
+        // v5 ma trận tick-box (16 cờ).
+        SetB(e.BlankLabel, r.BlankLabel, v => e.BlankLabel = v);
+        SetB(e.Flexo, r.Flexo, v => e.Flexo = v);
+        SetB(e.LetterPress, r.LetterPress, v => e.LetterPress = v);
+        SetB(e.HpIndigo, r.HpIndigo, v => e.HpIndigo = v);
+        SetB(e.SilkScreen, r.SilkScreen, v => e.SilkScreen = v);
+        SetB(e.Flatbed, r.Flatbed, v => e.Flatbed = v);
+        SetB(e.Rdc, r.Rdc, v => e.Rdc = v);
+        SetB(e.Laminate, r.Laminate, v => e.Laminate = v);
+        SetB(e.Zebra, r.Zebra, v => e.Zebra = v);
+        SetB(e.SheetCut, r.SheetCut, v => e.SheetCut = v);
+        SetB(e.PunchHole, r.PunchHole, v => e.PunchHole = v);
+        SetB(e.DrillHole, r.DrillHole, v => e.DrillHole = v);
+        SetB(e.Slit, r.Slit, v => e.Slit = v);
+        SetB(e.Ipqc, r.Ipqc, v => e.Ipqc = v);
+        SetB(e.Fqc, r.Fqc, v => e.Fqc = v);
+        SetB(e.Oqc, r.Oqc, v => e.Oqc = v);
         if (e.Sort != sort) { e.Sort = sort; changed = true; }
         return changed;
     }

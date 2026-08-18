@@ -38,7 +38,7 @@ public sealed class IpqcAutoSyncControllerTests : IClassFixture<MesApiFactory>
         {
             db.CheckItemLibraries.Add(new CheckItemLibrary
             {
-                ItemId = "TST-LBL-1", ProcessLine = "LABEL", QcStage = "IPQC", GroupLabel = "A",
+                ItemId = "TST-LBL-1", ProcessLine = "LABEL", Ipqc = true, GroupLabel = "A",
                 Code = "A1", ItemVi = "Nội dung", ItemEn = "Content", AcceptanceVi = "OK",
                 AcceptanceEn = "OK", DefectCode = "TST_CONTENT", Active = true, Sort = 10,
             });

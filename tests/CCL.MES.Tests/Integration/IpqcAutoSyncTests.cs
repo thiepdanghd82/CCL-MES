@@ -60,7 +60,7 @@ public sealed class IpqcAutoSyncTests : IDisposable
             new QcLineResolver.RoutingOp(o.OpNo, o.Operation, o.WorkCenterNo, o.WorkCenterDescription)), map);
         var lines = resolution.Lines.ToList();
         var lib = await db.CheckItemLibraries
-            .Where(c => c.Active && c.QcStage == "IPQC" && lines.Contains(c.ProcessLine)
+            .Where(c => c.Active && c.Ipqc && lines.Contains(c.ProcessLine)
                      && (c.ProductCode == null || c.ProductCode == productCode))
             .ToListAsync();
         return IpqcLibraryMaterializer.Build(lib, lines);

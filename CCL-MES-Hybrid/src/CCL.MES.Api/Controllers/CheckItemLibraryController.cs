@@ -39,7 +39,17 @@ public sealed class CheckItemLibraryController : ControllerBase
         if (!string.IsNullOrWhiteSpace(line))
             query = query.Where(c => c.ProcessLine == line);
         if (!string.IsNullOrWhiteSpace(stage))
-            query = query.Where(c => c.QcStage == stage);
+        {
+            // stage ∈ {IPQC,FQC,OQC} → lọc theo cờ ma trận tương ứng.
+            var s = stage.Trim().ToUpperInvariant();
+            query = s switch
+            {
+                "IPQC" => query.Where(c => c.Ipqc),
+                "FQC" => query.Where(c => c.Fqc),
+                "OQC" => query.Where(c => c.Oqc),
+                _ => query,
+            };
+        }
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(c => c.ItemVi.Contains(q) || c.ItemId.Contains(q) || c.Code.Contains(q));
 
@@ -48,9 +58,17 @@ public sealed class CheckItemLibraryController : ControllerBase
             .Select(c => new CheckLibraryItemDto
             {
                 ItemId = c.ItemId, ProcessLine = c.ProcessLine, ProductCode = c.ProductCode,
-                QcStage = c.QcStage, GroupLabel = c.GroupLabel, Code = c.Code,
-                ItemVi = c.ItemVi, AcceptanceVi = c.AcceptanceVi, Method = c.Method,
-                Severity = c.Severity, DefectCode = c.DefectCode, Active = c.Active, Sort = c.Sort,
+                GroupLabel = c.GroupLabel, Code = c.Code,
+                BlankLabel = c.BlankLabel, Flexo = c.Flexo, LetterPress = c.LetterPress,
+                HpIndigo = c.HpIndigo, SilkScreen = c.SilkScreen, Flatbed = c.Flatbed,
+                Rdc = c.Rdc, Laminate = c.Laminate, Zebra = c.Zebra, SheetCut = c.SheetCut,
+                PunchHole = c.PunchHole, DrillHole = c.DrillHole, Slit = c.Slit,
+                Ipqc = c.Ipqc, Fqc = c.Fqc, Oqc = c.Oqc,
+                ItemVi = c.ItemVi, ItemEn = c.ItemEn, AcceptanceVi = c.AcceptanceVi,
+                AcceptanceEn = c.AcceptanceEn, Method = c.Method, Severity = c.Severity,
+                Aql = c.Aql, Sampling = c.Sampling, CheckType = c.CheckType,
+                DefectCode = c.DefectCode, IsoRef = c.IsoRef, AppliesWhen = c.AppliesWhen,
+                Note = c.Note, Active = c.Active, Sort = c.Sort,
             })
             .ToListAsync(ct);
         return Ok(rows);
@@ -76,12 +94,15 @@ public sealed class CheckItemLibraryController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<CheckLibraryLineDto>>> Lines(CancellationToken ct = default)
     {
         var rows = await _db.CheckItemLibraries.AsNoTracking().Where(c => c.Active)
-            .GroupBy(c => new { c.ProcessLine, c.QcStage })
+            .GroupBy(c => c.ProcessLine)
             .Select(g => new CheckLibraryLineDto
             {
-                ProcessLine = g.Key.ProcessLine, QcStage = g.Key.QcStage, Count = g.Count(),
+                ProcessLine = g.Key, Count = g.Count(),
+                IpqcCount = g.Count(c => c.Ipqc),
+                FqcCount = g.Count(c => c.Fqc),
+                OqcCount = g.Count(c => c.Oqc),
             })
-            .OrderBy(x => x.ProcessLine).ThenBy(x => x.QcStage)
+            .OrderBy(x => x.ProcessLine)
             .ToListAsync(ct);
         return Ok(rows);
     }

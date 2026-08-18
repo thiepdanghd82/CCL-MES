@@ -40,7 +40,7 @@ public sealed class PerLegT3CompositionTests : IDisposable
         for (var i = 1; i <= count; i++)
             db.CheckItemLibraries.Add(new CheckItemLibrary
             {
-                ItemId = $"{line}-{i}", ProcessLine = line, QcStage = "IPQC", Active = true, Sort = i * 10,
+                ItemId = $"{line}-{i}", ProcessLine = line, Ipqc = true, Active = true, Sort = i * 10,
                 GroupLabel = line, Code = $"{line}{i}", ItemVi = $"{line} {i}", ItemEn = $"{line} {i}",
                 AcceptanceVi = "OK", AcceptanceEn = "OK",
             });
