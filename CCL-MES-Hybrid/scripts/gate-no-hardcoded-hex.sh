@@ -20,32 +20,36 @@ set -euo pipefail
 BASELINE=35
 
 here="$(cd "$(dirname "$0")" && pwd)"
-CSS="$here/../src/CCL.MES.Hybrid.Razor/wwwroot/css/app.css"
+CSSDIR="$here/../src/CCL.MES.Hybrid.Razor/wwwroot/css"
+CSS="$CSSDIR/app.css"
+IX="$CSSDIR/ix.css"      # CCL iX foundation — cùng luật token, quét chung
 [ -f "$CSS" ] || { echo "[gate:hex] app.css not found at $CSS"; exit 2; }
+[ -f "$IX" ]  || { echo "[gate:hex] ix.css not found at $IX"; exit 2; }
 
 count_usage_hex() {
-  python3 - "$1" <<'PY'
+  python3 - "$@" <<'PY2'
 import re,sys
 n=0
-for ln in open(sys.argv[1],encoding='utf-8'):
+for path in sys.argv[1:]:
+  for ln in open(path,encoding='utf-8'):
     if re.match(r'\s*--[A-Za-z0-9-]+\s*:', ln):   # a custom-property DEFINITION line → allowed
         continue
     n += len(re.findall(r'#[0-9a-fA-F]{3,8}\b', ln))
 print(n)
-PY
+PY2
 }
 
 if [ "${1:-}" = "--self-test" ]; then
-  tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
-  cp "$CSS" "$tmp"
+  tmp="$(mktemp)"; trap 'rm -f "$tmp" "$tmp.ix"' EXIT
+  cp "$CSS" "$tmp"; cp "$IX" "$tmp.ix"
   printf '\n.gate-selftest-xyz { color: #abcdef; }\n' >> "$tmp"
-  before="$(count_usage_hex "$CSS")"; after="$(count_usage_hex "$tmp")"
+  before="$(count_usage_hex "$CSS" "$IX")"; after="$(count_usage_hex "$tmp" "$tmp.ix")"
   [ "$after" -gt "$before" ] && echo "[gate:hex] self-test OK (adding a raw hex is detected: $before -> $after)" \
     || { echo "[gate:hex] self-test FAILED — detector did not catch an added hex"; exit 1; }
   exit 0
 fi
 
-count="$(count_usage_hex "$CSS")"
+count="$(count_usage_hex "$CSS" "$IX")"
 echo "[gate:hex] raw hex in rule usages = $count (baseline $BASELINE)"
 if [ "$count" -gt "$BASELINE" ]; then
   echo "[gate:hex:FAIL] new hardcoded hex in an app.css rule."

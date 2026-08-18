@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Localization
+@inject Microsoft.JSInterop.IJSRuntime JS
 
 @*
   P10.6b — Appearance / Language picker page.
@@ -48,6 +49,35 @@
 </section>
 
 <section class="settings-form-card" style="margin-top:16px">
+    <h2 class="settings-group-title">@T("appearance.density.title")</h2>
+    <p class="settings-form-help">@T("appearance.density.help")</p>
+
+    @* CCL iX — cùng markup, hai bộ số (ix.css §9). Nút dùng đúng pattern
+       appearance-card như picker ngôn ngữ: KHÔNG <InputText> (bẫy
+       ChangeEventArgs→string trên Catalyst, L2). *@
+    <div class="appearance-picker" role="radiogroup" aria-label="@T("appearance.aria.density")">
+        @foreach (var opt in DensityOptions)
+        {
+            var isActive = opt.Value == _density;
+            <button type="button"
+                    role="radio"
+                    aria-checked="@(isActive ? "true" : "false")"
+                    class="@(isActive ? "appearance-card is-active" : "appearance-card")"
+                    data-testid="@($"density-{opt.Value}")"
+                    @onclick="@(() => SetDensityAsync(opt.Value))">
+                <span class="appearance-card-flag">@opt.Icon</span>
+                <span class="appearance-card-title">@T(opt.TitleKey)</span>
+                <span class="appearance-card-sub">@T(opt.SubKey)</span>
+                @if (isActive)
+                {
+                    <span class="appearance-card-check" aria-hidden="true">✓</span>
+                }
+            </button>
+        }
+    </div>
+</section>
+
+<section class="settings-form-card" style="margin-top:16px">
     <h2 class="settings-group-title">@T("appearance.theme.title")</h2>
     <p class="settings-form-help">@T("appearance.theme.help")</p>
     <div class="appearance-picker is-locked">
@@ -70,6 +100,45 @@
 </section>
 
 @code {
+    // Mật độ đọc/ghi qua window.cclMesDensity (js/density.js) — localStorage,
+    // áp lên <html data-density>. Boot script trong index.html đã áp trước khi
+    // Blazor render nên không chớp giao diện; ở đây chỉ ĐỒNG BỘ trạng thái nút.
+    private string _density = "office";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var v = await JS.InvokeAsync<string>("cclMesDensity.get");
+            if (!string.IsNullOrWhiteSpace(v) && v != _density)
+            {
+                _density = v;
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // JS chưa sẵn sàng / bị chặn → giữ mặc định office. Không bao giờ
+            // để lỗi interop nổi lên renderer (L1).
+        }
+    }
+
+    private async Task SetDensityAsync(string value)
+    {
+        if (value == _density) return;          // idempotent
+        _density = value;
+        try { await JS.InvokeVoidAsync("cclMesDensity.set", value); } catch { }
+    }
+
+    private static readonly DensityOption[] DensityOptions = new[]
+    {
+        new DensityOption("office",    "🖥️", "appearance.density.office",    "appearance.density.office.sub"),
+        new DensityOption("shopfloor", "🏭", "appearance.density.shopfloor", "appearance.density.shopfloor.sub"),
+    };
+
+    private sealed record DensityOption(string Value, string Icon, string TitleKey, string SubKey);
+
     private static readonly LanguageOption[] Options = new[]
     {
         new LanguageOption(LanguageCode.Vietnamese, "🇻🇳", "Tiếng Việt", "appearance.lang.vi.hint"),

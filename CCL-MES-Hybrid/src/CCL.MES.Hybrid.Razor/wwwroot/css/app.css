@@ -56,7 +56,82 @@
     --ng: #d9534f;  --ng-ink: #b91c1c;  --ng-bg: #fdeceb;  --ng-soft: #f2a6a4;
     --warn-fg: #b7791f;  --warn-ink: #92400e; --warn-bg: #fbf1de; --warn-soft: #f0c674;
     --accent-ink: #155e75;  /* teal-deep */
+
+    /* ─────────────────────────────────────────────────────────────────────
+       SCALE LAYER (L41 — skill cmes-design-tokens). Màu đã token-hoá từ L37;
+       lớp này token-hoá KÍCH THƯỚC. Giá trị dưới đây = số đang dùng phổ biến
+       trong cây hiện tại ⇒ thêm vào là NO-OP thị giác, đúng chiến thuật P1
+       của L37 (định nghĩa trước, route rule sang var() dần theo từng PR,
+       ratchet bằng scripts/gate-design-tokens.sh). KHÔNG big-bang.
+       RULE: cỡ chữ mới dùng var(--fs-*) hoặc var(--d-font); khoảng cách mới
+       dùng var(--sp-*). Không đặt số trực tiếp — không có bậc vừa nghĩa là
+       bố cục sai, không phải lý do để viết 1.08rem.
+       ───────────────────────────────────────────────────────────────────── */
+
+    /* Thang chữ — 7 bậc, không có bậc trung gian tự chế */
+    --fs-xs:   .75rem;    /* 12px — nhãn phụ, chú thích */
+    --fs-sm:   .8125rem;  /* 13px — nội dung bảng dày */
+    --fs-md:   .875rem;   /* 14px — body mặc định (office) */
+    --fs-base: 1rem;      /* 16px — body mặc định (shopfloor); ≥16px chống zoom iOS */
+    --fs-lg:   1.125rem;  /* 18px — tiêu đề khối */
+    --fs-xl:   1.375rem;  /* 22px — tiêu đề trang */
+    --fs-2xl:  1.75rem;   /* 28px — số KPI lớn */
+
+    /* Thang khoảng cách — lưới 4px */
+    --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 16px;
+    --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
+
+    /* Bo góc */
+    --r-sm: 4px;  --r-md: 8px;  --r-lg: 12px;  --r-pill: 999px;
+
+    /* Đổ bóng — 3 bậc, dùng cho card / popover / floating window */
+    --el-1: 0 1px 2px rgba(18, 32, 58, .06);
+    --el-2: 0 4px 12px rgba(18, 32, 58, .10);
+    --el-3: 0 12px 32px rgba(18, 32, 58, .16);
+
+    /* Chuyển động */
+    --mo-fast: 120ms;  --mo-base: 200ms;  --mo-slow: 320ms;
+    --ease-std: cubic-bezier(.2, 0, 0, 1);
+
+    /* Focus — bàn phím là đường dùng chính của QA nhập liệu nhanh.
+       Không bao giờ `outline: none` trần; dùng token này. */
+    --focus-ring: 0 0 0 3px var(--brand-bg), 0 0 0 1px var(--brand);
+
+    /* ── DENSITY: office (mặc định) ─────────────────────────────────────
+       Người dùng: kỹ sư / QA ngồi bàn, màn rộng, chuột, cần nhiều dòng trên
+       một màn. Giá trị = trạng thái hiện tại của app ⇒ thêm vào không đổi gì. */
+    --d-font:      var(--fs-md);
+    --d-row-h:     32px;
+    --d-control-h: 28px;
+    --d-tap:       28px;
+    --d-gap:       var(--sp-2);
+    --d-pad-x:     var(--sp-3);
 }
+/* ── DENSITY: shopfloor ───────────────────────────────────────────────────
+   Người dùng: đứng máy, ĐEO GĂNG, nhìn từ xa hơn, ánh sáng xưởng, tay bẩn.
+   Đây là ràng buộc VẬT LÝ chứ không phải sở thích: vùng chạm ≥44px (ngón tay
+   đeo găng không bấm trúng 28px), chữ ≥16px, khoảng cách rộng hơn để bấm nhầm
+   ít đi. Cùng một component — chỉ khác bộ số. KHÔNG fork màn hình riêng cho
+   xưởng (fork = nhân đôi bug).
+   Bật: document.documentElement.dataset.density = 'shopfloor'.
+   Mọi surface Operator chạm được PHẢI screenshot ở cả hai density trong PR. */
+:root[data-density="shopfloor"] {
+    --d-font:      var(--fs-base);
+    --d-row-h:     56px;
+    --d-control-h: 44px;
+    --d-tap:       44px;
+    --d-gap:       var(--sp-4);
+    --d-pad-x:     var(--sp-4);
+}
+
+/* Tiện ích opt-in cho surface mới. Không rule nào của app hiện tại tham chiếu
+   các class này ⇒ thêm vào là no-op; chúng tồn tại để màn hình mới có đường
+   đúng sẵn thay vì tự chế số. */
+.u-row   { height: var(--d-row-h); font-size: var(--d-font); padding-inline: var(--d-pad-x); }
+.u-tap   { min-height: var(--d-tap); min-width: var(--d-tap); }
+.u-stack { display: flex; flex-direction: column; gap: var(--d-gap); }
+.u-focus:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
 
 html, body {
     margin: 0;

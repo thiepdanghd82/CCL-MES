@@ -21,6 +21,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+
+  gates:
+    name: Gate scripts (luật kiến trúc + hệ thiết kế)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    # Pha 4 AUDIT của vòng lặp (CCL-MES-Hybrid/docs/AGENT-LOOP.md): kiểm TĨNH
+    # mọi luật mà dự án đã trả tiền để học (L34/L35/L37/L39 + L40..L43 mới).
+    # Chạy độc lập với `test`/`hybrid-test`: không cần .NET SDK, không cần DB,
+    # chỉ bash + python3 → xong trong vài giây và cho tín hiệu sớm nhất trong PR.
+    # Gate xanh KHÔNG có nghĩa tính năng chạy — đó là pha 5 VERIFY, việc khác.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Self-test trước: chứng minh từng detector còn BẮT ĐƯỢC vi phạm.
+      # Một gate hỏng thầm lặng (luôn PASS) còn tệ hơn không có gate.
+      - name: Gate self-test (detector còn sống?)
+        run: bash CCL-MES-Hybrid/scripts/gate-all.sh --self-test
+
+      - name: Gate run (cây hiện tại có vi phạm không?)
+        run: bash CCL-MES-Hybrid/scripts/gate-all.sh
   test:
     name: Build + xUnit (T1 unit + T2a/T2b integration)
     runs-on: ubuntu-latest

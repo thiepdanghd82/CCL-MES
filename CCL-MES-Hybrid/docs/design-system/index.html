@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>CCL iX — nền tảng thiết kế</title>
+<!-- Link TƯƠNG ĐỐI tới CSS thật của app: trang này không bao giờ trôi khỏi
+     code. Sửa ix.css → mở lại file này là thấy ngay. -->
+<link href="../../src/CCL.MES.Hybrid.Razor/wwwroot/css/app.css" rel="stylesheet">
+<link href="../../src/CCL.MES.Hybrid.Razor/wwwroot/css/ix.css" rel="stylesheet">
+<style>
+  /* Chrome riêng của trang tham chiếu — KHÔNG thuộc design system. */
+  .ds-bar{position:sticky;top:0;z-index:50;display:flex;gap:var(--sp-3);align-items:center;
+    padding:var(--sp-3) var(--sp-5);background:var(--ix-chrome);color:var(--ix-chrome-ink);
+    border-bottom:1px solid var(--ix-chrome-line)}
+  .ds-bar h1{margin:0;font-size:var(--fs-md);font-weight:700;letter-spacing:.06em}
+  .ds-bar .sp{flex:1}
+  .ds-sec{padding:var(--sp-6) var(--sp-5) 0}
+  .ds-sec>h2{font-size:var(--fs-lg);color:var(--ix-ink);margin:0 0 var(--sp-2)}
+  .ds-sec>p{margin:0 0 var(--sp-4);color:var(--ix-ink-mut);font-size:var(--fs-sm);max-width:70ch}
+  .ds-demo{border:1px solid var(--ix-line);border-radius:var(--r-md);overflow:hidden;background:var(--ix-surface)}
+  .ds-row{display:flex;flex-wrap:wrap;gap:var(--sp-3);align-items:center;padding:var(--sp-4);
+    border:1px solid var(--ix-line);border-radius:var(--r-md);background:var(--ix-surface)}
+  .ds-shell{display:grid;grid-template-columns:var(--ix-rail-w) 1fr;height:520px;
+    border:1px solid var(--ix-line);border-radius:var(--r-md);overflow:hidden}
+  .ds-shell[data-rail="collapsed"]{grid-template-columns:var(--ix-rail-w-collapsed) 1fr}
+  .ds-shell .app-nav{display:flex;flex-direction:column;height:100%}
+  .ds-main{background:var(--ix-canvas);overflow:auto;padding:0 var(--sp-5) var(--sp-5)}
+  .ds-principles{list-style:none;padding:0;margin:0;display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--sp-3)}
+  .ds-principles li{background:var(--ix-surface);border:1px solid var(--ix-line);
+    border-radius:var(--r-md);padding:var(--sp-4);font-size:var(--fs-sm);color:var(--ix-ink-2)}
+  .ds-principles b{display:block;color:var(--ix-ink);margin-bottom:var(--sp-1);font-size:var(--fs-md)}
+  body{background:var(--ix-canvas);margin:0;padding-bottom:var(--sp-7)}
+</style>
+</head>
+<body>
+
+<div class="ds-bar">
+  <h1>CCL iX — NỀN TẢNG THIẾT KẾ</h1>
+  <span class="sp"></span>
+  <button class="ix-btn ix-btn-secondary" onclick="toggleDensity()">Density: <b id="dlab">office</b></button>
+  <button class="ix-btn ix-btn-secondary" onclick="toggleRail()">Thu gọn rail</button>
+</div>
+
+<div class="ds-sec">
+  <h2>Sáu nguyên tắc được encode thành CSS</h2>
+  <p>Áp triết lý thiết kế công nghiệp của Siemens (Siemens iX) — cấu trúc, mật độ,
+     thứ bậc và hành vi — chứ không sao chép bảng màu thương hiệu Siemens. Màu nhấn
+     giữ nguyên xanh CCL.</p>
+  <ul class="ds-principles">
+    <li><b>1 · Chức năng trước trang trí</b>Không gradient. Bóng chỉ dành cho lớp nổi (popover, floating window). Nội dung tĩnh luôn phẳng + hairline.</li>
+    <li><b>2 · Một màu nhấn duy nhất</b>Accent chỉ dùng cho tương tác và trạng thái active. Không bao giờ dùng để trang trí.</li>
+    <li><b>3 · Trạng thái có ngữ nghĩa</b>Năm bậc — neutral · ok · warn · alarm · info — một cách vẽ duy nhất toàn app.</li>
+    <li><b>4 · Phân cấp bằng đậm + khoảng trắng</b>Không dùng màu để tạo thứ bậc; màu để lại cho ý nghĩa.</li>
+    <li><b>5 · Khung là hằng số</b>Rail không tự đổi vị trí hay độ rộng. Thu gọn là do người dùng chủ động.</li>
+    <li><b>6 · Dữ liệu là chính</b>Header dính, số tabular căn phải, chrome tối thiểu, mật độ đổi theo người dùng.</li>
+  </ul>
+</div>
+
+<div class="ds-sec">
+  <h2>Khung ứng dụng — rail · đầu trang · ô số liệu · bảng</h2>
+  <p>Đây là toàn bộ khung một màn hình MES. Bấm <em>Density</em> ở thanh trên để xem
+     cùng markup ở chế độ <b>shopfloor</b> (người đứng máy, đeo găng: vùng chạm 44px,
+     chữ 16px, dòng 56px).</p>
+
+  <div class="ds-shell" id="shell">
+    <aside class="app-nav">
+      <div class="app-nav-brand"><span class="app-nav-mark" aria-hidden="true">C</span><span>CCL · MES</span></div>
+      <nav>
+        <a href="#" class="app-nav-link active"><span class="nav-ico">▣</span><span>Trang chủ</span></a>
+        <div class="app-nav-section">Dữ liệu NPI</div>
+        <a href="#" class="app-nav-link"><span class="nav-ico">▤</span><span>Cấu trúc (BOM)</span></a>
+        <a href="#" class="app-nav-link"><span class="nav-ico">▥</span><span>Công đoạn</span></a>
+        <a href="#" class="app-nav-link"><span class="nav-ico">▦</span><span>Nguyên vật liệu</span></a>
+        <a href="#" class="app-nav-link"><span class="nav-ico">▧</span><span>Spec kỹ thuật</span></a>
+        <div class="app-nav-section">Sản xuất</div>
+        <a href="#" class="app-nav-link"><span class="nav-ico">◈</span><span>Lệnh SX — Quét</span></a>
+        <a href="#" class="app-nav-link"><span class="nav-ico">◇</span><span>Kho bán thành phẩm</span></a>
+        <div class="app-nav-section">Chất lượng</div>
+        <a href="#" class="app-nav-link"><span class="nav-ico">✓</span><span>IPQC</span></a>
+        <a href="#" class="app-nav-link"><span class="nav-ico">✓</span><span>FQC / OQC</span></a>
+        <a href="#" class="app-nav-link"><span class="nav-ico">⌘</span><span>Truy xuất nguồn gốc</span></a>
+      </nav>
+      <button class="ix-rail-toggle" onclick="toggleRail()"><span>«</span><span>Thu gọn</span></button>
+    </aside>
+
+    <div class="ds-main">
+      <div class="ix-page-head">
+        <div>
+          <h1 class="ix-page-title">Lệnh sản xuất</h1>
+          <div class="ix-page-sub">Ca B · 14:00–22:00 · Line LABEL-01 · cập nhật 12 giây trước</div>
+        </div>
+        <div class="ix-page-actions">
+          <button class="ix-btn ix-btn-ghost">Xuất CSV</button>
+          <button class="ix-btn ix-btn-secondary">Bộ lọc</button>
+          <button class="ix-btn ix-btn-primary">Quét WO</button>
+        </div>
+      </div>
+
+      <div class="ix-tiles" style="margin-bottom:var(--sp-5)">
+        <div class="ix-tile">
+          <div class="ix-tile-label">Đang chạy</div>
+          <div class="ix-tile-value">12</div>
+          <div class="ix-tile-sub"><span class="ix-dot ix-dot-ok"></span>4 line hoạt động</div>
+        </div>
+        <div class="ix-tile">
+          <div class="ix-tile-label">Chờ IPQC</div>
+          <div class="ix-tile-value">3</div>
+          <div class="ix-tile-sub"><span class="ix-dot ix-dot-warn"></span>1 quá 30 phút</div>
+        </div>
+        <div class="ix-tile">
+          <div class="ix-tile-label">Không đạt</div>
+          <div class="ix-tile-value">1</div>
+          <div class="ix-tile-sub"><span class="ix-dot ix-dot-alarm"></span>chờ QA quyết</div>
+        </div>
+        <div class="ix-tile">
+          <div class="ix-tile-label">OEE ca này</div>
+          <div class="ix-tile-value">78,4%</div>
+          <div class="ix-tile-sub"><span class="ix-dot ix-dot-info"></span>mục tiêu 80%</div>
+        </div>
+      </div>
+
+      <div class="ix-panel">
+        <div class="ix-toolbar">
+          <span class="ix-toolbar-title">Lệnh đang mở</span>
+          <span class="ix-toolbar-count">6 / 128</span>
+          <span class="ix-toolbar-spacer"></span>
+          <input class="ix-input" placeholder="Tìm mã WO…" style="width:220px">
+          <button class="ix-btn ix-btn-secondary">Cột</button>
+        </div>
+        <div class="ix-grid-scroll">
+        <table class="ix-grid">
+          <thead><tr>
+            <th>Mã WO</th><th>Sản phẩm</th><th>Khách hàng</th><th>Công đoạn</th>
+            <th>Trạng thái</th><th class="num">Kế hoạch</th><th class="num">Đã chạy</th><th class="num">Phế</th>
+          </tr></thead>
+          <tbody>
+            <tr><td class="strong">WO-26081201</td><td>Nhãn ROHS 40×20</td><td>Datalogic</td><td>PRINT</td>
+                <td><span class="ix-pill ix-pill-ok">RUNNING</span></td><td class="num">120.000</td><td class="num">84.320</td><td class="num">412</td></tr>
+            <tr><td class="strong">WO-26081202</td><td>Tem bảo hành silk</td><td>CCL VN</td><td>SILK</td>
+                <td><span class="ix-pill ix-pill-warn">IPQC_WAIT</span></td><td class="num">45.000</td><td class="num">0</td><td class="num">0</td></tr>
+            <tr><td class="strong">WO-26081203</td><td>Nhãn cuộn 3 lớp</td><td>Foxconn</td><td>ASSEMBLY</td>
+                <td><span class="ix-pill ix-pill-info">SPLIT</span></td><td class="num">60.000</td><td class="num">28.500</td><td class="num">96</td></tr>
+            <tr><td class="strong">WO-26081204</td><td>Tem serial 25×12</td><td>Datalogic</td><td>CUT</td>
+                <td><span class="ix-pill ix-pill-alarm">QA_PENDING</span></td><td class="num">200.000</td><td class="num">196.400</td><td class="num">3.180</td></tr>
+            <tr><td class="strong">WO-26081205</td><td>Nhãn hộp A4</td><td>Nidec</td><td>PRINT_CUT</td>
+                <td><span class="ix-pill">NEW</span></td><td class="num">15.000</td><td class="num">0</td><td class="num">0</td></tr>
+            <tr><td class="strong">WO-26081206</td><td>Tape kỹ thuật</td><td>CCL VN</td><td>TAPE</td>
+                <td><span class="ix-pill ix-pill-ok">RUNNING</span></td><td class="num">80.000</td><td class="num">51.900</td><td class="num">240</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ds-sec">
+  <h2>Thư viện thành phần</h2>
+  <p>Mỗi trạng thái chỉ có MỘT cách vẽ. <code>MesPhase</code>, <code>LegPhase</code>
+     và kết quả QC đều map về cùng bộ pill này — không mỗi màn hình một kiểu.</p>
+  <div class="ds-row" style="margin-bottom:var(--sp-3)">
+    <span class="ix-pill">NEW</span>
+    <span class="ix-pill ix-pill-info">PREPRESS</span>
+    <span class="ix-pill ix-pill-info">SPLIT</span>
+    <span class="ix-pill ix-pill-warn">IPQC_WAIT</span>
+    <span class="ix-pill ix-pill-alarm">QA_PENDING</span>
+    <span class="ix-pill ix-pill-ok">RUNNING</span>
+    <span class="ix-pill ix-pill-warn">PAUSED</span>
+    <span class="ix-pill ix-pill-ok">SHIPPED</span>
+    <span class="ix-pill ix-pill-alarm">CANCELLED</span>
+  </div>
+  <div class="ds-row">
+    <button class="ix-btn ix-btn-primary">Hành động chính</button>
+    <button class="ix-btn ix-btn-secondary">Phụ</button>
+    <button class="ix-btn ix-btn-ghost">Ghost</button>
+    <button class="ix-btn ix-btn-primary" disabled>Bị khoá</button>
+    <input class="ix-input" placeholder="Ô nhập" style="width:180px">
+  </div>
+</div>
+
+<script>
+  // Cho phép mở thẳng một biến thể qua query — dùng để chụp ảnh bằng chứng
+  // 2 density trong PR mà không cần thao tác tay:
+  //   ?density=shopfloor   ?rail=collapsed
+  const qs = new URLSearchParams(location.search);
+  let dens = qs.get('density') === 'shopfloor' ? 'shopfloor' : 'office';
+  if (dens === 'shopfloor') document.documentElement.dataset.density = 'shopfloor';
+  if (qs.get('rail') === 'collapsed') addEventListener('DOMContentLoaded', () => {
+      document.getElementById('shell').dataset.rail = 'collapsed';
+  });
+  addEventListener('DOMContentLoaded', () => { document.getElementById('dlab').textContent = dens; });
+
+  function toggleDensity(){
+    dens = dens==='office' ? 'shopfloor' : 'office';
+    if(dens==='shopfloor') document.documentElement.dataset.density='shopfloor';
+    else delete document.documentElement.dataset.density;
+    document.getElementById('dlab').textContent=dens;
+  }
+  function toggleRail(){
+    const s=document.getElementById('shell');
+    s.dataset.rail = s.dataset.rail==='collapsed' ? '' : 'collapsed';
+  }
+</script>
+</body>
+</html>

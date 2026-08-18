@@ -4,10 +4,63 @@
 > Blazor Server + EF Core. Tài liệu này dành cho AI agent (Claude, Copilot…)
 > và developer mới — encode rule + lesson hard-won qua các Phase 1→6.
 
+## 0. ROUTER — đọc 40 dòng này trước, đừng đọc 600 dòng
+
+> **Cách một phiên bắt đầu.** File này là WHAT (hệ thống có gì). Vòng lặp
+> thực thi là HOW (thay đổi được phép đi từ yêu cầu → merge bằng cách nào):
+> [`CCL-MES-Hybrid/docs/AGENT-LOOP.md`](CCL-MES-Hybrid/docs/AGENT-LOOP.md).
+> Nạp skill **`cmes-loop`** đầu tiên, rồi chỉ nạp skill của work-class đang làm.
+> Nạp cả `SKILLS.md` 612 dòng để sửa một dòng CSS là cách chắc chắn để trôi
+> context giữa phiên dài.
+
+**Vòng lặp 6 pha (bắt buộc, không nhảy cóc):**
+`ANALYZE → SELECT → EXECUTE → AUDIT → VERIFY → LEARN`
+Pha 4 (gate tĩnh) **không** thay cho pha 5 (chạy thật + dán output).
+
+**Bảng tra: chạm vào gì → nạp skill nào → agent nào:**
+
+| Chạm vào… | Skill BẮT BUỘC | Agent |
+|---|---|---|
+| `Entities/` · `Migrations/` · `DbContext` | `cmes-migration-abc` | `mes-process-architect` |
+| `WorkOrderStateMachine` · `MesPhase` · `LegPhase` · `/advance` | `cmes-state-contract` | `mes-process-architect` |
+| `Controllers/` · DTO · route | `cmes-thin-controller` | `cmes-implementer` |
+| `CheckItemLibrary` · resolver · ngưỡng · chữ ký · freeze | `cmes-audit-emit` | `mes-quality-architect` |
+| `.razor` · `app.css` · layout · grid | `cmes-design-tokens` | `cmes-shopfloor-ux` |
+| policy · role · `AuthorizeView` | `cmes-rbac-matrix` | `cmes-implementer` |
+| **bất kỳ chuỗi hiển thị nào** | `cmes-i18n-parity` ← luôn kèm | (agent đang chủ trì) |
+| import IFS · outbox · idempotency | `cmes-migration-abc` | `mes-integration-architect` |
+| "không chạy" · 404 · renderer dead | `cmes-verify-evidence` | `cmes-rca-detective` |
+
+**Trước khi nói "xong":**
+
+```bash
+bash CCL-MES-Hybrid/scripts/gate-all.sh
+```
+8 gate + SUMMARY. Rồi chạy thật và **dán output thật** — "đã test rồi" không
+phải bằng chứng. Chi tiết: skill `cmes-verify-evidence`.
+
+**Nền tảng thiết kế (CCL iX):** `CCL-MES-Hybrid/src/CCL.MES.Hybrid.Razor/wwwroot/css/ix.css`
+— sáu nguyên tắc ở đầu file. Trang tham chiếu sống:
+[`CCL-MES-Hybrid/docs/design-system/index.html`](CCL-MES-Hybrid/docs/design-system/index.html)
+(mở bằng trình duyệt; `?density=shopfloor`, `?rail=collapsed`).
+
+**Việc còn nợ, đã xếp thành task chạy được:**
+[`CCL-MES-Hybrid/docs/IMPROVEMENT-BACKLOG.md`](CCL-MES-Hybrid/docs/IMPROVEMENT-BACKLOG.md)
+— mỗi mục gắn sẵn work-class · agent · skill · tiêu chí nghiệm thu đo được.
+
+**STOP-gate — dừng và hỏi Henry:** phương án có tiêu chí 1 điểm · transition
+chưa có trong `P10.7-WO-STATE-CONTRACT.md` · phải chạy migration lên live DB ·
+RCA chưa proven mà đã muốn mở PR · phải bump BASELINE của gate mà không giải
+thích được · phải đụng `src/CCL.MES.*` (baseline read-only).
+
+---
+
 ## Pre-flight — bắt buộc đọc trước khi code/debug
 
-Mọi session — agent hay người — MUST load 3 file dưới đây vào đầu để
-không tái phạm lesson cũ:
+Ba file nền dưới đây là **nguồn tra cứu**, không phải bài đọc bắt buộc
+toàn văn mỗi phiên (§0 Router quyết định nạp gì theo work-class). Đọc
+nguyên văn khi: onboard lần đầu · làm việc ở vùng chưa từng chạm · hoặc
+khi §0 chỉ tới đúng mục trong đó:
 
 1. [`CCL-MES-Hybrid/docs/LESSONS-LEARNED.md`](./CCL-MES-Hybrid/docs/LESSONS-LEARNED.md)
    — canonical index mọi bug class dự án đã trả tiền cho. 17 lesson card,

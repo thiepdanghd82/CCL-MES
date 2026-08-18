@@ -10,7 +10,12 @@
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
 
 <aside class="app-nav">
-    <div class="app-nav-brand">CCL · MES</div>
+    <div class="app-nav-brand">
+        @* Dấu hiệu luôn hiện (kể cả khi rail thu gọn còn 64px) để người dùng
+           không mất mốc định vị; nhãn đầy đủ ẩn theo [data-rail]. *@
+        <span class="app-nav-mark" aria-hidden="true">C</span>
+        <span>CCL · MES</span>
+    </div>
 
     <nav>
         <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link">@Ico("home")<span>@T("nav.home")</span></NavLink>
@@ -120,9 +125,27 @@
             </div>
         </Authorized>
     </AuthorizeView>
+
+    @* CCL iX — nút thu gọn neo đáy rail, tách bằng hairline. Nhãn ẩn khi đã
+       thu gọn (ix.css), icon giữ nguyên để vẫn bấm mở lại được. *@
+    <button type="button"
+            class="ix-rail-toggle"
+            data-testid="rail-toggle"
+            aria-expanded="@((!RailCollapsed).ToString().ToLowerInvariant())"
+            aria-label="@T(RailCollapsed ? "nav.rail.expand" : "nav.rail.collapse")"
+            @onclick="OnToggleRail">
+        <span aria-hidden="true">@(RailCollapsed ? "»" : "«")</span>
+        <span>@T(RailCollapsed ? "nav.rail.expand" : "nav.rail.collapse")</span>
+    </button>
 </aside>
 
 @code {
+    /// <summary>Rail đang thu gọn? Do MainLayout sở hữu — NavMenu chỉ hiển thị.</summary>
+    [Parameter] public bool RailCollapsed { get; set; }
+
+    /// <summary>Bấm nút thu gọn/mở rail. MainLayout xử lý + lưu lựa chọn.</summary>
+    [Parameter] public EventCallback OnToggleRail { get; set; }
+
     private async Task LogoutAsync()
     {
         await Session.SignOutAsync();

@@ -1,0 +1,526 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CCL iX — nền tảng thiết kế công nghiệp cho CCL-MES
+   ───────────────────────────────────────────────────────────────────────────
+   Áp TRIẾT LÝ thiết kế Siemens (Siemens iX), không sao chép thương hiệu
+   Siemens. Sáu nguyên tắc được encode thành CSS ở đây:
+
+     1. CHỨC NĂNG TRƯỚC TRANG TRÍ — không gradient, không đổ bóng trên nội dung
+        tĩnh. Bóng chỉ dành cho lớp nổi (popover / floating window / menu).
+     2. MỘT MÀU NHẤN DUY NHẤT — accent dành riêng cho tương tác + trạng thái
+        active. Không bao giờ dùng accent để trang trí.
+     3. TRẠNG THÁI CÓ NGỮ NGHĨA, NHẤT QUÁN — 5 trạng thái (neutral · ok ·
+        warn · alarm · disabled), một cách vẽ duy nhất toàn app.
+     4. PHÂN CẤP BẰNG ĐỘ ĐẬM + KHOẢNG TRẮNG, không bằng màu.
+     5. KHUNG LÀ HẰNG SỐ — rail điều hướng không tự đổi vị trí/độ rộng; thu gọn
+        là do người dùng chủ động.
+     6. DỮ LIỆU LÀ CHÍNH — chrome tối thiểu, header dính, số căn phải dạng
+        tabular, mật độ cao ở office / vùng chạm lớn ở shopfloor.
+
+   CƠ CHẾ: file này nạp SAU app.css. Nó (a) định nghĩa token cấu trúc --ix-*,
+   (b) RETHEME bằng cách đổi GIÁ TRỊ token đã có (đường hợp lệ theo L37 — không
+   find/replace hex), (c) restyle class markup ĐANG DÙNG (.app-nav, .kpi-card…)
+   nên phần lớn app đổi diện mạo mà KHÔNG phải sửa Razor, (d) thêm pattern mới
+   dạng .ix-* cho những thứ chưa có (toolbar, pill, page-head, rail thu gọn).
+
+   RULE: mọi kích thước dùng var(--fs-*)/var(--sp-*)/var(--d-*); mọi màu dùng
+   token. Gate: scripts/gate-design-tokens.sh + gate-no-hardcoded-hex.sh quét
+   CẢ app.css VÀ file này.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    /* ── Token cấu trúc iX ────────────────────────────────────────────────
+       Rail: 256px mở / 64px thu gọn — hằng số, không co giãn theo nội dung. */
+    --ix-rail-w: 256px;
+    --ix-rail-w-collapsed: 64px;
+    --ix-header-h: 48px;
+    --ix-hairline: 1px;
+    --ix-accent-bar: 3px;          /* thanh chỉ báo active bên trái */
+
+    /* ── Neutral công nghiệp ──────────────────────────────────────────────
+       Bề mặt phẳng, viền hairline. Tương phản đến từ ink, không từ nền. */
+    --ix-chrome:      #0e1a2f;     /* nền rail + header (navy sâu, phẳng) */
+    --ix-chrome-2:    #17253f;     /* hover trên chrome */
+    --ix-chrome-line: #22314f;     /* viền trên chrome */
+    --ix-chrome-ink:  #e8eefb;     /* chữ chính trên chrome */
+    --ix-chrome-mut:  #93a7c9;     /* chữ phụ trên chrome */
+
+    --ix-canvas:      #f2f5fa;     /* nền vùng nội dung */
+    --ix-surface:     #ffffff;     /* nền card / bảng */
+    --ix-surface-2:   #f7f9fd;     /* nền header bảng / vùng nhấn nhẹ */
+    --ix-line:        #dfe6f2;     /* hairline chuẩn */
+    --ix-line-soft:   #edf1f8;     /* hairline phụ (giữa các dòng) */
+
+    --ix-ink:         #16233a;     /* chữ mạnh nhất */
+    --ix-ink-2:       #33415a;     /* chữ thường */
+    --ix-ink-mut:     #64748b;     /* chữ phụ / nhãn */
+
+    /* ── Một màu nhấn ──────────────────────────────────────────────────── */
+    --ix-accent:      #1d4ed8;     /* hành động + active (CCL blue, đậm hơn) */
+    --ix-accent-ink:  #1e3a8a;
+    --ix-accent-tint: #e8eeff;
+
+    /* ── Trạng thái: 5 bậc, mỗi bậc 1 ink + 1 tint + 1 line ───────────── */
+    --ix-ok-ink:    #12693c;  --ix-ok-tint:    #e4f6ec;  --ix-ok-line:    #9bd9b6;
+    --ix-warn-ink:  #8a5a06;  --ix-warn-tint:  #fdf2dd;  --ix-warn-line:  #eec97a;
+    --ix-alarm-ink: #a8201c;  --ix-alarm-tint: #fdeceb;  --ix-alarm-line: #efa5a2;
+    --ix-info-ink:  #1e3a8a;  --ix-info-tint:  #e8eeff;  --ix-info-line:  #a8c0ff;
+    --ix-idle-ink:  #55627a;  --ix-idle-tint:  #eef1f7;  --ix-idle-line:  #cfd8e6;
+
+    /* ── RETHEME (L37): đổi GIÁ TRỊ token đã có → lan toàn app 1 chỗ ─────
+       Không tạo token vòng: vế phải luôn là --ix-* hoặc hex, không tự trỏ. */
+    --bg:        var(--ix-canvas);
+    --card:      var(--ix-surface);
+    --c-bg:      var(--ix-canvas);
+    --c-card:    var(--ix-surface);
+    --c-surface: var(--ix-surface-2);
+    --c-line:    var(--ix-line);
+    --c-line-2:  var(--ix-line-soft);
+    --c-divider: var(--ix-line-soft);
+    --c-ink:     var(--ix-ink);
+    --c-ink-2:   var(--ix-ink);
+    --c-ink-3:   var(--ix-ink-2);
+    --c-muted:   var(--ix-ink-mut);
+    --brand:     var(--ix-accent);
+    --brand-ink: var(--ix-accent-ink);
+    --brand-bg:  var(--ix-accent-tint);
+}
+
+/* ═══ 1. KHUNG ỨNG DỤNG ════════════════════════════════════════════════════
+   Rail cố định bên trái, nội dung cuộn độc lập. Rail là hằng số thị giác. */
+
+.app-shell {
+    grid-template-columns: var(--ix-rail-w) 1fr;
+    background: var(--ix-canvas);
+    transition: grid-template-columns var(--mo-base) var(--ease-std);
+}
+.app-shell[data-rail="collapsed"] { grid-template-columns: var(--ix-rail-w-collapsed) 1fr; }
+
+.app-nav {
+    background: var(--ix-chrome);
+    border-right: var(--ix-hairline) solid var(--ix-chrome-line);
+    padding: 0;
+    gap: 0;
+    color: var(--ix-chrome-ink);
+}
+
+/* Thương hiệu: một hàng cao bằng header, hairline dưới — rail và header
+   thẳng hàng nhau, mắt đọc được ngay đâu là chrome. */
+.app-nav-brand {
+    height: var(--ix-header-h);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 0 var(--sp-4);
+    margin: 0;
+    border-bottom: var(--ix-hairline) solid var(--ix-chrome-line);
+    font-size: var(--fs-md);
+    font-weight: 700;
+    letter-spacing: .06em;
+    color: var(--ix-chrome-ink);
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+/* Dấu hiệu thương hiệu — ô vuông nhỏ, luôn hiện. Ở rail thu gọn nó là mốc
+   định vị duy nhất còn lại, nên KHÔNG được ẩn cùng nhãn. */
+.app-nav-mark {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; flex: 0 0 24px;
+    border-radius: var(--r-sm);
+    background: var(--accent);
+    color: var(--ix-chrome);
+    font-size: var(--fs-sm);
+    font-weight: 800;
+}
+
+.app-nav nav { padding: var(--sp-2) var(--sp-2) var(--sp-4); overflow-y: auto; }
+
+/* Nhãn nhóm — nhỏ, hoa, thưa chữ. Phân cấp bằng cỡ + khoảng trắng. */
+.app-nav-section {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ix-chrome-mut);
+    padding: var(--sp-4) var(--sp-3) var(--sp-1);
+}
+.app-nav-section:first-child { padding-top: var(--sp-2); }
+
+/* Item: thanh accent 3px bên trái khi active + nền tint. Không bo tròn lớn —
+   iX dùng góc nhỏ, cạnh thẳng để danh sách đọc như một cột. */
+.app-nav-link {
+    position: relative;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-3);
+    min-height: var(--d-control-h);
+    height: auto;
+    border-radius: var(--r-sm);
+    font-size: var(--fs-md);
+    font-weight: 500;
+    color: var(--ix-chrome-mut);
+    transition: background var(--mo-fast) var(--ease-std), color var(--mo-fast) var(--ease-std);
+}
+.app-nav-link:hover { background: var(--ix-chrome-2); color: var(--ix-chrome-ink); }
+.app-nav-link.active {
+    background: var(--ix-chrome-2);
+    color: var(--ix-chrome-ink);
+    font-weight: 600;
+}
+.app-nav-link.active::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 50%;
+    transform: translateY(-50%);
+    width: var(--ix-accent-bar);
+    height: 60%;
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    background: var(--accent);
+}
+.app-nav-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.app-nav-group { margin-left: var(--sp-5); }
+.app-nav-group::before { background: var(--ix-chrome-line); }
+
+/* Rail thu gọn: chỉ còn icon.
+   Selector theo THUỘC TÍNH [data-rail] chứ không buộc vào .app-shell — trang
+   tham chiếu (docs/design-system) và mọi container khác dùng chung một sự
+   thật, không có bản sao luật thứ hai để lệch nhau. */
+[data-rail="collapsed"] .app-nav-link > span:not(.nav-ico),
+[data-rail="collapsed"] .app-nav-section,
+[data-rail="collapsed"] .app-nav-brand > span,
+[data-rail="collapsed"] .ix-rail-toggle > span:last-child,
+[data-rail="collapsed"] .nav-2line-body { display: none; }
+[data-rail="collapsed"] .app-nav-link { justify-content: center; padding: 0; }
+[data-rail="collapsed"] .app-nav-brand { justify-content: center; padding: 0; }
+[data-rail="collapsed"] .ix-rail-toggle { justify-content: center; padding: 0; }
+[data-rail="collapsed"] .app-nav-group { margin-left: 0; }
+[data-rail="collapsed"] .app-nav-group::before { display: none; }
+
+/* Nút thu gọn rail — neo đáy, tách bằng hairline. */
+.ix-rail-toggle {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: var(--d-tap);
+    padding: 0 var(--sp-4);
+    border: 0;
+    border-top: var(--ix-hairline) solid var(--ix-chrome-line);
+    background: transparent;
+    color: var(--ix-chrome-mut);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+}
+.ix-rail-toggle:hover { background: var(--ix-chrome-2); color: var(--ix-chrome-ink); }
+.ix-rail-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ═══ 2. ĐẦU TRANG ════════════════════════════════════════════════════════
+   Tiêu đề + phụ đề bên trái, hành động bên phải, hairline ngăn với nội dung.
+   Một hành động CHÍNH duy nhất mỗi trang. */
+
+.ix-page-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    padding: var(--sp-5) 0 var(--sp-4);
+    border-bottom: var(--ix-hairline) solid var(--ix-line);
+    margin-bottom: var(--sp-5);
+}
+.ix-page-title {
+    margin: 0;
+    font-size: var(--fs-xl);
+    font-weight: 650;
+    letter-spacing: -.01em;
+    color: var(--ix-ink);
+}
+.ix-page-sub {
+    margin-top: var(--sp-1);
+    font-size: var(--fs-sm);
+    color: var(--ix-ink-mut);
+}
+.ix-page-actions { display: flex; align-items: center; gap: var(--sp-2); }
+
+/* ═══ 3. Ô SỐ LIỆU (TILE) ═════════════════════════════════════════════════
+   Phẳng, hairline, KHÔNG viền màu dày bên trái. Trạng thái thể hiện bằng một
+   chấm nhỏ + chữ — màu không được dùng để trang trí (nguyên tắc 2).
+   Số dùng tabular-nums để các ô thẳng cột khi giá trị đổi. */
+
+.ix-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--sp-4);
+}
+.ix-tile, .kpi-card {
+    background: var(--ix-surface);
+    border: var(--ix-hairline) solid var(--ix-line);
+    border-left: var(--ix-hairline) solid var(--ix-line);
+    border-radius: var(--r-md);
+    padding: var(--sp-4);
+    box-shadow: none;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+}
+.ix-tile-label, .kpi-label {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--ix-ink-mut);
+}
+.ix-tile-value, .home-kpi-num {
+    font-size: var(--fs-2xl);
+    font-weight: 650;
+    line-height: 1.1;
+    color: var(--ix-ink);
+    font-variant-numeric: tabular-nums;
+}
+.ix-tile-sub, .kpi-sub {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--fs-sm);
+    color: var(--ix-ink-mut);
+}
+.ix-dot { width: 8px; height: 8px; border-radius: var(--r-pill); flex: 0 0 8px; }
+.ix-dot-ok    { background: var(--ix-ok-line); }
+.ix-dot-warn  { background: var(--ix-warn-line); }
+.ix-dot-alarm { background: var(--ix-alarm-line); }
+.ix-dot-info  { background: var(--ix-info-line); }
+.ix-dot-idle  { background: var(--ix-idle-line); }
+
+/* ═══ 4. TRẠNG THÁI (PILL) ════════════════════════════════════════════════
+   MỘT cách vẽ trạng thái cho toàn app: viền 1px + nền tint + chấm.
+   MesPhase / LegPhase / QC result đều map về đây — không mỗi màn một kiểu. */
+
+.ix-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 2px var(--sp-2);
+    border-radius: var(--r-pill);
+    border: var(--ix-hairline) solid var(--ix-idle-line);
+    background: var(--ix-idle-tint);
+    color: var(--ix-idle-ink);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: .02em;
+    white-space: nowrap;
+    line-height: 1.6;
+}
+.ix-pill::before {
+    content: "";
+    width: 6px; height: 6px; border-radius: var(--r-pill);
+    background: currentColor; flex: 0 0 6px;
+}
+.ix-pill-ok    { border-color: var(--ix-ok-line);    background: var(--ix-ok-tint);    color: var(--ix-ok-ink); }
+.ix-pill-warn  { border-color: var(--ix-warn-line);  background: var(--ix-warn-tint);  color: var(--ix-warn-ink); }
+.ix-pill-alarm { border-color: var(--ix-alarm-line); background: var(--ix-alarm-tint); color: var(--ix-alarm-ink); }
+.ix-pill-info  { border-color: var(--ix-info-line);  background: var(--ix-info-tint);  color: var(--ix-info-ink); }
+
+/* ═══ 5. THANH CÔNG CỤ BẢNG ═══════════════════════════════════════════════
+   Nằm TRÊN bảng, cùng khối, ngăn bằng hairline — không trôi tự do. */
+
+.ix-panel {
+    background: var(--ix-surface);
+    border: var(--ix-hairline) solid var(--ix-line);
+    border-radius: var(--r-md);
+    overflow: hidden;
+}
+.ix-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: var(--ix-hairline) solid var(--ix-line);
+    background: var(--ix-surface);
+}
+.ix-toolbar-title { font-size: var(--fs-md); font-weight: 650; color: var(--ix-ink); }
+.ix-toolbar-count { font-size: var(--fs-sm); color: var(--ix-ink-mut); font-variant-numeric: tabular-nums; }
+.ix-toolbar-spacer { flex: 1; }
+
+/* ═══ 6. BẢNG DỮ LIỆU ═════════════════════════════════════════════════════
+   Header dính, hairline giữa dòng (không sọc ngựa vằn — iX ưu tiên hairline),
+   số căn phải + tabular, chiều cao dòng theo density. */
+
+.ix-grid { width: 100%; border-collapse: collapse; font-size: var(--d-font); }
+.ix-grid thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--ix-surface-2);
+    border-bottom: var(--ix-hairline) solid var(--ix-line);
+    padding: 0 var(--d-pad-x);
+    height: var(--d-row-h);
+    text-align: left;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ix-ink-mut);
+    white-space: nowrap;
+}
+.ix-grid tbody td {
+    padding: 0 var(--d-pad-x);
+    height: var(--d-row-h);
+    border-bottom: var(--ix-hairline) solid var(--ix-line-soft);
+    color: var(--ix-ink-2);
+    white-space: nowrap;
+}
+.ix-grid tbody tr:hover td { background: var(--ix-accent-tint); }
+.ix-grid tbody tr[aria-selected="true"] td { background: var(--ix-accent-tint); }
+.ix-grid .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ix-grid .strong { font-weight: 600; color: var(--ix-ink); }
+.ix-grid-scroll { max-height: 100%; overflow: auto; }
+
+/* ═══ 7. NÚT ══════════════════════════════════════════════════════════════
+   3 bậc: primary (một cái mỗi trang) · secondary · ghost. Cao theo density
+   ⇒ ở shopfloor tự đạt 44px cho ngón tay đeo găng. */
+
+.ix-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: var(--sp-2);
+    min-height: var(--d-control-h);
+    min-width: var(--d-tap);
+    padding: 0 var(--sp-4);
+    border-radius: var(--r-sm);
+    border: var(--ix-hairline) solid transparent;
+    font-size: var(--fs-md);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--mo-fast) var(--ease-std), border-color var(--mo-fast) var(--ease-std);
+}
+.ix-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ix-btn-primary { background: var(--ix-accent); color: var(--ix-surface); }
+.ix-btn-primary:hover { background: var(--ix-accent-ink); }
+.ix-btn-secondary { background: var(--ix-surface); color: var(--ix-ink); border-color: var(--ix-line); }
+.ix-btn-secondary:hover { background: var(--ix-surface-2); border-color: var(--ix-ink-mut); }
+.ix-btn-ghost { background: transparent; color: var(--ix-ink-2); }
+.ix-btn-ghost:hover { background: var(--ix-surface-2); }
+.ix-btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+.ix-input {
+    min-height: var(--d-control-h);
+    padding: 0 var(--sp-3);
+    border: var(--ix-hairline) solid var(--ix-line);
+    border-radius: var(--r-sm);
+    background: var(--ix-surface);
+    color: var(--ix-ink);
+    font-size: var(--d-font);
+}
+.ix-input:focus { outline: none; box-shadow: var(--focus-ring); border-color: var(--ix-accent); }
+
+/* ═══ 8. LỚP NỔI ══════════════════════════════════════════════════════════
+   Bóng CHỈ ở đây (nguyên tắc 1) — nội dung tĩnh không bao giờ có bóng. */
+.ix-overlay { box-shadow: var(--el-3); border: var(--ix-hairline) solid var(--ix-line); border-radius: var(--r-md); background: var(--ix-surface); }
+.ix-popover { box-shadow: var(--el-2); border: var(--ix-hairline) solid var(--ix-line); border-radius: var(--r-sm); background: var(--ix-surface); }
+
+/* ═══ 9. SHOPFLOOR ════════════════════════════════════════════════════════
+   Cùng markup, khác bộ số. Tăng thêm tương phản viền vì ánh sáng xưởng. */
+:root[data-density="shopfloor"] {
+    --ix-line: #cbd6e8;
+    --ix-line-soft: #dde5f1;
+    --ix-ink-mut: #4d5a70;
+}
+:root[data-density="shopfloor"] .ix-pill { font-size: var(--fs-sm); padding: var(--sp-1) var(--sp-3); }
+:root[data-density="shopfloor"] .ix-grid thead th { font-size: var(--fs-sm); }
+
+/* ═══ 10. LỚP TƯƠNG THÍCH ═════════════════════════════════════════════════
+   Restyle các class markup ĐANG DÙNG để toàn app đổi diện mạo mà không phải
+   sửa 148 file .razor. Đây là lý do file này nạp SAU app.css.
+
+   ⚠ KHÔNG đụng .spec-*-table-full / .spec-print-* — chúng do L39 quản
+   (in native WYSIWYG trên maccatalyst, on-screen PHẢI == bản in). Đổi style
+   ở đó là phá hợp đồng in. */
+
+/* ── Bảng dữ liệu vận hành ─────────────────────────────────────────────── */
+.grid, .md-table, .qms-table, .audit-table, .soh-tbl {
+    border: var(--ix-hairline) solid var(--ix-line);
+    border-radius: var(--r-md);
+    background: var(--ix-surface);
+    font-size: var(--d-font);
+}
+.grid th, .md-table th, .qms-table th, .audit-table th, .soh-tbl th {
+    background: var(--ix-surface-2);
+    border-bottom: var(--ix-hairline) solid var(--ix-line);
+    padding: 0 var(--d-pad-x);
+    height: var(--d-row-h);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ix-ink-mut);
+    white-space: nowrap;
+}
+.grid td, .md-table td, .qms-table td, .audit-table td, .soh-tbl td {
+    padding: 0 var(--d-pad-x);
+    height: var(--d-row-h);
+    border-bottom: var(--ix-hairline) solid var(--ix-line-soft);
+    color: var(--ix-ink-2);
+    font-size: var(--d-font);
+}
+.grid tbody tr:hover td, .md-table tbody tr:hover td,
+.qms-table tbody tr:hover td, .soh-tbl tbody tr:hover td { background: var(--ix-accent-tint); }
+/* Số: căn phải + tabular để cột thẳng khi giá trị đổi (nguyên tắc 6). */
+.grid td.num, .md-table td.num, .qms-table td.num, .soh-tbl td.num,
+.grid th.num, .md-table th.num, .qms-table th.num, .soh-tbl th.num {
+    text-align: right; font-variant-numeric: tabular-nums;
+}
+
+/* Thanh công cụ trên bảng — gắn liền khối, không trôi tự do. */
+.grid-toolbar {
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: var(--ix-hairline) solid var(--ix-line);
+    background: var(--ix-surface);
+}
+.grid-search, .grid-btn {
+    min-height: var(--d-control-h);
+    border-radius: var(--r-sm);
+    border: var(--ix-hairline) solid var(--ix-line);
+    font-size: var(--d-font);
+}
+.grid-search:focus, .grid-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ── Khối nội dung ─────────────────────────────────────────────────────── */
+.panel {
+    border: var(--ix-hairline) solid var(--ix-line);
+    border-radius: var(--r-md);
+    background: var(--ix-surface);
+    box-shadow: none;
+    margin-bottom: var(--sp-5);
+}
+.panel-head {
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: var(--ix-hairline) solid var(--ix-line);
+    font-size: var(--fs-md);
+    font-weight: 650;
+    color: var(--ix-ink);
+}
+.panel-body { padding: var(--sp-4); }
+
+/* ── Tiêu đề trang ─────────────────────────────────────────────────────
+   Bỏ gạch chân trang trí (nguyên tắc 1: chức năng trước trang trí). Thứ bậc
+   đến từ cỡ chữ + khoảng trắng + hairline, không từ hiệu ứng. */
+.page-title {
+    display: block;
+    margin: 0 0 var(--sp-4);
+    font-size: var(--fs-xl);
+    font-weight: 650;
+    letter-spacing: -.01em;
+    color: var(--ix-ink);
+}
+.page-title::after, .page-title::before { display: none !important; }
+
+/* ── Ô KPI trên Home ───────────────────────────────────────────────────
+   Bỏ viền màu dày bên trái; ý nghĩa chuyển sang một chấm nhỏ ở dòng phụ.
+   Màu để dành cho ý nghĩa, không cho trang trí (nguyên tắc 2 + 4). */
+.kpi-card { border-left-width: var(--ix-hairline); border-left-color: var(--ix-line); }
+.kpi-card .kpi-sub::before {
+    content: ""; width: 8px; height: 8px; border-radius: var(--r-pill);
+    flex: 0 0 8px; background: var(--ix-idle-line);
+}
+.kpi-blue  .kpi-sub::before { background: var(--ix-info-line); }
+.kpi-green .kpi-sub::before { background: var(--ix-ok-line); }
+.kpi-amber .kpi-sub::before { background: var(--ix-warn-line); }
+.kpi-red   .kpi-sub::before { background: var(--ix-alarm-line); }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-4); }
