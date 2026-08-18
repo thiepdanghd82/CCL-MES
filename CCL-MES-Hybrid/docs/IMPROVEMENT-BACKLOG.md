@@ -182,6 +182,25 @@ nơi nào dùng** — offline-first mới là ý định, chưa là năng lực.
 
 ---
 
+## D6 — Còn lại sau audit 20 tab (2026-08-18)
+
+**Đã đóng trong đợt này:** vốn từ button/chip/pill · shine tiêu đề · KPI một cách vẽ ·
+thanh cầu vồng · khối user trùng ở rail · hình học nhóm QC · tiêu đề QmsQueue theo stage.
+
+**Còn lại, xếp theo giá trị:**
+
+| # | Việc | Vì sao |
+|---|---|---|
+| D6.1 | **149 emoji đang làm icon** (WorkOrders 39 · Home 14 · SettingsAppearance 14 · Settings 11) | Emoji render khác nhau theo OS/phiên bản, có màu riêng không theo palette, và không chỉnh được stroke. Cần MỘT bộ icon đơn sắc inline SVG + component `Icon.razor`. Đây là mục lớn nhất còn lại |
+| D6.2 | **`ix-page-head` chưa trang nào dùng (0/33)** | 25 trang dùng `page-title` trần, 8 trang không có header chuẩn. Cần `PageHead.razor` (eyebrow · tiêu đề · phụ đề · hành động · hairline) rồi migrate. Pattern eyebrow đã có sẵn ở 4 module QMS — lấy làm chuẩn |
+| D6.3 | **Cột số căn trái** ở lưới NPI (QUANTITY, SCRAP FACTOR) | Không so sánh được bằng mắt khi cuộn. Cần class `.num` ở markup — CSS không tự nhận ra cột nào là số |
+| D6.4 | **Đồng hồ khổng lồ ở Home** trùng với TIME trên top bar | Cùng một thông tin hiện hai lần, bản to hơn lại không có giây trùng khớp |
+| D6.5 | **Lưới Modules ở Home lẻ ô** (5 card trong lưới 2 cột) | Ô trống thứ 6 đọc như một card hỏng |
+| D6.6 | **`PLANNER` vẽ bằng pill xanh lá** ở Engineer Spec | Loại quy trình không phải trạng thái "đạt" — màu trạng thái phải dành cho trạng thái |
+| D6.7 | **Zebra striping ở Engineer Spec** trong khi lưới NPI dùng hairline | Hai cách vẽ bảng trong cùng sản phẩm |
+| D6.8 | **Viền trái màu ở card máy** (Machine Dashboard) | Còn sót sau khi đã hạ viền ở ô KPI |
+| D6.9 | **Focus ring xanh bao quanh h1** ở 4 module QMS | `app.css` chỉ khử ring cho `.page-title`, các module dùng class khác |
+
 ## D3/D4 — Component contract + tách `app.css`
 
 **Work-class** W5 · **Agent** `cmes-shopfloor-ux` · **Skill** `cmes-design-tokens`
