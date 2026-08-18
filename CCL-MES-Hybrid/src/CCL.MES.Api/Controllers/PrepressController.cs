@@ -502,7 +502,7 @@ public sealed class PrepressController : ControllerBase
         }
         catch (DbUpdateConcurrencyException)
         {
-            return await HandleConcurrencyAsync(woId, wo);
+            return await HandleConcurrencyAsync(woId, wo, actor, role, action);
         }
 
         // Read fresh RowVersion (Lesson 1 — SQLite trigger fires AFTER UPDATE).
@@ -537,7 +537,8 @@ public sealed class PrepressController : ControllerBase
         });
     }
 
-    private async Task<IActionResult> HandleConcurrencyAsync(long woId, WorkOrder wo)
+    private async Task<IActionResult> HandleConcurrencyAsync(
+        long woId, WorkOrder wo, string actor, string role, string attemptedAction)
     {
         if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
             dbCtx.ChangeTracker.Clear();
@@ -546,6 +547,30 @@ public sealed class PrepressController : ControllerBase
         var freshEtag = freshRv is not null && freshRv.Length > 0
             ? Convert.ToBase64String(freshRv) : "";
         Response.Headers.ETag = $"\"{freshEtag}\"";
+
+        // L45 — nhánh SaveChanges CŨNG phải để lại vết. Trước đây chỉ nhánh
+        // pre-check (ETag cũ phát hiện TRƯỚC khi ghi) emit WO_STATE_CONFLICT;
+        // nhánh này là cuộc đua THẬT giữa hai operator và nó trả 409 mà không
+        // ghi audit dòng nào ⇒ đúng kịch bản P10.7-WO-STATE-CONTRACT sinh ra để
+        // bảo vệ lại là kịch bản không truy được.
+        // Emit PHẢI đứng SAU ChangeTracker.Clear(): ApiAuditWriter dùng CHUNG
+        // DbContext scoped của request; tracker còn bẩn thì SaveChanges của audit
+        // kéo theo UPDATE đã fail và ném lại, nuốt mất dòng audit lần nữa.
+        await _audit.EmitAsync(
+            action: AuditAction.WoStateConflict,
+            actor: actor,
+            actorRole: role,
+            targetType: "WorkOrder",
+            targetId: woId.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                wo_id = woId,
+                wo_no = wo.WoNo,
+                attempted_action = attemptedAction,
+                client_version = NormalizeETag(Request.Headers.IfMatch.ToString()),
+                server_version = freshEtag,
+                source = "ef_concurrency",
+            }));
         return Conflict(new PrepressSetResponse
         {
             Ok = false,

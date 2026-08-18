@@ -898,6 +898,27 @@ public sealed class WoQcReviewController : ControllerBase
                 .FirstOrDefaultAsync(w => w.Id == woId);
             var freshEtag = fresh is null ? "" : Convert.ToBase64String(fresh.RowVersion);
             Response.Headers.ETag = $"\"{freshEtag}\"";
+            // L45 — nhánh SaveChanges CŨNG phải để lại vết. Convention đã có sẵn ở
+            // WorkOrdersController/AdminWorkOrdersController (detail mang
+            // source="ef_concurrency"); các controller làm sau đánh rơi nó khi gom
+            // xử lý conflict vào helper/catch riêng. Emit đứng SAU ChangeTracker.Clear():
+            // ApiAuditWriter dùng CHUNG DbContext scoped của request, tracker còn bẩn
+            // thì SaveChanges của audit kéo theo UPDATE đã fail và ném lại.
+            await _audit.EmitAsync(
+                action: AuditAction.WoStateConflict,
+                actor: actor,
+                actorRole: role,
+                targetType: "WorkOrder",
+                targetId: woId.ToString(),
+                detail: JsonSerializer.Serialize(new
+                {
+                    wo_id = woId,
+                    wo_no = fresh?.WoNo,
+                    attempted_action = action,
+                    server_version = freshEtag,
+                    source = "ef_concurrency",
+                }));
+
             return Conflict(new WoQcSetResponse
             {
                 Ok = false,
@@ -1054,6 +1075,27 @@ public sealed class WoQcReviewController : ControllerBase
                 .FirstOrDefaultAsync(w => w.Id == id, ct);
             var freshEtag = fresh is null ? "" : Convert.ToBase64String(fresh.RowVersion);
             Response.Headers.ETag = $"\"{freshEtag}\"";
+            // L45 — nhánh SaveChanges CŨNG phải để lại vết. Convention đã có sẵn ở
+            // WorkOrdersController/AdminWorkOrdersController (detail mang
+            // source="ef_concurrency"); các controller làm sau đánh rơi nó khi gom
+            // xử lý conflict vào helper/catch riêng. Emit đứng SAU ChangeTracker.Clear():
+            // ApiAuditWriter dùng CHUNG DbContext scoped của request, tracker còn bẩn
+            // thì SaveChanges của audit kéo theo UPDATE đã fail và ném lại.
+            await _audit.EmitAsync(
+                action: AuditAction.WoStateConflict,
+                actor: actor,
+                actorRole: role,
+                targetType: "WorkOrder",
+                targetId: id.ToString(),
+                detail: JsonSerializer.Serialize(new
+                {
+                    wo_id = id,
+                    wo_no = fresh?.WoNo,
+                    attempted_action = "qc.photo",
+                    server_version = freshEtag,
+                    source = "ef_concurrency",
+                }));
+
             return Conflict(new WoQcSetResponse
             {
                 Ok = false,
