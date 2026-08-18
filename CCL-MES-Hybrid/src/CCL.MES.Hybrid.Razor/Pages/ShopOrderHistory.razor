@@ -132,7 +132,8 @@ else
                                 <td>@FormatDuration(r.RuntimeSec)<small>@T("shoporders.cell.setup", FormatDuration(r.SetupSec))</small></td>
                                 <td>@r.PauseCount<small>@(r.PauseCount > 0 ? T("shoporders.cell.events") : "—")</small></td>
                                 <td>@FormatRelative(r.FinishedAt)</td>
-                                <td><span class="soh-status @(r.MesPhase == "CANCELLED" ? "stopped" : "done")">@(r.MesPhase == "CANCELLED" ? T("shoporders.status.stopped") : T("shoporders.status.done"))</span></td>
+                                <td><StatusPill Phase="@r.MesPhase"
+                                                Label="@(r.MesPhase == "CANCELLED" ? T("shoporders.status.stopped") : T("shoporders.status.done"))" /></td>
                             </tr>
                         }
                     </tbody>
@@ -170,7 +171,9 @@ else
 {
     <div class="md-drawer-overlay" @onclick="@(() => _selected = null)"></div>
     <aside class="md-drawer soh-drawer">
-        <div class="md-drawer-head" style="border-left:4px solid @(_selected.MesPhase == "CANCELLED" ? "#dc2626" : "#16a34a"); padding-left:12px">
+        @* Hex thô trong inline style của .razor không lọt qua mắt gate-no-hardcoded-hex
+           (gate chỉ quét app.css) — chuyển sang class có token. *@
+        <div class="md-drawer-head soh-drawer-head" data-tone="@(_selected.MesPhase == "CANCELLED" ? "alarm" : "ok")">
             <div>
                 <h2 class="md-drawer-title">@_selected.WoNo</h2>
                 <div class="soh-drawer-sub">@_selected.CustomerName · @(_selected.ProductCode ?? "—") · @(_selected.MachineCode ?? "—")</div>

@@ -182,7 +182,9 @@ nơi nào dùng** — offline-first mới là ý định, chưa là năng lực.
 
 **Nghiệm thu**
 - [x] ~~Bộ pill trạng thái một cách vẽ duy nhất~~ — CSS xong (`.ix-pill*`)
-- [ ] `StatusPill` **component Razor** map `MesPhase`/`LegPhase` → pill ở **một chỗ duy nhất** (hiện mỗi màn còn tự map)
+- [x] ~~`StatusPill` + `PhaseVisual`~~ — nguồn sự thật duy nhất, 5 bậc mang ý nghĩa vận hành; gate hard-fail nếu thêm phase mà quên bảng màu (L46)
+- [ ] **Di nốt 6 dashboard còn dùng class cứng** `rs-head-phase rs-phase-*` (`Ipqc`/`Fqc`/`Oqc`/`Setting`/`QaApproval`/`ShippedSummary`) sang `StatusPill`. Đã di 3 chỗ có logic trùng lặp + chỗ nhét hex thô; 6 chỗ còn lại là class tĩnh nên để lại cho một PR riêng, đổi đồng loạt sẽ đổi diện mạo 6 màn cùng lúc
+- [ ] **Nhãn tiếng Việt cho 14 phase WO** — hiện hiện token thô (`IPQC_WAIT`) cho người vận hành đọc. Cần người vận hành chốt từ ngữ, không nên để component tự bịa
 - [ ] `DataGrid` · `StepTimeline` · `SignaturePad` · `EvidenceCard` thành component chung
 - [ ] `app.css` xếp `@layer reset → tokens → primitives → patterns`, còn ≤ **2.000** dòng
 - [ ] `gate-design-tokens` BASELINE **527 → ≤200**

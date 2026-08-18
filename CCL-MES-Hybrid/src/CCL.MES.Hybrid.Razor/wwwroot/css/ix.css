@@ -524,3 +524,10 @@
 .kpi-amber .kpi-sub::before { background: var(--ix-warn-line); }
 .kpi-red   .kpi-sub::before { background: var(--ix-alarm-line); }
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-4); }
+
+/* Dải chỉ báo tone ở đầu drawer — thay cho inline style nhét hex thô trong
+   .razor (chỗ mà gate-no-hardcoded-hex không quét tới). */
+.soh-drawer-head { border-left: var(--ix-accent-bar) solid var(--ix-idle-line); padding-left: var(--sp-3); }
+.soh-drawer-head[data-tone="ok"]    { border-left-color: var(--ix-ok-line); }
+.soh-drawer-head[data-tone="warn"]  { border-left-color: var(--ix-warn-line); }
+.soh-drawer-head[data-tone="alarm"] { border-left-color: var(--ix-alarm-line); }

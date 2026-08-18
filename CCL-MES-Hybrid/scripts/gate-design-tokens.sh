@@ -48,6 +48,37 @@ if [ "${1:-}" = "--self-test" ]; then
 fi
 
 rc=0
+
+# (C) L46 — MỌI phase khai báo trong Domain phải có mặt trong PhaseVisual.
+# Thiếu một phase = nó rơi vào nhánh mặc định Neutral và hiện MÀU XÁM âm thầm ở
+# mọi màn hình. Hard-fail: thêm state mới mà quên bảng màu là đúng thứ CI phải chặn.
+PV="$here/../src/CCL.MES.Hybrid.Client/Status/PhaseVisual.cs"
+DOMAIN="$here/../../src/CCL.MES.Domain/StateMachine"
+if [ -f "$PV" ] && [ -d "$DOMAIN" ]; then
+  missing="$(python3 - "$PV" "$DOMAIN" <<'PYP'
+import re,sys,os
+pv=open(sys.argv[1],encoding='utf-8').read()
+miss=[]
+for fn in ('MesPhase.cs','LegPhase.cs'):
+    p=os.path.join(sys.argv[2],fn)
+    if not os.path.exists(p): continue
+    src=open(p,encoding='utf-8').read()
+    body=src[src.index('enum'):] if 'enum' in src else src
+    for m in re.finditer(r'^\s{4}([A-Z][A-Z0-9_]+)\s*=\s*\d+', body, re.M):
+        tok=m.group(1)
+        if '"'+tok+'"' not in pv: miss.append(fn.replace('.cs','')+'.'+tok)
+print(','.join(sorted(set(miss))))
+PYP
+)"
+  if [ -n "$missing" ]; then
+    echo "[gate:tokens:FAIL] phase khai báo trong Domain nhưng thiếu trong PhaseVisual: $missing"
+    echo "  Thiếu ⇒ rơi vào Neutral và hiện màu xám âm thầm ở mọi màn hình."
+    rc=1
+  else
+    echo "[gate:tokens] phase phủ trong PhaseVisual        = đủ"
+  fi
+fi
+
 for need in '\-\-fs-md' '\-\-fs-base' '\-\-sp-4' '\-\-r-md' '\-\-mo-base' '\-\-focus-ring' '\-\-d-tap' '\-\-d-row-h' '\-\-d-font'; do
   if ! grep -qE "$need\s*:" "$CSS" "$IX"; then
     echo "[gate:tokens:FAIL] thiếu token bắt buộc trong :root → $(echo "$need" | tr -d '\\')"

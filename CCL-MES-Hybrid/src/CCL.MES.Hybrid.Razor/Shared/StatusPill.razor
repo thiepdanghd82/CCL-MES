@@ -1,0 +1,35 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Hybrid.Client.Status
+
+@*
+  CCL iX — MỘT cách vẽ trạng thái cho toàn app (ix.css §4).
+  Màu do PhaseVisual quyết định, không do trang gọi quyết định — đó là điểm
+  của component này. Trang chỉ đưa phase vào.
+*@
+<span class="@PhaseVisual.CssClass(Phase)"
+      data-phase="@Phase"
+      data-testid="@TestId"
+      title="@(Title ?? Phase)">@Text</span>
+
+@code {
+    /// <summary>Token phase thô (MesPhase hoặc LegPhase), vd "RUNNING".</summary>
+    [Parameter] public string? Phase { get; set; }
+
+    /// <summary>Ghi đè chữ hiển thị. Bỏ trống = dùng nhãn i18n nếu có, không thì hiện token.</summary>
+    [Parameter] public string? Label { get; set; }
+
+    /// <summary>Tooltip. Bỏ trống = token thô (hữu ích khi nhãn đã dịch).</summary>
+    [Parameter] public string? Title { get; set; }
+
+    [Parameter] public string? TestId { get; set; }
+
+    private string Text
+    {
+        get
+        {
+            if (!string.IsNullOrWhiteSpace(Label)) return Label!;
+            var key = PhaseVisual.LabelKey(Phase);
+            return key is null ? (Phase ?? "") : T(key);
+        }
+    }
+}

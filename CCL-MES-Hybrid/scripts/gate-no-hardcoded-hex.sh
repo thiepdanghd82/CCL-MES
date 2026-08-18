@@ -19,10 +19,17 @@ set -euo pipefail
 
 BASELINE=35
 
+# L37b — hex thô trong .razor. Gate gốc chỉ quét app.css, nên một inline style
+# như style="border-left:4px solid #dc2626" trong .razor lọt hoàn toàn. Phát
+# hiện khi gom StatusPill: ShopOrderHistory.razor đang nhét 2 hex như vậy.
+# Ratchet đi xuống — màu trong markup phải qua class + token, không viết thẳng.
+BASELINE_RAZOR=22
+
 here="$(cd "$(dirname "$0")" && pwd)"
 CSSDIR="$here/../src/CCL.MES.Hybrid.Razor/wwwroot/css"
 CSS="$CSSDIR/app.css"
 IX="$CSSDIR/ix.css"      # CCL iX foundation — cùng luật token, quét chung
+RAZORDIR="$here/../src/CCL.MES.Hybrid.Razor"
 [ -f "$CSS" ] || { echo "[gate:hex] app.css not found at $CSS"; exit 2; }
 [ -f "$IX" ]  || { echo "[gate:hex] ix.css not found at $IX"; exit 2; }
 
@@ -47,6 +54,24 @@ if [ "${1:-}" = "--self-test" ]; then
   [ "$after" -gt "$before" ] && echo "[gate:hex] self-test OK (adding a raw hex is detected: $before -> $after)" \
     || { echo "[gate:hex] self-test FAILED — detector did not catch an added hex"; exit 1; }
   exit 0
+fi
+
+razor_hex() {
+  python3 - "$1" <<'PYR'
+import re,sys,glob,os
+n=0
+for f in glob.glob(os.path.join(sys.argv[1],'**','*.razor'),recursive=True):
+    n+=len(re.findall(r'#[0-9a-fA-F]{3,8}\b', open(f,encoding='utf-8').read()))
+print(n)
+PYR
+}
+
+rzr="$(razor_hex "$RAZORDIR")"
+echo "[gate:hex] raw hex in .razor markup = $rzr (baseline $BASELINE_RAZOR)"
+if [ "$rzr" -gt "$BASELINE_RAZOR" ]; then
+  echo "[gate:hex:FAIL] new hardcoded colour in .razor markup (inline style / attribute)."
+  echo "  Route it to a class + token in ix.css — the app.css scan can never see this spot."
+  exit 1
 fi
 
 count="$(count_usage_hex "$CSS" "$IX")"
