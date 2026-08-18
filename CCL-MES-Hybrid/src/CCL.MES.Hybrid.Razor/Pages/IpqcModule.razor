@@ -1,0 +1,97 @@
+@page "/qms/ipqc"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+@* IPQC — in-process (first-article) inspection. Lot ticket + material
+   reconciliation (system vs actual, per-row OK/NG) → a divergence locks setup
+   → visual-check table. Scaffold: static mock (QmsMock). *@
+<PageTitle>@T("qms.mod.ipqc.title") — CCL MES</PageTitle>
+
+<div class="qms-page" data-testid="qms-ipqc">
+    <QmsModuleTopBar Vm="QmsMock.IpqcTop" />
+
+    <div class="qms-fieldgrid">
+        <div class="qms-field">
+            <span class="qms-field-label">@T("qms.f.lot")</span>
+            <span class="qms-field-val">@QmsMock.IpqcLot</span>
+        </div>
+        @foreach (var f in QmsMock.IpqcHeader)
+        {
+            <div class="qms-field">
+                <span class="qms-field-label">@T(f.LabelKey)</span>
+                <span class="qms-field-val">@f.Value</span>
+            </div>
+        }
+        <div class="qms-field">
+            <button type="button" class="qms-btn qms-btn-secondary">@T("qms.act.lookup")</button>
+        </div>
+    </div>
+
+    <section class="qms-section">
+        <div class="qms-section-head">
+            <h2 class="qms-section-title">@T("qms.ipqc.match")</h2>
+            <span class="qms-eyebrow">@T("qms.f.masterdata") · @QmsMock.OqcProduct</span>
+        </div>
+        <p class="qms-section-desc">@T("qms.ipqc.match.desc")</p>
+
+        <div class="qms-table-wrap">
+            <table class="qms-table" data-testid="qms-ipqc-material-table">
+                <thead>
+                    <tr>
+                        <th>@T("qms.ipqc.col.sysmat")</th>
+                        <th>@T("qms.ipqc.col.matcode")</th>
+                        <th>@T("qms.ipqc.col.sourcelot")</th>
+                        <th>@T("qms.ipqc.col.actual")</th>
+                        <th class="qms-col-tight">@T("qms.ipqc.col.confirm")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < QmsMock.IpqcMaterials.Length; i++)
+                    {
+                        var idx = i;
+                        var m = QmsMock.IpqcMaterials[idx];
+                        <tr>
+                            <td class="qms-td-strong">@m.SystemMaterial</td>
+                            <td>@m.MaterialCode</td>
+                            <td><span class="qms-link">@m.SourceLot</span></td>
+                            <td class="@(_mat[idx] == QmsVerdict.Ng ? "qms-td-ng" : "")">@m.ActualAtMachine</td>
+                            <td class="qms-col-tight">
+                                <QmsOkNgToggle Value="_mat[idx]" OnChange="v => _mat[idx] = v" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (_mat.Any(v => v == QmsVerdict.Ng))
+        {
+            <div class="qms-banner" data-testid="qms-ipqc-lock-banner">@T("qms.ipqc.banner")</div>
+        }
+    </section>
+
+    <QmsStepper Steps="QmsMock.ProcessSteps" ActiveIndex="_active"
+                OnStepClick="i => _active = i" />
+
+    <section class="qms-section">
+        <div class="qms-section-head">
+            <h2 class="qms-section-title">@T("qms.ipqc.check")</h2>
+            <button type="button" class="qms-btn qms-btn-secondary">@T("qms.act.additem")</button>
+        </div>
+        <p class="qms-section-desc">@T("qms.ipqc.check.desc")</p>
+
+        <QmsCheckTable Rows="QmsMock.IpqcChecks" ShowProcess="true" />
+
+        <div class="qms-actionbar">
+            <button type="button" class="qms-btn qms-btn-primary">@T("qms.act.savefirst")</button>
+            <button type="button" class="qms-btn qms-btn-secondary">@T("qms.act.assigndefect")</button>
+        </div>
+    </section>
+</div>
+
+@code {
+    private int _active;
+    // Per-row OK/NG state seeded from the mock verdicts.
+    private readonly QmsVerdict[] _mat =
+        QmsMock.IpqcMaterials.Select(m => m.Verdict).ToArray();
+}

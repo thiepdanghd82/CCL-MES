@@ -11,9 +11,9 @@ using Xunit;
 namespace CCL.MES.Hybrid.Razor.Tests;
 
 /// <summary>
-/// CCL-QMS stage-scoped routes — /qms/ipqc · /qms/fqc · /qms/oqc reuse the
-/// same QmsQueue grid but lock to a single stage and hide the tab switcher.
-/// The plain /qms hub keeps its 3-tab behaviour (regression guard).
+/// QMS Inspection Queue routes. The hub (/qms) keeps its 3-tab behaviour; the
+/// FQC stage route (/qms/fqc) locks to a single stage and hides the switcher.
+/// (IPQC/OQC are now full inspection modules, not stage-locked queue views.)
 /// </summary>
 public sealed class QmsQueueStageRouteTests : TestContext
 {
@@ -52,19 +52,7 @@ public sealed class QmsQueueStageRouteTests : TestContext
     }
 
     [Fact]
-    public void Ipqc_route_locks_to_ipqc_and_hides_switcher()
-    {
-        var cut = RenderAt("/qms/ipqc");
-
-        // No clickable tab buttons — a single locked chip instead.
-        Assert.Empty(cut.FindAll(".qms-tabs button.md-chip"));
-        Assert.Contains("IPQC (1)", cut.Markup);
-        Assert.Contains("WO-IP-1", cut.Markup);
-        Assert.DoesNotContain("WO-FQ-2", cut.Markup);
-    }
-
-    [Fact]
-    public void Fqc_route_locks_to_fqc()
+    public void Fqc_route_locks_to_fqc_and_hides_switcher()
     {
         var cut = RenderAt("/qms/fqc");
 
@@ -72,15 +60,5 @@ public sealed class QmsQueueStageRouteTests : TestContext
         Assert.Contains("FQC (1)", cut.Markup);
         Assert.Contains("WO-FQ-2", cut.Markup);
         Assert.DoesNotContain("WO-IP-1", cut.Markup);
-    }
-
-    [Fact]
-    public void Oqc_route_locks_to_oqc_and_shows_empty_placeholder()
-    {
-        var cut = RenderAt("/qms/oqc");
-
-        Assert.Empty(cut.FindAll(".qms-tabs button.md-chip"));
-        Assert.Contains("OQC (0)", cut.Markup);
-        Assert.Empty(cut.FindAll(".md-table tbody tr"));
     }
 }

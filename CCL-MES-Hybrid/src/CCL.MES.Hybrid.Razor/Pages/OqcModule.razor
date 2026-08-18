@@ -1,0 +1,78 @@
+@page "/qms/oqc"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+@* OQC — outgoing-lot inspection. Lot entry + auto-trace (IPQC→IQC) → visual
+   check table + defect chips/notes → lot-decision panel; a Reject reveals the
+   iCRA trigger. Scaffold: static mock (QmsMock). *@
+<PageTitle>@T("qms.mod.oqc.title") — CCL MES</PageTitle>
+
+<div class="qms-page" data-testid="qms-oqc">
+    <QmsModuleTopBar Vm="QmsMock.OqcTop" />
+
+    <div class="qms-oqc-lotrow">
+        <div class="qms-lotentry">
+            <span class="qms-field-label">@T("qms.oqc.lotinput")</span>
+            <input class="qms-lotbox" value="@QmsMock.OqcLot" readonly aria-label="@T("qms.oqc.lotinput")" />
+            <span class="qms-field-sub">@T("qms.oqc.lotformat")</span>
+            <button type="button" class="qms-btn qms-btn-primary">@T("qms.act.tracesource")</button>
+        </div>
+        <div class="qms-trace" data-testid="qms-oqc-trace">
+            <span class="qms-eyebrow">@T("qms.oqc.trace")</span>
+            <div class="qms-trace-grid">
+                @foreach (var t in QmsMock.OqcTrace)
+                {
+                    <div class="qms-trace-cell">
+                        <span class="qms-field-label">@T(t.LabelKey)</span>
+                        <span class="qms-field-val">@t.Value</span>
+                        <span class="qms-field-sub">@t.Sub</span>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <QmsStepper Steps="QmsMock.ProcessSteps" ActiveIndex="_active"
+                OnStepClick="i => _active = i" />
+
+    <div class="qms-oqc-grid">
+        <div>
+            <h2 class="qms-section-title">@T("qms.oqc.check")</h2>
+            <QmsCheckTable Rows="QmsMock.OqcChecks" ShowProcess="false" />
+
+            <div class="qms-section">
+                <span class="qms-eyebrow">@T("qms.oqc.notes")</span>
+                <div class="qms-defects">
+                    @foreach (var d in QmsMock.OqcDefects)
+                    {
+                        <span class="qms-chip">@d.Code · @d.Label</span>
+                    }
+                    <button type="button" class="qms-chip-add">@T("qms.act.adddefect")</button>
+                </div>
+                <textarea class="qms-notefield" readonly>@QmsMock.OqcNote</textarea>
+            </div>
+        </div>
+
+        <div>
+            <QmsDecisionPanel LotQty="QmsMock.OqcLotQty" SampleQty="QmsMock.OqcSampleQty"
+                              NgQty="QmsMock.OqcNgQty" Decision="_decision"
+                              OnDecide="d => _decision = d" />
+
+            @if (_decision == QmsLotDecision.Reject)
+            {
+                <div class="qms-icra-trigger" data-testid="qms-icra-trigger">
+                    <span class="qms-icra-kicker">@T("qms.icra.kicker")</span>
+                    <span class="qms-icra-title">@T("qms.icra.trigger.title")</span>
+                    <span class="qms-icra-desc">@T("qms.icra.trigger.desc")</span>
+                    <button type="button" class="qms-icra-cta">@T("qms.icra.trigger.cta")</button>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private int _active;
+    // Mock lands on a rejected lot so the iCRA trigger is visible on review.
+    private QmsLotDecision _decision = QmsLotDecision.Reject;
+}
