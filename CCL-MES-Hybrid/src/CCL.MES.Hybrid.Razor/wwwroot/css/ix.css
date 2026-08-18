@@ -531,3 +531,184 @@
 .soh-drawer-head[data-tone="ok"]    { border-left-color: var(--ix-ok-line); }
 .soh-drawer-head[data-tone="warn"]  { border-left-color: var(--ix-warn-line); }
 .soh-drawer-head[data-tone="alarm"] { border-left-color: var(--ix-alarm-line); }
+
+/* ═══ 11. CHUẨN HOÁ TỪ VỰNG (audit toàn tab 2026-08-18) ═══════════════════
+   Audit 20 tab trên app đang chạy cho thấy vấn đề gốc KHÔNG phải "xấu" mà là
+   KHÔNG CÓ TỪ VỰNG CHUNG — mỗi màn hình tự phát minh một bộ:
+
+     nút   : grid-btn (103) · op-btn (110) · qms-btn (8) · ipqc-*-btn (19)
+     pill  : hp-badge · hw-pill* · ipqc-*-pill · md-chip · prepress-pill*
+             · audit-action-chip · backup-chip · grid-status  (≥8 họ)
+
+   Hệ quả người vận hành gánh: cùng một trạng thái ra màu khác nhau ở hai màn;
+   một hàng có 4 nút cùng trọng số nên không biết đâu là hành động chính.
+
+   Cách chữa ở đây: KHÔNG sửa 148 file .razor, mà ÁNH XẠ các họ cũ vào đúng ba
+   vai trò của Siemens iX. Ba vai này phải NHÌN LÀ PHÂN BIỆT ĐƯỢC:
+
+     BUTTON  chữ nhật, có 3 bậc, MỘT primary mỗi màn  → "tôi làm gì đó"
+     CHIP    viên thuốc, có hover + trạng thái nhấn    → "tôi lọc danh sách"
+     PILL    viên thuốc, có chấm, KHÔNG hover          → "đây là tình trạng"
+
+   Trước đây cả ba trông gần giống nhau nên mắt phải đọc chữ mới biết bấm được
+   hay không. ─────────────────────────────────────────────────────────────── */
+
+/* 11.1 — Tiêu đề trang: bỏ hiệu ứng quét sáng vô hạn.
+   app.css vẽ chữ tiêu đề bằng gradient + `-webkit-text-fill-color: transparent`
+   + `animation: page-title-shine 11s infinite`. Nghĩa là MỌI trang trong app
+   đang chạy một hiệu ứng lấp lánh không bao giờ dừng — trên màn hình xưởng nó
+   là nguồn phân tán liên tục, và trong WebView nó là một layer compositing
+   chạy 24/7. Override cũ của tôi chỉ đặt `color` nên thua `-webkit-text-fill-color`. */
+.page-title {
+    background-image: none;
+    -webkit-text-fill-color: var(--ix-ink);
+    animation: none;
+    color: var(--ix-ink);
+}
+
+/* 11.2 — NÚT: gom 4 họ về 3 bậc.
+   Mặc định của mọi họ = SECONDARY. Chỉ biến thể *-primary mới là primary, nên
+   một màn hình chỉ còn đúng một nút đặc — thứ mắt tìm đầu tiên. */
+.grid-btn, .op-btn, .qms-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+    min-height: var(--d-control-h);
+    padding: 0 var(--sp-4);
+    border-radius: var(--r-sm);
+    border: var(--ix-hairline) solid var(--ix-line);
+    background: var(--ix-surface);
+    color: var(--ix-ink);
+    font-size: var(--d-font);
+    font-weight: 600;
+    box-shadow: none;
+    cursor: pointer;
+    transition: background var(--mo-fast) var(--ease-std), border-color var(--mo-fast) var(--ease-std);
+}
+.grid-btn:hover:not(:disabled), .op-btn:hover:not(:disabled), .qms-btn:hover:not(:disabled) {
+    background: var(--ix-surface-2); border-color: var(--ix-ink-mut);
+}
+.grid-btn:focus-visible, .op-btn:focus-visible, .qms-btn:focus-visible {
+    outline: none; box-shadow: var(--focus-ring);
+}
+.grid-btn-primary, .op-btn-primary, .qms-btn-primary {
+    background: var(--ix-accent); border-color: var(--ix-accent); color: var(--ix-surface);
+}
+.grid-btn-primary:hover:not(:disabled), .op-btn-primary:hover:not(:disabled) {
+    background: var(--ix-accent-ink); border-color: var(--ix-accent-ink);
+}
+.op-btn-danger {
+    background: var(--ix-surface); border-color: var(--ix-alarm-line); color: var(--ix-alarm-ink);
+}
+.op-btn-danger:hover:not(:disabled) { background: var(--ix-alarm-tint); }
+.op-btn-success {
+    background: var(--ix-surface); border-color: var(--ix-ok-line); color: var(--ix-ok-ink);
+}
+.op-btn-success:hover:not(:disabled) { background: var(--ix-ok-tint); }
+/* Ghost: hành động phụ trong hàng dày đặc, không cần khung */
+.grid-btn-link, .op-btn-link {
+    background: transparent; border-color: transparent; color: var(--ix-accent);
+}
+.grid-btn-link:hover, .op-btn-link:hover { background: var(--brand-bg); border-color: transparent; }
+.grid-btn-small, .op-btn-sm { min-height: calc(var(--d-control-h) - 6px); padding: 0 var(--sp-3); font-size: var(--fs-sm); }
+.grid-btn:disabled, .op-btn:disabled, .qms-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* 11.3 — CHIP LỌC: viên thuốc, có hover, trạng thái nhấn rõ.
+   Khác pill trạng thái ở chỗ chip BẤM ĐƯỢC — nên nó phải phản hồi khi rê chuột. */
+.md-chip, .ix-chip {
+    display: inline-flex; align-items: center; gap: var(--sp-1);
+    min-height: calc(var(--d-control-h) - 4px);
+    padding: 0 var(--sp-3);
+    border-radius: var(--r-pill);
+    border: var(--ix-hairline) solid var(--ix-line);
+    background: var(--ix-surface);
+    color: var(--ix-ink-2);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+.md-chip:hover, .ix-chip:hover { background: var(--ix-surface-2); border-color: var(--ix-ink-mut); }
+.md-chip:focus-visible, .ix-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.md-chip-on, .ix-chip[aria-pressed="true"], .ix-chip-on {
+    background: var(--ix-accent); border-color: var(--ix-accent); color: var(--ix-surface);
+}
+
+/* 11.4 — PILL TRẠNG THÁI: gom mọi họ cũ về một cách vẽ.
+   KHÔNG hover, KHÔNG con trỏ bấm — vì nó là thông tin, không phải điều khiển. */
+.hp-badge, .hw-pill, .prepress-pill, .ipqc-counter-pill, .ipqc-rollup-pill,
+.ipqc-line-chip, .audit-action-chip, .backup-chip, .grid-status {
+    display: inline-flex; align-items: center; gap: var(--sp-2);
+    padding: 2px var(--sp-2);
+    border-radius: var(--r-pill);
+    border: var(--ix-hairline) solid var(--ix-idle-line);
+    background: var(--ix-idle-tint);
+    color: var(--ix-idle-ink);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    line-height: 1.6;
+    white-space: nowrap;
+    cursor: default;
+    box-shadow: none;
+}
+.hw-pill-ok, .prepress-pill-ok      { border-color: var(--ix-ok-line);    background: var(--ix-ok-tint);    color: var(--ix-ok-ink); }
+.hw-pill-warn, .prepress-pill-pending, .hw-pill-probing { border-color: var(--ix-warn-line); background: var(--ix-warn-tint); color: var(--ix-warn-ink); }
+
+/* 11.5 — Bỏ trang trí không mang thông tin.
+   Thanh gradient cầu vồng (đỏ→vàng→xanh) ở ô Plant Quality vẽ MỘT con số bằng
+   ba màu — mắt đọc màu trước chữ, nên nó nói sai. Một thanh đơn sắc theo tone
+   nói đúng thứ nó đo. */
+.md-quality-bar, .md-kpi-bar, .plant-quality-bar {
+    background-image: none;
+    background-color: var(--ix-line-soft);
+}
+.md-quality-bar > *, .md-kpi-bar > *, .plant-quality-bar > * {
+    background-image: none; background-color: var(--ix-ok-line);
+}
+
+/* 11.6 — Ô KPI: một cách vẽ duy nhất.
+   Home dùng chấm màu, Machine Dashboard + Shop Order History dùng viền trái dày
+   4px. Giữ chấm (đọc được cả khi in đen trắng), hạ viền trái về hairline. */
+.md-kpi, .soh-kpi, .kpi-card, .ix-tile {
+    border-left-width: var(--ix-hairline);
+    border-left-color: var(--ix-line);
+    box-shadow: none;
+}
+
+/* 11.7 — Rail: một hình học duy nhất cho mọi item.
+   Nhóm QC QMS dùng template 2 dòng (tiêu đề đậm + phụ đề viết hoa) trong khi
+   phần còn lại của rail dùng 1 dòng — mắt đọc ra HAI thành phần khác nhau
+   trong cùng một cột. Giữ nguyên DOM (NavCclQmsGroupTests khoá `.nav-sub`) và
+   chỉ kéo hình học về chung: cùng padding, cùng bo góc, cùng thanh accent khi
+   active. Dòng phụ ở lại nhưng lùi hẳn về vai trò chú thích. */
+.app-nav-link-2line {
+    position: relative;
+    display: flex; align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-1) var(--sp-3);
+    min-height: var(--d-control-h);
+    border-radius: var(--r-sm);
+    color: var(--ix-chrome-mut);
+    text-decoration: none;
+    transition: background var(--mo-fast) var(--ease-std), color var(--mo-fast) var(--ease-std);
+}
+.app-nav-link-2line:hover { background: var(--ix-chrome-2); color: var(--ix-chrome-ink); }
+.app-nav-link-2line.active { background: var(--ix-chrome-2); color: var(--ix-chrome-ink); }
+.app-nav-link-2line.active::before {
+    content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+    width: var(--ix-accent-bar); height: 60%;
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    background: var(--accent);
+}
+.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* Thanh accent cũ vẽ bằng <span class="nav-bar"> — nay do ::before lo */
+.app-nav-link-2line .nav-bar { display: none; }
+.app-nav-link-2line .nav-2line-body { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.app-nav-link-2line .nav-title { font-size: var(--fs-md); font-weight: 500; letter-spacing: 0; }
+.app-nav-link-2line.active .nav-title { font-weight: 600; }
+.app-nav-link-2line .nav-sub {
+    font-size: var(--fs-xs); font-weight: 500; letter-spacing: .04em;
+    color: var(--ix-chrome-mut); opacity: .72;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* 11.8 — Rail: khối user ở đáy đã bỏ khỏi NavMenu (trùng với top bar).
+   Giữ rule để bản cũ nếu còn sót không đè lên danh sách Recent Scans. */
+.app-nav-userbox { position: static; }

@@ -9,7 +9,7 @@
 <PageTitle>@T("qms.pagetitle") — CCL MES</PageTitle>
 
 <div class="md-head">
-    <h1 class="page-title">@T("qms.title")</h1>
+    <h1 class="page-title">@TitleText</h1>
     <button type="button" class="md-refresh" @onclick="ReloadAsync" disabled="@_loading">
         @(_loading ? T("qms.loading") : "↻ " + T("qms.refresh"))
     </button>
@@ -108,6 +108,12 @@ else if (_data is not null)
         "oqc" => _data?.Oqc ?? Array.Empty<QmsQueueRow>(),
         _ => _data?.Ipqc ?? Array.Empty<QmsQueueRow>(),
     };
+
+    // Route /qms/fqc dùng CHUNG component với hub /qms, nhưng trước đây tiêu đề
+    // hardcode một chuỗi ⇒ bấm "FQC — Final" ở rail vẫn hiện "Hàng chờ kiểm
+    // (QMS)". Người dùng không có cách nào biết mình đang ở danh sách nào.
+    private string TitleText =>
+        _lockedStage is null ? T("qms.title") : $"{T("qms.title")} · {StageLabel}";
 
     private string StageLabel => _stage switch
     {

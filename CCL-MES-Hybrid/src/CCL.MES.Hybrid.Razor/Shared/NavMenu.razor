@@ -111,21 +111,10 @@
         <RecentScansWidget />
     </nav>
 
-    <AuthorizeView>
-        <Authorized>
-            <div class="app-nav-userbox">
-                <div class="app-nav-userline">
-                    @(context.User.FindFirst("display_name")?.Value ?? context.User.Identity?.Name ?? "")
-                </div>
-                <div class="app-nav-userline-sub">
-                    @context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value
-                </div>
-                <button type="button" class="app-nav-logout"
-                        @onclick="LogoutAsync">@T("common.logout")</button>
-            </div>
-        </Authorized>
-    </AuthorizeView>
-
+    @* Danh tính người dùng + Logout sống ở TOP BAR (một chỗ duy nhất).
+       Khối user cũ ở đáy rail đã bỏ: nó lặp lại y hệt top bar (cùng tên, cùng
+       vai trò, cùng nút Logout) và còn đè lên danh sách "Recent Scans" phía
+       trên nó — audit toàn tab 2026-08-18 thấy mục quét gần nhất bị cắt ngang. *@
     @* CCL iX — nút thu gọn neo đáy rail, tách bằng hairline. Nhãn ẩn khi đã
        thu gọn (ix.css), icon giữ nguyên để vẫn bấm mở lại được. *@
     <button type="button"
