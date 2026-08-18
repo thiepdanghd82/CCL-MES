@@ -66,12 +66,25 @@ public sealed class QcLibrarySmartTests : TestContext
     {
         var cut = Render();
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='qclib-row-LBL-A1']")));
-        // Two groups (A + B).
+        // Two group section rows (A + B) inside ONE table.
         Assert.Single(cut.FindAll("[data-testid='qclib-group-A·Ngoại quan']"));
         Assert.Single(cut.FindAll("[data-testid='qclib-group-B·Kích thước']"));
+        Assert.Single(cut.FindAll("[data-testid='qclib-grid']"));   // single table
         // 16 tick checkboxes on the A1 row.
         var row = cut.Find("[data-testid='qclib-row-LBL-A1']");
         Assert.Equal(16, row.QuerySelectorAll("input[type=checkbox]").Length);
+    }
+
+    [Fact]
+    public void Header_is_banded_print_cut_stage_over_16_columns()
+    {
+        var cut = Render();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".qclib-band")));
+        // Band row spans: PRINT=5, CUT=8, STAGE=3 over the 16 tick columns.
+        Assert.Equal("5", cut.Find(".qclib-band-print").GetAttribute("colspan"));
+        Assert.Equal("8", cut.Find(".qclib-band-cut").GetAttribute("colspan"));
+        Assert.Equal("3", cut.Find(".qclib-band-stage").GetAttribute("colspan"));
+        Assert.Equal(16, cut.FindAll(".qclib-cols th").Count);   // one header row of 16 labels (not per-group)
     }
 
     [Fact]

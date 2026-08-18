@@ -63,29 +63,36 @@ else if (_items is not null)
 {
     <p class="grid-status" data-testid="qclib-count">@T("qclib.count", Visible.Count)</p>
 
-    @foreach (var grp in Visible.GroupBy(i => i.GroupLabel).OrderBy(g => g.Key, StringComparer.Ordinal))
-    {
-        <h2 class="qclib-group" data-testid="@($"qclib-group-{grp.Key}")">@grp.Key <span class="qclib-group-count">(@grp.Count())</span></h2>
-        <div class="grid-scroll qclib-scroll">
-            <table class="grid grid-sticky qclib-grid">
-                <thead>
-                    <tr>
-                        @if (_canEdit) { <th class="grid-h qclib-kebab-col"></th> }
-                        <th class="grid-h">ItemId</th>
-                        <th class="grid-h">@T("qclib.col.content")</th>
-                        @foreach (var c in Cols)
-                        {
-                            <th class="grid-h qclib-tick-h @(c.Stage ? "qclib-stage-h" : "")" title="@c.Full">@c.Head</th>
-                        }
-                        <th class="grid-h">Severity</th>
-                        <th class="grid-h">Defect</th>
+    <div class="grid-scroll qclib-scroll">
+        <table class="qclib-grid" data-testid="qclib-grid">
+            <thead>
+                <tr class="qclib-band">
+                    @if (_canEdit) { <th class="qclib-kebab-col" rowspan="2"></th> }
+                    <th class="qclib-c-id" rowspan="2">ItemId</th>
+                    <th class="qclib-c-content" rowspan="2">@T("qclib.col.content")</th>
+                    <th class="qclib-band-print" colspan="@PrintCount">@T("qclib.band.print")</th>
+                    <th class="qclib-band-cut" colspan="@CutCount">@T("qclib.band.cut")</th>
+                    <th class="qclib-band-stage" colspan="3">@T("qclib.band.stage")</th>
+                    <th class="qclib-c-sev" rowspan="2">Severity</th>
+                    <th class="qclib-c-def" rowspan="2">Defect</th>
+                </tr>
+                <tr class="qclib-cols">
+                    @foreach (var c in Cols)
+                    {
+                        <th class="qclib-tick-h @(c.Band == Band.Stage ? "qclib-stage-h" : "")" title="@c.Full">@c.Head</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var grp in Visible.GroupBy(i => i.GroupLabel).OrderBy(g => g.Key, StringComparer.Ordinal))
+                {
+                    <tr class="qclib-grouprow" data-testid="@($"qclib-group-{grp.Key}")">
+                        <td colspan="@TotalCols">@grp.Key <span class="qclib-group-count">· @grp.Count()</span></td>
                     </tr>
-                </thead>
-                <tbody>
                     @foreach (var it in grp)
                     {
                         var row = it;
-                        <tr data-testid="@($"qclib-row-{row.ItemId}")"
+                        <tr class="qclib-row" data-testid="@($"qclib-row-{row.ItemId}")"
                             @oncontextmenu="e => OpenMenu(row, e.ClientX, e.ClientY)" @oncontextmenu:preventDefault="true">
                             @if (_canEdit)
                             {
@@ -95,24 +102,24 @@ else if (_items is not null)
                                             aria-haspopup="menu" aria-label="@T("qclib.menu.actions")" title="@T("qclib.menu.actions")">⋯</button>
                                 </td>
                             }
-                            <td class="scan-mono">@row.ItemId</td>
-                            <td class="qclib-content">@row.ItemVi</td>
+                            <td class="qclib-c-id scan-mono">@row.ItemId</td>
+                            <td class="qclib-c-content">@row.ItemVi</td>
                             @foreach (var c in Cols)
                             {
-                                <td class="qclib-tick @(c.Stage ? "qclib-stage" : "")">
+                                <td class="qclib-tick @(c.Band == Band.Stage ? "qclib-stage" : "")">
                                     <input type="checkbox" checked="@c.Get(row)" disabled="@(!_canEdit || _busy)"
                                            data-testid="@($"qclib-tick-{row.ItemId}-{c.Head}")"
                                            @onchange="e => ToggleAsync(row, c, (bool)(e.Value ?? false))" />
                                 </td>
                             }
-                            <td>@row.Severity</td>
-                            <td class="scan-mono">@row.DefectCode</td>
+                            <td class="qclib-c-sev">@SevBadge(row.Severity)</td>
+                            <td class="qclib-c-def scan-mono">@row.DefectCode</td>
                         </tr>
                     }
-                </tbody>
-            </table>
-        </div>
-    }
+                }
+            </tbody>
+        </table>
+    </div>
 }
 
 @* Right-click / kebab row menu (L35 — one menu, no inline Actions column). *@
@@ -122,20 +129,63 @@ else if (_items is not null)
 @* Info showcard — keep-open detail wrapped in FloatingWindow (L34) via Modal Float. *@
 <Modal Open="_info is not null" Float="true" OnClose="@(() => { _info = null; return Task.CompletedTask; })"
        AriaLabel="@T("qclib.info.title")">
-    <Header>@T("qclib.info.title") — <span class="scan-mono">@_info?.ItemId</span></Header>
+    <Header>@T("qclib.info.title")</Header>
     <Body>
         @if (_info is { } d)
         {
-            <dl class="qclib-info" data-testid="qclib-info">
-                <dt>Line / Group</dt><dd>@d.ProcessLine · @d.GroupLabel · @d.Code</dd>
-                <dt>@T("qclib.col.content")</dt><dd>@d.ItemVi<br /><em>@d.ItemEn</em></dd>
-                <dt>@T("qclib.info.acceptance")</dt><dd>@d.AcceptanceVi<br /><em>@d.AcceptanceEn</em></dd>
-                <dt>@T("qclib.info.methods")</dt><dd>@MethodsOf(d)</dd>
-                <dt>@T("qclib.info.stages")</dt><dd>@StagesOf(d)</dd>
-                <dt>Method · Severity · AQL</dt><dd>@d.Method · @d.Severity · @d.Aql</dd>
-                <dt>Sampling · CheckType · Defect</dt><dd>@d.Sampling · @d.CheckType · @d.DefectCode</dd>
-                <dt>ISO · @T("qclib.info.condition") · Note</dt><dd>@d.IsoRef · @d.AppliesWhen · @d.Note</dd>
-            </dl>
+            <div class="qclib-detail" data-testid="qclib-info">
+                <div class="qclib-detail-top">
+                    <div>
+                        <div class="qclib-detail-id scan-mono">@d.ItemId</div>
+                        <div class="qclib-detail-sub">@d.ProcessLine · @d.GroupLabel · @d.Code</div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(d.Severity))
+                    {
+                        <span class="qclib-sevpill @SevClass(d.Severity)">@d.Severity</span>
+                    }
+                </div>
+
+                <section class="qclib-detail-sec">
+                    <h4>@T("qclib.col.content")</h4>
+                    <p class="qclib-detail-vi">@d.ItemVi</p>
+                    @if (!string.IsNullOrWhiteSpace(d.ItemEn)) { <p class="qclib-detail-en">@d.ItemEn</p> }
+                </section>
+
+                <section class="qclib-detail-sec">
+                    <h4>@T("qclib.info.acceptance")</h4>
+                    <p class="qclib-detail-vi">@d.AcceptanceVi</p>
+                    @if (!string.IsNullOrWhiteSpace(d.AcceptanceEn)) { <p class="qclib-detail-en">@d.AcceptanceEn</p> }
+                </section>
+
+                <section class="qclib-detail-sec">
+                    <h4>@T("qclib.info.methods")</h4>
+                    <div class="qclib-chips">
+                        @foreach (var c in Cols.Where(x => x.Band != Band.Stage && x.Get(d)))
+                        {
+                            <span class="qclib-chip qclib-chip-method">@c.Full</span>
+                        }
+                        @foreach (var c in Cols.Where(x => x.Band == Band.Stage && x.Get(d)))
+                        {
+                            <span class="qclib-chip qclib-chip-stage">@c.Head</span>
+                        }
+                        @if (!Cols.Any(x => x.Get(d))) { <span class="qclib-detail-en">—</span> }
+                    </div>
+                </section>
+
+                <section class="qclib-detail-sec">
+                    <h4>@T("qclib.info.spec")</h4>
+                    <dl class="qclib-meta2">
+                        <dt>Method</dt><dd>@Dash(d.Method)</dd>
+                        <dt>AQL</dt><dd>@Dash(d.Aql)</dd>
+                        <dt>Sampling</dt><dd>@Dash(d.Sampling)</dd>
+                        <dt>Check type</dt><dd>@Dash(d.CheckType)</dd>
+                        <dt>Defect</dt><dd class="scan-mono">@Dash(d.DefectCode)</dd>
+                        <dt>ISO</dt><dd>@Dash(d.IsoRef)</dd>
+                        <dt>@T("qclib.info.condition")</dt><dd>@Dash(d.AppliesWhen)</dd>
+                        <dt>Note</dt><dd>@Dash(d.Note)</dd>
+                    </dl>
+                </section>
+            </div>
         }
     </Body>
 </Modal>
@@ -169,30 +219,35 @@ else if (_items is not null)
 </Modal>
 
 @code {
-    // 16 tick-box columns (13 method C~O + 3 stage P/Q/R) as a data table so the
-    // grid + Add form render + mutate them in a loop (no 16× hand-written cells).
+    // 16 tick-box columns as a data table (grid + Add form render/mutate in a
+    // loop). Grouped into bands: PRINT (5) · CUT/FINISH (8) · STAGE (3).
+    private enum Band { Print, Cut, Stage }
     private sealed record Col(string Head, string Full, Func<CheckLibraryItemDto, bool> Get,
-        Func<CheckLibraryItemDto, bool, CheckLibraryItemDto> Set, bool Stage);
+        Func<CheckLibraryItemDto, bool, CheckLibraryItemDto> Set, Band Band);
 
     private static readonly Col[] Cols =
     {
-        new("Blank", "Blank label", i => i.BlankLabel, (i, v) => i with { BlankLabel = v }, false),
-        new("Flexo", "Flexo", i => i.Flexo, (i, v) => i with { Flexo = v }, false),
-        new("LP", "Letter press", i => i.LetterPress, (i, v) => i with { LetterPress = v }, false),
-        new("HP", "HP Indigo", i => i.HpIndigo, (i, v) => i with { HpIndigo = v }, false),
-        new("Silk", "Silk screen", i => i.SilkScreen, (i, v) => i with { SilkScreen = v }, false),
-        new("Flat", "Flatbed", i => i.Flatbed, (i, v) => i with { Flatbed = v }, false),
-        new("RDC", "RDC", i => i.Rdc, (i, v) => i with { Rdc = v }, false),
-        new("Lam", "Laminate", i => i.Laminate, (i, v) => i with { Laminate = v }, false),
-        new("Zebra", "Zebra (variable)", i => i.Zebra, (i, v) => i with { Zebra = v }, false),
-        new("SCut", "Sheet cut", i => i.SheetCut, (i, v) => i with { SheetCut = v }, false),
-        new("Punch", "Punch hole", i => i.PunchHole, (i, v) => i with { PunchHole = v }, false),
-        new("Drill", "Drill hole", i => i.DrillHole, (i, v) => i with { DrillHole = v }, false),
-        new("Slit", "Slit", i => i.Slit, (i, v) => i with { Slit = v }, false),
-        new("IPQC", "IPQC", i => i.Ipqc, (i, v) => i with { Ipqc = v }, true),
-        new("FQC", "FQC", i => i.Fqc, (i, v) => i with { Fqc = v }, true),
-        new("OQC", "OQC", i => i.Oqc, (i, v) => i with { Oqc = v }, true),
+        new("Blank", "Blank label", i => i.BlankLabel, (i, v) => i with { BlankLabel = v }, Band.Print),
+        new("Flexo", "Flexo", i => i.Flexo, (i, v) => i with { Flexo = v }, Band.Print),
+        new("LP", "Letter press", i => i.LetterPress, (i, v) => i with { LetterPress = v }, Band.Print),
+        new("HP", "HP Indigo", i => i.HpIndigo, (i, v) => i with { HpIndigo = v }, Band.Print),
+        new("Silk", "Silk screen", i => i.SilkScreen, (i, v) => i with { SilkScreen = v }, Band.Print),
+        new("Flat", "Flatbed", i => i.Flatbed, (i, v) => i with { Flatbed = v }, Band.Cut),
+        new("RDC", "RDC", i => i.Rdc, (i, v) => i with { Rdc = v }, Band.Cut),
+        new("Lam", "Laminate", i => i.Laminate, (i, v) => i with { Laminate = v }, Band.Cut),
+        new("Zebra", "Zebra (variable)", i => i.Zebra, (i, v) => i with { Zebra = v }, Band.Cut),
+        new("SCut", "Sheet cut", i => i.SheetCut, (i, v) => i with { SheetCut = v }, Band.Cut),
+        new("Punch", "Punch hole", i => i.PunchHole, (i, v) => i with { PunchHole = v }, Band.Cut),
+        new("Drill", "Drill hole", i => i.DrillHole, (i, v) => i with { DrillHole = v }, Band.Cut),
+        new("Slit", "Slit", i => i.Slit, (i, v) => i with { Slit = v }, Band.Cut),
+        new("IPQC", "IPQC", i => i.Ipqc, (i, v) => i with { Ipqc = v }, Band.Stage),
+        new("FQC", "FQC", i => i.Fqc, (i, v) => i with { Fqc = v }, Band.Stage),
+        new("OQC", "OQC", i => i.Oqc, (i, v) => i with { Oqc = v }, Band.Stage),
     };
+
+    private static int PrintCount => Cols.Count(c => c.Band == Band.Print);
+    private static int CutCount => Cols.Count(c => c.Band == Band.Cut);
+    private int TotalCols => (_canEdit ? 1 : 0) + 2 + Cols.Length + 2;
 
     private static readonly string[] Lines = { "LABEL", "SILK" };
     private static readonly string[] Groups = { "A·Ngoại quan", "B·Kích thước", "C·Màu sắc", "D·Chức năng" };
@@ -388,8 +443,23 @@ else if (_items is not null)
         try { _lines = await Api.GetCheckLibraryLinesAsync(); } catch { /* non-fatal */ }
     }
 
-    private static string MethodsOf(CheckLibraryItemDto d) =>
-        string.Join(", ", Cols.Where(c => !c.Stage && c.Get(d)).Select(c => c.Full)) is { Length: > 0 } s ? s : "—";
-    private static string StagesOf(CheckLibraryItemDto d) =>
-        string.Join(", ", Cols.Where(c => c.Stage && c.Get(d)).Select(c => c.Head)) is { Length: > 0 } s ? s : "—";
+    private static string Dash(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+
+    // Severity chip: colour by the leading marker (◆ Critical / ● Major / ○ Minor).
+    private static string SevClass(string? sev) => (sev ?? "") switch
+    {
+        var s when s.Contains("Critical") => "qclib-sev-crit",
+        var s when s.Contains("Major") => "qclib-sev-major",
+        var s when s.Contains("Minor") => "qclib-sev-minor",
+        _ => "qclib-sev-none",
+    };
+
+    private RenderFragment SevBadge(string? sev) => builder =>
+    {
+        if (string.IsNullOrWhiteSpace(sev)) { builder.AddContent(0, "—"); return; }
+        builder.OpenElement(1, "span");
+        builder.AddAttribute(2, "class", $"qclib-sevpill {SevClass(sev)}");
+        builder.AddContent(3, sev);
+        builder.CloseElement();
+    };
 }

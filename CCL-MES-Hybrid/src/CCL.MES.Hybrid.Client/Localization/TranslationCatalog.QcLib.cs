@@ -34,9 +34,12 @@ public sealed partial class TranslationCatalog
         Add("qclib.menu.delete",         "Xoá",                                           "Delete");
         Add("qclib.info.title",          "Chi tiết hạng mục",                             "Item detail");
         Add("qclib.info.acceptance",     "Tiêu chuẩn chấp nhận",                          "Acceptance criteria");
-        Add("qclib.info.methods",        "Method / process áp dụng",                      "Applied methods");
-        Add("qclib.info.stages",         "Stage áp dụng",                                 "Applied stages");
+        Add("qclib.info.methods",        "Áp dụng cho",                                   "Applies to");
+        Add("qclib.info.spec",           "Thông số kiểm",                                 "Inspection spec");
         Add("qclib.info.condition",      "Điều kiện",                                      "Condition");
+        Add("qclib.band.print",          "IN · PRINT",                                    "PRINT");
+        Add("qclib.band.cut",            "CẮT · GIA CÔNG",                                "CUT · FINISH");
+        Add("qclib.band.stage",          "CÔNG ĐOẠN",                                     "STAGE");
         Add("qclib.add.title",           "Thêm hạng mục kiểm",                            "Add check item");
         Add("qclib.add.save",            "Lưu",                                           "Save");
         Add("qclib.flash.deleted",       "Đã xoá {0}.",                                   "Deleted {0}.");
