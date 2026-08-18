@@ -152,7 +152,7 @@ else if (_data is not null)
                         <td class="grid-col-narrow grid-row-num">@localIdx</td>
                         @foreach (var col in _columns.Visible)
                         {
-                            <td>@RenderCellOrEditor(row, vm, col.Id)</td>
+                            <td class="@ColClass(col.Id)">@RenderCellOrEditor(row, vm, col.Id)</td>
                         }
                     </tr>
                 }

@@ -50,7 +50,7 @@ else if (_data is not null)
                     <tr>
                         @foreach (var col in _columns.Visible)
                         {
-                            <td>@RenderCell(row, col.Id)</td>
+                            <td class="@ColClass(col.Id)">@RenderCell(row, col.Id)</td>
                         }
                     </tr>
                 }
