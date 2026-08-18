@@ -6,6 +6,9 @@
     <title>CCL MES</title>
     <base href="/" />
     <link href="_content/CCL.MES.Hybrid.Razor/css/app.css" rel="stylesheet" />
+    <!-- CCL iX — nền tảng thiết kế công nghiệp. Nạp SAU app.css: retheme bằng
+         cách đổi GIÁ TRỊ token (L37) + thêm pattern .ix-*. Xem ix.css §đầu file. -->
+    <link href="_content/CCL.MES.Hybrid.Razor/css/ix.css" rel="stylesheet" />
 </head>
 
 <body>
@@ -17,6 +20,9 @@
         <a class="dismiss">🗙</a>
     </div>
 
+    <!-- Mật độ hiển thị phải áp TRƯỚC khi Blazor render để không chớp giao diện. -->
+    <script src="_content/CCL.MES.Hybrid.Razor/js/density.js"></script>
+    <script>window.cclMesDensity && window.cclMesDensity.boot();</script>
     <script src="_framework/blazor.webview.js" autostart="false"></script>
     <script src="_content/CCL.MES.Hybrid.Razor/js/backup.js"></script>
     <script src="_content/CCL.MES.Hybrid.Razor/lib/pdfjs/pdf.min.js"></script>
