@@ -1,0 +1,20 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+@* Double-button OK / NG toggle (Rule 4 — plain <button>, no InputRadio). The
+   selected side fills (OK green / NG red). Raises OnChange with the new
+   verdict so the parent owns state. *@
+<div class="qms-okng" role="group" data-testid="qms-okng">
+    <button type="button"
+            class="qms-okng-btn qms-okng-ok @(Value == QmsVerdict.Pass ? "qms-okng-ok-on" : "")"
+            aria-pressed="@(Value == QmsVerdict.Pass ? "true" : "false")"
+            @onclick="() => OnChange.InvokeAsync(QmsVerdict.Pass)">@T("qms.toggle.ok")</button>
+    <button type="button"
+            class="qms-okng-btn qms-okng-ng @(Value == QmsVerdict.Ng ? "qms-okng-ng-on" : "")"
+            aria-pressed="@(Value == QmsVerdict.Ng ? "true" : "false")"
+            @onclick="() => OnChange.InvokeAsync(QmsVerdict.Ng)">@T("qms.toggle.ng")</button>
+</div>
+
+@code {
+    [Parameter] public QmsVerdict Value { get; set; }
+    [Parameter] public EventCallback<QmsVerdict> OnChange { get; set; }
+}

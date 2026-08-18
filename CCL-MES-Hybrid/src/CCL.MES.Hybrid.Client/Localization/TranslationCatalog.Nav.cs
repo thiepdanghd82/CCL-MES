@@ -22,12 +22,28 @@ public sealed partial class TranslationCatalog
         Add("nav.section.monitoring",  "GIÁM SÁT",                  "MONITORING");
         Add("nav.machines",           "Bảng điều khiển máy",       "Machine Dashboard");
         Add("nav.shoporders",         "Lịch sử lệnh SX",           "Shop Order History");
-        Add("nav.inspectionqueue",    "Hàng chờ kiểm",             "Inspection Queue");
-        Add("nav.qchistory",          "Lịch sử QC",                "QC History");
-        Add("nav.qclibrary",          "Thư viện QC",               "QC Library");
 
-        Add("nav.section.quality",     "KIỂM SOÁT CHẤT LƯỢNG",      "QUALITY CONTROL");
-        Add("nav.traceability",       "Dữ liệu truy xuất",         "Traceability data");
+        // QC QMS Data group — 5 primary modules (2-line: title + subtitle)
+        // mirroring the QA mini-QMS mock (Dashboard/IQC/IPQC/OQC/iCRA) + the
+        // compact secondary links that keep the rest of the QC surfaces.
+        Add("nav.qms.title",          "QC QMS Data",               "QC QMS Data");
+
+        Add("nav.qms.m.dashboard",    "Tổng quan",                 "Overview");
+        Add("nav.qms.m.dashboard.sub","Bảng KPI chất lượng",       "Dashboard");
+        Add("nav.qms.m.iqc",          "IQC",                       "IQC");
+        Add("nav.qms.m.iqc.sub",      "Kiểm đầu vào",              "Incoming quality");
+        Add("nav.qms.m.ipqc",         "IPQC",                      "IPQC");
+        Add("nav.qms.m.ipqc.sub",     "Kiểm trong chuyền",         "In-process quality");
+        Add("nav.qms.m.oqc",          "OQC",                       "OQC");
+        Add("nav.qms.m.oqc.sub",      "Kiểm đầu ra",               "Outgoing quality");
+        Add("nav.qms.m.icra",         "iCRA",                      "iCRA");
+        Add("nav.qms.m.icra.sub",     "Đối sách · CAPA",           "Corrective action · CAPA");
+
+        Add("nav.qms.queue",          "Hàng chờ kiểm",             "Inspection Queue");
+        Add("nav.qms.fqc",            "FQC — Kiểm cuối",           "FQC — Final");
+        Add("nav.qms.history",        "Lịch sử QC",                "QC History");
+        Add("nav.qms.library",        "Thư viện QC",               "QC Library");
+        Add("nav.qms.traceability",   "Dữ liệu truy xuất",         "Traceability data");
 
         Add("nav.section.settings",    "CÀI ĐẶT",                   "SETTINGS");
         Add("nav.system",             "Hệ thống",                  "System");

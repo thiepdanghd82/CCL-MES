@@ -1,8 +1,10 @@
 @page "/qms"
+@page "/qms/fqc"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Qms
 @inject ICclApiClient Api
+@inject NavigationManager Nav
 
 <PageTitle>@T("qms.pagetitle") — CCL MES</PageTitle>
 
@@ -26,14 +28,26 @@ else if (_error is not null)
 }
 else if (_data is not null)
 {
-    <div class="md-chips qms-tabs">
-        <button type="button" class="md-chip @(_stage == "ipqc" ? "md-chip-on" : "")"
-                @onclick="@(() => _stage = "ipqc")">IPQC (@_data.IpqcCount)</button>
-        <button type="button" class="md-chip @(_stage == "fqc" ? "md-chip-on" : "")"
-                @onclick="@(() => _stage = "fqc")">FQC (@_data.FqcCount)</button>
-        <button type="button" class="md-chip @(_stage == "oqc" ? "md-chip-on" : "")"
-                @onclick="@(() => _stage = "oqc")">OQC (@_data.OqcCount)</button>
-    </div>
+    @* /qms shows all three stage tabs; the stage-scoped routes
+       (/qms/ipqc · /qms/fqc · /qms/oqc) lock to a single stage and hide the
+       switcher so each acts as a standalone per-stage worklist. *@
+    @if (_lockedStage is null)
+    {
+        <div class="md-chips qms-tabs">
+            <button type="button" class="md-chip @(_stage == "ipqc" ? "md-chip-on" : "")"
+                    @onclick="@(() => _stage = "ipqc")">IPQC (@_data.IpqcCount)</button>
+            <button type="button" class="md-chip @(_stage == "fqc" ? "md-chip-on" : "")"
+                    @onclick="@(() => _stage = "fqc")">FQC (@_data.FqcCount)</button>
+            <button type="button" class="md-chip @(_stage == "oqc" ? "md-chip-on" : "")"
+                    @onclick="@(() => _stage = "oqc")">OQC (@_data.OqcCount)</button>
+        </div>
+    }
+    else
+    {
+        <div class="md-chips qms-tabs">
+            <span class="md-chip md-chip-on">@StageLabel (@CurrentRows.Count)</span>
+        </div>
+    }
 
     @if (CurrentRows.Count == 0)
     {
@@ -68,6 +82,25 @@ else if (_data is not null)
     private bool _loading = true;
     private string? _error;
     private string _stage = "ipqc";   // ipqc | fqc | oqc
+
+    // Non-null when the active route is a stage-scoped queue
+    // (/qms/ipqc · /qms/fqc · /qms/oqc). Null on the plain /qms hub.
+    private string? _lockedStage;
+
+    // Re-evaluated on every navigation (Blazor reuses the instance across the
+    // sibling routes), so switching /qms/ipqc ↔ /qms/fqc re-locks correctly
+    // without a data reload.
+    protected override void OnParametersSet()
+    {
+        var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].Trim('/').ToLowerInvariant();
+        _lockedStage = path switch
+        {
+            "qms/fqc" => "fqc",
+            _ => null,   // "qms" → hub with all tabs
+        };
+        if (_lockedStage is not null)
+            _stage = _lockedStage;
+    }
 
     private IReadOnlyList<QmsQueueRow> CurrentRows => _stage switch
     {

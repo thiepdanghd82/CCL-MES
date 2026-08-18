@@ -1,0 +1,30 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+@* Numbered horizontal stepper (1..N). Active step gets a filled number chip +
+   an underline. Reused by IQC (5 steps) and IPQC/OQC (3 steps). Clicking a
+   step raises OnStepClick so the parent can drive its own state. *@
+<div class="qms-stepper" data-testid="qms-stepper" role="tablist">
+    @for (var i = 0; i < Steps.Count; i++)
+    {
+        var idx = i;
+        var s = Steps[idx];
+        var active = idx == ActiveIndex;
+        <button type="button"
+                class="qms-step @(active ? "qms-step-on" : "")"
+                data-testid="@($"qms-step-{s.Num}")"
+                aria-selected="@(active ? "true" : "false")"
+                @onclick="() => OnStepClick.InvokeAsync(idx)">
+            <span class="qms-step-num">@s.Num</span>
+            <span class="qms-step-lines">
+                <span class="qms-step-label">@T(s.LabelKey)</span>
+                <span class="qms-step-en">@T(s.EnKey)</span>
+            </span>
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<QmsStep> Steps { get; set; } = System.Array.Empty<QmsStep>();
+    [Parameter] public int ActiveIndex { get; set; }
+    [Parameter] public EventCallback<int> OnStepClick { get; set; }
+}

@@ -1,0 +1,84 @@
+@page "/qms/iqc"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+@* IQC — incoming raw-material inspection. Shell (topbar + receipt header +
+   5-step stepper) with the HSF-document step detailed. Scaffold: static mock
+   (QmsMock), no API this phase. *@
+<PageTitle>@T("qms.mod.iqc.title") — CCL MES</PageTitle>
+
+<div class="qms-page" data-testid="qms-iqc">
+    <QmsModuleTopBar Vm="QmsMock.IqcTop" />
+
+    <div class="qms-iqc-head">
+        <div class="qms-fieldgrid">
+            @foreach (var f in QmsMock.IqcHeader)
+            {
+                <div class="qms-field">
+                    <span class="qms-field-label">@T(f.LabelKey)</span>
+                    <span class="qms-field-val">@f.Value</span>
+                </div>
+            }
+        </div>
+        <div class="qms-actionbar">
+            <button type="button" class="qms-btn qms-btn-secondary">@T("qms.act.savedraft")</button>
+            <button type="button" class="qms-btn qms-btn-primary">@T("qms.act.complete")</button>
+        </div>
+    </div>
+
+    <QmsStepper Steps="QmsMock.IqcSteps" ActiveIndex="_active"
+                OnStepClick="i => _active = i" />
+
+    @if (_active == 0)
+    {
+        <section class="qms-section">
+            <div class="qms-section-head">
+                <h2 class="qms-section-title">@T("qms.iqc.section")</h2>
+                <button type="button" class="qms-btn qms-btn-secondary">@T("qms.act.adddoc")</button>
+            </div>
+            <p class="qms-section-desc">@T("qms.iqc.section.desc")</p>
+
+            <div class="qms-table-wrap">
+                <table class="qms-table" data-testid="qms-iqc-hsf-table">
+                    <thead>
+                        <tr>
+                            <th>@T("qms.iqc.col.doc")</th>
+                            <th>@T("qms.iqc.col.no")</th>
+                            <th>@T("qms.iqc.col.issue")</th>
+                            <th>@T("qms.iqc.col.expiry")</th>
+                            <th>@T("qms.iqc.col.modified")</th>
+                            <th>@T("qms.iqc.col.status")</th>
+                            <th class="qms-col-tight">@T("qms.iqc.col.action")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in QmsMock.Hsf)
+                        {
+                            <tr>
+                                <td class="qms-td-strong">@d.Name</td>
+                                <td>@d.No</td>
+                                <td>@d.Issue</td>
+                                <td class="@(d.Valid ? "" : "qms-td-ng")">@d.Expiry</td>
+                                <td>@d.ModifiedBy<div class="qms-cell-sub">@d.ModifiedAt</div></td>
+                                <td>
+                                    <span class="qms-status @(d.Valid ? "qms-status-valid" : "qms-status-expired")">
+                                        @(d.Valid ? T("qms.status.valid") : T("qms.status.expired"))
+                                    </span>
+                                </td>
+                                <td class="qms-col-tight"><button type="button" class="qms-remove">@T("qms.act.remove")</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+    else
+    {
+        <p class="qms-section-desc" data-testid="qms-iqc-step-placeholder">@T(QmsMock.IqcSteps[_active].LabelKey) — @T("qms.icra.state.open")…</p>
+    }
+</div>
+
+@code {
+    private int _active;
+}

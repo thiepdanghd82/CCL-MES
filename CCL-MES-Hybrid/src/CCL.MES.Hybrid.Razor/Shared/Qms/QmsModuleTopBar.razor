@@ -1,0 +1,29 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+@* QA / mini-QMS shell top-bar. Left: MODULE <code> + page title. Right:
+   production shift + signed-in inspector badge. Presentational — the parent
+   passes a QmsTopBarVm (static mock this phase). *@
+<header class="qms-topbar" data-testid="qms-module-topbar">
+    <div class="qms-topbar-left">
+        <span class="qms-topbar-module">@T("qms.module.prefix") @Vm.ModuleCode</span>
+        <h1 class="qms-topbar-title">@T(Vm.TitleKey)</h1>
+    </div>
+    <div class="qms-topbar-right">
+        <div class="qms-topbar-shift">
+            <span class="qms-topbar-eyebrow">@T("qms.shift.label")</span>
+            <span class="qms-topbar-shiftval">@Vm.Shift</span>
+        </div>
+        <div class="qms-topbar-sep"></div>
+        <div class="qms-topbar-user" data-testid="qms-user-badge">
+            <div class="qms-topbar-avatar">@Vm.Initials</div>
+            <div class="qms-topbar-userlines">
+                <span class="qms-topbar-username">@Vm.UserName</span>
+                <span class="qms-topbar-userrole">@Vm.UserRole</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+@code {
+    [Parameter, EditorRequired] public QmsTopBarVm Vm { get; set; } = default!;
+}

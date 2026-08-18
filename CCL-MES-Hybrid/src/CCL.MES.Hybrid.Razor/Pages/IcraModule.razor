@@ -1,0 +1,42 @@
+@page "/qms/icra"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+@* iCRA — corrective action / CAPA. Scaffold list of open requests bound per
+   product (opened when an OQC lot is rejected). Static mock (QmsMock). *@
+<PageTitle>@T("qms.mod.icra.title") — CCL MES</PageTitle>
+
+<div class="qms-page" data-testid="qms-icra">
+    <QmsModuleTopBar Vm="QmsMock.IcraTop" />
+
+    <section class="qms-section">
+        <h2 class="qms-section-title">@T("qms.icra.list.title")</h2>
+        <p class="qms-section-desc">@T("qms.icra.list.desc")</p>
+
+        <div class="qms-table-wrap">
+            <table class="qms-table" data-testid="qms-icra-table">
+                <thead>
+                    <tr>
+                        <th>@T("qms.icra.col.code")</th>
+                        <th>@T("qms.icra.col.product")</th>
+                        <th>@T("qms.icra.col.reason")</th>
+                        <th>@T("qms.icra.col.opened")</th>
+                        <th class="qms-col-tight">@T("qms.icra.col.state")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in QmsMock.Icra)
+                    {
+                        <tr>
+                            <td class="qms-td-strong">@r.Code</td>
+                            <td>@r.Product</td>
+                            <td>@r.Reason</td>
+                            <td>@r.Opened</td>
+                            <td class="qms-col-tight"><span class="qms-pill qms-pill-ng">@T("qms.icra.state.open")</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

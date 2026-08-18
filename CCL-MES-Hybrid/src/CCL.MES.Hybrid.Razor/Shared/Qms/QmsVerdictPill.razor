@@ -1,0 +1,15 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+@* PASS / NG verdict pill (green / red via --ok / --ng tokens). None → nothing. *@
+@if (Verdict == QmsVerdict.Pass)
+{
+    <span class="qms-pill qms-pill-pass" data-testid="qms-pill-pass">@T("qms.verdict.pass")</span>
+}
+else if (Verdict == QmsVerdict.Ng)
+{
+    <span class="qms-pill qms-pill-ng" data-testid="qms-pill-ng">@T("qms.verdict.ng")</span>
+}
+
+@code {
+    [Parameter] public QmsVerdict Verdict { get; set; }
+}
