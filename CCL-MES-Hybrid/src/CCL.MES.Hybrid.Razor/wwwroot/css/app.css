@@ -7258,52 +7258,63 @@ tr.wc-row:hover { background: var(--c-bg); }
 
 .qclib-flash { color: var(--ok-ink); background: var(--ok-bg); border-radius: 7px; padding: 9px 14px; }
 
-/* ── Table shell ─────────────────────────────────────────────────────── */
+/* ── Table shell — fluid scale so it grows on big / hi-DPI screens ────
+   Everything (font, columns, checkboxes, padding, header height) sizes
+   with clamp(vw) → auto-adapts from laptop up to a wide monitor. The
+   table caps + centres on ultra-wide so Content doesn't over-stretch. */
 .qclib-scroll { overflow-x: auto; border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-card); }
-.qclib-grid { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1180px; font-size: 0.86rem; color: var(--c-ink-3); }
+.qclib-grid {
+    border-collapse: separate; border-spacing: 0; color: var(--c-ink-3);
+    width: 100%; min-width: 1180px; max-width: 2400px; margin-inline: auto;
+    font-size: clamp(0.86rem, 0.64rem + 0.42vw, 1.1rem);
+    --qclib-tick-w: clamp(46px, 3vw, 70px);
+    --qclib-band-h: clamp(30px, 2vw, 46px);
+    --qclib-rpad: clamp(8px, 0.55vw, 15px);
+}
 .qclib-grid th, .qclib-grid td { padding: 0; }
 
-/* ── Banded 2-row header (sticky) ────────────────────────────────────── */
+/* ── Banded 2-row header (sticky, offsets synced via --qclib-band-h) ── */
 .qclib-grid thead th {
     position: sticky; background: var(--c-surface); font-weight: 700;
     border-bottom: 1px solid var(--c-line); z-index: 2;
 }
-.qclib-band th { top: 0; height: 30px; font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-muted); padding: 0 10px; }
-.qclib-cols th { top: 30px; z-index: 1; }
+.qclib-band th { top: 0; height: var(--qclib-band-h); font-size: clamp(0.6rem, 0.5rem + 0.2vw, 0.78rem); letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-muted); padding: 0 10px; }
+.qclib-cols th { top: var(--qclib-band-h); z-index: 1; }
 .qclib-band-print { background: var(--indigo-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
 .qclib-band-cut { background: var(--warn-bg) !important; color: var(--warn-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
 .qclib-band-stage { background: var(--brand-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
-.qclib-tick-h { width: 46px; text-align: center; font-size: 0.66rem; font-weight: 700; color: var(--c-muted); padding: 8px 2px; white-space: nowrap; }
+.qclib-tick-h { width: var(--qclib-tick-w); text-align: center; font-size: clamp(0.66rem, 0.56rem + 0.22vw, 0.82rem); font-weight: 700; color: var(--c-muted); padding: 8px 2px; white-space: nowrap; }
 .qclib-tick-h.qclib-stage-h { background: var(--brand-bg); color: var(--brand-ink); }
 
-/* ── Fixed content columns ───────────────────────────────────────────── */
-.qclib-kebab-col { width: 36px; text-align: center; }
-.qclib-c-id { width: 92px; text-align: left; padding-left: 12px !important; }
-.qclib-c-content { width: auto; min-width: 260px; text-align: left; }
-.qclib-c-sev { width: 104px; text-align: left; }
-.qclib-c-def { width: 118px; text-align: left; }
-.qclib-band th.qclib-c-id, .qclib-band th.qclib-c-content, .qclib-band th.qclib-c-sev, .qclib-band th.qclib-c-def { vertical-align: middle; color: var(--c-ink-2); font-size: 0.64rem; }
+/* ── Content columns (fluid) ─────────────────────────────────────────── */
+.qclib-kebab-col { width: clamp(36px, 2.4vw, 50px); text-align: center; }
+.qclib-c-id { width: clamp(92px, 7vw, 150px); text-align: left; padding-left: 12px !important; }
+.qclib-c-content { width: auto; min-width: clamp(260px, 22vw, 560px); text-align: left; }
+.qclib-c-sev { width: clamp(104px, 8vw, 150px); text-align: left; }
+.qclib-c-def { width: clamp(118px, 9vw, 170px); text-align: left; }
+.qclib-band th.qclib-c-id, .qclib-band th.qclib-c-content, .qclib-band th.qclib-c-sev, .qclib-band th.qclib-c-def { vertical-align: middle; color: var(--c-ink-2); font-size: clamp(0.64rem, 0.54rem + 0.2vw, 0.8rem); }
 
 /* ── Group section row ───────────────────────────────────────────────── */
 .qclib-grouprow td {
     background: var(--c-surface); font-weight: 800; color: var(--c-ink);
-    font-size: 0.82rem; padding: 8px 12px; border-bottom: 1px solid var(--c-line);
-    border-top: 2px solid var(--c-line); position: sticky; z-index: 0;
+    font-size: clamp(0.82rem, 0.7rem + 0.24vw, 1rem); padding: var(--qclib-rpad) 12px;
+    border-bottom: 1px solid var(--c-line); border-top: 2px solid var(--c-line);
+    position: sticky; z-index: 0;
 }
 .qclib-group-count { font-weight: 600; color: var(--c-muted); }
 
 /* ── Data rows ───────────────────────────────────────────────────────── */
-.qclib-row td { border-bottom: 1px solid var(--c-line-2); padding: 8px 8px; vertical-align: middle; }
+.qclib-row td { border-bottom: 1px solid var(--c-line-2); padding: var(--qclib-rpad) 8px; vertical-align: middle; }
 .qclib-row:nth-child(even) td { background: var(--c-surface); }
 .qclib-row:hover td { background: var(--brand-bg); }
 .qclib-c-content { line-height: 1.35; }
-.qclib-tick { width: 46px; text-align: center; }
-.qclib-tick input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--brand); cursor: pointer; margin: 0; vertical-align: middle; }
+.qclib-tick { width: var(--qclib-tick-w); text-align: center; }
+.qclib-tick input[type=checkbox] { width: clamp(16px, 1.15vw, 22px); height: clamp(16px, 1.15vw, 22px); accent-color: var(--brand); cursor: pointer; margin: 0; vertical-align: middle; }
 .qclib-tick.qclib-stage { background: color-mix(in srgb, var(--brand-bg) 60%, transparent); }
 .qclib-row:hover td.qclib-stage { background: var(--brand-bg); }
 
 /* ── Severity pill ───────────────────────────────────────────────────── */
-.qclib-sevpill { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.qclib-sevpill { display: inline-block; font-size: 0.8em; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
 .qclib-sev-crit { background: var(--ng-bg); color: var(--ng-ink); }
 .qclib-sev-major { background: var(--warn-bg); color: var(--warn-ink); }
 .qclib-sev-minor { background: var(--c-surface); color: var(--c-muted); }
