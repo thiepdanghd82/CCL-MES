@@ -266,6 +266,20 @@ public interface ICclApiClient
     Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>> GetCheckLibraryLinesAsync(
         CancellationToken ct = default);
 
+    /// <summary>Smart platform — upsert 1 hạng mục (Add new / sửa tick-box+field).</summary>
+    Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> UpsertCheckLibraryItemAsync(
+        string itemId, CCL.MES.Shared.CheckLibrary.CheckLibraryUpsertDto dto, CancellationToken ct = default);
+
+    /// <summary>Smart platform — xoá 1 hạng mục.</summary>
+    Task DeleteCheckLibraryItemAsync(string itemId, CancellationToken ct = default);
+
+    /// <summary>Smart platform — import file thư viện (.xlsx / .csv) → upsert idempotent.</summary>
+    Task<CCL.MES.Shared.CheckLibrary.CheckLibraryImportResult> ImportCheckLibraryAsync(
+        string fileName, byte[] content, CancellationToken ct = default);
+
+    /// <summary>Smart platform — export CSV thư viện xuống file (native save).</summary>
+    Task<long> DownloadCheckLibraryExportAsync(string? line, string destinationFilePath, CancellationToken ct = default);
+
     /// <summary>Phương án C — Bước 4: đánh OK/NG 1 hạng mục IPQC data-driven
     /// (auto-sync). Same contract as <see cref="PutIpqcMaterialAsync"/>;
     /// 422 ipqc.invalid_item nếu key không thuộc bộ đã materialize.</summary>

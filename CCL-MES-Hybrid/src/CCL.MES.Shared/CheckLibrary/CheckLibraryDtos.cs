@@ -59,6 +59,58 @@ public sealed record CheckLibraryLineDto
     public int OqcCount { get; init; }
 }
 
+/// <summary>Body upsert 1 hạng mục (Add new / sửa tick-box + field). ItemId là
+/// khoá; server upsert theo ItemId (idempotent).</summary>
+public sealed record CheckLibraryUpsertDto
+{
+    public string ItemId { get; init; } = "";
+    public string ProcessLine { get; init; } = "";
+    public string GroupLabel { get; init; } = "";
+    public string Code { get; init; } = "";
+
+    public bool BlankLabel { get; init; }
+    public bool Flexo { get; init; }
+    public bool LetterPress { get; init; }
+    public bool HpIndigo { get; init; }
+    public bool SilkScreen { get; init; }
+    public bool Flatbed { get; init; }
+    public bool Rdc { get; init; }
+    public bool Laminate { get; init; }
+    public bool Zebra { get; init; }
+    public bool SheetCut { get; init; }
+    public bool PunchHole { get; init; }
+    public bool DrillHole { get; init; }
+    public bool Slit { get; init; }
+    public bool Ipqc { get; init; }
+    public bool Fqc { get; init; }
+    public bool Oqc { get; init; }
+
+    public string ItemVi { get; init; } = "";
+    public string ItemEn { get; init; } = "";
+    public string AcceptanceVi { get; init; } = "";
+    public string AcceptanceEn { get; init; } = "";
+    public string? Method { get; init; }
+    public string? Severity { get; init; }
+    public string? Aql { get; init; }
+    public string? Sampling { get; init; }
+    public string? CheckType { get; init; }
+    public string? DefectCode { get; init; }
+    public string? IsoRef { get; init; }
+    public string? AppliesWhen { get; init; }
+    public string? Note { get; init; }
+    public bool Active { get; init; } = true;
+    public int Sort { get; init; }
+}
+
+/// <summary>Kết quả import file thư viện.</summary>
+public sealed record CheckLibraryImportResult
+{
+    public int Inserted { get; init; }
+    public int Updated { get; init; }
+    public int ReasonAdded { get; init; }
+    public int Total { get; init; }
+}
+
 /// <summary>1 luật map process→QC line (data-driven, quyết định #5).</summary>
 public sealed record ProcessLineMapDto
 {
