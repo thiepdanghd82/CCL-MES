@@ -14,7 +14,7 @@ public sealed partial class TranslationCatalog
 
         Add("oqc.counter.label",                  "Hạng mục · Chữ ký",                                            "Items · Sigs");
 
-        Add("oqc.sig.policy.label",               "⚠ Chính sách 3 chữ ký:",                                       "⚠ 3-sig policy:");
+        Add("oqc.sig.policy.label",               "Chính sách 3 chữ ký:",                                       "3-sig policy:");
 
         Add("oqc.save.error",                     "Không lưu được thay đổi:",                                     "Could not save change:");
         Add("oqc.dismiss",                        "Bỏ qua",                                                       "Dismiss");
@@ -38,8 +38,8 @@ public sealed partial class TranslationCatalog
         Add("oqc.cancel",                         "Huỷ",                                                          "Cancel");
         Add("oqc.ng.save",                        "Lưu NG",                                                       "Save NG");
 
-        Add("oqc.status.ok",                      "✓ OK",                                                         "✓ OK");
-        Add("oqc.status.ng",                      "✗ NG",                                                         "✗ NG");
+        Add("oqc.status.ok",                      "OK",                                                         "OK");
+        Add("oqc.status.ng",                      "NG",                                                         "NG");
         Add("oqc.status.pending",                 "— Chờ",                                                        "— Pending");
 
         Add("oqc.stage.title.inspecting",         "Đang kiểm các hạng mục OQC",                                   "Inspecting OQC items");

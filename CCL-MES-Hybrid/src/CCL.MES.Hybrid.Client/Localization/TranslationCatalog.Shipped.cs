@@ -32,11 +32,11 @@ public sealed partial class TranslationCatalog
         Add("shipped.sig.reviewer",         "Người soát",                        "Reviewer");
         Add("shipped.sig.approver",         "Người duyệt",                       "Approver");
 
-        Add("shipped.judgment.pass",        "✓ Đạt",                             "✓ Pass");
+        Add("shipped.judgment.pass",        "Đạt",                             "Pass");
         Add("shipped.judgment.pending",     "— Chờ",                             "— Pending");
-        Add("shipped.judgment.reject",      "✗ Loại",                            "✗ Reject");
-        Add("shipped.judgment.gorun",       "✓ Cho chạy",                        "✓ Go Run");
-        Add("shipped.judgment.stopline",    "✗ Dừng chuyền",                     "✗ Stop Line");
-        Add("shipped.judgment.specialaccept", "⚠ Chấp nhận đặc biệt",            "⚠ Special Accept");
+        Add("shipped.judgment.reject",      "Loại",                            "Reject");
+        Add("shipped.judgment.gorun",       "Cho chạy",                        "Go Run");
+        Add("shipped.judgment.stopline",    "Dừng chuyền",                     "Stop Line");
+        Add("shipped.judgment.specialaccept", "Chấp nhận đặc biệt",            "Special Accept");
     }
 }

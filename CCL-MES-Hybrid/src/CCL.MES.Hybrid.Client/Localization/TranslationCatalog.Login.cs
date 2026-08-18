@@ -20,7 +20,7 @@ public sealed partial class TranslationCatalog
         Add("login.stat.phases",   "Giai đoạn MES",                                 "MES phases");
         Add("login.stat.traceable","Truy xuất",                                     "Traceable");
         Add("login.footbrand",     "CCL Design Vietnam · Sản xuất",                 "CCL Design Vietnam · Manufacturing");
-        Add("login.welcome",       "Chào mừng trở lại 👋",                          "Welcome back 👋");
+        Add("login.welcome",       "Chào mừng trở lại",                          "Welcome back");
         Add("login.sub",           "Đăng nhập CCL MES",                             "Sign in to CCL MES");
         Add("login.username",      "Tên đăng nhập",                                 "Username");
         Add("login.password",      "Mật khẩu",                                      "Password");

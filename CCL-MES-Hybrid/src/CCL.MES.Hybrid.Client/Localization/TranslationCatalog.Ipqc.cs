@@ -23,7 +23,7 @@ public sealed partial class TranslationCatalog
         Add("ipqc.dismiss",                  "Bỏ qua",                                                             "Dismiss");
 
         // ── Auto-sync (Phương án C) warnings ──────────────────────────
-        Add("ipqc.autosync.title",           "⚠ Auto-sync chưa nạp bộ hạng mục:",                                  "⚠ Auto-sync did not load the item set:");
+        Add("ipqc.autosync.title",           "Auto-sync chưa nạp bộ hạng mục:",                                  "Auto-sync did not load the item set:");
         Add("ipqc.autosync.skipped.unmapped","Routing có công đoạn chưa khai báo trong bảng map process→line. Báo kỹ thuật bổ sung map; tạm dùng 4-slot thủ công.",
                                              "The routing has an operation not declared in the process→line map. Ask engineering to add the mapping; use the manual 4-slot form for now.");
         Add("ipqc.autosync.skipped.nolibrary","Đã suy ra QC line nhưng thư viện hạng mục trống cho line đó. Báo QC nạp thư viện.",
@@ -44,8 +44,8 @@ public sealed partial class TranslationCatalog
         Add("ipqc.slot.print-c.subtitle",    "Nội dung chữ + mã vạch khớp spec",                                   "Text content + barcode match spec");
 
         // ── Status pill display ───────────────────────────────────────
-        Add("ipqc.status.ok",                "✓ Đạt",                                                              "✓ OK");
-        Add("ipqc.status.ng",                "✗ Lỗi",                                                              "✗ NG");
+        Add("ipqc.status.ok",                "Đạt",                                                              "OK");
+        Add("ipqc.status.ng",                "Lỗi",                                                              "NG");
         Add("ipqc.status.pending",           "— Chờ",                                                              "— Pending");
 
         // ── OK / NG buttons + NG form ─────────────────────────────────

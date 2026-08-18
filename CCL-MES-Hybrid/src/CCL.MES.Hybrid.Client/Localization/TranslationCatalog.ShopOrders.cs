@@ -24,7 +24,7 @@ public sealed partial class TranslationCatalog
         Add("shoporders.kpi.reject.sub",     "tỷ lệ lỗi {0}%",                                        "{0}% defect rate");
 
         // Search + filters
-        Add("shoporders.search.placeholder", "🔍 Tìm lệnh SX / khách hàng / sản phẩm / máy…",        "🔍 Search WO / customer / product / machine…");
+        Add("shoporders.search.placeholder", "Tìm lệnh SX / khách hàng / sản phẩm / máy…",        "Search WO / customer / product / machine…");
         Add("shoporders.records",            "{0} bản ghi",                                           "{0} records");
         Add("shoporders.filter.period",      "Kỳ:",                                                   "Period:");
         Add("shoporders.filter.status",      "Trạng thái:",                                           "Status:");
@@ -41,8 +41,8 @@ public sealed partial class TranslationCatalog
 
         // Status chips + status labels
         Add("shoporders.statuschip.all",     "Tất cả",                                                "All");
-        Add("shoporders.status.done",        "✓ Xong",                                                "✓ Done");
-        Add("shoporders.status.stopped",     "✕ Dừng",                                                "✕ Stopped");
+        Add("shoporders.status.done",        "Xong",                                                "Done");
+        Add("shoporders.status.stopped",     "Dừng",                                                "Stopped");
 
         // Empty / loading / error states
         Add("shoporders.loading",            "Đang tải lịch sử…",                                     "Loading history…");

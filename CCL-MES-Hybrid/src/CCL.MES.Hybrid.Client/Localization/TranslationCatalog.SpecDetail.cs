@@ -14,7 +14,7 @@ public sealed partial class TranslationCatalog
         Add("specdetail.crumb.rev",                      "Phiên bản",                                                    "Rev");
 
         // Lifecycle action buttons.
-        Add("specdetail.action.approve",                 "✓ Duyệt",                                                      "✓ Approve");
+        Add("specdetail.action.approve",                 "Duyệt",                                                      "Approve");
         Add("specdetail.action.approving",               "Đang duyệt…",                                                  "Approving…");
         Add("specdetail.action.edit",                    "Sửa",                                                          "Edit");
         Add("specdetail.action.copy",                    "Sao chép",                                                     "Copy");
@@ -23,12 +23,12 @@ public sealed partial class TranslationCatalog
         Add("specdetail.action.trash",                   "Chuyển vào Thùng rác",                                         "Move to Trash");
 
         // Print / PDF export.
-        Add("specdetail.pdf.print",                      "🖨 In PDF",                                                    "🖨 Print PDF");
+        Add("specdetail.pdf.print",                      "In PDF",                                                    "Print PDF");
         Add("specdetail.pdf.generating",                 "Đang tạo tệp…",                                                "Generating file…");
         Add("specdetail.pdf.failed",                     "Xuất tệp thất bại: {0}",                                       "Export failed: {0}");
         // Print / export toolbar — In (native OS panel) · PDF · Excel.
         Add("specdetail.print.group.aria",               "In và xuất tờ Spec",                                           "Print and export the Spec sheet");
-        Add("specdetail.print.native",                   "🖨 In",                                                        "🖨 Print");
+        Add("specdetail.print.native",                   "In",                                                        "Print");
         Add("specdetail.export.pdf",                     "⬇ PDF",                                                        "⬇ PDF");
         Add("specdetail.export.excel",                   "⬇ Excel",                                                      "⬇ Excel");
         // P11.x — native WebView print (hộp in hệ điều hành, WYSIWYG).
@@ -71,9 +71,9 @@ public sealed partial class TranslationCatalog
         // Copy-new-Spec chooser modal.
         Add("specdetail.copy.header",                    "Sao chép Spec mới",                                            "Copy new Spec");
         Add("specdetail.copy.lead",                      "Bạn muốn sao chép spec này như thế nào?",                      "How do you want to copy this spec?");
-        Add("specdetail.copy.updatever.title",           "🔁 Cập nhật phiên bản",                                        "🔁 Update ver");
+        Add("specdetail.copy.updatever.title",           "Cập nhật phiên bản",                                        "Update ver");
         Add("specdetail.copy.updatever.sub",             "Phiên bản mới của CHÍNH spec này — cùng sản phẩm & mã IFS, phiên bản kế tiếp (B, C…), liên kết với phiên bản hiện tại.", "New version of THIS spec — same product & IFS code, next revision (B, C…), linked to the current rev.");
-        Add("specdetail.copy.new.title",                 "✚ Mới",                                                        "✚ New");
+        Add("specdetail.copy.new.title",                 "Mới",                                                        "New");
         Add("specdetail.copy.new.sub",                   "Spec độc lập hoàn toàn mới — sản phẩm mới, mã IFS để trống. Chỉnh sửa tự do mọi thứ.", "Brand-new independent spec — fresh product, blank IFS code. Edit everything freely.");
         Add("specdetail.cancel",                         "Hủy",                                                          "Cancel");
 
@@ -83,10 +83,10 @@ public sealed partial class TranslationCatalog
         Add("specdetail.trash.pending",                  "Đang xóa…",                                                    "Deleting…");
 
         // Post-mutation banners.
-        Add("specdetail.banner.approved",                "✓ Đã duyệt — trạng thái mới: {0}",                             "✓ Approved — new status: {0}");
-        Add("specdetail.banner.saved",                   "✓ Đã lưu thay đổi.",                                           "✓ Changes saved.");
+        Add("specdetail.banner.approved",                "Đã duyệt — trạng thái mới: {0}",                             "Approved — new status: {0}");
+        Add("specdetail.banner.saved",                   "Đã lưu thay đổi.",                                           "Changes saved.");
         Add("specdetail.banner.nochanges",               "Không có thay đổi để lưu.",                                    "No changes to save.");
-        Add("specdetail.banner.superseded",              "✓ Đã đánh dấu thay thế — trạng thái mới: {0}",                 "✓ Marked Superseded — new status: {0}");
+        Add("specdetail.banner.superseded",              "Đã đánh dấu thay thế — trạng thái mới: {0}",                 "Marked Superseded — new status: {0}");
 
         // Drawings tab.
         Add("specdetail.drawings.loading",               "Đang tải bản vẽ…",                                             "Loading drawings…");

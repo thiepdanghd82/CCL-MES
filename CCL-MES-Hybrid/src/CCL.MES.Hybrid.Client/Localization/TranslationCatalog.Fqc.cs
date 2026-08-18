@@ -51,8 +51,8 @@ public sealed partial class TranslationCatalog
         Add("fqc.hint.allok",            "Tất cả mục OK — chỉ Đạt là hợp lệ.",                           "All items OK — only Pass is valid.");
         Add("fqc.hint.anyng",            "Có mục NG — Từ chối sẽ trả WO về {0} để làm lại.",             "One or more items NG — Reject sends the WO back to {0} for rework.");
 
-        Add("fqc.status.ok",             "✓ OK",                                                         "✓ OK");
-        Add("fqc.status.ng",             "✗ NG",                                                         "✗ NG");
+        Add("fqc.status.ok",             "OK",                                                         "OK");
+        Add("fqc.status.ng",             "NG",                                                         "NG");
         Add("fqc.status.pending",        "— Chờ",                                                        "— Pending");
     }
 }

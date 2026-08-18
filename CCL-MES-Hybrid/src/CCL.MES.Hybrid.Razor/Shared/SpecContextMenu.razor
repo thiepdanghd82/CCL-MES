@@ -34,7 +34,7 @@
 
         <button type="button" class="spec-ctx-item"
                 @onclick="() => RequestEditClassAsync(SpecMutationAction.Edit)">
-            <span class="spec-ctx-ico">📝</span>
+            <span class="spec-ctx-ico"><Icon Name="edit" /></span>
             <span>@T("specmenu.edit")</span>
         </button>
         <button type="button" class="spec-ctx-item"
@@ -62,7 +62,7 @@
         else
         {
             <button type="button" class="spec-ctx-item spec-ctx-item-danger" @onclick="OnTrashAsync">
-                <span class="spec-ctx-ico">🗑</span>
+                <span class="spec-ctx-ico"><Icon Name="trash" /></span>
                 <span>@T("specmenu.trash")</span>
             </button>
         }

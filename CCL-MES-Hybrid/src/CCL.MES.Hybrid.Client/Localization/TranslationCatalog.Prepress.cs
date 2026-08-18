@@ -13,7 +13,7 @@ public sealed partial class TranslationCatalog
         Add("prepress.invalid_phase.current", "Hiện tại:",                                                    "Current:");
         Add("prepress.invalid_phase.hint",  "Quay lại thẻ Lệnh SX để chọn WO khác.",                          "Go back to the Work Orders tab to select another WO.");
 
-        Add("prepress.rollup.ready",        "Vật tư sẵn sàng ✓",                                              "Materials Ready ✓");
+        Add("prepress.rollup.ready",        "Vật tư sẵn sàng",                                              "Materials Ready");
         Add("prepress.rollup.not_ready",    "Vật tư chưa sẵn sàng",                                           "Materials not ready");
 
         Add("prepress.set_error",           "Không lưu được thay đổi:",                                        "Could not save change:");

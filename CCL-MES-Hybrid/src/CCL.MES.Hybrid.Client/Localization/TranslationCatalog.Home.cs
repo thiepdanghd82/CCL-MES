@@ -33,8 +33,8 @@ public sealed partial class TranslationCatalog
         // Today's Focus panel
         Add("home.focus.title",               "Trọng tâm hôm nay",                            "Today's Focus");
         Add("home.focus.viewall",             "Xem tất cả →",                                 "View all →");
-        Add("home.focus.empty.npi",           "Thư viện đang trống. Mở NPI để nạp mẫu hoặc nhập tệp xlsx ☕", "Library is empty. Open NPI to load samples or import xlsx ☕");
-        Add("home.focus.empty.none",          "Không có việc cần xử lý hôm nay ☕",            "Nothing needs attention today ☕");
+        Add("home.focus.empty.npi",           "Thư viện đang trống. Mở NPI để nạp mẫu hoặc nhập tệp xlsx", "Library is empty. Open NPI to load samples or import xlsx");
+        Add("home.focus.empty.none",          "Không có việc cần xử lý hôm nay",            "Nothing needs attention today");
 
         // Modules grid
         Add("home.modules.title",             "Phân hệ",                                      "Modules");

@@ -15,14 +15,14 @@ public sealed partial class TranslationCatalog
 
         // Version list
         Add("specdrawtab.version.none",               "Chưa có bản tải lên.",                                          "No uploads yet.");
-        Add("specdrawtab.version.fname.title",        "{0}  ·  gốc: {1}",                                              "{0}  ·  original: {1}");
+        Add("specdrawtab.version.fname.title",        "{0} · gốc: {1}",                                              "{0} · original: {1}");
 
         // Version row actions
         Add("specdrawtab.action.open",                "↗ Mở",                                                          "↗ Open");
         Add("specdrawtab.action.open.busy",           "Đang mở…",                                                     "Opening…");
         Add("specdrawtab.action.save",                "↓ Lưu",                                                         "↓ Save");
         Add("specdrawtab.action.save.title",          "Lưu một bản sao vào thiết bị này",                             "Save a copy to this device");
-        Add("specdrawtab.action.delete",              "🗑 Xoá",                                                        "🗑 Delete");
+        Add("specdrawtab.action.delete",              "Xoá",                                                        "Delete");
         Add("specdrawtab.action.delete.title",        "Xoá bản này (cần mật khẩu NPI)",                               "Delete this version (NPI password required)");
 
         // In-app preview
@@ -33,7 +33,7 @@ public sealed partial class TranslationCatalog
         Add("specdrawtab.delete.warn",                "Hành động này xoá vĩnh viễn bản vẽ. Cần xác thực bằng tài khoản thuộc",
                                                       "This permanently deletes the drawing. Authentication with an account belonging to the");
         Add("specdrawtab.delete.warn.team",           "NPI team",                                                      "NPI team");
-        Add("specdrawtab.delete.warn.tail",           ".",                                                             " is required.");
+        Add("specdrawtab.delete.warn.tail",           ".",                                                             "is required.");
         Add("specdrawtab.delete.field.user",          "Tài khoản NPI",                                                 "NPI account");
         Add("specdrawtab.delete.field.user.ph",       "tên đăng nhập",                                                 "username");
         Add("specdrawtab.delete.field.pwd",           "Mật khẩu",                                                      "Password");
@@ -49,7 +49,7 @@ public sealed partial class TranslationCatalog
         Add("specdrawtab.notice.saved",              "Đã lưu file vào {0} (không thể mở tự động).",                    "Saved the file to {0} (could not open automatically).");
         Add("specdrawtab.notice.deleted",             "Đã xoá v{0} · {1}.",                                            "Deleted v{0} · {1}.");
         Add("specdrawtab.notice.decided",             "Đã ghi nhận quyết định cho v{0}",                              "Recorded the decision for v{0}");
-        Add("specdrawtab.notice.decided.superseded",  " · {0} bản cũ được đánh dấu Thay thế.",                         " · {0} older version(s) marked Superseded.");
+        Add("specdrawtab.notice.decided.superseded",  "· {0} bản cũ được đánh dấu Thay thế.",                         "· {0} older version(s) marked Superseded.");
 
         // Error messages
         Add("specdrawtab.err.connect",                "Không kết nối được máy chủ: {0}",                               "Could not connect to the server: {0}");

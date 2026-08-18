@@ -20,7 +20,7 @@ public sealed partial class TranslationCatalog
         Add("password.error.missing_fields", "Vui lòng điền đầy đủ các trường.",                           "Please fill in all fields.");
         Add("password.error.too_short",   "Mật khẩu mới phải có ít nhất 4 ký tự.",                         "The new password must be at least 4 characters.");
         Add("password.error.mismatch",    "Mật khẩu mới và xác nhận không khớp.",                          "The new password and confirmation do not match.");
-        Add("password.success",           "✓ Đã đổi mật khẩu. Dùng mật khẩu mới cho lần đăng nhập sau.",   "✓ Password changed. Use the new password the next time you sign in.");
+        Add("password.success",           "Đã đổi mật khẩu. Dùng mật khẩu mới cho lần đăng nhập sau.",   "Password changed. Use the new password the next time you sign in.");
         Add("password.error.connect",     "Không thể kết nối tới máy chủ: {0}",                            "Could not connect to the server: {0}");
         Add("password.error.failed",      "Đổi mật khẩu thất bại: {0}",                                    "Password change failed: {0}");
     }

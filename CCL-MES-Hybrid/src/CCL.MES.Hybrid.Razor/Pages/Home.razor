@@ -13,16 +13,15 @@
    Quick Actions. English UI. *@
 <div class="hp-header">
     <div>
-        <h1 class="page-title">@T(_greetingKey), @(_displayName)</h1>
+        <PageHead Title="@($"{T(_greetingKey)}, {_displayName}")" />
         <div class="hp-sub">
             @_now.ToString("dddd, MMMM d, yyyy") · @T("home.company")
             <span class="hp-badge">@_role</span>
         </div>
     </div>
-    <div class="home-clock" aria-label="@T("home.clock.aria")">
-        <div class="home-clock-time">@_now.ToString("h:mm")</div>
-        <div class="home-clock-date">@_now.ToString("tt") · @_now.ToString("HH:mm:ss")</div>
-    </div>
+    @* D6.4 — đồng hồ khổng lồ đã bỏ: top bar đã có ô TIME chạy giây, hai bản
+       còn lệch nhau (bản to hiện "8:33 PM" trong khi top bar hiện 20:33:38).
+       Cùng một thông tin không nên hiện hai lần với hai định dạng. *@
 </div>
 
 <div class="kpi-row">
@@ -75,12 +74,12 @@
             @if (_canNpi)
             {
                 <a class="module-cell" href="/npi/specs">
-                    <div class="module-ico">📋</div>
+                    <div class="module-ico"><Icon Name="clipboard" /></div>
                     <div class="module-name">@T("home.module.spec.name")</div>
                     <div class="module-desc">@T("home.module.spec.desc")</div>
                 </a>
                 <a class="module-cell" href="/npi/workcenters">
-                    <div class="module-ico">🗂️</div>
+                    <div class="module-ico"><Icon Name="folders" /></div>
                     <div class="module-name">@T("home.module.npi.name")</div>
                     <div class="module-desc">@T("home.module.npi.desc")</div>
                 </a>
@@ -88,13 +87,13 @@
             @if (_canRun)
             {
                 <a class="module-cell" href="/workorders">
-                    <div class="module-ico">🏭</div>
+                    <div class="module-ico"><Icon Name="factory" /></div>
                     <div class="module-name">@T("home.module.production.name")</div>
                     <div class="module-desc">@T("home.module.production.desc")</div>
                 </a>
             }
             <a class="module-cell" href="/machines">
-                <div class="module-ico">🖥️</div>
+                <div class="module-ico"><Icon Name="monitor" /></div>
                 <div class="module-name">@T("home.module.machines.name")</div>
                 <div class="module-desc">@T("home.module.machines.desc")</div>
             </a>
@@ -115,12 +114,12 @@
             <a class="qa-cell" href="/npi/specs"><div class="qa-ico">＋</div><div class="qa-lbl">@T("home.qa.newspec")</div></a>
             <a class="qa-cell" href="/npi/specs"><div class="qa-ico">⭱</div><div class="qa-lbl">@T("home.qa.import")</div></a>
         }
-        <a class="qa-cell" href="/machines"><div class="qa-ico">🖥️</div><div class="qa-lbl">@T("home.qa.machines")</div></a>
+        <a class="qa-cell" href="/machines"><div class="qa-ico"><Icon Name="monitor" /></div><div class="qa-lbl">@T("home.qa.machines")</div></a>
         <a class="qa-cell" href="/qms"><div class="qa-ico">✓</div><div class="qa-lbl">@T("home.qa.qcqueue")</div></a>
-        <a class="qa-cell" href="/shop-orders"><div class="qa-ico">🗂️</div><div class="qa-lbl">@T("home.qa.history")</div></a>
+        <a class="qa-cell" href="/shop-orders"><div class="qa-ico"><Icon Name="folders" /></div><div class="qa-lbl">@T("home.qa.history")</div></a>
         @if (_isAdmin)
         {
-            <a class="qa-cell" href="/settings/accounts"><div class="qa-ico">👥</div><div class="qa-lbl">@T("home.qa.accounts")</div></a>
+            <a class="qa-cell" href="/settings/accounts"><div class="qa-ico"><Icon Name="users" /></div><div class="qa-lbl">@T("home.qa.accounts")</div></a>
         }
         <a class="qa-cell" href="/settings/about"><div class="qa-ico">?</div><div class="qa-lbl">@T("home.qa.help")</div></a>
     </div>

@@ -72,7 +72,7 @@ public sealed class HomeTests : TestContext
     }
 
     [Fact]
-    public void Renders_greeting_with_display_name_and_a_live_clock()
+    public void Renders_greeting_with_display_name_and_no_duplicate_clock()
     {
         _session.SetUser("ada", "Admin");
 
@@ -86,8 +86,12 @@ public sealed class HomeTests : TestContext
             || markup.Contains("Chào buổi chiều")
             || markup.Contains("Chào buổi tối"),
             "Greeting must render a time-of-day variant.");
-        // The live clock element is present.
-        Assert.NotEmpty(cut.FindAll(".home-clock-time"));
+        // D6.4 — đồng hồ khổng lồ trên Home ĐÃ BỎ và test này khoá điều đó.
+        // Top bar đã có ô TIME chạy giây; bản trên Home hiện "8:33 PM" trong khi
+        // top bar hiện "20:33:38" — cùng một thông tin, hai định dạng, lệch nhau.
+        // Giờ giấc chỉ được hiện MỘT nơi.
+        Assert.Empty(cut.FindAll(".home-clock-time"));
+        Assert.Empty(cut.FindAll(".home-clock"));
     }
 
     [Fact]

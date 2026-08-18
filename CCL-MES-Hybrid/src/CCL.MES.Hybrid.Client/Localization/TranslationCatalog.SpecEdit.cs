@@ -10,7 +10,7 @@ public sealed partial class TranslationCatalog
         Add("specedit.editableHint",         "— các ô bên dưới có thể chỉnh sửa",             "— cells below are editable");
         Add("specedit.cancel",               "Hủy",                                           "Cancel");
         Add("specedit.saving",               "Đang lưu…",                                     "Saving…");
-        Add("specedit.save",                 "💾 Lưu thay đổi",                               "💾 Save changes");
+        Add("specedit.save",                 "Lưu thay đổi",                               "Save changes");
 
         Add("specedit.error.connect",        "Không kết nối được máy chủ: {0}",               "Could not connect to the server: {0}");
         Add("specedit.removeRow",            "Xóa dòng",                                      "Remove row");

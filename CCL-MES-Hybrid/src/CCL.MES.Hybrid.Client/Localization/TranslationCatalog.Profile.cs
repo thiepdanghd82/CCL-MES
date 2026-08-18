@@ -31,7 +31,7 @@ public sealed partial class TranslationCatalog
         Add("profile.meta.created",      "Tạo lúc",                                    "Created");
         Add("profile.meta.modified",     "Sửa lần cuối",                               "Last modified");
 
-        Add("profile.banner.saved",      "✓ Đã lưu thay đổi.",                         "✓ Changes saved.");
+        Add("profile.banner.saved",      "Đã lưu thay đổi.",                         "Changes saved.");
         Add("profile.error.connect",     "Không thể kết nối tới máy chủ: {0}",         "Could not connect to the server: {0}");
         Add("profile.error.save",        "Lưu thất bại: {0}",                          "Save failed: {0}");
     }

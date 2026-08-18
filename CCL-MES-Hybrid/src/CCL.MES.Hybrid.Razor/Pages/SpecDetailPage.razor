@@ -53,7 +53,7 @@
                     {
                         <button type="button" class="op-btn op-btn-secondary"
                                 disabled="@_busy" @onclick="() => OpenEditAsync()">
-                            📝 @T("specdetail.action.edit")
+                            <Icon Name="edit" /> @T("specdetail.action.edit")
                         </button>
                     }
                     <button type="button" class="op-btn op-btn-secondary"
@@ -73,7 +73,7 @@
                     }
                     <button type="button" class="op-btn op-btn-secondary"
                             disabled="@_busy" @onclick="() => OpenTrashAsync()">
-                        🗑 @T("specdetail.action.trash")
+                        <Icon Name="trash" /> @T("specdetail.action.trash")
                     </button>
                 </div>
             </AuthorizeView>
@@ -261,7 +261,7 @@ else if (_detail is not null && _vm is not null)
         <p class="copy-choice-lead">@T("specdetail.copy.lead")</p>
         <div class="copy-choice-grid">
             <button type="button" class="copy-choice-card" disabled="@_busy" @onclick="UpdateVerAsync">
-                <span class="copy-choice-title">🔁 @T("specdetail.copy.updatever.title")</span>
+                <span class="copy-choice-title"><Icon Name="repeat" /> @T("specdetail.copy.updatever.title")</span>
                 <span class="copy-choice-sub">@T("specdetail.copy.updatever.sub")</span>
             </button>
             <button type="button" class="copy-choice-card copy-choice-card-primary" disabled="@_busy" @onclick="NewCopyAsync">

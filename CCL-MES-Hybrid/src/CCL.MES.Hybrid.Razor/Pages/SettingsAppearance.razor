@@ -20,7 +20,7 @@
 
 <div class="settings-page-header">
     <a class="grid-btn grid-btn-link" href="/settings">@T("common.back.settings")</a>
-    <h1 class="page-title">@T("appearance.title")</h1>
+    <PageHead TitleKey="appearance.title" />
 </div>
 
 <section class="settings-form-card">
@@ -87,12 +87,12 @@
             <span class="appearance-card-sub">@T("appearance.theme.light.sub")</span>
         </div>
         <div class="appearance-card is-disabled" aria-disabled="true">
-            <span class="appearance-card-flag">🌙</span>
+            <span class="appearance-card-flag"><Icon Name="moon" /></span>
             <span class="appearance-card-title">@T("appearance.theme.dark")</span>
             <span class="appearance-card-sub">@T("appearance.theme.dark.sub")</span>
         </div>
         <div class="appearance-card is-disabled" aria-disabled="true">
-            <span class="appearance-card-flag">🖥️</span>
+            <span class="appearance-card-flag"><Icon Name="monitor" /></span>
             <span class="appearance-card-title">@T("appearance.theme.system")</span>
             <span class="appearance-card-sub">@T("appearance.theme.system.sub")</span>
         </div>
@@ -133,8 +133,8 @@
 
     private static readonly DensityOption[] DensityOptions = new[]
     {
-        new DensityOption("office",    "🖥️", "appearance.density.office",    "appearance.density.office.sub"),
-        new DensityOption("shopfloor", "🏭", "appearance.density.shopfloor", "appearance.density.shopfloor.sub"),
+        new DensityOption("office",    "▤", "appearance.density.office",    "appearance.density.office.sub"),
+        new DensityOption("shopfloor", "▥", "appearance.density.shopfloor", "appearance.density.shopfloor.sub"),
     };
 
     private sealed record DensityOption(string Value, string Icon, string TitleKey, string SubKey);

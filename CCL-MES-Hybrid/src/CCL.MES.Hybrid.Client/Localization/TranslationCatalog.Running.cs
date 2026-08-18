@@ -28,7 +28,7 @@ public sealed partial class TranslationCatalog
         Add("running.counter.target",              "Mục tiêu",                                                    "Target");
 
         Add("running.addoutput.title",             "Thêm sản lượng (Đạt)",                                        "Add output (Done)");
-        Add("running.tap.paused.hint",             "Đang tạm dừng — nhấn \"Tiếp tục chạy\" để bật lại các nút.",  "Paused — tap \"Resume running\" to re-enable the buttons.");
+        Add("running.tap.paused.hint",             "Đang tạm dừng — nhấn \"Tiếp tục chạy\"để bật lại các nút.",  "Paused — tap \"Resume running\"to re-enable the buttons.");
 
         Add("running.ng.title",                    "Đánh NG (Loại)",                                              "Reject NG (Reject)");
         Add("running.ng.quantity",                 "Số lượng NG",                                                 "NG quantity");
