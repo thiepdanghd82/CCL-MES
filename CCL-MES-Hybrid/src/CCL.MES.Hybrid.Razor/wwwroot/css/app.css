@@ -7276,8 +7276,8 @@ tr.wc-row:hover { background: var(--c-bg); }
 /* Column proportions (sum ≈ 100%) — Content flexes, ticks stay comfortable. */
 .qclib-col-kebab { width: 2.6%; }
 .qclib-col-id { width: 7%; }
-.qclib-col-content { width: 30%; }
-.qclib-col-tick { width: 3.1%; }
+.qclib-col-content { width: 27%; }
+.qclib-col-tick { width: 3.4%; }
 .qclib-col-sev { width: 6.2%; }
 .qclib-col-def { width: 5.2%; }
 
@@ -7291,7 +7291,7 @@ tr.wc-row:hover { background: var(--c-bg); }
 .qclib-band-print { background: var(--indigo-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
 .qclib-band-cut { background: var(--warn-bg) !important; color: var(--warn-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
 .qclib-band-stage { background: var(--brand-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
-.qclib-tick-h { text-align: center; font-size: clamp(0.72rem, 0.62rem + 0.24vw, 0.9rem); font-weight: 700; color: var(--c-ink-3); padding: 9px 1px; white-space: nowrap; overflow: hidden; }
+.qclib-tick-h { text-align: center; font-size: clamp(0.86rem, 0.74rem + 0.3vw, 1.08rem); font-weight: 700; color: var(--c-ink-2); padding: 10px 1px; white-space: nowrap; overflow: hidden; }
 .qclib-tick-h.qclib-stage-h { background: var(--brand-bg); color: var(--brand-ink); }
 
 /* ── Content columns (widths from colgroup; here only align + padding) ── */
