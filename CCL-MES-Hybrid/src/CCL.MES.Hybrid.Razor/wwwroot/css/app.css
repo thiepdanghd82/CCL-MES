@@ -7264,14 +7264,22 @@ tr.wc-row:hover { background: var(--c-bg); }
    table caps + centres on ultra-wide so Content doesn't over-stretch. */
 .qclib-scroll { overflow-x: auto; border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-card); }
 .qclib-grid {
+    table-layout: fixed;   /* % column widths → fills full width, balanced, no crowding */
     border-collapse: separate; border-spacing: 0; color: var(--c-ink-3);
     width: 100%; min-width: 1180px;
     font-size: clamp(0.86rem, 0.64rem + 0.42vw, 1.12rem);
-    --qclib-tick-w: clamp(46px, 3vw, 78px);
     --qclib-band-h: clamp(30px, 2vw, 46px);
     --qclib-rpad: clamp(8px, 0.55vw, 16px);
 }
 .qclib-grid th, .qclib-grid td { padding: 0; }
+
+/* Column proportions (sum ≈ 100%) — Content flexes, ticks stay comfortable. */
+.qclib-col-kebab { width: 2.6%; }
+.qclib-col-id { width: 7%; }
+.qclib-col-content { width: 30%; }
+.qclib-col-tick { width: 3.1%; }
+.qclib-col-sev { width: 6.2%; }
+.qclib-col-def { width: 5.2%; }
 
 /* ── Banded 2-row header (sticky, offsets synced via --qclib-band-h) ── */
 .qclib-grid thead th {
@@ -7283,16 +7291,16 @@ tr.wc-row:hover { background: var(--c-bg); }
 .qclib-band-print { background: var(--indigo-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
 .qclib-band-cut { background: var(--warn-bg) !important; color: var(--warn-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
 .qclib-band-stage { background: var(--brand-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
-.qclib-tick-h { width: var(--qclib-tick-w); text-align: center; font-size: clamp(0.78rem, 0.68rem + 0.28vw, 0.98rem); font-weight: 700; color: var(--c-ink-3); padding: 9px 2px; white-space: nowrap; }
+.qclib-tick-h { text-align: center; font-size: clamp(0.72rem, 0.62rem + 0.24vw, 0.9rem); font-weight: 700; color: var(--c-ink-3); padding: 9px 1px; white-space: nowrap; overflow: hidden; }
 .qclib-tick-h.qclib-stage-h { background: var(--brand-bg); color: var(--brand-ink); }
 
-/* ── Content columns (fluid) ─────────────────────────────────────────── */
-.qclib-kebab-col { width: clamp(36px, 2.4vw, 50px); text-align: center; }
-.qclib-c-id { width: clamp(92px, 7vw, 150px); text-align: left; padding-left: 12px !important; }
-.qclib-c-content { width: 100%; min-width: clamp(260px, 22vw, 560px); text-align: left; }  /* greedy — absorbs slack so the table always fills full width */
-.qclib-c-sev { width: clamp(104px, 8vw, 150px); text-align: left; }
-.qclib-c-def { width: clamp(118px, 9vw, 170px); text-align: left; }
-.qclib-band th.qclib-c-id, .qclib-band th.qclib-c-content, .qclib-band th.qclib-c-sev, .qclib-band th.qclib-c-def { vertical-align: middle; color: var(--c-ink-2); font-size: clamp(0.64rem, 0.54rem + 0.2vw, 0.8rem); }
+/* ── Content columns (widths from colgroup; here only align + padding) ── */
+.qclib-kebab-col { text-align: center; }
+.qclib-c-id { text-align: left; padding-left: 12px !important; }
+.qclib-c-content { text-align: left; padding-right: 10px; }
+.qclib-c-sev { text-align: left; }
+.qclib-c-def { text-align: left; }
+.qclib-band th.qclib-c-id, .qclib-band th.qclib-c-content, .qclib-band th.qclib-c-sev, .qclib-band th.qclib-c-def { vertical-align: middle; color: var(--c-ink-2); font-size: clamp(0.64rem, 0.54rem + 0.2vw, 0.82rem); }
 
 /* ── Group section row ───────────────────────────────────────────────── */
 .qclib-grouprow td {
@@ -7308,7 +7316,7 @@ tr.wc-row:hover { background: var(--c-bg); }
 .qclib-row:nth-child(even) td { background: var(--c-surface); }
 .qclib-row:hover td { background: var(--brand-bg); }
 .qclib-c-content { line-height: 1.35; }
-.qclib-tick { width: var(--qclib-tick-w); text-align: center; }
+.qclib-tick { text-align: center; }
 .qclib-tick input[type=checkbox] { width: clamp(16px, 1.15vw, 22px); height: clamp(16px, 1.15vw, 22px); accent-color: var(--brand); cursor: pointer; margin: 0; vertical-align: middle; }
 .qclib-tick.qclib-stage { background: color-mix(in srgb, var(--brand-bg) 60%, transparent); }
 .qclib-row:hover td.qclib-stage { background: var(--brand-bg); }
