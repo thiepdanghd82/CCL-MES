@@ -79,6 +79,34 @@ PYP
   fi
 fi
 
+# (D) D6.3 — trang lưới có ColClass() thì PHẢI áp cho CẢ <th> lẫn <td>.
+# Bug đã xảy ra: class chỉ gắn ở <th> nên header căn phải còn số căn trái suốt
+# 5 trang lưới. Kiểm tĩnh rẻ hơn nhiều so với phát hiện bằng mắt.
+RZDIR="$here/../src/CCL.MES.Hybrid.Razor/Pages"
+if [ -d "$RZDIR" ]; then
+  badnum="$(python3 - "$RZDIR" <<'PYN'
+import re,sys,glob,os
+bad=[]
+for f in glob.glob(os.path.join(sys.argv[1],'*.razor')):
+    t=open(f,encoding='utf-8').read()
+    if 'ColClass(' not in t: continue
+    # <td> render ô theo cột mà không mang class nào
+    for m in re.finditer(r'<td>\s*@Render[A-Za-z]*\(row', t):
+        bad.append(os.path.basename(f))
+        break
+print(','.join(sorted(set(bad))))
+PYN
+)"
+  if [ -n "$badnum" ]; then
+    echo "[gate:tokens:FAIL] lưới áp ColClass cho <th> nhưng KHÔNG cho <td>: $badnum"
+    echo "  Hệ quả: header căn phải, số trong ô vẫn căn trái ⇒ không so sánh được theo cột."
+    echo "  Sửa: <td class=\"@ColClass(col.Id)\">…"
+    rc=1
+  else
+    echo "[gate:tokens] cột số áp class cả th+td       = đủ"
+  fi
+fi
+
 for need in '\-\-fs-md' '\-\-fs-base' '\-\-sp-4' '\-\-r-md' '\-\-mo-base' '\-\-focus-ring' '\-\-d-tap' '\-\-d-row-h' '\-\-d-font'; do
   if ! grep -qE "$need\s*:" "$CSS" "$IX"; then
     echo "[gate:tokens:FAIL] thiếu token bắt buộc trong :root → $(echo "$need" | tr -d '\\')"

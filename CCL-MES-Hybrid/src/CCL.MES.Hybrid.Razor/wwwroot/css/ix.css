@@ -785,3 +785,11 @@ h1:focus, h2:focus, .qms-section-title:focus, .qms-module-title:focus {
     box-shadow: none;
 }
 .md-mc-card:hover { transform: none; box-shadow: var(--el-1); }
+
+/* D6.3 — Cột số: căn phải + chữ số đều bề rộng.
+   Hạ tầng đã có sẵn (`ColClass()` trả `grid-col-num`) nhưng class CHỈ được áp
+   cho <th>, không cho <td> — nên header căn phải còn số căn trái. Nay <td> nhận
+   cùng class. Bổ sung tabular-nums: chữ số đều bề rộng thì cột không "nhảy"
+   khi giá trị đổi, và mắt so sánh được theo chiều dọc. */
+.grid-col-num { text-align: right; font-variant-numeric: tabular-nums; }
+.grid-col-num.grid-h { text-align: right; }

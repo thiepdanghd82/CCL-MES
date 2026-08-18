@@ -195,9 +195,13 @@ nơi nào dùng** — offline-first mới là ý định, chưa là năng lực.
 | ✅ D6.8 | Viền trái màu ở card máy | Hairline (trạng thái đã có pill ở góc) |
 | ✅ D6.9 | Focus ring xanh quanh h1 module QMS | Khử chung cho mọi heading nhận focus khi điều hướng SPA |
 
-**Còn lại duy nhất:** D6.3 — cột số căn phải ở lưới NPI. Cần thêm `class="num"` ở
-markup từng cột; CSS không tự biết cột nào là số. Để lại vì nó đụng 4 file grid và
-nên đi cùng một PR "lưới dữ liệu" có test.
+| ✅ D6.3 | Cột số căn trái ở lưới NPI | Hạ tầng đã có sẵn (`ColClass()` trả `grid-col-num`) nhưng class **chỉ áp cho `<th>`, không cho `<td>`** — đó là toàn bộ nguyên nhân. Nay `<td>` nhận cùng class + `tabular-nums`. Gate mới bắt tĩnh nếu ai tách lại |
+
+**Nợ còn treo (chưa chứng minh được nguyên nhân):** sau khi sửa, cột **QUANTITY**
+căn phải đúng nhưng **SCRAP FACTOR vẫn căn trái**, dù cả hai đi qua **cùng một**
+biểu thức `ColClass(col.Id)` và cùng một nhánh `switch`. Chưa có giải thích PROVEN
+nên KHÔNG vá mò — cần một lượt kiểm DOM thật (không dựng được từ ngoài WebView,
+phải mở Web Inspector trên máy) rồi mới sửa. Ghi ở đây thay vì im lặng.
 
 ## D3/D4 — Component contract + tách `app.css`
 
