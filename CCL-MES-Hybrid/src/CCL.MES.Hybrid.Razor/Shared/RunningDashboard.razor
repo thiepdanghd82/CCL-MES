@@ -97,7 +97,7 @@
             <div class="rs-head-wo">
                 <span class="rs-head-label">WO</span>
                 <span class="rs-head-wo-no">@_view.WoNo</span>
-                <span class="rs-head-phase @PhaseCssClass()">@_view.MesPhase</span>
+                <StatusPill Phase="@_view.MesPhase" TestId="running-wo-phase" />
             </div>
             @if (_view.MesPhase == "PAUSED" && _view.ActivePauseStartAt is not null)
             {
@@ -386,14 +386,6 @@
     };
 
     private sealed record DeferredPhase(string TitleKey, string BodyKey, string HintKey, string HeadPhaseCss);
-
-    private string PhaseCssClass() => _view?.MesPhase switch
-    {
-        "RUNNING"        => "rs-phase-running",
-        "PAUSED"         => "rs-phase-paused",
-        "IPQC_APPROVED"  => "rs-phase-ipqc",
-        _                => "rs-phase-other",
-    };
 
     private bool IsNgValid() =>
         _ngAmount > 0

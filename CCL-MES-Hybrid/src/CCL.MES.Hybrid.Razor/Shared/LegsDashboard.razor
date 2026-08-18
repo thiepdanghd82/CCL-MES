@@ -81,7 +81,7 @@
                                     {
                                         <span class="legs-terminal" title="@T("legs.terminal.title")">@T("legs.terminal")</span>
                                     }
-                                    <span class="legs-phase-chip @LegPhaseCss(leg.LegPhase)" data-testid="leg-phase-@leg.Sequence">@LegPhaseLabel(leg.LegPhase)</span>
+                                    <StatusPill Phase="@leg.LegPhase" TestId="@($"leg-phase-{leg.Sequence}")" />
                                 </div>
 
                                 <div class="legs-stepper" aria-hidden="true">
@@ -483,7 +483,6 @@
     };
 
     private static string LegKindCss(string kind) => "legs-kind-" + kind.ToLowerInvariant().Replace("_", "-");
-    private static string LegPhaseCss(string phase) => "legs-ph-" + phase.ToLowerInvariant();
 
     // ── P11-3 visual-DAG helpers (presentation only — no contract change) ──
 
