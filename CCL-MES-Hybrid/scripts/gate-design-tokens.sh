@@ -16,7 +16,14 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-BASELINE_RAW_FS=527   # đo 2026-08-18, trước khi bắt đầu chuyển dần sang var(--fs-*)
+# Đo lại sau khi chuẩn hoá typography: 527 → 38.
+# 38 còn lại là CÓ CHỦ ĐÍCH và không nên token-hoá:
+#   24 × clamp()  fluid theo container (KPI card, login hero) — thang cố định
+#                 không diễn đạt được ý này
+#   11 × pt       print CSS, L39 quản (on-screen == bản in, đổi là phá hợp đồng)
+#    2 × em       tương đối theo cha — đổi sang rem là đổi NGHĨA
+#    1 × inherit
+BASELINE_RAW_FS=38
 
 here="$(cd "$(dirname "$0")" && pwd)"
 CSSDIR="$here/../src/CCL.MES.Hybrid.Razor/wwwroot/css"
@@ -107,7 +114,32 @@ PYN
   fi
 fi
 
-for need in '\-\-fs-md' '\-\-fs-base' '\-\-sp-4' '\-\-r-md' '\-\-mo-base' '\-\-focus-ring' '\-\-d-tap' '\-\-d-row-h' '\-\-d-font'; do
+# (E) Họ chữ + độ đậm phải qua token — hard-fail 0.
+# Trước chuẩn hoá: 6 stack monospace KHÁC NHAU cho cùng một việc (mã part / mã WO
+# là thứ phải đọc chính xác từng ký tự, sáu stack = sáu kết quả render), và 8 độ
+# đậm 300→900 trong khi font hệ thống không có đủ 8 nét thật ⇒ trình duyệt tổng
+# hợp nét giả, 700 với 800 thường ra y hệt.
+rawtypo="$(python3 - "$CSS" "$IX" <<'PYE'
+import re,sys
+fam=w=0
+for p in sys.argv[1:]:
+    s=open(p,encoding='utf-8').read()
+    fam+=len([v for v in re.findall(r'font-family\s*:\s*([^;}\n]+)',s)
+              if 'var(' not in v and v.strip()!='inherit'])
+    w  +=len([v for v in re.findall(r'font-weight\s*:\s*([^;}\n]+)',s) if 'var(' not in v])
+print(f'{fam} {w}')
+PYE
+)"
+rawfam="${rawtypo% *}"; rawwt="${rawtypo#* }"
+echo "[gate:tokens] font-family không qua token = $rawfam (bắt buộc 0)"
+echo "[gate:tokens] font-weight không qua token = $rawwt (bắt buộc 0)"
+if [ "$rawfam" -gt 0 ] || [ "$rawwt" -gt 0 ]; then
+  echo "[gate:tokens:FAIL] họ chữ / độ đậm viết thẳng thay vì qua token."
+  echo "  Dùng var(--font-sans) · var(--font-mono) · var(--fw-regular|medium|semibold|bold)."
+  rc=1
+fi
+
+for need in '\-\-fs-2xs' '\-\-fs-3xl' '\-\-font-sans' '\-\-font-mono' '\-\-fw-semibold' '\-\-fs-md' '\-\-fs-base' '\-\-sp-4' '\-\-r-md' '\-\-mo-base' '\-\-focus-ring' '\-\-d-tap' '\-\-d-row-h' '\-\-d-font'; do
   if ! grep -qE "$need\s*:" "$CSS" "$IX"; then
     echo "[gate:tokens:FAIL] thiếu token bắt buộc trong :root → $(echo "$need" | tr -d '\\')"
     rc=1

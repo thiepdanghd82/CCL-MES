@@ -114,7 +114,7 @@
     margin: 0;
     border-bottom: var(--ix-hairline) solid var(--ix-chrome-line);
     font-size: var(--fs-md);
-    font-weight: 700;
+    font-weight: var(--fw-bold);
     letter-spacing: .06em;
     color: var(--ix-chrome-ink);
     white-space: nowrap;
@@ -130,7 +130,7 @@
     background: var(--accent);
     color: var(--ix-chrome);
     font-size: var(--fs-sm);
-    font-weight: 800;
+    font-weight: var(--fw-bold);
 }
 
 .app-nav nav { padding: var(--sp-2) var(--sp-2) var(--sp-4); overflow-y: auto; }
@@ -138,7 +138,7 @@
 /* Nhãn nhóm — nhỏ, hoa, thưa chữ. Phân cấp bằng cỡ + khoảng trắng. */
 .app-nav-section {
     font-size: var(--fs-xs);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     letter-spacing: .09em;
     text-transform: uppercase;
     color: var(--ix-chrome-mut);
@@ -156,7 +156,7 @@
     height: auto;
     border-radius: var(--r-sm);
     font-size: var(--fs-md);
-    font-weight: 500;
+    font-weight: var(--fw-medium);
     color: var(--ix-chrome-mut);
     transition: background var(--mo-fast) var(--ease-std), color var(--mo-fast) var(--ease-std);
 }
@@ -164,7 +164,7 @@
 .app-nav-link.active {
     background: var(--ix-chrome-2);
     color: var(--ix-chrome-ink);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
 }
 .app-nav-link.active::before {
     content: "";
@@ -230,7 +230,7 @@
 .ix-page-title {
     margin: 0;
     font-size: var(--fs-xl);
-    font-weight: 650;
+    font-weight: var(--fw-semibold);
     letter-spacing: -.01em;
     color: var(--ix-ink);
 }
@@ -264,14 +264,14 @@
 }
 .ix-tile-label, .kpi-label {
     font-size: var(--fs-xs);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     letter-spacing: .07em;
     text-transform: uppercase;
     color: var(--ix-ink-mut);
 }
 .ix-tile-value, .home-kpi-num {
     font-size: var(--fs-2xl);
-    font-weight: 650;
+    font-weight: var(--fw-semibold);
     line-height: 1.1;
     color: var(--ix-ink);
     font-variant-numeric: tabular-nums;
@@ -304,7 +304,7 @@
     background: var(--ix-idle-tint);
     color: var(--ix-idle-ink);
     font-size: var(--fs-xs);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     letter-spacing: .02em;
     white-space: nowrap;
     line-height: 1.6;
@@ -336,7 +336,7 @@
     border-bottom: var(--ix-hairline) solid var(--ix-line);
     background: var(--ix-surface);
 }
-.ix-toolbar-title { font-size: var(--fs-md); font-weight: 650; color: var(--ix-ink); }
+.ix-toolbar-title { font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ix-ink); }
 .ix-toolbar-count { font-size: var(--fs-sm); color: var(--ix-ink-mut); font-variant-numeric: tabular-nums; }
 .ix-toolbar-spacer { flex: 1; }
 
@@ -353,7 +353,7 @@
     height: var(--d-row-h);
     text-align: left;
     font-size: var(--fs-xs);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--ix-ink-mut);
@@ -369,7 +369,7 @@
 .ix-grid tbody tr:hover td { background: var(--ix-accent-tint); }
 .ix-grid tbody tr[aria-selected="true"] td { background: var(--ix-accent-tint); }
 .ix-grid .num { text-align: right; font-variant-numeric: tabular-nums; }
-.ix-grid .strong { font-weight: 600; color: var(--ix-ink); }
+.ix-grid .strong { font-weight: var(--fw-semibold); color: var(--ix-ink); }
 .ix-grid-scroll { max-height: 100%; overflow: auto; }
 
 /* ═══ 7. NÚT ══════════════════════════════════════════════════════════════
@@ -385,7 +385,7 @@
     border-radius: var(--r-sm);
     border: var(--ix-hairline) solid transparent;
     font-size: var(--fs-md);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     cursor: pointer;
     transition: background var(--mo-fast) var(--ease-std), border-color var(--mo-fast) var(--ease-std);
 }
@@ -445,7 +445,7 @@
     padding: 0 var(--d-pad-x);
     height: var(--d-row-h);
     font-size: var(--fs-xs);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--ix-ink-mut);
@@ -493,7 +493,7 @@
     padding: var(--sp-3) var(--sp-4);
     border-bottom: var(--ix-hairline) solid var(--ix-line);
     font-size: var(--fs-md);
-    font-weight: 650;
+    font-weight: var(--fw-semibold);
     color: var(--ix-ink);
 }
 .panel-body { padding: var(--sp-4); }
@@ -505,7 +505,7 @@
     display: block;
     margin: 0 0 var(--sp-4);
     font-size: var(--fs-xl);
-    font-weight: 650;
+    font-weight: var(--fw-semibold);
     letter-spacing: -.01em;
     color: var(--ix-ink);
 }
@@ -578,7 +578,7 @@
     background: var(--ix-surface);
     color: var(--ix-ink);
     font-size: var(--d-font);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     box-shadow: none;
     cursor: pointer;
     transition: background var(--mo-fast) var(--ease-std), border-color var(--mo-fast) var(--ease-std);
@@ -622,7 +622,7 @@
     background: var(--ix-surface);
     color: var(--ix-ink-2);
     font-size: var(--fs-sm);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     cursor: pointer;
 }
 .md-chip:hover, .ix-chip:hover { background: var(--ix-surface-2); border-color: var(--ix-ink-mut); }
@@ -642,7 +642,7 @@
     background: var(--ix-idle-tint);
     color: var(--ix-idle-ink);
     font-size: var(--fs-xs);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     line-height: 1.6;
     white-space: nowrap;
     cursor: default;
@@ -701,10 +701,10 @@
 /* Thanh accent cũ vẽ bằng <span class="nav-bar"> — nay do ::before lo */
 .app-nav-link-2line .nav-bar { display: none; }
 .app-nav-link-2line .nav-2line-body { display: flex; flex-direction: column; gap: 0; min-width: 0; }
-.app-nav-link-2line .nav-title { font-size: var(--fs-md); font-weight: 500; letter-spacing: 0; }
-.app-nav-link-2line.active .nav-title { font-weight: 600; }
+.app-nav-link-2line .nav-title { font-size: var(--fs-md); font-weight: var(--fw-medium); letter-spacing: 0; }
+.app-nav-link-2line.active .nav-title { font-weight: var(--fw-semibold); }
 .app-nav-link-2line .nav-sub {
-    font-size: var(--fs-xs); font-weight: 500; letter-spacing: .04em;
+    font-size: var(--fs-xs); font-weight: var(--fw-medium); letter-spacing: .04em;
     color: var(--ix-chrome-mut); opacity: .72;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -717,7 +717,7 @@
 .ix-page-head-main { min-width: 0; }
 .ix-page-eyebrow {
     font-size: var(--fs-xs);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     letter-spacing: .16em;
     text-transform: uppercase;
     color: var(--ix-ink-mut);
@@ -766,7 +766,7 @@ h1:focus, h2:focus, .qms-section-title:focus, .qms-module-title:focus {
     background: var(--ix-idle-tint) !important;
     color: var(--ix-idle-ink) !important;
     border: var(--ix-hairline) solid var(--ix-idle-line);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     letter-spacing: .04em;
 }
 
