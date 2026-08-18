@@ -21,5 +21,31 @@ public sealed partial class TranslationCatalog
         Add("qclib.col.group",           "Nhóm",                                          "Group");
         Add("qclib.col.content",         "Nội dung",                                      "Content");
         Add("qclib.col.acceptance",      "Chấp nhận",                                     "Acceptance");
+
+        // Smart platform — sub-tab, toolbar, row menu, info, add, flash.
+        Add("qclib.line.label",          "Label",                                         "Label");
+        Add("qclib.line.silk",           "Silk Screen",                                   "Silk Screen");
+        Add("qclib.add",                 "Thêm mới",                                      "Add new");
+        Add("qclib.import",              "Nhập (xlsx/csv)",                               "Import (xlsx/csv)");
+        Add("qclib.export",              "Xuất CSV",                                       "Export CSV");
+        Add("qclib.menu.actions",        "Hành động",                                     "Actions");
+        Add("qclib.menu.info",           "Chi tiết",                                      "Info");
+        Add("qclib.menu.copy",           "Sao chép",                                      "Copy");
+        Add("qclib.menu.delete",         "Xoá",                                           "Delete");
+        Add("qclib.info.title",          "Chi tiết hạng mục",                             "Item detail");
+        Add("qclib.info.acceptance",     "Tiêu chuẩn chấp nhận",                          "Acceptance criteria");
+        Add("qclib.info.methods",        "Áp dụng cho",                                   "Applies to");
+        Add("qclib.info.spec",           "Thông số kiểm",                                 "Inspection spec");
+        Add("qclib.info.condition",      "Điều kiện",                                      "Condition");
+        Add("qclib.band.print",          "IN · PRINT",                                    "PRINT");
+        Add("qclib.band.cut",            "CẮT · GIA CÔNG",                                "CUT · FINISH");
+        Add("qclib.band.stage",          "CÔNG ĐOẠN",                                     "STAGE");
+        Add("qclib.add.title",           "Thêm hạng mục kiểm",                            "Add check item");
+        Add("qclib.add.save",            "Lưu",                                           "Save");
+        Add("qclib.flash.deleted",       "Đã xoá {0}.",                                   "Deleted {0}.");
+        Add("qclib.flash.added",         "Đã lưu {0}.",                                   "Saved {0}.");
+        Add("qclib.flash.imported",      "Import xong: +{0} mới · {1} cập nhật · tổng {2}.",
+                                                                                          "Imported: +{0} new · {1} updated · {2} total.");
+        Add("qclib.flash.exported",      "Đã xuất {0}.",                                  "Exported {0}.");
     }
 }

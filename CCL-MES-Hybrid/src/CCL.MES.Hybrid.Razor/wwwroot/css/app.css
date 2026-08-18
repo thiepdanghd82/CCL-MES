@@ -7238,3 +7238,125 @@ tr.wc-row:hover { background: var(--c-bg); }
     .qms-oqc-lotrow { grid-template-columns: 1fr; }
     .qms-trace-grid { grid-template-columns: repeat(2, 1fr); gap: 16px 0; }
 }
+
+/* ═══ QC Library smart platform — sub-tabs + tick-box matrix grid ═══════
+   Redesign: ONE table per line, 2-row banded header (PRINT · CUT/FINISH ·
+   STAGE), group section rows, zebra rows, balanced fixed columns, readable
+   horizontal headers (no rotation). Token-only (L37). */
+.qclib-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0 8px; }
+.qclib-toolbar-spacer { flex: 1 1 auto; }
+.qclib-tabs { display: inline-flex; gap: 4px; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: 9px; padding: 4px; }
+.qclib-tab {
+    display: inline-flex; align-items: center; gap: 8px; padding: 8px 18px;
+    background: transparent; border: 0; border-radius: 7px; cursor: pointer;
+    font-family: inherit; font-size: 0.92rem; font-weight: 700; color: var(--c-muted);
+}
+.qclib-tab:hover { color: var(--c-ink-2); }
+.qclib-tab-on { background: var(--c-card); color: var(--brand-ink); box-shadow: 0 1px 3px rgba(15,23,42,.1); }
+.qclib-tab-count { font-size: 0.74rem; font-weight: 700; color: var(--c-soft); }
+.qclib-tab-on .qclib-tab-count { color: var(--brand); }
+
+.qclib-flash { color: var(--ok-ink); background: var(--ok-bg); border-radius: 7px; padding: 9px 14px; }
+
+/* ── Table shell — fluid scale so it grows on big / hi-DPI screens ────
+   Everything (font, columns, checkboxes, padding, header height) sizes
+   with clamp(vw) → auto-adapts from laptop up to a wide monitor. The
+   table caps + centres on ultra-wide so Content doesn't over-stretch. */
+.qclib-scroll { overflow-x: auto; border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-card); }
+.qclib-grid {
+    table-layout: fixed;   /* % column widths → fills full width, balanced, no crowding */
+    border-collapse: separate; border-spacing: 0; color: var(--c-ink-3);
+    width: 100%; min-width: 1180px;
+    font-size: clamp(0.86rem, 0.64rem + 0.42vw, 1.12rem);
+    --qclib-band-h: clamp(30px, 2vw, 46px);
+    --qclib-rpad: clamp(8px, 0.55vw, 16px);
+}
+.qclib-grid th, .qclib-grid td { padding: 0; }
+
+/* Column proportions (sum ≈ 100%) — Content flexes, ticks stay comfortable. */
+.qclib-col-kebab { width: 2.6%; }
+.qclib-col-id { width: 7%; }
+.qclib-col-content { width: 27%; }
+.qclib-col-tick { width: 3.4%; }
+.qclib-col-sev { width: 6.2%; }
+.qclib-col-def { width: 5.2%; }
+
+/* ── Banded 2-row header (sticky, offsets synced via --qclib-band-h) ── */
+.qclib-grid thead th {
+    position: sticky; background: var(--c-surface); font-weight: 700;
+    border-bottom: 1px solid var(--c-line); z-index: 2;
+}
+.qclib-band th { top: 0; height: var(--qclib-band-h); font-size: clamp(0.68rem, 0.58rem + 0.22vw, 0.9rem); font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-muted); padding: 0 10px; }
+.qclib-cols th { top: var(--qclib-band-h); z-index: 1; }
+.qclib-band-print { background: var(--indigo-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
+.qclib-band-cut { background: var(--warn-bg) !important; color: var(--warn-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
+.qclib-band-stage { background: var(--brand-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
+.qclib-tick-h { text-align: center; font-size: clamp(0.86rem, 0.74rem + 0.3vw, 1.08rem); font-weight: 700; color: var(--c-ink-2); padding: 10px 1px; white-space: nowrap; overflow: hidden; }
+.qclib-tick-h.qclib-stage-h { background: var(--brand-bg); color: var(--brand-ink); }
+
+/* ── Content columns (widths from colgroup; here only align + padding) ── */
+.qclib-kebab-col { text-align: center; }
+.qclib-c-id { text-align: left; padding-left: 12px !important; }
+.qclib-c-content { text-align: left; padding-right: 10px; }
+.qclib-c-sev { text-align: left; }
+.qclib-c-def { text-align: left; }
+.qclib-band th.qclib-c-id, .qclib-band th.qclib-c-content, .qclib-band th.qclib-c-sev, .qclib-band th.qclib-c-def { vertical-align: middle; color: var(--c-ink-2); font-size: clamp(0.64rem, 0.54rem + 0.2vw, 0.82rem); }
+
+/* ── Group section row ───────────────────────────────────────────────── */
+.qclib-grouprow td {
+    background: var(--c-surface); font-weight: 800; color: var(--c-ink);
+    font-size: clamp(0.82rem, 0.7rem + 0.24vw, 1rem); padding: var(--qclib-rpad) 12px;
+    border-bottom: 1px solid var(--c-line); border-top: 2px solid var(--c-line);
+    position: sticky; z-index: 0;
+}
+.qclib-group-count { font-weight: 600; color: var(--c-muted); }
+
+/* ── Data rows ───────────────────────────────────────────────────────── */
+.qclib-row td { border-bottom: 1px solid var(--c-line-2); padding: var(--qclib-rpad) 8px; vertical-align: middle; }
+.qclib-row:nth-child(even) td { background: var(--c-surface); }
+.qclib-row:hover td { background: var(--brand-bg); }
+.qclib-c-content { line-height: 1.35; }
+.qclib-tick { text-align: center; }
+.qclib-tick input[type=checkbox] { width: clamp(16px, 1.15vw, 22px); height: clamp(16px, 1.15vw, 22px); accent-color: var(--brand); cursor: pointer; margin: 0; vertical-align: middle; }
+.qclib-tick.qclib-stage { background: color-mix(in srgb, var(--brand-bg) 60%, transparent); }
+.qclib-row:hover td.qclib-stage { background: var(--brand-bg); }
+
+/* ── Severity pill ───────────────────────────────────────────────────── */
+.qclib-sevpill { display: inline-block; font-size: 0.8em; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.qclib-sev-crit { background: var(--ng-bg); color: var(--ng-ink); }
+.qclib-sev-major { background: var(--warn-bg); color: var(--warn-ink); }
+.qclib-sev-minor { background: var(--c-surface); color: var(--c-muted); }
+.qclib-sev-none { color: var(--c-muted); }
+
+/* ── Detail showcard (clean, sectioned, larger + fluid type) ──────────── */
+.qclib-detail {
+    display: flex; flex-direction: column; gap: clamp(18px, 1.6vw, 30px);
+    min-width: min(560px, 84vw); max-width: 760px;
+    padding: clamp(6px, 0.8vw, 16px) clamp(4px, 0.6vw, 14px);
+    font-size: clamp(0.95rem, 0.82rem + 0.35vw, 1.18rem);
+}
+.qclib-detail-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding-bottom: clamp(12px, 1vw, 20px); border-bottom: 2px solid var(--c-line); }
+.qclib-detail-id { font-size: clamp(1.4rem, 1.1rem + 0.7vw, 2rem); font-weight: 800; color: var(--c-ink); line-height: 1.1; }
+.qclib-detail-sub { font-size: clamp(0.8rem, 0.7rem + 0.2vw, 0.95rem); letter-spacing: 0.06em; text-transform: uppercase; color: var(--c-muted); margin-top: 4px; }
+.qclib-detail .qclib-sevpill { font-size: clamp(0.82rem, 0.72rem + 0.2vw, 1rem); padding: 4px 12px; }
+.qclib-detail-sec h4 { margin: 0 0 8px; font-size: clamp(0.72rem, 0.62rem + 0.2vw, 0.86rem); font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; color: var(--c-muted); }
+.qclib-detail-vi { margin: 0; font-size: clamp(1.02rem, 0.88rem + 0.4vw, 1.32rem); color: var(--c-ink); font-weight: 700; line-height: 1.4; }
+.qclib-detail-en { margin: 4px 0 0; font-size: clamp(0.9rem, 0.8rem + 0.3vw, 1.12rem); color: var(--c-muted); font-style: italic; }
+.qclib-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.qclib-chip { display: inline-block; font-size: clamp(0.86rem, 0.76rem + 0.25vw, 1.06rem); font-weight: 600; padding: 6px 14px; border-radius: 8px; }
+.qclib-chip-method { background: var(--indigo-bg); color: var(--brand-ink); }
+.qclib-chip-stage { background: var(--brand); color: var(--c-card); }
+.qclib-meta2 { display: grid; grid-template-columns: max-content 1fr; gap: clamp(8px, 0.9vw, 15px) clamp(20px, 2.4vw, 40px); margin: 0; font-size: clamp(0.95rem, 0.84rem + 0.32vw, 1.18rem); }
+.qclib-meta2 dt { font-weight: 700; color: var(--c-muted); }
+.qclib-meta2 dd { margin: 0; color: var(--c-ink-2); }
+
+/* ── Add-new form ────────────────────────────────────────────────────── */
+.qclib-form { display: flex; flex-direction: column; gap: 12px; min-width: min(560px, 80vw); }
+.qclib-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; font-weight: 600; color: var(--c-muted); }
+.qclib-form-ticks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 12px; padding: 8px; background: var(--c-surface); border-radius: 8px; }
+.qclib-form-tick { flex-direction: row !important; align-items: center; gap: 6px; font-weight: 500; color: var(--c-ink-3); }
+.qclib-form-tick input { accent-color: var(--brand); }
+.grid-btn-primary { background: var(--brand); color: var(--c-card); border-color: var(--brand); }
+.grid-btn-primary:hover { background: var(--brand-2); }
+
+@container (max-width: 900px) { .qclib-form-ticks { grid-template-columns: repeat(2, 1fr); } }

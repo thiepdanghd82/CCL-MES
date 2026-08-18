@@ -785,6 +785,43 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<List<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>>(resp, ct);
     }
 
+    public async Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> UpsertCheckLibraryItemAsync(
+        string itemId, CCL.MES.Shared.CheckLibrary.CheckLibraryUpsertDto dto, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Put,
+            $"/{ApiVersion.Prefix}/check-item-library/{Uri.EscapeDataString(itemId)}")
+        { Content = JsonContent.Create(dto) };
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>(resp, ct);
+    }
+
+    public async Task DeleteCheckLibraryItemAsync(string itemId, CancellationToken ct = default)
+    {
+        using var resp = await _http.DeleteAsync(
+            $"/{ApiVersion.Prefix}/check-item-library/{Uri.EscapeDataString(itemId)}", ct);
+        if (!resp.IsSuccessStatusCode) await ThrowOnNonSuccess(resp, ct);
+    }
+
+    public async Task<CCL.MES.Shared.CheckLibrary.CheckLibraryImportResult> ImportCheckLibraryAsync(
+        string fileName, byte[] content, CancellationToken ct = default)
+    {
+        using var form = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(content);
+        var mime = fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase)
+            ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv";
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(mime);
+        form.Add(fileContent, "file", fileName);
+        using var resp = await _http.PostAsync($"/{ApiVersion.Prefix}/check-item-library/import", form, ct);
+        return await ReadAsAsync<CCL.MES.Shared.CheckLibrary.CheckLibraryImportResult>(resp, ct);
+    }
+
+    public Task<long> DownloadCheckLibraryExportAsync(string? line, string destinationFilePath, CancellationToken ct = default)
+    {
+        var url = $"/{ApiVersion.Prefix}/check-item-library/export";
+        if (!string.IsNullOrWhiteSpace(line)) url += $"?line={Uri.EscapeDataString(line)}";
+        return StreamToFileAsync(url, destinationFilePath, ct);
+    }
+
     private Task<PrepressSetResponse> SendPrepressPutAsync(
         string path, string ifMatchETag, object req, CancellationToken ct)
         => SendPrepressWriteAsync(HttpMethod.Put, path, ifMatchETag, req, ct);

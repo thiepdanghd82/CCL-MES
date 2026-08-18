@@ -2,13 +2,18 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin,Supervisor,Engineer,QC")]
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.Files
 @using CCL.MES.Shared.CheckLibrary
 @inject ICclApiClient Api
+@inject IAuthSession Session
+@inject IFilePickerService FilePicker
+@inject IFileSaver FileSaver
 
 @*
-    Phương án C — Bước 6. Trình duyệt THƯ VIỆN hạng mục kiểm (read-only).
-    Master data dùng cho auto-sync (Bước 4). Sửa qua import idempotent
-    (tools/import_qc_library.py) — không sửa tại đây (quyết định #4).
+    Smart platform — thư viện hạng mục kiểm (re-model v5). SUB-TAB theo Line
+    (Label / Silk Screen), nhóm theo Group (A/B/C/D), grid 16 cột tick-box
+    sửa được (PUT lưu từng ô), Import/Export/Add + right-click menu (L35).
+    Sửa master data (Admin/Supervisor/QC); Engineer chỉ xem (RBAC-by-omission).
 *@
 
 <PageTitle>@T("qclib.pagetitle")</PageTitle>
@@ -16,26 +21,39 @@
 <h1 class="page-title">@T("qclib.heading")</h1>
 <p class="grid-subtitle">@T("qclib.subtitle")</p>
 
-<div class="grid-toolbar">
-    <label>@T("qclib.filter.line")</label>
-    <select class="grid-search" value="@_line" @onchange="OnLineChanged" data-testid="qclib-line">
-        <option value="">@T("qclib.filter.all")</option>
-        @foreach (var l in _lines)
+<div class="qclib-toolbar">
+    <div class="qclib-tabs" role="tablist" data-testid="qclib-subtabs">
+        @foreach (var ln in Lines)
         {
-            <option value="@l.ProcessLine">@l.ProcessLine (@l.Count)</option>
+            var l = ln;
+            <button type="button" role="tab"
+                    class="qclib-tab @(_line == l ? "qclib-tab-on" : "")"
+                    data-testid="@($"qclib-tab-{l.ToLowerInvariant()}")"
+                    aria-selected="@(_line == l ? "true" : "false")"
+                    @onclick="() => SelectLine(l)">
+                @T($"qclib.line.{l.ToLowerInvariant()}") <span class="qclib-tab-count">@CountFor(l)</span>
+            </button>
         }
-    </select>
+    </div>
+    <div class="qclib-toolbar-spacer"></div>
     <input type="search" class="grid-search" placeholder="@T("qclib.search.placeholder")"
            value="@_q" @oninput="@(e => _q = e.Value?.ToString() ?? "")" @onkeyup="HandleKey"
            data-testid="qclib-search" />
-    <button type="button" class="grid-btn" @onclick="ReloadAsync" disabled="@_loading">@T("qclib.reload")</button>
+    @if (_canEdit)
+    {
+        <button type="button" class="grid-btn" @onclick="OpenAdd" data-testid="qclib-add">＋ @T("qclib.add")</button>
+        <button type="button" class="grid-btn" @onclick="ImportAsync" data-testid="qclib-import" disabled="@_busy">@T("qclib.import")</button>
+    }
+    <button type="button" class="grid-btn" @onclick="ExportAsync" data-testid="qclib-export" disabled="@_busy">@T("qclib.export")</button>
 </div>
 
+@if (_flash is not null)
+{
+    <div class="grid-status qclib-flash" data-testid="qclib-flash">@_flash</div>
+}
 @if (_error is not null)
 {
-    <div class="grid-error" role="alert" data-testid="qclib-error">
-        <strong>@T("qclib.error.load")</strong> <div>@_error</div>
-    </div>
+    <div class="grid-error" role="alert" data-testid="qclib-error"><strong>@T("qclib.error.load")</strong> <div>@_error</div></div>
 }
 else if (_loading && _items is null)
 {
@@ -43,82 +61,416 @@ else if (_loading && _items is null)
 }
 else if (_items is not null)
 {
-    <p class="grid-status" data-testid="qclib-count">@T("qclib.count", _items.Count)</p>
-    <div class="grid-scroll">
-        <table class="grid grid-sticky">
+    <p class="grid-status" data-testid="qclib-count">@T("qclib.count", Visible.Count)</p>
+
+    <div class="grid-scroll qclib-scroll">
+        <table class="qclib-grid" data-testid="qclib-grid">
+            <colgroup>
+                @if (_canEdit) { <col class="qclib-col-kebab" /> }
+                <col class="qclib-col-id" />
+                <col class="qclib-col-content" />
+                @foreach (var c in Cols)
+                {
+                    <col class="qclib-col-tick @(c.Band == Band.Stage ? "qclib-col-stage" : "")" />
+                }
+                <col class="qclib-col-sev" />
+                <col class="qclib-col-def" />
+            </colgroup>
             <thead>
-                <tr>
-                    <th class="grid-h">@T("qclib.col.line")</th>
-                    <th class="grid-h">ItemId</th>
-                    <th class="grid-h">@T("qclib.col.group")</th>
-                    <th class="grid-h">@T("qclib.col.content")</th>
-                    <th class="grid-h">@T("qclib.col.acceptance")</th>
-                    <th class="grid-h">Severity</th>
-                    <th class="grid-h">Defect</th>
+                <tr class="qclib-band">
+                    @if (_canEdit) { <th class="qclib-kebab-col" rowspan="2"></th> }
+                    <th class="qclib-c-id" rowspan="2">ItemId</th>
+                    <th class="qclib-c-content" rowspan="2">@T("qclib.col.content")</th>
+                    <th class="qclib-band-print" colspan="@PrintCount">@T("qclib.band.print")</th>
+                    <th class="qclib-band-cut" colspan="@CutCount">@T("qclib.band.cut")</th>
+                    <th class="qclib-band-stage" colspan="3">@T("qclib.band.stage")</th>
+                    <th class="qclib-c-sev" rowspan="2">Severity</th>
+                    <th class="qclib-c-def" rowspan="2">Defect</th>
+                </tr>
+                <tr class="qclib-cols">
+                    @foreach (var c in Cols)
+                    {
+                        <th class="qclib-tick-h @(c.Band == Band.Stage ? "qclib-stage-h" : "")" title="@c.Full">@c.Head</th>
+                    }
                 </tr>
             </thead>
             <tbody>
-                @foreach (var it in _items)
+                @foreach (var grp in Visible.GroupBy(i => i.GroupLabel).OrderBy(g => g.Key, StringComparer.Ordinal))
                 {
-                    <tr data-testid="@($"qclib-row-{it.ItemId}")">
-                        <td><span class="ipqc-line-chip">@it.ProcessLine</span></td>
-                        <td class="scan-mono">@it.ItemId</td>
-                        <td>@it.GroupLabel</td>
-                        <td>@it.ItemVi</td>
-                        <td>@it.AcceptanceVi</td>
-                        <td>@it.Severity</td>
-                        <td class="scan-mono">@it.DefectCode</td>
+                    <tr class="qclib-grouprow" data-testid="@($"qclib-group-{grp.Key}")">
+                        <td colspan="@TotalCols">@grp.Key <span class="qclib-group-count">· @grp.Count()</span></td>
                     </tr>
+                    @foreach (var it in grp)
+                    {
+                        var row = it;
+                        <tr class="qclib-row" data-testid="@($"qclib-row-{row.ItemId}")"
+                            @oncontextmenu="e => OpenMenu(row, e.ClientX, e.ClientY)" @oncontextmenu:preventDefault="true">
+                            @if (_canEdit)
+                            {
+                                <td class="qclib-kebab-col">
+                                    <button type="button" class="row-kebab" data-fw-nodrag
+                                            @onclick="e => OpenMenu(row, e.ClientX, e.ClientY)" @onclick:stopPropagation="true"
+                                            aria-haspopup="menu" aria-label="@T("qclib.menu.actions")" title="@T("qclib.menu.actions")">⋯</button>
+                                </td>
+                            }
+                            <td class="qclib-c-id scan-mono">@row.ItemId</td>
+                            <td class="qclib-c-content">@row.ItemVi</td>
+                            @foreach (var c in Cols)
+                            {
+                                <td class="qclib-tick @(c.Band == Band.Stage ? "qclib-stage" : "")">
+                                    <input type="checkbox" checked="@c.Get(row)" disabled="@(!_canEdit || _busy)"
+                                           data-testid="@($"qclib-tick-{row.ItemId}-{c.Head}")"
+                                           @onchange="e => ToggleAsync(row, c, (bool)(e.Value ?? false))" />
+                                </td>
+                            }
+                            <td class="qclib-c-sev">@SevBadge(row.Severity)</td>
+                            <td class="qclib-c-def scan-mono">@row.DefectCode</td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
     </div>
 }
 
+@* Right-click / kebab row menu (L35 — one menu, no inline Actions column). *@
+<RowContextMenu Open="_menuRow is not null" Anchor="_menuAnchor" Items="_menuItems"
+                OnClose="@(() => { _menuRow = null; return Task.CompletedTask; })" AriaLabel="@T("qclib.menu.actions")" />
+
+@* Info showcard — keep-open detail wrapped in FloatingWindow (L34) via Modal Float. *@
+<Modal Open="_info is not null" Float="true" OnClose="@(() => { _info = null; return Task.CompletedTask; })"
+       AriaLabel="@T("qclib.info.title")">
+    <Header>@T("qclib.info.title")</Header>
+    <Body>
+        @if (_info is { } d)
+        {
+            <div class="qclib-detail" data-testid="qclib-info">
+                <div class="qclib-detail-top">
+                    <div>
+                        <div class="qclib-detail-id scan-mono">@d.ItemId</div>
+                        <div class="qclib-detail-sub">@d.ProcessLine · @d.GroupLabel · @d.Code</div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(d.Severity))
+                    {
+                        <span class="qclib-sevpill @SevClass(d.Severity)">@d.Severity</span>
+                    }
+                </div>
+
+                <section class="qclib-detail-sec">
+                    <h4>@T("qclib.col.content")</h4>
+                    <p class="qclib-detail-vi">@d.ItemVi</p>
+                    @if (!string.IsNullOrWhiteSpace(d.ItemEn)) { <p class="qclib-detail-en">@d.ItemEn</p> }
+                </section>
+
+                <section class="qclib-detail-sec">
+                    <h4>@T("qclib.info.acceptance")</h4>
+                    <p class="qclib-detail-vi">@d.AcceptanceVi</p>
+                    @if (!string.IsNullOrWhiteSpace(d.AcceptanceEn)) { <p class="qclib-detail-en">@d.AcceptanceEn</p> }
+                </section>
+
+                <section class="qclib-detail-sec">
+                    <h4>@T("qclib.info.methods")</h4>
+                    <div class="qclib-chips">
+                        @foreach (var c in Cols.Where(x => x.Band != Band.Stage && x.Get(d)))
+                        {
+                            <span class="qclib-chip qclib-chip-method">@c.Full</span>
+                        }
+                        @foreach (var c in Cols.Where(x => x.Band == Band.Stage && x.Get(d)))
+                        {
+                            <span class="qclib-chip qclib-chip-stage">@c.Head</span>
+                        }
+                        @if (!Cols.Any(x => x.Get(d))) { <span class="qclib-detail-en">—</span> }
+                    </div>
+                </section>
+
+                <section class="qclib-detail-sec">
+                    <h4>@T("qclib.info.spec")</h4>
+                    <dl class="qclib-meta2">
+                        <dt>Method</dt><dd>@Dash(d.Method)</dd>
+                        <dt>AQL</dt><dd>@Dash(d.Aql)</dd>
+                        <dt>Sampling</dt><dd>@Dash(d.Sampling)</dd>
+                        <dt>Check type</dt><dd>@Dash(d.CheckType)</dd>
+                        <dt>Defect</dt><dd class="scan-mono">@Dash(d.DefectCode)</dd>
+                        <dt>ISO</dt><dd>@Dash(d.IsoRef)</dd>
+                        <dt>@T("qclib.info.condition")</dt><dd>@Dash(d.AppliesWhen)</dd>
+                        <dt>Note</dt><dd>@Dash(d.Note)</dd>
+                    </dl>
+                </section>
+            </div>
+        }
+    </Body>
+</Modal>
+
+@* Add-new form — transactional, centered Modal. *@
+<Modal Open="_addOpen" OnClose="@(() => { _addOpen = false; return Task.CompletedTask; })" AriaLabel="@T("qclib.add.title")">
+    <Header>@T("qclib.add.title")</Header>
+    <Body>
+        <div class="qclib-form" data-testid="qclib-add-form">
+            <label>ItemId<input class="grid-search" @bind="_addId" data-testid="qclib-add-itemid" /></label>
+            <label>@T("qclib.col.group")
+                <select class="grid-search" @bind="_addGroup">
+                    @foreach (var g in Groups) { <option value="@g">@g</option> }
+                </select>
+            </label>
+            <label>Code<input class="grid-search" @bind="_addCode" /></label>
+            <label>@T("qclib.col.content")<input class="grid-search" @bind="_addContent" /></label>
+            <label>@T("qclib.info.acceptance")<input class="grid-search" @bind="_addAccept" /></label>
+            <div class="qclib-form-ticks">
+                @foreach (var c in Cols)
+                {
+                    <label class="qclib-form-tick"><input type="checkbox" checked="@c.Get(_add)" @onchange="e => _add = c.Set(_add, (bool)(e.Value ?? false))" /> @c.Head</label>
+                }
+            </div>
+        </div>
+    </Body>
+    <Footer>
+        <button type="button" class="grid-btn" @onclick="@(() => { _addOpen = false; return Task.CompletedTask; })">@T("common.cancel")</button>
+        <button type="button" class="grid-btn grid-btn-primary" @onclick="SaveAddAsync" disabled="@(_busy || string.IsNullOrWhiteSpace(_addId))" data-testid="qclib-add-save">@T("qclib.add.save")</button>
+    </Footer>
+</Modal>
+
 @code {
+    // 16 tick-box columns as a data table (grid + Add form render/mutate in a
+    // loop). Grouped into bands: PRINT (5) · CUT/FINISH (8) · STAGE (3).
+    private enum Band { Print, Cut, Stage }
+    private sealed record Col(string Head, string Full, Func<CheckLibraryItemDto, bool> Get,
+        Func<CheckLibraryItemDto, bool, CheckLibraryItemDto> Set, Band Band);
+
+    private static readonly Col[] Cols =
+    {
+        new("Blank", "Blank label", i => i.BlankLabel, (i, v) => i with { BlankLabel = v }, Band.Print),
+        new("Flexo", "Flexo", i => i.Flexo, (i, v) => i with { Flexo = v }, Band.Print),
+        new("LP", "Letter press", i => i.LetterPress, (i, v) => i with { LetterPress = v }, Band.Print),
+        new("HP", "HP Indigo", i => i.HpIndigo, (i, v) => i with { HpIndigo = v }, Band.Print),
+        new("Silk", "Silk screen", i => i.SilkScreen, (i, v) => i with { SilkScreen = v }, Band.Print),
+        new("Flat", "Flatbed", i => i.Flatbed, (i, v) => i with { Flatbed = v }, Band.Cut),
+        new("RDC", "RDC", i => i.Rdc, (i, v) => i with { Rdc = v }, Band.Cut),
+        new("Lam", "Laminate", i => i.Laminate, (i, v) => i with { Laminate = v }, Band.Cut),
+        new("Zebra", "Zebra (variable)", i => i.Zebra, (i, v) => i with { Zebra = v }, Band.Cut),
+        new("SCut", "Sheet cut", i => i.SheetCut, (i, v) => i with { SheetCut = v }, Band.Cut),
+        new("Punch", "Punch hole", i => i.PunchHole, (i, v) => i with { PunchHole = v }, Band.Cut),
+        new("Drill", "Drill hole", i => i.DrillHole, (i, v) => i with { DrillHole = v }, Band.Cut),
+        new("Slit", "Slit", i => i.Slit, (i, v) => i with { Slit = v }, Band.Cut),
+        new("IPQC", "IPQC", i => i.Ipqc, (i, v) => i with { Ipqc = v }, Band.Stage),
+        new("FQC", "FQC", i => i.Fqc, (i, v) => i with { Fqc = v }, Band.Stage),
+        new("OQC", "OQC", i => i.Oqc, (i, v) => i with { Oqc = v }, Band.Stage),
+    };
+
+    private static int PrintCount => Cols.Count(c => c.Band == Band.Print);
+    private static int CutCount => Cols.Count(c => c.Band == Band.Cut);
+    private int TotalCols => (_canEdit ? 1 : 0) + 2 + Cols.Length + 2;
+
+    private static readonly string[] Lines = { "LABEL", "SILK" };
+    private static readonly string[] Groups = { "A·Ngoại quan", "B·Kích thước", "C·Màu sắc", "D·Chức năng" };
+
     private IReadOnlyList<CheckLibraryLineDto> _lines = Array.Empty<CheckLibraryLineDto>();
-    private IReadOnlyList<CheckLibraryItemDto>? _items;
-    private string _line = "";
+    private List<CheckLibraryItemDto>? _items;
+    private string _line = "LABEL";
     private string _q = "";
-    private bool _loading;
-    private string? _error;
+    private bool _loading, _busy;
+    private string? _error, _flash;
+    private bool _canEdit;
+
+    private IReadOnlyList<CheckLibraryItemDto> Visible =>
+        (_items ?? new()).Where(i =>
+            string.IsNullOrWhiteSpace(_q)
+            || i.ItemId.Contains(_q, StringComparison.OrdinalIgnoreCase)
+            || i.ItemVi.Contains(_q, StringComparison.OrdinalIgnoreCase)
+            || i.Code.Contains(_q, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private int CountFor(string line) => _lines.FirstOrDefault(l => l.ProcessLine == line)?.Count ?? 0;
+
+    // Row menu.
+    private CheckLibraryItemDto? _menuRow;
+    private (double X, double Y) _menuAnchor;
+    private IReadOnlyList<ContextMenuItem> _menuItems = Array.Empty<ContextMenuItem>();
+
+    // Info + Add.
+    private CheckLibraryItemDto? _info;
+    private bool _addOpen;
+    private CheckLibraryItemDto _add = new();   // holds the 16 tick-box state
+    private string _addGroup = "A·Ngoại quan";
+    private string _addId = "", _addCode = "", _addContent = "", _addAccept = "";
 
     protected override async Task OnInitializedAsync()
     {
-        try { _lines = await Api.GetCheckLibraryLinesAsync(); }
-        catch { /* non-fatal — list still loads */ }
+        var role = Session.CurrentUser.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+        _canEdit = role is "Admin" or "Supervisor" or "QC";
         await ReloadAsync();
     }
 
-    private async Task OnLineChanged(ChangeEventArgs e)
-    {
-        _line = e.Value?.ToString() ?? "";
-        await ReloadAsync();
-    }
+    private async Task SelectLine(string line) { _line = line; await ReloadAsync(); }
 
-    private async Task HandleKey(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await ReloadAsync();
-    }
+    private Task HandleKey(KeyboardEventArgs e) { if (e.Key == "Enter") StateHasChanged(); return Task.CompletedTask; }
 
     private async Task ReloadAsync()
     {
-        _loading = true;
-        _error = null;
+        _loading = true; _error = null;
         try
         {
-            _items = await Api.GetCheckLibraryAsync(
-                string.IsNullOrWhiteSpace(_line) ? null : _line,
-                stage: null,
-                q: string.IsNullOrWhiteSpace(_q) ? null : _q);
+            var linesTask = Api.GetCheckLibraryLinesAsync();
+            _items = (await Api.GetCheckLibraryAsync(_line, stage: null, q: null)).ToList();
+            _lines = await linesTask;
         }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _loading = false; }
+    }
+
+    private static CheckLibraryUpsertDto ToUpsert(CheckLibraryItemDto i) => new()
+    {
+        ItemId = i.ItemId, ProcessLine = i.ProcessLine, GroupLabel = i.GroupLabel, Code = i.Code,
+        BlankLabel = i.BlankLabel, Flexo = i.Flexo, LetterPress = i.LetterPress, HpIndigo = i.HpIndigo,
+        SilkScreen = i.SilkScreen, Flatbed = i.Flatbed, Rdc = i.Rdc, Laminate = i.Laminate, Zebra = i.Zebra,
+        SheetCut = i.SheetCut, PunchHole = i.PunchHole, DrillHole = i.DrillHole, Slit = i.Slit,
+        Ipqc = i.Ipqc, Fqc = i.Fqc, Oqc = i.Oqc,
+        ItemVi = i.ItemVi, ItemEn = i.ItemEn, AcceptanceVi = i.AcceptanceVi, AcceptanceEn = i.AcceptanceEn,
+        Method = i.Method, Severity = i.Severity, Aql = i.Aql, Sampling = i.Sampling, CheckType = i.CheckType,
+        DefectCode = i.DefectCode, IsoRef = i.IsoRef, AppliesWhen = i.AppliesWhen, Note = i.Note,
+        Active = i.Active, Sort = i.Sort,
+    };
+
+    private async Task ToggleAsync(CheckLibraryItemDto row, Col col, bool value)
+    {
+        if (!_canEdit || _items is null) return;
+        var updated = col.Set(row, value);
+        var idx = _items.FindIndex(x => x.ItemId == row.ItemId);
+        if (idx >= 0) _items[idx] = updated;   // optimistic
+        _busy = true; _error = null;
+        try { await Api.UpsertCheckLibraryItemAsync(updated.ItemId, ToUpsert(updated)); }
         catch (Exception ex)
         {
+            if (idx >= 0) _items[idx] = row;   // revert
             _error = $"{ex.GetType().Name}: {ex.Message}";
         }
-        finally
-        {
-            _loading = false;
-        }
+        finally { _busy = false; }
     }
+
+    private void OpenMenu(CheckLibraryItemDto row, double x, double y)
+    {
+        _menuRow = row; _menuAnchor = (x, y);
+        var items = new List<ContextMenuItem>
+        {
+            new() { Label = T("qclib.menu.info"), Icon = "ℹ", OnClick = EventCallback.Factory.Create(this, () => { _info = row; _menuRow = null; }) },
+        };
+        if (_canEdit)
+        {
+            items.Add(new ContextMenuItem { Label = T("qclib.menu.copy"), Icon = "⎘", OnClick = EventCallback.Factory.Create(this, () => CopyRow(row)) });
+            items.Add(ContextMenuItem.Divider);
+            items.Add(new ContextMenuItem { Label = T("qclib.menu.delete"), Icon = "🗑", Danger = true, OnClick = EventCallback.Factory.Create(this, () => DeleteAsync(row)) });
+        }
+        _menuItems = items;
+    }
+
+    private void CopyRow(CheckLibraryItemDto row)
+    {
+        _menuRow = null;
+        _add = row;
+        _addId = row.ItemId + "-copy"; _addCode = row.Code; _addContent = row.ItemVi; _addAccept = row.AcceptanceVi;
+        _addGroup = string.IsNullOrWhiteSpace(row.GroupLabel) ? Groups[0] : row.GroupLabel;
+        _addOpen = true;
+    }
+
+    private async Task DeleteAsync(CheckLibraryItemDto row)
+    {
+        _menuRow = null;
+        if (!_canEdit) return;
+        _busy = true; _error = null;
+        try
+        {
+            await Api.DeleteCheckLibraryItemAsync(row.ItemId);
+            _items?.RemoveAll(x => x.ItemId == row.ItemId);
+            _flash = T("qclib.flash.deleted", row.ItemId);
+            await RefreshLinesAsync();
+        }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    private void OpenAdd()
+    {
+        _add = new CheckLibraryItemDto { ProcessLine = _line, GroupLabel = Groups[0], Ipqc = true, Active = true };
+        _addId = ""; _addCode = ""; _addContent = ""; _addAccept = "";
+        _addGroup = Groups[0];
+        _addOpen = true;
+    }
+
+    private async Task SaveAddAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_addId)) return;
+        _busy = true; _error = null;
+        try
+        {
+            var line = string.IsNullOrWhiteSpace(_add.ProcessLine) ? _line : _add.ProcessLine;
+            var dto = ToUpsert(_add with
+            {
+                ItemId = _addId.Trim(), ProcessLine = line, GroupLabel = _addGroup,
+                Code = _addCode, ItemVi = _addContent, AcceptanceVi = _addAccept,
+            });
+            await Api.UpsertCheckLibraryItemAsync(dto.ItemId, dto);
+            _addOpen = false;
+            _flash = T("qclib.flash.added", dto.ItemId);
+            await ReloadAsync();
+        }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    private async Task ImportAsync()
+    {
+        if (!_canEdit) return;
+        _error = null;
+        var picked = await FilePicker.PickFileAsync(new[] { "xlsx", "csv" });
+        if (picked is null) return;
+        _busy = true;
+        try
+        {
+            using var ms = new MemoryStream();
+            await picked.Content.CopyToAsync(ms);
+            var res = await Api.ImportCheckLibraryAsync(picked.FileName, ms.ToArray());
+            _flash = T("qclib.flash.imported", res.Inserted, res.Updated, res.Total);
+            await ReloadAsync();
+        }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { await picked.DisposeAsync(); _busy = false; }
+    }
+
+    private async Task ExportAsync()
+    {
+        _error = null; _busy = true;
+        try
+        {
+            var name = $"qc-library-{_line.ToLowerInvariant()}.csv";
+            var tmp = Path.Combine(Path.GetTempPath(), name);
+            await Api.DownloadCheckLibraryExportAsync(_line, tmp);
+            await FileSaver.SaveAsync(tmp, name);
+            _flash = T("qclib.flash.exported", name);
+        }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    private async Task RefreshLinesAsync()
+    {
+        try { _lines = await Api.GetCheckLibraryLinesAsync(); } catch { /* non-fatal */ }
+    }
+
+    private static string Dash(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+
+    // Severity chip: colour by the leading marker (◆ Critical / ● Major / ○ Minor).
+    private static string SevClass(string? sev) => (sev ?? "") switch
+    {
+        var s when s.Contains("Critical") => "qclib-sev-crit",
+        var s when s.Contains("Major") => "qclib-sev-major",
+        var s when s.Contains("Minor") => "qclib-sev-minor",
+        _ => "qclib-sev-none",
+    };
+
+    private RenderFragment SevBadge(string? sev) => builder =>
+    {
+        if (string.IsNullOrWhiteSpace(sev)) { builder.AddContent(0, "—"); return; }
+        builder.OpenElement(1, "span");
+        builder.AddAttribute(2, "class", $"qclib-sevpill {SevClass(sev)}");
+        builder.AddContent(3, sev);
+        builder.CloseElement();
+    };
 }

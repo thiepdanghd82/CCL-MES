@@ -1,5 +1,12 @@
+using System.Text;
 using CCL.MES.Application;
+using CCL.MES.Application.Audit;
+using CCL.MES.Application.Services;
 using CCL.MES.Domain;
+using CCL.MES.Domain.Audit;
+using CCL.MES.Domain.Entities;
+using CCL.MES.Infrastructure;
+using CCL.MES.Infrastructure.QcLibrary;
 using CCL.MES.Shared;
 using CCL.MES.Shared.CheckLibrary;
 using CCL.MES.Shared.Envelopes;
@@ -7,6 +14,7 @@ using CCL.MES.Shared.ReasonCodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace CCL.MES.Api.Controllers;
 
@@ -28,7 +36,15 @@ namespace CCL.MES.Api.Controllers;
 public sealed class CheckItemLibraryController : ControllerBase
 {
     private readonly IMesDbContext _db;
-    public CheckItemLibraryController(IMesDbContext db) => _db = db;
+    private readonly MesDbContext _write;   // concrete — DbSeeder import + upsert/delete
+    private readonly IAuditWriter _audit;
+    public CheckItemLibraryController(IMesDbContext db, MesDbContext write, IAuditWriter audit)
+    {
+        _db = db; _write = write; _audit = audit;
+    }
+
+    private string Actor => User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
+    private string Role => User.FindFirstValue(ClaimTypes.Role) ?? "";
 
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<CheckLibraryItemDto>>> List(
@@ -39,7 +55,17 @@ public sealed class CheckItemLibraryController : ControllerBase
         if (!string.IsNullOrWhiteSpace(line))
             query = query.Where(c => c.ProcessLine == line);
         if (!string.IsNullOrWhiteSpace(stage))
-            query = query.Where(c => c.QcStage == stage);
+        {
+            // stage ∈ {IPQC,FQC,OQC} → lọc theo cờ ma trận tương ứng.
+            var s = stage.Trim().ToUpperInvariant();
+            query = s switch
+            {
+                "IPQC" => query.Where(c => c.Ipqc),
+                "FQC" => query.Where(c => c.Fqc),
+                "OQC" => query.Where(c => c.Oqc),
+                _ => query,
+            };
+        }
         if (!string.IsNullOrWhiteSpace(q))
             query = query.Where(c => c.ItemVi.Contains(q) || c.ItemId.Contains(q) || c.Code.Contains(q));
 
@@ -48,9 +74,17 @@ public sealed class CheckItemLibraryController : ControllerBase
             .Select(c => new CheckLibraryItemDto
             {
                 ItemId = c.ItemId, ProcessLine = c.ProcessLine, ProductCode = c.ProductCode,
-                QcStage = c.QcStage, GroupLabel = c.GroupLabel, Code = c.Code,
-                ItemVi = c.ItemVi, AcceptanceVi = c.AcceptanceVi, Method = c.Method,
-                Severity = c.Severity, DefectCode = c.DefectCode, Active = c.Active, Sort = c.Sort,
+                GroupLabel = c.GroupLabel, Code = c.Code,
+                BlankLabel = c.BlankLabel, Flexo = c.Flexo, LetterPress = c.LetterPress,
+                HpIndigo = c.HpIndigo, SilkScreen = c.SilkScreen, Flatbed = c.Flatbed,
+                Rdc = c.Rdc, Laminate = c.Laminate, Zebra = c.Zebra, SheetCut = c.SheetCut,
+                PunchHole = c.PunchHole, DrillHole = c.DrillHole, Slit = c.Slit,
+                Ipqc = c.Ipqc, Fqc = c.Fqc, Oqc = c.Oqc,
+                ItemVi = c.ItemVi, ItemEn = c.ItemEn, AcceptanceVi = c.AcceptanceVi,
+                AcceptanceEn = c.AcceptanceEn, Method = c.Method, Severity = c.Severity,
+                Aql = c.Aql, Sampling = c.Sampling, CheckType = c.CheckType,
+                DefectCode = c.DefectCode, IsoRef = c.IsoRef, AppliesWhen = c.AppliesWhen,
+                Note = c.Note, Active = c.Active, Sort = c.Sort,
             })
             .ToListAsync(ct);
         return Ok(rows);
@@ -76,12 +110,15 @@ public sealed class CheckItemLibraryController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<CheckLibraryLineDto>>> Lines(CancellationToken ct = default)
     {
         var rows = await _db.CheckItemLibraries.AsNoTracking().Where(c => c.Active)
-            .GroupBy(c => new { c.ProcessLine, c.QcStage })
+            .GroupBy(c => c.ProcessLine)
             .Select(g => new CheckLibraryLineDto
             {
-                ProcessLine = g.Key.ProcessLine, QcStage = g.Key.QcStage, Count = g.Count(),
+                ProcessLine = g.Key, Count = g.Count(),
+                IpqcCount = g.Count(c => c.Ipqc),
+                FqcCount = g.Count(c => c.Fqc),
+                OqcCount = g.Count(c => c.Oqc),
             })
-            .OrderBy(x => x.ProcessLine).ThenBy(x => x.QcStage)
+            .OrderBy(x => x.ProcessLine)
             .ToListAsync(ct);
         return Ok(rows);
     }
@@ -126,4 +163,149 @@ public sealed class CheckItemLibraryController : ControllerBase
             .ToListAsync(ct);
         return Ok(rows);
     }
+
+    // ── Smart platform — write surface (Admin/Supervisor/QC) ─────────────
+
+    /// <summary>Upsert 1 hạng mục theo ItemId (Add new / sửa tick-box + field).
+    /// Idempotent theo ItemId. Emit <c>QC_LIBRARY_ITEM_SET</c>.</summary>
+    [HttpPut("{itemId}")]
+    [Authorize(Roles = "Admin,Supervisor,QC")]
+    public async Task<ActionResult<CheckLibraryItemDto>> Upsert(
+        string itemId, [FromBody] CheckLibraryUpsertDto dto, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(itemId) || string.IsNullOrWhiteSpace(dto.ProcessLine))
+            return UnprocessableEntity(new { error = "qclib.invalid_body" });
+
+        var e = await _write.CheckItemLibraries.FirstOrDefaultAsync(x => x.ItemId == itemId, ct);
+        var isNew = e is null;
+        if (e is null)
+        {
+            e = new CheckItemLibrary { ItemId = itemId, CreatedBy = Actor };
+            _write.CheckItemLibraries.Add(e);
+        }
+        else { e.UpdatedAt = DateTime.UtcNow; e.UpdatedBy = Actor; }
+        Apply(e, dto);
+
+        // Defect code mới → mở rộng ReasonCode(Scrap) như importer.
+        if (!string.IsNullOrWhiteSpace(dto.DefectCode)
+            && !await _write.ReasonCodes.AnyAsync(r => r.Code == dto.DefectCode && r.Kind == ReasonCodeKind.Scrap, ct))
+        {
+            _write.ReasonCodes.Add(new ReasonCode
+            {
+                Code = dto.DefectCode!, LabelEn = dto.DefectCode!, LabelVi = dto.DefectCode!,
+                Kind = ReasonCodeKind.Scrap, Sort = 900, CreatedBy = Actor,
+            });
+        }
+
+        await _write.SaveChangesAsync(ct);
+        await _audit.EmitAsync(AuditAction.QcLibraryItemSet, Actor, Role, "CheckItemLibrary", itemId,
+            $"{{\"new\":{(isNew ? "true" : "false")},\"line\":\"{e.ProcessLine}\"}}");
+        return Ok(ToDto(e));
+    }
+
+    /// <summary>Xoá 1 hạng mục. Emit <c>QC_LIBRARY_ITEM_DELETE</c>.</summary>
+    [HttpDelete("{itemId}")]
+    [Authorize(Roles = "Admin,Supervisor,QC")]
+    public async Task<IActionResult> Delete(string itemId, CancellationToken ct = default)
+    {
+        var e = await _write.CheckItemLibraries.FirstOrDefaultAsync(x => x.ItemId == itemId, ct);
+        if (e is null) return NotFound();
+        _write.CheckItemLibraries.Remove(e);
+        await _write.SaveChangesAsync(ct);
+        await _audit.EmitAsync(AuditAction.QcLibraryItemDelete, Actor, Role, "CheckItemLibrary", itemId);
+        return NoContent();
+    }
+
+    /// <summary>Import file thư viện (.xlsx sheet IPQC_FQC_OQC_MAP hoặc .csv legacy)
+    /// → upsert idempotent. Emit <c>QC_LIBRARY_IMPORT</c>.</summary>
+    [HttpPost("import")]
+    [Authorize(Roles = "Admin,Supervisor,QC")]
+    [RequestSizeLimit(20_000_000)]
+    public async Task<ActionResult<CheckLibraryImportResult>> Import(IFormFile? file, CancellationToken ct = default)
+    {
+        if (file is null || file.Length == 0) return UnprocessableEntity(new { error = "qclib.no_file" });
+
+        IReadOnlyList<QcCheckLibraryRow> rows;
+        if (file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            await using var s = file.OpenReadStream();
+            using var ms = new MemoryStream();
+            await s.CopyToAsync(ms, ct);
+            ms.Position = 0;
+            rows = QcLibraryV5Parser.Parse(ms);
+        }
+        else
+        {
+            using var reader = new StreamReader(file.OpenReadStream());
+            rows = QcCheckLibraryCsv.ParseDetailed(await reader.ReadToEndAsync(ct)).Rows;
+        }
+
+        var r = await DbSeeder.SeedCheckItemLibraryAsync(_write, rows);
+        var total = await _write.CheckItemLibraries.CountAsync(ct);
+        await _audit.EmitAsync(AuditAction.QcLibraryImport, Actor, Role, "CheckItemLibrary", file.FileName,
+            $"{{\"inserted\":{r.LibInserted},\"updated\":{r.LibUpdated},\"reason_added\":{r.ReasonAdded},\"total\":{total}}}");
+        return Ok(new CheckLibraryImportResult
+        {
+            Inserted = r.LibInserted, Updated = r.LibUpdated, ReasonAdded = r.ReasonAdded, Total = total,
+        });
+    }
+
+    /// <summary>Export CSV toàn bộ thư viện (ma trận tick-box + mô tả).</summary>
+    [HttpGet("export")]
+    public async Task<IActionResult> Export([FromQuery] string? line, CancellationToken ct = default)
+    {
+        var q = _db.CheckItemLibraries.AsNoTracking().Where(c => c.Active);
+        if (!string.IsNullOrWhiteSpace(line)) q = q.Where(c => c.ProcessLine == line);
+        var items = await q.OrderBy(c => c.ProcessLine).ThenBy(c => c.Sort).ThenBy(c => c.ItemId).ToListAsync(ct);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("ItemID,Line,BlankLabel,Flexo,LetterPress,HpIndigo,SilkScreen,Flatbed,RDC,Laminate,Zebra,SheetCut,PunchHole,DrillHole,Slit,IPQC,FQC,OQC,Group,Code,ItemVI,ItemEN,AcceptanceVI,AcceptanceEN,Method,Severity,AQL,Sampling,CheckType,Defect,ISO,Condition,Note");
+        char B(bool b) => b ? '●' : '·';
+        foreach (var c in items)
+            sb.AppendLine(string.Join(",",
+                Csv(c.ItemId), Csv(c.ProcessLine),
+                B(c.BlankLabel), B(c.Flexo), B(c.LetterPress), B(c.HpIndigo), B(c.SilkScreen),
+                B(c.Flatbed), B(c.Rdc), B(c.Laminate), B(c.Zebra), B(c.SheetCut), B(c.PunchHole),
+                B(c.DrillHole), B(c.Slit), B(c.Ipqc), B(c.Fqc), B(c.Oqc),
+                Csv(c.GroupLabel), Csv(c.Code), Csv(c.ItemVi), Csv(c.ItemEn), Csv(c.AcceptanceVi),
+                Csv(c.AcceptanceEn), Csv(c.Method), Csv(c.Severity), Csv(c.Aql), Csv(c.Sampling),
+                Csv(c.CheckType), Csv(c.DefectCode), Csv(c.IsoRef), Csv(c.AppliesWhen), Csv(c.Note)));
+
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        return File(bytes, "text/csv", $"qc-library-{(line ?? "all").ToLowerInvariant()}.csv");
+    }
+
+    private static string Csv(string? s)
+    {
+        s ??= "";
+        return s.Contains(',') || s.Contains('"') || s.Contains('\n')
+            ? "\"" + s.Replace("\"", "\"\"") + "\"" : s;
+    }
+
+    private static void Apply(CheckItemLibrary e, CheckLibraryUpsertDto d)
+    {
+        e.ProcessLine = d.ProcessLine; e.GroupLabel = d.GroupLabel; e.Code = d.Code;
+        e.BlankLabel = d.BlankLabel; e.Flexo = d.Flexo; e.LetterPress = d.LetterPress; e.HpIndigo = d.HpIndigo;
+        e.SilkScreen = d.SilkScreen; e.Flatbed = d.Flatbed; e.Rdc = d.Rdc; e.Laminate = d.Laminate;
+        e.Zebra = d.Zebra; e.SheetCut = d.SheetCut; e.PunchHole = d.PunchHole; e.DrillHole = d.DrillHole;
+        e.Slit = d.Slit; e.Ipqc = d.Ipqc; e.Fqc = d.Fqc; e.Oqc = d.Oqc;
+        e.ItemVi = d.ItemVi; e.ItemEn = d.ItemEn; e.AcceptanceVi = d.AcceptanceVi; e.AcceptanceEn = d.AcceptanceEn;
+        e.Method = d.Method; e.Severity = d.Severity; e.Aql = d.Aql; e.Sampling = d.Sampling;
+        e.CheckType = d.CheckType; e.DefectCode = d.DefectCode; e.IsoRef = d.IsoRef;
+        e.AppliesWhen = d.AppliesWhen; e.Note = d.Note; e.Active = d.Active; e.Sort = d.Sort;
+    }
+
+    private static CheckLibraryItemDto ToDto(CheckItemLibrary c) => new()
+    {
+        ItemId = c.ItemId, ProcessLine = c.ProcessLine, ProductCode = c.ProductCode,
+        GroupLabel = c.GroupLabel, Code = c.Code,
+        BlankLabel = c.BlankLabel, Flexo = c.Flexo, LetterPress = c.LetterPress, HpIndigo = c.HpIndigo,
+        SilkScreen = c.SilkScreen, Flatbed = c.Flatbed, Rdc = c.Rdc, Laminate = c.Laminate, Zebra = c.Zebra,
+        SheetCut = c.SheetCut, PunchHole = c.PunchHole, DrillHole = c.DrillHole, Slit = c.Slit,
+        Ipqc = c.Ipqc, Fqc = c.Fqc, Oqc = c.Oqc,
+        ItemVi = c.ItemVi, ItemEn = c.ItemEn, AcceptanceVi = c.AcceptanceVi, AcceptanceEn = c.AcceptanceEn,
+        Method = c.Method, Severity = c.Severity, Aql = c.Aql, Sampling = c.Sampling, CheckType = c.CheckType,
+        DefectCode = c.DefectCode, IsoRef = c.IsoRef, AppliesWhen = c.AppliesWhen, Note = c.Note,
+        Active = c.Active, Sort = c.Sort,
+    };
 }

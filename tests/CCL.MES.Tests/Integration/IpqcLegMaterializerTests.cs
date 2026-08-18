@@ -27,7 +27,7 @@ public sealed class IpqcLegMaterializerTests : IDisposable
         {
             db.CheckItemLibraries.Add(new CheckItemLibrary
             {
-                ItemId = $"{line}-{i}", ProcessLine = line, QcStage = "IPQC",
+                ItemId = $"{line}-{i}", ProcessLine = line, Ipqc = true,
                 ProductCode = productCode, Active = true, Sort = i * 10,
                 GroupLabel = line + " group", Code = $"{line}{i}",
                 ItemVi = $"Item {line} {i}", ItemEn = $"Item {line} {i}",

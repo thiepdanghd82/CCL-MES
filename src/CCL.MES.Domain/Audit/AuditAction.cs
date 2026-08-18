@@ -40,6 +40,9 @@ public static class AuditAction
     public const string NpiImport             = "NPI_IMPORT";              // Phase 7 — NPI master CSV replace-all import; detail JSON: { table, parsed, inserted, skipped, backup_file, backup_sha256, elapsed_ms }
     public const string QcApprove             = "QC_APPROVE";              // pass/fail in Detail
     public const string QcCreate              = "QC_CREATE";
+    public const string QcLibraryImport       = "QC_LIBRARY_IMPORT";       // re-model v5 — check-item library xlsx import; detail JSON: { src, inserted, updated, reason_added, total, backup_file, backup_sha256 }
+    public const string QcLibraryItemDelete   = "QC_LIBRARY_ITEM_DELETE";  // smart platform — delete one check-item
+    public const string QcLibraryItemSet      = "QC_LIBRARY_ITEM_SET";     // smart platform — upsert one check-item (tick-box/field edit or Add new); detail JSON: { new, line }
     public const string SpecApprove           = "SPEC_APPROVE";
     // Phase 8 PR #31d — Backfill 4 detail-sheet fields trên SpecPrint cho
     // ProductRevisions existing (KHÔNG tạo mới). detail JSON: { backfilled,

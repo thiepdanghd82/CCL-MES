@@ -399,7 +399,16 @@ public static class DbSeeder
     public static async Task<CheckLibrarySeedResult> SeedCheckItemLibraryFromFileAsync(MesDbContext db, string path)
     {
         if (!File.Exists(path)) return new CheckLibrarySeedResult(0, 0, 0);
-        // F4 (finding #8): parse strict — log hàng lỗi, KHÔNG seed im lặng.
+
+        // v5: nguồn là sheet IPQC_FQC_OQC_MAP trong .xlsx (ma trận tick-box).
+        if (path.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        {
+            using var fs = File.OpenRead(path);
+            var v5 = QcLibrary.QcLibraryV5Parser.Parse(fs);
+            return await SeedCheckItemLibraryAsync(db, v5);
+        }
+
+        // Legacy .csv (v1..v3) — parse strict, log hàng lỗi, KHÔNG seed im lặng.
         var parsed = QcCheckLibraryCsv.ParseDetailed(await File.ReadAllTextAsync(path));
         foreach (var s in parsed.Skipped) Console.WriteLine($"[csv] bad row — {s}");
         if (parsed.Skipped.Count > 0)
@@ -499,12 +508,14 @@ public static class DbSeeder
         var env = Environment.GetEnvironmentVariable("MES_QC_LIBRARY_CSV");
         if (!string.IsNullOrWhiteSpace(env) && File.Exists(env)) return env;
 
-        const string fileName = "IPQC_Library_CMES_v3.csv";
+        // v5 (xlsx, ma trận tick-box) là nguồn hiện hành; giữ fallback v3.csv nếu còn.
+        string[] fileNames = { "IPQC_Library_CMES_v5.xlsx", "IPQC_Library_CMES_v3.csv" };
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-        {
-            var candidate = Path.Combine(dir.FullName, fileName);
-            if (File.Exists(candidate)) return candidate;
-        }
+            foreach (var fileName in fileNames)
+            {
+                var candidate = Path.Combine(dir.FullName, fileName);
+                if (File.Exists(candidate)) return candidate;
+            }
         return null;
     }
 
@@ -514,6 +525,7 @@ public static class DbSeeder
         bool changed = false;
         void Set(string cur, string val, Action<string> set) { if (!string.Equals(cur, val, StringComparison.Ordinal)) { set(val); changed = true; } }
         void SetN(string? cur, string? val, Action<string?> set) { if (!string.Equals(cur, val, StringComparison.Ordinal)) { set(val); changed = true; } }
+        void SetB(bool cur, bool val, Action<bool> set) { if (cur != val) { set(val); changed = true; } }
 
         Set(e.ProcessLine, r.ProcessLine, v => e.ProcessLine = v);
         Set(e.GroupLabel, r.GroupLabel, v => e.GroupLabel = v);
@@ -528,11 +540,26 @@ public static class DbSeeder
         SetN(e.Sampling, r.Sampling, v => e.Sampling = v);
         SetN(e.CheckType, r.CheckType, v => e.CheckType = v);
         SetN(e.DefectCode, r.DefectCode, v => e.DefectCode = v);
-        SetN(e.ParetoPct, r.ParetoPct, v => e.ParetoPct = v);
-        SetN(e.ShortForm, r.ShortForm, v => e.ShortForm = v);
         SetN(e.IsoRef, r.IsoRef, v => e.IsoRef = v);
         SetN(e.AppliesWhen, r.AppliesWhen, v => e.AppliesWhen = v);
         SetN(e.Note, r.Note, v => e.Note = v);
+        // v5 ma trận tick-box (16 cờ).
+        SetB(e.BlankLabel, r.BlankLabel, v => e.BlankLabel = v);
+        SetB(e.Flexo, r.Flexo, v => e.Flexo = v);
+        SetB(e.LetterPress, r.LetterPress, v => e.LetterPress = v);
+        SetB(e.HpIndigo, r.HpIndigo, v => e.HpIndigo = v);
+        SetB(e.SilkScreen, r.SilkScreen, v => e.SilkScreen = v);
+        SetB(e.Flatbed, r.Flatbed, v => e.Flatbed = v);
+        SetB(e.Rdc, r.Rdc, v => e.Rdc = v);
+        SetB(e.Laminate, r.Laminate, v => e.Laminate = v);
+        SetB(e.Zebra, r.Zebra, v => e.Zebra = v);
+        SetB(e.SheetCut, r.SheetCut, v => e.SheetCut = v);
+        SetB(e.PunchHole, r.PunchHole, v => e.PunchHole = v);
+        SetB(e.DrillHole, r.DrillHole, v => e.DrillHole = v);
+        SetB(e.Slit, r.Slit, v => e.Slit = v);
+        SetB(e.Ipqc, r.Ipqc, v => e.Ipqc = v);
+        SetB(e.Fqc, r.Fqc, v => e.Fqc = v);
+        SetB(e.Oqc, r.Oqc, v => e.Oqc = v);
         if (e.Sort != sort) { e.Sort = sort; changed = true; }
         return changed;
     }

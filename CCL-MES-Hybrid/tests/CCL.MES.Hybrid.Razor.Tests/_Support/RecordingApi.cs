@@ -479,6 +479,36 @@ public sealed class RecordingApi : ICclApiClient
             ? Task.FromResult<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>>(Array.Empty<CCL.MES.Shared.CheckLibrary.CheckLibraryLineDto>())
             : GetCheckLibraryLinesImpl(ct);
 
+    // Smart platform — write surface (record last call for assertions).
+    public Func<string, CCL.MES.Shared.CheckLibrary.CheckLibraryUpsertDto, CancellationToken, Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>>? UpsertCheckLibraryImpl { get; set; }
+    public readonly List<(string ItemId, CCL.MES.Shared.CheckLibrary.CheckLibraryUpsertDto Dto)> UpsertCheckLibraryCalls = new();
+    public readonly List<string> DeleteCheckLibraryCalls = new();
+    public Func<string, byte[], CancellationToken, Task<CCL.MES.Shared.CheckLibrary.CheckLibraryImportResult>>? ImportCheckLibraryImpl { get; set; }
+
+    public Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> UpsertCheckLibraryItemAsync(
+        string itemId, CCL.MES.Shared.CheckLibrary.CheckLibraryUpsertDto dto, CancellationToken ct = default)
+    {
+        UpsertCheckLibraryCalls.Add((itemId, dto));
+        return UpsertCheckLibraryImpl is null
+            ? Task.FromResult(new CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto { ItemId = itemId, ProcessLine = dto.ProcessLine })
+            : UpsertCheckLibraryImpl(itemId, dto, ct);
+    }
+
+    public Task DeleteCheckLibraryItemAsync(string itemId, CancellationToken ct = default)
+    {
+        DeleteCheckLibraryCalls.Add(itemId);
+        return Task.CompletedTask;
+    }
+
+    public Task<CCL.MES.Shared.CheckLibrary.CheckLibraryImportResult> ImportCheckLibraryAsync(
+        string fileName, byte[] content, CancellationToken ct = default)
+        => ImportCheckLibraryImpl is null
+            ? Task.FromResult(new CCL.MES.Shared.CheckLibrary.CheckLibraryImportResult { Total = 0 })
+            : ImportCheckLibraryImpl(fileName, content, ct);
+
+    public Task<long> DownloadCheckLibraryExportAsync(string? line, string destinationFilePath, CancellationToken ct = default)
+        => Task.FromResult(0L);
+
     // Phương án C — Bước 4: item-level IPQC PUT (data-driven).
     public Func<long, string, string, SetIpqcItemRequest, CancellationToken, Task<IpqcSetResponse>>? PutIpqcItemImpl { get; set; }
     public List<(long Id, string ETag, string ItemKey, SetIpqcItemRequest Req)> PutIpqcItemCalls { get; } = new();

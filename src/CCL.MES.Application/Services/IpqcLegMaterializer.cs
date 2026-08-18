@@ -53,7 +53,7 @@ public sealed class IpqcLegMaterializer
 
         // Filter the library to the leg's SINGLE process line (per-area, Q6).
         var lib = await _db.CheckItemLibraries.AsNoTracking()
-            .Where(c => c.Active && c.QcStage == "IPQC" && c.ProcessLine == line
+            .Where(c => c.Active && c.Ipqc && c.ProcessLine == line
                      && (c.ProductCode == null || c.ProductCode == productCode))
             .ToListAsync(ct);
 

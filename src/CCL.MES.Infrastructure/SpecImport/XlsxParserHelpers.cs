@@ -35,17 +35,49 @@ internal static class XlsxParserHelpers
         return aoa;
     }
 
+    /// <summary>
+    /// Culture dùng để render giá trị ô Excel thành chuỗi.
+    ///
+    /// <para><b>Vì sao phải chốt tường minh.</b> <c>IXLCell.GetFormattedString()</c>
+    /// áp number-format của ô theo <see cref="CultureInfo.CurrentCulture"/> —
+    /// tức là locale của MÁY đang chạy import. Cùng một file .xlsx cho ra
+    /// chuỗi KHÁC NHAU: máy VN ra <c>"2.000 pcs/Roll"</c>, máy/CI en-US ra
+    /// <c>"2,000 pcs/Roll"</c>. Dữ liệu spec sau đó được **đóng băng** vào
+    /// <c>WoTraceSnapshot</c> và **in ra tờ Spec khách hàng audit** (L39
+    /// WYSIWYG), nên nó tuyệt đối không được phụ thuộc locale máy nhập —
+    /// hai kỹ sư import cùng một file phải ra cùng một bằng chứng.</para>
+    ///
+    /// <para><b>Vì sao là vi-VN chứ không phải Invariant.</b> Đây là locale
+    /// nhà máy, và là thứ MỌI máy VN đang cho ra hôm nay. Chốt vi-VN giữ
+    /// nguyên 100% output hiện có trên màn hình lẫn bản in — thay đổi duy
+    /// nhất là giờ nó tất định ở mọi nơi. Chuyển sang Invariant sẽ âm thầm
+    /// đổi định dạng số trên mọi tờ Spec đã in, blast radius lớn hơn nhiều.</para>
+    /// </summary>
+    private static readonly CultureInfo SpecImportCulture = CultureInfo.GetCultureInfo("vi-VN");
+
     public static string CellToString(IXLCell cell)
     {
         if (cell is null || cell.IsEmpty()) return "";
+
+        // Chốt culture quanh ĐÚNG lời gọi format (thread-static, ns-scale) rồi
+        // trả nguyên trạng — không rò culture sang phần còn lại của request.
+        var prev = CultureInfo.CurrentCulture;
         try
         {
-            var s = cell.GetFormattedString() ?? "";
-            return s.Trim();
+            CultureInfo.CurrentCulture = SpecImportCulture;
+            try
+            {
+                var s = cell.GetFormattedString() ?? "";
+                return s.Trim();
+            }
+            catch
+            {
+                return (cell.Value.ToString() ?? "").Trim();
+            }
         }
-        catch
+        finally
         {
-            return (cell.Value.ToString() ?? "").Trim();
+            CultureInfo.CurrentCulture = prev;
         }
     }
 

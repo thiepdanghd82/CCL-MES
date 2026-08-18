@@ -6,12 +6,32 @@ namespace CCL.MES.Application.Services;
 /// Phương án C — Bước 1. Một dòng thư viện hạng mục kiểm đọc từ
 /// <c>IPQC_Library_CMES_v2.csv</c> (19 cột). Thuần dữ liệu — không EF.
 /// </summary>
-public sealed class QcCheckLibraryRow
+public sealed record QcCheckLibraryRow
 {
     public string ItemId { get; init; } = "";
     public string ProcessLine { get; init; } = "";
     public string GroupLabel { get; init; } = "";
     public string Code { get; init; } = "";
+
+    // v5 ma trận tick-box (16 cờ). Parser CSV cũ để mặc định false; parser v5
+    // (xlsx, IPQC_FQC_OQC_MAP) set theo ● cột C~R.
+    public bool BlankLabel { get; init; }
+    public bool Flexo { get; init; }
+    public bool LetterPress { get; init; }
+    public bool HpIndigo { get; init; }
+    public bool SilkScreen { get; init; }
+    public bool Flatbed { get; init; }
+    public bool Rdc { get; init; }
+    public bool Laminate { get; init; }
+    public bool Zebra { get; init; }
+    public bool SheetCut { get; init; }
+    public bool PunchHole { get; init; }
+    public bool DrillHole { get; init; }
+    public bool Slit { get; init; }
+    public bool Ipqc { get; init; }
+    public bool Fqc { get; init; }
+    public bool Oqc { get; init; }
+
     public string ItemVi { get; init; } = "";
     public string ItemEn { get; init; } = "";
     public string AcceptanceVi { get; init; } = "";

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CCL.MES.Scripts.QcLibraryV5Import</RootNamespace>
+    <AssemblyName>QcLibraryV5Import</AssemblyName>
+    <!--
+      Re-model v5 console importer for the check-item library (sheet
+      IPQC_FQC_OQC_MAP). Standalone project so a stray dotnet-run on Web
+      cannot trigger a live write. Applies pending migrations then seeds v5
+      idempotently (upsert by ItemId). Phase A backup is the operator
+      responsibility (see the bash Phase A to C wrapper); commit flag gates writes.
+    -->
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CCL.MES.Domain\CCL.MES.Domain.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Application\CCL.MES.Application.csproj" />
+    <ProjectReference Include="..\..\src\CCL.MES.Infrastructure\CCL.MES.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

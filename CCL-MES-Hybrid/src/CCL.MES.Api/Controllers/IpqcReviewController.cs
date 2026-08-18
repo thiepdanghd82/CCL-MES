@@ -629,7 +629,7 @@ public sealed class IpqcReviewController : ControllerBase
 
         var lines = resolution.Lines.ToList();
         var lib = await _db.CheckItemLibraries.AsNoTracking()
-            .Where(c => c.Active && c.QcStage == "IPQC" && lines.Contains(c.ProcessLine)
+            .Where(c => c.Active && c.Ipqc && lines.Contains(c.ProcessLine)
                      && (c.ProductCode == null || c.ProductCode == productCode))
             .ToListAsync(ct);
         if (lib.Count == 0) return AutoSyncSkippedNoLibrary;
