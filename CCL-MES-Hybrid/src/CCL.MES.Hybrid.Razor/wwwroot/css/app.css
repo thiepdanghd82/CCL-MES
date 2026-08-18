@@ -7021,3 +7021,220 @@ tr.wc-row:hover { background: var(--c-bg); }
     tr { page-break-inside: avoid; }
     thead { display: table-header-group; } /* repeat header on each page */
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   QA / mini-QMS platform — shell + module surfaces. Layout mirrors the mock;
+   ALL colours come from :root design tokens (L37 — no raw hex). Scaffold
+   phase: static mock data, real binding lands later.
+   ═══════════════════════════════════════════════════════════════════════ */
+.qms-page { container-type: inline-size; color: var(--c-ink-3); }
+
+/* ── Top-bar ─────────────────────────────────────────────────────────── */
+.qms-topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 14px 4px 16px; margin-bottom: 8px;
+    border-bottom: 2px solid var(--c-line);
+}
+.qms-topbar-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qms-topbar-module {
+    font-size: 0.62rem; font-weight: 700; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--c-muted);
+}
+.qms-topbar-title { margin: 0; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em; color: var(--c-ink); }
+.qms-topbar-right { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
+.qms-topbar-shift { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.qms-topbar-eyebrow {
+    font-size: 0.58rem; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--c-muted);
+}
+.qms-topbar-shiftval { font-size: 0.82rem; font-weight: 700; color: var(--c-ink-2); }
+.qms-topbar-sep { width: 1px; height: 34px; background: var(--c-line); }
+.qms-topbar-user { display: flex; align-items: center; gap: 10px; }
+.qms-topbar-avatar {
+    width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+    background: var(--c-ink); color: var(--c-card); font-weight: 800; font-size: 0.8rem; border-radius: 6px;
+}
+.qms-topbar-userlines { display: flex; flex-direction: column; }
+.qms-topbar-username { font-size: 0.82rem; font-weight: 700; color: var(--c-ink-2); }
+.qms-topbar-userrole {
+    font-size: 0.58rem; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--c-muted);
+}
+
+/* ── Stepper ─────────────────────────────────────────────────────────── */
+.qms-stepper {
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+    border-bottom: 2px solid var(--c-line); margin: 18px 0;
+}
+.qms-step {
+    display: flex; align-items: center; gap: 12px; padding: 12px 6px 14px;
+    background: transparent; border: 0; border-bottom: 3px solid transparent;
+    margin-bottom: -2px; cursor: pointer; text-align: left; font-family: inherit;
+    color: var(--c-muted); transition: color .12s, border-color .12s;
+}
+.qms-step:hover { color: var(--c-ink-3); }
+.qms-step-on { color: var(--c-ink); border-bottom-color: var(--ng); }
+.qms-step-num {
+    flex: 0 0 auto; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; font-weight: 800; border-radius: 4px;
+    background: var(--c-surface); color: var(--c-muted);
+}
+.qms-step-on .qms-step-num { background: var(--ng); color: var(--c-card); }
+.qms-step-lines { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.qms-step-label { font-size: 0.86rem; font-weight: 800; }
+.qms-step-en {
+    font-size: 0.58rem; font-weight: 600; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--c-soft);
+}
+
+/* ── Section header + description ─────────────────────────────────────── */
+.qms-section { margin-top: 20px; }
+.qms-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.qms-section-title { margin: 0; font-size: 1.15rem; font-weight: 800; letter-spacing: -0.01em; color: var(--c-ink); }
+.qms-eyebrow {
+    font-size: 0.58rem; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--c-muted);
+}
+.qms-section-desc { font-size: 0.82rem; color: var(--c-muted); margin: 6px 0 16px; max-width: 72ch; }
+
+/* ── Header field grid (receipt · material · supplier …) ─────────────── */
+.qms-fieldgrid { display: flex; flex-wrap: wrap; gap: 26px 40px; padding: 4px 0 6px; }
+.qms-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.qms-field-label {
+    font-size: 0.58rem; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--c-muted);
+}
+.qms-field-val { font-size: 0.95rem; font-weight: 800; color: var(--c-ink); }
+.qms-field-sub { font-size: 0.78rem; color: var(--c-muted); }
+
+/* ── Tables (documents + inspection) ─────────────────────────────────── */
+.qms-table-wrap { overflow-x: auto; }
+.qms-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.qms-table thead th {
+    text-align: left; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--c-muted);
+    padding: 8px 12px; border-bottom: 1px solid var(--c-line); white-space: nowrap;
+}
+.qms-table tbody td { padding: 12px 12px; border-bottom: 1px solid var(--c-line-2); vertical-align: top; }
+.qms-table tbody tr:hover { background: var(--c-surface); }
+.qms-td-strong { font-weight: 700; color: var(--c-ink-2); }
+.qms-td-ng { color: var(--ng-ink); font-weight: 700; }
+.qms-col-tight { width: 1%; white-space: nowrap; }
+.qms-cell-sub { font-size: 0.72rem; color: var(--c-muted); }
+.qms-link { color: var(--brand); font-weight: 600; text-decoration: none; }
+.qms-link:hover { text-decoration: underline; }
+.qms-remove {
+    background: transparent; border: 0; color: var(--ng-ink); font-family: inherit;
+    font-weight: 700; font-size: 0.82rem; cursor: pointer; padding: 0;
+}
+.qms-remove:hover { text-decoration: underline; }
+
+/* ── Verdict + status pills ──────────────────────────────────────────── */
+.qms-pill {
+    display: inline-block; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em;
+    text-transform: uppercase; padding: 3px 9px; border-radius: 999px;
+}
+.qms-pill-pass { background: var(--ok-bg); color: var(--ok-ink); }
+.qms-pill-ng { background: var(--ng-bg); color: var(--ng-ink); }
+.qms-status { display: inline-block; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.qms-status-valid { color: var(--c-muted); }
+.qms-status-expired { color: var(--ng-ink); font-weight: 800; }
+
+/* ── OK / NG toggle ──────────────────────────────────────────────────── */
+.qms-okng { display: inline-flex; border: 1px solid var(--c-ink); border-radius: 6px; overflow: hidden; }
+.qms-okng-btn {
+    background: var(--c-card); border: 0; padding: 6px 16px; font-family: inherit;
+    font-weight: 800; font-size: 0.76rem; cursor: pointer; color: var(--c-ink-3);
+}
+.qms-okng-ng { border-left: 1px solid var(--c-line); }
+.qms-okng-ok-on { background: var(--ok); color: var(--c-card); }
+.qms-okng-ng-on { background: var(--ng); color: var(--c-card); }
+
+/* ── Warning banner (master-data divergence → locked step) ───────────── */
+.qms-banner {
+    display: flex; gap: 10px; padding: 12px 16px; margin: 16px 0;
+    background: var(--ng-bg); border-left: 3px solid var(--ng); border-radius: 6px;
+    font-size: 0.84rem; color: var(--ng-ink);
+}
+
+/* ── Defect chips ────────────────────────────────────────────────────── */
+.qms-defects { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.qms-chip {
+    display: inline-block; font-size: 0.76rem; font-weight: 600; padding: 5px 11px;
+    border: 1px solid var(--ng-soft); color: var(--ng-ink); border-radius: 5px; background: var(--c-card);
+}
+.qms-chip-add {
+    background: transparent; border: 0; color: var(--ng-ink); font-family: inherit;
+    font-weight: 700; font-size: 0.82rem; cursor: pointer; padding: 5px 4px;
+}
+
+/* ── Action bar ──────────────────────────────────────────────────────── */
+.qms-actionbar { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.qms-btn {
+    font-family: inherit; font-weight: 800; font-size: 0.82rem; padding: 10px 18px;
+    border-radius: 6px; cursor: pointer; border: 1px solid transparent; letter-spacing: 0.01em;
+}
+.qms-btn-primary { background: var(--ng); color: var(--c-card); border-color: var(--ng); }
+.qms-btn-primary:hover { background: var(--ng-ink); }
+.qms-btn-secondary { background: var(--c-card); color: var(--c-ink-2); border-color: var(--c-line); }
+.qms-btn-secondary:hover { background: var(--c-surface); }
+.qms-notefield {
+    width: 100%; box-sizing: border-box; min-height: 84px; resize: vertical;
+    border: 1px solid var(--c-line); border-radius: 6px; padding: 10px 12px;
+    font-family: inherit; font-size: 0.86rem; color: var(--c-ink-3); background: var(--c-card);
+}
+
+/* ── OQC lot-decision panel + iCRA trigger ───────────────────────────── */
+.qms-oqc-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 28px; align-items: start; }
+.qms-panel-title { margin: 0 0 12px; font-size: 1.15rem; font-weight: 800; color: var(--c-ink); }
+.qms-decision { border-left: 1px solid var(--c-line); padding-left: 24px; }
+.qms-dec-rows { display: flex; flex-direction: column; border-top: 1px solid var(--c-line); }
+.qms-dec-row { display: flex; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid var(--c-line); font-size: 0.86rem; color: var(--c-muted); }
+.qms-dec-val { font-weight: 700; color: var(--c-ink-2); }
+.qms-dec-ng { color: var(--ng-ink); }
+.qms-dec-btns { display: flex; margin-top: 16px; border: 2px solid var(--c-ink); border-radius: 6px; overflow: hidden; }
+.qms-dec-btn { flex: 1; background: var(--c-card); border: 0; padding: 13px 10px; font-family: inherit; font-weight: 800; font-size: 0.88rem; cursor: pointer; color: var(--c-ink-2); }
+.qms-dec-reject { border-left: 2px solid var(--c-ink); }
+.qms-dec-accept-on { background: var(--c-ink); color: var(--c-card); }
+.qms-dec-reject-on { background: var(--ng); color: var(--c-card); }
+.qms-icra-trigger {
+    margin-top: 18px; padding: 18px 20px; border-radius: 8px;
+    background: var(--ng); color: var(--c-card); display: flex; flex-direction: column; gap: 8px;
+}
+.qms-icra-kicker { font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 800; opacity: 0.92; }
+.qms-icra-title { font-size: 1.15rem; font-weight: 900; line-height: 1.2; }
+.qms-icra-desc { font-size: 0.82rem; line-height: 1.5; }
+.qms-icra-cta {
+    align-self: flex-start; margin-top: 4px; background: var(--c-card); color: var(--c-ink);
+    border: 0; padding: 10px 18px; font-family: inherit; font-weight: 800; font-size: 0.82rem; cursor: pointer; border-radius: 6px;
+}
+
+/* ── S9 responsive ───────────────────────────────────────────────────── */
+@container (max-width: 900px) {
+    .qms-oqc-grid { grid-template-columns: 1fr; }
+    .qms-decision { border-left: 0; padding-left: 0; border-top: 1px solid var(--c-line); padding-top: 18px; }
+    .qms-topbar-title { font-size: 1.15rem; }
+}
+@container (max-width: 640px) {
+    .qms-topbar { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .qms-stepper { grid-auto-flow: row; grid-auto-columns: 1fr; }
+}
+
+/* ── OQC lot-entry row + auto-trace ──────────────────────────────────── */
+.qms-oqc-lotrow { display: grid; grid-template-columns: 1fr 2fr; gap: 24px; align-items: start; margin: 10px 0 4px; }
+.qms-lotentry { display: flex; flex-direction: column; gap: 8px; }
+.qms-lotbox {
+    border: 1px solid var(--c-ink); border-radius: 6px; padding: 10px 14px;
+    font-family: inherit; font-size: 0.95rem; font-weight: 800; color: var(--c-ink);
+    background: var(--c-card); box-sizing: border-box;
+}
+.qms-trace { display: flex; flex-direction: column; gap: 12px; }
+.qms-trace-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+.qms-trace-cell {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 2px 16px; border-left: 2px solid var(--c-ink);
+}
+@container (max-width: 900px) {
+    .qms-oqc-lotrow { grid-template-columns: 1fr; }
+    .qms-trace-grid { grid-template-columns: repeat(2, 1fr); gap: 16px 0; }
+}

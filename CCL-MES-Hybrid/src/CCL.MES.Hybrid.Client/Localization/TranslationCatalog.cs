@@ -83,6 +83,7 @@ public sealed partial class TranslationCatalog : ITranslationCatalog
         RegisterQcLib();
         RegisterMode();
         RegisterQms();
+        RegisterQmsUi();
         RegisterNpiStruct();
         RegisterNpiRoute();
         RegisterNpiRaw();

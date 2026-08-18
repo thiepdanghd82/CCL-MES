@@ -1,0 +1,43 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+@* Shared inspection-check table (IPQC first-article + OQC outgoing lot):
+   item · [process] · method · spec · result · verdict pill. NG results render
+   red. The Process column is opt-in (IPQC shows it, OQC doesn't). *@
+<div class="qms-table-wrap">
+    <table class="qms-table" data-testid="qms-inspection-table">
+        <thead>
+            <tr>
+                <th>@T("qms.check.col.item")</th>
+                @if (ShowProcess)
+                {
+                    <th>@T("qms.check.col.process")</th>
+                }
+                <th>@T("qms.check.col.method")</th>
+                <th>@T("qms.check.col.spec")</th>
+                <th>@T("qms.check.col.result")</th>
+                <th class="qms-col-tight">@T("qms.check.col.verdict")</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var r in Rows)
+            {
+                <tr>
+                    <td class="qms-td-strong">@r.Item</td>
+                    @if (ShowProcess)
+                    {
+                        <td>@(r.Process ?? "—")</td>
+                    }
+                    <td>@r.Method</td>
+                    <td>@r.Spec</td>
+                    <td class="@(r.Verdict == QmsVerdict.Ng ? "qms-td-ng" : "")">@r.Result</td>
+                    <td class="qms-col-tight"><QmsVerdictPill Verdict="r.Verdict" /></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<QmsCheckRow> Rows { get; set; } = System.Array.Empty<QmsCheckRow>();
+    [Parameter] public bool ShowProcess { get; set; }
+}

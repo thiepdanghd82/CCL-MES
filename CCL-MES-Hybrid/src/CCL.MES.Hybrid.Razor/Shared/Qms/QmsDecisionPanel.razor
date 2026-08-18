@@ -1,0 +1,31 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+@* OQC "Lot decision" panel: lot / sample / NG rollup + ACCEPT / REJECT split
+   button. The chosen side fills. Raises OnDecide so the parent can reveal the
+   iCRA trigger on Reject. Rule 4 — plain <button>. *@
+<section class="qms-decision" data-testid="qms-decision-panel">
+    <h2 class="qms-panel-title">@T("qms.dec.title")</h2>
+    <div class="qms-dec-rows">
+        <div class="qms-dec-row"><span>@T("qms.dec.lotqty")</span><span class="qms-dec-val">@LotQty.ToString("N0") pcs</span></div>
+        <div class="qms-dec-row"><span>@T("qms.dec.sampleqty")</span><span class="qms-dec-val">@SampleQty.ToString("N0") pcs</span></div>
+        <div class="qms-dec-row"><span>@T("qms.dec.ngfound")</span><span class="qms-dec-val qms-dec-ng">@NgQty.ToString("N0") pcs</span></div>
+    </div>
+    <div class="qms-dec-btns" role="group">
+        <button type="button"
+                class="qms-dec-btn qms-dec-accept @(Decision == QmsLotDecision.Accept ? "qms-dec-accept-on" : "")"
+                data-testid="qms-decision-accept"
+                @onclick="() => OnDecide.InvokeAsync(QmsLotDecision.Accept)">@T("qms.dec.accept")</button>
+        <button type="button"
+                class="qms-dec-btn qms-dec-reject @(Decision == QmsLotDecision.Reject ? "qms-dec-reject-on" : "")"
+                data-testid="qms-decision-reject"
+                @onclick="() => OnDecide.InvokeAsync(QmsLotDecision.Reject)">@T("qms.dec.reject")</button>
+    </div>
+</section>
+
+@code {
+    [Parameter] public int LotQty { get; set; }
+    [Parameter] public int SampleQty { get; set; }
+    [Parameter] public int NgQty { get; set; }
+    [Parameter] public QmsLotDecision Decision { get; set; }
+    [Parameter] public EventCallback<QmsLotDecision> OnDecide { get; set; }
+}
