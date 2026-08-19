@@ -605,6 +605,19 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<IqcInspection>().HasIndex(x => x.BatchNumber);
         b.Entity<IqcInspection>().HasIndex(x => x.ReceivedDate);
 
+        // feat/iqc-ticket — 6 field additive cho phiếu IQC.
+        // ReceiptNo NOCASE + filtered unique WHERE IS NOT NULL: 3 dòng legacy
+        // để null vẫn hợp lệ (index bỏ qua null), phiếu mới sinh không đụng độ
+        // hoa/thường. Mirror pattern MaterialLot.LotNo (NOCASE + HasFilter).
+        b.Entity<IqcInspection>().Property(x => x.ReceiptNo).HasMaxLength(32).UseCollation("NOCASE");
+        b.Entity<IqcInspection>().Property(x => x.CodeIfs).HasMaxLength(64);
+        b.Entity<IqcInspection>().Property(x => x.MakerName).HasMaxLength(120);
+        b.Entity<IqcInspection>().Property(x => x.MaterialDescription).HasMaxLength(500);
+        b.Entity<IqcInspection>().Property(x => x.IfsDescription).HasMaxLength(500);
+        b.Entity<IqcInspection>().HasIndex(x => x.ReceiptNo)
+            .IsUnique().HasFilter("\"ReceiptNo\" IS NOT NULL")
+            .HasDatabaseName("IX_IqcInspections_ReceiptNo_Unique");
+
         // Tính toán read-only -> không map vào DB
         b.Entity<WorkOrder>().Ignore("LastQc");
         b.Entity<ProductionLog>().Ignore(p => p.DurationMinutes);

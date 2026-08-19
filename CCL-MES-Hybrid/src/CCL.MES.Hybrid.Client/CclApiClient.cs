@@ -118,6 +118,42 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<QcHistoryDto>(resp, ct);
     }
 
+    // ── IQC ticket (feat/iqc-ticket) ───────────────────────────────
+
+    public async Task<CCL.MES.Shared.Quality.ResolveIqcCodeResponse> ResolveIqcCodeAsync(
+        string? codeIfs, CancellationToken ct = default)
+    {
+        var url = $"/{ApiVersion.Prefix}/iqc/resolve-code"
+            + (string.IsNullOrWhiteSpace(codeIfs) ? "" : $"?codeIfs={Uri.EscapeDataString(codeIfs)}");
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.ResolveIqcCodeResponse>(resp, ct);
+    }
+
+    public async Task<List<string>> GetIqcMakersAsync(string? search, CancellationToken ct = default)
+    {
+        var url = $"/{ApiVersion.Prefix}/iqc/makers"
+            + (string.IsNullOrWhiteSpace(search) ? "" : $"?search={Uri.EscapeDataString(search)}");
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<List<string>>(resp, ct);
+    }
+
+    /// <summary>POST /iqc — Idempotency-Key per intent (mirror lô/semi). 201 →
+    /// typed body (mang MatchStatus); lỗi (422/409/403) → ApiException với
+    /// ApiError.Code để UI dịch qua Localiser.</summary>
+    public async Task<CCL.MES.Shared.Quality.CreateIqcTicketResponse> CreateIqcTicketAsync(
+        CCL.MES.Shared.Quality.CreateIqcTicketBody body, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc")
+        {
+            Content = JsonContent.Create(body),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.CreateIqcTicketResponse>(resp, ct);
+    }
+
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)
     {
         var req = new RefreshTokenRequest { RefreshToken = refreshToken };

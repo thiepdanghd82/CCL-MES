@@ -7470,3 +7470,18 @@ tr.wc-row:hover { background: var(--c-bg); }
 .grid-btn-primary:hover { background: var(--brand-2); }
 
 @container (max-width: 900px) { .qclib-form-ticks { grid-template-columns: repeat(2, 1fr); } }
+
+/* ── IQC ticket form (feat/iqc-ticket) — inside centred <Modal> ───────
+   Global (hybrid host loads only app.css; scoped .razor.css is dead). All
+   colours via semantic tokens (L37); sizes via the fs/fw scale (L41). */
+.iqc-form { display: flex; flex-direction: column; gap: 14px; }
+.iqc-form-desc { margin: 0; font-size: var(--fs-sm); color: var(--c-muted); line-height: 1.5; }
+.iqc-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.iqc-fld { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.iqc-fld-label { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--c-ink-3); letter-spacing: 0.01em; }
+.iqc-warn { margin: 0; font-size: var(--fs-sm); line-height: 1.45; border-radius: 6px; padding: 8px 12px; }
+.iqc-warn-ambiguous { color: var(--warn-ink); background: var(--warn-bg); }
+.iqc-warn-unmatched { color: var(--warn-ink); background: var(--warn-bg); }
+.iqc-warn-error { color: var(--ng-ink); background: var(--ng-bg); }
+
+@container (max-width: 640px) { .iqc-form-grid { grid-template-columns: 1fr; } }
