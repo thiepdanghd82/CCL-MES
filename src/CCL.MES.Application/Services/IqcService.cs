@@ -366,6 +366,68 @@ public class IqcService
         return new ResolveIqcCodeResult { MatchStatus = matches.Count > 1 ? "ambiguous" : "unmatched" };
     }
 
+    /// <summary>Ngưỡng ký tự tối thiểu để phát query LIKE search-by-description.
+    /// Dưới ngưỡng: trả rỗng + <c>TooShort=true</c>, KHÔNG chạm DB (LIKE '%a%'
+    /// trên 2127 dòng không index PartDescription là quét bảng vô ích).</summary>
+    public const int SearchMinLength = 3;
+
+    /// <summary>
+    /// Tra vật liệu THEO MÔ TẢ (feat/iqc-search-by-desc — đảo chiều: mô tả là ô
+    /// tìm chính, Code IFS là droplist kết quả). CONTAINS trên
+    /// <see cref="RawMaterial.PartDescription"/> — quyết định #2 (mother code =
+    /// CONTAINS, KHÔNG thêm cột MotherCode).
+    ///
+    /// <para><b>Chuẩn hoá</b>: trim + gộp mọi cụm khoảng trắng nội bộ về 1 space
+    /// (để "NITTO  5000NS" hai dấu cách khớp "NITTO 5000NS").</para>
+    ///
+    /// <para><b>NOCASE query-level</b> (cùng luật <see cref="ResolveCodeAsync"/> —
+    /// <c>ToUpper()</c>, KHÔNG đổi collation cột).</para>
+    ///
+    /// <para><b>DISTINCT theo PartNo</b>: PartNo KHÔNG unique (2035 distinct trên
+    /// 2127 dòng) — group theo PartNo, lấy dòng đầu. Mỗi Code IFS xuất hiện 1 lần
+    /// trong droplist (vd "NITTO 5000NS" → 14 distinct Code IFS).</para>
+    ///
+    /// <para>Thuần đọc, KHÔNG ghi. Phân trang qua <see cref="PagingHelper"/>.</para>
+    /// </summary>
+    public async Task<IqcMaterialSearchResult> SearchMaterialByDescriptionAsync(
+        string? desc, int page, int pageSize, CancellationToken ct = default)
+    {
+        // Chuẩn hoá: trim + gộp khoảng trắng nội bộ (nhiều space/tab → 1 space).
+        var norm = System.Text.RegularExpressions.Regex.Replace((desc ?? "").Trim(), @"\s+", " ");
+        if (norm.Length < SearchMinLength)
+            return new IqcMaterialSearchResult
+            {
+                TooShort = true,
+                Page = page < 1 ? 1 : page,
+                PageSize = pageSize,
+                Total = 0,
+                Items = new List<IqcMaterialSearchRow>(),
+            };
+
+        // CONTAINS NOCASE query-level (.ToUpper()). DISTINCT theo PartNo: group
+        // rồi lấy min Id đại diện — PartNo không unique nên tránh trùng dòng.
+        var upper = norm.ToUpperInvariant();
+        var grouped = _db.RawMaterials.AsNoTracking()
+            .Where(x => x.PartDescription != null && x.PartDescription.ToUpper().Contains(upper))
+            .GroupBy(x => x.PartNo)
+            .Select(g => new IqcMaterialSearchRow
+            {
+                CodeIfs = g.Key,
+                IfsDescription = g.OrderBy(x => x.Id).Select(x => x.PartDescription).FirstOrDefault(),
+            })
+            .OrderBy(r => r.CodeIfs);
+
+        var paged = await PagingHelper.PageAsync(grouped, page, pageSize);
+        return new IqcMaterialSearchResult
+        {
+            TooShort = false,
+            Page = paged.Page,
+            PageSize = paged.PageSize,
+            Total = paged.Total,
+            Items = paged.Items.ToList(),
+        };
+    }
+
     /// <summary>Gợi ý nhà sản xuất/nhà cung cấp: distinct MakerName của phiếu IQC
     /// + SupplierName của catalog, khớp <c>Like</c>, top 20. AsNoTracking.</summary>
     public async Task<List<string>> MakerSuggestionsAsync(string? search, CancellationToken ct = default)
@@ -527,4 +589,25 @@ public sealed class ResolveIqcCodeResult
     public string? MaterialDescription { get; init; }
     public string? IfsDescription { get; init; }
     public string? SupplierName { get; init; }
+}
+
+/// <summary>Một dòng kết quả tra vật liệu theo mô tả (feat/iqc-search-by-desc).
+/// <c>CodeIfs</c> = PartNo (droplist chọn nhiều); <c>IfsDescription</c> =
+/// PartDescription của dòng đại diện.</summary>
+public sealed class IqcMaterialSearchRow
+{
+    public string CodeIfs { get; init; } = "";
+    public string? IfsDescription { get; init; }
+}
+
+/// <summary>Kết quả tra vật liệu theo mô tả — phân trang + cờ desc-quá-ngắn.</summary>
+public sealed class IqcMaterialSearchResult
+{
+    /// <summary>true khi desc &lt; <see cref="IqcService.SearchMinLength"/> ký tự —
+    /// KHÔNG phát query, Items rỗng.</summary>
+    public bool TooShort { get; init; }
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; }
+    public int Total { get; init; }
+    public List<IqcMaterialSearchRow> Items { get; init; } = new();
 }

@@ -55,6 +55,8 @@ public interface ICclApiClient
 
     // ── IQC ticket (feat/iqc-ticket) ───────────────────────────────
     Task<CCL.MES.Shared.Quality.ResolveIqcCodeResponse> ResolveIqcCodeAsync(string? codeIfs, CancellationToken ct = default);
+    Task<CCL.MES.Shared.Quality.IqcMaterialSearchResponse> SearchIqcMaterialAsync(
+        string? desc, int page = 1, int pageSize = 20, CancellationToken ct = default);
     Task<List<string>> GetIqcMakersAsync(string? search, CancellationToken ct = default);
     Task<CCL.MES.Shared.Quality.CreateIqcTicketResponse> CreateIqcTicketAsync(
         CCL.MES.Shared.Quality.CreateIqcTicketBody body, CancellationToken ct = default);

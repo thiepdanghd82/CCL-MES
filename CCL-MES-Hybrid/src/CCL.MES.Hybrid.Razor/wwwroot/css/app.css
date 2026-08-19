@@ -7485,3 +7485,32 @@ tr.wc-row:hover { background: var(--c-bg); }
 .iqc-warn-error { color: var(--ng-ink); background: var(--ng-bg); }
 
 @container (max-width: 640px) { .iqc-form-grid { grid-template-columns: 1fr; } }
+
+/* ── IQC search-by-description + multi-select Code IFS picker
+   (feat/iqc-search-by-desc). Reversed flow: description is the primary search,
+   Code IFS becomes a tickable chip-list (NOT native <select> — WKWebView
+   freeze on maccatalyst). Global; tokens only (L37/L41). */
+.iqc-fld-wide { grid-column: 1 / -1; }
+.iqc-hint { margin: 4px 0 0; font-size: var(--fs-xs); color: var(--c-muted); line-height: 1.4; }
+.iqc-picker { border: 1px solid var(--c-border); border-radius: 8px; background: var(--c-surface); }
+.iqc-picker-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px; border-bottom: 1px solid var(--c-border);
+}
+.iqc-picker-filter { flex: 1 1 auto; min-width: 0; }
+.iqc-picker-count { flex: 0 0 auto; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--c-ink-3); white-space: nowrap; }
+.iqc-picker-scroll { max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; }
+.iqc-pick-row {
+    display: grid; grid-template-columns: auto minmax(0, max-content) 1fr; align-items: center; gap: 8px;
+    width: 100%; text-align: left; padding: 8px 12px; min-height: var(--d-tap, 32px);
+    border: 0; border-bottom: 1px solid var(--c-border); background: transparent;
+    color: var(--c-ink-1); font-size: var(--fs-sm); cursor: pointer;
+}
+.iqc-pick-row:last-child { border-bottom: 0; }
+.iqc-pick-row:hover { background: var(--c-surface-2); }
+.iqc-pick-on { background: var(--brand-bg); }
+.iqc-pick-on:hover { background: var(--brand-bg); }
+.iqc-pick-mark { font-size: var(--fs-md); color: var(--brand); }
+.iqc-pick-code { font-weight: var(--fw-bold); white-space: nowrap; }
+.iqc-pick-desc { color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.iqc-pick-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }

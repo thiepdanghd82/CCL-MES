@@ -717,6 +717,24 @@ public sealed class RecordingApi : ICclApiClient
     public Task<List<string>> GetIqcMakersAsync(string? search, CancellationToken ct = default)
         => IqcMakersImpl is not null ? IqcMakersImpl(search) : Task.FromResult(new List<string>());
 
+    // feat/iqc-search-by-desc — tra vật liệu theo mô tả. Records (desc, page,
+    // pageSize); default = empty page so pages init cleanly.
+    public Func<string?, int, int, Task<CCL.MES.Shared.Quality.IqcMaterialSearchResponse>>? SearchIqcMaterialImpl { get; set; }
+    public List<(string? Desc, int Page, int PageSize)> SearchIqcMaterialCalls { get; } = new();
+
+    public Task<CCL.MES.Shared.Quality.IqcMaterialSearchResponse> SearchIqcMaterialAsync(
+        string? desc, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        SearchIqcMaterialCalls.Add((desc, page, pageSize));
+        return SearchIqcMaterialImpl is not null
+            ? SearchIqcMaterialImpl(desc, page, pageSize)
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcMaterialSearchResponse
+            {
+                Page = page, PageSize = pageSize, Total = 0,
+                Items = new List<CCL.MES.Shared.Quality.IqcMaterialSearchItem>(),
+            });
+    }
+
     public Task<CCL.MES.Shared.Quality.CreateIqcTicketResponse> CreateIqcTicketAsync(
         CCL.MES.Shared.Quality.CreateIqcTicketBody body, CancellationToken ct = default)
     {

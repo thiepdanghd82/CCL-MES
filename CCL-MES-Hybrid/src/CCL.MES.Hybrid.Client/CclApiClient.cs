@@ -129,6 +129,16 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<CCL.MES.Shared.Quality.ResolveIqcCodeResponse>(resp, ct);
     }
 
+    public async Task<CCL.MES.Shared.Quality.IqcMaterialSearchResponse> SearchIqcMaterialAsync(
+        string? desc, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        var qs = new List<string> { $"page={page}", $"pageSize={pageSize}" };
+        if (!string.IsNullOrWhiteSpace(desc)) qs.Insert(0, $"desc={Uri.EscapeDataString(desc)}");
+        var url = $"/{ApiVersion.Prefix}/iqc/search-material?" + string.Join("&", qs);
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcMaterialSearchResponse>(resp, ct);
+    }
+
     public async Task<List<string>> GetIqcMakersAsync(string? search, CancellationToken ct = default)
     {
         var url = $"/{ApiVersion.Prefix}/iqc/makers"

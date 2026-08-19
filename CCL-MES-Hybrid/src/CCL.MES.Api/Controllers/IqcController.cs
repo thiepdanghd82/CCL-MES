@@ -71,6 +71,32 @@ public sealed class IqcController : ControllerBase
         });
     }
 
+    /// <summary>Tra vật liệu theo MÔ TẢ (feat/iqc-search-by-desc). Mô tả là ô
+    /// tìm chính, kết quả là danh sách Code IFS distinct để chọn nhiều. Read-only
+    /// ⇒ QcRead đủ, không cần Idempotency-Key. <c>desc</c> dưới ngưỡng → server
+    /// trả <c>tooShort=true</c> + rỗng (không quét bảng).</summary>
+    [HttpGet("search-material")]
+    public async Task<ActionResult<IqcMaterialSearchResponse>> SearchMaterial(
+        [FromQuery] string? desc,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var r = await _svc.SearchMaterialByDescriptionAsync(desc, page, pageSize, ct);
+        return Ok(new IqcMaterialSearchResponse
+        {
+            TooShort = r.TooShort,
+            Page = r.Page,
+            PageSize = r.PageSize,
+            Total = r.Total,
+            Items = r.Items.Select(x => new IqcMaterialSearchItem
+            {
+                CodeIfs = x.CodeIfs,
+                IfsDescription = x.IfsDescription,
+            }).ToList(),
+        });
+    }
+
     /// <summary>Gợi ý Maker/Supplier cho dropdown search. Read-only.</summary>
     [HttpGet("makers")]
     public async Task<ActionResult<List<string>>> Makers(
