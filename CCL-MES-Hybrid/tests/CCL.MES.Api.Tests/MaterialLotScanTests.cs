@@ -582,6 +582,120 @@ public sealed class MaterialLotScanTests : IClassFixture<MesApiFactory>
         Assert.Equal(cons1, cons2);
     }
 
+    // ── Backfill qua ENDPOINT (AdminOnly) ──────────────────────────
+    //
+    // Trước PR này MaterialLotBackfillService chỉ được dựng TRONG TEST: không
+    // endpoint, không CLI, không hosted service ⇒ backfill không có đường chạy
+    // trên môi trường thật. Ba test dưới khoá đường gọi đó lại.
+
+    private const string BackfillUrl = "/api/v2/material-lots/backfill";
+
+    /// <summary>Ghi hàng loạt trên toàn bộ dữ liệu lịch sử — operator không có
+    /// cửa. 403 phải đến TỪ policy, trước cả khi chạm service.</summary>
+    [Fact]
+    public async Task Backfill_endpoint_denies_operator_with_403()
+    {
+        var op = await ClientAsync("op-a1-bf-403", UserRole.Operator);
+
+        var before = await AuditCountAsync("MATERIAL_LOT_STATUS_SET", "backfill-a1");
+        var resp = await op.SendAsync(Post(BackfillUrl, "{}"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+        // Bị chặn ⇒ service không chạy ⇒ không có dòng audit nào sinh thêm.
+        Assert.Equal(before, await AuditCountAsync("MATERIAL_LOT_STATUS_SET", "backfill-a1"));
+    }
+
+    /// <summary>Admin → 200 + đủ số liệu, trong đó <c>quarantined</c> là con số
+    /// dùng để quyết ngày lật cờ <c>Mes:MaterialLot:EnforceReleased</c>.</summary>
+    [Fact]
+    public async Task Backfill_endpoint_as_admin_returns_counts_including_quarantined()
+    {
+        var wo = await SeedWoAsync("BFEP1", "BF-PART-EP1");
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var m = await db.WoMaterials.SingleAsync(x => x.WorkOrderId == wo);
+            m.LotNo = "LOT-BF-EP1";     // không khớp phiếu IQC nào ⇒ Đ6 Quarantine
+            m.QtyLoaded = 9;
+            await db.SaveChangesAsync();
+        }
+
+        var admin = await ClientAsync("admin-a1-bf-ok", UserRole.Admin);
+        var auditBefore = await AuditCountAsync("MATERIAL_LOT_STATUS_SET", "backfill-a1");
+
+        var resp = await admin.SendAsync(Post(BackfillUrl, "{}"));
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        var body = (await resp.Content.ReadFromJsonAsync<MaterialLotBackfillResponse>())!;
+        Assert.True(body.Candidates >= 1);
+        Assert.True(body.ConsumptionsCreated >= 1);
+        Assert.True(body.Quarantined >= 1, "lô không khớp IQC phải ra Quarantine (Đ6)");
+
+        // Số liệu trong thân phản hồi phải khớp thứ THẬT SỰ nằm dưới DB.
+        using var s = _fx.Services.CreateScope();
+        var db2 = s.ServiceProvider.GetRequiredService<MesDbContext>();
+        var lot = await db2.MaterialLots.SingleAsync(l => l.LotNo == "LOT-BF-EP1");
+        Assert.Equal(nameof(MaterialLotStatus.Quarantine), lot.Status);
+
+        var cons = await db2.WoMaterialConsumptions
+            .SingleAsync(c => c.MaterialLotId == lot.Id && c.CreatedBy == "backfill-a1");
+        Assert.Equal(9, cons.QtyUsed);
+
+        // Mạch lô neo vào KHOÁ SỐ, không còn dựa vào chuỗi.
+        var mat = await db2.WoMaterials.SingleAsync(x => x.WorkOrderId == wo);
+        Assert.Equal(lot.Id, db2.Entry(mat).Property<long?>("MaterialLotId").CurrentValue);
+
+        // Đúng MỘT dòng audit cho cả lần chạy — hợp đồng chỉ liệt kê 5 mã, endpoint
+        // KHÔNG được thêm mã thứ sáu hay emit lần thứ hai.
+        Assert.Equal(auditBefore + 1, await AuditCountAsync("MATERIAL_LOT_STATUS_SET", "backfill-a1"));
+    }
+
+    /// <summary>Gọi hai lần → lần hai không tạo thêm dòng nào. Dùng HAI
+    /// Idempotency-Key KHÁC nhau có chủ đích: nếu dùng cùng key thì middleware
+    /// phát lại response cũ và test sẽ xanh mà không chứng minh được gì về dấu
+    /// <c>backfill-a1</c> ở tầng service (§2 hệ quả 2).</summary>
+    [Fact]
+    public async Task Backfill_endpoint_twice_creates_no_extra_rows()
+    {
+        var wo = await SeedWoAsync("BFEP2", "BF-PART-EP2");
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var m = await db.WoMaterials.SingleAsync(x => x.WorkOrderId == wo);
+            m.LotNo = "LOT-BF-EP2";
+            await db.SaveChangesAsync();
+        }
+
+        var admin = await ClientAsync("admin-a1-bf-twice", UserRole.Admin);
+
+        var r1 = await admin.SendAsync(Post(BackfillUrl, "{}", key: Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.OK, r1.StatusCode);
+        var b1 = (await r1.Content.ReadFromJsonAsync<MaterialLotBackfillResponse>())!;
+        var (lots1, cons1) = await BackfillRowCountsAsync();
+
+        var r2 = await admin.SendAsync(Post(BackfillUrl, "{}", key: Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.OK, r2.StatusCode);
+        var b2 = (await r2.Content.ReadFromJsonAsync<MaterialLotBackfillResponse>())!;
+        var (lots2, cons2) = await BackfillRowCountsAsync();
+
+        Assert.True(b1.ConsumptionsCreated >= 1);
+        Assert.Equal(0, b2.ConsumptionsCreated);      // lần hai không sinh gì
+        Assert.Equal(0, b2.LotsCreated);
+        Assert.Equal(0, b2.Quarantined);
+        Assert.Equal(b2.Candidates, b2.Skipped);      // bỏ qua đúng bằng số ứng viên
+        Assert.Equal(lots1, lots2);                   // rowcount không đổi
+        Assert.Equal(cons1, cons2);
+    }
+
+    /// <summary>(số MaterialLots, số dòng tiêu hao mang dấu backfill).</summary>
+    private async Task<(int Lots, int Consumptions)> BackfillRowCountsAsync()
+    {
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        return (await db.MaterialLots.CountAsync(),
+                await db.WoMaterialConsumptions.CountAsync(c => c.CreatedBy == "backfill-a1"));
+    }
+
     [Fact]
     public async Task Unresolved_lot_becomes_Quarantine()
     {

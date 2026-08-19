@@ -18,6 +18,7 @@ namespace CCL.MES.Api.Controllers;
 /// POST /api/v2/work-orders/{id}/materials/{idx}/consume        quét lô lên dòng BOM
 /// POST /api/v2/material-consumptions/{id}/reverse              Đ3 — Supervisor đảo
 /// GET  /api/v2/work-orders/{id}/material-genealogy             bảng truy xuất
+/// POST /api/v2/material-lots/backfill                          AdminOnly — dựng mạch lô cũ
 /// </code>
 ///
 /// <para><b>Controller MỎNG.</b> Không một truy vấn <c>DbContext</c>, không một
@@ -153,6 +154,48 @@ public sealed class MaterialLotsController : ControllerBase
                 ReversedAt = r.ReversedAt,
                 ReversedBy = r.ReversedBy,
             }).ToList(),
+        });
+    }
+
+    // ── POST /material-lots/backfill ──────────────────────────────
+
+    /// <summary>A1 — backfill MỘT LẦN, dựng mạch lô cho dữ liệu ĐÃ CÓ: mỗi
+    /// <c>WoMaterials.LotNo</c> khác rỗng sinh một <c>MaterialLot</c> + một dòng
+    /// tiêu hao, để WO cũ cũng trả lời được câu "cuộn nào đã vào đơn này".
+    ///
+    /// <para><b>AdminOnly</b> — ghi hàng loạt trên toàn bộ dữ liệu lịch sử,
+    /// không phải việc của operator. Cùng hình dạng với
+    /// <c>POST /quality/traceability/backfill</c> đã có.</para>
+    ///
+    /// <para><b>Idempotent ở tầng service</b> bằng dấu <c>backfill-a1</c>
+    /// (hợp đồng §2 hệ quả 2), nên gọi lại KHÔNG sinh thêm dòng — lần hai trả
+    /// <c>skipped == candidates</c> và <c>consumptionsCreated == 0</c>. Header
+    /// <c>Idempotency-Key</c> vẫn bắt buộc để đồng nhất với mọi mutation khác
+    /// của controller này (double-tap được middleware phát lại response cũ).</para>
+    ///
+    /// <para><c>quarantined</c> là con số phải đọc TRƯỚC khi lật cờ
+    /// <c>Mes:MaterialLot:EnforceReleased</c>: đó là số lô lịch sử không khớp
+    /// phiếu IQC nào (Đ6), tức số ca sẽ bị chặn khi bật cưỡng chế.</para></summary>
+    [HttpPost("material-lots/backfill"), Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Backfill(
+        [FromServices] MaterialLotBackfillService backfill, CancellationToken ct = default)
+    {
+        if (RequireIdempotencyKey() is { } bad) return bad;
+        var (actor, role) = Who();
+
+        // Service emit đúng MỘT dòng audit cho cả lần chạy kèm counts — hợp đồng
+        // chỉ liệt kê 5 mã, ở đây KHÔNG thêm mã audit thứ hai.
+        var r = await backfill.RunAsync(actor, role, ct);
+
+        return Ok(new MaterialLotBackfillResponse
+        {
+            Candidates = r.Candidates,
+            LotsCreated = r.LotsCreated,
+            LotsReused = r.LotsReused,
+            ConsumptionsCreated = r.ConsumptionsCreated,
+            Skipped = r.Skipped,
+            Quarantined = r.Quarantined,
+            InheritedFromIqc = r.InheritedFromIqc,
         });
     }
 
