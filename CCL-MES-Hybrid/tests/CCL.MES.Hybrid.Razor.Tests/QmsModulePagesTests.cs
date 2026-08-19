@@ -23,6 +23,11 @@ public sealed class QmsModulePagesTests : TestContext
         Services.AddSingleton<ILanguageService>(_lang);
         Services.AddSingleton<ITranslationCatalog, TranslationCatalog>();
         Services.AddSingleton<ITranslator, Translator>();
+        // feat/iqc-ticket — IqcModule now injects ICclApiClient + IAuthSession
+        // (Add-ticket form). Chrome/scaffold tests don't open the form so the
+        // defaults never fire; wiring them keeps DI resolution happy.
+        Services.AddSingleton<CCL.MES.Hybrid.Client.ICclApiClient>(new _Support.RecordingApi());
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Auth.IAuthSession>(new _Support.StubAuthSession());
         this.AddTestAuthorization().SetAuthorized("qc-user");
     }
 

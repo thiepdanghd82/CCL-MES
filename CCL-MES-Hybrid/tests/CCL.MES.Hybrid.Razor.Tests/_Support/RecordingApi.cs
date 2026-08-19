@@ -697,6 +697,38 @@ public sealed class RecordingApi : ICclApiClient
     public Task<LoginResponse> LoginAsync(string username, string password, CancellationToken ct = default) => throw new NotImplementedException();
     public Task<UserInfo> GetMeAsync(CancellationToken ct = default) => throw new NotImplementedException();
     public Task LogoutAsync(string refreshToken, CancellationToken ct = default) => throw new NotImplementedException();
+
+    // feat/iqc-ticket — IQC ticket hooks. Default resolve = unmatched;
+    // makers = empty; create records the body + returns a canned 201 shape.
+    public Func<string?, Task<CCL.MES.Shared.Quality.ResolveIqcCodeResponse>>? ResolveIqcCodeImpl { get; set; }
+    public Func<string?, Task<List<string>>>? IqcMakersImpl { get; set; }
+    public Func<CCL.MES.Shared.Quality.CreateIqcTicketBody, Task<CCL.MES.Shared.Quality.CreateIqcTicketResponse>>? CreateIqcTicketImpl { get; set; }
+    public List<string?> ResolveIqcCodeCalls { get; } = new();
+    public List<CCL.MES.Shared.Quality.CreateIqcTicketBody> CreateIqcTicketCalls { get; } = new();
+
+    public Task<CCL.MES.Shared.Quality.ResolveIqcCodeResponse> ResolveIqcCodeAsync(string? codeIfs, CancellationToken ct = default)
+    {
+        ResolveIqcCodeCalls.Add(codeIfs);
+        return ResolveIqcCodeImpl is not null
+            ? ResolveIqcCodeImpl(codeIfs)
+            : Task.FromResult(new CCL.MES.Shared.Quality.ResolveIqcCodeResponse { MatchStatus = "unmatched" });
+    }
+
+    public Task<List<string>> GetIqcMakersAsync(string? search, CancellationToken ct = default)
+        => IqcMakersImpl is not null ? IqcMakersImpl(search) : Task.FromResult(new List<string>());
+
+    public Task<CCL.MES.Shared.Quality.CreateIqcTicketResponse> CreateIqcTicketAsync(
+        CCL.MES.Shared.Quality.CreateIqcTicketBody body, CancellationToken ct = default)
+    {
+        CreateIqcTicketCalls.Add(body);
+        return CreateIqcTicketImpl is not null
+            ? CreateIqcTicketImpl(body)
+            : Task.FromResult(new CCL.MES.Shared.Quality.CreateIqcTicketResponse
+            {
+                ReceiptNo = "IQC-260819-0001", IqcInspectionId = 1, MaterialLotId = 1,
+                MatchStatus = "unmatched", LotStatus = "Quarantine",
+            });
+    }
     public NpiPagedRaw<NpiWorkCenter>? WorkCenters { get; set; }
     public Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? s, int p, int z, CancellationToken c = default)
         => Task.FromResult(WorkCenters ?? new NpiPagedRaw<NpiWorkCenter> { Items = System.Array.Empty<NpiWorkCenter>(), Total = 0, Page = 1, PageSize = 20 });

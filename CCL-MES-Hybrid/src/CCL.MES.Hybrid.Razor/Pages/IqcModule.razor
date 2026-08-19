@@ -1,28 +1,63 @@
 @page "/qms/iqc"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Shared.Quality
+@inject ICclApiClient Api
+@inject CCL.MES.Hybrid.Client.Auth.IAuthSession Session
 
-@* IQC — incoming raw-material inspection. Shell (topbar + receipt header +
-   5-step stepper) with the HSF-document step detailed. Scaffold: static mock
-   (QmsMock), no API this phase. *@
+@* IQC — incoming raw-material inspection. Header shows the 9 real ticket
+   fields (feat/iqc-ticket); "Add ticket" opens a transactional <Modal> form
+   that creates a ticket + opens a Quarantine lot via POST /api/v2/iqc. The HSF
+   document table below stays on static mock (out of scope). *@
 <PageTitle>@T("qms.mod.iqc.title") — CCL MES</PageTitle>
 
 <div class="qms-page" data-testid="qms-iqc">
     <QmsModuleTopBar Vm="QmsMock.IqcTop" />
 
     <div class="qms-iqc-head">
-        <div class="qms-fieldgrid">
-            @foreach (var f in QmsMock.IqcHeader)
-            {
-                <div class="qms-field">
-                    <span class="qms-field-label">@T(f.LabelKey)</span>
-                    <span class="qms-field-val">@f.Value</span>
-                </div>
-            }
+        <div class="qms-fieldgrid" data-testid="iqc-header">
+            <div class="qms-field" data-testid="iqc-h-receipt">
+                <span class="qms-field-label">@T("iqc.f.receipt")</span>
+                <span class="qms-field-val">@Show(_header.ReceiptNo)</span>
+            </div>
+            <div class="qms-field" data-testid="iqc-h-codeifs">
+                <span class="qms-field-label">@T("iqc.f.codeifs")</span>
+                <span class="qms-field-val">@Show(_header.CodeIfs)</span>
+            </div>
+            <div class="qms-field" data-testid="iqc-h-matdesc">
+                <span class="qms-field-label">@T("iqc.f.matdesc")</span>
+                <span class="qms-field-val">@Show(_header.MaterialDescription)</span>
+            </div>
+            <div class="qms-field" data-testid="iqc-h-ifsdesc">
+                <span class="qms-field-label">@T("iqc.f.ifsdesc")</span>
+                <span class="qms-field-val">@Show(_header.IfsDescription)</span>
+            </div>
+            <div class="qms-field" data-testid="iqc-h-lotbatch">
+                <span class="qms-field-label">@T("iqc.f.lotbatch")</span>
+                <span class="qms-field-val">@Show(_header.LotBatchNo)</span>
+            </div>
+            <div class="qms-field" data-testid="iqc-h-manfdate">
+                <span class="qms-field-label">@T("iqc.f.manfdate")</span>
+                <span class="qms-field-val">@Show(_header.ManufactureDate?.ToString("dd/MM/yyyy"))</span>
+            </div>
+            <div class="qms-field" data-testid="iqc-h-maker">
+                <span class="qms-field-label">@T("iqc.f.maker")</span>
+                <span class="qms-field-val">@Show(_header.MakerName)</span>
+            </div>
+            <div class="qms-field" data-testid="iqc-h-supplier">
+                <span class="qms-field-label">@T("iqc.f.supplier")</span>
+                <span class="qms-field-val">@Show(_header.SupplierName)</span>
+            </div>
+            <div class="qms-field" data-testid="iqc-h-inspector">
+                <span class="qms-field-label">@T("iqc.f.inspector")</span>
+                <span class="qms-field-val">@Show(_header.Inspector)</span>
+            </div>
         </div>
         <div class="qms-actionbar">
-            <button type="button" class="qms-btn qms-btn-secondary">@T("qms.act.savedraft")</button>
-            <button type="button" class="qms-btn qms-btn-primary">@T("qms.act.complete")</button>
+            <button type="button" class="qms-btn qms-btn-primary"
+                    data-testid="iqc-add-ticket" @onclick="OpenForm">
+                @T("iqc.add.button")
+            </button>
         </div>
     </div>
 
@@ -79,6 +114,254 @@
     }
 </div>
 
+<Modal Open="_formOpen" OnClose="CloseForm" Size="ModalSize.Md"
+       ClickOutsideToClose="false">
+    <Header>@T("iqc.form.title")</Header>
+    <Body>
+        <div class="iqc-form" data-testid="iqc-form">
+            <p class="iqc-form-desc">@T("iqc.form.desc")</p>
+
+            <div class="iqc-form-grid">
+                <label class="iqc-fld">
+                    <span class="iqc-fld-label">@T("iqc.f.codeifs")</span>
+                    <input class="op-input" data-testid="iqc-f-codeifs"
+                           placeholder="@T("iqc.form.codeifs.ph")"
+                           value="@_codeIfs"
+                           @onchange="OnCodeIfsChanged" />
+                </label>
+
+                <label class="iqc-fld">
+                    <span class="iqc-fld-label">@T("iqc.f.lotbatch")</span>
+                    <input class="op-input" data-testid="iqc-f-lotbatch"
+                           placeholder="@T("iqc.form.lotbatch.ph")"
+                           @bind="_lotBatchNo" />
+                </label>
+
+                <label class="iqc-fld">
+                    <span class="iqc-fld-label">@T("iqc.f.matdesc")</span>
+                    <input class="op-input" data-testid="iqc-f-matdesc"
+                           value="@_resolvedMatDesc" disabled />
+                </label>
+
+                <label class="iqc-fld">
+                    <span class="iqc-fld-label">@T("iqc.f.ifsdesc")</span>
+                    <input class="op-input" data-testid="iqc-f-ifsdesc"
+                           value="@_resolvedIfsDesc" disabled />
+                </label>
+
+                <label class="iqc-fld">
+                    <span class="iqc-fld-label">@T("iqc.f.manfdate")</span>
+                    <input type="date" class="op-input" data-testid="iqc-f-manfdate"
+                           @bind="_manufactureDate" />
+                </label>
+
+                <label class="iqc-fld">
+                    <span class="iqc-fld-label">@T("iqc.f.maker")</span>
+                    <input class="op-input" list="iqc-makers" data-testid="iqc-f-maker"
+                           placeholder="@T("iqc.form.maker.ph")"
+                           value="@_makerName"
+                           @onchange="OnMakerChanged" />
+                    <datalist id="iqc-makers">
+                        @foreach (var m in _makerOptions)
+                        {
+                            <option value="@m" />
+                        }
+                    </datalist>
+                </label>
+
+                <label class="iqc-fld">
+                    <span class="iqc-fld-label">@T("iqc.f.supplier")</span>
+                    <input class="op-input" data-testid="iqc-f-supplier"
+                           placeholder="@T("iqc.form.supplier.ph")"
+                           @bind="_supplierName" />
+                </label>
+
+                <label class="iqc-fld">
+                    <span class="iqc-fld-label">@T("iqc.f.qty")</span>
+                    <input type="number" min="0" step="any" class="op-input" data-testid="iqc-f-qty"
+                           placeholder="@T("iqc.form.qty.ph")"
+                           @bind="_quantity" />
+                </label>
+
+                <label class="iqc-fld">
+                    <span class="iqc-fld-label">@T("iqc.f.uom")</span>
+                    <input class="op-input" data-testid="iqc-f-uom"
+                           placeholder="@T("iqc.form.uom.ph")"
+                           @bind="_uom" />
+                </label>
+            </div>
+
+            @if (_matchStatus is "ambiguous")
+            {
+                <p class="iqc-warn iqc-warn-ambiguous" data-testid="iqc-warn-ambiguous">@T("iqc.match.ambiguous")</p>
+            }
+            else if (_matchStatus is "unmatched" && !string.IsNullOrWhiteSpace(_codeIfs))
+            {
+                <p class="iqc-warn iqc-warn-unmatched" data-testid="iqc-warn-unmatched">@T("iqc.match.unmatched")</p>
+            }
+            @if (_error is not null)
+            {
+                <p class="iqc-warn iqc-warn-error" data-testid="iqc-form-error">@_error</p>
+            }
+        </div>
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-secondary" data-testid="iqc-form-cancel"
+                @onclick="CloseForm" disabled="@_saving">@T("iqc.form.cancel")</button>
+        <button type="button" class="op-btn op-btn-primary" data-testid="iqc-form-save"
+                @onclick="SaveAsync" disabled="@(_saving || !CanSave)">
+            @(_saving ? T("iqc.form.saving") : T("iqc.form.save"))
+        </button>
+    </Footer>
+</Modal>
+
 @code {
     private int _active;
+
+    // Header state — populated after a successful create (server = source).
+    private HeaderVm _header = HeaderVm.Empty;
+
+    // Form state.
+    private bool _formOpen;
+    private bool _saving;
+    private string? _error;
+    private string _codeIfs = "";
+    private string _lotBatchNo = "";
+    private string? _makerName;
+    private string? _supplierName;
+    private DateTime? _manufactureDate;
+    private double? _quantity;
+    private string? _uom;
+    private string? _resolvedMatDesc;
+    private string? _resolvedIfsDesc;
+    private string? _matchStatus;
+    private List<string> _makerOptions = new();
+
+    private bool CanSave =>
+        !string.IsNullOrWhiteSpace(_codeIfs)
+        && !string.IsNullOrWhiteSpace(_lotBatchNo)
+        && _quantity is > 0;
+
+    private string Show(string? v) => string.IsNullOrWhiteSpace(v) ? T("iqc.f.empty") : v!;
+
+    private void OpenForm()
+    {
+        _error = null;
+        _codeIfs = ""; _lotBatchNo = ""; _makerName = null; _supplierName = null;
+        _manufactureDate = null; _quantity = null; _uom = null;
+        _resolvedMatDesc = null; _resolvedIfsDesc = null; _matchStatus = null;
+        _formOpen = true;
+    }
+
+    private void CloseForm()
+    {
+        if (_saving) return;
+        _formOpen = false;
+    }
+
+    private async Task OnCodeIfsChanged(ChangeEventArgs e)
+    {
+        _codeIfs = e.Value?.ToString() ?? "";
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_codeIfs))
+        {
+            _matchStatus = null; _resolvedMatDesc = null; _resolvedIfsDesc = null;
+            return;
+        }
+        try
+        {
+            var r = await Api.ResolveIqcCodeAsync(_codeIfs);
+            _matchStatus = r.MatchStatus;
+            _resolvedMatDesc = r.MaterialDescription;
+            _resolvedIfsDesc = r.IfsDescription;
+            // Auto-fill supplier only when unambiguous and operator left it blank.
+            if (r.MatchStatus == "matched" && string.IsNullOrWhiteSpace(_supplierName)
+                && !string.IsNullOrWhiteSpace(r.SupplierName))
+                _supplierName = r.SupplierName;
+        }
+        catch
+        {
+            // Resolve is best-effort; server re-resolves on save. Leave hints blank.
+            _matchStatus = null; _resolvedMatDesc = null; _resolvedIfsDesc = null;
+        }
+    }
+
+    private async Task OnMakerChanged(ChangeEventArgs e)
+    {
+        _makerName = e.Value?.ToString();
+        var q = (_makerName ?? "").Trim();
+        try { _makerOptions = await Api.GetIqcMakersAsync(q); }
+        catch { /* suggestions are optional */ }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!CanSave || _saving) return;
+        _saving = true;
+        _error = null;
+        try
+        {
+            var resp = await Api.CreateIqcTicketAsync(new CreateIqcTicketBody
+            {
+                CodeIfs = _codeIfs.Trim(),
+                LotBatchNo = _lotBatchNo.Trim(),
+                ManufactureDate = _manufactureDate,
+                MakerName = string.IsNullOrWhiteSpace(_makerName) ? null : _makerName!.Trim(),
+                SupplierName = string.IsNullOrWhiteSpace(_supplierName) ? null : _supplierName!.Trim(),
+                Quantity = _quantity ?? 0,
+                Uom = string.IsNullOrWhiteSpace(_uom) ? null : _uom!.Trim(),
+            });
+
+            // Refresh header from server-authoritative result.
+            _header = new HeaderVm
+            {
+                ReceiptNo = resp.ReceiptNo,
+                CodeIfs = _codeIfs.Trim(),
+                MaterialDescription = resp.MaterialDescription,
+                IfsDescription = resp.IfsDescription,
+                LotBatchNo = _lotBatchNo.Trim(),
+                ManufactureDate = _manufactureDate,
+                MakerName = string.IsNullOrWhiteSpace(_makerName) ? null : _makerName!.Trim(),
+                SupplierName = string.IsNullOrWhiteSpace(_supplierName) ? null : _supplierName!.Trim(),
+                Inspector = Session.CurrentUserInfo?.Username,
+            };
+            _formOpen = false;
+        }
+        catch (ApiException ex)
+        {
+            _error = LocaliseError(ex.ApiError.Code);
+        }
+        catch
+        {
+            _error = T("iqc.err.generic");
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private string LocaliseError(string code) => code switch
+    {
+        "iqc.invalid_code_ifs"       => T("iqc.err.invalid_code_ifs"),
+        "iqc.invalid_lot_batch_no"   => T("iqc.err.invalid_lot_batch_no"),
+        "iqc.invalid_quantity"       => T("iqc.err.invalid_quantity"),
+        "iqc.receipt_no_conflict"    => T("iqc.err.receipt_no_conflict"),
+        "lot.duplicate"              => T("iqc.err.lot_duplicate"),
+        _                            => T("iqc.err.generic"),
+    };
+
+    private sealed class HeaderVm
+    {
+        public string? ReceiptNo { get; init; }
+        public string? CodeIfs { get; init; }
+        public string? MaterialDescription { get; init; }
+        public string? IfsDescription { get; init; }
+        public string? LotBatchNo { get; init; }
+        public DateTime? ManufactureDate { get; init; }
+        public string? MakerName { get; init; }
+        public string? SupplierName { get; init; }
+        public string? Inspector { get; init; }
+        public static HeaderVm Empty => new();
+    }
 }

@@ -53,6 +53,12 @@ public interface ICclApiClient
     Task<QmsQueueDto?> GetQmsQueueAsync(CancellationToken ct = default);
     Task<QcHistoryDto?> GetQcHistoryAsync(string? kind, string? judgment, string? search, CancellationToken ct = default);
 
+    // ── IQC ticket (feat/iqc-ticket) ───────────────────────────────
+    Task<CCL.MES.Shared.Quality.ResolveIqcCodeResponse> ResolveIqcCodeAsync(string? codeIfs, CancellationToken ct = default);
+    Task<List<string>> GetIqcMakersAsync(string? search, CancellationToken ct = default);
+    Task<CCL.MES.Shared.Quality.CreateIqcTicketResponse> CreateIqcTicketAsync(
+        CCL.MES.Shared.Quality.CreateIqcTicketBody body, CancellationToken ct = default);
+
     // ── NPI (pilot scope) ──────────────────────────────────────────
     Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? search, int page, int pageSize, CancellationToken ct = default);
     Task<NpiPagedRaw<NpiRawMaterial>> GetRawMaterialsAsync(string? search, int page, int pageSize, CancellationToken ct = default);

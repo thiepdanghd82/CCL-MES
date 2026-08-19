@@ -51,6 +51,19 @@ public sealed class RbacServiceTests : IDisposable
         try { Directory.Delete(_blobRoot, recursive: true); } catch { /* best effort */ }
     }
 
+    /// <summary>feat/iqc-ticket — IqcService gained a MaterialLotScanService
+    /// dependency (ticket-create opens a Quarantine lot). CreateAsync/ApproveAsync
+    /// exercised here do NOT use it, but the ctor needs it. IqcService + its
+    /// MaterialLotScanService share ONE fresh context per call (same as before).</summary>
+    private IqcService NewIqcService()
+    {
+        var ctx = _fx.NewContext();
+        var lots = new MaterialLotScanService(
+            ctx, _audit,
+            Microsoft.Extensions.Options.Options.Create(new MaterialLotOptions()));
+        return new IqcService(ctx, _audit, lots);
+    }
+
     // ── IqcService — editor set {Admin, Supervisor, QC} ───────────────
 
     [Theory]
@@ -60,7 +73,7 @@ public sealed class RbacServiceTests : IDisposable
     [InlineData("HACKER")]                                    // unknown role
     public async Task IqcService_CreateAsync_rejects_role_not_in_editor_set(string badRole)
     {
-        var svc = new IqcService(_fx.NewContext(), _audit);
+        var svc = NewIqcService();
         var req = MinimalIqcRequest();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
@@ -73,7 +86,7 @@ public sealed class RbacServiceTests : IDisposable
     [InlineData(UserRole.Qc)]
     public async Task IqcService_CreateAsync_passes_role_in_editor_set(string allowedRole)
     {
-        var svc = new IqcService(_fx.NewContext(), _audit);
+        var svc = NewIqcService();
         var req = MinimalIqcRequest();
 
         var insp = await svc.CreateAsync(req, actor: "rbac.demo", actorRole: allowedRole);
@@ -88,7 +101,7 @@ public sealed class RbacServiceTests : IDisposable
     public async Task IqcService_ApproveAsync_rejects_role_not_in_editor_set(string badRole)
     {
         // Seed an inspection first using a privileged role so we have a real id.
-        var svc = new IqcService(_fx.NewContext(), _audit);
+        var svc = NewIqcService();
         var seed = await svc.CreateAsync(MinimalIqcRequest(), actor: "admin", actorRole: UserRole.Admin);
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>

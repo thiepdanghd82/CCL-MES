@@ -33,6 +33,23 @@ public class IqcInspection : BaseEntity
     public double Quantity { get; set; }
     public string? UomQty { get; set; }
 
+    // ── IQC ticket (feat/iqc-ticket) — 6 field additive ─────────
+    // Số phiếu do server sinh (IQC-<yyMMdd>-<STT4>), duy nhất NOCASE qua
+    // filtered unique index. 3 dòng legacy để null → không dính index.
+    public string? ReceiptNo { get; set; }
+
+    // Code IFS operator nhập/scan. Snapshot text luôn giữ (quyết định #2:
+    // không match vẫn lưu, RawMaterialId=null). RawMaterialId (đã có ở trên)
+    // là FK resolve; CodeIfs là bằng chứng operator đã gõ gì.
+    public string? CodeIfs { get; set; }
+    public string? MakerName { get; set; }
+    public DateTime? ManufactureDate { get; set; }
+
+    // PA-A (quyết định #1): CACHE mô tả lúc tạo phiếu = bằng chứng bất biến.
+    // RawMaterial.PartDescription có thể bị rename về sau; phiếu giữ bản chụp.
+    public string? MaterialDescription { get; set; }
+    public string? IfsDescription { get; set; }
+
     // ── Inspection ──────────────────────────────────────────────
     public string? InspectorId { get; set; }
     public int SampleSize { get; set; }
