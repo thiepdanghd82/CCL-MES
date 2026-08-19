@@ -44,3 +44,29 @@ public sealed class ResolveIqcCodeResponse
     public string? IfsDescription { get; set; }
     public string? SupplierName { get; set; }
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// feat/iqc-search-by-desc — tra vật liệu theo MÔ TẢ (đảo chiều: mô tả là ô tìm
+// chính, Code IFS là droplist kết quả multi-select). Read-only, QcRead.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// <summary>Một dòng kết quả tra vật liệu theo mô tả.
+/// <c>CodeIfs</c> = PartNo (chọn nhiều để tạo N phiếu); <c>IfsDescription</c> =
+/// PartDescription dòng đại diện.</summary>
+public sealed class IqcMaterialSearchItem
+{
+    public string CodeIfs { get; set; } = "";
+    public string? IfsDescription { get; set; }
+}
+
+/// <summary>Thân phản hồi <c>GET /api/v2/iqc/search-material</c> — phân trang +
+/// cờ desc-quá-ngắn (UI hiện "{đã tick}/{total}").</summary>
+public sealed class IqcMaterialSearchResponse
+{
+    /// <summary>true khi desc dưới ngưỡng ký tự tối thiểu (server KHÔNG query).</summary>
+    public bool TooShort { get; set; }
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; }
+    public int Total { get; set; }
+    public List<IqcMaterialSearchItem> Items { get; set; } = new();
+}

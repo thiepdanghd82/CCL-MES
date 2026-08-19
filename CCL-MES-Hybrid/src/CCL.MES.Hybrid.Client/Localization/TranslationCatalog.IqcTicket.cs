@@ -54,5 +54,18 @@ public sealed partial class TranslationCatalog
         Add("iqc.err.receipt_no_conflict", "Trùng số phiếu, thử lại.",           "Receipt number clash, please retry.");
         Add("iqc.err.lot_duplicate",     "Lô đã tồn tại cho vật liệu này.",      "That lot already exists for this material.");
         Add("iqc.err.generic",           "Không lưu được phiếu.",                "Could not save the ticket.");
+
+        // ── Search-by-description + multi-select (feat/iqc-search-by-desc) ─
+        Add("iqc.f.matdesc.search",      "Tìm theo mô tả vật liệu",              "Search by material description");
+        Add("iqc.search.ph",             "Gõ ≥3 ký tự mô tả (vd. NITTO 5000NS)", "Type ≥3 chars of the description (e.g. NITTO 5000NS)");
+        Add("iqc.search.tooshort",       "Gõ tối thiểu 3 ký tự để tìm.",         "Type at least 3 characters to search.");
+        Add("iqc.search.results",        "{0}/{1} kết quả",                      "{0}/{1} results");
+        Add("iqc.search.filter.ph",      "Lọc trong kết quả…",                   "Filter results…");
+        Add("iqc.search.none",           "Không có Code IFS khớp mô tả này.",     "No Code IFS matches this description.");
+        Add("iqc.multi.created",         "Đã tạo {0} phiếu.",                    "Created {0} tickets.");
+        Add("iqc.multi.partial",         "Đã tạo {0} phiếu, {1} lỗi.",           "Created {0} tickets, {1} failed.");
+        Add("iqc.multi.codeifs.pick",    "Chọn Code IFS (tick nhiều)",           "Pick Code IFS (multi-select)");
+        Add("iqc.multi.lotbatch.hint",   "Nhiều Code IFS → tự thêm hậu tố -01…-0N vào số lô.",
+                                                                                 "Multiple Code IFS → lot number auto-suffixed -01…-0N.");
     }
 }

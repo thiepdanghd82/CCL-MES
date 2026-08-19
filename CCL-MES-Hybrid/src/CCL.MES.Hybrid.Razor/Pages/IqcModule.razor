@@ -1,5 +1,6 @@
 @page "/qms/iqc"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@implements IDisposable
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Quality
 @inject ICclApiClient Api
@@ -122,31 +123,69 @@
             <p class="iqc-form-desc">@T("iqc.form.desc")</p>
 
             <div class="iqc-form-grid">
-                <label class="iqc-fld">
-                    <span class="iqc-fld-label">@T("iqc.f.codeifs")</span>
-                    <input class="op-input" data-testid="iqc-f-codeifs"
-                           placeholder="@T("iqc.form.codeifs.ph")"
-                           value="@_codeIfs"
-                           @onchange="OnCodeIfsChanged" />
+                @* Đảo chiều (feat/iqc-search-by-desc): mô tả là ô TÌM chính. *@
+                <label class="iqc-fld iqc-fld-wide">
+                    <span class="iqc-fld-label">@T("iqc.f.matdesc.search")</span>
+                    <input class="op-input" data-testid="iqc-search-input"
+                           placeholder="@T("iqc.search.ph")"
+                           value="@_searchText"
+                           @oninput="OnSearchInput" />
                 </label>
+
+                @* Code IFS = droplist multi-select tick (chip-buttons, KHÔNG
+                   native <select> — WKWebView freeze trên maccatalyst). *@
+                <div class="iqc-fld iqc-fld-wide">
+                    <span class="iqc-fld-label">@T("iqc.multi.codeifs.pick")</span>
+                    @if (_searchTooShort)
+                    {
+                        <p class="iqc-hint" data-testid="iqc-search-tooshort">@T("iqc.search.tooshort")</p>
+                    }
+                    else
+                    {
+                        <div class="iqc-picker" data-testid="iqc-codeifs-list">
+                            <div class="iqc-picker-bar">
+                                <input class="op-input iqc-picker-filter" data-testid="iqc-codeifs-filter"
+                                       placeholder="@T("iqc.search.filter.ph")"
+                                       value="@_listFilter" @oninput="OnListFilterInput" />
+                                <span class="iqc-picker-count" data-testid="iqc-codeifs-count">
+                                    @T("iqc.search.results", _selectedCodes.Count, _searchTotal)
+                                </span>
+                            </div>
+                            @if (FilteredResults.Count == 0)
+                            {
+                                <p class="iqc-hint" data-testid="iqc-codeifs-none">@T("iqc.search.none")</p>
+                            }
+                            else
+                            {
+                                <div class="iqc-picker-scroll">
+                                    @foreach (var row in FilteredResults)
+                                    {
+                                        var on = _selectedCodes.Contains(row.CodeIfs);
+                                        <button type="button"
+                                                class="iqc-pick-row @(on ? "iqc-pick-on" : "")"
+                                                data-testid="iqc-codeifs-tick"
+                                                data-code="@row.CodeIfs"
+                                                @onclick="() => ToggleCode(row.CodeIfs)">
+                                            <span class="iqc-pick-mark">@(on ? "☑" : "☐")</span>
+                                            <span class="iqc-pick-code">@row.CodeIfs</span>
+                                            <span class="iqc-pick-desc">@row.IfsDescription</span>
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
 
                 <label class="iqc-fld">
                     <span class="iqc-fld-label">@T("iqc.f.lotbatch")</span>
                     <input class="op-input" data-testid="iqc-f-lotbatch"
                            placeholder="@T("iqc.form.lotbatch.ph")"
                            @bind="_lotBatchNo" />
-                </label>
-
-                <label class="iqc-fld">
-                    <span class="iqc-fld-label">@T("iqc.f.matdesc")</span>
-                    <input class="op-input" data-testid="iqc-f-matdesc"
-                           value="@_resolvedMatDesc" disabled />
-                </label>
-
-                <label class="iqc-fld">
-                    <span class="iqc-fld-label">@T("iqc.f.ifsdesc")</span>
-                    <input class="op-input" data-testid="iqc-f-ifsdesc"
-                           value="@_resolvedIfsDesc" disabled />
+                    @if (_selectedCodes.Count > 1)
+                    {
+                        <span class="iqc-hint" data-testid="iqc-lot-suffix-hint">@T("iqc.multi.lotbatch.hint")</span>
+                    }
                 </label>
 
                 <label class="iqc-fld">
@@ -191,14 +230,6 @@
                 </label>
             </div>
 
-            @if (_matchStatus is "ambiguous")
-            {
-                <p class="iqc-warn iqc-warn-ambiguous" data-testid="iqc-warn-ambiguous">@T("iqc.match.ambiguous")</p>
-            }
-            else if (_matchStatus is "unmatched" && !string.IsNullOrWhiteSpace(_codeIfs))
-            {
-                <p class="iqc-warn iqc-warn-unmatched" data-testid="iqc-warn-unmatched">@T("iqc.match.unmatched")</p>
-            }
             @if (_error is not null)
             {
                 <p class="iqc-warn iqc-warn-error" data-testid="iqc-form-error">@_error</p>
@@ -225,20 +256,41 @@
     private bool _formOpen;
     private bool _saving;
     private string? _error;
-    private string _codeIfs = "";
     private string _lotBatchNo = "";
     private string? _makerName;
     private string? _supplierName;
     private DateTime? _manufactureDate;
     private double? _quantity;
     private string? _uom;
-    private string? _resolvedMatDesc;
-    private string? _resolvedIfsDesc;
-    private string? _matchStatus;
     private List<string> _makerOptions = new();
 
+    // feat/iqc-search-by-desc — search-by-description + multi-select.
+    private string _searchText = "";
+    private string _listFilter = "";
+    private bool _searchTooShort;
+    private int _searchTotal;
+    private List<IqcMaterialSearchItem> _searchResults = new();
+    private readonly HashSet<string> _selectedCodes = new(StringComparer.OrdinalIgnoreCase);
+    private System.Threading.Timer? _debounce;
+
+    /// <summary>Debounce window for the description search. Default 300ms in
+    /// production; tests set 0 to fire synchronously (deterministic, no timer
+    /// thread racing under parallel xUnit collections).</summary>
+    [Parameter] public int DebounceMs { get; set; } = 300;
+
+    // Client-side filter over the loaded page (server also paginates). Ticked
+    // rows stay visible so the operator never loses a selection while filtering.
+    private List<IqcMaterialSearchItem> FilteredResults =>
+        string.IsNullOrWhiteSpace(_listFilter)
+            ? _searchResults
+            : _searchResults.Where(r =>
+                _selectedCodes.Contains(r.CodeIfs)
+                || r.CodeIfs.Contains(_listFilter, StringComparison.OrdinalIgnoreCase)
+                || (r.IfsDescription ?? "").Contains(_listFilter, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
     private bool CanSave =>
-        !string.IsNullOrWhiteSpace(_codeIfs)
+        _selectedCodes.Count > 0
         && !string.IsNullOrWhiteSpace(_lotBatchNo)
         && _quantity is > 0;
 
@@ -247,9 +299,10 @@
     private void OpenForm()
     {
         _error = null;
-        _codeIfs = ""; _lotBatchNo = ""; _makerName = null; _supplierName = null;
+        _searchText = ""; _listFilter = ""; _searchTooShort = false; _searchTotal = 0;
+        _searchResults = new(); _selectedCodes.Clear();
+        _lotBatchNo = ""; _makerName = null; _supplierName = null;
         _manufactureDate = null; _quantity = null; _uom = null;
-        _resolvedMatDesc = null; _resolvedIfsDesc = null; _matchStatus = null;
         _formOpen = true;
     }
 
@@ -259,31 +312,46 @@
         _formOpen = false;
     }
 
-    private async Task OnCodeIfsChanged(ChangeEventArgs e)
+    // Debounced search: mirror OnMakerChanged's cadence but with a 300ms timer
+    // so a fast typist doesn't fan a query per keystroke.
+    private async Task OnSearchInput(ChangeEventArgs e)
     {
-        _codeIfs = e.Value?.ToString() ?? "";
+        _searchText = e.Value?.ToString() ?? "";
         _error = null;
-        if (string.IsNullOrWhiteSpace(_codeIfs))
+        _debounce?.Dispose();
+        if (DebounceMs <= 0)
         {
-            _matchStatus = null; _resolvedMatDesc = null; _resolvedIfsDesc = null;
+            // Synchronous path (tests): no timer thread, deterministic.
+            await RunSearchAsync();
             return;
         }
+        _debounce = new System.Threading.Timer(async _ =>
+            await InvokeAsync(RunSearchAsync), null, DebounceMs, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task RunSearchAsync()
+    {
+        var term = _searchText;
         try
         {
-            var r = await Api.ResolveIqcCodeAsync(_codeIfs);
-            _matchStatus = r.MatchStatus;
-            _resolvedMatDesc = r.MaterialDescription;
-            _resolvedIfsDesc = r.IfsDescription;
-            // Auto-fill supplier only when unambiguous and operator left it blank.
-            if (r.MatchStatus == "matched" && string.IsNullOrWhiteSpace(_supplierName)
-                && !string.IsNullOrWhiteSpace(r.SupplierName))
-                _supplierName = r.SupplierName;
+            var r = await Api.SearchIqcMaterialAsync(term, 1, 20);
+            _searchTooShort = r.TooShort;
+            _searchTotal = r.Total;
+            _searchResults = r.Items ?? new();
         }
         catch
         {
-            // Resolve is best-effort; server re-resolves on save. Leave hints blank.
-            _matchStatus = null; _resolvedMatDesc = null; _resolvedIfsDesc = null;
+            // Best-effort; leave last-known list. Save still re-resolves server-side.
+            _searchTooShort = false;
         }
+        StateHasChanged();
+    }
+
+    private void OnListFilterInput(ChangeEventArgs e) => _listFilter = e.Value?.ToString() ?? "";
+
+    private void ToggleCode(string code)
+    {
+        if (!_selectedCodes.Remove(code)) _selectedCodes.Add(code);
     }
 
     private async Task OnMakerChanged(ChangeEventArgs e)
@@ -294,46 +362,92 @@
         catch { /* suggestions are optional */ }
     }
 
+    // A2a multi-create: tick N Code IFS → N POST /api/v2/iqc, each a fresh
+    // ticket + MaterialLot with the SAME server-side freeze (PA-A) path. Lot
+    // numbers are distinct via -01…-0N suffix when >1 code is picked (single
+    // code keeps the base lot as-is). Loop is sequential + collects a per-row
+    // outcome so one 409 (dup lot) fails only that row, not the whole batch.
     private async Task SaveAsync()
     {
         if (!CanSave || _saving) return;
         _saving = true;
         _error = null;
+
+        var codes = _selectedCodes.ToList();
+        var baseLot = _lotBatchNo.Trim();
+        var multi = codes.Count > 1;
+        var maker = string.IsNullOrWhiteSpace(_makerName) ? null : _makerName!.Trim();
+        var supplier = string.IsNullOrWhiteSpace(_supplierName) ? null : _supplierName!.Trim();
+        var uom = string.IsNullOrWhiteSpace(_uom) ? null : _uom!.Trim();
+
+        var okCount = 0;
+        var failCount = 0;
+        string? firstError = null;
+        CreateIqcTicketResponse? lastOk = null;
+        string lastOkCode = "";
+        string lastOkLot = "";
+
         try
         {
-            var resp = await Api.CreateIqcTicketAsync(new CreateIqcTicketBody
+            for (var i = 0; i < codes.Count; i++)
             {
-                CodeIfs = _codeIfs.Trim(),
-                LotBatchNo = _lotBatchNo.Trim(),
-                ManufactureDate = _manufactureDate,
-                MakerName = string.IsNullOrWhiteSpace(_makerName) ? null : _makerName!.Trim(),
-                SupplierName = string.IsNullOrWhiteSpace(_supplierName) ? null : _supplierName!.Trim(),
-                Quantity = _quantity ?? 0,
-                Uom = string.IsNullOrWhiteSpace(_uom) ? null : _uom!.Trim(),
-            });
+                var code = codes[i];
+                var lot = multi ? $"{baseLot}-{(i + 1):D2}" : baseLot;
+                try
+                {
+                    var resp = await Api.CreateIqcTicketAsync(new CreateIqcTicketBody
+                    {
+                        CodeIfs = code,
+                        LotBatchNo = lot,
+                        ManufactureDate = _manufactureDate,
+                        MakerName = maker,
+                        SupplierName = supplier,
+                        Quantity = _quantity ?? 0,
+                        Uom = uom,
+                    });
+                    okCount++;
+                    lastOk = resp; lastOkCode = code; lastOkLot = lot;
+                }
+                catch (ApiException ex)
+                {
+                    failCount++;
+                    firstError ??= LocaliseError(ex.ApiError.Code);
+                }
+                catch
+                {
+                    failCount++;
+                    firstError ??= T("iqc.err.generic");
+                }
+            }
 
-            // Refresh header from server-authoritative result.
-            _header = new HeaderVm
+            if (lastOk is not null)
             {
-                ReceiptNo = resp.ReceiptNo,
-                CodeIfs = _codeIfs.Trim(),
-                MaterialDescription = resp.MaterialDescription,
-                IfsDescription = resp.IfsDescription,
-                LotBatchNo = _lotBatchNo.Trim(),
-                ManufactureDate = _manufactureDate,
-                MakerName = string.IsNullOrWhiteSpace(_makerName) ? null : _makerName!.Trim(),
-                SupplierName = string.IsNullOrWhiteSpace(_supplierName) ? null : _supplierName!.Trim(),
-                Inspector = Session.CurrentUserInfo?.Username,
-            };
-            _formOpen = false;
-        }
-        catch (ApiException ex)
-        {
-            _error = LocaliseError(ex.ApiError.Code);
-        }
-        catch
-        {
-            _error = T("iqc.err.generic");
+                // Header shows the last successfully created ticket (server-auth).
+                _header = new HeaderVm
+                {
+                    ReceiptNo = lastOk.ReceiptNo,
+                    CodeIfs = lastOkCode,
+                    MaterialDescription = lastOk.MaterialDescription,
+                    IfsDescription = lastOk.IfsDescription,
+                    LotBatchNo = lastOkLot,
+                    ManufactureDate = _manufactureDate,
+                    MakerName = maker,
+                    SupplierName = supplier,
+                    Inspector = Session.CurrentUserInfo?.Username,
+                };
+            }
+
+            if (failCount == 0)
+            {
+                _formOpen = false;   // all created → close + refreshed header
+            }
+            else
+            {
+                // Partial: keep the form open, surface N ok / M failed banner.
+                _error = okCount > 0
+                    ? T("iqc.multi.partial", okCount, failCount)
+                    : (firstError ?? T("iqc.err.generic"));
+            }
         }
         finally
         {
@@ -350,6 +464,8 @@
         "lot.duplicate"              => T("iqc.err.lot_duplicate"),
         _                            => T("iqc.err.generic"),
     };
+
+    public void Dispose() => _debounce?.Dispose();
 
     private sealed class HeaderVm
     {

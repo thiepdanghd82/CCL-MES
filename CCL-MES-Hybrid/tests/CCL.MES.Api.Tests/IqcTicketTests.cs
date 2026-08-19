@@ -216,6 +216,141 @@ public sealed class IqcTicketTests : IClassFixture<MesApiFactory>
         Assert.Equal(10, created.Distinct(StringComparer.OrdinalIgnoreCase).Count());
     }
 
+    // ── feat/iqc-search-by-desc — GET /iqc/search-material ─────────
+
+    [Fact]
+    public async Task SearchMaterial_by_description_fans_out_distinct_code_ifs()
+    {
+        // 14 distinct PartNo (mother "NITTO 5000NS"); one PartNo duplicated to
+        // prove DISTINCT-by-PartNo collapses it to a single row.
+        for (var i = 0; i < 14; i++)
+            await SeedRawAsync($"NITTO-5000NS-{i:D2}", $"NITTO 5000NS variant {i}");
+        await SeedRawAsync("NITTO-5000NS-00", "NITTO 5000NS variant 0 (dup PartNo)");
+        await SeedRawAsync("BW-0112N-01", "BW-0112N unrelated");   // must NOT match
+
+        var c = await ClientAsync("qc-search-fan", UserRole.Qc);
+        var resp = await c.GetAsync("/api/v2/iqc/search-material?desc=" + Uri.EscapeDataString("NITTO 5000NS") + "&page=1&pageSize=50");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        var body = (await resp.Content.ReadFromJsonAsync<IqcMaterialSearchResponse>())!;
+        Assert.False(body.TooShort);
+        Assert.Equal(14, body.Total);
+        Assert.Equal(14, body.Items.Select(x => x.CodeIfs).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.All(body.Items, x => Assert.StartsWith("NITTO-5000NS-", x.CodeIfs));
+    }
+
+    [Fact]
+    public async Task SearchMaterial_collapses_whitespace_so_double_space_matches()
+    {
+        await SeedRawAsync("WS-01", "NITTO 5000NS single space");
+        var c = await ClientAsync("qc-search-ws", UserRole.Qc);
+
+        var resp = await c.GetAsync("/api/v2/iqc/search-material?desc=" + Uri.EscapeDataString("NITTO  5000NS"));
+        var body = (await resp.Content.ReadFromJsonAsync<IqcMaterialSearchResponse>())!;
+        Assert.False(body.TooShort);
+        Assert.Contains(body.Items, x => x.CodeIfs == "WS-01");
+    }
+
+    [Fact]
+    public async Task SearchMaterial_short_desc_returns_tooShort_and_empty()
+    {
+        var c = await ClientAsync("qc-search-short", UserRole.Qc);
+        var resp = await c.GetAsync("/api/v2/iqc/search-material?desc=NI");
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var body = (await resp.Content.ReadFromJsonAsync<IqcMaterialSearchResponse>())!;
+        Assert.True(body.TooShort);
+        Assert.Empty(body.Items);
+        Assert.Equal(0, body.Total);
+    }
+
+    [Fact]
+    public async Task SearchMaterial_paginates_total_across_pages()
+    {
+        for (var i = 0; i < 25; i++)
+            await SeedRawAsync($"PAGE-{i:D2}", $"PAGINATE ME row {i}");
+        var c = await ClientAsync("qc-search-page", UserRole.Qc);
+
+        var p1 = (await (await c.GetAsync("/api/v2/iqc/search-material?desc=PAGINATE%20ME&page=1&pageSize=10"))
+            .Content.ReadFromJsonAsync<IqcMaterialSearchResponse>())!;
+        Assert.Equal(25, p1.Total);
+        Assert.Equal(10, p1.Items.Count);
+
+        var p3 = (await (await c.GetAsync("/api/v2/iqc/search-material?desc=PAGINATE%20ME&page=3&pageSize=10"))
+            .Content.ReadFromJsonAsync<IqcMaterialSearchResponse>())!;
+        Assert.Equal(25, p3.Total);
+        Assert.Equal(5, p3.Items.Count);   // remainder page
+    }
+
+    [Fact]
+    public async Task SearchMaterial_forbidden_without_qc_read()
+    {
+        var c = await ClientAsync("op-search-403", UserRole.Operator);
+        var resp = await c.GetAsync("/api/v2/iqc/search-material?desc=anything");
+        Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
+    }
+
+    // ── A2a multi-create — pick N codes → N tickets, distinct lots ─
+
+    [Fact]
+    public async Task Multi_create_three_codes_yields_three_tickets_and_lots()
+    {
+        await SeedRawAsync("MC-A", "multi A");
+        await SeedRawAsync("MC-B", "multi B");
+        await SeedRawAsync("MC-C", "multi C");
+        var c = await ClientAsync("qc-multi-ok", UserRole.Qc);
+
+        // Client does the fan-out; server contract is unchanged (one POST each,
+        // distinct lot suffix). This asserts the SAME endpoint services N calls.
+        var codes = new[] { "MC-A", "MC-B", "MC-C" };
+        var receipts = new List<string>();
+        for (var i = 0; i < codes.Length; i++)
+        {
+            var resp = await c.SendAsync(Post("/api/v2/iqc", Body(codes[i], $"LOT-MCOK-{(i + 1):D2}")));
+            Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+            var b = (await resp.Content.ReadFromJsonAsync<CreateIqcTicketResponse>())!;
+            receipts.Add(b.ReceiptNo);
+        }
+        Assert.Equal(3, receipts.Distinct().Count());
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var lots = await db.MaterialLots.AsNoTracking()
+            .Where(l => l.LotNo.StartsWith("LOT-MCOK-"))
+            .Select(l => new { l.LotNo, l.Status }).ToListAsync();
+        Assert.Equal(3, lots.Count);
+        Assert.Equal(3, lots.Select(x => x.LotNo).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.All(lots, x => Assert.Equal(nameof(MaterialLotStatus.Quarantine), x.Status));
+    }
+
+    [Fact]
+    public async Task Multi_create_distinct_lots_persist_independently_across_scopes()
+    {
+        // A2a fans out N INDEPENDENT HTTP requests (one DbContext scope each).
+        // This proves the distinct-lot siblings each persist in isolation — the
+        // guarantee the client loop relies on when it reports "N ok / M failed".
+        // NOTE: the SINGLE-request duplicate-lot path (same lot in one POST) is
+        // a PRE-EXISTING latent bug outside this PR's scope — CreateLotAsync
+        // catches the unique-index DbUpdateException but leaves the failed
+        // MaterialLot tracked, so the idempotency middleware's trailing
+        // SaveChanges re-throws → 500 instead of a clean 409. Reported, not
+        // fixed here (freeze/create path is locked for feat/iqc-search-by-desc).
+        await SeedRawAsync("MC-INDEP", "multi indep");
+        var c = await ClientAsync("qc-multi-indep", UserRole.Qc);
+
+        for (var i = 1; i <= 3; i++)
+        {
+            var resp = await c.SendAsync(Post("/api/v2/iqc", Body("MC-INDEP", $"LOT-INDEP-{i:D2}")));
+            Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        }
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var lots = await db.MaterialLots.AsNoTracking()
+            .Where(l => l.LotNo.StartsWith("LOT-INDEP-"))
+            .Select(l => l.LotNo).Distinct().ToListAsync();
+        Assert.Equal(3, lots.Count);
+    }
+
     // ── Bất biến — cache mô tả không đổi khi catalog rename (PA-A) ─
 
     [Fact]
