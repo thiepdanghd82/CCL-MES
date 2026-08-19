@@ -27,6 +27,7 @@ GATES=(
   "audit:gate-audit-emit.sh:L43 mutation có vết, detail sạch"
   "legacy-frozen:gate-legacy-web-frozen.sh:C2 app :5050 đóng băng, .resx không key mới"
   "oee-source:gate-oee-single-source.sh:C3 một nguồn tốc độ OEE, null luôn kèm lý do"
+  "matlot:gate-material-lot-fk.sh:A1 mạch lô đi bằng FK, khoá chuỗi NOCASE"
 )
 
 total="${#GATES[@]}"

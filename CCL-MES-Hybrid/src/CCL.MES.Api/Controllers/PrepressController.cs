@@ -49,15 +49,18 @@ public sealed class PrepressController : ControllerBase
     private readonly IMesDbContext _db;
     private readonly IAuditWriter _audit;
     private readonly PrepressBomSnapshotService _snapshot;
+    private readonly MaterialLotScanService _lots;
 
     public PrepressController(
         IMesDbContext db,
         IAuditWriter audit,
-        PrepressBomSnapshotService snapshot)
+        PrepressBomSnapshotService snapshot,
+        MaterialLotScanService lots)
     {
         _db = db;
         _audit = audit;
         _snapshot = snapshot;
+        _lots = lots;
     }
 
     // ── GET /work-orders/{id}/prepress ─────────────────────────────
@@ -130,7 +133,19 @@ public sealed class PrepressController : ControllerBase
         var fromStatus = row.Status;
         row.Status = newStatus;
         row.QtyLoaded = req?.QtyLoaded ?? row.QtyLoaded;
-        row.LotNo = req?.LotNo ?? row.LotNo;
+        // A1 §3.3 — mã lô KHÔNG còn được gán thẳng từ body vào cột nữa. Chuỗi đi
+        // qua MaterialLotScanService: chuẩn hoá → thử resolve về một MaterialLot
+        // thật → set FK MaterialLotId + mirror LotNo TỪ ENTITY LÔ. Chưa resolve
+        // được thì vẫn giữ nhãn kèm warning (siết read-only là Phase 3, sau
+        // go-live); cờ Mes:MaterialLot:EnforceReleased bật thì từ chối.
+        string? lotWarning = null;
+        if (req?.LotNo is not null)
+        {
+            var attach = await _lots.AttachLotLabelAsync(row, req.LotNo, actor, role);
+            if (!attach.Ok)
+                return UnprocessableEntity(ApiError.Of(attach.ErrorCode!, attach.MessageEn!));
+            lotWarning = attach.Warning;
+        }
         // Persist scanned part + BOM-resolved description ONLY when the request
         // carried them (a plain OK/NG must not wipe a previously-scanned code).
         if (!string.IsNullOrWhiteSpace(req?.PartScan)) row.PartScan = req!.PartScan;
@@ -152,6 +167,7 @@ public sealed class PrepressController : ControllerBase
                 to_status = newStatus.ToString(),
                 qty_loaded = row.QtyLoaded,
                 lot_no = row.LotNo,
+                lot_warning = lotWarning,
                 part_scan = row.PartScan,
                 part_scan_description = row.PartScanDescription,
                 ng_reason_code = row.NgReasonCode,

@@ -79,6 +79,11 @@ public interface IMesDbContext
     // Real-time Traceability index — one mutable row per WO (drives the list).
     DbSet<WoTraceIndex> WoTraceIndexes { get; }
     DbSet<WoQcPhoto> WoQcPhotos { get; }
+    // A1 — mạch lô nguyên vật liệu. MaterialLots = lô vật lý (khoá tự nhiên
+    // LotNo NOCASE + TRIM ở schema); WoMaterialConsumptions = từng LẦN QUÉT
+    // (append-only, Đ4). Truy xuất nguồn gốc đi bằng FK, chuỗi lô chỉ là nhãn.
+    DbSet<MaterialLot> MaterialLots { get; }
+    DbSet<WoMaterialConsumption> WoMaterialConsumptions { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

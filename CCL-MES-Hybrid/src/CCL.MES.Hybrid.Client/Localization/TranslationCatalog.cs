@@ -101,6 +101,7 @@ public sealed partial class TranslationCatalog : ITranslationCatalog
         RegisterScanner();
         RegisterGridCols();
         RegisterCrash();
+        RegisterMaterialLot();
     }
 
     /// <summary>Register one key with both language slots. Called from the
