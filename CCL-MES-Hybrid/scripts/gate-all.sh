@@ -25,6 +25,7 @@ GATES=(
   "tokens:gate-design-tokens.sh:L41 kích thước qua thang + density"
   "i18n:gate-i18n-parity.sh:L42 catalog lành, không chuỗi cứng"
   "audit:gate-audit-emit.sh:L43 mutation có vết, detail sạch"
+  "legacy-frozen:gate-legacy-web-frozen.sh:C2 app :5050 đóng băng, .resx không key mới"
 )
 
 total="${#GATES[@]}"

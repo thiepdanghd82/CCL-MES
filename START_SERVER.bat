@@ -1,5 +1,10 @@
 @echo off
-REM CCL-MES — Standalone Server Launcher (Windows)
+REM CCL-MES — Standalone Server Launcher (Windows)  ***DA DONG BANG 2026-08-19***
+REM
+REM FROZEN. App Blazor Server legacy (:5050) khong con phuc vu nha may. Launcher
+REM nay chi chay khi co MES_LEGACY_WEB_FORCE=1 (khoi phuc khan cap), xem khoi
+REM "0. DONG BANG / FROZEN" ben duoi va
+REM CCL-MES-Hybrid/docs/CUTOVER-LEGACY-WEB-FREEZE-2026-08-19.md
 REM
 REM Phase 6 Buoc 6.5 — mirror Ops Control v1.2's server-launcher pattern.
 REM Double-click this file from Explorer to start the SQLite-backed server
@@ -16,6 +21,51 @@ setlocal ENABLEDELAYEDEXPANSION
 cd /d "%~dp0"
 
 cls
+
+REM -- 0. DONG BANG / FROZEN
+REM GATE-ANCHOR: legacy-web-force-guard
+REM Canh boi CCL-MES-Hybrid/scripts/gate-legacy-web-frozen.sh — khoi nay PHAI
+REM nam TRUOC lenh `dotnet run`. Go no = gate do, khong phai "don dep".
+if not "%MES_LEGACY_WEB_FORCE%"=="1" (
+  echo.
+  echo   ================================================================
+  echo      [X]  UNG DUNG NAY DA NGUNG PHUC VU  -  2026-08-19
+  echo           THIS APPLICATION IS RETIRED    -  2026-08-19
+  echo   ================================================================
+  echo.
+  echo   VI  CCL-MES Blazor Server ^(:5050^) da dong bang. Khong con ai o nha
+  echo       may dung ban nay; moi cong viec san xuat da chuyen sang app Hybrid.
+  echo.
+  echo       -^> Dung thay the :  CCL-MES Hybrid - API :5100 + app desktop MAUI
+  echo       -^> Khoi dong API :  cd CCL-MES-Hybrid\src\CCL.MES.Api ^&^& dotnet run
+  echo       -^> Tai lieu      :  CCL-MES-Hybrid/docs/CUTOVER-LEGACY-WEB-FREEZE-2026-08-19.md
+  echo.
+  echo   EN  CCL-MES Blazor Server ^(:5050^) is frozen. Nobody on the shop floor
+  echo       uses it any more; all production work moved to the Hybrid app.
+  echo.
+  echo       -^> Use instead   :  CCL-MES Hybrid - API :5100 + MAUI desktop app
+  echo       -^> Start the API :  cd CCL-MES-Hybrid\src\CCL.MES.Api ^&^& dotnet run
+  echo       -^> Cutover doc   :  CCL-MES-Hybrid/docs/CUTOVER-LEGACY-WEB-FREEZE-2026-08-19.md
+  echo.
+  echo   ----------------------------------------------------------------
+  echo   VI  Chay nham? Khong hong gi ca - chua khoi dong server, chua mo cong 5050.
+  echo   EN  Ran this by mistake? Nothing broke - no server started, port 5050 untouched.
+  echo.
+  echo   VI  That su can chay lai de khoi phuc khan cap? Phai noi ro y dinh:
+  echo   EN  Genuinely need it back for an emergency rollback? Say so explicitly:
+  echo.
+  echo         set MES_LEGACY_WEB_FORCE=1 ^&^& START_SERVER.bat
+  echo.
+  pause
+  exit /b 2
+)
+
+echo.
+echo   [!] MES_LEGACY_WEB_FORCE=1 - chay app DA DONG BANG theo yeu cau tuong minh.
+echo   [!] MES_LEGACY_WEB_FORCE=1 - starting the FROZEN app on explicit request.
+echo       VI  Chi dung de khoi phuc khan cap. Bao Henry sau khi xong.
+echo       EN  Emergency rollback only. Tell Henry once you are done.
+
 echo.
 echo   ============================================================
 echo        CCL-MES - Standalone Server (.NET 10)
@@ -88,6 +138,15 @@ echo   ^>^>  Server output (Ctrl+C to stop):
 echo.
 
 REM -- 6. Launch
+REM MES_LEGACY_WEB_DRYRUN=1 — kiem chung cong force ma KHONG bind 0.0.0.0:5050
+REM len LAN nha may va KHONG cham data\ccl_mes.db. Dung boi gate + nguoi verify.
+if "%MES_LEGACY_WEB_DRYRUN%"=="1" (
+  echo   [DRYRUN] cong force da mo - se chay lenh sau ^(nhung khong chay^):
+  echo   [DRYRUN] force gate opened - would run ^(but does not^):
+  echo            set ASPNETCORE_URLS=http://0.0.0.0:5050 ^&^& dotnet run --project src\CCL.MES.Web --no-launch-profile
+  exit /b 0
+)
+
 set ASPNETCORE_URLS=http://0.0.0.0:5050
 dotnet run --project src\CCL.MES.Web --no-launch-profile
 
