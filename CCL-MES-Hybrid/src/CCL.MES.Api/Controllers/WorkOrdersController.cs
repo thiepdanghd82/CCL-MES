@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using CCL.MES.Api.Mapping;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
@@ -114,16 +115,28 @@ public sealed class WorkOrdersController : ControllerBase
     }
 
     /// <summary>Flat list — small datasets only. Use <c>shop-orders</c>
-    /// instead for the grouped operator view.</summary>
+    /// instead for the grouped operator view.
+    ///
+    /// Maps to <see cref="WorkOrderListItem"/> DTO — NOT the EF entity. The
+    /// service <c>.Include(Customer/Product/Inspections)</c>s navigations, and
+    /// returning the entity graph 500'd every request with a System.Text.Json
+    /// object cycle (Lesson L51).</summary>
     [HttpGet]
-    public async Task<ActionResult<List<WorkOrder>>> List() =>
-        Ok(await _svc.GetAllAsync());
+    public async Task<ActionResult<List<WorkOrderListItem>>> List() =>
+        Ok((await _svc.GetAllAsync()).Select(w => w.ToListItem()).ToList());
 
     [HttpGet("{id:long}")]
-    public async Task<ActionResult<WorkOrder>> Get(long id)
+    public async Task<ActionResult<WorkOrderListItem>> Get(long id)
     {
         var wo = await _svc.GetAsync(id);
-        return wo is null ? NotFound() : Ok(wo);
+        if (wo is null) return NotFound();
+
+        var dto = wo.ToListItem();
+        // Surface RowVersion as ETag for the optimistic-concurrency contract,
+        // mirroring the /summary endpoint (body carries it too via the DTO).
+        if (!string.IsNullOrEmpty(dto.ETag))
+            Response.Headers.ETag = $"\"{dto.ETag}\"";
+        return Ok(dto);
     }
 
     /// <summary>

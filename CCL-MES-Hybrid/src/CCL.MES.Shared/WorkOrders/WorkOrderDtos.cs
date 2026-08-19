@@ -56,6 +56,66 @@ public sealed record WorkOrderSummary
 }
 
 /// <summary>
+/// Flat wire shape for <c>GET /work-orders</c> (list) and
+/// <c>GET /work-orders/{id}</c>. These endpoints used to return the EF
+/// <c>WorkOrder</c> entity directly; with <c>.Include(Customer/Product/
+/// Inspections/History)</c> loaded, System.Text.Json hit a reference cycle
+/// (entity ⇄ navigation) and every request 500'd with
+/// <c>JsonException: A possible object cycle was detected</c> — all 27 WO,
+/// for every caller. Mapping to this POCO (scalars only, enums stringified,
+/// zero navigation) breaks the cycle and keeps the wire EF-free so the MAUI
+/// client never pulls <c>CCL.MES.Domain</c>. See Lesson L51.
+/// </summary>
+public sealed record WorkOrderListItem
+{
+    public long Id { get; init; }
+    public string WoNo { get; init; } = "";
+    public long CustomerId { get; init; }
+    public string? CustomerName { get; init; }
+    public long ProductId { get; init; }
+    public string ProductName { get; init; } = "";
+    public long? ProductRevisionId { get; init; }
+    public string? MachineCode { get; init; }
+    public string? MachineName { get; init; }
+    public int TargetQty { get; init; }
+    public string Uom { get; init; } = "pcs";
+    public int ProducedQty { get; init; }
+
+    /// <summary>Legacy 8-step <c>ProcessStepCode</c> name (PrePressCheck → Closed).</summary>
+    public string CurrentStep { get; init; } = "";
+    /// <summary><c>WoStatus</c> name (Draft / InProgress / Finished / …).</summary>
+    public string Status { get; init; } = "";
+    /// <summary>Canonical 12-state <c>MesPhase</c> — authoritative phase (see WorkOrderSummary).</summary>
+    public string MesPhase { get; init; } = "";
+    public int Priority { get; init; }
+
+    public bool MaterialsReady { get; init; }
+    public bool SetupConfirmed { get; init; }
+    public bool RohsOk { get; init; }
+
+    public DateTimeOffset? PlannedStart { get; init; }
+    public DateTimeOffset? PlannedEnd { get; init; }
+
+    public DateTimeOffset? SettingStartAt { get; init; }
+    public DateTimeOffset? SettingEndAt { get; init; }
+    public int? SettingDurationSec { get; init; }
+    public int QtyDoneCached { get; init; }
+    public int QtyNgCached { get; init; }
+
+    /// <summary>Count of related QC inspections — replaces the navigation
+    /// collection so the wire stays flat (the collection was one arm of the cycle).</summary>
+    public int InspectionCount { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+    public string? CreatedBy { get; init; }
+    public DateTimeOffset? UpdatedAt { get; init; }
+    public string? UpdatedBy { get; init; }
+
+    /// <summary>Base64 RowVersion (also surfaced as HTTP <c>ETag</c> on the single-item GET).</summary>
+    public string ETag { get; init; } = "";
+}
+
+/// <summary>
 /// Reply for POST work-orders/{id}/advance — mirrors
 /// <c>AdvanceResult</c> from the legacy Application layer but stringified
 /// for wire safety. Client surfaces <see cref="ErrorCode"/> verbatim when
