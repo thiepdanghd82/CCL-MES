@@ -40,8 +40,12 @@ public sealed class TraceFreezeService : ITraceFreezeService
         _db = db; _audit = audit; _index = index; _log = log;
     }
 
-    // Lightweight WO projection — avoids materialising the WorkOrder entity
-    // whose legacy CurrentStep enum has bad rows ('Done') that throw on load.
+    // Lightweight WO projection — reads only the fields the snapshot needs.
+    // Historical note: this projection was originally a workaround for bad
+    // CurrentStep rows ('Done') that threw on load. Those rows were repaired
+    // 2026-08-19 (see docs/RUNBOOK-CURRENTSTEP-REPAIR-2026-08-19.md), so the
+    // workaround motive is gone — the projection stays because it is simply
+    // the cheaper read.
     private sealed record WoLite(long Id, string WoNo, long ProductId, long CustomerId,
         int TargetQty, string Uom, string? MesPhase, string ProductName);
 
