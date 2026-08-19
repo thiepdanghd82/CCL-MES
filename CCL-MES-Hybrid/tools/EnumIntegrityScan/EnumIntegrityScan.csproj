@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    CLI mỏng cho TẦNG 2 (scripts/gate-enum-integrity.sh). Không chứa logic —
+    toàn bộ nằm ở CCL.MES.EnumIntegrity để ba tầng dùng chung một lõi.
+
+    Cố ý KHÔNG nằm trong CCL-MES-Hybrid.sln: đây là công cụ vận hành, gate gọi
+    thẳng bằng "dotnet run" với tham số project. Để ngoài sln thì "dotnet test"
+    cấp solution không phải trả thêm thời gian build cho nó.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CCL.MES.EnumIntegrity.Cli</RootNamespace>
+    <AssemblyName>enum-integrity-scan</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CCL.MES.EnumIntegrity\CCL.MES.EnumIntegrity.csproj" />
+  </ItemGroup>
+
+</Project>
