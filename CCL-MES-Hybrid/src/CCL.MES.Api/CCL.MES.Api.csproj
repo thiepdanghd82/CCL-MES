@@ -48,6 +48,11 @@
     <ProjectReference Include="..\..\..\src\CCL.MES.Infrastructure\CCL.MES.Infrastructure.csproj" />
 
     <ProjectReference Include="..\CCL.MES.Shared\CCL.MES.Shared.csproj" />
+
+    <!-- gate-enum-integrity tầng 3 — lõi quét dùng chung với tầng 1 (test) và
+         tầng 2 (scripts/gate-enum-integrity.sh). Một lõi cho cả ba tầng, nếu
+         không chúng sẽ trôi khỏi nhau. -->
+    <ProjectReference Include="..\CCL.MES.EnumIntegrity\CCL.MES.EnumIntegrity.csproj" />
   </ItemGroup>
 
 </Project>
