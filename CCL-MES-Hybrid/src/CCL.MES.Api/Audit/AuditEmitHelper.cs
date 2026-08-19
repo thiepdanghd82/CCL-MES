@@ -110,23 +110,12 @@ public static class AuditEmitHelper
             detail: detail);
     }
 
-    /// <summary>
-    /// Compute the canonical shift code ('A' / 'B' / 'C') from a UTC
-    /// timestamp + the CCL fixed 3-shift schedule per contract §4.4.
-    /// Shift boundaries are Vietnam local time (UTC+7).
-    /// Shift A: 06:00-14:00 / Shift B: 14:00-22:00 / Shift C: 22:00-06:00.
-    /// </summary>
-    public static string ComputeShiftCode(DateTime utcTimestamp)
-    {
-        // CCL Vietnam plant — UTC+7 fixed (no DST).
-        var localHour = (utcTimestamp.AddHours(7).Hour);
-        return localHour switch
-        {
-            >= 6 and < 14  => "A",
-            >= 14 and < 22 => "B",
-            _              => "C",
-        };
-    }
+    // ComputeShiftCode was removed in Đợt 1 C3. It derived 'A'/'B'/'C' from a
+    // hardcoded UTC+7 06/14/22 split. No production callsite ever used it —
+    // only its own unit tests did. Đợt 3 replaces shift derivation with a
+    // data-driven ShiftCalendar (time-effective, per site), so this shape
+    // will never be revived. Callers still pass shiftCode into BuildDetail;
+    // that envelope key is contract §7.2 and is unchanged.
 
     private static object? TruncateIfReasonLike(string key, object? value)
     {

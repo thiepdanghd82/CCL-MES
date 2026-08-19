@@ -6096,6 +6096,9 @@ html, body {
 }
 .shipped-stat-label { font-size: var(--fs-xs); color: var(--c-ink-4); }
 .shipped-stat-value { font-size: clamp(16px, 1.6vw, 20px); font-weight: var(--fw-bold); color: var(--c-ink); }
+/* Đợt 1 C3 — why Performance shows no number. A bare dash hid a data gap
+   on 19 of 27 WOs; the reason now sits under the dash. */
+.shipped-perf-na { font-size: var(--fs-xs); color: var(--c-ink-4); line-height: 1.3; }
 
 /* ── Pause Pareto ──────────────────────────────────────────────── */
 
