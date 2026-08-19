@@ -132,3 +132,79 @@ chính xác bao nhiêu ca sẽ bị chặn trước khi chặn thật**.
 Hôm nay `LOT-001` và `lot-001` là hai lô khác nhau trong kho bán thành phẩm.
 PR riêng: `AlterColumn` rebuild bảng sẽ xoá 2 trigger RowVersion của `SemiLots`,
 phải dựng lại trong cùng migration.
+
+---
+
+## Backfill — ĐÃ CHẠY
+
+Chạy sau khi endpoint (PR #159) đã merge. Thực thi bằng runner một lần gọi thẳng
+`MaterialLotBackfillService.RunAsync` — **cùng đường mã** endpoint gọi — vì gọi
+qua HTTP cần JWT admin, và tôi không nhập mật khẩu của người dùng.
+
+Backup trước: `data/Backup/SQLite/ccl_mes.before-a1-backfill-20260819-130534.db`
+(SHA `fe42b20fef3abe03168417a53e6b4002e4c90be168b64a02f8c7a2438d841547`)
+
+```
+LẦN 1  TRƯỚC: MaterialLots=0 Consumptions=0 AuditLogs=2381
+       candidates=5 lotsCreated=5 lotsReused=0 consumptionsCreated=5
+       skipped=0 quarantined=5 inheritedFromIqc=0
+       SAU  : MaterialLots=5 Consumptions=5 AuditLogs=2382
+
+LẦN 2  candidates=5 lotsCreated=0 lotsReused=0 consumptionsCreated=0
+       skipped=5 quarantined=0 inheritedFromIqc=0
+       SAU  : MaterialLots=5 Consumptions=5 AuditLogs=2383    ← rowcount KHÔNG đổi
+```
+
+**`quarantined = 5`** — khớp đúng dự đoán của hợp đồng §0 (0/5 chuỗi lô live khớp
+`IqcInspections.LotNumber`). Idempotent chứng minh trên **dữ liệu thật**, không
+phải fixture. Audit đúng một dòng mỗi lần chạy.
+
+**Mạch lô sau backfill** — truy vấn §6, mọi JOIN qua khoá số, không có
+`ON a.LotNo = b.LotNo` ở đâu cả:
+
+```
+WoNo        bom  bom_part        lot_no        lot_status   qty   iqc
+WO-26-2852  1    PVC-WHT-50UM    LOT-26-03101  Quarantine   12.5  (không có IQC)
+WO-26-2852  2    INK-CYAN-UV     LOT-26-03102  Quarantine   0.8   (không có IQC)
+WO-26-2852  3    INK-BLK-UV      LOT-26-03103  Quarantine   0.4   (không có IQC)
+WO-26-2852  4    ADHESIVE-PSA-1  LOT-26-03104  Quarantine   2.4   (không có IQC)
+WO-26-2852  5    LINER-GLS-60    LOT-26-03105  Quarantine   8.2   (không có IQC)
+```
+
+`WoMaterials.MaterialLotId`: 5 dòng đã nối, 77 dòng để trống (đúng — chúng không
+có `LotNo` để mà nối). `PRAGMA integrity_check` = `ok`.
+
+**SHA256 live sau backfill (đã checkpoint WAL):**
+`f6e63edb70d6e4ec5450e6435670d4e2c8e396f9cc477109f23c5ecd6f7f741f`
+
+## ⚠ Bẫy WAL — đọc trước khi lấy dấu vân tay DB
+
+DB chạy ở `journal_mode = wal`. **Khi API đang chạy, `shasum` trên riêng
+`ccl_mes.db` KHÔNG phản ánh dữ liệu thật** — phần mới nằm trong `ccl_mes.db-wal`
+chưa gộp. Đã gặp thật: sau khi ghi 12 dòng, SHA file chính không đổi một bit.
+
+Trước khi lấy SHA hoặc so sánh:
+```bash
+sqlite3 data/ccl_mes.db "PRAGMA wal_checkpoint(TRUNCATE);"   # 0|0|0 = xong
+shasum -a 256 data/ccl_mes.db
+```
+
+Và **sao lưu bằng `sqlite3 ".backup"`, đừng dùng `cp`** — `cp` bỏ sót nội dung WAL.
+Bẫy này đã làm hỏng một bản copy trong phiên điều tra RCA.
+
+## ⚠ Hai cơ sở dữ liệu — đã từng nhầm
+
+API từng chạy với `MES_DB_PATH=data/demo/p11-tape-demo.db`, **không phải**
+`data/ccl_mes.db`. Nghĩa là mọi sửa dữ liệu và migration ban đầu rơi vào file mà
+ứng dụng đang chạy KHÔNG đọc.
+
+Henry xác nhận **`data/ccl_mes.db` là DB thật**; DB demo chỉ là bản thử. API đã
+khởi động lại trỏ đúng file (boot log in ra đường dẫn — kiểm dòng đó, đừng đoán):
+
+```
+[boot] API SQLite DB path : …/CCL-MES/data/ccl_mes.db
+[boot] Database migration check: up-to-date.
+```
+
+**Trước khi nghiệm thu bất cứ thứ gì trên "DB thật", đọc dòng `[boot] … DB path`
+của tiến trình đang chạy.** Đừng suy từ tên file hay từ tiến trình nào đang mở cổng.
