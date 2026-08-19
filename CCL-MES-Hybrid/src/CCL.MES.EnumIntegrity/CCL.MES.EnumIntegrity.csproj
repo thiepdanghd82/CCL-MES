@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    gate-enum-integrity — lõi dùng chung cho CẢ BA tầng chặn tái phát sự cố
+    2026-08-19 (WorkOrders.CurrentStep='Done' × 11 → mọi truy vấn materialise
+    WorkOrder ném InvalidOperationException, 10 route API chết).
+
+      Tầng 1  CCL.MES.Api.Tests           → EnumIntegrityTests
+      Tầng 2  scripts/gate-enum-integrity.sh → tools/EnumIntegrityScan (CLI)
+      Tầng 3  CCL.MES.Api                 → Diagnostics/EnumIntegrityMonitor
+
+    Ba tầng PHẢI dùng chung một lõi, nếu không chúng sẽ trôi khỏi nhau và
+    "gate xanh" lại không còn nói lên điều gì về cái đang chạy thật.
+
+    Chỉ tham chiếu Infrastructure (nơi có MesDbContext + EF Core Sqlite).
+    KHÔNG thêm PackageReference mới — mọi thứ cần đã có sẵn qua Infrastructure.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CCL.MES.EnumIntegrity</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\CCL.MES.Infrastructure\CCL.MES.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
