@@ -53,9 +53,17 @@ HEALTH="$HYBRID/src/CCL.MES.Api/Controllers/HealthController.cs"
 TIER1="$HYBRID/tests/CCL.MES.Api.Tests/EnumIntegrityTests.cs"
 TIER3_TEST="$HYBRID/tests/CCL.MES.Api.Tests/EnumIntegrityHealthTests.cs"
 
-# DB fixture mặc định. Ghi đè bằng tham số 1 hoặc biến MES_ENUM_INTEGRITY_DB —
-# dùng để chĩa gate vào snapshot live hoặc vào backup khi điều tra.
-DEFAULT_DB="$ROOT/data/demo/p11-tape-demo.db"
+# DB mặc định cho nhánh động = DB THẬT (đã sửa, sạch). Đây là đường PASS: gate
+# chạy trần / trong gate-all quét chính DB mà nhà máy dùng. Mở Mode=ReadOnly nên
+# an toàn kể cả khi API đang phục vụ trên đúng file đó (đo được: 37/37 cột, 37ms,
+# không tranh khoá). *.db bị .gitignore ⇒ trên CI / clone mới không có file này,
+# nhánh động tự BỎ QUA và để tầng-1 test gánh — đúng thiết kế.
+#
+# TUYỆT ĐỐI KHÔNG đặt mặc định là DB nhiễm (data/demo/p11-tape-demo.db hay backup
+# tiền-sửa): đó là các ca FAIL để KIỂM gate, dùng qua --self-test hoặc tham số 1
+# tường minh. Trỏ mặc định vào chúng làm gate-all đỏ trên chính dữ liệu chứng cứ.
+# Ghi đè: tham số 1 hoặc biến MES_ENUM_INTEGRITY_DB.
+DEFAULT_DB="$ROOT/data/ccl_mes.db"
 
 # ── (A) TĨNH ────────────────────────────────────────────────────────────────
 static_checks() {
