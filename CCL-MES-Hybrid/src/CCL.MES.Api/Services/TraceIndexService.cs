@@ -47,9 +47,10 @@ public sealed class TraceIndexService : ITraceIndexService
 
     public async Task TouchByIdAsync(long woId, CancellationToken ct = default)
     {
-        // Project only the fields we need — do NOT materialise the WorkOrder
-        // entity (its legacy CurrentStep enum column has bad rows like 'Done'
-        // that would throw on conversion; the index doesn't need it).
+        // Project only the fields we need — the index does not need the rest.
+        // Historical note: this was originally a workaround for bad CurrentStep
+        // rows ('Done') that threw on conversion. Repaired 2026-08-19 (see
+        // docs/RUNBOOK-CURRENTSTEP-REPAIR-2026-08-19.md); kept for cost, not fear.
         var wo = await _db.WorkOrders.AsNoTracking().Where(w => w.Id == woId)
             .Select(w => new { w.Id, w.WoNo, w.ProductId, w.CustomerId, w.MesPhase, w.ProductName })
             .FirstOrDefaultAsync(ct);

@@ -99,6 +99,33 @@ Re-survey với keyword đúng → tìm thấy đầy đủ.
 
 ### 1.2 Status mapping (Q2)
 
+> ## ⚠️ CẢNH BÁO — PHẦN DƯỚI MÔ TẢ SAI CẢ HAI ENUM
+>
+> Thêm ngày **2026-08-19** sau sự cố dữ liệu. Giữ nguyên văn bản gốc bên dưới làm
+> hồ sơ lịch sử, **nhưng đừng chép tên trạng thái từ đó** — chúng không tồn tại
+> trong mã.
+>
+> | | Tài liệu này viết (SAI) | Thực tế trong `src/CCL.MES.Domain/Enums.cs` |
+> |---|---|---|
+> | `ProcessStepCode` | 7 state: `PrePressCheck/Setup/Running/QC/Pack/Ship/Done` | **8 state**: `PrePressCheck · OpSetting · IpqcApproval · ReadyToRun · Running · Fqc · Oqc · Closed` |
+> | `WoStatus` | `Draft/Released/Running/Done/Cancelled` | `Draft · InProgress · OnHold · Finished · Closed · Cancelled` |
+>
+> Năm tên `Setup`, `QC`, `Pack`, `Ship`, `Done` **chưa bao giờ** là thành viên của
+> `ProcessStepCode`. `Released`, `Running`, `Done` **chưa bao giờ** là thành viên
+> của `WoStatus`.
+>
+> **Hậu quả thật:** một lô 11 WO demo (`WO-26-7201`…`7211`) được chèn bằng SQL
+> trực tiếp với `CurrentStep='Done'` — từ vựng lấy từ chính tài liệu này. Giá trị
+> đó làm `EnumToStringConverter` ném lỗi khi đọc, kéo sập **10 route API**, trong
+> đó một route danh sách khiến mất toàn bộ 27 WO cho mọi người dùng. Xem
+> `CCL-MES-Hybrid/docs/RUNBOOK-CURRENTSTEP-REPAIR-2026-08-19.md`.
+>
+> Trạng thái kết thúc **duy nhất đúng** do `WorkOrderStateMachine.ProjectToLegacy`
+> quy định: `MesPhase.DONE|CANCELLED|SHIPPED → ProcessStepCode.Closed`.
+>
+> Trước khi viết bất kỳ giá trị enum nào vào DB: **đọc `Enums.cs`, đừng đọc tài liệu.**
+
+
 SpecHub 9-state (`NEW/PREPRESS/SETTING/IPQC_WAIT/IPQC_APPROVED/QA_PENDING/RUNNING/PAUSED/DONE`)
 ↔ CCL-MES `ProcessStepCode` 7-state Phase 6 (`PrePressCheck/Setup/Running/QC/Pack/Ship/Done`)
 + `WoStatus` enum (Draft/Released/Running/Done/Cancelled).
