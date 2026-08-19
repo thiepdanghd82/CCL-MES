@@ -44,6 +44,7 @@
         <button type="button" class="grid-btn" @onclick="OpenAdd" data-testid="qclib-add">＋ @T("qclib.add")</button>
         <button type="button" class="grid-btn" @onclick="ImportAsync" data-testid="qclib-import" disabled="@_busy">@T("qclib.import")</button>
     }
+    <button type="button" class="grid-btn" @onclick="TemplateAsync" data-testid="qclib-template" disabled="@_busy">@T("qclib.template")</button>
     <button type="button" class="grid-btn" @onclick="ExportAsync" data-testid="qclib-export" disabled="@_busy">@T("qclib.export")</button>
 </div>
 
@@ -355,6 +356,14 @@ else if (_items is not null)
         if (_canEdit)
         {
             items.Add(new ContextMenuItem { Label = T("qclib.menu.copy"), Icon = "⎘", OnClick = EventCallback.Factory.Create(this, () => CopyRow(row)) });
+            // Master data: "ngưng dùng" phải đứng TRƯỚC "xoá" và không mang màu
+            // nguy hiểm — nó là hành động có thể hoàn tác, khác hẳn xoá.
+            items.Add(new ContextMenuItem
+            {
+                Label = row.Active ? T("qclib.menu.deactivate") : T("qclib.menu.activate"),
+                Icon = row.Active ? "◌" : "◍",
+                OnClick = EventCallback.Factory.Create(this, () => SetActiveAsync(row, !row.Active)),
+            });
             items.Add(ContextMenuItem.Divider);
             items.Add(new ContextMenuItem { Label = T("qclib.menu.delete"), Icon = "✕", Danger = true, OnClick = EventCallback.Factory.Create(this, () => DeleteAsync(row)) });
         }
@@ -444,6 +453,43 @@ else if (_items is not null)
             await Api.DownloadCheckLibraryExportAsync(_line, tmp);
             await FileSaver.SaveAsync(tmp, name);
             _flash = T("qclib.flash.exported", name);
+        }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    /// <summary>
+    /// Tải FILE MẪU nhập liệu — khác Export (export xuất dữ liệu đang có).
+    /// Mẫu do server sinh từ CÙNG hằng header với export nên không thể lệch cột.
+    /// </summary>
+    private async Task TemplateAsync()
+    {
+        _error = null; _busy = true;
+        try
+        {
+            const string name = "qc-library-template.csv";
+            var tmp = Path.Combine(Path.GetTempPath(), name);
+            await Api.DownloadCheckLibraryTemplateAsync(tmp);
+            await FileSaver.SaveAsync(tmp, name);
+            _flash = T("qclib.flash.template", name);
+        }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    /// <summary>
+    /// Ngưng dùng / dùng lại một hạng mục mà KHÔNG xoá.
+    /// WO cũ và snapshot QC đã đóng băng còn tham chiếu tới hạng mục này —
+    /// xoá đi là làm hồ sơ chất lượng cũ trỏ vào khoảng không.
+    /// </summary>
+    private async Task SetActiveAsync(CheckLibraryItemDto row, bool active)
+    {
+        _menuRow = null; _error = null; _busy = true;
+        try
+        {
+            await Api.SetCheckLibraryActiveAsync(row.ItemId, active);
+            _flash = T(active ? "qclib.flash.activated" : "qclib.flash.deactivated", row.ItemId);
+            await ReloadAsync();
         }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _busy = false; }

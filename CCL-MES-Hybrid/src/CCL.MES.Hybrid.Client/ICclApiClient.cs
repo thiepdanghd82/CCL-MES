@@ -280,6 +280,13 @@ public interface ICclApiClient
     /// <summary>Smart platform — export CSV thư viện xuống file (native save).</summary>
     Task<long> DownloadCheckLibraryExportAsync(string? line, string destinationFilePath, CancellationToken ct = default);
 
+    /// <summary>Tải file MẪU nhập liệu (header + 1 dòng ví dụ). Khác export — export xuất dữ liệu đang có.</summary>
+    Task<long> DownloadCheckLibraryTemplateAsync(string destinationFilePath, CancellationToken ct = default);
+
+    /// <summary>Bật/tắt một hạng mục thư viện mà không xoá (master data: ngưng dùng ≠ xoá).</summary>
+    Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> SetCheckLibraryActiveAsync(
+        string itemId, bool active, CancellationToken ct = default);
+
     /// <summary>Phương án C — Bước 4: đánh OK/NG 1 hạng mục IPQC data-driven
     /// (auto-sync). Same contract as <see cref="PutIpqcMaterialAsync"/>;
     /// 422 ipqc.invalid_item nếu key không thuộc bộ đã materialize.</summary>

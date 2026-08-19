@@ -822,6 +822,19 @@ public sealed class CclApiClient : ICclApiClient
         return StreamToFileAsync(url, destinationFilePath, ct);
     }
 
+    public Task<long> DownloadCheckLibraryTemplateAsync(string destinationFilePath, CancellationToken ct = default)
+        => StreamToFileAsync($"/{ApiVersion.Prefix}/check-item-library/template", destinationFilePath, ct);
+
+    public async Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> SetCheckLibraryActiveAsync(
+        string itemId, bool active, CancellationToken ct = default)
+    {
+        var url = $"/{ApiVersion.Prefix}/check-item-library/{Uri.EscapeDataString(itemId)}/active?active={(active ? "true" : "false")}";
+        using var msg = new HttpRequestMessage(HttpMethod.Patch, url);
+        using var res = await _http.SendAsync(msg, ct);
+        res.EnsureSuccessStatusCode();
+        return (await res.Content.ReadFromJsonAsync<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>(cancellationToken: ct))!;
+    }
+
     private Task<PrepressSetResponse> SendPrepressPutAsync(
         string path, string ifMatchETag, object req, CancellationToken ct)
         => SendPrepressWriteAsync(HttpMethod.Put, path, ifMatchETag, req, ct);
