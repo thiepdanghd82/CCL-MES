@@ -1,3 +1,4 @@
+using System.Linq;
 using Bunit;
 using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client.Localization;
@@ -38,20 +39,20 @@ public sealed class TopBarModulePathTests : TestContext
     }
 
     [Theory]
-    [InlineData("/qms/iqc",   "/QMS/IQC- Module")]
-    [InlineData("/qms/ipqc",  "/QMS/IPQC- Module")]
-    [InlineData("/qms/oqc",   "/QMS/OQC- Module")]
-    [InlineData("/qms/icra",  "/QMS/iCRA- Module")]
-    [InlineData("/qms/fqc",   "/QMS/FQC- Module")]
-    [InlineData("/qms",       "/QMS")]
-    [InlineData("/qms/history", "/QMS/History")]
-    [InlineData("/qc/library", "/QMS/Library")]
-    [InlineData("/quality/traceability", "/QMS/Traceability")]
+    [InlineData("/qms/iqc",   "QMS | IQC- Module")]
+    [InlineData("/qms/ipqc",  "QMS | IPQC- Module")]
+    [InlineData("/qms/oqc",   "QMS | OQC- Module")]
+    [InlineData("/qms/icra",  "QMS | iCRA- Module")]
+    [InlineData("/qms/fqc",   "QMS | FQC- Module")]
+    [InlineData("/qms",       "QMS")]
+    [InlineData("/qms/history", "QMS | History")]
+    [InlineData("/qc/library", "QMS | Library")]
+    [InlineData("/quality/traceability", "QMS | Traceability")]
     public void QmsRoute_renders_module_path(string url, string expected)
     {
         var cut = RenderAt(url);
         var path = cut.Find("[data-testid='topbar-module-path']");
-        Assert.Equal(expected, path.TextContent.Trim());
+        Assert.Equal(expected, string.Join(" | ", cut.FindAll(".app-topbar-crumb").Select(c => c.TextContent.Trim())));
     }
 
     [Theory]
@@ -89,26 +90,26 @@ public sealed class TopBarModulePathTests : TestContext
         // "Module" is the same token in VI + EN today; assert the render is
         // live-recomputed (property, not a cached field) by flipping language
         // and confirming the path is still correct (no stale/empty render).
-        Assert.Equal("/QMS/IQC- Module", cut.Find("[data-testid='topbar-module-path']").TextContent.Trim());
+        Assert.Equal("QMS | IQC- Module", string.Join(" | ", cut.FindAll(".app-topbar-crumb").Select(c => c.TextContent.Trim())));
 
         _lang.Set(LanguageCode.English);
 
         cut.WaitForAssertion(() =>
-            Assert.Equal("/QMS/IQC- Module",
-                cut.Find("[data-testid='topbar-module-path']").TextContent.Trim()));
+            Assert.Equal("QMS | IQC- Module",
+                string.Join(" | ", cut.FindAll(".app-topbar-crumb").Select(c => c.TextContent.Trim()))));
     }
 
     [Fact]
     public void ModulePath_updates_when_navigating_between_modules()
     {
         var cut = RenderAt("/qms/iqc");
-        Assert.Equal("/QMS/IQC- Module", cut.Find("[data-testid='topbar-module-path']").TextContent.Trim());
+        Assert.Equal("QMS | IQC- Module", string.Join(" | ", cut.FindAll(".app-topbar-crumb").Select(c => c.TextContent.Trim())));
 
         var nav = Services.GetRequiredService<NavigationManager>();
         nav.NavigateTo("/qms/oqc");
 
         cut.WaitForAssertion(() =>
-            Assert.Equal("/QMS/OQC- Module",
-                cut.Find("[data-testid='topbar-module-path']").TextContent.Trim()));
+            Assert.Equal("QMS | OQC- Module",
+                string.Join(" | ", cut.FindAll(".app-topbar-crumb").Select(c => c.TextContent.Trim()))));
     }
 }

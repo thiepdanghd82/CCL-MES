@@ -17,9 +17,14 @@
     <div class="app-topbar-brand">
         <span class="app-topbar-logo">◆</span> CCL DESIGN
         <span class="app-topbar-sub">— MES</span>
-        @if (ModulePath is { Length: > 0 } path)
+        @if (ModulePathSegments is { Count: > 0 } segs)
         {
-            <span class="app-topbar-path" data-testid="topbar-module-path">@path</span>
+            <span class="app-topbar-path" data-testid="topbar-module-path">
+                @foreach (var seg in segs)
+                {
+                    <span class="app-topbar-crumb">@seg</span>
+                }
+            </span>
         }
     </div>
     <AuthorizeView>
@@ -60,6 +65,19 @@
     // land the right text. Null on non-QMS routes → brand renders alone.
     private string? ModulePath => BuildModulePath(Nav.Uri);
 
+    // Tách path thành từng crumb (QMS · IQC- Module) để render divider dọc bằng
+    // CSS (border-left) giữa MES│QMS và QMS│IQC — thay ký tự "|" literal.
+    private IReadOnlyList<string>? ModulePathSegments
+    {
+        get
+        {
+            var p = ModulePath;
+            return string.IsNullOrEmpty(p)
+                ? null
+                : p.Split(" | ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        }
+    }
+
     private string UserName => Session.CurrentUser.FindFirst("display_name")?.Value
         ?? Session.CurrentUser.Identity?.Name ?? "";
     private string Role => Session.CurrentUser.FindFirst(ClaimTypes.Role)?.Value ?? "";
@@ -71,15 +89,15 @@
     // Longest-prefix wins so "/qms/history" isn't shadowed by "/qms".
     private static readonly (string Prefix, string Path)[] QmsRouteMap =
     {
-        ("/qms/iqc",                "/QMS/IQC- {0}"),
-        ("/qms/ipqc",               "/QMS/IPQC- {0}"),
-        ("/qms/oqc",                "/QMS/OQC- {0}"),
-        ("/qms/icra",               "/QMS/iCRA- {0}"),
-        ("/qms/fqc",                "/QMS/FQC- {0}"),
-        ("/qms/history",            "/QMS/History"),
-        ("/qc/library",             "/QMS/Library"),
-        ("/quality/traceability",   "/QMS/Traceability"),
-        ("/qms",                    "/QMS"),
+        ("/qms/iqc",                "QMS | IQC- {0}"),
+        ("/qms/ipqc",               "QMS | IPQC- {0}"),
+        ("/qms/oqc",                "QMS | OQC- {0}"),
+        ("/qms/icra",               "QMS | iCRA- {0}"),
+        ("/qms/fqc",                "QMS | FQC- {0}"),
+        ("/qms/history",            "QMS | History"),
+        ("/qc/library",             "QMS | Library"),
+        ("/quality/traceability",   "QMS | Traceability"),
+        ("/qms",                    "QMS"),
     };
 
     /// <summary>Maps an absolute path to the QMS breadcrumb suffix, or null for

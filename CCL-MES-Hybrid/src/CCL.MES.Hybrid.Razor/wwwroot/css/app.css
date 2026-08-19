@@ -630,18 +630,21 @@ html, body {
    Dimmer than the brand, non-uppercase (path is mixed-case), tabular so the
    "/QMS/…" segments read cleanly. QMS routes only; brand-alone otherwise. */
 .app-topbar-path {
+    display: inline-flex;
+    align-items: center;
     margin-left: var(--sp-2);
-    padding-left: var(--sp-3);
-    border-left: 1px solid var(--c-line);
+    min-width: 0;
+    overflow: hidden;
+}
+.app-topbar-crumb {
+    padding: 0 var(--sp-3);
+    border-left: 1px solid color-mix(in srgb, currentColor 32%, transparent);
     font-size: var(--fs-md);
     font-weight: var(--fw-semibold);
     letter-spacing: normal;
     text-transform: none;
     color: var(--c-soft);
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
 }
 .app-topbar-right { display: flex; align-items: center; gap: 22px; }
 .tb-block { line-height: 1.25; }
@@ -7511,7 +7514,7 @@ tr.wc-row:hover { background: var(--c-bg); }
 /* Sub-tab strip */
 .iqc-subtabs {
     display: flex; gap: var(--sp-1); flex-wrap: wrap;
-    margin: var(--sp-3) 0 var(--sp-4); border-bottom: 1px solid var(--c-border);
+    margin: 0 0 var(--sp-3); border-bottom: 1px solid var(--c-border);
 }
 .iqc-subtab {
     border: 0; background: transparent; cursor: pointer;
