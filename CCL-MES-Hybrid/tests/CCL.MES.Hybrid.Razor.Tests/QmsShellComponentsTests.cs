@@ -1,7 +1,9 @@
 using Bunit;
+using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client.Qms;
 using CCL.MES.Hybrid.Razor.Shared.Qms;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace CCL.MES.Hybrid.Razor.Tests;
@@ -92,11 +94,21 @@ public sealed class QmsShellComponentsTests : TestContext
     }
 
     [Fact]
-    public void TopBar_renders_module_title_and_user()
+    public void TopBar_renders_module_title_and_logged_in_user_without_shift()
     {
+        // Tên/role lấy từ account đăng nhập (IAuthSession), KHÔNG mock; khối
+        // production-shift đã bỏ.
+        var session = new _Support.StubAuthSession();
+        session.SetUser("qc-user", "QC");
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Auth.IAuthSession>(session);
+        this.AddTestAuthorization().SetAuthorized("qc-user");
+
         var cut = RenderComponent<QmsModuleTopBar>(p => p.Add(x => x.Vm, QmsMock.IqcTop));
-        Assert.Contains("IQC", cut.Markup);
-        Assert.Contains("Trần Bích Ngọc", cut.Markup);
+
+        Assert.Contains("IQC", cut.Markup);                        // module code từ Vm
+        Assert.Contains("qc-user", cut.Markup);                    // tên từ session
+        Assert.DoesNotContain("Trần Bích Ngọc", cut.Markup);       // mock cũ đã bỏ
+        Assert.Empty(cut.FindAll(".qms-topbar-shift"));            // block shift đã bỏ
         Assert.Single(cut.FindAll("[data-testid='qms-user-badge']"));
     }
 }

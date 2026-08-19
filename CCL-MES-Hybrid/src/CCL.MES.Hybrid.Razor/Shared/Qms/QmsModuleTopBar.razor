@@ -1,24 +1,22 @@
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using System.Security.Claims
+@inject IAuthSession Session
 
 @* QA / mini-QMS shell top-bar. Left: MODULE <code> + page title. Right:
-   production shift + signed-in inspector badge. Presentational — the parent
-   passes a QmsTopBarVm (static mock this phase). *@
+   signed-in inspector badge (DisplayName + role from the logged-in account —
+   NOT mock, NOT a production-shift block). Parent passes QmsTopBarVm for
+   module code + title only. *@
 <header class="qms-topbar" data-testid="qms-module-topbar">
     <div class="qms-topbar-left">
         <span class="qms-topbar-module">@T("qms.module.prefix") @Vm.ModuleCode</span>
         <h1 class="qms-topbar-title">@T(Vm.TitleKey)</h1>
     </div>
     <div class="qms-topbar-right">
-        <div class="qms-topbar-shift">
-            <span class="qms-topbar-eyebrow">@T("qms.shift.label")</span>
-            <span class="qms-topbar-shiftval">@Vm.Shift</span>
-        </div>
-        <div class="qms-topbar-sep"></div>
         <div class="qms-topbar-user" data-testid="qms-user-badge">
-            <div class="qms-topbar-avatar">@Vm.Initials</div>
+            <div class="qms-topbar-avatar">@Initials</div>
             <div class="qms-topbar-userlines">
-                <span class="qms-topbar-username">@Vm.UserName</span>
-                <span class="qms-topbar-userrole">@Vm.UserRole</span>
+                <span class="qms-topbar-username">@DisplayName</span>
+                <span class="qms-topbar-userrole">@Role</span>
             </div>
         </div>
     </div>
@@ -26,4 +24,22 @@
 
 @code {
     [Parameter, EditorRequired] public QmsTopBarVm Vm { get; set; } = default!;
+
+    private string DisplayName => Session.CurrentUser.FindFirst("display_name")?.Value
+        ?? Session.CurrentUser.Identity?.Name ?? "";
+
+    private string Role => Session.CurrentUser.FindFirst(ClaimTypes.Role)?.Value ?? "";
+
+    // Initials từ DisplayName (chữ đầu của từ đầu + từ cuối); trống nếu chưa có tên.
+    private string Initials
+    {
+        get
+        {
+            var parts = DisplayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return "";
+            var first = parts[0][0];
+            var last = parts[^1][0];
+            return (parts.Length == 1 ? first.ToString() : $"{first}{last}").ToUpperInvariant();
+        }
+    }
 }
