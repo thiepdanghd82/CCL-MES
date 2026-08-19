@@ -8,6 +8,16 @@ namespace CCL.MES.Domain.Audit;
 /// </summary>
 public static class AuditAction
 {
+    // 2026-08-19 — an admin/operator repairing data OUTSIDE the app's
+    // normal mutation paths (e.g. the CurrentStep='Done' × 11 SQL fix,
+    // Lesson L50) MUST emit this so the trail records who touched what and
+    // why. The incident that motivated it left 0 audit rows precisely
+    // because the repair was hand-crafted SQL with no vocabulary to emit —
+    // inventing a new action string ad-hoc IS the L50 bug class. This const
+    // lands vocabulary-first so a coded repair path has a code to use.
+    // detail JSON: { table, column, from, to, affected_rows, reason,
+    // ticket, backup_file }. NEVER put row payloads or secrets in detail.
+    public const string AdminDataRepair       = "ADMIN_DATA_REPAIR";
     // Phase 9 audit-export — Admin downloaded the audit log via the
     // CSV / XLSX export endpoint. This is the "audit-the-audit" hook:
     // an admin lifting trail data out of the system is itself an event
