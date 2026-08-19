@@ -85,6 +85,7 @@ public sealed partial class TranslationCatalog : ITranslationCatalog
         RegisterQms();
         RegisterQmsUi();
         RegisterIqcTicket();
+        RegisterIqcModule();   // feat/iqc-module-tabs — 3 sub-tab + picker + placeholder forms
         RegisterNpiStruct();
         RegisterNpiRoute();
         RegisterNpiRaw();

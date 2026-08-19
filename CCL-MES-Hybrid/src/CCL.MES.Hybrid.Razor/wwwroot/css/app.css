@@ -7514,3 +7514,107 @@ tr.wc-row:hover { background: var(--c-bg); }
 .iqc-pick-code { font-weight: var(--fw-bold); white-space: nowrap; }
 .iqc-pick-desc { color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iqc-pick-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* ══ IQC module tabs (feat/iqc-module-tabs) — 3 sub-tab, KPI, group picker,
+   IQC Data grid, placeholder forms. Global; tokens only (L37/L41).
+   Operator surface → mọi vùng chạm ≥ var(--d-tap). ══ */
+
+/* Sub-tab strip */
+.iqc-subtabs {
+    display: flex; gap: var(--sp-1); flex-wrap: wrap;
+    margin: var(--sp-3) 0 var(--sp-4); border-bottom: 1px solid var(--c-border);
+}
+.iqc-subtab {
+    border: 0; background: transparent; cursor: pointer;
+    padding: var(--sp-2) var(--sp-4); min-height: var(--d-tap, 32px);
+    font-size: var(--d-font, var(--fs-md)); font-weight: var(--fw-bold); color: var(--c-muted);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.iqc-subtab:hover { color: var(--c-ink-1); }
+.iqc-subtab-on { color: var(--brand); border-bottom-color: var(--brand); }
+.iqc-subtab:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--r-sm); }
+
+/* KPI cards (Dashboard) */
+.iqc-kpi-group-title { margin: var(--sp-4) 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--c-ink-3); }
+.iqc-kpi-row { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.iqc-kpi {
+    display: flex; flex-direction: column; gap: var(--sp-1);
+    min-width: 120px; flex: 0 1 auto;
+    padding: var(--sp-4); border: 1px solid var(--c-border); border-radius: var(--r-md);
+    background: var(--c-surface);
+}
+.iqc-kpi-num { font-size: var(--fs-2xl); font-weight: var(--fw-bold); line-height: 1; color: var(--c-ink-1); }
+.iqc-kpi-lbl { font-size: var(--fs-sm); color: var(--c-muted); }
+.iqc-kpi-total { background: var(--brand-bg); border-color: var(--brand); }
+.iqc-kpi-total .iqc-kpi-num { color: var(--brand); }
+.iqc-kpi-pending .iqc-kpi-num { color: var(--warn-ink); }
+.iqc-kpi-pass .iqc-kpi-num { color: var(--ok-ink); }
+.iqc-kpi-fail .iqc-kpi-num { color: var(--ng-ink); }
+
+/* New Ticket — group picker cards (large touch targets) */
+.iqc-grouppick { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--sp-3); margin-top: var(--sp-3); }
+.iqc-groupcard {
+    display: flex; flex-direction: column; gap: var(--sp-2); text-align: left;
+    padding: var(--sp-5); min-height: 96px;
+    border: 1px solid var(--c-border); border-radius: var(--r-lg); background: var(--c-surface);
+    cursor: pointer;
+}
+.iqc-groupcard:hover { border-color: var(--brand); background: var(--c-surface-2); }
+.iqc-groupcard:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.iqc-groupcard-name { font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--c-ink-1); }
+.iqc-groupcard-hint { font-size: var(--fs-sm); color: var(--c-muted); line-height: 1.4; }
+.iqc-ph-saved { margin-top: var(--sp-4); font-size: var(--fs-sm); color: var(--ok-ink); font-weight: var(--fw-bold); }
+
+/* IQC Data toolbar + group chips */
+.iqc-data-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); margin: var(--sp-3) 0; }
+.iqc-data-groupfilter { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.iqc-chip {
+    border: 1px solid var(--c-border); background: var(--c-surface); cursor: pointer;
+    padding: var(--sp-1) var(--sp-3); min-height: var(--d-tap, 32px); border-radius: var(--r-pill);
+    font-size: var(--fs-sm); color: var(--c-ink-1);
+}
+.iqc-chip:hover { border-color: var(--brand); }
+.iqc-chip-on { background: var(--brand-bg); border-color: var(--brand); color: var(--brand); font-weight: var(--fw-bold); }
+.iqc-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.iqc-data-search { flex: 1 1 220px; min-width: 0; }
+
+/* Group tag in the grid */
+.iqc-group-tag {
+    display: inline-block; padding: 2px var(--sp-2); border-radius: var(--r-sm);
+    font-size: var(--fs-xs); font-weight: var(--fw-bold);
+    background: var(--c-surface-2); color: var(--c-ink-2); border: 1px solid var(--c-border);
+}
+.iqc-group-tag[data-group="Chemical"] { background: var(--warn-bg); color: var(--warn-ink); border-color: var(--warn-ink); }
+.iqc-group-tag[data-group="Tools"] { background: var(--indigo-bg, var(--c-surface-2)); color: var(--indigo, var(--c-ink-2)); }
+
+/* Status pill in the grid */
+.iqc-status { display: inline-block; padding: 2px var(--sp-2); border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
+.iqc-status-pending { background: var(--warn-bg); color: var(--warn-ink); }
+.iqc-status-pass { background: var(--ok-bg); color: var(--ok-ink); }
+.iqc-status-fail { background: var(--ng-bg); color: var(--ng-ink); }
+
+/* View-detail dialog rows */
+.iqc-view { display: flex; flex-direction: column; gap: var(--sp-2); }
+.iqc-view-row { display: flex; justify-content: space-between; gap: var(--sp-4); font-size: var(--fs-sm); padding: var(--sp-1) 0; border-bottom: 1px solid var(--c-border); }
+.iqc-view-row span { color: var(--c-muted); }
+
+/* Placeholder ticket forms (Chemical / Tools / Other) */
+.iqc-ph-form { display: flex; flex-direction: column; gap: var(--sp-3); }
+.iqc-ph-badge {
+    align-self: flex-start; padding: 2px var(--sp-3); border-radius: var(--r-pill);
+    font-size: var(--fs-xs); font-weight: var(--fw-bold); background: var(--warn-bg); color: var(--warn-ink);
+}
+.iqc-ph-note { margin: 0; font-size: var(--fs-sm); color: var(--c-muted); line-height: 1.5; }
+.iqc-ph-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3) var(--sp-4); }
+.iqc-ph-inspector { font-size: var(--fs-sm); color: var(--c-ink-1); }
+.iqc-ph-inspector em { color: var(--c-muted); font-style: normal; }
+.iqc-ph-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
+@container (max-width: 640px) { .iqc-ph-grid { grid-template-columns: 1fr; } }
+
+/* IQC full inspection form (MaterialsInspectionForm) — hosted inside a
+   FloatingWindow showcard (L34). Body is a container so the reused
+   .iqc-form-grid / .qms-fieldgrid collapse at narrow widths; S9 responsive. */
+.iqc-insp { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-4); container-type: inline-size; }
+.iqc-insp-head { display: flex; flex-direction: column; gap: var(--sp-3); }
+.iqc-insp-actions { justify-content: flex-end; gap: var(--sp-2); }
+.iqc-insp .qms-fieldgrid { gap: var(--sp-2) var(--sp-4); }

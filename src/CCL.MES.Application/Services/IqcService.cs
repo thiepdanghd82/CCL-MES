@@ -148,6 +148,11 @@ public class IqcService
     {
         RequireEditorRole(actorRole);
 
+        // feat/iqc-module-tabs — chuẩn hoá nhóm phiếu (form cũ không khai →
+        // Materials). KHÔNG chặn giá trị lạ (Normalize fallback Materials) để
+        // giữ backward-compat; whitelist canonical hoá về đúng 4 giá trị.
+        var group = IqcGroup.Normalize(r.Group);
+
         var codeIfs = MaterialLotStatusPolicy.Normalize(r.CodeIfs);
         var lotBatchNo = MaterialLotStatusPolicy.Normalize(r.LotBatchNo);
         if (codeIfs.Length is 0 or > 64)
@@ -214,6 +219,7 @@ public class IqcService
             var receiptNo = await NextReceiptNoAsync(DateTime.UtcNow, ct);
             insp = new IqcInspection
             {
+                Group = group,
                 ReceiptNo = receiptNo,
                 CodeIfs = codeIfs,
                 RawMaterialId = rawMaterialId,
@@ -296,6 +302,7 @@ public class IqcService
             targetType: "IqcInspection", targetId: insp.Id.ToString(),
             detail: JsonSerializer.Serialize(new
             {
+                group,
                 receipt_no = insp.ReceiptNo,
                 code_ifs = insp.CodeIfs,
                 match_status = matchStatus,
@@ -309,6 +316,7 @@ public class IqcService
         {
             Ok = true,
             HttpStatus = 201,
+            Group = group,
             ReceiptNo = insp.ReceiptNo!,
             IqcInspectionId = insp.Id,
             MaterialLotId = lotOutcome.MaterialLotId,
@@ -521,6 +529,96 @@ public class IqcService
             .Include(i => i.Details)
             .FirstOrDefaultAsync(i => i.Id == id);
     }
+
+    // ── feat/iqc-module-tabs — IQC Data list (DTO) + Dashboard KPI ────────
+
+    /// <summary>Danh sách phiếu IQC đã lưu cho tab "IQC Data" — trả DTO thuần
+    /// (KHÔNG entity). Lọc theo <paramref name="group"/> (null = tất cả) +
+    /// search (ReceiptNo/CodeIfs/MaterialDescription/PartNo/Supplier). Sort mới
+    /// nhất trước. Thuần đọc.</summary>
+    public async Task<IqcTicketPage> ListTicketsAsync(
+        string? group, string? search, int page, int pageSize, CancellationToken ct = default)
+    {
+        var q = _db.IqcInspections.AsNoTracking()
+            .OrderByDescending(x => x.ReceivedDate)
+            .ThenByDescending(x => x.Id)
+            .AsQueryable();
+
+        if (IqcGroup.IsValid(group))
+        {
+            var g = IqcGroup.Normalize(group);
+            q = q.Where(x => x.Group == g);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(x =>
+                (x.ReceiptNo != null && EF.Functions.Like(x.ReceiptNo, $"%{s}%"))
+                || (x.CodeIfs != null && EF.Functions.Like(x.CodeIfs, $"%{s}%"))
+                || (x.MaterialDescription != null && EF.Functions.Like(x.MaterialDescription, $"%{s}%"))
+                || EF.Functions.Like(x.PartNo, $"%{s}%")
+                || (x.SupplierName != null && EF.Functions.Like(x.SupplierName, $"%{s}%")));
+        }
+
+        var paged = await PagingHelper.PageAsync(q, page, pageSize);
+        return new IqcTicketPage
+        {
+            Page = paged.Page,
+            PageSize = paged.PageSize,
+            Total = paged.Total,
+            Items = paged.Items.Select(x => new IqcTicketRow
+            {
+                Id = x.Id,
+                ReceiptNo = x.ReceiptNo,
+                Group = string.IsNullOrWhiteSpace(x.Group) ? IqcGroup.Materials : x.Group,
+                CodeIfs = x.CodeIfs,
+                MaterialDescription = x.MaterialDescription,
+                LotBatchNo = x.LotNumber ?? x.BatchNumber,
+                ManufactureDate = x.ManufactureDate,
+                MakerName = x.MakerName,
+                SupplierName = x.SupplierName,
+                Inspector = x.InspectorId,
+                ReceivedDate = x.ReceivedDate,
+                Quantity = x.Quantity,
+                Uom = x.UomQty,
+                Result = x.Result.ToString(),
+            }).ToList(),
+        };
+    }
+
+    /// <summary>KPI đếm thật cho tab Dashboard — 1 pass gom nhóm + gom trạng
+    /// thái. Placeholder CÓ CẤU TRÚC (số liệu thật). Thuần đọc.</summary>
+    public async Task<IqcDashboardCounts> DashboardAsync(CancellationToken ct = default)
+    {
+        // Gom theo (Group, Result) một lần rồi tổng hợp trong bộ nhớ — tránh
+        // N query. Coalesce group rỗng (không nên có sau migration) về Materials.
+        var rows = await _db.IqcInspections.AsNoTracking()
+            .GroupBy(x => new { x.Group, x.Result })
+            .Select(g => new { g.Key.Group, g.Key.Result, Count = g.Count() })
+            .ToListAsync(ct);
+
+        var d = new IqcDashboardCounts();
+        foreach (var r in rows)
+        {
+            var g = string.IsNullOrWhiteSpace(r.Group) ? IqcGroup.Materials : IqcGroup.Normalize(r.Group);
+            d.Total += r.Count;
+            switch (g)
+            {
+                case IqcGroup.Materials: d.Materials += r.Count; break;
+                case IqcGroup.Chemical:  d.Chemical += r.Count; break;
+                case IqcGroup.Tools:     d.Tools += r.Count; break;
+                case IqcGroup.Other:     d.Other += r.Count; break;
+            }
+            switch (r.Result)
+            {
+                case QcResult.Pending: d.Pending += r.Count; break;
+                case QcResult.Pass:    d.Pass += r.Count; break;
+                case QcResult.Fail:    d.Fail += r.Count; break;
+            }
+        }
+        return d;
+    }
 }
 
 public record CreateIqcRequest(
@@ -548,6 +646,9 @@ public record CreateIqcDetail(
 /// server sinh/resolve (quyết định #1/#3).</summary>
 public sealed class CreateIqcTicketRequest
 {
+    /// <summary>feat/iqc-module-tabs — nhóm phiếu (Materials/Chemical/Tools/Other).
+    /// Thiếu/không rõ → server chuẩn hoá về "Materials" (backward compat form cũ).</summary>
+    public string? Group { get; set; }
     public string CodeIfs { get; set; } = "";
     public string LotBatchNo { get; set; } = "";
     public DateTime? ManufactureDate { get; set; }
@@ -567,6 +668,8 @@ public sealed class CreateIqcTicketResult
     public string? ErrorCode { get; init; }
     public string? MessageEn { get; init; }
 
+    /// <summary>feat/iqc-module-tabs — nhóm phiếu canonical (server chuẩn hoá).</summary>
+    public string Group { get; init; } = IqcGroup.Materials;
     public string ReceiptNo { get; init; } = "";
     public long IqcInspectionId { get; init; }
     public long? MaterialLotId { get; init; }
@@ -610,4 +713,48 @@ public sealed class IqcMaterialSearchResult
     public int PageSize { get; init; }
     public int Total { get; init; }
     public List<IqcMaterialSearchRow> Items { get; init; } = new();
+}
+
+// ── feat/iqc-module-tabs — IQC Data list + Dashboard (Application-layer) ──
+
+/// <summary>Một dòng phiếu IQC đã lưu (Application-layer; controller map sang
+/// Shared DTO).</summary>
+public sealed class IqcTicketRow
+{
+    public long Id { get; init; }
+    public string? ReceiptNo { get; init; }
+    public string Group { get; init; } = "Materials";
+    public string? CodeIfs { get; init; }
+    public string? MaterialDescription { get; init; }
+    public string? LotBatchNo { get; init; }
+    public DateTime? ManufactureDate { get; init; }
+    public string? MakerName { get; init; }
+    public string? SupplierName { get; init; }
+    public string? Inspector { get; init; }
+    public DateTime ReceivedDate { get; init; }
+    public double Quantity { get; init; }
+    public string? Uom { get; init; }
+    public string Result { get; init; } = "Pending";
+}
+
+/// <summary>Trang phiếu IQC (Application-layer).</summary>
+public sealed class IqcTicketPage
+{
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; }
+    public int Total { get; init; }
+    public List<IqcTicketRow> Items { get; init; } = new();
+}
+
+/// <summary>KPI đếm phiếu IQC (Application-layer).</summary>
+public sealed class IqcDashboardCounts
+{
+    public int Total { get; set; }
+    public int Materials { get; set; }
+    public int Chemical { get; set; }
+    public int Tools { get; set; }
+    public int Other { get; set; }
+    public int Pending { get; set; }
+    public int Pass { get; set; }
+    public int Fail { get; set; }
 }

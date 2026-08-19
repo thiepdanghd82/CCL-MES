@@ -20,6 +20,14 @@ namespace CCL.MES.Domain.Entities;
 /// </summary>
 public class IqcInspection : BaseEntity
 {
+    // ── Nhóm phiếu (feat/iqc-module-tabs) — ADDITIVE ────────────
+    // Phân loại nguồn nhập: Materials (form đảo-chiều hiện tại) · Chemical ·
+    // Tools · Other (3 form placeholder riêng). Default "Materials" nên phiếu
+    // legacy + form Materials cũ chạy nguyên. Lưu dạng string (mirror pattern
+    // CurrentStep / MatchStatus) — KHÔNG thêm enum Domain mới để giữ migration
+    // additive tối thiểu. Whitelist giá trị ở <see cref="IqcGroup"/>.
+    public string Group { get; set; } = IqcGroup.Materials;
+
     // ── Liên kết RawMaterial (hybrid FK) ─────────────────────────
     public long? RawMaterialId { get; set; }
     public RawMaterial? RawMaterial { get; set; }
@@ -58,6 +66,40 @@ public class IqcInspection : BaseEntity
     public DateTime? ApprovedAt { get; set; }
 
     public List<IqcResultDetail> Details { get; set; } = new();
+}
+
+/// <summary>
+/// feat/iqc-module-tabs — nhóm phiếu IQC. Giá trị canonical dạng string
+/// (không đổi số enum vì lưu chuỗi), whitelist tường minh để service validate.
+/// Additive: chỉ THÊM giá trị cuối, KHÔNG đổi nghĩa giá trị đã có.
+/// </summary>
+public static class IqcGroup
+{
+    public const string Materials = "Materials";
+    public const string Chemical = "Chemical";
+    public const string Tools = "Tools";
+    public const string Other = "Other";
+
+    public static readonly IReadOnlyList<string> All = new[]
+    {
+        Materials, Chemical, Tools, Other,
+    };
+
+    /// <summary>Chuẩn hoá + kiểm hợp lệ. Rỗng/không rõ → Materials (backward
+    /// compat: form cũ không khai group). So khớp không phân biệt hoa thường,
+    /// trả về dạng canonical.</summary>
+    public static string Normalize(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return Materials;
+        foreach (var g in All)
+            if (string.Equals(g, raw.Trim(), StringComparison.OrdinalIgnoreCase))
+                return g;
+        return Materials;
+    }
+
+    public static bool IsValid(string? raw) =>
+        !string.IsNullOrWhiteSpace(raw) &&
+        All.Any(g => string.Equals(g, raw.Trim(), StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>

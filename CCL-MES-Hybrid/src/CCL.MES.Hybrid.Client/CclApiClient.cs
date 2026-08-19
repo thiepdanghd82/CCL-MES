@@ -164,6 +164,25 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<CCL.MES.Shared.Quality.CreateIqcTicketResponse>(resp, ct);
     }
 
+    // ── IQC module tabs (feat/iqc-module-tabs) ─────────────────────
+
+    public async Task<CCL.MES.Shared.Quality.IqcTicketListResponse> ListIqcTicketsAsync(
+        string? group, string? search, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        var qs = new List<string> { $"page={page}", $"pageSize={pageSize}" };
+        if (!string.IsNullOrWhiteSpace(group)) qs.Add($"group={Uri.EscapeDataString(group)}");
+        if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        var url = $"/{ApiVersion.Prefix}/iqc/tickets?" + string.Join("&", qs);
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcTicketListResponse>(resp, ct);
+    }
+
+    public async Task<CCL.MES.Shared.Quality.IqcDashboardResponse> GetIqcDashboardAsync(CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/iqc/dashboard", ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcDashboardResponse>(resp, ct);
+    }
+
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)
     {
         var req = new RefreshTokenRequest { RefreshToken = refreshToken };

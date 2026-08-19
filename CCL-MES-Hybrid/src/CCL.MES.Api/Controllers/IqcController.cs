@@ -52,6 +52,65 @@ public sealed class IqcController : ControllerBase
         return insp is null ? NotFound() : Ok(insp);
     }
 
+    // ── feat/iqc-module-tabs — IQC Data list (DTO) + Dashboard KPI ────────
+
+    /// <summary>Danh sách phiếu IQC đã lưu cho tab "IQC Data" — trả DTO thuần
+    /// (KHÔNG entity). Lọc <c>?group=</c> optional (Materials/Chemical/Tools/
+    /// Other; giá trị lạ bị bỏ qua = tất cả) + <c>?search=</c>. Read-only ⇒
+    /// QcRead đủ.</summary>
+    [HttpGet("tickets")]
+    public async Task<ActionResult<IqcTicketListResponse>> Tickets(
+        [FromQuery] string? group = null,
+        [FromQuery] string? search = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        var r = await _svc.ListTicketsAsync(group, search, page, pageSize, ct);
+        return Ok(new IqcTicketListResponse
+        {
+            Page = r.Page,
+            PageSize = r.PageSize,
+            Total = r.Total,
+            Items = r.Items.Select(x => new IqcTicketListItem
+            {
+                Id = x.Id,
+                ReceiptNo = x.ReceiptNo,
+                Group = x.Group,
+                CodeIfs = x.CodeIfs,
+                MaterialDescription = x.MaterialDescription,
+                LotBatchNo = x.LotBatchNo,
+                ManufactureDate = x.ManufactureDate,
+                MakerName = x.MakerName,
+                SupplierName = x.SupplierName,
+                Inspector = x.Inspector,
+                ReceivedDate = x.ReceivedDate,
+                Quantity = x.Quantity,
+                Uom = x.Uom,
+                Result = x.Result,
+            }).ToList(),
+        });
+    }
+
+    /// <summary>KPI đếm thật cho tab Dashboard (tổng · theo nhóm · theo trạng
+    /// thái). Read-only ⇒ QcRead đủ.</summary>
+    [HttpGet("dashboard")]
+    public async Task<ActionResult<IqcDashboardResponse>> Dashboard(CancellationToken ct = default)
+    {
+        var d = await _svc.DashboardAsync(ct);
+        return Ok(new IqcDashboardResponse
+        {
+            Total = d.Total,
+            Materials = d.Materials,
+            Chemical = d.Chemical,
+            Tools = d.Tools,
+            Other = d.Other,
+            Pending = d.Pending,
+            Pass = d.Pass,
+            Fail = d.Fail,
+        });
+    }
+
     // ── feat/iqc-ticket — resolve Code IFS (UI auto-fill) ─────────
 
     /// <summary>Auto-fill Material/IFS description + matchStatus trước submit.
@@ -119,6 +178,7 @@ public sealed class IqcController : ControllerBase
         var (actor, role) = Who();
         var r = await _svc.CreateTicketAsync(new CreateIqcTicketRequest
         {
+            Group = body?.Group,
             CodeIfs = body?.CodeIfs ?? "",
             LotBatchNo = body?.LotBatchNo ?? "",
             ManufactureDate = body?.ManufactureDate,
@@ -146,6 +206,7 @@ public sealed class IqcController : ControllerBase
 
         var resp = new CreateIqcTicketResponse
         {
+            Group = r.Group,
             ReceiptNo = r.ReceiptNo,
             IqcInspectionId = r.IqcInspectionId,
             MaterialLotId = r.MaterialLotId,
