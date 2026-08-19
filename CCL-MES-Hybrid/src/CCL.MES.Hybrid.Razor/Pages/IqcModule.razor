@@ -3,481 +3,468 @@
 @implements IDisposable
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Quality
+@using CCL.MES.Hybrid.Razor.Shared
+@using CCL.MES.Hybrid.Razor.Shared.Iqc
 @inject ICclApiClient Api
 @inject CCL.MES.Hybrid.Client.Auth.IAuthSession Session
+@inject CCL.MES.Hybrid.Client.Windows.IFloatingWindowStore WinStore
 
-@* IQC — incoming raw-material inspection. Header shows the 9 real ticket
-   fields (feat/iqc-ticket); "Add ticket" opens a transactional <Modal> form
-   that creates a ticket + opens a Quarantine lot via POST /api/v2/iqc. The HSF
-   document table below stays on static mock (out of scope). *@
+@* feat/iqc-module-tabs — IQC module với 3 SUB-TAB:
+     • Dashboard  : KPI đếm thật (placeholder có cấu trúc, enrich sau).
+     • IQC Data   : list phiếu đã lưu + lọc theo nhóm + RowContextMenu (L35)
+                    + chuột-phải "Mở"/double-click → mở FORM thanh tra đầy đủ.
+     • New Ticket : picker 4 nhóm → Materials mở FORM thanh tra đầy đủ
+                    (MaterialsInspectionForm showcard); Chemical/Tools/Other
+                    mở FORM RIÊNG placeholder (transactional Modal).
+   Group ADDITIVE trên IqcInspection; phiếu Materials cũ chạy nguyên. *@
 <PageTitle>@T("qms.mod.iqc.title") — CCL MES</PageTitle>
 
 <div class="qms-page" data-testid="qms-iqc">
     <QmsModuleTopBar Vm="QmsMock.IqcTop" />
 
-    <div class="qms-iqc-head">
-        <div class="qms-fieldgrid" data-testid="iqc-header">
-            <div class="qms-field" data-testid="iqc-h-receipt">
-                <span class="qms-field-label">@T("iqc.f.receipt")</span>
-                <span class="qms-field-val">@Show(_header.ReceiptNo)</span>
-            </div>
-            <div class="qms-field" data-testid="iqc-h-codeifs">
-                <span class="qms-field-label">@T("iqc.f.codeifs")</span>
-                <span class="qms-field-val">@Show(_header.CodeIfs)</span>
-            </div>
-            <div class="qms-field" data-testid="iqc-h-matdesc">
-                <span class="qms-field-label">@T("iqc.f.matdesc")</span>
-                <span class="qms-field-val">@Show(_header.MaterialDescription)</span>
-            </div>
-            <div class="qms-field" data-testid="iqc-h-ifsdesc">
-                <span class="qms-field-label">@T("iqc.f.ifsdesc")</span>
-                <span class="qms-field-val">@Show(_header.IfsDescription)</span>
-            </div>
-            <div class="qms-field" data-testid="iqc-h-lotbatch">
-                <span class="qms-field-label">@T("iqc.f.lotbatch")</span>
-                <span class="qms-field-val">@Show(_header.LotBatchNo)</span>
-            </div>
-            <div class="qms-field" data-testid="iqc-h-manfdate">
-                <span class="qms-field-label">@T("iqc.f.manfdate")</span>
-                <span class="qms-field-val">@Show(_header.ManufactureDate?.ToString("dd/MM/yyyy"))</span>
-            </div>
-            <div class="qms-field" data-testid="iqc-h-maker">
-                <span class="qms-field-label">@T("iqc.f.maker")</span>
-                <span class="qms-field-val">@Show(_header.MakerName)</span>
-            </div>
-            <div class="qms-field" data-testid="iqc-h-supplier">
-                <span class="qms-field-label">@T("iqc.f.supplier")</span>
-                <span class="qms-field-val">@Show(_header.SupplierName)</span>
-            </div>
-            <div class="qms-field" data-testid="iqc-h-inspector">
-                <span class="qms-field-label">@T("iqc.f.inspector")</span>
-                <span class="qms-field-val">@Show(_header.Inspector)</span>
-            </div>
-        </div>
-        <div class="qms-actionbar">
-            <button type="button" class="qms-btn qms-btn-primary"
-                    data-testid="iqc-add-ticket" @onclick="OpenForm">
-                @T("iqc.add.button")
-            </button>
-        </div>
+    @* ── Sub-tab strip (tái dùng pattern QcLibrary, KHÔNG tự vẽ mới) ── *@
+    <div class="iqc-subtabs" role="tablist" data-testid="iqc-subtabs">
+        <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.Dashboard ? "iqc-subtab-on" : "")"
+                data-testid="iqc-subtab-dashboard" aria-selected="@(_tab == IqcTab.Dashboard)"
+                @onclick="() => SelectTab(IqcTab.Dashboard)">@T("iqc.tab.dashboard")</button>
+        <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.Data ? "iqc-subtab-on" : "")"
+                data-testid="iqc-subtab-data" aria-selected="@(_tab == IqcTab.Data)"
+                @onclick="() => SelectTab(IqcTab.Data)">@T("iqc.tab.data")</button>
+        <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.NewTicket ? "iqc-subtab-on" : "")"
+                data-testid="iqc-subtab-newticket" aria-selected="@(_tab == IqcTab.NewTicket)"
+                @onclick="() => SelectTab(IqcTab.NewTicket)">@T("iqc.tab.newticket")</button>
     </div>
 
-    <QmsStepper Steps="QmsMock.IqcSteps" ActiveIndex="_active"
-                OnStepClick="i => _active = i" />
-
-    @if (_active == 0)
+    @* ══════════════ DASHBOARD ══════════════ *@
+    @if (_tab == IqcTab.Dashboard)
     {
-        <section class="qms-section">
+        <section class="qms-section" data-testid="iqc-dash">
             <div class="qms-section-head">
-                <h2 class="qms-section-title">@T("qms.iqc.section")</h2>
-                <button type="button" class="qms-btn qms-btn-secondary">@T("qms.act.adddoc")</button>
+                <h2 class="qms-section-title">@T("iqc.dash.title")</h2>
             </div>
-            <p class="qms-section-desc">@T("qms.iqc.section.desc")</p>
+            <p class="qms-section-desc">@T("iqc.dash.desc")</p>
 
-            <div class="qms-table-wrap">
-                <table class="qms-table" data-testid="qms-iqc-hsf-table">
-                    <thead>
-                        <tr>
-                            <th>@T("qms.iqc.col.doc")</th>
-                            <th>@T("qms.iqc.col.no")</th>
-                            <th>@T("qms.iqc.col.issue")</th>
-                            <th>@T("qms.iqc.col.expiry")</th>
-                            <th>@T("qms.iqc.col.modified")</th>
-                            <th>@T("qms.iqc.col.status")</th>
-                            <th class="qms-col-tight">@T("qms.iqc.col.action")</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var d in QmsMock.Hsf)
-                        {
-                            <tr>
-                                <td class="qms-td-strong">@d.Name</td>
-                                <td>@d.No</td>
-                                <td>@d.Issue</td>
-                                <td class="@(d.Valid ? "" : "qms-td-ng")">@d.Expiry</td>
-                                <td>@d.ModifiedBy<div class="qms-cell-sub">@d.ModifiedAt</div></td>
-                                <td>
-                                    <span class="qms-status @(d.Valid ? "qms-status-valid" : "qms-status-expired")">
-                                        @(d.Valid ? T("qms.status.valid") : T("qms.status.expired"))
-                                    </span>
-                                </td>
-                                <td class="qms-col-tight"><button type="button" class="qms-remove">@T("qms.act.remove")</button></td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+            <div class="iqc-kpi-row">
+                <div class="iqc-kpi iqc-kpi-total" data-testid="iqc-kpi-total">
+                    <span class="iqc-kpi-num">@_dash.Total</span>
+                    <span class="iqc-kpi-lbl">@T("iqc.dash.total")</span>
+                </div>
             </div>
+
+            <h3 class="iqc-kpi-group-title">@T("iqc.dash.bygroup")</h3>
+            <div class="iqc-kpi-row">
+                <div class="iqc-kpi" data-testid="iqc-kpi-materials">
+                    <span class="iqc-kpi-num">@_dash.Materials</span>
+                    <span class="iqc-kpi-lbl">@T("iqc.group.materials")</span>
+                </div>
+                <div class="iqc-kpi" data-testid="iqc-kpi-chemical">
+                    <span class="iqc-kpi-num">@_dash.Chemical</span>
+                    <span class="iqc-kpi-lbl">@T("iqc.group.chemical")</span>
+                </div>
+                <div class="iqc-kpi" data-testid="iqc-kpi-tools">
+                    <span class="iqc-kpi-num">@_dash.Tools</span>
+                    <span class="iqc-kpi-lbl">@T("iqc.group.tools")</span>
+                </div>
+                <div class="iqc-kpi" data-testid="iqc-kpi-other">
+                    <span class="iqc-kpi-num">@_dash.Other</span>
+                    <span class="iqc-kpi-lbl">@T("iqc.group.other")</span>
+                </div>
+            </div>
+
+            <h3 class="iqc-kpi-group-title">@T("iqc.dash.bystatus")</h3>
+            <div class="iqc-kpi-row">
+                <div class="iqc-kpi iqc-kpi-pending" data-testid="iqc-kpi-pending">
+                    <span class="iqc-kpi-num">@_dash.Pending</span>
+                    <span class="iqc-kpi-lbl">@T("iqc.dash.pending")</span>
+                </div>
+                <div class="iqc-kpi iqc-kpi-pass" data-testid="iqc-kpi-pass">
+                    <span class="iqc-kpi-num">@_dash.Pass</span>
+                    <span class="iqc-kpi-lbl">@T("iqc.dash.pass")</span>
+                </div>
+                <div class="iqc-kpi iqc-kpi-fail" data-testid="iqc-kpi-fail">
+                    <span class="iqc-kpi-num">@_dash.Fail</span>
+                    <span class="iqc-kpi-lbl">@T("iqc.dash.fail")</span>
+                </div>
+            </div>
+
+            <p class="iqc-ph-note" data-testid="iqc-dash-placeholder">@T("iqc.dash.placeholder.note")</p>
         </section>
     }
-    else
+
+    @* ══════════════ IQC DATA (list) ══════════════ *@
+    else if (_tab == IqcTab.Data)
     {
-        <p class="qms-section-desc" data-testid="qms-iqc-step-placeholder">@T(QmsMock.IqcSteps[_active].LabelKey) — @T("qms.icra.state.open")…</p>
-    }
-</div>
-
-<Modal Open="_formOpen" OnClose="CloseForm" Size="ModalSize.Md"
-       ClickOutsideToClose="false">
-    <Header>@T("iqc.form.title")</Header>
-    <Body>
-        <div class="iqc-form" data-testid="iqc-form">
-            <p class="iqc-form-desc">@T("iqc.form.desc")</p>
-
-            <div class="iqc-form-grid">
-                @* Đảo chiều (feat/iqc-search-by-desc): mô tả là ô TÌM chính. *@
-                <label class="iqc-fld iqc-fld-wide">
-                    <span class="iqc-fld-label">@T("iqc.f.matdesc.search")</span>
-                    <input class="op-input" data-testid="iqc-search-input"
-                           placeholder="@T("iqc.search.ph")"
-                           value="@_searchText"
-                           @oninput="OnSearchInput" />
-                </label>
-
-                @* Code IFS = droplist multi-select tick (chip-buttons, KHÔNG
-                   native <select> — WKWebView freeze trên maccatalyst). *@
-                <div class="iqc-fld iqc-fld-wide">
-                    <span class="iqc-fld-label">@T("iqc.multi.codeifs.pick")</span>
-                    @if (_searchTooShort)
-                    {
-                        <p class="iqc-hint" data-testid="iqc-search-tooshort">@T("iqc.search.tooshort")</p>
-                    }
-                    else
-                    {
-                        <div class="iqc-picker" data-testid="iqc-codeifs-list">
-                            <div class="iqc-picker-bar">
-                                <input class="op-input iqc-picker-filter" data-testid="iqc-codeifs-filter"
-                                       placeholder="@T("iqc.search.filter.ph")"
-                                       value="@_listFilter" @oninput="OnListFilterInput" />
-                                <span class="iqc-picker-count" data-testid="iqc-codeifs-count">
-                                    @T("iqc.search.results", _selectedCodes.Count, _searchTotal)
-                                </span>
-                            </div>
-                            @if (FilteredResults.Count == 0)
-                            {
-                                <p class="iqc-hint" data-testid="iqc-codeifs-none">@T("iqc.search.none")</p>
-                            }
-                            else
-                            {
-                                <div class="iqc-picker-scroll">
-                                    @foreach (var row in FilteredResults)
-                                    {
-                                        var on = _selectedCodes.Contains(row.CodeIfs);
-                                        <button type="button"
-                                                class="iqc-pick-row @(on ? "iqc-pick-on" : "")"
-                                                data-testid="iqc-codeifs-tick"
-                                                data-code="@row.CodeIfs"
-                                                @onclick="() => ToggleCode(row.CodeIfs)">
-                                            <span class="iqc-pick-mark">@(on ? "☑" : "☐")</span>
-                                            <span class="iqc-pick-code">@row.CodeIfs</span>
-                                            <span class="iqc-pick-desc">@row.IfsDescription</span>
-                                        </button>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
-                </div>
-
-                <label class="iqc-fld">
-                    <span class="iqc-fld-label">@T("iqc.f.lotbatch")</span>
-                    <input class="op-input" data-testid="iqc-f-lotbatch"
-                           placeholder="@T("iqc.form.lotbatch.ph")"
-                           @bind="_lotBatchNo" />
-                    @if (_selectedCodes.Count > 1)
-                    {
-                        <span class="iqc-hint" data-testid="iqc-lot-suffix-hint">@T("iqc.multi.lotbatch.hint")</span>
-                    }
-                </label>
-
-                <label class="iqc-fld">
-                    <span class="iqc-fld-label">@T("iqc.f.manfdate")</span>
-                    <input type="date" class="op-input" data-testid="iqc-f-manfdate"
-                           @bind="_manufactureDate" />
-                </label>
-
-                <label class="iqc-fld">
-                    <span class="iqc-fld-label">@T("iqc.f.maker")</span>
-                    <input class="op-input" list="iqc-makers" data-testid="iqc-f-maker"
-                           placeholder="@T("iqc.form.maker.ph")"
-                           value="@_makerName"
-                           @onchange="OnMakerChanged" />
-                    <datalist id="iqc-makers">
-                        @foreach (var m in _makerOptions)
-                        {
-                            <option value="@m" />
-                        }
-                    </datalist>
-                </label>
-
-                <label class="iqc-fld">
-                    <span class="iqc-fld-label">@T("iqc.f.supplier")</span>
-                    <input class="op-input" data-testid="iqc-f-supplier"
-                           placeholder="@T("iqc.form.supplier.ph")"
-                           @bind="_supplierName" />
-                </label>
-
-                <label class="iqc-fld">
-                    <span class="iqc-fld-label">@T("iqc.f.qty")</span>
-                    <input type="number" min="0" step="any" class="op-input" data-testid="iqc-f-qty"
-                           placeholder="@T("iqc.form.qty.ph")"
-                           @bind="_quantity" />
-                </label>
-
-                <label class="iqc-fld">
-                    <span class="iqc-fld-label">@T("iqc.f.uom")</span>
-                    <input class="op-input" data-testid="iqc-f-uom"
-                           placeholder="@T("iqc.form.uom.ph")"
-                           @bind="_uom" />
-                </label>
+        <section class="qms-section" data-testid="iqc-data">
+            <div class="qms-section-head">
+                <h2 class="qms-section-title">@T("iqc.data.title")</h2>
             </div>
 
-            @if (_error is not null)
-            {
-                <p class="iqc-warn iqc-warn-error" data-testid="iqc-form-error">@_error</p>
-            }
-        </div>
-    </Body>
-    <Footer>
-        <button type="button" class="op-btn op-btn-secondary" data-testid="iqc-form-cancel"
-                @onclick="CloseForm" disabled="@_saving">@T("iqc.form.cancel")</button>
-        <button type="button" class="op-btn op-btn-primary" data-testid="iqc-form-save"
-                @onclick="SaveAsync" disabled="@(_saving || !CanSave)">
-            @(_saving ? T("iqc.form.saving") : T("iqc.form.save"))
-        </button>
-    </Footer>
-</Modal>
-
-@code {
-    private int _active;
-
-    // Header state — populated after a successful create (server = source).
-    private HeaderVm _header = HeaderVm.Empty;
-
-    // Form state.
-    private bool _formOpen;
-    private bool _saving;
-    private string? _error;
-    private string _lotBatchNo = "";
-    private string? _makerName;
-    private string? _supplierName;
-    private DateTime? _manufactureDate;
-    private double? _quantity;
-    private string? _uom;
-    private List<string> _makerOptions = new();
-
-    // feat/iqc-search-by-desc — search-by-description + multi-select.
-    private string _searchText = "";
-    private string _listFilter = "";
-    private bool _searchTooShort;
-    private int _searchTotal;
-    private List<IqcMaterialSearchItem> _searchResults = new();
-    private readonly HashSet<string> _selectedCodes = new(StringComparer.OrdinalIgnoreCase);
-    private System.Threading.Timer? _debounce;
-
-    /// <summary>Debounce window for the description search. Default 300ms in
-    /// production; tests set 0 to fire synchronously (deterministic, no timer
-    /// thread racing under parallel xUnit collections).</summary>
-    [Parameter] public int DebounceMs { get; set; } = 300;
-
-    // Client-side filter over the loaded page (server also paginates). Ticked
-    // rows stay visible so the operator never loses a selection while filtering.
-    private List<IqcMaterialSearchItem> FilteredResults =>
-        string.IsNullOrWhiteSpace(_listFilter)
-            ? _searchResults
-            : _searchResults.Where(r =>
-                _selectedCodes.Contains(r.CodeIfs)
-                || r.CodeIfs.Contains(_listFilter, StringComparison.OrdinalIgnoreCase)
-                || (r.IfsDescription ?? "").Contains(_listFilter, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-    private bool CanSave =>
-        _selectedCodes.Count > 0
-        && !string.IsNullOrWhiteSpace(_lotBatchNo)
-        && _quantity is > 0;
-
-    private string Show(string? v) => string.IsNullOrWhiteSpace(v) ? T("iqc.f.empty") : v!;
-
-    private void OpenForm()
-    {
-        _error = null;
-        _searchText = ""; _listFilter = ""; _searchTooShort = false; _searchTotal = 0;
-        _searchResults = new(); _selectedCodes.Clear();
-        _lotBatchNo = ""; _makerName = null; _supplierName = null;
-        _manufactureDate = null; _quantity = null; _uom = null;
-        _formOpen = true;
-    }
-
-    private void CloseForm()
-    {
-        if (_saving) return;
-        _formOpen = false;
-    }
-
-    // Debounced search: mirror OnMakerChanged's cadence but with a 300ms timer
-    // so a fast typist doesn't fan a query per keystroke.
-    private async Task OnSearchInput(ChangeEventArgs e)
-    {
-        _searchText = e.Value?.ToString() ?? "";
-        _error = null;
-        _debounce?.Dispose();
-        if (DebounceMs <= 0)
-        {
-            // Synchronous path (tests): no timer thread, deterministic.
-            await RunSearchAsync();
-            return;
-        }
-        _debounce = new System.Threading.Timer(async _ =>
-            await InvokeAsync(RunSearchAsync), null, DebounceMs, System.Threading.Timeout.Infinite);
-    }
-
-    private async Task RunSearchAsync()
-    {
-        var term = _searchText;
-        try
-        {
-            var r = await Api.SearchIqcMaterialAsync(term, 1, 20);
-            _searchTooShort = r.TooShort;
-            _searchTotal = r.Total;
-            _searchResults = r.Items ?? new();
-        }
-        catch
-        {
-            // Best-effort; leave last-known list. Save still re-resolves server-side.
-            _searchTooShort = false;
-        }
-        StateHasChanged();
-    }
-
-    private void OnListFilterInput(ChangeEventArgs e) => _listFilter = e.Value?.ToString() ?? "";
-
-    private void ToggleCode(string code)
-    {
-        if (!_selectedCodes.Remove(code)) _selectedCodes.Add(code);
-    }
-
-    private async Task OnMakerChanged(ChangeEventArgs e)
-    {
-        _makerName = e.Value?.ToString();
-        var q = (_makerName ?? "").Trim();
-        try { _makerOptions = await Api.GetIqcMakersAsync(q); }
-        catch { /* suggestions are optional */ }
-    }
-
-    // A2a multi-create: tick N Code IFS → N POST /api/v2/iqc, each a fresh
-    // ticket + MaterialLot with the SAME server-side freeze (PA-A) path. Lot
-    // numbers are distinct via -01…-0N suffix when >1 code is picked (single
-    // code keeps the base lot as-is). Loop is sequential + collects a per-row
-    // outcome so one 409 (dup lot) fails only that row, not the whole batch.
-    private async Task SaveAsync()
-    {
-        if (!CanSave || _saving) return;
-        _saving = true;
-        _error = null;
-
-        var codes = _selectedCodes.ToList();
-        var baseLot = _lotBatchNo.Trim();
-        var multi = codes.Count > 1;
-        var maker = string.IsNullOrWhiteSpace(_makerName) ? null : _makerName!.Trim();
-        var supplier = string.IsNullOrWhiteSpace(_supplierName) ? null : _supplierName!.Trim();
-        var uom = string.IsNullOrWhiteSpace(_uom) ? null : _uom!.Trim();
-
-        var okCount = 0;
-        var failCount = 0;
-        string? firstError = null;
-        CreateIqcTicketResponse? lastOk = null;
-        string lastOkCode = "";
-        string lastOkLot = "";
-
-        try
-        {
-            for (var i = 0; i < codes.Count; i++)
-            {
-                var code = codes[i];
-                var lot = multi ? $"{baseLot}-{(i + 1):D2}" : baseLot;
-                try
-                {
-                    var resp = await Api.CreateIqcTicketAsync(new CreateIqcTicketBody
+            <div class="iqc-data-toolbar">
+                <div class="iqc-data-groupfilter" role="group" aria-label="@T("iqc.data.filter.group")">
+                    <button type="button" class="iqc-chip @( _groupFilter is null ? "iqc-chip-on" : "")"
+                            data-testid="iqc-data-group-all" @onclick="() => SetGroupFilter(null)">@T("iqc.group.all")</button>
+                    @foreach (var g in Groups)
                     {
-                        CodeIfs = code,
-                        LotBatchNo = lot,
-                        ManufactureDate = _manufactureDate,
-                        MakerName = maker,
-                        SupplierName = supplier,
-                        Quantity = _quantity ?? 0,
-                        Uom = uom,
-                    });
-                    okCount++;
-                    lastOk = resp; lastOkCode = code; lastOkLot = lot;
-                }
-                catch (ApiException ex)
-                {
-                    failCount++;
-                    firstError ??= LocaliseError(ex.ApiError.Code);
-                }
-                catch
-                {
-                    failCount++;
-                    firstError ??= T("iqc.err.generic");
-                }
-            }
+                        var gg = g;
+                        <button type="button" class="iqc-chip @(_groupFilter == gg ? "iqc-chip-on" : "")"
+                                data-testid="@($"iqc-data-group-{gg.ToLowerInvariant()}")"
+                                @onclick="() => SetGroupFilter(gg)">@GroupLabel(gg)</button>
+                    }
+                </div>
+                <input type="search" class="op-input iqc-data-search" data-testid="iqc-data-search"
+                       placeholder="@T("iqc.data.search.ph")"
+                       value="@_search" @oninput="OnDataSearchInput" />
+            </div>
 
-            if (lastOk is not null)
+            @if (_dataLoading && _data is null)
             {
-                // Header shows the last successfully created ticket (server-auth).
-                _header = new HeaderVm
-                {
-                    ReceiptNo = lastOk.ReceiptNo,
-                    CodeIfs = lastOkCode,
-                    MaterialDescription = lastOk.MaterialDescription,
-                    IfsDescription = lastOk.IfsDescription,
-                    LotBatchNo = lastOkLot,
-                    ManufactureDate = _manufactureDate,
-                    MakerName = maker,
-                    SupplierName = supplier,
-                    Inspector = Session.CurrentUserInfo?.Username,
-                };
-            }
-
-            if (failCount == 0)
-            {
-                _formOpen = false;   // all created → close + refreshed header
+                <p class="qms-section-desc">@T("iqc.data.loading")</p>
             }
             else
             {
-                // Partial: keep the form open, surface N ok / M failed banner.
-                _error = okCount > 0
-                    ? T("iqc.multi.partial", okCount, failCount)
-                    : (firstError ?? T("iqc.err.generic"));
+                <div class="qms-table-wrap">
+                    <table class="qms-table iqc-data-table" data-testid="iqc-data-table">
+                        <thead>
+                            <tr>
+                                <th>@T("iqc.data.col.receipt")</th>
+                                <th>@T("iqc.data.col.group")</th>
+                                <th>@T("iqc.data.col.codeifs")</th>
+                                <th>@T("iqc.data.col.matdesc")</th>
+                                <th>@T("iqc.data.col.lot")</th>
+                                <th>@T("iqc.data.col.manfdate")</th>
+                                <th>@T("iqc.data.col.maker")</th>
+                                <th>@T("iqc.data.col.supplier")</th>
+                                <th>@T("iqc.data.col.inspector")</th>
+                                <th>@T("iqc.data.col.received")</th>
+                                <th class="qms-num">@T("iqc.data.col.qty")</th>
+                                <th>@T("iqc.data.col.status")</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in (_data?.Items ?? new()))
+                            {
+                                var r = row;
+                                <tr class="iqc-data-row"
+                                    @oncontextmenu="e => OpenMenuAt(r, e.ClientX, e.ClientY)" @oncontextmenu:preventDefault="true"
+                                    @ondblclick="() => OpenInspection(r)"
+                                    @onpointerdown="e => LongPressStart(r, e)" @onpointerup="LongPressCancel"
+                                    @onpointerleave="LongPressCancel" @onpointermove="LongPressCancel">
+                                    <td class="qms-td-strong" data-testid="iqc-data-receipt">@Show(r.ReceiptNo)</td>
+                                    <td><span class="iqc-group-tag" data-group="@r.Group">@GroupLabel(r.Group)</span></td>
+                                    <td>@Show(r.CodeIfs)</td>
+                                    <td>@Show(r.MaterialDescription)</td>
+                                    <td>@Show(r.LotBatchNo)</td>
+                                    <td>@Show(r.ManufactureDate?.ToString("dd/MM/yyyy"))</td>
+                                    <td>@Show(r.MakerName)</td>
+                                    <td>@Show(r.SupplierName)</td>
+                                    <td>@Show(r.Inspector)</td>
+                                    <td>@r.ReceivedDate.ToString("dd/MM/yyyy")</td>
+                                    <td class="qms-num">@r.Quantity@(string.IsNullOrWhiteSpace(r.Uom) ? "" : $" {r.Uom}")</td>
+                                    <td><span class="iqc-status iqc-status-@r.Result.ToLowerInvariant()">@StatusLabel(r.Result)</span></td>
+                                </tr>
+                            }
+                            @if ((_data?.Items.Count ?? 0) == 0)
+                            {
+                                <tr><td colspan="12" class="grid-empty" data-testid="iqc-data-empty">@T("iqc.data.empty")</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="grid-pager">
+                    <button type="button" class="op-btn op-btn-secondary" data-testid="iqc-data-prev"
+                            disabled="@(_page <= 1 || _dataLoading)" @onclick="() => GoToPageAsync(_page - 1)">@T("iqc.data.pager.prev")</button>
+                    <span class="grid-pager-text">@T("iqc.data.pager.status", _page, DataTotalPages, _data?.Total ?? 0)</span>
+                    <button type="button" class="op-btn op-btn-secondary" data-testid="iqc-data-next"
+                            disabled="@(_page >= DataTotalPages || _dataLoading)" @onclick="() => GoToPageAsync(_page + 1)">@T("iqc.data.pager.next")</button>
+                </div>
             }
-        }
-        finally
+        </section>
+
+        @* Row-action menu: right-click / long-press / kebab share ONE state (L35). *@
+        <RowContextMenu Open="_menuRow is not null" Anchor="_menuAnchor" Items="_menuItems"
+                        AriaLabel="@T("iqc.data.menu.aria", _menuRow?.ReceiptNo ?? "")" OnClose="CloseMenu" />
+    }
+
+    @* ══════════════ NEW TICKET ══════════════ *@
+    else
+    {
+        <section class="qms-section" data-testid="iqc-newticket">
+            <div class="qms-section-head">
+                <h2 class="qms-section-title">@T("iqc.newticket.pick")</h2>
+            </div>
+            <p class="qms-section-desc">@T("iqc.newticket.pick.desc")</p>
+
+            <div class="iqc-grouppick" data-testid="iqc-grouppick">
+                <button type="button" class="iqc-groupcard" data-testid="iqc-groupcard-materials"
+                        @onclick="() => PickGroup(IqcGroupKind.Materials)">
+                    <span class="iqc-groupcard-name">@T("iqc.group.materials")</span>
+                    <span class="iqc-groupcard-hint">@T("iqc.group.materials.hint")</span>
+                </button>
+                <button type="button" class="iqc-groupcard" data-testid="iqc-groupcard-chemical"
+                        @onclick="() => PickGroup(IqcGroupKind.Chemical)">
+                    <span class="iqc-groupcard-name">@T("iqc.group.chemical")</span>
+                    <span class="iqc-groupcard-hint">@T("iqc.group.chemical.hint")</span>
+                </button>
+                <button type="button" class="iqc-groupcard" data-testid="iqc-groupcard-tools"
+                        @onclick="() => PickGroup(IqcGroupKind.Tools)">
+                    <span class="iqc-groupcard-name">@T("iqc.group.tools")</span>
+                    <span class="iqc-groupcard-hint">@T("iqc.group.tools.hint")</span>
+                </button>
+                <button type="button" class="iqc-groupcard" data-testid="iqc-groupcard-other"
+                        @onclick="() => PickGroup(IqcGroupKind.Other)">
+                    <span class="iqc-groupcard-name">@T("iqc.group.other")</span>
+                    <span class="iqc-groupcard-hint">@T("iqc.group.other.hint")</span>
+                </button>
+            </div>
+
+            @if (_lastCreatedReceipt is not null)
+            {
+                <p class="iqc-ph-saved" data-testid="iqc-newticket-saved">@T("iqc.ph.saved", _lastCreatedReceipt)</p>
+            }
+        </section>
+    }
+</div>
+
+@* ══════════════ FORM thanh tra Materials — SHOWCARD keep-open (L34) ══════════════
+     Mở khi: New Ticket → Materials (tạo mới, Ticket=null) HOẶC IQC Data row
+     right-click "Mở" / double-click (mở phiếu đã lưu, Ticket=dòng). Parent sở
+     hữu danh sách cửa sổ + persist rect (mirror QualityTraceability). *@
+@foreach (var w in _inspWins)
+{
+    <MaterialsInspectionForm @key="w.Id" Ticket="w.Ticket"
+                             WindowId="@w.Id" Rect="w.Rect" CascadeIndex="w.Cascade"
+                             DebounceMs="DebounceMs"
+                             OnRectChanged="r => OnInspRectChanged(w.Key, r)"
+                             OnSaved="OnInspectionSaved"
+                             OnClose="() => CloseInspection(w.Id)" />
+}
+
+@* ══════════════ Placeholder forms (Chemical / Tools / Other) — transactional Modal ══════════════ *@
+<Modal Open="_phOpen" OnClose="ClosePlaceholder" Size="ModalSize.Md" ClickOutsideToClose="false">
+    <Header>@GroupLabel(GroupKindToString(_phGroup)) — @T("iqc.newticket.title")</Header>
+    <Body>
+        @if (_phGroup == IqcGroupKind.Chemical)
         {
-            _saving = false;
+            <ChemicalTicketForm OnCancel="ClosePlaceholder" OnSaved="OnPlaceholderSaved" />
+        }
+        else if (_phGroup == IqcGroupKind.Tools)
+        {
+            <ToolsTicketForm OnCancel="ClosePlaceholder" OnSaved="OnPlaceholderSaved" />
+        }
+        else if (_phGroup == IqcGroupKind.Other)
+        {
+            <OtherTicketForm OnCancel="ClosePlaceholder" OnSaved="OnPlaceholderSaved" />
+        }
+    </Body>
+</Modal>
+
+@if (_toast is not null)
+{
+    <div class="grid-status" role="status" data-testid="iqc-toast">@_toast</div>
+}
+
+@code {
+    private enum IqcTab { Dashboard, Data, NewTicket }
+    private enum IqcGroupKind { Materials, Chemical, Tools, Other }
+
+    private IqcTab _tab = IqcTab.Dashboard;
+
+    private static readonly string[] Groups = { "Materials", "Chemical", "Tools", "Other" };
+    private string GroupLabel(string g) => T($"iqc.group.{(g ?? "materials").ToLowerInvariant()}");
+    private string StatusLabel(string r) => T($"iqc.data.status.{(r ?? "pending").ToLowerInvariant()}");
+    private static string GroupKindToString(IqcGroupKind k) => k.ToString();
+
+    // ── Dashboard state ──
+    private IqcDashboardResponse _dash = new();
+
+    // ── IQC Data state ──
+    private IqcTicketListResponse? _data;
+    private bool _dataLoading;
+    private string? _groupFilter;
+    private string _search = "";
+    private int _page = 1;
+    private const int PageSize = 20;
+    private System.Threading.Timer? _dataDebounce;
+    private int DataTotalPages => Math.Max(1, (int)Math.Ceiling((_data?.Total ?? 0) / (double)PageSize));
+
+    // Row-action menu (right-click / long-press / kebab → one menu, L35).
+    private IqcTicketListItem? _menuRow;
+    private (double X, double Y) _menuAnchor;
+    private IReadOnlyList<ContextMenuItem> _menuItems = System.Array.Empty<ContextMenuItem>();
+    private System.Threading.Timer? _longPress;
+    private (double X, double Y) _pressAt;
+    private string? _toast;
+
+    // ── New Ticket / placeholder state ──
+    private bool _phOpen;
+    private IqcGroupKind _phGroup = IqcGroupKind.Chemical;
+    private string? _lastCreatedReceipt;
+
+    // ── Materials inspection showcards (FloatingWindow multi-window host, L34) ──
+    // Parent sở hữu danh sách cửa sổ đang mở + persist rect per session
+    // (mirror QualityTraceability). Key = ReceiptNo cho phiếu đã lưu, "new:<guid>"
+    // cho phiếu tạo mới (mỗi lần New Ticket→Materials = 1 cửa sổ độc lập).
+    private sealed record InspWin(string Key, IqcTicketListItem? Ticket, string Id,
+                                  CCL.MES.Hybrid.Client.Windows.WindowRect? Rect, int Cascade);
+    private readonly List<InspWin> _inspWins = new();
+    private const int MaxInspWins = 6;
+
+    /// <summary>Debounce window for the description search. Default 300ms in
+    /// production; tests set 0 to fire synchronously (deterministic).</summary>
+    [Parameter] public int DebounceMs { get; set; } = 300;
+
+    private string Show(string? v) => string.IsNullOrWhiteSpace(v) ? T("iqc.f.empty") : v!;
+
+    protected override async Task OnInitializedAsync() => await LoadDashboardAsync();
+
+    private async Task SelectTab(IqcTab tab)
+    {
+        _tab = tab;
+        _toast = null;
+        if (tab == IqcTab.Dashboard) await LoadDashboardAsync();
+        else if (tab == IqcTab.Data) await LoadDataAsync();
+    }
+
+    // ── Dashboard ──
+    private async Task LoadDashboardAsync()
+    {
+        try { _dash = await Api.GetIqcDashboardAsync(); }
+        catch { /* best-effort KPI */ }
+    }
+
+    // ── IQC Data ──
+    private async Task LoadDataAsync()
+    {
+        _dataLoading = true;
+        try { _data = await Api.ListIqcTicketsAsync(_groupFilter, string.IsNullOrWhiteSpace(_search) ? null : _search, _page, PageSize); }
+        catch { /* leave last-known */ }
+        finally { _dataLoading = false; StateHasChanged(); }
+    }
+
+    private async Task SetGroupFilter(string? g)
+    {
+        _groupFilter = g; _page = 1;
+        await LoadDataAsync();
+    }
+
+    private void OnDataSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        _page = 1;
+        _dataDebounce?.Dispose();
+        if (DebounceMs <= 0) { _ = LoadDataAsync(); return; }
+        _dataDebounce = new System.Threading.Timer(async _ =>
+            await InvokeAsync(LoadDataAsync), null, DebounceMs, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        _page = Math.Clamp(page, 1, DataTotalPages);
+        await LoadDataAsync();
+    }
+
+    // ── Row-action menu (RowContextMenu, L35). Server re-checks 403. ──
+    private void OpenMenuAt(IqcTicketListItem row, double x, double y)
+    {
+        _menuRow = row;
+        _menuAnchor = (x, y);
+        _menuItems = new[]
+        {
+            new ContextMenuItem { Label = T("iqc.data.menu.open"), Icon = "🗂", OnClick = EventCallback.Factory.Create(this, () => MenuOpenInspection(row)) },
+            new ContextMenuItem { Label = T("iqc.data.menu.copy"), Icon = "⎘", OnClick = EventCallback.Factory.Create(this, NotYet) },
+            new ContextMenuItem { Label = T("iqc.data.menu.edit"), Icon = "✎", OnClick = EventCallback.Factory.Create(this, NotYet) },
+            ContextMenuItem.Divider,
+            new ContextMenuItem { Label = T("iqc.data.menu.delete"), Icon = "✕", Danger = true, OnClick = EventCallback.Factory.Create(this, NotYet) },
+        };
+    }
+
+    private void CloseMenu() => _menuRow = null;
+    private void MenuOpenInspection(IqcTicketListItem row) { _menuRow = null; OpenInspection(row); }
+    private void NotYet() { _toast = T("iqc.data.action.notyet"); _menuRow = null; }
+
+    private void LongPressStart(IqcTicketListItem row, PointerEventArgs e)
+    {
+        if (e.Button != 0) return;
+        _pressAt = (e.ClientX, e.ClientY);
+        _longPress?.Dispose();
+        _longPress = new System.Threading.Timer(
+            _ => InvokeAsync(() => { OpenMenuAt(row, _pressAt.X, _pressAt.Y); StateHasChanged(); }),
+            null, 500, System.Threading.Timeout.Infinite);
+    }
+    private void LongPressCancel() { _longPress?.Dispose(); _longPress = null; }
+
+    // ── New Ticket picker ──
+    private void PickGroup(IqcGroupKind kind)
+    {
+        _lastCreatedReceipt = null;
+        if (kind == IqcGroupKind.Materials)
+        {
+            // Materials → mở FORM thanh tra đầy đủ (showcard, tạo mới). Mỗi lần
+            // = 1 cửa sổ độc lập (key "new:<guid>") để mở song song nhiều phiếu.
+            OpenInspection(null);
+        }
+        else
+        {
+            _phGroup = kind;
+            _phOpen = true;
         }
     }
 
-    private string LocaliseError(string code) => code switch
-    {
-        "iqc.invalid_code_ifs"       => T("iqc.err.invalid_code_ifs"),
-        "iqc.invalid_lot_batch_no"   => T("iqc.err.invalid_lot_batch_no"),
-        "iqc.invalid_quantity"       => T("iqc.err.invalid_quantity"),
-        "iqc.receipt_no_conflict"    => T("iqc.err.receipt_no_conflict"),
-        "lot.duplicate"              => T("iqc.err.lot_duplicate"),
-        _                            => T("iqc.err.generic"),
-    };
+    private void ClosePlaceholder() => _phOpen = false;
 
-    public void Dispose() => _debounce?.Dispose();
-
-    private sealed class HeaderVm
+    private async Task OnPlaceholderSaved(CreateIqcTicketResponse resp)
     {
-        public string? ReceiptNo { get; init; }
-        public string? CodeIfs { get; init; }
-        public string? MaterialDescription { get; init; }
-        public string? IfsDescription { get; init; }
-        public string? LotBatchNo { get; init; }
-        public DateTime? ManufactureDate { get; init; }
-        public string? MakerName { get; init; }
-        public string? SupplierName { get; init; }
-        public string? Inspector { get; init; }
-        public static HeaderVm Empty => new();
+        _phOpen = false;
+        _lastCreatedReceipt = resp.ReceiptNo;
+        await LoadDashboardAsync();   // KPI reflects the new ticket
+    }
+
+    // ── Materials inspection showcard host (FloatingWindow, L34) ───────────
+    // Mở form thanh tra đầy đủ. ticket == null → tạo mới; có → phiếu đã lưu.
+    // Trùng phiếu đã lưu → bring-to-front (không mở lặp). Freeze PA-A giữ ở
+    // component qua CÙNG POST /api/v2/iqc.
+    private void OpenInspection(IqcTicketListItem? ticket)
+    {
+        var key = ticket?.ReceiptNo is { Length: > 0 } rn
+            ? $"ticket:{rn}"
+            : $"new:{Guid.NewGuid():N}";
+
+        var existing = _inspWins.FirstOrDefault(w => string.Equals(w.Key, key, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            // Đã mở → đưa lên trước (JS bring-to-front qua re-init không cần;
+            // đủ để không mở trùng). Cửa sổ đang tồn tại, no-op.
+            return;
+        }
+
+        if (_inspWins.Count >= MaxInspWins)
+        {
+            _toast = T("iqc.insp.maxwins", MaxInspWins);
+            return;
+        }
+
+        _inspWins.Add(new InspWin(key, ticket, Guid.NewGuid().ToString("N"),
+                                  WinStore.Get(key), _inspWins.Count));
+    }
+
+    private void CloseInspection(string id) => _inspWins.RemoveAll(w => w.Id == id);
+
+    private void OnInspRectChanged(string key, CCL.MES.Hybrid.Client.Windows.WindowRect rect)
+        => WinStore.Save(key, rect);
+
+    // Phiếu tạo xong trong showcard → refresh KPI + list (nếu đang ở tab Data).
+    private async Task OnInspectionSaved(CreateIqcTicketResponse resp)
+    {
+        _lastCreatedReceipt = resp.ReceiptNo;
+        await LoadDashboardAsync();
+        if (_tab == IqcTab.Data) await LoadDataAsync();
+    }
+
+    public override void Dispose()
+    {
+        _dataDebounce?.Dispose();
+        _longPress?.Dispose();
+        base.Dispose();
     }
 }

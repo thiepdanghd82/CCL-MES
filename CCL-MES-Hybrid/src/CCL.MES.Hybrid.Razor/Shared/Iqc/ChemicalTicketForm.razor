@@ -1,0 +1,107 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Shared.Quality
+@inject ICclApiClient Api
+@inject CCL.MES.Hybrid.Client.Auth.IAuthSession Session
+
+@*
+    feat/iqc-module-tabs — FORM PLACEHOLDER cho nhóm Chemical (Hoá chất).
+    ⚠ PLACEHOLDER TỐI THIỂU: chỉ mô tả free-text + lô + SL/ĐV. Group="Chemical"
+    tự gắn, Inspector server-stamp. Henry sẽ BỔ SUNG các trường chuyên biệt hoá
+    chất (CAS, nồng độ, hạn dùng, phiếu MSDS…). Tạo phiếu qua CÙNG POST /api/v2/iqc
+    (không endpoint mới) với group=Chemical.
+*@
+
+<div class="iqc-ph-form" data-testid="iqc-ph-form" data-group="Chemical">
+    <div class="iqc-ph-badge" data-testid="iqc-ph-badge">@T("iqc.form.placeholder.badge")</div>
+    <p class="iqc-ph-note">@T("iqc.form.placeholder.note")</p>
+
+    <div class="iqc-ph-grid">
+        <label class="iqc-fld iqc-fld-wide">
+            <span class="iqc-fld-label">@T("iqc.ph.f.desc")</span>
+            <input class="op-input" data-testid="iqc-ph-desc"
+                   placeholder="@T("iqc.ph.f.desc.ph")" @bind="_desc" />
+        </label>
+        <label class="iqc-fld">
+            <span class="iqc-fld-label">@T("iqc.ph.f.lot")</span>
+            <input class="op-input" data-testid="iqc-ph-lot"
+                   placeholder="@T("iqc.ph.f.lot.ph")" @bind="_lot" />
+        </label>
+        <label class="iqc-fld">
+            <span class="iqc-fld-label">@T("iqc.ph.f.qty")</span>
+            <input type="number" min="0" step="any" class="op-input" data-testid="iqc-ph-qty"
+                   placeholder="@T("iqc.ph.f.qty.ph")" @bind="_qty" />
+        </label>
+        <label class="iqc-fld">
+            <span class="iqc-fld-label">@T("iqc.ph.f.uom")</span>
+            <input class="op-input" data-testid="iqc-ph-uom"
+                   placeholder="@T("iqc.ph.f.uom.ph")" @bind="_uom" />
+        </label>
+        <div class="iqc-fld">
+            <span class="iqc-fld-label">@T("iqc.ph.f.inspector")</span>
+            <span class="iqc-ph-inspector" data-testid="iqc-ph-inspector">
+                @(Session.CurrentUserInfo?.Username) <em>@T("iqc.ph.f.inspector.auto")</em>
+            </span>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <p class="iqc-warn iqc-warn-error" data-testid="iqc-ph-error">@_error</p>
+    }
+
+    <div class="iqc-ph-actions">
+        <button type="button" class="op-btn op-btn-secondary" data-testid="iqc-ph-cancel"
+                @onclick="OnCancel" disabled="@_saving">@T("iqc.ph.cancel")</button>
+        <button type="button" class="op-btn op-btn-primary" data-testid="iqc-ph-save"
+                @onclick="SaveAsync" disabled="@(_saving || !CanSave)">
+            @(_saving ? T("iqc.ph.saving") : T("iqc.ph.save"))
+        </button>
+    </div>
+</div>
+
+@code {
+    // group canonical cho form này — đổi ở 3 wrapper là đủ (Domain whitelist chốt).
+    private const string Group = "Chemical";
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public EventCallback<CreateIqcTicketResponse> OnSaved { get; set; }
+
+    private string? _desc;
+    private string _lot = "";
+    private double? _qty;
+    private string? _uom;
+    private bool _saving;
+    private string? _error;
+
+    private bool CanSave => !string.IsNullOrWhiteSpace(_lot) && _qty is > 0;
+
+    private async Task SaveAsync()
+    {
+        if (!CanSave || _saving) return;
+        _saving = true; _error = null;
+        try
+        {
+            // Placeholder tối thiểu: mô tả free-text đi vào MakerName? Không —
+            // giữ CodeIfs = mô tả tạm để có mã tra cứu, lô + qty thực. Group
+            // gắn Chemical. Server sinh ReceiptNo + stamp Inspector.
+            var resp = await Api.CreateIqcTicketAsync(new CreateIqcTicketBody
+            {
+                Group = Group,
+                CodeIfs = string.IsNullOrWhiteSpace(_desc) ? _lot.Trim() : _desc!.Trim(),
+                LotBatchNo = _lot.Trim(),
+                Quantity = _qty ?? 0,
+                Uom = string.IsNullOrWhiteSpace(_uom) ? null : _uom!.Trim(),
+            });
+            await OnSaved.InvokeAsync(resp);
+        }
+        catch (ApiException ex)
+        {
+            _error = ex.ApiError.MessageEn ?? T("iqc.err.generic");
+        }
+        catch
+        {
+            _error = T("iqc.err.generic");
+        }
+        finally { _saving = false; }
+    }
+}

@@ -743,9 +743,37 @@ public sealed class RecordingApi : ICclApiClient
             ? CreateIqcTicketImpl(body)
             : Task.FromResult(new CCL.MES.Shared.Quality.CreateIqcTicketResponse
             {
+                Group = string.IsNullOrWhiteSpace(body.Group) ? "Materials" : body.Group!,
                 ReceiptNo = "IQC-260819-0001", IqcInspectionId = 1, MaterialLotId = 1,
                 MatchStatus = "unmatched", LotStatus = "Quarantine",
             });
+    }
+
+    // feat/iqc-module-tabs — IQC Data list + Dashboard KPI hooks.
+    public Func<string?, string?, int, int, Task<CCL.MES.Shared.Quality.IqcTicketListResponse>>? ListIqcTicketsImpl { get; set; }
+    public Func<Task<CCL.MES.Shared.Quality.IqcDashboardResponse>>? IqcDashboardImpl { get; set; }
+    public List<(string? Group, string? Search, int Page, int PageSize)> ListIqcTicketsCalls { get; } = new();
+    public int IqcDashboardCalls { get; private set; }
+
+    public Task<CCL.MES.Shared.Quality.IqcTicketListResponse> ListIqcTicketsAsync(
+        string? group, string? search, int page = 1, int pageSize = 20, CancellationToken ct = default)
+    {
+        ListIqcTicketsCalls.Add((group, search, page, pageSize));
+        return ListIqcTicketsImpl is not null
+            ? ListIqcTicketsImpl(group, search, page, pageSize)
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcTicketListResponse
+            {
+                Page = page, PageSize = pageSize, Total = 0,
+                Items = new List<CCL.MES.Shared.Quality.IqcTicketListItem>(),
+            });
+    }
+
+    public Task<CCL.MES.Shared.Quality.IqcDashboardResponse> GetIqcDashboardAsync(CancellationToken ct = default)
+    {
+        IqcDashboardCalls++;
+        return IqcDashboardImpl is not null
+            ? IqcDashboardImpl()
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcDashboardResponse());
     }
     public NpiPagedRaw<NpiWorkCenter>? WorkCenters { get; set; }
     public Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? s, int p, int z, CancellationToken c = default)

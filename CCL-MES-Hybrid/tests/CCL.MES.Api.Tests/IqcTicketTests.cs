@@ -379,4 +379,93 @@ public sealed class IqcTicketTests : IClassFixture<MesApiFactory>
         Assert.Contains("Mô tả GỐC", raw);
         Assert.DoesNotContain("Mô tả ĐÃ ĐỔI", raw);
     }
+
+    // ── feat/iqc-module-tabs — Group additive + IQC Data list + Dashboard ──
+
+    private static object BodyG(string group, string codeIfs, string lotBatchNo, double qty = 100) => new
+    {
+        group, codeIfs, lotBatchNo, quantity = qty,
+    };
+
+    [Fact]
+    public async Task Create_group_chemical_persists_group_and_defaults_to_materials_when_absent()
+    {
+        var c = await ClientAsync("qc-iqc-group", UserRole.Qc);
+
+        // Explicit Chemical → phiếu Group=Chemical.
+        var chem = await c.SendAsync(Post("/api/v2/iqc", BodyG("Chemical", "CHEM-1", "LOT-CHEM-1")));
+        Assert.Equal(HttpStatusCode.Created, chem.StatusCode);
+        var chemBody = (await chem.Content.ReadFromJsonAsync<CreateIqcTicketResponse>())!;
+        Assert.Equal("Chemical", chemBody.Group);
+
+        // Absent group (form Materials cũ) → server default Materials.
+        var mat = await c.SendAsync(Post("/api/v2/iqc", Body("MAT-1", "LOT-MAT-1")));
+        Assert.Equal(HttpStatusCode.Created, mat.StatusCode);
+        var matBody = (await mat.Content.ReadFromJsonAsync<CreateIqcTicketResponse>())!;
+        Assert.Equal("Materials", matBody.Group);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var chemInsp = await db.IqcInspections.AsNoTracking().SingleAsync(x => x.Id == chemBody.IqcInspectionId);
+        Assert.Equal("Chemical", chemInsp.Group);
+        // Audit detail carries the group.
+        var audit = await db.AuditLogs.AsNoTracking()
+            .Where(a => a.Action == "IQC_CREATE" && a.TargetId == chemBody.IqcInspectionId.ToString())
+            .SingleAsync();
+        Assert.Contains("Chemical", audit.Detail);
+    }
+
+    [Fact]
+    public async Task Create_unknown_group_falls_back_to_materials()
+    {
+        var c = await ClientAsync("qc-iqc-badgroup", UserRole.Qc);
+        var resp = await c.SendAsync(Post("/api/v2/iqc", BodyG("Nonsense", "BADG-1", "LOT-BADG-1")));
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        var body = (await resp.Content.ReadFromJsonAsync<CreateIqcTicketResponse>())!;
+        Assert.Equal("Materials", body.Group);
+    }
+
+    [Fact]
+    public async Task Tickets_list_filters_by_group_and_returns_group_in_dto()
+    {
+        var c = await ClientAsync("qc-iqc-list", UserRole.Qc);
+        await c.SendAsync(Post("/api/v2/iqc", BodyG("Chemical", "LST-CHEM", "LOT-LST-CHEM")));
+        await c.SendAsync(Post("/api/v2/iqc", BodyG("Tools", "LST-TOOL", "LOT-LST-TOOL")));
+
+        // Filter ?group=Chemical → only Chemical rows, each carrying Group.
+        var chem = await c.GetFromJsonAsync<IqcTicketListResponse>("/api/v2/iqc/tickets?group=Chemical&pageSize=100");
+        Assert.NotNull(chem);
+        Assert.NotEmpty(chem!.Items);
+        Assert.All(chem.Items, i => Assert.Equal("Chemical", i.Group));
+        Assert.Contains(chem.Items, i => i.CodeIfs == "LST-CHEM");
+        Assert.DoesNotContain(chem.Items, i => i.CodeIfs == "LST-TOOL");
+    }
+
+    [Fact]
+    public async Task Dashboard_counts_by_group_and_status()
+    {
+        var c = await ClientAsync("qc-iqc-dash", UserRole.Qc);
+        await c.SendAsync(Post("/api/v2/iqc", BodyG("Chemical", "DSH-CHEM", "LOT-DSH-CHEM")));
+        await c.SendAsync(Post("/api/v2/iqc", Body("DSH-MAT", "LOT-DSH-MAT")));   // Materials default
+
+        var dash = await c.GetFromJsonAsync<IqcDashboardResponse>("/api/v2/iqc/dashboard");
+        Assert.NotNull(dash);
+        Assert.True(dash!.Total >= 2);
+        Assert.True(dash.Chemical >= 1);
+        Assert.True(dash.Materials >= 1);
+        // Sum-of-parts invariant: group buckets add up to the total.
+        Assert.Equal(dash.Total, dash.Materials + dash.Chemical + dash.Tools + dash.Other);
+        Assert.Equal(dash.Total, dash.Pending + dash.Pass + dash.Fail);
+    }
+
+    [Theory]
+    [InlineData(UserRole.Operator)]
+    public async Task Tickets_and_dashboard_forbidden_for_non_qcread(string role)
+    {
+        var c = await ClientAsync($"u-iqc-read-403-{role}", role);
+        var list = await c.GetAsync("/api/v2/iqc/tickets");
+        var dash = await c.GetAsync("/api/v2/iqc/dashboard");
+        Assert.Equal(HttpStatusCode.Forbidden, list.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, dash.StatusCode);
+    }
 }

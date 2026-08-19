@@ -28,35 +28,38 @@ public sealed class QmsModulePagesTests : TestContext
         // defaults never fire; wiring them keeps DI resolution happy.
         Services.AddSingleton<CCL.MES.Hybrid.Client.ICclApiClient>(new _Support.RecordingApi());
         Services.AddSingleton<CCL.MES.Hybrid.Client.Auth.IAuthSession>(new _Support.StubAuthSession());
+        // feat/iqc-module-tabs — IqcModule hosts MaterialsInspectionForm showcards
+        // (L34), so it injects IFloatingWindowStore even when the form isn't opened.
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Windows.IFloatingWindowStore>(
+            new CCL.MES.Hybrid.Client.Windows.InMemoryFloatingWindowStore());
         this.AddTestAuthorization().SetAuthorized("qc-user");
     }
 
-    // ── IQC ──────────────────────────────────────────────────────────────
+    // ── IQC (feat/iqc-module-tabs — 3 sub-tab shell) ──────────────────────
     [Fact]
-    public void Iqc_renders_topbar_stepper_and_hsf_table()
+    public void Iqc_renders_topbar_and_three_subtabs()
     {
         var cut = RenderComponent<IqcModule>();
 
         Assert.Single(cut.FindAll("[data-testid='qms-module-topbar']"));
-        Assert.Equal(5, cut.FindAll("[data-testid='qms-stepper'] .qms-step").Count);
-        Assert.Single(cut.FindAll("[data-testid='qms-iqc-hsf-table']"));
-        Assert.Contains("TDS-AB200-R4", cut.Markup);
-        // Expired MSDS row shows the expired status.
-        Assert.Contains(cut.FindAll(".qms-status-expired"), _ => true);
+        // Redesigned shell: Dashboard · IQC Data · New Ticket sub-tabs.
+        Assert.Single(cut.FindAll("[data-testid='iqc-subtab-dashboard']"));
+        Assert.Single(cut.FindAll("[data-testid='iqc-subtab-data']"));
+        Assert.Single(cut.FindAll("[data-testid='iqc-subtab-newticket']"));
+        // Dashboard active by default.
+        Assert.Single(cut.FindAll("[data-testid='iqc-dash']"));
     }
 
     [Fact]
-    public void Iqc_step_click_moves_active_step()
+    public void Iqc_subtab_click_switches_active_surface()
     {
         var cut = RenderComponent<IqcModule>();
-        Assert.Contains("qms-step-on", cut.Find("[data-testid='qms-step-1']").GetAttribute("class"));
+        Assert.Single(cut.FindAll("[data-testid='iqc-dash']"));
 
-        cut.Find("[data-testid='qms-step-3']").Click();
+        cut.Find("[data-testid='iqc-subtab-newticket']").Click();
 
-        Assert.Contains("qms-step-on", cut.Find("[data-testid='qms-step-3']").GetAttribute("class"));
-        Assert.DoesNotContain("qms-step-on", cut.Find("[data-testid='qms-step-1']").GetAttribute("class"));
-        // Non-HSF step hides the document table.
-        Assert.Empty(cut.FindAll("[data-testid='qms-iqc-hsf-table']"));
+        Assert.Single(cut.FindAll("[data-testid='iqc-newticket']"));
+        Assert.Empty(cut.FindAll("[data-testid='iqc-dash']"));
     }
 
     // ── IPQC ─────────────────────────────────────────────────────────────
@@ -126,13 +129,14 @@ public sealed class QmsModulePagesTests : TestContext
     {
         var cut = RenderComponent<IqcModule>();
         Assert.Contains("Kiểm tra nguyên vật liệu đầu vào", cut.Markup);   // VI title
+        Assert.Contains("Bảng điều khiển", cut.Markup);                    // VI sub-tab
 
         _lang.Set(LanguageCode.English);
 
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Incoming material inspection", cut.Markup);   // EN title
-            Assert.Contains("Documents — HSF", cut.Markup);
+            Assert.Contains("Dashboard", cut.Markup);                      // EN sub-tab
         });
     }
 }

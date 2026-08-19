@@ -618,6 +618,12 @@ public class MesDbContext : DbContext, IMesDbContext
             .IsUnique().HasFilter("\"ReceiptNo\" IS NOT NULL")
             .HasDatabaseName("IX_IqcInspections_ReceiptNo_Unique");
 
+        // feat/iqc-module-tabs — Group ADDITIVE (default "Materials"). Cột NOT
+        // NULL an toàn vì có default constant; backfill migration set legacy =
+        // "Materials". Index phục vụ lọc IQC Data theo nhóm + KPI Dashboard đếm.
+        b.Entity<IqcInspection>().Property(x => x.Group).HasMaxLength(20).HasDefaultValue("Materials");
+        b.Entity<IqcInspection>().HasIndex(x => x.Group);
+
         // Tính toán read-only -> không map vào DB
         b.Entity<WorkOrder>().Ignore("LastQc");
         b.Entity<ProductionLog>().Ignore(p => p.DurationMinutes);
