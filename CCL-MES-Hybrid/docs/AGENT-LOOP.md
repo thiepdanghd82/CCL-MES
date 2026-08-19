@@ -109,6 +109,19 @@ Dừng, viết rõ đang vướng gì, **không tự quyết**:
 5. Gate phải bump BASELINE mà không giải thích được vì sao hợp lệ.
 6. Yêu cầu đụng `../src/CCL.MES.*` (baseline read-only theo README Hybrid).
 
+   **Ngoại lệ Henry duyệt 2026-08-19** — ba việc sau KHÔNG còn là STOP-gate:
+   (a) thêm **file MỚI thuần additive** (entity, enum, policy) — không sửa file cũ;
+   (b) thêm **dòng đăng ký** `DbSet` trong `IMesDbContext.cs` / `MesDbContext.cs`
+       và block cấu hình tương ứng;
+   (c) thêm **migration** trong `Infrastructure/Migrations/`.
+
+   Lý do nới: `DbContext` và toàn bộ `Migrations/` sống trong đúng vùng đó, nên
+   luật cũ khiến **mọi** thay đổi schema đều bất khả thi. Tiền lệ đã có từ commit
+   `b66bdb4` (P11.5 thêm `SemiLot.cs`) nhưng chưa ai viết lại thành luật.
+
+   **Vẫn là STOP-gate:** sửa logic file cũ, đổi tên, đổi kiểu cột, xoá bất cứ thứ
+   gì, hoặc đụng `src/CCL.MES.Web` (đã đóng băng — xem C2).
+
 ---
 
 ## 5. Bằng chứng — định nghĩa "xong"
