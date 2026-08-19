@@ -104,6 +104,12 @@
                     <div class="shipped-oee-cell">
                         <span class="shipped-stat-label">@T("shipped.performance")</span>
                         <span class="shipped-stat-value scan-mono">@FormatPct(_report.Oee.Performance)</span>
+                        @if (_report.Oee.Performance is null)
+                        {
+                            <span class="shipped-perf-na" data-testid="shipped-perf-na">
+                                @PerformanceUnavailableText(_report.Oee.PerformanceUnavailableReason)
+                            </span>
+                        }
                     </div>
                     <div class="shipped-oee-cell">
                         <span class="shipped-stat-label">@T("shipped.quality")</span>
@@ -242,6 +248,17 @@
             ? "—"
             : string.Format(System.Globalization.CultureInfo.InvariantCulture,
                 "{0:F1}%", v.Value * 100);
+
+    // Đợt 1 C3 — server sends a reason code, never a sentence (cmes-i18n-parity:
+    // "Server trả error code, không trả câu tiếng Việt"). Codes mirror
+    // CCL.MES.Api.Services.OeePerformance.Reason*.
+    private string PerformanceUnavailableText(string? reason) => reason switch
+    {
+        "workcenter_missing"       => T("shipped.perf.na.workcenter_missing"),
+        "workcenter_speed_missing" => T("shipped.perf.na.workcenter_speed_missing"),
+        "no_runtime"               => T("shipped.perf.na.no_runtime"),
+        _                          => T("shipped.perf.na.unknown"),
+    };
 
     private static string FormatDuration(long seconds)
     {

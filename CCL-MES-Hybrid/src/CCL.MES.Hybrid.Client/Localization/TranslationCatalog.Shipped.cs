@@ -25,6 +25,22 @@ public sealed partial class TranslationCatalog
         Add("shipped.quality",              "Chất lượng",                        "Quality");
         Add("shipped.oee.total",            "OEE tổng",                          "OEE total");
 
+        // Đợt 1 C3 — why Performance has no number. The API returns a reason
+        // code instead of a silent null; these render it. Keys mirror
+        // OeePerformance.Reason* one-for-one.
+        Add("shipped.perf.na.workcenter_missing",
+            "Lệnh chưa gán máy, hoặc mã máy không khớp công đoạn nào",
+            "No machine assigned, or the code matches no work center");
+        Add("shipped.perf.na.workcenter_speed_missing",
+            "Công đoạn chưa khai tốc độ lý tưởng (pcs/h)",
+            "Work center has no ideal speed set (pcs/h)");
+        Add("shipped.perf.na.no_runtime",
+            "Lệnh chưa chạy nên chưa có thời gian để tính",
+            "The WO has not run yet, so there is no runtime to divide by");
+        Add("shipped.perf.na.unknown",
+            "Không tính được hiệu suất",
+            "Performance could not be computed");
+
         Add("shipped.pareto.title",         "Pareto tạm dừng (top-5)",           "Pause Pareto (top-5)");
         Add("shipped.qc.summary",           "Tổng kết QC",                       "QC summary");
 
