@@ -415,6 +415,26 @@ builder.Services.AddSingleton<CCL.MES.Api.Devices.IDeviceHeartbeatStore,
 builder.Services.Configure<CCL.MES.Api.Middleware.IdempotencyOptions>(
     builder.Configuration.GetSection("Idempotency"));
 
+// A1 — mạch lô nguyên vật liệu. Service giữ toàn bộ luật quét/đảo/đổi trạng
+// thái; controller mỏng chỉ map HTTP.
+builder.Services.AddScoped<CCL.MES.Application.Services.MaterialLotScanService>();
+builder.Services.AddScoped<CCL.MES.Application.Services.MaterialLotBackfillService>();
+
+// A1 — grace period BẮT BUỘC, mặc định TẮT. Khi tắt: vẫn resolve lô, vẫn ghi
+// tiêu thụ, nhưng trả 200 + warning thay cho 422; audit vẫn emit với
+// enforced:false ⇒ đo được chính xác bao nhiêu ca sẽ bị chặn TRƯỚC khi chặn
+// thật. Ngày lật cờ là quyết định của Henry. Đây cũng là đường rollback mềm:
+// tắt cờ ⇒ hai bảng mới nằm im, đường đọc cũ không đổi.
+// Lưu ý chiều parse NGƯỢC với các cờ 4-mắt (L20 default-ON): ở đây gõ sai mà
+// tự BẬT thì dừng nhà máy, nên chỉ token ON tường minh mới bật.
+builder.Services.Configure<CCL.MES.Application.Services.MaterialLotOptions>(opts =>
+{
+    opts.EnforceReleased =
+        CCL.MES.Application.Services.MaterialLotOptionsLoader.ParseEnforceReleased(
+            Environment.GetEnvironmentVariable("MES_MATERIAL_LOT_ENFORCE_RELEASED")
+                ?? builder.Configuration["Mes:MaterialLot:EnforceReleased"]);
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
