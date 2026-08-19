@@ -509,6 +509,29 @@ public sealed class RecordingApi : ICclApiClient
     public Task<long> DownloadCheckLibraryExportAsync(string? line, string destinationFilePath, CancellationToken ct = default)
         => Task.FromResult(0L);
 
+    public Task<long> DownloadCheckLibraryTemplateAsync(string destinationFilePath, CancellationToken ct = default)
+    {
+        TemplateDownloadCalls.Add(destinationFilePath);
+        return Task.FromResult(0L);
+    }
+
+    /// <summary>Đường dẫn mỗi lần tải file mẫu — test khẳng định nút gọi ĐÚNG API mẫu, không phải API export.</summary>
+    public List<string> TemplateDownloadCalls { get; } = new();
+
+    /// <summary>(itemId, active) mỗi lần bật/tắt hạng mục.</summary>
+    public List<(string ItemId, bool Active)> SetActiveCalls { get; } = new();
+
+    public Task<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto> SetCheckLibraryActiveAsync(
+        string itemId, bool active, CancellationToken ct = default)
+    {
+        SetActiveCalls.Add((itemId, active));
+        return Task.FromResult(new CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto
+        {
+            ItemId = itemId,
+            Active = active,
+        });
+    }
+
     // Phương án C — Bước 4: item-level IPQC PUT (data-driven).
     public Func<long, string, string, SetIpqcItemRequest, CancellationToken, Task<IpqcSetResponse>>? PutIpqcItemImpl { get; set; }
     public List<(long Id, string ETag, string ItemKey, SetIpqcItemRequest Req)> PutIpqcItemCalls { get; } = new();

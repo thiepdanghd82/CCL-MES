@@ -171,6 +171,10 @@ builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 // IAuditWriter implementation — distinct from legacy AuditService (lives in
 // Web) but behaviour-identical. See ApiAuditWriter.cs for the parity note.
 builder.Services.AddScoped<IAuditWriter, ApiAuditWriter>();
+
+// Ghi master data thư viện check-item. Tách khỏi controller vì gate L40
+// (gate-thin-controller) cấm SaveChangesAsync trong controller.
+builder.Services.AddScoped<CCL.MES.Api.Services.ICheckLibraryAdminService, CCL.MES.Api.Services.CheckLibraryAdminService>();
 builder.Services.AddHttpContextAccessor();
 
 // ──────────────────────────────────────────────────────────────────────

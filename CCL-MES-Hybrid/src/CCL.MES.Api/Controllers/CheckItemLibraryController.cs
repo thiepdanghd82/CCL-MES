@@ -259,7 +259,7 @@ public sealed class CheckItemLibraryController : ControllerBase
         var items = await q.OrderBy(c => c.ProcessLine).ThenBy(c => c.Sort).ThenBy(c => c.ItemId).ToListAsync(ct);
 
         var sb = new StringBuilder();
-        sb.AppendLine("ItemID,Line,BlankLabel,Flexo,LetterPress,HpIndigo,SilkScreen,Flatbed,RDC,Laminate,Zebra,SheetCut,PunchHole,DrillHole,Slit,IPQC,FQC,OQC,Group,Code,ItemVI,ItemEN,AcceptanceVI,AcceptanceEN,Method,Severity,AQL,Sampling,CheckType,Defect,ISO,Condition,Note");
+        sb.AppendLine(CsvHeader);
         char B(bool b) => b ? '●' : '·';
         foreach (var c in items)
             sb.AppendLine(string.Join(",",
@@ -273,6 +273,66 @@ public sealed class CheckItemLibraryController : ControllerBase
 
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
         return File(bytes, "text/csv", $"qc-library-{(line ?? "all").ToLowerInvariant()}.csv");
+    }
+
+    /// <summary>
+    /// Hàng tiêu đề CSV — nguồn DUY NHẤT cho cả <c>export</c> lẫn <c>template</c>.
+    /// Trước đây chuỗi này nằm inline trong Export; tách ra để file mẫu KHÔNG THỂ
+    /// lệch khỏi file xuất (và khỏi thứ tự cột mà importer đọc).
+    /// </summary>
+    private const string CsvHeader =
+        "ItemID,Line,BlankLabel,Flexo,LetterPress,HpIndigo,SilkScreen,Flatbed,RDC,Laminate,Zebra,SheetCut,PunchHole,DrillHole,Slit,IPQC,FQC,OQC,Group,Code,ItemVI,ItemEN,AcceptanceVI,AcceptanceEN,Method,Severity,AQL,Sampling,CheckType,Defect,ISO,Condition,Note";
+
+    /// <summary>
+    /// Tải FILE MẪU để nhập liệu (khác <c>export</c> — export xuất dữ liệu đang có).
+    ///
+    /// <para>Kèm đúng một dòng ví dụ vì quy ước tick <c>●</c> / <c>·</c> không tự
+    /// hiển nhiên: người điền lần đầu không có cách nào đoán ra phải gõ ký tự gì
+    /// vào 15 cột phương pháp. Một dòng mẫu rẻ hơn một trang hướng dẫn.</para>
+    ///
+    /// Đây là mục còn thiếu duy nhất về nhập liệu sau khi PR #127 (mô hình cũ)
+    /// bị đóng — viết lại trên nền v5.
+    /// </summary>
+    [HttpGet("template")]
+    [Authorize(Roles = "Admin,Supervisor,QC")]
+    public IActionResult Template()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine(CsvHeader);
+        sb.AppendLine(string.Join(",",
+            "LBL-A99", "Label",
+            "·", "●", "●", "●", "·", "·", "·", "·", "·", "·", "·", "·", "·",
+            "●", "●", "·",
+            "A·Ngoại quan", "SAMPLE",
+            Csv("Ví dụ: mô tả hạng mục (VI)"), Csv("Example: item description (EN)"),
+            Csv("Tiêu chí chấp nhận (VI)"), Csv("Acceptance criteria (EN)"),
+            "Visual", "Major", "2.5", "AQL", "Attribute", "SAMPLE", "ISO-2859", "", ""));
+
+        var bytes = Encoding.UTF8.GetPreamble()
+            .Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        return File(bytes, "text/csv", "qc-library-template.csv");
+    }
+
+    /// <summary>
+    /// Bật/tắt một hạng mục mà KHÔNG xoá.
+    ///
+    /// <para>Với master data thì "ngưng dùng" mới đúng, không phải "xoá": WO cũ và
+    /// snapshot QC đã đóng băng còn tham chiếu tới hạng mục đó, xoá đi là làm hồ sơ
+    /// chất lượng cũ trỏ vào khoảng không. Cột <c>Active</c> đã có sẵn trong entity
+    /// v5 nhưng trước đây không có đường nào trên UI để bật/tắt — chỉ xoá được.</para>
+    ///
+    /// Dùng lại mã audit <c>QC_LIBRARY_ITEM_SET</c> (đổi Active LÀ một dạng set)
+    /// thay vì thêm mã mới, vì <c>AuditAction</c> nằm trong baseline read-only.
+    /// </summary>
+    [HttpPatch("{itemId}/active")]
+    [Authorize(Roles = "Admin,Supervisor,QC")]
+    public async Task<ActionResult<CheckLibraryItemDto>> SetActive(
+        string itemId, [FromQuery] bool active,
+        [FromServices] CCL.MES.Api.Services.ICheckLibraryAdminService admin,
+        CancellationToken ct = default)
+    {
+        var r = await admin.SetActiveAsync(itemId, active, Actor, Role, ct);
+        return r is null ? NotFound() : Ok(ToDto(r.Item));
     }
 
     private static string Csv(string? s)

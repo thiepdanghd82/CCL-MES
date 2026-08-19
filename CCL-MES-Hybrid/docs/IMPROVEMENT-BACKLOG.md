@@ -182,6 +182,27 @@ nơi nào dùng** — offline-first mới là ý định, chưa là năng lực.
 
 ---
 
+## PR #127 — đóng, viết lại phần còn thiếu trên nền v5 (2026-08-19)
+
+PR "QC Library Admin" mở 29/06 bị bỏ lại phía sau **122 commit**, trong đó có
+#143 re-model toàn bộ QC Library sang v5. Merge khô cho **8 file xung đột**, và
+4 file đầu chính là 4 file đã bị viết lại — xung đột về **ý**, không phải về chữ.
+
+Đối chiếu cho thấy hầu hết tính năng của #127 **đã có trên main** (import ·
+add · sửa inline · xoá · copy · lines · reason-codes), main còn có thêm `export`.
+Chỉ **2 mục thiếu thật**, nay đã viết lại trên nền v5:
+
+| Mục | Trạng thái |
+|---|---|
+| `GET /template` — file mẫu nhập liệu | ✅ sinh từ **cùng hằng header** với `export` ⇒ mẫu không thể lệch cột; kèm 1 dòng ví dụ vì quy ước tick `●`/`·` không tự hiển nhiên |
+| Bật/tắt hạng mục (`Active`) | ✅ `PATCH /{itemId}/active` + mục menu **Ngưng dùng / Dùng lại**. Master data thì "ngưng dùng" mới đúng: WO cũ và snapshot QC đã đóng băng còn tham chiếu tới hạng mục đó |
+
+**Nợ vị trí:** `CheckLibraryAdminService` đặt ở `CCL.MES.Api/Services/` vì
+`CCL.MES.Application` là baseline read-only. Sau cutover nên chuyển xuống.
+Cùng loại nợ với `OqcSignaturePolicy` (L47).
+
+Nhánh `feat/qc-library-admin` giữ nguyên, không xoá.
+
 ## D6 — Sau audit 20 tab (2026-08-18) — **ĐÃ ĐÓNG TOÀN BỘ**
 
 | # | Việc | Cách đóng |
