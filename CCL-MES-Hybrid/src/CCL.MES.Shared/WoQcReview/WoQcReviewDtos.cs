@@ -205,9 +205,19 @@ public sealed record WoSummaryOee
     /// <summary>(run_seconds) / (run_seconds + pause_seconds). Null
     /// when run_seconds == 0 (operator never started).</summary>
     public double? Availability { get; init; }
-    /// <summary>(qty_done) / (planned_speed × run_seconds). Null when
-    /// planned_speed is unknown (Machine.PlannedUnitsPerHour absent).</summary>
+    /// <summary>(qty_done) / (run_seconds ÷ idealCycleSec), where
+    /// idealCycleSec = 3600 / WorkCenter.IdealSpeedPcsH. Null when the
+    /// speed is unknown — and when it is null,
+    /// <see cref="PerformanceUnavailableReason"/> says why.</summary>
     public double? Performance { get; init; }
+    /// <summary>Đợt 1 C3 (additive) — machine-readable reason
+    /// <see cref="Performance"/> is null: <c>workcenter_missing</c> ·
+    /// <c>workcenter_speed_missing</c> · <c>no_runtime</c>. Null exactly
+    /// when Performance is non-null. Only 5 of 43 work centers carry a
+    /// speed today, so a silent null here hid the gap on 19 of 27 WOs;
+    /// the client renders this code through TranslationCatalog instead of
+    /// showing a bare dash.</summary>
+    public string? PerformanceUnavailableReason { get; init; }
     /// <summary>(qty_done - qty_ng) / qty_done. Null when qty_done == 0.</summary>
     public double? Quality { get; init; }
     /// <summary>availability × performance × quality. Null when ANY

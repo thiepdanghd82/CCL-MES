@@ -178,6 +178,30 @@ builder.Services.AddScoped<CCL.MES.Api.Services.ICheckLibraryAdminService, CCL.M
 builder.Services.AddHttpContextAccessor();
 
 // ──────────────────────────────────────────────────────────────────────
+// Đợt 1 C1 — observability (PA-1: in-box, zero new packages).
+//
+// JSON console so every line is machine-parseable, with IncludeScopes on
+// so the trace_id / wo_no / actor / work_center scope pushed by
+// RequestObservabilityMiddleware actually reaches the output. Without
+// IncludeScopes the scope is computed and then discarded, which is the
+// quiet way to ship "structured logging" that carries no structure.
+//
+// AddJsonConsole reconfigures the console provider the default host
+// builder already added; it does not stack a second one.
+// ──────────────────────────────────────────────────────────────────────
+builder.Logging.AddJsonConsole(o =>
+{
+    o.IncludeScopes = true;
+    o.JsonWriterOptions = new System.Text.Json.JsonWriterOptions { Indented = false };
+});
+builder.Services.AddScoped<CCL.MES.Api.Observability.MesRequestContext>();
+
+// Đợt 1 C3 — the single entry point to the canonical OEE speed source
+// (WorkCenter.IdealSpeedPcsH). Scoped: it reads the request's DbContext
+// and stamps the resolved work-center code onto MesRequestContext.
+builder.Services.AddScoped<CCL.MES.Api.Services.WorkCenterSpeedLookup>();
+
+// ──────────────────────────────────────────────────────────────────────
 // JWT bearer auth.
 //
 // Q7 lock (2026-06-03): access 15m, refresh 7d, one-time-use rotation.
@@ -442,6 +466,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// Đợt 1 C1 — FIRST in the pipeline on purpose. A 403 from the
+// authorization middleware never reaches a controller, so instrumenting
+// any later would miss exactly the RBAC denials we want counted. The
+// logging scope reads the principal live, so sitting ahead of
+// UseAuthentication() costs nothing in actor resolution.
+app.UseMiddleware<CCL.MES.Api.Observability.RequestObservabilityMiddleware>();
 
 app.UseRouting();
 app.UseAuthentication();

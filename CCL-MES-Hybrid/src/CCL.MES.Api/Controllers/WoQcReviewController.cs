@@ -80,19 +80,22 @@ public sealed class WoQcReviewController : ControllerBase
     private readonly IBlobStore _blobs;
 
     private readonly Services.ITraceFreezeService _trace;
+    private readonly Services.WorkCenterSpeedLookup _wcSpeed;
 
     public WoQcReviewController(
         IMesDbContext db,
         IAuditWriter audit,
         IOptions<WoQcSigPolicyOptions> sigPolicy,
         IBlobStore blobs,
-        Services.ITraceFreezeService trace)
+        Services.ITraceFreezeService trace,
+        Services.WorkCenterSpeedLookup wcSpeed)
     {
         _db = db;
         _audit = audit;
         _sigPolicy = sigPolicy.Value;
         _blobs = blobs;
         _trace = trace;
+        _wcSpeed = wcSpeed;
     }
 
     // Best-effort trace freeze — never breaks the confirm; idempotent in service.
@@ -1384,24 +1387,17 @@ public sealed class WoQcReviewController : ControllerBase
         if (runSeconds + pauseSeconds > 0)
             availability = (double)runSeconds / (runSeconds + pauseSeconds);
 
-        // Performance = qtyDone / (runSeconds / IdealCycleTimeSec). Machine
-        // model carries IdealCycleTimeSec (seconds per unit) instead of an
-        // hourly rate — convert in place. WorkOrder carries MachineCode
-        // (string) rather than a FK; resolve by code, null when missing or
-        // cycle time is unset.
-        double? idealCycleSec = null;
-        if (!string.IsNullOrEmpty(wo.MachineCode))
-        {
-            idealCycleSec = await _db.Machines.AsNoTracking()
-                .Where(m => m.Code == wo.MachineCode)
-                .Select(m => (double?)m.IdealCycleTimeSec)
-                .FirstOrDefaultAsync(ct);
-        }
-        if (idealCycleSec is double cycleSec && cycleSec > 0 && runSeconds > 0)
-        {
-            var plannedUnits = runSeconds / cycleSec;
-            if (plannedUnits > 0) performance = qtyDone / plannedUnits;
-        }
+        // Đợt 1 C3 — speed comes from WorkCenter.IdealSpeedPcsH, the single
+        // canonical source (same one ShopOrdersController reads). This used
+        // to read Machine.IdealCycleTimeSec, a second and divergent source,
+        // which is why the same WO could report two different performance
+        // figures. When the figure cannot be produced the endpoint now says
+        // WHY instead of returning a bare null.
+        var speed = await _wcSpeed.ResolveAsync(wo.WoNo, wo.MachineCode, ct);
+        var perf = Services.OeePerformance.Compute(
+            speed.Resolved, speed.IdealSpeedPcsH, runSeconds, qtyDone);
+        performance = perf.Performance;
+        var performanceUnavailableReason = perf.UnavailableReason;
 
         if (qtyDone > 0)
             quality = (double)(qtyDone - qtyNg) / qtyDone;
@@ -1472,6 +1468,7 @@ public sealed class WoQcReviewController : ControllerBase
             {
                 Availability = availability,
                 Performance = performance,
+                PerformanceUnavailableReason = performanceUnavailableReason,
                 Quality = quality,
                 Oee = oee,
             },
