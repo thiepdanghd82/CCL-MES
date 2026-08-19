@@ -109,22 +109,8 @@ public sealed class AuditEmitHelperTests
         Assert.Equal(600, doc.RootElement.GetProperty("reason_code").GetString()!.Length);
     }
 
-    // ── ComputeShiftCode — VN-local 3-shift derivation ───────────────
-
-    // CCL plant is UTC+7. Shift A 06:00-14:00 / B 14:00-22:00 / C 22:00-06:00.
-    [Theory]
-    [InlineData(2026, 06, 05, 00, 00, "A")]  // 07:00 VN = Shift A
-    [InlineData(2026, 06, 05, 02, 00, "A")]  // 09:00 VN = Shift A
-    [InlineData(2026, 06, 05, 06, 00, "A")]  // 13:00 VN = Shift A
-    [InlineData(2026, 06, 05, 07, 00, "B")]  // 14:00 VN = Shift B
-    [InlineData(2026, 06, 05, 14, 00, "B")]  // 21:00 VN = Shift B
-    [InlineData(2026, 06, 05, 15, 00, "C")]  // 22:00 VN = Shift C
-    [InlineData(2026, 06, 05, 22, 00, "C")]  // 05:00 next-day VN = Shift C
-    [InlineData(2026, 06, 05, 23, 30, "A")]  // 06:30 next-day VN = Shift A starts at 06
-    public void ComputeShiftCode_picks_correct_shift_for_VN_local_time(
-        int y, int mo, int d, int h, int mi, string expected)
-    {
-        var utc = new DateTime(y, mo, d, h, mi, 0, DateTimeKind.Utc);
-        Assert.Equal(expected, AuditEmitHelper.ComputeShiftCode(utc));
-    }
+    // ComputeShiftCode coverage removed in Đợt 1 C3 alongside the function.
+    // It was the only caller the function ever had. Shift derivation returns
+    // in Đợt 3 on a data-driven ShiftCalendar and will be tested against
+    // that, not against a hardcoded UTC+7 06/14/22 split.
 }
