@@ -80,6 +80,9 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<WoTraceIndex> WoTraceIndexes => Set<WoTraceIndex>();
     public DbSet<WoQcCheckItem> WoQcCheckItems => Set<WoQcCheckItem>();
     public DbSet<WoQcPhoto> WoQcPhotos => Set<WoQcPhoto>();
+    // A1 — mạch lô nguyên vật liệu (xem MaterialLot.cs / WoMaterialConsumption.cs).
+    public DbSet<MaterialLot> MaterialLots => Set<MaterialLot>();
+    public DbSet<WoMaterialConsumption> WoMaterialConsumptions => Set<WoMaterialConsumption>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -295,6 +298,80 @@ public class MesDbContext : DbContext, IMesDbContext
 
         b.Entity<SemiAllocation>().HasIndex(x => new { x.WorkOrderId, x.AssemblyLegId });
         b.Entity<SemiAllocation>().HasIndex(x => x.SemiLotId);
+
+        // ── A1 — mạch lô nguyên vật liệu ──────────────────────────────
+        // Khoá tự nhiên chuỗi giữa hai bảng = KHÔNG có khoá. Truy xuất nguồn
+        // gốc phải là FK; chuỗi chỉ được tồn tại như nhãn hiển thị. Ba lớp
+        // siết khoá chuỗi đặt Ở ĐÂY (schema), không rải trong C#:
+        //   lớp 1 UseCollation("NOCASE") trên CỘT — cấm EF.Functions.Collate()
+        //         trong query (thừa, và phá cổng sang SQL Server)
+        //   lớp 2 CHECK TRIM + LENGTH>0 — NOCASE không lo khoảng trắng
+        //   lớp 3 .Trim() ở MaterialLotScanService (tiện lợi, không phải bảo đảm)
+        b.Entity<MaterialLot>().Property(x => x.LotNo).HasMaxLength(64).IsRequired().UseCollation("NOCASE");
+        b.Entity<MaterialLot>().Property(x => x.PartNo).HasMaxLength(64).IsRequired().UseCollation("NOCASE");
+        b.Entity<MaterialLot>().Property(x => x.SupplierLotNo).HasMaxLength(64).UseCollation("NOCASE");
+        b.Entity<MaterialLot>().Property(x => x.SupplierName).HasMaxLength(120);
+        b.Entity<MaterialLot>().Property(x => x.Uom).HasMaxLength(16);
+        b.Entity<MaterialLot>().Property(x => x.Status).HasMaxLength(16).IsRequired();
+        b.Entity<MaterialLot>().Property(x => x.StatusReason).HasMaxLength(500);
+        b.Entity<MaterialLot>().Property(x => x.StatusChangedBy).HasMaxLength(80);
+        // Bốn cột vòng đời Đ3 — bằng chứng của luật hai vai khi gia hạn.
+        b.Entity<MaterialLot>().Property(x => x.RetestedBy).HasMaxLength(80);
+        b.Entity<MaterialLot>().Property(x => x.ExpiryExtendedBy).HasMaxLength(80);
+        // L38 Option-B: EF gửi X'' lúc INSERT, trigger SQLite bump; concurrency
+        // token để hai operator quét cùng lô không tiêu thụ vượt tồn.
+        b.Entity<MaterialLot>().Property(x => x.RowVersion).IsConcurrencyToken().ValueGeneratedNever();
+        b.Entity<MaterialLot>().ToTable(t =>
+        {
+            t.HasCheckConstraint("CK_MaterialLots_LotNo_Trimmed",
+                "\"LotNo\" = TRIM(\"LotNo\") AND LENGTH(\"LotNo\") > 0");
+            t.HasCheckConstraint("CK_MaterialLots_PartNo_Trimmed",
+                "\"PartNo\" = TRIM(\"PartNo\") AND LENGTH(\"PartNo\") > 0");
+        });
+        // PHẢI CÓ CẢ HAI partial unique index. Trong SQLite NULL ≠ NULL trong
+        // unique index — chỉ có UNIQUE(LotNo, RawMaterialId) thì MỌI lô chưa
+        // resolve lọt hết, unique vô hiệu đúng ở chỗ dễ trùng nhất (lô về kho
+        // khi catalog chưa có part).
+        b.Entity<MaterialLot>().HasIndex(x => new { x.LotNo, x.RawMaterialId })
+            .IsUnique().HasFilter("\"RawMaterialId\" IS NOT NULL")
+            .HasDatabaseName("IX_MaterialLots_LotNo_RawMaterialId");
+        b.Entity<MaterialLot>().HasIndex(x => new { x.LotNo, x.PartNo })
+            .IsUnique().HasFilter("\"RawMaterialId\" IS NULL")
+            .HasDatabaseName("IX_MaterialLots_LotNo_PartNo_Unresolved");
+        b.Entity<MaterialLot>().HasIndex(x => new { x.Status, x.ExpiryAt });
+        b.Entity<MaterialLot>().HasIndex(x => new { x.RawMaterialId, x.Status });
+        b.Entity<MaterialLot>().HasIndex(x => x.IqcInspectionId);
+
+        b.Entity<WoMaterialConsumption>().Property(x => x.Uom).HasMaxLength(16);
+        b.Entity<WoMaterialConsumption>().Property(x => x.ScannedBy).HasMaxLength(80).IsRequired();
+        b.Entity<WoMaterialConsumption>().Property(x => x.ReversedBy).HasMaxLength(80);
+        b.Entity<WoMaterialConsumption>().Property(x => x.ReversedReason).HasMaxLength(500);
+        b.Entity<WoMaterialConsumption>().HasOne<WorkOrder>().WithMany()
+            .HasForeignKey(x => x.WoId).OnDelete(DeleteBehavior.Cascade);
+        b.Entity<WoMaterialConsumption>().HasOne<WoMaterial>().WithMany()
+            .HasForeignKey(x => x.WoMaterialId).OnDelete(DeleteBehavior.Cascade);
+        // RESTRICT trên lô: xoá một lô còn vết tiêu thụ = đứt mạch truy xuất
+        // giữa chừng, đúng thứ A1 sinh ra để ngăn.
+        b.Entity<WoMaterialConsumption>().HasOne<MaterialLot>().WithMany()
+            .HasForeignKey(x => x.MaterialLotId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<WoMaterialConsumption>().HasOne<WoLeg>().WithMany()
+            .HasForeignKey(x => x.LegId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<WoMaterialConsumption>().HasIndex(x => new { x.WoId, x.LegId });
+        // Genealogy NGƯỢC: lô này đã vào những WO nào — câu hỏi ĐẦU TIÊN khi
+        // phải thu hồi. Không có index này thì mỗi lần thu hồi là full scan.
+        b.Entity<WoMaterialConsumption>().HasIndex(x => x.MaterialLotId);
+        b.Entity<WoMaterialConsumption>().HasIndex(x => x.WoMaterialId);
+        // KHÔNG có unique index chống quét lặp (Đ4). Chống bấm nhầm chuyển
+        // hoàn toàn sang Idempotency-Key; backfill dựa vào dấu 'backfill-a1'.
+
+        // WoMaterials — additive thuần: chỉ THÊM cột FK dạng shadow (đúng tiền
+        // lệ WoLegId ở trên) để KHÔNG chạm file entity, và tuyệt đối KHÔNG
+        // AlterColumn LotNo: rebuild bảng trên SQLite sẽ xoá mất 2 partial
+        // unique index IX_WoMaterials_WorkOrderId_BomLineIdx / _WoLegId_BomLineIdx.
+        b.Entity<WoMaterial>().Property<long?>("MaterialLotId");
+        b.Entity<WoMaterial>().HasIndex("MaterialLotId");
+        b.Entity<WoMaterial>().HasOne<MaterialLot>().WithMany()
+            .HasForeignKey("MaterialLotId").OnDelete(DeleteBehavior.Restrict);
         b.Entity<WoIpqcCheckItem>().HasOne(x => x.WoIpqcCheck)
             .WithMany(c => c.Items)
             .HasForeignKey(x => x.WoIpqcCheckId)
