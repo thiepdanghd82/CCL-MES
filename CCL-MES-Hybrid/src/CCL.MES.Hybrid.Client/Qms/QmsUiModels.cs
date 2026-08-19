@@ -14,11 +14,6 @@ public enum QmsLotDecision { None, Accept, Reject }
 /// <summary>One numbered stepper step — chrome keys resolved via T().</summary>
 public sealed record QmsStep(int Num, string LabelKey, string EnKey);
 
-/// <summary>Topbar context — module code + shift + signed-in inspector.</summary>
-public sealed record QmsTopBarVm(
-    string ModuleCode, string TitleKey,
-    string Shift, string Initials, string UserName, string UserRole);
-
 /// <summary>IQC HSF document row.</summary>
 public sealed record QmsHsfDoc(
     string Name, string No, string Issue, string Expiry,
@@ -50,16 +45,9 @@ public sealed record QmsIcraRow(
 /// <summary>Static mock content mirroring the QA mini-QMS reference.</summary>
 public static class QmsMock
 {
-    public static readonly QmsTopBarVm IqcTop =
-        new("IQC", "qms.mod.iqc.title", "Ca A · 09/08/2026 · 14:22", "NT", "Trần Bích Ngọc", "IQC Leader · Admin");
-    public static readonly QmsTopBarVm IpqcTop =
-        new("IPQC", "qms.mod.ipqc.title", "Ca A · 09/08/2026 · 14:22", "NT", "Trần Bích Ngọc", "IQC Leader · Admin");
-    public static readonly QmsTopBarVm OqcTop =
-        new("OQC", "qms.mod.oqc.title", "Ca A · 09/08/2026 · 14:22", "NT", "Trần Bích Ngọc", "IQC Leader · Admin");
-    public static readonly QmsTopBarVm IcraTop =
-        new("iCRA", "qms.mod.icra.title", "Ca A · 09/08/2026 · 14:22", "NT", "Trần Bích Ngọc", "IQC Leader · Admin");
-    public static readonly QmsTopBarVm DashTop =
-        new("Dashboard", "qms.mod.dashboard.title", "Ca A · 09/08/2026 · 14:22", "NT", "Trần Bích Ngọc", "IQC Leader · Admin");
+    // feat/qms-topbar-breadcrumb: the per-module QmsTopBarVm statics were
+    // removed with QmsModuleTopBar — module identity now renders as a
+    // breadcrumb in the main app top-bar (TopBar.razor), driven by route.
 
     public static readonly QmsStep[] IqcSteps =
     {

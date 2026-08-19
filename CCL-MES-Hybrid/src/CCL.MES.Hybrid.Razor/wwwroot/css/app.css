@@ -622,9 +622,27 @@ html, body {
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;   /* let the module path ellipsis instead of crushing the right block */
 }
 .app-topbar-logo { color: var(--brand); font-size: var(--fs-lg); }
 .app-topbar-sub { color: var(--c-soft); font-weight: var(--fw-semibold); }
+/* feat/qms-topbar-breadcrumb — context-aware module path after the brand.
+   Dimmer than the brand, non-uppercase (path is mixed-case), tabular so the
+   "/QMS/…" segments read cleanly. QMS routes only; brand-alone otherwise. */
+.app-topbar-path {
+    margin-left: var(--sp-2);
+    padding-left: var(--sp-3);
+    border-left: 1px solid var(--c-line);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+    letter-spacing: normal;
+    text-transform: none;
+    color: var(--c-soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
 .app-topbar-right { display: flex; align-items: center; gap: 22px; }
 .tb-block { line-height: 1.25; }
 .tb-k {
@@ -7139,37 +7157,10 @@ tr.wc-row:hover { background: var(--c-bg); }
    ═══════════════════════════════════════════════════════════════════════ */
 .qms-page { container-type: inline-size; color: var(--c-ink-3); }
 
-/* ── Top-bar ─────────────────────────────────────────────────────────── */
-.qms-topbar {
-    display: flex; align-items: center; justify-content: space-between; gap: 16px;
-    padding: 14px 4px 16px; margin-bottom: 8px;
-    border-bottom: 2px solid var(--c-line);
-}
-.qms-topbar-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.qms-topbar-module {
-    font-size: var(--fs-2xs); font-weight: var(--fw-bold); letter-spacing: 0.18em;
-    text-transform: uppercase; color: var(--c-muted);
-}
-.qms-topbar-title { margin: 0; font-size: var(--fs-xl); font-weight: var(--fw-bold); letter-spacing: -0.01em; color: var(--c-ink); }
-.qms-topbar-right { display: flex; align-items: center; gap: 14px; flex: 0 0 auto; }
-.qms-topbar-shift { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
-.qms-topbar-eyebrow {
-    font-size: var(--fs-2xs); font-weight: var(--fw-bold); letter-spacing: 0.16em;
-    text-transform: uppercase; color: var(--c-muted);
-}
-.qms-topbar-shiftval { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--c-ink-2); }
-.qms-topbar-sep { width: 1px; height: 34px; background: var(--c-line); }
-.qms-topbar-user { display: flex; align-items: center; gap: 10px; }
-.qms-topbar-avatar {
-    width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
-    background: var(--c-ink); color: var(--c-card); font-weight: var(--fw-bold); font-size: var(--fs-sm); border-radius: 6px;
-}
-.qms-topbar-userlines { display: flex; flex-direction: column; }
-.qms-topbar-username { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--c-ink-2); }
-.qms-topbar-userrole {
-    font-size: var(--fs-2xs); font-weight: var(--fw-semibold); letter-spacing: 0.12em;
-    text-transform: uppercase; color: var(--c-muted);
-}
+/* ── Top-bar ─────────────────────────────────────────────────────────────
+   feat/qms-topbar-breadcrumb — the per-module QMS strip (.qms-topbar*) was
+   removed; module identity now lives in the main .app-topbar breadcrumb
+   (.app-topbar-path). Its styles are deleted with the component. */
 
 /* ── Stepper ─────────────────────────────────────────────────────────── */
 .qms-stepper {
@@ -7323,10 +7314,8 @@ tr.wc-row:hover { background: var(--c-bg); }
 @container (max-width: 900px) {
     .qms-oqc-grid { grid-template-columns: 1fr; }
     .qms-decision { border-left: 0; padding-left: 0; border-top: 1px solid var(--c-line); padding-top: 18px; }
-    .qms-topbar-title { font-size: var(--fs-lg); }
 }
 @container (max-width: 640px) {
-    .qms-topbar { flex-direction: column; align-items: flex-start; gap: 10px; }
     .qms-stepper { grid-auto-flow: row; grid-auto-columns: 1fr; }
 }
 

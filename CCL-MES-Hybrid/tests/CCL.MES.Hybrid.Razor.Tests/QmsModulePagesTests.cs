@@ -37,11 +37,15 @@ public sealed class QmsModulePagesTests : TestContext
 
     // ── IQC (feat/iqc-module-tabs — 3 sub-tab shell) ──────────────────────
     [Fact]
-    public void Iqc_renders_topbar_and_three_subtabs()
+    public void Iqc_renders_subtabs_directly_without_module_strip()
     {
         var cut = RenderComponent<IqcModule>();
 
-        Assert.Single(cut.FindAll("[data-testid='qms-module-topbar']"));
+        // feat/qms-topbar-breadcrumb: the per-module strip (+ duplicate user
+        // badge) is gone — module identity now lives in the main topbar
+        // breadcrumb. Sub-tabs sit directly under the main topbar.
+        Assert.Empty(cut.FindAll("[data-testid='qms-module-topbar']"));
+        Assert.Empty(cut.FindAll("[data-testid='qms-user-badge']"));
         // Redesigned shell: Dashboard · IQC Data · New Ticket sub-tabs.
         Assert.Single(cut.FindAll("[data-testid='iqc-subtab-dashboard']"));
         Assert.Single(cut.FindAll("[data-testid='iqc-subtab-data']"));
@@ -127,16 +131,14 @@ public sealed class QmsModulePagesTests : TestContext
     [Fact]
     public void Module_chrome_flips_en_vi_live()
     {
+        // Module title moved to the main-topbar breadcrumb / <PageTitle> (not in
+        // this component's body markup) — assert on the sub-tab chrome instead.
         var cut = RenderComponent<IqcModule>();
-        Assert.Contains("Kiểm tra nguyên vật liệu đầu vào", cut.Markup);   // VI title
         Assert.Contains("Bảng điều khiển", cut.Markup);                    // VI sub-tab
 
         _lang.Set(LanguageCode.English);
 
         cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("Incoming material inspection", cut.Markup);   // EN title
-            Assert.Contains("Dashboard", cut.Markup);                      // EN sub-tab
-        });
+            Assert.Contains("Dashboard", cut.Markup));                     // EN sub-tab
     }
 }

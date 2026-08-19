@@ -8,8 +8,8 @@
 <PageTitle>@T("qms.mod.ipqc.title") — CCL MES</PageTitle>
 
 <div class="qms-page" data-testid="qms-ipqc">
-    <QmsModuleTopBar Vm="QmsMock.IpqcTop" />
-
+    @* Module identity now in main topbar breadcrumb (feat/qms-topbar-breadcrumb).
+       Lot/product/machine/operator context stays below — it belongs to the module. *@
     <div class="qms-fieldgrid">
         <div class="qms-field">
             <span class="qms-field-label">@T("qms.f.lot")</span>

@@ -8,11 +8,19 @@
    live clock / language / online / logout right. Renders on every routed
    page via MainLayout. The user block hides when unauthenticated.
    i18n Phase-2: the flag button flips EN⇄VI live (same ILanguageService
-   state as Settings → Appearance). *@
+   state as Settings → Appearance).
+   feat/qms-topbar-breadcrumb: QMS-family routes append a context-aware
+   module path segment after the brand ("… — MES /QMS/IQC- Module"); the
+   per-module strip (QmsModuleTopBar) + its duplicate user badge is gone.
+   Non-QMS routes render brand only, exactly as before. *@
 <header class="app-topbar">
     <div class="app-topbar-brand">
         <span class="app-topbar-logo">◆</span> CCL DESIGN
         <span class="app-topbar-sub">— MES</span>
+        @if (ModulePath is { Length: > 0 } path)
+        {
+            <span class="app-topbar-path" data-testid="topbar-module-path">@path</span>
+        }
     </div>
     <AuthorizeView>
         <Authorized>
@@ -46,9 +54,53 @@
     private DateTime _now = DateTime.Now;
     private System.Threading.Timer? _clock;
 
+    // Context-aware module breadcrumb (feat/qms-topbar-breadcrumb). Computed
+    // live from the current route + active language so BOTH navigation
+    // (LocationChanged) and language flip (LocalizedComponentBase re-render)
+    // land the right text. Null on non-QMS routes → brand renders alone.
+    private string? ModulePath => BuildModulePath(Nav.Uri);
+
     private string UserName => Session.CurrentUser.FindFirst("display_name")?.Value
         ?? Session.CurrentUser.Identity?.Name ?? "";
     private string Role => Session.CurrentUser.FindFirst(ClaimTypes.Role)?.Value ?? "";
+
+    // Route → breadcrumb suffix. Pure prefix-map over the current path so a new
+    // QMS route only needs one line here; NO coupling to page components. The
+    // "Module" word is the only translated segment (qms.module.prefix); the
+    // QMS/IQC/OQC… tokens are fixed acronyms rendered verbatim in both cultures.
+    // Longest-prefix wins so "/qms/history" isn't shadowed by "/qms".
+    private static readonly (string Prefix, string Path)[] QmsRouteMap =
+    {
+        ("/qms/iqc",                "/QMS/IQC- {0}"),
+        ("/qms/ipqc",               "/QMS/IPQC- {0}"),
+        ("/qms/oqc",                "/QMS/OQC- {0}"),
+        ("/qms/icra",               "/QMS/iCRA- {0}"),
+        ("/qms/fqc",                "/QMS/FQC- {0}"),
+        ("/qms/history",            "/QMS/History"),
+        ("/qc/library",             "/QMS/Library"),
+        ("/quality/traceability",   "/QMS/Traceability"),
+        ("/qms",                    "/QMS"),
+    };
+
+    /// <summary>Maps an absolute path to the QMS breadcrumb suffix, or null for
+    /// non-QMS routes. "{0}" is filled with the translated "Module" word.</summary>
+    private string? BuildModulePath(string absoluteUri)
+    {
+        var path = new Uri(absoluteUri).AbsolutePath.TrimEnd('/');
+        if (path.Length == 0) path = "/";
+
+        foreach (var (prefix, template) in QmsRouteMap)
+        {
+            if (path.Equals(prefix, StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return template.Contains("{0}")
+                    ? string.Format(template, T("qms.module.prefix"))
+                    : template;
+            }
+        }
+        return null;
+    }
 
     private string Shift
     {
@@ -64,12 +116,16 @@
     protected override void OnInitialized()
     {
         base.OnInitialized(); // subscribe to language changes (LocalizedComponentBase)
+        Nav.LocationChanged += OnLocationChanged;
         _clock = new System.Threading.Timer(_ =>
         {
             _now = DateTime.Now;
             _ = InvokeAsync(StateHasChanged);
         }, null, 1000, 1000);
     }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+        => _ = InvokeAsync(StateHasChanged);
 
     private void ToggleLanguage()
     {
@@ -86,6 +142,7 @@
 
     public override void Dispose()
     {
+        Nav.LocationChanged -= OnLocationChanged;
         _clock?.Dispose();
         base.Dispose(); // unsubscribe
     }
