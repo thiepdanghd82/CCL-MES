@@ -28,6 +28,7 @@ GATES=(
   "legacy-frozen:gate-legacy-web-frozen.sh:C2 app :5050 đóng băng, .resx không key mới"
   "oee-source:gate-oee-single-source.sh:C3 một nguồn tốc độ OEE, null luôn kèm lý do"
   "matlot:gate-material-lot-fk.sh:A1 mạch lô đi bằng FK, khoá chuỗi NOCASE"
+  "enum-integrity:gate-enum-integrity.sh:2026-08-19 không giá trị nào nằm ngoài enum, 3 tầng còn dây"
 )
 
 total="${#GATES[@]}"

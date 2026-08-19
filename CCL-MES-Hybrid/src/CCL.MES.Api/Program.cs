@@ -459,6 +459,11 @@ builder.Services.Configure<CCL.MES.Application.Services.MaterialLotOptions>(opts
                 ?? builder.Configuration["Mes:MaterialLot:EnforceReleased"]);
 });
 
+// gate-enum-integrity TẦNG 3 — canh tính toàn vẹn enum của DB LIVE. Singleton
+// vì nó giữ ảnh chụp + cửa sổ cache; nó tự mở scope riêng để lấy MesDbContext
+// nên không kéo DbContext (scoped) vào vòng đời singleton.
+builder.Services.AddSingleton<CCL.MES.Api.Diagnostics.EnumIntegrityMonitor>();
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -673,6 +678,61 @@ using (var bootScope = app.Services.CreateScope())
         // missing on a fresh blank DB EF hasn't bootstrapped yet) — log
         // but don't block boot. Test fixtures bootstrap their own DBs.
         Console.WriteLine($"[boot] Migration check skipped: {ex.GetType().Name}: {ex.Message}");
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// gate-enum-integrity TẦNG 3 — preflight tính toàn vẹn enum trên DB LIVE.
+//
+// Vì sao phải có tầng này: sự cố 2026-08-19 (WorkOrders.CurrentStep='Done'
+// × 11 → 10 route hỏng, route danh sách mất toàn bộ 27 WO) lọt KHÔNG phải
+// vì thiếu test. Rác vào bằng SQL trực tiếp, ngoài mọi đường có audit của
+// app. Tầng 1 (CI test) và tầng 2 (DB fixture) về nguyên tắc không thể
+// thấy dữ liệu live. Đây là tầng duy nhất thấy.
+//
+// KHÔNG chặn boot theo mặc định — RefreshAsync đã nuốt mọi lỗi bên trong.
+// Cái nó làm là ỒN ÀO: banner WARN nhiều dòng + /health/ready phản ánh.
+// Đặt Database:FailOnEnumIntegrityViolations=true nếu môi trường này muốn
+// fail-fast (staging / CI hardware — KHÔNG dùng cho line sản xuất).
+// ──────────────────────────────────────────────────────────────────────
+{
+    // Mặc định BẬT ở mọi môi trường TRỪ "Test" — cùng lý do đã ghi cho các
+    // seeder ở khối boot phía trên ("running this seed during xUnit fixture
+    // init adds spurious write-lock contention to the N=50 advance soak
+    // tests"). Fixture xUnit dựng host TRƯỚC rồi mới MigrateAsync, nên một
+    // lượt đọc DB thêm ngay lúc host vừa dựng chỉ làm tăng tranh chấp trên
+    // đúng file SQLite mà 50 request song song sắp ghi vào.
+    //
+    // Đo được, cùng binary, chỉ khác cờ này:
+    //   preflight BẬT trong Test : Failed 5 / Passed 5  (soak N=50 ra 44/49)
+    //   preflight TẮT trong Test : Failed 0 / Passed 10
+    //
+    // Đây KHÔNG phải giấu lỗi: đường production được chứng minh bằng chính
+    // lượt boot thật (log + /health/ready trên DB sạch và DB nhiễm), còn
+    // logic quét vẫn được EnumIntegrityHealthTests phủ trong CI — lớp test đó
+    // bật lại cờ này và không chứa test soak nào.
+    var enumPreflightOn = app.Configuration.GetValue(
+        "Health:EnumIntegrityPreflightOnBoot",
+        defaultValue: !app.Environment.IsEnvironment("Test"));
+
+    if (enumPreflightOn)
+    {
+        var enumIntegrity = app.Services
+            .GetRequiredService<CCL.MES.Api.Diagnostics.EnumIntegrityMonitor>();
+        var enumSnapshot = await enumIntegrity.RefreshAsync();
+        enumIntegrity.WriteBootBanner(enumSnapshot);
+
+        if (enumSnapshot.IsDegraded
+            && app.Configuration.GetValue("Database:FailOnEnumIntegrityViolations", defaultValue: false))
+        {
+            throw new InvalidOperationException(
+                $"{enumSnapshot.BadRows} row(s) hold out-of-enum values; "
+                + "set Database:FailOnEnumIntegrityViolations=false to boot anyway.");
+        }
+    }
+    else
+    {
+        Console.WriteLine("[boot] Enum integrity preflight: skipped (Health:EnumIntegrityPreflightOnBoot=false).");
     }
 }
 
