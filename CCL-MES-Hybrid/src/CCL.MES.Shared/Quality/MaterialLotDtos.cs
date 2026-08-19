@@ -101,3 +101,33 @@ public sealed class MaterialGenealogyView
     public long WoId { get; set; }
     public List<MaterialGenealogyRowDto> Rows { get; set; } = new();
 }
+
+/// <summary>A1 — con số của MỘT lần chạy backfill mạch lô
+/// (<c>POST /material-lots/backfill</c>, AdminOnly).
+///
+/// <para>Phản chiếu <c>MaterialLotBackfillReport</c> ở tầng Application. Giữ
+/// hai kiểu tách nhau vì đây là hợp đồng HTTP: đổi report nội bộ không được
+/// âm thầm đổi thân phản hồi mà client đang đọc.</para></summary>
+public sealed class MaterialLotBackfillResponse
+{
+    /// <summary>Số dòng <c>WoMaterials</c> có LotNo khác rỗng đã xét.</summary>
+    public int Candidates { get; set; }
+
+    public int LotsCreated { get; set; }
+    public int LotsReused { get; set; }
+    public int ConsumptionsCreated { get; set; }
+
+    /// <summary>Đã mang dấu <c>backfill-a1</c> từ lần chạy trước ⇒ bỏ qua. Lần
+    /// chạy thứ hai phải có <c>Skipped == Candidates</c> và
+    /// <c>ConsumptionsCreated == 0</c> — đó là bằng chứng idempotent.</summary>
+    public int Skipped { get; set; }
+
+    /// <summary>Đ6 — lô không khớp phiếu IQC nào, tạo ở trạng thái Quarantine.
+    /// ĐÂY là con số phải đọc trước khi lật cờ
+    /// <c>Mes:MaterialLot:EnforceReleased</c>: nó đúng bằng số lô lịch sử sẽ bị
+    /// chặn khi bật cưỡng chế.</summary>
+    public int Quarantined { get; set; }
+
+    /// <summary>Lô khớp một phiếu IQC ⇒ thừa hưởng kết luận của phiếu đó.</summary>
+    public int InheritedFromIqc { get; set; }
+}
