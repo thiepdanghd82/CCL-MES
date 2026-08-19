@@ -20,8 +20,9 @@
 <PageTitle>@T("qms.mod.iqc.title") — CCL MES</PageTitle>
 
 <div class="qms-page" data-testid="qms-iqc">
-    <QmsModuleTopBar Vm="QmsMock.IqcTop" />
-
+    @* Module identity moved to the main topbar breadcrumb (feat/qms-topbar-breadcrumb);
+       the per-module strip + its duplicate user badge is gone. Sub-tabs sit
+       directly under the main topbar. *@
     @* ── Sub-tab strip (tái dùng pattern QcLibrary, KHÔNG tự vẽ mới) ── *@
     <div class="iqc-subtabs" role="tablist" data-testid="iqc-subtabs">
         <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.Dashboard ? "iqc-subtab-on" : "")"
