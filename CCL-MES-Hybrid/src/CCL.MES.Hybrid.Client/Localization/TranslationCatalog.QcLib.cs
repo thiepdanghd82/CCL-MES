@@ -27,6 +27,12 @@ public sealed partial class TranslationCatalog
         Add("qclib.line.silk",           "Silk Screen",                                   "Silk Screen");
         Add("qclib.add",                 "Thêm mới",                                      "Add new");
         Add("qclib.import",              "Nhập (xlsx/csv)",                               "Import (xlsx/csv)");
+        Add("qclib.template",        "Tải mẫu",                                   "Download template");
+        Add("qclib.menu.deactivate", "Ngưng dùng",                                "Deactivate");
+        Add("qclib.menu.activate",   "Dùng lại",                                  "Reactivate");
+        Add("qclib.flash.template",  "Đã tải file mẫu {0}",                       "Template {0} downloaded");
+        Add("qclib.flash.deactivated","Đã ngưng dùng {0} — dữ liệu cũ giữ nguyên","{0} deactivated — existing records keep their reference");
+        Add("qclib.flash.activated", "Đã dùng lại {0}",                           "{0} reactivated");
         Add("qclib.export",              "Xuất CSV",                                       "Export CSV");
         Add("qclib.menu.actions",        "Hành động",                                     "Actions");
         Add("qclib.menu.info",           "Chi tiết",                                      "Info");
