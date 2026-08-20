@@ -20,7 +20,7 @@ public sealed class NpiImportControllerTests : IClassFixture<MesApiFactory>
     private readonly MesApiFactory _fx;
     public NpiImportControllerTests(MesApiFactory fx) => _fx = fx;
 
-    private sealed record ImportResult(string Kind, int Inserted, int Skipped);
+    private sealed record ImportResult(string Kind, int Inserted, int Updated, int Skipped);
 
     private async Task<HttpClient> EngineerClientAsync(string user)
     {
@@ -93,5 +93,114 @@ public sealed class NpiImportControllerTests : IClassFixture<MesApiFactory>
         // Empty multipart → either the handler's 422 (no_file) or the
         // framework's 400 before binding; both mean "no usable file".
         Assert.Contains(resp.StatusCode, new[] { HttpStatusCode.UnprocessableEntity, HttpStatusCode.BadRequest });
+    }
+
+    // ── rawmaterials-bom-xlsx-import ──────────────────────────────────────
+
+    /// <summary>Build a "Materials BOM"-shaped .xlsx in memory: blank row 1,
+    /// header row 2 (name order differs from entity order), data from row 3.
+    /// Returns a multipart form with an .xlsx filename so the controller
+    /// routes to the ClosedXML decoder.</summary>
+    private static MultipartFormDataContent Xlsx(params (string partNo, string thickness, string supplier)[] rows)
+    {
+        using var wb = new ClosedXML.Excel.XLWorkbook();
+        var ws = wb.AddWorksheet("Sheet1");
+        var header = new[]
+        {
+            "Part No", "Part Description In Use", "Mother code", "Dimension/ Quality",
+            "Width (mm)", "Part Type", "Planner", "Inventory UoM",
+            "Accounting Group Description", "Part Product Family",
+            "Part Product Family Description", "Type Designation", "Price",
+            "Price incl. Tax", "Currency", "Price Unit Measure",
+            "Supplier Manufacturing Leadtime", "Thickness", "Lead Time Code",
+            "Supplier ID", "Supplier Name",
+        };
+        for (var c = 0; c < header.Length; c++) ws.Cell(2, c + 1).Value = header[c];  // row 1 blank
+        var r = 3;
+        foreach (var row in rows)
+        {
+            ws.Cell(r, 1).Value = row.partNo;
+            ws.Cell(r, 2).Value = "Desc " + row.partNo;
+            ws.Cell(r, 3).Value = "MC-" + row.partNo;
+            ws.Cell(r, 5).Value = 270;              // NUMERIC cell (like IFS export)
+            ws.Cell(r, 13).Value = 17512;           // NUMERIC cell
+            // Thickness as a NUMBER cell — mirrors the real "Materials BOM"
+            // export where GetString() would format culture-dependently
+            // ("0,045" on a comma-decimal culture) and corrupt to 45. Writing
+            // a string here would hide that bug (Text cells pass through raw).
+            ws.Cell(r, 18).Value = double.Parse(row.thickness,
+                System.Globalization.CultureInfo.InvariantCulture);
+            ws.Cell(r, 21).Value = row.supplier;
+            r++;
+        }
+        using var ms = new MemoryStream();
+        wb.SaveAs(ms);
+        var form = new MultipartFormDataContent();
+        var fc = new ByteArrayContent(ms.ToArray());
+        fc.Headers.ContentType = new MediaTypeHeaderValue(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        form.Add(fc, "file", "Materials BOM.xlsx");
+        return form;
+    }
+
+    [Fact]
+    public async Task Import_rawmaterials_xlsx_auto_detects_header_and_maps_bom_columns()
+    {
+        var c = await EngineerClientAsync("npi-imp-xlsx");
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var pn = $"XL-{tag}";
+
+        var resp = await c.PostAsync("/api/v2/npi/rawmaterials/import",
+            Xlsx((pn, "4.4999999999999998E-2", "Supplier X")));
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var r = await resp.Content.ReadFromJsonAsync<ImportResult>();
+        Assert.NotNull(r);
+        Assert.Equal(1, r!.Inserted);
+        Assert.Equal(0, r.Updated);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var row = await db.RawMaterials.AsNoTracking().SingleAsync(x => x.PartNo == pn);
+        Assert.Equal($"MC-{pn}", row.MotherCode);
+        Assert.Equal(270, row.WidthMm);
+        Assert.Equal(0.045, row.Thickness!.Value, 6);
+        Assert.Equal("Supplier X", row.SupplierName);
+    }
+
+    [Fact]
+    public async Task Import_rawmaterials_xlsx_twice_updates_in_place()
+    {
+        var c = await EngineerClientAsync("npi-imp-xlsx2");
+        var tag = Guid.NewGuid().ToString("N")[..6];
+        var pn = $"XLU-{tag}";
+
+        var r1 = await (await c.PostAsync("/api/v2/npi/rawmaterials/import",
+            Xlsx((pn, "1E-2", "First"))))
+            .Content.ReadFromJsonAsync<ImportResult>();
+        Assert.Equal(1, r1!.Inserted);
+
+        var r2 = await (await c.PostAsync("/api/v2/npi/rawmaterials/import",
+            Xlsx((pn, "1E-2", "Second"))))
+            .Content.ReadFromJsonAsync<ImportResult>();
+        Assert.Equal(0, r2!.Inserted);
+        Assert.Equal(1, r2.Updated);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var rows = await db.RawMaterials.AsNoTracking().Where(x => x.PartNo == pn).ToListAsync();
+        Assert.Single(rows);
+        Assert.Equal("Second", rows[0].SupplierName);
+    }
+
+    [Fact]
+    public async Task Import_rawmaterials_csv_without_header_returns_422_header_not_found()
+    {
+        var c = await EngineerClientAsync("npi-imp-nohdr");
+        var resp = await c.PostAsync("/api/v2/npi/rawmaterials/import",
+            Csv("Nope,Bogus,Columns\n1,2,3\n"));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var body = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("import.header_not_found", body);
     }
 }

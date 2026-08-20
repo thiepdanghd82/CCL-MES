@@ -71,6 +71,18 @@ public sealed record NpiRawMaterial
     public string? NetWeightUom { get; init; }
     public string? NextOrderDate { get; init; }
     public string? Notes { get; init; }
+    // rawmaterials-bom-xlsx-import — 11 field bổ sung khớp "Materials BOM".
+    public string? MotherCode { get; init; }
+    public string? DimensionQuality { get; init; }
+    public double? WidthMm { get; init; }
+    public string? PartType { get; init; }
+    public string? Planner { get; init; }
+    public string? AccountingGroupDescription { get; init; }
+    public string? ProductFamily { get; init; }
+    public string? ProductFamilyDescription { get; init; }
+    public string? TypeDesignation { get; init; }
+    public double? Thickness { get; init; }
+    public string? LeadTimeCode { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
 }
@@ -134,6 +146,7 @@ public sealed record NpiImportResultDto
 {
     public string Kind { get; init; } = "";
     public int Inserted { get; init; }
+    public int Updated { get; init; }
     public int Skipped { get; init; }
 }
 

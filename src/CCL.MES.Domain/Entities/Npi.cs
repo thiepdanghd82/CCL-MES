@@ -54,6 +54,19 @@ public class RawMaterial : BaseEntity
     public string? NetWeightUom { get; set; }
     public string? NextOrderDate { get; set; }
     public string? Notes { get; set; }
+    // rawmaterials-bom-xlsx-import — 11 field bổ sung khớp file "Materials
+    // BOM" (IFS export). Tất cả nullable, additive: cột cũ giữ nguyên nghĩa.
+    public string? MotherCode { get; set; }
+    public string? DimensionQuality { get; set; }
+    public double? WidthMm { get; set; }
+    public string? PartType { get; set; }
+    public string? Planner { get; set; }
+    public string? AccountingGroupDescription { get; set; }
+    public string? ProductFamily { get; set; }
+    public string? ProductFamilyDescription { get; set; }
+    public string? TypeDesignation { get; set; }
+    public double? Thickness { get; set; }
+    public string? LeadTimeCode { get; set; }
 }
 
 /// <summary>Định tuyến công đoạn (Engineer Routine / Routing Operations).
