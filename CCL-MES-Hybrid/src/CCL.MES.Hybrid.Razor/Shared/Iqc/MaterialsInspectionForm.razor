@@ -129,21 +129,69 @@
                                    placeholder="@T("iqc.form.supplier.ph")"
                                    @bind="_supplierName" />
                         </label>
-
-                        <label class="iqc-fld">
-                            <span class="iqc-fld-label">@T("iqc.f.qty")</span>
-                            <input type="number" min="0" step="any" class="op-input" data-testid="iqc-f-qty"
-                                   placeholder="@T("iqc.form.qty.ph")"
-                                   @bind="_quantity" />
-                        </label>
-
-                        <label class="iqc-fld">
-                            <span class="iqc-fld-label">@T("iqc.f.uom")</span>
-                            <input class="op-input" data-testid="iqc-f-uom"
-                                   placeholder="@T("iqc.form.uom.ph")"
-                                   @bind="_uom" />
-                        </label>
                     </div>
+
+                    @* ── feat/iqc-materials-line-table — BẢNG dòng-vật-tư: mỗi Code IFS
+                         đã tick = 1 dòng, nhập Quantity + UoM riêng (thay 2 ô phẳng
+                         chung). Đồng bộ 2 chiều với picker. Snapshot item lúc tick nên
+                         thông tin dòng giữ được kể cả khi kết quả search đổi. ── *@
+                    @if (_selectedCodes.Count > 0)
+                    {
+                        <div class="iqc-lines-wrap" data-testid="iqc-lines-wrap">
+                            <table class="iqc-lines" data-testid="iqc-lines-table">
+                                <thead>
+                                    <tr>
+                                        <th class="iqc-lines-sel">@T("iqc.lines.col.select")</th>
+                                        <th>@T("iqc.f.codeifs")</th>
+                                        <th>@T("iqc.lines.col.mother")</th>
+                                        <th>@T("iqc.lines.col.partdesc")</th>
+                                        <th class="iqc-lines-num">@T("iqc.lines.col.width")</th>
+                                        <th class="iqc-lines-num">@T("iqc.f.qty")</th>
+                                        <th>@T("iqc.f.uom")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var sc in _selectedCodes.ToList())
+                                    {
+                                        var snap = SnapshotFor(sc);
+                                        var row = RowFor(sc);
+                                        <tr data-testid="iqc-line-row" data-code="@sc">
+                                            <td class="iqc-lines-sel">
+                                                <input type="checkbox" class="iqc-line-select"
+                                                       data-testid="iqc-line-select"
+                                                       checked="checked"
+                                                       @onchange="() => ToggleCode(sc)" />
+                                            </td>
+                                            <td class="iqc-line-code" data-testid="iqc-line-code">@sc</td>
+                                            <td data-testid="iqc-line-mother">@Show(snap?.MotherCode)</td>
+                                            <td class="iqc-line-partdesc" data-testid="iqc-line-partdesc">@Show(snap?.PartDescription ?? snap?.IfsDescription)</td>
+                                            <td class="iqc-lines-num" data-testid="iqc-line-width">@(snap?.WidthMm?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? T("iqc.f.empty"))</td>
+                                            <td class="iqc-lines-num">
+                                                <input type="number" min="0" step="any"
+                                                       class="op-input iqc-line-qty" data-testid="iqc-line-qty"
+                                                       placeholder="@T("iqc.form.qty.ph")"
+                                                       value="@(row.Qty?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "")"
+                                                       @onchange="e => OnRowQtyChanged(sc, e)" />
+                                            </td>
+                                            <td>
+                                                <div class="iqc-uom-chips" data-testid="iqc-line-uom">
+                                                    @foreach (var u in UomOptions)
+                                                    {
+                                                        var on = string.Equals(row.Uom, u, StringComparison.OrdinalIgnoreCase);
+                                                        <button type="button"
+                                                                class="iqc-uom-chip @(on ? "iqc-uom-on" : "")"
+                                                                data-testid="iqc-line-uom-chip"
+                                                                data-uom="@u"
+                                                                @onclick="() => SetRowUom(sc, u)">@UomLabel(u)</button>
+                                                    }
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 }
                 else
                 {
@@ -282,9 +330,14 @@
     private string? _makerName;
     private string? _supplierName;
     private DateTime? _manufactureDate;
-    private double? _quantity;
-    private string? _uom;
     private List<string> _makerOptions = new();
+
+    // feat/iqc-materials-line-table — trạng thái per-dòng (Qty + Uom) giữ khi
+    // tick/bỏ + snapshot item lúc tick (Mother/Width/PartDesc survive search đổi).
+    private static readonly string[] UomOptions = { "Roll", "Pcs" };
+    private const string DefaultUom = "Roll";
+    private readonly Dictionary<string, (double? Qty, string? Uom)> _lineState = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, IqcMaterialSearchItem> _lineSnapshot = new(StringComparer.OrdinalIgnoreCase);
 
     // Reverse-lookup search-by-description + multi-select.
     private string _searchText = "";
@@ -307,10 +360,40 @@
                 || (r.IfsDescription ?? "").Contains(_listFilter, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
+    // ≥1 dòng Select AND mọi dòng Select có Qty>0 AND lot!="".
     private bool CanSave =>
         _selectedCodes.Count > 0
         && !string.IsNullOrWhiteSpace(_lotBatchNo)
-        && _quantity is > 0;
+        && _selectedCodes.All(c => RowFor(c).Qty is > 0);
+
+    private (double? Qty, string? Uom) RowFor(string code) =>
+        _lineState.TryGetValue(code, out var v) ? v : (null, DefaultUom);
+
+    // Nhãn hiển thị chip UoM qua catalog; GIÁ TRỊ lưu/gửi wire vẫn canonical "Roll"/"Pcs".
+    private string UomLabel(string uom) => uom switch
+    {
+        "Roll" => T("iqc.uom.roll"),
+        "Pcs"  => T("iqc.uom.pcs"),
+        _      => uom,
+    };
+
+    private IqcMaterialSearchItem? SnapshotFor(string code) =>
+        _lineSnapshot.TryGetValue(code, out var v) ? v : null;
+
+    private void OnRowQtyChanged(string code, ChangeEventArgs e)
+    {
+        var raw = e.Value?.ToString();
+        double? qty = double.TryParse(raw, System.Globalization.NumberStyles.Any,
+            System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : null;
+        var cur = RowFor(code);
+        _lineState[code] = (qty, cur.Uom ?? DefaultUom);
+    }
+
+    private void SetRowUom(string code, string uom)
+    {
+        var cur = RowFor(code);
+        _lineState[code] = (cur.Qty, uom);
+    }
 
     private string Show(string? v) => string.IsNullOrWhiteSpace(v) ? T("iqc.f.empty") : v!;
     private string StatusLabel(string r) => T($"iqc.data.status.{(r ?? "pending").ToLowerInvariant()}");
@@ -343,7 +426,22 @@
 
     private void ToggleCode(string code)
     {
-        if (!_selectedCodes.Remove(code)) _selectedCodes.Add(code);
+        if (_selectedCodes.Remove(code))
+        {
+            // Bỏ tick → gỡ dòng khỏi lô (state + snapshot).
+            _lineState.Remove(code);
+            _lineSnapshot.Remove(code);
+        }
+        else
+        {
+            _selectedCodes.Add(code);
+            // Snapshot item lúc tick để giữ Mother/Width/PartDesc kể cả khi
+            // _searchResults đổi. Seed UoM mặc định "Roll".
+            var item = _searchResults.FirstOrDefault(r =>
+                string.Equals(r.CodeIfs, code, StringComparison.OrdinalIgnoreCase));
+            if (item is not null) _lineSnapshot[code] = item;
+            if (!_lineState.ContainsKey(code)) _lineState[code] = (null, DefaultUom);
+        }
     }
 
     private async Task OnMakerChanged(ChangeEventArgs e)
@@ -369,7 +467,6 @@
         var multi = codes.Count > 1;
         var maker = string.IsNullOrWhiteSpace(_makerName) ? null : _makerName!.Trim();
         var supplier = string.IsNullOrWhiteSpace(_supplierName) ? null : _supplierName!.Trim();
-        var uom = string.IsNullOrWhiteSpace(_uom) ? null : _uom!.Trim();
 
         var okCount = 0;
         var failCount = 0;
@@ -382,6 +479,8 @@
             {
                 var code = codes[i];
                 var lot = multi ? $"{baseLot}-{(i + 1):D2}" : baseLot;
+                var line = RowFor(code);
+                var rowUom = string.IsNullOrWhiteSpace(line.Uom) ? null : line.Uom!.Trim();
                 try
                 {
                     var resp = await Api.CreateIqcTicketAsync(new CreateIqcTicketBody
@@ -392,8 +491,8 @@
                         ManufactureDate = _manufactureDate,
                         MakerName = maker,
                         SupplierName = supplier,
-                        Quantity = _quantity ?? 0,
-                        Uom = uom,
+                        Quantity = line.Qty ?? 0,
+                        Uom = rowUom,
                     });
                     okCount++;
                     lastOk = resp;

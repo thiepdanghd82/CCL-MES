@@ -422,6 +422,10 @@ public class IqcService
             {
                 CodeIfs = g.Key,
                 IfsDescription = g.OrderBy(x => x.Id).Select(x => x.PartDescription).FirstOrDefault(),
+                // Dòng đại diện (OrderBy Id, đầu group) cho MotherCode/Width/PartDesc.
+                MotherCode = g.OrderBy(x => x.Id).Select(x => x.MotherCode).FirstOrDefault(),
+                WidthMm = g.OrderBy(x => x.Id).Select(x => x.WidthMm).FirstOrDefault(),
+                PartDescription = g.OrderBy(x => x.Id).Select(x => x.PartDescription).FirstOrDefault(),
             })
             .OrderBy(r => r.CodeIfs);
 
@@ -701,6 +705,11 @@ public sealed class IqcMaterialSearchRow
 {
     public string CodeIfs { get; init; } = "";
     public string? IfsDescription { get; init; }
+    // feat/iqc-materials-line-table — làm giàu dòng đại diện cho bảng line-items
+    // (additive; dòng đại diện = OrderBy Id đầu group). Nullable, cột cũ giữ nguyên.
+    public string? MotherCode { get; init; }
+    public double? WidthMm { get; init; }
+    public string? PartDescription { get; init; }
 }
 
 /// <summary>Kết quả tra vật liệu theo mô tả — phân trang + cờ desc-quá-ngắn.</summary>

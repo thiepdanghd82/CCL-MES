@@ -1,3 +1,4 @@
+using AngleSharp.Dom;
 using Bunit;
 using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client;
@@ -280,6 +281,27 @@ public sealed class IqcModuleTests : TestContext
         Items = rows.Select(r => new IqcMaterialSearchItem { CodeIfs = r.Code, IfsDescription = r.Desc }).ToList(),
     };
 
+    // feat/iqc-materials-line-table — nhập Quantity cho MỌI dòng line-items đã tick.
+    // Re-find qty input mỗi lần: một Change re-render + vô hiệu hoá element handle cũ.
+    private static void FillAllLineQty(IRenderedComponent<IqcModule> cut, string qty)
+    {
+        var codes = cut.FindAll("[data-testid=iqc-line-row]")
+            .Select(r => r.GetAttribute("data-code")!).ToList();
+        foreach (var code in codes)
+            QtyInputForCode(cut, code).Change(qty);
+    }
+
+    private static IElement QtyInputForCode(IRenderedComponent<IqcModule> cut, string code) =>
+        cut.FindAll("[data-testid=iqc-line-row]")
+            .First(r => r.GetAttribute("data-code") == code)
+            .QuerySelector("[data-testid=iqc-line-qty]")!;
+
+    private static IElement UomChipForCode(IRenderedComponent<IqcModule> cut, string code, string uom) =>
+        cut.FindAll("[data-testid=iqc-line-row]")
+            .First(r => r.GetAttribute("data-code") == code)
+            .QuerySelectorAll("[data-testid=iqc-line-uom-chip]")
+            .First(c => c.GetAttribute("data-uom") == uom);
+
     [Fact]
     public void Search_input_populates_codeifs_multiselect_list()
     {
@@ -360,7 +382,7 @@ public sealed class IqcModuleTests : TestContext
         for (var i = 0; i < codeCount; i++)
             cut.FindAll("[data-testid=iqc-codeifs-tick]")[i].Click();
         cut.Find("[data-testid=iqc-f-lotbatch]").Change("LOT-MC");
-        cut.Find("[data-testid=iqc-f-qty]").Change("100");
+        FillAllLineQty(cut, "100");
 
         cut.Find("[data-testid=iqc-insp-complete]").Click();
 
@@ -391,7 +413,7 @@ public sealed class IqcModuleTests : TestContext
 
         cut.Find("[data-testid=iqc-codeifs-tick]").Click();
         cut.Find("[data-testid=iqc-f-lotbatch]").Change("LOT-SOLO");
-        cut.Find("[data-testid=iqc-f-qty]").Change("5");
+        FillAllLineQty(cut, "5");
         cut.Find("[data-testid=iqc-insp-complete]").Click();
 
         Assert.Single(_api.CreateIqcTicketCalls);
@@ -417,7 +439,7 @@ public sealed class IqcModuleTests : TestContext
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[data-testid=iqc-codeifs-tick]")));
         cut.Find("[data-testid=iqc-codeifs-tick]").Click();
         cut.Find("[data-testid=iqc-f-lotbatch]").Change("LOT-DRAFT");
-        cut.Find("[data-testid=iqc-f-qty]").Change("3");
+        FillAllLineQty(cut, "3");
 
         cut.Find("[data-testid=iqc-insp-savedraft]").Click();
 
@@ -450,7 +472,7 @@ public sealed class IqcModuleTests : TestContext
         for (var i = 0; i < pCount; i++)
             cut.FindAll("[data-testid=iqc-codeifs-tick]")[i].Click();
         cut.Find("[data-testid=iqc-f-lotbatch]").Change("LOT-P");
-        cut.Find("[data-testid=iqc-f-qty]").Change("10");
+        FillAllLineQty(cut, "10");
         cut.Find("[data-testid=iqc-insp-complete]").Click();
 
         // Both attempted; one failed → showcard stays open with a partial banner.
@@ -481,7 +503,7 @@ public sealed class IqcModuleTests : TestContext
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[data-testid=iqc-codeifs-tick]")));
         cut.Find("[data-testid=iqc-codeifs-tick]").Click();
         cut.Find("[data-testid=iqc-f-lotbatch]").Change("LOT-260819-01");
-        cut.Find("[data-testid=iqc-f-qty]").Change("100");
+        FillAllLineQty(cut, "100");
 
         cut.Find("[data-testid=iqc-insp-complete]").Click();
 
@@ -496,5 +518,162 @@ public sealed class IqcModuleTests : TestContext
         // Showcard keep-open with in-window confirmation + New Ticket tab receipt.
         Assert.Contains("IQC-260819-0007", cut.Find("[data-testid=iqc-insp-saved]").TextContent);
         Assert.Contains("IQC-260819-0007", cut.Find("[data-testid=iqc-newticket-saved]").TextContent);
+    }
+
+    // ── feat/iqc-materials-line-table — bảng dòng-vật-tư ──
+
+    private static IqcMaterialSearchResponse EnrichedResults(
+        params (string Code, string Desc, string? Mother, double? Width)[] rows) => new()
+    {
+        TooShort = false,
+        Total = rows.Length,
+        Page = 1,
+        PageSize = 20,
+        Items = rows.Select(r => new IqcMaterialSearchItem
+        {
+            CodeIfs = r.Code, IfsDescription = r.Desc,
+            MotherCode = r.Mother, WidthMm = r.Width, PartDescription = r.Desc,
+        }).ToList(),
+    };
+
+    [Fact]
+    public void Ticking_two_codes_renders_two_line_rows_with_mother_and_width()
+    {
+        Wire();
+        _api.SearchIqcMaterialImpl = (_, _, _) => Task.FromResult(EnrichedResults(
+            ("MC-A", "desc A", "MOTHER-A", 320.5),
+            ("MC-B", "desc B", "MOTHER-B", 210)));
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        OpenMaterialsForm(cut);
+        cut.Find("[data-testid=iqc-search-input]").Input("MC");
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid=iqc-codeifs-tick]").Count));
+
+        // No line rows before ticking.
+        Assert.Empty(cut.FindAll("[data-testid=iqc-line-row]"));
+
+        cut.FindAll("[data-testid=iqc-codeifs-tick]")[0].Click();
+        cut.FindAll("[data-testid=iqc-codeifs-tick]")[1].Click();
+
+        var rows = cut.FindAll("[data-testid=iqc-line-row]");
+        Assert.Equal(2, rows.Count);
+        var mothers = cut.FindAll("[data-testid=iqc-line-mother]").Select(x => x.TextContent).ToList();
+        Assert.Contains("MOTHER-A", mothers);
+        Assert.Contains("MOTHER-B", mothers);
+        var widths = cut.FindAll("[data-testid=iqc-line-width]").Select(x => x.TextContent).ToList();
+        Assert.Contains("320.5", widths);
+        Assert.Contains("210", widths);
+    }
+
+    [Fact]
+    public void Unselecting_line_checkbox_removes_the_row()
+    {
+        Wire();
+        _api.SearchIqcMaterialImpl = (_, _, _) => Task.FromResult(EnrichedResults(
+            ("MC-A", "a", "M-A", 100),
+            ("MC-B", "b", "M-B", 200)));
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        OpenMaterialsForm(cut);
+        cut.Find("[data-testid=iqc-search-input]").Input("MC");
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid=iqc-codeifs-tick]").Count));
+
+        cut.FindAll("[data-testid=iqc-codeifs-tick]")[0].Click();
+        cut.FindAll("[data-testid=iqc-codeifs-tick]")[1].Click();
+        Assert.Equal(2, cut.FindAll("[data-testid=iqc-line-row]").Count);
+
+        // Untick via the row's Select checkbox → row removed + picker count sync.
+        cut.FindAll("[data-testid=iqc-line-select]")[0].Change(false);
+        Assert.Single(cut.FindAll("[data-testid=iqc-line-row]"));
+        Assert.Contains("1/2", cut.Find("[data-testid=iqc-codeifs-count]").TextContent);
+    }
+
+    [Fact]
+    public void Per_row_qty_and_uom_flow_to_create_bodies()
+    {
+        Wire();
+        var n = 0;
+        _api.SearchIqcMaterialImpl = (_, _, _) => Task.FromResult(EnrichedResults(
+            ("MC-A", "a", "M-A", 100),
+            ("MC-B", "b", "M-B", 200)));
+        _api.CreateIqcTicketImpl = _ => Task.FromResult(new CreateIqcTicketResponse
+        { ReceiptNo = $"IQC-260819-000{++n}", IqcInspectionId = n, MatchStatus = "matched" });
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        OpenMaterialsForm(cut);
+        cut.Find("[data-testid=iqc-search-input]").Input("MC");
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid=iqc-codeifs-tick]").Count));
+
+        cut.FindAll("[data-testid=iqc-codeifs-tick]")[0].Click();  // MC-A
+        cut.FindAll("[data-testid=iqc-codeifs-tick]")[1].Click();  // MC-B
+        cut.Find("[data-testid=iqc-f-lotbatch]").Change("LOT-MC");
+
+        // Per-row qty (re-find each time — a Change re-renders + invalidates handles).
+        QtyInputForCode(cut, "MC-A").Change("7");
+        QtyInputForCode(cut, "MC-B").Change("9");
+        // MC-B row → switch UoM to Pcs (default Roll).
+        UomChipForCode(cut, "MC-B", "Pcs").Click();
+
+        cut.Find("[data-testid=iqc-insp-complete]").Click();
+
+        Assert.Equal(2, _api.CreateIqcTicketCalls.Count);
+        var a = _api.CreateIqcTicketCalls.Single(b => b.CodeIfs == "MC-A");
+        var bb = _api.CreateIqcTicketCalls.Single(b => b.CodeIfs == "MC-B");
+        Assert.Equal(7, a.Quantity);
+        Assert.Equal("Roll", a.Uom);      // default
+        Assert.Equal(9, bb.Quantity);
+        Assert.Equal("Pcs", bb.Uom);      // switched
+    }
+
+    [Fact]
+    public void Cannot_save_when_any_selected_row_has_no_qty()
+    {
+        Wire();
+        _api.SearchIqcMaterialImpl = (_, _, _) => Task.FromResult(EnrichedResults(
+            ("MC-A", "a", "M-A", 100),
+            ("MC-B", "b", "M-B", 200)));
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        OpenMaterialsForm(cut);
+        cut.Find("[data-testid=iqc-search-input]").Input("MC");
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid=iqc-codeifs-tick]").Count));
+
+        cut.FindAll("[data-testid=iqc-codeifs-tick]")[0].Click();
+        cut.FindAll("[data-testid=iqc-codeifs-tick]")[1].Click();
+        cut.Find("[data-testid=iqc-f-lotbatch]").Change("LOT-MC");
+
+        // Only fill MC-A → Complete stays disabled (MC-B has no qty).
+        QtyInputForCode(cut, "MC-A").Change("5");
+        Assert.True(cut.Find("[data-testid=iqc-insp-complete]").HasAttribute("disabled"));
+
+        // Fill the second row → now enabled.
+        QtyInputForCode(cut, "MC-B").Change("6");
+        Assert.False(cut.Find("[data-testid=iqc-insp-complete]").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void Uom_chip_toggles_active_state()
+    {
+        Wire();
+        _api.SearchIqcMaterialImpl = (_, _, _) => Task.FromResult(EnrichedResults(
+            ("MC-A", "a", "M-A", 100)));
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        OpenMaterialsForm(cut);
+        cut.Find("[data-testid=iqc-search-input]").Input("MC");
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[data-testid=iqc-codeifs-tick]")));
+        cut.Find("[data-testid=iqc-codeifs-tick]").Click();
+
+        var chips = cut.FindAll("[data-testid=iqc-line-uom-chip]");
+        var roll = chips.First(c => c.GetAttribute("data-uom") == "Roll");
+        var pcs = chips.First(c => c.GetAttribute("data-uom") == "Pcs");
+        // Default Roll active.
+        Assert.Contains("iqc-uom-on", roll.GetAttribute("class"));
+        Assert.DoesNotContain("iqc-uom-on", pcs.GetAttribute("class"));
+
+        pcs.Click();
+        chips = cut.FindAll("[data-testid=iqc-line-uom-chip]");
+        Assert.DoesNotContain("iqc-uom-on", chips.First(c => c.GetAttribute("data-uom") == "Roll").GetAttribute("class"));
+        Assert.Contains("iqc-uom-on", chips.First(c => c.GetAttribute("data-uom") == "Pcs").GetAttribute("class"));
     }
 }
