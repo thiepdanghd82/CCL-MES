@@ -1,42 +1,75 @@
 using System.Globalization;
 using System.Text;
 using CCL.MES.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace CCL.MES.Application.Services;
 
-/// <summary>Result of an NPI CSV import.</summary>
-public sealed record NpiImportResult(string Kind, int Inserted, int Skipped);
+/// <summary>Result of an NPI import (CSV or XLSX).</summary>
+public sealed record NpiImportResult(string Kind, int Inserted, int Updated, int Skipped);
+
+/// <summary>Thrown when the header row cannot be located in a parsed grid
+/// (no row within the first <see cref="HeaderScanRows"/> rows contains a
+/// recognisable "Part No" / "Parent Part No" header). The controller maps
+/// this to 422 <c>import.header_not_found</c>.</summary>
+public sealed class ImportHeaderNotFoundException(string kind)
+    : Exception($"Could not locate a header row for NPI import kind '{kind}'.")
+{
+    public string Kind { get; } = kind;
+}
 
 /// <summary>
-/// P10.5 follow-up — CSV import for the NPI master-data grids
+/// P10.5 follow-up — import for the NPI master-data grids
 /// (Structure / Routing / Raw Materials), mirroring SpecHub's "Import…"
 /// button. Tolerant header mapping: each entity field is read by trying
-/// several candidate column names, so slightly different IFS export
-/// layouts still load. Rows missing the key part number are skipped.
-/// Append semantics (rows are added, not deduped) — use Clear first for
-/// a full reload.
+/// several candidate column names (case-insensitive), so slightly different
+/// IFS export layouts still load. Rows missing the key part number are
+/// skipped.
+///
+/// rawmaterials-bom-xlsx-import — this service is now format-agnostic: it
+/// operates on an already-parsed grid (string[][]). The controller decodes
+/// .xlsx (ClosedXML) or .csv into that grid before calling in. The header
+/// row is auto-detected (it need not be row 0 — the "Materials BOM" export
+/// has a blank first row). Raw Materials import is upsert-by-PartNo
+/// (idempotent); Structure/Routing keep append semantics.
 /// </summary>
 public sealed class NpiImportService
 {
+    /// <summary>How many leading rows to scan when auto-detecting the header.</summary>
+    public const int HeaderScanRows = 10;
+
     private readonly IMesDbContext _db;
     public NpiImportService(IMesDbContext db) => _db = db;
 
-    public async Task<NpiImportResult> ImportAsync(
+    // ── Legacy Stream entry point (CSV only) — kept so existing callers +
+    //    tests still compile; delegates to the grid overload. ──────────────
+    public Task<NpiImportResult> ImportAsync(
         string kind, Stream csv, string? actor, CancellationToken ct = default)
     {
         using var reader = new StreamReader(csv, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
-        var text = await reader.ReadToEndAsync(ct);
-        var rows = ParseCsv(text);
-        if (rows.Count < 2) return new NpiImportResult(kind, 0, 0);
+        var text = reader.ReadToEnd();
+        var grid = ParseCsv(text);
+        return ImportAsync(kind, grid, actor, ct);
+    }
 
-        var idx = BuildHeaderIndex(rows[0]);
+    // ── Format-agnostic entry point — the grid is already parsed. ──────────
+    public async Task<NpiImportResult> ImportAsync(
+        string kind, IReadOnlyList<IReadOnlyList<string>> rows, string? actor,
+        CancellationToken ct = default)
+    {
+        if (rows.Count == 0) return new NpiImportResult(kind, 0, 0, 0);
+
+        var headerRow = FindHeaderRow(rows);
+        if (headerRow < 0) throw new ImportHeaderNotFoundException(kind);
+
+        var idx = BuildHeaderIndex(rows[headerRow]);
         var now = DateTime.UtcNow;
-        int inserted = 0, skipped = 0;
+        int inserted = 0, updated = 0, skipped = 0;
 
         switch (kind.ToLowerInvariant())
         {
             case "structures":
-                for (var i = 1; i < rows.Count; i++)
+                for (var i = headerRow + 1; i < rows.Count; i++)
                 {
                     var r = rows[i];
                     var parent = Get(r, idx, "Parent Part No", "ParentPart", "Parent Part");
@@ -67,7 +100,7 @@ public sealed class NpiImportService
                 break;
 
             case "routings":
-                for (var i = 1; i < rows.Count; i++)
+                for (var i = headerRow + 1; i < rows.Count; i++)
                 {
                     var r = rows[i];
                     var part = Get(r, idx, "Part No", "PartNo", "Part");
@@ -98,27 +131,40 @@ public sealed class NpiImportService
                 break;
 
             case "rawmaterials":
-                for (var i = 1; i < rows.Count; i++)
+                // Upsert-by-PartNo. Preload the existing catalog keyed by
+                // trimmed PartNo so re-importing the same file is idempotent
+                // (row appears as Updated, not a duplicate insert).
+                // First-wins on collisions: the live table may already hold
+                // duplicate PartNo rows from historical append-only imports
+                // (92 groups observed on prod 2026-08-20). ToDictionary would
+                // throw on those; TryAdd tolerates them — the first row wins
+                // the update target, the stale twins are left untouched.
+                var existing = new Dictionary<string, RawMaterial>(StringComparer.Ordinal);
+                foreach (var e in await _db.RawMaterials.ToListAsync(ct))
+                    existing.TryAdd(e.PartNo, e);
+
+                for (var i = headerRow + 1; i < rows.Count; i++)
                 {
                     var r = rows[i];
                     var part = Get(r, idx, "Part No", "PartNo", "Part");
                     if (string.IsNullOrWhiteSpace(part)) { skipped++; continue; }
-                    _db.RawMaterials.Add(new RawMaterial
+                    var partNo = part!.Trim();
+
+                    if (existing.TryGetValue(partNo, out var row))
                     {
-                        PartNo = part!.Trim(),
-                        PartDescription = Get(r, idx, "Part Description"),
-                        SupplierId = Get(r, idx, "Supplier Id", "Supplier ID"),
-                        SupplierName = Get(r, idx, "Supplier Name", "Supplier"),
-                        Price = Num(Get(r, idx, "Price")),
-                        Currency = Get(r, idx, "Currency"),
-                        PurchUom = Get(r, idx, "Purch UOM", "Purchase UOM"),
-                        InventoryUom = Get(r, idx, "Inventory UOM"),
-                        StatusCode = Get(r, idx, "Status Code", "Status"),
-                        CountryOfOrigin = Get(r, idx, "Country Of Origin", "Country of Origin"),
-                        CreatedAt = now,
-                        CreatedBy = actor,
-                    });
-                    inserted++;
+                        MapRawMaterial(row, r, idx, overwriteNulls: false);
+                        row.UpdatedAt = now;
+                        row.UpdatedBy = actor;
+                        updated++;
+                    }
+                    else
+                    {
+                        var fresh = new RawMaterial { PartNo = partNo, CreatedAt = now, CreatedBy = actor };
+                        MapRawMaterial(fresh, r, idx, overwriteNulls: true);
+                        _db.RawMaterials.Add(fresh);
+                        existing[partNo] = fresh;   // dedupe within the same file
+                        inserted++;
+                    }
                 }
                 break;
 
@@ -127,10 +173,75 @@ public sealed class NpiImportService
         }
 
         await _db.SaveChangesAsync(ct);
-        return new NpiImportResult(kind, inserted, skipped);
+        return new NpiImportResult(kind, inserted, updated, skipped);
+    }
+
+    // ── Raw-material field mapping (case-insensitive header aliases). ───────
+    // overwriteNulls=false → never clobber an existing value with a blank
+    // cell (partial re-imports keep prior data).
+    private static void MapRawMaterial(
+        RawMaterial e, IReadOnlyList<string> r, Dictionary<string, int> idx, bool overwriteNulls)
+    {
+        SetStr(v => e.PartDescription = v, Get(r, idx, "Part Description In Use", "Part Description", "Part Desc"), overwriteNulls);
+        SetStr(v => e.MotherCode = v, Get(r, idx, "Mother code", "Mother Code"), overwriteNulls);
+        SetStr(v => e.DimensionQuality = v, Get(r, idx, "Dimension/ Quality", "Dimension/Quality", "Dimension / Quality"), overwriteNulls);
+        SetNum(v => e.WidthMm = v, Get(r, idx, "Width (mm)", "Width"), overwriteNulls);
+        SetStr(v => e.PartType = v, Get(r, idx, "Part Type"), overwriteNulls);
+        SetStr(v => e.Planner = v, Get(r, idx, "Planner"), overwriteNulls);
+        SetStr(v => e.InventoryUom = v, Get(r, idx, "Inventory UoM", "Inventory UOM", "Inventory U/M"), overwriteNulls);
+        SetStr(v => e.AccountingGroupDescription = v, Get(r, idx, "Accounting Group Description"), overwriteNulls);
+        SetStr(v => e.ProductFamily = v, Get(r, idx, "Part Product Family"), overwriteNulls);
+        SetStr(v => e.ProductFamilyDescription = v, Get(r, idx, "Part Product Family Description"), overwriteNulls);
+        SetStr(v => e.TypeDesignation = v, Get(r, idx, "Type Designation"), overwriteNulls);
+        SetNum(v => e.Price = v, Get(r, idx, "Price"), overwriteNulls);
+        SetNum(v => e.PriceInclTax = v, Get(r, idx, "Price incl. Tax", "Price incl Tax"), overwriteNulls);
+        SetStr(v => e.Currency = v, Get(r, idx, "Currency"), overwriteNulls);
+        SetStr(v => e.PriceUom = v, Get(r, idx, "Price Unit Measure", "Price UOM"), overwriteNulls);
+        SetNum(v => e.SupplierLeadtimeDays = v, Get(r, idx, "Supplier Manufacturing Leadtime", "Leadtime"), overwriteNulls);
+        SetNum(v => e.Thickness = v, Get(r, idx, "Thickness"), overwriteNulls);
+        SetStr(v => e.LeadTimeCode = v, Get(r, idx, "Lead Time Code"), overwriteNulls);
+        SetStr(v => e.SupplierId = v, Get(r, idx, "Supplier ID", "Supplier Id"), overwriteNulls);
+        SetStr(v => e.SupplierName = v, Get(r, idx, "Supplier Name", "Supplier"), overwriteNulls);
+        // Legacy fields still honoured if present in a wider IFS export.
+        SetStr(v => e.PurchUom = v, Get(r, idx, "Purch UOM", "Purchase UOM"), overwriteNulls);
+        SetStr(v => e.StatusCode = v, Get(r, idx, "Status Code", "Status"), overwriteNulls);
+        SetStr(v => e.CountryOfOrigin = v, Get(r, idx, "Country Of Origin", "Country of Origin"), overwriteNulls);
+    }
+
+    private static void SetStr(Action<string?> set, string? value, bool overwriteNulls)
+    {
+        if (value is not null) set(value);
+        else if (overwriteNulls) set(null);
+    }
+
+    private static void SetNum(Action<double?> set, string? value, bool overwriteNulls)
+    {
+        var n = Num(value);
+        if (n is not null) set(n);
+        else if (overwriteNulls) set(null);
     }
 
     // ── helpers ─────────────────────────────────────────────────────
+
+    /// <summary>Scan the first <see cref="HeaderScanRows"/> rows and return
+    /// the index of the first row whose normalised (lower+trim) cells contain
+    /// a recognised key header ("part no" / "part_no" / "parent part no").
+    /// Returns -1 when none is found.</summary>
+    private static int FindHeaderRow(IReadOnlyList<IReadOnlyList<string>> rows)
+    {
+        var limit = Math.Min(HeaderScanRows, rows.Count);
+        for (var i = 0; i < limit; i++)
+        {
+            foreach (var cell in rows[i])
+            {
+                var c = cell.Trim().ToLowerInvariant();
+                if (c is "part no" or "part_no" or "partno"
+                      or "parent part no" or "parent_part_no")
+                    return i;
+            }
+        }
+        return -1;
+    }
 
     private static Dictionary<string, int> BuildHeaderIndex(IReadOnlyList<string> header)
     {
@@ -160,7 +271,9 @@ public sealed class NpiImportService
     {
         if (string.IsNullOrWhiteSpace(s)) return null;
         var t = s.Replace("%", "").Replace(",", "").Trim();
-        return double.TryParse(t, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : null;
+        // NumberStyles.Float allows scientific notation (e.g. "4.5E-2").
+        return double.TryParse(t, NumberStyles.Float | NumberStyles.AllowThousands,
+            CultureInfo.InvariantCulture, out var d) ? d : null;
     }
 
     /// <summary>Minimal RFC-4180 CSV parser — handles quoted fields with

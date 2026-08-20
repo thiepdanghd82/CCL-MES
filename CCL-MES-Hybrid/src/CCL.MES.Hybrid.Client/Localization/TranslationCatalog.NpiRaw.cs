@@ -52,5 +52,17 @@ public sealed partial class TranslationCatalog
         Add("npiraw.col.net_weight_uom",    "ĐVT khối lượng",                     "Weight UOM");
         Add("npiraw.col.next_order_date",   "Ngày đặt kế tiếp",                   "Next Order Date");
         Add("npiraw.col.notes",             "Ghi chú",                            "Notes");
+        // rawmaterials-bom-xlsx-import — 11 cột "Materials BOM".
+        Add("npiraw.col.mother_code",           "Mã mẹ",                          "Mother Code");
+        Add("npiraw.col.dimension_quality",     "Kích thước / Quy cách",          "Dimension / Quality");
+        Add("npiraw.col.width_mm",              "Khổ (mm)",                       "Width (mm)");
+        Add("npiraw.col.part_type",             "Loại hàng",                      "Part Type");
+        Add("npiraw.col.planner",               "Người hoạch định",               "Planner");
+        Add("npiraw.col.acct_group_desc",       "Nhóm kế toán",                   "Accounting Group");
+        Add("npiraw.col.product_family",        "Nhóm sản phẩm",                  "Product Family");
+        Add("npiraw.col.product_family_desc",   "Mô tả nhóm sản phẩm",            "Product Family Description");
+        Add("npiraw.col.type_designation",      "Ký hiệu loại",                   "Type Designation");
+        Add("npiraw.col.thickness",             "Độ dày",                         "Thickness");
+        Add("npiraw.col.leadtime_code",         "Mã thời gian giao",              "Lead Time Code");
     }
 }

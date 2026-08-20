@@ -209,7 +209,9 @@ public sealed class CclApiClient : ICclApiClient
     {
         using var form = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent(content);
-        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/csv");
+        var isXlsx = fileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase);
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+            isXlsx ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv");
         form.Add(fileContent, "file", fileName);
         using var resp = await _http.PostAsync(
             $"/{ApiVersion.Prefix}/npi/{Uri.EscapeDataString(kind)}/import", form, ct);

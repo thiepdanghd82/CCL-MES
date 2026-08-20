@@ -8,11 +8,17 @@
 <Modal Open="Open" OnClose="OnClose" ClickOutsideToClose="!_busy">
     <Header>@T("npiimport.header", KindLabel)</Header>
     <Body>
-        <p class="md-muted">
-            @T("npiimport.instructions.before") <code>Parent Part No</code>,
-            <code>Component Part</code>@T("npiimport.instructions.after")
-        </p>
-        <InputFile OnChange="OnFileAsync" accept=".csv,text/csv" disabled="@_busy" />
+        @if (Kind == "rawmaterials")
+        {
+            <p class="md-muted">@T("npiimport.instructions.rawmaterials")</p>
+        }
+        else
+        {
+            <p class="md-muted">
+                @T("npiimport.instructions.before") <code>Part No</code>@T("npiimport.instructions.after")
+            </p>
+        }
+        <InputFile OnChange="OnFileAsync" accept=".xlsx,.csv" disabled="@_busy" />
         @if (_busy)
         {
             <p class="md-muted" style="margin-top:10px;">@T("npiimport.importing")</p>
@@ -20,7 +26,7 @@
         @if (_result is not null)
         {
             <p class="grid-status" style="margin-top:10px;">
-                ✔ @T("npiimport.result", _result.Inserted, _result.Skipped)
+                ✔ @T("npiimport.result", _result.Inserted, _result.Updated, _result.Skipped)
             </p>
         }
         @if (_error is not null)
@@ -62,6 +68,16 @@
             _result = await Api.ImportNpiAsync(Kind, e.File.Name, ms.ToArray());
             if (_result is not null)
                 await OnImported.InvokeAsync();
+        }
+        catch (ApiException apiEx)
+        {
+            _error = apiEx.ApiError.Code switch
+            {
+                "import.header_not_found" => T("npiimport.err.header_not_found"),
+                "import.xlsx_unreadable"  => T("npiimport.err.xlsx_unreadable"),
+                "import.no_file"          => T("npiimport.err.no_file"),
+                _                          => apiEx.ApiError.MessageEn,
+            };
         }
         catch (Exception ex)
         {

@@ -145,6 +145,18 @@ else if (_data is not null)
             new ColumnDef("net_weight_uom",     T("npiraw.col.net_weight_uom"), DefaultVisible: false),
             new ColumnDef("next_order_date",    T("npiraw.col.next_order_date"), DefaultVisible: false),
             new ColumnDef("notes",              T("npiraw.col.notes"), DefaultVisible: false),
+            // rawmaterials-bom-xlsx-import — 11 "Materials BOM" columns.
+            new ColumnDef("mother_code",        T("npiraw.col.mother_code"), DefaultVisible: false),
+            new ColumnDef("dimension_quality",  T("npiraw.col.dimension_quality"), DefaultVisible: false),
+            new ColumnDef("width_mm",           T("npiraw.col.width_mm"), DefaultVisible: false),
+            new ColumnDef("part_type",          T("npiraw.col.part_type"), DefaultVisible: false),
+            new ColumnDef("planner",            T("npiraw.col.planner"), DefaultVisible: false),
+            new ColumnDef("acct_group_desc",    T("npiraw.col.acct_group_desc"), DefaultVisible: false),
+            new ColumnDef("product_family",     T("npiraw.col.product_family"), DefaultVisible: false),
+            new ColumnDef("product_family_desc",T("npiraw.col.product_family_desc"), DefaultVisible: false),
+            new ColumnDef("type_designation",   T("npiraw.col.type_designation"), DefaultVisible: false),
+            new ColumnDef("thickness",          T("npiraw.col.thickness"), DefaultVisible: false),
+            new ColumnDef("leadtime_code",      T("npiraw.col.leadtime_code"), DefaultVisible: false),
         }, PrefStore);
         await LoadAsync();
     }
@@ -208,7 +220,9 @@ else if (_data is not null)
         "part_no" or "supplier_id" or "supplier_part_no" => "grid-col-mono",
         "price" or "price_incl_tax" or "min_qty"
             or "std_multiple" or "std_pack" or "conversion"
-            or "leadtime" or "net_weight"                 => "grid-col-num",
+            or "leadtime" or "net_weight"
+            or "width_mm" or "thickness"                   => "grid-col-num",
+        "mother_code"                                      => "grid-col-mono",
         _                                                  => "",
     };
 
@@ -244,6 +258,17 @@ else if (_data is not null)
             case "net_weight_uom":      __builder.AddContent(0, row.NetWeightUom ?? "—"); break;
             case "next_order_date":     __builder.AddContent(0, row.NextOrderDate ?? "—"); break;
             case "notes":               __builder.AddContent(0, row.Notes ?? "—"); break;
+            case "mother_code":         __builder.OpenElement(0, "code"); __builder.AddContent(1, row.MotherCode ?? ""); __builder.CloseElement(); break;
+            case "dimension_quality":   __builder.AddContent(0, row.DimensionQuality ?? "—"); break;
+            case "width_mm":            __builder.AddContent(0, row.WidthMm?.ToString("0.##") ?? "—"); break;
+            case "part_type":           __builder.AddContent(0, row.PartType ?? "—"); break;
+            case "planner":             __builder.AddContent(0, row.Planner ?? "—"); break;
+            case "acct_group_desc":     __builder.AddContent(0, row.AccountingGroupDescription ?? "—"); break;
+            case "product_family":      __builder.AddContent(0, row.ProductFamily ?? "—"); break;
+            case "product_family_desc": __builder.AddContent(0, row.ProductFamilyDescription ?? "—"); break;
+            case "type_designation":    __builder.AddContent(0, row.TypeDesignation ?? "—"); break;
+            case "thickness":           __builder.AddContent(0, row.Thickness?.ToString("0.#####") ?? "—"); break;
+            case "leadtime_code":       __builder.AddContent(0, row.LeadTimeCode ?? "—"); break;
         }
     };
 }

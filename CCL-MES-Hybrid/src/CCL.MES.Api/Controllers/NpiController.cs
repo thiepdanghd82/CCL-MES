@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using ClosedXML.Excel;
 using CCL.MES.Application;
 using CCL.MES.Application.Services;
 using CCL.MES.Shared;
@@ -29,9 +30,11 @@ public sealed class NpiController : ControllerBase
         _import = import;
     }
 
-    // P10.5 follow-up — CSV import for the three big grids (SpecHub
-    // "Import…" parity). Write surface → tighten to editor roles even
-    // though the read grids are open to QC too.
+    // P10.5 follow-up — import for the three big grids (SpecHub "Import…"
+    // parity). Write surface → tighten to editor roles even though the read
+    // grids are open to QC too. rawmaterials-bom-xlsx-import: accepts .xlsx
+    // (ClosedXML → grid) as well as .csv; the header row is auto-detected in
+    // the Application layer so the "Materials BOM" export (blank row 1) loads.
     [HttpPost("{kind}/import")]
     [Authorize(Roles = "Admin,Supervisor,Engineer")]
     [RequestSizeLimit(256L * 1024 * 1024)]
@@ -41,12 +44,117 @@ public sealed class NpiController : ControllerBase
         if (k is not ("structures" or "routings" or "rawmaterials"))
             return NotFound();
         if (file is null || file.Length == 0)
-            return UnprocessableEntity(new { code = "import.no_file", error = "No CSV file was uploaded." });
+            return UnprocessableEntity(ApiError.Of("import.no_file", "No file was uploaded."));
 
-        await using var stream = file.OpenReadStream();
+        var name = file.FileName ?? "";
+        var isXlsx = name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase);
         var actor = User.Identity?.Name;
-        var result = await _import.ImportAsync(k, stream, actor, ct);
-        return Ok(result);
+
+        try
+        {
+            IReadOnlyList<IReadOnlyList<string>> grid;
+            if (isXlsx)
+            {
+                await using var xs = file.OpenReadStream();
+                grid = ReadXlsxGrid(xs);
+            }
+            else
+            {
+                await using var cs = file.OpenReadStream();
+                using var reader = new StreamReader(cs, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                grid = ParseCsvGrid(await reader.ReadToEndAsync(ct));
+            }
+
+            var result = await _import.ImportAsync(k, grid, actor, ct);
+            return Ok(result);
+        }
+        catch (ImportHeaderNotFoundException)
+        {
+            return UnprocessableEntity(ApiError.Of("import.header_not_found",
+                "Could not find a header row (looked for a 'Part No' column in the first 10 rows)."));
+        }
+        catch (Exception ex) when (isXlsx)
+        {
+            return UnprocessableEntity(ApiError.Of("import.xlsx_unreadable",
+                $"The .xlsx file could not be read: {ex.Message}"));
+        }
+    }
+
+    // ── grid decoders (format → string[][]) ─────────────────────────────
+    // xlsx: first worksheet, every used cell as a string (blank → ""), so the
+    // Application layer stays format-agnostic and can auto-detect the header.
+    private static IReadOnlyList<IReadOnlyList<string>> ReadXlsxGrid(Stream xlsx)
+    {
+        using var wb = new XLWorkbook(xlsx);
+        var ws = wb.Worksheets.FirstOrDefault()
+                 ?? throw new InvalidOperationException("The workbook has no worksheet.");
+        var used = ws.RangeUsed();
+        var grid = new List<IReadOnlyList<string>>();
+        if (used is null) return grid;
+
+        int lastCol = used.LastColumn().ColumnNumber();
+        foreach (var row in used.Rows())
+        {
+            var cells = new List<string>(lastCol);
+            for (var c = 1; c <= lastCol; c++)
+                cells.Add(CellToString(row.Cell(c)));
+            grid.Add(cells);
+        }
+        return grid;
+    }
+
+    // ClosedXML's GetString() formats numbers/dates with CurrentCulture — on a
+    // comma-decimal culture "0.045" comes back "0,045", which the downstream
+    // comma-stripping Num() then turns into 45 (×1000 corruption). Read numbers
+    // and dates via their invariant representation so the grid is culture-proof;
+    // text/blank cells pass through as-is. (Caught by wire verify 2026-08-20 —
+    // Thickness 4.5E-2 landed as 45.0 before this fix.)
+    private static string CellToString(IXLCell cell) => cell.DataType switch
+    {
+        XLDataType.Number   => cell.GetDouble().ToString(CultureInfo.InvariantCulture),
+        XLDataType.DateTime => cell.GetDateTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        _                   => cell.GetString() ?? "",
+    };
+
+    private static IReadOnlyList<IReadOnlyList<string>> ParseCsvGrid(string text)
+    {
+        var rows = new List<IReadOnlyList<string>>();
+        var field = new StringBuilder();
+        var row = new List<string>();
+        bool inQuotes = false;
+        for (var i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+            if (inQuotes)
+            {
+                if (ch == '"')
+                {
+                    if (i + 1 < text.Length && text[i + 1] == '"') { field.Append('"'); i++; }
+                    else inQuotes = false;
+                }
+                else field.Append(ch);
+            }
+            else
+            {
+                switch (ch)
+                {
+                    case '"': inQuotes = true; break;
+                    case ',': row.Add(field.ToString()); field.Clear(); break;
+                    case '\r': break;
+                    case '\n':
+                        row.Add(field.ToString()); field.Clear();
+                        rows.Add(row); row = new List<string>();
+                        break;
+                    default: field.Append(ch); break;
+                }
+            }
+        }
+        if (field.Length > 0 || row.Count > 0)
+        {
+            row.Add(field.ToString());
+            rows.Add(row);
+        }
+        return rows;
     }
 
     [HttpGet("workcenters")]
