@@ -73,8 +73,16 @@ window.cclMesGrid = (() => {
     function measure(sel, rowPx) {
         const el = document.querySelector(sel);
         if (!el || el.clientHeight <= 0) return 0;
-        const row = el.querySelector('tbody tr');
-        const rh = row && row.offsetHeight ? row.offsetHeight : rowPx;
+        // Rows vary in height (descriptions wrap to 1–3 lines). Measuring only
+        // the FIRST row biases the estimate toward whatever that row's height
+        // is — a tall wrapped first row made the grid request ~10 rows and
+        // leave the bottom half of the viewport blank. Average across the
+        // rendered rows so the page size tracks the real mean row height and
+        // fills the viewport (a slight over/under just adds/removes one row).
+        const rows = el.querySelectorAll('tbody tr');
+        let rh = rowPx, n = 0, sum = 0;
+        for (const r of rows) { if (r.offsetHeight > 0) { sum += r.offsetHeight; n++; } }
+        if (n > 0) rh = sum / n;
         const head = el.querySelector('thead');
         const hh = head && head.offsetHeight ? head.offsetHeight : rh;
         if (rh <= 0) return 0;
@@ -90,8 +98,11 @@ window.cclMesGrid = (() => {
         const onResize = () => { clearTimeout(t); t = setTimeout(fire, 200); };
         regs.set(id, onResize);
         window.addEventListener('resize', onResize);
-        // Let the flex layout settle before the first measure.
-        setTimeout(fire, 80);
+        // Fire after the flex layout settles. WKWebView (Mac Catalyst) can
+        // report a stale clientHeight if measured too early, so fire across a
+        // double rAF and again at 250ms — the largest (fullest) result wins.
+        requestAnimationFrame(() => requestAnimationFrame(fire));
+        setTimeout(fire, 250);
     }
 
     function unregister(id) {
