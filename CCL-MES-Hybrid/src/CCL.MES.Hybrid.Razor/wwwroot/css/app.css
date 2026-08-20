@@ -7507,6 +7507,39 @@ tr.wc-row:hover { background: var(--c-bg); }
 .iqc-pick-desc { color: var(--c-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .iqc-pick-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+/* ── IQC materials line-items table (feat/iqc-materials-line-table). Mỗi Code
+   IFS đã tick = 1 dòng, Quantity + UoM riêng. Global; token semantic only.
+   Width/Quantity căn phải; sticky head; container-query cho hẹp. */
+.iqc-lines-wrap { border: 1px solid var(--c-border); border-radius: var(--r-md); overflow-x: auto; }
+.iqc-lines { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.iqc-lines thead th {
+    position: sticky; top: 0; z-index: 1;
+    text-align: left; padding: var(--sp-2) var(--sp-3); min-height: var(--d-tap, 32px);
+    font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--c-ink-3);
+    background: var(--c-surface-2); border-bottom: 1px solid var(--c-border); white-space: nowrap;
+}
+.iqc-lines tbody td { padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--c-border); vertical-align: middle; }
+.iqc-lines tbody tr:last-child td { border-bottom: 0; }
+.iqc-lines-sel { width: 1%; text-align: center; }
+.iqc-lines-num { text-align: right; }
+.iqc-line-code { font-weight: var(--fw-bold); white-space: nowrap; }
+.iqc-line-partdesc { color: var(--c-muted); min-width: 160px; }
+.iqc-line-qty { width: 100px; text-align: right; }
+.iqc-line-select { width: var(--d-tap, 20px); height: var(--d-tap, 20px); min-width: 20px; min-height: 20px; cursor: pointer; }
+.iqc-uom-chips { display: inline-flex; gap: var(--sp-1); }
+.iqc-uom-chip {
+    border: 1px solid var(--c-border); background: var(--c-surface); cursor: pointer;
+    padding: var(--sp-1) var(--sp-3); min-height: var(--d-tap, 32px); border-radius: var(--r-pill);
+    font-size: var(--fs-sm); color: var(--c-ink-1); white-space: nowrap;
+}
+.iqc-uom-chip:hover { border-color: var(--brand); }
+.iqc-uom-on { background: var(--brand-bg); border-color: var(--brand); color: var(--brand); font-weight: var(--fw-bold); }
+.iqc-uom-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+@container (max-width: 640px) {
+    .iqc-line-partdesc { min-width: 120px; }
+    .iqc-line-qty { width: 72px; }
+}
+
 /* ══ IQC module tabs (feat/iqc-module-tabs) — 3 sub-tab, KPI, group picker,
    IQC Data grid, placeholder forms. Global; tokens only (L37/L41).
    Operator surface → mọi vùng chạm ≥ var(--d-tap). ══ */

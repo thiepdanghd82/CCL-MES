@@ -67,5 +67,14 @@ public sealed partial class TranslationCatalog
         Add("iqc.multi.codeifs.pick",    "Chọn Code IFS (tick nhiều)",           "Pick Code IFS (multi-select)");
         Add("iqc.multi.lotbatch.hint",   "Nhiều Code IFS → tự thêm hậu tố -01…-0N vào số lô.",
                                                                                  "Multiple Code IFS → lot number auto-suffixed -01…-0N.");
+
+        // ── Bảng dòng-vật-tư (feat/iqc-materials-line-table) — mỗi Code IFS đã
+        //    tick = 1 dòng, Quantity + UoM riêng. UoM = chip Roll | Pcs. ──
+        Add("iqc.lines.col.select",      "Chọn",                                 "Select");
+        Add("iqc.lines.col.mother",      "Mã mẹ",                                "Mother code");
+        Add("iqc.lines.col.partdesc",    "Mô tả part",                           "Part description");
+        Add("iqc.lines.col.width",       "Khổ (mm)",                             "Width (mm)");
+        Add("iqc.uom.roll",              "Cuộn",                                 "Roll");
+        Add("iqc.uom.pcs",               "Cái",                                  "Pcs");
     }
 }

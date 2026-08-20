@@ -62,6 +62,11 @@ public sealed class IqcMaterialSearchItem
 {
     public string CodeIfs { get; set; } = "";
     public string? IfsDescription { get; set; }
+    // feat/iqc-materials-line-table — bảng line-items (Part No/Mother code/Part
+    // description/Width) mỗi Code IFS đã tick. Additive; nullable.
+    public string? MotherCode { get; set; }
+    public double? WidthMm { get; set; }
+    public string? PartDescription { get; set; }
 }
 
 /// <summary>Thân phản hồi <c>GET /api/v2/iqc/search-material</c> — phân trang +

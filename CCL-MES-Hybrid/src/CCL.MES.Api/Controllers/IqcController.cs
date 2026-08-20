@@ -152,6 +152,9 @@ public sealed class IqcController : ControllerBase
             {
                 CodeIfs = x.CodeIfs,
                 IfsDescription = x.IfsDescription,
+                MotherCode = x.MotherCode,
+                WidthMm = x.WidthMm,
+                PartDescription = x.PartDescription,
             }).ToList(),
         });
     }

@@ -44,11 +44,16 @@ public sealed class IqcTicketTests : IClassFixture<MesApiFactory>
         return r;
     }
 
-    private async Task SeedRawAsync(string partNo, string? desc = null, string? supplier = null)
+    private async Task SeedRawAsync(string partNo, string? desc = null, string? supplier = null,
+        string? motherCode = null, double? widthMm = null)
     {
         using var scope = _fx.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
-        db.RawMaterials.Add(new RawMaterial { PartNo = partNo, PartDescription = desc, SupplierName = supplier });
+        db.RawMaterials.Add(new RawMaterial
+        {
+            PartNo = partNo, PartDescription = desc, SupplierName = supplier,
+            MotherCode = motherCode, WidthMm = widthMm,
+        });
         await db.SaveChangesAsync();
     }
 
@@ -237,6 +242,26 @@ public sealed class IqcTicketTests : IClassFixture<MesApiFactory>
         Assert.Equal(14, body.Total);
         Assert.Equal(14, body.Items.Select(x => x.CodeIfs).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.All(body.Items, x => Assert.StartsWith("NITTO-5000NS-", x.CodeIfs));
+    }
+
+    [Fact]
+    public async Task SearchMaterial_returns_representative_row_mother_width_partdesc()
+    {
+        // feat/iqc-materials-line-table — dòng đại diện = OrderBy Id (dòng seed
+        // đầu tiên của group). Seed 2 dòng cùng PartNo với Mother/Width khác nhau;
+        // kết quả phải mang giá trị của dòng đầu.
+        await SeedRawAsync("LINE-ENRICH-01", "MYLAR ENRICH sheet A", motherCode: "MOTHER-A", widthMm: 320.5);
+        await SeedRawAsync("LINE-ENRICH-01", "MYLAR ENRICH sheet B", motherCode: "MOTHER-B", widthMm: 999);
+
+        var c = await ClientAsync("qc-search-enrich", UserRole.Qc);
+        var resp = await c.GetAsync("/api/v2/iqc/search-material?desc=" + Uri.EscapeDataString("MYLAR ENRICH"));
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+
+        var body = (await resp.Content.ReadFromJsonAsync<IqcMaterialSearchResponse>())!;
+        var row = Assert.Single(body.Items, x => x.CodeIfs == "LINE-ENRICH-01");
+        Assert.Equal("MOTHER-A", row.MotherCode);
+        Assert.Equal(320.5, row.WidthMm);
+        Assert.Equal("MYLAR ENRICH sheet A", row.PartDescription);
     }
 
     [Fact]
