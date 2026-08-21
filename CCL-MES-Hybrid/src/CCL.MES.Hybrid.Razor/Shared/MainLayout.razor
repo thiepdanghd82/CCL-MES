@@ -50,6 +50,7 @@
                         <FloatingWindow WindowId="@w.Id"
                                         Title="@w.Title"
                                         AriaLabel="@w.Title"
+                                        IsActive="@w.IsActive"
                                         Rect="RectStore.Get(w.Key)"
                                         OnRectChanged="r => RectStore.Save(w.Key, r)"
                                         OnClose="() => WM.Close(w.Id)"

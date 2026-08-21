@@ -1,3 +1,4 @@
+using System.Linq;
 using Bunit;
 using CCL.MES.Hybrid.Client.Localization;
 using CCL.MES.Hybrid.Razor.Shared;
@@ -58,6 +59,34 @@ public sealed class FloatingWindowManagerCallbackTests : TestContext
 
         cut.Find(".trace-win").PointerDown();
         Assert.True(focused);
+    }
+
+    [Fact]
+    public void Activating_brings_the_fixed_window_to_front()
+    {
+        // P2 fix — taskbar chip click marks the window active via IsActive but
+        // does NOT fire its pointerdown; the real z-index of the position:fixed
+        // .trace-win must still be raised (host wrapper z-index can't restack it).
+        var cut = RenderComponent<FloatingWindow>(p => p
+            .Add(x => x.Title, "WO-9")
+            .Add(x => x.IsActive, false)
+            .AddChildContent("<span/>"));
+
+        Assert.Equal(0, JSInterop.Invocations.Count(i => i.Identifier == "cclMesFloat.bringToFront"));
+
+        cut.SetParametersAndRender(p => p.Add(x => x.IsActive, true));   // host focus
+        JSInterop.VerifyInvoke("cclMesFloat.bringToFront");
+    }
+
+    [Fact]
+    public void A_window_that_mounts_active_is_brought_to_front()
+    {
+        RenderComponent<FloatingWindow>(p => p
+            .Add(x => x.Title, "WO-9")
+            .Add(x => x.IsActive, true)
+            .AddChildContent("<span/>"));
+
+        JSInterop.VerifyInvoke("cclMesFloat.bringToFront");
     }
 
     [Fact]
