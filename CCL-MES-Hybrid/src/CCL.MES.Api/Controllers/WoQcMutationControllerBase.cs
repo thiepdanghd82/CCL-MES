@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using System.Text.Json;
+using CCL.MES.Api.Services;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
+using CCL.MES.Application.Services;
 using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Shared;
@@ -23,6 +25,9 @@ namespace CCL.MES.Api.Controllers;
 /// </summary>
 public abstract class WoQcMutationControllerBase : ControllerBase
 {
+    protected const string KindFqc = "FQC";
+    protected const string KindOqc = "OQC";
+
     protected readonly IMesDbContext _db;
     protected readonly IAuditWriter _audit;
 
@@ -143,5 +148,72 @@ public abstract class WoQcMutationControllerBase : ControllerBase
         if (trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"')
             trimmed = trimmed[1..^1];
         return trimmed;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Shared QC-mutation helpers (moved VERBATIM from WoQcReviewController
+    // so a WoQcPhotoController slice reuses kind normalisation + check
+    // materialisation + Q4 3-level profile resolution — NO behaviour change).
+    // ═══════════════════════════════════════════════════════════════
+
+    protected static string? NormaliseKind(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var s = raw.Trim().ToUpperInvariant();
+        return s switch { "FQC" => KindFqc, "OQC" => KindOqc, _ => null };
+    }
+
+    protected async Task<WoQcCheck> GetOrCreateCheckAsync(long woId, string kind, long? productId = null)
+    {
+        var check = await _db.WoQcChecks
+            .Include(c => c.Items)
+            .FirstOrDefaultAsync(c => c.WorkOrderId == woId && c.QcKind == kind);
+        if (check is not null)
+        {
+            // P10.7e-3 FIX — heal empty snapshot on mutation path too.
+            if ((string.IsNullOrWhiteSpace(check.ProfileSnapshotJson) || check.ProfileSnapshotJson == "{}")
+                && productId.HasValue)
+            {
+                var snap = await ResolveProfileSnapshotAsync(productId.Value, kind, CancellationToken.None);
+                if (snap != "{}") check.ProfileSnapshotJson = snap;
+            }
+            return check;
+        }
+
+        var resolved = productId.HasValue
+            ? await ResolveProfileSnapshotAsync(productId.Value, kind, CancellationToken.None)
+            : (QcProfileSeed.GetDefaultProfileJson(kind) ?? "{}");
+        check = new WoQcCheck
+        {
+            WorkOrderId = woId,
+            QcKind = kind,
+            ProfileSnapshotJson = resolved,
+            Judgment = WoQcJudgment.Pending,
+        };
+        _db.WoQcChecks.Add(check);
+        return check;
+    }
+
+    /// <summary>P10.7e-3 FIX — Q4 3-level profile resolution chain:
+    ///   L1: Product.QcProfileOverride (per-product override JSON;
+    ///       shape must include "kind" matching FQC / OQC)
+    ///   L2: QcProfileSeed.GetDefaultProfileJson(kind) (system default)
+    ///   L3: "{}" empty (only when both levels miss; checks render an
+    ///       empty banner so IT notices and seeds the profile).
+    /// Frozen at materialise time per Q3 — profile edits don't
+    /// retroactively change rows already in flight.</summary>
+    protected async Task<string> ResolveProfileSnapshotAsync(long productId, string kind, CancellationToken ct)
+    {
+        // L1 override JSON read stays here (EF async); the 3-level pure
+        // resolution lives in QcProfileResolver (A2 thin-controller, L47).
+        string? overrideJson = null;
+        if (productId > 0)
+        {
+            overrideJson = await _db.Products.AsNoTracking()
+                .Where(p => p.Id == productId)
+                .Select(p => p.QcProfileOverride)
+                .FirstOrDefaultAsync(ct);
+        }
+        return QcProfileResolver.ResolveSnapshot(overrideJson, kind);
     }
 }
