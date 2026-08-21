@@ -108,13 +108,29 @@ public static class WindowRegistryKeys
     // no self-hosted FloatingWindow, no URL-mode dispatch). Routes that carry a
     // param ({id}), self-host a FloatingWindow (IQC materials showcards,
     // /quality/traceability), share ONE component across two URL-modes
-    // (/qms + /qms/fqc), are a multi-route hub (/settings), or are heavily
-    // stateful on dispatch/AdvanceOrchestrator (/workorders) are DEFERRED to a
+    // (/qms + /qms/fqc), or are a multi-route hub (/settings) are DEFERRED to a
     // follow-up PR — see the p2-pr2 classification note.
+    //
+    // W5 (this migration) — /workorders NOW joins the window subset. It looked
+    // heavily stateful (MesPhase dispatch + AdvanceOrchestrator + 8 child
+    // dashboards), but on audit it is window-SAFE: param-free ([Authorize]
+    // any-auth, no [Parameter]), it does NOT self-host a FloatingWindow
+    // (WorkOrders.razor renders no <FloatingWindow>/role="dialog" — the WM host
+    // wraps it via DynamicComponent), it drives no @Body/route dispatch, and its
+    // dispatch state lives entirely inside the component (the 8 child dashboards
+    // are keep-alive children of the ONE window instance, so a focus / route
+    // change never tears down an in-flight scan or advance). The L21
+    // OnPhaseChanged re-fetch is internal to the component, not a shell nav.
     //
     // Home ("/") is DELIBERATELY NOT a window key: it is the default full-page
     // landing (Home dashboard renders in @Body). Making it a window key would
     // flip "/" to a window-route and show the empty WorkspaceHome on app open.
+
+    /// <summary>Work Orders scan→advance hub — <c>@page "/workorders"</c>,
+    /// <c>[Authorize]</c> (any auth). Param-free page whose 8 child dashboards
+    /// (Prepress/Setting/Running/IPQC/QA/FQC/OQC/Legs) are keep-alive children of
+    /// the single window instance; no self-hosted FloatingWindow (WM host wraps).</summary>
+    public const string WorkOrders = "/workorders";
 
     /// <summary>NPI Structure (BOM) grid — <c>@page "/npi/structure"</c>,
     /// <c>[Authorize(Roles = "Admin,Supervisor,Engineer,QC")]</c>.</summary>
@@ -239,6 +255,9 @@ public static class WindowRegistryKeys
         public const string QmsIpqc = "windows.qms_ipqc.title";
         public const string QmsOqc = "windows.qms_oqc.title";
         public const string QmsIcra = "windows.qms_icra.title";
+
+        // W5 — Work Orders scan→advance hub (any-auth page → window).
+        public const string WorkOrders = "windows.workorders.title";
 
         // P2-PR3 route-param tabs.
         public const string QmsQueueHub = "windows.qms_queue.title";

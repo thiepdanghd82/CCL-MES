@@ -26,6 +26,9 @@ public sealed partial class TranslationCatalog
         Add("windows.qms_oqc.title",             "OQC — Kiểm đầu ra",                   "OQC — Outgoing");
         Add("windows.qms_icra.title",            "iCRA — Đối sách · CAPA",              "iCRA — Corrective action");
 
+        // W5 — Work Orders scan→advance hub window (mirrors nav.workorders intent).
+        Add("windows.workorders.title",          "Lệnh SX — Quét",                      "Work Orders — Scan");
+
         // P2-PR3 route-param tabs (WindowRegistryKeys.TitleKeys.* subset).
         Add("windows.qms_queue.title",           "Hàng chờ kiểm (QMS)",                 "Inspection Queue (QMS)");
         Add("windows.qms_queue_fqc.title",       "Hàng chờ kiểm · FQC",                 "Inspection Queue · FQC");

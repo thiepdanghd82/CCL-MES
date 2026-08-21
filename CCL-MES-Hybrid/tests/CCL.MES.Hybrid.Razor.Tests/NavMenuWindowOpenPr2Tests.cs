@@ -17,8 +17,10 @@ namespace CCL.MES.Hybrid.Razor.Tests;
 /// the QMS Dashboard/IPQC/OQC/iCRA modules) now open floating WINDOWS via
 /// WM.Open instead of navigating the whole shell, keeping AuthorizeView
 /// RBAC-by-omission. Mirrors NavMenuWindowOpenTests (PR1) but for the PR2 subset.
-/// The deferred routes (/npi/specs, /workorders, /qms/iqc, /qms, /qms/fqc,
+/// The deferred routes (/npi/specs, /qms/iqc, /qms, /qms/fqc,
 /// /quality/traceability, /settings) stay NavLinks — asserted here too.
+/// W5 moved /workorders to a window (Work_orders_tab_opens_as_window below), so
+/// only /qms/iqc + /settings remain full-page NavLinks in the deferred assertion.
 /// </summary>
 public sealed class NavMenuWindowOpenPr2Tests : TestContext
 {
@@ -50,6 +52,7 @@ public sealed class NavMenuWindowOpenPr2Tests : TestContext
             WindowRegistryKeys.SemiProducts,
             WindowRegistryKeys.QmsDashboard, WindowRegistryKeys.QmsIpqc,
             WindowRegistryKeys.QmsOqc, WindowRegistryKeys.QmsIcra,
+            WindowRegistryKeys.WorkOrders,
         })
         {
             _registry.Register(new WindowRegistryEntry(
@@ -117,13 +120,30 @@ public sealed class NavMenuWindowOpenPr2Tests : TestContext
         // Still-deferred surfaces keep their href anchor (no window button).
         // P2-PR3 moved /npi/specs, /qms, /qms/fqc to windows; P2 showcard-migration
         // moved /quality/traceability to a window too (see the button asserted in
-        // Traceability_tab_opens_as_window below). /workorders, /qms/iqc, /settings
-        // stay NavLinks.
-        Assert.NotNull(cut.Find("a[href='/workorders']"));
+        // Traceability_tab_opens_as_window below). W5 moved /workorders to a window
+        // (see Work_orders_tab_opens_as_window). /qms/iqc + /settings stay NavLinks.
         Assert.NotNull(cut.Find("a[href='/qms/iqc']"));
         Assert.NotNull(cut.Find("a[href='/settings']"));
-        // Traceability is no longer a NavLink anchor.
+        // Traceability + Work Orders are no longer NavLink anchors.
         Assert.Empty(cut.FindAll("a[href='/quality/traceability']"));
+        Assert.Empty(cut.FindAll("a[href='/workorders']"));
+    }
+
+    [Fact]
+    public void Work_orders_tab_opens_as_window()
+    {
+        // W5 — /workorders is now a window-open button (any-auth), not a NavLink.
+        // The key is bound in Wire() (ScanEnabled=true so the Production group
+        // renders the button).
+        Wire("Operator");
+        var cut = RenderComponent<NavMenu>();
+
+        // No stale NavLink anchor for the migrated route.
+        Assert.Empty(cut.FindAll("a[href='/workorders']"));
+
+        cut.Find("[data-testid='nav-win-workorders']").Click();
+        var win = Assert.Single(_wm.Windows);
+        Assert.Equal(WindowRegistryKeys.WorkOrders, win.Key);
     }
 
     [Fact]
