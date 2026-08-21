@@ -598,6 +598,53 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     }
 }
 
+/* Screen-reader-only utility — trong DOM + trợ năng đọc được, mắt không thấy,
+   không chiếm chỗ layout. Dùng khi cần GIỮ một phần tử cho screen-reader /
+   focus target / test selector nhưng thu lại khoảng trống hiển thị. */
+.ix-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    white-space: nowrap;
+    border: 0;
+    clip-path: inset(50%);
+}
+
+/* HM1 — trang render TRONG cửa sổ (FloatingWindow) đã có tiêu đề trên thanh
+   cửa sổ ⇒ tiêu đề trong thân trùng. Ẩn tiêu đề NHÌN THẤY để lấy lại khoảng
+   trống cho bảng, nhưng GIỮ <h1 class="page-title"> trong DOM dạng sr-only cho
+   screen-reader + FocusOnNavigate(Selector="h1") + test bám .page-title.
+   Specificity (0,3,0) > ix.css `.ix-page-head .page-title` (0,2,0) nên thắng
+   dù ix.css nạp sau. Eyebrow + subtitle + Actions VẪN hiện (không trùng tiêu đề). */
+.ix-page-head.is-windowed .page-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    white-space: nowrap;
+    border: 0;
+    clip-path: inset(50%);
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: currentColor;
+}
+
+/* Tiêu đề đã sr-only ⇒ khối đầu trang trong cửa sổ không còn gì để chiếm chỗ:
+   bỏ padding + đường kẻ hairline + margin để nội dung (toolbar/bảng) kéo sát lên
+   dưới thanh cửa sổ, cho bảng thoáng. Specificity (0,2,0) > ix.css `.ix-page-head`
+   (0,1,0) nên thắng dù ix.css nạp sau. Eyebrow/subtitle nếu có vẫn render (gọn ở
+   đỉnh); trang chỉ-tiêu-đề (vd Routings) thu về 0. */
+.ix-page-head.is-windowed {
+    padding: 0;
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
 .home-tiles {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -1313,6 +1360,8 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     text-align: left;
     border-bottom: 1px solid var(--c-divider);
     font-size: var(--fs-md);
+    /* HM2 — canh dòng nhất quán header + body. */
+    vertical-align: middle;
 }
 
 .grid th {
@@ -1966,7 +2015,8 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     text-align: left;
     padding: 8px 12px;
     border-bottom: 1px solid var(--c-divider);
-    vertical-align: top;
+    /* HM2 — canh dòng nhất quán header + body. */
+    vertical-align: middle;
 }
 
 .grid tbody tr:hover { background: var(--c-bg); }
@@ -1987,6 +2037,18 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 .grid-col-mono    { font-family: var(--font-mono); }
 .grid-col-narrow  { width: 8rem; }
 .grid-col-num     { text-align: right; }
+
+/* HM2 — MỘT font trong bảng dữ liệu. Cột mã (<code> + .grid-col-mono) trong
+   .grid/.qms-table/.ix-grid dùng --font-sans để không lẫn hai họ chữ với body;
+   tabular-nums giữ chữ số thẳng cột như monospace vẫn làm. --font-mono KHÔNG bị
+   xoá — spec sheet / scan HW / trace / audit vẫn dùng (chủ đích). Bảng trace
+   (.trace-grid / .trace-items) GIỮ mono cho <code> theo chủ đích trace nên loại
+   trừ; .grid-col-mono (cột mã NPI) mới là mục tiêu chính. */
+.grid:not(.trace-grid):not(.trace-items) code,
+.qms-table code, .ix-grid code, .grid-col-mono {
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
+}
 
 /* Grid pager */
 .grid-pager {
@@ -7328,11 +7390,14 @@ tr.wc-row:hover { background: var(--c-bg); }
 .qms-table-wrap { overflow-x: auto; }
 .qms-table { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
 .qms-table thead th {
-    text-align: left; font-size: var(--fs-2xs); font-weight: var(--fw-bold); letter-spacing: 0.1em;
+    /* HM2 — header KHÔNG nhỏ hơn body (body=--fs-md). Phân cấp giữ bằng đậm +
+       viết hoa, KHÔNG bằng chữ nhỏ. Canh dòng = body (middle). */
+    text-align: left; font-size: var(--fs-md); font-weight: var(--fw-bold); letter-spacing: 0.1em;
     text-transform: uppercase; color: var(--c-muted);
     padding: 8px 12px; border-bottom: 1px solid var(--c-line); white-space: nowrap;
+    vertical-align: middle;
 }
-.qms-table tbody td { padding: 12px 12px; border-bottom: 1px solid var(--c-line-2); vertical-align: top; }
+.qms-table tbody td { padding: 12px 12px; border-bottom: 1px solid var(--c-line-2); vertical-align: middle; }
 .qms-table tbody tr:hover { background: var(--c-surface); }
 .qms-td-strong { font-weight: var(--fw-bold); color: var(--c-ink-2); }
 .qms-td-ng { color: var(--ng-ink); font-weight: var(--fw-bold); }

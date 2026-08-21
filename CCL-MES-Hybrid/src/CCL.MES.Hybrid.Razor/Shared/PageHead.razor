@@ -1,4 +1,5 @@
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Hybrid.Client.Windows
 
 @*
   CCL iX — khung đầu trang dùng chung (D6.2).
@@ -13,7 +14,7 @@
   QUAN TRỌNG: vẫn render ra <h1 class="page-title"> y như cũ. Đó là lý do 25 trang
   migrate được mà không test nào vỡ — bUnit đang bám vào class/nội dung đó.
 *@
-<div class="ix-page-head">
+<div class="ix-page-head@(IsWindowed ? " is-windowed" : "")">
     <div class="ix-page-head-main">
         @if (!string.IsNullOrWhiteSpace(EyebrowText))
         {
@@ -47,6 +48,18 @@
 
     /// <summary>Hành động của trang. Nhớ: chỉ MỘT nút primary.</summary>
     [Parameter] public RenderFragment? Actions { get; set; }
+
+    /// <summary>
+    /// Cascaded bởi host cửa sổ (MainLayout) khi trang render TRONG một
+    /// <c>FloatingWindow</c> — tiêu đề đã hiện trên thanh cửa sổ. Khi != null,
+    /// ẩn phần tiêu đề NHÌN THẤY (thu lại khoảng trống cho bảng) nhưng GIỮ
+    /// &lt;h1 class="page-title"&gt; trong DOM dạng sr-only để screen-reader,
+    /// FocusOnNavigate(Selector="h1") và test bám .page-title không vỡ.
+    /// Full-route (Settings/Home/login) không cascade ⇒ null ⇒ render như cũ.
+    /// </summary>
+    [CascadingParameter] public WindowContext? Win { get; set; }
+
+    private bool IsWindowed => Win is not null;
 
     private string TitleText => Resolve(Title, TitleKey);
     private string SubtitleText => Resolve(Subtitle, SubtitleKey);
