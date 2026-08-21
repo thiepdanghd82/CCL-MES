@@ -1,0 +1,65 @@
+@namespace CCL.MES.Hybrid.Razor.Shared
+@using CCL.MES.Hybrid.Client.Windows
+@inject IWindowManager WM
+@inject CCL.MES.Hybrid.Client.Localization.ITranslator Loc
+@implements IDisposable
+
+@*
+    P2-PR1 — full-width bottom taskbar. One chip per open window (WM.Windows,
+    stable open order). Click = focus/restore · double-click = maximize↔restore ·
+    middle-click / × = close. A minimized chip dims (is-min); the active window's
+    chip carries a dot (is-active). Chips are <button> — never <select> (WKWebView
+    freeze, see memory). Empty workspace hides the bar entirely so PR1 leaves the
+    plain route surface untouched until a window is opened.
+*@
+
+@if (WM.Windows.Count > 0)
+{
+    <div class="taskbar" role="toolbar" aria-label="@Loc.T("taskbar.empty")">
+        @foreach (var w in WM.Windows)
+        {
+            <button type="button"
+                    class="tb-chip @(w.State == WindowState.Minimized ? "is-min" : null) @(w.IsActive ? "is-active" : null)"
+                    @key="w.Id"
+                    title="@w.Title"
+                    data-testid="tb-chip"
+                    data-window-id="@w.Id"
+                    @onclick="() => WM.Focus(w.Id)"
+                    @ondblclick="() => ToggleMaxRestore(w)"
+                    @onmouseup="e => OnMouseUp(e, w)">
+                <span class="tb-chip-dot" aria-hidden="true"></span>
+                @if (!string.IsNullOrEmpty(w.Icon))
+                {
+                    <span class="tb-chip-icon" aria-hidden="true">@w.Icon</span>
+                }
+                <span class="tb-chip-title">@w.Title</span>
+                <span class="tb-chip-x"
+                      role="button"
+                      aria-label="@Loc.T("taskbar.close")"
+                      title="@Loc.T("taskbar.close")"
+                      @onclick="() => WM.Close(w.Id)"
+                      @onclick:stopPropagation="true">×</span>
+            </button>
+        }
+    </div>
+}
+
+@code {
+    protected override void OnInitialized() => WM.Changed += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private void ToggleMaxRestore(OpenWindow w)
+    {
+        if (w.State == WindowState.Maximized) WM.Restore(w.Id);
+        else WM.Maximize(w.Id);
+    }
+
+    // Middle-click (button == 1) closes, mirroring browser-tab muscle memory.
+    private void OnMouseUp(Microsoft.AspNetCore.Components.Web.MouseEventArgs e, OpenWindow w)
+    {
+        if (e.Button == 1) WM.Close(w.Id);
+    }
+
+    public void Dispose() => WM.Changed -= OnChanged;
+}

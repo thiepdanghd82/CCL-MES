@@ -36,9 +36,11 @@ public sealed class NavCclQmsGroupTests : TestContext
         ("/qms/icra",      "nav-qms-icra"),
     };
 
-    // Compact secondary links that must stay reachable (nothing lost).
+    // Compact secondary links that must stay reachable as NavLinks (nothing
+    // lost). P2-PR1 moved /qms/history + /qc/library OUT of this anchor list —
+    // they now open as floating WINDOWS (buttons), asserted separately below.
     private static readonly string[] Secondary =
-        { "/qms", "/qms/fqc", "/qms/history", "/qc/library", "/quality/traceability" };
+        { "/qms", "/qms/fqc", "/quality/traceability" };
 
     private void Wire(string role)
     {
@@ -49,6 +51,11 @@ public sealed class NavCclQmsGroupTests : TestContext
         Services.AddSingleton<ITranslationCatalog, TranslationCatalog>();
         Services.AddSingleton<ITranslator, Translator>();
         Services.AddSingleton<IRecentScansService, InMemoryRecentScansService>();
+        // P2-PR1 — NavMenu injects the window manager + registry.
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Windows.IWindowManager,
+            CCL.MES.Hybrid.Client.Windows.WindowManager>();
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Windows.IWindowRegistry,
+            CCL.MES.Hybrid.Client.Windows.WindowRegistry>();
         Services.AddSingleton<IOptions<HardwareOptions>>(
             Options.Create(new HardwareOptions { ScanEnabled = true }));
         JSInterop.Mode = JSRuntimeMode.Loose;
@@ -82,6 +89,10 @@ public sealed class NavCclQmsGroupTests : TestContext
         foreach (var href in Secondary)
             Assert.Contains(cut.FindAll("a.app-nav-link-sub"),
                 a => a.GetAttribute("href") == href);
+
+        // P2-PR1 — QC History + QC Library now open as floating windows (buttons).
+        Assert.Single(cut.FindAll("[data-testid='nav-win-qchistory']"));
+        Assert.Single(cut.FindAll("[data-testid='nav-win-qclibrary']"));
     }
 
     [Fact]
@@ -110,8 +121,9 @@ public sealed class NavCclQmsGroupTests : TestContext
             Assert.DoesNotContain(cut.FindAll("a"), a => a.GetAttribute("href") == href);
 
         // MONITORING (ungated) still renders → the QC links MOVED, not hidden.
-        Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/machines");
-        Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/shop-orders");
+        // P2-PR1 — the monitoring items are now window-opening buttons.
+        Assert.Single(cut.FindAll("[data-testid='nav-win-machines']"));
+        Assert.Single(cut.FindAll("[data-testid='nav-win-shoporders']"));
     }
 
     [Fact]
@@ -121,7 +133,7 @@ public sealed class NavCclQmsGroupTests : TestContext
         Wire("Operator");
         var cut = RenderComponent<NavMenu>();
 
-        Assert.Contains(cut.FindAll("a"), a => a.GetAttribute("href") == "/machines");
+        Assert.Single(cut.FindAll("[data-testid='nav-win-machines']"));   // MONITORING present
         Assert.DoesNotContain("QC History", cut.Markup);
         Assert.DoesNotContain("QC Library", cut.Markup);
         Assert.DoesNotContain("Lịch sử QC", cut.Markup);

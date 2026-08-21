@@ -5,8 +5,11 @@
 *@
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client.Hardware
+@using CCL.MES.Hybrid.Client.Windows
 @inject IAuthSession Session
 @inject NavigationManager Nav
+@inject IWindowManager WM
+@inject IWindowRegistry Registry
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
 
 <aside class="app-nav">
@@ -18,6 +21,11 @@
     </div>
 
     <nav>
+        @if (_maxBanner is not null)
+        {
+            <div class="nav-max-banner" role="alert" data-testid="nav-max-banner">@_maxBanner</div>
+        }
+
         <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link">@Ico("home")<span>@T("nav.home")</span></NavLink>
 
         <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
@@ -44,8 +52,17 @@
            Read-only monitoring; open to every authenticated role. The QC
            surfaces moved to the CCL-QMS group below. *@
         <div class="app-nav-section">@T("nav.section.monitoring")</div>
-        <NavLink href="/machines" class="app-nav-link">@Ico("grid")<span>@T("nav.machines")</span></NavLink>
-        <NavLink href="/shop-orders" class="app-nav-link">@Ico("history")<span>@T("nav.shoporders")</span></NavLink>
+        @* P2-PR1 — these open as keep-alive floating WINDOWS (WM.Open) instead of
+           navigating the whole shell; the URL is still synced (replace:true) so a
+           reload / deep-link lands the same place. NavLink styling kept via class. *@
+        <button type="button" class="app-nav-link" data-testid="nav-win-machines"
+                @onclick="() => OpenWindowAsync(WindowRegistryKeys.MachineDashboard)">
+            @Ico("grid")<span>@T("nav.machines")</span>
+        </button>
+        <button type="button" class="app-nav-link" data-testid="nav-win-shoporders"
+                @onclick="() => OpenWindowAsync(WindowRegistryKeys.ShopOrderHistory)">
+            @Ico("history")<span>@T("nav.shoporders")</span>
+        </button>
 
         @* QC QMS Data — mirrors the QA mini-QMS mock: 5 primary modules as
            2-line items (bold VN title + muted uppercase subtitle) with a left
@@ -95,8 +112,15 @@
             <div class="app-nav-group">
                 <NavLink href="/qms" Match="NavLinkMatch.All" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.queue")</span></NavLink>
                 <NavLink href="/qms/fqc" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.fqc")</span></NavLink>
-                <NavLink href="/qms/history" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.history")</span></NavLink>
-                <NavLink href="/qc/library" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.library")</span></NavLink>
+                @* P2-PR1 — QC History + QC Library open as floating windows. *@
+                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qchistory"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcHistory)">
+                    <span>@T("nav.qms.history")</span>
+                </button>
+                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qclibrary"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcLibrary)">
+                    <span>@T("nav.qms.library")</span>
+                </button>
                 <NavLink href="/quality/traceability" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.traceability")</span></NavLink>
             </div>
         </AuthorizeView>
@@ -135,10 +159,36 @@
     /// <summary>Bấm nút thu gọn/mở rail. MainLayout xử lý + lưu lựa chọn.</summary>
     [Parameter] public EventCallback OnToggleRail { get; set; }
 
+    // P2-PR1 — soft-cap banner. Non-null while the last Open was blocked at cap.
+    private string? _maxBanner;
+
     private async Task LogoutAsync()
     {
         await Session.SignOutAsync();
         Nav.NavigateTo("/login", forceLoad: false, replace: true);
+    }
+
+    // Open (or focus, if already open) a registered window for the subset key.
+    // The registry resolves the concrete component TYPE host-side; the title
+    // routes through i18n. On success the URL is synced (replace, no full reload)
+    // so a deep-link / reload still lands the same surface. When the manager is
+    // at SoftCap, Open returns null → show the i18n "max reached" banner instead.
+    private Task OpenWindowAsync(string key)
+    {
+        var entry = Registry.Resolve(key);
+        if (entry is null) return Task.CompletedTask;
+
+        var opened = WM.Open(key, T(entry.TitleKey), entry.Icon, entry.ContentType);
+        if (opened is null)
+        {
+            _maxBanner = T("window.max_reached", WM.SoftCap);
+        }
+        else
+        {
+            _maxBanner = null;
+            Nav.NavigateTo(entry.Key, forceLoad: false, replace: true);
+        }
+        return Task.CompletedTask;
     }
 
     // P10.10 — inline line icons (Feather-style, 24-grid, stroke=currentColor
