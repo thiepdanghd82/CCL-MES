@@ -7,7 +7,8 @@
 @using CCL.MES.Hybrid.Razor.Shared.Iqc
 @inject ICclApiClient Api
 @inject CCL.MES.Hybrid.Client.Auth.IAuthSession Session
-@inject CCL.MES.Hybrid.Client.Windows.IFloatingWindowStore WinStore
+@inject CCL.MES.Hybrid.Client.Windows.IWindowManager WM
+@inject CCL.MES.Hybrid.Client.Qms.IIqcChangeNotifier IqcChanged
 
 @* feat/iqc-module-tabs — IQC module với 3 SUB-TAB:
      • Dashboard  : KPI đếm thật (placeholder có cấu trúc, enrich sau).
@@ -230,18 +231,10 @@
 </div>
 
 @* ══════════════ FORM thanh tra Materials — SHOWCARD keep-open (L34) ══════════════
-     Mở khi: New Ticket → Materials (tạo mới, Ticket=null) HOẶC IQC Data row
-     right-click "Mở" / double-click (mở phiếu đã lưu, Ticket=dòng). Parent sở
-     hữu danh sách cửa sổ + persist rect (mirror QualityTraceability). *@
-@foreach (var w in _inspWins)
-{
-    <MaterialsInspectionForm @key="w.Id" Ticket="w.Ticket"
-                             WindowId="@w.Id" Rect="w.Rect" CascadeIndex="w.Cascade"
-                             DebounceMs="DebounceMs"
-                             OnRectChanged="r => OnInspRectChanged(w.Key, r)"
-                             OnSaved="OnInspectionSaved"
-                             OnClose="() => CloseInspection(w.Id)" />
-}
+     W5 showcard-migration — không còn tự-host @foreach ở đây. Cửa sổ thanh tra
+     là window WindowManager thật (do MainLayout .window-layer host), mở qua
+     WM.Open(key, …, typeof(MaterialsInspectionWindow)) trong OpenInspection.
+     WM sở hữu chrome + rect (per key) + focus + dedupe + soft-cap. *@
 
 @* ══════════════ Placeholder forms (Chemical / Tools / Other) — transactional Modal ══════════════ *@
 <Modal Open="_phOpen" OnClose="ClosePlaceholder" Size="ModalSize.Md" ClickOutsideToClose="false">
@@ -317,14 +310,12 @@
     private IqcGroupKind _phGroup = IqcGroupKind.Chemical;
     private string? _lastCreatedReceipt;
 
-    // ── Materials inspection showcards (FloatingWindow multi-window host, L34) ──
-    // Parent sở hữu danh sách cửa sổ đang mở + persist rect per session
-    // (mirror QualityTraceability). Key = ReceiptNo cho phiếu đã lưu, "new:<guid>"
-    // cho phiếu tạo mới (mỗi lần New Ticket→Materials = 1 cửa sổ độc lập).
-    private sealed record InspWin(string Key, IqcTicketListItem? Ticket, string Id,
-                                  CCL.MES.Hybrid.Client.Windows.WindowRect? Rect, int Cascade);
-    private readonly List<InspWin> _inspWins = new();
-    private const int MaxInspWins = 6;
+    // ── Materials inspection showcards (WindowManager windows, L34) ──
+    // W5 showcard-migration — the module no longer owns an open-list. Each
+    // inspection is a real WM window hosted by MainLayout; OpenInspection calls
+    // WM.Open(key, …) so the manager owns chrome + rect (per key) + focus +
+    // dedupe + soft-cap. Key = "ticket:{ReceiptNo}" for a saved ticket (dedupe),
+    // "iqc-new:{Guid}" for a create window (unique — open several in parallel).
 
     /// <summary>Debounce window for the description search. Default 300ms in
     /// production; tests set 0 to fire synchronously (deterministic).</summary>
@@ -332,7 +323,13 @@
 
     private string Show(string? v) => string.IsNullOrWhiteSpace(v) ? T("iqc.f.empty") : v!;
 
-    protected override async Task OnInitializedAsync() => await LoadDashboardAsync();
+    protected override async Task OnInitializedAsync()
+    {
+        // A ticket saved in any WM-hosted inspection window pokes the notifier →
+        // refresh KPI + (if visible) the Data list without a page re-mount.
+        IqcChanged.Changed += HandleIqcChanged;
+        await LoadDashboardAsync();
+    }
 
     private async Task SelectTab(IqcTab tab)
     {
@@ -436,49 +433,45 @@
         await LoadDashboardAsync();   // KPI reflects the new ticket
     }
 
-    // ── Materials inspection showcard host (FloatingWindow, L34) ───────────
-    // Mở form thanh tra đầy đủ. ticket == null → tạo mới; có → phiếu đã lưu.
-    // Trùng phiếu đã lưu → bring-to-front (không mở lặp). Freeze PA-A giữ ở
-    // component qua CÙNG POST /api/v2/iqc.
+    // ── Materials inspection showcard host (WindowManager, L34) ───────────
+    // Mở form thanh tra đầy đủ qua WM. ticket == null → tạo mới (key duy nhất
+    // "iqc-new:{Guid}", mỗi lần 1 cửa sổ độc lập); có → phiếu đã lưu (key
+    // "ticket:{ReceiptNo}", dedupe → focus lại thay vì mở trùng). WM sở hữu
+    // chrome + rect + focus + soft-cap. Freeze PA-A giữ trong form qua CÙNG
+    // POST /api/v2/iqc. Ticket null → KHÔNG đưa vào Parameters dict (Dictionary
+    // không giữ null); wrapper param nullable mặc định null = chế độ tạo mới.
     private void OpenInspection(IqcTicketListItem? ticket)
     {
         var key = ticket?.ReceiptNo is { Length: > 0 } rn
-            ? $"ticket:{rn}"
-            : $"new:{Guid.NewGuid():N}";
+            ? CCL.MES.Hybrid.Client.Windows.WindowRegistryKeys.IqcTicketKeyPrefix + rn
+            : CCL.MES.Hybrid.Client.Windows.WindowRegistryKeys.IqcNewKeyPrefix + Guid.NewGuid().ToString("N");
 
-        var existing = _inspWins.FirstOrDefault(w => string.Equals(w.Key, key, StringComparison.OrdinalIgnoreCase));
-        if (existing is not null)
-        {
-            // Đã mở → đưa lên trước (JS bring-to-front qua re-init không cần;
-            // đủ để không mở trùng). Cửa sổ đang tồn tại, no-op.
-            return;
-        }
+        var title = ticket?.ReceiptNo is { Length: > 0 } rn2 ? rn2 : T("iqc.insp.title.new");
 
-        if (_inspWins.Count >= MaxInspWins)
-        {
-            _toast = T("iqc.insp.maxwins", MaxInspWins);
-            return;
-        }
+        var pars = new Dictionary<string, object> { ["DebounceMs"] = DebounceMs };
+        if (ticket is not null) pars["Ticket"] = ticket;
 
-        _inspWins.Add(new InspWin(key, ticket, Guid.NewGuid().ToString("N"),
-                                  WinStore.Get(key), _inspWins.Count));
+        var win = WM.Open(key, title, "🔬",
+            typeof(CCL.MES.Hybrid.Razor.Shared.Iqc.MaterialsInspectionWindow), pars);
+
+        // Soft-cap block (Open → null) surfaces the same "max windows" notice.
+        _toast = win is null ? T("iqc.insp.maxwins", WM.SoftCap) : null;
     }
 
-    private void CloseInspection(string id) => _inspWins.RemoveAll(w => w.Id == id);
-
-    private void OnInspRectChanged(string key, CCL.MES.Hybrid.Client.Windows.WindowRect rect)
-        => WinStore.Save(key, rect);
-
-    // Phiếu tạo xong trong showcard → refresh KPI + list (nếu đang ở tab Data).
-    private async Task OnInspectionSaved(CreateIqcTicketResponse resp)
-    {
-        _lastCreatedReceipt = resp.ReceiptNo;
-        await LoadDashboardAsync();
-        if (_tab == IqcTab.Data) await LoadDataAsync();
-    }
+    // W5 — a ticket saved in a WM-hosted inspection window fired the notifier.
+    // Refresh KPI + (when visible) the Data list. Runs on the render thread via
+    // InvokeAsync since the notify may arrive from another component's callback.
+    private void HandleIqcChanged()
+        => InvokeAsync(async () =>
+        {
+            await LoadDashboardAsync();
+            if (_tab == IqcTab.Data) await LoadDataAsync();
+            StateHasChanged();
+        });
 
     public override void Dispose()
     {
+        IqcChanged.Changed -= HandleIqcChanged;
         _dataDebounce?.Dispose();
         _longPress?.Dispose();
         base.Dispose();

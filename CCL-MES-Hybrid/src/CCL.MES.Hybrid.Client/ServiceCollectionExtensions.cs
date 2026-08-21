@@ -138,6 +138,13 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<Windows.IWindowManager, Windows.WindowManager>();
         services.AddSingleton<Windows.IWindowRegistry, Windows.WindowRegistry>();
 
+        // W5 showcard-migration — IQC change notifier. A ticket saved inside a
+        // WindowManager-hosted inspection window pokes this so a mounted
+        // IqcModule refreshes its KPI + Data list (the parent-refresh link lost
+        // when the window moved out of the IqcModule @foreach). Singleton
+        // (session-scoped, survives navigation), mirroring IFloatingWindowStore.
+        services.AddSingleton<Qms.IIqcChangeNotifier, Qms.IqcChangeNotifier>();
+
         return services;
     }
 

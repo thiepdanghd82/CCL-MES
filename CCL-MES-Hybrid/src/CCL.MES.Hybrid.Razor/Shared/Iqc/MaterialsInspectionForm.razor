@@ -10,10 +10,9 @@
 @*
     feat/iqc-module-tabs — FORM THANH TRA ĐẦY ĐỦ cho nhóm Materials (khôi phục
     form gốc trên main, tách thành component tái dùng). SHOWCARD keep-open
-    (L34): bọc <FloatingWindow>, KHÔNG tự vẽ chrome. PARENT sở hữu danh sách
-    cửa sổ + persist rect qua IFloatingWindowStore.
+    (L34): bọc <FloatingWindow>, KHÔNG tự vẽ chrome.
 
-    Hai chế độ:
+    Hai chế độ dữ liệu:
       • Ticket == null  → TẠO MỚI: header có ô tra mô tả → chọn Code IFS (nhiều)
         (reverse-lookup GIỮ NGUYÊN), Save draft / Complete ticket tạo N phiếu
         qua CÙNG POST /api/v2/iqc (freeze PA-A server-side).
@@ -21,15 +20,38 @@
 
     Thân dưới (cả hai chế độ): QmsStepper 5 bước + bảng HSF (bước 1) +
     placeholder bước 2-5 — dùng lại QmsMock/QmsStepper + key i18n cũ.
+
+    W5 showcard-migration — hai chế độ HOST (mirror TraceabilityDetailDialog):
+      • Chrome=true (mặc định): tự bọc <FloatingWindow> (đường standalone cũ,
+        giữ cho caller nào còn tự-host). PARENT sở hữu rect qua các param
+        WindowId/Rect/CascadeIndex/OnClose/OnRectChanged.
+      • Chrome=false: chỉ render THÂN (không <FloatingWindow>). WindowManager
+        host (MainLayout .window-layer) đã bọc DynamicComponent trong một
+        FloatingWindow rồi → bọc lần nữa ở đây là double-wrap.
 *@
 
-<FloatingWindow Title="@WindowTitle" Subtitle="@WindowSubtitle"
-                AriaLabel="@T("iqc.insp.aria", WindowTitle)"
-                WindowId="@WindowId" Rect="Rect" CascadeIndex="CascadeIndex"
-                MinWidth="720" MinHeight="480"
-                OnClose="OnClose" OnRectChanged="OnRectChanged">
-    <ChildContent>
-        <div class="iqc-insp" data-testid="iqc-insp-form" data-mode="@(IsCreate ? "create" : "view")">
+@if (Chrome)
+{
+    <FloatingWindow Title="@WindowTitle" Subtitle="@WindowSubtitle"
+                    AriaLabel="@T("iqc.insp.aria", WindowTitle)"
+                    WindowId="@WindowId" Rect="Rect" CascadeIndex="CascadeIndex"
+                    MinWidth="720" MinHeight="480"
+                    OnClose="OnClose" OnRectChanged="OnRectChanged">
+        <ChildContent>
+            @Body
+        </ChildContent>
+    </FloatingWindow>
+}
+else
+{
+    @* WM-hosted: the FloatingWindow lives in the host; render the body only. *@
+    @Body
+}
+
+@* ── Form body, shared by both hosting modes. Declared as an instance
+   RenderFragment so it can be referenced from the render block above. ────── *@
+@code {
+    private RenderFragment Body => @<div class="iqc-insp" data-testid="iqc-insp-form" data-mode="@(IsCreate ? "create" : "view")">
 
             @* ── Header: 9 trường (RECEIPT/Code IFS/Material desc/IFS desc/Lot/
                  Manf date/Maker/Supplier/Inspector). Chế độ TẠO MỚI dùng
@@ -297,15 +319,20 @@
                     @T(QmsMock.IqcSteps[_active].LabelKey) — @T("qms.icra.state.open")…
                 </p>
             }
-        </div>
-    </ChildContent>
-</FloatingWindow>
+        </div>;
+}
 
 @code {
     /// <summary>null = tạo phiếu mới (reverse-lookup header); có = mở phiếu đã lưu (read-only header).</summary>
     [Parameter] public IqcTicketListItem? Ticket { get; set; }
 
-    // Showcard chrome pass-through (parent sở hữu multi-window state + persist).
+    /// <summary>W5 showcard-migration — when false the component renders ONLY the
+    /// body so the WindowManager host wraps it in its own <see cref="FloatingWindow"/>
+    /// (no double-wrap). Default true keeps the legacy self-hosted-chrome behaviour
+    /// for any standalone caller.</summary>
+    [Parameter] public bool Chrome { get; set; } = true;
+
+    // Showcard chrome pass-through (Chrome=true only; parent owns rect + persist).
     [Parameter] public string WindowId { get; set; } = Guid.NewGuid().ToString("N");
     [Parameter] public WindowRect? Rect { get; set; }
     [Parameter] public int CascadeIndex { get; set; }

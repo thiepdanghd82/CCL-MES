@@ -198,6 +198,27 @@ public static class WindowRegistryKeys
     /// instead of stacking duplicates (mirrors <see cref="SpecDetailKeyPrefix"/>).</summary>
     public const string TraceDetailKeyPrefix = "trace:";
 
+    // ── W5 showcard-migration — IQC Materials inspection windows ────────────
+    // The IQC module (/qms/iqc) is NOT itself a registered window (it is a
+    // full-page host with 3 sub-tabs). Its Materials inspection SHOWCARDS,
+    // however, are now real WM windows (mirror the Traceability detail pattern):
+    // opened by MaterialsInspectionWindow (MaterialsInspectionForm with
+    // Chrome=false) so the WM host owns the FloatingWindow — no double-wrap.
+    // Two key shapes:
+    //   • ticket:{ReceiptNo} — a saved ticket → dedupe re-focuses the same one.
+    //   • iqc-new:{Guid}     — a brand-new draft → unique key each time so the
+    //     operator can open several independent create windows in parallel.
+
+    /// <summary>Per-ReceiptNo window-key prefix for an open (saved) IQC ticket
+    /// inspection (<c>ticket:{ReceiptNo}</c>). One window per ticket → dedupe
+    /// re-focuses the same ticket instead of stacking duplicates.</summary>
+    public const string IqcTicketKeyPrefix = "ticket:";
+
+    /// <summary>Window-key prefix for a brand-new IQC inspection draft
+    /// (<c>iqc-new:{Guid}</c>). A fresh Guid per open → NEVER dedupes, so each
+    /// "New Ticket → Materials" tap opens an independent create window.</summary>
+    public const string IqcNewKeyPrefix = "iqc-new:";
+
     /// <summary>i18n title keys the host should register alongside each type.
     /// (String constants only — the actual VI/EN strings live in the
     /// TranslationCatalog / SharedResource, added by the UX/i18n agent.)</summary>
@@ -232,6 +253,11 @@ public static class WindowRegistryKeys
         // Detail title is dynamic ("WO {WoNo}"); the caller passes the resolved
         // literal, this key is a generic fallback.
         public const string TraceDetail = "windows.trace_detail.title";
+
+        // W5 showcard-migration — IQC Materials inspection window. Title is
+        // dynamic (the saved ticket's ReceiptNo, or the "new ticket" phrase for
+        // a create window); this key is the generic fallback the caller uses.
+        public const string IqcInspection = "windows.iqc_inspection.title";
     }
 
     /// <summary>RBAC roles for QcLibrary (mirrors its page <c>[Authorize]</c>).

@@ -1,0 +1,39 @@
+@namespace CCL.MES.Hybrid.Razor.Shared.Iqc
+@using CCL.MES.Shared.Quality
+@inject CCL.MES.Hybrid.Client.Qms.IIqcChangeNotifier IqcChanged
+
+@*
+    W5 showcard-migration — WindowManager BODY for an IQC Materials inspection.
+    The WM host (MainLayout .window-layer) already wraps this in a shared
+    <FloatingWindow> (drag / resize / traffic-lights / rect persistence per the
+    "ticket:{ReceiptNo}" or "iqc-new:{Guid}" key), so this component renders ONLY
+    the body: it delegates to MaterialsInspectionForm with Chrome=false (no
+    self-hosted FloatingWindow → no double-wrap). Mirrors TraceabilityDetail.
+
+    OnSaved cross-window: the form no longer lives under IqcModule, so a saved
+    ticket can't call back into the page directly. Instead it pokes the client-
+    side IIqcChangeNotifier; IqcModule (when mounted) subscribes + refreshes its
+    KPI + Data list. When IqcModule isn't mounted the notify is a harmless no-op
+    (the next mount loads fresh).
+*@
+
+<MaterialsInspectionForm Chrome="false"
+                         Ticket="Ticket"
+                         DebounceMs="DebounceMs"
+                         OnSaved="HandleSavedAsync" />
+
+@code {
+    /// <summary>null = create a new ticket (reverse-lookup header); non-null =
+    /// open a saved ticket (read-only header). Carried on the window key
+    /// (<c>ticket:{ReceiptNo}</c> vs <c>iqc-new:{Guid}</c>).</summary>
+    [Parameter] public IqcTicketListItem? Ticket { get; set; }
+
+    /// <summary>Debounce window for the description search (ms). Tests set 0.</summary>
+    [Parameter] public int DebounceMs { get; set; } = 300;
+
+    // A ticket saved in this WM-hosted window notifies any mounted IqcModule to
+    // re-pull its KPI + Data list (the parent-refresh path lost when the window
+    // moved out of the IqcModule @foreach).
+    private void HandleSavedAsync(CreateIqcTicketResponse _)
+        => IqcChanged.NotifyChanged();
+}
