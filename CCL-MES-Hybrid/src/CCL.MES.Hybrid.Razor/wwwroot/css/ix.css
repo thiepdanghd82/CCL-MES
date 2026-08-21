@@ -542,12 +542,14 @@
     padding: 0 var(--d-pad-x);
     height: var(--d-row-h);
     text-align: left;
-    font-size: var(--fs-xs);
+    /* HM2 — header bằng body, KHÔNG nhỏ hơn. */
+    font-size: var(--d-font);
     font-weight: var(--fw-semibold);
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--ix-ink-mut);
     white-space: nowrap;
+    vertical-align: middle;
 }
 .ix-grid tbody td {
     padding: 0 var(--d-pad-x);
@@ -555,6 +557,7 @@
     border-bottom: var(--ix-hairline) solid var(--ix-line-soft);
     color: var(--ix-ink-2);
     white-space: nowrap;
+    vertical-align: middle;
 }
 .ix-grid tbody tr:hover td { background: var(--ix-accent-tint); }
 .ix-grid tbody tr[aria-selected="true"] td { background: var(--ix-accent-tint); }
@@ -612,7 +615,9 @@
     --ix-ink-mut: #4d5a70;
 }
 :root[data-density="shopfloor"] .ix-pill { font-size: var(--fs-sm); padding: var(--sp-1) var(--sp-3); }
-:root[data-density="shopfloor"] .ix-grid thead th { font-size: var(--fs-sm); }
+/* HM2 — ở shopfloor body table = --fs-base(16px); header giữ = body theo density,
+   KHÔNG hạ về --fs-sm(13px) (sẽ nhỏ hơn body + khó đọc dưới ánh sáng xưởng). */
+:root[data-density="shopfloor"] .ix-grid thead th { font-size: var(--d-font); }
 
 /* ═══ 10. LỚP TƯƠNG THÍCH ═════════════════════════════════════════════════
    Restyle các class markup ĐANG DÙNG để toàn app đổi diện mạo mà không phải
@@ -634,12 +639,15 @@
     border-bottom: var(--ix-hairline) solid var(--ix-line);
     padding: 0 var(--d-pad-x);
     height: var(--d-row-h);
-    font-size: var(--fs-xs);
+    /* HM2 — header KHÔNG nhỏ hơn body: bằng body (theo density). Phân cấp giữ
+       bằng đậm + nền + viết hoa, KHÔNG bằng chữ nhỏ. */
+    font-size: var(--d-font);
     font-weight: var(--fw-semibold);
     letter-spacing: .06em;
     text-transform: uppercase;
     color: var(--ix-ink-mut);
     white-space: nowrap;
+    vertical-align: middle;
 }
 .grid td, .md-table td, .qms-table td, .audit-table td, .soh-tbl td {
     padding: 0 var(--d-pad-x);
@@ -647,6 +655,8 @@
     border-bottom: var(--ix-hairline) solid var(--ix-line-soft);
     color: var(--ix-ink-2);
     font-size: var(--d-font);
+    /* HM2 — canh dòng nhất quán header + body (gọn, hợp cả cell nhiều dòng). */
+    vertical-align: middle;
 }
 .grid tbody tr:hover td, .md-table tbody tr:hover td,
 .qms-table tbody tr:hover td, .soh-tbl tbody tr:hover td { background: var(--ix-accent-tint); }
