@@ -95,6 +95,48 @@ public static class WindowRegistryKeys
     /// <c>[Authorize(Roles = "Admin,Supervisor,Engineer,QC")]</c>.</summary>
     public const string QcLibrary = "/qc/library";
 
+    // ── P2-PR2 subset ──────────────────────────────────────────────────────
+    // 9 more param-free, self-contained pages verified window-safe (single
+    // @page route, no [Parameter] beyond ambient CascadingAuthenticationState,
+    // no self-hosted FloatingWindow, no URL-mode dispatch). Routes that carry a
+    // param ({id}), self-host a FloatingWindow (IQC materials showcards,
+    // /quality/traceability), share ONE component across two URL-modes
+    // (/qms + /qms/fqc), are a multi-route hub (/settings), or are heavily
+    // stateful on dispatch/AdvanceOrchestrator (/workorders) are DEFERRED to a
+    // follow-up PR — see the p2-pr2 classification note.
+    //
+    // Home ("/") is DELIBERATELY NOT a window key: it is the default full-page
+    // landing (Home dashboard renders in @Body). Making it a window key would
+    // flip "/" to a window-route and show the empty WorkspaceHome on app open.
+
+    /// <summary>NPI Structure (BOM) grid — <c>@page "/npi/structure"</c>,
+    /// <c>[Authorize(Roles = "Admin,Supervisor,Engineer,QC")]</c>.</summary>
+    public const string NpiStructure = "/npi/structure";
+
+    /// <summary>NPI Routing grid — <c>@page "/npi/routine"</c>, same roles as NPI.</summary>
+    public const string NpiRoutine = "/npi/routine";
+
+    /// <summary>NPI Raw Materials grid — <c>@page "/npi/rawmaterials"</c>, same roles.</summary>
+    public const string NpiRawMaterials = "/npi/rawmaterials";
+
+    /// <summary>NPI Work Centers grid — <c>@page "/npi/workcenters"</c>, same roles.</summary>
+    public const string NpiWorkCenters = "/npi/workcenters";
+
+    /// <summary>Semi-finished store — <c>@page "/warehouse/semi-products"</c>, any auth.</summary>
+    public const string SemiProducts = "/warehouse/semi-products";
+
+    /// <summary>QMS Overview dashboard — <c>@page "/qms/dashboard"</c>, any auth.</summary>
+    public const string QmsDashboard = "/qms/dashboard";
+
+    /// <summary>IPQC module — <c>@page "/qms/ipqc"</c>, any auth.</summary>
+    public const string QmsIpqc = "/qms/ipqc";
+
+    /// <summary>OQC module — <c>@page "/qms/oqc"</c>, any auth.</summary>
+    public const string QmsOqc = "/qms/oqc";
+
+    /// <summary>iCRA module — <c>@page "/qms/icra"</c>, any auth.</summary>
+    public const string QmsIcra = "/qms/icra";
+
     /// <summary>i18n title keys the host should register alongside each type.
     /// (String constants only — the actual VI/EN strings live in the
     /// TranslationCatalog / SharedResource, added by the UX/i18n agent.)</summary>
@@ -104,9 +146,25 @@ public static class WindowRegistryKeys
         public const string ShopOrderHistory = "windows.shop_order_history.title";
         public const string MachineDashboard = "windows.machine_dashboard.title";
         public const string QcLibrary = "windows.qc_library.title";
+
+        // P2-PR2 subset (Home excluded — "/" is the full-page landing, not a window).
+        public const string NpiStructure = "windows.npi_structure.title";
+        public const string NpiRoutine = "windows.npi_routine.title";
+        public const string NpiRawMaterials = "windows.npi_rawmaterials.title";
+        public const string NpiWorkCenters = "windows.npi_workcenters.title";
+        public const string SemiProducts = "windows.semi_products.title";
+        public const string QmsDashboard = "windows.qms_dashboard.title";
+        public const string QmsIpqc = "windows.qms_ipqc.title";
+        public const string QmsOqc = "windows.qms_oqc.title";
+        public const string QmsIcra = "windows.qms_icra.title";
     }
 
     /// <summary>RBAC roles for QcLibrary (mirrors its page <c>[Authorize]</c>).
     /// The other three are any-auth (null roles).</summary>
     public static readonly string[] QcLibraryRoles = { "Admin", "Supervisor", "Engineer", "QC" };
+
+    /// <summary>RBAC roles for the 4 NPI grids (mirror their page
+    /// <c>[Authorize(Roles="Admin,Supervisor,Engineer,QC")]</c>). Home + Semi +
+    /// the 3 QMS modules are any-auth (null roles) so they carry no array.</summary>
+    public static readonly string[] NpiRoles = { "Admin", "Supervisor", "Engineer", "QC" };
 }

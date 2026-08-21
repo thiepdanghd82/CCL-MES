@@ -5,6 +5,8 @@
 @inject IWindowManager WM
 @inject IWindowRegistry Registry
 @inject IFloatingWindowStore RectStore
+@inject NavigationManager Nav
+@inject CCL.MES.Hybrid.Client.Localization.ITranslator Loc
 @implements IDisposable
 @*
   Top-level layout. Sidebar nav on the left, content + connectivity
@@ -33,7 +35,19 @@
         <ConnectivityBanner />
         <div class="app-content">
             <RendererCrashBoundary>
-                @Body
+                @* P2-PR2 — when the URL resolves to a registered window key the
+                   page renders ONCE inside its floating window (below), so @Body
+                   is replaced by the empty-workspace background to avoid a
+                   double-render. Deferred / non-window routes (e.g. /settings,
+                   /qms/iqc, /workorders, /login) still render @Body normally. *@
+                @if (_urlIsWindowRoute)
+                {
+                    <WorkspaceHome />
+                }
+                else
+                {
+                    @Body
+                }
             </RendererCrashBoundary>
         </div>
     </main>
@@ -76,10 +90,50 @@
     // mật độ hiển thị thay vì dựng thêm một preference service).
     private bool _railCollapsed;
 
+    // P2-PR2 — true while the current URL resolves to a registered window key.
+    // Drives @Body → WorkspaceHome swap (single-render) + the deep-link open.
+    private bool _urlIsWindowRoute;
+
     protected override void OnInitialized()
     {
         RegisterWindows();
         WM.Changed += OnWindowsChanged;
+        // WorkspaceRouter — a deep-link / reload / in-shell nav to a window key
+        // opens (or focuses, via dedupe) that window, then @Body shows the empty
+        // workspace. Run once for the initial URL, then on every navigation.
+        Nav.LocationChanged += OnLocationChanged;
+        SyncWorkspaceRoute();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+        => InvokeAsync(SyncWorkspaceRoute);
+
+    // Match the current path (query/fragment stripped) against the registry.
+    // On a hit, open the window idempotently (WindowManager dedupes by key, so a
+    // reload / re-nav focuses the existing instance rather than duplicating it)
+    // and flip @Body to the workspace background. RBAC-by-omission holds: the
+    // registry roles gate the launcher, and the server still authorises the
+    // page/API — a role that can't see the route simply lands on the empty
+    // workspace (no window opens) rather than a double-rendered page.
+    private void SyncWorkspaceRoute()
+    {
+        var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].TrimEnd('/');
+        if (path.Length == 0) path = "/";
+
+        var entry = Registry.Resolve(path);
+        var isWindow = entry is not null;
+        if (isWindow)
+        {
+            // Idempotent: dedupe focuses an already-open window; a cap-block
+            // returns null and simply leaves the workspace empty (no throw).
+            WM.Open(entry!.Key, Loc.T(entry.TitleKey), entry.Icon, entry.ContentType);
+        }
+
+        if (isWindow != _urlIsWindowRoute)
+        {
+            _urlIsWindowRoute = isWindow;
+            StateHasChanged();
+        }
     }
 
     // Host-side registry population (P2-PR1 subset). The concrete page TYPES live
@@ -101,6 +155,43 @@
             WindowRegistryKeys.QcLibrary, typeof(QcLibrary),
             WindowRegistryKeys.TitleKeys.QcLibrary, "📚",
             WindowRegistryKeys.QcLibraryRoles));
+
+        // ── P2-PR2 subset — 9 more param-free window-safe pages. ──
+        // Home is DELIBERATELY NOT a window: route "/" is the default full-page
+        // landing (Home dashboard renders in @Body). Registering it here would
+        // make "/" a window-route → _urlIsWindowRoute=true → the empty
+        // WorkspaceHome shows instead of the dashboard on app open / Home tap.
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.NpiStructure, typeof(NpiStructures),
+            WindowRegistryKeys.TitleKeys.NpiStructure, "🧬",
+            WindowRegistryKeys.NpiRoles));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.NpiRoutine, typeof(NpiRoutine),
+            WindowRegistryKeys.TitleKeys.NpiRoutine, "🛤",
+            WindowRegistryKeys.NpiRoles));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.NpiRawMaterials, typeof(NpiRawMaterials),
+            WindowRegistryKeys.TitleKeys.NpiRawMaterials, "📦",
+            WindowRegistryKeys.NpiRoles));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.NpiWorkCenters, typeof(NpiWorkCenters),
+            WindowRegistryKeys.TitleKeys.NpiWorkCenters, "🏭",
+            WindowRegistryKeys.NpiRoles));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.SemiProducts, typeof(SemiStockWarehouse),
+            WindowRegistryKeys.TitleKeys.SemiProducts, "🗄"));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.QmsDashboard, typeof(QmsDashboard),
+            WindowRegistryKeys.TitleKeys.QmsDashboard, "📊"));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.QmsIpqc, typeof(IpqcModule),
+            WindowRegistryKeys.TitleKeys.QmsIpqc, "🔬"));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.QmsOqc, typeof(OqcModule),
+            WindowRegistryKeys.TitleKeys.QmsOqc, "🔎"));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.QmsIcra, typeof(IcraModule),
+            WindowRegistryKeys.TitleKeys.QmsIcra, "🛠"));
     }
 
     private void OnWindowsChanged() => InvokeAsync(StateHasChanged);
@@ -135,5 +226,9 @@
         try { await JS.InvokeVoidAsync("cclMesDensity.railSet", _railCollapsed); } catch { }
     }
 
-    public void Dispose() => WM.Changed -= OnWindowsChanged;
+    public void Dispose()
+    {
+        WM.Changed -= OnWindowsChanged;
+        Nav.LocationChanged -= OnLocationChanged;
+    }
 }

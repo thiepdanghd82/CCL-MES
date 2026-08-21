@@ -40,6 +40,14 @@ public sealed class WindowLayerKeepAliveTests : TestContext
         Services.AddSingleton<IOptions<HardwareOptions>>(
             Options.Create(new HardwareOptions { ScanEnabled = true }));
         this.AddTestAuthorization().SetAuthorized("test-user");
+
+        // P2-PR2 — MainLayout now registers real page types + a WorkspaceRouter
+        // that opens a window when the URL matches a window key. Park these
+        // keep-alive tests on a NON-window path so the router stays inert and the
+        // workspace only ever holds the CounterProbe windows the test opens by
+        // hand (rendering a real page here would need its own DI).
+        Services.GetRequiredService<FakeNavigationManager>()
+            .NavigateTo("http://localhost/_nonwindow_");
     }
 
     private static RenderFragment Body(string marker) => builder =>

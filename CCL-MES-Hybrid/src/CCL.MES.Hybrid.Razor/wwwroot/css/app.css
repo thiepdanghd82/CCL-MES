@@ -273,6 +273,20 @@ button.app-nav-link {
 }
 button.app-nav-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+/* P2-PR2 — the QMS 2-line items are now <button> too (open windows). Same
+   native-chrome strip so they render identically to the .app-nav-link-2line
+   anchors. Left-aligned + full-width block; keep the flex layout from ix.css. */
+button.app-nav-link-2line {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font-family: inherit;
+    min-height: var(--d-tap);
+}
+button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
 /* Soft-cap banner shown in the rail when a window Open is blocked at SoftCap. */
 .nav-max-banner {
     margin: 0 var(--sp-1) var(--sp-2);
@@ -7738,6 +7752,79 @@ tr.wc-row:hover { background: var(--c-bg); }
 }
 .window-host { pointer-events: auto; }
 .window-host.is-min { display: none; }
+
+/* FIX 2 (grid-in-window fill) — a page shown INSIDE a floating window renders in
+   .trace-win-body, NOT in .app-content, so the .app-content:has(.grid-scroll)
+   flex-fill chain (≈ line 1897) never matches → .grid-scroll keeps its
+   calc(100vh − 240px) cap and stops ~20 rows short, leaving a dead "chân bảng"
+   gap up to the pager when the window is maximized. These rules MIRROR that same
+   chain rooted at .trace-win-body so the scroll region stretches to the window
+   height instead. Token-only; no new sizes. .trace-win-body is already
+   flex:1 + overflow:auto (≈ line 6680); we only add display:flex + column when
+   it holds a fillable grid so the other page siblings (head/toolbar/pager) stay
+   at natural height and the scroll region takes the rest. */
+.trace-win-body:has(.grid-scroll),
+.trace-win-body:has(.qms-fill),
+.trace-win-body:has(.md-table-fill) { display: flex; flex-direction: column; }
+
+/* NPI-style paginated grid. */
+.trace-win-body:has(.grid-scroll) .grid-scroll { flex: 1 1 auto; min-height: 0; max-height: none; }
+
+/* QMS module tables — propagate the flex column through the same
+   .qms-page > .qms-section intermediaries the .app-content rules use. */
+.trace-win-body:has(.qms-fill) > .qms-page { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.trace-win-body .qms-page > .qms-section:has(.qms-fill) { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.trace-win-body .qms-fill { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+/* Forensic-record tables (Machine Dashboard list, QC/Shop-order history) render
+   .md-content > .md-main > .md-table-fill. Unlike the .app-content variant this
+   is NOT gated behind the 1080px container query: the window body has no
+   .app-content @container context, so gating would silently no-op inside a
+   window. The window is always the wide layout in practice. */
+.trace-win-body:has(.md-table-fill) > .md-content { flex: 1 1 auto; min-height: 0; align-items: stretch; }
+.trace-win-body .md-content:has(.md-table-fill) > .md-main { display: flex; flex-direction: column; min-height: 0; }
+.trace-win-body .md-content:has(.md-table-fill) > .md-side { min-height: 0; overflow: auto; }
+.trace-win-body .md-table-fill { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
+
+/* P2-PR2 — empty-workspace background. Rendered in place of @Body whenever the
+   URL resolves to a window key, so the shell shows a calm branded surface with
+   the tabs floating over it. Token-only; scales in both densities via --fs-*. */
+.workspace-home {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    height: 100%;
+    min-height: 0;
+    padding: var(--sp-6);
+    text-align: center;
+    user-select: none;
+}
+.workspace-home-mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 96px;
+    height: 96px;
+    border-radius: var(--r-lg);
+    background: var(--brand-bg);
+    color: var(--brand-2);
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-bold);
+    opacity: 0.5;
+}
+.workspace-home-title {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    color: var(--c-ink);
+    opacity: 0.7;
+}
+.workspace-home-hint {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-medium);
+    color: var(--c-muted);
+}
 
 /* Bottom taskbar — full width, one chip per open window. */
 .taskbar {

@@ -95,9 +95,26 @@ window.cclMesGrid = (() => {
             if (n > 0) { try { ref.invokeMethodAsync('Fit', n); } catch (e) { /* disposed */ } }
         };
         let t;
-        const onResize = () => { clearTimeout(t); t = setTimeout(fire, 200); };
-        regs.set(id, onResize);
-        window.addEventListener('resize', onResize);
+        const debounced = () => { clearTimeout(t); t = setTimeout(fire, 200); };
+
+        // window.resize covers the browser viewport changing. But a page shown
+        // INSIDE a floating window fills only that window's body: maximizing /
+        // resizing the WINDOW resizes a DOM ELEMENT — it does NOT fire
+        // window.resize, so the page size used to stay stuck at its small
+        // startup value (grid short → dead gap to the pager). A ResizeObserver on
+        // the scroll container re-measures whenever the (now flex-filled) region
+        // changes height, so element-driven resizes (window maximize/resize)
+        // re-fit too. Belt-and-braces: keep window.resize as a fallback for hosts
+        // without ResizeObserver.
+        window.addEventListener('resize', debounced);
+        let ro = null;
+        const el = document.querySelector(sel);
+        if (el && typeof ResizeObserver !== 'undefined') {
+            ro = new ResizeObserver(debounced);
+            try { ro.observe(el); } catch (e) { ro = null; }
+        }
+        regs.set(id, { onResize: debounced, ro });
+
         // Fire after the flex layout settles. WKWebView (Mac Catalyst) can
         // report a stale clientHeight if measured too early, so fire across a
         // double rAF and again at 250ms — the largest (fullest) result wins.
@@ -107,7 +124,11 @@ window.cclMesGrid = (() => {
 
     function unregister(id) {
         const h = regs.get(id);
-        if (h) { window.removeEventListener('resize', h); regs.delete(id); }
+        if (h) {
+            window.removeEventListener('resize', h.onResize);
+            if (h.ro) { try { h.ro.disconnect(); } catch (e) { /* ignore */ } }
+            regs.delete(id);
+        }
     }
 
     return { register, unregister };

@@ -14,6 +14,22 @@ public sealed partial class TranslationCatalog
         Add("windows.machine_dashboard.title",   "Bảng điều khiển máy",                 "Machine Dashboard");
         Add("windows.qc_library.title",          "Thư viện QC",                         "QC Library");
 
+        // P2-PR2 window titles (WindowRegistryKeys.TitleKeys.* subset).
+        // Home is NOT a window — "/" is the full-page landing, not a floating window.
+        Add("windows.npi_structure.title",       "Cấu trúc (BOM)",                      "Structure (BOM)");
+        Add("windows.npi_routine.title",         "Định tuyến",                          "Routings");
+        Add("windows.npi_rawmaterials.title",    "Vật tư",                              "Raw Materials");
+        Add("windows.npi_workcenters.title",     "Trạm sản xuất",                       "Work Centers");
+        Add("windows.semi_products.title",       "Kho bán thành phẩm",                  "Semi-Finished Store");
+        Add("windows.qms_dashboard.title",       "Tổng quan chất lượng",                "Quality Overview");
+        Add("windows.qms_ipqc.title",            "IPQC — Kiểm trong chuyền",            "IPQC — In-process");
+        Add("windows.qms_oqc.title",             "OQC — Kiểm đầu ra",                   "OQC — Outgoing");
+        Add("windows.qms_icra.title",            "iCRA — Đối sách · CAPA",              "iCRA — Corrective action");
+
+        // Empty-workspace background (P2-PR2)
+        Add("workspace.empty.title",             "Không gian làm việc",                 "Workspace");
+        Add("workspace.empty.hint",              "Mở một thẻ từ thanh bên để bắt đầu",  "Open a tab from the sidebar to begin");
+
         // Taskbar chip tooltips
         Add("taskbar.restore",                   "Khôi phục",                           "Restore");
         Add("taskbar.close",                     "Đóng",                                "Close");
