@@ -4,6 +4,7 @@ using System.Text.Json;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Api.Policies;
+using CCL.MES.Api.Services;
 using CCL.MES.Application.Services;
 using CCL.MES.Application.Storage;
 using CCL.MES.Domain;
@@ -179,7 +180,7 @@ public sealed class WoQcReviewController : ControllerBase
         }
 
         var etag = Convert.ToBase64String(wo.RowVersion);
-        var profileExpected = ProfileKeyCount(check?.ProfileSnapshotJson);
+        var profileExpected = QcProfileResolver.ProfileKeyCount(check?.ProfileSnapshotJson);
         var (ready, allOk, anyNg) = WoQcReadinessRollup.Compute(check, profileExpected);
 
         // P10.7e-3 — per-item photo IDs for the thumbnail strip. Single
@@ -207,7 +208,7 @@ public sealed class WoQcReviewController : ControllerBase
         // declaration order operators see on the paper form CCL-10-F6).
         // Items not yet touched render as Pending; rows from previous
         // PUTs overlay status/NG fields/photo IDs.
-        var profileKeys = ExtractProfileItemKeys(check?.ProfileSnapshotJson);
+        var profileKeys = QcProfileResolver.ExtractProfileItemKeys(check?.ProfileSnapshotJson);
         var itemRowByKey = (check?.Items ?? new List<WoQcCheckItem>())
             .GroupBy(i => i.ItemKey, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
@@ -320,7 +321,7 @@ public sealed class WoQcReviewController : ControllerBase
         // canonical profile items). Stragglers (legacy item keys removed
         // from a later profile rev) tolerated when persisted; new writes
         // gated to the snapshot's declared keys.
-        var profileKeySet = ExtractProfileItemKeys(check.ProfileSnapshotJson);
+        var profileKeySet = QcProfileResolver.ExtractProfileItemKeys(check.ProfileSnapshotJson);
         if (profileKeySet.Count > 0
             && !profileKeySet.Contains(itemKey, StringComparer.OrdinalIgnoreCase)
             && !check.Items.Any(i => string.Equals(i.ItemKey, itemKey, StringComparison.OrdinalIgnoreCase)))
@@ -385,7 +386,7 @@ public sealed class WoQcReviewController : ControllerBase
                 $"Judgment must be Pass or Reject; got \"{req.Judgment}\".");
 
         var check = await GetOrCreateCheckAsync(id, KindFqc, wo.ProductId);
-        var profileExpected = ProfileKeyCount(check.ProfileSnapshotJson);
+        var profileExpected = QcProfileResolver.ProfileKeyCount(check.ProfileSnapshotJson);
         var (ready, _, _) = WoQcReadinessRollup.Compute(check, profileExpected);
         if (!ready)
             return Invalid("qc.not_ready_for_judgment",
@@ -444,7 +445,7 @@ public sealed class WoQcReviewController : ControllerBase
                 $"qc/oqc/inspect requires MesPhase = OQC_PENDING; current = {wo.MesPhase}.");
 
         var check = await GetOrCreateCheckAsync(id, KindOqc, wo.ProductId);
-        var profileExpected = ProfileKeyCount(check.ProfileSnapshotJson);
+        var profileExpected = QcProfileResolver.ProfileKeyCount(check.ProfileSnapshotJson);
         var (ready, _, _) = WoQcReadinessRollup.Compute(check, profileExpected);
         if (!ready)
             return Invalid("qc.not_ready_for_judgment",
@@ -725,93 +726,18 @@ public sealed class WoQcReviewController : ControllerBase
     /// retroactively change rows already in flight.</summary>
     private async Task<string> ResolveProfileSnapshotAsync(long productId, string kind, CancellationToken ct)
     {
-        // L1 — per-product override.
+        // L1 override JSON read stays here (EF async); the 3-level pure
+        // resolution lives in QcProfileResolver (A2 thin-controller, L47).
+        string? overrideJson = null;
         if (productId > 0)
         {
-            var overrideJson = await _db.Products.AsNoTracking()
+            overrideJson = await _db.Products.AsNoTracking()
                 .Where(p => p.Id == productId)
                 .Select(p => p.QcProfileOverride)
                 .FirstOrDefaultAsync(ct);
-            if (TryExtractKindFromOverride(overrideJson, kind, out var extracted))
-                return extracted;
         }
-        // L2 — system default.
-        var seeded = QcProfileSeed.GetDefaultProfileJson(kind);
-        if (!string.IsNullOrEmpty(seeded)) return seeded;
-        // L3 — empty.
-        return "{}";
+        return QcProfileResolver.ResolveSnapshot(overrideJson, kind);
     }
-
-    /// <summary>Product.QcProfileOverride may carry per-kind overrides
-    /// keyed by "fqc"/"oqc" OR be a single profile snapshot.
-    /// Tolerant of both shapes; falls through silently on malformed JSON.</summary>
-    private static bool TryExtractKindFromOverride(string? overrideJson, string kind, out string extracted)
-    {
-        extracted = "";
-        if (string.IsNullOrWhiteSpace(overrideJson)) return false;
-        try
-        {
-            using var doc = JsonDocument.Parse(overrideJson);
-            if (doc.RootElement.ValueKind != JsonValueKind.Object) return false;
-            // Shape 1: { "fqc": {...}, "oqc": {...} }
-            var kindLower = kind.ToLowerInvariant();
-            if (doc.RootElement.TryGetProperty(kindLower, out var perKind)
-                && perKind.ValueKind == JsonValueKind.Object)
-            {
-                extracted = perKind.GetRawText();
-                return true;
-            }
-            // Shape 2: direct profile shape { "sections": [...] } — accept only
-            // when the override declares kind via a top-level "kind" field.
-            if (doc.RootElement.TryGetProperty("kind", out var k)
-                && k.ValueKind == JsonValueKind.String
-                && string.Equals(k.GetString(), kind, StringComparison.OrdinalIgnoreCase)
-                && doc.RootElement.TryGetProperty("sections", out _))
-            {
-                extracted = overrideJson;
-                return true;
-            }
-        }
-        catch (JsonException) { /* malformed override — fall through */ }
-        return false;
-    }
-
-    /// <summary>Extracts the ordered list of item keys declared by the
-    /// profile snapshot's sections[*].items[*].key chain. Returns empty
-    /// when the snapshot is "{}" or malformed.</summary>
-    private static List<string> ExtractProfileItemKeys(string? profileSnapshotJson)
-    {
-        if (string.IsNullOrWhiteSpace(profileSnapshotJson) || profileSnapshotJson == "{}")
-            return new List<string>();
-        try
-        {
-            using var doc = JsonDocument.Parse(profileSnapshotJson);
-            if (!doc.RootElement.TryGetProperty("sections", out var sections))
-                return new List<string>();
-            var keys = new List<string>();
-            foreach (var section in sections.EnumerateArray())
-            {
-                if (!section.TryGetProperty("items", out var items)) continue;
-                foreach (var item in items.EnumerateArray())
-                {
-                    if (item.TryGetProperty("key", out var k)
-                        && k.ValueKind == JsonValueKind.String)
-                    {
-                        var key = k.GetString();
-                        if (!string.IsNullOrEmpty(key)) keys.Add(key);
-                    }
-                }
-            }
-            return keys;
-        }
-        catch (JsonException)
-        {
-            return new List<string>();
-        }
-    }
-
-    private static int ProfileKeyCount(string? profileSnapshotJson)
-        => ExtractProfileItemKeys(profileSnapshotJson).Count;
 
     private async Task<IActionResult?> ValidateNgAsync(string? ngReasonCode, string? ngNote)
     {
@@ -951,7 +877,7 @@ public sealed class WoQcReviewController : ControllerBase
             targetId: woId.ToString(),
             detail: detail);
 
-        var profileExpected = ProfileKeyCount(check.ProfileSnapshotJson);
+        var profileExpected = QcProfileResolver.ProfileKeyCount(check.ProfileSnapshotJson);
         var (ready, allOk, anyNg) = WoQcReadinessRollup.Compute(check, profileExpected);
         Response.Headers.ETag = $"\"{newEtag}\"";
         return Ok(new WoQcSetResponse
