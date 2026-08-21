@@ -39,6 +39,40 @@ window.cclMesDensity = (() => {
 
     function get() { return read(); }
 
+    // ── UI SCALE (L42) — công cụ chỉnh cỡ chữ/UI, giống display scaling của
+    // Win/macOS. Giá trị = HỆ SỐ thập phân (chuỗi) áp thẳng vào --ui-scale:
+    // '0.9' · '1' (mặc định) · '1.1' · '1.25' · '1.5'. Bậc RỜI (không tự do)
+    // theo tiền lệ GOV.UK/Carbon text-zoom — clamp về '1' nếu giá trị lạ.
+    // Áp qua --ui-scale ở :root ⇒ chữ (rem) + --sp-* + --d-tap phóng theo,
+    // khung px (--ix-*) giữ nguyên. Đi chung localStorage + try/catch với
+    // density/rail thay vì dựng thêm preference service.
+    const SCALE_KEY = 'ccl.mes.uiscale';
+    const SCALE_VALID = ['0.9', '1', '1.1', '1.25', '1.5'];
+    const SCALE_DEFAULT = '1';
+
+    function scaleRead() {
+        try {
+            const v = window.localStorage.getItem(SCALE_KEY);
+            return SCALE_VALID.includes(v) ? v : SCALE_DEFAULT;
+        } catch { return SCALE_DEFAULT; }
+    }
+
+    // Áp lên <html> qua biến --ui-scale. Không set khi giá trị lạ ⇒ clamp về 1.
+    function scaleApply(value) {
+        const v = SCALE_VALID.includes(value) ? value : SCALE_DEFAULT;
+        try { document.documentElement.style.setProperty('--ui-scale', v); }
+        catch { /* DOM chưa sẵn sàng — boot sẽ áp lại */ }
+        return v;
+    }
+
+    function scaleGet() { return scaleRead(); }
+
+    function scaleSet(value) {
+        const v = scaleApply(value);
+        try { window.localStorage.setItem(SCALE_KEY, v); } catch { /* thôi */ }
+        return v;
+    }
+
     // Trạng thái thu gọn rail đi chung cơ chế (cùng localStorage, cùng try/catch)
     // thay vì dựng thêm một preference service — ít bộ phận chuyển động hơn.
     const RAIL_KEY = 'ccl.mes.rail';
@@ -101,10 +135,12 @@ window.cclMesDensity = (() => {
     }
 
     // Gọi sớm nhất có thể để không chớp giao diện (FOUC) khi khởi động.
-    function boot() { return apply(read()); }
+    // Áp CẢ density LẪN ui-scale trước khi Blazor render → không chớp cỡ chữ.
+    function boot() { scaleApply(scaleRead()); return apply(read()); }
 
     return {
-        get, set, apply, boot, railGet, railSet, navGroupsGet, navGroupsSet,
+        get, set, apply, boot, scaleGet, scaleSet, scaleApply,
+        railGet, railSet, navGroupsGet, navGroupsSet,
         navPinsGet, navPinsSet, navRecentGet, navRecentSet,
     };
 })();
