@@ -70,13 +70,11 @@ namespace CCL.MES.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route(ApiVersion.Prefix + "/work-orders")]
-public sealed class WoQcReviewController : ControllerBase
+public sealed class WoQcReviewController : WoQcMutationControllerBase
 {
     private const string KindFqc = "FQC";
     private const string KindOqc = "OQC";
 
-    private readonly IMesDbContext _db;
-    private readonly IAuditWriter _audit;
     private readonly WoQcSigPolicyOptions _sigPolicy;
     private readonly IBlobStore _blobs;
 
@@ -90,9 +88,8 @@ public sealed class WoQcReviewController : ControllerBase
         IBlobStore blobs,
         Services.ITraceFreezeService trace,
         Services.WorkCenterSpeedLookup wcSpeed)
+        : base(db, audit)
     {
-        _db = db;
-        _audit = audit;
         _sigPolicy = sigPolicy.Value;
         _blobs = blobs;
         _trace = trace;
@@ -668,12 +665,6 @@ public sealed class WoQcReviewController : ControllerBase
         return s switch { "FQC" => KindFqc, "OQC" => KindOqc, _ => null };
     }
 
-    private string ActorName() => User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
-    private string ActorRole() => User.FindFirstValue(ClaimTypes.Role) ?? "";
-
-    private IActionResult Invalid(string code, string detail)
-        => UnprocessableEntity(ApiError.Of(code, detail));
-
     private async Task<WoQcCheck> GetOrCreateCheckAsync(long woId, string kind, long? productId = null)
     {
         var check = await _db.WoQcChecks
@@ -744,104 +735,6 @@ public sealed class WoQcReviewController : ControllerBase
         return null;
     }
 
-    private async Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
-        long id, string actor, string role, string attemptedAction)
-    {
-        var idemKey = Request.Headers["Idempotency-Key"].ToString();
-        if (string.IsNullOrWhiteSpace(idemKey))
-            return (BadRequest(ApiError.Of("wo.idempotency_key_required",
-                "Idempotency-Key header required.")), null);
-
-        var ifMatch = Request.Headers.IfMatch.ToString();
-        if (string.IsNullOrWhiteSpace(ifMatch))
-            return (StatusCode(StatusCodes.Status428PreconditionRequired,
-                ApiError.Of("wo.if_match_required",
-                    "If-Match header required.")), null);
-
-        var wo = await _db.WorkOrders.FirstOrDefaultAsync(w => w.Id == id);
-        if (wo is null)
-            return (NotFound(ApiError.Of("wo.not_found",
-                $"No work order with id {id}.")), null);
-
-        var serverEtag = Convert.ToBase64String(wo.RowVersion);
-        var clientEtag = NormalizeETag(ifMatch);
-        if (!string.Equals(serverEtag, clientEtag, StringComparison.Ordinal))
-        {
-            var conflictDetail = JsonSerializer.Serialize(new
-            {
-                wo_id = id,
-                wo_no = wo.WoNo,
-                attempted_action = attemptedAction,
-                client_version = clientEtag,
-                server_version = serverEtag,
-            });
-            await _audit.EmitAsync(
-                action: AuditAction.WoStateConflict,
-                actor: actor,
-                actorRole: role,
-                targetType: "WorkOrder",
-                targetId: id.ToString(),
-                detail: conflictDetail);
-
-            Response.Headers.ETag = $"\"{serverEtag}\"";
-            return (Conflict(new WoQcSetResponse
-            {
-                Ok = false,
-                ErrorCode = "wo.state_conflict",
-                ETag = serverEtag,
-                MesPhase = wo.MesPhase ?? "",
-            }), null);
-        }
-
-        return (null, wo);
-    }
-
-    // Shared conflict-response builder for the ALWAYS-SAFE concurrency path.
-    // Both CommitAndAuditAsync (mutation) and PostPhoto (photo upload) lose the
-    // WO-row race identically: clear the dirty tracker, re-read the fresh WO,
-    // stamp the fresh ETag, leave an audit trail, return 409. Gathered here so
-    // the L45 convention ("a conflict MUST leave an audit trace") lives in one
-    // place. `attemptedAction` is the ONLY per-call-site difference.
-    private async Task<IActionResult> HandleWoStateConflictAsync(
-        long woId, string actor, string role, string attemptedAction,
-        CancellationToken ct = default)
-    {
-        if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
-            dbCtx.ChangeTracker.Clear();
-        var fresh = await _db.WorkOrders.AsNoTracking()
-            .FirstOrDefaultAsync(w => w.Id == woId, ct);
-        var freshEtag = fresh is null ? "" : Convert.ToBase64String(fresh.RowVersion);
-        Response.Headers.ETag = $"\"{freshEtag}\"";
-        // L45 — nhánh SaveChanges CŨNG phải để lại vết. Convention đã có sẵn ở
-        // WorkOrdersController/AdminWorkOrdersController (detail mang
-        // source="ef_concurrency"); các controller làm sau đánh rơi nó khi gom
-        // xử lý conflict vào helper/catch riêng. Emit đứng SAU ChangeTracker.Clear():
-        // ApiAuditWriter dùng CHUNG DbContext scoped của request, tracker còn bẩn
-        // thì SaveChanges của audit kéo theo UPDATE đã fail và ném lại.
-        await _audit.EmitAsync(
-            action: AuditAction.WoStateConflict,
-            actor: actor,
-            actorRole: role,
-            targetType: "WorkOrder",
-            targetId: woId.ToString(),
-            detail: JsonSerializer.Serialize(new
-            {
-                wo_id = woId,
-                wo_no = fresh?.WoNo,
-                attempted_action = attemptedAction,
-                server_version = freshEtag,
-                source = "ef_concurrency",
-            }));
-
-        return Conflict(new WoQcSetResponse
-        {
-            Ok = false,
-            ErrorCode = "wo.state_conflict",
-            ETag = freshEtag,
-            MesPhase = fresh?.MesPhase ?? "",
-        });
-    }
-
     private async Task<IActionResult> CommitAndAuditAsync(
         long woId, WorkOrder wo, WoQcCheck check,
         string actor, string role, string action, object extraDetail)
@@ -891,15 +784,6 @@ public sealed class WoQcReviewController : ControllerBase
             AllOk = allOk,
             AnyNg = anyNg,
         });
-    }
-
-    private static string NormalizeETag(string raw)
-    {
-        var trimmed = raw.Trim();
-        if (trimmed.StartsWith("W/", StringComparison.Ordinal)) trimmed = trimmed[2..];
-        if (trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"')
-            trimmed = trimmed[1..^1];
-        return trimmed;
     }
 
     // ═══════════════════════════════════════════════════════════════
