@@ -30,6 +30,25 @@ public sealed partial class TranslationCatalog
         Add("appearance.density.shopfloor.sub", "Thoáng — vùng chạm 44px, chữ 16px. Cho người đứng máy, đeo găng.",
                                            "Roomy — 44px touch targets, 16px text. For operators at the machine, wearing gloves.");
 
+        // L42 — công cụ chỉnh cỡ chữ / UI (display scaling). Người dùng thấy
+        // chữ nhỏ trên màn hình lớn ⇒ phóng nội dung mà không vỡ khung. Bậc rời
+        // (GOV.UK/Carbon text-zoom) + Reset 100%.
+        Add("appearance.scale.title",     "Cỡ chữ / UI",                                  "Text / UI size");
+        Add("appearance.scale.help",      "Phóng to hoặc thu nhỏ chữ và giao diện, giống thu phóng màn hình của hệ điều hành. Hữu ích khi màn hình lớn làm chữ trông nhỏ. Lựa chọn được lưu trên máy này.",
+                                           "Enlarge or shrink text and the interface, like the operating system's display scaling. Useful when a large screen makes text look small. The setting is saved on this device.");
+        Add("appearance.aria.scale",      "Cỡ chữ và giao diện",                          "Text and interface size");
+        Add("appearance.scale.90",        "90%",                                          "90%");
+        Add("appearance.scale.90.sub",    "Nhỏ gọn — nhiều nội dung hơn.",               "Compact — more content.");
+        Add("appearance.scale.100",       "100%",                                         "100%");
+        Add("appearance.scale.100.sub",   "Mặc định.",                                    "Default.");
+        Add("appearance.scale.110",       "110%",                                         "110%");
+        Add("appearance.scale.110.sub",   "Lớn hơn một chút.",                            "A little larger.");
+        Add("appearance.scale.125",       "125%",                                         "125%");
+        Add("appearance.scale.125.sub",   "Dễ đọc trên màn hình lớn.",                    "Easier to read on large screens.");
+        Add("appearance.scale.150",       "150%",                                         "150%");
+        Add("appearance.scale.150.sub",   "Rất lớn — nhìn từ xa.",                        "Very large — viewing from afar.");
+        Add("appearance.scale.reset",     "Đặt lại 100%",                                 "Reset to 100%");
+
         Add("appearance.theme.title",    "Chủ đề (sắp có — P10.6g)",                     "Theme (coming soon — P10.6g)");
         Add("appearance.theme.help",     "Chế độ Sáng / Tối / Theo hệ thống — sẽ có ở P10.6g. Hiện app dùng bảng màu (Sáng) cố định tối ưu cho màn hình xưởng.",
                                           "Light / dark / system mode — arriving in P10.6g. For now the app uses a fixed (light) color palette optimized for shop-floor screens.");

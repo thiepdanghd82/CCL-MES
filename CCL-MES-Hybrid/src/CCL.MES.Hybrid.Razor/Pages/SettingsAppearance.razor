@@ -78,6 +78,43 @@
 </section>
 
 <section class="settings-form-card" style="margin-top:16px">
+    <h2 class="settings-group-title">@T("appearance.scale.title")</h2>
+    <p class="settings-form-help">@T("appearance.scale.help")</p>
+
+    @* L42 — công cụ chỉnh cỡ chữ / UI. Cùng pattern appearance-card như
+       Density/Language: button-card role=radio, KHÔNG <InputText>. Giá trị =
+       hệ số thập phân ('0.9'…'1.5') áp thẳng vào --ui-scale qua scaleSet. *@
+    <div class="appearance-picker" role="radiogroup" aria-label="@T("appearance.aria.scale")">
+        @foreach (var opt in ScaleOptions)
+        {
+            var isActive = opt.Value == _scale;
+            <button type="button"
+                    role="radio"
+                    aria-checked="@(isActive ? "true" : "false")"
+                    class="@(isActive ? "appearance-card is-active" : "appearance-card")"
+                    data-testid="@($"uiscale-{opt.Value}")"
+                    @onclick="@(() => SetScaleAsync(opt.Value))">
+                <span class="appearance-card-title">@T(opt.TitleKey)</span>
+                <span class="appearance-card-sub">@T(opt.SubKey)</span>
+                @if (isActive)
+                {
+                    <span class="appearance-card-check" aria-hidden="true">✓</span>
+                }
+            </button>
+        }
+    </div>
+    <div class="appearance-actions">
+        <button type="button"
+                class="grid-btn grid-btn-link"
+                data-testid="uiscale-reset"
+                disabled="@(_scale == ScaleDefault)"
+                @onclick="@(() => SetScaleAsync(ScaleDefault))">
+            @T("appearance.scale.reset")
+        </button>
+    </div>
+</section>
+
+<section class="settings-form-card" style="margin-top:16px">
     <h2 class="settings-group-title">@T("appearance.theme.title")</h2>
     <p class="settings-form-help">@T("appearance.theme.help")</p>
     <div class="appearance-picker is-locked">
@@ -105,16 +142,24 @@
     // Blazor render nên không chớp giao diện; ở đây chỉ ĐỒNG BỘ trạng thái nút.
     private string _density = "office";
 
+    // L42 — hệ số UI scale (chuỗi thập phân). Mặc định "1" = 100%. Đọc/ghi qua
+    // window.cclMesDensity.scaleGet/scaleSet (localStorage, áp lên --ui-scale).
+    // Boot script trong index.html đã áp trước Blazor nên không chớp; ở đây chỉ
+    // ĐỒNG BỘ trạng thái nút (giống Density).
+    private const string ScaleDefault = "1";
+    private string _scale = ScaleDefault;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
+        var changed = false;
         try
         {
             var v = await JS.InvokeAsync<string>("cclMesDensity.get");
             if (!string.IsNullOrWhiteSpace(v) && v != _density)
             {
                 _density = v;
-                StateHasChanged();
+                changed = true;
             }
         }
         catch
@@ -122,6 +167,22 @@
             // JS chưa sẵn sàng / bị chặn → giữ mặc định office. Không bao giờ
             // để lỗi interop nổi lên renderer (L1).
         }
+
+        try
+        {
+            var s = await JS.InvokeAsync<string>("cclMesDensity.scaleGet");
+            if (!string.IsNullOrWhiteSpace(s) && s != _scale)
+            {
+                _scale = s;
+                changed = true;
+            }
+        }
+        catch
+        {
+            // Như trên — giữ mặc định 100%.
+        }
+
+        if (changed) StateHasChanged();
     }
 
     private async Task SetDensityAsync(string value)
@@ -131,6 +192,13 @@
         try { await JS.InvokeVoidAsync("cclMesDensity.set", value); } catch { }
     }
 
+    private async Task SetScaleAsync(string value)
+    {
+        if (value == _scale) return;            // idempotent — không ghi lại giá trị đang có
+        _scale = value;
+        try { await JS.InvokeVoidAsync("cclMesDensity.scaleSet", value); } catch { }
+    }
+
     private static readonly DensityOption[] DensityOptions = new[]
     {
         new DensityOption("office",    "▤", "appearance.density.office",    "appearance.density.office.sub"),
@@ -138,6 +206,19 @@
     };
 
     private sealed record DensityOption(string Value, string Icon, string TitleKey, string SubKey);
+
+    // Bậc rời (GOV.UK/Carbon text-zoom): 90 · 100 (mặc định) · 110 · 125 · 150.
+    // Value = hệ số thập phân áp thẳng vào --ui-scale.
+    private static readonly ScaleOption[] ScaleOptions = new[]
+    {
+        new ScaleOption("0.9",  "appearance.scale.90",  "appearance.scale.90.sub"),
+        new ScaleOption("1",    "appearance.scale.100", "appearance.scale.100.sub"),
+        new ScaleOption("1.1",  "appearance.scale.110", "appearance.scale.110.sub"),
+        new ScaleOption("1.25", "appearance.scale.125", "appearance.scale.125.sub"),
+        new ScaleOption("1.5",  "appearance.scale.150", "appearance.scale.150.sub"),
+    };
+
+    private sealed record ScaleOption(string Value, string TitleKey, string SubKey);
 
     private static readonly LanguageOption[] Options = new[]
     {

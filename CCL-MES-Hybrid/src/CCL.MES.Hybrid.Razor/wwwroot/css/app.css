@@ -109,9 +109,22 @@
     --fw-semibold: 600;
     --fw-bold:     700;
 
-    /* Thang khoảng cách — lưới 4px */
-    --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 16px;
-    --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
+    /* ── UI SCALE (L42 — công cụ chỉnh cỡ chữ/UI, giống display scaling của
+       Win/macOS). Một biến duy nhất --ui-scale (mặc định 1) phóng to/thu nhỏ
+       NỘI DUNG (chữ qua rem + khoảng cách + vùng chạm) mà GIỮ CỐ ĐỊNH khung
+       (rail/header px) để layout không vỡ. Tiền lệ GOV.UK/Carbon text-zoom
+       ≤200% (bậc rời + reset), KHÔNG CSS zoom (vỡ tọa độ tuyệt đối).
+       html{font-size:calc(100% * var(--ui-scale))} ở dưới → mọi --fs-* (rem)
+       phóng theo. Persist + boot qua js/density.js scaleGet/scaleSet. */
+    --ui-scale: 1;
+
+    /* Thang khoảng cách — lưới 4px, nhân --ui-scale để cân đối với chữ (giống
+       OS: chữ to thì khoảng cách giãn theo). Base 4px…48px giữ nguyên khi
+       scale=1 ⇒ thêm calc là NO-OP thị giác. Khung px (--ix-*) KHÔNG nhân. */
+    --sp-1: calc(4px * var(--ui-scale));  --sp-2: calc(8px * var(--ui-scale));
+    --sp-3: calc(12px * var(--ui-scale)); --sp-4: calc(16px * var(--ui-scale));
+    --sp-5: calc(24px * var(--ui-scale)); --sp-6: calc(32px * var(--ui-scale));
+    --sp-7: calc(48px * var(--ui-scale));
 
     /* P2-PR1 — chiều cao thanh cửa sổ (taskbar) đáy màn. Một token duy nhất:
        .taskbar cao đúng bằng nó và .window-layer chừa padding-bottom bằng nó
@@ -138,9 +151,9 @@
        Người dùng: kỹ sư / QA ngồi bàn, màn rộng, chuột, cần nhiều dòng trên
        một màn. Giá trị = trạng thái hiện tại của app ⇒ thêm vào không đổi gì. */
     --d-font:      var(--fs-md);
-    --d-row-h:     32px;
-    --d-control-h: 28px;
-    --d-tap:       28px;
+    --d-row-h:     calc(32px * var(--ui-scale));
+    --d-control-h: calc(28px * var(--ui-scale));
+    --d-tap:       calc(28px * var(--ui-scale));
     --d-gap:       var(--sp-2);
     --d-pad-x:     var(--sp-3);
 }
@@ -154,9 +167,9 @@
    Mọi surface Operator chạm được PHẢI screenshot ở cả hai density trong PR. */
 :root[data-density="shopfloor"] {
     --d-font:      var(--fs-base);
-    --d-row-h:     56px;
-    --d-control-h: 44px;
-    --d-tap:       44px;
+    --d-row-h:     calc(56px * var(--ui-scale));
+    --d-control-h: calc(44px * var(--ui-scale));
+    --d-tap:       calc(44px * var(--ui-scale));
     --d-gap:       var(--sp-4);
     --d-pad-x:     var(--sp-4);
     /* Taskbar taller so gloved-finger chips clear the ≥44px tap target. */
@@ -171,6 +184,14 @@
 .u-stack { display: flex; flex-direction: column; gap: var(--d-gap); }
 .u-focus:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+
+/* L42 — UI scale: phóng root font-size ⇒ mọi --fs-* (rem) theo. Đây là ĐƯỜNG
+   DUY NHẤT chữ được scale; --fs-* KHÔNG nhân --ui-scale lần nữa (tránh
+   double-scale). Base 100% = 16px; scale=1 ⇒ no-op. Chỉ đặt trên <html> để
+   1rem đổi theo; <body> kế thừa nên không lặp lại. */
+html {
+    font-size: calc(100% * var(--ui-scale));
+}
 
 html, body {
     margin: 0;
@@ -4543,6 +4564,13 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 
 .appearance-picker.is-locked .appearance-card {
     cursor: not-allowed;
+}
+
+/* L42 — hàng nút phụ dưới picker cỡ chữ (Reset 100%). Token-only. */
+.appearance-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--sp-3);
 }
 
 .appearance-banner {
