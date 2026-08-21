@@ -36,6 +36,10 @@ public sealed partial class TranslationCatalog
         Add("windows.traceability.title",        "Truy xuất nguồn gốc",                 "Traceability");
         Add("windows.trace_detail.title",        "Truy xuất WO",                        "Trace WO");
 
+        // W5 showcard-migration — IQC Materials inspection window (dynamic title
+        // fallback; the caller passes the ReceiptNo / "new ticket" phrase).
+        Add("windows.iqc_inspection.title",      "Phiếu thanh tra IQC",                 "IQC Inspection");
+
         // Empty-workspace background (P2-PR2)
         Add("workspace.empty.title",             "Không gian làm việc",                 "Workspace");
         Add("workspace.empty.hint",              "Mở một thẻ từ thanh bên để bắt đầu",  "Open a tab from the sidebar to begin");

@@ -28,10 +28,14 @@ public sealed class QmsModulePagesTests : TestContext
         // defaults never fire; wiring them keeps DI resolution happy.
         Services.AddSingleton<CCL.MES.Hybrid.Client.ICclApiClient>(new _Support.RecordingApi());
         Services.AddSingleton<CCL.MES.Hybrid.Client.Auth.IAuthSession>(new _Support.StubAuthSession());
-        // feat/iqc-module-tabs — IqcModule hosts MaterialsInspectionForm showcards
-        // (L34), so it injects IFloatingWindowStore even when the form isn't opened.
-        Services.AddSingleton<CCL.MES.Hybrid.Client.Windows.IFloatingWindowStore>(
-            new CCL.MES.Hybrid.Client.Windows.InMemoryFloatingWindowStore());
+        // W5 showcard-migration — IqcModule now opens Materials inspection
+        // showcards as WindowManager windows (L34) + refreshes off a change
+        // notifier, so it injects IWindowManager + IIqcChangeNotifier. Chrome/
+        // scaffold tests never open a window; wiring them keeps DI happy.
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Windows.IWindowManager>(
+            new CCL.MES.Hybrid.Client.Windows.WindowManager());
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Qms.IIqcChangeNotifier>(
+            new CCL.MES.Hybrid.Client.Qms.IqcChangeNotifier());
         this.AddTestAuthorization().SetAuthorized("qc-user");
     }
 
