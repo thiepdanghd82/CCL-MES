@@ -88,6 +88,16 @@ public sealed class WindowManager : IWindowManager
         var existing = _windows.FirstOrDefault(w => w.Key == key);
         if (existing is not null)
         {
+            // Dedupe-refresh: when the re-open carries a fresh param set, push it
+            // into the live window so a NEW intent reaches an already-open body
+            // (e.g. right-click "Edit" on a spec whose detail window is already
+            // open → the Action param flows in + the body re-applies it). A
+            // param-free re-open (taskbar chip, plain re-nav) passes null and
+            // MUST NOT wipe the existing params — guard on non-null.
+            if (parameters is not null)
+            {
+                existing.Parameters = parameters;
+            }
             FocusInternal(existing);
             Changed?.Invoke();
             return existing;

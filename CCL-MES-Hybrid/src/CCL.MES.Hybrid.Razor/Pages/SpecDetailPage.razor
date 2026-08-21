@@ -374,21 +374,42 @@ else if (_detail is not null && _vm is not null)
     private bool IsActiveTab(string key) => string.Equals(_activeTab, key, StringComparison.OrdinalIgnoreCase);
 
     private long _loadedRevisionId;
+    private string? _appliedAction;
 
     // Load + apply the queued ?action on first render AND on every navigation to
     // a different spec id. The component instance is REUSED when navigating
     // spec→spec (e.g. after Copy/Revise), so OnInitializedAsync alone would not
     // re-run — which left ?action=edit unapplied and the operator stuck on the
     // read-only sheet (couldn't edit Customer / IFS code / Part No after Copy).
+    //
+    // Windowed detail (P2 spec-actions): when the detail is hosted as a WM window
+    // and the operator right-clicks Edit/Copy/Revise on the SAME spec, the id does
+    // not change but a fresh Action param arrives (dedupe-refresh). Re-apply the
+    // action on an Action change too, WITHOUT reloading the sheet (avoid a flash).
     protected override async Task OnParametersSetAsync()
     {
-        if (RevisionId == _loadedRevisionId) return;
-        _loadedRevisionId = RevisionId;
-        _specEditMode = false;
-        _drawingPreviews = null;
-        await LoadDetailAsync();
-        ApplyQueuedAction();
-        await BuildDrawingPreviewsAsync();
+        if (RevisionId != _loadedRevisionId)
+        {
+            _loadedRevisionId = RevisionId;
+            _appliedAction = null;
+            _specEditMode = false;
+            _drawingPreviews = null;
+            await LoadDetailAsync();
+            ApplyQueuedAction();
+            _appliedAction = Action;
+            await BuildDrawingPreviewsAsync();
+            return;
+        }
+
+        // Same spec, new action (windowed re-open) — apply it against the already
+        // loaded detail. Null/blank Action never re-triggers a prior action.
+        if (!string.Equals(Action, _appliedAction, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(Action))
+        {
+            _appliedAction = Action;
+            ApplyQueuedAction();
+            StateHasChanged();
+        }
     }
 
     // P10.10 — fetch image-drawing thumbnails (current version of each slot)

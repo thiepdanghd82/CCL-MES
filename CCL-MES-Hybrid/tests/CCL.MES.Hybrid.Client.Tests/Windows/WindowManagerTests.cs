@@ -67,6 +67,39 @@ public sealed class WindowManagerTests
     }
 
     [Fact]
+    public void Reopen_with_new_parameters_refreshes_the_existing_window()
+    {
+        // Dedupe-refresh (P2 spec-actions): a re-Open of an already-open key with
+        // a fresh param set pushes the new intent into the live window (e.g. the
+        // spec Action=copy reaches an already-open detail window).
+        var m = NewMgr();
+        var first = m.Open("spec:9", "T", null, Body,
+            new Dictionary<string, object> { ["RevisionId"] = 9L });
+        Assert.False(first!.Parameters!.ContainsKey("Action"));
+
+        var again = m.Open("spec:9", "T", null, Body,
+            new Dictionary<string, object> { ["RevisionId"] = 9L, ["Action"] = "copy" });
+
+        Assert.Same(first, again);                 // still one window (deduped)
+        Assert.Single(m.Windows);
+        Assert.Equal("copy", again!.Parameters!["Action"]);
+    }
+
+    [Fact]
+    public void Reopen_with_null_parameters_keeps_the_existing_parameters()
+    {
+        // A param-free re-open (taskbar chip, plain re-nav) must NOT wipe the
+        // params the window already carries.
+        var m = NewMgr();
+        var first = m.Open("spec:9", "T", null, Body,
+            new Dictionary<string, object> { ["RevisionId"] = 9L });
+
+        m.Open("spec:9", "T", null, Body, parameters: null);
+
+        Assert.Equal(9L, first!.Parameters!["RevisionId"]);
+    }
+
+    [Fact]
     public void Open_duplicate_key_while_minimized_restores_it()
     {
         var m = NewMgr();
