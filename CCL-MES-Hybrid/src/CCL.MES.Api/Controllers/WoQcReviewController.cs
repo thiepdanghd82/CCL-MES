@@ -807,6 +807,52 @@ public sealed class WoQcReviewController : ControllerBase
         return (null, wo);
     }
 
+    // Shared conflict-response builder for the ALWAYS-SAFE concurrency path.
+    // Both CommitAndAuditAsync (mutation) and PostPhoto (photo upload) lose the
+    // WO-row race identically: clear the dirty tracker, re-read the fresh WO,
+    // stamp the fresh ETag, leave an audit trail, return 409. Gathered here so
+    // the L45 convention ("a conflict MUST leave an audit trace") lives in one
+    // place. `attemptedAction` is the ONLY per-call-site difference.
+    private async Task<IActionResult> HandleWoStateConflictAsync(
+        long woId, string actor, string role, string attemptedAction,
+        CancellationToken ct = default)
+    {
+        if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
+            dbCtx.ChangeTracker.Clear();
+        var fresh = await _db.WorkOrders.AsNoTracking()
+            .FirstOrDefaultAsync(w => w.Id == woId, ct);
+        var freshEtag = fresh is null ? "" : Convert.ToBase64String(fresh.RowVersion);
+        Response.Headers.ETag = $"\"{freshEtag}\"";
+        // L45 — nhánh SaveChanges CŨNG phải để lại vết. Convention đã có sẵn ở
+        // WorkOrdersController/AdminWorkOrdersController (detail mang
+        // source="ef_concurrency"); các controller làm sau đánh rơi nó khi gom
+        // xử lý conflict vào helper/catch riêng. Emit đứng SAU ChangeTracker.Clear():
+        // ApiAuditWriter dùng CHUNG DbContext scoped của request, tracker còn bẩn
+        // thì SaveChanges của audit kéo theo UPDATE đã fail và ném lại.
+        await _audit.EmitAsync(
+            action: AuditAction.WoStateConflict,
+            actor: actor,
+            actorRole: role,
+            targetType: "WorkOrder",
+            targetId: woId.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                wo_id = woId,
+                wo_no = fresh?.WoNo,
+                attempted_action = attemptedAction,
+                server_version = freshEtag,
+                source = "ef_concurrency",
+            }));
+
+        return Conflict(new WoQcSetResponse
+        {
+            Ok = false,
+            ErrorCode = "wo.state_conflict",
+            ETag = freshEtag,
+            MesPhase = fresh?.MesPhase ?? "",
+        });
+    }
+
     private async Task<IActionResult> CommitAndAuditAsync(
         long woId, WorkOrder wo, WoQcCheck check,
         string actor, string role, string action, object extraDetail)
@@ -819,40 +865,7 @@ public sealed class WoQcReviewController : ControllerBase
         }
         catch (DbUpdateConcurrencyException)
         {
-            if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
-                dbCtx.ChangeTracker.Clear();
-            var fresh = await _db.WorkOrders.AsNoTracking()
-                .FirstOrDefaultAsync(w => w.Id == woId);
-            var freshEtag = fresh is null ? "" : Convert.ToBase64String(fresh.RowVersion);
-            Response.Headers.ETag = $"\"{freshEtag}\"";
-            // L45 — nhánh SaveChanges CŨNG phải để lại vết. Convention đã có sẵn ở
-            // WorkOrdersController/AdminWorkOrdersController (detail mang
-            // source="ef_concurrency"); các controller làm sau đánh rơi nó khi gom
-            // xử lý conflict vào helper/catch riêng. Emit đứng SAU ChangeTracker.Clear():
-            // ApiAuditWriter dùng CHUNG DbContext scoped của request, tracker còn bẩn
-            // thì SaveChanges của audit kéo theo UPDATE đã fail và ném lại.
-            await _audit.EmitAsync(
-                action: AuditAction.WoStateConflict,
-                actor: actor,
-                actorRole: role,
-                targetType: "WorkOrder",
-                targetId: woId.ToString(),
-                detail: JsonSerializer.Serialize(new
-                {
-                    wo_id = woId,
-                    wo_no = fresh?.WoNo,
-                    attempted_action = action,
-                    server_version = freshEtag,
-                    source = "ef_concurrency",
-                }));
-
-            return Conflict(new WoQcSetResponse
-            {
-                Ok = false,
-                ErrorCode = "wo.state_conflict",
-                ETag = freshEtag,
-                MesPhase = fresh?.MesPhase ?? "",
-            });
+            return await HandleWoStateConflictAsync(woId, actor, role, action);
         }
 
         // Re-read freshly to capture the trigger-bumped RowVersion (L11).
@@ -996,40 +1009,7 @@ public sealed class WoQcReviewController : ControllerBase
         catch (DbUpdateConcurrencyException)
         {
             // Race lost on WO row — operator must retry.
-            if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
-                dbCtx.ChangeTracker.Clear();
-            var fresh = await _db.WorkOrders.AsNoTracking()
-                .FirstOrDefaultAsync(w => w.Id == id, ct);
-            var freshEtag = fresh is null ? "" : Convert.ToBase64String(fresh.RowVersion);
-            Response.Headers.ETag = $"\"{freshEtag}\"";
-            // L45 — nhánh SaveChanges CŨNG phải để lại vết. Convention đã có sẵn ở
-            // WorkOrdersController/AdminWorkOrdersController (detail mang
-            // source="ef_concurrency"); các controller làm sau đánh rơi nó khi gom
-            // xử lý conflict vào helper/catch riêng. Emit đứng SAU ChangeTracker.Clear():
-            // ApiAuditWriter dùng CHUNG DbContext scoped của request, tracker còn bẩn
-            // thì SaveChanges của audit kéo theo UPDATE đã fail và ném lại.
-            await _audit.EmitAsync(
-                action: AuditAction.WoStateConflict,
-                actor: actor,
-                actorRole: role,
-                targetType: "WorkOrder",
-                targetId: id.ToString(),
-                detail: JsonSerializer.Serialize(new
-                {
-                    wo_id = id,
-                    wo_no = fresh?.WoNo,
-                    attempted_action = "qc.photo",
-                    server_version = freshEtag,
-                    source = "ef_concurrency",
-                }));
-
-            return Conflict(new WoQcSetResponse
-            {
-                Ok = false,
-                ErrorCode = "wo.state_conflict",
-                ETag = freshEtag,
-                MesPhase = fresh?.MesPhase ?? "",
-            });
+            return await HandleWoStateConflictAsync(id, actor, role, "qc.photo", ct);
         }
 
         // Re-read for the trigger-bumped RowVersion + emit audit + response.

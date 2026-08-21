@@ -639,4 +639,81 @@ public sealed class WoQcReviewControllerTests : IClassFixture<MesApiFactory>
         var err = await judgmentResp.Content.ReadFromJsonAsync<ApiError>();
         Assert.Equal("qc.not_ready_for_judgment", err!.Code);
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // A2 lát 4 — HandleWoStateConflictAsync DRY helper: BOTH delegating
+    // paths (mutation via CommitAndAuditAsync + photo via PostPhoto) must
+    // still return 409 wo.state_conflict AND leave a WO_STATE_CONFLICT
+    // audit trace (L45) when the If-Match is stale. Locks the behaviour
+    // so the extraction stays byte-identical.
+    // ═══════════════════════════════════════════════════════════════
+
+    private static readonly byte[] StaleRowVersion = { 1, 2, 3, 4, 5, 6, 7, 8 };
+
+    [Fact]
+    public async Task PutItem_stale_IfMatch_returns_409_and_emits_WO_STATE_CONFLICT()
+    {
+        // CommitAndAuditAsync path → HandleWoStateConflictAsync(action="qc_fqc_set_item").
+        var client = await QcClientAsync("qc-a2-put-" + Guid.NewGuid().ToString("N")[..6]);
+        var (woId, _) = await SeedWoAsync(mesPhase: "FQC_PENDING");
+        await SeedFqcReadyCheckAsync(woId);
+
+        var stale = Convert.ToBase64String(StaleRowVersion);
+        var req = new HttpRequestMessage(HttpMethod.Put,
+            $"/api/v2/work-orders/{woId}/qc/fqc/items/fqc_appearance")
+        {
+            Content = JsonContent.Create(new SetWoQcItemRequest { Status = "Ok" }),
+        };
+        AddOptimisticHeaders(req, stale);
+        var resp = await client.SendAsync(req);
+
+        Assert.Equal(HttpStatusCode.Conflict, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<WoQcSetResponse>();
+        Assert.False(body!.Ok);
+        Assert.Equal("wo.state_conflict", body.ErrorCode);
+        Assert.True(resp.Headers.Contains("ETag"), "409 must carry a fresh server ETag header.");
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var conflictCount = await db.AuditLogs
+            .CountAsync(a => a.Action == "WO_STATE_CONFLICT" && a.TargetId == woId.ToString());
+        Assert.True(conflictCount >= 1,
+            "L45: stale If-Match on the mutation path MUST leave a WO_STATE_CONFLICT audit row.");
+    }
+
+    [Fact]
+    public async Task PostPhoto_stale_IfMatch_returns_409_and_emits_WO_STATE_CONFLICT()
+    {
+        // PostPhoto path → HandleWoStateConflictAsync(attemptedAction="qc.photo").
+        var client = await QcClientAsync("qc-a2-photo-" + Guid.NewGuid().ToString("N")[..6]);
+        var (woId, _) = await SeedWoAsync(mesPhase: "FQC_PENDING");
+        await SeedFqcReadyCheckAsync(woId);
+
+        var stale = Convert.ToBase64String(StaleRowVersion);
+        using var form = new MultipartFormDataContent();
+        // 1x1 PNG (valid image/png so we reach the SaveChanges/concurrency arm).
+        var png = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+        var content = new ByteArrayContent(png);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        form.Add(content, "file", "probe.png");
+
+        var req = new HttpRequestMessage(HttpMethod.Post,
+            $"/api/v2/work-orders/{woId}/qc/fqc/items/fqc_appearance/photos") { Content = form };
+        AddOptimisticHeaders(req, stale);
+        var resp = await client.SendAsync(req);
+
+        Assert.Equal(HttpStatusCode.Conflict, resp.StatusCode);
+        var body = await resp.Content.ReadFromJsonAsync<WoQcSetResponse>();
+        Assert.False(body!.Ok);
+        Assert.Equal("wo.state_conflict", body.ErrorCode);
+        Assert.True(resp.Headers.Contains("ETag"), "409 must carry a fresh server ETag header.");
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var conflictCount = await db.AuditLogs
+            .CountAsync(a => a.Action == "WO_STATE_CONFLICT" && a.TargetId == woId.ToString());
+        Assert.True(conflictCount >= 1,
+            "L45: stale If-Match on the photo path MUST leave a WO_STATE_CONFLICT audit row.");
+    }
 }
