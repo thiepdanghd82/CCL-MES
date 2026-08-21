@@ -296,7 +296,7 @@ public sealed class WoQcReviewController : ControllerBase
         if (pre.Error is not null) return pre.Error;
         var wo = pre.WoForUpdate!;
 
-        var expectedPhase = normKind == KindFqc ? "FQC_PENDING" : "OQC_PENDING";
+        var expectedPhase = WoQcJudgmentPolicy.ExpectedPhaseForKind(normKind);
         if (wo.MesPhase != expectedPhase)
             return Invalid("wo.invalid_phase",
                 $"qc/{normKind}/items requires MesPhase = {expectedPhase}; current = {wo.MesPhase}.");
@@ -377,13 +377,11 @@ public sealed class WoQcReviewController : ControllerBase
             return Invalid("wo.invalid_phase",
                 $"qc/fqc/judgment requires MesPhase = FQC_PENDING; current = {wo.MesPhase}.");
 
-        if (req is null || string.IsNullOrWhiteSpace(req.Judgment))
-            return Invalid("qc.invalid_judgment",
-                "Judgment is required (\"Pass\" or \"Reject\").");
-        if (!Enum.TryParse<WoQcJudgment>(req.Judgment, ignoreCase: true, out var judgment)
-            || judgment == WoQcJudgment.Pending)
-            return Invalid("qc.invalid_judgment",
-                $"Judgment must be Pass or Reject; got \"{req.Judgment}\".");
+        // Parse phán quyết TRƯỚC readiness (giữ nguyên thứ tự mã lỗi — L47).
+        var parse = WoQcJudgmentPolicy.ParseJudgment(req?.Judgment);
+        if (!parse.IsValid)
+            return Invalid(parse.ErrorCode!, parse.Message!);
+        var judgment = parse.Judgment;
 
         var check = await GetOrCreateCheckAsync(id, KindFqc, wo.ProductId);
         var profileExpected = QcProfileResolver.ProfileKeyCount(check.ProfileSnapshotJson);
@@ -392,35 +390,32 @@ public sealed class WoQcReviewController : ControllerBase
             return Invalid("qc.not_ready_for_judgment",
                 "Every profile item must be resolved (Ok or Ng) before judgment.");
 
-        if (judgment == WoQcJudgment.Reject)
-        {
-            if (string.IsNullOrWhiteSpace(req.JudgmentReason) || req.JudgmentReason!.Length > 500)
-                return Invalid("qc.invalid_reason",
-                    "JudgmentReason is required (1-500 chars) for Reject.");
-        }
+        // Lý do-khi-Reject SAU readiness (giữ nguyên thứ tự — L47).
+        var reasonError = WoQcJudgmentPolicy.ValidateRejectReason(judgment, req?.JudgmentReason);
+        if (reasonError is not null)
+            return Invalid(reasonError.Value.ErrorCode, reasonError.Value.Message);
+
+        var transition = WoQcJudgmentPolicy.Transition(judgment);
+        var persistedReason = WoQcJudgmentPolicy.PersistedReason(judgment, req?.JudgmentReason);
 
         var now = DateTime.UtcNow;
         check.Judgment = judgment;
-        check.JudgmentReason = judgment == WoQcJudgment.Reject ? req.JudgmentReason : null;
+        check.JudgmentReason = persistedReason;
         check.InspectedBy = actor;
         check.InspectedAt = now;
 
-        wo.MesPhase = judgment == WoQcJudgment.Pass ? "OQC_PENDING" : "PREPRESS";
-
-        var auditAction = judgment == WoQcJudgment.Pass
-            ? AuditAction.WoFqcJudgment
-            : AuditAction.WoFqcRejectToPrepress;
+        wo.MesPhase = transition.NextPhase;
 
         var result = await CommitAndAuditAsync(id, wo, check, actor, role,
-            auditAction,
+            transition.AuditAction,
             new
             {
                 outcome = judgment.ToString(),
-                judgment_reason = judgment == WoQcJudgment.Reject ? req.JudgmentReason : null,
+                judgment_reason = persistedReason,
                 inspected_by = actor,
             });
         // Freeze FQC snapshot when the judgment concludes Pass.
-        if (result is OkObjectResult && judgment == WoQcJudgment.Pass)
+        if (result is OkObjectResult && transition.FreezeOnPass)
             await FreezeSafe(id, CCL.MES.Shared.Quality.TracePhase.Fqc, actor);
         return result;
     }
@@ -953,7 +948,7 @@ public sealed class WoQcReviewController : ControllerBase
         if (pre.Error is not null) return pre.Error;
         var wo = pre.WoForUpdate!;
 
-        var expectedPhase = normKind == KindFqc ? "FQC_PENDING" : "OQC_PENDING";
+        var expectedPhase = WoQcJudgmentPolicy.ExpectedPhaseForKind(normKind);
         if (wo.MesPhase != expectedPhase)
             return Invalid("wo.invalid_phase",
                 $"qc/{normKind}/photos requires MesPhase = {expectedPhase}; current = {wo.MesPhase}.");
@@ -1144,7 +1139,7 @@ public sealed class WoQcReviewController : ControllerBase
         if (pre.Error is not null) return pre.Error;
         var wo = pre.WoForUpdate!;
 
-        var expectedPhase = normKind == KindFqc ? "FQC_PENDING" : "OQC_PENDING";
+        var expectedPhase = WoQcJudgmentPolicy.ExpectedPhaseForKind(normKind);
         if (wo.MesPhase != expectedPhase)
             return Invalid("wo.invalid_phase",
                 $"qc/{normKind}/photos requires MesPhase = {expectedPhase}; current = {wo.MesPhase}.");
