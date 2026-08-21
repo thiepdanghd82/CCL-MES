@@ -146,6 +146,16 @@
     /// unset → no focus bubbling (legacy standalone behaviour).</summary>
     [Parameter] public EventCallback OnFocusRequested { get; set; }
 
+    /// <summary>P2 fix — the host sets this true for the ONE window the
+    /// WindowManager marks active. On a false→true transition (e.g. a taskbar
+    /// chip click, which does NOT fire the window's own pointerdown) the
+    /// component raises the REAL z-index of the <c>position:fixed</c>
+    /// <c>.trace-win</c> via <c>cclMesFloat.bringToFront</c>. The host
+    /// <c>.window-host</c> wrapper z-index cannot restack a fixed child, so the
+    /// JS zTop counter is the single source of truth — this closes the
+    /// "click chip but window stays behind an overlapping/maximised window" bug.</summary>
+    [Parameter] public bool IsActive { get; set; }
+
     /// <summary>Fires with the final rect on pointer-up / resize / maximize /
     /// keyboard nudge so the parent can persist it (via FloatingWindowStore).</summary>
     [Parameter] public EventCallback<WindowRect> OnRectChanged { get; set; }
@@ -163,19 +173,33 @@
 
     protected override void OnInitialized() => _maximized = Rect?.Maximized ?? false;
 
+    private bool _wasActive;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
-        _self = DotNetObjectReference.Create(this);
-        var opts = new
+        if (firstRender)
         {
-            cascade = CascadeIndex,
-            minW = MinWidth,
-            minH = MinHeight,
-            rect = Rect is null ? null : new { x = Rect.X, y = Rect.Y, w = Rect.W, h = Rect.H, maximized = Rect.Maximized },
-        };
-        try { await JS.InvokeVoidAsync("cclMesFloat.init", WindowId, _rootRef, _headRef, opts, _self); }
-        catch (Exception) { /* JS not present (e.g. test host) — window stays static */ }
+            _self = DotNetObjectReference.Create(this);
+            var opts = new
+            {
+                cascade = CascadeIndex,
+                minW = MinWidth,
+                minH = MinHeight,
+                rect = Rect is null ? null : new { x = Rect.X, y = Rect.Y, w = Rect.W, h = Rect.H, maximized = Rect.Maximized },
+            };
+            try { await JS.InvokeVoidAsync("cclMesFloat.init", WindowId, _rootRef, _headRef, opts, _self); }
+            catch (Exception) { /* JS not present (e.g. test host) — window stays static */ }
+        }
+
+        // P2 fix: when the WindowManager marks this window active (taskbar chip
+        // click / focus / restore), raise its REAL z-index. .trace-win is
+        // position:fixed → stacking is JS-owned (zTop), not the host wrapper.
+        if (IsActive && !_wasActive)
+        {
+            try { await JS.InvokeVoidAsync("cclMesFloat.bringToFront", WindowId); }
+            catch (Exception) { /* JS not present */ }
+        }
+        _wasActive = IsActive;
     }
 
     /// <summary>Called from floating-window.js with the final geometry.</summary>
