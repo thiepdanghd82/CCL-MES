@@ -167,4 +167,134 @@ public sealed class IpqcJudgmentPolicyTests
         Assert.Equal("", t.NextPhase);
         Assert.False(t.FreezeOnGoRun);
     }
+
+    // ── ParseQaOutcome ───────────────────────────────────────────────────
+
+    [Fact]
+    public void ParseQaOutcome_Approve_is_valid()
+    {
+        var p = IpqcJudgmentPolicy.ParseQaOutcome("Approve");
+        Assert.True(p.IsValid);
+        Assert.Equal(QaOutcome.Approve, p.Outcome);
+        Assert.Null(p.ErrorCode);
+    }
+
+    [Fact]
+    public void ParseQaOutcome_Reject_is_valid_case_insensitive()
+    {
+        var p = IpqcJudgmentPolicy.ParseQaOutcome("reject");
+        Assert.True(p.IsValid);
+        Assert.Equal(QaOutcome.Reject, p.Outcome);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ParseQaOutcome_null_or_blank_yields_required_message(string? raw)
+    {
+        var p = IpqcJudgmentPolicy.ParseQaOutcome(raw);
+        Assert.False(p.IsValid);
+        Assert.Equal("qa.invalid_outcome", p.ErrorCode);
+        Assert.Equal("Outcome is required (\"Approve\" or \"Reject\").", p.ErrorMessage);
+    }
+
+    [Fact]
+    public void ParseQaOutcome_Pending_is_rejected_with_must_be_message()
+    {
+        var p = IpqcJudgmentPolicy.ParseQaOutcome("Pending");
+        Assert.False(p.IsValid);
+        Assert.Equal("qa.invalid_outcome", p.ErrorCode);
+        Assert.Equal("Outcome must be Approve or Reject; got \"Pending\".", p.ErrorMessage);
+    }
+
+    [Fact]
+    public void ParseQaOutcome_unparseable_is_rejected_with_raw_echoed()
+    {
+        var p = IpqcJudgmentPolicy.ParseQaOutcome("Maybe");
+        Assert.False(p.IsValid);
+        Assert.Equal("qa.invalid_outcome", p.ErrorCode);
+        Assert.Equal("Outcome must be Approve or Reject; got \"Maybe\".", p.ErrorMessage);
+    }
+
+    // ── ValidateQaReason ─────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ValidateQaReason_Reject_missing_reason_fails(string? reason)
+    {
+        var err = IpqcJudgmentPolicy.ValidateQaReason(QaOutcome.Reject, reason);
+        Assert.NotNull(err);
+        Assert.Equal("qa.invalid_qa_reason", err!.Value.ErrorCode);
+        Assert.Equal("QaReason is required (1-500 chars) for Reject outcome.", err.Value.Message);
+    }
+
+    [Fact]
+    public void ValidateQaReason_Reject_over_500_chars_fails()
+    {
+        var err = IpqcJudgmentPolicy.ValidateQaReason(QaOutcome.Reject, new string('x', 501));
+        Assert.NotNull(err);
+        Assert.Equal("qa.invalid_qa_reason", err!.Value.ErrorCode);
+        Assert.Equal("QaReason is required (1-500 chars) for Reject outcome.", err.Value.Message);
+    }
+
+    [Fact]
+    public void ValidateQaReason_Reject_valid_reason_passes()
+    {
+        Assert.Null(IpqcJudgmentPolicy.ValidateQaReason(QaOutcome.Reject, "spec deviation"));
+        Assert.Null(IpqcJudgmentPolicy.ValidateQaReason(QaOutcome.Reject, new string('x', 500))); // boundary
+    }
+
+    [Fact]
+    public void ValidateQaReason_Approve_no_reason_passes()
+    {
+        Assert.Null(IpqcJudgmentPolicy.ValidateQaReason(QaOutcome.Approve, null));
+        Assert.Null(IpqcJudgmentPolicy.ValidateQaReason(QaOutcome.Approve, ""));
+    }
+
+    [Fact]
+    public void ValidateQaReason_Approve_reason_within_500_passes()
+    {
+        Assert.Null(IpqcJudgmentPolicy.ValidateQaReason(QaOutcome.Approve, "optional note"));
+        Assert.Null(IpqcJudgmentPolicy.ValidateQaReason(QaOutcome.Approve, new string('x', 500))); // boundary
+    }
+
+    [Fact]
+    public void ValidateQaReason_Approve_reason_over_500_fails_with_distinct_message()
+    {
+        var err = IpqcJudgmentPolicy.ValidateQaReason(QaOutcome.Approve, new string('x', 501));
+        Assert.NotNull(err);
+        Assert.Equal("qa.invalid_qa_reason", err!.Value.ErrorCode);
+        // Message KHÁC bản Reject — word-for-word.
+        Assert.Equal("QaReason must be 0-500 chars on Approve outcome.", err.Value.Message);
+    }
+
+    // ── QaApproveTransition ──────────────────────────────────────────────
+
+    [Fact]
+    public void QaApproveTransition_Approve_goes_to_IPQC_APPROVED_with_freeze()
+    {
+        var t = IpqcJudgmentPolicy.QaApproveTransition(QaOutcome.Approve);
+        Assert.Equal("IPQC_APPROVED", t.NextPhase);
+        Assert.True(t.FreezeOnApprove);
+    }
+
+    [Fact]
+    public void QaApproveTransition_Reject_goes_to_PREPRESS_without_freeze()
+    {
+        var t = IpqcJudgmentPolicy.QaApproveTransition(QaOutcome.Reject);
+        Assert.Equal("PREPRESS", t.NextPhase);
+        Assert.False(t.FreezeOnApprove);
+    }
+
+    [Fact]
+    public void QaApproveTransition_only_Approve_freezes()
+    {
+        // Freeze-on-Approve invariant: đúng 1 nhánh freeze, khoá tương đương
+        // predicate cũ `outcome == QaOutcome.Approve` trong controller.
+        Assert.True(IpqcJudgmentPolicy.QaApproveTransition(QaOutcome.Approve).FreezeOnApprove);
+        Assert.False(IpqcJudgmentPolicy.QaApproveTransition(QaOutcome.Reject).FreezeOnApprove);
+    }
 }
