@@ -55,16 +55,13 @@ namespace CCL.MES.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route(ApiVersion.Prefix + "/work-orders")]
-public sealed class RunningSurfaceController : ControllerBase
+public sealed class RunningSurfaceController : WoMutationControllerBase
 {
-    private readonly IMesDbContext _db;
-    private readonly IAuditWriter _audit;
     private readonly Services.ITraceFreezeService _trace;
 
     public RunningSurfaceController(IMesDbContext db, IAuditWriter audit, Services.ITraceFreezeService trace)
+        : base(db, audit)
     {
-        _db = db;
-        _audit = audit;
         _trace = trace;
     }
 
@@ -533,11 +530,17 @@ public sealed class RunningSurfaceController : ControllerBase
         return null;
     }
 
-    private IActionResult Invalid(string code, string detail)
-        => UnprocessableEntity(ApiError.Of(code, detail));
-
     // ── Prelude: If-Match + Idempotency-Key + RowVersion check ────
 
+    // A2 thin-controller — GIỮ INLINE (không gộp vào base). The base
+    // WoMutationControllerBase.PreludeAsync onConflict factory only exposes
+    // (serverEtag, mesPhase); the RunningSurface 409 body carries TWO extra
+    // fields read off the stale `wo` (QtyDoneCached + QtyNgCached) that the
+    // factory can't reach without a per-request stash — that would either drift
+    // the byte-identical contract or introduce a race-unsafe field. The
+    // mechanism (Idem-Key/If-Match/404/ETag-compare + WoStateConflict audit +
+    // ETag header) is identical to the base; only the typed conflict body's
+    // extra qty fields keep it inline. Flagged in the A2 report.
     private async Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
         long id, string actor, string role, string attemptedAction)
     {
@@ -714,15 +717,5 @@ public sealed class RunningSurfaceController : ControllerBase
             QtyDoneCached = freshRv?.QtyDoneCached ?? wo.QtyDoneCached,
             QtyNgCached = freshRv?.QtyNgCached ?? wo.QtyNgCached,
         });
-    }
-
-    private static string NormalizeETag(string raw)
-    {
-        var s = raw.Trim();
-        if (s.StartsWith("W/", StringComparison.OrdinalIgnoreCase))
-            s = s.Substring(2);
-        if (s.Length >= 2 && s[0] == '"' && s[^1] == '"')
-            s = s.Substring(1, s.Length - 2);
-        return s;
     }
 }
