@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using CCL.MES.Api.Policies;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
@@ -403,13 +404,10 @@ public sealed class IpqcReviewController : ControllerBase
             return Invalid("wo.invalid_phase",
                 $"ipqc/judgment requires MesPhase = IPQC_WAIT; current = {wo.MesPhase}.");
 
-        if (req is null || string.IsNullOrWhiteSpace(req.Judgment))
-            return Invalid("ipqc.invalid_judgment",
-                "Judgment is required (\"GoRun\", \"StopLine\", or \"SpecialAccept\").");
-        if (!Enum.TryParse<IpqcJudgment>(req.Judgment, ignoreCase: true, out var judgment)
-            || judgment == IpqcJudgment.Pending)
-            return Invalid("ipqc.invalid_judgment",
-                $"Judgment must be GoRun / StopLine / SpecialAccept; got \"{req.Judgment}\".");
+        var parse = IpqcJudgmentPolicy.ParseJudgment(req?.Judgment);
+        if (!parse.IsValid)
+            return Invalid(parse.ErrorCode!, parse.ErrorMessage!);
+        var judgment = parse.Judgment;
 
         var check = await GetOrCreateCheckAsync(id, wo);
         var judgItems = check.Items?.ToList();
@@ -422,26 +420,19 @@ public sealed class IpqcReviewController : ControllerBase
                 $"Judgment \"{judgment}\" is inconsistent with slot results " +
                 $"(GoRun requires all OK; SpecialAccept requires at least one NG).");
 
-        if (judgment == IpqcJudgment.SpecialAccept)
-        {
-            if (string.IsNullOrWhiteSpace(req.SpecialAcceptReason)
-                || req.SpecialAcceptReason!.Length > 500)
-                return Invalid("ipqc.invalid_special_accept_reason",
-                    "SpecialAcceptReason is required (1-500 chars) for SpecialAccept judgment.");
-        }
+        var reasonError = IpqcJudgmentPolicy.ValidateSpecialAcceptReason(
+            judgment, req!.SpecialAcceptReason);
+        if (reasonError is not null)
+            return Invalid(reasonError.Value.ErrorCode, reasonError.Value.Message);
 
         var now = DateTime.UtcNow;
         WoIpqcCheckService.SubmitJudgment(check!, judgment,
             judgment == IpqcJudgment.SpecialAccept ? req.SpecialAcceptReason : null,
             actor, now);
 
-        wo.MesPhase = judgment switch
-        {
-            IpqcJudgment.GoRun         => "IPQC_APPROVED",
-            IpqcJudgment.StopLine      => "PREPRESS",
-            IpqcJudgment.SpecialAccept => "QA_PENDING",
-            _ => wo.MesPhase,
-        };
+        var transition = IpqcJudgmentPolicy.Transition(judgment);
+        if (transition.NextPhase.Length > 0)
+            wo.MesPhase = transition.NextPhase;
 
         var result = await CommitAndAuditAsync(id, wo, check, actor, role,
             AuditAction.WoIpqcJudgment,
@@ -452,7 +443,7 @@ public sealed class IpqcReviewController : ControllerBase
                     ? req.SpecialAcceptReason : null,
             });
         // Freeze IPQC snapshot the moment the judgment concludes OK (GoRun).
-        if (result is OkObjectResult && judgment == IpqcJudgment.GoRun)
+        if (result is OkObjectResult && transition.FreezeOnGoRun)
             await FreezeSafe(id, CCL.MES.Shared.Quality.TracePhase.Ipqc, actor);
         return result;
     }
