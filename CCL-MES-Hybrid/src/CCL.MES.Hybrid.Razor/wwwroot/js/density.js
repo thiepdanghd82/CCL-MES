@@ -69,8 +69,42 @@ window.cclMesDensity = (() => {
         return typeof csv === 'string' ? csv : '';
     }
 
+    // Điều hướng nâng cao (Phương án B) — hai danh sách CSV href, đi chung
+    // localStorage + try/catch với density/rail/navgroups (không dựng thêm
+    // preference service). PINNED = href người dùng chủ động ghim (thứ tự ghim
+    // giữ nguyên). RECENT = MRU 5 route vừa thăm (mới nhất đầu danh sách, cắt 5).
+    // Tiền lệ: Cloudscape/Carbon nav filter · VS Code/JetBrains "recent".
+    const NAVPINS_KEY = 'ccl.mes.navpins';
+    function navPinsGet() {
+        try {
+            const v = window.localStorage.getItem(NAVPINS_KEY);
+            return typeof v === 'string' ? v : '';
+        } catch { return ''; }
+    }
+    function navPinsSet(csv) {
+        try { window.localStorage.setItem(NAVPINS_KEY, typeof csv === 'string' ? csv : ''); }
+        catch { }
+        return typeof csv === 'string' ? csv : '';
+    }
+
+    const NAVRECENT_KEY = 'ccl.mes.navrecent';
+    function navRecentGet() {
+        try {
+            const v = window.localStorage.getItem(NAVRECENT_KEY);
+            return typeof v === 'string' ? v : '';
+        } catch { return ''; }
+    }
+    function navRecentSet(csv) {
+        try { window.localStorage.setItem(NAVRECENT_KEY, typeof csv === 'string' ? csv : ''); }
+        catch { }
+        return typeof csv === 'string' ? csv : '';
+    }
+
     // Gọi sớm nhất có thể để không chớp giao diện (FOUC) khi khởi động.
     function boot() { return apply(read()); }
 
-    return { get, set, apply, boot, railGet, railSet, navGroupsGet, navGroupsSet };
+    return {
+        get, set, apply, boot, railGet, railSet, navGroupsGet, navGroupsSet,
+        navPinsGet, navPinsSet, navRecentGet, navRecentSet,
+    };
 })();

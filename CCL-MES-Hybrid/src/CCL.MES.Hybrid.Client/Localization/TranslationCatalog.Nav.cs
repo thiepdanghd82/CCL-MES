@@ -58,5 +58,17 @@ public sealed partial class TranslationCatalog
 
         Add("nav.section.settings",    "CÀI ĐẶT",                   "SETTINGS");
         Add("nav.system",             "Hệ thống",                  "System");
+
+        // Điều hướng nâng cao (Phương án B). Ô tìm/lọc nhanh (tiền lệ:
+        // Cloudscape/Carbon nav filter) + nhóm PINNED (ghim) + RECENT (gần đây)
+        // (tiền lệ: VS Code/JetBrains "recent"). aria cho nút ghim/bỏ ghim mang
+        // {0} = nhãn mục để screen-reader đọc "Ghim <tên>".
+        Add("nav.find.placeholder",   "Tìm nhanh…",                "Quick find…");
+        Add("nav.find.clear",         "Xoá tìm kiếm",              "Clear search");
+        Add("nav.find.none",          "Không có kết quả",          "No results");
+        Add("nav.pinned",             "ĐÃ GHIM",                   "PINNED");
+        Add("nav.recent",             "GẦN ĐÂY",                   "RECENT");
+        Add("nav.pin",                "Ghim {0}",                  "Pin {0}");
+        Add("nav.unpin",              "Bỏ ghim {0}",               "Unpin {0}");
     }
 }

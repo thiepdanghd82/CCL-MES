@@ -285,6 +285,125 @@
 .ix-rail-toggle:hover { background: var(--ix-chrome-2); color: var(--ix-chrome-ink); }
 .ix-rail-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+/* ─── Điều hướng nâng cao (Phương án B) ──────────────────────────────────────
+   Ô TÌM/LỌC NHANH + PINNED + RECENT. Tiền lệ: Cloudscape/Carbon nav filter +
+   VS Code/JetBrains recent. Token-only (thang chữ + spacing + màu chrome),
+   density office/shopfloor, KHÔNG hex mới. */
+
+/* Ô tìm — dưới brand, trên nhóm đầu. Nền chrome-2, hairline, chữ theo density. */
+.app-nav-find {
+    position: relative;
+    display: flex;
+    align-items: center;
+    margin: var(--sp-2) var(--sp-2) 0;
+}
+.app-nav-find-ico {
+    position: absolute;
+    left: var(--sp-2);
+    display: inline-flex;
+    pointer-events: none;
+    color: var(--ix-chrome-mut);
+}
+.app-nav-find-ico .nav-ico { width: 16px; height: 16px; }
+.app-nav-find-input {
+    width: 100%;
+    min-height: var(--d-control-h);
+    padding: 0 var(--sp-6) 0 var(--sp-6);
+    border: var(--ix-hairline) solid var(--ix-chrome-line);
+    border-radius: var(--r-sm);
+    background: var(--ix-chrome-2);
+    color: var(--ix-chrome-ink);
+    font-size: var(--d-font);
+}
+.app-nav-find-input::placeholder { color: var(--ix-chrome-mut); }
+.app-nav-find-input:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.app-nav-find-clear {
+    position: absolute;
+    right: var(--sp-1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--d-tap);
+    min-height: var(--d-tap);
+    width: var(--sp-6);
+    height: var(--d-control-h);
+    border: 0;
+    background: transparent;
+    color: var(--ix-chrome-mut);
+    font-size: var(--fs-lg);
+    line-height: 1;
+    cursor: pointer;
+    border-radius: var(--r-sm);
+}
+.app-nav-find-clear:hover { color: var(--ix-chrome-ink); background: var(--ix-chrome); }
+.app-nav-find-clear:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Không có kết quả — dòng mờ, canh theo section header. */
+.app-nav-find-none {
+    padding: var(--sp-3);
+    font-size: var(--fs-sm);
+    color: var(--ix-chrome-mut);
+    font-style: italic;
+}
+
+/* Wrapper một item: cho phép nút ghim neo phải + lọc ẩn khi không khớp. */
+.app-nav-item { position: relative; display: flex; align-items: stretch; }
+.app-nav-item > .app-nav-link { flex: 1 1 auto; }
+
+/* Nút GHIM — hiện khi hover hàng (office); LUÔN hiện ở shopfloor (đeo găng,
+   không có hover). Neo phải, vùng chạm theo --d-tap. */
+.app-nav-pin {
+    position: absolute;
+    right: var(--sp-1);
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--d-tap);
+    min-height: var(--d-tap);
+    width: var(--sp-6);
+    height: var(--sp-6);
+    border: 0;
+    background: transparent;
+    color: var(--ix-chrome-mut);
+    cursor: pointer;
+    border-radius: var(--r-sm);
+    opacity: 0;
+    transition: opacity var(--mo-fast) var(--ease-std), color var(--mo-fast) var(--ease-std);
+}
+.app-nav-pin .nav-pin-ico { width: 16px; height: 16px; }
+.app-nav-item:hover .app-nav-pin,
+.app-nav-pin:focus-visible { opacity: 1; }
+.app-nav-pin:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.app-nav-pin:hover { color: var(--ix-chrome-ink); }
+/* Đã ghim — luôn hiện + tô accent để đọc được trạng thái từ xa. */
+.app-nav-pin-on { opacity: 1; color: var(--accent); }
+.app-nav-pin-on .nav-pin-ico { fill: var(--accent); stroke: var(--accent); }
+/* Shopfloor: đeo găng, không hover → nút ghim luôn hiện. */
+[data-density="shopfloor"] .app-nav-pin { opacity: 1; }
+
+/* Lọc: khi .nav-filtering bật, ẩn mọi item + section-static không khớp.
+   data-nav-hit="false" = item bị lọc. Nhóm accordion body vẫn hiện (đã force-open
+   ở code khi có hit) nhưng item không khớp trong đó bị ẩn từng cái. */
+.nav-filtering .app-nav-item[data-nav-hit="false"] { display: none; }
+/* Ẩn header nhóm + section tĩnh khi lọc — kết quả gom lại thành một danh sách
+   phẳng, đúng kỳ vọng "lọc nhanh". Nhóm rỗng (mọi item ẩn) tự co lại. */
+.nav-filtering .app-nav-section-static { display: none; }
+
+/* PINNED/RECENT row: nút ghim ở đây LUÔN hiện (đã là mục ghim/gần đây, thao
+   tác bỏ ghim/ghim phải thấy ngay), không chờ hover. */
+.app-nav-item-mru .app-nav-pin { opacity: 1; }
+.app-nav-grp-recent { margin-top: var(--sp-1); }
+
+/* Rail thu gọn (64px): ẩn ô tìm (không đủ chỗ gõ) + ẩn nhóm RECENT (giữ rail
+   gọn); PINNED vẫn hiện icon-only để bấm nhanh. Nút ghim ẩn (không có nhãn để
+   canh, tránh chồng icon). */
+[data-rail="collapsed"] .app-nav-find,
+[data-rail="collapsed"] .app-nav-grp-recent,
+[data-rail="collapsed"] .app-nav-pin { display: none; }
+[data-rail="collapsed"] .app-nav-item { justify-content: center; }
+
 /* ═══ 2. ĐẦU TRANG ════════════════════════════════════════════════════════
    Tiêu đề + phụ đề bên trái, hành động bên phải, hairline ngăn với nội dung.
    Một hành động CHÍNH duy nhất mỗi trang. */

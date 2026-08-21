@@ -28,10 +28,67 @@
         <span>CCL · MES</span>
     </div>
 
-    <nav>
+    @* Ô TÌM/LỌC NHANH (Phương án B) — Cloudscape/Carbon nav filter. Gõ để lọc
+       item theo nhãn (không phân biệt hoa thường + bỏ dấu); Esc xoá, Enter mở
+       item khớp đầu. Ẩn khi rail thu gọn (ix.css [data-rail]). Client-side thuần,
+       KHÔNG gọi API. *@
+    <div class="app-nav-find" data-testid="nav-find">
+        <span class="app-nav-find-ico" aria-hidden="true">@Ico("search")</span>
+        <input type="search"
+               class="app-nav-find-input"
+               data-testid="nav-find-input"
+               placeholder="@T("nav.find.placeholder")"
+               aria-label="@T("nav.find.placeholder")"
+               autocomplete="off"
+               value="@_filter"
+               @oninput="OnFilterInput"
+               @onkeydown="OnFilterKeyDown" />
+        @if (!string.IsNullOrEmpty(_filter))
+        {
+            <button type="button" class="app-nav-find-clear" data-testid="nav-find-clear"
+                    aria-label="@T("nav.find.clear")" @onclick="ClearFilter">×</button>
+        }
+    </div>
+
+    <nav class="@(Filtering ? "nav-filtering" : null)">
         @if (_maxBanner is not null)
         {
             <div class="nav-max-banner" role="alert" data-testid="nav-max-banner">@_maxBanner</div>
+        }
+
+        @if (Filtering && !_filterHits.Any())
+        {
+            <div class="app-nav-find-none" data-testid="nav-find-none">@T("nav.find.none")</div>
+        }
+
+        @* PINNED (ghim) — trên cùng, trên nhóm đầu. Chỉ hiện khi có mục ghim mà
+           user còn quyền. Là nhóm gập được (tái dùng accordion A). Ẩn khi rỗng. *@
+        @if (VisiblePins.Any())
+        {
+            <div class="app-nav-grp" data-testid="nav-grp-pinned">
+                @GroupHeader(GrpPinned, "nav.pinned")
+                <div class="app-nav-grp-body" data-testid="nav-grpbody-pinned" hidden="@(!IsOpen(GrpPinned))">
+                    @foreach (var it in VisiblePins)
+                    {
+                        @PinnedOrRecentItem(it, "pin")
+                    }
+                </div>
+            </div>
+        }
+
+        @* RECENT (gần đây) — dưới PINNED. Tối đa 5 route MRU, trừ trang hiện tại
+           + trừ mục đã ghim. Nhóm gập được; ẩn khi rỗng; ẩn khi rail thu gọn. *@
+        @if (VisibleRecent.Any())
+        {
+            <div class="app-nav-grp app-nav-grp-recent" data-testid="nav-grp-recent">
+                @GroupHeader(GrpRecent, "nav.recent")
+                <div class="app-nav-grp-body" data-testid="nav-grpbody-recent" hidden="@(!IsOpen(GrpRecent))">
+                    @foreach (var it in VisibleRecent)
+                    {
+                        @PinnedOrRecentItem(it, "recent")
+                    }
+                </div>
+            </div>
         }
 
         @* P2-PR2 — sidebar tabs open as keep-alive floating WINDOWS (WM.Open),
@@ -40,30 +97,48 @@
            in @Body (KPI + modules + quick actions), not an empty workspace with
            Home floating over it. Match.All keeps it lit only on the exact "/".
            Home is always-visible (not part of a collapsible group). *@
-        <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link" data-testid="nav-home">
-            @Ico("home")<span>@T("nav.home")</span>
-        </NavLink>
+        <div class="app-nav-item" data-nav-key="/" data-nav-hit="@Hit("/")">
+            <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link" data-testid="nav-home">
+                @Ico("home")<span>@T("nav.home")</span>
+            </NavLink>
+            @PinBtn("/", "nav.home")
+        </div>
 
         <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
             @* Carbon SideNavMenu — the NPI group is a collapsible accordion. *@
-            <div class="app-nav-grp" data-testid="nav-grp-npi">
+            <div class="app-nav-grp" data-testid="nav-grp-npi" hidden="@GroupHiddenByFilter(GrpNpi)">
                 @GroupHeader(GrpNpi, "nav.section.npi")
-                <div class="app-nav-grp-body" data-testid="nav-grpbody-npi" hidden="@(!IsOpen(GrpNpi))">
+                <div class="app-nav-grp-body" data-testid="nav-grpbody-npi" hidden="@BodyHidden(GrpNpi)">
                     @* P2-PR2 — the 4 NPI master-data grids open as windows.
                        P2-PR3 — /npi/specs now opens as a window too: the list is a
                        plain grid window, and a row-open spawns a per-id spec-detail
                        window (spec:{id}) from Specs.OpenAsync. *@
-                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-structure"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiStructure)">@Ico("structure")<span>@T("nav.npi.structure")</span></button>
-                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-routine"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiRoutine)">@Ico("routing")<span>@T("nav.npi.routings")</span></button>
-                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-rawmaterials"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiRawMaterials)">@Ico("material")<span>@T("nav.npi.rawmaterials")</span></button>
-                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-workcenters"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiWorkCenters)">@Ico("workcenter")<span>@T("nav.npi.workcenters")</span></button>
+                    <div class="app-nav-item app-nav-item-sub" data-nav-key="@WindowRegistryKeys.NpiStructure" data-nav-hit="@Hit(WindowRegistryKeys.NpiStructure)">
+                        <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-structure"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiStructure)">@Ico("structure")<span>@T("nav.npi.structure")</span></button>
+                        @PinBtn(WindowRegistryKeys.NpiStructure, "nav.npi.structure")
+                    </div>
+                    <div class="app-nav-item app-nav-item-sub" data-nav-key="@WindowRegistryKeys.NpiRoutine" data-nav-hit="@Hit(WindowRegistryKeys.NpiRoutine)">
+                        <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-routine"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiRoutine)">@Ico("routing")<span>@T("nav.npi.routings")</span></button>
+                        @PinBtn(WindowRegistryKeys.NpiRoutine, "nav.npi.routings")
+                    </div>
+                    <div class="app-nav-item app-nav-item-sub" data-nav-key="@WindowRegistryKeys.NpiRawMaterials" data-nav-hit="@Hit(WindowRegistryKeys.NpiRawMaterials)">
+                        <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-rawmaterials"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiRawMaterials)">@Ico("material")<span>@T("nav.npi.rawmaterials")</span></button>
+                        @PinBtn(WindowRegistryKeys.NpiRawMaterials, "nav.npi.rawmaterials")
+                    </div>
+                    <div class="app-nav-item app-nav-item-sub" data-nav-key="@WindowRegistryKeys.NpiWorkCenters" data-nav-hit="@Hit(WindowRegistryKeys.NpiWorkCenters)">
+                        <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-workcenters"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiWorkCenters)">@Ico("workcenter")<span>@T("nav.npi.workcenters")</span></button>
+                        @PinBtn(WindowRegistryKeys.NpiWorkCenters, "nav.npi.workcenters")
+                    </div>
                     <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="specCtx">
-                        <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-specs"
-                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.Specs)">@Ico("spec")<span>@T("nav.npi.spec")</span></button>
+                        <div class="app-nav-item app-nav-item-sub" data-nav-key="@WindowRegistryKeys.Specs" data-nav-hit="@Hit(WindowRegistryKeys.Specs)">
+                            <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-specs"
+                                    @onclick="() => OpenWindowAsync(WindowRegistryKeys.Specs)">@Ico("spec")<span>@T("nav.npi.spec")</span></button>
+                            @PinBtn(WindowRegistryKeys.Specs, "nav.npi.spec")
+                        </div>
                     </AuthorizeView>
                 </div>
             </div>
@@ -71,22 +146,28 @@
 
         @if (HwOptions.Value.ScanEnabled)
         {
-            <div class="app-nav-grp" data-testid="nav-grp-production">
+            <div class="app-nav-grp" data-testid="nav-grp-production" hidden="@GroupHiddenByFilter(GrpProduction)">
                 @GroupHeader(GrpProduction, "nav.section.production")
-                <div class="app-nav-grp-body" data-testid="nav-grpbody-production" hidden="@(!IsOpen(GrpProduction))">
+                <div class="app-nav-grp-body" data-testid="nav-grpbody-production" hidden="@BodyHidden(GrpProduction)">
                     @* W5 — /workorders now opens as a keep-alive window (WM.Open). It is
                        param-free + any-auth + hosts no FloatingWindow of its own; the
                        MesPhase dispatch + AdvanceOrchestrator + 8 child dashboards all
                        live inside the single window instance (keep-alive). Semi-finished
                        store is a plain grid → window. *@
-                    <button type="button" class="app-nav-link" data-testid="nav-win-workorders"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.WorkOrders)">
-                        @Ico("scan")<span>@T("nav.workorders")</span>
-                    </button>
-                    <button type="button" class="app-nav-link" data-testid="nav-win-semiproducts"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.SemiProducts)">
-                        @Ico("box")<span>@T("nav.semiproducts")</span>
-                    </button>
+                    <div class="app-nav-item" data-nav-key="@WindowRegistryKeys.WorkOrders" data-nav-hit="@Hit(WindowRegistryKeys.WorkOrders)">
+                        <button type="button" class="app-nav-link" data-testid="nav-win-workorders"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.WorkOrders)">
+                            @Ico("scan")<span>@T("nav.workorders")</span>
+                        </button>
+                        @PinBtn(WindowRegistryKeys.WorkOrders, "nav.workorders")
+                    </div>
+                    <div class="app-nav-item" data-nav-key="@WindowRegistryKeys.SemiProducts" data-nav-hit="@Hit(WindowRegistryKeys.SemiProducts)">
+                        <button type="button" class="app-nav-link" data-testid="nav-win-semiproducts"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.SemiProducts)">
+                            @Ico("box")<span>@T("nav.semiproducts")</span>
+                        </button>
+                        @PinBtn(WindowRegistryKeys.SemiProducts, "nav.semiproducts")
+                    </div>
                 </div>
             </div>
         }
@@ -94,20 +175,26 @@
         @* P10.8 — Machine Dashboard + Shop Order History (SpecHub parity).
            Read-only monitoring; open to every authenticated role. The QC
            surfaces moved to the CCL-QMS group below. *@
-        <div class="app-nav-grp" data-testid="nav-grp-monitoring">
+        <div class="app-nav-grp" data-testid="nav-grp-monitoring" hidden="@GroupHiddenByFilter(GrpMonitoring)">
             @GroupHeader(GrpMonitoring, "nav.section.monitoring")
-            <div class="app-nav-grp-body" data-testid="nav-grpbody-monitoring" hidden="@(!IsOpen(GrpMonitoring))">
+            <div class="app-nav-grp-body" data-testid="nav-grpbody-monitoring" hidden="@BodyHidden(GrpMonitoring)">
                 @* P2-PR1 — these open as keep-alive floating WINDOWS (WM.Open) instead of
                    navigating the whole shell; the URL is still synced (replace:true) so a
                    reload / deep-link lands the same place. NavLink styling kept via class. *@
-                <button type="button" class="app-nav-link" data-testid="nav-win-machines"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.MachineDashboard)">
-                    @Ico("grid")<span>@T("nav.machines")</span>
-                </button>
-                <button type="button" class="app-nav-link" data-testid="nav-win-shoporders"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.ShopOrderHistory)">
-                    @Ico("history")<span>@T("nav.shoporders")</span>
-                </button>
+                <div class="app-nav-item" data-nav-key="@WindowRegistryKeys.MachineDashboard" data-nav-hit="@Hit(WindowRegistryKeys.MachineDashboard)">
+                    <button type="button" class="app-nav-link" data-testid="nav-win-machines"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.MachineDashboard)">
+                        @Ico("grid")<span>@T("nav.machines")</span>
+                    </button>
+                    @PinBtn(WindowRegistryKeys.MachineDashboard, "nav.machines")
+                </div>
+                <div class="app-nav-item" data-nav-key="@WindowRegistryKeys.ShopOrderHistory" data-nav-hit="@Hit(WindowRegistryKeys.ShopOrderHistory)">
+                    <button type="button" class="app-nav-link" data-testid="nav-win-shoporders"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.ShopOrderHistory)">
+                        @Ico("history")<span>@T("nav.shoporders")</span>
+                    </button>
+                    @PinBtn(WindowRegistryKeys.ShopOrderHistory, "nav.shoporders")
+                </div>
             </div>
         </div>
 
@@ -119,56 +206,86 @@
            level under the QMS group with a soft connector rule. Gated to the
            QcRead roles (RBAC-by-omission; the server still 403s each route). *@
         <AuthorizeView Roles="Admin,Supervisor,QC" Context="qmsCtx">
-            <div class="app-nav-grp" data-testid="nav-grp-qms">
+            <div class="app-nav-grp" data-testid="nav-grp-qms" hidden="@GroupHiddenByFilter(GrpQms)">
                 @GroupHeader(GrpQms, "nav.qms.title")
-                <div class="app-nav-grp-body" data-testid="nav-grpbody-qms" hidden="@(!IsOpen(GrpQms))">
+                <div class="app-nav-grp-body" data-testid="nav-grpbody-qms" hidden="@BodyHidden(GrpQms)">
                     @* P2-PR2 — the QMS modules open as windows. /qms/iqc stays a NavLink:
                        IqcModule self-hosts its own FloatingWindow multi-window host
                        (materials-inspection showcards) — a window-in-window migration
                        deferred to PR3. iCRA (Corrective action · CAPA) is a QMS module,
                        not a QC-stage inspection — its subtitle title makes that boundary
                        explicit for a screen-reader / hover. *@
-                    <button type="button" class="app-nav-link" data-testid="nav-win-qms-dashboard"
-                            title="@T("nav.qms.m.dashboard.sub")" aria-label="@QmsAria("nav.qms.m.dashboard", "nav.qms.m.dashboard.sub")"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsDashboard)">
-                        @Ico("quality")<span>@T("nav.qms.m.dashboard")</span>
-                    </button>
-                    <NavLink href="/qms/iqc" class="app-nav-link" data-testid="nav-qms-iqc"
-                             title="@T("nav.qms.m.iqc.sub")" aria-label="@QmsAria("nav.qms.m.iqc", "nav.qms.m.iqc.sub")">
-                        @Ico("iqc")<span>@T("nav.qms.m.iqc")</span>
-                    </NavLink>
-                    <button type="button" class="app-nav-link" data-testid="nav-win-qms-ipqc"
-                            title="@T("nav.qms.m.ipqc.sub")" aria-label="@QmsAria("nav.qms.m.ipqc", "nav.qms.m.ipqc.sub")"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsIpqc)">
-                        @Ico("ipqc")<span>@T("nav.qms.m.ipqc")</span>
-                    </button>
-                    <button type="button" class="app-nav-link" data-testid="nav-win-qms-oqc"
-                            title="@T("nav.qms.m.oqc.sub")" aria-label="@QmsAria("nav.qms.m.oqc", "nav.qms.m.oqc.sub")"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsOqc)">
-                        @Ico("oqc")<span>@T("nav.qms.m.oqc")</span>
-                    </button>
-                    <button type="button" class="app-nav-link" data-testid="nav-win-qms-icra"
-                            title="@T("nav.qms.m.icra.sub")" aria-label="@QmsAria("nav.qms.m.icra", "nav.qms.m.icra.sub")"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsIcra)">
-                        @Ico("icra")<span>@T("nav.qms.m.icra")</span>
-                    </button>
+                    <div class="app-nav-item" data-nav-key="@WindowRegistryKeys.QmsDashboard" data-nav-hit="@Hit(WindowRegistryKeys.QmsDashboard)">
+                        <button type="button" class="app-nav-link" data-testid="nav-win-qms-dashboard"
+                                title="@T("nav.qms.m.dashboard.sub")" aria-label="@QmsAria("nav.qms.m.dashboard", "nav.qms.m.dashboard.sub")"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsDashboard)">
+                            @Ico("quality")<span>@T("nav.qms.m.dashboard")</span>
+                        </button>
+                        @PinBtn(WindowRegistryKeys.QmsDashboard, "nav.qms.m.dashboard")
+                    </div>
+                    <div class="app-nav-item" data-nav-key="/qms/iqc" data-nav-hit="@Hit("/qms/iqc")">
+                        <NavLink href="/qms/iqc" class="app-nav-link" data-testid="nav-qms-iqc"
+                                 title="@T("nav.qms.m.iqc.sub")" aria-label="@QmsAria("nav.qms.m.iqc", "nav.qms.m.iqc.sub")">
+                            @Ico("iqc")<span>@T("nav.qms.m.iqc")</span>
+                        </NavLink>
+                        @PinBtn("/qms/iqc", "nav.qms.m.iqc")
+                    </div>
+                    <div class="app-nav-item" data-nav-key="@WindowRegistryKeys.QmsIpqc" data-nav-hit="@Hit(WindowRegistryKeys.QmsIpqc)">
+                        <button type="button" class="app-nav-link" data-testid="nav-win-qms-ipqc"
+                                title="@T("nav.qms.m.ipqc.sub")" aria-label="@QmsAria("nav.qms.m.ipqc", "nav.qms.m.ipqc.sub")"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsIpqc)">
+                            @Ico("ipqc")<span>@T("nav.qms.m.ipqc")</span>
+                        </button>
+                        @PinBtn(WindowRegistryKeys.QmsIpqc, "nav.qms.m.ipqc")
+                    </div>
+                    <div class="app-nav-item" data-nav-key="@WindowRegistryKeys.QmsOqc" data-nav-hit="@Hit(WindowRegistryKeys.QmsOqc)">
+                        <button type="button" class="app-nav-link" data-testid="nav-win-qms-oqc"
+                                title="@T("nav.qms.m.oqc.sub")" aria-label="@QmsAria("nav.qms.m.oqc", "nav.qms.m.oqc.sub")"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsOqc)">
+                            @Ico("oqc")<span>@T("nav.qms.m.oqc")</span>
+                        </button>
+                        @PinBtn(WindowRegistryKeys.QmsOqc, "nav.qms.m.oqc")
+                    </div>
+                    <div class="app-nav-item" data-nav-key="@WindowRegistryKeys.QmsIcra" data-nav-hit="@Hit(WindowRegistryKeys.QmsIcra)">
+                        <button type="button" class="app-nav-link" data-testid="nav-win-qms-icra"
+                                title="@T("nav.qms.m.icra.sub")" aria-label="@QmsAria("nav.qms.m.icra", "nav.qms.m.icra.sub")"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsIcra)">
+                            @Ico("icra")<span>@T("nav.qms.m.icra")</span>
+                        </button>
+                        @PinBtn(WindowRegistryKeys.QmsIcra, "nav.qms.m.icra")
+                    </div>
 
                     @* P2-PR3 — the Inspection Queue hub + FQC stage lock open as
                        windows. Two distinct keys over one QmsQueue component; the
                        FQC key carries the { ["Mode"] = "fqc" } stage lock. These 5
                        indent one more level (sub) under the 5 primary modules. *@
-                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qms-queue"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsQueueHub)">@Ico("queue")<span>@T("nav.qms.queue")</span></button>
-                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qms-fqc"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsQueueFqc)">@Ico("clipboard")<span>@T("nav.qms.fqc")</span></button>
+                    <div class="app-nav-item app-nav-item-sub" data-nav-key="@WindowRegistryKeys.QmsQueueHub" data-nav-hit="@Hit(WindowRegistryKeys.QmsQueueHub)">
+                        <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qms-queue"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsQueueHub)">@Ico("queue")<span>@T("nav.qms.queue")</span></button>
+                        @PinBtn(WindowRegistryKeys.QmsQueueHub, "nav.qms.queue")
+                    </div>
+                    <div class="app-nav-item app-nav-item-sub" data-nav-key="@WindowRegistryKeys.QmsQueueFqc" data-nav-hit="@Hit(WindowRegistryKeys.QmsQueueFqc)">
+                        <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qms-fqc"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsQueueFqc)">@Ico("clipboard")<span>@T("nav.qms.fqc")</span></button>
+                        @PinBtn(WindowRegistryKeys.QmsQueueFqc, "nav.qms.fqc")
+                    </div>
                     @* P2-PR1 — QC History + QC Library open as floating windows. *@
-                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qchistory"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcHistory)">@Ico("history")<span>@T("nav.qms.history")</span></button>
-                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qclibrary"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcLibrary)">@Ico("library")<span>@T("nav.qms.library")</span></button>
+                    <div class="app-nav-item app-nav-item-sub" data-nav-key="@WindowRegistryKeys.QcHistory" data-nav-hit="@Hit(WindowRegistryKeys.QcHistory)">
+                        <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qchistory"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcHistory)">@Ico("history")<span>@T("nav.qms.history")</span></button>
+                        @PinBtn(WindowRegistryKeys.QcHistory, "nav.qms.history")
+                    </div>
+                    <div class="app-nav-item app-nav-item-sub" data-nav-key="@WindowRegistryKeys.QcLibrary" data-nav-hit="@Hit(WindowRegistryKeys.QcLibrary)">
+                        <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qclibrary"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcLibrary)">@Ico("library")<span>@T("nav.qms.library")</span></button>
+                        @PinBtn(WindowRegistryKeys.QcLibrary, "nav.qms.library")
+                    </div>
                     @* P2 showcard-migration — Traceability opens as a floating window. *@
-                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-traceability"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.Traceability)">@Ico("trace")<span>@T("nav.qms.traceability")</span></button>
+                    <div class="app-nav-item app-nav-item-sub" data-nav-key="@WindowRegistryKeys.Traceability" data-nav-hit="@Hit(WindowRegistryKeys.Traceability)">
+                        <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-traceability"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.Traceability)">@Ico("trace")<span>@T("nav.qms.traceability")</span></button>
+                        @PinBtn(WindowRegistryKeys.Traceability, "nav.qms.traceability")
+                    </div>
                 </div>
             </div>
         </AuthorizeView>
@@ -179,7 +296,10 @@
            all /settings/* routes. Always-visible (not part of a collapsible
            group) — a single top-level entry like Home. *@
         <div class="app-nav-section app-nav-section-static">@T("nav.section.settings")</div>
-        <NavLink href="/settings" class="app-nav-link">@Ico("gear")<span>@T("nav.system")</span></NavLink>
+        <div class="app-nav-item" data-nav-key="/settings" data-nav-hit="@Hit("/settings")">
+            <NavLink href="/settings" class="app-nav-link" data-testid="nav-settings">@Ico("gear")<span>@T("nav.system")</span></NavLink>
+            @PinBtn("/settings", "nav.system")
+        </div>
 
         <RecentScansWidget />
     </nav>
@@ -218,6 +338,9 @@
     private const string GrpProduction = "production";
     private const string GrpMonitoring = "monitoring";
     private const string GrpQms = "qms";
+    // Phương án B — PINNED + RECENT là hai nhóm gập được (tái dùng accordion A).
+    private const string GrpPinned = "pinned";
+    private const string GrpRecent = "recent";
 
     // Route prefixes owned by each group → the group auto-opens when the active
     // URL matches. Kept in ONE place so no screen invents its own mapping.
@@ -234,6 +357,12 @@
     private readonly HashSet<string> _closed = new(StringComparer.Ordinal);
 
     private bool IsOpen(string group) => !_closed.Contains(group);
+
+    // Body visibility for a group: while filtering, a group that survived
+    // GroupHiddenByFilter (has ≥1 hit) is FORCE-OPEN regardless of the persisted
+    // collapsed state, so a match in a user-collapsed group is still revealed.
+    // Otherwise honour the accordion open/closed state.
+    private bool BodyHidden(string group) => Filtering ? false : !IsOpen(group);
 
     protected override void OnInitialized()
     {
@@ -256,6 +385,22 @@
             // JS chưa sẵn sàng → mọi nhóm mở. Không để lỗi interop nổi lên
             // renderer (L1) — rail là chrome, nơi tệ nhất để ném exception.
         }
+        // Phương án B — nạp PINNED + RECENT từ localStorage (cùng try/catch).
+        try
+        {
+            var pins = await JS.InvokeAsync<string>("cclMesDensity.navPinsGet");
+            LoadCsv(_pins, pins);
+        }
+        catch { }
+        try
+        {
+            var recent = await JS.InvokeAsync<string>("cclMesDensity.navRecentGet");
+            LoadCsv(_recent, recent);
+        }
+        catch { }
+        // Ghi route hiện tại vào MRU ngay lần render đầu (deep-link / reload cũng
+        // là "vừa thăm"). Cập nhật đồng bộ + persist nền (bên trong RecordRecent).
+        RecordRecent(CurrentPath());
         // Nhóm chứa route active LUÔN mở (dù người dùng từng đóng) để không
         // giấu mất mục đang xem.
         ForceOpenActiveGroup();
@@ -264,7 +409,12 @@
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        if (ForceOpenActiveGroup())
+        // Phương án B — cập nhật MRU khi đổi route (push mới lên đầu, cắt 5). Cập
+        // nhật danh sách trong-bộ-nhớ ĐỒNG BỘ (để render phản ánh ngay), lưu CSV
+        // fire-and-forget. Re-render nếu MRU đổi HOẶC nhóm active vừa mở.
+        var recentChanged = RecordRecent(CurrentPath());
+        var groupChanged = ForceOpenActiveGroup();
+        if (recentChanged || groupChanged)
             InvokeAsync(StateHasChanged);
     }
 
@@ -276,11 +426,19 @@
         return active is not null && _closed.Remove(active);
     }
 
-    private string? ActiveGroup()
+    // Current path, base-relative + leading slash + query stripped. One source
+    // for both the group auto-open map and the RECENT MRU comparison.
+    private string CurrentPath()
     {
         var path = "/" + Nav.ToBaseRelativePath(Nav.Uri);
         var q = path.IndexOf('?');
         if (q >= 0) path = path[..q];
+        return path;
+    }
+
+    private string? ActiveGroup()
+    {
+        var path = CurrentPath();
         foreach (var (group, prefixes) in GroupRoutes)
             foreach (var prefix in prefixes)
                 if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
@@ -320,6 +478,285 @@
     // Combined aria label for a QMS single-line item: "Overview — Dashboard".
     // The subtitle carries the fuller meaning the second line used to show.
     private string QmsAria(string labelKey, string subKey) => $"{T(labelKey)} — {T(subKey)}";
+
+    // ══ Phương án B — TÌM/LỌC + PINNED + RECENT ══════════════════════════════
+    // Precedent: Cloudscape/Carbon side-nav filter (client-side label filter) +
+    // VS Code / JetBrains "recent". A single declarative catalog mirrors every
+    // navigable item's IDENTITY (key = href / window-key, label i18n key, icon,
+    // roles, whether it opens as a window). It is the ONE source used by BOTH
+    // the filter (which keys match the query) AND the PINNED/RECENT groups
+    // (which item to render for a persisted key). The live groups above keep
+    // their hand-authored RBAC markup untouched — this catalog only carries the
+    // identity needed to filter + pin + recall, so nothing about route/RBAC is
+    // duplicated as a second gate (RBAC is re-checked here purely to avoid
+    // surfacing a pinned/recent item the user can't reach).
+
+    /// <summary>One navigable leaf's identity. <paramref name="Roles"/> null =
+    /// any authenticated user; otherwise the item is only offered when the user
+    /// holds one of the roles (RBAC-by-omission, mirrors the AuthorizeView that
+    /// wraps the live item — the server still authorises the actual open).</summary>
+    // Activation is decided at click time by Registry.Resolve(Key) (window key →
+    // open window; else NavLink route → navigate), so no IsWindow flag is stored
+    // — one source (the registry) decides, not a duplicated boolean.
+    private sealed record NavItem(string Key, string LabelKey, string Icon, string[]? Roles);
+
+    // Role sets mirror the AuthorizeView wrappers in the live markup exactly.
+    // MUST be declared BEFORE Catalog: static field initialisers run in textual
+    // order, and Catalog references these — declaring them after would leave the
+    // catalog entries with Roles=null (silently ungating every QMS/NPI item).
+    private static readonly string[] RolesNpi  = { "Admin", "Supervisor", "Engineer", "QC" };
+    private static readonly string[] RolesSpec = { "Admin", "Supervisor", "Engineer" };
+    private static readonly string[] RolesQms  = { "Admin", "Supervisor", "QC" };
+
+    // Order here = filter "Enter opens first hit" order + PINNED insertion-order
+    // tiebreak. Mirrors the live groups top-to-bottom.
+    private static readonly NavItem[] Catalog =
+    {
+        new("/", "nav.home", "home", null),
+        new(WindowRegistryKeys.NpiStructure, "nav.npi.structure", "structure", RolesNpi),
+        new(WindowRegistryKeys.NpiRoutine, "nav.npi.routings", "routing", RolesNpi),
+        new(WindowRegistryKeys.NpiRawMaterials, "nav.npi.rawmaterials", "material", RolesNpi),
+        new(WindowRegistryKeys.NpiWorkCenters, "nav.npi.workcenters", "workcenter", RolesNpi),
+        new(WindowRegistryKeys.Specs, "nav.npi.spec", "spec", RolesSpec),
+        new(WindowRegistryKeys.WorkOrders, "nav.workorders", "scan", null),
+        new(WindowRegistryKeys.SemiProducts, "nav.semiproducts", "box", null),
+        new(WindowRegistryKeys.MachineDashboard, "nav.machines", "grid", null),
+        new(WindowRegistryKeys.ShopOrderHistory, "nav.shoporders", "history", null),
+        new(WindowRegistryKeys.QmsDashboard, "nav.qms.m.dashboard", "quality", RolesQms),
+        new("/qms/iqc", "nav.qms.m.iqc", "iqc", RolesQms),
+        new(WindowRegistryKeys.QmsIpqc, "nav.qms.m.ipqc", "ipqc", RolesQms),
+        new(WindowRegistryKeys.QmsOqc, "nav.qms.m.oqc", "oqc", RolesQms),
+        new(WindowRegistryKeys.QmsIcra, "nav.qms.m.icra", "icra", RolesQms),
+        new(WindowRegistryKeys.QmsQueueHub, "nav.qms.queue", "queue", RolesQms),
+        new(WindowRegistryKeys.QmsQueueFqc, "nav.qms.fqc", "clipboard", RolesQms),
+        new(WindowRegistryKeys.QcHistory, "nav.qms.history", "history", RolesQms),
+        new(WindowRegistryKeys.QcLibrary, "nav.qms.library", "library", RolesQms),
+        new(WindowRegistryKeys.Traceability, "nav.qms.traceability", "trace", RolesQms),
+        new("/settings", "nav.system", "gear", null),
+    };
+
+    private static readonly Dictionary<string, NavItem> _byKey =
+        Catalog.ToDictionary(i => i.Key, StringComparer.Ordinal);
+
+    // ── Filter state ──────────────────────────────────────────────────────────
+    private string _filter = string.Empty;
+    private readonly HashSet<string> _filterHits = new(StringComparer.Ordinal);
+    private bool Filtering => !string.IsNullOrWhiteSpace(_filter);
+
+    // ── Pin + Recent state (persisted CSV of keys) ─────────────────────────────
+    private readonly List<string> _pins = new();     // insertion order preserved
+    private readonly List<string> _recent = new();    // MRU, newest first, cap 5
+    private const int RecentCap = 5;
+
+    private static void LoadCsv(List<string> target, string? csv)
+    {
+        target.Clear();
+        foreach (var k in (csv ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            if (!target.Contains(k)) target.Add(k);
+    }
+
+    // RBAC-by-omission: only surface a catalog item the user can actually reach.
+    // Read the role fresh (session may resolve after the first render); the check
+    // mirrors the AuthorizeView that wraps the live item — the server still gates.
+    private bool CanSee(NavItem it)
+    {
+        if (it.Roles is null) return true;
+        var role = Session.CurrentUserInfo?.Role;
+        return role is not null && it.Roles.Contains(role, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private bool IsPinned(string key) => _pins.Contains(key);
+
+    // PINNED group items: pinned keys that resolve to a catalog item the user can
+    // see. Order = pin insertion order.
+    private IEnumerable<NavItem> VisiblePins =>
+        _pins.Where(k => _byKey.ContainsKey(k))
+             .Select(k => _byKey[k])
+             .Where(CanSee);
+
+    // RECENT group items: MRU keys, minus the current page + minus anything
+    // already pinned (no dupes), resolvable + visible, capped at 5.
+    private IEnumerable<NavItem> VisibleRecent
+    {
+        get
+        {
+            var here = CurrentPath();
+            return _recent
+                .Where(k => !string.Equals(k, here, StringComparison.OrdinalIgnoreCase))
+                .Where(k => !IsPinned(k))
+                .Where(k => _byKey.ContainsKey(k))
+                .Select(k => _byKey[k])
+                .Where(CanSee)
+                .Take(RecentCap);
+        }
+    }
+
+    // ── Filter behaviour ───────────────────────────────────────────────────────
+    private void OnFilterInput(ChangeEventArgs e)
+    {
+        _filter = e.Value?.ToString() ?? string.Empty;
+        RecomputeHits();
+    }
+
+    private void ClearFilter()
+    {
+        _filter = string.Empty;
+        _filterHits.Clear();
+        // Xoá input → về accordion bình thường (không đụng trạng thái _closed).
+    }
+
+    private void OnFilterKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") { ClearFilter(); return; }
+        if (e.Key == "Enter")
+        {
+            // Enter → mở item khớp ĐẦU (theo thứ tự Catalog).
+            var first = Catalog.FirstOrDefault(i => _filterHits.Contains(i.Key) && CanSee(i));
+            if (first is not null) _ = ActivateKeyAsync(first.Key);
+        }
+    }
+
+    // Recompute the matching keys + force-open every group that owns a hit, so a
+    // match deep in a collapsed group is revealed. Empty query = no hits (the
+    // .nav-filtering class is off, so the live accordion shows normally).
+    private void RecomputeHits()
+    {
+        _filterHits.Clear();
+        if (!Filtering) return;
+        var needle = Fold(_filter);
+        foreach (var it in Catalog)
+            if (CanSee(it) && Fold(T(it.LabelKey)).Contains(needle, StringComparison.Ordinal))
+                _filterHits.Add(it.Key);
+    }
+
+    // True when a live item should stay visible under the current filter. Used by
+    // each item's data-nav-hit attribute; CSS hides items whose hit="false" while
+    // .nav-filtering is on. When not filtering, everything is a "hit" (shown).
+    private string Hit(string key) => (!Filtering || _filterHits.Contains(key)) ? "true" : "false";
+
+    // When filtering, a whole group whose items are ALL filtered out is hidden
+    // (its header would otherwise dangle over nothing). Maps a group id → the
+    // catalog keys living in it via the same GroupRoutes prefix table (one
+    // source), so no per-group key list drifts from the live markup. Non-filter
+    // = never hidden by this (accordion own [hidden] rules).
+    private bool GroupHiddenByFilter(string group)
+    {
+        if (!Filtering) return false;
+        if (!GroupRoutes.TryGetValue(group, out var prefixes)) return false;
+        foreach (var key in _filterHits)
+            foreach (var prefix in prefixes)
+                if (key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    return false;   // at least one hit lives here → keep group
+        return true;                // no hit in this group → hide it
+    }
+
+    // Diacritics-insensitive, case-insensitive fold for the quick-find match.
+    // "công đoạn" folds to "cong doan" so a keyboard-only op can type ASCII.
+    private static string Fold(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return string.Empty;
+        var norm = s.Normalize(System.Text.NormalizationForm.FormD);
+        var sb = new System.Text.StringBuilder(norm.Length);
+        foreach (var c in norm)
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c)
+                != System.Globalization.UnicodeCategory.NonSpacingMark)
+                sb.Append(char.ToLowerInvariant(c));
+        // The Vietnamese d-with-stroke has no combining mark, so FormD does not
+        // decompose it → map U+0111 (small) + U+0110 (capital) to 'd' explicitly.
+        // Written as \u escapes so this fold-helper carries no bare display glyph
+        // (keeps the L42 i18n gate's VI-in-.razor ratchet clean).
+        return sb.ToString().Replace('\u0111', 'd').Replace('\u0110', 'd');
+    }
+
+    // ── Pin toggle + activation ────────────────────────────────────────────────
+    private async Task TogglePinAsync(string key)
+    {
+        if (!_pins.Remove(key)) _pins.Add(key);
+        var csv = string.Join(',', _pins);
+        try { await JS.InvokeVoidAsync("cclMesDensity.navPinsSet", csv); } catch { }
+        StateHasChanged();
+    }
+
+    // Push a key onto the MRU (newest first, dedupe, cap). Mutates the list in
+    // memory + persists the CSV fire-and-forget. Returns true if the list changed
+    // (so the caller can re-render). The current page itself is recorded (so
+    // leaving it later surfaces it) but filtered OUT of the rendered RECENT list
+    // by VisibleRecent. Split from persist so the LocationChanged handler can
+    // update + re-render synchronously (the async persist rides along).
+    private bool RecordRecent(string key)
+    {
+        if (string.IsNullOrEmpty(key) || !_byKey.ContainsKey(key)) return false;
+        var before = string.Join(',', _recent);
+        _recent.Remove(key);
+        _recent.Insert(0, key);
+        while (_recent.Count > RecentCap) _recent.RemoveAt(_recent.Count - 1);
+        var after = string.Join(',', _recent);
+        if (before == after) return false;
+        _ = PersistRecentAsync(after);
+        return true;
+    }
+
+    private async Task PersistRecentAsync(string csv)
+    {
+        try { await JS.InvokeVoidAsync("cclMesDensity.navRecentSet", csv); } catch { }
+    }
+
+    // Activate a pinned/recent (or Enter-hit) item by key: open the window if the
+    // key is a registered window key, else navigate the NavLink route. Reuses the
+    // exact same open/navigate paths as the live items — no second contract.
+    private Task ActivateKeyAsync(string key)
+    {
+        if (Registry.Resolve(key) is not null)
+            return OpenWindowAsync(key);
+        Nav.NavigateTo(key, forceLoad: false, replace: false);
+        return Task.CompletedTask;
+    }
+
+    // A pin-toggle affordance rendered as the trailing child of every live item
+    // (hover-reveal via CSS; always tappable at shopfloor density where hover is
+    // meaningless). RBAC: the button only renders inside items the user already
+    // sees (it lives INSIDE the AuthorizeView-gated markup), so a pin is never
+    // offered for an item the user can't open.
+    private RenderFragment PinBtn(string key, string labelKey) => builder =>
+    {
+        var pinned = IsPinned(key);
+        var label = T(labelKey);
+        builder.OpenElement(0, "button");
+        builder.AddAttribute(1, "type", "button");
+        builder.AddAttribute(2, "class", pinned ? "app-nav-pin app-nav-pin-on" : "app-nav-pin");
+        builder.AddAttribute(3, "data-testid", $"nav-pin-{key}");
+        builder.AddAttribute(4, "aria-pressed", pinned ? "true" : "false");
+        builder.AddAttribute(5, "aria-label", T(pinned ? "nav.unpin" : "nav.pin", label));
+        builder.AddAttribute(6, "title", T(pinned ? "nav.unpin" : "nav.pin", label));
+        builder.AddAttribute(7, "onclick",
+            Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => TogglePinAsync(key)));
+        builder.AddMarkupContent(8, PinGlyph());
+        builder.CloseElement();
+    };
+
+    // A single PINNED/RECENT row: the item opens via ActivateKeyAsync; the same
+    // pin toggle rides along so a recent item can be promoted to pinned in place.
+    // <paramref name="scope"/> = "pin" | "recent" → distinct testid namespace.
+    private RenderFragment PinnedOrRecentItem(NavItem it, string scope) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "app-nav-item app-nav-item-mru");
+
+        builder.OpenElement(2, "button");
+        builder.AddAttribute(3, "type", "button");
+        builder.AddAttribute(4, "class", "app-nav-link");
+        builder.AddAttribute(5, "data-testid", $"nav-{scope}-item-{it.Key}");
+        builder.AddAttribute(6, "onclick",
+            Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => ActivateKeyAsync(it.Key)));
+        builder.AddMarkupContent(7, IcoRaw(it.Icon));
+        builder.OpenElement(8, "span");
+        builder.AddContent(9, T(it.LabelKey));
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.AddContent(10, PinBtn(it.Key, it.LabelKey));
+        builder.CloseElement();
+    };
 
     private async Task LogoutAsync()
     {
@@ -368,11 +805,18 @@
     // verbose inline <svg> blocks so the role-gating markup stays readable.
     // Sidebar revamp — every item (incl. NPI + QMS) now carries an icon so the
     // 64px collapsed rail is legible (iX rail: icon-only when collapsed).
-    private static MarkupString Ico(string name)
+    private static MarkupString Ico(string name) => new(IcoRaw(name));
+
+    // Raw-string variant for RenderTreeBuilder.AddMarkupContent (PINNED/RECENT
+    // rows build their icon via the builder, which takes a string not a
+    // MarkupString). Ico(name) wraps this in a MarkupString for @Ico() call sites.
+    private static string IcoRaw(string name)
     {
         var p = name switch
         {
             "home" => "<path d='M3 9.6 12 3l9 6.6'/><path d='M5 9v11h14V9'/>",
+            // Phương án B — search = ô tìm/lọc nhanh (Feather search).
+            "search" => "<circle cx='11' cy='11' r='7'/><path d='M20 20l-4-4'/>",
             "scan" => "<path d='M4 7V5.5A1.5 1.5 0 0 1 5.5 4H7'/><path d='M17 4h1.5A1.5 1.5 0 0 1 20 5.5V7'/><path d='M20 17v1.5a1.5 1.5 0 0 1-1.5 1.5H17'/><path d='M7 20H5.5A1.5 1.5 0 0 1 4 18.5V17'/><path d='M4 12h16'/>",
             "grid" => "<rect x='3' y='3' width='7' height='7' rx='1.2'/><rect x='14' y='3' width='7' height='7' rx='1.2'/><rect x='3' y='14' width='7' height='7' rx='1.2'/><rect x='14' y='14' width='7' height='7' rx='1.2'/>",
             "box" => "<path d='M3 7.5 12 3l9 4.5-9 4.5z'/><path d='M3 7.5V17l9 4.5V12'/><path d='M21 7.5V17l-9 4.5'/>",
@@ -402,7 +846,11 @@
             "trace" => "<circle cx='11' cy='11' r='7'/><path d='M20 20l-4-4'/>",
             _ => "",
         };
-        return new MarkupString(
-            $"<svg class='nav-ico' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>{p}</svg>");
+        return $"<svg class='nav-ico' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'>{p}</svg>";
     }
+
+    // Pin glyph (Feather map-pin, filled tint on when pinned via CSS). Small
+    // 16-grid so it sits inline at the row trailing edge without crowding.
+    private static string PinGlyph() =>
+        "<svg class='nav-pin-ico' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z'/><circle cx='12' cy='10' r='2.5'/></svg>";
 }
