@@ -550,22 +550,16 @@ public sealed class WoQcReviewController : ControllerBase
         if (!approveOrderV.Allowed)
             return Invalid(approveOrderV.ErrorCode!, approveOrderV.Message!);
 
-        if (req is null || string.IsNullOrWhiteSpace(req.Outcome))
-            return Invalid("qc.invalid_judgment",
-                "Outcome is required (\"Approve\" or \"Reject\").");
-        var outcomeRaw = req.Outcome.Trim();
-        var isApprove = string.Equals(outcomeRaw, "Approve", StringComparison.OrdinalIgnoreCase);
-        var isReject  = string.Equals(outcomeRaw, "Reject",  StringComparison.OrdinalIgnoreCase);
-        if (!isApprove && !isReject)
-            return Invalid("qc.invalid_judgment",
-                $"Outcome must be Approve or Reject; got \"{req.Outcome}\".");
+        // Parse outcome TRƯỚC CheckDistinct (giữ nguyên thứ tự mã lỗi — L47).
+        var outcome = WoQcJudgmentPolicy.ParseOqcOutcome(req?.Outcome);
+        if (!outcome.IsValid)
+            return Invalid(outcome.ErrorCode!, outcome.ErrorMessage!);
+        var isApprove = outcome.IsApprove;
+        var isReject  = !isApprove;
 
-        if (isReject)
-        {
-            if (string.IsNullOrWhiteSpace(req.JudgmentReason) || req.JudgmentReason!.Length > 500)
-                return Invalid("qc.invalid_reason",
-                    "JudgmentReason is required (1-500 chars) for Reject.");
-        }
+        var oqcReasonError = WoQcJudgmentPolicy.ValidateOqcRejectReason(isReject, req?.JudgmentReason);
+        if (oqcReasonError is not null)
+            return Invalid(oqcReasonError.Value.ErrorCode, oqcReasonError.Value.Message);
 
         // Q5 — tách vai. CỐ Ý gọi ở ĐÚNG vị trí cũ (sau phần kiểm outcome/lý do
         // reject) để mã lỗi trả về không đổi với request vừa sai outcome vừa
@@ -579,18 +573,19 @@ public sealed class WoQcReviewController : ControllerBase
                 approveDistinctV.ErrorCode!);
         }
 
+        var oqcTransition = WoQcJudgmentPolicy.OqcApproveTransition(isApprove);
         var now = DateTime.UtcNow;
         check.ApprovedBy = actor;
         check.ApprovedAt = now;
-        check.Judgment = isApprove ? WoQcJudgment.Pass : WoQcJudgment.Reject;
-        check.JudgmentReason = isReject ? req.JudgmentReason : null;
+        check.Judgment = oqcTransition.Judgment;
+        check.JudgmentReason = isReject ? req!.JudgmentReason : null;
+        wo.MesPhase = oqcTransition.NextPhase;
 
         if (isApprove)
         {
             // Q1 — OQC Pass advances to SHIPPED.
-            wo.MesPhase = "SHIPPED";
             var resp = await CommitAndAuditAsync(id, wo, check, actor, role,
-                AuditAction.WoOqcApprove,
+                oqcTransition.AuditAction,
                 new
                 {
                     approved_by = actor,
@@ -613,22 +608,21 @@ public sealed class WoQcReviewController : ControllerBase
                     oqc_approver = actor,
                 }));
             // Freeze OQC snapshot on approve (WO shipped).
-            if (resp is OkObjectResult)
+            if (resp is OkObjectResult && oqcTransition.FreezeOnApprove)
                 await FreezeSafe(id, CCL.MES.Shared.Quality.TracePhase.Oqc, actor);
             return resp;
         }
 
         // Q2 — OQC Reject → FQC_PENDING re-loop.
-        wo.MesPhase = "FQC_PENDING";
         return await CommitAndAuditAsync(id, wo, check, actor, role,
-            AuditAction.WoOqcRejectToFqc,
+            oqcTransition.AuditAction,
             new
             {
                 approved_by = actor,
                 reviewed_by = check.ReviewedBy,
                 inspected_by = check.InspectedBy,
                 outcome = "Reject",
-                reject_reason = req.JudgmentReason,
+                reject_reason = req!.JudgmentReason,
                 flag_state = _sigPolicy.FlagState,
             });
     }

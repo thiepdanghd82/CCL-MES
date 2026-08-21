@@ -34,6 +34,39 @@ public sealed record WoQcFqcTransition
 }
 
 /// <summary>
+/// Kết quả parse outcome OQC approve. <see cref="ErrorCode"/> khác null nghĩa
+/// là body không hợp lệ (thiếu / sai giá trị) — controller trả 422 với
+/// <see cref="ErrorCode"/> + <see cref="ErrorMessage"/>. Khi hợp lệ,
+/// <see cref="IsApprove"/> phân biệt Approve (true) với Reject (false); giá
+/// trị <see cref="IsApprove"/> CHỈ có nghĩa khi <see cref="ErrorCode"/> null.
+/// </summary>
+public sealed record WoQcOqcOutcomeParse
+{
+    public string? ErrorCode { get; init; }
+    public string? ErrorMessage { get; init; }
+    public bool IsApprove { get; init; }
+
+    public bool IsValid => ErrorCode is null;
+
+    public static WoQcOqcOutcomeParse Ok(bool isApprove) => new() { IsApprove = isApprove };
+    public static WoQcOqcOutcomeParse Fail(string code, string message) =>
+        new() { ErrorCode = code, ErrorMessage = message };
+}
+
+/// <summary>
+/// Transition OQC approve đã chốt theo outcome: phán quyết lưu vào
+/// <c>WoQcCheck.Judgment</c> + pha kế tiếp + audit action + có freeze snapshot
+/// khi Approve hay không.
+/// </summary>
+public sealed record WoQcOqcTransition
+{
+    public required WoQcJudgment Judgment { get; init; }
+    public required string NextPhase { get; init; }
+    public required string AuditAction { get; init; }
+    public required bool FreezeOnApprove { get; init; }
+}
+
+/// <summary>
 /// Luật QUYẾT ĐỊNH FQC judgment — tách khỏi <c>WoQcReviewController</c>
 /// (1.400+ dòng) theo mẫu L47 để kiểm được bằng unit test thuần, không dựng
 /// web host.
@@ -134,4 +167,81 @@ public static class WoQcJudgmentPolicy
     /// </summary>
     public static string? PersistedReason(WoQcJudgment judgment, string? judgmentReason) =>
         judgment == WoQcJudgment.Reject ? judgmentReason : null;
+
+    // ─────────────────────────────────────────────────────────────────
+    // OQC approve — outcome parse + reject-reason + transition.
+    //
+    // Chuỗi 3 chữ ký OQC (Inspector → Reviewer → Approver) do
+    // OqcSignaturePolicy (L47) quản. Ở đây CHỈ tách phần OUTCOME/TRANSITION
+    // của action approve: parse "Approve"/"Reject", kiểm lý-do-khi-Reject,
+    // và ánh xạ outcome → (Judgment, pha kế, audit, freeze).
+    //
+    // ⚠ THỨ TỰ trong controller giữ NGUYÊN: CheckOrder (sig) → ParseOqcOutcome
+    // → ValidateOqcRejectReason → CheckDistinct (sig). ParseOqcOutcome đứng
+    // TRƯỚC CheckDistinct để request vừa sai outcome vừa trùng vai vẫn nhận
+    // lỗi outcome trước — không đổi hành vi ca biên.
+    // ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Parse outcome OQC approve → Approve/Reject. Null/blank →
+    /// invalid_judgment ("required"); trim rồi so khớp KHÔNG phân biệt hoa
+    /// thường với "Approve"/"Reject"; không khớp cả hai → invalid_judgment
+    /// ("must be Approve or Reject") — dùng CHUỖI GỐC chưa trim trong message.
+    /// Thứ tự + message giữ byte-identical với bản trong controller.
+    /// </summary>
+    public static WoQcOqcOutcomeParse ParseOqcOutcome(string? rawOutcome)
+    {
+        if (string.IsNullOrWhiteSpace(rawOutcome))
+            return WoQcOqcOutcomeParse.Fail(InvalidJudgment,
+                "Outcome is required (\"Approve\" or \"Reject\").");
+
+        var outcomeRaw = rawOutcome.Trim();
+        var isApprove = string.Equals(outcomeRaw, "Approve", StringComparison.OrdinalIgnoreCase);
+        var isReject  = string.Equals(outcomeRaw, "Reject",  StringComparison.OrdinalIgnoreCase);
+        if (!isApprove && !isReject)
+            return WoQcOqcOutcomeParse.Fail(InvalidJudgment,
+                $"Outcome must be Approve or Reject; got \"{rawOutcome}\".");
+
+        return WoQcOqcOutcomeParse.Ok(isApprove);
+    }
+
+    /// <summary>
+    /// Kiểm lý do khi outcome OQC là Reject. Reject bắt buộc lý do 1–500 ký
+    /// tự; Approve → luôn hợp lệ (trả null). Trả tuple (ErrorCode, Message)
+    /// khi vi phạm, null khi hợp lệ. Message giữ byte-identical.
+    /// </summary>
+    public static (string ErrorCode, string Message)? ValidateOqcRejectReason(
+        bool isReject, string? judgmentReason)
+    {
+        if (!isReject)
+            return null;
+
+        if (string.IsNullOrWhiteSpace(judgmentReason) || judgmentReason!.Length > 500)
+            return (InvalidReason,
+                "JudgmentReason is required (1-500 chars) for Reject.");
+
+        return null;
+    }
+
+    /// <summary>
+    /// Transition đã chốt cho outcome OQC approve hợp lệ: Approve → Pass +
+    /// SHIPPED + WO_OQC_APPROVE + freeze; Reject → Reject + FQC_PENDING +
+    /// WO_OQC_REJECT_TO_FQC_PENDING + no-freeze.
+    /// </summary>
+    public static WoQcOqcTransition OqcApproveTransition(bool isApprove) =>
+        isApprove
+            ? new WoQcOqcTransition
+            {
+                Judgment        = WoQcJudgment.Pass,
+                NextPhase       = "SHIPPED",
+                AuditAction     = AuditAction.WoOqcApprove,
+                FreezeOnApprove = true,
+            }
+            : new WoQcOqcTransition
+            {
+                Judgment        = WoQcJudgment.Reject,
+                NextPhase       = "FQC_PENDING",
+                AuditAction     = AuditAction.WoOqcRejectToFqc,
+                FreezeOnApprove = false,
+            };
 }
