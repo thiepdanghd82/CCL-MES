@@ -52,8 +52,25 @@ window.cclMesDensity = (() => {
         return !!collapsed;
     }
 
+    // Trạng thái gập/mở của các nhóm accordion trong rail (Carbon SideNavMenu).
+    // Lưu MỘT chuỗi CSV các key nhóm ĐANG ĐÓNG (mặc định = mở → CSV rỗng nghĩa
+    // là mọi nhóm mở). Đi chung localStorage + try/catch với density/rail thay
+    // vì dựng thêm preference service — ít bộ phận chuyển động hơn.
+    const NAVGRP_KEY = 'ccl.mes.navgroups';
+    function navGroupsGet() {
+        try {
+            const v = window.localStorage.getItem(NAVGRP_KEY);
+            return typeof v === 'string' ? v : '';
+        } catch { return ''; }
+    }
+    function navGroupsSet(csv) {
+        try { window.localStorage.setItem(NAVGRP_KEY, typeof csv === 'string' ? csv : ''); }
+        catch { }
+        return typeof csv === 'string' ? csv : '';
+    }
+
     // Gọi sớm nhất có thể để không chớp giao diện (FOUC) khi khởi động.
     function boot() { return apply(read()); }
 
-    return { get, set, apply, boot, railGet, railSet };
+    return { get, set, apply, boot, railGet, railSet, navGroupsGet, navGroupsSet };
 })();

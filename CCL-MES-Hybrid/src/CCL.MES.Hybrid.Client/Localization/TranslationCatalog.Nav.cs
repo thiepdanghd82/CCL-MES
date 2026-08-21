@@ -10,6 +10,11 @@ public sealed partial class TranslationCatalog
         Add("nav.rail.collapse",      "Thu gọn",                   "Collapse");
         Add("nav.rail.expand",        "Mở rộng",                   "Expand");
 
+        // Carbon SideNavMenu — nhóm gập được. Một chuỗi aria dùng chung cho
+        // header nhóm; {0} = nhãn nhóm (đã hoa) để screen-reader đọc "Mở/Đóng
+        // nhóm <tên>". Trạng thái mở/đóng phản ánh qua aria-expanded trên header.
+        Add("nav.group.toggle",       "Mở/đóng nhóm {0}",          "Toggle {0} group");
+
         Add("nav.home",               "Trang chủ",                 "Home");
 
         Add("nav.section.npi",        "DỮ LIỆU NPI",               "NPI DATA");
@@ -27,9 +32,11 @@ public sealed partial class TranslationCatalog
         Add("nav.machines",           "Bảng điều khiển máy",       "Machine Dashboard");
         Add("nav.shoporders",         "Lịch sử lệnh SX",           "Shop Order History");
 
-        // QC QMS Data group — 5 primary modules (2-line: title + subtitle)
-        // mirroring the QA mini-QMS mock (Dashboard/IQC/IPQC/OQC/iCRA) + the
-        // compact secondary links that keep the rest of the QC surfaces.
+        // QC QMS Data group — 5 primary modules (Dashboard/IQC/IPQC/OQC/iCRA).
+        // iX/Carbon single-line template: icon + short label on one row. The old
+        // uppercase subtitle no longer renders as a second line (that variant was
+        // dropped); it survives as the item's title/aria-label so a screen-reader
+        // or hover still surfaces the fuller meaning ("Incoming quality" etc.).
         Add("nav.qms.title",          "QC QMS Data",               "QC QMS Data");
 
         Add("nav.qms.m.dashboard",    "Tổng quan",                 "Overview");
