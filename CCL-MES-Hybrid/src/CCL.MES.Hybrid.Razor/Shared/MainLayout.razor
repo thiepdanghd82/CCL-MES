@@ -1,5 +1,11 @@
 @inherits LayoutComponentBase
+@using CCL.MES.Hybrid.Client.Windows
+@using CCL.MES.Hybrid.Razor.Pages
 @inject Microsoft.JSInterop.IJSRuntime JS
+@inject IWindowManager WM
+@inject IWindowRegistry Registry
+@inject IFloatingWindowStore RectStore
+@implements IDisposable
 @*
   Top-level layout. Sidebar nav on the left, content + connectivity
   banner stacked on the right. Carbon-style minimalism — operators care
@@ -9,6 +15,15 @@
   render-time exception in a child page can't take the BlazorWebView
   dispatcher with it. <MacCatalystKeyboardFix> remains the always-on
   Tab+Enter focus workaround (dotnet/maui#13934).
+
+  P2-PR1 — the .window-layer renders every OpenWindow the IWindowManager holds
+  as a keep-alive floating window OVER @Body (the route surface stays the plain
+  background in PR1; the empty-workspace background is PR2). @key = the window id
+  + WM.Windows' stable OPEN order means an instance is never destroyed on focus
+  or route change — its body state (counters, scroll, in-flight polls) survives.
+  A minimized window keeps mounting (display:none via .is-min) with its cascaded
+  WindowContext.IsActive=false so a polling body can pause. The taskbar sits
+  full-width at the bottom; .window-layer leaves it room via padding-bottom.
 *@
 
 <div class="app-shell" data-rail="@(_railCollapsed ? "collapsed" : null)">
@@ -22,6 +37,34 @@
             </RendererCrashBoundary>
         </div>
     </main>
+
+    @* Multi-window workspace layer — over @Body, under the taskbar. *@
+    <div class="window-layer">
+        @foreach (var w in WM.Windows)
+        {
+            <div class="window-host @(w.State == WindowState.Minimized ? "is-min" : null)"
+                 style="z-index:@(100 + w.ZOrder)"
+                 @key="w.Id">
+                <RendererCrashBoundary>
+                    <CascadingValue Value="new WindowContext { IsActive = w.State != WindowState.Minimized }" IsFixed="false">
+                        <FloatingWindow WindowId="@w.Id"
+                                        Title="@w.Title"
+                                        AriaLabel="@w.Title"
+                                        Rect="RectStore.Get(w.Key)"
+                                        OnRectChanged="r => RectStore.Save(w.Key, r)"
+                                        OnClose="() => WM.Close(w.Id)"
+                                        OnMinimizeRequested="() => WM.Minimize(w.Id)"
+                                        OnMaximizeRequested="() => WM.Maximize(w.Id)"
+                                        OnFocusRequested="() => WM.Focus(w.Id)">
+                            <DynamicComponent Type="w.ContentType" Parameters="ToDict(w.Parameters)" />
+                        </FloatingWindow>
+                    </CascadingValue>
+                </RendererCrashBoundary>
+            </div>
+        }
+    </div>
+
+    <Taskbar />
 </div>
 <MacCatalystKeyboardFix />
 
@@ -31,6 +74,40 @@
     // (localStorage qua cclMesDensity.railGet/railSet — dùng chung cơ chế với
     // mật độ hiển thị thay vì dựng thêm một preference service).
     private bool _railCollapsed;
+
+    protected override void OnInitialized()
+    {
+        RegisterWindows();
+        WM.Changed += OnWindowsChanged;
+    }
+
+    // Host-side registry population (P2-PR1 subset). The concrete page TYPES live
+    // in this Razor project, which references the Client lib holding the registry
+    // shape — so the type reference must live here, not in Client. Idempotent by
+    // key: safe even if the layout re-initialises.
+    private void RegisterWindows()
+    {
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.QcHistory, typeof(QcHistory),
+            WindowRegistryKeys.TitleKeys.QcHistory, "🗂"));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.ShopOrderHistory, typeof(ShopOrderHistory),
+            WindowRegistryKeys.TitleKeys.ShopOrderHistory, "🧾"));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.MachineDashboard, typeof(MachineDashboard),
+            WindowRegistryKeys.TitleKeys.MachineDashboard, "🖥"));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.QcLibrary, typeof(QcLibrary),
+            WindowRegistryKeys.TitleKeys.QcLibrary, "📚",
+            WindowRegistryKeys.QcLibraryRoles));
+    }
+
+    private void OnWindowsChanged() => InvokeAsync(StateHasChanged);
+
+    // DynamicComponent wants a mutable IDictionary; the manager hands a
+    // read-only snapshot (or null for the param-free PR1 pages).
+    private static IDictionary<string, object>? ToDict(IReadOnlyDictionary<string, object>? p)
+        => p is null ? null : new Dictionary<string, object>(p);
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -56,4 +133,6 @@
         _railCollapsed = !_railCollapsed;
         try { await JS.InvokeVoidAsync("cclMesDensity.railSet", _railCollapsed); } catch { }
     }
+
+    public void Dispose() => WM.Changed -= OnWindowsChanged;
 }

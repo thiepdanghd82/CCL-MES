@@ -24,6 +24,7 @@
 <div class="trace-win" tabindex="0" @ref="_rootRef"
      role="dialog" aria-label="@AriaLabel"
      style="visibility:hidden"
+     @onpointerdown="OnPointerDownRoot"
      @onkeydown="OnKeyDown">
 
     @* 8 resize handles (wired by floating-window.js via data-fw-handle) *@
@@ -125,6 +126,26 @@
 
     [Parameter] public EventCallback OnClose { get; set; }
 
+    /// <summary>P2-PR1 — raised when the minimize traffic-light is bit so the
+    /// WindowManager can own the authoritative <c>WindowState</c>. When set, the
+    /// component defers the state change to the manager (which flips
+    /// <c>display:none</c> host-side) INSTEAD of toggling JS geometry — the
+    /// window keeps mounting so its body state survives. When NOT set (legacy
+    /// standalone showcards), the old JS minimize behaviour is preserved.</summary>
+    [Parameter] public EventCallback OnMinimizeRequested { get; set; }
+
+    /// <summary>P2-PR1 — raised when the maximize/restore traffic-light is bit so
+    /// the WindowManager can own the authoritative <c>WindowState</c>. When set,
+    /// the JS geometry still toggles (rect/maximize is JS-owned) AND the manager
+    /// is notified so the taskbar + z-order stay in sync. When NOT set, only the
+    /// old JS toggle runs.</summary>
+    [Parameter] public EventCallback OnMaximizeRequested { get; set; }
+
+    /// <summary>P2-PR1 — raised when the window is activated (header/body pointer
+    /// down) so the WindowManager can raise it to the top of the z-order. Opt-in;
+    /// unset → no focus bubbling (legacy standalone behaviour).</summary>
+    [Parameter] public EventCallback OnFocusRequested { get; set; }
+
     /// <summary>Fires with the final rect on pointer-up / resize / maximize /
     /// keyboard nudge so the parent can persist it (via FloatingWindowStore).</summary>
     [Parameter] public EventCallback<WindowRect> OnRectChanged { get; set; }
@@ -167,16 +188,36 @@
 
     private Task Close() => OnClose.InvokeAsync();
 
+    // P2-PR1: bubble focus so the WindowManager raises z-order. Opt-in — no
+    // delegate ⇒ no-op (JS still owns bring-to-front for standalone showcards).
+    private Task OnPointerDownRoot()
+        => OnFocusRequested.HasDelegate ? OnFocusRequested.InvokeAsync() : Task.CompletedTask;
+
     private async Task Minimize()
     {
+        // P2-PR1: when a WindowManager is wired, IT owns WindowState — hiding via
+        // display:none host-side keeps the body mounted (state survives). We do
+        // NOT run the JS minimize in that mode. Standalone showcards (no callback)
+        // keep the legacy JS toggle.
+        if (OnMinimizeRequested.HasDelegate)
+        {
+            await OnMinimizeRequested.InvokeAsync();
+            return;
+        }
         try { await JS.InvokeVoidAsync("cclMesFloat.toggleMinimize", WindowId); }
         catch (Exception) { /* JS not present */ }
     }
 
     private async Task Maximize()
     {
+        // Rect/maximize geometry stays JS-owned (unchanged). When a manager is
+        // wired we ALSO bubble the intent so its taskbar + z-order stay in sync.
         try { await JS.InvokeVoidAsync("cclMesFloat.toggleMaximize", WindowId); }
         catch (Exception) { /* JS not present */ }
+        if (OnMaximizeRequested.HasDelegate)
+        {
+            await OnMaximizeRequested.InvokeAsync();
+        }
     }
 
     // Keyboard: Esc closes; arrows move; Shift+arrows resize (16px steps).

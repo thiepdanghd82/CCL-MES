@@ -32,6 +32,12 @@ public sealed class NavMenuI18nTests : TestContext
         Services.AddSingleton<ITranslationCatalog, TranslationCatalog>();
         Services.AddSingleton<ITranslator, Translator>();
         Services.AddSingleton<IRecentScansService, InMemoryRecentScansService>();
+        // P2-PR1 — NavMenu now injects the window manager + registry (subset
+        // items open windows). Wire the real singletons so the component resolves.
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Windows.IWindowManager,
+            CCL.MES.Hybrid.Client.Windows.WindowManager>();
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Windows.IWindowRegistry,
+            CCL.MES.Hybrid.Client.Windows.WindowRegistry>();
         Services.AddSingleton<IOptions<HardwareOptions>>(
             Options.Create(new HardwareOptions { ScanEnabled = true }));
         JSInterop.Mode = JSRuntimeMode.Loose;

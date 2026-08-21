@@ -105,6 +105,9 @@ public sealed partial class TranslationCatalog : ITranslationCatalog
         RegisterCrash();
         RegisterMaterialLot();
         RegisterHealth();
+
+        // P2-PR1 — window manager + taskbar.
+        RegisterTaskbar();
     }
 
     /// <summary>Register one key with both language slots. Called from the
