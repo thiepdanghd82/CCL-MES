@@ -1341,72 +1341,21 @@ public sealed class WoQcReviewController : ControllerBase
         var sessions = await _db.WoRunSessions.AsNoTracking()
             .Where(s => s.WoId == id)
             .OrderBy(s => s.StartedAt)
-            .Select(s => new { s.StartedAt, s.EndedAt })
+            .Select(s => new Services.WoSummarySessionSpan(s.StartedAt, s.EndedAt))
             .ToListAsync(ct);
-        var sessionCount = sessions.Count;
-        var now = DateTime.UtcNow;
-        // Shared formula (WoRuntimeMath) — same seconds the Traceability list uses.
-        long runSeconds = WoRuntimeMath.ElapsedSeconds(
-            sessions.Select(s => new WoRuntimeMath.Span(s.StartedAt, s.EndedAt)), now);
 
         var pauseEvents = await _db.WoPauseEvents.AsNoTracking()
             .Where(p => p.WoId == id)
-            .Select(p => new
-            {
-                p.ReasonCode,
-                p.StartedAt,
-                p.EndedAt,
-            })
+            .Select(p => new Services.WoSummaryPauseSpan(p.ReasonCode, p.StartedAt, p.EndedAt))
             .ToListAsync(ct);
-        long pauseSeconds = 0;
-        var paretoBuckets = new Dictionary<string, (int Count, long Seconds)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var p in pauseEvents)
-        {
-            var secs = WoRuntimeMath.ElapsedSeconds(new WoRuntimeMath.Span(p.StartedAt, p.EndedAt), now);
-            pauseSeconds += secs;
-            var code = string.IsNullOrEmpty(p.ReasonCode) ? "(unknown)" : p.ReasonCode;
-            if (!paretoBuckets.TryGetValue(code, out var b)) b = (0, 0);
-            paretoBuckets[code] = (b.Count + 1, b.Seconds + secs);
-        }
-        var pareto = paretoBuckets
-            .OrderByDescending(kv => kv.Value.Seconds)
-            .ThenBy(kv => kv.Key)
-            .Select(kv => new WoSummaryParetoRow
-            {
-                ReasonCode = kv.Key,
-                Count = kv.Value.Count,
-                TotalSeconds = kv.Value.Seconds,
-            }).ToList();
-
-        // OEE = Availability × Performance × Quality (Nakajima).
-        double? availability = null;
-        double? performance = null;
-        double? quality = null;
-        double? oee = null;
-
-        if (runSeconds + pauseSeconds > 0)
-            availability = (double)runSeconds / (runSeconds + pauseSeconds);
 
         // Đợt 1 C3 — speed comes from WorkCenter.IdealSpeedPcsH, the single
-        // canonical source (same one ShopOrdersController reads). This used
-        // to read Machine.IdealCycleTimeSec, a second and divergent source,
-        // which is why the same WO could report two different performance
-        // figures. When the figure cannot be produced the endpoint now says
-        // WHY instead of returning a bare null.
+        // canonical source (same one ShopOrdersController reads). Async EF, so
+        // it is resolved here and handed to the pure builder as a plain result.
         var speed = await _wcSpeed.ResolveAsync(wo.WoNo, wo.MachineCode, ct);
-        var perf = Services.OeePerformance.Compute(
-            speed.Resolved, speed.IdealSpeedPcsH, runSeconds, qtyDone);
-        performance = perf.Performance;
-        var performanceUnavailableReason = perf.UnavailableReason;
-
-        if (qtyDone > 0)
-            quality = (double)(qtyDone - qtyNg) / qtyDone;
-
-        if (availability is not null && performance is not null && quality is not null)
-            oee = availability.Value * performance.Value * quality.Value;
 
         // QC summary — load all 3 legs (IPQC + FQC + OQC). Some may be absent
-        // if the WO never reached that phase; render as Pending.
+        // if the WO never reached that phase; the builder renders those Pending.
         var checks = await _db.WoQcChecks.AsNoTracking()
             .Where(c => c.WorkOrderId == id)
             .Select(c => new
@@ -1431,67 +1380,45 @@ public sealed class WoQcReviewController : ControllerBase
             })
             .FirstOrDefaultAsync(ct);
 
-        var qcSummary = new WoSummaryQc
+        Services.WoSummaryQcLegInput? MapCheck(string kind)
         {
-            Ipqc = new WoSummaryQcLeg
+            var c = checks.FirstOrDefault(x => x.QcKind == kind);
+            return c is null ? null : new Services.WoSummaryQcLegInput
             {
-                Judgment = ipqcRow is null ? "Pending" : ipqcRow.Judgment.ToString(),
-                SubmittedBy = ipqcRow?.IpqcSubmittedBy,
-                Approver = ipqcRow?.QaApprovedBy,
-                Reason = ipqcRow?.SpecialAcceptReason ?? ipqcRow?.QaReason,
-            },
-            Fqc = MapQcLeg(checks.FirstOrDefault(c => c.QcKind == KindFqc)),
-            Oqc = MapQcLeg(checks.FirstOrDefault(c => c.QcKind == KindOqc)),
-        };
+                Judgment = c.Judgment,
+                InspectedBy = c.InspectedBy,
+                ReviewedBy = c.ReviewedBy,
+                ApprovedBy = c.ApprovedBy,
+                JudgmentReason = c.JudgmentReason,
+            };
+        }
 
-        var shippedAt = wo.MesPhase == "SHIPPED" ? (DateTime?)wo.UpdatedAt : null;
-
-        return Ok(new WoSummaryReport
+        var report = Services.WoSummaryReportBuilder.Build(new Services.WoSummaryReportInput
         {
             WoId = wo.Id,
             WoNo = wo.WoNo,
-            MesPhase = wo.MesPhase ?? "",
-            ShippedAt = shippedAt,
-            Totals = new WoSummaryTotals
+            MesPhase = wo.MesPhase,
+            TargetQty = wo.TargetQty,
+            QtyDone = qtyDone,
+            QtyNg = qtyNg,
+            UpdatedAt = wo.UpdatedAt,
+            Now = DateTime.UtcNow,
+            Sessions = sessions,
+            PauseEvents = pauseEvents,
+            WorkCenterResolved = speed.Resolved,
+            IdealSpeedPcsH = speed.IdealSpeedPcsH,
+            Ipqc = ipqcRow is null ? null : new Services.WoSummaryIpqcInput
             {
-                QtyTarget = wo.TargetQty,
-                QtyDone = qtyDone,
-                QtyNg = qtyNg,
+                Judgment = ipqcRow.Judgment.ToString(),
+                IpqcSubmittedBy = ipqcRow.IpqcSubmittedBy,
+                QaApprovedBy = ipqcRow.QaApprovedBy,
+                QaReason = ipqcRow.QaReason,
+                SpecialAcceptReason = ipqcRow.SpecialAcceptReason,
             },
-            Runtime = new WoSummaryRuntime
-            {
-                RunSeconds = runSeconds,
-                PauseSeconds = pauseSeconds,
-                SessionCount = sessionCount,
-            },
-            Oee = new WoSummaryOee
-            {
-                Availability = availability,
-                Performance = performance,
-                PerformanceUnavailableReason = performanceUnavailableReason,
-                Quality = quality,
-                Oee = oee,
-            },
-            PausePareto = pareto,
-            QcSummary = qcSummary,
+            Fqc = MapCheck(KindFqc),
+            Oqc = MapCheck(KindOqc),
         });
-    }
 
-    private static WoSummaryQcLeg MapQcLeg<TRow>(TRow? row)
-        where TRow : class
-    {
-        if (row is null) return new WoSummaryQcLeg();
-        // Reflect — row is the anonymous projection from GetSummaryReport.
-        // Using dynamic here keeps the call sites typeless without resorting
-        // to expression trees; only 2 callers so the perf is moot.
-        dynamic d = row;
-        return new WoSummaryQcLeg
-        {
-            Judgment = ((WoQcJudgment)d.Judgment).ToString(),
-            SubmittedBy = (string?)d.InspectedBy,
-            Reviewer = (string?)d.ReviewedBy,
-            Approver = (string?)d.ApprovedBy,
-            Reason = (string?)d.JudgmentReason,
-        };
+        return Ok(report);
     }
 }
