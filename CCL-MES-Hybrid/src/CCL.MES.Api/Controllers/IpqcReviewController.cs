@@ -66,10 +66,8 @@ namespace CCL.MES.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route(ApiVersion.Prefix + "/work-orders")]
-public sealed class IpqcReviewController : ControllerBase
+public sealed class IpqcReviewController : WoMutationControllerBase
 {
-    private readonly IMesDbContext _db;
-    private readonly IAuditWriter _audit;
     private readonly IpqcDualSigOptions _dualSig;
     private readonly Services.ITraceFreezeService _trace;
 
@@ -78,9 +76,8 @@ public sealed class IpqcReviewController : ControllerBase
         IAuditWriter audit,
         IOptions<IpqcDualSigOptions> dualSig,
         Services.ITraceFreezeService trace)
+        : base(db, audit)
     {
-        _db = db;
-        _audit = audit;
         _dualSig = dualSig.Value;
         _trace = trace;
     }
@@ -640,68 +637,25 @@ public sealed class IpqcReviewController : ControllerBase
         return null;
     }
 
-    private IActionResult Invalid(string code, string detail)
-        => UnprocessableEntity(ApiError.Of(code, detail));
-
     // ── Prelude (mirrors 7c-2 RunningSurfaceController) ────────────
 
-    private async Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
+    // A2 thin-controller — the concurrency MECHANISM (Idem-Key/If-Match/404/
+    // ETag-compare + WoStateConflict audit + ETag header) now lives in
+    // WoMutationControllerBase. This thin wrapper keeps the call signature the
+    // IPQC endpoints already use and binds the IPQC-typed 409 body via the
+    // onConflict factory. Byte-identical to the inlined original: MesPhase is a
+    // non-null WorkOrder column so `phase` (= wo.MesPhase ?? "") equals the old
+    // `wo.MesPhase` for every real value.
+    private Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
         long id, string actor, string role, string attemptedAction)
-    {
-        var idemKey = Request.Headers["Idempotency-Key"].ToString();
-        if (string.IsNullOrWhiteSpace(idemKey))
-        {
-            return (BadRequest(ApiError.Of("wo.idempotency_key_required",
-                "Idempotency-Key header required.")), null);
-        }
-
-        var ifMatch = Request.Headers.IfMatch.ToString();
-        if (string.IsNullOrWhiteSpace(ifMatch))
-        {
-            return (StatusCode(StatusCodes.Status428PreconditionRequired,
-                ApiError.Of("wo.if_match_required",
-                    "If-Match header required.")), null);
-        }
-
-        var wo = await _db.WorkOrders.FirstOrDefaultAsync(w => w.Id == id);
-        if (wo is null)
-        {
-            return (NotFound(ApiError.Of("wo.not_found",
-                $"No work order with id {id}.")), null);
-        }
-
-        var serverEtagRaw = Convert.ToBase64String(wo.RowVersion);
-        var clientEtagRaw = NormalizeETag(ifMatch);
-        if (!string.Equals(serverEtagRaw, clientEtagRaw, StringComparison.Ordinal))
-        {
-            var conflictDetail = JsonSerializer.Serialize(new
-            {
-                wo_id = id,
-                wo_no = wo.WoNo,
-                attempted_action = attemptedAction,
-                client_version = clientEtagRaw,
-                server_version = serverEtagRaw,
-            });
-            await _audit.EmitAsync(
-                action: AuditAction.WoStateConflict,
-                actor: actor,
-                actorRole: role,
-                targetType: "WorkOrder",
-                targetId: id.ToString(),
-                detail: conflictDetail);
-
-            Response.Headers.ETag = $"\"{serverEtagRaw}\"";
-            return (Conflict(new IpqcSetResponse
+        => base.PreludeAsync(id, actor, role, attemptedAction,
+            (etag, phase) => Conflict(new IpqcSetResponse
             {
                 Ok = false,
                 ErrorCode = "wo.state_conflict",
-                ETag = serverEtagRaw,
-                MesPhase = wo.MesPhase,
-            }), null);
-        }
-
-        return (null, wo);
-    }
+                ETag = etag,
+                MesPhase = phase,
+            }));
 
     // ── Commit + audit ─────────────────────────────────────────────
 
@@ -810,13 +764,4 @@ public sealed class IpqcReviewController : ControllerBase
         });
     }
 
-    private static string NormalizeETag(string raw)
-    {
-        var s = raw.Trim();
-        if (s.StartsWith("W/", StringComparison.OrdinalIgnoreCase))
-            s = s.Substring(2);
-        if (s.Length >= 2 && s[0] == '"' && s[^1] == '"')
-            s = s.Substring(1, s.Length - 2);
-        return s;
-    }
 }
