@@ -5,8 +5,17 @@
    it measures the (flex-filled) .grid-scroll height + the real row/header
    heights and reports how many rows fit, so the host grid can set its
    page size to exactly fill the viewport ("phân full dòng thì chuyển
-   trang"). Re-fires on window resize. Renders nothing. JS calls are
-   try/catch-guarded so a headless/bUnit render (no JS) is a no-op. *@
+   trang"). Re-fires on window resize. JS calls are try/catch-guarded so a
+   headless/bUnit render (no JS) is a no-op.
+
+   Renders ONE inert anchor span carrying this instance's id. The JS side uses
+   it to SCOPE the grid lookup: when the anchor sits inside a floating window
+   ('.trace-win') it measures the .grid-scroll of THAT window only — so N
+   windows each with a grid fit independently, instead of every grid snapping to
+   whichever .grid-scroll is first in the document. Outside a window (full-page
+   route) the lookup is byte-identical to before (document-wide). *@
+
+<span id="@_id" class="gaf-anchor" hidden aria-hidden="true"></span>
 
 @code {
     [Parameter] public EventCallback<int> OnFit { get; set; }

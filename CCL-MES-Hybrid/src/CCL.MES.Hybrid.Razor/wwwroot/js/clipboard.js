@@ -70,8 +70,21 @@ window.cclMesClipboard = (() => {
 window.cclMesGrid = (() => {
     const regs = new Map();
 
-    function measure(sel, rowPx) {
-        const el = document.querySelector(sel);
+    // Resolve the .grid-scroll this GridAutoFit instance owns. The instance
+    // renders an inert anchor span carrying `id`. When that anchor lives inside
+    // a floating window ('.trace-win'), scope the lookup to THAT window so N
+    // windows — each with its own grid — fit independently instead of every one
+    // snapping to whichever .grid-scroll is first in the document. Outside a
+    // window (full-page route) fall back to the original document-wide lookup
+    // (byte-identical behaviour). Resolved per fire so a re-rendered grid or a
+    // window brought to front still finds the right element.
+    function resolveEl(id, sel) {
+        const anchor = document.getElementById(id);
+        const win = anchor && anchor.closest && anchor.closest('.trace-win');
+        return win ? win.querySelector(sel) : document.querySelector(sel);
+    }
+
+    function measure(el, rowPx) {
         if (!el || el.clientHeight <= 0) return 0;
         // Rows vary in height (descriptions wrap to 1–3 lines). Measuring only
         // the FIRST row biases the estimate toward whatever that row's height
@@ -91,7 +104,7 @@ window.cclMesGrid = (() => {
 
     function register(id, ref, sel, rowPx) {
         const fire = () => {
-            const n = measure(sel, rowPx);
+            const n = measure(resolveEl(id, sel), rowPx);
             if (n > 0) { try { ref.invokeMethodAsync('Fit', n); } catch (e) { /* disposed */ } }
         };
         let t;
@@ -108,7 +121,7 @@ window.cclMesGrid = (() => {
         // without ResizeObserver.
         window.addEventListener('resize', debounced);
         let ro = null;
-        const el = document.querySelector(sel);
+        const el = resolveEl(id, sel);
         if (el && typeof ResizeObserver !== 'undefined') {
             ro = new ResizeObserver(debounced);
             try { ro.observe(el); } catch (e) { ro = null; }
