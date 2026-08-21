@@ -465,13 +465,10 @@ public sealed class IpqcReviewController : ControllerBase
             return Invalid("wo.invalid_phase",
                 $"qa/approve requires MesPhase = QA_PENDING; current = {wo.MesPhase}.");
 
-        if (req is null || string.IsNullOrWhiteSpace(req.Outcome))
-            return Invalid("qa.invalid_outcome",
-                "Outcome is required (\"Approve\" or \"Reject\").");
-        if (!Enum.TryParse<QaOutcome>(req.Outcome, ignoreCase: true, out var outcome)
-            || outcome == QaOutcome.Pending)
-            return Invalid("qa.invalid_outcome",
-                $"Outcome must be Approve or Reject; got \"{req.Outcome}\".");
+        var outcomeParse = IpqcJudgmentPolicy.ParseQaOutcome(req?.Outcome);
+        if (!outcomeParse.IsValid)
+            return Invalid(outcomeParse.ErrorCode!, outcomeParse.ErrorMessage!);
+        var outcome = outcomeParse.Outcome;
 
         var check = await GetOrCreateCheckAsync(id, wo);
 
@@ -505,35 +502,27 @@ public sealed class IpqcReviewController : ControllerBase
                 "Người duyệt QA không được trùng với người gửi IPQC — vi phạm nguyên tắc 4-mắt.");
         }
 
-        if (outcome == QaOutcome.Reject)
-        {
-            if (string.IsNullOrWhiteSpace(req.QaReason) || req.QaReason!.Length > 500)
-                return Invalid("qa.invalid_qa_reason",
-                    "QaReason is required (1-500 chars) for Reject outcome.");
-        }
-        else if (req.QaReason is not null && req.QaReason.Length > 500)
-        {
-            return Invalid("qa.invalid_qa_reason",
-                "QaReason must be 0-500 chars on Approve outcome.");
-        }
+        var reasonErr = IpqcJudgmentPolicy.ValidateQaReason(outcome, req?.QaReason);
+        if (reasonErr is not null)
+            return Invalid(reasonErr.Value.ErrorCode, reasonErr.Value.Message);
 
         var now = DateTime.UtcNow;
-        WoIpqcCheckService.SubmitQaApproval(check, outcome, req.QaReason, actor, now);
+        WoIpqcCheckService.SubmitQaApproval(check, outcome, req?.QaReason, actor, now);
 
-        wo.MesPhase = outcome == QaOutcome.Approve ? "IPQC_APPROVED" : "PREPRESS";
+        wo.MesPhase = IpqcJudgmentPolicy.QaApproveTransition(outcome).NextPhase;
 
         var result = await CommitAndAuditAsync(id, wo, check, actor, role,
             AuditAction.WoQaApprove,
             new
             {
                 outcome = outcome.ToString(),
-                qa_reason = req.QaReason,
+                qa_reason = req?.QaReason,
                 ipqc_submitted_by = ipqcSubmittedBy,
                 qa_approved_by = actor,
                 flag_state = _dualSig.FlagState,
             });
         // SpecialAccept path concluding OK via QA → freeze IPQC snapshot.
-        if (result is OkObjectResult && outcome == QaOutcome.Approve)
+        if (result is OkObjectResult && IpqcJudgmentPolicy.QaApproveTransition(outcome).FreezeOnApprove)
             await FreezeSafe(id, CCL.MES.Shared.Quality.TracePhase.Ipqc, actor);
         return result;
     }

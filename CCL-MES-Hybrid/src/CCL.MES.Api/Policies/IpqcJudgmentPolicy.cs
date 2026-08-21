@@ -34,6 +34,37 @@ public sealed record IpqcJudgmentTransition
 }
 
 /// <summary>
+/// Kết quả parse outcome QA approve. <see cref="ErrorCode"/> khác null nghĩa là
+/// body không hợp lệ (thiếu / sai giá trị) — controller trả 422 với
+/// <see cref="ErrorCode"/> + <see cref="ErrorMessage"/>. Khi hợp lệ,
+/// <see cref="Outcome"/> mang giá trị Approve hoặc Reject (không bao giờ Pending).
+/// </summary>
+public sealed record QaApproveOutcomeParse
+{
+    public string? ErrorCode { get; init; }
+    public string? ErrorMessage { get; init; }
+    public QaOutcome Outcome { get; init; }
+
+    public bool IsValid => ErrorCode is null;
+
+    public static QaApproveOutcomeParse Ok(QaOutcome outcome) => new() { Outcome = outcome };
+    public static QaApproveOutcomeParse Fail(string code, string message) =>
+        new() { ErrorCode = code, ErrorMessage = message };
+}
+
+/// <summary>
+/// Transition QA approve đã chốt theo outcome: pha kế tiếp + có freeze IPQC
+/// snapshot khi Approve hay không. Audit action QA approve LUÔN là
+/// <c>WO_QA_APPROVE</c> (bất kể outcome) nên KHÔNG mang trong record này —
+/// controller giữ nguyên.
+/// </summary>
+public sealed record QaApproveTransitionResult
+{
+    public required string NextPhase { get; init; }
+    public required bool FreezeOnApprove { get; init; }
+}
+
+/// <summary>
 /// Luật QUYẾT ĐỊNH IPQC judgment — tách khỏi <c>IpqcReviewController</c>
 /// theo mẫu <see cref="WoQcJudgmentPolicy"/> để kiểm được bằng unit test thuần,
 /// không dựng web host.
@@ -60,6 +91,8 @@ public static class IpqcJudgmentPolicy
 {
     public const string InvalidJudgment            = "ipqc.invalid_judgment";
     public const string InvalidSpecialAcceptReason = "ipqc.invalid_special_accept_reason";
+    public const string InvalidQaOutcome           = "qa.invalid_outcome";
+    public const string InvalidQaReason            = "qa.invalid_qa_reason";
 
     /// <summary>
     /// Parse chuỗi phán quyết → GoRun/StopLine/SpecialAccept. Gọi TRƯỚC kiểm
@@ -115,4 +148,74 @@ public static class IpqcJudgmentPolicy
             IpqcJudgment.SpecialAccept => new IpqcJudgmentTransition { NextPhase = "QA_PENDING",    FreezeOnGoRun = false },
             _                          => new IpqcJudgmentTransition { NextPhase = "",              FreezeOnGoRun = false },
         };
+
+    // ─────────────────────────────────────────────────────────────────
+    // QA approve — outcome parse + qa-reason + transition.
+    //
+    // Q3 dual-sig guard (WoIpqcCheckService.ValidateDualSig + WO_QA_APPROVE_DENIED
+    // audit) do controller giữ NGUYÊN VĂN. Ở đây CHỈ tách phần OUTCOME/REASON/
+    // TRANSITION của action qa/approve: parse "Approve"/"Reject", kiểm qa-reason,
+    // và ánh xạ outcome → (pha kế, freeze-on-Approve).
+    //
+    // ⚠ THỨ TỰ trong controller giữ NGUYÊN: ParseQaOutcome → GetOrCreateCheck →
+    // Q3 dual-sig guard → ValidateQaReason. ParseQaOutcome đứng TRƯỚC dual-sig
+    // để request vừa sai outcome vừa trùng vai vẫn nhận qa.invalid_outcome trước;
+    // ValidateQaReason đứng SAU dual-sig để request đúng outcome + trùng vai +
+    // thiếu reason nhận qa.same_user_as_ipqc_submitter trước — không đổi hành vi
+    // ca biên. TÁCH 2 HÀM (không gộp) vì hai kiểm bị dual-sig NGẮT QUÃNG.
+    // ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Parse chuỗi outcome QA approve → Approve/Reject. Gọi TRƯỚC dual-sig guard.
+    /// Null/blank → invalid_outcome ("required"); parse-fail HOẶC Pending →
+    /// invalid_outcome ("must be Approve or Reject") dùng CHUỖI GỐC (raw) trong
+    /// message. Thứ tự + message giữ nguyên byte-identical với bản trong controller.
+    /// </summary>
+    public static QaApproveOutcomeParse ParseQaOutcome(string? rawOutcome)
+    {
+        if (string.IsNullOrWhiteSpace(rawOutcome))
+            return QaApproveOutcomeParse.Fail(InvalidQaOutcome,
+                "Outcome is required (\"Approve\" or \"Reject\").");
+
+        if (!Enum.TryParse<QaOutcome>(rawOutcome, ignoreCase: true, out var outcome)
+            || outcome == QaOutcome.Pending)
+            return QaApproveOutcomeParse.Fail(InvalidQaOutcome,
+                $"Outcome must be Approve or Reject; got \"{rawOutcome}\".");
+
+        return QaApproveOutcomeParse.Ok(outcome);
+    }
+
+    /// <summary>
+    /// Kiểm QA reason theo outcome. Gọi SAU dual-sig guard. Reject bắt buộc lý do
+    /// 1–500 ký tự; Approve → lý do optional NHƯNG nếu có và >500 → lỗi (hai
+    /// message KHÁC NHAU word-for-word). Trả tuple (ErrorCode, Message) khi vi
+    /// phạm, null khi hợp lệ.
+    /// </summary>
+    public static (string ErrorCode, string Message)? ValidateQaReason(
+        QaOutcome outcome, string? reason)
+    {
+        if (outcome == QaOutcome.Reject)
+        {
+            if (string.IsNullOrWhiteSpace(reason) || reason!.Length > 500)
+                return (InvalidQaReason,
+                    "QaReason is required (1-500 chars) for Reject outcome.");
+        }
+        else if (reason is not null && reason.Length > 500)
+        {
+            return (InvalidQaReason,
+                "QaReason must be 0-500 chars on Approve outcome.");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Transition đã chốt cho outcome QA approve hợp lệ: Approve → IPQC_APPROVED +
+    /// freeze; Reject → PREPRESS + no-freeze. Với giá trị ngoài 2 nhánh (không xảy
+    /// ra sau ParseQaOutcome), giữ semantics cũ: Reject-path (PREPRESS + no-freeze).
+    /// </summary>
+    public static QaApproveTransitionResult QaApproveTransition(QaOutcome outcome) =>
+        outcome == QaOutcome.Approve
+            ? new QaApproveTransitionResult { NextPhase = "IPQC_APPROVED", FreezeOnApprove = true }
+            : new QaApproveTransitionResult { NextPhase = "PREPRESS",      FreezeOnApprove = false };
 }
