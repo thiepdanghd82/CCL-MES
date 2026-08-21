@@ -22,9 +22,10 @@ namespace CCL.MES.Hybrid.Razor.Tests;
 /// Henry hardware-verify fix — full-page-mode vs workspace-mode. The
 /// <c>.window-layer</c> (z-index 90, position:fixed) with a maximized-to-
 /// workspace window used to cover @Body, so tapping a genuine full-page tab
-/// (Home <c>/</c>, <c>/qms/iqc</c>, <c>/workorders</c>, <c>/settings</c>…) showed
+/// (Home <c>/</c>, <c>/qms/iqc</c>, <c>/settings</c>…) showed
 /// the stale window and looked like "no navigation". (P2 showcard-migration moved
-/// <c>/quality/traceability</c> to a window route, so it is no longer full-page.)
+/// <c>/quality/traceability</c> to a window route + W5 moved <c>/workorders</c>,
+/// so neither is full-page any more.)
 ///
 /// Hướng A: on a window route the layer is visible; on a real full-page route
 /// the layer gets <c>.is-hidden</c> (display:none) so the page shows through —

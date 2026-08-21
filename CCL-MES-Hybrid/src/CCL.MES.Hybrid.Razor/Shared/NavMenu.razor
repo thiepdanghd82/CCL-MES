@@ -60,10 +60,15 @@
         @if (HwOptions.Value.ScanEnabled)
         {
             <div class="app-nav-section">@T("nav.section.production")</div>
-            @* /workorders stays a NavLink: it's heavily stateful (MesPhase
-               dispatch + AdvanceOrchestrator + child dashboards) — deferred to
-               PR3. Semi-finished store is a plain grid → window. *@
-            <NavLink href="/workorders" class="app-nav-link">@Ico("scan")<span>@T("nav.workorders")</span></NavLink>
+            @* W5 — /workorders now opens as a keep-alive window (WM.Open). It is
+               param-free + any-auth + hosts no FloatingWindow of its own; the
+               MesPhase dispatch + AdvanceOrchestrator + 8 child dashboards all
+               live inside the single window instance (keep-alive). Semi-finished
+               store is a plain grid → window. *@
+            <button type="button" class="app-nav-link" data-testid="nav-win-workorders"
+                    @onclick="() => OpenWindowAsync(WindowRegistryKeys.WorkOrders)">
+                @Ico("scan")<span>@T("nav.workorders")</span>
+            </button>
             <button type="button" class="app-nav-link" data-testid="nav-win-semiproducts"
                     @onclick="() => OpenWindowAsync(WindowRegistryKeys.SemiProducts)">
                 @Ico("box")<span>@T("nav.semiproducts")</span>

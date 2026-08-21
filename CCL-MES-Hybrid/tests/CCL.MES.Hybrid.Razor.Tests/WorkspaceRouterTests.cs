@@ -56,6 +56,14 @@ public sealed class WorkspaceRouterTests : TestContext
         // /quality/traceability deep-link can mount it inside MainLayout.
         Services.AddSingleton<IBarcodeScannerService>(new StubScannerService());
         Services.AddSingleton<CCL.MES.Hybrid.Client.Realtime.IShopfloorLiveService>(new StubShopfloorLive());
+        // W5 — the /workorders deep-link mounts the real WorkOrders page inside
+        // MainLayout, so its extra deps (device-settings launcher + a logger)
+        // must be present too. Mirrors WorkOrdersPageTests' DI graph.
+        Services.AddSingleton<IDeviceSettingsLauncher>(new StubDeviceSettingsLauncher());
+        Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>),
+            typeof(Microsoft.Extensions.Logging.Abstractions.NullLogger<>));
+        Services.AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(
+            Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
         Services.AddSingleton<IOptions<HardwareOptions>>(
             Options.Create(new HardwareOptions { ScanEnabled = true }));
         this.AddTestAuthorization().SetAuthorized("qc-user");
@@ -242,5 +250,25 @@ public sealed class WorkspaceRouterTests : TestContext
         Assert.Equal(WindowRegistryKeys.Traceability, win.Key);
         Assert.Single(cut.FindAll("[data-testid='workspace-home']"));
         Assert.Empty(cut.FindAll(".route-body"));
+    }
+
+    // ── W5 — Work Orders scan→advance hub deep-link ─────────────────────────
+
+    [Fact]
+    public void Deep_link_to_workorders_opens_the_window_and_shows_workspace_home()
+    {
+        // W5 — /workorders is now a window route: the deep-link opens the
+        // WorkOrders hub window (param-free, any-auth) + @Body swaps to the empty
+        // workspace so the page renders ONCE inside its window (no double-render).
+        NavTo("/workorders");
+
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("A")));
+
+        var win = Assert.Single(_wm.Windows);
+        Assert.Equal(WindowRegistryKeys.WorkOrders, win.Key);
+        Assert.Null(win.Parameters);   // param-free hub
+        Assert.Single(cut.FindAll("[data-testid='workspace-home']"));
+        Assert.Empty(cut.FindAll(".route-body"));
+        Assert.Single(cut.FindAll(".window-host"));
     }
 }

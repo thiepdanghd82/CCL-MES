@@ -39,7 +39,7 @@
                    page renders ONCE inside its floating window (below), so @Body
                    is replaced by the empty-workspace background to avoid a
                    double-render. Deferred / non-window routes (e.g. /settings,
-                   /qms/iqc, /workorders, /login) still render @Body normally. *@
+                   /qms/iqc, /login) still render @Body normally. *@
                 @if (_urlIsWindowRoute)
                 {
                     <WorkspaceHome />
@@ -53,9 +53,9 @@
     </main>
 
     @* Multi-window workspace layer — over @Body, under the taskbar.
-       L(this-fix) — on a real full-page route (Home /, /qms/iqc,
-       /quality/traceability, /workorders, /settings, /login…) the window-layer
-       is display:none'd via .is-hidden so the page in @Body shows through
+       L(this-fix) — on a real full-page route (Home /, /qms/iqc, /settings,
+       /login…) the window-layer is display:none'd via .is-hidden so the page in
+       @Body shows through
        instead of being covered by a maximized-to-workspace window. Windows are
        NOT removed from the @foreach → instances + their body state survive
        (keep-alive); a taskbar chip single-click reveals + focuses them again. *@
@@ -163,9 +163,8 @@
 
         // L(this-fix) — isWindow drives BOTH the @Body→WorkspaceHome swap AND the
         // window-layer visibility: a window route reveals the layer; a real
-        // full-page route (Home / /qms/iqc /quality/traceability /workorders
-        // /settings /login…) hides it so the page shows through. Windows stay
-        // mounted (keep-alive) regardless.
+        // full-page route (Home / /qms/iqc /settings /login…) hides it so the
+        // page shows through. Windows stay mounted (keep-alive) regardless.
         if (isWindow != _urlIsWindowRoute || isWindow != _workspaceVisible)
         {
             _urlIsWindowRoute = isWindow;
@@ -271,6 +270,14 @@
         Registry.Register(new WindowRegistryEntry(
             WindowRegistryKeys.QmsIcra, typeof(IcraModule),
             WindowRegistryKeys.TitleKeys.QmsIcra, "🛠"));
+
+        // W5 — Work Orders scan→advance hub as a window. Param-free, any-auth,
+        // no self-hosted FloatingWindow; the 8 child dashboards are keep-alive
+        // children of this one window instance (their in-flight scan / advance
+        // survives a focus or route change like any other keep-alive window).
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.WorkOrders, typeof(WorkOrders),
+            WindowRegistryKeys.TitleKeys.WorkOrders, "📋"));
 
         // ── P2-PR3 subset — route-param tabs. ──
         // QMS Inspection Queue: the hub (/qms) and the FQC stage lock (/qms/fqc)
