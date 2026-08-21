@@ -78,6 +78,13 @@ else if (_data is not null)
 }
 
 @code {
+    // P2-PR3 — window-mode. When this component renders inside a floating window
+    // (via DynamicComponent) there is NO per-window URL to read, so the host
+    // passes the stage lock explicitly through this parameter. When null (the
+    // full-page /qms route) we fall back to Nav.Uri so deep-link + reload +
+    // backward-compat all keep working. Values mirror the URL suffix ("fqc").
+    [Parameter] public string? Mode { get; set; }
+
     private QmsQueueDto? _data;
     private bool _loading = true;
     private string? _error;
@@ -89,15 +96,21 @@ else if (_data is not null)
 
     // Re-evaluated on every navigation (Blazor reuses the instance across the
     // sibling routes), so switching /qms/ipqc ↔ /qms/fqc re-locks correctly
-    // without a data reload.
+    // without a data reload. Mode (window param) wins over the URL so a
+    // /qms/fqc window locks to FQC even though its host URL is the shell route.
     protected override void OnParametersSet()
     {
-        var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].Trim('/').ToLowerInvariant();
-        _lockedStage = path switch
+        var mode = Mode;
+        if (string.IsNullOrWhiteSpace(mode))
         {
-            "qms/fqc" => "fqc",
-            _ => null,   // "qms" → hub with all tabs
-        };
+            var path = Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].Trim('/').ToLowerInvariant();
+            mode = path switch
+            {
+                "qms/fqc" => "fqc",
+                _ => null,   // "qms" → hub with all tabs
+            };
+        }
+        _lockedStage = string.Equals(mode, "fqc", StringComparison.OrdinalIgnoreCase) ? "fqc" : null;
         if (_lockedStage is not null)
             _stage = _lockedStage;
     }

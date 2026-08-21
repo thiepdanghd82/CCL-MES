@@ -38,10 +38,10 @@
         <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
             <div class="app-nav-section">@T("nav.section.npi")</div>
             <div class="app-nav-group">
-                @* P2-PR2 — the 4 NPI master-data grids open as windows. /npi/specs
-                   stays a NavLink: it navigates to the param route /npi/specs/{id}
-                   (SpecDetailPage) on row-open, so it needs the param-tab migration
-                   (deferred to PR3). *@
+                @* P2-PR2 — the 4 NPI master-data grids open as windows.
+                   P2-PR3 — /npi/specs now opens as a window too: the list is a
+                   plain grid window, and a row-open spawns a per-id spec-detail
+                   window (spec:{id}) from Specs.OpenAsync. *@
                 <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-structure"
                         @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiStructure)"><span>@T("nav.npi.structure")</span></button>
                 <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-routine"
@@ -51,7 +51,8 @@
                 <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-workcenters"
                         @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiWorkCenters)"><span>@T("nav.npi.workcenters")</span></button>
                 <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="specCtx">
-                    <NavLink href="/npi/specs" class="app-nav-link app-nav-link-sub"><span>@T("nav.npi.spec")</span></NavLink>
+                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-specs"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.Specs)"><span>@T("nav.npi.spec")</span></button>
                 </AuthorizeView>
             </div>
         </AuthorizeView>
@@ -139,8 +140,13 @@
                 </button>
             </div>
             <div class="app-nav-group">
-                <NavLink href="/qms" Match="NavLinkMatch.All" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.queue")</span></NavLink>
-                <NavLink href="/qms/fqc" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.fqc")</span></NavLink>
+                @* P2-PR3 — the Inspection Queue hub + FQC stage lock open as
+                   windows. Two distinct keys over one QmsQueue component; the
+                   FQC key carries the { ["Mode"] = "fqc" } stage lock. *@
+                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qms-queue"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsQueueHub)"><span>@T("nav.qms.queue")</span></button>
+                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qms-fqc"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsQueueFqc)"><span>@T("nav.qms.fqc")</span></button>
                 @* P2-PR1 — QC History + QC Library open as floating windows. *@
                 <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qchistory"
                         @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcHistory)">
@@ -207,7 +213,9 @@
         var entry = Registry.Resolve(key);
         if (entry is null) return Task.CompletedTask;
 
-        var opened = WM.Open(key, T(entry.TitleKey), entry.Icon, entry.ContentType);
+        // entry.Parameters carries the static stage lock for route-param tabs
+        // (e.g. /qms/fqc → { ["Mode"] = "fqc" }); null for param-free windows.
+        var opened = WM.Open(key, T(entry.TitleKey), entry.Icon, entry.ContentType, entry.Parameters);
         if (opened is null)
         {
             _maxBanner = T("window.max_reached", WM.SoftCap);

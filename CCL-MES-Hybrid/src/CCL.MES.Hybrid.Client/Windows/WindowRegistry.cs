@@ -13,12 +13,19 @@ namespace CCL.MES.Hybrid.Client.Windows;
 /// any authenticated user. RBAC-by-omission: the host builds the launcher item
 /// only when the role matches; the SERVER still authorises every page/API call
 /// (defense in depth — this list is a UI convenience, not the gate).</param>
+/// <param name="Parameters">Optional STATIC parameter set handed to the window's
+/// component (via DynamicComponent) every time this key is opened — e.g. the
+/// stage lock <c>{ ["Mode"] = "fqc" }</c> for the FQC queue window. Null for a
+/// param-free page. Windows whose params are DYNAMIC (e.g. a per-id spec detail)
+/// carry no static set here and are opened by the caller with the id-specific
+/// dictionary + a per-id key instead.</param>
 public sealed record WindowRegistryEntry(
     string Key,
     Type ContentType,
     string TitleKey,
     string? Icon = null,
-    string[]? RequiredRoles = null);
+    string[]? RequiredRoles = null,
+    IReadOnlyDictionary<string, object>? Parameters = null);
 
 /// <summary>
 /// Maps a logical <c>key</c> → the window it opens. HOST-POPULATED: entries are
@@ -137,6 +144,43 @@ public static class WindowRegistryKeys
     /// <summary>iCRA module — <c>@page "/qms/icra"</c>, any auth.</summary>
     public const string QmsIcra = "/qms/icra";
 
+    // ── P2-PR3 subset — route-param tabs ───────────────────────────────────
+    // Two shapes of param-carrying window land here:
+    //  1. STATIC-param: one component (QmsQueue) shared across two URL-modes.
+    //     The hub /qms and the stage-locked /qms/fqc are two DISTINCT window
+    //     keys pointing at the SAME type; only the FQC key carries a static
+    //     { ["Mode"] = "fqc" } param so the window locks to the FQC stage
+    //     without a per-window URL to read.
+    //  2. DYNAMIC-param: the Spec list (/npi/specs) is a plain param-free grid
+    //     window, but a row-open spawns a PER-ID spec-detail window keyed
+    //     "spec:{id}" with { ["RevisionId"] = id }. The id-specific key + param
+    //     are built by the caller (Specs row-open + the WorkspaceRouter
+    //     deep-link parse), NOT registered as a fixed entry — one registry row
+    //     can't enumerate every spec id.
+
+    /// <summary>QMS Inspection Queue hub — <c>@page "/qms"</c> (3-tab). Distinct
+    /// key from the FQC stage window so both can be open at once (dedupe by key).</summary>
+    public const string QmsQueueHub = "/qms";
+
+    /// <summary>QMS FQC stage queue — <c>@page "/qms/fqc"</c>. Same component as
+    /// the hub, opened with a static <c>{ ["Mode"] = "fqc" }</c> stage lock.</summary>
+    public const string QmsQueueFqc = "/qms/fqc";
+
+    /// <summary>Engineer Spec list — <c>@page "/npi/specs"</c>,
+    /// <c>[Authorize(Roles = "Admin,Supervisor,Engineer")]</c>. Param-free grid
+    /// window; row-open spawns a per-id <see cref="SpecDetailKeyPrefix"/> window.</summary>
+    public const string Specs = "/npi/specs";
+
+    /// <summary>Route prefix for the spec-detail param route
+    /// (<c>/npi/specs/{RevisionId:long}</c>). Deep-link parsing strips this to
+    /// read the id; the per-id window key is <see cref="SpecDetailKeyPrefix"/>.</summary>
+    public const string SpecDetailRoutePrefix = "/npi/specs/";
+
+    /// <summary>Per-id window-key prefix for an open spec detail
+    /// (<c>spec:{RevisionId}</c>). One window per spec id → dedupe re-focuses the
+    /// same spec instead of stacking duplicates.</summary>
+    public const string SpecDetailKeyPrefix = "spec:";
+
     /// <summary>i18n title keys the host should register alongside each type.
     /// (String constants only — the actual VI/EN strings live in the
     /// TranslationCatalog / SharedResource, added by the UX/i18n agent.)</summary>
@@ -157,6 +201,14 @@ public static class WindowRegistryKeys
         public const string QmsIpqc = "windows.qms_ipqc.title";
         public const string QmsOqc = "windows.qms_oqc.title";
         public const string QmsIcra = "windows.qms_icra.title";
+
+        // P2-PR3 route-param tabs.
+        public const string QmsQueueHub = "windows.qms_queue.title";
+        public const string QmsQueueFqc = "windows.qms_queue_fqc.title";
+        public const string Specs = "windows.specs.title";
+        // Spec detail title is dynamic (spec code); the caller passes a resolved
+        // literal (or this generic key as a fallback) rather than an i18n lookup.
+        public const string SpecDetail = "windows.spec_detail.title";
     }
 
     /// <summary>RBAC roles for QcLibrary (mirrors its page <c>[Authorize]</c>).
@@ -167,4 +219,18 @@ public static class WindowRegistryKeys
     /// <c>[Authorize(Roles="Admin,Supervisor,Engineer,QC")]</c>). Home + Semi +
     /// the 3 QMS modules are any-auth (null roles) so they carry no array.</summary>
     public static readonly string[] NpiRoles = { "Admin", "Supervisor", "Engineer", "QC" };
+
+    /// <summary>RBAC roles for the Spec list + detail windows (mirror
+    /// <c>[Authorize(Roles = "Admin,Supervisor,Engineer")]</c> on both pages).</summary>
+    public static readonly string[] SpecRoles = { "Admin", "Supervisor", "Engineer" };
+
+    /// <summary>RBAC roles for the QMS Inspection Queue windows (mirror the
+    /// NavMenu <c>&lt;AuthorizeView Roles="Admin,Supervisor,QC"&gt;</c> that
+    /// wraps the QMS group; the server still authorises each route).</summary>
+    public static readonly string[] QmsQueueRoles = { "Admin", "Supervisor", "QC" };
+
+    /// <summary>Static parameter set for the FQC stage queue window:
+    /// <c>{ ["Mode"] = "fqc" }</c>. The hub (/qms) carries no params.</summary>
+    public static readonly IReadOnlyDictionary<string, object> QmsQueueFqcParameters =
+        new Dictionary<string, object> { ["Mode"] = "fqc" };
 }

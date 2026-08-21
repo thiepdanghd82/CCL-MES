@@ -3,6 +3,7 @@ using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client;
 using CCL.MES.Hybrid.Client.Files;
 using CCL.MES.Hybrid.Client.Grid;
+using CCL.MES.Hybrid.Client.Windows;
 using CCL.MES.Hybrid.Razor.Pages;
 using CCL.MES.Hybrid.Razor.Tests._Support;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,6 +31,7 @@ public sealed class SpecsToolbarTests : TestContext
         Services.AddSingleton<IFileOpener>(new StubFileOpener());
         Services.AddSingleton<IFileSaver>(new StubFileSaver());
         Services.AddSingleton<IFilePickerService>(new StubFilePickerService());
+        Services.AddSingleton<IWindowManager>(new WindowManager());
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("op");
         return RenderComponent<Specs>();

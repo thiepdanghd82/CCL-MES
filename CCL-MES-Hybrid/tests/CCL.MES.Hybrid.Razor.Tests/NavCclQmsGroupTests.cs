@@ -42,9 +42,11 @@ public sealed class NavCclQmsGroupTests : TestContext
 
     // Compact secondary links that must stay reachable as NavLinks (nothing
     // lost). P2-PR1 moved /qms/history + /qc/library OUT of this anchor list —
-    // they now open as floating WINDOWS (buttons), asserted separately below.
+    // they now open as floating WINDOWS (buttons). P2-PR3 moved /qms + /qms/fqc
+    // to window buttons too (asserted separately); /quality/traceability stays
+    // the only secondary NavLink anchor.
     private static readonly string[] Secondary =
-        { "/qms", "/qms/fqc", "/quality/traceability" };
+        { "/quality/traceability" };
 
     private void Wire(string role)
     {
@@ -98,6 +100,12 @@ public sealed class NavCclQmsGroupTests : TestContext
         // P2-PR1 — QC History + QC Library now open as floating windows (buttons).
         Assert.Single(cut.FindAll("[data-testid='nav-win-qchistory']"));
         Assert.Single(cut.FindAll("[data-testid='nav-win-qclibrary']"));
+
+        // P2-PR3 — the Inspection Queue hub + FQC stage are window buttons now.
+        Assert.Single(cut.FindAll("[data-testid='nav-win-qms-queue']"));
+        Assert.Single(cut.FindAll("[data-testid='nav-win-qms-fqc']"));
+        Assert.Empty(cut.FindAll("a[href='/qms']"));
+        Assert.Empty(cut.FindAll("a[href='/qms/fqc']"));
     }
 
     [Fact]
