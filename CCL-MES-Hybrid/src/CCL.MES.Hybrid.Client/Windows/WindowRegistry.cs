@@ -181,6 +181,23 @@ public static class WindowRegistryKeys
     /// same spec instead of stacking duplicates.</summary>
     public const string SpecDetailKeyPrefix = "spec:";
 
+    // ── P2 showcard-migration — Traceability (list window + per-WO detail) ──
+    // Same shape as the Spec list/detail pair: a param-free grid window whose
+    // rows open a per-WoNo detail window. The detail body is TraceabilityDetail
+    // (TraceabilityDetailDialog with Chrome=false) so the WM host owns the
+    // FloatingWindow — no double-wrap. Detail windows are non-route (opened only
+    // from a row dblclick), so they carry no fixed registry entry + no deep-link.
+
+    /// <summary>Quality Traceability list — <c>@page "/quality/traceability"</c>,
+    /// <c>[Authorize(Roles = "Admin,Supervisor,QC")]</c>. Param-free grid window;
+    /// row-dblclick spawns a per-WO <see cref="TraceDetailKeyPrefix"/> window.</summary>
+    public const string Traceability = "/quality/traceability";
+
+    /// <summary>Per-WO window-key prefix for an open traceability detail
+    /// (<c>trace:{WoNo}</c>). One window per WO → dedupe re-focuses the same WO
+    /// instead of stacking duplicates (mirrors <see cref="SpecDetailKeyPrefix"/>).</summary>
+    public const string TraceDetailKeyPrefix = "trace:";
+
     /// <summary>i18n title keys the host should register alongside each type.
     /// (String constants only — the actual VI/EN strings live in the
     /// TranslationCatalog / SharedResource, added by the UX/i18n agent.)</summary>
@@ -209,6 +226,12 @@ public static class WindowRegistryKeys
         // Spec detail title is dynamic (spec code); the caller passes a resolved
         // literal (or this generic key as a fallback) rather than an i18n lookup.
         public const string SpecDetail = "windows.spec_detail.title";
+
+        // P2 showcard-migration — Traceability list + per-WO detail.
+        public const string Traceability = "windows.traceability.title";
+        // Detail title is dynamic ("WO {WoNo}"); the caller passes the resolved
+        // literal, this key is a generic fallback.
+        public const string TraceDetail = "windows.trace_detail.title";
     }
 
     /// <summary>RBAC roles for QcLibrary (mirrors its page <c>[Authorize]</c>).
@@ -228,6 +251,12 @@ public static class WindowRegistryKeys
     /// NavMenu <c>&lt;AuthorizeView Roles="Admin,Supervisor,QC"&gt;</c> that
     /// wraps the QMS group; the server still authorises each route).</summary>
     public static readonly string[] QmsQueueRoles = { "Admin", "Supervisor", "QC" };
+
+    /// <summary>RBAC roles for the Traceability list + per-WO detail windows
+    /// (mirror the page <c>[Authorize(Roles = "Admin,Supervisor,QC")]</c> + the
+    /// NavMenu <c>&lt;AuthorizeView&gt;</c> that wraps the QMS group; the server
+    /// still authorises each route).</summary>
+    public static readonly string[] TraceabilityRoles = { "Admin", "Supervisor", "QC" };
 
     /// <summary>Static parameter set for the FQC stage queue window:
     /// <c>{ ["Mode"] = "fqc" }</c>. The hub (/qms) carries no params.</summary>

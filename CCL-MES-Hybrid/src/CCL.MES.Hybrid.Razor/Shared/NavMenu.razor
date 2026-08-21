@@ -156,7 +156,9 @@
                         @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcLibrary)">
                     <span>@T("nav.qms.library")</span>
                 </button>
-                <NavLink href="/quality/traceability" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.traceability")</span></NavLink>
+                @* P2 showcard-migration — Traceability opens as a floating window. *@
+                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-traceability"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.Traceability)"><span>@T("nav.qms.traceability")</span></button>
             </div>
         </AuthorizeView>
 

@@ -1,0 +1,20 @@
+@namespace CCL.MES.Hybrid.Razor.Shared
+
+@*
+    P2 showcard-migration — WindowManager BODY for a per-WO traceability detail.
+    The WM host (MainLayout .window-layer) already wraps this in a shared
+    <FloatingWindow> (drag / resize / traffic-lights / rect persistence per
+    "trace:{WoNo}" key), so this component renders ONLY the body: it delegates to
+    the existing TraceabilityDetailDialog with Chrome=false (no self-hosted
+    FloatingWindow → no double-wrap). The single [Parameter] WoNo is the entire
+    surface handed by DynamicComponent — no closure to the list page, so a list
+    re-render / live re-pull never disturbs an open detail window (keep-alive).
+*@
+
+<TraceabilityDetailDialog Chrome="false" WoNo="@WoNo" />
+
+@code {
+    /// <summary>Work-order number this detail window renders (the DynamicComponent
+    /// parameter carried on the <c>trace:{WoNo}</c> window key).</summary>
+    [Parameter, EditorRequired] public string WoNo { get; set; } = "";
+}

@@ -10,26 +10,58 @@
     sub-tabs [Product|IPQC|FQC|OQC]. Product uses a fixed 2-section layout
     (Materials + Tools); IPQC/FQC/OQC use ONE generic renderer over header
     (key-value) + items. A phase with no frozen snapshot shows an empty-state.
+
+    P2 showcard-migration — this component has two hosting modes:
+      • Chrome=true (default): self-wraps <FloatingWindow> (legacy standalone
+        showcard). Kept for any caller still hand-hosting a card.
+      • Chrome=false: renders ONLY the body (tab strip + 4-tab content), NO
+        <FloatingWindow>. The WindowManager host (MainLayout .window-layer)
+        already wraps a DynamicComponent in FloatingWindow, so nesting one here
+        would double-wrap. In WM mode the tab strip moves INTO the body (there
+        is no chrome TabBar slot to fill).
 *@
 
-<FloatingWindow Title="@WoNo" Subtitle="@(_detail?.ProductName ?? "")"
-                AriaLabel="@T("trace.aria.window", WoNo)"
-                WindowId="@WindowId" Rect="Rect" CascadeIndex="CascadeIndex"
-                OnClose="OnClose" OnRectChanged="OnRectChanged">
-    <TabBar>
-        <div class="trace-tabs" role="tablist">
-            @foreach (var t in _tabs)
-            {
-                <button type="button" role="tab"
-                        class="trace-tab @(t.Phase == _active ? "trace-tab-active" : "")"
-                        @onclick="() => _active = t.Phase">
-                    @TabDisplay(t.Phase, t.Label)
-                    @if (Phase(t.Phase) is not null) { <span class="trace-tab-dot" title="@T("trace.frozen.tooltip")">●</span> }
-                </button>
-            }
-        </div>
-    </TabBar>
-    <ChildContent>
+@if (Chrome)
+{
+    <FloatingWindow Title="@WoNo" Subtitle="@(_detail?.ProductName ?? "")"
+                    AriaLabel="@T("trace.aria.window", WoNo)"
+                    WindowId="@WindowId" Rect="Rect" CascadeIndex="CascadeIndex"
+                    OnClose="OnClose" OnRectChanged="OnRectChanged">
+        <TabBar>
+            @TabStrip
+        </TabBar>
+        <ChildContent>
+            @Body
+        </ChildContent>
+    </FloatingWindow>
+}
+else
+{
+    @* WM-hosted: the FloatingWindow lives in the host; render the tab strip
+       inline at the top of the body, then the body. *@
+    @TabStrip
+    <div class="trace-win-body-inner">
+        @Body
+    </div>
+}
+
+@* ── Tab strip + body, shared by both hosting modes. Declared as instance
+   RenderFragment members so they can be referenced from the render block above
+   regardless of source order (they are class members, not locals). ─────────── *@
+@code {
+    private RenderFragment TabStrip => @<div class="trace-tabs" role="tablist">
+        @foreach (var t in _tabs)
+        {
+            <button type="button" role="tab"
+                    class="trace-tab @(t.Phase == _active ? "trace-tab-active" : "")"
+                    @onclick="() => _active = t.Phase">
+                @TabDisplay(t.Phase, t.Label)
+                @if (Phase(t.Phase) is not null) { <span class="trace-tab-dot" title="@T("trace.frozen.tooltip")">●</span> }
+            </button>
+        }
+    </div>;
+
+    private RenderFragment Body => @<text>
         @if (_loading)
         {
             <p class="grid-status">@T("trace.loading")</p>
@@ -194,14 +226,20 @@
                 }
             }
         }
-    </ChildContent>
-</FloatingWindow>
+    </text>;
+}
 
 @code {
     [Parameter, EditorRequired] public string WoNo { get; set; } = "";
     [Parameter] public EventCallback OnClose { get; set; }
 
-    /// <summary>Passed straight through to <see cref="FloatingWindow"/>.</summary>
+    /// <summary>P2 showcard-migration — when false the component renders only the
+    /// body (tab strip + 4-tab content) so the WindowManager host can wrap it in
+    /// its own <see cref="FloatingWindow"/> (no double-wrap). Default true keeps
+    /// the legacy self-hosted-chrome behaviour for any standalone caller.</summary>
+    [Parameter] public bool Chrome { get; set; } = true;
+
+    /// <summary>Passed straight through to <see cref="FloatingWindow"/> (Chrome mode only).</summary>
     [Parameter] public string WindowId { get; set; } = Guid.NewGuid().ToString("N");
     [Parameter] public WindowRect? Rect { get; set; }
     [Parameter] public int CascadeIndex { get; set; }
