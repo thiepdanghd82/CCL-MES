@@ -135,8 +135,14 @@
 
 .app-nav nav { padding: var(--sp-2) var(--sp-2) var(--sp-4); overflow-y: auto; }
 
-/* Nhãn nhóm — nhỏ, hoa, thưa chữ. Phân cấp bằng cỡ + khoảng trắng. */
+/* Nhãn nhóm — nhỏ, hoa, thưa chữ. Phân cấp bằng cỡ + khoảng trắng.
+   Tiền lệ: IBM Carbon SideNavMenu (header nhóm bấm được + chevron + aria-expanded)
+   phối Siemens iX rail (một cột phẳng, cạnh thẳng). Header CÓ THỂ là <div> tĩnh
+   (Home/SETTINGS) hoặc <button> gập được (NPI/PRODUCTION/MONITORING/QMS). */
 .app-nav-section {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
     font-size: var(--fs-xs);
     font-weight: var(--fw-semibold);
     letter-spacing: .09em;
@@ -146,8 +152,40 @@
 }
 .app-nav-section:first-child { padding-top: var(--sp-2); }
 
-/* Item: thanh accent 3px bên trái khi active + nền tint. Không bo tròn lớn —
-   iX dùng góc nhỏ, cạnh thẳng để danh sách đọc như một cột. */
+/* Nhóm accordion (Carbon SideNavMenu). Header là <button> full-width, cạnh
+   thẳng, chevron xoay theo aria-expanded. Body ẩn qua thuộc tính [hidden]. */
+.app-nav-grp { display: flex; flex-direction: column; }
+.app-nav-grp-body { display: flex; flex-direction: column; }
+.app-nav-grp-body[hidden] { display: none; }
+
+.app-nav-section-toggle {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    min-height: var(--d-control-h);
+    border-radius: var(--r-sm);
+    transition: background var(--mo-fast) var(--ease-std), color var(--mo-fast) var(--ease-std);
+}
+.app-nav-section-toggle:hover { background: var(--ix-chrome-2); color: var(--ix-chrome-ink); }
+.app-nav-section-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Chevron ▸ (đóng) → ▾ (mở). Xoay 90° khi aria-expanded=true. */
+.nav-chev {
+    width: 14px; height: 14px; flex: 0 0 14px;
+    color: var(--ix-chrome-mut);
+    transition: transform var(--mo-fast) var(--ease-std);
+}
+.app-nav-section-toggle[aria-expanded="true"] .nav-chev { transform: rotate(90deg); }
+
+/* Item: MỘT template duy nhất (icon + nhãn 1 dòng) + thanh accent 3px bên trái
+   khi active + nền tint. Không bo tròn lớn — iX dùng góc nhỏ, cạnh thẳng để
+   danh sách đọc như một cột.
+   Density: min-height đi qua --d-control-h → 28px office / 44px shopfloor. Đây
+   là thang mượn từ Carbon 3-density (condensed 32 / normal 40 / expanded 48) ánh
+   xạ về hai chế độ của CMES + iX dense — office bàn phím dày, shopfloor ĐEO GĂNG
+   cần vùng chạm ≥44px. Không có bậc thứ ba trong sản phẩm này. */
 .app-nav-link {
     position: relative;
     gap: var(--sp-3);
@@ -181,12 +219,28 @@
 .app-nav-group { margin-left: var(--sp-5); }
 .app-nav-group::before { background: var(--ix-chrome-line); }
 
+/* 2 cấp rõ (Carbon SideNavMenu → SideNavMenuItem). Sub-item thụt một bậc với
+   connector mờ bên trái — mắt đọc ra "con của mục trên". Áp cho MỌI sub-item
+   trong body nhóm, không riêng QMS. */
+.app-nav-grp-body .app-nav-link-sub {
+    margin-left: var(--sp-5);
+    position: relative;
+}
+.app-nav-grp-body .app-nav-link-sub::after {
+    content: "";
+    position: absolute;
+    left: calc(var(--sp-3) * -1);
+    top: 0; bottom: 0;
+    width: var(--ix-hairline);
+    background: var(--ix-chrome-line);
+    opacity: .6;
+}
+
 /* Rail thu gọn: chỉ còn icon.
    Selector theo THUỘC TÍNH [data-rail] chứ không buộc vào .app-shell — trang
    tham chiếu (docs/design-system) và mọi container khác dùng chung một sự
    thật, không có bản sao luật thứ hai để lệch nhau. */
 [data-rail="collapsed"] .app-nav-link > span:not(.nav-ico),
-[data-rail="collapsed"] .app-nav-section,
 [data-rail="collapsed"] .app-nav-brand > span,
 [data-rail="collapsed"] .ix-rail-toggle > span:last-child,
 [data-rail="collapsed"] .nav-2line-body { display: none; }
@@ -195,6 +249,23 @@
 [data-rail="collapsed"] .ix-rail-toggle { justify-content: center; padding: 0; }
 [data-rail="collapsed"] .app-nav-group { margin-left: 0; }
 [data-rail="collapsed"] .app-nav-group::before { display: none; }
+
+/* Rail thu gọn (iX 64px): section header thu thành divider — nhãn + chevron ẩn,
+   chỉ còn hairline ngăn nhóm. Body nhóm LUÔN hiện (accordion vô nghĩa khi chỉ
+   còn icon; ẩn nhóm sẽ giấu mất icon điều hướng). Sub-item bỏ thụt + connector,
+   canh giữa như mọi item để cột icon thẳng hàng. */
+[data-rail="collapsed"] .app-nav-section-static,
+[data-rail="collapsed"] .app-nav-section-toggle > span,
+[data-rail="collapsed"] .app-nav-section-toggle .nav-chev { display: none; }
+[data-rail="collapsed"] .app-nav-section {
+    min-height: 0;
+    padding: var(--sp-2) 0 0;
+    margin-top: var(--sp-2);
+    border-top: var(--ix-hairline) solid var(--ix-chrome-line);
+}
+[data-rail="collapsed"] .app-nav-grp-body[hidden] { display: flex; }
+[data-rail="collapsed"] .app-nav-grp-body .app-nav-link-sub { margin-left: 0; }
+[data-rail="collapsed"] .app-nav-grp-body .app-nav-link-sub::after { display: none; }
 
 /* Nút thu gọn rail — neo đáy, tách bằng hairline. */
 .ix-rail-toggle {

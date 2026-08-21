@@ -15,22 +15,26 @@ using Xunit;
 namespace CCL.MES.Hybrid.Razor.Tests;
 
 /// <summary>
-/// "QC QMS Data" sidebar group — refactored to the QA mini-QMS mock. Proves:
-/// (1) the 5 primary modules render as 2-line items (title + subtitle) in the
-/// mock order Dashboard/IQC/IPQC/OQC/iCRA for QC-policy roles; (2) the compact
-/// secondary links keep the rest of the QC surfaces; (3) RBAC-by-omission — a
-/// role outside Admin/Supervisor/QC never sees the group; (4) QC History /
-/// Library moved OUT of MONITORING; (5) the new labels flip EN/VI live.
+/// "QC QMS Data" sidebar group — sidebar revamp (Phương án A): the 5 primary
+/// modules now render as iX/Carbon SINGLE-LINE items (icon + short label, the
+/// former uppercase subtitle carried into title/aria-label, NOT a rendered
+/// second line). Proves: (1) the 5 primary modules render in the mock order
+/// Dashboard/IQC/IPQC/OQC/iCRA for QC-policy roles, each with an <svg> icon and
+/// a title/aria-label from its subtitle; (2) the deeper sub-items keep the rest
+/// of the QC surfaces reachable; (3) RBAC-by-omission — a role outside
+/// Admin/Supervisor/QC never sees the group; (4) QC History / Library moved OUT
+/// of MONITORING; (5) the new labels flip EN/VI live; (6) the 2-line variant is
+/// gone (no .nav-title / .nav-sub second line rendered).
 /// </summary>
 public sealed class NavCclQmsGroupTests : TestContext
 {
     private readonly InMemoryLanguageService _lang = new();
 
-    // 5 primary 2-line modules, in mock order. P2-PR2 — 4 of them
-    // (Dashboard/IPQC/OQC/iCRA) now open as floating WINDOWS (<button>); only
+    // 5 primary single-line modules, in mock order. P2-PR2 — 4 of them
+    // (Dashboard/IPQC/OQC/iCRA) open as floating WINDOWS (<button>); only
     // /qms/iqc stays a NavLink <a> (IqcModule self-hosts its own FloatingWindow
-    // showcards → window-in-window migration deferred to PR3). The order is
-    // preserved regardless of anchor-vs-button.
+    // showcards → window-in-window migration deferred to PR3). Order preserved
+    // regardless of anchor-vs-button.
     private static readonly (string Testid, bool IsWindowButton)[] Primary =
     {
         ("nav-win-qms-dashboard", true),
@@ -39,14 +43,6 @@ public sealed class NavCclQmsGroupTests : TestContext
         ("nav-win-qms-oqc",       true),
         ("nav-win-qms-icra",      true),
     };
-
-    // Compact secondary links that must stay reachable as NavLinks (nothing
-    // lost). P2-PR1 moved /qms/history + /qc/library OUT of this anchor list —
-    // they now open as floating WINDOWS (buttons). P2-PR3 moved /qms + /qms/fqc
-    // to window buttons; P2 showcard-migration moved /quality/traceability to a
-    // window button too — so NO secondary QC NavLink anchor remains here (the
-    // traceability window button is asserted below).
-    private static readonly string[] Secondary = System.Array.Empty<string>();
 
     private void Wire(string role)
     {
@@ -74,28 +70,29 @@ public sealed class NavCclQmsGroupTests : TestContext
     [InlineData("Admin")]
     [InlineData("Supervisor")]
     [InlineData("QC")]
-    public void Qms_group_renders_five_two_line_modules_for_qc_roles(string role)
+    public void Qms_group_renders_five_single_line_modules_for_qc_roles(string role)
     {
         Wire(role);
         var cut = RenderComponent<NavMenu>();
 
         Assert.Contains("QC QMS Data", cut.Markup);   // section header
 
-        // Each primary module is a 2-line item with a title + subtitle span,
-        // rendered as a window <button> (PR2) or the surviving IQC NavLink <a>.
+        // Each primary module is a SINGLE-line item (icon + label) rendered as a
+        // window <button> (PR2) or the surviving IQC NavLink <a>. The former
+        // subtitle is carried into title/aria-label, not a second rendered line.
         foreach (var (testid, isWindowButton) in Primary)
         {
             var tag = isWindowButton ? "button" : "a";
-            var el = cut.FindAll($"{tag}.app-nav-link-2line[data-testid='{testid}']");
+            var el = cut.FindAll($"{tag}.app-nav-link[data-testid='{testid}']");
             Assert.Single(el);
-            Assert.Single(el[0].QuerySelectorAll(".nav-title"));
-            Assert.Single(el[0].QuerySelectorAll(".nav-sub"));
+            Assert.Single(el[0].QuerySelectorAll("svg.nav-ico"));   // icon on every module
+            Assert.False(string.IsNullOrEmpty(el[0].GetAttribute("title")));       // subtitle → tooltip
+            Assert.False(string.IsNullOrEmpty(el[0].GetAttribute("aria-label")));  // subtitle → aria
+            Assert.Empty(el[0].QuerySelectorAll(".nav-sub"));       // NO second line
         }
 
-        // Secondary QC surfaces stay reachable.
-        foreach (var href in Secondary)
-            Assert.Contains(cut.FindAll("a.app-nav-link-sub"),
-                a => a.GetAttribute("href") == href);
+        // The 2-line variant is gone entirely.
+        Assert.Empty(cut.FindAll(".app-nav-link-2line"));
 
         // P2-PR1 — QC History + QC Library now open as floating windows (buttons).
         Assert.Single(cut.FindAll("[data-testid='nav-win-qchistory']"));
@@ -118,10 +115,12 @@ public sealed class NavCclQmsGroupTests : TestContext
         Wire("QC");
         var cut = RenderComponent<NavMenu>();
 
-        // Order holds across the anchor/button mix (P2-PR2): both selectors,
-        // in document order.
-        var order = cut.FindAll(".app-nav-link-2line")
+        // Order holds across the anchor/button mix (P2-PR2): the 5 primary
+        // modules by testid, in document order.
+        var wanted = Primary.Select(p => p.Testid).ToArray();
+        var order = cut.FindAll("[data-testid^='nav-']")
                        .Select(a => a.GetAttribute("data-testid"))
+                       .Where(id => wanted.Contains(id))
                        .ToArray();
         Assert.Equal(new[] { "nav-win-qms-dashboard", "nav-qms-iqc", "nav-win-qms-ipqc", "nav-win-qms-oqc", "nav-win-qms-icra" }, order);
     }
@@ -135,7 +134,8 @@ public sealed class NavCclQmsGroupTests : TestContext
         var cut = RenderComponent<NavMenu>();
 
         Assert.DoesNotContain("QC QMS Data", cut.Markup);
-        Assert.Empty(cut.FindAll(".app-nav-link-2line"));   // anchors + window buttons
+        Assert.Empty(cut.FindAll("[data-testid='nav-win-qms-dashboard']"));
+        Assert.Empty(cut.FindAll("[data-testid='nav-win-qms-icra']"));
         foreach (var href in new[] { "/qms/dashboard", "/qms/iqc", "/qms/icra", "/qms/history", "/qc/library" })
             Assert.DoesNotContain(cut.FindAll("a"), a => a.GetAttribute("href") == href);
 

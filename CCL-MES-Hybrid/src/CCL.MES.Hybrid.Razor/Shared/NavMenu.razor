@@ -2,6 +2,13 @@
   Left-side navigation. Items render with role-gating via <AuthorizeView>.
   English UI (P10.10 EN pass). NpiRead policy gates the master-data grids;
   the Spec sub-link tightens to NpiSpecRead (Admin/Supervisor/Engineer).
+
+  Sidebar revamp (Phương án A) — precedent: Siemens iX rail + IBM Carbon
+  SideNav. One item template (icon + single label, even height); section
+  headers are collapsible accordion buttons (Carbon SideNavMenu chevron +
+  aria-expanded); the group holding the active route auto-opens; open/closed
+  state persists via cclMesDensity.navGroupsGet/Set. Home + SETTINGS stay
+  always-visible (not collapsible). No route/href/RBAC changed.
 *@
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client.Hardware
@@ -10,6 +17,7 @@
 @inject NavigationManager Nav
 @inject IWindowManager WM
 @inject IWindowRegistry Registry
+@inject Microsoft.JSInterop.IJSRuntime JS
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
 
 <aside class="app-nav">
@@ -30,148 +38,147 @@
            not full-shell navigations. Home is the ONE exception: it stays a
            full-page NavLink to "/" so the Home dashboard is the default landing
            in @Body (KPI + modules + quick actions), not an empty workspace with
-           Home floating over it. Match.All keeps it lit only on the exact "/". *@
+           Home floating over it. Match.All keeps it lit only on the exact "/".
+           Home is always-visible (not part of a collapsible group). *@
         <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link" data-testid="nav-home">
             @Ico("home")<span>@T("nav.home")</span>
         </NavLink>
 
         <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
-            <div class="app-nav-section">@T("nav.section.npi")</div>
-            <div class="app-nav-group">
-                @* P2-PR2 — the 4 NPI master-data grids open as windows.
-                   P2-PR3 — /npi/specs now opens as a window too: the list is a
-                   plain grid window, and a row-open spawns a per-id spec-detail
-                   window (spec:{id}) from Specs.OpenAsync. *@
-                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-structure"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiStructure)"><span>@T("nav.npi.structure")</span></button>
-                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-routine"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiRoutine)"><span>@T("nav.npi.routings")</span></button>
-                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-rawmaterials"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiRawMaterials)"><span>@T("nav.npi.rawmaterials")</span></button>
-                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-workcenters"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiWorkCenters)"><span>@T("nav.npi.workcenters")</span></button>
-                <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="specCtx">
-                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-specs"
-                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.Specs)"><span>@T("nav.npi.spec")</span></button>
-                </AuthorizeView>
+            @* Carbon SideNavMenu — the NPI group is a collapsible accordion. *@
+            <div class="app-nav-grp" data-testid="nav-grp-npi">
+                @GroupHeader(GrpNpi, "nav.section.npi")
+                <div class="app-nav-grp-body" data-testid="nav-grpbody-npi" hidden="@(!IsOpen(GrpNpi))">
+                    @* P2-PR2 — the 4 NPI master-data grids open as windows.
+                       P2-PR3 — /npi/specs now opens as a window too: the list is a
+                       plain grid window, and a row-open spawns a per-id spec-detail
+                       window (spec:{id}) from Specs.OpenAsync. *@
+                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-structure"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiStructure)">@Ico("structure")<span>@T("nav.npi.structure")</span></button>
+                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-routine"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiRoutine)">@Ico("routing")<span>@T("nav.npi.routings")</span></button>
+                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-rawmaterials"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiRawMaterials)">@Ico("material")<span>@T("nav.npi.rawmaterials")</span></button>
+                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-workcenters"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiWorkCenters)">@Ico("workcenter")<span>@T("nav.npi.workcenters")</span></button>
+                    <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="specCtx">
+                        <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-specs"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.Specs)">@Ico("spec")<span>@T("nav.npi.spec")</span></button>
+                    </AuthorizeView>
+                </div>
             </div>
         </AuthorizeView>
 
         @if (HwOptions.Value.ScanEnabled)
         {
-            <div class="app-nav-section">@T("nav.section.production")</div>
-            @* W5 — /workorders now opens as a keep-alive window (WM.Open). It is
-               param-free + any-auth + hosts no FloatingWindow of its own; the
-               MesPhase dispatch + AdvanceOrchestrator + 8 child dashboards all
-               live inside the single window instance (keep-alive). Semi-finished
-               store is a plain grid → window. *@
-            <button type="button" class="app-nav-link" data-testid="nav-win-workorders"
-                    @onclick="() => OpenWindowAsync(WindowRegistryKeys.WorkOrders)">
-                @Ico("scan")<span>@T("nav.workorders")</span>
-            </button>
-            <button type="button" class="app-nav-link" data-testid="nav-win-semiproducts"
-                    @onclick="() => OpenWindowAsync(WindowRegistryKeys.SemiProducts)">
-                @Ico("box")<span>@T("nav.semiproducts")</span>
-            </button>
+            <div class="app-nav-grp" data-testid="nav-grp-production">
+                @GroupHeader(GrpProduction, "nav.section.production")
+                <div class="app-nav-grp-body" data-testid="nav-grpbody-production" hidden="@(!IsOpen(GrpProduction))">
+                    @* W5 — /workorders now opens as a keep-alive window (WM.Open). It is
+                       param-free + any-auth + hosts no FloatingWindow of its own; the
+                       MesPhase dispatch + AdvanceOrchestrator + 8 child dashboards all
+                       live inside the single window instance (keep-alive). Semi-finished
+                       store is a plain grid → window. *@
+                    <button type="button" class="app-nav-link" data-testid="nav-win-workorders"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.WorkOrders)">
+                        @Ico("scan")<span>@T("nav.workorders")</span>
+                    </button>
+                    <button type="button" class="app-nav-link" data-testid="nav-win-semiproducts"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.SemiProducts)">
+                        @Ico("box")<span>@T("nav.semiproducts")</span>
+                    </button>
+                </div>
+            </div>
         }
 
         @* P10.8 — Machine Dashboard + Shop Order History (SpecHub parity).
            Read-only monitoring; open to every authenticated role. The QC
            surfaces moved to the CCL-QMS group below. *@
-        <div class="app-nav-section">@T("nav.section.monitoring")</div>
-        @* P2-PR1 — these open as keep-alive floating WINDOWS (WM.Open) instead of
-           navigating the whole shell; the URL is still synced (replace:true) so a
-           reload / deep-link lands the same place. NavLink styling kept via class. *@
-        <button type="button" class="app-nav-link" data-testid="nav-win-machines"
-                @onclick="() => OpenWindowAsync(WindowRegistryKeys.MachineDashboard)">
-            @Ico("grid")<span>@T("nav.machines")</span>
-        </button>
-        <button type="button" class="app-nav-link" data-testid="nav-win-shoporders"
-                @onclick="() => OpenWindowAsync(WindowRegistryKeys.ShopOrderHistory)">
-            @Ico("history")<span>@T("nav.shoporders")</span>
-        </button>
-
-        @* QC QMS Data — mirrors the QA mini-QMS mock: 5 primary modules as
-           2-line items (bold VN title + muted uppercase subtitle) with a left
-           accent bar on active. Gated to the QcRead roles (RBAC-by-omission;
-           the server still 403s each route). The compact links below keep the
-           remaining QC surfaces reachable so nothing is lost. Match.All on the
-           /qms hub link stops it lighting up on the deeper /qms/* routes. *@
-        <AuthorizeView Roles="Admin,Supervisor,QC" Context="qmsCtx">
-            <div class="app-nav-section">@T("nav.qms.title")</div>
-            @* P2-PR2 — the QMS modules open as windows. /qms/iqc stays a NavLink:
-               IqcModule self-hosts its own FloatingWindow multi-window host
-               (materials-inspection showcards) — a window-in-window migration
-               deferred to PR3. *@
-            <div class="app-nav-qms">
-                <button type="button" class="app-nav-link-2line" data-testid="nav-win-qms-dashboard"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsDashboard)">
-                    <span class="nav-bar"></span>
-                    <span class="nav-2line-body">
-                        <span class="nav-title">@T("nav.qms.m.dashboard")</span>
-                        <span class="nav-sub">@T("nav.qms.m.dashboard.sub")</span>
-                    </span>
+        <div class="app-nav-grp" data-testid="nav-grp-monitoring">
+            @GroupHeader(GrpMonitoring, "nav.section.monitoring")
+            <div class="app-nav-grp-body" data-testid="nav-grpbody-monitoring" hidden="@(!IsOpen(GrpMonitoring))">
+                @* P2-PR1 — these open as keep-alive floating WINDOWS (WM.Open) instead of
+                   navigating the whole shell; the URL is still synced (replace:true) so a
+                   reload / deep-link lands the same place. NavLink styling kept via class. *@
+                <button type="button" class="app-nav-link" data-testid="nav-win-machines"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.MachineDashboard)">
+                    @Ico("grid")<span>@T("nav.machines")</span>
                 </button>
-                <NavLink href="/qms/iqc" class="app-nav-link-2line" data-testid="nav-qms-iqc">
-                    <span class="nav-bar"></span>
-                    <span class="nav-2line-body">
-                        <span class="nav-title">@T("nav.qms.m.iqc")</span>
-                        <span class="nav-sub">@T("nav.qms.m.iqc.sub")</span>
-                    </span>
-                </NavLink>
-                <button type="button" class="app-nav-link-2line" data-testid="nav-win-qms-ipqc"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsIpqc)">
-                    <span class="nav-bar"></span>
-                    <span class="nav-2line-body">
-                        <span class="nav-title">@T("nav.qms.m.ipqc")</span>
-                        <span class="nav-sub">@T("nav.qms.m.ipqc.sub")</span>
-                    </span>
-                </button>
-                <button type="button" class="app-nav-link-2line" data-testid="nav-win-qms-oqc"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsOqc)">
-                    <span class="nav-bar"></span>
-                    <span class="nav-2line-body">
-                        <span class="nav-title">@T("nav.qms.m.oqc")</span>
-                        <span class="nav-sub">@T("nav.qms.m.oqc.sub")</span>
-                    </span>
-                </button>
-                <button type="button" class="app-nav-link-2line" data-testid="nav-win-qms-icra"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsIcra)">
-                    <span class="nav-bar"></span>
-                    <span class="nav-2line-body">
-                        <span class="nav-title">@T("nav.qms.m.icra")</span>
-                        <span class="nav-sub">@T("nav.qms.m.icra.sub")</span>
-                    </span>
+                <button type="button" class="app-nav-link" data-testid="nav-win-shoporders"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.ShopOrderHistory)">
+                    @Ico("history")<span>@T("nav.shoporders")</span>
                 </button>
             </div>
-            <div class="app-nav-group">
-                @* P2-PR3 — the Inspection Queue hub + FQC stage lock open as
-                   windows. Two distinct keys over one QmsQueue component; the
-                   FQC key carries the { ["Mode"] = "fqc" } stage lock. *@
-                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qms-queue"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsQueueHub)"><span>@T("nav.qms.queue")</span></button>
-                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qms-fqc"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsQueueFqc)"><span>@T("nav.qms.fqc")</span></button>
-                @* P2-PR1 — QC History + QC Library open as floating windows. *@
-                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qchistory"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcHistory)">
-                    <span>@T("nav.qms.history")</span>
-                </button>
-                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qclibrary"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcLibrary)">
-                    <span>@T("nav.qms.library")</span>
-                </button>
-                @* P2 showcard-migration — Traceability opens as a floating window. *@
-                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-traceability"
-                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.Traceability)"><span>@T("nav.qms.traceability")</span></button>
+        </div>
+
+        @* QC QMS Data — 5 primary modules (Dashboard/IQC/IPQC/OQC/iCRA) as
+           iX/Carbon single-line items: icon + short label on one row, with the
+           former uppercase subtitle carried into title/aria-label (NOT a second
+           rendered line). The 2 deeper sub-items (Inspection Queue/FQC) + the 3
+           reachable QC surfaces (QC History/Library/Traceability) indent one
+           level under the QMS group with a soft connector rule. Gated to the
+           QcRead roles (RBAC-by-omission; the server still 403s each route). *@
+        <AuthorizeView Roles="Admin,Supervisor,QC" Context="qmsCtx">
+            <div class="app-nav-grp" data-testid="nav-grp-qms">
+                @GroupHeader(GrpQms, "nav.qms.title")
+                <div class="app-nav-grp-body" data-testid="nav-grpbody-qms" hidden="@(!IsOpen(GrpQms))">
+                    @* P2-PR2 — the QMS modules open as windows. /qms/iqc stays a NavLink:
+                       IqcModule self-hosts its own FloatingWindow multi-window host
+                       (materials-inspection showcards) — a window-in-window migration
+                       deferred to PR3. iCRA (Corrective action · CAPA) is a QMS module,
+                       not a QC-stage inspection — its subtitle title makes that boundary
+                       explicit for a screen-reader / hover. *@
+                    <button type="button" class="app-nav-link" data-testid="nav-win-qms-dashboard"
+                            title="@T("nav.qms.m.dashboard.sub")" aria-label="@QmsAria("nav.qms.m.dashboard", "nav.qms.m.dashboard.sub")"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsDashboard)">
+                        @Ico("quality")<span>@T("nav.qms.m.dashboard")</span>
+                    </button>
+                    <NavLink href="/qms/iqc" class="app-nav-link" data-testid="nav-qms-iqc"
+                             title="@T("nav.qms.m.iqc.sub")" aria-label="@QmsAria("nav.qms.m.iqc", "nav.qms.m.iqc.sub")">
+                        @Ico("iqc")<span>@T("nav.qms.m.iqc")</span>
+                    </NavLink>
+                    <button type="button" class="app-nav-link" data-testid="nav-win-qms-ipqc"
+                            title="@T("nav.qms.m.ipqc.sub")" aria-label="@QmsAria("nav.qms.m.ipqc", "nav.qms.m.ipqc.sub")"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsIpqc)">
+                        @Ico("ipqc")<span>@T("nav.qms.m.ipqc")</span>
+                    </button>
+                    <button type="button" class="app-nav-link" data-testid="nav-win-qms-oqc"
+                            title="@T("nav.qms.m.oqc.sub")" aria-label="@QmsAria("nav.qms.m.oqc", "nav.qms.m.oqc.sub")"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsOqc)">
+                        @Ico("oqc")<span>@T("nav.qms.m.oqc")</span>
+                    </button>
+                    <button type="button" class="app-nav-link" data-testid="nav-win-qms-icra"
+                            title="@T("nav.qms.m.icra.sub")" aria-label="@QmsAria("nav.qms.m.icra", "nav.qms.m.icra.sub")"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsIcra)">
+                        @Ico("icra")<span>@T("nav.qms.m.icra")</span>
+                    </button>
+
+                    @* P2-PR3 — the Inspection Queue hub + FQC stage lock open as
+                       windows. Two distinct keys over one QmsQueue component; the
+                       FQC key carries the { ["Mode"] = "fqc" } stage lock. These 5
+                       indent one more level (sub) under the 5 primary modules. *@
+                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qms-queue"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsQueueHub)">@Ico("queue")<span>@T("nav.qms.queue")</span></button>
+                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qms-fqc"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsQueueFqc)">@Ico("clipboard")<span>@T("nav.qms.fqc")</span></button>
+                    @* P2-PR1 — QC History + QC Library open as floating windows. *@
+                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qchistory"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcHistory)">@Ico("history")<span>@T("nav.qms.history")</span></button>
+                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-qclibrary"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.QcLibrary)">@Ico("library")<span>@T("nav.qms.library")</span></button>
+                    @* P2 showcard-migration — Traceability opens as a floating window. *@
+                    <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-traceability"
+                            @onclick="() => OpenWindowAsync(WindowRegistryKeys.Traceability)">@Ico("trace")<span>@T("nav.qms.traceability")</span></button>
+                </div>
             </div>
         </AuthorizeView>
 
         @* P10.10 — the Settings hub (/settings) now lists every sub-page
            as a card, so the per-page sub-nav links were collapsed into this
            single "System" entry. Prefix match keeps it highlighted across
-           all /settings/* routes. *@
-        <div class="app-nav-section">@T("nav.section.settings")</div>
+           all /settings/* routes. Always-visible (not part of a collapsible
+           group) — a single top-level entry like Home. *@
+        <div class="app-nav-section app-nav-section-static">@T("nav.section.settings")</div>
         <NavLink href="/settings" class="app-nav-link">@Ico("gear")<span>@T("nav.system")</span></NavLink>
 
         <RecentScansWidget />
@@ -204,6 +211,116 @@
     // P2-PR1 — soft-cap banner. Non-null while the last Open was blocked at cap.
     private string? _maxBanner;
 
+    // ── Accordion groups (Carbon SideNavMenu) ────────────────────────────────
+    // Stable ids used as the persist key + the route→group auto-open map. Home
+    // and SETTINGS are intentionally NOT groups (always visible).
+    private const string GrpNpi = "npi";
+    private const string GrpProduction = "production";
+    private const string GrpMonitoring = "monitoring";
+    private const string GrpQms = "qms";
+
+    // Route prefixes owned by each group → the group auto-opens when the active
+    // URL matches. Kept in ONE place so no screen invents its own mapping.
+    private static readonly Dictionary<string, string[]> GroupRoutes = new()
+    {
+        [GrpNpi]        = new[] { "/npi/" },
+        [GrpProduction] = new[] { "/workorders", "/warehouse/semi-products" },
+        [GrpMonitoring] = new[] { "/machines", "/shop-orders" },
+        [GrpQms]        = new[] { "/qms", "/qc/library", "/quality/traceability" },
+    };
+
+    // Open groups. Default = all open; a group id in the persisted "closed" CSV
+    // starts collapsed. The group holding the active route is force-opened.
+    private readonly HashSet<string> _closed = new(StringComparer.Ordinal);
+
+    private bool IsOpen(string group) => !_closed.Contains(group);
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();   // language-change subscription lives in the base
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var csv = await JS.InvokeAsync<string>("cclMesDensity.navGroupsGet");
+            _closed.Clear();
+            foreach (var g in (csv ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                _closed.Add(g);
+        }
+        catch
+        {
+            // JS chưa sẵn sàng → mọi nhóm mở. Không để lỗi interop nổi lên
+            // renderer (L1) — rail là chrome, nơi tệ nhất để ném exception.
+        }
+        // Nhóm chứa route active LUÔN mở (dù người dùng từng đóng) để không
+        // giấu mất mục đang xem.
+        ForceOpenActiveGroup();
+        StateHasChanged();
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (ForceOpenActiveGroup())
+            InvokeAsync(StateHasChanged);
+    }
+
+    // Force-open the group that owns the current route. Returns true if a change
+    // was made (so the caller can re-render).
+    private bool ForceOpenActiveGroup()
+    {
+        var active = ActiveGroup();
+        return active is not null && _closed.Remove(active);
+    }
+
+    private string? ActiveGroup()
+    {
+        var path = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+        var q = path.IndexOf('?');
+        if (q >= 0) path = path[..q];
+        foreach (var (group, prefixes) in GroupRoutes)
+            foreach (var prefix in prefixes)
+                if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    return group;
+        return null;
+    }
+
+    private async Task ToggleGroupAsync(string group)
+    {
+        if (!_closed.Remove(group)) _closed.Add(group);
+        var csv = string.Join(',', _closed);
+        try { await JS.InvokeVoidAsync("cclMesDensity.navGroupsSet", csv); } catch { }
+    }
+
+    // Collapsible section header (Carbon SideNavMenu). A <button> with a chevron
+    // + aria-expanded so keyboard + screen-reader users get the accordion; the
+    // label routes through i18n and the aria-label announces the toggle intent.
+    private RenderFragment GroupHeader(string group, string labelKey) => builder =>
+    {
+        var open = IsOpen(group);
+        var label = T(labelKey);
+        builder.OpenElement(0, "button");
+        builder.AddAttribute(1, "type", "button");
+        builder.AddAttribute(2, "class", "app-nav-section app-nav-section-toggle");
+        builder.AddAttribute(3, "data-testid", $"nav-grphdr-{group}");
+        builder.AddAttribute(4, "aria-expanded", open ? "true" : "false");
+        builder.AddAttribute(5, "aria-label", T("nav.group.toggle", label));
+        builder.AddAttribute(6, "onclick",
+            Microsoft.AspNetCore.Components.EventCallback.Factory.Create(this, () => ToggleGroupAsync(group)));
+        builder.AddMarkupContent(7, Chevron(open));
+        builder.OpenElement(8, "span");
+        builder.AddContent(9, label);
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    // Combined aria label for a QMS single-line item: "Overview — Dashboard".
+    // The subtitle carries the fuller meaning the second line used to show.
+    private string QmsAria(string labelKey, string subKey) => $"{T(labelKey)} — {T(subKey)}";
+
     private async Task LogoutAsync()
     {
         await Session.SignOutAsync();
@@ -235,9 +352,22 @@
         return Task.CompletedTask;
     }
 
+    public override void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        base.Dispose();   // unsubscribe language-change in the base
+    }
+
+    // Chevron for the accordion header — rotates via CSS on [aria-expanded].
+    // Feather chevron-right (24-grid, stroke=currentColor).
+    private static string Chevron(bool open) =>
+        "<svg class='nav-chev' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' aria-hidden='true'><path d='M9 6l6 6-6 6'/></svg>";
+
     // P10.10 — inline line icons (Feather-style, 24-grid, stroke=currentColor
     // so they inherit the nav text/active colour). Kept here rather than as
-    // 12 verbose inline <svg> blocks so the role-gating markup stays readable.
+    // verbose inline <svg> blocks so the role-gating markup stays readable.
+    // Sidebar revamp — every item (incl. NPI + QMS) now carries an icon so the
+    // 64px collapsed rail is legible (iX rail: icon-only when collapsed).
     private static MarkupString Ico(string name)
     {
         var p = name switch
@@ -250,6 +380,26 @@
             "clipboard" => "<rect x='6' y='4' width='12' height='17' rx='2'/><path d='M9 4V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1'/><path d='M9 13l2 2 4-4'/>",
             "shield" => "<path d='M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z'/><path d='M9 12l2 2 4-4'/>",
             "gear" => "<circle cx='12' cy='12' r='3'/><path d='M19.4 13a7.8 7.8 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1l-.4-2.6h-3.8l-.4 2.6a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4L4.6 11a7.8 7.8 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 1.7 1l.4 2.6h3.8l.4-2.6a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.4z'/>",
+            // ── Sidebar revamp — NPI icons ──────────────────────────────────
+            // structure/BOM = nested hierarchy; routing = process steps chain;
+            // material = layered stock; workcenter = machine cell; spec = doc.
+            "structure" => "<rect x='4' y='3' width='7' height='5' rx='1'/><rect x='13' y='16' width='7' height='5' rx='1'/><rect x='4' y='16' width='7' height='5' rx='1'/><path d='M7.5 8v4h9v4'/><path d='M7.5 12v4'/>",
+            "routing" => "<circle cx='5' cy='6' r='2'/><circle cx='19' cy='6' r='2'/><circle cx='12' cy='18' r='2'/><path d='M7 6h10'/><path d='M18.4 8 13 16'/><path d='M5.6 8 11 16'/>",
+            "material" => "<path d='M3 7.5 12 3l9 4.5-9 4.5z'/><path d='M3 12l9 4.5 9-4.5'/><path d='M3 16.5 12 21l9-4.5'/>",
+            "workcenter" => "<path d='M4 20V9l5-2v3l5-2v3l6-2v11z'/><path d='M8 20v-4'/><path d='M13 20v-4'/>",
+            "spec" => "<path d='M7 3h7l4 4v14H7z'/><path d='M14 3v4h4'/><path d='M10 12h5'/><path d='M10 16h5'/>",
+            // ── Sidebar revamp — QMS icons ──────────────────────────────────
+            // quality = shield-check dashboard; iqc = inbox-in; ipqc = activity
+            // pulse (in-line); oqc = outbox-out; icra = alert-triangle (CAPA);
+            // queue = list; library = books; trace = search.
+            "quality" => "<path d='M12 3l8 3v6c0 5-3.4 8-8 9-4.6-1-8-4-8-9V6z'/><path d='M9 12l2 2 4-4'/>",
+            "iqc" => "<path d='M4 4h16v10H4z'/><path d='M4 14l3 6h10l3-6'/><path d='M12 5v6'/><path d='M9.5 8.5 12 11l2.5-2.5'/>",
+            "ipqc" => "<path d='M3 12h4l2 6 4-14 2 8h6'/>",
+            "oqc" => "<path d='M4 4h16v10H4z'/><path d='M4 14l3 6h10l3-6'/><path d='M12 11V5'/><path d='M9.5 7.5 12 5l2.5 2.5'/>",
+            "icra" => "<path d='M12 4 3 20h18z'/><path d='M12 10v4'/><path d='M12 17h.01'/>",
+            "queue" => "<path d='M8 6h12'/><path d='M8 12h12'/><path d='M8 18h12'/><circle cx='4' cy='6' r='1'/><circle cx='4' cy='12' r='1'/><circle cx='4' cy='18' r='1'/>",
+            "library" => "<path d='M5 4h4v16H5z'/><path d='M10 4h4v16h-4z'/><path d='M15.5 5 19 5.8 16 20l-3.5-.8z'/>",
+            "trace" => "<circle cx='11' cy='11' r='7'/><path d='M20 20l-4-4'/>",
             _ => "",
         };
         return new MarkupString(
