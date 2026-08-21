@@ -716,4 +716,63 @@ public sealed class WoQcReviewControllerTests : IClassFixture<MesApiFactory>
         Assert.True(conflictCount >= 1,
             "L45: stale If-Match on the photo path MUST leave a WO_STATE_CONFLICT audit row.");
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // A2 lát 8 — WoQcPhotoController prelude header contract. The photo
+    // upload surface (now served by WoQcPhotoController) inherits the same
+    // PreludeAsync: Idempotency-Key (400) checked FIRST, then If-Match (428),
+    // both BEFORE the phase/blob arms. Locks the two prelude branches so the
+    // extraction stays byte-identical.
+    // ═══════════════════════════════════════════════════════════════
+
+    private static MultipartFormDataContent OnePixelPngForm()
+    {
+        var form = new MultipartFormDataContent();
+        // 1x1 PNG (valid image/png so we pass the mime/file validation and
+        // reach the prelude header arms).
+        var png = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+        var content = new ByteArrayContent(png);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        form.Add(content, "file", "probe.png");
+        return form;
+    }
+
+    [Fact]
+    public async Task PostPhoto_missing_Idempotency_Key_returns_400()
+    {
+        var client = await QcClientAsync("qc-a2-photo-idem-" + Guid.NewGuid().ToString("N")[..6]);
+        var (woId, _) = await SeedWoAsync(mesPhase: "FQC_PENDING");
+        await SeedFqcReadyCheckAsync(woId);
+
+        using var form = OnePixelPngForm();
+        var req = new HttpRequestMessage(HttpMethod.Post,
+            $"/api/v2/work-orders/{woId}/qc/fqc/items/fqc_appearance/photos") { Content = form };
+        // If-Match present, Idempotency-Key deliberately absent.
+        req.Headers.TryAddWithoutValidation("If-Match", "\"whatever\"");
+        var resp = await client.SendAsync(req);
+
+        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("wo.idempotency_key_required", err!.Code);
+    }
+
+    [Fact]
+    public async Task PostPhoto_missing_IfMatch_returns_428()
+    {
+        var client = await QcClientAsync("qc-a2-photo-ifm-" + Guid.NewGuid().ToString("N")[..6]);
+        var (woId, _) = await SeedWoAsync(mesPhase: "FQC_PENDING");
+        await SeedFqcReadyCheckAsync(woId);
+
+        using var form = OnePixelPngForm();
+        var req = new HttpRequestMessage(HttpMethod.Post,
+            $"/api/v2/work-orders/{woId}/qc/fqc/items/fqc_appearance/photos") { Content = form };
+        // Idempotency-Key present, If-Match deliberately absent.
+        req.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+        var resp = await client.SendAsync(req);
+
+        Assert.Equal(HttpStatusCode.PreconditionRequired, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("wo.if_match_required", err!.Code);
+    }
 }
