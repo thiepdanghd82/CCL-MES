@@ -106,6 +106,8 @@ else if (_data is not null)
         <span class="grid-pager-text">@T("qualtrace.pager.status", _page, TotalPages, _data.Total)</span>
         <button type="button" class="grid-btn" disabled="@(_page >= TotalPages || _loading)" @onclick="() => GoToPageAsync(_page + 1)">@T("qualtrace.pager.next") ›</button>
     </div>
+
+    <GridAutoFit OnFit="SetPageSizeAsync" />
 }
 
 @* Floating showcards — several open at once, each independent, non-modal
@@ -124,7 +126,7 @@ else if (_data is not null)
     private string? _error;
     private string _search = "";
     private int _page = 1;
-    private const int PageSize = 50;
+    private int _pageSize = 50;
     private bool _scanning;
     private string? _scanStatus;
 
@@ -137,7 +139,21 @@ else if (_data is not null)
     private System.Threading.Timer? _debounce;
     private System.Threading.Timer? _poll;
 
-    private int TotalPages => _data is null || _data.Total <= 0 ? 1 : (int)Math.Ceiling(_data.Total / (double)PageSize);
+    private int TotalPages => _data is null || _data.Total <= 0 ? 1 : (int)Math.Ceiling(_data.Total / (double)_pageSize);
+
+    // P1 — GridAutoFit reports how many rows fit the viewport; resize the page
+    // to fill it (kill the dead space below a short page), then clamp the
+    // current page into the new range. Mirrors NpiRawMaterials.SetPageSizeAsync.
+    private async Task SetPageSizeAsync(int rows)
+    {
+        if (rows <= 0 || rows == _pageSize) return;
+        _pageSize = rows;
+        var total = _data?.Total ?? 0;
+        var pages = total <= 0 ? 1 : (int)Math.Ceiling(total / (double)rows);
+        _page = _page < 1 ? 1 : (_page > pages ? pages : _page);
+        await LoadAsync();
+        StateHasChanged();
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -182,7 +198,7 @@ else if (_data is not null)
     private async Task LoadAsync()
     {
         _loading = true; _error = null;
-        try { _data = await Api.GetTraceabilityAsync(string.IsNullOrWhiteSpace(_search) ? null : _search, _page, PageSize); }
+        try { _data = await Api.GetTraceabilityAsync(string.IsNullOrWhiteSpace(_search) ? null : _search, _page, _pageSize); }
         catch (ApiException apiEx) { _error = apiEx.ApiError.MessageEn; }
         catch (HttpRequestException ex) { _error = T("qualtrace.error.connect", ex.Message); }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }

@@ -123,7 +123,7 @@
             }
             else
             {
-                <div class="qms-table-wrap">
+                <div class="qms-table-wrap qms-fill">
                     <table class="qms-table iqc-data-table" data-testid="iqc-data-table">
                         <thead>
                             <tr>
@@ -179,6 +179,8 @@
                     <button type="button" class="op-btn op-btn-secondary" data-testid="iqc-data-next"
                             disabled="@(_page >= DataTotalPages || _dataLoading)" @onclick="() => GoToPageAsync(_page + 1)">@T("iqc.data.pager.next")</button>
                 </div>
+
+                <GridAutoFit OnFit="SetPageSizeAsync" ScrollSelector=".qms-fill" />
             }
         </section>
 
@@ -285,9 +287,22 @@
     private string? _groupFilter;
     private string _search = "";
     private int _page = 1;
-    private const int PageSize = 20;
+    private int _pageSize = 20;
     private System.Threading.Timer? _dataDebounce;
-    private int DataTotalPages => Math.Max(1, (int)Math.Ceiling((_data?.Total ?? 0) / (double)PageSize));
+    private int DataTotalPages => Math.Max(1, (int)Math.Ceiling((_data?.Total ?? 0) / (double)_pageSize));
+
+    // P1 — GridAutoFit reports how many rows fit the viewport; resize the page
+    // to fill it (kill the dead space below a short page), then clamp the
+    // current page into the new range. Mirrors NpiRawMaterials.SetPageSizeAsync.
+    private async Task SetPageSizeAsync(int rows)
+    {
+        if (rows <= 0 || rows == _pageSize) return;
+        _pageSize = rows;
+        var pages = Math.Max(1, (int)Math.Ceiling((_data?.Total ?? 0) / (double)rows));
+        _page = Math.Clamp(_page, 1, pages);
+        await LoadDataAsync();
+        StateHasChanged();
+    }
 
     // Row-action menu (right-click / long-press / kebab → one menu, L35).
     private IqcTicketListItem? _menuRow;
@@ -338,7 +353,7 @@
     private async Task LoadDataAsync()
     {
         _dataLoading = true;
-        try { _data = await Api.ListIqcTicketsAsync(_groupFilter, string.IsNullOrWhiteSpace(_search) ? null : _search, _page, PageSize); }
+        try { _data = await Api.ListIqcTicketsAsync(_groupFilter, string.IsNullOrWhiteSpace(_search) ? null : _search, _page, _pageSize); }
         catch { /* leave last-known */ }
         finally { _dataLoading = false; StateHasChanged(); }
     }

@@ -1850,6 +1850,44 @@ html, body {
 .app-content:has(.grid-scroll) { display: flex; flex-direction: column; }
 .app-content:has(.grid-scroll) .grid-scroll { flex: 1 1 auto; max-height: none; }
 
+/* P1 (feat/qms-tables-fill) — QMS module tables fill the viewport height too.
+   The module tabs nest the scroll region deeper than the NPI grids
+   (.app-content > .qms-page > .qms-section > .qms-fill), so the single-level
+   :has() above can't reach it. .qms-fill mirrors the .grid-scroll flex-fill
+   behaviour and we propagate the flex column through the .qms-page + .qms-section
+   intermediaries so the scroll region actually stretches instead of leaving a
+   dead "chân bảng" gap below a short page. The pager sits below the fill region
+   and stays pinned to the bottom of the tab. */
+.app-content:has(.qms-fill) { display: flex; flex-direction: column; }
+.app-content:has(.qms-fill) > .qms-page { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.qms-page > .qms-section:has(.qms-fill) { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.qms-fill { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+/* P1 (feat/qms-tables-fill) — forensic-record tables (QC History, Shop Order
+   History, Machine Dashboard list view) also fill the viewport height. These
+   pages render EVERY row (no pager) inside .md-content > .md-main > <scroll> +
+   aside.md-side, so the fix is pure container CSS: the scroll wrap gets
+   flex:1 + min-height:0 + overflow:auto and the sticky thead (global L24 rule
+   :where(.app-content thead th)) freezes against it. Opt-in via .md-table-fill
+   on the scroll wrap so ONLY these pages get the flex-column layout — the
+   shared .md-content grid stays untouched for every other consumer.
+   Gated to the WIDE layout only: below the 1080px .md-content breakpoint the
+   grid collapses to one column (table stacks ABOVE the sidebar) so we fall
+   back to natural page-scroll instead of squeezing the sidebar off-screen. */
+/* .app-content becomes the flex-column shell (mirrors the .grid-scroll +
+   .qms-fill rules). Kept OUTSIDE the @container because a container-query
+   condition evaluates against an ANCESTOR container, not .app-content's own
+   size — nesting the container's own display here silently no-ops. */
+.app-content:has(.md-table-fill) { display: flex; flex-direction: column; }
+@container (min-width: 1081px) {
+    .app-content:has(.md-table-fill) > .md-content { flex: 1 1 auto; min-height: 0; align-items: stretch; }
+    .md-content:has(.md-table-fill) > .md-main { display: flex; flex-direction: column; min-height: 0; }
+    .md-content:has(.md-table-fill) > .md-side { min-height: 0; overflow: auto; }
+    /* max-height:none clears .md-list-scroll's calc() cap so the region grows
+       to the row height instead of stopping short + leaving dead space. */
+    .md-table-fill { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
+}
+
 .grid {
     width: 100%;
     border-collapse: collapse;
