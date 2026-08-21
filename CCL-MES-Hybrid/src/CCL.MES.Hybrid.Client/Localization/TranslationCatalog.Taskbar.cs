@@ -26,6 +26,12 @@ public sealed partial class TranslationCatalog
         Add("windows.qms_oqc.title",             "OQC — Kiểm đầu ra",                   "OQC — Outgoing");
         Add("windows.qms_icra.title",            "iCRA — Đối sách · CAPA",              "iCRA — Corrective action");
 
+        // P2-PR3 route-param tabs (WindowRegistryKeys.TitleKeys.* subset).
+        Add("windows.qms_queue.title",           "Hàng chờ kiểm (QMS)",                 "Inspection Queue (QMS)");
+        Add("windows.qms_queue_fqc.title",       "Hàng chờ kiểm · FQC",                 "Inspection Queue · FQC");
+        Add("windows.specs.title",               "Đặc tả kỹ thuật",                     "Specifications");
+        Add("windows.spec_detail.title",         "Chi tiết đặc tả",                     "Spec Detail");
+
         // Empty-workspace background (P2-PR2)
         Add("workspace.empty.title",             "Không gian làm việc",                 "Workspace");
         Add("workspace.empty.hint",              "Mở một thẻ từ thanh bên để bắt đầu",  "Open a tab from the sidebar to begin");

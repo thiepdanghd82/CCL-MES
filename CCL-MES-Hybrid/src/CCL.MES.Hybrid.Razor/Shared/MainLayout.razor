@@ -120,13 +120,25 @@
         var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].TrimEnd('/');
         if (path.Length == 0) path = "/";
 
+        // P2-PR3 — dynamic-param deep-link: /npi/specs/{id} has no fixed registry
+        // row (one row can't enumerate every id), so parse the id out of the path
+        // and open a per-id spec-detail window keyed "spec:{id}" with the
+        // RevisionId param. Dedupe re-focuses the same spec on reload.
+        if (TryOpenSpecDetailDeepLink(path))
+        {
+            if (!_urlIsWindowRoute) { _urlIsWindowRoute = true; StateHasChanged(); }
+            return;
+        }
+
         var entry = Registry.Resolve(path);
         var isWindow = entry is not null;
         if (isWindow)
         {
             // Idempotent: dedupe focuses an already-open window; a cap-block
             // returns null and simply leaves the workspace empty (no throw).
-            WM.Open(entry!.Key, Loc.T(entry.TitleKey), entry.Icon, entry.ContentType);
+            // entry.Parameters carries the static stage lock (e.g. /qms/fqc →
+            // { ["Mode"] = "fqc" }); null for param-free pages.
+            WM.Open(entry!.Key, Loc.T(entry.TitleKey), entry.Icon, entry.ContentType, entry.Parameters);
         }
 
         if (isWindow != _urlIsWindowRoute)
@@ -134,6 +146,25 @@
             _urlIsWindowRoute = isWindow;
             StateHasChanged();
         }
+    }
+
+    // Parse /npi/specs/{RevisionId:long} → open (or focus) the per-id spec-detail
+    // window. Returns true when the path matched a spec-detail deep-link (so the
+    // caller flips to the workspace background), false otherwise. A non-numeric
+    // tail (e.g. the plain /npi/specs list, handled by the normal registry path)
+    // returns false.
+    private bool TryOpenSpecDetailDeepLink(string path)
+    {
+        const string prefix = WindowRegistryKeys.SpecDetailRoutePrefix; // "/npi/specs/"
+        if (!path.StartsWith(prefix, StringComparison.Ordinal)) return false;
+        var tail = path.Substring(prefix.Length);
+        if (!long.TryParse(tail, out var revisionId) || revisionId <= 0) return false;
+
+        var key = WindowRegistryKeys.SpecDetailKeyPrefix + revisionId; // "spec:{id}"
+        WM.Open(key, Loc.T(WindowRegistryKeys.TitleKeys.SpecDetail) + " #" + revisionId,
+            "📄", typeof(SpecDetailPage),
+            new Dictionary<string, object> { ["RevisionId"] = revisionId });
+        return true;
     }
 
     // Host-side registry population (P2-PR1 subset). The concrete page TYPES live
@@ -192,6 +223,28 @@
         Registry.Register(new WindowRegistryEntry(
             WindowRegistryKeys.QmsIcra, typeof(IcraModule),
             WindowRegistryKeys.TitleKeys.QmsIcra, "🛠"));
+
+        // ── P2-PR3 subset — route-param tabs. ──
+        // QMS Inspection Queue: the hub (/qms) and the FQC stage lock (/qms/fqc)
+        // are two DISTINCT window keys over the SAME QmsQueue component. Only the
+        // FQC key carries a static { ["Mode"] = "fqc" } param — the hub is
+        // param-free (3-tab). QcRead roles mirror the NavMenu AuthorizeView.
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.QmsQueueHub, typeof(QmsQueue),
+            WindowRegistryKeys.TitleKeys.QmsQueueHub, "📋",
+            WindowRegistryKeys.QmsQueueRoles));
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.QmsQueueFqc, typeof(QmsQueue),
+            WindowRegistryKeys.TitleKeys.QmsQueueFqc, "📋",
+            WindowRegistryKeys.QmsQueueRoles,
+            WindowRegistryKeys.QmsQueueFqcParameters));
+
+        // Engineer Spec LIST — a param-free grid window (row-open spawns a
+        // per-id spec-detail window; see SyncWorkspaceRoute + Specs.OpenAsync).
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.Specs, typeof(Specs),
+            WindowRegistryKeys.TitleKeys.Specs, "📄",
+            WindowRegistryKeys.SpecRoles));
     }
 
     private void OnWindowsChanged() => InvokeAsync(StateHasChanged);

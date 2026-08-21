@@ -6,8 +6,10 @@
 @inject NavigationManager Nav
 @inject CCL.MES.Hybrid.Client.Files.IFileOpener FileOpener
 @inject CCL.MES.Hybrid.Client.Files.IFileSaver FileSaver
+@inject CCL.MES.Hybrid.Client.Windows.IWindowManager WM
 @using CCL.MES.Hybrid.Client.Specs
 @using CCL.MES.Hybrid.Client.Files
+@using CCL.MES.Hybrid.Client.Windows
 @using Microsoft.AspNetCore.Components.Rendering
 
 @*
@@ -510,7 +512,15 @@ else if (_data is not null)
 
     private Task OpenAsync(long id)
     {
-        Nav.NavigateTo($"/npi/specs/{id}");
+        // P2-PR3 — open the spec detail in its OWN keep-alive floating window
+        // (spec:{id}) instead of navigating the shell. Dedupe by the per-id key
+        // re-focuses an already-open spec rather than stacking duplicates; the
+        // RevisionId param drives SpecDetailPage.OnParametersSetAsync. A cap-block
+        // (Open → null) is a no-op — the list window stays as-is.
+        var key = WindowRegistryKeys.SpecDetailKeyPrefix + id;   // "spec:{id}"
+        WM.Open(key, T(WindowRegistryKeys.TitleKeys.SpecDetail) + " #" + id,
+            "📄", typeof(SpecDetailPage),
+            new Dictionary<string, object> { ["RevisionId"] = id });
         return Task.CompletedTask;
     }
 

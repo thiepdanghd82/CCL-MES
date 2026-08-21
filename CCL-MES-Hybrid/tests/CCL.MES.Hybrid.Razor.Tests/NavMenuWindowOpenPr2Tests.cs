@@ -114,14 +114,42 @@ public sealed class NavMenuWindowOpenPr2Tests : TestContext
         Wire("Admin");
         var cut = RenderComponent<NavMenu>();
 
-        // Deferred surfaces keep their href anchor (no window button).
-        Assert.NotNull(cut.Find("a[href='/npi/specs']"));
+        // Still-deferred surfaces keep their href anchor (no window button).
+        // P2-PR3 moved /npi/specs, /qms, /qms/fqc to windows (see the buttons
+        // asserted in Route_param_tabs_open_as_windows below); /workorders,
+        // /qms/iqc, /quality/traceability, /settings stay NavLinks.
         Assert.NotNull(cut.Find("a[href='/workorders']"));
         Assert.NotNull(cut.Find("a[href='/qms/iqc']"));
-        Assert.NotNull(cut.Find("a[href='/qms']"));
-        Assert.NotNull(cut.Find("a[href='/qms/fqc']"));
         Assert.NotNull(cut.Find("a[href='/quality/traceability']"));
         Assert.NotNull(cut.Find("a[href='/settings']"));
+    }
+
+    [Fact]
+    public void Route_param_tabs_open_as_windows()
+    {
+        // P2-PR3 — /npi/specs, /qms (hub), /qms/fqc are now window-open buttons,
+        // not NavLinks. Bind them so the click resolves to a registered entry.
+        Wire("Admin");
+        _registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.Specs, typeof(CounterProbe), WindowRegistryKeys.TitleKeys.Specs));
+        _registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.QmsQueueHub, typeof(CounterProbe), WindowRegistryKeys.TitleKeys.QmsQueueHub));
+        _registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.QmsQueueFqc, typeof(CounterProbe), WindowRegistryKeys.TitleKeys.QmsQueueFqc,
+            Parameters: WindowRegistryKeys.QmsQueueFqcParameters));
+
+        var cut = RenderComponent<NavMenu>();
+
+        // No stale anchors for the migrated routes.
+        Assert.Empty(cut.FindAll("a[href='/npi/specs']"));
+        Assert.Empty(cut.FindAll("a[href='/qms']"));
+        Assert.Empty(cut.FindAll("a[href='/qms/fqc']"));
+
+        // The FQC button opens a window carrying the static Mode=fqc stage lock.
+        cut.Find("[data-testid='nav-win-qms-fqc']").Click();
+        var win = Assert.Single(_wm.Windows);
+        Assert.Equal(WindowRegistryKeys.QmsQueueFqc, win.Key);
+        Assert.Equal("fqc", win.Parameters!["Mode"]);
     }
 
     [Fact]
