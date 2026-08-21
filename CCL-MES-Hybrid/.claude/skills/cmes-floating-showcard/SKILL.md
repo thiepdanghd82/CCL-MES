@@ -110,3 +110,28 @@ component that wraps `<FloatingWindow>` (rich `HeaderContent` = the record ident
 `ChildContent` = the reused body), and let the PARENT own the multi-window list +
 `IFloatingWindowStore` persistence (mirror `QualityTraceability.razor`). See
 `IpqcLegShowcard.razor` (component) + `LegsDashboard.razor` `_ipqcWins` (parent host).
+
+## Window geometry — DESKTOP-BOUNDED, mở FULL mặc định (Henry rule 2026-08-21)
+
+**Rule (enforced ở `floating-window.js`, áp cho MỌI window/tab):**
+
+1. **Mở tab nào cũng FULL trong desktop.** Window mới (không có rect đã lưu trong
+   phiên) mở ở trạng thái **maximised-to-workspace** — lấp đầy vùng nội dung, KHÔNG
+   phải một card nổi nhỏ. Người dùng bấm restore (đèn xanh) để thu nhỏ + kéo/resize.
+
+2. **Maximise = vùng DESKTOP, KHÔNG phải full viewport.** Window maximised lấp đầy
+   **`.app-content`** (bên phải sidebar, dưới top-bar, trên taskbar) — **KHÔNG BAO
+   GIỜ che sidebar/topbar/taskbar**. Bounds đo từ `getBoundingClientRect()` của
+   `.app-content` (trừ chiều cao `.taskbar`), qua hàm `workspaceBounds()`.
+
+3. **Bám theo layout động.** Một `ResizeObserver` trên `.app-content` +
+   `window.resize` gọi `refitMaximized()` → mọi window maximised re-fit khi rail
+   collapse/expand hoặc viewport đổi. Không hardcode chiều rộng sidebar.
+
+**Vì sao (RCA):** `.trace-win` là `position:fixed` → maximise cũ đặt
+`{x:0,y:0,w:vw(),h:vh()}` = full màn hình che sidebar. Sửa: `doMaximize` +
+`init`(default-open) + `refitMaximized` đều dùng `workspaceBounds()`.
+
+**Khi thêm tab/window mới:** KHÔNG cần làm gì thêm — hành vi này ở tầng
+`FloatingWindow`/`floating-window.js` dùng chung, mọi window tự hưởng. Đừng tự
+đặt lại rect `vw/vh` cho maximise ở bất kỳ đâu.

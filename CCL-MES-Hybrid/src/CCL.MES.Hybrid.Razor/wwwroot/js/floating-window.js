@@ -34,6 +34,24 @@ window.cclMesFloat = (() => {
     const vh = () => window.innerHeight || document.documentElement.clientHeight;
     const clamp = (v, lo, hi) => (v < lo ? lo : (v > hi ? hi : v));
 
+    // The "desktop" a window lives in: the content region to the RIGHT of the
+    // sidebar, BELOW the top bar, ABOVE the taskbar. Maximise + default-open fill
+    // THIS, never the whole viewport — so a maximised window never covers the
+    // sidebar/topbar (Henry rule: windows are desktop-bounded, not fullscreen).
+    // Measured from the live .app-content rect so it tracks rail collapse +
+    // viewport resize; falls back to the viewport minus the taskbar.
+    function workspaceBounds() {
+        const taskbar = document.querySelector('.taskbar');
+        const tbH = taskbar ? Math.round(taskbar.getBoundingClientRect().height) : 0;
+        const content = document.querySelector('.app-content');
+        if (content) {
+            const r = content.getBoundingClientRect();
+            const h = Math.max(120, Math.round(r.bottom - tbH - r.top));
+            return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h };
+        }
+        return { x: 0, y: 0, w: vw(), h: Math.max(120, vh() - tbH) };
+    }
+
     // Keep the window on-screen: never let the whole card slide off, and always
     // keep the header row reachable (can't drag the title bar out of view).
     function clampRect(r, minW, minH) {
@@ -190,13 +208,40 @@ window.cclMesFloat = (() => {
         } else {
             st.saved = { ...st.rect };
             st.maximized = true;
-            st.rect = { x: 0, y: 0, w: vw(), h: vh(), maximized: true };
+            st.rect = { ...workspaceBounds(), maximized: true };   // desktop-bounded, not viewport
             st.root.classList.add('trace-win-max');
         }
-        clampRect(st.rect, st.minW, st.minH);
+        if (!st.maximized) clampRect(st.rect, st.minW, st.minH);   // maximised = exact workspace rect
         raise(st);
         apply(st);
         notify(st);
+    }
+
+    // Re-fit every maximised window to the CURRENT desktop bounds — fired when
+    // the rail collapses/expands or the viewport resizes, so a maximised window
+    // keeps hugging the content area (never re-covers the sidebar).
+    function refitMaximized() {
+        const b = workspaceBounds();
+        wins.forEach(st => {
+            if (st.maximized && !st.minimized) {
+                st.rect = { x: b.x, y: b.y, w: b.w, h: b.h, maximized: true };
+                apply(st);
+                notify(st);
+            }
+        });
+    }
+
+    // One observer for the whole workspace. .app-content changes size on rail
+    // toggle AND viewport resize, so observing it covers both; window.resize is
+    // the belt-and-braces fallback when ResizeObserver is absent.
+    let _wsObserver = null, _wsResizeBound = false;
+    function ensureWorkspaceObserver() {
+        if (!_wsResizeBound) { window.addEventListener('resize', refitMaximized); _wsResizeBound = true; }
+        if (_wsObserver || typeof ResizeObserver === 'undefined') return;
+        const content = document.querySelector('.app-content');
+        if (!content) return;
+        _wsObserver = new ResizeObserver(() => refitMaximized());
+        _wsObserver.observe(content);
     }
 
     return {
@@ -208,22 +253,26 @@ window.cclMesFloat = (() => {
                 rect = { x: opts.rect.x, y: opts.rect.y, w: opts.rect.w, h: opts.rect.h,
                     maximized: !!opts.rect.maximized };
             } else {
-                rect = defaultRect(opts.cascade || 0);
+                // Henry: every tab opens FULL within the desktop → default state
+                // is maximised-to-workspace (restore target = a centred defaultRect).
+                rect = { ...defaultRect(opts.cascade || 0), maximized: true };
             }
             const st = { id, root, header, dotnet, rect, minW, minH,
                 maximized: !!rect.maximized, minimized: false, saved: null,
                 savedH: 0, collapsedH: 0, raf: 0, drag: null, resize: null };
             wins.set(id, st);
+            ensureWorkspaceObserver();
 
             if (st.maximized) {
-                st.saved = defaultRect(opts.cascade || 0);
-                st.rect = { x: 0, y: 0, w: vw(), h: vh(), maximized: true };
+                st.saved = { ...defaultRect(opts.cascade || 0) };
+                st.rect = { ...workspaceBounds(), maximized: true };
                 root.classList.add('trace-win-max');
             }
-            clampRect(st.rect, minW, minH);
+            if (!st.maximized) clampRect(st.rect, minW, minH);
             apply(st);
             raise(st);
             root.style.visibility = 'visible';   // revealed only after first paint is positioned
+            if (st.maximized) notify(st);        // sync Blazor _maximized icon + persist the desktop rect
 
             // Header: drag + double-click maximize/restore.
             const hDown = (e) => beginDrag(st, e);

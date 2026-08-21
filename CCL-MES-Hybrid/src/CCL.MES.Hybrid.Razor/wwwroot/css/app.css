@@ -7753,6 +7753,12 @@ tr.wc-row:hover { background: var(--c-bg); }
 .window-host { pointer-events: auto; }
 .window-host.is-min { display: none; }
 
+/* L(this-fix) — full-page route: hide the whole window-layer so a maximized-to-
+   workspace window can't cover the page rendered in @Body. display:none keeps
+   every .window-host mounted (keep-alive — instance + body state survive); a
+   taskbar chip single-click reveals it again (MainLayout.OnChipActivate). */
+.window-layer.is-hidden { display: none; }
+
 /* FIX 2 (grid-in-window fill) — a page shown INSIDE a floating window renders in
    .trace-win-body, NOT in .app-content, so the .app-content:has(.grid-scroll)
    flex-fill chain (≈ line 1897) never matches → .grid-scroll keeps its

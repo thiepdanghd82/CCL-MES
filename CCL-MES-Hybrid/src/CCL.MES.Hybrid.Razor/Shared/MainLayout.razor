@@ -52,8 +52,14 @@
         </div>
     </main>
 
-    @* Multi-window workspace layer — over @Body, under the taskbar. *@
-    <div class="window-layer">
+    @* Multi-window workspace layer — over @Body, under the taskbar.
+       L(this-fix) — on a real full-page route (Home /, /qms/iqc,
+       /quality/traceability, /workorders, /settings, /login…) the window-layer
+       is display:none'd via .is-hidden so the page in @Body shows through
+       instead of being covered by a maximized-to-workspace window. Windows are
+       NOT removed from the @foreach → instances + their body state survive
+       (keep-alive); a taskbar chip single-click reveals + focuses them again. *@
+    <div class="window-layer @(_workspaceVisible ? null : "is-hidden")">
         @foreach (var w in WM.Windows)
         {
             <div class="window-host @(w.State == WindowState.Minimized ? "is-min" : null)"
@@ -79,7 +85,7 @@
         }
     </div>
 
-    <Taskbar />
+    <Taskbar OnActivate="OnChipActivate" />
 </div>
 <MacCatalystKeyboardFix />
 
@@ -93,6 +99,14 @@
     // P2-PR2 — true while the current URL resolves to a registered window key.
     // Drives @Body → WorkspaceHome swap (single-render) + the deep-link open.
     private bool _urlIsWindowRoute;
+
+    // L(this-fix) — true while the window-layer should be shown. On a window
+    // route it tracks _urlIsWindowRoute (layer visible); on a real full-page
+    // route it goes false so the layer is display:none'd (.is-hidden) and the
+    // page in @Body is not covered. A taskbar chip single-click reveals it
+    // again (OnChipActivate) — the window instances themselves are never
+    // unmounted, so their body state survives while hidden (keep-alive).
+    private bool _workspaceVisible;
 
     protected override void OnInitialized()
     {
@@ -126,7 +140,13 @@
         // RevisionId param. Dedupe re-focuses the same spec on reload.
         if (TryOpenSpecDetailDeepLink(path))
         {
-            if (!_urlIsWindowRoute) { _urlIsWindowRoute = true; StateHasChanged(); }
+            // spec:{id} is a window route → layer must be visible.
+            if (!_urlIsWindowRoute || !_workspaceVisible)
+            {
+                _urlIsWindowRoute = true;
+                _workspaceVisible = true;
+                StateHasChanged();
+            }
             return;
         }
 
@@ -141,9 +161,37 @@
             WM.Open(entry!.Key, Loc.T(entry.TitleKey), entry.Icon, entry.ContentType, entry.Parameters);
         }
 
-        if (isWindow != _urlIsWindowRoute)
+        // L(this-fix) — isWindow drives BOTH the @Body→WorkspaceHome swap AND the
+        // window-layer visibility: a window route reveals the layer; a real
+        // full-page route (Home / /qms/iqc /quality/traceability /workorders
+        // /settings /login…) hides it so the page shows through. Windows stay
+        // mounted (keep-alive) regardless.
+        if (isWindow != _urlIsWindowRoute || isWindow != _workspaceVisible)
         {
             _urlIsWindowRoute = isWindow;
+            _workspaceVisible = isWindow;
+            StateHasChanged();
+        }
+    }
+
+    // L(this-fix) — taskbar chip single-click. Route qua MainLayout thay vì gọi
+    // WM.Focus trực tiếp (dblclick=Max/Restore, middle/×=Close vẫn đi thẳng WM).
+    // Focus + reveal the workspace so a window minimized-behind a full-page route
+    // comes back to the front. For a route-keyed window we NavigateTo its key so
+    // SyncWorkspaceRoute re-runs (sets _workspaceVisible=true + @Body swap); for a
+    // non-route window (spec:{id}) we reveal the layer directly.
+    private void OnChipActivate(string id)
+    {
+        var w = WM.Windows.FirstOrDefault(x => x.Id == id);
+        WM.Focus(id);
+        if (w is not null && w.Key.StartsWith("/", StringComparison.Ordinal)
+            && Registry.Resolve(w.Key) is not null)
+        {
+            Nav.NavigateTo(w.Key, forceLoad: false, replace: true);
+        }
+        else
+        {
+            _workspaceVisible = true;
             StateHasChanged();
         }
     }

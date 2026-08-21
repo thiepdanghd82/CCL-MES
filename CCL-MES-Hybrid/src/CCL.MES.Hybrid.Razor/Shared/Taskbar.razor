@@ -24,7 +24,7 @@
                     title="@w.Title"
                     data-testid="tb-chip"
                     data-window-id="@w.Id"
-                    @onclick="() => WM.Focus(w.Id)"
+                    @onclick="() => ActivateAsync(w.Id)"
                     @ondblclick="() => ToggleMaxRestore(w)"
                     @onmouseup="e => OnMouseUp(e, w)">
                 <span class="tb-chip-dot" aria-hidden="true"></span>
@@ -45,7 +45,20 @@
 }
 
 @code {
+    // L(this-fix) — single-click routes through the host (MainLayout.OnChipActivate)
+    // so it can reveal the window-layer + navigate to a route-keyed window when the
+    // chip is tapped from a full-page route. dblclick=Max/Restore + middle/×=Close
+    // still go straight to WM (no host round-trip needed). When unset (standalone),
+    // fall back to WM.Focus so the taskbar still works in isolation / bUnit.
+    [Parameter] public EventCallback<string> OnActivate { get; set; }
+
     protected override void OnInitialized() => WM.Changed += OnChanged;
+
+    private async Task ActivateAsync(string id)
+    {
+        if (OnActivate.HasDelegate) await OnActivate.InvokeAsync(id);
+        else WM.Focus(id);
+    }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
 
