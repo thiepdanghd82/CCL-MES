@@ -208,10 +208,43 @@
         if (!long.TryParse(tail, out var revisionId) || revisionId <= 0) return false;
 
         var key = WindowRegistryKeys.SpecDetailKeyPrefix + revisionId; // "spec:{id}"
+        var parameters = new Dictionary<string, object> { ["RevisionId"] = revisionId };
+
+        // Write-flow deep-link: the list context menu + the in-detail Copy land
+        // here via NavigateTo("/npi/specs/{id}?action=edit|copy|revise|supersede").
+        // SyncWorkspaceRoute strips the query before calling us, so read it off
+        // the live URI. Forwarding ["Action"] into the window params (a) opens
+        // the detail window straight into the intended mutation, and (b) on a
+        // dedupe-refresh of an already-open detail window, re-applies the action
+        // on the live instance (WindowManager pushes the fresh params in).
+        var action = QueryValue(Nav.Uri, "action");
+        if (!string.IsNullOrWhiteSpace(action))
+        {
+            parameters["Action"] = action;
+        }
+
         WM.Open(key, Loc.T(WindowRegistryKeys.TitleKeys.SpecDetail) + " #" + revisionId,
-            "📄", typeof(SpecDetailPage),
-            new Dictionary<string, object> { ["RevisionId"] = revisionId });
+            "📄", typeof(SpecDetailPage), parameters);
         return true;
+    }
+
+    // Minimal single-key query reader (no WebUtilities dependency in this
+    // layout). Returns the first case-insensitive match for <paramref name="name"/>,
+    // URL-decoded, or null when absent.
+    private static string? QueryValue(string uri, string name)
+    {
+        var q = uri.IndexOf('?');
+        if (q < 0 || q == uri.Length - 1) return null;
+        var query = uri[(q + 1)..].Split('#', 2)[0];
+        foreach (var pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var eq = pair.IndexOf('=');
+            var k = eq < 0 ? pair : pair[..eq];
+            if (!string.Equals(Uri.UnescapeDataString(k), name, StringComparison.OrdinalIgnoreCase))
+                continue;
+            return eq < 0 ? "" : Uri.UnescapeDataString(pair[(eq + 1)..]);
+        }
+        return null;
     }
 
     // Host-side registry population (P2-PR1 subset). The concrete page TYPES live

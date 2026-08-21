@@ -51,8 +51,12 @@ public sealed class OpenWindow
     public required Type ContentType { get; init; }
 
     /// <summary>Optional parameters forwarded to the body component. Null for
-    /// the param-free registry pages shipped in PR1.</summary>
-    public IReadOnlyDictionary<string, object>? Parameters { get; init; }
+    /// the param-free registry pages shipped in PR1. Mutable (manager-only): a
+    /// re-<see cref="IWindowManager.Open"/> of an already-open key with a fresh
+    /// param set refreshes this so a new intent reaches the live instance — e.g.
+    /// right-clicking "Edit" on a spec whose detail window is already open flows
+    /// the <c>Action</c> param in and the body re-applies it (dedupe-refresh).</summary>
+    public IReadOnlyDictionary<string, object>? Parameters { get; set; }
 
     /// <summary>Current visual state. Mutated by the manager only.</summary>
     public WindowState State { get; set; } = WindowState.Normal;

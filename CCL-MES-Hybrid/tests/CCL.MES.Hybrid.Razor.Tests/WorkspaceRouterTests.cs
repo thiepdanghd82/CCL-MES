@@ -223,6 +223,40 @@ public sealed class WorkspaceRouterTests : TestContext
     }
 
     [Fact]
+    public void Deep_link_with_action_forwards_it_into_the_window_params()
+    {
+        // P2 spec-actions — the list context menu + in-detail Copy navigate to
+        // /npi/specs/{id}?action=edit. The query (stripped by SyncWorkspaceRoute)
+        // must still reach the window so the body opens straight into edit mode.
+        NavTo("/npi/specs/909?action=edit");
+
+        RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("A")));
+
+        var win = Assert.Single(_wm.Windows);
+        Assert.Equal("spec:909", win.Key);
+        Assert.Equal(909L, Assert.IsType<long>(win.Parameters!["RevisionId"]));
+        Assert.Equal("edit", Assert.IsType<string>(win.Parameters!["Action"]));
+    }
+
+    [Fact]
+    public void Reopening_same_spec_with_a_new_action_refreshes_the_live_window_params()
+    {
+        // Detail window already open (read mode) → right-click Copy on the same
+        // spec re-navigates with ?action=copy. Dedupe keeps ONE window but the
+        // fresh Action param is pushed into the live instance (dedupe-refresh).
+        NavTo("/npi/specs/909");
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("A")));
+        Assert.Single(_wm.Windows);
+        Assert.False(_wm.Windows[0].Parameters!.ContainsKey("Action"));
+
+        NavTo("/npi/specs/909?action=copy");
+        cut.Render();
+
+        Assert.Single(_wm.Windows);   // still deduped
+        Assert.Equal("copy", Assert.IsType<string>(_wm.Windows[0].Parameters!["Action"]));
+    }
+
+    [Fact]
     public void Spec_list_route_without_id_opens_the_list_window_not_a_detail_window()
     {
         // The bare /npi/specs list is a registry entry (param-free grid window);
