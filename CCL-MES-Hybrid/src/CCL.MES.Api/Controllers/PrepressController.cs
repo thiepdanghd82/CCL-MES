@@ -44,10 +44,8 @@ namespace CCL.MES.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route(ApiVersion.Prefix + "/work-orders")]
-public sealed class PrepressController : ControllerBase
+public sealed class PrepressController : WoMutationControllerBase
 {
-    private readonly IMesDbContext _db;
-    private readonly IAuditWriter _audit;
     private readonly PrepressBomSnapshotService _snapshot;
     private readonly MaterialLotScanService _lots;
 
@@ -56,9 +54,8 @@ public sealed class PrepressController : ControllerBase
         IAuditWriter audit,
         PrepressBomSnapshotService snapshot,
         MaterialLotScanService lots)
+        : base(db, audit)
     {
-        _db = db;
-        _audit = audit;
         _snapshot = snapshot;
         _lots = lots;
     }
@@ -352,6 +349,17 @@ public sealed class PrepressController : ControllerBase
 
     // ── Prelude: shared If-Match / Idempotency-Key / state guard ──
 
+    // A2 thin-controller — GIỮ INLINE (không gộp vào base). Two reasons the
+    // base WoMutationControllerBase.PreludeAsync can't absorb this one:
+    //   1. The PREPRESS 409 body (PrepressSetResponse) carries an extra field
+    //      read off the stale `wo` — MaterialsReady — that the base onConflict
+    //      factory (which only exposes serverEtag + mesPhase) can't reach.
+    //   2. After the ETag-compare passes, this prelude ALSO runs a semantic
+    //      PHASE GUARD (MesPhase ∈ {NEW, PREPRESS} → else 422 wo.invalid_phase)
+    //      that the base prelude has no equivalent of.
+    // The concurrency MECHANISM up to the ETag-compare is byte-identical to the
+    // base; only the extra conflict field + phase guard keep it inline. Flagged
+    // in the A2 report. NormalizeETag now resolves to the base static.
     private async Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
         long id, string actor, string role, string attemptedAction)
     {
@@ -644,15 +652,4 @@ public sealed class PrepressController : ControllerBase
         CheckedBy = c.CheckedBy,
         CheckedAt = c.CheckedAt is null ? null : new DateTimeOffset(DateTime.SpecifyKind(c.CheckedAt.Value, DateTimeKind.Utc)),
     };
-
-    // RFC 7232 strip — mirrors /advance + /force-phase.
-    private static string NormalizeETag(string raw)
-    {
-        var s = raw.Trim();
-        if (s.StartsWith("W/", StringComparison.OrdinalIgnoreCase))
-            s = s.Substring(2);
-        if (s.Length >= 2 && s[0] == '"' && s[^1] == '"')
-            s = s.Substring(1, s.Length - 2);
-        return s;
-    }
 }
