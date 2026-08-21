@@ -26,15 +26,30 @@
             <div class="nav-max-banner" role="alert" data-testid="nav-max-banner">@_maxBanner</div>
         }
 
-        <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link">@Ico("home")<span>@T("nav.home")</span></NavLink>
+        @* P2-PR2 — sidebar tabs open as keep-alive floating WINDOWS (WM.Open),
+           not full-shell navigations. Home is the ONE exception: it stays a
+           full-page NavLink to "/" so the Home dashboard is the default landing
+           in @Body (KPI + modules + quick actions), not an empty workspace with
+           Home floating over it. Match.All keeps it lit only on the exact "/". *@
+        <NavLink href="/" Match="NavLinkMatch.All" class="app-nav-link" data-testid="nav-home">
+            @Ico("home")<span>@T("nav.home")</span>
+        </NavLink>
 
         <AuthorizeView Roles="Admin,Supervisor,Engineer,QC">
             <div class="app-nav-section">@T("nav.section.npi")</div>
             <div class="app-nav-group">
-                <NavLink href="/npi/structure" class="app-nav-link app-nav-link-sub"><span>@T("nav.npi.structure")</span></NavLink>
-                <NavLink href="/npi/routine" class="app-nav-link app-nav-link-sub"><span>@T("nav.npi.routings")</span></NavLink>
-                <NavLink href="/npi/rawmaterials" class="app-nav-link app-nav-link-sub"><span>@T("nav.npi.rawmaterials")</span></NavLink>
-                <NavLink href="/npi/workcenters" class="app-nav-link app-nav-link-sub"><span>@T("nav.npi.workcenters")</span></NavLink>
+                @* P2-PR2 — the 4 NPI master-data grids open as windows. /npi/specs
+                   stays a NavLink: it navigates to the param route /npi/specs/{id}
+                   (SpecDetailPage) on row-open, so it needs the param-tab migration
+                   (deferred to PR3). *@
+                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-structure"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiStructure)"><span>@T("nav.npi.structure")</span></button>
+                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-routine"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiRoutine)"><span>@T("nav.npi.routings")</span></button>
+                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-rawmaterials"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiRawMaterials)"><span>@T("nav.npi.rawmaterials")</span></button>
+                <button type="button" class="app-nav-link app-nav-link-sub" data-testid="nav-win-npi-workcenters"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.NpiWorkCenters)"><span>@T("nav.npi.workcenters")</span></button>
                 <AuthorizeView Roles="Admin,Supervisor,Engineer" Context="specCtx">
                     <NavLink href="/npi/specs" class="app-nav-link app-nav-link-sub"><span>@T("nav.npi.spec")</span></NavLink>
                 </AuthorizeView>
@@ -44,8 +59,14 @@
         @if (HwOptions.Value.ScanEnabled)
         {
             <div class="app-nav-section">@T("nav.section.production")</div>
+            @* /workorders stays a NavLink: it's heavily stateful (MesPhase
+               dispatch + AdvanceOrchestrator + child dashboards) — deferred to
+               PR3. Semi-finished store is a plain grid → window. *@
             <NavLink href="/workorders" class="app-nav-link">@Ico("scan")<span>@T("nav.workorders")</span></NavLink>
-            <NavLink href="/warehouse/semi-products" class="app-nav-link">@Ico("box")<span>@T("nav.semiproducts")</span></NavLink>
+            <button type="button" class="app-nav-link" data-testid="nav-win-semiproducts"
+                    @onclick="() => OpenWindowAsync(WindowRegistryKeys.SemiProducts)">
+                @Ico("box")<span>@T("nav.semiproducts")</span>
+            </button>
         }
 
         @* P10.8 — Machine Dashboard + Shop Order History (SpecHub parity).
@@ -72,14 +93,19 @@
            /qms hub link stops it lighting up on the deeper /qms/* routes. *@
         <AuthorizeView Roles="Admin,Supervisor,QC" Context="qmsCtx">
             <div class="app-nav-section">@T("nav.qms.title")</div>
+            @* P2-PR2 — the QMS modules open as windows. /qms/iqc stays a NavLink:
+               IqcModule self-hosts its own FloatingWindow multi-window host
+               (materials-inspection showcards) — a window-in-window migration
+               deferred to PR3. *@
             <div class="app-nav-qms">
-                <NavLink href="/qms/dashboard" class="app-nav-link-2line" data-testid="nav-qms-dashboard">
+                <button type="button" class="app-nav-link-2line" data-testid="nav-win-qms-dashboard"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsDashboard)">
                     <span class="nav-bar"></span>
                     <span class="nav-2line-body">
                         <span class="nav-title">@T("nav.qms.m.dashboard")</span>
                         <span class="nav-sub">@T("nav.qms.m.dashboard.sub")</span>
                     </span>
-                </NavLink>
+                </button>
                 <NavLink href="/qms/iqc" class="app-nav-link-2line" data-testid="nav-qms-iqc">
                     <span class="nav-bar"></span>
                     <span class="nav-2line-body">
@@ -87,27 +113,30 @@
                         <span class="nav-sub">@T("nav.qms.m.iqc.sub")</span>
                     </span>
                 </NavLink>
-                <NavLink href="/qms/ipqc" class="app-nav-link-2line" data-testid="nav-qms-ipqc">
+                <button type="button" class="app-nav-link-2line" data-testid="nav-win-qms-ipqc"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsIpqc)">
                     <span class="nav-bar"></span>
                     <span class="nav-2line-body">
                         <span class="nav-title">@T("nav.qms.m.ipqc")</span>
                         <span class="nav-sub">@T("nav.qms.m.ipqc.sub")</span>
                     </span>
-                </NavLink>
-                <NavLink href="/qms/oqc" class="app-nav-link-2line" data-testid="nav-qms-oqc">
+                </button>
+                <button type="button" class="app-nav-link-2line" data-testid="nav-win-qms-oqc"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsOqc)">
                     <span class="nav-bar"></span>
                     <span class="nav-2line-body">
                         <span class="nav-title">@T("nav.qms.m.oqc")</span>
                         <span class="nav-sub">@T("nav.qms.m.oqc.sub")</span>
                     </span>
-                </NavLink>
-                <NavLink href="/qms/icra" class="app-nav-link-2line" data-testid="nav-qms-icra">
+                </button>
+                <button type="button" class="app-nav-link-2line" data-testid="nav-win-qms-icra"
+                        @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsIcra)">
                     <span class="nav-bar"></span>
                     <span class="nav-2line-body">
                         <span class="nav-title">@T("nav.qms.m.icra")</span>
                         <span class="nav-sub">@T("nav.qms.m.icra.sub")</span>
                     </span>
-                </NavLink>
+                </button>
             </div>
             <div class="app-nav-group">
                 <NavLink href="/qms" Match="NavLinkMatch.All" class="app-nav-link app-nav-link-sub"><span>@T("nav.qms.queue")</span></NavLink>

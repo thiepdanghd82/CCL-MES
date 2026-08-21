@@ -1,0 +1,14 @@
+@namespace CCL.MES.Hybrid.Razor.Shared
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@*
+  P2-PR2 — empty-workspace background rendered in place of @Body whenever the
+  current URL resolves to a registered window key. Every sidebar tab opens as a
+  floating window OVER this surface, so the route content must NOT also render
+  here (that would double-render the page). This is a thin, stateless placeholder
+  (faint logo + hint) — one component, two densities, token-only styling.
+*@
+<div class="workspace-home" data-testid="workspace-home">
+    <div class="workspace-home-mark" aria-hidden="true">C</div>
+    <div class="workspace-home-title">@T("workspace.empty.title")</div>
+    <div class="workspace-home-hint">@T("workspace.empty.hint")</div>
+</div>
