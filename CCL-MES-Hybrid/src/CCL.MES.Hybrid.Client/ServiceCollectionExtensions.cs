@@ -129,6 +129,15 @@ public static class ServiceCollectionExtensions
         // (survives page navigation); the toolbar "reset" clears it.
         services.AddSingleton<Windows.IFloatingWindowStore, Windows.InMemoryFloatingWindowStore>();
 
+        // P2-PR1 window manager — session-only open-list + focus/z-order/min-max
+        // for the multi-window workspace. Singleton (survives navigation, NOT
+        // persisted). Distinct from IFloatingWindowStore (rect memory only). The
+        // registry is host-populated: the Razor host registers concrete page
+        // types (WindowRegistryKeys.*) at startup because those types live in
+        // the Razor project which references this Client lib, not the reverse.
+        services.AddSingleton<Windows.IWindowManager, Windows.WindowManager>();
+        services.AddSingleton<Windows.IWindowRegistry, Windows.WindowRegistry>();
+
         return services;
     }
 
