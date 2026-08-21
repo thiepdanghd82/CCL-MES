@@ -115,13 +115,15 @@ public sealed class NavMenuWindowOpenPr2Tests : TestContext
         var cut = RenderComponent<NavMenu>();
 
         // Still-deferred surfaces keep their href anchor (no window button).
-        // P2-PR3 moved /npi/specs, /qms, /qms/fqc to windows (see the buttons
-        // asserted in Route_param_tabs_open_as_windows below); /workorders,
-        // /qms/iqc, /quality/traceability, /settings stay NavLinks.
+        // P2-PR3 moved /npi/specs, /qms, /qms/fqc to windows; P2 showcard-migration
+        // moved /quality/traceability to a window too (see the button asserted in
+        // Traceability_tab_opens_as_window below). /workorders, /qms/iqc, /settings
+        // stay NavLinks.
         Assert.NotNull(cut.Find("a[href='/workorders']"));
         Assert.NotNull(cut.Find("a[href='/qms/iqc']"));
-        Assert.NotNull(cut.Find("a[href='/quality/traceability']"));
         Assert.NotNull(cut.Find("a[href='/settings']"));
+        // Traceability is no longer a NavLink anchor.
+        Assert.Empty(cut.FindAll("a[href='/quality/traceability']"));
     }
 
     [Fact]
@@ -150,6 +152,27 @@ public sealed class NavMenuWindowOpenPr2Tests : TestContext
         var win = Assert.Single(_wm.Windows);
         Assert.Equal(WindowRegistryKeys.QmsQueueFqc, win.Key);
         Assert.Equal("fqc", win.Parameters!["Mode"]);
+    }
+
+    [Fact]
+    public void Traceability_tab_opens_as_window()
+    {
+        // P2 showcard-migration — /quality/traceability is now a window-open
+        // button, not a NavLink. Bind the key so the click resolves.
+        Wire("Admin");
+        _registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.Traceability, typeof(CounterProbe),
+            WindowRegistryKeys.TitleKeys.Traceability,
+            RequiredRoles: WindowRegistryKeys.TraceabilityRoles));
+
+        var cut = RenderComponent<NavMenu>();
+
+        // No stale NavLink anchor for the migrated route.
+        Assert.Empty(cut.FindAll("a[href='/quality/traceability']"));
+
+        cut.Find("[data-testid='nav-win-traceability']").Click();
+        var win = Assert.Single(_wm.Windows);
+        Assert.Equal(WindowRegistryKeys.Traceability, win.Key);
     }
 
     [Fact]

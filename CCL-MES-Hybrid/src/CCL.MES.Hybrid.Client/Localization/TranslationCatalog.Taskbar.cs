@@ -32,6 +32,10 @@ public sealed partial class TranslationCatalog
         Add("windows.specs.title",               "Đặc tả kỹ thuật",                     "Specifications");
         Add("windows.spec_detail.title",         "Chi tiết đặc tả",                     "Spec Detail");
 
+        // P2 showcard-migration — Traceability list + per-WO detail.
+        Add("windows.traceability.title",        "Truy xuất nguồn gốc",                 "Traceability");
+        Add("windows.trace_detail.title",        "Truy xuất WO",                        "Trace WO");
+
         // Empty-workspace background (P2-PR2)
         Add("workspace.empty.title",             "Không gian làm việc",                 "Workspace");
         Add("workspace.empty.hint",              "Mở một thẻ từ thanh bên để bắt đầu",  "Open a tab from the sidebar to begin");

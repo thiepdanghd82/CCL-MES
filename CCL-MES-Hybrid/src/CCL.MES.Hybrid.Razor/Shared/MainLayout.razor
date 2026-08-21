@@ -293,6 +293,16 @@
             WindowRegistryKeys.Specs, typeof(Specs),
             WindowRegistryKeys.TitleKeys.Specs, "📄",
             WindowRegistryKeys.SpecRoles));
+
+        // P2 showcard-migration — Quality Traceability LIST as a window. Same
+        // list/detail shape as Specs: this param-free grid window; a row-dblclick
+        // spawns a per-WO "trace:{WoNo}" detail window (TraceabilityDetail body,
+        // opened by QualityTraceability.OpenDetail). The detail windows are
+        // non-route (row-only) so they carry no registry entry + no deep-link.
+        Registry.Register(new WindowRegistryEntry(
+            WindowRegistryKeys.Traceability, typeof(QualityTraceability),
+            WindowRegistryKeys.TitleKeys.Traceability, "🔍",
+            WindowRegistryKeys.TraceabilityRoles));
     }
 
     private void OnWindowsChanged() => InvokeAsync(StateHasChanged);

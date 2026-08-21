@@ -4,19 +4,26 @@
 @using CCL.MES.Shared.Quality
 @using CCL.MES.Hybrid.Client.Hardware
 @using CCL.MES.Hybrid.Client.Realtime
+@using CCL.MES.Hybrid.Client.Windows
 @inject ICclApiClient Api
 @inject IBarcodeScannerService Scanner
 @inject IShopfloorLiveService Live
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
-@inject IJSRuntime JS
-@inject CCL.MES.Hybrid.Client.Windows.IFloatingWindowStore WinStore
+@inject CCL.MES.Hybrid.Client.Windows.IWindowManager WM
 
 @*
     Quality → Traceability. Lists Work Orders that have ≥1 FROZEN snapshot
     (append-only WoTraceSnapshots). Search by scan or typing (WoNo,
-    case-insensitive). Double-click a row → TraceabilityDetailDialog with 4
-    sub-tabs [Product|IPQC|FQC|OQC], each rendered from the DEAD PayloadJson
+    case-insensitive). Double-click a row → a per-WO floating detail window with
+    4 sub-tabs [Product|IPQC|FQC|OQC], each rendered from the DEAD PayloadJson
     (no live source read). A phase not yet frozen shows an empty-state tab.
+
+    P2 showcard-migration — this page is itself a registered WINDOW
+    (WindowRegistryKeys.Traceability). Row-dblclick no longer self-hosts a
+    FloatingWindow; it calls WM.Open("trace:{WoNo}", …, typeof(TraceabilityDetail))
+    so the WindowManager owns the detail window's chrome, rect (per key), focus,
+    dedupe and soft-cap — the same list/detail pattern as Specs. The page keeps
+    NO _wins list of its own.
 *@
 
 <PageTitle>@T("qualtrace.page.title")</PageTitle>
@@ -32,11 +39,6 @@
         </button>
     }
     <button type="button" class="grid-btn" @onclick="OnSearchAsync" disabled="@_loading">@T("qualtrace.search")</button>
-    @if (_wins.Count > 0)
-    {
-        <button type="button" class="grid-btn" @onclick="ResetWindowsAsync"
-                title="@T("qualtrace.reset.title")">⤢ @T("qualtrace.reset")</button>
-    }
     <div class="grid-toolbar-spacer"></div>
     <span class="trace-live @(Live.IsConnected ? "trace-live-on" : "trace-live-off")"
           title="@(Live.IsConnected ? T("qualtrace.live.on.title") : T("qualtrace.live.off.title"))">
@@ -110,15 +112,10 @@ else if (_data is not null)
     <GridAutoFit OnFit="SetPageSizeAsync" />
 }
 
-@* Floating showcards — several open at once, each independent, non-modal
-   so the list underneath stays usable while a card is open/dragged. *@
-@foreach (var w in _wins)
-{
-    <TraceabilityDetailDialog @key="w.Id" WoNo="@w.WoNo" WindowId="@w.Id"
-                              Rect="w.Rect" CascadeIndex="w.Cascade"
-                              OnRectChanged="r => OnWinRectChanged(w.WoNo, r)"
-                              OnClose="() => CloseDetail(w.Id)" />
-}
+@* P2 showcard-migration — the per-WO detail windows are no longer rendered here.
+   Row-dblclick opens them via WM.Open("trace:{WoNo}", …); the WindowManager host
+   (MainLayout .window-layer) renders + owns their FloatingWindow chrome, rect
+   (per "trace:{WoNo}" key), focus, dedupe and soft-cap. *@
 
 @code {
     private NpiPagedRaw<TraceListRow>? _data;
@@ -129,12 +126,6 @@ else if (_data is not null)
     private int _pageSize = 50;
     private bool _scanning;
     private string? _scanStatus;
-
-    // Open floating showcards (max MaxWindows concurrently). Each carries a
-    // stable Id shared with floating-window.js + its restored/session rect.
-    private sealed record OpenWin(string WoNo, string Id, CCL.MES.Hybrid.Client.Windows.WindowRect? Rect, int Cascade);
-    private readonly List<OpenWin> _wins = new();
-    private const int MaxWindows = 6;
 
     private System.Threading.Timer? _debounce;
     private System.Threading.Timer? _poll;
@@ -221,40 +212,21 @@ else if (_data is not null)
         finally { _scanning = false; }
     }
 
-    // Double-click a row → open (or focus) its floating showcard.
-    private async Task OpenDetail(string woNo)
+    // Double-click a row → open (or focus) its floating detail window via the
+    // WindowManager. Dedupe by the per-WO key "trace:{WoNo}" re-focuses an
+    // already-open WO instead of stacking duplicates; the WoNo param drives
+    // TraceabilityDetail → TraceabilityDetailDialog(Chrome=false). A soft-cap
+    // block (Open → null) surfaces the same "max windows" notice as before.
+    private void OpenDetail(string woNo)
     {
-        var existing = _wins.FirstOrDefault(w => string.Equals(w.WoNo, woNo, StringComparison.OrdinalIgnoreCase));
-        if (existing is not null)
-        {
-            // Already open — just bring it to the front instead of duplicating.
-            try { await JS.InvokeVoidAsync("cclMesFloat.bringToFront", existing.Id); } catch { /* JS absent */ }
-            return;
-        }
-        if (_wins.Count >= MaxWindows)
-        {
-            _scanStatus = T("qualtrace.win.max", MaxWindows);
-            return;
-        }
-        _scanStatus = null;
-        _wins.Add(new OpenWin(woNo, Guid.NewGuid().ToString("N"), WinStore.Get(woNo), _wins.Count));
-    }
-
-    private void CloseDetail(string id)
-        => _wins.RemoveAll(w => w.Id == id);
-
-    // Persist a card's final rect so re-opening the same WO restores it.
-    private void OnWinRectChanged(string woNo, CCL.MES.Hybrid.Client.Windows.WindowRect rect)
-        => WinStore.Save(woNo, rect);
-
-    // Toolbar "reset" — recenter every open card + forget saved positions.
-    private async Task ResetWindowsAsync()
-    {
-        WinStore.Clear();
-        for (var i = 0; i < _wins.Count; i++)
-        {
-            try { await JS.InvokeVoidAsync("cclMesFloat.recenter", _wins[i].Id, i); } catch { /* JS absent */ }
-        }
+        var key = WindowRegistryKeys.TraceDetailKeyPrefix + woNo;   // "trace:{WoNo}"
+        var win = WM.Open(
+            key,
+            T(WindowRegistryKeys.TitleKeys.TraceDetail) + " " + woNo,   // "Truy xuất WO {WoNo}"
+            "🔍",
+            typeof(CCL.MES.Hybrid.Razor.Shared.TraceabilityDetail),
+            new Dictionary<string, object> { ["WoNo"] = woNo });
+        _scanStatus = win is null ? T("qualtrace.win.max", WM.SoftCap) : null;
     }
 
     public override void Dispose()

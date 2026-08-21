@@ -18,28 +18,29 @@ namespace CCL.MES.Hybrid.Razor.Tests;
 
 /// <summary>
 /// bUnit tests for the real-time frozen-snapshot Traceability list + detail
-/// dialog: list renders + double-click opens the dialog, a hub "change"
-/// signal re-pulls the list (debounced), the Live/Offline badge reflects the
-/// connection, the generic renderer shows header + variant columns, and a
-/// not-frozen phase shows the empty-state.
+/// body. P2 showcard-migration — the list is a registered WINDOW and a row
+/// double-click no longer self-hosts a FloatingWindow: it calls
+/// WM.Open("trace:{WoNo}", …, typeof(TraceabilityDetail)) so the WindowManager
+/// host owns the chrome/rect/focus/dedupe/soft-cap. The list tests assert against
+/// the WindowManager; the detail-body tests render TraceabilityDetailDialog
+/// (Chrome=false) directly — the 4-tab body + renderers are unchanged.
 /// </summary>
 public sealed class QualityTraceabilityTests : TestContext
 {
     private readonly RecordingApi _api;
     private readonly StubShopfloorLive _live;
-    private readonly InMemoryFloatingWindowStore _winStore;
+    private readonly WindowManager _wm = new();
 
     public QualityTraceabilityTests()
     {
         _api = new RecordingApi();
         _live = new StubShopfloorLive();
-        _winStore = new InMemoryFloatingWindowStore();
         Services.AddSingleton<ICclApiClient>(_api);
         Services.AddSingleton<IShopfloorLiveService>(_live);
         Services.AddSingleton<IBarcodeScannerService>(new StubScannerService());
-        Services.AddSingleton<IFloatingWindowStore>(_winStore);
+        Services.AddSingleton<IWindowManager>(_wm);
         Services.AddSingleton(Options.Create(new HardwareOptions { ScanEnabled = false }));
-        // i18n Phase-2 — FloatingWindow (wrapped by TraceabilityDetailDialog) tooltips.
+        // i18n Phase-2 — window title + FloatingWindow tooltips.
         Services.AddSingleton<CCL.MES.Hybrid.Client.Localization.ILanguageService, CCL.MES.Hybrid.Client.Localization.InMemoryLanguageService>();
         Services.AddSingleton<CCL.MES.Hybrid.Client.Localization.ITranslationCatalog, CCL.MES.Hybrid.Client.Localization.TranslationCatalog>();
         Services.AddSingleton<CCL.MES.Hybrid.Client.Localization.ITranslator, CCL.MES.Hybrid.Client.Localization.Translator>();
@@ -112,33 +113,29 @@ public sealed class QualityTraceabilityTests : TestContext
     };
 
     [Fact]
-    public void List_renders_and_double_click_opens_dialog()
+    public void List_renders_and_double_click_opens_a_window()
     {
         _api.TraceabilityImpl = (s, p, ps, ct) => Task.FromResult(OnePage(Row()));
-        _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
 
         var cut = RenderComponent<QualityTraceability>();
         Assert.Single(cut.FindAll("tr.trace-row"));
         Assert.Contains("WO-TR-1", cut.Markup);
         Assert.Contains("RUNNING", cut.Markup);
-        Assert.Empty(cut.FindAll(".trace-win"));
+        Assert.Empty(_wm.Windows);   // no detail window yet
 
         cut.Find("tr.trace-row").TriggerEvent("ondblclick", new MouseEventArgs());
 
-        Assert.Single(cut.FindAll(".trace-win"));
-        Assert.Equal("WO-TR-1", cut.Find(".trace-win-title").TextContent.Trim());
-        // Non-modal: no blocking scrim over the list.
-        Assert.Empty(cut.FindAll(".trace-modal-scrim"));
-        // role/aria for the floating dialog.
-        Assert.Equal("dialog", cut.Find(".trace-win").GetAttribute("role"));
-        Assert.Contains("Truy xuất WO-TR-1", cut.Find(".trace-win").GetAttribute("aria-label"));
+        // Row-open delegates to the WindowManager under the per-WO key.
+        var win = Assert.Single(_wm.Windows);
+        Assert.Equal("trace:WO-TR-1", win.Key);
+        Assert.Equal(typeof(CCL.MES.Hybrid.Razor.Shared.TraceabilityDetail), win.ContentType);
+        Assert.Equal("WO-TR-1", win.Parameters!["WoNo"]);
     }
 
     [Fact]
-    public void Multiple_showcards_open_independently()
+    public void Multiple_rows_open_independent_windows()
     {
         _api.TraceabilityImpl = (s, p, ps, ct) => Task.FromResult(Page(Row("WO-A"), Row("WO-B")));
-        _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
 
         var cut = RenderComponent<QualityTraceability>();
         var rows = cut.FindAll("tr.trace-row");
@@ -147,81 +144,56 @@ public sealed class QualityTraceabilityTests : TestContext
         rows[0].TriggerEvent("ondblclick", new MouseEventArgs());
         cut.FindAll("tr.trace-row")[1].TriggerEvent("ondblclick", new MouseEventArgs());
 
-        // Two independent floating windows, each with its own resize handles.
-        Assert.Equal(2, cut.FindAll(".trace-win").Count);
-        Assert.Equal(16, cut.FindAll(".fw-handle").Count);   // 8 per window
+        // Two distinct per-WO windows in the manager.
+        Assert.Equal(2, _wm.Windows.Count);
+        Assert.Contains(_wm.Windows, w => w.Key == "trace:WO-A");
+        Assert.Contains(_wm.Windows, w => w.Key == "trace:WO-B");
     }
 
     [Fact]
-    public void Reopening_same_wo_focuses_not_duplicates()
+    public void Reopening_same_wo_dedupes_not_duplicates()
     {
         _api.TraceabilityImpl = (s, p, ps, ct) => Task.FromResult(OnePage(Row("WO-A")));
-        _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
 
         var cut = RenderComponent<QualityTraceability>();
         cut.Find("tr.trace-row").TriggerEvent("ondblclick", new MouseEventArgs());
         cut.Find("tr.trace-row").TriggerEvent("ondblclick", new MouseEventArgs());
 
-        Assert.Single(cut.FindAll(".trace-win"));   // still one, not two
+        Assert.Single(_wm.Windows);   // dedupe by "trace:WO-A" — still one
     }
 
     [Fact]
-    public void Opening_beyond_the_cap_is_blocked_with_a_notice()
+    public void Reopening_same_wo_keeps_the_window_alive_same_instance()
     {
-        var rows = Enumerable.Range(1, 7).Select(i => Row($"WO-{i}")).ToArray();
-        _api.TraceabilityImpl = (s, p, ps, ct) => Task.FromResult(Page(rows));
-        _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
+        // Keep-alive: dedupe re-focuses the SAME OpenWindow (same Id), it is not
+        // torn down + recreated — the host's @key stability preserves body state.
+        _api.TraceabilityImpl = (s, p, ps, ct) => Task.FromResult(OnePage(Row("WO-A")));
 
         var cut = RenderComponent<QualityTraceability>();
-        foreach (var _ in Enumerable.Range(0, 7))
+        cut.Find("tr.trace-row").TriggerEvent("ondblclick", new MouseEventArgs());
+        var firstId = _wm.Windows[0].Id;
+
+        cut.Find("tr.trace-row").TriggerEvent("ondblclick", new MouseEventArgs());
+        Assert.Equal(firstId, Assert.Single(_wm.Windows).Id);
+    }
+
+    [Fact]
+    public void Opening_beyond_the_soft_cap_is_blocked_with_a_notice()
+    {
+        // Fill the manager to its SoftCap with unrelated windows, then a row-open
+        // is blocked (WM.Open → null) and the page surfaces the "max" notice.
+        for (var i = 0; i < _wm.SoftCap; i++)
         {
-            // Re-query each time — opening re-renders the list.
-            var domRows = cut.FindAll("tr.trace-row");
-            var idx = cut.FindAll(".trace-win").Count;   // open the next unopened WO
-            domRows[Math.Min(idx, domRows.Count - 1)].TriggerEvent("ondblclick", new MouseEventArgs());
+            _wm.Open($"other:{i}", $"Other {i}", null, typeof(QualityTraceability));
         }
-
-        Assert.Equal(6, cut.FindAll(".trace-win").Count);
-        Assert.Contains("tối đa 6", cut.Markup);
-    }
-
-    [Fact]
-    public void Closing_a_showcard_removes_it()
-    {
         _api.TraceabilityImpl = (s, p, ps, ct) => Task.FromResult(OnePage(Row("WO-A")));
-        _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
-
-        var cut = RenderComponent<QualityTraceability>();
-        cut.Find("tr.trace-row").TriggerEvent("ondblclick", new MouseEventArgs());
-        Assert.Single(cut.FindAll(".trace-win"));
-
-        cut.Find(".fw-light-close").Click();   // the ✕ close button
-        Assert.Empty(cut.FindAll(".trace-win"));
-    }
-
-    [Fact]
-    public async Task Rect_callback_persists_to_the_store_and_restores_on_reopen()
-    {
-        _api.TraceabilityImpl = (s, p, ps, ct) => Task.FromResult(OnePage(Row("WO-A")));
-        _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
 
         var cut = RenderComponent<QualityTraceability>();
         cut.Find("tr.trace-row").TriggerEvent("ondblclick", new MouseEventArgs());
 
-        // Simulate floating-window.js reporting the final rect after a drag —
-        // the JSInvokable now lives on the shared FloatingWindow chrome.
-        var win = cut.FindComponent<FloatingWindow>();
-        var rect = new WindowRect { X = 120, Y = 80, W = 900, H = 600, Maximized = false };
-        await cut.InvokeAsync(() => win.Instance.OnRectChanged_JS(rect));
-
-        // Parent persisted it under the WoNo…
-        Assert.Equal(rect, _winStore.Get("WO-A"));
-
-        // …and a re-opened card receives the stored rect as its Rect param.
-        cut.Find(".fw-light-close").Click();
-        cut.Find("tr.trace-row").TriggerEvent("ondblclick", new MouseEventArgs());
-        var reopened = cut.FindComponent<TraceabilityDetailDialog>();
-        Assert.Equal(rect, reopened.Instance.Rect);
+        // No trace window was opened (cap block) + the notice shows the SoftCap.
+        Assert.DoesNotContain(_wm.Windows, w => w.Key.StartsWith("trace:"));
+        Assert.Contains($"tối đa {_wm.SoftCap}", cut.Markup);
     }
 
     [Fact]
@@ -254,7 +226,7 @@ public sealed class QualityTraceabilityTests : TestContext
     {
         _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
         var cut = RenderComponent<TraceabilityDetailDialog>(p => p
-            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.OnClose, () => { }));
+            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.Chrome, false));
 
         Assert.Equal(4, cut.FindAll(".trace-tab").Count);
         var m = cut.Markup;
@@ -284,7 +256,7 @@ public sealed class QualityTraceabilityTests : TestContext
     {
         _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
         var cut = RenderComponent<TraceabilityDetailDialog>(p => p
-            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.OnClose, () => { }));
+            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.Chrome, false));
 
         var m = cut.Markup;
         Assert.Contains("OK · Chấp nhận đặc biệt", m);      // Ok + retained NG reason (VI-default)
@@ -298,7 +270,7 @@ public sealed class QualityTraceabilityTests : TestContext
         // still read 1, 2 from the loop index.
         _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
         var cut = RenderComponent<TraceabilityDetailDialog>(p => p
-            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.OnClose, () => { }));
+            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.Chrome, false));
 
         var nos = cut.FindAll(".trace-prod tbody tr td.trace-prod-no").Select(td => td.TextContent.Trim()).ToArray();
         Assert.Equal(new[] { "1", "2" }, nos);
@@ -309,7 +281,7 @@ public sealed class QualityTraceabilityTests : TestContext
     {
         _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
         var cut = RenderComponent<TraceabilityDetailDialog>(p => p
-            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.OnClose, () => { }));
+            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.Chrome, false));
 
         // Bold section headings.
         var sections = cut.FindAll(".trace-prod-section").Select(h => h.TextContent.Trim()).ToArray();
@@ -333,7 +305,7 @@ public sealed class QualityTraceabilityTests : TestContext
     {
         _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
         var cut = RenderComponent<TraceabilityDetailDialog>(p => p
-            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.OnClose, () => { }));
+            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.Chrome, false));
 
         cut.FindAll(".trace-tab").First(b => b.TextContent.Contains("IPQC")).Click();
 
@@ -349,12 +321,41 @@ public sealed class QualityTraceabilityTests : TestContext
     {
         _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
         var cut = RenderComponent<TraceabilityDetailDialog>(p => p
-            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.OnClose, () => { }));
+            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.Chrome, false));
 
         Assert.Empty(cut.FindAll(".trace-empty"));
         var fqcTab = cut.FindAll(".trace-tab").First(b => b.TextContent.Contains("FQC"));
         fqcTab.Click();
         Assert.Single(cut.FindAll(".trace-empty"));
         Assert.Contains("Chưa chốt dữ liệu FQC — dữ liệu chưa được đóng băng.", cut.Markup);
+    }
+
+    [Fact]
+    public void Chrome_false_renders_body_only_no_floatingwindow_double_wrap()
+    {
+        // The no-double-wrap contract: in WM-hosted mode (Chrome=false) the
+        // component renders ONLY the tab strip + body — NO FloatingWindow chrome
+        // (.trace-win) — so the host's own FloatingWindow is the single wrapper.
+        _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
+        var cut = RenderComponent<TraceabilityDetailDialog>(p => p
+            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.Chrome, false));
+
+        Assert.Empty(cut.FindAll(".trace-win"));           // no chrome
+        Assert.Empty(cut.FindComponents<FloatingWindow>());
+        Assert.Equal(4, cut.FindAll(".trace-tab").Count);  // body (tabs) still there
+    }
+
+    [Fact]
+    public void Chrome_true_self_hosts_a_floatingwindow_for_standalone_callers()
+    {
+        // The legacy standalone path still works: Chrome=true (default) wraps the
+        // body in one FloatingWindow (single wrapper) for any hand-hosting caller.
+        _api.TraceabilityDetailImpl = (wo, ct) => Task.FromResult(Detail());
+        var cut = RenderComponent<TraceabilityDetailDialog>(p => p
+            .Add(x => x.WoNo, "WO-TR-1").Add(x => x.OnClose, () => { }));
+
+        Assert.Single(cut.FindComponents<FloatingWindow>());
+        Assert.Single(cut.FindAll(".trace-win"));
+        Assert.Equal(4, cut.FindAll(".trace-tab").Count);
     }
 }

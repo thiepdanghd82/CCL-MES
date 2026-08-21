@@ -51,6 +51,11 @@ public sealed class WorkspaceRouterTests : TestContext
         Services.AddSingleton<IFileSaver>(new StubFileSaver());
         Services.AddSingleton<IFilePickerService>(new StubFilePickerService());
         Services.AddSingleton<IPrintService>(new StubPrintService());
+        // P2 showcard-migration — the Traceability list window (QualityTraceability)
+        // injects the barcode scanner + shopfloor-live service, so the
+        // /quality/traceability deep-link can mount it inside MainLayout.
+        Services.AddSingleton<IBarcodeScannerService>(new StubScannerService());
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Realtime.IShopfloorLiveService>(new StubShopfloorLive());
         Services.AddSingleton<IOptions<HardwareOptions>>(
             Options.Create(new HardwareOptions { ScanEnabled = true }));
         this.AddTestAuthorization().SetAuthorized("qc-user");
@@ -221,5 +226,21 @@ public sealed class WorkspaceRouterTests : TestContext
         var win = Assert.Single(_wm.Windows);
         Assert.Equal(WindowRegistryKeys.Specs, win.Key);
         Assert.Single(cut.FindAll("[data-testid='workspace-home']"));
+    }
+
+    [Fact]
+    public void Deep_link_to_traceability_opens_the_list_window()
+    {
+        // P2 showcard-migration — /quality/traceability is now a window route: the
+        // deep-link opens the Traceability LIST window (per-WO detail windows are
+        // non-route, opened only from a row dblclick).
+        NavTo("/quality/traceability");
+
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("A")));
+
+        var win = Assert.Single(_wm.Windows);
+        Assert.Equal(WindowRegistryKeys.Traceability, win.Key);
+        Assert.Single(cut.FindAll("[data-testid='workspace-home']"));
+        Assert.Empty(cut.FindAll(".route-body"));
     }
 }

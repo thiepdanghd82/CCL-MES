@@ -7792,6 +7792,18 @@ tr.wc-row:hover { background: var(--c-bg); }
 .trace-win-body .md-content:has(.md-table-fill) > .md-side { min-height: 0; overflow: auto; }
 .trace-win-body .md-table-fill { flex: 1 1 auto; min-height: 0; max-height: none; overflow: auto; }
 
+/* P2 showcard-migration — Traceability DETAIL rendered as a WindowManager body
+   (TraceabilityDetailDialog Chrome=false). Unlike the self-hosted card (where the
+   tab strip lives in FloatingWindow's TabBar slot, pinned above .trace-win-body),
+   the WM host renders the tabs + body INSIDE its own .trace-win-body. Turn that
+   body into a flex column so the tab strip stays PINNED at top and only
+   .trace-win-body-inner scrolls. Cancel the host body's 12/16 padding (the tab
+   strip owns its own 0/20 padding, matching the chrome layout) and re-apply the
+   inner padding to the scroll region so the two hosting modes look identical. */
+.trace-win-body:has(> .trace-tabs) { display: flex; flex-direction: column; padding: 0; }
+.trace-win-body > .trace-tabs { flex: none; }
+.trace-win-body-inner { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 12px 16px; }
+
 /* P2-PR2 — empty-workspace background. Rendered in place of @Body whenever the
    URL resolves to a window key, so the shell shows a calm branded surface with
    the tabs floating over it. Token-only; scales in both densities via --fs-*. */
