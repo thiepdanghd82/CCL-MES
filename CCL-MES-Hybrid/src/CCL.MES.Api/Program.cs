@@ -420,6 +420,8 @@ builder.Services.AddScoped<CCL.MES.Api.Services.TraceBackfillService>();
 // A2 — shared atomic WO-mutation commit + L45 conflict-audit path (extracted
 // out of the controllers so SaveChanges lives in one tested/gated place).
 builder.Services.AddScoped<CCL.MES.Api.Services.WoMutationExecutor>();
+// A2 — WoQc GET lazy-materialise + self-heal (SaveChanges out of the controller).
+builder.Services.AddScoped<CCL.MES.Api.Services.WoQcCheckMaterializer>();
 
 // P10.5e-1 — Drawings upload + download orchestrator. Legacy Phase 8
 // PR-D-5b service composed of IMesDbContext + IBlobStore (registered
