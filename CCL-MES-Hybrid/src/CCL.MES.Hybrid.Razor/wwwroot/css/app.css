@@ -5573,20 +5573,9 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     color: var(--c-ink);
 }
 
-.rs-head-phase {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 999px;
-    font-size: var(--fs-xs);
-    font-weight: var(--fw-bold);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-.rs-phase-setting  { background: var(--warn-bg); color: var(--warn-ink); }
-.rs-phase-ipqc     { background: var(--brand-bg); color: var(--brand-ink); }
-.rs-phase-running  { background: var(--ok-bg); color: var(--ok); }
-.rs-phase-paused   { background: var(--ng-bg); color: var(--ng); }
-.rs-phase-other    { background: var(--c-divider); color: var(--c-ink-4); }
+/* Phase chip styling migrated to StatusPill (.ix-pill*, ix.css §4) — D3.
+   The old .rs-head-phase + .rs-phase-* rules were removed once every
+   dashboard chip routed through PhaseVisual (single source of truth, L46). */
 
 .rs-head-timer {
     display: inline-flex;
@@ -6207,9 +6196,6 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
    width — sidebar collapse reflow per Lesson #27.
    ═══════════════════════════════════════════════════════════════════ */
 
-.rs-phase-fqc        { background: var(--accent-bg); color: var(--accent-ink); }
-.rs-phase-oqc        { background: var(--indigo-bg); color: var(--indigo); }
-.rs-phase-shipped    { background: var(--ok-bg); color: var(--ok-ink); }
 .wo-phase-shipped    { background: var(--ok-bg); color: var(--ok-ink); }
 
 /* ── OQC 3-sig chain row ───────────────────────────────────────── */

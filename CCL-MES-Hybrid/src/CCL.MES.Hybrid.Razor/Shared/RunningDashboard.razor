@@ -61,7 +61,7 @@
             <div class="rs-head-wo">
                 <span class="rs-head-label">WO</span>
                 <span class="rs-head-wo-no">@_view.WoNo</span>
-                <span class="rs-head-phase @deferred.HeadPhaseCss">@_view.MesPhase</span>
+                <StatusPill Phase="@_view.MesPhase" Label="@_view.MesPhase" />
             </div>
         </div>
         <div class="rs-card rs-card-stretch"
@@ -376,16 +376,14 @@
         ["DONE"] = new(
             TitleKey: "running.deferred.done.title",
             BodyKey: "running.deferred.done.body",
-            HintKey: "running.deferred.scan.hint",
-            HeadPhaseCss: "rs-phase-other"),
+            HintKey: "running.deferred.scan.hint"),
         ["CANCELLED"] = new(
             TitleKey: "running.deferred.cancelled.title",
             BodyKey: "running.deferred.cancelled.body",
-            HintKey: "running.deferred.scan.hint",
-            HeadPhaseCss: "rs-phase-other"),
+            HintKey: "running.deferred.scan.hint"),
     };
 
-    private sealed record DeferredPhase(string TitleKey, string BodyKey, string HintKey, string HeadPhaseCss);
+    private sealed record DeferredPhase(string TitleKey, string BodyKey, string HintKey);
 
     private bool IsNgValid() =>
         _ngAmount > 0
