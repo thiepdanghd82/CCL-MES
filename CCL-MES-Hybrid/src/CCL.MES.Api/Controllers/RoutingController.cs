@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using CCL.MES.Api.Policies;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
@@ -69,7 +70,7 @@ public sealed class RoutingController : ControllerBase
         };
         foreach (var l in wo.Legs.OrderBy(l => l.Sequence))
         {
-            var (soft, hard) = DependencyStatus(wo, l);
+            var (soft, hard) = RoutingPolicy.DependencyStatus(wo, l);
             // P11 per-leg readiness — count this leg's OWN materialised rows
             // (scoped WoLegId shadow). Cheap per-leg counts; legs are few.
             var legId = l.Id;
@@ -216,8 +217,9 @@ public sealed class RoutingController : ControllerBase
         var (err, wo, leg) = await LegPreludeAsync(id, legId, actor, role, "leg_advance");
         if (err is not null) return err;
 
-        if (req is null || string.IsNullOrWhiteSpace(req.ToPhase) || !RoutingLegGate.TryParse(req.ToPhase, out var toPhase))
-            return UnprocessableEntity(ApiError.Of("leg.invalid_phase", "ToPhase không hợp lệ."));
+        var toParse = RoutingPolicy.ParseAdvanceToPhase(req?.ToPhase);
+        if (!toParse.IsValid) return UnprocessableEntity(ApiError.Of(toParse.ErrorCode!, toParse.ErrorMessage!));
+        var toPhase = toParse.Phase;
 
         var check = RoutingLegGate.CanEnter(wo!, leg!, toPhase);
         if (!check.Allowed)
@@ -299,8 +301,10 @@ public sealed class RoutingController : ControllerBase
         var (err, wo, leg) = await LegPreludeAsync(id, legId, actor, role, "leg_rework");
         if (err is not null) return err;
 
-        if (req is null || string.IsNullOrWhiteSpace(req.Reason) || req.Reason.Length > 500)
+        if (req is null)
             return UnprocessableEntity(ApiError.Of("leg.invalid_reason", "Reason bắt buộc (1-500 ký tự)."));
+        var reasonErr = RoutingPolicy.ValidateReworkReason(req.Reason);
+        if (reasonErr is not null) return UnprocessableEntity(ApiError.Of(reasonErr.Value.ErrorCode, reasonErr.Value.Message));
 
         // Q10: reject 1 leg → chỉ leg đó về PREPRESS; WO giữ ở SPLIT.
         var now = DateTime.UtcNow;
@@ -324,26 +328,6 @@ public sealed class RoutingController : ControllerBase
     private static string SurfaceFor(string legKind) =>
         legKind is nameof(LegKind.TAPE) or nameof(LegKind.ASSEMBLY)
             ? nameof(SurfaceProfile.LITE) : nameof(SurfaceProfile.FULL);
-
-    // SOFT/HARD status của 1 leg (cho GET picker): hard = có predecessor
-    // HARD chưa LEG_DONE (leg chưa vào RUNNING); soft = predecessor SOFT chưa done.
-    private static (bool soft, bool hard) DependencyStatus(WorkOrder wo, WoLeg leg)
-    {
-        if (leg.LegPhase == nameof(LegPhase.RUNNING) || leg.LegPhase == nameof(LegPhase.LEG_DONE))
-            return (false, false);
-        bool soft = false, hard = false;
-        foreach (var e in wo.LegEdges.Where(e => e.LegId == leg.Id))
-        {
-            var pred = wo.Legs.FirstOrDefault(l => l.Id == e.DependsOnLegId);
-            if (pred is null) continue;
-            var done = pred.LegPhase == nameof(LegPhase.LEG_DONE)
-                       && (e.RequiredQty <= 0 || pred.QtyDoneCached >= e.RequiredQty);
-            if (done) continue;
-            if (string.Equals(e.DependencyGate, nameof(DependencyGate.HARD), StringComparison.OrdinalIgnoreCase)) hard = true;
-            else soft = true;
-        }
-        return (soft, hard);
-    }
 
     // WO-scoped prelude (materialize) — If-Match trên WO.RowVersion.
     private async Task<(IActionResult? Error, WorkOrder? Wo)> WoPreludeAsync(long id, string actor, string role, string action)
