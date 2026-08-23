@@ -13,6 +13,24 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RAZOR="$ROOT/src/CCL.MES.Hybrid.Razor"
 
+# The one detection regex — a table-header cell whose text is Action / Actions /
+# Hành động. Defined ONCE so the self-test exercises the exact same matcher the
+# real scan uses (no drift between detector and its test).
+RX='<th[^>]*>[[:space:]]*(Actions?|Hành động)[[:space:]]*</th>'
+
+# ── self-test: prove the detector still catches an injected violation ──────────
+if [ "${1:-}" = "--self-test" ]; then
+  tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+  printf '<table><thead><tr><th class="x">Actions</th></tr></thead></table>\n' \
+    > "$tmp/GateSelftestActions.razor"
+  if grep -rIqE "$RX" --include='*.razor' "$tmp" 2>/dev/null; then
+    echo "[gate:row-actions] self-test OK (an injected \"Actions\" column header is detected)"
+    exit 0
+  fi
+  echo "[gate:row-actions] self-test FAILED — detector missed an injected Actions column"
+  exit 1
+fi
+
 # Pre-existing surfaces grandfathered in, or where "Action" is a DATA column:
 #   SettingsAuditLog.razor  — "Action" = the audit action TYPE (data, not row-actions).
 #   WoMaterialsList.razor / SpecShowcardFull.razor / SettingsAccounts.razor
@@ -30,9 +48,8 @@ is_allowed() {
 }
 
 fail=0
-# Match a table-header cell whose text is Action / Actions / Hành động.
-matches="$(grep -rInE '<th[^>]*>[[:space:]]*(Actions?|Hành động)[[:space:]]*</th>' \
-             --include='*.razor' "$RAZOR" 2>/dev/null || true)"
+# Match a table-header cell whose text is Action / Actions / Hành động (via $RX).
+matches="$(grep -rInE "$RX" --include='*.razor' "$RAZOR" 2>/dev/null || true)"
 
 while IFS= read -r line; do
   [ -z "$line" ] && continue
