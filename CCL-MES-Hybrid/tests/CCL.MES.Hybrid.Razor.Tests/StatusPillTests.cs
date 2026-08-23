@@ -63,13 +63,23 @@ public sealed class StatusPillTests : TestContext
     }
 
     [Fact]
-    public void Wo_only_phase_shows_the_raw_token_unchanged()
+    public void Known_wo_phase_shows_its_bilingual_label()
     {
-        // Chưa có bản dịch cho phase WO ⇒ hiện token thô. Đây là hành vi ĐANG CÓ
-        // trên màn hình; component không được tự bịa chữ mới.
+        // A2 nhãn VN: 14 MesPhase + LEG_DONE đã có nhãn song ngữ. SHIPPED ⇒ nhãn
+        // (không còn token thô); token vẫn ổn định ở data-phase để test/CSS bám.
         Wire();
         var cut = RenderComponent<StatusPill>(p => p.Add(x => x.Phase, "SHIPPED"));
-        Assert.Contains(">SHIPPED<", cut.Markup);
+        Assert.Contains("data-phase=\"SHIPPED\"", cut.Markup);
+        Assert.DoesNotContain(">SHIPPED<", cut.Markup);   // hiện nhãn, không token thô
+    }
+
+    [Fact]
+    public void Unknown_phase_shows_the_raw_token_unchanged()
+    {
+        // Token lạ (contract mở rộng mà quên thêm nhãn) ⇒ hiện thô, không bịa chữ.
+        Wire();
+        var cut = RenderComponent<StatusPill>(p => p.Add(x => x.Phase, "FOO_UNKNOWN"));
+        Assert.Contains(">FOO_UNKNOWN<", cut.Markup);
     }
 
     [Fact]
