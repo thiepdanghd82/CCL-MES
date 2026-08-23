@@ -41,6 +41,9 @@ SCAN_PATHS=(
     "$HYBRID_ROOT/src/CCL.MES.Api/Controllers/WorkOrdersController.cs"
     "$HYBRID_ROOT/src/CCL.MES.Api/Controllers/AdminWorkOrdersController.cs"
     "$HYBRID_ROOT/src/CCL.MES.Api/Controllers/PrepressController.cs"
+    # A2 — atomic save + L45 conflict-audit path lives here now (shared by the
+    # RunningSurface + Prepress write surfaces).
+    "$HYBRID_ROOT/src/CCL.MES.Api/Services/WoMutationExecutor.cs"
 )
 
 EMIT_RE='_audit\.EmitAsync|AuditEmitHelper\.EmitMesAsync|audit\.EmitAsync'
