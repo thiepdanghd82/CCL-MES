@@ -61,10 +61,37 @@
 **Nợ vị trí:** `OqcSignaturePolicy` đang đặt ở `CCL.MES.Api/Policies/` vì `src/CCL.MES.Domain` là baseline read-only tới khi cutover xong (A1). Sau cutover nên chuyển về Domain.
 
 **Nghiệm thu**
-- [ ] Tách `SignaturePolicy` (3 chữ ký, Inspector≠Reviewer≠Approver) ra Domain, unit-test không cần `WebApplicationFactory`
-- [ ] `QcGate`, `LegAdvancePolicy`, `SemiStockPolicy` tương tự
-- [ ] `gate-thin-controller.sh` BASELINE **22 → ≤10**, số controller >400 dòng **8 → ≤4**
-- [ ] Test cũ không sửa mà vẫn xanh (chứng minh hành vi không đổi)
+- [x] ~~Tách `SignaturePolicy` (3 chữ ký) + policy thuần~~ — `OqcSignaturePolicy` +
+      `IpqcJudgmentPolicy` + `RunningSurfacePolicy` + `PrepressPolicy` +
+      `RoutingPolicy` (unit-test không cần `WebApplicationFactory`)
+- [x] ~~`gate-thin` BASELINE **22 → ≤10**~~ — **ĐÓNG: 22 → 9** (2026-08-23)
+- [ ] số controller >400 dòng **8 → ≤4** — **8 → 6** (còn RunningSurface 597 ·
+      Prepress 584; xuống <400 cần gom-nén 8 endpoint-handler concurrency —
+      pure-LOC, churn lớn, HOÃN: không mua thêm save/L45/verifiability)
+- [x] ~~Test cũ không sửa mà vẫn xanh~~ — 846 Api test 0 fail mọi lát (byte-identical + soak)
+
+### A2 — đã đóng đợt 2026-08-23 (15 PR #191–#205)
+
+Kiến trúc WO-mutation **hợp nhất hoàn toàn** — mọi đường commit/conflict/prelude
+qua MỘT chỗ test + gate:
+
+| Thành phần (Api/Services · Api/Policies) | Vai trò |
+|---|---|
+| `WoMutationExecutor` | save + L45 conflict (`SaveAndResolveAsync` / `ResolveWoConflictAsync` / `PrecheckStaleAsync`) — dùng bởi RunningSurface · Prepress · WoQc · Ipqc · WoQcPhoto · AdminWorkOrders · **/advance** |
+| base `WoMutationControllerBase.PreludeAsync` | prelude concurrency (onConflict nhận `WorkOrder`) — 1 nơi cho mọi surface (Prepress giữ inline vì 428-message + phase-guard riêng) |
+| `WoQcCheckMaterializer` · `IpqcCheckMaterializer` | GET lazy-materialise + auto-sync (SaveChanges rời controller) |
+| `SemiLotMutationService` | commit Semi-Stock (domain SemiLot, RowVersion L38) |
+| `EtagCodec` | ETag↔RowVersion dùng chung |
+| 5 `*Policy` | luật thuần (parse/validate/gate) unit-test được |
+
+**Enforcement theo code:** `gate-audit-emit` (C) L45 quét CẢ `Controllers/` +
+`Services/` + nhận diện delegation executor (negative-proof); `gate-thin`
+BASELINE_SAVE **9**, BASELINE_FAT **6**; 12 gate đều có `--self-test` (SKIP 0).
+
+**Còn lại (đều hoãn có lý do):** fat<400 cho RunningSurface/Prepress (pure-LOC
+grind); `WoQcPhoto` item-insert + `CheckItemLibrary`/`Auth` save (domain khác,
+save đã ≤10 nên không cần). `*Policy`/service đặt tạm ở `Api/` — chuyển về
+Domain/Application sau cutover A1.
 
 ---
 
