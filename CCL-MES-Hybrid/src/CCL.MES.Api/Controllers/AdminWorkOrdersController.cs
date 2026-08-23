@@ -46,12 +46,15 @@ public sealed class AdminWorkOrdersController : ControllerBase
     private readonly WorkOrderService _svc;
     private readonly IAuditWriter _audit;
     private readonly IMesDbContext _db;
+    private readonly Services.WoMutationExecutor _executor;
 
-    public AdminWorkOrdersController(WorkOrderService svc, IAuditWriter audit, IMesDbContext db)
+    public AdminWorkOrdersController(WorkOrderService svc, IAuditWriter audit, IMesDbContext db,
+        Services.WoMutationExecutor executor)
     {
         _svc = svc;
         _audit = audit;
         _db = db;
+        _executor = executor;
     }
 
     /// <summary>P10.7a-2.2 — admin force-phase endpoint. See class summary
@@ -213,55 +216,20 @@ public sealed class AdminWorkOrdersController : ControllerBase
             .Select(u => (long?)u.Id)
             .SingleOrDefaultAsync();
 
-        try
-        {
-            await _db.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // EF Core optimistic concurrency tripped — another mutation landed
-            // between our If-Match precheck + our SaveChanges. Same shape as
-            // /advance's catch block (Lesson 2 — ChangeTracker.Clear so the
-            // downstream IdempotencyMiddleware SaveChanges doesn't re-attempt
-            // the failed UPDATE).
-            if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
-                dbCtx.ChangeTracker.Clear();
-            var freshAfter = await _db.WorkOrders
-                .Where(w => w.Id == id)
-                .AsNoTracking()
-                .Select(w => w.RowVersion)
-                .SingleOrDefaultAsync();
-            var concurrencyEtag = freshAfter is not null && freshAfter.Length > 0
-                ? Convert.ToBase64String(freshAfter)
-                : serverEtagRaw;
-
-            var concurrencyDetail = JsonSerializer.Serialize(new
-            {
-                wo_id = id,
-                wo_no = existing.WoNo,
-                attempted_action = "force_phase",
-                client_version = clientEtagRaw,
-                server_version = concurrencyEtag,
-                actor_id = actorIdStr,
-                source = "ef_concurrency",
-            });
-            await _audit.EmitAsync(
-                action: AuditAction.WoStateConflict,
-                actor: actor,
-                actorRole: role,
-                targetType: "WorkOrder",
-                targetId: id.ToString(),
-                detail: concurrencyDetail);
-
-            Response.Headers.ETag = $"\"{concurrencyEtag}\"";
+        // 8b. Atomic save + L45 conflict path via the shared executor (A2 —
+        //     SaveChanges out of the controller; actorId → conflict detail keeps
+        //     its actor_id field byte-identical). Mutated WO + WoStatusHistory row
+        //     commit together in the executor's single SaveChanges.
+        var outcome = await _executor.SaveAndResolveAsync(
+            HttpContext, id, existing.WoNo, actor, role, "force_phase", actorIdStr);
+        if (outcome.Conflict)
             return Conflict(new ForcePhaseResponse
             {
                 Ok = false,
                 CurrentStep = existing.CurrentStep.ToString(),
                 ErrorCode = "wo.state_conflict",
-                ETag = concurrencyEtag,
+                ETag = outcome.ETag,
             });
-        }
 
         // 9. SYS_RECOVERY audit emit per §7.2 detail shape + Henry-confirmed Q2
         //    structured reason. Caller's identity is in ActorUsername;
@@ -284,26 +252,13 @@ public sealed class AdminWorkOrdersController : ControllerBase
             targetId: id.ToString(),
             detail: sysRecoveryDetail);
 
-        // 10. Re-read RowVersion AFTER SaveChanges so the response ETag reflects
-        //     the SQLite trigger's post-UPDATE bump (Lesson 1 — EF's RETURNING
-        //     fires BEFORE the row trigger so the tracked entity is stale).
-        var freshRowVersion = await _db.WorkOrders
-            .Where(w => w.Id == id)
-            .AsNoTracking()
-            .Select(w => w.RowVersion)
-            .SingleOrDefaultAsync();
-        var newEtagRaw = freshRowVersion is not null && freshRowVersion.Length > 0
-            ? Convert.ToBase64String(freshRowVersion)
-            : serverEtagRaw;
-
-        Response.Headers.ETag = $"\"{newEtagRaw}\"";
-
+        // 10. ETag already set by the executor (fresh RowVersion post-save, L11).
         return Ok(new ForcePhaseResponse
         {
             Ok = true,
             CurrentStep = legacyTarget.ToString(),
             ErrorCode = null,
-            ETag = newEtagRaw,
+            ETag = outcome.ETag,
         });
     }
 

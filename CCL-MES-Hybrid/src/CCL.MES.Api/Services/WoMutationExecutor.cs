@@ -55,8 +55,12 @@ public sealed class WoMutationExecutor
     /// (<see cref="DbUpdateConcurrencyException"/>): clear tracker, đọc lại WO,
     /// set header ETag, emit <c>WO_STATE_CONFLICT</c> (L45), trả outcome.Conflict.
     /// </summary>
+    /// <param name="actorId">Khi != null, chèn <c>actor_id</c> vào detail conflict
+    /// (trước <c>source</c>) — dùng cho các surface admin/advance vốn ghi actor_id.
+    /// Bỏ trống → detail giữ nguyên shape cũ (byte-identical cho 4 surface đã migrate).</param>
     public async Task<WoCommitOutcome> SaveAndResolveAsync(
-        HttpContext http, long woId, string woNo, string actor, string role, string attemptedAction)
+        HttpContext http, long woId, string woNo, string actor, string role, string attemptedAction,
+        string? actorId = null)
     {
         try
         {
@@ -72,21 +76,36 @@ public sealed class WoMutationExecutor
             var freshC = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking().FirstOrDefaultAsync();
             var freshEtagC = B64(freshC?.RowVersion);
             http.Response.Headers.ETag = $"\"{freshEtagC}\"";
+            var clientVer = NormalizeETag(http.Request.Headers.IfMatch.ToString());
+            // Hai shape để giữ THỨ TỰ field byte-identical: không actor_id (4 surface
+            // cũ) vs có actor_id trước source (advance / force-phase).
+            object conflictDetail = actorId is null
+                ? new
+                {
+                    wo_id = woId,
+                    wo_no = woNo,
+                    attempted_action = attemptedAction,
+                    client_version = clientVer,
+                    server_version = freshEtagC,
+                    source = "ef_concurrency",
+                }
+                : new
+                {
+                    wo_id = woId,
+                    wo_no = woNo,
+                    attempted_action = attemptedAction,
+                    client_version = clientVer,
+                    server_version = freshEtagC,
+                    actor_id = actorId,
+                    source = "ef_concurrency",
+                };
             await _audit.EmitAsync(
                 action: AuditAction.WoStateConflict,
                 actor: actor,
                 actorRole: role,
                 targetType: "WorkOrder",
                 targetId: woId.ToString(),
-                detail: JsonSerializer.Serialize(new
-                {
-                    wo_id = woId,
-                    wo_no = woNo,
-                    attempted_action = attemptedAction,
-                    client_version = NormalizeETag(http.Request.Headers.IfMatch.ToString()),
-                    server_version = freshEtagC,
-                    source = "ef_concurrency",
-                }));
+                detail: JsonSerializer.Serialize(conflictDetail));
             return new WoCommitOutcome(true, freshEtagC, freshC);
         }
 

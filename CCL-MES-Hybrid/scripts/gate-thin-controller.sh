@@ -18,7 +18,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-BASELINE_SAVE=13     # đo 2026-08-18 (22); A2 rút commit-save vào
+BASELINE_SAVE=12     # đo 2026-08-18 (22); A2 rút commit-save vào
                      # Services/WoMutationExecutor: RunningSurface+Prepress → 20,
                      # WoQcReview+Ipqc → 18, WoQcPhoto upload → 17; WoQc GET
                      # → WoQcCheckMaterializer → 15; Ipqc GET → IpqcCheckMaterializer
