@@ -76,6 +76,7 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
     private readonly Services.ITraceFreezeService _trace;
     private readonly Services.WorkCenterSpeedLookup _wcSpeed;
     private readonly Services.WoMutationExecutor _executor;
+    private readonly Services.WoQcCheckMaterializer _materializer;
 
     public WoQcReviewController(
         IMesDbContext db,
@@ -83,13 +84,15 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
         IOptions<WoQcSigPolicyOptions> sigPolicy,
         Services.ITraceFreezeService trace,
         Services.WorkCenterSpeedLookup wcSpeed,
-        Services.WoMutationExecutor executor)
+        Services.WoMutationExecutor executor,
+        Services.WoQcCheckMaterializer materializer)
         : base(db, audit)
     {
         _sigPolicy = sigPolicy.Value;
         _trace = trace;
         _wcSpeed = wcSpeed;
         _executor = executor;
+        _materializer = materializer;
     }
 
     // Best-effort trace freeze — never breaks the confirm; idempotent in service.
@@ -119,58 +122,9 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
         if (wo is null)
             return NotFound(ApiError.Of("wo.not_found", $"No work order with id {id}."));
 
-        var check = await _db.WoQcChecks.AsNoTracking()
-            .Include(c => c.Items)
-            .FirstOrDefaultAsync(c => c.WorkOrderId == id && c.QcKind == normKind, ct);
-        if (check is null)
-        {
-            // P10.7e-3 FIX (Henry RCA on PR #123) — resolve profile via Q4
-            // 3-level chain BEFORE materialising. Without this the snapshot
-            // is "{}" and the dashboard renders 0/0 items. See L23.
-            var resolvedSnapshot = await ResolveProfileSnapshotAsync(wo.ProductId, normKind, ct);
-            try
-            {
-                _db.WoQcChecks.Add(new WoQcCheck
-                {
-                    WorkOrderId = id,
-                    QcKind = normKind,
-                    ProfileSnapshotJson = resolvedSnapshot,
-                    Judgment = WoQcJudgment.Pending,
-                });
-                await _db.SaveChangesAsync(ct);
-            }
-            catch (DbUpdateException)
-            {
-                // Race lost — another caller inserted first.
-                if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
-                    dbCtx.ChangeTracker.Clear();
-            }
-            check = await _db.WoQcChecks.AsNoTracking()
-                .Include(c => c.Items)
-                .FirstOrDefaultAsync(c => c.WorkOrderId == id && c.QcKind == normKind, ct);
-        }
-        else if (string.IsNullOrWhiteSpace(check.ProfileSnapshotJson) || check.ProfileSnapshotJson == "{}")
-        {
-            // P10.7e-3 FIX — heal pre-fix rows that were materialised with
-            // empty snapshot. Resolve now + persist so the next read is fast +
-            // future profile edits still don't retroactively change a row
-            // already in flight (snapshot is frozen at THIS read, not at
-            // each subsequent one).
-            var resolvedSnapshot = await ResolveProfileSnapshotAsync(wo.ProductId, normKind, ct);
-            if (resolvedSnapshot != "{}" && resolvedSnapshot != check.ProfileSnapshotJson)
-            {
-                var tracked = await _db.WoQcChecks.FirstOrDefaultAsync(c => c.Id == check.Id, ct);
-                if (tracked is not null)
-                {
-                    tracked.ProfileSnapshotJson = resolvedSnapshot;
-                    try { await _db.SaveChangesAsync(ct); }
-                    catch (DbUpdateException) { /* race; next reader will heal */ }
-                }
-                check = await _db.WoQcChecks.AsNoTracking()
-                    .Include(c => c.Items)
-                    .FirstOrDefaultAsync(c => c.WorkOrderId == id && c.QcKind == normKind, ct);
-            }
-        }
+        // A2 — lazy-materialise + self-heal moved to WoQcCheckMaterializer
+        // (SaveChanges out of the controller). Byte-identical GET behaviour.
+        var check = await _materializer.EnsureMaterializedAsync(id, normKind, wo.ProductId, ct);
 
         var etag = Convert.ToBase64String(wo.RowVersion);
         var profileExpected = QcProfileResolver.ProfileKeyCount(check?.ProfileSnapshotJson);
