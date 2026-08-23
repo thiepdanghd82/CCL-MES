@@ -71,18 +71,21 @@ public sealed class IpqcReviewController : WoMutationControllerBase
     private readonly IpqcDualSigOptions _dualSig;
     private readonly Services.ITraceFreezeService _trace;
     private readonly Services.WoMutationExecutor _executor;
+    private readonly Services.IpqcCheckMaterializer _materializer;
 
     public IpqcReviewController(
         IMesDbContext db,
         IAuditWriter audit,
         IOptions<IpqcDualSigOptions> dualSig,
         Services.ITraceFreezeService trace,
-        Services.WoMutationExecutor executor)
+        Services.WoMutationExecutor executor,
+        Services.IpqcCheckMaterializer materializer)
         : base(db, audit)
     {
         _dualSig = dualSig.Value;
         _trace = trace;
         _executor = executor;
+        _materializer = materializer;
     }
 
     // Best-effort trace freeze — never breaks the confirm; idempotent in service.
@@ -117,60 +120,13 @@ public sealed class IpqcReviewController : WoMutationControllerBase
             var legCheck = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
                 .FirstOrDefaultAsync(c => EF.Property<long?>(c, "WoLegId") == legId, ct);
             return Ok(BuildView(wo, legCheck,
-                (legCheck?.Items.Count ?? 0) > 0 ? AutoSyncMaterialized : "LegacyManual"));
+                (legCheck?.Items.Count ?? 0) > 0 ? Services.IpqcCheckMaterializer.Materialized : "LegacyManual"));
         }
 
-        // WO-level (1-leg / legacy) — filter WoLegId IS NULL so per-leg rows of a
-        // forked WO are never picked up here (correctness).
-        var check = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
-            .FirstOrDefaultAsync(c => c.WorkOrderId == id && EF.Property<long?>(c, "WoLegId") == null, ct);
-
-        string autoSync;
-        if (check is null)
-        {
-            // Lazy-materialise row + AUTO-SYNC items (Phương án C Bước 4).
-            // Concurrent first-readers race on the UNIQUE index — losers refetch.
-            var fresh = NewPendingCheck(id);
-            autoSync = await TryAutoSyncAsync(wo, fresh, ct);
-            try
-            {
-                _db.WoIpqcChecks.Add(fresh);
-                await _db.SaveChangesAsync(ct);
-            }
-            catch (DbUpdateException)
-            {
-                if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
-                    dbCtx.ChangeTracker.Clear();
-            }
-            check = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
-                .FirstOrDefaultAsync(c => c.WorkOrderId == id && EF.Property<long?>(c, "WoLegId") == null, ct);
-        }
-        else if (check.Items.Count == 0 && IsPristine(check))
-        {
-            // F2 (finding #2) — SELF-HEAL: check tạo trước khi có routing/library
-            // (mode 4-slot rỗng) nhưng CHƯA nhập gì → thử materialize lại (an toàn).
-            var tracked = await _db.WoIpqcChecks.Include(c => c.Items)
-                .FirstOrDefaultAsync(c => c.WorkOrderId == id, ct);
-            autoSync = tracked is null ? "LegacyManual" : await TryAutoSyncAsync(wo, tracked, ct);
-            if (tracked is not null && tracked.Items.Count > 0)
-            {
-                try { await _db.SaveChangesAsync(ct); }
-                catch (DbUpdateException)
-                {
-                    if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
-                        dbCtx.ChangeTracker.Clear();
-                }
-                check = await _db.WoIpqcChecks.AsNoTracking().Include(c => c.Items)
-                    .FirstOrDefaultAsync(c => c.WorkOrderId == id && EF.Property<long?>(c, "WoLegId") == null, ct);
-            }
-        }
-        else
-        {
-            // Đã materialize (Materialized) hoặc đã nhập tay 4-slot (LegacyManual,
-            // KHÔNG tự chuyển — giữ dữ liệu operator, QA quyết).
-            autoSync = check.Items.Count > 0 ? AutoSyncMaterialized : "LegacyManual";
-        }
-
+        // WO-level (1-leg / legacy) — lazy-materialise + auto-sync + self-heal
+        // moved to IpqcCheckMaterializer (SaveChanges out of the controller).
+        // Byte-identical GET behaviour.
+        var (check, autoSync) = await _materializer.EnsureForGetAsync(wo, ct);
         return Ok(BuildView(wo, check, autoSync));
     }
 
@@ -279,7 +235,7 @@ public sealed class IpqcReviewController : WoMutationControllerBase
             if (ngErr is not null) return ngErr;
         }
 
-        var check = await GetOrCreateCheckAsync(id, wo);
+        var check = await _materializer.GetOrCreateForMutationAsync(id, wo);
 
         // F1 (finding #1): WO đã materialize bộ item data-driven → slot-PUT legacy
         // vô nghĩa (rollup tính theo items, sẽ bỏ qua slot). Từ chối thẳng để 2 đường
@@ -351,7 +307,7 @@ public sealed class IpqcReviewController : WoMutationControllerBase
         }
 
         var check = legId is null
-            ? await GetOrCreateCheckAsync(id, wo)
+            ? await _materializer.GetOrCreateForMutationAsync(id, wo)
             : await GetOrCreateLegCheckAsync(legId.Value);
 
         var ok = WoIpqcCheckService.SetItem(check, itemKey, status,
@@ -409,7 +365,7 @@ public sealed class IpqcReviewController : WoMutationControllerBase
             return Invalid(parse.ErrorCode!, parse.ErrorMessage!);
         var judgment = parse.Judgment;
 
-        var check = await GetOrCreateCheckAsync(id, wo);
+        var check = await _materializer.GetOrCreateForMutationAsync(id, wo);
         var judgItems = check.Items?.ToList();
         var (ready, _, _) = IpqcReadinessRollup.Compute(check, judgItems);
         if (!ready)
@@ -470,7 +426,7 @@ public sealed class IpqcReviewController : WoMutationControllerBase
             return Invalid(outcomeParse.ErrorCode!, outcomeParse.ErrorMessage!);
         var outcome = outcomeParse.Outcome;
 
-        var check = await GetOrCreateCheckAsync(id, wo);
+        var check = await _materializer.GetOrCreateForMutationAsync(id, wo);
 
         // Q3 CRITICAL — dual-sig guard.
         // Always read the IPQC submitter for audit purposes, even when
@@ -529,99 +485,9 @@ public sealed class IpqcReviewController : WoMutationControllerBase
 
     // ── Helpers ────────────────────────────────────────────────────
 
-    // F2 — autoSyncStatus tokens (DERIVE; trùng IpqcView.AutoSyncStatus doc).
-    private const string AutoSyncMaterialized = "Materialized";
-    private const string AutoSyncSkippedUnmapped = "SkippedUnmapped";
-    private const string AutoSyncSkippedNoLibrary = "SkippedNoLibrary";
-    private const string AutoSyncLegacyManual = "LegacyManual";
-
-    private static WoIpqcCheck NewPendingCheck(long woId) => new()
-    {
-        WorkOrderId = woId,
-        MaterialStatus = IpqcCheckStatus.Pending,
-        PrintAStatus = IpqcCheckStatus.Pending,
-        PrintBStatus = IpqcCheckStatus.Pending,
-        PrintCStatus = IpqcCheckStatus.Pending,
-        Judgment = IpqcJudgment.Pending,
-        QaOutcome = QaOutcome.Pending,
-    };
-
-    /// <summary>Check chưa có bất kỳ dữ liệu operator nào (an toàn để self-heal materialize).</summary>
-    private static bool IsPristine(WoIpqcCheck c) =>
-        c.Judgment == IpqcJudgment.Pending
-        && c.MaterialStatus == IpqcCheckStatus.Pending
-        && c.PrintAStatus == IpqcCheckStatus.Pending
-        && c.PrintBStatus == IpqcCheckStatus.Pending
-        && c.PrintCStatus == IpqcCheckStatus.Pending;
-
-    /// <summary>Lazy-materialise the IPQC check row if absent. Idempotent under UNIQUE
-    /// index race. Auto-sync khi tạo mới qua mutation path (wo != null).</summary>
-    private async Task<WoIpqcCheck> GetOrCreateCheckAsync(long woId, WorkOrder? wo = null)
-    {
-        var check = await _db.WoIpqcChecks.Include(c => c.Items)
-            .FirstOrDefaultAsync(c => c.WorkOrderId == woId);
-        if (check is not null) return check;
-
-        check = NewPendingCheck(woId);
-        if (wo is not null)
-            await TryAutoSyncAsync(wo, check, CancellationToken.None);
-        _db.WoIpqcChecks.Add(check);
-        return check;
-    }
-
-    /// <summary>
-    /// Phương án C — Bước 4 + F2. Auto-sync: resolve routing → tập QC line (qua
-    /// <see cref="ProcessLineMap"/>) → subset <see cref="CheckItemLibrary"/> →
-    /// materialize items + ĐÓNG BĂNG snapshot vào <paramref name="check"/>.
-    /// Trả về trạng thái (KHÔNG im lặng — finding #2):
-    ///   Materialized · SkippedUnmapped (op không map được) · SkippedNoLibrary
-    ///   (ra line nhưng thư viện trống) · LegacyManual (đã freeze / không routing / 0 line).
-    /// Mutate in-place; caller SaveChanges trong cùng transaction.
-    /// </summary>
-    private async Task<string> TryAutoSyncAsync(WorkOrder wo, WoIpqcCheck check, CancellationToken ct)
-    {
-        // FREEZE: đã có snapshot/items → đã materialize rồi (sửa thư viện không hồi tố).
-        if (!string.IsNullOrWhiteSpace(check.ItemsProfileSnapshotJson) || check.Items.Count > 0)
-            return AutoSyncMaterialized;
-
-        var productCode = await _db.Products.AsNoTracking()
-            .Where(p => p.Id == wo.ProductId)
-            .Select(p => p.ProductCode)
-            .FirstOrDefaultAsync(ct);
-        if (string.IsNullOrWhiteSpace(productCode)) return AutoSyncLegacyManual;
-
-        var ops = await _db.RoutingOperations.AsNoTracking()
-            .Where(r => r.PartNo == productCode)
-            .Select(r => new { r.OpNo, r.Operation, r.WorkCenterNo, r.WorkCenterDescription })
-            .ToListAsync(ct);
-        if (ops.Count == 0) return AutoSyncLegacyManual;
-
-        var map = await _db.ProcessLineMaps.AsNoTracking()
-            .Where(m => m.Active)
-            .Select(m => new QcLineResolver.MapEntry(m.MatchType, m.MatchValue, m.QcLine, m.Sort))
-            .ToListAsync(ct);
-        var resolution = QcLineResolver.Resolve(ops.Select(o =>
-            new QcLineResolver.RoutingOp(o.OpNo, o.Operation, o.WorkCenterNo, o.WorkCenterDescription)), map);
-
-        if (resolution.Lines.Count == 0)
-            // Có op không map được → cảnh báo Unmapped; ngược lại (toàn NONE/không routing) → legacy.
-            return resolution.Unmapped.Count > 0 ? AutoSyncSkippedUnmapped : AutoSyncLegacyManual;
-
-        var lines = resolution.Lines.ToList();
-        var lib = await _db.CheckItemLibraries.AsNoTracking()
-            .Where(c => c.Active && c.Ipqc && lines.Contains(c.ProcessLine)
-                     && (c.ProductCode == null || c.ProductCode == productCode))
-            .ToListAsync(ct);
-        if (lib.Count == 0) return AutoSyncSkippedNoLibrary;
-
-        var built = IpqcLibraryMaterializer.Build(lib, lines);
-        if (built.Items.Count == 0) return AutoSyncSkippedNoLibrary;
-
-        check.ItemsProfileSnapshotJson = built.ProfileSnapshotJson;
-        check.ResolvedLines = string.Join(",", lines);
-        foreach (var it in built.Items) check.Items.Add(it);
-        return AutoSyncMaterialized;
-    }
+    // Lazy-materialise + AUTO-SYNC (Phương án C) + self-heal + NewPendingCheck
+    // moved to Services/IpqcCheckMaterializer (A2 — SaveChanges out of the
+    // controller; shared by GET + mutation paths). Constants exposed there too.
 
     private async Task<IActionResult?> ValidateNgAsync(string? ngReasonCode, string? ngNote)
     {

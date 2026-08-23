@@ -422,6 +422,8 @@ builder.Services.AddScoped<CCL.MES.Api.Services.TraceBackfillService>();
 builder.Services.AddScoped<CCL.MES.Api.Services.WoMutationExecutor>();
 // A2 — WoQc GET lazy-materialise + self-heal (SaveChanges out of the controller).
 builder.Services.AddScoped<CCL.MES.Api.Services.WoQcCheckMaterializer>();
+// A2 — Ipqc GET lazy-materialise + auto-sync (Plan C) + self-heal.
+builder.Services.AddScoped<CCL.MES.Api.Services.IpqcCheckMaterializer>();
 
 // P10.5e-1 — Drawings upload + download orchestrator. Legacy Phase 8
 // PR-D-5b service composed of IMesDbContext + IBlobStore (registered

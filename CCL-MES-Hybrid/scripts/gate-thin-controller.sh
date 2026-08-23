@@ -18,10 +18,11 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-BASELINE_SAVE=15     # đo 2026-08-18 (22); A2 rút commit-save vào
+BASELINE_SAVE=13     # đo 2026-08-18 (22); A2 rút commit-save vào
                      # Services/WoMutationExecutor: RunningSurface+Prepress → 20,
                      # WoQcReview+Ipqc → 18, WoQcPhoto upload → 17; WoQc GET
-                     # lazy-materialise → WoQcCheckMaterializer → 15 (2026-08-23)
+                     # → WoQcCheckMaterializer → 15; Ipqc GET → IpqcCheckMaterializer
+                     # → 13 (2026-08-23)
 BASELINE_FAT=8       # controller > MAX_LOC dòng
 MAX_LOC=400
 
