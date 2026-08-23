@@ -525,76 +525,22 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
         return null;
     }
 
-    // ── Prelude: If-Match + Idempotency-Key + RowVersion check ────
-
-    // A2 thin-controller — GIỮ INLINE (không gộp vào base). The base
-    // WoMutationControllerBase.PreludeAsync onConflict factory only exposes
-    // (serverEtag, mesPhase); the RunningSurface 409 body carries TWO extra
-    // fields read off the stale `wo` (QtyDoneCached + QtyNgCached) that the
-    // factory can't reach without a per-request stash — that would either drift
-    // the byte-identical contract or introduce a race-unsafe field. The
-    // mechanism (Idem-Key/If-Match/404/ETag-compare + WoStateConflict audit +
-    // ETag header) is identical to the base; only the typed conflict body's
-    // extra qty fields keep it inline. Flagged in the A2 report.
-    private async Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
+    // ── Prelude: base concurrency mechanism + RunningSurface-typed 409 ────
+    // A2 — nay gộp vào base.PreludeAsync (onConflict nhận `wo` nên đọc được
+    // QtyDoneCached/QtyNgCached cho 409 body). Cơ chế Idem/If-Match/404/
+    // ETag-compare + WoStateConflict audit + ETag header sống ở base (một nơi).
+    private Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
         long id, string actor, string role, string attemptedAction)
-    {
-        var idemKey = Request.Headers["Idempotency-Key"].ToString();
-        if (string.IsNullOrWhiteSpace(idemKey))
-        {
-            return (BadRequest(ApiError.Of("wo.idempotency_key_required",
-                "Idempotency-Key header required.")), null);
-        }
-
-        var ifMatch = Request.Headers.IfMatch.ToString();
-        if (string.IsNullOrWhiteSpace(ifMatch))
-        {
-            return (StatusCode(StatusCodes.Status428PreconditionRequired,
-                ApiError.Of("wo.if_match_required",
-                    "If-Match header required.")), null);
-        }
-
-        var wo = await _db.WorkOrders.FirstOrDefaultAsync(w => w.Id == id);
-        if (wo is null)
-        {
-            return (NotFound(ApiError.Of("wo.not_found",
-                $"No work order with id {id}.")), null);
-        }
-
-        var serverEtagRaw = Convert.ToBase64String(wo.RowVersion);
-        var clientEtagRaw = NormalizeETag(ifMatch);
-        if (!string.Equals(serverEtagRaw, clientEtagRaw, StringComparison.Ordinal))
-        {
-            var conflictDetail = JsonSerializer.Serialize(new
-            {
-                wo_id = id,
-                wo_no = wo.WoNo,
-                attempted_action = attemptedAction,
-                client_version = clientEtagRaw,
-                server_version = serverEtagRaw,
-            });
-            await _audit.EmitAsync(
-                action: AuditAction.WoStateConflict,
-                actor: actor,
-                actorRole: role,
-                targetType: "WorkOrder",
-                targetId: id.ToString(),
-                detail: conflictDetail);
-
-            Response.Headers.ETag = $"\"{serverEtagRaw}\"";
-            return (Conflict(new RunningSurfaceSetResponse
+        => base.PreludeAsync(id, actor, role, attemptedAction,
+            (wo, etag) => Conflict(new RunningSurfaceSetResponse
             {
                 Ok = false,
                 ErrorCode = "wo.state_conflict",
-                ETag = serverEtagRaw,
-                MesPhase = wo.MesPhase,
-                QtyDoneCached = wo.QtyDoneCached,
-                QtyNgCached = wo.QtyNgCached,
-            }), null);
-        }
-
-        return (null, wo);
-    }
+                ETag = etag,
+                MesPhase = wo?.MesPhase ?? "",
+                QtyDoneCached = wo?.QtyDoneCached ?? 0,
+                QtyNgCached = wo?.QtyNgCached ?? 0,
+            }));
 
     // ── Commit: SINGLE SaveChanges + post-write ETag re-read + audit ─
 

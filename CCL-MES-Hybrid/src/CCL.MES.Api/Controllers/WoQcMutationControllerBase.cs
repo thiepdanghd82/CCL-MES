@@ -42,24 +42,24 @@ public abstract class WoQcMutationControllerBase : WoMutationControllerBase
     protected Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
         long id, string actor, string role, string attemptedAction)
         => base.PreludeAsync(id, actor, role, attemptedAction,
-            (etag, phase) => Conflict(new WoQcSetResponse
+            (wo, etag) => Conflict(new WoQcSetResponse
             {
                 Ok = false,
                 ErrorCode = "wo.state_conflict",
                 ETag = etag,
-                MesPhase = phase,
+                MesPhase = wo?.MesPhase ?? "",
             }));
 
     protected Task<IActionResult> HandleWoStateConflictAsync(
         long woId, string actor, string role, string attemptedAction,
         CancellationToken ct = default)
         => base.HandleWoStateConflictAsync(woId, actor, role, attemptedAction,
-            (etag, phase) => Conflict(new WoQcSetResponse
+            (wo, etag) => Conflict(new WoQcSetResponse
             {
                 Ok = false,
                 ErrorCode = "wo.state_conflict",
                 ETag = etag,
-                MesPhase = phase,
+                MesPhase = wo?.MesPhase ?? "",
             }), ct);
 
     // ═══════════════════════════════════════════════════════════════

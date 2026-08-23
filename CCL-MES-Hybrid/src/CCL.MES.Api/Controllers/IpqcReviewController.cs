@@ -518,12 +518,12 @@ public sealed class IpqcReviewController : WoMutationControllerBase
     private Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
         long id, string actor, string role, string attemptedAction)
         => base.PreludeAsync(id, actor, role, attemptedAction,
-            (etag, phase) => Conflict(new IpqcSetResponse
+            (wo, etag) => Conflict(new IpqcSetResponse
             {
                 Ok = false,
                 ErrorCode = "wo.state_conflict",
                 ETag = etag,
-                MesPhase = phase,
+                MesPhase = wo?.MesPhase ?? "",
             }));
 
     // ── Commit + audit ─────────────────────────────────────────────

@@ -53,7 +53,7 @@ public abstract class WoMutationControllerBase : ControllerBase
     /// </summary>
     protected async Task<(IActionResult? Error, WorkOrder? WoForUpdate)> PreludeAsync(
         long id, string actor, string role, string attemptedAction,
-        Func<string, string, IActionResult> onConflict)
+        Func<WorkOrder?, string, IActionResult> onConflict)
     {
         var idemKey = Request.Headers["Idempotency-Key"].ToString();
         if (string.IsNullOrWhiteSpace(idemKey))
@@ -92,7 +92,7 @@ public abstract class WoMutationControllerBase : ControllerBase
                 detail: conflictDetail);
 
             Response.Headers.ETag = $"\"{serverEtag}\"";
-            return (onConflict(serverEtag, wo.MesPhase ?? ""), null);
+            return (onConflict(wo, serverEtag), null);
         }
 
         return (null, wo);
@@ -107,7 +107,7 @@ public abstract class WoMutationControllerBase : ControllerBase
     // per-call-site differences.
     protected async Task<IActionResult> HandleWoStateConflictAsync(
         long woId, string actor, string role, string attemptedAction,
-        Func<string, string, IActionResult> onConflict,
+        Func<WorkOrder?, string, IActionResult> onConflict,
         CancellationToken ct = default)
     {
         if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
@@ -137,7 +137,7 @@ public abstract class WoMutationControllerBase : ControllerBase
                 source = "ef_concurrency",
             }));
 
-        return onConflict(freshEtag, fresh?.MesPhase ?? "");
+        return onConflict(fresh, freshEtag);
     }
 
     protected static string NormalizeETag(string raw)
