@@ -35,14 +35,17 @@ namespace CCL.MES.Api.Controllers;
 public sealed class WoQcPhotoController : WoQcMutationControllerBase
 {
     private readonly IBlobStore _blobs;
+    private readonly Services.WoMutationExecutor _executor;
 
     public WoQcPhotoController(
         IMesDbContext db,
         IAuditWriter audit,
-        IBlobStore blobs)
+        IBlobStore blobs,
+        Services.WoMutationExecutor executor)
         : base(db, audit)
     {
         _blobs = blobs;
+        _executor = executor;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -130,26 +133,25 @@ public sealed class WoQcPhotoController : WoQcMutationControllerBase
             UploadedAt = now,
         };
         _db.WoQcPhotos.Add(photo);
-        // Touch parent so the trigger bumps RowVersion + ETag changes.
+        // Touch parent so the trigger bumps RowVersion + ETag changes, then
+        // hand the atomic save + L45 conflict path to the shared executor
+        // (A2 — SaveChanges lives in Services/, not the controller).
         wo.UpdatedAt = now;
         wo.UpdatedBy = actor;
 
-        try
-        {
-            await _db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // Race lost on WO row — operator must retry.
-            return await HandleWoStateConflictAsync(id, actor, role, "qc.photo", ct);
-        }
+        var outcome = await _executor.SaveAndResolveAsync(HttpContext, id, wo.WoNo, actor, role, "qc.photo");
+        if (outcome.Conflict)
+            // Race lost on WO row — operator must retry. Typed 409 body mirrors
+            // the shared WoQc conflict shape (WoQcSetResponse).
+            return Conflict(new WoQcSetResponse
+            {
+                Ok = false,
+                ErrorCode = "wo.state_conflict",
+                ETag = outcome.ETag,
+                MesPhase = outcome.Fresh?.MesPhase ?? "",
+            });
 
-        // Re-read for the trigger-bumped RowVersion + emit audit + response.
-        var freshWo = await _db.WorkOrders.AsNoTracking()
-            .Where(w => w.Id == id)
-            .Select(w => new { w.RowVersion, w.MesPhase })
-            .SingleAsync(ct);
-        var newEtag = Convert.ToBase64String(freshWo.RowVersion);
+        var newEtag = outcome.ETag;
 
         await _audit.EmitAsync(
             action: AuditAction.WoQcPhotoAdd,
@@ -170,12 +172,12 @@ public sealed class WoQcPhotoController : WoQcMutationControllerBase
                 file_name = photo.OriginalFileName,
             }));
 
-        Response.Headers.ETag = $"\"{newEtag}\"";
+        // (ETag header already set by the executor.)
         return Ok(new WoQcPhotoUploadResponse
         {
             Ok = true,
             ETag = newEtag,
-            MesPhase = freshWo.MesPhase ?? "",
+            MesPhase = outcome.Fresh?.MesPhase ?? "",
             Photo = new WoQcPhotoDto
             {
                 Id = photo.Id,
