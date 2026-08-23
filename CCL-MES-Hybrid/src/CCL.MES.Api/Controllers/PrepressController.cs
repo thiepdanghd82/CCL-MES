@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using CCL.MES.Api.Policies;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
@@ -114,9 +115,9 @@ public sealed class PrepressController : WoMutationControllerBase
         var pre = await PreludeAsync(id, actor, role, "prepress_material_set");
         if (pre.Error is not null) return pre.Error;
 
-        var statusErr = ParseStatus(req?.Status);
-        if (statusErr.Error is not null) return statusErr.Error;
-        var newStatus = statusErr.Value;
+        var statusParse = PrepressPolicy.ParseStatus(req?.Status);
+        if (!statusParse.IsValid) return Invalid(statusParse.ErrorCode!, statusParse.ErrorMessage!);
+        var newStatus = statusParse.Status;
 
         var ngErr = await ValidateNgAsync(newStatus, req?.NgReasonCode, req?.NgNote);
         if (ngErr is not null) return ngErr;
@@ -261,9 +262,9 @@ public sealed class PrepressController : WoMutationControllerBase
         var pre = await PreludeAsync(id, actor, role, "prepress_plate_set");
         if (pre.Error is not null) return pre.Error;
 
-        var statusErr = ParseStatus(req?.Status);
-        if (statusErr.Error is not null) return statusErr.Error;
-        var newStatus = statusErr.Value;
+        var statusParse = PrepressPolicy.ParseStatus(req?.Status);
+        if (!statusParse.IsValid) return Invalid(statusParse.ErrorCode!, statusParse.ErrorMessage!);
+        var newStatus = statusParse.Status;
 
         var ngErr = await ValidateNgAsync(newStatus, req?.NgReasonCode, req?.NgNote);
         if (ngErr is not null) return ngErr;
@@ -311,9 +312,9 @@ public sealed class PrepressController : WoMutationControllerBase
         var pre = await PreludeAsync(id, actor, role, "prepress_cutter_set");
         if (pre.Error is not null) return pre.Error;
 
-        var statusErr = ParseStatus(req?.Status);
-        if (statusErr.Error is not null) return statusErr.Error;
-        var newStatus = statusErr.Value;
+        var statusParse = PrepressPolicy.ParseStatus(req?.Status);
+        if (!statusParse.IsValid) return Invalid(statusParse.ErrorCode!, statusParse.ErrorMessage!);
+        var newStatus = statusParse.Status;
 
         var ngErr = await ValidateNgAsync(newStatus, req?.NgReasonCode, req?.NgNote);
         if (ngErr is not null) return ngErr;
@@ -429,43 +430,22 @@ public sealed class PrepressController : WoMutationControllerBase
         return (null, wo);
     }
 
-    // ── Body validation: status + NG reason/note ──────────────────
-
-    private static (PrepressCheckStatus Value, IActionResult? Error) ParseStatus(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return (PrepressCheckStatus.Pending,
-                new UnprocessableEntityObjectResult(ApiError.Of(
-                    "prepress.invalid_status",
-                    "Status is required (one of: Pending / Ok / Ng).")));
-        }
-        // Tolerate case-insensitive operator input.
-        if (!Enum.TryParse<PrepressCheckStatus>(raw, ignoreCase: true, out var v))
-        {
-            return (PrepressCheckStatus.Pending,
-                new UnprocessableEntityObjectResult(ApiError.Of(
-                    "prepress.invalid_status",
-                    $"Status '{raw}' is not one of Pending / Ok / Ng.")));
-        }
-        return (v, null);
-    }
+    // ── Body validation: NG catalog lookup (format via PrepressPolicy) ──
+    // Status parse + NG format (status→reason→note) live in PrepressPolicy
+    // (pure, unit-tested, reused by materials/plate/cutter). This method keeps
+    // ONLY the I/O part: the ReasonCodes(Kind=Scrap) catalog lookup, run AFTER
+    // the pure format check passes — byte-identical order to the old inline.
 
     private async Task<IActionResult?> ValidateNgAsync(
         PrepressCheckStatus status, string? ngReasonCode, string? ngNote)
     {
+        var fmtErr = PrepressPolicy.ValidateNgFormat(status, ngReasonCode, ngNote);
+        if (fmtErr is not null) return Invalid(fmtErr.Value.ErrorCode, fmtErr.Value.Message);
+
+        // Non-Ng short-circuits inside ValidateNgFormat (returns null) → no
+        // catalog lookup needed; mirror that here.
         if (status != PrepressCheckStatus.Ng) return null;
 
-        if (string.IsNullOrWhiteSpace(ngReasonCode))
-        {
-            return UnprocessableEntity(ApiError.Of("prepress.invalid_reason_code",
-                "NgReasonCode is required when status=NG."));
-        }
-        if (string.IsNullOrWhiteSpace(ngNote) || ngNote.Length > 500)
-        {
-            return UnprocessableEntity(ApiError.Of("prepress.invalid_ng_note",
-                "NgNote must be 1-500 chars when status=NG."));
-        }
         var exists = await _db.ReasonCodes.AsNoTracking()
             .AnyAsync(r => r.Code == ngReasonCode && r.Kind == ReasonCodeKind.Scrap);
         if (!exists)
