@@ -245,11 +245,17 @@ Nhánh `feat/qc-library-admin` giữ nguyên, không xoá.
 
 | ✅ D6.3 | Cột số căn trái ở lưới NPI | Hạ tầng đã có sẵn (`ColClass()` trả `grid-col-num`) nhưng class **chỉ áp cho `<th>`, không cho `<td>`** — đó là toàn bộ nguyên nhân. Nay `<td>` nhận cùng class + `tabular-nums`. Gate mới bắt tĩnh nếu ai tách lại |
 
-**Nợ còn treo (chưa chứng minh được nguyên nhân):** sau khi sửa, cột **QUANTITY**
-căn phải đúng nhưng **SCRAP FACTOR vẫn căn trái**, dù cả hai đi qua **cùng một**
-biểu thức `ColClass(col.Id)` và cùng một nhánh `switch`. Chưa có giải thích PROVEN
-nên KHÔNG vá mò — cần một lượt kiểm DOM thật (không dựng được từ ngoài WebView,
-phải mở Web Inspector trên máy) rồi mới sửa. Ghi ở đây thay vì im lặng.
+**Nợ SCRAP-FACTOR-căn-trái — ĐÃ RCA TĨNH 2026-08-23: KHÔNG có defect ở source.**
+Truy code `NpiStructures.razor`: `ColClass("scrap_factor")` = `grid-col-num`
+(dòng 193, **CÙNG nhánh switch** với `qty_assembly`); `<td>` cả hai cột nhận class
+qua **cùng** `ColClass(col.Id)` (dòng 53); CSS `.grid-col-num { text-align:right }`
+định nghĩa **giống hệt** ở ix.css:994 + app.css:2039 (không rule scrap-specific đè).
+⇒ Hai cột **byte-identical** về class + CSS → **không thể có bug code** khiến chỉ
+SCRAP FACTOR lệch. Symptom cũ (nếu còn) chỉ có thể là **runtime/cache** (build cũ
+trước fix `<td>`-grid-col-num, hoặc WebView cache) — KHÔNG phải mã. Đã rebuild app
+2026-08-23; Henry verify 1 lần trên bản mới: nếu đã căn phải ⇒ đóng hẳn; nếu còn
+lệch ⇒ mở Web Inspector chụp computed-style của đúng `<td>` đó (chỉ khi đó mới có
+defect thật để truy). **Không vá mò vì hiện KHÔNG có gì để vá.**
 
 ## D3/D4 — Component contract + tách `app.css`
 
