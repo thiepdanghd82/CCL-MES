@@ -23,7 +23,7 @@ BASELINE_SAVE=12     # đo 2026-08-18 (22); A2 rút commit-save vào
                      # WoQcReview+Ipqc → 18, WoQcPhoto upload → 17; WoQc GET
                      # → WoQcCheckMaterializer → 15; Ipqc GET → IpqcCheckMaterializer
                      # → 13 (2026-08-23)
-BASELINE_FAT=8       # controller > MAX_LOC dòng
+BASELINE_FAT=7       # controller > MAX_LOC dòng
 MAX_LOC=400
 
 here="$(cd "$(dirname "$0")" && pwd)"

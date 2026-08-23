@@ -68,45 +68,7 @@ public sealed class WoMutationExecutor
         }
         catch (DbUpdateConcurrencyException)
         {
-            // L45 — nhánh cuộc đua THẬT (hai operator ghi cùng WO): PHẢI để lại
-            // vết. Emit đứng SAU ChangeTracker.Clear(): ApiAuditWriter dùng CHUNG
-            // DbContext scoped của request; tracker còn bẩn thì SaveChanges của
-            // audit kéo theo UPDATE đã fail và ném lại, nuốt mất dòng audit lần nữa.
-            if (_db is DbContext ctx) ctx.ChangeTracker.Clear();
-            var freshC = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking().FirstOrDefaultAsync();
-            var freshEtagC = B64(freshC?.RowVersion);
-            http.Response.Headers.ETag = $"\"{freshEtagC}\"";
-            var clientVer = NormalizeETag(http.Request.Headers.IfMatch.ToString());
-            // Hai shape để giữ THỨ TỰ field byte-identical: không actor_id (4 surface
-            // cũ) vs có actor_id trước source (advance / force-phase).
-            object conflictDetail = actorId is null
-                ? new
-                {
-                    wo_id = woId,
-                    wo_no = woNo,
-                    attempted_action = attemptedAction,
-                    client_version = clientVer,
-                    server_version = freshEtagC,
-                    source = "ef_concurrency",
-                }
-                : new
-                {
-                    wo_id = woId,
-                    wo_no = woNo,
-                    attempted_action = attemptedAction,
-                    client_version = clientVer,
-                    server_version = freshEtagC,
-                    actor_id = actorId,
-                    source = "ef_concurrency",
-                };
-            await _audit.EmitAsync(
-                action: AuditAction.WoStateConflict,
-                actor: actor,
-                actorRole: role,
-                targetType: "WorkOrder",
-                targetId: woId.ToString(),
-                detail: JsonSerializer.Serialize(conflictDetail));
-            return new WoCommitOutcome(true, freshEtagC, freshC);
+            return await RaceConflictAsync(http, woId, woNo, actor, role, attemptedAction, actorId);
         }
 
         // Post-save: re-read RowVersion via AsNoTracking (Lesson L11 — SQLite
@@ -115,6 +77,88 @@ public sealed class WoMutationExecutor
         var freshEtag = B64(fresh?.RowVersion);
         http.Response.Headers.ETag = $"\"{freshEtag}\"";
         return new WoCommitOutcome(false, freshEtag, fresh);
+    }
+
+    /// <summary>
+    /// Đường conflict cho caller mà SaveChanges nằm Ở NƠI KHÁC (vd
+    /// <c>/advance</c> save trong WorkOrderService): gọi TRONG khối
+    /// <c>catch (DbUpdateConcurrencyException)</c>. Cùng cơ chế L45 với nhánh
+    /// catch của <see cref="SaveAndResolveAsync"/> (clear tracker → reread →
+    /// set ETag → emit WO_STATE_CONFLICT có source=ef_concurrency). Trả outcome
+    /// để controller dựng typed 409 body của nó.
+    /// </summary>
+    public Task<WoCommitOutcome> ResolveWoConflictAsync(
+        HttpContext http, long woId, string woNo, string actor, string role, string attemptedAction,
+        string? actorId = null)
+        => RaceConflictAsync(http, woId, woNo, actor, role, attemptedAction, actorId);
+
+    // L45 — dùng chung bởi catch của SaveAndResolveAsync + ResolveWoConflictAsync.
+    // Emit đứng SAU ChangeTracker.Clear(): ApiAuditWriter dùng CHUNG DbContext
+    // scoped của request; tracker còn bẩn thì SaveChanges của audit kéo theo
+    // UPDATE đã fail và ném lại, nuốt mất dòng audit lần nữa.
+    private async Task<WoCommitOutcome> RaceConflictAsync(
+        HttpContext http, long woId, string woNo, string actor, string role, string attemptedAction,
+        string? actorId)
+    {
+        if (_db is DbContext ctx) ctx.ChangeTracker.Clear();
+        var freshC = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking().FirstOrDefaultAsync();
+        var freshEtagC = B64(freshC?.RowVersion);
+        http.Response.Headers.ETag = $"\"{freshEtagC}\"";
+        var clientVer = NormalizeETag(http.Request.Headers.IfMatch.ToString());
+        // Hai shape để giữ THỨ TỰ field byte-identical: không actor_id (4 surface
+        // cũ) vs có actor_id trước source (advance / force-phase).
+        object detail = actorId is null
+            ? new
+            {
+                wo_id = woId, wo_no = woNo, attempted_action = attemptedAction,
+                client_version = clientVer, server_version = freshEtagC, source = "ef_concurrency",
+            }
+            : new
+            {
+                wo_id = woId, wo_no = woNo, attempted_action = attemptedAction,
+                client_version = clientVer, server_version = freshEtagC, actor_id = actorId, source = "ef_concurrency",
+            };
+        await _audit.EmitAsync(
+            action: AuditAction.WoStateConflict, actor: actor, actorRole: role,
+            targetType: "WorkOrder", targetId: woId.ToString(),
+            detail: JsonSerializer.Serialize(detail));
+        return new WoCommitOutcome(true, freshEtagC, freshC);
+    }
+
+    /// <summary>
+    /// Pre-check ETag (đường prelude cho surface không dùng base PreludeAsync — vd
+    /// <c>/advance</c>): so RowVersion hiện có với If-Match client. Lệch ⇒ stale:
+    /// set ETag header + emit WO_STATE_CONFLICT (KHÔNG source — đây là phát hiện
+    /// TRƯỚC khi ghi, không phải đua ef) + trả outcome.Conflict=true. Khớp ⇒
+    /// Conflict=false. Byte-identical với pre-check inline cũ (detail có actor_id,
+    /// KHÔNG source; dùng RowVersion của <paramref name="existing"/>, không reread).
+    /// </summary>
+    public async Task<WoCommitOutcome> PrecheckStaleAsync(
+        HttpContext http, WorkOrder existing, string actor, string role, string attemptedAction,
+        string? actorId = null)
+    {
+        var serverEtag = B64(existing.RowVersion);
+        var clientEtag = NormalizeETag(http.Request.Headers.IfMatch.ToString());
+        if (string.Equals(serverEtag, clientEtag, StringComparison.Ordinal))
+            return new WoCommitOutcome(false, serverEtag, existing);
+
+        object detail = actorId is null
+            ? new
+            {
+                wo_id = existing.Id, wo_no = existing.WoNo, attempted_action = attemptedAction,
+                client_version = clientEtag, server_version = serverEtag,
+            }
+            : new
+            {
+                wo_id = existing.Id, wo_no = existing.WoNo, attempted_action = attemptedAction,
+                client_version = clientEtag, server_version = serverEtag, actor_id = actorId,
+            };
+        await _audit.EmitAsync(
+            action: AuditAction.WoStateConflict, actor: actor, actorRole: role,
+            targetType: "WorkOrder", targetId: existing.Id.ToString(),
+            detail: JsonSerializer.Serialize(detail));
+        http.Response.Headers.ETag = $"\"{serverEtag}\"";
+        return new WoCommitOutcome(true, serverEtag, existing);
     }
 
     private static string B64(byte[]? rv) => rv is { Length: > 0 } ? Convert.ToBase64String(rv) : "";

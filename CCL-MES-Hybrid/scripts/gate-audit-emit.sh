@@ -57,10 +57,19 @@ for f in glob.glob(os.path.join(api,'Controllers','*.cs'))+glob.glob(os.path.joi
             continue
         blk=chr(10).join(lines[i:i+45])
         ok='EmitAsync' in blk
-        m=re.search(r'(\w*HandleConcurrency\w*)\s*\(', blk)
+        # (1) Delegation tới một handler CÙNG FILE (HandleConcurrency / RaceConflict /
+        #     ResolveWoConflict) mà THÂN của nó có EmitAsync — return-type-agnostic.
+        m=re.search(r'\b(\w*(?:HandleConcurrency|RaceConflict|ResolveWoConflict)\w*)\s*\(', blk)
         if not ok and m:
-            hm=re.search(r'private async Task<IActionResult> '+m.group(1)+r'\(.*?'+chr(10)+r'    \}', t, re.S)
+            # Neo vào DEFINITION (dòng có modifier + tên method), không phải call-site,
+            # rồi kiểm thân method có EmitAsync. Return-type-agnostic.
+            hm=re.search(r'(?:private|public|protected|internal)[^\n]*\b'+re.escape(m.group(1))+r'\b.*?'+chr(10)+r'    \}', t, re.S)
             ok=bool(hm) and 'EmitAsync' in hm.group(0)
+        # (2) Delegation CHÉO FILE tới executor dùng chung. Emit của executor được
+        #     bảo vệ bởi CHÍNH catch của SaveAndResolveAsync trong WoMutationExecutor.cs
+        #     (case (1) same-file), nên tin call `_executor.<conflict>` ở controller là an toàn.
+        if not ok and re.search(r'_executor\.(ResolveWoConflictAsync|SaveAndResolveAsync)\s*\(', blk):
+            ok=True
         if not ok:
             conflicts.append(os.path.basename(f)+':'+str(i+1))
 print(json.dumps({"nleak":len(leaks),"leaks":leaks[:5],"nsilent":len(silent),"silent":silent[:5],
