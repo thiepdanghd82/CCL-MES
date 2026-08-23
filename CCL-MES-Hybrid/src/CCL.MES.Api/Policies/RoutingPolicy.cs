@@ -45,6 +45,12 @@ public static class RoutingPolicy
     public const string InvalidPhase  = "leg.invalid_phase";
     public const string InvalidReason = "leg.invalid_reason";
 
+    /// <summary>Surface profile mặc định theo loại leg: TAPE/ASSEMBLY → LITE
+    /// (không cần full check-flow), còn lại (PRINT/CUT…) → FULL. Thuần.</summary>
+    public static string SurfaceFor(string legKind) =>
+        legKind is nameof(LegKind.TAPE) or nameof(LegKind.ASSEMBLY)
+            ? nameof(SurfaceProfile.LITE) : nameof(SurfaceProfile.FULL);
+
     /// <summary>
     /// Parse ToPhase của /advance: null/blank/unparseable → invalid_phase.
     /// Bọc <see cref="RoutingLegGate.TryParse"/> + kiểm rỗng, byte-identical

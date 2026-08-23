@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using CCL.MES.Api.Policies;
+using CCL.MES.Api.Services;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
@@ -61,7 +62,7 @@ public sealed class RoutingController : ControllerBase
         var view = new LegsView
         {
             WoId = wo.Id, WoNo = wo.WoNo, MesPhase = wo.MesPhase,
-            WoETag = B64(wo.RowVersion), TargetQty = wo.TargetQty,
+            WoETag = EtagCodec.Base64(wo.RowVersion), TargetQty = wo.TargetQty,
             Edges = wo.LegEdges.Select(e => new LegEdgeRow
             {
                 LegId = e.LegId, DependsOnLegId = e.DependsOnLegId,
@@ -84,7 +85,7 @@ public sealed class RoutingController : ControllerBase
                 Method = l.Method, ProcessLine = l.ProcessLine, LegPhase = l.LegPhase,
                 SurfaceProfile = l.SurfaceProfile, InputSource = l.InputSource,
                 SpecRevisionId = l.SpecRevisionId, QtyDoneCached = l.QtyDoneCached,
-                QtyNgCached = l.QtyNgCached, LegDoneAt = l.LegDoneAt, LegETag = B64(l.RowVersion),
+                QtyNgCached = l.QtyNgCached, LegDoneAt = l.LegDoneAt, LegETag = EtagCodec.Base64(l.RowVersion),
                 IsTerminal = WorkOrderStateMachine.IsTerminalLeg(wo, l),
                 SoftWaiting = soft, HardBlocked = hard,
                 MaterialsTotal = matsTotal, MaterialsOk = matsOk,
@@ -113,7 +114,7 @@ public sealed class RoutingController : ControllerBase
             return Ok(new LegMaterializeResponse
             {
                 Ok = true, Forked = false, LegCount = wo.Legs.Count,
-                MesPhase = wo.MesPhase, WoETag = B64(wo.RowVersion),
+                MesPhase = wo.MesPhase, WoETag = EtagCodec.Base64(wo.RowVersion),
             });
 
         // Resolve routing → leg plan (đúng recipe IpqcReviewController).
@@ -139,7 +140,7 @@ public sealed class RoutingController : ControllerBase
             return Ok(new LegMaterializeResponse
             {
                 Ok = true, Forked = false, LegCount = plan.Legs.Count,
-                MesPhase = wo.MesPhase, WoETag = B64(wo.RowVersion),
+                MesPhase = wo.MesPhase, WoETag = EtagCodec.Base64(wo.RowVersion),
                 Unmapped = plan.Unmapped.ToList(),
             });
 
@@ -149,7 +150,7 @@ public sealed class RoutingController : ControllerBase
             {
                 WorkOrderId = wo.Id, Sequence = node.Sequence, LegKind = node.LegKind,
                 Method = node.Method, ProcessLine = node.ProcessLine,
-                SurfaceProfile = SurfaceFor(node.LegKind), InputSource = nameof(InputSource.IN_LINE),
+                SurfaceProfile = RoutingPolicy.SurfaceFor(node.LegKind), InputSource = nameof(InputSource.IN_LINE),
                 LegPhase = nameof(LegPhase.PREPRESS), CreatedBy = actor,
             });
 
@@ -198,11 +199,11 @@ public sealed class RoutingController : ControllerBase
         await _audit.EmitAsync(AuditAction.WoSplitForked, actor, role, "WorkOrder", id.ToString(),
             JsonSerializer.Serialize(new { wo_id = id, wo_no = wo.WoNo, leg_count = plan.Legs.Count, edge_count = plan.Edges.Count }));
 
-        Response.Headers.ETag = $"\"{B64(fresh)}\"";
+        Response.Headers.ETag = $"\"{EtagCodec.Base64(fresh)}\"";
         return Ok(new LegMaterializeResponse
         {
             Ok = true, Forked = true, LegCount = plan.Legs.Count,
-            MesPhase = nameof(MesPhase.SPLIT), WoETag = B64(fresh),
+            MesPhase = nameof(MesPhase.SPLIT), WoETag = EtagCodec.Base64(fresh),
         });
     }
 
@@ -322,12 +323,7 @@ public sealed class RoutingController : ControllerBase
     }
 
     // ── Helpers ────────────────────────────────────────────────────
-
-    private static string B64(byte[]? rv) => rv is { Length: > 0 } ? Convert.ToBase64String(rv) : "";
-
-    private static string SurfaceFor(string legKind) =>
-        legKind is nameof(LegKind.TAPE) or nameof(LegKind.ASSEMBLY)
-            ? nameof(SurfaceProfile.LITE) : nameof(SurfaceProfile.FULL);
+    // B64/Normalize → Services.EtagCodec (dùng chung); SurfaceFor → RoutingPolicy.
 
     // WO-scoped prelude (materialize) — If-Match trên WO.RowVersion.
     private async Task<(IActionResult? Error, WorkOrder? Wo)> WoPreludeAsync(long id, string actor, string role, string action)
@@ -341,11 +337,11 @@ public sealed class RoutingController : ControllerBase
         var wo = await _db.WorkOrders.FirstOrDefaultAsync(w => w.Id == id);
         if (wo is null) return (NotFound(ApiError.Of("wo.not_found", $"No work order with id {id}.")), null);
 
-        if (!string.Equals(B64(wo.RowVersion), Norm(ifMatch), StringComparison.Ordinal))
+        if (!string.Equals(EtagCodec.Base64(wo.RowVersion), EtagCodec.Normalize(ifMatch), StringComparison.Ordinal))
         {
-            await EmitConflict(id, wo.WoNo, action, Norm(ifMatch), B64(wo.RowVersion), actor, role);
-            Response.Headers.ETag = $"\"{B64(wo.RowVersion)}\"";
-            return (Conflict(new LegMaterializeResponse { Ok = false, ErrorCode = "wo.state_conflict", MesPhase = wo.MesPhase, WoETag = B64(wo.RowVersion) }), null);
+            await EmitConflict(id, wo.WoNo, action, EtagCodec.Normalize(ifMatch), EtagCodec.Base64(wo.RowVersion), actor, role);
+            Response.Headers.ETag = $"\"{EtagCodec.Base64(wo.RowVersion)}\"";
+            return (Conflict(new LegMaterializeResponse { Ok = false, ErrorCode = "wo.state_conflict", MesPhase = wo.MesPhase, WoETag = EtagCodec.Base64(wo.RowVersion) }), null);
         }
         return (null, wo);
     }
@@ -364,11 +360,11 @@ public sealed class RoutingController : ControllerBase
         var leg = wo.Legs.FirstOrDefault(l => l.Id == legId);
         if (leg is null) return (NotFound(ApiError.Of("leg.not_found", $"No leg {legId} on WO {id}.")), null, null);
 
-        if (!string.Equals(B64(leg.RowVersion), Norm(ifMatch), StringComparison.Ordinal))
+        if (!string.Equals(EtagCodec.Base64(leg.RowVersion), EtagCodec.Normalize(ifMatch), StringComparison.Ordinal))
         {
-            await EmitConflict(id, wo.WoNo, action, Norm(ifMatch), B64(leg.RowVersion), actor, role);
-            Response.Headers.ETag = $"\"{B64(leg.RowVersion)}\"";
-            return (Conflict(new LegSetResponse { Ok = false, ErrorCode = "wo.state_conflict", LegId = legId, LegPhase = leg.LegPhase, LegETag = B64(leg.RowVersion), WoMesPhase = wo.MesPhase }), null, null);
+            await EmitConflict(id, wo.WoNo, action, EtagCodec.Normalize(ifMatch), EtagCodec.Base64(leg.RowVersion), actor, role);
+            Response.Headers.ETag = $"\"{EtagCodec.Base64(leg.RowVersion)}\"";
+            return (Conflict(new LegSetResponse { Ok = false, ErrorCode = "wo.state_conflict", LegId = legId, LegPhase = leg.LegPhase, LegETag = EtagCodec.Base64(leg.RowVersion), WoMesPhase = wo.MesPhase }), null, null);
         }
         return (null, wo, leg);
     }
@@ -378,7 +374,7 @@ public sealed class RoutingController : ControllerBase
         var freshLegRv = await _db.WoLegs.AsNoTracking().Where(l => l.Id == legId).Select(l => l.RowVersion).FirstOrDefaultAsync();
         var freshPhase = await _db.WoLegs.AsNoTracking().Where(l => l.Id == legId).Select(l => l.LegPhase).FirstOrDefaultAsync();
         var woPhase = await _db.WorkOrders.AsNoTracking().Where(w => w.Id == id).Select(w => w.MesPhase).FirstOrDefaultAsync();
-        var etag = B64(freshLegRv);
+        var etag = EtagCodec.Base64(freshLegRv);
         Response.Headers.ETag = $"\"{etag}\"";
         return Ok(new LegSetResponse
         {
@@ -392,7 +388,7 @@ public sealed class RoutingController : ControllerBase
         if (_db is DbContext ctx) ctx.ChangeTracker.Clear();
         var fresh = await _db.WoLegs.AsNoTracking().Where(l => l.Id == legId)
             .Select(l => new { l.RowVersion, l.LegPhase }).FirstOrDefaultAsync();
-        var etag = B64(fresh?.RowVersion);
+        var etag = EtagCodec.Base64(fresh?.RowVersion);
         Response.Headers.ETag = $"\"{etag}\"";
         return Conflict(new LegSetResponse { Ok = false, ErrorCode = "wo.state_conflict", LegId = legId, LegPhase = fresh?.LegPhase ?? "", LegETag = etag, WoMesPhase = wo.MesPhase });
     }
@@ -400,12 +396,4 @@ public sealed class RoutingController : ControllerBase
     private async Task EmitConflict(long id, string woNo, string action, string clientV, string serverV, string actor, string role)
         => await _audit.EmitAsync(AuditAction.WoStateConflict, actor, role, "WorkOrder", id.ToString(),
             JsonSerializer.Serialize(new { wo_id = id, wo_no = woNo, attempted_action = action, client_version = clientV, server_version = serverV }));
-
-    private static string Norm(string raw)
-    {
-        var s = raw.Trim();
-        if (s.StartsWith("W/", StringComparison.OrdinalIgnoreCase)) s = s[2..];
-        if (s.Length >= 2 && s[0] == '"' && s[^1] == '"') s = s[1..^1];
-        return s;
-    }
 }
