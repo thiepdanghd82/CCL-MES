@@ -31,12 +31,12 @@ namespace CCL.MES.Api.Controllers;
 public sealed class SemiStockController : ControllerBase
 {
     private readonly IMesDbContext _db;
-    private readonly IAuditWriter _audit;
+    private readonly Services.SemiLotMutationService _semi;
 
-    public SemiStockController(IMesDbContext db, IAuditWriter audit)
+    public SemiStockController(IMesDbContext db, Services.SemiLotMutationService semi)
     {
         _db = db;
-        _audit = audit;
+        _semi = semi;
     }
 
     private (string actor, string role) Who() =>
@@ -63,11 +63,8 @@ public sealed class SemiStockController : ControllerBase
             SourceWorkOrderId = req.SourceWorkOrderId, QtyProduced = req.Qty, QtyAvailable = req.Qty,
             QtyReserved = 0, Status = nameof(SemiLotStatus.AVAILABLE), ExpiryAt = req.ExpiryAt, CreatedBy = actor,
         };
-        _db.SemiLots.Add(lot);
-        await _db.SaveChangesAsync(ct);
-        await _audit.EmitAsync(AuditAction.SemiLotPost, actor, role, "SemiLot", lot.Id.ToString(),
-            JsonSerializer.Serialize(new { lot_no = lot.LotNo, semi_kind = lot.SemiKind, source_wo_id = lot.SourceWorkOrderId, qty = lot.QtyProduced }));
-        return Ok(new SemiSetResponse { Ok = true, SemiLotId = lot.Id, Allocated = lot.QtyProduced });
+        var lotId = await _semi.PostAsync(lot, actor, role, ct);
+        return Ok(new SemiSetResponse { Ok = true, SemiLotId = lotId, Allocated = lot.QtyProduced });
     }
 
     // ── GET /semi-lots — kho view (FEFO) ───────────────────────────
@@ -148,15 +145,8 @@ public sealed class SemiStockController : ControllerBase
             lotIds.Add(lot.Id);
         }
 
-        try { await _db.SaveChangesAsync(ct); }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (_db is DbContext ctx) ctx.ChangeTracker.Clear();
+        if (!await _semi.CommitReserveAsync(id, legId, plan.Allocated, lotIds, actor, role, ct))
             return Conflict(new SemiSetResponse { Ok = false, ErrorCode = "semi.lot_conflict" });
-        }
-
-        await _audit.EmitAsync(AuditAction.SemiLotReserve, actor, role, "WoLeg", legId.ToString(),
-            JsonSerializer.Serialize(new { wo_id = id, assembly_leg_id = legId, qty = plan.Allocated, lot_ids = lotIds }));
         return Ok(new SemiSetResponse { Ok = true, Allocated = plan.Allocated, Shortfall = 0, LotIds = lotIds });
     }
 
@@ -183,15 +173,8 @@ public sealed class SemiStockController : ControllerBase
             lotIds.Add(lot.Id);
         }
 
-        try { await _db.SaveChangesAsync(ct); }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (_db is DbContext ctx) ctx.ChangeTracker.Clear();
+        if (!await _semi.CommitConsumeAsync(id, legId, consumed, lotIds, actor, role, ct))
             return Conflict(new SemiSetResponse { Ok = false, ErrorCode = "semi.lot_conflict" });
-        }
-
-        await _audit.EmitAsync(AuditAction.SemiLotConsume, actor, role, "WoLeg", legId.ToString(),
-            JsonSerializer.Serialize(new { wo_id = id, assembly_leg_id = legId, qty = consumed, lot_ids = lotIds }));
         return Ok(new SemiSetResponse { Ok = true, Allocated = consumed, LotIds = lotIds });
     }
 }

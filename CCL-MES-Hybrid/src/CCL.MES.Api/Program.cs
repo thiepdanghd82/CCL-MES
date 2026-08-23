@@ -424,6 +424,8 @@ builder.Services.AddScoped<CCL.MES.Api.Services.WoMutationExecutor>();
 builder.Services.AddScoped<CCL.MES.Api.Services.WoQcCheckMaterializer>();
 // A2 — Ipqc GET lazy-materialise + auto-sync (Plan C) + self-heal.
 builder.Services.AddScoped<CCL.MES.Api.Services.IpqcCheckMaterializer>();
+// A2 — Semi-Stock commit (SaveChanges out of SemiStockController).
+builder.Services.AddScoped<CCL.MES.Api.Services.SemiLotMutationService>();
 
 // P10.5e-1 — Drawings upload + download orchestrator. Legacy Phase 8
 // PR-D-5b service composed of IMesDbContext + IBlobStore (registered
