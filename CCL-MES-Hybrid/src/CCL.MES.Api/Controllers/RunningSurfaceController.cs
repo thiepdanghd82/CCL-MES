@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using CCL.MES.Api.Policies;
 using CCL.MES.Application;
 using CCL.MES.Application.Audit;
 using CCL.MES.Application.Services;
@@ -256,12 +257,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
 
         if (req is null)
             return Invalid("running.invalid_body", "Body is required.");
-        if (req.QtyDoneDelta < 0 || req.QtyNgDelta < 0)
-            return Invalid("running.invalid_qty_delta",
-                "Add deltas must be >= 0; use /run/qty/correct for negative.");
-        if (req.QtyDoneDelta == 0 && req.QtyNgDelta == 0)
-            return Invalid("running.invalid_qty_delta",
-                "At least one of QtyDoneDelta or QtyNgDelta must be > 0.");
+        var bodyErr = RunningSurfacePolicy.ValidateQtyAdd(req);
+        if (bodyErr is not null) return Invalid(bodyErr.Value.ErrorCode, bodyErr.Value.Message);
 
         if (req.QtyNgDelta > 0)
         {
@@ -312,9 +309,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
 
         if (req is null)
             return Invalid("running.invalid_body", "Body is required.");
-        if (string.IsNullOrWhiteSpace(req.CorrectionReason) || req.CorrectionReason.Length > 500)
-            return Invalid("running.invalid_correction_reason",
-                "CorrectionReason is required (1-500 chars).");
+        var bodyErr = RunningSurfacePolicy.ValidateQtyCorrect(req);
+        if (bodyErr is not null) return Invalid(bodyErr.Value.ErrorCode, bodyErr.Value.Message);
 
         var linkedEntry = await _db.WoQtyEntries.FirstOrDefaultAsync(e => e.Id == req.LinkedEntryId);
         if (linkedEntry is null)
@@ -362,10 +358,10 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
             return Invalid("wo.invalid_phase",
                 $"run/pause requires MesPhase = RUNNING; current = {wo.MesPhase}.");
 
-        if (req is null || string.IsNullOrWhiteSpace(req.ReasonCode))
+        if (req is null)
             return Invalid("running.invalid_reason_code", "ReasonCode is required.");
-        if (req.Note is not null && req.Note.Length > 500)
-            return Invalid("running.invalid_note", "Note must be 0-500 chars.");
+        var fmtErr = RunningSurfacePolicy.ValidatePauseFormat(req);
+        if (fmtErr is not null) return Invalid(fmtErr.Value.ErrorCode, fmtErr.Value.Message);
 
         var pauseReasonOk = await _db.ReasonCodes.AsNoTracking()
             .AnyAsync(r => r.Code == req.ReasonCode && r.Kind == ReasonCodeKind.Pause);
@@ -515,12 +511,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
     private async Task<IActionResult?> ValidateNgAsync(
         string? ngReasonCode, string? ngNote, ReasonCodeKind kind)
     {
-        if (string.IsNullOrWhiteSpace(ngReasonCode))
-            return Invalid("running.invalid_reason_code",
-                $"NgReasonCode is required when QtyNgDelta > 0.");
-        if (string.IsNullOrWhiteSpace(ngNote) || ngNote.Length > 500)
-            return Invalid("running.invalid_ng_note",
-                "NgNote must be 1-500 chars when QtyNgDelta > 0.");
+        var fmtErr = RunningSurfacePolicy.ValidateNgFormat(ngReasonCode, ngNote);
+        if (fmtErr is not null) return Invalid(fmtErr.Value.ErrorCode, fmtErr.Value.Message);
 
         var exists = await _db.ReasonCodes.AsNoTracking()
             .AnyAsync(r => r.Code == ngReasonCode && r.Kind == kind);
