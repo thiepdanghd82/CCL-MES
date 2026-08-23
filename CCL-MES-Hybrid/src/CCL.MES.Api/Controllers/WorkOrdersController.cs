@@ -47,13 +47,15 @@ public sealed class WorkOrdersController : ControllerBase
     private readonly IAuditWriter _audit;
     private readonly IMesDbContext _db;
     private readonly Services.ITraceIndexService _traceIndex;
+    private readonly Services.WoMutationExecutor _executor;
     public WorkOrdersController(WorkOrderService svc, IAuditWriter audit, IMesDbContext db,
-        Services.ITraceIndexService traceIndex)
+        Services.ITraceIndexService traceIndex, Services.WoMutationExecutor executor)
     {
         _svc = svc;
         _audit = audit;
         _db = db;
         _traceIndex = traceIndex;
+        _executor = executor;
     }
 
     // Best-effort real-time index touch — a scan/find/advance surfaces the WO
@@ -284,38 +286,17 @@ public sealed class WorkOrdersController : ControllerBase
                 "Idempotency-Key header required for this advance. Generate a UUID per intent."));
         }
 
-        var serverEtagRaw = Convert.ToBase64String(existing.RowVersion);
-        var clientEtagRaw = NormalizeETag(ifMatch);
-        if (!string.Equals(serverEtagRaw, clientEtagRaw, StringComparison.Ordinal))
-        {
-            // Stale ETag — emit WO_STATE_CONFLICT audit + return server's
-            // current ETag so the client can reload without re-fetching.
-            var conflictDetail = JsonSerializer.Serialize(new
-            {
-                wo_id = id,
-                wo_no = existing.WoNo,
-                attempted_action = "advance",
-                client_version = clientEtagRaw,
-                server_version = serverEtagRaw,
-                actor_id = actorIdStr,
-            });
-            await _audit.EmitAsync(
-                action: AuditAction.WoStateConflict,
-                actor: actor,
-                actorRole: role,
-                targetType: "WorkOrder",
-                targetId: id.ToString(),
-                detail: conflictDetail);
-
-            Response.Headers.ETag = $"\"{serverEtagRaw}\"";
+        // Pre-check stale ETag → 409 + WO_STATE_CONFLICT (with actor_id, no
+        // source) via the shared executor (A2-B — one WO conflict path).
+        var stale = await _executor.PrecheckStaleAsync(HttpContext, existing, actor, role, "advance", actorIdStr);
+        if (stale.Conflict)
             return Conflict(new AdvanceWorkOrderResponse
             {
                 Ok = false,
                 CurrentStep = existing.CurrentStep.ToString(),
                 ErrorCode = "wo.state_conflict",
-                ETag = serverEtagRaw,
+                ETag = stale.ETag,
             });
-        }
 
         var deviceId = Request.Headers["X-Device-Id"].ToString();
         // Capture BEFORE state explicitly — the WorkOrderService.AdvanceAsync
@@ -333,54 +314,19 @@ public sealed class WorkOrdersController : ControllerBase
         }
         catch (DbUpdateConcurrencyException)
         {
-            // EF Core's [Timestamp] optimistic concurrency tripped — another
-            // operator's UPDATE landed between our existence check + our
-            // SaveChanges. This is the soak-test path: 10 parallel POSTs all
-            // pass the If-Match precheck (same starting RowVersion), only
-            // one wins SaveChanges. Map to the same 409 + audit shape the
-            // up-front If-Match miss uses, so the client UX is identical.
-
-            // After a concurrency failure, EF's change tracker still holds
-            // the failed WO + the WoStatusHistory row that the service
-            // queued. Clear them so the downstream IdempotencyMiddleware's
-            // SaveChanges (which writes the response envelope row) doesn't
-            // re-attempt the same failed UPDATE.
-            if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
-                dbCtx.ChangeTracker.Clear();
-            var freshAfterConcurrency = await _db.WorkOrders
-                .Where(w => w.Id == id)
-                .AsNoTracking()
-                .Select(w => w.RowVersion)
-                .SingleOrDefaultAsync();
-            var concurrencyEtag = freshAfterConcurrency is not null && freshAfterConcurrency.Length > 0
-                ? Convert.ToBase64String(freshAfterConcurrency)
-                : serverEtagRaw;
-
-            var concurrencyDetail = JsonSerializer.Serialize(new
-            {
-                wo_id = id,
-                wo_no = existing.WoNo,
-                attempted_action = "advance",
-                client_version = clientEtagRaw,
-                server_version = concurrencyEtag,
-                actor_id = actorIdStr,
-                source = "ef_concurrency",
-            });
-            await _audit.EmitAsync(
-                action: AuditAction.WoStateConflict,
-                actor: actor,
-                actorRole: role,
-                targetType: "WorkOrder",
-                targetId: id.ToString(),
-                detail: concurrencyDetail);
-
-            Response.Headers.ETag = $"\"{concurrencyEtag}\"";
+            // Race lost at the SERVICE's SaveChanges (soak-test path: N parallel
+            // POSTs pass the pre-check on the same RowVersion, one wins). Resolve
+            // via the shared executor — L45: clear tracker → reread → emit
+            // WO_STATE_CONFLICT (source=ef_concurrency + actor_id). Same 409 shape
+            // as the pre-check so the client UX is identical.
+            var raced = await _executor.ResolveWoConflictAsync(
+                HttpContext, id, existing.WoNo, actor, role, "advance", actorIdStr);
             return Conflict(new AdvanceWorkOrderResponse
             {
                 Ok = false,
                 CurrentStep = existing.CurrentStep.ToString(),
                 ErrorCode = "wo.state_conflict",
-                ETag = concurrencyEtag,
+                ETag = raced.ETag,
             });
         }
 
@@ -397,7 +343,7 @@ public sealed class WorkOrdersController : ControllerBase
             .SingleOrDefaultAsync();
         var newEtagRaw = freshRowVersion is not null && freshRowVersion.Length > 0
             ? Convert.ToBase64String(freshRowVersion)
-            : serverEtagRaw;
+            : stale.ETag;
 
         Response.Headers.ETag = $"\"{newEtagRaw}\"";
 
@@ -439,18 +385,7 @@ public sealed class WorkOrdersController : ControllerBase
         });
     }
 
-    /// <summary>P10.7a-1.3 — strip the standard HTTP ETag wrapping
-    /// (<c>"value"</c> + optional weak prefix <c>W/</c>) so the server
-    /// can compare against the raw base64 RowVersion. RFC 7232 lets
-    /// clients omit the quotes for compat with naive HTTP libs;
-    /// accept both.</summary>
-    private static string NormalizeETag(string raw)
-    {
-        var s = raw.Trim();
-        if (s.StartsWith("W/", StringComparison.OrdinalIgnoreCase))
-            s = s.Substring(2);
-        if (s.Length >= 2 && s[0] == '"' && s[^1] == '"')
-            s = s.Substring(1, s.Length - 2);
-        return s;
-    }
+    // NormalizeETag removed (A2-B) — ETag pre-check + race-conflict now go through
+    // WoMutationExecutor (PrecheckStaleAsync / ResolveWoConflictAsync), which owns
+    // the RFC 7232 W/ + quote stripping.
 }
