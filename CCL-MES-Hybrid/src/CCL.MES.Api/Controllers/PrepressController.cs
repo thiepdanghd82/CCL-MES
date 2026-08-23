@@ -49,16 +49,19 @@ public sealed class PrepressController : WoMutationControllerBase
 {
     private readonly PrepressBomSnapshotService _snapshot;
     private readonly MaterialLotScanService _lots;
+    private readonly Services.WoMutationExecutor _executor;
 
     public PrepressController(
         IMesDbContext db,
         IAuditWriter audit,
         PrepressBomSnapshotService snapshot,
-        MaterialLotScanService lots)
+        MaterialLotScanService lots,
+        Services.WoMutationExecutor executor)
         : base(db, audit)
     {
         _snapshot = snapshot;
         _lots = lots;
+        _executor = executor;
     }
 
     // ── GET /work-orders/{id}/prepress ─────────────────────────────
@@ -483,11 +486,12 @@ public sealed class PrepressController : WoMutationControllerBase
         var (hasSnap, allOk) = MaterialsReadinessRollup.Compute(materials, plate, cutter);
 
         // Always touch the WO row so the SQLite UPDATE trigger bumps
-        // RowVersion + EF's [Timestamp] concurrency check fires
-        // correctly under parallel writes. Child-only writes that don't
-        // touch WO leave its RowVersion stale + 10 concurrent ops would
-        // all "succeed" on the same If-Match. Touch UpdatedAt
-        // unconditionally; set MaterialsReady conditionally.
+        // RowVersion + EF's [Timestamp] concurrency check fires correctly under
+        // parallel writes. Child-only writes that don't touch WO leave its
+        // RowVersion stale + 10 concurrent ops would all "succeed" on the same
+        // If-Match. Touch UpdatedAt unconditionally; set MaterialsReady
+        // conditionally. Then hand the atomic save + L45 conflict path to the
+        // shared executor (A2 — SaveChanges lives in Services/, not the controller).
         wo.UpdatedAt = DateTime.UtcNow;
         wo.UpdatedBy = actor;
         if (hasSnap)
@@ -495,27 +499,15 @@ public sealed class PrepressController : WoMutationControllerBase
             wo.MaterialsReady = allOk;
         }
 
-        try
-        {
-            // Single SaveChanges commits the child row mutation + the
-            // WO touch + (optional) MaterialsReady flip atomically.
-            // SQLite write-lock + EF [Timestamp] check serialise
-            // concurrent operators — race losers throw here and land
-            // in the catch as 409.
-            await _db.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return await HandleConcurrencyAsync(woId, wo, actor, role, action);
-        }
-
-        // Read fresh RowVersion (Lesson 1 — SQLite trigger fires AFTER UPDATE).
-        var freshRowVersion = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking()
-            .Select(w => w.RowVersion).SingleOrDefaultAsync();
-        var newEtagRaw = freshRowVersion is not null && freshRowVersion.Length > 0
-            ? Convert.ToBase64String(freshRowVersion) : "";
-
-        Response.Headers.ETag = $"\"{newEtagRaw}\"";
+        var outcome = await _executor.SaveAndResolveAsync(HttpContext, woId, wo.WoNo, actor, role, action);
+        if (outcome.Conflict)
+            return Conflict(new PrepressSetResponse
+            {
+                Ok = false,
+                ErrorCode = "wo.state_conflict",
+                ETag = outcome.ETag,
+                MaterialsReady = wo.MaterialsReady,
+            });
 
         // Audit emit per row write.
         var detailObj = new
@@ -537,50 +529,7 @@ public sealed class PrepressController : WoMutationControllerBase
         {
             Ok = true,
             MaterialsReady = wo.MaterialsReady,
-            ETag = newEtagRaw,
-        });
-    }
-
-    private async Task<IActionResult> HandleConcurrencyAsync(
-        long woId, WorkOrder wo, string actor, string role, string attemptedAction)
-    {
-        if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
-            dbCtx.ChangeTracker.Clear();
-        var freshRv = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking()
-            .Select(w => w.RowVersion).SingleOrDefaultAsync();
-        var freshEtag = freshRv is not null && freshRv.Length > 0
-            ? Convert.ToBase64String(freshRv) : "";
-        Response.Headers.ETag = $"\"{freshEtag}\"";
-
-        // L45 — nhánh SaveChanges CŨNG phải để lại vết. Trước đây chỉ nhánh
-        // pre-check (ETag cũ phát hiện TRƯỚC khi ghi) emit WO_STATE_CONFLICT;
-        // nhánh này là cuộc đua THẬT giữa hai operator và nó trả 409 mà không
-        // ghi audit dòng nào ⇒ đúng kịch bản P10.7-WO-STATE-CONTRACT sinh ra để
-        // bảo vệ lại là kịch bản không truy được.
-        // Emit PHẢI đứng SAU ChangeTracker.Clear(): ApiAuditWriter dùng CHUNG
-        // DbContext scoped của request; tracker còn bẩn thì SaveChanges của audit
-        // kéo theo UPDATE đã fail và ném lại, nuốt mất dòng audit lần nữa.
-        await _audit.EmitAsync(
-            action: AuditAction.WoStateConflict,
-            actor: actor,
-            actorRole: role,
-            targetType: "WorkOrder",
-            targetId: woId.ToString(),
-            detail: JsonSerializer.Serialize(new
-            {
-                wo_id = woId,
-                wo_no = wo.WoNo,
-                attempted_action = attemptedAction,
-                client_version = NormalizeETag(Request.Headers.IfMatch.ToString()),
-                server_version = freshEtag,
-                source = "ef_concurrency",
-            }));
-        return Conflict(new PrepressSetResponse
-        {
-            Ok = false,
-            ErrorCode = "wo.state_conflict",
-            ETag = freshEtag,
-            MaterialsReady = wo.MaterialsReady,
+            ETag = outcome.ETag,
         });
     }
 

@@ -18,7 +18,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-BASELINE_SAVE=22     # đo 2026-08-18
+BASELINE_SAVE=20     # đo 2026-08-18 (22); A2 rút 2 save (RunningSurface+Prepress)
+                     # vào Services/WoMutationExecutor 2026-08-23 → 20
 BASELINE_FAT=8       # controller > MAX_LOC dòng
 MAX_LOC=400
 

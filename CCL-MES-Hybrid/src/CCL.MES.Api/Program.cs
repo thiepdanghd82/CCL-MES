@@ -417,6 +417,9 @@ builder.Services.AddScoped<CCL.MES.Api.Services.AccountControlService>();
 builder.Services.AddScoped<CCL.MES.Api.Services.ITraceIndexService, CCL.MES.Api.Services.TraceIndexService>();
 builder.Services.AddScoped<CCL.MES.Api.Services.ITraceFreezeService, CCL.MES.Api.Services.TraceFreezeService>();
 builder.Services.AddScoped<CCL.MES.Api.Services.TraceBackfillService>();
+// A2 — shared atomic WO-mutation commit + L45 conflict-audit path (extracted
+// out of the controllers so SaveChanges lives in one tested/gated place).
+builder.Services.AddScoped<CCL.MES.Api.Services.WoMutationExecutor>();
 
 // P10.5e-1 — Drawings upload + download orchestrator. Legacy Phase 8
 // PR-D-5b service composed of IMesDbContext + IBlobStore (registered

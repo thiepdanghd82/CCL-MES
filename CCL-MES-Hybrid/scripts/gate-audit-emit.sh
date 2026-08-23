@@ -39,11 +39,18 @@ for f in glob.glob(os.path.join(api,'**','*.cs'),recursive=True):
         if BAD.search(m.group(1)):
             leaks.append(os.path.basename(f)+': '+m.group(1).strip()[:60])
 silent=[]
-conflicts=[]
 for f in glob.glob(os.path.join(api,'Controllers','*.cs')):
     t=open(f,encoding='utf-8').read()
     if 'SaveChangesAsync' in t and not re.search(r'EmitAsync|IAuditWriter|AuditEmitHelper|_audit',t):
         silent.append(os.path.basename(f))
+# (C) CONFLICT IM LẶNG (L45) — quét CẢ Controllers/ VÀ Services/: đường xử lý
+# conflict (catch DbUpdateConcurrencyException → 409) đã được A2 rút vào
+# Services/WoMutationExecutor để mỏng controller; enforcement L45 phải theo nó
+# sang Services/ chứ không chỉ ở Controllers/ (nếu không, gỡ emit trong executor
+# sẽ lọt gate).
+conflicts=[]
+for f in glob.glob(os.path.join(api,'Controllers','*.cs'))+glob.glob(os.path.join(api,'Services','*.cs')):
+    t=open(f,encoding='utf-8').read()
     lines=t.splitlines()
     for i,ln in enumerate(lines):
         if 'catch (DbUpdateConcurrencyException' not in ln:

@@ -59,11 +59,14 @@ namespace CCL.MES.Api.Controllers;
 public sealed class RunningSurfaceController : WoMutationControllerBase
 {
     private readonly Services.ITraceFreezeService _trace;
+    private readonly Services.WoMutationExecutor _executor;
 
-    public RunningSurfaceController(IMesDbContext db, IAuditWriter audit, Services.ITraceFreezeService trace)
+    public RunningSurfaceController(IMesDbContext db, IAuditWriter audit,
+        Services.ITraceFreezeService trace, Services.WoMutationExecutor executor)
         : base(db, audit)
     {
         _trace = trace;
+        _executor = executor;
     }
 
     // ── GET /running-surface ───────────────────────────────────────
@@ -601,32 +604,23 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
         string action, object extraDetail)
     {
         // Always touch the WO row so the SQLite UPDATE trigger bumps
-        // RowVersion + EF [Timestamp] concurrency check fires
-        // correctly under parallel writes (matches 7b-2 atomic
-        // pattern). Domain services already set UpdatedAt/By on the
-        // entities they mutate; this is the belt-and-suspenders.
+        // RowVersion + EF [Timestamp] concurrency check fires correctly under
+        // parallel writes. Then hand the atomic save + L45 conflict path to the
+        // shared executor (A2 — SaveChanges lives in Services/, not the controller).
         wo.UpdatedAt = DateTime.UtcNow;
         wo.UpdatedBy = actor;
 
-        try
-        {
-            // SINGLE SaveChanges commits the service-mutated rows + the
-            // WO touch atomically. Race losers throw here.
-            await _db.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return await HandleConcurrencyAsync(woId, wo, actor, role, action);
-        }
-
-        // Post-save: re-read RowVersion via AsNoTracking (Lesson L11 —
-        // SQLite UPDATE trigger fires AFTER the RETURNING clause).
-        var freshRowVersion = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking()
-            .Select(w => w.RowVersion).SingleOrDefaultAsync();
-        var newEtagRaw = freshRowVersion is not null && freshRowVersion.Length > 0
-            ? Convert.ToBase64String(freshRowVersion) : "";
-
-        Response.Headers.ETag = $"\"{newEtagRaw}\"";
+        var outcome = await _executor.SaveAndResolveAsync(HttpContext, woId, wo.WoNo, actor, role, action);
+        if (outcome.Conflict)
+            return Conflict(new RunningSurfaceSetResponse
+            {
+                Ok = false,
+                ErrorCode = "wo.state_conflict",
+                ETag = outcome.ETag,
+                MesPhase = outcome.Fresh?.MesPhase ?? wo.MesPhase,
+                QtyDoneCached = outcome.Fresh?.QtyDoneCached ?? wo.QtyDoneCached,
+                QtyNgCached = outcome.Fresh?.QtyNgCached ?? wo.QtyNgCached,
+            });
 
         var detailObj = new
         {
@@ -648,66 +642,10 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
         return Ok(new RunningSurfaceSetResponse
         {
             Ok = true,
-            ETag = newEtagRaw,
+            ETag = outcome.ETag,
             MesPhase = wo.MesPhase,
             QtyDoneCached = wo.QtyDoneCached,
             QtyNgCached = wo.QtyNgCached,
-        });
-    }
-
-    private async Task<IActionResult> HandleConcurrencyAsync(
-        long woId, WorkOrder wo, string actor, string role, string attemptedAction)
-    {
-        // L12 — clear change tracker BEFORE the next read so downstream
-        // middleware SaveChanges doesn't replay the failed write.
-        if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
-            dbCtx.ChangeTracker.Clear();
-
-        var freshRv = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking()
-            .Select(w => new { w.RowVersion, w.MesPhase, w.QtyDoneCached, w.QtyNgCached })
-            .SingleOrDefaultAsync();
-        var freshEtag = freshRv?.RowVersion is not null && freshRv.RowVersion.Length > 0
-            ? Convert.ToBase64String(freshRv.RowVersion) : "";
-        Response.Headers.ETag = $"\"{freshEtag}\"";
-
-        // L45 — nhánh này CŨNG phải để lại vết.
-        //
-        // Trước đây chỉ nhánh pre-check (phát hiện ETag cũ TRƯỚC khi ghi) emit
-        // WO_STATE_CONFLICT. Nhánh này là cuộc đua THẬT — hai operator cùng ghi,
-        // kẻ thua vỡ ở SaveChanges — và nó trả 409 mà không ghi audit dòng nào.
-        // Đo được: 10 request song song ⇒ wire LUÔN đúng 9 × 409 (tất định),
-        // nhưng audit chỉ 3–9 dòng tuỳ lần chạy, chờ 3s không hội tụ ⇒ mất thật,
-        // không phải ghi trễ. Đúng kịch bản mà P10.7-WO-STATE-CONTRACT sinh ra để
-        // bảo vệ (§B.8 "per-shift state machine corruption") lại là kịch bản
-        // không truy được.
-        //
-        // Emit PHẢI đứng SAU ChangeTracker.Clear(): ApiAuditWriter dùng CHUNG
-        // DbContext scoped của request; nếu tracker còn giữ UPDATE đã fail thì
-        // SaveChanges của audit sẽ kéo theo nó và ném lại DbUpdateConcurrencyException,
-        // nuốt mất dòng audit lần nữa.
-        await _audit.EmitAsync(
-            action: AuditAction.WoStateConflict,
-            actor: actor,
-            actorRole: role,
-            targetType: "WorkOrder",
-            targetId: woId.ToString(),
-            detail: JsonSerializer.Serialize(new
-            {
-                wo_id = woId,
-                wo_no = wo.WoNo,
-                attempted_action = attemptedAction,
-                client_version = NormalizeETag(Request.Headers.IfMatch.ToString()),
-                server_version = freshEtag,
-                source = "ef_concurrency",
-            }));
-        return Conflict(new RunningSurfaceSetResponse
-        {
-            Ok = false,
-            ErrorCode = "wo.state_conflict",
-            ETag = freshEtag,
-            MesPhase = freshRv?.MesPhase ?? wo.MesPhase,
-            QtyDoneCached = freshRv?.QtyDoneCached ?? wo.QtyDoneCached,
-            QtyNgCached = freshRv?.QtyNgCached ?? wo.QtyNgCached,
         });
     }
 }
