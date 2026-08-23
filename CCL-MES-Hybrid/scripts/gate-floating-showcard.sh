@@ -36,6 +36,22 @@ is_allowed() {
   return 1
 }
 
+# ── self-test: prove the detector still catches a hand-rolled dialog ───────────
+# Mirrors the inline-showcard scan (a literal role="dialog" WITHOUT
+# <FloatingWindow> = a showcard that dodged the filename check).
+if [ "${1:-}" = "--self-test" ]; then
+  tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+  printf '<div role="dialog"><p>hand-rolled window chrome</p></div>\n' \
+    > "$tmp/GateSelftestInline.razor"
+  if grep -q 'role="dialog"' "$tmp/GateSelftestInline.razor" \
+     && ! grep -q "<FloatingWindow" "$tmp/GateSelftestInline.razor"; then
+    echo "[gate:floating-showcard] self-test OK (an inline role=\"dialog\" without <FloatingWindow> is detected)"
+    exit 0
+  fi
+  echo "[gate:floating-showcard] self-test FAILED — detector missed a hand-rolled dialog"
+  exit 1
+fi
+
 fail=0
 checked=0
 while IFS= read -r f; do
