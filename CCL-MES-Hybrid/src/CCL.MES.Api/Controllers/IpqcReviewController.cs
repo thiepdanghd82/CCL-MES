@@ -70,16 +70,19 @@ public sealed class IpqcReviewController : WoMutationControllerBase
 {
     private readonly IpqcDualSigOptions _dualSig;
     private readonly Services.ITraceFreezeService _trace;
+    private readonly Services.WoMutationExecutor _executor;
 
     public IpqcReviewController(
         IMesDbContext db,
         IAuditWriter audit,
         IOptions<IpqcDualSigOptions> dualSig,
-        Services.ITraceFreezeService trace)
+        Services.ITraceFreezeService trace,
+        Services.WoMutationExecutor executor)
         : base(db, audit)
     {
         _dualSig = dualSig.Value;
         _trace = trace;
+        _executor = executor;
     }
 
     // Best-effort trace freeze — never breaks the confirm; idempotent in service.
@@ -664,30 +667,21 @@ public sealed class IpqcReviewController : WoMutationControllerBase
         string actor, string role,
         string action, object extraDetail)
     {
-        // Touch the WO row so the SQLite UPDATE trigger bumps RowVersion
-        // + EF [Timestamp] concurrency check fires under parallel writes
-        // (matches 7c-2 atomic pattern).
+        // Touch the WO row (trigger bumps RowVersion) then hand the atomic
+        // save + L45 conflict path to the shared executor (A2 — SaveChanges
+        // lives in Services/, not the controller).
         wo.UpdatedAt = DateTime.UtcNow;
         wo.UpdatedBy = actor;
 
-        try
-        {
-            // SINGLE SaveChanges commits the check mutation + WO touch
-            // atomically. Race losers throw here.
-            await _db.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return await HandleConcurrencyAsync(woId, wo, actor, role, action);
-        }
-
-        // Post-save: re-read RowVersion via AsNoTracking (Lesson L11).
-        var freshRowVersion = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking()
-            .Select(w => w.RowVersion).SingleOrDefaultAsync();
-        var newEtagRaw = freshRowVersion is not null && freshRowVersion.Length > 0
-            ? Convert.ToBase64String(freshRowVersion) : "";
-
-        Response.Headers.ETag = $"\"{newEtagRaw}\"";
+        var outcome = await _executor.SaveAndResolveAsync(HttpContext, woId, wo.WoNo, actor, role, action);
+        if (outcome.Conflict)
+            return Conflict(new IpqcSetResponse
+            {
+                Ok = false,
+                ErrorCode = "wo.state_conflict",
+                ETag = outcome.ETag,
+                MesPhase = outcome.Fresh?.MesPhase ?? wo.MesPhase,
+            });
 
         var (ready, allOk, anyNg) = IpqcReadinessRollup.Compute(check, check.Items?.ToList());
 
@@ -709,58 +703,11 @@ public sealed class IpqcReviewController : WoMutationControllerBase
         return Ok(new IpqcSetResponse
         {
             Ok = true,
-            ETag = newEtagRaw,
+            ETag = outcome.ETag,
             MesPhase = wo.MesPhase,
             IsReadyForJudgment = ready,
             AllOk = allOk,
             AnyNg = anyNg,
-        });
-    }
-
-    private async Task<IActionResult> HandleConcurrencyAsync(
-        long woId, WorkOrder wo, string actor, string role, string attemptedAction)
-    {
-        // L12 — clear change tracker BEFORE the next read so downstream
-        // middleware SaveChanges doesn't replay the failed write.
-        if (_db is Microsoft.EntityFrameworkCore.DbContext dbCtx)
-            dbCtx.ChangeTracker.Clear();
-
-        var freshRv = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking()
-            .Select(w => new { w.RowVersion, w.MesPhase })
-            .SingleOrDefaultAsync();
-        var freshEtag = freshRv?.RowVersion is not null && freshRv.RowVersion.Length > 0
-            ? Convert.ToBase64String(freshRv.RowVersion) : "";
-        Response.Headers.ETag = $"\"{freshEtag}\"";
-
-        // L45 — nhánh SaveChanges CŨNG phải để lại vết. Trước đây chỉ nhánh
-        // pre-check (ETag cũ phát hiện TRƯỚC khi ghi) emit WO_STATE_CONFLICT;
-        // nhánh này là cuộc đua THẬT giữa hai operator và nó trả 409 mà không
-        // ghi audit dòng nào ⇒ đúng kịch bản P10.7-WO-STATE-CONTRACT sinh ra để
-        // bảo vệ lại là kịch bản không truy được.
-        // Emit PHẢI đứng SAU ChangeTracker.Clear(): ApiAuditWriter dùng CHUNG
-        // DbContext scoped của request; tracker còn bẩn thì SaveChanges của audit
-        // kéo theo UPDATE đã fail và ném lại, nuốt mất dòng audit lần nữa.
-        await _audit.EmitAsync(
-            action: AuditAction.WoStateConflict,
-            actor: actor,
-            actorRole: role,
-            targetType: "WorkOrder",
-            targetId: woId.ToString(),
-            detail: JsonSerializer.Serialize(new
-            {
-                wo_id = woId,
-                wo_no = wo.WoNo,
-                attempted_action = attemptedAction,
-                client_version = NormalizeETag(Request.Headers.IfMatch.ToString()),
-                server_version = freshEtag,
-                source = "ef_concurrency",
-            }));
-        return Conflict(new IpqcSetResponse
-        {
-            Ok = false,
-            ErrorCode = "wo.state_conflict",
-            ETag = freshEtag,
-            MesPhase = freshRv?.MesPhase ?? wo.MesPhase,
         });
     }
 

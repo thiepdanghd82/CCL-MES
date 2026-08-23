@@ -75,18 +75,21 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
 
     private readonly Services.ITraceFreezeService _trace;
     private readonly Services.WorkCenterSpeedLookup _wcSpeed;
+    private readonly Services.WoMutationExecutor _executor;
 
     public WoQcReviewController(
         IMesDbContext db,
         IAuditWriter audit,
         IOptions<WoQcSigPolicyOptions> sigPolicy,
         Services.ITraceFreezeService trace,
-        Services.WorkCenterSpeedLookup wcSpeed)
+        Services.WorkCenterSpeedLookup wcSpeed,
+        Services.WoMutationExecutor executor)
         : base(db, audit)
     {
         _sigPolicy = sigPolicy.Value;
         _trace = trace;
         _wcSpeed = wcSpeed;
+        _executor = executor;
     }
 
     // Best-effort trace freeze — never breaks the confirm; idempotent in service.
@@ -671,29 +674,27 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
         long woId, WorkOrder wo, WoQcCheck check,
         string actor, string role, string action, object extraDetail)
     {
+        // Touch the WO row (trigger bumps RowVersion) then hand the atomic
+        // save + L45 conflict path to the shared executor (A2 — SaveChanges
+        // lives in Services/, not the controller).
         wo.UpdatedAt = DateTime.UtcNow;
         wo.UpdatedBy = actor;
-        try
-        {
-            await _db.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return await HandleWoStateConflictAsync(woId, actor, role, action);
-        }
 
-        // Re-read freshly to capture the trigger-bumped RowVersion (L11).
-        var freshWo = await _db.WorkOrders.AsNoTracking()
-            .Where(w => w.Id == woId)
-            .Select(w => new { w.RowVersion, w.MesPhase })
-            .SingleAsync();
-        var newEtag = Convert.ToBase64String(freshWo.RowVersion);
+        var outcome = await _executor.SaveAndResolveAsync(HttpContext, woId, wo.WoNo, actor, role, action);
+        if (outcome.Conflict)
+            return Conflict(new WoQcSetResponse
+            {
+                Ok = false,
+                ErrorCode = "wo.state_conflict",
+                ETag = outcome.ETag,
+                MesPhase = outcome.Fresh?.MesPhase ?? "",
+            });
 
         var detail = JsonSerializer.Serialize(new
         {
             wo_id = woId,
             wo_no = wo.WoNo,
-            mes_phase_after = freshWo.MesPhase,
+            mes_phase_after = outcome.Fresh?.MesPhase,
             extra = extraDetail,
         });
         await _audit.EmitAsync(
@@ -706,12 +707,11 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
 
         var profileExpected = QcProfileResolver.ProfileKeyCount(check.ProfileSnapshotJson);
         var (ready, allOk, anyNg) = WoQcReadinessRollup.Compute(check, profileExpected);
-        Response.Headers.ETag = $"\"{newEtag}\"";
         return Ok(new WoQcSetResponse
         {
             Ok = true,
-            ETag = newEtag,
-            MesPhase = freshWo.MesPhase ?? "",
+            ETag = outcome.ETag,
+            MesPhase = outcome.Fresh?.MesPhase ?? "",
             IsReadyForJudgment = ready,
             AllOk = allOk,
             AnyNg = anyNg,
