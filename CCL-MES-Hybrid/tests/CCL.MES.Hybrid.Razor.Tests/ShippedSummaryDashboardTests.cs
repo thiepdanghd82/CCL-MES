@@ -85,7 +85,9 @@ public sealed class ShippedSummaryDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var chip = cut.Find("[data-testid='shipped-phase-chip']");
-            Assert.Contains("SHIPPED", chip.TextContent);
+            // A2 nhãn VN: chip hiện NHÃN song ngữ; token SHIPPED ổn định ở data-phase.
+            Assert.Equal("SHIPPED", chip.GetAttribute("data-phase"));
+            Assert.False(string.IsNullOrWhiteSpace(chip.TextContent));
         });
     }
 

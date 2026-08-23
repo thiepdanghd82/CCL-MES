@@ -78,5 +78,14 @@ public sealed partial class TranslationCatalog
         Add("legs.phase.running",            "Đang chạy",                                                    "Running");
         Add("legs.phase.paused",             "Tạm dừng",                                                     "Paused");
         Add("legs.phase.leg_done",           "Xong",                                                         "Done");
+        // WO-level MesPhase còn lại (nhãn song ngữ cho StatusPill — A2 nhãn VN 14 phase).
+        Add("legs.phase.new",                "Mới",                                                          "New");
+        Add("legs.phase.split",              "Tách nhánh",                                                   "Split");
+        Add("legs.phase.qa_pending",         "Chờ QA",                                                       "Awaiting QA");
+        Add("legs.phase.fqc_pending",        "Chờ FQC",                                                      "Awaiting FQC");
+        Add("legs.phase.oqc_pending",        "Chờ OQC",                                                      "Awaiting OQC");
+        Add("legs.phase.done",               "Hoàn tất",                                                     "Done");
+        Add("legs.phase.cancelled",          "Đã huỷ",                                                       "Cancelled");
+        Add("legs.phase.shipped",            "Đã xuất kho",                                                  "Shipped");
     }
 }

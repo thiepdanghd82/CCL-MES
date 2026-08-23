@@ -76,22 +76,30 @@ public sealed class PhaseVisualTests
             new[] { "ix-pill", "ix-pill-info", "ix-pill-ok", "ix-pill-warn", "ix-pill-alarm" }));
     }
 
+    // A2 nhãn VN (Henry duyệt): 14 MesPhase + LEG_DONE đều có key i18n song ngữ.
     [Theory]
+    [InlineData("NEW", "legs.phase.new")]
+    [InlineData("PREPRESS", "legs.phase.prepress")]
+    [InlineData("SPLIT", "legs.phase.split")]
+    [InlineData("SETTING", "legs.phase.setting")]
+    [InlineData("IPQC_WAIT", "legs.phase.ipqc_wait")]
+    [InlineData("IPQC_APPROVED", "legs.phase.ipqc_approved")]
     [InlineData("RUNNING", "legs.phase.running")]
-    [InlineData("LEG_DONE", "legs.phase.leg_done")]
     [InlineData("PAUSED", "legs.phase.paused")]
-    public void Leg_phases_resolve_to_the_existing_i18n_keys(string phase, string key)
+    [InlineData("QA_PENDING", "legs.phase.qa_pending")]
+    [InlineData("FQC_PENDING", "legs.phase.fqc_pending")]
+    [InlineData("OQC_PENDING", "legs.phase.oqc_pending")]
+    [InlineData("DONE", "legs.phase.done")]
+    [InlineData("CANCELLED", "legs.phase.cancelled")]
+    [InlineData("SHIPPED", "legs.phase.shipped")]
+    [InlineData("LEG_DONE", "legs.phase.leg_done")]
+    public void Phases_resolve_to_the_i18n_key(string phase, string key)
         => Assert.Equal(key, PhaseVisual.LabelKey(phase));
 
     [Theory]
-    [InlineData("SHIPPED")]
-    [InlineData("QA_PENDING")]
-    [InlineData("SPLIT")]
-    public void Wo_only_phases_have_no_label_key_yet_so_the_raw_token_shows(string phase)
-    {
-        // CỐ Ý: bịa nhãn tiếng Việt cho 14 phase WO là quyết định về từ ngữ vận
-        // hành, phải do người vận hành chốt. Tới lúc đó StatusPill hiện token thô
-        // — đúng hành vi đang có, không đổi thầm chữ trên màn hình của ai cả.
-        Assert.Null(PhaseVisual.LabelKey(phase));
-    }
+    [InlineData("FOO_UNKNOWN")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void Unknown_phase_has_no_label_key_so_the_raw_token_shows(string? phase)
+        => Assert.Null(PhaseVisual.LabelKey(phase));
 }

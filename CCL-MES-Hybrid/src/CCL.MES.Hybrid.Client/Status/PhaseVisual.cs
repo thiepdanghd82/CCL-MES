@@ -82,18 +82,20 @@ public static class PhaseVisual
     };
 
     /// <summary>
-    /// Key i18n của nhãn, hoặc <c>null</c> nếu chưa có bản dịch — khi null,
-    /// <c>StatusPill</c> hiển thị nguyên token. CỐ Ý giữ vậy: bịa nhãn cho 14
-    /// phase WO là quyết định về từ ngữ vận hành, phải do người vận hành chốt,
-    /// không phải do component tự quyết. Xem IMPROVEMENT-BACKLOG.
+    /// Key i18n của nhãn (song ngữ VI/EN trong <c>TranslationCatalog.Legs</c>),
+    /// hoặc <c>null</c> cho token lạ (contract mở rộng mà quên thêm nhãn) — khi
+    /// null <c>StatusPill</c> hiện nguyên token. Từ ngữ 14 MesPhase + LEG_DONE
+    /// đã chốt (A2, Henry duyệt); mỗi key có cả VI + EN (gate-i18n-parity ép).
     /// </summary>
     public static string? LabelKey(string? phase)
     {
         var p = Normalise(phase);
         return p switch
         {
-            "PREPRESS" or "SETTING" or "IPQC_WAIT" or "IPQC_APPROVED"
-                or "RUNNING" or "PAUSED" or "LEG_DONE" => "legs.phase." + p.ToLowerInvariant(),
+            "NEW" or "PREPRESS" or "SPLIT" or "SETTING" or "IPQC_WAIT"
+                or "IPQC_APPROVED" or "RUNNING" or "PAUSED" or "QA_PENDING"
+                or "FQC_PENDING" or "OQC_PENDING" or "DONE" or "CANCELLED"
+                or "SHIPPED" or "LEG_DONE" => "legs.phase." + p.ToLowerInvariant(),
             _ => null,
         };
     }
