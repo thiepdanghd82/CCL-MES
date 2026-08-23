@@ -39,7 +39,7 @@
             <div class="rs-head-wo">
                 <span class="rs-head-label">WO</span>
                 <span class="rs-head-wo-no">@_report.WoNo</span>
-                <span class="rs-head-phase rs-phase-shipped" data-testid="shipped-phase-chip">@_report.MesPhase</span>
+                <StatusPill Phase="@_report.MesPhase" Label="@_report.MesPhase" TestId="shipped-phase-chip" />
             </div>
             @if (_report.ShippedAt is { } at)
             {
