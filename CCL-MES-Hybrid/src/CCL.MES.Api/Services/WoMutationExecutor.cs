@@ -74,7 +74,7 @@ public sealed class WoMutationExecutor
         // Post-save: re-read RowVersion via AsNoTracking (Lesson L11 — SQLite
         // UPDATE trigger fires AFTER the RETURNING clause).
         var fresh = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking().FirstOrDefaultAsync();
-        var freshEtag = B64(fresh?.RowVersion);
+        var freshEtag = EtagCodec.Base64(fresh?.RowVersion);
         http.Response.Headers.ETag = $"\"{freshEtag}\"";
         return new WoCommitOutcome(false, freshEtag, fresh);
     }
@@ -102,9 +102,9 @@ public sealed class WoMutationExecutor
     {
         if (_db is DbContext ctx) ctx.ChangeTracker.Clear();
         var freshC = await _db.WorkOrders.Where(w => w.Id == woId).AsNoTracking().FirstOrDefaultAsync();
-        var freshEtagC = B64(freshC?.RowVersion);
+        var freshEtagC = EtagCodec.Base64(freshC?.RowVersion);
         http.Response.Headers.ETag = $"\"{freshEtagC}\"";
-        var clientVer = NormalizeETag(http.Request.Headers.IfMatch.ToString());
+        var clientVer = EtagCodec.Normalize(http.Request.Headers.IfMatch.ToString());
         // Hai shape để giữ THỨ TỰ field byte-identical: không actor_id (4 surface
         // cũ) vs có actor_id trước source (advance / force-phase).
         object detail = actorId is null
@@ -137,8 +137,8 @@ public sealed class WoMutationExecutor
         HttpContext http, WorkOrder existing, string actor, string role, string attemptedAction,
         string? actorId = null)
     {
-        var serverEtag = B64(existing.RowVersion);
-        var clientEtag = NormalizeETag(http.Request.Headers.IfMatch.ToString());
+        var serverEtag = EtagCodec.Base64(existing.RowVersion);
+        var clientEtag = EtagCodec.Normalize(http.Request.Headers.IfMatch.ToString());
         if (string.Equals(serverEtag, clientEtag, StringComparison.Ordinal))
             return new WoCommitOutcome(false, serverEtag, existing);
 
@@ -159,16 +159,5 @@ public sealed class WoMutationExecutor
             detail: JsonSerializer.Serialize(detail));
         http.Response.Headers.ETag = $"\"{serverEtag}\"";
         return new WoCommitOutcome(true, serverEtag, existing);
-    }
-
-    private static string B64(byte[]? rv) => rv is { Length: > 0 } ? Convert.ToBase64String(rv) : "";
-
-    private static string NormalizeETag(string raw)
-    {
-        var trimmed = raw.Trim();
-        if (trimmed.StartsWith("W/", StringComparison.Ordinal)) trimmed = trimmed[2..];
-        if (trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"')
-            trimmed = trimmed[1..^1];
-        return trimmed;
     }
 }
