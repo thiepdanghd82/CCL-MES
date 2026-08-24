@@ -30,6 +30,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CCL.MES.Shared\CCL.MES.Shared.csproj" />
     <ProjectReference Include="..\..\src\CCL.MES.Hybrid.Client\CCL.MES.Hybrid.Client.csproj" />
+    <!-- Domain: chỉ để guard phủ đủ MesPhase enum trên WO-card palette (D3/D4). -->
+    <ProjectReference Include="..\..\..\src\CCL.MES.Domain\CCL.MES.Domain.csproj" />
   </ItemGroup>
 
 </Project>
