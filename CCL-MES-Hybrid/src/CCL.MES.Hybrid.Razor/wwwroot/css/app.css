@@ -5734,6 +5734,20 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 }
 .setting-subtab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+/* Single-process WO → no switcher, just a quiet process label. */
+.setting-single-process {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--d-tap);
+    padding-inline: var(--sp-4);
+    border-radius: var(--r-md);
+    background: var(--c-bg);
+    border: 1px solid var(--c-line);
+    color: var(--c-ink);
+    font-size: var(--d-font);
+    font-weight: var(--fw-semibold);
+}
+
 .setting-check-wrap { overflow-x: auto; }
 .setting-table {
     width: 100%;

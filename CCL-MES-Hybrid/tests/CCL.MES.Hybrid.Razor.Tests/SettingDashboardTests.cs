@@ -57,7 +57,9 @@ public sealed class SettingDashboardTests : TestContext
     private static RunningSurfaceView SettingView(
         string etag = "abc==",
         DateTime? startAt = null,
-        string phase = "SETTING") => new()
+        string phase = "SETTING",
+        bool hasPrint = true,
+        bool hasCut = true) => new()
     {
         WoId = 42,
         WoNo = "WO-26-3701",
@@ -65,6 +67,8 @@ public sealed class SettingDashboardTests : TestContext
         ETag = etag,
         TargetQty = 1000,
         SettingStartAt = startAt,
+        HasPrintProcess = hasPrint,
+        HasCutProcess = hasCut,
     };
 
     // ── Initial render ─────────────────────────────────────────────
@@ -235,6 +239,63 @@ public sealed class SettingDashboardTests : TestContext
         Assert.Equal(CutItemCount,
             cut.FindAll("[data-testid^='setting-row-cut-']").Count);
         Assert.Empty(cut.FindAll("[data-testid^='setting-row-print-']"));
+    }
+
+    // ── P10.7f — routing-driven tab visibility ─────────────────────
+
+    [Fact]
+    public void Print_only_WO_hides_Cut_tab_and_needs_only_print_to_advance()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(startAt: DateTime.UtcNow.AddMinutes(-1), hasPrint: true, hasCut: false));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-checklist']")));
+        // No switcher — single process. Cut tab + rows absent; Print rows present.
+        Assert.Empty(cut.FindAll("[data-testid='setting-tab-cut']"));
+        Assert.NotNull(cut.Find("[data-testid='setting-single-process']"));
+        Assert.Equal(PrintItemCount, cut.FindAll("[data-testid^='setting-row-print-']").Count);
+        Assert.Empty(cut.FindAll("[data-testid^='setting-row-cut-']"));
+
+        // Advance needs ONLY the print rows (Cut is not applicable).
+        for (var i = 0; i < PrintItemCount; i++)
+            cut.Find($"[data-testid='setting-item-print-{i}-ok']").Click();
+
+        cut.WaitForAssertion(() =>
+            Assert.False(cut.Find("[data-testid='setting-done-btn']").HasAttribute("disabled"),
+                "Print-only WO: all Print rows OK → advance enabled without a Cut tab."));
+    }
+
+    [Fact]
+    public void Cut_only_WO_snaps_active_tab_to_Cut()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(startAt: DateTime.UtcNow.AddMinutes(-1), hasPrint: false, hasCut: true));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-checklist']")));
+        // Default active is Print, but Print is hidden → clamp to Cut rows.
+        Assert.Empty(cut.FindAll("[data-testid='setting-tab-print']"));
+        Assert.Equal(CutItemCount, cut.FindAll("[data-testid^='setting-row-cut-']").Count);
+        Assert.Empty(cut.FindAll("[data-testid^='setting-row-print-']"));
+    }
+
+    [Fact]
+    public void Both_processes_render_the_switcher()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(startAt: DateTime.UtcNow.AddMinutes(-1), hasPrint: true, hasCut: true));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-subtabs']")));
+        Assert.NotNull(cut.Find("[data-testid='setting-tab-print']"));
+        Assert.NotNull(cut.Find("[data-testid='setting-tab-cut']"));
     }
 
     // ── Every row uses the shared ConfirmToggle (L52), not bare buttons ─

@@ -38,6 +38,13 @@ public sealed record RunningSurfaceView
     public DateTime? SettingEndAt { get; init; }
     public int? SettingDurationSec { get; init; }
 
+    /// <summary>P10.7f — which SETTING sub-tabs this WO needs, derived from its
+    /// routing plan (leg kinds PRINT / CUT / PRINT_CUT). Default true = show the
+    /// tab. Unknown / unmapped routing → BOTH true so the operator never loses
+    /// coverage. Only meaningful at MesPhase=SETTING; other phases leave both true.</summary>
+    public bool HasPrintProcess { get; init; } = true;
+    public bool HasCutProcess { get; init; } = true;
+
     public long? ActiveSessionId { get; init; }
     public DateTime? ActiveSessionStartAt { get; init; }
 
