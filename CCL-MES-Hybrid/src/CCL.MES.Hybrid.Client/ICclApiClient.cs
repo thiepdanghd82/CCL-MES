@@ -271,6 +271,37 @@ public interface ICclApiClient
         long workOrderId, string ifMatchETag,
         SetIpqcSlotRequest req, CancellationToken ct = default);
 
+    // ── SETTING checks persist (P10.7g) ────────────────────────────
+
+    /// <summary>Read view backing the SettingDashboard. Single round-trip:
+    /// materialised item list (Print/Cut by applicable process) + per-item
+    /// defect drop-list + server rollup Ready + current ETag. Lazy-materialises
+    /// on first read. Throws on 404 / 401.</summary>
+    Task<CCL.MES.Shared.SettingChecks.SettingChecksView> GetSettingChecksAsync(
+        long workOrderId, CancellationToken ct = default);
+
+    /// <summary>Set OK/NG (+ defect + note + applicable) for one SETTING check
+    /// item. 200 carries bumped ETag + post-write Ready; 409 carries fresh
+    /// server ETag (ErrorCode "wo.state_conflict"); 422 carries a domain
+    /// reject code (setting.invalid_*). Policy SettingItemSet (incl. Operator).</summary>
+    Task<CCL.MES.Shared.SettingChecks.SettingChecksSetResponse> PutSettingItemAsync(
+        long workOrderId, string ifMatchETag, string itemKey,
+        CCL.MES.Shared.SettingChecks.SetSettingItemRequest req, CancellationToken ct = default);
+
+    /// <summary>F4 add item. Engineer+ also writes the per-product master
+    /// library; Operator writes an ad-hoc per-WO row only (server decides by
+    /// role — no 403 for Operator here). AddedKey in the response = new
+    /// item key.</summary>
+    Task<CCL.MES.Shared.SettingChecks.SettingChecksSetResponse> PostSettingItemAsync(
+        long workOrderId, string ifMatchETag,
+        CCL.MES.Shared.SettingChecks.AddSettingItemRequest req, CancellationToken ct = default);
+
+    /// <summary>QC-add-new: register a per-product defect option for an item.
+    /// Policy SettingItemAdd (Engineer+; Operator 403).</summary>
+    Task<CCL.MES.Shared.SettingChecks.SettingChecksSetResponse> PostSettingDefectAsync(
+        long workOrderId, string ifMatchETag,
+        CCL.MES.Shared.SettingChecks.AddSettingDefectRequest req, CancellationToken ct = default);
+
     /// <summary>Phương án C — Bước 6: liệt kê thư viện hạng mục kiểm (read).</summary>
     Task<IReadOnlyList<CCL.MES.Shared.CheckLibrary.CheckLibraryItemDto>> GetCheckLibraryAsync(
         string? line = null, string? stage = null, string? q = null, CancellationToken ct = default);

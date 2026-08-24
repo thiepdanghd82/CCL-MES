@@ -64,6 +64,17 @@ public static class DbSeeder
             Console.WriteLine($"[seed] process_line_map skipped — {ex.GetType().Name}: {ex.Message}");
         }
 
+        // P10.7g — thư viện khâu SETTING (20 hạng mục + base defect options).
+        try
+        {
+            var s = await SeedSettingLibraryAsync(db);
+            Console.WriteLine($"[seed] setting_library items_ins={s.LibInserted} items_upd={s.LibUpdated} defects_ins={s.DefectInserted}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[seed] setting_library skipped — {ex.GetType().Name}: {ex.Message}");
+        }
+
         // P11-1 — map op→leg (routing DAG đa phương pháp, data-driven).
         try
         {
@@ -499,6 +510,93 @@ public static class DbSeeder
         await db.SaveChangesAsync();
         return new ProcessLineMapSeedResult(inserted, updated,
             await db.ProcessLegMaps.CountAsync());
+    }
+
+    public readonly record struct SettingLibrarySeedResult(
+        int LibInserted, int LibUpdated, int DefectInserted);
+
+    /// <summary>
+    /// P10.7g — seed/upsert thư viện khâu SETTING (makeready): 20 hạng mục
+    /// <see cref="CheckItemLibrary"/> stage <c>Setting=true</c> (ItemId
+    /// "SET-PR-00".."SET-CU-09", ProductCode null) + base
+    /// <see cref="CheckItemDefectOption"/> per hạng mục (ProductCode null).
+    /// Idempotent theo natural key — chạy 2 lần ra cùng số dòng. NON-deleting
+    /// (DR-1): admin có thể tắt Active thủ công, seed không xoá. Data thuần từ
+    /// <see cref="SettingLibrarySeed"/>.
+    /// </summary>
+    public static async Task<SettingLibrarySeedResult> SeedSettingLibraryAsync(MesDbContext db)
+    {
+        // ── 20 hạng mục vào CheckItemLibrary (upsert theo ItemId) ──────────
+        var existing = await db.CheckItemLibraries
+            .Where(c => c.Setting)
+            .ToListAsync();
+        var byItemId = existing.ToDictionary(x => x.ItemId, StringComparer.Ordinal);
+
+        int libInserted = 0, libUpdated = 0;
+        foreach (var it in SettingLibrarySeed.Items())
+        {
+            if (byItemId.TryGetValue(it.ItemId, out var cur))
+            {
+                bool changed = false;
+                if (cur.ProcessLine != it.ProcessKind) { cur.ProcessLine = it.ProcessKind; changed = true; }
+                if (cur.GroupLabel != it.GroupLabel) { cur.GroupLabel = it.GroupLabel; changed = true; }
+                if (cur.ItemVi != it.ItemVi) { cur.ItemVi = it.ItemVi; changed = true; }
+                if (cur.ItemEn != it.ItemEn) { cur.ItemEn = it.ItemEn; changed = true; }
+                if (cur.AcceptanceVi != it.AcceptanceVi) { cur.AcceptanceVi = it.AcceptanceVi; changed = true; }
+                if (cur.AcceptanceEn != it.AcceptanceEn) { cur.AcceptanceEn = it.AcceptanceEn; changed = true; }
+                if (!cur.Setting) { cur.Setting = true; changed = true; }
+                if (cur.Sort != it.Sort) { cur.Sort = it.Sort; changed = true; }
+                if (changed) { cur.UpdatedAt = DateTime.UtcNow; cur.UpdatedBy = "seed"; libUpdated++; }
+            }
+            else
+            {
+                db.CheckItemLibraries.Add(new CheckItemLibrary
+                {
+                    ItemId = it.ItemId,
+                    ProcessLine = it.ProcessKind,
+                    ProductCode = null,
+                    GroupLabel = it.GroupLabel,
+                    Code = "",
+                    Setting = true,
+                    Active = true,
+                    ItemVi = it.ItemVi, ItemEn = it.ItemEn,
+                    AcceptanceVi = it.AcceptanceVi, AcceptanceEn = it.AcceptanceEn,
+                    Sort = it.Sort,
+                    CreatedBy = "seed",
+                });
+                libInserted++;
+            }
+        }
+
+        // ── ~75 base defect options (upsert theo (ItemId, DefectCode) với
+        //    ProductCode null) ──────────────────────────────────────────────
+        var existingDefects = await db.CheckItemDefectOptions
+            .Where(o => o.ProductCode == null)
+            .ToListAsync();
+        var byDefectKey = new HashSet<(string, string)>(
+            existingDefects.Select(o => (o.ItemId, o.DefectCode)));
+
+        int defectInserted = 0;
+        foreach (var d in SettingLibrarySeed.Defects())
+        {
+            if (byDefectKey.Contains((d.ItemId, d.DefectCode))) continue;
+            db.CheckItemDefectOptions.Add(new CheckItemDefectOption
+            {
+                ItemId = d.ItemId,
+                DefectCode = d.DefectCode,
+                LabelVi = d.LabelVi,
+                LabelEn = d.LabelEn,
+                ProductCode = null,
+                Active = true,
+                Sort = d.Sort,
+                CreatedBy = "seed",
+            });
+            byDefectKey.Add((d.ItemId, d.DefectCode));
+            defectInserted++;
+        }
+
+        await db.SaveChangesAsync();
+        return new SettingLibrarySeedResult(libInserted, libUpdated, defectInserted);
     }
 
     /// <summary>Resolve CSV thư viện: env <c>MES_QC_LIBRARY_CSV</c> trước; nếu không,
