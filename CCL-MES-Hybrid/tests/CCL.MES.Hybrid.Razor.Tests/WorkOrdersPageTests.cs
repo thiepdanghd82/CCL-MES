@@ -400,9 +400,12 @@ public sealed class WorkOrdersPageTests : TestContext
 
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-dashboard']")));
 
-        // Tick all 6 checklist items + click Hoàn tất Setting.
-        for (var i = 0; i < 6; i++)
-            cut.Find($"[data-testid='setting-check-{i}']").Change(true);
+        // Confirm OK on every Print + Cut checklist row, then Hoàn tất Setting.
+        for (var i = 0; i < 10; i++)
+            cut.Find($"[data-testid='setting-item-print-{i}-ok']").Click();
+        cut.Find("[data-testid='setting-tab-cut']").Click();
+        for (var i = 0; i < 10; i++)
+            cut.Find($"[data-testid='setting-item-cut-{i}-ok']").Click();
         cut.WaitForAssertion(() =>
             Assert.False(cut.Find("[data-testid='setting-done-btn']").HasAttribute("disabled")));
         cut.Find("[data-testid='setting-done-btn']").Click();

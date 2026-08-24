@@ -85,27 +85,71 @@
             </div>
         }
 
-        <div class="rs-card">
+        <div class="rs-card rs-card-stretch">
             <div class="rs-card-head">
                 <div class="rs-card-title">@T("setting.checklist.title")</div>
-                <div class="rs-card-pill">@T("setting.checklist.confirmed", CheckedCount, _checklist.Count)</div>
+                <div class="rs-card-pill" data-testid="setting-count">
+                    @T("setting.checklist.confirmed", ActiveOkCount, ActiveItems.Length)
+                </div>
             </div>
-            <ul class="rs-checklist" data-testid="setting-checklist">
-                @for (var i = 0; i < _checklist.Count; i++)
-                {
-                    var idx = i;
-                    var item = _checklist[idx];
-                    <li class="rs-checklist-item @(item.Checked ? "is-checked" : "")">
-                        <label>
-                            <input type="checkbox"
-                                   checked="@item.Checked"
-                                   data-testid="@($"setting-check-{idx}")"
-                                   @onchange="@(e => OnCheckToggle(idx, e))" />
-                            <span class="rs-checklist-text">@T(item.LabelKey)</span>
-                        </label>
-                    </li>
-                }
-            </ul>
+
+            @* Hai quy trình khác nhau: In (makeready) vs Cắt (die-cut).
+               Chip-button, KHÔNG native <select> (WKWebView freeze). *@
+            <div class="setting-subtabs" role="tablist" data-testid="setting-subtabs">
+                <button type="button"
+                        class="setting-subtab @(_activeTab == SettingTab.Print ? "is-active" : "")"
+                        role="tab" aria-selected="@(_activeTab == SettingTab.Print)"
+                        @onclick="@(() => _activeTab = SettingTab.Print)"
+                        data-testid="setting-tab-print">
+                    @T("setting.tab.print")
+                    <span class="setting-subtab-count scan-mono">@OkCount(_printItems)/@_printItems.Length</span>
+                </button>
+                <button type="button"
+                        class="setting-subtab @(_activeTab == SettingTab.Cut ? "is-active" : "")"
+                        role="tab" aria-selected="@(_activeTab == SettingTab.Cut)"
+                        @onclick="@(() => _activeTab = SettingTab.Cut)"
+                        data-testid="setting-tab-cut">
+                    @T("setting.tab.cut")
+                    <span class="setting-subtab-count scan-mono">@OkCount(_cutItems)/@_cutItems.Length</span>
+                </button>
+            </div>
+
+            <div class="setting-check-wrap" data-testid="setting-checklist">
+                <table class="setting-table">
+                    <thead>
+                        <tr>
+                            <th class="c-no">@T("setting.col.no")</th>
+                            <th>@T("setting.col.item")</th>
+                            <th class="wrap">@T("setting.col.standard")</th>
+                            <th class="c-center c-conf">@T("confirm.header")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            var items = ActiveItems;
+                            var prefix = ActivePrefix;
+                        }
+                        @for (var i = 0; i < items.Length; i++)
+                        {
+                            var it = items[i];
+                            var st = Status(it.Key);
+                            <tr class="setting-row @RowClass(st)"
+                                data-testid="@($"setting-row-{prefix}-{i}")">
+                                <td class="c-no">@(i + 1)</td>
+                                <td class="setting-row-item">@T(it.LabelKey)</td>
+                                <td class="wrap setting-row-std">@T(it.StdKey)</td>
+                                <td class="c-center c-conf">
+                                    <ConfirmToggle Status="@st"
+                                                   Disabled="@_busy"
+                                                   TestIdPrefix="@($"setting-item-{prefix}-{i}")"
+                                                   OnOk="@(() => SetStatus(it.Key, "Ok"))"
+                                                   OnNg="@(() => SetStatus(it.Key, "Ng"))" />
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <div class="rs-action-bar">
@@ -119,7 +163,7 @@
             @if (!AllChecked)
             {
                 <span class="rs-action-hint" data-testid="setting-action-hint">
-                    @T("setting.action.hint", _checklist.Count)
+                    @T("setting.action.hint")
                 </span>
             }
         </div>
@@ -136,17 +180,49 @@
     /// tap "Tìm" to leave the now-invalid SettingDashboard. See Lesson L21.</summary>
     [Parameter] public EventCallback OnPhaseChanged { get; set; }
 
-    // Checklist source-of-truth (operator-attestation only; not server-persisted in 7c-3).
-    // Order matters — operators learn the sequence + we use index in test-ids.
-    private readonly List<ChecklistItem> _checklist = new()
+    // Two process-specific setting checklists: Print (makeready) vs Cut (die-cut).
+    // Operator-attestation only — NOT server-persisted in 7c-3. When Henry approves
+    // a schema (WoSettingCheckItem + migration + AuditAction) we persist per-item
+    // OK/NG the same way WoIpqcCheck does; for now the status lives in _status.
+    // TODO(persist): mint wo_setting_check_items + advance-guard on server rollup.
+    // TODO(routing): D2 — show only the tab(s) the WO's routing actually needs
+    //   (PRINT leg → Print tab, CUT leg → Cut tab). Today both tabs always show
+    //   and BOTH must be all-OK to advance, which suits full print+die-cut labels.
+    private sealed record SettingItem(string Key, string LabelKey, string StdKey);
+
+    private static readonly SettingItem[] _printItems =
     {
-        new("setting.checklist.item0"),
-        new("setting.checklist.item1"),
-        new("setting.checklist.item2"),
-        new("setting.checklist.item3"),
-        new("setting.checklist.item4"),
-        new("setting.checklist.item5"),
+        new("print-0", "setting.print.item0", "setting.print.std0"),
+        new("print-1", "setting.print.item1", "setting.print.std1"),
+        new("print-2", "setting.print.item2", "setting.print.std2"),
+        new("print-3", "setting.print.item3", "setting.print.std3"),
+        new("print-4", "setting.print.item4", "setting.print.std4"),
+        new("print-5", "setting.print.item5", "setting.print.std5"),
+        new("print-6", "setting.print.item6", "setting.print.std6"),
+        new("print-7", "setting.print.item7", "setting.print.std7"),
+        new("print-8", "setting.print.item8", "setting.print.std8"),
+        new("print-9", "setting.print.item9", "setting.print.std9"),
     };
+
+    private static readonly SettingItem[] _cutItems =
+    {
+        new("cut-0", "setting.cut.item0", "setting.cut.std0"),
+        new("cut-1", "setting.cut.item1", "setting.cut.std1"),
+        new("cut-2", "setting.cut.item2", "setting.cut.std2"),
+        new("cut-3", "setting.cut.item3", "setting.cut.std3"),
+        new("cut-4", "setting.cut.item4", "setting.cut.std4"),
+        new("cut-5", "setting.cut.item5", "setting.cut.std5"),
+        new("cut-6", "setting.cut.item6", "setting.cut.std6"),
+        new("cut-7", "setting.cut.item7", "setting.cut.std7"),
+        new("cut-8", "setting.cut.item8", "setting.cut.std8"),
+        new("cut-9", "setting.cut.item9", "setting.cut.std9"),
+    };
+
+    private enum SettingTab { Print, Cut }
+    private SettingTab _activeTab = SettingTab.Print;
+
+    // Per-item local status keyed by SettingItem.Key: "Pending" | "Ok" | "Ng".
+    private readonly Dictionary<string, string> _status = new();
 
     private RunningSurfaceView? _view;
     private string? _initialError;
@@ -156,8 +232,26 @@
     private long _lastLoadedWoId;
     private Timer? _ticker;
 
-    private bool AllChecked => _checklist.All(c => c.Checked);
-    private int CheckedCount => _checklist.Count(c => c.Checked);
+    private SettingItem[] ActiveItems => _activeTab == SettingTab.Print ? _printItems : _cutItems;
+    private string ActivePrefix => _activeTab == SettingTab.Print ? "print" : "cut";
+
+    private string Status(string key) => _status.TryGetValue(key, out var v) ? v : "Pending";
+    private void SetStatus(string key, string status) => _status[key] = status;
+
+    private int OkCount(SettingItem[] items) => items.Count(it => Status(it.Key) == "Ok");
+    private int ActiveOkCount => OkCount(ActiveItems);
+
+    // Advance is gated on every item across BOTH process tabs being OK. An NG or a
+    // still-Pending row keeps "Finish Setting" disabled (matches the old all-ticked gate).
+    private bool AllChecked =>
+        _printItems.Concat(_cutItems).All(it => Status(it.Key) == "Ok");
+
+    private static string RowClass(string status) => status switch
+    {
+        "Ok" => "is-ok",
+        "Ng" => "is-ng",
+        _    => "is-pending",
+    };
 
     protected override async Task OnParametersSetAsync()
     {
@@ -169,7 +263,8 @@
             _setError = null;
             _invalidPhase = false;
             // Reset checklist between WOs so a fresh tab starts clean.
-            foreach (var c in _checklist) c.Checked = false;
+            _status.Clear();
+            _activeTab = SettingTab.Print;
             await ReloadAsync();
             await EnterIfNeededAsync();
             EnsureTicker();
@@ -229,12 +324,6 @@
         {
             _busy = false;
         }
-    }
-
-    private void OnCheckToggle(int idx, Microsoft.AspNetCore.Components.ChangeEventArgs e)
-    {
-        if (idx < 0 || idx >= _checklist.Count) return;
-        _checklist[idx].Checked = e.Value is bool b ? b : false;
     }
 
     private async Task OnSettingDoneAsync()
@@ -306,12 +395,5 @@
         _ticker?.Dispose();
         _ticker = null;
         base.Dispose();
-    }
-
-    private sealed class ChecklistItem
-    {
-        public ChecklistItem(string labelKey) { LabelKey = labelKey; }
-        public string LabelKey { get; }
-        public bool Checked { get; set; }
     }
 }
