@@ -109,16 +109,12 @@
                     </div>
 
                     <div class="ipqc-slot-actions">
-                        <button type="button"
-                                class="op-btn op-btn-success ipqc-slot-btn"
-                                disabled="@_busy"
-                                @onclick="@(() => OnSetOkAsync(item))"
-                                data-testid="@($"fqc-item-{item.ItemKey}-ok")">@T("fqc.btn.ok")</button>
-                        <button type="button"
-                                class="op-btn op-btn-danger ipqc-slot-btn"
-                                disabled="@_busy"
-                                @onclick="@(() => OpenNgForm(item.ItemKey))"
-                                data-testid="@($"fqc-item-{item.ItemKey}-ng")">@T("fqc.btn.ng")</button>
+                        @* L52 — shared OK/NG segmented toggle *@
+                        <ConfirmToggle Status="@item.Status"
+                                       Disabled="@_busy"
+                                       OnOk="@(() => OnSetOkAsync(item))"
+                                       OnNg="@(() => OpenNgForm(item.ItemKey))"
+                                       TestIdPrefix="@($"fqc-item-{item.ItemKey}")" />
                     </div>
 
                     @if (item.Status == "Ng" && item.NgReasonCode is not null)

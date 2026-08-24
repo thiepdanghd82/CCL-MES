@@ -8000,3 +8000,64 @@ tr.wc-row:hover { background: var(--c-bg); }
     cursor: pointer;
 }
 .tb-chip-x:hover { background: var(--ng-bg); color: var(--ng-ink); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   confirm-toggle  (L52)
+   Shared OK / NG confirmation control — Shared/ConfirmToggle.razor.
+   Segmented 2-cell toggle: OK left, NG right, one bordered block, filled by
+   the current status. ALL sizing goes through density tokens (--d-tap /
+   --d-font / --sp-*) so it works at both office AND shopfloor density; ALL
+   colour goes through semantic tokens (--ok* / --ng* / --c-*), L37.
+   Do NOT hand-draw op-btn-success + op-btn-danger for OK/NG — use this.
+   ───────────────────────────────────────────────────────────────────────── */
+.confirm-toggle {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--c-line-2);
+    border-radius: var(--r-md);
+    overflow: hidden;
+    background: white;
+}
+.confirm-toggle-opt {
+    flex: 1 1 0;
+    min-height: var(--d-tap);
+    min-width: var(--d-tap);
+    padding-inline: var(--sp-3);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: var(--c-ink-2);
+    font-size: var(--d-font);
+    font-weight: var(--fw-bold);
+    line-height: 1;
+    cursor: pointer;
+    transition: background var(--mo-fast) var(--ease-std),
+                color var(--mo-fast) var(--ease-std);
+}
+.confirm-toggle-opt + .confirm-toggle-opt { border-left: 1px solid var(--c-line-2); }
+
+/* Hover affordance on the UNSELECTED cell — tints toward its meaning. */
+.confirm-toggle-ok:hover:not(:disabled)  { background: var(--ok-bg); color: var(--ok-ink); }
+.confirm-toggle-ng:hover:not(:disabled)  { background: var(--ng-bg); color: var(--ng-ink); }
+
+/* Selected fill — darker *-ink tokens keep white text ≥ WCAG AA at BOTH
+   densities (office 14px bold is not "large text", so the lighter --ok/--ng
+   would be borderline; the ink variants clear 4.5:1). */
+.confirm-toggle.is-ok .confirm-toggle-ok {
+    background: var(--ok-ink);
+    color: white;
+}
+.confirm-toggle.is-ng .confirm-toggle-ng {
+    background: var(--ng-ink);
+    color: white;
+}
+
+.confirm-toggle-opt:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    position: relative;   /* lift the ring above the sibling divider */
+    z-index: 1;
+}
+.confirm-toggle-opt:disabled { opacity: 0.55; cursor: not-allowed; }

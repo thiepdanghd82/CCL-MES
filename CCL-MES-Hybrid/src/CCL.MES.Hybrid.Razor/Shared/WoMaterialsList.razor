@@ -53,7 +53,7 @@
                     <th>@T("womat.col.lot")</th>
                     <th>@T("womat.col.status")</th>
                     <th class="wrap">@T("womat.col.ng")</th>
-                    <th class="c-center">@T("womat.col.action")</th>
+                    <th class="c-center">@T("confirm.header")</th>
                 </tr>
             </thead>
             <tbody>
@@ -127,23 +127,19 @@
                             }
                         </td>
                         <td class="prepress-actions">
-                            <button type="button"
-                                    class="op-btn op-btn-success op-btn-sm"
-                                    data-testid="btn-ok"
-                                    disabled="@(Busy || isOk)"
-                                    @onclick="() => OnSubmitOk(row, draft)">
-                                @T("womat.btn.recordok")
-                            </button>
+                            @* L52 — OK/NG confirmation via the shared segmented
+                               ConfirmToggle. Special Accept stays a separate
+                               op-btn-special (RBAC-by-omission), never in the toggle. *@
+                            <ConfirmToggle Status="@row.Status"
+                                           Disabled="@Busy"
+                                           OkDisabled="@isOk"
+                                           NgDisabled="@(ScrapReasons.Count == 0)"
+                                           NgTitle="@(ScrapReasons.Count == 0 ? T("womat.ng.catalogempty") : null)"
+                                           OnOk="@(() => OnSubmitOk(row, draft))"
+                                           OnNg="@(() => ArmNg(draft, special: false))"
+                                           TestIdPrefix="btn" />
                             @if (!draft.SettingNg && !isNg)
                             {
-                                <button type="button"
-                                        class="op-btn op-btn-danger op-btn-sm"
-                                        data-testid="btn-ng-arm"
-                                        disabled="@(Busy || ScrapReasons.Count == 0)"
-                                        title="@(ScrapReasons.Count == 0 ? T("womat.ng.catalogempty") : null)"
-                                        @onclick="() => ArmNg(draft, special: false)">
-                                    @T("womat.btn.markng")
-                                </button>
                                 @if (_canSpecialAccept)
                                 {
                                     <button type="button"

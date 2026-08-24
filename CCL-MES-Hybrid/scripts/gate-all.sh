@@ -19,6 +19,7 @@ MODE="${1:-}"
 GATES=(
   "hex:gate-no-hardcoded-hex.sh:L37 màu qua token"
   "row-actions:gate-row-actions.sh:L35 không cột Actions"
+  "confirm-toggle:gate-confirm-toggle.sh:L52 xác nhận OK/NG qua ConfirmToggle"
   "showcard:gate-floating-showcard.sh:L34 showcard bọc FloatingWindow"
   "spec-print:gate-spec-print.sh:L39 native print + bảng auto/nowrap"
   "thin:gate-thin-controller.sh:L40 logic không ở controller"
