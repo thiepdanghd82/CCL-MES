@@ -234,7 +234,7 @@ public sealed class PrepressDashboardTests : TestContext
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='material-row']").Count));
 
         var firstRow = cut.FindAll("[data-testid='material-row']")[0];
-        firstRow.QuerySelector("[data-testid='btn-ng-arm']")!.Click();
+        firstRow.QuerySelector("[data-testid='btn-ng']")!.Click();
 
         // Picker renders + has the 3 seeded options + the placeholder.
         cut.WaitForAssertion(() =>
@@ -290,14 +290,14 @@ public sealed class PrepressDashboardTests : TestContext
 
         // Every NG arm button (material rows + plate + cutter) MUST be disabled
         // when the picker source is empty — operator can't submit a 422 loop.
-        var armButtons = cut.FindAll("[data-testid='btn-ng-arm']");
+        var armButtons = cut.FindAll("[data-testid='btn-ng']");
         Assert.NotEmpty(armButtons);
         Assert.All(armButtons, b => Assert.True(b.HasAttribute("disabled"),
             "Empty scrap reasons → material NG-arm MUST be disabled."));
 
-        Assert.True(cut.Find("[data-testid='plate-btn-ng-arm']").HasAttribute("disabled"),
+        Assert.True(cut.Find("[data-testid='plate-btn-ng']").HasAttribute("disabled"),
             "Empty scrap reasons → plate NG-arm MUST be disabled.");
-        Assert.True(cut.Find("[data-testid='cutter-btn-ng-arm']").HasAttribute("disabled"),
+        Assert.True(cut.Find("[data-testid='cutter-btn-ng']").HasAttribute("disabled"),
             "Empty scrap reasons → cutter NG-arm MUST be disabled.");
     }
 
@@ -324,7 +324,7 @@ public sealed class PrepressDashboardTests : TestContext
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid='material-row']").Count));
 
         cut.FindAll("[data-testid='material-row']")[0]
-           .QuerySelector("[data-testid='btn-ng-arm']")!.Click();
+           .QuerySelector("[data-testid='btn-ng']")!.Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -343,9 +343,9 @@ public sealed class PrepressDashboardTests : TestContext
         api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
 
         var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
-        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='plate-btn-ng-arm']")));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='plate-btn-ng']")));
 
-        var plateArm = cut.Find("[data-testid='plate-btn-ng-arm']");
+        var plateArm = cut.Find("[data-testid='plate-btn-ng']");
         Assert.True(plateArm.HasAttribute("disabled"));
         Assert.Contains("Danh mục mã lỗi NG đang trống — báo IT",
             plateArm.GetAttribute("title") ?? "");
@@ -658,7 +658,7 @@ public sealed class PrepressDashboardTests : TestContext
         api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
 
         var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='btn-ng-arm']")));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='btn-ng']")));
 
         // Visible in the default action row (no arming needed) — but not for Operator.
         Assert.Empty(cut.FindAll("[data-testid='btn-special-accept-arm']"));

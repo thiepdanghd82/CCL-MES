@@ -1,0 +1,86 @@
+@*
+    L52 — Shared OK / NG confirmation control (segmented toggle).
+
+    ONE control for every "xác nhận OK/NG" surface (Prepress materials /
+    plate / cutter, IPQC slot + item, FQC, OQC). Renders a 2-cell segmented
+    toggle: OK on the left, NG on the right, bordered, filled by the current
+    Status. Replaces the hand-drawn `op-btn op-btn-success` + `op-btn-danger`
+    pairs so label / spacing / touch-size / colour tokens live in ONE place.
+
+    Presentation ONLY — this component holds NO business state. The parent
+    owns Status and reacts to OnOk / OnNg (arm-NG or set-OK); the NG sub-form
+    and any Special-Accept action stay in the parent, rendered below the
+    toggle. See .claude/skills/cmes-confirm-toggle/SKILL.md.
+
+    Rule 4 (renderer-crash lesson): plain <button> + @onclick only — never
+    <InputText>/<EditForm>. WKWebView <select> freeze is irrelevant here
+    (no <select> in this control — that is exactly the point of chip-buttons).
+*@
+
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+
+<div class="confirm-toggle @StateClass" role="group" aria-label="@T("confirm.header")"
+     data-testid="@Testid(null)">
+    <button type="button"
+            class="confirm-toggle-opt confirm-toggle-ok"
+            aria-pressed="@(IsOk ? "true" : "false")"
+            disabled="@(Disabled || OkDisabled)"
+            @onclick="OnOk"
+            data-testid="@Testid("ok")">
+        @(OkLabel ?? T("confirm.ok"))
+    </button>
+    <button type="button"
+            class="confirm-toggle-opt confirm-toggle-ng"
+            aria-pressed="@(IsNg ? "true" : "false")"
+            disabled="@(Disabled || NgDisabled)"
+            title="@NgTitle"
+            @onclick="OnNg"
+            data-testid="@Testid("ng")">
+        @(NgLabel ?? T("confirm.ng"))
+    </button>
+</div>
+
+@code {
+    /// <summary>Current status of the item being confirmed: "Pending" | "Ok" | "Ng".</summary>
+    [Parameter, EditorRequired] public string Status { get; set; } = "Pending";
+
+    /// <summary>Disables the whole toggle (e.g. an in-flight request).</summary>
+    [Parameter] public bool Disabled { get; set; }
+
+    /// <summary>Extra disable for the OK cell only (rarely needed).</summary>
+    [Parameter] public bool OkDisabled { get; set; }
+
+    /// <summary>Extra disable for the NG cell only — e.g. the scrap-code
+    /// catalog is empty so an operator must not be able to arm an NG.</summary>
+    [Parameter] public bool NgDisabled { get; set; }
+
+    /// <summary>Tooltip shown on the NG cell (e.g. why it is disabled).</summary>
+    [Parameter] public string? NgTitle { get; set; }
+
+    /// <summary>Override the OK label (default: <c>confirm.ok</c> → "OK").</summary>
+    [Parameter] public string? OkLabel { get; set; }
+
+    /// <summary>Override the NG label (default: <c>confirm.ng</c> → "NG").</summary>
+    [Parameter] public string? NgLabel { get; set; }
+
+    /// <summary>Fired when the operator taps OK (set-OK intent).</summary>
+    [Parameter] public EventCallback OnOk { get; set; }
+
+    /// <summary>Fired when the operator taps NG (arm-NG / open-NG-form intent).</summary>
+    [Parameter] public EventCallback OnNg { get; set; }
+
+    /// <summary>Prefix so each row/slot gets a unique testid:
+    /// <c>{prefix}-confirm</c> (wrapper), <c>{prefix}-ok</c>, <c>{prefix}-ng</c>.</summary>
+    [Parameter] public string? TestIdPrefix { get; set; }
+
+    private bool IsOk => string.Equals(Status, "Ok", StringComparison.OrdinalIgnoreCase);
+    private bool IsNg => string.Equals(Status, "Ng", StringComparison.OrdinalIgnoreCase);
+
+    private string StateClass => IsOk ? "is-ok" : IsNg ? "is-ng" : "is-pending";
+
+    private string Testid(string? suffix)
+    {
+        var root = string.IsNullOrEmpty(TestIdPrefix) ? "confirm-toggle" : TestIdPrefix;
+        return suffix is null ? $"{root}-confirm" : $"{root}-{suffix}";
+    }
+}

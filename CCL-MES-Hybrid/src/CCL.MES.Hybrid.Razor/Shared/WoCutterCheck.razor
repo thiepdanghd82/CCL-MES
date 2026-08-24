@@ -61,25 +61,16 @@
     </div>
 
     <div class="prepress-actions">
-        <button type="button"
-                class="op-btn op-btn-success"
-                data-testid="cutter-btn-ok"
-                disabled="@(Busy || (Row?.Status == "Ok"))"
-                @onclick="OnSubmitOk">
-            @T("wocutter.btn.ok")
-        </button>
-        @if (!_armingNg && (Row?.Status != "Ng"))
-        {
-            <button type="button"
-                    class="op-btn op-btn-danger"
-                    data-testid="cutter-btn-ng-arm"
-                    disabled="@(Busy || ScrapReasons.Count == 0)"
-                    title="@(ScrapReasons.Count == 0 ? T("wocutter.ng.catalog.empty") : null)"
-                    @onclick="() => _armingNg = true">
-                @T("wocutter.btn.ng.arm")
-            </button>
-        }
-        else
+        @* L52 — OK/NG confirmation via the shared segmented ConfirmToggle. *@
+        <ConfirmToggle Status="@(Row?.Status ?? "Pending")"
+                       Disabled="@Busy"
+                       OkDisabled="@(Row?.Status == "Ok")"
+                       NgDisabled="@(ScrapReasons.Count == 0)"
+                       NgTitle="@(ScrapReasons.Count == 0 ? T("wocutter.ng.catalog.empty") : null)"
+                       OnOk="OnSubmitOk"
+                       OnNg="ArmNg"
+                       TestIdPrefix="cutter-btn" />
+        @if (IsNgOrArming)
         {
             <button type="button"
                     class="op-btn op-btn-danger"
@@ -135,6 +126,8 @@
             _lastRowSyncedId = Row.Id;
         }
     }
+
+    private void ArmNg() => _armingNg = true;
 
     private void OnCutterNoInput(Microsoft.AspNetCore.Components.ChangeEventArgs e) => _cutterNo = e.Value?.ToString() ?? "";
     private void OnNgReasonChange(Microsoft.AspNetCore.Components.ChangeEventArgs e) => _ngReason = e.Value?.ToString() ?? "";

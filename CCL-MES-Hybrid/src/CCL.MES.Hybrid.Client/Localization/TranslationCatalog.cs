@@ -43,6 +43,7 @@ public sealed partial class TranslationCatalog : ITranslationCatalog
         RegisterWoPause();
         RegisterWoQty();
         RegisterWoFinish();
+        RegisterConfirm();
         RegisterQcPhoto();
         RegisterHardwareRow();
         RegisterTraceDetail();

@@ -133,14 +133,12 @@
                                 <div class="ipqc-slot-subtitle">@item.AcceptanceCriteria</div>
                             }
                             <div class="ipqc-slot-actions">
-                                <button type="button" class="op-btn op-btn-success ipqc-slot-btn"
-                                        disabled="@_busy"
-                                        @onclick="@(() => OnItemOkAsync(item.ItemKey))"
-                                        data-testid="@($"ipqc-item-{item.ItemKey}-ok")">@T("ipqc.btn.ok")</button>
-                                <button type="button" class="op-btn op-btn-danger ipqc-slot-btn"
-                                        disabled="@_busy"
-                                        @onclick="@(() => OpenItemNgForm(item))"
-                                        data-testid="@($"ipqc-item-{item.ItemKey}-ng")">@T("ipqc.btn.ng")</button>
+                                @* L52 — shared OK/NG segmented toggle *@
+                                <ConfirmToggle Status="@item.Status"
+                                               Disabled="@_busy"
+                                               OnOk="@(() => OnItemOkAsync(item.ItemKey))"
+                                               OnNg="@(() => OpenItemNgForm(item))"
+                                               TestIdPrefix="@($"ipqc-item-{item.ItemKey}")" />
                             </div>
 
                             @if (item.Status == "Ng" && !string.IsNullOrWhiteSpace(item.NgReasonCode))
@@ -208,16 +206,12 @@
                     <div class="ipqc-slot-subtitle">@T($"ipqc.slot.{slot.Key}.subtitle")</div>
 
                     <div class="ipqc-slot-actions">
-                        <button type="button"
-                                class="op-btn op-btn-success ipqc-slot-btn"
-                                disabled="@_busy"
-                                @onclick="@(() => OnSlotOkAsync(slot))"
-                                data-testid="@($"ipqc-slot-{slot.Key}-ok")">@T("ipqc.btn.ok")</button>
-                        <button type="button"
-                                class="op-btn op-btn-danger ipqc-slot-btn"
-                                disabled="@_busy"
-                                @onclick="@(() => OpenNgForm(slot.Key))"
-                                data-testid="@($"ipqc-slot-{slot.Key}-ng")">@T("ipqc.btn.ng")</button>
+                        @* L52 — shared OK/NG segmented toggle *@
+                        <ConfirmToggle Status="@SlotStatus(slot)"
+                                       Disabled="@_busy"
+                                       OnOk="@(() => OnSlotOkAsync(slot))"
+                                       OnNg="@(() => OpenNgForm(slot.Key))"
+                                       TestIdPrefix="@($"ipqc-slot-{slot.Key}")" />
                     </div>
 
                     @if (SlotStatus(slot) == "Ng" && SlotNgReason(slot) is { } persistedReason)

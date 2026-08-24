@@ -174,16 +174,12 @@
                     @if (CurrentSigStage == SigStage.ItemsPending || CurrentSigStage == SigStage.InspectorSigning)
                     {
                         <div class="ipqc-slot-actions">
-                            <button type="button"
-                                    class="op-btn op-btn-success ipqc-slot-btn"
-                                    disabled="@_busy"
-                                    @onclick="@(() => OnSetOkAsync(item))"
-                                    data-testid="@($"oqc-item-{item.ItemKey}-ok")">@T("oqc.btn.ok")</button>
-                            <button type="button"
-                                    class="op-btn op-btn-danger ipqc-slot-btn"
-                                    disabled="@_busy"
-                                    @onclick="@(() => OpenNgForm(item.ItemKey))"
-                                    data-testid="@($"oqc-item-{item.ItemKey}-ng")">@T("oqc.btn.ng")</button>
+                            @* L52 — shared OK/NG segmented toggle *@
+                            <ConfirmToggle Status="@item.Status"
+                                           Disabled="@_busy"
+                                           OnOk="@(() => OnSetOkAsync(item))"
+                                           OnNg="@(() => OpenNgForm(item.ItemKey))"
+                                           TestIdPrefix="@($"oqc-item-{item.ItemKey}")" />
                         </div>
                     }
 

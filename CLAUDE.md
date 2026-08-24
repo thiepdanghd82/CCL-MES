@@ -26,6 +26,7 @@ Pha 4 (gate tĩnh) **không** thay cho pha 5 (chạy thật + dán output).
 | `Controllers/` · DTO · route | `cmes-thin-controller` | `cmes-implementer` |
 | `CheckItemLibrary` · resolver · ngưỡng · chữ ký · freeze | `cmes-audit-emit` | `mes-quality-architect` |
 | `.razor` · `app.css` · layout · grid | `cmes-design-tokens` | `cmes-shopfloor-ux` |
+| xác nhận **OK/NG** (Prepress · IPQC · FQC · OQC) | `cmes-confirm-toggle` | `cmes-shopfloor-ux` |
 | policy · role · `AuthorizeView` | `cmes-rbac-matrix` | `cmes-implementer` |
 | **bất kỳ chuỗi hiển thị nào** | `cmes-i18n-parity` ← luôn kèm | (agent đang chủ trì) |
 | import IFS · outbox · idempotency | `cmes-migration-abc` | `mes-integration-architect` |
@@ -98,6 +99,15 @@ chung 1 state) — KHÔNG thêm cột "Actions" nút inline. RBAC-by-omission (c
 build item được phép; server vẫn 403). Enforce:
 `CCL-MES-Hybrid/scripts/gate-row-actions.sh` + skill
 `.claude/skills/cmes-row-context-menu/SKILL.md`.
+
+**UI confirm rule (L52):** mọi thao tác **xác nhận OK/NG** (Prepress vật tư/
+bản kẽm/dao chặt, IPQC, FQC, OQC, và surface mới) dùng component dùng chung
+`Shared/ConfirmToggle.razor` (segmented toggle 2 ô, token `--ok-ink`/`--ng-ink`,
+`aria-pressed`, tap `var(--d-tap)`) — KHÔNG vẽ tay cặp `op-btn-success` +
+`op-btn-danger` cạnh nhau cho OK/NG. NG sub-form + Special Accept + Judgment
+(Go Run/Pass/Reject) giữ nguyên ở parent, tách khỏi toggle. Enforce:
+`CCL-MES-Hybrid/scripts/gate-confirm-toggle.sh` (ratchet baseline 0) + skill
+`.claude/skills/cmes-confirm-toggle/SKILL.md`.
 
 **UI colour rule (L37):** MỌI màu trong `app.css` đi qua **design token
 semantic** ở `:root` (`--c-*/--brand*/--accent/--indigo/--ok|ng|warn*`) —
