@@ -5815,6 +5815,46 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 }
 .setting-defect-select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
+/* ── P10.7g-3 — add-new-inline (F3 defect + F4 add-row) ───────────── */
+.setting-addrow-btn {
+    width: 100%;
+    min-height: var(--d-tap);
+    margin-top: var(--sp-2);
+    font-size: var(--d-font);
+}
+.setting-addnew-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    margin-top: var(--sp-2);
+    padding: var(--sp-3);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-md);
+    background: var(--c-card);
+}
+.setting-addrow-form { margin-top: var(--sp-2); }
+.setting-addnew-label {
+    font-size: var(--fs-sm);
+    color: var(--c-ink-2);
+    font-weight: var(--fw-semibold);
+}
+.setting-addnew-input {
+    min-height: var(--d-tap);
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-sm);
+    background: white;
+    color: var(--c-ink);
+    font-size: var(--d-font);
+}
+.setting-addnew-input:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.setting-addnew-actions {
+    display: flex;
+    gap: var(--sp-2);
+    justify-content: flex-end;
+    margin-top: var(--sp-1);
+}
+
 .rs-counter {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr;

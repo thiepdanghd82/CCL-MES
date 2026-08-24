@@ -51,6 +51,7 @@ public class CheckItemLibrary : BaseEntity
     public bool Ipqc { get; set; }         // P
     public bool Fqc { get; set; }          // Q
     public bool Oqc { get; set; }          // R
+    public bool Setting { get; set; }      // R+1 — P10.7g: hạng mục khâu SETTING (makeready)
 
     // ── Mô tả / tiêu chuẩn (v5 cột U~AG) ─────────────────────────────────
     public string ItemVi { get; set; } = "";

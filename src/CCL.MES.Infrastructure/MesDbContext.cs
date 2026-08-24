@@ -72,6 +72,9 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<WoIpqcCheck> WoIpqcChecks => Set<WoIpqcCheck>();
     // Phương án C — Bước 2: data-driven IPQC items (shadow, additive).
     public DbSet<WoIpqcCheckItem> WoIpqcCheckItems => Set<WoIpqcCheckItem>();
+    // P10.7g — SETTING per-item persist + defect catalog per hạng mục.
+    public DbSet<WoSettingCheckItem> WoSettingCheckItems => Set<WoSettingCheckItem>();
+    public DbSet<CheckItemDefectOption> CheckItemDefectOptions => Set<CheckItemDefectOption>();
     // Phương án C — Bước 6: map process→QC line (data-driven, quyết định #5).
     public DbSet<ProcessLineMap> ProcessLineMaps => Set<ProcessLineMap>();
     // P10.7e-1 Q3+Q6 — DATA-DRIVEN FQC + OQC + photo evidence tables.
@@ -207,6 +210,29 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<WoIpqcCheckItem>().Property(x => x.NgReasonCode).HasMaxLength(64);
         b.Entity<WoIpqcCheckItem>().Property(x => x.NgNote).HasMaxLength(500);
         b.Entity<WoIpqcCheckItem>().HasIndex(x => new { x.WoIpqcCheckId, x.ItemKey }).IsUnique();
+
+        // P10.7g — SETTING per-item persist. Concurrency qua WO.RowVersion (7c-2).
+        b.Entity<WoSettingCheckItem>().Property(x => x.ProcessKind).HasMaxLength(8).IsRequired();
+        b.Entity<WoSettingCheckItem>().Property(x => x.ItemKey).HasMaxLength(64).IsRequired();
+        b.Entity<WoSettingCheckItem>().Property(x => x.Label).HasMaxLength(512);
+        b.Entity<WoSettingCheckItem>().Property(x => x.Standard).HasMaxLength(512);
+        b.Entity<WoSettingCheckItem>().Property(x => x.GroupLabel).HasMaxLength(128);
+        b.Entity<WoSettingCheckItem>().Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoSettingCheckItem>().Property(x => x.DefectCode).HasMaxLength(64);
+        b.Entity<WoSettingCheckItem>().Property(x => x.NgNote).HasMaxLength(500);
+        b.Entity<WoSettingCheckItem>().Property(x => x.ConfirmedBy).HasMaxLength(128);
+        b.Entity<WoSettingCheckItem>().HasIndex(x => new { x.WorkOrderId, x.ProcessKind, x.ItemKey }).IsUnique();
+        b.Entity<WoSettingCheckItem>().HasOne(x => x.WorkOrder).WithMany()
+            .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
+
+        // P10.7g — defect option per hạng mục (base seed + user add-new per-product).
+        b.Entity<CheckItemDefectOption>().Property(x => x.ItemId).HasMaxLength(64).IsRequired();
+        b.Entity<CheckItemDefectOption>().Property(x => x.DefectCode).HasMaxLength(64).IsRequired();
+        b.Entity<CheckItemDefectOption>().Property(x => x.LabelVi).HasMaxLength(256);
+        b.Entity<CheckItemDefectOption>().Property(x => x.LabelEn).HasMaxLength(256);
+        b.Entity<CheckItemDefectOption>().Property(x => x.ProductCode).HasMaxLength(64);
+        b.Entity<CheckItemDefectOption>().HasIndex(x => new { x.ItemId, x.DefectCode, x.ProductCode }).IsUnique();
+        b.Entity<CheckItemDefectOption>().HasIndex(x => x.ItemId);
 
         // Phương án C — Bước 6: map process→QC line (data-driven).
         b.Entity<ProcessLineMap>().Property(x => x.MatchType).HasMaxLength(32).IsRequired();

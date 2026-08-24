@@ -16,6 +16,7 @@ using CCL.MES.Shared.Machines;
 using CCL.MES.Shared.Prepress;
 using CCL.MES.Shared.Qms;
 using CCL.MES.Shared.RunningSurface;
+using CCL.MES.Shared.SettingChecks;
 using CCL.MES.Shared.QcSpecs;
 using CCL.MES.Shared.ReasonCodes;
 using CCL.MES.Shared.Settings;
@@ -659,6 +660,71 @@ public sealed class CclApiClient : ICclApiClient
         }
 
         return await ReadAsAsync<IpqcSetResponse>(resp, ct);
+    }
+
+    // ── SETTING checks persist (P10.7g) ────────────────────────────
+
+    public async Task<SettingChecksView> GetSettingChecksAsync(
+        long workOrderId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/setting-checks", ct);
+        return await ReadAsAsync<SettingChecksView>(resp, ct);
+    }
+
+    public Task<SettingChecksSetResponse> PutSettingItemAsync(
+        long workOrderId, string ifMatchETag, string itemKey,
+        SetSettingItemRequest req, CancellationToken ct = default)
+        => SendSettingMutationAsync(
+            HttpMethod.Put,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/setting-checks/{Uri.EscapeDataString(itemKey)}",
+            ifMatchETag, req, ct);
+
+    public Task<SettingChecksSetResponse> PostSettingItemAsync(
+        long workOrderId, string ifMatchETag,
+        AddSettingItemRequest req, CancellationToken ct = default)
+        => SendSettingMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/setting-checks/item",
+            ifMatchETag, req, ct);
+
+    public Task<SettingChecksSetResponse> PostSettingDefectAsync(
+        long workOrderId, string ifMatchETag,
+        AddSettingDefectRequest req, CancellationToken ct = default)
+        => SendSettingMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/setting-checks/defect",
+            ifMatchETag, req, ct);
+
+    /// <summary>Shared mutation pipeline for the 3 SETTING-check mutations.
+    /// Mirrors <see cref="SendIpqcMutationAsync"/>: 200 / 409 / 422 all
+    /// deserialise as <see cref="SettingChecksSetResponse"/>; the UI branches
+    /// on ErrorCode.</summary>
+    private async Task<SettingChecksSetResponse> SendSettingMutationAsync(
+        HttpMethod method, string path, string ifMatchETag, object req, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(method, path)
+        {
+            Content = JsonContent.Create(req),
+        };
+
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+
+        if (resp.StatusCode == HttpStatusCode.OK
+            || resp.StatusCode == HttpStatusCode.Conflict
+            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<SettingChecksSetResponse>(cancellationToken: ct);
+            return body ?? new SettingChecksSetResponse { Ok = false, ErrorCode = "http.empty_body" };
+        }
+
+        return await ReadAsAsync<SettingChecksSetResponse>(resp, ct);
     }
 
     // ── FQC + OQC review (P10.7e-3) ────────────────────────────────

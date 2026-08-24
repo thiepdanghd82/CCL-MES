@@ -703,6 +703,16 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Cơ chế chặn tái phát** | Gate `CCL-MES-Hybrid/scripts/gate-confirm-toggle.sh` (ratchet baseline **0**, có `--self-test` PASS→inject→FAIL) đếm cụm `op-btn-success`+`op-btn-danger` trần (loại `ipqc-judgment-btn`) trong `Shared/*.razor`; đã nối vào `gate-all.sh`. Test `tests/CCL.MES.Hybrid.Razor.Tests/ConfirmToggleTests.cs` (9 fixture: 3 trạng thái + `aria-pressed` + callback + disable matrix + `NgTitle` + 2 fixture Prepress WoPlateCheck). Skill `.claude/skills/cmes-confirm-toggle/SKILL.md`. **Quy tắc: mọi control xác nhận OK/NG mới PHẢI dùng `ConfirmToggle`; cấm vẽ tay `op-btn-success`+`op-btn-danger` cạnh nhau cho OK/NG.** |
 
 
+### L53 — Khâu SETTING (makeready) là khâu QC DUY NHẤT không persist + gate chỉ ở client → mù bằng chứng, advance bypass được
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | OK/NG/defect/applicability của khâu SETTING chỉ sống RAM (#213 attestation-cục-bộ); tải lại là mất. Nút "Hoàn tất Setting" gate hoàn toàn ở client → operator (hoặc client bug/bypass) advance sang IPQC mà chưa thật sự kiểm. Không truy được RCA khi hỏng lô do makeready. "Add more" (thêm defect/hạng mục) không có chỗ nhớ cho LOT sau. IPQC/FQC/OQC đều đã persist per-item — SETTING là ngoại lệ nguy hiểm (gốc chất lượng). |
+| **Root cause** | 7c-3 cố ý hoãn persist (chỉ ship UI). Thiếu: (a) bảng per-item; (b) advance-guard **server-side**; (c) master catalog defect/hạng mục per-product cho "nhớ LOT sau". Gate client-only = "nguồn sự thật" mong manh. |
+| **Fix** | Stack 7g: `WoSettingCheckItem` (per-item + `Applicable` + `DefectCode` + `AdHoc`) + `CheckItemDefectOption` (base + user add-new per-product) + `CheckItemLibrary.Setting`; migration additive type-stripped (§4.5), test trên `/tmp` trước (Phase A→B→C). `SettingChecksController` atomic 7c-2 (GET lazy-materialize · PUT set-item · POST item F4 · POST defect QC-add-new) + `/setting/done` rollup-guard (**422 `setting.incomplete`** khi item `Applicable=true` chưa đủ `Ok`, chỉ áp khi WO đã materialize). Amendment §3.1 `SETTING → IPQC_WAIT` `allowed → requires-condition`. UI `SettingDashboard` chuyển RAM → API + "＋ Thêm mới" defect + "＋ Thêm hạng mục" theo skill `cmes-add-new-inline`. |
+| **Cơ chế chặn tái phát** | `tests/CCL.MES.Api.Tests/SettingChecksControllerTests.cs` (integration: GET lazy-materialize · PUT ok/ng+defect · applicable=false loại khỏi guard · done 422 thiếu / 200 đủ · add-item & add-defect RBAC · audit wire-mirror R7.3) + `SettingRollupUnitTests.cs`. `tests/CCL.MES.Hybrid.Razor.Tests/SettingDashboardTests.cs` (API-driven + F1/F2/F3 + add-new fixtures). Amendment đã vào `P10.7-WO-STATE-CONTRACT.md` §3.1 + edge table. `gate-all` (thin-controller · audit-emit · i18n · enum-integrity) phủ. Skill `.claude/skills/cmes-add-new-inline/SKILL.md`. **Quy tắc: khâu QC/kiểm mới PHẢI persist per-item + advance-guard SERVER, không chỉ client attestation; "add-new" nhớ-LOT-sau đi qua master per-product (`ProductCode`) theo skill.** |
+
+
 ---
 
 ## Adding a new lesson

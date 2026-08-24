@@ -294,9 +294,23 @@ public static class AuditAction
     public const string WoScan                = "WO_SCAN";
     /// <summary>Setting was aborted by admin/sys; row re-opens fresh.</summary>
     public const string WoSettingAbort        = "WO_SETTING_ABORT";
+    /// <summary>P10.7g — QC-add-new: defect option per-product added to a
+    /// SETTING check item. detail JSON: { wo_id, wo_no, item_id, defect_code,
+    /// product_code, added_by }. Engineer+ only (Operator 403).</summary>
+    public const string WoSettingDefectAdded  = "WO_SETTING_DEFECT_ADDED";
     /// <summary>Setting timer closed. detail JSON: { op_user_id,
     /// duration_sec }.</summary>
     public const string WoSettingDone         = "WO_SETTING_DONE";
+    /// <summary>P10.7g — F4: a SETTING check item was added. detail JSON:
+    /// { wo_id, wo_no, process_kind, item_key, ad_hoc, wrote_master }.
+    /// Engineer+ writes master (per-product library) + ad-hoc row;
+    /// Operator writes ad-hoc row only (AdHoc=true).</summary>
+    public const string WoSettingItemAdded    = "WO_SETTING_ITEM_ADDED";
+    /// <summary>P10.7g — operator set the status of a single SETTING check
+    /// item. detail JSON: { wo_id, wo_no, process_kind, item_key,
+    /// from_status, to_status, applicable, defect_code?, ng_note?,
+    /// ready_after }. One row per item mutation.</summary>
+    public const string WoSettingItemSet      = "WO_SETTING_ITEM_SET";
     /// <summary>Setting timer started. detail JSON: { op_user_id,
     /// setting_start_at }.</summary>
     public const string WoSettingStart        = "WO_SETTING_START";

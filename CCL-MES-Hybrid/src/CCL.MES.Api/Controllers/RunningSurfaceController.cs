@@ -233,6 +233,31 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
             return Invalid("running.setting_not_started",
                 "SettingStartAt is null — caller never entered SETTING. Use admin force-phase.");
 
+        // P10.7g advance-guard (QF/Q4/Q7) — every Applicable SETTING check
+        // item of the applicable process(es) must be Ok before the transition.
+        // Only enforced once the WO has materialised checks (SETTING persist
+        // rollout); legacy WOs with no rows keep the pre-7g behaviour.
+        var settingItems = await _db.WoSettingCheckItems.AsNoTracking()
+            .Where(i => i.WorkOrderId == id).ToListAsync();
+        if (settingItems.Count > 0)
+        {
+            var productCode = await _db.Products.AsNoTracking()
+                .Where(p => p.Id == wo.ProductId).Select(p => p.ProductCode).FirstOrDefaultAsync();
+            var opsG = string.IsNullOrWhiteSpace(productCode)
+                ? new List<RoutingLegResolver.RoutingOp>()
+                : await _db.RoutingOperations.AsNoTracking().Where(r => r.PartNo == productCode)
+                    .Select(r => new RoutingLegResolver.RoutingOp(r.OpNo, r.Operation, r.WorkCenterNo, r.WorkCenterDescription))
+                    .ToListAsync();
+            var mapG = await _db.ProcessLegMaps.AsNoTracking().Where(m => m.Active)
+                .Select(m => new RoutingLegResolver.MapEntry(m.MatchType, m.MatchValue, m.LegKind, m.Method, m.ProcessLine, m.Sort))
+                .ToListAsync();
+            var (hasPrintG, hasCutG) = SettingProcessScope.FromLegKinds(
+                RoutingLegResolver.Resolve(opsG, mapG).Legs.Select(l => l.LegKind));
+            if (!Application.Services.SettingCheckService.Rollup(settingItems, hasPrintG, hasCutG))
+                return Invalid("setting.incomplete",
+                    "Còn hạng mục SETTING chưa OK (Pending/NG). Xác nhận OK toàn bộ hạng mục áp dụng trước khi Hoàn tất.");
+        }
+
         var now = DateTime.UtcNow;
         var duration = WoSettingService.MarkSettingDone(wo, now);
         wo.MesPhase = "IPQC_WAIT";

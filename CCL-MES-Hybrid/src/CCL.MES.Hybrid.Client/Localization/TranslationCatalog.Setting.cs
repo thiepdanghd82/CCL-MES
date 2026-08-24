@@ -165,5 +165,34 @@ public sealed partial class TranslationCatalog
 
         Add("setting.done.button",             "Hoàn tất Setting (chuyển sang IPQC)",                   "Finish Setting (advance to IPQC)");
         Add("setting.action.hint",             "Xác nhận OK toàn bộ hạng mục In + Cắt → nút Hoàn tất sẽ bật.", "Confirm OK on all Print + Cut items → the Finish button activates.");
+
+        // ── P10.7g-3 — API-driven persist + add-new affordances ───────────
+        // Default NG note when the operator flips a row to NG straight from the
+        // toggle (server requires a 1-500 char note alongside a defect code).
+        Add("setting.ng.note.default",         "Đánh NG tại setting",                                   "Marked NG during setting");
+
+        // F3 — add-new defect option at the tail of the per-item NG dropdown.
+        Add("setting.addnew.option",           "＋ Thêm mới…",                                          "＋ Add new…");
+        Add("setting.addnew.defect.code",      "Mã lỗi",                                                "Defect code");
+        Add("setting.addnew.defect.vi",        "Tên lỗi (VI)",                                          "Defect name (VI)");
+        Add("setting.addnew.defect.en",        "Tên lỗi (EN)",                                          "Defect name (EN)");
+        Add("setting.addnew.save",             "Lưu",                                                   "Save");
+        Add("setting.addnew.cancel",           "Huỷ",                                                   "Cancel");
+
+        // F4 — add a new check item under the last row of a tab.
+        Add("setting.addrow.button",           "＋ Thêm hạng mục",                                      "＋ Add check item");
+        Add("setting.addrow.name",             "Tên hạng mục",                                          "Item name");
+        Add("setting.addrow.standard",         "Tiêu chuẩn cần đạt",                                    "Required standard");
+
+        // ── Localised server reject codes ─────────────────────────────────
+        Add("setting.error.incomplete",        "Chưa đủ điều kiện hoàn tất: còn hạng mục áp dụng chưa OK.", "Cannot finish yet: some applicable items are not OK.");
+        Add("setting.error.invalid_status",    "Trạng thái không hợp lệ (chỉ OK hoặc NG).",             "Invalid status (only OK or NG).");
+        Add("setting.error.invalid_item",      "Hạng mục không thuộc bộ kiểm SETTING của lệnh này.",     "Item is not part of this WO's SETTING checklist.");
+        Add("setting.error.invalid_defect",    "Mã lỗi không thuộc danh mục của hạng mục — chọn từ danh sách.", "Defect code is not in this item's catalog — choose one from the list.");
+        Add("setting.error.invalid_ng_note",   "Cần ghi chú NG (1-500 ký tự) khi đánh NG.",             "An NG note is required (1-500 characters) when marking NG.");
+        Add("setting.error.invalid_label",     "Tên hạng mục bắt buộc (1-512 ký tự).",                  "Item name is required (1-512 characters).");
+        Add("setting.error.invalid_process_kind", "Quy trình không hợp lệ (chỉ In hoặc Cắt).",          "Invalid process (only Print or Cut).");
+        Add("setting.error.defect_exists",     "Mã lỗi đã tồn tại cho hạng mục / sản phẩm này.",         "That defect code already exists for this item / product.");
+        Add("setting.error.no_product",        "Lệnh SX chưa gắn mã sản phẩm — không thể thêm lỗi theo sản phẩm.", "WO has no product code — cannot register a per-product defect.");
     }
 }

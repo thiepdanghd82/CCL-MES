@@ -356,6 +356,22 @@ builder.Services.AddAuthorization(o =>
     o.AddPolicy("QcEdit", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(UserRole.Admin, UserRole.Qc, UserRole.Supervisor));
+
+    // P10.7g (QD) — SETTING check set-item gate. Operator đứng máy đánh
+    // OK/NG makeready → phải bao gồm Operator; QC/Supervisor/Engineer/Admin
+    // cũng được. Guard rollup + phase server phía controller.
+    o.AddPolicy("SettingItemSet", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Qc, UserRole.Supervisor,
+            UserRole.Engineer, UserRole.Operator));
+
+    // P10.7g (QD) — SETTING add-item (F4) + QC-add-new defect per-product.
+    // Ghi MASTER (thư viện per-product) chỉ dành Engineer+ (Admin/Supervisor/
+    // Engineer); Operator KHÔNG ghi master — chỉ được thêm ad-hoc per-WO qua
+    // /setting-checks/item (server tự hạ xuống ad-hoc theo role, không 403).
+    o.AddPolicy("SettingItemAdd", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
 });
 
 // ──────────────────────────────────────────────────────────────────────
@@ -424,6 +440,7 @@ builder.Services.AddScoped<CCL.MES.Api.Services.WoMutationExecutor>();
 builder.Services.AddScoped<CCL.MES.Api.Services.WoQcCheckMaterializer>();
 // A2 — Ipqc GET lazy-materialise + auto-sync (Plan C) + self-heal.
 builder.Services.AddScoped<CCL.MES.Api.Services.IpqcCheckMaterializer>();
+builder.Services.AddScoped<CCL.MES.Api.Services.SettingCheckMaterializer>();
 // A2 — Semi-Stock commit (SaveChanges out of SemiStockController).
 builder.Services.AddScoped<CCL.MES.Api.Services.SemiLotMutationService>();
 
@@ -601,6 +618,19 @@ using (var bootScope = app.Services.CreateScope())
             catch (Exception seedEx)
             {
                 Console.WriteLine($"[boot] process_line_map seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
+            }
+
+            // P10.7g — thư viện khâu SETTING (20 hạng mục Setting=true + base
+            // defect options). Idempotent non-deleting; SETTING materialize +
+            // defect drop-list phụ thuộc dữ liệu này.
+            try
+            {
+                var s = await CCL.MES.Infrastructure.DbSeeder.SeedSettingLibraryAsync(bootDb);
+                Console.WriteLine($"[seed] setting_library items_ins={s.LibInserted} items_upd={s.LibUpdated} defects_ins={s.DefectInserted}");
+            }
+            catch (Exception seedEx)
+            {
+                Console.WriteLine($"[boot] setting_library seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
             }
 
             // P10.7d-1 §5.5.1 — dual-sig boot probe. Default-ON discipline:

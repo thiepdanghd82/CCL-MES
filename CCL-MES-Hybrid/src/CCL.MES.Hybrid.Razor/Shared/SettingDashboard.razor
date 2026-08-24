@@ -1,46 +1,41 @@
 @*
-    P10.7c-3 — SETTING phase operator dashboard.
+    P10.7g-3 — SETTING phase operator dashboard (API-driven).
 
     Hosted inside WorkOrders.razor when the scanned WO has
-    MesPhase=SETTING. Owns the entire RunningSurfaceView state +
-    every API call that mutates it.
+    MesPhase=SETTING. Owns two server views:
+      - RunningSurfaceView (_view)  → timer / enter / done + HasPrint/HasCut
+      - SettingChecksView  (_checks) → the per-item checklist (materialised
+        server-side from CheckItemLibrary per-product). Each item carries
+        its own status / applicable / defect + per-item defect drop-list +
+        a server-computed Ready rollup that gates /setting/done.
 
-    Entry behaviour (closes the 7c-2 gap):
-      - On first load, if MesPhase=SETTING and SettingStartAt is null
-        we fire POST /setting/enter once to stamp the timer. The
-        helper is idempotent server-side so a stray re-load can't
-        reset the clock.
+    7g change (from 7c-3): the checklist is no longer attestation-cục-bộ
+    RAM (_status/_applicable/_defect dicts + hard-coded _printItems/_cutItems).
+    Every OK/NG/applicable/defect toggle now PUTs to
+    /work-orders/{id}/setting-checks/{itemKey} (If-Match ETag from _checks);
+    200 → refetch, 409 wo.state_conflict → banner + refetch (optimistic
+    revert), 422 → localiser banner. Two add-new affordances land per the
+    cmes-add-new-inline skill:
+      - F3 "＋ Thêm mới…" at the tail of each NG defect dropdown (Engineer+
+        only, RBAC-by-omission) → inline form → POST .../defect.
+      - F4 "＋ Thêm hạng mục" under the last row of each tab → inline form
+        → POST .../item (server branches per-product master vs ad-hoc).
 
-    Render:
-      - Live setting timer (HH:MM:SS since SettingStartAt, ticks every
-        second via a System.Timers.Timer scoped to this component).
-      - 6-item operator checklist. Each item is a local boolean — NOT
-        persisted server-side in 7c-3 (operator-attestation only; if a
-        future audit needs persistence, we'll mint wo_setting_checks
-        in 7d). All 6 must be ticked + setting/done becomes enabled.
-      - Single primary button: "Hoàn tất Setting (chuyển bước)"
-        → POST /setting/done → SETTING → IPQC_WAIT.
+    Concurrency / error handling matches IpqcDashboard.
 
-    Concurrency / error handling matches PrepressDashboard:
-      - 200 → swap state from the response (MesPhase + ETag) then
-        refetch the view to capture SettingEndAt + duration for the
-        post-write banner.
-      - 409 wo.state_conflict → refetch + show banner (the same
-        response carries the fresh ETag).
-      - 422 wo.invalid_phase → collapse to "không ở SETTING" banner.
-      - Network → red banner with retry tip.
-
-    Rule 4: plain <input> + <button>, NO <InputText>. No form fields
-    here other than the checklist checkboxes which are <input type="checkbox">.
+    Rule 4: plain <input> + <button> + <select>, NO <InputText>/<EditForm>.
 *@
 
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using System.Timers
 @using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.Auth
 @using CCL.MES.Hybrid.Client.RunningSurface
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.RunningSurface
+@using CCL.MES.Shared.SettingChecks
 @inject ICclApiClient Api
+@inject IAuthSession Session
 
 <div class="rs-dashboard" data-testid="setting-dashboard">
     @if (_view is null && _initialError is null)
@@ -89,7 +84,7 @@
             <div class="rs-card-head">
                 <div class="rs-card-title">@T("setting.checklist.title")</div>
                 <div class="rs-card-pill" data-testid="setting-count">
-                    @T("setting.checklist.confirmed", ActiveOkCount, ActiveItems.Length)
+                    @T("setting.checklist.confirmed", ActiveOkCount, ActiveApplicableCount)
                 </div>
             </div>
 
@@ -106,7 +101,7 @@
                             @onclick="@(() => _activeTab = SettingTab.Print)"
                             data-testid="setting-tab-print">
                         @T("setting.tab.print")
-                        <span class="setting-subtab-count scan-mono">@OkCount(_printItems)/@_printItems.Length</span>
+                        <span class="setting-subtab-count scan-mono">@OkCount(PrintItems)/@ApplicableCount(PrintItems)</span>
                     </button>
                     <button type="button"
                             class="setting-subtab @(_activeTab == SettingTab.Cut ? "is-active" : "")"
@@ -114,7 +109,7 @@
                             @onclick="@(() => _activeTab = SettingTab.Cut)"
                             data-testid="setting-tab-cut">
                         @T("setting.tab.cut")
-                        <span class="setting-subtab-count scan-mono">@OkCount(_cutItems)/@_cutItems.Length</span>
+                        <span class="setting-subtab-count scan-mono">@OkCount(CutItems)/@ApplicableCount(CutItems)</span>
                     </button>
                 </div>
             }
@@ -131,13 +126,14 @@
                     @{
                         var items = ActiveItems;
                         var prefix = ActivePrefix;
-                        var allApplied = items.All(it => IsApplicable(it.Key));
+                        var allApplied = items.Count > 0 && items.All(it => it.Applicable);
                     }
                     <thead>
                         <tr>
                             <th class="c-app c-center" title="@T("setting.applyall")">
                                 <input type="checkbox" checked="@allApplied"
                                        @onchange="@(e => SetApplicableAll(items, e.Value is bool b && b))"
+                                       disabled="@_busy"
                                        aria-label="@T("setting.applyall")"
                                        data-testid="@($"setting-applyall-{prefix}")" />
                             </th>
@@ -150,40 +146,75 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @for (var i = 0; i < items.Length; i++)
+                        @for (var i = 0; i < items.Count; i++)
                         {
                             var it = items[i];
-                            var st = Status(it.Key);
-                            var applies = IsApplicable(it.Key);
-                            <tr class="setting-row @RowClass(it.Key)"
-                                data-testid="@($"setting-row-{prefix}-{i}")">
+                            var idx = i;
+                            <tr class="setting-row @RowClass(it)"
+                                data-testid="@($"setting-row-{prefix}-{idx}")">
                                 <td class="c-app c-center">
-                                    <input type="checkbox" checked="@applies"
-                                           @onchange="@(e => SetApplicable(it.Key, e.Value is bool b && b))"
+                                    <input type="checkbox" checked="@it.Applicable"
+                                           @onchange="@(e => OnSetApplicableAsync(it, e.Value is bool b && b))"
                                            disabled="@_busy"
                                            aria-label="@T("setting.col.apply")"
-                                           data-testid="@($"setting-apply-{prefix}-{i}")" />
+                                           data-testid="@($"setting-apply-{prefix}-{idx}")" />
                                 </td>
-                                <td class="c-no">@(i + 1)</td>
-                                <td class="setting-row-item">@T(it.LabelKey)</td>
-                                <td class="wrap setting-row-std">@T(it.StdKey)</td>
+                                <td class="c-no">@(idx + 1)</td>
+                                <td class="setting-row-item">@(it.Label ?? it.ItemKey)</td>
+                                <td class="wrap setting-row-std">@(it.Standard ?? "")</td>
                                 <td class="c-center c-result">
-                                    <span class="setting-result @ResultCss(it.Key)"
-                                          data-testid="@($"setting-result-{prefix}-{i}")">@ResultLabel(it.Key)</span>
+                                    <span class="setting-result @ResultCss(it)"
+                                          data-testid="@($"setting-result-{prefix}-{idx}")">@ResultLabel(it)</span>
                                 </td>
                                 <td class="wrap c-defect">
-                                    @if (applies && st == "Ng")
+                                    @if (it.Applicable && it.Status == "Ng")
                                     {
                                         <select class="setting-defect-select"
-                                                value="@Defect(it.Key)"
-                                                @onchange="@(e => SetDefect(it.Key, e.Value?.ToString() ?? ""))"
-                                                data-testid="@($"setting-defect-{prefix}-{i}")">
+                                                value="@(it.DefectCode ?? "")"
+                                                @onchange="@(e => OnDefectChangedAsync(it, e.Value?.ToString() ?? ""))"
+                                                disabled="@_busy"
+                                                data-testid="@($"setting-defect-{prefix}-{idx}")">
                                             <option value="">@T("setting.defect.select")</option>
-                                            @foreach (var dk in it.DefectKeys)
+                                            @foreach (var d in it.DefectOptions)
                                             {
-                                                <option value="@dk">@T(dk)</option>
+                                                <option value="@d.DefectCode">@d.DefectCode — @d.LabelVi</option>
+                                            }
+                                            @if (_canAddNew)
+                                            {
+                                                <option value="@AddNewValue"
+                                                        data-testid="@($"setting-defect-{prefix}-{idx}-addnew")">@T("setting.addnew.option")</option>
                                             }
                                         </select>
+
+                                        @if (_addDefectFor == it.ItemKey)
+                                        {
+                                            <div class="setting-addnew-form" data-testid="@($"setting-defect-{prefix}-{idx}-addnew-form")">
+                                                <label class="setting-addnew-label">@T("setting.addnew.defect.code")</label>
+                                                <input type="text" class="setting-addnew-input" maxlength="64"
+                                                       value="@_newDefectCode"
+                                                       @oninput="@(e => _newDefectCode = e.Value?.ToString() ?? "")"
+                                                       data-testid="@($"setting-defect-{prefix}-{idx}-addnew-code")" />
+                                                <label class="setting-addnew-label">@T("setting.addnew.defect.vi")</label>
+                                                <input type="text" class="setting-addnew-input" maxlength="256"
+                                                       value="@_newDefectVi"
+                                                       @oninput="@(e => _newDefectVi = e.Value?.ToString() ?? "")"
+                                                       data-testid="@($"setting-defect-{prefix}-{idx}-addnew-vi")" />
+                                                <label class="setting-addnew-label">@T("setting.addnew.defect.en")</label>
+                                                <input type="text" class="setting-addnew-input" maxlength="256"
+                                                       value="@_newDefectEn"
+                                                       @oninput="@(e => _newDefectEn = e.Value?.ToString() ?? "")"
+                                                       data-testid="@($"setting-defect-{prefix}-{idx}-addnew-en")" />
+                                                <div class="setting-addnew-actions">
+                                                    <button type="button" class="op-btn op-btn-secondary op-btn-sm"
+                                                            @onclick="CloseAddDefect"
+                                                            data-testid="@($"setting-defect-{prefix}-{idx}-addnew-cancel")">@T("setting.addnew.cancel")</button>
+                                                    <button type="button" class="op-btn op-btn-primary op-btn-sm"
+                                                            disabled="@(!CanSaveDefect || _busy)"
+                                                            @onclick="@(() => OnSaveDefectAsync(it))"
+                                                            data-testid="@($"setting-defect-{prefix}-{idx}-addnew-save")">@T("setting.addnew.save")</button>
+                                                </div>
+                                            </div>
+                                        }
                                     }
                                     else
                                     {
@@ -191,16 +222,51 @@
                                     }
                                 </td>
                                 <td class="c-center c-conf">
-                                    <ConfirmToggle Status="@st"
-                                                   Disabled="@(_busy || !applies)"
-                                                   TestIdPrefix="@($"setting-item-{prefix}-{i}")"
-                                                   OnOk="@(() => SetStatus(it.Key, "Ok"))"
-                                                   OnNg="@(() => SetStatus(it.Key, "Ng"))" />
+                                    <ConfirmToggle Status="@it.Status"
+                                                   Disabled="@(_busy || !it.Applicable)"
+                                                   TestIdPrefix="@($"setting-item-{prefix}-{idx}")"
+                                                   OnOk="@(() => OnSetStatusAsync(it, "Ok"))"
+                                                   OnNg="@(() => OnSetStatusAsync(it, "Ng"))" />
                                 </td>
                             </tr>
                         }
                     </tbody>
                 </table>
+
+                @* F4 — add a new check item under the last row of this tab. *@
+                <button type="button"
+                        class="op-btn op-btn-secondary setting-addrow-btn"
+                        disabled="@_busy"
+                        @onclick="OpenAddRow"
+                        data-testid="@($"setting-{prefix}-addrow")">
+                    @T("setting.addrow.button")
+                </button>
+
+                @if (_addRowForTab == _activeTab)
+                {
+                    <div class="setting-addnew-form setting-addrow-form"
+                         data-testid="@($"setting-{prefix}-addrow-form")">
+                        <label class="setting-addnew-label">@T("setting.addrow.name")</label>
+                        <input type="text" class="setting-addnew-input" maxlength="512"
+                               value="@_newItemLabel"
+                               @oninput="@(e => _newItemLabel = e.Value?.ToString() ?? "")"
+                               data-testid="@($"setting-{prefix}-addrow-name")" />
+                        <label class="setting-addnew-label">@T("setting.addrow.standard")</label>
+                        <input type="text" class="setting-addnew-input" maxlength="512"
+                               value="@_newItemStandard"
+                               @oninput="@(e => _newItemStandard = e.Value?.ToString() ?? "")"
+                               data-testid="@($"setting-{prefix}-addrow-standard")" />
+                        <div class="setting-addnew-actions">
+                            <button type="button" class="op-btn op-btn-secondary op-btn-sm"
+                                    @onclick="CloseAddRow"
+                                    data-testid="@($"setting-{prefix}-addrow-cancel")">@T("setting.addnew.cancel")</button>
+                            <button type="button" class="op-btn op-btn-primary op-btn-sm"
+                                    disabled="@(!CanSaveItem || _busy)"
+                                    @onclick="OnSaveItemAsync"
+                                    data-testid="@($"setting-{prefix}-addrow-save")">@T("setting.addnew.save")</button>
+                        </div>
+                    </div>
+                }
             </div>
         </div>
 
@@ -208,11 +274,11 @@
             <button type="button"
                     class="op-btn op-btn-primary rs-primary-btn"
                     data-testid="setting-done-btn"
-                    disabled="@(!AllChecked || _busy)"
+                    disabled="@(!DoneEnabled || _busy)"
                     @onclick="OnSettingDoneAsync">
                 @T("setting.done.button")
             </button>
-            @if (!AllChecked)
+            @if (!DoneEnabled)
             {
                 <span class="rs-action-hint" data-testid="setting-action-hint">
                     @T("setting.action.hint")
@@ -228,65 +294,18 @@
     /// <summary>P10.7d-3 BUG-FIX (Henry RCA on PR #119) — invoked
     /// after a successful /setting/done so the parent (WorkOrders.razor)
     /// re-fetches the summary + dispatch picks up IPQC_WAIT, mounting
-    /// IpqcDashboard automatically. Without this the operator had to
-    /// tap "Tìm" to leave the now-invalid SettingDashboard. See Lesson L21.</summary>
+    /// IpqcDashboard automatically. See Lesson L21.</summary>
     [Parameter] public EventCallback OnPhaseChanged { get; set; }
 
-    // Two process-specific setting checklists: Print (makeready) vs Cut (die-cut).
-    // Operator-attestation only — NOT server-persisted in 7c-3. When Henry approves
-    // a schema (WoSettingCheckItem + migration + AuditAction) we persist per-item
-    // OK/NG the same way WoIpqcCheck does; for now the status lives in _status.
-    // TODO(persist): mint wo_setting_check_items + advance-guard on server rollup.
-    // TODO(routing): D2 — show only the tab(s) the WO's routing actually needs
-    //   (PRINT leg → Print tab, CUT leg → Cut tab). Today both tabs always show
-    //   and BOTH must be all-OK to advance, which suits full print+die-cut labels.
-    // DefectKeys = drop-list defect (i18n keys) hiện khi hạng mục bị đánh NG.
-    // Attestation-cục-bộ: bộ này tạm cứng; 7g rót từ CheckItemLibrary per-product.
-    private sealed record SettingItem(string Key, string LabelKey, string StdKey, string[] DefectKeys);
-
-    private static string[] D(params string[] codes) =>
-        codes.Select(c => "setting.defect." + c).ToArray();
-
-    private static readonly SettingItem[] _printItems =
-    {
-        new("print-0", "setting.print.item0", "setting.print.std0", D("pl_ver","pl_wear","pl_delam","pl_sep","pl_dirt")),
-        new("print-1", "setting.print.item1", "setting.print.std1", D("su_type","su_size","su_corona","su_damp","su_lot")),
-        new("print-2", "setting.print.item2", "setting.print.std2", D("in_de","in_code","in_visc","in_ph","in_smear","in_dry")),
-        new("print-3", "setting.print.item3", "setting.print.std3", D("rg_mis","rg_edge","rg_blur","rg_dbl")),
-        new("print-4", "setting.print.item4", "setting.print.std4", D("an_bcm","an_clog","an_uneven","an_blade")),
-        new("print-5", "setting.print.item5", "setting.print.std5", D("im_over","im_under","im_dline","im_thin")),
-        new("print-6", "setting.print.item6", "setting.print.std6", D("cu_wet","cu_over","cu_adh","cu_yellow")),
-        new("print-7", "setting.print.item7", "setting.print.std7", D("fo_content","fo_barcode","fo_color","fo_miss")),
-        new("print-8", "setting.print.item8", "setting.print.std8", D("br_mis","br_dir","br_show")),
-        new("print-9", "setting.print.item9", "setting.print.std9", D("hk_dirty","hk_mess","hk_safety")),
-    };
-
-    private static readonly SettingItem[] _cutItems =
-    {
-        new("cut-0", "setting.cut.item0", "setting.cut.std0", D("di_ver","di_blunt","di_break","di_rust")),
-        new("cut-1", "setting.cut.item1", "setting.cut.std1", D("ds_size","ds_type","ds_mismount")),
-        new("cut-2", "setting.cut.item2", "setting.cut.std2", D("cr_pos","cr_depth","cr_crack","cr_miss")),
-        new("cut-3", "setting.cut.item3", "setting.cut.std3", D("cd_liner","cd_nocut","cd_uneven","cd_fray")),
-        new("cut-4", "setting.cut.item4", "setting.cut.std4", D("dr_mis","dr_crop","dr_edge")),
-        new("cut-5", "setting.cut.item5", "setting.cut.std5", D("up_count","up_pitch","up_overlap","up_miss")),
-        new("cut-6", "setting.cut.item6", "setting.cut.std6", D("rw_dir","rw_core","rw_tension","rw_tele")),
-        new("cut-7", "setting.cut.item7", "setting.cut.std7", D("mx_break","mx_stick","mx_left","mx_tear")),
-        new("cut-8", "setting.cut.item8", "setting.cut.std8", D("ct_wrong","ct_qty","ct_unit")),
-        new("cut-9", "setting.cut.item9", "setting.cut.std9", D("hk_dirty","hk_mess","hk_safety")),
-    };
+    private const string AddNewValue = "__add_new__";
 
     private enum SettingTab { Print, Cut }
     private SettingTab _activeTab = SettingTab.Print;
 
-    // Per-item local status keyed by SettingItem.Key: "Pending" | "Ok" | "Ng".
-    private readonly Dictionary<string, string> _status = new();
-
-    // F1 — applicability: default true (item applies). Uncheck = N/A → excluded
-    // from the advance gate + not recorded. F3 — chosen defect key when NG.
-    private readonly Dictionary<string, bool> _applicable = new();
-    private readonly Dictionary<string, string> _defect = new();
-
+    // Two server views: timer/phase surface + the persisted checklist (7g).
     private RunningSurfaceView? _view;
+    private SettingChecksView? _checks;
+
     private string? _initialError;
     private string? _setError;
     private bool _busy;
@@ -294,81 +313,87 @@
     private long _lastLoadedWoId;
     private Timer? _ticker;
 
-    private SettingItem[] ActiveItems => _activeTab == SettingTab.Print ? _printItems : _cutItems;
+    // F3 add-new-defect inline form state (single open at a time, keyed by ItemKey).
+    private string? _addDefectFor;
+    private string _newDefectCode = "";
+    private string _newDefectVi = "";
+    private string _newDefectEn = "";
+
+    // F4 add-row inline form state (single open at a time, keyed by tab).
+    private SettingTab? _addRowForTab;
+    private string _newItemLabel = "";
+    private string _newItemStandard = "";
+
+    // RBAC-by-omission: only Engineer+ can register a per-product defect/master item.
+    private bool _canAddNew =>
+        Session.CurrentUserInfo?.Role is "Admin" or "Supervisor" or "Engineer";
+
+    private IReadOnlyList<SettingCheckItemView> PrintItems =>
+        _checks is null ? Array.Empty<SettingCheckItemView>()
+        : _checks.Items.Where(IsPrint).OrderBy(i => i.Sort).ToList();
+
+    private IReadOnlyList<SettingCheckItemView> CutItems =>
+        _checks is null ? Array.Empty<SettingCheckItemView>()
+        : _checks.Items.Where(i => !IsPrint(i)).OrderBy(i => i.Sort).ToList();
+
+    private static bool IsPrint(SettingCheckItemView it) =>
+        string.Equals(it.ProcessKind, "Print", StringComparison.OrdinalIgnoreCase);
+
+    private IReadOnlyList<SettingCheckItemView> ActiveItems =>
+        _activeTab == SettingTab.Print ? PrintItems : CutItems;
     private string ActivePrefix => _activeTab == SettingTab.Print ? "print" : "cut";
 
-    // P10.7f — which tabs the WO's routing needs. Null view or server without the
-    // field → both true (safe default = pre-P10.7f behaviour).
+    // Which tabs the WO's routing needs. Null view → both true (safe default).
     private bool ShowPrint => _view?.HasPrintProcess ?? true;
     private bool ShowCut => _view?.HasCutProcess ?? true;
 
-    /// <summary>Keep the active tab on an applicable process. If the default
-    /// (Print) is hidden for this WO, snap to the one that applies.</summary>
     private void ClampActiveTab()
     {
         if (_activeTab == SettingTab.Print && !ShowPrint && ShowCut) _activeTab = SettingTab.Cut;
         else if (_activeTab == SettingTab.Cut && !ShowCut && ShowPrint) _activeTab = SettingTab.Print;
     }
 
-    private string Status(string key) => _status.TryGetValue(key, out var v) ? v : "Pending";
-    private void SetStatus(string key, string status)
+    private static int OkCount(IReadOnlyList<SettingCheckItemView> items) =>
+        items.Count(it => it.Applicable && it.Status == "Ok");
+    private static int ApplicableCount(IReadOnlyList<SettingCheckItemView> items) =>
+        items.Count(it => it.Applicable);
+
+    private int ActiveOkCount => OkCount(ActiveItems);
+    private int ActiveApplicableCount => ApplicableCount(ActiveItems);
+
+    // Advance gate: prefer the server-computed rollup (Ready). Fall back to a
+    // client tally only when the checks view is missing (defensive).
+    private bool DoneEnabled => _checks?.Ready ?? ClientReady;
+    private bool ClientReady
     {
-        _status[key] = status;
-        if (status != "Ng") _defect.Remove(key);   // defect only meaningful while NG
+        get
+        {
+            if (_checks is null) return false;
+            var applicable = _checks.Items.Where(i => i.Applicable).ToList();
+            return applicable.Count > 0 && applicable.All(i => i.Status == "Ok");
+        }
     }
 
-    // F1 — applicability. Missing entry → true (applies by default).
-    private bool IsApplicable(string key) => !_applicable.TryGetValue(key, out var v) || v;
-    private void SetApplicable(string key, bool value)
-    {
-        _applicable[key] = value;
-        if (!value) { _status.Remove(key); _defect.Remove(key); }  // N/A carries no OK/NG/defect
-    }
-    private void SetApplicableAll(SettingItem[] items, bool value)
-    {
-        foreach (var it in items) SetApplicable(it.Key, value);
-    }
+    private static string ResultCss(SettingCheckItemView it) =>
+        !it.Applicable ? "setting-result-na"
+        : it.Status switch { "Ok" => "setting-result-ok", "Ng" => "setting-result-ng", _ => "setting-result-pending" };
 
-    // F3 — chosen defect key (i18n key) when NG.
-    private string Defect(string key) => _defect.TryGetValue(key, out var v) ? v : "";
-    private void SetDefect(string key, string defectKey) => _defect[key] = defectKey ?? "";
-
-    // F2 — derived result label + colour for the "Kết quả" column.
-    private string ResultLabel(string key) =>
-        !IsApplicable(key) ? T("setting.result.na")
-        : Status(key) switch
+    private string ResultLabel(SettingCheckItemView it) =>
+        !it.Applicable ? T("setting.result.na")
+        : it.Status switch
         {
             "Ok" => T("setting.result.pass"),
             "Ng" => T("setting.result.ng"),
             _    => "—",
         };
-    private string ResultCss(string key) =>
-        !IsApplicable(key) ? "setting-result-na"
-        : Status(key) switch { "Ok" => "setting-result-ok", "Ng" => "setting-result-ng", _ => "setting-result-pending" };
 
-    // Only applicable items count toward the OK tally.
-    private int OkCount(SettingItem[] items) => items.Count(it => IsApplicable(it.Key) && Status(it.Key) == "Ok");
-    private int ActiveOkCount => OkCount(ActiveItems);
-    private int ActiveApplicableCount => ActiveItems.Count(it => IsApplicable(it.Key));
-
-    // Advance is gated on every APPLICABLE item in the visible process tabs being OK.
-    // Non-applicable (N/A) rows are skipped; an NG or still-Pending applicable row in a
-    // visible tab keeps "Finish Setting" disabled. Needs ≥1 applicable item overall.
-    private bool TabSatisfied(SettingItem[] items) =>
-        items.Where(it => IsApplicable(it.Key)).All(it => Status(it.Key) == "Ok");
-    private bool AnyApplicableVisible =>
-        (ShowPrint && _printItems.Any(it => IsApplicable(it.Key)))
-        || (ShowCut && _cutItems.Any(it => IsApplicable(it.Key)));
-    private bool AllChecked =>
-        AnyApplicableVisible
-        && (!ShowPrint || TabSatisfied(_printItems))
-        && (!ShowCut || TabSatisfied(_cutItems));
-
-    private string RowClass(string key)
+    private static string RowClass(SettingCheckItemView it)
     {
-        if (!IsApplicable(key)) return "is-na";
-        return Status(key) switch { "Ok" => "is-ok", "Ng" => "is-ng", _ => "is-pending" };
+        if (!it.Applicable) return "is-na";
+        return it.Status switch { "Ok" => "is-ok", "Ng" => "is-ng", _ => "is-pending" };
     }
+
+    // ── Load ────────────────────────────────────────────────────────
 
     protected override async Task OnParametersSetAsync()
     {
@@ -376,14 +401,12 @@
         {
             _lastLoadedWoId = WorkOrderId;
             _view = null;
+            _checks = null;
             _initialError = null;
             _setError = null;
             _invalidPhase = false;
-            // Reset checklist between WOs so a fresh tab starts clean.
-            _status.Clear();
-            _applicable.Clear();
-            _defect.Clear();
             _activeTab = SettingTab.Print;
+            ResetAddForms();
             await ReloadAsync();
             ClampActiveTab();
             await EnterIfNeededAsync();
@@ -397,6 +420,8 @@
         {
             _view = await Api.GetRunningSurfaceViewAsync(WorkOrderId);
             _invalidPhase = _view.MesPhase != "SETTING";
+            if (!_invalidPhase)
+                _checks = await Api.GetSettingChecksAsync(WorkOrderId);
         }
         catch (ApiException apiEx)
         {
@@ -416,8 +441,6 @@
     {
         if (_view is null || _invalidPhase) return;
         if (_view.SettingStartAt is not null) return; // already stamped
-        // Fire-and-forget-ish: capture errors into the set-error banner but
-        // don't block render. After success we refetch to surface the stamp.
         _busy = true;
         try
         {
@@ -446,35 +469,68 @@
         }
     }
 
-    private async Task OnSettingDoneAsync()
+    // ── PUT set-item (status / applicable / defect) ──────────────────
+
+    private Task OnSetStatusAsync(SettingCheckItemView it, string status)
     {
-        if (_view is null || !AllChecked || _busy) return;
+        // Keep the existing defect + note when re-flipping to NG so the operator
+        // does not lose an already-picked reason; server ignores them for Ok.
+        var req = new SetSettingItemRequest
+        {
+            Status = status,
+            Applicable = it.Applicable,
+            DefectCode = status == "Ng" ? it.DefectCode : null,
+            NgNote = status == "Ng" ? (string.IsNullOrWhiteSpace(it.NgNote) ? T("setting.ng.note.default") : it.NgNote) : null,
+        };
+        return PutItemAsync(it.ItemKey, req);
+    }
+
+    private Task OnSetApplicableAsync(SettingCheckItemView it, bool applicable)
+    {
+        // The PUT contract requires a valid Status ("Ok"|"Ng"). When toggling
+        // applicability we resend the item's current judgment if it already has
+        // one; a still-Pending item is recorded as Ok (the applicable flag is
+        // the point of this write, and server skips result validation for N/A).
+        var req = new SetSettingItemRequest
+        {
+            Status = it.Status is "Ok" or "Ng" ? it.Status : "Ok",
+            Applicable = applicable,
+            DefectCode = applicable && it.Status == "Ng" ? it.DefectCode : null,
+            NgNote = applicable && it.Status == "Ng" ? it.NgNote : null,
+        };
+        return PutItemAsync(it.ItemKey, req);
+    }
+
+    private Task OnDefectChangedAsync(SettingCheckItemView it, string defectCode)
+    {
+        if (defectCode == AddNewValue)
+        {
+            OpenAddDefect(it);
+            return Task.CompletedTask;
+        }
+        var req = new SetSettingItemRequest
+        {
+            Status = "Ng",
+            Applicable = it.Applicable,
+            DefectCode = defectCode,
+            NgNote = string.IsNullOrWhiteSpace(it.NgNote) ? T("setting.ng.note.default") : it.NgNote,
+        };
+        return PutItemAsync(it.ItemKey, req);
+    }
+
+    private async Task PutItemAsync(string itemKey, SetSettingItemRequest req)
+    {
+        if (_checks is null || _busy) return;
         _busy = true;
         _setError = null;
         try
         {
-            var resp = await Api.PostSettingDoneAsync(WorkOrderId, _view.ETag);
-            if (resp.Ok)
-            {
-                await ReloadAsync();
-                // P10.7d-3 BUG-FIX — bubble phase change SETTING → IPQC_WAIT
-                // so the parent re-fetches the summary + dispatch routes to
-                // IpqcDashboard without the operator tapping "Tìm". See L21.
-                await OnPhaseChanged.InvokeAsync();
-            }
-            else if (!string.IsNullOrEmpty(resp.ErrorCode))
-            {
-                _setError = RunningSurfaceErrorLocaliser.LocaliseSetError(resp.ErrorCode);
-                await ReloadAsync();
-            }
-            else
-            {
-                _setError = "Server returned Ok=false without an error code — report to IT.";
-            }
+            var resp = await Api.PutSettingItemAsync(WorkOrderId, _checks.ETag, itemKey, req);
+            await HandleSetResponseAsync(resp);
         }
         catch (ApiException apiEx)
         {
-            _setError = RunningSurfaceErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            _setError = LocaliseApi(apiEx);
             if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
             await ReloadAsync();
         }
@@ -490,6 +546,239 @@
         {
             _busy = false;
         }
+    }
+
+    // ── F3 — add-new defect ──────────────────────────────────────────
+
+    private void OpenAddDefect(SettingCheckItemView it)
+    {
+        if (!_canAddNew) return;
+        _addDefectFor = it.ItemKey;
+        _newDefectCode = "";
+        _newDefectVi = "";
+        _newDefectEn = "";
+    }
+
+    private void CloseAddDefect()
+    {
+        _addDefectFor = null;
+        _newDefectCode = "";
+        _newDefectVi = "";
+        _newDefectEn = "";
+    }
+
+    private bool CanSaveDefect =>
+        !string.IsNullOrWhiteSpace(_newDefectCode)
+        && !string.IsNullOrWhiteSpace(_newDefectVi)
+        && !string.IsNullOrWhiteSpace(_newDefectEn);
+
+    private async Task OnSaveDefectAsync(SettingCheckItemView it)
+    {
+        if (!CanSaveDefect || _checks is null || _busy) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var resp = await Api.PostSettingDefectAsync(WorkOrderId, _checks.ETag, new AddSettingDefectRequest
+            {
+                ItemId = it.ItemKey,
+                DefectCode = _newDefectCode.Trim(),
+                LabelVi = _newDefectVi.Trim(),
+                LabelEn = _newDefectEn.Trim(),
+            });
+            if (resp.Ok)
+            {
+                CloseAddDefect();
+                await ReloadAsync();
+            }
+            else if (!string.IsNullOrEmpty(resp.ErrorCode))
+            {
+                _setError = LocaliseSet(resp.ErrorCode);
+                await ReloadAsync();
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = LocaliseApi(apiEx);
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = $"Could not connect to the server: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── F4 — add-row ─────────────────────────────────────────────────
+
+    private void OpenAddRow()
+    {
+        _addRowForTab = _activeTab;
+        _newItemLabel = "";
+        _newItemStandard = "";
+    }
+
+    private void CloseAddRow()
+    {
+        _addRowForTab = null;
+        _newItemLabel = "";
+        _newItemStandard = "";
+    }
+
+    private bool CanSaveItem => !string.IsNullOrWhiteSpace(_newItemLabel);
+
+    private async Task OnSaveItemAsync()
+    {
+        if (!CanSaveItem || _checks is null || _busy) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var resp = await Api.PostSettingItemAsync(WorkOrderId, _checks.ETag, new AddSettingItemRequest
+            {
+                ProcessKind = _activeTab == SettingTab.Print ? "Print" : "Cut",
+                Label = _newItemLabel.Trim(),
+                Standard = string.IsNullOrWhiteSpace(_newItemStandard) ? null : _newItemStandard.Trim(),
+            });
+            if (resp.Ok)
+            {
+                CloseAddRow();
+                await ReloadAsync();
+            }
+            else if (!string.IsNullOrEmpty(resp.ErrorCode))
+            {
+                _setError = LocaliseSet(resp.ErrorCode);
+                await ReloadAsync();
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = LocaliseApi(apiEx);
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = $"Could not connect to the server: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── Applicable-all ───────────────────────────────────────────────
+
+    private async Task SetApplicableAll(IReadOnlyList<SettingCheckItemView> items, bool value)
+    {
+        foreach (var it in items.ToList())
+        {
+            if (it.Applicable == value) continue;
+            await OnSetApplicableAsync(it, value);
+        }
+    }
+
+    // ── setting/done ─────────────────────────────────────────────────
+
+    private async Task OnSettingDoneAsync()
+    {
+        if (_view is null || !DoneEnabled || _busy) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var resp = await Api.PostSettingDoneAsync(WorkOrderId, _view.ETag);
+            if (resp.Ok)
+            {
+                await ReloadAsync();
+                await OnPhaseChanged.InvokeAsync();
+            }
+            else if (!string.IsNullOrEmpty(resp.ErrorCode))
+            {
+                _setError = LocaliseSet(resp.ErrorCode);
+                await ReloadAsync();
+            }
+            else
+            {
+                _setError = "Server returned Ok=false without an error code — report to IT.";
+            }
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = LocaliseApi(apiEx);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = $"Could not connect to the server: {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // ── Shared response handler (optimistic-revert on 409) ───────────
+
+    private async Task HandleSetResponseAsync(SettingChecksSetResponse resp)
+    {
+        if (resp.Ok)
+        {
+            await ReloadAsync();
+            return;
+        }
+        if (!string.IsNullOrEmpty(resp.ErrorCode))
+        {
+            _setError = LocaliseSet(resp.ErrorCode);
+            await ReloadAsync();
+            return;
+        }
+        _setError = "Server returned Ok=false without an error code — report to IT.";
+    }
+
+    // ── Localisers (setting.* first, then shared running-surface bank) ─
+
+    private string LocaliseSet(string code) => code switch
+    {
+        "setting.incomplete" => T("setting.error.incomplete"),
+        _                    => RunningSurfaceErrorLocaliser.LocaliseSetError(code),
+    };
+
+    private string LocaliseApi(ApiException apiEx) => apiEx.ApiError.Code switch
+    {
+        "setting.incomplete"        => T("setting.error.incomplete"),
+        "setting.invalid_status"    => T("setting.error.invalid_status"),
+        "setting.invalid_item"      => T("setting.error.invalid_item"),
+        "setting.invalid_defect"    => T("setting.error.invalid_defect"),
+        "setting.invalid_ng_note"   => T("setting.error.invalid_ng_note"),
+        "setting.invalid_label"     => T("setting.error.invalid_label"),
+        "setting.invalid_process_kind" => T("setting.error.invalid_process_kind"),
+        "setting.defect_exists"     => T("setting.error.defect_exists"),
+        "setting.no_product"        => T("setting.error.no_product"),
+        _                           => RunningSurfaceErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError),
+    };
+
+    // ── Misc ─────────────────────────────────────────────────────────
+
+    private void ResetAddForms()
+    {
+        CloseAddDefect();
+        CloseAddRow();
     }
 
     private void EnsureTicker()

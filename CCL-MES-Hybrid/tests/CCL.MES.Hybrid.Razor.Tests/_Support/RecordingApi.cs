@@ -343,6 +343,55 @@ public sealed class RecordingApi : ICclApiClient
             : RunFinishImpl(workOrderId, ifMatchETag, ct);
     }
 
+    // ── SETTING checks persist (P10.7g) ─────────────────────────────
+    public Func<long, CancellationToken, Task<CCL.MES.Shared.SettingChecks.SettingChecksView>>? SettingChecksViewImpl { get; set; }
+    public Func<long, string, string, CCL.MES.Shared.SettingChecks.SetSettingItemRequest, CancellationToken, Task<CCL.MES.Shared.SettingChecks.SettingChecksSetResponse>>? PutSettingItemImpl { get; set; }
+    public Func<long, string, CCL.MES.Shared.SettingChecks.AddSettingItemRequest, CancellationToken, Task<CCL.MES.Shared.SettingChecks.SettingChecksSetResponse>>? PostSettingItemImpl { get; set; }
+    public Func<long, string, CCL.MES.Shared.SettingChecks.AddSettingDefectRequest, CancellationToken, Task<CCL.MES.Shared.SettingChecks.SettingChecksSetResponse>>? PostSettingDefectImpl { get; set; }
+
+    public List<long> SettingChecksViewCalls { get; } = new();
+    public List<(long Id, string ETag, string ItemKey, CCL.MES.Shared.SettingChecks.SetSettingItemRequest Req)> PutSettingItemCalls { get; } = new();
+    public List<(long Id, string ETag, CCL.MES.Shared.SettingChecks.AddSettingItemRequest Req)> PostSettingItemCalls { get; } = new();
+    public List<(long Id, string ETag, CCL.MES.Shared.SettingChecks.AddSettingDefectRequest Req)> PostSettingDefectCalls { get; } = new();
+
+    public Task<CCL.MES.Shared.SettingChecks.SettingChecksView> GetSettingChecksAsync(long workOrderId, CancellationToken ct = default)
+    {
+        SettingChecksViewCalls.Add(workOrderId);
+        return SettingChecksViewImpl is null
+            ? throw new InvalidOperationException("SettingChecksViewImpl not set")
+            : SettingChecksViewImpl(workOrderId, ct);
+    }
+
+    public Task<CCL.MES.Shared.SettingChecks.SettingChecksSetResponse> PutSettingItemAsync(
+        long workOrderId, string ifMatchETag, string itemKey,
+        CCL.MES.Shared.SettingChecks.SetSettingItemRequest req, CancellationToken ct = default)
+    {
+        PutSettingItemCalls.Add((workOrderId, ifMatchETag, itemKey, req));
+        return PutSettingItemImpl is null
+            ? Task.FromResult(new CCL.MES.Shared.SettingChecks.SettingChecksSetResponse { Ok = true, ETag = ifMatchETag, MesPhase = "SETTING" })
+            : PutSettingItemImpl(workOrderId, ifMatchETag, itemKey, req, ct);
+    }
+
+    public Task<CCL.MES.Shared.SettingChecks.SettingChecksSetResponse> PostSettingItemAsync(
+        long workOrderId, string ifMatchETag,
+        CCL.MES.Shared.SettingChecks.AddSettingItemRequest req, CancellationToken ct = default)
+    {
+        PostSettingItemCalls.Add((workOrderId, ifMatchETag, req));
+        return PostSettingItemImpl is null
+            ? Task.FromResult(new CCL.MES.Shared.SettingChecks.SettingChecksSetResponse { Ok = true, ETag = ifMatchETag, MesPhase = "SETTING", AddedKey = "print-new" })
+            : PostSettingItemImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
+    public Task<CCL.MES.Shared.SettingChecks.SettingChecksSetResponse> PostSettingDefectAsync(
+        long workOrderId, string ifMatchETag,
+        CCL.MES.Shared.SettingChecks.AddSettingDefectRequest req, CancellationToken ct = default)
+    {
+        PostSettingDefectCalls.Add((workOrderId, ifMatchETag, req));
+        return PostSettingDefectImpl is null
+            ? Task.FromResult(new CCL.MES.Shared.SettingChecks.SettingChecksSetResponse { Ok = true, ETag = ifMatchETag, MesPhase = "SETTING", AddedKey = req.DefectCode })
+            : PostSettingDefectImpl(workOrderId, ifMatchETag, req, ct);
+    }
+
     // ── Multi-Method Routing DAG (P11-3) ───────────────────────────
 
     public Func<long, CancellationToken, Task<CCL.MES.Shared.Routing.LegsView>>? LegsViewImpl { get; set; }
