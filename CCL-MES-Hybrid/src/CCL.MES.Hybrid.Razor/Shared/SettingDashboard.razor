@@ -167,7 +167,7 @@
                                           data-testid="@($"setting-result-{prefix}-{idx}")">@ResultLabel(it)</span>
                                 </td>
                                 <td class="wrap c-defect">
-                                    @if (it.Applicable && it.Status == "Ng")
+                                    @if (it.Applicable && IsNgActive(it))
                                     {
                                         <select class="setting-defect-select"
                                                 value="@(it.DefectCode ?? "")"
@@ -222,11 +222,11 @@
                                     }
                                 </td>
                                 <td class="c-center c-conf">
-                                    <ConfirmToggle Status="@it.Status"
+                                    <ConfirmToggle Status="@EffectiveStatus(it)"
                                                    Disabled="@(_busy || !it.Applicable)"
                                                    TestIdPrefix="@($"setting-item-{prefix}-{idx}")"
-                                                   OnOk="@(() => OnSetStatusAsync(it, "Ok"))"
-                                                   OnNg="@(() => OnSetStatusAsync(it, "Ng"))" />
+                                                   OnOk="@(() => OnSetOkAsync(it))"
+                                                   OnNg="@(() => OnArmNg(it))" />
                                 </td>
                             </tr>
                         }
@@ -374,23 +374,36 @@
         }
     }
 
-    private static string ResultCss(SettingCheckItemView it) =>
+    // NG là thao tác 2 bước (như IPQC): tap NG "arm" cục bộ → hiện dropdown defect
+    // → chọn defect mới PUT (server bắt buộc defect khi NG). KHÔNG PUT lúc tap NG
+    // vì chưa có defect → server 422. _armNg giữ các item đang arm, chưa persist.
+    private readonly HashSet<string> _armNg = new();
+
+    /// <summary>Trạng thái hiển thị: item đang arm-NG (chưa persist) vẫn hiện NG.</summary>
+    private string EffectiveStatus(SettingCheckItemView it) =>
+        _armNg.Contains(it.ItemKey) ? "Ng" : it.Status;
+
+    /// <summary>NG đang bật (đã persist Ng HOẶC đang arm) → hiện dropdown defect.</summary>
+    private bool IsNgActive(SettingCheckItemView it) =>
+        it.Status == "Ng" || _armNg.Contains(it.ItemKey);
+
+    private string ResultCss(SettingCheckItemView it) =>
         !it.Applicable ? "setting-result-na"
-        : it.Status switch { "Ok" => "setting-result-ok", "Ng" => "setting-result-ng", _ => "setting-result-pending" };
+        : EffectiveStatus(it) switch { "Ok" => "setting-result-ok", "Ng" => "setting-result-ng", _ => "setting-result-pending" };
 
     private string ResultLabel(SettingCheckItemView it) =>
         !it.Applicable ? T("setting.result.na")
-        : it.Status switch
+        : EffectiveStatus(it) switch
         {
             "Ok" => T("setting.result.pass"),
             "Ng" => T("setting.result.ng"),
             _    => "—",
         };
 
-    private static string RowClass(SettingCheckItemView it)
+    private string RowClass(SettingCheckItemView it)
     {
         if (!it.Applicable) return "is-na";
-        return it.Status switch { "Ok" => "is-ok", "Ng" => "is-ng", _ => "is-pending" };
+        return EffectiveStatus(it) switch { "Ok" => "is-ok", "Ng" => "is-ng", _ => "is-pending" };
     }
 
     // ── Load ────────────────────────────────────────────────────────
@@ -406,6 +419,7 @@
             _setError = null;
             _invalidPhase = false;
             _activeTab = SettingTab.Print;
+            _armNg.Clear();
             ResetAddForms();
             await ReloadAsync();
             ClampActiveTab();
@@ -471,18 +485,25 @@
 
     // ── PUT set-item (status / applicable / defect) ──────────────────
 
-    private Task OnSetStatusAsync(SettingCheckItemView it, string status)
+    // Tap NG → arm cục bộ (hiện dropdown), CHƯA PUT — server bắt buộc defect khi NG.
+    // Nếu item đã persist Ng (có defect rồi) thì dropdown vẫn hiện để đổi defect.
+    private void OnArmNg(SettingCheckItemView it)
     {
-        // Keep the existing defect + note when re-flipping to NG so the operator
-        // does not lose an already-picked reason; server ignores them for Ok.
-        var req = new SetSettingItemRequest
+        if (_busy) return;
+        _armNg.Add(it.ItemKey);
+    }
+
+    // Tap OK → bỏ arm + PUT Ok ngay (Ok không cần defect).
+    private Task OnSetOkAsync(SettingCheckItemView it)
+    {
+        _armNg.Remove(it.ItemKey);
+        return PutItemAsync(it.ItemKey, new SetSettingItemRequest
         {
-            Status = status,
+            Status = "Ok",
             Applicable = it.Applicable,
-            DefectCode = status == "Ng" ? it.DefectCode : null,
-            NgNote = status == "Ng" ? (string.IsNullOrWhiteSpace(it.NgNote) ? T("setting.ng.note.default") : it.NgNote) : null,
-        };
-        return PutItemAsync(it.ItemKey, req);
+            DefectCode = null,
+            NgNote = null,
+        });
     }
 
     private Task OnSetApplicableAsync(SettingCheckItemView it, bool applicable)
@@ -508,6 +529,9 @@
             OpenAddDefect(it);
             return Task.CompletedTask;
         }
+        if (string.IsNullOrEmpty(defectCode)) return Task.CompletedTask; // "— chọn defect —"
+        // Đã chọn defect → giờ mới PUT Ng (persist). Bỏ arm cục bộ.
+        _armNg.Remove(it.ItemKey);
         var req = new SetSettingItemRequest
         {
             Status = "Ng",

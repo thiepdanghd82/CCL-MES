@@ -273,6 +273,52 @@ public sealed class SettingDashboardTests : TestContext
         });
     }
 
+    // ── L54 regression — NG là 2 bước: tap NG "arm" (KHÔNG PUT vì server bắt
+    //    buộc defect khi NG) → chọn defect mới PUT. Tránh 422 "no error code". ─
+
+    [Fact]
+    public void Tapping_NG_arms_locally_without_PUT_and_reveals_defect_dropdown()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        SetViews(api, chk: ChecksView(etag: "chk-v1"));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-item-print-0-ng']")));
+
+        // No defect dropdown until NG is armed.
+        Assert.Empty(cut.FindAll("[data-testid='setting-defect-print-0']"));
+
+        cut.Find("[data-testid='setting-item-print-0-ng']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            // Dropdown revealed…
+            Assert.NotNull(cut.Find("[data-testid='setting-defect-print-0']"));
+            // …but NOTHING persisted yet (server would 422 on NG-without-defect).
+            Assert.Empty(api.PutSettingItemCalls);
+        });
+    }
+
+    [Fact]
+    public void Picking_defect_after_NG_PUTs_status_Ng_with_defect()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        SetViews(api, chk: ChecksView(etag: "chk-v1"));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-item-print-0-ng']")));
+
+        cut.Find("[data-testid='setting-item-print-0-ng']").Click();
+        cut.Find("[data-testid='setting-defect-print-0']").Change("PL-VER");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(api.PutSettingItemCalls);
+            Assert.Equal("Ng", api.PutSettingItemCalls[0].Req.Status);
+            Assert.Equal("PL-VER", api.PutSettingItemCalls[0].Req.DefectCode);
+        });
+    }
+
     [Fact]
     public void Set_item_409_conflict_renders_banner_and_reloads()
     {
