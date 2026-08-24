@@ -51,3 +51,38 @@
   (hoặc cột `Stage`) → đây là migration, nằm trong STOP-gate — ghi rõ ở scope Q3.
 - 20 hạng mục + mã lỗi ở đây khớp 1-1 với `_printItems`/`_cutItems` đã ship
   trong `SettingDashboard.razor` (PR #211) để không lệch nội dung khi persist.
+
+## §per-item — defect drop-list theo từng hạng mục (Ops xác nhận)
+
+Đã ship trong F3 (PR #213) dạng mã cứng; 7g QC sẽ chuyển vào master
+(`CheckItemDefectOption`). Ops rà từng dòng, thêm/bớt nếu cần.
+
+### Print process
+| # | Hạng mục | Defect codes |
+|---|---|---|
+|1|Bản in / khuôn|pl_ver · pl_wear · pl_delam · pl_sep · pl_dirt|
+|2|Vật tư in|su_type · su_size · su_corona · su_damp · su_lot|
+|3|Mực & màu|in_de · in_code · in_visc · in_ph · in_smear · in_dry|
+|4|Chồng màu (registration)|rg_mis · rg_edge · rg_blur · rg_dbl|
+|5|Anilox / cấp mực|an_bcm · an_clog · an_uneven · an_blade|
+|6|Áp lực in + dao gạt|im_over · im_under · im_dline · im_thin|
+|7|Sấy / UV curing|cu_wet · cu_over · cu_adh · cu_yellow|
+|8|Mẫu đầu tiên|fo_content · fo_barcode · fo_color · fo_miss|
+|9|Đăng ký mặt sau|br_mis · br_dir · br_show|
+|10|Vệ sinh & an toàn|hk_dirty · hk_mess · hk_safety|
+
+### Cut process
+| # | Hạng mục | Defect codes |
+|---|---|---|
+|1|Khuôn cắt / dao|di_ver · di_blunt · di_break · di_rust|
+|2|Lắp dao đúng khổ|ds_size · ds_type · ds_mismount|
+|3|Nhấn / gấp (crease)|cr_pos · cr_depth · cr_crack · cr_miss|
+|4|Áp lực / độ sâu cắt|cd_liner · cd_nocut · cd_uneven · cd_fray|
+|5|Canh cắt theo hình in|dr_mis · dr_crop · dr_edge|
+|6|Layout con / tờ|up_count · up_pitch · up_overlap · up_miss|
+|7|Cuộn / lõi / tension|rw_dir · rw_core · rw_tension · rw_tele|
+|8|Bóc lưới thải (matrix)|mx_break · mx_stick · mx_left · mx_tear|
+|9|Đếm số lượng|ct_wrong · ct_qty · ct_unit|
+|10|Vệ sinh & an toàn|hk_dirty · hk_mess · hk_safety|
+
+Nhãn VI/EN đầy đủ của từng mã: `TranslationCatalog.Setting.cs` (`setting.defect.*`).
