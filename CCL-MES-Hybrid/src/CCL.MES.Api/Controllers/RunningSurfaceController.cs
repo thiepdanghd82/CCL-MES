@@ -7,6 +7,8 @@ using CCL.MES.Application.Services;
 using CCL.MES.Domain;
 using CCL.MES.Domain.Audit;
 using CCL.MES.Domain.Entities;
+using CCL.MES.Domain.Routing;
+using CCL.MES.Domain.StateMachine;
 using CCL.MES.Shared;
 using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.RunningSurface;
@@ -115,6 +117,28 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
             })
             .ToListAsync(ct);
 
+        // P10.7f — which SETTING sub-tabs (Print / Cut) this WO needs, from its
+        // routing plan. Only resolved at SETTING (the sole surface that reads it);
+        // other phases keep the safe both-true default. Same recipe as
+        // RoutingController.Materialize (product → routing ops → leg map → plan).
+        var hasPrint = true;
+        var hasCut = true;
+        if (string.Equals(wo.MesPhase, nameof(MesPhase.SETTING), StringComparison.Ordinal))
+        {
+            var productCode = await _db.Products.AsNoTracking()
+                .Where(p => p.Id == wo.ProductId).Select(p => p.ProductCode).FirstOrDefaultAsync(ct);
+            var ops = string.IsNullOrWhiteSpace(productCode)
+                ? new List<RoutingLegResolver.RoutingOp>()
+                : await _db.RoutingOperations.AsNoTracking().Where(r => r.PartNo == productCode)
+                    .Select(r => new RoutingLegResolver.RoutingOp(r.OpNo, r.Operation, r.WorkCenterNo, r.WorkCenterDescription))
+                    .ToListAsync(ct);
+            var map = await _db.ProcessLegMaps.AsNoTracking().Where(m => m.Active)
+                .Select(m => new RoutingLegResolver.MapEntry(m.MatchType, m.MatchValue, m.LegKind, m.Method, m.ProcessLine, m.Sort))
+                .ToListAsync(ct);
+            var plan = RoutingLegResolver.Resolve(ops, map);
+            (hasPrint, hasCut) = SettingProcessScope.FromLegKinds(plan.Legs.Select(l => l.LegKind));
+        }
+
         var view = new RunningSurfaceView
         {
             WoId = wo.Id,
@@ -127,6 +151,8 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
             SettingStartAt = wo.SettingStartAt,
             SettingEndAt = wo.SettingEndAt,
             SettingDurationSec = wo.SettingDurationSec,
+            HasPrintProcess = hasPrint,
+            HasCutProcess = hasCut,
             ActiveSessionId = activeSession?.Id,
             ActiveSessionStartAt = activeSession?.StartedAt,
             ActivePauseId = activePause?.Id,

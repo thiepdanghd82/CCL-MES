@@ -36,10 +36,30 @@ public sealed class SettingDashboardTests : TestContext
         this.AddTestAuthorization().SetAuthorized("test-user");
     }
 
+    // P10.7f — SETTING split into Print + Cut process sub-tabs, each a table of
+    // OK/NG ConfirmToggle rows. 10 items per tab; advance needs every row OK.
+    private const int PrintItemCount = 10;
+    private const int CutItemCount = 10;
+
+    /// <summary>Tap OK on every Print row, switch to the Cut tab, tap OK on
+    /// every Cut row — the new "all items confirmed" precondition for
+    /// /setting/done. Re-finds each cell by index because every click
+    /// re-renders the parent (counter pill rebuilds).</summary>
+    private static void ConfirmAllOk(IRenderedComponent<SettingDashboard> cut)
+    {
+        for (var i = 0; i < PrintItemCount; i++)
+            cut.Find($"[data-testid='setting-item-print-{i}-ok']").Click();
+        cut.Find("[data-testid='setting-tab-cut']").Click();
+        for (var i = 0; i < CutItemCount; i++)
+            cut.Find($"[data-testid='setting-item-cut-{i}-ok']").Click();
+    }
+
     private static RunningSurfaceView SettingView(
         string etag = "abc==",
         DateTime? startAt = null,
-        string phase = "SETTING") => new()
+        string phase = "SETTING",
+        bool hasPrint = true,
+        bool hasCut = true) => new()
     {
         WoId = 42,
         WoNo = "WO-26-3701",
@@ -47,6 +67,8 @@ public sealed class SettingDashboardTests : TestContext
         ETag = etag,
         TargetQty = 1000,
         SettingStartAt = startAt,
+        HasPrintProcess = hasPrint,
+        HasCutProcess = hasCut,
     };
 
     // ── Initial render ─────────────────────────────────────────────
@@ -178,18 +200,127 @@ public sealed class SettingDashboardTests : TestContext
         var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
 
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-checklist']")));
-        Assert.Equal(6, cut.FindAll("[data-testid^='setting-check-']").Count);
-        // Re-find on each iteration: the parent component re-renders on
-        // every check toggle (CheckedCount pill rebuilds) which would
-        // invalidate cached element refs if we cached up-front.
-        for (var i = 0; i < 6; i++)
-            cut.Find($"[data-testid='setting-check-{i}']").Change(true);
+        Assert.Equal(PrintItemCount,
+            cut.FindAll("[data-testid^='setting-item-print-'][data-testid$='-confirm']").Count);
+        ConfirmAllOk(cut);
 
         cut.WaitForAssertion(() =>
         {
             var btn = cut.Find("[data-testid='setting-done-btn']");
             Assert.False(btn.HasAttribute("disabled"),
-                "All 6 ticked → done button must be enabled.");
+                "All Print + Cut items OK → done button must be enabled.");
+        });
+    }
+
+    // ── Two process sub-tabs render different tables ───────────────
+
+    [Fact]
+    public void Print_and_Cut_subtabs_render_different_check_tables()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(startAt: DateTime.UtcNow.AddMinutes(-1)));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-tab-print']")));
+        Assert.NotNull(cut.Find("[data-testid='setting-tab-cut']"));
+
+        // Print tab active by default → the Print makeready item, not the Cut one.
+        var printRow0 = cut.Find("[data-testid='setting-row-print-0']").TextContent;
+        Assert.Contains("Bản in", printRow0);   // default language = VI
+        Assert.Equal(PrintItemCount,
+            cut.FindAll("[data-testid^='setting-row-print-']").Count);
+
+        // Switch to Cut → a DIFFERENT table (die-cut items).
+        cut.Find("[data-testid='setting-tab-cut']").Click();
+        var cutRow0 = cut.Find("[data-testid='setting-row-cut-0']").TextContent;
+        Assert.Contains("Khuôn cắt", cutRow0);
+        Assert.Equal(CutItemCount,
+            cut.FindAll("[data-testid^='setting-row-cut-']").Count);
+        Assert.Empty(cut.FindAll("[data-testid^='setting-row-print-']"));
+    }
+
+    // ── P10.7f — routing-driven tab visibility ─────────────────────
+
+    [Fact]
+    public void Print_only_WO_hides_Cut_tab_and_needs_only_print_to_advance()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(startAt: DateTime.UtcNow.AddMinutes(-1), hasPrint: true, hasCut: false));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-checklist']")));
+        // No switcher — single process. Cut tab + rows absent; Print rows present.
+        Assert.Empty(cut.FindAll("[data-testid='setting-tab-cut']"));
+        Assert.NotNull(cut.Find("[data-testid='setting-single-process']"));
+        Assert.Equal(PrintItemCount, cut.FindAll("[data-testid^='setting-row-print-']").Count);
+        Assert.Empty(cut.FindAll("[data-testid^='setting-row-cut-']"));
+
+        // Advance needs ONLY the print rows (Cut is not applicable).
+        for (var i = 0; i < PrintItemCount; i++)
+            cut.Find($"[data-testid='setting-item-print-{i}-ok']").Click();
+
+        cut.WaitForAssertion(() =>
+            Assert.False(cut.Find("[data-testid='setting-done-btn']").HasAttribute("disabled"),
+                "Print-only WO: all Print rows OK → advance enabled without a Cut tab."));
+    }
+
+    [Fact]
+    public void Cut_only_WO_snaps_active_tab_to_Cut()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(startAt: DateTime.UtcNow.AddMinutes(-1), hasPrint: false, hasCut: true));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-checklist']")));
+        // Default active is Print, but Print is hidden → clamp to Cut rows.
+        Assert.Empty(cut.FindAll("[data-testid='setting-tab-print']"));
+        Assert.Equal(CutItemCount, cut.FindAll("[data-testid^='setting-row-cut-']").Count);
+        Assert.Empty(cut.FindAll("[data-testid^='setting-row-print-']"));
+    }
+
+    [Fact]
+    public void Both_processes_render_the_switcher()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(startAt: DateTime.UtcNow.AddMinutes(-1), hasPrint: true, hasCut: true));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-subtabs']")));
+        Assert.NotNull(cut.Find("[data-testid='setting-tab-print']"));
+        Assert.NotNull(cut.Find("[data-testid='setting-tab-cut']"));
+    }
+
+    // ── Every row uses the shared ConfirmToggle (L52), not bare buttons ─
+
+    [Fact]
+    public void Setting_rows_use_shared_ConfirmToggle()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(startAt: DateTime.UtcNow.AddMinutes(-1)));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-item-print-0-confirm']")));
+        var toggle = cut.Find("[data-testid='setting-item-print-0-confirm']");
+        Assert.Contains("confirm-toggle", toggle.GetAttribute("class"));
+
+        // Tapping NG on a row keeps "Finish" disabled (NG is not OK).
+        cut.Find("[data-testid='setting-item-print-0-ng']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            var wrap = cut.Find("[data-testid='setting-item-print-0-confirm']");
+            Assert.Contains("is-ng", wrap.GetAttribute("class"));
+            Assert.True(cut.Find("[data-testid='setting-done-btn']").HasAttribute("disabled"),
+                "A row marked NG must keep the advance button disabled.");
         });
     }
 
@@ -211,8 +342,7 @@ public sealed class SettingDashboardTests : TestContext
 
         var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-done-btn']")));
-        for (var i = 0; i < 6; i++)
-            cut.Find($"[data-testid='setting-check-{i}']").Change(true);
+        ConfirmAllOk(cut);
 
         cut.Find("[data-testid='setting-done-btn']").Click();
 
@@ -242,8 +372,7 @@ public sealed class SettingDashboardTests : TestContext
             .Add(d => d.OnPhaseChanged, EventCallback.Factory.Create(this, () => phaseChangedCount++)));
 
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-done-btn']")));
-        for (var i = 0; i < 6; i++)
-            cut.Find($"[data-testid='setting-check-{i}']").Change(true);
+        ConfirmAllOk(cut);
         cut.Find("[data-testid='setting-done-btn']").Click();
 
         cut.WaitForAssertion(() => Assert.Equal(1, phaseChangedCount));
@@ -266,8 +395,7 @@ public sealed class SettingDashboardTests : TestContext
             .Add(d => d.OnPhaseChanged, EventCallback.Factory.Create(this, () => phaseChangedCount++)));
 
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-done-btn']")));
-        for (var i = 0; i < 6; i++)
-            cut.Find($"[data-testid='setting-check-{i}']").Change(true);
+        ConfirmAllOk(cut);
         cut.Find("[data-testid='setting-done-btn']").Click();
 
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-set-error']")));
@@ -292,8 +420,7 @@ public sealed class SettingDashboardTests : TestContext
 
         var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-done-btn']")));
-        for (var i = 0; i < 6; i++)
-            cut.Find($"[data-testid='setting-check-{i}']").Change(true);
+        ConfirmAllOk(cut);
         cut.Find("[data-testid='setting-done-btn']").Click();
 
         cut.WaitForAssertion(() =>

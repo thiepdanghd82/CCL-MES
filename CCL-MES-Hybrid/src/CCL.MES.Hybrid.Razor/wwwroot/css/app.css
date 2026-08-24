@@ -5688,6 +5688,99 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     font-size: var(--fs-md);
 }
 
+/* ── SETTING sub-tabs + check table (Print process / Cut process) ────────
+   Two process-specific checklists behind a chip-button switcher (never a
+   native <select> — WKWebView freeze). Every size goes through density
+   tokens; every colour through semantic tokens (L37). OK/NG per row is the
+   shared ConfirmToggle (L52). */
+.setting-subtabs {
+    display: flex;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+}
+.setting-subtab {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: var(--d-tap);
+    padding-inline: var(--sp-4);
+    border: 1px solid var(--c-line-2);
+    border-radius: var(--r-md);
+    background: var(--c-bg);
+    color: var(--c-ink-2);
+    font-size: var(--d-font);
+    font-weight: var(--fw-semibold);
+    cursor: pointer;
+    transition: background var(--mo-fast) var(--ease-std),
+                border-color var(--mo-fast) var(--ease-std),
+                color var(--mo-fast) var(--ease-std);
+}
+.setting-subtab:hover:not(.is-active) { border-color: var(--brand); }
+.setting-subtab.is-active {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: white;
+}
+.setting-subtab-count {
+    font-size: var(--fs-xs);
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--c-divider);
+    color: var(--c-ink-4);
+}
+.setting-subtab.is-active .setting-subtab-count {
+    background: rgba(255, 255, 255, 0.22);
+    color: white;
+}
+.setting-subtab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Single-process WO → no switcher, just a quiet process label. */
+.setting-single-process {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--d-tap);
+    padding-inline: var(--sp-4);
+    border-radius: var(--r-md);
+    background: var(--c-bg);
+    border: 1px solid var(--c-line);
+    color: var(--c-ink);
+    font-size: var(--d-font);
+    font-weight: var(--fw-semibold);
+}
+
+.setting-check-wrap { overflow-x: auto; }
+.setting-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+.setting-table th,
+.setting-table td {
+    text-align: left;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--c-line);
+    vertical-align: middle;
+}
+.setting-table thead th {
+    position: sticky;
+    top: 0;
+    background: var(--c-bg);
+    color: var(--c-ink-4);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    z-index: 1;
+}
+.setting-table .c-no { width: 44px; text-align: center; color: var(--c-muted); }
+.setting-table .c-center { text-align: center; }
+.setting-table .c-conf { width: 168px; }
+.setting-table .wrap { white-space: normal; line-height: 1.35; }
+.setting-table .setting-row-item { font-weight: var(--fw-semibold); color: var(--c-ink); }
+.setting-table .setting-row-std { color: var(--c-ink-2); font-size: var(--fs-sm); }
+.setting-row.is-ok { background: var(--ok-bg); }
+.setting-row.is-ng { background: var(--ng-bg); }
+
 .rs-counter {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr;
