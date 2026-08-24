@@ -5748,6 +5748,17 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     font-weight: var(--fw-semibold);
 }
 
+/* Buộc chọn defect: khi còn 1 NG chưa chọn defect, nhắc + khoá hàng khác. */
+.setting-pending-ng-hint {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-sm);
+    border: 1px solid var(--ng-soft);
+    background: var(--ng-bg);
+    color: var(--ng-ink);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+}
+
 .setting-check-wrap { overflow-x: auto; }
 .setting-table {
     width: 100%;
