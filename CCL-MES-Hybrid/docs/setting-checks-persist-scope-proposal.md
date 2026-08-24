@@ -240,7 +240,16 @@ Buộc chọn defect khi NG (chống free-text, L17).
 **Trade-off**: bảng con chuẩn-hoá (query/thống kê defect được) vs JSON (đơn giản, khó
 thống kê). Đề xuất **bảng con** vì defect Pareto là báo cáo chất lượng quan trọng.
 
-**Contract-gap**: Ops xác nhận bộ defect per-item (xem `setting-ng-reason-codes.md` §per-item).
+**QC-mở-rộng — "＋ Thêm mới" defect ngay trong dropdown** (yêu cầu Henry 2026): mỗi
+dropdown defect (mọi tab, mọi dòng) có option cuối **`＋ Thêm mới…`** → operator/
+engineer bổ sung mã defect chưa có. Đây là **add-new vào `CheckItemDefectOption`**,
+cùng luật persist với F4 (QD): Engineer+ thêm per-product (nhớ LOT sau) · Operator
+ad-hoc per-WO. Hình dạng + testid theo skill **`cmes-add-new-inline`**. Audit
+`WO_SETTING_DEFECT_ADDED`. Vì vậy chọn **bảng con** (không JSON) là bắt buộc —
+user thêm defect thì phải insert row, không patch JSON đua ghi.
+
+**Contract-gap**: Ops xác nhận bộ defect per-item seed ban đầu (`setting-ng-reason-codes.md`
+§per-item); phần user thêm sau đi qua add-new (QD RBAC).
 
 ## QD — "Add more" (F4): ai được thêm + đích lưu?
 
@@ -280,8 +289,8 @@ Operator per-WO-only.
 | PR | Nội dung | Work-class | Skill |
 |---|---|---|---|
 | 7g-1 | Domain: `WoSettingCheckItem`(+`Applicable`,`DefectCode`) + `CheckItemLibrary`(+`Setting`,+`CheckItemDefectOption`) + `ProcessKind` + migration + backfill + materializer(base+per-product merge, QE) + seed 20 item + defect per-item | W1 | `cmes-migration-abc` |
-| 7g-2 | Wire: `SettingChecksController` set-item(status+defect+applicable) + **add-item per-product (F4, RBAC QD)** + `/setting/done` rollup guard (QF/Q7) + audit (Q6 + `WO_SETTING_ITEM_ADDED`) | W3+W4 | `cmes-thin-controller` · `cmes-audit-emit` |
-| 7g-3 | UI: `SettingDashboard` đọc/ghi qua API (thay `_status`/`_applicable`/`_defect` RAM) — F1 checkbox · F2 result · F3 defect từ master · **F4 "＋ Thêm hạng mục" form** · optimistic-revert 409 | W5 | `cmes-design-tokens` |
+| 7g-2 | Wire: `SettingChecksController` set-item(status+defect+applicable) + **add-item (F4)** + **add-defect vào `CheckItemDefectOption` (QC-add-new)** per-product (RBAC QD) + `/setting/done` rollup guard (QF/Q7) + audit (Q6 + `WO_SETTING_ITEM_ADDED` + `WO_SETTING_DEFECT_ADDED`) | W3+W4 | `cmes-thin-controller` · `cmes-audit-emit` |
+| 7g-3 | UI: `SettingDashboard` đọc/ghi qua API — F1 checkbox · F2 result · F3 defect từ master + **"＋ Thêm mới" trong dropdown** · **F4 "＋ Thêm hạng mục" cuối grid** (cả hai theo skill `cmes-add-new-inline`) · optimistic-revert 409 | W5 | `cmes-design-tokens` · `cmes-add-new-inline` |
 | 7g-4 | Test-belt: `verify-setting-persist.sh` + checkpoint(**F4: thêm item → WO mới cùng mã có item**) + purge extend + LESSONS card | W9 | `cmes-verify-evidence` |
 
 ## Câu hỏi NGOÀI Q1..Q10 (Henry chốt in/out)
@@ -299,10 +308,12 @@ Operator per-WO-only.
 - [ ] Q9 RBAC set-item gồm Operator: **đúng / sửa**
 - [ ] **QA** applicability lưu: per-WO / per-WO + per-product(Engineer)
 - [ ] **QC** defect catalog: bảng con `CheckItemDefectOption` / JSON
-- [ ] **QD** "Add more" (F4): ai thêm (Engineer+ per-product · Operator per-WO / chặn Operator)
+- [ ] **QC-add-new** "＋ Thêm mới" defect trong dropdown: **duyệt / không** (ai thêm = theo QD RBAC)
+- [ ] **QD** "Add more" hạng mục (F4, nút ＋ cuối grid): ai thêm (Engineer+ per-product · Operator per-WO / chặn Operator)
 - [ ] Danh mục 20 item + **defect per-item**: Ops xác nhận (`setting-ng-reason-codes.md` §per-item)
 - [ ] Cho phép chạy migration lên live DB sau khi §A→C verify: **ký**
 
-> Cho tới khi các ô trên được ký, phần persist + F4 KHÔNG được code (STOP-gate
-> W1/W2 + live DB). PR #211 + #213 (UI attestation-cục-bộ: tab-visibility + F1/F2/F3)
-> độc lập, đã merge, không phụ thuộc doc này.
+> Cho tới khi các ô trên được ký, phần persist + F4 + add-new-defect KHÔNG được code
+> (STOP-gate W1/W2 + live DB). Hình dạng add-new đã chốt ở skill
+> **`cmes-add-new-inline`**. PR #211 + #213 (UI attestation-cục-bộ: tab-visibility +
+> F1/F2/F3) độc lập, đã merge, không phụ thuộc doc này.
