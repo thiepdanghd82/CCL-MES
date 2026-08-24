@@ -384,6 +384,19 @@ public sealed class WorkOrdersPageTests : TestContext
                 ETag = "rv1", TargetQty = 1000,
                 SettingStartAt = DateTime.UtcNow.AddMinutes(-3),
             });
+        // P10.7g-3 — SettingDashboard now reads a persisted SettingChecksView.
+        // Server rollup Ready=true gates the Finish button directly.
+        api.SettingChecksViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.SettingChecks.SettingChecksView
+            {
+                WoId = 42, WoNo = "WO-26-3801", MesPhase = "SETTING",
+                ETag = "chk1", HasPrint = true, HasCut = true, Ready = true,
+                Items = new List<CCL.MES.Shared.SettingChecks.SettingCheckItemView>
+                {
+                    new() { ItemKey = "print-0", ProcessKind = "Print", Label = "Bản in", Status = "Ok", Sort = 0 },
+                    new() { ItemKey = "cut-0", ProcessKind = "Cut", Label = "Khuôn cắt", Status = "Ok", Sort = 0 },
+                },
+            });
         api.SettingDoneImpl = (_, _, _) => Task.FromResult(
             new CCL.MES.Shared.RunningSurface.RunningSurfaceSetResponse
             {
@@ -400,12 +413,7 @@ public sealed class WorkOrdersPageTests : TestContext
 
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-dashboard']")));
 
-        // Confirm OK on every Print + Cut checklist row, then Hoàn tất Setting.
-        for (var i = 0; i < 10; i++)
-            cut.Find($"[data-testid='setting-item-print-{i}-ok']").Click();
-        cut.Find("[data-testid='setting-tab-cut']").Click();
-        for (var i = 0; i < 10; i++)
-            cut.Find($"[data-testid='setting-item-cut-{i}-ok']").Click();
+        // Server rollup Ready=true → Finish enabled directly.
         cut.WaitForAssertion(() =>
             Assert.False(cut.Find("[data-testid='setting-done-btn']").HasAttribute("disabled")));
         cut.Find("[data-testid='setting-done-btn']").Click();
@@ -494,6 +502,16 @@ public sealed class WorkOrdersPageTests : TestContext
                 WoId = 42, WoNo = "WO-26-3685", MesPhase = "SETTING",
                 ETag = "RV", TargetQty = 12000,
                 SettingStartAt = DateTime.UtcNow.AddMinutes(-1),
+            });
+        api.SettingChecksViewImpl = (_, _) => Task.FromResult(
+            new CCL.MES.Shared.SettingChecks.SettingChecksView
+            {
+                WoId = 42, WoNo = "WO-26-3685", MesPhase = "SETTING",
+                ETag = "chk1", HasPrint = true, HasCut = true, Ready = false,
+                Items = new List<CCL.MES.Shared.SettingChecks.SettingCheckItemView>
+                {
+                    new() { ItemKey = "print-0", ProcessKind = "Print", Label = "Bản in", Sort = 0 },
+                },
             });
 
         var cut = RenderComponent<WorkOrders>();
