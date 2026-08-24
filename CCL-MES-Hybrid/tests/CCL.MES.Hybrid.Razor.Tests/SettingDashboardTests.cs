@@ -324,6 +324,83 @@ public sealed class SettingDashboardTests : TestContext
         });
     }
 
+    // ── F1 — applicability checkbox (default all applies; N/A excluded) ─
+
+    [Fact]
+    public void Unchecking_applicability_excludes_item_from_advance_gate()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(startAt: DateTime.UtcNow.AddMinutes(-1)));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-checklist']")));
+
+        // Mark print row 0 as N/A, then OK every OTHER applicable item.
+        cut.Find("[data-testid='setting-apply-print-0']").Change(false);
+        for (var i = 1; i < PrintItemCount; i++)
+            cut.Find($"[data-testid='setting-item-print-{i}-ok']").Click();
+        cut.Find("[data-testid='setting-tab-cut']").Click();
+        for (var i = 0; i < CutItemCount; i++)
+            cut.Find($"[data-testid='setting-item-cut-{i}-ok']").Click();
+
+        cut.WaitForAssertion(() =>
+            Assert.False(cut.Find("[data-testid='setting-done-btn']").HasAttribute("disabled"),
+                "N/A row must not be required — all other applicable items OK → advance enabled."));
+
+        // Its result reads N/A.
+        cut.Find("[data-testid='setting-tab-print']").Click();
+        Assert.Contains("Không áp dụng",
+            cut.Find("[data-testid='setting-result-print-0']").TextContent);
+    }
+
+    // ── F2 — derived Result column ─────────────────────────────────
+
+    [Fact]
+    public void Result_column_reflects_ok_and_ng()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(startAt: DateTime.UtcNow.AddMinutes(-1)));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-checklist']")));
+
+        cut.Find("[data-testid='setting-item-print-1-ok']").Click();
+        cut.Find("[data-testid='setting-item-print-2-ng']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Đạt", cut.Find("[data-testid='setting-result-print-1']").TextContent);
+            Assert.Contains("NG", cut.Find("[data-testid='setting-result-print-2']").TextContent);
+        });
+    }
+
+    // ── F3 — per-item defect dropdown on NG ────────────────────────
+
+    [Fact]
+    public void NG_reveals_per_item_defect_dropdown_with_that_items_options()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.RunningSurfaceViewImpl = (_, _) => Task.FromResult(
+            SettingView(startAt: DateTime.UtcNow.AddMinutes(-1)));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-checklist']")));
+
+        // No dropdown until NG.
+        Assert.Empty(cut.FindAll("[data-testid='setting-defect-print-0']"));
+
+        cut.Find("[data-testid='setting-item-print-0-ng']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            var sel = cut.Find("[data-testid='setting-defect-print-0']");
+            // 5 defects for "Bản in / khuôn" + 1 placeholder.
+            Assert.Equal(6, sel.QuerySelectorAll("option").Length);
+            Assert.Contains("Sai phiên bản bản in", sel.TextContent);
+        });
+    }
+
     // ── Happy path — setting/done ──────────────────────────────────
     // Wire-mirror: RunningSurfaceControllerTests.Setting_done_from_SETTING_returns_200_advances_to_IPQC_WAIT
 
