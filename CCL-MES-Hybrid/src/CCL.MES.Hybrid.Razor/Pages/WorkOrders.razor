@@ -1085,31 +1085,12 @@ else
             ? summary.MesPhase
             : (string.IsNullOrEmpty(summary.CurrentStep) ? "—" : summary.CurrentStep);
 
-    /// <summary>Maps canonical MesPhase → CSS class on the wo-card chip.
-    /// Falls back to the server-emitted legacy BadgeCssClass when
-    /// MesPhase is empty (preserves pre-7c-3 behaviour).</summary>
-    private static string MesPhaseCssClass(WorkOrderSummary summary)
-    {
-        var p = summary.MesPhase;
-        if (string.IsNullOrEmpty(p)) return summary.BadgeCssClass ?? "";
-        return p.ToUpperInvariant() switch
-        {
-            "NEW"            => "wo-phase-new",
-            "PREPRESS"       => "wo-phase-prepress",
-            "SETTING"        => "wo-phase-setting",
-            "IPQC_WAIT"      => "wo-phase-ipqc-wait",
-            "QA_PENDING"     => "wo-phase-ipqc-wait",
-            "IPQC_APPROVED"  => "wo-phase-ipqc-approved",
-            "RUNNING"        => "wo-phase-running",
-            "PAUSED"         => "wo-phase-paused",
-            "FQC_PENDING"    => "wo-phase-fqc-pending",
-            "OQC_PENDING"    => "wo-phase-oqc-pending",
-            "DONE"           => "wo-phase-done",
-            "SHIPPED"        => "wo-phase-shipped",
-            "CANCELLED"      => "wo-phase-cancelled",
-            _                => "wo-phase-other",
-        };
-    }
+    /// <summary>Maps canonical MesPhase → CSS class on the wo-card chip via the
+    /// shared <see cref="CCL.MES.Hybrid.Client.Status.WoCardPhasePalette"/> (one
+    /// source, unit-tested for full MesPhase coverage). Falls back to the
+    /// server-emitted legacy BadgeCssClass when MesPhase is empty.</summary>
+    private static string MesPhaseCssClass(WorkOrderSummary summary) =>
+        CCL.MES.Hybrid.Client.Status.WoCardPhasePalette.CssClass(summary.MesPhase, summary.BadgeCssClass);
 
     /// <summary>True when ANY 7b/7c dashboard OWNS the operator's next
     /// action. Used to hide the legacy Advance CTA + the stale advance
