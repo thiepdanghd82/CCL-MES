@@ -1,0 +1,21 @@
+ItemId,ProcessKind,Sort,GroupLabel,ItemVi,ItemEn,AcceptanceVi,AcceptanceEn,DefectCode
+SET-PR-00,Print,0,Khuôn & vật tư,Bản in / khuôn,Print plate / die,Đúng mã + phiên bản đối chiếu artwork/spec,Correct code + revision matched to artwork/spec,SET-PLATE-WRONG
+SET-PR-01,Print,1,Khuôn & vật tư,Vật tư in,Print substrate,Đúng loại/khổ/mặt xử lý (corona) đúng đơn hàng,Correct type/width/treatment matches order,SET-SUBSTRATE-WRONG
+SET-PR-02,Print,2,Khuôn & vật tư,Mực & màu,Ink & colour,Đúng mã pha đối chiếu Pantone/CxF; độ nhớt + pH đạt,Correct mix code matched to Pantone/CxF; viscosity + pH OK,SET-INK-COLOR
+SET-PR-03,Print,3,Cân chỉnh máy,Chồng màu (registration),Registration,Lắp bản đúng vị trí sai lệch ≤ dung sai spec,Plate mounted correctly deviation within tolerance,SET-REGISTER
+SET-PR-04,Print,4,Cân chỉnh máy,Anilox / trục cấp mực,Anilox / ink feed,Đúng line/BCM cho từng màu (flexo),Correct line/BCM per colour (flexo),SET-ANILOX
+SET-PR-05,Print,5,Cân chỉnh máy,Áp lực in + dao gạt mực,Impression + doctor blade,Impression & doctor blade set đúng không lem/thiếu nét,Impression & doctor blade set right no smear,SET-IMPRESSION
+SET-PR-06,Print,6,Cân chỉnh máy,Sấy / UV curing,Drying / UV curing,Nhiệt/công suất đèn đúng thông số mực khô-bám đạt,Lamp temp/power to spec ink cured & adhered,SET-CURING
+SET-PR-07,Print,7,Mẫu đầu & an toàn,Mẫu đầu tiên,First article,Nội dung + chính tả + mã vạch (grade) + màu ΔE đạt spec,Content + spelling + barcode grade + colour ΔE meet spec,SET-FIRSTOFF
+SET-PR-08,Print,8,Mẫu đầu & an toàn,Đăng ký mặt sau,Back-side registration,In 2 mặt: đăng ký mặt-sau trong dung sai (nếu có),Duplex back-side registration within tolerance,SET-BACKREG
+SET-PR-09,Print,9,Mẫu đầu & an toàn,Vệ sinh & an toàn,Cleaning & safety,Máy sạch gọn vật tư thừa an toàn khu vực,Machine clean scrap tidied area safe,SET-HOUSEKEEP
+SET-CU-00,Cut,0,Dao & khuôn,Khuôn cắt / dao,Cutting die / knife,Đúng mã + phiên bản; lưỡi sắc không mẻ,Correct code + revision; sharp blade no nicks,SET-DIE-WRONG
+SET-CU-01,Cut,1,Dao & khuôn,Lắp dao đúng khổ,Mount correct-size die,Kiểu cắt đúng spec (kiss-cut / through-cut),Cut type per spec (kiss-cut / through-cut),SET-DIE-SIZE
+SET-CU-02,Cut,2,Dao & khuôn,Nhấn / gấp (crease),Crease / perf,Đúng vị trí & độ sâu (nếu có),Correct position & depth (if any),SET-CREASE
+SET-CU-03,Cut,3,Cân chỉnh,Áp lực / độ sâu cắt,Cut pressure / depth,Kiss-cut không đứt liner; through-cut đứt đều,Kiss-cut does not sever liner; through-cut cuts cleanly,SET-CUT-DEPTH
+SET-CU-04,Cut,4,Cân chỉnh,Canh cắt theo hình in,Die-to-print registration,Die-to-print registration ≤ dung sai,Die-to-print registration within tolerance,SET-DIE-REGISTER
+SET-CU-05,Cut,5,Cân chỉnh,Layout con / tờ,Up layout / sheet,Số con/hàng + gap/bước (pitch) đúng,Ups per row + gap/pitch correct,SET-UPLAYOUT
+SET-CU-06,Cut,6,Cân chỉnh,Cuộn / lõi / tension,Rewind / core / tension,Hướng cuộn + lõi + sức căng đúng yêu cầu,Rewind direction + core + web tension as required,SET-REWIND
+SET-CU-07,Cut,7,Mẫu đầu & thải,Bóc lưới thải (matrix),Matrix stripping,Trôi đều không đứt/dính; biên cắt sạch không rách/xơ,Strips evenly no break/stick; clean cut edge,SET-MATRIX
+SET-CU-08,Cut,8,Mẫu đầu & thải,Đếm số lượng,Count,Số con/nhãn trên đơn vị đóng gói đúng,Ups/labels per pack unit correct,SET-COUNT
+SET-CU-09,Cut,9,Mẫu đầu & thải,Vệ sinh & an toàn,Cleaning & safety,Máy sạch thu gom phế an toàn khu vực,Machine clean waste collected area safe,SET-HOUSEKEEP
