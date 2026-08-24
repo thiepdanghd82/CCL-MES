@@ -717,11 +717,24 @@ public sealed class CclApiClient : ICclApiClient
         using var resp = await _http.SendAsync(msg, ct);
 
         if (resp.StatusCode == HttpStatusCode.OK
-            || resp.StatusCode == HttpStatusCode.Conflict
-            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+            || resp.StatusCode == HttpStatusCode.Conflict)
         {
+            // 200 (success) + 409 (state conflict) carry a typed SettingChecksSetResponse.
             var body = await resp.Content.ReadFromJsonAsync<SettingChecksSetResponse>(cancellationToken: ct);
             return body ?? new SettingChecksSetResponse { Ok = false, ErrorCode = "http.empty_body" };
+        }
+
+        if (resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            // L54: 422 validation errors come from WoMutationControllerBase.Invalid()
+            // as an ApiError envelope {code,...}, NOT a SettingChecksSetResponse. Map the
+            // code across so the UI shows the real reason, not "no error code — report to IT".
+            var err = await resp.Content.ReadFromJsonAsync<ApiError>(cancellationToken: ct);
+            return new SettingChecksSetResponse
+            {
+                Ok = false,
+                ErrorCode = string.IsNullOrEmpty(err?.Code) ? "http.422" : err.Code,
+            };
         }
 
         return await ReadAsAsync<SettingChecksSetResponse>(resp, ct);

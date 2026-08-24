@@ -713,6 +713,16 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Cơ chế chặn tái phát** | `tests/CCL.MES.Api.Tests/SettingChecksControllerTests.cs` (integration: GET lazy-materialize · PUT ok/ng+defect · applicable=false loại khỏi guard · done 422 thiếu / 200 đủ · add-item & add-defect RBAC · audit wire-mirror R7.3) + `SettingRollupUnitTests.cs`. `tests/CCL.MES.Hybrid.Razor.Tests/SettingDashboardTests.cs` (API-driven + F1/F2/F3 + add-new fixtures). Amendment đã vào `P10.7-WO-STATE-CONTRACT.md` §3.1 + edge table. `gate-all` (thin-controller · audit-emit · i18n · enum-integrity) phủ. Skill `.claude/skills/cmes-add-new-inline/SKILL.md`. **Quy tắc: khâu QC/kiểm mới PHẢI persist per-item + advance-guard SERVER, không chỉ client attestation; "add-new" nhớ-LOT-sau đi qua master per-product (`ProductCode`) theo skill.** |
 
 
+### L54 — Mutate-rồi-mới-hỏi: UI PUT Status=Ng khi chưa có defect (server bắt buộc) + envelope lỗi client lệch server → "no error code, report to IT"
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Bấm NG ở checklist SETTING → banner đỏ "Could not save change: Server returned Ok=false without an error code — report to IT", **không đặt được NG**. Test bUnit xanh 100%. |
+| **Root cause** (proven) | HAI lỗi: (1) **UX con-gà-quả-trứng** — `ConfirmToggle.OnNg` → PUT set-item NGAY với `DefectCode=null`; server `ValidateNgAsync` **bắt buộc defect khi Status=Ng** → 422 `setting.invalid_defect`. Dropdown defect chỉ hiện SAU khi `Status=="Ng"` (đã persist) → không bao giờ đặt được. (2) **Envelope lệch** — `WoMutationControllerBase.Invalid()` trả 422 dạng `ApiError {code,...}`, nhưng client `SendSettingMutationAsync` đọc body 422 thành `SettingChecksSetResponse {ErrorCode}` → field không khớp → `ErrorCode` rỗng → banner fallback. IPQC KHÔNG lộ vì UI arm NG (chọn reason) TRƯỚC khi submit. **Test xanh vì `RecordingApi` fake trả Ok=true, không enforce ràng buộc server.** |
+| **Fix** | (a) NG thành **2 bước arm-then-pick** như IPQC: tap NG → `_armNg` cục bộ (hiện dropdown, KHÔNG PUT); chọn defect → mới PUT `Status=Ng + DefectCode`. `EffectiveStatus`/`IsNgActive` cho hiển thị NG khi arm. (b) Client `SendSettingMutationAsync`: 422 → đọc `ApiError`, map `.Code` → `ErrorCode`. Code-only (không đụng server/DB). |
+| **Cơ chế chặn tái phát** | `SettingDashboardTests`: `Tapping_NG_arms_locally_without_PUT_and_reveals_defect_dropdown` (NG tap → `PutSettingItemCalls` RỖNG + dropdown hiện) + `Picking_defect_after_NG_PUTs_status_Ng_with_defect` (chọn defect → 1 PUT Status=Ng+DefectCode). **Quy tắc: khi server bắt buộc field phụ (defect/reason/note) cho một trạng thái, UI phải THU THẬP field đó TRƯỚC khi mutate — KHÔNG mutate-rồi-sửa. Envelope lỗi client PHẢI khớp server (map `code`↔`ErrorCode`). Meta: verify UI bằng fake KHÔNG thay verify wire thật — fake phải enforce ràng buộc server để bắt lớp bug này.** |
+
+
 ---
 
 ## Adding a new lesson
