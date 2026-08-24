@@ -98,6 +98,7 @@
                     <button type="button"
                             class="setting-subtab @(_activeTab == SettingTab.Print ? "is-active" : "")"
                             role="tab" aria-selected="@(_activeTab == SettingTab.Print)"
+                            disabled="@_hasPendingNg"
                             @onclick="@(() => _activeTab = SettingTab.Print)"
                             data-testid="setting-tab-print">
                         @T("setting.tab.print")
@@ -106,6 +107,7 @@
                     <button type="button"
                             class="setting-subtab @(_activeTab == SettingTab.Cut ? "is-active" : "")"
                             role="tab" aria-selected="@(_activeTab == SettingTab.Cut)"
+                            disabled="@_hasPendingNg"
                             @onclick="@(() => _activeTab = SettingTab.Cut)"
                             data-testid="setting-tab-cut">
                         @T("setting.tab.cut")
@@ -118,6 +120,13 @@
                 @* Single-process WO → no switcher, just name the active process. *@
                 <div class="setting-single-process" data-testid="setting-single-process">
                     @T(_activeTab == SettingTab.Print ? "setting.tab.print" : "setting.tab.cut")
+                </div>
+            }
+
+            @if (_hasPendingNg)
+            {
+                <div class="setting-pending-ng-hint" data-testid="setting-pending-ng-hint">
+                    @T("setting.ng.pick_first")
                 </div>
             }
 
@@ -155,7 +164,7 @@
                                 <td class="c-app c-center">
                                     <input type="checkbox" checked="@it.Applicable"
                                            @onchange="@(e => OnSetApplicableAsync(it, e.Value is bool b && b))"
-                                           disabled="@_busy"
+                                           disabled="@(_busy || RowLocked(it))"
                                            aria-label="@T("setting.col.apply")"
                                            data-testid="@($"setting-apply-{prefix}-{idx}")" />
                                 </td>
@@ -223,7 +232,7 @@
                                 </td>
                                 <td class="c-center c-conf">
                                     <ConfirmToggle Status="@EffectiveStatus(it)"
-                                                   Disabled="@(_busy || !it.Applicable)"
+                                                   Disabled="@(_busy || !it.Applicable || RowLocked(it))"
                                                    TestIdPrefix="@($"setting-item-{prefix}-{idx}")"
                                                    OnOk="@(() => OnSetOkAsync(it))"
                                                    OnNg="@(() => OnArmNg(it))" />
@@ -386,6 +395,15 @@
     /// <summary>NG đang bật (đã persist Ng HOẶC đang arm) → hiện dropdown defect.</summary>
     private bool IsNgActive(SettingCheckItemView it) =>
         it.Status == "Ng" || _armNg.Contains(it.ItemKey);
+
+    /// <summary>Có hạng mục vừa đánh NG nhưng CHƯA chọn defect (arm, chưa persist).
+    /// Buộc chọn defect trước khi đánh giá hạng mục khác.</summary>
+    private bool _hasPendingNg => _armNg.Count > 0;
+
+    /// <summary>Khoá control hàng khác trong khi còn một NG chưa chọn defect —
+    /// operator phải hoàn tất (chọn defect) HOẶC bấm OK để bỏ NG rồi mới đi tiếp.</summary>
+    private bool RowLocked(SettingCheckItemView it) =>
+        _hasPendingNg && !_armNg.Contains(it.ItemKey);
 
     private string ResultCss(SettingCheckItemView it) =>
         !it.Applicable ? "setting-result-na"

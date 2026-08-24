@@ -170,6 +170,7 @@ public sealed partial class TranslationCatalog
         // Default NG note when the operator flips a row to NG straight from the
         // toggle (server requires a 1-500 char note alongside a defect code).
         Add("setting.ng.note.default",         "Đánh NG tại setting",                                   "Marked NG during setting");
+        Add("setting.ng.pick_first",           "Hãy chọn defect cho hạng mục vừa đánh NG trước khi đánh giá hạng mục tiếp theo.", "Pick a defect for the NG item before evaluating the next one.");
 
         // F3 — add-new defect option at the tail of the per-item NG dropdown.
         Add("setting.addnew.option",           "＋ Thêm mới…",                                          "＋ Add new…");

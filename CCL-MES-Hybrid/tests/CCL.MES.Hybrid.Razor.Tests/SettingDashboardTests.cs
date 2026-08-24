@@ -320,6 +320,33 @@ public sealed class SettingDashboardTests : TestContext
     }
 
     [Fact]
+    public void Pending_NG_locks_other_rows_until_defect_picked()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        SetViews(api, chk: ChecksView(etag: "chk-v1"));
+
+        var cut = RenderComponent<SettingDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='setting-item-print-0-ng']")));
+
+        // Arm NG on row 0 without picking a defect → row 1 is locked + hint shown.
+        cut.Find("[data-testid='setting-item-print-0-ng']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='setting-pending-ng-hint']"));
+            Assert.True(cut.Find("[data-testid='setting-item-print-1-ok']").HasAttribute("disabled"),
+                "Other rows must be locked until the armed NG gets a defect.");
+        });
+
+        // Pick a defect → unlock.
+        cut.Find("[data-testid='setting-defect-print-0']").Change("PL-VER");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll("[data-testid='setting-pending-ng-hint']"));
+            Assert.False(cut.Find("[data-testid='setting-item-print-1-ok']").HasAttribute("disabled"));
+        });
+    }
+
+    [Fact]
     public void Set_item_409_conflict_renders_banner_and_reloads()
     {
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
