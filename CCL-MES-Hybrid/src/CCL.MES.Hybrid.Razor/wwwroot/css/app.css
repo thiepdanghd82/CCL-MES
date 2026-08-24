@@ -5772,14 +5772,48 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     letter-spacing: 0.02em;
     z-index: 1;
 }
+.setting-table .c-app { width: 48px; }
+.setting-table .c-app input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
 .setting-table .c-no { width: 44px; text-align: center; color: var(--c-muted); }
 .setting-table .c-center { text-align: center; }
+.setting-table .c-result { width: 116px; }
+.setting-table .c-defect { width: 210px; min-width: 160px; }
 .setting-table .c-conf { width: 168px; }
 .setting-table .wrap { white-space: normal; line-height: 1.35; }
 .setting-table .setting-row-item { font-weight: var(--fw-semibold); color: var(--c-ink); }
 .setting-table .setting-row-std { color: var(--c-ink-2); font-size: var(--fs-sm); }
 .setting-row.is-ok { background: var(--ok-bg); }
 .setting-row.is-ng { background: var(--ng-bg); }
+.setting-row.is-na { opacity: 0.5; }
+.setting-row.is-na .setting-row-item,
+.setting-row.is-na .setting-row-std { text-decoration: line-through; }
+.setting-muted { color: var(--c-muted); }
+
+/* F2 — derived result pill (Đạt / NG / Không áp dụng). */
+.setting-result {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+}
+.setting-result-ok      { background: var(--ok-bg); color: var(--ok-ink); }
+.setting-result-ng      { background: var(--ng-bg); color: var(--ng-ink); }
+.setting-result-na      { background: var(--c-divider); color: var(--c-ink-4); }
+.setting-result-pending { color: var(--c-muted); }
+
+/* F3 — defect picker (native <select>, matches IPQC NG-reason picker). */
+.setting-defect-select {
+    width: 100%;
+    min-height: var(--d-tap);
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--ng-soft);
+    border-radius: var(--r-sm);
+    background: white;
+    color: var(--c-ink);
+    font-size: var(--fs-sm);
+}
+.setting-defect-select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 .rs-counter {
     display: grid;

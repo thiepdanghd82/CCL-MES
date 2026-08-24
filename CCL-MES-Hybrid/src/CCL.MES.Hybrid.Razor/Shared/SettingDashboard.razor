@@ -128,31 +128,71 @@
 
             <div class="setting-check-wrap" data-testid="setting-checklist">
                 <table class="setting-table">
+                    @{
+                        var items = ActiveItems;
+                        var prefix = ActivePrefix;
+                        var allApplied = items.All(it => IsApplicable(it.Key));
+                    }
                     <thead>
                         <tr>
+                            <th class="c-app c-center" title="@T("setting.applyall")">
+                                <input type="checkbox" checked="@allApplied"
+                                       @onchange="@(e => SetApplicableAll(items, e.Value is bool b && b))"
+                                       aria-label="@T("setting.applyall")"
+                                       data-testid="@($"setting-applyall-{prefix}")" />
+                            </th>
                             <th class="c-no">@T("setting.col.no")</th>
                             <th>@T("setting.col.item")</th>
                             <th class="wrap">@T("setting.col.standard")</th>
+                            <th class="c-center c-result">@T("setting.col.result")</th>
+                            <th class="wrap c-defect">@T("setting.col.defect")</th>
                             <th class="c-center c-conf">@T("confirm.header")</th>
                         </tr>
                     </thead>
                     <tbody>
-                        @{
-                            var items = ActiveItems;
-                            var prefix = ActivePrefix;
-                        }
                         @for (var i = 0; i < items.Length; i++)
                         {
                             var it = items[i];
                             var st = Status(it.Key);
-                            <tr class="setting-row @RowClass(st)"
+                            var applies = IsApplicable(it.Key);
+                            <tr class="setting-row @RowClass(it.Key)"
                                 data-testid="@($"setting-row-{prefix}-{i}")">
+                                <td class="c-app c-center">
+                                    <input type="checkbox" checked="@applies"
+                                           @onchange="@(e => SetApplicable(it.Key, e.Value is bool b && b))"
+                                           disabled="@_busy"
+                                           aria-label="@T("setting.col.apply")"
+                                           data-testid="@($"setting-apply-{prefix}-{i}")" />
+                                </td>
                                 <td class="c-no">@(i + 1)</td>
                                 <td class="setting-row-item">@T(it.LabelKey)</td>
                                 <td class="wrap setting-row-std">@T(it.StdKey)</td>
+                                <td class="c-center c-result">
+                                    <span class="setting-result @ResultCss(it.Key)"
+                                          data-testid="@($"setting-result-{prefix}-{i}")">@ResultLabel(it.Key)</span>
+                                </td>
+                                <td class="wrap c-defect">
+                                    @if (applies && st == "Ng")
+                                    {
+                                        <select class="setting-defect-select"
+                                                value="@Defect(it.Key)"
+                                                @onchange="@(e => SetDefect(it.Key, e.Value?.ToString() ?? ""))"
+                                                data-testid="@($"setting-defect-{prefix}-{i}")">
+                                            <option value="">@T("setting.defect.select")</option>
+                                            @foreach (var dk in it.DefectKeys)
+                                            {
+                                                <option value="@dk">@T(dk)</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <span class="setting-muted">—</span>
+                                    }
+                                </td>
                                 <td class="c-center c-conf">
                                     <ConfirmToggle Status="@st"
-                                                   Disabled="@_busy"
+                                                   Disabled="@(_busy || !applies)"
                                                    TestIdPrefix="@($"setting-item-{prefix}-{i}")"
                                                    OnOk="@(() => SetStatus(it.Key, "Ok"))"
                                                    OnNg="@(() => SetStatus(it.Key, "Ng"))" />
@@ -200,34 +240,39 @@
     // TODO(routing): D2 — show only the tab(s) the WO's routing actually needs
     //   (PRINT leg → Print tab, CUT leg → Cut tab). Today both tabs always show
     //   and BOTH must be all-OK to advance, which suits full print+die-cut labels.
-    private sealed record SettingItem(string Key, string LabelKey, string StdKey);
+    // DefectKeys = drop-list defect (i18n keys) hiện khi hạng mục bị đánh NG.
+    // Attestation-cục-bộ: bộ này tạm cứng; 7g rót từ CheckItemLibrary per-product.
+    private sealed record SettingItem(string Key, string LabelKey, string StdKey, string[] DefectKeys);
+
+    private static string[] D(params string[] codes) =>
+        codes.Select(c => "setting.defect." + c).ToArray();
 
     private static readonly SettingItem[] _printItems =
     {
-        new("print-0", "setting.print.item0", "setting.print.std0"),
-        new("print-1", "setting.print.item1", "setting.print.std1"),
-        new("print-2", "setting.print.item2", "setting.print.std2"),
-        new("print-3", "setting.print.item3", "setting.print.std3"),
-        new("print-4", "setting.print.item4", "setting.print.std4"),
-        new("print-5", "setting.print.item5", "setting.print.std5"),
-        new("print-6", "setting.print.item6", "setting.print.std6"),
-        new("print-7", "setting.print.item7", "setting.print.std7"),
-        new("print-8", "setting.print.item8", "setting.print.std8"),
-        new("print-9", "setting.print.item9", "setting.print.std9"),
+        new("print-0", "setting.print.item0", "setting.print.std0", D("pl_ver","pl_wear","pl_delam","pl_sep","pl_dirt")),
+        new("print-1", "setting.print.item1", "setting.print.std1", D("su_type","su_size","su_corona","su_damp","su_lot")),
+        new("print-2", "setting.print.item2", "setting.print.std2", D("in_de","in_code","in_visc","in_ph","in_smear","in_dry")),
+        new("print-3", "setting.print.item3", "setting.print.std3", D("rg_mis","rg_edge","rg_blur","rg_dbl")),
+        new("print-4", "setting.print.item4", "setting.print.std4", D("an_bcm","an_clog","an_uneven","an_blade")),
+        new("print-5", "setting.print.item5", "setting.print.std5", D("im_over","im_under","im_dline","im_thin")),
+        new("print-6", "setting.print.item6", "setting.print.std6", D("cu_wet","cu_over","cu_adh","cu_yellow")),
+        new("print-7", "setting.print.item7", "setting.print.std7", D("fo_content","fo_barcode","fo_color","fo_miss")),
+        new("print-8", "setting.print.item8", "setting.print.std8", D("br_mis","br_dir","br_show")),
+        new("print-9", "setting.print.item9", "setting.print.std9", D("hk_dirty","hk_mess","hk_safety")),
     };
 
     private static readonly SettingItem[] _cutItems =
     {
-        new("cut-0", "setting.cut.item0", "setting.cut.std0"),
-        new("cut-1", "setting.cut.item1", "setting.cut.std1"),
-        new("cut-2", "setting.cut.item2", "setting.cut.std2"),
-        new("cut-3", "setting.cut.item3", "setting.cut.std3"),
-        new("cut-4", "setting.cut.item4", "setting.cut.std4"),
-        new("cut-5", "setting.cut.item5", "setting.cut.std5"),
-        new("cut-6", "setting.cut.item6", "setting.cut.std6"),
-        new("cut-7", "setting.cut.item7", "setting.cut.std7"),
-        new("cut-8", "setting.cut.item8", "setting.cut.std8"),
-        new("cut-9", "setting.cut.item9", "setting.cut.std9"),
+        new("cut-0", "setting.cut.item0", "setting.cut.std0", D("di_ver","di_blunt","di_break","di_rust")),
+        new("cut-1", "setting.cut.item1", "setting.cut.std1", D("ds_size","ds_type","ds_mismount")),
+        new("cut-2", "setting.cut.item2", "setting.cut.std2", D("cr_pos","cr_depth","cr_crack","cr_miss")),
+        new("cut-3", "setting.cut.item3", "setting.cut.std3", D("cd_liner","cd_nocut","cd_uneven","cd_fray")),
+        new("cut-4", "setting.cut.item4", "setting.cut.std4", D("dr_mis","dr_crop","dr_edge")),
+        new("cut-5", "setting.cut.item5", "setting.cut.std5", D("up_count","up_pitch","up_overlap","up_miss")),
+        new("cut-6", "setting.cut.item6", "setting.cut.std6", D("rw_dir","rw_core","rw_tension","rw_tele")),
+        new("cut-7", "setting.cut.item7", "setting.cut.std7", D("mx_break","mx_stick","mx_left","mx_tear")),
+        new("cut-8", "setting.cut.item8", "setting.cut.std8", D("ct_wrong","ct_qty","ct_unit")),
+        new("cut-9", "setting.cut.item9", "setting.cut.std9", D("hk_dirty","hk_mess","hk_safety")),
     };
 
     private enum SettingTab { Print, Cut }
@@ -235,6 +280,11 @@
 
     // Per-item local status keyed by SettingItem.Key: "Pending" | "Ok" | "Ng".
     private readonly Dictionary<string, string> _status = new();
+
+    // F1 — applicability: default true (item applies). Uncheck = N/A → excluded
+    // from the advance gate + not recorded. F3 — chosen defect key when NG.
+    private readonly Dictionary<string, bool> _applicable = new();
+    private readonly Dictionary<string, string> _defect = new();
 
     private RunningSurfaceView? _view;
     private string? _initialError;
@@ -261,25 +311,64 @@
     }
 
     private string Status(string key) => _status.TryGetValue(key, out var v) ? v : "Pending";
-    private void SetStatus(string key, string status) => _status[key] = status;
-
-    private int OkCount(SettingItem[] items) => items.Count(it => Status(it.Key) == "Ok");
-    private int ActiveOkCount => OkCount(ActiveItems);
-
-    // Advance is gated on every item in the APPLICABLE process tabs being OK. A tab
-    // the WO doesn't need (hidden by routing) is not required; an NG or still-Pending
-    // row in a visible tab keeps "Finish Setting" disabled.
-    private bool AllChecked =>
-        (ShowPrint || ShowCut)
-        && (!ShowPrint || _printItems.All(it => Status(it.Key) == "Ok"))
-        && (!ShowCut || _cutItems.All(it => Status(it.Key) == "Ok"));
-
-    private static string RowClass(string status) => status switch
+    private void SetStatus(string key, string status)
     {
-        "Ok" => "is-ok",
-        "Ng" => "is-ng",
-        _    => "is-pending",
-    };
+        _status[key] = status;
+        if (status != "Ng") _defect.Remove(key);   // defect only meaningful while NG
+    }
+
+    // F1 — applicability. Missing entry → true (applies by default).
+    private bool IsApplicable(string key) => !_applicable.TryGetValue(key, out var v) || v;
+    private void SetApplicable(string key, bool value)
+    {
+        _applicable[key] = value;
+        if (!value) { _status.Remove(key); _defect.Remove(key); }  // N/A carries no OK/NG/defect
+    }
+    private void SetApplicableAll(SettingItem[] items, bool value)
+    {
+        foreach (var it in items) SetApplicable(it.Key, value);
+    }
+
+    // F3 — chosen defect key (i18n key) when NG.
+    private string Defect(string key) => _defect.TryGetValue(key, out var v) ? v : "";
+    private void SetDefect(string key, string defectKey) => _defect[key] = defectKey ?? "";
+
+    // F2 — derived result label + colour for the "Kết quả" column.
+    private string ResultLabel(string key) =>
+        !IsApplicable(key) ? T("setting.result.na")
+        : Status(key) switch
+        {
+            "Ok" => T("setting.result.pass"),
+            "Ng" => T("setting.result.ng"),
+            _    => "—",
+        };
+    private string ResultCss(string key) =>
+        !IsApplicable(key) ? "setting-result-na"
+        : Status(key) switch { "Ok" => "setting-result-ok", "Ng" => "setting-result-ng", _ => "setting-result-pending" };
+
+    // Only applicable items count toward the OK tally.
+    private int OkCount(SettingItem[] items) => items.Count(it => IsApplicable(it.Key) && Status(it.Key) == "Ok");
+    private int ActiveOkCount => OkCount(ActiveItems);
+    private int ActiveApplicableCount => ActiveItems.Count(it => IsApplicable(it.Key));
+
+    // Advance is gated on every APPLICABLE item in the visible process tabs being OK.
+    // Non-applicable (N/A) rows are skipped; an NG or still-Pending applicable row in a
+    // visible tab keeps "Finish Setting" disabled. Needs ≥1 applicable item overall.
+    private bool TabSatisfied(SettingItem[] items) =>
+        items.Where(it => IsApplicable(it.Key)).All(it => Status(it.Key) == "Ok");
+    private bool AnyApplicableVisible =>
+        (ShowPrint && _printItems.Any(it => IsApplicable(it.Key)))
+        || (ShowCut && _cutItems.Any(it => IsApplicable(it.Key)));
+    private bool AllChecked =>
+        AnyApplicableVisible
+        && (!ShowPrint || TabSatisfied(_printItems))
+        && (!ShowCut || TabSatisfied(_cutItems));
+
+    private string RowClass(string key)
+    {
+        if (!IsApplicable(key)) return "is-na";
+        return Status(key) switch { "Ok" => "is-ok", "Ng" => "is-ng", _ => "is-pending" };
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -292,6 +381,8 @@
             _invalidPhase = false;
             // Reset checklist between WOs so a fresh tab starts clean.
             _status.Clear();
+            _applicable.Clear();
+            _defect.Clear();
             _activeTab = SettingTab.Print;
             await ReloadAsync();
             ClampActiveTab();
