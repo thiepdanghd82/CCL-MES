@@ -6420,6 +6420,101 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     color: var(--c-card);
 }
 
+/* ── TẦNG 1 — Process axis (Print / Cut / Other) ────────────────── */
+
+.ipqc-process-axis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-3);
+    padding-bottom: var(--sp-3);
+    border-bottom: 2px solid var(--c-line-2);
+}
+
+.ipqc-process-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: var(--d-tap);
+    padding: var(--sp-2) var(--sp-5);
+    border: 2px solid var(--c-line-2);
+    border-radius: var(--r-md);
+    background: var(--c-surface);
+    color: var(--c-ink-2);
+    font-size: var(--d-font);
+    font-weight: var(--fw-bold);
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background var(--mo-fast) var(--ease-std), color var(--mo-fast) var(--ease-std), border-color var(--mo-fast) var(--ease-std);
+}
+.ipqc-process-chip:hover { background: var(--c-divider); }
+.ipqc-process-chip.is-active {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: var(--c-card);
+}
+.ipqc-process-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ipqc-process-badge {
+    padding: 0 var(--sp-2);
+    border-radius: var(--r-pill);
+    background: var(--c-divider);
+    color: var(--c-ink-4);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-bold);
+    font-variant-numeric: tabular-nums;
+}
+.ipqc-process-chip.is-active .ipqc-process-badge {
+    background: var(--brand-2);
+    color: var(--c-card);
+}
+
+/* ── Item table (ITEM | PROCESS | METHOD | SPEC | RESULT | VERDICT) ─ */
+
+.ipqc-item-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+    margin-bottom: var(--sp-3);
+}
+.ipqc-item-table thead th {
+    text-align: left;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 2px solid var(--c-line-2);
+    color: var(--c-ink-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+.ipqc-item-table tbody td {
+    padding: var(--sp-3);
+    border-bottom: 1px solid var(--c-line);
+    vertical-align: middle;
+    font-size: var(--d-font);
+}
+.ipqc-item-row.ipqc-slot-ok    td { background: var(--ok-bg); }
+.ipqc-item-row.ipqc-slot-ng    td { background: var(--ng-bg); }
+.ipqc-item-table .ipqc-col-item {
+    display: table-cell;
+}
+.ipqc-item-table .ipqc-item-label {
+    font-weight: var(--fw-semibold);
+    color: var(--c-ink-1);
+    margin-right: var(--sp-2);
+}
+.ipqc-item-table .ipqc-col-method { white-space: nowrap; }
+.ipqc-item-table .ipqc-col-result {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+.ipqc-result-input { min-width: 6rem; max-width: 10rem; }
+.ipqc-item-subrow td {
+    padding-top: 0;
+    background: var(--c-surface);
+}
+
 /* ── Measured-value input (Dimension / Function items) ──────────── */
 
 .ipqc-measured-field {

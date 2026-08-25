@@ -314,6 +314,244 @@ public sealed class IpqcDashboardFirstArticleTests : TestContext
         });
     }
 
+    // ── TẦNG 1 — Process axis (Print / Cut) × TẦNG 2 (V/D/F) ────────
+
+    /// <summary>Two-axis view: PRINT process holds LABEL/DIGITAL/SILK items,
+    /// CUT holds PRESS_CNC/FINISHING, one UNKNOWN ProcessLine falls to Other.</summary>
+    private static IpqcView ViewWithProcessAxes() => new()
+    {
+        WoId = 88, WoNo = "WO-PROC-1", MesPhase = "IPQC_WAIT", ETag = "v1",
+        ResolvedLines = "LABEL+PRESS_CNC",
+        Items = new[]
+        {
+            // PRINT (LABEL) — Visual + Dimension.
+            new IpqcViewItem { ItemKey = "P-VIS", ProcessLine = "LABEL", GroupLabel = "In", Label = "Ngoại quan in",
+                CheckType = "Visual", Method = "Mắt thường", AcceptanceCriteria = "Không loang", Status = "Ok" },
+            new IpqcViewItem { ItemKey = "P-DIM", ProcessLine = "DIGITAL", GroupLabel = "In", Label = "ΔE màu",
+                CheckType = "Measure", Method = "Spectro", AcceptanceCriteria = "ΔE ≤ 2", Status = "Pending", MeasuredValue = "1.2" },
+            // CUT (PRESS_CNC) — Visual + Function.
+            new IpqcViewItem { ItemKey = "C-VIS", ProcessLine = "PRESS_CNC", GroupLabel = "Cắt", Label = "Ba via",
+                CheckType = "Visual", Method = "Mắt thường", AcceptanceCriteria = "Không ba via", Status = "Pending" },
+            new IpqcViewItem { ItemKey = "C-FUN", ProcessLine = "FINISHING", GroupLabel = "Cắt", Label = "Lực bóc",
+                CheckType = "Functional", Method = "Máy kéo", AcceptanceCriteria = "≥ 5N", Status = "Pending" },
+        },
+    };
+
+    [Fact]
+    public void Process_axis_renders_print_and_cut_chips_by_processline()
+    {
+        _api.IpqcViewImpl = (_, _) => Task.FromResult(ViewWithProcessAxes());
+
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 88L)
+            .Add(d => d.ScrapReasons, Scraps()));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='ipqc-process-print']"));
+            Assert.NotNull(cut.Find("[data-testid='ipqc-process-cut']"));
+            // No Other chip — every item maps to Print or Cut.
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-process-other']"));
+        });
+    }
+
+    [Fact]
+    public void Process_badge_shows_confirmed_over_total_scoped_to_process()
+    {
+        _api.IpqcViewImpl = (_, _) => Task.FromResult(ViewWithProcessAxes());
+
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 88L)
+            .Add(d => d.ScrapReasons, Scraps()));
+
+        cut.WaitForAssertion(() =>
+        {
+            // PRINT = 2 items, 1 confirmed (P-VIS Ok) → "1/2".
+            Assert.Equal("1/2", cut.Find("[data-testid='ipqc-process-print-badge']").TextContent.Trim());
+            // CUT = 2 items, 0 confirmed → "0/2".
+            Assert.Equal("0/2", cut.Find("[data-testid='ipqc-process-cut-badge']").TextContent.Trim());
+        });
+    }
+
+    [Fact]
+    public void Selecting_process_filters_items_to_that_subset()
+    {
+        _api.IpqcViewImpl = (_, _) => Task.FromResult(ViewWithProcessAxes());
+
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 88L)
+            .Add(d => d.ScrapReasons, Scraps()));
+
+        // Default process = PRINT, default tab = Visual → only P-VIS visible.
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='ipqc-item-P-VIS']"));
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-item-C-VIS']"));
+        });
+
+        // Switch to CUT → CUT items only; PRINT items gone.
+        cut.Find("[data-testid='ipqc-process-cut']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='ipqc-item-C-VIS']"));
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-item-P-VIS']"));
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-item-P-DIM']"));
+        });
+    }
+
+    [Fact]
+    public void Vdf_tabs_are_scoped_to_active_process()
+    {
+        _api.IpqcViewImpl = (_, _) => Task.FromResult(ViewWithProcessAxes());
+
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 88L)
+            .Add(d => d.ScrapReasons, Scraps()));
+
+        // PRINT active → Visual + Dimension tabs have items; Function is empty (count 0).
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-tab-visual']")));
+        Assert.Equal("1", cut.Find("[data-testid='ipqc-tab-dimension'] .ipqc-tab-count").TextContent.Trim());
+        Assert.Equal("0", cut.Find("[data-testid='ipqc-tab-function'] .ipqc-tab-count").TextContent.Trim());
+
+        // Switch to CUT → now Function has 1, Dimension has 0.
+        cut.Find("[data-testid='ipqc-process-cut']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("1", cut.Find("[data-testid='ipqc-tab-function'] .ipqc-tab-count").TextContent.Trim());
+            Assert.Equal("0", cut.Find("[data-testid='ipqc-tab-dimension'] .ipqc-tab-count").TextContent.Trim());
+        });
+    }
+
+    [Fact]
+    public void Changing_process_resets_vdf_tab_to_first_nonempty()
+    {
+        _api.IpqcViewImpl = (_, _) => Task.FromResult(ViewWithProcessAxes());
+
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 88L)
+            .Add(d => d.ScrapReasons, Scraps()));
+
+        // On PRINT, go to Dimension tab (P-DIM).
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-tab-dimension']")));
+        cut.Find("[data-testid='ipqc-tab-dimension']").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-item-P-DIM']")));
+
+        // Switch to CUT: CUT has no Dimension item; tab resets to Visual (C-VIS).
+        cut.Find("[data-testid='ipqc-process-cut']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='ipqc-item-C-VIS']"));
+            Assert.Equal("true", cut.Find("[data-testid='ipqc-tab-visual']").GetAttribute("aria-selected"));
+        });
+    }
+
+    [Fact]
+    public void Item_table_renders_process_method_and_spec_columns()
+    {
+        _api.IpqcViewImpl = (_, _) => Task.FromResult(ViewWithProcessAxes());
+
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 88L)
+            .Add(d => d.ScrapReasons, Scraps()));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='ipqc-item-table']"));
+            var row = cut.Find("[data-testid='ipqc-item-P-VIS']");
+            // PROCESS column = ProcessLine; METHOD + SPEC render from item fields.
+            Assert.Contains("LABEL", row.QuerySelector(".ipqc-col-process")!.TextContent);
+            Assert.Contains("Mắt thường", row.QuerySelector(".ipqc-col-method")!.TextContent);
+            Assert.Contains("Không loang", row.QuerySelector(".ipqc-col-spec")!.TextContent);
+            // RESULT column holds the measured-value input + verdict toggle.
+            Assert.NotNull(cut.Find("[data-testid='ipqc-item-P-VIS-measured']"));
+        });
+    }
+
+    [Fact]
+    public void Single_process_wo_shows_only_that_chip_without_breaking()
+    {
+        var view = ViewWithProcessAxes() with
+        {
+            Items = new[]
+            {
+                new IpqcViewItem { ItemKey = "P-ONLY", ProcessLine = "LABEL", GroupLabel = "In", Label = "Ngoại quan",
+                    CheckType = "Visual", Status = "Pending" },
+            },
+        };
+        _api.IpqcViewImpl = (_, _) => Task.FromResult(view);
+
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 88L)
+            .Add(d => d.ScrapReasons, Scraps()));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='ipqc-process-print']"));
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-process-cut']"));
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-process-other']"));
+            Assert.NotNull(cut.Find("[data-testid='ipqc-item-P-ONLY']"));
+        });
+    }
+
+    [Fact]
+    public void Unknown_processline_item_lands_in_other_process()
+    {
+        var view = ViewWithProcessAxes() with
+        {
+            Items = new[]
+            {
+                new IpqcViewItem { ItemKey = "P-VIS", ProcessLine = "LABEL", GroupLabel = "In", Label = "In",
+                    CheckType = "Visual", Status = "Pending" },
+                new IpqcViewItem { ItemKey = "X-ONE", ProcessLine = "MYSTERY", GroupLabel = "?", Label = "Chưa map",
+                    CheckType = "Visual", Status = "Pending" },
+            },
+        };
+        _api.IpqcViewImpl = (_, _) => Task.FromResult(view);
+
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 88L)
+            .Add(d => d.ScrapReasons, Scraps()));
+
+        cut.WaitForAssertion(() =>
+        {
+            // Other chip present (unknown ProcessLine) + Print chip present.
+            Assert.NotNull(cut.Find("[data-testid='ipqc-process-print']"));
+            Assert.NotNull(cut.Find("[data-testid='ipqc-process-other']"));
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-process-cut']"));
+        });
+
+        // Other process contains the unmapped item, not the LABEL one.
+        cut.Find("[data-testid='ipqc-process-other']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='ipqc-item-X-ONE']"));
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-item-P-VIS']"));
+        });
+    }
+
+    [Fact]
+    public void Item_ok_in_process_subset_calls_put_item_endpoint()
+    {
+        _api.IpqcViewImpl = (_, _) => Task.FromResult(ViewWithProcessAxes());
+
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 88L)
+            .Add(d => d.ScrapReasons, Scraps()));
+
+        // Switch to CUT, confirm the Visual item C-VIS.
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-process-cut']")));
+        cut.Find("[data-testid='ipqc-process-cut']").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid='ipqc-item-C-VIS-ok']")));
+        cut.Find("[data-testid='ipqc-item-C-VIS-ok']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var call = Assert.Single(_api.PutIpqcItemCalls);
+            Assert.Equal("C-VIS", call.ItemKey);
+            Assert.Equal("Ok", call.Req.Status);
+        });
+    }
+
     [Fact]
     public void Material_422_not_divergent_collapses_to_set_error_banner()
     {

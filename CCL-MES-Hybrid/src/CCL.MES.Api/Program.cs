@@ -631,6 +631,29 @@ using (var bootScope = app.Services.CreateScope())
             {
                 Console.WriteLine($"[boot] check_item_library seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
             }
+            // IPQC first-article — backfill CheckType onto WoIpqcCheckItems that
+            // were materialised BEFORE the CheckType column existed (frozen with
+            // NULL). Without it the Print/Cut × Visual/Dimension/Function tabs
+            // dump every legacy item into the "Other" fallback. Idempotent: fills
+            // NULL only, from CheckItemLibrary by natural key (ItemKey = ItemId).
+            // Additive metadata on a frozen snapshot — safe. Runs after the
+            // library seed so the source is fresh.
+            try
+            {
+                var filled = await bootDb.Database.ExecuteSqlRawAsync(@"
+                    UPDATE WoIpqcCheckItems
+                    SET CheckType = (SELECT lib.CheckType FROM CheckItemLibraries lib
+                                     WHERE lib.ItemId = WoIpqcCheckItems.ItemKey)
+                    WHERE CheckType IS NULL
+                      AND EXISTS (SELECT 1 FROM CheckItemLibraries lib
+                                  WHERE lib.ItemId = WoIpqcCheckItems.ItemKey
+                                    AND lib.CheckType IS NOT NULL AND lib.CheckType <> '');");
+                Console.WriteLine($"[seed] ipqc_checktype_backfilled={filled}");
+            }
+            catch (Exception seedEx)
+            {
+                Console.WriteLine($"[boot] ipqc_checktype backfill skipped: {seedEx.GetType().Name}: {seedEx.Message}");
+            }
             try
             {
                 var m = await CCL.MES.Infrastructure.DbSeeder.SeedProcessLineMapAsync(bootDb);
