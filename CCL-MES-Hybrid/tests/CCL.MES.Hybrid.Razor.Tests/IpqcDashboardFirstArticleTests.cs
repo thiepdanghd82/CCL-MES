@@ -632,8 +632,9 @@ public sealed class IpqcDashboardFirstArticleTests : TestContext
         {
             Assert.NotNull(cut.Find("[data-testid='ipqc-item-table']"));
             var row = cut.Find("[data-testid='ipqc-item-P-VIS']");
-            // PROCESS column = ProcessLine; METHOD + SPEC render from item fields.
-            Assert.Contains("LABEL", row.QuerySelector(".ipqc-col-process")!.TextContent);
+            // PROCESS column removed (2026-08-25) — the Print/Cut tabs already
+            // convey process; METHOD + SPEC still render from item fields.
+            Assert.Null(row.QuerySelector(".ipqc-col-process"));
             Assert.Contains("Mắt thường", row.QuerySelector(".ipqc-col-method")!.TextContent);
             Assert.Contains("Không loang", row.QuerySelector(".ipqc-col-spec")!.TextContent);
             // RESULT column holds the measured-value input + verdict toggle.

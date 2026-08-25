@@ -316,7 +316,6 @@
                         <th class="ipqc-col-num">@T("ipqc.col.num")</th>
                         <th class="ipqc-col-applicable" title="@T("ipqc.applicable.hint")">@T("ipqc.col.applicable")</th>
                         <th class="ipqc-col-item">@T("ipqc.col.item")</th>
-                        <th class="ipqc-col-process">@T("ipqc.col.process")</th>
                         <th class="ipqc-col-method">@T("ipqc.col.method")</th>
                         <th class="ipqc-col-spec">@T("ipqc.col.spec")</th>
                         <th class="ipqc-col-result">@T("ipqc.col.result")</th>
@@ -343,9 +342,6 @@
                                 <span class="ipqc-item-label">@item.Label</span>
                                 <span class="ipqc-status-pill @StatusPillCss(item.Status)"
                                       data-testid="@($"ipqc-item-{item.ItemKey}-status")">@StatusDisplay(item.Status)</span>
-                            </td>
-                            <td class="ipqc-col-process" data-label="@T("ipqc.col.process")">
-                                <span class="ipqc-line-chip">@ItemProcessLabel(item)</span>
                             </td>
                             <td class="ipqc-col-method scan-mono" data-label="@T("ipqc.col.method")">@(string.IsNullOrWhiteSpace(item.Method) ? "—" : item.Method)</td>
                             <td class="ipqc-col-spec" data-label="@T("ipqc.col.spec")">@(string.IsNullOrWhiteSpace(item.AcceptanceCriteria) ? "—" : item.AcceptanceCriteria)</td>
@@ -802,12 +798,6 @@
         _openNgFor = null;
         _activeTab = FirstTab();
     }
-
-    /// <summary>TẦNG-2 PROCESS column value — ProcessLine when present, else the
-    /// item's GroupLabel (per Henry's mockup fallback).</summary>
-    private static string ItemProcessLabel(IpqcViewItem item) =>
-        !string.IsNullOrWhiteSpace(item.ProcessLine) ? item.ProcessLine!
-        : (!string.IsNullOrWhiteSpace(item.GroupLabel) ? item.GroupLabel! : "—");
 
     // ── TẦNG 2 — GroupLabel tabs (2026-08-25: "4 tab con giống QC Library") ─
 

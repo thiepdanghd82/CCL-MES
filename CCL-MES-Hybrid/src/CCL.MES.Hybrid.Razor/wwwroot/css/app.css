@@ -6694,7 +6694,7 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
         grid-template-columns: auto auto 1fr auto;
         grid-template-areas:
             "apply num  name name"
-            "apply num  proc meth"
+            "apply num  meth meth"
             "spec  spec spec spec"
             "act   act  act  act"
             "verd  verd verd verd";
@@ -6749,11 +6749,10 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
         margin-left: auto;
     }
 
-    /* Meta line: PROCESS chip (left) + METHOD (right, muted). */
-    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-process { grid-area: proc; }
+    /* Meta line: METHOD (muted). */
     .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-method  {
         grid-area: meth;
-        justify-self: end;
+        justify-self: start;
         color: var(--c-ink-4);
         font-size: var(--fs-sm);
         white-space: normal;
