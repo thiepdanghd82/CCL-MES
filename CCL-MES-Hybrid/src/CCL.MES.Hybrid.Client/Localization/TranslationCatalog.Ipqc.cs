@@ -139,5 +139,9 @@ public sealed partial class TranslationCatalog
         Add("ipqc.item.measured.label",      "Giá trị đo",                                                         "Measured value");
         Add("ipqc.item.measured.placeholder","vd 0.9 / 83.5 / Loang nhẹ",                                          "e.g. 0.9 / 83.5 / slight bleed");
         Add("ipqc.item.measured.save",       "Lưu giá trị đo",                                                     "Save measured value");
+        // Short label for the compact save button (wide table) so it never wraps.
+        Add("ipqc.item.measured.save.short", "Lưu",                                                                "Save");
+        // Short field label for the measured input inside the narrow-screen card.
+        Add("ipqc.item.measured.short",      "Kết quả",                                                            "Result");
     }
 }
