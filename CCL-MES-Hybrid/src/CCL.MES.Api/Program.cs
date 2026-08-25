@@ -241,6 +241,18 @@ builder.Services.Configure<CCL.MES.Application.Services.IpqcDualSigOptions>(opts
             .ParseRequireDistinctQaApprover(raw);
 });
 
+// IPQC first-article (2026-08-25 Q1) — MATERIAL (SYSTEM) divergence-waiver
+// dual-sig options. Same default-ON discipline (L20) as the QA gate: env
+// OPS_IPQC_REQUIRE_DISTINCT_MATERIAL_WAIVER → Features:IpqcRequireDistinctMaterialWaiver.
+builder.Services.Configure<CCL.MES.Application.Services.IpqcMaterialWaiverOptions>(opts =>
+{
+    var raw = Environment.GetEnvironmentVariable("OPS_IPQC_REQUIRE_DISTINCT_MATERIAL_WAIVER")
+        ?? builder.Configuration["Features:IpqcRequireDistinctMaterialWaiver"];
+    opts.RequireDistinctMaterialWaiver =
+        CCL.MES.Application.Services.IpqcMaterialWaiverOptionsLoader
+            .ParseRequireDistinctMaterialWaiver(raw);
+});
+
 // P10.7e-1 Q5 — OQC 3-signature policy. Generalises the L20-pattern
 // (typo-safe whitelist parse + boot probe) to 3 independent
 // distinct-user invariants on the OQC sign chain
@@ -357,6 +369,14 @@ builder.Services.AddAuthorization(o =>
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(UserRole.Admin, UserRole.Qc, UserRole.Supervisor));
 
+    // IPQC first-article (2026-08-25 Q1) — MATERIAL (SYSTEM) divergence WAIVER.
+    // Henry-confirmed role set: Engineer đánh giá & phê duyệt; Supervisor (QA
+    // Manager) thay khi kỹ sư vắng ca; Admin luôn được. QC/Operator = 403 (the
+    // confirm itself is IpqcSubmit=Admin|Qc; waiving it is a distinct authority).
+    o.AddPolicy("EngineerWaive", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Engineer, UserRole.Supervisor));
+
     // P10.7g (QD) — SETTING check set-item gate. Operator đứng máy đánh
     // OK/NG makeready → phải bao gồm Operator; QC/Supervisor/Engineer/Admin
     // cũng được. Guard rollup + phase server phía controller.
@@ -440,6 +460,7 @@ builder.Services.AddScoped<CCL.MES.Api.Services.WoMutationExecutor>();
 builder.Services.AddScoped<CCL.MES.Api.Services.WoQcCheckMaterializer>();
 // A2 — Ipqc GET lazy-materialise + auto-sync (Plan C) + self-heal.
 builder.Services.AddScoped<CCL.MES.Api.Services.IpqcCheckMaterializer>();
+builder.Services.AddScoped<CCL.MES.Api.Services.IpqcMaterialMaterializer>();
 builder.Services.AddScoped<CCL.MES.Api.Services.SettingCheckMaterializer>();
 // A2 — Semi-Stock commit (SaveChanges out of SemiStockController).
 builder.Services.AddScoped<CCL.MES.Api.Services.SemiLotMutationService>();
@@ -647,6 +668,13 @@ using (var bootScope = app.Services.CreateScope())
                 var flagOn = CCL.MES.Application.Services.IpqcDualSigOptionsLoader
                     .ParseRequireDistinctQaApprover(raw);
                 Console.WriteLine($"[config] OPS_IPQC_REQUIRE_DISTINCT_QA_APPROVER={(flagOn ? "on" : "off")}");
+
+                // IPQC first-article (Q1) — MATERIAL (SYSTEM) waiver dual-sig probe.
+                var rawW = Environment.GetEnvironmentVariable("OPS_IPQC_REQUIRE_DISTINCT_MATERIAL_WAIVER")
+                    ?? app.Configuration["Features:IpqcRequireDistinctMaterialWaiver"];
+                var waiverOn = CCL.MES.Application.Services.IpqcMaterialWaiverOptionsLoader
+                    .ParseRequireDistinctMaterialWaiver(rawW);
+                Console.WriteLine($"[config] OPS_IPQC_REQUIRE_DISTINCT_MATERIAL_WAIVER={(waiverOn ? "on" : "off")}");
             }
             catch (Exception cfgEx)
             {

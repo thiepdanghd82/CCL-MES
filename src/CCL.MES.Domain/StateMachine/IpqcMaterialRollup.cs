@@ -8,20 +8,27 @@ namespace CCL.MES.Domain.StateMachine;
 /// <see cref="IpqcReadinessRollup"/> so the controller can AND this into the
 /// existing item/slot readiness before enabling judgment.
 ///
-/// "Resolved" (Henry Q1 — soft-lock) = the row is OK, OR it is NG-due-to-
-/// divergence but an Engineer has APPROVED the waiver. A plain NG with no
-/// approved waiver is NOT resolved (a genuine material NG must StopLine).
+/// "Resolved" (Henry Q1 — soft-lock) is driven by the waiver state stamped at
+/// confirm-time, NOT by the operator's OK/NG alone:
+///   - NotRequired (lot matched IQC at confirm): resolved iff Status == Ok.
+///     A genuine physical NG on a matched lot is NOT resolved (must StopLine).
+///   - Approved (Engineer waived a divergence): resolved regardless of OK/NG.
+///   - PendingEngineer / Rejected: NOT resolved. This is the soft lock — even
+///     an operator OK on a DIVERGENT lot cannot self-resolve; an Engineer must
+///     sign the waiver first.
 ///
 /// Empty set (WO carries no BOM material rows) → AllResolved = true: absence of
 /// materials never blocks judgment (legacy parity with pre-first-article WOs).
 /// </summary>
 public static class IpqcMaterialRollup
 {
-    /// <summary>A single row counts as resolved for the judgment gate.</summary>
-    public static bool IsResolved(WoIpqcMaterialCheck m) =>
-        m.Status == IpqcCheckStatus.Ok
-        || (m.Status == IpqcCheckStatus.Ng
-            && m.DivergenceApprovalStatus == DivergenceApprovalStatus.Approved);
+    /// <summary>A single row counts as resolved for the GoRun gate.</summary>
+    public static bool IsResolved(WoIpqcMaterialCheck m) => m.DivergenceApprovalStatus switch
+    {
+        DivergenceApprovalStatus.NotRequired => m.Status == IpqcCheckStatus.Ok,
+        DivergenceApprovalStatus.Approved    => true,
+        _                                    => false, // PendingEngineer / Rejected
+    };
 
     public static (bool AllResolved, bool AnyPendingWaiver, bool AnyRejected) Compute(
         IReadOnlyCollection<WoIpqcMaterialCheck>? rows)

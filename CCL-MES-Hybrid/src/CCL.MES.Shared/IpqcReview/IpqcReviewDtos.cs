@@ -96,6 +96,15 @@ public sealed record IpqcViewItem
     public string Status { get; init; } = "Pending";
     public string? NgReasonCode { get; init; }
     public string? NgNote { get; init; }
+
+    /// <summary>IPQC first-article (Q2) — check category driving the 3-tab
+    /// stepper: "Visual" / "Dimension" (from library "Measure") / "Function"
+    /// (from "Functional"). Null on legacy items materialised before the column.</summary>
+    public string? CheckType { get; init; }
+
+    /// <summary>IPQC first-article (Q3) — measured RESULT value (e.g. "0.9",
+    /// "83.5") or qualitative note ("Loang nhẹ"). Not part of readiness.</summary>
+    public string? MeasuredValue { get; init; }
 }
 
 /// <summary>Phương án C — request body cho PUT
@@ -106,6 +115,10 @@ public sealed record SetIpqcItemRequest
     public string? Status { get; init; }
     public string? NgReasonCode { get; init; }
     public string? NgNote { get; init; }
+
+    /// <summary>IPQC first-article (Q3) — optional measured RESULT value recorded
+    /// alongside the OK/NG verdict (Dimension/Function items). Free text (≤128).</summary>
+    public string? MeasuredValue { get; init; }
 }
 
 /// <summary>

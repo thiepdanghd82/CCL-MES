@@ -79,7 +79,8 @@ public static class WoIpqcCheckService
         string? ngReasonCode,
         string? ngNote,
         string actor,
-        DateTime nowUtc)
+        DateTime nowUtc,
+        string? measuredValue = null)
     {
         var item = check.Items.FirstOrDefault(
             i => string.Equals(i.ItemKey, itemKey, StringComparison.OrdinalIgnoreCase));
@@ -88,6 +89,9 @@ public static class WoIpqcCheckService
         item.Status = status;
         item.NgReasonCode = status == IpqcCheckStatus.Ng ? ngReasonCode : null;
         item.NgNote = status == IpqcCheckStatus.Ng ? ngNote : null;
+        // IPQC first-article (Q3) — measured RESULT value recorded regardless of
+        // verdict; only overwrite when the caller supplied one (null = untouched).
+        if (measuredValue is not null) item.MeasuredValue = measuredValue;
         item.UpdatedAt = nowUtc;
         item.UpdatedBy = actor;
 

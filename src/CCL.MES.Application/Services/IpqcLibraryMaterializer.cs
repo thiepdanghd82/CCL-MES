@@ -55,6 +55,9 @@ public static class IpqcLibraryMaterializer
                 Method = r.Method,
                 Severity = r.Severity,
                 DefectCode = r.DefectCode,
+                // IPQC first-article (Q2) — freeze the library CheckType so the
+                // 3-tab stepper (Visual / Dimension / Function) stays stable.
+                CheckType = r.CheckType,
                 Status = IpqcCheckStatus.Pending,
                 Sort = (sort += 10),
             });
