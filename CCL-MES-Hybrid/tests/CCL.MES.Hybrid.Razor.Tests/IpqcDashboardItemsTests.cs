@@ -22,6 +22,9 @@ public sealed class IpqcDashboardItemsTests : TestContext
     public IpqcDashboardItemsTests()
     {
         Services.AddSingleton<ICclApiClient>(new RecordingApi());
+        var session = new StubAuthSession();
+        session.SetUser("qc-user", "QC");
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Auth.IAuthSession>(session);
         Services.AddI18n();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         Services.AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(NullLoggerFactory.Instance);

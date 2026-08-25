@@ -338,6 +338,37 @@ public interface ICclApiClient
         long workOrderId, string ifMatchETag, string itemKey,
         SetIpqcItemRequest req, long? legId = null, CancellationToken ct = default);
 
+    // ── IPQC first-article — MATERIAL (SYSTEM) reconciliation (h-3) ─
+
+    /// <summary>IPQC first-article read view: the MATERIAL (SYSTEM) grid
+    /// reconciling each BOM line vs the resolved IQC lot + the operator's
+    /// confirm + the Engineer waiver state. ETag mirrors the WO RowVersion
+    /// so the caller can stage the next mutation without a second GET.
+    /// GET /work-orders/{id}/ipqc/material-system.</summary>
+    Task<IpqcMaterialSystemView> GetIpqcMaterialSystemAsync(
+        long workOrderId, CancellationToken ct = default);
+
+    /// <summary>Confirm one MATERIAL (SYSTEM) row OK/NG. On NG, NgReasonCode
+    /// (ReasonCodeKind.Scrap) + NgNote (1-500) required. Same atomic contract
+    /// as <see cref="PutIpqcMaterialAsync"/> (If-Match 428 + Idempotency-Key +
+    /// 409 wo.state_conflict + 422 ipqc.*/material.*). 200/409/422 all
+    /// deserialise to <see cref="IpqcMaterialSetResponse"/>.
+    /// PUT /work-orders/{id}/ipqc/material-system/{bomLineIdx}.</summary>
+    Task<IpqcMaterialSetResponse> PutIpqcMaterialSystemAsync(
+        long workOrderId, string ifMatchETag, int bomLineIdx,
+        SetIpqcMaterialRequest req, CancellationToken ct = default);
+
+    /// <summary>Engineer waiver decision on a divergent MATERIAL (SYSTEM) row.
+    /// Outcome ∈ {Approve, Reject}; Reason required (1-500). Server enforces
+    /// the Q1 dual-sig (approver ≠ ConfirmedBy) + emits 422 material.* on
+    /// invalid input. Policy EngineerWaive (Engineer/Supervisor/Admin) — the
+    /// UI ALSO omits the button for other roles (RBAC-by-omission), but the
+    /// server remains the source of truth (403 otherwise).
+    /// POST /work-orders/{id}/ipqc/material-system/{bomLineIdx}/approve-divergence.</summary>
+    Task<IpqcMaterialSetResponse> PostIpqcMaterialApproveDivergenceAsync(
+        long workOrderId, string ifMatchETag, int bomLineIdx,
+        ApproveDivergenceRequest req, CancellationToken ct = default);
+
     /// <summary>Submit IPQC judgment (GoRun / StopLine / SpecialAccept).
     /// Server validates: all 4 slots non-Pending; GoRun rejected when
     /// any slot=Ng; SpecialAccept requires reason 1-500 chars.

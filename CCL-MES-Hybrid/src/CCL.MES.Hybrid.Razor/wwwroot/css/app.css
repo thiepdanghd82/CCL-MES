@@ -6268,6 +6268,175 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 .ipqc-rollup-pending { background: var(--c-divider); color: var(--c-ink-4); }
 
 /* ═══════════════════════════════════════════════════════════════════
+   IPQC first-article — MATERIAL (SYSTEM) reconciliation panel (h-3)
+   Sits at the top of the IPQC sheet. 5-column grid reconciling each BOM
+   line vs its resolved IQC lot; divergent rows are highlighted + gated
+   by an Engineer waiver. Design-token driven, both densities.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.ipqc-mat-panel {
+    border-left-width: 4px;
+    border-left-style: solid;
+    border-left-color: var(--brand-2);
+}
+.ipqc-mat-panel-warn { border-left-color: var(--warn); }
+
+.ipqc-mat-banner {
+    padding: var(--sp-3) var(--sp-4);
+    margin-bottom: var(--sp-3);
+    background: var(--ng-bg);
+    color: var(--ng-ink);
+    border: 1px solid var(--ng-soft);
+    border-radius: var(--r-md);
+    font-size: var(--fs-base);
+    font-weight: var(--fw-semibold);
+}
+
+.ipqc-mat-grid {
+    display: grid;
+    gap: var(--sp-1);
+}
+
+.ipqc-mat-row {
+    display: grid;
+    grid-template-columns: 2.2fr 1fr 1.2fr 1.2fr minmax(180px, 1.4fr);
+    gap: var(--sp-3);
+    align-items: center;
+    padding: var(--sp-3);
+    border-radius: var(--r-md);
+    border: 1px solid var(--c-line-2);
+    font-size: var(--d-font);
+}
+
+.ipqc-mat-head {
+    border: 0;
+    padding-block: var(--sp-2);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--c-ink-4);
+}
+
+.ipqc-mat-row-divergent {
+    background: var(--warn-bg);
+    border-color: var(--warn-soft);
+    border-left: 4px solid var(--warn);
+}
+
+.ipqc-mat-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ipqc-mat-sys-code { font-weight: var(--fw-bold); }
+.ipqc-mat-sys-desc { font-size: var(--fs-sm); color: var(--c-ink-4); }
+
+.ipqc-mat-divtag {
+    align-self: flex-start;
+    margin-top: var(--sp-1);
+    padding: 2px var(--sp-2);
+    border-radius: var(--r-pill);
+    background: var(--warn);
+    color: var(--warn-ink);
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-bold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ipqc-mat-confirm { align-items: stretch; }
+
+/* Sub-rows (NG form + waiver) span the full width of the grid row. */
+.ipqc-mat-subrow,
+.ipqc-mat-waiver,
+.ipqc-mat-waiver-done { grid-column: 1 / -1; }
+
+.ipqc-mat-waiver {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-3);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-soft);
+    border-radius: var(--r-md);
+}
+.ipqc-mat-waiver-actions { display: flex; gap: var(--sp-3); }
+.ipqc-mat-waiver-actions .op-btn { min-height: var(--d-tap); flex: 1; }
+.ipqc-mat-waiver-pending {
+    font-size: var(--fs-sm);
+    color: var(--warn-ink);
+    font-style: italic;
+}
+
+.ipqc-mat-waiver-done {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    font-size: var(--fs-sm);
+}
+.ipqc-mat-approved  { color: var(--ok-ink); font-weight: var(--fw-bold); }
+.ipqc-mat-rejected  { color: var(--ng-ink); font-weight: var(--fw-bold); }
+.ipqc-mat-approver, .ipqc-mat-approve-reason { color: var(--c-ink-4); }
+
+/* ── First-article stepper — Visual / Dimension / Function tabs ──── */
+
+.ipqc-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-3);
+}
+
+.ipqc-tab-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: var(--d-tap);
+    padding: var(--sp-2) var(--sp-4);
+    border: 1px solid var(--c-line-2);
+    border-radius: var(--r-pill);
+    background: var(--c-surface);
+    color: var(--c-ink-2);
+    font-size: var(--d-font);
+    font-weight: var(--fw-semibold);
+    cursor: pointer;
+    transition: background var(--mo-fast) var(--ease-std), color var(--mo-fast) var(--ease-std);
+}
+.ipqc-tab-chip:hover { background: var(--c-divider); }
+.ipqc-tab-chip.is-active {
+    background: var(--brand-2);
+    border-color: var(--brand-2);
+    color: var(--c-card);
+}
+.ipqc-tab-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ipqc-tab-count {
+    padding: 0 var(--sp-2);
+    border-radius: var(--r-pill);
+    background: var(--c-divider);
+    color: var(--c-ink-4);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-bold);
+}
+.ipqc-tab-chip.is-active .ipqc-tab-count {
+    background: var(--brand);
+    color: var(--c-card);
+}
+
+/* ── Measured-value input (Dimension / Function items) ──────────── */
+
+.ipqc-measured-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    margin-top: var(--sp-2);
+}
+.ipqc-measured-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--sp-2);
+    align-items: center;
+}
+.ipqc-measured-row .op-btn { min-height: var(--d-tap); }
+
+/* ═══════════════════════════════════════════════════════════════════
    QA Approval dashboard
    ═══════════════════════════════════════════════════════════════════ */
 
