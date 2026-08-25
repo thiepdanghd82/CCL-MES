@@ -310,7 +310,7 @@
 
             @* Item table per mockup: ITEM | PROCESS | METHOD | SPEC | RESULT
                | VERDICT. table-layout auto + nowrap headers (L39 spirit). *@
-            <table class="ipqc-item-table" data-testid="ipqc-item-table">
+            <table class="ipqc-item-table @(ShowResultColumn ? "" : "ipqc-no-result")" data-testid="ipqc-item-table">
                 <thead>
                     <tr>
                         <th class="ipqc-col-num">@T("ipqc.col.num")</th>
@@ -318,7 +318,10 @@
                         <th class="ipqc-col-item">@T("ipqc.col.item")</th>
                         <th class="ipqc-col-method">@T("ipqc.col.method")</th>
                         <th class="ipqc-col-spec">@T("ipqc.col.spec")</th>
-                        <th class="ipqc-col-result">@T("ipqc.col.result")</th>
+                        @if (ShowResultColumn)
+                        {
+                            <th class="ipqc-col-result">@T("ipqc.col.result")</th>
+                        }
                         <th class="ipqc-col-verdict">@T("ipqc.col.verdict")</th>
                     </tr>
                 </thead>
@@ -345,18 +348,21 @@
                             </td>
                             <td class="ipqc-col-method scan-mono" data-label="@T("ipqc.col.method")">@(string.IsNullOrWhiteSpace(item.Method) ? "—" : item.Method)</td>
                             <td class="ipqc-col-spec" data-label="@T("ipqc.col.spec")">@(string.IsNullOrWhiteSpace(item.AcceptanceCriteria) ? "—" : item.AcceptanceCriteria)</td>
-                            <td class="ipqc-col-result" data-label="@T("ipqc.item.measured.short")">
-                                <input type="text" class="ipqc-input ipqc-result-input" maxlength="128"
-                                       placeholder="@T("ipqc.item.measured.placeholder")"
-                                       value="@MeasuredDraft(item)"
-                                       @oninput="@(e => SetMeasuredDraft(item.ItemKey, e.Value?.ToString() ?? ""))"
-                                       data-testid="@($"ipqc-item-{item.ItemKey}-measured")" />
-                                <button type="button" class="op-btn op-btn-secondary op-btn-sm ipqc-measured-save-btn"
-                                        disabled="@_busy"
-                                        title="@T("ipqc.item.measured.save")"
-                                        @onclick="@(() => OnSaveMeasuredAsync(item))"
-                                        data-testid="@($"ipqc-item-{item.ItemKey}-measured-save")">@T("ipqc.item.measured.save.short")</button>
-                            </td>
+                            @if (ShowResultColumn)
+                            {
+                                <td class="ipqc-col-result" data-label="@T("ipqc.item.measured.short")">
+                                    <input type="text" class="ipqc-input ipqc-result-input" maxlength="128"
+                                           placeholder="@T("ipqc.item.measured.placeholder")"
+                                           value="@MeasuredDraft(item)"
+                                           @oninput="@(e => SetMeasuredDraft(item.ItemKey, e.Value?.ToString() ?? ""))"
+                                           data-testid="@($"ipqc-item-{item.ItemKey}-measured")" />
+                                    <button type="button" class="op-btn op-btn-secondary op-btn-sm ipqc-measured-save-btn"
+                                            disabled="@_busy"
+                                            title="@T("ipqc.item.measured.save")"
+                                            @onclick="@(() => OnSaveMeasuredAsync(item))"
+                                            data-testid="@($"ipqc-item-{item.ItemKey}-measured-save")">@T("ipqc.item.measured.save.short")</button>
+                                </td>
+                            }
                             <td class="ipqc-col-verdict" data-label="@T("ipqc.col.verdict")">
                                 @* L52 — shared OK/NG segmented toggle. Non-applicable
                                    items không bắt buộc OK/NG → toggle disabled. *@
@@ -844,6 +850,22 @@
 
     private IEnumerable<IpqcViewItem> ItemsInActiveTab =>
         ItemsInActiveProcess.Where(i => TabForItem(i) == _activeTab);
+
+    /// <summary>Appearance ("Ngoại quan") group items are pass/fail only — they
+    /// carry no measured value, so the RESULT input + Save column is hidden on
+    /// that tab (Henry 2026-08-25). Other groups (Kích thước / Màu sắc / Chức
+    /// năng) keep it. Matched by the QC-Library "A·" prefix or the group text.</summary>
+    private static bool IsAppearanceGroup(string? groupLabel)
+    {
+        var g = (groupLabel ?? "").Trim();
+        return g.StartsWith("A·", StringComparison.OrdinalIgnoreCase)
+            || g.StartsWith("A.", StringComparison.OrdinalIgnoreCase)
+            || g.Contains("Ngoại quan", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Show the RESULT (measured value + Save) column on the active tab?
+    /// Hidden for the appearance group.</summary>
+    private bool ShowResultColumn => !IsAppearanceGroup(_activeTab);
 
     // ── Measured-value draft (per item) ─────────────────────────────
 

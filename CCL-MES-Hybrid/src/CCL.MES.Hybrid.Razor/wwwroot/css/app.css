@@ -6707,6 +6707,14 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
         border-radius: var(--r-md);
         background: var(--c-card);
     }
+    /* Appearance tab (no measured value) → drop the RESULT ("act") card row. */
+    .ipqc-item-table.ipqc-no-result tbody tr.ipqc-item-row {
+        grid-template-areas:
+            "apply num  name name"
+            "apply num  meth meth"
+            "spec  spec spec spec"
+            "verd  verd verd verd";
+    }
     /* Status accent on the card's left edge — readable from a distance. */
     .ipqc-item-table tbody tr.ipqc-item-row.ipqc-slot-ok { border-left-color: var(--ok-ink); background: var(--ok-bg); }
     .ipqc-item-table tbody tr.ipqc-item-row.ipqc-slot-ng { border-left-color: var(--ng-ink); background: var(--ng-bg); }

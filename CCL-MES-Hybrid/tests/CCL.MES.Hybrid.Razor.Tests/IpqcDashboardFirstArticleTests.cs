@@ -637,9 +637,28 @@ public sealed class IpqcDashboardFirstArticleTests : TestContext
             Assert.Null(row.QuerySelector(".ipqc-col-process"));
             Assert.Contains("Mắt thường", row.QuerySelector(".ipqc-col-method")!.TextContent);
             Assert.Contains("Không loang", row.QuerySelector(".ipqc-col-spec")!.TextContent);
-            // RESULT column holds the measured-value input + verdict toggle.
-            Assert.NotNull(cut.Find("[data-testid='ipqc-item-P-VIS-measured']"));
+            // Appearance tab (A·Ngoại quan) hides the RESULT input (2026-08-25).
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-item-P-VIS-measured']"));
         });
+    }
+
+    [Fact]
+    public void Appearance_tab_hides_result_input_but_other_tabs_show_it()
+    {
+        _api.IpqcViewImpl = (_, _) => Task.FromResult(ViewWithProcessAxes());
+
+        var cut = RenderComponent<IpqcDashboard>(p => p
+            .Add(d => d.WorkOrderId, 88L)
+            .Add(d => d.ScrapReasons, Scraps()));
+
+        // Default tab = A·Ngoại quan → RESULT input hidden.
+        cut.WaitForAssertion(() =>
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-item-P-VIS-measured']")));
+
+        // Switch to the C·Màu sắc tab (P-DIM) → RESULT input present.
+        cut.Find("[data-testid='ipqc-tab-C·Màu sắc']").Click();
+        cut.WaitForAssertion(() =>
+            Assert.NotNull(cut.Find("[data-testid='ipqc-item-P-DIM-measured']")));
     }
 
     [Fact]
