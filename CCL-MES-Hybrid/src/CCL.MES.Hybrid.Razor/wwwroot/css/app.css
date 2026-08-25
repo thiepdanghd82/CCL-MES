@@ -6299,7 +6299,7 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 
 .ipqc-mat-row {
     display: grid;
-    grid-template-columns: 1fr 2.2fr 1.2fr 1.2fr minmax(180px, 1.4fr);
+    grid-template-columns: 1fr 2.2fr 1.2fr 1.2fr minmax(120px, 0.8fr);
     gap: var(--sp-3);
     align-items: center;
     padding: var(--sp-3);

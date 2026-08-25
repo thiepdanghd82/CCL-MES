@@ -158,7 +158,7 @@
                                 @* L52 — shared OK/NG segmented toggle *@
                                 <ConfirmToggle Status="@row.Status"
                                                Disabled="@_busy"
-                                               NgDisabled="@(ScrapReasons.Count == 0)"
+                                               NgDisabled="@(MaterialScrapReasons.Count == 0)"
                                                OnOk="@(() => OnMaterialOkAsync(row.BomLineIdx))"
                                                OnNg="@(() => OpenMaterialNgForm(row))"
                                                TestIdPrefix="@($"ipqc-material-row-{row.BomLineIdx}")" />
@@ -175,7 +175,7 @@
                                                     @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
                                                     data-testid="@($"ipqc-material-row-{row.BomLineIdx}-ng-reason")">
                                                 <option value="">@T("ipqc.ng.select")</option>
-                                                @foreach (var r in ScrapReasons)
+                                                @foreach (var r in MaterialScrapReasons)
                                                 {
                                                     <option value="@r.Code">@r.Code — @r.LabelVi</option>
                                                 }
@@ -723,6 +723,21 @@
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             if (allow.Count == 0) return ScrapReasons;
             var scoped = ScrapReasons.Where(r => allow.Contains(r.Code)).ToList();
+            return scoped.Count > 0 ? scoped : ScrapReasons;
+        }
+    }
+
+    /// <summary>MATERIAL (SYSTEM) NG picker — scope to the IQC material-defect
+    /// codes only (SC-MAT-*: damaged/contaminated, wrong-lot/expired), NOT the
+    /// full print+cut scrap catalog. Falls back to the full list only if no
+    /// material code exists so the picker is never empty by accident.</summary>
+    private IReadOnlyList<ReasonCodeOption> MaterialScrapReasons
+    {
+        get
+        {
+            var scoped = ScrapReasons
+                .Where(r => r.Code.StartsWith("SC-MAT", StringComparison.OrdinalIgnoreCase))
+                .ToList();
             return scoped.Count > 0 ? scoped : ScrapReasons;
         }
     }
