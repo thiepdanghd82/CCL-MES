@@ -72,6 +72,7 @@ public sealed class IpqcReviewController : WoMutationControllerBase
     private readonly Services.ITraceFreezeService _trace;
     private readonly Services.WoMutationExecutor _executor;
     private readonly Services.IpqcCheckMaterializer _materializer;
+    private readonly Services.IpqcMaterialMaterializer _materialChecks;
 
     public IpqcReviewController(
         IMesDbContext db,
@@ -79,13 +80,15 @@ public sealed class IpqcReviewController : WoMutationControllerBase
         IOptions<IpqcDualSigOptions> dualSig,
         Services.ITraceFreezeService trace,
         Services.WoMutationExecutor executor,
-        Services.IpqcCheckMaterializer materializer)
+        Services.IpqcCheckMaterializer materializer,
+        Services.IpqcMaterialMaterializer materialChecks)
         : base(db, audit)
     {
         _dualSig = dualSig.Value;
         _trace = trace;
         _executor = executor;
         _materializer = materializer;
+        _materialChecks = materialChecks;
     }
 
     // Best-effort trace freeze — never breaks the confirm; idempotent in service.
@@ -182,6 +185,8 @@ public sealed class IpqcReviewController : WoMutationControllerBase
                 Status = i.Status.ToString(),
                 NgReasonCode = i.NgReasonCode,
                 NgNote = i.NgNote,
+                CheckType = i.CheckType,
+                MeasuredValue = i.MeasuredValue,
             }).ToList(),
         };
 
@@ -313,7 +318,7 @@ public sealed class IpqcReviewController : WoMutationControllerBase
         var ok = WoIpqcCheckService.SetItem(check, itemKey, status,
             status == IpqcCheckStatus.Ng ? req.NgReasonCode : null,
             status == IpqcCheckStatus.Ng ? req.NgNote : null,
-            actor, DateTime.UtcNow);
+            actor, DateTime.UtcNow, req.MeasuredValue);
         if (!ok)
             return Invalid("ipqc.invalid_item",
                 $"Item \"{itemKey}\" không thuộc bộ hạng mục IPQC của WO này.");
@@ -375,6 +380,18 @@ public sealed class IpqcReviewController : WoMutationControllerBase
             return Invalid("ipqc.judgment_inconsistent",
                 $"Judgment \"{judgment}\" is inconsistent with slot results " +
                 $"(GoRun requires all OK; SpecialAccept requires at least one NG).");
+
+        // IPQC first-article (Q1 soft-lock) — GoRun is blocked while any MATERIAL
+        // (SYSTEM) row diverges from IQC without an Engineer waiver. StopLine /
+        // SpecialAccept are NOT gated (StopLine is the escape hatch; a genuine
+        // material problem routes back to PREPRESS). Deadlock-free by design.
+        if (judgment == IpqcJudgment.GoRun)
+        {
+            var (allResolved, _, _) = await _materialChecks.RollupAsync(id);
+            if (!allResolved)
+                return Invalid("ipqc.material_divergence_unresolved",
+                    "Vật tư lệch LOT so với IQC chưa được kỹ sư phê duyệt (waiver) — không thể Go Run.");
+        }
 
         var reasonError = IpqcJudgmentPolicy.ValidateSpecialAcceptReason(
             judgment, req!.SpecialAcceptReason);
