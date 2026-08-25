@@ -851,16 +851,15 @@
     private IEnumerable<IpqcViewItem> ItemsInActiveTab =>
         ItemsInActiveProcess.Where(i => TabForItem(i) == _activeTab);
 
-    /// <summary>Appearance ("Ngoại quan") group items are pass/fail only — they
-    /// carry no measured value, so the RESULT input + Save column is hidden on
-    /// that tab (Henry 2026-08-25). Other groups (Kích thước / Màu sắc / Chức
-    /// năng) keep it. Matched by the QC-Library "A·" prefix or the group text.</summary>
+    /// <summary>The appearance group (QC-Library group "A·…") is pass/fail only —
+    /// its items carry no measured value, so the RESULT input + Save column is
+    /// hidden on that tab (Henry 2026-08-25). Groups B/C/D keep it. Matched by the
+    /// QC-Library "A·" / "A." leading token (ASCII, no bare-VN literal).</summary>
     private static bool IsAppearanceGroup(string? groupLabel)
     {
         var g = (groupLabel ?? "").Trim();
         return g.StartsWith("A·", StringComparison.OrdinalIgnoreCase)
-            || g.StartsWith("A.", StringComparison.OrdinalIgnoreCase)
-            || g.Contains("Ngoại quan", StringComparison.OrdinalIgnoreCase);
+            || g.StartsWith("A.", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Show the RESULT (measured value + Save) column on the active tab?
