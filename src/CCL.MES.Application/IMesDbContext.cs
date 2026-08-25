@@ -69,6 +69,8 @@ public interface IMesDbContext
     // Phương án C — Bước 1/2: thư viện hạng mục + IPQC items data-driven.
     DbSet<CheckItemLibrary> CheckItemLibraries { get; }
     DbSet<WoIpqcCheckItem> WoIpqcCheckItems { get; }
+    // IPQC first-article — MATERIAL (SYSTEM) LOT reconciliation per BOM line.
+    DbSet<WoIpqcMaterialCheck> WoIpqcMaterialChecks { get; }
     // P10.7g — SETTING per-item persist + defect catalog per hạng mục.
     DbSet<WoSettingCheckItem> WoSettingCheckItems { get; }
     DbSet<CheckItemDefectOption> CheckItemDefectOptions { get; }

@@ -93,3 +93,27 @@ public enum IpqcJudgment { Pending, GoRun, StopLine, SpecialAccept }
 /// submitter unless `OPS_IPQC_REQUIRE_DISTINCT_QA_APPROVER=false`).
 /// Reject → reset to PREPRESS, mirrors IPQC StopLine.</summary>
 public enum QaOutcome { Pending, Approve, Reject }
+
+/// <summary>IPQC first-article MATERIAL (SYSTEM) waiver state (Henry 2026-08-25,
+/// Q1 soft-lock). NotRequired = row matched or not-yet-divergent (no waiver
+/// needed). PendingEngineer = a divergence was frozen at confirm and awaits an
+/// Engineer decision. Approved = Engineer waived the divergence (counts as
+/// "resolved" for the judgment readiness gate). Rejected = Engineer refused —
+/// the row stays unresolved and blocks GoRun.</summary>
+public enum DivergenceApprovalStatus { NotRequired, PendingEngineer, Approved, Rejected }
+
+/// <summary>IPQC first-article MATERIAL (SYSTEM) LOT divergence reasons
+/// (bitmask — several can co-occur). 0/None = the scanned lot reconciles with
+/// the IQC-released lot. ShadowFkNull = the Prepress scan never resolved to a
+/// known MaterialLot. IqcNotPass = the linked IqcInspection.Result ≠ Pass.
+/// PartNoMismatch = MaterialCode ≠ MaterialLot.PartNo. LotNotReleased =
+/// MaterialLot.Status ≠ "Released" (Henry Q3: only Released is valid).</summary>
+[Flags]
+public enum DivergenceFlags
+{
+    None = 0,
+    ShadowFkNull = 1,
+    IqcNotPass = 2,
+    PartNoMismatch = 4,
+    LotNotReleased = 8,
+}

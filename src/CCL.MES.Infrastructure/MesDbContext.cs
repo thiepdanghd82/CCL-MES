@@ -72,6 +72,8 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<WoIpqcCheck> WoIpqcChecks => Set<WoIpqcCheck>();
     // Phương án C — Bước 2: data-driven IPQC items (shadow, additive).
     public DbSet<WoIpqcCheckItem> WoIpqcCheckItems => Set<WoIpqcCheckItem>();
+    // IPQC first-article — MATERIAL (SYSTEM) LOT reconciliation per BOM line.
+    public DbSet<WoIpqcMaterialCheck> WoIpqcMaterialChecks => Set<WoIpqcMaterialCheck>();
     // P10.7g — SETTING per-item persist + defect catalog per hạng mục.
     public DbSet<WoSettingCheckItem> WoSettingCheckItems => Set<WoSettingCheckItem>();
     public DbSet<CheckItemDefectOption> CheckItemDefectOptions => Set<CheckItemDefectOption>();
@@ -402,6 +404,19 @@ public class MesDbContext : DbContext, IMesDbContext
             .WithMany(c => c.Items)
             .HasForeignKey(x => x.WoIpqcCheckId)
             .OnDelete(DeleteBehavior.Cascade);
+        // IPQC first-article — measured RESULT value (Q3) + CheckType tab (Q2).
+        b.Entity<WoIpqcCheckItem>().Property(x => x.MeasuredValue).HasMaxLength(128);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.CheckType).HasMaxLength(24);
+
+        // IPQC first-article — MATERIAL (SYSTEM) LOT reconciliation. 1 row per
+        // BOM line; concurrency mediated by the parent WO row (NO RowVersion,
+        // mirror WoIpqcCheck). Enum-as-string; (WorkOrderId, BomLineIdx) unique.
+        b.Entity<WoIpqcMaterialCheck>().Property(x => x.Status).HasConversion<string>().HasMaxLength(16);
+        b.Entity<WoIpqcMaterialCheck>().Property(x => x.DivergenceApprovalStatus).HasConversion<string>().HasMaxLength(20);
+        b.Entity<WoIpqcMaterialCheck>().HasIndex(x => new { x.WorkOrderId, x.BomLineIdx }).IsUnique();
+        b.Entity<WoIpqcMaterialCheck>().HasIndex(x => x.WorkOrderId);
+        b.Entity<WoIpqcMaterialCheck>().HasOne(x => x.WorkOrder).WithMany()
+            .HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Cascade);
 
         // P10.7e-1 Q3+Q6 — FQC + OQC + photo column shape + indices.
         b.Entity<WoQcCheck>().Property(x => x.QcKind).HasMaxLength(8).IsRequired();

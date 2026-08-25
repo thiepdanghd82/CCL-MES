@@ -329,6 +329,28 @@ public static class AuditAction
     /// the exact sequence (vs lump-sum "all 4 checks set" row).</summary>
     public const string WoIpqcCheck           = "WO_IPQC_CHECK";
 
+    /// <summary>IPQC first-article (2026-08-25) — Engineer WAIVED a MATERIAL
+    /// (SYSTEM) LOT divergence (soft-lock override, success path). detail JSON:
+    /// { wo_id, wo_no, bom_line_idx, material_code, divergence_kind, outcome:
+    /// "Approve"|"Reject", approval_reason, confirmed_by, approved_by,
+    /// flag_state: "on"|"off" }. flag_state records whether the distinct-waiver
+    /// dual-sig was enforced. NEVER put secrets in detail.</summary>
+    public const string WoIpqcMaterialApprove = "WO_IPQC_MATERIAL_APPROVE";
+
+    /// <summary>IPQC first-article — Engineer waiver attempt rejected by the
+    /// distinct-waiver dual-sig guard (approver == confirmer). detail JSON:
+    /// { wo_id, wo_no, bom_line_idx, reason: "same_user_as_confirmer",
+    /// attempted_by, confirmed_by }. Emitted INSTEAD of WO_IPQC_MATERIAL_APPROVE
+    /// on violation.</summary>
+    public const string WoIpqcMaterialApproveDenied = "WO_IPQC_MATERIAL_APPROVE_DENIED";
+
+    /// <summary>IPQC first-article — operator confirmed OK/NG on a single
+    /// MATERIAL (SYSTEM) row; the divergence snapshot is frozen at this write.
+    /// detail JSON: { wo_id, wo_no, bom_line_idx, material_code, status:
+    /// "Ok"|"Ng", divergence_kind, source_iqc_receipt_no?, actual_lot_no?,
+    /// ng_reason_code?, ng_note?, requires_waiver }.</summary>
+    public const string WoIpqcMaterialCheck   = "WO_IPQC_MATERIAL_CHECK";
+
     /// <summary>P10.7d-1 — IPQC judgment write (3-button per SpecHub
     /// §3 line 138). detail JSON: { wo_id, outcome:
     /// "GoRun"|"StopLine"|"SpecialAccept", special_accept_reason? }.</summary>

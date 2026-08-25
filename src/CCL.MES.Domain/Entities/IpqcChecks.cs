@@ -143,5 +143,20 @@ public class WoIpqcCheckItem : BaseEntity
     [MaxLength(64)] public string? NgReasonCode { get; set; }
     [MaxLength(500)] public string? NgNote { get; set; }
 
+    /// <summary>IPQC first-article (Henry 2026-08-25 Q3) — measured RESULT value
+    /// entered on Dimension/Function items (e.g. "0.9", "83.5") or a qualitative
+    /// note on Visual items (e.g. "Loang nhẹ"). Kept as free text so one column
+    /// holds both numeric and descriptive results; NOT part of the readiness
+    /// rollup (that stays on <see cref="Status"/>). Nullable — legacy items and
+    /// items with no measurement leave it null.</summary>
+    [MaxLength(128)] public string? MeasuredValue { get; set; }
+
+    /// <summary>IPQC first-article (Q2) — check category frozen from
+    /// <see cref="CheckItemLibrary.CheckType"/> at materialise
+    /// (Visual / Measure→Dimension / Functional→Function). Drives the 3-tab
+    /// stepper; snapshot so the grouping is stable even if the library changes.
+    /// Nullable — legacy items materialised before this column stay null.</summary>
+    [MaxLength(24)] public string? CheckType { get; set; }
+
     public int Sort { get; set; }
 }
