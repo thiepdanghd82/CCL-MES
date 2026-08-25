@@ -6299,7 +6299,7 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 
 .ipqc-mat-row {
     display: grid;
-    grid-template-columns: 2.2fr 1fr 1.2fr 1.2fr minmax(180px, 1.4fr);
+    grid-template-columns: 1fr 2.2fr 1.2fr 1.2fr minmax(180px, 1.4fr);
     gap: var(--sp-3);
     align-items: center;
     padding: var(--sp-3);
@@ -6341,7 +6341,9 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     letter-spacing: 0.04em;
 }
 
-.ipqc-mat-confirm { align-items: stretch; }
+/* Keep the shared ConfirmToggle at its natural compact segmented size
+   (inline-flex) instead of stretching it across the wide CONFIRM column. */
+.ipqc-mat-confirm { align-items: flex-start; }
 
 /* Sub-rows (NG form + waiver) span the full width of the grid row. */
 .ipqc-mat-subrow,
