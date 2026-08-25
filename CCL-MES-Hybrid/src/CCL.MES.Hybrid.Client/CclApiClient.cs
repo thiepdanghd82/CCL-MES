@@ -620,6 +620,72 @@ public sealed class CclApiClient : ICclApiClient
             $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/qa/approve",
             ifMatchETag, req, ct);
 
+    // ── IPQC first-article — MATERIAL (SYSTEM) reconciliation (h-3) ─
+
+    public async Task<IpqcMaterialSystemView> GetIpqcMaterialSystemAsync(
+        long workOrderId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/material-system", ct);
+        return await ReadAsAsync<IpqcMaterialSystemView>(resp, ct);
+    }
+
+    public Task<IpqcMaterialSetResponse> PutIpqcMaterialSystemAsync(
+        long workOrderId, string ifMatchETag, int bomLineIdx,
+        SetIpqcMaterialRequest req, CancellationToken ct = default)
+        => SendIpqcMaterialMutationAsync(
+            HttpMethod.Put,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/material-system/{bomLineIdx}",
+            ifMatchETag, req, ct);
+
+    public Task<IpqcMaterialSetResponse> PostIpqcMaterialApproveDivergenceAsync(
+        long workOrderId, string ifMatchETag, int bomLineIdx,
+        ApproveDivergenceRequest req, CancellationToken ct = default)
+        => SendIpqcMaterialMutationAsync(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/material-system/{bomLineIdx}/approve-divergence",
+            ifMatchETag, req, ct);
+
+    /// <summary>Shared mutation pipeline for the 2 MATERIAL (SYSTEM) write
+    /// endpoints. Mirrors <see cref="SendIpqcMutationAsync"/> exactly — same
+    /// If-Match + Idempotency-Key handshake — but deserialises the
+    /// <see cref="IpqcMaterialSetResponse"/> envelope carrying the post-write
+    /// material rollup + the just-mutated row's approval state. 200 / 409 /
+    /// 422 all return the typed envelope; anything else throws
+    /// <see cref="ApiException"/>.</summary>
+    private async Task<IpqcMaterialSetResponse> SendIpqcMaterialMutationAsync(
+        HttpMethod method, string path, string ifMatchETag, object req, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(method, path)
+        {
+            Content = JsonContent.Create(req),
+        };
+
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        if (!string.IsNullOrWhiteSpace(ifMatchETag))
+            msg.Headers.TryAddWithoutValidation("If-Match", $"\"{ifMatchETag}\"");
+
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+
+        if (resp.StatusCode == HttpStatusCode.OK
+            || resp.StatusCode == HttpStatusCode.Conflict
+            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<IpqcMaterialSetResponse>(cancellationToken: ct);
+            return body ?? new IpqcMaterialSetResponse
+            {
+                Ok = false,
+                ErrorCode = "http.empty_body",
+            };
+        }
+
+        return await ReadAsAsync<IpqcMaterialSetResponse>(resp, ct);
+    }
+
     /// <summary>Shared mutation pipeline for all 6 IPQC + QA endpoints.
     /// Mirrors <see cref="SendRunningSurfacePostAsync"/> exactly so
     /// concurrency + idempotency-key handling stays identical to the

@@ -34,6 +34,12 @@ public static class IpqcReviewErrorLocaliser
             "qa.invalid_outcome"                    => "QA outcome must be Approve or Reject.",
             "qa.invalid_qa_reason"                  => "A QA reason is required (1-500 characters).",
             "qa.same_user_as_ipqc_submitter"        => "The QA approver must be DIFFERENT from the IPQC submitter (dual-sig policy). Reassign QA to someone else.",
+            // ── IPQC first-article — MATERIAL (SYSTEM) reconciliation (h-3) ──
+            "ipqc.invalid_material_line"            => "That material line does not exist on this WO — reload the grid.",
+            "material.invalid_outcome"              => "The waiver decision must be Approve or Reject.",
+            "material.invalid_reason"               => "A reason is required for the waiver decision (1-500 characters).",
+            "material.not_divergent"                => "This material line is not divergent — no Engineer waiver is required.",
+            "material.same_user_as_confirmer"       => "The Engineer approving the divergence must be DIFFERENT from the operator who confirmed the row (dual-sig policy).",
             _                                       => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 
@@ -50,6 +56,12 @@ public static class IpqcReviewErrorLocaliser
         "ipqc.not_ready_for_judgment"           => "All 4 slots (Material + 3 Print) must be processed before judgment.",
         "ipqc.invalid_special_accept_reason"    => "A Special Accept reason is required (1-500 characters).",
         "qa.invalid_qa_reason"                  => "A QA reason is required (1-500 characters).",
+        // ── IPQC first-article — MATERIAL (SYSTEM) reconciliation (h-3) ──
+        "ipqc.invalid_material_line"            => "That material line does not exist on this WO — reload the grid.",
+        "material.invalid_outcome"              => "The waiver decision must be Approve or Reject.",
+        "material.invalid_reason"               => "A reason is required for the waiver decision (1-500 characters).",
+        "material.not_divergent"                => "This material line is not divergent — no Engineer waiver is required.",
+        "material.same_user_as_confirmer"       => "The Engineer approving the divergence must be DIFFERENT from the operator who confirmed the row (dual-sig policy).",
         "http.empty_body"                       => "The server returned an empty response — contact IT.",
         _                                       => $"Unknown error code ({code}).",
     };

@@ -24,6 +24,9 @@ public sealed class LegsDashboardTests : TestContext
     public LegsDashboardTests()
     {
         Services.AddSingleton<ICclApiClient>(_api);
+        var session = new StubAuthSession();
+        session.SetUser("op", "Operator");
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Auth.IAuthSession>(session);
         Services.AddI18n();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(NullLogger<>));
         Services.AddSingleton<CCL.MES.Hybrid.Client.Windows.IFloatingWindowStore,

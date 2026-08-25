@@ -609,6 +609,41 @@ public sealed class RecordingApi : ICclApiClient
             : PostQaApproveImpl(workOrderId, ifMatchETag, req, ct);
     }
 
+    // ── IPQC first-article — MATERIAL (SYSTEM) reconciliation (h-3) ─
+    public Func<long, CancellationToken, Task<IpqcMaterialSystemView>>? IpqcMaterialSystemImpl { get; set; }
+    public Func<long, string, int, SetIpqcMaterialRequest, CancellationToken, Task<IpqcMaterialSetResponse>>? PutIpqcMaterialSystemImpl { get; set; }
+    public Func<long, string, int, ApproveDivergenceRequest, CancellationToken, Task<IpqcMaterialSetResponse>>? PostIpqcMaterialApproveDivergenceImpl { get; set; }
+
+    public List<long> IpqcMaterialSystemCalls { get; } = new();
+    public List<(long Id, string ETag, int BomLineIdx, SetIpqcMaterialRequest Req)> PutIpqcMaterialSystemCalls { get; } = new();
+    public List<(long Id, string ETag, int BomLineIdx, ApproveDivergenceRequest Req)> PostIpqcMaterialApproveDivergenceCalls { get; } = new();
+
+    public Task<IpqcMaterialSystemView> GetIpqcMaterialSystemAsync(long workOrderId, CancellationToken ct = default)
+    {
+        IpqcMaterialSystemCalls.Add(workOrderId);
+        // Default = an empty (no rows) view so dashboards that don't exercise
+        // the material panel keep rendering the judgment/item surfaces.
+        return IpqcMaterialSystemImpl is null
+            ? Task.FromResult(new IpqcMaterialSystemView { WoId = workOrderId, MesPhase = "IPQC_WAIT", ETag = "v1" })
+            : IpqcMaterialSystemImpl(workOrderId, ct);
+    }
+
+    public Task<IpqcMaterialSetResponse> PutIpqcMaterialSystemAsync(long workOrderId, string ifMatchETag, int bomLineIdx, SetIpqcMaterialRequest req, CancellationToken ct = default)
+    {
+        PutIpqcMaterialSystemCalls.Add((workOrderId, ifMatchETag, bomLineIdx, req));
+        return PutIpqcMaterialSystemImpl is null
+            ? Task.FromResult(new IpqcMaterialSetResponse { Ok = true, ETag = ifMatchETag, MesPhase = "IPQC_WAIT" })
+            : PutIpqcMaterialSystemImpl(workOrderId, ifMatchETag, bomLineIdx, req, ct);
+    }
+
+    public Task<IpqcMaterialSetResponse> PostIpqcMaterialApproveDivergenceAsync(long workOrderId, string ifMatchETag, int bomLineIdx, ApproveDivergenceRequest req, CancellationToken ct = default)
+    {
+        PostIpqcMaterialApproveDivergenceCalls.Add((workOrderId, ifMatchETag, bomLineIdx, req));
+        return PostIpqcMaterialApproveDivergenceImpl is null
+            ? Task.FromResult(new IpqcMaterialSetResponse { Ok = true, ETag = ifMatchETag, MesPhase = "IPQC_WAIT" })
+            : PostIpqcMaterialApproveDivergenceImpl(workOrderId, ifMatchETag, bomLineIdx, req, ct);
+    }
+
     // ── P10.7e-3 — WoQc (FQC + OQC + photo + summary) hooks ───────
     public Func<long, string, CancellationToken, Task<WoQcView>>? WoQcViewImpl { get; set; }
     public Func<long, string, string, string, SetWoQcItemRequest, CancellationToken, Task<WoQcSetResponse>>? PutWoQcItemImpl { get; set; }

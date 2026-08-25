@@ -44,11 +44,13 @@
 
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Hybrid.Client
+@using CCL.MES.Hybrid.Client.Auth
 @using CCL.MES.Hybrid.Client.IpqcReview
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.IpqcReview
 @using CCL.MES.Shared.ReasonCodes
 @inject ICclApiClient Api
+@inject IAuthSession Session
 
 <div class="rs-dashboard ipqc-dashboard" data-testid="ipqc-dashboard">
     @if (_view is null && _initialError is null)
@@ -104,6 +106,156 @@
             </div>
         }
 
+        @* ── MATERIAL (SYSTEM) — first-article reconciliation panel ────
+             h-3: TOP of the IPQC sheet, only in IPQC_WAIT (WoLegId null =
+             WO-level). Reconciles each BOM line vs the resolved IQC lot; a
+             divergent row is highlighted + gated by an Engineer waiver. *@
+        @if (WoLegId is null && !_invalidPhase && _material is { Rows.Count: > 0 })
+        {
+            <div class="rs-card ipqc-mat-panel @(_material.AnyPendingWaiver ? "ipqc-mat-panel-warn" : "")"
+                 data-testid="ipqc-material-panel">
+                <div class="rs-card-head">
+                    <div class="rs-card-title">@T("ipqc.material.title")</div>
+                    <div class="ipqc-slot-subtitle">@T("ipqc.material.subtitle")</div>
+                </div>
+
+                @if (_material.Rows.Any(r => r.IsDivergent))
+                {
+                    <div class="ipqc-mat-banner" data-testid="ipqc-material-divergent-banner">
+                        <strong>@T("ipqc.material.divergent.banner")</strong>
+                    </div>
+                }
+
+                <div class="ipqc-mat-grid" role="table">
+                    <div class="ipqc-mat-row ipqc-mat-head" role="row">
+                        <span role="columnheader">@T("ipqc.material.col.system")</span>
+                        <span role="columnheader">@T("ipqc.material.col.code")</span>
+                        <span role="columnheader">@T("ipqc.material.col.iqclot")</span>
+                        <span role="columnheader">@T("ipqc.material.col.actual")</span>
+                        <span role="columnheader">@T("ipqc.material.col.confirm")</span>
+                    </div>
+
+                    @foreach (var row in _material.Rows)
+                    {
+                        <div class="ipqc-mat-row @(row.IsDivergent ? "ipqc-mat-row-divergent" : "")"
+                             role="row"
+                             data-testid="@($"ipqc-material-row-{row.BomLineIdx}")">
+                            <span class="ipqc-mat-cell" role="cell">
+                                <span class="ipqc-mat-sys-code scan-mono">@row.MaterialCode</span>
+                                @if (!string.IsNullOrWhiteSpace(row.MaterialDescription))
+                                {
+                                    <span class="ipqc-mat-sys-desc">@row.MaterialDescription</span>
+                                }
+                                @if (row.IsDivergent)
+                                {
+                                    <span class="ipqc-mat-divtag" data-testid="@($"ipqc-material-row-{row.BomLineIdx}-divtag")">@T("ipqc.material.divergent.tag")</span>
+                                }
+                            </span>
+                            <span class="ipqc-mat-cell scan-mono" role="cell">@row.MaterialCode</span>
+                            <span class="ipqc-mat-cell scan-mono" role="cell">@(string.IsNullOrWhiteSpace(row.SourceIqcReceiptNo) ? T("ipqc.material.none") : row.SourceIqcReceiptNo)</span>
+                            <span class="ipqc-mat-cell scan-mono" role="cell">@(string.IsNullOrWhiteSpace(row.ActualAtMachine) ? T("ipqc.material.none") : row.ActualAtMachine)</span>
+                            <span class="ipqc-mat-cell ipqc-mat-confirm" role="cell">
+                                @* L52 — shared OK/NG segmented toggle *@
+                                <ConfirmToggle Status="@row.Status"
+                                               Disabled="@_busy"
+                                               NgDisabled="@(ScrapReasons.Count == 0)"
+                                               OnOk="@(() => OnMaterialOkAsync(row.BomLineIdx))"
+                                               OnNg="@(() => OpenMaterialNgForm(row))"
+                                               TestIdPrefix="@($"ipqc-material-row-{row.BomLineIdx}")" />
+                            </span>
+
+                            @* NG sub-form for the material row (spans full width). *@
+                            @if (_openMaterialNgFor == row.BomLineIdx)
+                            {
+                                <div class="ipqc-mat-subrow" role="cell">
+                                    <div class="ipqc-ng-form" data-testid="@($"ipqc-material-row-{row.BomLineIdx}-ng-form")">
+                                        <div class="ipqc-ng-field">
+                                            <label class="rs-modal-label">@T("ipqc.ng.code")</label>
+                                            <select class="ipqc-input" value="@_ngReasonCode"
+                                                    @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
+                                                    data-testid="@($"ipqc-material-row-{row.BomLineIdx}-ng-reason")">
+                                                <option value="">@T("ipqc.ng.select")</option>
+                                                @foreach (var r in ScrapReasons)
+                                                {
+                                                    <option value="@r.Code">@r.Code — @r.LabelVi</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="ipqc-ng-field ipqc-ng-field-wide">
+                                            <label class="rs-modal-label">@T("ipqc.ng.note.short")</label>
+                                            <input type="text" class="ipqc-input" maxlength="500" value="@_ngNote"
+                                                   @oninput="@(e => _ngNote = e.Value?.ToString() ?? "")"
+                                                   data-testid="@($"ipqc-material-row-{row.BomLineIdx}-ng-note")" />
+                                        </div>
+                                        <div class="ipqc-ng-actions">
+                                            <button type="button" class="op-btn op-btn-secondary"
+                                                    @onclick="CloseNgForm"
+                                                    data-testid="@($"ipqc-material-row-{row.BomLineIdx}-ng-cancel")">@T("ipqc.btn.cancel")</button>
+                                            <button type="button" class="op-btn op-btn-danger"
+                                                    disabled="@(!CanSubmitNg() || _busy)"
+                                                    @onclick="@(() => OnMaterialNgAsync(row.BomLineIdx))"
+                                                    data-testid="@($"ipqc-material-row-{row.BomLineIdx}-ng-submit")">@T("ipqc.btn.savng")</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            @* Divergence waiver — Engineer decision (RBAC-by-omission). *@
+                            @if (row.IsDivergent && row.DivergenceApprovalStatus == "PendingEngineer")
+                            {
+                                <div class="ipqc-mat-waiver" role="cell"
+                                     data-testid="@($"ipqc-material-row-{row.BomLineIdx}-waiver")">
+                                    @if (CanWaive)
+                                    {
+                                        <div class="ipqc-ng-field ipqc-ng-field-wide">
+                                            <label class="rs-modal-label">@T("ipqc.material.waiver.reason")</label>
+                                            <input type="text" class="ipqc-input" maxlength="500" value="@_waiverReason"
+                                                   @oninput="@(e => _waiverReason = e.Value?.ToString() ?? "")"
+                                                   data-testid="@($"ipqc-material-row-{row.BomLineIdx}-waiver-reason")" />
+                                        </div>
+                                        <div class="ipqc-mat-waiver-actions">
+                                            <button type="button" class="op-btn op-btn-success ipqc-judgment-btn"
+                                                    disabled="@(!CanWaiveSubmit() || _busy)"
+                                                    @onclick="@(() => OnWaiveAsync(row.BomLineIdx, "Approve"))"
+                                                    data-testid="@($"ipqc-material-row-{row.BomLineIdx}-waiver-approve")">@T("ipqc.material.waiver.approve")</button>
+                                            <button type="button" class="op-btn op-btn-danger ipqc-judgment-btn"
+                                                    disabled="@(!CanWaiveSubmit() || _busy)"
+                                                    @onclick="@(() => OnWaiveAsync(row.BomLineIdx, "Reject"))"
+                                                    data-testid="@($"ipqc-material-row-{row.BomLineIdx}-waiver-reject")">@T("ipqc.material.waiver.reject")</button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        @* QC/Operator: no button, but they SEE the pending state. *@
+                                        <div class="ipqc-mat-waiver-pending" data-testid="@($"ipqc-material-row-{row.BomLineIdx}-waiver-norole")">
+                                            @T("ipqc.material.waiver.norole")
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else if (row.DivergenceApprovalStatus is "Approved" or "Rejected")
+                            {
+                                <div class="ipqc-mat-waiver-done" role="cell"
+                                     data-testid="@($"ipqc-material-row-{row.BomLineIdx}-waiver-done")">
+                                    <span class="@(row.DivergenceApprovalStatus == "Approved" ? "ipqc-mat-approved" : "ipqc-mat-rejected")">
+                                        @(row.DivergenceApprovalStatus == "Approved" ? T("ipqc.material.waiver.approved") : T("ipqc.material.waiver.rejected"))
+                                    </span>
+                                    @if (!string.IsNullOrWhiteSpace(row.ApprovedBy))
+                                    {
+                                        <span class="ipqc-mat-approver">@T("ipqc.material.waiver.approvedby") <span class="scan-mono">@row.ApprovedBy</span></span>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(row.ApprovalReason))
+                                    {
+                                        <span class="ipqc-mat-approve-reason">@T("ipqc.material.waiver.reasonlabel") @row.ApprovalReason</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
         @* ── Phương án C: data-driven items (auto-sync) ───────────── *@
         @if (ItemsMode)
         {
@@ -113,7 +265,26 @@
                 <span class="ipqc-resolved-count">@T("ipqc.resolved.count", _view!.Items.Count)</span>
             </div>
 
-            @foreach (var grp in _view!.Items.GroupBy(i => (i.ProcessLine, i.GroupLabel)))
+            @* First-article stepper — 3 tab chips (Visual / Dimension /
+               Function) + a fallback "Other" tab that never swallows an
+               item with an unrecognised CheckType. Chip-buttons, NOT a
+               <select> (WKWebView freeze — see MEMORY). *@
+            <div class="ipqc-tabs" role="tablist" data-testid="ipqc-tabs">
+                @foreach (var tab in ActiveTabs)
+                {
+                    <button type="button"
+                            class="ipqc-tab-chip @(_activeTab == tab.Key ? "is-active" : "")"
+                            role="tab"
+                            aria-selected="@(_activeTab == tab.Key ? "true" : "false")"
+                            @onclick="@(() => _activeTab = tab.Key)"
+                            data-testid="@($"ipqc-tab-{tab.Key}")">
+                        <span class="ipqc-tab-label">@T(tab.LabelKey)</span>
+                        <span class="ipqc-tab-count">@T("ipqc.tab.count", tab.Count)</span>
+                    </button>
+                }
+            </div>
+
+            @foreach (var grp in ItemsInActiveTab.GroupBy(i => (i.ProcessLine, i.GroupLabel)))
             {
                 <div class="ipqc-item-group" data-testid="@($"ipqc-group-{grp.Key.ProcessLine}-{Slug(grp.Key.GroupLabel)}")">
                     <div class="ipqc-item-group-head">
@@ -139,6 +310,24 @@
                                                OnOk="@(() => OnItemOkAsync(item.ItemKey))"
                                                OnNg="@(() => OpenItemNgForm(item))"
                                                TestIdPrefix="@($"ipqc-item-{item.ItemKey}")" />
+                            </div>
+
+                            @* First-article — measured value input (Dimension / Function).
+                               Sent alongside the item PUT; not part of readiness. *@
+                            <div class="ipqc-measured-field">
+                                <label class="rs-modal-label" for="@($"ipqc-measured-{item.ItemKey}")">@T("ipqc.item.measured.label")</label>
+                                <div class="ipqc-measured-row">
+                                    <input id="@($"ipqc-measured-{item.ItemKey}")"
+                                           type="text" class="ipqc-input" maxlength="128"
+                                           placeholder="@T("ipqc.item.measured.placeholder")"
+                                           value="@MeasuredDraft(item)"
+                                           @oninput="@(e => SetMeasuredDraft(item.ItemKey, e.Value?.ToString() ?? ""))"
+                                           data-testid="@($"ipqc-item-{item.ItemKey}-measured")" />
+                                    <button type="button" class="op-btn op-btn-secondary"
+                                            disabled="@_busy"
+                                            @onclick="@(() => OnSaveMeasuredAsync(item))"
+                                            data-testid="@($"ipqc-item-{item.ItemKey}-measured-save")">@T("ipqc.item.measured.save")</button>
+                                </div>
                             </div>
 
                             @if (item.Status == "Ng" && !string.IsNullOrWhiteSpace(item.NgReasonCode))
@@ -417,6 +606,21 @@
 
     private string _specialAcceptReason = "";
 
+    // ── IPQC first-article (h-3) — MATERIAL (SYSTEM) reconciliation ──
+    private IpqcMaterialSystemView? _material;
+    private int? _openMaterialNgFor;     // BomLineIdx of the open material NG form
+    private string _waiverReason = "";   // Engineer waiver reason draft
+
+    // First-article stepper — active tab (Visual/Dimension/Function/Other).
+    private string _activeTab = TabVisual;
+    private const string TabVisual = "visual";
+    private const string TabDimension = "dimension";
+    private const string TabFunction = "function";
+    private const string TabOther = "other";
+
+    // Per-item measured-value drafts (edited before the item PUT persists them).
+    private readonly Dictionary<string, string> _measuredDrafts = new();
+
     private static readonly SlotDef[] _slots =
     {
         new("material", "Material recheck", "Correct roll, lot, code, cleaned after setting"),
@@ -475,10 +679,79 @@
         _    => "ipqc-slot-pending",
     };
 
+    // ── First-article stepper (Visual / Dimension / Function / Other) ─
+
+    /// <summary>Map an item's <see cref="IpqcViewItem.CheckType"/> to a stepper
+    /// tab key. "Measure"→dimension, "Functional"→function, "Visual"→visual.
+    /// Null / anything else → "other" (fallback tab — never swallowed).</summary>
+    private static string TabForItem(IpqcViewItem item) => (item.CheckType ?? "").Trim().ToLowerInvariant() switch
+    {
+        "visual" => TabVisual,
+        "measure" or "dimension" => TabDimension,
+        "functional" or "function" => TabFunction,
+        _ => TabOther,
+    };
+
+    private sealed record TabDef(string Key, string LabelKey, int Count);
+
+    /// <summary>Tabs that actually have items — Visual/Dimension/Function
+    /// always shown (order fixed); "Other" appears ONLY when a fallback item
+    /// exists so it doesn't clutter the common case.</summary>
+    private IReadOnlyList<TabDef> ActiveTabs
+    {
+        get
+        {
+            if (_view is null) return Array.Empty<TabDef>();
+            int Count(string key) => _view.Items.Count(i => TabForItem(i) == key);
+            var tabs = new List<TabDef>
+            {
+                new(TabVisual, "ipqc.tab.visual", Count(TabVisual)),
+                new(TabDimension, "ipqc.tab.dimension", Count(TabDimension)),
+                new(TabFunction, "ipqc.tab.function", Count(TabFunction)),
+            };
+            var other = Count(TabOther);
+            if (other > 0) tabs.Add(new(TabOther, "ipqc.tab.other", other));
+            return tabs;
+        }
+    }
+
+    private IEnumerable<IpqcViewItem> ItemsInActiveTab =>
+        _view is null ? Enumerable.Empty<IpqcViewItem>()
+                      : _view.Items.Where(i => TabForItem(i) == _activeTab);
+
+    // ── Measured-value draft (per item) ─────────────────────────────
+
+    private string MeasuredDraft(IpqcViewItem item) =>
+        _measuredDrafts.TryGetValue(item.ItemKey, out var v) ? v : (item.MeasuredValue ?? "");
+
+    private void SetMeasuredDraft(string itemKey, string value) => _measuredDrafts[itemKey] = value;
+
+    /// <summary>Persist the measured value WITHOUT changing the OK/NG verdict —
+    /// re-sends the item's current status + reason + note so the server keeps
+    /// them, adding the measured value.</summary>
+    private Task OnSaveMeasuredAsync(IpqcViewItem item) =>
+        SubmitItemAsync(item.ItemKey, new SetIpqcItemRequest
+        {
+            Status = item.Status,
+            NgReasonCode = item.Status == "Ng" ? item.NgReasonCode : null,
+            NgNote = item.Status == "Ng" ? item.NgNote : null,
+            MeasuredValue = MeasuredDraft(item),
+        });
+
     // ── Item (data-driven) mutation calls ───────────────────────────
 
     private Task OnItemOkAsync(string itemKey) =>
-        SubmitItemAsync(itemKey, new SetIpqcItemRequest { Status = "Ok" });
+        SubmitItemAsync(itemKey, new SetIpqcItemRequest
+        {
+            Status = "Ok",
+            MeasuredValue = MeasuredForKey(itemKey),
+        });
+
+    private string? MeasuredForKey(string itemKey)
+    {
+        if (_measuredDrafts.TryGetValue(itemKey, out var v) && !string.IsNullOrWhiteSpace(v)) return v;
+        return _view?.Items.FirstOrDefault(i => i.ItemKey == itemKey)?.MeasuredValue;
+    }
 
     private void OpenItemNgForm(IpqcViewItem item)
     {
@@ -499,6 +772,7 @@
             Status = "Ng",
             NgReasonCode = _ngReasonCode,
             NgNote = _ngNote,
+            MeasuredValue = MeasuredForKey(itemKey),
         });
     }
 
@@ -544,9 +818,14 @@
             _setError = null;
             _invalidPhase = false;
             _openNgFor = null;
+            _openMaterialNgFor = null;
             _ngReasonCode = "";
             _ngNote = "";
             _specialAcceptReason = "";
+            _waiverReason = "";
+            _material = null;
+            _measuredDrafts.Clear();
+            _activeTab = TabVisual;
             await ReloadAsync();
         }
     }
@@ -559,6 +838,12 @@
             // Per-leg: the WO stays SPLIT while the LEG sits at IPQC_WAIT, so the
             // WO-phase guard must not fire (the leg phase is enforced server-side).
             _invalidPhase = WoLegId is null && _view.MesPhase != "IPQC_WAIT";
+
+            // First-article: default the stepper to the first tab that has items.
+            _activeTab = FirstNonEmptyTab();
+
+            // MATERIAL (SYSTEM) reconciliation — WO-level, IPQC_WAIT only.
+            await ReloadMaterialAsync();
         }
         catch (ApiException apiEx)
         {
@@ -572,6 +857,159 @@
         {
             _initialError = T("ipqc.error.loading", $"{ex.GetType().Name}: {ex.Message}");
         }
+    }
+
+    /// <summary>Load the MATERIAL (SYSTEM) grid. Best-effort + non-fatal — a
+    /// missing grid must NOT blank the judgment/items surface; the error rides
+    /// its own inline banner. Only WO-level (WoLegId null) + IPQC_WAIT.</summary>
+    private async Task ReloadMaterialAsync()
+    {
+        if (WoLegId is not null || _invalidPhase)
+        {
+            _material = null;
+            return;
+        }
+        try
+        {
+            _material = await Api.GetIpqcMaterialSystemAsync(WorkOrderId);
+        }
+        catch (ApiException apiEx)
+        {
+            _material = null;
+            _setError = IpqcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+        }
+        catch (Exception)
+        {
+            _material = null;
+        }
+    }
+
+    private string FirstNonEmptyTab()
+    {
+        var tabs = ActiveTabs;
+        return tabs.FirstOrDefault(t => t.Count > 0)?.Key ?? TabVisual;
+    }
+
+    // ── MATERIAL (SYSTEM) — role gate + mutation calls (h-3) ────────
+
+    /// <summary>RBAC-by-omission — the waiver Approve/Reject buttons are BUILT
+    /// only for Engineer/Supervisor/Admin. The server still enforces the
+    /// EngineerWaive policy (403 otherwise); this is defence-in-depth so a
+    /// QC/Operator never even sees the control.</summary>
+    private bool CanWaive =>
+        Session.CurrentUserInfo?.Role is { Length: > 0 } role
+        && (string.Equals(role, "Engineer", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(role, "Supervisor", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase));
+
+    private bool CanWaiveSubmit() =>
+        !string.IsNullOrWhiteSpace(_waiverReason) && _waiverReason.Length <= 500;
+
+    private void OpenMaterialNgForm(IpqcMaterialRow row)
+    {
+        if (_busy) return;
+        _openMaterialNgFor = row.BomLineIdx;
+        _ngReasonCode = row.NgReasonCode ?? "";
+        _ngNote = row.NgNote ?? "";
+    }
+
+    private Task OnMaterialOkAsync(int bomLineIdx) =>
+        SubmitMaterialAsync(bomLineIdx, new SetIpqcMaterialRequest { Status = "Ok" });
+
+    private async Task OnMaterialNgAsync(int bomLineIdx)
+    {
+        if (!CanSubmitNg()) return;
+        await SubmitMaterialAsync(bomLineIdx, new SetIpqcMaterialRequest
+        {
+            Status = "Ng",
+            NgReasonCode = _ngReasonCode,
+            NgNote = _ngNote,
+        });
+    }
+
+    private async Task SubmitMaterialAsync(int bomLineIdx, SetIpqcMaterialRequest req)
+    {
+        if (_material is null || _busy) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var resp = await Api.PutIpqcMaterialSystemAsync(WorkOrderId, _material.ETag, bomLineIdx, req);
+            await HandleMaterialResponseAsync(resp);
+            if (resp.Ok) CloseNgForm();
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = IpqcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadMaterialAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = T("ipqc.error.connect", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task OnWaiveAsync(int bomLineIdx, string outcome)
+    {
+        if (_material is null || _busy || !CanWaiveSubmit()) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var resp = await Api.PostIpqcMaterialApproveDivergenceAsync(
+                WorkOrderId, _material.ETag, bomLineIdx,
+                new ApproveDivergenceRequest { Outcome = outcome, Reason = _waiverReason });
+            await HandleMaterialResponseAsync(resp);
+            if (resp.Ok) _waiverReason = "";
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = IpqcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadMaterialAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = T("ipqc.error.connect", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Handle the <see cref="IpqcMaterialSetResponse"/>. Mirrors
+    /// <see cref="HandleSetResponseAsync"/>: 200 → reload the grid to capture
+    /// server-computed rollup/approval fields; non-ok → banner + reload. The
+    /// material panel + waiver never bubble OnPhaseChanged — they don't change
+    /// MesPhase (only judgment does), so the parent dispatch stays put.</summary>
+    private async Task HandleMaterialResponseAsync(IpqcMaterialSetResponse resp)
+    {
+        if (resp.Ok)
+        {
+            await ReloadMaterialAsync();
+            return;
+        }
+        if (!string.IsNullOrEmpty(resp.ErrorCode))
+        {
+            _setError = IpqcReviewErrorLocaliser.LocaliseSetError(resp.ErrorCode);
+            await ReloadMaterialAsync();
+            return;
+        }
+        _setError = T("ipqc.error.no_code");
     }
 
     // ── Slot helpers ────────────────────────────────────────────────
@@ -640,6 +1078,7 @@
     private void CloseNgForm()
     {
         _openNgFor = null;
+        _openMaterialNgFor = null;
         _ngReasonCode = "";
         _ngNote = "";
     }

@@ -83,5 +83,43 @@ public sealed partial class TranslationCatalog
         Add("ipqc.error.no_code",            "Máy chủ trả về Ok=false nhưng không có mã lỗi — báo IT.",            "Server returned Ok=false without an error code — report to IT.");
         Add("ipqc.error.connect",            "Không kết nối được máy chủ: {0}",                                    "Could not connect to the server: {0}");
         Add("ipqc.error.loading",            "Lỗi khi tải trạng thái IPQC: {0}",                                   "Error loading IPQC status: {0}");
+
+        // ── IPQC first-article — MATERIAL (SYSTEM) panel (h-3) ─────────
+        Add("ipqc.material.title",           "Vật tư (theo hệ thống)",                                             "MATERIAL (SYSTEM)");
+        Add("ipqc.material.subtitle",        "Đối chiếu LOT thực tế tại máy với dữ liệu gốc IQC",                   "Reconcile the actual lot at the machine against the source IQC data");
+        Add("ipqc.material.loading",         "Đang tải đối chiếu vật tư…",                                          "Loading material reconciliation…");
+        Add("ipqc.material.error",           "Không tải được đối chiếu vật tư:",                                    "Could not load material reconciliation:");
+        Add("ipqc.material.empty",           "Chưa có dòng vật tư để đối chiếu.",                                   "No material lines to reconcile yet.");
+        Add("ipqc.material.divergent.banner","Vật tư lệch dữ liệu gốc — kiểm tra trước khi tiếp tục.",              "Material diverges from the source data — verify before continuing.");
+        Add("ipqc.material.col.system",      "VẬT TƯ (HỆ THỐNG)",                                                   "MATERIAL (SYSTEM)");
+        Add("ipqc.material.col.code",        "MÃ VẬT TƯ",                                                           "MATERIAL CODE");
+        Add("ipqc.material.col.iqclot",      "LOT IQC GỐC",                                                         "SOURCE IQC LOT");
+        Add("ipqc.material.col.actual",      "THỰC TẾ TẠI MÁY",                                                     "ACTUAL AT MACHINE");
+        Add("ipqc.material.col.confirm",     "XÁC NHẬN",                                                            "CONFIRM");
+        Add("ipqc.material.divergent.tag",   "LỆCH",                                                               "DIVERGENT");
+        Add("ipqc.material.none",            "—",                                                                  "—");
+
+        // ── Engineer divergence waiver ────────────────────────────────
+        Add("ipqc.material.waiver.pending",  "Chờ kỹ sư phê duyệt",                                                "Awaiting Engineer approval");
+        Add("ipqc.material.waiver.approve",  "Kỹ sư phê duyệt",                                                     "Engineer approve");
+        Add("ipqc.material.waiver.reject",   "Từ chối",                                                            "Reject");
+        Add("ipqc.material.waiver.reason",   "Lý do phê duyệt / từ chối (1-500 ký tự)",                            "Approval / rejection reason (1-500 characters)");
+        Add("ipqc.material.waiver.approvedby","Kỹ sư:",                                                            "Engineer:");
+        Add("ipqc.material.waiver.approved", "Đã phê duyệt",                                                       "Approved");
+        Add("ipqc.material.waiver.rejected", "Đã từ chối",                                                         "Rejected");
+        Add("ipqc.material.waiver.reasonlabel","Lý do:",                                                           "Reason:");
+        Add("ipqc.material.waiver.norole",   "Chờ kỹ sư phê duyệt (bạn không có quyền phê duyệt).",                 "Awaiting Engineer approval (you do not have approval rights).");
+
+        // ── First-article stepper tabs (Visual / Dimension / Function) ─
+        Add("ipqc.tab.visual",               "Ngoại quan",                                                         "Visual");
+        Add("ipqc.tab.dimension",            "Kích thước",                                                         "Dimension");
+        Add("ipqc.tab.function",             "Chức năng",                                                          "Function");
+        Add("ipqc.tab.other",                "Khác",                                                               "Other");
+        Add("ipqc.tab.count",                "{0}",                                                                "{0}");
+
+        // ── Measured value input (Dimension / Function items) ─────────
+        Add("ipqc.item.measured.label",      "Giá trị đo",                                                         "Measured value");
+        Add("ipqc.item.measured.placeholder","vd 0.9 / 83.5 / Loang nhẹ",                                          "e.g. 0.9 / 83.5 / slight bleed");
+        Add("ipqc.item.measured.save",       "Lưu giá trị đo",                                                     "Save measured value");
     }
 }
