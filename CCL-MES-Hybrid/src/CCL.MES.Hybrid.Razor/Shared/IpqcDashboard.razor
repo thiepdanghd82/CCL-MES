@@ -140,8 +140,8 @@
                         <div class="ipqc-mat-row @(row.IsDivergent ? "ipqc-mat-row-divergent" : "")"
                              role="row"
                              data-testid="@($"ipqc-material-row-{row.BomLineIdx}")">
-                            <span class="ipqc-mat-cell scan-mono" role="cell">@row.MaterialCode</span>
-                            <span class="ipqc-mat-cell" role="cell">
+                            <span class="ipqc-mat-cell scan-mono" role="cell" data-label="@T("ipqc.material.col.code")">@row.MaterialCode</span>
+                            <span class="ipqc-mat-cell" role="cell" data-label="@T("ipqc.material.col.system")">
                                 <span class="ipqc-mat-sys-code scan-mono">@row.MaterialCode</span>
                                 @if (!string.IsNullOrWhiteSpace(row.MaterialDescription))
                                 {
@@ -152,9 +152,9 @@
                                     <span class="ipqc-mat-divtag" data-testid="@($"ipqc-material-row-{row.BomLineIdx}-divtag")">@T("ipqc.material.divergent.tag")</span>
                                 }
                             </span>
-                            <span class="ipqc-mat-cell scan-mono" role="cell">@(string.IsNullOrWhiteSpace(row.SourceIqcReceiptNo) ? T("ipqc.material.none") : row.SourceIqcReceiptNo)</span>
-                            <span class="ipqc-mat-cell scan-mono" role="cell">@(string.IsNullOrWhiteSpace(row.ActualAtMachine) ? T("ipqc.material.none") : row.ActualAtMachine)</span>
-                            <span class="ipqc-mat-cell ipqc-mat-confirm" role="cell">
+                            <span class="ipqc-mat-cell scan-mono" role="cell" data-label="@T("ipqc.material.col.iqclot")">@(string.IsNullOrWhiteSpace(row.SourceIqcReceiptNo) ? T("ipqc.material.none") : row.SourceIqcReceiptNo)</span>
+                            <span class="ipqc-mat-cell scan-mono" role="cell" data-label="@T("ipqc.material.col.actual")">@(string.IsNullOrWhiteSpace(row.ActualAtMachine) ? T("ipqc.material.none") : row.ActualAtMachine)</span>
+                            <span class="ipqc-mat-cell ipqc-mat-confirm" role="cell" data-label="@T("ipqc.material.col.confirm")">
                                 @* L52 — shared OK/NG segmented toggle *@
                                 <ConfirmToggle Status="@row.Status"
                                                Disabled="@_busy"
@@ -344,23 +344,24 @@
                                 <span class="ipqc-status-pill @StatusPillCss(item.Status)"
                                       data-testid="@($"ipqc-item-{item.ItemKey}-status")">@StatusDisplay(item.Status)</span>
                             </td>
-                            <td class="ipqc-col-process">
+                            <td class="ipqc-col-process" data-label="@T("ipqc.col.process")">
                                 <span class="ipqc-line-chip">@ItemProcessLabel(item)</span>
                             </td>
-                            <td class="ipqc-col-method scan-mono">@(string.IsNullOrWhiteSpace(item.Method) ? "—" : item.Method)</td>
-                            <td class="ipqc-col-spec">@(string.IsNullOrWhiteSpace(item.AcceptanceCriteria) ? "—" : item.AcceptanceCriteria)</td>
-                            <td class="ipqc-col-result">
+                            <td class="ipqc-col-method scan-mono" data-label="@T("ipqc.col.method")">@(string.IsNullOrWhiteSpace(item.Method) ? "—" : item.Method)</td>
+                            <td class="ipqc-col-spec" data-label="@T("ipqc.col.spec")">@(string.IsNullOrWhiteSpace(item.AcceptanceCriteria) ? "—" : item.AcceptanceCriteria)</td>
+                            <td class="ipqc-col-result" data-label="@T("ipqc.item.measured.short")">
                                 <input type="text" class="ipqc-input ipqc-result-input" maxlength="128"
                                        placeholder="@T("ipqc.item.measured.placeholder")"
                                        value="@MeasuredDraft(item)"
                                        @oninput="@(e => SetMeasuredDraft(item.ItemKey, e.Value?.ToString() ?? ""))"
                                        data-testid="@($"ipqc-item-{item.ItemKey}-measured")" />
-                                <button type="button" class="op-btn op-btn-secondary op-btn-sm"
+                                <button type="button" class="op-btn op-btn-secondary op-btn-sm ipqc-measured-save-btn"
                                         disabled="@_busy"
+                                        title="@T("ipqc.item.measured.save")"
                                         @onclick="@(() => OnSaveMeasuredAsync(item))"
-                                        data-testid="@($"ipqc-item-{item.ItemKey}-measured-save")">@T("ipqc.item.measured.save")</button>
+                                        data-testid="@($"ipqc-item-{item.ItemKey}-measured-save")">@T("ipqc.item.measured.save.short")</button>
                             </td>
-                            <td class="ipqc-col-verdict">
+                            <td class="ipqc-col-verdict" data-label="@T("ipqc.col.verdict")">
                                 @* L52 — shared OK/NG segmented toggle. Non-applicable
                                    items không bắt buộc OK/NG → toggle disabled. *@
                                 <ConfirmToggle Status="@item.Status"

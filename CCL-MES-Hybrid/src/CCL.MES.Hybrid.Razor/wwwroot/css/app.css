@@ -6512,6 +6512,13 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     gap: var(--sp-2);
 }
 .ipqc-result-input { min-width: 6rem; max-width: 10rem; }
+/* Compact save button never wraps to a 2nd/3rd line — short label + nowrap +
+   a glove-safe tap target that still reads on the shopfloor. */
+.ipqc-measured-save-btn {
+    white-space: nowrap;
+    min-height: var(--d-tap);
+    flex: 0 0 auto;
+}
 .ipqc-item-subrow td {
     padding-top: 0;
     background: var(--c-surface);
@@ -6665,6 +6672,166 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     .qa-slot-reason       { white-space: normal; }
     .ipqc-counter-pill,
     .qa-submitter-pill    { align-items: flex-start; }
+}
+
+/* ── Item table → cards on narrow surfaces (S9 responsive) ──────────
+   The 9-column table crowds badly under ~1000px (Save button wrapped to
+   3 lines, PENDING badge dropped under the item name, columns bunched
+   right). Same markup, different layout: each <tr> becomes a vertical
+   card with a clear hierarchy — header (checkbox · # · name · status
+   pill) then meta chips (PROCESS/METHOD), spec, then the action zone
+   (measured input + Save + OK/NG ConfirmToggle). No horizontal overflow,
+   no ugly wrapping, readable at a glance, glove-tappable. */
+@container (max-width: 1000px) {
+    .ipqc-item-table,
+    .ipqc-item-table tbody { display: block; width: 100%; }
+
+    /* Header row is meaningless once each row is a self-labelling card. */
+    .ipqc-item-table thead { display: none; }
+
+    .ipqc-item-table tbody tr.ipqc-item-row {
+        display: grid;
+        grid-template-columns: auto auto 1fr auto;
+        grid-template-areas:
+            "apply num  name name"
+            "apply num  proc meth"
+            "spec  spec spec spec"
+            "act   act  act  act"
+            "verd  verd verd verd";
+        align-items: center;
+        gap: var(--sp-2) var(--sp-3);
+        padding: var(--sp-3);
+        margin-bottom: var(--sp-3);
+        border: 1px solid var(--c-line-2);
+        border-left: 4px solid var(--c-line-2);
+        border-radius: var(--r-md);
+        background: var(--c-card);
+    }
+    /* Status accent on the card's left edge — readable from a distance. */
+    .ipqc-item-table tbody tr.ipqc-item-row.ipqc-slot-ok { border-left-color: var(--ok-ink); background: var(--ok-bg); }
+    .ipqc-item-table tbody tr.ipqc-item-row.ipqc-slot-ng { border-left-color: var(--ng-ink); background: var(--ng-bg); }
+
+    /* Every cell becomes a block; kill table borders/backgrounds. */
+    .ipqc-item-table tbody tr.ipqc-item-row > td {
+        display: block;
+        padding: 0;
+        border: 0;
+        background: none;
+        font-size: var(--d-font);
+        min-width: 0;
+    }
+
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-applicable {
+        grid-area: apply;
+        width: auto;
+        align-self: start;
+    }
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-num {
+        grid-area: num;
+        width: auto;
+        align-self: start;
+        text-align: left;
+        font-weight: var(--fw-bold);
+    }
+    /* Header line: item name (bold, larger) + status pill floated right. */
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-item {
+        grid-area: name;
+        display: flex;
+        align-items: center;
+        gap: var(--sp-2);
+    }
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-item .ipqc-item-label {
+        font-size: var(--fs-lg);
+        white-space: normal;
+        margin-right: 0;
+    }
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-item .ipqc-status-pill {
+        margin-left: auto;
+    }
+
+    /* Meta line: PROCESS chip (left) + METHOD (right, muted). */
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-process { grid-area: proc; }
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-method  {
+        grid-area: meth;
+        justify-self: end;
+        color: var(--c-ink-4);
+        font-size: var(--fs-sm);
+        white-space: normal;
+    }
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-method::before {
+        content: attr(data-label) ": ";
+        font-weight: var(--fw-bold);
+    }
+
+    /* Spec line: labelled, muted, full width. */
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-spec {
+        grid-area: spec;
+        color: var(--c-ink-3);
+        font-size: var(--fs-sm);
+    }
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-spec::before {
+        content: attr(data-label) ": ";
+        font-weight: var(--fw-bold);
+        color: var(--c-ink-4);
+    }
+
+    /* Action zone: labelled measured input + compact Save on one row. */
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-result {
+        grid-area: act;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        column-gap: var(--sp-2);
+        row-gap: var(--sp-1);
+        padding-top: var(--sp-2);
+        border-top: 1px solid var(--c-line);
+    }
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-result::before {
+        content: attr(data-label);
+        grid-column: 1 / -1;
+        font-size: var(--fs-xs);
+        font-weight: var(--fw-bold);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--c-ink-4);
+    }
+    .ipqc-item-table tbody tr.ipqc-item-row .ipqc-result-input {
+        max-width: none;
+        min-height: var(--d-tap);
+    }
+
+    /* Verdict: full-width OK/NG toggle so it's the biggest tap target. */
+    .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-verdict {
+        grid-area: verd;
+        justify-self: stretch;
+        padding-top: var(--sp-1);
+    }
+
+    /* NG sub-form / summary rows: full-width block, no table cell chrome. */
+    .ipqc-item-table tbody tr.ipqc-item-subrow { display: block; }
+    .ipqc-item-table tbody tr.ipqc-item-subrow > td { display: block; padding: 0; border: 0; }
+
+    /* Non-applicable card stays dimmed but the checkbox is fully legible. */
+    .ipqc-item-row.ipqc-item-row-na { opacity: 0.55; }
+    .ipqc-item-row.ipqc-item-row-na > td { opacity: 1; }
+
+    /* ── MATERIAL (SYSTEM) panel: 5-col grid → stacked labelled rows.
+       Hide the standalone header row (each cell now self-labels) and
+       stack the cells so nothing bunches on the right. */
+    .ipqc-mat-head { display: none; }
+    .ipqc-mat-row {
+        grid-template-columns: 1fr;
+        gap: var(--sp-2);
+    }
+    .ipqc-mat-row > .ipqc-mat-cell[data-label]::before {
+        content: attr(data-label);
+        font-size: var(--fs-xs);
+        font-weight: var(--fw-bold);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--c-ink-4);
+    }
+    .ipqc-mat-confirm { align-items: stretch; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
