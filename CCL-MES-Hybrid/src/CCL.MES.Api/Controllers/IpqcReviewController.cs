@@ -187,6 +187,7 @@ public sealed class IpqcReviewController : WoMutationControllerBase
                 NgNote = i.NgNote,
                 CheckType = i.CheckType,
                 MeasuredValue = i.MeasuredValue,
+                Applicable = i.Applicable,
             }).ToList(),
         };
 
@@ -333,6 +334,52 @@ public sealed class IpqcReviewController : WoMutationControllerBase
                 ng_reason_code = status == IpqcCheckStatus.Ng ? req.NgReasonCode : null,
                 ng_note = status == IpqcCheckStatus.Ng ? req.NgNote : null,
             });
+    }
+
+    // ── PUT /work-orders/{id}/ipqc/item/{itemKey}/applicable ───────
+
+    /// <summary>IPQC first-article — toggle whether a data-driven item applies to
+    /// this run. Unchecking excludes it from the judgment readiness gate (L53
+    /// SETTING pattern). Same atomic contract as the slot/item writes.</summary>
+    [HttpPut("{id:long}/ipqc/item/{itemKey}/applicable"), Authorize(Policy = "IpqcSubmit")]
+    public async Task<IActionResult> PutItemApplicable(
+        long id, string itemKey, [FromBody] SetIpqcItemApplicableRequest? req, long? legId = null)
+    {
+        var actor = User.FindFirstValue(ClaimTypes.Name) ?? "anonymous";
+        var role = User.FindFirstValue(ClaimTypes.Role) ?? "";
+
+        var pre = await PreludeAsync(id, actor, role, $"ipqc_item_applicable_{itemKey}");
+        if (pre.Error is not null) return pre.Error;
+        var wo = pre.WoForUpdate!;
+
+        WoLeg? leg = null;
+        if (legId is not null)
+        {
+            leg = await _db.WoLegs.FirstOrDefaultAsync(l => l.Id == legId && l.WorkOrderId == id);
+            if (leg is null) return NotFound(ApiError.Of("leg.not_found", $"No leg {legId} on WO {id}."));
+            if (leg.LegPhase != "IPQC_WAIT")
+                return Invalid("leg.invalid_phase",
+                    $"ipqc/item requires the leg's LegPhase = IPQC_WAIT; current = {leg.LegPhase}.");
+        }
+        else if (wo.MesPhase != "IPQC_WAIT")
+        {
+            return Invalid("wo.invalid_phase",
+                $"ipqc/item requires MesPhase = IPQC_WAIT; current = {wo.MesPhase}.");
+        }
+
+        var applicable = req?.Applicable ?? true;
+
+        var check = legId is null
+            ? await _materializer.GetOrCreateForMutationAsync(id, wo)
+            : await GetOrCreateLegCheckAsync(legId.Value);
+
+        if (!WoIpqcCheckService.SetItemApplicable(check, itemKey, applicable, actor, DateTime.UtcNow))
+            return Invalid("ipqc.invalid_item",
+                $"Item \"{itemKey}\" không thuộc bộ hạng mục IPQC của WO này.");
+
+        return await CommitAndAuditAsync(id, wo, check, actor, role,
+            AuditAction.WoIpqcItemApplicable,
+            new { wo_leg_id = legId, item_key = itemKey, applicable });
     }
 
     /// <summary>P11 per-leg: the leg's own IPQC check (materialised at fork by

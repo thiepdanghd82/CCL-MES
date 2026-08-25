@@ -338,6 +338,15 @@ public interface ICclApiClient
         long workOrderId, string ifMatchETag, string itemKey,
         SetIpqcItemRequest req, long? legId = null, CancellationToken ct = default);
 
+    /// <summary>IPQC first-article (2026-08-25) — bật/tắt "Áp dụng" cho 1 hạng
+    /// mục data-driven. Áp dụng=false loại hạng mục khỏi readiness gate
+    /// (server tính lại rollup). Same atomic contract as
+    /// <see cref="PutIpqcItemAsync"/> (If-Match 428 + Idempotency-Key + 409 +
+    /// 422). PUT /work-orders/{id}/ipqc/item/{itemKey}/applicable.</summary>
+    Task<IpqcSetResponse> PutIpqcItemApplicableAsync(
+        long workOrderId, string ifMatchETag, string itemKey,
+        SetIpqcItemApplicableRequest req, long? legId = null, CancellationToken ct = default);
+
     // ── IPQC first-article — MATERIAL (SYSTEM) reconciliation (h-3) ─
 
     /// <summary>IPQC first-article read view: the MATERIAL (SYSTEM) grid

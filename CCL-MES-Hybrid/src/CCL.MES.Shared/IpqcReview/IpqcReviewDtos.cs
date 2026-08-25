@@ -105,6 +105,17 @@ public sealed record IpqcViewItem
     /// <summary>IPQC first-article (Q3) — measured RESULT value (e.g. "0.9",
     /// "83.5") or qualitative note ("Loang nhẹ"). Not part of readiness.</summary>
     public string? MeasuredValue { get; init; }
+
+    /// <summary>IPQC first-article (2026-08-25) — applicability toggle (default
+    /// true). When false the item is excluded from the judgment readiness gate.</summary>
+    public bool Applicable { get; init; } = true;
+}
+
+/// <summary>IPQC first-article — request body for
+/// PUT <c>/work-orders/{id}/ipqc/item/{itemKey}/applicable</c>.</summary>
+public sealed record SetIpqcItemApplicableRequest
+{
+    public bool Applicable { get; init; } = true;
 }
 
 /// <summary>Phương án C — request body cho PUT

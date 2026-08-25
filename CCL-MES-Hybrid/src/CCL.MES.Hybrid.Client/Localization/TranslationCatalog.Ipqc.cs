@@ -118,6 +118,9 @@ public sealed partial class TranslationCatalog
         Add("ipqc.process.badge",            "{0}/{1}",                                                            "{0}/{1}");
 
         // ── Item table column headers (per process → V/D/F) ───────────
+        Add("ipqc.col.num",                  "#",                                                                  "#");
+        Add("ipqc.col.applicable",           "Áp dụng",                                                            "Apply");
+        Add("ipqc.applicable.hint",          "Bỏ chọn để loại hạng mục này khỏi đánh giá (không tính OK/NG).",     "Uncheck to exclude this item from judgment (no OK/NG required).");
         Add("ipqc.col.item",                 "Hạng mục",                                                           "Item");
         Add("ipqc.col.process",              "Công đoạn",                                                          "Process");
         Add("ipqc.col.method",               "Phương pháp",                                                        "Method");

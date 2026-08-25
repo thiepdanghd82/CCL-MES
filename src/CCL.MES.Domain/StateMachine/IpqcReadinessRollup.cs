@@ -68,9 +68,15 @@ public static class IpqcReadinessRollup
     {
         if (items is { Count: > 0 })
         {
-            var ready = items.All(i => i.Status != IpqcCheckStatus.Pending);
-            var allOk = items.All(i => i.Status == IpqcCheckStatus.Ok);
-            var anyNg = items.Any(i => i.Status == IpqcCheckStatus.Ng);
+            // Only APPLICABLE items gate the judgment (Henry 2026-08-25): the IPQC
+            // leader can uncheck items that don't apply to this run; those are
+            // excluded from ready/allOk/anyNg. If EVERY item is unchecked the set
+            // behaves like "no items" → falls back to the 4-slot legacy gate.
+            var applicable = items.Where(i => i.Applicable).ToList();
+            if (applicable.Count == 0) return Compute(check);
+            var ready = applicable.All(i => i.Status != IpqcCheckStatus.Pending);
+            var allOk = applicable.All(i => i.Status == IpqcCheckStatus.Ok);
+            var anyNg = applicable.Any(i => i.Status == IpqcCheckStatus.Ng);
             return (ready, allOk, anyNg);
         }
         return Compute(check);

@@ -143,6 +143,13 @@ public class WoIpqcCheckItem : BaseEntity
     [MaxLength(64)] public string? NgReasonCode { get; set; }
     [MaxLength(500)] public string? NgNote { get; set; }
 
+    /// <summary>IPQC first-article (Henry 2026-08-25) — applicability toggle,
+    /// default true (every materialised item starts checked). The IPQC leader
+    /// unchecks items that don't apply to this product/run; a non-applicable
+    /// item is EXCLUDED from the judgment readiness gate (mirrors the SETTING
+    /// <c>WoSettingCheckItem.Applicable</c> pattern, L53).</summary>
+    public bool Applicable { get; set; } = true;
+
     /// <summary>IPQC first-article (Henry 2026-08-25 Q3) — measured RESULT value
     /// entered on Dimension/Function items (e.g. "0.9", "83.5") or a qualitative
     /// note on Visual items (e.g. "Loang nhẹ"). Kept as free text so one column

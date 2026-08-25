@@ -6515,6 +6515,43 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     background: var(--c-surface);
 }
 
+/* ── # (row number) + "Áp dụng" (applicable) columns (2026-08-25) ── */
+
+.ipqc-item-table .ipqc-col-num {
+    width: 1%;
+    white-space: nowrap;
+    text-align: right;
+    color: var(--c-ink-3);
+    font-variant-numeric: tabular-nums;
+}
+.ipqc-item-table .ipqc-col-applicable {
+    width: 1%;
+    white-space: nowrap;
+    text-align: center;
+}
+/* Tap-target ≥ shopfloor min: glove-friendly checkbox. */
+.ipqc-applicable-check {
+    width: var(--d-tap);
+    height: var(--d-tap);
+    min-width: 22px;
+    min-height: 22px;
+    cursor: pointer;
+    accent-color: var(--ok-ink);
+}
+.ipqc-applicable-check:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-radius: 3px;
+}
+/* Non-applicable row: greyed out, still readable (AA), no OK/NG required. */
+.ipqc-item-row.ipqc-item-row-na td {
+    opacity: 0.5;
+    background: var(--c-surface);
+}
+.ipqc-item-row.ipqc-item-row-na .ipqc-applicable-check {
+    opacity: 1;
+}
+
 /* ── Measured-value input (Dimension / Function items) ──────────── */
 
 .ipqc-measured-field {

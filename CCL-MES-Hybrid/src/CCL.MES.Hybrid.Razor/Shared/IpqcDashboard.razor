@@ -286,9 +286,12 @@
                 }
             </div>
 
-            @* ── TẦNG 2 — Visual / Dimension / Function stepper, scoped to
-               the ACTIVE process subset. Chip-buttons; "Other" tab appears
-               only when a fallback CheckType item exists in this process. *@
+            @* ── TẦNG 2 — GroupLabel tabs ("4 tab con giống QC Library"),
+               scoped to the ACTIVE process subset. Số tab = số GroupLabel
+               DISTINCT trong subset (render động, KHÔNG hardcode). Nhãn tab =
+               chính giá trị GroupLabel (data, không i18n). Sort A→B→C→D…;
+               item null/rỗng → tab "Khác" chỉ khi có item. Badge đếm theo
+               item ÁP DỤNG: confirmed/applicable-total. *@
             <div class="ipqc-tabs" role="tablist" data-testid="ipqc-tabs">
                 @foreach (var tab in ActiveTabs)
                 {
@@ -298,8 +301,9 @@
                             aria-selected="@(_activeTab == tab.Key ? "true" : "false")"
                             @onclick="@(() => _activeTab = tab.Key)"
                             data-testid="@($"ipqc-tab-{tab.Key}")">
-                        <span class="ipqc-tab-label">@T(tab.LabelKey)</span>
-                        <span class="ipqc-tab-count">@T("ipqc.tab.count", tab.Count)</span>
+                        <span class="ipqc-tab-label">@tab.Label</span>
+                        <span class="ipqc-tab-count"
+                              data-testid="@($"ipqc-tab-{tab.Key}-count")">@T("ipqc.process.badge", tab.Confirmed, tab.ApplicableTotal)</span>
                     </button>
                 }
             </div>
@@ -309,6 +313,8 @@
             <table class="ipqc-item-table" data-testid="ipqc-item-table">
                 <thead>
                     <tr>
+                        <th class="ipqc-col-num">@T("ipqc.col.num")</th>
+                        <th class="ipqc-col-applicable" title="@T("ipqc.applicable.hint")">@T("ipqc.col.applicable")</th>
                         <th class="ipqc-col-item">@T("ipqc.col.item")</th>
                         <th class="ipqc-col-process">@T("ipqc.col.process")</th>
                         <th class="ipqc-col-method">@T("ipqc.col.method")</th>
@@ -318,9 +324,21 @@
                     </tr>
                 </thead>
                 <tbody>
+                    @{ var _rowIdx = 0; }
                     @foreach (var item in ItemsInActiveTab)
                     {
-                        <tr class="ipqc-item-row @ItemCssClass(item)" data-testid="@($"ipqc-item-{item.ItemKey}")">
+                        var index = _rowIdx++;
+                        <tr class="ipqc-item-row @ItemCssClass(item) @(item.Applicable ? "" : "ipqc-item-row-na")" data-testid="@($"ipqc-item-{item.ItemKey}")">
+                            <td class="ipqc-col-num scan-mono" data-testid="@($"ipqc-item-{item.ItemKey}-num")">@(index + 1)</td>
+                            <td class="ipqc-col-applicable">
+                                <input type="checkbox" class="ipqc-applicable-check"
+                                       checked="@item.Applicable"
+                                       disabled="@_busy"
+                                       aria-label="@T("ipqc.col.applicable")"
+                                       title="@T("ipqc.applicable.hint")"
+                                       @onchange="@(e => OnToggleApplicableAsync(item, e.Value is bool b && b))"
+                                       data-testid="@($"ipqc-item-{item.ItemKey}-applicable")" />
+                            </td>
                             <td class="ipqc-col-item">
                                 <span class="ipqc-item-label">@item.Label</span>
                                 <span class="ipqc-status-pill @StatusPillCss(item.Status)"
@@ -343,9 +361,10 @@
                                         data-testid="@($"ipqc-item-{item.ItemKey}-measured-save")">@T("ipqc.item.measured.save")</button>
                             </td>
                             <td class="ipqc-col-verdict">
-                                @* L52 — shared OK/NG segmented toggle *@
+                                @* L52 — shared OK/NG segmented toggle. Non-applicable
+                                   items không bắt buộc OK/NG → toggle disabled. *@
                                 <ConfirmToggle Status="@item.Status"
-                                               Disabled="@_busy"
+                                               Disabled="@(_busy || !item.Applicable)"
                                                OnOk="@(() => OnItemOkAsync(item.ItemKey))"
                                                OnNg="@(() => OpenItemNgForm(item))"
                                                TestIdPrefix="@($"ipqc-item-{item.ItemKey}")" />
@@ -355,7 +374,7 @@
                         @if (item.Status == "Ng" && !string.IsNullOrWhiteSpace(item.NgReasonCode))
                         {
                             <tr class="ipqc-item-subrow">
-                                <td colspan="6">
+                                <td colspan="8">
                                     <div class="ipqc-slot-ng-summary">
                                         <span class="ipqc-slot-ng-label">@T("ipqc.ng.code.label")</span>
                                         <span class="ipqc-slot-ng-value scan-mono">@item.NgReasonCode</span>
@@ -371,7 +390,7 @@
                         @if (_openNgFor == item.ItemKey)
                         {
                             <tr class="ipqc-item-subrow">
-                                <td colspan="6">
+                                <td colspan="8">
                                     <div class="ipqc-ng-form" data-testid="@($"ipqc-item-{item.ItemKey}-ng-form")">
                                         <div class="ipqc-ng-field">
                                             <label class="rs-modal-label">@T("ipqc.ng.code")</label>
@@ -640,12 +659,14 @@
     private int? _openMaterialNgFor;     // BomLineIdx of the open material NG form
     private string _waiverReason = "";   // Engineer waiver reason draft
 
-    // First-article stepper — active tab (Visual/Dimension/Function/Other).
-    private string _activeTab = TabVisual;
-    private const string TabVisual = "visual";
-    private const string TabDimension = "dimension";
-    private const string TabFunction = "function";
-    private const string TabOther = "other";
+    // TẦNG-2 — active tab, keyed by GroupLabel (2026-08-25: đổi từ CheckType
+    // sang GroupLabel — "4 tab con giống QC Library"). Key = giá trị GroupLabel
+    // (hoặc TabOtherKey khi null/rỗng). Empty = chưa chọn (default = tab đầu).
+    private string _activeTab = "";
+
+    /// <summary>Key nội bộ cho tab gom các item GroupLabel null/rỗng.
+    /// Không trùng bất kỳ GroupLabel thật nào (chứa khoảng trắng đầu).</summary>
+    private const string TabOtherKey = "__khac__";
 
     // ── Process axis (Tier 1: Print / Cut / Other) ──────────────────
     private string _activeProcess = ProcPrint;
@@ -676,11 +697,13 @@
         _ => null,
     };
 
-    private int TotalCount => ItemsMode ? _view!.Items.Count : 4;
+    // Chỉ tính hạng mục ÁP DỤNG (Applicable=true) — non-applicable item KHÔNG
+    // vào badge confirmed/total (đồng bộ readiness server đã loại chúng).
+    private int TotalCount => ItemsMode ? _view!.Items.Count(i => i.Applicable) : 4;
 
     private int ConfirmedCount => _view is null ? 0
         : ItemsMode
-            ? _view.Items.Count(i => i.Status != "Pending")
+            ? _view.Items.Count(i => i.Applicable && i.Status != "Pending")
             : (_view.MaterialStatus != "Pending" ? 1 : 0)
               + (_view.PrintAStatus != "Pending" ? 1 : 0)
               + (_view.PrintBStatus != "Pending" ? 1 : 0)
@@ -761,7 +784,7 @@
         if (_activeProcess == processKey) return;
         _activeProcess = processKey;
         _openNgFor = null;
-        _activeTab = FirstNonEmptyTab();
+        _activeTab = FirstTab();
     }
 
     /// <summary>TẦNG-2 PROCESS column value — ProcessLine when present, else the
@@ -770,41 +793,46 @@
         !string.IsNullOrWhiteSpace(item.ProcessLine) ? item.ProcessLine!
         : (!string.IsNullOrWhiteSpace(item.GroupLabel) ? item.GroupLabel! : "—");
 
-    // ── TẦNG 2 — First-article stepper (Visual / Dimension / Function / Other) ─
+    // ── TẦNG 2 — GroupLabel tabs (2026-08-25: "4 tab con giống QC Library") ─
 
-    /// <summary>Map an item's <see cref="IpqcViewItem.CheckType"/> to a stepper
-    /// tab key. "Measure"→dimension, "Functional"→function, "Visual"→visual.
-    /// Null / anything else → "other" (fallback tab — never swallowed).</summary>
-    private static string TabForItem(IpqcViewItem item) => (item.CheckType ?? "").Trim().ToLowerInvariant() switch
-    {
-        "visual" => TabVisual,
-        "measure" or "dimension" => TabDimension,
-        "functional" or "function" => TabFunction,
-        _ => TabOther,
-    };
+    /// <summary>TẦNG-2 tab key của 1 item = giá trị <see cref="IpqcViewItem.GroupLabel"/>
+    /// (trim). Null/rỗng → <see cref="TabOtherKey"/> (gom vào tab "Khác").
+    /// CheckType KHÔNG còn dùng để tab (vẫn có thể tồn tại trong data).</summary>
+    private static string TabForItem(IpqcViewItem item) =>
+        string.IsNullOrWhiteSpace(item.GroupLabel) ? TabOtherKey : item.GroupLabel!.Trim();
 
-    private sealed record TabDef(string Key, string LabelKey, int Count);
+    private sealed record TabDef(string Key, string Label, int Confirmed, int ApplicableTotal);
 
-    /// <summary>Tabs that actually have items IN THE ACTIVE PROCESS —
-    /// Visual/Dimension/Function always shown (order fixed); "Other" appears
-    /// ONLY when a fallback item exists in this process. Counts are scoped to
-    /// the active TẦNG-1 process subset.</summary>
+    /// <summary>Tabs = tập GroupLabel DISTINCT trong subset process đang chọn
+    /// (render động, KHÔNG hardcode 4). Nhãn = chính GroupLabel (data). Sort
+    /// GroupLabel tăng dần (A·…, B·…, C·…, D·…); tab "Khác" (GroupLabel null/rỗng)
+    /// LUÔN xuống cuối và CHỈ khi có item. Badge = confirmed/applicable-total
+    /// (item Applicable=false không tính).</summary>
     private IReadOnlyList<TabDef> ActiveTabs
     {
         get
         {
             if (_view is null) return Array.Empty<TabDef>();
             var scoped = ItemsInActiveProcess.ToList();
-            int Count(string key) => scoped.Count(i => TabForItem(i) == key);
-            var tabs = new List<TabDef>
-            {
-                new(TabVisual, "ipqc.tab.visual", Count(TabVisual)),
-                new(TabDimension, "ipqc.tab.dimension", Count(TabDimension)),
-                new(TabFunction, "ipqc.tab.function", Count(TabFunction)),
-            };
-            var other = Count(TabOther);
-            if (other > 0) tabs.Add(new(TabOther, "ipqc.tab.other", other));
-            return tabs;
+            if (scoped.Count == 0) return Array.Empty<TabDef>();
+
+            var groups = scoped
+                .GroupBy(TabForItem)
+                .Select(g =>
+                {
+                    var applicable = g.Where(i => i.Applicable).ToList();
+                    var label = g.Key == TabOtherKey ? T("ipqc.tab.other") : g.Key;
+                    return new TabDef(
+                        g.Key,
+                        label,
+                        applicable.Count(i => i.Status != "Pending"),
+                        applicable.Count);
+                })
+                // "Khác" luôn cuối; các GroupLabel thật sort tăng dần (A→B→C→D…).
+                .OrderBy(t => t.Key == TabOtherKey ? 1 : 0)
+                .ThenBy(t => t.Key, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            return groups;
         }
     }
 
@@ -868,6 +896,41 @@
         });
     }
 
+    /// <summary>Toggle "Áp dụng" cho 1 hạng mục. Applicable=false → server loại
+    /// khỏi readiness (rollup tính lại server-side); UI làm mờ dòng + badge
+    /// giảm total. Reload sau 200 để đồng bộ Applicable + rollup mới.</summary>
+    private async Task OnToggleApplicableAsync(IpqcViewItem item, bool applicable)
+    {
+        if (_view is null || _busy) return;
+        _busy = true;
+        _setError = null;
+        try
+        {
+            var resp = await Api.PutIpqcItemApplicableAsync(
+                WorkOrderId, _view.ETag, item.ItemKey,
+                new SetIpqcItemApplicableRequest { Applicable = applicable }, WoLegId);
+            await HandleSetResponseAsync(resp);
+        }
+        catch (ApiException apiEx)
+        {
+            _setError = IpqcReviewErrorLocaliser.LocaliseApiError(apiEx.StatusCode, apiEx.ApiError);
+            if (apiEx.ApiError.Code == "wo.invalid_phase") _invalidPhase = true;
+            await ReloadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            _setError = T("ipqc.error.connect", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _setError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
     private async Task SubmitItemAsync(string itemKey, SetIpqcItemRequest req)
     {
         if (_view is null || _busy) return;
@@ -918,7 +981,7 @@
             _material = null;
             _measuredDrafts.Clear();
             _activeProcess = ProcPrint;
-            _activeTab = TabVisual;
+            _activeTab = "";
             await ReloadAsync();
         }
     }
@@ -933,9 +996,9 @@
             _invalidPhase = WoLegId is null && _view.MesPhase != "IPQC_WAIT";
 
             // First-article: default TẦNG-1 to the first process that has
-            // items, then TẦNG-2 to the first non-empty V/D/F tab in it.
+            // items, then TẦNG-2 to the first GroupLabel tab (A·… đầu tiên).
             _activeProcess = FirstNonEmptyProcess();
-            _activeTab = FirstNonEmptyTab();
+            _activeTab = FirstTab();
 
             // MATERIAL (SYSTEM) reconciliation — WO-level, IPQC_WAIT only.
             await ReloadMaterialAsync();
@@ -979,11 +1042,10 @@
         }
     }
 
-    private string FirstNonEmptyTab()
-    {
-        var tabs = ActiveTabs;
-        return tabs.FirstOrDefault(t => t.Count > 0)?.Key ?? TabVisual;
-    }
+    /// <summary>First GroupLabel tab in the active process (already sorted A→…,
+    /// "Khác" last). Empty string when the process has no items so the table
+    /// simply renders no rows.</summary>
+    private string FirstTab() => ActiveTabs.FirstOrDefault()?.Key ?? "";
 
     /// <summary>First TẦNG-1 process that actually has items (Print → Cut →
     /// Other). Falls back to Print when there are none so the axis never
