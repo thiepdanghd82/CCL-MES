@@ -145,6 +145,12 @@ RUNNING_ACTOR_TAGS="'checkpoint-7c-2','checkpoint-7c-final','verify-p10.7c','che
 # checkpoint-7d-final.sh (cycles 1+2+3 + Q3 dual-sig).
 IPQC_QA_TEST_USERS="'ipqc-test-checkpoint','qa-test-checkpoint'"
 
+# IPQC first-article (h-4) — usernames self-seeded by
+# checkpoint-ipqc-material-final.sh: the confirmer (IPQC), the distinct
+# Engineer who waives, and an admin path. Every WO_IPQC_MATERIAL_* audit row +
+# WoIpqcMaterialChecks ConfirmedBy/ApprovedBy references one of them.
+MATERIAL_TEST_USERS="'ipqc-mat-confirm','eng-mat-waive','admin-mat-checkpoint'"
+
 # P10.7e-4 — usernames self-seeded by checkpoint-7e-2.sh + checkpoint-
 # 7e-final.sh via POST /api/v2/admin/users. All 3 carry role QC +
 # DisplayName "P10.7e-* checkpoint test user". Inspector/Reviewer/
@@ -187,6 +193,15 @@ IPQC_QA_USER_COUNT="${IPQC_QA_USER_COUNT:-0}"
 IPQC_QA_AUDIT_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action IN ('WO_IPQC_CHECK','WO_IPQC_JUDGMENT','WO_QA_APPROVE','WO_QA_APPROVE_DENIED') AND ActorUsername IN ($IPQC_QA_TEST_USERS);" 2>/dev/null)
 IPQC_QA_AUDIT_COUNT="${IPQC_QA_AUDIT_COUNT:-0}"
 
+# IPQC first-article (h-4) — count MATERIAL (SYSTEM) audit rows + the frozen
+# material-check rows emitted by the material checkpoint.
+MATERIAL_AUDIT_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM AuditLogs WHERE Action IN ('WO_IPQC_MATERIAL_CHECK','WO_IPQC_MATERIAL_APPROVE','WO_IPQC_MATERIAL_APPROVE_DENIED') AND ActorUsername IN ($MATERIAL_TEST_USERS);" 2>/dev/null)
+MATERIAL_AUDIT_COUNT="${MATERIAL_AUDIT_COUNT:-0}"
+MATERIAL_ROW_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM WoIpqcMaterialChecks WHERE ConfirmedBy IN ($MATERIAL_TEST_USERS) OR ApprovedBy IN ($MATERIAL_TEST_USERS);" 2>/dev/null)
+MATERIAL_ROW_COUNT="${MATERIAL_ROW_COUNT:-0}"
+MATERIAL_USER_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM Users WHERE Username IN ($MATERIAL_TEST_USERS);" 2>/dev/null)
+MATERIAL_USER_COUNT="${MATERIAL_USER_COUNT:-0}"
+
 # P10.7e-4 — FQC/OQC outgoing-quality audit noise: every WO_FQC_* /
 # WO_OQC_* / WO_SHIPPED row emitted by the 7e checkpoints has one of
 # the 3 seeded OQC test users as ActorUsername (the script ran as that
@@ -222,6 +237,9 @@ echo "  SYS_RECOVERY noise (Detail LIKE patterns)          : $NOISE_COUNT"
 echo "  WO_PREPRESS_* test rows (7b-* / verify-p10.7b)     : $PREPRESS_AUDIT_COUNT"
 echo "  WO_SETTING/RUN_* test rows (7c-* / l19-walk)       : $RUNNING_AUDIT_COUNT"
 echo "  WO_IPQC_*/WO_QA_* test rows (7d-* checkpoints)     : $IPQC_QA_AUDIT_COUNT"
+echo "  WO_IPQC_MATERIAL_* test rows (first-article)       : $MATERIAL_AUDIT_COUNT"
+echo "  WoIpqcMaterialChecks rows (material actor tags)    : $MATERIAL_ROW_COUNT"
+echo "  Seeded material checkpoint test users              : $MATERIAL_USER_COUNT"
 echo "  WO_FQC_*/WO_OQC_*/WO_SHIPPED test rows (7e-*)      : $FQC_OQC_AUDIT_COUNT"
 echo "  WoQcChecks / Items / Photos (7e signatures)        : $QC_CHECK_COUNT / $QC_ITEM_COUNT / $QC_PHOTO_COUNT"
 echo "  Seeded OQC checkpoint test users                   : $OQC_USER_COUNT"
@@ -371,6 +389,8 @@ DELETE FROM AuditLogs WHERE Action='SYS_RECOVERY' AND $PATTERN_NOISE_LIKE;
 DELETE FROM AuditLogs WHERE Action IN ('WO_PREPRESS_MATERIAL_SET','WO_PREPRESS_PLATE_SET','WO_PREPRESS_CUTTER_SET') AND $PATTERN_PREPRESS_NOISE_LIKE;
 DELETE FROM AuditLogs WHERE Action IN ('WO_SETTING_START','WO_SETTING_DONE','WO_RUN_START','WO_RUN_QTY_ADD','WO_RUN_QTY_CORRECT','WO_RUN_PAUSE','WO_RUN_RESUME','WO_RUN_FINISH','WO_STATE_CONFLICT') AND $PATTERN_RUNNING_NOISE_LIKE;
 DELETE FROM AuditLogs WHERE Action IN ('WO_IPQC_CHECK','WO_IPQC_JUDGMENT','WO_QA_APPROVE','WO_QA_APPROVE_DENIED') AND ActorUsername IN ($IPQC_QA_TEST_USERS);
+DELETE FROM AuditLogs WHERE Action IN ('WO_IPQC_MATERIAL_CHECK','WO_IPQC_MATERIAL_APPROVE','WO_IPQC_MATERIAL_APPROVE_DENIED') AND ActorUsername IN ($MATERIAL_TEST_USERS);
+DELETE FROM WoIpqcMaterialChecks WHERE ConfirmedBy IN ($MATERIAL_TEST_USERS) OR ApprovedBy IN ($MATERIAL_TEST_USERS);
 DELETE FROM AuditLogs WHERE Action IN ($FQC_OQC_AUDIT_ACTIONS) AND ActorUsername IN ($OQC_TEST_USERS);
 DELETE FROM WoQtyEntries WHERE EnteredBy IN ($RUNNING_ACTOR_TAGS);
 DELETE FROM WoPauseEvents WHERE StartedBy IN ($RUNNING_ACTOR_TAGS);
@@ -380,6 +400,7 @@ DELETE FROM WoQcCheckItems WHERE WoQcCheckId IN (SELECT Id FROM WoQcChecks WHERE
 DELETE FROM WoQcChecks WHERE $QC_CHECK_PRED;
 DELETE FROM ManufacturingStructures WHERE CreatedBy IN ($BOM_SEED_TAGS);
 DELETE FROM Users WHERE Username IN ($IPQC_QA_TEST_USERS);
+DELETE FROM Users WHERE Username IN ($MATERIAL_TEST_USERS);
 DELETE FROM Users WHERE Username IN ($OQC_TEST_USERS);
 -- P11 — routing DAG fork-join test rows. Test WO luôn có WoNo prefix
 -- 'WO-P11' (checkpoint-p11-2 / checkpoint-p11-final / p11-live-verify /
