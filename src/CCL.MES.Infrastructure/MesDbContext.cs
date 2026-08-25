@@ -407,6 +407,8 @@ public class MesDbContext : DbContext, IMesDbContext
         // IPQC first-article — measured RESULT value (Q3) + CheckType tab (Q2).
         b.Entity<WoIpqcCheckItem>().Property(x => x.MeasuredValue).HasMaxLength(128);
         b.Entity<WoIpqcCheckItem>().Property(x => x.CheckType).HasMaxLength(24);
+        // Applicability toggle — default true so existing rows backfill to "checked".
+        b.Entity<WoIpqcCheckItem>().Property(x => x.Applicable).HasDefaultValue(true);
 
         // IPQC first-article — MATERIAL (SYSTEM) LOT reconciliation. 1 row per
         // BOM line; concurrency mediated by the parent WO row (NO RowVersion,

@@ -329,6 +329,11 @@ public static class AuditAction
     /// the exact sequence (vs lump-sum "all 4 checks set" row).</summary>
     public const string WoIpqcCheck           = "WO_IPQC_CHECK";
 
+    /// <summary>IPQC first-article (2026-08-25) — IPQC leader toggled an item's
+    /// applicability. detail JSON: { wo_id, wo_no, item_key, applicable }.
+    /// A non-applicable item is excluded from the judgment readiness gate.</summary>
+    public const string WoIpqcItemApplicable  = "WO_IPQC_ITEM_APPLICABLE";
+
     /// <summary>IPQC first-article (2026-08-25) — Engineer WAIVED a MATERIAL
     /// (SYSTEM) LOT divergence (soft-lock override, success path). detail JSON:
     /// { wo_id, wo_no, bom_line_idx, material_code, divergence_kind, outcome:

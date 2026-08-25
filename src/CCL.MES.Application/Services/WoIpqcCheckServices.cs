@@ -100,6 +100,23 @@ public static class WoIpqcCheckService
         return true;
     }
 
+    /// <summary>IPQC first-article — toggle an item's applicability (default true).
+    /// Unchecking excludes it from the judgment readiness gate. Returns false when
+    /// the key isn't in the materialised set.</summary>
+    public static bool SetItemApplicable(
+        WoIpqcCheck check, string itemKey, bool applicable, string actor, DateTime nowUtc)
+    {
+        var item = check.Items.FirstOrDefault(
+            i => string.Equals(i.ItemKey, itemKey, StringComparison.OrdinalIgnoreCase));
+        if (item is null) return false;
+        item.Applicable = applicable;
+        item.UpdatedAt = nowUtc;
+        item.UpdatedBy = actor;
+        check.UpdatedAt = nowUtc;
+        check.UpdatedBy = actor;
+        return true;
+    }
+
     /// <summary>
     /// Apply a judgment write. Caller checks
     /// <see cref="CCL.MES.Domain.StateMachine.IpqcReadinessRollup.IsJudgmentConsistent"/>

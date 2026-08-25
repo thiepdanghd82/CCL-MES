@@ -604,6 +604,14 @@ public sealed class CclApiClient : ICclApiClient
             $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/item/{Uri.EscapeDataString(itemKey)}{(legId is null ? "" : $"?legId={legId}")}",
             ifMatchETag, req, ct);
 
+    public Task<IpqcSetResponse> PutIpqcItemApplicableAsync(
+        long workOrderId, string ifMatchETag, string itemKey,
+        SetIpqcItemApplicableRequest req, long? legId = null, CancellationToken ct = default)
+        => SendIpqcMutationAsync(
+            HttpMethod.Put,
+            $"/{ApiVersion.Prefix}/work-orders/{workOrderId}/ipqc/item/{Uri.EscapeDataString(itemKey)}/applicable{(legId is null ? "" : $"?legId={legId}")}",
+            ifMatchETag, req, ct);
+
     public Task<IpqcSetResponse> PostIpqcJudgmentAsync(
         long workOrderId, string ifMatchETag,
         SubmitIpqcJudgmentRequest req, CancellationToken ct = default)

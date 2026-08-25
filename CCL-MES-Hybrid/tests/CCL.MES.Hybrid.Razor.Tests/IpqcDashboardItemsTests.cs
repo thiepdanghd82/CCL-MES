@@ -63,14 +63,25 @@ public sealed class IpqcDashboardItemsTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            // Resolved-lines banner + item cards present.
+            // Resolved-lines banner present.
             Assert.Contains("LABEL,PRESS_CNC", cut.Find("[data-testid='ipqc-resolved-lines']").TextContent);
+            // Two-axis: LABEL → PRINT process (default active) shows LBL-A1;
+            // PRESS_CNC → CUT process, so PCC-B1 is NOT visible until the CUT
+            // chip is selected.
             Assert.NotNull(cut.Find("[data-testid='ipqc-item-LBL-A1']"));
-            Assert.NotNull(cut.Find("[data-testid='ipqc-item-PCC-B1']"));
-            // Counter shows /2 (item-aware), not /4.
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-item-PCC-B1']"));
+            // Counter shows /2 (item-aware, WO-wide), not /4.
             Assert.Contains("/2", cut.Find("[data-testid='ipqc-counter']").TextContent);
             // Legacy 4-slot cards NOT rendered in items mode.
             Assert.Empty(cut.FindAll("[data-testid='ipqc-slot-material']"));
+        });
+
+        // Switch to the CUT process → PCC-B1 appears, LBL-A1 gone.
+        cut.Find("[data-testid='ipqc-process-cut']").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid='ipqc-item-PCC-B1']"));
+            Assert.Empty(cut.FindAll("[data-testid='ipqc-item-LBL-A1']"));
         });
     }
 

@@ -110,6 +110,24 @@ public sealed partial class TranslationCatalog
         Add("ipqc.material.waiver.reasonlabel","Lý do:",                                                           "Reason:");
         Add("ipqc.material.waiver.norole",   "Chờ kỹ sư phê duyệt (bạn không có quyền phê duyệt).",                 "Awaiting Engineer approval (you do not have approval rights).");
 
+        // ── Process axis (Tier 1: Print / Cut / Other) ────────────────
+        Add("ipqc.process.print",            "IN",                                                                 "PRINT");
+        Add("ipqc.process.cut",              "CẮT",                                                                "CUT");
+        Add("ipqc.process.other",            "Khác",                                                               "Other");
+        // Badge "{confirmed}/{total}" beside the process chip label.
+        Add("ipqc.process.badge",            "{0}/{1}",                                                            "{0}/{1}");
+
+        // ── Item table column headers (per process → V/D/F) ───────────
+        Add("ipqc.col.num",                  "#",                                                                  "#");
+        Add("ipqc.col.applicable",           "Áp dụng",                                                            "Apply");
+        Add("ipqc.applicable.hint",          "Bỏ chọn để loại hạng mục này khỏi đánh giá (không tính OK/NG).",     "Uncheck to exclude this item from judgment (no OK/NG required).");
+        Add("ipqc.col.item",                 "Hạng mục",                                                           "Item");
+        Add("ipqc.col.process",              "Công đoạn",                                                          "Process");
+        Add("ipqc.col.method",               "Phương pháp",                                                        "Method");
+        Add("ipqc.col.spec",                 "Tiêu chí",                                                           "Spec");
+        Add("ipqc.col.result",               "Kết quả đo",                                                         "Result");
+        Add("ipqc.col.verdict",              "Đánh giá",                                                          "Verdict");
+
         // ── First-article stepper tabs (Visual / Dimension / Function) ─
         Add("ipqc.tab.visual",               "Ngoại quan",                                                         "Visual");
         Add("ipqc.tab.dimension",            "Kích thước",                                                         "Dimension");

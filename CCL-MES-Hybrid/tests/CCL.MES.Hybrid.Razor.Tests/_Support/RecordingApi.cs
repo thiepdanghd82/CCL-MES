@@ -593,6 +593,18 @@ public sealed class RecordingApi : ICclApiClient
             : PutIpqcItemImpl(workOrderId, ifMatchETag, itemKey, req, ct);
     }
 
+    // 2026-08-25: item "Áp dụng" toggle (applicable on/off).
+    public Func<long, string, string, SetIpqcItemApplicableRequest, CancellationToken, Task<IpqcSetResponse>>? PutIpqcItemApplicableImpl { get; set; }
+    public List<(long Id, string ETag, string ItemKey, SetIpqcItemApplicableRequest Req)> PutIpqcItemApplicableCalls { get; } = new();
+
+    public Task<IpqcSetResponse> PutIpqcItemApplicableAsync(long workOrderId, string ifMatchETag, string itemKey, SetIpqcItemApplicableRequest req, long? legId = null, CancellationToken ct = default)
+    {
+        PutIpqcItemApplicableCalls.Add((workOrderId, ifMatchETag, itemKey, req));
+        return PutIpqcItemApplicableImpl is null
+            ? Task.FromResult(new IpqcSetResponse { Ok = true, ETag = ifMatchETag, MesPhase = "IPQC_WAIT" })
+            : PutIpqcItemApplicableImpl(workOrderId, ifMatchETag, itemKey, req, ct);
+    }
+
     public Task<IpqcSetResponse> PostIpqcJudgmentAsync(long workOrderId, string ifMatchETag, SubmitIpqcJudgmentRequest req, CancellationToken ct = default)
     {
         PostIpqcJudgmentCalls.Add((workOrderId, ifMatchETag, req));
