@@ -25,6 +25,20 @@
 
 ---
 
+
+## i18n — bảng FQC/OQC vẫn khoá một ngôn ngữ (nợ còn lại của L60)
+
+| | |
+|---|---|
+| **Work-class** | W4 (chất lượng) + W5 (UI) |
+| **Agent** | `mes-quality-architect` ra thiết kế → `cmes-implementer` |
+| **Skill** | `cmes-i18n-parity` + `cmes-audit-emit` |
+| **Bối cảnh** | [L60](LESSONS-LEARNED.md#l60) đã sửa xong đường IPQC: nhãn hạng mục · nhóm · METHOD · SPEC nay đóng băng CẢ HAI ngôn ngữ trong `WoIpqcCheckItems`. FQC/OQC **chưa**, và hỏng theo kiểu khác: `WoQcCheckItems` **không có cột nhãn nào cả** (chỉ `ItemKey` + `Status` + trường NG) — nhãn đến từ `WoQcChecks.ItemsProfileSnapshotJson`. Nên fix của IPQC không áp thẳng sang được. |
+| **Việc phải làm** | 1. Xác định UI FQC/OQC lấy chuỗi hiển thị từ đâu (JSON snapshot hay `QcProfileSeed` lúc render). 2. Nếu từ JSON: bổ sung khoá EN vào shape snapshot + đọc theo ngôn ngữ, đường lùi VI. 3. Nếu render-time từ seed: đó là bệnh NGƯỢC lại (không đóng băng gì) — cần quyết định có đóng băng không, vì hồ sơ FQC/OQC cũng có chữ ký. 4. Tái dùng `CheckItemVocabularyEn` (thư viện dùng chung cho cả 3 stage qua cờ `Ipqc`/`Fqc`/`Oqc`). |
+| **Tiêu chí nghiệm thu** | Test kiểu `IpqcDashboardLanguageTests` cho `FqcDashboard` + `OqcDashboard`: bấm EN thì bảng đổi chữ; thiếu bản dịch thì rơi về VI, không để ô trống; đổi ngôn ngữ giữa chừng không văng tab/section đang mở. Test phải ĐỎ khi hoàn nguyên fix. |
+| **Ghi chú** | 59 dòng `PNC-*` (PRESS_CNC) trong `WoIpqcCheckItems` cũng không có bản EN vì **không còn nguồn trong thư viện v5** (v5 chỉ có LABEL · SILK). Đây là câu hỏi cho Ops — thư viện v5 có cố ý bỏ PRESS_CNC không, hay thiếu? Không phải lỗi code. |
+
+
 ## A1 — Cutover: khai tử legacy Blazor Server
 
 **Vấn đề.** Hai UI song song từ Phase 10 tới nay (đã qua P11). Hai hệ i18n:

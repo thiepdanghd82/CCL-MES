@@ -654,6 +654,48 @@ using (var bootScope = app.Services.CreateScope())
             {
                 Console.WriteLine($"[boot] ipqc_checktype backfill skipped: {seedEx.GetType().Name}: {seedEx.Message}");
             }
+            // i18n IPQC — backfill 4 cột EN lên các hạng mục đã materialize
+            // TRƯỚC khi có cột EN (đóng băng với NULL). Không có nó, WO đang
+            // chạy vẫn hiện tiếng Việt khi người dùng chọn EN.
+            //
+            // CHỐT TOÀN VẸN — điều kiện `lib.<vi> = WoIpqcCheckItems.<vi>`:
+            // chỉ dịch dòng nào mà chuỗi VI trong thư viện CÒN KHỚP ĐÚNG chuỗi
+            // VI đã đóng băng. Nếu Ops đã sửa master data kể từ lúc đóng băng
+            // thì bản EN hiện tại nói về một hạng mục KHÁC — thà để NULL và rơi
+            // về bản VI đã ký, còn hơn dán một bản dịch sai vào hồ sơ QC.
+            //
+            // Chạy MỘT LẦN cho mỗi dòng (WHERE ... IS NULL) rồi giá trị nằm yên
+            // trong bảng đóng băng — từ đó nó bất biến y như bản VI.
+            try
+            {
+                var enFilled = await bootDb.Database.ExecuteSqlRawAsync(@"
+                    UPDATE WoIpqcCheckItems
+                    SET LabelEn = COALESCE(LabelEn, (
+                            SELECT NULLIF(TRIM(lib.ItemEn), '') FROM CheckItemLibraries lib
+                            WHERE lib.ItemId = WoIpqcCheckItems.ItemKey
+                              AND lib.ItemVi = WoIpqcCheckItems.Label)),
+                        AcceptanceCriteriaEn = COALESCE(AcceptanceCriteriaEn, (
+                            SELECT NULLIF(TRIM(lib.AcceptanceEn), '') FROM CheckItemLibraries lib
+                            WHERE lib.ItemId = WoIpqcCheckItems.ItemKey
+                              AND lib.AcceptanceVi = WoIpqcCheckItems.AcceptanceCriteria)),
+                        MethodEn = COALESCE(MethodEn, (
+                            SELECT NULLIF(TRIM(lib.MethodEn), '') FROM CheckItemLibraries lib
+                            WHERE lib.ItemId = WoIpqcCheckItems.ItemKey
+                              AND lib.Method = WoIpqcCheckItems.Method)),
+                        GroupLabelEn = COALESCE(GroupLabelEn, (
+                            SELECT NULLIF(TRIM(lib.GroupLabelEn), '') FROM CheckItemLibraries lib
+                            WHERE lib.ItemId = WoIpqcCheckItems.ItemKey
+                              AND lib.GroupLabel = WoIpqcCheckItems.GroupLabel))
+                    WHERE (LabelEn IS NULL OR AcceptanceCriteriaEn IS NULL
+                           OR MethodEn IS NULL OR GroupLabelEn IS NULL)
+                      AND EXISTS (SELECT 1 FROM CheckItemLibraries lib
+                                  WHERE lib.ItemId = WoIpqcCheckItems.ItemKey);");
+                Console.WriteLine($"[seed] ipqc_item_en_backfilled={enFilled}");
+            }
+            catch (Exception seedEx)
+            {
+                Console.WriteLine($"[boot] ipqc_item_en backfill skipped: {seedEx.GetType().Name}: {seedEx.Message}");
+            }
             try
             {
                 var m = await CCL.MES.Infrastructure.DbSeeder.SeedProcessLineMapAsync(bootDb);

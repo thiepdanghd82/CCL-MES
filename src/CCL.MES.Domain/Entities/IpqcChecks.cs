@@ -135,6 +135,18 @@ public class WoIpqcCheckItem : BaseEntity
     [MaxLength(512)] public string? Label { get; set; }
     [MaxLength(512)] public string? AcceptanceCriteria { get; set; }
     [MaxLength(256)] public string? Method { get; set; }
+
+    // ── Bản EN — ĐÓNG BĂNG y như bản VI ngay bên trên ────────────────────
+    // Bốn cột này KHÔNG phải bản dịch tra lúc hiển thị. Chúng được materializer
+    // ghi một lần cùng lúc với bốn cột VI, nên hồ sơ đã ký đọc lại sau này ra
+    // đúng chữ mà người vận hành đã thấy — ở CẢ hai ngôn ngữ. Sửa master data
+    // về sau KHÔNG hồi tố, đúng như dòng VI.
+    // NULL = hạng mục materialize trước khi có tính năng này, hoặc thư viện
+    // thiếu bản dịch ⇒ UI rơi về bản VI, không bao giờ để trống ô.
+    [MaxLength(128)] public string? GroupLabelEn { get; set; }
+    [MaxLength(512)] public string? LabelEn { get; set; }
+    [MaxLength(512)] public string? AcceptanceCriteriaEn { get; set; }
+    [MaxLength(256)] public string? MethodEn { get; set; }
     [MaxLength(64)] public string? Severity { get; set; }
     /// <summary>Mã defect mặc định của hạng mục (gợi ý khi đánh NG) — từ thư viện.</summary>
     [MaxLength(64)] public string? DefectCode { get; set; }

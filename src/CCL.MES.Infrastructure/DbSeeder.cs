@@ -540,6 +540,8 @@ public static class DbSeeder
                 bool changed = false;
                 if (cur.ProcessLine != it.ProcessKind) { cur.ProcessLine = it.ProcessKind; changed = true; }
                 if (cur.GroupLabel != it.GroupLabel) { cur.GroupLabel = it.GroupLabel; changed = true; }
+                var gEn = CheckItemVocabularyEn.Group(it.GroupLabel);
+                if (cur.GroupLabelEn != gEn) { cur.GroupLabelEn = gEn; changed = true; }
                 if (cur.ItemVi != it.ItemVi) { cur.ItemVi = it.ItemVi; changed = true; }
                 if (cur.ItemEn != it.ItemEn) { cur.ItemEn = it.ItemEn; changed = true; }
                 if (cur.AcceptanceVi != it.AcceptanceVi) { cur.AcceptanceVi = it.AcceptanceVi; changed = true; }
@@ -556,6 +558,7 @@ public static class DbSeeder
                     ProcessLine = it.ProcessKind,
                     ProductCode = null,
                     GroupLabel = it.GroupLabel,
+                    GroupLabelEn = CheckItemVocabularyEn.Group(it.GroupLabel),
                     Code = "",
                     Setting = true,
                     Active = true,
@@ -627,12 +630,16 @@ public static class DbSeeder
 
         Set(e.ProcessLine, r.ProcessLine, v => e.ProcessLine = v);
         Set(e.GroupLabel, r.GroupLabel, v => e.GroupLabel = v);
+        // Bản EN của hai cột từ vựng có kiểm soát: file nguồn xlsx chỉ có VI,
+        // nên lấy từ CheckItemVocabularyEn. null = chưa dịch ⇒ UI rơi về VI.
+        SetN(e.GroupLabelEn, CheckItemVocabularyEn.Group(r.GroupLabel), v => e.GroupLabelEn = v);
         Set(e.Code, r.Code, v => e.Code = v);
         Set(e.ItemVi, r.ItemVi, v => e.ItemVi = v);
         Set(e.ItemEn, r.ItemEn, v => e.ItemEn = v);
         Set(e.AcceptanceVi, r.AcceptanceVi, v => e.AcceptanceVi = v);
         Set(e.AcceptanceEn, r.AcceptanceEn, v => e.AcceptanceEn = v);
         SetN(e.Method, r.Method, v => e.Method = v);
+        SetN(e.MethodEn, CheckItemVocabularyEn.Method(r.Method), v => e.MethodEn = v);
         SetN(e.Severity, r.Severity, v => e.Severity = v);
         SetN(e.Aql, r.Aql, v => e.Aql = v);
         SetN(e.Sampling, r.Sampling, v => e.Sampling = v);

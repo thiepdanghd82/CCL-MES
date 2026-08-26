@@ -53,6 +53,15 @@ public static class IpqcLibraryMaterializer
                 Label = string.IsNullOrWhiteSpace(r.ItemVi) ? r.ItemEn : r.ItemVi,
                 AcceptanceCriteria = string.IsNullOrWhiteSpace(r.AcceptanceVi) ? r.AcceptanceEn : r.AcceptanceVi,
                 Method = r.Method,
+
+                // Bản EN đóng băng CÙNG LÚC với bản VI ngay trên. Không tra cứu
+                // lúc hiển thị: hồ sơ đã ký đọc lại sau này phải ra đúng chữ
+                // người vận hành đã thấy, ở cả hai ngôn ngữ. Thiếu bản EN thì
+                // để null — UI rơi về bản VI chứ không bao giờ để ô trống.
+                GroupLabelEn = Blank(r.GroupLabelEn) ? CheckItemVocabularyEn.Group(r.GroupLabel) : r.GroupLabelEn,
+                LabelEn = Blank(r.ItemEn) ? null : r.ItemEn,
+                AcceptanceCriteriaEn = Blank(r.AcceptanceEn) ? null : r.AcceptanceEn,
+                MethodEn = Blank(r.MethodEn) ? CheckItemVocabularyEn.Method(r.Method) : r.MethodEn,
                 Severity = r.Severity,
                 DefectCode = r.DefectCode,
                 // IPQC first-article (Q2) — freeze the library CheckType so the
@@ -65,6 +74,11 @@ public static class IpqcLibraryMaterializer
 
         return new Result(BuildSnapshotJson(rows, resolvedLines), items);
     }
+
+    /// <summary>Rỗng/whitespace ⇒ coi như KHÔNG có bản dịch. Chuỗi rỗng nguy
+    /// hiểm hơn null: nó lọt qua mọi phép kiểm null và làm UI hiển thị ô trắng
+    /// thay vì rơi về bản VI.</summary>
+    private static bool Blank(string? s) => string.IsNullOrWhiteSpace(s);
 
     /// <summary>Snapshot JSON theo nhóm GroupLabel (giữ shape QcProfileSeed để
     /// rollup/UI tái dùng). Đóng băng đúng-thời-điểm.</summary>

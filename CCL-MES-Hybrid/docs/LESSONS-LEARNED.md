@@ -108,6 +108,7 @@
 ### Kiến trúc tầng + hệ thiết kế + vòng lặp agent (audit 2026-08-18)
 
 - [L59 — `width: 100%` + padding/border dưới `content-box` ⇒ phần tử rộng hơn khung chứa đúng bằng padding+border, KHÔNG cảnh báo gì. Đã bị phát hiện và vá LẺ **13 lần** trong app.css mà chưa lần nào thành luật; quét lại còn 22 selector đang chờ tràn](#l59)
+- [L60 — chuỗi hiển thị bị ĐÓNG BĂNG vào bảng dữ liệu chỉ với MỘT ngôn ngữ: cờ EN đổi hết chrome nhưng bốn cột dữ liệu QC (nhãn · nhóm · METHOD · SPEC) vĩnh viễn tiếng Việt, vì materializer chọn `ItemVi ?? ItemEn` rồi đóng băng lựa chọn đó](#l60)
 - [L58 — Gate tĩnh KHÔNG thay được việc mở app ở bề rộng thật: sweep L56/L57 quét rule CSS và bỏ lọt lỗi bố cục. Thanh chrome toàn cục (105 màn) tràn+cắt dưới 900pt; 6 bảng rộng tới 1400px không có luật responsive nào cho chính nó — trong đó `.prepress-table` là bề mặt XƯỞNG; và 12 ngưỡng breakpoint tự chế (1080 vs 1081) — lần thứ TƯ repo lặp lại câu chuyện "không có thang" sau màu/size/typography](#l58)
 - [L56 — `var(--token-không-tồn-tại)` KHÔNG im lặng: thuộc tính hỏng ở computed-value time ⇒ nút N/A nền trong suốt + chữ trắng = VÔ HÌNH, 69 nhãn mờ hoá đen, cả module IQC mất viền. 4 token dùng 95 lần mà chưa bao giờ được định nghĩa. Repo ĐÃ vá đúng lỗi này một lần cho `.grid-btn-secondary` nhưng không quét phần còn lại và không thêm gate ⇒ tái phát nhiều tháng](#l56)
 - [L57 — Kích thước KHÔNG tiêu thụ thang density thì màn hình tự rút khỏi hệ: (a) vùng chạm px cứng 20px cho ô tick người ĐEO GĂNG bấm, `--d-tap` không gate nào canh; (b) `clamp(...vw)` co theo bề rộng cửa sổ ⇒ shopfloor không đổi một pixel, và ĐẢO NGƯỢC ý đồ (người đứng xa nhất nhận chữ nhỏ nhất)](#l57)
@@ -781,6 +782,18 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 
 
 ---
+
+### L60 — "chọn một ngôn ngữ rồi ĐÓNG BĂNG lựa chọn": cờ EN không đổi được một chữ nào trong bảng QC
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Henry chọn cờ **EN** trên topbar; toàn bộ chrome quanh bảng IPQC đổi sang tiếng Anh đúng như mong đợi, nhưng **bốn cột dữ liệu QC** — nhãn hạng mục, nhóm (A·Ngoại quan…), METHOD, SPEC — vẫn nguyên tiếng Việt. Trông như "bản dịch làm chưa xong" chứ không như một mắt xích đứt, nên nó sống nhiều tháng. |
+| **Root cause** (proven) | `IpqcLibraryMaterializer.cs:53` — `Label = string.IsNullOrWhiteSpace(r.ItemVi) ? r.ItemEn : r.ItemVi`. Thư viện `CheckItemLibrary` CÓ ĐỦ cả cặp (`ItemVi`/`ItemEn`, `AcceptanceVi`/`AcceptanceEn`, 79/79 dòng), nhưng materializer **chọn một** rồi **đóng băng lựa chọn đó** vào `WoIpqcCheckItem.Label`. Bảng đóng băng mới là thứ UI đọc ⇒ đến lúc render thì thông tin ngôn ngữ đã mất từ lâu, không cờ nào cứu được. Hai cột `Method` và `GroupLabel` còn tệ hơn: **không hề có biến thể EN** trong schema. Đảo `??` không sửa được gì — chỉ đổi từ "luôn VI" thành "luôn EN". |
+| **Fix** | Đóng băng **cả hai** ngôn ngữ. (1) `CheckItemLibrary` +`GroupLabelEn`/`MethodEn`; `WoIpqcCheckItem` +`LabelEn`/`AcceptanceCriteriaEn`/`MethodEn`/`GroupLabelEn` — migration `AddIpqcItemEnglishColumns`, 6 cột nullable, additive, forward-only. (2) `CheckItemVocabularyEn` — 54 chuỗi VI→EN cho hai cột **TỪ VỰNG CÓ KIỂM SOÁT** (43 Method + 11 GroupLabel dùng lại trên 79 hạng mục); để trong code chứ không bắt Ops nhập tay từng dòng trong xlsx, vì nhập tay 79 lần cho 43 thuật ngữ là mời bản dịch lệch nhau. Bảng tra chỉ chạy lúc **SEED**, không chạy lúc render. (3) Materializer ghi bốn cột EN cùng lúc với bốn cột VI. (4) DTO `IpqcViewItem.*For(bool english)` là chỗ **DUY NHẤT** quyết định chọn bản nào — thiếu EN thì rơi về VI, **không bao giờ để ô trống**. (5) Backfill lúc boot cho 151 dòng đã đóng băng, có **chốt toàn vẹn**: chỉ dịch dòng nào mà chuỗi VI trong thư viện CÒN KHỚP ĐÚNG chuỗi VI đã đóng băng — Ops sửa master data từ sau lúc đóng băng thì bản EN hiện tại nói về một hạng mục KHÁC, thà để null còn hơn dán bản dịch sai vào hồ sơ đã ký. Trên live: 92/151 dòng nhận EN; 59 dòng còn lại là `PNC-*` (PRESS_CNC) **không còn nguồn trong thư viện v5** ⇒ chốt chặn đúng, chúng rơi về VI. |
+| **Cơ chế chặn tái phát** | Ba lớp test, đã xác nhận **fail** khi hoàn nguyên fix (không phải test xanh suông): `CCL.MES.Tests.Unit.IpqcItemEnglishTests` (từ vựng phủ đủ seed thật · materializer đóng băng cả hai · thiếu bản dịch thì để `null` chứ không để chuỗi rỗng) · `CCL.MES.Hybrid.Client.Tests.IpqcViewItemLanguageTests` (đường lùi VI) · `CCL.MES.Hybrid.Razor.Tests.IpqcDashboardLanguageTests` (render `IpqcDashboard` ở hai ngôn ngữ, đổi cờ giữa chừng, và **tab đang mở không bị văng** — khoá tab phải giữ chuỗi VI làm định danh, chỉ NHÃN mới dịch). **Quy tắc: bất kỳ chuỗi hiển thị nào bị ĐÓNG BĂNG vào bảng dữ liệu đều phải đóng băng ĐỦ MỌI NGÔN NGỮ tại thời điểm đó. Chọn một ngôn ngữ lúc ghi = vứt bỏ vĩnh viễn khả năng đổi ngôn ngữ, và không cờ i18n nào lấy lại được.** Bệnh này còn ở `WoQcCheckItems` (FQC/OQC) dưới dạng khác — bảng đó không có cột nhãn nào, nhãn đến từ `ItemsProfileSnapshotJson`; chưa xử lý, ghi vào backlog. |
+
+
+----
 
 ## Adding a new lesson
 
