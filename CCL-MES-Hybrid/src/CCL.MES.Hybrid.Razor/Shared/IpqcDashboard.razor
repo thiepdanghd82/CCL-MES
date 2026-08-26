@@ -48,6 +48,7 @@
 @using CCL.MES.Hybrid.Client.IpqcReview
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.IpqcReview
+@using CCL.MES.Shared.Localization
 @using CCL.MES.Shared.ReasonCodes
 @inject ICclApiClient Api
 @inject IAuthSession Session
@@ -348,7 +349,7 @@
                                 </label>
                             </td>
                             <td class="ipqc-col-item">
-                                <span class="ipqc-item-label">@item.Label</span>
+                                <span class="ipqc-item-label">@item.LabelFor(IsEnglish)</span>
                                 <span class="ipqc-status-pill @StatusPillCss(item.Status)"
                                       data-testid="@($"ipqc-item-{item.ItemKey}-status")">@StatusDisplay(item.Status)</span>
                             </td>
@@ -356,8 +357,8 @@
                                không phải mã số. scan-mono cũ làm nó rộng hơn ~20% cho cùng một
                                chuỗi ⇒ vỡ dòng trong khi SPEC (sans, cùng bề rộng cột) thì không.
                                Mono để dành cho mã cần thẳng cột: số WO, số lô, mã vật tư. *@
-                            <td class="ipqc-col-method" data-label="@T("ipqc.col.method")">@(string.IsNullOrWhiteSpace(item.Method) ? "—" : item.Method)</td>
-                            <td class="ipqc-col-spec" data-label="@T("ipqc.col.spec")">@(string.IsNullOrWhiteSpace(item.AcceptanceCriteria) ? "—" : item.AcceptanceCriteria)</td>
+                            <td class="ipqc-col-method" data-label="@T("ipqc.col.method")">@(item.MethodFor(IsEnglish) is { Length: > 0 } m && !string.IsNullOrWhiteSpace(m) ? m : "—")</td>
+                            <td class="ipqc-col-spec" data-label="@T("ipqc.col.spec")">@(item.AcceptanceCriteriaFor(IsEnglish) is { Length: > 0 } a && !string.IsNullOrWhiteSpace(a) ? a : "—")</td>
                             @if (ShowResultColumn)
                             {
                                 <td class="ipqc-col-result" data-label="@T("ipqc.item.measured.short")">
@@ -828,6 +829,13 @@
         _activeTab = FirstTab();
     }
 
+    /// <summary>Ngôn ngữ đang bật. Bốn trường dữ liệu QC (nhãn hạng mục ·
+    /// nhóm · phương pháp · tiêu chí) là DỮ LIỆU ĐÃ ĐÓNG BĂNG chứ không phải
+    /// khoá resx, nên không đi qua T() — chúng đi qua các hàm *For(bool) của
+    /// IpqcViewItem. LocalizedComponentBase đã bắt sự kiện đổi ngôn ngữ và gọi
+    /// StateHasChanged, nên bảng tự vẽ lại khi người dùng bấm cờ.</summary>
+    private bool IsEnglish => LanguageService.Current == LanguageCode.English;
+
     // ── TẦNG 2 — GroupLabel tabs (2026-08-25: "4 tab con giống QC Library") ─
 
     /// <summary>TẦNG-2 tab key của 1 item = giá trị <see cref="IpqcViewItem.GroupLabel"/>
@@ -856,7 +864,12 @@
                 .Select(g =>
                 {
                     var applicable = g.Where(i => i.Applicable).ToList();
-                    var label = g.Key == TabOtherKey ? T("ipqc.tab.other") : g.Key;
+                    // Khoá tab giữ nguyên chuỗi VI — nó là ĐỊNH DANH (state _activeTab,
+                    // thứ tự A·/B·/C·/D·). Dịch khoá thì đổi ngôn ngữ sẽ văng tab đang mở.
+                    // Chỉ NHÃN hiển thị mới đổi theo ngôn ngữ.
+                    var label = g.Key == TabOtherKey
+                        ? T("ipqc.tab.other")
+                        : (g.First().GroupLabelFor(IsEnglish) ?? g.Key);
                     return new TabDef(
                         g.Key,
                         label,

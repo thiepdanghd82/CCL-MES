@@ -207,6 +207,11 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<WoIpqcCheckItem>().Property(x => x.Label).HasMaxLength(512);
         b.Entity<WoIpqcCheckItem>().Property(x => x.AcceptanceCriteria).HasMaxLength(512);
         b.Entity<WoIpqcCheckItem>().Property(x => x.Method).HasMaxLength(256);
+        // Bản EN đóng băng — cùng MaxLength với bản VI tương ứng ngay trên.
+        b.Entity<WoIpqcCheckItem>().Property(x => x.GroupLabelEn).HasMaxLength(128);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.LabelEn).HasMaxLength(512);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.AcceptanceCriteriaEn).HasMaxLength(512);
+        b.Entity<WoIpqcCheckItem>().Property(x => x.MethodEn).HasMaxLength(256);
         b.Entity<WoIpqcCheckItem>().Property(x => x.Severity).HasMaxLength(64);
         b.Entity<WoIpqcCheckItem>().Property(x => x.DefectCode).HasMaxLength(64);
         b.Entity<WoIpqcCheckItem>().Property(x => x.NgReasonCode).HasMaxLength(64);

@@ -91,6 +91,32 @@ public sealed record IpqcViewItem
     public string? Label { get; init; }
     public string? AcceptanceCriteria { get; init; }
     public string? Method { get; init; }
+
+    // ── Bản EN, đã ĐÓNG BĂNG cùng lúc với bản VI ở trên (không tra lúc render).
+    //    null = hạng mục materialize trước tính năng này, hoặc thư viện thiếu
+    //    bản dịch. Đừng đọc thẳng — dùng 4 hàm chọn ngôn ngữ bên dưới để luôn
+    //    có đường rơi về bản VI.
+    public string? GroupLabelEn { get; init; }
+    public string? LabelEn { get; init; }
+    public string? AcceptanceCriteriaEn { get; init; }
+    public string? MethodEn { get; init; }
+
+    /// <summary>Chọn bản theo ngôn ngữ đang bật. <paramref name="english"/> =
+    /// true thì lấy bản EN, KHÔNG có thì rơi về bản VI — ô không bao giờ trống.
+    /// Đây là chỗ DUY NHẤT quyết định chuyện đó; UI không tự viết lại ?? .</summary>
+    public string? GroupLabelFor(bool english) => Pick(GroupLabelEn, GroupLabel, english);
+
+    /// <inheritdoc cref="GroupLabelFor"/>
+    public string? LabelFor(bool english) => Pick(LabelEn, Label, english);
+
+    /// <inheritdoc cref="GroupLabelFor"/>
+    public string? AcceptanceCriteriaFor(bool english) => Pick(AcceptanceCriteriaEn, AcceptanceCriteria, english);
+
+    /// <inheritdoc cref="GroupLabelFor"/>
+    public string? MethodFor(bool english) => Pick(MethodEn, Method, english);
+
+    private static string? Pick(string? en, string? vi, bool english)
+        => english && !string.IsNullOrWhiteSpace(en) ? en : vi;
     public string? Severity { get; init; }
     public string? DefectCode { get; init; }
     public string Status { get; init; } = "Pending";

@@ -29,6 +29,11 @@ public class CheckItemLibrary : BaseEntity
 
     /// <summary>Nhóm hạng mục (col S), vd "A·Ngoại quan".</summary>
     public string GroupLabel { get; set; } = "";
+    /// <summary>Bản EN của <see cref="GroupLabel"/>. File nguồn (xlsx v5) chỉ có
+    /// cột VI, nên seeder điền cột này từ <c>CheckItemVocabularyEn</c> — 10 giá
+    /// trị dùng lại trên toàn thư viện, là TỪ VỰNG CÓ KIỂM SOÁT chứ không phải
+    /// văn bản tự do. NULL = chưa có bản dịch ⇒ UI rơi về bản VI.</summary>
+    public string? GroupLabelEn { get; set; }
     /// <summary>Mã hạng mục trong nhóm (col T), vd "A1".</summary>
     public string Code { get; set; } = "";
 
@@ -61,6 +66,9 @@ public class CheckItemLibrary : BaseEntity
 
     /// <summary>Phương pháp · dụng cụ kiểm (col Y).</summary>
     public string? Method { get; set; }
+    /// <summary>Bản EN của <see cref="Method"/>. Xem ghi chú ở
+    /// <see cref="GroupLabelEn"/> — 43 giá trị, cũng là từ vựng có kiểm soát.</summary>
+    public string? MethodEn { get; set; }
     /// <summary>Mức nghiêm trọng, giữ nguyên chuỗi gốc, vd "◆ Critical" (col Z).</summary>
     public string? Severity { get; set; }
     public string? Aql { get; set; }
