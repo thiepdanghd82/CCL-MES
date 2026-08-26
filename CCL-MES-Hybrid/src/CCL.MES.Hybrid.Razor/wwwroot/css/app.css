@@ -6705,6 +6705,10 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 .ipqc-item-row.ipqc-slot-ng    td { background: var(--ng-bg); }
 .ipqc-item-table .ipqc-col-item {
     display: table-cell;
+    /* ITEM trước đây ăn phần dư của bảng (~470px ở 1500px) cho một nhãn ngắn,
+       trong khi METHOD/SPEC thiếu ~12px là vừa một dòng. Chặn ITEM lại để trả
+       chỗ cho hai cột mô tả. */
+    width: 20%;
 }
 .ipqc-item-table .ipqc-item-label {
     font-weight: var(--fw-semibold);
@@ -6717,31 +6721,47 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
    cột RESULT bên phải. Nay cho xuống dòng và chia đôi đều. */
 .ipqc-item-table .ipqc-col-method,
 .ipqc-item-table .ipqc-col-spec {
-    width: 22%;
+    width: 26%;
     white-space: normal;
     word-break: break-word;
+    /* Hai cột này là VĂN BẢN THAM CHIẾU, đọc khi cần — không phải nhãn chính.
+       Hạ một bậc so với ITEM để chứa thêm ~8% ký tự trên mỗi dòng. */
+    font-size: var(--fs-sm);
 }
+/* Ô nhập + nút lưu DÍNH LIỀN thành một cụm, đúng khuôn segmented của OK/NG:
+   bỏ khe hở, bỏ viền trùng ở giữa, bo góc chỉ ở hai đầu ngoài. Tiết kiệm được
+   khe + một viền, và quan trọng hơn: mắt đọc ra "một điều khiển" thay vì "hai
+   thứ rời nhau". align-items: stretch ⇒ nút cao ĐÚNG BẰNG ô nhập. */
 .ipqc-item-table .ipqc-col-result {
     display: flex;
-    align-items: center;
-    gap: var(--sp-2);
+    align-items: stretch;
+    gap: 0;
 }
-/* Ô nhập hẹp lại; chỗ tiết kiệm được trả cho METHOD/SPEC đọc dễ hơn. Sàn 4.5rem
-   vẫn đủ cho một số đo điển hình ("83.5") mà không cắt. */
-.ipqc-result-input { min-width: 4.5rem; max-width: 7rem; }
-/* Nút lưu chỉ còn icon — vuông, vùng chạm vẫn --d-tap (xem .ipqc-measured-save-btn). */
+/* Sàn 4.5rem vẫn đủ cho một số đo điển hình ("83.5") mà không cắt. */
+.ipqc-result-input {
+    min-width: 4.5rem;
+    max-width: 7rem;
+    min-height: var(--d-control-h);
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    border-right: 0;              /* viền chung với nút, không vẽ hai lần */
+}
 .ipqc-save-ico { width: var(--sp-4); height: var(--sp-4); display: block; }
 /* Compact save button never wraps to a 2nd/3rd line — short label + nowrap +
    a glove-safe tap target that still reads on the shopfloor. */
 .ipqc-measured-save-btn {
     white-space: nowrap;
-    min-height: var(--d-tap);
+    /* KHÔNG khai min-height ở đây: align-items:stretch của cụm quyết định chiều
+       cao = chiều cao ô nhập. Sàn vùng chạm do .ipqc-result-input giữ
+       (min-height: var(--d-control-h)) nên cả cụm vẫn đủ cao cho ngón đeo găng. */
     min-width: var(--d-tap);
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0;          /* icon tự căn giữa trong vùng chạm vuông */
+    padding: 0;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
 }
 .ipqc-item-subrow td {
     padding-top: 0;
