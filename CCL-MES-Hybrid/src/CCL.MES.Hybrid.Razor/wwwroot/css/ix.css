@@ -809,10 +809,20 @@
 }
 .grid-btn-link:hover, .op-btn-link:hover { background: var(--brand-bg); border-color: transparent; }
 .grid-btn-small, .op-btn-sm { min-height: calc(var(--d-control-h) - 6px); padding: 0 var(--sp-3); font-size: var(--fs-sm); }
+/* A3 — biến thể "nhỏ" tồn tại để nén hàng dày ở office, nơi có chuột: giữ
+   nguyên 22px ở đó (không churn layout 19 chỗ dùng). Nhưng ở shopfloor
+   "nhỏ" không phải cái giá được phép trả — ngón đeo găng vẫn cần đủ 44px.
+   Sửa này còn khôi phục một chủ ý bị đè âm thầm: app.css:6517 đã cố ý đặt
+   .ipqc-measured-save-btn min-height:var(--d-tap) kèm chú thích "glove-safe",
+   nhưng ix.css nạp sau + cùng specificity (0,1,0) nên nút lưu số đo IPQC
+   tụt 44 → 38px. */
+:root[data-density="shopfloor"] :is(.grid-btn-small, .op-btn-sm) { min-height: var(--d-tap); }
 .grid-btn:disabled, .op-btn:disabled, .qms-btn:disabled { opacity: .45; cursor: not-allowed; }
 
 /* 11.3 — CHIP LỌC: viên thuốc, có hover, trạng thái nhấn rõ.
    Khác pill trạng thái ở chỗ chip BẤM ĐƯỢC — nên nó phải phản hồi khi rê chuột. */
+/* A4 — chip lọc bấm được, cùng lý lẽ A3: office giữ nén, shopfloor đủ chạm.
+   Xem :root[data-density="shopfloor"] ở cuối khối chip. */
 .md-chip, .ix-chip {
     display: inline-flex; align-items: center; gap: var(--sp-1);
     min-height: calc(var(--d-control-h) - 4px);
@@ -825,6 +835,7 @@
     font-weight: var(--fw-semibold);
     cursor: pointer;
 }
+:root[data-density="shopfloor"] :is(.md-chip, .ix-chip) { min-height: var(--d-tap); }
 .md-chip:hover, .ix-chip:hover { background: var(--ix-surface-2); border-color: var(--ix-ink-mut); }
 .md-chip:focus-visible, .ix-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .md-chip-on, .ix-chip[aria-pressed="true"], .ix-chip-on {
@@ -961,8 +972,15 @@ h1:focus, h2:focus, .qms-section-title:focus, .qms-module-title:focus {
    Trước đây mỗi planner một màu đặc (silk đỏ · flexo xanh dương …) trông y hệt
    pill trạng thái ⇒ mắt đọc "INDIGO" là "đạt". Hạ về nhãn trung tính: cùng một
    hình, phân biệt bằng CHỮ, không bằng màu. Màu để dành cho tình trạng. */
+/* E1 — MỞ RỘNG D6.6. Phán quyết trên chữa .spec-planner-* nhưng bỏ sót
+   .spec-process-flag.is-* ở app.css:2594-2597 — cùng một lỗi, cùng một màn:
+   is-indigo dùng --ok-bg (xanh lá "đạt") cho chip ghi "Indigo (HP)", is-silk
+   dùng --ng-bg (đỏ "hỏng") cho "Silkscreen". Đó là LOẠI QUY TRÌNH IN, không
+   phải kết quả kiểm. Chip đã có chữ rõ nên hạ về trung tính không mất thông tin. */
 .spec-planner-chip, .spec-planner-silk, .spec-planner-flexo, .spec-planner-indigo,
-.spec-planner-letter, .spec-planner-diecut, .spec-planner-screen {
+.spec-planner-letter, .spec-planner-diecut, .spec-planner-screen,
+.spec-process-flag.is-silk, .spec-process-flag.is-flexo,
+.spec-process-flag.is-indigo, .spec-process-flag.is-letter {
     background: var(--ix-idle-tint) !important;
     color: var(--ix-idle-ink) !important;
     border: var(--ix-hairline) solid var(--ix-idle-line);

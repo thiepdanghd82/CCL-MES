@@ -42,6 +42,18 @@ public sealed partial class TranslationCatalog
 
         Add("machine.list.idle",            "— nhàn rỗi —",                                             "— idle —");
 
+        // G1 — nhãn TRẠNG THÁI MÁY. Trước đây cứng tiếng Anh ở BA chỗ (ô KPI,
+        // chip lọc, viên trạng thái trong bảng/thẻ/drawer) trong khi mọi nhãn
+        // khác cùng trang đã dịch. Sửa lẻ một chỗ sẽ đẻ ra bất nhất mới
+        // (tile "Đang chạy" cạnh pill "Running"), nên ba chỗ dùng chung bộ này.
+        Add("machine.status.all",           "Tất cả",                                                   "All");
+        Add("machine.status.running",       "Đang chạy",                                                "Running");
+        Add("machine.status.idle",          "Nhàn rỗi",                                                 "Idle");
+        Add("machine.status.setup",         "Canh máy",                                                 "Setup");
+        Add("machine.status.down",          "Dừng máy",                                                 "Down");
+        Add("machine.status.maintenance",   "Bảo trì",                                                  "Maintenance");
+        Add("machine.status.pm",            "BT",                                                       "PM");
+
         Add("machine.area.count",           "{0} máy",                                                  "{0} machines");
         Add("machine.area.quality",         "Chất lượng {0}",                                           "Quality {0}");
 

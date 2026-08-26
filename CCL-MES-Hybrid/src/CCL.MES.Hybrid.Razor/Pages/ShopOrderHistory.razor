@@ -178,7 +178,8 @@ else
                 <h2 class="md-drawer-title">@_selected.WoNo</h2>
                 <div class="soh-drawer-sub">@_selected.CustomerName · @(_selected.ProductCode ?? "—") · @(_selected.MachineCode ?? "—")</div>
             </div>
-            <button type="button" class="md-drawer-close" @onclick="@(() => _selected = null)">✕</button>
+            <button type="button" class="md-drawer-close" @onclick="@(() => _selected = null)"
+                    aria-label="@T("common.close")" title="@T("common.close")"><span aria-hidden="true">✕</span></button>
         </div>
         <div class="md-drawer-body">
             <h3 class="md-drawer-sub">@T("shoporders.drawer.finalsummary")</h3>

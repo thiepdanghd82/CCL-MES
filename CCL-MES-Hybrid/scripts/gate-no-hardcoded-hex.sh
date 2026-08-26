@@ -17,14 +17,16 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-BASELINE=35
-
+# E2: .drawing-status-withdrawn bỏ cặp hex hồng → --c-divider/--c-muted
+# B/E: .ipqc-counter-value #0c4a6e → var(--accent-ink)
+# A2/F: bỏ 3 hex bộ màu macOS (.fw-light-*) → nút glyph trung tính + alarm khi hover
+BASELINE=29
 # L37b — hex thô trong .razor. Gate gốc chỉ quét app.css, nên một inline style
 # như style="border-left:4px solid #dc2626" trong .razor lọt hoàn toàn. Phát
 # hiện khi gom StatusPill: ShopOrderHistory.razor đang nhét 2 hex như vậy.
 # Ratchet đi xuống — màu trong markup phải qua class + token, không viết thẳng.
-BASELINE_RAZOR=22
-
+# E3: QcHistory.razor bỏ 4 hex thô (3 tham số màu thanh → var(--brand)/--ok-ink/--ng-ink, 1 inline style → API data-tone ix.css:730)
+BASELINE_RAZOR=17
 here="$(cd "$(dirname "$0")" && pwd)"
 CSSDIR="$here/../src/CCL.MES.Hybrid.Razor/wwwroot/css"
 CSS="$CSSDIR/app.css"
