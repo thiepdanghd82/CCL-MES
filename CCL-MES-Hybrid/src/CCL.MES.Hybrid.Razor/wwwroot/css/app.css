@@ -240,6 +240,23 @@ html {
     font-size: calc(100% * var(--ui-scale));
 }
 
+/* ── RESET box-sizing cho FORM CONTROL ────────────────────────────────────
+   L59 — `width: 100%` + `padding` + `border` dưới `content-box` mặc định thì
+   ô rộng hơn khung chứa đúng bằng padding+border. Henry bắt được ở ô "Approval
+   / rejection reason" của IPQC: `.ipqc-input` khai `width:100%; padding:8px
+   10px; border:1px` ⇒ tràn 22px, trong khi hai nút ngay dưới dừng đúng lề.
+
+   Đếm được 22 selector cùng bệnh trong app.css — mỗi cái là một chỗ chờ tràn.
+   Và có 13 chỗ đã khai `box-sizing` LẺ (login-input, lock-input, …): tức lỗi
+   này đã được phát hiện ÍT NHẤT 13 lần và vá lẻ 13 lần, chưa lần nào thành
+   luật. Đúng dạng thất bại mà L4/L56 đã nêu.
+
+   PHẠM VI CÓ CHỦ ĐÍCH: chỉ form control, KHÔNG lật toàn cục `*`. Reset toàn
+   cục là chuẩn hiện đại, nhưng 7.3k dòng CSS này đã được tinh chỉnh bằng mắt
+   dưới content-box; lật hết mà không xem được 105 màn là đánh cược. Nợ phần
+   container còn lại ghi ở docs/AUDIT-RESPONSIVE-TABLET.md. */
+input, select, textarea, button { box-sizing: border-box; }
+
 html, body {
     margin: 0;
     padding: 0;
@@ -6694,19 +6711,37 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     color: var(--c-ink-1);
     margin-right: var(--sp-2);
 }
-.ipqc-item-table .ipqc-col-method { white-space: nowrap; }
+/* METHOD và SPEC là hai cột MÔ TẢ cùng loại — cho chúng bằng nhau thay vì để
+   METHOD tự nong ra. `white-space: nowrap` cũ ép METHOD rộng bằng chuỗi dài
+   nhất của nó (vd "Thước cặp/CMM (KHÔNG thước lá cho dung sai nhỏ)"), bóp chết
+   cột RESULT bên phải. Nay cho xuống dòng và chia đôi đều. */
+.ipqc-item-table .ipqc-col-method,
+.ipqc-item-table .ipqc-col-spec {
+    width: 22%;
+    white-space: normal;
+    word-break: break-word;
+}
 .ipqc-item-table .ipqc-col-result {
     display: flex;
     align-items: center;
     gap: var(--sp-2);
 }
-.ipqc-result-input { min-width: 6rem; max-width: 10rem; }
+/* Ô nhập hẹp lại; chỗ tiết kiệm được trả cho METHOD/SPEC đọc dễ hơn. Sàn 4.5rem
+   vẫn đủ cho một số đo điển hình ("83.5") mà không cắt. */
+.ipqc-result-input { min-width: 4.5rem; max-width: 7rem; }
+/* Nút lưu chỉ còn icon — vuông, vùng chạm vẫn --d-tap (xem .ipqc-measured-save-btn). */
+.ipqc-save-ico { width: var(--sp-4); height: var(--sp-4); display: block; }
 /* Compact save button never wraps to a 2nd/3rd line — short label + nowrap +
    a glove-safe tap target that still reads on the shopfloor. */
 .ipqc-measured-save-btn {
     white-space: nowrap;
     min-height: var(--d-tap);
+    min-width: var(--d-tap);
     flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;          /* icon tự căn giữa trong vùng chạm vuông */
 }
 .ipqc-item-subrow td {
     padding-top: 0;

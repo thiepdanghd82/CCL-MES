@@ -29,6 +29,7 @@ GATES=(
   "viewport:gate-viewport-sizing.sh:L57b cỡ chữ/khoảng cách không lái bằng vw"
   "bp:gate-breakpoint-scale.sh:L58a breakpoint qua thang 5 bậc thiết bị"
   "tbl:gate-table-responsive.sh:L58b bảng rộng phải có luật responsive"
+  "box:gate-box-sizing.sh:L59 width:100% phải kèm box-sizing"
   "i18n:gate-i18n-parity.sh:L42 catalog lành, không chuỗi cứng"
   "audit:gate-audit-emit.sh:L43 mutation có vết, detail sạch"
   "legacy-frozen:gate-legacy-web-frozen.sh:C2 app :5050 đóng băng, .resx không key mới"
