@@ -84,7 +84,8 @@
             }
             <div class="ipqc-counter-pill" data-testid="ipqc-counter">
                 <span class="ipqc-counter-label">@(ItemsMode ? T("ipqc.counter.items") : T("ipqc.counter.slots"))</span>
-                <span class="ipqc-counter-value scan-mono">@ConfirmedCount/@TotalCount</span>
+                <span class="ipqc-counter-value scan-mono @(TotalCount > 0 && ConfirmedCount >= TotalCount ? "is-complete" : null)">@*
+      *@<span class="ipqc-counter-done">@ConfirmedCount</span>/@TotalCount</span>
             </div>
         </div>
 

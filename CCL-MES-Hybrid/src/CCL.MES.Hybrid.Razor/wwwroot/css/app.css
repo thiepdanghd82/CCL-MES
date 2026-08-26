@@ -6317,18 +6317,25 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
        keeps both surfaces in sync visually + responsive-wise. */
 }
 
+/* Ô đếm hạng mục đã xác nhận — BỎ khung viên thuốc: nó là một CON SỐ, không
+   phải một nút hay một trạng thái đóng gói. Nền + viền chỉ thêm nhiễu quanh
+   thứ mà mắt vốn đã tìm thấy nhờ cỡ chữ. Đúng iX #1 (chức năng trước trang trí)
+   và iX #6 (chrome tối thiểu). */
 .ipqc-counter-pill {
     display: inline-flex;
     flex-direction: column;
     align-items: flex-end;
     gap: 2px;
-    padding: 8px 14px;
-    background: var(--accent-bg);
-    border: 1px solid #67e8f9;
-    border-radius: 8px;
 }
 .ipqc-counter-label { font-size: var(--fs-xs); color: var(--accent-ink); }
 .ipqc-counter-value { font-size: var(--op-fs-num); font-weight: var(--fw-bold); color: var(--accent-ink); }
+
+/* TỬ SỐ mang trạng thái: còn thiếu thì ĐỎ — người vận hành liếc một cái là biết
+   phiếu chưa ký xong. Mẫu số giữ màu cũ để mắt vẫn đọc ra "trên tổng bao nhiêu".
+   Đủ hết thì CẢ CỤM chuyển xanh: hết việc, không còn gì phải đỏ. */
+.ipqc-counter-done { color: var(--ng-ink); }
+.ipqc-counter-value.is-complete,
+.ipqc-counter-value.is-complete .ipqc-counter-done { color: var(--brand); }
 
 /* ── Slot cards ─────────────────────────────────────────────────── */
 
@@ -6505,7 +6512,11 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 
 .ipqc-mat-row {
     display: grid;
-    grid-template-columns: 1fr 2.2fr 1.2fr 1.2fr minmax(120px, 0.8fr);
+    /* Cột CONFIRM là cột CUỐI: `max-content` cho nó co về đúng bề rộng cụm
+       OK/NG, phần dư dồn cho các cột dữ liệu phía trước ⇒ nút ghim sát biên
+       phải ở MỌI bề rộng. `minmax(120px, 0.8fr)` cũ nở theo chỗ trống nên nút
+       nằm ở MÉP TRÁI của một ô rộng, để lại khoảng hở treo bên phải. */
+    grid-template-columns: 1fr 2.2fr 1.2fr 1.2fr max-content;
     gap: var(--sp-3);
     align-items: center;
     padding: var(--sp-3);
@@ -6549,7 +6560,7 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 
 /* Keep the shared ConfirmToggle at its natural compact segmented size
    (inline-flex) instead of stretching it across the wide CONFIRM column. */
-.ipqc-mat-confirm { align-items: flex-start; }
+.ipqc-mat-confirm { align-items: flex-start; justify-self: end; }
 
 /* Sub-rows (NG form + waiver) span the full width of the grid row. */
 .ipqc-mat-subrow,
@@ -7121,7 +7132,10 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
         letter-spacing: 0.04em;
         color: var(--c-ink-4);
     }
-    .ipqc-mat-confirm { align-items: stretch; }
+    /* Ở chế độ card, hàng là grid MỘT CỘT nên nút xác nhận phải TRẢI HẾT bề
+       rộng — huỷ justify-self:end của chế độ bảng, nếu không nút co về mép
+       phải và mất vùng chạm lớn nhất của card. */
+    .ipqc-mat-confirm { align-items: stretch; justify-self: stretch; }
 
     /* L58 — card MATERIAL: đo được một vật tư ~197pt, 5 vật tư ~985pt VƯỢT QUÁ
        một màn tablet 884pt, chỉ để xác nhận 5 dòng. Hai nguyên nhân, sửa cả hai:
