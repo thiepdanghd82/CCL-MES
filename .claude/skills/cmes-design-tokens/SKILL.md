@@ -105,10 +105,25 @@ scoped chết trên maccatalyst → phải để global).
 - [ ] `:focus-visible` dùng `var(--focus-ring)`, không `outline: none` trần
 - [ ] `bash CCL-MES-Hybrid/scripts/gate-design-tokens.sh` không tăng ratchet
 - [ ] `bash CCL-MES-Hybrid/scripts/gate-no-hardcoded-hex.sh` xanh (L37)
+- [ ] `bash CCL-MES-Hybrid/scripts/gate-token-defined.sh` xanh (L56) — mọi
+      `var()` trỏ token CÓ THẬT. Hard-fail ở 0, không có baseline để bump.
+      `var(--chưa-định-nghĩa)` hỏng ở computed-value time, KHÔNG im lặng:
+      màu chữ tụt về inherit, nền/viền tụt về trong suốt. Đã làm một nút vô hình.
+- [ ] `bash CCL-MES-Hybrid/scripts/gate-tap-target.sh` xanh (L57a) — vùng chạm
+      qua `--d-tap`, không px cứng. Sàn px đi KÈM token là hợp lệ
+      (`width: var(--d-tap); min-width: 20px`).
+- [ ] `bash CCL-MES-Hybrid/scripts/gate-viewport-sizing.sh` xanh (L57b) — cỡ chữ
+      và khoảng cách KHÔNG lái bằng `vw/vh`. Cần fluid thật ⇒ dùng `cqi`.
 
 ## Do NOT
 
 - `clamp()`/`vw` để "tự co cho vừa" thay cho việc chọn đúng bậc thang —
   `clamp` là công cụ cho fluid type có chủ đích, không phải cách né thang.
+  **Nay có gate**: `gate-viewport-sizing.sh` hard-fail ở 0. `vw` mù CẢ density
+  LẪN `--ui-scale` ⇒ màn hình dùng nó tự rút khỏi hệ density. Fluid thật thì
+  dùng đơn vị container-query (`cqi`), nó co theo container chứ không theo cửa sổ.
+- Viết số px thẳng cho vùng chạm. **Nay có gate**: `gate-tap-target.sh`.
+- Dùng một `var(--token)` mà chưa định nghĩa token đó. **Nay có gate**:
+  `gate-token-defined.sh`.
 - `!important` để đè token.
 - Đặt cỡ chữ theo cảm giác trên đúng một cỡ màn hình đang mở.
