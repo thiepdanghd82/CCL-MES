@@ -19,6 +19,7 @@
 @inject IRecentScansService RecentScans
 @inject Microsoft.Extensions.Options.IOptions<HardwareOptions> HwOptions
 @inject Microsoft.Extensions.Logging.ILogger<WorkOrders> Log
+@inject Microsoft.JSInterop.IJSRuntime JS
 
 <PageTitle>@T("wo.pagetitle")</PageTitle>
 
@@ -369,7 +370,7 @@ else
                         aria-expanded="@((!_sideCollapsed).ToString().ToLowerInvariant())"
                         aria-label="@T(_sideCollapsed ? "wo.side.expand" : "wo.side.collapse")"
                         title="@T(_sideCollapsed ? "wo.side.expand" : "wo.side.collapse")"
-                        @onclick="() => _sideCollapsed = !_sideCollapsed">
+                        @onclick="ToggleSideAsync">
                     <span aria-hidden="true">@(_sideCollapsed ? "‹" : "›")</span>
                 </button>
 
@@ -473,6 +474,34 @@ else
     // hình. Cho người dùng CHỦ ĐỘNG thu gọn — đúng iX #5 ("khung là hằng số,
     // thu gọn là do người dùng chủ động"), giống hệt cách rail trái đang làm.
     private bool _sideCollapsed;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            var collapsed = await JS.InvokeAsync<bool>("cclMesDensity.sideGet");
+            if (collapsed != _sideCollapsed)
+            {
+                _sideCollapsed = collapsed;
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            // JS chưa sẵn sàng → cột mở. KHÔNG để lỗi interop nổi lên renderer
+            // (L1/L2/L3) — một preference boolean không đáng làm chết màn hình.
+        }
+    }
+
+    /// <summary>Thu/mở cột tra cứu + LƯU lựa chọn. Cùng cơ chế localStorage với
+    /// rail trái (cclMesDensity.railGet/railSet) — không dựng thêm preference
+    /// service cho một cờ boolean.</summary>
+    private async Task ToggleSideAsync()
+    {
+        _sideCollapsed = !_sideCollapsed;
+        try { await JS.InvokeVoidAsync("cclMesDensity.sideSet", _sideCollapsed); } catch { }
+    }
 
     private HardwareAvailability? _availability;
     private bool _scanning;

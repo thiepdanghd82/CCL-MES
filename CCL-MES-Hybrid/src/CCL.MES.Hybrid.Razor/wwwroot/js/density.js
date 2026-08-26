@@ -86,6 +86,22 @@ window.cclMesDensity = (() => {
         return !!collapsed;
     }
 
+    // Trạng thái thu gọn CỘT TRA CỨU bên phải màn WO (Spec Quick Ref / BOM /
+    // Audit Trail). Cùng cơ chế với rail trái — người dùng chủ động thu, và
+    // lựa chọn đó phải sống qua lần mở màn sau, nếu không mỗi lần vào lại phải
+    // thu tay một lần nữa. Đó là ma sát thật trên tablet, nơi cột này ăn ~31%
+    // bề rộng.
+    const SIDE_KEY = 'ccl.mes.woside';
+    function sideGet() {
+        try { return window.localStorage.getItem(SIDE_KEY) === 'collapsed'; }
+        catch { return false; }
+    }
+    function sideSet(collapsed) {
+        try { window.localStorage.setItem(SIDE_KEY, collapsed ? 'collapsed' : 'expanded'); }
+        catch { }
+        return !!collapsed;
+    }
+
     // Trạng thái gập/mở của các nhóm accordion trong rail (Carbon SideNavMenu).
     // Lưu MỘT chuỗi CSV các key nhóm ĐANG ĐÓNG (mặc định = mở → CSV rỗng nghĩa
     // là mọi nhóm mở). Đi chung localStorage + try/catch với density/rail thay
@@ -140,7 +156,7 @@ window.cclMesDensity = (() => {
 
     return {
         get, set, apply, boot, scaleGet, scaleSet, scaleApply,
-        railGet, railSet, navGroupsGet, navGroupsSet,
+        railGet, railSet, sideGet, sideSet, navGroupsGet, navGroupsSet,
         navPinsGet, navPinsSet, navRecentGet, navRecentSet,
     };
 })();
