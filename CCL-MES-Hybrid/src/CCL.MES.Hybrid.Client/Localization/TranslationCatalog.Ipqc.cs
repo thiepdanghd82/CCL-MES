@@ -137,7 +137,9 @@ public sealed partial class TranslationCatalog
 
         // ── Measured value input (Dimension / Function items) ─────────
         Add("ipqc.item.measured.label",      "Giá trị đo",                                                         "Measured value");
-        Add("ipqc.item.measured.placeholder","vd 0.9 / 83.5 / Loang nhẹ",                                          "e.g. 0.9 / 83.5 / slight bleed");
+        // Ô RESULT hẹp ở tablet: chuỗi cũ ("vd 0.9 / 83.5 / Loang nhẹ") bị cắt còn
+        // "vd 0.9 / 83" — gợi ý dài hơn ô thì không còn là gợi ý. Rút về một ví dụ.
+        Add("ipqc.item.measured.placeholder","vd 0.9",                                                            "e.g. 0.9");
         Add("ipqc.item.measured.save",       "Lưu giá trị đo",                                                     "Save measured value");
         // Short label for the compact save button (wide table) so it never wraps.
         Add("ipqc.item.measured.save.short", "Lưu",                                                                "Save");

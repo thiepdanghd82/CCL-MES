@@ -356,11 +356,22 @@
                                            value="@MeasuredDraft(item)"
                                            @oninput="@(e => SetMeasuredDraft(item.ItemKey, e.Value?.ToString() ?? ""))"
                                            data-testid="@($"ipqc-item-{item.ItemKey}-measured")" />
+                                    @* Cột RESULT chật ở tablet — nhãn "Lưu"/"Save" đẩy ô nhập hẹp tới mức
+                                       placeholder bị cắt. Đổi sang icon đĩa mềm (KHÔNG dùng dấu ✓: nút OK/NG
+                                       của cột VERDICT nằm ngay cạnh, dấu check sẽ gây nhầm). Nút chỉ-icon nên
+                                       BẮT BUỘC có aria-label — title một mình không đủ cho trình đọc màn hình. *@
                                     <button type="button" class="op-btn op-btn-secondary op-btn-sm ipqc-measured-save-btn"
                                             disabled="@_busy"
                                             title="@T("ipqc.item.measured.save")"
+                                            aria-label="@T("ipqc.item.measured.save")"
                                             @onclick="@(() => OnSaveMeasuredAsync(item))"
-                                            data-testid="@($"ipqc-item-{item.ItemKey}-measured-save")">@T("ipqc.item.measured.save.short")</button>
+                                            data-testid="@($"ipqc-item-{item.ItemKey}-measured-save")">
+                                        <svg class="ipqc-save-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/>
+                                            <path d="M17 21v-8H7v8M7 3v5h8"/>
+                                        </svg>
+                                    </button>
                                 </td>
                             }
                             <td class="ipqc-col-verdict" data-label="@T("ipqc.col.verdict")">
