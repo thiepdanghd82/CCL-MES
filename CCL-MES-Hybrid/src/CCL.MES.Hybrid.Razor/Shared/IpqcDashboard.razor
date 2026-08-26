@@ -346,7 +346,11 @@
                                 <span class="ipqc-status-pill @StatusPillCss(item.Status)"
                                       data-testid="@($"ipqc-item-{item.ItemKey}-status")">@StatusDisplay(item.Status)</span>
                             </td>
-                            <td class="ipqc-col-method scan-mono" data-label="@T("ipqc.col.method")">@(string.IsNullOrWhiteSpace(item.Method) ? "—" : item.Method)</td>
+                            @* METHOD là VĂN XUÔI ("Thước cặp/CMM (KHÔNG thước lá cho dung sai nhỏ)"),
+                               không phải mã số. scan-mono cũ làm nó rộng hơn ~20% cho cùng một
+                               chuỗi ⇒ vỡ dòng trong khi SPEC (sans, cùng bề rộng cột) thì không.
+                               Mono để dành cho mã cần thẳng cột: số WO, số lô, mã vật tư. *@
+                            <td class="ipqc-col-method" data-label="@T("ipqc.col.method")">@(string.IsNullOrWhiteSpace(item.Method) ? "—" : item.Method)</td>
                             <td class="ipqc-col-spec" data-label="@T("ipqc.col.spec")">@(string.IsNullOrWhiteSpace(item.AcceptanceCriteria) ? "—" : item.AcceptanceCriteria)</td>
                             @if (ShowResultColumn)
                             {
