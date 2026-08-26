@@ -66,7 +66,12 @@ public sealed class MachineDashboardTests : TestContext
         Assert.Equal(6, nums.Count);          // Running / Idle / Setup / Down / Maintenance / Plant Quality
         var markup = cut.Markup;
         Assert.Contains("Chất lượng xưởng", markup);
-        Assert.Contains("Running", markup);
+        // Nhãn trạng thái nay đi qua TranslationCatalog như mọi nhãn khác trên
+        // trang. Trước đây test này khẳng định chuỗi "Running" cứng tiếng Anh —
+        // tức GHIM chính cái bất nhất: tile "Running" nằm cạnh "Chất lượng
+        // xưởng" trong cùng một dải KPI, ở UI đang chạy tiếng Việt.
+        Assert.Contains("Đang chạy", markup);
+        Assert.DoesNotContain(">Running<", markup);
         Assert.Equal(1, _api.MachineDashboardCalls);
     }
 
@@ -121,8 +126,9 @@ public sealed class MachineDashboardTests : TestContext
         _api.MachineDashboard = Board();
         var cut = RenderComponent<MachineDashboard>();
 
-        // Click the "Running" status chip (label is "▶ Running").
-        cut.FindAll(".md-chip").First(b => b.TextContent.Contains("Running")).Click();
+        // Chip lọc "Đang chạy" (nhãn hiển thị là "▶ Đang chạy" — biểu tượng
+        // nằm trong markup, phần chữ lấy từ catalog).
+        cut.FindAll(".md-chip").First(b => b.TextContent.Contains("Đang chạy")).Click();
 
         // Cards reflect the filter (the right-hand activity sidebar is
         // intentionally plant-wide, so assert on cards, not whole markup).
