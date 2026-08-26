@@ -185,6 +185,22 @@
        chữ thường. Nay đi qua thang, đổi theo density. */
     --op-fs-id:    var(--fs-xl);   /* 22px — số WO, mã nhận dạng */
     --op-fs-num:   var(--fs-lg);   /* 18px — ô số vận hành / bộ đếm */
+
+    /* ── THANG BREAKPOINT (L58) ───────────────────────────────────────────
+       Trước đây app dùng 12 ngưỡng tự chế (480·520·560·600·640·700·720·900·
+       1000·1080·1081·1400) — bốn cái sát nhau vô nghĩa, và 1080 vs 1081 cách
+       nhau 1px. Cùng một câu chuyện đã xảy ra với MÀU (trước L37), KÍCH THƯỚC
+       (trước L41) và CỠ CHỮ (trước L49): mỗi màn tự chọn số của mình.
+       Đặt tên theo THIẾT BỊ, không theo số, để người sau chọn được đúng ngưỡng
+       mà không phải đoán.
+       LƯU Ý: CSS chưa cho dùng var() trong điều kiện @media/@container, nên
+       thang này là HỢP ĐỒNG + gate, không phải cơ chế runtime. Viết số thật
+       trong @media, nhưng chỉ được viết 5 số dưới đây. */
+    --bp-phone:    480px;   /* điện thoại, máy quét cầm tay */
+    --bp-tablet-p: 768px;   /* tablet DỌC — bề mặt xưởng chính */
+    --bp-tablet-l: 1024px;  /* tablet NGANG */
+    --bp-desk:     1280px;  /* màn bàn làm việc */
+    --bp-wide:     1600px;  /* màn rộng / màn treo tường */
 }
 /* ── DENSITY: shopfloor ───────────────────────────────────────────────────
    Người dùng: đứng máy, ĐEO GĂNG, nhìn từ xa hơn, ánh sáng xưởng, tay bẩn.
@@ -759,9 +775,16 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
-    height: 56px;
-    padding: 0 24px;
+    gap: var(--sp-4);
+    /* L58 — TRƯỚC: `height: 56px` cố định. Dưới ~900pt nội dung xuống 2-3 dòng
+       và TRÀN RA NGOÀI dải nền: ở 768pt "A · 06:00–14:00" lọt xuống vùng trắng,
+       ở 700pt còn bị cắt ngang thành "6:00–"/"4:00". Nhãn USER/SHIFT/TIME biến
+       mất, người vận hành không còn biết ba con số đó là gì.
+       Đây là chrome TOÀN CỤC nên lỗi có mặt trên cả 105 màn.
+       min-height cho phép nở thay vì cắt; nowrap + ẩn theo thang breakpoint ở
+       dưới mới là thứ giữ nó một dòng. */
+    min-height: 56px;
+    padding: 0 var(--sp-5);
     background: var(--card);
     border-bottom: 1px solid var(--c-line);
     flex: 0 0 auto;
@@ -799,7 +822,34 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     color: var(--c-soft);
     white-space: nowrap;
 }
-.app-topbar-right { display: flex; align-items: center; gap: 22px; }
+.app-topbar-right { display: flex; align-items: center; gap: var(--sp-5); flex: 0 1 auto; min-width: 0; }
+
+/* L58 — thu gọn chrome theo thang breakpoint. Thứ tự hi sinh chọn theo GIÁ TRỊ
+   VẬN HÀNH, không theo chỗ trống: USER giữ đến cùng (trách nhiệm — ai đang ký
+   vào phiếu), TIME bỏ trước (tablet đã có đồng hồ hệ thống), SHIFT bỏ sau
+   (thông tin tĩnh, người vận hành biết ca của mình).
+   Dùng @media chứ KHÔNG @container: <TopBar/> nằm trong .app-main, NGOÀI
+   .app-content — nơi duy nhất khai container-type. @container ở đây sẽ không
+   bao giờ khớp và hỏng lặng lẽ. */
+/* Co LIÊN TỤC thay vì đuổi theo từng ngưỡng: tên người dùng cắt bằng ellipsis,
+   nút không bao giờ co. Nếu chỉ ẩn theo breakpoint thì luôn còn khe hở giữa hai
+   ngưỡng — đo được ở 900px: user+shift vừa, nhưng .tb-logout vẫn tràn phải. */
+.app-topbar .tb-v { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-topbar .tb-block { min-width: 0; flex: 0 1 auto; }
+.app-topbar .tb-lang,
+.app-topbar .tb-online,
+.app-topbar .tb-logout { flex: 0 0 auto; }
+
+@media (max-width: 1024px) {          /* --bp-tablet-l */
+    .app-topbar .tb-k { display: none; }
+    /* Đo ở 1024: chỉ ẩn nhãn thì .tb-logout vẫn tràn phải. Đồng hồ đi trước —
+       tablet nào cũng có đồng hồ hệ thống, đây là ô ít giá trị nhất. */
+    .app-topbar .tb-block-time { display: none; }
+}
+@media (max-width: 768px) {           /* --bp-tablet-p */
+    .app-topbar .tb-block-shift { display: none; }
+    .app-topbar-sub { display: none; }
+}
 .tb-block { line-height: 1.25; }
 .tb-k {
     font-size: var(--fs-2xs);

@@ -24,6 +24,40 @@ Triệu chứng đã trả giá: 6 commit liên tiếp chỉnh tay một bảng 
 (`0.9rem → 1.08rem`, `nới cột 3.4%`, `clamp/vw`, `table-layout:fixed`…).
 Đó không phải lỗi thẩm mỹ — đó là hệ quả của việc không có thang.
 
+## Thang BREAKPOINT (L58) — đặt tên theo THIẾT BỊ, không theo số
+
+```
+--bp-phone 480 · --bp-tablet-p 768 · --bp-tablet-l 1024 · --bp-desk 1280 · --bp-wide 1600
+```
+
+CSS chưa cho `var()` trong điều kiện `@media`, nên đây là **hợp đồng + gate**:
+viết số thật, nhưng chỉ được viết 5 số này. `gate-breakpoint-scale.sh` từ chối
+số thứ 6.
+
+**Trước khi thêm một ngưỡng, hỏi: có phải thứ cần sửa là CO LIÊN TỤC không?**
+Đo được ở L58: chỉ ẩn theo breakpoint thì luôn còn khe hở giữa hai ngưỡng.
+`min-width: 0` + `text-overflow: ellipsis` trên phần co được, `flex: 0 0 auto`
+trên nút — đóng được mọi bề rộng mà không cần ngưỡng nào.
+
+⚠ `@container` chỉ khớp khi có tổ tiên khai `container-type`. Trong app này chỉ
+`.app-content`, `.trace-win-body`, `.rs-dashboard`, `.prepress-dashboard`,
+`.semi-dashboard`, `.qms-page`, `.iqc-insp` là container. Thứ nằm NGOÀI chúng
+(vd `TopBar`) phải dùng `@media` — `@container` ở đó **hỏng lặng lẽ**.
+
+## Bảng rộng trên tablet (L58)
+
+Bảng khai `min-width` ≥ 1024px phải có luật responsive cho **chính bảng đó**
+(`gate-table-responsive.sh`). Hai khuôn đã có, chọn theo BẢN CHẤT dữ liệu:
+
+- **Sập card** — bảng ít cột, mỗi dòng là một thực thể.
+  Khuôn đang chạy: `.ipqc-mat-row` + `[data-label]::before`.
+- **Cột dính** — bảng ma trận nhiều cột (lưới tick QC Library). Giữ 1-2 cột
+  định danh dính trái, phần còn lại cuộn trong vùng riêng.
+
+Khi sập card, **thiết kế lại NỘI DUNG**, đừng dịch từng ô 1:1: bỏ trường trùng
+lặp, và **ô rỗng thì đừng render** (trừ khi sự vắng mặt tự nó là thông tin — khi
+đó phải nói rõ lý do). L58 đo được một card dịch 1:1 cao gấp ~3 lần dòng bảng.
+
 ## Thang (định nghĩa ở `:root` trong `app.css`)
 
 ```css
@@ -101,6 +135,12 @@ scoped chết trên maccatalyst → phải để global).
 - [ ] 0 `px` literal mới cho padding/margin/gap — dùng `var(--sp-*)`
 - [ ] Surface operator: mọi nút/ô chạm `min-height: var(--d-tap)`
 - [ ] Thử ở `data-density="shopfloor"`, không vỡ layout, không cắt chữ
+- [ ] **Chụp màn ở 768px (`--bp-tablet-p`)** — BẮT BUỘC với mọi PR chạm
+      `.razor`/`app.css`. App sẽ chạy trên tablet dưới xưởng; tablet DỌC chỉ còn
+      ~800px bề rộng. Đây là ảnh THỨ BA, không thay cho hai ảnh density.
+      Vì sao bắt buộc: **không gate nào bắt được lỗi bố cục** — nó chỉ tồn tại
+      khi render ở kích thước thật. L58: thanh chrome toàn cục tràn+cắt ở 768px
+      suốt nhiều tháng trong khi mọi gate đều xanh.
 - [ ] Tương phản chữ/nền ≥ AA (shopfloor nhắm AA+)
 - [ ] `:focus-visible` dùng `var(--focus-ring)`, không `outline: none` trần
 - [ ] `bash CCL-MES-Hybrid/scripts/gate-design-tokens.sh` không tăng ratchet
@@ -127,3 +167,8 @@ scoped chết trên maccatalyst → phải để global).
   `gate-token-defined.sh`.
 - `!important` để đè token.
 - Đặt cỡ chữ theo cảm giác trên đúng một cỡ màn hình đang mở.
+- Tự chế một ngưỡng breakpoint mới. **Nay có gate**: `gate-breakpoint-scale.sh`.
+- Thêm bảng `min-width` ≥1024px mà không kèm luật responsive cho nó.
+  **Nay có gate**: `gate-table-responsive.sh`.
+- Dùng `@container` cho thứ nằm ngoài một `container-type` — nó không khớp và
+  **không báo lỗi**.

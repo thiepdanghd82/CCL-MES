@@ -30,15 +30,15 @@
     <AuthorizeView>
         <Authorized>
             <div class="app-topbar-right">
-                <div class="tb-block">
+                <div class="tb-block tb-block-user">
                     <div class="tb-k">@T("topbar.user")</div>
                     <div class="tb-v">@UserName <span class="tb-role">· @Role</span></div>
                 </div>
-                <div class="tb-block">
+                <div class="tb-block tb-block-shift">
                     <div class="tb-k">@T("topbar.shift")</div>
                     <div class="tb-v">@Shift</div>
                 </div>
-                <div class="tb-block">
+                <div class="tb-block tb-block-time">
                     <div class="tb-k">@T("topbar.time")</div>
                     <div class="tb-v tb-time">@_now.ToString("HH:mm:ss")</div>
                 </div>
