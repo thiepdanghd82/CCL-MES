@@ -6729,10 +6729,16 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     font-size: var(--fs-sm);
 }
 /* Ô nhập + nút lưu DÍNH LIỀN thành một cụm, đúng khuôn segmented của OK/NG:
-   bỏ khe hở, bỏ viền trùng ở giữa, bo góc chỉ ở hai đầu ngoài. Tiết kiệm được
-   khe + một viền, và quan trọng hơn: mắt đọc ra "một điều khiển" thay vì "hai
-   thứ rời nhau". align-items: stretch ⇒ nút cao ĐÚNG BẰNG ô nhập. */
-.ipqc-item-table .ipqc-col-result {
+   bỏ khe hở, bỏ viền trùng ở giữa, bo góc chỉ ở hai đầu ngoài.
+   align-items: stretch ⇒ nút cao ĐÚNG BẰNG ô nhập.
+
+   ⚠ FLEX PHẢI Ở DIV CON, KHÔNG Ở <td>. Đặt `display:flex` lên chính ô <td> thì
+   ô đó THOÁT KHỎI MÔ HÌNH BẢNG — không còn là table-cell, nên không tham gia
+   chiều cao hàng và không nối được đường kẻ với các ô bên cạnh. Ở office chênh
+   lệch nhỏ nên khó thấy; bật shopfloor (hàng cao 56px) thì đường kẻ cột RESULT
+   gãy hẳn. Henry bắt được lỗi này. */
+.ipqc-item-table .ipqc-col-result { vertical-align: middle; }
+.ipqc-result-group {
     display: flex;
     align-items: stretch;
     gap: 0;
@@ -6782,12 +6788,24 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     white-space: nowrap;
     text-align: center;
 }
-/* Tap-target ≥ shopfloor min: glove-friendly checkbox. */
+/* Vùng chạm nằm ở <label> bọc — giữ nguyên --d-tap cho ngón đeo găng. */
+.ipqc-apply-hit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--d-tap);
+    min-height: var(--d-tap);
+    cursor: pointer;
+}
+/* Hộp NHÌN nhỏ hơn 30%: ở shopfloor ô tick 44px to át cả nhãn hạng mục bên
+   cạnh, mắt đọc ra "cột tick" trước khi đọc ra "hạng mục kiểm". Thu hộp nhìn
+   KHÔNG làm nhỏ vùng chạm — hai thứ đã tách ra ở .ipqc-apply-hit trên. */
 .ipqc-applicable-check {
-    width: var(--d-tap);
-    height: var(--d-tap);
-    min-width: 22px;
-    min-height: 22px;
+    width: calc(var(--d-tap) * 0.7);
+    height: calc(var(--d-tap) * 0.7);
+    min-width: 16px;
+    min-height: 16px;
+    margin: 0;
     cursor: pointer;
     accent-color: var(--ok-ink);
 }
@@ -7027,19 +7045,23 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     }
 
     /* Action zone: labelled measured input + compact Save on one row. */
+    /* Ở chế độ card, <td> KHÔNG còn là table-cell nữa (cả bảng đã display:block)
+       nên grid ở đây an toàn — khác hẳn chế độ bảng, nơi flex/grid trên <td> làm
+       ô thoát khỏi mô hình bảng và gãy đường kẻ. Nay chỉ còn hai con: nhãn
+       ::before và cụm .ipqc-result-group, nên xếp một cột. */
     .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-result {
         grid-area: act;
         display: grid;
-        grid-template-columns: 1fr auto;
+        grid-template-columns: 1fr;
         align-items: center;
-        column-gap: var(--sp-2);
         row-gap: var(--sp-1);
         padding-top: var(--sp-2);
         border-top: 1px solid var(--c-line);
     }
+    /* Cụm nhập trải hết bề rộng card; nút lưu giữ bề ngang tự nhiên. */
+    .ipqc-item-table tbody tr.ipqc-item-row .ipqc-result-group { width: 100%; }
     .ipqc-item-table tbody tr.ipqc-item-row > td.ipqc-col-result::before {
         content: attr(data-label);
-        grid-column: 1 / -1;
         font-size: var(--fs-xs);
         font-weight: var(--fw-bold);
         text-transform: uppercase;
