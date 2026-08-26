@@ -8621,6 +8621,80 @@ tr.wc-row:hover { background: var(--c-bg); }
 .qclib-col-sev { width: 6.2%; }
 .qclib-col-def { width: 5.2%; }
 
+/* ═══ L58 — QC Library: CỘT DÍNH cho tablet ═══════════════════════════════
+   Bảng này là MA TRẬN TICK: 1 hàng = 1 hạng mục kiểm, N cột = N phương pháp/
+   khâu, ô giao nhau = có áp dụng hay không. Sập card SAI ở đây — card phá vỡ
+   chính cái làm nên giá trị của ma trận: đọc theo cả hai chiều.
+
+   Khuôn đúng cho ma trận là CỘT DÍNH: giữ phần ĐỊNH DANH (kebab · ItemId ·
+   Nội dung) đứng yên bên trái, để dải cột tick cuộn ngang dưới nó. Người dùng
+   luôn biết mình đang tick cho hạng mục nào — thứ mà cuộn ngang trần không
+   cho biết, và cũng chính là cách người ta bấm nhầm dòng.
+
+   CHỈ bật dưới --bp-desk: từ 1280px trở lên bảng vừa màn (min-width 1180px),
+   không cần dính, và desktop giữ nguyên 100% như trước.
+
+   Bề rộng vùng dính chọn theo chỗ THẬT còn lại: ở tablet dọc 768px, trừ rail
+   256px còn ~512px. Vùng dính ~316px ⇒ còn ~196px cho dải tick (5-6 cột nhìn
+   thấy cùng lúc). Rộng hơn nữa thì không còn gì để cuộn. */
+@media (max-width: 1280px) {
+    .qclib-grid {
+        --qclib-frz-kebab:   calc(var(--d-tap) + var(--sp-2));
+        --qclib-frz-id:      5.5rem;
+        --qclib-frz-content: 11rem;
+    }
+    /* ⚠ `min-width: 1180px` + tổng bề rộng cột khai < 1180 ⇒ trình duyệt PHÂN
+       PHỐI phần dư cho MỌI cột theo tỉ lệ, làm vùng dính phình từ 316px lên
+       549px (đo được). Ở chế độ dính phải bỏ phần dư đi: cho MỌI cột một bề
+       rộng cố định và để bảng tự dài ra bằng tổng đó. */
+    .qclib-grid { min-width: max-content; }
+    .qclib-grid .qclib-col-kebab   { width: var(--qclib-frz-kebab); }
+    .qclib-grid .qclib-col-id      { width: var(--qclib-frz-id); }
+    .qclib-grid .qclib-col-content { width: var(--qclib-frz-content); }
+    /* Cột tick: --d-tap là VÙNG CHẠM, nhưng ở density office --d-tap chỉ 28px —
+       không đủ cho nhãn 3 ký tự ("IPQC"/"OQC"), chúng dính vào nhau. Lấy giá
+       trị LỚN HƠN giữa vùng chạm và bề rộng nhãn. */
+    .qclib-grid .qclib-col-tick    { width: max(var(--d-tap), 2.5rem); }
+    .qclib-grid .qclib-col-sev     { width: 6rem; }
+    .qclib-grid .qclib-col-def     { width: 5rem; }
+
+    /* Ô dính PHẢI đục — nếu trong suốt thì dải tick cuộn LỌT QUA phía dưới.
+       Hàng lẻ trước đây không khai nền (chỉ hàng chẵn có), nên phải cho mọi ô
+       một nền cơ sở trước khi làm dính. */
+    .qclib-row td { background: var(--c-card); }
+    .qclib-row:nth-child(even) td { background: var(--c-surface); }
+
+    .qclib-grid .qclib-kebab-col,
+    .qclib-grid .qclib-c-id,
+    .qclib-grid .qclib-c-content {
+        position: sticky;
+        z-index: 2;
+    }
+    .qclib-grid .qclib-kebab-col { left: 0; }
+    .qclib-grid .qclib-c-id      { left: var(--qclib-frz-kebab); }
+    .qclib-grid .qclib-c-content { left: calc(var(--qclib-frz-kebab) + var(--qclib-frz-id)); }
+
+    /* Ô định danh trong THEAD dính CẢ hai trục ⇒ phải nằm trên cùng. */
+    .qclib-grid thead .qclib-kebab-col,
+    .qclib-grid thead .qclib-c-id,
+    .qclib-grid thead .qclib-c-content { z-index: 4; }
+
+    /* Mép vùng dính: một hairline + bóng nhẹ để mắt biết chỗ nào bắt đầu cuộn.
+       Đây là lớp NỔI (nội dung trượt xuống dưới nó) nên bóng hợp iX #1. */
+    .qclib-grid .qclib-c-content {
+        box-shadow: var(--ix-hairline) 0 0 0 var(--c-line);
+    }
+
+    /* Hàng nhóm trải ngang: cho nó dính trái luôn, nếu không tiêu đề nhóm
+       trôi mất khi cuộn sang phải. */
+    .qclib-grouprow td {
+        position: sticky;
+        left: 0;
+        z-index: 3;
+        background: var(--c-surface);
+    }
+}
+
 /* ── Banded 2-row header (sticky, offsets synced via --qclib-band-h) ── */
 .qclib-grid thead th {
     position: sticky; background: var(--c-surface); font-weight: var(--fw-bold);

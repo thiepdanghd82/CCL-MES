@@ -42,7 +42,10 @@ set -euo pipefail
 # đổi `.trace-kv-grid` (lưới key-value), KHÔNG đụng hai bảng rộng. Gate này khớp
 # chặt hơn nên đếm đúng 6.
 # Kế hoạch xử lý: docs/AUDIT-RESPONSIVE-TABLET.md §6.2
-BASELINE_TBL=5
+# 6 → 5 (.prepress-table sập card) → 4 (.qclib-grid cột dính).
+# Còn lại đều là bề mặt VĂN PHÒNG, ưu tiên thấp:
+#   .accounts-table 1200 · .audit-table 1100 · .trace-grid 1100 · .trace-prod 1100
+BASELINE_TBL=4
 
 here="$(cd "$(dirname "$0")" && pwd)"
 CSSDIR="$here/../src/CCL.MES.Hybrid.Razor/wwwroot/css"
@@ -55,7 +58,11 @@ scan_tbl() {
 import re, sys
 
 THRESHOLD = 1024          # --bp-tablet-l
-LAYOUT = re.compile(r'(display|grid-template|flex-direction|white-space|overflow)\s*:')
+# `position` PHẢI có mặt: khuôn CỘT DÍNH (một trong hai khuôn mà chính phần help
+# của gate này khuyến nghị) dùng `position: sticky`, không dùng display/grid.
+# Thiếu nó thì gate tự mâu thuẫn — bảo người ta dùng cột dính rồi không công
+# nhận cột dính. Phát hiện khi áp khuôn cho .qclib-grid, 2026-08-26.
+LAYOUT = re.compile(r'(display|grid-template|flex-direction|white-space|overflow|position)\s*:')
 
 src = ""
 for p in sys.argv[1:]:
