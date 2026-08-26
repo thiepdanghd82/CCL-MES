@@ -151,6 +151,34 @@ card thì chưa được thiết kế cho dạng card**:
 
 ---
 
+## 5b. LỖI E — Khung chiếm gần một nửa màn tablet
+
+Đo trên harness dựng đúng `.app-shell`:
+
+| viewport | rail trái | cột tra cứu phải | **chrome tổng** | còn lại |
+|---|---|---|---|---|
+| 1280pt | 256px (20%) | 320px (25%) | **45%** | 55% |
+| 1024pt | 256px (25%) | 320px (31%) | **56%** | 44% |
+| 768pt | 256px (33%) | 320px (42%) | **75%** | 25% |
+
+Cả hai đều là **cột cố định không bao giờ nhường**: rail khai
+`grid-template-columns: var(--ix-rail-w) 1fr`, cột phải khai
+`minmax(0,1fr) 320px`.
+
+Rail có sẵn cơ chế thu gọn (`data-rail="collapsed"`, 256→64px) — cột phải thì
+không có gì. Ba panel trong đó (Spec Quick Ref · BOM Summary · Audit Trail) là
+tài liệu **TRA CỨU**: cần khi cần, không cần thường trực.
+
+**Đã sửa:** thêm tay nắm thu gọn, sao đúng khuôn rail — người dùng **chủ động**
+đóng/mở (iX #5: khung là hằng số, app không tự đóng dưới chân người đang thao
+tác). Ở `--bp-tablet-p` cột xếp xuống dưới và tay nắm tự ẩn vì lúc đó không còn
+hai cột để đổi.
+
+**Còn nợ:** trạng thái đóng/mở chưa được lưu — mở lại màn là về mặc định. Rail
+trái lưu qua `localStorage` (`js/density.js` là khuôn); cột phải nên theo.
+
+---
+
 ## 6. PHƯƠNG ÁN CẢI TIẾN
 
 ### Đợt 1 — nền tảng (làm trước, mọi thứ sau dựa vào nó)

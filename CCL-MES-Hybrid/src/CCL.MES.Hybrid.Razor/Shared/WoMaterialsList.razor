@@ -65,15 +65,15 @@
                     var isNg = row.Status == "Ng";
 
                     <tr data-testid="material-row" data-bom-idx="@row.BomLineIdx">
-                        <td class="c-no">@(row.BomLineIdx + 1)</td>
-                        <td class="scan-mono">@row.MaterialCode</td>
-                        <td class="wrap desc-col">@(row.MaterialDescription ?? "—")</td>
-                        <td class="numc">@FormatNum(row.Qpa)</td>
-                        <td class="numc">@FormatRequired(row)</td>
-                        <td class="c-center">@(row.Uom ?? "—")</td>
-                        <td class="numc">@FormatNum(row.ScrapFactor)</td>
-                        <td class="numc">@(row.ScrapPercent is { } sp ? FormatNum(sp) + "%" : "—")</td>
-                        <td>
+                        <td class="c-no pm-no">@(row.BomLineIdx + 1)</td>
+                        <td class="scan-mono pm-code">@row.MaterialCode</td>
+                        <td class="wrap desc-col pm-desc">@(row.MaterialDescription ?? "—")</td>
+                        <td class="numc pm-qpa" data-label="@T("womat.col.qpa")">@FormatNum(row.Qpa)</td>
+                        <td class="numc pm-req" data-label="@T("womat.col.qtyrequired")">@FormatRequired(row)</td>
+                        <td class="c-center pm-uom" data-label="@T("womat.col.uom")">@(row.Uom ?? "—")</td>
+                        <td class="numc pm-scrapf" data-label="@T("womat.col.scrapfactor")">@FormatNum(row.ScrapFactor)</td>
+                        <td class="numc pm-scrapp" data-label="@T("womat.col.scrappct")">@(row.ScrapPercent is { } sp ? FormatNum(sp) + "%" : "—")</td>
+                        <td class="pm-scan" data-label="@T("womat.col.partscan")">
                             <input type="text"
                                    class="prepress-input scan-mono @(IsManualScan(row.BomLineIdx) ? "scan-manual" : null)"
                                    value="@ScanPart(row.BomLineIdx)"
@@ -83,9 +83,9 @@
                                    aria-label="@T("womat.aria.partscan")"
                                    data-testid="part-scan" />
                         </td>
-                        <td class="wrap @(IsManualScan(row.BomLineIdx) ? "scan-manual" : null)"
+                        <td class="wrap pm-sdesc @(IsManualScan(row.BomLineIdx) ? "scan-manual" : null)"
                             data-testid="part-scan-desc">@ScanDesc(row.BomLineIdx)</td>
-                        <td>
+                        <td class="pm-lot" data-label="@T("womat.col.lot")">
                             <input type="text"
                                    class="prepress-input"
                                    value="@draft.LotNo"
@@ -93,12 +93,12 @@
                                    disabled="@Busy"
                                    aria-label="@T("womat.aria.lotno")" />
                         </td>
-                        <td>
+                        <td class="pm-status">
                             <span class="prepress-pill @RowPillClass(row)" data-testid="status-pill">
                                 @RowStatusLabel(row)
                             </span>
                         </td>
-                        <td>
+                        <td class="pm-ng" data-label="@T("womat.col.ng")">
                             @if (isNg || draft.SettingNg)
                             {
                                 <select class="prepress-input prepress-select"
@@ -126,7 +126,7 @@
                                 <span class="prepress-muted">—</span>
                             }
                         </td>
-                        <td class="prepress-actions">
+                        <td class="prepress-actions pm-confirm">
                             @* L52 — OK/NG confirmation via the shared segmented
                                ConfirmToggle. Special Accept stays a separate
                                op-btn-special (RBAC-by-omission), never in the toggle. *@

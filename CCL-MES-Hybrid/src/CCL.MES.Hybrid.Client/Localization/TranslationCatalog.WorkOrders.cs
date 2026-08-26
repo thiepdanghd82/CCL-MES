@@ -73,6 +73,11 @@ public sealed partial class TranslationCatalog
         Add("wo.side.specquickref",      "Tra cứu Spec nhanh",                          "Spec Quick Ref");
         Add("wo.side.bomsummary",        "Tóm tắt BOM",                                 "BOM Summary");
         Add("wo.side.audittrail",        "Nhật ký truy vết",                            "Audit Trail");
+
+        // L58 — nút ẩn/hiện cột tra cứu bên phải. Cột này khai cứng 320px; cộng
+        // với rail trái 256px thì ở tablet 1024pt chrome chiếm ~49% màn hình.
+        Add("wo.side.collapse",          "Ẩn cột tra cứu",                              "Hide reference column");
+        Add("wo.side.expand",            "Hiện cột tra cứu",                            "Show reference column");
         Add("wo.bom.aside",              "{0} vật tư · {1} OK",                         "{0} materials · {1} OK");
         Add("wo.bom.lot",                "Lô {0}",                                      "Lot {0}");
         Add("wo.audit.events",           "{0} sự kiện",                                 "{0} events");

@@ -42,7 +42,7 @@ set -euo pipefail
 # đổi `.trace-kv-grid` (lưới key-value), KHÔNG đụng hai bảng rộng. Gate này khớp
 # chặt hơn nên đếm đúng 6.
 # Kế hoạch xử lý: docs/AUDIT-RESPONSIVE-TABLET.md §6.2
-BASELINE_TBL=6
+BASELINE_TBL=5
 
 here="$(cd "$(dirname "$0")" && pwd)"
 CSSDIR="$here/../src/CCL.MES.Hybrid.Razor/wwwroot/css"
