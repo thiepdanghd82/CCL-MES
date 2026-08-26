@@ -187,7 +187,7 @@ else
                     }
                 </div>
 
-                <div class="wo-detail-grid">
+                <div class="wo-detail-grid" data-side="@(_sideCollapsed ? "collapsed" : null)">
                 <div class="wo-main">
 
                 <div class="wo-card" data-mes-phase="@_summary.MesPhase" data-current-step="@_summary.CurrentStep">
@@ -364,6 +364,15 @@ else
 
                 </div>@* /wo-main *@
 
+                <button type="button" class="wo-side-toggle"
+                        data-testid="wo-side-toggle"
+                        aria-expanded="@((!_sideCollapsed).ToString().ToLowerInvariant())"
+                        aria-label="@T(_sideCollapsed ? "wo.side.expand" : "wo.side.collapse")"
+                        title="@T(_sideCollapsed ? "wo.side.expand" : "wo.side.collapse")"
+                        @onclick="() => _sideCollapsed = !_sideCollapsed">
+                    <span aria-hidden="true">@(_sideCollapsed ? "‹" : "›")</span>
+                </button>
+
                 <aside class="wo-side">
                     <div class="wo-side-panel">
                         <div class="wo-side-head">① @T("wo.side.currentstate")</div>
@@ -459,6 +468,12 @@ else
 }
 
 @code {
+    // L58 — cột tra cứu phải (Spec/BOM/Audit) khai cứng 320px và không bao giờ
+    // nhường chỗ. Cộng rail trái 256px thì ở tablet 1024pt chrome ăn ~49% màn
+    // hình. Cho người dùng CHỦ ĐỘNG thu gọn — đúng iX #5 ("khung là hằng số,
+    // thu gọn là do người dùng chủ động"), giống hệt cách rail trái đang làm.
+    private bool _sideCollapsed;
+
     private HardwareAvailability? _availability;
     private bool _scanning;
     private bool _lookingUp;

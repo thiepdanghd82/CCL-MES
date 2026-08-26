@@ -152,8 +152,8 @@
                                     <span class="ipqc-mat-divtag" data-testid="@($"ipqc-material-row-{row.BomLineIdx}-divtag")">@T("ipqc.material.divergent.tag")</span>
                                 }
                             </span>
-                            <span class="ipqc-mat-cell scan-mono" role="cell" data-label="@T("ipqc.material.col.iqclot")">@(string.IsNullOrWhiteSpace(row.SourceIqcReceiptNo) ? T("ipqc.material.none") : row.SourceIqcReceiptNo)</span>
-                            <span class="ipqc-mat-cell scan-mono" role="cell" data-label="@T("ipqc.material.col.actual")">@(string.IsNullOrWhiteSpace(row.ActualAtMachine) ? T("ipqc.material.none") : row.ActualAtMachine)</span>
+                            <span class="ipqc-mat-cell scan-mono @(string.IsNullOrWhiteSpace(row.SourceIqcReceiptNo) ? "ipqc-mat-cell-empty" : null)" role="cell" data-label="@T("ipqc.material.col.iqclot")">@(string.IsNullOrWhiteSpace(row.SourceIqcReceiptNo) ? T("ipqc.material.none") : row.SourceIqcReceiptNo)</span>
+                            <span class="ipqc-mat-cell scan-mono @(string.IsNullOrWhiteSpace(row.ActualAtMachine) ? "ipqc-mat-cell-empty" : null)" role="cell" data-label="@T("ipqc.material.col.actual")">@(string.IsNullOrWhiteSpace(row.ActualAtMachine) ? T("ipqc.material.none") : row.ActualAtMachine)</span>
                             <span class="ipqc-mat-cell ipqc-mat-confirm" role="cell" data-label="@T("ipqc.material.col.confirm")">
                                 @* L52 — shared OK/NG segmented toggle *@
                                 <ConfirmToggle Status="@row.Status"

@@ -5577,6 +5577,74 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 .prepress-table colgroup col.col-mat-lot   { width: 130px; }
 .prepress-table colgroup col.col-mat-stat  { width: 110px; }
 .prepress-table colgroup col.col-mat-ng    { width: auto; min-width: 220px; }
+
+/* ── L58 — .prepress-table sập CARD ở tablet dọc ──────────────────────────
+   Bảng 14 cột, min-width 1400px, trên BỀ MẶT XƯỞNG. Ở tablet dọc (~800px)
+   người đứng máy phải cuộn ngang để xác nhận công đoạn chế bản — đeo găng,
+   cầm tablet một tay, cuộn ngang là cách chắc chắn để ký nhầm dòng.
+
+   Sao khuôn đang chạy ở .ipqc-item-row (@container max-width:1000px), KHÔNG
+   phát minh khuôn thứ ba.
+
+   THIẾT KẾ LẠI NỘI DUNG, không dịch 1:1 (bài học từ card MATERIAL cao gấp 3
+   lần dòng bảng): ba ô DỮ LIỆU KỸ THUẬT — QPA, hệ số hao, % hao — là số liệu
+   HOẠCH ĐỊNH, không phải số liệu lúc xác nhận. Ẩn ở tablet; desktop vẫn có đủ.
+   Giữ lại đúng thứ người vận hành cần để quyết OK/NG: mã · mô tả · SL yêu cầu
+   · mã quét được · lô · trạng thái · lý do NG · nút xác nhận. */
+@container (max-width: 768px) {
+    .prepress-table,
+    .prepress-table tbody { display: block; width: 100%; min-width: 0; }
+    .prepress-table thead { display: none; }   /* mỗi dòng tự mang nhãn */
+
+    .prepress-table tbody tr {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: var(--sp-2) var(--sp-3);
+        padding: var(--sp-3);
+        margin-bottom: var(--sp-3);
+        border: 1px solid var(--c-line-2);
+        border-left: var(--sp-1) solid var(--c-line-2);
+        border-radius: var(--r-md);
+        background: var(--c-card);
+    }
+    .prepress-table tbody tr > td { display: block; padding: 0; border: 0; }
+
+    /* Số liệu hoạch định — không cần khi đứng máy xác nhận. */
+    .prepress-table .pm-qpa,
+    .prepress-table .pm-scrapf,
+    .prepress-table .pm-scrapp { display: none; }
+
+    .pm-no     { grid-column: 1; font-weight: var(--fw-bold); color: var(--c-muted); }
+    .pm-code   { grid-column: 2; font-weight: var(--fw-bold); font-size: var(--fs-lg); }
+    .pm-status { grid-column: 3; justify-self: end; }
+    .pm-desc   { grid-column: 1 / -1; color: var(--c-ink-3); }
+    .pm-req    { grid-column: 1 / 3; }
+    .pm-uom    { grid-column: 3; justify-self: end; }
+    .pm-scan   { grid-column: 1 / -1; }
+    .pm-sdesc  { grid-column: 1 / -1; }
+    .pm-lot    { grid-column: 1 / -1; }
+    .pm-ng     { grid-column: 1 / -1; }
+    .pm-confirm{ grid-column: 1 / -1; }
+
+    /* Nhãn tự sinh — ô nào KHÔNG có data-label thì không mọc nhãn rỗng. */
+    .prepress-table tbody tr > td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: var(--fs-2xs);
+        font-weight: var(--fw-bold);
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--c-muted);
+        margin-bottom: var(--sp-1);
+    }
+    /* Ô rỗng thì đừng chiếm chỗ — trừ khi sự vắng mặt tự nó là thông tin. */
+    .prepress-table tbody tr > td.pm-sdesc:empty { display: none; }
+
+    .prepress-table .prepress-input { width: 100%; }
+    /* Vùng chạm: nút xác nhận trải hết bề rộng card, ngón đeo găng không trượt. */
+    .prepress-table .pm-confirm { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+    .prepress-table .pm-confirm > * { flex: 1 1 auto; }
+}
 .prepress-table colgroup col.col-mat-act   { width: 220px; }
 
 .prepress-table th,
@@ -6960,6 +7028,26 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
         color: var(--c-ink-4);
     }
     .ipqc-mat-confirm { align-items: stretch; }
+
+    /* L58 — card MATERIAL: đo được một vật tư ~197pt, 5 vật tư ~985pt VƯỢT QUÁ
+       một màn tablet 884pt, chỉ để xác nhận 5 dòng. Hai nguyên nhân, sửa cả hai:
+
+       ❶ TRÙNG NGUYÊN VĂN — mã vật tư in ở ô CODE rồi in LẠI làm dòng đậm đầu ô
+         SYSTEM. Ở dạng bảng hai cột cạnh nhau còn đọc được; ở dạng card nó thành
+         hai dòng y hệt nhau chồng lên nhau. Ẩn bản lặp, giữ mô tả + tag phân kỳ.
+
+       ❷ Ô RỖNG TỐN CHỖ NHƯ Ô CÓ DỮ LIỆU — "SOURCE IQC LOT: —" chiếm trọn một
+         cặp nhãn+giá trị (~62px) chỉ để nói "không có". KHÔNG ẩn hẳn: với vật tư
+         phân kỳ, việc thiếu lô IQC nguồn CÓ THỂ là thông tin. Nén về một dòng
+         nhãn-giá-trị nằm ngang (~20px) — giữ nguyên thông tin, bỏ phần lãng phí. */
+    .ipqc-mat-row .ipqc-mat-sys-code { display: none; }
+
+    .ipqc-mat-row > .ipqc-mat-cell-empty {
+        display: flex; align-items: baseline; gap: var(--sp-2);
+        color: var(--c-muted);
+    }
+    .ipqc-mat-row > .ipqc-mat-cell-empty::before { margin-bottom: 0; }
+
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -7325,11 +7413,49 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 }
 
 /* P10.7 — WO detail 2-col layout + right sidebar (SpecHub parity) */
+/* L58 — cột tra cứu phải THU GỌN ĐƯỢC.
+   Đo được: cột này khai cứng 320px, cộng rail trái 256px ⇒ ở tablet 1024pt
+   chrome ăn ~49% màn hình, chỉ còn nửa màn để làm việc. Ba panel trong đó
+   (Spec Quick Ref · BOM Summary · Audit Trail) là tài liệu TRA CỨU — cần khi
+   cần, không cần thường trực.
+   Thu gọn là do NGƯỜI DÙNG chủ động (iX #5 — khung là hằng số), giống hệt
+   rail trái; app KHÔNG tự đóng dưới chân người đang thao tác. */
 .wo-detail-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
-    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) auto 320px;
+    gap: var(--sp-4);
     align-items: start;
+}
+.wo-detail-grid[data-side="collapsed"] { grid-template-columns: minmax(0, 1fr) auto 0; }
+.wo-detail-grid[data-side="collapsed"] .wo-side { display: none; }
+
+/* Tay nắm: dải mỏng dính mép, luôn thấy, vùng chạm đủ --d-tap. */
+.wo-side-toggle {
+    align-self: stretch;
+    min-width: var(--d-tap);
+    padding: 0;
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-sm);
+    background: var(--c-surface);
+    color: var(--c-muted);
+    font-size: var(--fs-lg);
+    line-height: 1;
+    cursor: pointer;
+    position: sticky;
+    top: var(--sp-3);
+    transition: background var(--mo-fast), color var(--mo-fast);
+}
+.wo-side-toggle:hover { background: var(--c-divider); color: var(--c-ink); }
+.wo-side-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Tablet dọc: cột tra cứu không còn chỗ cạnh nội dung — xếp xuống dưới, và
+   giấu tay nắm vì lúc này nó vô nghĩa (không còn hai cột để đổi). */
+@media (max-width: 768px) {
+    .wo-detail-grid,
+    .wo-detail-grid[data-side="collapsed"] { grid-template-columns: minmax(0, 1fr); }
+    .wo-side-toggle { display: none; }
+    .wo-detail-grid[data-side="collapsed"] .wo-side { display: flex; }
+    .wo-side { position: static; }
 }
 .wo-main { min-width: 0; }
 .wo-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 12px; }
