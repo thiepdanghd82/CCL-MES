@@ -6753,6 +6753,23 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     border-right: 0;              /* viền chung với nút, không vẽ hai lần */
 }
 .ipqc-save-ico { width: var(--sp-4); height: var(--sp-4); display: block; }
+
+/* VERDICT là cột CUỐI — ghim sát biên phải của bảng.
+   `width: 1%` trên cột cuối của table-layout:auto = "co về đúng nội dung", phần
+   dư dồn hết cho các cột co giãn phía trước. Không có nó thì cột VERDICT trôi
+   giữa bảng và để lại một khoảng trắng treo lơ lửng ở mép phải. */
+.ipqc-item-table .ipqc-col-verdict {
+    width: 1%;
+    white-space: nowrap;
+}
+
+/* Tab KHÔNG có cột RESULT (vd A·Ngoại quan): 26%+26% để lại ~28% treo không ai
+   dùng. Trả chỗ đó cho hai cột mô tả — cùng chỗ mà METHOD đang cần để hết vỡ
+   dòng. Vẫn giữ METHOD == SPEC. */
+.ipqc-item-table.ipqc-no-result .ipqc-col-method,
+.ipqc-item-table.ipqc-no-result .ipqc-col-spec {
+    width: 32%;
+}
 /* Compact save button never wraps to a 2nd/3rd line — short label + nowrap +
    a glove-safe tap target that still reads on the shopfloor. */
 .ipqc-measured-save-btn {
