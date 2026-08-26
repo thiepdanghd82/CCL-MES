@@ -333,6 +333,10 @@
                         <tr class="ipqc-item-row @ItemCssClass(item) @(item.Applicable ? "" : "ipqc-item-row-na")" data-testid="@($"ipqc-item-{item.ItemKey}")">
                             <td class="ipqc-col-num scan-mono" data-testid="@($"ipqc-item-{item.ItemKey}-num")">@(index + 1)</td>
                             <td class="ipqc-col-applicable">
+                                @* Hộp nhìn nhỏ 30% theo yêu cầu vận hành, nhưng VÙNG CHẠM giữ
+                                   nguyên --d-tap: <label> bọc chuyển click về input (HTML thuần,
+                                   không JS). Cùng khuôn tách nhìn/chạm đã dùng ở .fw-light. *@
+                                <label class="ipqc-apply-hit">
                                 <input type="checkbox" class="ipqc-applicable-check"
                                        checked="@item.Applicable"
                                        disabled="@_busy"
@@ -340,6 +344,7 @@
                                        title="@T("ipqc.applicable.hint")"
                                        @onchange="@(e => OnToggleApplicableAsync(item, e.Value is bool b && b))"
                                        data-testid="@($"ipqc-item-{item.ItemKey}-applicable")" />
+                                </label>
                             </td>
                             <td class="ipqc-col-item">
                                 <span class="ipqc-item-label">@item.Label</span>
@@ -355,6 +360,7 @@
                             @if (ShowResultColumn)
                             {
                                 <td class="ipqc-col-result" data-label="@T("ipqc.item.measured.short")">
+                                    <div class="ipqc-result-group">
                                     <input type="text" class="ipqc-input ipqc-result-input" maxlength="128"
                                            placeholder="@T("ipqc.item.measured.placeholder")"
                                            value="@MeasuredDraft(item)"
@@ -376,6 +382,7 @@
                                             <path d="M17 21v-8H7v8M7 3v5h8"/>
                                         </svg>
                                     </button>
+                                    </div>
                                 </td>
                             }
                             <td class="ipqc-col-verdict" data-label="@T("ipqc.col.verdict")">
