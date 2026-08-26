@@ -7043,8 +7043,12 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     .ipqc-mat-row .ipqc-mat-sys-code { display: none; }
 
     .ipqc-mat-row > .ipqc-mat-cell-empty {
-        display: flex; align-items: baseline; gap: var(--sp-2);
-        color: var(--c-muted);
+        /* flex-direction: row là BẮT BUỘC ghi rõ — .ipqc-mat-cell ở khối card
+           đặt `column` với specificity cao hơn, nên chỉ khai `display:flex`
+           thôi thì nhãn vẫn nằm trên giá trị. Đo bằng getComputedStyle mới
+           thấy; đọc CSS bằng mắt thì tưởng đã xong. */
+        display: flex; flex-direction: row; align-items: baseline;
+        gap: var(--sp-2); color: var(--c-muted);
     }
     .ipqc-mat-row > .ipqc-mat-cell-empty::before { margin-bottom: 0; }
 
@@ -7441,9 +7445,18 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     font-size: var(--fs-lg);
     line-height: 1;
     cursor: pointer;
-    position: sticky;
-    top: var(--sp-3);
+    /* Dải cao hết khung = vùng chạm lớn cho ngón đeo găng. Nhưng glyph phải
+       DÍNH theo cuộn, nếu không nó nằm tít trên đỉnh và người dùng cuộn xuống
+       giữa bảng sẽ không thấy tay nắm đâu (đã quan sát được trong app thật). */
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
     transition: background var(--mo-fast), color var(--mo-fast);
+}
+.wo-side-toggle > span {
+    position: sticky;
+    top: var(--sp-4);
+    padding: var(--sp-2) 0;
 }
 .wo-side-toggle:hover { background: var(--c-divider); color: var(--c-ink); }
 .wo-side-toggle:focus-visible { outline: none; box-shadow: var(--focus-ring); }
