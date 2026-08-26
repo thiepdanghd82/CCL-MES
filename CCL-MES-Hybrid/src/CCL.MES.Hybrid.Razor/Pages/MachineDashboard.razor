@@ -39,11 +39,11 @@
    qty ledger (honest — no fabricated OEE/speed). Down/Maintenance tiles are
    shown for SpecHub parity and light up when the ProductionLog feed lands. *@
 <div class="md-kpi-grid">
-    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@CountStatus("Running")</div><div class="md-kpi-label">Running</div></div>
-    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@CountStatus("Idle")</div><div class="md-kpi-label">Idle</div></div>
-    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@CountStatus("Setup")</div><div class="md-kpi-label">Setup</div></div>
-    <div class="md-kpi md-kpi-down"><div class="md-kpi-num">@CountStatus("Down")</div><div class="md-kpi-label">Down</div></div>
-    <div class="md-kpi md-kpi-maint"><div class="md-kpi-num">@CountStatus("Maintenance")</div><div class="md-kpi-label">Maintenance</div></div>
+    <div class="md-kpi md-kpi-running"><div class="md-kpi-num">@CountStatus("Running")</div><div class="md-kpi-label">@T("machine.status.running")</div></div>
+    <div class="md-kpi md-kpi-idle"><div class="md-kpi-num">@CountStatus("Idle")</div><div class="md-kpi-label">@T("machine.status.idle")</div></div>
+    <div class="md-kpi md-kpi-setup"><div class="md-kpi-num">@CountStatus("Setup")</div><div class="md-kpi-label">@T("machine.status.setup")</div></div>
+    <div class="md-kpi md-kpi-down"><div class="md-kpi-num">@CountStatus("Down")</div><div class="md-kpi-label">@T("machine.status.down")</div></div>
+    <div class="md-kpi md-kpi-maint"><div class="md-kpi-num">@CountStatus("Maintenance")</div><div class="md-kpi-label">@T("machine.status.maintenance")</div></div>
     <div class="md-kpi md-kpi-wide md-kpi-oee">
         <div class="md-kpi-label">@T("machine.kpi.plantquality")</div>
         <div class="md-kpi-num md-kpi-oee-num">@(PlantQuality is { } q ? $"{q:0}%" : "—")</div>
@@ -74,7 +74,7 @@ else
             @foreach (var s in StatusChips)
             {
                 <button type="button" class="md-chip @(_statusFilter == s.Key ? "md-chip-on" : "")"
-                        @onclick="@(() => _statusFilter = s.Key)">@s.Label</button>
+                        @onclick="@(() => _statusFilter = s.Key)">@s.Glyph @ChipLabel(s.Key)</button>
             }
         </div>
         <div class="md-chips">
@@ -301,7 +301,8 @@ else
     <aside class="md-drawer">
         <div class="md-drawer-head">
             <h2 class="md-drawer-title">@(_detail?.Code ?? T("machine.drawer.title"))</h2>
-            <button type="button" class="md-drawer-close" @onclick="CloseDetail">✕</button>
+            <button type="button" class="md-drawer-close" @onclick="CloseDetail"
+                    aria-label="@T("common.close")" title="@T("common.close")"><span aria-hidden="true">✕</span></button>
         </div>
         @if (_detailLoading)
         {
@@ -374,10 +375,21 @@ else
     private bool _detailLoading;
     private MachineDetailDto? _detail;
 
-    private static readonly (string Key, string Label)[] StatusChips =
+    // G1 — trước đây nhãn nhét cứng vào mảng static (static không gọi được T()).
+    // Nay mảng chỉ giữ KHOÁ + biểu tượng; nhãn resolve lúc render qua ChipLabel.
+    private static readonly (string Key, string Glyph)[] StatusChips =
     {
-        ("All", "All"), ("Running", "▶ Running"), ("Idle", "◯ Idle"), ("Setup", "⚙ Setup"),
-        ("Down", "■ Down"), ("Maintenance", "⚙ PM"),
+        ("All", ""), ("Running", "▶"), ("Idle", "◯"), ("Setup", "⚙"),
+        ("Down", "■"), ("Maintenance", "⚙"),
+    };
+
+    // "PM" là dạng RÚT GỌN cố ý của Maintenance dành riêng cho chip lọc (hàng
+    // chip hẹp); pill trạng thái vẫn dùng nhãn đầy đủ.
+    private string ChipLabel(string key) => key switch
+    {
+        "All" => T("machine.status.all"),
+        "Maintenance" => T("machine.status.pm"),
+        _ => StatusLabel(key),
     };
 
     private const string NoArea = "Other";
@@ -519,12 +531,12 @@ else
         _ => "md-pill-idle",
     };
 
-    private static string StatusLabel(string status) => status switch
+    private string StatusLabel(string status) => status switch
     {
-        "Running" => "Running",
-        "Setup" => "Setup",
-        "Down" => "Down",
-        "Maintenance" => "Maintenance",
-        _ => "Idle",
+        "Running" => T("machine.status.running"),
+        "Setup" => T("machine.status.setup"),
+        "Down" => T("machine.status.down"),
+        "Maintenance" => T("machine.status.maintenance"),
+        _ => T("machine.status.idle"),
     };
 }

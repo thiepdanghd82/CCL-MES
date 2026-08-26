@@ -119,15 +119,15 @@ else
         <aside class="md-side">
             <div class="md-side-card">
                 <div class="md-side-head">▦ @T("qchistory.side.bykind")</div>
-                <div class="md-side-body">@RenderAgg(ByKind, _data.Rows.Count, "#2563eb", false)</div>
+                <div class="md-side-body">@RenderAgg(ByKind, _data.Rows.Count, "var(--brand)", false)</div>
             </div>
             <div class="md-side-card">
                 <div class="md-side-head"><Icon Name="user" /> @T("qchistory.side.topinspectors")</div>
-                <div class="md-side-body">@RenderAgg(TopInspectors, _data.Rows.Count, "#16a34a", false)</div>
+                <div class="md-side-body">@RenderAgg(TopInspectors, _data.Rows.Count, "var(--ok-ink)", false)</div>
             </div>
             <div class="md-side-card">
                 <div class="md-side-head">✕ @T("qchistory.side.topreject")</div>
-                <div class="md-side-body">@RenderAgg(TopRejectReasons, RejectTotal, "#dc2626", false, pct: true)</div>
+                <div class="md-side-body">@RenderAgg(TopRejectReasons, RejectTotal, "var(--ng-ink)", false, pct: true)</div>
             </div>
         </aside>
     </div>
@@ -137,12 +137,16 @@ else
 {
     <div class="md-drawer-overlay" @onclick="@(() => _selected = null)"></div>
     <aside class="md-drawer soh-drawer">
-        <div class="md-drawer-head" style="border-left:4px solid @(_selected.Judgment == "Pass" ? "#16a34a" : "#dc2626"); padding-left:12px">
+        @* E3 — hex thô trong inline style của .razor không lọt qua gate-no-hardcoded-hex.
+           Dùng API data-tone đã có sẵn ở ix.css:730-733, giống ShopOrderHistory.razor:176.
+           Bỏ luôn lỗi hai sắc đỏ: inline dùng một mã đỏ khác với token --ng. *@
+        <div class="md-drawer-head soh-drawer-head" data-tone="@(_selected.Judgment == "Pass" ? "ok" : "alarm")">
             <div>
                 <h2 class="md-drawer-title">@_selected.WoNo</h2>
                 <div class="soh-drawer-sub">@T("qchistory.drawer.sub", _selected.QcKind)</div>
             </div>
-            <button type="button" class="md-drawer-close" @onclick="@(() => _selected = null)">✕</button>
+            <button type="button" class="md-drawer-close" @onclick="@(() => _selected = null)"
+                    aria-label="@T("common.close")" title="@T("common.close")"><span aria-hidden="true">✕</span></button>
         </div>
         <div class="md-drawer-body">
             <h3 class="md-drawer-sub">@T("qchistory.drawer.result")</h3>

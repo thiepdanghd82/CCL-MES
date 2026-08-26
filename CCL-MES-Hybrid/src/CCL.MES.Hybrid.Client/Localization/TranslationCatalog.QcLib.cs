@@ -43,6 +43,15 @@ public sealed partial class TranslationCatalog
         Add("qclib.info.methods",        "Áp dụng cho",                                   "Applies to");
         Add("qclib.info.spec",           "Thông số kiểm",                                 "Inspection spec");
         Add("qclib.info.condition",      "Điều kiện",                                      "Condition");
+
+        // G2 — 5 nhãn trong <dl> chi tiết hạng mục trước đây cứng tiếng Anh giữa
+        // các nhãn đã dịch cùng khối. AQL và ISO CỐ Ý giữ nguyên: đó là tên tiêu
+        // chuẩn quốc tế, dịch ra sẽ khó tra cứu hơn chứ không dễ hơn.
+        Add("qclib.info.method",         "Phương pháp",                                   "Method");
+        Add("qclib.info.sampling",       "Lấy mẫu",                                       "Sampling");
+        Add("qclib.info.checktype",      "Loại kiểm",                                     "Check type");
+        Add("qclib.info.defect",         "Mã lỗi",                                        "Defect");
+        Add("qclib.info.note",           "Ghi chú",                                       "Note");
         Add("qclib.band.print",          "IN · PRINT",                                    "PRINT");
         Add("qclib.band.cut",            "CẮT · GIA CÔNG",                                "CUT · FINISH");
         Add("qclib.band.stage",          "CÔNG ĐOẠN",                                     "STAGE");

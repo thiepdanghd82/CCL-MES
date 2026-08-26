@@ -16,14 +16,24 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# Đo lại sau khi chuẩn hoá typography: 527 → 38.
-# 38 còn lại là CÓ CHỦ ĐÍCH và không nên token-hoá:
-#   24 × clamp()  fluid theo container (KPI card, login hero) — thang cố định
-#                 không diễn đạt được ý này
+# Đo lại sau khi chuẩn hoá typography: 527 → 38 → 23 → 19.
+#
+# 38 → 23: khối `.qclib-*` (màn QC Library). 23 → 19: bốn ô SỐ VẬN HÀNH
+# (.rs-head-wo-no · .rs-timer-value · .ipqc-counter-value · .shipped-stat-value).
+# Cả hai đợt cùng một bệnh: clamp(...vw) co theo BỀ RỘNG CỬA SỔ nên mù CẢ
+# `data-density` LẪN `--ui-scale`. Ghi chú baseline cũ xếp chúng vào diện
+# "CÓ CHỦ ĐÍCH" — sai: hệ quả đảo ngược ý đồ (tablet xưởng hẹp kẹp về đáy 18px
+# ⇒ người đứng xa nhất nhận chữ NHỎ nhất), và ở --ui-scale 1.5 + shopfloor thì
+# SỐ WO đứng yên 18px trong khi thân bài lên 24px. Nay qua thang + --op-fs-*.
+#
+# 19 còn lại là CÓ CHỦ ĐÍCH thật và không nên token-hoá:
+#    3 × cqi      container query — KPI tile co theo CONTAINER, không theo
+#                 viewport. Đây là fluid type đúng nghĩa duy nhất còn lại.
+#    3 × vw       chỉ còn ở màn login (hero marketing), ngoài phạm vi shopfloor.
 #   11 × pt       print CSS, L39 quản (on-screen == bản in, đổi là phá hợp đồng)
-#    2 × em       tương đối theo cha — đổi sang rem là đổi NGHĨA
+#    1 × em       tương đối theo cha — đổi sang rem là đổi NGHĨA
 #    1 × inherit
-BASELINE_RAW_FS=38
+BASELINE_RAW_FS=19
 
 here="$(cd "$(dirname "$0")" && pwd)"
 CSSDIR="$here/../src/CCL.MES.Hybrid.Razor/wwwroot/css"

@@ -42,6 +42,27 @@
     --c-line-2: #eef2fb;   /* subtle border */
     --c-divider: #eef2fb;   /* hover fill / divider */
 
+    /* ── BÍ DANH TOKEN MA ─────────────────────────────────────────────────
+       Bốn tên dưới đây được DÙNG 95 lần trong app.css nhưng chưa bao giờ
+       được ĐỊNH NGHĨA. `var(--chưa-định-nghĩa)` không fallback → thuộc tính
+       hỏng ở computed-value time: màu chữ tụt về inherit, nền/viền tụt về
+       initial (trong suốt / không viền).
+       Hậu quả đã đo được, không phải giả định:
+         · app.css:4214 .qc-result-toggle.is-active.qc-result-na —
+           nền trong suốt + chữ trắng + viền trắng ⇒ nút N/A VÔ HÌNH.
+           Chính lỗi này đã từng xảy ra với .grid-btn-secondary và được vá
+           riêng lẻ (xem chú thích app.css:3142-3146) nhưng chưa ai quét hết.
+         · 69 nhãn dùng --c-ink-4 hiện màu ĐEN thay vì mờ ⇒ phân cấp bằng
+           màu (iX #4) hỏng âm thầm.
+         · Cả module IQC (8335-8482) viết theo --c-border/--c-surface-2/
+           --c-ink-1 ⇒ render KHÔNG CÓ VIỀN NÀO.
+       Sửa bằng bí danh tại gốc thay vì sửa 95 chỗ: rẻ hơn, và tự động đúng
+       khi ix.css retheme --c-* (L37). Ánh xạ theo đúng ngữ nghĩa nơi dùng. */
+    --c-ink-1:     var(--c-ink);      /* số KPI, tên thẻ — đậm nhất */
+    --c-ink-4:     var(--c-muted);    /* nhãn phụ, chú thích — mờ */
+    --c-border:    var(--c-line);     /* viền module IQC */
+    --c-surface-2: var(--c-surface);  /* nền nổi / hover module IQC */
+
     /* Brand + accents */
     --brand-ink:  #1e3a8a;  /* deep brand text/heading */
     --brand-bg: #eaf0ff;  /* link / active tint */
@@ -156,6 +177,14 @@
     --d-tap:       calc(28px * var(--ui-scale));
     --d-gap:       var(--sp-2);
     --d-pad-x:     var(--sp-3);
+    /* B — cỡ SỐ VẬN HÀNH. Trước đây 4 ô số này dùng clamp(...vw): co theo BỀ
+       RỘNG CỬA SỔ nên mù cả density LẪN --ui-scale. Hệ quả đảo ngược ý đồ —
+       tablet xưởng hẹp kẹp về đáy 18px (người đứng xa nhất nhận chữ NHỎ nhất),
+       màn office rộng kẹp về đỉnh 24px. Ở --ui-scale 1.5 + shopfloor, thân bài
+       lên 24px trong khi SỐ WO đứng yên 18px: mã nhận dạng chính nhỏ hơn
+       chữ thường. Nay đi qua thang, đổi theo density. */
+    --op-fs-id:    var(--fs-xl);   /* 22px — số WO, mã nhận dạng */
+    --op-fs-num:   var(--fs-lg);   /* 18px — ô số vận hành / bộ đếm */
 }
 /* ── DENSITY: shopfloor ───────────────────────────────────────────────────
    Người dùng: đứng máy, ĐEO GĂNG, nhìn từ xa hơn, ánh sáng xưởng, tay bẩn.
@@ -174,6 +203,8 @@
     --d-pad-x:     var(--sp-4);
     /* Taskbar taller so gloved-finger chips clear the ≥44px tap target. */
     --taskbar-h:   var(--sp-7);
+    --op-fs-id:    var(--fs-2xl);  /* 28px */
+    --op-fs-num:   var(--fs-xl);   /* 22px */
 }
 
 /* Tiện ích opt-in cho surface mới. Không rule nào của app hiện tại tham chiếu
@@ -596,6 +627,13 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
         -webkit-text-fill-color: var(--brand);
         background-image: none;
     }
+    /* H — đây là khối reduced-motion DUY NHẤT trong repo; trước chỉ phủ
+       .page-title. Chấm nhấp nháy của banner mất mạng (ConnectivityBanner
+       .razor:15, role="alert") và các skeleton loading vẫn chạy vô hạn dù OS
+       đã bật giảm chuyển động. .app-conn-dot cần opacity:1 để không kẹt ở
+       keyframe mờ. */
+    .app-conn-dot { animation: none; opacity: 1; }
+    .semi-skel-row, .legs-loading { animation: none; }
 }
 
 /* Screen-reader-only utility — trong DOM + trợ năng đọc được, mắt không thấy,
@@ -999,11 +1037,16 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     overflow: hidden;
     background: var(--card);
 }
+/* A6 — chiều cao trước đây do padding 7px quyết định (~31px), cố định ở cả hai
+   density. Đây là segmented control Grid/List: hai nút DÍNH LIỀN là đúng khuôn,
+   không cần giãn cách — chỉ cần đủ cao để bấm. */
 .md-vt-btn {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 7px 12px; border: 0; background: transparent; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+    min-height: var(--d-tap);
+    padding: 0 var(--sp-3); border: 0; background: transparent; cursor: pointer;
     color: var(--c-ink-4); font-size: var(--fs-md); font-weight: var(--fw-semibold);
 }
+.md-vt-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .md-vt-btn + .md-vt-btn { border-left: 1px solid var(--c-line); }
 .md-vt-btn:hover { background: var(--c-divider); }
 .md-vt-btn.is-on { background: var(--brand); color: var(--c-card); }
@@ -1110,7 +1153,9 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     flex: 1 1 260px;
 }
 .md-filter-count { color: var(--c-soft); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-.md-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* A4 — 6px lệch lưới 4px và không đổi theo density; ở shopfloor chip cao 44px
+   mà chỉ cách nhau 6px thì vẫn dễ bấm nhầm chip bên cạnh. --d-gap = 8→16px. */
+.md-chips { display: flex; flex-wrap: wrap; gap: var(--d-gap); }
 .md-chip {
     padding: 5px 12px;
     border: 1px solid var(--c-line-2);
@@ -1247,9 +1292,16 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     margin-bottom: 12px;
 }
 .md-drawer-title { font-size: var(--fs-xl); font-weight: var(--fw-bold); margin: 0; }
+/* A5 — vùng chạm trước đây bằng đúng glyph ✕ (~11×21px), dưới CẢ ngưỡng
+   office 28px. Dùng ở MachineDashboard/ShopOrderHistory/QcHistory. */
 .md-drawer-close {
     border: none; background: none; font-size: var(--fs-lg); cursor: pointer; color: var(--c-muted);
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: var(--d-tap); min-height: var(--d-tap);
+    border-radius: var(--r-sm);
 }
+.md-drawer-close:hover { background: var(--c-divider); color: var(--c-ink); }
+.md-drawer-close:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .md-drawer-sub {
     font-size: var(--fs-base); font-weight: var(--fw-bold); color: var(--c-ink-3);
     margin: 16px 0 6px; padding-bottom: 4px; border-bottom: 1px solid var(--c-line-2);
@@ -1922,16 +1974,18 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 /* P10.10 — match .grid-btn:hover:not(:disabled)'s (0,3,0) specificity so
    the link's own hover/active/focus wins; otherwise the base button's navy
    fill bled over the blue link text on click → invisible "Back to list". */
+/* D1 — khối này từng gộp cả :focus/:focus-visible vào nhóm "tắt mọi hiệu ứng",
+   giết sạch chỉ báo focus mà không dựng lại gì. Nay chỉ tắt cho hover/active;
+   focus-visible được trả lại --focus-ring ngay dưới. */
 .grid-btn-link:hover:not(:disabled),
-.grid-btn-link:active,
-.grid-btn-link:focus,
-.grid-btn-link:focus-visible {
+.grid-btn-link:active {
     background: var(--brand-bg);
     color: var(--brand-ink);
     box-shadow: none;
     outline: none;
     -webkit-tap-highlight-color: transparent;
 }
+.grid-btn-link:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* Grid status banners */
 .grid-status   { padding: 12px 0; color: var(--c-muted); }
@@ -3896,7 +3950,10 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 .drawing-status-approved        { background: var(--ok-bg); color: var(--ok-ink); }
 .drawing-status-rejected        { background: var(--ng-bg); color: var(--ng-ink); }
 .drawing-status-superseded      { background: var(--indigo-bg); color: var(--indigo); }
-.drawing-status-withdrawn       { background: #fce7f3; color: #831843; }
+/* E2 — dòng duy nhất trong khối xài hex thô, và là bậc màu thứ 7 (hồng) ngoài
+   5 trạng thái ngữ nghĩa của iX. Ngữ nghĩa "đã rút" đã có line-through gánh
+   (app.css:2643) nên không mất thông tin khi về trung tính. */
+.drawing-status-withdrawn       { background: var(--c-divider); color: var(--c-muted); }
 
 .drawing-approval-strip {
     display: inline-flex;
@@ -5512,10 +5569,12 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 
 /* Wide viewport: let advance-bar pin to the bottom edge of the dashboard
    without breaking out of the page max-width */
+/* F — iX #1: không gradient trên nội dung tĩnh. Thanh này nằm trong luồng
+   trang, không phải lớp nổi, và ĐÃ có border-top phân tách ở rule phía trên —
+   vệt xám mờ là thừa. */
 .prepress-advance-bar {
-    background: linear-gradient(0deg, rgba(229, 231, 235, 0.4) 0%, transparent 100%);
-    border-radius: 6px;
-    padding: 10px 12px;
+    border-radius: var(--r-sm);
+    padding: var(--sp-3);
 }
 
 /* ────────────────────────────────────────────────────────────────────
@@ -5569,7 +5628,7 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 .rs-head-wo-no {
     font-family: var(--font-mono);
     font-weight: var(--fw-bold);
-    font-size: clamp(18px, 2vw, 24px);
+    font-size: var(--op-fs-id);
     color: var(--c-ink);
 }
 
@@ -5592,7 +5651,7 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     color: var(--c-muted);
 }
 .rs-timer-value {
-    font-size: clamp(18px, 2vw, 22px);
+    font-size: var(--op-fs-num);
     font-weight: var(--fw-bold);
     color: var(--c-ink);
 }
@@ -5783,8 +5842,19 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     letter-spacing: 0.02em;
     z-index: 1;
 }
-.setting-table .c-app { width: 48px; }
-.setting-table .c-app input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
+/* A1 — ô tick "áp dụng" là lối DUY NHẤT bật/tắt hạng mục check (SettingDashboard
+   .razor:142-147 tick-tất-cả, :164-169 từng dòng). 20px cứng thủng cả ngưỡng
+   WCAG 2.2 (24px) lẫn ràng buộc vật lý repo tự khai ở app.css:161-172, và mù
+   CẢ density LẪN --ui-scale. Hai ô tick anh em đã đúng từ lâu
+   (.ipqc-applicable-check:6542, .iqc-line-select:8376) — đây là chỗ bị bỏ sót.
+   Cột phải nới cùng lúc: .setting-table là table-layout:fixed, ô 44px trong
+   cột 48px sẽ tràn. */
+.setting-table .c-app { width: calc(var(--d-tap) + var(--sp-4)); }
+.setting-table .c-app input[type="checkbox"] {
+    width: var(--d-tap); height: var(--d-tap);
+    min-width: 20px; min-height: 20px;
+    cursor: pointer;
+}
 .setting-table .c-no { width: 44px; text-align: center; color: var(--c-muted); }
 .setting-table .c-center { text-align: center; }
 .setting-table .c-result { width: 116px; }
@@ -5998,9 +6068,10 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
-    background: linear-gradient(0deg, rgba(229, 231, 235, 0.4) 0%, transparent 100%);
-    border-radius: 8px;
-    padding: 10px 12px;
+    /* F — iX #1, cùng lý do .prepress-advance-bar. Nút chính .rs-primary-btn
+       tự sơn nền riêng nên bỏ gradient container không ảnh hưởng nó. */
+    border-radius: var(--r-md);
+    padding: var(--sp-3);
 }
 .rs-action-bar-multi {
     justify-content: flex-end;
@@ -6122,7 +6193,7 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     border-radius: 8px;
 }
 .ipqc-counter-label { font-size: var(--fs-xs); color: var(--accent-ink); }
-.ipqc-counter-value { font-size: clamp(18px, 2vw, 22px); font-weight: var(--fw-bold); color: #0c4a6e; }
+.ipqc-counter-value { font-size: var(--op-fs-num); font-weight: var(--fw-bold); color: var(--accent-ink); }
 
 /* ── Slot cards ─────────────────────────────────────────────────── */
 
@@ -6932,7 +7003,7 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     border-color: var(--ok);
 }
 .shipped-stat-label { font-size: var(--fs-xs); color: var(--c-ink-4); }
-.shipped-stat-value { font-size: clamp(16px, 1.6vw, 20px); font-weight: var(--fw-bold); color: var(--c-ink); }
+.shipped-stat-value { font-size: var(--op-fs-num); font-weight: var(--fw-bold); color: var(--c-ink); }
 /* Đợt 1 C3 — why Performance shows no number. A bare dash hid a data gap
    on 19 of 27 WOs; the reason now sits under the dash. */
 .shipped-perf-na { font-size: var(--fs-xs); color: var(--c-ink-4); line-height: 1.3; }
@@ -7122,10 +7193,12 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     transition: transform 0.1s ease, box-shadow 0.1s ease, border-color 0.1s ease;
     font: inherit;
 }
+/* F — iX #2: MỘT màu nhấn, và accent chỉ dành cho tương tác/active. Hover
+   trước đây mượn --indigo-bg (màu trang trí) làm viền. */
 .woa-card:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
-    border-color: var(--indigo-bg);
+    box-shadow: var(--el-1);
+    border-color: var(--brand-soft);
 }
 .woa-head {
     display: flex;
@@ -7384,24 +7457,50 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 /* Window controls, top-RIGHT (Windows-style): minimize · maximize · close.
    margin-left:auto pins the cluster to the right edge. z-index sits ABOVE the
    resize handles so the N/NE handles overlapping the header can't steal the
-   buttons' clicks. Glyphs (− + ×) reveal on hover of the cluster. */
-.fw-traffic { display: flex; align-items: center; gap: 14px; flex: none;
+   buttons' clicks.
+
+   A2/F — TRƯỚC: ba chấm màu macOS (đỏ / vàng / xanh lá) với glyph chỉ
+   hiện khi hover. Ba vấn đề chồng nhau:
+     · Ba màu đó KHÔNG mang ngữ nghĩa nào — chúng là quy ước trang trí. Trái
+       iX #2 (một màu nhấn, accent chỉ cho tương tác) và iX #4 (phân cấp bằng
+       độ đậm, không bằng màu). Đỏ/vàng/xanh còn TRÙNG với bộ 5 trạng thái
+       alarm/warn/ok, nên mắt đọc chấm xanh là "đạt" chứ không phải "phóng to".
+     · Cụm nút đã đặt bên PHẢI kiểu Windows nhưng tô màu kiểu macOS — lai hai
+       quy ước, không giống cái nào.
+     · Glyph chỉ hiện khi hover, mà terminal cảm ứng ở xưởng KHÔNG có hover.
+   NAY: nút glyph trung tính như mọi nút icon khác trong app (.row-kebab,
+   .app-nav-pin), glyph LUÔN hiện. Chỉ nút Đóng mang màu — alarm, chỉ khi
+   hover — vì đó là hành động phá huỷ, và đó là dùng màu ĐÚNG ngữ nghĩa. */
+.fw-traffic { display: flex; align-items: center; gap: var(--sp-1); flex: none;
     margin-left: auto; position: relative; z-index: 30; }
-.fw-light { width: 19.5px; height: 19.5px; border-radius: 50%; padding: 0; border: none;  /* 25% smaller than 26px */
-    cursor: pointer; position: relative; line-height: 0; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.18); }
-.fw-light:focus-visible { outline: 2px solid var(--brand-soft); outline-offset: 2px; }
-.fw-light-close { background: #ff5f57; }
-.fw-light-min   { background: #febc2e; }
-.fw-light-max   { background: #28c840; }
+/* A2 — TÁCH VÙNG CHẠM KHỎI PHẦN NHÌN, theo đúng khuôn đã có ở ix.css:363
+   (.app-nav-pin). Chấm màu vẫn 19.5px như cũ — KHÔNG đổi ngôn ngữ thị giác —
+   nhưng nay nó nằm ở ::before, còn <button> nở ra --d-tap.
+   Vì sao cần: đây là nút ĐÓNG của mọi FloatingWindow (Modal.razor chế độ Float,
+   IpqcLegShowcard, MaterialsInspectionWindow). 19.5px thấp hơn CẢ ngưỡng office
+   28px, và là px cứng nên cũng mù --ui-scale. Lối thoát thay thế đều yếu trên
+   terminal cảm ứng: Esc cần bàn phím, middle-click cần chuột, × trên taskbar
+   chỉ 16px. Nút trong suốt nên hình học titlebar nhìn KHÔNG đổi ở office. */
+.fw-light { width: var(--d-tap); height: var(--d-tap); padding: 0; border: none;
+    background: transparent; box-shadow: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex: none;   /* .fw-traffic là flex: không có dòng này nút co về bằng chấm 19.5px */
+    cursor: pointer; position: relative; line-height: 0; }
+.fw-light { border-radius: var(--r-sm); color: var(--c-ink-3);
+    transition: background var(--mo-fast), color var(--mo-fast); }
+.fw-light:hover { background: var(--c-divider); }
+.fw-light:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* Đóng = hành động phá huỷ ⇒ đây là chỗ DUY NHẤT trong cụm được dùng màu. */
+.fw-light-close:hover { background: var(--ng-bg); color: var(--ng-ink); }
 /* Inline-SVG glyphs — dead-centre + uniform stroke weight (Unicode × − +
    render off-centre & inconsistently across WKWebView/Windows). Absolutely
    centred via top/left 50% + translate(-50%,-50%); reveal on hover/focus. */
-.fw-ico { position: absolute; top: 50%; left: 50%; width: 11.25px; height: 11.25px;  /* 25% smaller, keeps glyph proportional in the smaller light */
-    transform: translate(-50%, -50%); color: rgba(0,0,0,0.62);
-    opacity: 0; transition: opacity .1s; pointer-events: none; overflow: visible; }
+.fw-ico { position: absolute; top: 50%; left: 50%; width: var(--sp-3); height: var(--sp-3);
+    transform: translate(-50%, -50%); color: currentColor;
+    opacity: 1; pointer-events: none; overflow: visible; }
+:root[data-density="shopfloor"] .fw-ico { width: var(--sp-4); height: var(--sp-4); }
 .fw-ico line, .fw-ico rect { fill: none; stroke: currentColor; stroke-width: 2.4;
     stroke-linecap: round; stroke-linejoin: round; }
-.fw-traffic:hover .fw-ico, .fw-light:focus-visible .fw-ico { opacity: 1; }
 /* Maximize shows a single square; restore (when maximized) two stacked squares. */
 .fw-light-max .fw-ico-restore { display: none; }
 .fw-light-max.is-max .fw-ico-maximize { display: none; }
@@ -7476,13 +7575,17 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 .row-ctx-divider { height: 1px; margin: 4px 6px; background: var(--c-line-2); }
 
 /* Kebab (⋯) — the visible 3rd entry point to the same menu. */
+/* A7 — 28px cứng, mù cả density lẫn --ui-scale. Kebab là lối vào menu ngữ cảnh
+   của hàng (SemiStockDashboard là bề mặt xưởng). Nút nở ra thì CẢ BA cột chứa nó
+   phải nở theo, nếu không 44px tràn cột 44px cứng: .wc-kebab-col (dưới đây),
+   .semi-kebab-col, và colgroup .qclib-col-kebab (2.6% ≈ 31px). */
 .row-kebab { display: inline-flex; align-items: center; justify-content: center;
-    width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px;
+    min-width: var(--d-tap); min-height: var(--d-tap); padding: 0; border: none; border-radius: var(--r-sm);
     background: transparent; color: var(--c-soft); font-size: var(--fs-lg); line-height: 1;
     cursor: pointer; }
 .row-kebab:hover, .row-kebab:focus-visible { background: var(--c-divider); color: var(--c-ink-3); outline: none; }
-.row-kebab:focus-visible { box-shadow: 0 0 0 2px var(--brand-soft); }
-.wc-kebab-col { width: 44px; text-align: center; }
+.row-kebab:focus-visible { box-shadow: var(--focus-ring); }
+.wc-kebab-col { width: calc(var(--d-tap) + var(--sp-2)); text-align: center; }
 tr.wc-row:hover { background: var(--c-bg); }
 
 /* ── P11.5-3 Kho bán thành phẩm (semi-stock warehouse) ──────────────
@@ -7520,26 +7623,31 @@ tr.wc-row:hover { background: var(--c-bg); }
 .semi-filter { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--c-muted); }
 .semi-filter-search { flex: 1 1 220px; min-width: 160px; }
 .semi-toolbar-spacer { flex: 1 1 auto; }
-.semi-select, .semi-input { padding: 8px 10px; border: 1px solid var(--c-line); border-radius: 8px;
+/* C — khối kho bán thành phẩm bị bỏ sót khi ix.css:631-660 đưa .grid/.md-table/
+   .qms-table/.audit-table/.soh-tbl sang --d-row-h: bật shopfloor thì mọi bảng nở
+   56px, riêng bảng kho đứng yên ~34px. Đây là màn quét lot ở xưởng. */
+.semi-select, .semi-input { min-height: var(--d-control-h); padding: 0 var(--d-pad-x);
+    border: 1px solid var(--c-line); border-radius: var(--r-md);
     background: var(--c-bg); color: var(--c-ink); font-size: var(--fs-md); }
-.semi-input:focus, .semi-select:focus { outline: 2px solid var(--brand-soft); outline-offset: 1px; }
+.semi-input:focus-visible, .semi-select:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .semi-filter-search .semi-input { width: 100%; }
 /* Segmented chip filter (thay <select> native — không kẹt WKWebView). */
-.semi-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px;
+.semi-seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--r-md);
     background: var(--c-surface); border: 1px solid var(--c-line); }
 .semi-seg-btn { border: none; background: transparent; cursor: pointer; white-space: nowrap;
-    padding: 6px 12px; border-radius: 7px; font-size: var(--fs-sm); font-weight: var(--fw-semibold);
-    color: var(--c-muted); transition: background .12s, color .12s; }
+    display: inline-flex; align-items: center; min-height: var(--d-control-h);
+    padding: 0 var(--sp-3); border-radius: var(--r-sm); font-size: var(--fs-sm); font-weight: var(--fw-semibold);
+    color: var(--c-muted); transition: background var(--mo-fast), color var(--mo-fast); }
 .semi-seg-btn:hover { color: var(--c-ink); }
-.semi-seg-btn:focus-visible { outline: 2px solid var(--brand-soft); outline-offset: 1px; }
+.semi-seg-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .semi-seg-btn.is-on { background: var(--card); color: var(--brand-2); border: 1px solid var(--c-line); }
 
-.semi-expiry-banner { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 8px;
+.semi-expiry-banner { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md);
     background: var(--warn-bg); color: var(--warn-ink); font-size: var(--fs-md); font-weight: var(--fw-semibold); }
 
-.semi-table-wrap { overflow-x: auto; border: 1px solid var(--c-line); border-radius: 12px; background: var(--card); }
+.semi-table-wrap { overflow-x: auto; border: 1px solid var(--c-line); border-radius: var(--r-lg); background: var(--card); }
 .semi-table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 900px; }
-.semi-table th, .semi-table td { padding: 9px 12px; text-align: left; font-size: var(--fs-md); color: var(--c-ink-2);
+.semi-table th, .semi-table td { height: var(--d-row-h); padding: 0 var(--sp-3); text-align: left; font-size: var(--fs-md); color: var(--c-ink-2);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .semi-table thead th { position: sticky; top: 0; z-index: 1; background: var(--c-surface); color: var(--c-muted);
     font-weight: var(--fw-semibold); font-size: var(--fs-xs); letter-spacing: .04em; text-transform: uppercase; border-bottom: 1px solid var(--c-line); }
@@ -7551,13 +7659,13 @@ tr.wc-row:hover { background: var(--c-bg); }
 .semi-num-hold { color: var(--warn-ink); }
 .semi-lotno { font-family: var(--font-mono); font-weight: var(--fw-semibold); color: var(--c-ink); }
 .semi-dim { color: var(--c-muted); }
-.semi-kind-tag { padding: 1px 8px; border-radius: 999px; font-size: var(--fs-xs); font-weight: var(--fw-semibold);
+.semi-kind-tag { padding: 1px var(--sp-2); border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: var(--fw-semibold);
     background: var(--c-surface); color: var(--c-ink-3); border: 1px solid var(--c-line); }
 .semi-col-fill { width: 120px; }
-.semi-bar { position: relative; display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--c-line-2); }
+.semi-bar { position: relative; display: flex; height: var(--sp-2); border-radius: var(--r-pill); overflow: hidden; background: var(--c-line-2); }
 .semi-bar-avail { background: var(--ok); }
 .semi-bar-hold { background: var(--warn-soft); }
-.semi-status { padding: 2px 10px; border-radius: 999px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); white-space: nowrap; }
+.semi-status { padding: var(--sp-1) var(--sp-3); border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: var(--fw-semibold); white-space: nowrap; }
 .semi-status-available { background: var(--ok-bg); color: var(--ok-ink); }
 .semi-status-depleted { background: var(--c-soft); color: var(--c-muted); }
 .semi-status-expired { background: var(--ng-bg); color: var(--ng-ink); }
@@ -7567,7 +7675,7 @@ tr.wc-row:hover { background: var(--c-bg); }
 .semi-row-expiring:hover { background: var(--warn-soft); }
 .semi-expiring-tag { margin-left: 6px; padding: 1px 6px; border-radius: 6px; font-size: var(--fs-2xs); font-weight: var(--fw-bold);
     background: var(--warn-soft); color: var(--warn-ink); }
-.semi-kebab-col { width: 44px; text-align: center; }
+.semi-kebab-col { width: calc(var(--d-tap) + var(--sp-2)); text-align: center; }
 
 .semi-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; text-align: center;
     border: 1px dashed var(--c-line); border-radius: 12px; background: var(--card); }
@@ -7768,6 +7876,7 @@ tr.wc-row:hover { background: var(--c-bg); }
     font: inherit; width: 100%; min-height: 44px; padding: 0 12px;
     border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-card); color: var(--c-ink);
 }
+.legs-rework-input:focus-visible, .legs-semi-select:focus-visible { outline: none; border-color: var(--brand); box-shadow: var(--focus-ring); }
 .legs-rework-input:focus, .legs-semi-select:focus { outline: none; border-color: var(--brand-soft); box-shadow: 0 0 0 3px var(--brand-bg); }
 .legs-semi-field { display: flex; flex-direction: column; gap: 5px; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--c-muted); }
 .legs-rework-actions { display: flex; gap: 10px; justify-content: flex-end; }
@@ -8183,19 +8292,46 @@ tr.wc-row:hover { background: var(--c-bg); }
    Everything (font, columns, checkboxes, padding, header height) sizes
    with clamp(vw) → auto-adapts from laptop up to a wide monitor. The
    table caps + centres on ultra-wide so Content doesn't over-stretch. */
-.qclib-scroll { overflow-x: auto; border: 1px solid var(--c-line); border-radius: 10px; background: var(--c-card); }
+.qclib-scroll { overflow-x: auto; border: 1px solid var(--c-line); border-radius: var(--r-md); background: var(--c-card); }
 .qclib-grid {
     table-layout: fixed;   /* % column widths → fills full width, balanced, no crowding */
     border-collapse: separate; border-spacing: 0; color: var(--c-ink-3);
     width: 100%; min-width: 1180px;
-    font-size: clamp(0.86rem, 0.64rem + 0.42vw, 1.12rem);
-    --qclib-band-h: clamp(30px, 2vw, 46px);
-    --qclib-rpad: clamp(8px, 0.55vw, 16px);
+    font-size: var(--d-font);
+    --qclib-band-h: var(--d-row-h);
+    --qclib-rpad: var(--d-gap);
+}
+
+/* ── Thang cỡ chữ của màn QC Library ──────────────────────────────────
+   Trước đây khối này dùng 21 clamp()/vw — cỡ chữ co theo BỀ RỘNG CỬA SỔ,
+   nên `data-density="shopfloor"` KHÔNG có tác dụng gì trên màn này (đây là
+   màn duy nhất trong app như vậy). Ô tick tối đa 22px trong khi --d-tap
+   yêu cầu 44px cho người đeo găng. Nay mọi cỡ đi qua thang và đổi theo
+   density, không theo bề rộng cửa sổ. */
+.qclib-grid, .qclib-detail, .qclib-form {
+    --qclib-fs-band:      var(--fs-2xs);
+    --qclib-fs-tick:      var(--fs-sm);
+    --qclib-fs-group:     var(--fs-md);
+    --qclib-fs-pill:      var(--fs-2xs);
+    --qclib-fs-detail:    var(--fs-base);
+    --qclib-fs-detail-id: var(--fs-2xl);
+    --qclib-fs-detail-vi: var(--fs-lg);
+    --qclib-tick-box:     var(--sp-4);   /* 16px */
+}
+:root[data-density="shopfloor"] :is(.qclib-grid, .qclib-detail, .qclib-form) {
+    --qclib-fs-band:      var(--fs-sm);
+    --qclib-fs-tick:      var(--fs-md);
+    --qclib-fs-group:     var(--fs-base);
+    --qclib-fs-pill:      var(--fs-sm);
+    --qclib-fs-detail:    var(--fs-lg);
+    --qclib-fs-detail-id: var(--fs-3xl);
+    --qclib-fs-detail-vi: var(--fs-xl);
+    --qclib-tick-box:     var(--sp-5);   /* 24px */
 }
 .qclib-grid th, .qclib-grid td { padding: 0; }
 
 /* Column proportions (sum ≈ 100%) — Content flexes, ticks stay comfortable. */
-.qclib-col-kebab { width: 2.6%; }
+.qclib-col-kebab { width: calc(var(--d-tap) + var(--sp-2)); }
 .qclib-col-id { width: 7%; }
 .qclib-col-content { width: 27%; }
 .qclib-col-tick { width: 3.4%; }
@@ -8207,12 +8343,12 @@ tr.wc-row:hover { background: var(--c-bg); }
     position: sticky; background: var(--c-surface); font-weight: var(--fw-bold);
     border-bottom: 1px solid var(--c-line); z-index: 2;
 }
-.qclib-band th { top: 0; height: var(--qclib-band-h); font-size: clamp(0.68rem, 0.58rem + 0.22vw, 0.9rem); font-weight: var(--fw-bold); letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-muted); padding: 0 10px; }
+.qclib-band th { top: 0; height: var(--qclib-band-h); font-size: var(--qclib-fs-band); font-weight: var(--fw-bold); letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-muted); padding: 0 var(--sp-3); }
 .qclib-cols th { top: var(--qclib-band-h); z-index: 1; }
 .qclib-band-print { background: var(--indigo-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
 .qclib-band-cut { background: var(--warn-bg) !important; color: var(--warn-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
 .qclib-band-stage { background: var(--brand-bg) !important; color: var(--brand-ink) !important; text-align: center; border-left: 1px solid var(--c-line); }
-.qclib-tick-h { text-align: center; font-size: clamp(0.86rem, 0.74rem + 0.3vw, 1.08rem); font-weight: var(--fw-bold); color: var(--c-ink-2); padding: 10px 1px; white-space: nowrap; overflow: hidden; }
+.qclib-tick-h { text-align: center; font-size: var(--qclib-fs-tick); font-weight: var(--fw-bold); color: var(--c-ink-2); padding: var(--sp-2) 1px; white-space: nowrap; overflow: hidden; }
 .qclib-tick-h.qclib-stage-h { background: var(--brand-bg); color: var(--brand-ink); }
 
 /* ── Content columns (widths from colgroup; here only align + padding) ── */
@@ -8221,29 +8357,31 @@ tr.wc-row:hover { background: var(--c-bg); }
 .qclib-c-content { text-align: left; padding-right: 10px; }
 .qclib-c-sev { text-align: left; }
 .qclib-c-def { text-align: left; }
-.qclib-band th.qclib-c-id, .qclib-band th.qclib-c-content, .qclib-band th.qclib-c-sev, .qclib-band th.qclib-c-def { vertical-align: middle; color: var(--c-ink-2); font-size: clamp(0.64rem, 0.54rem + 0.2vw, 0.82rem); }
+.qclib-band th.qclib-c-id, .qclib-band th.qclib-c-content, .qclib-band th.qclib-c-sev, .qclib-band th.qclib-c-def { vertical-align: middle; color: var(--c-ink-2); font-size: var(--qclib-fs-band); }
 
 /* ── Group section row ───────────────────────────────────────────────── */
 .qclib-grouprow td {
     background: var(--c-surface); font-weight: var(--fw-bold); color: var(--c-ink);
-    font-size: clamp(0.82rem, 0.7rem + 0.24vw, 1rem); padding: var(--qclib-rpad) 12px;
+    font-size: var(--qclib-fs-group); padding: var(--qclib-rpad) var(--sp-3);
     border-bottom: 1px solid var(--c-line); border-top: 2px solid var(--c-line);
     position: sticky; z-index: 0;
 }
 .qclib-group-count { font-weight: var(--fw-semibold); color: var(--c-muted); }
 
 /* ── Data rows ───────────────────────────────────────────────────────── */
-.qclib-row td { border-bottom: 1px solid var(--c-line-2); padding: var(--qclib-rpad) 8px; vertical-align: middle; }
+.qclib-row td { border-bottom: 1px solid var(--c-line-2); padding: var(--qclib-rpad) var(--sp-2); vertical-align: middle; }
 .qclib-row:nth-child(even) td { background: var(--c-surface); }
 .qclib-row:hover td { background: var(--brand-bg); }
 .qclib-c-content { line-height: 1.35; }
-.qclib-tick { text-align: center; }
-.qclib-tick input[type=checkbox] { width: clamp(16px, 1.15vw, 22px); height: clamp(16px, 1.15vw, 22px); accent-color: var(--brand); cursor: pointer; margin: 0; vertical-align: middle; }
+/* Ô tick là vùng chạm chính của màn này. Ô <td> cấp vùng chạm --d-tap
+   (28px office / 44px shopfloor); hộp checkbox chỉ là phần NHÌN THẤY. */
+.qclib-tick { text-align: center; min-width: var(--d-tap); height: var(--d-row-h); }
+.qclib-tick input[type=checkbox] { width: var(--qclib-tick-box); height: var(--qclib-tick-box); accent-color: var(--brand); cursor: pointer; margin: 0; vertical-align: middle; }
 .qclib-tick.qclib-stage { background: color-mix(in srgb, var(--brand-bg) 60%, transparent); }
 .qclib-row:hover td.qclib-stage { background: var(--brand-bg); }
 
 /* ── Severity pill ───────────────────────────────────────────────────── */
-.qclib-sevpill { display: inline-block; font-size: 0.8em; font-weight: var(--fw-bold); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.qclib-sevpill { display: inline-block; font-size: var(--qclib-fs-pill); font-weight: var(--fw-bold); padding: var(--sp-1) var(--sp-2); border-radius: var(--r-pill); white-space: nowrap; }
 .qclib-sev-crit { background: var(--ng-bg); color: var(--ng-ink); }
 .qclib-sev-major { background: var(--warn-bg); color: var(--warn-ink); }
 .qclib-sev-minor { background: var(--c-surface); color: var(--c-muted); }
@@ -8251,31 +8389,31 @@ tr.wc-row:hover { background: var(--c-bg); }
 
 /* ── Detail showcard (clean, sectioned, larger + fluid type) ──────────── */
 .qclib-detail {
-    display: flex; flex-direction: column; gap: clamp(18px, 1.6vw, 30px);
+    display: flex; flex-direction: column; gap: var(--sp-5);
     min-width: min(560px, 84vw); max-width: 760px;
-    padding: clamp(6px, 0.8vw, 16px) clamp(4px, 0.6vw, 14px);
-    font-size: clamp(0.95rem, 0.82rem + 0.35vw, 1.18rem);
+    padding: var(--sp-2);
+    font-size: var(--qclib-fs-detail);
 }
-.qclib-detail-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding-bottom: clamp(12px, 1vw, 20px); border-bottom: 2px solid var(--c-line); }
-.qclib-detail-id { font-size: clamp(1.4rem, 1.1rem + 0.7vw, 2rem); font-weight: var(--fw-bold); color: var(--c-ink); line-height: 1.1; }
-.qclib-detail-sub { font-size: clamp(0.8rem, 0.7rem + 0.2vw, 0.95rem); letter-spacing: 0.06em; text-transform: uppercase; color: var(--c-muted); margin-top: 4px; }
-.qclib-detail .qclib-sevpill { font-size: clamp(0.82rem, 0.72rem + 0.2vw, 1rem); padding: 4px 12px; }
-.qclib-detail-sec h4 { margin: 0 0 8px; font-size: clamp(0.72rem, 0.62rem + 0.2vw, 0.86rem); font-weight: var(--fw-bold); letter-spacing: 0.12em; text-transform: uppercase; color: var(--c-muted); }
-.qclib-detail-vi { margin: 0; font-size: clamp(1.02rem, 0.88rem + 0.4vw, 1.32rem); color: var(--c-ink); font-weight: var(--fw-bold); line-height: 1.4; }
-.qclib-detail-en { margin: 4px 0 0; font-size: clamp(0.9rem, 0.8rem + 0.3vw, 1.12rem); color: var(--c-muted); font-style: italic; }
-.qclib-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.qclib-chip { display: inline-block; font-size: clamp(0.86rem, 0.76rem + 0.25vw, 1.06rem); font-weight: var(--fw-semibold); padding: 6px 14px; border-radius: 8px; }
+.qclib-detail-top { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); padding-bottom: var(--sp-4); border-bottom: 2px solid var(--c-line); }
+.qclib-detail-id { font-size: var(--qclib-fs-detail-id); font-weight: var(--fw-bold); color: var(--c-ink); line-height: 1.1; }
+.qclib-detail-sub { font-size: var(--qclib-fs-band); letter-spacing: 0.06em; text-transform: uppercase; color: var(--c-muted); margin-top: var(--sp-1); }
+.qclib-detail .qclib-sevpill { font-size: var(--qclib-fs-pill); padding: var(--sp-1) var(--sp-3); }
+.qclib-detail-sec h4 { margin: 0 0 var(--sp-2); font-size: var(--qclib-fs-band); font-weight: var(--fw-bold); letter-spacing: 0.12em; text-transform: uppercase; color: var(--c-muted); }
+.qclib-detail-vi { margin: 0; font-size: var(--qclib-fs-detail-vi); color: var(--c-ink); font-weight: var(--fw-bold); line-height: 1.4; }
+.qclib-detail-en { margin: var(--sp-1) 0 0; font-size: var(--qclib-fs-group); color: var(--c-muted); font-style: italic; }
+.qclib-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.qclib-chip { display: inline-block; font-size: var(--qclib-fs-group); font-weight: var(--fw-semibold); padding: var(--sp-2) var(--sp-4); border-radius: var(--r-md); }
 .qclib-chip-method { background: var(--indigo-bg); color: var(--brand-ink); }
 .qclib-chip-stage { background: var(--brand); color: var(--c-card); }
-.qclib-meta2 { display: grid; grid-template-columns: max-content 1fr; gap: clamp(8px, 0.9vw, 15px) clamp(20px, 2.4vw, 40px); margin: 0; font-size: clamp(0.95rem, 0.84rem + 0.32vw, 1.18rem); }
+.qclib-meta2 { display: grid; grid-template-columns: max-content 1fr; gap: var(--sp-2) var(--sp-6); margin: 0; font-size: var(--qclib-fs-detail); }
 .qclib-meta2 dt { font-weight: var(--fw-bold); color: var(--c-muted); }
 .qclib-meta2 dd { margin: 0; color: var(--c-ink-2); }
 
 /* ── Add-new form ────────────────────────────────────────────────────── */
-.qclib-form { display: flex; flex-direction: column; gap: 12px; min-width: min(560px, 80vw); }
-.qclib-form label { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--c-muted); }
-.qclib-form-ticks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 12px; padding: 8px; background: var(--c-surface); border-radius: 8px; }
-.qclib-form-tick { flex-direction: row !important; align-items: center; gap: 6px; font-weight: var(--fw-medium); color: var(--c-ink-3); }
+.qclib-form { display: flex; flex-direction: column; gap: var(--sp-3); min-width: min(560px, 80vw); }
+.qclib-form label { display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--c-muted); }
+.qclib-form-ticks { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-2) var(--sp-3); padding: var(--sp-2); background: var(--c-surface); border-radius: var(--r-md); }
+.qclib-form-tick { flex-direction: row !important; align-items: center; gap: var(--sp-2); min-height: var(--d-tap); font-weight: var(--fw-medium); color: var(--c-ink-3); }
 .qclib-form-tick input { accent-color: var(--brand); }
 .grid-btn-primary { background: var(--brand); color: var(--c-card); border-color: var(--brand); }
 .grid-btn-primary:hover { background: var(--brand-2); }
