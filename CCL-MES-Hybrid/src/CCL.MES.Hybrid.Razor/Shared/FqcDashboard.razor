@@ -74,7 +74,8 @@
             </div>
             <div class="ipqc-counter-pill" data-testid="fqc-counter">
                 <span class="ipqc-counter-label">@T("fqc.counter.label")</span>
-                <span class="ipqc-counter-value scan-mono">@ConfirmedCount/@(_view.Items.Count)</span>
+                <span class="ipqc-counter-value scan-mono @(_view.Items.Count > 0 && ConfirmedCount >= _view.Items.Count ? "is-complete" : null)">@*
+      *@<span class="ipqc-counter-done">@ConfirmedCount</span>/@(_view.Items.Count)</span>
             </div>
         </div>
 

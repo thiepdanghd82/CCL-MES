@@ -20,7 +20,8 @@ set -euo pipefail
 # E2: .drawing-status-withdrawn bỏ cặp hex hồng → --c-divider/--c-muted
 # B/E: .ipqc-counter-value #0c4a6e → var(--accent-ink)
 # A2/F: bỏ 3 hex bộ màu macOS (.fw-light-*) → nút glyph trung tính + alarm khi hover
-BASELINE=29
+# .ipqc-counter-pill bỏ khung viên thuốc → mất luôn border hex #67e8f9
+BASELINE=28
 # L37b — hex thô trong .razor. Gate gốc chỉ quét app.css, nên một inline style
 # như style="border-left:4px solid #dc2626" trong .razor lọt hoàn toàn. Phát
 # hiện khi gom StatusPill: ShopOrderHistory.razor đang nhét 2 hex như vậy.

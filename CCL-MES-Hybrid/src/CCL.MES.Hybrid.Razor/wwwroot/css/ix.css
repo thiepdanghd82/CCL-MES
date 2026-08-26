@@ -844,7 +844,12 @@
 
 /* 11.4 — PILL TRẠNG THÁI: gom mọi họ cũ về một cách vẽ.
    KHÔNG hover, KHÔNG con trỏ bấm — vì nó là thông tin, không phải điều khiển. */
-.hp-badge, .hw-pill, .prepress-pill, .ipqc-counter-pill, .ipqc-rollup-pill,
+/* `.ipqc-counter-pill` ĐÃ BỊ GỠ khỏi nhóm này: nó KHÔNG phải badge. Badge là
+   một nhãn trạng thái ngắn nằm gọn trong một viên thuốc; ô đếm là khối HAI DÒNG
+   (nhãn + con số lớn) — khoác viên thuốc lên nó chỉ thêm nhiễu quanh thứ mà mắt
+   vốn đã tìm thấy nhờ cỡ chữ. Xếp nhầm nhóm nên nó thừa hưởng nền + viền, và
+   `ix.css` nạp sau `app.css` nên bỏ viền ở app.css không có tác dụng. */
+.hp-badge, .hw-pill, .prepress-pill, .ipqc-rollup-pill,
 .ipqc-line-chip, .audit-action-chip, .backup-chip, .grid-status {
     display: inline-flex; align-items: center; gap: var(--sp-2);
     padding: 2px var(--sp-2);
