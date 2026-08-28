@@ -112,6 +112,7 @@
 - [L61 — master data dạng MA TRẬN nhưng code chỉ đọc MỘT TRỤC: 15 luật routing resolve ra `PRESS_CNC` mà thư viện v5 không có dòng nào tên đó ⇒ máy cắt mở IPQC ra thấy trống, không lỗi không cảnh báo](#l61)
 - [L62 — nhãn CÓ trong snapshot bằng chứng và CÓ trong payload, nhưng DTO không mang ra nên UI render mã khoá thô: người vận hành FQC/OQC nhìn thấy `color_match` thay vì "Màu sắc đúng mẫu chuẩn"](#l62)
 - [L63 — hai bộ máy QC song song trong cùng repo: IPQC data-driven từ thư viện, FQC/OQC chép tay tờ giấy CCL-10-F6 và trộn metadata + ô chữ ký vào lưới OK/NG; cờ `Fqc`/`Oqc` đã có sẵn trên mọi dòng thư viện mà chưa ai đọc](#l63)
+- [L64 — hai đường TẠO cùng một hồ sơ: nối thư viện vào `CreateAsync` trong khi màn hình thật gọi `CreateTicketAsync`; test xanh, màn hình vẫn trống](#l64)
 - [L58 — Gate tĩnh KHÔNG thay được việc mở app ở bề rộng thật: sweep L56/L57 quét rule CSS và bỏ lọt lỗi bố cục. Thanh chrome toàn cục (105 màn) tràn+cắt dưới 900pt; 6 bảng rộng tới 1400px không có luật responsive nào cho chính nó — trong đó `.prepress-table` là bề mặt XƯỞNG; và 12 ngưỡng breakpoint tự chế (1080 vs 1081) — lần thứ TƯ repo lặp lại câu chuyện "không có thang" sau màu/size/typography](#l58)
 - [L56 — `var(--token-không-tồn-tại)` KHÔNG im lặng: thuộc tính hỏng ở computed-value time ⇒ nút N/A nền trong suốt + chữ trắng = VÔ HÌNH, 69 nhãn mờ hoá đen, cả module IQC mất viền. 4 token dùng 95 lần mà chưa bao giờ được định nghĩa. Repo ĐÃ vá đúng lỗi này một lần cho `.grid-btn-secondary` nhưng không quét phần còn lại và không thêm gate ⇒ tái phát nhiều tháng](#l56)
 - [L57 — Kích thước KHÔNG tiêu thụ thang density thì màn hình tự rút khỏi hệ: (a) vùng chạm px cứng 20px cho ô tick người ĐEO GĂNG bấm, `--d-tap` không gate nào canh; (b) `clamp(...vw)` co theo bề rộng cửa sổ ⇒ shopfloor không đổi một pixel, và ĐẢO NGƯỢC ý đồ (người đứng xa nhất nhận chữ nhỏ nhất)](#l57)
@@ -836,6 +837,16 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Bẫy tìm được khi làm** | Kèm dòng `ALL` **vô điều kiện** làm WO chỉ resolve ra `FINISHING`/`DIGITAL` nhận một profile **chỉ có nhóm RoHS** và không một hạng mục kiểm nào. Test bắt trước khi ship. Luật: **RoHS đi KÈM một danh mục, nó không tự mình là danh mục** — chỉ kèm khi đã chọn được hạng mục thật. |
 | **Nợ còn lại** | 7 check FQC/OQC đã đóng băng profile cũ **cố ý không đổi** (Nguyên tắc IV). FQC/OQC **không có cột APPLY** như IPQC: nó dựa trên `WoIpqcCheckItem.Applicable`, `WoQcCheckItems` không có cột đó và thêm thì cần migration lên live DB (STOP-gate) cho việc chưa ai yêu cầu. |
 
+
+### L64 — hai đường TẠO cùng một hồ sơ: test xanh nhưng màn hình vẫn trống
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Henry mở phiếu IQC mới cho `Code IFS 30030146 / Mother code 336-H1a` và hỏi *"vẫn chưa đẩy các hạng mục kiểm tra lên cho tôi có đúng không?"* — bảng hạng mục trống. Trong khi đó 22 unit test của resolver + 6 integration test tạo ticket đều XANH. |
+| **Root cause** (proven) | `IqcService` có **HAI** đường tạo phiếu: `CreateAsync(CreateIqcRequest)` — đường cũ, và `CreateTicketAsync(CreateIqcTicketRequest)` — đường `POST /api/v2/iqc` mà màn "Khai báo mới" thực sự gọi (`IqcController.cs:182`). Tôi nối `MaterializeAsync` vào `CreateAsync`, viết test cho `CreateAsync`, và test xanh. Đo bằng `grep -rn "CreateIqcTicketRequest" --include='*.cs' … \| grep -i controller` mới thấy controller đi đường kia. Test chỉ chứng minh **đường nó gọi**, không chứng minh **đường người dùng bấm**. |
+| **Fix** | Nối `MaterializeAsync(rawMaterialId, ct)` vào `CreateTicketAsync`, đặt **trong cùng transaction** với phiếu + lô (ngay sau vòng retry `ReceiptNo`, trước `CreateLotAsync`) — lô lỗi ⇒ rollback cả bộ hạng mục, không để hồ sơ nửa vời. `MaterializeAsync` nhận thêm `CancellationToken` và truyền xuống cả 4 query. |
+| **Cơ chế chặn tái phát** | `IqcTicketMaterializeTests` mục **(d) ĐƯỜNG UI THẬT** — 3 fixture gọi thẳng `CreateTicketAsync` (không phải `CreateAsync`): có spec ⇒ hạng mục RIÊNG; chưa có spec ⇒ ma trận; mã không khớp catalog ⇒ phiếu vẫn tạo được nhưng **0 hạng mục**. Bỏ dòng nối trong `CreateTicketAsync` ⇒ cả 3 ĐỎ. **Quy tắc: trước khi viết test cho một service method, `grep` xem controller nào gọi nó. Nếu service có ≥2 method tạo cùng một loại hồ sơ, test PHẢI phủ method mà controller gọi — method còn lại là đường phụ.** |
+| **Bẫy tìm được khi làm** | Chỉ chạy được test là chưa đủ để tuyên bố xong: bằng chứng quyết định là POST thật lên `:5100` rồi đọc `IqcResultDetails` từ DB thật (13 hạng mục · spec `CCL-SPEC-QC229` · `Pass=NULL` · `CU-01` gắn cờ `XXX`). Phiếu thử tạo trên DB thật phải dọn ngay sau khi verify — sổ audit giữ nguyên vì append-only. |
 
 ----
 

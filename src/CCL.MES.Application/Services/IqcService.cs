@@ -91,16 +91,27 @@ public class IqcService
             SampleSize = r.SampleSize,
             Result = QcResult.Pending,
         };
-        foreach (var d in r.Details)
+        if (r.Details.Count > 0)
         {
-            insp.Details.Add(new IqcResultDetail
+            // Client gửi hạng mục ⇒ tôn trọng (đường cũ, nhập tay). Không đè.
+            foreach (var d in r.Details)
             {
-                ItemName = d.ItemName,
-                MeasuredValue = d.MeasuredValue,
-                Pass = d.Pass,
-                DefectCode = d.DefectCode,
-                Qty = d.Qty,
-            });
+                insp.Details.Add(new IqcResultDetail
+                {
+                    ItemName = d.ItemName,
+                    MeasuredValue = d.MeasuredValue,
+                    Pass = d.Pass,
+                    DefectCode = d.DefectCode,
+                    Qty = d.Qty,
+                });
+            }
+        }
+        else
+        {
+            // P12 bước 2a — dựng hạng mục từ THƯ VIỆN và ĐÓNG BĂNG vào ticket.
+            // Chỉ chạy khi client không gửi gì, nên đường nhập tay cũ vẫn nguyên.
+            foreach (var d in await MaterializeAsync(rawMaterialId))
+                insp.Details.Add(d);
         }
         _db.IqcInspections.Add(insp);
         await _db.SaveChangesAsync();
@@ -267,6 +278,17 @@ public class IqcService
             return CreateIqcTicketResult.Fail(409, "iqc.receipt_no_conflict",
                 "Could not allocate a unique receipt number; retry.");
         }
+
+        // P12 — dựng bộ hạng mục kiểm từ thư viện tiêu chuẩn và ĐÓNG BĂNG vào
+        // phiếu. Nằm trong CÙNG transaction với phiếu + lô: không có chuyện phiếu
+        // tồn tại mà bộ hạng mục nửa vời.
+        //
+        // Mã không resolve được (unmatched / ambiguous ⇒ rawMaterialId null) thì
+        // trả rỗng — người kiểm nhập tay như trước. KHÔNG đoán bừa: dựng sai bộ
+        // hạng mục còn tệ hơn không dựng.
+        foreach (var d in await MaterializeAsync(rawMaterialId, ct))
+            insp.Details.Add(d);
+        if (insp.Details.Count > 0) await _db.SaveChangesAsync(ct);
 
         // Mở lô Quarantine nối vào phiếu (A1: CreateLotAsync khởi tạo
         // Status=Quarantine, resolve RawMaterialId từ PartNo). Cùng scope DbContext
@@ -622,6 +644,69 @@ public class IqcService
             }
         }
         return d;
+    }
+
+    /// <summary>
+    /// P12 — dựng bộ hạng mục kiểm cho lô NVL, đóng băng cả hai ngôn ngữ.
+    ///
+    /// <para>Khoá nối là <c>RawMaterials.MotherCode</c> (đo trên live: 352/356
+    /// khớp), KHÔNG phải <c>PartNo</c> — <c>PartNo</c> là <c>300xxxxx</c> còn mã
+    /// trong file spec là <c>7xxxxxxx</c>, khớp 0 dòng. Xem
+    /// <see cref="IqcCheckResolver"/>.</para>
+    ///
+    /// <para>Không có nguyên liệu, hoặc mã rỗng ⇒ trả rỗng: ticket vẫn tạo
+    /// được, người kiểm nhập tay như trước. KHÔNG đoán bừa bộ hạng mục — dựng
+    /// sai còn tệ hơn không dựng.</para>
+    /// </summary>
+    private async Task<IReadOnlyList<IqcResultDetail>> MaterializeAsync(
+        long? rawMaterialId, CancellationToken ct = default)
+    {
+        if (rawMaterialId is null) return Array.Empty<IqcResultDetail>();
+
+        var motherCode = await _db.RawMaterials
+            .Where(x => x.Id == rawMaterialId)
+            .Select(x => x.MotherCode)
+            .FirstOrDefaultAsync(ct);
+        if (string.IsNullOrWhiteSpace(motherCode)) return Array.Empty<IqcResultDetail>();
+
+        var lib = await _db.IqcCheckItemLibraries.AsNoTracking().Where(x => x.Active).ToListAsync(ct);
+        if (lib.Count == 0) return Array.Empty<IqcResultDetail>();
+
+        var code = motherCode.Trim();
+        var specs = await _db.IqcMaterialSpecs.AsNoTracking()
+            .Where(x => x.Active && x.MaterialCode == code)
+            .ToListAsync(ct);
+        var specNos = specs.Select(x => x.SpecNo).ToList();
+        var specItems = specNos.Count == 0
+            ? new List<IqcSpecItem>()
+            : await _db.IqcSpecItems.AsNoTracking()
+                .Where(x => x.Active && specNos.Contains(x.SpecNo))
+                .ToListAsync(ct);
+
+        var resolved = IqcCheckResolver.Resolve(code, specs, specItems, lib);
+
+        return resolved.Items.Select(i => new IqcResultDetail
+        {
+            // ItemName giữ bản VI để bản ghi vẫn đọc được bằng công cụ cũ.
+            ItemName = i.LabelVi,
+            Pass = null,                       // CHƯA KIỂM — xem chú thích ở entity
+            Qty = 0,
+            ItemKey = i.ItemKey,
+            Seq = i.Seq,
+            SpecNo = resolved.SpecNo,
+            GroupCode = i.GroupCode,
+            GroupLabelVi = i.GroupLabelVi,
+            GroupLabelEn = i.GroupLabelEn,
+            LabelVi = i.LabelVi,
+            LabelEn = i.LabelEn,
+            AcceptanceVi = i.AcceptanceVi,
+            AcceptanceEn = i.AcceptanceEn,
+            MethodVi = i.MethodVi,
+            MethodEn = i.MethodEn,
+            SourceFrequency = i.SourceFrequency,
+            FromDefaultMatrix = i.FromDefaultMatrix,
+            AcceptanceUnspecified = i.AcceptanceUnspecified,
+        }).ToList();
     }
 }
 

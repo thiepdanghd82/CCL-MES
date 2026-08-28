@@ -687,7 +687,7 @@ public sealed class MaterialLotScanService
         if (lotIds.Count > 0)
         {
             var fails = await _db.IqcResultDetails.AsNoTracking()
-                .Where(d => lotIds.Contains(d.IqcInspectionId) && !d.Pass)
+                .Where(d => lotIds.Contains(d.IqcInspectionId) && d.Pass == false)   // CHƯA KIỂM (null) ≠ HỎNG
                 .Select(d => new { d.IqcInspectionId, d.DefectCode })
                 .ToListAsync(ct);
             var byInspection = fails.GroupBy(f => f.IqcInspectionId).ToDictionary(
