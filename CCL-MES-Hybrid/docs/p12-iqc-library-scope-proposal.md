@@ -127,7 +127,7 @@ ticket cũ — không xoá dữ liệu lịch sử.
 |---|---|---|---|
 | 1 | Hồ sơ tài liệu | `MT-02` | 1 |
 | **2** | **Ngoại quan** | `NL` + `NQ` | **7** |
-| **3** | **Chức năng** | `KT` · `BD` · `CU` · `XS` · `TL` · `BO` · `MT-01` · `MT-03` | **12** |
+| **3** | **Chức năng** | `KT` · `BD` · `CU` · `XS` · `TL` · `BO` · `MT-01` · `MT-03` · `KH` | **13** |
 | 4 | Mã lỗi & kết luận | — | — |
 | 5 | Tra cứu lịch sử | — | — |
 
@@ -177,7 +177,9 @@ probe** `[seed] iqc_library items=21 specs=NNN spec_items=NNNN skipped=NN`.
 - [ ] Đổi cờ EN/VI ⇒ nhãn · tiêu chuẩn · phương pháp đổi theo; thiếu bản dịch
       thì rơi về VI, **không bao giờ để ô trống**.
 - [ ] Sửa master data **không** đổi ticket đã đóng băng.
-- [ ] Mục 2 hiện 7 hạng mục, mục 3 hiện 12 — trên nguyên liệu có đủ spec.
+- [x] Mục 2 hiện 7 hạng mục, mục 3 hiện 13 — trên nguyên liệu có đủ spec.
+      (Bảng §4.3 từng ghi **12** vì bỏ sót `KH-01` mà dòng ngay dưới bảng có
+      nhắc; đã sửa bảng. Con số thật khoá trong `IqcTicketSectionTests`.)
 - [ ] Test **ĐỎ** khi hoàn nguyên fix (Nguyên tắc I + II của hiến pháp).
 - [ ] `gate-all.sh` 19/19; ảnh chụp ở 768px cho PR chạm `.razor`.
 
