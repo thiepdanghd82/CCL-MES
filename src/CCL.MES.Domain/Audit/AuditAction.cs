@@ -43,6 +43,7 @@ public static class AuditAction
     public const string BackupScheduleChange  = "BACKUP_SCHEDULE_CHANGE";
     public const string IqcApprove            = "IQC_APPROVE";             // Phase 6 Bước 7 — pass/fail in Detail
     public const string IqcCreate             = "IQC_CREATE";              // Phase 6 Bước 7
+    public const string IqcItemSet            = "IQC_ITEM_SET";            // P12 bước 3 — phán định 1 hạng mục
     public const string LoginDisabled         = "LOGIN_DISABLED";          // valid creds but IsActive = false
     public const string LoginFail             = "LOGIN_FAIL";              // wrong username OR wrong password (same code — no oracle)
     public const string LoginOk               = "LOGIN_OK";

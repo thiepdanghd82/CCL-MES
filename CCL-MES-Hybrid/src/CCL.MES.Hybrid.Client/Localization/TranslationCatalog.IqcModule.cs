@@ -108,5 +108,23 @@ public sealed partial class TranslationCatalog
         Add("iqc.ph.saving",               "Đang lưu…",                           "Saving…");
         Add("iqc.ph.cancel",               "Huỷ",                                 "Cancel");
         Add("iqc.ph.saved",                "Đã tạo phiếu {0}.",                    "Ticket {0} created.");
+
+        // ── P12 bước 3 — lưới hạng mục kiểm đã đóng băng ────────────────
+        Add("iqc.items.empty",             "Phiếu này chưa có hạng mục kiểm nào. Mã nguyên liệu không tra được trong danh mục nên hệ thống không suy ra bộ hạng mục — nhập tay như trước.",
+                                           "This ticket has no check items. The material code could not be resolved in the catalogue, so no item set was derived — enter them manually as before.");
+        Add("iqc.items.spec",              "Theo tiêu chuẩn {0}",                 "Per standard {0}");
+        Add("iqc.items.matrix",            "Nguyên liệu này chưa có tiêu chuẩn riêng — đang kiểm theo MA TRẬN MẶC ĐỊNH.",
+                                           "This material has no dedicated standard yet — inspecting against the DEFAULT MATRIX.");
+        Add("iqc.items.unspecified",       "chưa xác định",                       "not specified");
+        Add("iqc.items.unspecified.why",   "Tiêu chuẩn gốc còn để trống — hỏi QA điền trước khi chấm ĐẠT.",
+                                           "The source standard is still blank — ask QA to fill it in before passing this item.");
+        Add("iqc.status.ok",               "Đạt",                                 "Pass");
+        Add("iqc.status.ng",               "Không đạt",                           "Fail");
+        Add("iqc.status.pending",          "Chưa kiểm",                           "Not checked");
+        Add("iqc.items.after.create",      "Hạng mục kiểm được dựng khi phiếu được tạo — lưu phiếu rồi mở lại để chấm.",
+                                           "Check items are built when the ticket is created — save the ticket, then reopen it to record results.");
+        Add("iqc.step.visual.desc",        "Nhận dạng vật liệu và ngoại quan.",    "Material identification and visual appearance.");
+        Add("iqc.step.functional.desc",    "Kích thước, bám dính, độ cứng và các phép đo lý hoá.",
+                                           "Dimensions, adhesion, hardness and physical/chemical measurements.");
     }
 }

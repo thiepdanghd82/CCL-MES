@@ -66,6 +66,13 @@ public interface ICclApiClient
         string? group, string? search, int page = 1, int pageSize = 20, CancellationToken ct = default);
     Task<CCL.MES.Shared.Quality.IqcDashboardResponse> GetIqcDashboardAsync(CancellationToken ct = default);
 
+    // ── IQC hạng mục kiểm (P12 bước 3) ─────────────────────────────
+    Task<CCL.MES.Shared.Quality.IqcTicketItemsResponse> GetIqcTicketItemsAsync(
+        long ticketId, CancellationToken ct = default);
+    Task SetIqcTicketItemAsync(
+        long ticketId, long itemId, CCL.MES.Shared.Quality.SetIqcItemBody body,
+        CancellationToken ct = default);
+
     // ── NPI (pilot scope) ──────────────────────────────────────────
     Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? search, int page, int pageSize, CancellationToken ct = default);
     Task<NpiPagedRaw<NpiRawMaterial>> GetRawMaterialsAsync(string? search, int page, int pageSize, CancellationToken ct = default);

@@ -313,6 +313,43 @@ else
                     </div>
                 </section>
             }
+            else if (_active is 1 or 2)
+            {
+                @* P12 bước 3 — mục 2 (ngoại quan) và mục 3 (chức năng) lấy hạng
+                   mục ĐÃ ĐÓNG BĂNG trên phiếu. Số mục do server tính
+                   (IqcTicketSection) — ở đây chỉ truyền xuống. *@
+                <section class="qms-section" data-testid="@($"iqc-insp-sec{_active + 1}")">
+                    <div class="qms-section-head">
+                        <h2 class="qms-section-title">@T(QmsMock.IqcSteps[_active].LabelKey)</h2>
+                    </div>
+                    <p class="qms-section-desc">
+                        @T(_active == 1 ? "iqc.step.visual.desc" : "iqc.step.functional.desc")
+                    </p>
+
+                    @if (IsCreate)
+                    {
+                        @* Chưa có phiếu thì chưa có gì để đóng băng. Nói thẳng chứ
+                           không hiện lưới rỗng làm người dùng tưởng mất dữ liệu. *@
+                        <p class="qms-section-desc" data-testid="@($"iqc-insp-sec{_active + 1}-pending-create")">
+                            @T("iqc.items.after.create")
+                        </p>
+                    }
+                    else if (_itemsError is not null)
+                    {
+                        <p class="iqc-warn iqc-warn-error" data-testid="@($"iqc-insp-sec{_active + 1}-error")">@_itemsError</p>
+                    }
+                    else
+                    {
+                        <IqcCheckItemGrid TicketId="@Ticket!.Id"
+                                          Items="_items"
+                                          Section="@(_active + 1)"
+                                          SpecNo="@_itemsSpecNo"
+                                          FromDefaultMatrix="_itemsFromMatrix"
+                                          OnChanged="LoadItemsAsync"
+                                          TestIdPrefix="@($"iqc-sec{_active + 1}")" />
+                    }
+                </section>
+            }
             else
             {
                 <p class="qms-section-desc" data-testid="iqc-insp-step-placeholder">
@@ -348,6 +385,42 @@ else
     private bool IsCreate => Ticket is null;
 
     private int _active;
+
+    // ── P12 bước 3 — hạng mục kiểm đã đóng băng trên phiếu ───────────────
+    private List<IqcCheckItemDto> _items = new();
+    private string? _itemsSpecNo;
+    private bool _itemsFromMatrix;
+    private string? _itemsError;
+    private long _itemsLoadedFor;
+
+    /// <summary>Nạp khi MỞ một phiếu đã lưu; đổi sang phiếu khác thì nạp lại.
+    /// Chế độ tạo mới chưa có phiếu nên không gọi.</summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Ticket is null || Ticket.Id == _itemsLoadedFor) return;
+        _itemsLoadedFor = Ticket.Id;
+        await LoadItemsAsync();
+    }
+
+    private async Task LoadItemsAsync()
+    {
+        if (Ticket is null) return;
+        try
+        {
+            var r = await Api.GetIqcTicketItemsAsync(Ticket.Id);
+            _items = r.Items;
+            _itemsSpecNo = r.SpecNo;
+            _itemsFromMatrix = r.FromDefaultMatrix;
+            _itemsError = null;
+        }
+        catch (Exception ex)
+        {
+            // Hiện đúng lỗi server trả về. Nuốt lỗi rồi để lưới rỗng là cách
+            // người kiểm tưởng phiếu KHÔNG có hạng mục nào phải kiểm.
+            _itemsError = ex.Message;
+            _items = new();
+        }
+    }
 
     // Form state (chế độ tạo mới).
     private bool _saving;

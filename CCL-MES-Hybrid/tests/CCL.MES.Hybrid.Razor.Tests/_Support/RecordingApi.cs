@@ -845,6 +845,34 @@ public sealed class RecordingApi : ICclApiClient
             });
     }
 
+    // P12 bước 3 — hạng mục kiểm của phiếu (đọc + ghi phán định).
+    public Func<long, Task<CCL.MES.Shared.Quality.IqcTicketItemsResponse>>? IqcTicketItemsImpl { get; set; }
+    public List<long> IqcTicketItemsCalls { get; } = new();
+    public List<(long TicketId, long ItemId, CCL.MES.Shared.Quality.SetIqcItemBody Body)> SetIqcTicketItemCalls { get; } = new();
+
+    /// <summary>Ném khi được set — dùng để khoá nhánh hiện lỗi server thay vì
+    /// nuốt lỗi và để lưới rỗng.</summary>
+    public Exception? SetIqcTicketItemThrows { get; set; }
+
+    public Task<CCL.MES.Shared.Quality.IqcTicketItemsResponse> GetIqcTicketItemsAsync(
+        long ticketId, CancellationToken ct = default)
+    {
+        IqcTicketItemsCalls.Add(ticketId);
+        return IqcTicketItemsImpl is not null
+            ? IqcTicketItemsImpl(ticketId)
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcTicketItemsResponse { TicketId = ticketId });
+    }
+
+    public Task SetIqcTicketItemAsync(
+        long ticketId, long itemId, CCL.MES.Shared.Quality.SetIqcItemBody body,
+        CancellationToken ct = default)
+    {
+        SetIqcTicketItemCalls.Add((ticketId, itemId, body));
+        return SetIqcTicketItemThrows is not null
+            ? Task.FromException(SetIqcTicketItemThrows)
+            : Task.CompletedTask;
+    }
+
     // feat/iqc-module-tabs — IQC Data list + Dashboard KPI hooks.
     public Func<string?, string?, int, int, Task<CCL.MES.Shared.Quality.IqcTicketListResponse>>? ListIqcTicketsImpl { get; set; }
     public Func<Task<CCL.MES.Shared.Quality.IqcDashboardResponse>>? IqcDashboardImpl { get; set; }

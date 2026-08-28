@@ -184,6 +184,32 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<CCL.MES.Shared.Quality.IqcDashboardResponse>(resp, ct);
     }
 
+    // ── IQC hạng mục kiểm (P12 bước 3) ─────────────────────────────
+
+    public async Task<CCL.MES.Shared.Quality.IqcTicketItemsResponse> GetIqcTicketItemsAsync(
+        long ticketId, CancellationToken ct = default)
+    {
+        using var resp = await _http.GetAsync(
+            $"/{ApiVersion.Prefix}/iqc/tickets/{ticketId}/items", ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcTicketItemsResponse>(resp, ct);
+    }
+
+    public async Task SetIqcTicketItemAsync(
+        long ticketId, long itemId, CCL.MES.Shared.Quality.SetIqcItemBody body,
+        CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(
+            HttpMethod.Put, $"/{ApiVersion.Prefix}/iqc/tickets/{ticketId}/items/{itemId}")
+        {
+            Content = JsonContent.Create(body),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+        using var resp = await _http.SendAsync(msg, ct);
+        if (!resp.IsSuccessStatusCode) await ThrowOnNonSuccess(resp, ct);
+    }
+
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)
     {
         var req = new RefreshTokenRequest { RefreshToken = refreshToken };
