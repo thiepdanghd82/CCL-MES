@@ -219,3 +219,83 @@ public sealed class SetIqcItemBody
     public string? MeasuredValue { get; set; }
     public string? DefectCode { get; set; }
 }
+
+// ── P12 bước 2b — soạn tiêu chuẩn theo mã nguyên liệu ────────────────────
+
+/// <summary>Một dòng tiêu chuẩn của mã nguyên liệu (màn soạn).</summary>
+public sealed class IqcSpecItemDto
+{
+    public long Id { get; set; }
+    public string ItemId { get; set; } = "";
+    public int Seq { get; set; }
+    public string? GroupCode { get; set; }
+    public string? GroupLabelVi { get; set; }
+    public string? GroupLabelEn { get; set; }
+    public string? LabelVi { get; set; }
+    public string? LabelEn { get; set; }
+    public string? AcceptanceVi { get; set; }
+    public string? AcceptanceEn { get; set; }
+    public string? MethodVi { get; set; }
+    public string? MethodEn { get; set; }
+    public string? SourceFrequency { get; set; }
+
+    /// <summary><c>false</c> = đã xoá mềm; vẫn giữ để truy vết và khôi phục.</summary>
+    public bool Active { get; set; } = true;
+
+    /// <summary>Dòng đến từ file master — sửa ở đây thì lần import sau ghi đè.</summary>
+    public bool FromMasterFile { get; set; }
+
+    public string LabelFor(bool english) => Pick(LabelEn, LabelVi, english) ?? ItemId;
+    public string? GroupLabelFor(bool english) => Pick(GroupLabelEn, GroupLabelVi, english);
+    public string? AcceptanceFor(bool english) => Pick(AcceptanceEn, AcceptanceVi, english);
+    public string? MethodFor(bool english) => Pick(MethodEn, MethodVi, english);
+
+    private static string? Pick(string? en, string? vi, bool english)
+        => english && !string.IsNullOrWhiteSpace(en) ? en : (string.IsNullOrWhiteSpace(vi) ? null : vi);
+}
+
+/// <summary>Một hạng mục thư viện để chọn khi thêm dòng tiêu chuẩn.</summary>
+public sealed class IqcLibraryOptionDto
+{
+    public string ItemId { get; set; } = "";
+    public string? GroupCode { get; set; }
+    public string? GroupLabelVi { get; set; }
+    public string? GroupLabelEn { get; set; }
+    public string? ItemVi { get; set; }
+    public string? ItemEn { get; set; }
+    public string? DefaultAcceptanceVi { get; set; }
+    public string? DefaultAcceptanceEn { get; set; }
+    public string? DefaultMethodVi { get; set; }
+    public string? DefaultMethodEn { get; set; }
+
+    public string LabelFor(bool english) =>
+        (english && !string.IsNullOrWhiteSpace(ItemEn) ? ItemEn : ItemVi) ?? ItemId;
+}
+
+/// <summary>Thân phản hồi <c>GET /api/v2/iqc/specs/{materialCode}</c>.</summary>
+public sealed class IqcSpecEditResponse
+{
+    public string MaterialCode { get; set; } = "";
+
+    /// <summary><c>null</c> = mã chưa có tiêu chuẩn riêng (1 trong 590) — đang
+    /// kiểm theo ma trận mặc định.</summary>
+    public string? SpecNo { get; set; }
+    public bool SpecActive { get; set; }
+
+    /// <summary>Spec do người dùng soạn trong app, không phải từ file master.</summary>
+    public bool IsLocalSpec { get; set; }
+
+    public List<IqcSpecItemDto> Items { get; set; } = new();
+    public List<IqcLibraryOptionDto> Library { get; set; } = new();
+}
+
+/// <summary>Body <c>POST /api/v2/iqc/specs/{materialCode}/items</c>.</summary>
+public sealed class AddIqcSpecItemBody
+{
+    public string? ItemId { get; set; }
+    public string? AcceptanceVi { get; set; }
+    public string? AcceptanceEn { get; set; }
+    public string? MethodVi { get; set; }
+    public string? MethodEn { get; set; }
+    public string? SourceFrequency { get; set; }
+}

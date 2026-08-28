@@ -126,5 +126,35 @@ public sealed partial class TranslationCatalog
         Add("iqc.step.visual.desc",        "Nhận dạng vật liệu và ngoại quan.",    "Material identification and visual appearance.");
         Add("iqc.step.functional.desc",    "Kích thước, bám dính, độ cứng và các phép đo lý hoá.",
                                            "Dimensions, adhesion, hardness and physical/chemical measurements.");
+
+        // ── P12 bước 2b — soạn tiêu chuẩn theo mã nguyên liệu ───────────
+        Add("iqc.tab.spec",                "Tiêu chuẩn",                          "Standards");
+        Add("iqc.spec.title",              "Tiêu chuẩn kiểm theo mã nguyên liệu",  "Inspection standards by material code");
+        Add("iqc.spec.desc",               "Tra mã nguyên liệu để xem bộ hạng mục sẽ áp cho các lô nhập sau. Thêm hoặc gỡ hạng mục tại đây; phiếu ĐÃ mở giữ bản đóng băng riêng nên không bị ảnh hưởng.",
+                                           "Look up a material code to see the item set that will apply to future incoming lots. Add or remove items here; tickets already opened keep their own frozen copy and are unaffected.");
+        Add("iqc.spec.search.ph",          "Mã nguyên liệu — vd 336-H1a",          "Material code — e.g. 336-H1a");
+        Add("iqc.spec.load",               "Tra",                                 "Look up");
+        Add("iqc.spec.showinactive",       "Hiện cả hạng mục đã gỡ",              "Show removed items");
+        Add("iqc.spec.none",               "Mã {0} chưa có tiêu chuẩn riêng — các lô nhập đang kiểm theo MA TRẬN MẶC ĐỊNH. Thêm hạng mục bên dưới để soạn tiêu chuẩn riêng cho mã này.",
+                                           "Material {0} has no dedicated standard yet — incoming lots are inspected against the DEFAULT MATRIX. Add items below to build a dedicated standard.");
+        Add("iqc.spec.specno",             "Tiêu chuẩn {0}",                      "Standard {0}");
+        Add("iqc.spec.frommaster",         "từ file master",                      "from master file");
+        Add("iqc.spec.frommaster.why",     "Bộ này đến từ file master. Hạng mục bạn thêm vào đây sẽ bị lần import kế tiếp ghi đè nếu file master không có dòng tương ứng.",
+                                           "This set came from the master file. Items you add here may be overwritten by the next import if the master file has no matching row.");
+        Add("iqc.spec.empty",              "Chưa có hạng mục nào.",               "No items yet.");
+        Add("iqc.spec.col.group",          "Nhóm",                                "Group");
+        Add("iqc.spec.col.freq",           "Tần suất",                            "Frequency");
+        Add("iqc.spec.status.on",          "Đang dùng",                           "Active");
+        Add("iqc.spec.status.off",         "Đã gỡ",                               "Removed");
+        Add("iqc.spec.addrow",             "Thêm hạng mục",                       "Add item");
+        Add("iqc.spec.addnew.save",        "Lưu hạng mục",                        "Save item");
+        Add("iqc.spec.f.item",             "Hạng mục",                            "Check item");
+        Add("iqc.spec.f.item.pick",        "— chọn hạng mục —",                    "— pick an item —");
+        Add("iqc.spec.f.acc.ph",           "Tiêu chuẩn chấp nhận cho mã này",      "Acceptance criteria for this material");
+        Add("iqc.spec.f.method.ph",        "Phương pháp đo",                       "Measurement method");
+        Add("iqc.spec.f.freq.ph",          "vd. All lot, 1 lần/tháng",             "e.g. All lot, monthly");
+        Add("iqc.spec.menu.aria",          "Hành động cho hạng mục {0}",           "Actions for item {0}");
+        Add("iqc.spec.menu.deactivate",    "Gỡ hạng mục",                         "Remove item");
+        Add("iqc.spec.menu.restore",       "Khôi phục",                           "Restore");
     }
 }

@@ -35,6 +35,10 @@
         <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.NewTicket ? "iqc-subtab-on" : "")"
                 data-testid="iqc-subtab-newticket" aria-selected="@(_tab == IqcTab.NewTicket)"
                 @onclick="() => SelectTab(IqcTab.NewTicket)">@T("iqc.tab.newticket")</button>
+        @* P12 bước 2b — soạn tiêu chuẩn theo mã nguyên liệu. *@
+        <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.Spec ? "iqc-subtab-on" : "")"
+                data-testid="iqc-subtab-spec" aria-selected="@(_tab == IqcTab.Spec)"
+                @onclick="() => SelectTab(IqcTab.Spec)">@T("iqc.tab.spec")</button>
     </div>
 
     @* ══════════════ DASHBOARD ══════════════ *@
@@ -190,6 +194,12 @@
                         AriaLabel="@T("iqc.data.menu.aria", _menuRow?.ReceiptNo ?? "")" OnClose="CloseMenu" />
     }
 
+    @* ══════════════ TIÊU CHUẨN (P12 bước 2b) ══════════════ *@
+    else if (_tab == IqcTab.Spec)
+    {
+        <IqcSpecEditor />
+    }
+
     @* ══════════════ NEW TICKET ══════════════ *@
     else
     {
@@ -261,7 +271,7 @@
 }
 
 @code {
-    private enum IqcTab { Dashboard, Data, NewTicket }
+    private enum IqcTab { Dashboard, Data, NewTicket, Spec }
     private enum IqcGroupKind { Materials, Chemical, Tools, Other }
 
     private IqcTab _tab = IqcTab.Dashboard;

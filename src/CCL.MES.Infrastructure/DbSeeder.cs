@@ -553,7 +553,10 @@ public static class DbSeeder
                 S(e.DefaultMethodVi, r.DefaultMethodVi, v => e.DefaultMethodVi = v);
                 S(e.DefaultMethodEn, r.DefaultMethodEn, v => e.DefaultMethodEn = v);
                 S(e.Sort, r.Sort, v => e.Sort = v);
-                S(e.Active, true, v => e.Active = v);
+                // P12 bước 2b — KHÔNG hồi sinh dòng đã tắt. Seeder không bao giờ
+                // đặt Active=false, nên Active=false CHỈ có thể do người thật
+                // tắt qua UI. Seed chạy mỗi lần boot API; bật lại ở đây là âm
+                // thầm huỷ quyết định của Engineer sau lần khởi động kế tiếp.
                 if (ch) { e.UpdatedAt = DateTime.UtcNow; e.UpdatedBy = "seed"; updated++; }
             }
             else
@@ -591,7 +594,10 @@ public static class DbSeeder
                 S(e.MaterialCodeIfs, r.MaterialCodeIfs, v => e.MaterialCodeIfs = v);
                 S(e.SupplierName, r.SupplierName, v => e.SupplierName = v);
                 S(e.Revision, r.Revision, v => e.Revision = v);
-                if (!e.Active) { e.Active = true; ch = true; }
+                // P12 bước 2b — KHÔNG hồi sinh dòng đã tắt. Seeder không bao giờ
+                // đặt Active=false, nên Active=false CHỈ có thể do người thật
+                // tắt qua UI. Seed chạy mỗi lần boot API; bật lại ở đây là âm
+                // thầm huỷ quyết định của Engineer sau lần khởi động kế tiếp.
                 if (ch) { e.UpdatedAt = DateTime.UtcNow; e.UpdatedBy = "seed"; updated++; }
             }
             else
@@ -627,7 +633,10 @@ public static class DbSeeder
                 S(e.MethodEn, r.MethodEn, v => e.MethodEn = v);
                 S(e.SourceFrequency, r.SourceFrequency, v => e.SourceFrequency = v);
                 if (e.Sort != r.Sort) { e.Sort = r.Sort; ch = true; }
-                if (!e.Active) { e.Active = true; ch = true; }
+                // P12 bước 2b — KHÔNG hồi sinh dòng đã tắt. Seeder không bao giờ
+                // đặt Active=false, nên Active=false CHỈ có thể do người thật
+                // tắt qua UI. Seed chạy mỗi lần boot API; bật lại ở đây là âm
+                // thầm huỷ quyết định của Engineer sau lần khởi động kế tiếp.
                 if (ch) { e.UpdatedAt = DateTime.UtcNow; e.UpdatedBy = "seed"; updated++; }
             }
             else

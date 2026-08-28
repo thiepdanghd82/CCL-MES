@@ -9225,3 +9225,41 @@ tr.wc-row:hover { background: var(--c-bg); }
     z-index: 1;
 }
 .confirm-toggle-opt:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── P12 bước 2b — soạn tiêu chuẩn kiểm theo mã nguyên liệu ─────────────
+   Băng nhắc trung tính (không phải lỗi, không phải cảnh báo đỏ) + lưới soạn
+   thảo. Add-row nằm NGAY DƯỚI hàng cuối theo hợp đồng cmes-add-new-inline. */
+.iqc-warn-note { color: var(--c-ink); background: var(--c-soft); }
+
+.iqc-spec-showinactive {
+    display: inline-flex; align-items: center; gap: var(--sp-2);
+    font-size: var(--fs-sm); color: var(--c-muted);
+}
+
+/* Dòng đã gỡ vẫn ĐỌC ĐƯỢC, chỉ lùi lại — người soạn cần thấy mình đã gỡ gì. */
+.iqc-spec-row-off { opacity: .55; }
+.iqc-spec-row-off .qms-td-strong { text-decoration: line-through; }
+
+.iqc-spec-addrow {
+    display: block; width: 100%;
+    margin-top: var(--sp-2); min-height: var(--d-tap);
+}
+
+.iqc-spec-addnew {
+    margin-top: var(--sp-2); padding: var(--sp-3);
+    border: 1px solid var(--c-border); border-radius: 8px;
+    background: var(--c-surface);
+}
+.iqc-spec-addnew-grid {
+    display: grid; grid-template-columns: max-content 1fr;
+    gap: var(--sp-2) var(--sp-3); align-items: center;
+}
+.iqc-spec-addnew-actions {
+    display: flex; justify-content: flex-end;
+    gap: var(--sp-2); margin-top: var(--sp-3);
+}
+
+/* Máy tab / màn hẹp: nhãn xuống dòng riêng thay vì ép ô nhập còn một gang tay. */
+@media (max-width: 700px) {
+    .iqc-spec-addnew-grid { grid-template-columns: 1fr; }
+}

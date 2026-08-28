@@ -1,0 +1,332 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Shared.Quality
+@using CCL.MES.Shared.Localization
+@using CCL.MES.Hybrid.Razor.Localization
+@using CCL.MES.Hybrid.Razor.Shared
+@inject ICclApiClient Api
+@inject CCL.MES.Hybrid.Client.Auth.IAuthSession Session
+
+@*
+    P12 bước 2b — soạn TIÊU CHUẨN KIỂM theo mã nguyên liệu.
+
+    590 mã đang kiểm theo ma trận mặc định vì chưa ai soạn spec riêng. Đây là
+    đường để Engineer soạn dần ngay trong app.
+
+    Theo hợp đồng cmes-add-new-inline: nút "＋ Thêm hạng mục" nằm NGAY DƯỚI hàng
+    cuối của grid, bấm ra form nhỏ INLINE — không nhảy trang, không modal toàn
+    màn. Xoá đi qua RowContextMenu (L35), không đẻ cột "Actions".
+
+    RBAC-by-omission: chỉ Engineer+ thấy nút thêm/xoá; server vẫn 403 độc lập.
+*@
+
+<section class="qms-section" data-testid="iqc-spec-editor">
+    <div class="qms-section-head">
+        <h2 class="qms-section-title">@T("iqc.spec.title")</h2>
+    </div>
+    <p class="qms-section-desc">@T("iqc.spec.desc")</p>
+
+    @* ── tra theo mã ── *@
+    <div class="iqc-data-toolbar">
+        <input type="text" class="iqc-input" placeholder="@T("iqc.spec.search.ph")"
+               value="@_code" data-testid="iqc-spec-search"
+               @oninput="@(e => _code = e.Value?.ToString() ?? "")"
+               @onkeydown="OnSearchKeyAsync" />
+        <button type="button" class="op-btn op-btn-primary" data-testid="iqc-spec-load"
+                disabled="@(_busy || string.IsNullOrWhiteSpace(_code))"
+                @onclick="LoadAsync">@T("iqc.spec.load")</button>
+        <label class="iqc-spec-showinactive">
+            <input type="checkbox" checked="@_includeInactive" data-testid="iqc-spec-showinactive"
+                   @onchange="OnToggleInactiveAsync" />
+            <span>@T("iqc.spec.showinactive")</span>
+        </label>
+    </div>
+
+    @if (_error is not null)
+    {
+        <p class="iqc-warn iqc-warn-error" data-testid="iqc-spec-error">@_error</p>
+    }
+
+    @if (_view is not null)
+    {
+        @if (_view.SpecNo is null)
+        {
+            @* 1 trong 590 mã — nói rõ nó đang kiểm theo cái gì. *@
+            <p class="iqc-warn iqc-warn-note" data-testid="iqc-spec-nospec">@T("iqc.spec.none", _view.MaterialCode)</p>
+        }
+        else
+        {
+            <p class="qms-section-desc" data-testid="iqc-spec-specno">
+                @T("iqc.spec.specno", _view.SpecNo)
+                @if (!_view.IsLocalSpec)
+                {
+                    <span class="ipqc-status-pill ipqc-status-pending"
+                          title="@T("iqc.spec.frommaster.why")"
+                          data-testid="iqc-spec-frommaster">@T("iqc.spec.frommaster")</span>
+                }
+            </p>
+        }
+
+        <div class="qms-table-wrap">
+            <table class="qms-table" data-testid="iqc-spec-table">
+                <thead>
+                    <tr>
+                        <th>@T("iqc.spec.col.group")</th>
+                        <th>@T("ipqc.col.item")</th>
+                        <th>@T("ipqc.col.spec")</th>
+                        <th>@T("ipqc.col.method")</th>
+                        <th>@T("iqc.spec.col.freq")</th>
+                        <th>@T("qms.iqc.col.status")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var it in _view.Items)
+                    {
+                        <tr class="@(it.Active ? "" : "iqc-spec-row-off")"
+                            data-testid="@($"iqc-spec-item-{it.Id}")"
+                            @oncontextmenu="e => OpenMenuAt(it, e.ClientX, e.ClientY)"
+                            @oncontextmenu:preventDefault="true">
+                            <td>@Dash(it.GroupLabelFor(IsEnglish))</td>
+                            <td class="qms-td-strong">@it.LabelFor(IsEnglish)<span class="qms-cell-sub scan-mono">@it.ItemId · #@it.Seq</span></td>
+                            <td>@Dash(it.AcceptanceFor(IsEnglish))</td>
+                            <td>@Dash(it.MethodFor(IsEnglish))</td>
+                            <td>@Dash(it.SourceFrequency)</td>
+                            <td>
+                                <span class="iqc-status @(it.Active ? "iqc-status-pass" : "iqc-status-fail")"
+                                      data-testid="@($"iqc-spec-item-{it.Id}-status")">
+                                    @T(it.Active ? "iqc.spec.status.on" : "iqc.spec.status.off")
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                    @if (_view.Items.Count == 0)
+                    {
+                        <tr><td colspan="6" class="grid-empty" data-testid="iqc-spec-empty">@T("iqc.spec.empty")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @* ── add-row NGAY DƯỚI hàng cuối (cmes-add-new-inline) ── *@
+        @if (CanEdit)
+        {
+            @if (!_adding)
+            {
+                <button type="button" class="op-btn op-btn-secondary iqc-spec-addrow"
+                        data-testid="iqc-spec-addrow" disabled="@_busy"
+                        @onclick="StartAdd">＋ @T("iqc.spec.addrow")</button>
+            }
+            else
+            {
+                <div class="iqc-spec-addnew" data-testid="iqc-spec-addnew-form">
+                    <div class="iqc-spec-addnew-grid">
+                        <label class="rs-modal-label" for="iqc-spec-addnew-item">@T("iqc.spec.f.item")</label>
+                        <select id="iqc-spec-addnew-item" class="iqc-input"
+                                data-testid="iqc-spec-addnew-name"
+                                value="@_newItemId" @onchange="OnPickItem">
+                            <option value="">@T("iqc.spec.f.item.pick")</option>
+                            @foreach (var o in _view.Library)
+                            {
+                                <option value="@o.ItemId">@o.ItemId — @o.LabelFor(IsEnglish)</option>
+                            }
+                        </select>
+
+                        <label class="rs-modal-label" for="iqc-spec-addnew-acc">@T("ipqc.col.spec")</label>
+                        <input id="iqc-spec-addnew-acc" type="text" class="iqc-input"
+                               placeholder="@T("iqc.spec.f.acc.ph")" value="@_newAcceptance"
+                               data-testid="iqc-spec-addnew-acc"
+                               @oninput="@(e => _newAcceptance = e.Value?.ToString() ?? "")" />
+
+                        <label class="rs-modal-label" for="iqc-spec-addnew-method">@T("ipqc.col.method")</label>
+                        <input id="iqc-spec-addnew-method" type="text" class="iqc-input"
+                               placeholder="@T("iqc.spec.f.method.ph")" value="@_newMethod"
+                               data-testid="iqc-spec-addnew-method"
+                               @oninput="@(e => _newMethod = e.Value?.ToString() ?? "")" />
+
+                        <label class="rs-modal-label" for="iqc-spec-addnew-freq">@T("iqc.spec.col.freq")</label>
+                        <input id="iqc-spec-addnew-freq" type="text" class="iqc-input"
+                               placeholder="@T("iqc.spec.f.freq.ph")" value="@_newFrequency"
+                               data-testid="iqc-spec-addnew-freq"
+                               @oninput="@(e => _newFrequency = e.Value?.ToString() ?? "")" />
+                    </div>
+
+                    <div class="iqc-spec-addnew-actions">
+                        <button type="button" class="op-btn op-btn-secondary"
+                                data-testid="iqc-spec-addnew-cancel" disabled="@_busy"
+                                @onclick="CancelAdd">@T("iqc.ph.cancel")</button>
+                        <button type="button" class="op-btn op-btn-primary"
+                                data-testid="iqc-spec-addnew-save"
+                                disabled="@(_busy || string.IsNullOrWhiteSpace(_newItemId))"
+                                @onclick="SaveAddAsync">@T("iqc.spec.addnew.save")</button>
+                    </div>
+                </div>
+            }
+        }
+
+        @* Xoá/khôi phục đi qua menu chuột-phải dùng chung (L35), không cột Actions. *@
+        <RowContextMenu Open="_menuRow is not null" Anchor="_menuAnchor" Items="_menuItems"
+                        AriaLabel="@T("iqc.spec.menu.aria", _menuRow?.ItemId ?? "")" OnClose="CloseMenu" />
+    }
+</section>
+
+@code {
+    /// <summary>Mã nạp sẵn khi mở (vd mở từ một phiếu). Rỗng = người dùng tự tra.</summary>
+    [Parameter] public string? MaterialCode { get; set; }
+
+    private string _code = "";
+    private IqcSpecEditResponse? _view;
+    private bool _includeInactive;
+    private bool _busy;
+    private string? _error;
+
+    // Form thêm mới.
+    private bool _adding;
+    private string _newItemId = "";
+    private string _newAcceptance = "";
+    private string _newMethod = "";
+    private string _newFrequency = "";
+
+    // Menu hành-động-dòng (L35).
+    private IqcSpecItemDto? _menuRow;
+    private (double X, double Y) _menuAnchor;
+    private IReadOnlyList<ContextMenuItem> _menuItems = Array.Empty<ContextMenuItem>();
+
+    private bool IsEnglish => LanguageService.Current == LanguageCode.English;
+
+    /// <summary>RBAC-by-omission — client chỉ dựng affordance khi đủ quyền;
+    /// server vẫn 403 độc lập. Ẩn nút KHÔNG phải là phân quyền.</summary>
+    private bool CanEdit =>
+        Session.CurrentUserInfo?.Role is "Admin" or "Supervisor" or "Engineer";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(MaterialCode) || MaterialCode == _code) return;
+        _code = MaterialCode!;
+        await LoadAsync();
+    }
+
+    private static string Dash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
+
+    private async Task OnSearchKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadAsync();
+    }
+
+    private async Task OnToggleInactiveAsync(ChangeEventArgs e)
+    {
+        _includeInactive = e.Value is true;
+        if (_view is not null) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_code)) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            _view = await Api.GetIqcSpecAsync(_code.Trim(), _includeInactive);
+            CancelAdd();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _view = null;
+        }
+        finally { _busy = false; }
+    }
+
+    private void StartAdd()
+    {
+        _adding = true;
+        _newItemId = _newAcceptance = _newMethod = _newFrequency = "";
+    }
+
+    private void CancelAdd() => _adding = false;
+
+    /// <summary>Chọn hạng mục thì mồi sẵn tiêu chuẩn/phương pháp MẶC ĐỊNH của
+    /// thư viện — người soạn sửa lại cho đúng mã này thay vì gõ từ đầu.</summary>
+    private void OnPickItem(ChangeEventArgs e)
+    {
+        _newItemId = e.Value?.ToString() ?? "";
+        var o = _view?.Library.FirstOrDefault(x => x.ItemId == _newItemId);
+        if (o is null) return;
+        _newAcceptance = (IsEnglish ? o.DefaultAcceptanceEn : o.DefaultAcceptanceVi) ?? o.DefaultAcceptanceVi ?? "";
+        _newMethod = (IsEnglish ? o.DefaultMethodEn : o.DefaultMethodVi) ?? o.DefaultMethodVi ?? "";
+    }
+
+    private async Task SaveAddAsync()
+    {
+        if (_busy || string.IsNullOrWhiteSpace(_newItemId)) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Api.AddIqcSpecItemAsync(_code.Trim(), new AddIqcSpecItemBody
+            {
+                ItemId = _newItemId,
+                AcceptanceVi = _newAcceptance,
+                MethodVi = _newMethod,
+                SourceFrequency = _newFrequency,
+            });
+            _adding = false;
+            _busy = false;
+            await LoadAsync();
+            return;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        _busy = false;
+    }
+
+    private async Task SetActiveAsync(IqcSpecItemDto row, bool active)
+    {
+        CloseMenu();
+        if (_busy) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Api.SetIqcSpecItemActiveAsync(row.Id, active);
+            _busy = false;
+            await LoadAsync();
+            return;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        _busy = false;
+    }
+
+    private void OpenMenuAt(IqcSpecItemDto row, double x, double y)
+    {
+        if (!CanEdit) return;                   // RBAC-by-omission
+        _menuRow = row;
+        _menuAnchor = (x, y);
+        _menuItems = row.Active
+            ? new[]
+            {
+                new ContextMenuItem
+                {
+                    Label = T("iqc.spec.menu.deactivate"), Icon = "🗑", Danger = true,
+                    OnClick = EventCallback.Factory.Create(this, () => SetActiveAsync(row, false)),
+                },
+            }
+            : new[]
+            {
+                new ContextMenuItem
+                {
+                    Label = T("iqc.spec.menu.restore"), Icon = "↩",
+                    OnClick = EventCallback.Factory.Create(this, () => SetActiveAsync(row, true)),
+                },
+            };
+    }
+
+    private void CloseMenu()
+    {
+        _menuRow = null;
+        _menuItems = Array.Empty<ContextMenuItem>();
+    }
+}

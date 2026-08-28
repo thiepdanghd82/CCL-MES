@@ -210,6 +210,53 @@ public sealed class CclApiClient : ICclApiClient
         if (!resp.IsSuccessStatusCode) await ThrowOnNonSuccess(resp, ct);
     }
 
+    // ── IQC soạn tiêu chuẩn theo mã (P12 bước 2b) ──────────────────
+
+    public async Task<CCL.MES.Shared.Quality.IqcSpecEditResponse> GetIqcSpecAsync(
+        string materialCode, bool includeInactive = false, CancellationToken ct = default)
+    {
+        var url = $"/{ApiVersion.Prefix}/iqc/specs/{Uri.EscapeDataString(materialCode)}"
+                + (includeInactive ? "?includeInactive=true" : "");
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcSpecEditResponse>(resp, ct);
+    }
+
+    public async Task AddIqcSpecItemAsync(
+        string materialCode, CCL.MES.Shared.Quality.AddIqcSpecItemBody body,
+        CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/{ApiVersion.Prefix}/iqc/specs/{Uri.EscapeDataString(materialCode)}/items")
+        {
+            Content = JsonContent.Create(body),
+        };
+        await SendGuardedAsync(msg, ct);
+    }
+
+    public async Task SetIqcSpecItemActiveAsync(
+        long itemId, bool active, CancellationToken ct = default)
+    {
+        // Bật lại là POST .../restore; tắt là DELETE — xoá MỀM, dữ liệu vẫn còn.
+        using var msg = active
+            ? new HttpRequestMessage(HttpMethod.Post,
+                  $"/{ApiVersion.Prefix}/iqc/specs/items/{itemId}/restore")
+            : new HttpRequestMessage(HttpMethod.Delete,
+                  $"/{ApiVersion.Prefix}/iqc/specs/items/{itemId}");
+        await SendGuardedAsync(msg, ct);
+    }
+
+    /// <summary>Gửi một lệnh ghi IQC-spec: gắn X-Device-Id + Idempotency-Key rồi
+    /// ném ApiError khi non-2xx. Ba lệnh ghi dùng chung để không ai quên header.</summary>
+    private async Task SendGuardedAsync(HttpRequestMessage msg, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+        using var resp = await _http.SendAsync(msg, ct);
+        if (!resp.IsSuccessStatusCode) await ThrowOnNonSuccess(resp, ct);
+    }
+
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)
     {
         var req = new RefreshTokenRequest { RefreshToken = refreshToken };

@@ -392,6 +392,19 @@ builder.Services.AddAuthorization(o =>
     o.AddPolicy("SettingItemAdd", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
+
+    // P12 bước 2b — soạn tiêu chuẩn kiểm NVL theo mã.
+    //   ĐỌC : QC cần xem tiêu chuẩn của mã đang kiểm ⇒ mở cho cả QC.
+    //   GHI : master data ⇒ Engineer+ (cùng luật SettingItemAdd). QC kiểm được
+    //         nhưng KHÔNG soạn tiêu chuẩn — nếu không thì người kiểm tự hạ
+    //         chuẩn cho lô mình đang cầm.
+    o.AddPolicy("IqcSpecRead", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc));
+
+    o.AddPolicy("IqcSpecWrite", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
 });
 
 // ──────────────────────────────────────────────────────────────────────
