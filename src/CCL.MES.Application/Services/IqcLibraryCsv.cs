@@ -16,7 +16,9 @@ public static class IqcLibraryCsv
 {
     public sealed record ItemRow(
         string ItemId, string GroupCode, string GroupLabelVi, string? GroupLabelEn,
-        string ItemVi, string? ItemEn, int Sort);
+        string ItemVi, string? ItemEn, bool InDefaultMatrix,
+        string? DefaultAcceptanceVi, string? DefaultAcceptanceEn,
+        string? DefaultMethodVi, string? DefaultMethodEn, int Sort);
 
     public sealed record SpecRow(
         string SpecNo, string MaterialCode, string? MaterialCodeIfs,
@@ -28,13 +30,17 @@ public static class IqcLibraryCsv
         string? MethodVi, string? MethodEn,
         string? SourceFrequency, int Sort);
 
-    // ── 21 hạng mục: ItemId · GroupCode · GroupLabelVi · GroupLabelEn · ItemVi · ItemEn · Sort
+    // ── 21 hạng mục: ItemId · GroupCode · GroupLabelVi/En · ItemVi/En
+    //    · InDefaultMatrix · DefaultAcceptanceVi/En · DefaultMethodVi/En · Sort
     public static IReadOnlyList<ItemRow> ParseItems(string csv) =>
-        Rows(csv, 7)
+        Rows(csv, 12)
             .Where(f => !string.IsNullOrWhiteSpace(f[0]))
             .Select((f, i) => new ItemRow(
                 f[0].Trim(), f[1].Trim(), f[2].Trim(), Null(f[3]),
-                f[4].Trim(), Null(f[5]), Int(f[6], (i + 1) * 10)))
+                f[4].Trim(), Null(f[5]),
+                f[6].Trim() == "1",
+                Null(f[7]), Null(f[8]), Null(f[9]), Null(f[10]),
+                Int(f[11], (i + 1) * 10)))
             .ToList();
 
     // ── 459 spec: SpecNo · MaterialCode · MaterialCodeIfs · SupplierName · Revision

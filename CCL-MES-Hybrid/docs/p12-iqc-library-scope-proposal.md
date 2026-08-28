@@ -163,9 +163,9 @@ probe** `[seed] iqc_library items=21 specs=NNN spec_items=NNNN skipped=NN`.
 
 | # | Câu hỏi | Vì sao quan trọng |
 |---|---|---|
-| Q1 | 48 dòng lệch tên thật — đối chiếu tên nào là chuẩn? | Sai tên ⇒ ticket resolve nhầm bộ hạng mục cho nguyên liệu |
-| Q2 | Nguyên liệu **không có spec** thì ticket hiện gì? | 451 nguyên liệu có spec, nhưng `RawMaterials` trong MES có thể nhiều hơn. Đề xuất: hiện cảnh báo "chưa có tiêu chuẩn" + cho kiểm tự do, **không** để màn hình trống |
-| Q3 | Khoá nối `RawMaterial` ↔ spec là **tên** hay **mã IFS**? | Đề xuất **mã IFS** khi có (47 dòng đã có sẵn), lùi về tên khi không |
+| ~~Q1~~ | ~~48 dòng lệch tên thật~~ | ✅ **Henry 2026-08-28: giữ nguyên, không cần bổ sung** — xem §10 |
+| ~~Q2~~ | ~~Nguyên liệu không có spec thì ticket hiện gì?~~ | ✅ **Henry 2026-08-28: ma trận tiêu chuẩn + CRUD theo mã** — xem §10 |
+| ~~Q3~~ | ~~Khoá nối `RawMaterial` ↔ spec là tên hay mã IFS?~~ | ✅ **ĐÃ TRẢ LỜI 2026-08-28 bằng đo thật** — xem §9 |
 | Q4 | D1 đã được QA ghi nhận bằng văn bản chưa? | Xem cảnh báo ở §3 |
 
 ## 7. Tiêu chí nghiệm thu (đo được)
@@ -187,3 +187,99 @@ probe** `[seed] iqc_library items=21 specs=NNN spec_items=NNNN skipped=NN`.
   scope riêng.
 - Nhập/sửa master data IQC từ trong app (admin UI) — nay vẫn import từ file.
 - Gắn kết quả IQC vào `MaterialLot` genealogy.
+
+---
+
+## 9. ĐÍNH CHÍNH — khoá nối, đo trên live 2026-08-28
+
+Ảnh màn "Materials inspection ticket" của Henry cho thấy `Code IFS` trong MES
+có dạng **`300xxxxx`**, kèm cột **`Mother code`**. Đo ngay trên live DB:
+
+| Khoá nối | Khớp |
+|---|---|
+| `RawMaterials.MotherCode` = `IqcMaterialSpec.MaterialCode` | **352** chính xác · **356** khi bỏ hoa/thường |
+| `RawMaterials.PartNo` = `IqcMaterialSpec.MaterialCodeIfs` | **0** |
+
+**Tôi đã sai ở §Q3 và trong chú thích entity.** Mã `7xxxxxxx` trích từ file spec
+**không phải** mã IFS của MES — hai hệ đánh số khác hẳn. Chưa biết nó là gì
+(mã NCC? hệ cũ?); cột `MaterialCodeIfs` giữ lại nhưng **không dùng để resolve**
+cho tới khi Ops xác nhận. Đổi tên cột phải chờ biết tên đúng — đặt sai lần hai
+còn tệ hơn.
+
+### Điều này đổi bước 2 thế nào
+
+**Khoá nối: `MotherCode`.** Tra thẳng, không cần resolver mờ.
+
+**Nhưng "không có spec" là ĐA SỐ, không phải ngoại lệ:**
+
+| | |
+|---|---|
+| Mother code trong MES | **946** |
+| Có spec IQC | **356** (38%) |
+| **Không có spec** | **590** (62%) |
+
+Mẫu chưa có spec: `TWP5050` · `AM 375 MBH` · `FDO NEW TBF WHITE HF-1*1.5` ·
+`Mực trắng trong FD MP Medium`. Phần lớn là mực và màng.
+
+Ở chiều ngược lại, 92/448 spec không khớp mother code nào — tên dạng
+`#8616CH-100W` · `114329-DIN 1.4301` · `136860-AM LR 8 uncoating`, tức mã NCC
+kèm mô tả. Chuẩn hoá chuỗi đơn giản **không** cứu được; cần Ops đối chiếu.
+
+⇒ **Đường "chưa có tiêu chuẩn" phải là công dân hạng nhất của bước 2**, không
+phải một banner dự phòng. Thiết kế lại Q2: ticket cho nguyên liệu chưa có spec
+vẫn phải kiểm được (nhập tay như hôm nay) và **nói rõ vì sao trống**, chứ không
+hiện màn hình rỗng.
+
+---
+
+## 10. Quyết định bổ sung (Henry, 2026-08-28) — sau khi có §9
+
+### D3 — 590 nguyên liệu chưa có spec: dùng **MA TRẬN TIÊU CHUẨN**
+
+Dữ liệu tự chia đôi rất sắc, không có vùng xám:
+
+| | Hạng mục | Độ phủ |
+|---|---|---|
+| **Ma trận tiêu chuẩn** | **13** — NQ-06 · NQ-03 · NQ-05 · NL-01 · NQ-01 · NQ-04 · MT-02 · NQ-02 · BD-01 · MT-01 · CU-01 · KT-01 · XS-01 | **92–100%** |
+| Riêng theo vật liệu | 8 — KT-02/03/04 · MT-03 · BD-02 · KH-01 · BO-01 · TL-01 | **0–6%** |
+
+Nguyên liệu chưa có spec ⇒ materialize **13 hạng mục** của ma trận, tiêu chuẩn
+lấy giá trị phổ biến nhất ở sheet `02_Master`.
+
+> ⚠ **PHẢI ĐÁNH DẤU LÀ MẶC ĐỊNH, KHÔNG PHẢI TIÊU CHUẨN CỦA MÃ ĐÓ.** Đây chính
+> là cái bẫy §2.1 cảnh báo: gán một ngưỡng chung cho mọi vật liệu. Với nguyên
+> liệu **có** spec thì làm vậy là sai; với nguyên liệu **chưa** có spec thì có
+> ma trận vẫn hơn không có gì — nhưng người kiểm phải **nhìn thấy sự khác biệt**.
+> Ticket ghi rõ *"tiêu chuẩn mặc định — mã này chưa có spec riêng"*, và bản ghi
+> đóng băng mang cờ phân biệt. Không có cờ đó thì sáu tháng sau không ai phân
+> biệt được hồ sơ nào kiểm theo spec thật, hồ sơ nào theo mặc định.
+
+### D4 — Thêm / xoá dữ liệu tiêu chuẩn **theo mã**
+
+Đây là bản **hiện thực đầu tiên** của contract `cmes-add-new-inline` (skill ghi
+rõ: *"chưa có implementation/gate ở main"*). Theo đúng hình dạng số 2 của nó:
+nút **`＋ Thêm hạng mục`** full-width ngay dưới hàng cuối của grid, không modal
+toàn màn.
+
+**Phân quyền — do PHẠM VI NHỚ quyết định, không do tiện tay.** Skill chốt sẵn:
+
+| Phạm vi | Ai | Lưu ở đâu |
+|---|---|---|
+| Ad-hoc cho ticket này | Operator+ | bản ghi ticket |
+| **Theo MÃ nguyên liệu** (lô sau tự có) | **Engineer / Supervisor / Admin** | `IqcSpecItem` |
+
+Henry yêu cầu *"theo mã"* ⇒ **Engineer+**, KHÔNG phải Operator. RBAC-by-omission:
+client chỉ dựng nút khi đủ quyền, server vẫn 403.
+
+**XOÁ = `Active=false`, KHÔNG xoá vật lý.** Ba lý do: (a) DR-1 — importer
+non-deleting, xoá cứng sẽ bị lần seed sau dựng lại, người dùng xoá hai lần rồi
+bỏ cuộc; (b) ticket đã đóng băng tham chiếu tới hạng mục đó, xoá cứng làm mồ côi
+bằng chứng; (c) audit phải trả lời được *ai xoá, khi nào* — Nguyên tắc IV.
+
+Emit `IQC_SPEC_ITEM_ADDED` / `IQC_SPEC_ITEM_DEACTIVATED` (ai · mã NVL · ItemId).
+
+### Q1 — 92 spec mồ côi: **giữ nguyên**
+
+Henry: không cần bổ sung mother code. Chúng ở lại thư viện, chỉ là không nguyên
+liệu nào trong MES resolve tới. Không xoá — có thể là mã đã ngừng dùng, và xoá
+đi thì mất lịch sử tiêu chuẩn.

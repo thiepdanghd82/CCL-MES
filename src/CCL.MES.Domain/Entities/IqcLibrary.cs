@@ -38,6 +38,33 @@ public class IqcCheckItemLibrary : BaseEntity
     [MaxLength(256)] public string ItemVi { get; set; } = "";
     [MaxLength(256)] public string? ItemEn { get; set; }
 
+    /// <summary>
+    /// Hạng mục thuộc <b>MA TRẬN TIÊU CHUẨN</b> — bộ áp cho gần như mọi nguyên
+    /// liệu, dùng khi mã chưa có spec riêng (quyết định D3, Henry 2026-08-28).
+    ///
+    /// <para>Dữ liệu tự chia đôi rất sắc, không có vùng xám: 13 hạng mục phủ
+    /// 92–100% số spec, 8 hạng mục còn lại phủ 0–6%. Ngưỡng 92% đặt vào đúng
+    /// khe đó.</para>
+    ///
+    /// <para><b>590/946 mã nguyên liệu trong MES chưa có spec</b> — đây là ĐA SỐ
+    /// chứ không phải ngoại lệ, nên đường ma trận là đường chạy thường xuyên.</para>
+    /// </summary>
+    public bool InDefaultMatrix { get; set; }
+
+    /// <summary>
+    /// Tiêu chuẩn / phương pháp DỰ PHÒNG — giá trị phổ biến nhất trên toàn thư
+    /// viện, chỉ dùng khi nguyên liệu chưa có spec riêng.
+    ///
+    /// <para><b>KHÔNG BAO GIỜ dùng cho nguyên liệu ĐÃ CÓ spec.</b> Với chúng,
+    /// tiêu chuẩn phải lấy từ <see cref="IqcSpecItem"/> — gán giá trị chung ở
+    /// đây cho mã có spec chính là cái bẫy §2.1 của scope proposal: sai mà vô
+    /// hình, vì màn hình vẫn đầy chữ.</para>
+    /// </summary>
+    [MaxLength(1024)] public string? DefaultAcceptanceVi { get; set; }
+    [MaxLength(1024)] public string? DefaultAcceptanceEn { get; set; }
+    [MaxLength(512)] public string? DefaultMethodVi { get; set; }
+    [MaxLength(512)] public string? DefaultMethodEn { get; set; }
+
     public int Sort { get; set; }
     public bool Active { get; set; } = true;
 }
@@ -55,13 +82,21 @@ public class IqcMaterialSpec : BaseEntity
     [MaxLength(256)] public string MaterialCode { get; set; } = "";
 
     /// <summary>
-    /// Mã vật tư IFS (<c>7xxxxxxx</c>), trích từ phần trong ngoặc của tên
-    /// nguyên liệu trong file spec — vd <c>TESA 4982(70000076)</c>.
+    /// Mã <c>7xxxxxxx</c> trích từ phần trong ngoặc của tên nguyên liệu trong
+    /// file spec — vd <c>TESA 4982(70000076)</c>. 46/459 spec có.
     ///
-    /// <para>44/459 spec có sẵn mã này. Sheet cảnh báo của file master xếp chúng
-    /// vào diện "lệch tên", nhưng đó KHÔNG phải lỗi — file spec ghi bản đầy đủ
-    /// hơn, và phần thêm đó chính là khoá nối sang IFS mà MES cần. Đây là khoá
-    /// ưu tiên khi resolve; không có thì lùi về <see cref="MaterialCode"/>.</para>
+    /// <para><b>⚠ TÊN CỘT NÀY GÂY HIỂU NHẦM — ĐÂY KHÔNG PHẢI MÃ IFS CỦA MES.</b>
+    /// Đo được 2026-08-28 trên live: <c>RawMaterials.PartNo</c> của MES có dạng
+    /// <c>300xxxxx</c>, và phép nối <c>PartNo = MaterialCodeIfs</c> cho <b>0
+    /// khớp</b> trên toàn bộ dữ liệu. Hai hệ đánh số khác hẳn nhau.</para>
+    ///
+    /// <para>Vậy <c>7xxxxxxx</c> là gì thì <b>chưa biết</b> — có thể là mã vật
+    /// tư của NCC, hoặc mã hệ cũ. <b>KHÔNG dùng cột này để resolve</b> cho tới
+    /// khi Ops xác nhận. Khoá nối thật là
+    /// <c>RawMaterials.MotherCode = MaterialCode</c> (356/448 spec khớp).</para>
+    ///
+    /// <para>Giữ cột lại vì dữ liệu có thật và sẽ hữu ích khi biết nó là gì;
+    /// đổi tên cột thì phải chờ biết tên đúng, đặt tên sai lần hai còn tệ hơn.</para>
     /// </summary>
     [MaxLength(32)] public string? MaterialCodeIfs { get; set; }
 

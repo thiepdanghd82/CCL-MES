@@ -547,6 +547,11 @@ public static class DbSeeder
                 S(e.GroupLabelEn, r.GroupLabelEn, v => e.GroupLabelEn = v);
                 S(e.ItemVi, r.ItemVi, v => e.ItemVi = v);
                 S(e.ItemEn, r.ItemEn, v => e.ItemEn = v);
+                S(e.InDefaultMatrix, r.InDefaultMatrix, v => e.InDefaultMatrix = v);
+                S(e.DefaultAcceptanceVi, r.DefaultAcceptanceVi, v => e.DefaultAcceptanceVi = v);
+                S(e.DefaultAcceptanceEn, r.DefaultAcceptanceEn, v => e.DefaultAcceptanceEn = v);
+                S(e.DefaultMethodVi, r.DefaultMethodVi, v => e.DefaultMethodVi = v);
+                S(e.DefaultMethodEn, r.DefaultMethodEn, v => e.DefaultMethodEn = v);
                 S(e.Sort, r.Sort, v => e.Sort = v);
                 S(e.Active, true, v => e.Active = v);
                 if (ch) { e.UpdatedAt = DateTime.UtcNow; e.UpdatedBy = "seed"; updated++; }
@@ -558,6 +563,11 @@ public static class DbSeeder
                     ItemId = r.ItemId, GroupCode = r.GroupCode,
                     GroupLabelVi = r.GroupLabelVi, GroupLabelEn = r.GroupLabelEn,
                     ItemVi = r.ItemVi, ItemEn = r.ItemEn,
+                    InDefaultMatrix = r.InDefaultMatrix,
+                    DefaultAcceptanceVi = r.DefaultAcceptanceVi,
+                    DefaultAcceptanceEn = r.DefaultAcceptanceEn,
+                    DefaultMethodVi = r.DefaultMethodVi,
+                    DefaultMethodEn = r.DefaultMethodEn,
                     Sort = r.Sort, Active = true, CreatedBy = "seed",
                 });
                 itemsAdded++;
