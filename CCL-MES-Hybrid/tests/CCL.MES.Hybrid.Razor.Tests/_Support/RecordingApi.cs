@@ -863,6 +863,18 @@ public sealed class RecordingApi : ICclApiClient
             : Task.FromResult(new CCL.MES.Shared.Quality.IqcTicketItemsResponse { TicketId = ticketId });
     }
 
+    public Func<long, Task<CCL.MES.Shared.Quality.CompleteIqcResponse>>? CompleteIqcTicketImpl { get; set; }
+    public List<long> CompleteIqcTicketCalls { get; } = new();
+
+    public Task<CCL.MES.Shared.Quality.CompleteIqcResponse> CompleteIqcTicketAsync(
+        long ticketId, CancellationToken ct = default)
+    {
+        CompleteIqcTicketCalls.Add(ticketId);
+        return CompleteIqcTicketImpl is not null
+            ? CompleteIqcTicketImpl(ticketId)
+            : Task.FromResult(new CCL.MES.Shared.Quality.CompleteIqcResponse { Result = "Pass" });
+    }
+
     public Task SetIqcTicketItemAsync(
         long ticketId, long itemId, CCL.MES.Shared.Quality.SetIqcItemBody body,
         CancellationToken ct = default)

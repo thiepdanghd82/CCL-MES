@@ -262,6 +262,35 @@ public sealed class IqcController : ControllerBase
         });
     }
 
+    /// <summary>CHỐT phiếu. Từ chối 422 <c>iqc.items_incomplete</c> khi còn hạng
+    /// mục chưa kiểm — người kiểm phải đánh giá HẾT rồi mới chốt được. Kết luận
+    /// suy ra từ chính các hạng mục, không cho gõ trái với dữ liệu vừa chấm.</summary>
+    [HttpPost("tickets/{id:long}/complete"), Authorize(Policy = "QcEdit")]
+    public async Task<IActionResult> CompleteTicket(long id, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(Request.Headers["Idempotency-Key"].ToString()))
+            return BadRequest(ApiError.Of("wo.idempotency_key_required",
+                "Idempotency-Key header required."));
+
+        var (actor, role) = Who();
+        var r = await _svc.CompleteTicketAsync(id, actor, role, ct);
+
+        if (!r.Ok)
+        {
+            return r.HttpStatus switch
+            {
+                404 => NotFound(ApiError.Of(r.ErrorCode!, r.MessageEn!)),
+                403 => StatusCode(StatusCodes.Status403Forbidden,
+                           ApiError.Of(r.ErrorCode!, r.MessageEn!)),
+                _   => UnprocessableEntity(ApiError.Of(r.ErrorCode!, r.MessageEn!)),
+            };
+        }
+        return Ok(new CompleteIqcResponse
+        {
+            Result = r.Result, Total = r.Total, Pending = r.Pending, Failed = r.Failed,
+        });
+    }
+
     /// <summary>Ghi phán định một hạng mục. QcEdit + Idempotency-Key bắt buộc
     /// (cùng luật với POST tạo phiếu — <c>IqcInspection</c> không có RowVersion
     /// nên KHÔNG có If-Match ở đây). 404 phiếu/hạng mục; 422 tiêu chuẩn còn

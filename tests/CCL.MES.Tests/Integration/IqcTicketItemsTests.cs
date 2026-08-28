@@ -177,6 +177,102 @@ public sealed class IqcTicketItemsTests : IDisposable
         Assert.Contains(_audit.Rows, x => x.Detail!.Contains("\"verdict\":\"unchecked\""));
     }
 
+    // ── CHỐT phiếu: đánh giá hết mới cho chốt (Henry 2026-08-28) ─────────
+
+    [Fact]
+    public async Task Con_hang_muc_CHUA_KIEM_thi_KHONG_chot_duoc()
+    {
+        // Chốt phiếu khi còn hạng mục trống là ký vào một hồ sơ chưa kiểm xong.
+        await using var db = _fx.NewContext();
+        var id = await SeedTicketAsync(db);
+        var svc = Svc(db);
+        await svc.SetItemVerdictAsync(id, await ItemIdAsync(db, id, "NQ-01"),
+            pass: true, null, null, Actor, Role);
+
+        var r = await svc.CompleteTicketAsync(id, Actor, Role);
+
+        Assert.False(r.Ok);
+        Assert.Equal(422, r.HttpStatus);
+        Assert.Equal("iqc.items_incomplete", r.ErrorCode);
+        Assert.Equal(2, r.Pending);          // MT-02 và CU-01 còn trống
+        Assert.Equal(3, r.Total);
+        Assert.Equal(QcResult.Pending,
+            await db.IqcInspections.Where(x => x.Id == id).Select(x => x.Result).FirstAsync());
+    }
+
+    [Fact]
+    public async Task Cham_HET_thi_chot_duoc_va_ket_luan_suy_ra_tu_hang_muc()
+    {
+        await using var db = _fx.NewContext();
+        var id = await SeedTicketAsync(db);
+        var svc = Svc(db);
+        foreach (var key in new[] { "MT-02", "NQ-01" })
+            await svc.SetItemVerdictAsync(id, await ItemIdAsync(db, id, key), true, null, null, Actor, Role);
+        // CU-01 có tiêu chuẩn XXX nên chỉ chấm KHÔNG ĐẠT được.
+        await svc.SetItemVerdictAsync(id, await ItemIdAsync(db, id, "CU-01"), false, null, "NG-01", Actor, Role);
+
+        var r = await svc.CompleteTicketAsync(id, Actor, Role);
+
+        Assert.True(r.Ok, r.ErrorCode);
+        // Còn MỘT hạng mục không đạt ⇒ cả lô KHÔNG ĐẠT. Không có ô cho người
+        // kiểm gõ kết luận trái với dữ liệu họ vừa chấm.
+        Assert.Equal("Fail", r.Result);
+        Assert.Equal(1, r.Failed);
+        Assert.Equal(QcResult.Fail,
+            await db.IqcInspections.Where(x => x.Id == id).Select(x => x.Result).FirstAsync());
+        Assert.Contains(_audit.Rows, x => x.Action == AuditAction.IqcComplete);
+    }
+
+    [Fact]
+    public async Task Tat_ca_DAT_thi_lo_DAT()
+    {
+        await using var db = _fx.NewContext();
+        var id = await SeedTicketAsync(db);
+        var svc = Svc(db);
+        foreach (var key in new[] { "MT-02", "NQ-01" })
+            await svc.SetItemVerdictAsync(id, await ItemIdAsync(db, id, key), true, null, null, Actor, Role);
+        // Gỡ cờ XXX của CU-01 để chấm ĐẠT được.
+        var cu = await db.IqcResultDetails.FirstAsync(d => d.IqcInspectionId == id && d.ItemKey == "CU-01");
+        cu.AcceptanceUnspecified = false;
+        await db.SaveChangesAsync();
+        await svc.SetItemVerdictAsync(id, cu.Id, true, null, null, Actor, Role);
+
+        var r = await svc.CompleteTicketAsync(id, Actor, Role);
+
+        Assert.True(r.Ok, r.ErrorCode);
+        Assert.Equal("Pass", r.Result);
+        Assert.Equal(0, r.Failed);
+    }
+
+    [Fact]
+    public async Task Phieu_CU_khong_co_hang_muc_nao_van_chot_duoc()
+    {
+        // 25 phiếu trước P12 không có gì để kiểm; chặn thì chúng mắc kẹt vĩnh viễn.
+        await using var db = _fx.NewContext();
+        var insp = new IqcInspection
+        {
+            PartNo = "X", BatchNumber = "L", ReceivedDate = DateTime.UtcNow,
+            Quantity = 1, Result = QcResult.Pending,
+        };
+        db.IqcInspections.Add(insp);
+        await db.SaveChangesAsync();
+
+        var r = await Svc(db).CompleteTicketAsync(insp.Id, Actor, Role);
+
+        Assert.True(r.Ok, r.ErrorCode);
+        Assert.Equal("Pass", r.Result);
+    }
+
+    [Fact]
+    public async Task Vai_khong_du_quyen_KHONG_chot_duoc()
+    {
+        await using var db = _fx.NewContext();
+        var id = await SeedTicketAsync(db);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            Svc(db).CompleteTicketAsync(id, "op", UserRole.Operator));
+    }
+
     [Fact]
     public async Task Hang_muc_cua_phieu_KHAC_thi_404_chu_khong_ghi_nham()
     {

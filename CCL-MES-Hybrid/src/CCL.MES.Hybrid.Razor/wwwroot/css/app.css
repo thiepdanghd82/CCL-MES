@@ -9263,3 +9263,17 @@ tr.wc-row:hover { background: var(--c-bg); }
 @media (max-width: 700px) {
     .iqc-spec-addnew-grid { grid-template-columns: 1fr; }
 }
+
+/* ── P12 — thanh chốt phiếu IQC ─────────────────────────────────────────
+   Hiện ở MỌI bước của stepper: người kiểm luôn thấy còn nợ bao nhiêu hạng
+   mục, không phải bấm qua từng mục mới biết. */
+.iqc-complete-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: var(--sp-3); flex-wrap: wrap;
+    margin: var(--sp-3) 0 var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    border: 1px solid var(--c-border); border-radius: 8px;
+    background: var(--c-surface);
+}
+.iqc-complete-count { font-weight: var(--fw-semibold); color: var(--c-ink); }
+.iqc-complete-bar .op-btn { min-height: var(--d-tap); }

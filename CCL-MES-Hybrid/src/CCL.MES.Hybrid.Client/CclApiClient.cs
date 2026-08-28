@@ -194,6 +194,18 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<CCL.MES.Shared.Quality.IqcTicketItemsResponse>(resp, ct);
     }
 
+    public async Task<CCL.MES.Shared.Quality.CompleteIqcResponse> CompleteIqcTicketAsync(
+        long ticketId, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(
+            HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc/tickets/{ticketId}/complete");
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.CompleteIqcResponse>(resp, ct);
+    }
+
     public async Task SetIqcTicketItemAsync(
         long ticketId, long itemId, CCL.MES.Shared.Quality.SetIqcItemBody body,
         CancellationToken ct = default)

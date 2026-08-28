@@ -299,3 +299,16 @@ public sealed class AddIqcSpecItemBody
     public string? MethodEn { get; set; }
     public string? SourceFrequency { get; set; }
 }
+
+
+/// <summary>Thân phản hồi <c>POST /api/v2/iqc/tickets/{id}/complete</c>.</summary>
+public sealed class CompleteIqcResponse
+{
+    /// <summary>Pending / Pass / Fail.</summary>
+    public string Result { get; set; } = "Pending";
+    public int Total { get; set; }
+
+    /// <summary>Số hạng mục CHƯA kiểm — &gt;0 nghĩa là chưa chốt được.</summary>
+    public int Pending { get; set; }
+    public int Failed { get; set; }
+}

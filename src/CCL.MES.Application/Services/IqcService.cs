@@ -660,6 +660,64 @@ public class IqcService
         return new SetIqcItemResult { Ok = true, ItemId = row.Id, Pass = row.Pass };
     }
 
+    // ── P12 — CHỐT phiếu: đánh giá xong hết mới được chốt ────────────────
+
+    /// <summary>
+    /// Chốt phiếu IQC. <b>Từ chối khi còn hạng mục chưa kiểm</b> — người kiểm
+    /// phải đánh giá HẾT rồi mới chốt được (Henry chốt 2026-08-28).
+    ///
+    /// <para>Kết luận suy ra từ chính các hạng mục: còn một hạng mục KHÔNG ĐẠT
+    /// thì lô KHÔNG ĐẠT. Không có ô cho người kiểm gõ kết luận trái với dữ liệu
+    /// họ vừa chấm.</para>
+    /// </summary>
+    public async Task<CompleteIqcResult> CompleteTicketAsync(
+        long inspectionId, string actor, string actorRole, CancellationToken ct = default)
+    {
+        RequireEditorRole(actorRole);
+
+        var insp = await _db.IqcInspections
+            .FirstOrDefaultAsync(x => x.Id == inspectionId, ct);
+        if (insp is null)
+            return CompleteIqcResult.Fail(404, "iqc.ticket_not_found", "IQC ticket not found.");
+
+        var items = await _db.IqcResultDetails.AsNoTracking()
+            .Where(d => d.IqcInspectionId == inspectionId)
+            .Select(d => new { d.Pass, d.ItemKey })
+            .ToListAsync(ct);
+
+        // Phiếu cũ (trước P12) không có hạng mục nào để kiểm — vẫn chốt được,
+        // nếu không thì 25 phiếu lịch sử mắc kẹt vĩnh viễn.
+        var pending = items.Count(x => x.Pass is null);
+        if (pending > 0)
+            return CompleteIqcResult.Fail(422, "iqc.items_incomplete",
+                $"{pending} of {items.Count} check items are not evaluated yet.")
+                with { Total = items.Count, Pending = pending };
+
+        var pass = items.All(x => x.Pass == true);
+        insp.Result = pass ? QcResult.Pass : QcResult.Fail;
+        insp.UpdatedAt = DateTime.UtcNow;
+        insp.UpdatedBy = actor;
+        await _db.SaveChangesAsync(ct);
+
+        await _audit.EmitAsync(
+            AuditAction.IqcComplete, actor, actorRole,
+            targetType: "IqcInspection", targetId: insp.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                receipt_no = insp.ReceiptNo,
+                result = insp.Result.ToString(),
+                items_total = items.Count,
+                items_failed = items.Count(x => x.Pass == false),
+            }));
+
+        return new CompleteIqcResult
+        {
+            Ok = true, Result = insp.Result.ToString(),
+            Total = items.Count, Pending = 0,
+            Failed = items.Count(x => x.Pass == false),
+        };
+    }
+
     // ── feat/iqc-module-tabs — IQC Data list (DTO) + Dashboard KPI ────────
 
     /// <summary>Danh sách phiếu IQC đã lưu cho tab "IQC Data" — trả DTO thuần
@@ -942,6 +1000,26 @@ public sealed class IqcTicketPage
     public int PageSize { get; init; }
     public int Total { get; init; }
     public List<IqcTicketRow> Items { get; init; } = new();
+}
+
+/// <summary>P12 — kết quả chốt phiếu.</summary>
+public sealed record CompleteIqcResult
+{
+    public bool Ok { get; init; }
+    public int HttpStatus { get; init; } = 200;
+    public string? ErrorCode { get; init; }
+    public string? MessageEn { get; init; }
+
+    /// <summary>Pending / Pass / Fail sau khi chốt.</summary>
+    public string Result { get; init; } = "Pending";
+    public int Total { get; init; }
+
+    /// <summary>Số hạng mục CHƯA kiểm — UI hiện thẳng con số này.</summary>
+    public int Pending { get; init; }
+    public int Failed { get; init; }
+
+    public static CompleteIqcResult Fail(int status, string code, string msg) =>
+        new() { Ok = false, HttpStatus = status, ErrorCode = code, MessageEn = msg };
 }
 
 /// <summary>P12 — bộ hạng mục kiểm của một phiếu (Application-layer).</summary>

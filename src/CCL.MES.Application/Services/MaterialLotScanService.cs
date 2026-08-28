@@ -619,6 +619,16 @@ public sealed class MaterialLotScanService
             // Trúng partial unique index — cùng LotNo cho cùng part (hoặc cùng
             // part chưa resolve). Đây chính là chỗ COLLATE NOCASE làm việc:
             // "LOT-001" và "lot-001" là MỘT lô, không phải hai.
+            //
+            // GỠ entity hỏng khỏi change-tracker trước khi trả về. Không gỡ thì
+            // nó vẫn nằm đó ở trạng thái Added, và lần SaveChanges KẾ TIẾP trên
+            // CÙNG DbContext — IdempotencyMiddleware ghi sổ sau khi controller
+            // trả lời — sẽ phát lại đúng câu INSERT đó, ném ra ngoài mọi handler
+            // ⇒ HTTP 500. Người dùng mất luôn thông báo "lô đã tồn tại" và chỉ
+            // thấy "Không lưu được phiếu.". Cùng cách xử lý với vòng retry
+            // ReceiptNo ở IqcService.CreateTicketAsync.
+            if (_db is DbContext ctx) ctx.Entry(lot).State = EntityState.Detached;
+
             return MaterialLotOutcome.Fail(409, "lot.duplicate",
                 $"Lot '{lotNo}' already exists for part '{partNo}'.");
         }

@@ -156,5 +156,14 @@ public sealed partial class TranslationCatalog
         Add("iqc.spec.menu.aria",          "Hành động cho hạng mục {0}",           "Actions for item {0}");
         Add("iqc.spec.menu.deactivate",    "Gỡ hạng mục",                         "Remove item");
         Add("iqc.spec.menu.restore",       "Khôi phục",                           "Restore");
+
+        // ── P12 — chốt phiếu: đánh giá hết hạng mục mới cho chốt ─────────
+        Add("iqc.complete.progress",       "Đã kiểm {0}/{1} hạng mục",             "{0} of {1} items evaluated");
+        Add("iqc.complete.action",         "Chốt phiếu",                          "Complete ticket");
+        Add("iqc.complete.blocked",        "Còn {0} hạng mục chưa kiểm — phải đánh giá hết mới chốt được phiếu.",
+                                           "{0} items still unevaluated — every item must be judged before the ticket can be completed.");
+        Add("iqc.insp.savecheck",          "Lưu & bắt đầu kiểm",                   "Save & start inspecting");
+        Add("iqc.insp.complete.moved",     "Hạng mục kiểm được dựng khi lưu phiếu. Lưu xong, mở lại phiếu để chấm rồi mới chốt được.",
+                                           "Check items are built when the ticket is saved. Save first, reopen the ticket to record results, then complete it.");
     }
 }

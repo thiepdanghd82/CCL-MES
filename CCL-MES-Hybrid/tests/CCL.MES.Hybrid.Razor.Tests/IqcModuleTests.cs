@@ -494,6 +494,101 @@ public sealed class IqcModuleTests : TestContext
         });
     }
 
+    // ── Chốt phiếu: đánh giá HẾT hạng mục mới cho chốt ───────────────────
+
+    /// <summary>Bộ hạng mục với <paramref name="checkedCount"/> mục đã chấm.</summary>
+    private void ServeItems(int total, int checkedCount)
+    {
+        _api.IqcTicketItemsImpl = id => Task.FromResult(new IqcTicketItemsResponse
+        {
+            TicketId = id, SpecNo = "CCL-SPEC-QC229",
+            Items = Enumerable.Range(1, total).Select(i => new IqcCheckItemDto
+            {
+                Id = i, ItemKey = $"NQ-{i:00}", Seq = 1, Section = 2,
+                GroupCode = "NQ", GroupLabelVi = "Ngoại quan",
+                LabelVi = $"Hạng mục {i}", AcceptanceVi = "tiêu chí",
+                Pass = i <= checkedCount ? true : (bool?)null,
+            }).ToList(),
+        });
+    }
+
+    private IRenderedComponent<MaterialsInspectionForm> RenderOpen() =>
+        RenderComponent<MaterialsInspectionForm>(p => p
+            .Add(x => x.Chrome, false).Add(x => x.DebounceMs, 0)
+            .Add(x => x.Ticket, OpenTicket(7)));
+
+    [Fact]
+    public void Con_hang_muc_chua_kiem_thi_nut_CHOT_bi_khoa_va_noi_ro_con_bao_nhieu()
+    {
+        WireForm();
+        ServeItems(total: 13, checkedCount: 5);
+        var cut = RenderOpen();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Đã kiểm 5/13 hạng mục",
+                cut.Find("[data-testid=iqc-insp-progress]").TextContent);
+            Assert.True(cut.Find("[data-testid=iqc-insp-completeticket]").HasAttribute("disabled"));
+            Assert.Contains("Còn 8 hạng mục chưa kiểm",
+                cut.Find("[data-testid=iqc-insp-completehint]").TextContent);
+        });
+    }
+
+    [Fact]
+    public void Cham_HET_thi_nut_CHOT_mo_khoa()
+    {
+        WireForm();
+        ServeItems(total: 13, checkedCount: 13);
+        var cut = RenderOpen();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.False(cut.Find("[data-testid=iqc-insp-completeticket]").HasAttribute("disabled"));
+            Assert.Empty(cut.FindAll("[data-testid=iqc-insp-completehint]"));
+        });
+    }
+
+    [Fact]
+    public void Bam_CHOT_thi_goi_dung_phieu()
+    {
+        WireForm();
+        ServeItems(total: 2, checkedCount: 2);
+        var cut = RenderOpen();
+        cut.WaitForAssertion(() => Assert.Contains("iqc-insp-completeticket", cut.Markup));
+
+        cut.Find("[data-testid=iqc-insp-completeticket]").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(7L, Assert.Single(_api.CompleteIqcTicketCalls)));
+    }
+
+    [Fact]
+    public void Thanh_tien_do_hien_o_MOI_buoc_chu_khong_chi_o_muc_2()
+    {
+        // Người kiểm phải luôn thấy còn nợ bao nhiêu, không phải bấm qua từng
+        // mục mới biết.
+        WireForm();
+        ServeItems(total: 13, checkedCount: 5);
+        var cut = RenderOpen();
+        cut.WaitForAssertion(() => Assert.Contains("iqc-insp-progress", cut.Markup));
+
+        foreach (var step in new[] { 0, 2, 3, 4 })
+        {
+            cut.FindAll("[data-testid=qms-stepper] button")[step].Click();
+            cut.WaitForAssertion(() => Assert.Contains("iqc-insp-progress", cut.Markup));
+        }
+    }
+
+    [Fact]
+    public void Che_do_TAO_MOI_KHONG_co_nut_chot()
+    {
+        // Lúc tạo thì hạng mục còn chưa tồn tại — "chốt" là vô nghĩa.
+        WireForm();
+        var cut = RenderCreateForm();
+
+        Assert.Empty(cut.FindAll("[data-testid=iqc-insp-completeticket]"));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-insp-progress]"));
+    }
+
     private static IqcTicketListItem OpenTicket(long id) => new()
     {
         Id = id, ReceiptNo = $"IQC-260828-{id:0000}", Group = "Materials",

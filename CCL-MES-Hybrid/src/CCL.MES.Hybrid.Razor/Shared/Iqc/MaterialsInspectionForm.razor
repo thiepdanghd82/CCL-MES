@@ -247,9 +247,13 @@ else
                                 @onclick="() => SaveAsync(complete: false)" disabled="@(_saving || !CanSave)">
                             @(_saving ? T("iqc.form.saving") : T("iqc.insp.savedraft"))
                         </button>
+                        @* Chốt phiếu KHÔNG nằm ở đây nữa: lúc tạo thì hạng mục
+                           kiểm còn chưa tồn tại, nên "chốt" là vô nghĩa. Chốt
+                           chuyển vào phiếu đã mở, sau khi chấm hết hạng mục. *@
                         <button type="button" class="op-btn op-btn-primary" data-testid="iqc-insp-complete"
+                                title="@T("iqc.insp.complete.moved")"
                                 @onclick="() => SaveAsync(complete: true)" disabled="@(_saving || !CanSave)">
-                            @(_saving ? T("iqc.form.saving") : T("iqc.insp.complete"))
+                            @(_saving ? T("iqc.form.saving") : T("iqc.insp.savecheck"))
                         </button>
                     </div>
                 }
@@ -263,6 +267,46 @@ else
                     <p class="iqc-ph-saved" data-testid="iqc-insp-saved">@T("iqc.ph.saved", _saved)</p>
                 }
             </div>
+
+            @* ── Chốt phiếu: đánh giá HẾT hạng mục mới cho chốt ─────────────
+                 Yêu cầu Henry 2026-08-28. Thanh này hiện ở MỌI bước để người
+                 kiểm luôn thấy còn nợ bao nhiêu, không phải bấm qua từng mục
+                 mới biết. Server kiểm lại độc lập (422 iqc.items_incomplete). *@
+            @if (!IsCreate && _items.Count > 0)
+            {
+                <div class="iqc-complete-bar" data-testid="iqc-insp-completebar">
+                    <span class="iqc-complete-count" data-testid="iqc-insp-progress">
+                        @T("iqc.complete.progress", CheckedCount, _items.Count)
+                    </span>
+
+                    @if (IsTicketClosed)
+                    {
+                        <span class="iqc-status iqc-status-@(_ticketResult!.ToLowerInvariant())"
+                              data-testid="iqc-insp-result">@T($"iqc.data.status.{_ticketResult!.ToLowerInvariant()}")</span>
+                    }
+                    else
+                    {
+                        <button type="button" class="op-btn op-btn-primary"
+                                data-testid="iqc-insp-completeticket"
+                                disabled="@(_completing || CheckedCount < _items.Count)"
+                                title="@(CheckedCount < _items.Count ? T("iqc.complete.blocked", _items.Count - CheckedCount) : null)"
+                                @onclick="CompleteTicketAsync">
+                            @(_completing ? T("iqc.form.saving") : T("iqc.complete.action"))
+                        </button>
+                    }
+                </div>
+
+                @if (CheckedCount < _items.Count && !IsTicketClosed)
+                {
+                    <p class="iqc-warn iqc-warn-note" data-testid="iqc-insp-completehint">
+                        @T("iqc.complete.blocked", _items.Count - CheckedCount)
+                    </p>
+                }
+                @if (_completeError is not null)
+                {
+                    <p class="iqc-warn iqc-warn-error" data-testid="iqc-insp-completeerror">@_completeError</p>
+                }
+            }
 
             @* ── Stepper 5 bước (khôi phục từ main) ── *@
             <QmsStepper Steps="QmsMock.IqcSteps" ActiveIndex="_active"
@@ -345,6 +389,7 @@ else
                                           Section="@(_active + 1)"
                                           SpecNo="@_itemsSpecNo"
                                           FromDefaultMatrix="_itemsFromMatrix"
+                                          ReadOnly="IsTicketClosed"
                                           OnChanged="LoadItemsAsync"
                                           TestIdPrefix="@($"iqc-sec{_active + 1}")" />
                     }
@@ -392,6 +437,42 @@ else
     private bool _itemsFromMatrix;
     private string? _itemsError;
     private long _itemsLoadedFor;
+    private bool _completing;
+    private string? _completeError;
+    private string? _ticketResult;
+
+    /// <summary>Số hạng mục ĐÃ có phán định (đạt hoặc không đạt). Chưa kiểm là
+    /// một trạng thái thật, khác hẳn không đạt.</summary>
+    private int CheckedCount => _items.Count(i => i.Pass is not null);
+
+    /// <summary>Phiếu đã chốt ⇒ lưới chỉ đọc, không chốt lại.</summary>
+    private bool IsTicketClosed =>
+        !string.Equals(_ticketResult ?? Ticket?.Result, "Pending", StringComparison.OrdinalIgnoreCase);
+
+    private async Task CompleteTicketAsync()
+    {
+        if (Ticket is null || _completing) return;
+        _completing = true;
+        _completeError = null;
+        try
+        {
+            var r = await Api.CompleteIqcTicketAsync(Ticket.Id);
+            _ticketResult = r.Result;
+            await LoadItemsAsync();
+            await OnSaved.InvokeAsync(null!);   // parent refresh KPI/list
+        }
+        catch (ApiException ex)
+        {
+            _completeError = ex.ApiError.Code == "iqc.items_incomplete"
+                ? T("iqc.complete.blocked", _items.Count - CheckedCount)
+                : (ex.ApiError.MessageEn ?? T("iqc.err.generic"));
+        }
+        catch
+        {
+            _completeError = T("iqc.err.generic");
+        }
+        finally { _completing = false; }
+    }
 
     /// <summary>Nạp khi MỞ một phiếu đã lưu; đổi sang phiếu khác thì nạp lại.
     /// Chế độ tạo mới chưa có phiếu nên không gọi.</summary>

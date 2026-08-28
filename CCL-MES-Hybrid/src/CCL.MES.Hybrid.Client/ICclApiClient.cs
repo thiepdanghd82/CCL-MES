@@ -69,6 +69,8 @@ public interface ICclApiClient
     // ── IQC hạng mục kiểm (P12 bước 3) ─────────────────────────────
     Task<CCL.MES.Shared.Quality.IqcTicketItemsResponse> GetIqcTicketItemsAsync(
         long ticketId, CancellationToken ct = default);
+    Task<CCL.MES.Shared.Quality.CompleteIqcResponse> CompleteIqcTicketAsync(
+        long ticketId, CancellationToken ct = default);
     Task SetIqcTicketItemAsync(
         long ticketId, long itemId, CCL.MES.Shared.Quality.SetIqcItemBody body,
         CancellationToken ct = default);
