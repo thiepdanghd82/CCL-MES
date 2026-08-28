@@ -43,6 +43,7 @@
 @using CCL.MES.Shared.Envelopes
 @using CCL.MES.Shared.ReasonCodes
 @using CCL.MES.Shared.WoQcReview
+@using CCL.MES.Shared.Localization
 @inject ICclApiClient Api
 
 <div class="rs-dashboard fqc-dashboard" data-testid="fqc-dashboard">
@@ -104,7 +105,11 @@
                 <div class="rs-card ipqc-slot @SlotCssClass(item.Status)"
                      data-testid="@($"fqc-item-{item.ItemKey}")">
                     <div class="rs-card-head">
-                        <div class="rs-card-title">@item.ItemKey</div>
+                        <div class="rs-card-title">@item.LabelFor(IsEnglish)</div>
+                        @if (item.SpecFor(IsEnglish) is { Length: > 0 } spec)
+                        {
+                            <div class="ipqc-slot-subtitle">@spec@(item.MethodFor(IsEnglish) is { Length: > 0 } m ? $" · {m}" : "")</div>
+                        }
                         <div class="ipqc-status-pill @StatusPillCss(item.Status)"
                              data-testid="@($"fqc-item-{item.ItemKey}-status")">@StatusDisplay(item.Status)</div>
                     </div>
@@ -270,6 +275,13 @@
 </div>
 
 @code {
+
+    /// <summary>Ngôn ngữ đang bật. Nhãn hạng mục · tiêu chí · phương pháp
+    /// là DỮ LIỆU ĐÃ ĐÓNG BĂNG trong snapshot của check, không phải khoá
+    /// resx — nên không đi qua T(), mà qua *For(bool) của WoQcViewItem.
+    /// LocalizedComponentBase đã bắt sự kiện đổi ngôn ngữ và gọi
+    /// StateHasChanged, nên bảng tự vẽ lại khi người dùng bấm cờ.</summary>
+    private bool IsEnglish => LanguageService.Current == LanguageCode.English;
     [Parameter, EditorRequired] public long WorkOrderId { get; set; }
 
     /// <summary>Scrap reason codes for the NG dropdowns. Loaded once by

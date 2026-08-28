@@ -120,11 +120,24 @@ public sealed class QcProfileResolverTests
     [Fact]
     public void ResolveSnapshot_L2_seed_when_override_misses()
     {
-        // Override null → L1 misses → L2 seed default returned verbatim.
+        // Override null → L1 misses → L2 seed default.
+        //
+        // KHÔNG còn verbatim kể từ khi ResolveSnapshot làm giàu bản EN
+        // (QcProfileEnglish.Enrich) — snapshot được serialize lại ở dạng compact
+        // và có thêm label_en/spec_en/method_en. Khẳng định phần KHÔNG ĐỔI:
+        // vẫn là profile của seed, đủ hạng mục, và bản VI nguyên vẹn.
         var resolved = QcProfileResolver.ResolveSnapshot(null, "FQC");
+        var seed = QcProfileSeed.GetDefaultProfileJson("FQC");
 
-        Assert.Equal(QcProfileSeed.GetDefaultProfileJson("FQC"), resolved);
         Assert.NotEqual("{}", resolved);
+        Assert.Equal(QcProfileSeed.CountItems(seed), QcProfileSeed.CountItems(resolved));
+        Assert.Contains("label_en", resolved);
+        // Tiếng Việt KHÔNG bị escape — snapshot là bằng chứng, phải đọc được
+        // bằng mắt khi mở DB. (Emoji ngoài BMP ở trường "icon" thì vẫn escape:
+        // đo được là mọi encoder của Utf8JsonWriter đều thế. Không sao — parse
+        // lại vẫn ra đúng ký tự, và nó chỉ là biểu tượng trang trí.)
+        Assert.Contains("Không rách", resolved);
+        Assert.DoesNotContain("kh\\u00F4ng", resolved);
     }
 
     [Fact]
