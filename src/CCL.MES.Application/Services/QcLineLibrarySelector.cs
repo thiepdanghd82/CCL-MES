@@ -85,8 +85,10 @@ public static class QcLineLibrarySelector
         foreach (var line in order)
         {
             var direct = all.Where(r => string.Equals(r.ProcessLine?.Trim(), line, StringComparison.OrdinalIgnoreCase));
-            // Lưu ý: dòng ALL đã được lấy ở trên và KHÔNG tính là "line này có
-            // dòng thư viện riêng" — nếu tính, PRESS_CNC sẽ mất đường lùi cờ.
+            // Dòng ALL (nhóm E·RoHS) KHÔNG khớp `direct` vì ProcessLine của nó
+            // là "ALL", không phải tên line — nên nó không làm `direct.Any()`
+            // thành true và không cướp mất đường lùi theo cờ của PRESS_CNC.
+            // Chúng được kèm riêng SAU vòng lặp này.
             var chosen = direct.Any() || !FlagFallback.TryGetValue(line, out var flag)
                 ? direct
                 : all.Where(flag);
