@@ -167,13 +167,21 @@ public sealed class IpqcCheckMaterializer
             return resolution.Unmapped.Count > 0 ? SkippedUnmapped : LegacyManual;
 
         var lines = resolution.Lines.ToList();
+
+        // KHÔNG lọc theo ProcessLine ở tầng SQL nữa. Line như PRESS_CNC không có
+        // dòng thư viện của riêng nó — nó lấy hạng mục qua CỜ tick-box (SheetCut).
+        // Lọc ProcessLine tại đây sẽ cắt mất chúng trước khi bộ chọn kịp chạy.
+        // Thư viện chỉ ~79 dòng nên nạp cả rồi chọn trong bộ nhớ là rẻ, và bộ
+        // chọn trở thành hàm THUẦN, test được không cần DB.
         var lib = await _db.CheckItemLibraries.AsNoTracking()
-            .Where(c => c.Active && c.Ipqc && lines.Contains(c.ProcessLine)
+            .Where(c => c.Active && c.Ipqc
                      && (c.ProductCode == null || c.ProductCode == productCode))
             .ToListAsync(ct);
-        if (lib.Count == 0) return SkippedNoLibrary;
 
-        var built = IpqcLibraryMaterializer.Build(lib, lines);
+        var selected = QcLineLibrarySelector.Select(lib, lines);
+        if (selected.Count == 0) return SkippedNoLibrary;
+
+        var built = IpqcLibraryMaterializer.Build(selected, lines);
         if (built.Items.Count == 0) return SkippedNoLibrary;
 
         check.ItemsProfileSnapshotJson = built.ProfileSnapshotJson;

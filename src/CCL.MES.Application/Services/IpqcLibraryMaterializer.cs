@@ -33,22 +33,39 @@ public static class IpqcLibraryMaterializer
     public static Result Build(
         IReadOnlyList<CheckItemLibrary> libraryRows,
         IReadOnlyList<string> resolvedLines)
+        => Build(
+            QcLineLibrarySelector.Select(libraryRows, resolvedLines),
+            resolvedLines);
+
+    /// <summary>
+    /// Dạng đầy đủ: mỗi hạng mục đi kèm LINE ĐÃ RESOLVE để đóng dấu lên nó.
+    ///
+    /// <para>Cần bản này vì hạng mục nạp qua đường CỜ tick-box (vd
+    /// <c>PRESS_CNC → SheetCut</c>) thuộc về một <c>ProcessLine</c> KHÁC trong
+    /// thư viện (LABEL), nhưng phải được đóng băng với line đã resolve —
+    /// UI chia chip công đoạn theo đúng trường đó. Xem
+    /// <see cref="QcLineLibrarySelector"/>.</para>
+    /// </summary>
+    public static Result Build(
+        IReadOnlyList<QcLineLibrarySelector.Selection> selections,
+        IReadOnlyList<string> resolvedLines)
     {
-        var rows = (libraryRows ?? Array.Empty<CheckItemLibrary>())
-            .Where(r => r.Active)
-            .OrderBy(r => LineIndex(r.ProcessLine))
-            .ThenBy(r => r.Sort)
-            .ThenBy(r => r.ItemId, StringComparer.Ordinal)
+        var rows = (selections ?? Array.Empty<QcLineLibrarySelector.Selection>())
+            .Where(s => s.Row.Active)
+            .OrderBy(s => LineIndex(s.Line))
+            .ThenBy(s => s.Row.Sort)
+            .ThenBy(s => s.Row.ItemId, StringComparer.Ordinal)
             .ToList();
 
         var items = new List<WoIpqcCheckItem>(rows.Count);
         var sort = 0;
-        foreach (var r in rows)
+        foreach (var sel in rows)
         {
+            var r = sel.Row;
             items.Add(new WoIpqcCheckItem
             {
                 ItemKey = r.ItemId,
-                ProcessLine = r.ProcessLine,
+                ProcessLine = sel.Line,
                 GroupLabel = r.GroupLabel,
                 Label = string.IsNullOrWhiteSpace(r.ItemVi) ? r.ItemEn : r.ItemVi,
                 AcceptanceCriteria = string.IsNullOrWhiteSpace(r.AcceptanceVi) ? r.AcceptanceEn : r.AcceptanceVi,
@@ -85,10 +102,18 @@ public static class IpqcLibraryMaterializer
     public static string BuildSnapshotJson(
         IReadOnlyList<CheckItemLibrary> rows,
         IReadOnlyList<string> resolvedLines)
+        => BuildSnapshotJson(
+            QcLineLibrarySelector.Select(rows, resolvedLines),
+            resolvedLines);
+
+    /// <inheritdoc cref="BuildSnapshotJson(IReadOnlyList{CheckItemLibrary}, IReadOnlyList{string})"/>
+    public static string BuildSnapshotJson(
+        IReadOnlyList<QcLineLibrarySelector.Selection> rows,
+        IReadOnlyList<string> resolvedLines)
     {
         var lines = resolvedLines is { Count: > 0 }
             ? string.Join(",", resolvedLines)
-            : string.Join(",", rows.Select(r => r.ProcessLine).Distinct());
+            : string.Join(",", rows.Select(s => s.Line).Distinct());
 
         var opts = new JsonWriterOptions { Indented = false };
         using var ms = new MemoryStream();
@@ -100,17 +125,20 @@ public static class IpqcLibraryMaterializer
             w.WriteString("source", "CheckItemLibrary");
             w.WriteStartArray("sections");
 
-            // Nhóm theo (ProcessLine, GroupLabel) giữ thứ tự xuất hiện.
+            // Nhóm theo LINE ĐÃ RESOLVE (không phải ProcessLine của thư viện) —
+            // cùng lý do với việc đóng dấu ở Build: hạng mục nạp qua cờ tick-box
+            // phải nằm dưới công đoạn mà routing thật sự đi qua.
             foreach (var grp in rows
-                .GroupBy(r => (Line: r.ProcessLine, Group: r.GroupLabel)))
+                .GroupBy(s => (Line: s.Line, Group: s.Row.GroupLabel)))
             {
                 w.WriteStartObject();
                 w.WriteString("id", $"{grp.Key.Line}:{grp.Key.Group}");
                 w.WriteString("line", grp.Key.Line);
                 w.WriteString("title", grp.Key.Group);
                 w.WriteStartArray("items");
-                foreach (var r in grp)
+                foreach (var sel in grp)
                 {
+                    var r = sel.Row;
                     w.WriteStartObject();
                     w.WriteString("key", r.ItemId);
                     w.WriteString("label", string.IsNullOrWhiteSpace(r.ItemVi) ? r.ItemEn : r.ItemVi);
@@ -118,7 +146,7 @@ public static class IpqcLibraryMaterializer
                     if (!string.IsNullOrWhiteSpace(r.Method)) w.WriteString("method", r.Method);
                     if (!string.IsNullOrWhiteSpace(r.Severity)) w.WriteString("severity", r.Severity);
                     if (!string.IsNullOrWhiteSpace(r.DefectCode)) w.WriteString("defect", r.DefectCode);
-                    w.WriteString("line", r.ProcessLine);
+                    w.WriteString("line", sel.Line);
                     w.WriteEndObject();
                 }
                 w.WriteEndArray();
