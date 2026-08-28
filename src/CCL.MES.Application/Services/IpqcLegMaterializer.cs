@@ -51,9 +51,11 @@ public sealed class IpqcLegMaterializer
         var productCode = await _db.Products
             .Where(p => p.Id == wo.ProductId).Select(p => p.ProductCode).FirstOrDefaultAsync(ct);
 
-        // Filter the library to the leg's SINGLE process line (per-area, Q6).
+        // Thu hẹp về ĐÚNG MỘT line của leg (per-area, Q6) — nhưng việc thu hẹp
+        // do QcLineLibrarySelector làm, không phải WHERE ở SQL: line như
+        // PRESS_CNC lấy hạng mục qua cờ tick-box chứ không qua ProcessLine.
         var lib = await _db.CheckItemLibraries.AsNoTracking()
-            .Where(c => c.Active && c.Ipqc && c.ProcessLine == line
+            .Where(c => c.Active && c.Ipqc
                      && (c.ProductCode == null || c.ProductCode == productCode))
             .ToListAsync(ct);
 
@@ -65,10 +67,11 @@ public sealed class IpqcLegMaterializer
             Judgment = IpqcJudgment.Pending, QaOutcome = QaOutcome.Pending,
         };
 
+        var selected = QcLineLibrarySelector.Select(lib, new[] { line });
         var outcome = SkippedNoLibrary;
-        if (lib.Count > 0)
+        if (selected.Count > 0)
         {
-            var built = IpqcLibraryMaterializer.Build(lib, new[] { line });
+            var built = IpqcLibraryMaterializer.Build(selected, new[] { line });
             if (built.Items.Count > 0)
             {
                 check.ItemsProfileSnapshotJson = built.ProfileSnapshotJson;
