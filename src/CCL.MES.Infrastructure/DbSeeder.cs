@@ -512,6 +512,81 @@ public static class DbSeeder
             await db.ProcessLegMaps.CountAsync());
     }
 
+    /// <summary>Kết quả seed nhóm E·RoHS.</summary>
+    public readonly record struct RohsLibrarySeedResult(int Inserted, int Updated);
+
+    /// <summary>
+    /// Nhóm <b>E·RoHS &amp; Halogen</b> vào <c>CheckItemLibrary</c> — 8 chỉ tiêu
+    /// ppm, <c>Oqc=true</c> còn <c>Ipqc=false</c>/<c>Fqc=false</c>,
+    /// <c>ProcessLine="ALL"</c> (áp cho mọi dòng sản phẩm).
+    ///
+    /// <para>Idempotent, upsert theo <c>ItemId</c>, KHÔNG xoá (DR-1). Ngưỡng ppm
+    /// chép nguyên từ profile OQC đang chạy — xem <see cref="RohsLibrarySeed"/>.</para>
+    /// </summary>
+    public static async Task<RohsLibrarySeedResult> SeedRohsLibraryAsync(MesDbContext db)
+    {
+        var ids = RohsLibrarySeed.Items().Select(r => r.ItemId).ToList();
+        var existing = await db.CheckItemLibraries
+            .Where(c => ids.Contains(c.ItemId))
+            .ToListAsync();
+        var byId = existing.ToDictionary(x => x.ItemId, StringComparer.OrdinalIgnoreCase);
+
+        int inserted = 0, updated = 0;
+        foreach (var r in RohsLibrarySeed.Items())
+        {
+            if (byId.TryGetValue(r.ItemId, out var cur))
+            {
+                var changed = false;
+                void Set<T>(T a, T b, Action<T> set)
+                {
+                    if (!EqualityComparer<T>.Default.Equals(a, b)) { set(b); changed = true; }
+                }
+
+                Set(cur.ProcessLine, RohsLibrarySeed.AllLines, v => cur.ProcessLine = v);
+                Set(cur.GroupLabel, RohsLibrarySeed.Group, v => cur.GroupLabel = v);
+                Set(cur.GroupLabelEn, CheckItemVocabularyEn.Group(RohsLibrarySeed.Group), v => cur.GroupLabelEn = v);
+                Set(cur.Code, r.Code, v => cur.Code = v);
+                Set(cur.ItemVi, r.ItemVi, v => cur.ItemVi = v);
+                Set(cur.ItemEn, r.ItemEn, v => cur.ItemEn = v);
+                Set(cur.AcceptanceVi, r.Spec, v => cur.AcceptanceVi = v);
+                Set(cur.AcceptanceEn, r.Spec, v => cur.AcceptanceEn = v);
+                Set(cur.Method, RohsLibrarySeed.MeasureMethod, v => cur.Method = v);
+                Set(cur.MethodEn, RohsLibrarySeed.MeasureMethod, v => cur.MethodEn = v);
+                Set(cur.Ipqc, false, v => cur.Ipqc = v);
+                Set(cur.Fqc, false, v => cur.Fqc = v);
+                Set(cur.Oqc, true, v => cur.Oqc = v);
+                Set(cur.Active, true, v => cur.Active = v);
+                Set(cur.Sort, r.Sort, v => cur.Sort = v);
+                if (changed) { cur.UpdatedAt = DateTime.UtcNow; cur.UpdatedBy = "seed"; updated++; }
+            }
+            else
+            {
+                db.CheckItemLibraries.Add(new CheckItemLibrary
+                {
+                    ItemId = r.ItemId,
+                    ProcessLine = RohsLibrarySeed.AllLines,
+                    ProductCode = null,
+                    GroupLabel = RohsLibrarySeed.Group,
+                    GroupLabelEn = CheckItemVocabularyEn.Group(RohsLibrarySeed.Group),
+                    Code = r.Code,
+                    ItemVi = r.ItemVi, ItemEn = r.ItemEn,
+                    // Ngưỡng ppm không cần dịch — "< 100" đọc như nhau ở cả hai ngôn ngữ.
+                    AcceptanceVi = r.Spec, AcceptanceEn = r.Spec,
+                    Method = RohsLibrarySeed.MeasureMethod,
+                    MethodEn = RohsLibrarySeed.MeasureMethod,
+                    Ipqc = false, Fqc = false, Oqc = true,
+                    Active = true,
+                    Sort = r.Sort,
+                    CreatedBy = "seed",
+                });
+                inserted++;
+            }
+        }
+
+        if (inserted > 0 || updated > 0) await db.SaveChangesAsync();
+        return new RohsLibrarySeedResult(inserted, updated);
+    }
+
     public readonly record struct SettingLibrarySeedResult(
         int LibInserted, int LibUpdated, int DefectInserted);
 

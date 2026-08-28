@@ -185,6 +185,7 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
                     Label = txt.Label, LabelEn = txt.LabelEn,
                     Spec = txt.Spec, SpecEn = txt.SpecEn,
                     Method = txt.Method, MethodEn = txt.MethodEn,
+                    GroupLabel = txt.GroupLabel, GroupLabelEn = txt.GroupLabelEn,
                     NgReasonCode = row.NgReasonCode,
                     NgNote = row.NgNote,
                     PhotoIds = photoLookup.TryGetValue(row.Id, out var ids)
@@ -201,6 +202,7 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
                     Label = txt.Label, LabelEn = txt.LabelEn,
                     Spec = txt.Spec, SpecEn = txt.SpecEn,
                     Method = txt.Method, MethodEn = txt.MethodEn,
+                    GroupLabel = txt.GroupLabel, GroupLabelEn = txt.GroupLabelEn,
                     NgReasonCode = null,
                     NgNote = null,
                     PhotoIds = Array.Empty<long>(),

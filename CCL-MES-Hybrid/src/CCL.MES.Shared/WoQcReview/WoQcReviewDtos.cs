@@ -75,6 +75,11 @@ public sealed record WoQcViewItem
     public string? Method { get; init; }
     public string? MethodEn { get; init; }
 
+    /// <summary>Nhóm hạng mục (A·Ngoại quan … E·RoHS). Là KHOÁ TAB — giữ chuỗi
+    /// VI làm định danh, chỉ nhãn mới dịch, để đổi ngôn ngữ không văng tab.</summary>
+    public string? GroupLabel { get; init; }
+    public string? GroupLabelEn { get; init; }
+
     /// <summary>Nhãn theo ngôn ngữ đang bật. Thiếu EN → bản VI; thiếu cả hai →
     /// <see cref="ItemKey"/>, để ô không bao giờ trống.</summary>
     public string LabelFor(bool english) => Pick(LabelEn, Label, english) ?? ItemKey;
@@ -84,6 +89,9 @@ public sealed record WoQcViewItem
 
     /// <inheritdoc cref="LabelFor"/>
     public string? MethodFor(bool english) => Pick(MethodEn, Method, english);
+
+    /// <inheritdoc cref="LabelFor"/>
+    public string? GroupLabelFor(bool english) => Pick(GroupLabelEn, GroupLabel, english);
 
     private static string? Pick(string? en, string? vi, bool english)
         => english && !string.IsNullOrWhiteSpace(en) ? en : (string.IsNullOrWhiteSpace(vi) ? null : vi);

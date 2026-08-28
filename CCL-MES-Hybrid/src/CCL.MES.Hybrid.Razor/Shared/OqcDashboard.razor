@@ -161,101 +161,155 @@
             </div>
         }
 
-        @* ── data-driven item grid (only mutable in stage 0) ─────── *@
-        <div class="ipqc-slot-grid">
-            @foreach (var item in _view.Items)
+        @* ── TAB NHÓM + BẢNG HẠNG MỤC ─────────────────────────────────
+           Nguyên tắc Henry 2026-08-28: IPQC · FQC · OQC dùng CÙNG bộ hạng mục
+           và CÙNG cấu trúc; khác biệt duy nhất là FQC/OQC không kiểm lại bảng
+           vật tư.
+
+           MỘT tầng tab, không hai. IPQC chẻ thêm chip công đoạn (PRINT/CẮT) vì
+           nó kiểm TẠI MÁY. Lô ở đây đã rời chuyền và được kiểm một lần, nên
+           bắt người kiểm cuối bấm qua lại giữa các công đoạn là bắt họ mô phỏng
+           một sự phân chia không còn tồn tại ở khâu của họ.
+
+           KHOÁ tab là chuỗi VI (định danh) — chỉ NHÃN mới dịch, nếu không thì
+           đổi ngôn ngữ sẽ văng tab đang mở. Cùng bài học với IpqcDashboard. *@
+        <div class="ipqc-tabs" role="tablist" data-testid="oqc-tabs">
+            @foreach (var tab in ActiveTabs)
             {
-                <div class="rs-card ipqc-slot @SlotCssClass(item.Status)"
-                     data-testid="@($"oqc-item-{item.ItemKey}")">
-                    <div class="rs-card-head">
-                        <div class="rs-card-title">@item.LabelFor(IsEnglish)</div>
-                        @if (item.SpecFor(IsEnglish) is { Length: > 0 } spec)
-                        {
-                            <div class="ipqc-slot-subtitle">@spec@(item.MethodFor(IsEnglish) is { Length: > 0 } m ? $" · {m}" : "")</div>
-                        }
-                        <div class="ipqc-status-pill @StatusPillCss(item.Status)"
-                             data-testid="@($"oqc-item-{item.ItemKey}-status")">@StatusDisplay(item.Status)</div>
-                    </div>
-
-                    @if (CurrentSigStage == SigStage.ItemsPending || CurrentSigStage == SigStage.InspectorSigning)
-                    {
-                        <div class="ipqc-slot-actions">
-                            @* L52 — shared OK/NG segmented toggle *@
-                            <ConfirmToggle Status="@item.Status"
-                                           Disabled="@_busy"
-                                           OnOk="@(() => OnSetOkAsync(item))"
-                                           OnNg="@(() => OpenNgForm(item.ItemKey))"
-                                           TestIdPrefix="@($"oqc-item-{item.ItemKey}")" />
-                        </div>
-                    }
-
-                    @if (item.Status == "Ng" && item.NgReasonCode is not null)
-                    {
-                        <div class="ipqc-slot-ng-summary" data-testid="@($"oqc-item-{item.ItemKey}-ng-summary")">
-                            <span class="ipqc-slot-ng-label">@T("oqc.ng.code.label")</span>
-                            <span class="ipqc-slot-ng-value scan-mono">@item.NgReasonCode</span>
-                            @if (!string.IsNullOrEmpty(item.NgNote))
-                            {
-                                <div class="ipqc-slot-ng-note">@item.NgNote</div>
-                            }
-                        </div>
-                    }
-
-                    @if (_openNgFor == item.ItemKey)
-                    {
-                        <div class="ipqc-ng-form" data-testid="@($"oqc-item-{item.ItemKey}-ng-form")">
-                            <div class="ipqc-ng-field">
-                                <label class="rs-modal-label" for="@($"oqc-{item.ItemKey}-reason")">@T("oqc.ng.code.field")</label>
-                                <select id="@($"oqc-{item.ItemKey}-reason")"
-                                        class="ipqc-input"
-                                        value="@_ngReasonCode"
-                                        @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
-                                        data-testid="@($"oqc-item-{item.ItemKey}-ng-reason")">
-                                    <option value="">@T("oqc.ng.code.select")</option>
-                                    @foreach (var r in ScrapReasons)
-                                    {
-                                        <option value="@r.Code">@r.Code — @r.LabelVi</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="ipqc-ng-field ipqc-ng-field-wide">
-                                <label class="rs-modal-label" for="@($"oqc-{item.ItemKey}-note")">@T("oqc.ng.note.field")</label>
-                                <input id="@($"oqc-{item.ItemKey}-note")"
-                                       type="text"
-                                       class="ipqc-input"
-                                       maxlength="500"
-                                       value="@_ngNote"
-                                       @oninput="@(e => _ngNote = e.Value?.ToString() ?? "")"
-                                       data-testid="@($"oqc-item-{item.ItemKey}-ng-note")" />
-                                <div class="ipqc-char-count">@_ngNote.Length/500</div>
-                            </div>
-                            <div class="ipqc-ng-actions">
-                                <button type="button"
-                                        class="op-btn op-btn-secondary"
-                                        @onclick="CloseNgForm"
-                                        data-testid="@($"oqc-item-{item.ItemKey}-ng-cancel")">@T("oqc.cancel")</button>
-                                <button type="button"
-                                        class="op-btn op-btn-danger"
-                                        disabled="@(!CanSubmitNg() || _busy)"
-                                        @onclick="@(() => OnSetNgAsync(item))"
-                                        data-testid="@($"oqc-item-{item.ItemKey}-ng-submit")">
-                                    @T("oqc.ng.save")
-                                </button>
-                            </div>
-                        </div>
-                    }
-
-                    @* photo strip — disabled after Inspector signs (audit-frozen) *@
-                    <QcPhotoStrip WorkOrderId="@_view.WoId"
-                                  Kind="oqc"
-                                  ItemKey="@item.ItemKey"
-                                  PhotoIds="@item.PhotoIds"
-                                  ETag="@_view.ETag"
-                                  Disabled="@(_busy || CurrentSigStage != SigStage.ItemsPending && CurrentSigStage != SigStage.InspectorSigning)"
-                                  OnPhotosChanged="OnPhotosChangedAsync" />
-                </div>
+                <button type="button"
+                        class="ipqc-tab-chip @(_activeTab == tab.Key ? "is-active" : "")"
+                        role="tab"
+                        aria-selected="@(_activeTab == tab.Key ? "true" : "false")"
+                        @onclick="@(() => _activeTab = tab.Key)"
+                        data-testid="@($"oqc-tab-{tab.Key}")">
+                    <span class="ipqc-tab-label">@tab.Label</span>
+                    <span class="ipqc-tab-count"
+                          data-testid="@($"oqc-tab-{tab.Key}-count")">@tab.Done/@tab.Total</span>
+                </button>
             }
         </div>
+
+        @* Bảng 5 cột. IPQC có thêm cột APPLY dựa trên WoIpqcCheckItem.Applicable
+           — WoQcCheckItems KHÔNG có cột đó, nên ở đây là 5 chứ không 6. Thêm nó
+           cần migration lên live DB (STOP-gate) cho việc chưa ai yêu cầu. *@
+        <table class="ipqc-item-table ipqc-no-result" data-testid="oqc-item-table">
+            <thead>
+                <tr>
+                    <th class="ipqc-col-num">@T("ipqc.col.num")</th>
+                    <th class="ipqc-col-item">@T("ipqc.col.item")</th>
+                    <th class="ipqc-col-method">@T("ipqc.col.method")</th>
+                    <th class="ipqc-col-spec">@T("ipqc.col.spec")</th>
+                    <th class="ipqc-col-verdict">@T("ipqc.col.verdict")</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ var __rowNo = 0; }
+                @foreach (var item in ItemsInActiveTab)
+                {
+                    __rowNo++;
+                    <tr class="ipqc-item-row @SlotCssClass(item.Status)"
+                        data-testid="@($"oqc-item-{item.ItemKey}")">
+                        <td class="ipqc-col-num scan-mono">@__rowNo</td>
+                        <td class="ipqc-col-item">
+                            <span class="ipqc-item-label">@item.LabelFor(IsEnglish)</span>
+                            <span class="ipqc-status-pill @StatusPillCss(item.Status)"
+                                  data-testid="@($"oqc-item-{item.ItemKey}-status")">@StatusDisplay(item.Status)</span>
+                        </td>
+                        @* METHOD là văn xuôi, không phải mã — không scan-mono (L-CSS
+                           đã học ở bảng IPQC: mono làm cùng chuỗi rộng thêm ~20%
+                           và vỡ dòng trong khi SPEC cùng bề rộng thì không). *@
+                        <td class="ipqc-col-method" data-label="@T("ipqc.col.method")">@(item.MethodFor(IsEnglish) is { Length: > 0 } m && !string.IsNullOrWhiteSpace(m) ? m : "—")</td>
+                        <td class="ipqc-col-spec" data-label="@T("ipqc.col.spec")">@(item.SpecFor(IsEnglish) is { Length: > 0 } sp && !string.IsNullOrWhiteSpace(sp) ? sp : "—")</td>
+                        <td class="ipqc-col-verdict">
+                            @if (CurrentSigStage == SigStage.ItemsPending || CurrentSigStage == SigStage.InspectorSigning)
+                            {
+                                @* L52 — shared OK/NG segmented toggle *@
+                                <ConfirmToggle Status="@item.Status"
+                                               Disabled="@_busy"
+                                               OnOk="@(() => OnSetOkAsync(item))"
+                                               OnNg="@(() => OpenNgForm(item.ItemKey))"
+                                               TestIdPrefix="@($"oqc-item-{item.ItemKey}")" />
+                            }
+                        </td>
+                    </tr>
+
+                    @if (item.Status == "Ng" && item.NgReasonCode is not null || _openNgFor == item.ItemKey || item.PhotoIds.Count > 0)
+                    {
+                        <tr class="ipqc-item-detail-row" data-testid="@($"oqc-item-{item.ItemKey}-detail")">
+                            <td colspan="5">
+                                @if (item.Status == "Ng" && item.NgReasonCode is not null)
+                                {
+                                    <div class="ipqc-slot-ng-summary" data-testid="@($"oqc-item-{item.ItemKey}-ng-summary")">
+                                        <span class="ipqc-slot-ng-label">@T("oqc.ng.code.label")</span>
+                                        <span class="ipqc-slot-ng-value scan-mono">@item.NgReasonCode</span>
+                                        @if (!string.IsNullOrEmpty(item.NgNote))
+                                        {
+                                            <div class="ipqc-slot-ng-note">@item.NgNote</div>
+                                        }
+                                    </div>
+                                }
+
+                                @if (_openNgFor == item.ItemKey)
+                                {
+                                    <div class="ipqc-ng-form" data-testid="@($"oqc-item-{item.ItemKey}-ng-form")">
+                                        <div class="ipqc-ng-field">
+                                            <label class="rs-modal-label" for="@($"oqc-{item.ItemKey}-reason")">@T("oqc.ng.code")</label>
+                                            <select id="@($"oqc-{item.ItemKey}-reason")"
+                                                    class="ipqc-input"
+                                                    value="@_ngReasonCode"
+                                                    @onchange="@(e => _ngReasonCode = e.Value?.ToString() ?? "")"
+                                                    data-testid="@($"oqc-item-{item.ItemKey}-ng-reason")">
+                                                <option value="">@T("oqc.ng.code.select")</option>
+                                                @foreach (var r in ScrapReasons)
+                                                {
+                                                    <option value="@r.Code">@r.Code — @r.LabelVi</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="ipqc-ng-field ipqc-ng-field-wide">
+                                            <label class="rs-modal-label" for="@($"oqc-{item.ItemKey}-note")">@T("oqc.ng.note.label")</label>
+                                            <input id="@($"oqc-{item.ItemKey}-note")"
+                                                   type="text"
+                                                   class="ipqc-input"
+                                                   maxlength="500"
+                                                   value="@_ngNote"
+                                                   @oninput="@(e => _ngNote = e.Value?.ToString() ?? "")"
+                                                   data-testid="@($"oqc-item-{item.ItemKey}-ng-note")" />
+                                            <div class="ipqc-char-count">@_ngNote.Length/500</div>
+                                        </div>
+                                        <div class="ipqc-ng-actions">
+                                            <button type="button"
+                                                    class="op-btn op-btn-secondary"
+                                                    @onclick="CloseNgForm"
+                                                    data-testid="@($"oqc-item-{item.ItemKey}-ng-cancel")">@T("oqc.cancel")</button>
+                                            <button type="button"
+                                                    class="op-btn op-btn-danger"
+                                                    disabled="@(!CanSubmitNg() || _busy)"
+                                                    @onclick="@(() => OnSetNgAsync(item))"
+                                                    data-testid="@($"oqc-item-{item.ItemKey}-ng-submit")">
+                                                @T("oqc.ng.save")
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+
+                                @* Ảnh bằng chứng — chỉ hiện khi hạng mục NG, đang mở form
+                                   NG, hoặc đã có ảnh. Dựng 42 dải ảnh cho 42 dòng OK sẽ
+                                   xoá sạch cái mật độ mà bảng vừa mang lại. *@
+                                <QcPhotoStrip WorkOrderId="@_view.WoId"
+                                              Kind="oqc"
+                                              ItemKey="@item.ItemKey"
+                                              PhotoIds="@item.PhotoIds"
+                                              ETag="@_view.ETag"
+                                              Disabled="@(_busy || CurrentSigStage != SigStage.ItemsPending && CurrentSigStage != SigStage.InspectorSigning)"
+                                              OnPhotosChanged="OnPhotosChangedAsync" />
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
 
         @* ── Stage action card ─────────────────────────────────────── *@
         <div class="rs-card oqc-action" data-testid="oqc-action-card">
@@ -353,6 +407,57 @@
 </div>
 
 @code {
+
+    // ── TẦNG TAB NHÓM (A·Ngoại quan … E·RoHS) ────────────────────────────
+    // Một tầng, không hai: lô đã rời chuyền nên không chẻ theo công đoạn.
+    // Xem chú thích ở phần markup và QcLibraryProfileBuilder.
+
+    private const string TabOtherKey = "__other__";
+    private string _activeTab = "";
+
+    /// <summary>Khoá tab của một hạng mục = <c>GroupLabel</c> (chuỗi VI, trim).
+    /// Rỗng → gom vào tab "Khác". KHOÁ luôn là VI kể cả khi hiển thị EN — dịch
+    /// khoá thì đổi ngôn ngữ sẽ làm _activeTab không khớp và bảng trắng trơn.</summary>
+    private static string TabForItem(WoQcViewItem i) =>
+        string.IsNullOrWhiteSpace(i.GroupLabel) ? TabOtherKey : i.GroupLabel!.Trim();
+
+    private sealed record TabDef(string Key, string Label, int Done, int Total);
+
+    /// <summary>Tab = tập GroupLabel DISTINCT của view, sắp tăng dần (A·→B·→…→E·).
+    /// Tab "Khác" LUÔN xuống cuối và chỉ khi thực sự có hạng mục rơi vào đó.</summary>
+    private IReadOnlyList<TabDef> ActiveTabs
+    {
+        get
+        {
+            if (_view is null || _view.Items.Count == 0) return Array.Empty<TabDef>();
+            return _view.Items
+                .GroupBy(TabForItem)
+                .Select(g => new TabDef(
+                    g.Key,
+                    g.Key == TabOtherKey
+                        ? T("ipqc.tab.other")
+                        : (g.First().GroupLabelFor(IsEnglish) ?? g.Key),
+                    g.Count(i => i.Status is "Ok" or "Ng"),
+                    g.Count()))
+                .OrderBy(t => t.Key == TabOtherKey ? 1 : 0)
+                .ThenBy(t => t.Key, StringComparer.Ordinal)
+                .ToList();
+        }
+    }
+
+    /// <summary>Hạng mục của tab đang mở. Tab chưa chọn (hoặc chọn phải tab vừa
+    /// biến mất sau khi view đổi) → lùi về tab đầu tiên thay vì trả rỗng.</summary>
+    private IEnumerable<WoQcViewItem> ItemsInActiveTab
+    {
+        get
+        {
+            if (_view is null) return Array.Empty<WoQcViewItem>();
+            var tabs = ActiveTabs;
+            if (tabs.Count == 0) return Array.Empty<WoQcViewItem>();
+            var key = tabs.Any(t => t.Key == _activeTab) ? _activeTab : tabs[0].Key;
+            return _view.Items.Where(i => TabForItem(i) == key);
+        }
+    }
 
     /// <summary>Ngôn ngữ đang bật. Nhãn hạng mục · tiêu chí · phương pháp
     /// là DỮ LIỆU ĐÃ ĐÓNG BĂNG trong snapshot của check, không phải khoá

@@ -85,7 +85,8 @@ public static class QcProfileResolver
     /// của chính check đó — không tra lại seed hiện hành. Sửa master data về
     /// sau KHÔNG đổi chữ trên hồ sơ đã ký.</summary>
     public readonly record struct ItemText(
-        string? Label, string? LabelEn, string? Spec, string? SpecEn, string? Method, string? MethodEn);
+        string? Label, string? LabelEn, string? Spec, string? SpecEn, string? Method, string? MethodEn,
+        string? GroupLabel, string? GroupLabelEn);
 
     /// <summary>
     /// Bảng tra key → nhãn, dựng một lần cho mỗi lần render.
@@ -114,6 +115,11 @@ public static class QcProfileResolver
                 if (!section.TryGetProperty("items", out var items)
                     || items.ValueKind != JsonValueKind.Array) continue;
 
+                // Nhóm = title của section. FQC/OQC nay gom theo GroupLabel
+                // (A·B·C·D·E) nên title CHÍNH LÀ nhãn tab.
+                var grp = Str(section, "title");
+                var grpEn = Str(section, "title_en");
+
                 foreach (var it in items.EnumerateArray())
                 {
                     if (it.ValueKind != JsonValueKind.Object) continue;
@@ -122,7 +128,8 @@ public static class QcProfileResolver
                     map[key!] = new ItemText(
                         Str(it, "label"), Str(it, "label_en"),
                         Str(it, "spec"),  Str(it, "spec_en"),
-                        Str(it, "method"), Str(it, "method_en"));
+                        Str(it, "method"), Str(it, "method_en"),
+                        grp, grpEn);
                 }
             }
         }

@@ -1,4 +1,5 @@
 using CCL.MES.Application;
+using CCL.MES.Application.Services;
 using CCL.MES.Domain;
 using CCL.MES.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -107,6 +108,56 @@ public sealed class WoQcCheckMaterializer
                 .Select(p => p.QcProfileOverride)
                 .FirstOrDefaultAsync(ct);
         }
+        // L1 — override theo mã hàng vẫn thắng tất cả (hợp đồng Q4 không đổi).
+        if (QcProfileResolver.TryExtractKindFromOverride(overrideJson, kind, out _))
+            return QcProfileResolver.ResolveSnapshot(overrideJson, kind);
+
+        // L1.5 — THƯ VIỆN HẠNG MỤC (nguyên tắc Henry 2026-08-28: IPQC · FQC ·
+        // OQC dùng CÙNG bộ hạng mục). Chỉ đi đường này khi routing resolve được
+        // ra QC line; nếu không, lùi về QcProfileSeed ở dưới.
+        var fromLibrary = await BuildFromLibraryAsync(productId, kind, ct);
+        if (fromLibrary != "{}") return fromLibrary;
+
+        // L2/L3 — đường cũ. GIỮ LẠI làm lưới an toàn: WO không có routing, hoặc
+        // routing chưa map được line nào, vẫn phải có danh mục kiểm để làm việc.
+        // Màn hình trống nguy hiểm hơn một danh mục cũ.
         return QcProfileResolver.ResolveSnapshot(overrideJson, kind);
+    }
+
+    /// <summary>
+    /// Dựng profile từ <c>CheckItemLibrary</c> theo cờ stage của <paramref name="kind"/>
+    /// và QC line resolve từ routing. Trả <c>"{}"</c> khi không đủ dữ kiện.
+    /// </summary>
+    private async Task<string> BuildFromLibraryAsync(long productId, string kind, CancellationToken ct)
+    {
+        if (productId <= 0) return "{}";
+
+        var productCode = await _db.Products.AsNoTracking()
+            .Where(p => p.Id == productId).Select(p => p.ProductCode).FirstOrDefaultAsync(ct);
+        if (string.IsNullOrWhiteSpace(productCode)) return "{}";
+
+        var ops = await _db.RoutingOperations.AsNoTracking()
+            .Where(r => r.PartNo == productCode)
+            .Select(r => new { r.OpNo, r.Operation, r.WorkCenterNo, r.WorkCenterDescription })
+            .ToListAsync(ct);
+        if (ops.Count == 0) return "{}";
+
+        var map = await _db.ProcessLineMaps.AsNoTracking()
+            .Where(m => m.Active)
+            .Select(m => new QcLineResolver.MapEntry(m.MatchType, m.MatchValue, m.QcLine, m.Sort))
+            .ToListAsync(ct);
+        var lines = QcLineResolver.Resolve(ops.Select(o =>
+            new QcLineResolver.RoutingOp(o.OpNo, o.Operation, o.WorkCenterNo, o.WorkCenterDescription)),
+            map).Lines.ToList();
+        if (lines.Count == 0) return "{}";
+
+        var isOqc = string.Equals(kind, "OQC", StringComparison.OrdinalIgnoreCase);
+        var rows = await _db.CheckItemLibraries.AsNoTracking()
+            .Where(c => c.Active
+                     && (isOqc ? c.Oqc : c.Fqc)
+                     && (c.ProductCode == null || c.ProductCode == productCode))
+            .ToListAsync(ct);
+
+        return QcLibraryProfileBuilder.Build(rows, lines, kind);
     }
 }

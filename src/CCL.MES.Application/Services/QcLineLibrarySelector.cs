@@ -85,6 +85,8 @@ public static class QcLineLibrarySelector
         foreach (var line in order)
         {
             var direct = all.Where(r => string.Equals(r.ProcessLine?.Trim(), line, StringComparison.OrdinalIgnoreCase));
+            // Lưu ý: dòng ALL đã được lấy ở trên và KHÔNG tính là "line này có
+            // dòng thư viện riêng" — nếu tính, PRESS_CNC sẽ mất đường lùi cờ.
             var chosen = direct.Any() || !FlagFallback.TryGetValue(line, out var flag)
                 ? direct
                 : all.Where(flag);
@@ -93,6 +95,26 @@ public static class QcLineLibrarySelector
             {
                 if (string.IsNullOrWhiteSpace(r.ItemId) || !seen.Add(r.ItemId)) continue;
                 picked.Add(new Selection(r, line));
+            }
+        }
+
+        // Hạng mục LIÊN-DÒNG (ProcessLine = "ALL", vd nhóm E·RoHS của OQC): áp
+        // cho mọi dòng sản phẩm. Đóng dấu bằng line ĐẦU TIÊN để chúng nằm gọn
+        // một nhóm thay vì rải theo công đoạn — người vận hành đo XRF một lần
+        // cho cả lô, không đo lại ở từng máy.
+        //
+        // CHỈ kèm khi ĐÃ chọn được hạng mục thật (`picked.Count > 0`). Nếu không,
+        // WO chỉ resolve ra line chưa có thư viện (FINISHING · DIGITAL) sẽ nhận
+        // một profile CHỈ CÓ RoHS và không một hạng mục kiểm nào — tệ hơn hẳn
+        // việc trả rỗng để phía gọi lùi về danh mục cũ. RoHS đi KÈM một danh
+        // mục, nó không tự mình là danh mục.
+        if (picked.Count > 0)
+        {
+            foreach (var r in all.Where(r => string.Equals(
+                         r.ProcessLine?.Trim(), RohsLibrarySeed.AllLines, StringComparison.OrdinalIgnoreCase)))
+            {
+                if (string.IsNullOrWhiteSpace(r.ItemId) || !seen.Add(r.ItemId)) continue;
+                picked.Add(new Selection(r, order[0]));
             }
         }
 
