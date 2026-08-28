@@ -31,12 +31,15 @@ public static class QcProfileResolver
     /// <c>_db.Products</c> and passes it in — no DB coupling here.</summary>
     public static string ResolveSnapshot(string? overrideJson, string kind)
     {
+        // Mọi nhánh đi qua Enrich: đây là ĐIỂM THẮT DUY NHẤT mà snapshot được
+        // đóng băng, nên nhét bản EN ở đây thì mọi đường freeze đều có cả hai
+        // ngôn ngữ — kể cả override theo mã hàng. Xem QcProfileEnglish.
         // L1 — per-product override.
         if (TryExtractKindFromOverride(overrideJson, kind, out var extracted))
-            return extracted;
+            return QcProfileEnglish.Enrich(extracted);
         // L2 — system default.
         var seeded = QcProfileSeed.GetDefaultProfileJson(kind);
-        if (!string.IsNullOrEmpty(seeded)) return seeded;
+        if (!string.IsNullOrEmpty(seeded)) return QcProfileEnglish.Enrich(seeded);
         // L3 — empty.
         return "{}";
     }
@@ -78,6 +81,69 @@ public static class QcProfileResolver
     /// <summary>Extracts the ordered list of item keys declared by the
     /// profile snapshot's sections[*].items[*].key chain. Returns empty
     /// when the snapshot is "{}" or malformed.</summary>
+    /// <summary>Nhãn hiển thị của một hạng mục, đọc từ snapshot ĐÃ ĐÓNG BĂNG
+    /// của chính check đó — không tra lại seed hiện hành. Sửa master data về
+    /// sau KHÔNG đổi chữ trên hồ sơ đã ký.</summary>
+    public readonly record struct ItemText(
+        string? Label, string? LabelEn, string? Spec, string? SpecEn, string? Method, string? MethodEn,
+        string? GroupLabel, string? GroupLabelEn);
+
+    /// <summary>
+    /// Bảng tra key → nhãn, dựng một lần cho mỗi lần render.
+    ///
+    /// <para>Trước đây DTO không mang nhãn ra nên UI render thẳng
+    /// <c>ItemKey</c> — người vận hành nhìn thấy <c>color_match</c> thay vì
+    /// "Màu sắc đúng mẫu chuẩn". Nhãn CÓ trong snapshot, chỉ là không ai đọc.</para>
+    ///
+    /// <para>JSON hỏng hoặc sai shape ⇒ trả bảng rỗng; phía gọi rơi về key.</para>
+    /// </summary>
+    public static IReadOnlyDictionary<string, ItemText> ExtractItemText(string? profileSnapshotJson)
+    {
+        var map = new Dictionary<string, ItemText>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(profileSnapshotJson) || profileSnapshotJson == "{}") return map;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(profileSnapshotJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return map;
+            if (!doc.RootElement.TryGetProperty("sections", out var sections)
+                || sections.ValueKind != JsonValueKind.Array) return map;
+
+            foreach (var section in sections.EnumerateArray())
+            {
+                if (section.ValueKind != JsonValueKind.Object) continue;
+                if (!section.TryGetProperty("items", out var items)
+                    || items.ValueKind != JsonValueKind.Array) continue;
+
+                // Nhóm = title của section. FQC/OQC nay gom theo GroupLabel
+                // (A·B·C·D·E) nên title CHÍNH LÀ nhãn tab.
+                var grp = Str(section, "title");
+                var grpEn = Str(section, "title_en");
+
+                foreach (var it in items.EnumerateArray())
+                {
+                    if (it.ValueKind != JsonValueKind.Object) continue;
+                    var key = Str(it, "key");
+                    if (string.IsNullOrWhiteSpace(key) || map.ContainsKey(key!)) continue;
+                    map[key!] = new ItemText(
+                        Str(it, "label"), Str(it, "label_en"),
+                        Str(it, "spec"),  Str(it, "spec_en"),
+                        Str(it, "method"), Str(it, "method_en"),
+                        grp, grpEn);
+                }
+            }
+        }
+        catch (JsonException) { /* snapshot hỏng — rơi về key, không làm vỡ trang */ }
+
+        return map;
+
+        static string? Str(JsonElement o, string name)
+            => o.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
+               && !string.IsNullOrWhiteSpace(v.GetString())
+                ? v.GetString()
+                : null;
+    }
+
     public static IReadOnlyList<string> ExtractProfileItemKeys(string? profileSnapshotJson)
     {
         if (string.IsNullOrWhiteSpace(profileSnapshotJson) || profileSnapshotJson == "{}")

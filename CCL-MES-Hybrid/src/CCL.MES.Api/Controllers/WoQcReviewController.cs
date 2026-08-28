@@ -168,15 +168,24 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
             .OrderBy(k => k, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // Nhãn hiển thị lấy từ snapshot ĐÃ ĐÓNG BĂNG của check này, không
+        // tra lại seed hiện hành — hồ sơ đã ký phải đọc lại ra đúng chữ cũ.
+        var textByKey = QcProfileResolver.ExtractItemText(check?.ProfileSnapshotJson);
+
         var viewItems = new List<WoQcViewItem>(profileKeys.Count + stragglerKeys.Count);
         foreach (var key in profileKeys.Concat(stragglerKeys))
         {
+            textByKey.TryGetValue(key, out var txt);
             if (itemRowByKey.TryGetValue(key, out var row))
             {
                 viewItems.Add(new WoQcViewItem
                 {
                     ItemKey = key,
                     Status = row.Status.ToString(),
+                    Label = txt.Label, LabelEn = txt.LabelEn,
+                    Spec = txt.Spec, SpecEn = txt.SpecEn,
+                    Method = txt.Method, MethodEn = txt.MethodEn,
+                    GroupLabel = txt.GroupLabel, GroupLabelEn = txt.GroupLabelEn,
                     NgReasonCode = row.NgReasonCode,
                     NgNote = row.NgNote,
                     PhotoIds = photoLookup.TryGetValue(row.Id, out var ids)
@@ -190,6 +199,10 @@ public sealed class WoQcReviewController : WoQcMutationControllerBase
                 {
                     ItemKey = key,
                     Status = "Pending",
+                    Label = txt.Label, LabelEn = txt.LabelEn,
+                    Spec = txt.Spec, SpecEn = txt.SpecEn,
+                    Method = txt.Method, MethodEn = txt.MethodEn,
+                    GroupLabel = txt.GroupLabel, GroupLabelEn = txt.GroupLabelEn,
                     NgReasonCode = null,
                     NgNote = null,
                     PhotoIds = Array.Empty<long>(),

@@ -62,6 +62,39 @@ public sealed record WoQcViewItem
 {
     public string ItemKey { get; init; } = "";
     public string Status { get; init; } = "Pending";
+
+    // ── Nhãn hiển thị, LẤY TỪ SNAPSHOT ĐÃ ĐÓNG BĂNG của chính check này.
+    //    Trước đây UI render thẳng ItemKey ("color_match", "no_tear") vì DTO
+    //    không mang nhãn ra — profile CÓ nhãn, nó chỉ nằm trong
+    //    ProfileSnapshotJson mà không ai đọc.
+    //    Đừng đọc thẳng: dùng *For(bool) để luôn có đường rơi về VI rồi về key.
+    public string? Label { get; init; }
+    public string? LabelEn { get; init; }
+    public string? Spec { get; init; }
+    public string? SpecEn { get; init; }
+    public string? Method { get; init; }
+    public string? MethodEn { get; init; }
+
+    /// <summary>Nhóm hạng mục (A·Ngoại quan … E·RoHS). Là KHOÁ TAB — giữ chuỗi
+    /// VI làm định danh, chỉ nhãn mới dịch, để đổi ngôn ngữ không văng tab.</summary>
+    public string? GroupLabel { get; init; }
+    public string? GroupLabelEn { get; init; }
+
+    /// <summary>Nhãn theo ngôn ngữ đang bật. Thiếu EN → bản VI; thiếu cả hai →
+    /// <see cref="ItemKey"/>, để ô không bao giờ trống.</summary>
+    public string LabelFor(bool english) => Pick(LabelEn, Label, english) ?? ItemKey;
+
+    /// <inheritdoc cref="LabelFor"/>
+    public string? SpecFor(bool english) => Pick(SpecEn, Spec, english);
+
+    /// <inheritdoc cref="LabelFor"/>
+    public string? MethodFor(bool english) => Pick(MethodEn, Method, english);
+
+    /// <inheritdoc cref="LabelFor"/>
+    public string? GroupLabelFor(bool english) => Pick(GroupLabelEn, GroupLabel, english);
+
+    private static string? Pick(string? en, string? vi, bool english)
+        => english && !string.IsNullOrWhiteSpace(en) ? en : (string.IsNullOrWhiteSpace(vi) ? null : vi);
     public string? NgReasonCode { get; init; }
     public string? NgNote { get; init; }
     public IReadOnlyList<long> PhotoIds { get; init; } = Array.Empty<long>();

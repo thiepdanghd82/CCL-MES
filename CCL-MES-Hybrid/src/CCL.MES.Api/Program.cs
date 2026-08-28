@@ -696,6 +696,19 @@ using (var bootScope = app.Services.CreateScope())
             {
                 Console.WriteLine($"[boot] ipqc_item_en backfill skipped: {seedEx.GetType().Name}: {seedEx.Message}");
             }
+            // Nhóm E·RoHS & Halogen — 8 chỉ tiêu ppm, chỉ OQC, ProcessLine=ALL.
+            // Phải chạy SAU seed thư viện chính vì cùng ghi bảng CheckItemLibraries
+            // (upsert theo ItemId). Không phụ thuộc backfill EN: 8 dòng này tự
+            // mang sẵn ItemEn/MethodEn/GroupLabelEn trong seed.
+            try
+            {
+                var rohs = await CCL.MES.Infrastructure.DbSeeder.SeedRohsLibraryAsync(bootDb);
+                Console.WriteLine($"[seed] rohs_library inserted={rohs.Inserted} updated={rohs.Updated}");
+            }
+            catch (Exception seedEx)
+            {
+                Console.WriteLine($"[boot] rohs_library seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
+            }
             try
             {
                 var m = await CCL.MES.Infrastructure.DbSeeder.SeedProcessLineMapAsync(bootDb);

@@ -52,6 +52,7 @@ public static class CheckItemVocabularyEn
         ["Khuôn & vật tư"] = "Dies & materials",
         ["Mẫu đầu & an toàn"] = "First article & safety",
         ["Mẫu đầu tiên"] = "First article",
+        ["E·RoHS & Halogen"] = "E·RoHS & Halogen",
         ["Mẫu đầu & thải"] = "First article & waste",
     };
 
