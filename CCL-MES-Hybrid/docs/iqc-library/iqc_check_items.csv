@@ -1,0 +1,22 @@
+ItemId,GroupCode,GroupLabelVi,GroupLabelEn,ItemVi,ItemEn,Sort
+NL-01,NL,Nguyên liệu,Ingredient,Kiểm tra vật liệu / nhận dạng,Material identification,10
+NQ-01,NQ,Ngoại quan,External inspection,Tem nhãn,Labels / marking,20
+NQ-02,NQ,Ngoại quan,External inspection,Màu sắc,Colour,30
+NQ-03,NQ,Ngoại quan,External inspection,Bụi bẩn / dị vật,Dirt / foreign matter,40
+NQ-04,NQ,Ngoại quan,External inspection,Vết xước & vết nhăn,Scratches & wrinkles,50
+NQ-05,NQ,Ngoại quan,External inspection,Lỗi ngoại quan khác,Other visual defects,60
+NQ-06,NQ,Ngoại quan,External inspection,Đóng gói,Packaging,70
+KT-01,KT,Kích thước,Size,Kích thước tiêu chuẩn (tổng quát),Standard size,80
+KT-02,KT,Kích thước,Size,Chiều dài,Length,90
+KT-03,KT,Kích thước,Size,Chiều rộng,Width,100
+KT-04,KT,Kích thước,Size,Độ dày,Thickness,110
+MT-01,MT,Môi trường,Environment,RoHS nội bộ (XRF),Internal RoHS (XRF),120
+MT-02,MT,Môi trường,Environment,Hồ sơ HSF / SGS của NCC,HSF / SGS documentation,130
+MT-03,MT,Môi trường,Environment,Chất cấm / chất độc hại,Restricted substances,140
+BD-01,BD,Độ bám dính,Adhesion,Độ bám dính keo (Peel test),Adhesion / peel test,150
+BD-02,BD,Độ bám dính,Adhesion,Cross-cut test,Cross-cut test,160
+CU-01,CU,Độ cứng bút chì,Pencil hardness,Độ cứng bút chì,Pencil hardness,170
+XS-01,XS,Độ xuyên sáng,Light transmission,Độ xuyên sáng (VL),Light transmission (VL),180
+TL-01,TL,Trọng lượng,Weight,Định lượng / trọng lượng,Weight / basis weight,190
+BO-01,BO,Độ bóng,Gloss,Độ bóng,Gloss,200
+KH-01,KH,Khác,Other,Hạng mục khác,Other items,210

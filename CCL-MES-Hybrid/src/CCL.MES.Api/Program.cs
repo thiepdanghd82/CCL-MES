@@ -709,6 +709,32 @@ using (var bootScope = app.Services.CreateScope())
             {
                 Console.WriteLine($"[boot] rohs_library seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
             }
+            // P12 — thư viện tiêu chuẩn kiểm tra NVL (IQC): 21 hạng mục · 459
+            // spec · 5 961 dòng tiêu chuẩn theo từng nguyên liệu. Ba file CSV
+            // nằm trong repo (docs/iqc-library). Idempotent, best-effort.
+            try
+            {
+                var dir = CCL.MES.Api.Services.IqcLibraryPath.Resolve(app.Environment.ContentRootPath);
+                if (dir is null)
+                {
+                    Console.WriteLine("[boot] iqc_library seed skipped: không thấy docs/iqc-library");
+                }
+                else
+                {
+                    var iqc = await CCL.MES.Infrastructure.DbSeeder.SeedIqcLibraryAsync(
+                        bootDb,
+                        await File.ReadAllTextAsync(Path.Combine(dir, "iqc_check_items.csv")),
+                        await File.ReadAllTextAsync(Path.Combine(dir, "iqc_material_specs.csv")),
+                        await File.ReadAllTextAsync(Path.Combine(dir, "iqc_spec_items.csv")));
+                    Console.WriteLine(
+                        $"[seed] iqc_library items={iqc.Items} specs={iqc.Specs} " +
+                        $"spec_items={iqc.SpecItems} updated={iqc.Updated}");
+                }
+            }
+            catch (Exception seedEx)
+            {
+                Console.WriteLine($"[boot] iqc_library seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
+            }
             try
             {
                 var m = await CCL.MES.Infrastructure.DbSeeder.SeedProcessLineMapAsync(bootDb);
