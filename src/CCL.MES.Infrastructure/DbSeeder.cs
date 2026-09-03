@@ -512,6 +512,153 @@ public static class DbSeeder
             await db.ProcessLegMaps.CountAsync());
     }
 
+    /// <summary>Kết quả seed thư viện IQC (P12).</summary>
+    public readonly record struct IqcLibrarySeedResult(
+        int Items, int Specs, int SpecItems, int Updated);
+
+    /// <summary>
+    /// P12 — seed/upsert thư viện tiêu chuẩn kiểm tra NVL từ ba file CSV.
+    /// Idempotent, upsert theo natural key, <b>KHÔNG xoá</b> (DR-1): chạy lần
+    /// hai phải ra 0 update.
+    ///
+    /// <para>Ba khoá tự nhiên: <c>IqcCheckItemLibrary.ItemId</c> ·
+    /// <c>IqcMaterialSpec.SpecNo</c> · <c>IqcSpecItem(SpecNo, ItemId)</c>.</para>
+    /// </summary>
+    public static async Task<IqcLibrarySeedResult> SeedIqcLibraryAsync(
+        MesDbContext db, string itemsCsv, string specsCsv, string specItemsCsv)
+    {
+        var updated = 0;
+
+        // ── 1. 21 hạng mục ───────────────────────────────────────────────
+        var items = IqcLibraryCsv.ParseItems(itemsCsv);
+        var curItems = await db.IqcCheckItemLibraries.ToListAsync();
+        var byItemId = curItems.ToDictionary(x => x.ItemId, StringComparer.OrdinalIgnoreCase);
+        var itemsAdded = 0;
+        foreach (var r in items)
+        {
+            if (byItemId.TryGetValue(r.ItemId, out var e))
+            {
+                var ch = false;
+                void S<T>(T a, T b, Action<T> set)
+                { if (!EqualityComparer<T>.Default.Equals(a, b)) { set(b); ch = true; } }
+
+                S(e.GroupCode, r.GroupCode, v => e.GroupCode = v);
+                S(e.GroupLabelVi, r.GroupLabelVi, v => e.GroupLabelVi = v);
+                S(e.GroupLabelEn, r.GroupLabelEn, v => e.GroupLabelEn = v);
+                S(e.ItemVi, r.ItemVi, v => e.ItemVi = v);
+                S(e.ItemEn, r.ItemEn, v => e.ItemEn = v);
+                S(e.InDefaultMatrix, r.InDefaultMatrix, v => e.InDefaultMatrix = v);
+                S(e.DefaultAcceptanceVi, r.DefaultAcceptanceVi, v => e.DefaultAcceptanceVi = v);
+                S(e.DefaultAcceptanceEn, r.DefaultAcceptanceEn, v => e.DefaultAcceptanceEn = v);
+                S(e.DefaultMethodVi, r.DefaultMethodVi, v => e.DefaultMethodVi = v);
+                S(e.DefaultMethodEn, r.DefaultMethodEn, v => e.DefaultMethodEn = v);
+                S(e.Sort, r.Sort, v => e.Sort = v);
+                // P12 bước 2b — KHÔNG hồi sinh dòng đã tắt. Seeder không bao giờ
+                // đặt Active=false, nên Active=false CHỈ có thể do người thật
+                // tắt qua UI. Seed chạy mỗi lần boot API; bật lại ở đây là âm
+                // thầm huỷ quyết định của Engineer sau lần khởi động kế tiếp.
+                if (ch) { e.UpdatedAt = DateTime.UtcNow; e.UpdatedBy = "seed"; updated++; }
+            }
+            else
+            {
+                db.IqcCheckItemLibraries.Add(new IqcCheckItemLibrary
+                {
+                    ItemId = r.ItemId, GroupCode = r.GroupCode,
+                    GroupLabelVi = r.GroupLabelVi, GroupLabelEn = r.GroupLabelEn,
+                    ItemVi = r.ItemVi, ItemEn = r.ItemEn,
+                    InDefaultMatrix = r.InDefaultMatrix,
+                    DefaultAcceptanceVi = r.DefaultAcceptanceVi,
+                    DefaultAcceptanceEn = r.DefaultAcceptanceEn,
+                    DefaultMethodVi = r.DefaultMethodVi,
+                    DefaultMethodEn = r.DefaultMethodEn,
+                    Sort = r.Sort, Active = true, CreatedBy = "seed",
+                });
+                itemsAdded++;
+            }
+        }
+
+        // ── 2. 459 spec ↔ nguyên liệu ────────────────────────────────────
+        var specs = IqcLibraryCsv.ParseSpecs(specsCsv);
+        var curSpecs = await db.IqcMaterialSpecs.ToListAsync();
+        var bySpecNo = curSpecs.ToDictionary(x => x.SpecNo, StringComparer.OrdinalIgnoreCase);
+        var specsAdded = 0;
+        foreach (var r in specs)
+        {
+            if (bySpecNo.TryGetValue(r.SpecNo, out var e))
+            {
+                var ch = false;
+                void S(string? a, string? b, Action<string?> set)
+                { if (!string.Equals(a, b, StringComparison.Ordinal)) { set(b); ch = true; } }
+
+                S(e.MaterialCode, r.MaterialCode, v => e.MaterialCode = v ?? "");
+                S(e.MaterialCodeIfs, r.MaterialCodeIfs, v => e.MaterialCodeIfs = v);
+                S(e.SupplierName, r.SupplierName, v => e.SupplierName = v);
+                S(e.Revision, r.Revision, v => e.Revision = v);
+                // P12 bước 2b — KHÔNG hồi sinh dòng đã tắt. Seeder không bao giờ
+                // đặt Active=false, nên Active=false CHỈ có thể do người thật
+                // tắt qua UI. Seed chạy mỗi lần boot API; bật lại ở đây là âm
+                // thầm huỷ quyết định của Engineer sau lần khởi động kế tiếp.
+                if (ch) { e.UpdatedAt = DateTime.UtcNow; e.UpdatedBy = "seed"; updated++; }
+            }
+            else
+            {
+                db.IqcMaterialSpecs.Add(new IqcMaterialSpec
+                {
+                    SpecNo = r.SpecNo, MaterialCode = r.MaterialCode,
+                    MaterialCodeIfs = r.MaterialCodeIfs, SupplierName = r.SupplierName,
+                    Revision = r.Revision, Active = true, CreatedBy = "seed",
+                });
+                specsAdded++;
+            }
+        }
+
+        // ── 3. 5 961 dòng tiêu chuẩn theo nguyên liệu ────────────────────
+        var details = IqcLibraryCsv.ParseSpecItems(specItemsCsv);
+        var curDetails = await db.IqcSpecItems.ToListAsync();
+        var byPair = curDetails.ToDictionary(
+            x => (x.SpecNo.ToUpperInvariant(), x.ItemId.ToUpperInvariant(), x.Seq));
+        var detailsAdded = 0;
+        foreach (var r in details)
+        {
+            var key = (r.SpecNo.ToUpperInvariant(), r.ItemId.ToUpperInvariant(), r.Seq);
+            if (byPair.TryGetValue(key, out var e))
+            {
+                var ch = false;
+                void S(string? a, string? b, Action<string?> set)
+                { if (!string.Equals(a, b, StringComparison.Ordinal)) { set(b); ch = true; } }
+
+                S(e.AcceptanceVi, r.AcceptanceVi, v => e.AcceptanceVi = v);
+                S(e.AcceptanceEn, r.AcceptanceEn, v => e.AcceptanceEn = v);
+                S(e.MethodVi, r.MethodVi, v => e.MethodVi = v);
+                S(e.MethodEn, r.MethodEn, v => e.MethodEn = v);
+                S(e.SourceFrequency, r.SourceFrequency, v => e.SourceFrequency = v);
+                if (e.Sort != r.Sort) { e.Sort = r.Sort; ch = true; }
+                // P12 bước 2b — KHÔNG hồi sinh dòng đã tắt. Seeder không bao giờ
+                // đặt Active=false, nên Active=false CHỈ có thể do người thật
+                // tắt qua UI. Seed chạy mỗi lần boot API; bật lại ở đây là âm
+                // thầm huỷ quyết định của Engineer sau lần khởi động kế tiếp.
+                if (ch) { e.UpdatedAt = DateTime.UtcNow; e.UpdatedBy = "seed"; updated++; }
+            }
+            else
+            {
+                db.IqcSpecItems.Add(new IqcSpecItem
+                {
+                    SpecNo = r.SpecNo, ItemId = r.ItemId, Seq = r.Seq,
+                    AcceptanceVi = r.AcceptanceVi, AcceptanceEn = r.AcceptanceEn,
+                    MethodVi = r.MethodVi, MethodEn = r.MethodEn,
+                    SourceFrequency = r.SourceFrequency,
+                    Sort = r.Sort, Active = true, CreatedBy = "seed",
+                });
+                detailsAdded++;
+            }
+        }
+
+        if (itemsAdded + specsAdded + detailsAdded + updated > 0)
+            await db.SaveChangesAsync();
+
+        return new IqcLibrarySeedResult(itemsAdded, specsAdded, detailsAdded, updated);
+    }
+
     /// <summary>Kết quả seed nhóm E·RoHS.</summary>
     public readonly record struct RohsLibrarySeedResult(int Inserted, int Updated);
 

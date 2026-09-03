@@ -22,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<NpiImportService>();
         // Phase 6 Bước 7 — IQC pre-WO raw-material inspection.
         services.AddScoped<IqcService>();
+        services.AddScoped<IqcSpecEditService>();
         return services;
     }
 }

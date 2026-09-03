@@ -1,7 +1,33 @@
 <!--
 SYNC IMPACT REPORT
 ==================
-Version change: (chưa có) → 1.0.0
+Version change: 1.0.0 → 1.1.0   (sửa đổi 2026-09-03)
+
+--- SỬA ĐỔI 1.1.0 — thu hẹp VÙNG CẤM về đúng thứ đang bị đóng băng ---
+Điều khoản sửa: "Ràng buộc kỹ thuật › Vùng cấm" + mục STOP-gate tương ứng.
+Trước: `src/CCL.MES.*` là baseline read-only.
+Sau:   `src/CCL.MES.Web` là baseline read-only; Domain/Application/Infrastructure
+       KHÔNG thuộc vùng cấm.
+
+Vì sao (Governance khoản c — không nới luật vì luật gây bất tiện):
+đây là SỬA CÂU CHỮ CHO KHỚP Ý ĐỊNH, không phải nới luật. Ý định của điều khoản là
+đóng băng app Blazor Server legacy `:5050` (cutover 2026-08-19), nhưng câu chữ
+`src/CCL.MES.*` quét luôn ba tầng dùng chung mà mọi thay đổi schema bắt buộc phải
+đụng tới.
+
+Bằng chứng đo được (2026-09-03, 60 commit gần nhất trên `main`):
+  src/CCL.MES.Web/             →  0 lần đổi file   ← thứ luật muốn bảo vệ
+  src/CCL.MES.Domain/          → 12
+  src/CCL.MES.Application/     → 17
+  src/CCL.MES.Infrastructure/  → 14
+  → 8/60 commit bị câu chữ cũ xếp vào STOP-gate, KHÔNG commit nào chạm Web.
+
+Một luật mà 8/60 commit vi phạm và không ai dừng lại là luật đã chết trên thực tế;
+để nguyên thì nó vô hiệu hoá cả năm STOP-gate còn lại. Điều khoản không được nới
+với `Web` — phần thực sự đóng băng vẫn cấm tuyệt đối.
+
+Duyệt: Henry 2026-09-03. Tài liệu bị ảnh hưởng đã sửa cùng PR: CLAUDE.md §0.
+---
 Loại thay đổi:  MAJOR — phê chuẩn lần đầu. File trước đó là template chưa điền,
                 không có điều khoản nào đang hiệu lực để so sánh.
 
@@ -161,8 +187,16 @@ Domain policy, không nằm trong controller HTTP. Enforce: `gate-thin-controlle
 **i18n là thuế của mọi task chạm UI**, không phải một task riêng. Thêm key mới bắt
 buộc có đủ EN + VI, đặt theo namespace.
 
-**Vùng cấm.** `src/CCL.MES.*` là baseline **read-only** — đụng vào là STOP-gate.
+**Vùng cấm.** `src/CCL.MES.Web` là baseline **read-only** — đụng vào là STOP-gate.
+Đây là app Blazor Server legacy trên `:5050`, đã đóng băng 2026-08-19 (PA-A: đóng
+băng, không xoá — xem `CCL-MES-Hybrid/docs/CUTOVER-LEGACY-WEB-FREEZE-2026-08-19.md`).
 `_legacy-web-freeze` và `_archive` không được giải nén vào cây làm việc.
+
+`src/CCL.MES.{Domain,Application,Infrastructure}` **KHÔNG** thuộc vùng cấm: đó là
+schema và luật nghiệp vụ dùng chung cho cả Web legacy lẫn Hybrid API. Thêm một bảng
+mà không được sửa `Domain`/`Infrastructure` thì chỉ còn cách dựng DbContext thứ hai
+trên cùng một DB — đúng lớp lỗi **L61** (hai nguồn sự thật). Ba tầng này vẫn chịu
+mọi ràng buộc khác: migration theo Phase A→B→C, controller mỏng, audit, i18n.
 
 ## Quy trình phát triển
 
@@ -188,7 +222,7 @@ context giữa phiên dài. Bảng tra work-class → skill → agent nằm ở 
 - Phải chạy migration lên **live DB**.
 - RCA chưa proven mà đã muốn mở PR.
 - Phải **tăng** BASELINE của một gate mà không giải thích được.
-- Phải đụng `src/CCL.MES.*` (baseline read-only).
+- Phải đụng `src/CCL.MES.Web` (app legacy đã đóng băng).
 
 **Stacked PR** tuân theo R1..R7 trong `STACKED-PR-CHECKLIST.md`: `--base` tường
 minh, không `--delete-branch` giữa stack, cascade-close recovery, comment-strip
@@ -231,4 +265,4 @@ phải được biện minh; không biện minh được thì cắt.
 buộc phải vi phạm, PR phải nêu điều khoản bị vi phạm, lý do, và thời hạn khắc phục
 — và điều đó phải được Henry chấp thuận trước khi merge.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-26 | **Last Amended**: 2026-08-26
+**Version**: 1.1.0 | **Ratified**: 2026-08-26 | **Last Amended**: 2026-09-03

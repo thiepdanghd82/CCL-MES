@@ -392,6 +392,19 @@ builder.Services.AddAuthorization(o =>
     o.AddPolicy("SettingItemAdd", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
+
+    // P12 bước 2b — soạn tiêu chuẩn kiểm NVL theo mã.
+    //   ĐỌC : QC cần xem tiêu chuẩn của mã đang kiểm ⇒ mở cho cả QC.
+    //   GHI : master data ⇒ Engineer+ (cùng luật SettingItemAdd). QC kiểm được
+    //         nhưng KHÔNG soạn tiêu chuẩn — nếu không thì người kiểm tự hạ
+    //         chuẩn cho lô mình đang cầm.
+    o.AddPolicy("IqcSpecRead", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc));
+
+    o.AddPolicy("IqcSpecWrite", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
 });
 
 // ──────────────────────────────────────────────────────────────────────
@@ -708,6 +721,32 @@ using (var bootScope = app.Services.CreateScope())
             catch (Exception seedEx)
             {
                 Console.WriteLine($"[boot] rohs_library seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
+            }
+            // P12 — thư viện tiêu chuẩn kiểm tra NVL (IQC): 21 hạng mục · 459
+            // spec · 5 961 dòng tiêu chuẩn theo từng nguyên liệu. Ba file CSV
+            // nằm trong repo (docs/iqc-library). Idempotent, best-effort.
+            try
+            {
+                var dir = CCL.MES.Api.Services.IqcLibraryPath.Resolve(app.Environment.ContentRootPath);
+                if (dir is null)
+                {
+                    Console.WriteLine("[boot] iqc_library seed skipped: không thấy docs/iqc-library");
+                }
+                else
+                {
+                    var iqc = await CCL.MES.Infrastructure.DbSeeder.SeedIqcLibraryAsync(
+                        bootDb,
+                        await File.ReadAllTextAsync(Path.Combine(dir, "iqc_check_items.csv")),
+                        await File.ReadAllTextAsync(Path.Combine(dir, "iqc_material_specs.csv")),
+                        await File.ReadAllTextAsync(Path.Combine(dir, "iqc_spec_items.csv")));
+                    Console.WriteLine(
+                        $"[seed] iqc_library items={iqc.Items} specs={iqc.Specs} " +
+                        $"spec_items={iqc.SpecItems} updated={iqc.Updated}");
+                }
+            }
+            catch (Exception seedEx)
+            {
+                Console.WriteLine($"[boot] iqc_library seed skipped: {seedEx.GetType().Name}: {seedEx.Message}");
             }
             try
             {

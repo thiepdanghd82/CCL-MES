@@ -1,0 +1,22 @@
+ItemId,GroupCode,GroupLabelVi,GroupLabelEn,ItemVi,ItemEn,InDefaultMatrix,DefaultAcceptanceVi,DefaultAcceptanceEn,DefaultMethodVi,DefaultMethodEn,Sort
+NL-01,NL,Nguyên liệu,Ingredient,Kiểm tra vật liệu / nhận dạng,Material identification,1,Theo mẫu chuẩn được lưu,According to the standard form stored,Kiểm tra mác SP & so sánh với SP mẫu,Check product label & compare with sample product,10
+NQ-01,NQ,Ngoại quan,External inspection,Tem nhãn,Labels / marking,1,"Kiểm tra thông tin trên tem, hạn sử dụng…","Check the information on the stamp, expiry date…",Nhìn bằng mắt,See with the eyes,20
+NQ-02,NQ,Ngoại quan,External inspection,Màu sắc,Colour,1,So với mẫu chuẩn,Compared with the standard sample,Nhìn bằng mắt & so sánh với mẫu chuẩn,Look with your eyes and compare with the standard sample,30
+NQ-03,NQ,Ngoại quan,External inspection,Bụi bẩn / dị vật,Dirt / foreign matter,1,Không có bụi bẩn,No dust,Nhìn bằng mắt,See with the eyes,40
+NQ-04,NQ,Ngoại quan,External inspection,Vết xước & vết nhăn,Scratches & wrinkles,1,Không có xước & nhăn,No scratches & wrinkles,Nhìn bằng mắt,See with the eyes,50
+NQ-05,NQ,Ngoại quan,External inspection,Lỗi ngoại quan khác,Other visual defects,1,So với mẫu chuẩn,Compared with the standard sample,Nhìn bằng mắt,See with the eyes,60
+NQ-06,NQ,Ngoại quan,External inspection,Đóng gói,Packaging,1,"Không rách, không biến dạng, không đổ pallet,Không bẩn, không ẩm ướt","No tear, no deformation, no pallet fall, No dirt, no moisture",Nhìn bằng mắt,See with the eyes,70
+KT-01,KT,Kích thước,Size,Kích thước tiêu chuẩn (tổng quát),Standard size,1,"Theo dữ liệu đầu vào (báo cáo xuất hàng, tem cuộn,…)","According to input data (shipment report, roll stamp, etc.)",So sánh data và thước đo,Compare data and metrics,80
+KT-02,KT,Kích thước,Size,Chiều dài,Length,0,"Theo dữ liệu đầu vào (báo cáo xuất hàng, tem cuộn,…)",,So sánh data và thước đo,,90
+KT-03,KT,Kích thước,Size,Chiều rộng,Width,0,"Theo dữ liệu đầu vào (báo cáo xuất hàng, tem cuộn,…)",,So sánh data và thước đo,,100
+KT-04,KT,Kích thước,Size,Độ dày,Thickness,0,Theo TDS,,TDS,,110
+MT-01,MT,Môi trường,Environment,RoHS nội bộ (XRF),Internal RoHS (XRF),1,"Cd,Cl,Hg, Pb, Sb, Cr, Br",,Phân tích thành phần nguyên liệu bằng máy X-ray và so sánh với tiêu chuẩn kiểm tra,Analyze raw material composition by X-ray machine and compare with testing standards,120
+MT-02,MT,Môi trường,Environment,Hồ sơ HSF / SGS của NCC,HSF / SGS documentation,1,Kiểm tra HSF,,Nguyên liệu mới báo SQE kiểm tra MSDS.,,130
+MT-03,MT,Môi trường,Environment,Chất cấm / chất độc hại,Restricted substances,0,"Cd, Hg, Pb, Sb, Cr, Cl, Br",,Phân tích thành phần nguyên liệu bằng máy X-ray và so sánh với tiêu chuẩn kiểm tra,,140
+BD-01,BD,Độ bám dính,Adhesion,Độ bám dính keo (Peel test),Adhesion / peel test,1,FTM:  XXX,,Máy kiểm tra độ bám dính,Adhesion tester,150
+BD-02,BD,Độ bám dính,Adhesion,Cross-cut test,Cross-cut test,0,Máy đo VL,VL measuring machine,"P2, P4 so sánh data và thước đo","P3 Dựa theo kết quả đo của Hải An P2, P4 compare data and measurements P3 Based on Hai An's measurement results",160
+CU-01,CU,Độ cứng bút chì,Pencil hardness,Độ cứng bút chì,Pencil hardness,1,"Loại Bút, Qủa nặng:  XXX","Pen Type, Weight",Không có vết xước,Nhìn bằng mắt & so sánh với mẫu trước và sau. No scratches Visually look & compare with before and after sample.,170
+XS-01,XS,Độ xuyên sáng,Light transmission,Độ xuyên sáng (VL),Light transmission (VL),1,Theo tiêu chuẩn TDS,According to TDS standard,Nhìn bằng mắt & so sánh dữ liệu trên máy với tiêu chuẩn.,Visually look and compare the data on the machine with the standard.,180
+TL-01,TL,Trọng lượng,Weight,Định lượng / trọng lượng,Weight / basis weight,0,1.10g±0.15g/cm² ~110g±15g/m²,,So sánh trọng lượng với tiêu chuẩn kiểm tra.,,190
+BO-01,BO,Độ bóng,Gloss,Độ bóng,Gloss,0,Độ bóng: 20~30,Gloss:  20~30,So sánh kết quả với mẫu trước và sau.,Compare the results with the before and after samples.,200
+KH-01,KH,Khác,Other,Hạng mục khác,Other items,0,"Cd, Hg, Pb, Sb, Cr, Cl, Br",,Tham khảo tài liệu của Nhà cung cấp.,"Nếu hết hạn thông tin lại  SQE kiểm tra,yêu cầu . Refer to Supplier documentation. If information expires, re-enter SQE to check requirements.",210

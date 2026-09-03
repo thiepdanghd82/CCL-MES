@@ -220,4 +220,103 @@ public sealed class IqcController : ControllerBase
         };
         return CreatedAtAction(nameof(Get), new { id = r.IqcInspectionId }, resp);
     }
+
+    // ── P12 bước 3 — hạng mục kiểm của phiếu ──────────────────────
+
+    /// <summary>Bộ hạng mục kiểm đã đóng băng trên phiếu, kèm số MỤC của
+    /// stepper. Read-only ⇒ QcRead đủ. 404 khi phiếu không tồn tại.</summary>
+    [HttpGet("tickets/{id:long}/items")]
+    public async Task<ActionResult<IqcTicketItemsResponse>> TicketItems(
+        long id, CancellationToken ct = default)
+    {
+        var r = await _svc.GetTicketItemsAsync(id, ct);
+        if (r is null) return NotFound(ApiError.Of("iqc.ticket_not_found", "IQC ticket not found."));
+
+        return Ok(new IqcTicketItemsResponse
+        {
+            TicketId = r.TicketId,
+            SpecNo = r.SpecNo,
+            FromDefaultMatrix = r.FromDefaultMatrix,
+            Items = r.Items.Select(x => new IqcCheckItemDto
+            {
+                Id = x.Id,
+                ItemKey = x.ItemKey,
+                Seq = x.Seq,
+                Section = x.Section,
+                GroupCode = x.GroupCode,
+                GroupLabelVi = x.GroupLabelVi,
+                GroupLabelEn = x.GroupLabelEn,
+                LabelVi = x.LabelVi,
+                LabelEn = x.LabelEn,
+                AcceptanceVi = x.AcceptanceVi,
+                AcceptanceEn = x.AcceptanceEn,
+                MethodVi = x.MethodVi,
+                MethodEn = x.MethodEn,
+                SourceFrequency = x.SourceFrequency,
+                FromDefaultMatrix = x.FromDefaultMatrix,
+                AcceptanceUnspecified = x.AcceptanceUnspecified,
+                Pass = x.Pass,
+                MeasuredValue = x.MeasuredValue,
+                DefectCode = x.DefectCode,
+            }).ToList(),
+        });
+    }
+
+    /// <summary>CHỐT phiếu. Từ chối 422 <c>iqc.items_incomplete</c> khi còn hạng
+    /// mục chưa kiểm — người kiểm phải đánh giá HẾT rồi mới chốt được. Kết luận
+    /// suy ra từ chính các hạng mục, không cho gõ trái với dữ liệu vừa chấm.</summary>
+    [HttpPost("tickets/{id:long}/complete"), Authorize(Policy = "QcEdit")]
+    public async Task<IActionResult> CompleteTicket(long id, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(Request.Headers["Idempotency-Key"].ToString()))
+            return BadRequest(ApiError.Of("wo.idempotency_key_required",
+                "Idempotency-Key header required."));
+
+        var (actor, role) = Who();
+        var r = await _svc.CompleteTicketAsync(id, actor, role, ct);
+
+        if (!r.Ok)
+        {
+            return r.HttpStatus switch
+            {
+                404 => NotFound(ApiError.Of(r.ErrorCode!, r.MessageEn!)),
+                403 => StatusCode(StatusCodes.Status403Forbidden,
+                           ApiError.Of(r.ErrorCode!, r.MessageEn!)),
+                _   => UnprocessableEntity(ApiError.Of(r.ErrorCode!, r.MessageEn!)),
+            };
+        }
+        return Ok(new CompleteIqcResponse
+        {
+            Result = r.Result, Total = r.Total, Pending = r.Pending, Failed = r.Failed,
+        });
+    }
+
+    /// <summary>Ghi phán định một hạng mục. QcEdit + Idempotency-Key bắt buộc
+    /// (cùng luật với POST tạo phiếu — <c>IqcInspection</c> không có RowVersion
+    /// nên KHÔNG có If-Match ở đây). 404 phiếu/hạng mục; 422 tiêu chuẩn còn
+    /// placeholder hoặc input xấu.</summary>
+    [HttpPut("tickets/{id:long}/items/{itemId:long}"), Authorize(Policy = "QcEdit")]
+    public async Task<IActionResult> SetTicketItem(
+        long id, long itemId, [FromBody] SetIqcItemBody? body, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(Request.Headers["Idempotency-Key"].ToString()))
+            return BadRequest(ApiError.Of("wo.idempotency_key_required",
+                "Idempotency-Key header required."));
+
+        var (actor, role) = Who();
+        var r = await _svc.SetItemVerdictAsync(
+            id, itemId, body?.Pass, body?.MeasuredValue, body?.DefectCode, actor, role, ct);
+
+        if (!r.Ok)
+        {
+            return r.HttpStatus switch
+            {
+                404 => NotFound(ApiError.Of(r.ErrorCode!, r.MessageEn!)),
+                403 => StatusCode(StatusCodes.Status403Forbidden,
+                           ApiError.Of(r.ErrorCode!, r.MessageEn!)),
+                _   => UnprocessableEntity(ApiError.Of(r.ErrorCode!, r.MessageEn!)),
+            };
+        }
+        return Ok(new { itemId = r.ItemId, pass = r.Pass });
+    }
 }

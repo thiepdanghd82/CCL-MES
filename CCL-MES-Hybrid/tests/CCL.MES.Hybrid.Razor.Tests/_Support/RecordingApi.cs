@@ -845,6 +845,80 @@ public sealed class RecordingApi : ICclApiClient
             });
     }
 
+    // P12 bước 3 — hạng mục kiểm của phiếu (đọc + ghi phán định).
+    public Func<long, Task<CCL.MES.Shared.Quality.IqcTicketItemsResponse>>? IqcTicketItemsImpl { get; set; }
+    public List<long> IqcTicketItemsCalls { get; } = new();
+    public List<(long TicketId, long ItemId, CCL.MES.Shared.Quality.SetIqcItemBody Body)> SetIqcTicketItemCalls { get; } = new();
+
+    /// <summary>Ném khi được set — dùng để khoá nhánh hiện lỗi server thay vì
+    /// nuốt lỗi và để lưới rỗng.</summary>
+    public Exception? SetIqcTicketItemThrows { get; set; }
+
+    public Task<CCL.MES.Shared.Quality.IqcTicketItemsResponse> GetIqcTicketItemsAsync(
+        long ticketId, CancellationToken ct = default)
+    {
+        IqcTicketItemsCalls.Add(ticketId);
+        return IqcTicketItemsImpl is not null
+            ? IqcTicketItemsImpl(ticketId)
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcTicketItemsResponse { TicketId = ticketId });
+    }
+
+    public Func<long, Task<CCL.MES.Shared.Quality.CompleteIqcResponse>>? CompleteIqcTicketImpl { get; set; }
+    public List<long> CompleteIqcTicketCalls { get; } = new();
+
+    public Task<CCL.MES.Shared.Quality.CompleteIqcResponse> CompleteIqcTicketAsync(
+        long ticketId, CancellationToken ct = default)
+    {
+        CompleteIqcTicketCalls.Add(ticketId);
+        return CompleteIqcTicketImpl is not null
+            ? CompleteIqcTicketImpl(ticketId)
+            : Task.FromResult(new CCL.MES.Shared.Quality.CompleteIqcResponse { Result = "Pass" });
+    }
+
+    public Task SetIqcTicketItemAsync(
+        long ticketId, long itemId, CCL.MES.Shared.Quality.SetIqcItemBody body,
+        CancellationToken ct = default)
+    {
+        SetIqcTicketItemCalls.Add((ticketId, itemId, body));
+        return SetIqcTicketItemThrows is not null
+            ? Task.FromException(SetIqcTicketItemThrows)
+            : Task.CompletedTask;
+    }
+
+    // P12 bước 2b — soạn tiêu chuẩn theo mã nguyên liệu.
+    public Func<string, bool, Task<CCL.MES.Shared.Quality.IqcSpecEditResponse>>? IqcSpecImpl { get; set; }
+    public List<(string Code, bool IncludeInactive)> IqcSpecCalls { get; } = new();
+    public List<(string Code, CCL.MES.Shared.Quality.AddIqcSpecItemBody Body)> AddIqcSpecItemCalls { get; } = new();
+    public List<(long ItemId, bool Active)> SetIqcSpecItemActiveCalls { get; } = new();
+
+    /// <summary>Ném khi được set — khoá nhánh hiện lỗi server thay vì nuốt.</summary>
+    public Exception? IqcSpecWriteThrows { get; set; }
+
+    public Task<CCL.MES.Shared.Quality.IqcSpecEditResponse> GetIqcSpecAsync(
+        string materialCode, bool includeInactive = false, CancellationToken ct = default)
+    {
+        IqcSpecCalls.Add((materialCode, includeInactive));
+        return IqcSpecImpl is not null
+            ? IqcSpecImpl(materialCode, includeInactive)
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcSpecEditResponse { MaterialCode = materialCode });
+    }
+
+    public Task AddIqcSpecItemAsync(
+        string materialCode, CCL.MES.Shared.Quality.AddIqcSpecItemBody body,
+        CancellationToken ct = default)
+    {
+        AddIqcSpecItemCalls.Add((materialCode, body));
+        return IqcSpecWriteThrows is not null
+            ? Task.FromException(IqcSpecWriteThrows) : Task.CompletedTask;
+    }
+
+    public Task SetIqcSpecItemActiveAsync(long itemId, bool active, CancellationToken ct = default)
+    {
+        SetIqcSpecItemActiveCalls.Add((itemId, active));
+        return IqcSpecWriteThrows is not null
+            ? Task.FromException(IqcSpecWriteThrows) : Task.CompletedTask;
+    }
+
     // feat/iqc-module-tabs — IQC Data list + Dashboard KPI hooks.
     public Func<string?, string?, int, int, Task<CCL.MES.Shared.Quality.IqcTicketListResponse>>? ListIqcTicketsImpl { get; set; }
     public Func<Task<CCL.MES.Shared.Quality.IqcDashboardResponse>>? IqcDashboardImpl { get; set; }

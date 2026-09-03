@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 namespace CCL.MES.Domain.Entities;
 
 /// <summary>
@@ -109,9 +110,71 @@ public static class IqcGroup
 public class IqcResultDetail : BaseEntity
 {
     public long IqcInspectionId { get; set; }
+
+    /// <summary>Nhãn tự do của bản ghi cũ (trước P12). GIỮ LẠI — không xoá dữ
+    /// liệu lịch sử. Bản ghi mới dùng <see cref="LabelVi"/>.</summary>
     public string ItemName { get; set; } = "";
+
     public string? MeasuredValue { get; set; }
-    public bool Pass { get; set; }
+
+    /// <summary>
+    /// <c>null</c> = <b>CHƯA KIỂM</b> · <c>true</c> = đạt · <c>false</c> = không đạt.
+    ///
+    /// <para>Trước P12 đây là <c>bool</c> không nullable, vì hạng mục chỉ được
+    /// tạo KÈM kết quả. Từ khi materialize sẵn 13–21 hạng mục lúc mở ticket,
+    /// mặc định <c>false</c> sẽ hiện <b>mọi hạng mục là NG</b> — tuyên bố cả lô
+    /// không đạt mà không ai bấm gì. Nullable là cách nhỏ nhất để có trạng thái
+    /// thứ ba mà không đụng 7 bản ghi cũ (chúng giữ nguyên true/false).</para>
+    /// </summary>
+    public bool? Pass { get; set; }
+
     public string? DefectCode { get; set; }
     public int Qty { get; set; }
+
+    // ── P12 — BẰNG CHỨNG ĐÓNG BĂNG lúc mở ticket ────────────────────────
+    // Đóng băng cả hai ngôn ngữ ngay tại thời điểm tạo, đúng Nguyên tắc IV:
+    // sửa master data về sau KHÔNG hồi tố hồ sơ đã ký. Cùng khuôn với
+    // WoIpqcCheckItem (L60) và WoQcChecks.ProfileSnapshotJson (L62).
+
+    /// <summary>Mã hạng mục thư viện — <c>NL-01</c> · <c>NQ-02</c>… Null với
+    /// bản ghi cũ nhập tay.</summary>
+    [MaxLength(16)] public string? ItemKey { get; set; }
+
+    /// <summary>Thứ tự tiêu chí trong cùng (spec, hạng mục) — xem
+    /// <see cref="IqcSpecItem.Seq"/>.</summary>
+    public int Seq { get; set; } = 1;
+
+    /// <summary>Spec đã dùng để dựng. Null ⇒ dựng từ ma trận tiêu chuẩn.</summary>
+    [MaxLength(32)] public string? SpecNo { get; set; }
+
+    [MaxLength(8)] public string? GroupCode { get; set; }
+    [MaxLength(64)] public string? GroupLabelVi { get; set; }
+    [MaxLength(64)] public string? GroupLabelEn { get; set; }
+    [MaxLength(256)] public string? LabelVi { get; set; }
+    [MaxLength(256)] public string? LabelEn { get; set; }
+    [MaxLength(1024)] public string? AcceptanceVi { get; set; }
+    [MaxLength(1024)] public string? AcceptanceEn { get; set; }
+    [MaxLength(512)] public string? MethodVi { get; set; }
+    [MaxLength(512)] public string? MethodEn { get; set; }
+
+    /// <summary>Tần suất nguyên văn spec gốc — tra cứu, KHÔNG điều khiển hành
+    /// vi (quyết định D1: kiểm mọi lô).</summary>
+    [MaxLength(256)] public string? SourceFrequency { get; set; }
+
+    /// <summary>
+    /// Hạng mục này dựng từ <b>ma trận tiêu chuẩn</b> vì mã nguyên liệu chưa có
+    /// spec riêng — không phải tiêu chuẩn của chính mã đó.
+    ///
+    /// <para>590/946 mã trong MES chưa có spec, nên đây là đường chạy thường
+    /// xuyên. Không có cờ này thì không ai phân biệt được hồ sơ kiểm theo spec
+    /// thật với hồ sơ kiểm theo mặc định.</para>
+    /// </summary>
+    public bool FromDefaultMatrix { get; set; }
+
+    /// <summary>
+    /// Tiêu chuẩn là KHUÔN MẪU chưa điền (<c>"FTM: XXX"</c>). 521/5 961 dòng
+    /// thư viện ở trạng thái này. UI hiện "chưa xác định — hỏi QA" và KHÔNG
+    /// tính vào điều kiện đủ để kết luận lô: không bắt ai ký lên tiêu chí trống.
+    /// </summary>
+    public bool AcceptanceUnspecified { get; set; }
 }

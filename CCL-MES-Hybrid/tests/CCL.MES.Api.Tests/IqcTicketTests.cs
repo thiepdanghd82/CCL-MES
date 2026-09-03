@@ -5,6 +5,7 @@ using CCL.MES.Api.Tests._Support;
 using CCL.MES.Domain.Auth;
 using CCL.MES.Domain.Entities;
 using CCL.MES.Infrastructure;
+using CCL.MES.Shared.Envelopes;
 using CCL.MES.Shared.Quality;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -348,17 +349,47 @@ public sealed class IqcTicketTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
+    public async Task Trung_lo_tra_409_sach_chu_KHONG_phai_500()
+    {
+        // Henry gặp thật trên máy 2026-08-28: tạo lại phiếu với đúng lô cũ ⇒
+        // màn hình chỉ báo "Không lưu được phiếu.", log ra HTTP 500 với
+        // `UNIQUE constraint failed: MaterialLots.LotNo, MaterialLots.RawMaterialId`.
+        //
+        // Nguyên nhân: CreateLotAsync BẮT được DbUpdateException và trả 409,
+        // nhưng entity MaterialLot hỏng vẫn nằm trong change-tracker ở trạng
+        // thái Added. IdempotencyMiddleware ghi sổ trên CÙNG DbContext, và
+        // SaveChanges của nó phát lại đúng câu INSERT đó → ném ra ngoài mọi
+        // handler → 500. Người dùng mất luôn thông báo "lô đã tồn tại".
+        await SeedRawAsync("MC-DUP-LOT", "trùng lô");
+        var c = await ClientAsync("qc-dup-lot", UserRole.Qc);
+
+        var first = await c.SendAsync(Post("/api/v2/iqc", Body("MC-DUP-LOT", "LOT-TRUNG")));
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+
+        var second = await c.SendAsync(Post("/api/v2/iqc", Body("MC-DUP-LOT", "LOT-TRUNG")));
+
+        Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
+        var err = await second.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("lot.duplicate", err!.Code);
+
+        // Phiếu thứ hai phải rollback SẠCH — không để lại phiếu mồ côi.
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        Assert.Equal(1, await db.MaterialLots.CountAsync(l => l.LotNo == "LOT-TRUNG"));
+        Assert.Equal(1, await db.IqcInspections.CountAsync(i => i.BatchNumber == "LOT-TRUNG"));
+    }
+
+    [Fact]
     public async Task Multi_create_distinct_lots_persist_independently_across_scopes()
     {
         // A2a fans out N INDEPENDENT HTTP requests (one DbContext scope each).
         // This proves the distinct-lot siblings each persist in isolation — the
         // guarantee the client loop relies on when it reports "N ok / M failed".
-        // NOTE: the SINGLE-request duplicate-lot path (same lot in one POST) is
-        // a PRE-EXISTING latent bug outside this PR's scope — CreateLotAsync
-        // catches the unique-index DbUpdateException but leaves the failed
-        // MaterialLot tracked, so the idempotency middleware's trailing
-        // SaveChanges re-throws → 500 instead of a clean 409. Reported, not
-        // fixed here (freeze/create path is locked for feat/iqc-search-by-desc).
+        // Đường TRÙNG LÔ (cùng lô, POST thứ hai) từng là bug tiềm ẩn ghi ở đây
+        // là "chưa sửa": CreateLotAsync bắt DbUpdateException nhưng để entity
+        // hỏng nằm lại change-tracker ⇒ SaveChanges của IdempotencyMiddleware
+        // phát lại INSERT đó → 500 thay vì 409. ĐÃ SỬA — xem
+        // Trung_lo_tra_409_sach_chu_KHONG_phai_500 ngay dưới.
         await SeedRawAsync("MC-INDEP", "multi indep");
         var c = await ClientAsync("qc-multi-indep", UserRole.Qc);
 

@@ -52,7 +52,9 @@ phải bằng chứng. Chi tiết: skill `cmes-verify-evidence`.
 **STOP-gate — dừng và hỏi Henry:** phương án có tiêu chí 1 điểm · transition
 chưa có trong `P10.7-WO-STATE-CONTRACT.md` · phải chạy migration lên live DB ·
 RCA chưa proven mà đã muốn mở PR · phải bump BASELINE của gate mà không giải
-thích được · phải đụng `src/CCL.MES.*` (baseline read-only).
+thích được · phải đụng `src/CCL.MES.Web` (app Blazor Server legacy đã đóng băng
+2026-08-19). `src/CCL.MES.{Domain,Application,Infrastructure}` KHÔNG còn là vùng
+cấm từ hiến pháp v1.1.0 — đó là schema/luật dùng chung, thêm bảng buộc phải sửa.
 
 ---
 

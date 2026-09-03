@@ -91,16 +91,27 @@ public class IqcService
             SampleSize = r.SampleSize,
             Result = QcResult.Pending,
         };
-        foreach (var d in r.Details)
+        if (r.Details.Count > 0)
         {
-            insp.Details.Add(new IqcResultDetail
+            // Client gửi hạng mục ⇒ tôn trọng (đường cũ, nhập tay). Không đè.
+            foreach (var d in r.Details)
             {
-                ItemName = d.ItemName,
-                MeasuredValue = d.MeasuredValue,
-                Pass = d.Pass,
-                DefectCode = d.DefectCode,
-                Qty = d.Qty,
-            });
+                insp.Details.Add(new IqcResultDetail
+                {
+                    ItemName = d.ItemName,
+                    MeasuredValue = d.MeasuredValue,
+                    Pass = d.Pass,
+                    DefectCode = d.DefectCode,
+                    Qty = d.Qty,
+                });
+            }
+        }
+        else
+        {
+            // P12 bước 2a — dựng hạng mục từ THƯ VIỆN và ĐÓNG BĂNG vào ticket.
+            // Chỉ chạy khi client không gửi gì, nên đường nhập tay cũ vẫn nguyên.
+            foreach (var d in await MaterializeAsync(rawMaterialId))
+                insp.Details.Add(d);
         }
         _db.IqcInspections.Add(insp);
         await _db.SaveChangesAsync();
@@ -267,6 +278,17 @@ public class IqcService
             return CreateIqcTicketResult.Fail(409, "iqc.receipt_no_conflict",
                 "Could not allocate a unique receipt number; retry.");
         }
+
+        // P12 — dựng bộ hạng mục kiểm từ thư viện tiêu chuẩn và ĐÓNG BĂNG vào
+        // phiếu. Nằm trong CÙNG transaction với phiếu + lô: không có chuyện phiếu
+        // tồn tại mà bộ hạng mục nửa vời.
+        //
+        // Mã không resolve được (unmatched / ambiguous ⇒ rawMaterialId null) thì
+        // trả rỗng — người kiểm nhập tay như trước. KHÔNG đoán bừa: dựng sai bộ
+        // hạng mục còn tệ hơn không dựng.
+        foreach (var d in await MaterializeAsync(rawMaterialId, ct))
+            insp.Details.Add(d);
+        if (insp.Details.Count > 0) await _db.SaveChangesAsync(ct);
 
         // Mở lô Quarantine nối vào phiếu (A1: CreateLotAsync khởi tạo
         // Status=Quarantine, resolve RawMaterialId từ PartNo). Cùng scope DbContext
@@ -534,6 +556,168 @@ public class IqcService
             .FirstOrDefaultAsync(i => i.Id == id);
     }
 
+    // ── P12 bước 3 — hạng mục kiểm của một phiếu ─────────────────────────
+
+    /// <summary>
+    /// Bộ hạng mục kiểm đã ĐÓNG BĂNG trên phiếu, kèm số MỤC của stepper.
+    /// Read-only ⇒ QcRead đủ, không cần vai editor.
+    /// </summary>
+    public async Task<IqcTicketItems?> GetTicketItemsAsync(long inspectionId, CancellationToken ct = default)
+    {
+        var exists = await _db.IqcInspections.AsNoTracking()
+            .AnyAsync(x => x.Id == inspectionId, ct);
+        if (!exists) return null;
+
+        var rows = await _db.IqcResultDetails.AsNoTracking()
+            .Where(d => d.IqcInspectionId == inspectionId)
+            .OrderBy(d => d.Id)
+            .ToListAsync(ct);
+
+        return new IqcTicketItems
+        {
+            TicketId = inspectionId,
+            // Phiếu nào cũng chỉ khớp MỘT spec (hoặc không khớp cái nào).
+            SpecNo = rows.Select(r => r.SpecNo).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)),
+            FromDefaultMatrix = rows.Count > 0 && rows.All(r => r.FromDefaultMatrix),
+            Items = rows.Select(r => new IqcCheckItemRow
+            {
+                Id = r.Id,
+                ItemKey = r.ItemKey,
+                Seq = r.Seq,
+                Section = IqcTicketSection.Of(r.ItemKey, r.GroupCode),
+                GroupCode = r.GroupCode,
+                GroupLabelVi = r.GroupLabelVi,
+                GroupLabelEn = r.GroupLabelEn,
+                // Hạng mục nhập tay (đường cũ) không có LabelVi — rơi về ItemName
+                // để dòng vẫn đọc được thay vì hiện ô trống.
+                LabelVi = r.LabelVi ?? r.ItemName,
+                LabelEn = r.LabelEn,
+                AcceptanceVi = r.AcceptanceVi,
+                AcceptanceEn = r.AcceptanceEn,
+                MethodVi = r.MethodVi,
+                MethodEn = r.MethodEn,
+                SourceFrequency = r.SourceFrequency,
+                FromDefaultMatrix = r.FromDefaultMatrix,
+                AcceptanceUnspecified = r.AcceptanceUnspecified,
+                Pass = r.Pass,
+                MeasuredValue = r.MeasuredValue,
+                DefectCode = r.DefectCode,
+            }).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// Ghi phán định cho MỘT hạng mục. <paramref name="pass"/> <c>null</c> đưa
+    /// hạng mục về CHƯA KIỂM — người kiểm bấm nhầm phải gỡ được, nếu không họ sẽ
+    /// để nguyên một phán định sai còn hơn đi xin admin sửa DB.
+    /// </summary>
+    public async Task<SetIqcItemResult> SetItemVerdictAsync(
+        long inspectionId, long itemId, bool? pass,
+        string? measuredValue, string? defectCode,
+        string actor, string actorRole, CancellationToken ct = default)
+    {
+        RequireEditorRole(actorRole);
+
+        var row = await _db.IqcResultDetails
+            .FirstOrDefaultAsync(d => d.Id == itemId && d.IqcInspectionId == inspectionId, ct);
+        if (row is null)
+            return SetIqcItemResult.Fail(404, "iqc.item_not_found",
+                "Check item not found on this ticket.");
+
+        // Tiêu chuẩn còn placeholder XXX ⇒ KHÔNG cho chấm ĐẠT. Hỏi người kiểm
+        // "đạt hay không so với XXX?" rồi lưu chữ ký của họ là ghi một phán định
+        // lên tiêu chí trống. Chấm NG vẫn cho (thấy hỏng thật thì phải ghi được).
+        if (pass == true && row.AcceptanceUnspecified)
+            return SetIqcItemResult.Fail(422, "iqc.acceptance_unspecified",
+                "Acceptance criteria for this item is still a placeholder; ask QA to fill it in.");
+
+        if (measuredValue is { Length: > 128 })
+            return SetIqcItemResult.Fail(422, "iqc.invalid_measured_value",
+                "Measured value must be 128 characters or fewer.");
+        if (defectCode is { Length: > 32 })
+            return SetIqcItemResult.Fail(422, "iqc.invalid_defect_code",
+                "Defect code must be 32 characters or fewer.");
+
+        row.Pass = pass;
+        row.MeasuredValue = string.IsNullOrWhiteSpace(measuredValue) ? null : measuredValue.Trim();
+        row.DefectCode = string.IsNullOrWhiteSpace(defectCode) ? null : defectCode.Trim();
+        await _db.SaveChangesAsync(ct);
+
+        await _audit.EmitAsync(
+            AuditAction.IqcItemSet, actor, actorRole,
+            targetType: "IqcResultDetail", targetId: row.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                iqc_inspection_id = inspectionId,
+                item_key = row.ItemKey,
+                seq = row.Seq,
+                // "chưa kiểm" là một trạng thái thật, ghi rõ chứ không để trống.
+                verdict = row.Pass is null ? "unchecked" : row.Pass == true ? "pass" : "fail",
+                measured_value = row.MeasuredValue,
+                defect_code = row.DefectCode,
+            }));
+
+        return new SetIqcItemResult { Ok = true, ItemId = row.Id, Pass = row.Pass };
+    }
+
+    // ── P12 — CHỐT phiếu: đánh giá xong hết mới được chốt ────────────────
+
+    /// <summary>
+    /// Chốt phiếu IQC. <b>Từ chối khi còn hạng mục chưa kiểm</b> — người kiểm
+    /// phải đánh giá HẾT rồi mới chốt được (Henry chốt 2026-08-28).
+    ///
+    /// <para>Kết luận suy ra từ chính các hạng mục: còn một hạng mục KHÔNG ĐẠT
+    /// thì lô KHÔNG ĐẠT. Không có ô cho người kiểm gõ kết luận trái với dữ liệu
+    /// họ vừa chấm.</para>
+    /// </summary>
+    public async Task<CompleteIqcResult> CompleteTicketAsync(
+        long inspectionId, string actor, string actorRole, CancellationToken ct = default)
+    {
+        RequireEditorRole(actorRole);
+
+        var insp = await _db.IqcInspections
+            .FirstOrDefaultAsync(x => x.Id == inspectionId, ct);
+        if (insp is null)
+            return CompleteIqcResult.Fail(404, "iqc.ticket_not_found", "IQC ticket not found.");
+
+        var items = await _db.IqcResultDetails.AsNoTracking()
+            .Where(d => d.IqcInspectionId == inspectionId)
+            .Select(d => new { d.Pass, d.ItemKey })
+            .ToListAsync(ct);
+
+        // Phiếu cũ (trước P12) không có hạng mục nào để kiểm — vẫn chốt được,
+        // nếu không thì 25 phiếu lịch sử mắc kẹt vĩnh viễn.
+        var pending = items.Count(x => x.Pass is null);
+        if (pending > 0)
+            return CompleteIqcResult.Fail(422, "iqc.items_incomplete",
+                $"{pending} of {items.Count} check items are not evaluated yet.")
+                with { Total = items.Count, Pending = pending };
+
+        var pass = items.All(x => x.Pass == true);
+        insp.Result = pass ? QcResult.Pass : QcResult.Fail;
+        insp.UpdatedAt = DateTime.UtcNow;
+        insp.UpdatedBy = actor;
+        await _db.SaveChangesAsync(ct);
+
+        await _audit.EmitAsync(
+            AuditAction.IqcComplete, actor, actorRole,
+            targetType: "IqcInspection", targetId: insp.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                receipt_no = insp.ReceiptNo,
+                result = insp.Result.ToString(),
+                items_total = items.Count,
+                items_failed = items.Count(x => x.Pass == false),
+            }));
+
+        return new CompleteIqcResult
+        {
+            Ok = true, Result = insp.Result.ToString(),
+            Total = items.Count, Pending = 0,
+            Failed = items.Count(x => x.Pass == false),
+        };
+    }
+
     // ── feat/iqc-module-tabs — IQC Data list (DTO) + Dashboard KPI ────────
 
     /// <summary>Danh sách phiếu IQC đã lưu cho tab "IQC Data" — trả DTO thuần
@@ -622,6 +806,69 @@ public class IqcService
             }
         }
         return d;
+    }
+
+    /// <summary>
+    /// P12 — dựng bộ hạng mục kiểm cho lô NVL, đóng băng cả hai ngôn ngữ.
+    ///
+    /// <para>Khoá nối là <c>RawMaterials.MotherCode</c> (đo trên live: 352/356
+    /// khớp), KHÔNG phải <c>PartNo</c> — <c>PartNo</c> là <c>300xxxxx</c> còn mã
+    /// trong file spec là <c>7xxxxxxx</c>, khớp 0 dòng. Xem
+    /// <see cref="IqcCheckResolver"/>.</para>
+    ///
+    /// <para>Không có nguyên liệu, hoặc mã rỗng ⇒ trả rỗng: ticket vẫn tạo
+    /// được, người kiểm nhập tay như trước. KHÔNG đoán bừa bộ hạng mục — dựng
+    /// sai còn tệ hơn không dựng.</para>
+    /// </summary>
+    private async Task<IReadOnlyList<IqcResultDetail>> MaterializeAsync(
+        long? rawMaterialId, CancellationToken ct = default)
+    {
+        if (rawMaterialId is null) return Array.Empty<IqcResultDetail>();
+
+        var motherCode = await _db.RawMaterials
+            .Where(x => x.Id == rawMaterialId)
+            .Select(x => x.MotherCode)
+            .FirstOrDefaultAsync(ct);
+        if (string.IsNullOrWhiteSpace(motherCode)) return Array.Empty<IqcResultDetail>();
+
+        var lib = await _db.IqcCheckItemLibraries.AsNoTracking().Where(x => x.Active).ToListAsync(ct);
+        if (lib.Count == 0) return Array.Empty<IqcResultDetail>();
+
+        var code = motherCode.Trim();
+        var specs = await _db.IqcMaterialSpecs.AsNoTracking()
+            .Where(x => x.Active && x.MaterialCode == code)
+            .ToListAsync(ct);
+        var specNos = specs.Select(x => x.SpecNo).ToList();
+        var specItems = specNos.Count == 0
+            ? new List<IqcSpecItem>()
+            : await _db.IqcSpecItems.AsNoTracking()
+                .Where(x => x.Active && specNos.Contains(x.SpecNo))
+                .ToListAsync(ct);
+
+        var resolved = IqcCheckResolver.Resolve(code, specs, specItems, lib);
+
+        return resolved.Items.Select(i => new IqcResultDetail
+        {
+            // ItemName giữ bản VI để bản ghi vẫn đọc được bằng công cụ cũ.
+            ItemName = i.LabelVi,
+            Pass = null,                       // CHƯA KIỂM — xem chú thích ở entity
+            Qty = 0,
+            ItemKey = i.ItemKey,
+            Seq = i.Seq,
+            SpecNo = resolved.SpecNo,
+            GroupCode = i.GroupCode,
+            GroupLabelVi = i.GroupLabelVi,
+            GroupLabelEn = i.GroupLabelEn,
+            LabelVi = i.LabelVi,
+            LabelEn = i.LabelEn,
+            AcceptanceVi = i.AcceptanceVi,
+            AcceptanceEn = i.AcceptanceEn,
+            MethodVi = i.MethodVi,
+            MethodEn = i.MethodEn,
+            SourceFrequency = i.SourceFrequency,
+            FromDefaultMatrix = i.FromDefaultMatrix,
+            AcceptanceUnspecified = i.AcceptanceUnspecified,
+        }).ToList();
     }
 }
 
@@ -753,6 +1000,73 @@ public sealed class IqcTicketPage
     public int PageSize { get; init; }
     public int Total { get; init; }
     public List<IqcTicketRow> Items { get; init; } = new();
+}
+
+/// <summary>P12 — kết quả chốt phiếu.</summary>
+public sealed record CompleteIqcResult
+{
+    public bool Ok { get; init; }
+    public int HttpStatus { get; init; } = 200;
+    public string? ErrorCode { get; init; }
+    public string? MessageEn { get; init; }
+
+    /// <summary>Pending / Pass / Fail sau khi chốt.</summary>
+    public string Result { get; init; } = "Pending";
+    public int Total { get; init; }
+
+    /// <summary>Số hạng mục CHƯA kiểm — UI hiện thẳng con số này.</summary>
+    public int Pending { get; init; }
+    public int Failed { get; init; }
+
+    public static CompleteIqcResult Fail(int status, string code, string msg) =>
+        new() { Ok = false, HttpStatus = status, ErrorCode = code, MessageEn = msg };
+}
+
+/// <summary>P12 — bộ hạng mục kiểm của một phiếu (Application-layer).</summary>
+public sealed class IqcTicketItems
+{
+    public long TicketId { get; init; }
+    public string? SpecNo { get; init; }
+    public bool FromDefaultMatrix { get; init; }
+    public List<IqcCheckItemRow> Items { get; init; } = new();
+}
+
+/// <summary>P12 — một hạng mục kiểm đã đóng băng (Application-layer).</summary>
+public sealed class IqcCheckItemRow
+{
+    public long Id { get; init; }
+    public string? ItemKey { get; init; }
+    public int Seq { get; init; }
+    public int Section { get; init; }
+    public string? GroupCode { get; init; }
+    public string? GroupLabelVi { get; init; }
+    public string? GroupLabelEn { get; init; }
+    public string? LabelVi { get; init; }
+    public string? LabelEn { get; init; }
+    public string? AcceptanceVi { get; init; }
+    public string? AcceptanceEn { get; init; }
+    public string? MethodVi { get; init; }
+    public string? MethodEn { get; init; }
+    public string? SourceFrequency { get; init; }
+    public bool FromDefaultMatrix { get; init; }
+    public bool AcceptanceUnspecified { get; init; }
+    public bool? Pass { get; init; }
+    public string? MeasuredValue { get; init; }
+    public string? DefectCode { get; init; }
+}
+
+/// <summary>P12 — kết quả ghi phán định một hạng mục.</summary>
+public sealed class SetIqcItemResult
+{
+    public bool Ok { get; init; }
+    public int HttpStatus { get; init; } = 200;
+    public string? ErrorCode { get; init; }
+    public string? MessageEn { get; init; }
+    public long ItemId { get; init; }
+    public bool? Pass { get; init; }
+
+    public static SetIqcItemResult Fail(int status, string code, string msg) =>
+        new() { Ok = false, HttpStatus = status, ErrorCode = code, MessageEn = msg };
 }
 
 /// <summary>KPI đếm phiếu IQC (Application-layer).</summary>

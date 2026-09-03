@@ -26,14 +26,26 @@ restore từ backup byte-identical. Undo migration = `rm` file thủ công +
 
 ## Phase A — chụp baseline (trước khi gõ bất cứ thứ gì)
 
+> **KHÔNG để backup ở `/tmp`** (L65). macOS dọn `/tmp`; bằng chứng thì phải sống
+> lâu hơn phiên làm việc. P12 làm đúng Phase A nhưng backup đặt ở `/tmp` — vài
+> ngày sau cả ba bản đã biến mất, migration thì đã nằm trên DB thật.
+
 ```bash
-cp data/ccl_mes.db /tmp/ccl_mes.db.before-<step>.$(date +%s)
-shasum -a 256 data/ccl_mes.db
+TS=$(date +%Y%m%d-%H%M%S)
+cp data/ccl_mes.db data/Backup/SQLite/ccl_mes.db.before-<step>.$TS   # đã .gitignore
+shasum -a 256 data/ccl_mes.db data/Backup/SQLite/ccl_mes.db.before-<step>.$TS
 sqlite3 data/ccl_mes.db "SELECT 'WorkOrders', COUNT(*) FROM WorkOrders
                          UNION ALL SELECT 'WoLegs', COUNT(*) FROM WoLegs;"
+sqlite3 data/ccl_mes.db "PRAGMA integrity_check; PRAGMA foreign_key_check;"
 cp src/CCL.MES.Infrastructure/Migrations/MesDbContextModelSnapshot.cs \
-   /tmp/snapshot-pre-<name>.cs
+   /tmp/snapshot-pre-<name>.cs     # snapshot code — /tmp được, có git lo
 ```
+
+**Bắt buộc: chép SỐ LIỆU vào một nhật ký commit được** —
+`CCL-MES-Hybrid/docs/pNN-migration-log.md`: đường dẫn backup · sha256 (live phải
+khớp backup) · rowcount trước/sau · `integrity_check` · số `foreign_key_check`
+trước/sau. File `.db` không vào git; **file nhật ký thì có**. Mẫu:
+`CCL-MES-Hybrid/docs/p12-migration-log.md`.
 
 ## Phase B — generate + verify trên DB CÔ LẬP
 

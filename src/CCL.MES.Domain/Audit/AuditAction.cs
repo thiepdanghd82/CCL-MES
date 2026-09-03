@@ -43,6 +43,12 @@ public static class AuditAction
     public const string BackupScheduleChange  = "BACKUP_SCHEDULE_CHANGE";
     public const string IqcApprove            = "IQC_APPROVE";             // Phase 6 Bước 7 — pass/fail in Detail
     public const string IqcCreate             = "IQC_CREATE";              // Phase 6 Bước 7
+    public const string IqcItemSet            = "IQC_ITEM_SET";            // P12 bước 3 — phán định 1 hạng mục
+    public const string IqcComplete           = "IQC_COMPLETE";            // P12 — chốt phiếu (đủ hạng mục mới cho)
+    public const string IqcSpecCreated        = "IQC_SPEC_CREATED";        // P12 bước 2b — tạo spec cục bộ cho 1 mã
+    public const string IqcSpecItemAdded      = "IQC_SPEC_ITEM_ADDED";     // P12 bước 2b
+    public const string IqcSpecItemDeactivated = "IQC_SPEC_ITEM_DEACTIVATED"; // P12 bước 2b — xoá MỀM
+    public const string IqcSpecItemReactivated = "IQC_SPEC_ITEM_REACTIVATED"; // P12 bước 2b
     public const string LoginDisabled         = "LOGIN_DISABLED";          // valid creds but IsActive = false
     public const string LoginFail             = "LOGIN_FAIL";              // wrong username OR wrong password (same code — no oracle)
     public const string LoginOk               = "LOGIN_OK";

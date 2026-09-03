@@ -216,7 +216,7 @@ else
                         <tr>
                             <td>@d.ItemName</td>
                             <td>@(d.MeasuredValue ?? "-")</td>
-                            <td>@(d.Pass ? "✓" : "✗")</td>
+                            <td>@(d.Pass == true ? "✓" : d.Pass == false ? "✗" : "—")</td>@* null = CHƯA KIỂM *@
                             <td class="num">@d.Qty</td>
                             <td>@(d.DefectCode ?? "-")</td>
                         </tr>

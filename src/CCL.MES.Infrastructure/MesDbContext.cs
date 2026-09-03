@@ -32,6 +32,12 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<ReasonCode> ReasonCodes => Set<ReasonCode>();
     public DbSet<ProcessCatalog> ProcessCatalogs => Set<ProcessCatalog>();
     public DbSet<CheckItemLibrary> CheckItemLibraries => Set<CheckItemLibrary>();
+
+    // P12 — thư viện tiêu chuẩn kiểm tra NVL (IQC). Ba bảng tách bạch, xem
+    // chú thích ở Entities/IqcLibrary.cs.
+    public DbSet<IqcCheckItemLibrary> IqcCheckItemLibraries => Set<IqcCheckItemLibrary>();
+    public DbSet<IqcMaterialSpec> IqcMaterialSpecs => Set<IqcMaterialSpec>();
+    public DbSet<IqcSpecItem> IqcSpecItems => Set<IqcSpecItem>();
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
     public DbSet<WoStatusHistory> WoStatusHistories => Set<WoStatusHistory>();
     // P11-1 — Multi-Method Routing DAG (fork-join): leg nodes + dependency
@@ -613,6 +619,24 @@ public class MesDbContext : DbContext, IMesDbContext
         // idempotent theo ItemId); resolver lookup theo ProcessLine + cờ stage
         // Ipqc/Fqc/Oqc (thay QcStage cũ).
         b.Entity<CheckItemLibrary>().HasIndex(x => x.ItemId).IsUnique();
+
+        // ── P12 IQC ──────────────────────────────────────────────────────
+        b.Entity<IqcCheckItemLibrary>().HasIndex(x => x.ItemId).IsUnique();
+        b.Entity<IqcCheckItemLibrary>().HasIndex(x => x.GroupCode);
+
+        b.Entity<IqcMaterialSpec>().HasIndex(x => x.SpecNo).IsUnique();
+        // Hai đường tra nguyên liệu → spec. Mã IFS là khoá ưu tiên (44/459
+        // spec có), tên là đường lùi. KHÔNG unique: cùng một nguyên liệu có
+        // thể có nhiều spec qua các đời revision.
+        b.Entity<IqcMaterialSpec>().HasIndex(x => x.MaterialCodeIfs);
+        b.Entity<IqcMaterialSpec>().HasIndex(x => x.MaterialCode);
+
+        // Khoá tự nhiên BA thành phần — chống nhân đôi khi import chạy lại,
+        // NHƯNG vẫn cho một spec có nhiều tiêu chí cùng mã hạng mục (12 cặp
+        // như vậy trong dữ liệu thật). Khoá hai thành phần sẽ nuốt mất 13
+        // tiêu chí kiểm mà không báo gì.
+        b.Entity<IqcSpecItem>().HasIndex(x => new { x.SpecNo, x.ItemId, x.Seq }).IsUnique();
+        b.Entity<IqcSpecItem>().HasIndex(x => x.SpecNo);
         b.Entity<CheckItemLibrary>().HasIndex(x => x.ProcessLine);
 
         // Auth — Username is unique and matched CASE-INSENSITIVELY. The

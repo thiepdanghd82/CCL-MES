@@ -580,6 +580,87 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.ToTable("IdempotencyKeys");
                 });
 
+            modelBuilder.Entity("CCL.MES.Domain.Entities.IqcCheckItemLibrary", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DefaultAcceptanceEn")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DefaultAcceptanceVi")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DefaultMethodEn")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DefaultMethodVi")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GroupCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GroupLabelEn")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GroupLabelVi")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("InDefaultMatrix")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ItemEn")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ItemId")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ItemVi")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GroupCode");
+
+                    b.HasIndex("ItemId")
+                        .IsUnique();
+
+                    b.ToTable("IqcCheckItemLibraries");
+                });
+
             modelBuilder.Entity("CCL.MES.Domain.Entities.IqcInspection", b =>
                 {
                     b.Property<long>("Id")
@@ -691,11 +772,77 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.ToTable("IqcInspections");
                 });
 
+            modelBuilder.Entity("CCL.MES.Domain.Entities.IqcMaterialSpec", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MaterialCode")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MaterialCodeIfs")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Revision")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SpecNo")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SupplierName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialCode");
+
+                    b.HasIndex("MaterialCodeIfs");
+
+                    b.HasIndex("SpecNo")
+                        .IsUnique();
+
+                    b.ToTable("IqcMaterialSpecs");
+                });
+
             modelBuilder.Entity("CCL.MES.Domain.Entities.IqcResultDetail", b =>
                 {
                     b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("AcceptanceEn")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("AcceptanceUnspecified")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AcceptanceVi")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -706,21 +853,67 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<string>("DefectCode")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("FromDefaultMatrix")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("GroupCode")
+                        .HasMaxLength(8)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GroupLabelEn")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GroupLabelVi")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("IqcInspectionId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("ItemKey")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ItemName")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("LabelEn")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LabelVi")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("MeasuredValue")
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("Pass")
+                    b.Property<string>("MethodEn")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MethodVi")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool?>("Pass")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("Qty")
                         .HasColumnType("INTEGER");
+
+                    b.Property<int>("Seq")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SourceFrequency")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SpecNo")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("TEXT");
@@ -733,6 +926,73 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.HasIndex("IqcInspectionId");
 
                     b.ToTable("IqcResultDetails");
+                });
+
+            modelBuilder.Entity("CCL.MES.Domain.Entities.IqcSpecItem", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AcceptanceEn")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AcceptanceVi")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ItemId")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MethodEn")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MethodVi")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Seq")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SourceFrequency")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SpecNo")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SpecNo");
+
+                    b.HasIndex("SpecNo", "ItemId", "Seq")
+                        .IsUnique();
+
+                    b.ToTable("IqcSpecItems");
                 });
 
             modelBuilder.Entity("CCL.MES.Domain.Entities.Machine", b =>

@@ -1,0 +1,234 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Shared.Quality
+@using CCL.MES.Hybrid.Razor.Localization
+@using CCL.MES.Shared.Localization
+@inject ICclApiClient Api
+
+@*
+    P12 bước 3 — lưới hạng mục kiểm của MỘT mục trong stepper phiếu IQC.
+
+    Dùng lại NGUYÊN khuôn vừa dựng cho FQC/OQC (L63): tab nhóm MỘT tầng →
+    bảng 5 cột `# · ITEM · METHOD · SPEC · VERDICT`, bộ class `ipqc-*`,
+    ConfirmToggle dùng chung (L52). Không đẻ CSS mới.
+
+    KHOÁ tab là chuỗi VI (định danh) — chỉ NHÃN mới dịch. Dịch khoá thì bấm cờ
+    EN sẽ làm _activeTab không khớp và bảng trắng trơn.
+*@
+
+@if (SectionItems.Count == 0)
+{
+    <p class="qms-section-desc" data-testid="@($"{TestIdPrefix}-empty")">@T("iqc.items.empty")</p>
+}
+else
+{
+    @if (FromDefaultMatrix)
+    {
+        @* Sáu tháng sau, câu hỏi đầu tiên của auditor là "hồ sơ này kiểm theo
+           tiêu chuẩn nào?". Không có băng này thì không ai trả lời được. *@
+        <p class="iqc-warn iqc-warn-note" data-testid="@($"{TestIdPrefix}-matrix-banner")">@T("iqc.items.matrix")</p>
+    }
+    else if (!string.IsNullOrWhiteSpace(SpecNo))
+    {
+        <p class="qms-section-desc" data-testid="@($"{TestIdPrefix}-spec")">@T("iqc.items.spec", SpecNo!)</p>
+    }
+
+    <div class="ipqc-tabs" role="tablist" data-testid="@($"{TestIdPrefix}-tabs")">
+        @foreach (var tab in ActiveTabs)
+        {
+            <button type="button"
+                    class="ipqc-tab-chip @(ActiveTabKey == tab.Key ? "is-active" : "")"
+                    role="tab"
+                    aria-selected="@(ActiveTabKey == tab.Key ? "true" : "false")"
+                    @onclick="@(() => _activeTab = tab.Key)"
+                    data-testid="@($"{TestIdPrefix}-tab-{tab.Key}")">
+                <span class="ipqc-tab-label">@tab.Label</span>
+                <span class="ipqc-tab-count"
+                      data-testid="@($"{TestIdPrefix}-tab-{tab.Key}-count")">@tab.Done/@tab.Total</span>
+            </button>
+        }
+    </div>
+
+    <table class="ipqc-item-table ipqc-no-result" data-testid="@($"{TestIdPrefix}-table")">
+        <thead>
+            <tr>
+                <th class="ipqc-col-num">@T("ipqc.col.num")</th>
+                <th class="ipqc-col-item">@T("ipqc.col.item")</th>
+                <th class="ipqc-col-method">@T("ipqc.col.method")</th>
+                <th class="ipqc-col-spec">@T("ipqc.col.spec")</th>
+                <th class="ipqc-col-verdict">@T("ipqc.col.verdict")</th>
+            </tr>
+        </thead>
+        <tbody>
+            @{ var rowNo = 0; }
+            @foreach (var item in ItemsInActiveTab)
+            {
+                rowNo++;
+                var status = StatusOf(item);
+                var tid = $"{TestIdPrefix}-item-{item.Id}";
+                <tr class="ipqc-item-row @SlotCssClass(status)" data-testid="@tid">
+                    <td class="ipqc-col-num scan-mono">@rowNo</td>
+                    <td class="ipqc-col-item">
+                        <span class="ipqc-item-label">@item.LabelFor(IsEnglish)</span>
+                        <span class="ipqc-status-pill @StatusPillCss(status)"
+                              data-testid="@($"{tid}-status")">@StatusDisplay(status)</span>
+                    </td>
+                    @* METHOD là văn xuôi, không phải mã — không scan-mono (bài học
+                       từ bảng IPQC: mono làm cùng chuỗi rộng thêm ~20% và vỡ dòng). *@
+                    <td class="ipqc-col-method" data-label="@T("ipqc.col.method")">@Dash(item.MethodFor(IsEnglish))</td>
+                    <td class="ipqc-col-spec" data-label="@T("ipqc.col.spec")">
+                        @Dash(item.AcceptanceFor(IsEnglish))
+                        @if (item.AcceptanceUnspecified)
+                        {
+                            @* Hạng mục vẫn HIỆN (Henry chốt) — chỉ đánh dấu, không ẩn. *@
+                            <span class="ipqc-status-pill ipqc-status-pending"
+                                  data-testid="@($"{tid}-unspecified")">@T("iqc.items.unspecified")</span>
+                        }
+                    </td>
+                    <td class="ipqc-col-verdict">
+                        <ConfirmToggle Status="@status"
+                                       Disabled="@(ReadOnly || _busy)"
+                                       OkDisabled="@item.AcceptanceUnspecified"
+                                       NgTitle="@(item.AcceptanceUnspecified ? T("iqc.items.unspecified.why") : null)"
+                                       OnOk="@(() => SetAsync(item, true))"
+                                       OnNg="@(() => SetAsync(item, false))"
+                                       TestIdPrefix="@tid" />
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (_error is not null)
+    {
+        <p class="iqc-warn iqc-warn-error" data-testid="@($"{TestIdPrefix}-error")">@_error</p>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public long TicketId { get; set; }
+
+    /// <summary>TOÀN BỘ hạng mục của phiếu — component tự lọc theo
+    /// <see cref="Section"/>. Chia sẵn ở parent thì hai màn sẽ trôi khỏi nhau.</summary>
+    [Parameter] public IReadOnlyList<IqcCheckItemDto> Items { get; set; } = Array.Empty<IqcCheckItemDto>();
+
+    /// <summary>Mục của stepper (2 ngoại quan · 3 chức năng). Server đã tính số
+    /// này cho từng hạng mục; ở đây chỉ lọc.</summary>
+    [Parameter, EditorRequired] public int Section { get; set; }
+
+    [Parameter] public string? SpecNo { get; set; }
+    [Parameter] public bool FromDefaultMatrix { get; set; }
+
+    /// <summary>Phiếu đã chốt ⇒ chỉ đọc.</summary>
+    [Parameter] public bool ReadOnly { get; set; }
+
+    /// <summary>Parent nạp lại phiếu sau khi ghi phán định, để số đếm trên tab
+    /// và các mục khác cùng cập nhật.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    [Parameter] public string TestIdPrefix { get; set; } = "iqc-items";
+
+    private const string TabOtherKey = "__other__";
+    private string _activeTab = "";
+    private bool _busy;
+    private string? _error;
+
+    private IReadOnlyList<IqcCheckItemDto> SectionItems =>
+        Items.Where(i => i.Section == Section).ToList();
+
+    /// <summary>Ngôn ngữ đang bật. Nhãn · tiêu chí · phương pháp là DỮ LIỆU ĐÃ
+    /// ĐÓNG BĂNG trên phiếu, không phải khoá resx — nên không đi qua T() mà qua
+    /// <c>*For(bool)</c>. LocalizedComponentBase đã bắt sự kiện đổi ngôn ngữ và
+    /// gọi StateHasChanged, nên bảng tự vẽ lại khi người dùng bấm cờ.</summary>
+    private bool IsEnglish => LanguageService.Current == LanguageCode.English;
+
+    private static string TabForItem(IqcCheckItemDto i) =>
+        string.IsNullOrWhiteSpace(i.GroupLabelVi) ? TabOtherKey : i.GroupLabelVi!.Trim();
+
+    private sealed record TabDef(string Key, string Label, int Done, int Total);
+
+    private IReadOnlyList<TabDef> ActiveTabs =>
+        SectionItems
+            .GroupBy(TabForItem)
+            .Select(g => new TabDef(
+                g.Key,
+                g.Key == TabOtherKey ? T("ipqc.tab.other") : (g.First().GroupLabelFor(IsEnglish) ?? g.Key),
+                g.Count(i => i.Pass is not null),
+                g.Count()))
+            .OrderBy(t => t.Key == TabOtherKey ? 1 : 0)
+            .ThenBy(t => t.Key, StringComparer.Ordinal)
+            .ToList();
+
+    /// <summary>Tab chưa chọn — hoặc chọn phải tab vừa biến mất — thì lùi về tab
+    /// đầu tiên thay vì để bảng trắng.</summary>
+    private string ActiveTabKey
+    {
+        get
+        {
+            var tabs = ActiveTabs;
+            if (tabs.Count == 0) return "";
+            return tabs.Any(t => t.Key == _activeTab) ? _activeTab : tabs[0].Key;
+        }
+    }
+
+    private IEnumerable<IqcCheckItemDto> ItemsInActiveTab
+    {
+        get
+        {
+            var key = ActiveTabKey;
+            return key.Length == 0
+                ? Array.Empty<IqcCheckItemDto>()
+                : SectionItems.Where(i => TabForItem(i) == key);
+        }
+    }
+
+    /// <summary><c>null</c> là CHƯA KIỂM — trạng thái thật, không phải NG.</summary>
+    private static string StatusOf(IqcCheckItemDto i) =>
+        i.Pass is null ? "Pending" : i.Pass == true ? "Ok" : "Ng";
+
+    private static string SlotCssClass(string s) => s switch
+    {
+        "Ok" => "ipqc-slot-ok",
+        "Ng" => "ipqc-slot-ng",
+        _    => "ipqc-slot-pending",
+    };
+
+    private static string StatusPillCss(string s) => s switch
+    {
+        "Ok" => "ipqc-status-ok",
+        "Ng" => "ipqc-status-ng",
+        _    => "ipqc-status-pending",
+    };
+
+    private string StatusDisplay(string s) => s switch
+    {
+        "Ok" => T("iqc.status.ok"),
+        "Ng" => T("iqc.status.ng"),
+        _    => T("iqc.status.pending"),
+    };
+
+    private static string Dash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
+
+    private async Task SetAsync(IqcCheckItemDto item, bool pass)
+    {
+        if (ReadOnly || _busy) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Api.SetIqcTicketItemAsync(TicketId, item.Id, new SetIqcItemBody { Pass = pass });
+            // Ghi lạc quan để ô đổi ngay; parent nạp lại để số đếm tab khớp server.
+            item.Pass = pass;
+            await OnChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            // Không đoán mã lỗi: hiện đúng thứ server trả về. Ô giữ nguyên trạng
+            // thái cũ vì ta chưa ghi gì lên item khi ném.
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}
