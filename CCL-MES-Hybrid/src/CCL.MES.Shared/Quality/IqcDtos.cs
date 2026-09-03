@@ -289,9 +289,11 @@ public sealed class IqcSpecEditResponse
     public List<IqcLibraryOptionDto> Library { get; set; } = new();
 }
 
-/// <summary>Body <c>POST /api/v2/iqc/specs/{materialCode}/items</c>.</summary>
+/// <summary>Body <c>POST /api/v2/iqc/specs/items</c>. Mã nguyên liệu đi trong
+/// BODY, không phải URL — 623/946 mã có dấu cách, 56 có <c>/</c>.</summary>
 public sealed class AddIqcSpecItemBody
 {
+    public string? MaterialCode { get; set; }
     public string? ItemId { get; set; }
     public string? AcceptanceVi { get; set; }
     public string? AcceptanceEn { get; set; }

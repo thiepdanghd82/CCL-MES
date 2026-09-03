@@ -38,9 +38,17 @@ public sealed class IqcSpecController : ControllerBase
     /// <summary>Tiêu chuẩn hiện có của một mã nguyên liệu + thư viện hạng mục
     /// để chọn thêm. Mã chưa có spec vẫn trả 200 với <c>specNo=null</c> — "chưa
     /// có tiêu chuẩn riêng" là một câu trả lời, không phải lỗi.</summary>
-    [HttpGet("{materialCode}")]
+    /// <remarks>
+    /// Mã nguyên liệu đi qua <b>QUERY STRING</b>, KHÔNG phải path segment.
+    /// Đo trên catalog thật: 623/946 mother code có dấu cách, 56 có <c>/</c>,
+    /// 15 có <c>#</c>/<c>?</c>. Dấu cách trong request line làm Kestrel trả 400
+    /// TRƯỚC khi tới routing (client chỉ thấy "http.non_success"), còn
+    /// <c>%2F</c> thì ASP.NET chặn mặc định. Khoá nghiệp vụ dạng văn bản tự do
+    /// không thuộc về path.
+    /// </remarks>
+    [HttpGet]
     public async Task<ActionResult<IqcSpecEditResponse>> Get(
-        string materialCode, [FromQuery] bool includeInactive = false,
+        [FromQuery] string? materialCode, [FromQuery] bool includeInactive = false,
         CancellationToken ct = default)
     {
         var v = await _svc.GetByMaterialCodeAsync(materialCode, includeInactive, ct);
@@ -49,10 +57,9 @@ public sealed class IqcSpecController : ControllerBase
 
     /// <summary>Thêm một dòng tiêu chuẩn. Mã chưa có spec thì server tự tạo spec
     /// cục bộ (<c>MES-SPEC-####</c>) rồi thêm vào đó. 201 khi thành công.</summary>
-    [HttpPost("{materialCode}/items"), Authorize(Policy = "IqcSpecWrite")]
+    [HttpPost("items"), Authorize(Policy = "IqcSpecWrite")]
     public async Task<IActionResult> AddItem(
-        string materialCode, [FromBody] AddIqcSpecItemBody? body,
-        CancellationToken ct = default)
+        [FromBody] AddIqcSpecItemBody? body, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(Request.Headers["Idempotency-Key"].ToString()))
             return BadRequest(ApiError.Of("wo.idempotency_key_required",
@@ -60,7 +67,7 @@ public sealed class IqcSpecController : ControllerBase
 
         var (actor, role) = Who();
         var r = await _svc.AddItemAsync(
-            materialCode, body?.ItemId,
+            body?.MaterialCode, body?.ItemId,
             body?.AcceptanceVi, body?.AcceptanceEn,
             body?.MethodVi, body?.MethodEn, body?.SourceFrequency,
             actor, role, ct);

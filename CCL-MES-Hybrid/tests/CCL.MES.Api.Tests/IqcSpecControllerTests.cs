@@ -68,7 +68,7 @@ public sealed class IqcSpecControllerTests : IClassFixture<MesApiFactory>
         await SeedLibraryItemAsync("NQ-01");
         var qc = await ClientAsync("qc-p12b-read", UserRole.Qc);
 
-        var resp = await qc.GetAsync("/api/v2/iqc/specs/MA-CHUA-CO-SPEC-XYZ");
+        var resp = await qc.GetAsync("/api/v2/iqc/specs?materialCode=MA-CHUA-CO-SPEC-XYZ");
 
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         var v = await resp.Content.ReadFromJsonAsync<IqcSpecEditResponse>();
@@ -80,7 +80,7 @@ public sealed class IqcSpecControllerTests : IClassFixture<MesApiFactory>
     public async Task Operator_KHONG_doc_duoc_tieu_chuan()
     {
         var op = await ClientAsync("op-p12b-read", UserRole.Operator);
-        var resp = await op.GetAsync("/api/v2/iqc/specs/336-H1a");
+        var resp = await op.GetAsync("/api/v2/iqc/specs?materialCode=336-H1a");
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
 
@@ -88,7 +88,7 @@ public sealed class IqcSpecControllerTests : IClassFixture<MesApiFactory>
     public async Task Chua_dang_nhap_thi_401()
     {
         var anon = _fx.CreateClient();
-        var resp = await anon.GetAsync("/api/v2/iqc/specs/336-H1a");
+        var resp = await anon.GetAsync("/api/v2/iqc/specs?materialCode=336-H1a");
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
 
@@ -101,8 +101,8 @@ public sealed class IqcSpecControllerTests : IClassFixture<MesApiFactory>
         var eng = await ClientAsync("eng-p12b-add", UserRole.Engineer);
 
         var resp = await eng.SendAsync(Mk(HttpMethod.Post,
-            "/api/v2/iqc/specs/MA-P12B-ADD/items",
-            new { itemId = "NQ-01", acceptanceVi = "tem rõ chữ", methodVi = "soi mắt" }));
+            "/api/v2/iqc/specs/items",
+            new { materialCode = "MA-P12B-ADD", itemId = "NQ-01", acceptanceVi = "tem rõ chữ", methodVi = "soi mắt" }));
 
         Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
 
@@ -122,7 +122,7 @@ public sealed class IqcSpecControllerTests : IClassFixture<MesApiFactory>
         var c = await ClientAsync($"u-p12b-add-{role.ToLowerInvariant()}", role);
 
         var resp = await c.SendAsync(Mk(HttpMethod.Post,
-            "/api/v2/iqc/specs/MA-P12B-403/items", new { itemId = "NQ-01" }));
+            "/api/v2/iqc/specs/items", new { materialCode = "MA-P12B-403", itemId = "NQ-01" }));
 
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
@@ -134,7 +134,7 @@ public sealed class IqcSpecControllerTests : IClassFixture<MesApiFactory>
         await SeedLibraryItemAsync("NQ-01");
         var eng = await ClientAsync("eng-p12b-del", UserRole.Engineer);
         await eng.SendAsync(Mk(HttpMethod.Post,
-            "/api/v2/iqc/specs/MA-P12B-DEL/items", new { itemId = "NQ-01" }));
+            "/api/v2/iqc/specs/items", new { materialCode = "MA-P12B-DEL", itemId = "NQ-01" }));
 
         long itemId;
         using (var scope = _fx.Services.CreateScope())
@@ -161,7 +161,7 @@ public sealed class IqcSpecControllerTests : IClassFixture<MesApiFactory>
         await SeedLibraryItemAsync("NQ-01");
         var eng = await ClientAsync("eng-p12b-soft", UserRole.Engineer);
         await eng.SendAsync(Mk(HttpMethod.Post,
-            "/api/v2/iqc/specs/MA-P12B-SOFT/items", new { itemId = "NQ-01" }));
+            "/api/v2/iqc/specs/items", new { materialCode = "MA-P12B-SOFT", itemId = "NQ-01" }));
 
         long itemId;
         using (var scope = _fx.Services.CreateScope())
@@ -194,7 +194,7 @@ public sealed class IqcSpecControllerTests : IClassFixture<MesApiFactory>
         var eng = await ClientAsync("eng-p12b-idem", UserRole.Engineer);
 
         var resp = await eng.SendAsync(Mk(HttpMethod.Post,
-            "/api/v2/iqc/specs/MA-P12B-IDEM/items", new { itemId = "NQ-01" }, idem: false));
+            "/api/v2/iqc/specs/items", new { materialCode = "MA-P12B-IDEM", itemId = "NQ-01" }, idem: false));
 
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
         var err = await resp.Content.ReadFromJsonAsync<ApiError>();
@@ -207,7 +207,7 @@ public sealed class IqcSpecControllerTests : IClassFixture<MesApiFactory>
         var eng = await ClientAsync("eng-p12b-lib", UserRole.Engineer);
 
         var resp = await eng.SendAsync(Mk(HttpMethod.Post,
-            "/api/v2/iqc/specs/MA-P12B-ORPHAN/items", new { itemId = "TU-BIA-99" }));
+            "/api/v2/iqc/specs/items", new { materialCode = "MA-P12B-ORPHAN", itemId = "TU-BIA-99" }));
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
         var err = await resp.Content.ReadFromJsonAsync<ApiError>();
@@ -216,6 +216,35 @@ public sealed class IqcSpecControllerTests : IClassFixture<MesApiFactory>
         using var scope = _fx.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
         Assert.False(await db.IqcMaterialSpecs.AnyAsync(x => x.MaterialCode == "MA-P12B-ORPHAN"));
+    }
+
+    [Theory]
+    [InlineData("sp", "090 VARNISH")]                       // 623/946 mã có dấu cách
+    [InlineData("sl", "3M SP7533 (3KG / CAN)")]             // 56 mã có dấu /
+    [InlineData("bo", "UV 780 VG OP VARNISH( 1tin/20kg)")]  // cả hai
+    public async Task Ma_co_dau_cach_va_dau_gach_cheo_van_TRA_va_THEM_duoc(string tag, string code)
+    {
+        // Henry gặp thật: tra "090 VARNISH" trên tab Standards ⇒
+        // "API returned 400: http.non_success". Mã nằm trong PATH ⇒ dấu cách
+        // lọt vào request line, Kestrel trả 400 TRƯỚC khi tới routing (nên log
+        // của app không thấy gì); còn %2F thì ASP.NET chặn mặc định.
+        // Nay mã đi qua query (đọc) và body (ghi).
+        await SeedLibraryItemAsync("NQ-01");
+        var eng = await ClientAsync($"eng-p12b-hard-{tag}", UserRole.Engineer);
+
+        var get = await eng.GetAsync(
+            "/api/v2/iqc/specs?materialCode=" + Uri.EscapeDataString(code));
+        Assert.Equal(HttpStatusCode.OK, get.StatusCode);
+        var v = await get.Content.ReadFromJsonAsync<IqcSpecEditResponse>();
+        Assert.Equal(code, v!.MaterialCode);
+
+        var add = await eng.SendAsync(Mk(HttpMethod.Post, "/api/v2/iqc/specs/items",
+            new { materialCode = code, itemId = "NQ-01", acceptanceVi = "x" }));
+        Assert.Equal(HttpStatusCode.Created, add.StatusCode);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        Assert.True(await db.IqcMaterialSpecs.AnyAsync(x => x.MaterialCode == code));
     }
 
     [Fact]

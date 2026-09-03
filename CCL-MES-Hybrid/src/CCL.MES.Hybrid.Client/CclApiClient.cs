@@ -227,8 +227,9 @@ public sealed class CclApiClient : ICclApiClient
     public async Task<CCL.MES.Shared.Quality.IqcSpecEditResponse> GetIqcSpecAsync(
         string materialCode, bool includeInactive = false, CancellationToken ct = default)
     {
-        var url = $"/{ApiVersion.Prefix}/iqc/specs/{Uri.EscapeDataString(materialCode)}"
-                + (includeInactive ? "?includeInactive=true" : "");
+        // Mã đi qua QUERY, không phải path — xem chú thích ở IqcSpecController.Get.
+        var url = $"/{ApiVersion.Prefix}/iqc/specs?materialCode={Uri.EscapeDataString(materialCode ?? "")}"
+                + (includeInactive ? "&includeInactive=true" : "");
         using var resp = await _http.GetAsync(url, ct);
         return await ReadAsAsync<CCL.MES.Shared.Quality.IqcSpecEditResponse>(resp, ct);
     }
@@ -237,9 +238,9 @@ public sealed class CclApiClient : ICclApiClient
         string materialCode, CCL.MES.Shared.Quality.AddIqcSpecItemBody body,
         CancellationToken ct = default)
     {
+        body.MaterialCode = materialCode;   // mã đi trong BODY, không phải URL
         using var msg = new HttpRequestMessage(
-            HttpMethod.Post,
-            $"/{ApiVersion.Prefix}/iqc/specs/{Uri.EscapeDataString(materialCode)}/items")
+            HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc/specs/items")
         {
             Content = JsonContent.Create(body),
         };
