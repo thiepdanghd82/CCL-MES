@@ -114,6 +114,8 @@
 - [L63 — hai bộ máy QC song song trong cùng repo: IPQC data-driven từ thư viện, FQC/OQC chép tay tờ giấy CCL-10-F6 và trộn metadata + ô chữ ký vào lưới OK/NG; cờ `Fqc`/`Oqc` đã có sẵn trên mọi dòng thư viện mà chưa ai đọc](#l63)
 - [L64 — hai đường TẠO cùng một hồ sơ: nối thư viện vào `CreateAsync` trong khi màn hình thật gọi `CreateTicketAsync`; test xanh, màn hình vẫn trống](#l64)
 - [L65 — bằng chứng Phase A để ở `/tmp`: migration đã áp lên DB thật nhưng backup bị OS dọn mất, hồ sơ vẫn ghi "chưa làm"](#l65)
+- [L66 — khoá nối phải ĐO không được suy từ tên: `MaterialCodeIfs` (7xxxxxxx) trông y hệt mã IFS của MES (300xxxxx) nhưng khớp 0 dòng](#l66)
+- [L67 — bản ghi bằng chứng thiếu một chiều thông tin thì nói dối im lặng: `Pass` bool nuốt trạng thái "chưa kiểm"; bộ mặc định không mang cờ nguồn gốc](#l67)
 - [L58 — Gate tĩnh KHÔNG thay được việc mở app ở bề rộng thật: sweep L56/L57 quét rule CSS và bỏ lọt lỗi bố cục. Thanh chrome toàn cục (105 màn) tràn+cắt dưới 900pt; 6 bảng rộng tới 1400px không có luật responsive nào cho chính nó — trong đó `.prepress-table` là bề mặt XƯỞNG; và 12 ngưỡng breakpoint tự chế (1080 vs 1081) — lần thứ TƯ repo lặp lại câu chuyện "không có thang" sau màu/size/typography](#l58)
 - [L56 — `var(--token-không-tồn-tại)` KHÔNG im lặng: thuộc tính hỏng ở computed-value time ⇒ nút N/A nền trong suốt + chữ trắng = VÔ HÌNH, 69 nhãn mờ hoá đen, cả module IQC mất viền. 4 token dùng 95 lần mà chưa bao giờ được định nghĩa. Repo ĐÃ vá đúng lỗi này một lần cho `.grid-btn-secondary` nhưng không quét phần còn lại và không thêm gate ⇒ tái phát nhiều tháng](#l56)
 - [L57 — Kích thước KHÔNG tiêu thụ thang density thì màn hình tự rút khỏi hệ: (a) vùng chạm px cứng 20px cho ô tick người ĐEO GĂNG bấm, `--d-tap` không gate nào canh; (b) `clamp(...vw)` co theo bề rộng cửa sổ ⇒ shopfloor không đổi một pixel, và ĐẢO NGƯỢC ý đồ (người đứng xa nhất nhận chữ nhỏ nhất)](#l57)
@@ -860,6 +862,30 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Fix** | (a) Backup Phase A đi vào **`data/Backup/SQLite/`** (đã `.gitignore`, nằm cạnh live DB, không bị dọn), KHÔNG phải `/tmp`. (b) **Số liệu** (đường dẫn backup · sha256 · rowcount trước/sau · `integrity_check` · `foreign_key_check`) chép vào một **nhật ký migration commit được** — `CCL-MES-Hybrid/docs/pNN-migration-log.md`. File nhật ký vào git; file `.db` thì không. (c) Đã dựng `p12-migration-log.md` cho ba migration của P12 và chụp mốc gốc mới `ccl_mes.db.p12-post-migration.20260903-134522` (sha256 `a12cfc1d…`). |
 | **Cơ chế chặn tái phát** | Skill `cmes-migration-abc` §Phase A đổi lệnh mẫu từ `cp data/ccl_mes.db /tmp/...` sang `cp data/ccl_mes.db data/Backup/SQLite/...` và thêm bước bắt buộc "ghi số liệu vào `docs/pNN-migration-log.md`". **Quy tắc: bằng chứng phải sống lâu hơn phiên làm việc — thư mục nào bị OS dọn thì không phải nơi lưu bằng chứng.** Và: hồ sơ hồi cứu phải đối chiếu với hệ thống thật (`__EFMigrationsHistory`, rowcount) trước khi tick hay không tick, không chép trạng thái từ bản nháp. |
 | **Bẫy tìm được khi làm** | Hồ sơ ghi **SAI** nguy hiểm hơn hồ sơ **THIẾU**: người đọc `plan.md` để quyết định merge sẽ tưởng gate chưa qua và chặn nhầm, hoặc tệ hơn — chạy lại migration. Ở chiều ngược lại, cùng đợt rà soát cũng thấy `plan.md` ghi *"`dotnet test` CHƯA chạy"* trong khi 3 504 test đã xanh. Cả hai là một bệnh: **hồ sơ trôi khỏi thực tế theo cả hai hướng.** |
+
+----
+
+### L66 — khoá nối phải ĐO, không được suy từ tên: `MaterialCodeIfs` trông y hệt mã IFS nhưng khớp 0 dòng
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | File master IQC có cột mã dạng `70000076` trích từ tên nguyên liệu trong 46/459 spec. Tên cột tự nhiên là `MaterialCodeIfs`, và MES cũng có "mã IFS" (`RawMaterials.PartNo`). Kết luận hiển nhiên: nối hai cái đó. Nếu làm vậy, phiếu của một lô sẽ mang bộ hạng mục của **một nguyên liệu khác** — sai mà vô hình, vì màn hình vẫn đầy chữ. |
+| **Root cause** (proven) | Đo trước khi code: `PartNo` trong MES là **`300xxxxx`** (8 số, bắt đầu 300); mã trong file spec là **`7xxxxxxx`** (7–9 số, bắt đầu 7). Chạy join thử: **0 dòng khớp**. Hai hệ đánh số khác hẳn nhau — cùng gọi là "mã IFS" nhưng không phải một thứ. Khoá nối đúng là `RawMaterials.MotherCode = IqcMaterialSpec.MaterialCode`: **352/356 khớp chính xác, 356/356 khi bỏ phân biệt hoa-thường**. |
+| **Fix** | `IqcCheckResolver` tra thẳng `MotherCode`, case-insensitive + trim. Cột `MaterialCodeIfs` **vẫn giữ** trong schema (biết đâu Ops xác nhận nó là mã của hệ khác) nhưng **KHÔNG dùng để resolve** — có comment nói rõ vì sao, kèm con số đo được. |
+| **Cơ chế chặn tái phát** | `IqcCheckResolverTests.KHONG_khop_theo_ma_IFS` — dựng một spec có `MaterialCodeIfs="70000076"` rồi resolve bằng đúng chuỗi đó, khẳng định **KHÔNG** khớp spec nào và rơi về ma trận mặc định. Ai đó "sửa cho tiện" bằng cách thêm nhánh khớp theo IFS ⇒ test ĐỎ. **Quy tắc: hai cột cùng tên gọi ở hai hệ thống KHÔNG chứng minh chúng cùng miền giá trị. Chạy một câu `JOIN … COUNT(*)` trước khi viết resolver — chi phí 10 giây, sai thì là hồ sơ chất lượng sai.** |
+| **Bẫy tìm được khi làm** | Regex trích mã ban đầu bắt đúng 8 chữ số nên bỏ sót `7000360` (7 số) và `700009333` (9 số) — 44 thay vì 46. Nới về 7–9 số thì đủ. Hai mã lệch độ dài đó vẫn được trích (rõ ràng là gõ nhầm độ dài, bỏ đi thì mất khoá nối mà không ai biết) và ghi vào scope proposal §6 chờ Ops xác nhận. |
+
+----
+
+### L67 — bản ghi bằng chứng thiếu MỘT chiều thông tin thì nó nói dối một cách im lặng
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Hai lỗi khác nhau, cùng một hình dạng. (a) `IqcResultDetail.Pass` là `bool` không nullable: mọi hạng mục vừa dựng lúc mở phiếu đều `false` ⇒ màn hình tuyên bố **cả lô KHÔNG ĐẠT** trong khi chưa ai bấm gì. (b) Bộ hạng mục lấy từ **ma trận mặc định** (mã chưa có spec riêng) trông y hệt bộ lấy từ spec thật — sáu tháng sau không ai phân biệt được hồ sơ nào kiểm theo tiêu chuẩn riêng của nguyên liệu, hồ sơ nào kiểm theo bộ chung. |
+| **Root cause** (proven) | Cả hai đều là **thiếu một chiều thông tin trong bản ghi**, không phải lỗi logic. `bool` chỉ mã hoá được 2 trạng thái nhưng nghiệp vụ có **3**: chưa kiểm · đạt · không đạt. "Chưa kiểm" bị ép về "không đạt" — hai chuyện hoàn toàn khác nhau về mặt hồ sơ. Tương tự, bản ghi không có chỗ ghi *nguồn gốc* của bộ hạng mục, nên xuất xứ biến mất ngay khi ghi. |
+| **Fix** | (a) `Pass` → `bool?`; `null` = CHƯA KIỂM. Kéo theo: `MaterialLotScanService` đổi `!d.Pass` thành `d.Pass == false` (*"chưa kiểm ≠ hỏng"*), UI hiện ba trạng thái, và chốt phiếu **từ chối khi còn `null`**. (b) Thêm cờ `FromDefaultMatrix` đóng băng vào từng dòng + băng nhắc trên UI. Cả hai cột đều nullable/thêm mới nên 7 bản ghi cũ không phải backfill. |
+| **Cơ chế chặn tái phát** | (a) `IqcTicketMaterializeTests.Hang_muc_moi_dung_o_CHUA_KIEM_chu_KHONG_phai_NG` + `IqcCheckItemGridTests.Pass_null_hien_CHUA_KIEM_chu_khong_phai_khong_dat` + `IqcTicketItemsTests.Con_hang_muc_CHUA_KIEM_thi_KHONG_chot_duoc`. (b) `IqcCheckResolverTests.Hang_muc_ma_tran_mang_co_phan_biet_de_khong_ai_nham_voi_spec_that` — khẳng định cả hai chiều: ma trận ⇒ cờ `true`, spec thật ⇒ cờ `false`. **Quy tắc: trước khi chọn kiểu cho một cột trong bảng BẰNG CHỨNG, đếm xem nghiệp vụ có mấy trạng thái. Và mọi giá trị suy ra từ mặc định phải mang dấu vết là nó đến từ mặc định — câu hỏi đầu tiên của auditor luôn là "hồ sơ này kiểm theo tiêu chuẩn nào?".** |
+| **Bẫy tìm được khi làm** | Tôi từng khẳng định `Pass` "không được dùng ở đâu khác" — SAI, vì đã cắt `grep` ở `head -10`. Nó dùng ở `MaterialLotScanService:690` và 3 chỗ trong `Iqc.razor`. Đổi kiểu một cột trong bảng đang có dữ liệu thì **grep phải chạy hết**, không được cắt. Ngoài ra SQLite không `ALTER COLUMN` được: đổi sang nullable buộc EF dựng lại bảng (`PRAGMA foreign_keys=0`, không chạy trong transaction) — bắt buộc Phase B trên **bản sao của DB thật**, không phải DB rỗng. |
 
 ----
 

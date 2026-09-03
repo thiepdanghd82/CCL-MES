@@ -61,7 +61,7 @@ description: "Task list — P12 thư viện tiêu chuẩn kiểm tra NVL cho IQC
 - [x] T016 [US1] `GET /iqc/tickets/{id}/items` trong `CCL-MES-Hybrid/src/CCL.MES.Api/Controllers/IqcController.cs` + DTO `CCL.MES.Shared/Quality/IqcDtos.cs`
 - [x] T017 [US1] `IqcCheckItemGrid.razor` (bảng `# · ITEM · METHOD · SPEC · VERDICT`, class `ipqc-*`) — test `IqcCheckItemGridTests.cs` (14 fixture)
 - [x] T018 [US1] Mục 2 / mục 3 của `MaterialsInspectionForm.razor` dùng grid (99afa6c) — test `IqcModuleTests.cs` khoá đường màn hình THẬT gọi endpoint (L64, d253a4d)
-- [ ] T019 [US1] Kiểm chứng tay SC-002: `BD-01` trên ≥3 nguyên liệu có 3 tiêu chuẩn khác nhau — dán ảnh 768 px vào PR
+- [ ] T019 [US1] SC-002 — **phần DỮ LIỆU đã đo** trên DB thật 2026-09-03: `BD-01` có **60 tiêu chuẩn KHÁC NHAU** trải trên 449 spec (yêu cầu ≥3), vd `3M 5915P → FTM: 2(72h)` · `3M 897 → FTM: 1( ASTM D3330 )` · `3M 9448A → FTM 1` · `ADS1412 → FTM: 2(24h)`. **CÒN LẠI: ảnh 768 px** mở phiếu của ≥3 mã đó cạnh nhau — cần đăng nhập app.
 
 **Checkpoint**: US1 chạy được độc lập ✅ (T019 = bằng chứng VERIFY)
 
@@ -73,7 +73,7 @@ description: "Task list — P12 thư viện tiêu chuẩn kiểm tra NVL cho IQC
 - [x] T021 [US2] Cờ `FromDefaultMatrix` đóng băng + không đoán bừa khi thiếu MotherCode (`IqcTicketMaterializeTests`: `…CHUA_co_spec…`, `Nguyen_lieu_khong_co_MotherCode_thi_KHONG_doan_bua`, `…ma_KHONG_khop_catalog…`)
 - [x] T022 [US2] Đánh dấu tiêu chuẩn placeholder `XXX` (`Tieu_chuan_dang_XXX_bi_danh_dau_chua_xac_dinh`, `Nhan_dien_placeholder`)
 - [x] T023 [US2] UI hiện dòng "tiêu chuẩn mặc định — mã này chưa có spec riêng" trong `IqcCheckItemGrid.razor` / `MaterialsInspectionForm.razor`
-- [ ] T024 [US2] Kiểm chứng tay SC-004 trên một mã chưa có spec (vd `TWP5050`) — ảnh 768 px
+- [ ] T024 [US2] SC-004 — **phần DỮ LIỆU đã đo** trên DB thật 2026-09-03: ma trận mặc định đúng **13 hạng mục** (`InDefaultMatrix=1`); catalog có **590 mother code distinct chưa có spec** (946 tổng − 356 có spec). Đo qua wire trước đó trên một phiếu thật của mã chưa có spec: 13 hạng mục · `FromDefaultMatrix=1` cả 13 · `SpecNo` NULL cả 13. **CÒN LẠI: ảnh 768 px** — cần đăng nhập app.
 
 ---
 
@@ -111,13 +111,13 @@ description: "Task list — P12 thư viện tiêu chuẩn kiểm tra NVL cho IQC
 
 - [x] T039 `dotnet test` **4** test project trên máy có SDK, 2026-09-03: `tests/CCL.MES.Tests` **1337** · `CCL.MES.Api.Tests` **903** · `CCL.MES.Hybrid.Client.Tests` **731** · `CCL.MES.Hybrid.Razor.Tests` **533** — tổng **3504 passed, 0 failed**
 - [x] T040 `bash CCL-MES-Hybrid/scripts/gate-all.sh` 2026-09-03 → **PASS=19 FAIL=0 SKIP=0**. (Một lần FAIL giữa chừng ở gate `tokens` do `font-weight: 600` viết thẳng trong CSS mới — đã sửa sang `var(--fw-semibold)`.)
-- [ ] T041 Kiểm chứng SC-006 cho `IqcCheckResolver`: hoàn nguyên (git stash) ⇒ `IqcCheckResolverTests` + `IqcTicketMaterializeTests` phải ĐỎ. **CÒN MỞ** — ba chỗ khác đã đo ĐỎ/XANH rồi:
+- [x] T041 SC-006 — đo ĐỎ/XANH cho `IqcCheckResolver` 2026-09-03: hoàn nguyên đúng bất biến chính (`FromSpec` lấy `DefaultAcceptance*` của thư viện thay vì dòng chi tiết theo mã) ⇒ **4 test ĐỎ**: `Co_spec_thi_lay_tieu_chuan_RIENG_chu_khong_lay_gia_tri_chung` · `Mo_ticket_cho_ma_CO_spec_thi_dung_tieu_chuan_RIENG` · `Duong_UI_CreateTicket_CO_spec_thi_dung_hang_muc_RIENG` · `Nhieu_tieu_chi_cung_ma_deu_duoc_giu`. Khôi phục ⇒ **31/31 XANH**. Ba chỗ khác đã đo trước đó:
   - seeder hồi sinh dòng `Active=false`: hoàn nguyên 1 dòng `DbSeeder` ⇒ 1 test ĐỎ, khôi phục ⇒ 24/24 XANH
   - L64 (form phải THẬT SỰ gọi endpoint): chặn nhánh nạp ⇒ 1 test ĐỎ, khôi phục ⇒ 34/34 XANH
   - trùng lô 409: test ĐỎ với đúng `SqliteException UNIQUE constraint failed` trước fix, XANH sau
 - [x] T042 STOP-gate vùng cấm — **Henry chọn sửa luật 2026-09-03**: hiến pháp **v1.1.0** thu hẹp vùng cấm về `src/CCL.MES.Web`; `CLAUDE.md` §0 sửa theo. Căn cứ đo được: 60 commit trên `main` — `Web` 0 lần đổi, ba tầng dùng chung 43 lần. P12 không còn là vi phạm.
 - [ ] T043 Q4: QA ghi nhận bằng văn bản quyết định D1 (kiểm mọi lô, ghi đè tần suất tháng) — ngoài phần mềm, nhưng là điều kiện đưa vào sản xuất
-- [ ] T044 Viết lesson card mới vào `CCL-MES-Hybrid/docs/LESSONS-LEARNED.md` (ma trận mặc định phải mang cờ; `Pass` nullable; mã IFS trong file spec ≠ mã IFS MES)
+- [x] T044 Lesson card: **L65** (bằng chứng Phase A không được để ở `/tmp`) · **L66** (khoá nối phải ĐO — `MaterialCodeIfs` 7xxxxxxx ≠ `PartNo` 300xxxxx, khớp 0 dòng) · **L67** (bản ghi bằng chứng thiếu một chiều thì nói dối im lặng — `Pass` bool nuốt "chưa kiểm"; bộ mặc định không mang cờ nguồn gốc). Cả ba có cột "Cơ chế chặn tái phát" trỏ test cụ thể + đã vào Index.
 - [~] T045 ~~Quyết định `.claude/skills/liteparse` · `markitdown`~~ — **CHUYỂN khỏi P12**: việc dọn kho công cụ, không liên quan tiêu chuẩn kiểm NVL. Đã chuyển sang `CCL-MES-Hybrid/docs/IMPROVEMENT-BACKLOG.md`.
 - [ ] T046 Mở PR `feat/p12-iqc-check-standard-library → main` với ảnh 768 px, số test thật, probe seed, migration step trong Henry-action
 
@@ -137,10 +137,14 @@ description: "Task list — P12 thư viện tiêu chuẩn kiểm tra NVL cho IQC
 |---|---|---|
 | Setup + Foundation | 13 | 0 |
 | US1–US5 | 24 | 3 (T019, T024, T035) |
-| VERIFY + LEARN | 3 | 4 (T041, T043, T044, T046) |
-| **Tổng** | **40** | **7** (+1 chuyển sang backlog) |
+| VERIFY + LEARN | 5 | 2 (T043, T046) |
+| **Tổng** | **42** | **5** (+1 chuyển sang backlog) |
 
-**Còn lại đều là bằng chứng thủ công hoặc việc ngoài phần mềm**, không còn hạng
-mục code nào: T019 · T024 (ảnh 768 px) · T035 (cập nhật skill sau merge) ·
-T041 (đo ĐỎ/XANH cho `IqcCheckResolver`) · T043 (QA ghi nhận D1 bằng văn bản) ·
-T044 (lesson card) · T046 (mở PR).
+**Không còn hạng mục CODE nào.** Năm việc còn lại:
+
+| Task | Cần gì | Ai làm được |
+|---|---|---|
+| T019 · T024 | ảnh 768 px (phần dữ liệu ĐÃ đo, ghi ngay trong task) | **Henry** — cần đăng nhập app |
+| T035 | cập nhật skill `cmes-add-new-inline` ghi nhận P12 là implementation đầu tiên | **sau khi merge** (giờ ghi là sai: main chưa có) |
+| T043 | QA ghi nhận D1 (kiểm mọi lô) bằng văn bản | **ngoài phần mềm** |
+| T046 | PR #243 đã OPEN — còn thiếu ảnh 768 px + số test thật trong body | **Henry** duyệt body |
