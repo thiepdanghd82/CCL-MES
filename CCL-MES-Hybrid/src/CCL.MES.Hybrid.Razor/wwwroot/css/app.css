@@ -8449,7 +8449,9 @@ tr.wc-row:hover { background: var(--c-bg); }
 .qms-td-strong { font-weight: var(--fw-bold); color: var(--c-ink-2); }
 .qms-td-ng { color: var(--ng-ink); font-weight: var(--fw-bold); }
 .qms-col-tight { width: 1%; white-space: nowrap; }
-.qms-cell-sub { font-size: var(--fs-xs); color: var(--c-muted); }
+/* display:block để class TỰ ĐỦ — đặt trong <span> hay <div> đều xuống dòng.
+   Thiếu nó thì nhãn và mã dính liền ("Material identificationNL-01 · #1"). */
+.qms-cell-sub { display: block; font-size: var(--fs-xs); color: var(--c-muted); }
 .qms-link { color: var(--brand); font-weight: var(--fw-semibold); text-decoration: none; }
 .qms-link:hover { text-decoration: underline; }
 .qms-remove {

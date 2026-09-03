@@ -338,6 +338,23 @@ public sealed class IqcSpecEditorTests : TestContext
         });
     }
 
+    [Fact]
+    public void Ma_hang_muc_nam_o_DONG_RIENG_khong_dinh_vao_nhan()
+    {
+        // Henry thấy trên máy: "Material identificationNL-01 · #1" — nhãn và mã
+        // dính liền vì .qms-cell-sub nằm trong <span> (inline). Class không có
+        // display nên phụ thuộc thẻ bọc; nay class tự đủ + markup dùng <div>.
+        Serve(WithSpec());
+        var cut = Render();
+
+        cut.WaitForAssertion(() =>
+        {
+            var sub = cut.Find("[data-testid='iqc-spec-item-11'] .qms-cell-sub");
+            Assert.Equal("div", sub.TagName, ignoreCase: true);
+            Assert.Contains("NQ-01", sub.TextContent);
+        });
+    }
+
     // ── i18n ─────────────────────────────────────────────────────────────
 
     [Fact]

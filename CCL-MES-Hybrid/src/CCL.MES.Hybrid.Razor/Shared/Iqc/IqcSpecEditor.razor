@@ -86,7 +86,7 @@
                             @oncontextmenu="e => OpenMenuAt(it, e.ClientX, e.ClientY)"
                             @oncontextmenu:preventDefault="true">
                             <td>@Dash(it.GroupLabelFor(IsEnglish))</td>
-                            <td class="qms-td-strong">@it.LabelFor(IsEnglish)<span class="qms-cell-sub scan-mono">@it.ItemId · #@it.Seq</span></td>
+                            <td class="qms-td-strong">@it.LabelFor(IsEnglish)<div class="qms-cell-sub scan-mono">@it.ItemId · #@it.Seq</div></td>
                             <td>@Dash(it.AcceptanceFor(IsEnglish))</td>
                             <td>@Dash(it.MethodFor(IsEnglish))</td>
                             <td>@Dash(it.SourceFrequency)</td>
