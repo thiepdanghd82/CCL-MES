@@ -4,7 +4,9 @@
 > thay đổi schema trên live DB đi theo **Phase A→B→C** và gọi đó là STOP-gate.
 > Ba migration của P12 đã được áp lên `data/ccl_mes.db` ngày **2026-08-28**,
 > nhưng `plan.md` vẫn ghi "⚠ MỞ" và bằng chứng Phase A khi đó nằm ở `/tmp` —
-> tới 2026-09-03 thì `/tmp` đã bị dọn, **không còn file backup nào**.
+> tới 2026-09-03 thì `/tmp` đã bị dọn, **không còn file backup nào**. Số liệu của
+> migration 1 cứu lại được từ body PR #243; của migration 3 từ transcript phiên
+> làm việc; của migration 2 thì mất hẳn (xem §2).
 >
 > Hồ sơ sai trên một điều khoản bằng chứng còn nguy hiểm hơn hồ sơ thiếu: người
 > đọc `plan.md` sẽ tưởng gate chưa qua trong khi nó đã qua rồi. File này ghi lại
@@ -34,9 +36,11 @@ theo §4.5 — grep 2026-09-03 cho 0 hit trên cả ba file `.cs` (`Designer.cs`
 
 ---
 
-## 2. Phase A→B→C của migration thứ 3 (có bằng chứng đầy đủ)
+## 2. Phase A→B→C của từng migration
 
-Migration `AddIqcResultDetailFrozenColumns` là cái rủi ro nhất trong ba cái: SQLite
+### Migration 3 — `AddIqcResultDetailFrozenColumns` (bằng chứng đầy đủ)
+
+Đây là cái rủi ro nhất trong ba cái: SQLite
 không `ALTER COLUMN` được, nên đổi `Pass` sang nullable buộc EF **dựng lại bảng**
 (`PRAGMA foreign_keys = 0` + copy + rename). EF cảnh báo rõ thao tác này không chạy
 được trong transaction — hỏng giữa chừng là bảng ở trạng thái nửa vời.
@@ -86,11 +90,42 @@ integrity_check = ok · FK vi phạm = 3 (bằng trước)
 
 Rowcount trước = sau trên cả bốn bảng. Không dòng nào mất, không giá trị nào đổi.
 
-**Migration 1 và 2** được áp trong phiên làm việc trước đó cùng ngày; bằng chứng
-Phase A của chúng nằm ở `/tmp` và đã mất. Chúng đều là **thêm bảng / thêm cột
-nullable** — không dựng lại bảng, không đụng dữ liệu cũ — nên rủi ro thấp hơn hẳn
-migration 3. Trạng thái hiện tại của DB (§3) là bằng chứng thay thế: không bảng nào
-mất, `__EFMigrationsHistory` liên tục, `integrity_check` sạch.
+### Migration 1 — `AddIqcCheckStandardLibrary`
+
+Bằng chứng Phase A của migration này **tìm lại được từ body PR #243** (viết ngay
+lúc áp, nên số liệu là đương thời):
+
+```
+Phase A  backup /tmp/ccl_mes.db.before-p12-iqclib.20260828T162746Z
+         sha256 a2404ac53c1877ee…
+Phase B  sinh + áp trên /tmp DB cô lập → schema đúng, 0 type-affinity (§4.5)
+Phase C  áp live → rowcount TRƯỚC = SAU trên cả 7 bảng cũ
+```
+
+| bảng | trước | sau |
+|---|---|---|
+| WorkOrders | 27 | 27 |
+| IqcInspections | 25 | 25 |
+| CheckItemLibraries | 87 | 87 |
+| AuditLogs | 2794 | 2794 |
+
+3 bảng · 7 index (3 unique) · **additive thuần**, không đụng dữ liệu cũ.
+
+Ghi chú quan trọng: bản migration ĐẦU TIÊN (khoá 2 thành phần `(SpecNo, ItemId)`)
+đã bị xoá **đúng cách** khi phát hiện phải đổi sang khoá 3 thành phần — `rm` thủ
+công + khôi phục snapshot, **KHÔNG** dùng `ef migrations remove` (§4.1).
+
+### Migration 2 — `AddIqcDefaultMatrixColumns`
+
+Bằng chứng Phase A nằm ở `/tmp` và **đã mất**. Đây là migration nhẹ nhất trong ba
+cái: chỉ **thêm cột nullable** vào `IqcCheckItemLibraries` (`InDefaultMatrix` +
+4 cột `Default*`) — không dựng lại bảng, không đụng dữ liệu cũ. Trạng thái hiện
+tại của DB (§3) là bằng chứng thay thế: không bảng nào mất,
+`__EFMigrationsHistory` liên tục, `integrity_check` sạch, và 21 dòng thư viện
+vẫn nguyên với 13 dòng mang `InDefaultMatrix=1`.
+
+> Bài học: body PR hoá ra là nơi bằng chứng sống sót lâu hơn `/tmp`. Nhưng đó là
+> may, không phải quy trình — nhật ký này mới là chỗ đúng để ghi. Xem §5.
 
 ---
 
