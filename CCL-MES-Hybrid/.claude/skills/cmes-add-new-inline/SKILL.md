@@ -10,10 +10,13 @@ description: >
 
 # CMES add-new-inline (design contract)
 
-> **Trạng thái:** contract cho hạng mục 7g (F4 + add-new-defect). Chưa có
-> implementation/gate ở main — phần "nhớ cho LOT sau" cần persist (STOP-gate
-> schema). Skill này chốt HÌNH DẠNG để lúc 7g được Henry ký là dựng đúng một
-> kiểu, và mọi dropdown/grid tương lai theo cùng khuôn.
+> **Trạng thái:** **ĐÃ CÓ implementation đầu tiên ở `main`** — P12 bước 2b
+> (PR #243, merge `7e8cdfb`, 2026-09-03): `IqcSpecEditor.razor` dựng **hình
+> dạng 2** (add-row cuối grid) cho tab *Tiêu chuẩn* của module IQC. Dùng nó làm
+> mẫu tham chiếu khi dựng affordance mới.
+>
+> Hình dạng 1 (＋ Thêm mới… trong dropdown) vẫn **chưa có** ở main — hạng mục 7g
+> (add-new-defect) còn chờ. Gate `gate-add-new-inline.sh` cũng chưa dựng.
 
 **Rule:** một chỗ cho người dùng "thêm mới" đi qua **một trong hai hình dạng
 chuẩn**, KHÔNG bịa flow riêng mỗi màn:
@@ -61,6 +64,33 @@ theo L34 — đây chỉ là add nhanh 1–3 field.)
 - **Không đổi hợp đồng** khi chỉ là lớp trình bày; thêm endpoint add đi theo
   atomic pattern 7c-2 (If-Match/Idem-Key/single SaveChanges) + controller mỏng
   ([[cmes-thin-controller]]).
+
+## Tiền lệ đã ship — P12 bước 2b (đọc trước khi dựng cái mới)
+
+`CCL-MES-Hybrid/src/CCL.MES.Hybrid.Razor/Shared/Iqc/IqcSpecEditor.razor` —
+soạn tiêu chuẩn kiểm theo mã nguyên liệu. Bốn điểm đáng chép lại:
+
+1. **Nút add-row full-width ngay dưới `</table>`**, style phụ
+   (`op-btn op-btn-secondary`), testid `iqc-spec-addrow`. Bấm → form nhỏ
+   **inline** ngay dưới, KHÔNG modal, KHÔNG nhảy trang.
+2. **Chọn hạng mục thì MỒI SẴN giá trị mặc định** của thư viện vào ô tiêu
+   chuẩn/phương pháp (`OnPickItem`). 590 mã mà bắt gõ tay từng ô thì không ai
+   soạn hết — mồi sẵn để người soạn chỉ sửa phần khác biệt.
+3. **Nguồn đóng: `<select>` từ thư viện 21 hạng mục, KHÔNG free-text.** Cho gõ
+   tự do thì sáu tháng sau có 40 biến thể của cùng một phép đo.
+4. **RBAC-by-omission thật sự có ba tầng**: `CanEdit` chỉ dựng nút
+   (`IqcSpecEditorTests` khoá cả chiều QC/Operator KHÔNG thấy nút), policy HTTP
+   `IqcSpecWrite` trả 403 (`IqcSpecControllerTests`), và service tự chặn
+   (`IqcSpecEditTests`). Ẩn nút không phải là phân quyền.
+
+**Bẫy đã trả tiền ở P12** — dựng cái mới thì tránh:
+
+- Khoá nghiệp vụ dạng văn bản tự do **KHÔNG được nằm trong URL path**. Mã
+  nguyên liệu từng đặt ở path segment ⇒ 623/946 mã có dấu cách làm Kestrel trả
+  400 *trước* khi tới routing (log server không thấy gì), 56 mã có `/` thì
+  `%2F` bị ASP.NET chặn mặc định. Đưa vào query (đọc) và body (ghi).
+- `.qms-cell-sub` không tự có `display` — nay đã thêm `display:block`, nhưng
+  bài học chung là: class phụ trợ phải TỰ ĐỦ, đừng phụ thuộc thẻ bọc.
 
 ## Enforce (khi 7g dựng thật)
 
