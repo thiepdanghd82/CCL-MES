@@ -112,6 +112,7 @@
     {
         RegisterWindows();
         WM.Changed += OnWindowsChanged;
+        WM.Opened += OnWindowOpened;
         // WorkspaceRouter — a deep-link / reload / in-shell nav to a window key
         // opens (or focuses, via dedupe) that window, then @Body shows the empty
         // workspace. Run once for the initial URL, then on every navigation.
@@ -347,6 +348,30 @@
 
     private void OnWindowsChanged() => InvokeAsync(StateHasChanged);
 
+    /// <summary>
+    /// Mở một cửa sổ TỪ một trang full-page (vd IQC Data ở <c>/qms/iqc</c>) thì
+    /// phải HIỆN lớp workspace ra.
+    ///
+    /// <para>Lỗi Henry báo 2026-09-04: bấm Open / nháy đúp một phiếu ở IQC Data
+    /// thì "không có gì hiện lên", phải đi tìm thẻ thu nhỏ ở góc trái dưới rồi
+    /// bấm vào mới thấy. Cửa sổ vẫn được tạo và focus đúng — nhưng nó nằm trong
+    /// <c>.window-layer.is-hidden</c> (<c>display:none</c>), vì luật cũ ẩn cả
+    /// lớp trên mọi route full-page để cửa sổ phóng to không che mất trang.</para>
+    ///
+    /// <para>Luật đó đúng cho cửa sổ CÒN SÓT LẠI từ lượt trước, nhưng sai cho
+    /// cửa sổ người dùng VỪA BẤM MỞ. Giấu đúng thứ họ vừa yêu cầu rồi bắt họ đi
+    /// tìm là phản trực giác. Hiện lớp lên KHÔNG chặn trang phía sau:
+    /// <c>.window-layer</c> đã có <c>pointer-events:none</c>, chỉ
+    /// <c>.window-host</c> nhận chuột.</para>
+    /// </summary>
+    private void OnWindowOpened(OpenWindow _)
+        => InvokeAsync(() =>
+        {
+            if (_workspaceVisible) return;
+            _workspaceVisible = true;
+            StateHasChanged();
+        });
+
     // DynamicComponent wants a mutable IDictionary; the manager hands a
     // read-only snapshot (or null for the param-free PR1 pages).
     private static IDictionary<string, object>? ToDict(IReadOnlyDictionary<string, object>? p)
@@ -380,6 +405,7 @@
     public void Dispose()
     {
         WM.Changed -= OnWindowsChanged;
+        WM.Opened -= OnWindowOpened;
         Nav.LocationChanged -= OnLocationChanged;
     }
 }
