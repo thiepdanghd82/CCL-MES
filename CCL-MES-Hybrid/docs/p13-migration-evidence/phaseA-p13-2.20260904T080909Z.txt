@@ -1,0 +1,19 @@
+# Phase A — AddIqcP13SamplingAndLimits
+utc: 20260904T080909Z
+backup: data/Backup/SQLite/ccl_mes.db.before-p13-2.20260904T080909Z   (data/Backup/SQLite/ — KHÔNG /tmp, bài học L65)
+sha256_live_before: 3f69ee92371141a1274ffd1c12abd0ff03c31e341b735abc32eff5c621e5a1f0
+sha256_backup:      3f69ee92371141a1274ffd1c12abd0ff03c31e341b735abc32eff5c621e5a1f0
+integrity_check: ok
+foreign_key_check_before: 3 lỗi (3 dòng WoQcCheckItems mồ côi, ĐÃ CÓ TỪ 2026-06-07)
+migrations_applied_before: 48
+rowcounts_before:
+  IqcCheckItemLibraries    21
+  IqcMaterialSpecs         459
+  IqcSpecItems             5961
+  IqcResultDetails         20
+  IqcInspections           26
+  WoQcCheckItems           83
+  RawMaterials             2967
+  Users                    7
+  AuditLogs                2960
+  WorkOrders               27
