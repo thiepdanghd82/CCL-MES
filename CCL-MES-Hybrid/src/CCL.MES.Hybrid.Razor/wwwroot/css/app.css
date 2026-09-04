@@ -9343,3 +9343,44 @@ tr.wc-row:hover { background: var(--c-bg); }
     background: var(--warn-bg);
     color: var(--warn-ink);
 }
+
+/* Thân cửa sổ xem PDF hồ sơ HSF. Chrome/zoom/xoay dùng lại bộ `dwg-viewer-*`
+   + `dwg-pdf-*` của P10.10 — KHÔNG đẻ bộ class thứ hai cho cùng một việc. */
+.iqc-docview {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;              /* thiếu dòng này thì thân đẩy tràn cửa sổ */
+}
+
+/* Thanh công cụ nằm TRONG thân, không ở thanh tiêu đề: khi WindowManager host
+   thì chrome thuộc về host — thân không với tới thanh tiêu đề của nó. */
+.iqc-docview-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    padding: var(--sp-1) var(--sp-2);
+    border-bottom: 1px solid var(--c-line);
+    background: var(--c-surface);
+    flex: 0 0 auto;
+}
+
+.iqc-docview-bar-gap { flex: 1 1 auto; }
+
+.iqc-docview-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    background: var(--c-bg);
+    padding: var(--sp-2);
+}
+
+.iqc-docview-notice {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: var(--sp-1) var(--sp-2);
+    border-top: 1px solid var(--c-line);
+    background: var(--c-surface);
+    color: var(--c-muted);
+    font-size: var(--fs-xs);
+}

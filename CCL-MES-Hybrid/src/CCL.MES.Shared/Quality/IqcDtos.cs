@@ -345,8 +345,18 @@ public sealed class IqcDocumentDto
     public string? FileName { get; set; }
     public long? FileSizeBytes { get; set; }
 
-    /// <summary>Server đóng dấu, client KHÔNG khai được.</summary>
+    /// <summary>Server đóng dấu, client KHÔNG khai được. Đây là USERNAME —
+    /// định danh ổn định, dùng để đối chiếu với AuditLogs.</summary>
     public string? LastModifiedBy { get; set; }
+
+    /// <summary>Tên hiển thị của người sửa cuối ("Đặng Thế Thiệp"), giải từ
+    /// bảng Users lúc ĐỌC. <c>null</c> khi tài khoản đã bị xoá — lúc đó UI hiện
+    /// lại username thô chứ không bỏ trống, vì mất dấu người làm còn tệ hơn.</summary>
+    public string? LastModifiedByDisplay { get; set; }
+
+    /// <summary>Tên để HIỆN LÊN: ưu tiên tên hiển thị, thiếu thì username.</summary>
+    public string? LastModifiedByLabel =>
+        string.IsNullOrWhiteSpace(LastModifiedByDisplay) ? LastModifiedBy : LastModifiedByDisplay;
     public DateTime? LastModifiedAt { get; set; }
 
     public bool Active { get; set; } = true;

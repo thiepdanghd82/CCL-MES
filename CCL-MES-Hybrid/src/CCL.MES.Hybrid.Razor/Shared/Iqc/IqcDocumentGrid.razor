@@ -7,6 +7,7 @@
 @inject ICclApiClient Api
 @inject IFilePickerService FilePicker
 @inject IFileOpener FileOpener
+@inject CCL.MES.Hybrid.Client.Windows.IWindowManager WM
 
 @*
     P12 bước 4 — bảng hồ sơ HSF (TDS · MSDS · RoHS · REACH · ISO 9001) của MỘT
@@ -273,7 +274,9 @@
                     IssueDate = d.IssueDate,
                     ExpiryDate = d.ExpiryDate,
                     FileName = d.FileName,
-                    LastModifiedBy = d.LastModifiedBy,
+                    // Nhãn để HIỆN — tên người, lùi về username khi tài khoản
+                    // đã xoá. Không bỏ trống: mất dấu người làm còn tệ hơn.
+                    LastModifiedBy = d.LastModifiedByLabel,
                     LastModifiedAt = d.LastModifiedAt,
                     Pristine = (Row.Norm(d.DocNumber), d.IssueDate, d.ExpiryDate),
                 });
@@ -392,12 +395,53 @@
             var size = await Api.DownloadIqcDocumentToFileAsync(r.Id, dest);
             if (size is null)
             {
+                // Bảng đang nói có file mà server bảo không — nạp lại cho khớp
+                // sự thật thay vì để người dùng bấm mãi vào một dòng ma.
                 _notice = T("iqc.doc.nofile.hint");
                 await ReloadAsync();
                 return;
             }
-            if (!await FileOpener.TryOpenAsync(dest))
-                _notice = T("iqc.doc.saved.only", dest);
+
+            // Mở qua WindowManager: cửa sổ NGANG HÀNG với form thanh tra, KHÔNG
+            // lồng bên trong nó. Bản đầu tiên dựng FloatingWindow ngay tại đây
+            // và hậu quả là cửa sổ không kéo được, nút đóng bị đẩy ra ngoài mép
+            // cửa sổ cha nên bấm không tới.
+            // Key theo <mã mẹ>/<LOẠI> ⇒ mở lại cùng tờ thì FOCUS cửa sổ cũ.
+            var key = CCL.MES.Hybrid.Client.Windows.WindowRegistryKeys.IqcDocViewKeyPrefix
+                    + $"{MaterialCode}/{r.DocType}";
+            var win = WM.Open(key, r.FileName!, "📄",
+                typeof(IqcDocumentViewerWindow),
+                new Dictionary<string, object>
+                {
+                    ["LocalPath"] = dest,
+                    ["FileName"] = r.FileName!,
+                    ["Subtitle"] = MaterialCode ?? "",
+                });
+
+            if (win is null) _notice = T("iqc.doc.viewer.maxwins", WM.SoftCap);
+        }
+        catch (Exception ex) { _error = Describe(ex); }
+        finally { _busyId = 0; StateHasChanged(); }
+    }
+
+    /// <summary>Giao thẳng cho app mặc định của hệ điều hành — máy đặt Acrobat
+    /// làm mặc định cho PDF thì đây chính là "mở bằng Adobe". Vẫn phải tải về
+    /// sandbox trước: Launcher của Catalyst từ chối IM LẶNG đường dẫn ngoài
+    /// container.</summary>
+    private async Task OpenExternalAsync(Row r)
+    {
+        CloseMenu();
+        _error = null; _notice = null;
+        if (!r.HasFile) { _notice = T("iqc.doc.nofile.hint"); StateHasChanged(); return; }
+
+        _busyId = r.Id;
+        StateHasChanged();
+        try
+        {
+            var dest = Path.Combine(FileOpener.GetSafeDownloadDirectory(), r.FileName!);
+            var size = await Api.DownloadIqcDocumentToFileAsync(r.Id, dest);
+            if (size is null) { _notice = T("iqc.doc.nofile.hint"); await ReloadAsync(); return; }
+            if (!await FileOpener.TryOpenAsync(dest)) _notice = T("iqc.doc.saved.only", dest);
         }
         catch (Exception ex) { _error = Describe(ex); }
         finally { _busyId = 0; StateHasChanged(); }
@@ -427,8 +471,11 @@
         _menuAnchor = (x, y);
         var items = new List<ContextMenuItem>
         {
-            new() { Label = T("iqc.doc.menu.open"), Icon = "↗", Disabled = !r.HasFile,
+            new() { Label = T("iqc.doc.menu.open"), Icon = "👁", Disabled = !r.HasFile,
                     OnClick = EventCallback.Factory.Create(this, () => OpenFileAsync(r)) },
+            // Ai quen Acrobat thì đi thẳng, không phải qua cửa sổ xem trước.
+            new() { Label = T("iqc.doc.menu.external"), Icon = "↗", Disabled = !r.HasFile,
+                    OnClick = EventCallback.Factory.Create(this, () => OpenExternalAsync(r)) },
         };
         // RBAC-by-omission: người chỉ được xem không thấy nhập/xoá.
         if (Editable)
@@ -443,6 +490,7 @@
     }
 
     private void CloseMenu() => _menuRow = null;
+
 
     private void LongPressStart(Row r, PointerEventArgs e)
     {

@@ -3,6 +3,7 @@ using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client;
 using CCL.MES.Hybrid.Client.Auth;
 using CCL.MES.Hybrid.Client.Files;
+using CCL.MES.Hybrid.Client.Windows;
 using CCL.MES.Hybrid.Razor.Shared.Iqc;
 using CCL.MES.Hybrid.Razor.Tests._Support;
 using CCL.MES.Shared.Envelopes;
@@ -30,6 +31,7 @@ public sealed class IqcDocumentGridTests : TestContext
     private readonly StubAuthSession _session = new();
     private readonly RecordingFileOpener _opener = new();
     private readonly ScriptedFilePicker _picker = new();
+    private readonly WindowManager _wm = new();
 
     private const string Code = "336T-AT1";
 
@@ -40,6 +42,7 @@ public sealed class IqcDocumentGridTests : TestContext
         Services.AddSingleton<IAuthSession>(_session);
         Services.AddSingleton<IFilePickerService>(_picker);
         Services.AddSingleton<IFileOpener>(_opener);
+        Services.AddSingleton<IWindowManager>(_wm);
         Services.AddI18n();
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized(role.ToLowerInvariant() + "-user");
@@ -189,6 +192,32 @@ public sealed class IqcDocumentGridTests : TestContext
     // ── LUẬT 2: người sửa cuối do SERVER đóng dấu ────────────────────────
 
     [Fact]
+    public void Cot_nguoi_sua_cuoi_hien_TEN_NGUOI_chu_khong_hien_ten_dang_nhap()
+    {
+        Wire();
+        var d = Doc(1, "TDS", by: "admin");
+        d.LastModifiedByDisplay = "Đặng Thế Thiệp";
+        Seed(d);
+        var cut = Render();
+
+        var cell = cut.Find("[data-testid=iqc-doc-by-1]").TextContent;
+        Assert.Contains("Đặng Thế Thiệp", cell);
+        Assert.DoesNotContain("admin", cell);
+    }
+
+    [Fact]
+    public void Thieu_ten_hien_thi_thi_lui_ve_ten_dang_nhap_chu_khong_bo_trong()
+    {
+        Wire();
+        // Tài khoản đã xoá / chưa khai tên. Bỏ trống ô này = mất dấu người làm,
+        // tệ hơn hẳn việc hiện một cái tên xấu.
+        Seed(Doc(1, "TDS", by: "tran.bich.ngoc"));
+        var cut = Render();
+
+        Assert.Contains("tran.bich.ngoc", cut.Find("[data-testid=iqc-doc-by-1]").TextContent);
+    }
+
+    [Fact]
     public void Nguoi_sua_cuoi_la_o_CHI_DOC_lay_tu_server()
     {
         Wire();
@@ -196,7 +225,6 @@ public sealed class IqcDocumentGridTests : TestContext
         var cut = Render();
 
         var cell = cut.Find("[data-testid=iqc-doc-by-1]");
-        Assert.Contains("tran.bich.ngoc", cell.TextContent);
         // Không được có ô nhập trong ô này: client tự khai người sửa thì cột
         // đó thành lời khai, không còn là bằng chứng.
         Assert.Empty(cell.QuerySelectorAll("input"));
@@ -270,7 +298,7 @@ public sealed class IqcDocumentGridTests : TestContext
     // ── LUẬT 4: nháy đúp ô Tài liệu = mở file ────────────────────────────
 
     [Fact]
-    public void Nhay_dup_o_tai_lieu_tai_ve_sandbox_roi_mo()
+    public void Nhay_dup_mo_cua_so_NGANG_HANG_qua_WindowManager()
     {
         Wire();
         Seed(Doc(1, "TDS", file: "336T-AT1_TDS.pdf"));
@@ -279,38 +307,79 @@ public sealed class IqcDocumentGridTests : TestContext
         cut.Find("[data-testid=iqc-doc-name-1]").DoubleClick();
 
         var dl = Assert.Single(_api.DownloadIqcDocumentCalls);
-        Assert.Equal(1, dl.Id);
-        // Phải nằm trong thư mục sandbox — Launcher của Catalyst từ chối IM
-        // LẶNG mọi đường dẫn ngoài container.
+        // Bản xem đọc từ sandbox, và Launcher của Catalyst cũng chỉ nhận đường
+        // dẫn trong container — một chỗ tải phục vụ cả hai.
         Assert.StartsWith(_opener.GetSafeDownloadDirectory(), dl.Destination);
-        // Và phải giữ đuôi .pdf, nếu không QuickLook không biết mở bằng gì.
-        Assert.EndsWith(".pdf", dl.Destination);
-        Assert.Equal(dl.Destination, _opener.Opened.Single());
+
+        // Cửa sổ phải do WindowManager sở hữu. Dựng FloatingWindow ngay trong
+        // lưới là lồng cửa sổ trong cửa sổ: kéo không được, nút đóng bị đẩy ra
+        // ngoài mép cha. Đây là fixture khoá đúng chuyện đó.
+        var win = Assert.Single(_wm.Windows);
+        Assert.Equal(WindowRegistryKeys.IqcDocViewKeyPrefix + $"{Code}/TDS", win.Key);
+        Assert.Equal(typeof(IqcDocumentViewerWindow), win.ContentType);
+        Assert.Equal(dl.Destination, win.Parameters!["LocalPath"]);
+        Assert.Equal("336T-AT1_TDS.pdf", win.Parameters!["FileName"]);
+
+        // ...và KHÔNG bung ra app ngoài.
+        Assert.Empty(_opener.Opened);
     }
 
     [Fact]
-    public void Nhay_dup_dong_chua_co_file_thi_khong_tai_gi_ca()
+    public void Mo_lai_cung_to_giay_thi_FOCUS_cua_so_cu_chu_khong_xep_chong()
     {
         Wire();
-        Seed(Doc(1, "TDS"));
+        Seed(Doc(1, "TDS", file: "336T-AT1_TDS.pdf"));
         var cut = Render();
 
         cut.Find("[data-testid=iqc-doc-name-1]").DoubleClick();
+        cut.Find("[data-testid=iqc-doc-name-1]").DoubleClick();
 
-        Assert.Empty(_api.DownloadIqcDocumentCalls);
-        Assert.Empty(_opener.Opened);
-        Assert.NotNull(cut.Find("[data-testid=iqc-doc-notice]"));
+        Assert.Single(_wm.Windows);
     }
 
     [Fact]
-    public void Mo_that_bai_thi_bao_cho_lu_u_chu_khong_im_lang()
+    public void Hai_loai_giay_khac_nhau_thi_hai_cua_so_rieng()
+    {
+        Wire();
+        Seed(Doc(1, "TDS", file: "336T-AT1_TDS.pdf"),
+             Doc(2, "MSDS", file: "336T-AT1_MSDS.pdf"));
+        var cut = Render();
+
+        cut.Find("[data-testid=iqc-doc-name-1]").DoubleClick();
+        cut.Find("[data-testid=iqc-doc-name-2]").DoubleClick();
+
+        Assert.Equal(2, _wm.Windows.Count);
+        Assert.Equal(2, _wm.Windows.Select(w => w.Key).Distinct().Count());
+    }
+
+    [Fact]
+    public void Menu_co_duong_di_THANG_sang_Acrobat_cho_ai_quen_dung()
+    {
+        Wire();
+        Seed(Doc(1, "TDS", file: "336T-AT1_TDS.pdf"));
+        var cut = Render();
+
+        cut.Find("[data-testid=iqc-doc-row-1]").ContextMenu();
+        cut.FindAll(".row-ctx-menu button")
+            .Single(b => b.TextContent.Contains("Mở bằng app ngoài")).Click();
+
+        Assert.Single(_api.DownloadIqcDocumentCalls);
+        Assert.Single(_opener.Opened);
+        // Đi thẳng ⇒ KHÔNG dựng cửa sổ xem trước.
+        Assert.Empty(_wm.Windows);
+    }
+
+    [Fact]
+    public void Mo_bang_app_ngoai_that_bai_thi_bao_cho_luu_chu_khong_im_lang()
     {
         Wire();
         Seed(Doc(1, "TDS", file: "336T-AT1_TDS.pdf"));
         _opener.CanOpen = false;   // Windows / host test: không có app xử lý
         var cut = Render();
 
-        cut.Find("[data-testid=iqc-doc-name-1]").DoubleClick();
+        cut.Find("[data-testid=iqc-doc-row-1]").ContextMenu();
+        cut.FindAll(".row-ctx-menu button")
+            .Single(b => b.TextContent.Contains("Mở bằng app ngoài")).Click();
 
         Assert.Contains(_opener.GetSafeDownloadDirectory(),
             cut.Find("[data-testid=iqc-doc-notice]").TextContent);

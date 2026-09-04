@@ -1,0 +1,25 @@
+@namespace CCL.MES.Hybrid.Razor.Shared.Iqc
+
+@*
+    P12 bước 4b — THÂN cửa sổ WindowManager cho trình xem PDF hồ sơ HSF.
+
+    Host WM (MainLayout .window-layer) đã bọc sẵn một <FloatingWindow> dùng
+    chung (kéo / resize / đèn giao thông / nhớ vị trí theo key), nên ở đây CHỈ
+    render thân — bọc thêm lần nữa là double-wrap.
+
+    Đây chính là chỗ bản đầu tiên sai: viewer tự dựng <FloatingWindow> từ bên
+    TRONG form thanh tra, mà form đó bản thân đã là một window WM. Cửa sổ lồng
+    trong cửa sổ thì kéo không được (JS kéo bám lớp window-layer) và nút đóng
+    bị đẩy ra ngoài mép cha nên bấm không tới. Mirror MaterialsInspectionWindow.
+*@
+
+<IqcDocumentViewer Chrome="false"
+                   LocalPath="@LocalPath"
+                   FileName="@FileName"
+                   Subtitle="@Subtitle" />
+
+@code {
+    [Parameter] public string LocalPath { get; set; } = "";
+    [Parameter] public string FileName { get; set; } = "";
+    [Parameter] public string? Subtitle { get; set; }
+}

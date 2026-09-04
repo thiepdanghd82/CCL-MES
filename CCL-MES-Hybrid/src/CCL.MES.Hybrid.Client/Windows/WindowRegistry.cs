@@ -235,6 +235,15 @@ public static class WindowRegistryKeys
     /// "New Ticket → Materials" tap opens an independent create window.</summary>
     public const string IqcNewKeyPrefix = "iqc-new:";
 
+    /// <summary>Window-key prefix for the HSF document PDF viewer
+    /// (<c>iqc-doc:{mã mẹ}/{LOẠI}</c>). Một cửa sổ cho mỗi tờ giấy → mở lại
+    /// cùng tờ thì FOCUS cửa sổ cũ chứ không xếp chồng bản sao.
+    ///
+    /// <para>Nó phải là window WM NGANG HÀNG chứ không nằm trong form thanh
+    /// tra: FloatingWindow lồng trong body của FloatingWindow khác thì không
+    /// kéo được và nút đóng bị đẩy ra ngoài mép cha.</para></summary>
+    public const string IqcDocViewKeyPrefix = "iqc-doc:";
+
     /// <summary>i18n title keys the host should register alongside each type.
     /// (String constants only — the actual VI/EN strings live in the
     /// TranslationCatalog / SharedResource, added by the UX/i18n agent.)</summary>

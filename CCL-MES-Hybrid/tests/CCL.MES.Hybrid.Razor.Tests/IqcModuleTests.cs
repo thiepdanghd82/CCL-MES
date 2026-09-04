@@ -362,6 +362,8 @@ public sealed class IqcModuleTests : TestContext
         _session.SetUser(role.ToLowerInvariant() + "-user", role);
         Services.AddSingleton<ICclApiClient>(_api);
         Services.AddSingleton<IAuthSession>(_session);
+        // Bảng hồ sơ HSF ở bước 1 mở trình xem PDF qua WindowManager.
+        Services.AddSingleton<IWindowManager>(_wm);
         // P12 bước 4 — bảng hồ sơ HSF ở bước 1 tiêm IFilePickerService + IFileOpener.
         Services.AddSingleton<IFilePickerService>(new StubFilePickerService());
         Services.AddSingleton<IFileOpener>(new StubFileOpener());
