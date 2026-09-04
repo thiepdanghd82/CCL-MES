@@ -58,6 +58,19 @@ public interface IWindowManager
 
     /// <summary>Raised after any mutation so the host can re-render.</summary>
     event Action? Changed;
+
+    /// <summary>
+    /// Bắn RIÊNG khi <see cref="Open"/> đưa một cửa sổ ra trước — cả lúc tạo
+    /// mới lẫn lúc dedupe focus lại cửa sổ đã mở.
+    ///
+    /// <para>Vì sao không dùng chung <see cref="Changed"/>: <c>Changed</c> bắn
+    /// cho MỌI thay đổi, kể cả Close và Minimize. Host cần biết "người dùng vừa
+    /// CHỦ Ý mở một thứ" để hiện lớp workspace ra — suy điều đó từ
+    /// <c>Changed</c> thì thu nhỏ một cửa sổ cũng bị hiểu thành mở, và đóng cửa
+    /// sổ cuối cũng vậy. Ý ĐỊNH phải được phát ra tường minh, đừng bắt người
+    /// đọc sau đoán từ đếm số.</para>
+    /// </summary>
+    event Action<OpenWindow>? Opened;
 }
 
 /// <inheritdoc />
@@ -77,6 +90,7 @@ public sealed class WindowManager : IWindowManager
     public int SoftCap { get; } = DefaultSoftCap;
 
     public event Action? Changed;
+    public event Action<OpenWindow>? Opened;
 
     public OpenWindow? Open(string key, string title, string? icon, Type contentType,
         IReadOnlyDictionary<string, object>? parameters = null)
@@ -100,6 +114,7 @@ public sealed class WindowManager : IWindowManager
             }
             FocusInternal(existing);
             Changed?.Invoke();
+            Opened?.Invoke(existing);
             return existing;
         }
 
@@ -122,6 +137,7 @@ public sealed class WindowManager : IWindowManager
         _windows.Add(window);
         FocusInternal(window);
         Changed?.Invoke();
+        Opened?.Invoke(window);
         return window;
     }
 

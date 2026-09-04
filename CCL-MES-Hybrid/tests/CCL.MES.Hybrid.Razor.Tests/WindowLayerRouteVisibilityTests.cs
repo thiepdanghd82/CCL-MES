@@ -102,6 +102,68 @@ public sealed class WindowLayerRouteVisibilityTests : TestContext
 
     // (b-2) Home "/" is also a full-page route → layer hidden + @Body renders.
     [Fact]
+    public void Mo_cua_so_TU_trang_full_page_thi_HIEN_lop_ra_ngay()
+    {
+        // Lỗi Henry báo 2026-09-04: ở IQC Data (/qms/iqc) bấm Open / nháy đúp
+        // một phiếu thì "không có gì hiện lên", phải đi tìm thẻ thu nhỏ ở góc
+        // trái dưới rồi bấm mới thấy. Cửa sổ VẪN được tạo và focus đúng — nó
+        // nằm trong .window-layer.is-hidden vì luật cũ ẩn cả lớp trên mọi route
+        // full-page. Luật đó đúng cho cửa sổ CÒN SÓT từ lượt trước, sai cho cửa
+        // sổ người dùng VỪA BẤM MỞ.
+        NavTo("/qms/iqc");
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("iqc")));
+        Assert.Contains("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
+
+        // Trang IQC mở phiếu qua WM.Open — đúng đường IqcModule.OpenInspection đi.
+        cut.InvokeAsync(() => _wm.Open(
+            "ticket:IQC-260828-0001", "IQC-260828-0001", "🔬", typeof(WorkspaceHome)));
+
+        Assert.DoesNotContain("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
+        Assert.Single(_wm.Windows);
+    }
+
+    [Fact]
+    public void Mo_LAI_phieu_da_mo_cung_hien_lop_ra_chu_khong_im_lang()
+    {
+        // Dedupe: cửa sổ đã mở sẵn nhưng đang bị ẩn cùng cả lớp. Bấm Open lần
+        // nữa mà không hiện ra thì người dùng tưởng nút hỏng.
+        NavTo("/qms/iqc");
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("iqc")));
+        cut.InvokeAsync(() => _wm.Open("ticket:T1", "T1", "🔬", typeof(WorkspaceHome)));
+
+        // Rời sang trang full-page khác → lớp ẩn lại, cửa sổ vẫn còn (keep-alive).
+        NavTo("/");
+        cut.Render();
+        Assert.Contains("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
+
+        cut.InvokeAsync(() => _wm.Open("ticket:T1", "T1", "🔬", typeof(WorkspaceHome)));
+
+        Assert.DoesNotContain("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
+        Assert.Single(_wm.Windows);   // dedupe, KHÔNG đẻ cửa sổ thứ hai
+    }
+
+    [Fact]
+    public void Thu_nho_hoac_dong_KHONG_lam_lop_hien_len()
+    {
+        // Ranh giới của bản vá: chỉ Ý ĐỊNH MỞ mới hiện lớp. Nếu suy từ event
+        // Changed chung thì thu nhỏ / đóng cũng bị hiểu thành mở, và lớp sẽ
+        // bật lên che trang mỗi lần dọn cửa sổ.
+        NavTo("/qms/iqc");
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("iqc")));
+        var w = _wm.Open("ticket:T2", "T2", "🔬", typeof(WorkspaceHome))!;
+
+        NavTo("/");
+        cut.Render();
+        Assert.Contains("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
+
+        cut.InvokeAsync(() => _wm.Minimize(w.Id));
+        Assert.Contains("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
+
+        cut.InvokeAsync(() => _wm.Close(w.Id));
+        Assert.Contains("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
+    }
+
+    [Fact]
     public void Full_page_route_root_home_hides_window_layer_and_renders_body()
     {
         NavTo("/");
