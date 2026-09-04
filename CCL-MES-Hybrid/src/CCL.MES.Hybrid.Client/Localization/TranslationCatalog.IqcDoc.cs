@@ -61,6 +61,12 @@ public sealed partial class TranslationCatalog
         Add("iqc.doc.viewer.rotate",   "Xoay 90°",                                 "Rotate 90°");
         Add("iqc.doc.viewer.reset",    "Về mặc định",                              "Reset view");
         Add("iqc.doc.viewer.external", "Mở bằng app ngoài (Acrobat)",              "Open in external app (Acrobat)");
+        Add("iqc.doc.viewer.save",     "Lưu về máy…",                              "Save to my computer…");
+        Add("iqc.doc.viewer.saved",    "Đã lưu về {0}",                            "Saved to {0}");
+        Add("iqc.doc.viewer.nohandler","Máy này chưa có app nào mở PDF — dùng bản xem trong app, hoặc bấm \"Lưu về máy…\".",
+                                                                                   "No app on this machine opens PDFs — use the in-app preview, or click \"Save to my computer…\".");
+        Add("iqc.doc.viewer.maxwins",  "Đang mở tối đa {0} cửa sổ. Đóng bớt rồi mở lại.",
+                                                                                   "Maximum {0} windows are open. Close one and try again.");
         Add("iqc.doc.viewer.missing",  "Không tìm thấy bản đã tải về. Thử mở lại.",
                                                                                    "The downloaded copy is missing. Try opening it again.");
         Add("iqc.doc.viewer.failed",   "Không dựng được bản xem trước. Dùng \"Mở bằng app ngoài\".",

@@ -7,6 +7,7 @@
 @inject ICclApiClient Api
 @inject IFilePickerService FilePicker
 @inject IFileOpener FileOpener
+@inject CCL.MES.Hybrid.Client.Windows.IWindowManager WM
 
 @*
     P12 bước 4 — bảng hồ sơ HSF (TDS · MSDS · RoHS · REACH · ISO 9001) của MỘT
@@ -185,16 +186,6 @@
     }
 </section>
 
-@if (_viewPath is not null)
-{
-    @* Xem NGAY TRONG APP. Cửa sổ nổi chứ không overlay: người dùng đang đọc số
-       hiệu trên tờ giấy để gõ vào chính bảng phía sau. *@
-    <IqcDocumentViewer LocalPath="@_viewPath" FileName="@(_viewName ?? "")"
-                       Subtitle="@MaterialCode"
-                       WindowId="@($"iqcdoc-{MaterialCode}-{_viewId}")"
-                       OnClose="CloseViewer" />
-}
-
 <RowContextMenu Open="_menuRow is not null" Anchor="_menuAnchor" Items="_menuItems"
                 AriaLabel="@T("iqc.doc.menu.aria", _menuRow?.Label ?? "")" OnClose="CloseMenu" />
 
@@ -241,9 +232,6 @@
     private string? _notice, _error;
     private string _newType = "", _newLabel = "";
     private string? _loadedFor;
-
-    private string? _viewPath, _viewName;
-    private long _viewId;
 
     private Row? _menuRow;
     private (double X, double Y) _menuAnchor;
@@ -412,9 +400,23 @@
                 return;
             }
 
-            _viewPath = dest;
-            _viewName = r.FileName;
-            _viewId = r.Id;
+            // Mở qua WindowManager: cửa sổ NGANG HÀNG với form thanh tra, KHÔNG
+            // lồng bên trong nó. Bản đầu tiên dựng FloatingWindow ngay tại đây
+            // và hậu quả là cửa sổ không kéo được, nút đóng bị đẩy ra ngoài mép
+            // cửa sổ cha nên bấm không tới.
+            // Key theo <mã mẹ>/<LOẠI> ⇒ mở lại cùng tờ thì FOCUS cửa sổ cũ.
+            var key = CCL.MES.Hybrid.Client.Windows.WindowRegistryKeys.IqcDocViewKeyPrefix
+                    + $"{MaterialCode}/{r.DocType}";
+            var win = WM.Open(key, r.FileName!, "📄",
+                typeof(IqcDocumentViewerWindow),
+                new Dictionary<string, object>
+                {
+                    ["LocalPath"] = dest,
+                    ["FileName"] = r.FileName!,
+                    ["Subtitle"] = MaterialCode ?? "",
+                });
+
+            if (win is null) _notice = T("iqc.doc.viewer.maxwins", WM.SoftCap);
         }
         catch (Exception ex) { _error = Describe(ex); }
         finally { _busyId = 0; StateHasChanged(); }
@@ -487,7 +489,6 @@
 
     private void CloseMenu() => _menuRow = null;
 
-    private void CloseViewer() { _viewPath = null; _viewName = null; }
 
     private void LongPressStart(Row r, PointerEventArgs e)
     {

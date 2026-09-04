@@ -4,6 +4,7 @@
 @using CCL.MES.Hybrid.Client.Windows
 @inject IJSRuntime JS
 @inject IFileOpener FileOpener
+@inject IFileSaver FileSaver
 
 @*
     P12 bước 4b — xem PDF hồ sơ HSF NGAY TRONG APP.
@@ -22,13 +23,28 @@
     bằng app ngoài" không tốn thêm vòng mạng nào.
 *@
 
-<FloatingWindow Title="@FileName" Subtitle="@Subtitle"
-                AriaLabel="@T("iqc.doc.viewer.aria", FileName)"
-                WindowId="@WindowId" Rect="Rect" CascadeIndex="CascadeIndex"
-                MinWidth="520" MinHeight="420"
-                OnClose="CloseAsync" OnRectChanged="OnRectChanged">
-    <HeaderExtra>
-        <div class="dwg-viewer-tools" role="group" aria-label="@T("iqc.doc.viewer.controls")">
+@if (Chrome)
+{
+    @* Đường standalone (caller nào còn tự-host). Khi WM host thì Chrome=false. *@
+    <FloatingWindow Title="@FileName" Subtitle="@Subtitle"
+                    AriaLabel="@T("iqc.doc.viewer.aria", FileName)"
+                    WindowId="@WindowId" Rect="Rect" CascadeIndex="CascadeIndex"
+                    MinWidth="520" MinHeight="420"
+                    OnClose="OnClose" OnRectChanged="OnRectChanged">
+        <ChildContent>@Body</ChildContent>
+    </FloatingWindow>
+}
+else
+{
+    @Body
+}
+
+@code {
+    /// <summary>Thân cửa sổ. Thanh công cụ nằm TRONG thân chứ không ở
+    /// HeaderExtra: khi WM host, chrome thuộc về host — thân không với tới
+    /// được thanh tiêu đề của nó.</summary>
+    private RenderFragment Body => @<div class="iqc-docview">
+        <div class="iqc-docview-bar" role="group" aria-label="@T("iqc.doc.viewer.controls")">
             <button type="button" class="dwg-viewer-btn" data-fw-nodrag
                     data-testid="iqc-docview-zoomout"
                     title="@T("iqc.doc.viewer.zoomout")" @onclick="ZoomOut">−</button>
@@ -42,12 +58,17 @@
             <button type="button" class="dwg-viewer-btn" data-fw-nodrag
                     data-testid="iqc-docview-reset"
                     title="@T("iqc.doc.viewer.reset")" @onclick="ResetView">⤢</button>
+
+            <span class="iqc-docview-bar-gap"></span>
+
+            <button type="button" class="dwg-viewer-btn" data-fw-nodrag
+                    data-testid="iqc-docview-save"
+                    title="@T("iqc.doc.viewer.save")" @onclick="SaveAsAsync">⤓</button>
             <button type="button" class="dwg-viewer-btn" data-fw-nodrag
                     data-testid="iqc-docview-external"
                     title="@T("iqc.doc.viewer.external")" @onclick="OpenExternalAsync">↗</button>
         </div>
-    </HeaderExtra>
-    <ChildContent>
+
         <div class="iqc-docview-body">
             @if (_error is not null)
             {
@@ -64,10 +85,18 @@
                 </div>
             }
         </div>
-    </ChildContent>
-</FloatingWindow>
 
-@code {
+        @if (_notice is not null)
+        {
+            <p class="iqc-docview-notice" data-testid="iqc-docview-notice">@_notice</p>
+        }
+    </div>;
+
+
+    /// <summary>true = tự bọc FloatingWindow (đường standalone). false = WM
+    /// host đã bọc rồi, chỉ render thân.</summary>
+    [Parameter] public bool Chrome { get; set; } = true;
+
     /// <summary>Đường dẫn TUYỆT ĐỐI của bản đã tải về sandbox. Caller tải trước
     /// (nó cũng cần file đó cho đường mở bằng app ngoài) — viewer không tự gọi
     /// mạng, nên mở lại cửa sổ không tốn thêm vòng nào.</summary>
@@ -92,6 +121,7 @@
     private string HostId => $"iqc-docview-{WindowId}";
     private string? _objectUrl;
     private string? _error;
+    private string? _notice;
     private double _zoom = 1.0;
     private int _rot;
     private bool _dirty;
@@ -160,8 +190,27 @@
     {
         try
         {
+            _notice = null;
             if (!await FileOpener.TryOpenAsync(LocalPath))
-                _error = T("iqc.doc.saved.only", LocalPath);
+                _notice = T("iqc.doc.viewer.nohandler");
+        }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+    }
+
+    /// <summary>Lưu ra chỗ người dùng chọn. Không có nút này thì tờ giấy chỉ
+    /// nằm trong sandbox của app — đường dẫn mà người dùng bình thường không
+    /// mò tới được, nên "gửi MSDS cho khách" là bất khả thi.</summary>
+    private async Task SaveAsAsync()
+    {
+        _error = null; _notice = null;
+        try
+        {
+            var r = await FileSaver.SaveAsync(LocalPath, FileName);
+            if (r.Saved && r.DestinationPath is { Length: > 0 } dest)
+                _notice = T("iqc.doc.viewer.saved", dest);
+            else if (r.Error is { Length: > 0 } err)
+                _error = err;
+            // Huỷ hộp thoại KHÔNG phải lỗi — im lặng là đúng.
         }
         catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
     }

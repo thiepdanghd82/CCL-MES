@@ -3,6 +3,7 @@ using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client;
 using CCL.MES.Hybrid.Client.Auth;
 using CCL.MES.Hybrid.Client.Files;
+using CCL.MES.Hybrid.Client.Windows;
 using CCL.MES.Hybrid.Razor.Shared.Iqc;
 using CCL.MES.Hybrid.Razor.Tests._Support;
 using CCL.MES.Shared.Envelopes;
@@ -30,6 +31,7 @@ public sealed class IqcDocumentGridTests : TestContext
     private readonly StubAuthSession _session = new();
     private readonly RecordingFileOpener _opener = new();
     private readonly ScriptedFilePicker _picker = new();
+    private readonly WindowManager _wm = new();
 
     private const string Code = "336T-AT1";
 
@@ -40,6 +42,7 @@ public sealed class IqcDocumentGridTests : TestContext
         Services.AddSingleton<IAuthSession>(_session);
         Services.AddSingleton<IFilePickerService>(_picker);
         Services.AddSingleton<IFileOpener>(_opener);
+        Services.AddSingleton<IWindowManager>(_wm);
         Services.AddI18n();
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized(role.ToLowerInvariant() + "-user");
@@ -270,78 +273,58 @@ public sealed class IqcDocumentGridTests : TestContext
     // ── LUẬT 4: nháy đúp ô Tài liệu = mở file ────────────────────────────
 
     [Fact]
-    public void Nhay_dup_mo_CUA_SO_XEM_trong_app_chu_khong_bung_ra_Acrobat()
+    public void Nhay_dup_mo_cua_so_NGANG_HANG_qua_WindowManager()
     {
         Wire();
         Seed(Doc(1, "TDS", file: "336T-AT1_TDS.pdf"));
-        JSInterop.Setup<string>("cclMesDrawings.toObjectUrl", _ => true).SetResult("blob:fake");
         var cut = Render();
 
         cut.Find("[data-testid=iqc-doc-name-1]").DoubleClick();
 
         var dl = Assert.Single(_api.DownloadIqcDocumentCalls);
-        Assert.Equal(1, dl.Id);
-        // Phải nằm trong sandbox — Launcher của Catalyst từ chối IM LẶNG mọi
-        // đường dẫn ngoài container, và bản xem trước cũng đọc từ đó.
+        // Bản xem đọc từ sandbox, và Launcher của Catalyst cũng chỉ nhận đường
+        // dẫn trong container — một chỗ tải phục vụ cả hai.
         Assert.StartsWith(_opener.GetSafeDownloadDirectory(), dl.Destination);
-        Assert.EndsWith(".pdf", dl.Destination);
 
-        // Cửa sổ xem hiện lên. WaitForElement chứ không Find: viewer đọc file
-        // rồi mới dựng blob nên host chỉ có sau vài vòng render — Find() ngay
-        // là đọc DOM giữa chừng, và nó chỉ đỏ khi máy bận (chạy cả bộ test).
-        cut.WaitForElement("[data-testid=iqc-docview-host]");
-        // ...và KHÔNG bung ra app ngoài. Người dùng đang đọc số hiệu để gõ vào
-        // bảng phía sau; nhảy sang Acrobat là che mất chính chỗ họ đang gõ.
+        // Cửa sổ phải do WindowManager sở hữu. Dựng FloatingWindow ngay trong
+        // lưới là lồng cửa sổ trong cửa sổ: kéo không được, nút đóng bị đẩy ra
+        // ngoài mép cha. Đây là fixture khoá đúng chuyện đó.
+        var win = Assert.Single(_wm.Windows);
+        Assert.Equal(WindowRegistryKeys.IqcDocViewKeyPrefix + $"{Code}/TDS", win.Key);
+        Assert.Equal(typeof(IqcDocumentViewerWindow), win.ContentType);
+        Assert.Equal(dl.Destination, win.Parameters!["LocalPath"]);
+        Assert.Equal("336T-AT1_TDS.pdf", win.Parameters!["FileName"]);
+
+        // ...và KHÔNG bung ra app ngoài.
         Assert.Empty(_opener.Opened);
     }
 
     [Fact]
-    public void Nhay_dup_dong_chua_co_file_thi_khong_tai_gi_ca()
-    {
-        Wire();
-        Seed(Doc(1, "TDS"));
-        var cut = Render();
-
-        cut.Find("[data-testid=iqc-doc-name-1]").DoubleClick();
-
-        Assert.Empty(_api.DownloadIqcDocumentCalls);
-        Assert.Empty(cut.FindAll("[data-testid=iqc-docview-host]"));
-        Assert.NotNull(cut.Find("[data-testid=iqc-doc-notice]"));
-    }
-
-    [Fact]
-    public void Cua_so_xem_co_nut_zoom_xoay_va_mo_bang_app_ngoai()
+    public void Mo_lai_cung_to_giay_thi_FOCUS_cua_so_cu_chu_khong_xep_chong()
     {
         Wire();
         Seed(Doc(1, "TDS", file: "336T-AT1_TDS.pdf"));
-        JSInterop.Setup<string>("cclMesDrawings.toObjectUrl", _ => true).SetResult("blob:fake");
         var cut = Render();
+
         cut.Find("[data-testid=iqc-doc-name-1]").DoubleClick();
-        cut.WaitForElement("[data-testid=iqc-docview-host]");
+        cut.Find("[data-testid=iqc-doc-name-1]").DoubleClick();
 
-        Assert.Equal("100%", cut.Find("[data-testid=iqc-docview-zoom]").TextContent);
-        cut.Find("[data-testid=iqc-docview-zoomin]").Click();
-        Assert.Equal("125%", cut.Find("[data-testid=iqc-docview-zoom]").TextContent);
-
-        cut.Find("[data-testid=iqc-docview-external]").Click();
-        Assert.Single(_opener.Opened);
+        Assert.Single(_wm.Windows);
     }
 
     [Fact]
-    public void File_qua_lon_thi_khong_dung_xem_truoc_ma_chi_duong_sang_app_ngoai()
+    public void Hai_loai_giay_khac_nhau_thi_hai_cua_so_rieng()
     {
         Wire();
-        Seed(Doc(1, "TDS", file: "336T-AT1_TDS.pdf"));
-        // 13 MB — trên ngưỡng 12 MB. base64 qua cầu JS phình ~4/3 và nằm trọn
-        // trong RAM webview; quá ngưỡng thì Acrobat mở nhanh hơn nhiều.
-        _api.IqcDocumentDownloadSize = 13L * 1024 * 1024;
+        Seed(Doc(1, "TDS", file: "336T-AT1_TDS.pdf"),
+             Doc(2, "MSDS", file: "336T-AT1_MSDS.pdf"));
         var cut = Render();
 
         cut.Find("[data-testid=iqc-doc-name-1]").DoubleClick();
+        cut.Find("[data-testid=iqc-doc-name-2]").DoubleClick();
 
-        var msg = cut.WaitForElement("[data-testid=iqc-docview-error]").TextContent;
-        Assert.Contains("13", msg);
-        Assert.Empty(cut.FindAll("[data-testid=iqc-docview-host]"));
+        Assert.Equal(2, _wm.Windows.Count);
+        Assert.Equal(2, _wm.Windows.Select(w => w.Key).Distinct().Count());
     }
 
     [Fact]
@@ -358,7 +341,7 @@ public sealed class IqcDocumentGridTests : TestContext
         Assert.Single(_api.DownloadIqcDocumentCalls);
         Assert.Single(_opener.Opened);
         // Đi thẳng ⇒ KHÔNG dựng cửa sổ xem trước.
-        Assert.Empty(cut.FindAll("[data-testid=iqc-docview-host]"));
+        Assert.Empty(_wm.Windows);
     }
 
     [Fact]
