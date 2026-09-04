@@ -62,6 +62,25 @@ public class IqcInspection : BaseEntity
     // ── Inspection ──────────────────────────────────────────────
     public string? InspectorId { get; set; }
     public int SampleSize { get; set; }
+
+    // ── P13 — CỠ MẪU: máy đề xuất, người quyết, và luôn thấy được cả hai ──
+
+    /// <summary>Cỡ lô dùng để tra bảng lấy mẫu (số cuộn · số tấm · số can ·
+    /// số cái). KHÁC <see cref="Quantity"/> vốn là lượng nhập theo đơn vị
+    /// thương mại (m², mét dài, kg) — tra bảng AQL bằng số mét là ra cỡ mẫu vô
+    /// nghĩa. <c>null</c> = phiếu cũ, chưa ai khai.</summary>
+    public long? LotQty { get; set; }
+
+    /// <summary>Cỡ mẫu máy ĐỀ XUẤT tại thời điểm mở phiếu, đóng băng lại.
+    /// Không tính lại lúc đọc: bảng lấy mẫu có thể đổi, và khi đó phiếu cũ phải
+    /// vẫn nói đúng điều đã xảy ra hôm đó.</summary>
+    public int? SampleSizeSuggested { get; set; }
+
+    /// <summary>Lý do QC đổi khác đề xuất. Henry chốt 2026-09-04: <b>mọi</b>
+    /// thay đổi đều phải ghi lý do — kể cả khi lấy NHIỀU hơn (siết chặt), vì
+    /// một hồ sơ chất lượng không được có con số nào không giải thích được.
+    /// <c>null</c> khi QC giữ nguyên đề xuất.</summary>
+    [MaxLength(512)] public string? SampleSizeOverrideReason { get; set; }
     public QcResult Result { get; set; } = QcResult.Pending;
     public string? ApprovedBy { get; set; }
     public DateTime? ApprovedAt { get; set; }
@@ -130,6 +149,42 @@ public class IqcResultDetail : BaseEntity
 
     public string? DefectCode { get; set; }
     public int Qty { get; set; }
+
+    // ── P13 — ĐẾM LỖI + dấu vết máy chấm / người đổi ─────────────────────
+
+    /// <summary>Số lỗi đếm được, cho hạng mục kiểu <c>DefectCount</c>.
+    /// <c>null</c> = CHƯA ĐẾM — khác hẳn 0 (đã đếm, không có lỗi nào). Ép
+    /// chưa-đếm về 0 là tuyên bố lô đạt thay cho người chưa làm việc (L67).</summary>
+    public int? DefectCount { get; set; }
+
+    /// <summary>Kết luận MÁY chấm: <c>Pass</c> · <c>Fail</c> · <c>Undecidable</c>.
+    /// Đóng băng lại kể cả khi người đổi khác — auditor phải trả lời được "máy
+    /// nói gì, ai đổi, vì sao".</summary>
+    [MaxLength(16)] public string? AutoVerdict { get; set; }
+
+    /// <summary>Mã lý do máy đưa ra kết luận đó (<c>iqc.judge.defect_found</c>,
+    /// <c>iqc.judge.above_up</c>…). Mã chứ không phải câu đã dịch: câu dịch đổi
+    /// theo ngôn ngữ và theo thời gian, mã thì không.</summary>
+    [MaxLength(64)] public string? AutoVerdictReason { get; set; }
+
+    /// <summary>Vị trí phép đo / ô đếm làm trượt (1-based). Không có nó thì
+    /// người kiểm phải tự dò lại 5 con số để biết cái nào sai.</summary>
+    public int? AutoVerdictOffendingSeq { get; set; }
+
+    /// <summary>Lý do người đổi khác kết luận của máy. BẮT BUỘC khi
+    /// <see cref="Pass"/> khác <see cref="AutoVerdict"/> (Henry chốt
+    /// 2026-09-04: máy chấm là RÀNG BUỘC, đổi phải ghi lý do).</summary>
+    [MaxLength(512)] public string? OverrideReason { get; set; }
+
+    /// <summary>Ai đổi, lúc nào. Server đóng dấu theo token — client không khai
+    /// được, vì đây là bằng chứng chứ không phải lời khai.</summary>
+    [MaxLength(128)] public string? OverriddenBy { get; set; }
+    public DateTime? OverriddenAt { get; set; }
+
+    /// <summary>Vật liệu RÁCH trước khi bong keo — chỉ có nghĩa khi tiêu chuẩn
+    /// ghi "or tear". Người kiểm tick, và nó biến một trị dưới ngưỡng thành
+    /// ĐẠT, nên phải nằm trong hồ sơ chứ không chỉ trong đầu người kiểm.</summary>
+    public bool TearObserved { get; set; }
 
     // ── P12 — BẰNG CHỨNG ĐÓNG BĂNG lúc mở ticket ────────────────────────
     // Đóng băng cả hai ngôn ngữ ngay tại thời điểm tạo, đúng Nguyên tắc IV:

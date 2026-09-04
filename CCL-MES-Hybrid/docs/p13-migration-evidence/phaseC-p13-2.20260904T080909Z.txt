@@ -1,0 +1,11 @@
+# Phase C — áp lên LIVE + dọn dòng mồ côi
+utc_approved: 20260904T080909Z   (Henry: "áp Phase C đi, 3 dòng mồ côi thì xoá luôn")
+sha256_after_migration_and_cleanup: e8eba9ab4eeeb121762b6a92d1b45e749bbb671e8e097a4d92bd594a9016195c
+migrations: 48 -> 49
+enum sau migration: lib Any/Verdict x21 · spec Approved x459  (KHÔNG dòng nào rỗng)
+rowcount: mọi bảng GIỮ NGUYÊN so với Phase A, trừ:
+  IqcResultMeasurements  0    (bảng mới)
+  WoQcCheckItems        83->80 (xoá 3 dòng mồ côi, Henry duyệt)
+integrity_check: ok
+foreign_key_check: 3 -> 0
+nội dung 3 dòng đã xoá: orphan-cleanup-20260904T080909Z.txt

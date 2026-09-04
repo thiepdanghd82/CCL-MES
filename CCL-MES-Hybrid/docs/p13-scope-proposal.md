@@ -119,3 +119,26 @@ App có 21 hạng mục chung, mỗi hạng mục **một** ô `MeasuredValue` +
    Xác nhận đây là chủ ý.
 4. **65 dạng chuỗi (1 %) không đọc được** — nên sửa lại trong file master cho
    thống nhất, thay vì bắt bộ đọc chiều theo mọi cách gõ.
+
+---
+
+## 7. Nhật ký migration P13 bước 2
+
+`20260904075826_AddIqcP13SamplingAndLimits` — 26 cột + 1 bảng
+(`IqcResultMeasurements`), toàn bộ additive.
+
+| Phase | Kết quả |
+|---|---|
+| A | backup `data/Backup/SQLite/ccl_mes.db.before-p13-2.20260904T080909Z` · sha `3f69ee92…` · 48 migration · integrity ok |
+| B | trên **bản sao thật** của live — enum về đúng `Any/Verdict` + `Approved`, rowcount giữ nguyên, type-affinity 0 |
+| C | sha → `e8eba9ab…` · **48 → 49** migration · mọi rowcount khớp Phase A · integrity ok |
+
+Kèm theo (Henry duyệt cùng lúc): xoá **3 dòng `WoQcCheckItems` mồ côi** có từ
+2026-06-07 (`ItemKey=appearance`, `Status=Ok`, không mã lỗi NG — rác sót lại
+khi dọn dữ liệu test P10.7e, cha đã bị xoá mà con thì không).
+`foreign_key_check` **3 → 0**. Nội dung đầy đủ của ba dòng đã chép ra
+`p13-migration-evidence/orphan-cleanup-20260904T080909Z.txt` trước khi xoá.
+
+> Câu lệnh xoá dùng `WHERE WoQcCheckId NOT IN (SELECT Id FROM WoQcChecks)`
+> chứ KHÔNG dùng `Id IN (1,2,3)`: nếu chạy lại trên một DB khác, điều kiện
+> theo Id sẽ xoá nhầm ba dòng hoàn toàn khác.
