@@ -1,0 +1,14 @@
+# Phase C — import lên LIVE
+sha256_after: d3fe155bb6b3b1fcebcf6bf5cd4d50166ae8a499eb076153ac1b9e63b8c3e654
+specs:      459 -> 1131
+spec_items: 5961 -> 7192
+chờ QC duyệt: 672
+đánh dấu nguồn: 672
+integrity: ok
+foreign_key_check: 0 lỗi
+
+## Lệnh HOÀN TÁC chính xác (mọi dòng import đều mang ImportSource)
+DELETE FROM IqcSpecItems WHERE SpecNo IN (SELECT SpecNo FROM IqcMaterialSpecs WHERE ImportSource='iqc-report-2026');
+DELETE FROM IqcMaterialSpecs WHERE ImportSource='iqc-report-2026';
+-- Lưu ý: 348 spec ĐƯỢC LÀM GIÀU không mang ImportSource (chúng là spec cũ).
+-- Muốn lùi cả phần đó thì khôi phục từ backup Phase A.

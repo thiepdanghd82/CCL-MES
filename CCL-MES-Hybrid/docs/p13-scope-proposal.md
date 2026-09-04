@@ -96,8 +96,8 @@ App có 21 hạng mục chung, mỗi hạng mục **một** ô `MeasuredValue` +
 | Bước | Nội dung | Trạng thái |
 |---|---|---|
 | **13-1** | Bộ máy thuần: bảng AQL · bộ đọc tiêu chuẩn · luật chấp nhận | ✅ **XONG** — 71 test |
-| 13-2 | Domain + migration: `Category`/`Kind` cho thư viện · bảng đo lặp · ô đếm lỗi · giới hạn số · cờ duyệt spec | ⏳ |
-| 13-3 | Importer sheet `Raw` (1 028 mã) + `AQL`, idempotent, dry-run mặc định | ⏳ |
+| 13-2 | Domain + migration: `Category`/`Kind` cho thư viện · bảng đo lặp · ô đếm lỗi · giới hạn số · cờ duyệt spec | ✅ **XONG** — đã áp live |
+| 13-3 | Importer sheet `Raw` (1 028 mã), idempotent, dry-run mặc định | ✅ **XONG** — đã chạy lên live |
 | 13-4 | Service ghi: đề xuất cỡ mẫu · tự chấm · ghi đè-kèm-lý-do · audit | ⏳ |
 | 13-5 | Khối NG / claim (4 hình thức claim × 5 trạng thái) | ⏳ |
 | 13-6 | UI 4 nhóm: lưới đếm lỗi · lưới đo ×5 · băng cảnh báo spec chưa duyệt | ⏳ |
@@ -142,3 +142,41 @@ khi dọn dữ liệu test P10.7e, cha đã bị xoá mà con thì không).
 > Câu lệnh xoá dùng `WHERE WoQcCheckId NOT IN (SELECT Id FROM WoQcChecks)`
 > chứ KHÔNG dùng `Id IN (1,2,3)`: nếu chạy lại trên một DB khác, điều kiện
 > theo Id sẽ xoá nhầm ba dòng hoàn toàn khác.
+
+
+---
+
+## 8. Nhật ký import P13 bước 3 (20260904T082924Z)
+
+Công cụ: `scripts/IqcMasterImport` — mặc định chạy khô, `--commit` mới ghi.
+
+| | |
+|---|---|
+| Đọc | 2 319 dòng · **1 028 mã mẹ** phân biệt |
+| Spec | tạo mới **672** · làm giàu **348** → tổng **459 → 1 131** |
+| Hạng mục | tạo mới **1 231** · cập nhật **295** → **5 961 → 7 192** |
+| Ngưỡng số | đọc được **776** · phải chấm tay **750** |
+| Chờ QC duyệt | **672** (đúng bằng số spec mới) |
+| sha256 | `27ca52f4…` → `d3fe155b…` · integrity ok · FK 0 lỗi |
+
+Chạy lại lần hai trên bản sao: **0/0/0/0** — idempotent thật.
+
+### Hoàn tác
+
+Mọi spec do import tạo đều mang `ImportSource='iqc-report-2026'`, nên xoá lại
+được **chính xác** mà không đụng spec của app:
+
+```sql
+DELETE FROM IqcSpecItems  WHERE SpecNo IN (SELECT SpecNo FROM IqcMaterialSpecs WHERE ImportSource='iqc-report-2026');
+DELETE FROM IqcMaterialSpecs WHERE ImportSource='iqc-report-2026';
+```
+
+348 spec **được làm giàu** thì không mang dấu này (chúng là spec cũ của app) —
+muốn lùi cả phần đó phải khôi phục từ backup Phase A.
+
+### Việc còn nợ QC
+
+- **672 spec đang chờ duyệt.** Phiếu dùng chúng vẫn chạy; UI sẽ hiện băng nhắc
+  ở bước 13-6.
+- **7 mã đang có nhiều spec** trong app (`SFG-APB2M000102` có **sáu**). Import
+  ghi vào `SpecNo` nhỏ nhất. Đây là dữ liệu lộn xộn có từ trước, nên để QC dọn.

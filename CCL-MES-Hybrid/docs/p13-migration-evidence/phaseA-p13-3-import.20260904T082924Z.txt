@@ -1,0 +1,8 @@
+# Phase A — import tiêu chuẩn P13 bước 3
+utc: 20260904T082924Z
+backup: data/Backup/SQLite/ccl_mes.db.before-p13-3-import.20260904T082924Z
+sha256_before: 27ca52f490828ce09ee89bafd43c4acfe18caa3da5e3257acd23cf0c631a5526
+specs_before:      459
+spec_items_before: 5961
+pending_qc_before: 0
+integrity: ok
