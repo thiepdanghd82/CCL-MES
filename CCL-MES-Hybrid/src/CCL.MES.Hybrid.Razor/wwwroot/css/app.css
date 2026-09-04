@@ -9343,3 +9343,12 @@ tr.wc-row:hover { background: var(--c-bg); }
     background: var(--warn-bg);
     color: var(--warn-ink);
 }
+
+/* Thân cửa sổ xem PDF hồ sơ HSF. Chrome/zoom/xoay dùng lại bộ `dwg-viewer-*`
+   + `dwg-pdf-*` của P10.10 — KHÔNG đẻ bộ class thứ hai cho cùng một việc. */
+.iqc-docview-body {
+    height: 100%;
+    overflow: auto;
+    background: var(--c-bg);
+    padding: var(--sp-2);
+}

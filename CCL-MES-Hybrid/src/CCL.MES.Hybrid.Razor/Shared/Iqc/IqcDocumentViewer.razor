@@ -1,0 +1,183 @@
+@namespace CCL.MES.Hybrid.Razor.Shared.Iqc
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Hybrid.Client.Files
+@using CCL.MES.Hybrid.Client.Windows
+@inject IJSRuntime JS
+@inject IFileOpener FileOpener
+
+@*
+    P12 bước 4b — xem PDF hồ sơ HSF NGAY TRONG APP.
+
+    Vì sao FloatingWindow chứ không phải overlay như `SpecDrawingShowcards`:
+    ở đó người dùng chỉ xem bản vẽ, che trang sau không sao. Ở đây người dùng
+    đang ĐỌC SỐ HIỆU TRÊN TỜ GIẤY để gõ vào đúng bảng phía sau — che mất bảng
+    là phá chính việc họ đang làm. Cửa sổ nổi kéo sang bên được, gõ tiếp được.
+
+    Vì sao rasterise ra canvas chứ không nhét vào <iframe>: WKWebView trên Mac
+    Catalyst render blob: PDF thành trang TRẮNG trong iframe. Dự án đã trả tiền
+    cho bài này ở P10.10 và để lại `window.cclMesPdf` — dùng lại, không phát
+    minh lại.
+
+    Acrobat vẫn ở đây một cú bấm: file đã nằm sẵn trong sandbox nên nút "Mở
+    bằng app ngoài" không tốn thêm vòng mạng nào.
+*@
+
+<FloatingWindow Title="@FileName" Subtitle="@Subtitle"
+                AriaLabel="@T("iqc.doc.viewer.aria", FileName)"
+                WindowId="@WindowId" Rect="Rect" CascadeIndex="CascadeIndex"
+                MinWidth="520" MinHeight="420"
+                OnClose="CloseAsync" OnRectChanged="OnRectChanged">
+    <HeaderExtra>
+        <div class="dwg-viewer-tools" role="group" aria-label="@T("iqc.doc.viewer.controls")">
+            <button type="button" class="dwg-viewer-btn" data-fw-nodrag
+                    data-testid="iqc-docview-zoomout"
+                    title="@T("iqc.doc.viewer.zoomout")" @onclick="ZoomOut">−</button>
+            <span class="dwg-viewer-zoom" data-testid="iqc-docview-zoom">@ZoomPct%</span>
+            <button type="button" class="dwg-viewer-btn" data-fw-nodrag
+                    data-testid="iqc-docview-zoomin"
+                    title="@T("iqc.doc.viewer.zoomin")" @onclick="ZoomIn">+</button>
+            <button type="button" class="dwg-viewer-btn" data-fw-nodrag
+                    data-testid="iqc-docview-rotate"
+                    title="@T("iqc.doc.viewer.rotate")" @onclick="Rotate">⟳</button>
+            <button type="button" class="dwg-viewer-btn" data-fw-nodrag
+                    data-testid="iqc-docview-reset"
+                    title="@T("iqc.doc.viewer.reset")" @onclick="ResetView">⤢</button>
+            <button type="button" class="dwg-viewer-btn" data-fw-nodrag
+                    data-testid="iqc-docview-external"
+                    title="@T("iqc.doc.viewer.external")" @onclick="OpenExternalAsync">↗</button>
+        </div>
+    </HeaderExtra>
+    <ChildContent>
+        <div class="iqc-docview-body">
+            @if (_error is not null)
+            {
+                <div class="dwg-viewer-empty" data-testid="iqc-docview-error">@_error</div>
+            }
+            else if (_objectUrl is null)
+            {
+                <div class="dwg-viewer-empty" data-testid="iqc-docview-loading">@T("iqc.doc.viewer.loading")</div>
+            }
+            else
+            {
+                <div id="@HostId" class="dwg-pdf-host" data-testid="iqc-docview-host">
+                    <div class="dwg-viewer-empty">@T("iqc.doc.viewer.rendering")</div>
+                </div>
+            }
+        </div>
+    </ChildContent>
+</FloatingWindow>
+
+@code {
+    /// <summary>Đường dẫn TUYỆT ĐỐI của bản đã tải về sandbox. Caller tải trước
+    /// (nó cũng cần file đó cho đường mở bằng app ngoài) — viewer không tự gọi
+    /// mạng, nên mở lại cửa sổ không tốn thêm vòng nào.</summary>
+    [Parameter, EditorRequired] public string LocalPath { get; set; } = "";
+
+    /// <summary>Tên người dùng thấy, vd <c>336T-AT1_TDS.pdf</c>.</summary>
+    [Parameter, EditorRequired] public string FileName { get; set; } = "";
+
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string WindowId { get; set; } = Guid.NewGuid().ToString("N");
+    [Parameter] public WindowRect? Rect { get; set; }
+    [Parameter] public int CascadeIndex { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<WindowRect> OnRectChanged { get; set; }
+
+    /// <summary>Trên ngưỡng này thì KHÔNG dựng preview trong app: base64 đi qua
+    /// cầu JS sẽ phình ~4/3 và nằm trọn trong RAM của webview. Hồ sơ HSF thật
+    /// nặng vài trăm KB; file chục MB gần như chắc chắn là quét ảnh sai cách,
+    /// và lúc đó Acrobat mở nhanh hơn nhiều.</summary>
+    private const long MaxInlineBytes = 12L * 1024 * 1024;
+
+    private string HostId => $"iqc-docview-{WindowId}";
+    private string? _objectUrl;
+    private string? _error;
+    private double _zoom = 1.0;
+    private int _rot;
+    private bool _dirty;
+    private string? _loadedPath;
+
+    private int ZoomPct => (int)Math.Round(_zoom * 100);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.Equals(LocalPath, _loadedPath, StringComparison.Ordinal)) return;
+        _loadedPath = LocalPath;
+        _objectUrl = null; _error = null; _zoom = 1.0; _rot = 0;
+        await BuildObjectUrlAsync();
+    }
+
+    private async Task BuildObjectUrlAsync()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(LocalPath) || !File.Exists(LocalPath))
+            {
+                _error = T("iqc.doc.viewer.missing");
+                return;
+            }
+
+            var len = new FileInfo(LocalPath).Length;
+            if (len > MaxInlineBytes)
+            {
+                _error = T("iqc.doc.viewer.toobig", FormatMb(len), FormatMb(MaxInlineBytes));
+                return;
+            }
+
+            var bytes = await File.ReadAllBytesAsync(LocalPath);
+            var url = await JS.InvokeAsync<string>(
+                "cclMesDrawings.toObjectUrl", Convert.ToBase64String(bytes), "application/pdf");
+
+            // Helper nuốt lỗi và trả chuỗi rỗng. Không kiểm thì cửa sổ đứng mãi
+            // ở "đang tải" mà không ai biết vì sao.
+            if (string.IsNullOrEmpty(url)) { _error = T("iqc.doc.viewer.failed"); return; }
+
+            _objectUrl = url;
+            _dirty = true;
+        }
+        catch (Exception ex)
+        {
+            _error = $"{ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_dirty || _objectUrl is null) return;
+        _dirty = false;
+        try { await JS.InvokeAsync<int>("cclMesPdf.render", HostId, _objectUrl, _zoom, _rot); }
+        catch { /* host tự hiện thông báo dự phòng */ }
+    }
+
+    private void ZoomIn()    { _zoom = Math.Min(5.0, Math.Round(_zoom * 1.25, 4)); _dirty = _objectUrl is not null; }
+    private void ZoomOut()   { _zoom = Math.Max(0.25, Math.Round(_zoom / 1.25, 4)); _dirty = _objectUrl is not null; }
+    private void Rotate()    { _rot = (_rot + 90) % 360; _dirty = _objectUrl is not null; }
+    private void ResetView() { _zoom = 1.0; _rot = 0; _dirty = _objectUrl is not null; }
+
+    /// <summary>Giao cho app mặc định của hệ điều hành — trên máy đặt Acrobat
+    /// làm mặc định thì đây chính là "mở bằng Adobe".</summary>
+    private async Task OpenExternalAsync()
+    {
+        try
+        {
+            if (!await FileOpener.TryOpenAsync(LocalPath))
+                _error = T("iqc.doc.saved.only", LocalPath);
+        }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+    }
+
+    private async Task CloseAsync()
+    {
+        // Không giải phóng thì mỗi lần mở lại giữ thêm một bản PDF trong RAM
+        // của webview cho tới khi app thoát.
+        if (_objectUrl is { Length: > 0 } url)
+        {
+            try { await JS.InvokeVoidAsync("cclMesPdf.dispose", url); } catch { /* noop */ }
+            try { await JS.InvokeVoidAsync("cclMesDrawings.revoke", url); } catch { /* noop */ }
+        }
+        _objectUrl = null;
+        if (OnClose.HasDelegate) await OnClose.InvokeAsync();
+    }
+
+    private static string FormatMb(long b) => (b / 1024d / 1024d).ToString("0.#") + " MB";
+}
