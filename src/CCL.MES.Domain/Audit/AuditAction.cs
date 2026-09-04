@@ -45,6 +45,11 @@ public static class AuditAction
     public const string IqcCreate             = "IQC_CREATE";              // Phase 6 Bước 7
     public const string IqcItemSet            = "IQC_ITEM_SET";            // P12 bước 3 — phán định 1 hạng mục
     public const string IqcComplete           = "IQC_COMPLETE";            // P12 — chốt phiếu (đủ hạng mục mới cho)
+    public const string IqcDocSet             = "IQC_DOC_SET";             // P12 bước 4 — số/ngày cấp/hạn của hồ sơ HSF
+    public const string IqcDocAdded           = "IQC_DOC_ADDED";           // P12 bước 4
+    public const string IqcDocRemoved         = "IQC_DOC_REMOVED";         // P12 bước 4 — xoá MỀM
+    public const string IqcDocRestored        = "IQC_DOC_RESTORED";        // P12 bước 4
+    public const string IqcDocFileAttached    = "IQC_DOC_FILE_ATTACHED";   // P12 bước 4 — đính PDF lên server
     public const string IqcSpecCreated        = "IQC_SPEC_CREATED";        // P12 bước 2b — tạo spec cục bộ cho 1 mã
     public const string IqcSpecItemAdded      = "IQC_SPEC_ITEM_ADDED";     // P12 bước 2b
     public const string IqcSpecItemDeactivated = "IQC_SPEC_ITEM_DEACTIVATED"; // P12 bước 2b — xoá MỀM

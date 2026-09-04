@@ -53,6 +53,29 @@ public sealed class FilesystemBlobStore : IBlobStore
         @"^drawings/([1-9]\d*)/([1-9]\d*)/v([1-9]\d*)_([0-9a-f]{8})\.([a-zA-Z0-9]{1,8})$",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    // ── P12 bước 4 — hình dạng thứ HAI: hồ sơ HSF của IQC ────────────────
+    //
+    // Store này vốn chỉ biết MỘT caller (drawings), nên guard #1/#2 mã hoá
+    // cứng đường dẫn của caller đó. Thêm caller thứ hai bằng cách allowlist
+    // TƯỜNG MINH một hình dạng nữa — KHÔNG nới thành "đường dẫn nào cũng được".
+    // Sáu guard giữ nguyên, kể cả sha8 trong tên file lưu trữ: khoá vẫn không
+    // đoán được, nên tính chống dò khoá của guard #2 không mất.
+    //
+    // Tên NGƯỜI DÙNG thấy (336T-AT1_TDS.pdf) là tên TẢI VỀ, tách khỏi khoá lưu
+    // — xem IqcMaterialDocumentService.
+    //
+    // Đoạn <mã> và <tên> chỉ nhận [A-Za-z0-9._-], không dấu chấm kép, nên
+    // "..", "/", ký tự null và mẹo NFD đều bị chặn ngay tại regex.
+    private const string SafeSeg = @"(?!\.\.?$)[A-Za-z0-9._-]{1,120}";
+
+    private static readonly Regex IqcSuggestedKeyRx = new(
+        $@"^IQC/Documents/({SafeSeg})/({SafeSeg})\.([a-zA-Z0-9]{{1,8}})$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex IqcStoredKeyRx = new(
+        $@"^IQC/Documents/({SafeSeg})/({SafeSeg})_([0-9a-f]{{8}})\.([a-zA-Z0-9]{{1,8}})$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private readonly BlobStoreOptions _options;
     private readonly ILogger<FilesystemBlobStore>? _logger;
     private readonly string _blobRootAbs;
@@ -85,17 +108,28 @@ public sealed class FilesystemBlobStore : IBlobStore
         if (string.IsNullOrWhiteSpace(suggestedKey))
             throw new ArgumentException("suggestedKey is required.", nameof(suggestedKey));
 
+        // Hai hình dạng được allowlist: drawings (Phase 8) và IQC/Documents (P12).
+        string ext, relDir, baseName;
         var m = SuggestedKeyRx.Match(suggestedKey);
-        if (!m.Success)
+        if (m.Success)
         {
-            throw new InvalidOperationException(
-                "Invalid suggestedKey — must match 'drawings/<revisionId>/<drawingId>/v<n>.<ext>'.");
+            relDir = Path.Combine("drawings", m.Groups[1].Value, m.Groups[2].Value);
+            baseName = $"v{m.Groups[3].Value}";
+            ext = m.Groups[4].Value.ToLowerInvariant();
         }
-
-        var revId = m.Groups[1].Value;
-        var drwId = m.Groups[2].Value;
-        var versionNo = m.Groups[3].Value;
-        var ext = m.Groups[4].Value.ToLowerInvariant();
+        else
+        {
+            var mi = IqcSuggestedKeyRx.Match(suggestedKey);
+            if (!mi.Success)
+            {
+                throw new InvalidOperationException(
+                    "Invalid suggestedKey — must match 'drawings/<revisionId>/<drawingId>/v<n>.<ext>' " +
+                    "or 'IQC/Documents/<materialCode>/<name>.<ext>'.");
+            }
+            relDir = Path.Combine("IQC", "Documents", mi.Groups[1].Value);
+            baseName = mi.Groups[2].Value;
+            ext = mi.Groups[3].Value.ToLowerInvariant();
+        }
 
         if (!_options.AllowedExtensions.Contains(ext))
         {
@@ -103,7 +137,7 @@ public sealed class FilesystemBlobStore : IBlobStore
                 $"Extension '{ext}' not in allowlist (allowed: {string.Join(", ", _options.AllowedExtensions.OrderBy(s => s, StringComparer.Ordinal))}).");
         }
 
-        var targetDir = Path.Combine(_blobRootAbs, "drawings", revId, drwId);
+        var targetDir = Path.Combine(_blobRootAbs, relDir);
         // Containment check — paranoia even though regex already vetted ids.
         EnsureInsideBlobRoot(Path.GetFullPath(targetDir));
         Directory.CreateDirectory(targetDir);
@@ -139,7 +173,7 @@ public sealed class FilesystemBlobStore : IBlobStore
             }
 
             var sha8 = sha256Hex[..8];
-            var finalName = $"v{versionNo}_{sha8}.{ext}";
+            var finalName = $"{baseName}_{sha8}.{ext}";
             var finalPath = Path.Combine(targetDir, finalName);
             // Containment check on final too (sha8 is hex per regex, but guard).
             EnsureInsideBlobRoot(Path.GetFullPath(finalPath));
@@ -155,7 +189,9 @@ public sealed class FilesystemBlobStore : IBlobStore
                 File.Move(tempFile, finalPath);
             }
 
-            var storageKey = $"drawings/{revId}/{drwId}/{finalName}";
+            // Khoá trả về dùng '/' bất kể OS — nó là khoá logic lưu vào DB,
+            // không phải đường dẫn hệ thống tệp.
+            var storageKey = $"{relDir.Replace(Path.DirectorySeparatorChar, '/')}/{finalName}";
             _logger?.LogInformation(
                 "Blob stored: key={Key} bytes={Bytes} sha8={Sha8}",
                 storageKey, bytesWritten, sha8);
@@ -200,7 +236,7 @@ public sealed class FilesystemBlobStore : IBlobStore
             if (throwOnInvalid) throw new InvalidOperationException("key is required.");
             return null;
         }
-        if (!StoredKeyRx.IsMatch(key))
+        if (!StoredKeyRx.IsMatch(key) && !IqcStoredKeyRx.IsMatch(key))
         {
             if (throwOnInvalid)
                 throw new InvalidOperationException(

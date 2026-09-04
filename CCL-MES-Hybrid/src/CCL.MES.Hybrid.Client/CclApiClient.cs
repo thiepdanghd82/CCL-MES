@@ -270,6 +270,95 @@ public sealed class CclApiClient : ICclApiClient
         if (!resp.IsSuccessStatusCode) await ThrowOnNonSuccess(resp, ct);
     }
 
+    // ── IQC hồ sơ HSF theo mã nguyên liệu (P12 bước 4) ─────────────
+
+    public async Task<CCL.MES.Shared.Quality.IqcDocumentListResponse> GetIqcDocumentsAsync(
+        string materialCode, bool includeInactive = false, CancellationToken ct = default)
+    {
+        // Mã đi qua QUERY, không phải path — 623/946 mã có dấu cách.
+        var url = $"/{ApiVersion.Prefix}/iqc/documents?materialCode={Uri.EscapeDataString(materialCode ?? "")}"
+                + (includeInactive ? "&includeInactive=true" : "");
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcDocumentListResponse>(resp, ct);
+    }
+
+    public async Task SaveIqcDocumentAsync(
+        long id, CCL.MES.Shared.Quality.SaveIqcDocumentBody body, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(
+            HttpMethod.Put, $"/{ApiVersion.Prefix}/iqc/documents/{id}")
+        {
+            Content = JsonContent.Create(body),
+        };
+        await SendGuardedAsync(msg, ct);
+    }
+
+    public async Task AddIqcDocumentAsync(
+        CCL.MES.Shared.Quality.AddIqcDocumentBody body, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc/documents")
+        {
+            Content = JsonContent.Create(body),
+        };
+        await SendGuardedAsync(msg, ct);
+    }
+
+    public async Task RemoveIqcDocumentAsync(long id, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(
+            HttpMethod.Delete, $"/{ApiVersion.Prefix}/iqc/documents/{id}");
+        await SendGuardedAsync(msg, ct);
+    }
+
+    public async Task UploadIqcDocumentFileAsync(
+        long id, Stream content, string fileName, string contentType, CancellationToken ct = default)
+    {
+        using var form = new MultipartFormDataContent();
+        var part = new StreamContent(content);
+        part.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+            string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType);
+        // Tên part phải là "file" — khớp tham số IFormFile file của controller.
+        form.Add(part, "file", string.IsNullOrWhiteSpace(fileName) ? "upload.pdf" : fileName);
+
+        using var msg = new HttpRequestMessage(
+            HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc/documents/{id}/file") { Content = form };
+
+        // 90 s như UploadDrawingAsync — WiFi xưởng chậm, đừng để UI treo.
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(90));
+        await SendGuardedAsync(msg, cts.Token);
+    }
+
+    public async Task<long?> DownloadIqcDocumentToFileAsync(
+        long id, string destinationFilePath, CancellationToken ct = default)
+    {
+        using var req = new HttpRequestMessage(
+            HttpMethod.Get, $"/{ApiVersion.Prefix}/iqc/documents/{id}/file");
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            req.Headers.Add("X-Device-Id", _opts.DeviceId);
+
+        using var resp = await _http.SendAsync(
+            req, HttpCompletionOption.ResponseHeadersRead, ct);
+
+        // 404 = dòng chưa đính file. Đó là câu trả lời hợp lệ, không phải lỗi —
+        // ném ở đây thì UI phải bọc try/catch cho một trạng thái bình thường.
+        if (resp.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        if (!resp.IsSuccessStatusCode) await ThrowOnNonSuccess(resp, ct);
+
+        var dir = Path.GetDirectoryName(destinationFilePath);
+        if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+
+        // Stream thẳng ra đĩa — file HSF của NCC có thể vài MB, không cần
+        // nằm trọn trên heap (Lesson D-5b).
+        await using var src = await resp.Content.ReadAsStreamAsync(ct);
+        await using var fs = new FileStream(
+            destinationFilePath, FileMode.Create, FileAccess.Write, FileShare.None,
+            bufferSize: 81920, useAsync: true);
+        await src.CopyToAsync(fs, ct);
+        await fs.FlushAsync(ct);
+        return new FileInfo(destinationFilePath).Length;
+    }
+
     public async Task LogoutAsync(string refreshToken, CancellationToken ct = default)
     {
         var req = new RefreshTokenRequest { RefreshToken = refreshToken };

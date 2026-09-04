@@ -3081,7 +3081,8 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
        inner value span.
      - ::-webkit-calendar-picker-indicator stays visible, positioned
        on the right with margin-left: auto. */
-.modal-input[type="date"] {
+.modal-input[type="date"],
+.iqc-doc-date[type="date"] {
     -webkit-appearance: none;
     appearance: none;
     font-family: inherit;
@@ -3089,17 +3090,20 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     min-height: 2.6em;
 }
 
-.modal-input[type="date"]::-webkit-date-and-time-value {
+.modal-input[type="date"]::-webkit-date-and-time-value,
+.iqc-doc-date[type="date"]::-webkit-date-and-time-value {
     text-align: left;
 }
 
-.modal-input[type="date"]::-webkit-calendar-picker-indicator {
+.modal-input[type="date"]::-webkit-calendar-picker-indicator,
+.iqc-doc-date[type="date"]::-webkit-calendar-picker-indicator {
     cursor: pointer;
     opacity: 0.55;
     margin-left: auto;
 }
 
-.modal-input[type="date"]::-webkit-calendar-picker-indicator:hover {
+.modal-input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.iqc-doc-date[type="date"]::-webkit-calendar-picker-indicator:hover {
     opacity: 0.85;
 }
 
@@ -9279,3 +9283,63 @@ tr.wc-row:hover { background: var(--c-bg); }
 }
 .iqc-complete-count { font-weight: var(--fw-semibold); color: var(--c-ink); }
 .iqc-complete-bar .op-btn { min-height: var(--d-tap); }
+
+/* ── P12 — lưới hạng mục IQC gộp một bảng, nhóm thành CỘT ────────────────
+   Bỏ tab nhóm (mục stepper đã chia rồi). Tên nhóm chỉ in ở dòng đầu mỗi
+   nhóm; đường kẻ đậm hơn tách nhóm để mắt vẫn bắt được ranh giới. */
+.iqc-col-group {
+    width: 14ch; vertical-align: top;
+    color: var(--c-muted); font-size: var(--fs-sm);
+}
+.ipqc-item-row.iqc-row-groupstart > td { border-top: 2px solid var(--c-border); }
+
+
+/* ── P12 bước 4 — bảng hồ sơ HSF theo mã mẹ nguyên liệu ─────────────────
+   Ô NGÀY TRONG BẢNG là tiền lệ đầu tiên của repo: bản vá Catalyst ở trên
+   trước đây chỉ scope vào `.modal-input[type="date"]`, nên mọi ô ngày ngoài
+   modal đều auto-size + căn phải + hẹp hơn ô text cùng hàng. Selector đã được
+   mở rộng sang `.iqc-doc-date`; phần dưới đây chỉ lo kích thước ô trong ô bảng. */
+
+.iqc-doc-input {
+    width: 100%;
+    min-width: 0;              /* không có dòng này thì input đẩy giãn cả cột */
+    font-size: var(--d-font);
+    min-height: var(--d-tap);
+}
+
+.iqc-doc-date {
+    /* Kế thừa khung của op-input nhưng KHÔNG mang class đó, vì op-input không
+       nằm trong bản vá webkit ở trên. */
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-sm);
+    background: var(--c-surface);
+    color: var(--c-ink);
+}
+
+.iqc-doc-namecell { cursor: pointer; }          /* nháy đúp = mở file */
+.iqc-doc-file     { color: var(--c-muted); }
+.iqc-doc-nofile   { color: var(--c-muted); font-style: italic; }
+
+/* Dòng đã sửa nhưng chưa lưu — viền trái để người dùng thấy còn nợ thao tác. */
+.iqc-doc-dirty > td:first-child { box-shadow: inset 3px 0 0 var(--warn-ink); }
+
+.iqc-doc-req {
+    color: var(--ng-ink);
+    font-size: var(--fs-xs);
+    margin-top: var(--sp-1);
+}
+
+.iqc-doc-addform,
+.iqc-doc-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-top: var(--sp-3);
+}
+
+.qms-status-missing {
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+}

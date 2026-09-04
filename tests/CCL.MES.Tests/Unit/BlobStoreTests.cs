@@ -189,6 +189,44 @@ public sealed class BlobStoreTests : IDisposable
 
     // ── Options validation — constructor sanity ────────────────────────
 
+    // ── P12 bước 4 — hình dạng thứ HAI (IQC/Documents) ───────────────────
+
+    [Fact]
+    public async Task Iqc_shape_round_trips_and_key_carries_sha8()
+    {
+        var r = await _store.PutAsync(new MemoryStream(RandomBytes(512)), "IQC/Documents/336T-AT1/336T-AT1_TDS.pdf",
+            "application/pdf");
+
+        Assert.StartsWith("IQC/Documents/336T-AT1/336T-AT1_TDS_", r.Key);
+        Assert.EndsWith(".pdf", r.Key);
+        Assert.True(await _store.ExistsAsync(r.Key));
+        using var back = await _store.GetAsync(r.Key);
+        Assert.NotNull(back);
+    }
+
+    [Theory]
+    [InlineData("IQC/Documents/../../etc/passwd.pdf")]
+    [InlineData("IQC/Documents/../secret/x.pdf")]
+    [InlineData("IQC/Documents/a/../../b.pdf")]
+    [InlineData("/IQC/Documents/a/b.pdf")]
+    [InlineData("IQC/Documents/a/b/c.pdf")]          // sâu hơn 1 tầng mã
+    [InlineData("IQC/Other/a/b.pdf")]                // sai tiền tố
+    public async Task Iqc_shape_van_chan_traversal_va_tien_to_la(string key)
+    {
+        // Thêm caller thứ hai KHÔNG được nới guard #1 thành "đường dẫn nào cũng
+        // được" — hình dạng mới vẫn là allowlist đóng.
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _store.PutAsync(new MemoryStream(RandomBytes(64)), key, "application/pdf"));
+    }
+
+    [Fact]
+    public async Task Iqc_stored_key_thieu_sha8_bi_tu_choi()
+    {
+        // Guard #2 giữ nguyên cho hình dạng mới: khoá không mang sha8 thì
+        // không đọc được, nên không ai dò được khoá tuỳ ý.
+        Assert.False(await _store.ExistsAsync("IQC/Documents/336T-AT1/336T-AT1_TDS.pdf"));
+    }
+
     [Fact]
     public void Constructor_throws_when_DataDir_blank()
     {

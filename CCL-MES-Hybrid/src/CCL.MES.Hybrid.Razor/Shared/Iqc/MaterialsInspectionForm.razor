@@ -314,48 +314,31 @@ else
 
             @if (_active == 0)
             {
-                @* ── Bước 1: bảng Documents — HSF ── *@
-                <section class="qms-section" data-testid="iqc-insp-hsf">
-                    <div class="qms-section-head">
-                        <h2 class="qms-section-title">@T("qms.iqc.section")</h2>
-                        <button type="button" class="qms-btn qms-btn-secondary" data-testid="iqc-insp-adddoc">@T("qms.act.adddoc")</button>
-                    </div>
-                    <p class="qms-section-desc">@T("qms.iqc.section.desc")</p>
+                @* ── Bước 1: hồ sơ HSF THẬT theo MÃ MẸ (P12 bước 4) ──
+                   Trước đây là bảng giả `QmsMock.Hsf` — 5 dòng cứng, không đọc
+                   mã nào cả. Giờ mỗi mã mẹ có một bảng, dữ liệu từ server, file
+                   PDF nằm ở IQC/Documents/<mã mẹ>/.
 
-                    <div class="qms-table-wrap">
-                        <table class="qms-table" data-testid="qms-iqc-hsf-table">
-                            <thead>
-                                <tr>
-                                    <th>@T("qms.iqc.col.doc")</th>
-                                    <th>@T("qms.iqc.col.no")</th>
-                                    <th>@T("qms.iqc.col.issue")</th>
-                                    <th>@T("qms.iqc.col.expiry")</th>
-                                    <th>@T("qms.iqc.col.modified")</th>
-                                    <th>@T("qms.iqc.col.status")</th>
-                                    <th class="qms-col-tight">@T("qms.iqc.col.action")</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var d in QmsMock.Hsf)
-                                {
-                                    <tr>
-                                        <td class="qms-td-strong">@d.Name</td>
-                                        <td>@d.No</td>
-                                        <td>@d.Issue</td>
-                                        <td class="@(d.Valid ? "" : "qms-td-ng")">@d.Expiry</td>
-                                        <td>@d.ModifiedBy<div class="qms-cell-sub">@d.ModifiedAt</div></td>
-                                        <td>
-                                            <span class="qms-status @(d.Valid ? "qms-status-valid" : "qms-status-expired")">
-                                                @(d.Valid ? T("qms.status.valid") : T("qms.status.expired"))
-                                            </span>
-                                        </td>
-                                        <td class="qms-col-tight"><button type="button" class="qms-remove">@T("qms.act.remove")</button></td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+                   Vì sao MÃ MẸ chứ không phải Code IFS: giấy TDS/MSDS/RoHS cấp
+                   cho LOẠI vật liệu, không cấp cho từng khổ. Đo trên live:
+                   2967 dòng RawMaterials chỉ có 946 mã mẹ — mã 336T-AT1 gồm 29
+                   Code IFS khác khổ, tất cả dùng chung một bộ hồ sơ. *@
+                @if (DocumentCodes.Count == 0)
+                {
+                    <section class="qms-section" data-testid="iqc-insp-hsf">
+                        <div class="qms-section-head">
+                            <h2 class="qms-section-title">@T("qms.iqc.section")</h2>
+                        </div>
+                        <p class="iqc-hint" data-testid="qms-iqc-hsf-table">@T("iqc.doc.nomaterial")</p>
+                    </section>
+                }
+                else
+                {
+                    @foreach (var mc in DocumentCodes)
+                    {
+                        <IqcDocumentGrid @key="mc" MaterialCode="@mc" Editable="@CanEditDocs" />
+                    }
+                }
             }
             else if (_active is 1 or 2)
             {
@@ -557,6 +540,34 @@ else
         "Pcs"  => T("iqc.uom.pcs"),
         _      => uom,
     };
+
+    /// <summary>RBAC-by-omission cho hồ sơ HSF. RỘNG HƠN quyền sửa tiêu chuẩn:
+    /// có cả <b>QC</b>, vì QC chính là người nhận giấy của NCC lúc hàng về.
+    /// Khớp <c>IqcMaterialDocumentService.EditorRoles</c>; server vẫn 403.</summary>
+    private bool CanEditDocs =>
+        Session.CurrentUserInfo?.Role is "Admin" or "Supervisor" or "Engineer" or "Qc";
+
+    /// <summary>Mã mẹ cần hiện bảng hồ sơ. Mở phiếu thì lấy của phiếu; tạo mới
+    /// thì lấy từ các dòng đã tick — DISTINCT, vì nhiều Code IFS khác khổ dùng
+    /// chung một mã mẹ và không ai muốn thấy cùng một bộ giấy hai lần.</summary>
+    private List<string> DocumentCodes
+    {
+        get
+        {
+            if (Ticket is not null)
+                return string.IsNullOrWhiteSpace(Ticket.MotherCode)
+                    ? new List<string>()
+                    : new List<string> { Ticket.MotherCode!.Trim() };
+
+            return _selectedCodes
+                .Select(c => SnapshotFor(c)?.MotherCode)
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .Select(m => m!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(m => m, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
 
     private IqcMaterialSearchItem? SnapshotFor(string code) =>
         _lineSnapshot.TryGetValue(code, out var v) ? v : null;

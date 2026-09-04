@@ -72,6 +72,7 @@ public interface IMesDbContext
     DbSet<IqcCheckItemLibrary> IqcCheckItemLibraries { get; }
     DbSet<IqcMaterialSpec> IqcMaterialSpecs { get; }
     DbSet<IqcSpecItem> IqcSpecItems { get; }
+    DbSet<IqcMaterialDocument> IqcMaterialDocuments { get; }
     DbSet<WoIpqcCheckItem> WoIpqcCheckItems { get; }
     // IPQC first-article — MATERIAL (SYSTEM) LOT reconciliation per BOM line.
     DbSet<WoIpqcMaterialCheck> WoIpqcMaterialChecks { get; }

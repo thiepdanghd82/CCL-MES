@@ -78,6 +78,7 @@ public sealed class IqcController : ControllerBase
                 ReceiptNo = x.ReceiptNo,
                 Group = x.Group,
                 CodeIfs = x.CodeIfs,
+                MotherCode = x.MotherCode,
                 MaterialDescription = x.MaterialDescription,
                 LotBatchNo = x.LotBatchNo,
                 ManufactureDate = x.ManufactureDate,

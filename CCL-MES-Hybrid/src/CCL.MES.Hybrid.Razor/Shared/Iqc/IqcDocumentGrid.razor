@@ -1,0 +1,484 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Shared.Quality
+@using CCL.MES.Hybrid.Client.Files
+@using CCL.MES.Hybrid.Client.Iqc
+@using CCL.MES.Hybrid.Client.Localization
+@using Microsoft.AspNetCore.Components.Web
+@inject ICclApiClient Api
+@inject IFilePickerService FilePicker
+@inject IFileOpener FileOpener
+
+@*
+    P12 bước 4 — bảng hồ sơ HSF (TDS · MSDS · RoHS · REACH · ISO 9001) của MỘT
+    mã nguyên liệu. Thay bảng giả `QmsMock.Hsf` ở mục 1 của stepper phiếu IQC.
+
+    Bốn luật Henry chốt 2026-09-03:
+      1. Số hiệu + ngày cấp + hạn: BẮT BUỘC cả ba mới lưu được.
+      2. "Last Modified By" do SERVER đóng dấu theo người đăng nhập — client
+         không có ô nhập, và cũng không được có.
+      3. Giữ 5 dòng mặc định, nhưng thêm được và xoá được (xoá MỀM, file ở lại).
+      4. Mỗi dòng đính được 1 PDF; DOUBLE-CLICK ô "Tài liệu" là mở file ra.
+
+    File nằm trên SERVER (`IQC/Documents/<mã>/<mã>_<LOẠI>_<sha8>.pdf`), app chỉ
+    tải bản tạm vào sandbox khi cần mở — Launcher của Catalyst từ chối đường dẫn
+    ngoài container, nên phải qua `IFileOpener.GetSafeDownloadDirectory()`.
+
+    Hành động trên dòng đi qua `RowContextMenu` (L35) — KHÔNG cột "Actions".
+*@
+
+<section class="qms-section" data-testid="iqc-doc">
+    <div class="qms-section-head">
+        <h2 class="qms-section-title">@T("qms.iqc.section")</h2>
+        @if (Editable && HasMaterial)
+        {
+            <button type="button" class="qms-btn qms-btn-secondary" data-testid="iqc-doc-addrow"
+                    @onclick="() => _adding = !_adding">@T("qms.act.adddoc")</button>
+        }
+    </div>
+    <p class="qms-section-desc">@T("qms.iqc.section.desc")</p>
+
+    @if (!HasMaterial)
+    {
+        @* Không có mã thì không có thư mục hồ sơ. Nói thẳng, đừng hiện bảng rỗng
+           làm người dùng tưởng nguyên liệu này chưa ai nộp giấy tờ. *@
+        <p class="iqc-hint" data-testid="iqc-doc-nomaterial">@T("iqc.doc.nomaterial")</p>
+    }
+    else
+    {
+        <p class="qms-section-desc" data-testid="iqc-doc-folder">@T("iqc.doc.folder", MaterialCode!)</p>
+
+        @if (_loading)
+        {
+            <p class="iqc-hint" data-testid="iqc-doc-loading">@T("iqc.doc.loading")</p>
+        }
+        else
+        {
+            <div class="qms-table-wrap">
+                <table class="qms-table" data-testid="iqc-doc-table">
+                    <thead>
+                        <tr>
+                            <th>@T("qms.iqc.col.doc")</th>
+                            <th>@T("qms.iqc.col.no")</th>
+                            <th>@T("qms.iqc.col.issue")</th>
+                            <th>@T("qms.iqc.col.expiry")</th>
+                            <th>@T("qms.iqc.col.modified")</th>
+                            <th>@T("qms.iqc.col.status")</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _rows)
+                        {
+                            var busy = _busyId == r.Id;
+                            <tr class="@(r.Dirty ? "iqc-doc-row iqc-doc-dirty" : "iqc-doc-row")"
+                                data-testid="@($"iqc-doc-row-{r.Id}")"
+                                @oncontextmenu="e => OpenMenuAt(r, e.ClientX, e.ClientY)" @oncontextmenu:preventDefault="true"
+                                @onpointerdown="e => LongPressStart(r, e)" @onpointerup="LongPressCancel"
+                                @onpointerleave="LongPressCancel" @onpointermove="LongPressCancel">
+
+                                @* ── Ô TÀI LIỆU: double-click = mở file ── *@
+                                <td class="qms-td-strong iqc-doc-namecell" data-label="@T("qms.iqc.col.doc")"
+                                    data-testid="@($"iqc-doc-name-{r.Id}")"
+                                    title="@(r.HasFile ? T("iqc.doc.open.hint") : T("iqc.doc.nofile.hint"))"
+                                    @ondblclick="() => OpenFileAsync(r)">
+                                    @r.Label
+                                    <div class="qms-cell-sub">
+                                        @if (r.HasFile)
+                                        {
+                                            <span class="iqc-doc-file" data-testid="@($"iqc-doc-file-{r.Id}")">📎 @r.FileName</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="iqc-doc-nofile" data-testid="@($"iqc-doc-nofile-{r.Id}")">@T("iqc.doc.nofile")</span>
+                                        }
+                                    </div>
+                                </td>
+
+                                <td data-label="@T("qms.iqc.col.no")">
+                                    <input class="op-input iqc-doc-input" type="text" maxlength="64"
+                                           data-testid="@($"iqc-doc-no-{r.Id}")"
+                                           disabled="@(!Editable || busy)"
+                                           value="@r.DocNumber"
+                                           @onchange="e => SetNumber(r, e.Value?.ToString())" />
+                                </td>
+                                <td data-label="@T("qms.iqc.col.issue")">
+                                    <input class="iqc-doc-input iqc-doc-date" type="date"
+                                           data-testid="@($"iqc-doc-issue-{r.Id}")"
+                                           disabled="@(!Editable || busy)"
+                                           value="@Iso(r.IssueDate)"
+                                           @onchange="e => SetIssue(r, e.Value?.ToString())" />
+                                </td>
+                                <td data-label="@T("qms.iqc.col.expiry")">
+                                    <input class="iqc-doc-input iqc-doc-date" type="date"
+                                           data-testid="@($"iqc-doc-expiry-{r.Id}")"
+                                           disabled="@(!Editable || busy)"
+                                           value="@Iso(r.ExpiryDate)"
+                                           @onchange="e => SetExpiry(r, e.Value?.ToString())" />
+                                </td>
+
+                                @* Server đóng dấu — ô chỉ đọc. *@
+                                <td data-label="@T("qms.iqc.col.modified")" data-testid="@($"iqc-doc-by-{r.Id}")">
+                                    @(string.IsNullOrWhiteSpace(r.LastModifiedBy) ? "—" : r.LastModifiedBy)
+                                    <div class="qms-cell-sub">@Stamp(r.LastModifiedAt)</div>
+                                </td>
+
+                                <td data-label="@T("qms.iqc.col.status")">
+                                    <span class="qms-status @StatusClass(r)" data-testid="@($"iqc-doc-status-{r.Id}")">
+                                        @StatusLabel(r)
+                                    </span>
+                                    @if (r.Dirty && !r.CanSave)
+                                    {
+                                        <div class="iqc-doc-req" data-testid="@($"iqc-doc-req-{r.Id}")">@T("iqc.doc.required")</div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+
+                        @if (_rows.Count == 0)
+                        {
+                            <tr><td colspan="6" class="iqc-hint" data-testid="iqc-doc-empty">@T("iqc.doc.empty")</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @* ── Thêm loại hồ sơ (add-row cuối lưới, skill cmes-add-new-inline) ── *@
+            @if (_adding && Editable)
+            {
+                <div class="iqc-doc-addform" data-testid="iqc-doc-addnew-form">
+                    <input class="op-input" type="text" maxlength="64"
+                           data-testid="iqc-doc-addnew-type" placeholder="@T("iqc.doc.add.type.ph")"
+                           value="@_newType" @onchange="e => _newType = e.Value?.ToString() ?? string.Empty" />
+                    <input class="op-input" type="text" maxlength="128"
+                           data-testid="iqc-doc-addnew-label" placeholder="@T("iqc.doc.add.label.ph")"
+                           value="@_newLabel" @onchange="e => _newLabel = e.Value?.ToString() ?? string.Empty" />
+                    <button type="button" class="op-btn op-btn-primary" data-testid="iqc-doc-addnew-save"
+                            disabled="@(string.IsNullOrWhiteSpace(_newType) || _saving)"
+                            @onclick="AddRowAsync">@T("iqc.doc.add.save")</button>
+                    <button type="button" class="op-btn op-btn-ghost" data-testid="iqc-doc-addnew-cancel"
+                            @onclick="() => { _adding = false; _newType = string.Empty; _newLabel = string.Empty; }">@T("iqc.doc.add.cancel")</button>
+                </div>
+            }
+
+            @if (Editable)
+            {
+                <div class="iqc-doc-footer">
+                    <button type="button" class="op-btn op-btn-primary" data-testid="iqc-doc-save"
+                            disabled="@(!AnySavable || _saving)" @onclick="SaveDirtyAsync">
+                        @T("iqc.doc.save", DirtyCount)
+                    </button>
+                    @if (DirtyCount > 0 && !AnySavable)
+                    {
+                        <span class="iqc-hint" data-testid="iqc-doc-savehint">@T("iqc.doc.save.blocked")</span>
+                    }
+                </div>
+            }
+
+            @if (_notice is not null)
+            {
+                <p class="iqc-hint" data-testid="iqc-doc-notice">@_notice</p>
+            }
+            @if (_error is not null)
+            {
+                <p class="iqc-warn iqc-warn-error" data-testid="iqc-doc-error">@_error</p>
+            }
+        }
+    }
+</section>
+
+<RowContextMenu Open="_menuRow is not null" Anchor="_menuAnchor" Items="_menuItems"
+                AriaLabel="@T("iqc.doc.menu.aria", _menuRow?.Label ?? "")" OnClose="CloseMenu" />
+
+@code {
+    /// <summary>Mã nguyên liệu lấy từ ô "Search by material description" —
+    /// cũng chính là tên thư mục con trên server.</summary>
+    [Parameter] public string? MaterialCode { get; set; }
+
+    /// <summary>RBAC-by-omission: caller chỉ bật khi user là QC trở lên. Server
+    /// vẫn chặn 403 — ẩn nút KHÔNG phải là phân quyền.</summary>
+    [Parameter] public bool Editable { get; set; }
+
+    private sealed class Row
+    {
+        public long Id { get; init; }
+        public string DocType { get; init; } = "";
+        public string Label { get; init; } = "";
+        public string? DocNumber { get; set; }
+        public DateTime? IssueDate { get; set; }
+        public DateTime? ExpiryDate { get; set; }
+        public string? FileName { get; set; }
+        public string? LastModifiedBy { get; set; }
+        public DateTime? LastModifiedAt { get; set; }
+
+        /// <summary>Giá trị lúc nạp — so để biết dòng có bẩn không.</summary>
+        public (string?, DateTime?, DateTime?) Pristine { get; set; }
+
+        public bool HasFile => !string.IsNullOrWhiteSpace(FileName);
+        public bool Dirty => Pristine != (Norm(DocNumber), IssueDate, ExpiryDate);
+        public bool Complete =>
+            !string.IsNullOrWhiteSpace(DocNumber) && IssueDate is not null && ExpiryDate is not null;
+
+        /// <summary>Lưu được = đã sửa VÀ đủ ba trường VÀ hạn sau ngày cấp.
+        /// Ba điều kiện này khớp đúng luật server (422) — client chặn trước để
+        /// người dùng không phải bấm mới biết mình thiếu gì.</summary>
+        public bool CanSave => Dirty && Complete && ExpiryDate > IssueDate;
+
+        public static string? Norm(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+    }
+
+    private readonly List<Row> _rows = new();
+    private bool _loading, _saving, _adding;
+    private long _busyId;
+    private string? _notice, _error;
+    private string _newType = "", _newLabel = "";
+    private string? _loadedFor;
+
+    private Row? _menuRow;
+    private (double X, double Y) _menuAnchor;
+    private (double X, double Y) _pressAt;
+    private System.Threading.Timer? _longPress;
+    private IReadOnlyList<ContextMenuItem> _menuItems = System.Array.Empty<ContextMenuItem>();
+
+    private bool HasMaterial => !string.IsNullOrWhiteSpace(MaterialCode);
+    private int DirtyCount => _rows.Count(r => r.Dirty);
+    private bool AnySavable => _rows.Any(r => r.CanSave);
+    private bool English => LanguageService.Current == CCL.MES.Shared.Localization.LanguageCode.English;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var code = (MaterialCode ?? "").Trim();
+        if (string.Equals(code, _loadedFor, StringComparison.Ordinal)) return;
+        _loadedFor = code;
+        _rows.Clear();
+        _notice = _error = null;
+        if (code.Length == 0) return;
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _loading = true;
+        StateHasChanged();
+        try
+        {
+            var resp = await Api.GetIqcDocumentsAsync(MaterialCode!);
+            _rows.Clear();
+            foreach (var d in resp.Items)
+            {
+                _rows.Add(new Row
+                {
+                    Id = d.Id,
+                    DocType = d.DocType,
+                    Label = d.LabelFor(English),
+                    DocNumber = d.DocNumber,
+                    IssueDate = d.IssueDate,
+                    ExpiryDate = d.ExpiryDate,
+                    FileName = d.FileName,
+                    LastModifiedBy = d.LastModifiedBy,
+                    LastModifiedAt = d.LastModifiedAt,
+                    Pristine = (Row.Norm(d.DocNumber), d.IssueDate, d.ExpiryDate),
+                });
+            }
+        }
+        catch (Exception ex) { _error = Describe(ex); }
+        finally { _loading = false; StateHasChanged(); }
+    }
+
+    // ── nhập liệu ────────────────────────────────────────────────────────
+
+    private void SetNumber(Row r, string? v) { r.DocNumber = v; _error = null; }
+    private void SetIssue(Row r, string? v) { r.IssueDate = ParseDate(v); _error = null; }
+    private void SetExpiry(Row r, string? v) { r.ExpiryDate = ParseDate(v); _error = null; }
+
+    private static DateTime? ParseDate(string? v) =>
+        DateTime.TryParse(v, System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out var d) ? d.Date : null;
+
+    private static string Iso(DateTime? d) => d?.ToString("yyyy-MM-dd") ?? "";
+    private static string Stamp(DateTime? d) => d?.ToString("dd/MM/yyyy HH:mm") ?? "";
+
+    private async Task SaveDirtyAsync()
+    {
+        if (_saving) return;
+        _saving = true; _error = null; _notice = null;
+        StateHasChanged();
+        var saved = 0;
+        try
+        {
+            foreach (var r in _rows.Where(x => x.CanSave).ToList())
+            {
+                await Api.SaveIqcDocumentAsync(r.Id, new SaveIqcDocumentBody
+                {
+                    DocNumber = Row.Norm(r.DocNumber),
+                    IssueDate = r.IssueDate,
+                    ExpiryDate = r.ExpiryDate,
+                });
+                saved++;
+            }
+            _notice = T("iqc.doc.saved", saved);
+            await ReloadAsync();   // lấy lại dấu người sửa do SERVER đóng
+        }
+        catch (Exception ex) { _error = Describe(ex); }
+        finally { _saving = false; StateHasChanged(); }
+    }
+
+    private async Task AddRowAsync()
+    {
+        if (_saving || string.IsNullOrWhiteSpace(_newType)) return;
+        _saving = true; _error = null; _notice = null;
+        StateHasChanged();
+        try
+        {
+            await Api.AddIqcDocumentAsync(new AddIqcDocumentBody
+            {
+                MaterialCode = MaterialCode,
+                DocType = _newType,
+                LabelVi = string.IsNullOrWhiteSpace(_newLabel) ? null : _newLabel.Trim(),
+                LabelEn = string.IsNullOrWhiteSpace(_newLabel) ? null : _newLabel.Trim(),
+            });
+            _adding = false; _newType = ""; _newLabel = "";
+            await ReloadAsync();
+        }
+        catch (Exception ex) { _error = Describe(ex); }
+        finally { _saving = false; StateHasChanged(); }
+    }
+
+    // ── file ─────────────────────────────────────────────────────────────
+
+    private async Task ImportFileAsync(Row r)
+    {
+        CloseMenu();
+        _error = null; _notice = null;
+        PickedFile? pick;
+        try { pick = await FilePicker.PickFileAsync(new[] { "pdf" }); }
+        catch (Exception ex) { _error = Describe(ex); StateHasChanged(); return; }
+        if (pick is null) return;   // người dùng bấm huỷ
+
+        _busyId = r.Id;
+        StateHasChanged();
+        try
+        {
+            await using (pick)
+            {
+                // Tên NCC gửi là gì không quan trọng — server đặt lại thành
+                // <mã>_<LOẠI>.pdf. Ở đây chỉ đưa nguyên bản đi.
+                await Api.UploadIqcDocumentFileAsync(
+                    r.Id, pick.Content, pick.FileName, "application/pdf");
+            }
+            await ReloadAsync();
+            _notice = T("iqc.doc.uploaded", $"{MaterialCode}_{r.DocType}.pdf");
+        }
+        catch (Exception ex) { _error = Describe(ex); }
+        finally { _busyId = 0; StateHasChanged(); }
+    }
+
+    private async Task OpenFileAsync(Row r)
+    {
+        CloseMenu();
+        _error = null; _notice = null;
+        if (!r.HasFile)
+        {
+            _notice = T("iqc.doc.nofile.hint");
+            StateHasChanged();
+            return;
+        }
+
+        _busyId = r.Id;
+        StateHasChanged();
+        try
+        {
+            // Phải nằm trong sandbox của app thì Launcher trên Catalyst mới mở;
+            // đường dẫn ngoài container bị từ chối IM LẶNG.
+            var dest = Path.Combine(FileOpener.GetSafeDownloadDirectory(), r.FileName!);
+            var size = await Api.DownloadIqcDocumentToFileAsync(r.Id, dest);
+            if (size is null)
+            {
+                _notice = T("iqc.doc.nofile.hint");
+                await ReloadAsync();
+                return;
+            }
+            if (!await FileOpener.TryOpenAsync(dest))
+                _notice = T("iqc.doc.saved.only", dest);
+        }
+        catch (Exception ex) { _error = Describe(ex); }
+        finally { _busyId = 0; StateHasChanged(); }
+    }
+
+    private async Task RemoveRowAsync(Row r)
+    {
+        CloseMenu();
+        _error = null; _notice = null;
+        _busyId = r.Id;
+        StateHasChanged();
+        try
+        {
+            await Api.RemoveIqcDocumentAsync(r.Id);
+            await ReloadAsync();
+            _notice = T("iqc.doc.removed", r.Label);
+        }
+        catch (Exception ex) { _error = Describe(ex); }
+        finally { _busyId = 0; StateHasChanged(); }
+    }
+
+    // ── menu dòng (L35) ──────────────────────────────────────────────────
+
+    private void OpenMenuAt(Row r, double x, double y)
+    {
+        _menuRow = r;
+        _menuAnchor = (x, y);
+        var items = new List<ContextMenuItem>
+        {
+            new() { Label = T("iqc.doc.menu.open"), Icon = "↗", Disabled = !r.HasFile,
+                    OnClick = EventCallback.Factory.Create(this, () => OpenFileAsync(r)) },
+        };
+        // RBAC-by-omission: người chỉ được xem không thấy nhập/xoá.
+        if (Editable)
+        {
+            items.Add(new ContextMenuItem { Label = T("iqc.doc.menu.import"), Icon = "📎",
+                OnClick = EventCallback.Factory.Create(this, () => ImportFileAsync(r)) });
+            items.Add(ContextMenuItem.Divider);
+            items.Add(new ContextMenuItem { Label = T("iqc.doc.menu.remove"), Icon = "🗑", Danger = true,
+                OnClick = EventCallback.Factory.Create(this, () => RemoveRowAsync(r)) });
+        }
+        _menuItems = items;
+    }
+
+    private void CloseMenu() => _menuRow = null;
+
+    private void LongPressStart(Row r, PointerEventArgs e)
+    {
+        if (e.Button != 0) return;
+        _pressAt = (e.ClientX, e.ClientY);
+        _longPress?.Dispose();
+        _longPress = new System.Threading.Timer(
+            _ => InvokeAsync(() => { OpenMenuAt(r, _pressAt.X, _pressAt.Y); StateHasChanged(); }),
+            null, 500, System.Threading.Timeout.Infinite);
+    }
+
+    private void LongPressCancel() { _longPress?.Dispose(); _longPress = null; }
+
+    public override void Dispose()
+    {
+        _longPress?.Dispose();
+        base.Dispose();
+    }
+
+    // ── trình bày ────────────────────────────────────────────────────────
+
+    private string StatusClass(Row r) =>
+        !r.Complete ? "qms-status-missing"
+        : r.ExpiryDate is { } e && e.Date < DateTime.Today ? "qms-status-expired"
+        : "qms-status-valid";
+
+    private string StatusLabel(Row r) =>
+        !r.Complete ? T("iqc.doc.status.missing")
+        : r.ExpiryDate is { } e && e.Date < DateTime.Today ? T("qms.status.expired")
+        : T("qms.status.valid");
+
+    private string Describe(Exception ex) => ex switch
+    {
+        ApiException api => IqcDocumentErrorLocaliser.Localise(api, k => T(k)),
+        HttpRequestException h => T("iqc.doc.err.connect", h.Message),
+        TaskCanceledException => T("iqc.doc.err.timeout"),
+        _ => $"{ex.GetType().Name}: {ex.Message}",
+    };
+}

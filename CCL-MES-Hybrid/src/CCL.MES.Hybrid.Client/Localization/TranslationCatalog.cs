@@ -87,6 +87,7 @@ public sealed partial class TranslationCatalog : ITranslationCatalog
         RegisterQmsUi();
         RegisterIqcTicket();
         RegisterIqcModule();   // feat/iqc-module-tabs — 3 sub-tab + picker + placeholder forms
+        RegisterIqcDoc();      // P12 bước 4 — bảng hồ sơ HSF theo mã mẹ nguyên liệu
         RegisterNpiStruct();
         RegisterNpiRoute();
         RegisterNpiRaw();

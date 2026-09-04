@@ -83,6 +83,25 @@ public interface ICclApiClient
         CancellationToken ct = default);
     Task SetIqcSpecItemActiveAsync(long itemId, bool active, CancellationToken ct = default);
 
+    // ── IQC hồ sơ HSF theo mã nguyên liệu (P12 bước 4) ─────────────
+    Task<CCL.MES.Shared.Quality.IqcDocumentListResponse> GetIqcDocumentsAsync(
+        string materialCode, bool includeInactive = false, CancellationToken ct = default);
+    Task SaveIqcDocumentAsync(
+        long id, CCL.MES.Shared.Quality.SaveIqcDocumentBody body, CancellationToken ct = default);
+    Task AddIqcDocumentAsync(
+        CCL.MES.Shared.Quality.AddIqcDocumentBody body, CancellationToken ct = default);
+    Task RemoveIqcDocumentAsync(long id, CancellationToken ct = default);
+
+    /// <summary>Đính PDF vào một dòng hồ sơ (multipart).</summary>
+    Task UploadIqcDocumentFileAsync(
+        long id, Stream content, string fileName, string contentType, CancellationToken ct = default);
+
+    /// <summary>Tải file xuống <paramref name="destinationFilePath"/> để mở bằng
+    /// app ngoài; trả số byte. Trả <c>null</c> khi dòng chưa đính file — caller
+    /// dựa vào đó để không mở cửa sổ trống.</summary>
+    Task<long?> DownloadIqcDocumentToFileAsync(
+        long id, string destinationFilePath, CancellationToken ct = default);
+
     // ── NPI (pilot scope) ──────────────────────────────────────────
     Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? search, int page, int pageSize, CancellationToken ct = default);
     Task<NpiPagedRaw<NpiRawMaterial>> GetRawMaterialsAsync(string? search, int page, int pageSize, CancellationToken ct = default);

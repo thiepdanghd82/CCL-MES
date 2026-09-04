@@ -14,13 +14,13 @@ using Xunit;
 namespace CCL.MES.Hybrid.Razor.Tests;
 
 /// <summary>
-/// P12 bước 3 — lưới hạng mục kiểm của phiếu IQC, dùng lại khuôn tab-nhóm của
-/// FQC/OQC (L63).
+/// P12 bước 3 — lưới hạng mục kiểm của phiếu IQC: MỘT bảng phẳng, KHÔNG tab
+/// nhóm (Henry chốt 2026-09-03 — mục stepper đã chia hạng mục rồi).
 ///
-/// <para>Khoá bốn điều: (a) mỗi MỤC chỉ hiện hạng mục của mình; (b) khoá tab là
-/// chuỗi VI nên đổi ngôn ngữ chỉ đổi NHÃN, không văng tab; (c) <c>Pass=null</c>
-/// hiện <b>Chưa kiểm</b> chứ KHÔNG phải NG; (d) tiêu chuẩn còn <c>XXX</c> khoá
-/// nút ĐẠT nhưng vẫn cho chấm NG.</para>
+/// <para>Khoá bốn điều: (a) mỗi MỤC chỉ hiện hạng mục của mình, TẤT CẢ trong
+/// một bảng; (b) nhóm thành CỘT và chỉ in ở dòng đầu mỗi nhóm; (c)
+/// <c>Pass=null</c> hiện <b>Chưa kiểm</b> chứ KHÔNG phải NG; (d) tiêu chuẩn
+/// còn <c>XXX</c> khoá nút ĐẠT nhưng vẫn cho chấm NG.</para>
 /// </summary>
 public sealed class IqcCheckItemGridTests : TestContext
 {
@@ -75,18 +75,43 @@ public sealed class IqcCheckItemGridTests : TestContext
     // ── (a) mỗi mục chỉ hiện hạng mục của mình ───────────────────────────
 
     [Fact]
-    public void Muc_2_chi_hien_hang_muc_cua_muc_2()
+    public void Muc_2_hien_TAT_CA_hang_muc_cua_no_trong_MOT_bang()
     {
         var cut = Render(section: 2);
 
-        // Hai nhóm của mục 2 có tab; hai nhóm của mục 3 KHÔNG được xuất hiện —
-        // kể cả dưới dạng tab, vì tab là lối vào hạng mục.
-        Assert.Contains("iqc-sec2-tab-Nguyên liệu", cut.Markup);
-        Assert.Contains("iqc-sec2-tab-Ngoại quan", cut.Markup);
-        Assert.DoesNotContain("iqc-sec2-tab-Kích thước", cut.Markup);
-        Assert.DoesNotContain("iqc-sec2-tab-Độ cứng", cut.Markup);
+        // Cả hai hạng mục của mục 2 cùng lúc — KHÔNG phải bấm tab mới thấy.
+        Assert.Contains("iqc-sec2-item-1", cut.Markup);          // NL-01
+        Assert.Contains("iqc-sec2-item-2", cut.Markup);          // NQ-01
         Assert.DoesNotContain("iqc-sec2-item-3", cut.Markup);    // KT-01 thuộc mục 3
         Assert.DoesNotContain("iqc-sec2-item-4", cut.Markup);    // CU-01 thuộc mục 3
+    }
+
+    [Fact]
+    public void KHONG_con_tab_nhom_nao()
+    {
+        // Mục stepper đã chia hạng mục; thêm tab là chia hai lần cùng một tập.
+        var cut = Render(section: 2);
+
+        Assert.DoesNotContain("ipqc-tabs", cut.Markup);
+        Assert.DoesNotContain("ipqc-tab-chip", cut.Markup);
+        Assert.Empty(cut.FindAll("[role=tablist]"));
+    }
+
+    [Fact]
+    public void Nhom_thanh_COT_va_chi_in_o_DONG_DAU_moi_nhom()
+    {
+        // Lặp lại cùng một tên nhóm ở mọi dòng là nhiễu; nhưng bỏ hẳn thì mất
+        // thông tin. In ở dòng đầu nhóm là chỗ giữa.
+        var cut = Render(section: 2, items:
+        [
+            It(1, "NQ-01", "NQ", "Ngoại quan", "Tem nhãn", section: 2),
+            It(2, "NQ-02", "NQ", "Ngoại quan", "Màu sắc", section: 2),
+            It(3, "NL-01", "NL", "Nguyên liệu", "Nhận dạng", section: 2),
+        ]);
+
+        Assert.Equal("Ngoại quan", cut.Find("[data-testid='iqc-sec2-item-1-group']").TextContent.Trim());
+        Assert.Equal("", cut.Find("[data-testid='iqc-sec2-item-2-group']").TextContent.Trim());
+        Assert.Equal("Nguyên liệu", cut.Find("[data-testid='iqc-sec2-item-3-group']").TextContent.Trim());
     }
 
     [Fact]
@@ -98,59 +123,25 @@ public sealed class IqcCheckItemGridTests : TestContext
         Assert.DoesNotContain("iqc-sec3-item-1", cut.Markup);
     }
 
-    [Fact]
-    public void Tab_dau_tien_mo_san_de_khong_ai_phai_bam_moi_thay_gi()
-    {
-        // Sắp xếp Ordinal đưa "Ngoại quan" lên trước "Nguyên liệu" ('o' < 'u').
-        // Khẳng định điều đó ở đây để lần sau đổi thứ tự thì test ĐỎ chứ không
-        // âm thầm đổi tab người kiểm nhìn thấy đầu tiên.
-        var cut = Render(section: 2);
 
-        Assert.Contains("iqc-sec2-item-2", cut.Markup);         // NQ-01 (Ngoại quan)
-        Assert.DoesNotContain("iqc-sec2-item-1", cut.Markup);   // NL-01 ở tab kia
-    }
 
-    [Fact]
-    public void Bam_sang_tab_khac_thi_chi_con_hang_muc_cua_tab_do()
-    {
-        var cut = Render(section: 2);
-        cut.Find("[data-testid='iqc-sec2-tab-Nguyên liệu']").Click();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Contains("iqc-sec2-item-1", cut.Markup);        // NL-01
-            Assert.DoesNotContain("iqc-sec2-item-2", cut.Markup);  // NQ-01 ở tab khác
-        });
-    }
-
-    [Fact]
-    public void So_dem_tren_tab_la_da_cham_tren_tong()
-    {
-        var cut = Render(section: 2);
-
-        // Nguyên liệu: 0/1 chưa chấm · Ngoại quan: 1/1 đã chấm ĐẠT.
-        Assert.Contains(">0/1<", cut.Find("[data-testid='iqc-sec2-tab-Nguyên liệu-count']").OuterHtml);
-        Assert.Contains(">1/1<", cut.Find("[data-testid='iqc-sec2-tab-Ngoại quan-count']").OuterHtml);
-    }
 
     // ── (b) đổi ngôn ngữ: đổi NHÃN, không văng tab ───────────────────────
 
     [Fact]
-    public void Doi_sang_EN_thi_nhan_doi_ma_KHOA_tab_van_la_VI()
+    public void Doi_sang_EN_thi_nhan_nhom_va_nhan_hang_muc_doi_theo()
     {
         var cut = Render(section: 2);
-        cut.Find("[data-testid='iqc-sec2-tab-Nguyên liệu']").Click();
-        cut.WaitForAssertion(() => Assert.Contains("iqc-sec2-item-1", cut.Markup));
+        cut.WaitForAssertion(() => Assert.Contains("Nhận dạng", cut.Markup));
 
         Services.GetRequiredService<ILanguageService>().Set(LanguageCode.English);
 
         cut.WaitForAssertion(() =>
         {
             var html = cut.Markup;
-            Assert.Contains("Nguyên liệu (EN)", html);             // nhãn đã dịch
-            Assert.Contains("iqc-sec2-tab-Nguyên liệu", html);     // KHOÁ vẫn VI
-            Assert.Contains("iqc-sec2-item-1", html);              // tab không văng
-            Assert.Contains("Nhận dạng (EN)", html);               // nhãn hạng mục EN
+            Assert.Contains("Nguyên liệu (EN)", html);   // nhãn NHÓM (cột) đã dịch
+            Assert.Contains("Nhận dạng (EN)", html);     // nhãn hạng mục đã dịch
+            Assert.Contains("iqc-sec2-item-1", html);    // không mất dòng nào
         });
     }
 
@@ -162,7 +153,6 @@ public sealed class IqcCheckItemGridTests : TestContext
         // Trước P12, Pass là bool không nullable ⇒ hạng mục vừa dựng đều hiện NG,
         // tuyên bố cả lô không đạt mà không ai bấm gì.
         var cut = Render(section: 2);
-        cut.Find("[data-testid='iqc-sec2-tab-Nguyên liệu']").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -186,7 +176,6 @@ public sealed class IqcCheckItemGridTests : TestContext
     public void Tieu_chuan_con_XXX_thi_khoa_nut_DAT_nhung_van_cham_NG_duoc()
     {
         var cut = Render(section: 3);
-        cut.Find("[data-testid='iqc-sec3-tab-Độ cứng']").Click();
 
         cut.WaitForAssertion(() =>
         {
@@ -203,7 +192,6 @@ public sealed class IqcCheckItemGridTests : TestContext
     public void Bam_DAT_thi_goi_dung_phieu_dung_hang_muc()
     {
         var cut = Render(section: 2);
-        cut.Find("[data-testid='iqc-sec2-tab-Nguyên liệu']").Click();
         cut.Find("[data-testid='iqc-sec2-item-1-ok']").Click();
 
         cut.WaitForAssertion(() =>
@@ -220,7 +208,6 @@ public sealed class IqcCheckItemGridTests : TestContext
     {
         _api.SetIqcTicketItemThrows = new InvalidOperationException("iqc.acceptance_unspecified");
         var cut = Render(section: 2);
-        cut.Find("[data-testid='iqc-sec2-tab-Nguyên liệu']").Click();
         cut.Find("[data-testid='iqc-sec2-item-1-ok']").Click();
 
         cut.WaitForAssertion(() =>

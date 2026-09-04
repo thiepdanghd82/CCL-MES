@@ -165,3 +165,52 @@ public class IqcSpecItem : BaseEntity
     public int Sort { get; set; }
     public bool Active { get; set; } = true;
 }
+
+/// <summary>
+/// P12 bước 4 — hồ sơ HSF của một MÃ NGUYÊN LIỆU (TDS · MSDS · RoHS · REACH ·
+/// ISO 9001 · và loại do người dùng thêm).
+///
+/// <para><b>Gắn theo MÃ, không theo phiếu</b> (Henry chốt 2026-09-03). TDS là
+/// thuộc tính của vật liệu, không phải của một lô: upload một lần thì mọi lô
+/// sau của mã đó đều thấy. Gắn theo phiếu sẽ bắt người kiểm upload lại đúng
+/// một file cho từng lô, và sáu tháng sau không ai biết bản nào là bản mới.</para>
+///
+/// <para>File KHÔNG nằm trong DB — chỉ giữ <see cref="StorageKey"/> trỏ vào
+/// <c>IBlobStore</c> (<c>&lt;DataDir&gt;/blobs/IQC/Documents/&lt;mã&gt;/</c> trên
+/// SERVER). DB nặng lên vì blob là cách chắc chắn để backup thành vô dụng.</para>
+/// </summary>
+public class IqcMaterialDocument : BaseEntity
+{
+    /// <summary>Khoá scope = <c>RawMaterials.MotherCode</c>, cùng khoá với
+    /// <see cref="IqcMaterialSpec.MaterialCode"/>.</summary>
+    [MaxLength(256)] public string MaterialCode { get; set; } = "";
+
+    /// <summary>Mã loại hồ sơ, viết HOA không dấu: <c>TDS</c> · <c>MSDS</c> ·
+    /// <c>ROHS</c> · <c>REACH</c> · <c>ISO9001</c>. Dùng đặt tên file nên phải
+    /// an toàn với hệ thống tệp.</summary>
+    [MaxLength(64)] public string DocType { get; set; } = "";
+
+    [MaxLength(128)] public string? LabelVi { get; set; }
+    [MaxLength(128)] public string? LabelEn { get; set; }
+
+    // Ba trường BẮT BUỘC khi lưu — hồ sơ chất lượng không có số và hạn thì
+    // không chứng minh được điều gì.
+    [MaxLength(64)] public string? DocNumber { get; set; }
+    public DateTime? IssueDate { get; set; }
+    public DateTime? ExpiryDate { get; set; }
+
+    /// <summary>Khoá blob trên server; <c>null</c> = dòng đã khai nhưng chưa
+    /// đính file.</summary>
+    [MaxLength(512)] public string? StorageKey { get; set; }
+
+    /// <summary>Tên file đã chuẩn hoá: <c>&lt;mã&gt;_&lt;DocType&gt;.pdf</c>.</summary>
+    [MaxLength(256)] public string? FileName { get; set; }
+    [MaxLength(64)] public string? FileSha256 { get; set; }
+    public long? FileSizeBytes { get; set; }
+
+    public int Sort { get; set; }
+
+    /// <summary>Xoá MỀM. Hồ sơ chất lượng đã từng có mặt thì không được biến
+    /// mất không dấu vết.</summary>
+    public bool Active { get; set; } = true;
+}

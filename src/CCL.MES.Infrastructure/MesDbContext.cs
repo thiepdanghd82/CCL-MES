@@ -38,6 +38,7 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<IqcCheckItemLibrary> IqcCheckItemLibraries => Set<IqcCheckItemLibrary>();
     public DbSet<IqcMaterialSpec> IqcMaterialSpecs => Set<IqcMaterialSpec>();
     public DbSet<IqcSpecItem> IqcSpecItems => Set<IqcSpecItem>();
+    public DbSet<IqcMaterialDocument> IqcMaterialDocuments => Set<IqcMaterialDocument>();
     public DbSet<WorkOrder> WorkOrders => Set<WorkOrder>();
     public DbSet<WoStatusHistory> WoStatusHistories => Set<WoStatusHistory>();
     // P11-1 — Multi-Method Routing DAG (fork-join): leg nodes + dependency
@@ -637,6 +638,12 @@ public class MesDbContext : DbContext, IMesDbContext
         // tiêu chí kiểm mà không báo gì.
         b.Entity<IqcSpecItem>().HasIndex(x => new { x.SpecNo, x.ItemId, x.Seq }).IsUnique();
         b.Entity<IqcSpecItem>().HasIndex(x => x.SpecNo);
+
+        // P12 bước 4 — hồ sơ HSF theo MÃ nguyên liệu. Một mã có tối đa MỘT
+        // dòng cho mỗi loại hồ sơ; hai dòng "TDS" cùng mã thì không ai biết
+        // bản nào đang hiệu lực.
+        b.Entity<IqcMaterialDocument>().HasIndex(x => new { x.MaterialCode, x.DocType }).IsUnique();
+        b.Entity<IqcMaterialDocument>().HasIndex(x => x.MaterialCode);
         b.Entity<CheckItemLibrary>().HasIndex(x => x.ProcessLine);
 
         // Auth — Username is unique and matched CASE-INSENSITIVELY. The

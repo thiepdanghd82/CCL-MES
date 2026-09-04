@@ -3,6 +3,7 @@ using Bunit;
 using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client;
 using CCL.MES.Hybrid.Client.Auth;
+using CCL.MES.Hybrid.Client.Files;
 using CCL.MES.Hybrid.Client.Qms;
 using CCL.MES.Hybrid.Client.Windows;
 using CCL.MES.Hybrid.Razor.Pages;
@@ -41,6 +42,9 @@ public sealed class IqcModuleTests : TestContext
         Services.AddSingleton<IFloatingWindowStore>(new InMemoryFloatingWindowStore());
         Services.AddSingleton<IWindowManager>(_wm);
         Services.AddSingleton<IIqcChangeNotifier>(_notifier);
+        // P12 bước 4 — bảng hồ sơ HSF ở bước 1 tiêm IFilePickerService + IFileOpener.
+        Services.AddSingleton<IFilePickerService>(new StubFilePickerService());
+        Services.AddSingleton<IFileOpener>(new StubFileOpener());
         Services.AddI18n();
         JSInterop.Mode = JSRuntimeMode.Loose;
         var auth = this.AddTestAuthorization();
@@ -358,6 +362,9 @@ public sealed class IqcModuleTests : TestContext
         _session.SetUser(role.ToLowerInvariant() + "-user", role);
         Services.AddSingleton<ICclApiClient>(_api);
         Services.AddSingleton<IAuthSession>(_session);
+        // P12 bước 4 — bảng hồ sơ HSF ở bước 1 tiêm IFilePickerService + IFileOpener.
+        Services.AddSingleton<IFilePickerService>(new StubFilePickerService());
+        Services.AddSingleton<IFileOpener>(new StubFileOpener());
         Services.AddI18n();
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized(role.ToLowerInvariant() + "-user");

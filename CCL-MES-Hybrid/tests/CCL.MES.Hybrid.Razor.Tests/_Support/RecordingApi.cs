@@ -919,6 +919,79 @@ public sealed class RecordingApi : ICclApiClient
             ? Task.FromException(IqcSpecWriteThrows) : Task.CompletedTask;
     }
 
+    // ── P12 bước 4 — hồ sơ HSF theo mã mẹ nguyên liệu ────────────────────
+    public Func<string, bool, Task<CCL.MES.Shared.Quality.IqcDocumentListResponse>>? IqcDocumentsImpl { get; set; }
+    public List<(string MaterialCode, bool IncludeInactive)> IqcDocumentsCalls { get; } = new();
+    public List<(long Id, CCL.MES.Shared.Quality.SaveIqcDocumentBody Body)> SaveIqcDocumentCalls { get; } = new();
+    public List<CCL.MES.Shared.Quality.AddIqcDocumentBody> AddIqcDocumentCalls { get; } = new();
+    public List<long> RemoveIqcDocumentCalls { get; } = new();
+    public List<(long Id, string FileName, string ContentType)> UploadIqcDocumentCalls { get; } = new();
+    public List<(long Id, string Destination)> DownloadIqcDocumentCalls { get; } = new();
+
+    /// <summary>Ném từ mọi lệnh GHI hồ sơ — dùng để khoá nhánh banner lỗi.</summary>
+    public Exception? IqcDocumentWriteThrows { get; set; }
+
+    /// <summary>Số byte mà lệnh tải giả vờ ghi ra. <c>null</c> = dòng chưa đính
+    /// file (server trả 404), đúng tri-state mà UI phải xử lý.</summary>
+    public long? IqcDocumentDownloadSize { get; set; } = 1024;
+
+    public Task<CCL.MES.Shared.Quality.IqcDocumentListResponse> GetIqcDocumentsAsync(
+        string materialCode, bool includeInactive = false, CancellationToken ct = default)
+    {
+        IqcDocumentsCalls.Add((materialCode, includeInactive));
+        return IqcDocumentsImpl is not null
+            ? IqcDocumentsImpl(materialCode, includeInactive)
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcDocumentListResponse { MaterialCode = materialCode });
+    }
+
+    public Task SaveIqcDocumentAsync(
+        long id, CCL.MES.Shared.Quality.SaveIqcDocumentBody body, CancellationToken ct = default)
+    {
+        SaveIqcDocumentCalls.Add((id, body));
+        return IqcDocumentWriteThrows is not null
+            ? Task.FromException(IqcDocumentWriteThrows) : Task.CompletedTask;
+    }
+
+    public Task AddIqcDocumentAsync(
+        CCL.MES.Shared.Quality.AddIqcDocumentBody body, CancellationToken ct = default)
+    {
+        AddIqcDocumentCalls.Add(body);
+        return IqcDocumentWriteThrows is not null
+            ? Task.FromException(IqcDocumentWriteThrows) : Task.CompletedTask;
+    }
+
+    public Task RemoveIqcDocumentAsync(long id, CancellationToken ct = default)
+    {
+        RemoveIqcDocumentCalls.Add(id);
+        return IqcDocumentWriteThrows is not null
+            ? Task.FromException(IqcDocumentWriteThrows) : Task.CompletedTask;
+    }
+
+    public Task UploadIqcDocumentFileAsync(
+        long id, Stream content, string fileName, string contentType, CancellationToken ct = default)
+    {
+        UploadIqcDocumentCalls.Add((id, fileName, contentType));
+        return IqcDocumentWriteThrows is not null
+            ? Task.FromException(IqcDocumentWriteThrows) : Task.CompletedTask;
+    }
+
+    public Task<long?> DownloadIqcDocumentToFileAsync(
+        long id, string destinationFilePath, CancellationToken ct = default)
+    {
+        DownloadIqcDocumentCalls.Add((id, destinationFilePath));
+        if (IqcDocumentWriteThrows is not null) return Task.FromException<long?>(IqcDocumentWriteThrows);
+
+        // Ghi file thật: bài test "nháy đúp mở file" cần đường dẫn tồn tại thì
+        // IFileOpener giả mới trả lời được điều gì có nghĩa.
+        if (IqcDocumentDownloadSize is { } n)
+        {
+            var dir = Path.GetDirectoryName(destinationFilePath);
+            if (!string.IsNullOrWhiteSpace(dir)) Directory.CreateDirectory(dir);
+            File.WriteAllBytes(destinationFilePath, new byte[n]);
+        }
+        return Task.FromResult(IqcDocumentDownloadSize);
+    }
+
     // feat/iqc-module-tabs — IQC Data list + Dashboard KPI hooks.
     public Func<string?, string?, int, int, Task<CCL.MES.Shared.Quality.IqcTicketListResponse>>? ListIqcTicketsImpl { get; set; }
     public Func<Task<CCL.MES.Shared.Quality.IqcDashboardResponse>>? IqcDashboardImpl { get; set; }

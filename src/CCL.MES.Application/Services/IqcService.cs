@@ -750,6 +750,20 @@ public class IqcService
         }
 
         var paged = await PagingHelper.PageAsync(q, page, pageSize);
+
+        // MÃ MẸ là khoá thư mục hồ sơ HSF (IQC/Documents/<mã mẹ>/). Phiếu chỉ
+        // giữ RawMaterialId nên phải tra thêm — tra SAU khi phân trang để không
+        // đụng vào truy vấn đếm, và một lượt cho cả trang chứ không N+1.
+        var rawIds = paged.Items
+            .Where(x => x.RawMaterialId is not null)
+            .Select(x => x.RawMaterialId!.Value).Distinct().ToList();
+        var motherByRaw = rawIds.Count == 0
+            ? new Dictionary<long, string?>()
+            : await _db.RawMaterials.AsNoTracking()
+                .Where(m => rawIds.Contains(m.Id))
+                .Select(m => new { m.Id, m.MotherCode })
+                .ToDictionaryAsync(m => m.Id, m => m.MotherCode, ct);
+
         return new IqcTicketPage
         {
             Page = paged.Page,
@@ -758,6 +772,8 @@ public class IqcService
             Items = paged.Items.Select(x => new IqcTicketRow
             {
                 Id = x.Id,
+                MotherCode = x.RawMaterialId is { } rid
+                    && motherByRaw.TryGetValue(rid, out var mc) ? mc : null,
                 ReceiptNo = x.ReceiptNo,
                 Group = string.IsNullOrWhiteSpace(x.Group) ? IqcGroup.Materials : x.Group,
                 CodeIfs = x.CodeIfs,
@@ -981,6 +997,12 @@ public sealed class IqcTicketRow
     public string? ReceiptNo { get; init; }
     public string Group { get; init; } = "Materials";
     public string? CodeIfs { get; init; }
+
+    /// <summary>Mã mẹ của nguyên liệu — khoá thư mục hồ sơ HSF trên server
+    /// (<c>IQC/Documents/&lt;mã mẹ&gt;/</c>). <c>null</c> khi phiếu nhập tay
+    /// không khớp được dòng RawMaterials nào.</summary>
+    public string? MotherCode { get; init; }
+
     public string? MaterialDescription { get; init; }
     public string? LotBatchNo { get; init; }
     public DateTime? ManufactureDate { get; init; }

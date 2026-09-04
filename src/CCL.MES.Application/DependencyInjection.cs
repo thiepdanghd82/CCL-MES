@@ -23,6 +23,7 @@ public static class DependencyInjection
         // Phase 6 Bước 7 — IQC pre-WO raw-material inspection.
         services.AddScoped<IqcService>();
         services.AddScoped<IqcSpecEditService>();
+        services.AddScoped<IqcMaterialDocumentService>();
         return services;
     }
 }
