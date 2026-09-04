@@ -29,9 +29,10 @@ public sealed class IqcDocumentControllerTests : IClassFixture<MesApiFactory>
     private readonly MesApiFactory _fx;
     public IqcDocumentControllerTests(MesApiFactory fx) => _fx = fx;
 
-    private async Task<HttpClient> ClientAsync(string user, string role)
+    private async Task<HttpClient> ClientAsync(
+        string user, string role, string? displayName = null)
     {
-        await _fx.SeedUserAsync(user, "P@ss!1", role);
+        await _fx.SeedUserAsync(user, "P@ss!1", role, displayName);
         var c = _fx.CreateClient();
         await _fx.LoginAndAuthenticateAsync(c, user, "P@ss!1");
         return c;
@@ -224,6 +225,40 @@ public sealed class IqcDocumentControllerTests : IClassFixture<MesApiFactory>
         // không phải lời khai.
         Assert.Equal("iqcdoc-stamp", row.LastModifiedBy);
         Assert.NotNull(row.LastModifiedAt);
+    }
+
+    [Fact]
+    public async Task Cot_nguoi_sua_cuoi_tra_TEN_NGUOI_chu_khong_tra_ten_dang_nhap()
+    {
+        var c = await ClientAsync("iqcdoc-name", UserRole.Qc, "Đặng Thế Thiệp");
+        var id = (await ListAsync(c, "DOC-NAME-1")).Items[0].Id;
+
+        await c.SendAsync(Mk(HttpMethod.Put, $"/api/v2/iqc/documents/{id}",
+            new { DocNumber = "N-1", IssueDate = "2026-01-01", ExpiryDate = "2027-01-01" }));
+
+        var row = (await ListAsync(c, "DOC-NAME-1")).Items.Single(x => x.Id == id);
+
+        // Bảng vẫn lưu USERNAME — định danh ổn định, đối chiếu được AuditLogs.
+        Assert.Equal("iqcdoc-name", row.LastModifiedBy);
+        // Nhưng thứ ĐEM HIỆN phải là tên người.
+        Assert.Equal("Đặng Thế Thiệp", row.LastModifiedByDisplay);
+        Assert.Equal("Đặng Thế Thiệp", row.LastModifiedByLabel);
+    }
+
+    [Fact]
+    public async Task Tai_khoan_khong_co_ten_hien_thi_thi_lui_ve_username_chu_khong_bo_trong()
+    {
+        var c = await ClientAsync("iqcdoc-noname", UserRole.Qc, displayName: "");
+        var id = (await ListAsync(c, "DOC-NONAME-1")).Items[0].Id;
+
+        await c.SendAsync(Mk(HttpMethod.Put, $"/api/v2/iqc/documents/{id}",
+            new { DocNumber = "N-1", IssueDate = "2026-01-01", ExpiryDate = "2027-01-01" }));
+
+        var row = (await ListAsync(c, "DOC-NONAME-1")).Items.Single(x => x.Id == id);
+
+        Assert.Null(row.LastModifiedByDisplay);
+        // Mất dấu người làm còn tệ hơn hiện một cái tên xấu.
+        Assert.Equal("iqcdoc-noname", row.LastModifiedByLabel);
     }
 
     // ── thêm / xoá ───────────────────────────────────────────────────────

@@ -58,10 +58,17 @@ public sealed class IqcDocumentController : ControllerBase
         CancellationToken ct = default)
     {
         var rows = await _svc.ListAsync(materialCode, includeInactive, ct);
+
+        // Cột "người sửa cuối" hiện TÊN NGƯỜI, không hiện tên đăng nhập. Bảng
+        // vẫn lưu username (định danh ổn định, đối chiếu được với AuditLogs);
+        // đổi sang tên hiển thị chỉ ở lúc đọc — một truy vấn cho cả trang.
+        var names = await _svc.ResolveDisplayNamesAsync(
+            rows.Select(r => r.UpdatedBy ?? r.CreatedBy), ct);
+
         return Ok(new IqcDocumentListResponse
         {
             MaterialCode = (materialCode ?? "").Trim(),
-            Items = rows.Select(Map).ToList(),
+            Items = rows.Select(r => Map(r, names)).ToList(),
         });
     }
 
@@ -163,6 +170,11 @@ public sealed class IqcDocumentController : ControllerBase
         _   => UnprocessableEntity(ApiError.Of(r.ErrorCode!, r.MessageEn!)),
     };
 
+    private static string? LookupName(
+        IReadOnlyDictionary<string, string>? names, string? username) =>
+        names is not null && !string.IsNullOrWhiteSpace(username)
+            && names.TryGetValue(username, out var d) ? d : null;
+
     private static string ContentTypeFor(string? fileName) =>
         Path.GetExtension(fileName ?? "").ToLowerInvariant() switch
         {
@@ -172,7 +184,9 @@ public sealed class IqcDocumentController : ControllerBase
             _ => "application/octet-stream",
         };
 
-    private static IqcDocumentDto Map(CCL.MES.Domain.Entities.IqcMaterialDocument x) => new()
+    private static IqcDocumentDto Map(
+        CCL.MES.Domain.Entities.IqcMaterialDocument x,
+        IReadOnlyDictionary<string, string>? names = null) => new()
     {
         Id = x.Id,
         MaterialCode = x.MaterialCode,
@@ -186,6 +200,7 @@ public sealed class IqcDocumentController : ControllerBase
         FileSizeBytes = x.FileSizeBytes,
         // KHÔNG map StorageKey ra client — khoá lưu là chi tiết của server.
         LastModifiedBy = x.UpdatedBy ?? x.CreatedBy,
+        LastModifiedByDisplay = LookupName(names, x.UpdatedBy ?? x.CreatedBy),
         LastModifiedAt = x.UpdatedAt ?? x.CreatedAt,
         Active = x.Active,
     };

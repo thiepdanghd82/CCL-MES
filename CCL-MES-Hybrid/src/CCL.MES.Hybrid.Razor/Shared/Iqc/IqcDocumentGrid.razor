@@ -274,7 +274,9 @@
                     IssueDate = d.IssueDate,
                     ExpiryDate = d.ExpiryDate,
                     FileName = d.FileName,
-                    LastModifiedBy = d.LastModifiedBy,
+                    // Nhãn để HIỆN — tên người, lùi về username khi tài khoản
+                    // đã xoá. Không bỏ trống: mất dấu người làm còn tệ hơn.
+                    LastModifiedBy = d.LastModifiedByLabel,
                     LastModifiedAt = d.LastModifiedAt,
                     Pristine = (Row.Norm(d.DocNumber), d.IssueDate, d.ExpiryDate),
                 });

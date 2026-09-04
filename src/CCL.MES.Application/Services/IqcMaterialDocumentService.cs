@@ -80,6 +80,42 @@ public sealed class IqcMaterialDocumentService
             .ToListAsync(ct);
     }
 
+    /// <summary>
+    /// Đổi username → tên hiển thị cho MỘT MẺ dòng.
+    ///
+    /// <para>Cột <c>CreatedBy</c>/<c>UpdatedBy</c> vẫn lưu USERNAME chứ không
+    /// lưu tên hiển thị, và đó là chủ ý: username là định danh ỔN ĐỊNH, còn tên
+    /// hiển thị sửa được. Đóng băng tên hiển thị vào bảng thì hôm nào sửa lại
+    /// tên một người (gõ sai dấu, đổi họ) là mọi dòng cũ mang tên sai vĩnh
+    /// viễn. Giải ở lúc ĐỌC thì sửa một chỗ, cả lịch sử hiện đúng.</para>
+    ///
+    /// <para>Một truy vấn cho cả trang, không N+1. Username nào không còn trong
+    /// bảng Users (tài khoản đã xoá) thì KHÔNG có trong map — caller hiện lại
+    /// username thô, vì mất dấu người làm còn tệ hơn hiện một cái tên xấu.</para>
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, string>> ResolveDisplayNamesAsync(
+        IEnumerable<string?> usernames, CancellationToken ct = default)
+    {
+        var keys = usernames
+            .Where(u => !string.IsNullOrWhiteSpace(u))
+            .Select(u => u!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (keys.Count == 0)
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        var rows = await _db.Users.AsNoTracking()
+            .Where(u => keys.Contains(u.Username))
+            .Select(u => new { u.Username, u.DisplayName })
+            .ToListAsync(ct);
+
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in rows)
+            if (!string.IsNullOrWhiteSpace(r.DisplayName))
+                map[r.Username] = r.DisplayName!;
+        return map;
+    }
+
     /// <summary>Idempotent: chỉ thêm loại nào CHƯA có. Không đụng dòng đã có,
     /// kể cả dòng người dùng đã tắt — bật lại là việc của người dùng.</summary>
     private async Task MaterializeDefaultsAsync(string code, CancellationToken ct)

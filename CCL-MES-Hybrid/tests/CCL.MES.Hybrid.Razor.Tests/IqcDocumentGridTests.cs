@@ -192,6 +192,32 @@ public sealed class IqcDocumentGridTests : TestContext
     // ── LUẬT 2: người sửa cuối do SERVER đóng dấu ────────────────────────
 
     [Fact]
+    public void Cot_nguoi_sua_cuoi_hien_TEN_NGUOI_chu_khong_hien_ten_dang_nhap()
+    {
+        Wire();
+        var d = Doc(1, "TDS", by: "admin");
+        d.LastModifiedByDisplay = "Đặng Thế Thiệp";
+        Seed(d);
+        var cut = Render();
+
+        var cell = cut.Find("[data-testid=iqc-doc-by-1]").TextContent;
+        Assert.Contains("Đặng Thế Thiệp", cell);
+        Assert.DoesNotContain("admin", cell);
+    }
+
+    [Fact]
+    public void Thieu_ten_hien_thi_thi_lui_ve_ten_dang_nhap_chu_khong_bo_trong()
+    {
+        Wire();
+        // Tài khoản đã xoá / chưa khai tên. Bỏ trống ô này = mất dấu người làm,
+        // tệ hơn hẳn việc hiện một cái tên xấu.
+        Seed(Doc(1, "TDS", by: "tran.bich.ngoc"));
+        var cut = Render();
+
+        Assert.Contains("tran.bich.ngoc", cut.Find("[data-testid=iqc-doc-by-1]").TextContent);
+    }
+
+    [Fact]
     public void Nguoi_sua_cuoi_la_o_CHI_DOC_lay_tu_server()
     {
         Wire();
@@ -199,7 +225,6 @@ public sealed class IqcDocumentGridTests : TestContext
         var cut = Render();
 
         var cell = cut.Find("[data-testid=iqc-doc-by-1]");
-        Assert.Contains("tran.bich.ngoc", cell.TextContent);
         // Không được có ô nhập trong ô này: client tự khai người sửa thì cột
         // đó thành lời khai, không còn là bằng chứng.
         Assert.Empty(cell.QuerySelectorAll("input"));
