@@ -14,7 +14,10 @@ public readonly record struct IqcMasterImportResult(
     int ItemsInserted,
     int ItemsUpdated,
     int LimitsParsed,
-    int LimitsUnparsed);
+    int LimitsUnparsed,
+    /// <summary>Hạng mục mà Excel CÓ tiêu chuẩn số nhưng spec trong app khai
+    /// khác — import KHÔNG tự chọn bên nào thắng, chỉ đếm để QC đối chiếu.</summary>
+    int TextConflicts);
 
 /// <summary>
 /// P13 bước 3 — rót tiêu chuẩn từ sheet <c>Raw</c> của file master IQC vào
@@ -52,7 +55,7 @@ public sealed class IqcMasterImportService
     {
         var read = rows.Count;
         var skipped = 0;
-        int specIns = 0, specEnr = 0, itemIns = 0, itemUpd = 0, parsed = 0, unparsed = 0;
+        int specIns = 0, specEnr = 0, itemIns = 0, itemUpd = 0, parsed = 0, unparsed = 0, conflict = 0;
 
         // Nạp một lượt, so trong bộ nhớ. 1.028 mã × 3 hạng mục mà truy vấn từng
         // dòng là ~3.000 vòng round-trip.
@@ -144,7 +147,29 @@ public sealed class IqcMasterImportService
                 var ik = (spec.SpecNo.ToUpperInvariant(), itemId.ToUpperInvariant(), 1);
                 if (itemsByKey.TryGetValue(ik, out var item))
                 {
-                    if (ApplyLimits(item, specText, lim, row.TestMethod))
+                    // ── HẠNG MỤC ĐÃ CÓ: KHÔNG đụng vào chuỗi tiêu chuẩn ──────
+                    // Hạng mục này thuộc một spec do seeder CSV sở hữu và ghi
+                    // lại MỖI LẦN BOOT. Import ghi đè chuỗi thì lần khởi động
+                    // kế tiếp seeder lấy lại — nhưng cột ngưỡng số thì seeder
+                    // KHÔNG đụng, nên còn lại một dòng mà chuỗi hiển thị và
+                    // ngưỡng máy chấm đến từ hai nguồn khác nhau.
+                    //
+                    // Đã xảy ra thật: CCL-SPEC-QC001/BD-01 hiện "FTM 2" (một
+                    // PHƯƠNG PHÁP, không phải chỉ tiêu) trong khi máy chấm theo
+                    // ≥10.0 lấy từ Excel. Người kiểm đọc một đằng, máy chấm một
+                    // nẻo, và không có gì báo.
+                    //
+                    // Nên: đọc ngưỡng từ chính chuỗi ĐANG CÓ. Chuỗi và ngưỡng
+                    // luôn cùng một nguồn ⇒ không bao giờ lệch nhau. Chỗ nào
+                    // Excel khai khác thì ĐẾM cho QC đối chiếu, không tự xử.
+                    var ownText = (item.AcceptanceVi ?? "").Trim();
+                    if (ownText.Length > 0
+                        && !string.Equals(ownText, specText, StringComparison.OrdinalIgnoreCase))
+                        conflict++;
+
+                    var ownLim = ownText.Length > 0 ? IqcSpecLimitParser.Parse(ownText) : lim;
+                    var ownNominal = ownText.Length > 0 ? ownText : specText;
+                    if (ApplyLimitsOnly(item, ownLim, ownNominal))
                     {
                         item.UpdatedAt = now; item.UpdatedBy = actor;
                         itemUpd++;
@@ -152,6 +177,8 @@ public sealed class IqcMasterImportService
                 }
                 else
                 {
+                    // Hạng mục MỚI: không ai sở hữu ⇒ import ghi cả chuỗi lẫn
+                    // ngưỡng, và hai thứ chắc chắn khớp nhau.
                     item = new IqcSpecItem
                     {
                         SpecNo = spec.SpecNo, ItemId = itemId, Seq = 1,
@@ -169,13 +196,33 @@ public sealed class IqcMasterImportService
             await _db.SaveChangesAsync(ct);
 
         return new IqcMasterImportResult(
-            read, skipped, ambiguous, specIns, specEnr, itemIns, itemUpd, parsed, unparsed);
+            read, skipped, ambiguous, specIns, specEnr, itemIns, itemUpd,
+            parsed, unparsed, conflict);
     }
 
     /// <summary>Số ô tiêu chuẩn khai được của một dòng — dùng để chọn dòng
     /// "đầy đặn nhất" khi một mã mẹ xuất hiện nhiều lần.</summary>
     private static int Filled(IqcMasterRow r) =>
         IqcMasterItemMap.ItemsOf(r).Count() + (string.IsNullOrWhiteSpace(r.TestMethod) ? 0 : 1);
+
+    /// <summary>Chỉ ghi NGƯỠNG SỐ, tuyệt đối không đụng chuỗi tiêu chuẩn hay
+    /// phương pháp — dùng cho hạng mục đã có chủ (seeder CSV sở hữu).</summary>
+    private static bool ApplyLimitsOnly(IqcSpecItem e, IqcSpecLimit? lim, string sourceText)
+    {
+        var ch = false;
+        void S<T>(T a, T b, Action<T> set)
+        { if (!EqualityComparer<T>.Default.Equals(a, b)) { set(b); ch = true; } }
+
+        S(e.LimitLow, lim?.Low, v => e.LimitLow = v);
+        S(e.LimitUp, lim?.Up, v => e.LimitUp = v);
+        S(e.LimitNominal, lim?.Nominal ?? IqcSpecLimitParser.ParseBareNominal(sourceText),
+            v => e.LimitNominal = v);
+        S(e.LimitUnit, lim?.Unit, v => e.LimitUnit = v);
+        S(e.LimitLabel, lim?.Label, v => e.LimitLabel = v);
+        S(e.TearIsPass, lim?.TearIsPass ?? false, v => e.TearIsPass = v);
+        S(e.LimitParsed, lim is not null, v => e.LimitParsed = v);
+        return ch;
+    }
 
     /// <summary>Đặt tiêu chuẩn + ngưỡng số đọc được lên một hạng mục. Trả
     /// <c>true</c> khi CÓ thay đổi thật — so trước khi set để chạy lại lần hai

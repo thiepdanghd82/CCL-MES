@@ -1,3 +1,4 @@
+using CCL.MES.Domain.Entities;
 using CCL.MES.Infrastructure;
 using CCL.MES.Tests.Integration._Support;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +22,10 @@ public sealed class IqcLibrarySeederTests : IDisposable
 
     /// <summary>Số liệu khoá từ file thật. Đổi file master mà quên sửa đây ⇒
     /// test ĐỎ, buộc người sửa nhìn lại con số thay vì để nó trôi.</summary>
-    private const int ExpectedItems = 21;
+    /// <summary>P13: 21 hạng mục chung + 30 hạng mục theo NHÓM vật liệu
+    /// (Roll 13 · Pcs 9 · Tool 5 · Chem 3), tên lấy nguyên văn từ file master
+    /// "IQC report 2026".</summary>
+    private const int ExpectedItems = 51;
     private const int ExpectedSpecs = 459;
     private const int ExpectedSpecItems = 5961;
 
@@ -174,5 +178,73 @@ public sealed class IqcLibrarySeederTests : IDisposable
 
         Assert.Equal(0, orphanSpec);
         Assert.Equal(0, orphanItem);
+    }
+
+    // ── P13: nhóm vật liệu · kiểu ghi nhận · số lần đo ───────────────────
+
+    [Fact]
+    public async Task So_lan_do_dung_5_cho_kich_thuoc_va_do_day()
+    {
+        // Henry chốt 2026-09-04: Roll đo rộng ×5 + dày ×5; PCS đo dài ×5 +
+        // rộng ×5 + dày ×5. CỐ ĐỊNH bất kể cỡ lô — khác hẳn cỡ mẫu ngoại quan
+        // vốn tra theo bảng AQL.
+        await using var db = _fx.NewContext();
+        await SeedAsync(db);
+        foreach (var id in new[] { "KT-02", "KT-03", "KT-04" })
+        {
+            var e = await db.IqcCheckItemLibraries.AsNoTracking().SingleAsync(x => x.ItemId == id);
+            Assert.Equal(IqcCheckKind.Measure, e.Kind);
+            Assert.Equal(5, e.MeasureCount);
+        }
+    }
+
+    [Fact]
+    public async Task Hang_muc_dem_loi_duoc_chia_dung_theo_nhom_vat_lieu()
+    {
+        await using var db = _fx.NewContext();
+        await SeedAsync(db);
+        var byCat = await db.IqcCheckItemLibraries.AsNoTracking()
+            .Where(x => x.Kind == IqcCheckKind.DefectCount)
+            .GroupBy(x => x.Category)
+            .Select(g => new { g.Key, N = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.N);
+
+        // Con số đếm được trên chính file master — nếu ai thêm/bớt ô đếm lỗi
+        // thì phải sửa cả đây, không để trôi.
+        Assert.Equal(13, byCat[IqcMaterialCategory.Roll]);
+        Assert.Equal(9, byCat[IqcMaterialCategory.Pcs]);
+        Assert.Equal(5, byCat[IqcMaterialCategory.Tool]);
+        // Chem là ba KHẲNG ĐỊNH đóng gói ("Không rách…"), không phải đếm lỗi.
+        Assert.False(byCat.ContainsKey(IqcMaterialCategory.Chem));
+    }
+
+    [Fact]
+    public async Task Hai_muc_ho_so_giay_KHONG_bi_coi_la_phep_do()
+    {
+        // RoHS/HSF là giấy tờ: không đo, không đếm. Xếp nhầm thành Measure thì
+        // UI sẽ hiện 5 ô nhập số cho một tờ chứng chỉ.
+        await using var db = _fx.NewContext();
+        await SeedAsync(db);
+        foreach (var id in new[] { "MT-01", "MT-02", "MT-03" })
+        {
+            var e = await db.IqcCheckItemLibraries.AsNoTracking().SingleAsync(x => x.ItemId == id);
+            Assert.Equal(IqcCheckKind.Document, e.Kind);
+            Assert.Equal(0, e.MeasureCount);
+        }
+    }
+
+    [Fact]
+    public async Task Hang_muc_CU_giu_nguyen_nhom_Any_de_khong_lam_mo_coi_spec_da_nhap()
+    {
+        // Import P13 bước 3 đã ghi 1231 hạng mục tiêu chuẩn vào KT-03/KT-04/
+        // BD-01. Đổi Category của chúng sang một nhóm cụ thể là làm mồ côi
+        // toàn bộ số đó.
+        await using var db = _fx.NewContext();
+        await SeedAsync(db);
+        foreach (var id in new[] { "KT-03", "KT-04", "BD-01" })
+        {
+            var e = await db.IqcCheckItemLibraries.AsNoTracking().SingleAsync(x => x.ItemId == id);
+            Assert.Equal(IqcMaterialCategory.Any, e.Category);
+        }
     }
 }

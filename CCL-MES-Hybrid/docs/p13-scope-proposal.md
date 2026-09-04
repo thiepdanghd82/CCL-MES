@@ -153,9 +153,11 @@ Công cụ: `scripts/IqcMasterImport` — mặc định chạy khô, `--commit` 
 | | |
 |---|---|
 | Đọc | 2 319 dòng · **1 028 mã mẹ** phân biệt |
+| Thư viện hạng mục | **21 → 51** (thêm 30 mục theo nhóm: Roll 13 · Pcs 9 · Tool 5 · Chem 3) |
 | Spec | tạo mới **672** · làm giàu **348** → tổng **459 → 1 131** |
-| Hạng mục | tạo mới **1 231** · cập nhật **295** → **5 961 → 7 192** |
-| Ngưỡng số | đọc được **776** · phải chấm tay **750** |
+| Hạng mục | tạo mới **1 231** · **cập nhật 0** → **5 961 → 7 192** |
+| Có ngưỡng số trong DB | **504** |
+| Xung đột Excel ↔ app | **295** (giữ bản app, chờ QC đối chiếu) |
 | Chờ QC duyệt | **672** (đúng bằng số spec mới) |
 | sha256 | `27ca52f4…` → `d3fe155b…` · integrity ok · FK 0 lỗi |
 
@@ -180,3 +182,38 @@ muốn lùi cả phần đó phải khôi phục từ backup Phase A.
   ở bước 13-6.
 - **7 mã đang có nhiều spec** trong app (`SFG-APB2M000102` có **sáu**). Import
   ghi vào `SpecNo` nhỏ nhất. Đây là dữ liệu lộn xộn có từ trước, nên để QC dọn.
+
+
+---
+
+## 9. Bẫy đắt nhất của bước 3 — HAI NGUỒN cùng ghi một dòng
+
+Bản import đầu tiên ghi đè `AcceptanceVi` của hạng mục thuộc spec do **seeder
+CSV sở hữu**. Seeder chạy lại **mỗi lần boot API** và lấy lại chuỗi cũ — nhưng
+nó **không** đụng cột ngưỡng số.
+
+Kết quả trên live: `CCL-SPEC-QC001 / BD-01` hiển thị **`FTM 2`** (một *phương
+pháp*, không phải chỉ tiêu) trong khi máy chấm theo **≥ 10.0** lấy từ Excel.
+**Người kiểm đọc một đằng, máy chấm một nẻo, và không có gì báo.**
+
+### Cách sửa
+
+| Loại hạng mục | Ai sở hữu | Import làm gì |
+|---|---|---|
+| Đã có (spec app) | seeder CSV | **không đụng chuỗi**; đọc ngưỡng từ chính chuỗi ĐÓ ⇒ hai thứ luôn cùng nguồn |
+| Mới (spec import) | import | ghi cả chuỗi lẫn ngưỡng ⇒ chắc chắn khớp |
+
+295 chỗ Excel khai khác app được **đếm và báo**, không tự chọn bên thắng.
+
+### Bằng chứng đã sửa
+
+```
+dòng seeder-sở-hữu mang ngưỡng Excel : 0
+boot lại → seeder NOOP, số ngưỡng đứng yên 504 → 504
+```
+
+Live đã được **khôi phục từ backup Phase A** rồi chạy lại bằng bản đã sửa.
+
+> **Quy tắc rút ra:** hai nguồn dữ liệu cùng ghi một bảng thì phải chia quyền
+> theo **CỘT**, không phải theo dòng. Chia theo dòng thì mỗi bên ghi một nửa và
+> bản ghi tự mâu thuẫn với chính nó — mà vẫn trông hợp lệ.

@@ -1,0 +1,10 @@
+# Import P13 bước 3 — CHẠY LẠI sau khi sửa xung đột hai nguồn (20260904T085409Z)
+thư viện: 21 -> 51 hạng mục
+specs:      459 -> 1131
+spec_items: 5961 -> 7192
+chờ QC duyệt: 672
+hạng mục có ngưỡng số: 504
+xung đột Excel vs app: 295 (GIỮ bản app, chờ QC đối chiếu)
+dòng seeder-sở-hữu mang ngưỡng Excel: 0  (phải 0)
+boot lại: seeder NOOP, số ngưỡng đứng yên 504 -> 504
+integrity: ok · FK 0 lỗi

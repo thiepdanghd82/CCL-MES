@@ -91,6 +91,9 @@ if (r.CodesWithDuplicateSpecs > 0)
 Console.WriteLine($"[spec] tạo mới={r.SpecsInserted} làm-giàu={r.SpecsEnriched}");
 Console.WriteLine($"[item] tạo mới={r.ItemsInserted} cập-nhật={r.ItemsUpdated}");
 Console.WriteLine($"[limit] đọc-được-ngưỡng={r.LimitsParsed} phải-chấm-tay={r.LimitsUnparsed}");
+if (r.TextConflicts > 0)
+    Console.WriteLine($"[conflict] {r.TextConflicts} hạng mục có tiêu chuẩn khác nhau giữa Excel và spec "
+                    + "trong app — GIỮ bản của app, cần QC đối chiếu.");
 
 if (!commit)
 {

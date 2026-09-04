@@ -235,4 +235,61 @@ public sealed class IqcMasterImportTests : IClassFixture<IsolatedDbFixture>
         Assert.StartsWith("IQC26-", a);
         await Task.CompletedTask;
     }
+
+    // ── HAI NGUỒN cùng ghi một dòng: bẫy đắt nhất của bước này ───────────
+
+    [Fact]
+    public async Task Hang_muc_DA_CO_thi_import_KHONG_duoc_ghi_de_chuoi_tieu_chuan()
+    {
+        // Đã xảy ra thật trên live: import ghi "10.0 N/25mm" lên
+        // CCL-SPEC-QC001/BD-01, rồi lần boot kế tiếp seeder CSV lấy lại chuỗi
+        // cũ "FTM 2" — nhưng seeder KHÔNG đụng cột ngưỡng số. Kết quả: màn hình
+        // hiện "FTM 2" (một PHƯƠNG PHÁP, không phải chỉ tiêu) trong khi máy
+        // chấm theo ≥10.0. Người kiểm đọc một đằng, máy chấm một nẻo.
+        await using var db = Db();
+        db.IqcMaterialSpecs.Add(new IqcMaterialSpec
+        { SpecNo = "CCL-SPEC-QC910", MaterialCode = "P13I-OWN-1" });
+        db.IqcSpecItems.Add(new IqcSpecItem
+        {
+            SpecNo = "CCL-SPEC-QC910", ItemId = IqcMasterItemMap.Adhesion, Seq = 1,
+            AcceptanceVi = "FTM 2", CreatedBy = "seed",
+        });
+        await db.SaveChangesAsync();
+
+        var r = await Run(db, Row("P13I-OWN-1", keo: "10.0 N/25mm"));
+
+        var item = await db.IqcSpecItems.AsNoTracking()
+            .SingleAsync(x => x.SpecNo == "CCL-SPEC-QC910");
+        // Chuỗi GIỮ NGUYÊN của app…
+        Assert.Equal("FTM 2", item.AcceptanceVi);
+        // …và KHÔNG mang ngưỡng của Excel. Chuỗi với ngưỡng phải cùng một nguồn.
+        Assert.Null(item.LimitLow);
+        Assert.False(item.LimitParsed);
+        // Xung đột được ĐẾM để QC đối chiếu, không tự chọn bên nào thắng.
+        Assert.Equal(1, r.TextConflicts);
+    }
+
+    [Fact]
+    public async Task Hang_muc_da_co_van_duoc_doc_nguong_tu_chinh_chuoi_CUA_NO()
+    {
+        // Không đụng chuỗi KHÔNG có nghĩa là bỏ mặc: nếu chuỗi của app tự nó
+        // đọc được thành ngưỡng thì vẫn điền, và chắc chắn khớp vì cùng nguồn.
+        await using var db = Db();
+        db.IqcMaterialSpecs.Add(new IqcMaterialSpec
+        { SpecNo = "CCL-SPEC-QC911", MaterialCode = "P13I-OWN-2" });
+        db.IqcSpecItems.Add(new IqcSpecItem
+        {
+            SpecNo = "CCL-SPEC-QC911", ItemId = IqcMasterItemMap.Thickness, Seq = 1,
+            AcceptanceVi = "0.16±0.016", CreatedBy = "seed",
+        });
+        await db.SaveChangesAsync();
+
+        await Run(db, Row("P13I-OWN-2", day: "0.20±0.02"));   // Excel khai KHÁC
+
+        var item = await db.IqcSpecItems.AsNoTracking()
+            .SingleAsync(x => x.SpecNo == "CCL-SPEC-QC911");
+        Assert.Equal("0.16±0.016", item.AcceptanceVi);        // chuỗi của app
+        Assert.Equal(0.144, item.LimitLow!.Value, 6);         // ngưỡng CỦA CHÍNH nó
+        Assert.True(item.LimitParsed);
+    }
 }
