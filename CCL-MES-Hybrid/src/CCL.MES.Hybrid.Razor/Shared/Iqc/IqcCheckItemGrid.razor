@@ -7,12 +7,14 @@
 @*
     P12 bước 3 — lưới hạng mục kiểm của MỘT mục trong stepper phiếu IQC.
 
-    Dùng lại NGUYÊN khuôn vừa dựng cho FQC/OQC (L63): tab nhóm MỘT tầng →
-    bảng 5 cột `# · ITEM · METHOD · SPEC · VERDICT`, bộ class `ipqc-*`,
-    ConfirmToggle dùng chung (L52). Không đẻ CSS mới.
+    MỘT bảng phẳng, KHÔNG tab nhóm (Henry chốt 2026-09-03). Ở FQC/OQC tab nhóm
+    là tầng chia DUY NHẤT nên nó cần thiết; ở IQC các MỤC của stepper đã chia
+    hạng mục rồi, thêm tab nữa là chia hai lần cho cùng một tập — mục 2 chỉ có
+    7 hạng mục trên 2 nhóm, mục 3 có nhóm chỉ 1 dòng.
 
-    KHOÁ tab là chuỗi VI (định danh) — chỉ NHÃN mới dịch. Dịch khoá thì bấm cờ
-    EN sẽ làm _activeTab không khớp và bảng trắng trơn.
+    Nhóm KHÔNG mất đi: nó thành CỘT đầu bảng, khớp bảng ở tab Tiêu chuẩn cùng
+    module. Bảng 6 cột `NHÓM · # · ITEM · METHOD · SPEC · VERDICT`, bộ class
+    `ipqc-*`, ConfirmToggle dùng chung (L52). Không đẻ CSS mới.
 *@
 
 @if (SectionItems.Count == 0)
@@ -32,25 +34,10 @@ else
         <p class="qms-section-desc" data-testid="@($"{TestIdPrefix}-spec")">@T("iqc.items.spec", SpecNo!)</p>
     }
 
-    <div class="ipqc-tabs" role="tablist" data-testid="@($"{TestIdPrefix}-tabs")">
-        @foreach (var tab in ActiveTabs)
-        {
-            <button type="button"
-                    class="ipqc-tab-chip @(ActiveTabKey == tab.Key ? "is-active" : "")"
-                    role="tab"
-                    aria-selected="@(ActiveTabKey == tab.Key ? "true" : "false")"
-                    @onclick="@(() => _activeTab = tab.Key)"
-                    data-testid="@($"{TestIdPrefix}-tab-{tab.Key}")">
-                <span class="ipqc-tab-label">@tab.Label</span>
-                <span class="ipqc-tab-count"
-                      data-testid="@($"{TestIdPrefix}-tab-{tab.Key}-count")">@tab.Done/@tab.Total</span>
-            </button>
-        }
-    </div>
-
     <table class="ipqc-item-table ipqc-no-result" data-testid="@($"{TestIdPrefix}-table")">
         <thead>
             <tr>
+                <th class="iqc-col-group">@T("iqc.spec.col.group")</th>
                 <th class="ipqc-col-num">@T("ipqc.col.num")</th>
                 <th class="ipqc-col-item">@T("ipqc.col.item")</th>
                 <th class="ipqc-col-method">@T("ipqc.col.method")</th>
@@ -59,13 +46,19 @@ else
             </tr>
         </thead>
         <tbody>
-            @{ var rowNo = 0; }
-            @foreach (var item in ItemsInActiveTab)
+            @{ var rowNo = 0; string? prevGroup = null; }
+            @foreach (var item in OrderedItems)
             {
                 rowNo++;
                 var status = StatusOf(item);
                 var tid = $"{TestIdPrefix}-item-{item.Id}";
-                <tr class="ipqc-item-row @SlotCssClass(status)" data-testid="@tid">
+                var group = item.GroupLabelFor(IsEnglish);
+                // Nhóm chỉ in ở dòng ĐẦU của nhóm — lặp lại 6 lần cùng một chữ
+                // là nhiễu, mắt người kiểm phải lướt qua nó mỗi dòng.
+                var showGroup = !string.Equals(group, prevGroup, StringComparison.Ordinal);
+                prevGroup = group;
+                <tr class="ipqc-item-row @SlotCssClass(status) @(showGroup && rowNo > 1 ? "iqc-row-groupstart" : "")" data-testid="@tid">
+                    <td class="iqc-col-group" data-testid="@($"{tid}-group")">@(showGroup ? Dash(group) : "")</td>
                     <td class="ipqc-col-num scan-mono">@rowNo</td>
                     <td class="ipqc-col-item">
                         <span class="ipqc-item-label">@item.LabelFor(IsEnglish)</span>
@@ -127,8 +120,6 @@ else
 
     [Parameter] public string TestIdPrefix { get; set; } = "iqc-items";
 
-    private const string TabOtherKey = "__other__";
-    private string _activeTab = "";
     private bool _busy;
     private string? _error;
 
@@ -141,45 +132,15 @@ else
     /// gọi StateHasChanged, nên bảng tự vẽ lại khi người dùng bấm cờ.</summary>
     private bool IsEnglish => LanguageService.Current == LanguageCode.English;
 
-    private static string TabForItem(IqcCheckItemDto i) =>
-        string.IsNullOrWhiteSpace(i.GroupLabelVi) ? TabOtherKey : i.GroupLabelVi!.Trim();
-
-    private sealed record TabDef(string Key, string Label, int Done, int Total);
-
-    private IReadOnlyList<TabDef> ActiveTabs =>
+    /// <summary>Toàn bộ hạng mục của MỤC này, gom theo nhóm rồi theo thứ tự
+    /// thư viện. Gom theo nhóm để các dòng cùng nhóm nằm cạnh nhau — vai trò
+    /// mà tab từng đảm nhiệm, nay làm bằng thứ tự + cột nhóm.</summary>
+    private IReadOnlyList<IqcCheckItemDto> OrderedItems =>
         SectionItems
-            .GroupBy(TabForItem)
-            .Select(g => new TabDef(
-                g.Key,
-                g.Key == TabOtherKey ? T("ipqc.tab.other") : (g.First().GroupLabelFor(IsEnglish) ?? g.Key),
-                g.Count(i => i.Pass is not null),
-                g.Count()))
-            .OrderBy(t => t.Key == TabOtherKey ? 1 : 0)
-            .ThenBy(t => t.Key, StringComparer.Ordinal)
+            .OrderBy(i => string.IsNullOrWhiteSpace(i.GroupLabelVi) ? 1 : 0)
+            .ThenBy(i => i.GroupLabelVi ?? "", StringComparer.Ordinal)
+            .ThenBy(i => i.Seq)
             .ToList();
-
-    /// <summary>Tab chưa chọn — hoặc chọn phải tab vừa biến mất — thì lùi về tab
-    /// đầu tiên thay vì để bảng trắng.</summary>
-    private string ActiveTabKey
-    {
-        get
-        {
-            var tabs = ActiveTabs;
-            if (tabs.Count == 0) return "";
-            return tabs.Any(t => t.Key == _activeTab) ? _activeTab : tabs[0].Key;
-        }
-    }
-
-    private IEnumerable<IqcCheckItemDto> ItemsInActiveTab
-    {
-        get
-        {
-            var key = ActiveTabKey;
-            return key.Length == 0
-                ? Array.Empty<IqcCheckItemDto>()
-                : SectionItems.Where(i => TabForItem(i) == key);
-        }
-    }
 
     /// <summary><c>null</c> là CHƯA KIỂM — trạng thái thật, không phải NG.</summary>
     private static string StatusOf(IqcCheckItemDto i) =>

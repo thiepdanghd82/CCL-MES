@@ -1,0 +1,16 @@
+# Phase C — áp lên LIVE
+sha256_after: d5a8e48630a1698adb5fb7779130d97a77cf77bc8fe37ce83c9c9d8a8c0ec006
+migration_row: 20260903103200_AddIqcMaterialDocuments
+migrations_applied_after: 48  (trước: 47)
+rowcounts_after:
+  RawMaterials             2967
+  IqcInspections           26
+  IqcMaterialSpecs         459
+  IqcSpecItems             5961
+  IqcResultDetails         20
+  IqcCheckItemLibraries    21
+  Users                    7
+  AuditLogs                2941
+  WorkOrders               27
+  IqcMaterialDocuments     0
+indexes: IX_IqcMaterialDocuments_MaterialCode · IX_IqcMaterialDocuments_MaterialCode_DocType

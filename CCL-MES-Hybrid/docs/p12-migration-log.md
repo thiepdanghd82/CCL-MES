@@ -169,3 +169,54 @@ và **số liệu** (sha256 + rowcount trước/sau) chép vào file nhật ký 
 ký được commit, backup thì không.
 
 Đã ghi thành lesson card trong `LESSONS-LEARNED.md`.
+
+---
+
+## 4. `20260903103200_AddIqcMaterialDocuments` — hồ sơ HSF theo mã mẹ
+
+Bảng `IqcMaterialDocuments`: TDS · MSDS · RoHS · REACH · ISO 9001 cho từng
+**mã mẹ** nguyên liệu, kèm số hiệu / ngày cấp / hạn (ba trường bắt buộc) và
+metadata file PDF trên server (`IQC/Documents/<mã mẹ>/`).
+
+**Vì sao khoá là MÃ MẸ chứ không phải Code IFS** — đo trên live 2026-09-04:
+`RawMaterials` có 2967 dòng nhưng chỉ **946 mã mẹ**; riêng `336T-AT1` gồm
+**29** Code IFS khác khổ. Giấy TDS/MSDS/RoHS cấp cho LOẠI vật liệu, không cấp
+cho từng khổ — khoá theo Code IFS là bắt QC nộp cùng một tờ giấy 29 lần.
+
+### Phase A — `20260904T025334Z`
+- backup: `docs/p12-migration-evidence/ccl_mes.db.before-iqcdocs.20260904T025334Z`
+  (19 MB, .gitignore — chỉ file .txt vào repo)
+- `sha256` live = backup = `3db2b6c75f958914f1d45306efc0c1e0f1a047b7015033e8790462646f02de43`
+- rowcount + số migration: `docs/p12-migration-evidence/phaseA-iqcdocs.20260904T025334Z.txt`
+  (RawMaterials 2967 · IqcInspections 26 · IqcSpecItems 5961 · AuditLogs 2941 ·
+  `__EFMigrationsHistory` 47)
+
+### Phase B — trên BẢN SAO THẬT của live
+`/tmp/ccl-phaseB-iqcdocs.db` = `cp` từ live (2967 RawMaterials · 47 migration).
+**Không** dựng DB rỗng: sự cố trước đó trong chính P12 là Phase B lỡ chạy trên
+DB trống rồi báo xanh, tức là không kiểm gì cả.
+
+Kết quả (`phaseB-iqcdocs.20260904T025334Z.txt`): bảng dựng đúng, **0 `type:`** trong
+migration (§4.5), 2 index gồm UNIQUE `(MaterialCode, DocType)`, **mọi rowcount
+giữ nguyên**, `IqcMaterialDocuments = 0`. `sha256` live sau Phase B vẫn khớp
+Phase A ⇒ Phase B không chạm live.
+
+### Phase C — ÁP LÊN LIVE ✅ (Henry duyệt 20260904T025334Z)
+
+```
+MES_PROVIDER=Sqlite MES_CONNSTR="Data Source=$(pwd)/data/ccl_mes.db" \
+  dotnet ef database update -p src/CCL.MES.Infrastructure -s src/CCL.MES.Web
+```
+
+`sha256` sau: `d5a8e48630a1698adb5fb7779130d97a77cf77bc8fe37ce83c9c9d8a8c0ec006`
+(trước: `3db2b6c7…`) · `__EFMigrationsHistory` **47 → 48** · dòng
+`20260903103200_AddIqcMaterialDocuments` có mặt · 2 index đúng như Phase B ·
+`IqcMaterialDocuments = 0` (bảng mới, chưa ai nhập giấy) ·
+**mọi rowcount còn lại giữ nguyên** (diff A↔C rỗng — xem
+`phaseC-iqcdocs.20260904T025334Z.txt`).
+
+> ⚠ **Đường dẫn phải TUYỆT ĐỐI.** Lần chạy đầu dùng `Data Source=data/ccl_mes.db`
+> và ăn `SQLite Error 14: unable to open database file` — `dotnet ef` phân giải
+> đường dẫn tương đối theo thư mục **startup project** (`src/CCL.MES.Web`), chứ
+> không theo thư mục bạn đang đứng. Lỗi này vô hại (không tạo file, không sửa
+> gì) nhưng nó đọc như "DB hỏng" nên dễ làm người ta hoảng.

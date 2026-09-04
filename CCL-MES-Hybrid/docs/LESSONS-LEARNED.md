@@ -116,6 +116,8 @@
 - [L65 — bằng chứng Phase A để ở `/tmp`: migration đã áp lên DB thật nhưng backup bị OS dọn mất, hồ sơ vẫn ghi "chưa làm"](#l65)
 - [L66 — khoá nối phải ĐO không được suy từ tên: `MaterialCodeIfs` (7xxxxxxx) trông y hệt mã IFS của MES (300xxxxx) nhưng khớp 0 dòng](#l66)
 - [L67 — bản ghi bằng chứng thiếu một chiều thông tin thì nói dối im lặng: `Pass` bool nuốt trạng thái "chưa kiểm"; bộ mặc định không mang cờ nguồn gốc](#l67)
+- [L68 — bản vá nền tảng scope vào một class: `.modal-input[type="date"]` không phủ ô ngày trong bảng, hỏng chỉ trên Catalyst](#l68)
+- [L69 — thêm method vào `ICclApiClient` mà quên `RecordingApi`: build project test gãy ở nơi không liên quan](#l69)
 - [L58 — Gate tĩnh KHÔNG thay được việc mở app ở bề rộng thật: sweep L56/L57 quét rule CSS và bỏ lọt lỗi bố cục. Thanh chrome toàn cục (105 màn) tràn+cắt dưới 900pt; 6 bảng rộng tới 1400px không có luật responsive nào cho chính nó — trong đó `.prepress-table` là bề mặt XƯỞNG; và 12 ngưỡng breakpoint tự chế (1080 vs 1081) — lần thứ TƯ repo lặp lại câu chuyện "không có thang" sau màu/size/typography](#l58)
 - [L56 — `var(--token-không-tồn-tại)` KHÔNG im lặng: thuộc tính hỏng ở computed-value time ⇒ nút N/A nền trong suốt + chữ trắng = VÔ HÌNH, 69 nhãn mờ hoá đen, cả module IQC mất viền. 4 token dùng 95 lần mà chưa bao giờ được định nghĩa. Repo ĐÃ vá đúng lỗi này một lần cho `.grid-btn-secondary` nhưng không quét phần còn lại và không thêm gate ⇒ tái phát nhiều tháng](#l56)
 - [L57 — Kích thước KHÔNG tiêu thụ thang density thì màn hình tự rút khỏi hệ: (a) vùng chạm px cứng 20px cho ô tick người ĐEO GĂNG bấm, `--d-tap` không gate nào canh; (b) `clamp(...vw)` co theo bề rộng cửa sổ ⇒ shopfloor không đổi một pixel, và ĐẢO NGƯỢC ý đồ (người đứng xa nhất nhận chữ nhỏ nhất)](#l57)
@@ -886,6 +888,30 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Fix** | (a) `Pass` → `bool?`; `null` = CHƯA KIỂM. Kéo theo: `MaterialLotScanService` đổi `!d.Pass` thành `d.Pass == false` (*"chưa kiểm ≠ hỏng"*), UI hiện ba trạng thái, và chốt phiếu **từ chối khi còn `null`**. (b) Thêm cờ `FromDefaultMatrix` đóng băng vào từng dòng + băng nhắc trên UI. Cả hai cột đều nullable/thêm mới nên 7 bản ghi cũ không phải backfill. |
 | **Cơ chế chặn tái phát** | (a) `IqcTicketMaterializeTests.Hang_muc_moi_dung_o_CHUA_KIEM_chu_KHONG_phai_NG` + `IqcCheckItemGridTests.Pass_null_hien_CHUA_KIEM_chu_khong_phai_khong_dat` + `IqcTicketItemsTests.Con_hang_muc_CHUA_KIEM_thi_KHONG_chot_duoc`. (b) `IqcCheckResolverTests.Hang_muc_ma_tran_mang_co_phan_biet_de_khong_ai_nham_voi_spec_that` — khẳng định cả hai chiều: ma trận ⇒ cờ `true`, spec thật ⇒ cờ `false`. **Quy tắc: trước khi chọn kiểu cho một cột trong bảng BẰNG CHỨNG, đếm xem nghiệp vụ có mấy trạng thái. Và mọi giá trị suy ra từ mặc định phải mang dấu vết là nó đến từ mặc định — câu hỏi đầu tiên của auditor luôn là "hồ sơ này kiểm theo tiêu chuẩn nào?".** |
 | **Bẫy tìm được khi làm** | Tôi từng khẳng định `Pass` "không được dùng ở đâu khác" — SAI, vì đã cắt `grep` ở `head -10`. Nó dùng ở `MaterialLotScanService:690` và 3 chỗ trong `Iqc.razor`. Đổi kiểu một cột trong bảng đang có dữ liệu thì **grep phải chạy hết**, không được cắt. Ngoài ra SQLite không `ALTER COLUMN` được: đổi sang nullable buộc EF dựng lại bảng (`PRAGMA foreign_keys=0`, không chạy trong transaction) — bắt buộc Phase B trên **bản sao của DB thật**, không phải DB rỗng. |
+
+----
+
+### L68 — bản vá nền tảng scope vào MỘT class: mọi lần tái dùng sau đó hỏng lặng lẽ, và chỉ hỏng trên Catalyst
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Ô `<input type="date">` trong bảng hồ sơ HSF hiển thị đúng ở mọi test bUnit và trên trình duyệt thường, nhưng trên Mac Catalyst nó **tự co lại, căn phải, hẹp hơn hẳn ô text cùng hàng**. Không exception, không cảnh báo, không test nào đỏ. |
+| **Root cause** (proven) | `app.css` có sẵn một bản vá WKWebView cho ô ngày (`-webkit-appearance: none` + `::-webkit-date-and-time-value{text-align:left}` + `::-webkit-calendar-picker-indicator`) — nhưng nó được viết với selector **`.modal-input[type="date"]`**, tức khoá vào đúng một class của đúng một surface. Đo trên repo: cả 4 ô ngày đang tồn tại đều nằm trong modal/filter-bar, **không có tiền lệ nào** đặt ô ngày trong `<td>`. Người viết bản vá không sai — họ vá đúng chỗ đau lúc đó; cái sai là bản vá mang hình dạng *"riêng cho tôi"* thay vì *"cho mọi ô ngày"*, nên người thứ hai dùng lại `op-input` và mất trắng bản vá mà không có tín hiệu nào. |
+| **Fix** | Mở rộng selector của cả 4 rule sang `.iqc-doc-date[type="date"]` thay vì chép lại khối vá vào chỗ mới (chép = hai bản sẽ trôi khỏi nhau). Ô ngày trong bảng dùng class riêng `iqc-doc-date` — CỐ TÌNH không dùng `op-input`, vì `op-input` nằm ngoài bản vá và ai cũng tưởng nó "là ô nhập chuẩn". |
+| **Cơ chế chặn tái phát** | `IqcDocumentGridTests` khoá hành vi nhập ngày qua `data-testid`; nhưng bUnit **không** dựng WKWebView nên không bắt được lớp trình bày này. Cơ chế thật là **quy tắc**: *bản vá cho một PRIMITIVE của nền tảng (`input[type=date]`, `<select>`, `::-webkit-*`) phải scope theo **thuộc tính của primitive**, không scope theo class của surface đầu tiên gặp nó; nếu buộc phải scope theo class thì rule PHẢI liệt kê mọi class dùng chung, và mỗi lần thêm surface là thêm vào danh sách đó — chứ không chép khối vá.* Xem thêm [[wkwebview-native-select-freeze]] — cùng họ bệnh: primitive của WKWebView cư xử khác, và cái khác đó không nổi lên ở test. |
+| **Bẫy tìm được khi làm** | Tôi suýt dùng `class="op-input"` cho ô ngày vì đó là class ô nhập phổ biến nhất repo (và mọi ô text quanh nó đều dùng). Thứ chặn lại là một agent đọc code đi **quét cả repo tìm tiền lệ ô ngày trong `<td>` và báo về: KHÔNG CÓ**. "Không có tiền lệ" là một phát hiện có giá trị ngang với "có tiền lệ" — nó nói cho bạn biết bạn đang là người đầu tiên, và người đầu tiên thì không có ai để chép. |
+
+----
+
+### L69 — thêm một method vào interface dùng chung là phá build của test double, và lỗi hiện ở nơi không liên quan
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | `dotnet build tests/CCL.MES.Hybrid.Razor.Tests` gãy với 6 lỗi `CS0535: 'RecordingApi' does not implement interface member ...`. Không một dòng nào trong project test bị sửa; thứ đổi là `ICclApiClient` ở project khác. Toàn bộ 533 fixture Razor **không chạy được cái nào** cho tới khi vá — nghĩa là trong khoảng thời gian đó không có lưới an toàn nào cả, kể cả cho phần không liên quan. |
+| **Root cause** (proven) | `ICclApiClient` là interface **rộng** (hơn 200 method) và có đúng hai lớp hiện thực: `CclApiClient` thật và `RecordingApi` giả trong test. Thêm method chỉ ở một bên là hợp lệ với compiler của project đó, và **chỉ nổ khi build project test** — thường là mấy bước sau, ở một khối việc khác. |
+| **Fix** | Thêm 6 stub vào `RecordingApi` NGAY trong cùng lượt sửa interface, kèm hook `Impl` + list `Calls` theo đúng khuôn có sẵn. Riêng `DownloadIqcDocumentToFileAsync` phải **ghi file thật** ra đĩa: fixture "nháy đúp mở file" cần đường dẫn tồn tại thì `IFileOpener` giả mới trả lời được điều gì có nghĩa. |
+| **Cơ chế chặn tái phát** | **Quy tắc: sửa `ICclApiClient` thì cùng commit phải sửa `RecordingApi` — và phải chạy `dotnet build` của project TEST, không chỉ project src.** Build của `CCL.MES.Hybrid.Client` xanh không nói gì về việc test có build được hay không. Đây là lý do pha 4 (gate tĩnh) không thay được pha 5: gate chạy trên src. |
+| **Bẫy tìm được khi làm** | Phát hiện này đến từ một agent đọc code được giao việc khác hẳn (khảo sát khối render bước 1) — nó chạy build để hiểu bối cảnh và va phải. Nếu tôi chỉ build project mình vừa sửa thì lỗi này sẽ nằm im tới lúc tôi tưởng mình đã xong và chạy test lần cuối. |
 
 ----
 

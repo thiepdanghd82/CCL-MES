@@ -1,0 +1,16 @@
+# Phase A — AddIqcMaterialDocuments
+utc: 20260904T025334Z
+backup: CCL-MES-Hybrid/docs/p12-migration-evidence/ccl_mes.db.before-iqcdocs.20260904T025334Z
+sha256_live_before: 3db2b6c75f958914f1d45306efc0c1e0f1a047b7015033e8790462646f02de43
+sha256_backup:      3db2b6c75f958914f1d45306efc0c1e0f1a047b7015033e8790462646f02de43
+rowcounts_before:
+  RawMaterials             2967
+  IqcInspections           26
+  IqcMaterialSpecs         459
+  IqcSpecItems             5961
+  IqcResultDetails         20
+  IqcCheckItemLibraries    21
+  Users                    7
+  AuditLogs                2941
+  WorkOrders               27
+migrations_applied_before: 47

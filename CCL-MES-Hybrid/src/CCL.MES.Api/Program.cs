@@ -405,6 +405,18 @@ builder.Services.AddAuthorization(o =>
     o.AddPolicy("IqcSpecWrite", p => p
         .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
         .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer));
+
+    // P12 bước 4 — hồ sơ HSF theo mã nguyên liệu.
+    //   ĐỌC : ai xem được phiếu thì xem được hồ sơ đính kèm.
+    //   GHI : QC trở lên (Henry chốt) — người nhận lô là người cầm giấy của
+    //         NCC, phải đưa lên được ngay lúc nhận. Operator KHÔNG.
+    o.AddPolicy("IqcDocRead", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc));
+
+    o.AddPolicy("IqcDocWrite", p => p
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireRole(UserRole.Admin, UserRole.Supervisor, UserRole.Engineer, UserRole.Qc));
 });
 
 // ──────────────────────────────────────────────────────────────────────

@@ -20,3 +20,10 @@ _archive/**/*.tar.gz
 # Runtime uploads (drawings PDF) — not source code
 data/blobs/
 scripts/RecoverAdmin/recover.audit.log
+
+# Bằng chứng migration Phase A/B (bài học L65: KHÔNG để ở /tmp — macOS quét
+# sạch, và bằng chứng mất là không chứng minh được gì nữa). Giữ lại file .txt
+# rowcount/sha; loại bản sao DB nhị phân — tên nó KHÔNG khớp `*.db` ở trên vì
+# đuôi là timestamp, nên phải khai riêng.
+CCL-MES-Hybrid/docs/*-migration-evidence/*.db.before-*
+CCL-MES-Hybrid/docs/*-migration-evidence/*.db.after-*

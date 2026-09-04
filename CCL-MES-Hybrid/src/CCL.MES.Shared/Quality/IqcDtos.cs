@@ -94,6 +94,11 @@ public sealed class IqcTicketListItem
     public string? ReceiptNo { get; set; }
     public string Group { get; set; } = "Materials";
     public string? CodeIfs { get; set; }
+
+    /// <summary>Mã mẹ — khoá thư mục hồ sơ HSF. Chính là mã người dùng thấy ở
+    /// cột "Mother code" và dùng đặt tên file (<c>336T-AT1_TDS.pdf</c>).</summary>
+    public string? MotherCode { get; set; }
+
     public string? MaterialDescription { get; set; }
     public string? LotBatchNo { get; set; }
     public DateTime? ManufactureDate { get; set; }
@@ -313,4 +318,72 @@ public sealed class CompleteIqcResponse
     /// <summary>Số hạng mục CHƯA kiểm — &gt;0 nghĩa là chưa chốt được.</summary>
     public int Pending { get; set; }
     public int Failed { get; set; }
+}
+
+// ── P12 bước 4 — hồ sơ HSF theo mã nguyên liệu ───────────────────────────
+
+/// <summary>Một dòng hồ sơ HSF của một mã nguyên liệu.</summary>
+public sealed class IqcDocumentDto
+{
+    public long Id { get; set; }
+    public string MaterialCode { get; set; } = "";
+
+    /// <summary>Mã loại viết HOA, dùng đặt tên file: <c>TDS</c> · <c>MSDS</c> ·
+    /// <c>ROHS</c> · <c>REACH</c> · <c>ISO9001</c>.</summary>
+    public string DocType { get; set; } = "";
+
+    public string? LabelVi { get; set; }
+    public string? LabelEn { get; set; }
+
+    /// <summary>Ba trường BẮT BUỘC khi lưu — <c>null</c> = dòng chưa khai.</summary>
+    public string? DocNumber { get; set; }
+    public DateTime? IssueDate { get; set; }
+    public DateTime? ExpiryDate { get; set; }
+
+    /// <summary><c>null</c> = chưa đính file. Tên NGƯỜI DÙNG thấy khi mở
+    /// (<c>336T-AT1_TDS.pdf</c>); khoá lưu trên server KHÔNG lộ ra client.</summary>
+    public string? FileName { get; set; }
+    public long? FileSizeBytes { get; set; }
+
+    /// <summary>Server đóng dấu, client KHÔNG khai được.</summary>
+    public string? LastModifiedBy { get; set; }
+    public DateTime? LastModifiedAt { get; set; }
+
+    public bool Active { get; set; } = true;
+
+    public string LabelFor(bool english) =>
+        (english && !string.IsNullOrWhiteSpace(LabelEn) ? LabelEn : LabelVi) ?? DocType;
+
+    /// <summary>Dòng đã khai đủ ba trường bắt buộc chưa.</summary>
+    public bool IsComplete =>
+        !string.IsNullOrWhiteSpace(DocNumber) && IssueDate is not null && ExpiryDate is not null;
+
+    /// <summary>Hết hạn tính theo NGÀY HÔM NAY do caller truyền vào — không tự
+    /// gọi đồng hồ trong DTO để test còn kiểm được.</summary>
+    public bool IsExpired(DateTime today) => ExpiryDate is { } e && e.Date < today.Date;
+}
+
+/// <summary>Thân phản hồi <c>GET /api/v2/iqc/documents?materialCode=…</c>.</summary>
+public sealed class IqcDocumentListResponse
+{
+    public string MaterialCode { get; set; } = "";
+    public List<IqcDocumentDto> Items { get; set; } = new();
+}
+
+/// <summary>Body <c>PUT /api/v2/iqc/documents/{id}</c> — ba trường bắt buộc.</summary>
+public sealed class SaveIqcDocumentBody
+{
+    public string? DocNumber { get; set; }
+    public DateTime? IssueDate { get; set; }
+    public DateTime? ExpiryDate { get; set; }
+}
+
+/// <summary>Body <c>POST /api/v2/iqc/documents</c> — thêm loại hồ sơ mới. Mã
+/// nguyên liệu đi trong BODY chứ không phải URL (623/946 mã có dấu cách).</summary>
+public sealed class AddIqcDocumentBody
+{
+    public string? MaterialCode { get; set; }
+    public string? DocType { get; set; }
+    public string? LabelVi { get; set; }
+    public string? LabelEn { get; set; }
 }

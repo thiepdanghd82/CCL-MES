@@ -1,0 +1,36 @@
+# Phase B — isolated (bản sao live, KHÔNG phải DB rỗng)
+db: /tmp/ccl-phaseB-iqcdocs.db
+schema:
+  CREATE TABLE IF NOT EXISTS "IqcMaterialDocuments" (
+      "Id" INTEGER NOT NULL CONSTRAINT "PK_IqcMaterialDocuments" PRIMARY KEY AUTOINCREMENT,
+      "MaterialCode" TEXT NOT NULL,
+      "DocType" TEXT NOT NULL,
+      "LabelVi" TEXT NULL,
+      "LabelEn" TEXT NULL,
+      "DocNumber" TEXT NULL,
+      "IssueDate" TEXT NULL,
+      "ExpiryDate" TEXT NULL,
+      "StorageKey" TEXT NULL,
+      "FileName" TEXT NULL,
+      "FileSha256" TEXT NULL,
+      "FileSizeBytes" INTEGER NULL,
+      "Sort" INTEGER NOT NULL,
+      "Active" INTEGER NOT NULL,
+      "CreatedAt" TEXT NOT NULL,
+      "CreatedBy" TEXT NULL,
+      "UpdatedAt" TEXT NULL,
+      "UpdatedBy" TEXT NULL
+  );
+  CREATE INDEX "IX_IqcMaterialDocuments_MaterialCode" ON "IqcMaterialDocuments" ("MaterialCode");
+  CREATE UNIQUE INDEX "IX_IqcMaterialDocuments_MaterialCode_DocType" ON "IqcMaterialDocuments" ("MaterialCode", "DocType");
+indexes:
+  IX_IqcMaterialDocuments_MaterialCode
+  IX_IqcMaterialDocuments_MaterialCode_DocType
+rowcounts_after_on_copy:
+  RawMaterials             2967
+  IqcInspections           26
+  IqcSpecItems             5961
+  Users                    7
+  AuditLogs                2941
+  WorkOrders               27
+  IqcMaterialDocuments     0
