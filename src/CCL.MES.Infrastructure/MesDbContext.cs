@@ -65,6 +65,8 @@ public class MesDbContext : DbContext, IMesDbContext
     // Phase 6 Bước 7 — IQC entity + result detail (xem Iqc.cs).
     public DbSet<IqcInspection> IqcInspections => Set<IqcInspection>();
     public DbSet<IqcResultDetail> IqcResultDetails => Set<IqcResultDetail>();
+    /// <summary>P13 — các phép đo lặp (độ rộng ×5, độ dày ×5) của một dòng kết quả.</summary>
+    public DbSet<IqcResultMeasurement> IqcResultMeasurements => Set<IqcResultMeasurement>();
     // P10.7a-1.2 — Idempotency ledger (per contract §6.2).
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
     // P10.7b-1 — PREPRESS row-level child tables (per contract §5.1).
@@ -638,6 +640,31 @@ public class MesDbContext : DbContext, IMesDbContext
         // tiêu chí kiểm mà không báo gì.
         b.Entity<IqcSpecItem>().HasIndex(x => new { x.SpecNo, x.ItemId, x.Seq }).IsUnique();
         b.Entity<IqcSpecItem>().HasIndex(x => x.SpecNo);
+
+        // ── P13 ──────────────────────────────────────────────────────────
+        // Enum lưu dạng CHUỖI, đúng quy ước repo (WorkOrder.Status,
+        // Drawing.Kind…): đọc thẳng được bằng sqlite3 lúc điều tra sự cố, và
+        // thêm giá trị mới không phải lo thứ tự khai enum.
+        // HasConversion<string> KHÔNG chỉ để dễ đọc bằng sqlite3: scanner của
+        // gate enum-integrity đi theo model EF tìm property KIỂU ENUM có
+        // conversion. Khai chúng là `string` thì gate quét qua mà không thấy —
+        // vẫn báo PASS, và ba cột này lặng lẽ nằm ngoài lưới an toàn.
+        b.Entity<IqcCheckItemLibrary>().Property(x => x.Category)
+            .HasConversion<string>().HasMaxLength(16);
+        b.Entity<IqcCheckItemLibrary>().Property(x => x.Kind)
+            .HasConversion<string>().HasMaxLength(16);
+        b.Entity<IqcCheckItemLibrary>().HasIndex(x => new { x.Category, x.Kind });
+
+        b.Entity<IqcMaterialSpec>().Property(x => x.Approval)
+            .HasConversion<string>().HasMaxLength(16);
+        // Tra "còn bao nhiêu spec chờ duyệt" là câu hỏi hằng ngày của QC sau
+        // khi import 672 mã mới — không index thì quét cả bảng mỗi lần mở.
+        b.Entity<IqcMaterialSpec>().HasIndex(x => x.Approval);
+
+        // Hai lần đo cùng số thứ tự trên một hạng mục là dữ liệu HỎNG, không
+        // phải hai lần đo. Chặn ở tầng DB chứ đừng chỉ chặn ở service.
+        b.Entity<IqcResultMeasurement>()
+            .HasIndex(x => new { x.IqcResultDetailId, x.Seq }).IsUnique();
 
         // P12 bước 4 — hồ sơ HSF theo MÃ nguyên liệu. Một mã có tối đa MỘT
         // dòng cho mỗi loại hồ sơ; hai dòng "TDS" cùng mã thì không ai biết

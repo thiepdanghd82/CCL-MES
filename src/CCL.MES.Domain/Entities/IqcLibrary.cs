@@ -35,6 +35,41 @@ public class IqcCheckItemLibrary : BaseEntity
     [MaxLength(64)] public string GroupLabelVi { get; set; } = "";
     [MaxLength(64)] public string? GroupLabelEn { get; set; }
 
+    /// <summary>
+    /// P13 — nhóm vật liệu áp dụng. <see cref="IqcMaterialCategory.Any"/> = áp
+    /// cho mọi nhóm (tem nhãn, hồ sơ HSF). 21 hạng mục có sẵn từ trước đều
+    /// backfill về <c>Any</c>: chúng vốn được dựng làm bộ CHUNG, đổi sang một
+    /// nhóm cụ thể là viết lại lịch sử của phiếu đã đóng băng.
+    /// </summary>
+    /// <remarks>
+    /// <b>Vì sao ENUM chứ không phải string + static-const như L27</b>
+    /// (<c>IqcGroup</c>, <c>MaterialLot.Status</c>, <c>WoLeg.LegKind</c>).
+    /// <para>Lợi ích L27 nêu là "thêm giá trị thứ 5 chỉ cần thêm const + seed,
+    /// 0 migration". Lợi ích đó ở đây KHÔNG áp dụng: mỗi nhóm vật liệu kéo theo
+    /// một bộ hạng mục riêng, một luật chấm riêng và một lưới nhập riêng —
+    /// thêm nhóm thứ 5 là phải viết code dù cột có kiểu gì.</para>
+    /// <para>Đổi lại, enum lưu-dạng-chuỗi được <c>gate-enum-integrity</c> quét
+    /// TỰ ĐỘNG (scanner đi theo model EF tìm property kiểu enum có
+    /// <c>HasConversion</c>). Khai là <c>string</c> thì gate lướt qua mà vẫn báo
+    /// PASS — đã thử: 40 cột trước, 43 cột sau khi đổi sang enum.</para>
+    /// </remarks>
+    public IqcMaterialCategory Category { get; set; } = IqcMaterialCategory.Any;
+
+    /// <summary>
+    /// P13 — hạng mục được ghi nhận kiểu gì (đạt/không · đếm lỗi · đo lặp · hồ
+    /// sơ). Quyết định ô nhập nào hiện ra và luật chấm nào chạy, nên nó thuộc
+    /// THƯ VIỆN chứ không phải UI — hai màn hình khác nhau không được phép hiểu
+    /// khác nhau về cùng một hạng mục.
+    /// </summary>
+    public IqcCheckKind Kind { get; set; } = IqcCheckKind.Verdict;
+
+    /// <summary>
+    /// P13 — số lần đo của hạng mục <see cref="IqcCheckKind.Measure"/>. File
+    /// master dùng <b>5</b> cho mọi hạng mục kích thước, CỐ ĐỊNH bất kể cỡ lô —
+    /// khác hẳn cỡ mẫu ngoại quan vốn tra theo lô. Hạng mục khác để 0.
+    /// </summary>
+    public int MeasureCount { get; set; }
+
     [MaxLength(256)] public string ItemVi { get; set; } = "";
     [MaxLength(256)] public string? ItemEn { get; set; }
 
@@ -106,6 +141,27 @@ public class IqcMaterialSpec : BaseEntity
     /// có ở hai thư mục nguồn, bản cao hơn thắng.</summary>
     [MaxLength(16)] public string? Revision { get; set; }
 
+    // ── P13: nguồn gốc + trạng thái duyệt ───────────────────────────────
+
+    /// <summary>Phương pháp thử của tiêu chuẩn bám dính (<c>FTM1</c> 656× ·
+    /// <c>FTM2</c> 421× · <c>ASTM D3330</c> 64× trong file master). Hai lô đo
+    /// bằng hai phương pháp khác nhau thì con số KHÔNG so được với nhau, nên
+    /// nó phải nằm cạnh tiêu chuẩn chứ không nằm trong ghi chú.</summary>
+    [MaxLength(64)] public string? TestMethod { get; set; }
+
+    /// <summary>Trạng thái duyệt. Spec import từ file ngoài vào ở
+    /// <c>PendingQc</c>; phiếu dùng nó vẫn chạy nhưng UI hiện băng nhắc
+    /// (Henry chốt 2026-09-04 — chặn thì QC sẽ quay lại Excel, mất luôn dấu
+    /// vết).</summary>
+    public IqcSpecApproval Approval { get; set; } = IqcSpecApproval.Approved;
+
+    /// <summary>Nguồn nhập, để lần sau import biết dòng nào của mình
+    /// (<c>iqc-report-2026</c>). <c>null</c> = tạo trong app.</summary>
+    [MaxLength(64)] public string? ImportSource { get; set; }
+
+    [MaxLength(128)] public string? ApprovedBy { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+
     public bool Active { get; set; } = true;
 }
 
@@ -161,6 +217,40 @@ public class IqcSpecItem : BaseEntity
     /// spec ghi gì". 1 334/5 961 dòng ghi tần suất tháng.</para>
     /// </summary>
     [MaxLength(256)] public string? SourceFrequency { get; set; }
+
+    // ── P13: ngưỡng SỐ đọc được từ AcceptanceVi, để máy tự chấm ──────────
+    // AcceptanceVi vẫn là NGUỒN SỰ THẬT và vẫn hiện nguyên văn cho người kiểm —
+    // mấy cột dưới chỉ là bản đọc được của nó. Low/Up/Nominal cùng null nghĩa
+    // là "không có ngưỡng số" ⇒ người chấm, máy im lặng nhường quyền.
+
+    /// <summary>Cận dưới. <c>null</c> = không chặn dưới.</summary>
+    public double? LimitLow { get; set; }
+
+    /// <summary>Cận trên. <c>null</c> = không chặn trên.</summary>
+    public double? LimitUp { get; set; }
+
+    /// <summary>Trị danh nghĩa nếu tiêu chuẩn có nêu (392 trong "392+0.4-0.2").</summary>
+    public double? LimitNominal { get; set; }
+
+    /// <summary>Đơn vị nguyên văn (<c>N/25mm</c>, <c>gf/in</c>, <c>mm</c>). Giữ
+    /// lại vì nó là thứ phân biệt "270 N/m" với "270 mm".</summary>
+    [MaxLength(32)] public string? LimitUnit { get; set; }
+
+    /// <summary>Nhãn đứng trước trị trong tiêu chuẩn — <c>Face</c> · <c>Adhesive</c>
+    /// · <c>Face+Adhesive</c>. Vứt nó đi là mất thông tin đang đo LỚP NÀO của
+    /// cuộn: "Face 0.05±0.005" và "Adhesive 0.16±0.016" nằm trên cùng một mã và
+    /// là hai phép đo khác nhau.</summary>
+    [MaxLength(64)] public string? LimitLabel { get; set; }
+
+    /// <summary>Tiêu chuẩn ghi "or tear" — vật liệu rách trước khi bong keo thì
+    /// ĐẠT, vì lực bám đã lớn hơn độ bền của chính vật liệu. 226 lần xuất hiện
+    /// trong file master; bỏ qua sẽ đánh trượt oan hàng đạt.</summary>
+    public bool TearIsPass { get; set; }
+
+    /// <summary>Bộ đọc có hiểu được <see cref="AcceptanceVi"/> không.
+    /// <c>false</c> KHÔNG phải lỗi — 1% chuỗi thật sự mơ hồ. Nhưng phải ghi lại
+    /// để đếm được, và để UI nói thẳng rằng máy không chấm hộ hạng mục này.</summary>
+    public bool LimitParsed { get; set; }
 
     public int Sort { get; set; }
     public bool Active { get; set; } = true;
