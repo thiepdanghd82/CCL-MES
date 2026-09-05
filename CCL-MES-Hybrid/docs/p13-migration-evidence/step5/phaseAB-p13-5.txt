@@ -1,0 +1,19 @@
+# P13 bước 5 — Phase A/B   2026-09-05
+migration: 20260905032431_AddIqcNgClaim  (CreateTable IqcNgRecords + 4 index)
+type: "   : 0  (đã strip theo §4.5)
+
+Phase A — trước khi đổi
+  sha256 data/ccl_mes.db = c16984fb840120ed7f9c3a16958991727646d6360064a0aef408903689394b64
+  IqcInspections 26 · MaterialLots 28 · ReasonCodes 53 · __migrations 49
+  integrity_check ok · foreign_key_check rỗng
+
+Phase B — áp lên BẢN SAO CÁCH LY của live thật
+  IqcInspections 26 · MaterialLots 28 · IqcNgRecords 0 · __migrations 49 -> 50
+  integrity_check ok · foreign_key_check rỗng
+  Bảng mới hoàn toàn ⇒ KHÔNG có defaultValue nào cần sửa (khác bước 4, nơi EF
+  sinh defaultValue: "" cho cột enum thêm vào bảng đã có dữ liệu).
+
+gate-enum-integrity thấy 3 cột enum mới: 43/46, skip 3 vì live chưa áp.
+
+Phase C: HOÃN — app đang chạy trong phiên của người dùng. Bảng mới, không đụng
+dữ liệu cũ; app tự áp lúc boot.

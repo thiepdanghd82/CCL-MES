@@ -67,6 +67,7 @@ public class MesDbContext : DbContext, IMesDbContext
     public DbSet<IqcResultDetail> IqcResultDetails => Set<IqcResultDetail>();
     /// <summary>P13 — các phép đo lặp (độ rộng ×5, độ dày ×5) của một dòng kết quả.</summary>
     public DbSet<IqcResultMeasurement> IqcResultMeasurements => Set<IqcResultMeasurement>();
+    public DbSet<IqcNgRecord> IqcNgRecords => Set<IqcNgRecord>();
     // P10.7a-1.2 — Idempotency ledger (per contract §6.2).
     public DbSet<IdempotencyKey> IdempotencyKeys => Set<IdempotencyKey>();
     // P10.7b-1 — PREPRESS row-level child tables (per contract §5.1).
@@ -660,6 +661,26 @@ public class MesDbContext : DbContext, IMesDbContext
         // Tra "còn bao nhiêu spec chờ duyệt" là câu hỏi hằng ngày của QC sau
         // khi import 672 mã mới — không index thì quét cả bảng mỗi lần mở.
         b.Entity<IqcMaterialSpec>().HasIndex(x => x.Approval);
+
+        // P13 bước 5 — khối NG / claim nhà cung cấp.
+        // Enum khai là enum THẬT + HasConversion<string> để gate-enum-integrity
+        // nhìn thấy; khai string thì gate quét qua mà không thấy.
+        b.Entity<IqcNgRecord>().Property(x => x.DetectedStage)
+            .HasConversion<string>().HasMaxLength(16);
+        b.Entity<IqcNgRecord>().Property(x => x.Status)
+            .HasConversion<string>().HasMaxLength(24);
+        b.Entity<IqcNgRecord>().Property(x => x.Settlement)
+            .HasConversion<string>().HasMaxLength(16);
+        // Ba câu hỏi hằng ngày của QC: "còn vụ nào chưa đòi được?" (Status),
+        // "NCC này năm nay hỏng bao nhiêu lần?" (PartNo/Supplier), "tháng này
+        // có gì?" (DetectedAt). Không index thì mỗi lần mở là quét cả bảng.
+        b.Entity<IqcNgRecord>().HasIndex(x => x.Status);
+        b.Entity<IqcNgRecord>().HasIndex(x => x.DetectedAt);
+        b.Entity<IqcNgRecord>().HasIndex(x => x.PartNo);
+        b.Entity<IqcNgRecord>().HasIndex(x => x.IqcInspectionId);
+        // FK MỀM tới phiếu/lô: 38% vụ phát hiện ở sản xuất khi không có phiếu
+        // nào, và toàn bộ 169 dòng lịch sử không nối được lô nào. FK cứng ở đây
+        // sẽ chặn đúng những dòng cần nhất.
 
         // Hai lần đo cùng số thứ tự trên một hạng mục là dữ liệu HỎNG, không
         // phải hai lần đo. Chặn ở tầng DB chứ đừng chỉ chặn ở service.
