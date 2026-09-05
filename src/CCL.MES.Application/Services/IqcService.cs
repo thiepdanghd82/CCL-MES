@@ -110,11 +110,14 @@ public class IqcService
         {
             // P12 bước 2a — dựng hạng mục từ THƯ VIỆN và ĐÓNG BĂNG vào ticket.
             // Chỉ chạy khi client không gửi gì, nên đường nhập tay cũ vẫn nguyên.
-            foreach (var d in await MaterializeAsync(rawMaterialId))
-                insp.Details.Add(d);
+            var mat = await MaterializeAsync(rawMaterialId, insp.Group);
+            insp.MaterialCategory = mat.Category;
+            foreach (var d in mat.Details) insp.Details.Add(d);
         }
         _db.IqcInspections.Add(insp);
         await _db.SaveChangesAsync();
+        // Ô đo trống nối bằng FK trần ⇒ phải đợi dòng kết quả có Id.
+        await MaterializeMeasurementsAsync(insp.Details);
 
         // Detail JSON KHÔNG carry PII. PartNo / batch / qty là operational
         // metadata; InspectorId là username chứ không phải PII.
@@ -286,9 +289,14 @@ public class IqcService
         // Mã không resolve được (unmatched / ambiguous ⇒ rawMaterialId null) thì
         // trả rỗng — người kiểm nhập tay như trước. KHÔNG đoán bừa: dựng sai bộ
         // hạng mục còn tệ hơn không dựng.
-        foreach (var d in await MaterializeAsync(rawMaterialId, ct))
-            insp.Details.Add(d);
-        if (insp.Details.Count > 0) await _db.SaveChangesAsync(ct);
+        var mat = await MaterializeAsync(rawMaterialId, insp.Group, ct);
+        insp.MaterialCategory = mat.Category;
+        foreach (var d in mat.Details) insp.Details.Add(d);
+        if (insp.Details.Count > 0)
+        {
+            await _db.SaveChangesAsync(ct);
+            await MaterializeMeasurementsAsync(insp.Details, ct);
+        }
 
         // Mở lô Quarantine nối vào phiếu (A1: CreateLotAsync khởi tạo
         // Status=Quarantine, resolve RawMaterialId từ PartNo). Cùng scope DbContext
@@ -836,24 +844,37 @@ public class IqcService
     /// được, người kiểm nhập tay như trước. KHÔNG đoán bừa bộ hạng mục — dựng
     /// sai còn tệ hơn không dựng.</para>
     /// </summary>
-    private async Task<IReadOnlyList<IqcResultDetail>> MaterializeAsync(
-        long? rawMaterialId, CancellationToken ct = default)
+    /// <summary>Bộ hạng mục đã dựng + NHÓM đã dùng để dựng nó. Trả nhóm ra
+    /// ngoài để người gọi đóng dấu lên phiếu: không có nó thì sau này không ai
+    /// giải thích được vì sao phiếu đó có 13 ô đếm lỗi còn phiếu kia không.</summary>
+    private sealed record Materialized(
+        IqcMaterialCategory Category, IReadOnlyList<IqcResultDetail> Details)
     {
-        if (rawMaterialId is null) return Array.Empty<IqcResultDetail>();
+        public static readonly Materialized None =
+            new(IqcMaterialCategory.Any, Array.Empty<IqcResultDetail>());
+    }
 
-        var motherCode = await _db.RawMaterials
-            .Where(x => x.Id == rawMaterialId)
-            .Select(x => x.MotherCode)
-            .FirstOrDefaultAsync(ct);
-        if (string.IsNullOrWhiteSpace(motherCode)) return Array.Empty<IqcResultDetail>();
-
+    private async Task<Materialized> MaterializeAsync(
+        long? rawMaterialId, string? ticketGroup, CancellationToken ct = default)
+    {
         var lib = await _db.IqcCheckItemLibraries.AsNoTracking().Where(x => x.Active).ToListAsync(ct);
-        if (lib.Count == 0) return Array.Empty<IqcResultDetail>();
+        if (lib.Count == 0) return Materialized.None;
 
-        var code = motherCode.Trim();
-        var specs = await _db.IqcMaterialSpecs.AsNoTracking()
-            .Where(x => x.Active && x.MaterialCode == code)
-            .ToListAsync(ct);
+        // Đơn vị tồn kho là thứ DUY NHẤT phân biệt được cuộn với tấm — nhóm
+        // phiếu gộp cả hai vào "Materials". Xem IqcCategoryRule.
+        var rm = rawMaterialId is null ? null : await _db.RawMaterials
+            .Where(x => x.Id == rawMaterialId)
+            .Select(x => new { x.MotherCode, x.InventoryUom })
+            .FirstOrDefaultAsync(ct);
+
+        var category = IqcCategoryRule.Resolve(ticketGroup, rm?.InventoryUom);
+        var code = (rm?.MotherCode ?? "").Trim();
+
+        var specs = code.Length == 0
+            ? new List<IqcMaterialSpec>()
+            : await _db.IqcMaterialSpecs.AsNoTracking()
+                .Where(x => x.Active && x.MaterialCode == code)
+                .ToListAsync(ct);
         var specNos = specs.Select(x => x.SpecNo).ToList();
         var specItems = specNos.Count == 0
             ? new List<IqcSpecItem>()
@@ -861,9 +882,10 @@ public class IqcService
                 .Where(x => x.Active && specNos.Contains(x.SpecNo))
                 .ToListAsync(ct);
 
-        var resolved = IqcCheckResolver.Resolve(code, specs, specItems, lib);
+        var resolved = IqcCheckResolver.Resolve(code, category, specs, specItems, lib);
+        if (resolved.Items.Count == 0) return new Materialized(category, Array.Empty<IqcResultDetail>());
 
-        return resolved.Items.Select(i => new IqcResultDetail
+        var details = resolved.Items.Select(i => new IqcResultDetail
         {
             // ItemName giữ bản VI để bản ghi vẫn đọc được bằng công cụ cũ.
             ItemName = i.LabelVi,
@@ -884,7 +906,51 @@ public class IqcService
             SourceFrequency = i.SourceFrequency,
             FromDefaultMatrix = i.FromDefaultMatrix,
             AcceptanceUnspecified = i.AcceptanceUnspecified,
+
+            // P13 — ĐÓNG BĂNG hình dạng + ngưỡng đã dùng để chấm. Đọc lại từ
+            // thư viện/spec lúc chấm thì hồ sơ đã ký sẽ đổi theo master data.
+            Kind = i.Kind,
+            MeasureCount = i.MeasureCount,
+            LimitLow = i.LimitLow,
+            LimitUp = i.LimitUp,
+            LimitUnit = i.LimitUnit,
+            LimitLabel = i.LimitLabel,
+            TearIsPass = i.TearIsPass,
         }).ToList();
+
+        return new Materialized(category, details);
+    }
+
+    /// <summary>
+    /// Dựng sẵn các ô ĐO trống cho hạng mục kiểu <c>Measure</c> — 5 ô cho kích
+    /// thước, 1 cho độ bám dính.
+    ///
+    /// <para>Gọi SAU khi <paramref name="details"/> đã có Id: bảng con nối bằng
+    /// FK trần (không navigation property), đúng khuôn mọi bảng con IQC/QC.</para>
+    ///
+    /// <para><c>Value = null</c> = CHƯA ĐO, khác hẳn 0. Dựng sẵn đủ số ô để
+    /// người kiểm thấy ngay phải đo mấy lần, và để máy phân biệt được "đo xong
+    /// hết" với "mới đo 2/5" — không có ô trống sẵn thì hai trạng thái đó nhìn
+    /// giống hệt nhau.</para>
+    /// </summary>
+    private async Task MaterializeMeasurementsAsync(
+        IEnumerable<IqcResultDetail> details, CancellationToken ct = default)
+    {
+        var rows = new List<IqcResultMeasurement>();
+        foreach (var d in details)
+        {
+            if (d.Kind != IqcCheckKind.Measure || d.MeasureCount <= 0) continue;
+            for (var seq = 1; seq <= d.MeasureCount; seq++)
+                rows.Add(new IqcResultMeasurement
+                {
+                    IqcResultDetailId = d.Id,
+                    Seq = seq,
+                    Value = null,
+                });
+        }
+        if (rows.Count == 0) return;
+        _db.IqcResultMeasurements.AddRange(rows);
+        await _db.SaveChangesAsync(ct);
     }
 }
 
