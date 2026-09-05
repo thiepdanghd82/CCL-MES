@@ -17,6 +17,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 MODE="${1:-}"
 
 GATES=(
+  "merge-markers:gate-merge-markers.sh:2026-09-05 không dấu xung đột merge sót lại"
   "hex:gate-no-hardcoded-hex.sh:L37 màu qua token"
   "row-actions:gate-row-actions.sh:L35 không cột Actions"
   "confirm-toggle:gate-confirm-toggle.sh:L52 xác nhận OK/NG qua ConfirmToggle"
