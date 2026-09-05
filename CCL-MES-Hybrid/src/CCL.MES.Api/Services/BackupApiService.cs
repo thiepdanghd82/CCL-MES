@@ -173,7 +173,13 @@ public sealed class BackupApiService
 
         Directory.CreateDirectory(backupDir);
         var ts = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-        var tempName = $"_upload-{ts}.tmp";
+        // Tên file tạm phải DUY NHẤT, không chỉ theo giây. Hai lần restore trong
+        // cùng một giây dùng chung tên, và Microsoft.Data.Sqlite gộp kết nối
+        // theo CHUỖI KẾT NỐI — nên lần sau lấy lại handle của lần trước, vốn
+        // vẫn trỏ vào inode cũ đã bị xoá (macOS/Linux giữ inode sống chừng nào
+        // còn handle mở). Kết quả: đọc ra schema của FILE CŨ, và người dùng bị
+        // báo "nhầm file?" cho một bản backup hoàn toàn hợp lệ.
+        var tempName = $"_upload-{ts}-{Guid.NewGuid():N}.tmp";
         var tempPath = Path.Combine(backupDir, tempName);
 
         try
@@ -273,11 +279,14 @@ public sealed class BackupApiService
         return true;
     }
 
-    private static bool HasRequiredSchema(string path)
+    private bool HasRequiredSchema(string path)
     {
         try
         {
-            using var conn = new SqliteConnection($"Data Source={path};Mode=ReadOnly");
+            // Pooling=False: kết nối này chỉ sống vài mili-giây và trỏ vào một
+            // file dùng một lần. Để nó vào pool là mời một lần restore sau nhận
+            // lại handle đã chết.
+            using var conn = new SqliteConnection($"Data Source={path};Mode=ReadOnly;Pooling=False");
             conn.Open();
             // Three core tables must be present. They map to entities every
             // version of the schema has shipped since Phase 1, so this
@@ -292,8 +301,14 @@ public sealed class BackupApiService
             }
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            // KHÔNG được nuốt im lặng. Mọi lỗi ở đây đều nổi lên thành
+            // "backup.schema_mismatch — nhầm file?", nên một sự cố đọc file
+            // đang được báo cho quản trị viên bằng một CHẨN ĐOÁN SAI, và họ sẽ
+            // đi tìm bản backup khác thay vì tìm nguyên nhân thật.
+            _log.LogError(ex, "[restore] không đọc được schema của {path}; " +
+                "sẽ báo schema_mismatch — kiểm tra xem có phải lỗi đọc file không", path);
             return false;
         }
     }

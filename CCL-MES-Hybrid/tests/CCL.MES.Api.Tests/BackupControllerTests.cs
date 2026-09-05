@@ -215,4 +215,67 @@ public sealed class BackupControllerTests : IClassFixture<MesApiFactory>
         var rows = await list.Content.ReadFromJsonAsync<List<BackupSnapshotDto>>();
         Assert.Contains(rows!, r => r.FileName == result.PreRestoreSnapshot && r.IsPreRestore);
     }
+
+    [Fact]
+    public async Task Restore_HOP_LE_ngay_sau_mot_file_SAI_trong_cung_giay_van_phai_200()
+    {
+        // Tên file tạm từng chỉ phân giải tới GIÂY (`_upload-{yyyyMMdd-HHmmss}.tmp`),
+        // nên hai lần restore cùng giây dùng CHUNG một đường dẫn. Microsoft.Data.Sqlite
+        // gộp kết nối theo CHUỖI KẾT NỐI, nên lần sau nhận lại handle của lần
+        // trước — vẫn trỏ vào inode cũ đã bị xoá (macOS/Linux giữ inode sống
+        // chừng nào còn handle mở). Lần sau đọc ra schema của FILE SAI, và người
+        // dùng bị báo "nhầm file?" cho một bản backup hoàn toàn hợp lệ.
+        //
+        // Lỗi CHỈ nổ khi lần trước ghi file SAI schema: ba lần nạp cùng một file
+        // hợp lệ thì handle cũ vẫn cho đúng schema, nên không lộ gì. Đó là lý do
+        // bản test đầu của tôi vô dụng (0/5 trên code cũ) — phải xen file sai
+        // vào giữa mới tái hiện được.
+        var client = await AdminClientAsync("admin-bk-stale-handle");
+
+        var create = await client.PostAsync("/api/v2/backup", null);
+        var snap = (await create.Content.ReadFromJsonAsync<BackupSnapshotDto>())!;
+        var dl = await client.GetAsync($"/api/v2/backup/{snap.FileName}");
+        var good = await dl.Content.ReadAsByteArrayAsync();
+
+        var tmp = Path.Combine(Path.GetTempPath(), $"stale-{Guid.NewGuid():N}.db");
+        byte[] bad;
+        try
+        {
+            using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={tmp}"))
+            {
+                conn.Open();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "CREATE TABLE FooBar (id INTEGER PRIMARY KEY)";
+                cmd.ExecuteNonQuery();
+            }
+            bad = await File.ReadAllBytesAsync(tmp);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            try { File.Delete(tmp); } catch { /* swallow */ }
+        }
+
+        // Xen kẽ SAI → ĐÚNG nhiều vòng, liên tiếp nên chắc chắn cùng một giây.
+        for (var n = 1; n <= 4; n++)
+        {
+            using (var m1 = new MultipartFormDataContent())
+            {
+                var c1 = new ByteArrayContent(bad);
+                c1.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+                m1.Add(c1, "file", "bad.db");
+                var r1 = await client.PostAsync("/api/v2/backup/restore", m1);
+                Assert.Equal(HttpStatusCode.UnprocessableEntity, r1.StatusCode);
+            }
+
+            using var m2 = new MultipartFormDataContent();
+            var c2 = new ByteArrayContent(good);
+            c2.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+            m2.Add(c2, "file", "good.db");
+            var r2 = await client.PostAsync("/api/v2/backup/restore", m2);
+            var body = await r2.Content.ReadAsStringAsync();
+            Assert.True(r2.StatusCode == HttpStatusCode.OK,
+                $"vòng {n}: bản backup HỢP LỆ bị từ chối {(int)r2.StatusCode}: {body}");
+        }
+    }
 }
