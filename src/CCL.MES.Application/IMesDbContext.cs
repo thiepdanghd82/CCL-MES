@@ -55,6 +55,7 @@ public interface IMesDbContext
     DbSet<IqcInspection> IqcInspections { get; }
     DbSet<IqcResultDetail> IqcResultDetails { get; }
     DbSet<IqcResultMeasurement> IqcResultMeasurements { get; }
+    DbSet<IqcNgRecord> IqcNgRecords { get; }
     // P10.7a-1.2 — Idempotency ledger (per contract §6.2).
     DbSet<IdempotencyKey> IdempotencyKeys { get; }
     // P10.7b-1 — PREPRESS row-level child tables (per contract §5.1).

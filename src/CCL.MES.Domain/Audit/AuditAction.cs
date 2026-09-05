@@ -45,6 +45,10 @@ public static class AuditAction
     public const string IqcCreate             = "IQC_CREATE";              // Phase 6 Bước 7
     public const string IqcItemSet            = "IQC_ITEM_SET";            // P12 bước 3 — phán định 1 hạng mục
     public const string IqcComplete           = "IQC_COMPLETE";            // P12 — chốt phiếu (đủ hạng mục mới cho)
+    public const string IqcNgCreate           = "IQC_NG_CREATE";           // P13 bước 5 — ghi nhận lô hỏng
+    public const string IqcNgClaim            = "IQC_NG_CLAIM";            // P13 bước 5 — gửi claim NCC
+    public const string IqcNgSettle           = "IQC_NG_SETTLE";           // P13 bước 5 — NCC đã xử lý
+    public const string IqcNgClose            = "IQC_NG_CLOSE";            // P13 bước 5 — khép, không đòi được
     public const string IqcDocSet             = "IQC_DOC_SET";             // P12 bước 4 — số/ngày cấp/hạn của hồ sơ HSF
     public const string IqcDocAdded           = "IQC_DOC_ADDED";           // P12 bước 4
     public const string IqcDocRemoved         = "IQC_DOC_REMOVED";         // P12 bước 4 — xoá MỀM

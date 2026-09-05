@@ -729,11 +729,6 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<DateTime?>("ManufactureDate")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("MaterialCategory")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("MaterialDescription")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
@@ -956,124 +951,6 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.ToTable("IqcMaterialSpecs");
                 });
 
-            modelBuilder.Entity("CCL.MES.Domain.Entities.IqcNgRecord", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ClaimRef")
-                        .HasMaxLength(128)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("ClaimedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DefectCode")
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DefectName")
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("DetectedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DetectedStage")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ImportSource")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<long?>("IqcInspectionId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<long?>("MaterialLotId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("MaterialName")
-                        .HasMaxLength(300)
-                        .HasColumnType("TEXT");
-
-                    b.Property<double?>("NgAreaM2")
-                        .HasColumnType("REAL");
-
-                    b.Property<double?>("NgQty")
-                        .HasColumnType("REAL");
-
-                    b.Property<int?>("NgRolls")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("NgUom")
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PartNo")
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("PoNo")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Remark")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("SettledAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Settlement")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(24)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SupplierLotNo")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SupplierName")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("SupplierNote")
-                        .HasMaxLength(512)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DetectedAt");
-
-                    b.HasIndex("IqcInspectionId");
-
-                    b.HasIndex("PartNo");
-
-                    b.HasIndex("Status");
-
-                    b.ToTable("IqcNgRecords");
-                });
-
             modelBuilder.Entity("CCL.MES.Domain.Entities.IqcResultDetail", b =>
                 {
                     b.Property<long>("Id")
@@ -1140,11 +1017,6 @@ namespace CCL.MES.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("LabelEn")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
@@ -1152,23 +1024,6 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<string>("LabelVi")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
-
-                    b.Property<string>("LimitLabel")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<double?>("LimitLow")
-                        .HasColumnType("REAL");
-
-                    b.Property<string>("LimitUnit")
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<double?>("LimitUp")
-                        .HasColumnType("REAL");
-
-                    b.Property<int>("MeasureCount")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("MeasuredValue")
                         .HasColumnType("TEXT");
@@ -1208,9 +1063,6 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<string>("SpecNo")
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("TearIsPass")
-                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("TearObserved")
                         .HasColumnType("INTEGER");
