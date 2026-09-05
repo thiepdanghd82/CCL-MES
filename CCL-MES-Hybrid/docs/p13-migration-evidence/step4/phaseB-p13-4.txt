@@ -1,0 +1,19 @@
+# P13 bước 4 — Phase B (áp lên BẢN SAO CÁCH LY của live thật)   2026-09-05
+migration : 20260905020839_AddIqcP13FrozenShapeAndLimits
+type: "   : 0  (đã strip theo §4.5)
+
+Giá trị thực trên dòng CŨ sau khi áp — điểm quan trọng nhất:
+  IqcResultDetails.Kind       Verdict = 20   (KHÔNG có chuỗi rỗng)
+  IqcInspections.MaterialCategory  Any = 26   (KHÔNG có chuỗi rỗng)
+EF sinh defaultValue: "" cho cả hai cột enum — đúng cái bẫy của bước 2. Đã
+sửa tay thành "Verdict"/"Any" TRƯỚC khi áp; "" là giá trị ngoài enum và EF
+sẽ ném lúc đọc.
+
+Rowcount sau khi áp (không đổi ngoài __migrations):
+  IqcInspections 26 · IqcResultDetails 20 · IqcMaterialSpecs 1131
+  IqcSpecItems 7212 · __EFMigrationsHistory 49 -> 50
+PRAGMA integrity_check   = ok
+PRAGMA foreign_key_check = (rỗng)
+
+Phase C: HOÃN — app đang chạy (API :5100 + Hybrid) trong phiên của người dùng.
+Migration cộng cột, app tự áp lúc boot; sẽ verify lại sau khi khởi động lại.

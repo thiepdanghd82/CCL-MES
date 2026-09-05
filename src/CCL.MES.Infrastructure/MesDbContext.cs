@@ -666,6 +666,17 @@ public class MesDbContext : DbContext, IMesDbContext
         b.Entity<IqcResultMeasurement>()
             .HasIndex(x => new { x.IqcResultDetailId, x.Seq }).IsUnique();
 
+        // P13 bước 4 — hình dạng hạng mục đóng băng vào dòng kết quả. Enum
+        // thật + HasConversion<string> chứ KHÔNG khai là string: khai string
+        // thì gate-enum-integrity quét qua mà không thấy, và cột lặng lẽ nằm
+        // ngoài lưới an toàn (bài học đã trả giá ở bước 2).
+        b.Entity<IqcResultDetail>().Property(x => x.Kind)
+            .HasConversion<string>().HasMaxLength(16);
+        b.Entity<IqcInspection>().Property(x => x.MaterialCategory)
+            .HasConversion<string>().HasMaxLength(16);
+        b.Entity<IqcResultDetail>().Property(x => x.LimitUnit).HasMaxLength(32);
+        b.Entity<IqcResultDetail>().Property(x => x.LimitLabel).HasMaxLength(64);
+
         // P12 bước 4 — hồ sơ HSF theo MÃ nguyên liệu. Một mã có tối đa MỘT
         // dòng cho mỗi loại hồ sơ; hai dòng "TDS" cùng mã thì không ai biết
         // bản nào đang hiệu lực.

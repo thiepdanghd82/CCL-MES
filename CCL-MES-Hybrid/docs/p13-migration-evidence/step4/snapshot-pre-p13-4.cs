@@ -729,11 +729,6 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<DateTime?>("ManufactureDate")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("MaterialCategory")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("MaterialDescription")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
@@ -1022,11 +1017,6 @@ namespace CCL.MES.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("LabelEn")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
@@ -1034,23 +1024,6 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<string>("LabelVi")
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
-
-                    b.Property<string>("LimitLabel")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
-                    b.Property<double?>("LimitLow")
-                        .HasColumnType("REAL");
-
-                    b.Property<string>("LimitUnit")
-                        .HasMaxLength(32)
-                        .HasColumnType("TEXT");
-
-                    b.Property<double?>("LimitUp")
-                        .HasColumnType("REAL");
-
-                    b.Property<int>("MeasureCount")
-                        .HasColumnType("INTEGER");
 
                     b.Property<string>("MeasuredValue")
                         .HasColumnType("TEXT");
@@ -1090,9 +1063,6 @@ namespace CCL.MES.Infrastructure.Migrations
                     b.Property<string>("SpecNo")
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("TearIsPass")
-                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("TearObserved")
                         .HasColumnType("INTEGER");

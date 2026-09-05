@@ -1,0 +1,11 @@
+# P13 bước 4 — Phase A (trước khi đổi schema)   2026-09-05
+sha256 data/ccl_mes.db = c16984fb840120ed7f9c3a16958991727646d6360064a0aef408903689394b64
+IqcInspections          26
+IqcResultDetails        20
+IqcResultMeasurements    0
+IqcMaterialSpecs      1131
+IqcSpecItems          7212
+IqcCheckItemLibraries   51
+__EFMigrationsHistory   49
+PRAGMA integrity_check  = ok
+PRAGMA foreign_key_check= (rỗng)
