@@ -69,6 +69,7 @@ Pha 1 kết thúc bằng việc chốt **đúng một** work-class. Pha 2 tra b�
 | **W7** | **i18n** | thêm chuỗi hiển thị bất kỳ | (agent đang chủ trì) | `cmes-i18n-parity` | `gate-i18n-parity` |
 | **W8** | **Tích hợp / master data** | import IFS, outbox, idempotency | `mes-integration-architect` | `cmes-migration-abc` (nếu đụng schema) | `IdempotencyMiddlewareTests` |
 | **W9** | **Debug / sự cố** | "không chạy", "404", "renderer dead" | `cmes-rca-detective` | `cmes-verify-evidence` | RCA proven trước khi mở PR |
+| **W10** | **Vận hành / an ninh xưởng** | live DB path, WAL, backup/restore, JWT/secret, dual-sig, đóng gói Mac | `cmes-verifier` (ship/DB) hoặc `cmes-implementer` (JWT) | `cmes-live-db` · `cmes-backup-wal` · `cmes-secrets-jwt` · `cmes-macos-ship` (nạp đúng 1 theo dấu hiệu) | boot-path dán log · restore drill · không commit key · Gatekeeper/staple |
 
 **W7 luôn kèm.** Bất kỳ work-class nào thêm chuỗi hiển thị đều phải kéo
 theo `cmes-i18n-parity` — i18n không phải một task riêng, nó là thuế của

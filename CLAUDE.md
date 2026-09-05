@@ -31,6 +31,10 @@ Pha 4 (gate tĩnh) **không** thay cho pha 5 (chạy thật + dán output).
 | **bất kỳ chuỗi hiển thị nào** | `cmes-i18n-parity` ← luôn kèm | (agent đang chủ trì) |
 | import IFS · outbox · idempotency | `cmes-migration-abc` | `mes-integration-architect` |
 | "không chạy" · 404 · renderer dead | `cmes-verify-evidence` | `cmes-rca-detective` |
+| `MES_DB_PATH` · live SQLite · WAL · demo DB | `cmes-live-db` | `cmes-verifier` |
+| snapshot / restore / off-site backup | `cmes-backup-wal` | `cmes-verifier` |
+| JWT · seed pwd · refresh · dual-sig `OPS_*` | `cmes-secrets-jwt` | `cmes-implementer` |
+| Mac Catalyst ký / notarize / ATS / Keychain | `cmes-macos-ship` | `cmes-verifier` |
 
 **Trước khi nói "xong":**
 

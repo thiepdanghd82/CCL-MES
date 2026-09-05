@@ -19,4 +19,4 @@ Không ghi “memory” mới trong chat rồi coi là luật. Append lesson và
 | Stacked PR | `CCL-MES-Hybrid/docs/STACKED-PR-CHECKLIST.md` |
 | Skills playbook | `CCL-MES-Hybrid/docs/SKILLS.md` |
 
-Skill `cmes-*` / `speckit-*` nằm `.cursor/skills/` (symlink về `.claude/skills`, một nguồn). Agent: `.cursor/agents/`.
+Skill `cmes-*` / `speckit-*` nằm `.cursor/skills/` (symlink về `.claude/skills`, một nguồn). Agent: `.cursor/agents/`. W10: `cmes-live-db` · `cmes-backup-wal` · `cmes-secrets-jwt` · `cmes-macos-ship`.

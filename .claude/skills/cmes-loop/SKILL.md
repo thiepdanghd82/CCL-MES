@@ -27,6 +27,10 @@ Chốt **đúng một** work-class rồi nạp skill của nó:
 | **bất kỳ chuỗi hiển thị nào** | W7 i18n | `cmes-i18n-parity` ← luôn kèm |
 | import IFS · outbox · idempotency | W8 integration | `cmes-migration-abc` |
 | "không chạy" · 404 · renderer dead | W9 debug | `cmes-verify-evidence` |
+| `MES_DB_PATH` · `data/ccl_mes.db` · demo DB · WAL | W10 ops | `cmes-live-db` |
+| snapshot · restore · `backup-offsite` | W10 ops | `cmes-backup-wal` |
+| `Jwt:SigningKey` · login · refresh · dual-sig OPS_* | W10 ops | `cmes-secrets-jwt` |
+| Catalyst · entitlements · notarize · ATS · Keychain | W10 ops | `cmes-macos-ship` |
 
 Không xác định được work-class ⇒ chưa hiểu yêu cầu ⇒ hỏi, đừng code.
 
@@ -88,7 +92,7 @@ Prose không ship.
 3. Cần chạy migration lên live DB (`data/ccl_mes.db`).
 4. RCA chưa proven mà đã muốn mở PR fix.
 5. Phải bump BASELINE của gate mà không giải thích được.
-6. Đụng `src/CCL.MES.*` (baseline read-only).
+6. Đụng `src/CCL.MES.Web` (đóng băng). Domain/Application/Infrastructure được sửa khi schema — vẫn STOP nếu migration **live** (mục 3).
 
 ## Do NOT
 

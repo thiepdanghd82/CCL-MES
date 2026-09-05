@@ -20,5 +20,9 @@ alwaysApply: true
 | Chuỗi UI | `cmes-i18n-parity` (luôn kèm) | agent đang chủ trì |
 | IFS / outbox | `cmes-migration-abc` | mes-integration-architect |
 | Không chạy / 404 / renderer dead | `cmes-verify-evidence` | cmes-rca-detective |
+| Live SQLite / MES_DB_PATH / WAL / demo DB | `cmes-live-db` | cmes-verifier |
+| Snapshot / restore / off-site | `cmes-backup-wal` | cmes-verifier |
+| JWT / seed password / dual-sig | `cmes-secrets-jwt` | cmes-implementer |
+| Mac Catalyst ký, notarize, ATS, Keychain | `cmes-macos-ship` | cmes-verifier |
 
 Chuỗi hiển thị mới: EN + VI cùng commit. Mutation: Authorize + Idempotency-Key + audit.
