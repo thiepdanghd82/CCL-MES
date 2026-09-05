@@ -17,3 +17,22 @@ gate-enum-integrity thấy 3 cột enum mới: 43/46, skip 3 vì live chưa áp.
 
 Phase C: HOÃN — app đang chạy trong phiên của người dùng. Bảng mới, không đụng
 dữ liệu cũ; app tự áp lúc boot.
+
+## Sinh LẠI sau khi hoà main (bước 4 vào trước)
+
+Bước 4 và bước 5 cùng sửa MesDbContextModelSnapshot.cs. Git hoà văn bản được,
+nhưng snapshot là file SINH RA — hoà văn bản có thể ra một snapshot không khớp
+model mà không ai thấy. Nên làm đúng quy trình §4.1:
+  · lấy snapshot của main
+  · `rm` migration cũ (KHÔNG dùng `ef migrations remove` — nó đụng DB)
+  · sinh lại trên nền mới
+
+20260905032431_AddIqcNgClaim  ->  20260905035549_AddIqcNgClaim
+Nội dung y hệt (CreateTable + 4 index), chỉ đổi dấu thời gian.
+type: " = 0 · defaultValue = 0 (bảng mới, không có dòng cũ để đặt mặc định)
+
+Verify lại trên bản sao cách ly của live thật, áp CẢ HAI migration P13:
+  __EFMigrationsHistory 49 -> 51
+  IqcResultDetails.Kind  Verdict = 20   (bước 4 đặt đúng)
+  IqcNgRecords 0 · IqcInspections 26 · IqcResultDetails 20
+  integrity_check ok · foreign_key_check rỗng
