@@ -81,6 +81,21 @@ public class IqcInspection : BaseEntity
     /// một hồ sơ chất lượng không được có con số nào không giải thích được.
     /// <c>null</c> khi QC giữ nguyên đề xuất.</summary>
     [MaxLength(512)] public string? SampleSizeOverrideReason { get; set; }
+
+    /// <summary>
+    /// P13 bước 4 — NHÓM vật liệu đã dùng để dựng bộ hạng mục cho phiếu này.
+    ///
+    /// <para>Suy ra một lần lúc mở phiếu (<see cref="Application.Services"/> ·
+    /// <c>IqcCategoryRule</c>) rồi ĐÓNG BĂNG. Không tính lại mỗi lần đọc: đơn vị
+    /// tồn kho của nguyên liệu có thể được sửa ở IFS sau khi phiếu đã ký, và lúc
+    /// đó phiếu cũ sẽ tự đổi bộ hạng mục dưới chân người đã ký — đúng thứ
+    /// Nguyên tắc IV cấm.</para>
+    ///
+    /// <para><c>Any</c> = không suy được (đơn vị lạ). Phiếu vẫn mở, người kiểm
+    /// nhận bộ hạng mục dùng chung; nói KHÔNG BIẾT tốt hơn đoán bừa về Roll rồi
+    /// bắt người ta bấm qua 13 ô đếm lỗi vô nghĩa.</para>
+    /// </summary>
+    public IqcMaterialCategory MaterialCategory { get; set; } = IqcMaterialCategory.Any;
     public QcResult Result { get; set; } = QcResult.Pending;
     public string? ApprovedBy { get; set; }
     public DateTime? ApprovedAt { get; set; }
@@ -185,6 +200,41 @@ public class IqcResultDetail : BaseEntity
     /// ghi "or tear". Người kiểm tick, và nó biến một trị dưới ngưỡng thành
     /// ĐẠT, nên phải nằm trong hồ sơ chứ không chỉ trong đầu người kiểm.</summary>
     public bool TearObserved { get; set; }
+
+    // ── P13 bước 4 — HÌNH DẠNG và NGƯỠNG đóng băng lúc mở phiếu ─────────
+    // Cùng lý do với khối P12 ngay dưới: sửa thư viện / sửa spec về sau KHÔNG
+    // được hồi tố hồ sơ đã ký. Ở đây hậu quả nặng hơn nhãn hiển thị: đổi
+    // `Kind` của một hạng mục từ Verdict sang Measure sẽ làm phiếu cũ đổi
+    // HÌNH DẠNG ô nhập, và đổi ngưỡng sẽ làm `AutoVerdict` đã đóng băng mâu
+    // thuẫn với ngưỡng hiện hành mà không ai giải thích được.
+
+    /// <summary>Ghi nhận kiểu gì: <c>Verdict</c> · <c>DefectCount</c> ·
+    /// <c>Measure</c> · <c>Document</c>. Quyết định ô nhập nào hiện và luật
+    /// chấm nào chạy. Bản ghi trước P13 là <c>Verdict</c> — đúng với hành vi cũ
+    /// (người bấm đạt/không đạt), không phải một giá trị bịa cho đủ cột.</summary>
+    public IqcCheckKind Kind { get; set; } = IqcCheckKind.Verdict;
+
+    /// <summary>Số phép đo phải nhập, cho <see cref="IqcCheckKind.Measure"/>.
+    /// 0 với mọi kiểu khác. Số dòng <c>IqcResultMeasurements</c> dựng sẵn bằng
+    /// đúng con số này.</summary>
+    public int MeasureCount { get; set; }
+
+    /// <summary>Cận dưới / cận trên đã dùng để chấm. <c>null</c> = không có cận
+    /// đó. Cả hai null ⇒ không có ngưỡng số ⇒ máy nhường người chấm.</summary>
+    public double? LimitLow { get; set; }
+    public double? LimitUp { get; set; }
+
+    /// <summary>Đơn vị của ngưỡng (<c>mm</c>, <c>N/25mm</c>…). Để đọc hồ sơ mà
+    /// không phải mở lại spec.</summary>
+    [MaxLength(32)] public string? LimitUnit { get; set; }
+
+    /// <summary>Nhãn phân biệt khi một hạng mục có nhiều ngưỡng —
+    /// <c>Face</c> / <c>Adhesive</c> nói ngưỡng này đo lớp nào.</summary>
+    [MaxLength(64)] public string? LimitLabel { get; set; }
+
+    /// <summary>Tiêu chuẩn có ghi "or tear" không. Chỉ khi cờ này bật thì
+    /// <see cref="TearObserved"/> mới biến một trị dưới cận thành ĐẠT.</summary>
+    public bool TearIsPass { get; set; }
 
     // ── P12 — BẰNG CHỨNG ĐÓNG BĂNG lúc mở ticket ────────────────────────
     // Đóng băng cả hai ngôn ngữ ngay tại thời điểm tạo, đúng Nguyên tắc IV:

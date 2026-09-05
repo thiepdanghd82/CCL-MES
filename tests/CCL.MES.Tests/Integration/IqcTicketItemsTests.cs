@@ -300,4 +300,61 @@ public sealed class IqcTicketItemsTests : IDisposable
 
         Assert.Null(await db.IqcResultDetails.Where(d => d.Id == item).Select(d => d.Pass).FirstAsync());
     }
+
+    // ── P13 — trạng thái duyệt của bộ tiêu chuẩn ─────────────────────────
+
+    [Fact]
+    public async Task Doc_hang_muc_tra_kem_trang_thai_DUYET_cua_tieu_chuan()
+    {
+        // 575 mã đang có nguyên liệu trong kho dùng spec CHƯA duyệt. UI không
+        // nhắc được nếu server không nói.
+        await using var db = _fx.NewContext();
+        var id = await SeedTicketAsync(db);
+        db.IqcMaterialSpecs.Add(new IqcMaterialSpec
+        {
+            SpecNo = "CCL-SPEC-QC229", MaterialCode = "336-H1a", Active = true,
+            Approval = IqcSpecApproval.PendingQc,
+        });
+        await db.SaveChangesAsync();
+
+        var r = await Svc(db).GetTicketItemsAsync(id);
+
+        Assert.Equal("PendingQc", r!.SpecApproval);
+    }
+
+    [Fact]
+    public async Task Trang_thai_duyet_doc_SONG_chu_khong_dong_bang_tren_phieu()
+    {
+        // QC ký duyệt sau khi phiếu đã mở ⇒ băng nhắc phải BIẾN MẤT. Đóng băng
+        // thì nó treo mãi và người ta học cách bỏ qua nó.
+        await using var db = _fx.NewContext();
+        var id = await SeedTicketAsync(db);
+        var spec = new IqcMaterialSpec
+        {
+            SpecNo = "CCL-SPEC-QC229", MaterialCode = "336-H1a", Active = true,
+            Approval = IqcSpecApproval.PendingQc,
+        };
+        db.IqcMaterialSpecs.Add(spec);
+        await db.SaveChangesAsync();
+        Assert.Equal("PendingQc", (await Svc(db).GetTicketItemsAsync(id))!.SpecApproval);
+
+        spec.Approval = IqcSpecApproval.Approved;
+        await db.SaveChangesAsync();
+
+        Assert.Equal("Approved", (await Svc(db).GetTicketItemsAsync(id))!.SpecApproval);
+    }
+
+    [Fact]
+    public async Task Ma_tran_mac_dinh_thi_KHONG_co_trang_thai_duyet()
+    {
+        // Không có spec thì không có gì để duyệt; trả "PendingQc" ở đây là bịa
+        // ra một bộ tiêu chuẩn không tồn tại.
+        await using var db = _fx.NewContext();
+        var id = await SeedTicketAsync(db);
+        foreach (var d in db.IqcResultDetails.Where(x => x.IqcInspectionId == id))
+            d.SpecNo = null;
+        await db.SaveChangesAsync();
+
+        Assert.Null((await Svc(db).GetTicketItemsAsync(id))!.SpecApproval);
+    }
 }

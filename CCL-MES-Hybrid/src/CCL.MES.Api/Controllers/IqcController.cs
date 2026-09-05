@@ -191,6 +191,7 @@ public sealed class IqcController : ControllerBase
             Quantity = body?.Quantity ?? 0,
             Uom = body?.Uom,
             SampleSize = body?.SampleSize,
+            SampleSizeOverrideReason = body?.SampleSizeOverrideReason,
             ExpiryAt = body?.ExpiryAt,
         }, actor, role, ct);
 
@@ -237,6 +238,7 @@ public sealed class IqcController : ControllerBase
         {
             TicketId = r.TicketId,
             SpecNo = r.SpecNo,
+            SpecApproval = r.SpecApproval,
             FromDefaultMatrix = r.FromDefaultMatrix,
             Items = r.Items.Select(x => new IqcCheckItemDto
             {
@@ -259,6 +261,22 @@ public sealed class IqcController : ControllerBase
                 Pass = x.Pass,
                 MeasuredValue = x.MeasuredValue,
                 DefectCode = x.DefectCode,
+                Kind = x.Kind,
+                MeasureCount = x.MeasureCount,
+                DefectCount = x.DefectCount,
+                LimitLow = x.LimitLow,
+                LimitUp = x.LimitUp,
+                LimitUnit = x.LimitUnit,
+                LimitLabel = x.LimitLabel,
+                TearIsPass = x.TearIsPass,
+                TearObserved = x.TearObserved,
+                Measurements = x.Measurements,
+                AutoVerdict = x.AutoVerdict,
+                AutoVerdictReason = x.AutoVerdictReason,
+                AutoVerdictOffendingSeq = x.AutoVerdictOffendingSeq,
+                OverrideReason = x.OverrideReason,
+                OverriddenBy = x.OverriddenBy,
+                OverriddenAt = x.OverriddenAt,
             }).ToList(),
         });
     }
@@ -306,7 +324,12 @@ public sealed class IqcController : ControllerBase
 
         var (actor, role) = Who();
         var r = await _svc.SetItemVerdictAsync(
-            id, itemId, body?.Pass, body?.MeasuredValue, body?.DefectCode, actor, role, ct);
+            id, itemId, body?.Pass, body?.MeasuredValue, body?.DefectCode, actor, role,
+            defectCount: body?.DefectCount,
+            measurements: body?.Measurements,
+            tearObserved: body?.TearObserved,
+            overrideReason: body?.OverrideReason,
+            ct: ct);
 
         if (!r.Ok)
         {

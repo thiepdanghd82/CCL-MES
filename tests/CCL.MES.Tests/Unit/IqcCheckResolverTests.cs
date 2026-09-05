@@ -61,7 +61,7 @@ public sealed class IqcCheckResolverTests
     ];
 
     private static IqcCheckResolver.Result Run(string? code) =>
-        IqcCheckResolver.Resolve(code, Specs(), SpecItems(), Lib());
+        IqcCheckResolver.Resolve(code, IqcMaterialCategory.Any, Specs(), SpecItems(), Lib());
 
     // ── (1) khoá nối là MotherCode ───────────────────────────────────────
 
@@ -150,7 +150,7 @@ public sealed class IqcCheckResolverTests
     public void Spec_ton_tai_nhung_khong_co_dong_chi_tiet_thi_van_lui_ve_ma_tran()
     {
         // Thà bộ mặc định còn hơn màn hình trắng.
-        var r = IqcCheckResolver.Resolve("TESA 4982", Specs(), SpecItems(), Lib());
+        var r = IqcCheckResolver.Resolve("TESA 4982", IqcMaterialCategory.Any, Specs(), SpecItems(), Lib());
 
         Assert.True(r.FromDefaultMatrix);
         Assert.NotEmpty(r.Items);
@@ -195,21 +195,21 @@ public sealed class IqcCheckResolverTests
     public void Ma_nguyen_lieu_rong_thi_tra_RONG_chu_khong_doan_bua(string? code)
     {
         // Dựng sai bộ hạng mục còn tệ hơn không dựng.
-        var r = IqcCheckResolver.Resolve(code, Specs(), SpecItems(), Lib());
+        var r = IqcCheckResolver.Resolve(code, IqcMaterialCategory.Any, Specs(), SpecItems(), Lib());
         Assert.Empty(r.Items);
         Assert.False(r.FromDefaultMatrix);
     }
 
     [Fact]
     public void Thu_vien_rong_thi_tra_rong()
-        => Assert.Empty(IqcCheckResolver.Resolve("336-H1a", Specs(), SpecItems(), null).Items);
+        => Assert.Empty(IqcCheckResolver.Resolve("336-H1a", IqcMaterialCategory.Any, Specs(), SpecItems(), null).Items);
 
     [Fact]
     public void Dong_Inactive_bi_loai()
     {
         var lib = Lib();
         lib.First(x => x.ItemId == "NQ-01").Active = false;
-        var r = IqcCheckResolver.Resolve("TWP5050", Specs(), SpecItems(), lib);
+        var r = IqcCheckResolver.Resolve("TWP5050", IqcMaterialCategory.Any, Specs(), SpecItems(), lib);
 
         Assert.DoesNotContain("NQ-01", r.Items.Select(i => i.ItemKey));
     }

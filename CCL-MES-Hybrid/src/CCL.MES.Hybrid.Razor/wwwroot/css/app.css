@@ -9412,3 +9412,96 @@ tr.wc-row:hover { background: var(--c-bg); }
 
 .iqc-spec-setbtn { padding: 0 var(--sp-2); min-height: var(--d-tap); }
 .iqc-spec-setcell { color: var(--c-muted); white-space: nowrap; }
+/* ═══════════════════════════════════════════════════════════════════════
+   P13 bước 4b — ô đếm lỗi, ô đo, kết luận MÁY chấm và ô ghi đè (IQC).
+
+   Dùng lại .ipqc-input / .ipqc-result-group / .ipqc-measured-save-btn của
+   bảng IPQC — cùng một bảng, cùng một cụm nhập-lưu, không đẻ khuôn thứ hai.
+   Chỉ khai thêm cái THẬT SỰ mới: dãy nhiều ô đo, nhãn máy chấm, chip ngưỡng.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Kết luận máy chấm bám ngay sau nhãn hạng mục — người kiểm đọc "hạng mục này,
+   máy nói gì" trong một lần liếc, không phải nhảy sang cột khác. */
+.iqc-auto-pill {
+    display: inline-block;
+    margin-left: var(--sp-2);
+    padding: 0 var(--sp-2);
+    border-radius: var(--sp-4);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    white-space: nowrap;
+}
+.iqc-auto-ok      { background: var(--ok-bg);      color: var(--ok-ink); }
+.iqc-auto-ng      { background: var(--ng-bg);      color: var(--ng-ink); }
+/* "Chưa quyết được" KHÔNG được nhìn như đạt: dùng nền trung tính, không xanh. */
+.iqc-auto-unknown { background: var(--c-divider);  color: var(--c-ink-4); }
+
+/* Dấu vết người đã đè lên máy — xuống dòng riêng vì nó là câu, không phải nhãn. */
+.iqc-auto-note {
+    display: block;
+    margin-top: var(--sp-1);
+    font-size: var(--fs-xs);
+    color: var(--warn-ink);
+}
+
+/* Ngưỡng SỐ đã đóng băng. Chuỗi tiêu chí gốc có thể mơ hồ ("FTM 2"); con số
+   máy thật sự so thì không, nên nó phải hiện ra chứ không nằm trong DB. */
+.iqc-limit-chip {
+    display: inline-block;
+    margin-left: var(--sp-2);
+    padding: 0 var(--sp-2);
+    border: 1px solid var(--c-line-2);
+    border-radius: var(--sp-2);
+    font-size: var(--fs-xs);
+    color: var(--c-ink-3);
+    white-space: nowrap;
+}
+
+/* Dãy ô đo: 5 ô cho kích thước, 1 cho bám dính. Cho xuống dòng thay vì ép một
+   hàng — ở tablet dọc 5 ô một hàng sẽ bóp mỗi ô xuống dưới ngưỡng chạm. */
+.iqc-measure-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
+}
+.iqc-measure-input {
+    /* Đủ cho một số đo điển hình ("219.5") mà không cắt. */
+    min-width: 4rem;
+    max-width: 5.5rem;
+    min-height: var(--d-control-h);
+    text-align: right;
+}
+
+/* Ô tick "rách vật liệu" chỉ hiện khi tiêu chuẩn ghi "or tear". Cả nhãn là
+   vùng chạm — ngón đeo găng không trúng được một ô vuông 16px. */
+.iqc-tear-check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: var(--d-tap);
+    padding-inline: var(--sp-2);
+    font-size: var(--fs-sm);
+    color: var(--c-ink-3);
+    cursor: pointer;
+}
+.iqc-tear-check input { min-width: var(--sp-4); min-height: var(--sp-4); }
+
+/* Hàng phụ hỏi lý do — chỉ dựng khi server đã từ chối. Nền cảnh báo để nó
+   không bị lướt qua giữa một bảng 13 dòng. */
+.iqc-override-row > td {
+    background: var(--warn-bg);
+    border-bottom: 1px solid var(--warn-soft);
+}
+.iqc-override-group {
+    display: flex;
+    align-items: stretch;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+}
+.iqc-override-input {
+    flex: 1 1 20rem;
+    min-height: var(--d-control-h);
+}
+
+.iqc-muted { color: var(--c-ink-4); }

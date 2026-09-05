@@ -227,6 +227,9 @@ public sealed class RbacServiceTests : IDisposable
         Quantity:      100,
         UomQty:        "pcs",
         InspectorId:   "rbac.demo",
-        SampleSize:    8,
+        // P13: lô 100 pcs ⇒ bảng AQL bậc 6 (91–150) cho 20. Bộ test này soi
+        // PHÂN QUYỀN nên nó phải mang một yêu cầu hợp lệ; để 8 thì nó sẽ trượt
+        // ở luật cỡ mẫu trước khi chạm tới luật vai trò, và báo sai nguyên nhân.
+        SampleSize:    20,
         Details:       new List<CreateIqcDetail>());
 }

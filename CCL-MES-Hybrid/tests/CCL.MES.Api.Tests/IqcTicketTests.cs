@@ -524,4 +524,102 @@ public sealed class IqcTicketTests : IClassFixture<MesApiFactory>
         Assert.Equal(HttpStatusCode.Forbidden, list.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, dash.StatusCode);
     }
+
+    // ── P13 bước 4 — cỡ mẫu AQL + đòi lý do khi đổi ────────────────
+
+    private async Task<IqcInspection> InspAsync(long id)
+    {
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        return await db.IqcInspections.AsNoTracking().SingleAsync(x => x.Id == id);
+    }
+
+    [Fact]
+    public async Task Don_vi_dem_duoc_thi_server_de_xuat_co_mau_theo_AQL()
+    {
+        await SeedRawAsync("IFS-SS-01", "Màng PET", "NCC A");
+        var c = await ClientAsync("qc-ss-suggest", UserRole.Qc);
+
+        var resp = await c.SendAsync(Post("/api/v2/iqc", new
+        {
+            codeIfs = "IFS-SS-01", lotBatchNo = "LOT-SS-01",
+            quantity = 10.0, uom = "rolls",
+        }));
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        var body = (await resp.Content.ReadFromJsonAsync<CreateIqcTicketResponse>())!;
+
+        var insp = await InspAsync(body.IqcInspectionId);
+        Assert.Equal(10L, insp.LotQty);
+        // Bậc 2 của bảng (9–15) cho 3 mẫu; 3 < 10 nên không bị cắt ngọn.
+        Assert.Equal(3, insp.SampleSizeSuggested);
+        // Client không khai cỡ mẫu ⇒ NHẬN đề xuất, không phải "đổi thành 0".
+        Assert.Equal(3, insp.SampleSize);
+        Assert.Null(insp.SampleSizeOverrideReason);
+    }
+
+    [Fact]
+    public async Task Doi_co_mau_ma_khong_ghi_ly_do_thi_422()
+    {
+        await SeedRawAsync("IFS-SS-02", "Màng PET", "NCC A");
+        var c = await ClientAsync("qc-ss-noreason", UserRole.Qc);
+
+        var resp = await c.SendAsync(Post("/api/v2/iqc", new
+        {
+            codeIfs = "IFS-SS-02", lotBatchNo = "LOT-SS-02",
+            quantity = 10.0, uom = "rolls", sampleSize = 1,
+        }));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = await resp.Content.ReadAsStringAsync();
+        Assert.Contains("iqc.sample_size_reason_required", err);
+
+        // Từ chối SỚM: không được để lại phiếu mồ côi cho người dùng dọn.
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        Assert.False(await db.IqcInspections.AnyAsync(x => x.LotNumber == "LOT-SS-02"));
+    }
+
+    [Fact]
+    public async Task Doi_co_mau_KEM_ly_do_thi_201_va_luu_ly_do()
+    {
+        await SeedRawAsync("IFS-SS-03", "Màng PET", "NCC A");
+        var c = await ClientAsync("qc-ss-reason", UserRole.Qc);
+
+        var resp = await c.SendAsync(Post("/api/v2/iqc", new
+        {
+            codeIfs = "IFS-SS-03", lotBatchNo = "LOT-SS-03",
+            quantity = 10.0, uom = "rolls", sampleSize = 1,
+            sampleSizeOverrideReason = "NCC mới, kiểm siết 1 cuộn toàn bộ chiều dài",
+        }));
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        var body = (await resp.Content.ReadFromJsonAsync<CreateIqcTicketResponse>())!;
+
+        var insp = await InspAsync(body.IqcInspectionId);
+        Assert.Equal(1, insp.SampleSize);
+        Assert.Equal(3, insp.SampleSizeSuggested);      // đề xuất vẫn đóng băng
+        Assert.Equal("NCC mới, kiểm siết 1 cuộn toàn bộ chiều dài",
+                     insp.SampleSizeOverrideReason);
+    }
+
+    [Fact]
+    public async Task Don_vi_lien_tuc_thi_KHONG_de_xuat_va_KHONG_doi_ly_do()
+    {
+        await SeedRawAsync("IFS-SS-04", "Màng PET", "NCC A");
+        var c = await ClientAsync("qc-ss-cont", UserRole.Qc);
+
+        // 5.000 m² là 3 cuộn chứ không phải 5.000 đơn vị. App không được giả vờ
+        // biết, và cũng không được đòi giải trình cho con số nó chưa từng đưa ra.
+        var resp = await c.SendAsync(Post("/api/v2/iqc", new
+        {
+            codeIfs = "IFS-SS-04", lotBatchNo = "LOT-SS-04",
+            quantity = 5000.0, uom = "m2", sampleSize = 7,
+        }));
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+        var body = (await resp.Content.ReadFromJsonAsync<CreateIqcTicketResponse>())!;
+
+        var insp = await InspAsync(body.IqcInspectionId);
+        Assert.Null(insp.LotQty);
+        Assert.Null(insp.SampleSizeSuggested);
+        Assert.Equal(7, insp.SampleSize);
+        Assert.Null(insp.SampleSizeOverrideReason);
+    }
 }
