@@ -94,6 +94,47 @@ public sealed class IqcSpecController : ControllerBase
     }
 
     /// <summary>Bật lại một dòng đã tắt.</summary>
+    /// <summary>Bật/tắt CẢ MỘT BỘ tiêu chuẩn (xoá mềm). SpecNo đi trong BODY
+    /// cùng lý do với mã nguyên liệu — nó có thể mang ký tự mà Kestrel từ chối
+    /// trong path.</summary>
+    /// <summary>Gộp mọi bộ tiêu chuẩn của một mã về MỘT bộ: chép hạng mục còn
+    /// thiếu sang bộ giữ lại TRƯỚC, rồi mới tắt các bộ kia.</summary>
+    [HttpPost("consolidate"), Authorize(Policy = "IqcSpecWrite")]
+    public async Task<IActionResult> Consolidate(
+        [FromBody] ConsolidateIqcSpecBody? body, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(Request.Headers["Idempotency-Key"].ToString()))
+            return BadRequest(ApiError.Of("wo.idempotency_key_required",
+                "Idempotency-Key header required."));
+
+        var (actor, role) = Who();
+        var r = await _svc.ConsolidateAsync(body?.MaterialCode, actor, role, commit: true, ct);
+        if (!r.Ok)
+            return StatusCode(r.HttpStatus,
+                ApiError.Of(r.ErrorCode ?? "iqc.spec_consolidate_failed", "Consolidate failed."));
+
+        return Ok(new IqcSpecConsolidateResponse
+        {
+            KeptSpecNo = r.KeptSpecNo,
+            ItemsMerged = r.ItemsMerged,
+            SpecsDeactivated = r.SpecsDeactivated,
+            DeactivatedSpecNos = r.DeactivatedSpecNos.ToList(),
+        });
+    }
+
+    [HttpPut("active"), Authorize(Policy = "IqcSpecWrite")]
+    public async Task<IActionResult> SetSpecActive(
+        [FromBody] SetIqcSpecActiveBody? body, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(Request.Headers["Idempotency-Key"].ToString()))
+            return BadRequest(ApiError.Of("wo.idempotency_key_required",
+                "Idempotency-Key header required."));
+
+        var (actor, role) = Who();
+        var r = await _svc.SetSpecActiveAsync(body?.SpecNo, body?.Active ?? false, actor, role, ct);
+        return r.Ok ? Ok(new { specNo = r.SpecNo }) : Problem(r);
+    }
+
     [HttpPost("items/{itemId:long}/restore"), Authorize(Policy = "IqcSpecWrite")]
     public async Task<IActionResult> ReactivateItem(long itemId, CancellationToken ct = default)
     {
@@ -121,9 +162,15 @@ public sealed class IqcSpecController : ControllerBase
         SpecNo = v.SpecNo,
         SpecActive = v.SpecActive,
         IsLocalSpec = v.IsLocalSpec,
+        Specs = v.Specs.Select(x => new IqcSpecHeaderDto
+        {
+            SpecNo = x.SpecNo, Active = x.Active, IsLocal = x.IsLocal,
+            Approval = x.Approval, ImportSource = x.ImportSource,
+            SupplierName = x.SupplierName, TestMethod = x.TestMethod,
+        }).ToList(),
         Items = v.Items.Select(x => new IqcSpecItemDto
         {
-            Id = x.Id, ItemId = x.ItemId, Seq = x.Seq,
+            Id = x.Id, SpecNo = x.SpecNo, ItemId = x.ItemId, Seq = x.Seq,
             GroupCode = x.GroupCode, GroupLabelVi = x.GroupLabelVi, GroupLabelEn = x.GroupLabelEn,
             LabelVi = x.LabelVi, LabelEn = x.LabelEn,
             AcceptanceVi = x.AcceptanceVi, AcceptanceEn = x.AcceptanceEn,

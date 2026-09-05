@@ -139,6 +139,21 @@ public sealed partial class TranslationCatalog
                                            "Material {0} has no dedicated standard yet — incoming lots are inspected against the DEFAULT MATRIX. Add items below to build a dedicated standard.");
         Add("iqc.spec.specno",             "Tiêu chuẩn {0}",                      "Standard {0}");
         Add("iqc.spec.frommaster",         "từ file master",                      "from master file");
+
+        // ── P13: một mã có NHIỀU bộ tiêu chuẩn ────────────────────────────
+        Add("iqc.spec.col.set",            "Bộ",                                  "Set");
+        Add("iqc.spec.multi",              "Mã này đang có {0} bộ tiêu chuẩn. Phiếu kiểm gộp hạng mục của TẤT CẢ các bộ còn bật — gỡ bớt bộ không dùng để người kiểm khỏi làm trùng.",
+                                                                                  "This code has {0} standard sets. A ticket merges items from ALL active sets — remove unused sets so the inspector does not repeat the same check.");
+        Add("iqc.spec.set.remove",         "Gỡ bộ này",                           "Remove this set");
+        Add("iqc.spec.consolidate",        "Gộp về một bộ",                       "Merge into one set");
+        Add("iqc.spec.consolidate.why",    "Chép các hạng mục còn thiếu sang bộ mới nhất TRƯỚC, rồi mới tắt các bộ cũ — không mất phép kiểm nào.",
+                                                                                  "Copies missing items into the newest set FIRST, then deactivates the old ones — no check is lost.");
+        Add("iqc.spec.consolidated",       "Đã gộp về {0}: chép sang {1} hạng mục còn thiếu, tắt {2} bộ cũ.",
+                                                                                  "Merged into {0}: copied {1} missing item(s), deactivated {2} old set(s).");
+        Add("iqc.spec.set.restore",        "Dùng lại",                            "Restore");
+        Add("iqc.spec.pendingqc",          "chờ QC duyệt",                        "pending QC");
+        Add("iqc.spec.pendingqc.why",      "Bộ này nhập từ file master và chưa ai trong QC xác nhận. Phiếu vẫn dùng được.",
+                                                                                  "Imported from the master file and not yet confirmed by QC. Tickets still use it.");
         Add("iqc.spec.frommaster.why",     "Bộ này đến từ file master. Hạng mục bạn thêm vào đây sẽ bị lần import kế tiếp ghi đè nếu file master không có dòng tương ứng.",
                                            "This set came from the master file. Items you add here may be overwritten by the next import if the master file has no matching row.");
         Add("iqc.spec.empty",              "Chưa có hạng mục nào.",               "No items yet.");

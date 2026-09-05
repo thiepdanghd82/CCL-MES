@@ -524,6 +524,19 @@ public static class DbSeeder
     /// <para>Ba khoá tự nhiên: <c>IqcCheckItemLibrary.ItemId</c> ·
     /// <c>IqcMaterialSpec.SpecNo</c> · <c>IqcSpecItem(SpecNo, ItemId)</c>.</para>
     /// </summary>
+    /// <summary>Đọc token nhóm vật liệu từ CSV. Token lạ rơi về <c>Any</c> chứ
+    /// KHÔNG ném: một ô gõ sai trong file danh mục không đáng làm chết cả lần
+    /// boot — nhưng cũng không được im lặng nhận bừa vào một nhóm cụ thể.</summary>
+    private static IqcMaterialCategory ParseCategory(string? s) =>
+        Enum.TryParse<IqcMaterialCategory>((s ?? "").Trim(), ignoreCase: true, out var v)
+            ? v : IqcMaterialCategory.Any;
+
+    /// <summary>Đọc kiểu ghi nhận. Token lạ rơi về <c>Verdict</c> — hạng mục
+    /// vẫn hiện ra cho người bấm đạt/không đạt, thay vì biến mất khỏi phiếu.</summary>
+    private static IqcCheckKind ParseKind(string? s) =>
+        Enum.TryParse<IqcCheckKind>((s ?? "").Trim(), ignoreCase: true, out var v)
+            ? v : IqcCheckKind.Verdict;
+
     public static async Task<IqcLibrarySeedResult> SeedIqcLibraryAsync(
         MesDbContext db, string itemsCsv, string specsCsv, string specItemsCsv)
     {
@@ -553,6 +566,12 @@ public static class DbSeeder
                 S(e.DefaultMethodVi, r.DefaultMethodVi, v => e.DefaultMethodVi = v);
                 S(e.DefaultMethodEn, r.DefaultMethodEn, v => e.DefaultMethodEn = v);
                 S(e.Sort, r.Sort, v => e.Sort = v);
+
+                // P13 — nhóm vật liệu · kiểu ghi nhận · số lần đo.
+                S(e.Category, ParseCategory(r.Category), v => e.Category = v);
+                S(e.Kind, ParseKind(r.Kind), v => e.Kind = v);
+                S(e.MeasureCount, r.MeasureCount, v => e.MeasureCount = v);
+
                 // P12 bước 2b — KHÔNG hồi sinh dòng đã tắt. Seeder không bao giờ
                 // đặt Active=false, nên Active=false CHỈ có thể do người thật
                 // tắt qua UI. Seed chạy mỗi lần boot API; bật lại ở đây là âm
@@ -572,6 +591,9 @@ public static class DbSeeder
                     DefaultMethodVi = r.DefaultMethodVi,
                     DefaultMethodEn = r.DefaultMethodEn,
                     Sort = r.Sort, Active = true, CreatedBy = "seed",
+                    Category = ParseCategory(r.Category),
+                    Kind = ParseKind(r.Kind),
+                    MeasureCount = r.MeasureCount,
                 });
                 itemsAdded++;
             }
