@@ -238,6 +238,7 @@ public sealed class IqcController : ControllerBase
         {
             TicketId = r.TicketId,
             SpecNo = r.SpecNo,
+            SpecApproval = r.SpecApproval,
             FromDefaultMatrix = r.FromDefaultMatrix,
             Items = r.Items.Select(x => new IqcCheckItemDto
             {

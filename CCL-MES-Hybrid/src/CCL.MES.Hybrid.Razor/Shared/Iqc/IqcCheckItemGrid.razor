@@ -45,6 +45,20 @@ else
         <p class="qms-section-desc" data-testid="@($"{TestIdPrefix}-spec")">@T("iqc.items.spec", SpecNo!)</p>
     }
 
+    @if (SpecApproval == "PendingQc" && !string.IsNullOrWhiteSpace(SpecNo))
+    {
+        @* 672/1120 bộ tiêu chuẩn đang chờ QC duyệt sau đợt nhập từ file master,
+           và 575 mã trong số đó có nguyên liệu THẬT trong kho. Không nhắc thì
+           người kiểm ký lên một tiêu chuẩn chưa ai xác nhận mà không hề biết.
+           Henry chốt 2026-09-04: NHẮC, không chặn — chặn thì QC quay lại Excel
+           và mất luôn dấu vết. *@
+        <p class="iqc-warn iqc-warn-note" data-testid="@($"{TestIdPrefix}-spec-pending")">@T("iqc.items.spec.pending", SpecNo!)</p>
+    }
+    else if (SpecApproval == "Rejected" && !string.IsNullOrWhiteSpace(SpecNo))
+    {
+        <p class="iqc-warn iqc-warn-error" data-testid="@($"{TestIdPrefix}-spec-rejected")">@T("iqc.items.spec.rejected", SpecNo!)</p>
+    }
+
     <table class="ipqc-item-table @(HasRecordColumn ? "" : "ipqc-no-result")"
            data-testid="@($"{TestIdPrefix}-table")">
         <thead>
@@ -227,6 +241,12 @@ else
     [Parameter, EditorRequired] public int Section { get; set; }
 
     [Parameter] public string? SpecNo { get; set; }
+
+    /// <summary>P13 — <c>PendingQc</c> · <c>Approved</c> · <c>Rejected</c>. Đọc
+    /// SỐNG từ master chứ không đóng băng: khi QC ký duyệt thì băng nhắc phải
+    /// biến mất, nếu không nó treo mãi và người ta học cách bỏ qua nó.</summary>
+    [Parameter] public string? SpecApproval { get; set; }
+
     [Parameter] public bool FromDefaultMatrix { get; set; }
 
     /// <summary>Phiếu đã chốt ⇒ chỉ đọc.</summary>

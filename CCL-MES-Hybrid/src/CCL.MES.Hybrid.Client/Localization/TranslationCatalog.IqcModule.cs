@@ -139,6 +139,10 @@ public sealed partial class TranslationCatalog
         Add("iqc.items.tear.why",          "Vật liệu rách trước khi bong keo ⇒ lực bám đã lớn hơn độ bền của chính vật liệu, nên tính ĐẠT.",
                                            "The material tore before the adhesive released ⇒ the bond exceeded the material's own strength, so it passes.");
         Add("iqc.items.save",              "Lưu",                                 "Save");
+        Add("iqc.items.spec.pending",      "Bộ tiêu chuẩn {0} nhập từ file master và CHƯA được QC duyệt. Vẫn kiểm bình thường, nhưng đối chiếu lại với bản giấy trước khi chốt.",
+                                           "Standard {0} was imported from the master file and has NOT been approved by QC yet. Carry on inspecting, but check it against the paper copy before completing.");
+        Add("iqc.items.spec.rejected",     "Bộ tiêu chuẩn {0} đã bị QC bác. Hỏi QA trước khi chấm.",
+                                           "Standard {0} was rejected by QC. Ask QA before recording results.");
 
         // Kết luận máy chấm — hiện nguyên nhân, không chỉ hiện đạt/trượt.
         Add("iqc.items.auto",              "Máy chấm",                            "Auto");

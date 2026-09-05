@@ -255,6 +255,12 @@ public sealed class IqcTicketItemsResponse
     /// <summary>Spec đã khớp, hoặc <c>null</c> khi phiếu dùng ma trận mặc định.</summary>
     public string? SpecNo { get; set; }
 
+    /// <summary>P13 — <c>PendingQc</c> · <c>Approved</c> · <c>Rejected</c>, hoặc
+    /// <c>null</c> khi dùng ma trận mặc định. 672/1120 bộ tiêu chuẩn đang chờ
+    /// QC duyệt sau đợt nhập từ file master, và 575 mã trong số đó đang có
+    /// nguyên liệu thật trong kho.</summary>
+    public string? SpecApproval { get; set; }
+
     /// <summary>Cả bộ đến từ ma trận mặc định — UI hiện băng nhắc để sáu tháng
     /// sau còn phân biệt được hồ sơ nào kiểm theo spec thật.</summary>
     public bool FromDefaultMatrix { get; set; }

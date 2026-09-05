@@ -632,11 +632,23 @@ public class IqcService
             .GroupBy(m => m.IqcResultDetailId)
             .ToDictionary(g => g.Key, g => g.Select(m => m.Value).ToList());
 
+        // Phiếu nào cũng chỉ khớp MỘT spec (hoặc không khớp cái nào).
+        var specNo = rows.Select(r => r.SpecNo).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+
+        // Trạng thái duyệt đọc SỐNG, không đóng băng: nó là thuộc tính của bộ
+        // tiêu chuẩn và sẽ đổi khi QC ký. Đóng băng thì băng cảnh báo còn treo
+        // mãi trên phiếu cũ sau khi spec đã được duyệt, và người ta sẽ học cách
+        // bỏ qua nó.
+        var approval = specNo is null ? null : await _db.IqcMaterialSpecs.AsNoTracking()
+            .Where(x => x.SpecNo == specNo)
+            .Select(x => (IqcSpecApproval?)x.Approval)
+            .FirstOrDefaultAsync(ct);
+
         return new IqcTicketItems
         {
             TicketId = inspectionId,
-            // Phiếu nào cũng chỉ khớp MỘT spec (hoặc không khớp cái nào).
-            SpecNo = rows.Select(r => r.SpecNo).FirstOrDefault(s => !string.IsNullOrWhiteSpace(s)),
+            SpecNo = specNo,
+            SpecApproval = approval?.ToString(),
             FromDefaultMatrix = rows.Count > 0 && rows.All(r => r.FromDefaultMatrix),
             Items = rows.Select(r => new IqcCheckItemRow
             {
@@ -1315,6 +1327,13 @@ public sealed class IqcTicketItems
 {
     public long TicketId { get; init; }
     public string? SpecNo { get; init; }
+
+    /// <summary>P13 — <c>PendingQc</c> · <c>Approved</c> · <c>Rejected</c>, hoặc
+    /// <c>null</c> khi dựng từ ma trận mặc định. Đo trên live 2026-09-05:
+    /// <b>575/946</b> mã đang có nguyên liệu trong kho dùng spec CHƯA duyệt —
+    /// người kiểm đang ký lên tiêu chuẩn chưa ai xác nhận mà không được nhắc.</summary>
+    public string? SpecApproval { get; init; }
+
     public bool FromDefaultMatrix { get; init; }
     public List<IqcCheckItemRow> Items { get; init; } = new();
 }

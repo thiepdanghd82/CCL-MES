@@ -576,4 +576,60 @@ public sealed class IqcCheckItemGridTests : TestContext
         Assert.Contains("thiepdt", note.TextContent);
         Assert.Contains("mép cắt bỏ", note.TextContent);
     }
+
+    // ── băng cảnh báo tiêu chuẩn chưa duyệt ──────────────────────────────
+
+    private IRenderedComponent<IqcCheckItemGrid> RenderApproval(string? approval) =>
+        RenderComponent<IqcCheckItemGrid>(p => p
+            .Add(x => x.TicketId, 42L)
+            .Add(x => x.Items, Sample())
+            .Add(x => x.Section, 2)
+            .Add(x => x.SpecNo, "IQC26-0042")
+            .Add(x => x.SpecApproval, approval)
+            .Add(x => x.TestIdPrefix, "iqc-sec2"));
+
+    [Fact]
+    public void Tieu_chuan_CHUA_duyet_thi_nhac_nhung_KHONG_chan()
+    {
+        // 672/1120 bộ tiêu chuẩn đang chờ QC duyệt, 575 mã trong số đó có
+        // nguyên liệu thật trong kho. Không nhắc thì người kiểm ký lên một tiêu
+        // chuẩn chưa ai xác nhận mà không hề biết.
+        var cut = RenderApproval("PendingQc");
+
+        var banner = cut.Find("[data-testid='iqc-sec2-spec-pending']");
+        Assert.Contains("IQC26-0042", banner.TextContent);
+        // Henry chốt: NHẮC, không chặn — chặn thì QC quay lại Excel và mất luôn
+        // dấu vết. Nút chấm phải còn dùng được.
+        Assert.False(cut.Find("[data-testid='iqc-sec2-item-1-ok']").HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void Tieu_chuan_DA_duyet_thi_khong_treo_bang_nao()
+    {
+        // Băng nhắc treo mãi sau khi QC đã ký thì người ta học cách bỏ qua nó.
+        var cut = RenderApproval("Approved");
+        Assert.Empty(cut.FindAll("[data-testid='iqc-sec2-spec-pending']"));
+        Assert.Empty(cut.FindAll("[data-testid='iqc-sec2-spec-rejected']"));
+    }
+
+    [Fact]
+    public void Tieu_chuan_BI_BAC_thi_bang_do_chu_khong_phai_bang_vang()
+    {
+        var cut = RenderApproval("Rejected");
+        Assert.Empty(cut.FindAll("[data-testid='iqc-sec2-spec-pending']"));
+        Assert.Contains("iqc-warn-error",
+            cut.Find("[data-testid='iqc-sec2-spec-rejected']").GetAttribute("class"));
+    }
+
+    [Fact]
+    public void Ma_tran_mac_dinh_khong_co_spec_thi_khong_hoi_duyet()
+    {
+        var cut = RenderComponent<IqcCheckItemGrid>(p => p
+            .Add(x => x.TicketId, 42L).Add(x => x.Items, Sample()).Add(x => x.Section, 2)
+            .Add(x => x.SpecNo, (string?)null).Add(x => x.SpecApproval, (string?)null)
+            .Add(x => x.FromDefaultMatrix, true)
+            .Add(x => x.TestIdPrefix, "iqc-sec2"));
+        Assert.Empty(cut.FindAll("[data-testid='iqc-sec2-spec-pending']"));
+        Assert.Single(cut.FindAll("[data-testid='iqc-sec2-matrix-banner']"));
+    }
 }
