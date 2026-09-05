@@ -32,6 +32,11 @@ namespace CCL.MES.Api.Audit;
 /// </summary>
 public sealed class ApiAuditWriter : IAuditWriter
 {
+    /// <summary>Kênh mà writer này đại diện. Dùng khi caller không nói rõ —
+    /// và đó là trường hợp thường gặp, vì service không biết nó đang chạy sau
+    /// transport nào.</summary>
+    private const string Transport = "Api";
+
     private const int MaxDetailLength = 4096;
 
     private readonly IMesDbContext _db;
@@ -58,7 +63,7 @@ public sealed class ApiAuditWriter : IAuditWriter
         string? targetType = null,
         string? targetId = null,
         string? detail = null,
-        string source = "Api")
+        string? source = null)
     {
         var row = new AuditLog
         {
@@ -70,7 +75,11 @@ public sealed class ApiAuditWriter : IAuditWriter
             TargetId = targetId,
             Detail = TrimDetail(detail),
             IpAddress = ResolveIp(),
-            Source = source,
+            // Writer BIẾT transport của mình; caller thì không. `null` = "cứ
+            // dùng transport của anh", và đó là đường đi của gần như mọi lệnh
+            // ghi. Truyền tường minh chỉ khi nguồn KHÁC transport (Console,
+            // Scheduler).
+            Source = string.IsNullOrWhiteSpace(source) ? Transport : source,
         };
         _db.AuditLogs.Add(row);
         await _db.SaveChangesAsync();

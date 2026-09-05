@@ -24,7 +24,7 @@ public sealed class InMemoryAuditWriter : IAuditWriter
         string? targetType = null,
         string? targetId = null,
         string? detail = null,
-        string source = "Web")
+        string? source = null)
     {
         Rows.Add(new AuditRow(action, actor, actorRole, targetType, targetId, detail, source, DateTime.UtcNow));
         return Task.CompletedTask;
@@ -42,5 +42,5 @@ public sealed record AuditRow(
     string? TargetType,
     string? TargetId,
     string? Detail,
-    string Source,
+    string? Source,
     DateTime EmittedAtUtc);

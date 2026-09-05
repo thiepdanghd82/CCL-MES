@@ -754,14 +754,16 @@ public sealed class MaterialLotScanTests : IClassFixture<MesApiFactory>
 
         public async Task EmitAsync(string action, string actor, string actorRole,
             string? targetType = null, string? targetId = null, string? detail = null,
-            string source = "Web")
+            string? source = null)
         {
             if (_db is null) return;
             _db.AuditLogs.Add(new AuditLog
             {
                 Timestamp = DateTime.UtcNow, ActorUsername = actor, ActorRole = actorRole,
                 Action = action, TargetType = targetType, TargetId = targetId,
-                Detail = detail, Source = source,
+                // null = "caller không nói gì" ⇒ writer tự điền transport.
+                // Cột Source là NOT NULL nên bỏ qua chỗ này là nổ lúc lưu.
+                Detail = detail, Source = string.IsNullOrWhiteSpace(source) ? "Test" : source,
             });
             await _db.SaveChangesAsync();
         }

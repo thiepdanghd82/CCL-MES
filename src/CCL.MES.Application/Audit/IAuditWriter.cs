@@ -18,7 +18,20 @@ public interface IAuditWriter
     /// <param name="targetType">Logical target type (User, WorkOrder, …) or null.</param>
     /// <param name="targetId">Target id (long.ToString, filename, …) or null.</param>
     /// <param name="detail">JSON string with sanitized action-specific fields or null.</param>
-    /// <param name="source">"Web" | "Console" | "Hub". Default "Web".</param>
+    /// <param name="source">
+    /// Kênh phát sinh sự kiện. <b>Để <c>null</c> (mặc định) thì WRITER tự điền
+    /// theo transport của chính nó</b> — Api ghi "Api", Web ghi "Web".
+    ///
+    /// <para>KHÔNG đặt giá trị mặc định là một chuỗi cụ thể ở đây. C# gắn giá
+    /// trị mặc định <b>lúc biên dịch, theo KIỂU TĨNH tại chỗ gọi</b>: mọi
+    /// service giữ biến kiểu <c>IAuditWriter</c> sẽ lấy mặc định của
+    /// INTERFACE, còn mặc định khai trong lớp hiện thực là code chết. Đó chính
+    /// là cách 3.007 dòng audit của API bị đóng dấu "Web" suốt từ 2026-05 —
+    /// trong khi app Web legacy đã đóng băng và không ai chạy nó.</para>
+    ///
+    /// <para>Chỉ truyền tường minh khi nguồn KHÁC transport thật: công cụ dòng
+    /// lệnh ("Console"), tác vụ nền ("Scheduler").</para>
+    /// </param>
     Task EmitAsync(
         string action,
         string actor,
@@ -26,5 +39,5 @@ public interface IAuditWriter
         string? targetType = null,
         string? targetId = null,
         string? detail = null,
-        string source = "Web");
+        string? source = null);
 }
