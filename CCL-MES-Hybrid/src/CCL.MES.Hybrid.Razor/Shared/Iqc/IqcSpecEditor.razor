@@ -66,10 +66,63 @@
             </p>
         }
 
+        @* ── CÁC BỘ tiêu chuẩn của mã này ──────────────────────────────
+           Trước đây màn hình chỉ hiện MỘT bộ. Sau khi nhập file master, 7 mã
+           mang nhiều bộ (một mã tới SÁU) và resolver gộp TẤT CẢ vào phiếu —
+           giấu bớt ở đây nghĩa là người soạn tiêu chuẩn không nhìn thấy thứ mà
+           người kiểm sẽ phải làm. *@
+        @if (_view.Specs.Count > 1)
+        {
+            <div class="iqc-spec-sets" data-testid="iqc-spec-sets">
+                <p class="iqc-warn iqc-warn-note" data-testid="iqc-spec-multi">
+                    @T("iqc.spec.multi", _view.Specs.Count)
+                </p>
+                @if (CanEdit && _view.Specs.Count(x => x.Active) > 1)
+                {
+                    <button type="button" class="op-btn op-btn-primary"
+                            data-testid="iqc-spec-consolidate" disabled="@_busy"
+                            title="@T("iqc.spec.consolidate.why")"
+                            @onclick="ConsolidateAsync">@T("iqc.spec.consolidate")</button>
+                }
+                @if (_consolidated is not null)
+                {
+                    <p class="iqc-hint" data-testid="iqc-spec-consolidated">@_consolidated</p>
+                }
+                <ul class="iqc-spec-setlist">
+                    @foreach (var sp in _view.Specs)
+                    {
+                        <li class="@(sp.Active ? "iqc-spec-set" : "iqc-spec-set iqc-spec-set-off")"
+                            data-testid="@($"iqc-spec-set-{sp.SpecNo}")">
+                            <span class="scan-mono">@sp.SpecNo</span>
+                            @if (sp.IsPendingQc)
+                            {
+                                <span class="ipqc-status-pill ipqc-status-pending"
+                                      title="@T("iqc.spec.pendingqc.why")">@T("iqc.spec.pendingqc")</span>
+                            }
+                            @if (!sp.Active)
+                            {
+                                <span class="iqc-status iqc-status-fail">@T("iqc.spec.status.off")</span>
+                            }
+                            @if (CanEdit)
+                            {
+                                <button type="button" class="op-btn op-btn-ghost iqc-spec-setbtn"
+                                        data-testid="@($"iqc-spec-set-toggle-{sp.SpecNo}")"
+                                        disabled="@_busy"
+                                        @onclick="() => SetSpecActiveAsync(sp, !sp.Active)">
+                                    @T(sp.Active ? "iqc.spec.set.remove" : "iqc.spec.set.restore")
+                                </button>
+                            }
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+
         <div class="qms-table-wrap">
             <table class="qms-table" data-testid="iqc-spec-table">
                 <thead>
                     <tr>
+                        @if (_view.Specs.Count > 1) { <th>@T("iqc.spec.col.set")</th> }
                         <th>@T("iqc.spec.col.group")</th>
                         <th>@T("ipqc.col.item")</th>
                         <th>@T("ipqc.col.spec")</th>
@@ -85,6 +138,10 @@
                             data-testid="@($"iqc-spec-item-{it.Id}")"
                             @oncontextmenu="e => OpenMenuAt(it, e.ClientX, e.ClientY)"
                             @oncontextmenu:preventDefault="true">
+                            @if (_view.Specs.Count > 1)
+                            {
+                                <td class="scan-mono iqc-spec-setcell">@it.SpecNo</td>
+                            }
                             <td>@Dash(it.GroupLabelFor(IsEnglish))</td>
                             <td class="qms-td-strong">@it.LabelFor(IsEnglish)<div class="qms-cell-sub scan-mono">@it.ItemId · #@it.Seq</div></td>
                             <td>@Dash(it.AcceptanceFor(IsEnglish))</td>
@@ -100,7 +157,7 @@
                     }
                     @if (_view.Items.Count == 0)
                     {
-                        <tr><td colspan="6" class="grid-empty" data-testid="iqc-spec-empty">@T("iqc.spec.empty")</td></tr>
+                        <tr><td colspan="@(_view.Specs.Count > 1 ? 7 : 6)" class="grid-empty" data-testid="iqc-spec-empty">@T("iqc.spec.empty")</td></tr>
                     }
                 </tbody>
             </table>
@@ -322,6 +379,43 @@
                     OnClick = EventCallback.Factory.Create(this, () => SetActiveAsync(row, true)),
                 },
             };
+    }
+
+    /// <summary>Bật/tắt CẢ MỘT BỘ tiêu chuẩn. Xoá MỀM — bộ và mọi hạng mục con
+    /// ở lại, phiếu cũ đã đóng băng bằng chứng nên không bị đụng.</summary>
+    private string? _consolidated;
+
+    /// <summary>Gộp mọi bộ tiêu chuẩn của mã này về MỘT bộ. Chép hạng mục còn
+    /// thiếu sang bộ giữ lại TRƯỚC khi tắt các bộ kia — đảo thứ tự là mất hạng
+    /// mục, và đo trên live có mã bộ mới thiếu tới 6 phép kiểm so với bộ cũ.</summary>
+    private async Task ConsolidateAsync()
+    {
+        if (!CanEdit || _busy || _view is null) return;
+        _busy = true; _error = null; _consolidated = null;
+        try
+        {
+            var r = await Api.ConsolidateIqcSpecAsync(_view.MaterialCode);
+            await LoadAsync();
+            _consolidated = T("iqc.spec.consolidated",
+                r.KeptSpecNo ?? "—", r.ItemsMerged, r.SpecsDeactivated);
+        }
+        catch (ApiException ex) { _error = ex.ApiError.MessageEn; }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
+    }
+
+    private async Task SetSpecActiveAsync(IqcSpecHeaderDto sp, bool active)
+    {
+        if (!CanEdit || _busy) return;
+        _busy = true; _error = null;
+        try
+        {
+            await Api.SetIqcSpecActiveAsync(sp.SpecNo, active);
+            await LoadAsync();
+        }
+        catch (ApiException ex) { _error = ex.ApiError.MessageEn; }
+        catch (Exception ex) { _error = $"{ex.GetType().Name}: {ex.Message}"; }
+        finally { _busy = false; }
     }
 
     private void CloseMenu()

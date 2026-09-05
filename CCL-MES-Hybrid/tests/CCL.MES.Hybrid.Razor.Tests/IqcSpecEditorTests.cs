@@ -372,4 +372,105 @@ public sealed class IqcSpecEditorTests : TestContext
             Assert.Contains("Visual", cut.Markup);
         });
     }
+
+    // ── P13: một mã có NHIỀU bộ tiêu chuẩn ───────────────────────────────
+
+    private static IqcSpecEditResponse WithManySets() => new()
+    {
+        MaterialCode = "SFG-APB2M000102",
+        SpecNo = "CCL-SPEC-QC552", SpecActive = true,
+        Specs =
+        [
+            new IqcSpecHeaderDto { SpecNo = "CCL-SPEC-QC552", Active = true, Approval = "Approved" },
+            new IqcSpecHeaderDto { SpecNo = "IQC26-A1B2C3D4", Active = true, Approval = "PendingQc",
+                                   ImportSource = "iqc-report-2026" },
+        ],
+        Items =
+        [
+            new IqcSpecItemDto { Id = 1, SpecNo = "CCL-SPEC-QC552", ItemId = "KT-04", Seq = 1,
+                                 LabelVi = "Độ dày", AcceptanceVi = "0.16±0.016", Active = true },
+            new IqcSpecItemDto { Id = 2, SpecNo = "IQC26-A1B2C3D4", ItemId = "KT-04", Seq = 1,
+                                 LabelVi = "Độ dày", AcceptanceVi = "0.20±0.02", Active = true },
+        ],
+        Library = [Opt("NQ-01", "Tem nhãn")],
+    };
+
+    [Fact]
+    public void Ma_co_nhieu_bo_thi_GOP_lai_va_noi_ro_co_bao_nhieu_bo()
+    {
+        // Trước đây màn hình chỉ hiện MỘT bộ, trong khi resolver gộp TẤT CẢ vào
+        // phiếu — người soạn tiêu chuẩn không nhìn thấy thứ người kiểm phải làm.
+        Serve(WithManySets());
+        var cut = Render("SFG-APB2M000102");
+
+        Assert.NotNull(cut.Find("[data-testid=iqc-spec-multi]"));
+        Assert.NotNull(cut.Find("[data-testid='iqc-spec-set-CCL-SPEC-QC552']"));
+        Assert.NotNull(cut.Find("[data-testid='iqc-spec-set-IQC26-A1B2C3D4']"));
+        // Cả HAI chỉ tiêu của cùng hạng mục KT-04 đều hiện — đó chính là điều
+        // người dùng cần thấy để quyết định gỡ bộ nào.
+        var body = cut.Find("[data-testid=iqc-spec-table]").TextContent;
+        Assert.Contains("0.16±0.016", body);
+        Assert.Contains("0.20±0.02", body);
+    }
+
+    [Fact]
+    public void Gop_nhieu_bo_thi_moi_dong_phai_noi_ro_no_thuoc_bo_nao()
+    {
+        // Hai chỉ tiêu khác nhau cho cùng một hạng mục hiện cạnh nhau mà không
+        // ghi bộ nào là tệ hơn cả việc giấu bớt.
+        Serve(WithManySets());
+        var cut = Render("SFG-APB2M000102");
+
+        var body = cut.Find("[data-testid=iqc-spec-table]").TextContent;
+        Assert.Contains("CCL-SPEC-QC552", body);
+        Assert.Contains("IQC26-A1B2C3D4", body);
+    }
+
+    [Fact]
+    public void Bo_nhap_tu_file_master_mang_nhan_CHO_QC_DUYET()
+    {
+        Serve(WithManySets());
+        var cut = Render("SFG-APB2M000102");
+
+        Assert.Contains("chờ QC duyệt",
+            cut.Find("[data-testid='iqc-spec-set-IQC26-A1B2C3D4']").TextContent);
+    }
+
+    [Fact]
+    public void Engineer_go_duoc_MOT_BO_tieu_chuan()
+    {
+        Serve(WithManySets());
+        var cut = Render("SFG-APB2M000102");
+
+        cut.Find("[data-testid='iqc-spec-set-toggle-IQC26-A1B2C3D4']").Click();
+
+        var call = Assert.Single(_api.SetIqcSpecActiveCalls);
+        Assert.Equal("IQC26-A1B2C3D4", call.SpecNo);
+        Assert.False(call.Active);   // gỡ = tắt, KHÔNG xoá cứng
+    }
+
+    [Fact]
+    public void Chi_co_MOT_bo_thi_khong_bay_ra_bang_liet_ke_thua()
+    {
+        // 1124/1131 mã chỉ có một bộ — bày thêm một khối chỉ để nói "có 1 bộ"
+        // là rác trên màn hình của gần như mọi mã.
+        var r = WithSpec();
+        r.Specs = [new IqcSpecHeaderDto { SpecNo = r.SpecNo!, Active = true, Approval = "Approved" }];
+        Serve(r);
+        var cut = Render();
+
+        Assert.Empty(cut.FindAll("[data-testid=iqc-spec-sets]"));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-spec-multi]"));
+    }
+
+    [Fact]
+    public void Nguoi_KHONG_du_quyen_thi_khong_thay_nut_go_bo()
+    {
+        _session.SetUser("qc-1", "QC");     // QC xem được, không sửa được
+        Serve(WithManySets());
+        var cut = Render("SFG-APB2M000102");
+
+        Assert.NotNull(cut.Find("[data-testid=iqc-spec-multi]"));   // vẫn THẤY
+        Assert.Empty(cut.FindAll("[data-testid^=iqc-spec-set-toggle]"));  // nhưng không sửa
+    }
 }

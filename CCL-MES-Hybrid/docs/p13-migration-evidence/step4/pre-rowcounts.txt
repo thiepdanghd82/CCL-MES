@@ -1,0 +1,8 @@
+IqcInspections|26
+IqcResultDetails|20
+IqcResultMeasurements|0
+IqcMaterialSpecs|1131
+IqcSpecItems|7212
+IqcCheckItemLibraries|51
+__migrations|49
+ok

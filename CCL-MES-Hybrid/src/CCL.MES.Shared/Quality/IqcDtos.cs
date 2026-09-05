@@ -21,6 +21,10 @@ public sealed class CreateIqcTicketBody
     public double Quantity { get; set; }
     public string? Uom { get; set; }
     public int? SampleSize { get; set; }
+
+    /// <summary>P13 — lý do đổi cỡ mẫu khác đề xuất AQL. Bắt buộc khi có sai
+    /// lệch; thiếu ⇒ 422 <c>iqc.sample_size_reason_required</c>.</summary>
+    public string? SampleSizeOverrideReason { get; set; }
     public DateTime? ExpiryAt { get; set; }
 }
 
@@ -183,6 +187,48 @@ public sealed class IqcCheckItemDto
     public string? MeasuredValue { get; set; }
     public string? DefectCode { get; set; }
 
+    // ── P13 bước 4 — hình dạng, ngưỡng, dấu vết máy chấm ─────────────────
+
+    /// <summary><c>Verdict</c> · <c>DefectCount</c> · <c>Measure</c> ·
+    /// <c>Document</c>. UI dựng ô nhập theo ĐÂY, không tự đoán theo mã hạng mục:
+    /// mã đổi thì UI hỏng lặng lẽ, còn cột này đi cùng dữ liệu.</summary>
+    public string Kind { get; set; } = "Verdict";
+
+    /// <summary>Số ô đo phải hiện (5 cho kích thước, 1 cho độ bám dính).</summary>
+    public int MeasureCount { get; set; }
+
+    /// <summary><c>null</c> = CHƯA ĐẾM, khác hẳn 0 (đã đếm, không lỗi).</summary>
+    public int? DefectCount { get; set; }
+
+    public double? LimitLow { get; set; }
+    public double? LimitUp { get; set; }
+    public string? LimitUnit { get; set; }
+
+    /// <summary><c>Face</c> / <c>Adhesive</c> — ngưỡng này đo lớp nào.</summary>
+    public string? LimitLabel { get; set; }
+
+    /// <summary>Tiêu chuẩn có ghi "or tear" — chỉ khi đó ô tick rách mới hiện.</summary>
+    public bool TearIsPass { get; set; }
+    public bool TearObserved { get; set; }
+
+    /// <summary>Giá trị từng phép đo; phần tử <c>null</c> = ô chưa đo.</summary>
+    public List<double?> Measurements { get; set; } = new();
+
+    /// <summary>Kết luận MÁY chấm: <c>Pass</c> · <c>Fail</c> · <c>Undecidable</c>.
+    /// <c>Undecidable</c> KHÔNG có nghĩa là đạt.</summary>
+    public string? AutoVerdict { get; set; }
+
+    /// <summary>Mã lý do máy chấm (<c>iqc.judge.*</c>) — mã chứ không phải câu
+    /// đã dịch, để UI tự chọn ngôn ngữ và test khoá được.</summary>
+    public string? AutoVerdictReason { get; set; }
+
+    /// <summary>Phép đo / ô đếm làm trượt (1-based) — UI tô đúng ô đó.</summary>
+    public int? AutoVerdictOffendingSeq { get; set; }
+
+    public string? OverrideReason { get; set; }
+    public string? OverriddenBy { get; set; }
+    public DateTime? OverriddenAt { get; set; }
+
     /// <summary>Nhãn theo ngôn ngữ đang bật. Thiếu EN → bản VI; thiếu cả hai →
     /// <see cref="ItemKey"/>, để ô không bao giờ trống. Đây là chỗ DUY NHẤT
     /// quyết định chuyện đó; UI không tự viết lại <c>??</c>.</summary>
@@ -209,6 +255,12 @@ public sealed class IqcTicketItemsResponse
     /// <summary>Spec đã khớp, hoặc <c>null</c> khi phiếu dùng ma trận mặc định.</summary>
     public string? SpecNo { get; set; }
 
+    /// <summary>P13 — <c>PendingQc</c> · <c>Approved</c> · <c>Rejected</c>, hoặc
+    /// <c>null</c> khi dùng ma trận mặc định. 672/1120 bộ tiêu chuẩn đang chờ
+    /// QC duyệt sau đợt nhập từ file master, và 575 mã trong số đó đang có
+    /// nguyên liệu thật trong kho.</summary>
+    public string? SpecApproval { get; set; }
+
     /// <summary>Cả bộ đến từ ma trận mặc định — UI hiện băng nhắc để sáu tháng
     /// sau còn phân biệt được hồ sơ nào kiểm theo spec thật.</summary>
     public bool FromDefaultMatrix { get; set; }
@@ -223,6 +275,25 @@ public sealed class SetIqcItemBody
     public bool? Pass { get; set; }
     public string? MeasuredValue { get; set; }
     public string? DefectCode { get; set; }
+
+    // ── P13 bước 4 — dữ liệu để MÁY chấm ─────────────────────────────────
+
+    /// <summary>Số lỗi đếm được (hạng mục <c>DefectCount</c>). <c>null</c> =
+    /// lần ghi này không đụng tới, KHÁC hẳn 0 (đã đếm, không có lỗi).</summary>
+    public int? DefectCount { get; set; }
+
+    /// <summary>Các phép đo, đúng thứ tự và đúng số lượng
+    /// <c>MeasureCount</c> của hạng mục. Phần tử <c>null</c> = ô chưa đo.
+    /// Gửi <c>null</c> cả mảng = lần ghi này không đụng tới phép đo.</summary>
+    public List<double?>? Measurements { get; set; }
+
+    /// <summary>Vật liệu rách trước khi bong keo — chỉ có nghĩa khi tiêu chuẩn
+    /// ghi "or tear".</summary>
+    public bool? TearObserved { get; set; }
+
+    /// <summary>Lý do phán định khác kết luận của máy. Bắt buộc khi có mâu
+    /// thuẫn; thiếu ⇒ 422 <c>iqc.verdict_override_reason_required</c>.</summary>
+    public string? OverrideReason { get; set; }
 }
 
 // ── P12 bước 2b — soạn tiêu chuẩn theo mã nguyên liệu ────────────────────
@@ -230,6 +301,9 @@ public sealed class SetIqcItemBody
 /// <summary>Một dòng tiêu chuẩn của mã nguyên liệu (màn soạn).</summary>
 public sealed class IqcSpecItemDto
 {
+    /// <summary>Bộ tiêu chuẩn chứa dòng này — cần khi màn hình gộp nhiều bộ.</summary>
+    public string SpecNo { get; set; } = "";
+
     public long Id { get; set; }
     public string ItemId { get; set; } = "";
     public int Seq { get; set; }
@@ -290,8 +364,59 @@ public sealed class IqcSpecEditResponse
     /// <summary>Spec do người dùng soạn trong app, không phải từ file master.</summary>
     public bool IsLocalSpec { get; set; }
 
+    /// <summary>TẤT CẢ bộ tiêu chuẩn của mã này (thường 1; live có 7 mã nhiều
+    /// hơn, một mã tới SÁU). Màn hình gộp chúng lại — resolver vốn đã gộp khi
+    /// dựng phiếu, nên giấu bớt trên màn hình chỉ khiến người soạn tiêu chuẩn
+    /// không thấy thứ mà người kiểm sẽ phải làm.</summary>
+    public List<IqcSpecHeaderDto> Specs { get; set; } = new();
+
     public List<IqcSpecItemDto> Items { get; set; } = new();
     public List<IqcLibraryOptionDto> Library { get; set; } = new();
+}
+
+/// <summary>Một BỘ tiêu chuẩn của mã nguyên liệu.</summary>
+public sealed class IqcSpecHeaderDto
+{
+    public string SpecNo { get; set; } = "";
+    public bool Active { get; set; }
+    public bool IsLocal { get; set; }
+
+    /// <summary>PendingQc · Approved · Rejected.</summary>
+    public string Approval { get; set; } = "";
+    public string? ImportSource { get; set; }
+    public string? SupplierName { get; set; }
+    public string? TestMethod { get; set; }
+
+    /// <summary>Bộ này nhập từ file ngoài và CHƯA ai duyệt.</summary>
+    public bool IsPendingQc => string.Equals(Approval, "PendingQc", StringComparison.Ordinal);
+}
+
+/// <summary>Body <c>POST /api/v2/iqc/specs/consolidate</c> — gộp mọi bộ tiêu
+/// chuẩn của một mã về MỘT bộ. Mã đi trong BODY, không phải URL.</summary>
+public sealed class ConsolidateIqcSpecBody
+{
+    public string? MaterialCode { get; set; }
+}
+
+/// <summary>Kết quả gộp.</summary>
+public sealed class IqcSpecConsolidateResponse
+{
+    /// <summary>Bộ được giữ lại.</summary>
+    public string? KeptSpecNo { get; set; }
+
+    /// <summary>Hạng mục chép sang bộ giữ lại vì nó còn thiếu. &gt;0 nghĩa là
+    /// nếu chỉ xoá mà không gộp thì đã mất đúng ngần ấy phép kiểm.</summary>
+    public int ItemsMerged { get; set; }
+
+    public int SpecsDeactivated { get; set; }
+    public List<string> DeactivatedSpecNos { get; set; } = new();
+}
+
+/// <summary>Body <c>PUT /api/v2/iqc/specs/active</c> — bật/tắt CẢ BỘ tiêu chuẩn.</summary>
+public sealed class SetIqcSpecActiveBody
+{
+    public string? SpecNo { get; set; }
+    public bool Active { get; set; }
 }
 
 /// <summary>Body <c>POST /api/v2/iqc/specs/items</c>. Mã nguyên liệu đi trong

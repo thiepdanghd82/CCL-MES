@@ -1,4 +1,5 @@
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using System.Globalization
 @using CCL.MES.Shared.Quality
 @using CCL.MES.Hybrid.Razor.Localization
 @using CCL.MES.Shared.Localization
@@ -9,12 +10,22 @@
 
     MỘT bảng phẳng, KHÔNG tab nhóm (Henry chốt 2026-09-03). Ở FQC/OQC tab nhóm
     là tầng chia DUY NHẤT nên nó cần thiết; ở IQC các MỤC của stepper đã chia
-    hạng mục rồi, thêm tab nữa là chia hai lần cho cùng một tập — mục 2 chỉ có
-    7 hạng mục trên 2 nhóm, mục 3 có nhóm chỉ 1 dòng.
+    hạng mục rồi, thêm tab nữa là chia hai lần cho cùng một tập.
 
-    Nhóm KHÔNG mất đi: nó thành CỘT đầu bảng, khớp bảng ở tab Tiêu chuẩn cùng
-    module. Bảng 6 cột `NHÓM · # · ITEM · METHOD · SPEC · VERDICT`, bộ class
-    `ipqc-*`, ConfirmToggle dùng chung (L52). Không đẻ CSS mới.
+    P13 bước 4b — hạng mục không còn chỉ có đạt/không-đạt. Ba kiểu ghi nhận:
+      · Verdict/Document — người bấm OK/NG (đường cũ, không đổi)
+      · DefectCount      — MỘT ô số, Ac=0: chỉ 0 mới đạt
+      · Measure          — N ô số (5 cho kích thước, 1 cho bám dính) + ô tick
+                           "rách vật liệu" khi tiêu chuẩn ghi "or tear"
+
+    Cột GHI NHẬN chỉ hiện khi mục này CÓ hạng mục cần nhập số. Mục toàn hạng
+    mục người bấm giữ nguyên 6 cột như trước — không bắt người kiểm nhìn một
+    cột trống suốt màn hình.
+
+    Kiểu ghi nhận đọc từ `item.Kind` (đóng băng trên phiếu), KHÔNG suy từ tiền
+    tố mã hạng mục: mã đổi thì UI hỏng lặng lẽ, còn cột Kind đi cùng dữ liệu.
+
+    Rule 4: `<input>`/`<button>` thuần + @oninput, KHÔNG <InputText>/<EditForm>.
 *@
 
 @if (SectionItems.Count == 0)
@@ -34,7 +45,22 @@ else
         <p class="qms-section-desc" data-testid="@($"{TestIdPrefix}-spec")">@T("iqc.items.spec", SpecNo!)</p>
     }
 
-    <table class="ipqc-item-table ipqc-no-result" data-testid="@($"{TestIdPrefix}-table")">
+    @if (SpecApproval == "PendingQc" && !string.IsNullOrWhiteSpace(SpecNo))
+    {
+        @* 672/1120 bộ tiêu chuẩn đang chờ QC duyệt sau đợt nhập từ file master,
+           và 575 mã trong số đó có nguyên liệu THẬT trong kho. Không nhắc thì
+           người kiểm ký lên một tiêu chuẩn chưa ai xác nhận mà không hề biết.
+           Henry chốt 2026-09-04: NHẮC, không chặn — chặn thì QC quay lại Excel
+           và mất luôn dấu vết. *@
+        <p class="iqc-warn iqc-warn-note" data-testid="@($"{TestIdPrefix}-spec-pending")">@T("iqc.items.spec.pending", SpecNo!)</p>
+    }
+    else if (SpecApproval == "Rejected" && !string.IsNullOrWhiteSpace(SpecNo))
+    {
+        <p class="iqc-warn iqc-warn-error" data-testid="@($"{TestIdPrefix}-spec-rejected")">@T("iqc.items.spec.rejected", SpecNo!)</p>
+    }
+
+    <table class="ipqc-item-table @(HasRecordColumn ? "" : "ipqc-no-result")"
+           data-testid="@($"{TestIdPrefix}-table")">
         <thead>
             <tr>
                 <th class="iqc-col-group">@T("iqc.spec.col.group")</th>
@@ -42,6 +68,10 @@ else
                 <th class="ipqc-col-item">@T("ipqc.col.item")</th>
                 <th class="ipqc-col-method">@T("ipqc.col.method")</th>
                 <th class="ipqc-col-spec">@T("ipqc.col.spec")</th>
+                @if (HasRecordColumn)
+                {
+                    <th class="ipqc-col-result">@T("iqc.items.col.record")</th>
+                }
                 <th class="ipqc-col-verdict">@T("ipqc.col.verdict")</th>
             </tr>
         </thead>
@@ -57,6 +87,7 @@ else
                 // là nhiễu, mắt người kiểm phải lướt qua nó mỗi dòng.
                 var showGroup = !string.Equals(group, prevGroup, StringComparison.Ordinal);
                 prevGroup = group;
+                var draft = DraftOf(item);
                 <tr class="ipqc-item-row @SlotCssClass(status) @(showGroup && rowNo > 1 ? "iqc-row-groupstart" : "")" data-testid="@tid">
                     <td class="iqc-col-group" data-testid="@($"{tid}-group")">@(showGroup ? Dash(group) : "")</td>
                     <td class="ipqc-col-num scan-mono">@rowNo</td>
@@ -64,12 +95,31 @@ else
                         <span class="ipqc-item-label">@item.LabelFor(IsEnglish)</span>
                         <span class="ipqc-status-pill @StatusPillCss(status)"
                               data-testid="@($"{tid}-status")">@StatusDisplay(status)</span>
+                        @if (AutoText(item) is { } auto)
+                        {
+                            @* Máy nói gì và VÌ SAO. Chỉ hiện "Fail" mà không nói lý do
+                               thì người kiểm phải tự dò lại 5 con số. *@
+                            <span class="iqc-auto-pill @AutoPillCss(item)"
+                                  data-testid="@($"{tid}-auto")">@T("iqc.items.auto"): @auto</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(item.OverrideReason))
+                        {
+                            <span class="iqc-auto-note" data-testid="@($"{tid}-override")">
+                                @T("iqc.items.override.by", item.OverriddenBy ?? "—", item.OverrideReason!)
+                            </span>
+                        }
                     </td>
                     @* METHOD là văn xuôi, không phải mã — không scan-mono (bài học
                        từ bảng IPQC: mono làm cùng chuỗi rộng thêm ~20% và vỡ dòng). *@
                     <td class="ipqc-col-method" data-label="@T("ipqc.col.method")">@Dash(item.MethodFor(IsEnglish))</td>
                     <td class="ipqc-col-spec" data-label="@T("ipqc.col.spec")">
                         @Dash(item.AcceptanceFor(IsEnglish))
+                        @if (LimitText(item) is { } lim)
+                        {
+                            @* Ngưỡng SỐ đã đóng băng — cái máy thật sự so. Chuỗi
+                               tiêu chí gốc có thể mơ hồ, con số thì không. *@
+                            <span class="iqc-limit-chip" data-testid="@($"{tid}-limit")">@lim</span>
+                        }
                         @if (item.AcceptanceUnspecified)
                         {
                             @* Hạng mục vẫn HIỆN (Henry chốt) — chỉ đánh dấu, không ẩn. *@
@@ -77,16 +127,98 @@ else
                                   data-testid="@($"{tid}-unspecified")">@T("iqc.items.unspecified")</span>
                         }
                     </td>
+                    @if (HasRecordColumn)
+                    {
+                        <td class="ipqc-col-result" data-label="@T("iqc.items.col.record")">
+                            @if (item.Kind == "DefectCount")
+                            {
+                                <div class="ipqc-result-group">
+                                    <input type="text" inputmode="numeric" class="ipqc-input ipqc-result-input"
+                                           maxlength="6" title="@T("iqc.items.defect.hint")"
+                                           placeholder="@T("iqc.items.defect.ph")"
+                                           disabled="@(ReadOnly || _busy)"
+                                           value="@draft.Defect"
+                                           @oninput="@(e => draft.Defect = e.Value?.ToString() ?? "")"
+                                           data-testid="@($"{tid}-defect")" />
+                                    <button type="button" class="op-btn op-btn-secondary op-btn-sm ipqc-measured-save-btn"
+                                            disabled="@(ReadOnly || _busy)"
+                                            @onclick="@(() => SaveAsync(item, null))"
+                                            data-testid="@($"{tid}-defect-save")">@T("iqc.items.save")</button>
+                                </div>
+                            }
+                            else if (item.Kind == "Measure" && item.MeasureCount > 0)
+                            {
+                                <div class="iqc-measure-group" data-testid="@($"{tid}-measures")">
+                                    @for (var k = 0; k < item.MeasureCount; k++)
+                                    {
+                                        var idx = k;
+                                        <input type="text" inputmode="decimal" class="ipqc-input iqc-measure-input"
+                                               maxlength="12" placeholder="@T("iqc.items.measure.ph", idx + 1)"
+                                               aria-label="@T("iqc.items.measure.ph", idx + 1)"
+                                               disabled="@(ReadOnly || _busy)"
+                                               value="@draft.Measures[idx]"
+                                               @oninput="@(e => draft.Measures[idx] = e.Value?.ToString() ?? "")"
+                                               data-testid="@($"{tid}-m{idx + 1}")" />
+                                    }
+                                    @if (item.TearIsPass)
+                                    {
+                                        <label class="iqc-tear-check" title="@T("iqc.items.tear.why")">
+                                            <input type="checkbox" disabled="@(ReadOnly || _busy)"
+                                                   checked="@draft.Tear"
+                                                   @onchange="@(e => draft.Tear = e.Value is true)"
+                                                   data-testid="@($"{tid}-tear")" />
+                                            <span>@T("iqc.items.tear")</span>
+                                        </label>
+                                    }
+                                    <button type="button" class="op-btn op-btn-secondary op-btn-sm ipqc-measured-save-btn"
+                                            disabled="@(ReadOnly || _busy)"
+                                            @onclick="@(() => SaveAsync(item, null))"
+                                            data-testid="@($"{tid}-measures-save")">@T("iqc.items.save")</button>
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="iqc-muted">—</span>
+                            }
+                        </td>
+                    }
                     <td class="ipqc-col-verdict">
                         <ConfirmToggle Status="@status"
                                        Disabled="@(ReadOnly || _busy)"
                                        OkDisabled="@item.AcceptanceUnspecified"
                                        NgTitle="@(item.AcceptanceUnspecified ? T("iqc.items.unspecified.why") : null)"
-                                       OnOk="@(() => SetAsync(item, true))"
-                                       OnNg="@(() => SetAsync(item, false))"
+                                       OnOk="@(() => SaveAsync(item, true))"
+                                       OnNg="@(() => SaveAsync(item, false))"
                                        TestIdPrefix="@tid" />
                     </td>
                 </tr>
+                @if (draft.NeedsReason)
+                {
+                    @* Hàng phụ chỉ hiện khi server đã TỪ CHỐI vì thiếu lý do. Không
+                       dựng sẵn ô lý do cho mọi dòng: đặt sẵn một ô trống ở đó là mời
+                       người ta điền cho xong, và lý do sẽ thành thủ tục. *@
+                    <tr class="iqc-override-row" data-testid="@($"{tid}-override-row")">
+                        <td colspan="@ColSpan">
+                            <p class="iqc-warn iqc-warn-note">@T("iqc.items.override.need")</p>
+                            <div class="ipqc-result-group iqc-override-group">
+                                <input type="text" class="ipqc-input iqc-override-input" maxlength="512"
+                                       placeholder="@T("iqc.items.override.ph")"
+                                       disabled="@_busy"
+                                       value="@draft.Reason"
+                                       @oninput="@(e => draft.Reason = e.Value?.ToString() ?? "")"
+                                       data-testid="@($"{tid}-reason")" />
+                                <button type="button" class="op-btn op-btn-primary op-btn-sm ipqc-measured-save-btn"
+                                        disabled="@(_busy || string.IsNullOrWhiteSpace(draft.Reason))"
+                                        @onclick="@(() => SaveAsync(item, draft.PendingPass))"
+                                        data-testid="@($"{tid}-reason-save")">@T("iqc.items.save")</button>
+                                <button type="button" class="op-btn op-btn-ghost op-btn-sm ipqc-measured-save-btn"
+                                        disabled="@_busy"
+                                        @onclick="@(() => CancelReason(draft))"
+                                        data-testid="@($"{tid}-reason-cancel")">@T("iqc.items.override.cancel")</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
             }
         </tbody>
     </table>
@@ -109,6 +241,12 @@ else
     [Parameter, EditorRequired] public int Section { get; set; }
 
     [Parameter] public string? SpecNo { get; set; }
+
+    /// <summary>P13 — <c>PendingQc</c> · <c>Approved</c> · <c>Rejected</c>. Đọc
+    /// SỐNG từ master chứ không đóng băng: khi QC ký duyệt thì băng nhắc phải
+    /// biến mất, nếu không nó treo mãi và người ta học cách bỏ qua nó.</summary>
+    [Parameter] public string? SpecApproval { get; set; }
+
     [Parameter] public bool FromDefaultMatrix { get; set; }
 
     /// <summary>Phiếu đã chốt ⇒ chỉ đọc.</summary>
@@ -123,8 +261,50 @@ else
     private bool _busy;
     private string? _error;
 
+    /// <summary>Bản nháp đang gõ của MỘT hạng mục. Giữ ở component chứ không ghi
+    /// thẳng lên DTO: người kiểm gõ dở 3/5 ô rồi bấm sang tab khác thì con số dở
+    /// dang không được coi là dữ liệu đã ghi.</summary>
+    private sealed class Draft
+    {
+        public string Defect = "";
+        public string[] Measures = Array.Empty<string>();
+        public bool Tear;
+        public string Reason = "";
+        /// <summary>Server đã từ chối vì thiếu lý do ⇒ mở hàng phụ.</summary>
+        public bool NeedsReason;
+        /// <summary>Phán định người kiểm đang muốn ghi, giữ lại để bấm Lưu ở hàng
+        /// phụ là gửi đúng cái đó chứ không phải đoán lại.</summary>
+        public bool? PendingPass;
+    }
+
+    private readonly Dictionary<long, Draft> _drafts = new();
+
+    private Draft DraftOf(IqcCheckItemDto i)
+    {
+        if (_drafts.TryGetValue(i.Id, out var d)) return d;
+        d = new Draft
+        {
+            Defect = i.DefectCount?.ToString(CultureInfo.InvariantCulture) ?? "",
+            Measures = Enumerable.Range(0, Math.Max(0, i.MeasureCount))
+                .Select(k => k < i.Measurements.Count
+                    ? i.Measurements[k]?.ToString(CultureInfo.InvariantCulture) ?? ""
+                    : "")
+                .ToArray(),
+            Tear = i.TearObserved,
+        };
+        _drafts[i.Id] = d;
+        return d;
+    }
+
     private IReadOnlyList<IqcCheckItemDto> SectionItems =>
         Items.Where(i => i.Section == Section).ToList();
+
+    /// <summary>Cột GHI NHẬN chỉ dựng khi mục này CÓ hạng mục cần nhập số. Mục
+    /// toàn hạng mục người bấm không phải nhìn một cột trống suốt màn hình.</summary>
+    private bool HasRecordColumn =>
+        SectionItems.Any(i => i.Kind is "DefectCount" or "Measure");
+
+    private int ColSpan => HasRecordColumn ? 7 : 6;
 
     /// <summary>Ngôn ngữ đang bật. Nhãn · tiêu chí · phương pháp là DỮ LIỆU ĐÃ
     /// ĐÓNG BĂNG trên phiếu, không phải khoá resx — nên không đi qua T() mà qua
@@ -167,19 +347,109 @@ else
         _    => T("iqc.status.pending"),
     };
 
+    /// <summary>Câu giải thích của máy. <c>null</c> ⇒ không hiện gì: hạng mục
+    /// người bấm mà treo thêm nhãn "máy chưa quyết được" chỉ làm bảng ồn.</summary>
+    private string? AutoText(IqcCheckItemDto i)
+    {
+        if (string.IsNullOrWhiteSpace(i.AutoVerdictReason)) return null;
+        if (i.AutoVerdictReason == "iqc.judge.human_only") return null;
+        // Mã lý do là KHOÁ, câu chữ dịch theo ngôn ngữ đang bật. Vị trí ô gây
+        // trượt đi kèm để người kiểm biết sửa chỗ nào.
+        var seq = i.AutoVerdictOffendingSeq?.ToString(CultureInfo.InvariantCulture) ?? "?";
+        return T(i.AutoVerdictReason!, seq);
+    }
+
+    private static string AutoPillCss(IqcCheckItemDto i) => i.AutoVerdict switch
+    {
+        "Pass" => "iqc-auto-ok",
+        "Fail" => "iqc-auto-ng",
+        _      => "iqc-auto-unknown",
+    };
+
+    /// <summary>Ngưỡng SỐ đã đóng băng, dạng người đọc được. <c>null</c> khi
+    /// tiêu chuẩn không có số nào — lúc đó máy nhường người chấm.</summary>
+    private string? LimitText(IqcCheckItemDto i)
+    {
+        if (i.LimitLow is null && i.LimitUp is null) return null;
+        var lo = i.LimitLow?.ToString("0.####", CultureInfo.InvariantCulture);
+        var up = i.LimitUp?.ToString("0.####", CultureInfo.InvariantCulture);
+        var range = (lo, up) switch
+        {
+            (not null, not null) => $"{lo} – {up}",
+            (not null, null)     => $"≥ {lo}",
+            (null, not null)     => $"≤ {up}",
+            _                    => "",
+        };
+        if (!string.IsNullOrWhiteSpace(i.LimitUnit)) range += " " + i.LimitUnit;
+        var text = T("iqc.items.limit", range);
+        if (!string.IsNullOrWhiteSpace(i.LimitLabel))
+            text += " · " + T("iqc.items.limit.face", i.LimitLabel!);
+        return text;
+    }
+
     private static string Dash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
 
-    private async Task SetAsync(IqcCheckItemDto item, bool pass)
+    /// <summary>Ô trống = CHƯA nhập, KHÁC hẳn 0. Trả <c>null</c> cho ô trống chứ
+    /// không ép về 0 — ép về 0 là tuyên bố "đã đếm, không có lỗi" thay cho người
+    /// chưa làm việc.</summary>
+    private static double? ParseNum(string s) =>
+        double.TryParse((s ?? "").Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var v)
+            ? v : null;
+
+    private static int? ParseInt(string s) =>
+        int.TryParse((s ?? "").Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var v)
+            ? v : null;
+
+    private void CancelReason(Draft d)
+    {
+        d.NeedsReason = false;
+        d.Reason = "";
+        d.PendingPass = null;
+        _error = null;
+    }
+
+    /// <summary>
+    /// Gửi một lần ghi. <paramref name="pass"/> <c>null</c> = "để máy quyết":
+    /// người kiểm vừa nhập số, tiêu chuẩn nói con số đó nghĩa là gì, không cần
+    /// bấm thêm nút để lặp lại điều đó.
+    /// </summary>
+    private async Task SaveAsync(IqcCheckItemDto item, bool? pass)
     {
         if (ReadOnly || _busy) return;
+        var draft = DraftOf(item);
         _busy = true;
         _error = null;
         try
         {
-            await Api.SetIqcTicketItemAsync(TicketId, item.Id, new SetIqcItemBody { Pass = pass });
-            // Ghi lạc quan để ô đổi ngay; parent nạp lại để số đếm tab khớp server.
-            item.Pass = pass;
+            var body = new SetIqcItemBody
+            {
+                Pass = pass,
+                MeasuredValue = item.MeasuredValue,
+                DefectCode = item.DefectCode,
+                OverrideReason = string.IsNullOrWhiteSpace(draft.Reason) ? null : draft.Reason.Trim(),
+            };
+            if (item.Kind == "DefectCount")
+                body.DefectCount = ParseInt(draft.Defect);
+            if (item.Kind == "Measure" && item.MeasureCount > 0)
+            {
+                body.Measurements = draft.Measures.Select(ParseNum).ToList();
+                body.TearObserved = draft.Tear;
+            }
+
+            await Api.SetIqcTicketItemAsync(TicketId, item.Id, body);
+            CancelReason(draft);
+            // Nạp lại từ server: máy chấm ở server nên kết luận, lý do và vị trí ô
+            // gây trượt chỉ server biết. Ghi lạc quan ở đây sẽ hiện một kết luận
+            // do client tự nghĩ ra.
+            _drafts.Remove(item.Id);
             await OnChanged.InvokeAsync();
+        }
+        catch (ApiException ex) when (ex.ApiError?.Code == "iqc.verdict_override_reason_required")
+        {
+            // Không phải lỗi — là một câu hỏi. Mở ô lý do và giữ lại phán định
+            // người kiểm vừa bấm để lần gửi sau mang đúng nó.
+            draft.NeedsReason = true;
+            draft.PendingPass = pass;
         }
         catch (Exception ex)
         {

@@ -127,6 +127,48 @@ public sealed partial class TranslationCatalog
         Add("iqc.step.functional.desc",    "Kích thước, bám dính, độ cứng và các phép đo lý hoá.",
                                            "Dimensions, adhesion, hardness and physical/chemical measurements.");
 
+        // ── P13 bước 4b — ô đếm lỗi, ô đo, và kết luận MÁY chấm ────────
+        Add("iqc.items.col.record",        "Ghi nhận",                            "Record");
+        Add("iqc.items.defect.ph",         "số lỗi",                              "defects");
+        Add("iqc.items.defect.hint",       "Không chấp nhận lỗi: chỉ 0 mới đạt.",  "Zero-defect: only 0 passes.");
+        Add("iqc.items.measure.n",         "Đo {0} lần",                          "{0} measurements");
+        Add("iqc.items.measure.ph",        "lần {0}",                             "#{0}");
+        Add("iqc.items.limit",             "Ngưỡng {0}",                          "Limit {0}");
+        Add("iqc.items.limit.face",        "lớp {0}",                             "{0} side");
+        Add("iqc.items.tear",              "Rách vật liệu",                       "Material tore");
+        Add("iqc.items.tear.why",          "Vật liệu rách trước khi bong keo ⇒ lực bám đã lớn hơn độ bền của chính vật liệu, nên tính ĐẠT.",
+                                           "The material tore before the adhesive released ⇒ the bond exceeded the material's own strength, so it passes.");
+        Add("iqc.items.save",              "Lưu",                                 "Save");
+        Add("iqc.items.spec.pending",      "Bộ tiêu chuẩn {0} nhập từ file master và CHƯA được QC duyệt. Vẫn kiểm bình thường, nhưng đối chiếu lại với bản giấy trước khi chốt.",
+                                           "Standard {0} was imported from the master file and has NOT been approved by QC yet. Carry on inspecting, but check it against the paper copy before completing.");
+        Add("iqc.items.spec.rejected",     "Bộ tiêu chuẩn {0} đã bị QC bác. Hỏi QA trước khi chấm.",
+                                           "Standard {0} was rejected by QC. Ask QA before recording results.");
+
+        // Kết luận máy chấm — hiện nguyên nhân, không chỉ hiện đạt/trượt.
+        Add("iqc.items.auto",              "Máy chấm",                            "Auto");
+        Add("iqc.judge.zero_defect",       "Không có lỗi nào",                    "No defects found");
+        Add("iqc.judge.defect_found",      "Có lỗi — không chấp nhận lỗi nào",     "Defect found — zero-defect rule");
+        Add("iqc.judge.defect_incomplete", "Chưa đếm",                            "Not counted yet");
+        Add("iqc.judge.defect_negative",   "Số lỗi không thể âm",                 "Defect count cannot be negative");
+        Add("iqc.judge.no_defect_columns", "Không có ô đếm lỗi",                  "No defect column");
+        Add("iqc.judge.all_in_range",      "Mọi phép đo trong ngưỡng",            "All measurements in range");
+        Add("iqc.judge.below_low",         "Phép đo {0} dưới cận dưới",           "Measurement {0} is below the lower limit");
+        Add("iqc.judge.above_up",          "Phép đo {0} trên cận trên",           "Measurement {0} is above the upper limit");
+        Add("iqc.judge.measurement_missing", "Chưa đo lần {0}",                   "Measurement {0} not taken");
+        Add("iqc.judge.no_measurements",   "Chưa có phép đo nào",                 "No measurements yet");
+        Add("iqc.judge.no_numeric_limit",  "Tiêu chuẩn không có ngưỡng số — người kiểm chấm",
+                                           "The standard has no numeric limit — the inspector decides");
+        Add("iqc.judge.limit_has_no_bound", "Ngưỡng không có cận nào",            "The limit has no bound");
+        Add("iqc.judge.tear_accepted",     "Rách vật liệu — tính đạt",            "Material tore — accepted");
+        Add("iqc.judge.human_only",        "Người kiểm chấm",                     "Inspector decides");
+
+        // Ghi đè kết luận máy.
+        Add("iqc.items.override.need",     "Phán định của bạn khác máy chấm. Ghi lý do thì mới lưu được.",
+                                           "Your verdict differs from the automatic judgement. Enter a reason to save it.");
+        Add("iqc.items.override.ph",       "Vì sao khác máy chấm?",               "Why does it differ?");
+        Add("iqc.items.override.by",       "{0} đã đổi khác máy chấm: {1}",        "{0} overrode the automatic judgement: {1}");
+        Add("iqc.items.override.cancel",   "Bỏ",                                  "Discard");
+
         // ── P12 bước 2b — soạn tiêu chuẩn theo mã nguyên liệu ───────────
         Add("iqc.tab.spec",                "Tiêu chuẩn",                          "Standards");
         Add("iqc.spec.title",              "Tiêu chuẩn kiểm theo mã nguyên liệu",  "Inspection standards by material code");
@@ -139,6 +181,21 @@ public sealed partial class TranslationCatalog
                                            "Material {0} has no dedicated standard yet — incoming lots are inspected against the DEFAULT MATRIX. Add items below to build a dedicated standard.");
         Add("iqc.spec.specno",             "Tiêu chuẩn {0}",                      "Standard {0}");
         Add("iqc.spec.frommaster",         "từ file master",                      "from master file");
+
+        // ── P13: một mã có NHIỀU bộ tiêu chuẩn ────────────────────────────
+        Add("iqc.spec.col.set",            "Bộ",                                  "Set");
+        Add("iqc.spec.multi",              "Mã này đang có {0} bộ tiêu chuẩn. Phiếu kiểm gộp hạng mục của TẤT CẢ các bộ còn bật — gỡ bớt bộ không dùng để người kiểm khỏi làm trùng.",
+                                                                                  "This code has {0} standard sets. A ticket merges items from ALL active sets — remove unused sets so the inspector does not repeat the same check.");
+        Add("iqc.spec.set.remove",         "Gỡ bộ này",                           "Remove this set");
+        Add("iqc.spec.consolidate",        "Gộp về một bộ",                       "Merge into one set");
+        Add("iqc.spec.consolidate.why",    "Chép các hạng mục còn thiếu sang bộ mới nhất TRƯỚC, rồi mới tắt các bộ cũ — không mất phép kiểm nào.",
+                                                                                  "Copies missing items into the newest set FIRST, then deactivates the old ones — no check is lost.");
+        Add("iqc.spec.consolidated",       "Đã gộp về {0}: chép sang {1} hạng mục còn thiếu, tắt {2} bộ cũ.",
+                                                                                  "Merged into {0}: copied {1} missing item(s), deactivated {2} old set(s).");
+        Add("iqc.spec.set.restore",        "Dùng lại",                            "Restore");
+        Add("iqc.spec.pendingqc",          "chờ QC duyệt",                        "pending QC");
+        Add("iqc.spec.pendingqc.why",      "Bộ này nhập từ file master và chưa ai trong QC xác nhận. Phiếu vẫn dùng được.",
+                                                                                  "Imported from the master file and not yet confirmed by QC. Tickets still use it.");
         Add("iqc.spec.frommaster.why",     "Bộ này đến từ file master. Hạng mục bạn thêm vào đây sẽ bị lần import kế tiếp ghi đè nếu file master không có dòng tương ứng.",
                                            "This set came from the master file. Items you add here may be overwritten by the next import if the master file has no matching row.");
         Add("iqc.spec.empty",              "Chưa có hạng mục nào.",               "No items yet.");

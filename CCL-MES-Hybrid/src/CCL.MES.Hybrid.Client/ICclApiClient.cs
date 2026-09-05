@@ -83,6 +83,15 @@ public interface ICclApiClient
         CancellationToken ct = default);
     Task SetIqcSpecItemActiveAsync(long itemId, bool active, CancellationToken ct = default);
 
+    /// <summary>Bật/tắt CẢ MỘT BỘ tiêu chuẩn (xoá mềm). Dùng để dọn các mã đang
+    /// mang nhiều bộ — live có 7 mã như vậy, một mã tới SÁU.</summary>
+    Task SetIqcSpecActiveAsync(string specNo, bool active, CancellationToken ct = default);
+
+    /// <summary>Gộp mọi bộ tiêu chuẩn của một mã về MỘT bộ — chép hạng mục còn
+    /// thiếu sang bộ giữ lại TRƯỚC khi tắt các bộ kia.</summary>
+    Task<CCL.MES.Shared.Quality.IqcSpecConsolidateResponse> ConsolidateIqcSpecAsync(
+        string materialCode, CancellationToken ct = default);
+
     // ── IQC hồ sơ HSF theo mã nguyên liệu (P12 bước 4) ─────────────
     Task<CCL.MES.Shared.Quality.IqcDocumentListResponse> GetIqcDocumentsAsync(
         string materialCode, bool includeInactive = false, CancellationToken ct = default);
