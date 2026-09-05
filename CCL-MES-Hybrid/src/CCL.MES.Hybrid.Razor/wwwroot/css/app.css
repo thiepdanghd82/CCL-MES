@@ -9237,9 +9237,39 @@ tr.wc-row:hover { background: var(--c-bg); }
    thảo. Add-row nằm NGAY DƯỚI hàng cuối theo hợp đồng cmes-add-new-inline. */
 .iqc-warn-note { color: var(--c-ink); background: var(--c-soft); }
 
+.iqc-spec-search {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+}
+.iqc-spec-search .grid-search-wrap {
+    flex: 1 1 auto;
+    max-width: none;
+    width: 100%;
+}
+.iqc-spec-suggest {
+    position: absolute;
+    left: 0; right: 0; top: 100%;
+    z-index: 8;
+    margin-top: var(--sp-1);
+    max-height: 16rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    background: var(--c-surface);
+    box-shadow: var(--el-2);
+}
+.iqc-spec-suggest .iqc-pick-row {
+    grid-template-columns: minmax(0, max-content) 1fr;
+}
+.iqc-spec-search-hint { margin: 0; }
+
 .iqc-spec-showinactive {
     display: inline-flex; align-items: center; gap: var(--sp-2);
     font-size: var(--fs-sm); color: var(--c-muted);
+    flex: 0 0 auto;
 }
 
 /* Dòng đã gỡ vẫn ĐỌC ĐƯỢC, chỉ lùi lại — người soạn cần thấy mình đã gỡ gì. */

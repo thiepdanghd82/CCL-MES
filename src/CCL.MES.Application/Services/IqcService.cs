@@ -451,10 +451,10 @@ public class IqcService
     public const int SearchMinLength = 3;
 
     /// <summary>
-    /// Tra vật liệu THEO MÔ TẢ (feat/iqc-search-by-desc — đảo chiều: mô tả là ô
-    /// tìm chính, Code IFS là droplist kết quả). CONTAINS trên
-    /// <see cref="RawMaterial.PartDescription"/> — quyết định #2 (mother code =
-    /// CONTAINS, KHÔNG thêm cột MotherCode).
+    /// Tra vật liệu theo mã <em>hoặc</em> mô tả (ô Standards gõ <c>336</c> /
+    /// phiếu IQC gõ <c>PET</c>). CONTAINS NOCASE trên
+    /// <see cref="RawMaterial.PartNo"/> <b>hoặc</b>
+    /// <see cref="RawMaterial.PartDescription"/>.
     ///
     /// <para><b>Chuẩn hoá</b>: trim + gộp mọi cụm khoảng trắng nội bộ về 1 space
     /// (để "NITTO  5000NS" hai dấu cách khớp "NITTO 5000NS").</para>
@@ -487,7 +487,8 @@ public class IqcService
         // rồi lấy min Id đại diện — PartNo không unique nên tránh trùng dòng.
         var upper = norm.ToUpperInvariant();
         var grouped = _db.RawMaterials.AsNoTracking()
-            .Where(x => x.PartDescription != null && x.PartDescription.ToUpper().Contains(upper))
+            .Where(x => x.PartNo.ToUpper().Contains(upper)
+                || (x.PartDescription != null && x.PartDescription.ToUpper().Contains(upper)))
             .GroupBy(x => x.PartNo)
             .Select(g => new IqcMaterialSearchRow
             {

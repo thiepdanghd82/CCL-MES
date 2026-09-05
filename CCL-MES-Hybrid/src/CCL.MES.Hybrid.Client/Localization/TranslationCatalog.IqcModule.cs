@@ -174,7 +174,9 @@ public sealed partial class TranslationCatalog
         Add("iqc.spec.title",              "Tiêu chuẩn kiểm theo mã nguyên liệu",  "Inspection standards by material code");
         Add("iqc.spec.desc",               "Tra mã nguyên liệu để xem bộ hạng mục sẽ áp cho các lô nhập sau. Thêm hoặc gỡ hạng mục tại đây; phiếu ĐÃ mở giữ bản đóng băng riêng nên không bị ảnh hưởng.",
                                            "Look up a material code to see the item set that will apply to future incoming lots. Add or remove items here; tickets already opened keep their own frozen copy and are unaffected.");
-        Add("iqc.spec.search.ph",          "Mã nguyên liệu — vd 336-H1a",          "Material code — e.g. 336-H1a");
+        Add("iqc.spec.search.ph",          "Gõ mã hoặc mô tả — vd 336 hoặc PET",   "Type a code or description — e.g. 336 or PET");
+        Add("iqc.spec.search.none",        "Không có nguyên liệu khớp.",           "No matching materials.");
+        Add("iqc.spec.search.tooshort",    "Gõ tối thiểu 3 ký tự để gợi ý.",       "Type at least 3 characters for suggestions.");
         Add("iqc.spec.load",               "Tra",                                 "Look up");
         Add("iqc.spec.showinactive",       "Hiện cả hạng mục đã gỡ",              "Show removed items");
         Add("iqc.spec.none",               "Mã {0} chưa có tiêu chuẩn riêng — các lô nhập đang kiểm theo MA TRẬN MẶC ĐỊNH. Thêm hạng mục bên dưới để soạn tiêu chuẩn riêng cho mã này.",

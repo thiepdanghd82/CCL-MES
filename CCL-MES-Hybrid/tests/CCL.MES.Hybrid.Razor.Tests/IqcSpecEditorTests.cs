@@ -473,4 +473,102 @@ public sealed class IqcSpecEditorTests : TestContext
         Assert.NotNull(cut.Find("[data-testid=iqc-spec-multi]"));   // vẫn THẤY
         Assert.Empty(cut.FindAll("[data-testid^=iqc-spec-set-toggle]"));  // nhưng không sửa
     }
+
+    // ── Ô tra mã: rộng + × + gợi ý ────────────────────────────────────
+
+    private IRenderedComponent<IqcSpecEditor> RenderBlank() =>
+        RenderComponent<IqcSpecEditor>(p => p.Add(x => x.DebounceMs, 0));
+
+    [Fact]
+    public void Go_336_hien_goi_y_ma_co_ky_tu_do()
+    {
+        _api.SearchIqcMaterialImpl = (desc, _, _) => Task.FromResult(new IqcMaterialSearchResponse
+        {
+            TooShort = false,
+            Items =
+            [
+                new IqcMaterialSearchItem { CodeIfs = "336T", PartDescription = "Acrylic tape" },
+                new IqcMaterialSearchItem { CodeIfs = "336-H1a", PartDescription = "PET liner" },
+            ],
+        });
+
+        var cut = RenderBlank();
+        cut.Find("[data-testid=iqc-spec-search]").Input("336");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(2, cut.FindAll("[data-testid=iqc-spec-suggest-row]").Count);
+            Assert.Contains("336T", cut.Markup);
+            Assert.Contains("336-H1a", cut.Markup);
+        });
+        Assert.Single(_api.SearchIqcMaterialCalls);
+        Assert.Equal("336", _api.SearchIqcMaterialCalls[0].Desc);
+    }
+
+    [Fact]
+    public void Go_PET_hien_goi_y_theo_mo_ta()
+    {
+        _api.SearchIqcMaterialImpl = (_, _, _) => Task.FromResult(new IqcMaterialSearchResponse
+        {
+            TooShort = false,
+            Items = [new IqcMaterialSearchItem { CodeIfs = "TWP5050", PartDescription = "PET film 50um" }],
+        });
+
+        var cut = RenderBlank();
+        cut.Find("[data-testid=iqc-spec-search]").Input("PET");
+
+        cut.WaitForAssertion(() =>
+        {
+            var row = Assert.Single(cut.FindAll("[data-testid=iqc-spec-suggest-row]"));
+            Assert.Equal("TWP5050", row.GetAttribute("data-code"));
+            Assert.Contains("PET film", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void Bam_goi_y_thi_nap_tieu_chuan_cua_ma_do()
+    {
+        Serve(NoSpec());
+        _api.SearchIqcMaterialImpl = (_, _, _) => Task.FromResult(new IqcMaterialSearchResponse
+        {
+            TooShort = false,
+            Items = [new IqcMaterialSearchItem { CodeIfs = "TWP5050", PartDescription = "PET film" }],
+        });
+
+        var cut = RenderBlank();
+        cut.Find("[data-testid=iqc-spec-search]").Input("PET");
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("[data-testid=iqc-spec-suggest-row]")));
+
+        cut.Find("[data-testid=iqc-spec-suggest-row]").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("iqc-spec-nospec", cut.Markup);
+            Assert.Empty(cut.FindAll("[data-testid=iqc-spec-suggest]"));
+        });
+        Assert.Contains(_api.IqcSpecCalls, c => c.Code == "TWP5050");
+    }
+
+    [Fact]
+    public void Nut_x_xoa_ky_tu_va_dong_goi_y()
+    {
+        _api.SearchIqcMaterialImpl = (_, _, _) => Task.FromResult(new IqcMaterialSearchResponse
+        {
+            TooShort = false,
+            Items = [new IqcMaterialSearchItem { CodeIfs = "336T" }],
+        });
+
+        var cut = RenderBlank();
+        cut.Find("[data-testid=iqc-spec-search]").Input("336");
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid=iqc-spec-search-clear]")));
+
+        cut.Find("[data-testid=iqc-spec-search-clear]").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("", cut.Find("[data-testid=iqc-spec-search]").GetAttribute("value") ?? "");
+            Assert.Empty(cut.FindAll("[data-testid=iqc-spec-suggest]"));
+            Assert.Empty(cut.FindAll("[data-testid=iqc-spec-search-clear]"));
+        });
+    }
 }

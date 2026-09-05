@@ -25,15 +25,55 @@
     </div>
     <p class="qms-section-desc">@T("iqc.spec.desc")</p>
 
-    @* ── tra theo mã ── *@
+    @* ── tra mã/mô tả: ô rộng, nút ×, listbox gợi ý (không native <select>) ── *@
     <div class="iqc-data-toolbar">
-        <input type="text" class="iqc-input" placeholder="@T("iqc.spec.search.ph")"
-               value="@_code" data-testid="iqc-spec-search"
-               @oninput="@(e => _code = e.Value?.ToString() ?? "")"
-               @onkeydown="OnSearchKeyAsync" />
+        <div class="iqc-spec-search">
+            <span class="grid-search-wrap">
+                <input type="search" class="grid-search" placeholder="@T("iqc.spec.search.ph")"
+                       value="@_code" data-testid="iqc-spec-search"
+                       role="combobox" aria-autocomplete="list"
+                       aria-expanded="@(_suggestOpen ? "true" : "false")"
+                       aria-controls="iqc-spec-suggest"
+                       @oninput="OnSearchInputAsync"
+                       @onkeydown="OnSearchKeyAsync" />
+                @if (!string.IsNullOrEmpty(_code))
+                {
+                    <button type="button" class="grid-search-clear" tabindex="-1"
+                            data-testid="iqc-spec-search-clear"
+                            title="@T("gridsearch.clear")" aria-label="@T("gridsearch.clear")"
+                            @onclick="ClearSearch">×</button>
+                }
+            </span>
+            @if (_suggestTooShort)
+            {
+                <p class="iqc-hint iqc-spec-search-hint" data-testid="iqc-spec-search-tooshort">@T("iqc.spec.search.tooshort")</p>
+            }
+            else if (_suggestOpen)
+            {
+                <div id="iqc-spec-suggest" class="iqc-spec-suggest" role="listbox"
+                     data-testid="iqc-spec-suggest">
+                    @if (_suggestions.Count == 0)
+                    {
+                        <p class="iqc-hint" data-testid="iqc-spec-search-none">@T("iqc.spec.search.none")</p>
+                    }
+                    else
+                    {
+                        @foreach (var row in _suggestions)
+                        {
+                            <button type="button" class="iqc-pick-row" role="option"
+                                    data-testid="iqc-spec-suggest-row" data-code="@row.CodeIfs"
+                                    @onclick="() => PickAsync(row.CodeIfs)">
+                                <span class="iqc-pick-code">@row.CodeIfs</span>
+                                <span class="iqc-pick-desc">@(row.PartDescription ?? row.IfsDescription)</span>
+                            </button>
+                        }
+                    }
+                </div>
+            }
+        </div>
         <button type="button" class="op-btn op-btn-primary" data-testid="iqc-spec-load"
                 disabled="@(_busy || string.IsNullOrWhiteSpace(_code))"
-                @onclick="LoadAsync">@T("iqc.spec.load")</button>
+                @onclick="LoadAndCloseSuggestAsync">@T("iqc.spec.load")</button>
         <label class="iqc-spec-showinactive">
             <input type="checkbox" checked="@_includeInactive" data-testid="iqc-spec-showinactive"
                    @onchange="OnToggleInactiveAsync" />
@@ -229,11 +269,19 @@
     /// <summary>Mã nạp sẵn khi mở (vd mở từ một phiếu). Rỗng = người dùng tự tra.</summary>
     [Parameter] public string? MaterialCode { get; set; }
 
+    /// <summary>Debounce gợi ý. Production 300ms; test đặt 0 để chạy đồng bộ.</summary>
+    [Parameter] public int DebounceMs { get; set; } = 300;
+
     private string _code = "";
     private IqcSpecEditResponse? _view;
     private bool _includeInactive;
     private bool _busy;
     private string? _error;
+
+    private List<IqcMaterialSearchItem> _suggestions = new();
+    private bool _suggestOpen;
+    private bool _suggestTooShort;
+    private System.Threading.Timer? _debounce;
 
     // Form thêm mới.
     private bool _adding;
@@ -263,9 +311,72 @@
 
     private static string Dash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
 
+    private async Task OnSearchInputAsync(ChangeEventArgs e)
+    {
+        _code = e.Value?.ToString() ?? "";
+        _debounce?.Dispose();
+        if (DebounceMs <= 0) { await SuggestAsync(); return; }
+        _debounce = new System.Threading.Timer(
+            _ => InvokeAsync(SuggestAsync), null, DebounceMs, System.Threading.Timeout.Infinite);
+    }
+
     private async Task OnSearchKeyAsync(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter") await LoadAsync();
+        if (e.Key == "Escape")
+        {
+            CloseSuggest();
+            return;
+        }
+        if (e.Key != "Enter") return;
+        _debounce?.Dispose();
+        await LoadAndCloseSuggestAsync();
+    }
+
+    private void CloseSuggest()
+    {
+        _suggestOpen = false;
+        _suggestTooShort = false;
+        _suggestions = new();
+    }
+
+    private void ClearSearch()
+    {
+        _debounce?.Dispose();
+        _code = "";
+        CloseSuggest();
+    }
+
+    private async Task LoadAndCloseSuggestAsync()
+    {
+        CloseSuggest();
+        await LoadAsync();
+    }
+
+    private async Task PickAsync(string code)
+    {
+        _debounce?.Dispose();
+        _code = code;
+        CloseSuggest();
+        await LoadAsync();
+    }
+
+    private async Task SuggestAsync()
+    {
+        var term = _code;
+        try
+        {
+            var r = await Api.SearchIqcMaterialAsync(term, 1, 20);
+            _suggestTooShort = r.TooShort;
+            _suggestions = r.Items ?? new List<IqcMaterialSearchItem>();
+            _suggestOpen = !_suggestTooShort;
+        }
+        catch
+        {
+            _suggestTooShort = false;
+            _suggestOpen = false;
+            _suggestions = new();
+        }
+        StateHasChanged();
     }
 
     private async Task OnToggleInactiveAsync(ChangeEventArgs e)
@@ -422,5 +533,11 @@
     {
         _menuRow = null;
         _menuItems = Array.Empty<ContextMenuItem>();
+    }
+
+    public override void Dispose()
+    {
+        _debounce?.Dispose();
+        base.Dispose();
     }
 }

@@ -315,6 +315,27 @@ public sealed class IqcTicketTests : IClassFixture<MesApiFactory>
         Assert.Equal(HttpStatusCode.Forbidden, resp.StatusCode);
     }
 
+    [Fact]
+    public async Task SearchMaterial_matches_part_no_substring_not_only_description()
+    {
+        // Ô Standards gõ "336" phải ra mã 336T dù mô tả không chứa 336.
+        await SeedRawAsync("336T", "Acrylic tape clear");
+        await SeedRawAsync("PET-100", "PET film 50um");
+        await SeedRawAsync("BW-0112N-01", "unrelated liner");
+
+        var c = await ClientAsync("qc-search-partno", UserRole.Qc);
+        var byCode = (await (await c.GetAsync("/api/v2/iqc/search-material?desc=336"))
+            .Content.ReadFromJsonAsync<IqcMaterialSearchResponse>())!;
+        Assert.False(byCode.TooShort);
+        Assert.Contains(byCode.Items, x => x.CodeIfs == "336T");
+        Assert.DoesNotContain(byCode.Items, x => x.CodeIfs == "PET-100");
+
+        var byDesc = (await (await c.GetAsync("/api/v2/iqc/search-material?desc=PET"))
+            .Content.ReadFromJsonAsync<IqcMaterialSearchResponse>())!;
+        Assert.Contains(byDesc.Items, x => x.CodeIfs == "PET-100");
+        Assert.DoesNotContain(byDesc.Items, x => x.CodeIfs == "336T");
+    }
+
     // ── A2a multi-create — pick N codes → N tickets, distinct lots ─
 
     [Fact]

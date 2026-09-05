@@ -131,10 +131,9 @@ public sealed class IqcController : ControllerBase
         });
     }
 
-    /// <summary>Tra vật liệu theo MÔ TẢ (feat/iqc-search-by-desc). Mô tả là ô
-    /// tìm chính, kết quả là danh sách Code IFS distinct để chọn nhiều. Read-only
-    /// ⇒ QcRead đủ, không cần Idempotency-Key. <c>desc</c> dưới ngưỡng → server
-    /// trả <c>tooShort=true</c> + rỗng (không quét bảng).</summary>
+    /// <summary>Tra vật liệu theo mã PartNo hoặc mô tả (query <c>desc</c>).
+    /// Kết quả là danh sách Code IFS distinct. Read-only ⇒ QcRead đủ, không
+    /// cần Idempotency-Key. Dưới ngưỡng → <c>tooShort=true</c> + rỗng.</summary>
     [HttpGet("search-material")]
     public async Task<ActionResult<IqcMaterialSearchResponse>> SearchMaterial(
         [FromQuery] string? desc,
