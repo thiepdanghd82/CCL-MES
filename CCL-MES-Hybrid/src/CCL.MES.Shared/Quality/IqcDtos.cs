@@ -301,6 +301,9 @@ public sealed class SetIqcItemBody
 /// <summary>Một dòng tiêu chuẩn của mã nguyên liệu (màn soạn).</summary>
 public sealed class IqcSpecItemDto
 {
+    /// <summary>Bộ tiêu chuẩn chứa dòng này — cần khi màn hình gộp nhiều bộ.</summary>
+    public string SpecNo { get; set; } = "";
+
     public long Id { get; set; }
     public string ItemId { get; set; } = "";
     public int Seq { get; set; }
@@ -361,8 +364,59 @@ public sealed class IqcSpecEditResponse
     /// <summary>Spec do người dùng soạn trong app, không phải từ file master.</summary>
     public bool IsLocalSpec { get; set; }
 
+    /// <summary>TẤT CẢ bộ tiêu chuẩn của mã này (thường 1; live có 7 mã nhiều
+    /// hơn, một mã tới SÁU). Màn hình gộp chúng lại — resolver vốn đã gộp khi
+    /// dựng phiếu, nên giấu bớt trên màn hình chỉ khiến người soạn tiêu chuẩn
+    /// không thấy thứ mà người kiểm sẽ phải làm.</summary>
+    public List<IqcSpecHeaderDto> Specs { get; set; } = new();
+
     public List<IqcSpecItemDto> Items { get; set; } = new();
     public List<IqcLibraryOptionDto> Library { get; set; } = new();
+}
+
+/// <summary>Một BỘ tiêu chuẩn của mã nguyên liệu.</summary>
+public sealed class IqcSpecHeaderDto
+{
+    public string SpecNo { get; set; } = "";
+    public bool Active { get; set; }
+    public bool IsLocal { get; set; }
+
+    /// <summary>PendingQc · Approved · Rejected.</summary>
+    public string Approval { get; set; } = "";
+    public string? ImportSource { get; set; }
+    public string? SupplierName { get; set; }
+    public string? TestMethod { get; set; }
+
+    /// <summary>Bộ này nhập từ file ngoài và CHƯA ai duyệt.</summary>
+    public bool IsPendingQc => string.Equals(Approval, "PendingQc", StringComparison.Ordinal);
+}
+
+/// <summary>Body <c>POST /api/v2/iqc/specs/consolidate</c> — gộp mọi bộ tiêu
+/// chuẩn của một mã về MỘT bộ. Mã đi trong BODY, không phải URL.</summary>
+public sealed class ConsolidateIqcSpecBody
+{
+    public string? MaterialCode { get; set; }
+}
+
+/// <summary>Kết quả gộp.</summary>
+public sealed class IqcSpecConsolidateResponse
+{
+    /// <summary>Bộ được giữ lại.</summary>
+    public string? KeptSpecNo { get; set; }
+
+    /// <summary>Hạng mục chép sang bộ giữ lại vì nó còn thiếu. &gt;0 nghĩa là
+    /// nếu chỉ xoá mà không gộp thì đã mất đúng ngần ấy phép kiểm.</summary>
+    public int ItemsMerged { get; set; }
+
+    public int SpecsDeactivated { get; set; }
+    public List<string> DeactivatedSpecNos { get; set; } = new();
+}
+
+/// <summary>Body <c>PUT /api/v2/iqc/specs/active</c> — bật/tắt CẢ BỘ tiêu chuẩn.</summary>
+public sealed class SetIqcSpecActiveBody
+{
+    public string? SpecNo { get; set; }
+    public bool Active { get; set; }
 }
 
 /// <summary>Body <c>POST /api/v2/iqc/specs/items</c>. Mã nguyên liệu đi trong

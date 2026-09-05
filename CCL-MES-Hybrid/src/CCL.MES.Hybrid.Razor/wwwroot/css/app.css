@@ -9385,6 +9385,33 @@ tr.wc-row:hover { background: var(--c-bg); }
     font-size: var(--fs-xs);
 }
 
+/* P13 — một mã nguyên liệu có NHIỀU bộ tiêu chuẩn (live: 7 mã, một mã tới 6).
+   Liệt kê ngay trên bảng để người soạn thấy đúng thứ resolver sẽ gộp vào phiếu. */
+.iqc-spec-setlist {
+    list-style: none;
+    margin: var(--sp-2) 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+}
+
+.iqc-spec-set {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-sm);
+    background: var(--c-surface);
+    font-size: var(--fs-sm);
+}
+
+/* Bộ đã gỡ vẫn hiện — xoá mềm, và người dùng phải thấy để dùng lại được. */
+.iqc-spec-set-off { opacity: 0.6; }
+
+.iqc-spec-setbtn { padding: 0 var(--sp-2); min-height: var(--d-tap); }
+.iqc-spec-setcell { color: var(--c-muted); white-space: nowrap; }
 /* ═══════════════════════════════════════════════════════════════════════
    P13 bước 4b — ô đếm lỗi, ô đo, kết luận MÁY chấm và ô ghi đè (IQC).
 

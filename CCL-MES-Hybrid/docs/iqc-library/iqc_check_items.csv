@@ -1,22 +1,52 @@
-ItemId,GroupCode,GroupLabelVi,GroupLabelEn,ItemVi,ItemEn,InDefaultMatrix,DefaultAcceptanceVi,DefaultAcceptanceEn,DefaultMethodVi,DefaultMethodEn,Sort
-NL-01,NL,Nguyên liệu,Ingredient,Kiểm tra vật liệu / nhận dạng,Material identification,1,Theo mẫu chuẩn được lưu,According to the standard form stored,Kiểm tra mác SP & so sánh với SP mẫu,Check product label & compare with sample product,10
-NQ-01,NQ,Ngoại quan,External inspection,Tem nhãn,Labels / marking,1,"Kiểm tra thông tin trên tem, hạn sử dụng…","Check the information on the stamp, expiry date…",Nhìn bằng mắt,See with the eyes,20
-NQ-02,NQ,Ngoại quan,External inspection,Màu sắc,Colour,1,So với mẫu chuẩn,Compared with the standard sample,Nhìn bằng mắt & so sánh với mẫu chuẩn,Look with your eyes and compare with the standard sample,30
-NQ-03,NQ,Ngoại quan,External inspection,Bụi bẩn / dị vật,Dirt / foreign matter,1,Không có bụi bẩn,No dust,Nhìn bằng mắt,See with the eyes,40
-NQ-04,NQ,Ngoại quan,External inspection,Vết xước & vết nhăn,Scratches & wrinkles,1,Không có xước & nhăn,No scratches & wrinkles,Nhìn bằng mắt,See with the eyes,50
-NQ-05,NQ,Ngoại quan,External inspection,Lỗi ngoại quan khác,Other visual defects,1,So với mẫu chuẩn,Compared with the standard sample,Nhìn bằng mắt,See with the eyes,60
-NQ-06,NQ,Ngoại quan,External inspection,Đóng gói,Packaging,1,"Không rách, không biến dạng, không đổ pallet,Không bẩn, không ẩm ướt","No tear, no deformation, no pallet fall, No dirt, no moisture",Nhìn bằng mắt,See with the eyes,70
-KT-01,KT,Kích thước,Size,Kích thước tiêu chuẩn (tổng quát),Standard size,1,"Theo dữ liệu đầu vào (báo cáo xuất hàng, tem cuộn,…)","According to input data (shipment report, roll stamp, etc.)",So sánh data và thước đo,Compare data and metrics,80
-KT-02,KT,Kích thước,Size,Chiều dài,Length,0,"Theo dữ liệu đầu vào (báo cáo xuất hàng, tem cuộn,…)",,So sánh data và thước đo,,90
-KT-03,KT,Kích thước,Size,Chiều rộng,Width,0,"Theo dữ liệu đầu vào (báo cáo xuất hàng, tem cuộn,…)",,So sánh data và thước đo,,100
-KT-04,KT,Kích thước,Size,Độ dày,Thickness,0,Theo TDS,,TDS,,110
-MT-01,MT,Môi trường,Environment,RoHS nội bộ (XRF),Internal RoHS (XRF),1,"Cd,Cl,Hg, Pb, Sb, Cr, Br",,Phân tích thành phần nguyên liệu bằng máy X-ray và so sánh với tiêu chuẩn kiểm tra,Analyze raw material composition by X-ray machine and compare with testing standards,120
-MT-02,MT,Môi trường,Environment,Hồ sơ HSF / SGS của NCC,HSF / SGS documentation,1,Kiểm tra HSF,,Nguyên liệu mới báo SQE kiểm tra MSDS.,,130
-MT-03,MT,Môi trường,Environment,Chất cấm / chất độc hại,Restricted substances,0,"Cd, Hg, Pb, Sb, Cr, Cl, Br",,Phân tích thành phần nguyên liệu bằng máy X-ray và so sánh với tiêu chuẩn kiểm tra,,140
-BD-01,BD,Độ bám dính,Adhesion,Độ bám dính keo (Peel test),Adhesion / peel test,1,FTM:  XXX,,Máy kiểm tra độ bám dính,Adhesion tester,150
-BD-02,BD,Độ bám dính,Adhesion,Cross-cut test,Cross-cut test,0,Máy đo VL,VL measuring machine,"P2, P4 so sánh data và thước đo","P3 Dựa theo kết quả đo của Hải An P2, P4 compare data and measurements P3 Based on Hai An's measurement results",160
-CU-01,CU,Độ cứng bút chì,Pencil hardness,Độ cứng bút chì,Pencil hardness,1,"Loại Bút, Qủa nặng:  XXX","Pen Type, Weight",Không có vết xước,Nhìn bằng mắt & so sánh với mẫu trước và sau. No scratches Visually look & compare with before and after sample.,170
-XS-01,XS,Độ xuyên sáng,Light transmission,Độ xuyên sáng (VL),Light transmission (VL),1,Theo tiêu chuẩn TDS,According to TDS standard,Nhìn bằng mắt & so sánh dữ liệu trên máy với tiêu chuẩn.,Visually look and compare the data on the machine with the standard.,180
-TL-01,TL,Trọng lượng,Weight,Định lượng / trọng lượng,Weight / basis weight,0,1.10g±0.15g/cm² ~110g±15g/m²,,So sánh trọng lượng với tiêu chuẩn kiểm tra.,,190
-BO-01,BO,Độ bóng,Gloss,Độ bóng,Gloss,0,Độ bóng: 20~30,Gloss:  20~30,So sánh kết quả với mẫu trước và sau.,Compare the results with the before and after samples.,200
-KH-01,KH,Khác,Other,Hạng mục khác,Other items,0,"Cd, Hg, Pb, Sb, Cr, Cl, Br",,Tham khảo tài liệu của Nhà cung cấp.,"Nếu hết hạn thông tin lại  SQE kiểm tra,yêu cầu . Refer to Supplier documentation. If information expires, re-enter SQE to check requirements.",210
+ItemId,GroupCode,GroupLabelVi,GroupLabelEn,ItemVi,ItemEn,InDefaultMatrix,DefaultAcceptanceVi,DefaultAcceptanceEn,DefaultMethodVi,DefaultMethodEn,Sort,Category,Kind,MeasureCount
+NL-01,NL,Nguyên liệu,Ingredient,Kiểm tra vật liệu / nhận dạng,Material identification,1,Theo mẫu chuẩn được lưu,According to the standard form stored,Kiểm tra mác SP & so sánh với SP mẫu,Check product label & compare with sample product,10,Any,Verdict,0
+NQ-01,NQ,Ngoại quan,External inspection,Tem nhãn,Labels / marking,1,"Kiểm tra thông tin trên tem, hạn sử dụng…","Check the information on the stamp, expiry date…",Nhìn bằng mắt,See with the eyes,20,Any,Verdict,0
+NQ-02,NQ,Ngoại quan,External inspection,Màu sắc,Colour,1,So với mẫu chuẩn,Compared with the standard sample,Nhìn bằng mắt & so sánh với mẫu chuẩn,Look with your eyes and compare with the standard sample,30,Any,Verdict,0
+NQ-03,NQ,Ngoại quan,External inspection,Bụi bẩn / dị vật,Dirt / foreign matter,1,Không có bụi bẩn,No dust,Nhìn bằng mắt,See with the eyes,40,Any,Verdict,0
+NQ-04,NQ,Ngoại quan,External inspection,Vết xước & vết nhăn,Scratches & wrinkles,1,Không có xước & nhăn,No scratches & wrinkles,Nhìn bằng mắt,See with the eyes,50,Any,Verdict,0
+NQ-05,NQ,Ngoại quan,External inspection,Lỗi ngoại quan khác,Other visual defects,1,So với mẫu chuẩn,Compared with the standard sample,Nhìn bằng mắt,See with the eyes,60,Any,Verdict,0
+NQ-06,NQ,Ngoại quan,External inspection,Đóng gói,Packaging,1,"Không rách, không biến dạng, không đổ pallet,Không bẩn, không ẩm ướt","No tear, no deformation, no pallet fall, No dirt, no moisture",Nhìn bằng mắt,See with the eyes,70,Any,Verdict,0
+KT-01,KT,Kích thước,Size,Kích thước tiêu chuẩn (tổng quát),Standard size,1,"Theo dữ liệu đầu vào (báo cáo xuất hàng, tem cuộn,…)","According to input data (shipment report, roll stamp, etc.)",So sánh data và thước đo,Compare data and metrics,80,Any,Measure,5
+KT-02,KT,Kích thước,Size,Chiều dài,Length,0,"Theo dữ liệu đầu vào (báo cáo xuất hàng, tem cuộn,…)",,So sánh data và thước đo,,90,Any,Measure,5
+KT-03,KT,Kích thước,Size,Chiều rộng,Width,0,"Theo dữ liệu đầu vào (báo cáo xuất hàng, tem cuộn,…)",,So sánh data và thước đo,,100,Any,Measure,5
+KT-04,KT,Kích thước,Size,Độ dày,Thickness,0,Theo TDS,,TDS,,110,Any,Measure,5
+MT-01,MT,Môi trường,Environment,RoHS nội bộ (XRF),Internal RoHS (XRF),1,"Cd,Cl,Hg, Pb, Sb, Cr, Br",,Phân tích thành phần nguyên liệu bằng máy X-ray và so sánh với tiêu chuẩn kiểm tra,Analyze raw material composition by X-ray machine and compare with testing standards,120,Any,Document,0
+MT-02,MT,Môi trường,Environment,Hồ sơ HSF / SGS của NCC,HSF / SGS documentation,1,Kiểm tra HSF,,Nguyên liệu mới báo SQE kiểm tra MSDS.,,130,Any,Document,0
+MT-03,MT,Môi trường,Environment,Chất cấm / chất độc hại,Restricted substances,0,"Cd, Hg, Pb, Sb, Cr, Cl, Br",,Phân tích thành phần nguyên liệu bằng máy X-ray và so sánh với tiêu chuẩn kiểm tra,,140,Any,Document,0
+BD-01,BD,Độ bám dính,Adhesion,Độ bám dính keo (Peel test),Adhesion / peel test,1,FTM:  XXX,,Máy kiểm tra độ bám dính,Adhesion tester,150,Any,Measure,1
+BD-02,BD,Độ bám dính,Adhesion,Cross-cut test,Cross-cut test,0,Máy đo VL,VL measuring machine,"P2, P4 so sánh data và thước đo","P3 Dựa theo kết quả đo của Hải An P2, P4 compare data and measurements P3 Based on Hai An's measurement results",160,Any,Measure,1
+CU-01,CU,Độ cứng bút chì,Pencil hardness,Độ cứng bút chì,Pencil hardness,1,"Loại Bút, Qủa nặng:  XXX","Pen Type, Weight",Không có vết xước,Nhìn bằng mắt & so sánh với mẫu trước và sau. No scratches Visually look & compare with before and after sample.,170,Any,Measure,1
+XS-01,XS,Độ xuyên sáng,Light transmission,Độ xuyên sáng (VL),Light transmission (VL),1,Theo tiêu chuẩn TDS,According to TDS standard,Nhìn bằng mắt & so sánh dữ liệu trên máy với tiêu chuẩn.,Visually look and compare the data on the machine with the standard.,180,Any,Measure,1
+TL-01,TL,Trọng lượng,Weight,Định lượng / trọng lượng,Weight / basis weight,0,1.10g±0.15g/cm² ~110g±15g/m²,,So sánh trọng lượng với tiêu chuẩn kiểm tra.,,190,Any,Measure,1
+BO-01,BO,Độ bóng,Gloss,Độ bóng,Gloss,0,Độ bóng: 20~30,Gloss:  20~30,So sánh kết quả với mẫu trước và sau.,Compare the results with the before and after samples.,200,Any,Measure,1
+KH-01,KH,Khác,Other,Hạng mục khác,Other items,0,"Cd, Hg, Pb, Sb, Cr, Cl, Br",,Tham khảo tài liệu của Nhà cung cấp.,"Nếu hết hạn thông tin lại  SQE kiểm tra,yêu cầu . Refer to Supplier documentation. If information expires, re-enter SQE to check requirements.",210,Any,Verdict,0
+RD-01,NQ,Ngoại quan,External inspection,Nhăn / Hằn,Wrinkle / dent,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1010,Roll,DefectCount,0
+RD-02,NQ,Ngoại quan,External inspection,"Xô, lỏng",Shifted / loose,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1020,Roll,DefectCount,0
+RD-03,NQ,Ngoại quan,External inspection,Tràn keo,Adhesive bleed,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1030,Roll,DefectCount,0
+RD-04,NQ,Ngoại quan,External inspection,Loang,Blotch,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1040,Roll,DefectCount,0
+RD-05,NQ,Ngoại quan,External inspection,Xước,Scratch,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1050,Roll,DefectCount,0
+RD-06,NQ,Ngoại quan,External inspection,Biến dạng,Deformation,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1060,Roll,DefectCount,0
+RD-07,NQ,Ngoại quan,External inspection,Màu sắc,Colour,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1070,Roll,DefectCount,0
+RD-08,NQ,Ngoại quan,External inspection,Dị vật,Foreign matter,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1080,Roll,DefectCount,0
+RD-09,NQ,Ngoại quan,External inspection,Bẩn,Dirt,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1090,Roll,DefectCount,0
+RD-10,NQ,Ngoại quan,External inspection,Rỗ / Thủng,Pinhole / puncture,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1100,Roll,DefectCount,0
+RD-11,NQ,Ngoại quan,External inspection,Lệch,Misalignment,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1110,Roll,DefectCount,0
+RD-12,NQ,Ngoại quan,External inspection,Bavia,Burr,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1120,Roll,DefectCount,0
+RD-13,NQ,Ngoại quan,External inspection,Lỗi khác,Other defect,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1130,Roll,DefectCount,0
+PD-01,NQ,Ngoại quan,External inspection,Nhăn,Wrinkle,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1140,Pcs,DefectCount,0
+PD-02,NQ,Ngoại quan,External inspection,Hằn,Dent,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1150,Pcs,DefectCount,0
+PD-03,NQ,Ngoại quan,External inspection,Loang,Blotch,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1160,Pcs,DefectCount,0
+PD-04,NQ,Ngoại quan,External inspection,Xước,Scratch,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1170,Pcs,DefectCount,0
+PD-05,NQ,Ngoại quan,External inspection,Màu sắc,Colour,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1180,Pcs,DefectCount,0
+PD-06,NQ,Ngoại quan,External inspection,Dị vật,Foreign matter,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1190,Pcs,DefectCount,0
+PD-07,NQ,Ngoại quan,External inspection,Bẩn,Dirt,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1200,Pcs,DefectCount,0
+PD-08,NQ,Ngoại quan,External inspection,Biến dạng,Deformation,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1210,Pcs,DefectCount,0
+PD-09,NQ,Ngoại quan,External inspection,Bavia,Burr,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1220,Pcs,DefectCount,0
+TD-01,NQ,Ngoại quan,External inspection,"Bẩn, ẩm ướt","Dirt, damp",0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1230,Tool,DefectCount,0
+TD-02,NQ,Ngoại quan,External inspection,Biến dạng,Deformation,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1240,Tool,DefectCount,0
+TD-03,NQ,Ngoại quan,External inspection,Ẩm ướt,Damp,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1250,Tool,DefectCount,0
+TD-04,NQ,Ngoại quan,External inspection,"Rỉ sét, đổi màu",Rust / discolouration,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1260,Tool,DefectCount,0
+TD-05,NQ,Ngoại quan,External inspection,Bavia,Burr,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1270,Tool,DefectCount,0
+CD-01,NQ,Ngoại quan,External inspection,"Không rách, không biến dạng, không đổ palet","No tear, no deformation, no pallet collapse",0,Đạt toàn bộ,All pass,Nhìn bằng mắt,Visual check,1280,Chem,Verdict,0
+CD-02,NQ,Ngoại quan,External inspection,"Không bẩn, không ẩm ướt","No dirt, no damp",0,Đạt toàn bộ,All pass,Nhìn bằng mắt,Visual check,1290,Chem,Verdict,0
+CD-03,NQ,Ngoại quan,External inspection,"Nắp can không lỏng, không rỉ mực","Can lid not loose, no ink leak",0,Đạt toàn bộ,All pass,Nhìn bằng mắt,Visual check,1300,Chem,Verdict,0

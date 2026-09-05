@@ -1,0 +1,11 @@
+# Gộp bộ tiêu chuẩn trùng — chạy trên LIVE (20260904T092005Z)
+7 mã, mỗi mã còn ĐÚNG 1 bộ và là SpecNo lớn nhất:
+  DELL Bezel_KDB45_PROTECT_FILM--承托膜(PC)  giữ CCL-SPEC-QC560  (11 hạng mục)
+  Dupont AD25  giữ CCL-SPEC-QC485  (15 hạng mục)
+  HS-SW200  giữ CCL-SPEC-QC304  (18 hạng mục)
+  SFG-APB2M000102  giữ CCL-SPEC-QC557  (15 hạng mục)
+  TD-C-0522  giữ CCL-SPEC-QC486  (17 hạng mục)
+  TD-C-0532  giữ CCL-SPEC-QC487  (15 hạng mục)
+  Transparence Tape OPP50  giữ CCL-SPEC-QC490  (17 hạng mục)
+chép 20 hạng mục · tắt 7 bộ · KHÔNG mất hạng mục nào (truy vấn đối chiếu rỗng)
+boot lại: seeder NOOP, 0 mã còn nhiều bộ ⇒ không bị lật ngược

@@ -270,6 +270,36 @@ public sealed class CclApiClient : ICclApiClient
         if (!resp.IsSuccessStatusCode) await ThrowOnNonSuccess(resp, ct);
     }
 
+    public async Task<CCL.MES.Shared.Quality.IqcSpecConsolidateResponse>
+        ConsolidateIqcSpecAsync(string materialCode, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(
+            HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc/specs/consolidate")
+        {
+            Content = JsonContent.Create(
+                new CCL.MES.Shared.Quality.ConsolidateIqcSpecBody { MaterialCode = materialCode }),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcSpecConsolidateResponse>(resp, ct);
+    }
+
+    public async Task SetIqcSpecActiveAsync(
+        string specNo, bool active, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(
+            HttpMethod.Put, $"/{ApiVersion.Prefix}/iqc/specs/active")
+        {
+            Content = JsonContent.Create(
+                new CCL.MES.Shared.Quality.SetIqcSpecActiveBody
+                { SpecNo = specNo, Active = active }),
+        };
+        await SendGuardedAsync(msg, ct);
+    }
+
     // ── IQC hồ sơ HSF theo mã nguyên liệu (P12 bước 4) ─────────────
 
     public async Task<CCL.MES.Shared.Quality.IqcDocumentListResponse> GetIqcDocumentsAsync(

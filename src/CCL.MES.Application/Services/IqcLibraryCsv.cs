@@ -18,7 +18,11 @@ public static class IqcLibraryCsv
         string ItemId, string GroupCode, string GroupLabelVi, string? GroupLabelEn,
         string ItemVi, string? ItemEn, bool InDefaultMatrix,
         string? DefaultAcceptanceVi, string? DefaultAcceptanceEn,
-        string? DefaultMethodVi, string? DefaultMethodEn, int Sort);
+        string? DefaultMethodVi, string? DefaultMethodEn, int Sort,
+        // ── P13: ba cột THÊM ở cuối, cột 13–15 ────────────────────────────
+        // Đặt ở CUỐI và có mặc định là cố ý: Rows() đệm rỗng cột thiếu, nên
+        // file CSV cũ 12 cột vẫn đọc được không sửa gì.
+        string Category = "Any", string Kind = "Verdict", int MeasureCount = 0);
 
     public sealed record SpecRow(
         string SpecNo, string MaterialCode, string? MaterialCodeIfs,
@@ -32,15 +36,27 @@ public static class IqcLibraryCsv
 
     // ── 21 hạng mục: ItemId · GroupCode · GroupLabelVi/En · ItemVi/En
     //    · InDefaultMatrix · DefaultAcceptanceVi/En · DefaultMethodVi/En · Sort
+    /// <summary>Cột thứ <paramref name="i"/> đã trim, rơi về
+    /// <paramref name="fallback"/> khi thiếu hoặc rỗng — file CSV cũ không có
+    /// ba cột P13 nên phải chịu được việc thiếu.</summary>
+    private static string Blank(string[] f, int i, string fallback)
+    {
+        var v = i < f.Length ? f[i].Trim() : "";
+        return v.Length == 0 ? fallback : v;
+    }
+
+    private static string Get(string[] f, int i) => i < f.Length ? f[i] : "";
+
     public static IReadOnlyList<ItemRow> ParseItems(string csv) =>
-        Rows(csv, 12)
+        Rows(csv, 12)   // vẫn 12: ba cột P13 là TÙY CHỌN
             .Where(f => !string.IsNullOrWhiteSpace(f[0]))
             .Select((f, i) => new ItemRow(
                 f[0].Trim(), f[1].Trim(), f[2].Trim(), Null(f[3]),
                 f[4].Trim(), Null(f[5]),
                 f[6].Trim() == "1",
                 Null(f[7]), Null(f[8]), Null(f[9]), Null(f[10]),
-                Int(f[11], (i + 1) * 10)))
+                Int(f[11], (i + 1) * 10),
+                Blank(f, 12, "Any"), Blank(f, 13, "Verdict"), Int(Get(f, 14), 0)))
             .ToList();
 
     // ── 459 spec: SpecNo · MaterialCode · MaterialCodeIfs · SupplierName · Revision
