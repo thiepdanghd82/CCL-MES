@@ -127,6 +127,44 @@ public sealed partial class TranslationCatalog
         Add("iqc.step.functional.desc",    "Kích thước, bám dính, độ cứng và các phép đo lý hoá.",
                                            "Dimensions, adhesion, hardness and physical/chemical measurements.");
 
+        // ── P13 bước 4b — ô đếm lỗi, ô đo, và kết luận MÁY chấm ────────
+        Add("iqc.items.col.record",        "Ghi nhận",                            "Record");
+        Add("iqc.items.defect.ph",         "số lỗi",                              "defects");
+        Add("iqc.items.defect.hint",       "Không chấp nhận lỗi: chỉ 0 mới đạt.",  "Zero-defect: only 0 passes.");
+        Add("iqc.items.measure.n",         "Đo {0} lần",                          "{0} measurements");
+        Add("iqc.items.measure.ph",        "lần {0}",                             "#{0}");
+        Add("iqc.items.limit",             "Ngưỡng {0}",                          "Limit {0}");
+        Add("iqc.items.limit.face",        "lớp {0}",                             "{0} side");
+        Add("iqc.items.tear",              "Rách vật liệu",                       "Material tore");
+        Add("iqc.items.tear.why",          "Vật liệu rách trước khi bong keo ⇒ lực bám đã lớn hơn độ bền của chính vật liệu, nên tính ĐẠT.",
+                                           "The material tore before the adhesive released ⇒ the bond exceeded the material's own strength, so it passes.");
+        Add("iqc.items.save",              "Lưu",                                 "Save");
+
+        // Kết luận máy chấm — hiện nguyên nhân, không chỉ hiện đạt/trượt.
+        Add("iqc.items.auto",              "Máy chấm",                            "Auto");
+        Add("iqc.judge.zero_defect",       "Không có lỗi nào",                    "No defects found");
+        Add("iqc.judge.defect_found",      "Có lỗi — không chấp nhận lỗi nào",     "Defect found — zero-defect rule");
+        Add("iqc.judge.defect_incomplete", "Chưa đếm",                            "Not counted yet");
+        Add("iqc.judge.defect_negative",   "Số lỗi không thể âm",                 "Defect count cannot be negative");
+        Add("iqc.judge.no_defect_columns", "Không có ô đếm lỗi",                  "No defect column");
+        Add("iqc.judge.all_in_range",      "Mọi phép đo trong ngưỡng",            "All measurements in range");
+        Add("iqc.judge.below_low",         "Phép đo {0} dưới cận dưới",           "Measurement {0} is below the lower limit");
+        Add("iqc.judge.above_up",          "Phép đo {0} trên cận trên",           "Measurement {0} is above the upper limit");
+        Add("iqc.judge.measurement_missing", "Chưa đo lần {0}",                   "Measurement {0} not taken");
+        Add("iqc.judge.no_measurements",   "Chưa có phép đo nào",                 "No measurements yet");
+        Add("iqc.judge.no_numeric_limit",  "Tiêu chuẩn không có ngưỡng số — người kiểm chấm",
+                                           "The standard has no numeric limit — the inspector decides");
+        Add("iqc.judge.limit_has_no_bound", "Ngưỡng không có cận nào",            "The limit has no bound");
+        Add("iqc.judge.tear_accepted",     "Rách vật liệu — tính đạt",            "Material tore — accepted");
+        Add("iqc.judge.human_only",        "Người kiểm chấm",                     "Inspector decides");
+
+        // Ghi đè kết luận máy.
+        Add("iqc.items.override.need",     "Phán định của bạn khác máy chấm. Ghi lý do thì mới lưu được.",
+                                           "Your verdict differs from the automatic judgement. Enter a reason to save it.");
+        Add("iqc.items.override.ph",       "Vì sao khác máy chấm?",               "Why does it differ?");
+        Add("iqc.items.override.by",       "{0} đã đổi khác máy chấm: {1}",        "{0} overrode the automatic judgement: {1}");
+        Add("iqc.items.override.cancel",   "Bỏ",                                  "Discard");
+
         // ── P12 bước 2b — soạn tiêu chuẩn theo mã nguyên liệu ───────────
         Add("iqc.tab.spec",                "Tiêu chuẩn",                          "Standards");
         Add("iqc.spec.title",              "Tiêu chuẩn kiểm theo mã nguyên liệu",  "Inspection standards by material code");
