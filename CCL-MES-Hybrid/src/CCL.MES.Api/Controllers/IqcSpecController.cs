@@ -192,5 +192,10 @@ public sealed class IqcSpecController : ControllerBase
             DefaultMethodVi = x.DefaultMethodVi,
             DefaultMethodEn = x.DefaultMethodEn,
         }).ToList(),
+        AppliesTo = v.AppliesTo.Select(x => new IqcSpecAppliesToDto
+        {
+            PartNo = x.PartNo, PartDescription = x.PartDescription, WidthMm = x.WidthMm,
+        }).ToList(),
+        AppliesToTotal = v.AppliesToTotal,
     };
 }

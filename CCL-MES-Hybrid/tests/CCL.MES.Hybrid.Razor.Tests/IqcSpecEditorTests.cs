@@ -389,6 +389,58 @@ public sealed class IqcSpecEditorTests : TestContext
         });
     }
 
+    // ── phạm vi: mã mẹ này áp cho những PartNo nào ───────────────────────
+
+    [Fact]
+    public void Man_hinh_noi_ro_ma_me_va_cac_PartNo_bi_ap()
+    {
+        // Sửa một dòng tiêu chuẩn ở đây là sửa cho CẢ họ vật liệu. Người soạn
+        // phải đọc được phạm vi trước khi bấm, không phải đoán từ mã.
+        Serve(new IqcSpecEditResponse
+        {
+            MaterialCode = "336-H1a",
+            QueriedCode = "30030146",
+            ResolvedViaMother = true,
+            SpecNo = "CCL-SPEC-QC229", SpecActive = true,
+            Items = [Row(11, "NQ-01", "Tem nhãn")],
+            Library = [Opt("NQ-01", "Tem nhãn")],
+            AppliesTo =
+            [
+                new IqcSpecAppliesToDto { PartNo = "30030146", WidthMm = 46 },
+                new IqcSpecAppliesToDto { PartNo = "30030176", WidthMm = 76 },
+            ],
+            AppliesToTotal = 5,
+        });
+        var cut = Render("30030146");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("336-H1a",
+                cut.Find("[data-testid='iqc-spec-family-mother']").TextContent.Trim());
+            Assert.Contains("5", cut.Find("[data-testid='iqc-spec-family-count']").TextContent);
+            // Mã vừa tra được đánh dấu để người soạn biết mình đứng ở đâu.
+            Assert.Contains("iqc-spec-family-cur",
+                cut.Find("[data-testid='iqc-spec-family-part-30030146']").GetAttribute("class"));
+            Assert.DoesNotContain("iqc-spec-family-cur",
+                cut.Find("[data-testid='iqc-spec-family-part-30030176']").GetAttribute("class"));
+            // Cắt danh sách thì phải nói còn bao nhiêu, không im lặng giấu.
+            Assert.Contains("3", cut.Find("[data-testid='iqc-spec-family-more']").TextContent);
+        });
+    }
+
+    [Fact]
+    public void Ma_khong_co_PartNo_con_thi_khong_ve_khoi_pham_vi()
+    {
+        Serve(WithSpec());
+        var cut = Render();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("iqc-spec-table", cut.Markup);
+            Assert.DoesNotContain("iqc-spec-family", cut.Markup);
+        });
+    }
+
     // ── i18n ─────────────────────────────────────────────────────────────
 
     [Fact]

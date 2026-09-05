@@ -9454,6 +9454,68 @@ tr.wc-row:hover { background: var(--c-bg); }
 
 .iqc-spec-setbtn { padding: 0 var(--sp-2); min-height: var(--d-tap); }
 .iqc-spec-setcell { color: var(--c-muted); white-space: nowrap; }
+
+/* P13 — HỌ vật liệu: một mã mẹ phủ nhiều PartNo (nhiều khổ). Sửa tiêu chuẩn ở
+   đây là sửa cho cả họ, nên phạm vi phải nằm ngay trên bảng chứ không giấu. */
+.iqc-spec-family {
+    margin: var(--sp-3) 0;
+    padding: var(--sp-3);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-md);
+    background: var(--c-surface);
+}
+
+.iqc-spec-family-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--sp-2);
+    margin: 0 0 var(--sp-2);
+}
+
+.iqc-spec-family-label {
+    color: var(--c-muted);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.iqc-spec-family-code {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+}
+
+.iqc-spec-family-count { color: var(--c-muted); font-size: var(--fs-sm); }
+
+.iqc-spec-family-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+}
+
+.iqc-spec-family-item {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-1);
+    padding: var(--sp-1) var(--sp-2);
+    border: 1px solid var(--c-line);
+    border-radius: var(--r-sm);
+    background: var(--c-bg);
+    font-size: var(--fs-sm);
+}
+
+/* Mã người dùng vừa tra — để họ định vị mình trong họ. */
+.iqc-spec-family-cur {
+    border-color: var(--brand-soft);
+    background: var(--brand-bg);
+    color: var(--brand-ink);
+    font-weight: var(--fw-semibold);
+}
+
+.iqc-spec-family-w { color: var(--c-muted); font-size: var(--fs-xs); }
 /* ═══════════════════════════════════════════════════════════════════════
    P13 bước 4b — ô đếm lỗi, ô đo, kết luận MÁY chấm và ô ghi đè (IQC).
 

@@ -379,6 +379,22 @@ public sealed class IqcSpecEditResponse
 
     public List<IqcSpecItemDto> Items { get; set; } = new();
     public List<IqcLibraryOptionDto> Library { get; set; } = new();
+
+    /// <summary>PartNo con mà tiêu chuẩn của mã mẹ này áp lên (cắt ở 60 dòng).</summary>
+    public List<IqcSpecAppliesToDto> AppliesTo { get; set; } = new();
+
+    /// <summary>Tổng số PartNo con, kể cả phần không nằm trong <see cref="AppliesTo"/>.</summary>
+    public int AppliesToTotal { get; set; }
+}
+
+/// <summary>Một PartNo con của mã mẹ đang xem tiêu chuẩn.</summary>
+public sealed class IqcSpecAppliesToDto
+{
+    public string PartNo { get; set; } = "";
+    public string? PartDescription { get; set; }
+
+    /// <summary>Khổ (mm) — thứ phân biệt các con của cùng một mã mẹ.</summary>
+    public double? WidthMm { get; set; }
 }
 
 /// <summary>Một BỘ tiêu chuẩn của mã nguyên liệu.</summary>

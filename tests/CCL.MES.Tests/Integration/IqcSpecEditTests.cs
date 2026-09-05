@@ -473,6 +473,45 @@ public sealed class IqcSpecEditTests : IDisposable
     }
 
     [Fact]
+    public async Task Man_hinh_spec_liet_ke_cac_PartNo_cua_ma_me()
+    {
+        await using var db = _fx.NewContext();
+        await SeedLibraryAsync(db);
+        await SeedMasterSpecAsync(db);
+        db.RawMaterials.AddRange(
+            new RawMaterial { PartNo = "30030176", MotherCode = "336-H1a", WidthMm = 76 },
+            new RawMaterial { PartNo = "30030146", MotherCode = "336-H1a", WidthMm = 46 },
+            // Cùng PartNo vào từ hai dòng BOM — không được đếm hai lần.
+            new RawMaterial { PartNo = "30030146", MotherCode = "336-H1a", WidthMm = 46 },
+            new RawMaterial { PartNo = "30039999", MotherCode = "ME-KHAC" });
+        await db.SaveChangesAsync();
+
+        // Tra bằng con: thấy cả họ, và biết mình đang đứng ở đâu trong họ.
+        var viaChild = await Svc(db).GetByMaterialCodeAsync("30030146");
+        Assert.Equal(2, viaChild.AppliesToTotal);
+        Assert.Equal(new[] { "30030146", "30030176" }, viaChild.AppliesTo.Select(x => x.PartNo));
+        Assert.Equal(46, viaChild.AppliesTo[0].WidthMm);
+
+        // Tra thẳng mã mẹ: vẫn phải thấy phạm vi, dù không qua resolve.
+        var viaMother = await Svc(db).GetByMaterialCodeAsync("336-H1a");
+        Assert.Equal(2, viaMother.AppliesToTotal);
+    }
+
+    [Fact]
+    public async Task Ma_chua_co_spec_van_liet_ke_PartNo_con()
+    {
+        await using var db = _fx.NewContext();
+        await SeedLibraryAsync(db);
+        await SeedChildAsync(db, "30030777", "ME-CHUA-SPEC");
+
+        var v = await Svc(db).GetByMaterialCodeAsync("ME-CHUA-SPEC");
+
+        Assert.Null(v.SpecNo);
+        Assert.Equal(1, v.AppliesToTotal);
+        Assert.Equal("30030777", v.AppliesTo.Single().PartNo);
+    }
+
+    [Fact]
     public async Task PartNo_khong_ro_me_thi_giu_nguyen_chuoi()
     {
         await using var db = _fx.NewContext();

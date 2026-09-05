@@ -97,6 +97,46 @@
                     _view.MaterialCode)
             </p>
         }
+        @* ── HỌ VẬT LIỆU: mã mẹ này phủ những PartNo nào ───────────────────
+           Sửa một dòng ở đây là sửa luật kiểm cho CẢ họ. Người soạn phải nhìn
+           thấy phạm vi trước khi bấm, không phải đoán từ mã. *@
+        @if (_view.AppliesToTotal > 0)
+        {
+            <div class="iqc-spec-family" data-testid="iqc-spec-family">
+                <p class="iqc-spec-family-head">
+                    <span class="iqc-spec-family-label">@T("iqc.spec.mother")</span>
+                    <span class="scan-mono iqc-spec-family-code"
+                          data-testid="iqc-spec-family-mother">@_view.MaterialCode</span>
+                    <span class="iqc-spec-family-count" data-testid="iqc-spec-family-count">
+                        @T("iqc.spec.appliesto", _view.AppliesToTotal)
+                    </span>
+                </p>
+                <ul class="iqc-spec-family-list">
+                    @foreach (var kid in _view.AppliesTo)
+                    {
+                        var isCurrent = !string.IsNullOrWhiteSpace(_view.QueriedCode)
+                            && string.Equals(kid.PartNo, _view.QueriedCode, StringComparison.OrdinalIgnoreCase);
+                        <li class="@(isCurrent ? "iqc-spec-family-item iqc-spec-family-cur" : "iqc-spec-family-item")"
+                            data-testid="@($"iqc-spec-family-part-{kid.PartNo}")"
+                            title="@kid.PartDescription">
+                            <span class="scan-mono">@kid.PartNo</span>
+                            @if (kid.WidthMm is > 0)
+                            {
+                                <span class="iqc-spec-family-w">@kid.WidthMm mm</span>
+                            }
+                        </li>
+                    }
+                </ul>
+                @if (_view.AppliesToTotal > _view.AppliesTo.Count)
+                {
+                    <p class="iqc-hint" data-testid="iqc-spec-family-more">
+                        @T("iqc.spec.appliesto.more", _view.AppliesToTotal - _view.AppliesTo.Count)
+                    </p>
+                }
+                <p class="iqc-hint">@T("iqc.spec.appliesto.why")</p>
+            </div>
+        }
+
         @if (_view.SpecNo is null)
         {
             @* 1 trong 590 mã — nói rõ nó đang kiểm theo cái gì. *@

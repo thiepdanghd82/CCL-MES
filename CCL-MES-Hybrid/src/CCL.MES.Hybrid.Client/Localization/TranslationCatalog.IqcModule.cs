@@ -185,6 +185,14 @@ public sealed partial class TranslationCatalog
                                            "PartNo {0} is showing the standard for mother code {1}.");
         Add("iqc.spec.ambiguous_mother",   "PartNo này gắn với hơn một mã mẹ — không chọn hộ. Tra đúng mã mẹ hoặc sửa catalog.",
                                            "This PartNo maps to more than one mother code — look up the mother directly or fix the catalog.");
+        // Sửa tiêu chuẩn của mã mẹ = sửa cho CẢ HỌ. Nói rõ họ gồm những mã nào.
+        Add("iqc.spec.mother",             "Mã mẹ",                               "Mother code");
+        Add("iqc.spec.appliesto",          "Áp dụng cho {0} PartNo",              "Applies to {0} PartNo(s)");
+        Add("iqc.spec.appliesto.why",      "Mọi thay đổi ở đây áp cho tất cả PartNo dưới mã mẹ này.",
+                                           "Every change here applies to all PartNos under this mother code.");
+        Add("iqc.spec.appliesto.more",     "… và {0} mã nữa",                     "… and {0} more");
+        Add("iqc.spec.appliesto.none",     "Mã này chưa có PartNo con trong catalog.",
+                                           "This code has no child PartNo in the catalog.");
         Add("iqc.spec.specno",             "Tiêu chuẩn {0}",                      "Standard {0}");
         Add("iqc.spec.frommaster",         "từ file master",                      "from master file");
 

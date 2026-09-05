@@ -89,6 +89,13 @@ public sealed class IqcSpecEditService
             return view;
         }
         view.MaterialCode = lookup.CanonicalCode;
+
+        // MỘT mã mẹ phủ NHIỀU PartNo (một họ vật liệu, nhiều khổ). Người soạn
+        // phải thấy mình đang sửa tiêu chuẩn cho những mã nào — sửa mà tưởng
+        // chỉ ảnh hưởng một khổ là cách chắc chắn để đổi luật kiểm của cả họ
+        // mà không biết. Liệt kê KỂ CẢ khi mã chưa có spec.
+        await FillAppliesToAsync(view, ct);
+
         var allSpecs = lookup.Specs;
         if (allSpecs.Count == 0) return view;   // mã (sau resolve) chưa có tiêu chuẩn riêng
 
@@ -534,6 +541,38 @@ public sealed class IqcSpecEditService
         return new SpecLookup(code, false, exact, null, null);
     }
 
+    /// <summary>Số PartNo liệt kê thẳng trên màn hình. Họ vật liệu lớn nhất
+    /// trên live có vài chục khổ; đổ hết vài trăm dòng chỉ đẩy bảng tiêu chuẩn
+    /// xuống dưới màn hình, nên cắt và báo phần còn lại bằng con số.</summary>
+    private const int AppliesToListCap = 60;
+
+    /// <summary>Các PartNo mà tiêu chuẩn của mã mẹ này sẽ áp lên.</summary>
+    private async Task FillAppliesToAsync(IqcSpecEditView view, CancellationToken ct)
+    {
+        var upper = view.MaterialCode.ToUpperInvariant();
+        var rows = await _db.RawMaterials.AsNoTracking()
+            .Where(x => x.MotherCode != null && x.MotherCode.ToUpper() == upper)
+            .Select(x => new { x.PartNo, x.PartDescription, x.WidthMm })
+            .ToListAsync(ct);
+
+        // PartNo KHÔNG duy nhất trên catalog (một mã có thể vào từ nhiều dòng
+        // BOM). Gộp trước khi đếm, nếu không con số "áp cho N mã" sẽ thổi phồng.
+        var distinct = rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.PartNo))
+            .GroupBy(x => x.PartNo.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderBy(x => x.PartNo, StringComparer.Ordinal)
+            .ToList();
+
+        view.AppliesToTotal = distinct.Count;
+        view.AppliesTo = distinct.Take(AppliesToListCap).Select(x => new IqcSpecAppliesToRow
+        {
+            PartNo = x.PartNo.Trim(),
+            PartDescription = Norm(x.PartDescription),
+            WidthMm = x.WidthMm,
+        }).ToList();
+    }
+
     /// <summary>MỌI spec của một mã, sắp xếp tất định: bản còn bật trước, rồi
     /// theo SpecNo. Thứ tự phải ổn định — màn hình đổi thứ tự mỗi lần tải là
     /// cách chắc chắn để người dùng bấm nhầm dòng.</summary>
@@ -647,6 +686,22 @@ public sealed class IqcSpecEditView
 
     /// <summary>21 hạng mục thư viện để chọn khi thêm dòng.</summary>
     public List<IqcLibraryOptionRow> Library { get; set; } = new();
+
+    /// <summary>PartNo con mà tiêu chuẩn này áp lên (cắt ở 60 dòng đầu).</summary>
+    public List<IqcSpecAppliesToRow> AppliesTo { get; set; } = new();
+
+    /// <summary>Tổng số PartNo con, kể cả phần không liệt kê.</summary>
+    public int AppliesToTotal { get; set; }
+}
+
+/// <summary>Một PartNo con của mã mẹ (Application-layer).</summary>
+public sealed class IqcSpecAppliesToRow
+{
+    public string PartNo { get; init; } = "";
+    public string? PartDescription { get; init; }
+
+    /// <summary>Khổ (mm) — thứ phân biệt các con của cùng một mã mẹ.</summary>
+    public double? WidthMm { get; init; }
 }
 
 /// <summary>Một dòng tiêu chuẩn của mã nguyên liệu.</summary>
