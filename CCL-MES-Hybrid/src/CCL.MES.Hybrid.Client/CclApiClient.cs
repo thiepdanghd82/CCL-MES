@@ -184,6 +184,49 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<CCL.MES.Shared.Quality.IqcDashboardResponse>(resp, ct);
     }
 
+    // ── IQC NG / claim (P13 bước 6) ────────────────────────────────
+
+    public async Task<CCL.MES.Shared.Quality.IqcNgListResponse> ListIqcNgAsync(
+        string? status, string? partNo, int take = 200, CancellationToken ct = default)
+    {
+        var qs = new List<string> { $"take={take}" };
+        if (!string.IsNullOrWhiteSpace(status)) qs.Add($"status={Uri.EscapeDataString(status)}");
+        if (!string.IsNullOrWhiteSpace(partNo)) qs.Add($"partNo={Uri.EscapeDataString(partNo)}");
+        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/iqc/ng?" + string.Join("&", qs), ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcNgListResponse>(resp, ct);
+    }
+
+    public Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> CreateIqcNgAsync(
+        CCL.MES.Shared.Quality.CreateIqcNgBody body, CancellationToken ct = default) =>
+        SendIqcNgAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc/ng", body, ct);
+
+    public Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> ClaimIqcNgAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgClaimBody body, CancellationToken ct = default) =>
+        SendIqcNgAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc/ng/{id}/claim", body, ct);
+
+    public Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> SupplierConfirmIqcNgAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgSupplierConfirmBody body, CancellationToken ct = default) =>
+        SendIqcNgAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc/ng/{id}/supplier-confirm", body, ct);
+
+    public Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> SettleIqcNgAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgSettleBody body, CancellationToken ct = default) =>
+        SendIqcNgAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc/ng/{id}/settle", body, ct);
+
+    public Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> CloseIqcNgNoClaimAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgCloseBody body, CancellationToken ct = default) =>
+        SendIqcNgAsync(HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc/ng/{id}/close-no-claim", body, ct);
+
+    private async Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> SendIqcNgAsync(
+        HttpMethod method, string url, object body, CancellationToken ct)
+    {
+        using var msg = new HttpRequestMessage(method, url) { Content = JsonContent.Create(body) };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcNgMutationResponse>(resp, ct);
+    }
+
     // ── IQC hạng mục kiểm (P12 bước 3) ─────────────────────────────
 
     public async Task<CCL.MES.Shared.Quality.IqcTicketItemsResponse> GetIqcTicketItemsAsync(

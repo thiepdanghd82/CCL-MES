@@ -63,10 +63,26 @@ public sealed class IqcModuleTests : TestContext
         Assert.NotNull(cut.Find("[data-testid=iqc-subtab-dashboard]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-subtab-data]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-subtab-newticket]"));
+        Assert.NotNull(cut.Find("[data-testid=iqc-subtab-spec]"));
+        Assert.NotNull(cut.Find("[data-testid=iqc-subtab-ng]"));
         // Dashboard is the default active tab.
         Assert.NotNull(cut.Find("[data-testid=iqc-dash]"));
         Assert.Empty(cut.FindAll("[data-testid=iqc-data]"));
         Assert.Empty(cut.FindAll("[data-testid=iqc-newticket]"));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-ng]"));
+    }
+
+    [Fact]
+    public void Ng_tab_renders_board_not_newticket()
+    {
+        Wire();
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+
+        cut.Find("[data-testid=iqc-subtab-ng]").Click();
+
+        Assert.NotNull(cut.Find("[data-testid=iqc-ng]"));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-newticket]"));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-dash]"));
     }
 
     [Fact]

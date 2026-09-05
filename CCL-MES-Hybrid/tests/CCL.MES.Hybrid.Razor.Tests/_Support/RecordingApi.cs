@@ -1040,6 +1040,46 @@ public sealed class RecordingApi : ICclApiClient
             ? IqcDashboardImpl()
             : Task.FromResult(new CCL.MES.Shared.Quality.IqcDashboardResponse());
     }
+
+    public Func<string?, string?, int, Task<CCL.MES.Shared.Quality.IqcNgListResponse>>? ListIqcNgImpl { get; set; }
+    public Func<CCL.MES.Shared.Quality.CreateIqcNgBody, Task<CCL.MES.Shared.Quality.IqcNgMutationResponse>>? CreateIqcNgImpl { get; set; }
+    public List<(string? Status, string? PartNo, int Take)> ListIqcNgCalls { get; } = new();
+    public List<CCL.MES.Shared.Quality.CreateIqcNgBody> CreateIqcNgCalls { get; } = new();
+
+    public Task<CCL.MES.Shared.Quality.IqcNgListResponse> ListIqcNgAsync(
+        string? status, string? partNo, int take = 200, CancellationToken ct = default)
+    {
+        ListIqcNgCalls.Add((status, partNo, take));
+        return ListIqcNgImpl is not null
+            ? ListIqcNgImpl(status, partNo, take)
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcNgListResponse());
+    }
+
+    public Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> CreateIqcNgAsync(
+        CCL.MES.Shared.Quality.CreateIqcNgBody body, CancellationToken ct = default)
+    {
+        CreateIqcNgCalls.Add(body);
+        return CreateIqcNgImpl is not null
+            ? CreateIqcNgImpl(body)
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcNgMutationResponse { Id = 1, Status = "Open" });
+    }
+
+    public Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> ClaimIqcNgAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgClaimBody body, CancellationToken ct = default) =>
+        Task.FromResult(new CCL.MES.Shared.Quality.IqcNgMutationResponse { Id = id, Status = "Claimed" });
+
+    public Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> SupplierConfirmIqcNgAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgSupplierConfirmBody body, CancellationToken ct = default) =>
+        Task.FromResult(new CCL.MES.Shared.Quality.IqcNgMutationResponse { Id = id, Status = "SupplierConfirmed" });
+
+    public Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> SettleIqcNgAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgSettleBody body, CancellationToken ct = default) =>
+        Task.FromResult(new CCL.MES.Shared.Quality.IqcNgMutationResponse { Id = id, Status = "Settled" });
+
+    public Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> CloseIqcNgNoClaimAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgCloseBody body, CancellationToken ct = default) =>
+        Task.FromResult(new CCL.MES.Shared.Quality.IqcNgMutationResponse { Id = id, Status = "ClosedNoClaim" });
+
     public NpiPagedRaw<NpiWorkCenter>? WorkCenters { get; set; }
     public Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? s, int p, int z, CancellationToken c = default)
         => Task.FromResult(WorkCenters ?? new NpiPagedRaw<NpiWorkCenter> { Items = System.Array.Empty<NpiWorkCenter>(), Total = 0, Page = 1, PageSize = 20 });

@@ -228,5 +228,66 @@ public sealed partial class TranslationCatalog
         Add("iqc.insp.savecheck",          "Lưu & bắt đầu kiểm",                   "Save & start inspecting");
         Add("iqc.insp.complete.moved",     "Hạng mục kiểm được dựng khi lưu phiếu. Lưu xong, mở lại phiếu để chấm rồi mới chốt được.",
                                            "Check items are built when the ticket is saved. Save first, reopen the ticket to record results, then complete it.");
+
+        // ── P13 bước 6 — khối NG / claim NCC ────────────────────────────
+        Add("iqc.tab.ng",                  "NG / claim",                          "NG / claim");
+        Add("iqc.ng.title",                "Nguyên liệu NG & claim NCC",          "NG material & supplier claim");
+        Add("iqc.ng.desc",                 "Ghi vụ hỏng ngay khi phát hiện — không bắt buộc có phiếu IQC. 38% vụ tìm thấy ở sản xuất.",
+                                           "Record a defect as soon as it is found — no IQC ticket required. 38% of cases are found in production.");
+        Add("iqc.ng.new",                  "＋ Ghi NG",                            "＋ Record NG");
+        Add("iqc.ng.search.ph",            "Tìm PartNo…",                         "Search PartNo…");
+        Add("iqc.ng.empty",                "Chưa có vụ NG nào khớp bộ lọc.",       "No NG records match the filter.");
+        Add("iqc.ng.create.hint",          "Mặc định giai đoạn Unknown — đừng bịa là IQC nếu phát hiện ở máy.",
+                                           "Default stage is Unknown — do not mark IQC unless the find was at incoming inspection.");
+        Add("iqc.ng.cancel",               "Huỷ",                                 "Cancel");
+        Add("iqc.ng.save",                 "Lưu",                                 "Save");
+        Add("iqc.ng.savefail",             "Không lưu được. Kiểm tra dữ liệu rồi thử lại.",
+                                           "Could not save. Check the data and try again.");
+        Add("iqc.ng.col.when",             "Ngày phát hiện",                      "Detected");
+        Add("iqc.ng.col.stage",            "Giai đoạn",                           "Stage");
+        Add("iqc.ng.col.part",             "PartNo",                              "PartNo");
+        Add("iqc.ng.col.lot",              "Lô NCC",                              "Supplier lot");
+        Add("iqc.ng.col.defect",           "Lỗi",                                 "Defect");
+        Add("iqc.ng.col.m2",               "m²",                                  "m²");
+        Add("iqc.ng.col.qty",              "SL",                                  "Qty");
+        Add("iqc.ng.col.rolls",            "Cuộn",                                "Rolls");
+        Add("iqc.ng.col.status",           "Trạng thái",                          "Status");
+        Add("iqc.ng.col.who",              "Người ghi",                           "Recorded by");
+        Add("iqc.ng.uom",                  "Đơn vị SL",                           "Qty UoM");
+        Add("iqc.ng.claimref",             "Số claim / tham chiếu",               "Claim ref");
+        Add("iqc.ng.suppliernote",         "Ghi chú NCC",                          "Supplier note");
+        Add("iqc.ng.closereason",          "Lý do không claim",                    "Reason for no claim");
+        Add("iqc.ng.menu.more",            "Thêm hành động",                       "More actions");
+        Add("iqc.ng.menu.aria",            "Hành động vụ NG {0}",                  "Actions for NG {0}");
+        Add("iqc.ng.act.claim",            "Gửi claim",                            "File claim");
+        Add("iqc.ng.act.confirm",          "NCC xác nhận",                         "Supplier confirmed");
+        Add("iqc.ng.act.settle",           "Khép bồi thường",                      "Settle");
+        Add("iqc.ng.act.close",            "Đóng không claim",                     "Close without claim");
+        Add("iqc.ng.status.Open",          "Mở",                                  "Open");
+        Add("iqc.ng.status.Claimed",       "Đã claim",                             "Claimed");
+        Add("iqc.ng.status.SupplierConfirmed", "NCC xác nhận",                     "Supplier confirmed");
+        Add("iqc.ng.status.Settled",       "Đã bồi thường",                        "Settled");
+        Add("iqc.ng.status.ClosedNoClaim", "Đóng không claim",                     "Closed, no claim");
+        Add("iqc.ng.stage.Unknown",        "Chưa rõ",                              "Unknown");
+        Add("iqc.ng.stage.Iqc",            "IQC",                                 "IQC");
+        Add("iqc.ng.stage.Production",     "Sản xuất",                             "Production");
+        Add("iqc.ng.settle.Replacement",   "Thay hàng",                            "Replacement");
+        Add("iqc.ng.settle.CreditNote",    "Giảm giá / CN",                        "Credit note");
+        Add("iqc.ng.settle.Return",        "Trả hàng",                             "Return");
+        Add("iqc.ng.settle.Scrap",         "Hủy / scrap",                          "Scrap");
+        Add("iqc.ng.forbidden",            "Vai này không được ghi khối NG.",      "This role cannot write NG records.");
+        Add("iqc.ng.close_reason_required","Phải ghi lý do khi đóng không claim.", "A reason is required to close without a claim.");
+        Add("iqc.ng.not_found",            "Không tìm thấy vụ NG.",                "NG record not found.");
+        Add("iqc.ng.invalid_transition",   "Bước này không hợp lệ với trạng thái hiện tại.",
+                                           "That step is not valid from the current status.");
+        Add("iqc.ng.settlement_required",  "Chọn hình thức bồi thường.",           "Pick a settlement type.");
+        Add("iqc.ng.claim_required_before_settle", "Phải gửi claim trước khi khép bồi thường.",
+                                           "A claim must be filed before settlement.");
+        Add("iqc.ng.detected_at_required", "Thiếu ngày phát hiện.",                "Detected date is required.");
+        Add("iqc.ng.defect_required",      "Thiếu tên hoặc mã lỗi.",               "Defect name or code is required.");
+        Add("iqc.ng.quantity_required",    "Cần ít nhất một đơn vị số lượng (m², SL, hoặc cuộn).",
+                                           "At least one quantity (m², qty, or rolls) is required.");
+        Add("iqc.ng.quantity_must_be_positive", "Số lượng phải lớn hơn 0.",        "Quantity must be greater than 0.");
+        Add("iqc.ng.material_required",    "Cần PartNo (hoặc phiếu IQC / lô).",    "PartNo (or an IQC ticket / lot) is required.");
     }
 }

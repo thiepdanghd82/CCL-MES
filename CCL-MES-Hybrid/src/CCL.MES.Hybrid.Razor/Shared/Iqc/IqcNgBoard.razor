@@ -1,0 +1,454 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using System.Globalization
+@using CCL.MES.Shared.Quality
+@using CCL.MES.Hybrid.Razor.Shared
+@using Microsoft.AspNetCore.Components
+@inject ICclApiClient Api
+@inject CCL.MES.Hybrid.Client.Auth.IAuthSession Session
+@implements IDisposable
+
+@* P13 bước 6 — tab NG/claim. Nền: người đứng máy (ghi <30s, không cần phiếu IQC).
+   Ghép: chip trạng thái + KPI Open/Claimed (claim-manager); CreatedBy + đơn vị rõ (auditor).
+   Form tạo = Modal. Hàng: chuột phải / long-press / kebab → RowContextMenu. *@
+
+<section class="qms-section" data-testid="iqc-ng">
+    <div class="qms-section-head">
+        <h2 class="qms-section-title">@T("iqc.ng.title")</h2>
+        @if (_canEdit)
+        {
+            <button type="button" class="op-btn op-btn-primary" data-testid="iqc-ng-new"
+                    @onclick="OpenCreate">@T("iqc.ng.new")</button>
+        }
+    </div>
+    <p class="qms-section-desc">@T("iqc.ng.desc")</p>
+
+    <div class="iqc-kpi-row">
+        <div class="iqc-kpi iqc-kpi-pending" data-testid="iqc-ng-kpi-open">
+            <span class="iqc-kpi-num">@CountStatus("Open")</span>
+            <span class="iqc-kpi-lbl">@T("iqc.ng.status.Open")</span>
+        </div>
+        <div class="iqc-kpi" data-testid="iqc-ng-kpi-claimed">
+            <span class="iqc-kpi-num">@CountStatus("Claimed")</span>
+            <span class="iqc-kpi-lbl">@T("iqc.ng.status.Claimed")</span>
+        </div>
+    </div>
+
+    <div class="iqc-data-toolbar">
+        <div class="iqc-data-groupfilter" role="group" data-testid="iqc-ng-status-chips">
+            <button type="button" class="iqc-chip @(_statusFilter is null ? "iqc-chip-on" : "")"
+                    data-testid="iqc-ng-chip-all" @onclick="() => FilterStatus(null)">@T("iqc.group.all")</button>
+            @foreach (var st in Statuses)
+            {
+                <button type="button" class="iqc-chip @(_statusFilter == st ? "iqc-chip-on" : "")"
+                        data-testid="@($"iqc-ng-chip-{st.ToLowerInvariant()}")"
+                        @onclick="() => FilterStatus(st)">@T($"iqc.ng.status.{st}")</button>
+            }
+        </div>
+        <input type="search" class="op-input iqc-data-search" data-testid="iqc-ng-search"
+               placeholder="@T("iqc.ng.search.ph")" value="@_partNo"
+               @oninput="OnSearchInput" />
+    </div>
+
+    @if (_error is not null)
+    {
+        <p class="grid-error" data-testid="iqc-ng-error">@_error</p>
+    }
+
+    <div class="qms-table-wrap qms-fill">
+        <table class="qms-table iqc-data-table" data-testid="iqc-ng-table">
+            <thead>
+                <tr>
+                    <th>@T("iqc.ng.col.when")</th>
+                    <th>@T("iqc.ng.col.stage")</th>
+                    <th>@T("iqc.ng.col.part")</th>
+                    <th>@T("iqc.ng.col.lot")</th>
+                    <th>@T("iqc.ng.col.defect")</th>
+                    <th class="num">@T("iqc.ng.col.m2")</th>
+                    <th class="num">@T("iqc.ng.col.qty")</th>
+                    <th class="num">@T("iqc.ng.col.rolls")</th>
+                    <th>@T("iqc.ng.col.status")</th>
+                    <th>@T("iqc.ng.col.who")</th>
+                    @if (_canEdit)
+                    {
+                        <th class="wc-kebab-col"></th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (_items.Count == 0)
+                {
+                    <tr>
+                        <td colspan="@(_canEdit ? 11 : 10)" class="grid-empty" data-testid="iqc-ng-empty">@T("iqc.ng.empty")</td>
+                    </tr>
+                }
+                @foreach (var r in _items)
+                {
+                    <tr class="iqc-data-row" data-testid="@($"iqc-ng-row-{r.Id}")"
+                        @oncontextmenu="e => OpenMenuAt(r, e.ClientX, e.ClientY)"
+                        @oncontextmenu:preventDefault="true"
+                        @onpointerdown="e => LongPressStart(r, e)"
+                        @onpointerup="LongPressCancel" @onpointerleave="LongPressCancel" @onpointermove="LongPressCancel">
+                        <td class="qms-td-strong">@r.DetectedAt.ToString("yyyy-MM-dd")</td>
+                        <td>@T($"iqc.ng.stage.{r.DetectedStage}")</td>
+                        <td>@Show(r.PartNo)</td>
+                        <td>@Show(r.SupplierLotNo)</td>
+                        <td>@Show(r.DefectName)</td>
+                        <td class="num">@Fmt(r.NgAreaM2)</td>
+                        <td class="num">@(r.NgQty is null ? T("iqc.f.empty") : $"{r.NgQty} {r.NgUom}")</td>
+                        <td class="num">@FmtInt(r.NgRolls)</td>
+                        <td><span class="iqc-ng-status" data-status="@r.Status">@T($"iqc.ng.status.{r.Status}")</span></td>
+                        <td>@Show(r.CreatedBy)</td>
+                        @if (_canEdit)
+                        {
+                            <td class="wc-kebab-col">
+                                <button type="button" class="row-kebab" data-fw-nodrag
+                                        data-testid="@($"iqc-ng-kebab-{r.Id}")"
+                                        @onclick="e => OpenMenuAt(r, e.ClientX, e.ClientY)" @onclick:stopPropagation="true"
+                                        aria-haspopup="menu" aria-label="@T("iqc.ng.menu.more")">⋯</button>
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<RowContextMenu Open="_menuRow is not null" Anchor="_menuAnchor" Items="_menuItems"
+                AriaLabel="@T("iqc.ng.menu.aria", _menuRow?.PartNo ?? "")" OnClose="CloseMenu" />
+
+<Modal Open="_createOpen" OnClose="CloseCreate" Size="ModalSize.Lg" ClickOutsideToClose="false">
+    <Header>@T("iqc.ng.new")</Header>
+    <Body>
+        <div class="iqc-ph-form" data-testid="iqc-ng-create">
+            <p class="iqc-ph-note">@T("iqc.ng.create.hint")</p>
+            <div class="iqc-data-groupfilter" role="group">
+                @foreach (var st in Stages)
+                {
+                    <button type="button" class="iqc-chip @(_stage == st ? "iqc-chip-on" : "")"
+                            data-testid="@($"iqc-ng-stage-{st.ToLowerInvariant()}")"
+                            @onclick="() => _stage = st">@T($"iqc.ng.stage.{st}")</button>
+                }
+            </div>
+            <div class="iqc-ph-grid">
+                <label>@T("iqc.ng.col.when")
+                    <input type="date" class="op-input" data-testid="iqc-ng-detected"
+                           value="@_detected.ToString("yyyy-MM-dd")"
+                           @onchange="e => OnDetected(e.Value?.ToString())" />
+                </label>
+                <label>@T("iqc.ng.col.part")
+                    <input type="text" class="op-input" data-testid="iqc-ng-part" value="@_part"
+                           @oninput="e => _part = e.Value?.ToString() ?? string.Empty" />
+                </label>
+                <label>@T("iqc.ng.col.lot")
+                    <input type="text" class="op-input" data-testid="iqc-ng-lot" value="@_lot"
+                           @oninput="e => _lot = e.Value?.ToString() ?? string.Empty" />
+                </label>
+                <label>@T("iqc.ng.col.defect")
+                    <input type="text" class="op-input" data-testid="iqc-ng-defect" value="@_defect"
+                           @oninput="e => _defect = e.Value?.ToString() ?? string.Empty" />
+                </label>
+                <label>@T("iqc.ng.col.m2")
+                    <input type="text" inputmode="decimal" class="op-input" data-testid="iqc-ng-m2" value="@_m2"
+                           @oninput="e => _m2 = e.Value?.ToString() ?? string.Empty" />
+                </label>
+                <label>@T("iqc.ng.col.qty")
+                    <input type="text" inputmode="decimal" class="op-input" data-testid="iqc-ng-qty" value="@_qty"
+                           @oninput="e => _qty = e.Value?.ToString() ?? string.Empty" />
+                </label>
+                <label>@T("iqc.ng.uom")
+                    <input type="text" class="op-input" data-testid="iqc-ng-uom" value="@_uom"
+                           @oninput="e => _uom = e.Value?.ToString() ?? string.Empty" />
+                </label>
+                <label>@T("iqc.ng.col.rolls")
+                    <input type="text" inputmode="numeric" class="op-input" data-testid="iqc-ng-rolls" value="@_rolls"
+                           @oninput="e => _rolls = e.Value?.ToString() ?? string.Empty" />
+                </label>
+            </div>
+            @if (_formError is not null)
+            {
+                <p class="grid-error" data-testid="iqc-ng-form-error">@_formError</p>
+            }
+        </div>
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-ghost" @onclick="CloseCreate">@T("iqc.ng.cancel")</button>
+        <button type="button" class="op-btn op-btn-primary" data-testid="iqc-ng-save" @onclick="SaveCreateAsync">@T("iqc.ng.save")</button>
+    </Footer>
+</Modal>
+
+<Modal Open="_lifeOpen" OnClose="CloseLife" Size="ModalSize.Md" ClickOutsideToClose="false">
+    <Header>@_lifeTitle</Header>
+    <Body>
+        <div class="iqc-ph-form">
+            @if (_lifeKind == "claim")
+            {
+                <label>@T("iqc.ng.claimref")
+                    <input type="text" class="op-input" data-testid="iqc-ng-claimref" value="@_lifeText"
+                           @oninput="e => _lifeText = e.Value?.ToString() ?? string.Empty" />
+                </label>
+            }
+            else if (_lifeKind == "confirm")
+            {
+                <label>@T("iqc.ng.suppliernote")
+                    <input type="text" class="op-input" data-testid="iqc-ng-snote" value="@_lifeText"
+                           @oninput="e => _lifeText = e.Value?.ToString() ?? string.Empty" />
+                </label>
+            }
+            else if (_lifeKind == "settle")
+            {
+                <div class="iqc-data-groupfilter" role="group">
+                    @foreach (var s in Settlements)
+                    {
+                        <button type="button" class="iqc-chip @(_settlement == s ? "iqc-chip-on" : "")"
+                                data-testid="@($"iqc-ng-settl-{s.ToLowerInvariant()}")"
+                                @onclick="() => _settlement = s">@T($"iqc.ng.settle.{s}")</button>
+                    }
+                </div>
+            }
+            else if (_lifeKind == "close")
+            {
+                <label>@T("iqc.ng.closereason")
+                    <input type="text" class="op-input" data-testid="iqc-ng-reason" value="@_lifeText"
+                           @oninput="e => _lifeText = e.Value?.ToString() ?? string.Empty" />
+                </label>
+            }
+            @if (_formError is not null)
+            {
+                <p class="grid-error">@_formError</p>
+            }
+        </div>
+    </Body>
+    <Footer>
+        <button type="button" class="op-btn op-btn-ghost" @onclick="CloseLife">@T("iqc.ng.cancel")</button>
+        <button type="button" class="op-btn op-btn-primary" data-testid="iqc-ng-life-ok" @onclick="SaveLifeAsync">@T("iqc.ng.save")</button>
+    </Footer>
+</Modal>
+
+@code {
+    private static readonly string[] Statuses = { "Open", "Claimed", "SupplierConfirmed", "Settled", "ClosedNoClaim" };
+    private static readonly string[] Stages = { "Unknown", "Iqc", "Production" };
+    private static readonly string[] Settlements = { "Replacement", "CreditNote", "Return", "Scrap" };
+
+    private IReadOnlyList<IqcNgListItem> _items = Array.Empty<IqcNgListItem>();
+    private string? _statusFilter;
+    private string _partNo = "";
+    private string? _error;
+    private string? _formError;
+    private bool _canEdit;
+    private IqcNgListItem? _menuRow;
+    private (double X, double Y) _menuAnchor;
+    private IReadOnlyList<ContextMenuItem> _menuItems = Array.Empty<ContextMenuItem>();
+    private System.Threading.Timer? _longPress;
+    private System.Threading.Timer? _searchDebounce;
+
+    private bool _createOpen;
+    private DateTime _detected = DateTime.UtcNow.Date;
+    private string _stage = "Unknown";
+    private string _part = "", _lot = "", _defect = "", _m2 = "", _qty = "", _uom = "", _rolls = "";
+
+    private bool _lifeOpen;
+    private string _lifeKind = "";
+    private string _lifeTitle = "";
+    private string _lifeText = "";
+    private string _settlement = "Replacement";
+    private IqcNgListItem? _lifeRow;
+
+    [Parameter] public int DebounceMs { get; set; } = 300;
+
+    private bool IsEditor(string? role) =>
+        role is "Admin" or "Supervisor" or "QC";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _canEdit = IsEditor(Session.CurrentUserInfo?.Role);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        try
+        {
+            var r = await Api.ListIqcNgAsync(_statusFilter, string.IsNullOrWhiteSpace(_partNo) ? null : _partNo.Trim());
+            _items = r.Items;
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _items = Array.Empty<IqcNgListItem>();
+        }
+    }
+
+    private int CountStatus(string st) => _items.Count(x => x.Status == st);
+
+    private async Task FilterStatus(string? st)
+    {
+        _statusFilter = st;
+        await LoadAsync();
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _partNo = e.Value?.ToString() ?? "";
+        _searchDebounce?.Dispose();
+        if (DebounceMs <= 0) { _ = LoadAsync(); return; }
+        _searchDebounce = new System.Threading.Timer(_ => InvokeAsync(LoadAsync), null, DebounceMs, System.Threading.Timeout.Infinite);
+    }
+
+    private string Show(string? v) => string.IsNullOrWhiteSpace(v) ? T("iqc.f.empty") : v!;
+    private string Fmt(double? v) => v is null ? T("iqc.f.empty") : v.Value.ToString("0.##", CultureInfo.InvariantCulture);
+    private string FmtInt(int? v) => v is null ? T("iqc.f.empty") : v.Value.ToString(CultureInfo.InvariantCulture);
+
+    private void OpenCreate()
+    {
+        _formError = null;
+        _detected = DateTime.UtcNow.Date;
+        _stage = "Unknown";
+        _part = _lot = _defect = _m2 = _qty = _uom = _rolls = "";
+        _createOpen = true;
+    }
+
+    private void CloseCreate() { _createOpen = false; _formError = null; }
+
+    private void OnDetected(string? raw)
+    {
+        if (DateTime.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+            _detected = d.Date;
+    }
+
+    private async Task SaveCreateAsync()
+    {
+        _formError = null;
+        try
+        {
+            await Api.CreateIqcNgAsync(new CreateIqcNgBody
+            {
+                DetectedAt = _detected,
+                DetectedStage = _stage,
+                PartNo = NullIfEmpty(_part),
+                SupplierLotNo = NullIfEmpty(_lot),
+                DefectName = NullIfEmpty(_defect),
+                NgAreaM2 = ParseD(_m2),
+                NgQty = ParseD(_qty),
+                NgUom = NullIfEmpty(_uom),
+                NgRolls = ParseI(_rolls),
+            });
+            _createOpen = false;
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            _formError = T(ex.ApiError?.Code ?? "iqc.ng.savefail");
+        }
+        catch
+        {
+            _formError = T("iqc.ng.savefail");
+        }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+    private static double? ParseD(string s) =>
+        double.TryParse(s, NumberStyles.Any, CultureInfo.InvariantCulture, out var d) ? d : null;
+    private static int? ParseI(string s) =>
+        int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : null;
+
+    private void OpenMenuAt(IqcNgListItem r, double x, double y)
+    {
+        if (!_canEdit) return;
+        var items = new List<ContextMenuItem>();
+        if (r.Status == "Open")
+        {
+            items.Add(Menu(T("iqc.ng.act.claim"), () => OpenLife("claim", r)));
+            items.Add(Menu(T("iqc.ng.act.close"), () => OpenLife("close", r), danger: true));
+        }
+        else if (r.Status == "Claimed")
+        {
+            items.Add(Menu(T("iqc.ng.act.confirm"), () => OpenLife("confirm", r)));
+            items.Add(Menu(T("iqc.ng.act.settle"), () => OpenLife("settle", r)));
+            items.Add(Menu(T("iqc.ng.act.close"), () => OpenLife("close", r), danger: true));
+        }
+        else if (r.Status == "SupplierConfirmed")
+        {
+            items.Add(Menu(T("iqc.ng.act.settle"), () => OpenLife("settle", r)));
+            items.Add(Menu(T("iqc.ng.act.close"), () => OpenLife("close", r), danger: true));
+        }
+        // Settled / ClosedNoClaim: không mở lại từ menu.
+        if (items.Count == 0) return;
+        _menuRow = r;
+        _menuAnchor = (x, y);
+        _menuItems = items;
+    }
+
+    private ContextMenuItem Menu(string label, Func<Task> act, bool danger = false) =>
+        new() { Label = label, Danger = danger, OnClick = EventCallback.Factory.Create(this, act) };
+
+    private Task OpenLife(string kind, IqcNgListItem r)
+    {
+        CloseMenu();
+        _lifeRow = r;
+        _lifeKind = kind;
+        _lifeText = "";
+        _settlement = "Replacement";
+        _formError = null;
+        _lifeTitle = T("iqc.ng.act." + kind);
+        _lifeOpen = true;
+        return Task.CompletedTask;
+    }
+
+    private void CloseLife() { _lifeOpen = false; _lifeRow = null; _formError = null; }
+    private void CloseMenu() { _menuRow = null; _menuItems = Array.Empty<ContextMenuItem>(); }
+
+    private void LongPressStart(IqcNgListItem r, Microsoft.AspNetCore.Components.Web.PointerEventArgs e)
+    {
+        if (e.Button != 0) return;
+        LongPressCancel();
+        var x = e.ClientX; var y = e.ClientY;
+        _longPress = new System.Threading.Timer(_ => InvokeAsync(() =>
+        {
+            OpenMenuAt(r, x, y);
+            StateHasChanged();
+        }), null, 500, System.Threading.Timeout.Infinite);
+    }
+
+    private void LongPressCancel()
+    {
+        _longPress?.Dispose();
+        _longPress = null;
+    }
+
+    private async Task SaveLifeAsync()
+    {
+        if (_lifeRow is null) return;
+        _formError = null;
+        try
+        {
+            var id = _lifeRow.Id;
+            if (_lifeKind == "claim")
+                await Api.ClaimIqcNgAsync(id, new IqcNgClaimBody { ClaimRef = NullIfEmpty(_lifeText) });
+            else if (_lifeKind == "confirm")
+                await Api.SupplierConfirmIqcNgAsync(id, new IqcNgSupplierConfirmBody { Note = NullIfEmpty(_lifeText) });
+            else if (_lifeKind == "settle")
+                await Api.SettleIqcNgAsync(id, new IqcNgSettleBody { Settlement = _settlement });
+            else if (_lifeKind == "close")
+                await Api.CloseIqcNgNoClaimAsync(id, new IqcNgCloseBody { Reason = _lifeText });
+            _lifeOpen = false;
+            await LoadAsync();
+        }
+        catch (ApiException ex)
+        {
+            _formError = T(ex.ApiError?.Code ?? "iqc.ng.savefail");
+        }
+        catch
+        {
+            _formError = T("iqc.ng.savefail");
+        }
+    }
+
+    public override void Dispose()
+    {
+        _longPress?.Dispose();
+        _searchDebounce?.Dispose();
+        base.Dispose();
+    }
+}

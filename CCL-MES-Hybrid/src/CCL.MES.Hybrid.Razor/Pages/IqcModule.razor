@@ -39,6 +39,9 @@
         <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.Spec ? "iqc-subtab-on" : "")"
                 data-testid="iqc-subtab-spec" aria-selected="@(_tab == IqcTab.Spec)"
                 @onclick="() => SelectTab(IqcTab.Spec)">@T("iqc.tab.spec")</button>
+        <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.Ng ? "iqc-subtab-on" : "")"
+                data-testid="iqc-subtab-ng" aria-selected="@(_tab == IqcTab.Ng)"
+                @onclick="() => SelectTab(IqcTab.Ng)">@T("iqc.tab.ng")</button>
     </div>
 
     @* ══════════════ DASHBOARD ══════════════ *@
@@ -142,7 +145,7 @@
                                 <th>@T("iqc.data.col.supplier")</th>
                                 <th>@T("iqc.data.col.inspector")</th>
                                 <th>@T("iqc.data.col.received")</th>
-                                <th class="qms-num">@T("iqc.data.col.qty")</th>
+                                <th class="num">@T("iqc.data.col.qty")</th>
                                 <th>@T("iqc.data.col.status")</th>
                             </tr>
                         </thead>
@@ -165,7 +168,7 @@
                                     <td>@Show(r.SupplierName)</td>
                                     <td>@Show(r.Inspector)</td>
                                     <td>@r.ReceivedDate.ToString("dd/MM/yyyy")</td>
-                                    <td class="qms-num">@r.Quantity@(string.IsNullOrWhiteSpace(r.Uom) ? "" : $" {r.Uom}")</td>
+                                    <td class="num">@r.Quantity@(string.IsNullOrWhiteSpace(r.Uom) ? "" : $" {r.Uom}")</td>
                                     <td><span class="iqc-status iqc-status-@r.Result.ToLowerInvariant()">@StatusLabel(r.Result)</span></td>
                                 </tr>
                             }
@@ -198,6 +201,12 @@
     else if (_tab == IqcTab.Spec)
     {
         <IqcSpecEditor DebounceMs="DebounceMs" />
+    }
+
+    @* ══════════════ NG / CLAIM (P13 bước 6) — else if TRƯỚC nhánh New Ticket *@
+    else if (_tab == IqcTab.Ng)
+    {
+        <IqcNgBoard DebounceMs="DebounceMs" />
     }
 
     @* ══════════════ NEW TICKET ══════════════ *@
@@ -271,7 +280,7 @@
 }
 
 @code {
-    private enum IqcTab { Dashboard, Data, NewTicket, Spec }
+    private enum IqcTab { Dashboard, Data, NewTicket, Spec, Ng }
     private enum IqcGroupKind { Materials, Chemical, Tools, Other }
 
     private IqcTab _tab = IqcTab.Dashboard;

@@ -111,6 +111,20 @@ public interface ICclApiClient
     Task<long?> DownloadIqcDocumentToFileAsync(
         long id, string destinationFilePath, CancellationToken ct = default);
 
+    // ── IQC NG / claim (P13 bước 6) ────────────────────────────────
+    Task<CCL.MES.Shared.Quality.IqcNgListResponse> ListIqcNgAsync(
+        string? status, string? partNo, int take = 200, CancellationToken ct = default);
+    Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> CreateIqcNgAsync(
+        CCL.MES.Shared.Quality.CreateIqcNgBody body, CancellationToken ct = default);
+    Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> ClaimIqcNgAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgClaimBody body, CancellationToken ct = default);
+    Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> SupplierConfirmIqcNgAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgSupplierConfirmBody body, CancellationToken ct = default);
+    Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> SettleIqcNgAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgSettleBody body, CancellationToken ct = default);
+    Task<CCL.MES.Shared.Quality.IqcNgMutationResponse> CloseIqcNgNoClaimAsync(
+        long id, CCL.MES.Shared.Quality.IqcNgCloseBody body, CancellationToken ct = default);
+
     // ── NPI (pilot scope) ──────────────────────────────────────────
     Task<NpiPagedRaw<NpiWorkCenter>> GetWorkCentersAsync(string? search, int page, int pageSize, CancellationToken ct = default);
     Task<NpiPagedRaw<NpiRawMaterial>> GetRawMaterialsAsync(string? search, int page, int pageSize, CancellationToken ct = default);

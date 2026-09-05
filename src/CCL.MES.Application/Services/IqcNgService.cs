@@ -201,6 +201,29 @@ public class IqcNgService
     /// Danh sách vụ NG, mới nhất trước. Lọc theo trạng thái để trả lời câu hỏi
     /// hằng ngày của QC: "còn vụ nào chưa đòi được?".
     /// </summary>
+    /// <summary>
+    /// Đếm vụ theo trạng thái — trả lời câu hỏi mở-màn-hình-là-thấy: "còn bao
+    /// nhiêu vụ chưa đòi được?".
+    ///
+    /// <para>Đếm ở DB chứ không đếm trên trang đã lấy: danh sách bị cắt ở
+    /// <c>take</c>, nên đếm trên nó sẽ ra con số nhỏ hơn sự thật và không ai
+    /// biết là nó sai.</para>
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, int>> CountByStatusAsync(
+        CancellationToken ct = default)
+    {
+        var rows = await _db.IqcNgRecords.AsNoTracking()
+            .GroupBy(x => x.Status)
+            .Select(g => new { Status = g.Key, N = g.Count() })
+            .ToListAsync(ct);
+
+        // Trạng thái không có vụ nào vẫn phải xuất hiện với số 0 — chip biến mất
+        // khỏi dải lọc thì người dùng tưởng app không hỗ trợ trạng thái đó.
+        var all = Enum.GetValues<IqcNgStatus>().ToDictionary(s => s.ToString(), _ => 0);
+        foreach (var r in rows) all[r.Status.ToString()] = r.N;
+        return all;
+    }
+
     public async Task<IReadOnlyList<IqcNgRecord>> ListAsync(
         IqcNgStatus? status = null, string? partNo = null, int take = 200,
         CancellationToken ct = default)

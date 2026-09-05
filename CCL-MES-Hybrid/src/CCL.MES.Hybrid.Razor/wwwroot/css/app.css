@@ -8952,6 +8952,18 @@ tr.wc-row:hover { background: var(--c-bg); }
 .iqc-status-pass { background: var(--ok-bg); color: var(--ok-ink); }
 .iqc-status-fail { background: var(--ng-bg); color: var(--ng-ink); }
 
+/* P13 bước 6 — pill trạng thái khối NG/claim */
+.iqc-ng-status {
+    display: inline-block; padding: var(--sp-1) var(--sp-2); border-radius: var(--r-pill);
+    font-size: var(--fs-xs); font-weight: var(--fw-bold);
+    background: var(--c-surface-2); color: var(--c-ink-2);
+}
+.iqc-ng-status[data-status="Open"] { background: var(--warn-bg); color: var(--warn-ink); }
+.iqc-ng-status[data-status="Claimed"] { background: var(--brand-bg); color: var(--brand); }
+.iqc-ng-status[data-status="SupplierConfirmed"] { background: var(--ok-bg); color: var(--ok-ink); }
+.iqc-ng-status[data-status="Settled"] { background: var(--ok-bg); color: var(--ok-ink); }
+.iqc-ng-status[data-status="ClosedNoClaim"] { color: var(--c-muted); }
+
 /* View-detail dialog rows */
 .iqc-view { display: flex; flex-direction: column; gap: var(--sp-2); }
 .iqc-view-row { display: flex; justify-content: space-between; gap: var(--sp-4); font-size: var(--fs-sm); padding: var(--sp-1) 0; border-bottom: 1px solid var(--c-border); }
