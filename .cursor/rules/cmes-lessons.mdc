@@ -1,0 +1,22 @@
+---
+description: Where CCL-MES memory and lessons live — do not invent parallel lore
+alwaysApply: true
+---
+
+# CCL-MES — memory / lessons (nguồn sự thật)
+
+Không ghi “memory” mới trong chat rồi coi là luật. Append lesson vào file dưới, kèm cột **Cơ chế chặn tái phát** (test/gate). Prose không ship.
+
+| Nguồn | File |
+|---|---|
+| Router agent (WHAT) | `CLAUDE.md` — đọc mục 0, không nuốt 600 dòng mỗi lần |
+| Loop (HOW) | `CCL-MES-Hybrid/docs/AGENT-LOOP.md` + skill `cmes-loop` |
+| Lessons Hybrid | `CCL-MES-Hybrid/docs/LESSONS-LEARNED.md` |
+| Lessons legacy/EF | `docs/LESSONS_LEARNED.md` |
+| Bẫy DB / WAL / app frozen | `CCL-MES-Hybrid/docs/BAN-GIAO-2026-08-19.md` |
+| Hiến pháp | `.specify/memory/constitution.md` |
+| Backlog | `CCL-MES-Hybrid/docs/IMPROVEMENT-BACKLOG.md` |
+| Stacked PR | `CCL-MES-Hybrid/docs/STACKED-PR-CHECKLIST.md` |
+| Skills playbook | `CCL-MES-Hybrid/docs/SKILLS.md` |
+
+Skill `cmes-*` / `speckit-*` nằm `.cursor/skills/` (symlink về `.claude/skills`, một nguồn). Agent: `.cursor/agents/`.

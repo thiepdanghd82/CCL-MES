@@ -1,0 +1,24 @@
+---
+description: CCL-MES execution loop — load the right skill/agent before coding
+alwaysApply: true
+---
+
+# CCL-MES — vòng lặp bắt buộc
+
+Đây là MES nhà máy (in nhãn). Mọi phiên trên repo này: nạp skill `cmes-loop` trước, rồi skill của đúng một work-class. Hợp đồng đầy đủ: `CCL-MES-Hybrid/docs/AGENT-LOOP.md` (thắng nếu mâu thuẫn với tóm tắt).
+
+`ANALYZE → SELECT → EXECUTE → AUDIT → VERIFY → LEARN`. Gate tĩnh (`bash CCL-MES-Hybrid/scripts/gate-all.sh`) không thay thế chạy thật + dán output.
+
+| Chạm vào | Skill | Agent |
+|---|---|---|
+| Entities / Migrations / DbContext | `cmes-migration-abc` | mes-process-architect |
+| State machine / MesPhase / advance | `cmes-state-contract` | mes-process-architect |
+| Controllers / DTO / route | `cmes-thin-controller` | cmes-implementer |
+| QC library / chữ ký / freeze | `cmes-audit-emit` | mes-quality-architect |
+| .razor / app.css / grid | `cmes-design-tokens` (+ confirm-toggle / floating-showcard / row-context-menu) | cmes-shopfloor-ux |
+| Policy / role | `cmes-rbac-matrix` | cmes-implementer |
+| Chuỗi UI | `cmes-i18n-parity` (luôn kèm) | agent đang chủ trì |
+| IFS / outbox | `cmes-migration-abc` | mes-integration-architect |
+| Không chạy / 404 / renderer dead | `cmes-verify-evidence` | cmes-rca-detective |
+
+Chuỗi hiển thị mới: EN + VI cùng commit. Mutation: Authorize + Idempotency-Key + audit.

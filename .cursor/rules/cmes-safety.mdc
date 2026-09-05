@@ -1,0 +1,16 @@
+---
+description: CCL-MES production safety — frozen web, live SQLite, EF, dual DB
+alwaysApply: true
+---
+
+# CCL-MES — an toàn dữ liệu và vùng cấm
+
+**Hiến pháp v1.1.0:** `src/CCL.MES.Web` đóng băng (cutover 2026-08-19). `START_SERVER.command` không chạy trừ `MES_LEGACY_WEB_FORCE=1`. Không thêm key `.resx` Web. `src/CCL.MES.{Domain,Application,Infrastructure}` **được sửa** khi đổi schema (agent Claude cũ ghi “cấm cả src/CCL.MES.*” — **bỏ**, đó là câu chữ đã sửa).
+
+**DB thật:** `data/ccl_mes.db`. Không trỏ `MES_DB_PATH` vào `data/demo/p11-tape-demo.db`. Xác nhận bằng dòng boot `[boot] API SQLite DB path`. WAL đang bật: đừng `cp`/`shasum` file `.db` khi API chạy; checkpoint hoặc `.backup`.
+
+**EF:** không `dotnet ef migrations remove` trên live. Không `migrations add` trỏ live. Isolated `/tmp` DB. Phase A backup + SHA → B isolated → C apply.
+
+**STOP-gate (hỏi Henry):** tiêu chí 1 điểm · transition chưa có trong `CCL-MES-Hybrid/docs/P10.7-WO-STATE-CONTRACT.md` · migration lên live · RCA chưa proven đã muốn PR · bump BASELINE gate không giải thích.
+
+Đường chạy nhà máy: `dotnet run` trong `CCL-MES-Hybrid/src/CCL.MES.Api` (:5100), không phải Blazor :5050.
