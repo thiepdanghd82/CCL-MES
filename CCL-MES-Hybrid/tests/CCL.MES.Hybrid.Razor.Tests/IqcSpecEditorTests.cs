@@ -187,6 +187,40 @@ public sealed class IqcSpecEditorTests : TestContext
     }
 
     [Fact]
+    public void Tra_PartNo_thi_hien_bang_via_mother_va_luu_vao_ma_me()
+    {
+        Serve(new IqcSpecEditResponse
+        {
+            MaterialCode = "336-H1a",
+            QueriedCode = "30030146",
+            ResolvedViaMother = true,
+            SpecNo = "CCL-SPEC-QC229",
+            SpecActive = true,
+            Items = [Row(11, "NQ-01", "Tem nhãn")],
+            Library = [Opt("NQ-01", "Tem nhãn"), Opt("NQ-02", "Màu sắc")],
+        });
+        var cut = Render("30030146");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("iqc-spec-via-mother", cut.Markup);
+            Assert.Contains("30030146", cut.Markup);
+            Assert.Contains("336-H1a", cut.Markup);
+            Assert.Contains("CCL-SPEC-QC229", cut.Markup);
+        });
+
+        cut.Find("[data-testid='iqc-spec-addrow']").Click();
+        cut.Find("[data-testid='iqc-spec-addnew-name']").Change("NQ-02");
+        cut.Find("[data-testid='iqc-spec-addnew-save']").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            var call = Assert.Single(_api.AddIqcSpecItemCalls);
+            Assert.Equal("336-H1a", call.Code);
+        });
+    }
+
+    [Fact]
     public void Huy_thi_dong_form_va_KHONG_goi_server()
     {
         Serve(WithSpec());

@@ -356,6 +356,13 @@ public sealed class IqcSpecEditResponse
 {
     public string MaterialCode { get; set; } = "";
 
+    /// <summary>Chuỗi người dùng tra (PartNo hoặc mã mẹ). <see cref="MaterialCode"/>
+    /// là khoá canonical sau resolve.</summary>
+    public string QueriedCode { get; set; } = "";
+
+    /// <summary><c>true</c> khi gõ PartNo và đang xem spec của mã mẹ.</summary>
+    public bool ResolvedViaMother { get; set; }
+
     /// <summary><c>null</c> = mã chưa có tiêu chuẩn riêng (1 trong 590) — đang
     /// kiểm theo ma trận mặc định.</summary>
     public string? SpecNo { get; set; }

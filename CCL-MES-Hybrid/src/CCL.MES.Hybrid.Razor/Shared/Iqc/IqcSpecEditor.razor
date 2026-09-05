@@ -1,6 +1,7 @@
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Quality
 @using CCL.MES.Shared.Localization
+@using CCL.MES.Hybrid.Client
 @using CCL.MES.Hybrid.Razor.Localization
 @using CCL.MES.Hybrid.Razor.Shared
 @inject ICclApiClient Api
@@ -88,6 +89,14 @@
 
     @if (_view is not null)
     {
+        @if (_view.ResolvedViaMother)
+        {
+            <p class="iqc-warn iqc-warn-note" data-testid="iqc-spec-via-mother">
+                @T("iqc.spec.via_mother",
+                    string.IsNullOrWhiteSpace(_view.QueriedCode) ? _code : _view.QueriedCode,
+                    _view.MaterialCode)
+            </p>
+        }
         @if (_view.SpecNo is null)
         {
             @* 1 trong 590 mã — nói rõ nó đang kiểm theo cái gì. *@
@@ -395,6 +404,13 @@
             _view = await Api.GetIqcSpecAsync(_code.Trim(), _includeInactive);
             CancelAdd();
         }
+        catch (ApiException ex)
+        {
+            _error = ex.ApiError.Code == "iqc.ambiguous_mother"
+                ? T("iqc.spec.ambiguous_mother")
+                : $"HTTP {ex.StatusCode} · {ex.ApiError.Code} · {ex.ApiError.MessageEn}";
+            _view = null;
+        }
         catch (Exception ex)
         {
             _error = ex.Message;
@@ -422,6 +438,12 @@
         _newMethod = (IsEnglish ? o.DefaultMethodEn : o.DefaultMethodVi) ?? o.DefaultMethodVi ?? "";
     }
 
+    /// <summary>Ghi vào mã canonical sau resolve (mã mẹ), không phải chuỗi
+    /// đang gõ trên ô tìm. Gõ PartNo rồi thêm hạng mục mà gửi PartNo sẽ đẻ
+    /// <c>MES-SPEC</c> lệch với phiếu IQC.</summary>
+    private string SpecWriteCode =>
+        !string.IsNullOrWhiteSpace(_view?.MaterialCode) ? _view.MaterialCode : _code.Trim();
+
     private async Task SaveAddAsync()
     {
         if (_busy || string.IsNullOrWhiteSpace(_newItemId)) return;
@@ -429,7 +451,7 @@
         _error = null;
         try
         {
-            await Api.AddIqcSpecItemAsync(_code.Trim(), new AddIqcSpecItemBody
+            await Api.AddIqcSpecItemAsync(SpecWriteCode, new AddIqcSpecItemBody
             {
                 ItemId = _newItemId,
                 AcceptanceVi = _newAcceptance,

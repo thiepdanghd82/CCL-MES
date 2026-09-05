@@ -257,4 +257,82 @@ public sealed class IqcSpecControllerTests : IClassFixture<MesApiFactory>
         var err = await resp.Content.ReadFromJsonAsync<ApiError>();
         Assert.Equal("iqc.spec_item_not_found", err!.Code);
     }
+
+    private async Task SeedMotherSpecAsync(string mother, string specNo)
+    {
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        if (await db.IqcMaterialSpecs.AnyAsync(x => x.MaterialCode == mother)) return;
+        db.IqcMaterialSpecs.Add(new IqcMaterialSpec
+        {
+            SpecNo = specNo, MaterialCode = mother, Active = true, CreatedBy = "seed",
+        });
+        db.IqcSpecItems.Add(new IqcSpecItem
+        {
+            SpecNo = specNo, ItemId = "NQ-01", Seq = 1,
+            AcceptanceVi = "seed", Active = true, CreatedBy = "seed",
+        });
+        await db.SaveChangesAsync();
+    }
+
+    private async Task SeedRawAsync(string partNo, string? mother)
+    {
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        db.RawMaterials.Add(new RawMaterial { PartNo = partNo, MotherCode = mother });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Tra_PartNo_qua_wire_thi_tra_spec_ma_me()
+    {
+        await SeedLibraryItemAsync("NQ-01");
+        await SeedMotherSpecAsync("ME-P13-6-GET-M", "CCL-SPEC-P136");
+        await SeedRawAsync("PN-P13-6-GET", "ME-P13-6-GET-M");
+        var qc = await ClientAsync("qc-p13-6-get", UserRole.Qc);
+
+        var resp = await qc.GetAsync("/api/v2/iqc/specs?materialCode=PN-P13-6-GET");
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var v = await resp.Content.ReadFromJsonAsync<IqcSpecEditResponse>();
+        Assert.Equal("ME-P13-6-GET-M", v!.MaterialCode);
+        Assert.Equal("PN-P13-6-GET", v.QueriedCode);
+        Assert.True(v.ResolvedViaMother);
+        Assert.Equal("CCL-SPEC-P136", v.SpecNo);
+        Assert.NotEmpty(v.Items);
+    }
+
+    [Fact]
+    public async Task Them_bang_PartNo_qua_wire_ghi_vao_ma_me()
+    {
+        await SeedLibraryItemAsync("NQ-01");
+        await SeedRawAsync("PN-P13-6-ADD", "ME-P13-6-ADD");
+        var eng = await ClientAsync("eng-p13-6-add", UserRole.Engineer);
+
+        var resp = await eng.SendAsync(Mk(HttpMethod.Post, "/api/v2/iqc/specs/items",
+            new { materialCode = "PN-P13-6-ADD", itemId = "NQ-01", acceptanceVi = "x" }));
+
+        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        Assert.False(await db.IqcMaterialSpecs.AnyAsync(x => x.MaterialCode == "PN-P13-6-ADD"));
+        var spec = await db.IqcMaterialSpecs.SingleAsync(x => x.MaterialCode == "ME-P13-6-ADD");
+        Assert.StartsWith("MES-SPEC-", spec.SpecNo);
+    }
+
+    [Fact]
+    public async Task PartNo_hai_me_qua_wire_thi_422()
+    {
+        await SeedLibraryItemAsync("NQ-01");
+        await SeedRawAsync("PN-P13-6-AMB", "ME-AMB-A");
+        await SeedRawAsync("PN-P13-6-AMB", "ME-AMB-B");
+        var qc = await ClientAsync("qc-p13-6-amb", UserRole.Qc);
+
+        var resp = await qc.GetAsync("/api/v2/iqc/specs?materialCode=PN-P13-6-AMB");
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("iqc.ambiguous_mother", err!.Code);
+    }
 }

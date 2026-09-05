@@ -181,6 +181,10 @@ public sealed partial class TranslationCatalog
         Add("iqc.spec.showinactive",       "Hiện cả hạng mục đã gỡ",              "Show removed items");
         Add("iqc.spec.none",               "Mã {0} chưa có tiêu chuẩn riêng — các lô nhập đang kiểm theo MA TRẬN MẶC ĐỊNH. Thêm hạng mục bên dưới để soạn tiêu chuẩn riêng cho mã này.",
                                            "Material {0} has no dedicated standard yet — incoming lots are inspected against the DEFAULT MATRIX. Add items below to build a dedicated standard.");
+        Add("iqc.spec.via_mother",         "PartNo {0} đang xem tiêu chuẩn của mã mẹ {1}.",
+                                           "PartNo {0} is showing the standard for mother code {1}.");
+        Add("iqc.spec.ambiguous_mother",   "PartNo này gắn với hơn một mã mẹ — không chọn hộ. Tra đúng mã mẹ hoặc sửa catalog.",
+                                           "This PartNo maps to more than one mother code — look up the mother directly or fix the catalog.");
         Add("iqc.spec.specno",             "Tiêu chuẩn {0}",                      "Standard {0}");
         Add("iqc.spec.frommaster",         "từ file master",                      "from master file");
 

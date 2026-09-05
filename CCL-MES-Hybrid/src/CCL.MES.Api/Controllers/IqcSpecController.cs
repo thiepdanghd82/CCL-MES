@@ -52,6 +52,8 @@ public sealed class IqcSpecController : ControllerBase
         CancellationToken ct = default)
     {
         var v = await _svc.GetByMaterialCodeAsync(materialCode, includeInactive, ct);
+        if (v.ErrorCode is not null)
+            return UnprocessableEntity(ApiError.Of(v.ErrorCode, v.ErrorEn ?? v.ErrorCode));
         return Ok(Map(v));
     }
 
@@ -159,6 +161,8 @@ public sealed class IqcSpecController : ControllerBase
     private static IqcSpecEditResponse Map(IqcSpecEditView v) => new()
     {
         MaterialCode = v.MaterialCode,
+        QueriedCode = v.QueriedCode,
+        ResolvedViaMother = v.ResolvedViaMother,
         SpecNo = v.SpecNo,
         SpecActive = v.SpecActive,
         IsLocalSpec = v.IsLocalSpec,

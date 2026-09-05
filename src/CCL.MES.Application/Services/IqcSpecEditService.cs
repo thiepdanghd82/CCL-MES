@@ -57,7 +57,7 @@ public sealed class IqcSpecEditService
         string? materialCode, bool includeInactive = false, CancellationToken ct = default)
     {
         var code = (materialCode ?? "").Trim();
-        var view = new IqcSpecEditView { MaterialCode = code };
+        var view = new IqcSpecEditView { MaterialCode = code, QueriedCode = code };
         if (code.Length == 0) return view;
 
         var lib = await _db.IqcCheckItemLibraries.AsNoTracking()
@@ -80,8 +80,17 @@ public sealed class IqcSpecEditService
         // SFG-APB2M000102 có SÁU. Chỉ hiện một bản nghĩa là năm bộ tiêu chuẩn
         // kia vô hình trên màn hình NHƯNG resolver vẫn gộp chúng vào phiếu:
         // người soạn tiêu chuẩn không nhìn thấy thứ mà người kiểm sẽ phải làm.
-        var allSpecs = await FindSpecsAsync(code, ct);
-        if (allSpecs.Count == 0) return view;   // mã chưa có tiêu chuẩn riêng
+        var lookup = await LookupSpecsAsync(code, ct);
+        view.ResolvedViaMother = lookup.ViaMother;
+        if (lookup.ErrorCode is not null)
+        {
+            view.ErrorCode = lookup.ErrorCode;
+            view.ErrorEn = lookup.ErrorEn;
+            return view;
+        }
+        view.MaterialCode = lookup.CanonicalCode;
+        var allSpecs = lookup.Specs;
+        if (allSpecs.Count == 0) return view;   // mã (sau resolve) chưa có tiêu chuẩn riêng
 
         var primary = allSpecs.FirstOrDefault(x => x.Active) ?? allSpecs[0];
         view.SpecNo = primary.SpecNo;
@@ -176,7 +185,11 @@ public sealed class IqcSpecEditService
             return IqcSpecEditResult.Fail(422, "iqc.invalid_frequency",
                 "Frequency must be 256 characters or fewer.");
 
-        var spec = await FindSpecAsync(code, ct);
+        var lookup = await LookupSpecsAsync(code, ct);
+        if (lookup.ErrorCode is not null)
+            return IqcSpecEditResult.Fail(422, lookup.ErrorCode, lookup.ErrorEn ?? lookup.ErrorCode);
+        code = lookup.CanonicalCode;
+        var spec = lookup.Specs.FirstOrDefault(x => x.Active) ?? lookup.Specs.FirstOrDefault();
         var specCreated = false;
         if (spec is null)
         {
@@ -384,7 +397,12 @@ public sealed class IqcSpecEditService
             return new IqcSpecConsolidateResult
             { Ok = false, HttpStatus = 422, ErrorCode = "iqc.material_code_required" };
 
-        var specs = (await FindSpecsAsync(code, ct)).Where(x => x.Active).ToList();
+        var lookup = await LookupSpecsAsync(code, ct);
+        if (lookup.ErrorCode is not null)
+            return new IqcSpecConsolidateResult
+            { Ok = false, HttpStatus = 422, ErrorCode = lookup.ErrorCode };
+        code = lookup.CanonicalCode;
+        var specs = lookup.Specs.Where(x => x.Active).ToList();
         if (specs.Count <= 1)
             return new IqcSpecConsolidateResult
             {
@@ -474,10 +492,52 @@ public sealed class IqcSpecEditService
         };
     }
 
+    /// <summary>
+    /// Khoá spec = <c>IqcMaterialSpec.MaterialCode</c> (= mã mẹ). Gõ PartNo
+    /// (<c>300xxxxx</c>) thì resolve sang <c>RawMaterials.MotherCode</c> — cùng
+    /// luật phiếu IQC. Khớp exact MaterialCode thắng trước (spec local gắn đúng
+    /// chuỗi đó). Hai mẹ khác rỗng trên một PartNo → lỗi, không chọn hộ.
+    /// </summary>
+    private async Task<SpecLookup> LookupSpecsAsync(string code, CancellationToken ct)
+    {
+        var exact = await SpecsForMaterialAsync(code, ct);
+        if (exact.Count > 0)
+            return new SpecLookup(code, false, exact, null, null);
+
+        var upper = code.ToUpperInvariant();
+        // Chuỗi đã là mã mẹ trên catalog (kể cả chưa có spec) — giữ nguyên,
+        // đừng coi nó là PartNo của dòng khác.
+        var typedIsMother = await _db.RawMaterials.AsNoTracking()
+            .AnyAsync(x => x.MotherCode != null && x.MotherCode.ToUpper() == upper, ct);
+        if (typedIsMother)
+            return new SpecLookup(code, false, exact, null, null);
+
+        var mothers = await _db.RawMaterials.AsNoTracking()
+            .Where(x => x.PartNo.ToUpper() == upper)
+            .Select(x => x.MotherCode)
+            .ToListAsync(ct);
+        var distinct = mothers
+            .Select(m => (m ?? "").Trim())
+            .Where(m => m.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (distinct.Count > 1)
+            return new SpecLookup(code, false, new List<IqcMaterialSpec>(),
+                "iqc.ambiguous_mother",
+                "This PartNo maps to more than one mother code.");
+        if (distinct.Count == 1)
+        {
+            var mother = distinct[0];
+            var specs = await SpecsForMaterialAsync(mother, ct);
+            return new SpecLookup(mother, true, specs, null, null);
+        }
+        return new SpecLookup(code, false, exact, null, null);
+    }
+
     /// <summary>MỌI spec của một mã, sắp xếp tất định: bản còn bật trước, rồi
     /// theo SpecNo. Thứ tự phải ổn định — màn hình đổi thứ tự mỗi lần tải là
     /// cách chắc chắn để người dùng bấm nhầm dòng.</summary>
-    private async Task<List<IqcMaterialSpec>> FindSpecsAsync(string code, CancellationToken ct)
+    private async Task<List<IqcMaterialSpec>> SpecsForMaterialAsync(string code, CancellationToken ct)
     {
         var upper = code.ToUpperInvariant();
         var rows = await _db.IqcMaterialSpecs
@@ -489,16 +549,12 @@ public sealed class IqcSpecEditService
             .ToList();
     }
 
-    private async Task<IqcMaterialSpec?> FindSpecAsync(string code, CancellationToken ct)
-    {
-        var upper = code.ToUpperInvariant();
-        var candidates = await _db.IqcMaterialSpecs
-            .Where(x => x.MaterialCode.ToUpper() == upper)
-            .ToListAsync(ct);
-
-        // Ưu tiên spec còn bật; mã có cả bản tắt lẫn bản bật thì bản bật thắng.
-        return candidates.FirstOrDefault(x => x.Active) ?? candidates.FirstOrDefault();
-    }
+    private sealed record SpecLookup(
+        string CanonicalCode,
+        bool ViaMother,
+        List<IqcMaterialSpec> Specs,
+        string? ErrorCode,
+        string? ErrorEn);
 
     /// <summary>Số spec kế tiếp trong không gian tên CỤC BỘ.</summary>
     private async Task<string> NextLocalSpecNoAsync(CancellationToken ct)
@@ -563,6 +619,17 @@ public sealed class IqcSpecHeaderRow
 public sealed class IqcSpecEditView
 {
     public string MaterialCode { get; set; } = "";
+
+    /// <summary>Chuỗi người dùng gõ (PartNo hoặc mã mẹ). <see cref="MaterialCode"/>
+    /// là khoá canonical sau resolve.</summary>
+    public string QueriedCode { get; set; } = "";
+
+    /// <summary><c>true</c> khi gõ PartNo và đã mở spec của mã mẹ.</summary>
+    public bool ResolvedViaMother { get; set; }
+
+    /// <summary>Có khi PartNo map sang hơn một mã mẹ khác rỗng — không chọn hộ.</summary>
+    public string? ErrorCode { get; set; }
+    public string? ErrorEn { get; set; }
 
     /// <summary><c>null</c> = mã này chưa có spec (1 trong 590) — đang kiểm theo
     /// ma trận mặc định.</summary>

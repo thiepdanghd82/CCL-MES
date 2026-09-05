@@ -115,6 +115,7 @@
 - [L64 — hai đường TẠO cùng một hồ sơ: nối thư viện vào `CreateAsync` trong khi màn hình thật gọi `CreateTicketAsync`; test xanh, màn hình vẫn trống](#l64)
 - [L65 — bằng chứng Phase A để ở `/tmp`: migration đã áp lên DB thật nhưng backup bị OS dọn mất, hồ sơ vẫn ghi "chưa làm"](#l65)
 - [L66 — khoá nối phải ĐO không được suy từ tên: `MaterialCodeIfs` (7xxxxxxx) trông y hệt mã IFS của MES (300xxxxx) nhưng khớp 0 dòng](#l66)
+- [L70 — tab Tiêu chuẩn tra exact `MaterialCode` trong khi phiếu IQC resolve PartNo → MotherCode: Look up `300xxxxx` hiện ma trận trống dù spec mã mẹ đã có](#l70)
 - [L67 — bản ghi bằng chứng thiếu một chiều thông tin thì nói dối im lặng: `Pass` bool nuốt trạng thái "chưa kiểm"; bộ mặc định không mang cờ nguồn gốc](#l67)
 - [L68 — bản vá nền tảng scope vào một class: `.modal-input[type="date"]` không phủ ô ngày trong bảng, hỏng chỉ trên Catalyst](#l68)
 - [L69 — thêm method vào `ICclApiClient` mà quên `RecordingApi`: build project test gãy ở nơi không liên quan](#l69)
@@ -912,6 +913,18 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Fix** | Thêm 6 stub vào `RecordingApi` NGAY trong cùng lượt sửa interface, kèm hook `Impl` + list `Calls` theo đúng khuôn có sẵn. Riêng `DownloadIqcDocumentToFileAsync` phải **ghi file thật** ra đĩa: fixture "nháy đúp mở file" cần đường dẫn tồn tại thì `IFileOpener` giả mới trả lời được điều gì có nghĩa. |
 | **Cơ chế chặn tái phát** | **Quy tắc: sửa `ICclApiClient` thì cùng commit phải sửa `RecordingApi` — và phải chạy `dotnet build` của project TEST, không chỉ project src.** Build của `CCL.MES.Hybrid.Client` xanh không nói gì về việc test có build được hay không. Đây là lý do pha 4 (gate tĩnh) không thay được pha 5: gate chạy trên src. |
 | **Bẫy tìm được khi làm** | Phát hiện này đến từ một agent đọc code được giao việc khác hẳn (khảo sát khối render bước 1) — nó chạy build để hiểu bối cảnh và va phải. Nếu tôi chỉ build project mình vừa sửa thì lỗi này sẽ nằm im tới lúc tôi tưởng mình đã xong và chạy test lần cuối. |
+
+----
+
+### L70 — màn soạn tiêu chuẩn IQC không đi cùng luật resolve với phiếu
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Tab **QMS → IQC → Tiêu chuẩn**, gõ PartNo IFS (`30030146`, `30030176`) rồi Look up: banner MA TRẬN MẶC ĐỊNH + bảng trống. Cùng mã đó, phiếu incoming đã có đủ hạng mục (QC229 / QC407). Live: 1131 spec, **0** `MaterialCode` = `RawMaterials.PartNo`; spec khoá theo **MotherCode**. |
+| **Root cause** (proven) | `IqcCheckResolver` / `IqcService.MaterializeAsync` đã resolve `PartNo → MotherCode → IqcMaterialSpec.MaterialCode` (L66). `IqcSpecEditService.FindSpecsAsync` chỉ khớp **exact** chuỗi gõ với `MaterialCode`. Hai bề mặt cùng "tiêu chuẩn IQC" nhưng hai luật. Nguy hiểm hơn Look up trống: **AddItem** với PartNo sẽ tạo `MES-SPEC` khoá theo PartNo, phiếu vẫn đọc spec mẹ — hai bộ lệch nhau. |
+| **Fix** | Một helper `LookupSpecsAsync` dùng cho GET + AddItem + Consolidate: exact `MaterialCode` thắng; không có thì PartNo → đúng **một** MotherCode khác rỗng (kể cả mẹ chưa có spec); 0/empty mother → giữ chuỗi gõ; ≥2 mẹ → `422 iqc.ambiguous_mother`. GET trả `MaterialCode` = canonical + `QueriedCode` + `ResolvedViaMother`. UI giữ ô tìm là PartNo; ghi dùng `_view.MaterialCode`. |
+| **Cơ chế chặn tái phát** | `IqcSpecEditTests`: tra PartNo mở spec mẹ; AddItem PartNo khi mẹ đã có spec **không** đẻ `MES-SPEC` trên PartNo; AddItem khi mẹ chưa có spec tạo `MES-SPEC` trên **mẹ**; hai mẹ → 422. `IqcSpecControllerTests` wire GET/POST/422. `IqcSpecEditorTests` khoá banner + Save gửi mã mẹ. Bỏ resolve trong `AddItemAsync` ⇒ fixture "không đẻ MES-SPEC trên PartNo" ĐỎ. |
+| **Bẫy tìm được khi làm** | Sửa chỉ UI (chọn gợi ý) **không** đủ: Look up vẫn gửi đúng chuỗi PartNo đã gõ. Clone spec theo từng PartNo = contract impact 1 (STOP-gate) — một mẹ nhiều khổ (`1180mm` / `130mm`) phải **chung** bộ hạng mục. `MaterialCodeIfs` (`7xxxxxxx`) khớp 0 PartNo — đừng "sửa cho tiện" bằng cột đó (L66). |
 
 ----
 

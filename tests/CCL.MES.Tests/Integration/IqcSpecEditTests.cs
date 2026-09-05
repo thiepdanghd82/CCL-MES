@@ -375,4 +375,115 @@ public sealed class IqcSpecEditTests : IDisposable
         await SeedMasterSpecAsync(db);
         return (await Svc(db).GetByMaterialCodeAsync(code)).SpecNo;
     }
+
+    private static async Task SeedChildAsync(MesDbContext db, string partNo, string? mother)
+    {
+        db.RawMaterials.Add(new RawMaterial { PartNo = partNo, MotherCode = mother });
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task Tra_PartNo_thi_mo_spec_cua_ma_me()
+    {
+        await using var db = _fx.NewContext();
+        await SeedLibraryAsync(db);
+        await SeedMasterSpecAsync(db);
+        await SeedChildAsync(db, "30030146", "336-H1a");
+
+        var v = await Svc(db).GetByMaterialCodeAsync("30030146");
+
+        Assert.Null(v.ErrorCode);
+        Assert.True(v.ResolvedViaMother);
+        Assert.Equal("30030146", v.QueriedCode);
+        Assert.Equal("336-H1a", v.MaterialCode);
+        Assert.Equal("CCL-SPEC-QC229", v.SpecNo);
+        Assert.Single(v.Items);
+    }
+
+    [Fact]
+    public async Task Tra_dung_ma_me_thi_khong_bao_via_mother()
+    {
+        await using var db = _fx.NewContext();
+        await SeedLibraryAsync(db);
+        await SeedMasterSpecAsync(db);
+        await SeedChildAsync(db, "30030146", "336-H1a");
+
+        var v = await Svc(db).GetByMaterialCodeAsync("336-H1a");
+
+        Assert.False(v.ResolvedViaMother);
+        Assert.Equal("336-H1a", v.MaterialCode);
+        Assert.Equal("CCL-SPEC-QC229", v.SpecNo);
+    }
+
+    [Fact]
+    public async Task Them_bang_PartNo_khi_me_da_co_spec_KHONG_de_MES_SPEC_tren_PartNo()
+    {
+        await using var db = _fx.NewContext();
+        await SeedLibraryAsync(db);
+        await SeedMasterSpecAsync(db);
+        await SeedChildAsync(db, "30030146", "336-H1a");
+
+        var r = await Svc(db).AddItemAsync(
+            "30030146", "KT-02", "dài 500M", null, null, null, null, Eng, UserRole.Engineer);
+
+        Assert.True(r.Ok, r.ErrorCode);
+        Assert.False(r.SpecCreated);
+        Assert.Equal("CCL-SPEC-QC229", r.SpecNo);
+        Assert.Equal(0, await db.IqcMaterialSpecs.CountAsync(x => x.MaterialCode == "30030146"));
+        Assert.Equal(1, await db.IqcMaterialSpecs.CountAsync(x => x.MaterialCode == "336-H1a"));
+        Assert.True(await db.IqcSpecItems.AnyAsync(x => x.SpecNo == "CCL-SPEC-QC229" && x.ItemId == "KT-02"));
+    }
+
+    [Fact]
+    public async Task Them_bang_PartNo_khi_me_chua_co_spec_tao_MES_SPEC_tren_ME()
+    {
+        await using var db = _fx.NewContext();
+        await SeedLibraryAsync(db);
+        await SeedChildAsync(db, "30030999", "ME-CHUA-SPEC");
+
+        var r = await Svc(db).AddItemAsync(
+            "30030999", "NQ-01", "tem rõ", null, null, null, null, Eng, UserRole.Engineer);
+
+        Assert.True(r.Ok, r.ErrorCode);
+        Assert.True(r.SpecCreated);
+        Assert.StartsWith(IqcSpecEditService.LocalSpecPrefix, r.SpecNo);
+        Assert.Equal(0, await db.IqcMaterialSpecs.CountAsync(x => x.MaterialCode == "30030999"));
+        var spec = await db.IqcMaterialSpecs.SingleAsync();
+        Assert.Equal("ME-CHUA-SPEC", spec.MaterialCode);
+    }
+
+    [Fact]
+    public async Task PartNo_hai_me_khac_rong_thi_422_khong_chon_ho()
+    {
+        await using var db = _fx.NewContext();
+        await SeedLibraryAsync(db);
+        await SeedChildAsync(db, "30030000", "ME-A");
+        await SeedChildAsync(db, "30030000", "ME-B");
+
+        var v = await Svc(db).GetByMaterialCodeAsync("30030000");
+        Assert.Equal("iqc.ambiguous_mother", v.ErrorCode);
+        Assert.Null(v.SpecNo);
+
+        var r = await Svc(db).AddItemAsync(
+            "30030000", "NQ-01", "x", null, null, null, null, Eng, UserRole.Engineer);
+        Assert.False(r.Ok);
+        Assert.Equal(422, r.HttpStatus);
+        Assert.Equal("iqc.ambiguous_mother", r.ErrorCode);
+        Assert.Equal(0, await db.IqcMaterialSpecs.CountAsync());
+    }
+
+    [Fact]
+    public async Task PartNo_khong_ro_me_thi_giu_nguyen_chuoi()
+    {
+        await using var db = _fx.NewContext();
+        await SeedLibraryAsync(db);
+        await SeedChildAsync(db, "30030888", null);
+
+        var v = await Svc(db).GetByMaterialCodeAsync("30030888");
+
+        Assert.Null(v.ErrorCode);
+        Assert.False(v.ResolvedViaMother);
+        Assert.Equal("30030888", v.MaterialCode);
+        Assert.Null(v.SpecNo);
+    }
 }
