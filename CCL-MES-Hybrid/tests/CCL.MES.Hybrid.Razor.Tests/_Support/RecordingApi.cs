@@ -912,6 +912,28 @@ public sealed class RecordingApi : ICclApiClient
             ? Task.FromException(IqcSpecWriteThrows) : Task.CompletedTask;
     }
 
+    public List<string> ConsolidateIqcSpecCalls { get; } = new();
+    public CCL.MES.Shared.Quality.IqcSpecConsolidateResponse? ConsolidateIqcSpecResult { get; set; }
+
+    public Task<CCL.MES.Shared.Quality.IqcSpecConsolidateResponse> ConsolidateIqcSpecAsync(
+        string materialCode, CancellationToken ct = default)
+    {
+        ConsolidateIqcSpecCalls.Add(materialCode);
+        return IqcSpecWriteThrows is not null
+            ? Task.FromException<CCL.MES.Shared.Quality.IqcSpecConsolidateResponse>(IqcSpecWriteThrows)
+            : Task.FromResult(ConsolidateIqcSpecResult
+                ?? new CCL.MES.Shared.Quality.IqcSpecConsolidateResponse());
+    }
+
+    public List<(string SpecNo, bool Active)> SetIqcSpecActiveCalls { get; } = new();
+
+    public Task SetIqcSpecActiveAsync(string specNo, bool active, CancellationToken ct = default)
+    {
+        SetIqcSpecActiveCalls.Add((specNo, active));
+        return IqcSpecWriteThrows is not null
+            ? Task.FromException(IqcSpecWriteThrows) : Task.CompletedTask;
+    }
+
     public Task SetIqcSpecItemActiveAsync(long itemId, bool active, CancellationToken ct = default)
     {
         SetIqcSpecItemActiveCalls.Add((itemId, active));
