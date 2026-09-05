@@ -21,6 +21,10 @@ public sealed class CreateIqcTicketBody
     public double Quantity { get; set; }
     public string? Uom { get; set; }
     public int? SampleSize { get; set; }
+
+    /// <summary>P13 — lý do đổi cỡ mẫu khác đề xuất AQL. Bắt buộc khi có sai
+    /// lệch; thiếu ⇒ 422 <c>iqc.sample_size_reason_required</c>.</summary>
+    public string? SampleSizeOverrideReason { get; set; }
     public DateTime? ExpiryAt { get; set; }
 }
 
@@ -183,6 +187,48 @@ public sealed class IqcCheckItemDto
     public string? MeasuredValue { get; set; }
     public string? DefectCode { get; set; }
 
+    // ── P13 bước 4 — hình dạng, ngưỡng, dấu vết máy chấm ─────────────────
+
+    /// <summary><c>Verdict</c> · <c>DefectCount</c> · <c>Measure</c> ·
+    /// <c>Document</c>. UI dựng ô nhập theo ĐÂY, không tự đoán theo mã hạng mục:
+    /// mã đổi thì UI hỏng lặng lẽ, còn cột này đi cùng dữ liệu.</summary>
+    public string Kind { get; set; } = "Verdict";
+
+    /// <summary>Số ô đo phải hiện (5 cho kích thước, 1 cho độ bám dính).</summary>
+    public int MeasureCount { get; set; }
+
+    /// <summary><c>null</c> = CHƯA ĐẾM, khác hẳn 0 (đã đếm, không lỗi).</summary>
+    public int? DefectCount { get; set; }
+
+    public double? LimitLow { get; set; }
+    public double? LimitUp { get; set; }
+    public string? LimitUnit { get; set; }
+
+    /// <summary><c>Face</c> / <c>Adhesive</c> — ngưỡng này đo lớp nào.</summary>
+    public string? LimitLabel { get; set; }
+
+    /// <summary>Tiêu chuẩn có ghi "or tear" — chỉ khi đó ô tick rách mới hiện.</summary>
+    public bool TearIsPass { get; set; }
+    public bool TearObserved { get; set; }
+
+    /// <summary>Giá trị từng phép đo; phần tử <c>null</c> = ô chưa đo.</summary>
+    public List<double?> Measurements { get; set; } = new();
+
+    /// <summary>Kết luận MÁY chấm: <c>Pass</c> · <c>Fail</c> · <c>Undecidable</c>.
+    /// <c>Undecidable</c> KHÔNG có nghĩa là đạt.</summary>
+    public string? AutoVerdict { get; set; }
+
+    /// <summary>Mã lý do máy chấm (<c>iqc.judge.*</c>) — mã chứ không phải câu
+    /// đã dịch, để UI tự chọn ngôn ngữ và test khoá được.</summary>
+    public string? AutoVerdictReason { get; set; }
+
+    /// <summary>Phép đo / ô đếm làm trượt (1-based) — UI tô đúng ô đó.</summary>
+    public int? AutoVerdictOffendingSeq { get; set; }
+
+    public string? OverrideReason { get; set; }
+    public string? OverriddenBy { get; set; }
+    public DateTime? OverriddenAt { get; set; }
+
     /// <summary>Nhãn theo ngôn ngữ đang bật. Thiếu EN → bản VI; thiếu cả hai →
     /// <see cref="ItemKey"/>, để ô không bao giờ trống. Đây là chỗ DUY NHẤT
     /// quyết định chuyện đó; UI không tự viết lại <c>??</c>.</summary>
@@ -223,6 +269,25 @@ public sealed class SetIqcItemBody
     public bool? Pass { get; set; }
     public string? MeasuredValue { get; set; }
     public string? DefectCode { get; set; }
+
+    // ── P13 bước 4 — dữ liệu để MÁY chấm ─────────────────────────────────
+
+    /// <summary>Số lỗi đếm được (hạng mục <c>DefectCount</c>). <c>null</c> =
+    /// lần ghi này không đụng tới, KHÁC hẳn 0 (đã đếm, không có lỗi).</summary>
+    public int? DefectCount { get; set; }
+
+    /// <summary>Các phép đo, đúng thứ tự và đúng số lượng
+    /// <c>MeasureCount</c> của hạng mục. Phần tử <c>null</c> = ô chưa đo.
+    /// Gửi <c>null</c> cả mảng = lần ghi này không đụng tới phép đo.</summary>
+    public List<double?>? Measurements { get; set; }
+
+    /// <summary>Vật liệu rách trước khi bong keo — chỉ có nghĩa khi tiêu chuẩn
+    /// ghi "or tear".</summary>
+    public bool? TearObserved { get; set; }
+
+    /// <summary>Lý do phán định khác kết luận của máy. Bắt buộc khi có mâu
+    /// thuẫn; thiếu ⇒ 422 <c>iqc.verdict_override_reason_required</c>.</summary>
+    public string? OverrideReason { get; set; }
 }
 
 // ── P12 bước 2b — soạn tiêu chuẩn theo mã nguyên liệu ────────────────────

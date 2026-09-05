@@ -49,6 +49,38 @@ public class IqcService
         "QC",
     };
 
+    /// <summary>
+    /// P13 bước 4 — đóng dấu cỡ lô + cỡ mẫu ĐỀ XUẤT lên phiếu, và trả về lý do
+    /// từ chối nếu người tạo đổi khác đề xuất mà không ghi lý do.
+    ///
+    /// <para>Dùng chung cho CẢ HAI đường tạo phiếu. Một đường có luật, đường
+    /// kia không, thì đường kia là cửa sau — và cửa sau nào rồi cũng có người
+    /// đi qua (L64).</para>
+    ///
+    /// <para>Không suy được cỡ lô (đơn vị m² / kg / lạ) ⇒ không đề xuất ⇒ KHÔNG
+    /// đòi lý do. Bắt giải trình cho một sai lệch so với con số app chưa từng
+    /// đưa ra là vô nghĩa.</para>
+    /// </summary>
+    /// <returns><c>null</c> khi hợp lệ; ngược lại là mã lỗi.</returns>
+    private static string? ApplySampleSize(
+        IqcInspection insp, int? requested, string? overrideReason)
+    {
+        insp.LotQty = IqcLotSize.For(insp.Quantity, insp.UomQty);
+        insp.SampleSizeSuggested = IqcLotSize.SuggestSampleSize(insp.Quantity, insp.UomQty);
+
+        // 0 hoặc null = người tạo KHÔNG khai ⇒ nhận đề xuất, không phải "đổi
+        // thành 0". Đo trên live: 23/26 phiếu đang để SampleSize = 0.
+        var actual = requested is > 0 ? requested.Value : (insp.SampleSizeSuggested ?? 0);
+        insp.SampleSize = actual;
+
+        var reason = (overrideReason ?? "").Trim();
+        if (IqcLotSize.NeedsReason(insp.SampleSizeSuggested, actual) && reason.Length == 0)
+            return "iqc.sample_size_reason_required";
+
+        insp.SampleSizeOverrideReason = reason.Length == 0 ? null : reason;
+        return null;
+    }
+
     private static void RequireEditorRole(string actorRole)
     {
         if (!_editorRoles.Contains(actorRole ?? ""))
@@ -88,9 +120,10 @@ public class IqcService
             Quantity = r.Quantity,
             UomQty = r.UomQty,
             InspectorId = r.InspectorId,
-            SampleSize = r.SampleSize,
             Result = QcResult.Pending,
         };
+        if (ApplySampleSize(insp, r.SampleSize, r.SampleSizeOverrideReason) is { } err)
+            throw new InvalidOperationException(err);
         if (r.Details.Count > 0)
         {
             // Client gửi hạng mục ⇒ tôn trọng (đường cũ, nhập tay). Không đè.
@@ -249,11 +282,19 @@ public class IqcService
                 Quantity = r.Quantity,
                 UomQty = string.IsNullOrWhiteSpace(r.Uom) ? null : r.Uom!.Trim(),
                 InspectorId = actor,             // server-stamp, client KHÔNG khai
-                SampleSize = r.SampleSize ?? 0,
                 Result = QcResult.Pending,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = actor,
             };
+            // Cỡ lô + cỡ mẫu đề xuất. Từ chối SỚM, trước khi ghi bất cứ thứ gì:
+            // phiếu đã tồn tại rồi mới báo thiếu lý do là bắt người dùng dọn dẹp
+            // hộ mình.
+            if (ApplySampleSize(insp, r.SampleSize, r.SampleSizeOverrideReason) is { } ssErr)
+            {
+                await tx.RollbackAsync(ct);
+                return CreateIqcTicketResult.Fail(422, ssErr,
+                    "Sample size differs from the AQL suggestion; a reason is required.");
+            }
             _db.IqcInspections.Add(insp);
             try
             {
@@ -581,6 +622,16 @@ public class IqcService
             .OrderBy(d => d.Id)
             .ToListAsync(ct);
 
+        // Phép đo nối bằng FK trần (không navigation) — nạp một lần rồi gom,
+        // thay vì N+1 truy vấn cho một phiếu có 20 hạng mục.
+        var ids = rows.Select(r => r.Id).ToList();
+        var byDetail = (await _db.IqcResultMeasurements.AsNoTracking()
+                .Where(m => ids.Contains(m.IqcResultDetailId))
+                .OrderBy(m => m.Seq)
+                .ToListAsync(ct))
+            .GroupBy(m => m.IqcResultDetailId)
+            .ToDictionary(g => g.Key, g => g.Select(m => m.Value).ToList());
+
         return new IqcTicketItems
         {
             TicketId = inspectionId,
@@ -610,6 +661,25 @@ public class IqcService
                 Pass = r.Pass,
                 MeasuredValue = r.MeasuredValue,
                 DefectCode = r.DefectCode,
+
+                // P13 — hình dạng + ngưỡng ĐÃ ĐÓNG BĂNG, để UI dựng đúng ô nhập
+                // và người kiểm thấy mình đang so với con số nào.
+                Kind = r.Kind.ToString(),
+                MeasureCount = r.MeasureCount,
+                DefectCount = r.DefectCount,
+                LimitLow = r.LimitLow,
+                LimitUp = r.LimitUp,
+                LimitUnit = r.LimitUnit,
+                LimitLabel = r.LimitLabel,
+                TearIsPass = r.TearIsPass,
+                TearObserved = r.TearObserved,
+                Measurements = byDetail.TryGetValue(r.Id, out var mv) ? mv : new List<double?>(),
+                AutoVerdict = r.AutoVerdict,
+                AutoVerdictReason = r.AutoVerdictReason,
+                AutoVerdictOffendingSeq = r.AutoVerdictOffendingSeq,
+                OverrideReason = r.OverrideReason,
+                OverriddenBy = r.OverriddenBy,
+                OverriddenAt = r.OverriddenAt,
             }).ToList(),
         };
     }
@@ -622,7 +692,12 @@ public class IqcService
     public async Task<SetIqcItemResult> SetItemVerdictAsync(
         long inspectionId, long itemId, bool? pass,
         string? measuredValue, string? defectCode,
-        string actor, string actorRole, CancellationToken ct = default)
+        string actor, string actorRole,
+        int? defectCount = null,
+        IReadOnlyList<double?>? measurements = null,
+        bool? tearObserved = null,
+        string? overrideReason = null,
+        CancellationToken ct = default)
     {
         RequireEditorRole(actorRole);
 
@@ -646,9 +721,58 @@ public class IqcService
             return SetIqcItemResult.Fail(422, "iqc.invalid_defect_code",
                 "Defect code must be 32 characters or fewer.");
 
-        row.Pass = pass;
+        if (defectCount is { } dc && dc < 0)
+            return SetIqcItemResult.Fail(422, "iqc.invalid_defect_count",
+                "Defect count must be zero or greater.");
+        if (measurements is not null && measurements.Count != row.MeasureCount)
+            return SetIqcItemResult.Fail(422, "iqc.measurement_count_mismatch",
+                $"This item expects {row.MeasureCount} measurement(s), got {measurements.Count}.");
+
         row.MeasuredValue = string.IsNullOrWhiteSpace(measuredValue) ? null : measuredValue.Trim();
         row.DefectCode = string.IsNullOrWhiteSpace(defectCode) ? null : defectCode.Trim();
+        if (defectCount is not null) row.DefectCount = defectCount;
+        if (tearObserved is not null) row.TearObserved = tearObserved.Value;
+
+        // Ô đo: ghi đè theo thứ tự. Dòng đã dựng sẵn lúc mở phiếu nên chỉ cập
+        // nhật, không chèn mới — chèn mới sẽ đụng unique (detail, seq).
+        var values = await ApplyMeasurementsAsync(row, measurements, ct);
+
+        // ── MÁY CHẤM ─────────────────────────────────────────────────────
+        var machine = JudgeRow(row, values);
+        row.AutoVerdict = machine.Verdict.ToString();
+        row.AutoVerdictReason = machine.ReasonCode;
+        row.AutoVerdictOffendingSeq = machine.OffendingIndex;
+
+        // Máy quyết được mà người chưa nói gì ⇒ NHẬN kết luận của máy. Người
+        // kiểm đã làm phần việc thật (đếm lỗi / đo), tiêu chuẩn nói con số đó
+        // nghĩa là gì; bắt họ bấm thêm một nút để lặp lại điều đó là việc thừa.
+        // Muốn gỡ về CHƯA KIỂM thì xoá dữ liệu, lúc đó máy trả Undecidable.
+        var decided = machine.Verdict is IqcAutoVerdict.Pass or IqcAutoVerdict.Fail;
+        if (pass is null && decided) pass = machine.Verdict == IqcAutoVerdict.Pass;
+
+        // Người nói KHÁC máy ⇒ phải ghi lý do (Henry chốt 2026-09-04: máy chấm
+        // là RÀNG BUỘC). Máy chưa quyết được thì không có gì để mà trái.
+        var reason = (overrideReason ?? "").Trim();
+        var conflict = decided && pass is { } p && p != (machine.Verdict == IqcAutoVerdict.Pass);
+        if (conflict && reason.Length == 0)
+            return SetIqcItemResult.Fail(422, "iqc.verdict_override_reason_required",
+                "Your verdict differs from the automatic judgement; a reason is required.");
+
+        row.Pass = pass;
+        if (conflict)
+        {
+            // Ai đổi, lúc nào — server đóng dấu theo token. Đây là bằng chứng,
+            // không phải lời khai của client.
+            row.OverrideReason = reason;
+            row.OverriddenBy = actor;
+            row.OverriddenAt = DateTime.UtcNow;
+        }
+        else
+        {
+            row.OverrideReason = null;
+            row.OverriddenBy = null;
+            row.OverriddenAt = null;
+        }
         await _db.SaveChangesAsync(ct);
 
         await _audit.EmitAsync(
@@ -663,10 +787,76 @@ public class IqcService
                 verdict = row.Pass is null ? "unchecked" : row.Pass == true ? "pass" : "fail",
                 measured_value = row.MeasuredValue,
                 defect_code = row.DefectCode,
+                // Auditor phải trả lời được "máy nói gì, ai đổi, vì sao" mà
+                // không cần mở lại bảng kết quả.
+                defect_count = row.DefectCount,
+                auto_verdict = row.AutoVerdict,
+                auto_verdict_reason = row.AutoVerdictReason,
+                override_reason = row.OverrideReason,
             }));
 
         return new SetIqcItemResult { Ok = true, ItemId = row.Id, Pass = row.Pass };
     }
+
+    /// <summary>
+    /// Ghi các phép đo và trả về TOÀN BỘ giá trị hiện hành của hạng mục, theo
+    /// đúng thứ tự <c>Seq</c>.
+    ///
+    /// <para><paramref name="incoming"/> <c>null</c> = lần ghi này không đụng
+    /// tới phép đo ⇒ đọc lại giá trị đang có, để máy vẫn chấm được trên dữ liệu
+    /// đã nhập từ trước.</para>
+    /// </summary>
+    private async Task<IReadOnlyList<double?>> ApplyMeasurementsAsync(
+        IqcResultDetail row, IReadOnlyList<double?>? incoming, CancellationToken ct)
+    {
+        if (row.Kind != IqcCheckKind.Measure || row.MeasureCount <= 0)
+            return Array.Empty<double?>();
+
+        var rows = await _db.IqcResultMeasurements
+            .Where(m => m.IqcResultDetailId == row.Id)
+            .OrderBy(m => m.Seq)
+            .ToListAsync(ct);
+
+        // Phiếu mở trước P13 chưa có ô đo nào — dựng bù tại chỗ thay vì để hạng
+        // mục vĩnh viễn không chấm được.
+        for (var seq = rows.Count + 1; seq <= row.MeasureCount; seq++)
+        {
+            var m = new IqcResultMeasurement { IqcResultDetailId = row.Id, Seq = seq, Value = null };
+            _db.IqcResultMeasurements.Add(m);
+            rows.Add(m);
+        }
+
+        if (incoming is not null)
+            for (var i = 0; i < row.MeasureCount && i < rows.Count; i++)
+                rows[i].Value = incoming[i];
+
+        return rows.Take(row.MeasureCount).Select(m => m.Value).ToList();
+    }
+
+    /// <summary>
+    /// Máy chấm MỘT hạng mục, dựa trên hình dạng và ngưỡng ĐÃ ĐÓNG BĂNG của
+    /// chính dòng đó — không đọc lại thư viện hay spec.
+    ///
+    /// <para>Hạng mục người bấm (<c>Verdict</c>) và hồ sơ giấy (<c>Document</c>)
+    /// thì máy im lặng: không có con số nào để so, và
+    /// <see cref="IqcAutoVerdict.Undecidable"/> KHÔNG có nghĩa là đạt.</para>
+    /// </summary>
+    private static IqcJudgement JudgeRow(IqcResultDetail row, IReadOnlyList<double?> values) =>
+        row.Kind switch
+        {
+            IqcCheckKind.DefectCount => IqcAcceptance.JudgeDefectCounts([row.DefectCount]),
+            IqcCheckKind.Measure => IqcAcceptance.JudgeMeasurements(
+                values,
+                // Không cận nào ⇒ không có ngưỡng số ⇒ nhường người chấm. Dựng
+                // một IqcSpecLimit rỗng ở đây sẽ đổi mã lý do thành
+                // "limit_has_no_bound" và che mất sự thật là spec vốn không có số.
+                row.LimitLow is null && row.LimitUp is null
+                    ? null
+                    : new IqcSpecLimit(row.LimitLow, row.LimitUp, null,
+                        row.LimitUnit, row.LimitLabel, row.TearIsPass, row.AcceptanceVi ?? ""),
+                row.TearObserved),
+            _ => IqcJudgement.Undecidable("iqc.judge.human_only"),
+        };
 
     // ── P12 — CHỐT phiếu: đánh giá xong hết mới được chốt ────────────────
 
@@ -964,7 +1154,11 @@ public record CreateIqcRequest(
     string? UomQty,
     string? InspectorId,
     int SampleSize,
-    List<CreateIqcDetail> Details);
+    List<CreateIqcDetail> Details,
+    /// <summary>P13 — bắt buộc khi cỡ mẫu khác đề xuất AQL. Tham số cuối có giá
+    /// trị mặc định để 2 chỗ gọi cũ không phải sửa; luật vẫn chạy vì mặc định là
+    /// "không có lý do", tức là bị từ chối nếu thực sự có sai lệch.</summary>
+    string? SampleSizeOverrideReason = null);
 
 public record CreateIqcDetail(
     string ItemName,
@@ -990,6 +1184,12 @@ public sealed class CreateIqcTicketRequest
     public double Quantity { get; set; }
     public string? Uom { get; set; }
     public int? SampleSize { get; set; }
+
+    /// <summary>P13 — lý do đổi cỡ mẫu khác đề xuất AQL. Thiếu nó khi có sai
+    /// lệch ⇒ 422 <c>iqc.sample_size_reason_required</c> (Henry chốt
+    /// 2026-09-04: mọi thay đổi đều phải ghi lý do).</summary>
+    public string? SampleSizeOverrideReason { get; set; }
+
     public DateTime? ExpiryAt { get; set; }
 }
 
@@ -1141,6 +1341,29 @@ public sealed class IqcCheckItemRow
     public bool? Pass { get; init; }
     public string? MeasuredValue { get; init; }
     public string? DefectCode { get; init; }
+
+    // ── P13 bước 4 — hình dạng, ngưỡng, và dấu vết máy chấm ──────────────
+
+    /// <summary>Verdict · DefectCount · Measure · Document — quyết định ô nhập.</summary>
+    public string Kind { get; init; } = nameof(IqcCheckKind.Verdict);
+    public int MeasureCount { get; init; }
+    public int? DefectCount { get; init; }
+    public double? LimitLow { get; init; }
+    public double? LimitUp { get; init; }
+    public string? LimitUnit { get; init; }
+    public string? LimitLabel { get; init; }
+    public bool TearIsPass { get; init; }
+    public bool TearObserved { get; init; }
+
+    /// <summary>Giá trị các phép đo theo thứ tự; phần tử <c>null</c> = chưa đo.</summary>
+    public List<double?> Measurements { get; init; } = new();
+
+    public string? AutoVerdict { get; init; }
+    public string? AutoVerdictReason { get; init; }
+    public int? AutoVerdictOffendingSeq { get; init; }
+    public string? OverrideReason { get; init; }
+    public string? OverriddenBy { get; init; }
+    public DateTime? OverriddenAt { get; init; }
 }
 
 /// <summary>P12 — kết quả ghi phán định một hạng mục.</summary>
