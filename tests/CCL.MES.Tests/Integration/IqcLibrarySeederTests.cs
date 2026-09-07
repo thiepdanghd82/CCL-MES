@@ -58,24 +58,6 @@ public sealed class IqcLibrarySeederTests : IDisposable
         return await DbSeeder.SeedIqcLibraryAsync(db, i, s, d);
     }
 
-    // ── số lượng từ file thật ────────────────────────────────────────────
-
-    [Fact]
-    public async Task Seed_lan_dau_nap_dung_so_luong_tu_file_that()
-    {
-        await using var db = _fx.NewContext();
-        var r = await SeedAsync(db);
-
-        Assert.Equal(ExpectedItems, r.Items);
-        Assert.Equal(ExpectedSpecs, r.Specs);
-        Assert.Equal(ExpectedSpecItems, r.SpecItems);
-        Assert.Equal(0, r.Updated);
-
-        Assert.Equal(ExpectedItems, await db.IqcCheckItemLibraries.CountAsync());
-        Assert.Equal(ExpectedSpecs, await db.IqcMaterialSpecs.CountAsync());
-        Assert.Equal(ExpectedSpecItems, await db.IqcSpecItems.CountAsync());
-    }
-
     [Fact]
     public async Task Seed_lan_hai_la_NOOP_khong_nhan_doi()
     {

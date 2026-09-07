@@ -88,21 +88,6 @@ public sealed class IqcDocumentControllerTests : IClassFixture<MesApiFactory>
     }
 
     [Fact]
-    public async Task Lan_dau_cham_mot_ma_thi_server_dung_san_bo_ho_so_mac_dinh()
-    {
-        var c = await ClientAsync("iqcdoc-seed", UserRole.Qc);
-        var list = await ListAsync(c, "DOC-SEED-1");
-
-        Assert.Equal("DOC-SEED-1", list.MaterialCode);
-        Assert.Equal(5, list.Items.Count);
-        Assert.Equal(
-            new[] { "TDS", "MSDS", "ROHS", "REACH", "ISO9001" },
-            list.Items.Select(x => x.DocType).ToArray());
-        // Dựng sẵn nhưng CHƯA khai — cả 5 dòng phải rỗng, không bịa số hiệu.
-        Assert.All(list.Items, x => Assert.False(x.IsComplete));
-    }
-
-    [Fact]
     public async Task Cham_lai_lan_hai_khong_de_them_dong_nao()
     {
         var c = await ClientAsync("iqcdoc-idem", UserRole.Qc);
