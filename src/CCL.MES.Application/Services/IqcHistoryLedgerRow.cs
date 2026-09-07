@@ -18,8 +18,8 @@ public sealed record IqcHistoryLedgerRow(
     IqcHistoryLedgerChecks? Checks = null);
 
 /// <summary>
-/// Khối kiểm tra đã đọc từ cột Excel (Roll S–BN / PCS P–AP).
-/// Chem/Tool = null (phase sau).
+/// Khối kiểm tra đã đọc từ cột Excel (Roll S–BN / PCS P–AP / Chem I–U).
+/// Tool = null (phase sau).
 /// </summary>
 public sealed record IqcHistoryLedgerChecks(
     // ── Điều kiện đóng gói ──────────────────────────────────────
@@ -27,7 +27,7 @@ public sealed record IqcHistoryLedgerChecks(
     string? ExpiryText,
     string? Pefc,
     string? PefcLevel,
-    string? PackagingSpec,       // PCS: quy cách
+    string? PackagingSpec,       // PCS/Chem: quy cách
     bool? PackagingPass,
     string? PackagingInspector,
     // ── Visual ──────────────────────────────────────────────────
@@ -62,7 +62,10 @@ public sealed record IqcHistoryLedgerChecks(
     string? LabSpec,
     IReadOnlyList<double?> LabSheets,          // 5
     bool? LabPass,
-    string? LabInspector);
+    string? LabInspector,
+    // ── Chem Documents (HSF / COA) ───────────────────────────────
+    bool? HsfPass = null,
+    bool? CoaPass = null);
 
 public readonly record struct IqcLedgerDefectCell(string ItemKey, int? Count);
 

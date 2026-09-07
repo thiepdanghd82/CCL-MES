@@ -356,6 +356,8 @@ public static class IqcHistoryLedgerReader
             $"{nom.Value}+{plus}-{minus}");
     }
 
+    private static readonly string[] ChemVisualKeys = ["CD-01", "CD-02", "CD-03"];
+
     private static IEnumerable<IqcHistoryLedgerRow> ReadChem(XLWorkbook wb)
     {
         if (!TrySheet(wb, "Chem", out var ws)) yield break;
@@ -364,6 +366,55 @@ public static class IqcHistoryLedgerReader
         {
             if (IsBlank(ws, r, 1, 6, 7)) continue;
             var qtyKg = Num(ws, r, 10);
+
+            // Cột 16–18 = OK/NG từng hạng mục (không phải đếm lỗi) → Count 0=OK, 1=NG.
+            var defects = new List<IqcLedgerDefectCell>(3);
+            for (var i = 0; i < 3; i++)
+            {
+                var pass = ParsePass(Cell(ws, r, 16 + i));
+                int? count = pass is null ? null : (pass.Value ? 0 : 1);
+                defects.Add(new IqcLedgerDefectCell(ChemVisualKeys[i], count));
+            }
+
+            var checks = new IqcHistoryLedgerChecks(
+                WarehouseInDate: Cell(ws, r, 13),
+                ExpiryText: Cell(ws, r, 14),
+                Pefc: null,
+                PefcLevel: null,
+                PackagingSpec: Cell(ws, r, 9),
+                PackagingPass: ParsePass(Cell(ws, r, 15)),
+                PackagingInspector: null,
+                VisualSampleQty: Int(ws, r, 12),
+                VisualDefects: defects,
+                VisualPass: ParsePass(Cell(ws, r, 19)),
+                VisualInspector: Cell(ws, r, 23),
+                WidthNominal: null,
+                WidthLow: null,
+                WidthUp: null,
+                WidthSamples: Array.Empty<double?>(),
+                WidthSampleTexts: Array.Empty<string?>(),
+                WidthPass: null,
+                LengthNominal: null,
+                LengthLow: null,
+                LengthUp: null,
+                LengthSamples: Array.Empty<double?>(),
+                LengthSampleTexts: Array.Empty<string?>(),
+                LengthPass: null,
+                LengthSpec: null,
+                ThicknessSpec: null,
+                ThicknessSamples: Array.Empty<double?>(),
+                ThicknessPass: null,
+                DimensionInspector: null,
+                FuncSpec: null,
+                FuncPass: null,
+                FuncInspector: null,
+                LabSpec: null,
+                LabSheets: Array.Empty<double?>(),
+                LabPass: null,
+                LabInspector: null,
+                HsfPass: ParsePass(Cell(ws, r, 20)),
+                CoaPass: ParsePass(Cell(ws, r, 21)));
+
             yield return new IqcHistoryLedgerRow(
                 Sheet: "Chem",
                 ExcelRow: r,
@@ -377,7 +428,8 @@ public static class IqcHistoryLedgerReader
                 Quantity: qtyKg,
                 Uom: qtyKg > 0 ? "kg" : null,
                 FinalJudgment: Cell(ws, r, 22),
-                Inspector: Cell(ws, r, 23));
+                Inspector: Cell(ws, r, 23),
+                Checks: checks);
         }
     }
 

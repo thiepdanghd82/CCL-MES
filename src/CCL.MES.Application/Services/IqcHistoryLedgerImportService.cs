@@ -90,7 +90,7 @@ public sealed class IqcHistoryLedgerImportService
         if (commit && enrichDetails && repairDetails && existingMap.Count > 0)
         {
             var repairReceipts = candidates
-                .Where(c => IsRollOrPcs(c.Row.Sheet) && c.Row.Checks is not null)
+                .Where(c => IsDetailSheet(c.Row.Sheet) && c.Row.Checks is not null)
                 .Select(c => c.Receipt)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var repairIds = existingMap
@@ -155,7 +155,7 @@ public sealed class IqcHistoryLedgerImportService
                     found.RawMaterialId = linkId;
                     linkedRaw++;
                 }
-                if (commit && enrichDetails && row.Checks is not null && IsRollOrPcs(row.Sheet)
+                if (commit && enrichDetails && row.Checks is not null && IsDetailSheet(row.Sheet)
                     && !alreadyEnriched.Contains(found.Id))
                 {
                     // Attach details onto tracked entity already in context.
@@ -205,7 +205,7 @@ public sealed class IqcHistoryLedgerImportService
             _db.IqcInspections.Add(insp);
             existingMap[receipt] = insp;
 
-            if (enrichDetails && row.Checks is not null && IsRollOrPcs(row.Sheet))
+            if (enrichDetails && row.Checks is not null && IsDetailSheet(row.Sheet))
                 newWithDetails.Add((insp, row));
         }
 
@@ -227,9 +227,10 @@ public sealed class IqcHistoryLedgerImportService
             read, skipJudgment, skipPcs, inserted, already, detailsUpserted);
     }
 
-    private static bool IsRollOrPcs(string sheet) =>
+    private static bool IsDetailSheet(string sheet) =>
         sheet.Equals("Roll", StringComparison.OrdinalIgnoreCase)
-        || sheet.Equals("PCS", StringComparison.OrdinalIgnoreCase);
+        || sheet.Equals("PCS", StringComparison.OrdinalIgnoreCase)
+        || sheet.Equals("Chem", StringComparison.OrdinalIgnoreCase);
 
     private async Task StripLedgerDetailsAsync(IReadOnlyList<long> inspectionIds, CancellationToken ct)
     {
@@ -281,9 +282,10 @@ public sealed class IqcHistoryLedgerImportService
     {
         var c = row.Checks!;
         var isRoll = row.Sheet.Equals("Roll", StringComparison.OrdinalIgnoreCase);
+        var isChem = row.Sheet.Equals("Chem", StringComparison.OrdinalIgnoreCase);
         var pending = new List<(IqcResultDetail, IReadOnlyList<double?>)>();
 
-        // Packaging
+        // Packaging / tem nhãn
         AddVerdict(insp, "NQ-01", "NQ", "Ngoại quan", "External inspection",
             "Tem nhãn", "Labels / marking",
             c.PackagingPass ?? true,
@@ -299,24 +301,52 @@ public sealed class IqcHistoryLedgerImportService
                 c.Pefc is null ? null : $"PEFC/FSC: {c.Pefc}",
                 c.PefcLevel is null ? null : $"Level: {c.PefcLevel}");
             AddVerdict(insp, "NQ-06", "NQ", "Ngoại quan", "External inspection",
-                "Điều kiện đóng gói", "Packaging condition",
+                isChem ? "Đóng gói" : "Điều kiện đóng gói",
+                isChem ? "Packaging" : "Packaging condition",
                 c.PackagingPass, measured: pkgNote);
         }
 
-        // Visual defects — keep rows that have a count OR when overall is set keep zeros
-        var anyCount = c.VisualDefects.Any(d => d.Count is not null);
-        foreach (var d in c.VisualDefects)
+        // Visual — Chem: CD-01..03 là OK/NG (Count 0/1); Roll/PCS: đếm lỗi
+        if (isChem)
         {
-            if (d.Count is null && !anyCount) continue;
-            if (d.Count is null) continue; // only materialise counted cells
-            AddDefect(insp, d.ItemKey, d.Count, c.VisualPass);
+            foreach (var d in c.VisualDefects)
+            {
+                if (d.Count is null) continue;
+                var (vi, en) = ChemVisualLabel(d.ItemKey);
+                AddVerdict(insp, d.ItemKey, "NQ", "Ngoại quan", "External inspection",
+                    vi, en, pass: d.Count == 0);
+            }
+        }
+        else
+        {
+            var anyCount = c.VisualDefects.Any(d => d.Count is not null);
+            foreach (var d in c.VisualDefects)
+            {
+                if (d.Count is null && !anyCount) continue;
+                if (d.Count is null) continue;
+                AddDefect(insp, d.ItemKey, d.Count, c.VisualPass);
+            }
+
+            if (c.VisualPass is not null && !anyCount)
+            {
+                AddVerdict(insp, isRoll ? "RD-13" : "PD-09", "NQ", "Ngoại quan", "External inspection",
+                    "Lỗi khác / tổng ngoại quan", "Other / visual overall",
+                    c.VisualPass);
+            }
         }
 
-        if (c.VisualPass is not null && !anyCount)
+        // Chem documents
+        if (c.HsfPass is not null)
         {
-            AddVerdict(insp, isRoll ? "RD-13" : "PD-09", "NQ", "Ngoại quan", "External inspection",
-                "Lỗi khác / tổng ngoại quan", "Other / visual overall",
-                c.VisualPass);
+            AddVerdict(insp, "MT-02", "MT", "Môi trường", "Environment",
+                "Hồ sơ HSF / SGS của NCC", "HSF / SGS documentation",
+                c.HsfPass);
+        }
+        if (c.CoaPass is not null)
+        {
+            AddVerdict(insp, "DOC-COA", "MT", "Môi trường", "Environment",
+                "COA", "Certificate of Analysis",
+                c.CoaPass);
         }
 
         // Dimension — width (KT-03)
@@ -406,6 +436,15 @@ public sealed class IqcHistoryLedgerImportService
 
         return pending;
     }
+
+    private static (string Vi, string En) ChemVisualLabel(string key) => key switch
+    {
+        "CD-01" => ("Không rách, không biến dạng, không đổ palet",
+            "No tear, no deformation, no pallet collapse"),
+        "CD-02" => ("Không bẩn, không ẩm ướt", "No dirt, no damp"),
+        "CD-03" => ("Nắp can không lỏng, không rỉ mực", "Can lid not loose, no ink leak"),
+        _ => (key, key),
+    };
 
     private static bool LooksLikeHardness(string? spec)
     {

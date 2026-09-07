@@ -27,10 +27,18 @@ public sealed class IqcTicketSectionTests
         Library.Count(x => IqcTicketSection.Of(x.Item, x.Group) == section);
 
     [Fact]
-    public void Muc_1_chi_co_ho_so_giay_MT_02()
+    public void Muc_1_ho_so_giay_MT_02_va_DOC_COA()
     {
-        Assert.Equal(1, Count(IqcTicketSection.Documents));
         Assert.Equal(IqcTicketSection.Documents, IqcTicketSection.Of("MT-02", "MT"));
+        Assert.Equal(IqcTicketSection.Documents, IqcTicketSection.Of("DOC-COA", "MT"));
+        Assert.Equal(1, Count(IqcTicketSection.Documents)); // library sample chỉ MT-02
+    }
+
+    [Fact]
+    public void Chem_CD_vao_ngoai_quan()
+    {
+        Assert.Equal(IqcTicketSection.Visual, IqcTicketSection.Of("CD-01", "NQ"));
+        Assert.Equal(IqcTicketSection.Visual, IqcTicketSection.Of("CD-03", "NQ"));
     }
 
     [Fact]

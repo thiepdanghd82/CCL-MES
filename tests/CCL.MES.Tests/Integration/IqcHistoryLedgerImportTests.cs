@@ -53,4 +53,60 @@ public sealed class IqcHistoryLedgerImportTests : IDisposable
         Assert.Equal(1, hist.Total);
         Assert.Equal("XLS-ROLL-00003", hist.Items[0].ReceiptNo);
     }
+
+    [Fact]
+    public async Task Enrich_chem_materialises_CD_HSF_and_packaging()
+    {
+        await using var db = _fx.NewContext();
+        var checks = new IqcHistoryLedgerChecks(
+            WarehouseInDate: "2026-01-05",
+            ExpiryText: "1 Năm từ ngày nhập kho",
+            Pefc: null, PefcLevel: null,
+            PackagingSpec: "1",
+            PackagingPass: true,
+            PackagingInspector: null,
+            VisualSampleQty: 3,
+            VisualDefects:
+            [
+                new IqcLedgerDefectCell("CD-01", 0),
+                new IqcLedgerDefectCell("CD-02", 0),
+                new IqcLedgerDefectCell("CD-03", 1),
+            ],
+            VisualPass: false,
+            VisualInspector: "Hải",
+            WidthNominal: null, WidthLow: null, WidthUp: null,
+            WidthSamples: Array.Empty<double?>(), WidthSampleTexts: Array.Empty<string?>(), WidthPass: null,
+            LengthNominal: null, LengthLow: null, LengthUp: null,
+            LengthSamples: Array.Empty<double?>(), LengthSampleTexts: Array.Empty<string?>(),
+            LengthPass: null, LengthSpec: null,
+            ThicknessSpec: null, ThicknessSamples: Array.Empty<double?>(), ThicknessPass: null,
+            DimensionInspector: null,
+            FuncSpec: null, FuncPass: null, FuncInspector: null,
+            LabSpec: null, LabSheets: Array.Empty<double?>(), LabPass: null, LabInspector: null,
+            HsfPass: true, CoaPass: true);
+
+        var rows = new List<IqcHistoryLedgerRow>
+        {
+            new("Chem", 3, 1, new DateTime(2026, 1, 5), "NCC", "30120017", null,
+                "OPAQUE WHITE", "PO1", 15, "kg", "NG", "Hải", Checks: checks),
+        };
+
+        var svc = new IqcHistoryLedgerImportService(db);
+        var r = await svc.ImportAsync(rows, "test", commit: true, enrichDetails: true);
+        Assert.Equal(1, r.Inserted);
+        Assert.Equal(1, r.DetailsUpserted);
+
+        var keys = await db.IqcResultDetails.Select(d => d.ItemKey).OrderBy(k => k).ToListAsync();
+        Assert.Contains("NQ-01", keys);
+        Assert.Contains("NQ-06", keys);
+        Assert.Contains("CD-01", keys);
+        Assert.Contains("CD-03", keys);
+        Assert.Contains("MT-02", keys);
+        Assert.Contains("DOC-COA", keys);
+
+        var cd03 = await db.IqcResultDetails.SingleAsync(d => d.ItemKey == "CD-03");
+        Assert.False(cd03.Pass);
+        var hsf = await db.IqcResultDetails.SingleAsync(d => d.ItemKey == "MT-02");
+        Assert.True(hsf.Pass);
+    }
 }

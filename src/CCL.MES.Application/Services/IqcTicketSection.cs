@@ -4,7 +4,7 @@ namespace CCL.MES.Application.Services;
 /// Mục nào của stepper phiếu IQC chứa hạng mục nào.
 ///
 /// <list type="table">
-/// <item><term>1 · Hồ sơ tài liệu</term><description><c>MT-02</c></description></item>
+/// <item><term>1 · Hồ sơ tài liệu</term><description><c>MT-02</c> (HSF) · <c>DOC-COA</c></description></item>
 /// <item><term>2 · Điều kiện đóng gói</term><description><c>NQ-01</c> (tem) · <c>NQ-06</c> (đóng gói)</description></item>
 /// <item><term>3 · Ngoại quan</term><description><c>NL</c> + <c>NQ</c> còn lại (kể cả RD/PD)</description></item>
 /// <item><term>4 · Kiểm tra kích thước</term><description>nhóm <c>KT</c></description></item>
@@ -20,7 +20,8 @@ public static class IqcTicketSection
     public const int Dimension = 4;
     public const int Functional = 5;
 
-    private const string DocumentItemKey = "MT-02";
+    private static readonly HashSet<string> DocumentKeys =
+        new(StringComparer.OrdinalIgnoreCase) { "MT-02", "DOC-COA" };
 
     private static readonly HashSet<string> PackagingKeys =
         new(StringComparer.OrdinalIgnoreCase) { "NQ-01", "NQ-06" };
@@ -35,7 +36,7 @@ public static class IqcTicketSection
     public static int Of(string? itemKey, string? groupCode)
     {
         var key = itemKey?.Trim();
-        if (string.Equals(key, DocumentItemKey, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(key) && DocumentKeys.Contains(key))
             return Documents;
 
         if (!string.IsNullOrEmpty(key) && PackagingKeys.Contains(key))
