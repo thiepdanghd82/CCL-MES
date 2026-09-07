@@ -941,6 +941,17 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 
 ----
 
+### L72 — khoá bí mật đặt đúng file nhưng SAI MÔI TRƯỜNG: API chết lúc boot và nằm im vì không ai trông chừng
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Người dùng báo "API lại tắt → login fail". `pgrep` không thấy tiến trình, `:5100` trống. Audit log **không có dòng `LOGIN_FAIL` nào** ở thời điểm đó — request chưa từng tới server. Chạy bằng `dotnet run` thì lại lên bình thường, nên rất dễ kết luận nhầm là "máy lỗi vặt". |
+| **Root cause** (proven) | Tái hiện bằng đúng lệnh trong `BAN-GIAO-2026-08-19.md`: `Unhandled exception … JwtSigningKeyGuard.EnsureSafeForBoot … Program.cs:227` → SIGABRT (crash report `dotnet-…​.ips`: `RunMain → IL_Rethrow → TerminateProcess → abort`). Lệnh đó KHÔNG đặt `ASPNETCORE_ENVIRONMENT`, .NET mặc định `Production`, nên `Program.cs:21` nạp `appsettings.Production.local.json` — trong khi khoá thật nằm ở `appsettings.Development.local.json`. `launchSettings.json:11` đặt sẵn `Development` nên `dotnet run` không dính. Cùng một binary, hai kết quả, tuỳ ai gõ lệnh gì. Thông báo lỗi cũ lại gợi ý đúng cái file ĐÃ CÓ, khiến người đọc tưởng mình làm đúng rồi. |
+| **Fix** | (a) `JwtSigningKeyGuard` nêu **đích danh** `appsettings.{environmentName}.local.json` của môi trường ĐANG chạy + cảnh báo file môi trường khác không được nạp; (b) `scripts/api-service.sh` — đặt môi trường tường minh, preflight kiểm khoá của đúng môi trường đó, từ chối chạy khi **binary cũ hơn mã nguồn** (L22), và cài launchd `KeepAlive` để tiến trình tự dựng lại; (c) `BAN-GIAO` thay đoạn `nohup` bằng script, kèm cách chẩn đoán "không có LOGIN_FAIL ⇒ API tắt". |
+| **Cơ chế chặn tái phát** | `JwtSigningKeyGuardTests.Thong_bao_loi_phai_neu_DICH_DANH_moi_truong_dang_chay` (Theory 3 môi trường) + `…Khong_duoc_goi_y_file_cua_moi_truong_KHAC`. Bỏ nội suy môi trường khỏi thông báo ⇒ ĐỎ. Vận hành: `api-service.sh status` in tiến trình · cổng · `/health` và tự dán log khi không 200; `install` DỪNG nếu thiếu khoá hoặc binary cũ. Kiểm chứng launchd: `kill -9` PID → tự dựng lại PID mới trong 5s, `/health` 200. |
+
+----
+
 ## Adding a new lesson
 
 When a new bug class costs ≥2 hours of investigation:

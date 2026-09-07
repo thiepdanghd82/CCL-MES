@@ -34,12 +34,25 @@ public static class JwtSigningKeyGuard
 
         if (IsForbiddenDevKey(key))
         {
+            // Nêu ĐÍCH DANH file của môi trường ĐANG chạy, không nêu chung
+            // chung. Sự cố 2026-09-07: khoá thật đã nằm ở
+            // appsettings.Development.local.json, nhưng lệnh vận hành không
+            // đặt ASPNETCORE_ENVIRONMENT nên .NET rơi về Production và tìm
+            // một file khác — thông báo cũ lại gợi ý đúng file đã có, khiến
+            // người đọc tưởng mình đã làm đúng và đi tìm nguyên nhân khác.
             throw new InvalidOperationException(
-                "Jwt:SigningKey is a committed placeholder / known-dev sentinel "
-                + "(REPLACE-IN-PROD or dev-only-…). Refusing to boot — anyone with "
-                + "the repo could mint Admin tokens. Set a private key via "
-                + "Jwt__SigningKey or appsettings.Development.local.json "
-                + "(gitignored) / appsettings.Production.json.");
+                $"Jwt:SigningKey is a committed placeholder / known-dev sentinel "
+                + $"(REPLACE-IN-PROD or dev-only-…). Refusing to boot — anyone with "
+                + $"the repo could mint Admin tokens.{Environment.NewLine}"
+                + $"Môi trường đang chạy: {environmentName}.{Environment.NewLine}"
+                + $"Sửa bằng MỘT trong hai cách:{Environment.NewLine}"
+                + $"  1. tạo appsettings.{environmentName}.local.json (đã gitignore) "
+                + $"với {{\"Jwt\":{{\"SigningKey\":\"<khoá ngẫu nhiên ≥32 byte>\"}}}}"
+                + $"{Environment.NewLine}"
+                + $"  2. hoặc đặt biến môi trường Jwt__SigningKey trước khi chạy."
+                + $"{Environment.NewLine}"
+                + $"Lưu ý: file appsettings.<Môi trường>.local.json của môi trường KHÁC "
+                + $"sẽ KHÔNG được nạp.");
         }
     }
 }
