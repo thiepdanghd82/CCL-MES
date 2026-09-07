@@ -26,7 +26,11 @@ public sealed class QmsShellComponentsTests : TestContext
             .Add(x => x.ActiveIndex, 1)
             .Add(x => x.OnStepClick, EventCallback.Factory.Create<int>(this, i => clicked = i)));
 
-        Assert.Equal(5, cut.FindAll(".qms-step").Count);
+        // Đếm theo CHÍNH nguồn dữ liệu, không chốt số cứng. Việc của test
+        // này là "component render đủ mọi bước được truyền vào" — chốt 5
+        // biến nó thành test canh dữ liệu, và nó đã đỏ đúng như vậy khi
+        // P13 thêm bước Đếm lỗi + Lịch sử (5 -> 7).
+        Assert.Equal(QmsMock.IqcSteps.Length, cut.FindAll(".qms-step").Count);
         Assert.Contains("qms-step-on", cut.Find("[data-testid='qms-step-2']").GetAttribute("class"));
 
         cut.Find("[data-testid='qms-step-4']").Click();

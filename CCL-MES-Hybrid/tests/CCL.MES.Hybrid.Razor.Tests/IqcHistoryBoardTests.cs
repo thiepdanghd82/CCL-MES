@@ -85,9 +85,17 @@ public sealed class IqcHistoryBoardTests : TestContext
 
         cut.Find("[data-testid=iqc-history-search-clear]").Click();
 
-        Assert.Equal("", cut.Find("[data-testid=iqc-history-search]").GetAttribute("value"));
-        Assert.Empty(cut.FindAll("[data-testid=iqc-history-search-clear]"));
-        Assert.True(string.IsNullOrEmpty(_api.ListIqcHistoryCalls[^1].Search));
+        // ClearSearch là `async Task`: nó gán _search = "" rồi mới `await
+        // LoadAsync()`, nên DOM chỉ mang giá trị mới SAU khi tác vụ bất đồng bộ
+        // xong. Đọc thẳng sau .Click() là đua — chạy riêng thì 10/10 xanh, chạy
+        // cả bộ thì đỏ 1/4 vì máy bận nên continuation về muộn hơn.
+        // (Đúng khuôn WaitForAssertion đã dùng ở trên cho nút xoá hiện ra.)
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("", cut.Find("[data-testid=iqc-history-search]").GetAttribute("value"));
+            Assert.Empty(cut.FindAll("[data-testid=iqc-history-search-clear]"));
+            Assert.True(string.IsNullOrEmpty(_api.ListIqcHistoryCalls[^1].Search));
+        });
     }
 
     [Theory]
