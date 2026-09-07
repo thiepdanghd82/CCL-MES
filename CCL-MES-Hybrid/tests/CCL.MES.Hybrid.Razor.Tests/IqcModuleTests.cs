@@ -531,6 +531,54 @@ public sealed class IqcModuleTests : TestContext
     }
 
     [Fact]
+    public void Chemical_ticket_hides_dimension_and_functional_steps()
+    {
+        // Chemical không kiểm KT kích thước / chức năng — stepper chỉ còn 5 bước
+        // (Documents · Packaging · Visual · Defect · History), đánh số lại 1..5.
+        WireForm();
+        var ticket = new IqcTicketListItem
+        {
+            Id = 526, ReceiptNo = "XLS-CHEM-00526", Group = "Chemical",
+            CodeIfs = "30120441", MaterialDescription = "UV process black",
+            Inspector = "Hải", Result = "Pass",
+            ReceivedDate = DateTime.UtcNow,
+        };
+        var cut = RenderComponent<MaterialsInspectionForm>(p => p
+            .Add(x => x.Chrome, false).Add(x => x.DebounceMs, 0).Add(x => x.Ticket, ticket));
+
+        var steps = cut.FindAll("[data-testid=qms-stepper] .qms-step");
+        Assert.Equal(5, steps.Count);
+        Assert.NotNull(cut.Find("[data-testid=qms-step-1]"));
+        Assert.NotNull(cut.Find("[data-testid=qms-step-5]"));
+        Assert.Empty(cut.FindAll("[data-testid=qms-step-6]"));
+        Assert.Empty(cut.FindAll("[data-testid=qms-step-7]"));
+
+        var stepperText = cut.Find("[data-testid=qms-stepper]").TextContent;
+        Assert.DoesNotContain("Dimension", stepperText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Functional", stepperText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Kích thước", stepperText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Chức năng", stepperText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Materials_ticket_keeps_seven_iqc_steps_including_dimension()
+    {
+        WireForm();
+        var ticket = new IqcTicketListItem
+        {
+            Id = 129, ReceiptNo = "XLS-PCS-00129", Group = "Materials",
+            CodeIfs = "MC-PCS", MaterialDescription = "PCS sheet",
+            Result = "Pending", ReceivedDate = DateTime.UtcNow,
+        };
+        var cut = RenderComponent<MaterialsInspectionForm>(p => p
+            .Add(x => x.Chrome, false).Add(x => x.DebounceMs, 0).Add(x => x.Ticket, ticket));
+
+        Assert.Equal(7, cut.FindAll("[data-testid=qms-stepper] .qms-step").Count);
+        Assert.NotNull(cut.Find("[data-testid=qms-step-4]"));
+        Assert.NotNull(cut.Find("[data-testid=qms-step-5]"));
+    }
+
+    [Fact]
     public void Mo_phieu_Fail_tu_History_khong_crash_khi_hien_ket_qua()
     {
         // Lỗi 2026-09-07: IsTicketClosed=true từ Ticket.Result nhưng badge

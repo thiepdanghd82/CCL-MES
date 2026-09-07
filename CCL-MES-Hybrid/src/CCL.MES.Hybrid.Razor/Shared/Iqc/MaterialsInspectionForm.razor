@@ -309,11 +309,11 @@ else
                 }
             }
 
-            @* ── Stepper 5 bước (khôi phục từ main) ── *@
-            <QmsStepper Steps="QmsMock.IqcSteps" ActiveIndex="_active"
-                        OnStepClick="i => _active = i" />
+            @* ── Stepper: Materials đủ 7 bước; Chemical bỏ Dimension + Functional. *@
+            <QmsStepper Steps="VisibleSteps" ActiveIndex="_active"
+                        OnStepClick="OnStepClick" />
 
-            @if (_active == 0)
+            @if (ContentIndex == 0)
             {
                 @* ── Bước 1: hồ sơ HSF THẬT theo MÃ MẸ (P12 bước 4) ──
                    Trước đây là bảng giả `QmsMock.Hsf` — 5 dòng cứng, không đọc
@@ -341,16 +341,16 @@ else
                     }
                 }
             }
-            else if (_active is >= 1 and <= 4)
+            else if (ContentIndex is >= 1 and <= 4)
             {
                 @* Mục 2–5: Packaging · Visual · Dimension · Functional.
                    Số mục = IqcTicketSection (server); UI chỉ lọc theo Section. *@
-                <section class="qms-section" data-testid="@($"iqc-insp-sec{_active + 1}")">
+                <section class="qms-section" data-testid="@($"iqc-insp-sec{ContentIndex + 1}")">
                     <div class="qms-section-head">
-                        <h2 class="qms-section-title">@T(QmsMock.IqcSteps[_active].LabelKey)</h2>
+                        <h2 class="qms-section-title">@T(QmsMock.IqcSteps[ContentIndex].LabelKey)</h2>
                     </div>
                     <p class="qms-section-desc">
-                        @T(_active switch
+                        @T(ContentIndex switch
                         {
                             1 => "iqc.step.packaging.desc",
                             2 => "iqc.step.visual.desc",
@@ -361,32 +361,32 @@ else
 
                     @if (IsCreate)
                     {
-                        <p class="qms-section-desc" data-testid="@($"iqc-insp-sec{_active + 1}-pending-create")">
+                        <p class="qms-section-desc" data-testid="@($"iqc-insp-sec{ContentIndex + 1}-pending-create")">
                             @T("iqc.items.after.create")
                         </p>
                     }
                     else if (_itemsError is not null)
                     {
-                        <p class="iqc-warn iqc-warn-error" data-testid="@($"iqc-insp-sec{_active + 1}-error")">@_itemsError</p>
+                        <p class="iqc-warn iqc-warn-error" data-testid="@($"iqc-insp-sec{ContentIndex + 1}-error")">@_itemsError</p>
                     }
                     else
                     {
                         <IqcCheckItemGrid TicketId="@Ticket!.Id"
                                           Items="_items"
-                                          Section="@(_active + 1)"
+                                          Section="@(ContentIndex + 1)"
                                           SpecNo="@_itemsSpecNo"
                                           SpecApproval="@_itemsApproval"
                                           FromDefaultMatrix="_itemsFromMatrix"
                                           ReadOnly="IsTicketClosed"
                                           OnChanged="LoadItemsAsync"
-                                          TestIdPrefix="@($"iqc-sec{_active + 1}")" />
+                                          TestIdPrefix="@($"iqc-sec{ContentIndex + 1}")" />
                     }
                 </section>
             }
             else
             {
                 <p class="qms-section-desc" data-testid="iqc-insp-step-placeholder">
-                    @T(QmsMock.IqcSteps[_active].LabelKey) — @T("qms.icra.state.open")…
+                    @T(QmsMock.IqcSteps[ContentIndex].LabelKey) — @T("qms.icra.state.open")…
                 </p>
             }
         </div>;
@@ -418,6 +418,36 @@ else
     private bool IsCreate => Ticket is null;
 
     private int _active;
+
+    /// <summary>Chemical không kiểm kích thước / chức năng — ẩn bước 4·5
+    /// (chỉ còn Documents · Packaging · Visual · Defect · History).</summary>
+    private bool IsChemicalTicket =>
+        string.Equals(Ticket?.Group, "Chemical", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Chỉ số nội dung trong <see cref="QmsMock.IqcSteps"/> theo từng
+    /// ô stepper đang hiện. Chemical bỏ index 3 (Dimension) và 4 (Functional).</summary>
+    private static readonly int[] AllStepContent = [0, 1, 2, 3, 4, 5, 6];
+    private static readonly int[] ChemStepContent = [0, 1, 2, 5, 6];
+
+    private int[] ContentMap => IsChemicalTicket ? ChemStepContent : AllStepContent;
+
+    private IReadOnlyList<QmsStep> VisibleSteps =>
+        ContentMap
+            .Select((contentIdx, displayIdx) =>
+            {
+                var s = QmsMock.IqcSteps[contentIdx];
+                return s with { Num = displayIdx + 1 };
+            })
+            .ToList();
+
+    private int ContentIndex =>
+        _active >= 0 && _active < ContentMap.Length ? ContentMap[_active] : 0;
+
+    private void OnStepClick(int displayIdx)
+    {
+        if (displayIdx < 0 || displayIdx >= ContentMap.Length) return;
+        _active = displayIdx;
+    }
 
     // ── P12 bước 3 — hạng mục kiểm đã đóng băng trên phiếu ───────────────
     private List<IqcCheckItemDto> _items = new();
@@ -467,6 +497,9 @@ else
     /// Chế độ tạo mới chưa có phiếu nên không gọi.</summary>
     protected override async Task OnParametersSetAsync()
     {
+        // Chemical chỉ còn 5 bước — kẹp index nếu đang đứng ở Dimension/Functional.
+        if (_active >= ContentMap.Length) _active = 0;
+
         if (Ticket is null || Ticket.Id == _itemsLoadedFor) return;
         _itemsLoadedFor = Ticket.Id;
         await LoadItemsAsync();
