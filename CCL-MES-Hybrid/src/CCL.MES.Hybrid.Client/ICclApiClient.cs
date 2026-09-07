@@ -81,6 +81,10 @@ public interface ICclApiClient
     // ── IQC soạn tiêu chuẩn theo mã (P12 bước 2b) ──────────────────
     Task<CCL.MES.Shared.Quality.IqcSpecEditResponse> GetIqcSpecAsync(
         string materialCode, bool includeInactive = false, CancellationToken ct = default);
+    Task<CCL.MES.Shared.Quality.IqcStandardSpecListResponse> ListIqcStandardSpecsAsync(
+        string? q = null, int page = 1, int pageSize = 50, CancellationToken ct = default);
+    Task<CCL.MES.Shared.Quality.IqcStandardSpecImportResponse> ImportIqcStandardSpecsAsync(
+        string? folderPath = null, CancellationToken ct = default);
     Task AddIqcSpecItemAsync(
         string materialCode, CCL.MES.Shared.Quality.AddIqcSpecItemBody body,
         CancellationToken ct = default);

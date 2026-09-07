@@ -492,6 +492,50 @@ public sealed class IqcSpecConsolidateResponse
     public List<string> DeactivatedSpecNos { get; set; } = new();
 }
 
+/// <summary>Một dòng catalog tiêu chuẩn CCL-SPEC (tab Standard spec).</summary>
+public sealed class IqcStandardSpecListItem
+{
+    public string SpecNo { get; set; } = "";
+    public string MaterialCode { get; set; } = "";
+    public string? MaterialCodeIfs { get; set; }
+    public string? SupplierName { get; set; }
+    public string? Revision { get; set; }
+    public string Approval { get; set; } = "";
+    public string? ImportSource { get; set; }
+    public bool Active { get; set; } = true;
+    public int ItemCount { get; set; }
+    public string? SourceFileName { get; set; }
+}
+
+/// <summary><c>GET /api/v2/iqc/specs/catalog</c>.</summary>
+public sealed class IqcStandardSpecListResponse
+{
+    public int Total { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public List<IqcStandardSpecListItem> Items { get; set; } = new();
+}
+
+/// <summary><c>POST /api/v2/iqc/specs/catalog/import</c> — quét folder file
+/// <c>CCL-SPEC-QC### - … - {Mother}.xlsx</c>. Đường dẫn từ body hoặc
+/// <c>MES_IQC_STANDARD_SPEC_DIR</c>.</summary>
+public sealed class IqcStandardSpecImportBody
+{
+    public string? FolderPath { get; set; }
+}
+
+/// <summary>Kết quả import folder tiêu chuẩn.</summary>
+public sealed class IqcStandardSpecImportResponse
+{
+    public int FilesSeen { get; set; }
+    public int FilesSkipped { get; set; }
+    public int Inserted { get; set; }
+    public int Updated { get; set; }
+    public int AlreadyPresent { get; set; }
+    public string? FolderPath { get; set; }
+    public List<string> Warnings { get; set; } = new();
+}
+
 /// <summary>Body <c>PUT /api/v2/iqc/specs/active</c> — bật/tắt CẢ BỘ tiêu chuẩn.</summary>
 public sealed class SetIqcSpecActiveBody
 {

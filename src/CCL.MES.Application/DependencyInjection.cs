@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<IqcService>();
         services.AddScoped<IqcNgService>();
         services.AddScoped<IqcSpecEditService>();
+        services.AddScoped<IqcStandardSpecCatalogService>();
         services.AddScoped<IqcMaterialDocumentService>();
         return services;
     }

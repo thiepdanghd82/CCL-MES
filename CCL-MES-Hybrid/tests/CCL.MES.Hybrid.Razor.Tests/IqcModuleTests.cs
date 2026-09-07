@@ -64,6 +64,7 @@ public sealed class IqcModuleTests : TestContext
         Assert.NotNull(cut.Find("[data-testid=iqc-subtab-data]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-subtab-newticket]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-subtab-spec]"));
+        Assert.NotNull(cut.Find("[data-testid=iqc-subtab-stdspec]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-subtab-ng]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-subtab-history]"));
         // Dashboard is the default active tab.
@@ -72,6 +73,32 @@ public sealed class IqcModuleTests : TestContext
         Assert.Empty(cut.FindAll("[data-testid=iqc-newticket]"));
         Assert.Empty(cut.FindAll("[data-testid=iqc-ng]"));
         Assert.Empty(cut.FindAll("[data-testid=iqc-history]"));
+    }
+
+    [Fact]
+    public void StandardSpec_tab_renders_catalog_board()
+    {
+        Wire();
+        _api.IqcStandardSpecListImpl = (_, _, _) => Task.FromResult(new IqcStandardSpecListResponse
+        {
+            Total = 1, Page = 1, PageSize = 50,
+            Items =
+            [
+                new IqcStandardSpecListItem
+                {
+                    SpecNo = "CCL-SPEC-QC001", MaterialCode = "SW-7325F",
+                    Revision = "R03", Approval = "Approved", ItemCount = 15,
+                },
+            ],
+        });
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        cut.Find("[data-testid=iqc-subtab-stdspec]").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid=iqc-stdspec]"));
+            Assert.Contains("CCL-SPEC-QC001", cut.Markup);
+            Assert.Contains("SW-7325F", cut.Markup);
+        });
     }
 
     [Fact]

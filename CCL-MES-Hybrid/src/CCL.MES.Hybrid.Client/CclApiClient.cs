@@ -291,6 +291,34 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<CCL.MES.Shared.Quality.IqcSpecEditResponse>(resp, ct);
     }
 
+    public async Task<CCL.MES.Shared.Quality.IqcStandardSpecListResponse> ListIqcStandardSpecsAsync(
+        string? q = null, int page = 1, int pageSize = 50, CancellationToken ct = default)
+    {
+        var url = $"/{ApiVersion.Prefix}/iqc/specs/catalog?page={page}&pageSize={pageSize}";
+        if (!string.IsNullOrWhiteSpace(q))
+            url += $"&q={Uri.EscapeDataString(q.Trim())}";
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcStandardSpecListResponse>(resp, ct);
+    }
+
+    public async Task<CCL.MES.Shared.Quality.IqcStandardSpecImportResponse> ImportIqcStandardSpecsAsync(
+        string? folderPath = null, CancellationToken ct = default)
+    {
+        using var msg = new HttpRequestMessage(
+            HttpMethod.Post, $"/{ApiVersion.Prefix}/iqc/specs/catalog/import")
+        {
+            Content = JsonContent.Create(new CCL.MES.Shared.Quality.IqcStandardSpecImportBody
+            {
+                FolderPath = folderPath,
+            }),
+        };
+        if (!string.IsNullOrWhiteSpace(_opts.DeviceId))
+            msg.Headers.Add("X-Device-Id", _opts.DeviceId);
+        msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
+        using var resp = await _http.SendAsync(msg, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcStandardSpecImportResponse>(resp, ct);
+    }
+
     public async Task AddIqcSpecItemAsync(
         string materialCode, CCL.MES.Shared.Quality.AddIqcSpecItemBody body,
         CancellationToken ct = default)

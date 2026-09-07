@@ -1,0 +1,208 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Shared.Quality
+@using Microsoft.AspNetCore.Components
+@inject ICclApiClient Api
+@inject CCL.MES.Hybrid.Client.Auth.IAuthSession Session
+
+@*
+    Catalog tiêu chuẩn CCL-SPEC-QC* — dữ liệu từ folder Form IQC 2026
+    (seed P12 + import header). Soạn chi tiết hạng mục vẫn dùng tab Standards.
+*@
+
+<section class="qms-section" data-testid="iqc-stdspec">
+    <div class="qms-section-head">
+        <h2 class="qms-section-title">@T("iqc.stdspec.title")</h2>
+    </div>
+    <p class="qms-section-desc">@T("iqc.stdspec.desc")</p>
+
+    <div class="iqc-data-toolbar">
+        <div class="iqc-search-wrap">
+            <input type="search" class="op-input iqc-data-search" data-testid="iqc-stdspec-search"
+                   placeholder="@T("iqc.stdspec.search.ph")" value="@_search"
+                   @oninput="OnSearchInput" />
+            @if (!string.IsNullOrEmpty(_search))
+            {
+                <button type="button" class="iqc-search-clear" data-testid="iqc-stdspec-search-clear"
+                        title="@T("iqc.stdspec.search.clear")" aria-label="@T("iqc.stdspec.search.clear")"
+                        @onclick="ClearSearch">×</button>
+            }
+        </div>
+        <button type="button" class="op-btn op-btn-primary" data-testid="iqc-stdspec-import"
+                disabled="@_importing" @onclick="ImportAsync">
+            @(_importing ? T("iqc.stdspec.importing") : T("iqc.stdspec.import"))
+        </button>
+        @if (_status is not null)
+        {
+            <span class="iqc-hint" data-testid="iqc-stdspec-status">@_status</span>
+        }
+    </div>
+
+    @if (_loading && _data is null)
+    {
+        <p class="qms-section-desc">@T("iqc.stdspec.loading")</p>
+    }
+    else if (_error is not null)
+    {
+        <p class="iqc-warn iqc-warn-error" data-testid="iqc-stdspec-error">@_error</p>
+    }
+    else
+    {
+        <p class="iqc-hint" data-testid="iqc-stdspec-total">
+            @T("iqc.stdspec.total", _data?.Total ?? 0)
+        </p>
+        <div class="qms-table-wrap qms-fill">
+            <table class="qms-table iqc-data-table" data-testid="iqc-stdspec-table">
+                <thead>
+                    <tr>
+                        <th>@T("iqc.stdspec.col.specno")</th>
+                        <th>@T("iqc.stdspec.col.material")</th>
+                        <th>@T("iqc.stdspec.col.supplier")</th>
+                        <th>@T("iqc.stdspec.col.revision")</th>
+                        <th class="num">@T("iqc.stdspec.col.items")</th>
+                        <th>@T("iqc.stdspec.col.approval")</th>
+                        <th>@T("iqc.stdspec.col.source")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (_data is null || _data.Items.Count == 0)
+                    {
+                        <tr data-testid="iqc-stdspec-empty">
+                            <td colspan="7">@T("iqc.stdspec.empty")</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in _data.Items)
+                        {
+                            <tr data-testid="iqc-stdspec-row" @ondblclick="() => OpenInEditor(row)">
+                                <td>@row.SpecNo</td>
+                                <td>@row.MaterialCode</td>
+                                <td>@(row.SupplierName ?? "—")</td>
+                                <td>@(row.Revision ?? "—")</td>
+                                <td class="num">@row.ItemCount</td>
+                                <td>
+                                    <span class="iqc-status @(row.Approval == "Approved" ? "iqc-status-pass" : "iqc-status-pending")">
+                                        @ApprovalLabel(row.Approval)
+                                    </span>
+                                </td>
+                                <td>@(row.ImportSource ?? "—")</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        @if ((_data?.Total ?? 0) > _pageSize)
+        {
+            <div class="iqc-data-pager" data-testid="iqc-stdspec-pager">
+                <button type="button" class="op-btn" disabled="@(_page <= 1 || _loading)"
+                        @onclick="() => GoPage(_page - 1)">@T("iqc.stdspec.prev")</button>
+                <span>@_page / @MaxPage</span>
+                <button type="button" class="op-btn" disabled="@(_page >= MaxPage || _loading)"
+                        @onclick="() => GoPage(_page + 1)">@T("iqc.stdspec.next")</button>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    [Parameter] public int DebounceMs { get; set; } = 280;
+    [Parameter] public EventCallback<string> OnOpenMaterial { get; set; }
+
+    private IqcStandardSpecListResponse? _data;
+    private string _search = "";
+    private string? _error;
+    private string? _status;
+    private bool _loading;
+    private bool _importing;
+    private int _page = 1;
+    private const int _pageSize = 50;
+    private CancellationTokenSource? _debounce;
+    private int MaxPage => Math.Max(1, (int)Math.Ceiling((_data?.Total ?? 0) / (double)_pageSize));
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private string ApprovalLabel(string a) => a switch
+    {
+        "Approved" => T("iqc.stdspec.approval.approved"),
+        "PendingQc" => T("iqc.stdspec.approval.pending"),
+        "Rejected" => T("iqc.stdspec.approval.rejected"),
+        _ => a,
+    };
+
+    private async Task OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        _debounce?.Cancel();
+        _debounce = new CancellationTokenSource();
+        var token = _debounce.Token;
+        try
+        {
+            await Task.Delay(DebounceMs, token);
+            _page = 1;
+            await LoadAsync();
+        }
+        catch (TaskCanceledException) { /* debounce */ }
+    }
+
+    private async Task ClearSearch()
+    {
+        _search = "";
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task GoPage(int p)
+    {
+        _page = Math.Max(1, p);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _data = await Api.ListIqcStandardSpecsAsync(
+                string.IsNullOrWhiteSpace(_search) ? null : _search, _page, _pageSize);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _data = null;
+        }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ImportAsync()
+    {
+        _importing = true;
+        _status = null;
+        _error = null;
+        try
+        {
+            var r = await Api.ImportIqcStandardSpecsAsync();
+            _status = T("iqc.stdspec.import.done", r.FilesSeen, r.Inserted, r.Updated, r.AlreadyPresent);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _importing = false;
+        }
+    }
+
+    private async Task OpenInEditor(IqcStandardSpecListItem row)
+    {
+        if (OnOpenMaterial.HasDelegate && !string.IsNullOrWhiteSpace(row.MaterialCode))
+            await OnOpenMaterial.InvokeAsync(row.MaterialCode);
+    }
+}

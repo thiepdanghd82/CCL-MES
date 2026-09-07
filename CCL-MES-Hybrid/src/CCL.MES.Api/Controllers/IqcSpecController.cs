@@ -29,11 +29,81 @@ namespace CCL.MES.Api.Controllers;
 public sealed class IqcSpecController : ControllerBase
 {
     private readonly IqcSpecEditService _svc;
-    public IqcSpecController(IqcSpecEditService svc) => _svc = svc;
+    private readonly IqcStandardSpecCatalogService _catalog;
+    private readonly IIqcStandardSpecFolderScanner _folderScanner;
+
+    public IqcSpecController(
+        IqcSpecEditService svc,
+        IqcStandardSpecCatalogService catalog,
+        IIqcStandardSpecFolderScanner folderScanner)
+    {
+        _svc = svc;
+        _catalog = catalog;
+        _folderScanner = folderScanner;
+    }
 
     private (string Actor, string Role) Who() => (
         User.FindFirstValue(ClaimTypes.Name) ?? "anonymous",
         User.FindFirstValue(ClaimTypes.Role) ?? "");
+
+    /// <summary>Danh mục tiêu chuẩn <c>CCL-SPEC-QC*</c> (tab Standard spec).</summary>
+    [HttpGet("catalog")]
+    public async Task<ActionResult<IqcStandardSpecListResponse>> Catalog(
+        [FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        var pageData = await _catalog.ListAsync(q, page, pageSize, ct);
+        return Ok(new IqcStandardSpecListResponse
+        {
+            Total = pageData.Total,
+            Page = pageData.Page,
+            PageSize = pageData.PageSize,
+            Items = pageData.Items.Select(x => new IqcStandardSpecListItem
+            {
+                SpecNo = x.SpecNo,
+                MaterialCode = x.MaterialCode,
+                MaterialCodeIfs = x.MaterialCodeIfs,
+                SupplierName = x.SupplierName,
+                Revision = x.Revision,
+                Approval = x.Approval,
+                ImportSource = x.ImportSource,
+                Active = x.Active,
+                ItemCount = x.ItemCount,
+            }).ToList(),
+        });
+    }
+
+    /// <summary>Import header từ folder file Form. Đường dẫn: body hoặc
+    /// env <c>MES_IQC_STANDARD_SPEC_DIR</c>.</summary>
+    [HttpPost("catalog/import"), Authorize(Policy = "IqcSpecWrite")]
+    public async Task<ActionResult<IqcStandardSpecImportResponse>> ImportCatalog(
+        [FromBody] IqcStandardSpecImportBody? body, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(Request.Headers["Idempotency-Key"].ToString()))
+            return BadRequest(ApiError.Of("wo.idempotency_key_required",
+                "Idempotency-Key header required."));
+
+        var folder = body?.FolderPath?.Trim();
+        if (string.IsNullOrWhiteSpace(folder))
+            folder = Environment.GetEnvironmentVariable(IqcStandardSpecCatalogService.DefaultEnvDir);
+        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+            return UnprocessableEntity(ApiError.Of("iqc.stdspec_folder_missing",
+                "Set FolderPath or MES_IQC_STANDARD_SPEC_DIR to an existing folder."));
+
+        var rows = _folderScanner.Scan(folder);
+        var (actor, role) = Who();
+        var r = await _catalog.ImportParsedAsync(rows, actor, role, folder, commit: true, ct);
+        return Ok(new IqcStandardSpecImportResponse
+        {
+            FilesSeen = r.FilesSeen,
+            FilesSkipped = r.FilesSkipped,
+            Inserted = r.Inserted,
+            Updated = r.Updated,
+            AlreadyPresent = r.AlreadyPresent,
+            FolderPath = r.FolderPath,
+            Warnings = r.Warnings,
+        });
+    }
 
     /// <summary>Tiêu chuẩn hiện có của một mã nguyên liệu + thư viện hạng mục
     /// để chọn thêm. Mã chưa có spec vẫn trả 200 với <c>specNo=null</c> — "chưa

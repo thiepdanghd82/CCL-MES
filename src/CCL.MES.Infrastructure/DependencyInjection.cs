@@ -1,9 +1,11 @@
 using CCL.MES.Application;
 using CCL.MES.Application.AuditLogExport;
+using CCL.MES.Application.Services;
 using CCL.MES.Application.SpecExport;
 using CCL.MES.Application.SpecImport;
 using CCL.MES.Application.WorkOrderExport;
 using CCL.MES.Infrastructure.AuditLogExport;
+using CCL.MES.Infrastructure.IqcMaster;
 using CCL.MES.Infrastructure.SpecExport;
 using CCL.MES.Infrastructure.SpecImport;
 using CCL.MES.Infrastructure.WorkOrderExport;
@@ -81,6 +83,8 @@ public static class DependencyInjection
         services.AddSingleton<XlsxAuditLogExporter>();
         services.AddSingleton<IAuditLogExporter>(sp => sp.GetRequiredService<CsvAuditLogExporter>());
         services.AddSingleton<IAuditLogExporter>(sp => sp.GetRequiredService<XlsxAuditLogExporter>());
+
+        services.AddSingleton<IIqcStandardSpecFolderScanner, IqcStandardSpecFolderScanner>();
 
         return services;
     }

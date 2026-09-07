@@ -887,7 +887,11 @@ public sealed class RecordingApi : ICclApiClient
 
     // P12 bước 2b — soạn tiêu chuẩn theo mã nguyên liệu.
     public Func<string, bool, Task<CCL.MES.Shared.Quality.IqcSpecEditResponse>>? IqcSpecImpl { get; set; }
+    public Func<string?, int, int, Task<CCL.MES.Shared.Quality.IqcStandardSpecListResponse>>? IqcStandardSpecListImpl { get; set; }
+    public Func<string?, Task<CCL.MES.Shared.Quality.IqcStandardSpecImportResponse>>? IqcStandardSpecImportImpl { get; set; }
     public List<(string Code, bool IncludeInactive)> IqcSpecCalls { get; } = new();
+    public List<(string? Q, int Page, int PageSize)> IqcStandardSpecListCalls { get; } = new();
+    public List<string?> IqcStandardSpecImportCalls { get; } = new();
     public List<(string Code, CCL.MES.Shared.Quality.AddIqcSpecItemBody Body)> AddIqcSpecItemCalls { get; } = new();
     public List<(long ItemId, bool Active)> SetIqcSpecItemActiveCalls { get; } = new();
 
@@ -901,6 +905,29 @@ public sealed class RecordingApi : ICclApiClient
         return IqcSpecImpl is not null
             ? IqcSpecImpl(materialCode, includeInactive)
             : Task.FromResult(new CCL.MES.Shared.Quality.IqcSpecEditResponse { MaterialCode = materialCode });
+    }
+
+    public Task<CCL.MES.Shared.Quality.IqcStandardSpecListResponse> ListIqcStandardSpecsAsync(
+        string? q = null, int page = 1, int pageSize = 50, CancellationToken ct = default)
+    {
+        IqcStandardSpecListCalls.Add((q, page, pageSize));
+        return IqcStandardSpecListImpl is not null
+            ? IqcStandardSpecListImpl(q, page, pageSize)
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcStandardSpecListResponse
+            {
+                Page = page, PageSize = pageSize, Total = 0, Items = new(),
+            });
+    }
+
+    public Task<CCL.MES.Shared.Quality.IqcStandardSpecImportResponse> ImportIqcStandardSpecsAsync(
+        string? folderPath = null, CancellationToken ct = default)
+    {
+        IqcStandardSpecImportCalls.Add(folderPath);
+        if (IqcSpecWriteThrows is not null)
+            return Task.FromException<CCL.MES.Shared.Quality.IqcStandardSpecImportResponse>(IqcSpecWriteThrows);
+        return IqcStandardSpecImportImpl is not null
+            ? IqcStandardSpecImportImpl(folderPath)
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcStandardSpecImportResponse());
     }
 
     public Task AddIqcSpecItemAsync(

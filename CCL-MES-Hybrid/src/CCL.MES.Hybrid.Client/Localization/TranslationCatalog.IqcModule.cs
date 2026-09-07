@@ -180,6 +180,32 @@ public sealed partial class TranslationCatalog
 
         // ── P12 bước 2b — soạn tiêu chuẩn theo mã nguyên liệu ───────────
         Add("iqc.tab.spec",                "Tiêu chuẩn",                          "Standards");
+        Add("iqc.tab.stdspec",             "IQC Standard spec",                   "IQC Standard spec");
+        Add("iqc.stdspec.title",           "Tiêu chuẩn IQC (CCL-SPEC)",            "IQC standards (CCL-SPEC)");
+        Add("iqc.stdspec.desc",            "Danh mục tiêu chuẩn kiểm NVL từ file Form (folder IQC 2026). Import bổ sung header còn thiếu; hạng mục chi tiết giữ từ thư viện đã seed.",
+                                           "Catalogue of material IQC standards from Form files (IQC 2026 folder). Import adds missing headers; check items stay from the seeded library.");
+        Add("iqc.stdspec.search.ph",       "Tìm SpecNo / mã mẹ / NCC…",            "Search SpecNo / mother / supplier…");
+        Add("iqc.stdspec.search.clear",    "Xoá tìm",                             "Clear search");
+        Add("iqc.stdspec.import",          "Import từ folder",                    "Import from folder");
+        Add("iqc.stdspec.importing",       "Đang import…",                        "Importing…");
+        Add("iqc.stdspec.import.done",     "Đã quét {0} file · thêm {1} · cập nhật {2} · sẵn {3}",
+                                           "Scanned {0} files · added {1} · updated {2} · present {3}");
+        Add("iqc.stdspec.loading",         "Đang tải danh mục…",                   "Loading catalogue…");
+        Add("iqc.stdspec.total",           "{0} tiêu chuẩn",                       "{0} standards");
+        Add("iqc.stdspec.empty",           "Chưa có tiêu chuẩn CCL-SPEC. Chạy Import từ folder.",
+                                           "No CCL-SPEC standards yet. Run Import from folder.");
+        Add("iqc.stdspec.col.specno",      "Số spec",                             "Spec no.");
+        Add("iqc.stdspec.col.material",    "Mã nguyên liệu",                      "Material code");
+        Add("iqc.stdspec.col.supplier",    "NCC",                                 "Supplier");
+        Add("iqc.stdspec.col.revision",    "Rev",                                 "Rev");
+        Add("iqc.stdspec.col.items",       "Hạng mục",                            "Items");
+        Add("iqc.stdspec.col.approval",    "Duyệt",                               "Approval");
+        Add("iqc.stdspec.col.source",      "Nguồn",                               "Source");
+        Add("iqc.stdspec.approval.approved","Đã duyệt",                           "Approved");
+        Add("iqc.stdspec.approval.pending","Chờ QC",                              "Pending QC");
+        Add("iqc.stdspec.approval.rejected","Từ chối",                            "Rejected");
+        Add("iqc.stdspec.prev",            "Trước",                               "Prev");
+        Add("iqc.stdspec.next",            "Sau",                                 "Next");
         Add("iqc.spec.title",              "Tiêu chuẩn kiểm theo mã nguyên liệu",  "Inspection standards by material code");
         Add("iqc.spec.desc",               "Tra mã nguyên liệu để xem bộ hạng mục sẽ áp cho các lô nhập sau. Thêm hoặc gỡ hạng mục tại đây; phiếu ĐÃ mở giữ bản đóng băng riêng nên không bị ảnh hưởng.",
                                            "Look up a material code to see the item set that will apply to future incoming lots. Add or remove items here; tickets already opened keep their own frozen copy and are unaffected.");

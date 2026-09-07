@@ -39,6 +39,9 @@
         <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.Spec ? "iqc-subtab-on" : "")"
                 data-testid="iqc-subtab-spec" aria-selected="@(_tab == IqcTab.Spec)"
                 @onclick="() => SelectTab(IqcTab.Spec)">@T("iqc.tab.spec")</button>
+        <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.StandardSpec ? "iqc-subtab-on" : "")"
+                data-testid="iqc-subtab-stdspec" aria-selected="@(_tab == IqcTab.StandardSpec)"
+                @onclick="() => SelectTab(IqcTab.StandardSpec)">@T("iqc.tab.stdspec")</button>
         <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.Ng ? "iqc-subtab-on" : "")"
                 data-testid="iqc-subtab-ng" aria-selected="@(_tab == IqcTab.Ng)"
                 @onclick="() => SelectTab(IqcTab.Ng)">@T("iqc.tab.ng")</button>
@@ -230,6 +233,11 @@
         <IqcSpecEditor DebounceMs="DebounceMs" />
     }
 
+    else if (_tab == IqcTab.StandardSpec)
+    {
+        <IqcStandardSpecBoard DebounceMs="DebounceMs" />
+    }
+
     @* ══════════════ NG / CLAIM (P13 bước 6) — else if TRƯỚC nhánh New Ticket *@
     else if (_tab == IqcTab.Ng)
     {
@@ -313,7 +321,7 @@
 }
 
 @code {
-    private enum IqcTab { Dashboard, Data, NewTicket, Spec, Ng, History }
+    private enum IqcTab { Dashboard, Data, NewTicket, Spec, StandardSpec, Ng, History }
     private enum IqcGroupKind { Materials, Chemical, Tools, Other }
 
     private IqcTab _tab = IqcTab.Dashboard;
