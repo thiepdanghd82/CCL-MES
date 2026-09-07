@@ -65,11 +65,26 @@ public sealed class IqcModuleTests : TestContext
         Assert.NotNull(cut.Find("[data-testid=iqc-subtab-newticket]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-subtab-spec]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-subtab-ng]"));
+        Assert.NotNull(cut.Find("[data-testid=iqc-subtab-history]"));
         // Dashboard is the default active tab.
         Assert.NotNull(cut.Find("[data-testid=iqc-dash]"));
         Assert.Empty(cut.FindAll("[data-testid=iqc-data]"));
         Assert.Empty(cut.FindAll("[data-testid=iqc-newticket]"));
         Assert.Empty(cut.FindAll("[data-testid=iqc-ng]"));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-history]"));
+    }
+
+    [Fact]
+    public void History_tab_renders_board_after_ng()
+    {
+        Wire();
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+
+        cut.Find("[data-testid=iqc-subtab-history]").Click();
+
+        Assert.NotNull(cut.Find("[data-testid=iqc-history]"));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-ng]"));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-newticket]"));
     }
 
     [Fact]
@@ -436,8 +451,8 @@ public sealed class IqcModuleTests : TestContext
         var cut = RenderCreateForm();
 
         Assert.NotNull(cut.Find("[data-testid=iqc-search-input]"));           // reverse-lookup header
-        Assert.NotNull(cut.Find("[data-testid=qms-stepper]"));                // 5-step stepper
-        Assert.Equal(5, cut.FindAll("[data-testid=qms-stepper] .qms-step").Count);
+        Assert.NotNull(cut.Find("[data-testid=qms-stepper]"));                // 7-step stepper
+        Assert.Equal(7, cut.FindAll("[data-testid=qms-stepper] .qms-step").Count);
         Assert.NotNull(cut.Find("[data-testid=qms-iqc-hsf-table]"));          // HSF documents table
         Assert.NotNull(cut.Find("[data-testid=iqc-insp-savedraft]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-insp-complete]"));
@@ -462,6 +477,42 @@ public sealed class IqcModuleTests : TestContext
         Assert.Contains("Keo mở phiếu", cut.Find("[data-testid=iqc-insp-header-view]").TextContent);
         Assert.NotNull(cut.Find("[data-testid=qms-stepper]"));
         Assert.Empty(cut.FindAll("[data-testid=iqc-insp-savedraft]"));   // read-only
+    }
+
+    [Fact]
+    public void Mo_phieu_Fail_tu_History_khong_crash_khi_hien_ket_qua()
+    {
+        // Lỗi 2026-09-07: IsTicketClosed=true từ Ticket.Result nhưng badge
+        // đọc _ticketResult! (null) → NRE → ErrorBoundary "unexpected error".
+        WireForm();
+        _api.IqcTicketItemsImpl = id => Task.FromResult(new IqcTicketItemsResponse
+        {
+            TicketId = id,
+            Items =
+            [
+                new IqcCheckItemDto
+                {
+                    Id = 1, ItemKey = "NQ-06", Seq = 1, Section = 2,
+                    GroupCode = "NQ", GroupLabelVi = "Ngoại quan",
+                    LabelVi = "Đóng gói", AcceptanceVi = "OK", Pass = true, Kind = "Verdict",
+                },
+            ],
+        });
+        var ticket = new IqcTicketListItem
+        {
+            Id = 3732, ReceiptNo = "XLS-ROLL-03722", Group = "Materials",
+            CodeIfs = "30032193-0220", MaterialDescription = "roll",
+            Result = "Fail", ReceivedDate = DateTime.UtcNow,
+        };
+        var cut = RenderComponent<MaterialsInspectionForm>(p => p
+            .Add(x => x.Chrome, false).Add(x => x.DebounceMs, 0).Add(x => x.Ticket, ticket));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("iqc-insp-completebar", cut.Markup);
+            Assert.Contains("iqc-insp-result", cut.Markup);
+            Assert.Contains("iqc-status-fail", cut.Markup);
+        });
     }
 
     // ── P12 bước 3 — form PHẢI thật sự gọi endpoint hạng mục (L64) ───────

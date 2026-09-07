@@ -124,8 +124,17 @@ public sealed partial class TranslationCatalog
         Add("iqc.items.after.create",      "Hạng mục kiểm được dựng khi phiếu được tạo — lưu phiếu rồi mở lại để chấm.",
                                            "Check items are built when the ticket is created — save the ticket, then reopen it to record results.");
         Add("iqc.step.visual.desc",        "Nhận dạng vật liệu và ngoại quan.",    "Material identification and visual appearance.");
-        Add("iqc.step.functional.desc",    "Kích thước, bám dính, độ cứng và các phép đo lý hoá.",
-                                           "Dimensions, adhesion, hardness and physical/chemical measurements.");
+        Add("iqc.step.packaging.desc",     "Tem nhãn, hạn dùng, PEFC/FSC và điều kiện đóng gói.",
+                                           "Label, expiry, PEFC/FSC and packaging condition.");
+        Add("iqc.step.dimension",          "Kiểm tra kích thước",                  "Dimension check");
+        Add("iqc.step.dimension.en",       "DIMENSION",                            "DIMENSION");
+        Add("iqc.step.dimension.desc",     "Độ rộng mẫu và độ dày mẫu theo tiêu chuẩn.",
+                                           "Sample width and thickness against the standard.");
+        Add("iqc.step.functional.desc",    "Độ bám dính (Adhesive), độ cứng (Hardness) và L-a-b khi có yêu cầu.",
+                                           "Adhesive, hardness and L-a-b when required.");
+        Add("iqc.items.measure.width",     "Độ rộng mẫu {0}",                      "Width sample {0}");
+        Add("iqc.items.measure.thickness", "Độ dày mẫu {0}",                       "Thickness sample {0}");
+        Add("iqc.items.measure.lab",       "Sheet {0}",                            "Sheet {0}");
 
         // ── P13 bước 4b — ô đếm lỗi, ô đo, và kết luận MÁY chấm ────────
         Add("iqc.items.col.record",        "Ghi nhận",                            "Record");
@@ -239,6 +248,27 @@ public sealed partial class TranslationCatalog
 
         // ── P13 bước 6 — khối NG / claim NCC ────────────────────────────
         Add("iqc.tab.ng",                  "NG / claim",                          "NG / claim");
+        Add("iqc.tab.history",             "Lịch sử",                             "History");
+
+        // ── History (sổ Pass/Fail — map sheet Excel Roll/PCS/Chem/Tool) ──
+        Add("iqc.history.title",           "Lịch sử kiểm IQC",                    "IQC inspection history");
+        Add("iqc.history.desc",            "Phiếu đã duyệt (Đạt / Không đạt). Chip khớp sheet Excel: Roll · PCS · Chem · Tool. Chi tiết hạng mục nằm trên phiếu.",
+                                                                                  "Approved tickets (Pass / Fail). Chips match Excel sheets: Roll · PCS · Chem · Tool. Item detail lives on the ticket.");
+        Add("iqc.history.filter.sheet",    "Sheet",                               "Sheet");
+        Add("iqc.history.filter.from",     "Từ",                                  "From");
+        Add("iqc.history.filter.to",       "Đến",                                 "To");
+        Add("iqc.history.filter.clear",    "Xoá ngày",                            "Clear dates");
+        Add("iqc.history.search.ph",       "Tìm phiếu / Code IFS / NCC…",         "Search receipt / Code IFS / supplier…");
+        Add("iqc.history.loading",         "Đang tải lịch sử…",                   "Loading history…");
+        Add("iqc.history.empty",           "Chưa có phiếu đã duyệt khớp bộ lọc.", "No approved tickets match the filter.");
+        Add("iqc.history.col.sheet",       "Sheet",                               "Sheet");
+        Add("iqc.history.col.approved",    "Ngày duyệt",                          "Approved");
+        Add("iqc.history.col.approver",    "Người duyệt",                         "Approved by");
+        Add("iqc.history.sheet.roll",      "Roll",                                "Roll");
+        Add("iqc.history.sheet.pcs",       "PCS",                                 "PCS");
+        Add("iqc.history.sheet.chem",      "Chem",                                "Chem");
+        Add("iqc.history.sheet.tool",      "Tool",                                "Tool");
+
         Add("iqc.ng.title",                "Nguyên liệu NG & claim NCC",          "NG material & supplier claim");
         Add("iqc.ng.desc",                 "Ghi vụ hỏng ngay khi phát hiện — không bắt buộc có phiếu IQC. 38% vụ tìm thấy ở sản xuất.",
                                            "Record a defect as soon as it is found — no IQC ticket required. 38% of cases are found in production.");

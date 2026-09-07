@@ -184,6 +184,20 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<CCL.MES.Shared.Quality.IqcDashboardResponse>(resp, ct);
     }
 
+    public async Task<CCL.MES.Shared.Quality.IqcHistoryListResponse> ListIqcHistoryAsync(
+        string? sheet, string? search, DateTime? from = null, DateTime? to = null,
+        int page = 1, int pageSize = 50, CancellationToken ct = default)
+    {
+        var qs = new List<string> { $"page={page}", $"pageSize={pageSize}" };
+        if (!string.IsNullOrWhiteSpace(sheet)) qs.Add($"sheet={Uri.EscapeDataString(sheet)}");
+        if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        if (from is { } f) qs.Add($"from={Uri.EscapeDataString(f.ToString("o"))}");
+        if (to is { } t) qs.Add($"to={Uri.EscapeDataString(t.ToString("o"))}");
+        var url = $"/{ApiVersion.Prefix}/iqc/history?" + string.Join("&", qs);
+        using var resp = await _http.GetAsync(url, ct);
+        return await ReadAsAsync<CCL.MES.Shared.Quality.IqcHistoryListResponse>(resp, ct);
+    }
+
     // ── IQC NG / claim (P13 bước 6) ────────────────────────────────
 
     public async Task<CCL.MES.Shared.Quality.IqcNgListResponse> ListIqcNgAsync(

@@ -65,6 +65,9 @@ public interface ICclApiClient
     Task<CCL.MES.Shared.Quality.IqcTicketListResponse> ListIqcTicketsAsync(
         string? group, string? search, int page = 1, int pageSize = 20, CancellationToken ct = default);
     Task<CCL.MES.Shared.Quality.IqcDashboardResponse> GetIqcDashboardAsync(CancellationToken ct = default);
+    Task<CCL.MES.Shared.Quality.IqcHistoryListResponse> ListIqcHistoryAsync(
+        string? sheet, string? search, DateTime? from = null, DateTime? to = null,
+        int page = 1, int pageSize = 50, CancellationToken ct = default);
 
     // ── IQC hạng mục kiểm (P12 bước 3) ─────────────────────────────
     Task<CCL.MES.Shared.Quality.IqcTicketItemsResponse> GetIqcTicketItemsAsync(

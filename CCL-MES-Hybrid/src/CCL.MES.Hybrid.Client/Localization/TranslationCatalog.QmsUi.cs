@@ -22,6 +22,8 @@ public sealed partial class TranslationCatalog
         // ── Stepper steps (label flips; the EN sub-line is the same both) ──
         Add("qms.step.hsf",            "Hồ sơ tài liệu",                           "Documents");
         Add("qms.step.hsf.en",         "HSF Documents",                            "HSF Documents");
+        Add("qms.step.packaging",      "Điều kiện đóng gói",                       "Packaging");
+        Add("qms.step.packaging.en",   "PACKAGING",                                "PACKAGING");
         Add("qms.step.visual",         "Ngoại quan",                               "Visual");
         Add("qms.step.visual.en",      "Visual",                                   "Visual");
         Add("qms.step.functional",     "Chức năng",                                "Functional");

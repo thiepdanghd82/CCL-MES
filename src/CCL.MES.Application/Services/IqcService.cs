@@ -1002,6 +1002,108 @@ public class IqcService
         };
     }
 
+    /// <summary>
+    /// Sổ lịch sử IQC — chỉ phiếu đã kết luận (Pass/Fail), map sheet Excel
+    /// Roll / PCS / Chem / Tool. Nguồn = <see cref="IqcInspection"/> sau approve;
+    /// KHÔNG bảng song song (tránh clone 77 cột Excel).
+    /// </summary>
+    public async Task<IqcHistoryPage> ListHistoryAsync(
+        string? sheet, string? search,
+        DateTime? fromUtc, DateTime? toUtc,
+        int page, int pageSize, CancellationToken ct = default)
+    {
+        var q = _db.IqcInspections.AsNoTracking()
+            .Where(x => x.Result == QcResult.Pass || x.Result == QcResult.Fail)
+            .OrderByDescending(x => x.ApprovedAt ?? x.ReceivedDate)
+            .ThenByDescending(x => x.Id)
+            .AsQueryable();
+
+        var sheetKey = (sheet ?? "").Trim().ToUpperInvariant();
+        q = sheetKey switch
+        {
+            "ROLL" => q.Where(x => x.MaterialCategory == IqcMaterialCategory.Roll),
+            "PCS" => q.Where(x => x.MaterialCategory == IqcMaterialCategory.Pcs),
+            "CHEM" => q.Where(x =>
+                x.MaterialCategory == IqcMaterialCategory.Chem
+                || x.Group == IqcGroup.Chemical),
+            "TOOL" or "TOOLS" => q.Where(x =>
+                x.MaterialCategory == IqcMaterialCategory.Tool
+                || x.Group == IqcGroup.Tools),
+            _ => q,
+        };
+
+        if (fromUtc is { } f)
+            q = q.Where(x => (x.ApprovedAt ?? x.ReceivedDate) >= f);
+        if (toUtc is { } t)
+            q = q.Where(x => (x.ApprovedAt ?? x.ReceivedDate) < t);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(x =>
+                (x.ReceiptNo != null && EF.Functions.Like(x.ReceiptNo, $"%{s}%"))
+                || (x.CodeIfs != null && EF.Functions.Like(x.CodeIfs, $"%{s}%"))
+                || (x.MaterialDescription != null && EF.Functions.Like(x.MaterialDescription, $"%{s}%"))
+                || EF.Functions.Like(x.PartNo, $"%{s}%")
+                || (x.SupplierName != null && EF.Functions.Like(x.SupplierName, $"%{s}%")));
+        }
+
+        var paged = await PagingHelper.PageAsync(q, page, pageSize);
+        var rawIds = paged.Items
+            .Where(x => x.RawMaterialId is not null)
+            .Select(x => x.RawMaterialId!.Value).Distinct().ToList();
+        var motherByRaw = rawIds.Count == 0
+            ? new Dictionary<long, string?>()
+            : await _db.RawMaterials.AsNoTracking()
+                .Where(m => rawIds.Contains(m.Id))
+                .Select(m => new { m.Id, m.MotherCode })
+                .ToDictionaryAsync(m => m.Id, m => m.MotherCode, ct);
+
+        return new IqcHistoryPage
+        {
+            Page = paged.Page,
+            PageSize = paged.PageSize,
+            Total = paged.Total,
+            Items = paged.Items.Select(x =>
+            {
+                var group = string.IsNullOrWhiteSpace(x.Group) ? IqcGroup.Materials : x.Group;
+                return new IqcHistoryRow
+                {
+                    Id = x.Id,
+                    ReceiptNo = x.ReceiptNo,
+                    Group = group,
+                    MaterialCategory = x.MaterialCategory.ToString(),
+                    Sheet = ToExcelSheet(group, x.MaterialCategory),
+                    CodeIfs = x.CodeIfs,
+                    MotherCode = x.RawMaterialId is { } rid
+                        && motherByRaw.TryGetValue(rid, out var mc) ? mc : null,
+                    MaterialDescription = x.MaterialDescription,
+                    LotBatchNo = x.LotNumber ?? x.BatchNumber,
+                    SupplierName = x.SupplierName,
+                    Inspector = x.InspectorId,
+                    ReceivedDate = x.ReceivedDate,
+                    Quantity = x.Quantity,
+                    Uom = x.UomQty,
+                    Result = x.Result.ToString(),
+                    ApprovedBy = x.ApprovedBy,
+                    ApprovedAt = x.ApprovedAt,
+                };
+            }).ToList(),
+        };
+    }
+
+    /// <summary>Nhãn sheet Excel từ group + category đóng băng trên phiếu.</summary>
+    public static string ToExcelSheet(string group, IqcMaterialCategory category) => category switch
+    {
+        IqcMaterialCategory.Roll => "Roll",
+        IqcMaterialCategory.Pcs => "PCS",
+        IqcMaterialCategory.Chem => "Chem",
+        IqcMaterialCategory.Tool => "Tool",
+        _ when string.Equals(group, IqcGroup.Chemical, StringComparison.OrdinalIgnoreCase) => "Chem",
+        _ when string.Equals(group, IqcGroup.Tools, StringComparison.OrdinalIgnoreCase) => "Tool",
+        _ => "Materials",
+    };
+
     /// <summary>KPI đếm thật cho tab Dashboard — 1 pass gom nhóm + gom trạng
     /// thái. Placeholder CÓ CẤU TRÚC (số liệu thật). Thuần đọc.</summary>
     public async Task<IqcDashboardCounts> DashboardAsync(CancellationToken ct = default)
@@ -1292,6 +1394,37 @@ public sealed class IqcTicketRow
     public double Quantity { get; init; }
     public string? Uom { get; init; }
     public string Result { get; init; } = "Pending";
+}
+
+/// <summary>Một dòng sổ lịch sử (Application-layer).</summary>
+public sealed class IqcHistoryRow
+{
+    public long Id { get; init; }
+    public string? ReceiptNo { get; init; }
+    public string Group { get; init; } = "Materials";
+    public string MaterialCategory { get; init; } = "Any";
+    public string Sheet { get; init; } = "Materials";
+    public string? CodeIfs { get; init; }
+    public string? MotherCode { get; init; }
+    public string? MaterialDescription { get; init; }
+    public string? LotBatchNo { get; init; }
+    public string? SupplierName { get; init; }
+    public string? Inspector { get; init; }
+    public DateTime ReceivedDate { get; init; }
+    public double Quantity { get; init; }
+    public string? Uom { get; init; }
+    public string Result { get; init; } = "Pass";
+    public string? ApprovedBy { get; init; }
+    public DateTime? ApprovedAt { get; init; }
+}
+
+/// <summary>Trang lịch sử IQC (Application-layer).</summary>
+public sealed class IqcHistoryPage
+{
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; }
+    public int Total { get; init; }
+    public List<IqcHistoryRow> Items { get; init; } = new();
 }
 
 /// <summary>Trang phiếu IQC (Application-layer).</summary>

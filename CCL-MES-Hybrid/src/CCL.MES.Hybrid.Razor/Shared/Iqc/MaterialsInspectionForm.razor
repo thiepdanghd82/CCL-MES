@@ -281,8 +281,9 @@ else
 
                     @if (IsTicketClosed)
                     {
-                        <span class="iqc-status iqc-status-@(_ticketResult!.ToLowerInvariant())"
-                              data-testid="iqc-insp-result">@T($"iqc.data.status.{_ticketResult!.ToLowerInvariant()}")</span>
+                        var closedResult = (_ticketResult ?? Ticket?.Result ?? "pending").ToLowerInvariant();
+                        <span class="iqc-status iqc-status-@closedResult"
+                              data-testid="iqc-insp-result">@T($"iqc.data.status.{closedResult}")</span>
                     }
                     else
                     {
@@ -340,23 +341,26 @@ else
                     }
                 }
             }
-            else if (_active is 1 or 2)
+            else if (_active is >= 1 and <= 4)
             {
-                @* P12 bước 3 — mục 2 (ngoại quan) và mục 3 (chức năng) lấy hạng
-                   mục ĐÃ ĐÓNG BĂNG trên phiếu. Số mục do server tính
-                   (IqcTicketSection) — ở đây chỉ truyền xuống. *@
+                @* Mục 2–5: Packaging · Visual · Dimension · Functional.
+                   Số mục = IqcTicketSection (server); UI chỉ lọc theo Section. *@
                 <section class="qms-section" data-testid="@($"iqc-insp-sec{_active + 1}")">
                     <div class="qms-section-head">
                         <h2 class="qms-section-title">@T(QmsMock.IqcSteps[_active].LabelKey)</h2>
                     </div>
                     <p class="qms-section-desc">
-                        @T(_active == 1 ? "iqc.step.visual.desc" : "iqc.step.functional.desc")
+                        @T(_active switch
+                        {
+                            1 => "iqc.step.packaging.desc",
+                            2 => "iqc.step.visual.desc",
+                            3 => "iqc.step.dimension.desc",
+                            _ => "iqc.step.functional.desc",
+                        })
                     </p>
 
                     @if (IsCreate)
                     {
-                        @* Chưa có phiếu thì chưa có gì để đóng băng. Nói thẳng chứ
-                           không hiện lưới rỗng làm người dùng tưởng mất dữ liệu. *@
                         <p class="qms-section-desc" data-testid="@($"iqc-insp-sec{_active + 1}-pending-create")">
                             @T("iqc.items.after.create")
                         </p>

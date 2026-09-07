@@ -42,6 +42,9 @@
         <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.Ng ? "iqc-subtab-on" : "")"
                 data-testid="iqc-subtab-ng" aria-selected="@(_tab == IqcTab.Ng)"
                 @onclick="() => SelectTab(IqcTab.Ng)">@T("iqc.tab.ng")</button>
+        <button type="button" role="tab" class="iqc-subtab @(_tab == IqcTab.History ? "iqc-subtab-on" : "")"
+                data-testid="iqc-subtab-history" aria-selected="@(_tab == IqcTab.History)"
+                @onclick="() => SelectTab(IqcTab.History)">@T("iqc.tab.history")</button>
     </div>
 
     @* ══════════════ DASHBOARD ══════════════ *@
@@ -209,6 +212,12 @@
         <IqcNgBoard DebounceMs="DebounceMs" />
     }
 
+    @* ══════════════ HISTORY — sổ Pass/Fail map sheet Excel Roll/PCS/Chem/Tool *@
+    else if (_tab == IqcTab.History)
+    {
+        <IqcHistoryBoard DebounceMs="DebounceMs" OnOpenTicket="OpenHistoryTicket" />
+    }
+
     @* ══════════════ NEW TICKET ══════════════ *@
     else
     {
@@ -280,7 +289,7 @@
 }
 
 @code {
-    private enum IqcTab { Dashboard, Data, NewTicket, Spec, Ng }
+    private enum IqcTab { Dashboard, Data, NewTicket, Spec, Ng, History }
     private enum IqcGroupKind { Materials, Chemical, Tools, Other }
 
     private IqcTab _tab = IqcTab.Dashboard;
@@ -459,6 +468,8 @@
     // chrome + rect + focus + soft-cap. Freeze PA-A giữ trong form qua CÙNG
     // POST /api/v2/iqc. Ticket null → KHÔNG đưa vào Parameters dict (Dictionary
     // không giữ null); wrapper param nullable mặc định null = chế độ tạo mới.
+    private void OpenHistoryTicket(IqcTicketListItem ticket) => OpenInspection(ticket);
+
     private void OpenInspection(IqcTicketListItem? ticket)
     {
         var key = ticket?.ReceiptNo is { Length: > 0 } rn

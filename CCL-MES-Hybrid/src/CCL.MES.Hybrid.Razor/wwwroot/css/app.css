@@ -8926,6 +8926,8 @@ tr.wc-row:hover { background: var(--c-bg); }
 
 /* IQC Data toolbar + group chips */
 .iqc-data-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); margin: var(--sp-3) 0; }
+.iqc-history-date { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.iqc-history-date-lbl { font-size: var(--fs-sm); color: var(--c-muted); white-space: nowrap; }
 .iqc-data-groupfilter { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
 .iqc-chip {
     border: 1px solid var(--c-border); background: var(--c-surface); cursor: pointer;

@@ -116,6 +116,45 @@ public sealed class IqcTicketListItem
     public string Result { get; set; } = "Pending";
 }
 
+/// <summary>Một dòng sổ lịch sử IQC (phiếu đã Pass/Fail) — map sheet Excel
+/// Roll / PCS / Chem / Tool qua <see cref="Sheet"/>.</summary>
+public sealed class IqcHistoryListItem
+{
+    public long Id { get; set; }
+    public string? ReceiptNo { get; set; }
+
+    /// <summary>Nhóm phiếu canonical: Materials / Chemical / Tools / Other.</summary>
+    public string Group { get; set; } = "Materials";
+
+    /// <summary>Nhóm hạng mục đóng băng: Roll / Pcs / Chem / Tool / Any.</summary>
+    public string MaterialCategory { get; set; } = "Any";
+
+    /// <summary>Nhãn sheet Excel tương đương: Roll · PCS · Chem · Tool · Materials.</summary>
+    public string Sheet { get; set; } = "Materials";
+
+    public string? CodeIfs { get; set; }
+    public string? MotherCode { get; set; }
+    public string? MaterialDescription { get; set; }
+    public string? LotBatchNo { get; set; }
+    public string? SupplierName { get; set; }
+    public string? Inspector { get; set; }
+    public DateTime ReceivedDate { get; set; }
+    public double Quantity { get; set; }
+    public string? Uom { get; set; }
+    public string Result { get; set; } = "Pass";
+    public string? ApprovedBy { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+}
+
+/// <summary>Thân phản hồi <c>GET /api/v2/iqc/history</c>.</summary>
+public sealed class IqcHistoryListResponse
+{
+    public int Page { get; set; } = 1;
+    public int PageSize { get; set; }
+    public int Total { get; set; }
+    public List<IqcHistoryListItem> Items { get; set; } = new();
+}
+
 /// <summary>Thân phản hồi <c>GET /api/v2/iqc/tickets</c> — phân trang, lọc group.</summary>
 public sealed class IqcTicketListResponse
 {

@@ -20,6 +20,7 @@ XS-01,XS,Độ xuyên sáng,Light transmission,Độ xuyên sáng (VL),Light tra
 TL-01,TL,Trọng lượng,Weight,Định lượng / trọng lượng,Weight / basis weight,0,1.10g±0.15g/cm² ~110g±15g/m²,,So sánh trọng lượng với tiêu chuẩn kiểm tra.,,190,Any,Measure,1
 BO-01,BO,Độ bóng,Gloss,Độ bóng,Gloss,0,Độ bóng: 20~30,Gloss:  20~30,So sánh kết quả với mẫu trước và sau.,Compare the results with the before and after samples.,200,Any,Measure,1
 KH-01,KH,Khác,Other,Hạng mục khác,Other items,0,"Cd, Hg, Pb, Sb, Cr, Cl, Br",,Tham khảo tài liệu của Nhà cung cấp.,"Nếu hết hạn thông tin lại  SQE kiểm tra,yêu cầu . Refer to Supplier documentation. If information expires, re-enter SQE to check requirements.",210,Any,Verdict,0
+LB-01,LB,Lab L-a-b,Lab L-a-b,L-a-b,L-a-b,0,Theo tiêu chuẩn TDS / mẫu chuẩn,According to TDS / standard sample,Đo L*a*b trên máy quang phổ (tối đa 5 sheet),Spectrophotometer L*a*b (up to 5 sheets),220,Any,Measure,5
 RD-01,NQ,Ngoại quan,External inspection,Nhăn / Hằn,Wrinkle / dent,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1010,Roll,DefectCount,0
 RD-02,NQ,Ngoại quan,External inspection,"Xô, lỏng",Shifted / loose,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1020,Roll,DefectCount,0
 RD-03,NQ,Ngoại quan,External inspection,Tràn keo,Adhesive bleed,0,Không có lỗi nào (Ac = 0),Zero defects (Ac = 0),Đếm số lỗi trên mẫu,Count defects on the sample,1030,Roll,DefectCount,0

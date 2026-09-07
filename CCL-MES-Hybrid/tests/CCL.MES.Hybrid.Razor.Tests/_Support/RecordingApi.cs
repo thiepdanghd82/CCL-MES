@@ -1041,6 +1041,23 @@ public sealed class RecordingApi : ICclApiClient
             : Task.FromResult(new CCL.MES.Shared.Quality.IqcDashboardResponse());
     }
 
+    public Func<string?, string?, DateTime?, DateTime?, int, int, Task<CCL.MES.Shared.Quality.IqcHistoryListResponse>>? ListIqcHistoryImpl { get; set; }
+    public List<(string? Sheet, string? Search, DateTime? From, DateTime? To, int Page, int PageSize)> ListIqcHistoryCalls { get; } = new();
+
+    public Task<CCL.MES.Shared.Quality.IqcHistoryListResponse> ListIqcHistoryAsync(
+        string? sheet, string? search, DateTime? from = null, DateTime? to = null,
+        int page = 1, int pageSize = 50, CancellationToken ct = default)
+    {
+        ListIqcHistoryCalls.Add((sheet, search, from, to, page, pageSize));
+        return ListIqcHistoryImpl is not null
+            ? ListIqcHistoryImpl(sheet, search, from, to, page, pageSize)
+            : Task.FromResult(new CCL.MES.Shared.Quality.IqcHistoryListResponse
+            {
+                Page = page, PageSize = pageSize, Total = 0,
+                Items = new List<CCL.MES.Shared.Quality.IqcHistoryListItem>(),
+            });
+    }
+
     public Func<string?, string?, int, Task<CCL.MES.Shared.Quality.IqcNgListResponse>>? ListIqcNgImpl { get; set; }
     public Func<CCL.MES.Shared.Quality.CreateIqcNgBody, Task<CCL.MES.Shared.Quality.IqcNgMutationResponse>>? CreateIqcNgImpl { get; set; }
     public List<(string? Status, string? PartNo, int Take)> ListIqcNgCalls { get; } = new();

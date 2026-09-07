@@ -88,7 +88,7 @@ public sealed class IqcTicketItemsTests : IDisposable
         Assert.NotNull(r);
         Assert.Equal(3, r!.Items.Count);
         Assert.Equal(IqcTicketSection.Documents,  r.Items.Single(i => i.ItemKey == "MT-02").Section);
-        Assert.Equal(IqcTicketSection.Visual,     r.Items.Single(i => i.ItemKey == "NQ-01").Section);
+        Assert.Equal(IqcTicketSection.Packaging,  r.Items.Single(i => i.ItemKey == "NQ-01").Section);
         Assert.Equal(IqcTicketSection.Functional, r.Items.Single(i => i.ItemKey == "CU-01").Section);
         Assert.Equal("CCL-SPEC-QC229", r.SpecNo);
         Assert.False(r.FromDefaultMatrix);

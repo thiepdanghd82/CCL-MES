@@ -52,10 +52,12 @@ public static class QmsMock
     public static readonly QmsStep[] IqcSteps =
     {
         new(1, "qms.step.hsf", "qms.step.hsf.en"),
-        new(2, "qms.step.visual", "qms.step.visual.en"),
-        new(3, "qms.step.functional", "qms.step.functional.en"),
-        new(4, "qms.step.defect", "qms.step.defect.en"),
-        new(5, "qms.step.history", "qms.step.history.en"),
+        new(2, "qms.step.packaging", "qms.step.packaging.en"),
+        new(3, "qms.step.visual", "qms.step.visual.en"),
+        new(4, "iqc.step.dimension", "iqc.step.dimension.en"),
+        new(5, "qms.step.functional", "qms.step.functional.en"),
+        new(6, "qms.step.defect", "qms.step.defect.en"),
+        new(7, "qms.step.history", "qms.step.history.en"),
     };
 
     public static readonly QmsStep[] ProcessSteps =

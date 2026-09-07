@@ -1,0 +1,237 @@
+@inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@using CCL.MES.Shared.Quality
+@using Microsoft.AspNetCore.Components
+@inject ICclApiClient Api
+@implements IDisposable
+
+@* Sổ lịch sử IQC — phiếu đã Pass/Fail. Chip sheet khớp Excel: Roll · PCS · Chem · Tool.
+   Chi tiết đo lường / hạng mục nằm trên phiếu (double-click → showcard), không clone 77 cột. *@
+
+<section class="qms-section" data-testid="iqc-history">
+    <div class="qms-section-head">
+        <h2 class="qms-section-title">@T("iqc.history.title")</h2>
+    </div>
+    <p class="qms-section-desc">@T("iqc.history.desc")</p>
+
+    <div class="iqc-data-toolbar">
+        <div class="iqc-data-groupfilter" role="group" aria-label="@T("iqc.history.filter.sheet")" data-testid="iqc-history-sheet-chips">
+            <button type="button" class="iqc-chip @(_sheet is null ? "iqc-chip-on" : "")"
+                    data-testid="iqc-history-sheet-all" @onclick="() => SetSheet(null)">@T("iqc.group.all")</button>
+            @foreach (var s in Sheets)
+            {
+                var ss = s;
+                <button type="button" class="iqc-chip @(_sheet == ss ? "iqc-chip-on" : "")"
+                        data-testid="@($"iqc-history-sheet-{ss.ToLowerInvariant()}")"
+                        @onclick="() => SetSheet(ss)">@T($"iqc.history.sheet.{ss.ToLowerInvariant()}")</button>
+            }
+        </div>
+        <label class="iqc-history-date">
+            <span class="iqc-history-date-lbl">@T("iqc.history.filter.from")</span>
+            <input type="date" class="op-input iqc-doc-date" data-testid="iqc-history-from"
+                   value="@_from" @onchange="OnFromChanged" />
+        </label>
+        <label class="iqc-history-date">
+            <span class="iqc-history-date-lbl">@T("iqc.history.filter.to")</span>
+            <input type="date" class="op-input iqc-doc-date" data-testid="iqc-history-to"
+                   value="@_to" @onchange="OnToChanged" />
+        </label>
+        @if (!string.IsNullOrEmpty(_from) || !string.IsNullOrEmpty(_to))
+        {
+            <button type="button" class="op-btn" data-testid="iqc-history-clear-dates"
+                    @onclick="ClearDates">@T("iqc.history.filter.clear")</button>
+        }
+        <input type="search" class="op-input iqc-data-search" data-testid="iqc-history-search"
+               placeholder="@T("iqc.history.search.ph")" value="@_search"
+               @oninput="OnSearchInput" />
+    </div>
+
+    @if (_loading && _data is null)
+    {
+        <p class="qms-section-desc">@T("iqc.history.loading")</p>
+    }
+    else
+    {
+        <div class="qms-table-wrap qms-fill">
+            <table class="qms-table iqc-data-table" data-testid="iqc-history-table">
+                <thead>
+                    <tr>
+                        <th>@T("iqc.history.col.sheet")</th>
+                        <th>@T("iqc.data.col.receipt")</th>
+                        <th>@T("iqc.data.col.codeifs")</th>
+                        <th>@T("iqc.data.col.matdesc")</th>
+                        <th>@T("iqc.data.col.lot")</th>
+                        <th>@T("iqc.data.col.supplier")</th>
+                        <th>@T("iqc.data.col.inspector")</th>
+                        <th>@T("iqc.data.col.received")</th>
+                        <th class="num">@T("iqc.data.col.qty")</th>
+                        <th>@T("iqc.data.col.status")</th>
+                        <th>@T("iqc.history.col.approved")</th>
+                        <th>@T("iqc.history.col.approver")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in (_data?.Items ?? new()))
+                    {
+                        var r = row;
+                        <tr class="iqc-data-row" data-testid="@($"iqc-history-row-{r.Id}")"
+                            @ondblclick="() => OpenRow(r)">
+                            <td><span class="iqc-group-tag" data-sheet="@r.Sheet">@SheetLabel(r.Sheet)</span></td>
+                            <td class="qms-td-strong">@Show(r.ReceiptNo)</td>
+                            <td>@Show(r.CodeIfs)</td>
+                            <td>@Show(r.MaterialDescription)</td>
+                            <td>@Show(r.LotBatchNo)</td>
+                            <td>@Show(r.SupplierName)</td>
+                            <td>@Show(r.Inspector)</td>
+                            <td>@r.ReceivedDate.ToString("dd/MM/yyyy")</td>
+                            <td class="num">@r.Quantity@(string.IsNullOrWhiteSpace(r.Uom) ? "" : $" {r.Uom}")</td>
+                            <td><span class="iqc-status iqc-status-@r.Result.ToLowerInvariant()">@StatusLabel(r.Result)</span></td>
+                            <td>@(r.ApprovedAt?.ToString("dd/MM/yyyy") ?? "—")</td>
+                            <td>@Show(r.ApprovedBy)</td>
+                        </tr>
+                    }
+                    @if ((_data?.Items.Count ?? 0) == 0)
+                    {
+                        <tr><td colspan="12" class="grid-empty" data-testid="iqc-history-empty">@T("iqc.history.empty")</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if ((_data?.Total ?? 0) > _pageSize)
+        {
+            <div class="grid-pager" data-testid="iqc-history-pager">
+                <button type="button" class="op-btn" disabled="@(_page <= 1 || _loading)"
+                        @onclick="() => GoPage(_page - 1)">@T("iqc.data.pager.prev")</button>
+                <span class="grid-pager-text">@T("iqc.data.pager.status", _page, TotalPages, _data?.Total ?? 0)</span>
+                <button type="button" class="op-btn" disabled="@(_page >= TotalPages || _loading)"
+                        @onclick="() => GoPage(_page + 1)">@T("iqc.data.pager.next")</button>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    [Parameter] public int DebounceMs { get; set; } = 280;
+    [Parameter] public EventCallback<IqcTicketListItem> OnOpenTicket { get; set; }
+
+    private static readonly string[] Sheets = { "Roll", "PCS", "Chem", "Tool" };
+
+    private IqcHistoryListResponse? _data;
+    private bool _loading;
+    private string? _sheet;
+    private string _search = "";
+    private string _from = "";
+    private string _to = "";
+    private int _page = 1;
+    private int _pageSize = 50;
+    private System.Threading.Timer? _debounce;
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling((_data?.Total ?? 0) / (double)_pageSize));
+
+    private string SheetLabel(string sheet)
+    {
+        var key = (sheet ?? "materials").ToLowerInvariant();
+        if (key is "roll" or "pcs" or "chem" or "tool")
+            return T($"iqc.history.sheet.{key}");
+        return T("iqc.group.materials");
+    }
+
+    private string StatusLabel(string r) => T($"iqc.data.status.{(r ?? "pending").ToLowerInvariant()}");
+    private static string Show(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task SetSheet(string? sheet)
+    {
+        _sheet = sheet;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnFromChanged(ChangeEventArgs e)
+    {
+        _from = e.Value?.ToString() ?? "";
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnToChanged(ChangeEventArgs e)
+    {
+        _to = e.Value?.ToString() ?? "";
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearDates()
+    {
+        _from = "";
+        _to = "";
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? "";
+        _page = 1;
+        _debounce?.Dispose();
+        _debounce = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(LoadAsync);
+        }, null, DebounceMs, Timeout.Infinite);
+    }
+
+    private async Task GoPage(int p)
+    {
+        _page = Math.Max(1, p);
+        await LoadAsync();
+    }
+
+    private static DateTime? ParseDay(string s)
+        => DateTime.TryParse(s, out var d) ? d.Date : null;
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var from = ParseDay(_from);
+            // API dùng cận trên exclusive (< to) — đẩy ngày "đến" sang ngày kế.
+            var toExcl = ParseDay(_to)?.AddDays(1);
+            _data = await Api.ListIqcHistoryAsync(_sheet, _search, from, toExcl, _page, _pageSize);
+        }
+        finally
+        {
+            _loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenRow(IqcHistoryListItem r)
+    {
+        var ticket = new IqcTicketListItem
+        {
+            Id = r.Id,
+            ReceiptNo = r.ReceiptNo,
+            Group = r.Group,
+            CodeIfs = r.CodeIfs,
+            MotherCode = r.MotherCode,
+            MaterialDescription = r.MaterialDescription,
+            LotBatchNo = r.LotBatchNo,
+            SupplierName = r.SupplierName,
+            Inspector = r.Inspector,
+            ReceivedDate = r.ReceivedDate,
+            Quantity = r.Quantity,
+            Uom = r.Uom,
+            Result = r.Result,
+        };
+        if (OnOpenTicket.HasDelegate)
+            await OnOpenTicket.InvokeAsync(ticket);
+    }
+
+    public override void Dispose()
+    {
+        _debounce?.Dispose();
+        base.Dispose();
+    }
+}

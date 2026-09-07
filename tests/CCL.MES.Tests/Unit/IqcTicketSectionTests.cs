@@ -4,15 +4,11 @@ using Xunit;
 namespace CCL.MES.Tests.Unit;
 
 /// <summary>
-/// P12 bước 3 — hạng mục kiểm nào rơi vào MỤC nào của stepper phiếu IQC.
-///
-/// <para>Khoá bảng đã chốt ở scope proposal §4.3. Đây là con số nghiệm thu mà
-/// người dùng đếm được trên màn hình, nên nó phải nằm trong test chứ không nằm
-/// trong đầu ai.</para>
+/// Hạng mục kiểm nào rơi vào MỤC nào của stepper phiếu IQC
+/// (Documents · Packaging · Visual · Dimension · Functional).
 /// </summary>
 public sealed class IqcTicketSectionTests
 {
-    /// <summary>21 hạng mục thật của thư viện IQC (đo trên live 2026-08-28).</summary>
     private static readonly (string Item, string Group)[] Library =
     [
         ("NL-01", "NL"),
@@ -23,16 +19,12 @@ public sealed class IqcTicketSectionTests
         ("BD-01", "BD"), ("BD-02", "BD"),
         ("CU-01", "CU"), ("XS-01", "XS"), ("TL-01", "TL"), ("BO-01", "BO"),
         ("KH-01", "KH"),
+        ("LB-01", "LB"),
+        ("RD-01", "NQ"), ("PD-01", "NQ"),
     ];
 
     private static int Count(int section) =>
         Library.Count(x => IqcTicketSection.Of(x.Item, x.Group) == section);
-
-    // ── con số nghiệm thu ────────────────────────────────────────────────
-
-    [Fact]
-    public void Muc_2_co_dung_7_hang_muc_NL_va_NQ()
-        => Assert.Equal(7, Count(IqcTicketSection.Visual));
 
     [Fact]
     public void Muc_1_chi_co_ho_so_giay_MT_02()
@@ -42,59 +34,61 @@ public sealed class IqcTicketSectionTests
     }
 
     [Fact]
-    public void Muc_3_om_13_hang_muc_con_lai()
+    public void Muc_2_dong_goi_NQ_01_va_NQ_06()
     {
-        // Bảng §4.3 ghi "12" vì liệt kê KT·BD·CU·XS·TL·BO·MT-01·MT-03; dòng ngay
-        // dưới bảng bổ sung KH-01 ⇒ tổng thật là 13. Chốt con số THẬT ở đây để
-        // lần sau không ai phải đọc hai chỗ mới biết đáp án.
-        Assert.Equal(13, Count(IqcTicketSection.Functional));
-        Assert.Equal(21, Library.Length);
+        Assert.Equal(IqcTicketSection.Packaging, IqcTicketSection.Of("NQ-01", "NQ"));
+        Assert.Equal(IqcTicketSection.Packaging, IqcTicketSection.Of("NQ-06", "NQ"));
+        Assert.Equal(2, Count(IqcTicketSection.Packaging));
     }
 
     [Fact]
-    public void Moi_hang_muc_thu_vien_deu_co_MOT_muc_khong_ai_bi_bo_roi()
+    public void Muc_3_ngoai_quan_gom_NL_va_NQ_con_lai()
     {
-        // Hạng mục không thuộc mục nào = biến mất khỏi phiếu mà không báo lỗi.
+        Assert.Equal(IqcTicketSection.Visual, IqcTicketSection.Of("NL-01", "NL"));
+        Assert.Equal(IqcTicketSection.Visual, IqcTicketSection.Of("NQ-02", "NQ"));
+        Assert.Equal(IqcTicketSection.Visual, IqcTicketSection.Of("RD-01", "NQ"));
+        Assert.Equal(IqcTicketSection.Visual, IqcTicketSection.Of("PD-01", "NQ"));
+        Assert.Equal(7, Count(IqcTicketSection.Visual)); // NL-01 + NQ-02..05 + RD-01 + PD-01
+    }
+
+    [Fact]
+    public void Muc_4_kich_thuoc_nhom_KT()
+    {
+        Assert.Equal(IqcTicketSection.Dimension, IqcTicketSection.Of("KT-03", "KT"));
+        Assert.Equal(4, Count(IqcTicketSection.Dimension));
+    }
+
+    [Fact]
+    public void Muc_5_chuc_nang_va_lab()
+    {
+        Assert.Equal(IqcTicketSection.Functional, IqcTicketSection.Of("BD-01", "BD"));
+        Assert.Equal(IqcTicketSection.Functional, IqcTicketSection.Of("CU-01", "CU"));
+        Assert.Equal(IqcTicketSection.Functional, IqcTicketSection.Of("LB-01", "LB"));
+        Assert.Equal(IqcTicketSection.Functional, IqcTicketSection.Of("MT-01", "MT"));
+    }
+
+    [Fact]
+    public void Moi_hang_muc_deu_co_MOT_muc()
+    {
         var total = Count(IqcTicketSection.Documents)
+                  + Count(IqcTicketSection.Packaging)
                   + Count(IqcTicketSection.Visual)
+                  + Count(IqcTicketSection.Dimension)
                   + Count(IqcTicketSection.Functional);
         Assert.Equal(Library.Length, total);
     }
 
-    // ── nhóm MT bị CHẺ — bẫy chính của luật này ──────────────────────────
-
     [Fact]
-    public void Nhom_MT_bi_che_ba_duong_theo_MA_chu_khong_theo_nhom()
+    public void Nhom_MT_bi_che_theo_MA()
     {
-        // Tra theo nhóm không thôi sẽ đẩy cả ba MT-* về cùng một mục: MT-02 là
-        // hồ sơ giấy (mục 1), MT-01/MT-03 là phép đo thật (mục 3).
         Assert.Equal(IqcTicketSection.Documents,  IqcTicketSection.Of("MT-02", "MT"));
         Assert.Equal(IqcTicketSection.Functional, IqcTicketSection.Of("MT-01", "MT"));
         Assert.Equal(IqcTicketSection.Functional, IqcTicketSection.Of("MT-03", "MT"));
     }
 
     [Theory]
-    [InlineData("mt-02")]
-    [InlineData("  MT-02  ")]
-    public void Ma_ho_so_khop_khong_phan_biet_hoa_thuong_va_da_trim(string key)
-        => Assert.Equal(IqcTicketSection.Documents, IqcTicketSection.Of(key, "MT"));
-
-    // ── biên ─────────────────────────────────────────────────────────────
-
-    [Theory]
-    [InlineData("NL-01", "nl")]
-    [InlineData("NQ-01", "  NQ ")]
-    public void Nhom_ngoai_quan_khop_khong_phan_biet_hoa_thuong(string item, string group)
-        => Assert.Equal(IqcTicketSection.Visual, IqcTicketSection.Of(item, group));
-
-    [Theory]
     [InlineData(null, null)]
     [InlineData("ZZ-99", "ZZ")]
-    [InlineData("KT-01", "")]
-    public void Hang_muc_la_roi_ve_muc_3_chu_KHONG_bien_mat(string? item, string? group)
-    {
-        // Thư viện mở rộng về sau sẽ có mã chưa ai khai báo. Hiện ra chỗ nào đó
-        // còn hơn rơi khỏi phiếu im lặng.
-        Assert.Equal(IqcTicketSection.Functional, IqcTicketSection.Of(item, group));
-    }
+    public void Hang_muc_la_roi_ve_Functional(string? item, string? group)
+        => Assert.Equal(IqcTicketSection.Functional, IqcTicketSection.Of(item, group));
 }

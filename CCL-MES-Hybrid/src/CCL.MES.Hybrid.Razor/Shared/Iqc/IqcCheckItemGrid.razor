@@ -152,9 +152,10 @@ else
                                     @for (var k = 0; k < item.MeasureCount; k++)
                                     {
                                         var idx = k;
+                                        var ph = MeasurePlaceholder(item, idx + 1);
                                         <input type="text" inputmode="decimal" class="ipqc-input iqc-measure-input"
-                                               maxlength="12" placeholder="@T("iqc.items.measure.ph", idx + 1)"
-                                               aria-label="@T("iqc.items.measure.ph", idx + 1)"
+                                               maxlength="12" placeholder="@ph"
+                                               aria-label="@ph"
                                                disabled="@(ReadOnly || _busy)"
                                                value="@draft.Measures[idx]"
                                                @oninput="@(e => draft.Measures[idx] = e.Value?.ToString() ?? "")"
@@ -294,6 +295,18 @@ else
         };
         _drafts[i.Id] = d;
         return d;
+    }
+
+    private string MeasurePlaceholder(IqcCheckItemDto item, int oneBased)
+    {
+        var key = item.ItemKey?.Trim();
+        if (string.Equals(key, "KT-03", StringComparison.OrdinalIgnoreCase))
+            return T("iqc.items.measure.width", oneBased);
+        if (string.Equals(key, "KT-04", StringComparison.OrdinalIgnoreCase))
+            return T("iqc.items.measure.thickness", oneBased);
+        if (string.Equals(key, "LB-01", StringComparison.OrdinalIgnoreCase))
+            return T("iqc.items.measure.lab", oneBased);
+        return T("iqc.items.measure.ph", oneBased);
     }
 
     private IReadOnlyList<IqcCheckItemDto> SectionItems =>

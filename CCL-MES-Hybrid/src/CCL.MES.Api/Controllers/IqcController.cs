@@ -93,6 +93,47 @@ public sealed class IqcController : ControllerBase
         });
     }
 
+    /// <summary>Sổ lịch sử IQC — chỉ Pass/Fail. Lọc sheet Excel
+    /// (<c>Roll|PCS|Chem|Tool</c>) + search + khoảng ngày. QcRead.</summary>
+    [HttpGet("history")]
+    public async Task<ActionResult<IqcHistoryListResponse>> History(
+        [FromQuery] string? sheet = null,
+        [FromQuery] string? search = null,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        var r = await _svc.ListHistoryAsync(sheet, search, from, to, page, pageSize, ct);
+        return Ok(new IqcHistoryListResponse
+        {
+            Page = r.Page,
+            PageSize = r.PageSize,
+            Total = r.Total,
+            Items = r.Items.Select(x => new IqcHistoryListItem
+            {
+                Id = x.Id,
+                ReceiptNo = x.ReceiptNo,
+                Group = x.Group,
+                MaterialCategory = x.MaterialCategory,
+                Sheet = x.Sheet,
+                CodeIfs = x.CodeIfs,
+                MotherCode = x.MotherCode,
+                MaterialDescription = x.MaterialDescription,
+                LotBatchNo = x.LotBatchNo,
+                SupplierName = x.SupplierName,
+                Inspector = x.Inspector,
+                ReceivedDate = x.ReceivedDate,
+                Quantity = x.Quantity,
+                Uom = x.Uom,
+                Result = x.Result,
+                ApprovedBy = x.ApprovedBy,
+                ApprovedAt = x.ApprovedAt,
+            }).ToList(),
+        });
+    }
+
     /// <summary>KPI đếm thật cho tab Dashboard (tổng · theo nhóm · theo trạng
     /// thái). Read-only ⇒ QcRead đủ.</summary>
     [HttpGet("dashboard")]
