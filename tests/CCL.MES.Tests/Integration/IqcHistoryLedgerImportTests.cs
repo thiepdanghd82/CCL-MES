@@ -109,4 +109,68 @@ public sealed class IqcHistoryLedgerImportTests : IDisposable
         var hsf = await db.IqcResultDetails.SingleAsync(d => d.ItemKey == "MT-02");
         Assert.True(hsf.Pass);
     }
+
+    [Fact]
+    public async Task Enrich_tools_materialises_TD_HSF_and_label()
+    {
+        await using var db = _fx.NewContext();
+        var checks = new IqcHistoryLedgerChecks(
+            WarehouseInDate: "2025-12-24",
+            ExpiryText: null,
+            Pefc: null, PefcLevel: null,
+            PackagingSpec: null,
+            PackagingPass: true,
+            PackagingInspector: null,
+            VisualSampleQty: 1,
+            VisualDefects:
+            [
+                new IqcLedgerDefectCell("TD-01", 0),
+                new IqcLedgerDefectCell("TD-02", 0),
+                new IqcLedgerDefectCell("TD-03", 2),
+                new IqcLedgerDefectCell("TD-04", 0),
+                new IqcLedgerDefectCell("TD-05", 0),
+            ],
+            VisualPass: false,
+            VisualInspector: "Hải",
+            WidthNominal: null, WidthLow: null, WidthUp: null,
+            WidthSamples: Array.Empty<double?>(), WidthSampleTexts: Array.Empty<string?>(), WidthPass: null,
+            LengthNominal: null, LengthLow: null, LengthUp: null,
+            LengthSamples: Array.Empty<double?>(), LengthSampleTexts: Array.Empty<string?>(),
+            LengthPass: null, LengthSpec: null,
+            ThicknessSpec: null, ThicknessSamples: Array.Empty<double?>(), ThicknessPass: null,
+            DimensionInspector: null,
+            FuncSpec: null, FuncPass: null, FuncInspector: null,
+            LabSpec: null, LabSheets: Array.Empty<double?>(), LabPass: null, LabInspector: null,
+            HsfPass: true, CoaPass: null);
+
+        var rows = new List<IqcHistoryLedgerRow>
+        {
+            new("Tool", 3, 1, new DateTime(2026, 1, 3), "NCC", "CT4344", null,
+                "Cutter VF00044P", "VN2512148", 1, "ea", "NG", "Hải", Checks: checks),
+        };
+
+        var svc = new IqcHistoryLedgerImportService(db);
+        var r = await svc.ImportAsync(rows, "test", commit: true, enrichDetails: true);
+        Assert.Equal(1, r.Inserted);
+        Assert.Equal(1, r.DetailsUpserted);
+
+        var keys = await db.IqcResultDetails.Select(d => d.ItemKey).OrderBy(k => k).ToListAsync();
+        Assert.Contains("NQ-01", keys);
+        Assert.DoesNotContain("NQ-06", keys); // Tool chỉ Tem, không đóng gói
+        Assert.Contains("TD-01", keys);
+        Assert.Contains("TD-03", keys);
+        Assert.Contains("TD-05", keys);
+        Assert.Contains("MT-02", keys);
+        Assert.DoesNotContain("DOC-COA", keys);
+
+        var td03 = await db.IqcResultDetails.SingleAsync(d => d.ItemKey == "TD-03");
+        Assert.Equal(2, td03.DefectCount);
+        Assert.False(td03.Pass);
+        var hsf = await db.IqcResultDetails.SingleAsync(d => d.ItemKey == "MT-02");
+        Assert.True(hsf.Pass);
+
+        var again = await svc.ImportAsync(rows, "test", commit: true, enrichDetails: true);
+        Assert.Equal(0, again.Inserted);
+        Assert.Equal(1, again.AlreadyPresent);
+    }
 }

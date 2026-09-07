@@ -561,6 +561,26 @@ public sealed class IqcModuleTests : TestContext
     }
 
     [Fact]
+    public void Tools_ticket_hides_dimension_and_functional_steps()
+    {
+        WireForm();
+        var ticket = new IqcTicketListItem
+        {
+            Id = 3, ReceiptNo = "XLS-TOOL-00003", Group = "Tools",
+            CodeIfs = "CT4344", MaterialDescription = "Cutter",
+            Inspector = "Hải", Result = "Pass",
+            ReceivedDate = DateTime.UtcNow,
+        };
+        var cut = RenderComponent<MaterialsInspectionForm>(p => p
+            .Add(x => x.Chrome, false).Add(x => x.DebounceMs, 0).Add(x => x.Ticket, ticket));
+
+        Assert.Equal(5, cut.FindAll("[data-testid=qms-stepper] .qms-step").Count);
+        var stepperText = cut.Find("[data-testid=qms-stepper]").TextContent;
+        Assert.DoesNotContain("Dimension", stepperText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Functional", stepperText, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Materials_ticket_keeps_seven_iqc_steps_including_dimension()
     {
         WireForm();

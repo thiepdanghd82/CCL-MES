@@ -18,8 +18,8 @@ public sealed record IqcHistoryLedgerRow(
     IqcHistoryLedgerChecks? Checks = null);
 
 /// <summary>
-/// Khối kiểm tra đã đọc từ cột Excel (Roll S–BN / PCS P–AP / Chem I–U).
-/// Tool = null (phase sau).
+/// Khối kiểm tra đã đọc từ cột Excel
+/// (Roll S–BN / PCS P–AP / Chem I–U / Tool K–S: Tem · TD-01..05 · HSF).
 /// </summary>
 public sealed record IqcHistoryLedgerChecks(
     // ── Điều kiện đóng gói ──────────────────────────────────────

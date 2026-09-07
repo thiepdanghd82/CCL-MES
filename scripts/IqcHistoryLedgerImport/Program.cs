@@ -11,10 +11,11 @@ using Microsoft.EntityFrameworkCore;
 //   dotnet run --project scripts/IqcHistoryLedgerImport -- \
 //       --src "<IQC report 2026.xlsx>" [--db <path>] [--commit] [--enrich] [--repair-dims]
 //
-//   --enrich       → nạp chi tiết Roll/PCS/Chem vào IqcResultDetails (xls-ledger).
+//   --enrich       → nạp chi tiết Roll/PCS/Chem/Tool vào IqcResultDetails (xls-ledger).
 //   --repair-dims  → gỡ chi tiết xls-ledger cũ rồi ghi lại (cần --enrich --commit).
 //                    PCS: gộp rộng×dài 2 dòng / ô "290x301" → KT-03 + KT-02.
 //                    Chem: tem · CD-01..03 · HSF · COA.
+//                    Tool: Tem · TD-01..05 · HSF.
 
 string? Arg(string name)
 {

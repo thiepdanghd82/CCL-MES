@@ -433,6 +433,9 @@ public static class IqcHistoryLedgerReader
         }
     }
 
+    private static readonly string[] ToolVisualKeys =
+        ["TD-01", "TD-02", "TD-03", "TD-04", "TD-05"];
+
     private static IEnumerable<IqcHistoryLedgerRow> ReadTool(XLWorkbook wb)
     {
         if (!TrySheet(wb, "Tool", out var ws)) yield break;
@@ -440,6 +443,51 @@ public static class IqcHistoryLedgerReader
         for (var r = FirstDataRow; r <= last; r++)
         {
             if (IsBlank(ws, r, 1, 6, 7)) continue;
+
+            // Cột 13–17 = đếm lỗi TD-01..05 (Ac=0), không phải OK/NG kiểu Chem.
+            var defects = new List<IqcLedgerDefectCell>(5);
+            for (var i = 0; i < 5; i++)
+                defects.Add(new IqcLedgerDefectCell(ToolVisualKeys[i], ParseCount(Cell(ws, r, 13 + i))));
+
+            var checks = new IqcHistoryLedgerChecks(
+                WarehouseInDate: Cell(ws, r, 9), // Ngày sản xuất
+                ExpiryText: null,
+                Pefc: null,
+                PefcLevel: null,
+                PackagingSpec: null,
+                PackagingPass: ParsePass(Cell(ws, r, 12)), // Tem nhãn
+                PackagingInspector: null,
+                VisualSampleQty: Int(ws, r, 11),
+                VisualDefects: defects,
+                VisualPass: ParsePass(Cell(ws, r, 18)),
+                VisualInspector: Cell(ws, r, 21),
+                WidthNominal: null,
+                WidthLow: null,
+                WidthUp: null,
+                WidthSamples: Array.Empty<double?>(),
+                WidthSampleTexts: Array.Empty<string?>(),
+                WidthPass: null,
+                LengthNominal: null,
+                LengthLow: null,
+                LengthUp: null,
+                LengthSamples: Array.Empty<double?>(),
+                LengthSampleTexts: Array.Empty<string?>(),
+                LengthPass: null,
+                LengthSpec: null,
+                ThicknessSpec: null,
+                ThicknessSamples: Array.Empty<double?>(),
+                ThicknessPass: null,
+                DimensionInspector: null,
+                FuncSpec: null,
+                FuncPass: null,
+                FuncInspector: null,
+                LabSpec: null,
+                LabSheets: Array.Empty<double?>(),
+                LabPass: null,
+                LabInspector: null,
+                HsfPass: ParsePass(Cell(ws, r, 19)),
+                CoaPass: null);
+
             yield return new IqcHistoryLedgerRow(
                 Sheet: "Tool",
                 ExcelRow: r,
@@ -453,7 +501,8 @@ public static class IqcHistoryLedgerReader
                 Quantity: Num(ws, r, 10),
                 Uom: "ea",
                 FinalJudgment: Cell(ws, r, 20),
-                Inspector: Cell(ws, r, 21));
+                Inspector: Cell(ws, r, 21),
+                Checks: checks);
         }
     }
 

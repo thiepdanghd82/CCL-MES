@@ -309,7 +309,7 @@ else
                 }
             }
 
-            @* ── Stepper: Materials đủ 7 bước; Chemical bỏ Dimension + Functional. *@
+            @* ── Stepper: Materials đủ 7 bước; Chemical/Tools bỏ Dimension + Functional. *@
             <QmsStepper Steps="VisibleSteps" ActiveIndex="_active"
                         OnStepClick="OnStepClick" />
 
@@ -419,17 +419,18 @@ else
 
     private int _active;
 
-    /// <summary>Chemical không kiểm kích thước / chức năng — ẩn bước 4·5
+    /// <summary>Chemical / Tools không kiểm kích thước · chức năng — ẩn bước 4·5
     /// (chỉ còn Documents · Packaging · Visual · Defect · History).</summary>
-    private bool IsChemicalTicket =>
-        string.Equals(Ticket?.Group, "Chemical", StringComparison.OrdinalIgnoreCase);
+    private bool OmitsDimensionFunctional =>
+        string.Equals(Ticket?.Group, "Chemical", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Ticket?.Group, "Tools", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Chỉ số nội dung trong <see cref="QmsMock.IqcSteps"/> theo từng
-    /// ô stepper đang hiện. Chemical bỏ index 3 (Dimension) và 4 (Functional).</summary>
+    /// ô stepper đang hiện. Chemical/Tools bỏ index 3 (Dimension) và 4 (Functional).</summary>
     private static readonly int[] AllStepContent = [0, 1, 2, 3, 4, 5, 6];
-    private static readonly int[] ChemStepContent = [0, 1, 2, 5, 6];
+    private static readonly int[] SlimStepContent = [0, 1, 2, 5, 6];
 
-    private int[] ContentMap => IsChemicalTicket ? ChemStepContent : AllStepContent;
+    private int[] ContentMap => OmitsDimensionFunctional ? SlimStepContent : AllStepContent;
 
     private IReadOnlyList<QmsStep> VisibleSteps =>
         ContentMap
@@ -497,7 +498,7 @@ else
     /// Chế độ tạo mới chưa có phiếu nên không gọi.</summary>
     protected override async Task OnParametersSetAsync()
     {
-        // Chemical chỉ còn 5 bước — kẹp index nếu đang đứng ở Dimension/Functional.
+        // Chemical/Tools chỉ còn 5 bước — kẹp index nếu đang đứng ở Dimension/Functional.
         if (_active >= ContentMap.Length) _active = 0;
 
         if (Ticket is null || Ticket.Id == _itemsLoadedFor) return;

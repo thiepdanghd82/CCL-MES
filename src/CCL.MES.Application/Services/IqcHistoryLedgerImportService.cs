@@ -230,7 +230,8 @@ public sealed class IqcHistoryLedgerImportService
     private static bool IsDetailSheet(string sheet) =>
         sheet.Equals("Roll", StringComparison.OrdinalIgnoreCase)
         || sheet.Equals("PCS", StringComparison.OrdinalIgnoreCase)
-        || sheet.Equals("Chem", StringComparison.OrdinalIgnoreCase);
+        || sheet.Equals("Chem", StringComparison.OrdinalIgnoreCase)
+        || sheet.Equals("Tool", StringComparison.OrdinalIgnoreCase);
 
     private async Task StripLedgerDetailsAsync(IReadOnlyList<long> inspectionIds, CancellationToken ct)
     {
@@ -283,6 +284,7 @@ public sealed class IqcHistoryLedgerImportService
         var c = row.Checks!;
         var isRoll = row.Sheet.Equals("Roll", StringComparison.OrdinalIgnoreCase);
         var isChem = row.Sheet.Equals("Chem", StringComparison.OrdinalIgnoreCase);
+        var isTool = row.Sheet.Equals("Tool", StringComparison.OrdinalIgnoreCase);
         var pending = new List<(IqcResultDetail, IReadOnlyList<double?>)>();
 
         // Packaging / tem nhãn
@@ -292,8 +294,9 @@ public sealed class IqcHistoryLedgerImportService
             measured: c.WarehouseInDate,
             acceptanceVi: c.ExpiryText is null ? null : $"HSD: {c.ExpiryText}");
 
-        if (!string.IsNullOrWhiteSpace(c.ExpiryText) || !string.IsNullOrWhiteSpace(c.Pefc)
-            || !string.IsNullOrWhiteSpace(c.PackagingSpec) || c.PackagingPass is not null)
+        // Tool chỉ có Tem (NQ-01) — không nhân đôi thành NQ-06 đóng gói.
+        if (!isTool && (!string.IsNullOrWhiteSpace(c.ExpiryText) || !string.IsNullOrWhiteSpace(c.Pefc)
+            || !string.IsNullOrWhiteSpace(c.PackagingSpec) || c.PackagingPass is not null))
         {
             var pkgNote = JoinParts(
                 c.PackagingSpec is null ? null : $"Quy cách: {c.PackagingSpec}",
@@ -548,6 +551,8 @@ public sealed class IqcHistoryLedgerImportService
         "PD-01" => "Nhăn", "PD-02" => "Hằn", "PD-03" => "Loang",
         "PD-04" => "Xước", "PD-05" => "Màu sắc", "PD-06" => "Dị vật",
         "PD-07" => "Bẩn", "PD-08" => "Biến dạng", "PD-09" => "Bavia",
+        "TD-01" => "Bẩn, ẩm ướt", "TD-02" => "Biến dạng", "TD-03" => "Ẩm ướt",
+        "TD-04" => "Rỉ sét, đổi màu", "TD-05" => "Bavia",
         _ => key,
     };
 
@@ -561,6 +566,8 @@ public sealed class IqcHistoryLedgerImportService
         "PD-01" => "Wrinkle", "PD-02" => "Dent", "PD-03" => "Blotch",
         "PD-04" => "Scratch", "PD-05" => "Colour", "PD-06" => "Foreign matter",
         "PD-07" => "Dirt", "PD-08" => "Deformation", "PD-09" => "Burr",
+        "TD-01" => "Dirt, damp", "TD-02" => "Deformation", "TD-03" => "Damp",
+        "TD-04" => "Rust / discolouration", "TD-05" => "Burr",
         _ => key,
     };
 
