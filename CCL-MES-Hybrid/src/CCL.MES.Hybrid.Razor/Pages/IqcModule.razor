@@ -230,12 +230,13 @@
     @* ══════════════ TIÊU CHUẨN (P12 bước 2b) ══════════════ *@
     else if (_tab == IqcTab.Spec)
     {
-        <IqcSpecEditor DebounceMs="DebounceMs" />
+        <IqcSpecEditor @key="@($"spec:{_openSpecMaterial ?? ""}")"
+                       DebounceMs="DebounceMs" MaterialCode="@_openSpecMaterial" />
     }
 
     else if (_tab == IqcTab.StandardSpec)
     {
-        <IqcStandardSpecBoard DebounceMs="DebounceMs" />
+        <IqcStandardSpecBoard DebounceMs="DebounceMs" OnOpenMaterial="OpenFromStandardCatalog" />
     }
 
     @* ══════════════ NG / CLAIM (P13 bước 6) — else if TRƯỚC nhánh New Ticket *@
@@ -377,6 +378,9 @@
     private System.Threading.Timer? _dataDebounce;
     private int DataTotalPages => Math.Max(1, (int)Math.Ceiling((_data?.Total ?? 0) / (double)_pageSize));
 
+    /// <summary>Mã nguyên liệu mở từ tab Standard spec → Standards editor.</summary>
+    private string? _openSpecMaterial;
+
     // P1 — GridAutoFit reports how many rows fit the viewport; resize the page
     // to fill it (kill the dead space below a short page), then clamp the
     // current page into the new range. Mirrors NpiRawMaterials.SetPageSizeAsync.
@@ -428,8 +432,17 @@
     {
         _tab = tab;
         _toast = null;
+        if (tab != IqcTab.Spec) _openSpecMaterial = null;
         if (tab == IqcTab.Dashboard) await LoadDashboardAsync();
         else if (tab == IqcTab.Data) await LoadDataAsync();
+    }
+
+    /// <summary>Từ catalog Standard spec → tab Standards + load mã mẹ.</summary>
+    private void OpenFromStandardCatalog(string materialCode)
+    {
+        _openSpecMaterial = materialCode?.Trim();
+        _tab = IqcTab.Spec;
+        _toast = null;
     }
 
     // ── Dashboard ──

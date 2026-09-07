@@ -1,12 +1,16 @@
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
 @using CCL.MES.Shared.Quality
+@using CCL.MES.Hybrid.Razor.Shared
 @using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
 @inject ICclApiClient Api
 @inject CCL.MES.Hybrid.Client.Auth.IAuthSession Session
+@inject IJSRuntime Js
 
 @*
-    Catalog tiêu chuẩn CCL-SPEC-QC* — dữ liệu từ folder Form IQC 2026
-    (seed P12 + import header). Soạn chi tiết hạng mục vẫn dùng tab Standards.
+    Catalog tiêu chuẩn CCL-SPEC-QC* — double-click / chuột phải / kebab mở
+    tab Standards (giống IQC Data → mở phiếu). Import đọc đủ Form (header + hạng mục).
 *@
 
 <section class="qms-section" data-testid="iqc-stdspec">
@@ -61,31 +65,44 @@
                         <th class="num">@T("iqc.stdspec.col.items")</th>
                         <th>@T("iqc.stdspec.col.approval")</th>
                         <th>@T("iqc.stdspec.col.source")</th>
+                        <th class="wc-kebab-col" aria-hidden="true"></th>
                     </tr>
                 </thead>
                 <tbody>
                     @if (_data is null || _data.Items.Count == 0)
                     {
                         <tr data-testid="iqc-stdspec-empty">
-                            <td colspan="7">@T("iqc.stdspec.empty")</td>
+                            <td colspan="8">@T("iqc.stdspec.empty")</td>
                         </tr>
                     }
                     else
                     {
                         @foreach (var row in _data.Items)
                         {
-                            <tr data-testid="iqc-stdspec-row" @ondblclick="() => OpenInEditor(row)">
-                                <td>@row.SpecNo</td>
-                                <td>@row.MaterialCode</td>
-                                <td>@(row.SupplierName ?? "—")</td>
-                                <td>@(row.Revision ?? "—")</td>
-                                <td class="num">@row.ItemCount</td>
+                            var r = row;
+                            <tr class="iqc-data-row" data-testid="iqc-stdspec-row"
+                                @oncontextmenu="e => OpenMenuAt(r, e.ClientX, e.ClientY)" @oncontextmenu:preventDefault="true"
+                                @ondblclick="() => OpenInEditor(r)"
+                                @onpointerdown="e => LongPressStart(r, e)" @onpointerup="LongPressCancel"
+                                @onpointerleave="LongPressCancel" @onpointermove="LongPressCancel">
+                                <td>@r.SpecNo</td>
+                                <td>@r.MaterialCode</td>
+                                <td>@(r.SupplierName ?? "—")</td>
+                                <td>@(r.Revision ?? "—")</td>
+                                <td class="num">@r.ItemCount</td>
                                 <td>
-                                    <span class="iqc-status @(row.Approval == "Approved" ? "iqc-status-pass" : "iqc-status-pending")">
-                                        @ApprovalLabel(row.Approval)
+                                    <span class="iqc-status @(r.Approval == "Approved" ? "iqc-status-pass" : "iqc-status-pending")">
+                                        @ApprovalLabel(r.Approval)
                                     </span>
                                 </td>
-                                <td>@(row.ImportSource ?? "—")</td>
+                                <td>@(r.ImportSource ?? "—")</td>
+                                <td class="wc-kebab-col">
+                                    <button type="button" class="row-kebab" data-fw-nodrag
+                                            data-testid="iqc-stdspec-kebab"
+                                            aria-haspopup="menu" aria-label="@T("iqc.data.menu.actions")"
+                                            @onclick="e => OpenMenuAt(r, e.ClientX, e.ClientY)"
+                                            @onclick:stopPropagation="true">⋯</button>
+                                </td>
                             </tr>
                         }
                     }
@@ -103,6 +120,10 @@
             </div>
         }
     }
+
+    <RowContextMenu Open="_menuRow is not null" Anchor="_menuAnchor" Items="_menuItems"
+                    AriaLabel="@T("iqc.stdspec.menu.aria", _menuRow?.SpecNo ?? "")"
+                    OnClose="CloseMenu" />
 </section>
 
 @code {
@@ -120,7 +141,21 @@
     private CancellationTokenSource? _debounce;
     private int MaxPage => Math.Max(1, (int)Math.Ceiling((_data?.Total ?? 0) / (double)_pageSize));
 
+    private IqcStandardSpecListItem? _menuRow;
+    private (double X, double Y) _menuAnchor;
+    private IReadOnlyList<ContextMenuItem> _menuItems = Array.Empty<ContextMenuItem>();
+    private System.Threading.Timer? _longPress;
+    private (double X, double Y) _pressAt;
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    public override void Dispose()
+    {
+        _debounce?.Cancel();
+        _debounce?.Dispose();
+        _longPress?.Dispose();
+        base.Dispose();
+    }
 
     private string ApprovalLabel(string a) => a switch
     {
@@ -187,7 +222,9 @@
         try
         {
             var r = await Api.ImportIqcStandardSpecsAsync();
-            _status = T("iqc.stdspec.import.done", r.FilesSeen, r.Inserted, r.Updated, r.AlreadyPresent);
+            _status = T("iqc.stdspec.import.done",
+                r.FilesSeen, r.Inserted, r.Updated, r.AlreadyPresent,
+                r.ItemsInserted, r.ItemsUpdated);
             await LoadAsync();
         }
         catch (Exception ex)
@@ -200,9 +237,75 @@
         }
     }
 
+    private void OpenMenuAt(IqcStandardSpecListItem row, double x, double y)
+    {
+        _menuRow = row;
+        _menuAnchor = (x, y);
+        _menuItems = new[]
+        {
+            new ContextMenuItem { Label = T("iqc.data.menu.open"), Icon = "🗂",
+                OnClick = EventCallback.Factory.Create(this, () => MenuOpen(row)) },
+            new ContextMenuItem { Label = T("iqc.stdspec.menu.copy.spec"), Icon = "⎘",
+                OnClick = EventCallback.Factory.Create(this, () => CopyTextAsync(row.SpecNo)) },
+            new ContextMenuItem { Label = T("iqc.stdspec.menu.copy.material"), Icon = "⎘",
+                OnClick = EventCallback.Factory.Create(this, () => CopyTextAsync(row.MaterialCode)) },
+            new ContextMenuItem { Label = T("iqc.data.menu.edit"), Icon = "✎",
+                OnClick = EventCallback.Factory.Create(this, () => MenuOpen(row)) },
+            ContextMenuItem.Divider,
+            new ContextMenuItem { Label = T("iqc.data.menu.delete"), Icon = "✕", Danger = true,
+                OnClick = EventCallback.Factory.Create(this, NotYet) },
+        };
+    }
+
+    private void CloseMenu() => _menuRow = null;
+
+    private async Task MenuOpen(IqcStandardSpecListItem row)
+    {
+        _menuRow = null;
+        await OpenInEditor(row);
+    }
+
+    private void NotYet()
+    {
+        _status = T("iqc.data.action.notyet");
+        _menuRow = null;
+    }
+
+    private async Task CopyTextAsync(string? text)
+    {
+        _menuRow = null;
+        if (string.IsNullOrWhiteSpace(text)) return;
+        try
+        {
+            var ok = await Js.InvokeAsync<bool>("cclMesClipboard.copy", text);
+            _status = ok ? T("iqc.stdspec.copied", text) : T("iqc.data.action.notyet");
+        }
+        catch
+        {
+            _status = T("iqc.data.action.notyet");
+        }
+    }
+
+    private void LongPressStart(IqcStandardSpecListItem row, PointerEventArgs e)
+    {
+        if (e.Button != 0) return;
+        _pressAt = (e.ClientX, e.ClientY);
+        _longPress?.Dispose();
+        _longPress = new System.Threading.Timer(
+            _ => InvokeAsync(() => { OpenMenuAt(row, _pressAt.X, _pressAt.Y); StateHasChanged(); }),
+            null, 500, System.Threading.Timeout.Infinite);
+    }
+
+    private void LongPressCancel()
+    {
+        _longPress?.Dispose();
+        _longPress = null;
+    }
+
     private async Task OpenInEditor(IqcStandardSpecListItem row)
     {
-        if (OnOpenMaterial.HasDelegate && !string.IsNullOrWhiteSpace(row.MaterialCode))
+        if (string.IsNullOrWhiteSpace(row.MaterialCode)) return;
+        if (OnOpenMaterial.HasDelegate)
             await OnOpenMaterial.InvokeAsync(row.MaterialCode);
     }
 }

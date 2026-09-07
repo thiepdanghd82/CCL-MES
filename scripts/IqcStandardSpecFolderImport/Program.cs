@@ -60,7 +60,7 @@ if (pending.Count > 0)
 var before = await db.IqcMaterialSpecs.CountAsync(s => s.SpecNo.StartsWith("CCL-SPEC-QC"));
 var svc = new IqcStandardSpecCatalogService(db, new ConsoleAudit());
 var result = await svc.ImportParsedAsync(rows, actor, "System", src, commit);
-Console.WriteLine($"[write] seen={result.FilesSeen} skip={result.FilesSkipped} insert={result.Inserted} update={result.Updated} present={result.AlreadyPresent}");
+Console.WriteLine($"[write] seen={result.FilesSeen} skip={result.FilesSkipped} insert={result.Inserted} update={result.Updated} present={result.AlreadyPresent} items+={result.ItemsInserted} items↻={result.ItemsUpdated}");
 
 if (!commit)
 {

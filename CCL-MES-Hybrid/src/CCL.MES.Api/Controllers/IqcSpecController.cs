@@ -73,8 +73,8 @@ public sealed class IqcSpecController : ControllerBase
         });
     }
 
-    /// <summary>Import header từ folder file Form. Đường dẫn: body hoặc
-    /// env <c>MES_IQC_STANDARD_SPEC_DIR</c>.</summary>
+    /// <summary>Import đủ nội dung Form (header + hạng mục) từ folder.
+    /// Đường dẫn: body hoặc env <c>MES_IQC_STANDARD_SPEC_DIR</c>.</summary>
     [HttpPost("catalog/import"), Authorize(Policy = "IqcSpecWrite")]
     public async Task<ActionResult<IqcStandardSpecImportResponse>> ImportCatalog(
         [FromBody] IqcStandardSpecImportBody? body, CancellationToken ct = default)
@@ -100,6 +100,8 @@ public sealed class IqcSpecController : ControllerBase
             Inserted = r.Inserted,
             Updated = r.Updated,
             AlreadyPresent = r.AlreadyPresent,
+            ItemsInserted = r.ItemsInserted,
+            ItemsUpdated = r.ItemsUpdated,
             FolderPath = r.FolderPath,
             Warnings = r.Warnings,
         });

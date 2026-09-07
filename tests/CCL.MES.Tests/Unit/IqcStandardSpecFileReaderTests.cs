@@ -32,4 +32,13 @@ public sealed class IqcStandardSpecFileReaderTests
     [InlineData("List số spec.xlsx")]
     public void TryParseFileName_skips_templates(string name)
         => Assert.False(IqcStandardSpecFileReader.TryParseFileName(name, out _));
+
+    [Theory]
+    [InlineData("Tem nhãn", "NQ-01")]
+    [InlineData("Kiểm tra vật liệu", "NL-01")]
+    [InlineData("HSF", "MT-02")]
+    [InlineData("Keo của nguyên liệu", "BD-01")]
+    [InlineData("Something unknown", "KH-01")]
+    public void MapItemId_matches_library_codes(string label, string id)
+        => Assert.Equal(id, IqcStandardSpecFileReader.MapItemId(label));
 }

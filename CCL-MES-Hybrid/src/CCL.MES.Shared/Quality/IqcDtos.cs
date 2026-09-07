@@ -532,6 +532,8 @@ public sealed class IqcStandardSpecImportResponse
     public int Inserted { get; set; }
     public int Updated { get; set; }
     public int AlreadyPresent { get; set; }
+    public int ItemsInserted { get; set; }
+    public int ItemsUpdated { get; set; }
     public string? FolderPath { get; set; }
     public List<string> Warnings { get; set; } = new();
 }

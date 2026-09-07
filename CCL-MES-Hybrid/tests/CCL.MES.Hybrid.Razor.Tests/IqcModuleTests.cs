@@ -102,6 +102,40 @@ public sealed class IqcModuleTests : TestContext
     }
 
     [Fact]
+    public void StandardSpec_dblclick_opens_Standards_tab_with_material()
+    {
+        Wire();
+        _api.IqcStandardSpecListImpl = (_, _, _) => Task.FromResult(new IqcStandardSpecListResponse
+        {
+            Total = 1, Page = 1, PageSize = 50,
+            Items =
+            [
+                new IqcStandardSpecListItem
+                {
+                    SpecNo = "CCL-SPEC-QC001", MaterialCode = "SW-7325F",
+                    Revision = "R03", Approval = "Approved", ItemCount = 15,
+                },
+            ],
+        });
+        _api.IqcSpecImpl = (code, _) => Task.FromResult(new IqcSpecEditResponse
+        {
+            QueriedCode = code,
+            MaterialCode = code,
+            SpecNo = "CCL-SPEC-QC001",
+            Items = new List<IqcSpecItemDto>(),
+        });
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        cut.Find("[data-testid=iqc-subtab-stdspec]").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid=iqc-stdspec-row]")));
+        cut.Find("[data-testid=iqc-stdspec-row]").TriggerEvent("ondblclick", new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid=iqc-spec-editor]"));
+            Assert.Equal("SW-7325F", cut.Find("[data-testid=iqc-spec-search]").GetAttribute("value"));
+        });
+    }
+
+    [Fact]
     public void History_tab_renders_board_after_ng()
     {
         Wire();
