@@ -556,15 +556,21 @@ else
 
     /// <summary>Mã mẹ cần hiện bảng hồ sơ. Mở phiếu thì lấy của phiếu; tạo mới
     /// thì lấy từ các dòng đã tick — DISTINCT, vì nhiều Code IFS khác khổ dùng
-    /// chung một mã mẹ và không ai muốn thấy cùng một bộ giấy hai lần.</summary>
+    /// chung một mã mẹ và không ai muốn thấy cùng một bộ giấy hai lần.
+    /// Phiếu XLS thiếu mã mẹ trên DTO vẫn fallback Code IFS để không để tab
+    /// Documents trống (server ListAsync sẽ dựng TDS/MSDS/…).</summary>
     private List<string> DocumentCodes
     {
         get
         {
             if (Ticket is not null)
-                return string.IsNullOrWhiteSpace(Ticket.MotherCode)
-                    ? new List<string>()
-                    : new List<string> { Ticket.MotherCode!.Trim() };
+            {
+                if (!string.IsNullOrWhiteSpace(Ticket.MotherCode))
+                    return new List<string> { Ticket.MotherCode!.Trim() };
+                if (!string.IsNullOrWhiteSpace(Ticket.CodeIfs))
+                    return new List<string> { Ticket.CodeIfs!.Trim() };
+                return new List<string>();
+            }
 
             return _selectedCodes
                 .Select(c => SnapshotFor(c)?.MotherCode)

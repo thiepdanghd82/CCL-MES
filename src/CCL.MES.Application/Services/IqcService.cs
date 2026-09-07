@@ -965,18 +965,9 @@ public class IqcService
 
         var paged = await PagingHelper.PageAsync(q, page, pageSize);
 
-        // MÃ MẸ là khoá thư mục hồ sơ HSF (IQC/Documents/<mã mẹ>/). Phiếu chỉ
-        // giữ RawMaterialId nên phải tra thêm — tra SAU khi phân trang để không
-        // đụng vào truy vấn đếm, và một lượt cho cả trang chứ không N+1.
-        var rawIds = paged.Items
-            .Where(x => x.RawMaterialId is not null)
-            .Select(x => x.RawMaterialId!.Value).Distinct().ToList();
-        var motherByRaw = rawIds.Count == 0
-            ? new Dictionary<long, string?>()
-            : await _db.RawMaterials.AsNoTracking()
-                .Where(m => rawIds.Contains(m.Id))
-                .Select(m => new { m.Id, m.MotherCode })
-                .ToDictionaryAsync(m => m.Id, m => m.MotherCode, ct);
+        // MÃ MẸ = khoá thư mục hồ sơ HSF. Phiếu XLS import thường thiếu
+        // RawMaterialId — tra thêm qua CodeIfs→PartNo để tab Documents không trống.
+        var mothers = await LoadMotherFolderLookupsAsync(paged.Items, ct);
 
         var warehouseRaw = await LoadWarehouseInRawAsync(
             paged.Items.Select(x => x.Id).ToList(), ct);
@@ -994,8 +985,7 @@ public class IqcService
                 return new IqcTicketRow
                 {
                     Id = x.Id,
-                    MotherCode = x.RawMaterialId is { } rid
-                        && motherByRaw.TryGetValue(rid, out var mc) ? mc : null,
+                    MotherCode = ResolveMotherFolder(x, mothers),
                     ReceiptNo = x.ReceiptNo,
                     Group = group,
                     MaterialCategory = x.MaterialCategory.ToString(),
@@ -1067,15 +1057,7 @@ public class IqcService
         }
 
         var paged = await PagingHelper.PageAsync(q, page, pageSize);
-        var rawIds = paged.Items
-            .Where(x => x.RawMaterialId is not null)
-            .Select(x => x.RawMaterialId!.Value).Distinct().ToList();
-        var motherByRaw = rawIds.Count == 0
-            ? new Dictionary<long, string?>()
-            : await _db.RawMaterials.AsNoTracking()
-                .Where(m => rawIds.Contains(m.Id))
-                .Select(m => new { m.Id, m.MotherCode })
-                .ToDictionaryAsync(m => m.Id, m => m.MotherCode, ct);
+        var mothers = await LoadMotherFolderLookupsAsync(paged.Items, ct);
 
         // Ngày nhập kho nằm trong hạng mục đóng băng NQ-01 (ô Excel), không phải
         // cột riêng — đọc thêm 1 query cho đúng trang đang hiện, rồi parse.
@@ -1100,8 +1082,7 @@ public class IqcService
                     MaterialCategory = x.MaterialCategory.ToString(),
                     Sheet = ToExcelSheet(group, x.MaterialCategory),
                     CodeIfs = x.CodeIfs,
-                    MotherCode = x.RawMaterialId is { } rid
-                        && motherByRaw.TryGetValue(rid, out var mc) ? mc : null,
+                    MotherCode = ResolveMotherFolder(x, mothers),
                     MaterialDescription = x.MaterialDescription,
                     LotBatchNo = x.LotNumber ?? x.BatchNumber,
                     SupplierName = x.SupplierName,
@@ -1118,6 +1099,80 @@ public class IqcService
             }).ToList(),
         };
     }
+
+    /// <summary>
+    /// Tra mã thư mục HSF cho một trang phiếu: ưu tiên RawMaterialId → mã mẹ;
+    /// phiếu XLS thiếu FK thì tra CodeIfs/PartNo. Mã mẹ trống trên catalog thì
+    /// dùng chính PartNo làm khoá thư mục (vẫn dựng được TDS/MSDS…).
+    /// </summary>
+    private async Task<MotherFolderLookups> LoadMotherFolderLookupsAsync(
+        IReadOnlyList<IqcInspection> items, CancellationToken ct)
+    {
+        var rawIds = items
+            .Where(x => x.RawMaterialId is not null)
+            .Select(x => x.RawMaterialId!.Value).Distinct().ToList();
+        var partNos = items
+            .Select(x => FirstNonEmpty(x.CodeIfs, x.PartNo))
+            .Where(s => s is not null)
+            .Select(s => s!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var byRaw = rawIds.Count == 0
+            ? new Dictionary<long, string>()
+            : (await _db.RawMaterials.AsNoTracking()
+                .Where(m => rawIds.Contains(m.Id))
+                .Select(m => new { m.Id, m.PartNo, m.MotherCode })
+                .ToListAsync(ct))
+            .ToDictionary(
+                m => m.Id,
+                m => string.IsNullOrWhiteSpace(m.MotherCode) ? m.PartNo : m.MotherCode!.Trim());
+
+        var byPart = partNos.Count == 0
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : (await _db.RawMaterials.AsNoTracking()
+                .Where(m => partNos.Contains(m.PartNo))
+                .Select(m => new { m.PartNo, m.MotherCode })
+                .ToListAsync(ct))
+            .GroupBy(m => m.PartNo, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var first = g.First();
+                    return string.IsNullOrWhiteSpace(first.MotherCode)
+                        ? first.PartNo
+                        : first.MotherCode!.Trim();
+                },
+                StringComparer.OrdinalIgnoreCase);
+
+        return new MotherFolderLookups(byRaw, byPart);
+    }
+
+    private static string? ResolveMotherFolder(IqcInspection x, MotherFolderLookups mothers)
+    {
+        if (x.RawMaterialId is { } rid && mothers.ByRawId.TryGetValue(rid, out var fromRaw)
+            && !string.IsNullOrWhiteSpace(fromRaw))
+            return fromRaw.Trim();
+
+        var part = FirstNonEmpty(x.CodeIfs, x.PartNo);
+        if (part is not null && mothers.ByPartNo.TryGetValue(part, out var fromPart)
+            && !string.IsNullOrWhiteSpace(fromPart))
+            return fromPart.Trim();
+
+        return null;
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+    {
+        foreach (var v in values)
+            if (!string.IsNullOrWhiteSpace(v)) return v.Trim();
+        return null;
+    }
+
+    private readonly record struct MotherFolderLookups(
+        Dictionary<long, string> ByRawId,
+        Dictionary<string, string> ByPartNo);
 
     /// <summary>
     /// Ô "ngày nhập kho" đóng băng trên hạng mục <c>NQ-01</c> của từng phiếu

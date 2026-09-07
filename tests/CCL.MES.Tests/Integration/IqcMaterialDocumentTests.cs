@@ -63,8 +63,8 @@ public sealed class IqcMaterialDocumentTests : IDisposable
 
         var rows = await Svc(db).ListAsync("336T-AT1");
 
-        Assert.Equal(5, rows.Count);
-        Assert.Equal(new[] { "TDS", "MSDS", "ROHS", "REACH", "ISO9001" },
+        Assert.Equal(6, rows.Count);
+        Assert.Equal(new[] { "TDS", "MSDS", "TESTREPORT", "ROHS", "REACH", "ISO9001" },
             rows.Select(r => r.DocType));
         Assert.All(rows, r => Assert.Null(r.StorageKey));   // chưa đính file nào
     }
@@ -78,7 +78,7 @@ public sealed class IqcMaterialDocumentTests : IDisposable
         await svc.ListAsync("336T-AT1");
         await svc.ListAsync("336T-AT1");
 
-        Assert.Equal(5, await db.IqcMaterialDocuments.CountAsync(x => x.MaterialCode == "336T-AT1"));
+        Assert.Equal(6, await db.IqcMaterialDocuments.CountAsync(x => x.MaterialCode == "336T-AT1"));
     }
 
     [Fact]
@@ -91,8 +91,8 @@ public sealed class IqcMaterialDocumentTests : IDisposable
         await svc.ListAsync("336T-AT1");
         await svc.ListAsync("336-H1a");
 
-        Assert.Equal(5, await db.IqcMaterialDocuments.CountAsync(x => x.MaterialCode == "336T-AT1"));
-        Assert.Equal(5, await db.IqcMaterialDocuments.CountAsync(x => x.MaterialCode == "336-H1a"));
+        Assert.Equal(6, await db.IqcMaterialDocuments.CountAsync(x => x.MaterialCode == "336T-AT1"));
+        Assert.Equal(6, await db.IqcMaterialDocuments.CountAsync(x => x.MaterialCode == "336-H1a"));
     }
 
     // ── (b) ba trường bắt buộc ───────────────────────────────────────────
@@ -292,8 +292,8 @@ public sealed class IqcMaterialDocumentTests : IDisposable
         Assert.False(row.Active);
         Assert.NotNull(row.StorageKey);                       // file KHÔNG bị xoá
         Assert.NotNull((await svc.OpenFileAsync(id)).Content); // vẫn mở được
-        Assert.Equal(4, (await svc.ListAsync("336T-AT1")).Count);
-        Assert.Equal(5, (await svc.ListAsync("336T-AT1", includeInactive: true)).Count);
+        Assert.Equal(5, (await svc.ListAsync("336T-AT1")).Count);
+        Assert.Equal(6, (await svc.ListAsync("336T-AT1", includeInactive: true)).Count);
     }
 
     [Fact]

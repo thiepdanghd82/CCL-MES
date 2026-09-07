@@ -47,22 +47,22 @@ public sealed class IqcMaterialDocumentService
     /// <c>IQC/Documents/&lt;mã nguyên liệu&gt;/</c>.</summary>
     public const string RootPrefix = "IQC/Documents";
 
-    /// <summary>Năm loại hồ sơ dựng sẵn cho mọi mã — đúng các dòng đang hiện
-    /// trên màn hình. Người dùng thêm loại khác được, nhưng năm cái này luôn có
-    /// mặt để không ai quên mất một tờ.</summary>
+    /// <summary>Các loại hồ sơ dựng sẵn cho mọi mã — luôn có mặt để không quên
+    /// một tờ. Người dùng thêm loại khác được (Add row).</summary>
     public static readonly IReadOnlyList<(string DocType, string Vi, string En, int Sort)> DefaultTypes =
     [
-        ("TDS",     "TDS — Bảng thông số kỹ thuật", "TDS — Technical data sheet", 10),
-        ("MSDS",    "MSDS",                          "MSDS",                       20),
-        ("ROHS",    "RoHS",                          "RoHS",                       30),
-        ("REACH",   "REACH",                         "REACH",                      40),
-        ("ISO9001", "ISO 9001 — NCC",                "ISO 9001 — Supplier",        50),
+        ("TDS",        "TDS — Bảng thông số kỹ thuật", "TDS — Technical data sheet", 10),
+        ("MSDS",       "MSDS",                          "MSDS",                       20),
+        ("TESTREPORT", "Test report — Báo cáo thử nghiệm", "Test report",            25),
+        ("ROHS",       "RoHS",                          "RoHS",                       30),
+        ("REACH",      "REACH",                         "REACH",                      40),
+        ("ISO9001",    "ISO 9001 — NCC",                "ISO 9001 — Supplier",        50),
     ];
 
     // ── đọc ──────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Hồ sơ của một mã. Lần đầu chạm tới mã nào thì <b>dựng sẵn 5 dòng mặc
+    /// Hồ sơ của một mã. Lần đầu chạm tới mã nào thì <b>dựng sẵn các dòng mặc
     /// định</b> cho mã đó (cùng cách <c>PrepressBomSnapshotService</c> làm với
     /// BOM) — có dòng thật trong DB thì xoá mềm và sửa mới có chỗ bám.
     /// </summary>

@@ -80,4 +80,30 @@ public sealed class IqcHistoryListTests : IDisposable
         Assert.Equal(1, chem.Total);
         Assert.Equal("Chem", chem.Items[0].Sheet);
     }
+
+    [Fact]
+    public async Task ListHistory_tra_MotherCode_qua_CodeIfs_khi_thieu_RawMaterialId()
+    {
+        // Phiếu XLS import không gắn FK — tab Documents cần mã mẹ để dựng TDS/MSDS.
+        await using var db = _fx.NewContext();
+        db.RawMaterials.Add(new RawMaterial
+        {
+            PartNo = "30032193-0220", MotherCode = "E6/RP37/GZI/H0",
+            PartDescription = "roll",
+        });
+        db.IqcInspections.Add(new IqcInspection
+        {
+            PartNo = "30032193-0220", CodeIfs = "30032193-0220",
+            ReceiptNo = "XLS-ROLL-03722", Group = IqcGroup.Materials,
+            MaterialCategory = IqcMaterialCategory.Roll, Result = QcResult.Fail,
+            ReceivedDate = new DateTime(2026, 8, 18), ApprovedAt = new DateTime(2026, 8, 18),
+            ApprovedBy = "Hải", Quantity = 1, UomQty = "rolls",
+            // RawMaterialId cố ý NULL
+        });
+        await db.SaveChangesAsync();
+
+        var page = await Svc(db).ListHistoryAsync("Roll", "XLS-ROLL-03722", null, null, 1, 10);
+        Assert.Single(page.Items);
+        Assert.Equal("E6/RP37/GZI/H0", page.Items[0].MotherCode);
+    }
 }

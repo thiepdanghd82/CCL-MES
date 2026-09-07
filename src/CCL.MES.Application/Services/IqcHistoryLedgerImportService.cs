@@ -55,6 +55,21 @@ public sealed class IqcHistoryLedgerImportService
             .Where(x => x.ReceiptNo != null && receipts.Contains(x.ReceiptNo))
             .ToDictionaryAsync(x => x.ReceiptNo!, StringComparer.OrdinalIgnoreCase, ct);
 
+        // Code IFS → RawMaterials: gắn FK để tab Documents tìm được mã mẹ / thư mục HSF.
+        var codeIfs = candidates
+            .Select(c => c.Row.CodeIfs)
+            .Where(s => !string.IsNullOrWhiteSpace(s))
+            .Select(s => s!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var rawByPart = codeIfs.Count == 0
+            ? new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+            : await _db.RawMaterials.AsNoTracking()
+                .Where(m => codeIfs.Contains(m.PartNo))
+                .GroupBy(m => m.PartNo)
+                .Select(g => new { PartNo = g.Key, Id = g.Min(m => m.Id) })
+                .ToDictionaryAsync(x => x.PartNo, x => x.Id, StringComparer.OrdinalIgnoreCase, ct);
+
         // Batch: phiếu nào đã có chi tiết xls-ledger — tránh N+1 Include.
         HashSet<long> alreadyEnriched = [];
         if (enrichDetails && existingMap.Count > 0)
@@ -72,12 +87,20 @@ public sealed class IqcHistoryLedgerImportService
         var measurePending = new List<(IqcResultDetail Detail, IReadOnlyList<double?> Samples)>();
         // Tracked parents that need BuildDetails after we know Id (new inserts).
         var newWithDetails = new List<(IqcInspection Insp, IqcHistoryLedgerRow Row)>();
+        var linkedRaw = 0;
 
         foreach (var (row, receipt, result, group, cat) in candidates)
         {
             if (existingMap.TryGetValue(receipt, out var found))
             {
                 already++;
+                if (commit && found.RawMaterialId is null
+                    && !string.IsNullOrWhiteSpace(row.CodeIfs)
+                    && rawByPart.TryGetValue(row.CodeIfs.Trim(), out var linkId))
+                {
+                    found.RawMaterialId = linkId;
+                    linkedRaw++;
+                }
                 if (commit && enrichDetails && row.Checks is not null && IsRollOrPcs(row.Sheet)
                     && !alreadyEnriched.Contains(found.Id))
                 {
@@ -99,12 +122,18 @@ public sealed class IqcHistoryLedgerImportService
             var uom = row.Uom;
             if (qty <= 0) { qty = 1; uom ??= "ea"; }
 
+            long? rawId = null;
+            if (!string.IsNullOrWhiteSpace(row.CodeIfs)
+                && rawByPart.TryGetValue(row.CodeIfs.Trim(), out var rid))
+                rawId = rid;
+
             var insp = new IqcInspection
             {
                 Group = group,
                 MaterialCategory = cat,
                 PartNo = Trunc(part, 64) ?? "UNKNOWN",
                 CodeIfs = Trunc(row.CodeIfs, 64),
+                RawMaterialId = rawId,
                 BatchNumber = Trunc(row.PoNumber, 64) ?? "",
                 LotNumber = Trunc(row.PoNumber, 64),
                 ReceiptNo = receipt,
@@ -132,7 +161,7 @@ public sealed class IqcHistoryLedgerImportService
             detailsUpserted++;
         }
 
-        if (commit && (inserted > 0 || detailsUpserted > 0))
+        if (commit && (inserted > 0 || detailsUpserted > 0 || linkedRaw > 0))
         {
             await _db.SaveChangesAsync(ct);
             AttachMeasurements(measurePending);
