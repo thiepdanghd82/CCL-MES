@@ -31,6 +31,11 @@ snapshot SQLite (online, no lock) → tar `blobs/` → `PRAGMA integrity_check`
 | Admin UI | Settings → Backup → "Scheduled backup" → tick *Enable nightly backup* → Save. Also has **Run backup now**. | yes (writes `backup-schedule.json`) |
 | Environment | `OPS_BACKUP_SCHEDULE=1` (first-boot fallback) | yes |
 
+**Gate tuổi snapshot:** `CCL-MES-Hybrid/scripts/gate-backup-fresh.sh` (nằm trong
+`gate-all.sh`). Khi lịch **bật**, bản mới nhất trong `Backup/SQLite/` không
+được cũ hơn 48h (`MES_BACKUP_MAX_AGE_HOURS` để đổi). Lịch tắt → gate PASS
+kèm nhắc. Gate **không** thay off-site — vẫn cần cron bên dưới.
+
 **Settings** (env first, `appsettings.json` `Ops:Backup:*` fallback; the UI/JSON override both):
 
 | Env | appsettings | Default | Meaning |

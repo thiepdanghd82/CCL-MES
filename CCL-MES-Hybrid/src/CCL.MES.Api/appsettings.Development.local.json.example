@@ -1,0 +1,6 @@
+{
+  "Jwt": {
+    "_comment": "Copy to appsettings.Development.local.json (gitignored). Generate: openssl rand -base64 48",
+    "SigningKey": "PASTE-OPENSSL-RAND-BASE64-48-HERE-must-be-at-least-32-bytes"
+  }
+}

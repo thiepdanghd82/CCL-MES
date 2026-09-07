@@ -20,6 +20,11 @@ _archive/**/*.tar.gz
 # Runtime uploads (drawings PDF) — not source code
 data/blobs/
 scripts/RecoverAdmin/recover.audit.log
+scripts/RotateSeedPasswords/rotate-seed.audit.log
+
+# JWT / secrets máy cục bộ — không bao giờ commit (kiểm định R2).
+**/appsettings.Production.json
+**/appsettings.*.local.json
 
 # Bằng chứng migration Phase A/B (bài học L65: KHÔNG để ở /tmp — macOS quét
 # sạch, và bằng chứng mất là không chứng minh được gì nữa). Giữ lại file .txt

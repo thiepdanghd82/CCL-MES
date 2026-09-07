@@ -321,10 +321,9 @@ static async Task SeedAdminUserAsync(MesDbContext db, IPasswordHasher<User> hash
 
     // Seed table: 5 demo accounts (one per role) so the matrix can be
     // smoke-tested without an admin manually building accounts. All
-    // skip-if-exists by username; populated DBs unchanged. Default
-    // values for IsActive (true) + MustChangePassword (false) come
-    // from the entity, set explicitly here for new rows just in case
-    // a later migration changes the default direction.
+    // skip-if-exists by username; populated DBs unchanged.
+    // MustChangePassword=true: pwd=username chỉ sống đến lần đăng nhập đầu
+    // (kiểm định 2026-09-07 R3 — 4 tài khoản demo từng để MCP=false trên live).
     var seed = new (string Username, string Role, string DisplayName, string Password)[]
     {
         ("admin",      UserRole.Admin,      "Administrator",  "admin"),
@@ -343,7 +342,7 @@ static async Task SeedAdminUserAsync(MesDbContext db, IPasswordHasher<User> hash
                 Role = role,
                 DisplayName = displayName,
                 IsActive = true,
-                MustChangePassword = false,
+                MustChangePassword = true,
             };
             user.PasswordHash = hasher.HashPassword(user, password);
             db.Users.Add(user);

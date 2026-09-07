@@ -15,9 +15,9 @@ public sealed class JwtOptions
     public string Audience { get; set; } = "ccl-mes-hybrid";
 
     /// <summary>HMAC-SHA256 signing key. MUST be configured in production
-    /// (env <c>Jwt__SigningKey</c> or appsettings). The dev fallback below
-    /// is intentionally obvious so a misconfigured prod box fails its own
-    /// preflight rather than silently using a known key.</summary>
+    /// (env <c>Jwt__SigningKey</c> or appsettings). The class default and the
+    /// appsettings.json placeholder are both rejected at boot by
+    /// <see cref="JwtSigningKeyGuard"/> (except env=Test).</summary>
     public string SigningKey { get; set; } = "dev-only-do-not-use-in-prod-32-bytes-min!!";
 
     public TimeSpan AccessTokenLifetime { get; set; } = TimeSpan.FromMinutes(15);

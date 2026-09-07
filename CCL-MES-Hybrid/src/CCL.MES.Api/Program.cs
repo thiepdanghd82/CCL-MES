@@ -15,6 +15,12 @@ using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Khoá JWT máy-cục-bộ / prod — KHÔNG commit. Optional nên clone mới vẫn
+// đọc được appsettings.json; boot fail-fast nếu còn placeholder (R2).
+builder.Configuration.AddJsonFile(
+    $"appsettings.{builder.Environment.EnvironmentName}.local.json",
+    optional: true, reloadOnChange: false);
+
 // Force scope + build validation in every environment (Dev / Test / Prod)
 // rather than ASP.NET's Dev-only default. P10.1 caught a missing IBlobStore
 // registration only at first `dotnet run` because the integration test
@@ -216,14 +222,9 @@ builder.Services.AddScoped<CCL.MES.Api.Services.WorkCenterSpeedLookup>();
 var jwtSection = builder.Configuration.GetSection("Jwt");
 builder.Services.Configure<JwtOptions>(jwtSection);
 var jwtOpts = jwtSection.Get<JwtOptions>() ?? new JwtOptions();
-if (Encoding.UTF8.GetByteCount(jwtOpts.SigningKey) < 32)
-{
-    // We log + throw here so a misconfigured prod env fails its own
-    // preflight rather than silently using a known dev key.
-    throw new InvalidOperationException(
-        "Jwt:SigningKey must be at least 32 bytes of UTF-8 for HS256. "
-        + "Set Jwt__SigningKey in env or appsettings.");
-}
+// Độ dài ≥32 KHÔNG đủ — placeholder REPLACE-IN-PROD dài 73 byte từng lọt
+// cửa. Fail-fast trừ môi trường Test (MesApiFactory tự inject khoá).
+JwtSigningKeyGuard.EnsureSafeForBoot(jwtOpts.SigningKey, builder.Environment.EnvironmentName);
 
 builder.Services.AddSingleton<JwtTokenIssuer>();
 builder.Services.AddSingleton<IRefreshTokenStore, InMemoryRefreshTokenStore>();
