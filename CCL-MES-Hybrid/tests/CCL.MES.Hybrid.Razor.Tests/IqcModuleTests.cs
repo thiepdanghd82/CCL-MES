@@ -357,13 +357,64 @@ public sealed class IqcModuleTests : TestContext
 
         cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("[data-testid=iqc-data-receipt]").Count));
         // NO inline "Actions" column header (L35 — actions via RowContextMenu only).
-        var headers = cut.FindAll("[data-testid=iqc-data-table] thead th").Select(th => th.TextContent);
+        var headers = cut.FindAll("[data-testid=iqc-data-table] thead th").Select(th => th.TextContent).ToList();
         Assert.DoesNotContain(headers, h => h.Contains("Actions", StringComparison.OrdinalIgnoreCase)
                                           || h.Contains("Hành động", StringComparison.OrdinalIgnoreCase));
+        // Khớp History: Sheet · nhập kho · hạn dùng · ngày duyệt.
+        Assert.Contains(headers, h => h.Contains("Sheet", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(headers, h => h.Contains("nhập kho", StringComparison.OrdinalIgnoreCase)
+                                   || h.Contains("Warehouse", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(headers, h => h.Contains("Hạn dùng", StringComparison.OrdinalIgnoreCase)
+                                   || h.Contains("Expiry", StringComparison.OrdinalIgnoreCase));
 
         // Right-click a row opens the shared context menu (role=menu).
         cut.FindAll("[data-testid=iqc-data-table] tbody tr")[0].ContextMenu();
         cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[role=menu]")));
+    }
+
+    [Fact]
+    public void Iqc_data_nut_x_xoa_tim_kiem()
+    {
+        Wire();
+        _api.ListIqcTicketsImpl = (_, _, _, _) => Task.FromResult(new IqcTicketListResponse
+        { Total = 0, Page = 1, PageSize = 20, Items = new() });
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        cut.Find("[data-testid=iqc-subtab-data]").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid=iqc-data-search]")));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-data-search-clear]"));
+
+        cut.Find("[data-testid=iqc-data-search]").Input("XLS");
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid=iqc-data-search-clear]")));
+        cut.Find("[data-testid=iqc-data-search-clear]").Click();
+
+        Assert.Equal("", cut.Find("[data-testid=iqc-data-search]").GetAttribute("value"));
+        Assert.True(string.IsNullOrEmpty(_api.ListIqcTicketsCalls[^1].Search));
+    }
+
+    [Fact]
+    public void Iqc_data_to_mau_han_dung_khop_history()
+    {
+        Wire();
+        var expiry = DateTime.Today.AddDays(45);
+        _api.ListIqcTicketsImpl = (_, _, _, _) => Task.FromResult(new IqcTicketListResponse
+        {
+            Total = 1, Page = 1, PageSize = 20,
+            Items = new()
+            {
+                new IqcTicketListItem
+                {
+                    Id = 11, ReceiptNo = "XLS-ROLL-03722", Sheet = "Roll", Group = "Materials",
+                    Result = "Pass", ReceivedDate = expiry.AddDays(-320),
+                    WarehouseInDate = expiry.AddDays(-365), ExpiryDate = expiry,
+                },
+            },
+        });
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        cut.Find("[data-testid=iqc-subtab-data]").Click();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid=iqc-data-exp-11]")));
+        Assert.Contains("iqc-exp-warn", cut.Find("[data-testid=iqc-data-exp-11]").GetAttribute("class") ?? "");
     }
 
     [Fact]

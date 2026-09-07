@@ -97,6 +97,13 @@ public sealed class IqcTicketListItem
     public long Id { get; set; }
     public string? ReceiptNo { get; set; }
     public string Group { get; set; } = "Materials";
+
+    /// <summary>Nhóm hạng mục đóng băng: Roll / Pcs / Chem / Tool / Any.</summary>
+    public string MaterialCategory { get; set; } = "Any";
+
+    /// <summary>Nhãn sheet Excel: Roll · PCS · Chem · Tool · Materials.</summary>
+    public string Sheet { get; set; } = "Materials";
+
     public string? CodeIfs { get; set; }
 
     /// <summary>Mã mẹ — khoá thư mục hồ sơ HSF. Chính là mã người dùng thấy ở
@@ -110,10 +117,14 @@ public sealed class IqcTicketListItem
     public string? SupplierName { get; set; }
     public string? Inspector { get; set; }
     public DateTime ReceivedDate { get; set; }
+    public DateTime? WarehouseInDate { get; set; }
+    public DateTime? ExpiryDate { get; set; }
     public double Quantity { get; set; }
     public string? Uom { get; set; }
     /// <summary>Pending / Pass / Fail (enum-as-string).</summary>
     public string Result { get; set; } = "Pending";
+    public string? ApprovedBy { get; set; }
+    public DateTime? ApprovedAt { get; set; }
 }
 
 /// <summary>Một dòng sổ lịch sử IQC (phiếu đã Pass/Fail) — map sheet Excel

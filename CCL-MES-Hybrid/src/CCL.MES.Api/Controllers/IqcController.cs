@@ -77,6 +77,8 @@ public sealed class IqcController : ControllerBase
                 Id = x.Id,
                 ReceiptNo = x.ReceiptNo,
                 Group = x.Group,
+                MaterialCategory = x.MaterialCategory,
+                Sheet = x.Sheet,
                 CodeIfs = x.CodeIfs,
                 MotherCode = x.MotherCode,
                 MaterialDescription = x.MaterialDescription,
@@ -86,9 +88,13 @@ public sealed class IqcController : ControllerBase
                 SupplierName = x.SupplierName,
                 Inspector = x.Inspector,
                 ReceivedDate = x.ReceivedDate,
+                WarehouseInDate = x.WarehouseInDate,
+                ExpiryDate = x.ExpiryDate,
                 Quantity = x.Quantity,
                 Uom = x.Uom,
                 Result = x.Result,
+                ApprovedBy = x.ApprovedBy,
+                ApprovedAt = x.ApprovedAt,
             }).ToList(),
         });
     }

@@ -123,9 +123,17 @@
                                 @onclick="() => SetGroupFilter(gg)">@GroupLabel(gg)</button>
                     }
                 </div>
-                <input type="search" class="op-input iqc-data-search" data-testid="iqc-data-search"
-                       placeholder="@T("iqc.data.search.ph")"
-                       value="@_search" @oninput="OnDataSearchInput" />
+                <div class="iqc-search-wrap">
+                    <input type="search" class="op-input iqc-data-search" data-testid="iqc-data-search"
+                           placeholder="@T("iqc.data.search.ph")"
+                           value="@_search" @oninput="OnDataSearchInput" />
+                    @if (!string.IsNullOrEmpty(_search))
+                    {
+                        <button type="button" class="iqc-search-clear" data-testid="iqc-data-search-clear"
+                                title="@T("iqc.history.search.clear")" aria-label="@T("iqc.history.search.clear")"
+                                @onclick="ClearDataSearch">×</button>
+                    }
+                </div>
             </div>
 
             @if (_dataLoading && _data is null)
@@ -138,46 +146,62 @@
                     <table class="qms-table iqc-data-table" data-testid="iqc-data-table">
                         <thead>
                             <tr>
+                                <th>@T("iqc.history.col.sheet")</th>
                                 <th>@T("iqc.data.col.receipt")</th>
-                                <th>@T("iqc.data.col.group")</th>
                                 <th>@T("iqc.data.col.codeifs")</th>
                                 <th>@T("iqc.data.col.matdesc")</th>
                                 <th>@T("iqc.data.col.lot")</th>
-                                <th>@T("iqc.data.col.manfdate")</th>
-                                <th>@T("iqc.data.col.maker")</th>
                                 <th>@T("iqc.data.col.supplier")</th>
                                 <th>@T("iqc.data.col.inspector")</th>
                                 <th>@T("iqc.data.col.received")</th>
+                                <th>@T("iqc.history.col.warehousein")</th>
+                                <th>@T("iqc.history.col.expiry")</th>
                                 <th class="num">@T("iqc.data.col.qty")</th>
                                 <th>@T("iqc.data.col.status")</th>
+                                <th>@T("iqc.history.col.approved")</th>
+                                <th>@T("iqc.history.col.approver")</th>
                             </tr>
                         </thead>
                         <tbody>
                             @foreach (var row in (_data?.Items ?? new()))
                             {
                                 var r = row;
-                                <tr class="iqc-data-row"
+                                var days = TicketDaysLeft(r);
+                                <tr class="iqc-data-row" data-testid="@($"iqc-data-row-{r.Id}")"
                                     @oncontextmenu="e => OpenMenuAt(r, e.ClientX, e.ClientY)" @oncontextmenu:preventDefault="true"
                                     @ondblclick="() => OpenInspection(r)"
                                     @onpointerdown="e => LongPressStart(r, e)" @onpointerup="LongPressCancel"
                                     @onpointerleave="LongPressCancel" @onpointermove="LongPressCancel">
+                                    <td><span class="iqc-group-tag" data-sheet="@r.Sheet">@TicketSheetLabel(r.Sheet)</span></td>
                                     <td class="qms-td-strong" data-testid="iqc-data-receipt">@Show(r.ReceiptNo)</td>
-                                    <td><span class="iqc-group-tag" data-group="@r.Group">@GroupLabel(r.Group)</span></td>
                                     <td>@Show(r.CodeIfs)</td>
                                     <td>@Show(r.MaterialDescription)</td>
                                     <td>@Show(r.LotBatchNo)</td>
-                                    <td>@Show(r.ManufactureDate?.ToString("dd/MM/yyyy"))</td>
-                                    <td>@Show(r.MakerName)</td>
                                     <td>@Show(r.SupplierName)</td>
                                     <td>@Show(r.Inspector)</td>
                                     <td>@r.ReceivedDate.ToString("dd/MM/yyyy")</td>
+                                    <td class="@TicketWarehouseCellClass(r)" title="@TicketWarehouseTitle(r)"
+                                        data-testid="@($"iqc-data-wh-{r.Id}")">@TicketWarehouseText(r)</td>
+                                    <td class="@TicketExpiryCellClass(days)" data-testid="@($"iqc-data-exp-{r.Id}")">
+                                        @if (r.ExpiryDate is { } exp)
+                                        {
+                                            <span class="iqc-exp-days">@TicketDaysLeftText(days!.Value)</span>
+                                            <span class="iqc-exp-date">@exp.ToString("dd/MM/yyyy")</span>
+                                        }
+                                        else
+                                        {
+                                            @("—")
+                                        }
+                                    </td>
                                     <td class="num">@r.Quantity@(string.IsNullOrWhiteSpace(r.Uom) ? "" : $" {r.Uom}")</td>
                                     <td><span class="iqc-status iqc-status-@r.Result.ToLowerInvariant()">@StatusLabel(r.Result)</span></td>
+                                    <td>@(r.ApprovedAt?.ToString("dd/MM/yyyy") ?? "—")</td>
+                                    <td>@Show(r.ApprovedBy)</td>
                                 </tr>
                             }
                             @if ((_data?.Items.Count ?? 0) == 0)
                             {
-                                <tr><td colspan="12" class="grid-empty" data-testid="iqc-data-empty">@T("iqc.data.empty")</td></tr>
+                                <tr><td colspan="14" class="grid-empty" data-testid="iqc-data-empty">@T("iqc.data.empty")</td></tr>
                             }
                         </tbody>
                     </table>
@@ -299,6 +323,39 @@
     private string StatusLabel(string r) => T($"iqc.data.status.{(r ?? "pending").ToLowerInvariant()}");
     private static string GroupKindToString(IqcGroupKind k) => k.ToString();
 
+    // Cột Sheet / nhập kho / HSD — cùng luật với IqcHistoryBoard (một nguồn dữ liệu
+    // IqcInspections; History chỉ là lọc Pass|Fail).
+    private const int ExpiryCriticalDays = 30;
+    private const int ExpiryWarningDays = 60;
+
+    private string TicketSheetLabel(string sheet)
+    {
+        var key = (sheet ?? "materials").ToLowerInvariant();
+        if (key is "roll" or "pcs" or "chem" or "tool")
+            return T($"iqc.history.sheet.{key}");
+        return T("iqc.group.materials");
+    }
+
+    private static bool TicketSameAsReceived(IqcTicketListItem r)
+        => r.WarehouseInDate is { } w && w.Date == r.ReceivedDate.Date;
+    private static string TicketWarehouseText(IqcTicketListItem r)
+        => r.WarehouseInDate?.ToString("dd/MM/yyyy") ?? "—";
+    private static string TicketWarehouseCellClass(IqcTicketListItem r)
+        => TicketSameAsReceived(r) ? "iqc-wh-same" : "";
+    private string? TicketWarehouseTitle(IqcTicketListItem r)
+        => TicketSameAsReceived(r) ? T("iqc.history.warehousein.same") : null;
+    private static int? TicketDaysLeft(IqcTicketListItem r)
+        => r.ExpiryDate is { } exp ? (int)(exp.Date - DateTime.Today).TotalDays : null;
+    private string TicketDaysLeftText(int days)
+        => days < 0 ? T("iqc.history.expiry.overdue", -days) : T("iqc.history.expiry.left", days);
+    private static string TicketExpiryCellClass(int? days) => days switch
+    {
+        null => "iqc-exp",
+        < ExpiryCriticalDays => "iqc-exp iqc-exp-crit",
+        <= ExpiryWarningDays => "iqc-exp iqc-exp-warn",
+        _ => "iqc-exp",
+    };
+
     // ── Dashboard state ──
     private IqcDashboardResponse _dash = new();
 
@@ -397,6 +454,14 @@
         if (DebounceMs <= 0) { _ = LoadDataAsync(); return; }
         _dataDebounce = new System.Threading.Timer(async _ =>
             await InvokeAsync(LoadDataAsync), null, DebounceMs, System.Threading.Timeout.Infinite);
+    }
+
+    private async Task ClearDataSearch()
+    {
+        _dataDebounce?.Dispose();
+        _search = "";
+        _page = 1;
+        await LoadDataAsync();
     }
 
     private async Task GoToPageAsync(int page)

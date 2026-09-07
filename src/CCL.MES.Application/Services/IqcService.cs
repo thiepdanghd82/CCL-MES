@@ -978,29 +978,44 @@ public class IqcService
                 .Select(m => new { m.Id, m.MotherCode })
                 .ToDictionaryAsync(m => m.Id, m => m.MotherCode, ct);
 
+        var warehouseRaw = await LoadWarehouseInRawAsync(
+            paged.Items.Select(x => x.Id).ToList(), ct);
+
         return new IqcTicketPage
         {
             Page = paged.Page,
             PageSize = paged.PageSize,
             Total = paged.Total,
-            Items = paged.Items.Select(x => new IqcTicketRow
+            Items = paged.Items.Select(x =>
             {
-                Id = x.Id,
-                MotherCode = x.RawMaterialId is { } rid
-                    && motherByRaw.TryGetValue(rid, out var mc) ? mc : null,
-                ReceiptNo = x.ReceiptNo,
-                Group = string.IsNullOrWhiteSpace(x.Group) ? IqcGroup.Materials : x.Group,
-                CodeIfs = x.CodeIfs,
-                MaterialDescription = x.MaterialDescription,
-                LotBatchNo = x.LotNumber ?? x.BatchNumber,
-                ManufactureDate = x.ManufactureDate,
-                MakerName = x.MakerName,
-                SupplierName = x.SupplierName,
-                Inspector = x.InspectorId,
-                ReceivedDate = x.ReceivedDate,
-                Quantity = x.Quantity,
-                Uom = x.UomQty,
-                Result = x.Result.ToString(),
+                var group = string.IsNullOrWhiteSpace(x.Group) ? IqcGroup.Materials : x.Group;
+                warehouseRaw.TryGetValue(x.Id, out var whRaw);
+                var warehouseIn = IqcWarehouseInDate.Parse(whRaw, x.ReceivedDate);
+                return new IqcTicketRow
+                {
+                    Id = x.Id,
+                    MotherCode = x.RawMaterialId is { } rid
+                        && motherByRaw.TryGetValue(rid, out var mc) ? mc : null,
+                    ReceiptNo = x.ReceiptNo,
+                    Group = group,
+                    MaterialCategory = x.MaterialCategory.ToString(),
+                    Sheet = ToExcelSheet(group, x.MaterialCategory),
+                    CodeIfs = x.CodeIfs,
+                    MaterialDescription = x.MaterialDescription,
+                    LotBatchNo = x.LotNumber ?? x.BatchNumber,
+                    ManufactureDate = x.ManufactureDate,
+                    MakerName = x.MakerName,
+                    SupplierName = x.SupplierName,
+                    Inspector = x.InspectorId,
+                    ReceivedDate = x.ReceivedDate,
+                    WarehouseInDate = warehouseIn,
+                    ExpiryDate = IqcWarehouseInDate.Expiry(warehouseIn),
+                    Quantity = x.Quantity,
+                    Uom = x.UomQty,
+                    Result = x.Result.ToString(),
+                    ApprovedBy = x.ApprovedBy,
+                    ApprovedAt = x.ApprovedAt,
+                };
             }).ToList(),
         };
     }
@@ -1064,16 +1079,8 @@ public class IqcService
 
         // Ngày nhập kho nằm trong hạng mục đóng băng NQ-01 (ô Excel), không phải
         // cột riêng — đọc thêm 1 query cho đúng trang đang hiện, rồi parse.
-        var pageIds = paged.Items.Select(x => x.Id).ToList();
-        var warehouseRaw = pageIds.Count == 0
-            ? new Dictionary<long, string?>()
-            : await _db.IqcResultDetails.AsNoTracking()
-                .Where(d => pageIds.Contains(d.IqcInspectionId)
-                    && d.ItemKey == WarehouseInItemKey
-                    && d.MeasuredValue != null)
-                .GroupBy(d => d.IqcInspectionId)
-                .Select(g => new { Id = g.Key, Value = g.Min(d => d.MeasuredValue) })
-                .ToDictionaryAsync(g => g.Id, g => g.Value, ct);
+        var warehouseRaw = await LoadWarehouseInRawAsync(
+            paged.Items.Select(x => x.Id).ToList(), ct);
 
         return new IqcHistoryPage
         {
@@ -1110,6 +1117,23 @@ public class IqcService
                 };
             }).ToList(),
         };
+    }
+
+    /// <summary>
+    /// Ô "ngày nhập kho" đóng băng trên hạng mục <c>NQ-01</c> của từng phiếu
+    /// trong trang hiện tại. Một query cho cả trang — không N+1.
+    /// </summary>
+    private async Task<Dictionary<long, string?>> LoadWarehouseInRawAsync(
+        List<long> pageIds, CancellationToken ct)
+    {
+        if (pageIds.Count == 0) return new Dictionary<long, string?>();
+        return await _db.IqcResultDetails.AsNoTracking()
+            .Where(d => pageIds.Contains(d.IqcInspectionId)
+                && d.ItemKey == WarehouseInItemKey
+                && d.MeasuredValue != null)
+            .GroupBy(d => d.IqcInspectionId)
+            .Select(g => new { Id = g.Key, Value = g.Min(d => d.MeasuredValue) })
+            .ToDictionaryAsync(g => g.Id, g => g.Value, ct);
     }
 
     /// <summary>Nhãn sheet Excel từ group + category đóng băng trên phiếu.</summary>
@@ -1397,6 +1421,13 @@ public sealed class IqcTicketRow
     public long Id { get; init; }
     public string? ReceiptNo { get; init; }
     public string Group { get; init; } = "Materials";
+
+    /// <summary>Nhóm hạng mục đóng băng: Roll / Pcs / Chem / Tool / Any.</summary>
+    public string MaterialCategory { get; init; } = "Any";
+
+    /// <summary>Nhãn sheet Excel tương đương — khớp cột Sheet trên History.</summary>
+    public string Sheet { get; init; } = "Materials";
+
     public string? CodeIfs { get; init; }
 
     /// <summary>Mã mẹ của nguyên liệu — khoá thư mục hồ sơ HSF trên server
@@ -1411,9 +1442,13 @@ public sealed class IqcTicketRow
     public string? SupplierName { get; init; }
     public string? Inspector { get; init; }
     public DateTime ReceivedDate { get; init; }
+    public DateTime? WarehouseInDate { get; init; }
+    public DateTime? ExpiryDate { get; init; }
     public double Quantity { get; init; }
     public string? Uom { get; init; }
     public string Result { get; init; } = "Pending";
+    public string? ApprovedBy { get; init; }
+    public DateTime? ApprovedAt { get; init; }
 }
 
 /// <summary>Một dòng sổ lịch sử (Application-layer).</summary>
