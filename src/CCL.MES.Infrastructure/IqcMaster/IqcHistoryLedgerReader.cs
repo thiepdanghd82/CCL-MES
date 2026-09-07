@@ -9,10 +9,22 @@ namespace CCL.MES.Infrastructure.IqcMaster;
 /// Đọc 4 sheet ledger của "IQC report 2026": Roll · PCS · Chem · Tool.
 /// Map cột theo VỊ TRÍ đã đối chiếu tay (2 dòng tiêu đề; data từ dòng 3).
 /// Culture invariant quanh số/ngày (L44).
+///
+/// PCS kích thước: (1) ô <c>290x301</c> → rộng=290, dài=301;
+/// (2) cặp 2 dòng (dòng 2 thường <c>Stt</c> trống hoặc cùng ngày/cùng Code IFS)
+/// → dòng 1 rộng, dòng 2 dài.
 /// </summary>
 public static class IqcHistoryLedgerReader
 {
     private const int FirstDataRow = 3;
+
+    private static readonly Regex WxLRegex = new(
+        @"^(-?\d+(?:[.,]\d+)?)\s*[x×X]\s*(-?\d+(?:[.,]\d+)?)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static readonly Regex TolRegex = new(
+        @"^(-?\d+(?:[.,]\d+)?)\s*\+\s*(-?\d+(?:[.,]\d+)?)\s*-\s*(-?\d+(?:[.,]\d+)?)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly string[] RollVisualKeys =
     [
@@ -26,15 +38,55 @@ public static class IqcHistoryLedgerReader
         "PD-06", "PD-07", "PD-08", "PD-09",
     ];
 
-    public static List<IqcHistoryLedgerRow> Read(Stream xlsx)
+    /// <summary>
+    /// Đọc workbook. <paramref name="absorbedPcsPairs"/> (optional) nhận
+    /// (primaryExcelRow, absorbedExcelRow) — dòng PCS đã gộp vào phiếu primary.
+    /// </summary>
+    public static List<IqcHistoryLedgerRow> Read(
+        Stream xlsx, List<(int PrimaryExcelRow, int AbsorbedExcelRow)>? absorbedPcsPairs = null)
     {
         using var wb = new XLWorkbook(xlsx);
         var rows = new List<IqcHistoryLedgerRow>();
         rows.AddRange(ReadRoll(wb));
-        rows.AddRange(ReadPcs(wb));
+        rows.AddRange(ReadPcs(wb, absorbedPcsPairs));
         rows.AddRange(ReadChem(wb));
         rows.AddRange(ReadTool(wb));
         return rows;
+    }
+
+    /// <summary>Tách ô <c>290x301</c> / số đơn → (rộng, dài).</summary>
+    public static (double? Width, double? Length) ParseWidthLengthCell(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return (null, null);
+        var m = WxLRegex.Match(raw.Trim());
+        if (m.Success)
+            return (ParseDoubleToken(m.Groups[1].Value), ParseDoubleToken(m.Groups[2].Value));
+        return (ParseLeadingDouble(raw), null);
+    }
+
+    /// <summary>Parse TC dạng <c>97.5+0.5-0.2</c> hoặc <c>290x300</c>.</summary>
+    public static (double? Nominal, double? Low, double? Up, double? LengthNominal) ParseSizeSpec(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return (null, null, null, null);
+        var t = raw.Trim();
+        var wxl = WxLRegex.Match(t);
+        if (wxl.Success)
+        {
+            var w = ParseDoubleToken(wxl.Groups[1].Value);
+            var l = ParseDoubleToken(wxl.Groups[2].Value);
+            return (w, null, null, l);
+        }
+        var tol = TolRegex.Match(t);
+        if (tol.Success)
+        {
+            var nom = ParseDoubleToken(tol.Groups[1].Value);
+            var up = ParseDoubleToken(tol.Groups[2].Value);
+            var lowDelta = ParseDoubleToken(tol.Groups[3].Value);
+            return (nom, nom is null || lowDelta is null ? null : nom - lowDelta,
+                nom is null || up is null ? null : nom + up, null);
+        }
+        var lead = ParseLeadingDouble(t);
+        return (lead, null, null, null);
     }
 
     private static IEnumerable<IqcHistoryLedgerRow> ReadRoll(XLWorkbook wb)
@@ -75,6 +127,13 @@ public static class IqcHistoryLedgerReader
                 WidthSamples: Samples5(ws, r, 38),
                 WidthSampleTexts: Array.Empty<string?>(),
                 WidthPass: ParsePass(Cell(ws, r, 43)),
+                LengthNominal: null,
+                LengthLow: null,
+                LengthUp: null,
+                LengthSamples: Array.Empty<double?>(),
+                LengthSampleTexts: Array.Empty<string?>(),
+                LengthPass: null,
+                LengthSpec: null,
                 ThicknessSpec: Cell(ws, r, 45),
                 ThicknessSamples: Samples5(ws, r, 46),
                 ThicknessPass: ParsePass(Cell(ws, r, 51)),
@@ -105,76 +164,196 @@ public static class IqcHistoryLedgerReader
         }
     }
 
-    private static IEnumerable<IqcHistoryLedgerRow> ReadPcs(XLWorkbook wb)
+    private static IEnumerable<IqcHistoryLedgerRow> ReadPcs(
+        XLWorkbook wb, List<(int PrimaryExcelRow, int AbsorbedExcelRow)>? absorbedPairs)
     {
         if (!TrySheet(wb, "PCS", out var ws)) yield break;
         var last = ws.LastRowUsed()?.RowNumber() ?? 0;
+        IqcHistoryLedgerRow? open = null;
+        var openComplete = false;
+
         for (var r = FirstDataRow; r <= last; r++)
         {
             if (IsBlank(ws, r, 1, 6, 8)) continue;
+            var built = BuildPcsRow(ws, r);
 
-            var defects = new List<IqcLedgerDefectCell>(9);
-            for (var i = 0; i < 9; i++)
+            if (open is not null && !openComplete && IsPcsLengthCompanion(open, built))
             {
-                var col = 17 + i; // Q=17 … Y=25
-                defects.Add(new IqcLedgerDefectCell(PcsVisualKeys[i], ParseCount(Cell(ws, r, col))));
+                open = MergePcsLength(open, built);
+                openComplete = true;
+                absorbedPairs?.Add((open.ExcelRow, r));
+                continue;
             }
 
-            var widthTexts = new string?[5];
-            var widthNums = new double?[5];
-            for (var i = 0; i < 5; i++)
-            {
-                var t = Cell(ws, r, 29 + i); // AC=29 … AG=33
-                widthTexts[i] = t;
-                widthNums[i] = ParseLeadingDouble(t);
-            }
+            if (open is not null)
+                yield return open;
 
-            var checks = new IqcHistoryLedgerChecks(
-                WarehouseInDate: Cell(ws, r, 12),
-                ExpiryText: Cell(ws, r, 13),
-                Pefc: null,
-                PefcLevel: null,
-                PackagingSpec: Cell(ws, r, 10),
-                PackagingPass: ParsePass(Cell(ws, r, 14)),
-                PackagingInspector: Cell(ws, r, 15),
-                VisualSampleQty: Int(ws, r, 16),
-                VisualDefects: defects,
-                VisualPass: ParsePass(Cell(ws, r, 26)),
-                VisualInspector: Cell(ws, r, 27),
-                WidthNominal: null,
-                WidthLow: null,
-                WidthUp: null,
-                WidthSamples: widthNums,
-                WidthSampleTexts: widthTexts,
-                WidthPass: ParsePass(Cell(ws, r, 34)),
-                ThicknessSpec: Cell(ws, r, 35),
-                ThicknessSamples: Samples5(ws, r, 36),
-                ThicknessPass: ParsePass(Cell(ws, r, 41)),
-                DimensionInspector: Cell(ws, r, 42),
-                FuncSpec: null,
-                FuncPass: null,
-                FuncInspector: null,
-                LabSpec: null,
-                LabSheets: Array.Empty<double?>(),
-                LabPass: null,
-                LabInspector: null);
-
-            yield return new IqcHistoryLedgerRow(
-                Sheet: "PCS",
-                ExcelRow: r,
-                Stt: Int(ws, r, 1),
-                InspectedAt: Date(ws, r, 2) ?? Date(ws, r, 12) ?? DateTime.MinValue,
-                SupplierName: Cell(ws, r, 5),
-                CodeIfs: Cell(ws, r, 6),
-                MotherCode: null,
-                MaterialName: Cell(ws, r, 7) ?? Cell(ws, r, 8),
-                PoNumber: Cell(ws, r, 9),
-                Quantity: Num(ws, r, 11),
-                Uom: "pcs",
-                FinalJudgment: Cell(ws, r, 46),
-                Inspector: Cell(ws, r, 47),
-                Checks: checks);
+            open = built;
+            openComplete = PcsHasLength(built.Checks);
         }
+
+        if (open is not null)
+            yield return open;
+    }
+
+    private static IqcHistoryLedgerRow BuildPcsRow(IXLWorksheet ws, int r)
+    {
+        var defects = new List<IqcLedgerDefectCell>(9);
+        for (var i = 0; i < 9; i++)
+        {
+            var col = 17 + i; // Q=17 … Y=25
+            defects.Add(new IqcLedgerDefectCell(PcsVisualKeys[i], ParseCount(Cell(ws, r, col))));
+        }
+
+        var widthTexts = new string?[5];
+        var widthNums = new double?[5];
+        var lengthTexts = new string?[5];
+        var lengthNums = new double?[5];
+        var anyWxL = false;
+        for (var i = 0; i < 5; i++)
+        {
+            var t = Cell(ws, r, 29 + i); // AC=29 … AG=33
+            var (w, l) = ParseWidthLengthCell(t);
+            if (l.HasValue) anyWxL = true;
+            widthNums[i] = w;
+            lengthNums[i] = l;
+            if (l.HasValue)
+            {
+                widthTexts[i] = w?.ToString(CultureInfo.InvariantCulture);
+                lengthTexts[i] = l?.ToString(CultureInfo.InvariantCulture);
+            }
+            else
+            {
+                widthTexts[i] = t;
+            }
+        }
+
+        var ab = Cell(ws, r, 28); // AB — TC rộng x dài
+        var (nom, low, up, lenNomFromAb) = ParseSizeSpec(ab);
+        if (lenNomFromAb.HasValue) anyWxL = true;
+
+        var widthPass = ParsePass(Cell(ws, r, 34));
+        var checks = new IqcHistoryLedgerChecks(
+            WarehouseInDate: Cell(ws, r, 12),
+            ExpiryText: Cell(ws, r, 13),
+            Pefc: null,
+            PefcLevel: null,
+            PackagingSpec: Cell(ws, r, 10),
+            PackagingPass: ParsePass(Cell(ws, r, 14)),
+            PackagingInspector: Cell(ws, r, 15),
+            VisualSampleQty: Int(ws, r, 16),
+            VisualDefects: defects,
+            VisualPass: ParsePass(Cell(ws, r, 26)),
+            VisualInspector: Cell(ws, r, 27),
+            WidthNominal: nom,
+            WidthLow: low,
+            WidthUp: up,
+            WidthSamples: widthNums,
+            WidthSampleTexts: widthTexts,
+            WidthPass: widthPass,
+            LengthNominal: lenNomFromAb,
+            LengthLow: null,
+            LengthUp: null,
+            LengthSamples: anyWxL ? lengthNums : Array.Empty<double?>(),
+            LengthSampleTexts: anyWxL ? lengthTexts : Array.Empty<string?>(),
+            LengthPass: anyWxL ? widthPass : null,
+            LengthSpec: anyWxL ? ab : null,
+            ThicknessSpec: Cell(ws, r, 35),
+            ThicknessSamples: Samples5(ws, r, 36),
+            ThicknessPass: ParsePass(Cell(ws, r, 41)),
+            DimensionInspector: Cell(ws, r, 42),
+            FuncSpec: null,
+            FuncPass: null,
+            FuncInspector: null,
+            LabSpec: null,
+            LabSheets: Array.Empty<double?>(),
+            LabPass: null,
+            LabInspector: null);
+
+        return new IqcHistoryLedgerRow(
+            Sheet: "PCS",
+            ExcelRow: r,
+            Stt: Int(ws, r, 1),
+            InspectedAt: Date(ws, r, 2) ?? Date(ws, r, 12) ?? DateTime.MinValue,
+            SupplierName: Cell(ws, r, 5),
+            CodeIfs: Cell(ws, r, 6),
+            MotherCode: null,
+            MaterialName: Cell(ws, r, 7) ?? Cell(ws, r, 8),
+            PoNumber: Cell(ws, r, 9),
+            Quantity: Num(ws, r, 11),
+            Uom: "pcs",
+            FinalJudgment: Cell(ws, r, 46),
+            Inspector: Cell(ws, r, 47),
+            Checks: checks);
+    }
+
+    /// <summary>
+    /// Dòng sau là nửa dài của phiếu đang mở: cùng Code IFS, chưa có dài,
+    /// và (Stt trống · hoặc không có ngày · hoặc cùng ngày nhập).
+    /// </summary>
+    public static bool IsPcsLengthCompanion(IqcHistoryLedgerRow open, IqcHistoryLedgerRow next)
+    {
+        if (PcsHasLength(open.Checks)) return false;
+        if (!string.Equals(open.CodeIfs?.Trim(), next.CodeIfs?.Trim(), StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (!HasAnyDimSample(next.Checks)) return false;
+
+        if (next.Stt is null) return true;
+        if (next.InspectedAt == DateTime.MinValue) return true;
+        if (open.InspectedAt != DateTime.MinValue
+            && open.InspectedAt.Date == next.InspectedAt.Date)
+            return true;
+        return false;
+    }
+
+    private static bool PcsHasLength(IqcHistoryLedgerChecks? c)
+        => c is not null && (
+            (c.LengthSamples?.Any(v => v.HasValue) ?? false)
+            || (c.LengthSampleTexts?.Any(t => !string.IsNullOrWhiteSpace(t)) ?? false)
+            || c.LengthNominal.HasValue
+            || c.LengthPass.HasValue);
+
+    private static bool HasAnyDimSample(IqcHistoryLedgerChecks? c)
+        => c is not null && (
+            (c.WidthSamples?.Any(v => v.HasValue) ?? false)
+            || (c.WidthSampleTexts?.Any(t => !string.IsNullOrWhiteSpace(t)) ?? false)
+            || (c.LengthSamples?.Any(v => v.HasValue) ?? false));
+
+    private static IqcHistoryLedgerRow MergePcsLength(IqcHistoryLedgerRow open, IqcHistoryLedgerRow cont)
+    {
+        var o = open.Checks!;
+        var c = cont.Checks!;
+        // Continuation row's "width" cells are actually length measurements.
+        var lengthNom = c.WidthNominal;
+        var lengthLow = c.WidthLow;
+        var lengthUp = c.WidthUp;
+        var lengthSpec = FormatSpec(lengthNom, lengthLow, lengthUp)
+                         ?? lengthNom?.ToString(CultureInfo.InvariantCulture);
+
+        var merged = o with
+        {
+            LengthNominal = lengthNom,
+            LengthLow = lengthLow,
+            LengthUp = lengthUp,
+            LengthSamples = c.WidthSamples,
+            LengthSampleTexts = c.WidthSampleTexts,
+            LengthPass = c.WidthPass ?? o.LengthPass,
+            LengthSpec = lengthSpec,
+            DimensionInspector = FirstNonEmpty(o.DimensionInspector, c.DimensionInspector),
+        };
+
+        return open with { Checks = merged };
+    }
+
+    private static string? FormatSpec(double? nom, double? low, double? up)
+    {
+        if (nom is null) return null;
+        if (low is null || up is null)
+            return nom.Value.ToString(CultureInfo.InvariantCulture);
+        var plus = up.Value - nom.Value;
+        var minus = nom.Value - low.Value;
+        return string.Create(CultureInfo.InvariantCulture,
+            $"{nom.Value}+{plus}-{minus}");
     }
 
     private static IEnumerable<IqcHistoryLedgerRow> ReadChem(XLWorkbook wb)
@@ -253,12 +432,17 @@ public static class IqcHistoryLedgerReader
         return null;
     }
 
-    private static double? ParseLeadingDouble(string? raw)
+    public static double? ParseLeadingDouble(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
         var m = Regex.Match(raw, @"-?\d+(?:[.,]\d+)?");
         if (!m.Success) return null;
-        var s = m.Value.Replace(',', '.');
+        return ParseDoubleToken(m.Value);
+    }
+
+    private static double? ParseDoubleToken(string s)
+    {
+        s = s.Replace(',', '.');
         return double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n : null;
     }
 
@@ -298,10 +482,12 @@ public static class IqcHistoryLedgerReader
 
     private static int? Int(IXLWorksheet ws, int row, int col)
     {
-        var cell = ws.Cell(row, col);
-        if (cell.TryGetValue(out double d)) return (int)d;
         var s = Cell(ws, row, col);
-        return int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i) ? i : null;
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        if (int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i)) return i;
+        if (double.TryParse(s.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var d))
+            return (int)d;
+        return null;
     }
 
     private static double Num(IXLWorksheet ws, int row, int col)
@@ -309,21 +495,20 @@ public static class IqcHistoryLedgerReader
 
     private static double? NumOrNull(IXLWorksheet ws, int row, int col)
     {
-        var cell = ws.Cell(row, col);
-        if (cell.IsEmpty()) return null;
-        if (cell.TryGetValue(out double d)) return d;
         var s = Cell(ws, row, col);
-        if (string.IsNullOrWhiteSpace(s)) return null;
-        return double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n : null;
+        return ParseLeadingDouble(s);
     }
 
     private static DateTime? Date(IXLWorksheet ws, int row, int col)
     {
         var cell = ws.Cell(row, col);
-        if (cell.TryGetValue(out DateTime dt)) return dt.Date;
+        if (cell.TryGetValue(out DateTime dt)) return dt;
         var s = Cell(ws, row, col);
-        if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
-            return parsed.Date;
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        if (DateTime.TryParse(s, CultureInfo.GetCultureInfo("vi-VN"), DateTimeStyles.None, out var d1))
+            return d1;
+        if (DateTime.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.None, out var d2))
+            return d2;
         return null;
     }
 }

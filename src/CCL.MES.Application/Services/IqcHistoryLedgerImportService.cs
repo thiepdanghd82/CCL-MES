@@ -18,7 +18,9 @@ public sealed class IqcHistoryLedgerImportService
 
     public async Task<IqcHistoryLedgerImportResult> ImportAsync(
         IReadOnlyList<IqcHistoryLedgerRow> rows, string actor, bool commit,
-        bool enrichDetails = false, CancellationToken ct = default)
+        bool enrichDetails = false, bool repairDetails = false,
+        IReadOnlyList<(int PrimaryExcelRow, int AbsorbedExcelRow)>? absorbedPcsPairs = null,
+        CancellationToken ct = default)
     {
         var read = rows.Count;
         var skipJudgment = 0;
@@ -84,10 +86,62 @@ public sealed class IqcHistoryLedgerImportService
             alreadyEnriched = tagged.ToHashSet();
         }
 
+        // --repair-dims: gỡ chi tiết xls-ledger cũ rồi ghi lại (KT-02/KT-03 đúng rộng×dài).
+        if (commit && enrichDetails && repairDetails && existingMap.Count > 0)
+        {
+            var repairReceipts = candidates
+                .Where(c => IsRollOrPcs(c.Row.Sheet) && c.Row.Checks is not null)
+                .Select(c => c.Receipt)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var repairIds = existingMap
+                .Where(kv => repairReceipts.Contains(kv.Key))
+                .Select(kv => kv.Value.Id)
+                .ToList();
+            await StripLedgerDetailsAsync(repairIds, ct);
+            foreach (var id in repairIds)
+                alreadyEnriched.Remove(id);
+        }
+
         var measurePending = new List<(IqcResultDetail Detail, IReadOnlyList<double?> Samples)>();
         // Tracked parents that need BuildDetails after we know Id (new inserts).
         var newWithDetails = new List<(IqcInspection Insp, IqcHistoryLedgerRow Row)>();
         var linkedRaw = 0;
+
+        // Dòng PCS đã gộp — gỡ KT sai trên phiếu orphan rồi gắn lại cùng chi tiết primary
+        // (vd XLS-PCS-00129 mở vẫn thấy rộng+dài như 00128).
+        if (commit && enrichDetails && repairDetails && absorbedPcsPairs is { Count: > 0 })
+        {
+            var byPrimary = candidates
+                .Where(c => c.Row.Sheet.Equals("PCS", StringComparison.OrdinalIgnoreCase))
+                .GroupBy(c => c.Row.ExcelRow)
+                .ToDictionary(g => g.Key, g => g.First().Row);
+            var mirrorByOrphanReceipt = new Dictionary<string, IqcHistoryLedgerRow>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (primaryRow, absorbedRow) in absorbedPcsPairs)
+            {
+                if (!byPrimary.TryGetValue(primaryRow, out var primaryLedger)) continue;
+                mirrorByOrphanReceipt[$"XLS-PCS-{absorbedRow:D5}"] = primaryLedger;
+            }
+
+            if (mirrorByOrphanReceipt.Count > 0)
+            {
+                var orphanReceipts = mirrorByOrphanReceipt.Keys.ToList();
+                var orphans = await _db.IqcInspections
+                    .Where(x => x.ReceiptNo != null && orphanReceipts.Contains(x.ReceiptNo))
+                    .ToListAsync(ct);
+                if (orphans.Count > 0)
+                {
+                    await StripLedgerDetailsAsync(orphans.Select(o => o.Id).ToList(), ct);
+                    foreach (var orphan in orphans)
+                    {
+                        if (orphan.ReceiptNo is null) continue;
+                        if (!mirrorByOrphanReceipt.TryGetValue(orphan.ReceiptNo, out var ledger)) continue;
+                        if (ledger.Checks is null) continue;
+                        measurePending.AddRange(BuildDetails(orphan, ledger));
+                        detailsUpserted++;
+                    }
+                }
+            }
+        }
 
         foreach (var (row, receipt, result, group, cat) in candidates)
         {
@@ -177,6 +231,32 @@ public sealed class IqcHistoryLedgerImportService
         sheet.Equals("Roll", StringComparison.OrdinalIgnoreCase)
         || sheet.Equals("PCS", StringComparison.OrdinalIgnoreCase);
 
+    private async Task StripLedgerDetailsAsync(IReadOnlyList<long> inspectionIds, CancellationToken ct)
+    {
+        if (inspectionIds.Count == 0) return;
+        const int chunkSize = 400;
+        for (var offset = 0; offset < inspectionIds.Count; offset += chunkSize)
+        {
+            var slice = inspectionIds.Skip(offset).Take(chunkSize).ToList();
+            var details = await _db.IqcResultDetails
+                .Where(d => slice.Contains(d.IqcInspectionId)
+                    && (d.CreatedBy == DetailSourceTag || d.MethodVi == DetailSourceTag))
+                .ToListAsync(ct);
+            if (details.Count == 0) continue;
+            var detailIds = details.Select(d => d.Id).ToList();
+            for (var dOff = 0; dOff < detailIds.Count; dOff += chunkSize)
+            {
+                var dSlice = detailIds.Skip(dOff).Take(chunkSize).ToList();
+                var measures = await _db.IqcResultMeasurements
+                    .Where(m => dSlice.Contains(m.IqcResultDetailId))
+                    .ToListAsync(ct);
+                _db.IqcResultMeasurements.RemoveRange(measures);
+            }
+            _db.IqcResultDetails.RemoveRange(details);
+            await _db.SaveChangesAsync(ct);
+        }
+    }
+
     private void AttachMeasurements(
         List<(IqcResultDetail Detail, IReadOnlyList<double?> Samples)> pending)
     {
@@ -239,7 +319,7 @@ public sealed class IqcHistoryLedgerImportService
                 c.VisualPass);
         }
 
-        // Dimension — width
+        // Dimension — width (KT-03)
         if (c.WidthSamples.Any(v => v.HasValue)
             || c.WidthPass is not null || c.WidthNominal is not null
             || (c.WidthSampleTexts?.Any(t => !string.IsNullOrWhiteSpace(t)) ?? false))
@@ -254,6 +334,26 @@ public sealed class IqcHistoryLedgerImportService
                 limitLabel: c.WidthNominal?.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 acceptanceVi: c.WidthNominal is null ? null : $"TC {c.WidthNominal} mm",
                 pass: c.WidthPass));
+        }
+
+        // Dimension — length (KT-02): PCS dòng 2 hoặc nửa phải "290x301"
+        if ((c.LengthSamples?.Any(v => v.HasValue) ?? false)
+            || c.LengthPass is not null || c.LengthNominal is not null
+            || (c.LengthSampleTexts?.Any(t => !string.IsNullOrWhiteSpace(t)) ?? false)
+            || !string.IsNullOrWhiteSpace(c.LengthSpec))
+        {
+            pending.Add(AddMeasure(insp, "KT-02", "KT", "Kích thước", "Size",
+                "Chiều dài", "Length",
+                measureCount: 5,
+                samples: Pad5(c.LengthSamples ?? Array.Empty<double?>()),
+                sampleTexts: c.LengthSampleTexts,
+                low: c.LengthLow, up: c.LengthUp,
+                unit: "mm",
+                limitLabel: c.LengthSpec
+                    ?? c.LengthNominal?.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                acceptanceVi: c.LengthSpec
+                    ?? (c.LengthNominal is null ? null : $"TC {c.LengthNominal} mm"),
+                pass: c.LengthPass));
         }
 
         // Dimension — thickness

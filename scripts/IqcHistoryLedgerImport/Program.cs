@@ -9,9 +9,11 @@ using Microsoft.EntityFrameworkCore;
 
 // ── Nạp sổ lịch sử IQC (Roll/PCS/Chem/Tool) → IqcInspections ─────────────
 //   dotnet run --project scripts/IqcHistoryLedgerImport -- \
-//       --src "<IQC report 2026.xlsx>" [--db <path>] [--commit] [--enrich]
+//       --src "<IQC report 2026.xlsx>" [--db <path>] [--commit] [--enrich] [--repair-dims]
 //
-//   --enrich  → nạp chi tiết Roll/PCS vào IqcResultDetails (xls-ledger).
+//   --enrich       → nạp chi tiết Roll/PCS vào IqcResultDetails (xls-ledger).
+//   --repair-dims  → gỡ chi tiết xls-ledger cũ rồi ghi lại (cần --enrich --commit).
+//                    Gộp rộng×dài 2 dòng / ô "290x301" → KT-03 + KT-02.
 
 string? Arg(string name)
 {
@@ -24,6 +26,7 @@ var src = Arg("--src");
 var dbPath = Arg("--db");
 var commit = Flag("--commit");
 var enrich = Flag("--enrich");
+var repairDims = Flag("--repair-dims");
 var actor = Arg("--actor") ?? "console";
 
 if (string.IsNullOrWhiteSpace(src) || !File.Exists(src))
@@ -36,16 +39,28 @@ if (string.IsNullOrWhiteSpace(dbPath) && commit)
     Console.Error.WriteLine("--db <path> bắt buộc khi --commit.");
     return 2;
 }
+if (repairDims && (!enrich || !commit))
+{
+    Console.Error.WriteLine("--repair-dims cần kèm --enrich --commit.");
+    return 2;
+}
 
 Console.WriteLine($"[src] {src}");
 List<IqcHistoryLedgerRow> rows;
+var absorbedPcs = new List<(int PrimaryExcelRow, int AbsorbedExcelRow)>();
 using (var fs = File.OpenRead(src))
-    rows = IqcHistoryLedgerReader.Read(fs);
+    rows = IqcHistoryLedgerReader.Read(fs, absorbedPcs);
 
 var bySheet = rows.GroupBy(r => r.Sheet).ToDictionary(g => g.Key, g => g.Count());
 Console.WriteLine($"[parse] {rows.Count} dòng · " +
                   string.Join(" · ", bySheet.Select(kv => $"{kv.Key}={kv.Value}")));
-Console.WriteLine($"[checks] có khối kiểm={rows.Count(r => r.Checks is not null)} enrich={(enrich ? "on" : "off")}");
+Console.WriteLine($"[pcs-merge] absorbed={absorbedPcs.Count} · enrich={(enrich ? "on" : "off")} · repair={(repairDims ? "on" : "off")}");
+Console.WriteLine($"[checks] có khối kiểm={rows.Count(r => r.Checks is not null)}");
+
+var pcsWithLen = rows.Count(r =>
+    r.Sheet.Equals("PCS", StringComparison.OrdinalIgnoreCase)
+    && r.Checks?.LengthSamples?.Any(v => v.HasValue) == true);
+Console.WriteLine($"[pcs-dim] phiếu PCS có chiều dài={pcsWithLen}");
 
 if (string.IsNullOrWhiteSpace(dbPath))
 {
@@ -71,7 +86,8 @@ var beforeDet = await db.IqcResultDetails.CountAsync();
 Console.WriteLine($"[before] IqcInspections={before} details={beforeDet}");
 
 var svc = new IqcHistoryLedgerImportService(db);
-var r = await svc.ImportAsync(rows, actor, commit, enrichDetails: enrich);
+var r = await svc.ImportAsync(rows, actor, commit, enrichDetails: enrich,
+    repairDetails: repairDims, absorbedPcsPairs: absorbedPcs);
 
 Console.WriteLine($"[map] đọc={r.RowsRead} bỏ-judgment={r.RowsSkippedNoJudgment} bỏ-pcs-cont={r.RowsSkippedPcsContinuation}");
 Console.WriteLine($"[write] insert={r.Inserted} đã-có={r.AlreadyPresent} details-upsert={r.DetailsUpserted}");

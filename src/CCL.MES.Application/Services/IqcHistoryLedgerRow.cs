@@ -39,9 +39,17 @@ public sealed record IqcHistoryLedgerChecks(
     double? WidthNominal,
     double? WidthLow,
     double? WidthUp,
-    IReadOnlyList<double?> WidthSamples,       // 5 — Roll: Độ rộng; PCS: parsed
-    IReadOnlyList<string?> WidthSampleTexts,   // PCS "rộng x dài" raw
+    IReadOnlyList<double?> WidthSamples,       // 5 — Roll: Độ rộng; PCS: rộng
+    IReadOnlyList<string?> WidthSampleTexts,   // PCS raw / nửa trái của "WxL"
     bool? WidthPass,
+    // PCS: chiều dài — từ dòng continuation hoặc nửa phải "290x301"
+    double? LengthNominal,
+    double? LengthLow,
+    double? LengthUp,
+    IReadOnlyList<double?> LengthSamples,
+    IReadOnlyList<string?> LengthSampleTexts,
+    bool? LengthPass,
+    string? LengthSpec,
     string? ThicknessSpec,
     IReadOnlyList<double?> ThicknessSamples,   // 5
     bool? ThicknessPass,
