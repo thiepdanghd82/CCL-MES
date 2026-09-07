@@ -40,9 +40,17 @@
             <button type="button" class="op-btn" data-testid="iqc-history-clear-dates"
                     @onclick="ClearDates">@T("iqc.history.filter.clear")</button>
         }
-        <input type="search" class="op-input iqc-data-search" data-testid="iqc-history-search"
-               placeholder="@T("iqc.history.search.ph")" value="@_search"
-               @oninput="OnSearchInput" />
+        <div class="iqc-search-wrap">
+            <input type="search" class="op-input iqc-data-search" data-testid="iqc-history-search"
+                   placeholder="@T("iqc.history.search.ph")" value="@_search"
+                   @oninput="OnSearchInput" />
+            @if (!string.IsNullOrEmpty(_search))
+            {
+                <button type="button" class="iqc-search-clear" data-testid="iqc-history-search-clear"
+                        title="@T("iqc.history.search.clear")" aria-label="@T("iqc.history.search.clear")"
+                        @onclick="ClearSearch">×</button>
+            }
+        </div>
     </div>
 
     @if (_loading && _data is null)
@@ -63,6 +71,8 @@
                         <th>@T("iqc.data.col.supplier")</th>
                         <th>@T("iqc.data.col.inspector")</th>
                         <th>@T("iqc.data.col.received")</th>
+                        <th>@T("iqc.history.col.warehousein")</th>
+                        <th>@T("iqc.history.col.expiry")</th>
                         <th class="num">@T("iqc.data.col.qty")</th>
                         <th>@T("iqc.data.col.status")</th>
                         <th>@T("iqc.history.col.approved")</th>
@@ -83,6 +93,22 @@
                             <td>@Show(r.SupplierName)</td>
                             <td>@Show(r.Inspector)</td>
                             <td>@r.ReceivedDate.ToString("dd/MM/yyyy")</td>
+                            <td class="@WarehouseCellClass(r)" title="@WarehouseTitle(r)"
+                                data-testid="@($"iqc-history-wh-{r.Id}")">@WarehouseText(r)</td>
+                            @{
+                                var days = DaysLeft(r);
+                            }
+                            <td class="@ExpiryCellClass(days)" data-testid="@($"iqc-history-exp-{r.Id}")">
+                                @if (r.ExpiryDate is { } exp)
+                                {
+                                    <span class="iqc-exp-days">@DaysLeftText(days!.Value)</span>
+                                    <span class="iqc-exp-date">@exp.ToString("dd/MM/yyyy")</span>
+                                }
+                                else
+                                {
+                                    @("—")
+                                }
+                            </td>
                             <td class="num">@r.Quantity@(string.IsNullOrWhiteSpace(r.Uom) ? "" : $" {r.Uom}")</td>
                             <td><span class="iqc-status iqc-status-@r.Result.ToLowerInvariant()">@StatusLabel(r.Result)</span></td>
                             <td>@(r.ApprovedAt?.ToString("dd/MM/yyyy") ?? "—")</td>
@@ -91,7 +117,7 @@
                     }
                     @if ((_data?.Items.Count ?? 0) == 0)
                     {
-                        <tr><td colspan="12" class="grid-empty" data-testid="iqc-history-empty">@T("iqc.history.empty")</td></tr>
+                        <tr><td colspan="14" class="grid-empty" data-testid="iqc-history-empty">@T("iqc.history.empty")</td></tr>
                     }
                 </tbody>
             </table>
@@ -139,6 +165,40 @@
     private string StatusLabel(string r) => T($"iqc.data.status.{(r ?? "pending").ToLowerInvariant()}");
     private static string Show(string? s) => string.IsNullOrWhiteSpace(s) ? "—" : s;
 
+    // ── Ngày nhập kho + hạn dùng ─────────────────────────────────────────
+    //
+    // Ngưỡng cảnh báo hạn dùng: < 30 ngày = đỏ, 30–60 ngày = vàng. Ngày nhập
+    // kho trùng ngày về (ledger PCS ghi rút gọn) hiện mờ — cùng một dữ liệu,
+    // không đọc thành hai mốc khác nhau.
+    private const int ExpiryCriticalDays = 30;
+    private const int ExpiryWarningDays = 60;
+
+    private static bool SameAsReceived(IqcHistoryListItem r)
+        => r.WarehouseInDate is { } w && w.Date == r.ReceivedDate.Date;
+
+    private static string WarehouseText(IqcHistoryListItem r)
+        => r.WarehouseInDate?.ToString("dd/MM/yyyy") ?? "—";
+
+    private static string WarehouseCellClass(IqcHistoryListItem r)
+        => SameAsReceived(r) ? "iqc-wh-same" : "";
+
+    private string? WarehouseTitle(IqcHistoryListItem r)
+        => SameAsReceived(r) ? T("iqc.history.warehousein.same") : null;
+
+    private static int? DaysLeft(IqcHistoryListItem r)
+        => r.ExpiryDate is { } exp ? (int)(exp.Date - DateTime.Today).TotalDays : null;
+
+    private string DaysLeftText(int days)
+        => days < 0 ? T("iqc.history.expiry.overdue", -days) : T("iqc.history.expiry.left", days);
+
+    private static string ExpiryCellClass(int? days) => days switch
+    {
+        null => "iqc-exp",
+        < ExpiryCriticalDays => "iqc-exp iqc-exp-crit",
+        <= ExpiryWarningDays => "iqc-exp iqc-exp-warn",
+        _ => "iqc-exp",
+    };
+
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task SetSheet(string? sheet)
@@ -166,6 +226,14 @@
     {
         _from = "";
         _to = "";
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task ClearSearch()
+    {
+        _debounce?.Dispose();
+        _search = "";
         _page = 1;
         await LoadAsync();
     }

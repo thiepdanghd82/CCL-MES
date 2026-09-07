@@ -139,6 +139,13 @@ public sealed class IqcHistoryListItem
     public string? SupplierName { get; set; }
     public string? Inspector { get; set; }
     public DateTime ReceivedDate { get; set; }
+
+    /// <summary>Ngày nhập kho đóng băng trên phiếu; null khi ledger để trống.</summary>
+    public DateTime? WarehouseInDate { get; set; }
+
+    /// <summary>Hạn dùng = ngày nhập kho + 365 ngày (server tính, UI chỉ đếm ngày còn lại).</summary>
+    public DateTime? ExpiryDate { get; set; }
+
     public double Quantity { get; set; }
     public string? Uom { get; set; }
     public string Result { get; set; } = "Pass";

@@ -71,6 +71,97 @@ public sealed class IqcHistoryBoardTests : TestContext
     }
 
     [Fact]
+    public void Nut_x_xoa_o_tim_kiem_va_nap_lai_khong_loc()
+    {
+        Wire();
+        _api.ListIqcHistoryImpl = (_, _, _, _, _, _) =>
+            Task.FromResult(new IqcHistoryListResponse { Page = 1, PageSize = 50, Total = 0 });
+
+        var cut = RenderComponent<IqcHistoryBoard>(p => p.Add(x => x.DebounceMs, 0));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-history-search-clear]"));   // rỗng thì không có nút
+
+        cut.Find("[data-testid=iqc-history-search]").Input("XLS-ROLL");
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[data-testid=iqc-history-search-clear]")));
+
+        cut.Find("[data-testid=iqc-history-search-clear]").Click();
+
+        Assert.Equal("", cut.Find("[data-testid=iqc-history-search]").GetAttribute("value"));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-history-search-clear]"));
+        Assert.True(string.IsNullOrEmpty(_api.ListIqcHistoryCalls[^1].Search));
+    }
+
+    [Theory]
+    [InlineData(15, "iqc-exp-crit")]     // < 30 ngày → đỏ
+    [InlineData(45, "iqc-exp-warn")]     // 30–60 ngày → vàng
+    [InlineData(200, null)]              // còn dài → không tô
+    [InlineData(-5, "iqc-exp-crit")]     // quá hạn → đỏ
+    public void To_mau_o_han_dung_theo_so_ngay_con_lai(int daysLeft, string? expected)
+    {
+        Wire();
+        var expiry = DateTime.Today.AddDays(daysLeft);
+        _api.ListIqcHistoryImpl = (_, _, _, _, _, _) => Task.FromResult(HistoryWith(
+            warehouseIn: expiry.AddDays(-365), expiry: expiry, received: expiry.AddDays(-360)));
+
+        var cut = RenderComponent<IqcHistoryBoard>(p => p.Add(x => x.DebounceMs, 0));
+        var cls = cut.Find("[data-testid=iqc-history-exp-7]").GetAttribute("class") ?? "";
+
+        Assert.Contains("iqc-exp", cls);
+        if (expected is null)
+        {
+            Assert.DoesNotContain("iqc-exp-crit", cls);
+            Assert.DoesNotContain("iqc-exp-warn", cls);
+        }
+        else
+        {
+            Assert.Contains(expected, cls);
+        }
+    }
+
+    [Fact]
+    public void Ngay_nhap_kho_trung_ngay_ve_thi_hien_mo_mot_du_lieu()
+    {
+        Wire();
+        var day = new DateTime(2026, 1, 5);
+        _api.ListIqcHistoryImpl = (_, _, _, _, _, _) => Task.FromResult(HistoryWith(
+            warehouseIn: day, expiry: day.AddDays(365), received: day));
+
+        var cut = RenderComponent<IqcHistoryBoard>(p => p.Add(x => x.DebounceMs, 0));
+        var cell = cut.Find("[data-testid=iqc-history-wh-7]");
+
+        Assert.Equal("05/01/2026", cell.TextContent.Trim());
+        Assert.Contains("iqc-wh-same", cell.GetAttribute("class") ?? "");
+    }
+
+    [Fact]
+    public void Ledger_khong_co_ngay_nhap_kho_thi_khong_doan_han_dung()
+    {
+        Wire();
+        _api.ListIqcHistoryImpl = (_, _, _, _, _, _) => Task.FromResult(HistoryWith(
+            warehouseIn: null, expiry: null, received: new DateTime(2026, 1, 5)));
+
+        var cut = RenderComponent<IqcHistoryBoard>(p => p.Add(x => x.DebounceMs, 0));
+
+        Assert.Equal("—", cut.Find("[data-testid=iqc-history-wh-7]").TextContent.Trim());
+        Assert.Equal("—", cut.Find("[data-testid=iqc-history-exp-7]").TextContent.Trim());
+    }
+
+    private static IqcHistoryListResponse HistoryWith(
+        DateTime? warehouseIn, DateTime? expiry, DateTime received) => new()
+    {
+        Page = 1, PageSize = 50, Total = 1,
+        Items = new List<IqcHistoryListItem>
+        {
+            new()
+            {
+                Id = 7, ReceiptNo = "XLS-ROLL-03722", Sheet = "Roll", Group = "Materials",
+                MaterialCategory = "Roll", Result = "Pass",
+                ReceivedDate = received, WarehouseInDate = warehouseIn, ExpiryDate = expiry,
+                Quantity = 1, Uom = "rolls",
+            },
+        },
+    };
+
+    [Fact]
     public void Date_inputs_reload_with_from_to()
     {
         Wire();

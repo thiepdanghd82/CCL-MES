@@ -259,9 +259,15 @@ public sealed partial class TranslationCatalog
         Add("iqc.history.filter.to",       "Đến",                                 "To");
         Add("iqc.history.filter.clear",    "Xoá ngày",                            "Clear dates");
         Add("iqc.history.search.ph",       "Tìm phiếu / Code IFS / NCC…",         "Search receipt / Code IFS / supplier…");
+        Add("iqc.history.search.clear",    "Xoá ô tìm kiếm",                      "Clear search");
         Add("iqc.history.loading",         "Đang tải lịch sử…",                   "Loading history…");
         Add("iqc.history.empty",           "Chưa có phiếu đã duyệt khớp bộ lọc.", "No approved tickets match the filter.");
         Add("iqc.history.col.sheet",       "Sheet",                               "Sheet");
+        Add("iqc.history.col.warehousein", "Ngày nhập kho",                       "Warehouse-in");
+        Add("iqc.history.col.expiry",      "Hạn dùng",                            "Expiry");
+        Add("iqc.history.warehousein.same", "Trùng ngày về — cùng một dữ liệu",   "Same as received date — one value");
+        Add("iqc.history.expiry.left",     "Còn {0} ngày",                        "{0} days left");
+        Add("iqc.history.expiry.overdue",  "Quá hạn {0} ngày",                    "{0} days overdue");
         Add("iqc.history.col.approved",    "Ngày duyệt",                          "Approved");
         Add("iqc.history.col.approver",    "Người duyệt",                         "Approved by");
         Add("iqc.history.sheet.roll",      "Roll",                                "Roll");

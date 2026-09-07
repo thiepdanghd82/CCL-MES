@@ -125,6 +125,8 @@ public sealed class IqcController : ControllerBase
                 SupplierName = x.SupplierName,
                 Inspector = x.Inspector,
                 ReceivedDate = x.ReceivedDate,
+                WarehouseInDate = x.WarehouseInDate,
+                ExpiryDate = x.ExpiryDate,
                 Quantity = x.Quantity,
                 Uom = x.Uom,
                 Result = x.Result,

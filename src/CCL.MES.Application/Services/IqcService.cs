@@ -25,6 +25,9 @@ public class IqcService
     private readonly IAuditWriter _audit;
     private readonly MaterialLotScanService _lots;
 
+    /// <summary>Hạng mục giữ ô "ngày nhập kho" của ledger Excel.</summary>
+    private const string WarehouseInItemKey = "NQ-01";
+
     public IqcService(IMesDbContext db, IAuditWriter audit, MaterialLotScanService lots)
     {
         _db = db;
@@ -1059,6 +1062,19 @@ public class IqcService
                 .Select(m => new { m.Id, m.MotherCode })
                 .ToDictionaryAsync(m => m.Id, m => m.MotherCode, ct);
 
+        // Ngày nhập kho nằm trong hạng mục đóng băng NQ-01 (ô Excel), không phải
+        // cột riêng — đọc thêm 1 query cho đúng trang đang hiện, rồi parse.
+        var pageIds = paged.Items.Select(x => x.Id).ToList();
+        var warehouseRaw = pageIds.Count == 0
+            ? new Dictionary<long, string?>()
+            : await _db.IqcResultDetails.AsNoTracking()
+                .Where(d => pageIds.Contains(d.IqcInspectionId)
+                    && d.ItemKey == WarehouseInItemKey
+                    && d.MeasuredValue != null)
+                .GroupBy(d => d.IqcInspectionId)
+                .Select(g => new { Id = g.Key, Value = g.Min(d => d.MeasuredValue) })
+                .ToDictionaryAsync(g => g.Id, g => g.Value, ct);
+
         return new IqcHistoryPage
         {
             Page = paged.Page,
@@ -1067,6 +1083,8 @@ public class IqcService
             Items = paged.Items.Select(x =>
             {
                 var group = string.IsNullOrWhiteSpace(x.Group) ? IqcGroup.Materials : x.Group;
+                warehouseRaw.TryGetValue(x.Id, out var whRaw);
+                var warehouseIn = IqcWarehouseInDate.Parse(whRaw, x.ReceivedDate);
                 return new IqcHistoryRow
                 {
                     Id = x.Id,
@@ -1082,6 +1100,8 @@ public class IqcService
                     SupplierName = x.SupplierName,
                     Inspector = x.InspectorId,
                     ReceivedDate = x.ReceivedDate,
+                    WarehouseInDate = warehouseIn,
+                    ExpiryDate = IqcWarehouseInDate.Expiry(warehouseIn),
                     Quantity = x.Quantity,
                     Uom = x.UomQty,
                     Result = x.Result.ToString(),
@@ -1411,6 +1431,14 @@ public sealed class IqcHistoryRow
     public string? SupplierName { get; init; }
     public string? Inspector { get; init; }
     public DateTime ReceivedDate { get; init; }
+
+    /// <summary>Ngày nhập kho đọc từ hạng mục đóng băng NQ-01; null khi ô trống
+    /// hoặc không đọc được (không suy đoán từ ngày về).</summary>
+    public DateTime? WarehouseInDate { get; init; }
+
+    /// <summary>Hạn dùng = ngày nhập kho + 365 ngày.</summary>
+    public DateTime? ExpiryDate { get; init; }
+
     public double Quantity { get; init; }
     public string? Uom { get; init; }
     public string Result { get; init; } = "Pass";

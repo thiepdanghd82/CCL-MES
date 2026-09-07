@@ -8939,6 +8939,30 @@ tr.wc-row:hover { background: var(--c-bg); }
 .iqc-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .iqc-data-search { flex: 1 1 220px; min-width: 0; }
 
+/* Search box with inline clear (×) — button overlays the field's right edge. */
+.iqc-search-wrap { position: relative; display: flex; flex: 1 1 220px; min-width: 0; }
+.iqc-search-wrap .iqc-data-search { flex: 1 1 auto; padding-right: calc(var(--sp-6, 24px) + var(--sp-2)); }
+.iqc-search-clear {
+    position: absolute; right: var(--sp-1); top: 50%; transform: translateY(-50%);
+    display: inline-flex; align-items: center; justify-content: center;
+    width: var(--sp-6, 24px); height: var(--sp-6, 24px); padding: 0;
+    border: 0; background: transparent; cursor: pointer; border-radius: var(--r-pill);
+    font-size: var(--fs-md); line-height: 1; color: var(--c-muted);
+}
+.iqc-search-clear:hover { background: var(--c-surface-2); color: var(--c-ink-1); }
+
+/* Warehouse-in / expiry columns — < 30 days red, 30–60 days amber. */
+.iqc-wh-same { color: var(--c-muted); }
+.iqc-exp { white-space: nowrap; }
+.iqc-exp-days { display: block; font-weight: var(--fw-bold); font-size: var(--fs-sm); }
+.iqc-exp-date { display: block; font-size: var(--fs-xs); color: var(--c-muted); }
+.iqc-exp-warn { background: var(--warn-bg); }
+.iqc-exp-warn .iqc-exp-days { color: var(--warn-ink); }
+.iqc-exp-warn .iqc-exp-date { color: var(--warn-fg); }
+.iqc-exp-crit { background: var(--ng-bg); }
+.iqc-exp-crit .iqc-exp-days { color: var(--ng-ink); }
+.iqc-exp-crit .iqc-exp-date { color: var(--ng-ink); }
+
 /* Group tag in the grid */
 .iqc-group-tag {
     display: inline-block; padding: 2px var(--sp-2); border-radius: var(--r-sm);
