@@ -3,6 +3,8 @@ using Bunit;
 using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client;
 using CCL.MES.Hybrid.Client.Auth;
+using CCL.MES.Hybrid.Client.Localization;
+using CCL.MES.Shared.Localization;
 using CCL.MES.Hybrid.Client.Files;
 using CCL.MES.Hybrid.Client.Qms;
 using CCL.MES.Hybrid.Client.Windows;
@@ -162,21 +164,157 @@ public sealed class IqcModuleTests : TestContext
     }
 
     [Fact]
-    public void Dashboard_renders_real_kpi_counts_from_api()
+    public void Dashboard_renders_excel_kpis_and_filters()
     {
         Wire();
-        _api.IqcDashboardImpl = () => Task.FromResult(new IqcDashboardResponse
+        _api.IqcDashboardImpl = (_, _) => Task.FromResult(new IqcDashboardResponse
         {
+            Year = 2026,
+            AvailableYears = new List<int> { 2026 },
             Total = 42, Materials = 30, Chemical = 7, Tools = 3, Other = 2,
             Pending = 10, Pass = 28, Fail = 4,
+            PassRate = 28.0 / 42, FailRate = 4.0 / 42,
+            ClaimNgLots = 2, TotalNqDefects = 9, WideOosLots = 1,
+            VisualPareto = new List<IqcParetoRow>
+            {
+                new() { Defect = "Xước", Count = 5, Share = 0.5, Cumulative = 0.5 },
+                new() { Defect = "Màu sắc", Count = 5, Share = 0.5, Cumulative = 1 },
+            },
+            MonthlyTrend = Enumerable.Range(1, 12).Select(m => new IqcMonthlyTrendRow
+            {
+                Month = m, Lots = m == 1 ? 42 : 0, Ng = m == 1 ? 4 : 0, NgRate = m == 1 ? 4.0 / 42 : 0,
+            }).ToList(),
+            Suppliers = new List<IqcSupplierStatRow>
+            {
+                new() { Supplier = "NCC-A", Lots = 20, Ng = 2, NgRate = 0.1, NqDefects = 3 },
+            },
         });
 
         var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
 
+        Assert.NotNull(cut.Find("[data-testid=iqc-dash-year]"));
+        // Tháng là dải chip chạm được (13 nút: cả năm + 12 tháng), không phải <select>.
+        Assert.Equal(13, cut.FindAll("[data-testid=iqc-dash-month] button").Count);
+        Assert.NotNull(cut.Find("[data-testid=iqc-dash-month-all]"));
         Assert.Contains("42", cut.Find("[data-testid=iqc-kpi-total]").TextContent);
-        Assert.Contains("30", cut.Find("[data-testid=iqc-kpi-materials]").TextContent);
-        Assert.Contains("7", cut.Find("[data-testid=iqc-kpi-chemical]").TextContent);
         Assert.Contains("28", cut.Find("[data-testid=iqc-kpi-pass]").TextContent);
+        Assert.Contains("4", cut.Find("[data-testid=iqc-kpi-fail]").TextContent);
+        Assert.NotNull(cut.Find("[data-testid=iqc-dash-pareto]"));
+        Assert.NotNull(cut.Find("[data-testid=iqc-dash-suppliers]"));
+        Assert.NotNull(cut.Find("[data-testid=iqc-dash-trend]"));
+        Assert.NotNull(cut.Find("[data-testid=iqc-dash-volume]"));
+        // Pareto có biểu đồ cột + đường luỹ kế, không chỉ là bảng số.
+        Assert.NotNull(cut.Find(".iqc-chart-host [data-testid=iqc-dash-pareto-chart] polyline.iqc-chart-line"));
+        // Xu hướng: %NG là ĐƯỜNG trên trục phải, tách khỏi cột số lô.
+        Assert.NotNull(cut.Find("[data-testid=iqc-dash-volume] polyline.iqc-chart-line"));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-dash-volume] .iqc-chart-bar-ng"));
+        Assert.Empty(cut.FindAll(".iqc-dash-grid.qms-fill"));
+        Assert.NotNull(cut.Find(".iqc-dash-hero"));
+        Assert.NotNull(cut.Find(".iqc-kpis"));
+        Assert.NotNull(cut.Find(".iqc-panel-detail [data-testid=iqc-dash-pareto]"));
+    }
+
+    [Fact]
+    public void Dashboard_pareto_labels_follow_selected_language()
+    {
+        Wire();
+        _api.IqcDashboardImpl = (_, _) => Task.FromResult(new IqcDashboardResponse
+        {
+            Year = 2026,
+            AvailableYears = new List<int> { 2026 },
+            Total = 1, Fail = 1,
+            VisualPareto = new List<IqcParetoRow>
+            {
+                new()
+                {
+                    Defect = "Xước", LabelVi = "Xước", LabelEn = "Scratch",
+                    Count = 5, Share = 1, Cumulative = 1,
+                },
+            },
+            MonthlyTrend = Enumerable.Range(1, 12).Select(m => new IqcMonthlyTrendRow { Month = m }).ToList(),
+        });
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        var table = cut.Find("[data-testid=iqc-dash-pareto]");
+        Assert.Contains("Xước", table.TextContent);
+        Assert.DoesNotContain("Scratch", table.TextContent);
+
+        Services.GetRequiredService<ILanguageService>().Set(LanguageCode.English);
+        cut.WaitForAssertion(() =>
+        {
+            var html = cut.Find("[data-testid=iqc-dash-pareto]").TextContent;
+            Assert.Contains("Scratch", html);
+            Assert.DoesNotContain("Xước", html);
+        });
+    }
+
+    [Fact]
+    public void Dashboard_pareto_threshold_slider_moves_the_priority_band()
+    {
+        Wire();
+        _api.IqcDashboardImpl = (_, _) => Task.FromResult(new IqcDashboardResponse
+        {
+            Year = 2026,
+            AvailableYears = new List<int> { 2026 },
+            Total = 4, Fail = 4,
+            VisualPareto = new List<IqcParetoRow>
+            {
+                new() { Defect = "A", LabelVi = "A", LabelEn = "A", Count = 50, Share = 0.50, Cumulative = 0.50 },
+                new() { Defect = "B", LabelVi = "B", LabelEn = "B", Count = 20, Share = 0.20, Cumulative = 0.70 },
+                new() { Defect = "C", LabelVi = "C", LabelEn = "C", Count = 9, Share = 0.09, Cumulative = 0.79 },
+                new() { Defect = "D", LabelVi = "D", LabelEn = "D", Count = 21, Share = 0.21, Cumulative = 1.00 },
+            },
+            MonthlyTrend = Enumerable.Range(1, 12).Select(m => new IqcMonthlyTrendRow { Month = m }).ToList(),
+        });
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        var slider = cut.Find("[data-testid=iqc-dash-pareto-thr]");
+        Assert.Equal("80", slider.GetAttribute("value"));
+        Assert.Contains("80%", cut.Find("[data-testid=iqc-dash-pareto-thr-val]").TextContent);
+        Assert.Equal(3, cut.FindAll("[data-testid=iqc-dash-pareto] tbody tr.is-focus").Count);
+
+        slider.Input("60");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("60%", cut.Find("[data-testid=iqc-dash-pareto-thr-val]").TextContent);
+            Assert.Single(cut.FindAll("[data-testid=iqc-dash-pareto] tbody tr.is-focus"));
+        });
+
+        slider.Input("100");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("100%", cut.Find("[data-testid=iqc-dash-pareto-thr-val]").TextContent);
+            Assert.Equal(4, cut.FindAll("[data-testid=iqc-dash-pareto] tbody tr.is-focus").Count);
+        });
+    }
+
+    [Fact]
+    public void Dashboard_month_chip_scopes_the_query_and_toggles_off()
+    {
+        Wire();
+        var calls = new List<(int? Year, int? Month)>();
+        _api.IqcDashboardImpl = (y, m) =>
+        {
+            calls.Add((y, m));
+            return Task.FromResult(new IqcDashboardResponse
+            {
+                Year = y ?? 2026,
+                Month = m,
+                AvailableYears = new List<int> { 2026 },
+                Total = 42,
+                MonthlyTrend = Enumerable.Range(1, 12)
+                    .Select(x => new IqcMonthlyTrendRow { Month = x }).ToList(),
+            });
+        };
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        cut.Find("[data-testid=iqc-dash-month-3]").Click();
+        cut.WaitForAssertion(() => Assert.Contains(calls, c => c.Month == 3));
+
+        // Bấm lại chính tháng đang chọn = bỏ lọc, quay về cả năm.
+        cut.Find("[data-testid=iqc-dash-month-3]").Click();
+        cut.WaitForAssertion(() => Assert.Equal(3, calls.Count));
+        Assert.Null(calls[^1].Month);
     }
 
     [Fact]
@@ -335,7 +473,7 @@ public sealed class IqcModuleTests : TestContext
     {
         Wire();
         var total = 3;
-        _api.IqcDashboardImpl = () => Task.FromResult(new IqcDashboardResponse { Total = total });
+        _api.IqcDashboardImpl = (_, _) => Task.FromResult(new IqcDashboardResponse { Total = total });
 
         var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
         Assert.Contains("3", cut.Find("[data-testid=iqc-kpi-total]").TextContent);
@@ -353,7 +491,7 @@ public sealed class IqcModuleTests : TestContext
     {
         Wire();
         var calls = 0;
-        _api.IqcDashboardImpl = () => { calls++; return Task.FromResult(new IqcDashboardResponse()); };
+        _api.IqcDashboardImpl = (_, _) => { calls++; return Task.FromResult(new IqcDashboardResponse()); };
 
         var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
         var afterMount = calls;   // ≥1 from OnInitialized

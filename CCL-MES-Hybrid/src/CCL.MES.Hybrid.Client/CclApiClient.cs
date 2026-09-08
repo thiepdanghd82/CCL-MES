@@ -178,9 +178,16 @@ public sealed class CclApiClient : ICclApiClient
         return await ReadAsAsync<CCL.MES.Shared.Quality.IqcTicketListResponse>(resp, ct);
     }
 
-    public async Task<CCL.MES.Shared.Quality.IqcDashboardResponse> GetIqcDashboardAsync(CancellationToken ct = default)
+    public async Task<CCL.MES.Shared.Quality.IqcDashboardResponse> GetIqcDashboardAsync(
+        int? year = null, int? month = null, CancellationToken ct = default)
     {
-        using var resp = await _http.GetAsync($"/{ApiVersion.Prefix}/iqc/dashboard", ct);
+        var qs = new List<string>();
+        if (year is > 0) qs.Add($"year={year.Value}");
+        if (month is >= 1 and <= 12) qs.Add($"month={month.Value}");
+        var url = qs.Count == 0
+            ? $"/{ApiVersion.Prefix}/iqc/dashboard"
+            : $"/{ApiVersion.Prefix}/iqc/dashboard?" + string.Join("&", qs);
+        using var resp = await _http.GetAsync(url, ct);
         return await ReadAsAsync<CCL.MES.Shared.Quality.IqcDashboardResponse>(resp, ct);
     }
 

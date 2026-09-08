@@ -410,12 +410,12 @@ public sealed class IqcHistoryLedgerImportService
         {
             var hardness = LooksLikeHardness(c.FuncSpec);
             AddVerdict(insp, "BD-01", "BD", "Độ bám dính", "Adhesion",
-                "Độ bám dính keo (Adhesive)", "Adhesive / peel",
+                "Độ bám dính keo", "Adhesive",
                 hardness ? null : c.FuncPass,
                 measured: hardness ? null : c.FuncSpec,
                 acceptanceVi: hardness ? null : c.FuncSpec);
             AddVerdict(insp, "CU-01", "CU", "Độ cứng bút chì", "Pencil hardness",
-                "Độ cứng (Hardness)", "Hardness",
+                "Độ cứng", "Hardness",
                 hardness ? c.FuncPass : null,
                 measured: hardness ? c.FuncSpec : null,
                 acceptanceVi: hardness ? c.FuncSpec : null);

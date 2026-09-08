@@ -1043,8 +1043,9 @@ public sealed class RecordingApi : ICclApiClient
 
     // feat/iqc-module-tabs — IQC Data list + Dashboard KPI hooks.
     public Func<string?, string?, int, int, Task<CCL.MES.Shared.Quality.IqcTicketListResponse>>? ListIqcTicketsImpl { get; set; }
-    public Func<Task<CCL.MES.Shared.Quality.IqcDashboardResponse>>? IqcDashboardImpl { get; set; }
     public List<(string? Group, string? Search, int Page, int PageSize)> ListIqcTicketsCalls { get; } = new();
+    public Func<int?, int?, Task<CCL.MES.Shared.Quality.IqcDashboardResponse>>? IqcDashboardImpl { get; set; }
+    public List<(int? Year, int? Month)> IqcDashboardCallsLog { get; } = new();
     public int IqcDashboardCalls { get; private set; }
 
     public Task<CCL.MES.Shared.Quality.IqcTicketListResponse> ListIqcTicketsAsync(
@@ -1060,11 +1061,13 @@ public sealed class RecordingApi : ICclApiClient
             });
     }
 
-    public Task<CCL.MES.Shared.Quality.IqcDashboardResponse> GetIqcDashboardAsync(CancellationToken ct = default)
+    public Task<CCL.MES.Shared.Quality.IqcDashboardResponse> GetIqcDashboardAsync(
+        int? year = null, int? month = null, CancellationToken ct = default)
     {
         IqcDashboardCalls++;
+        IqcDashboardCallsLog.Add((year, month));
         return IqcDashboardImpl is not null
-            ? IqcDashboardImpl()
+            ? IqcDashboardImpl(year, month)
             : Task.FromResult(new CCL.MES.Shared.Quality.IqcDashboardResponse());
     }
 

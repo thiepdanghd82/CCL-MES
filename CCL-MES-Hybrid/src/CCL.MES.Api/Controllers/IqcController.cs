@@ -142,23 +142,16 @@ public sealed class IqcController : ControllerBase
         });
     }
 
-    /// <summary>KPI đếm thật cho tab Dashboard (tổng · theo nhóm · theo trạng
-    /// thái). Read-only ⇒ QcRead đủ.</summary>
+    /// <summary>Dashboard IQC (KPI Excel + Pareto + trend + NCC). Query
+    /// <c>year</c> / <c>month</c> (month 0 hoặc bỏ = cả năm). QcRead.</summary>
     [HttpGet("dashboard")]
-    public async Task<ActionResult<IqcDashboardResponse>> Dashboard(CancellationToken ct = default)
+    public async Task<ActionResult<IqcDashboardResponse>> Dashboard(
+        [FromQuery] int? year = null,
+        [FromQuery] int? month = null,
+        CancellationToken ct = default)
     {
-        var d = await _svc.DashboardAsync(ct);
-        return Ok(new IqcDashboardResponse
-        {
-            Total = d.Total,
-            Materials = d.Materials,
-            Chemical = d.Chemical,
-            Tools = d.Tools,
-            Other = d.Other,
-            Pending = d.Pending,
-            Pass = d.Pass,
-            Fail = d.Fail,
-        });
+        var d = await _svc.DashboardAsync(year, month, ct);
+        return Ok(CCL.MES.Api.Mapping.IqcDashboardMapper.ToResponse(d));
     }
 
     // ── feat/iqc-ticket — resolve Code IFS (UI auto-fill) ─────────

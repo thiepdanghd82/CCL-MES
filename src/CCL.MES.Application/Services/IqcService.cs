@@ -1203,38 +1203,199 @@ public class IqcService
         _ => "Materials",
     };
 
-    /// <summary>KPI đếm thật cho tab Dashboard — 1 pass gom nhóm + gom trạng
-    /// thái. Placeholder CÓ CẤU TRÚC (số liệu thật). Thuần đọc.</summary>
-    public async Task<IqcDashboardCounts> DashboardAsync(CancellationToken ct = default)
+    /// <summary>Dashboard IQC theo sheet Excel <c>IQC_Dashboard</c>: KPI, Pareto
+    /// ngoại quan, xu hướng 12 tháng, theo NCC. <paramref name="year"/> null =
+    /// năm mới nhất có phiếu; <paramref name="month"/> null/0 = cả năm. Thuần đọc.</summary>
+    public async Task<IqcDashboardCounts> DashboardAsync(
+        int? year = null, int? month = null, CancellationToken ct = default)
     {
-        // Gom theo (Group, Result) một lần rồi tổng hợp trong bộ nhớ — tránh
-        // N query. Coalesce group rỗng (không nên có sau migration) về Materials.
-        var rows = await _db.IqcInspections.AsNoTracking()
-            .GroupBy(x => new { x.Group, x.Result })
-            .Select(g => new { g.Key.Group, g.Key.Result, Count = g.Count() })
+        var d = new IqcDashboardCounts();
+        var years = await _db.IqcInspections.AsNoTracking()
+            .Select(x => x.ReceivedDate.Year)
+            .Distinct()
+            .OrderByDescending(y => y)
+            .ToListAsync(ct);
+        d.AvailableYears = years;
+        if (years.Count == 0) return d;
+
+        var y = year is > 0 && years.Contains(year.Value) ? year.Value : years[0];
+        var m = month is >= 1 and <= 12 ? month : null;
+        d.Year = y;
+        d.Month = m;
+
+        // Cửa sổ KPI / Pareto / NCC — theo năm (+ tháng nếu chọn).
+        var scoped = _db.IqcInspections.AsNoTracking()
+            .Where(x => x.ReceivedDate.Year == y);
+        if (m is int mm)
+            scoped = scoped.Where(x => x.ReceivedDate.Month == mm);
+
+        var tickets = await scoped
+            .Select(x => new
+            {
+                x.Id,
+                x.Group,
+                x.Result,
+                Supplier = x.SupplierName ?? "",
+            })
             .ToListAsync(ct);
 
-        var d = new IqcDashboardCounts();
-        foreach (var r in rows)
+        foreach (var t in tickets)
         {
-            var g = string.IsNullOrWhiteSpace(r.Group) ? IqcGroup.Materials : IqcGroup.Normalize(r.Group);
-            d.Total += r.Count;
+            var g = string.IsNullOrWhiteSpace(t.Group) ? IqcGroup.Materials : IqcGroup.Normalize(t.Group);
+            d.Total++;
             switch (g)
             {
-                case IqcGroup.Materials: d.Materials += r.Count; break;
-                case IqcGroup.Chemical:  d.Chemical += r.Count; break;
-                case IqcGroup.Tools:     d.Tools += r.Count; break;
-                case IqcGroup.Other:     d.Other += r.Count; break;
+                case IqcGroup.Materials: d.Materials++; break;
+                case IqcGroup.Chemical: d.Chemical++; break;
+                case IqcGroup.Tools: d.Tools++; break;
+                case IqcGroup.Other: d.Other++; break;
             }
-            switch (r.Result)
+            switch (t.Result)
             {
-                case QcResult.Pending: d.Pending += r.Count; break;
-                case QcResult.Pass:    d.Pass += r.Count; break;
-                case QcResult.Fail:    d.Fail += r.Count; break;
+                case QcResult.Pending: d.Pending++; break;
+                case QcResult.Pass: d.Pass++; break;
+                case QcResult.Fail: d.Fail++; break;
             }
         }
+
+        if (d.Total > 0)
+        {
+            d.PassRate = (double)d.Pass / d.Total;
+            d.FailRate = (double)d.Fail / d.Total;
+        }
+
+        // Claim NG — cùng cửa sổ DetectedAt (tab NG / claim).
+        var ngQ = _db.IqcNgRecords.AsNoTracking()
+            .Where(n => n.DetectedAt.Year == y);
+        if (m is int mmClaim)
+            ngQ = ngQ.Where(n => n.DetectedAt.Month == mmClaim);
+        d.ClaimNgLots = await ngQ.CountAsync(n =>
+            n.ClaimedAt != null
+            || n.Status == IqcNgStatus.Claimed
+            || n.Status == IqcNgStatus.SupplierConfirmed
+            || n.Status == IqcNgStatus.Settled, ct);
+
+        var failIds = tickets.Where(t => t.Result == QcResult.Fail).Select(t => t.Id).ToList();
+        var failDetails = failIds.Count == 0
+            ? new List<(long InspId, IqcParetoLabel.Family Fam, int Qty, bool IsWide)>()
+            : (await _db.IqcResultDetails.AsNoTracking()
+                .Where(det => failIds.Contains(det.IqcInspectionId) && det.Pass == false)
+                .Select(det => new
+                {
+                    det.IqcInspectionId,
+                    LabelVi = det.LabelVi,
+                    LabelEn = det.LabelEn,
+                    DefectCode = det.DefectCode,
+                    ItemKey = det.ItemKey,
+                    DefectCount = det.DefectCount,
+                })
+                .ToListAsync(ct))
+            .Select(det =>
+            {
+                var fam = IqcParetoLabel.Classify(det.LabelVi, det.LabelEn, det.ItemKey, det.DefectCode);
+                var qty = det.DefectCount is > 0 ? det.DefectCount.Value : 1;
+                var wide = IsWideOos(det.LabelVi, det.LabelEn, det.ItemKey);
+                return (InspId: det.IqcInspectionId, Fam: fam, Qty: qty, IsWide: wide);
+            })
+            .ToList();
+
+        d.TotalNqDefects = failDetails.Sum(x => x.Qty);
+        d.WideOosLots = failDetails.Where(x => x.IsWide).Select(x => x.InspId).Distinct().Count();
+
+        var paretoGroups = failDetails
+            .GroupBy(x => x.Fam.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new { Fam = g.First().Fam, Count = g.Sum(x => x.Qty) })
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Fam.Vi, StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToList();
+        var paretoTotal = paretoGroups.Sum(x => x.Count);
+        var cum = 0;
+        foreach (var p in paretoGroups)
+        {
+            cum += p.Count;
+            d.VisualPareto.Add(new IqcParetoCount
+            {
+                Defect = p.Fam.Vi,
+                LabelVi = p.Fam.Vi,
+                LabelEn = p.Fam.En,
+                Count = p.Count,
+                Share = paretoTotal > 0 ? (double)p.Count / paretoTotal : 0,
+                Cumulative = paretoTotal > 0 ? (double)cum / paretoTotal : 0,
+            });
+        }
+
+        // NQ per supplier (for supplier table).
+        var nqByInsp = failDetails
+            .GroupBy(x => x.InspId)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.Qty));
+
+        d.Suppliers = tickets
+            .GroupBy(t => string.IsNullOrWhiteSpace(t.Supplier) ? "—" : t.Supplier.Trim())
+            .Select(g =>
+            {
+                var lots = g.Count();
+                var ng = g.Count(x => x.Result == QcResult.Fail);
+                var nq = g.Where(x => x.Result == QcResult.Fail)
+                    .Sum(x => nqByInsp.TryGetValue(x.Id, out var q) ? q : 0);
+                return new IqcSupplierStatCount
+                {
+                    Supplier = g.Key,
+                    Lots = lots,
+                    Ng = ng,
+                    NgRate = lots > 0 ? (double)ng / lots : 0,
+                    NqDefects = nq,
+                };
+            })
+            // NCC gây NG nhiều nhất đứng đầu — người đọc cần biết "phải gọi ai
+            // trước", không phải "ai giao nhiều lô nhất". Hoà NG thì xét %NG,
+            // rồi mới tới sản lượng.
+            .OrderByDescending(x => x.Ng)
+            .ThenByDescending(x => x.NgRate)
+            .ThenByDescending(x => x.Lots)
+            .ThenBy(x => x.Supplier, StringComparer.OrdinalIgnoreCase)
+            .Take(50)
+            .ToList();
+
+        // Xu hướng 12 tháng — luôn theo cả năm đã chọn (không theo tháng lọc),
+        // giống sheet Excel (bảng Jan–Dec cạnh KPI tháng).
+        var yearRows = await _db.IqcInspections.AsNoTracking()
+            .Where(x => x.ReceivedDate.Year == y)
+            .Select(x => new { x.ReceivedDate.Month, x.Result })
+            .ToListAsync(ct);
+        for (var mo = 1; mo <= 12; mo++)
+        {
+            var inMonth = yearRows.Where(x => x.Month == mo).ToList();
+            var lots = inMonth.Count;
+            var ng = inMonth.Count(x => x.Result == QcResult.Fail);
+            d.MonthlyTrend.Add(new IqcMonthlyTrendCount
+            {
+                Month = mo,
+                Lots = lots,
+                Ng = ng,
+                NgRate = lots > 0 ? (double)ng / lots : 0,
+            });
+        }
+
         return d;
     }
+
+    private static bool IsWideOos(string? labelVi, string? labelEn, string? itemKey)
+    {
+        if (!string.IsNullOrWhiteSpace(itemKey)
+            && (itemKey.Contains("WIDTH", StringComparison.OrdinalIgnoreCase)
+                || itemKey.Contains("KT-03", StringComparison.OrdinalIgnoreCase)))
+            return true;
+        if (!string.IsNullOrWhiteSpace(labelVi)
+            && (labelVi.Contains("rộng", StringComparison.OrdinalIgnoreCase)
+                || labelVi.Contains("Độ rộng", StringComparison.OrdinalIgnoreCase)))
+            return true;
+        if (!string.IsNullOrWhiteSpace(labelEn)
+            && labelEn.Contains("idth", StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+
 
     /// <summary>
     /// P12 — dựng bộ hạng mục kiểm cho lô NVL, đóng băng cả hai ngôn ngữ.
@@ -1651,9 +1812,12 @@ public sealed class SetIqcItemResult
         new() { Ok = false, HttpStatus = status, ErrorCode = code, MessageEn = msg };
 }
 
-/// <summary>KPI đếm phiếu IQC (Application-layer).</summary>
+/// <summary>KPI + breakdown dashboard IQC (Application-layer).</summary>
 public sealed class IqcDashboardCounts
 {
+    public int? Year { get; set; }
+    public int? Month { get; set; }
+    public List<int> AvailableYears { get; set; } = new();
     public int Total { get; set; }
     public int Materials { get; set; }
     public int Chemical { get; set; }
@@ -1662,4 +1826,39 @@ public sealed class IqcDashboardCounts
     public int Pending { get; set; }
     public int Pass { get; set; }
     public int Fail { get; set; }
+    public double PassRate { get; set; }
+    public double FailRate { get; set; }
+    public int ClaimNgLots { get; set; }
+    public int TotalNqDefects { get; set; }
+    public int WideOosLots { get; set; }
+    public List<IqcParetoCount> VisualPareto { get; set; } = new();
+    public List<IqcMonthlyTrendCount> MonthlyTrend { get; set; } = new();
+    public List<IqcSupplierStatCount> Suppliers { get; set; } = new();
+}
+
+public sealed class IqcParetoCount
+{
+    public string Defect { get; set; } = "";
+    public string LabelVi { get; set; } = "";
+    public string LabelEn { get; set; } = "";
+    public int Count { get; set; }
+    public double Share { get; set; }
+    public double Cumulative { get; set; }
+}
+
+public sealed class IqcMonthlyTrendCount
+{
+    public int Month { get; set; }
+    public int Lots { get; set; }
+    public int Ng { get; set; }
+    public double NgRate { get; set; }
+}
+
+public sealed class IqcSupplierStatCount
+{
+    public string Supplier { get; set; } = "";
+    public int Lots { get; set; }
+    public int Ng { get; set; }
+    public double NgRate { get; set; }
+    public int NqDefects { get; set; }
 }

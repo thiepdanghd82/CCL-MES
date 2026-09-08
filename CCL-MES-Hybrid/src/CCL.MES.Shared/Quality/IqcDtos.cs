@@ -182,10 +182,19 @@ public sealed class IqcTicketListResponse
     public List<IqcTicketListItem> Items { get; set; } = new();
 }
 
-/// <summary>Thân phản hồi <c>GET /api/v2/iqc/dashboard</c> — KPI đếm thật cho
-/// tab Dashboard. Placeholder CÓ CẤU TRÚC: số liệu thật, sẽ enrich thêm về sau.</summary>
+/// <summary>Thân phản hồi <c>GET /api/v2/iqc/dashboard</c> — KPI + Pareto +
+/// xu hướng tháng + theo NCC (sheet <c>IQC_Dashboard</c>). Lọc
+/// <c>?year=&amp;month=</c> (month bỏ trống / 0 = cả năm).</summary>
 public sealed class IqcDashboardResponse
 {
+    /// <summary>Năm đang lọc (echo). Null khi chưa có phiếu.</summary>
+    public int? Year { get; set; }
+
+    /// <summary>Tháng đang lọc 1–12, hoặc null = cả năm.</summary>
+    public int? Month { get; set; }
+
+    public List<int> AvailableYears { get; set; } = new();
+
     public int Total { get; set; }
 
     // Đếm theo nhóm (4 khoá canonical, luôn có mặt kể cả = 0).
@@ -198,6 +207,59 @@ public sealed class IqcDashboardResponse
     public int Pending { get; set; }
     public int Pass { get; set; }
     public int Fail { get; set; }
+
+    /// <summary>Tỷ lệ đạt = Pass/Total (0–1). 0 khi Total=0.</summary>
+    public double PassRate { get; set; }
+
+    /// <summary>Tỷ lệ NG = Fail/Total (0–1).</summary>
+    public double FailRate { get; set; }
+
+    /// <summary>Số vụ NG đã có claim (tab NG / claim), cùng cửa sổ năm/tháng.</summary>
+    public int ClaimNgLots { get; set; }
+
+    /// <summary>Tổng lỗi ngoại quan (NQ) trên phiếu Fail trong cửa sổ lọc.</summary>
+    public int TotalNqDefects { get; set; }
+
+    /// <summary>Số lô Fail có hạng mục độ rộng / OOS rộng.</summary>
+    public int WideOosLots { get; set; }
+
+    public List<IqcParetoRow> VisualPareto { get; set; } = new();
+    public List<IqcMonthlyTrendRow> MonthlyTrend { get; set; } = new();
+    public List<IqcSupplierStatRow> Suppliers { get; set; } = new();
+}
+
+/// <summary>Một dòng Pareto lỗi ngoại quan.</summary>
+public sealed class IqcParetoRow
+{
+    public string Defect { get; set; } = "";
+    public string LabelVi { get; set; } = "";
+    public string LabelEn { get; set; } = "";
+    public int Count { get; set; }
+    /// <summary>Tỷ trọng 0–1.</summary>
+    public double Share { get; set; }
+    /// <summary>Luỹ kế 0–1.</summary>
+    public double Cumulative { get; set; }
+}
+
+/// <summary>Xu hướng theo tháng trong năm đã chọn (luôn 12 dòng Jan–Dec).</summary>
+public sealed class IqcMonthlyTrendRow
+{
+    public int Month { get; set; }
+    public int Lots { get; set; }
+    public int Ng { get; set; }
+    /// <summary>%NG 0–1.</summary>
+    public double NgRate { get; set; }
+}
+
+/// <summary>Thống kê theo nhà cung cấp.</summary>
+public sealed class IqcSupplierStatRow
+{
+    public string Supplier { get; set; } = "";
+    public int Lots { get; set; }
+    public int Ng { get; set; }
+    /// <summary>%NG 0–1.</summary>
+    public double NgRate { get; set; }
+    public int NqDefects { get; set; }
 }
 
 // ── P12 bước 3 — hạng mục kiểm đã đóng băng trên phiếu ───────────────────

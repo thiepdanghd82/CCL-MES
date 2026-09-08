@@ -53,57 +53,7 @@
     @* ══════════════ DASHBOARD ══════════════ *@
     @if (_tab == IqcTab.Dashboard)
     {
-        <section class="qms-section" data-testid="iqc-dash">
-            <div class="qms-section-head">
-                <h2 class="qms-section-title">@T("iqc.dash.title")</h2>
-            </div>
-            <p class="qms-section-desc">@T("iqc.dash.desc")</p>
-
-            <div class="iqc-kpi-row">
-                <div class="iqc-kpi iqc-kpi-total" data-testid="iqc-kpi-total">
-                    <span class="iqc-kpi-num">@_dash.Total</span>
-                    <span class="iqc-kpi-lbl">@T("iqc.dash.total")</span>
-                </div>
-            </div>
-
-            <h3 class="iqc-kpi-group-title">@T("iqc.dash.bygroup")</h3>
-            <div class="iqc-kpi-row">
-                <div class="iqc-kpi" data-testid="iqc-kpi-materials">
-                    <span class="iqc-kpi-num">@_dash.Materials</span>
-                    <span class="iqc-kpi-lbl">@T("iqc.group.materials")</span>
-                </div>
-                <div class="iqc-kpi" data-testid="iqc-kpi-chemical">
-                    <span class="iqc-kpi-num">@_dash.Chemical</span>
-                    <span class="iqc-kpi-lbl">@T("iqc.group.chemical")</span>
-                </div>
-                <div class="iqc-kpi" data-testid="iqc-kpi-tools">
-                    <span class="iqc-kpi-num">@_dash.Tools</span>
-                    <span class="iqc-kpi-lbl">@T("iqc.group.tools")</span>
-                </div>
-                <div class="iqc-kpi" data-testid="iqc-kpi-other">
-                    <span class="iqc-kpi-num">@_dash.Other</span>
-                    <span class="iqc-kpi-lbl">@T("iqc.group.other")</span>
-                </div>
-            </div>
-
-            <h3 class="iqc-kpi-group-title">@T("iqc.dash.bystatus")</h3>
-            <div class="iqc-kpi-row">
-                <div class="iqc-kpi iqc-kpi-pending" data-testid="iqc-kpi-pending">
-                    <span class="iqc-kpi-num">@_dash.Pending</span>
-                    <span class="iqc-kpi-lbl">@T("iqc.dash.pending")</span>
-                </div>
-                <div class="iqc-kpi iqc-kpi-pass" data-testid="iqc-kpi-pass">
-                    <span class="iqc-kpi-num">@_dash.Pass</span>
-                    <span class="iqc-kpi-lbl">@T("iqc.dash.pass")</span>
-                </div>
-                <div class="iqc-kpi iqc-kpi-fail" data-testid="iqc-kpi-fail">
-                    <span class="iqc-kpi-num">@_dash.Fail</span>
-                    <span class="iqc-kpi-lbl">@T("iqc.dash.fail")</span>
-                </div>
-            </div>
-
-            <p class="iqc-ph-note" data-testid="iqc-dash-placeholder">@T("iqc.dash.placeholder.note")</p>
-        </section>
+        <IqcDashboardBoard @ref="_dashBoard" />
     }
 
     @* ══════════════ IQC DATA (list) ══════════════ *@
@@ -365,8 +315,8 @@
         _ => "iqc-exp",
     };
 
-    // ── Dashboard state ──
-    private IqcDashboardResponse _dash = new();
+    // ── Dashboard board (self-loads; refresh via ReloadAsync) ──
+    private IqcDashboardBoard? _dashBoard;
 
     // ── IQC Data state ──
     private IqcTicketListResponse? _data;
@@ -425,7 +375,7 @@
         // A ticket saved in any WM-hosted inspection window pokes the notifier →
         // refresh KPI + (if visible) the Data list without a page re-mount.
         IqcChanged.Changed += HandleIqcChanged;
-        await LoadDashboardAsync();
+        await Task.CompletedTask;
     }
 
     private async Task SelectTab(IqcTab tab)
@@ -433,8 +383,13 @@
         _tab = tab;
         _toast = null;
         if (tab != IqcTab.Spec) _openSpecMaterial = null;
-        if (tab == IqcTab.Dashboard) await LoadDashboardAsync();
-        else if (tab == IqcTab.Data) await LoadDataAsync();
+        if (tab == IqcTab.Data) await LoadDataAsync();
+        // Dashboard board remounts via @if and self-loads.
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        if (_dashBoard is not null) await _dashBoard.ReloadAsync();
     }
 
     /// <summary>Từ catalog Standard spec → tab Standards + load mã mẹ.</summary>
@@ -443,13 +398,6 @@
         _openSpecMaterial = materialCode?.Trim();
         _tab = IqcTab.Spec;
         _toast = null;
-    }
-
-    // ── Dashboard ──
-    private async Task LoadDashboardAsync()
-    {
-        try { _dash = await Api.GetIqcDashboardAsync(); }
-        catch { /* best-effort KPI */ }
     }
 
     // ── IQC Data ──

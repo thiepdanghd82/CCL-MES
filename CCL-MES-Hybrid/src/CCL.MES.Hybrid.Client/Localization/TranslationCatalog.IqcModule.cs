@@ -20,10 +20,10 @@ public sealed partial class TranslationCatalog
         Add("iqc.group.other",             "Khác",                                "Other");
         Add("iqc.group.all",               "Tất cả",                              "All");
 
-        // ── Dashboard (KPI placeholder có số liệu thật) ──────────────────
-        Add("iqc.dash.title",              "Tổng quan IQC",                       "IQC overview");
-        Add("iqc.dash.desc",               "Số liệu đếm thật từ phiếu đã lưu. Sẽ bổ sung biểu đồ & xu hướng.",
-                                                                                  "Live counts from saved tickets. Charts & trends to follow.");
+        // ── Dashboard (sheet IQC_Dashboard + lọc năm/tháng) ──────────────
+        Add("iqc.dash.title",              "Bảng điều khiển IQC",                 "IQC dashboard");
+        Add("iqc.dash.desc",               "Số liệu từ phiếu đã lưu — lọc theo năm / tháng.",
+                                                                                  "Live ticket metrics — filter by year / month.");
         Add("iqc.dash.total",              "Tổng số phiếu",                       "Total tickets");
         Add("iqc.dash.bygroup",            "Theo nhóm",                           "By group");
         Add("iqc.dash.bystatus",           "Theo trạng thái",                     "By status");
@@ -32,6 +32,99 @@ public sealed partial class TranslationCatalog
         Add("iqc.dash.fail",               "Không đạt",                           "Fail");
         Add("iqc.dash.placeholder.note",   "Khu vực placeholder — sẽ bổ sung KPI sắp/đã hết hạn, xu hướng theo tuần.",
                                                                                   "Placeholder area — expiring-soon KPI and weekly trends to be added.");
+        Add("iqc.dash.filter.year",        "Năm",                                 "Year");
+        Add("iqc.dash.filter.month",       "Tháng",                               "Month");
+        Add("iqc.dash.filter.month.all",   "Cả năm",                              "All months");
+        Add("iqc.dash.kpi.lots",           "Tổng số lô",                          "Total lots");
+        Add("iqc.dash.kpi.pass",           "Lô đạt (Pass)",                       "Passed lots");
+        Add("iqc.dash.kpi.passrate",       "Tỷ lệ đạt",                           "Pass rate");
+        Add("iqc.dash.kpi.fail",           "Lô NG cuối",                          "Final NG lots");
+        Add("iqc.dash.kpi.failrate",       "Tỷ lệ NG",                            "NG rate");
+        Add("iqc.dash.kpi.claim",          "Lô có claim NG",                      "Claim NG lots");
+        Add("iqc.dash.kpi.nq",             "Tổng lỗi NQ",                         "Total NQ defects");
+        Add("iqc.dash.kpi.wide",           "Lô OOS rộng",                         "Wide OOS lots");
+        Add("iqc.dash.pareto.title",       "Pareto lỗi ngoại quan",               "Visual defect Pareto");
+        Add("iqc.dash.pareto.defect",      "Lỗi",                                 "Defect");
+        Add("iqc.dash.pareto.qty",         "Số lượng",                            "Qty");
+        Add("iqc.dash.pareto.share",       "Tỷ trọng",                            "Share");
+        Add("iqc.dash.pareto.cum",         "Luỹ kế %",                            "Cumulative %");
+        Add("iqc.dash.pareto.dist",        "Phân bố",                             "Distribution");
+        Add("iqc.dash.eyebrow",            "Kiểm soát chất lượng đầu vào · IQC",  "Incoming quality control · IQC");
+        Add("iqc.dash.hero",               "Báo cáo kiểm tra ngoại quan & NG theo nhà cung cấp",
+                                                                                  "Visual inspection & supplier NG report");
+        Add("iqc.dash.period",             "{0} {1} · {2} lô",                    "{0} {1} · {2} lots");
+        Add("iqc.dash.kpi.nq.per",         "{0} lỗi / lô NG",                     "{0} defects / NG lot");
+        Add("iqc.dash.kpi.claim.share",    "{0} lô NG đã claim NCC",              "{0} of NG lots claimed");
+        Add("iqc.dash.kpi.wide.share",     "{0} tổng số lô",                      "{0} of total lots");
+        Add("iqc.dash.pareto.top3",        "{0} dạng lỗi đầu chiếm {1} tổng lỗi", "{0} top defects = {1} of total");
+        Add("iqc.dash.pareto.detail",      "Chi tiết dạng lỗi",                   "Defect detail");
+        Add("iqc.dash.pareto.recorded",    "{0} lỗi ghi nhận · {1} dạng",         "{0} defects recorded · {1} types");
+        Add("iqc.dash.pareto.legend.qty",  "Số lượng lỗi",                        "Defect qty");
+        Add("iqc.dash.pareto.legend.cum",  "Luỹ kế %",                            "Cumulative %");
+        Add("iqc.dash.pareto.legend.thr",  "Ngưỡng ưu tiên",                      "Priority threshold");
+        Add("iqc.dash.trend.hero",         "Xu hướng theo tháng — số lô nhập & tỷ lệ NG",
+                                                                                  "Monthly trend — incoming lots & NG rate");
+        Add("iqc.dash.trend.peak",         "Đỉnh NG {0} {1}",                     "NG peak {0} {1}");
+        Add("iqc.dash.trend.low",          "thấp nhất {0} {1}",                   "lowest {0} {1}");
+        Add("iqc.dash.trend.nodata",       "Chưa có dữ liệu",                     "No data yet");
+        Add("iqc.dash.supplier.perf",      "Hiệu suất nhà cung cấp",              "Supplier performance");
+        Add("iqc.dash.supplier.showing",   "{0} NCC đang hiển thị · {1} NCC có lô NG · sắp xếp theo {2}",
+                                                                                  "{0} suppliers shown · {1} with NG lots · sorted by {2}");
+        Add("iqc.dash.supplier.search",    "Tìm nhà cung cấp…",                   "Search supplier…");
+        Add("iqc.dash.supplier.onlyng",    "Chỉ NCC có NG",                       "NG suppliers only");
+        Add("iqc.dash.supplier.all",       "Tất cả NCC",                          "All suppliers");
+        Add("iqc.dash.supplier.risk",      "Mức rủi ro",                          "Risk level");
+        Add("iqc.dash.supplier.total",     "Tổng cộng ({0} NCC)",                 "Total ({0} suppliers)");
+        Add("iqc.dash.supplier.leg.ok",    "< 2% — trong kiểm soát",              "< 2% — in control");
+        Add("iqc.dash.supplier.leg.watch", "2 – 5% — cần theo dõi",               "2 – 5% — watch");
+        Add("iqc.dash.supplier.leg.car",   "> 5% — yêu cầu CAR",                  "> 5% — CAR required");
+        Add("iqc.dash.insight.priority",   "Ưu tiên xử lý",                       "Priority");
+        Add("iqc.dash.insight.priority.body", "{0} chiếm {1} tổng lỗi NQ — mở CAR nhóm lỗi thay vì xử lý theo từng lô.",
+                                                                                  "{0} account for {1} of NQ defects — open a grouped CAR, not lot-by-lot.");
+        Add("iqc.dash.insight.risk",       "Rủi ro nhà cung cấp",                 "Supplier risk");
+        Add("iqc.dash.insight.risk.body",  "{0} ({1} lô NG, {2}) — audit tại nguồn.",
+                                                                                  "{0} ({1} NG lots, {2}) — audit at source.");
+        Add("iqc.dash.insight.ok",         "Diễn biến",                           "Trend");
+        Add("iqc.dash.insight.ok.body",    "%NG {0} {1} → {2} {3}.",             "%NG {0} {1} → {2} {3}.");
+        Add("iqc.dash.insight.empty",      "Chưa đủ dữ liệu trong kỳ.",           "Not enough data in this period.");
+        Add("iqc.dash.footer.source",      "Nguồn: phiếu IQC đã lưu · {0} lô · {1} NCC",
+                                                                                  "Source: saved IQC tickets · {0} lots · {1} suppliers");
+        Add("iqc.dash.footer.unit",        "Đơn vị: lô / lỗi · %NG = Lô NG ÷ Số lô",
+                                                                                  "Unit: lots / defects · %NG = NG lots ÷ lots");
+        Add("iqc.dash.trend.title",        "Xu hướng theo tháng",                 "Monthly trend");
+        Add("iqc.dash.trend.month",        "Tháng",                               "Month");
+        Add("iqc.dash.trend.lots",         "Số lô",                               "Lots");
+        Add("iqc.dash.trend.ng",           "Lô NG",                               "NG lots");
+        Add("iqc.dash.trend.ngrate",       "%NG",                                 "%NG");
+        Add("iqc.dash.supplier.title",     "Theo nhà cung cấp",                   "By supplier");
+        Add("iqc.dash.supplier.name",      "Nhà cung cấp",                        "Supplier");
+        Add("iqc.dash.volume.title",       "Số lô theo tháng",                    "Lots by month");
+        Add("iqc.dash.empty.pareto",       "Chưa có lỗi ngoại quan trong kỳ.",     "No visual defects in this period.");
+        Add("iqc.dash.empty.supplier",     "Chưa có phiếu trong kỳ.",              "No tickets in this period.");
+        Add("iqc.dash.month.1",            "Tháng 1",                             "January");
+        Add("iqc.dash.month.2",            "Tháng 2",                             "February");
+        Add("iqc.dash.month.3",            "Tháng 3",                             "March");
+        Add("iqc.dash.month.4",            "Tháng 4",                             "April");
+        Add("iqc.dash.month.5",            "Tháng 5",                             "May");
+        Add("iqc.dash.month.6",            "Tháng 6",                             "June");
+        Add("iqc.dash.month.7",            "Tháng 7",                             "July");
+        Add("iqc.dash.month.8",            "Tháng 8",                             "August");
+        Add("iqc.dash.month.9",            "Tháng 9",                             "September");
+        Add("iqc.dash.month.10",           "Tháng 10",                            "October");
+        Add("iqc.dash.month.11",           "Tháng 11",                            "November");
+        Add("iqc.dash.month.12",           "Tháng 12",                            "December");
+        Add("iqc.dash.month.short.1",      "T1",                                  "Jan");
+        Add("iqc.dash.month.short.2",      "T2",                                  "Feb");
+        Add("iqc.dash.month.short.3",      "T3",                                  "Mar");
+        Add("iqc.dash.month.short.4",      "T4",                                  "Apr");
+        Add("iqc.dash.month.short.5",      "T5",                                  "May");
+        Add("iqc.dash.month.short.6",      "T6",                                  "Jun");
+        Add("iqc.dash.month.short.7",      "T7",                                  "Jul");
+        Add("iqc.dash.month.short.8",      "T8",                                  "Aug");
+        Add("iqc.dash.month.short.9",      "T9",                                  "Sep");
+        Add("iqc.dash.month.short.10",     "T10",                                 "Oct");
+        Add("iqc.dash.month.short.11",     "T11",                                 "Nov");
+        Add("iqc.dash.month.short.12",     "T12",                                 "Dec");
 
         // ── IQC Data (list) ───────────────────────────────────────────────
         Add("iqc.data.title",              "Phiếu đã lưu",                        "Saved tickets");
@@ -130,7 +223,7 @@ public sealed partial class TranslationCatalog
         Add("iqc.step.dimension.en",       "DIMENSION",                            "DIMENSION");
         Add("iqc.step.dimension.desc",     "Độ rộng mẫu và độ dày mẫu theo tiêu chuẩn.",
                                            "Sample width and thickness against the standard.");
-        Add("iqc.step.functional.desc",    "Độ bám dính (Adhesive), độ cứng (Hardness) và L-a-b khi có yêu cầu.",
+        Add("iqc.step.functional.desc",    "Độ bám dính, độ cứng và L-a-b khi có yêu cầu.",
                                            "Adhesive, hardness and L-a-b when required.");
         Add("iqc.items.measure.width",     "Độ rộng mẫu {0}",                      "Width sample {0}");
         Add("iqc.items.measure.thickness", "Độ dày mẫu {0}",                       "Thickness sample {0}");

@@ -533,6 +533,35 @@ public sealed class IqcTicketTests : IClassFixture<MesApiFactory>
         // Sum-of-parts invariant: group buckets add up to the total.
         Assert.Equal(dash.Total, dash.Materials + dash.Chemical + dash.Tools + dash.Other);
         Assert.Equal(dash.Total, dash.Pending + dash.Pass + dash.Fail);
+        Assert.NotNull(dash.AvailableYears);
+        Assert.Equal(12, dash.MonthlyTrend.Count);
+        Assert.NotNull(dash.VisualPareto);
+        Assert.NotNull(dash.Suppliers);
+        // NCC xếp theo số lô NG giảm dần — dòng đầu là nơi phải xử lý trước.
+        Assert.Equal(
+            dash.Suppliers.Select(s => s.Ng).OrderByDescending(n => n),
+            dash.Suppliers.Select(s => s.Ng));
+    }
+
+    [Fact]
+    public async Task Dashboard_year_month_filter_echoes_and_scopes_total()
+    {
+        var c = await ClientAsync("qc-iqc-dash-ym", UserRole.Qc);
+        await c.SendAsync(Post("/api/v2/iqc", Body("DSH-YM", "LOT-DSH-YM")));
+
+        var all = await c.GetFromJsonAsync<IqcDashboardResponse>("/api/v2/iqc/dashboard");
+        Assert.NotNull(all);
+        Assert.True(all!.Year is > 0);
+        Assert.Null(all.Month);
+
+        var y = all.Year!.Value;
+        var scoped = await c.GetFromJsonAsync<IqcDashboardResponse>($"/api/v2/iqc/dashboard?year={y}&month=1");
+        Assert.NotNull(scoped);
+        Assert.Equal(y, scoped!.Year);
+        Assert.Equal(1, scoped.Month);
+        Assert.True(scoped.Total <= all.Total);
+        // Trend always full year (12 months) even when month filter set.
+        Assert.Equal(12, scoped.MonthlyTrend.Count);
     }
 
     [Theory]
