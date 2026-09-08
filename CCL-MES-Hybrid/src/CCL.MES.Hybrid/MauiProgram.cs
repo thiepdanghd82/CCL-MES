@@ -104,6 +104,10 @@ public static class MauiProgram
             CCL.MES.Hybrid.Client.Grid.IGridPreferenceStore,
             MauiGridPreferenceStore>());
 
+        builder.Services.Replace(ServiceDescriptor.Singleton<
+            CCL.MES.Hybrid.Client.Qms.IIqcDashboardPrefs,
+            MauiIqcDashboardPrefs>());
+
         // P10.5c-2 — native file picker. FilePicker.Default wraps
         // UIDocumentPickerViewController on Catalyst + IFileOpenPicker
         // on WinUI; both honour the xlsx UTType filter so the operator

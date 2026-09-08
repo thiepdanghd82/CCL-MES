@@ -144,6 +144,7 @@ public static class ServiceCollectionExtensions
         // when the window moved out of the IqcModule @foreach). Singleton
         // (session-scoped, survives navigation), mirroring IFloatingWindowStore.
         services.AddSingleton<Qms.IIqcChangeNotifier, Qms.IqcChangeNotifier>();
+        services.AddSingleton<Qms.IIqcDashboardPrefs, Qms.InMemoryIqcDashboardPrefs>();
 
         return services;
     }

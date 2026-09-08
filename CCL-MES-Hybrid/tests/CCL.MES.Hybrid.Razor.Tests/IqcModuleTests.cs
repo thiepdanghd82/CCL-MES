@@ -44,6 +44,7 @@ public sealed class IqcModuleTests : TestContext
         Services.AddSingleton<IFloatingWindowStore>(new InMemoryFloatingWindowStore());
         Services.AddSingleton<IWindowManager>(_wm);
         Services.AddSingleton<IIqcChangeNotifier>(_notifier);
+        Services.AddSingleton<IIqcDashboardPrefs, InMemoryIqcDashboardPrefs>();
         // P12 bước 4 — bảng hồ sơ HSF ở bước 1 tiêm IFilePickerService + IFileOpener.
         Services.AddSingleton<IFilePickerService>(new StubFilePickerService());
         Services.AddSingleton<IFileOpener>(new StubFileOpener());
@@ -285,6 +286,41 @@ public sealed class IqcModuleTests : TestContext
         {
             Assert.Contains("100%", cut.Find("[data-testid=iqc-dash-pareto-thr-val]").TextContent);
             Assert.Equal(4, cut.FindAll("[data-testid=iqc-dash-pareto] tbody tr.is-focus").Count);
+        });
+    }
+
+    [Fact]
+    public void Dashboard_pareto_threshold_survives_leaving_the_tab()
+    {
+        Wire();
+        _api.IqcDashboardImpl = (_, _) => Task.FromResult(new IqcDashboardResponse
+        {
+            Year = 2026,
+            AvailableYears = new List<int> { 2026 },
+            Total = 4, Fail = 4,
+            VisualPareto = new List<IqcParetoRow>
+            {
+                new() { Defect = "A", LabelVi = "A", LabelEn = "A", Count = 50, Share = 0.50, Cumulative = 0.50 },
+                new() { Defect = "B", LabelVi = "B", LabelEn = "B", Count = 20, Share = 0.20, Cumulative = 0.70 },
+                new() { Defect = "C", LabelVi = "C", LabelEn = "C", Count = 9, Share = 0.09, Cumulative = 0.79 },
+                new() { Defect = "D", LabelVi = "D", LabelEn = "D", Count = 21, Share = 0.21, Cumulative = 1.00 },
+            },
+            MonthlyTrend = Enumerable.Range(1, 12).Select(m => new IqcMonthlyTrendRow { Month = m }).ToList(),
+        });
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+        cut.Find("[data-testid=iqc-dash-pareto-thr]").Input("60");
+        cut.WaitForAssertion(() =>
+            Assert.Contains("60%", cut.Find("[data-testid=iqc-dash-pareto-thr-val]").TextContent));
+
+        cut.Find("[data-testid=iqc-subtab-data]").Click();
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[data-testid=iqc-dash]")));
+
+        cut.Find("[data-testid=iqc-subtab-dashboard]").Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("60%", cut.Find("[data-testid=iqc-dash-pareto-thr-val]").TextContent);
+            Assert.Equal("60", cut.Find("[data-testid=iqc-dash-pareto-thr]").GetAttribute("value"));
         });
     }
 

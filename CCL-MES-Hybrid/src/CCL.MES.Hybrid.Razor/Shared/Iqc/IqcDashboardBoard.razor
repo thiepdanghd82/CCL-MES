@@ -3,6 +3,7 @@
 @using CCL.MES.Shared.Localization
 @using System.Globalization
 @inject ICclApiClient Api
+@inject CCL.MES.Hybrid.Client.Qms.IIqcDashboardPrefs DashPrefs
 
 @*
     IQC Dashboard — layout theo IQC-Dashboard-standalone.html (báo cáo NQ):
@@ -422,6 +423,12 @@
     private const double PlotH = PlotB - PlotT;
     private static readonly double[] GridY = { 270, 207.5, 145, 82.5, 20 };
 
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        _thrPct = DashPrefs.GetThresholdPct();
+    }
+
     protected override async Task OnInitializedAsync() => await LoadAsync(_year, _month);
 
     public async Task ReloadAsync()
@@ -518,7 +525,10 @@
     private void OnThrChanged(ChangeEventArgs e)
     {
         if (int.TryParse(e.Value?.ToString(), out var n))
+        {
             _thrPct = Math.Clamp(n, 50, 100);
+            DashPrefs.SetThresholdPct(_thrPct);
+        }
     }
 
     private bool IsEnglish => LanguageService.Current == LanguageCode.English;
