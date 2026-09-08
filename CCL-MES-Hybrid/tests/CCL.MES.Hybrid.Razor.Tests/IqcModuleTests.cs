@@ -203,16 +203,63 @@ public sealed class IqcModuleTests : TestContext
         Assert.NotNull(cut.Find("[data-testid=iqc-dash-pareto]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-dash-suppliers]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-dash-trend]"));
+        Assert.Equal(12, cut.FindAll("[data-testid=iqc-dash-trend] .iqc-month-cell").Count);
+        Assert.Equal(12, cut.FindAll("[data-testid=iqc-dash-trend] .iqc-month-cell-m").Count);
+        Assert.Equal(12, cut.FindAll("[data-testid=iqc-dash-trend] .iqc-month-cell-ng").Count);
+        Assert.Equal(12, cut.FindAll("[data-testid=iqc-dash-trend] .iqc-month-cell-pct").Count);
+        Assert.NotNull(cut.Find(".iqc-trend-sync [data-testid=iqc-dash-volume]"));
+        Assert.NotNull(cut.Find(".iqc-trend-sync [data-testid=iqc-dash-trend]"));
+        Assert.Empty(cut.FindAll("[data-testid=iqc-dash-volume] .iqc-svg-x-flat"));
         Assert.NotNull(cut.Find("[data-testid=iqc-dash-volume]"));
+        // L72 — SVG labels must NOT carry font-size in user units (grows on wide screens).
+        Assert.DoesNotContain("font-size=", cut.Find("[data-testid=iqc-dash-volume]").OuterHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("font-size=", cut.Find("[data-testid=iqc-dash-pareto-chart]").OuterHtml, StringComparison.Ordinal);
+        Assert.Contains("iqc-svg-bars-soft", cut.Find("[data-testid=iqc-dash-volume]").OuterHtml, StringComparison.Ordinal);
+        Assert.Contains("class=\"iqc-svg-bars\"", cut.Find("[data-testid=iqc-dash-pareto-chart]").OuterHtml, StringComparison.Ordinal);
+        Assert.NotNull(cut.Find(".iqc-swatch-ice"));
+        Assert.NotNull(cut.Find(".iqc-kcard-slate"));
         // Pareto có biểu đồ cột + đường luỹ kế, không chỉ là bảng số.
+        Assert.NotNull(cut.Find(".iqc-chart-host > .iqc-chart-scale [data-testid=iqc-dash-pareto-chart]"));
         Assert.NotNull(cut.Find(".iqc-chart-host [data-testid=iqc-dash-pareto-chart] polyline.iqc-chart-line"));
+        var paretoSvg = cut.Find("[data-testid=iqc-dash-pareto-chart]");
+        Assert.Contains("iqc-svg-pareto", paretoSvg.GetAttribute("class") ?? "", StringComparison.Ordinal);
+        Assert.Equal("none", paretoSvg.GetAttribute("preserveAspectRatio"));
+        Assert.Equal("0 0 1000 880", paretoSvg.GetAttribute("viewBox"));
+        Assert.NotNull(cut.Find(".iqc-trend-sync-inner > .iqc-chart-scale [data-testid=iqc-dash-volume]"));
         // Xu hướng: %NG là ĐƯỜNG trên trục phải, tách khỏi cột số lô.
         Assert.NotNull(cut.Find("[data-testid=iqc-dash-volume] polyline.iqc-chart-line"));
         Assert.Empty(cut.FindAll("[data-testid=iqc-dash-volume] .iqc-chart-bar-ng"));
         Assert.Empty(cut.FindAll(".iqc-dash-grid.qms-fill"));
         Assert.NotNull(cut.Find(".iqc-dash-hero"));
         Assert.NotNull(cut.Find(".iqc-kpis"));
+        Assert.NotNull(cut.Find(".iqc-split"));
         Assert.NotNull(cut.Find(".iqc-panel-detail [data-testid=iqc-dash-pareto]"));
+    }
+
+    [Fact]
+    public void Dashboard_svg_font_inverts_viewbox_scale_and_keeps_html_palette()
+    {
+        var css = File.ReadAllText(FindWwwroot("css/app.css"));
+        var js = File.ReadAllText(FindWwwroot("js/iqc-svg-font.js"));
+        Assert.Contains("--iqc-chart-fs: var(--fs-md)", css, StringComparison.Ordinal);
+        Assert.Contains(".iqc-chart-host {\n    flex: 1 1 auto;", css, StringComparison.Ordinal);
+        Assert.Contains(".iqc-chart-host .iqc-svg { width: 100%; height: 100%;", css, StringComparison.Ordinal);
+        Assert.Contains(".iqc-chart-scale", css, StringComparison.Ordinal);
+        Assert.Contains("cclIqcSvgFont", js, StringComparison.Ordinal);
+        Assert.Contains("ResizeObserver", js, StringComparison.Ordinal);
+        Assert.Contains("targetPx * 1000 / w", js, StringComparison.Ordinal);
+        var textRule = css.IndexOf(".iqc-svg text {", StringComparison.Ordinal);
+        Assert.True(textRule >= 0);
+        var textBlock = css.Substring(textRule, 160);
+        Assert.Contains("font-weight: var(--fw-regular)", textBlock, StringComparison.Ordinal);
+        Assert.DoesNotContain("fw-semibold", textBlock, StringComparison.Ordinal);
+        Assert.DoesNotContain("fw-bold", textBlock, StringComparison.Ordinal);
+        Assert.Contains("--iqc-steel: #2C6E9B", css, StringComparison.Ordinal);
+        Assert.Contains("--iqc-ice: #CFDCE7", css, StringComparison.Ordinal);
+        Assert.Contains("--iqc-navy: #0F2A44", css, StringComparison.Ordinal);
+        Assert.Contains("--iqc-ng-line: #B4342A", css, StringComparison.Ordinal);
+        Assert.Contains("--iqc-gold: #C8871B", css, StringComparison.Ordinal);
+        Assert.DoesNotContain("1000px / 100cqw", css, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1425,5 +1472,18 @@ public sealed class IqcModuleTests : TestContext
         chips = cut.FindAll("[data-testid=iqc-line-uom-chip]");
         Assert.DoesNotContain("iqc-uom-on", chips.First(c => c.GetAttribute("data-uom") == "Roll").GetAttribute("class"));
         Assert.Contains("iqc-uom-on", chips.First(c => c.GetAttribute("data-uom") == "Pcs").GetAttribute("class"));
+    }
+
+    private static string FindWwwroot(string relative)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null)
+        {
+            var hit = Path.Combine(dir.FullName, "src", "CCL.MES.Hybrid.Razor", "wwwroot", relative);
+            if (File.Exists(hit)) return hit;
+            dir = dir.Parent;
+        }
+
+        throw new FileNotFoundException(relative);
     }
 }

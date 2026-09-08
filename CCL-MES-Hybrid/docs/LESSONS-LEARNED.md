@@ -116,6 +116,7 @@
 - [L65 — bằng chứng Phase A để ở `/tmp`: migration đã áp lên DB thật nhưng backup bị OS dọn mất, hồ sơ vẫn ghi "chưa làm"](#l65)
 - [L66 — khoá nối phải ĐO không được suy từ tên: `MaterialCodeIfs` (7xxxxxxx) trông y hệt mã IFS của MES (300xxxxx) nhưng khớp 0 dòng](#l66)
 - [L70 — tab Tiêu chuẩn tra exact `MaterialCode` trong khi phiếu IQC resolve PartNo → MotherCode: Look up `300xxxxx` hiện ma trận trống dù spec mã mẹ đã có](#l70)
+- [L72 — chữ trên SVG biểu đồ IQC to hơn khi mở cửa sổ rộng: `font-size="11"` trong viewBox 1000 là user unit, không phải pixel màn hình; giảm số đó làm màn 14" đỡ hơn nhưng màn lớn càng to. Cỡ chữ SVG phải đảo theo bề rộng container (`100cqw`), không gắn lên thuộc tính `font-size` của `<text>`](#l72)
 - [L71 — PCS ledger ghi rộng×dài trên 2 dòng hoặc ô `290x301`: import chỉ lấy nửa / gán dài thành «Độ rộng»](#l71)
 - [L67 — bản ghi bằng chứng thiếu một chiều thông tin thì nói dối im lặng: `Pass` bool nuốt trạng thái "chưa kiểm"; bộ mặc định không mang cờ nguồn gốc](#l67)
 - [L68 — bản vá nền tảng scope vào một class: `.modal-input[type="date"]` không phủ ô ngày trong bảng, hỏng chỉ trên Catalyst](#l68)
@@ -960,6 +961,15 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Root cause** (proven) | `pmset -g log` cho thấy máy (MacBook, chạy **pin** 35%) ngủ xuyên 02:00. `BackupSchedulerService` chờ bằng `Task.Delay`, và `DelayUntilNextRun` hẹn thẳng `AddDays(1)` khi mốc đã qua — **0 chỗ chạy bù**. Thử chuyển sang launchd `StartCalendarInterval`: `last exit code = 126`, `/bin/bash: …/backup-daily.sh: Operation not permitted`, `getcwd: … Operation not permitted`. TCC của macOS chặn job launchd đọc `~/Documents` — nơi cả repo đang nằm. Job API lại chạy được vì nó là **binary biên dịch** (định danh TCC riêng), không phải script qua `/bin/bash`. |
 | **Fix** | Chạy bù NGAY TRONG tiến trình API (nơi đã có quyền): mỗi vòng lặp, nếu đã qua giờ hẹn mà chưa có snapshot nào của hôm nay thì chụp ngay. So theo **thời gian sửa file đã quy về ICT**, KHÔNG phân tích ngày trong tên file — tên đóng dấu `DateTime.UtcNow` nên bản chụp lúc 02:00 ICT mang ngày UTC của hôm trước, so theo tên sẽ chụp thừa một bản mỗi ngày. `backup-daily.sh` giữ lại cho việc chụp TAY (chạy được cả khi API chết) nhưng `install` bị chặn kèm giải thích để không ai đi lại đường launchd. |
 | **Cơ chế chặn tái phát** | `BackupCatchUpTests` (8 ca) khoá hàm thuần `BackupSchedulerService.IsWindowMissed`, trong đó `Ban_chup_luc_02h00_ICT_van_tinh_la_CUA_HOM_NAY` khoá đúng bẫy UTC-vs-ICT: đổi sang so ngày trong tên file ⇒ ĐỎ. Kiểm chứng vận hành hai chiều: đã có bản hôm nay → khởi động lại KHÔNG chụp thừa (3→3); giấu hết bản hôm nay → chụp bù (2→3). |
+
+### L72 — Chữ SVG trên biểu đồ IQC phóng theo bề rộng cửa sổ
+
+| | |
+|---|---|
+| **Triệu chứng** | Giảm `font-size` trên Pareto / xu hướng IQC: màn 14" gần được nhưng vẫn to; mở cửa sổ lớn thì chữ **to hơn** lần trước. Dải tháng HTML (px) và nhãn SVG lệch nhau. |
+| **Root cause** (proven) | SVG `font-size="11"` (và CSS `px`/`rem` trên `<text>` trong WKWebView) là **user unit của viewBox 1000**, không phải pixel màn hình. Cỡ quang học = `fs × (chiều_rộng_SVG / 1000)`. Tăng cửa sổ → tăng chữ. Giảm số 13→11 vẫn phóng theo chiều rộng. |
+| **Fix** | `cqw` trên SVG/WKWebView không phải bề rộng vẽ — Pareto hẹp ra chữ nhỏ hơn Monthly trend. Đo `getBoundingClientRect().width` (ResizeObserver, `js/iqc-svg-font.js`) rồi gán `--iqc-svg-fs` = `targetPx * 1000 / width` (user unit đảo). Target = `--iqc-chart-fs` (`--fs-md`), `font-weight: regular`. Palette HTML gốc giữ nguyên. |
+| **Cơ chế chặn tái phát** | `IqcModuleTests.Dashboard_renders_excel_kpis_and_filters` — markup SVG không chứa `font-size=`. `Dashboard_svg_font_inverts_viewbox_scale_and_keeps_html_palette` — `iqc-svg-font.js` có ResizeObserver + `targetPx * 1000 / w`; CSS `--iqc-chart-fs: var(--fs-md)` + `font-weight: var(--fw-regular)` trên `.iqc-svg text` + hex palette gốc. |
 
 ----
 

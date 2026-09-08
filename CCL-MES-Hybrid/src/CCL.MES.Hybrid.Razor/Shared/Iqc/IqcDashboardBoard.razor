@@ -1,9 +1,11 @@
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
+@implements IAsyncDisposable
 @using CCL.MES.Shared.Quality
 @using CCL.MES.Shared.Localization
 @using System.Globalization
 @inject ICclApiClient Api
 @inject CCL.MES.Hybrid.Client.Qms.IIqcDashboardPrefs DashPrefs
+@inject Microsoft.JSInterop.IJSRuntime JS
 
 @*
     IQC Dashboard — layout theo IQC-Dashboard-standalone.html (báo cáo NQ):
@@ -11,7 +13,7 @@
     Dữ liệu live API; màu/khoảng cách đi qua token (L37 / design tokens).
 *@
 
-<section class="qms-section iqc-dash" data-testid="iqc-dash">
+<section @ref="_root" class="qms-section iqc-dash" data-testid="iqc-dash">
     <header class="iqc-dash-hero">
         <div class="iqc-dash-hero-main">
             <p class="iqc-dash-hero-eye">@T("iqc.dash.eyebrow")</p>
@@ -91,12 +93,12 @@
                 <span class="iqc-kcard-val is-warn">@FmtInt(_dash.TotalNqDefects)</span>
                 <span class="iqc-kcard-sub">@T("iqc.dash.kpi.nq.per", NqPerNg)</span>
             </article>
-            <article class="iqc-kcard" data-testid="iqc-kpi-claim">
+            <article class="iqc-kcard iqc-kcard-slate" data-testid="iqc-kpi-claim">
                 <span class="iqc-kcard-lbl">@T("iqc.dash.kpi.claim")</span>
                 <span class="iqc-kcard-val">@FmtInt(_dash.ClaimNgLots)</span>
                 <span class="iqc-kcard-sub">@T("iqc.dash.kpi.claim.share", FmtPct(ClaimShare))</span>
             </article>
-            <article class="iqc-kcard" data-testid="iqc-kpi-wide">
+            <article class="iqc-kcard iqc-kcard-slate" data-testid="iqc-kpi-wide">
                 <span class="iqc-kcard-lbl">@T("iqc.dash.kpi.wide")</span>
                 <span class="iqc-kcard-val">@FmtInt(_dash.WideOosLots)</span>
                 <span class="iqc-kcard-sub">@T("iqc.dash.kpi.wide.share", FmtPct(WideShare))</span>
@@ -130,11 +132,13 @@
                 else
                 {
                     <div class="iqc-chart-host">
-                    <svg class="iqc-svg" viewBox="0 0 1000 340" preserveAspectRatio="none"
+                    <div class="iqc-chart-scale">
+                    <svg class="iqc-svg iqc-svg-pareto" viewBox="0 0 1000 @F(ParetoVbH)"
+                         preserveAspectRatio="none"
                          data-testid="iqc-dash-pareto-chart"
                          role="img" aria-label="@T("iqc.dash.pareto.title")">
                         <g class="iqc-svg-grid">
-                            @foreach (var gy in GridY)
+                            @foreach (var gy in ParetoGridY)
                             {
                                 <line x1="@PlotL" y1="@F(gy)" x2="@PlotR" y2="@F(gy)"></line>
                             }
@@ -142,41 +146,42 @@
                         <g class="iqc-svg-axis">
                             @for (var i = 0; i <= 4; i++)
                             {
-                                var y = PlotT + PlotH * (4 - i) / 4.0;
+                                var y = ParetoPlotT + ParetoPlotH * (4 - i) / 4.0;
                                 @SvgText("52", F(y + 4), FmtInt(ParetoMax * i / 4), "text-anchor=\"end\"")
                                 @SvgText("968", F(y + 4), $"{i * 25}%")
                             }
                         </g>
-                        <line class="iqc-svg-thr" x1="@PlotL" y1="@F(YCum(ParetoThr))" x2="@PlotR" y2="@F(YCum(ParetoThr))"></line>
-                        @SvgText("64", F(YCum(ParetoThr) - 6), $"{_thrPct}%", "class=\"iqc-svg-thr-lbl\"")
+                        <line class="iqc-svg-thr" x1="@PlotL" y1="@F(ParetoYCum(ParetoThr))" x2="@PlotR" y2="@F(ParetoYCum(ParetoThr))"></line>
+                        @SvgText("64", F(ParetoYCum(ParetoThr) - 8), $"{_thrPct}%", "class=\"iqc-svg-thr-lbl\"")
                         <g class="iqc-svg-bars">
                             @for (var i = 0; i < _dash.VisualPareto.Count; i++)
                             {
                                 var row = _dash.VisualPareto[i];
-                                var h = PlotH * row.Count / ParetoMax;
-                                <rect x="@F(BarX(i, _dash.VisualPareto.Count))" y="@F(PlotB - h)"
+                                var h = ParetoPlotH * row.Count / ParetoMax;
+                                <rect x="@F(BarX(i, _dash.VisualPareto.Count))" y="@F(ParetoPlotB - h)"
                                       width="@F(BarW(_dash.VisualPareto.Count))" height="@F(Math.Max(h, 1))"></rect>
-                                @SvgText(F(SlotMid(i, _dash.VisualPareto.Count)), F(PlotB - h - 6), row.Count.ToString(),
+                                @SvgText(F(SlotMid(i, _dash.VisualPareto.Count)), F(ParetoPlotB - h - 8), row.Count.ToString(),
                                     "class=\"iqc-svg-bar-lbl\" text-anchor=\"middle\"")
                             }
                         </g>
                         <polyline class="iqc-chart-line iqc-svg-cum"
-                                  points="@Polyline(_dash.VisualPareto.Select(r => r.Cumulative))"
+                                  points="@Polyline(_dash.VisualPareto.Select(r => r.Cumulative), ParetoPlotB, ParetoPlotH)"
                                   fill="none" />
                         @for (var i = 0; i < _dash.VisualPareto.Count; i++)
                         {
                             <circle class="iqc-svg-dot-cum" cx="@F(SlotMid(i, _dash.VisualPareto.Count))"
-                                    cy="@F(YCum(_dash.VisualPareto[i].Cumulative))" r="3.2"></circle>
+                                    cy="@F(ParetoYCum(_dash.VisualPareto[i].Cumulative))" r="3.2"></circle>
                         }
                         <g class="iqc-svg-x">
                             @for (var i = 0; i < _dash.VisualPareto.Count; i++)
                             {
                                 var mx = SlotMid(i, _dash.VisualPareto.Count);
-                                @SvgText(F(mx), "292", DefectLabel(_dash.VisualPareto[i]),
-                                    $"text-anchor=\"end\" transform=\"rotate(-32 {F(mx)} 292)\"")
+                                @SvgText(F(mx), F(ParetoXLabelY), DefectLabel(_dash.VisualPareto[i]),
+                                    $"text-anchor=\"end\" transform=\"rotate(-32 {F(mx)} {F(ParetoXLabelY)})\"")
                             }
                         </g>
                     </svg>
+                    </div>
                     </div>
                     <div class="iqc-legend">
                         <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-lots"></i>@T("iqc.dash.pareto.legend.qty")</span>
@@ -236,6 +241,9 @@
                     </p>
                 }
             </div>
+            <div class="iqc-trend-sync">
+            <div class="iqc-trend-sync-inner">
+            <div class="iqc-chart-scale">
             <svg class="iqc-svg iqc-chart-box-trend" viewBox="0 0 1000 300" data-testid="iqc-dash-volume"
                  role="img" aria-label="@T("iqc.dash.trend.title")">
                 <g class="iqc-svg-grid">
@@ -272,7 +280,7 @@
                     }
                 </g>
                 <polyline class="iqc-chart-line iqc-svg-ng"
-                          points="@Polyline(_dash.MonthlyTrend.Select(r => r.NgRate / TrendNgMax))"
+                          points="@Polyline(_dash.MonthlyTrend.Select(r => r.NgRate / TrendNgMax), PlotB, PlotH)"
                           fill="none" />
                 @for (var i = 0; i < _dash.MonthlyTrend.Count; i++)
                 {
@@ -281,15 +289,12 @@
                     <circle class="iqc-svg-dot-ng" cx="@F(SlotMid(i, 12))"
                             cy="@F(YCum(r.NgRate / TrendNgMax))" r="4"></circle>
                 }
-                <g class="iqc-svg-x-flat">
-                    @for (var i = 0; i < _dash.MonthlyTrend.Count; i++)
-                    {
-                        var empty = _dash.MonthlyTrend[i].Lots == 0;
-                        @SvgText(F(SlotMid(i, 12)), "290", T($"iqc.dash.month.short.{_dash.MonthlyTrend[i].Month}"),
-                            $"text-anchor=\"middle\"{(empty ? " class=\"is-empty\"" : "")}")
-                    }
-                </g>
             </svg>
+            </div>
+            <div class="iqc-legend">
+                <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-ice"></i>@T("iqc.dash.trend.lots")</span>
+                <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-ng"></i>@T("iqc.dash.trend.ngrate")</span>
+            </div>
             <div class="iqc-month-strip" data-testid="iqc-dash-trend">
                 @foreach (var row in _dash.MonthlyTrend)
                 {
@@ -309,6 +314,8 @@
                         }
                     </button>
                 }
+            </div>
+            </div>
             </div>
         </section>
 
@@ -409,6 +416,7 @@
 @code {
     private enum SupSort { Ng, NgRate, Lots, Nq, Name }
 
+    private ElementReference _root;
     private IqcDashboardResponse _dash = new();
     private int? _year;
     private int? _month;
@@ -422,6 +430,11 @@
     private const double PlotL = 60, PlotR = 960, PlotT = 20, PlotB = 270;
     private const double PlotH = PlotB - PlotT;
     private static readonly double[] GridY = { 270, 207.5, 145, 82.5, 20 };
+    /* Pareto đứng cạnh bảng 12 dòng: viewBox cao hơn Monthly trend để cột lấp panel. */
+    private const double ParetoVbH = 880;
+    private const double ParetoPlotT = 36, ParetoPlotB = 740, ParetoXLabelY = 788;
+    private const double ParetoPlotH = ParetoPlotB - ParetoPlotT;
+    private static readonly double[] ParetoGridY = { 740, 564, 388, 212, 36 };
 
     protected override void OnInitialized()
     {
@@ -430,6 +443,18 @@
     }
 
     protected override async Task OnInitializedAsync() => await LoadAsync(_year, _month);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try { await JS.InvokeVoidAsync("cclIqcSvgFont.bind", _root); }
+        catch { /* bUnit / no JS host */ }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("cclIqcSvgFont.unbind", _root); }
+        catch { /* ignore */ }
+    }
 
     public async Task ReloadAsync()
     {
@@ -663,12 +688,14 @@
     private static double BarW(int n) => Math.Min(40, (PlotR - PlotL) / Math.Max(n, 1) * 0.42);
     private static double BarX(int i, int n) => SlotMid(i, n) - BarW(n) / 2;
     private static double YCum(double frac) => PlotB - PlotH * Math.Clamp(frac, 0, 1);
+    private static double ParetoYCum(double frac) => ParetoPlotB - ParetoPlotH * Math.Clamp(frac, 0, 1);
 
-    private static string Polyline(IEnumerable<double> fractions)
+    private static string Polyline(IEnumerable<double> fractions, double plotB, double plotH)
     {
         var v = fractions.ToList();
         if (v.Count == 0) return "";
-        return string.Join(" ", v.Select((f, i) => $"{F(SlotMid(i, v.Count))},{F(YCum(f))}"));
+        return string.Join(" ", v.Select((f, i) =>
+            $"{F(SlotMid(i, v.Count))},{F(plotB - plotH * Math.Clamp(f, 0, 1))}"));
     }
 
     private static MarkupString SvgText(string x, string y, string content, string extra = "")
