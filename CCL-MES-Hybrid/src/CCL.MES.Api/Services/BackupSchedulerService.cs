@@ -107,6 +107,32 @@ public sealed class BackupSchedulerService : BackgroundService
                     continue;
                 }
 
+                // ── CHẠY BÙ khi cửa sổ hôm nay đã trôi mà chưa có bản nào ──
+                // Máy chạy hệ này là MacBook và nó NGỦ qua đêm. `Task.Delay`
+                // không nổ đúng giờ khi máy ngủ, và DelayUntilNextRun thì hẹn
+                // thẳng sang ngày mai — nên cửa sổ 02:00 trôi mất IM LẶNG.
+                // Đo được sáng 2026-09-08: snapshot 07/09 có 6 file, 08/09 có 0,
+                // pmset xác nhận máy ngủ xuyên 02:00. gate-backup-fresh vẫn PASS
+                // vì nó chỉ đo tuổi < 48h.
+                //
+                // Đây KHÔNG sửa được bằng launchd StartCalendarInterval: TCC của
+                // macOS chặn job launchd đọc ~/Documents (đã thử, exit 126
+                // "Operation not permitted"), trong khi chính tiến trình API lại
+                // có quyền. Nên chạy bù phải nằm ở đây.
+                if (MissedTodayWindow(eff.Hour))
+                {
+                    _logger.LogWarning(
+                        "[backup] cửa sổ {Hour:00}:00 hôm nay đã trôi mà chưa có snapshot "
+                        + "(máy ngủ?) — chạy bù ngay.", eff.Hour);
+                    try { await RunBackupCycleAsync(force: false, ct); }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+                    catch (Exception ex)
+                    {
+                        _lastError = ex.Message;
+                        _logger.LogError(ex, "[backup] chạy bù thất bại — sẽ thử lại ở chu kỳ sau.");
+                    }
+                }
+
                 var delay = DelayUntilNextRun(eff.Hour);
                 _logger.LogInformation(
                     "[backup] enabled — next cycle in {Minutes:0} min (target {Hour:00}:00 {Tz}, retention {Days}d keep ≥{Keep}, blobs={Blobs}, webhook={Webhook}).",
@@ -336,6 +362,67 @@ public sealed class BackupSchedulerService : BackgroundService
         _lastRun = r;
         _lastRunAtUtc = DateTime.UtcNow;
         return r;
+    }
+
+    /// <summary>
+    /// Quyết định THUẦN: đã qua giờ hẹn mà chưa có bản chụp nào của hôm nay?
+    ///
+    /// <para>Tách khỏi phần đụng đĩa để khoá được cái bẫy đã sập ngày
+    /// 2026-09-08: tên snapshot đóng dấu bằng <c>DateTime.UtcNow</c>, còn giờ
+    /// hẹn là giờ ICT. Một bản chụp lúc 02:00 ICT mang ngày UTC của HÔM TRƯỚC,
+    /// nên so theo NGÀY TRONG TÊN FILE sẽ báo "chưa có" và chụp thừa một bản
+    /// mỗi ngày. Ở đây chỉ so mốc thời gian đã quy về ICT.</para>
+    /// </summary>
+    /// <param name="nowIct">Bây giờ, theo giờ ICT.</param>
+    /// <param name="hour">Giờ hẹn (0–23), giờ ICT.</param>
+    /// <param name="snapshotTimesIct">Thời điểm các bản chụp, đã quy về ICT.</param>
+    public static bool IsWindowMissed(
+        DateTimeOffset nowIct, int hour, IEnumerable<DateTimeOffset> snapshotTimesIct)
+    {
+        if (nowIct.Hour < hour) return false;             // chưa tới giờ hẹn
+        var today = nowIct.Date;
+        return !snapshotTimesIct.Any(t => t.Date == today);
+    }
+
+    /// <summary>
+    /// Hôm nay đã qua giờ hẹn mà CHƯA có snapshot nào của hôm nay?
+    ///
+    /// <para>Đọc thẳng tên file trong thư mục backup thay vì tin một biến trong
+    /// RAM: <c>_lastRunAtUtc</c> mất sạch sau mỗi lần khởi động lại, mà tiến
+    /// trình này bị launchd dựng lại mỗi khi nó chết — đúng lúc cần biết nhất.</para>
+    /// </summary>
+    private bool MissedTodayWindow(int hour)
+    {
+        var nowIct = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, _tz);
+        if (nowIct.Hour < hour) return false;          // chưa tới giờ hẹn
+
+        try
+        {
+            var (backupDir, dbFile) = ResolveSqlitePaths();
+            if (string.IsNullOrEmpty(backupDir) || !Directory.Exists(backupDir)) return false;
+
+            // So theo THỜI GIAN SỬA FILE, không phân tích ngày trong tên file.
+            // Tên snapshot đóng dấu bằng DateTime.UtcNow, còn giờ hẹn là giờ ICT:
+            // một bản chụp lúc 02:00 ICT mang ngày UTC của HÔM TRƯỚC. Nếu so theo
+            // tên thì mỗi ngày sẽ chụp thừa một bản mà không ai thấy.
+            var mask = $"{Path.GetFileName(dbFile)}.bak{BackupApiService.SnapshotInfix}*";
+            var times = new List<DateTimeOffset>();
+            foreach (var f in Directory.EnumerateFiles(backupDir, mask))
+            {
+                if (f.EndsWith("-wal", StringComparison.Ordinal) ||
+                    f.EndsWith("-shm", StringComparison.Ordinal)) continue;
+                var whenIct = TimeZoneInfo.ConvertTime(
+                    new DateTimeOffset(File.GetLastWriteTimeUtc(f), TimeSpan.Zero), _tz);
+                times.Add(whenIct);
+            }
+            return IsWindowMissed(nowIct, hour, times);
+        }
+        catch (Exception ex)
+        {
+            // Không chặn vòng lặp vì một lỗi đọc thư mục; ghi lại rồi đi tiếp.
+            _logger.LogWarning(ex, "[backup] không kiểm được snapshot hôm nay — bỏ qua chạy bù.");
+            return false;
+        }
     }
 
     private TimeSpan DelayUntilNextRun(int hour)

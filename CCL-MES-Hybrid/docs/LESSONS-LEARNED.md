@@ -952,6 +952,17 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 
 ----
 
+### L73 — lịch chạy bằng `Task.Delay` im lặng bỏ cửa sổ khi máy Mac ngủ; và launchd không cứu được vì TCC chặn `~/Documents`
+
+| Field | Detail |
+| --- | --- |
+| **Triệu chứng** | Backup bật đúng (`Enabled:true`, 02:00) và ĐÃ từng chạy, nhưng sáng 08/09 không có bản nào của hôm đó: snapshot 07/09 **6 file**, 08/09 **0 file**, `find data/Backup -newermt "2026-09-08"` rỗng. `gate-backup-fresh` vẫn **PASS** vì chỉ đo tuổi < 48h. |
+| **Root cause** (proven) | `pmset -g log` cho thấy máy (MacBook, chạy **pin** 35%) ngủ xuyên 02:00. `BackupSchedulerService` chờ bằng `Task.Delay`, và `DelayUntilNextRun` hẹn thẳng `AddDays(1)` khi mốc đã qua — **0 chỗ chạy bù**. Thử chuyển sang launchd `StartCalendarInterval`: `last exit code = 126`, `/bin/bash: …/backup-daily.sh: Operation not permitted`, `getcwd: … Operation not permitted`. TCC của macOS chặn job launchd đọc `~/Documents` — nơi cả repo đang nằm. Job API lại chạy được vì nó là **binary biên dịch** (định danh TCC riêng), không phải script qua `/bin/bash`. |
+| **Fix** | Chạy bù NGAY TRONG tiến trình API (nơi đã có quyền): mỗi vòng lặp, nếu đã qua giờ hẹn mà chưa có snapshot nào của hôm nay thì chụp ngay. So theo **thời gian sửa file đã quy về ICT**, KHÔNG phân tích ngày trong tên file — tên đóng dấu `DateTime.UtcNow` nên bản chụp lúc 02:00 ICT mang ngày UTC của hôm trước, so theo tên sẽ chụp thừa một bản mỗi ngày. `backup-daily.sh` giữ lại cho việc chụp TAY (chạy được cả khi API chết) nhưng `install` bị chặn kèm giải thích để không ai đi lại đường launchd. |
+| **Cơ chế chặn tái phát** | `BackupCatchUpTests` (8 ca) khoá hàm thuần `BackupSchedulerService.IsWindowMissed`, trong đó `Ban_chup_luc_02h00_ICT_van_tinh_la_CUA_HOM_NAY` khoá đúng bẫy UTC-vs-ICT: đổi sang so ngày trong tên file ⇒ ĐỎ. Kiểm chứng vận hành hai chiều: đã có bản hôm nay → khởi động lại KHÔNG chụp thừa (3→3); giấu hết bản hôm nay → chụp bù (2→3). |
+
+----
+
 ## Adding a new lesson
 
 When a new bug class costs ≥2 hours of investigation:

@@ -1,0 +1,13 @@
+IqcInspections|26
+IqcResultDetails|20
+MaterialLots|28
+WorkOrders|27
+RawMaterials|2967
+__EFMigrationsHistory|49
+ok
+fk_violations|0
+20260904075826_AddIqcP13SamplingAndLimits
+20260903103200_AddIqcMaterialDocuments
+20260828100725_AddIqcResultDetailFrozenColumns
+20260828095900_AddIqcDefaultMatrixColumns
+20260828091742_AddIqcCheckStandardLibrary

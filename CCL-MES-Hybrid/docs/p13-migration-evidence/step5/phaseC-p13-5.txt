@@ -1,0 +1,57 @@
+# P13 bước 5 — Phase C  2026-09-05T05:25Z
+API :5100 PID 75807 đã tắt trước khi áp (binary cũ từ 08:09).
+
+## Áp
+20260905020839_AddIqcP13FrozenShapeAndLimits
+20260905035549_AddIqcNgClaim
+
+Rollback = restore file backup, KHÔNG `ef migrations remove` / Down().
+
+## Phase A (API dừng + wal_checkpoint TRUNCATE + sqlite3 .backup)
+backup : data/Backup/SQLite/ccl_mes.db.before-p13-5-ng.20260905T052535Z
+sha256 live TRƯỚC (file .db sau checkpoint) =
+  c16984fb840120ed7f9c3a16958991727646d6360064a0aef408903689394b64
+  (khớp Phase A sáng nay — dữ liệu không đổi giữa lúc hoãn và lúc áp)
+sha256 bản .backup API =
+  e21f2bbc29b0051fd686527f8e5acc436c010e8b7832f4e09bdbb57fe614343e
+  (khác byte vì SQLite Backup API gói lại trang; logic = live)
+
+rowcount TRƯỚC:
+  IqcInspections 26 · IqcResultDetails 20 · MaterialLots 28 · WorkOrders 27
+  RawMaterials 2967 · __EFMigrationsHistory 49
+integrity_check = ok · foreign_key_check = 0
+migration cuối trước khi áp: 20260904075826_AddIqcP13SamplingAndLimits
+
+## Phase B (bản sao cách ly của backup, /tmp/p13-5-phaseB.20260905T052535Z.db)
+Applying 20260905020839 rồi 20260905035549. Done.
+  IqcInspections 26 · IqcResultDetails 20 · IqcNgRecords 0
+  __EFMigrationsHistory 49 → 51
+  Kind=1 · MaterialCategory=1
+integrity_check = ok · foreign_key_check = 0
+
+## Phase C (live, :5100 không listen)
+dotnet ef database update --connection Data Source=<repo>/data/ccl_mes.db --no-build
+Applying migration '20260905020839_AddIqcP13FrozenShapeAndLimits'.
+Applying migration '20260905035549_AddIqcNgClaim'.
+Done.
+
+sha256 live SAU =
+  804cb4bcf23f8510bfa7a3268e4d072fa1d976a571c8c5b0ea564133da13f10a
+
+rowcount SAU:
+  IqcInspections 26 · IqcResultDetails 20 · IqcNgRecords 0 · MaterialLots 28
+  WorkOrders 27 · RawMaterials 2967 · __EFMigrationsHistory 51
+integrity_check = ok · foreign_key_check = 0
+IqcResultDetails.Kind='Verdict' : 20/20
+IqcInspections.MaterialCategory='Any' : 26/26
+IqcNgRecords bảng mới, 0 dòng (đúng — chưa ghi vụ)
+
+Ghi chú: history live vẫn có 20260629090223_AddCheckItemLibraryRowVersion (file .cs
+không còn trong tree). EF vẫn áp 2 migration mới vì chúng có trong assembly.
+Cột CheckItemLibrary khớp — không đụng ở bước này.
+
+Boot lại sau Phase C (binary mới):
+  [boot] API SQLite DB path : …/data/ccl_mes.db
+  [boot] Database migration check: up-to-date.
+  [boot] Enum integrity check: clean — 48/48
+  Now listening on: http://localhost:5100

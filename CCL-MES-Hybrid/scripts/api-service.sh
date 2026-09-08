@@ -71,6 +71,10 @@ preflight() {
       say "  ✗ binary $FLAVOUR CŨ HƠN mã nguồn."
       say "    mới hơn nó: ${newest#$REPO/}"
       say "    Build lại:  dotnet build $APIDIR -c $FLAVOUR"
+      # So theo mtime nên `git stash/checkout/rebase` cũng kích hoạt dù nội
+      # dung không đổi. Đó là BÁO NHẦM AN TOÀN: build lại vài giây là xong,
+      # còn thả một binary cũ ra sản xuất thì hỏng im lặng (L22).
+      say "    (thao tác git ghi lại file cũng kích hoạt — cứ build lại cho chắc)"
       bad=1
     fi
   fi
@@ -118,7 +122,18 @@ cmd_install() {
   preflight || { say ""; say "DỪNG — sửa các dòng ✗ ở trên rồi chạy lại."; return 1; }
   # Hạ tiến trình chạy tay để không tranh cổng 5100.
   pkill -f "net10.0/CCL.MES.Api" 2>/dev/null && say "[i] đã dừng tiến trình chạy tay"
-  sleep 1
+  # CHỜ CỔNG TRỐNG THẬT, đừng đoán bằng sleep. Bằng chứng 2026-09-07: `sleep 1`
+  # không đủ để socket được nhả, launchd bootstrap trúng lúc còn kẹt và chết với
+  # "Failed to bind to address … address already in use" — rồi phải đợi hết
+  # ThrottleInterval 30s mới thử lại. Một khoảng mất dịch vụ hoàn toàn tránh được.
+  local w=0
+  while lsof -nP -iTCP:5100 -sTCP:LISTEN >/dev/null 2>&1; do
+    w=$((w+1))
+    [ "$w" -gt 20 ] && { say "  ✗ cổng 5100 vẫn bị giữ sau 10s:"; \
+                         lsof -nP -iTCP:5100 -sTCP:LISTEN | tail -2; return 1; }
+    sleep 0.5
+  done
+  [ "$w" -gt 0 ] && say "[i] cổng 5100 đã trống sau $(echo "$w*0.5" | bc)s"
   write_plist
   launchctl bootout  "gui/$UID/$LABEL" 2>/dev/null
   launchctl bootstrap "gui/$UID" "$PLIST" 2>/dev/null || launchctl load "$PLIST" 2>/dev/null

@@ -47,7 +47,10 @@ public sealed class BackupApiService
     private readonly IConfiguration _config;
     private readonly ILogger<BackupApiService> _log;
     private const string FilePrefix = "ccl_mes.db.bak";
-    private const string SnapshotInfix = ".snapshot-";
+    /// <summary>Hậu tố tên snapshot. Công khai vì BackupSchedulerService phải
+    /// dò "hôm nay đã có bản chưa" để chạy bù — chép chuỗi này sang đó là
+    /// tạo hai nguồn sự thật cho một quy ước đặt tên.</summary>
+    public const string SnapshotInfix = ".snapshot-";
     private const string PreRestorePrefix = "pre-restore-";
     // SQLite's documented file-header magic. 16 bytes including the
     // trailing NUL terminator. See https://www.sqlite.org/fileformat.html
