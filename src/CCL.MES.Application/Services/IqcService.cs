@@ -1220,6 +1220,14 @@ public class IqcService
         int? year = null, int? month = null, CancellationToken ct = default)
     {
         var d = new IqcDashboardCounts();
+
+        // Danh sách năm lấy TỪ PHIẾU IQC, không gộp thêm năm của vụ NG — quyết
+        // định có chủ đích (Henry chốt 2026-09-09). Sau khi nạp sheet NG của
+        // file master, 16/139 vụ rơi vào 2025 trong khi 5.334 phiếu IQC đều là
+        // 2026, nên 2025 không xuất hiện trong ô chọn năm và 16 vụ đó không
+        // được đếm ở đây. Gộp năm từ hai nguồn sẽ tạo ra một năm 2025 mà MỌI ô
+        // KPI khác bằng 0 (không có phiếu nào) — đọc như "năm đó không sản
+        // xuất gì", sai hơn là không hiện. 16 vụ vẫn xem đủ ở tab NG / claim.
         var years = await _db.IqcInspections.AsNoTracking()
             .Select(x => x.ReceivedDate.Year)
             .Distinct()
