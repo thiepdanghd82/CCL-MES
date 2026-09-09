@@ -1018,6 +1018,17 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 
 ----
 
+### L79 — MỘT khối `@container`, HAI hộp được hỏi: rule này ăn, rule kia không, cùng một con số
+
+| | |
+|---|---|
+| **Triệu chứng** | Nới khổ Dashboard IQC cho màn 4K bằng một khối `@container (min-width: 2560px)` chứa đúng hai rule: trần `.iqc-dash-v2 { max-width: 220rem }` và tỉ lệ cột `.iqc-dash-v2 .iqc-v2-split { … }`. Ở VW 2870 **trần ăn** (dash nở từ 2240 → 2574) nhưng **tỉ lệ cột không ăn** — computed vẫn ra `1239px 1239px 0px 0px 0px`, tức lưới auto-fit gốc. Không cảnh báo, không lỗi cú pháp. Cùng khối, cùng ngưỡng, hai kết quả. |
+| **Root cause** (proven) | `@container` luôn hỏi **container tổ tiên GẦN NHẤT của chính phần tử đang được style** — không phải một container cố định cho cả khối. Root của board là `<section class="qms-section iqc-dash iqc-dash-v2">`, mà `.iqc-dash` (bản V1, app.css) có khai `container-type: inline-size`. Nên `.iqc-dash-v2` **vừa là container**. Kết quả: `.iqc-dash-v2` hỏi `.qms-page` (2574), còn `.iqc-v2-split` hỏi **chính `.iqc-dash-v2`**, tức LÒNG TRONG = 2574 − 64 padding = **2510 < 2560**. Chứng minh bằng cách leo cây từ mỗi phần tử và in `containerType` + bề rộng của từng tổ tiên: hai chuỗi khác nhau ngay ở nấc đầu. |
+| **Fix** | Tách thành hai khối `@container` riêng, mỗi khối ghi rõ **nó hỏi hộp nào**. Và vì hai hộp lệch nhau đúng 64px, chọn công thức cột **liên tục tại ngưỡng** — `clamp(68rem, 50%, 79rem)`, với 79rem = đúng bề rộng cột mà auto-fit chia đôi cho ngay dưới ngưỡng — để dải lệch 64px đó không sinh bậc nhảy. Hai phương án thử trước đều bị ĐO ra là đẻ lại đúng bệnh vừa chữa: `2fr/1fr` làm NCC co 1072→827 khi màn rộng ra, `68rem` cứng làm NCC tụt 1264→1088. |
+| **Cơ chế chặn tái phát** | Trước khi tin bất kỳ `@container` nào: chạy đoạn leo cây in `getComputedStyle(p).containerType` cho **từng phần tử đích riêng**, không giả định cả khối cùng hỏi một hộp — đặc biệt khi selector nhắm nhiều tầng khác nhau. Dấu hiệu nhận biết sớm: một phần tử mang **nhiều class từ nhiều thế hệ component** (`iqc-dash` + `iqc-dash-v2`) thì rất dễ thừa kế `container-type` mà người viết không biết. Cùng nhóm với L74/L76: rule tồn tại nhưng KHÔNG có hiệu lực, và CSS không hề báo. |
+
+----
+
 ## Adding a new lesson
 
 When a new bug class costs ≥2 hours of investigation:

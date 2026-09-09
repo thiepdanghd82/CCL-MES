@@ -17,14 +17,21 @@
 #
 # THANG (định nghĩa ở :root trong app.css, đặt tên theo THIẾT BỊ):
 #   --bp-phone 480 · --bp-tablet-p 768 · --bp-tablet-l 1024 · --bp-desk 1280
-#   --bp-wide 1600
+#   --bp-wide 1600 · --bp-ultra 2560
+#
+#   --bp-ultra thêm 2026-09-09. Thang cũ gộp máy chiếu 1920 với desktop 4K
+#   3840 vào cùng một nấc --bp-wide, nhưng đó là hai lớp thiết bị ngược nhau:
+#   máy chiếu nhìn TỪ XA (cần khối to, ít cột), 4K ngồi GẦN (thừa bề ngang).
+#   Vì không có nấc nào tả được 4K nên Dashboard IQC bỏ trống 1360px = 38%.
+#   Ngưỡng này ĐO BẰNG @container trên .qms-page (đã trừ rail): 1920→1632,
+#   2560→2272, 3840→3552 — nên 2560 tách đúng 4K, không đụng 32" và máy chiếu.
 #
 # Detector quy rem/em về px @16 — cùng một ngưỡng viết bằng đơn vị khác vẫn là
 # ngưỡng đó, không phải ngoại lệ.
 #
 # LƯU Ý KỸ THUẬT: CSS chưa cho dùng var() trong điều kiện @media/@container,
 # nên thang này là HỢP ĐỒNG + gate chứ không phải cơ chế runtime. Vẫn viết số
-# thật trong @media, nhưng chỉ được viết 5 số trên. Cách này y hệt cách L41
+# thật trong @media, nhưng chỉ được viết 6 số trên. Cách này y hệt cách L41
 # diệt cỡ chữ tự chế: thang không tự ép được, gate mới ép được.
 #
 # LUẬT: ratchet đi xuống. Đếm số ngưỡng KHÁC BIỆT nằm ngoài thang.
@@ -41,7 +48,7 @@ set -euo pipefail
 # Đếm bằng chính gate này, không chép tay (luật L57):
 #   520(2) 560(1) 600(2) 640(6) 700(1) 720(1) 900(11) 1000(2) 1080(1) 1081(1)
 #   1100(1) 1400(3)  = 12 ngưỡng khác biệt / 32 lần dùng
-# (480 · 768 · 1024 · 1280 · 1600 nằm TRONG thang nên không tính)
+# (480 · 768 · 1024 · 1280 · 1600 · 2560 nằm TRONG thang nên không tính)
 BASELINE_BP=12
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -53,7 +60,7 @@ IX="$CSSDIR/ix.css"
 scan_bp() {
   python3 - "$@" <<'PY'
 import re, sys
-SCALE = {480, 768, 1024, 1280, 1600}
+SCALE = {480, 768, 1024, 1280, 1600, 2560}
 src = ""
 for p in sys.argv[1:]:
     src += open(p, encoding='utf-8').read() + "\n"
@@ -112,6 +119,22 @@ if [ "${1:-}" = "--self-test" ]; then
   [ "$remok" -eq "$before" ] \
     && echo "[gate:bp] self-test OK (48rem = 768px trong thang, không báo nhầm)" \
     || { echo "[gate:bp:FAIL] self-test HỎNG — rem hợp lệ bị báo nhầm"; exit 1; }
+
+  # Nấc 6 (--bp-ultra 2560) vừa thêm: phải được công nhận…
+  cp "$CSS" "$tmp"
+  printf '\n@container (min-width: 2560px) { .gate-selftest-ultra { display: none; } }\n' >> "$tmp"
+  ultra="$(scan_bp "$tmp" "$tmpix" | grep -c . || true)"
+  [ "$ultra" -eq "$before" ] \
+    && echo "[gate:bp] self-test OK (2560px trong thang, không báo nhầm)" \
+    || { echo "[gate:bp:FAIL] self-test HỎNG — nấc 2560 hợp lệ bị báo nhầm"; exit 1; }
+
+  # …nhưng KHÔNG được nới thành "cứ số to là qua": 2561 vẫn phải bị bắt.
+  cp "$CSS" "$tmp"
+  printf '\n@container (min-width: 2561px) { .gate-selftest-near { display: none; } }\n' >> "$tmp"
+  near="$(scan_bp "$tmp" "$tmpix" | grep -c . || true)"
+  [ "$near" -gt "$before" ] \
+    && echo "[gate:bp] self-test OK (2561px sát nấc vẫn bị bắt: $before -> $near)" \
+    || { echo "[gate:bp:FAIL] self-test HỎNG — số sát nấc lách qua"; exit 1; }
   exit 0
 fi
 
@@ -133,6 +156,7 @@ if [ "$count" -gt "$BASELINE_BP" ]; then
   echo "    1024  --bp-tablet-l  tablet NGANG"
   echo "    1280  --bp-desk      màn bàn làm việc"
   echo "    1600  --bp-wide      màn rộng / màn treo tường"
+  echo "    2560  --bp-ultra     desktop 4K / siêu rộng — ĐO BẰNG @container"
   echo ""
   echo "  Chọn bậc GẦN NHẤT, đừng thêm bậc mới. Cần một bậc thật sự mới thì thêm"
   echo "  vào :root, đặt tên theo thiết bị, dùng ở ≥2 nơi, và ghi lý do."

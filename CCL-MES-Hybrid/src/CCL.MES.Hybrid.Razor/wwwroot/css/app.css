@@ -195,12 +195,21 @@
        mà không phải đoán.
        LƯU Ý: CSS chưa cho dùng var() trong điều kiện @media/@container, nên
        thang này là HỢP ĐỒNG + gate, không phải cơ chế runtime. Viết số thật
-       trong @media, nhưng chỉ được viết 5 số dưới đây. */
+       trong @media, nhưng chỉ được viết 6 số dưới đây. */
     --bp-phone:    480px;   /* điện thoại, máy quét cầm tay */
     --bp-tablet-p: 768px;   /* tablet DỌC — bề mặt xưởng chính */
     --bp-tablet-l: 1024px;  /* tablet NGANG */
     --bp-desk:     1280px;  /* màn bàn làm việc */
     --bp-wide:     1600px;  /* màn rộng / màn treo tường */
+    /* Nấc 6, thêm 2026-09-09. Thang cũ dừng ở --bp-wide và gộp CHUNG máy
+       chiếu 1920 với desktop 4K 3840 — hai lớp thiết bị khác hẳn nhau:
+       máy chiếu là NHÌN TỪ XA (cần khối to, ít cột), 4K là NGỒI GẦN (thừa
+       bề ngang, chịu được nhiều cột). Vì gộp chung nên 4K bỏ trống 1360px
+       = 38% bề ngang mà không nấc nào tả được tình trạng đó.
+       ĐO trên @container của .qms-page (đã trừ rail) chứ không đo viewport:
+       1920→1632 · 2560→2272 · 3840→3552. Ngưỡng 2560 nằm giữa 2272 và 3552
+       nên tách đúng 4K mà KHÔNG đụng vào 32" và máy chiếu. */
+    --bp-ultra:    2560px;  /* desktop 4K / siêu rộng — ĐO BẰNG @container */
 }
 /* ── DENSITY: shopfloor ───────────────────────────────────────────────────
    Người dùng: đứng máy, ĐEO GĂNG, nhìn từ xa hơn, ánh sáng xưởng, tay bẩn.
@@ -10378,6 +10387,48 @@ tr.wc-row:hover { background: var(--c-bg); }
     min-width: 0;
 }
 
+/* ĐẶT SAU .iqc-v2-split gốc là BẮT BUỘC: hai rule cùng độ đặc hiệu (0,2,0)
+   nên chỉ thứ tự nguồn phân thắng bại. Bản đầu tôi để khối này cạnh nấc
+   1600 ở trên — trần 220rem ăn, tỉ lệ cột thì bị rule gốc đè, đo ra
+   1712/1712 thay vì 2283/1141. Im lặng, không cảnh báo nào. */
+/* ── 4K / siêu rộng ──────────────────────────────────────────────────────
+   --bp-ultra 2560px. Nấc này tồn tại vì thang cũ dừng ở --bp-wide và gộp
+   CHUNG máy chiếu 1920 với desktop 4K 3840 — hai lớp thiết bị ngược nhau
+   (nhìn từ XA cần khối to ít cột / ngồi GẦN thừa bề ngang). Vì không nấc nào
+   tả được 4K nên Dashboard bỏ trống 1360px = 38% bề ngang.
+
+   ⚠︎ HAI RULE DƯỚI ĐÂY HỎI HAI HỘP KHÁC NHAU. Đây không phải tiểu tiết:
+   root của board là <section class="qms-section iqc-dash iqc-dash-v2">, mà
+   .iqc-dash (bản V1) có khai container-type. Nên .iqc-dash-v2 VỪA LÀ
+   container. Hệ quả:
+     · .iqc-dash-v2      → hỏi tổ tiên gần nhất = .qms-page   (đã trừ rail)
+     · .iqc-v2-split     → hỏi CHÍNH .iqc-dash-v2, tức lòng trong = qms − 64
+   Đo được: VW 2870 → qms 2574 nên trần ăn, nhưng lòng trong chỉ 2510 < 2560
+   nên tỉ lệ cột KHÔNG ăn. Một khối, một con số, hai kết quả — im lặng.
+   Vì lệch đúng 64px (padding) nên dải qms 2560–2624 lấy trần mới mà vẫn chia
+   đều; công thức dưới được chọn để dải đó KHÔNG có bậc nhảy.
+
+   Cột NCC = clamp(68rem, 50%, 79rem), KHÔNG phải tỉ lệ và cũng không phải số
+   cứng. Lý do là tính LIÊN TỤC tại ngưỡng:
+     · ngay dưới ngưỡng auto-fit chia đôi → (2560−32)/2 = 1264px = 79rem
+     · ngay trên ngưỡng clamp cũng cho 1264px  → nối liền, không giật
+   rồi 50% lớn dần bị 79rem chặn, nên NCC đi NGANG và mọi bề ngang thừa chảy
+   sang cột biểu đồ. Hai bản thử trước đều ĐO ra bệnh cũ ở chỗ mới:
+     · 2fr/1fr  → qua ngưỡng NCC CO 1072→827, VW 3000 cột tên còn 262px
+     · 68rem cứng → qua ngưỡng NCC TỤT 1264→1088
+   Cả hai đều là "màn rộng ra thì chỗ hẹp lại" — đúng thứ vừa chữa xong.
+   Trần 220rem giữ lại để 5K/8K không kéo dài vô hạn. */
+@container (min-width: 2560px) {
+    /* hỏi .qms-page */
+    .iqc-dash-v2 { max-width: 220rem; }
+}
+@container (min-width: 2560px) {
+    /* hỏi .iqc-dash-v2 (lòng trong) — xem cảnh báo ở trên */
+    .iqc-dash-v2 .iqc-v2-split {
+        grid-template-columns: minmax(0, 1fr) clamp(68rem, 50%, 79rem);
+    }
+}
+
 .iqc-dash-v2 .iqc-v2-panel {
     background: none;
     border: 0;
@@ -10623,11 +10674,6 @@ tr.wc-row:hover { background: var(--c-bg); }
     .iqc-dash-v2 .iqc-v2-sup-n   { grid-column: 1 / -1; }
 }
 
-/* Panel đủ rộng thì tên về MỘT DÒNG — nhiều dòng làm chiều cao hàng so le. */
-@container (min-width: 1024px) {
-    .iqc-dash-v2 .iqc-v2-sup-name { -webkit-line-clamp: 1; }
-}
-
 /* Cắt chữ TẠI CHỖ, không mượn .iqc-cell-ellipsis: class đó dựa vào
    max-width:0 — một thủ thuật chỉ đúng trong <td> auto-layout. Đặt vào ô
    grid thì nó bóp phần tử về ĐÚNG 0px và tên NCC biến mất hoàn toàn
@@ -10647,9 +10693,14 @@ tr.wc-row:hover { background: var(--c-bg); }
     font-size: var(--d-font);
     font-weight: var(--fw-semibold);
     min-width: 0;
-    /* BA dòng khi panel còn hẹp, một dòng khi panel ≥1024 (xem @container ở
-       trên). Tên dài tới 57 ký tự, trung vị 42, và nhiều tên chỉ khác nhau ở
-       ĐUÔI ("… TẠI BẮC NINH") nên cắt là mất đúng phần phân biệt. */
+    /* TỐI ĐA BA DÒNG ở mọi khổ. Bản trước có thêm một rule ép về MỘT dòng khi
+       panel ≥1024 — đo ra nó CHẾT: đặt trước khối này, cùng độ đặc hiệu (0,2,0)
+       nên bị chính khối này đè, computed vẫn ra 3 ở panel 1264. Đã xoá thay vì
+       hồi sinh, vì số đo ủng hộ việc XUỐNG DÒNG: để nguyên thì 0/13 tên bị cắt
+       ở mọi khổ từ 507px trở lên, còn ép một dòng thì tên dài bị nuốt đuôi —
+       mà tên dài tới 57 ký tự, trung vị 42, nhiều tên chỉ khác nhau Ở ĐUÔI
+       ("… TẠI BẮC NINH"), tức cắt là mất đúng phần phân biệt.
+       Hàng cao so le đổi lấy tên đọc được — đánh đổi đó là cố ý. */
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
