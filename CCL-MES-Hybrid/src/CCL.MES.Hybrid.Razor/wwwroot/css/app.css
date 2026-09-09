@@ -11078,7 +11078,12 @@ tr.wc-row:hover { background: var(--c-bg); }
     grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: var(--sp-1);
     align-items: end;
-    height: 5rem;
+    /* 5rem → 7rem + padding-top: chỗ cho HÀNG SỐ trên đầu cột. Số là flex item
+       trong khe, nên nếu không nới thì cột cao nhất phải co lại nhường chỗ và
+       cả biểu đồ lùn đi. Nới đúng bằng phần thêm vào thì cột cao nhất vẫn giữ
+       nguyên tầm, chỉ nhích lên vài px. */
+    height: 7rem;
+    padding-top: var(--sp-3);
     border-bottom: 1px solid var(--iqc-n300);
 }
 
@@ -11099,6 +11104,19 @@ tr.wc-row:hover { background: var(--c-bg); }
     background: var(--iqc-cyan);
 }
 
+/* Số ca trên đầu cột. justify-content:flex-end của khe dồn cả cụm xuống đáy,
+   nên số bám SÁT nóc cột chứ không lơ lửng ở đỉnh khung — cột thấp thì số
+   thấp theo. tabular-nums để 12 con số không nhảy bề rộng. */
+.iqc-ng-dash .iqc-ng-tn {
+    font-size: var(--fs-2xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--iqc-n700);
+    font-weight: var(--fw-semibold);
+    line-height: 1.2;
+    overflow: hidden;
+    max-width: 100%;
+}
+
 .iqc-ng-dash .iqc-ng-tm {
     font-size: var(--fs-2xs);
     color: var(--iqc-n600);
@@ -11106,7 +11124,14 @@ tr.wc-row:hover { background: var(--c-bg); }
     max-width: 100%;
 }
 
-/* --bp-phone: 12 khe không còn chỗ cho nhãn tháng. */
-@media (max-width: 480px) {
-    .iqc-ng-dash .iqc-ng-tm { display: none; }
+/* --bp-phone: 12 khe không còn chỗ cho nhãn tháng lẫn hàng số.
+   @container chứ không @media, để ĐỒNG HỆ QUY CHIẾU với các rule lưới thẻ ở
+   trên: bề rộng thật đổi theo rail đang mở hay thu (240/64), viewport không
+   biết điều đó.
+   Container ở đây là .qms-page, KHÔNG phải .iqc-ng-dash — root board là
+   <div class="iqc-ng-dash"> trần, không hề khai container-type (đã kiểm, đừng
+   tin trí nhớ: đây đúng là chỗ L79 bảo phải xác minh chứ không được đoán). */
+@container (max-width: 480px) {
+    .iqc-ng-dash .iqc-ng-tm,
+    .iqc-ng-dash .iqc-ng-tn { display: none; }
 }

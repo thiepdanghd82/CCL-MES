@@ -1,3 +1,4 @@
+using System.Linq;
 using Bunit;
 using Bunit.TestDoubles;
 using CCL.MES.Hybrid.Client;
@@ -118,6 +119,16 @@ public sealed class IqcNgBoardTests : TestContext
         // Xu hướng LUÔN đủ 12 cột, kể cả tháng 0 vụ — thiếu cột thì trục co
         // lại và tháng im lặng trông như không tồn tại.
         Assert.Equal(12, cut.FindAll("[data-testid=iqc-ng-trend] .iqc-ng-tslot").Count);
+        // Hàng SỐ trên đầu cột: đủ 12 ô để 12 khe cao bằng nhau, nhưng tháng 0
+        // vụ để TRỐNG chứ không in "0" — fixture chỉ tháng 3 có 9 vụ, nên đúng
+        // MỘT ô có chữ. Nếu ai đó đổi sang in "0" thì dòng này đỏ ngay, và đó
+        // là chủ ý: 12 con số dày đặc thì mắt phải lọc, cột cao 0 đã tự nói.
+        var tn = cut.FindAll("[data-testid=iqc-ng-trend] .iqc-ng-tn");
+        Assert.Equal(12, tn.Count);
+        Assert.Equal(new[] { "9" },
+            tn.Select(x => x.TextContent.Trim()).Where(t => t.Length > 0).ToArray());
+        Assert.Equal("9", cut.FindAll("[data-testid=iqc-ng-trend] .iqc-ng-tslot")[2]
+            .QuerySelector(".iqc-ng-tn")!.TextContent.Trim());
         // Bốn khối phải là bốn THẺ trong MỘT lưới — nếu ai đó tách chúng ra
         // khỏi lưới thì bề rộng thừa lại thành khoảng trống bên phải thay vì
         // thành thêm cột, đúng lỗi lệch khổ 26–57% so với bảng đã sửa.

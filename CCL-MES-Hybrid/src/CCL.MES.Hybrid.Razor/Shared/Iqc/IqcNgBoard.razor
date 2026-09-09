@@ -127,6 +127,9 @@
                     @foreach (var m in _sum.Monthly)
                     {
                         <span class="iqc-ng-tslot" title="@($"{T($"iqc.dash.month.{m.Month}")} — {m.Count}")">
+                            @* Tháng 0 ca để TRỐNG chứ không in "0": 12 khe mà tháng nào cũng
+                               có số thì mắt phải lọc, trong khi cột cao 0 đã tự nói. *@
+                            <span class="iqc-ng-tn">@(m.Count > 0 ? FmtInt(m.Count) : "")</span>
                             <span class="iqc-ng-tbar" style="height:@Css(100.0 * m.Count / TrendMax)"></span>
                             <span class="iqc-ng-tm">@T($"iqc.dash.month.short.{m.Month}")</span>
                         </span>
