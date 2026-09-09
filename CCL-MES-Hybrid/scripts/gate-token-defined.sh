@@ -72,6 +72,28 @@ for g in ghosts:
 PY
 }
 
+
+# (B) L76 — dấu ĐÓNG COMMENT mồ côi. `/* … --warn*/--brand* … */` đóng comment
+# ngay tại `*/` giữa câu; phần còn lại rơi ra ngoài thành CSS rác và NUỐT khai
+# báo/rule ngay sau đó. Im lặng tuyệt đối: không cảnh báo, không lỗi build.
+scan_orphan_close() {
+  python3 - "$@" <<'PYO'
+import sys
+tot=0
+for path in sys.argv[1:]:
+    s=open(path,encoding='utf-8').read(); i=0; depth=0
+    while i < len(s)-1:
+        if s[i]=='/' and s[i+1]=='*' and depth==0: depth=1; i+=2; continue
+        if s[i]=='*' and s[i+1]=='/':
+            if depth==1: depth=0
+            else:
+                print(f"{path.split('/')[-1]}\t{s.count(chr(10),0,i)+1}")
+                tot+=1
+            i+=2; continue
+        i+=1
+PYO
+}
+
 if [ "${1:-}" = "--self-test" ]; then
   tmp="$(mktemp)"; tmpix="$(mktemp)"
   trap 'rm -f "$tmp" "$tmpix"' EXIT
@@ -95,7 +117,41 @@ if [ "${1:-}" = "--self-test" ]; then
     echo "[gate:token-defined:FAIL] self-test HỎNG — dạng có fallback bị báo nhầm là ma"
     exit 1
   fi
+
+  # (B) comment bị đóng sớm phải bị bắt; comment lành KHÔNG được báo nhầm.
+  cp "$CSS" "$tmp"
+  printf '\n/* thang chu --fs-%s--ui-scale ghi tat */\n.gate-selftest-cm { color: red; }\n' '*/' >> "$tmp"
+  if [ "$(scan_orphan_close "$tmp" | grep -c . || true)" -gt 0 ]; then
+    echo "[gate:token-defined] self-test OK (dấu đóng-comment mồ côi bị bắt)"
+  else
+    echo "[gate:token-defined:FAIL] self-test HỎNG — comment vỡ lọt qua"
+    exit 1
+  fi
+  cp "$CSS" "$tmp"
+  printf '\n/* comment lanh, khong ghi tat */\n.gate-selftest-cm2 { color: red; }\n' >> "$tmp"
+  if [ "$(scan_orphan_close "$tmp" | grep -c . || true)" -eq 0 ]; then
+    echo "[gate:token-defined] self-test OK (comment lành KHÔNG bị báo nhầm)"
+  else
+    echo "[gate:token-defined:FAIL] self-test HỎNG — comment lành bị báo nhầm"
+    exit 1
+  fi
   exit 0
+fi
+
+orphan="$(scan_orphan_close "$CSS" "$IX")"
+ocount="$(printf '%s' "$orphan" | grep -c . || true)"
+echo "[gate:token-defined] dấu đóng-comment mồ côi     = $ocount (bắt buộc 0)"
+if [ "$ocount" -gt 0 ]; then
+  echo "[gate:token-defined:FAIL] comment bị đóng SỚM — CSS sau đó thành rác:"
+  printf '%s\n' "$orphan" | while IFS=$'\t' read -r f ln; do
+    [ -z "$f" ] && continue; echo "    $f dòng $ln"
+  done
+  echo ""
+  echo "  Nguyên nhân thường gặp: viết tên token có dấu sao rồi gạch chéo ngay"
+  echo "  sau (ví dụ hai họ token nối nhau) — chuỗi đó ĐÓNG comment giữa câu."
+  echo "  Đã xảy ra 2 lần trong app.css: một lần giết cả rule .legs-dashboard."
+  echo "  Sửa: viết tên token đầy đủ, đừng ghi tắt bằng dấu sao trong comment."
+  exit 1
 fi
 
 ghosts="$(scan_ghosts "$CSS" "$IX")"

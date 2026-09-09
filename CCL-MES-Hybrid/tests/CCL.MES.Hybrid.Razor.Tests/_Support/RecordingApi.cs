@@ -1042,18 +1042,19 @@ public sealed class RecordingApi : ICclApiClient
     }
 
     // feat/iqc-module-tabs — IQC Data list + Dashboard KPI hooks.
-    public Func<string?, string?, int, int, Task<CCL.MES.Shared.Quality.IqcTicketListResponse>>? ListIqcTicketsImpl { get; set; }
-    public List<(string? Group, string? Search, int Page, int PageSize)> ListIqcTicketsCalls { get; } = new();
+    public Func<string?, string?, string?, int, int, Task<CCL.MES.Shared.Quality.IqcTicketListResponse>>? ListIqcTicketsImpl { get; set; }
+    public List<(string? Group, string? Search, string? Result, int Page, int PageSize)> ListIqcTicketsCalls { get; } = new();
     public Func<int?, int?, Task<CCL.MES.Shared.Quality.IqcDashboardResponse>>? IqcDashboardImpl { get; set; }
     public List<(int? Year, int? Month)> IqcDashboardCallsLog { get; } = new();
     public int IqcDashboardCalls { get; private set; }
 
     public Task<CCL.MES.Shared.Quality.IqcTicketListResponse> ListIqcTicketsAsync(
-        string? group, string? search, int page = 1, int pageSize = 20, CancellationToken ct = default)
+        string? group, string? search, string? result = null,
+        int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
-        ListIqcTicketsCalls.Add((group, search, page, pageSize));
+        ListIqcTicketsCalls.Add((group, search, result, page, pageSize));
         return ListIqcTicketsImpl is not null
-            ? ListIqcTicketsImpl(group, search, page, pageSize)
+            ? ListIqcTicketsImpl(group, search, result, page, pageSize)
             : Task.FromResult(new CCL.MES.Shared.Quality.IqcTicketListResponse
             {
                 Page = page, PageSize = pageSize, Total = 0,

@@ -62,8 +62,11 @@ public interface ICclApiClient
         CCL.MES.Shared.Quality.CreateIqcTicketBody body, CancellationToken ct = default);
 
     // ── IQC module tabs (feat/iqc-module-tabs) ─────────────────────
+    /// <summary><paramref name="result"/> = Pending/Pass/Fail (null = tất cả).
+    /// Lọc ở SERVER — bảng &gt;5.000 phiếu chia trang, lọc client sẽ trả thiếu.</summary>
     Task<CCL.MES.Shared.Quality.IqcTicketListResponse> ListIqcTicketsAsync(
-        string? group, string? search, int page = 1, int pageSize = 20, CancellationToken ct = default);
+        string? group, string? search, string? result = null,
+        int page = 1, int pageSize = 20, CancellationToken ct = default);
     Task<CCL.MES.Shared.Quality.IqcDashboardResponse> GetIqcDashboardAsync(
         int? year = null, int? month = null, CancellationToken ct = default);
     Task<CCL.MES.Shared.Quality.IqcHistoryListResponse> ListIqcHistoryAsync(

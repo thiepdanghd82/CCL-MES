@@ -89,11 +89,11 @@
    Rail cố định bên trái, nội dung cuộn độc lập. Rail là hằng số thị giác. */
 
 .app-shell {
-    grid-template-columns: var(--ix-rail-w) 1fr;
+    grid-template-columns: var(--ix-rail-w) minmax(0, 1fr);
     background: var(--ix-canvas);
     transition: grid-template-columns var(--mo-base) var(--ease-std);
 }
-.app-shell[data-rail="collapsed"] { grid-template-columns: var(--ix-rail-w-collapsed) 1fr; }
+.app-shell[data-rail="collapsed"] { grid-template-columns: var(--ix-rail-w-collapsed) minmax(0, 1fr); }
 
 .app-nav {
     background: var(--ix-chrome);

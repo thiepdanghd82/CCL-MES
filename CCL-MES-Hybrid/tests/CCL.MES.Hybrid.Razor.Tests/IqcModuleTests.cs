@@ -207,28 +207,43 @@ public sealed class IqcModuleTests : TestContext
         Assert.Equal(12, cut.FindAll("[data-testid=iqc-dash-trend] .iqc-month-cell-m").Count);
         Assert.Equal(12, cut.FindAll("[data-testid=iqc-dash-trend] .iqc-month-cell-ng").Count);
         Assert.Equal(12, cut.FindAll("[data-testid=iqc-dash-trend] .iqc-month-cell-pct").Count);
-        Assert.NotNull(cut.Find(".iqc-trend-sync [data-testid=iqc-dash-volume]"));
-        Assert.NotNull(cut.Find(".iqc-trend-sync [data-testid=iqc-dash-trend]"));
-        Assert.Empty(cut.FindAll("[data-testid=iqc-dash-volume] .iqc-svg-x-flat"));
-        Assert.NotNull(cut.Find("[data-testid=iqc-dash-volume]"));
-        // L72 — SVG labels must NOT carry font-size in user units (grows on wide screens).
-        Assert.DoesNotContain("font-size=", cut.Find("[data-testid=iqc-dash-volume]").OuterHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("font-size=", cut.Find("[data-testid=iqc-dash-pareto-chart]").OuterHtml, StringComparison.Ordinal);
-        Assert.Contains("iqc-svg-bars-soft", cut.Find("[data-testid=iqc-dash-volume]").OuterHtml, StringComparison.Ordinal);
-        Assert.Contains("class=\"iqc-svg-bars\"", cut.Find("[data-testid=iqc-dash-pareto-chart]").OuterHtml, StringComparison.Ordinal);
-        Assert.NotNull(cut.Find(".iqc-swatch-ice"));
-        Assert.NotNull(cut.Find(".iqc-kcard-slate"));
-        // Pareto có biểu đồ cột + đường luỹ kế, không chỉ là bảng số.
-        Assert.NotNull(cut.Find(".iqc-chart-host > .iqc-chart-scale [data-testid=iqc-dash-pareto-chart]"));
-        Assert.NotNull(cut.Find(".iqc-chart-host [data-testid=iqc-dash-pareto-chart] polyline.iqc-chart-line"));
-        var paretoSvg = cut.Find("[data-testid=iqc-dash-pareto-chart]");
-        Assert.Contains("iqc-svg-pareto", paretoSvg.GetAttribute("class") ?? "", StringComparison.Ordinal);
-        Assert.Equal("none", paretoSvg.GetAttribute("preserveAspectRatio"));
-        Assert.Equal("0 0 1000 880", paretoSvg.GetAttribute("viewBox"));
-        Assert.NotNull(cut.Find(".iqc-trend-sync-inner > .iqc-chart-scale [data-testid=iqc-dash-volume]"));
-        // Xu hướng: %NG là ĐƯỜNG trên trục phải, tách khỏi cột số lô.
-        Assert.NotNull(cut.Find("[data-testid=iqc-dash-volume] polyline.iqc-chart-line"));
-        Assert.Empty(cut.FindAll("[data-testid=iqc-dash-volume] .iqc-chart-bar-ng"));
+        // ── Dashboard v2 (Broadsheet) — biểu đồ là DOM, không còn SVG ──
+        // Pareto NGANG: mỗi lỗi một <tr>, nên vẫn đếm được tr.is-focus như v1
+        // (test ngưỡng ưu tiên bên dưới dựa vào đúng chỗ đó).
+        Assert.Equal(2, cut.FindAll("[data-testid=iqc-dash-pareto] .iqc-v2-par-row").Count);
+        Assert.NotNull(cut.Find("[data-testid=iqc-dash-pareto] .iqc-v2-cut"));
+        // Ngưỡng chạy bằng CSS var, KHÔNG bằng JS — nếu ai đó gắn lại JSInterop
+        // để vẽ đường cắt thì assert này là chỗ nó gãy.
+        Assert.Contains("--iqc-par-n:",
+            cut.Find("[data-testid=iqc-dash-pareto]").GetAttribute("style") ?? "");
+        Assert.DoesNotContain("<svg", cut.Find("[data-testid=iqc-dash-pareto]").OuterHtml,
+            StringComparison.OrdinalIgnoreCase);
+
+        // Xu hướng 12 tháng: 12 cột div, không polyline.
+        Assert.Equal(12, cut.FindAll("[data-testid=iqc-dash-volume] .iqc-v2-tbar-slot").Count);
+        Assert.DoesNotContain("<svg", cut.Find("[data-testid=iqc-dash-volume]").OuterHtml,
+            StringComparison.OrdinalIgnoreCase);
+
+        // Hai khối trả lời "hôm nay làm gì" — lý do chính của bản v2.
+        Assert.NotNull(cut.Find(".iqc-v2-verdict .iqc-v2-headline"));
+        Assert.NotNull(cut.Find(".iqc-v2-decide"));
+        // Fixture có WideOosLots=1 · ClaimNgLots=2 · Pending=10 ⇒ đủ ba việc.
+        Assert.Equal(3, cut.FindAll(".iqc-v2-decide .iqc-v2-decide-row").Count);
+
+        // Số dẫn: một %NG lớn, bấm được (drill sang IQC Data).
+        Assert.Contains("%", cut.Find("[data-testid=iqc-kpi-failrate]").TextContent);
+        Assert.Equal("button", cut.Find("[data-testid=iqc-kpi-lead]").TagName,
+            StringComparer.OrdinalIgnoreCase);
+
+        // NCC gộp theo HÀNH ĐỘNG, không còn bảng phẳng.
+        Assert.NotNull(cut.Find("[data-testid=iqc-sup-band-car]"));
+        Assert.NotNull(cut.Find("[data-testid=iqc-sup-band-watch]"));
+        // Tên NCC KHÔNG được mượn .iqc-cell-ellipsis: class đó dùng max-width:0,
+        // đúng trong <td> nhưng trong ô grid thì bóp tên về 0px và tên biến mất
+        // (đã đo trên bản dựng thật trước khi sửa).
+        Assert.DoesNotContain("iqc-cell-ellipsis",
+            cut.Find("[data-testid=iqc-dash-suppliers]").OuterHtml, StringComparison.Ordinal);
+
         Assert.Empty(cut.FindAll(".iqc-dash-grid.qms-fill"));
         Assert.NotNull(cut.Find(".iqc-dash-hero"));
         Assert.NotNull(cut.Find(".iqc-kpis"));
@@ -260,6 +275,52 @@ public sealed class IqcModuleTests : TestContext
         Assert.Contains("--iqc-ng-line: #B4342A", css, StringComparison.Ordinal);
         Assert.Contains("--iqc-gold: #C8871B", css, StringComparison.Ordinal);
         Assert.DoesNotContain("1000px / 100cqw", css, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Dashboard_supplier_name_opens_that_suppliers_NG_lots()
+    {
+        Wire();
+        _api.IqcDashboardImpl = (_, _) => Task.FromResult(new IqcDashboardResponse
+        {
+            Year = 2026,
+            AvailableYears = new List<int> { 2026 },
+            Total = 100, Pass = 90, Fail = 10, PassRate = 0.9, FailRate = 0.1,
+            MonthlyTrend = Enumerable.Range(1, 12).Select(m => new IqcMonthlyTrendRow { Month = m }).ToList(),
+            Suppliers = new List<IqcSupplierStatRow>
+            {
+                // >5% ⇒ nằm ở dải "yêu cầu CAR", là dải đầu tiên.
+                new() { Supplier = "Vietnam Paper Tube Co.", Lots = 10, Ng = 3, NgRate = 0.3, NqDefects = 5 },
+            },
+        });
+        _api.ListIqcTicketsImpl = (_, _, _, _, _) => Task.FromResult(new IqcTicketListResponse
+        {
+            Page = 1, PageSize = 20, Total = 0, Items = new List<IqcTicketListItem>(),
+        });
+
+        var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
+
+        // Tên NCC phải là NÚT — không phải nhãn tĩnh.
+        var name = cut.Find("[data-testid=iqc-dash-suppliers] [data-testid=iqc-sup-name]");
+        Assert.Equal("button", name.TagName, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("Vietnam Paper Tube Co.", name.TextContent);
+
+        name.Click();
+
+        // Sang tab dữ liệu, LỌC Ở SERVER theo đúng NCC đó + chỉ lô NG.
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(cut.Find("[data-testid=iqc-data]"));
+            var last = _api.ListIqcTicketsCalls[^1];
+            Assert.Equal("Vietnam Paper Tube Co.", last.Search);
+            Assert.Equal("Fail", last.Result);
+            Assert.Equal(1, last.Page);
+        });
+        // Ô tìm kiếm hiện đúng cái đang lọc, để người dùng biết vì sao list ngắn.
+        Assert.Equal("Vietnam Paper Tube Co.", cut.Find("[data-testid=iqc-data-search]").GetAttribute("value"));
+        // Chip trạng thái "Fail" đang bật.
+        Assert.Contains("iqc-chip-on",
+            cut.Find("[data-testid=iqc-data-result-fail]").GetAttribute("class") ?? "");
     }
 
     [Fact]
@@ -464,7 +525,7 @@ public sealed class IqcModuleTests : TestContext
             LotBatchNo = "LOT-OPEN", Inspector = "qc-user",
             Result = "Pass", ReceivedDate = DateTime.UtcNow,
         };
-        _api.ListIqcTicketsImpl = (_, _, _, _) => Task.FromResult(new IqcTicketListResponse
+        _api.ListIqcTicketsImpl = (_, _, _, _, _) => Task.FromResult(new IqcTicketListResponse
         { Total = 1, Page = 1, PageSize = 20, Items = new() { row } });
 
         var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
@@ -497,7 +558,7 @@ public sealed class IqcModuleTests : TestContext
             CodeIfs = "MC-DBL", MaterialDescription = "Dán đôi", Result = "Pending",
             ReceivedDate = DateTime.UtcNow,
         };
-        _api.ListIqcTicketsImpl = (_, _, _, _) => Task.FromResult(new IqcTicketListResponse
+        _api.ListIqcTicketsImpl = (_, _, _, _, _) => Task.FromResult(new IqcTicketListResponse
         { Total = 1, Page = 1, PageSize = 20, Items = new() { row } });
 
         var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
@@ -520,7 +581,7 @@ public sealed class IqcModuleTests : TestContext
             Id = 7, ReceiptNo = "IQC-260819-0007", Group = "Materials",
             CodeIfs = "MC-DUP", Result = "Pending", ReceivedDate = DateTime.UtcNow,
         };
-        _api.ListIqcTicketsImpl = (_, _, _, _) => Task.FromResult(new IqcTicketListResponse
+        _api.ListIqcTicketsImpl = (_, _, _, _, _) => Task.FromResult(new IqcTicketListResponse
         { Total = 1, Page = 1, PageSize = 20, Items = new() { row } });
 
         var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
@@ -624,7 +685,7 @@ public sealed class IqcModuleTests : TestContext
     public void Iqc_data_tab_renders_list_with_rowcontextmenu_no_actions_column()
     {
         Wire();
-        _api.ListIqcTicketsImpl = (_, _, _, _) => Task.FromResult(new IqcTicketListResponse
+        _api.ListIqcTicketsImpl = (_, _, _, _, _) => Task.FromResult(new IqcTicketListResponse
         {
             Total = 2, Page = 1, PageSize = 20,
             Items = new()
@@ -658,7 +719,7 @@ public sealed class IqcModuleTests : TestContext
     public void Iqc_data_nut_x_xoa_tim_kiem()
     {
         Wire();
-        _api.ListIqcTicketsImpl = (_, _, _, _) => Task.FromResult(new IqcTicketListResponse
+        _api.ListIqcTicketsImpl = (_, _, _, _, _) => Task.FromResult(new IqcTicketListResponse
         { Total = 0, Page = 1, PageSize = 20, Items = new() });
 
         var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));
@@ -679,7 +740,7 @@ public sealed class IqcModuleTests : TestContext
     {
         Wire();
         var expiry = DateTime.Today.AddDays(45);
-        _api.ListIqcTicketsImpl = (_, _, _, _) => Task.FromResult(new IqcTicketListResponse
+        _api.ListIqcTicketsImpl = (_, _, _, _, _) => Task.FromResult(new IqcTicketListResponse
         {
             Total = 1, Page = 1, PageSize = 20,
             Items = new()
@@ -703,7 +764,7 @@ public sealed class IqcModuleTests : TestContext
     public void Iqc_data_group_filter_passes_group_to_api()
     {
         Wire();
-        _api.ListIqcTicketsImpl = (_, _, _, _) => Task.FromResult(new IqcTicketListResponse
+        _api.ListIqcTicketsImpl = (_, _, _, _, _) => Task.FromResult(new IqcTicketListResponse
         { Total = 0, Page = 1, PageSize = 20, Items = new() });
 
         var cut = RenderComponent<IqcModule>(p => p.Add(x => x.DebounceMs, 0));

@@ -19,6 +19,9 @@
 #   --bp-phone 480 · --bp-tablet-p 768 · --bp-tablet-l 1024 · --bp-desk 1280
 #   --bp-wide 1600
 #
+# Detector quy rem/em về px @16 — cùng một ngưỡng viết bằng đơn vị khác vẫn là
+# ngưỡng đó, không phải ngoại lệ.
+#
 # LƯU Ý KỸ THUẬT: CSS chưa cho dùng var() trong điều kiện @media/@container,
 # nên thang này là HỢP ĐỒNG + gate chứ không phải cơ chế runtime. Vẫn viết số
 # thật trong @media, nhưng chỉ được viết 5 số trên. Cách này y hệt cách L41
@@ -61,8 +64,13 @@ for m in re.finditer(r'@(media|container)([^{]*)\{', src):
     cond = m.group(2)
     if 'print' in cond or 'prefers-reduced-motion' in cond:
         continue
-    for w in re.finditer(r'(?:min|max)-width\s*:\s*(\d+)px', cond):
-        px = int(w.group(1))
+    # rem/em quy về px @16: viết `60rem` thay vì `960px` KHÔNG phải là một
+    # ngoại lệ, chỉ là cùng ngưỡng đó viết bằng đơn vị khác. Bản đầu của gate
+    # chỉ quét `px` nên hai ngưỡng 60rem/48rem lọt hoàn toàn — đúng kiểu lách
+    # mà gate này sinh ra để chặn.
+    for w in re.finditer(r'(?:min|max)-width\s*:\s*([\d.]+)(px|rem|em)', cond):
+        v, unit = float(w.group(1)), w.group(2)
+        px = int(round(v if unit == 'px' else v * 16))
         if px not in SCALE:
             found[px] = found.get(px, 0) + 1
 
@@ -88,6 +96,22 @@ if [ "${1:-}" = "--self-test" ]; then
   [ "$ok" -eq "$before" ] \
     && echo "[gate:bp] self-test OK (ngưỡng TRONG thang 768px KHÔNG bị báo nhầm)" \
     || { echo "[gate:bp:FAIL] self-test HỎNG — ngưỡng hợp lệ bị báo nhầm"; exit 1; }
+
+  # rem phải bị bắt y như px — 60rem = 960px, ngoài thang.
+  cp "$CSS" "$tmp"
+  printf '\n@media (max-width: 60rem) { .gate-selftest-rem { display: none; } }\n' >> "$tmp"
+  rem="$(scan_bp "$tmp" "$tmpix" | grep -c . || true)"
+  [ "$rem" -gt "$before" ] \
+    && echo "[gate:bp] self-test OK (ngưỡng viết bằng rem cũng bị bắt: 60rem -> 960px)" \
+    || { echo "[gate:bp:FAIL] self-test HỎNG — rem lách qua detector"; exit 1; }
+
+  # 48rem = 768px nằm TRONG thang ⇒ không được báo nhầm.
+  cp "$CSS" "$tmp"
+  printf '\n@media (max-width: 48rem) { .gate-selftest-remok { display: none; } }\n' >> "$tmp"
+  remok="$(scan_bp "$tmp" "$tmpix" | grep -c . || true)"
+  [ "$remok" -eq "$before" ] \
+    && echo "[gate:bp] self-test OK (48rem = 768px trong thang, không báo nhầm)" \
+    || { echo "[gate:bp:FAIL] self-test HỎNG — rem hợp lệ bị báo nhầm"; exit 1; }
   exit 0
 fi
 

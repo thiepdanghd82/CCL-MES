@@ -168,11 +168,13 @@ public sealed class CclApiClient : ICclApiClient
     // ── IQC module tabs (feat/iqc-module-tabs) ─────────────────────
 
     public async Task<CCL.MES.Shared.Quality.IqcTicketListResponse> ListIqcTicketsAsync(
-        string? group, string? search, int page = 1, int pageSize = 20, CancellationToken ct = default)
+        string? group, string? search, string? result = null,
+        int page = 1, int pageSize = 20, CancellationToken ct = default)
     {
         var qs = new List<string> { $"page={page}", $"pageSize={pageSize}" };
         if (!string.IsNullOrWhiteSpace(group)) qs.Add($"group={Uri.EscapeDataString(group)}");
         if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
+        if (!string.IsNullOrWhiteSpace(result)) qs.Add($"result={Uri.EscapeDataString(result)}");
         var url = $"/{ApiVersion.Prefix}/iqc/tickets?" + string.Join("&", qs);
         using var resp = await _http.GetAsync(url, ct);
         return await ReadAsAsync<CCL.MES.Shared.Quality.IqcTicketListResponse>(resp, ct);

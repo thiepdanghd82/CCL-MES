@@ -456,5 +456,51 @@ public sealed partial class TranslationCatalog
                                            "At least one quantity (m², qty, or rolls) is required.");
         Add("iqc.ng.quantity_must_be_positive", "Số lượng phải lớn hơn 0.",        "Quantity must be greater than 0.");
         Add("iqc.ng.material_required",    "Cần PartNo (hoặc phiếu IQC / lô).",    "PartNo (or an IQC ticket / lot) is required.");
+
+        // ── Dashboard v2 (hệ Broadsheet) ─────────────────────────────────
+        // Số dẫn + kết luận tự sinh + khối "cần quyết định". Nhãn giữ giọng
+        // VẬN HÀNH (làm gì tiếp) chứ không phải giọng báo cáo (đã xảy ra gì).
+        Add("iqc.dash.v2.export",          "Xuất Excel",                          "Export");
+        Add("iqc.dash.v2.print",           "In",                                  "Print");
+        Add("iqc.dash.v2.lead.of",         "{0} lô NG trên {1} lô đã kiểm",        "{0} NG lots of {1} inspected");
+
+        Add("iqc.dash.v2.verdict.kicker",  "Kết luận",                            "Verdict");
+        Add("iqc.dash.v2.verdict.nodata",  "Chưa có phiếu nào trong kỳ đã chọn.", "No tickets in the selected period.");
+        Add("iqc.dash.v2.verdict.flat",    "Tỷ lệ NG kỳ này là {0}.",              "NG rate for this period is {0}.");
+        Add("iqc.dash.v2.verdict.flat.two", "{0} giữ nguyên ở {1}, ngang {2} ({3}).",
+                                           "{0} holds at {1}, level with {2} ({3}).");
+        Add("iqc.dash.v2.verdict.up",      "{0} TĂNG lên {1}, cao hơn {2} ({3}).",
+                                           "{0} ROSE to {1}, above {2} ({3}).");
+        Add("iqc.dash.v2.verdict.down",    "{0} GIẢM còn {1}, thấp hơn {2} ({3}).",
+                                           "{0} FELL to {1}, below {2} ({3}).");
+        Add("iqc.dash.v2.verdict.stand",   "{0} chiếm {1} số lỗi; nặng nhất là {2} ({3}).",
+                                           "{0} account for {1} of defects; worst supplier {2} ({3}).");
+        Add("iqc.dash.v2.verdict.stand.nosup", "{0} chiếm {1} số lỗi.",            "{0} account for {1} of defects.");
+
+        Add("iqc.dash.v2.par.cut",         "dạng lỗi đầu đã chạm ngưỡng {0}%",     "top defect types reach the {0}% mark");
+
+        Add("iqc.dash.v2.decide.title",    "Cần quyết định hôm nay",              "Decide today");
+        Add("iqc.dash.v2.decide.none",     "Không có việc nào phải quyết hôm nay.", "Nothing needs a decision today.");
+        Add("iqc.dash.v2.decide.wide",     "lô sai lệch kích thước diện rộng — chốt xử lý",
+                                           "lots with wide dimensional OOS — settle disposition");
+        Add("iqc.dash.v2.decide.claim",    "vụ NG đã có claim — theo tiến độ bồi thường",
+                                           "NG cases with a claim — chase settlement");
+        Add("iqc.dash.v2.decide.pending",  "phiếu còn chờ kiểm — phân công người kiểm",
+                                           "tickets still pending — assign an inspector");
+
+        Add("iqc.dash.v2.act.view",        "Xem",                                 "View");
+        Add("iqc.dash.v2.act.car",         "Mở CAR",                              "Open CAR");
+        Add("iqc.dash.v2.act.pin",         "Ghim",                                "Pin");
+
+        Add("iqc.dash.v2.sup.car",         "Vượt 5% — yêu cầu CAR",               "Above 5% — request a CAR");
+        Add("iqc.dash.v2.sup.watch",       "2–5% — theo dõi",                     "2–5% — watch");
+        Add("iqc.dash.v2.sup.none",        "Không có NCC nào trong nhóm này.",    "No suppliers in this band.");
+        Add("iqc.dash.v2.sup.lots",        "{0} NG / {1} lô",                     "{0} NG / {1} lots");
+        Add("iqc.dash.v2.sup.open",        "Xem các lô NG của {0}",                "Show NG lots of {0}");
+        Add("iqc.data.result.label",       "Trạng thái",                          "Result");
+        Add("iqc.dash.v2.sup.more",        "+{0} NCC nữa trong nhóm này — xem tất cả",
+                                           "+{0} more suppliers in this band — see all");
+        Add("iqc.dash.v2.sup.rest",        "{0} NCC còn lại dưới 2% ({1}) — xem tất cả",
+                                           "{0} other suppliers under 2% ({1}) — see all");
     }
 }

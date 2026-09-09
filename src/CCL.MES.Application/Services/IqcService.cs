@@ -936,10 +936,16 @@ public class IqcService
 
     /// <summary>Danh sách phiếu IQC đã lưu cho tab "IQC Data" — trả DTO thuần
     /// (KHÔNG entity). Lọc theo <paramref name="group"/> (null = tất cả) +
-    /// search (ReceiptNo/CodeIfs/MaterialDescription/PartNo/Supplier). Sort mới
-    /// nhất trước. Thuần đọc.</summary>
+    /// search (ReceiptNo/CodeIfs/MaterialDescription/PartNo/Supplier) +
+    /// <paramref name="result"/> (Pending/Pass/Fail; giá trị lạ = tất cả).
+    /// Sort mới nhất trước. Thuần đọc.
+    ///
+    /// <para>Lọc <paramref name="result"/> phải ở SERVER: bảng có hơn 5.000
+    /// phiếu chia trang 20, lọc phía client chỉ lọc được TRANG ĐANG XEM nên
+    /// "tất cả lô NG của NCC X" sẽ trả thiếu.</para></summary>
     public async Task<IqcTicketPage> ListTicketsAsync(
-        string? group, string? search, int page, int pageSize, CancellationToken ct = default)
+        string? group, string? search, string? result, int page, int pageSize,
+        CancellationToken ct = default)
     {
         var q = _db.IqcInspections.AsNoTracking()
             .OrderByDescending(x => x.ReceivedDate)
@@ -951,6 +957,10 @@ public class IqcService
             var g = IqcGroup.Normalize(group);
             q = q.Where(x => x.Group == g);
         }
+
+        // Giá trị lạ bị BỎ QUA (= tất cả), không throw: query string do UI gửi.
+        if (Enum.TryParse<QcResult>(result, ignoreCase: true, out var wanted))
+            q = q.Where(x => x.Result == wanted);
 
         if (!string.IsNullOrWhiteSpace(search))
         {

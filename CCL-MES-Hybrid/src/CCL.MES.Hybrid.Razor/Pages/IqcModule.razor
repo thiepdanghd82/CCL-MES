@@ -9,6 +9,7 @@
 @inject CCL.MES.Hybrid.Client.Auth.IAuthSession Session
 @inject CCL.MES.Hybrid.Client.Windows.IWindowManager WM
 @inject CCL.MES.Hybrid.Client.Qms.IIqcChangeNotifier IqcChanged
+@inject Microsoft.JSInterop.IJSRuntime JS
 
 @* feat/iqc-module-tabs — IQC module với 3 SUB-TAB:
      • Dashboard  : KPI đếm thật (placeholder có cấu trúc, enrich sau).
@@ -53,7 +54,12 @@
     @* ══════════════ DASHBOARD ══════════════ *@
     @if (_tab == IqcTab.Dashboard)
     {
-        <IqcDashboardBoard @ref="_dashBoard" />
+        <IqcDashboardBoard @ref="_dashBoard"
+                           OnDrill="GoToDataFiltered"
+                           OnOpenCar="OpenCar"
+                           OnPin="PinSupplier"
+                           OnExport="ExportExcel"
+                           OnPrint="PrintDashboard" />
     }
 
     @* ══════════════ IQC DATA (list) ══════════════ *@
@@ -74,6 +80,16 @@
                         <button type="button" class="iqc-chip @(_groupFilter == gg ? "iqc-chip-on" : "")"
                                 data-testid="@($"iqc-data-group-{gg.ToLowerInvariant()}")"
                                 @onclick="() => SetGroupFilter(gg)">@GroupLabel(gg)</button>
+                    }
+                </div>
+                <div class="iqc-chips" role="group" aria-label="@T("iqc.data.result.label")"
+                     data-testid="iqc-data-result">
+                    @foreach (var r in new[] { (string?)null, "Pending", "Pass", "Fail" })
+                    {
+                        var rr = r;
+                        <button type="button" class="iqc-chip @(_resultFilter == rr ? "iqc-chip-on" : "")"
+                                data-testid="@($"iqc-data-result-{(rr ?? "all").ToLowerInvariant()}")"
+                                @onclick="() => SetResultFilter(rr)">@ResultLabel(rr)</button>
                     }
                 </div>
                 <div class="iqc-search-wrap">
@@ -323,6 +339,7 @@
     private bool _dataLoading;
     private string? _groupFilter;
     private string _search = "";
+    private string? _resultFilter;   // null = tất cả · Pending/Pass/Fail
     private int _page = 1;
     private int _pageSize = 20;
     private System.Threading.Timer? _dataDebounce;
@@ -392,6 +409,60 @@
         if (_dashBoard is not null) await _dashBoard.ReloadAsync();
     }
 
+    // ── Dashboard v2 — năm hành động từ bảng số ──────────────────────────
+    // Bấm một ô số / một hàng NCC là một CÂU HỎI ("cho tôi xem những lô này"),
+    // nên đích đến là tab dữ liệu. Bộ lọc theo từng loại drill nối sau khi
+    // IQC Data có filter tương ứng — hôm nay mới chỉ nhảy đúng tab.
+
+    /// <summary>Bấm một ô số / một tên NCC trên Dashboard = một CÂU HỎI. Ở đây
+    /// nó được dịch thành bộ lọc THẬT của tab IQC Data: tên NCC vào ô tìm kiếm
+    /// (server đã match SupplierName) và trạng thái vào bộ lọc kết quả.</summary>
+    private Task GoToDataFiltered(IqcDashboardBoard.IqcDrillArgs a)
+    {
+        _search = a.Supplier ?? "";
+        _page = 1;
+        _resultFilter = a.What switch
+        {
+            IqcDashboardBoard.IqcDrill.Pass => "Pass",
+            IqcDashboardBoard.IqcDrill.Pending => "Pending",
+            // NG, và mọi drill phái sinh từ NG (lỗi NQ / OOS rộng / claim).
+            IqcDashboardBoard.IqcDrill.Ng
+                or IqcDashboardBoard.IqcDrill.Nq
+                or IqcDashboardBoard.IqcDrill.WideOos
+                or IqcDashboardBoard.IqcDrill.Claim => "Fail",
+            _ => null,
+        };
+        return SelectTab(IqcTab.Data);
+    }
+
+    private Task OpenCar(string? supplier)
+    {
+        // TODO(P13-7): mở form NG/claim với NCC đã điền sẵn.
+        _pendingCarSupplier = supplier;
+        return SelectTab(IqcTab.Ng);
+    }
+
+    private string? _pendingCarSupplier;
+
+    private Task PinSupplier(string supplier)
+    {
+        // TODO(P13-7): watchlist NCC cần persist (STOP-gate schema) — chưa dựng.
+        _ = supplier;
+        return Task.CompletedTask;
+    }
+
+    private Task ExportExcel()
+    {
+        // TODO(P13-7): dùng đường xuất Excel sẵn có của IQC Data.
+        return Task.CompletedTask;
+    }
+
+    private async Task PrintDashboard()
+    {
+        try { await JS.InvokeVoidAsync("window.print"); }
+        catch { /* bUnit / host không có JS */ }
+    }
+
     /// <summary>Từ catalog Standard spec → tab Standards + load mã mẹ.</summary>
     private void OpenFromStandardCatalog(string materialCode)
     {
@@ -401,10 +472,25 @@
     }
 
     // ── IQC Data ──
+    private async Task SetResultFilter(string? result)
+    {
+        _resultFilter = result;
+        _page = 1;
+        await LoadDataAsync();
+    }
+
+    private string ResultLabel(string? r) => r switch
+    {
+        "Pending" => T("iqc.dash.pending"),
+        "Pass" => T("iqc.dash.pass"),
+        "Fail" => T("iqc.dash.fail"),
+        _ => T("iqc.group.all"),
+    };
+
     private async Task LoadDataAsync()
     {
         _dataLoading = true;
-        try { _data = await Api.ListIqcTicketsAsync(_groupFilter, string.IsNullOrWhiteSpace(_search) ? null : _search, _page, _pageSize); }
+        try { _data = await Api.ListIqcTicketsAsync(_groupFilter, string.IsNullOrWhiteSpace(_search) ? null : _search, _resultFilter, _page, _pageSize); }
         catch { /* leave last-known */ }
         finally { _dataLoading = false; StateHasChanged(); }
     }

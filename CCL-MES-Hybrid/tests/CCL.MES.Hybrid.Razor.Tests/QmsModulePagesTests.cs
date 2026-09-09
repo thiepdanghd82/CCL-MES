@@ -36,6 +36,11 @@ public sealed class QmsModulePagesTests : TestContext
             new CCL.MES.Hybrid.Client.Windows.WindowManager());
         Services.AddSingleton<CCL.MES.Hybrid.Client.Qms.IIqcChangeNotifier>(
             new CCL.MES.Hybrid.Client.Qms.IqcChangeNotifier());
+        // Dashboard nhớ ngưỡng Pareto qua IIqcDashboardPrefs. Thiếu đăng ký ⇒
+        // 3 test chrome này đỏ từ P2-PR5 (f64d714) vì IqcModule render sẵn tab
+        // Dashboard, chứ không phải vì chrome hỏng.
+        Services.AddSingleton<CCL.MES.Hybrid.Client.Qms.IIqcDashboardPrefs,
+                              CCL.MES.Hybrid.Client.Qms.InMemoryIqcDashboardPrefs>();
         this.AddTestAuthorization().SetAuthorized("qc-user");
     }
 

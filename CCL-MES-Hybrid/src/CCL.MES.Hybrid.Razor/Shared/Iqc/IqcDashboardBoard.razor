@@ -1,46 +1,66 @@
 @inherits CCL.MES.Hybrid.Razor.Localization.LocalizedComponentBase
-@implements IAsyncDisposable
 @using CCL.MES.Shared.Quality
 @using CCL.MES.Shared.Localization
 @using System.Globalization
 @inject ICclApiClient Api
 @inject CCL.MES.Hybrid.Client.Qms.IIqcDashboardPrefs DashPrefs
-@inject Microsoft.JSInterop.IJSRuntime JS
 
 @*
-    IQC Dashboard — layout theo IQC-Dashboard-standalone.html (báo cáo NQ):
-    hero navy · 6 thẻ KPI · Pareto SVG + bảng · xu hướng full-width · NCC.
-    Dữ liệu live API; màu/khoảng cách đi qua token (L37 / design tokens).
+    IQC Dashboard v2 — hệ Broadsheet (bản tin giấy), thay hero navy + 6 thẻ KPI
+    + Pareto SVG dọc của v1.
+
+    Bốn thay đổi mang tính quyết định, không phải trang trí:
+      • Măng-sét giấy thay khối navy: trả 15% chiều cao màn về cho SỐ LIỆU.
+      • Một số dẫn (%NG) + 6 số phụ: mắt có một điểm neo, không phải sáu.
+      • KẾT LUẬN + CẦN QUYẾT ĐỊNH: trả lời "hôm nay làm gì" ngay hàng đầu,
+        thay vì bắt người đọc tự suy ra từ sáu con số.
+      • Pareto NGANG bằng DOM: tên lỗi đọc thẳng, hết cuộn, và ngưỡng ưu tiên
+        chạy bằng CSS var --iqc-par-n (bỏ hẳn đo font theo viewBox qua JS).
+
+    Hợp đồng dữ liệu KHÔNG đổi: ReloadAsync() · ICclApiClient · IIqcDashboardPrefs
+    · GetIqcDashboardAsync(year, month). Năm EventCallback dưới đây mặc định
+    không gắn ⇒ nút vô hại, component vẫn tự đứng được.
 *@
 
-<section @ref="_root" class="qms-section iqc-dash" data-testid="iqc-dash">
-    <header class="iqc-dash-hero">
-        <div class="iqc-dash-hero-main">
-            <p class="iqc-dash-hero-eye">@T("iqc.dash.eyebrow")</p>
-            <h2 class="iqc-dash-hero-title">@T("iqc.dash.hero")</h2>
-            <p class="iqc-dash-hero-sub">@PeriodLabel</p>
-        </div>
-        <div class="iqc-dash-hero-tools">
-            <label class="iqc-dash-year">
-                <span class="iqc-dash-year-lbl">@T("iqc.dash.filter.year")</span>
-                <select class="ix-input iqc-dash-select" data-testid="iqc-dash-year"
-                        value="@(_year?.ToString() ?? "")" @onchange="OnYearChanged">
-                    @if (_dash.AvailableYears.Count == 0)
-                    {
-                        <option value="">—</option>
-                    }
-                    else
-                    {
-                        @foreach (var y in _dash.AvailableYears)
+<section class="qms-section iqc-dash iqc-dash-v2" data-testid="iqc-dash">
+
+    @* ── 1. Măng-sét: rule dày–mảnh + dateline (thay hero navy) ────────── *@
+    <header class="iqc-dash-hero iqc-v2-mast">
+        <div class="iqc-v2-rule iqc-v2-rule-thick"></div>
+        <div class="iqc-v2-mast-row">
+            <div class="iqc-v2-mast-id">
+                <p class="iqc-v2-eyebrow">@T("iqc.dash.eyebrow")</p>
+                <h2 class="iqc-v2-masthead">@T("iqc.dash.hero")</h2>
+            </div>
+            <div class="iqc-v2-mast-tools">
+                <label class="iqc-dash-year iqc-v2-year">
+                    <span class="iqc-dash-year-lbl">@T("iqc.dash.filter.year")</span>
+                    <select class="ix-input iqc-dash-select" data-testid="iqc-dash-year"
+                            value="@(_year?.ToString() ?? "")" @onchange="OnYearChanged">
+                        @if (_dash.AvailableYears.Count == 0)
                         {
-                            <option value="@y">@y</option>
+                            <option value="">—</option>
                         }
-                    }
-                </select>
-            </label>
+                        else
+                        {
+                            @foreach (var y in _dash.AvailableYears)
+                            {
+                                <option value="@y">@y</option>
+                            }
+                        }
+                    </select>
+                </label>
+                <button type="button" class="iqc-v2-tool" data-testid="iqc-dash-export"
+                        @onclick="() => OnExport.InvokeAsync()">@T("iqc.dash.v2.export")</button>
+                <button type="button" class="iqc-v2-tool" data-testid="iqc-dash-print"
+                        @onclick="() => OnPrint.InvokeAsync()">@T("iqc.dash.v2.print")</button>
+            </div>
         </div>
+        <div class="iqc-v2-rule iqc-v2-rule-thin"></div>
+        <p class="iqc-v2-dateline">@PeriodLabel</p>
     </header>
 
+    @* ── Dải chip tháng (13 nút chạm được, giữ nguyên hợp đồng v1) ─────── *@
     <div class="iqc-dash-months" role="group" aria-label="@T("iqc.dash.filter.month")"
          data-testid="iqc-dash-month">
         <button type="button" class="iqc-chip @(_month is null ? "iqc-chip-on" : null)"
@@ -64,349 +84,336 @@
     }
     else
     {
-        <div class="iqc-kpis" data-testid="iqc-dash-kpi-strip">
-            <article class="iqc-kcard iqc-kcard-ink" data-testid="iqc-kpi-total">
-                <span class="iqc-kcard-lbl">@T("iqc.dash.kpi.lots")</span>
-                <span class="iqc-kcard-val">@FmtInt(_dash.Total)</span>
-                <span class="iqc-kcard-sub">
-                    @T("iqc.dash.kpi.pass")
-                    <b data-testid="iqc-kpi-pass">@FmtInt(_dash.Pass)</b>
-                    · @T("iqc.dash.pending") @FmtInt(_dash.Pending)
-                </span>
-            </article>
-            <article class="iqc-kcard iqc-kcard-ok" data-testid="iqc-kpi-passrate">
-                <span class="iqc-kcard-lbl">@T("iqc.dash.kpi.passrate")</span>
-                <span class="iqc-kcard-val is-ok">@FmtPct(_dash.PassRate)</span>
-                <span class="iqc-sum-gauge" role="img" aria-label="@FmtPct(_dash.PassRate)">
-                    <span class="iqc-sum-gauge-fill" style="width:@Css(_dash.PassRate * 100)"></span>
-                </span>
-            </article>
-            <article class="iqc-kcard iqc-kcard-ng">
-                <span class="iqc-kcard-lbl">@T("iqc.dash.kpi.fail")</span>
-                <span class="iqc-kcard-val is-ng" data-testid="iqc-kpi-fail">@FmtInt(_dash.Fail)</span>
-                <span class="iqc-kcard-sub" data-testid="iqc-kpi-failrate">
-                    @T("iqc.dash.kpi.failrate") <b class="is-ng">@FmtPct(_dash.FailRate)</b>
-                </span>
-            </article>
-            <article class="iqc-kcard iqc-kcard-warn" data-testid="iqc-kpi-nq">
-                <span class="iqc-kcard-lbl">@T("iqc.dash.kpi.nq")</span>
-                <span class="iqc-kcard-val is-warn">@FmtInt(_dash.TotalNqDefects)</span>
-                <span class="iqc-kcard-sub">@T("iqc.dash.kpi.nq.per", NqPerNg)</span>
-            </article>
-            <article class="iqc-kcard iqc-kcard-slate" data-testid="iqc-kpi-claim">
-                <span class="iqc-kcard-lbl">@T("iqc.dash.kpi.claim")</span>
-                <span class="iqc-kcard-val">@FmtInt(_dash.ClaimNgLots)</span>
-                <span class="iqc-kcard-sub">@T("iqc.dash.kpi.claim.share", FmtPct(ClaimShare))</span>
-            </article>
-            <article class="iqc-kcard iqc-kcard-slate" data-testid="iqc-kpi-wide">
-                <span class="iqc-kcard-lbl">@T("iqc.dash.kpi.wide")</span>
-                <span class="iqc-kcard-val">@FmtInt(_dash.WideOosLots)</span>
-                <span class="iqc-kcard-sub">@T("iqc.dash.kpi.wide.share", FmtPct(WideShare))</span>
-            </article>
+        @* ── 2. Một SỐ DẪN + sáu số phụ, mỗi ô bấm được → IQC Data ─────── *@
+        <div class="iqc-kpis iqc-v2-kpis">
+            <button type="button" class="iqc-v2-lead @LeadTone" data-testid="iqc-kpi-lead"
+                    @onclick="() => Drill(IqcDrill.Ng)">
+                <span class="iqc-v2-lead-lbl">@T("iqc.dash.kpi.failrate")</span>
+                <span class="iqc-v2-lead-val" data-testid="iqc-kpi-failrate">@FmtPct(_dash.FailRate)</span>
+                <span class="iqc-v2-lead-sub">@T("iqc.dash.v2.lead.of", FmtInt(_dash.Fail), FmtInt(_dash.Total))</span>
+            </button>
+            <div class="iqc-v2-stats">
+                <button type="button" class="iqc-v2-stat" data-testid="iqc-kpi-total"
+                        @onclick="() => Drill(IqcDrill.All)">
+                    <span class="iqc-v2-stat-lbl">@T("iqc.dash.kpi.lots")</span>
+                    <span class="iqc-v2-stat-val">@FmtInt(_dash.Total)</span>
+                </button>
+                <button type="button" class="iqc-v2-stat" data-testid="iqc-kpi-passcard"
+                        @onclick="() => Drill(IqcDrill.Pass)">
+                    <span class="iqc-v2-stat-lbl">@T("iqc.dash.kpi.pass")</span>
+                    <span class="iqc-v2-stat-val is-ok" data-testid="iqc-kpi-pass">@FmtInt(_dash.Pass)</span>
+                </button>
+                <button type="button" class="iqc-v2-stat" data-testid="iqc-kpi-failcard"
+                        @onclick="() => Drill(IqcDrill.Ng)">
+                    <span class="iqc-v2-stat-lbl">@T("iqc.dash.kpi.fail")</span>
+                    <span class="iqc-v2-stat-val is-ng" data-testid="iqc-kpi-fail">@FmtInt(_dash.Fail)</span>
+                </button>
+                <button type="button" class="iqc-v2-stat" data-testid="iqc-kpi-pending"
+                        @onclick="() => Drill(IqcDrill.Pending)">
+                    <span class="iqc-v2-stat-lbl">@T("iqc.dash.pending")</span>
+                    <span class="iqc-v2-stat-val">@FmtInt(_dash.Pending)</span>
+                </button>
+                <button type="button" class="iqc-v2-stat" data-testid="iqc-kpi-nq"
+                        @onclick="() => Drill(IqcDrill.Nq)">
+                    <span class="iqc-v2-stat-lbl">@T("iqc.dash.kpi.nq")</span>
+                    <span class="iqc-v2-stat-val is-warn">@FmtInt(_dash.TotalNqDefects)</span>
+                    <span class="iqc-v2-stat-note">@T("iqc.dash.kpi.nq.per", NqPerNg)</span>
+                </button>
+                <button type="button" class="iqc-v2-stat" data-testid="iqc-kpi-claim"
+                        @onclick="() => Drill(IqcDrill.Claim)">
+                    <span class="iqc-v2-stat-lbl">@T("iqc.dash.kpi.claim")</span>
+                    <span class="iqc-v2-stat-val">@FmtInt(_dash.ClaimNgLots)</span>
+                </button>
+                <button type="button" class="iqc-v2-stat" data-testid="iqc-kpi-wide"
+                        @onclick="() => Drill(IqcDrill.WideOos)">
+                    <span class="iqc-v2-stat-lbl">@T("iqc.dash.kpi.wide")</span>
+                    <span class="iqc-v2-stat-val">@FmtInt(_dash.WideOosLots)</span>
+                </button>
+            </div>
         </div>
 
-        <div class="iqc-split">
-            <section class="ix-panel iqc-panel iqc-panel-chart">
-                <div class="iqc-panel-head">
-                    <div>
-                        <h3 class="iqc-panel-title">@T("iqc.dash.pareto.title")</h3>
-                        @if (ParetoFocusCount > 0)
+        @* ── 3a. KẾT LUẬN — headline tự sinh từ so sánh hai tháng gần nhất *@
+        <section class="iqc-v2-verdict">
+            <p class="iqc-v2-kicker">@T("iqc.dash.v2.verdict.kicker")</p>
+            <p class="iqc-v2-headline">@VerdictHeadline</p>
+            <p class="iqc-v2-standfirst">@VerdictStandfirst</p>
+        </section>
+
+        @* ── 3b. CẦN QUYẾT ĐỊNH HÔM NAY ────────────────────────────────── *@
+        <section class="iqc-v2-decide" data-testid="iqc-dash-decide">
+            <h3 class="iqc-v2-sec-title">@T("iqc.dash.v2.decide.title")</h3>
+            @if (DecisionCount == 0)
+            {
+                <p class="iqc-v2-decide-none">@T("iqc.dash.v2.decide.none")</p>
+            }
+            else
+            {
+                <ul class="iqc-v2-decide-list">
+                    @if (_dash.WideOosLots > 0)
+                    {
+                        <li class="iqc-v2-decide-row is-alarm" data-testid="iqc-decide-wide">
+                            <span class="iqc-v2-decide-n">@FmtInt(_dash.WideOosLots)</span>
+                            <span class="iqc-v2-decide-txt">@T("iqc.dash.v2.decide.wide")</span>
+                            <span class="iqc-v2-decide-lead" aria-hidden="true"></span>
+                            <button type="button" class="iqc-v2-act"
+                                    @onclick="() => Drill(IqcDrill.WideOos)">@T("iqc.dash.v2.act.view")</button>
+                        </li>
+                    }
+                    @if (_dash.ClaimNgLots > 0)
+                    {
+                        <li class="iqc-v2-decide-row is-warn" data-testid="iqc-decide-claim">
+                            <span class="iqc-v2-decide-n">@FmtInt(_dash.ClaimNgLots)</span>
+                            <span class="iqc-v2-decide-txt">@T("iqc.dash.v2.decide.claim")</span>
+                            <span class="iqc-v2-decide-lead" aria-hidden="true"></span>
+                            <button type="button" class="iqc-v2-act"
+                                    @onclick="() => OnOpenCar.InvokeAsync(null)">@T("iqc.dash.v2.act.car")</button>
+                        </li>
+                    }
+                    @if (_dash.Pending > 0)
+                    {
+                        <li class="iqc-v2-decide-row" data-testid="iqc-decide-pending">
+                            <span class="iqc-v2-decide-n">@FmtInt(_dash.Pending)</span>
+                            <span class="iqc-v2-decide-txt">@T("iqc.dash.v2.decide.pending")</span>
+                            <span class="iqc-v2-decide-lead" aria-hidden="true"></span>
+                            <button type="button" class="iqc-v2-act"
+                                    @onclick="() => Drill(IqcDrill.Pending)">@T("iqc.dash.v2.act.view")</button>
+                        </li>
+                    }
+                </ul>
+            }
+        </section>
+
+        @* ── 4. Hai cột CÂN THEO CHIỀU CAO, không theo số khối.
+             Đo trên hình dạng dữ liệu thật (12 dạng lỗi · 23 NCC có NG): xếp
+             Pareto một cột và NCC một cột thì lệch 39–42%, vì hàng NCC cao hơn
+             hàng Pareto và còn thêm hàng công cụ tìm kiếm. Ép cân bằng cách
+             cắt tiếp danh sách NCC thì mất luôn ý nghĩa của nó. Nên cột TRÁI
+             gánh thêm Xu hướng ở dưới Pareto. *@
+        <div class="iqc-split iqc-v2-split">
+            <div class="iqc-v2-col">
+                <section class="ix-panel iqc-panel iqc-panel-detail iqc-v2-panel">
+                    <div class="iqc-panel-head iqc-v2-panel-head">
+                        <div>
+                            <h3 class="iqc-panel-title iqc-v2-sec-title">@T("iqc.dash.pareto.title")</h3>
+                            @if (ParetoFocusCount > 0)
+                            {
+                                <p class="iqc-panel-note">@T("iqc.dash.pareto.top3", ParetoFocusCount, FmtPct(ParetoFocusCum))</p>
+                            }
+                        </div>
+                        <label class="iqc-thr">
+                            <span class="iqc-thr-lbl">@T("iqc.dash.pareto.legend.thr")</span>
+                            <input type="range" min="50" max="100" step="1" value="@_thrPct"
+                                   data-testid="iqc-dash-pareto-thr"
+                                   aria-valuemin="50" aria-valuemax="100" aria-valuenow="@_thrPct"
+                                   aria-label="@T("iqc.dash.pareto.legend.thr")"
+                                   @oninput="OnThrChanged" />
+                            <span class="iqc-thr-val" data-testid="iqc-dash-pareto-thr-val">@($"{_thrPct}%")</span>
+                        </label>
+                    </div>
+
+                    @* Ngưỡng ưu tiên chạy bằng CSS var: đường cắt nét đứt nằm sau
+                       đúng --iqc-par-n hàng, không cần một dòng JS nào. *@
+                    <div class="iqc-v2-par" data-testid="iqc-dash-pareto"
+                         style="--iqc-par-n: @ParetoFocusCount">
+                        @if (_dash.VisualPareto.Count == 0)
                         {
-                            <p class="iqc-panel-note">@T("iqc.dash.pareto.top3", ParetoFocusCount, FmtPct(ParetoFocusCum))</p>
+                            <p class="iqc-dash-empty">@T("iqc.dash.empty.pareto")</p>
+                        }
+                        else
+                        {
+                            <table class="iqc-report-table iqc-v2-par-table">
+                                <thead>
+                                    <tr>
+                                        <th>@T("iqc.dash.pareto.defect")</th>
+                                        <th>@T("iqc.dash.pareto.dist")</th>
+                                        <th class="num">@T("iqc.dash.pareto.qty")</th>
+                                        <th class="num">@T("iqc.dash.pareto.cum")</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @for (var i = 0; i < _dash.VisualPareto.Count; i++)
+                                    {
+                                        var row = _dash.VisualPareto[i];
+                                        @if (i == ParetoFocusCount)
+                                        {
+                                            @* Đường ngưỡng = HÀNG THẬT giữa dải ưu tiên và phần còn
+                                               lại. Đặt lớp phủ tính bằng calc() thì lệch theo padding
+                                               ô — một đường ngưỡng lệch là số liệu sai. *@
+                                            <tr class="iqc-v2-cut">
+                                                <td colspan="4">
+                                                    <span class="iqc-v2-cut-lbl">@T("iqc.dash.v2.par.cut", _thrPct)</span>
+                                                </td>
+                                            </tr>
+                                        }
+                                        <tr class="iqc-v2-par-row @(i < ParetoFocusCount ? "is-focus" : null)">
+                                            <td class="strong iqc-cell-ellipsis" title="@DefectLabel(row)">@DefectLabel(row)</td>
+                                            <td class="iqc-v2-par-cell">
+                                                <span class="iqc-v2-par-bar" style="width:@Css(100.0 * row.Count / ParetoMax)"></span>
+                                            </td>
+                                            <td class="num">@row.Count</td>
+                                            <td class="num iqc-cell-mut">@FmtPct(row.Cumulative)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
                         }
                     </div>
-                    <label class="iqc-thr">
-                        <span class="iqc-thr-lbl">@T("iqc.dash.pareto.legend.thr")</span>
-                        <input type="range" min="50" max="100" step="1" value="@_thrPct"
-                               data-testid="iqc-dash-pareto-thr"
-                               aria-valuemin="50" aria-valuemax="100" aria-valuenow="@_thrPct"
-                               aria-label="@T("iqc.dash.pareto.legend.thr")"
-                               @oninput="OnThrChanged" />
-                        <span class="iqc-thr-val" data-testid="iqc-dash-pareto-thr-val">@($"{_thrPct}%")</span>
-                    </label>
-                </div>
-                @if (_dash.VisualPareto.Count == 0)
-                {
-                    <p class="iqc-dash-empty">@T("iqc.dash.empty.pareto")</p>
-                }
-                else
-                {
-                    <div class="iqc-chart-host">
-                    <div class="iqc-chart-scale">
-                    <svg class="iqc-svg iqc-svg-pareto" viewBox="0 0 1000 @F(ParetoVbH)"
-                         preserveAspectRatio="none"
-                         data-testid="iqc-dash-pareto-chart"
-                         role="img" aria-label="@T("iqc.dash.pareto.title")">
-                        <g class="iqc-svg-grid">
-                            @foreach (var gy in ParetoGridY)
+                    <p class="iqc-panel-note iqc-v2-foot-note">
+                        @T("iqc.dash.pareto.recorded", FmtInt(ParetoTotal), _dash.VisualPareto.Count)
+                    </p>
+                </section>
+                <section class="ix-panel iqc-panel iqc-v2-panel">
+                    <div class="iqc-panel-head iqc-v2-panel-head">
+                        <div>
+                            <h3 class="iqc-panel-title iqc-v2-sec-title">@T("iqc.dash.trend.hero")</h3>
+                            @if (TrendPeak is { } peak && TrendLow is { } low)
                             {
-                                <line x1="@PlotL" y1="@F(gy)" x2="@PlotR" y2="@F(gy)"></line>
+                                <p class="iqc-panel-note">
+                                    @T("iqc.dash.trend.peak", T($"iqc.dash.month.{peak.Month}"), FmtPct(peak.NgRate))
+                                    · @T("iqc.dash.trend.low", T($"iqc.dash.month.{low.Month}"), FmtPct(low.NgRate))
+                                </p>
                             }
-                        </g>
-                        <g class="iqc-svg-axis">
-                            @for (var i = 0; i <= 4; i++)
-                            {
-                                var y = ParetoPlotT + ParetoPlotH * (4 - i) / 4.0;
-                                @SvgText("52", F(y + 4), FmtInt(ParetoMax * i / 4), "text-anchor=\"end\"")
-                                @SvgText("968", F(y + 4), $"{i * 25}%")
-                            }
-                        </g>
-                        <line class="iqc-svg-thr" x1="@PlotL" y1="@F(ParetoYCum(ParetoThr))" x2="@PlotR" y2="@F(ParetoYCum(ParetoThr))"></line>
-                        @SvgText("64", F(ParetoYCum(ParetoThr) - 8), $"{_thrPct}%", "class=\"iqc-svg-thr-lbl\"")
-                        <g class="iqc-svg-bars">
-                            @for (var i = 0; i < _dash.VisualPareto.Count; i++)
-                            {
-                                var row = _dash.VisualPareto[i];
-                                var h = ParetoPlotH * row.Count / ParetoMax;
-                                <rect x="@F(BarX(i, _dash.VisualPareto.Count))" y="@F(ParetoPlotB - h)"
-                                      width="@F(BarW(_dash.VisualPareto.Count))" height="@F(Math.Max(h, 1))"></rect>
-                                @SvgText(F(SlotMid(i, _dash.VisualPareto.Count)), F(ParetoPlotB - h - 8), row.Count.ToString(),
-                                    "class=\"iqc-svg-bar-lbl\" text-anchor=\"middle\"")
-                            }
-                        </g>
-                        <polyline class="iqc-chart-line iqc-svg-cum"
-                                  points="@Polyline(_dash.VisualPareto.Select(r => r.Cumulative), ParetoPlotB, ParetoPlotH)"
-                                  fill="none" />
-                        @for (var i = 0; i < _dash.VisualPareto.Count; i++)
-                        {
-                            <circle class="iqc-svg-dot-cum" cx="@F(SlotMid(i, _dash.VisualPareto.Count))"
-                                    cy="@F(ParetoYCum(_dash.VisualPareto[i].Cumulative))" r="3.2"></circle>
-                        }
-                        <g class="iqc-svg-x">
-                            @for (var i = 0; i < _dash.VisualPareto.Count; i++)
-                            {
-                                var mx = SlotMid(i, _dash.VisualPareto.Count);
-                                @SvgText(F(mx), F(ParetoXLabelY), DefectLabel(_dash.VisualPareto[i]),
-                                    $"text-anchor=\"end\" transform=\"rotate(-32 {F(mx)} {F(ParetoXLabelY)})\"")
-                            }
-                        </g>
-                    </svg>
+                        </div>
                     </div>
+                    <div class="iqc-v2-tbars" data-testid="iqc-dash-volume"
+                         role="img" aria-label="@T("iqc.dash.trend.title")">
+                        @foreach (var row in _dash.MonthlyTrend)
+                        {
+                            <div class="iqc-v2-tbar-slot" title="@($"{T($"iqc.dash.month.{row.Month}")} — {FmtInt(row.Lots)}")">
+                                <span class="iqc-v2-tbar-n">@(row.Lots > 0 ? FmtInt(row.Lots) : "")</span>
+                                <span class="iqc-v2-tbar" style="height:@Css(100.0 * row.Lots / TrendMax)"></span>
+                                <span class="iqc-v2-tbar-ng" style="bottom:@Css(100.0 * (row.NgRate / TrendNgMax))"></span>
+                            </div>
+                        }
+                    </div>
+                    <div class="iqc-month-strip" data-testid="iqc-dash-trend">
+                        @foreach (var row in _dash.MonthlyTrend)
+                        {
+                            var tone = MonthTone(row);
+                            <button type="button" class="iqc-month-cell @tone @(_month == row.Month ? "is-on" : null)"
+                                    @onclick="() => SelectMonthAsync(row.Month)">
+                                <span class="iqc-month-cell-m">@T($"iqc.dash.month.short.{row.Month}")</span>
+                                @if (row.Lots == 0)
+                                {
+                                    <span class="iqc-month-cell-ng">—</span>
+                                    <span class="iqc-month-cell-pct">—</span>
+                                }
+                                else
+                                {
+                                    <span class="iqc-month-cell-ng">@row.Ng</span>
+                                    <span class="iqc-month-cell-pct">@FmtPct(row.NgRate)</span>
+                                }
+                            </button>
+                        }
                     </div>
                     <div class="iqc-legend">
-                        <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-lots"></i>@T("iqc.dash.pareto.legend.qty")</span>
-                        <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-cum"></i>@T("iqc.dash.pareto.legend.cum")</span>
-                        <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-thr"></i>@T("iqc.dash.pareto.legend.thr")</span>
+                        <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-lots"></i>@T("iqc.dash.trend.lots")</span>
+                        <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-ng"></i>@T("iqc.dash.trend.ngrate")</span>
                     </div>
-                }
-            </section>
-
-            <section class="ix-panel iqc-panel iqc-panel-detail">
-                <div class="iqc-panel-head">
-                    <h3 class="iqc-panel-title">@T("iqc.dash.pareto.detail")</h3>
-                    <p class="iqc-panel-note">@T("iqc.dash.pareto.recorded", FmtInt(ParetoTotal), _dash.VisualPareto.Count)</p>
+                </section>
+            </div>
+            <section class="ix-panel iqc-panel iqc-v2-panel">
+                <div class="iqc-panel-head iqc-panel-head-tools iqc-v2-panel-head">
+                    <div>
+                        <h3 class="iqc-panel-title iqc-v2-sec-title">@T("iqc.dash.supplier.perf")</h3>
+                        <p class="iqc-panel-note">@T("iqc.dash.supplier.showing", VisibleSuppliers.Count, NgSupplierCount, SortLabel)</p>
+                    </div>
+                    <div class="iqc-sup-tools">
+                        <input class="ix-input iqc-sup-search" data-testid="iqc-dash-sup-search"
+                               value="@_supQuery" @oninput="OnSupQuery"
+                               placeholder="@T("iqc.dash.supplier.search")" />
+                        <button type="button" class="iqc-chip @(_onlyNg ? "iqc-chip-on" : null)"
+                                data-testid="iqc-dash-sup-onlyng" @onclick="ToggleOnlyNg">
+                            @T(_onlyNg ? "iqc.dash.supplier.all" : "iqc.dash.supplier.onlyng")
+                        </button>
+                    </div>
                 </div>
-                <div class="iqc-table-wrap">
-                    <table class="iqc-report-table" data-testid="iqc-dash-pareto">
-                        <thead>
-                            <tr>
-                                <th>@T("iqc.dash.pareto.defect")</th>
-                                <th class="num">@T("iqc.dash.pareto.qty")</th>
-                                <th class="num">@T("iqc.dash.pareto.share")</th>
-                                <th class="num">@T("iqc.dash.pareto.cum")</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @if (_dash.VisualPareto.Count == 0)
+
+                <div class="iqc-v2-sup" data-testid="iqc-dash-suppliers">
+                    @if (VisibleSuppliers.Count == 0)
+                    {
+                        <p class="iqc-dash-empty">@T("iqc.dash.empty.supplier")</p>
+                    }
+                    else
+                    {
+                        <div class="iqc-v2-sup-band is-alarm" data-testid="iqc-sup-band-car">
+                            <p class="iqc-v2-band-title">@T("iqc.dash.v2.sup.car")</p>
+                            @if (CarSuppliers.Count == 0)
                             {
-                                <tr><td colspan="4" class="iqc-dash-empty">@T("iqc.dash.empty.pareto")</td></tr>
+                                <p class="iqc-v2-band-none">@T("iqc.dash.v2.sup.none")</p>
                             }
                             else
                             {
-                                @for (var i = 0; i < _dash.VisualPareto.Count; i++)
+                                @foreach (var row in CarSuppliers)
                                 {
-                                    var row = _dash.VisualPareto[i];
-                                    <tr class="@(i < ParetoFocusCount ? "is-focus" : null)">
-                                        <td class="strong">@DefectLabel(row)</td>
-                                        <td class="num">@row.Count</td>
-                                        <td class="num">@FmtPct(row.Share)</td>
-                                        <td class="num iqc-cell-mut">@FmtPct(row.Cumulative)</td>
-                                    </tr>
+                                    <div class="iqc-v2-sup-row">
+                                        <button type="button" class="iqc-v2-sup-name" data-testid="iqc-sup-name"
+                                            title="@T("iqc.dash.v2.sup.open", row.Supplier)"
+                                            @onclick="() => DrillSupplier(row.Supplier)">@row.Supplier</button>
+                                        <span class="iqc-v2-sup-bar"><span class="iqc-v2-sup-fill iqc-bar-alarm" style="width:@RiskBarWidth(row.NgRate)"></span></span>
+                                        <span class="iqc-v2-sup-pct iqc-cell-alarm">@FmtPct(row.NgRate)</span>
+                                        <span class="iqc-v2-sup-n">@T("iqc.dash.v2.sup.lots", row.Ng, row.Lots)</span>
+                                        <span class="iqc-v2-sup-acts">
+                                            <button type="button" class="iqc-v2-act"
+                                                    @onclick="() => OnOpenCar.InvokeAsync(row.Supplier)">@T("iqc.dash.v2.act.car")</button>
+                                            <button type="button" class="iqc-v2-act iqc-v2-act-ghost"
+                                                    @onclick="() => OnPin.InvokeAsync(row.Supplier)">@T("iqc.dash.v2.act.pin")</button>
+                                        </span>
+                                    </div>
                                 }
                             }
-                        </tbody>
-                    </table>
+                        </div>
+
+                        <div class="iqc-v2-sup-band is-warn" data-testid="iqc-sup-band-watch">
+                            <p class="iqc-v2-band-title">@T("iqc.dash.v2.sup.watch")</p>
+                            @if (WatchSuppliers.Count == 0)
+                            {
+                                <p class="iqc-v2-band-none">@T("iqc.dash.v2.sup.none")</p>
+                            }
+                            else
+                            {
+                                @foreach (var row in WatchSuppliers)
+                                {
+                                    <div class="iqc-v2-sup-row">
+                                        <button type="button" class="iqc-v2-sup-name" data-testid="iqc-sup-name"
+                                            title="@T("iqc.dash.v2.sup.open", row.Supplier)"
+                                            @onclick="() => DrillSupplier(row.Supplier)">@row.Supplier</button>
+                                        <span class="iqc-v2-sup-bar"><span class="iqc-v2-sup-fill iqc-bar-warn" style="width:@RiskBarWidth(row.NgRate)"></span></span>
+                                        <span class="iqc-v2-sup-pct is-warn">@FmtPct(row.NgRate)</span>
+                                        <span class="iqc-v2-sup-n">@T("iqc.dash.v2.sup.lots", row.Ng, row.Lots)</span>
+                                        <span class="iqc-v2-sup-acts">
+                                            <button type="button" class="iqc-v2-act iqc-v2-act-ghost"
+                                                    @onclick="() => OnPin.InvokeAsync(row.Supplier)">@T("iqc.dash.v2.act.pin")</button>
+                                        </span>
+                                    </div>
+                                }
+                            }
+                                                @if (CarHidden > 0)
+                        {
+                            <button type="button" class="iqc-v2-sup-more" data-testid="iqc-sup-more-car"
+                                    @onclick="() => Drill(IqcDrill.Suppliers)">
+                                @T("iqc.dash.v2.sup.more", CarHidden)
+                            </button>
+                        }
+                        @if (WatchHidden > 0)
+                        {
+                            <button type="button" class="iqc-v2-sup-more" data-testid="iqc-sup-more-watch"
+                                    @onclick="() => Drill(IqcDrill.Suppliers)">
+                                @T("iqc.dash.v2.sup.more", WatchHidden)
+                            </button>
+                        }
+</div>
+
+                        <button type="button" class="iqc-v2-sup-rest" data-testid="iqc-sup-band-rest"
+                                @onclick="() => Drill(IqcDrill.Suppliers)">
+                            @T("iqc.dash.v2.sup.rest", RestSuppliers.Count, FmtPct(RestNgRate))
+                        </button>
+                    }
                 </div>
             </section>
         </div>
 
-        <section class="ix-panel iqc-panel">
-            <div class="iqc-panel-head">
-                <h3 class="iqc-panel-title">@T("iqc.dash.trend.hero")</h3>
-                @if (TrendPeak is { } peak && TrendLow is { } low)
-                {
-                    <p class="iqc-panel-note">
-                        @T("iqc.dash.trend.peak", T($"iqc.dash.month.{peak.Month}"), FmtPct(peak.NgRate))
-                        · @T("iqc.dash.trend.low", T($"iqc.dash.month.{low.Month}"), FmtPct(low.NgRate))
-                    </p>
-                }
-            </div>
-            <div class="iqc-trend-sync">
-            <div class="iqc-trend-sync-inner">
-            <div class="iqc-chart-scale">
-            <svg class="iqc-svg iqc-chart-box-trend" viewBox="0 0 1000 300" data-testid="iqc-dash-volume"
-                 role="img" aria-label="@T("iqc.dash.trend.title")">
-                <g class="iqc-svg-grid">
-                    @foreach (var gy in GridY)
-                    {
-                        <line x1="@PlotL" y1="@F(gy)" x2="@PlotR" y2="@F(gy)"></line>
-                    }
-                </g>
-                <g class="iqc-svg-axis">
-                    @for (var i = 0; i <= 4; i++)
-                    {
-                        var y = PlotT + PlotH * (4 - i) / 4.0;
-                        @SvgText("52", F(y + 4), FmtInt(TrendMax * i / 4), "text-anchor=\"end\"")
-                        @SvgText("968", F(y + 4), FmtPct(TrendNgMax * i / 4.0))
-                    }
-                </g>
-                @if (EmptyFrom is int emptyFrom)
-                {
-                    var x0 = SlotMid(emptyFrom - 1, 12) - BarW(12);
-                    <rect class="iqc-svg-empty" x="@F(x0)" y="@PlotT" width="@F(PlotR - x0)" height="@F(PlotH)"></rect>
-                    @SvgText(F((x0 + PlotR) / 2), "150", T("iqc.dash.trend.nodata"),
-                        "class=\"iqc-svg-empty-lbl\" text-anchor=\"middle\"")
-                }
-                <g class="iqc-svg-bars-soft">
-                    @for (var i = 0; i < _dash.MonthlyTrend.Count; i++)
-                    {
-                        var row = _dash.MonthlyTrend[i];
-                        if (row.Lots <= 0) continue;
-                        var h = PlotH * row.Lots / TrendMax;
-                        <rect x="@F(BarX(i, 12))" y="@F(PlotB - h)"
-                              width="@F(BarW(12))" height="@F(h)"></rect>
-                        @SvgText(F(SlotMid(i, 12)), F(PlotB - h - 6), row.Lots.ToString(),
-                            "class=\"iqc-svg-bar-lbl-mut\" text-anchor=\"middle\"")
-                    }
-                </g>
-                <polyline class="iqc-chart-line iqc-svg-ng"
-                          points="@Polyline(_dash.MonthlyTrend.Select(r => r.NgRate / TrendNgMax), PlotB, PlotH)"
-                          fill="none" />
-                @for (var i = 0; i < _dash.MonthlyTrend.Count; i++)
-                {
-                    var r = _dash.MonthlyTrend[i];
-                    if (r.Lots <= 0 && r.Ng <= 0) continue;
-                    <circle class="iqc-svg-dot-ng" cx="@F(SlotMid(i, 12))"
-                            cy="@F(YCum(r.NgRate / TrendNgMax))" r="4"></circle>
-                }
-            </svg>
-            </div>
-            <div class="iqc-legend">
-                <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-ice"></i>@T("iqc.dash.trend.lots")</span>
-                <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-ng"></i>@T("iqc.dash.trend.ngrate")</span>
-            </div>
-            <div class="iqc-month-strip" data-testid="iqc-dash-trend">
-                @foreach (var row in _dash.MonthlyTrend)
-                {
-                    var tone = MonthTone(row);
-                    <button type="button" class="iqc-month-cell @tone @(_month == row.Month ? "is-on" : null)"
-                            @onclick="() => SelectMonthAsync(row.Month)">
-                        <span class="iqc-month-cell-m">@T($"iqc.dash.month.short.{row.Month}")</span>
-                        @if (row.Lots == 0)
-                        {
-                            <span class="iqc-month-cell-ng">—</span>
-                            <span class="iqc-month-cell-pct">—</span>
-                        }
-                        else
-                        {
-                            <span class="iqc-month-cell-ng">@row.Ng</span>
-                            <span class="iqc-month-cell-pct">@FmtPct(row.NgRate)</span>
-                        }
-                    </button>
-                }
-            </div>
-            </div>
-            </div>
-        </section>
-
-        <section class="ix-panel iqc-panel">
-            <div class="iqc-panel-head iqc-panel-head-tools">
-                <div>
-                    <h3 class="iqc-panel-title">@T("iqc.dash.supplier.perf")</h3>
-                    <p class="iqc-panel-note">@T("iqc.dash.supplier.showing", VisibleSuppliers.Count, NgSupplierCount, SortLabel)</p>
-                </div>
-                <div class="iqc-sup-tools">
-                    <input class="ix-input iqc-sup-search" data-testid="iqc-dash-sup-search"
-                           value="@_supQuery" @oninput="OnSupQuery"
-                           placeholder="@T("iqc.dash.supplier.search")" />
-                    <button type="button" class="iqc-chip @(_onlyNg ? "iqc-chip-on" : null)"
-                            data-testid="iqc-dash-sup-onlyng" @onclick="ToggleOnlyNg">
-                        @T(_onlyNg ? "iqc.dash.supplier.all" : "iqc.dash.supplier.onlyng")
-                    </button>
-                </div>
-            </div>
-            <div class="iqc-table-wrap">
-                <table class="iqc-report-table iqc-sup-table" data-testid="iqc-dash-suppliers">
-                    <thead>
-                        <tr>
-                            <th><button type="button" class="iqc-th-btn" @onclick="() => SortBy(SupSort.Name)">@T("iqc.dash.supplier.name") @Arrow(SupSort.Name)</button></th>
-                            <th class="num"><button type="button" class="iqc-th-btn" @onclick="() => SortBy(SupSort.Lots)">@T("iqc.dash.trend.lots") @Arrow(SupSort.Lots)</button></th>
-                            <th class="num"><button type="button" class="iqc-th-btn" @onclick="() => SortBy(SupSort.Ng)">@T("iqc.dash.trend.ng") @Arrow(SupSort.Ng)</button></th>
-                            <th class="num"><button type="button" class="iqc-th-btn" @onclick="() => SortBy(SupSort.NgRate)">@T("iqc.dash.trend.ngrate") @Arrow(SupSort.NgRate)</button></th>
-                            <th>@T("iqc.dash.supplier.risk")</th>
-                            <th class="num"><button type="button" class="iqc-th-btn" @onclick="() => SortBy(SupSort.Nq)">@T("iqc.dash.kpi.nq") @Arrow(SupSort.Nq)</button></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @if (VisibleSuppliers.Count == 0)
-                        {
-                            <tr><td colspan="6" class="iqc-dash-empty">@T("iqc.dash.empty.supplier")</td></tr>
-                        }
-                        else
-                        {
-                            @foreach (var row in VisibleSuppliers)
-                            {
-                                <tr>
-                                    <td class="strong iqc-cell-ellipsis" title="@row.Supplier">@row.Supplier</td>
-                                    <td class="num">@row.Lots</td>
-                                    <td class="num @(row.Ng > 0 ? "iqc-cell-alarm" : "iqc-cell-mut")">@row.Ng</td>
-                                    <td class="num @RiskClass(row.NgRate)">@FmtPct(row.NgRate)</td>
-                                    <td>
-                                        <span class="iqc-bar" title="@FmtPct(row.NgRate)">
-                                            <span class="iqc-bar-fill @RiskFill(row.NgRate)"
-                                                  style="width:@RiskBarWidth(row.NgRate)"></span>
-                                        </span>
-                                    </td>
-                                    <td class="num iqc-cell-mut">@row.NqDefects</td>
-                                </tr>
-                            }
-                        }
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <td>@T("iqc.dash.supplier.total", VisibleSuppliers.Count)</td>
-                            <td class="num">@VisibleSuppliers.Sum(x => x.Lots)</td>
-                            <td class="num">@VisibleSuppliers.Sum(x => x.Ng)</td>
-                            <td class="num">@FmtPct(VisibleNgRate)</td>
-                            <td></td>
-                            <td class="num">@VisibleSuppliers.Sum(x => x.NqDefects)</td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-            <div class="iqc-legend iqc-legend-pad">
-                <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-lots"></i>@T("iqc.dash.supplier.leg.ok")</span>
-                <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-warn"></i>@T("iqc.dash.supplier.leg.watch")</span>
-                <span class="iqc-legend-item"><i class="iqc-swatch iqc-swatch-ng"></i>@T("iqc.dash.supplier.leg.car")</span>
-            </div>
-        </section>
-
-        <div class="iqc-insights">
-            <article class="iqc-insight iqc-insight-ng">
-                <h4>@T("iqc.dash.insight.priority")</h4>
-                <p>@PriorityInsight</p>
-            </article>
-            <article class="iqc-insight iqc-insight-warn">
-                <h4>@T("iqc.dash.insight.risk")</h4>
-                <p>@RiskInsight</p>
-            </article>
-            <article class="iqc-insight iqc-insight-ok">
-                <h4>@T("iqc.dash.insight.ok")</h4>
-                <p>@TrendInsight</p>
-            </article>
-        </div>
-
-        <p class="iqc-dash-foot">
+        <p class="iqc-dash-foot iqc-v2-colophon">
             <span>@T("iqc.dash.footer.source", FmtInt(_dash.Total), _dash.Suppliers.Count)</span>
             <span>@T("iqc.dash.footer.unit")</span>
         </p>
@@ -414,9 +421,25 @@
 </section>
 
 @code {
+    /// <summary>Ô số / hàng nào được bấm — cho trang cha lọc sang IQC Data.</summary>
+    public enum IqcDrill { All, Ng, Nq, WideOos, Claim, Pending, Pass, Suppliers }
+
+    /// <summary>Kèm theo drill: NCC cụ thể khi người dùng bấm vào TÊN nhà cung
+    /// cấp. Dùng record struct thay vì thêm tham số thứ hai để hợp đồng
+    /// EventCallback còn một kiểu duy nhất, mở rộng sau không phá call site.</summary>
+    public readonly record struct IqcDrillArgs(IqcDrill What, string? Supplier = null);
+
     private enum SupSort { Ng, NgRate, Lots, Nq, Name }
 
-    private ElementReference _root;
+    /// <summary>Bấm một ô số / hàng → cha nhảy sang tab dữ liệu đã lọc.</summary>
+    [Parameter] public EventCallback<IqcDrillArgs> OnDrill { get; set; }
+    /// <summary>Mở CAR / claim. Tham số là NCC, hoặc null khi mở từ khối quyết định.</summary>
+    [Parameter] public EventCallback<string?> OnOpenCar { get; set; }
+    /// <summary>Ghim NCC vào watchlist.</summary>
+    [Parameter] public EventCallback<string> OnPin { get; set; }
+    [Parameter] public EventCallback OnExport { get; set; }
+    [Parameter] public EventCallback OnPrint { get; set; }
+
     private IqcDashboardResponse _dash = new();
     private int? _year;
     private int? _month;
@@ -427,14 +450,8 @@
     private bool _sortDesc = true;
     private int _thrPct = 80;
 
-    private const double PlotL = 60, PlotR = 960, PlotT = 20, PlotB = 270;
-    private const double PlotH = PlotB - PlotT;
-    private static readonly double[] GridY = { 270, 207.5, 145, 82.5, 20 };
-    /* Pareto đứng cạnh bảng 12 dòng: viewBox cao hơn Monthly trend để cột lấp panel. */
-    private const double ParetoVbH = 880;
-    private const double ParetoPlotT = 36, ParetoPlotB = 740, ParetoXLabelY = 788;
-    private const double ParetoPlotH = ParetoPlotB - ParetoPlotT;
-    private static readonly double[] ParetoGridY = { 740, 564, 388, 212, 36 };
+    /// <summary>Ngưỡng gộp NCC — trên 5% là yêu cầu CAR, 2–5% là theo dõi.</summary>
+    private const double CarRate = 0.05, WatchRate = 0.02;
 
     protected override void OnInitialized()
     {
@@ -444,23 +461,17 @@
 
     protected override async Task OnInitializedAsync() => await LoadAsync(_year, _month);
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        try { await JS.InvokeVoidAsync("cclIqcSvgFont.bind", _root); }
-        catch { /* bUnit / no JS host */ }
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        try { await JS.InvokeVoidAsync("cclIqcSvgFont.unbind", _root); }
-        catch { /* ignore */ }
-    }
-
     public async Task ReloadAsync()
     {
         await LoadAsync(_year, _month);
         await InvokeAsync(StateHasChanged);
     }
+
+    private Task Drill(IqcDrill what) => OnDrill.InvokeAsync(new IqcDrillArgs(what));
+
+    /// <summary>Bấm TÊN nhà cung cấp = "cho tôi xem các lô NG của NCC này".</summary>
+    private Task DrillSupplier(string supplier)
+        => OnDrill.InvokeAsync(new IqcDrillArgs(IqcDrill.Ng, supplier));
 
     private async Task LoadAsync(int? year, int? month)
     {
@@ -494,15 +505,6 @@
 
     private void ToggleOnlyNg() => _onlyNg = !_onlyNg;
 
-    private void SortBy(SupSort col)
-    {
-        if (_sort == col) _sortDesc = !_sortDesc;
-        else { _sort = col; _sortDesc = col != SupSort.Name; }
-    }
-
-    private string Arrow(SupSort col)
-        => _sort != col ? "" : _sortDesc ? "↓" : "↑";
-
     private string PeriodLabel
     {
         get
@@ -530,9 +532,6 @@
     private int ParetoTotal => _dash.VisualPareto.Sum(x => x.Count);
     private int ParetoMax => Math.Max(1, _dash.VisualPareto.Count == 0 ? 1 : _dash.VisualPareto.Max(x => x.Count));
     private double ParetoThr => _thrPct / 100.0;
-    private double? ParetoTop3Cum => _dash.VisualPareto.Count == 0
-        ? null
-        : _dash.VisualPareto[Math.Min(2, _dash.VisualPareto.Count - 1)].Cumulative;
 
     private int ParetoFocusCount
     {
@@ -568,8 +567,11 @@
     private string NqPerNg
         => _dash.Fail <= 0 ? "—" : ((double)_dash.TotalNqDefects / _dash.Fail).ToString("0.00", CultureInfo.CurrentCulture);
 
-    private double ClaimShare => _dash.Fail <= 0 ? 0 : (double)_dash.ClaimNgLots / _dash.Fail;
-    private double WideShare => _dash.Total <= 0 ? 0 : (double)_dash.WideOosLots / _dash.Total;
+    private string LeadTone
+        => _dash.Total <= 0 ? "" : _dash.FailRate > CarRate ? "is-alarm" : _dash.FailRate >= WatchRate ? "is-warn" : "is-ok";
+
+    private int DecisionCount
+        => (_dash.WideOosLots > 0 ? 1 : 0) + (_dash.ClaimNgLots > 0 ? 1 : 0) + (_dash.Pending > 0 ? 1 : 0);
 
     private IqcMonthlyTrendRow? TrendPeak
         => _dash.MonthlyTrend.Where(x => x.Lots > 0).OrderByDescending(x => x.NgRate).ThenByDescending(x => x.Ng).FirstOrDefault();
@@ -577,13 +579,40 @@
     private IqcMonthlyTrendRow? TrendLow
         => _dash.MonthlyTrend.Where(x => x.Lots > 0).OrderBy(x => x.NgRate).ThenBy(x => x.Ng).FirstOrDefault();
 
-    private int? EmptyFrom
+    /// <summary>Hai tháng CÓ DỮ LIỆU gần nhất — nền của câu kết luận.</summary>
+    private (IqcMonthlyTrendRow Prev, IqcMonthlyTrendRow Last)? LastTwoMonths
     {
         get
         {
-            var last = _dash.MonthlyTrend.LastOrDefault(x => x.Lots > 0);
-            if (last is null || last.Month >= 12) return null;
-            return last.Month + 1;
+            var with = _dash.MonthlyTrend.Where(x => x.Lots > 0).ToList();
+            return with.Count < 2 ? null : (with[^2], with[^1]);
+        }
+    }
+
+    private string VerdictHeadline
+    {
+        get
+        {
+            if (_dash.Total <= 0) return T("iqc.dash.v2.verdict.nodata");
+            if (LastTwoMonths is not { } mm) return T("iqc.dash.v2.verdict.flat", FmtPct(_dash.FailRate));
+            var delta = mm.Last.NgRate - mm.Prev.NgRate;
+            var key = Math.Abs(delta) < 0.005 ? "flat.two" : delta > 0 ? "up" : "down";
+            return T($"iqc.dash.v2.verdict.{key}",
+                T($"iqc.dash.month.{mm.Last.Month}"), FmtPct(mm.Last.NgRate),
+                T($"iqc.dash.month.{mm.Prev.Month}"), FmtPct(mm.Prev.NgRate));
+        }
+    }
+
+    private string VerdictStandfirst
+    {
+        get
+        {
+            if (_dash.VisualPareto.Count == 0) return T("iqc.dash.insight.empty");
+            var names = string.Join(" · ", _dash.VisualPareto.Take(ParetoFocusCount == 0 ? 1 : Math.Min(3, ParetoFocusCount)).Select(DefectLabel));
+            var worst = _dash.Suppliers.OrderByDescending(x => x.NgRate).ThenByDescending(x => x.Ng).FirstOrDefault(x => x.Ng > 0);
+            return worst is null
+                ? T("iqc.dash.v2.verdict.stand.nosup", names, FmtPct(ParetoFocusCum))
+                : T("iqc.dash.v2.verdict.stand", names, FmtPct(ParetoFocusCum), worst.Supplier, FmtPct(worst.NgRate));
         }
     }
 
@@ -610,6 +639,36 @@
         }
     }
 
+    /// <summary>Số dòng tối đa mỗi dải. Dữ liệu thật có 15 NCC vượt 5%: liệt kê
+    /// hết thì cột NCC dài hơn cột Pareto ~480px, và một "danh sách việc cần
+    /// làm" 15 dòng thì không còn là danh sách việc cần làm.</summary>
+    private const int BandCap = 8;
+
+    private IReadOnlyList<IqcSupplierStatRow> CarAll
+        => VisibleSuppliers.Where(x => x.NgRate > CarRate).OrderByDescending(x => x.NgRate).ToList();
+
+    private IReadOnlyList<IqcSupplierStatRow> WatchAll
+        => VisibleSuppliers.Where(x => x.NgRate >= WatchRate && x.NgRate <= CarRate)
+                           .OrderByDescending(x => x.NgRate).ToList();
+
+    private IReadOnlyList<IqcSupplierStatRow> CarSuppliers => CarAll.Take(BandCap).ToList();
+    private IReadOnlyList<IqcSupplierStatRow> WatchSuppliers => WatchAll.Take(BandCap).ToList();
+
+    private int CarHidden => Math.Max(0, CarAll.Count - BandCap);
+    private int WatchHidden => Math.Max(0, WatchAll.Count - BandCap);
+
+    private IReadOnlyList<IqcSupplierStatRow> RestSuppliers
+        => VisibleSuppliers.Where(x => x.NgRate < WatchRate).ToList();
+
+    private double RestNgRate
+    {
+        get
+        {
+            var lots = RestSuppliers.Sum(x => x.Lots);
+            return lots <= 0 ? 0 : (double)RestSuppliers.Sum(x => x.Ng) / lots;
+        }
+    }
+
     private int NgSupplierCount => _dash.Suppliers.Count(x => x.Ng > 0);
 
     private string SortLabel => _sort switch
@@ -621,49 +680,6 @@
         _ => T("iqc.dash.trend.ng"),
     };
 
-    private double VisibleNgRate
-    {
-        get
-        {
-            var lots = VisibleSuppliers.Sum(x => x.Lots);
-            return lots <= 0 ? 0 : (double)VisibleSuppliers.Sum(x => x.Ng) / lots;
-        }
-    }
-
-    private string PriorityInsight
-    {
-        get
-        {
-            if (_dash.VisualPareto.Count == 0) return T("iqc.dash.insight.empty");
-            var names = string.Join(" · ", _dash.VisualPareto.Take(3).Select(DefectLabel));
-            return T("iqc.dash.insight.priority.body", names, FmtPct(ParetoTop3Cum ?? 0));
-        }
-    }
-
-    private string RiskInsight
-    {
-        get
-        {
-            var worst = _dash.Suppliers.OrderByDescending(x => x.Ng).ThenByDescending(x => x.NgRate).FirstOrDefault();
-            if (worst is null || worst.Ng == 0) return T("iqc.dash.insight.empty");
-            return T("iqc.dash.insight.risk.body", worst.Supplier, worst.Ng, FmtPct(worst.NgRate));
-        }
-    }
-
-    private string TrendInsight
-    {
-        get
-        {
-            var with = _dash.MonthlyTrend.Where(x => x.Lots > 0).ToList();
-            if (with.Count < 2) return T("iqc.dash.insight.empty");
-            var a = with[^2];
-            var b = with[^1];
-            return T("iqc.dash.insight.ok.body",
-                T($"iqc.dash.month.short.{a.Month}"), FmtPct(a.NgRate),
-                T($"iqc.dash.month.short.{b.Month}"), FmtPct(b.NgRate));
-        }
-    }
-
     private string MonthTone(IqcMonthlyTrendRow row)
     {
         if (row.Lots == 0) return "is-empty";
@@ -672,36 +688,12 @@
         return "";
     }
 
-    private static string RiskClass(double rate)
-        => rate > 0.05 ? "iqc-cell-alarm" : rate >= 0.02 ? "is-warn" : "iqc-cell-mut";
-
-    private static string RiskFill(double rate)
-        => rate > 0.05 ? "iqc-bar-alarm" : rate >= 0.02 ? "iqc-bar-warn" : "iqc-bar-ok";
-
     private string RiskBarWidth(double rate)
     {
         var cap = Math.Max(0.10, VisibleSuppliers.Select(x => x.NgRate).DefaultIfEmpty(0).Max());
         return Css(100.0 * rate / cap);
     }
 
-    private static double SlotMid(int i, int n) => n <= 0 ? PlotL : PlotL + (PlotR - PlotL) * (i + 0.5) / n;
-    private static double BarW(int n) => Math.Min(40, (PlotR - PlotL) / Math.Max(n, 1) * 0.42);
-    private static double BarX(int i, int n) => SlotMid(i, n) - BarW(n) / 2;
-    private static double YCum(double frac) => PlotB - PlotH * Math.Clamp(frac, 0, 1);
-    private static double ParetoYCum(double frac) => ParetoPlotB - ParetoPlotH * Math.Clamp(frac, 0, 1);
-
-    private static string Polyline(IEnumerable<double> fractions, double plotB, double plotH)
-    {
-        var v = fractions.ToList();
-        if (v.Count == 0) return "";
-        return string.Join(" ", v.Select((f, i) =>
-            $"{F(SlotMid(i, v.Count))},{F(plotB - plotH * Math.Clamp(f, 0, 1))}"));
-    }
-
-    private static MarkupString SvgText(string x, string y, string content, string extra = "")
-        => (MarkupString)$"<text x=\"{x}\" y=\"{y}\" {extra}>{System.Net.WebUtility.HtmlEncode(content)}</text>";
-
-    private static string F(double v) => v.ToString("0.##", CultureInfo.InvariantCulture);
     private static string Css(double pct) => Math.Clamp(pct, 0, 100).ToString("0.##", CultureInfo.InvariantCulture) + "%";
     private static string FmtInt(int n) => n.ToString("N0", CultureInfo.CurrentCulture);
     private static string FmtPct(double rate) => (rate * 100).ToString("0.0", CultureInfo.CurrentCulture) + "%";

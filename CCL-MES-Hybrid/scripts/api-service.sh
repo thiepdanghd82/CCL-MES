@@ -147,7 +147,22 @@ cmd_uninstall() {
   say "[✓] đã gỡ dịch vụ. API giờ chỉ chạy khi khởi động bằng tay."
 }
 
-cmd_restart() { launchctl kickstart -k "gui/$UID/$LABEL" 2>/dev/null && say "[✓] đã khởi động lại"; sleep 5; cmd_status; }
+# restart PHẢI qua preflight. Bản đầu chỉ kickstart, nên chốt chặn L22 (binary
+# cũ hơn mã nguồn) bị bỏ qua HOÀN TOÀN — và đúng lỗi đó đã xảy ra 2026-09-09:
+# thêm tham số ?result= vào endpoint, build DEBUG, rồi restart. Tiến trình đang
+# chạy là bản RELEASE của hôm trước; ASP.NET im lặng bỏ qua query param nó
+# không biết, nên UI lọc "chỉ lô NG" mà server vẫn trả tất cả. Xanh, 200, sai.
+cmd_restart() {
+  if ! preflight; then
+    say ""
+    say "[✗] KHÔNG khởi động lại — xem lỗi ở trên."
+    say "    Chú ý ĐÚNG CẤU HÌNH: script ưu tiên Release, nên build Debug rồi"
+    say "    restart sẽ chạy lại Release CŨ. Dùng: dotnet build $APIDIR -c $FLAVOUR"
+    exit 1
+  fi
+  launchctl kickstart -k "gui/$UID/$LABEL" 2>/dev/null && say "[✓] đã khởi động lại"
+  sleep 5; cmd_status
+}
 cmd_stop()    { launchctl bootout "gui/$UID/$LABEL" 2>/dev/null; say "[i] đã dừng (cài lại bằng: install)"; }
 cmd_log()     { tail -f "$LOG"; }
 

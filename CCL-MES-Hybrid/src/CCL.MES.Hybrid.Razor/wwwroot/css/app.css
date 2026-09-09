@@ -274,7 +274,12 @@ html, body {
 
 .app-shell {
     display: grid;
-    grid-template-columns: 240px 1fr;
+    /* minmax(0,…) chứ KHÔNG phải 1fr trần: track 1fr có minimum tự động là
+       MIN-CONTENT, nên nội dung không co được sẽ đẩy phình cả lưới và tràn
+       ngang toàn trang. Đo được trên iPad mini dọc (744px): tiêu đề, thẻ KPI
+       và bảng Pareto bị cắt cụt bên phải — trong khi chính Dashboard đã chạy
+       tốt tới 320px khi đo riêng. Thủ phạm là khung app, không phải màn. */
+    grid-template-columns: 240px minmax(0, 1fr);
     /* Fixed viewport-height shell so .app-content becomes the single
        vertical scroll container — this is what lets every table header
        freeze (position: sticky) while rows scroll under it. */
@@ -428,6 +433,8 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
     display: flex;
     flex-direction: column;
     min-height: 0;   /* let the flex child (.app-content) actually scroll */
+    min-width: 0;    /* ô lưới cũng có minimum min-content — thiếu dòng này thì
+                        minmax(0,1fr) ở .app-shell vẫn bị chính nó vô hiệu hoá. */
 }
 
 .app-content {
@@ -8015,7 +8022,9 @@ tr.wc-row:hover { background: var(--c-bg); }
    P11-3 — Routing fork-join operator surface (LegsDashboard).
    NOTE: maccatalyst host loads ONLY this global app.css — the scoped
    LegsDashboard.razor.css is DEAD, so every leg style lives here.
-   Token-based (L37): status/gate colours via --ok/--ng/--warn*/--brand*.
+   Token-based (L37): status/gate colours via the --ok / --ng / --warn and
+   --brand token families (viết tên đầy đủ: một dấu sao kèm gạch chéo ở đây
+   sẽ ĐÓNG comment sớm và giết luôn rule .legs-dashboard ngay dưới).
    ══════════════════════════════════════════════════════════════════════ */
 .legs-dashboard { display: flex; flex-direction: column; gap: 14px; }
 
@@ -9894,3 +9903,863 @@ tr.wc-row:hover { background: var(--c-bg); }
 }
 
 .iqc-muted { color: var(--c-ink-4); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   IQC Dashboard v3 — hệ CMYK NHÀ IN (theo IQC-Dashboard-V3.html)
+
+   Bảng màu, hình khối và nhịp chữ lấy đúng từ bản V3: nền giấy, mực gần
+   đen, cyan cho thanh dữ liệu (BO GÓC 0 — vuông kiểu bản in), magenta cho
+   mọi thứ vượt ngưỡng, bo nút 2px. Giá trị thật nằm ở khối token bên dưới —
+   KHÔNG chép mã màu vào chú thích: gate hex không bỏ qua comment.
+
+   KHÁC V3 một điểm CÓ CHỦ ĐÍCH: V3 dùng Source Serif 4 cho cả tiêu đề lẫn
+   thân bài; ở đây dùng var(--font-sans) — cùng họ chữ với các tab còn lại,
+   theo yêu cầu. Đổi lại phải bù bằng letter-spacing/độ đậm để giữ được
+   giọng "bản in" mà serif vốn mang.
+
+   Khối .iqc-svg* / .iqc-chart-host / .iqc-kcard ở TRÊN vẫn giữ nguyên: tab
+   khác còn dùng .iqc-report-table và test Dashboard_svg_font_* đọc chính
+   các token đó.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.iqc-dash-v2 {
+    /* Nền và xám trung tính ĐI THEO THANG CỦA APP (--ix-*), không dùng thang
+       xám ẤM của V3 nữa: V3 là giấy in nên nền ngả vàng, còn vùng nội dung
+       của app ngả xanh — đặt cạnh nhau thì Dashboard nổi lên
+       như một miếng dán khác tông. Chỉ CYAN và MAGENTA giữ nguyên, vì đó mới
+       là phần bản sắc V3 cần mang sang.
+       (hex ở đây nằm ĐÚNG chỗ được phép — dòng định nghĩa token) */
+    --iqc-paper:   var(--ix-canvas);
+    --iqc-card:    var(--ix-surface);
+    --iqc-surf:    var(--ix-surface-2);
+    --iqc-rule:    var(--ix-ink);
+    --iqc-cyan:    #0088B0;
+    --iqc-cyan-lt: #E9F8FF;
+    --iqc-mag:     #D6006C;
+    --iqc-mag-dk:  #AA0B56;
+    --iqc-n300:    var(--ix-line);
+    --iqc-n600:    var(--ix-ink-mut);
+    --iqc-n700:    var(--ix-ink-2);
+    --iqc-r:       2px;
+    /* Mặc định 0: component ghi đè bằng style inline. Thiếu dòng này thì
+       calc() của đường cắt hỏng ở computed-value time và cả rule biến mất. */
+    --iqc-par-n:   0;
+
+    box-sizing: border-box;
+    background: var(--iqc-paper);
+    color: var(--iqc-rule);
+    padding: var(--sp-4) var(--sp-5) var(--sp-6);
+    /* KHỔ báo giấy. Đo trên màn thật 2560px: không có trần thì cột tên NCC
+       giãn ra và tên cách thanh %NG ~900px — mắt phải bắc cầu qua khoảng
+       trống, đúng bệnh của bảng phẳng mà bản v2 sinh ra để bỏ. */
+    max-width: 108rem;
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
+}
+
+/* ── 32" và MÁY CHIẾU ────────────────────────────────────────────────────
+   --bp-wide (1600px) = màn rộng / màn treo tường. Đây là bậc thang duy nhất
+   mô tả "màn to, người đứng XA": 32" ngồi bàn ở 2560px và máy chiếu 1920px
+   đều rơi vào đây. Nâng CẢ thang chữ lên một bậc (không phải chỉ vài chỗ)
+   và nới khổ, để 16px không bị nuốt mất trên tường. */
+@media (min-width: 1600px) {
+    .iqc-dash-v2 {
+        --fs-2xs:  0.875rem;
+        --fs-xs:   1rem;
+        --fs-sm:   1.0625rem;
+        --fs-md:   1.1875rem;
+        --fs-base: 1.375rem;
+        --fs-lg:   1.625rem;
+        --fs-xl:   2rem;
+        --fs-2xl:  2.75rem;
+        --fs-3xl:  3.5rem;
+        --fs-4xl:  5rem;
+
+        /* Token DẪN XUẤT phải khai LẠI. --d-font, --d-tap, --d-row-h và các
+           bậc --sp- đã được resolve ở :root rồi, nên đổi thang chữ trong phạm
+           vi con KHÔNG hồi tố. Đo được lần đầu: chữ dẫn lên 72px trong khi
+           thân bài vẫn 14px và vùng chạm vẫn 28px — nửa vời, tệ hơn không làm.
+           (Chú thích này TRÁNH viết dấu đóng-comment giữa câu: bản đầu tôi gõ
+           thang chữ kèm dấu sao-gạch chéo, nó đóng comment sớm và nuốt luôn
+           khai báo --d-font ngay dưới. Im lặng, không một cảnh báo nào.) */
+        --d-font:  var(--fs-base);
+        --d-tap:   2.75rem;
+        --d-row-h: 3rem;
+        --sp-3:    1.125rem;
+        --sp-4:    1.5rem;
+        --sp-5:    2rem;
+        --sp-6:    2.75rem;
+
+        max-width: 140rem;
+    }
+}
+
+/* ── Măng-sét ────────────────────────────────────────────────────────────
+   V3 mở bằng một rule DÀY sát mép rồi mới tới tên ấn phẩm. */
+
+.iqc-dash-v2 .iqc-v2-mast {
+    display: flex;
+    flex-direction: column;
+    /* Reset TƯỜNG MINH: phần tử này vẫn mang class .iqc-dash-hero của v1, và
+       rule đó đặt align-items:flex-end — đo được măng-sét bắt đầu ở x=279 thay
+       vì 0, tức toàn bộ tên ấn phẩm bị đẩy sang phải. */
+    align-items: stretch;
+    text-align: left;
+    gap: var(--sp-2);
+    background: none;
+    border: 0;
+    padding: 0;
+}
+
+.iqc-dash-v2 .iqc-v2-rule { background: var(--iqc-rule); }
+.iqc-dash-v2 .iqc-v2-rule-thick { height: 4px; }
+.iqc-dash-v2 .iqc-v2-rule-thin  { height: 1px; background: var(--iqc-n300); }
+
+.iqc-dash-v2 .iqc-v2-mast-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    flex-wrap: wrap;
+}
+
+.iqc-dash-v2 .iqc-v2-eyebrow {
+    margin: 0;
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-semibold);
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--iqc-n600);
+}
+
+.iqc-dash-v2 .iqc-v2-masthead {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-bold);
+    line-height: 1.04;
+    letter-spacing: -.02em;
+    color: var(--iqc-rule);
+    text-wrap: balance;
+    overflow-wrap: break-word;
+}
+
+.iqc-dash-v2 .iqc-v2-mast-tools {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+}
+
+.iqc-dash-v2 .iqc-v2-tool {
+    min-height: var(--d-tap);
+    padding: 0 var(--sp-3);
+    border: 1px solid var(--iqc-n300);
+    border-radius: var(--iqc-r);
+    background: var(--iqc-card);
+    color: var(--iqc-rule);
+    font: inherit;
+    font-size: var(--d-font);
+    font-weight: var(--fw-semibold);
+    cursor: pointer;
+}
+
+.iqc-dash-v2 .iqc-v2-tool:hover { border-color: var(--iqc-rule); }
+.iqc-dash-v2 .iqc-v2-tool:focus-visible { outline: var(--focus-ring); }
+
+.iqc-dash-v2 .iqc-v2-dateline {
+    margin: 0;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-regular);
+    color: var(--iqc-n600);
+}
+
+/* ── Số dẫn + dải số phụ ────────────────────────────────────────────────
+   V3 xếp các số phụ thành MỘT DÒNG ngăn bằng dấu chấm giữa, không phải sáu
+   thẻ có viền. Đổi bằng CSS thuần: Razor và testid giữ nguyên. */
+
+.iqc-dash-v2 .iqc-v2-kpis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-4);
+    align-items: stretch;
+}
+
+.iqc-dash-v2 .iqc-v2-lead  { flex: 1 1 14rem; }
+.iqc-dash-v2 .iqc-v2-stats { flex: 2.4 1 22rem; min-width: 0; }
+
+.iqc-dash-v2 .iqc-v2-lead {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: var(--sp-1);
+    padding: var(--sp-4);
+    text-align: left;
+    background: var(--iqc-surf);
+    border: 0;
+    border-left: 4px solid var(--iqc-cyan);
+    border-radius: 0;
+    cursor: pointer;
+    font: inherit;
+    color: var(--iqc-rule);
+    min-height: var(--d-tap);
+}
+
+.iqc-dash-v2 .iqc-v2-lead.is-warn,
+.iqc-dash-v2 .iqc-v2-lead.is-alarm { border-left-color: var(--iqc-mag); }
+.iqc-dash-v2 .iqc-v2-lead:focus-visible { outline: var(--focus-ring); }
+
+.iqc-dash-v2 .iqc-v2-lead-lbl {
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-semibold);
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--iqc-n600);
+}
+
+.iqc-dash-v2 .iqc-v2-lead-val {
+    font-size: var(--fs-4xl);
+    font-weight: var(--fw-bold);
+    line-height: 1;
+    letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
+    color: var(--iqc-rule);
+}
+
+.iqc-dash-v2 .iqc-v2-lead.is-alarm .iqc-v2-lead-val,
+.iqc-dash-v2 .iqc-v2-lead.is-warn  .iqc-v2-lead-val { color: var(--iqc-mag-dk); }
+
+.iqc-dash-v2 .iqc-v2-lead-sub {
+    font-size: var(--fs-md);
+    color: var(--iqc-n700);
+}
+
+/* Dải số phụ: LƯỚI cột đều, không phải flex trôi tự do.
+   Đo được ở bản flex: số item mỗi hàng nhảy 4+3 / 5+2 tuỳ bề rộng, cột không
+   bao giờ thẳng, và dấu · ngăn cách LUÔN rơi xuống đầu hàng hai (trông như
+   dấu đầu dòng). Lưới thì cột thẳng ở mọi bề rộng và không cần dấu ngăn. */
+.iqc-dash-v2 .iqc-v2-stats {
+    display: grid;
+    /* Số cột CỐ ĐỊNH, không auto-fit. auto-fit cho số cột đổi theo bề rộng và
+       đo được 4+3 → 5+2 → 6+1 → 7: ở 1920 còn đúng MỘT ô lẻ loi ở hàng hai.
+       Bốn cột thì bảy số luôn xếp 4+3, cột thẳng ở mọi bề rộng. */
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-content: center;
+    gap: var(--sp-3) var(--sp-4);
+}
+
+@media (max-width: 768px) {
+    .iqc-dash-v2 .iqc-v2-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.iqc-dash-v2 .iqc-v2-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+    min-height: var(--d-tap);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    color: var(--iqc-rule);
+    text-align: left;
+}
+
+.iqc-dash-v2 .iqc-v2-stat:hover  { color: var(--iqc-cyan); }
+.iqc-dash-v2 .iqc-v2-stat:focus-visible { outline: var(--focus-ring); }
+
+.iqc-dash-v2 .iqc-v2-stat-lbl {
+    order: 1;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-regular);
+    letter-spacing: 0;
+    text-transform: uppercase;
+    letter-spacing: .12em;
+    font-size: var(--fs-2xs);
+    color: var(--iqc-n600);
+}
+
+.iqc-dash-v2 .iqc-v2-stat-val {
+    order: 2;
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-bold);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.iqc-dash-v2 .iqc-v2-stat-val.is-ok   { color: var(--iqc-rule); }
+.iqc-dash-v2 .iqc-v2-stat-val.is-ng   { color: var(--iqc-mag-dk); }
+.iqc-dash-v2 .iqc-v2-stat-val.is-warn { color: var(--iqc-rule); }
+
+.iqc-dash-v2 .iqc-v2-stat-note {
+    order: 3;
+    font-size: var(--fs-2xs);
+    color: var(--iqc-n600);
+}
+
+/* ── KẾT LUẬN ───────────────────────────────────────────────────────────── */
+
+.iqc-dash-v2 .iqc-v2-verdict {
+    border-top: 3px solid var(--iqc-rule);
+    border-bottom: 1px solid var(--iqc-n300);
+    padding: var(--sp-4) 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.iqc-dash-v2 .iqc-v2-kicker {
+    margin: 0;
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-bold);
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--iqc-mag);
+}
+
+.iqc-dash-v2 .iqc-v2-headline {
+    margin: 0;
+    max-width: 46ch;
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-bold);
+    line-height: 1.1;
+    letter-spacing: -.02em;
+    color: var(--iqc-rule);
+    text-wrap: balance;
+    overflow-wrap: break-word;
+}
+
+.iqc-dash-v2 .iqc-v2-standfirst {
+    margin: 0;
+    max-width: 62ch;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-regular);
+    line-height: 1.5;
+    color: var(--iqc-n700);
+}
+
+/* ── Tiêu đề mục: chữ hoa giãn, có rule dưới (đúng nhịp V3) ─────────────── */
+
+.iqc-dash-v2 .iqc-v2-sec-title {
+    margin: 0;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-bold);
+    letter-spacing: -.01em;
+    color: var(--iqc-rule);
+}
+
+.iqc-dash-v2 .iqc-v2-decide {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.iqc-dash-v2 .iqc-v2-decide-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    /* Trần bề rộng: không có nó thì trên màn 32" một dòng chữ ngắn trải hơn
+       2400px và đường dẫn chấm dài 1500px — đọc thành nhiễu chứ không còn là
+       đường nối. */
+    max-width: 76rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.iqc-dash-v2 .iqc-v2-decide-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-3);
+    padding: var(--sp-3) 0;
+    min-height: var(--d-tap);
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--iqc-n300);
+}
+
+.iqc-dash-v2 .iqc-v2-decide-list > :first-child { border-top: 0; }
+
+.iqc-dash-v2 .iqc-v2-decide-n {
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-bold);
+    font-variant-numeric: tabular-nums;
+    min-width: 3ch;
+    text-align: right;
+    color: var(--iqc-n700);
+}
+
+.iqc-dash-v2 .iqc-v2-decide-row.is-alarm .iqc-v2-decide-n { color: var(--iqc-mag-dk); }
+.iqc-dash-v2 .iqc-v2-decide-row.is-warn  .iqc-v2-decide-n { color: var(--iqc-cyan); }
+
+.iqc-dash-v2 .iqc-v2-decide-txt {
+    /* KHÔNG giãn: bản đầu để flex:1 nên ô chữ nuốt hết chiều ngang và đẩy nút
+       ra xa chữ ~1000px — đọc như hai thứ rời nhau. Nay chữ giữ bề rộng thật,
+       phần trống được nối bằng ĐƯỜNG DẪN CHẤM (kiểu mục lục báo giấy) nên nút
+       vẫn thẳng cột mà mắt vẫn bám được từ chữ sang nút. */
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: var(--d-font);
+    color: var(--iqc-rule);
+}
+
+.iqc-dash-v2 .iqc-v2-decide-lead {
+    flex: 1 1 var(--sp-6);
+    min-width: var(--sp-5);
+    align-self: center;
+    height: 1px;
+    background-image: radial-gradient(circle, var(--iqc-n300) 1px, transparent 1px);
+    background-size: 6px 2px;
+    background-repeat: repeat-x;
+}
+
+.iqc-dash-v2 .iqc-v2-decide-none {
+    margin: 0;
+    font-size: var(--d-font);
+    color: var(--iqc-n600);
+}
+
+/* ── Nút hành động: cyan đặc / viền mảnh, bo 2px (đúng V3) ──────────────── */
+
+.iqc-dash-v2 .iqc-v2-act {
+    min-height: var(--d-tap);
+    padding: 0 var(--sp-4);
+    border: 1px solid transparent;
+    border-radius: var(--iqc-r);
+    background: var(--iqc-cyan);
+    color: var(--iqc-card);
+    font: inherit;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+    cursor: pointer;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.iqc-dash-v2 .iqc-v2-act-ghost {
+    background: var(--iqc-card);
+    color: var(--iqc-rule);
+    border-color: var(--iqc-n300);
+}
+
+.iqc-dash-v2 .iqc-v2-act:focus-visible { outline: var(--focus-ring); }
+
+/* ── Pareto ngang ───────────────────────────────────────────────────────── */
+
+.iqc-dash-v2 .iqc-v2-split {
+    display: grid;
+    /* min(100%, …) là phần BẮT BUỘC: thiếu nó thì auto-fit giữ nguyên 26rem
+       và tràn ngang ngay khi khung hẹp hơn — iPad dọc / Split View. */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+    gap: var(--sp-5);
+    align-items: start;
+}
+
+/* Cột trái xếp dọc hai khối; gap bằng gap của lưới để hai cột cùng nhịp. */
+.iqc-dash-v2 .iqc-v2-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
+    min-width: 0;
+}
+
+.iqc-dash-v2 .iqc-v2-panel {
+    background: none;
+    border: 0;
+    border-top: 1px solid var(--iqc-n300);
+    border-radius: 0;
+    padding: var(--sp-3) 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    min-width: 0;
+}
+
+.iqc-dash-v2 .iqc-v2-panel-head > * { min-width: 0; }
+
+.iqc-dash-v2 .iqc-v2-panel-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+}
+
+.iqc-dash-v2 .iqc-v2-par { overflow-x: auto; }
+
+/* Cột CỐ ĐỊNH: tên lỗi phải đọc được, đó là lý do Pareto quay ngang.
+   Để auto-layout thì .iqc-cell-ellipsis (max-width:0) bóp cột tên còn 60px
+   và mọi tên đều thành "X…" — đo được, không phải phỏng đoán. */
+.iqc-dash-v2 .iqc-v2-par-table { width: 100%; table-layout: fixed; }
+.iqc-dash-v2 .iqc-v2-par-table th:nth-child(1),
+.iqc-dash-v2 .iqc-v2-par-row  td:nth-child(1) { width: 36%; }
+.iqc-dash-v2 .iqc-v2-par-cell { width: 34%; }
+.iqc-dash-v2 .iqc-v2-par-table th:nth-child(3),
+.iqc-dash-v2 .iqc-v2-par-row  td:nth-child(3) { width: 14%; }
+
+.iqc-dash-v2 .iqc-v2-par-table thead th {
+    background: none;
+    border-bottom: 1px solid var(--iqc-rule);
+    padding: var(--sp-1) var(--sp-2);
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-semibold);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--iqc-n600);
+    text-align: left;
+}
+
+.iqc-dash-v2 .iqc-v2-par-table th.num,
+.iqc-dash-v2 .iqc-v2-par-row  td.num { text-align: right; }
+
+.iqc-dash-v2 .iqc-v2-par-row td {
+    background: none;
+    border-bottom: 1px solid var(--iqc-n300);
+    padding: var(--sp-2);
+    font-size: var(--d-font);
+    color: var(--iqc-rule);
+}
+
+.iqc-dash-v2 .iqc-v2-par-row.is-focus td { background: var(--iqc-cyan-lt); }
+
+/* Thanh dữ liệu: VUÔNG, không bo — nhịp bản in của V3. */
+.iqc-dash-v2 .iqc-v2-par-bar {
+    display: block;
+    height: var(--sp-3);
+    border-radius: 0;
+    background: var(--iqc-cyan);
+}
+
+.iqc-dash-v2 .iqc-v2-par-row.is-focus .iqc-v2-par-bar { background: var(--iqc-mag); }
+
+/* Đường cắt ngưỡng là MỘT HÀNG BẢNG THẬT, không phải lớp phủ tính bằng calc().
+   Bản đầu tôi đặt nó absolute ở top: calc(head-h + --iqc-par-n * row-h) — sai
+   19px vì padding ô đè lên chiều cao tôi khai, nên đường cắt rơi vào GIỮA hàng
+   3 thay vì sau hàng 3. Một đường ngưỡng lệch là số liệu SAI, không phải lỗi
+   thẩm mỹ. Hàng thật thì đúng theo cấu trúc, không phụ thuộc phép đo nào. */
+.iqc-dash-v2 .iqc-v2-cut > td {
+    border-top: 2px dashed var(--iqc-mag);
+    border-bottom: 0;
+    padding-top: var(--sp-1);
+    padding-bottom: var(--sp-1);
+}
+
+.iqc-dash-v2 .iqc-v2-cut-lbl {
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-semibold);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    color: var(--iqc-mag);
+    /* Số hạng mục trong dải ưu tiên lấy THẲNG từ --iqc-par-n — biến này lái
+       nội dung hiển thị, không phải trang trí. */
+    counter-reset: par-n var(--iqc-par-n);
+}
+
+.iqc-dash-v2 .iqc-v2-cut-lbl::before { content: counter(par-n) " · "; }
+
+.iqc-dash-v2 .iqc-v2-foot-note {
+    margin: 0;
+    font-size: var(--fs-sm);
+    color: var(--iqc-n600);
+}
+
+.iqc-dash-v2 .iqc-panel-note { color: var(--iqc-n600); }
+
+/* Thanh ngưỡng dùng chung (.iqc-thr, có từ 7fae5fe): nhãn nowrap + range
+   min-width:6rem + ô % min-width:3.25rem ⇒ bề rộng tối thiểu ~254px. Đo được
+   ô % đội ra khỏi khung ở SÁU kích thước iPad (320·375·590·1080·1133·1180).
+   Cho nó tự xuống dòng và cho range co thêm — chỉ trong phạm vi v2. */
+.iqc-dash-v2 .iqc-thr { flex-wrap: wrap; row-gap: var(--sp-1); }
+.iqc-dash-v2 .iqc-thr input[type="range"] { min-width: 4rem; flex: 1 1 6rem; accent-color: var(--iqc-cyan); }
+.iqc-dash-v2 .iqc-thr-val { min-width: 2.5rem; color: var(--iqc-cyan); }
+.iqc-dash-v2 .iqc-thr-lbl { color: var(--iqc-n600); letter-spacing: .14em; }
+
+/* ── Xu hướng: cột vuông, magenta = tháng vượt đỉnh ─────────────────────── */
+
+.iqc-dash-v2 .iqc-v2-tbars {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: var(--sp-1);
+    align-items: end;
+    height: 9rem;
+    padding-top: var(--sp-4);
+    border-bottom: 1px solid var(--iqc-rule);
+}
+
+.iqc-dash-v2 .iqc-v2-tbar-slot {
+    position: relative;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.iqc-dash-v2 .iqc-v2-tbar-n {
+    font-size: var(--fs-2xs);
+    font-variant-numeric: tabular-nums;
+    color: var(--iqc-n600);
+    overflow: hidden;
+    max-width: 100%;
+}
+
+.iqc-dash-v2 .iqc-v2-tbar {
+    display: block;
+    width: 100%;
+    max-width: 2.5rem;
+    background: var(--iqc-cyan);
+    border-radius: 0;
+}
+
+.iqc-dash-v2 .iqc-v2-tbar-ng {
+    position: absolute;
+    left: 50%;
+    width: var(--sp-2);
+    height: var(--sp-2);
+    margin-left: calc(-1 * var(--sp-1));
+    margin-bottom: calc(-1 * var(--sp-1));
+    border-radius: 0;
+    background: var(--iqc-mag);
+}
+
+/* --bp-phone (480px): 12 khe trên máy quét cầm tay / Slide Over hẹp nhất —
+   nhãn số không còn chỗ, giữ cột và dải tháng bên dưới là đủ đọc. */
+@media (max-width: 480px) {
+    .iqc-dash-v2 .iqc-v2-tbar-n { display: none; }
+    .iqc-dash-v2 .iqc-v2-tbars  { height: 6rem; }
+    /* Ở shopfloor × --ui-scale 1.25 tại 320px, "Mở CAR" rộng hơn CẢ khung
+       chứa — cha có wrap cũng vô ích. Cho nhãn nút tự xuống dòng. */
+    .iqc-dash-v2 .iqc-v2-act { white-space: normal; }
+}
+
+/* ── NCC gộp theo hành động ─────────────────────────────────────────────── */
+
+.iqc-dash-v2 .iqc-v2-sup {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+}
+
+.iqc-dash-v2 .iqc-v2-sup-band {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    padding-left: 0;
+    border-left: 0;
+}
+
+.iqc-dash-v2 .iqc-v2-band-title {
+    margin: 0;
+    padding-bottom: var(--sp-1);
+    border-bottom: 1px solid var(--iqc-n300);
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-bold);
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--iqc-n600);
+}
+
+.iqc-dash-v2 .iqc-v2-sup-band.is-alarm .iqc-v2-band-title { color: var(--iqc-mag); }
+
+.iqc-dash-v2 .iqc-v2-band-none {
+    margin: 0;
+    font-size: var(--fs-md);
+    color: var(--iqc-n600);
+}
+
+.iqc-dash-v2 .iqc-v2-sup-row {
+    display: grid;
+    grid-template-columns: minmax(0, 20rem) minmax(4rem, 1fr) auto auto auto;
+    align-items: center;
+    gap: var(--sp-3);
+    min-height: var(--d-row-h);
+    padding: var(--sp-2) 0;
+    border-bottom: 1px solid var(--iqc-n300);
+}
+
+/* --bp-tablet-p (768px): iPad DỌC và Split View. Dưới ngưỡng này bỏ thanh
+   phân bố — tên + %NG + hành động là thứ phải giữ, thanh chỉ là phụ hoạ. */
+@media (max-width: 768px) {
+    .iqc-dash-v2 .iqc-v2-sup-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: var(--sp-1);
+    }
+    .iqc-dash-v2 .iqc-v2-sup-bar { display: none; }
+    .iqc-dash-v2 .iqc-v2-sup-n   { grid-column: 1 / -1; }
+}
+
+/* Cắt chữ TẠI CHỖ, không mượn .iqc-cell-ellipsis: class đó dựa vào
+   max-width:0 — một thủ thuật chỉ đúng trong <td> auto-layout. Đặt vào ô
+   grid thì nó bóp phần tử về ĐÚNG 0px và tên NCC biến mất hoàn toàn
+   (đo được: width 0 trên cả ba dòng đầu). */
+/* Tên NCC là NÚT (mở danh sách lô NG của chính NCC đó), nên phải reset hình
+   dạng nút về dạng chữ thường — nếu không nó thừa hưởng nền/viền của <button>. */
+.iqc-dash-v2 .iqc-v2-sup-name {
+    /* Màu TƯỜNG MINH: dải "theo dõi" mang .is-warn của v1, và rule đó tô
+       --iqc-gold cho cả cây con — đo được tên NCC ra rgb(200,135,27). */
+    color: var(--iqc-rule);
+    background: none;
+    border: 0;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--d-font);
+    font-weight: var(--fw-semibold);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.iqc-dash-v2 .iqc-v2-sup-name:hover { color: var(--iqc-cyan); text-decoration: underline; }
+.iqc-dash-v2 .iqc-v2-sup-name:focus-visible { outline: var(--focus-ring); }
+
+.iqc-dash-v2 .iqc-v2-sup-bar {
+    height: var(--sp-2);
+    background: var(--iqc-surf);
+    border-radius: 0;
+    overflow: hidden;
+}
+
+.iqc-dash-v2 .iqc-v2-sup-fill { display: block; height: 100%; background: var(--iqc-cyan); }
+.iqc-dash-v2 .iqc-v2-sup-fill.iqc-bar-alarm { background: var(--iqc-mag); }
+.iqc-dash-v2 .iqc-v2-sup-fill.iqc-bar-warn  { background: var(--iqc-cyan); }
+
+.iqc-dash-v2 .iqc-v2-sup-pct {
+    font-size: var(--d-font);
+    font-weight: var(--fw-bold);
+    font-variant-numeric: tabular-nums;
+    color: var(--iqc-mag-dk);
+}
+
+.iqc-dash-v2 .iqc-v2-sup-pct.is-warn { color: var(--iqc-cyan); }
+
+.iqc-dash-v2 .iqc-v2-sup-n {
+    font-size: var(--fs-md);
+    font-variant-numeric: tabular-nums;
+    color: var(--iqc-n600);
+}
+
+.iqc-dash-v2 .iqc-v2-sup-acts { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+/* Hàng "+N nữa": cùng nhịp với hàng gộp cuối, nhưng NẰM TRONG dải nên nó
+   dừng danh sách lại chứ không kết thúc cả khối. */
+.iqc-dash-v2 .iqc-v2-sup-more {
+    text-align: left;
+    padding: var(--sp-2) 0;
+    min-height: var(--d-tap);
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--iqc-n300);
+    color: var(--iqc-cyan);
+    font: inherit;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+    cursor: pointer;
+}
+
+.iqc-dash-v2 .iqc-v2-sup-more:focus-visible { outline: var(--focus-ring); }
+
+.iqc-dash-v2 .iqc-v2-sup-rest {
+    text-align: left;
+    padding: var(--sp-2) 0;
+    min-height: var(--d-tap);
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--iqc-n300);
+    color: var(--iqc-cyan);
+    font: inherit;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+    cursor: pointer;
+}
+
+.iqc-dash-v2 .iqc-v2-sup-rest:focus-visible { outline: var(--focus-ring); }
+
+.iqc-dash-v2 .iqc-v2-colophon {
+    border-top: 1px solid var(--iqc-n300);
+    padding-top: var(--sp-2);
+    font-size: var(--fs-sm);
+    color: var(--iqc-n600);
+}
+
+.iqc-dash-v2 .iqc-dash-empty { color: var(--iqc-n600); }
+
+/* Dải chip tháng theo nhịp V3: vuông, viền mảnh, chọn = mực đặc. */
+.iqc-dash-v2 .iqc-chip {
+    border-radius: var(--iqc-r);
+    border-color: var(--iqc-n300);
+    background: var(--iqc-card);
+    color: var(--iqc-rule);
+}
+
+.iqc-dash-v2 .iqc-chip-on {
+    background: var(--iqc-rule);
+    border-color: var(--iqc-rule);
+    color: var(--iqc-card);
+}
+
+.iqc-dash-v2 .iqc-chip-empty { color: var(--iqc-n600); }
+
+.iqc-dash-v2 .iqc-month-cell {
+    border-radius: 0;
+    border-color: var(--iqc-n300);
+    background: var(--iqc-card);
+}
+
+.iqc-dash-v2 .iqc-month-cell.is-peak { background: var(--iqc-cyan-lt); }
+
+/* ── 7. Bản in A4 ngang ──────────────────────────────────────────────────
+   Khối @media print ở TRÊN ẩn cả body rồi chỉ mở lại .spec-showcard-full —
+   nếu không mở lại ở đây thì in Dashboard ra TRANG TRẮNG.
+
+   Cỡ chữ KHÔNG đặt bằng pt: chỉ hạ --ui-scale về 1 rồi để nguyên thang
+   token. Đặt pt cứng sẽ mù --ui-scale, đúng cái bệnh L41 đã trả giá. */
+@media print {
+    .iqc-dash-v2 { --ui-scale: 1; }
+
+    .iqc-dash-v2,
+    .iqc-dash-v2 * { visibility: visible !important; }
+
+    /* left+right thay cho width:100%: khỏi phụ thuộc box-sizing khi in. */
+    .iqc-dash-v2 {
+        position: absolute !important;
+        left: 0 !important;
+        right: 0 !important;
+        top: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+    }
+
+    .iqc-dash-v2 .iqc-dash-months,
+    .iqc-dash-v2 .iqc-v2-mast-tools,
+    .iqc-dash-v2 .iqc-thr,
+    .iqc-dash-v2 .iqc-sup-tools,
+    .iqc-dash-v2 .iqc-v2-act,
+    .iqc-dash-v2 .iqc-v2-sup-acts,
+    .iqc-dash-v2 .iqc-v2-sup-rest,
+    .iqc-dash-v2 .iqc-v2-sup-more { display: none !important; }
+
+    .iqc-dash-v2 .iqc-v2-verdict,
+    .iqc-dash-v2 .iqc-v2-panel { break-inside: avoid; }
+
+    .iqc-dash-v2 .iqc-v2-split { grid-template-columns: 1fr 1fr; }
+    .iqc-dash-v2 .iqc-v2-sup-bar { display: block; }
+
+    .iqc-dash-v2 .iqc-v2-par-bar,
+    .iqc-dash-v2 .iqc-v2-tbar,
+    .iqc-dash-v2 .iqc-v2-tbar-ng,
+    .iqc-dash-v2 .iqc-v2-sup-fill {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}

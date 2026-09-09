@@ -41,7 +41,14 @@ count_usage_hex() {
 import re,sys
 n=0
 for path in sys.argv[1:]:
-  for ln in open(path,encoding='utf-8'):
+  src = open(path,encoding='utf-8').read()
+  # Bỏ CHÚ THÍCH trước khi đếm: một mã màu viết trong /* … */ không phải màu
+  # hardcode trong rule, nó chỉ là tài liệu. Bản đầu của gate không bỏ comment
+  # nên báo "hardcoded hex in a rule" khi thủ phạm nằm trong chú thích — thông
+  # báo chỉ sai chỗ, mất ba lượt tìm. (Comment bị đóng SỚM là chuyện khác và đã
+  # có gate-token-defined lo, nên bỏ comment ở đây không tạo lỗ hổng.)
+  src = re.sub(r'/\*.*?\*/', '', src, flags=re.S)
+  for ln in src.split('\n'):
     if re.match(r'\s*--[A-Za-z0-9-]+\s*:', ln):   # a custom-property DEFINITION line → allowed
         continue
     n += len(re.findall(r'#[0-9a-fA-F]{3,8}\b', ln))
@@ -56,6 +63,23 @@ if [ "${1:-}" = "--self-test" ]; then
   before="$(count_usage_hex "$CSS" "$IX")"; after="$(count_usage_hex "$tmp" "$tmp.ix")"
   [ "$after" -gt "$before" ] && echo "[gate:hex] self-test OK (adding a raw hex is detected: $before -> $after)" \
     || { echo "[gate:hex] self-test FAILED — detector did not catch an added hex"; exit 1; }
+
+  # Mã màu trong CHÚ THÍCH là tài liệu, không phải màu hardcode → không báo.
+  cp "$CSS" "$tmp"
+  printf '\n/* palette ghi chu: #abcdef va #123456 */\n.gate-selftest-cmt { color: var(--c-ink); }\n' >> "$tmp"
+  cmt="$(count_usage_hex "$tmp" "$tmp.ix")"
+  [ "$cmt" -eq "$before" ] \
+    && echo "[gate:hex] self-test OK (hex trong chú thích KHÔNG bị báo nhầm)" \
+    || { echo "[gate:hex] self-test FAILED — hex trong chú thích bị đếm ($before -> $cmt)"; exit 1; }
+
+  # Dòng định nghĩa token vẫn là chỗ được phép — token phải NẰM RIÊNG MỘT DÒNG
+  # (đúng như luật ghi ở đầu file, và đúng cách repo viết token).
+  cp "$CSS" "$tmp"
+  printf '\n.gate-selftest-def {\n    --gate-x: #abcdef;\n    color: var(--gate-x);\n}\n' >> "$tmp"
+  dfn="$(count_usage_hex "$tmp" "$tmp.ix")"
+  [ "$dfn" -eq "$before" ] \
+    && echo "[gate:hex] self-test OK (hex trên dòng định nghĩa token KHÔNG bị báo)" \
+    || { echo "[gate:hex] self-test FAILED — dòng định nghĩa token bị đếm"; exit 1; }
   exit 0
 fi
 

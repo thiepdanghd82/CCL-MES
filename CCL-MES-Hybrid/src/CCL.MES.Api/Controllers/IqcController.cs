@@ -56,17 +56,18 @@ public sealed class IqcController : ControllerBase
 
     /// <summary>Danh sách phiếu IQC đã lưu cho tab "IQC Data" — trả DTO thuần
     /// (KHÔNG entity). Lọc <c>?group=</c> optional (Materials/Chemical/Tools/
-    /// Other; giá trị lạ bị bỏ qua = tất cả) + <c>?search=</c>. Read-only ⇒
-    /// QcRead đủ.</summary>
+    /// Other; giá trị lạ bị bỏ qua = tất cả) + <c>?search=</c> +
+    /// <c>?result=</c> (Pending/Pass/Fail). Read-only ⇒ QcRead đủ.</summary>
     [HttpGet("tickets")]
     public async Task<ActionResult<IqcTicketListResponse>> Tickets(
         [FromQuery] string? group = null,
         [FromQuery] string? search = null,
+        [FromQuery] string? result = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var r = await _svc.ListTicketsAsync(group, search, page, pageSize, ct);
+        var r = await _svc.ListTicketsAsync(group, search, result, page, pageSize, ct);
         return Ok(new IqcTicketListResponse
         {
             Page = r.Page,
