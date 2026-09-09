@@ -10408,9 +10408,16 @@ tr.wc-row:hover { background: var(--c-bg); }
 .iqc-dash-v2 .iqc-v2-par-table { width: 100%; table-layout: fixed; }
 .iqc-dash-v2 .iqc-v2-par-table th:nth-child(1),
 .iqc-dash-v2 .iqc-v2-par-row  td:nth-child(1) { width: 36%; }
-.iqc-dash-v2 .iqc-v2-par-cell { width: 34%; }
-.iqc-dash-v2 .iqc-v2-par-table th:nth-child(3),
-.iqc-dash-v2 .iqc-v2-par-row  td:nth-child(3) { width: 14%; }
+/* Bề rộng cột phải đặt trên HÀNG ĐẦU (thead th): dưới table-layout:fixed thì
+   width trên <td> thân bảng bị BỎ QUA. Đo được cột thật ra 39/22/17/22% chứ
+   không phải 36/34/14/16 như rule cũ tưởng — rule trên .iqc-v2-par-cell là
+   rule CHẾT suốt từ đầu. */
+.iqc-dash-v2 .iqc-v2-par-table th:nth-child(2) { width: 34%; }
+.iqc-dash-v2 .iqc-v2-par-table th:nth-child(3) { width: 14%; }
+/* Cột 4 phải khai TƯỜNG MINH. Để nó ăn phần dư thì khi ba cột kia nở, "luỹ kế
+   %" bị bóp — đo được còn 10% ở màn rộng và 0% ở Slide Over, tức con số biến
+   mất hẳn. */
+.iqc-dash-v2 .iqc-v2-par-table th:nth-child(4) { width: 16%; }
 
 .iqc-dash-v2 .iqc-v2-par-table thead th {
     background: none;
@@ -10551,7 +10558,15 @@ tr.wc-row:hover { background: var(--c-bg); }
 
 /* ── NCC gộp theo hành động ─────────────────────────────────────────────── */
 
+/* Panel NCC là CONTAINER riêng. Đo được lỗi đảo ngược khi luật đo viewport:
+   VW 768 (rail thu 64) → panel 600px, thanh ẨN, tên 541px, không cắt.
+   VW 769 (rail mở 240) → panel 425px, thanh HIỆN, tên 53px, CẮT.
+   Hẹp đi 175px mà lại nhận bố cục RỘNG — vì rail tự thu ĐÚNG TẠI 768, cùng
+   con số với breakpoint. Và 1366 (panel 499) tệ hơn 1194 (panel 850) vì
+   .iqc-v2-split đã tách 2 cột mà luật vẫn tưởng màn còn rộng.
+   Neo vào panel thì mọi trường hợp trên tự đúng, không cần biết rail hay cột. */
 .iqc-dash-v2 .iqc-v2-sup {
+    container-type: inline-size;
     display: flex;
     flex-direction: column;
     gap: var(--sp-4);
@@ -10586,7 +10601,10 @@ tr.wc-row:hover { background: var(--c-bg); }
 
 .iqc-dash-v2 .iqc-v2-sup-row {
     display: grid;
-    grid-template-columns: minmax(0, 20rem) minmax(4rem, 1fr) auto auto auto;
+    /* Tên hút HẾT chỗ thừa, thanh giữ bề rộng cố định. Bản trước khoá trần
+       tên ở 20rem rồi cho THANH ăn chỗ thừa (minmax(4rem,1fr)) — ngược hẳn
+       chú thích của chính nó: "thanh là phụ hoạ, tên mới là dữ liệu". */
+    grid-template-columns: minmax(0, 1fr) 8rem auto auto auto;
     align-items: center;
     gap: var(--sp-3);
     min-height: var(--d-row-h);
@@ -10594,15 +10612,20 @@ tr.wc-row:hover { background: var(--c-bg); }
     border-bottom: 1px solid var(--iqc-n300);
 }
 
-/* --bp-tablet-p (768px): iPad DỌC và Split View. Dưới ngưỡng này bỏ thanh
-   phân bố — tên + %NG + hành động là thứ phải giữ, thanh chỉ là phụ hoạ. */
-@media (max-width: 768px) {
+/* Đo PANEL (--bp-tablet-p 768px), KHÔNG đo viewport. Panel hẹp hơn ngưỡng thì
+   bỏ thanh phân bố — tên + %NG + hành động là thứ phải giữ, thanh là phụ hoạ. */
+@container (max-width: 768px) {
     .iqc-dash-v2 .iqc-v2-sup-row {
         grid-template-columns: minmax(0, 1fr) auto;
         row-gap: var(--sp-1);
     }
     .iqc-dash-v2 .iqc-v2-sup-bar { display: none; }
     .iqc-dash-v2 .iqc-v2-sup-n   { grid-column: 1 / -1; }
+}
+
+/* Panel đủ rộng thì tên về MỘT DÒNG — nhiều dòng làm chiều cao hàng so le. */
+@container (min-width: 1024px) {
+    .iqc-dash-v2 .iqc-v2-sup-name { -webkit-line-clamp: 1; }
 }
 
 /* Cắt chữ TẠI CHỖ, không mượn .iqc-cell-ellipsis: class đó dựa vào
@@ -10624,12 +10647,11 @@ tr.wc-row:hover { background: var(--c-bg); }
     font-size: var(--d-font);
     font-weight: var(--fw-semibold);
     min-width: 0;
-    /* Xuống TỐI ĐA 2 DÒNG thay vì cắt một dòng. Đo trên dữ liệu thật: tên NCC
-       dài tới 57 ký tự, trung vị 42 — cắt một dòng làm mất đúng phần phân biệt
-       (nhiều tên chỉ khác nhau ở đuôi: "… TẠI BẮC NINH"). Hai dòng phủ ~80 ký
-       tự nên không tên nào bị cắt, mà thanh phân bố vẫn giữ nguyên chỗ. */
+    /* BA dòng khi panel còn hẹp, một dòng khi panel ≥1024 (xem @container ở
+       trên). Tên dài tới 57 ký tự, trung vị 42, và nhiều tên chỉ khác nhau ở
+       ĐUÔI ("… TẠI BẮC NINH") nên cắt là mất đúng phần phân biệt. */
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
     overflow-wrap: anywhere;
