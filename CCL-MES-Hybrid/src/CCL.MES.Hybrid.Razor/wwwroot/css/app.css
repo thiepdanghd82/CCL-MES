@@ -9097,10 +9097,16 @@ tr.wc-row:hover { background: var(--c-bg); }
 .iqc-trend-sync { min-width: 0; overflow-x: auto; margin-top: var(--sp-2); }
 .iqc-trend-sync-inner { min-width: 48rem; container-type: inline-size; }
 .iqc-trend-sync .iqc-svg { margin-top: 0; }
+/* KHÔNG inset. Trước đây dải này mang margin-inline 6%/4% (--iqc-plot-pad-*)
+   để canh với vùng plot của <svg> bản V1 (PlotL=60 PlotR=960 / viewBox 1000).
+   Bản V2 đã thay <svg> bằng lưới CSS .iqc-v2-tbars chạy TRỌN bề ngang, mà
+   inset thì ở lại — nên bảng tháng lệch khỏi cột. Đo ở VW 2560: hộp bảng thụt
+   vào 64px và hẹp hơn 107px, khiến Jan lệch phải 62px còn Dec lệch trái 41px
+   (cắt 0 quanh tháng Bảy nên nhìn thoáng qua tưởng chỉ "hơi lệch").
+   Dải này giờ CHỈ còn board V2 dùng — grep .iqc-month-strip ra đúng 1 nơi. */
 .iqc-month-strip {
     display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: 1px; background: var(--c-line-2); border: 1px solid var(--c-line-2);
-    margin-inline: var(--iqc-plot-pad-l) var(--iqc-plot-pad-r);
 }
 .iqc-month-cell {
     background: var(--c-card); border: 0; padding: var(--sp-2) var(--sp-1); cursor: pointer;
@@ -10368,6 +10374,27 @@ tr.wc-row:hover { background: var(--c-bg); }
 
 .iqc-dash-v2 .iqc-v2-act:focus-visible { outline: var(--focus-ring); }
 
+/* Ba nút của khối "Quyết hôm nay" DÙNG CHUNG một bề rộng, mép phải thẳng hàng.
+   Không đặt trên .iqc-v2-act chung: class đó còn dùng cho nút trong hàng NCC
+   (Mở CAR / Ghim) — nơi các nút nằm trong lưới chật, ép rộng ở đó sẽ bóp cột tên.
+
+   Đơn vị em chứ không phải rem: cỡ chữ nhảy một bậc ở nấc --bp-wide, nút phải
+   nở theo. Đo bề rộng CẦN cho nhãn dài nhất qua cả hai ngôn ngữ ("Open CAR",
+   dài hơn "Mở CAR"): 7.34em ở cỡ 14px và 7.40em ở cỡ 19px — tỉ lệ gần như
+   không đổi vì padding co giãn theo --ui-scale còn chữ co giãn theo bậc thang,
+   hai cái bù nhau. Lấy 8em để còn dư ~9px phòng lệch font giữa WKWebView và
+   trình duyệt đo. Trước khi sửa: Xem 64px vs Mở CAR 87px — lệch 23px. */
+.iqc-dash-v2 .iqc-v2-decide-row .iqc-v2-act {
+    min-width: 8em;
+    /* Khi hàng hẹp và nút PHẢI xuống dòng, đường dẫn chấm ở lại dòng trên nên
+       hết thứ đẩy nút sang phải — nút rơi về sát mép TRÁI, nhìn như lạc khỏi
+       hàng của nó. Đo được ở VW 560–640 (bệnh có sẵn, không do min-width):
+       ba nút nằm ở ba mép phải khác nhau 180 / 203 / 588. margin auto đẩy nút
+       về phải trên BẤT KỲ dòng nào nó rơi xuống; khi còn cùng dòng thì đường
+       dẫn chấm đã chiếm hết chỗ nên margin này bằng 0, không đổi gì. */
+    margin-inline-start: auto;
+}
+
 /* ── Pareto ngang ───────────────────────────────────────────────────────── */
 
 .iqc-dash-v2 .iqc-v2-split {
@@ -10550,10 +10577,22 @@ tr.wc-row:hover { background: var(--c-bg); }
 
 /* ── Xu hướng: cột vuông, magenta = tháng vượt đỉnh ─────────────────────── */
 
+/* Hình học phải TRÙNG .iqc-month-strip từng pixel, nếu không thì tháng nào
+   cũng lệch một ít và lệch tăng dần về hai đầu. Ba thứ phải khớp:
+     · gap        1px  = đúng bề rộng đường kẻ giữa các ô của bảng
+     · lề trong   1px  = đúng viền 1px của bảng (bảng dùng border, cột dùng
+                         padding — cùng cho lòng trong hẹp đi 1px mỗi bên)
+     · minmax(0,1fr)   = bảng dùng minmax(0,…); `1fr` trần là minmax(AUTO,1fr)
+                         nên số trên đầu cột (.iqc-v2-tbar-n) có thể nong khe
+                         rộng ra ở khổ hẹp và phá đều nhau.
+   Đổi gap 4px→1px KHÔNG làm cột dày lên trông thấy: .iqc-v2-tbar bị chặn
+   max-width 2.5rem và căn giữa khe, nên ở panel ≥1072 bề rộng cột không đổi
+   một pixel nào; chỉ ở khổ rất hẹp cột mới rộng thêm ~2px. */
 .iqc-dash-v2 .iqc-v2-tbars {
     display: grid;
-    grid-template-columns: repeat(12, 1fr);
-    gap: var(--sp-1);
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 1px;
+    padding-inline: 1px;
     align-items: end;
     height: 9rem;
     padding-top: var(--sp-4);
