@@ -9945,7 +9945,15 @@ tr.wc-row:hover { background: var(--c-bg); }
     /* Mặc định 0: component ghi đè bằng style inline. Thiếu dòng này thì
        calc() của đường cắt hỏng ở computed-value time và cả rule biến mất. */
     --iqc-par-n:   0;
+}
 
+/* BỐ CỤC riêng của Dashboard v3 — KHÔNG dùng chung với .iqc-ng-dash.
+   Bản đầu gộp cả hai vào một selector để chia token, nhưng khối này còn mang
+   max-width + margin-inline:auto. Section của tab NG là FLEX COLUMN (luật
+   `.qms-page > .qms-section:has(.qms-fill)`), mà trong flex column thì margin
+   auto trục ngang làm phần tử CO VỀ VỪA NỘI DUNG và căn giữa — dashboard nhỏ
+   bị nén thành một cột ~250px giữa trang. Token thì chia được, bố cục thì không. */
+.iqc-dash-v2 {
     box-sizing: border-box;
     background: var(--iqc-paper);
     color: var(--iqc-rule);
@@ -10781,6 +10789,10 @@ tr.wc-row:hover { background: var(--c-bg); }
     display: flex;
     flex-direction: column;
     gap: var(--sp-4);
+    /* Trần khổ đọc. KHÔNG kèm margin-inline:auto — section là flex column,
+       margin auto ở đó làm khối co về vừa nội dung và căn giữa. max-width một
+       mình thì khối vẫn bám lề trái, chỉ thôi kéo dài vô ích trên màn 32". */
+    max-width: 90rem;
     margin-bottom: var(--sp-4);
     padding-bottom: var(--sp-4);
     border-bottom: 1px solid var(--iqc-n300);
@@ -10826,9 +10838,14 @@ tr.wc-row:hover { background: var(--c-bg); }
 .iqc-ng-dash .iqc-ng-kpi.is-alarm .iqc-ng-kpi-num { color: var(--iqc-mag-dk); }
 
 /* Phát hiện ở đâu — một thanh chia hai đoạn, đọc được tỉ lệ ngay. */
+/* Trần bề rộng cho từng khối, KHÔNG dùng margin-inline:auto trên khối cha:
+   section của tab là flex column, margin auto trục ngang ở đó làm phần tử co
+   về vừa nội dung và căn giữa (đúng lỗi vừa sửa). Ghìm từng khối thì khối vẫn
+   bám lề trái và không có tác dụng phụ. */
 .iqc-ng-dash .iqc-ng-splitbar {
     display: flex;
     height: var(--sp-3);
+    max-width: 52rem;
     background: var(--iqc-surf);
     overflow: hidden;
 }
@@ -10865,7 +10882,13 @@ tr.wc-row:hover { background: var(--c-bg); }
 
 .iqc-ng-dash .iqc-ng-rank-row {
     display: grid;
-    grid-template-columns: minmax(0, 12rem) minmax(3rem, 1fr) auto;
+    /* Thanh có TRẦN 18rem: để 1fr thì trên màn rộng nó dài mấy trăm px cho một
+       con số 14 — mắt đọc thành nhiễu chứ không phải so sánh. Cột cuối 1fr để
+       phần thừa rơi vào khoảng trống bên phải, không nong thanh ra. */
+    /* Thanh nhường chỗ cho TÊN: cả hai cùng trần 18rem thì ở khung ~470px
+       lưới chia đôi và tên chỉ còn 189px (đo được: tên 53 ký tự bị cắt ngay ở
+       2 dòng). Thanh là phụ hoạ, tên mới là dữ liệu. */
+    grid-template-columns: minmax(0, 18rem) minmax(3rem, 12rem) auto minmax(0, 1fr);
     align-items: center;
     gap: var(--sp-2);
     min-height: var(--d-row-h);
@@ -10875,9 +10898,14 @@ tr.wc-row:hover { background: var(--c-bg); }
     font-size: var(--d-font);
     color: var(--iqc-rule);
     min-width: 0;
+    /* Hai dòng thay vì cắt — tên NCC thật dài tới 57 ký tự và nhiều tên chỉ
+       khác nhau ở đuôi, giống hệt lý do đã sửa ở Dashboard. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
 }
 
 .iqc-ng-dash .iqc-ng-rank-bar { height: var(--sp-2); background: var(--iqc-surf); overflow: hidden; }
@@ -10897,6 +10925,7 @@ tr.wc-row:hover { background: var(--c-bg); }
     gap: var(--sp-1);
     align-items: end;
     height: 5rem;
+    max-width: 52rem;
     border-bottom: 1px solid var(--iqc-n300);
 }
 
