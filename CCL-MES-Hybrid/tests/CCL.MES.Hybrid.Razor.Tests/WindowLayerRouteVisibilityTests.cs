@@ -250,4 +250,61 @@ public sealed class WindowLayerRouteVisibilityTests : TestContext
     /// <summary>Inert body component so the taskbar chip renders without pulling
     /// a real page's DI graph into these visibility-focused tests.</summary>
     private sealed class QmsDashboardStub : ComponentBase { }
+    // ── Rail tự thu khi khung hẹp (iPad dọc / Split View) ────────────────
+    // Rail mở chiếm 240px. Đo trong khung app: ở ≤507px chỉ 7/15 kích thước
+    // iPad đạt, và ở 320px nội dung chỉ còn 80px nên mọi tên bị bóp về 0.
+
+    [Fact]
+    public void Khung_hep_thi_rail_TU_THU()
+    {
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("A")));
+        Assert.Null(cut.Find(".app-shell").GetAttribute("data-rail"));
+
+        cut.InvokeAsync(() => cut.Instance.OnRailNarrowChanged(true));
+
+        Assert.Equal("collapsed", cut.Find(".app-shell").GetAttribute("data-rail"));
+    }
+
+    [Fact]
+    public void Rong_lai_thi_rail_MO_LAI()
+    {
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("A")));
+        cut.InvokeAsync(() => cut.Instance.OnRailNarrowChanged(true));
+        Assert.Equal("collapsed", cut.Find(".app-shell").GetAttribute("data-rail"));
+
+        cut.InvokeAsync(() => cut.Instance.OnRailNarrowChanged(false));
+
+        // Người dùng KHÔNG tự thu, nên rộng lại là mở lại. Nếu bản vá ghi đè
+        // lựa chọn đã lưu thì rail sẽ kẹt ở trạng thái thu và không ai hiểu vì sao.
+        Assert.Null(cut.Find(".app-shell").GetAttribute("data-rail"));
+    }
+
+    [Fact]
+    public void Rail_dung_MOT_nguon_su_that_chu_khong_nhan_doi_rule()
+    {
+        // Ý đồ ghi tại khối [data-rail="collapsed"] trong ix.css: một nguồn sự
+        // thật, KHÔNG có bản sao luật thứ hai để lệch nhau. Nên việc tự thu
+        // phải đi qua THUỘC TÍNH, không phải một @media chép lại 21 rule.
+        var css = File.ReadAllText(FindWwwroot("css/ix.css"));
+        var collapsed = System.Text.RegularExpressions.Regex
+            .Matches(css, @"\[data-rail=""collapsed""\]").Count;
+        Assert.True(collapsed >= 20, $"chỉ thấy {collapsed} rule [data-rail=collapsed]");
+        // Không được có bản sao dưới @media — dấu hiệu ai đó đã nhân đôi.
+        var mediaCopy = System.Text.RegularExpressions.Regex
+            .Matches(css, @"@media[^{]*\{[^}]*app-nav-link > span:not\(\.nav-ico\)").Count;
+        Assert.Equal(0, mediaCopy);
+    }
+
+    private static string FindWwwroot(string rel)
+    {
+        var d = new DirectoryInfo(AppContext.BaseDirectory);
+        while (d is not null)
+        {
+            var c = Path.Combine(d.FullName, "src", "CCL.MES.Hybrid.Razor", "wwwroot", rel);
+            if (File.Exists(c)) return c;
+            d = d.Parent;
+        }
+        throw new FileNotFoundException(rel);
+    }
+
 }

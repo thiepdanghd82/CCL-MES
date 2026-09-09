@@ -44,12 +44,14 @@ public sealed class IqcNgMapped
 ///
 /// <para><b>Ba quyết định đã đo, không phải chọn cho tiện:</b></para>
 /// <list type="number">
-///   <item><b>Khoá idempotent là VỊ TRÍ DÒNG</b> (<c>ImportSource</c> =
-///     <c>xlsx:NG Material:r{n}</c>). Sheet không có cột nào là khoá tự nhiên:
-///     cùng một NCC + cùng mã + cùng ngày có thể xuất hiện nhiều dòng (nhiều lô
-///     khác nhau, hoặc cùng lô nhiều loại lỗi). Ghép khoá tổ hợp sẽ gộp nhầm
-///     hai vụ thật thành một. Vị trí dòng thì ổn định trong một phiên bản file
-///     và cho phép chạy lại ra 0 insert.</item>
+///   <item><b>Khoá idempotent theo NỘI DUNG, không theo vị trí dòng.</b>
+///     Bản đầu dùng <c>r{số dòng}</c>: chạy lại thì sạch, nhưng vỡ ngay khi ai
+///     đó CHÈN hoặc XOÁ một dòng giữa sheet — mọi dòng phía dưới tụt số và lần
+///     nạp sau coi chúng là vụ mới, nhân đôi cả sổ.
+///     Nay khoá = mã băm của (ngày phát hiện · NCC · mã NVL · số lô · tên lỗi ·
+///     P/O), cộng một số thứ tự cho các dòng TRÙNG HỆT nhau — vì cùng NCC +
+///     cùng mã + cùng ngày là chuyện có thật (nhiều lô, hoặc một lô nhiều loại
+///     lỗi), gộp chúng lại là mất một vụ.</item>
 ///   <item><b>KHÔNG tự nối <c>MaterialLotId</c>.</b> Số lô trên sheet là số lô
 ///     của NHÀ CUNG CẤP; khớp <c>MaterialLots.LotNo</c> 0/140. Nối phải do
 ///     người dùng chọn trong app.</item>
@@ -61,7 +63,24 @@ public sealed class IqcNgMapped
 public static class IqcNgImport
 {
     /// <summary>Tiền tố khoá idempotent. Đổi chuỗi này = nạp trùng toàn bộ.</summary>
-    public const string SourcePrefix = "xlsx:NG Material:r";
+    public const string SourcePrefix = "xlsx:NG Material:h";
+
+    /// <summary>Tiền tố bản nạp CŨ (khoá theo vị trí dòng). Giữ để importer
+    /// nhận ra và nâng cấp tại chỗ thay vì nhân đôi dữ liệu đã có.</summary>
+    public const string LegacyRowPrefix = "xlsx:NG Material:r";
+
+    /// <summary>Khoá nội dung của một dòng, CHƯA gắn số thứ tự trùng lặp.
+    /// Ngày lấy tới NGÀY (Excel lưu ngày thuần, không giờ).</summary>
+    public static string ContentKey(IqcNgSheetRow r)
+    {
+        static string N(string? s) => (Clean(s) ?? "").ToUpperInvariant();
+        var raw = string.Join("|",
+            r.DetectedDate?.ToString("yyyy-MM-dd") ?? "",
+            N(r.SupplierName), N(r.PartNo), N(r.SupplierLotNo), N(r.DefectName), N(r.PoNo));
+        var bytes = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(raw));
+        return Convert.ToHexString(bytes)[..16].ToLowerInvariant();
+    }
 
     /// <summary>Excel trả <c>#REF!</c> / <c>#N/A</c> khi công thức gãy. Đó là
     /// LỖI Ô, không phải dữ liệu — nạp nguyên văn vào DB thì mọi báo cáo sau
@@ -175,8 +194,36 @@ public static class IqcNgImport
                 SupplierNote = Cut(answer, 512),
                 Remark = Cut(remark.Length == 0 ? null : remark, 512),
 
-                ImportSource = SourcePrefix + r.RowNumber,
+                // Số thứ tự do MapAll gán: Map() một dòng đơn lẻ không biết có
+                // dòng nào trùng hệt nó, nên mặc định 0.
+                ImportSource = SourcePrefix + ContentKey(r) + "-0",
             },
         };
+    }
+
+    /// <summary>
+    /// Quy đổi CẢ SHEET. Phải đi qua đây thay vì gọi <see cref="Map"/> từng
+    /// dòng: số thứ tự phân biệt các dòng TRÙNG HỆT nhau chỉ tính được khi
+    /// nhìn toàn bộ, và nó phải ỔN ĐỊNH — nên đánh theo thứ tự dòng tăng dần
+    /// trong nhóm trùng, không theo thứ tự duyệt của người gọi.
+    /// </summary>
+    public static List<(IqcNgSheetRow Row, IqcNgMapped Mapped)> MapAll(IEnumerable<IqcNgSheetRow> rows)
+    {
+        var all = rows.OrderBy(r => r.RowNumber).ToList();
+        var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+        var outp = new List<(IqcNgSheetRow, IqcNgMapped)>(all.Count);
+        foreach (var r in all)
+        {
+            var m = Map(r);
+            if (m.Record is not null)
+            {
+                var key = ContentKey(r);
+                var ord = seen.TryGetValue(key, out var n) ? n : 0;
+                seen[key] = ord + 1;
+                m.Record.ImportSource = SourcePrefix + key + "-" + ord;
+            }
+            outp.Add((r, m));
+        }
+        return outp;
     }
 }

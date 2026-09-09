@@ -15,9 +15,10 @@ using Microsoft.EntityFrameworkCore;
 //   Có    --commit     → ghi thật + một dòng AuditLog (Source=Console).
 //   Chạy lại lần hai   → phải ra inserted=0 updated=0.
 //
-// Idempotent theo ImportSource = "xlsx:NG Material:r{n}" (xem IqcNgImport).
-// Sheet không có khoá tự nhiên nào; ghép khoá tổ hợp sẽ gộp nhầm hai vụ thật
-// vào làm một, nên khoá là VỊ TRÍ DÒNG trong file.
+// Idempotent theo ImportSource = "xlsx:NG Material:h{hash}-{n}" (xem
+// IqcNgImport): mã băm của NỘI DUNG dòng, cộng số thứ tự cho các dòng trùng
+// hệt nhau. Bản trước khoá theo vị trí dòng và vỡ khi file chèn/xoá dòng ở
+// giữa; importer tự NÂNG CẤP các bản ghi khoá cũ tại chỗ, không nhân đôi.
 
 string? Arg(string name)
 {
@@ -47,9 +48,15 @@ List<IqcNgSheetRow> rows;
 using (var fs = File.OpenRead(src)) rows = IqcNgSheetReader.Read(fs);
 Console.WriteLine($"[parse] {rows.Count} dòng có dữ liệu");
 
-var mapped = rows.Select(r => (Row: r, M: IqcNgImport.Map(r))).ToList();
+var mapped = IqcNgImport.MapAll(rows).Select(x => (Row: x.Row, M: x.Mapped)).ToList();
 var ok = mapped.Where(x => x.M.Record is not null).ToList();
 var skipped = mapped.Where(x => x.M.Record is null).ToList();
+var dupKeys = ok.GroupBy(x => x.M.Record!.ImportSource).Count(g => g.Count() > 1);
+if (dupKeys > 0)
+{
+    Console.Error.WriteLine($"[bug] {dupKeys} khoá bị trùng sau MapAll — dừng, không ghi.");
+    return 4;
+}
 Console.WriteLine($"[map]  quy đổi được={ok.Count}  bỏ={skipped.Count}");
 foreach (var g in skipped.GroupBy(x => x.M.SkipReason).OrderByDescending(g => g.Count()))
     Console.WriteLine($"       bỏ {g.Count(),3} × {g.Key} (dòng {string.Join(",", g.Take(6).Select(x => x.Row.RowNumber))}…)");
@@ -97,6 +104,30 @@ var existing = await db.IqcNgRecords
     .Where(x => x.ImportSource != null && x.ImportSource.StartsWith(IqcNgImport.SourcePrefix))
     .ToDictionaryAsync(x => x.ImportSource!, x => x);
 
+// Bản nạp CŨ khoá theo vị trí dòng. Khớp lại theo ĐÚNG số dòng rồi đổi sang
+// khoá nội dung — nếu bỏ qua bước này thì lần chạy đầu sau khi đổi khoá sẽ
+// chèn thêm 139 bản ghi nữa và sổ nhân đôi.
+var legacy = await db.IqcNgRecords
+    .Where(x => x.ImportSource != null && x.ImportSource.StartsWith(IqcNgImport.LegacyRowPrefix))
+    .ToDictionaryAsync(x => x.ImportSource!, x => x);
+var rekeyed = 0;
+if (legacy.Count > 0)
+{
+    Console.WriteLine($"[legacy] {legacy.Count} bản ghi còn khoá theo vị trí dòng — sẽ nâng cấp tại chỗ.");
+    foreach (var (row, m) in ok)
+    {
+        var oldKey = IqcNgImport.LegacyRowPrefix + row.RowNumber;
+        if (!legacy.TryGetValue(oldKey, out var cur)) continue;
+        var newKey = m.Record!.ImportSource!;
+        if (existing.ContainsKey(newKey)) continue;   // đã có bản mới, để nguyên
+        cur.ImportSource = newKey;
+        existing[newKey] = cur;
+        rekeyed++;
+    }
+    Console.WriteLine($"[legacy] đổi khoá được {rekeyed}/{legacy.Count}"
+                    + (rekeyed == legacy.Count ? "" : "  ⚠ phần còn lại sẽ thành bản ghi MỚI — file đã đổi so với lần nạp trước"));
+}
+
 int inserted = 0, updated = 0, unchanged = 0;
 foreach (var (_, m) in ok)
 {
@@ -131,7 +162,7 @@ foreach (var (_, m) in ok)
     if (changed) updated++; else unchanged++;
 }
 
-Console.WriteLine($"[write] thêm={inserted} sửa={updated} không-đổi={unchanged}");
+Console.WriteLine($"[write] thêm={inserted} sửa={updated} không-đổi={unchanged} đổi-khoá={rekeyed}");
 
 if (!commit)
 {
@@ -158,6 +189,7 @@ db.AuditLogs.Add(new AuditLog
         inserted,
         updated,
         unchanged,
+        rekeyed,
         partno_matched = matched,
         total_after = after,
     }),

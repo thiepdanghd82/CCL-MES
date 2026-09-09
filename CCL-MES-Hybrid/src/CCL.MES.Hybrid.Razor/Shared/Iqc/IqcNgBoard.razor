@@ -22,15 +22,115 @@
     </div>
     <p class="qms-section-desc">@T("iqc.ng.desc")</p>
 
-    <div class="iqc-kpi-row">
-        <div class="iqc-kpi iqc-kpi-pending" data-testid="iqc-ng-kpi-open">
-            <span class="iqc-kpi-num">@CountStatus("Open")</span>
-            <span class="iqc-kpi-lbl">@T("iqc.ng.status.Open")</span>
+    @* ── dashboard nhỏ của tab: số của CẢ SỔ, không phải của 200 dòng đang hiện ── *@
+    <div class="iqc-ng-dash" data-testid="iqc-ng-dash">
+        <div class="iqc-ng-kpis">
+            <div class="iqc-ng-kpi" data-testid="iqc-ng-kpi-total">
+                <span class="iqc-ng-kpi-lbl">@T("iqc.ng.dash.total")</span>
+                <span class="iqc-ng-kpi-num">@_sum.Total</span>
+            </div>
+            <div class="iqc-ng-kpi @(_sum.Open > 0 ? "is-alarm" : null)" data-testid="iqc-ng-kpi-open">
+                <span class="iqc-ng-kpi-lbl">@T("iqc.ng.status.Open")</span>
+                <span class="iqc-ng-kpi-num">@CountStatus("Open")</span>
+            </div>
+            <div class="iqc-ng-kpi" data-testid="iqc-ng-kpi-claimed">
+                <span class="iqc-ng-kpi-lbl">@T("iqc.ng.status.Claimed")</span>
+                <span class="iqc-ng-kpi-num">@CountStatus("Claimed")</span>
+            </div>
+            <div class="iqc-ng-kpi" data-testid="iqc-ng-kpi-settled">
+                <span class="iqc-ng-kpi-lbl">@T("iqc.ng.status.Settled")</span>
+                <span class="iqc-ng-kpi-num">@CountStatus("Settled")</span>
+            </div>
+            <div class="iqc-ng-kpi" data-testid="iqc-ng-kpi-closed">
+                <span class="iqc-ng-kpi-lbl">@T("iqc.ng.status.ClosedNoClaim")</span>
+                <span class="iqc-ng-kpi-num">@CountStatus("ClosedNoClaim")</span>
+            </div>
+            @if (_sum.TotalAreaM2 is { } m2)
+            {
+                <div class="iqc-ng-kpi" data-testid="iqc-ng-kpi-area">
+                    <span class="iqc-ng-kpi-lbl">@T("iqc.ng.dash.area")</span>
+                    <span class="iqc-ng-kpi-num">@m2.ToString("N0", CultureInfo.CurrentCulture)</span>
+                </div>
+            }
         </div>
-        <div class="iqc-kpi" data-testid="iqc-ng-kpi-claimed">
-            <span class="iqc-kpi-num">@CountStatus("Claimed")</span>
-            <span class="iqc-kpi-lbl">@T("iqc.ng.status.Claimed")</span>
+
+        @* Phát hiện ở đâu — câu hỏi đắt nhất của tab này: vụ tìm thấy ở SẢN
+           XUẤT nghĩa là nguyên liệu đã vào chuyền rồi mới phát hiện. *@
+        @if (_sum.DetectedIqc + _sum.DetectedProduction > 0)
+        {
+            var tot = _sum.DetectedIqc + _sum.DetectedProduction;
+            <div class="iqc-ng-split" data-testid="iqc-ng-stage">
+                <p class="iqc-ng-sub">@T("iqc.ng.dash.where")</p>
+                <div class="iqc-ng-splitbar">
+                    <span class="iqc-ng-seg is-iqc" style="width:@Css(100.0 * _sum.DetectedIqc / tot)"
+                          title="@T("iqc.ng.stage.Iqc") @_sum.DetectedIqc"></span>
+                    <span class="iqc-ng-seg is-sx" style="width:@Css(100.0 * _sum.DetectedProduction / tot)"
+                          title="@T("iqc.ng.stage.Production") @_sum.DetectedProduction"></span>
+                </div>
+                <p class="iqc-ng-splitlbl">
+                    <span><i class="iqc-ng-dot is-iqc"></i>@T("iqc.ng.stage.Iqc") <b>@_sum.DetectedIqc</b> · @Pct(_sum.DetectedIqc, tot)</span>
+                    <span><i class="iqc-ng-dot is-sx"></i>@T("iqc.ng.stage.Production") <b>@_sum.DetectedProduction</b> · @Pct(_sum.DetectedProduction, tot)</span>
+                </p>
+            </div>
+        }
+
+        <div class="iqc-ng-cols">
+            <section class="iqc-ng-rank" data-testid="iqc-ng-top-suppliers">
+                <p class="iqc-ng-sub">@T("iqc.ng.dash.topsup")</p>
+                @if (_sum.TopSuppliers.Count == 0)
+                {
+                    <p class="iqc-ng-empty">@T("iqc.ng.dash.empty")</p>
+                }
+                else
+                {
+                    var mx = RankMax(_sum.TopSuppliers);
+                    @foreach (var x in _sum.TopSuppliers)
+                    {
+                        <div class="iqc-ng-rank-row">
+                            <span class="iqc-ng-rank-name" title="@x.Name">@x.Name</span>
+                            <span class="iqc-ng-rank-bar"><span style="width:@Css(100.0 * x.Count / mx)"></span></span>
+                            <span class="iqc-ng-rank-n">@x.Count</span>
+                        </div>
+                    }
+                }
+            </section>
+
+            <section class="iqc-ng-rank" data-testid="iqc-ng-top-defects">
+                <p class="iqc-ng-sub">@T("iqc.ng.dash.topdefect")</p>
+                @if (_sum.TopDefects.Count == 0)
+                {
+                    <p class="iqc-ng-empty">@T("iqc.ng.dash.empty")</p>
+                }
+                else
+                {
+                    var mx = RankMax(_sum.TopDefects);
+                    @foreach (var x in _sum.TopDefects)
+                    {
+                        <div class="iqc-ng-rank-row">
+                            <span class="iqc-ng-rank-name" title="@x.Name">@x.Name</span>
+                            <span class="iqc-ng-rank-bar"><span style="width:@Css(100.0 * x.Count / mx)"></span></span>
+                            <span class="iqc-ng-rank-n">@x.Count</span>
+                        </div>
+                    }
+                }
+            </section>
         </div>
+
+        @if (_sum.TrendYear is { } ty)
+        {
+            <section class="iqc-ng-trend" data-testid="iqc-ng-trend">
+                <p class="iqc-ng-sub">@T("iqc.ng.dash.trend", ty)</p>
+                <div class="iqc-ng-tbars">
+                    @foreach (var m in _sum.Monthly)
+                    {
+                        <span class="iqc-ng-tslot" title="@($"{T($"iqc.dash.month.{m.Month}")} — {m.Count}")">
+                            <span class="iqc-ng-tbar" style="height:@Css(100.0 * m.Count / TrendMax)"></span>
+                            <span class="iqc-ng-tm">@T($"iqc.dash.month.short.{m.Month}")</span>
+                        </span>
+                    }
+                </div>
+            </section>
+        }
     </div>
 
     <div class="iqc-data-toolbar">
@@ -272,15 +372,39 @@
         {
             var r = await Api.ListIqcNgAsync(_statusFilter, string.IsNullOrWhiteSpace(_partNo) ? null : _partNo.Trim());
             _items = r.Items;
+            _sum = r.Summary;
         }
         catch (Exception ex)
         {
             _error = ex.Message;
             _items = Array.Empty<IqcNgListItem>();
+            _sum = new IqcNgSummary();
         }
     }
 
-    private int CountStatus(string st) => _items.Count(x => x.Status == st);
+    private IqcNgSummary _sum = new();
+
+    /// <summary>Số của CẢ SỔ, lấy từ server. Bản đầu cộng từ <c>_items</c> —
+    /// mà danh sách đó đã lọc theo chip và bị chặn 200 dòng, nên chọn một chip
+    /// là mọi ô KPI khác về 0.</summary>
+    private int CountStatus(string st) => st switch
+    {
+        "Open" => _sum.Open,
+        "Claimed" => _sum.Claimed,
+        "Settled" => _sum.Settled,
+        "ClosedNoClaim" => _sum.ClosedNoClaim,
+        _ => 0,
+    };
+
+    private static string Pct(int part, int total)
+        => total <= 0 ? "0%" : (100.0 * part / total).ToString("0", CultureInfo.CurrentCulture) + "%";
+
+    private static string Css(double pct)
+        => Math.Clamp(pct, 0, 100).ToString("0.##", CultureInfo.InvariantCulture) + "%";
+
+    private int TrendMax => Math.Max(1, _sum.Monthly.Count == 0 ? 1 : _sum.Monthly.Max(x => x.Count));
+    private int RankMax(IEnumerable<IqcNgNameCount> xs)
+        => Math.Max(1, xs.Select(x => x.Count).DefaultIfEmpty(1).Max());
 
     private async Task FilterStatus(string? st)
     {

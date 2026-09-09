@@ -86,6 +86,45 @@ window.cclMesDensity = (() => {
         return !!collapsed;
     }
 
+    // ── Rail tự thu khi khung quá hẹp ───────────────────────────────────
+    // --bp-tablet-p (768px) = iPad DỌC và Split View. Rail mở chiếm 240px;
+    // ở 320px (Slide Over) nội dung chỉ còn 80px và mọi tên bị bóp về 0.
+    //
+    // Vì sao báo về Blazor để nó ĐẶT THUỘC TÍNH, thay vì nhân đôi 21 rule
+    // [data-rail="collapsed"] vào một @media: chú thích ngay tại khối rule đó
+    // ghi rõ ý đồ "một nguồn sự thật, không có bản sao luật thứ hai để lệch
+    // nhau". Bản sao sẽ trôi ngay lần ai đó thêm rule thứ 22.
+    //
+    // KHÔNG ghi vào localStorage: đây là ràng buộc của KHUNG HÌNH, không phải
+    // lựa chọn của người dùng. Ghi đè lựa chọn của họ thì mở lại cửa sổ rộng
+    // sẽ thấy rail vẫn thu mà không hiểu vì sao.
+    const RAIL_NARROW_PX = 768;
+    let railNarrowRef = null, railNarrowTimer = 0;
+
+    function railIsNarrow() {
+        try { return window.innerWidth > 0 && window.innerWidth <= RAIL_NARROW_PX; }
+        catch { return false; }
+    }
+
+    // dotNetRef nhận một phương thức [JSInvokable] OnRailNarrowChanged(bool).
+    function railWatchNarrow(dotNetRef) {
+        railNarrowRef = dotNetRef;
+        let last = railIsNarrow();
+        const fire = () => {
+            const now = railIsNarrow();
+            if (now === last) return;
+            last = now;
+            try { railNarrowRef?.invokeMethodAsync('OnRailNarrowChanged', now); } catch { }
+        };
+        // Gộp nhịp: kéo cửa sổ bắn hàng trăm sự kiện, mỗi cái là một lần
+        // render toàn layout nếu không chặn.
+        window.addEventListener('resize', () => {
+            clearTimeout(railNarrowTimer);
+            railNarrowTimer = setTimeout(fire, 120);
+        });
+        return last;
+    }
+
     // Trạng thái thu gọn CỘT TRA CỨU bên phải màn WO (Spec Quick Ref / BOM /
     // Audit Trail). Cùng cơ chế với rail trái — người dùng chủ động thu, và
     // lựa chọn đó phải sống qua lần mở màn sau, nếu không mỗi lần vào lại phải
@@ -156,7 +195,8 @@ window.cclMesDensity = (() => {
 
     return {
         get, set, apply, boot, scaleGet, scaleSet, scaleApply,
-        railGet, railSet, sideGet, sideSet, navGroupsGet, navGroupsSet,
+        railGet, railSet, railIsNarrow, railWatchNarrow,
+        sideGet, sideSet, navGroupsGet, navGroupsSet,
         navPinsGet, navPinsSet, navRecentGet, navRecentSet,
     };
 })();

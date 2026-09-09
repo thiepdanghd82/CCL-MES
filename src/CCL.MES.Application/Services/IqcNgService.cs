@@ -224,6 +224,70 @@ public class IqcNgService
         return all;
     }
 
+    /// <summary>
+    /// Số tổng hợp cho dashboard nhỏ của tab — tính trên TOÀN BỘ bản ghi.
+    ///
+    /// <para>Cố ý KHÔNG nhận tham số lọc. <see cref="ListAsync"/> bị chặn 200
+    /// dòng và đi theo chip trạng thái đang chọn; cộng từ danh sách đó sẽ ra số
+    /// của một lát cắt chứ không phải của cả sổ, và sai đó chỉ lộ ra khi dữ
+    /// liệu vượt 200 vụ — tức là muộn.</para>
+    ///
+    /// <para>Một lần đọc, gom trong bộ nhớ: 139 vụ hôm nay, và bảng này lớn
+    /// theo số vụ NG một năm chứ không theo số phiếu, nên vẫn nhỏ trong nhiều
+    /// năm tới. Đổi sang nhiều query GroupBy chỉ đổi một lần quét thành sáu.</para>
+    /// </summary>
+    public async Task<IqcNgSummaryCounts> SummaryAsync(int topN = 5, CancellationToken ct = default)
+    {
+        var rows = await _db.IqcNgRecords.AsNoTracking()
+            .Select(x => new
+            {
+                x.Status, x.Settlement, x.DetectedStage, x.DetectedAt,
+                x.SupplierName, x.DefectName, x.NgAreaM2,
+            })
+            .ToListAsync(ct);
+
+        var s = new IqcNgSummaryCounts { Total = rows.Count };
+        if (rows.Count == 0) return s;
+
+        s.Open = rows.Count(x => x.Status == IqcNgStatus.Open);
+        s.Claimed = rows.Count(x => x.Status == IqcNgStatus.Claimed);
+        s.Settled = rows.Count(x => x.Status == IqcNgStatus.Settled);
+        s.ClosedNoClaim = rows.Count(x => x.Status == IqcNgStatus.ClosedNoClaim);
+        s.DetectedIqc = rows.Count(x => x.DetectedStage == IqcNgStage.Iqc);
+        s.DetectedProduction = rows.Count(x => x.DetectedStage == IqcNgStage.Production);
+        s.SettlementReplacement = rows.Count(x => x.Settlement == IqcClaimSettlement.Replacement);
+        s.SettlementCreditNote = rows.Count(x => x.Settlement == IqcClaimSettlement.CreditNote);
+
+        var areas = rows.Where(x => x.NgAreaM2 is not null).Select(x => x.NgAreaM2!.Value).ToList();
+        s.TotalAreaM2 = areas.Count == 0 ? null : areas.Sum();
+
+        // Xu hướng theo NĂM MỚI NHẤT CÓ VỤ, không phải năm hiện tại: sổ NG có
+        // thể im lặng vài tháng, khoá cứng vào năm hệ thống sẽ ra 12 cột rỗng.
+        var year = rows.Max(x => x.DetectedAt.Year);
+        s.TrendYear = year;
+        var byMonth = rows.Where(x => x.DetectedAt.Year == year)
+                          .GroupBy(x => x.DetectedAt.Month)
+                          .ToDictionary(g => g.Key, g => g.Count());
+        // Luôn đủ 12 điểm: tháng không có vụ phải là 0 nhìn thấy được, không
+        // phải một khoảng trống làm trục co lại.
+        s.Monthly = Enumerable.Range(1, 12)
+            .Select(m => new IqcNgMonthCount { Month = m, Count = byMonth.GetValueOrDefault(m) })
+            .ToList();
+
+        s.TopSuppliers = Rank(rows.Select(x => x.SupplierName), topN);
+        s.TopDefects = Rank(rows.Select(x => x.DefectName), topN);
+        return s;
+
+        static List<IqcNgNameCountItem> Rank(IEnumerable<string?> src, int n) => src
+            .Select(x => x?.Trim())
+            .Where(x => !string.IsNullOrEmpty(x))
+            .GroupBy(x => x!, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+            .Take(n)
+            .Select(g => new IqcNgNameCountItem { Name = g.Key, Count = g.Count() })
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<IqcNgRecord>> ListAsync(
         IqcNgStatus? status = null, string? partNo = null, int take = 200,
         CancellationToken ct = default)
@@ -239,3 +303,26 @@ public class IqcNgService
             .Take(Math.Clamp(take, 1, 1000)).ToListAsync(ct);
     }
 }
+
+/// <summary>Số tổng hợp tab NG — kiểu THUẦN của Application, controller map
+/// sang DTO Shared. Application không tham chiếu Shared (giữ tầng sạch).</summary>
+public sealed class IqcNgSummaryCounts
+{
+    public int Total { get; set; }
+    public int Open { get; set; }
+    public int Claimed { get; set; }
+    public int Settled { get; set; }
+    public int ClosedNoClaim { get; set; }
+    public int DetectedIqc { get; set; }
+    public int DetectedProduction { get; set; }
+    public int SettlementReplacement { get; set; }
+    public int SettlementCreditNote { get; set; }
+    public double? TotalAreaM2 { get; set; }
+    public int? TrendYear { get; set; }
+    public List<IqcNgMonthCount> Monthly { get; set; } = new();
+    public List<IqcNgNameCountItem> TopSuppliers { get; set; } = new();
+    public List<IqcNgNameCountItem> TopDefects { get; set; } = new();
+}
+
+public sealed class IqcNgMonthCount { public int Month { get; set; } public int Count { get; set; } }
+public sealed class IqcNgNameCountItem { public string Name { get; set; } = ""; public int Count { get; set; } }

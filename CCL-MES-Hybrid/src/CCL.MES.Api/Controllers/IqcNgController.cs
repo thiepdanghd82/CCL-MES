@@ -113,11 +113,34 @@ public sealed class IqcNgController : ControllerBase
         // thái, kể cả cái đang không được chọn — nếu không thì chọn một chip xong
         // các chip khác về 0 và người dùng tưởng dữ liệu biến mất.
         var counts = await _svc.CountByStatusAsync(ct);
+        // Cùng lý do: dashboard nhỏ của tab phải là số của CẢ SỔ, không phải
+        // của 200 dòng đang hiện theo chip đang chọn.
+        var sum = await _svc.SummaryAsync(ct: ct);
 
         return Ok(new IqcNgListResponse
         {
             Items = rows.Select(Map).ToList(),
             CountByStatus = counts.ToDictionary(k => k.Key, v => v.Value),
+            Summary = new IqcNgSummary
+            {
+                Total = sum.Total,
+                Open = sum.Open,
+                Claimed = sum.Claimed,
+                Settled = sum.Settled,
+                ClosedNoClaim = sum.ClosedNoClaim,
+                DetectedIqc = sum.DetectedIqc,
+                DetectedProduction = sum.DetectedProduction,
+                SettlementReplacement = sum.SettlementReplacement,
+                SettlementCreditNote = sum.SettlementCreditNote,
+                TotalAreaM2 = sum.TotalAreaM2,
+                TrendYear = sum.TrendYear,
+                Monthly = sum.Monthly
+                    .Select(x => new IqcNgMonthPoint { Month = x.Month, Count = x.Count }).ToList(),
+                TopSuppliers = sum.TopSuppliers
+                    .Select(x => new IqcNgNameCount { Name = x.Name, Count = x.Count }).ToList(),
+                TopDefects = sum.TopDefects
+                    .Select(x => new IqcNgNameCount { Name = x.Name, Count = x.Count }).ToList(),
+            },
         });
     }
 

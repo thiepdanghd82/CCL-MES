@@ -28,8 +28,8 @@
   full-width at the bottom; .window-layer leaves it room via padding-bottom.
 *@
 
-<div class="app-shell" data-rail="@(_railCollapsed ? "collapsed" : null)">
-    <NavMenu RailCollapsed="_railCollapsed" OnToggleRail="ToggleRailAsync" />
+<div class="app-shell" data-rail="@(RailCollapsedNow ? "collapsed" : null)">
+    <NavMenu RailCollapsed="RailCollapsedNow" OnToggleRail="ToggleRailAsync" />
     <main class="app-main">
         <TopBar />
         <ConnectivityBanner />
@@ -95,6 +95,24 @@
     // (localStorage qua cclMesDensity.railGet/railSet — dùng chung cơ chế với
     // mật độ hiển thị thay vì dựng thêm một preference service).
     private bool _railCollapsed;
+
+    // Khung quá hẹp (≤ --bp-tablet-p 768px) thì rail PHẢI thu, bất kể người
+    // dùng chọn gì: rail mở chiếm 240px, ở 320px nội dung chỉ còn 80px. Đây là
+    // ràng buộc của khung hình nên KHÔNG ghi đè lựa chọn đã lưu — mở lại cửa
+    // sổ rộng là rail trở về đúng ý người dùng.
+    private bool _railNarrow;
+    private DotNetObjectReference<MainLayout>? _railRef;
+
+    private bool RailCollapsedNow => _railCollapsed || _railNarrow;
+
+    /// <summary>JS gọi khi bề rộng vượt/xuống qua ngưỡng (đã gộp nhịp 120ms).</summary>
+    [JSInvokable]
+    public Task OnRailNarrowChanged(bool narrow)
+    {
+        if (narrow == _railNarrow) return Task.CompletedTask;
+        _railNarrow = narrow;
+        return InvokeAsync(StateHasChanged);
+    }
 
     // P2-PR2 — true while the current URL resolves to a registered window key.
     // Drives @Body → WorkspaceHome swap (single-render) + the deep-link open.
@@ -383,9 +401,12 @@
         try
         {
             var collapsed = await JS.InvokeAsync<bool>("cclMesDensity.railGet");
-            if (collapsed != _railCollapsed)
+            _railRef ??= DotNetObjectReference.Create(this);
+            var narrow = await JS.InvokeAsync<bool>("cclMesDensity.railWatchNarrow", _railRef);
+            if (collapsed != _railCollapsed || narrow != _railNarrow)
             {
                 _railCollapsed = collapsed;
+                _railNarrow = narrow;
                 StateHasChanged();
             }
         }
@@ -407,5 +428,9 @@
         WM.Changed -= OnWindowsChanged;
         WM.Opened -= OnWindowOpened;
         Nav.LocationChanged -= OnLocationChanged;
+        // Không giải phóng thì JS còn giữ tham chiếu tới component đã chết và
+        // mỗi lần resize sẽ gọi vào một đối tượng không còn hợp lệ.
+        _railRef?.Dispose();
+        _railRef = null;
     }
 }

@@ -52,15 +52,75 @@ public sealed class IqcNgBoardTests : TestContext
                     CreatedBy = "qc-user",
                 },
             },
+            // KPI đọc từ ĐÂY, không cộng từ Items. Cố ý cho số khác hẳn số
+            // dòng: Items chỉ là 200 dòng đầu và đã lọc theo chip, nên nếu ai
+            // đó quay lại cộng từ Items thì hai assert dưới đỏ ngay.
+            Summary = new IqcNgSummary
+            {
+                Total = 139, Open = 7, Claimed = 8, Settled = 123, ClosedNoClaim = 2,
+                DetectedIqc = 70, DetectedProduction = 64,
+                SettlementReplacement = 84, SettlementCreditNote = 39,
+                TotalAreaM2 = 1234.5, TrendYear = 2026,
+                Monthly = Enumerable.Range(1, 12)
+                    .Select(m => new IqcNgMonthPoint { Month = m, Count = m }).ToList(),
+                TopSuppliers = new List<IqcNgNameCount>
+                {
+                    new() { Name = "Vietnam Paper Tube Co.", Count = 19 },
+                    new() { Name = "P.T.S International", Count = 6 },
+                },
+                TopDefects = new List<IqcNgNameCount>
+                {
+                    new() { Name = "Xước", Count = 14 },
+                },
+            },
         });
 
         var cut = RenderComponent<IqcNgBoard>(p => p.Add(x => x.DebounceMs, 0));
 
         Assert.NotNull(cut.Find("[data-testid=iqc-ng]"));
-        Assert.Contains("1", cut.Find("[data-testid=iqc-ng-kpi-open]").TextContent);
-        Assert.Contains("1", cut.Find("[data-testid=iqc-ng-kpi-claimed]").TextContent);
         Assert.NotNull(cut.Find("[data-testid=iqc-ng-row-11]"));
         Assert.NotNull(cut.Find("[data-testid=iqc-ng-new]"));
+
+        // Số của CẢ SỔ (server), KHÔNG phải số dòng đang hiện. Items có 1 Open
+        // và 1 Claimed; nếu KPI cộng từ Items thì ra "1" và hai dòng này đỏ.
+        Assert.Contains("7", cut.Find("[data-testid=iqc-ng-kpi-open]").TextContent);
+        Assert.Contains("8", cut.Find("[data-testid=iqc-ng-kpi-claimed]").TextContent);
+        Assert.Contains("139", cut.Find("[data-testid=iqc-ng-kpi-total]").TextContent);
+        Assert.Contains("123", cut.Find("[data-testid=iqc-ng-kpi-settled]").TextContent);
+    }
+
+    [Fact]
+    public void Dashboard_nho_hien_du_bon_khoi()
+    {
+        Wire();
+        _api.ListIqcNgImpl = (_, _, _) => Task.FromResult(new IqcNgListResponse
+        {
+            Items = Array.Empty<IqcNgListItem>(),
+            Summary = new IqcNgSummary
+            {
+                Total = 139, Open = 0, Claimed = 8, Settled = 123, ClosedNoClaim = 2,
+                DetectedIqc = 70, DetectedProduction = 64, TrendYear = 2026,
+                Monthly = Enumerable.Range(1, 12)
+                    .Select(m => new IqcNgMonthPoint { Month = m, Count = m == 3 ? 9 : 0 }).ToList(),
+                TopSuppliers = new List<IqcNgNameCount> { new() { Name = "NCC A", Count = 19 } },
+                TopDefects = new List<IqcNgNameCount> { new() { Name = "Xước", Count = 14 } },
+            },
+        });
+
+        var cut = RenderComponent<IqcNgBoard>(p => p.Add(x => x.DebounceMs, 0));
+
+        Assert.NotNull(cut.Find("[data-testid=iqc-ng-dash]"));
+        // Phát hiện ở đâu: hai đoạn thanh, IQC + SX.
+        Assert.Equal(2, cut.FindAll("[data-testid=iqc-ng-stage] .iqc-ng-seg").Count);
+        // Hai bảng xếp hạng.
+        Assert.Single(cut.FindAll("[data-testid=iqc-ng-top-suppliers] .iqc-ng-rank-row"));
+        Assert.Single(cut.FindAll("[data-testid=iqc-ng-top-defects] .iqc-ng-rank-row"));
+        // Xu hướng LUÔN đủ 12 cột, kể cả tháng 0 vụ — thiếu cột thì trục co
+        // lại và tháng im lặng trông như không tồn tại.
+        Assert.Equal(12, cut.FindAll("[data-testid=iqc-ng-trend] .iqc-ng-tslot").Count);
+        // Không còn vụ nào chưa claim ⇒ ô "Mở" KHÔNG được tô báo động.
+        Assert.DoesNotContain("is-alarm",
+            cut.Find("[data-testid=iqc-ng-kpi-open]").GetAttribute("class") ?? "");
     }
 
     [Fact]

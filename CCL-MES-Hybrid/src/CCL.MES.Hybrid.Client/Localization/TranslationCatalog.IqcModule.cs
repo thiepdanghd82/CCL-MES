@@ -455,6 +455,15 @@ public sealed partial class TranslationCatalog
         Add("iqc.ng.quantity_required",    "Cần ít nhất một đơn vị số lượng (m², SL, hoặc cuộn).",
                                            "At least one quantity (m², qty, or rolls) is required.");
         Add("iqc.ng.quantity_must_be_positive", "Số lượng phải lớn hơn 0.",        "Quantity must be greater than 0.");
+        // ── Dashboard nhỏ của tab NG / claim ─────────────────────────────
+        Add("iqc.ng.dash.total",           "Tổng vụ",                             "Total cases");
+        Add("iqc.ng.dash.area",            "Diện tích hỏng (m²)",                 "NG area (m²)");
+        Add("iqc.ng.dash.where",           "Phát hiện ở đâu",                     "Where detected");
+        Add("iqc.ng.dash.topsup",          "Nhà cung cấp nhiều vụ nhất",          "Suppliers with most cases");
+        Add("iqc.ng.dash.topdefect",       "Dạng lỗi nhiều nhất",                 "Most frequent defects");
+        Add("iqc.ng.dash.trend",           "Số vụ theo tháng · {0}",              "Cases per month · {0}");
+        Add("iqc.ng.dash.empty",           "Chưa có vụ nào.",                     "No cases yet.");
+
         Add("iqc.ng.material_required",    "Cần PartNo (hoặc phiếu IQC / lô).",    "PartNo (or an IQC ticket / lot) is required.");
 
         // ── Dashboard v2 (hệ Broadsheet) ─────────────────────────────────

@@ -113,17 +113,66 @@ public sealed class IqcNgImportTests
 
     // ── khoá idempotent ─────────────────────────────────────────────────
 
+    // ── khoá idempotent theo NỘI DUNG ───────────────────────────────────
+
     [Fact]
-    public void Khoa_idempotent_la_VI_TRI_DONG()
+    public void Chen_dong_o_giua_KHONG_lam_lech_khoa()
     {
-        // Hai dòng GIỐNG HỆT nhau về nội dung vẫn phải ra hai bản ghi khác
-        // nhau: cùng NCC + cùng mã + cùng ngày là chuyện có thật trên sheet
-        // (nhiều lô, hoặc một lô nhiều loại lỗi). Gộp là mất một vụ.
-        var a = IqcNgImport.Map(Row(7)).Record!;
-        var b = IqcNgImport.Map(Row(8)).Record!;
-        Assert.Equal("xlsx:NG Material:r7", a.ImportSource);
-        Assert.Equal("xlsx:NG Material:r8", b.ImportSource);
-        Assert.NotEqual(a.ImportSource, b.ImportSource);
+        // Đây là lý do đổi khoá. Với khoá theo vị trí dòng, chèn một dòng ở
+        // giữa làm mọi dòng dưới tụt số ⇒ lần nạp sau coi chúng là vụ MỚI và
+        // nhân đôi cả sổ.
+        var before = IqcNgImport.MapAll(new[] { R(2, "A"), R(3, "B"), R(4, "C") })
+            .Where(x => x.Mapped.Record is not null)
+            .ToDictionary(x => x.Row.DefectName!, x => x.Mapped.Record!.ImportSource!);
+
+        // chèn một dòng mới vào giữa: B và C tụt xuống dòng 4 và 5
+        var after = IqcNgImport.MapAll(new[] { R(2, "A"), R(3, "MỚI"), R(4, "B"), R(5, "C") })
+            .Where(x => x.Mapped.Record is not null)
+            .ToDictionary(x => x.Row.DefectName!, x => x.Mapped.Record!.ImportSource!);
+
+        Assert.Equal(before["A"], after["A"]);
+        Assert.Equal(before["B"], after["B"]);
+        Assert.Equal(before["C"], after["C"]);
+    }
+
+    [Fact]
+    public void Hai_dong_TRUNG_HET_van_ra_hai_ban_ghi()
+    {
+        // Cùng NCC + cùng mã + cùng ngày + cùng lỗi là chuyện CÓ THẬT trên
+        // sheet (một lô nhiều loại lỗi, hoặc nhiều lô cùng ngày). Gộp là mất
+        // một vụ — nên khoá nội dung phải kèm số thứ tự.
+        var m = IqcNgImport.MapAll(new[] { Row(9), Row(10) });
+        var keys = m.Select(x => x.Mapped.Record!.ImportSource!).ToList();
+        Assert.Equal(2, keys.Distinct().Count());
+        Assert.All(keys, k => Assert.StartsWith("xlsx:NG Material:h", k));
+        Assert.EndsWith("-0", keys[0]);
+        Assert.EndsWith("-1", keys[1]);
+    }
+
+    [Fact]
+    public void Doi_MOT_truong_khoa_thi_doi_khoa()
+    {
+        var a = IqcNgImport.MapAll(new[] { Row(2) })[0].Mapped.Record!.ImportSource;
+        var r = Row(2); r.PartNo = "9999";
+        var b = IqcNgImport.MapAll(new[] { r })[0].Mapped.Record!.ImportSource;
+        Assert.NotEqual(a, b);
+    }
+
+    [Fact]
+    public void So_thu_tu_ON_DINH_theo_so_dong_tang_dan()
+    {
+        // Người gọi đưa vào theo thứ tự nào cũng phải ra cùng kết quả, nếu
+        // không thì hai lần nạp cùng một file lại ra khoá khác nhau.
+        var asc = IqcNgImport.MapAll(new[] { Row(5), Row(9) })
+            .Select(x => (x.Row.RowNumber, x.Mapped.Record!.ImportSource)).ToList();
+        var desc = IqcNgImport.MapAll(new[] { Row(9), Row(5) })
+            .Select(x => (x.Row.RowNumber, x.Mapped.Record!.ImportSource)).ToList();
+        Assert.Equal(asc, desc);
+    }
+
+    private static IqcNgSheetRow R(int n, string defect)
+    {
+        var r = Row(n); r.DefectName = defect; return r;
     }
 
     [Fact]

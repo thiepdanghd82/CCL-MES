@@ -76,6 +76,68 @@ public sealed class IqcNgListResponse
     /// dải chip phải hiện tổng của mọi trạng thái, nếu không thì chọn một chip
     /// xong các chip khác về 0 và người dùng tưởng dữ liệu biến mất.</summary>
     public Dictionary<string, int> CountByStatus { get; set; } = new();
+
+    /// <summary>Số tổng hợp cho dashboard nhỏ của tab. Cũng KHÔNG chịu bộ lọc,
+    /// và cũng vì lý do đó: <c>Items</c> bị chặn 200 dòng và đi theo chip đang
+    /// chọn, nên cộng từ <c>Items</c> sẽ ra số của một lát cắt chứ không phải
+    /// của cả sổ — sai âm thầm ngay khi dữ liệu vượt 200 vụ.</summary>
+    public IqcNgSummary Summary { get; set; } = new();
+}
+
+/// <summary>Một cặp nhãn–số cho bảng xếp hạng (NCC / dạng lỗi).</summary>
+public sealed class IqcNgNameCount
+{
+    public string Name { get; set; } = "";
+    public int Count { get; set; }
+}
+
+/// <summary>Một tháng trên đường xu hướng.</summary>
+public sealed class IqcNgMonthPoint
+{
+    public int Month { get; set; }
+    public int Count { get; set; }
+}
+
+/// <summary>
+/// Số tổng hợp của tab NG / claim — tính trên TOÀN BỘ bản ghi ở server.
+/// </summary>
+public sealed class IqcNgSummary
+{
+    public int Total { get; set; }
+
+    /// <summary>Chưa gửi claim (Status=Open). Đây là việc CÒN PHẢI LÀM.</summary>
+    public int Open { get; set; }
+
+    /// <summary>Đã gửi claim, NCC chưa hồi đáp.</summary>
+    public int Claimed { get; set; }
+
+    /// <summary>NCC đã xử lý xong (bù hàng / giảm trừ / trả hàng).</summary>
+    public int Settled { get; set; }
+
+    /// <summary>Khép lại mà không đòi được — con số cần khi đàm phán lại hợp đồng.</summary>
+    public int ClosedNoClaim { get; set; }
+
+    /// <summary>Phát hiện ở khâu kiểm nhập.</summary>
+    public int DetectedIqc { get; set; }
+
+    /// <summary>Phát hiện khi ĐÃ vào sản xuất — vụ đắt hơn nhiều, vì nguyên
+    /// liệu đã bị đưa vào chuyền.</summary>
+    public int DetectedProduction { get; set; }
+
+    public int SettlementReplacement { get; set; }
+    public int SettlementCreditNote { get; set; }
+
+    /// <summary>Tổng diện tích hỏng (m²) trên các vụ có ghi. Null khi không vụ nào ghi.</summary>
+    public double? TotalAreaM2 { get; set; }
+
+    /// <summary>Năm của đường xu hướng (năm mới nhất có vụ). Null khi sổ rỗng.</summary>
+    public int? TrendYear { get; set; }
+
+    /// <summary>Luôn đủ 12 điểm Jan–Dec của <see cref="TrendYear"/>.</summary>
+    public List<IqcNgMonthPoint> Monthly { get; set; } = new();
+
+    public List<IqcNgNameCount> TopSuppliers { get; set; } = new();
+    public List<IqcNgNameCount> TopDefects { get; set; } = new();
 }
 
 /// <summary>Kết quả một thao tác ghi trên vụ NG.</summary>

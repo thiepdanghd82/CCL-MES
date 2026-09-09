@@ -9922,7 +9922,8 @@ tr.wc-row:hover { background: var(--c-bg); }
    các token đó.
    ════════════════════════════════════════════════════════════════════════ */
 
-.iqc-dash-v2 {
+.iqc-dash-v2,
+.iqc-ng-dash {
     /* Nền và xám trung tính ĐI THEO THANG CỦA APP (--ix-*), không dùng thang
        xám ẤM của V3 nữa: V3 là giấy in nên nền ngả vàng, còn vùng nội dung
        của app ngả xanh — đặt cạnh nhau thì Dashboard nổi lên
@@ -10615,9 +10616,16 @@ tr.wc-row:hover { background: var(--c-bg); }
     font-size: var(--d-font);
     font-weight: var(--fw-semibold);
     min-width: 0;
+    /* Xuống TỐI ĐA 2 DÒNG thay vì cắt một dòng. Đo trên dữ liệu thật: tên NCC
+       dài tới 57 ký tự, trung vị 42 — cắt một dòng làm mất đúng phần phân biệt
+       (nhiều tên chỉ khác nhau ở đuôi: "… TẠI BẮC NINH"). Hai dòng phủ ~80 ký
+       tự nên không tên nào bị cắt, mà thanh phân bố vẫn giữ nguyên chỗ. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
 }
 
 .iqc-dash-v2 .iqc-v2-sup-name:hover { color: var(--iqc-cyan); text-decoration: underline; }
@@ -10762,4 +10770,161 @@ tr.wc-row:hover { background: var(--c-bg); }
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
     }
+}
+
+/* ── Dashboard nhỏ của tab NG / claim ────────────────────────────────────
+   Dùng CHUNG khối token với .iqc-dash-v2 ở trên (khai lại hex lần hai là mở
+   đường cho hai bảng màu trôi khác nhau). Ở đây chỉ có bố cục. */
+
+.iqc-ng-dash {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    margin-bottom: var(--sp-4);
+    padding-bottom: var(--sp-4);
+    border-bottom: 1px solid var(--iqc-n300);
+}
+
+.iqc-ng-dash .iqc-ng-sub {
+    margin: 0 0 var(--sp-2);
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-bold);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--iqc-n600);
+}
+
+.iqc-ng-dash .iqc-ng-empty { margin: 0; font-size: var(--fs-md); color: var(--iqc-n600); }
+
+/* KPI: lưới cột đều để số thẳng hàng ở mọi bề rộng. */
+.iqc-ng-dash .iqc-ng-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+    gap: var(--sp-2) var(--sp-4);
+}
+
+.iqc-ng-dash .iqc-ng-kpi { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+
+.iqc-ng-dash .iqc-ng-kpi-lbl {
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-medium);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--iqc-n600);
+}
+
+.iqc-ng-dash .iqc-ng-kpi-num {
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-bold);
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+    color: var(--iqc-rule);
+}
+
+/* Còn vụ CHƯA gửi claim = việc còn phải làm, nên nó phải nổi lên. */
+.iqc-ng-dash .iqc-ng-kpi.is-alarm .iqc-ng-kpi-num { color: var(--iqc-mag-dk); }
+
+/* Phát hiện ở đâu — một thanh chia hai đoạn, đọc được tỉ lệ ngay. */
+.iqc-ng-dash .iqc-ng-splitbar {
+    display: flex;
+    height: var(--sp-3);
+    background: var(--iqc-surf);
+    overflow: hidden;
+}
+
+.iqc-ng-dash .iqc-ng-seg { display: block; height: 100%; }
+.iqc-ng-dash .iqc-ng-seg.is-iqc { background: var(--iqc-cyan); }
+.iqc-ng-dash .iqc-ng-seg.is-sx  { background: var(--iqc-mag); }
+
+.iqc-ng-dash .iqc-ng-splitlbl {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-5);
+    margin: var(--sp-2) 0 0;
+    font-size: var(--fs-md);
+    color: var(--iqc-n700);
+}
+
+.iqc-ng-dash .iqc-ng-dot {
+    display: inline-block;
+    width: var(--sp-2);
+    height: var(--sp-2);
+    margin-right: var(--sp-1);
+}
+
+.iqc-ng-dash .iqc-ng-dot.is-iqc { background: var(--iqc-cyan); }
+.iqc-ng-dash .iqc-ng-dot.is-sx  { background: var(--iqc-mag); }
+
+/* Hai bảng xếp hạng cạnh nhau; min(100%,…) để không tràn khi khung hẹp. */
+.iqc-ng-dash .iqc-ng-cols {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    gap: var(--sp-4);
+}
+
+.iqc-ng-dash .iqc-ng-rank-row {
+    display: grid;
+    grid-template-columns: minmax(0, 12rem) minmax(3rem, 1fr) auto;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: var(--d-row-h);
+}
+
+.iqc-ng-dash .iqc-ng-rank-name {
+    font-size: var(--d-font);
+    color: var(--iqc-rule);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.iqc-ng-dash .iqc-ng-rank-bar { height: var(--sp-2); background: var(--iqc-surf); overflow: hidden; }
+.iqc-ng-dash .iqc-ng-rank-bar > span { display: block; height: 100%; background: var(--iqc-cyan); }
+
+.iqc-ng-dash .iqc-ng-rank-n {
+    font-size: var(--d-font);
+    font-weight: var(--fw-bold);
+    font-variant-numeric: tabular-nums;
+    color: var(--iqc-rule);
+}
+
+/* Xu hướng 12 tháng — cột div, vuông, cùng nhịp bản in của Dashboard v3. */
+.iqc-ng-dash .iqc-ng-tbars {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--sp-1);
+    align-items: end;
+    height: 5rem;
+    border-bottom: 1px solid var(--iqc-n300);
+}
+
+.iqc-ng-dash .iqc-ng-tslot {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    height: 100%;
+    min-width: 0;
+}
+
+.iqc-ng-dash .iqc-ng-tbar {
+    display: block;
+    width: 100%;
+    max-width: 2rem;
+    min-height: 1px;
+    background: var(--iqc-cyan);
+}
+
+.iqc-ng-dash .iqc-ng-tm {
+    font-size: var(--fs-2xs);
+    color: var(--iqc-n600);
+    overflow: hidden;
+    max-width: 100%;
+}
+
+/* --bp-phone: 12 khe không còn chỗ cho nhãn tháng. */
+@media (max-width: 480px) {
+    .iqc-ng-dash .iqc-ng-tm { display: none; }
 }
