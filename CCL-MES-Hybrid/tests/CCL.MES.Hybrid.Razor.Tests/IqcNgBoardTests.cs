@@ -118,6 +118,10 @@ public sealed class IqcNgBoardTests : TestContext
         // Xu hướng LUÔN đủ 12 cột, kể cả tháng 0 vụ — thiếu cột thì trục co
         // lại và tháng im lặng trông như không tồn tại.
         Assert.Equal(12, cut.FindAll("[data-testid=iqc-ng-trend] .iqc-ng-tslot").Count);
+        // Bốn khối phải là bốn THẺ trong MỘT lưới — nếu ai đó tách chúng ra
+        // khỏi lưới thì bề rộng thừa lại thành khoảng trống bên phải thay vì
+        // thành thêm cột, đúng lỗi lệch khổ 26–57% so với bảng đã sửa.
+        Assert.Equal(4, cut.FindAll(".iqc-ng-grid > .iqc-ng-card").Count);
         // Không còn vụ nào chưa claim ⇒ ô "Mở" KHÔNG được tô báo động.
         Assert.DoesNotContain("is-alarm",
             cut.Find("[data-testid=iqc-ng-kpi-open]").GetAttribute("class") ?? "");

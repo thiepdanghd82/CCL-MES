@@ -10789,10 +10789,6 @@ tr.wc-row:hover { background: var(--c-bg); }
     display: flex;
     flex-direction: column;
     gap: var(--sp-4);
-    /* Trần khổ đọc. KHÔNG kèm margin-inline:auto — section là flex column,
-       margin auto ở đó làm khối co về vừa nội dung và căn giữa. max-width một
-       mình thì khối vẫn bám lề trái, chỉ thôi kéo dài vô ích trên màn 32". */
-    max-width: 90rem;
     margin-bottom: var(--sp-4);
     padding-bottom: var(--sp-4);
     border-bottom: 1px solid var(--iqc-n300);
@@ -10838,14 +10834,11 @@ tr.wc-row:hover { background: var(--c-bg); }
 .iqc-ng-dash .iqc-ng-kpi.is-alarm .iqc-ng-kpi-num { color: var(--iqc-mag-dk); }
 
 /* Phát hiện ở đâu — một thanh chia hai đoạn, đọc được tỉ lệ ngay. */
-/* Trần bề rộng cho từng khối, KHÔNG dùng margin-inline:auto trên khối cha:
-   section của tab là flex column, margin auto trục ngang ở đó làm phần tử co
-   về vừa nội dung và căn giữa (đúng lỗi vừa sửa). Ghìm từng khối thì khối vẫn
-   bám lề trái và không có tác dụng phụ. */
+/* Không còn trần cứng 52rem: THẺ mới là khổ. Trần cứng tạo ra khổ thứ hai
+   trên trang và chính nó làm dashboard lệch 26–57% so với bảng bên dưới. */
 .iqc-ng-dash .iqc-ng-splitbar {
     display: flex;
     height: var(--sp-3);
-    max-width: 52rem;
     background: var(--iqc-surf);
     overflow: hidden;
 }
@@ -10873,11 +10866,57 @@ tr.wc-row:hover { background: var(--c-bg); }
 .iqc-ng-dash .iqc-ng-dot.is-iqc { background: var(--iqc-cyan); }
 .iqc-ng-dash .iqc-ng-dot.is-sx  { background: var(--iqc-mag); }
 
-/* Hai bảng xếp hạng cạnh nhau; min(100%,…) để không tràn khi khung hẹp. */
-.iqc-ng-dash .iqc-ng-cols {
+/* ── Lưới thẻ ────────────────────────────────────────────────────────────
+   Bốn khối phân tích, nên số cột phải là ước của 4: 1 · 2 · 4. Ba cột sẽ để
+   một thẻ đứng lẻ ở hàng hai. Dùng @container (khớp .qms-page) chứ không
+   @media: bề rộng THẬT của vùng nội dung đổi theo rail đang mở hay thu, đo
+   theo viewport sẽ chọn nhầm số cột đúng lúc rail thay đổi.
+
+   Ngưỡng đi qua thang: 768 (--bp-tablet-p) · 1280 (--bp-desk).
+     < 768  → 1 cột   iPad DỌC (container ~538) và hẹp hơn. Đo được: ép 2 cột
+                      ở đây làm thẻ NCC chỉ còn 261px và 5/5 tên bị cắt.
+     ≥ 768  → 2 cột   iPad ngang (~898) và 14" (~1216)
+     ≥ 1280 → 4 cột   máy chiếu 1920 (~1624) · 32" (~2264) · 4K (~3544)   */
+.iqc-ng-dash .iqc-ng-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--sp-4);
+}
+
+@container (min-width: 768px) {
+    .iqc-ng-dash .iqc-ng-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* --bp-phone: thẻ chỉ còn ~135–267px, thanh 8rem nuốt hết chỗ và tên còn
+   0–23px (đo được). Bỏ thanh — nó là phụ hoạ, tên và con số mới là dữ liệu. */
+@container (max-width: 480px) {
+    .iqc-ng-dash .iqc-ng-rank-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .iqc-ng-dash .iqc-ng-rank-bar { display: none; }
+}
+
+@container (min-width: 1280px) {
+    .iqc-ng-dash .iqc-ng-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    /* Thẻ NCC chiếm HAI cột: tên nhà cung cấp thật dài tới 57 ký tự, ở một cột
+       (~390px) thì một dòng sẽ cắt cụt. Hàng 1 = split(1) + NCC(2) + lỗi(1),
+       hàng 2 = xu hướng trải cả 4 — cả hai hàng đều đầy, không thẻ nào đứng lẻ. */
+    .iqc-ng-dash [data-testid="iqc-ng-top-suppliers"] { grid-column: span 2; }
+    .iqc-ng-dash [data-testid="iqc-ng-trend"] { grid-column: 1 / -1; }
+
+    /* MỘT DÒNG ở màn lớn: hai dòng làm chiều cao hàng so le và sinh khoảng
+       trắng vụn. Ở đây tên đã đủ chỗ nên một dòng vừa gọn vừa không cắt. */
+    .iqc-ng-dash .iqc-ng-rank-name { -webkit-line-clamp: 1; }
+}
+
+/* Thẻ: viền mảnh + nền nổi để bốn khối đọc thành MỘT bố cục, không phải bốn
+   mảnh rời trôi trên nền. */
+.iqc-ng-dash .iqc-ng-card {
+    min-width: 0;
+    padding: var(--sp-3);
+    background: var(--iqc-card);
+    border: 1px solid var(--iqc-n300);
+    border-radius: var(--iqc-r);
+    display: flex;
+    flex-direction: column;
 }
 
 .iqc-ng-dash .iqc-ng-rank-row {
@@ -10888,7 +10927,9 @@ tr.wc-row:hover { background: var(--c-bg); }
     /* Thanh nhường chỗ cho TÊN: cả hai cùng trần 18rem thì ở khung ~470px
        lưới chia đôi và tên chỉ còn 189px (đo được: tên 53 ký tự bị cắt ngay ở
        2 dòng). Thanh là phụ hoạ, tên mới là dữ liệu. */
-    grid-template-columns: minmax(0, 18rem) minmax(3rem, 12rem) auto minmax(0, 1fr);
+    /* Tên hút HẾT chỗ thừa (1fr), thanh giữ bề rộng cố định. Nếu cả hai cùng
+       co giãn thì trên thẻ rộng sẽ thừa một mảng trắng ở cuối hàng. */
+    grid-template-columns: minmax(0, 1fr) 8rem auto;
     align-items: center;
     gap: var(--sp-2);
     min-height: var(--d-row-h);
@@ -10898,10 +10939,11 @@ tr.wc-row:hover { background: var(--c-bg); }
     font-size: var(--d-font);
     color: var(--iqc-rule);
     min-width: 0;
-    /* Hai dòng thay vì cắt — tên NCC thật dài tới 57 ký tự và nhiều tên chỉ
-       khác nhau ở đuôi, giống hệt lý do đã sửa ở Dashboard. */
+    /* BA dòng khi chưa tới bố cục một-dòng: tên NCC thật dài tới 57 ký tự và
+       nhiều tên chỉ khác nhau ở ĐUÔI ("… TẠI BẮC NINH"), cắt là mất đúng phần
+       phân biệt. Ở khung hẹp thà cao thêm một dòng còn hơn đọc nhầm NCC. */
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
     overflow-wrap: anywhere;
@@ -10925,7 +10967,6 @@ tr.wc-row:hover { background: var(--c-bg); }
     gap: var(--sp-1);
     align-items: end;
     height: 5rem;
-    max-width: 52rem;
     border-bottom: 1px solid var(--iqc-n300);
 }
 

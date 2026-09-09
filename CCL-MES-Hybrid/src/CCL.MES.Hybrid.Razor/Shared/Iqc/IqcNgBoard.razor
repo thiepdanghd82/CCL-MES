@@ -54,12 +54,17 @@
             }
         </div>
 
+        @* Bốn khối phân tích là bốn THẺ BẰNG NHAU trong một lưới. Bề rộng thừa
+           trở thành THÊM CỘT, không thành khoảng trống bên phải — đó là lý do
+           bản trước lệch khổ tới 57% so với bảng bên dưới trên màn 32". *@
+        <div class="iqc-ng-grid">
+
         @* Phát hiện ở đâu — câu hỏi đắt nhất của tab này: vụ tìm thấy ở SẢN
            XUẤT nghĩa là nguyên liệu đã vào chuyền rồi mới phát hiện. *@
         @if (_sum.DetectedIqc + _sum.DetectedProduction > 0)
         {
             var tot = _sum.DetectedIqc + _sum.DetectedProduction;
-            <div class="iqc-ng-split" data-testid="iqc-ng-stage">
+            <div class="iqc-ng-card iqc-ng-split" data-testid="iqc-ng-stage">
                 <p class="iqc-ng-sub">@T("iqc.ng.dash.where")</p>
                 <div class="iqc-ng-splitbar">
                     <span class="iqc-ng-seg is-iqc" style="width:@Css(100.0 * _sum.DetectedIqc / tot)"
@@ -74,8 +79,7 @@
             </div>
         }
 
-        <div class="iqc-ng-cols">
-            <section class="iqc-ng-rank" data-testid="iqc-ng-top-suppliers">
+            <section class="iqc-ng-card iqc-ng-rank" data-testid="iqc-ng-top-suppliers">
                 <p class="iqc-ng-sub">@T("iqc.ng.dash.topsup")</p>
                 @if (_sum.TopSuppliers.Count == 0)
                 {
@@ -95,7 +99,7 @@
                 }
             </section>
 
-            <section class="iqc-ng-rank" data-testid="iqc-ng-top-defects">
+            <section class="iqc-ng-card iqc-ng-rank" data-testid="iqc-ng-top-defects">
                 <p class="iqc-ng-sub">@T("iqc.ng.dash.topdefect")</p>
                 @if (_sum.TopDefects.Count == 0)
                 {
@@ -114,11 +118,10 @@
                     }
                 }
             </section>
-        </div>
 
         @if (_sum.TrendYear is { } ty)
         {
-            <section class="iqc-ng-trend" data-testid="iqc-ng-trend">
+            <section class="iqc-ng-card iqc-ng-trend" data-testid="iqc-ng-trend">
                 <p class="iqc-ng-sub">@T("iqc.ng.dash.trend", ty)</p>
                 <div class="iqc-ng-tbars">
                     @foreach (var m in _sum.Monthly)
@@ -131,6 +134,8 @@
                 </div>
             </section>
         }
+
+        </div>
     </div>
 
     <div class="iqc-data-toolbar">
