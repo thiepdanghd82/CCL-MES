@@ -1029,6 +1029,17 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 
 ----
 
+### L80 — gate BÁO PASS trong khi tôi vi phạm đúng ý định của nó: phép so bị giấu sau một hàm helper
+
+| | |
+|---|---|
+| **Triệu chứng** | Cần cho màn IPQC tra được kết luận IQC của lô. Tôi nối bằng cặp chuỗi `(mã NVL, số lô)` ngay trong `IpqcMaterialMaterializer`, chạy `gate-all.sh` → **21/21 PASS**, trong đó `gate:matlot` báo `nối theo chuỗi lô = 0 (bắt buộc 0)`. Test 4033 xanh. Nhìn mọi chỉ số thì đây là một thay đổi sạch. |
+| **Root cause** (proven) | Gate `matlot` (A1) sinh ra để cấm **đúng phép nối đó** — lý do nằm ngay trong header script: *"khoá tự nhiên chuỗi giữa hai bảng = KHÔNG có khoá. Chuỗi chỉ được tồn tại như NHÃN HIỂN THỊ; mọi phép nối phải qua FK."* Nhưng detector (A) bắt bằng **regex trên một dòng**: `x.LotNo == y.LotNo`, `ON a.LotNo = b.LotNo`, `on x.LotNo equals y.LotNo`. Code của tôi (a) dùng tên cột phía IQC (`LotNumber`/`BatchNumber`/`CodeIfs`), không phải `LotNo`; và (b) đặt phép so **sau một hàm helper** (`Same(EffectiveLot(t), lot)`), nên không dòng nào khớp mẫu. Gate không sai — nó chỉ không với tới được. Đo thêm cho chắc: số liệu gốc của gate **vẫn đúng nguyên hôm nay** — 5 dòng `WoMaterials` có `LotNo`, **0** dòng khớp lô bên IQC. Tức đoạn tôi viết còn là **code chết**, sẽ không giải ra một dòng nào trên dữ liệu thật. |
+| **Fix** | Gỡ toàn bộ phần nối ở đường đọc. Làm đúng hình dạng: đổ dữ liệu vào `MaterialLots` từ 5334 phiếu IQC (`scripts/MaterialLotSync`, dry-run mặc định) để **mạch FK liền** — `MaterialLot.IqcInspectionId` → `WoMaterial.MaterialLotId` — rồi đường quét sẵn có (`MaterialLotScanService`) tự dùng được. Live: 28 → 4850 lô, 4822 dòng có nối IQC, chạy lại ra 0/0/4822. |
+| **Cơ chế chặn tái phát** | Thêm check **(D)** vào `gate-material-lot-fk.sh`: đổi từ bắt-mẫu sang **luật cấu trúc** — truy vấn `IqcInspections` lọc theo khoá CHUỖI (`CodeIfs`/`PartNo`/`LotNumber`/`BatchNumber`) chỉ được phép trong **lớp tạo lô** (allowlist 3 file: `MaterialLotBackfillService`, `MaterialLotSync/Program.cs`, `IqcHistoryLedgerImportService`); mọi nơi khác — đặc biệt đường ĐỌC của IPQC/WO — phải đi bằng `IqcInspectionId`. Regex không đuổi kịp việc giấu phép so sau helper, nhưng "file nào được phép chạm bảng nào theo khoá nào" thì đuổi kịp. Đã chứng minh bằng cách **tiêm lại nguyên văn đoạn code cũ** → gate FAIL đúng file đúng dòng (`IpqcMaterialMaterializer.cs:279`), gỡ ra → PASS; và đóng gói thành ca thứ 5 của `--self-test` (`join=1 ctrl-write=1 unanchored=2 nocase-missing=3 strkey=1 — bắt đủ 5`). **Luật rút ra cho mọi lần sau: gate PASS không phải là chứng minh mình đúng — phải đọc VÌ SAO gate tồn tại. Header script là nơi để đọc.** |
+
+----
+
 ## Adding a new lesson
 
 When a new bug class costs ≥2 hours of investigation:

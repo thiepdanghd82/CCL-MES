@@ -49,6 +49,7 @@ public static class AuditAction
     public const string IqcNgClaim            = "IQC_NG_CLAIM";            // P13 bước 5 — gửi claim NCC
     public const string IqcNgSettle           = "IQC_NG_SETTLE";           // P13 bước 5 — NCC đã xử lý
     public const string IqcNgClose            = "IQC_NG_CLOSE";            // P13 bước 5 — khép, không đòi được
+    public const string MaterialLotSync       = "MATERIAL_LOT_SYNC";       // nối mạch IQC → MaterialLot (scripts/MaterialLotSync)
     public const string IqcDocSet             = "IQC_DOC_SET";             // P12 bước 4 — số/ngày cấp/hạn của hồ sơ HSF
     public const string IqcDocAdded           = "IQC_DOC_ADDED";           // P12 bước 4
     public const string IqcDocRemoved         = "IQC_DOC_REMOVED";         // P12 bước 4 — xoá MỀM

@@ -112,7 +112,44 @@ if 'MaterialLot' in snap_txt:
 else:
     nocase_missing.append('(entity MaterialLot chưa có trong snapshot)')
 
+# ── (D) tra IqcInspections bằng KHOÁ CHUỖI ngoài lớp tạo lô ──────────
+# Vì sao cần, dù đã có (A): (A) bắt `x.LotNo == y.LotNo`. Ngày 2026-09-09 tôi
+# nối IPQC↔IQC bằng cặp (mã, lô) nhưng đặt phép so SAU MỘT HÀM HELPER, nên (A)
+# không thấy gì và gate BÁO PASS trong khi tôi vi phạm đúng ý định của nó.
+# Regex không đuổi kịp việc đó — nên (D) đổi sang luật CẤU TRÚC: chỉ lớp TẠO LÔ
+# mới được tra IqcInspections theo khoá chuỗi. Mọi nơi khác (đặc biệt là đường
+# ĐỌC của IPQC/WO) phải đi bằng IqcInspectionId.
+#
+# Allowlist là lớp tạo lô + import IQC, đo trên cây 2026-09-09:
+#   · MaterialLotBackfillService  — A1, dựng lô từ WoMaterials.LotNo
+#   · MaterialLotSync/Program.cs  — dựng danh mục lô từ phiếu IQC
+#   · IqcHistoryLedgerImportService — nhập sổ IQC
+STRKEY = re.compile(r'\.(CodeIfs|PartNo|LotNumber|BatchNumber)\b')
+ALLOW = ('MaterialLotBackfillService.cs', 'MaterialLotSync/Program.cs',
+         'IqcHistoryLedgerImportService.cs')
+strkey_hits = []
+for f in files(root, ('.cs',)):
+    rel = os.path.relpath(f, root)
+    if '/Migrations/' in rel or rel.startswith('tests/') or '/tests/' in rel:
+        continue
+    if any(a in rel.replace(os.sep, '/') for a in ALLOW):
+        continue
+    lines = open(f, encoding='utf-8', errors='ignore').read().splitlines()
+    for i, ln in enumerate(lines):
+        st = ln.strip()
+        if st.startswith('//') or st.startswith('///') or st.startswith('*'):
+            continue
+        if 'IqcInspections' not in ln:
+            continue
+        # cùng một biểu thức truy vấn thường trải tối đa vài dòng
+        blk = [l for l in lines[i:i + 8]
+               if not l.strip().startswith(('//', '///', '*'))]
+        if STRKEY.search('\n'.join(blk)):
+            strkey_hits.append(f'{rel}:{i + 1}')
+            break
+
 print(json.dumps({
+    "nstrkey": len(strkey_hits),  "strkey": strkey_hits[:6],
     "njoin": len(joins),        "joins": joins[:6],
     "nctrl": len(ctrl_writes),  "ctrl": ctrl_writes[:6],
     "nunanchored": len(unanchored), "unanchored": unanchored[:6],
@@ -121,7 +158,7 @@ print(json.dumps({
 PY
 }
 
-# ── self-test: cây tạm + inject đủ 4 loại vi phạm ────────────────────
+# ── self-test: cây tạm + inject đủ 5 loại vi phạm ────────────────────
 if [ "${1:-}" = "--self-test" ]; then
   tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
   mkdir -p "$tmp/root/src/CCL.MES.Application" \
@@ -136,6 +173,10 @@ if [ "${1:-}" = "--self-test" ]; then
   # (B2) mirror không neo FK
   printf 'class S { void W(){ row.LotNo = lot.LotNo; } }\n' \
     > "$tmp/root/src/CCL.MES.Application/SelfTestUnanchored.cs"
+  # (D) tra IqcInspections theo khoá CHUỖI ngoài lớp tạo lô — NGUYÊN VĂN đoạn
+  # đã lọt qua gate ngày 2026-09-09 (phép so giấu sau helper nên (A) không thấy).
+  printf 'var rows = await _db.IqcInspections.AsNoTracking()\n    .Where(i => codes.Contains(i.CodeIfs)).ToListAsync(ct);\n' \
+    > "$tmp/root/src/CCL.MES.Application/SelfTestStrKey.cs"
   # (C) snapshot thiếu NOCASE
   cat > "$tmp/root/src/CCL.MES.Infrastructure/Migrations/MesDbContextModelSnapshot.cs" <<'EOF'
 modelBuilder.Entity("CCL.MES.Domain.Entities.MaterialLot", b =>
@@ -147,14 +188,14 @@ EOF
 
   out="$(scan "$tmp/root" "$tmp/ctrl" "$tmp/root/src/CCL.MES.Application" \
               "$tmp/root/src/CCL.MES.Infrastructure/Migrations/MesDbContextModelSnapshot.cs")"
-  read -r nj nc nu nn <<<"$(python3 -c "
+  read -r nj nc nu nn ns <<<"$(python3 -c "
 import json; d=json.loads('''$out''')
-print(d['njoin'], d['nctrl'], d['nunanchored'], d['nnocase'])")"
-  if [ "$nj" -gt 0 ] && [ "$nc" -gt 0 ] && [ "$nu" -gt 0 ] && [ "$nn" -gt 0 ]; then
-    echo "[gate:matlot] self-test OK (join=$nj ctrl-write=$nc unanchored=$nu nocase-missing=$nn — bắt đủ 4)"
+print(d['njoin'], d['nctrl'], d['nunanchored'], d['nnocase'], d['nstrkey'])")"
+  if [ "$nj" -gt 0 ] && [ "$nc" -gt 0 ] && [ "$nu" -gt 0 ] && [ "$nn" -gt 0 ] && [ "$ns" -gt 0 ]; then
+    echo "[gate:matlot] self-test OK (join=$nj ctrl-write=$nc unanchored=$nu nocase-missing=$nn strkey=$ns — bắt đủ 5)"
     exit 0
   fi
-  echo "[gate:matlot] self-test FAILED — join=$nj ctrl=$nc unanchored=$nu nocase=$nn (cần cả bốn >0)"
+  echo "[gate:matlot] self-test FAILED — join=$nj ctrl=$nc unanchored=$nu nocase=$nn strkey=$ns (cần cả năm >0)"
   exit 1
 fi
 
@@ -164,7 +205,8 @@ out="$(scan "$ROOT" "$CTRL" "$APP" "$SNAP")"
 eval "$(python3 -c "
 import json
 d=json.loads('''$out''')
-print(f'NJOIN={d[\"njoin\"]}; NCTRL={d[\"nctrl\"]}; NUNANCHORED={d[\"nunanchored\"]}; NNOCASE={d[\"nnocase\"]}')
+print(f'NJOIN={d[\"njoin\"]}; NCTRL={d[\"nctrl\"]}; NUNANCHORED={d[\"nunanchored\"]}; NNOCASE={d[\"nnocase\"]}; NSTRKEY={d[\"nstrkey\"]}')
+print('STRKEY=\"'+' | '.join(d['strkey'])+'\"')
 print('JOINS=\"'+' | '.join(d['joins'])+'\"')
 print('CTRLW=\"'+' | '.join(d['ctrl'])+'\"')
 print('UNANCH=\"'+' | '.join(d['unanchored'])+'\"')
@@ -175,6 +217,7 @@ echo "[gate:matlot] nối theo chuỗi lô (JOIN/==)   = $NJOIN (bắt buộc 0)
 echo "[gate:matlot] ghi .LotNo= trong controller  = $NCTRL (baseline $BASELINE_CTRL_LOTNO_WRITE)"
 echo "[gate:matlot] mirror không neo MaterialLotId = $NUNANCHORED (bắt buộc 0)"
 echo "[gate:matlot] cột khoá lô thiếu NOCASE      = $NNOCASE (bắt buộc 0)"
+echo "[gate:matlot] tra IQC bằng khoá CHUỖI ngoài lớp tạo lô = $NSTRKEY (bắt buộc 0)"
 
 rc=0
 if [ "$NJOIN" -gt 0 ]; then
@@ -196,6 +239,15 @@ if [ "$NNOCASE" -gt 0 ]; then
   echo "[gate:matlot:FAIL] thiếu COLLATE NOCASE: $NOCASEM"
   echo "  L28 đã tái phạm một lần (SemiLots.LotNo): 'LOT-001' và 'lot-001' thành HAI lô."
   echo "  Đặt UseCollation(\"NOCASE\") trên CỘT trong MesDbContext, đừng rải EF.Functions.Collate()."
+  rc=1
+fi
+if [ "$NSTRKEY" -gt 0 ]; then
+  echo "[gate:matlot:FAIL] tra IqcInspections bằng khoá CHUỖI ngoài lớp tạo lô: $STRKEY"
+  echo "  Đường ĐỌC (IPQC/WO) phải đi bằng IqcInspectionId. Chỉ lớp TẠO LÔ được"
+  echo "  phép tra theo chuỗi — thêm file vào ALLOW trong gate NẾU nó thật sự"
+  echo "  là lớp tạo lô, đừng nới để đường đọc lọt qua."
+  echo "  (Check này sinh 2026-09-09: (A) báo PASS trong khi phép so bị giấu sau"
+  echo "   một hàm helper — regex không đuổi kịp, nên đổi sang luật cấu trúc.)"
   rc=1
 fi
 [ $rc -eq 0 ] && echo "[gate:matlot:OK] mạch lô đi bằng khoá số, khoá chuỗi có NOCASE."
