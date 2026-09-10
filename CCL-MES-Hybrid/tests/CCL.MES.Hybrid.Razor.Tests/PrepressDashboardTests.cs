@@ -656,7 +656,13 @@ public sealed class PrepressDashboardTests : TestContext
     }
 
     [Fact]
-    public void Manual_part_scan_mismatch_does_not_ok_and_asks_for_special_accept()
+    /// <summary>
+    /// Gõ tay mã lệch: KHÔNG auto-OK, và banner KHÔNG được chỉ sang Special
+    /// Accept nữa — server chặn sai mã ở cả đường đó (prepress.part_scan_mismatch).
+    /// Câu chữ chỉ sai hướng còn tệ hơn không có câu nào: người vận hành bấm
+    /// Special Accept, lại bị chặn, và không hiểu vì sao.
+    /// </summary>
+    public void Manual_part_scan_mismatch_khong_auto_OK_va_khong_chi_sang_Special_Accept()
     {
         _hwOptions.ScanEnabled = true;   // so the status line is rendered
         var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
@@ -671,7 +677,8 @@ public sealed class PrepressDashboardTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var status = cut.Find("[data-testid='prepress-scan-status']");
-            Assert.Contains("Special Accept", status.TextContent);
+            Assert.DoesNotContain("Special Accept", status.TextContent);
+            Assert.Contains("right material", status.TextContent);
         });
         Assert.Empty(api.PutPrepressMaterialCalls);
     }

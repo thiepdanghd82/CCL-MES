@@ -24,6 +24,96 @@ public sealed class MaterialsReadinessRollupTests
     private static WoCutterCheck Cutter(PrepressCheckStatus s) =>
         new() { Status = s };
 
+    private static WoMaterial SpecialAccepted(int idx = 0) =>
+        new()
+        {
+            BomLineIdx = idx, MaterialCode = "M" + idx,
+            Status = PrepressCheckStatus.Ok,
+            // Dấu của Special Accept: Ok mà VẪN có mã lý do. Đường Ok thường
+            // luôn xoá NgReasonCode về null nên cặp này không sinh ra kiểu khác.
+            NgReasonCode = "SC-COLOR", NgNote = "PD leader chấp nhận",
+        };
+
+    // ── CỔNG LÔ (mục 2) ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Dòng Ok nhưng lô đang Rejected ⇒ WO KHÔNG được coi là sẵn sàng. Đây là
+    /// ca "lô bị IQC đánh trượt SAU khi Pre-press đã gắn" — gắn một lần là ảnh
+    /// chụp, rollup mới là chỗ soi lại.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(MaterialLotStatus.Rejected))]
+    [InlineData(nameof(MaterialLotStatus.Quarantine))]
+    [InlineData(nameof(MaterialLotStatus.Expired))]
+    [InlineData(null)]                                   // chưa gắn lô nào
+    public void Dong_Ok_nhung_lo_khong_Released_thi_KHONG_san_sang(string? lotStatus)
+    {
+        var mats = new[] { Mat(PrepressCheckStatus.Ok) };
+
+        var (hasSnap, allOk) = MaterialsReadinessRollup.Compute(
+            mats, Plate(PrepressCheckStatus.Ok), Cutter(PrepressCheckStatus.Ok),
+            _ => lotStatus);
+
+        Assert.True(hasSnap);
+        Assert.False(allOk);
+    }
+
+    [Fact]
+    public void Dong_Ok_va_lo_Released_thi_san_sang()
+    {
+        var mats = new[] { Mat(PrepressCheckStatus.Ok) };
+
+        var (_, allOk) = MaterialsReadinessRollup.Compute(
+            mats, Plate(PrepressCheckStatus.Ok), Cutter(PrepressCheckStatus.Ok),
+            _ => nameof(MaterialLotStatus.Released));
+
+        Assert.True(allOk);
+    }
+
+    /// <summary>
+    /// Special Accept ĐƯỢC TÍNH LÀ ĐẠT dù lô xấu. Nó là đường xả đã có chữ ký
+    /// (Engineer/Supervisor + lý do + audit); chặn thêm lần nữa ở rollup là
+    /// double-gate và làm chính đường xả đó thành vô dụng.
+    /// </summary>
+    [Fact]
+    public void Special_Accept_van_tinh_la_dat_du_lo_Rejected()
+    {
+        var mats = new[] { SpecialAccepted() };
+
+        var (_, allOk) = MaterialsReadinessRollup.Compute(
+            mats, Plate(PrepressCheckStatus.Ok), Cutter(PrepressCheckStatus.Ok),
+            _ => nameof(MaterialLotStatus.Rejected));
+
+        Assert.True(allOk);
+    }
+
+    /// <summary>Một dòng xấu là đủ chặn cả WO.</summary>
+    [Fact]
+    public void Mot_dong_lo_xau_giua_cac_dong_tot_van_chan_ca_WO()
+    {
+        var mats = new[] { Mat(PrepressCheckStatus.Ok, 0), Mat(PrepressCheckStatus.Ok, 1) };
+
+        var (_, allOk) = MaterialsReadinessRollup.Compute(
+            mats, Plate(PrepressCheckStatus.Ok), Cutter(PrepressCheckStatus.Ok),
+            m => m.BomLineIdx == 1 ? nameof(MaterialLotStatus.Rejected)
+                                   : nameof(MaterialLotStatus.Released));
+
+        Assert.False(allOk);
+    }
+
+    /// <summary>Quá tải 3 tham số giữ NGUYÊN hợp đồng cũ — không soi lô. WO
+    /// trước 7b không có dữ liệu lô, ép cổng lô lên chúng là chặn oan.</summary>
+    [Fact]
+    public void Qua_tai_ba_tham_so_KHONG_soi_lo()
+    {
+        var mats = new[] { Mat(PrepressCheckStatus.Ok) };
+
+        var (_, allOk) = MaterialsReadinessRollup.Compute(
+            mats, Plate(PrepressCheckStatus.Ok), Cutter(PrepressCheckStatus.Ok));
+
+        Assert.True(allOk);   // không có lô nào, vẫn đạt — đúng như trước
+    }
+
     // ── No snapshot → legacy bool stays authoritative ───────────────
 
     [Fact]

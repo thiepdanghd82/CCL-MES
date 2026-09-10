@@ -271,6 +271,53 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         Assert.Equal("prepress.lot_not_released", err!.Code);
     }
 
+    /// <summary>
+    /// CỔNG LÔ Ở ROLLUP (mục 2): dòng đã Ok từ trước, rồi lô bị IQC đánh
+    /// Rejected SAU đó ⇒ MaterialsReady phải TẮT, tức WO không rời PREPRESS
+    /// được. Luật lúc xác nhận Ok không cứu được ca này vì lúc bấm lô vẫn sạch.
+    /// </summary>
+    [Fact]
+    public async Task Lo_bi_danh_Rejected_SAU_khi_da_Ok_thi_WO_khong_con_san_sang()
+    {
+        var (woId, _) = await SeedWoWithBomAsync("WO-ROLL-LOT", "PROD-ROLLLOT", bomLines: 1);
+        var client = await OperatorClientAsync("op-roll-lot");
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+
+        // Khai đủ 3 mặt để MaterialsReady bật lên true.
+        var e1 = await EtagOfAsync(woId);
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(PutMaterial(woId, 0,
+            OkBody("PROD-ROLLLOT", 0), ifMatch: $"\"{e1}\"", idem: Guid.NewGuid().ToString()))).StatusCode);
+        var e2 = await EtagOfAsync(woId);
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(PutPlate(woId,
+            "{\"status\":\"Ok\"}", ifMatch: $"\"{e2}\"", idem: Guid.NewGuid().ToString()))).StatusCode);
+        var e3 = await EtagOfAsync(woId);
+        var last = await client.SendAsync(PutCutter(woId,
+            "{\"status\":\"Ok\"}", ifMatch: $"\"{e3}\"", idem: Guid.NewGuid().ToString()));
+        var body = (await last.Content.ReadFromJsonAsync<PrepressSetResponse>())!;
+        Assert.True(body.MaterialsReady);       // sẵn sàng — lô còn Released
+
+        // IQC đánh trượt lô SAU khi Pre-press đã gắn.
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var lot = await db.MaterialLots.FirstAsync(l => l.LotNo == "LOT-PROD-ROLLLOT-0");
+            lot.Status = nameof(MaterialLotStatus.Rejected);
+            await db.SaveChangesAsync();
+        }
+
+        // Một lần ghi bất kỳ làm rollup chạy lại ⇒ MaterialsReady phải tắt.
+        var e4 = await EtagOfAsync(woId);
+        var again = await client.SendAsync(PutCutter(woId,
+            "{\"status\":\"Ok\"}", ifMatch: $"\"{e4}\"", idem: Guid.NewGuid().ToString()));
+        var body2 = (await again.Content.ReadFromJsonAsync<PrepressSetResponse>())!;
+        Assert.False(body2.MaterialsReady);
+
+        using var s2 = _fx.Services.CreateScope();
+        var db2 = s2.ServiceProvider.GetRequiredService<MesDbContext>();
+        Assert.False(await db2.WorkOrders.Where(w => w.Id == woId)
+            .Select(w => w.MaterialsReady).SingleAsync());
+    }
+
     /// <summary>Body xác nhận OK hợp lệ cho dòng BOM thứ <paramref name="idx"/>:
     /// mã quét TRÙNG mã BOM và số lô trỏ đúng lô Released do seed dựng.</summary>
     private static string OkBody(string productCode, int idx, double? qty = null)

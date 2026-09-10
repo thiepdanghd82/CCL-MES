@@ -80,8 +80,19 @@ public static class PrepressErrorLocaliser
     /// <summary>Banner when the scanned material row was already OK.</summary>
     public static string ScanAlreadyOk(string materialCode) => $"{materialCode} is already OK.";
 
-    /// <summary>Banner when a manually-typed Part Scan does NOT match the
-    /// line's own code — operator must use Special Accept to override.</summary>
+    /// <summary>
+    /// Banner khi mã gõ tay KHÔNG khớp mã của chính dòng đó.
+    ///
+    /// <para>Câu cũ bảo "use Special Accept to record OK" — nay SAI: server
+    /// chặn sai mã ở CẢ đường Special Accept (<c>prepress.part_scan_mismatch</c>),
+    /// vì nhân nhượng là chấp nhận một LÔ chưa đủ điều kiện, không phải giấy
+    /// phép ghi nhầm mã vào hồ sơ truy xuất. Chỉ đường duy nhất đi tiếp là gõ
+    /// đúng mã của dòng, hoặc gõ vào ĐÚNG dòng mang mã đó.</para>
+    ///
+    /// <para>Câu chữ chỉ sai hướng còn tệ hơn không có câu nào: người vận hành
+    /// bấm Special Accept, lại bị chặn, và không hiểu vì sao.</para>
+    /// </summary>
     public static string ScanMismatch(string typedPart, string lineCode) =>
-        $"Typed {typedPart} ≠ line {lineCode} — use Special Accept to record OK.";
+        $"Typed {typedPart} ≠ line {lineCode} — check you are holding the right material, "
+        + "or enter it on the line that carries that code.";
 }

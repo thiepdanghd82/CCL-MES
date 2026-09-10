@@ -520,7 +520,25 @@ public sealed class PrepressController : WoMutationControllerBase
         var cutter = await _db.WoCutterChecks
             .SingleOrDefaultAsync(c => c.WorkOrderId == woId);
 
-        var (hasSnap, allOk) = MaterialsReadinessRollup.Compute(materials, plate, cutter);
+        // CỔNG LÔ ở rollup. Luật lúc xác nhận Ok đã đòi lô Released, nhưng đó
+        // là ảnh chụp tại thời điểm bấm: dòng đặt Ok TRƯỚC khi có luật vẫn còn
+        // trong DB, và lô có thể bị IQC đánh Rejected SAU khi Pre-press gắn.
+        // Rollup chạy mỗi lần ghi nên là chỗ rẻ nhất phát hiện cả hai — và vì
+        // nó ghi thẳng vào WorkOrder.MaterialsReady, nút "Start Setting" tắt
+        // theo, tức WO không rời PREPRESS được.
+        //
+        // Một truy vấn cho TẤT CẢ lô đang gắn, không tra từng dòng (N+1).
+        var lotFks = materials
+            .Select(m => _lots.LotFkOf(m))
+            .Where(x => x is not null).Select(x => x!.Value).Distinct().ToList();
+        var lotStatusById = lotFks.Count == 0
+            ? new Dictionary<long, string>()
+            : await _db.MaterialLots.AsNoTracking()
+                .Where(l => lotFks.Contains(l.Id))
+                .ToDictionaryAsync(l => l.Id, l => l.Status);
+
+        var (hasSnap, allOk) = MaterialsReadinessRollup.Compute(materials, plate, cutter,
+            m => _lots.LotFkOf(m) is { } id && lotStatusById.TryGetValue(id, out var st) ? st : null);
 
         // Always touch the WO row so the SQLite UPDATE trigger bumps
         // RowVersion + EF's [Timestamp] concurrency check fires correctly under

@@ -290,7 +290,8 @@
 
     // Manual Part Scan committed (scanner-down fallback). Validate against THIS
     // row's own code: exact match → auto-OK like a real scan; mismatch → leave
-    // it (purple) + tell the operator to use Special Accept.
+    // it (purple) + báo mã lệch. KHÔNG chỉ sang Special Accept: server chặn sai
+    // mã ở cả đường đó (prepress.part_scan_mismatch).
     private async Task OnPartScanCommit((int BomLineIdx, string Value) arg)
     {
         if (_view is null) return;
