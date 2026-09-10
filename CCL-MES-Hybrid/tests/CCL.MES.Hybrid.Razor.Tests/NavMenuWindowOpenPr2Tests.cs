@@ -17,10 +17,10 @@ namespace CCL.MES.Hybrid.Razor.Tests;
 /// the QMS Dashboard/IPQC/OQC/iCRA modules) now open floating WINDOWS via
 /// WM.Open instead of navigating the whole shell, keeping AuthorizeView
 /// RBAC-by-omission. Mirrors NavMenuWindowOpenTests (PR1) but for the PR2 subset.
-/// The deferred routes (/npi/specs, /qms/iqc, /qms, /qms/fqc,
-/// /quality/traceability, /settings) stay NavLinks — asserted here too.
-/// W5 moved /workorders to a window (Work_orders_tab_opens_as_window below), so
-/// only /qms/iqc + /settings remain full-page NavLinks in the deferred assertion.
+/// The deferred routes stay NavLinks — asserted here too. W5 moved /workorders
+/// to a window; 2026-09-10 moved /qms/iqc (the last QMS module still outside the
+/// registry — leaving it out meant every navigation discarded its scroll and
+/// sub-tab position). Only /settings remains a full-page NavLink.
 /// </summary>
 public sealed class NavMenuWindowOpenPr2Tests : TestContext
 {
@@ -50,7 +50,8 @@ public sealed class NavMenuWindowOpenPr2Tests : TestContext
             WindowRegistryKeys.NpiStructure, WindowRegistryKeys.NpiRoutine,
             WindowRegistryKeys.NpiRawMaterials, WindowRegistryKeys.NpiWorkCenters,
             WindowRegistryKeys.SemiProducts,
-            WindowRegistryKeys.QmsDashboard, WindowRegistryKeys.QmsIpqc,
+            WindowRegistryKeys.QmsDashboard, WindowRegistryKeys.QmsIqc,
+            WindowRegistryKeys.QmsIpqc,
             WindowRegistryKeys.QmsOqc, WindowRegistryKeys.QmsIcra,
             WindowRegistryKeys.WorkOrders,
         })
@@ -67,6 +68,7 @@ public sealed class NavMenuWindowOpenPr2Tests : TestContext
     [InlineData("nav-win-npi-workcenters", "/npi/workcenters")]
     [InlineData("nav-win-semiproducts", "/warehouse/semi-products")]
     [InlineData("nav-win-qms-dashboard", "/qms/dashboard")]
+    [InlineData("nav-win-qms-iqc", "/qms/iqc")]
     [InlineData("nav-win-qms-ipqc", "/qms/ipqc")]
     [InlineData("nav-win-qms-oqc", "/qms/oqc")]
     [InlineData("nav-win-qms-icra", "/qms/icra")]
@@ -120,13 +122,15 @@ public sealed class NavMenuWindowOpenPr2Tests : TestContext
         // Still-deferred surfaces keep their href anchor (no window button).
         // P2-PR3 moved /npi/specs, /qms, /qms/fqc to windows; P2 showcard-migration
         // moved /quality/traceability to a window too (see the button asserted in
-        // Traceability_tab_opens_as_window below). W5 moved /workorders to a window
-        // (see Work_orders_tab_opens_as_window). /qms/iqc + /settings stay NavLinks.
-        Assert.NotNull(cut.Find("a[href='/qms/iqc']"));
+        // Traceability_tab_opens_as_window below). W5 moved /workorders to a window.
+        // 2026-09-10 moved /qms/iqc to a window — nó là module QMS DUY NHẤT còn
+        // sót lại ngoài registry, nên mỗi lần rời trang là mất vị trí đang làm.
+        // Chỉ còn /settings là NavLink toàn trang.
         Assert.NotNull(cut.Find("a[href='/settings']"));
-        // Traceability + Work Orders are no longer NavLink anchors.
+        // Traceability · Work Orders · IQC không còn là thẻ neo NavLink nữa.
         Assert.Empty(cut.FindAll("a[href='/quality/traceability']"));
         Assert.Empty(cut.FindAll("a[href='/workorders']"));
+        Assert.Empty(cut.FindAll("a[href='/qms/iqc']"));
     }
 
     [Fact]

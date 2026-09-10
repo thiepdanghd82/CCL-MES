@@ -151,6 +151,19 @@ public static class WindowRegistryKeys
     /// <summary>QMS Overview dashboard — <c>@page "/qms/dashboard"</c>, any auth.</summary>
     public const string QmsDashboard = "/qms/dashboard";
 
+    /// <summary>
+    /// IQC module — <c>@page "/qms/iqc"</c>, any auth.
+    ///
+    /// <para>Vào registry muộn hơn ba module QMS kia (2026-09-10). Lý do hoãn
+    /// ghi ở <c>NavMenu.razor</c> — "IqcModule tự bọc FloatingWindow host, hoãn
+    /// sang PR3" — đã LẠC HẬU: đo lại thì <c>IqcModule</c> và cả 5 board con
+    /// dùng 0 lần <c>FloatingWindow</c>, còn <c>IqcDocumentGrid</c> — chỗ duy
+    /// nhất từng lồng cửa sổ — đã chuyển sang <c>WM.Open</c> (cửa sổ NGANG
+    /// HÀNG). Tiền lệ phủ định thẳng lý do cũ: IPQC là cửa sổ trong khi con của
+    /// nó (<c>IpqcLegShowcard</c>) vẫn dùng <c>FloatingWindow</c> trực tiếp.</para>
+    /// </summary>
+    public const string QmsIqc = "/qms/iqc";
+
     /// <summary>IPQC module — <c>@page "/qms/ipqc"</c>, any auth.</summary>
     public const string QmsIpqc = "/qms/ipqc";
 
@@ -261,6 +274,7 @@ public static class WindowRegistryKeys
         public const string NpiWorkCenters = "windows.npi_workcenters.title";
         public const string SemiProducts = "windows.semi_products.title";
         public const string QmsDashboard = "windows.qms_dashboard.title";
+        public const string QmsIqc = "windows.qms_iqc.title";
         public const string QmsIpqc = "windows.qms_ipqc.title";
         public const string QmsOqc = "windows.qms_oqc.title";
         public const string QmsIcra = "windows.qms_icra.title";

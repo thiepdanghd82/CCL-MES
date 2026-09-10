@@ -30,15 +30,15 @@ public sealed class NavCclQmsGroupTests : TestContext
 {
     private readonly InMemoryLanguageService _lang = new();
 
-    // 5 primary single-line modules, in mock order. P2-PR2 — 4 of them
-    // (Dashboard/IPQC/OQC/iCRA) open as floating WINDOWS (<button>); only
-    // /qms/iqc stays a NavLink <a> (IqcModule self-hosts its own FloatingWindow
-    // showcards → window-in-window migration deferred to PR3). Order preserved
-    // regardless of anchor-vs-button.
+    // 5 primary single-line modules, in mock order. Từ 2026-09-10 CẢ NĂM đều
+    // mở thành cửa sổ (<button>): IQC là cái cuối cùng vào registry — lý do hoãn
+    // cũ ("IqcModule tự bọc FloatingWindow host") đã lạc hậu, và để nó ngoài
+    // registry khiến mỗi lần rời trang là mất vị trí đang làm, khác hẳn 4 module
+    // anh em. Thứ tự giữ nguyên.
     private static readonly (string Testid, bool IsWindowButton)[] Primary =
     {
         ("nav-win-qms-dashboard", true),
-        ("nav-qms-iqc",           false),
+        ("nav-win-qms-iqc",       true),
         ("nav-win-qms-ipqc",      true),
         ("nav-win-qms-oqc",       true),
         ("nav-win-qms-icra",      true),
@@ -122,7 +122,7 @@ public sealed class NavCclQmsGroupTests : TestContext
                        .Select(a => a.GetAttribute("data-testid"))
                        .Where(id => wanted.Contains(id))
                        .ToArray();
-        Assert.Equal(new[] { "nav-win-qms-dashboard", "nav-qms-iqc", "nav-win-qms-ipqc", "nav-win-qms-oqc", "nav-win-qms-icra" }, order);
+        Assert.Equal(new[] { "nav-win-qms-dashboard", "nav-win-qms-iqc", "nav-win-qms-ipqc", "nav-win-qms-oqc", "nav-win-qms-icra" }, order);
     }
 
     [Theory]

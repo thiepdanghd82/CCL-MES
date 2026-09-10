@@ -22,6 +22,7 @@ public sealed partial class TranslationCatalog
         Add("windows.npi_workcenters.title",     "Trạm sản xuất",                       "Work Centers");
         Add("windows.semi_products.title",       "Kho bán thành phẩm",                  "Semi-Finished Store");
         Add("windows.qms_dashboard.title",       "Tổng quan chất lượng",                "Quality Overview");
+        Add("windows.qms_iqc.title",             "IQC — Kiểm đầu vào",                  "IQC — Incoming");
         Add("windows.qms_ipqc.title",            "IPQC — Kiểm trong chuyền",            "IPQC — In-process");
         Add("windows.qms_oqc.title",             "OQC — Kiểm đầu ra",                   "OQC — Outgoing");
         Add("windows.qms_icra.title",            "iCRA — Đối sách · CAPA",              "iCRA — Corrective action");

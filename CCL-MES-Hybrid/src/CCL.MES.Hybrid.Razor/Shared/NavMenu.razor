@@ -209,12 +209,19 @@
             <div class="app-nav-grp" data-testid="nav-grp-qms" hidden="@GroupHiddenByFilter(GrpQms)">
                 @GroupHeader(GrpQms, "nav.qms.title")
                 <div class="app-nav-grp-body" data-testid="nav-grpbody-qms" hidden="@BodyHidden(GrpQms)">
-                    @* P2-PR2 — the QMS modules open as windows. /qms/iqc stays a NavLink:
-                       IqcModule self-hosts its own FloatingWindow multi-window host
-                       (materials-inspection showcards) — a window-in-window migration
-                       deferred to PR3. iCRA (Corrective action · CAPA) is a QMS module,
-                       not a QC-stage inspection — its subtitle title makes that boundary
-                       explicit for a screen-reader / hover. *@
+                    @* P2-PR2 — the QMS modules open as windows. IQC joined 2026-09-10:
+                       the old deferral said IqcModule self-hosts a FloatingWindow
+                       multi-window host, but that stopped being true — IqcModule and
+                       all 5 of its boards use FloatingWindow 0 times, and
+                       IqcDocumentGrid (the one place that ever nested a window) now
+                       opens PEER windows via WM.Open. IPQC proves a child using
+                       <FloatingWindow> never blocked registration anyway
+                       (IpqcLegShowcard still does). Leaving IQC out cost the operator
+                       its taskbar entry: every navigation away discarded the module
+                       and its scroll / sub-tab position, unlike every sibling.
+                       iCRA (Corrective action · CAPA) is a QMS module, not a QC-stage
+                       inspection — its subtitle title makes that boundary explicit for
+                       a screen-reader / hover. *@
                     <div class="app-nav-item" data-nav-key="@WindowRegistryKeys.QmsDashboard" data-nav-hit="@Hit(WindowRegistryKeys.QmsDashboard)">
                         <button type="button" class="app-nav-link" data-testid="nav-win-qms-dashboard"
                                 title="@T("nav.qms.m.dashboard.sub")" aria-label="@QmsAria("nav.qms.m.dashboard", "nav.qms.m.dashboard.sub")"
@@ -223,12 +230,13 @@
                         </button>
                         @PinBtn(WindowRegistryKeys.QmsDashboard, "nav.qms.m.dashboard")
                     </div>
-                    <div class="app-nav-item" data-nav-key="/qms/iqc" data-nav-hit="@Hit("/qms/iqc")">
-                        <NavLink href="/qms/iqc" class="app-nav-link" data-testid="nav-qms-iqc"
-                                 title="@T("nav.qms.m.iqc.sub")" aria-label="@QmsAria("nav.qms.m.iqc", "nav.qms.m.iqc.sub")">
+                    <div class="app-nav-item" data-nav-key="@WindowRegistryKeys.QmsIqc" data-nav-hit="@Hit(WindowRegistryKeys.QmsIqc)">
+                        <button type="button" class="app-nav-link" data-testid="nav-win-qms-iqc"
+                                title="@T("nav.qms.m.iqc.sub")" aria-label="@QmsAria("nav.qms.m.iqc", "nav.qms.m.iqc.sub")"
+                                @onclick="() => OpenWindowAsync(WindowRegistryKeys.QmsIqc)">
                             @Ico("iqc")<span>@T("nav.qms.m.iqc")</span>
-                        </NavLink>
-                        @PinBtn("/qms/iqc", "nav.qms.m.iqc")
+                        </button>
+                        @PinBtn(WindowRegistryKeys.QmsIqc, "nav.qms.m.iqc")
                     </div>
                     <div class="app-nav-item" data-nav-key="@WindowRegistryKeys.QmsIpqc" data-nav-hit="@Hit(WindowRegistryKeys.QmsIpqc)">
                         <button type="button" class="app-nav-link" data-testid="nav-win-qms-ipqc"
@@ -523,7 +531,7 @@
         new(WindowRegistryKeys.MachineDashboard, "nav.machines", "grid", null),
         new(WindowRegistryKeys.ShopOrderHistory, "nav.shoporders", "history", null),
         new(WindowRegistryKeys.QmsDashboard, "nav.qms.m.dashboard", "quality", RolesQms),
-        new("/qms/iqc", "nav.qms.m.iqc", "iqc", RolesQms),
+        new(WindowRegistryKeys.QmsIqc, "nav.qms.m.iqc", "iqc", RolesQms),
         new(WindowRegistryKeys.QmsIpqc, "nav.qms.m.ipqc", "ipqc", RolesQms),
         new(WindowRegistryKeys.QmsOqc, "nav.qms.m.oqc", "oqc", RolesQms),
         new(WindowRegistryKeys.QmsIcra, "nav.qms.m.icra", "icra", RolesQms),

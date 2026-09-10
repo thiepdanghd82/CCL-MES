@@ -257,6 +257,6 @@ public sealed class NavMenuAdvancedNavTests : TestContext
         Assert.Single(cut.FindAll("[data-testid='nav-home']"));
         Assert.Single(cut.FindAll("[data-testid='nav-win-machines']"));
         Assert.Single(cut.FindAll("[data-testid='nav-win-workorders']"));
-        Assert.Single(cut.FindAll("[data-testid='nav-qms-iqc']"));
+        Assert.Single(cut.FindAll("[data-testid='nav-win-qms-iqc']"));   // 2026-09-10: IQC thành cửa sổ
     }
 }

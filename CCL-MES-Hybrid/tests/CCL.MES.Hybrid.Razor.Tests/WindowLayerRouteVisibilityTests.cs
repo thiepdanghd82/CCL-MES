@@ -22,7 +22,7 @@ namespace CCL.MES.Hybrid.Razor.Tests;
 /// Henry hardware-verify fix — full-page-mode vs workspace-mode. The
 /// <c>.window-layer</c> (z-index 90, position:fixed) with a maximized-to-
 /// workspace window used to cover @Body, so tapping a genuine full-page tab
-/// (Home <c>/</c>, <c>/qms/iqc</c>, <c>/settings</c>…) showed
+/// (Home <c>/</c>, <c>/settings</c>…) showed
 /// the stale window and looked like "no navigation". (P2 showcard-migration moved
 /// <c>/quality/traceability</c> to a window route + W5 moved <c>/workorders</c>,
 /// so neither is full-page any more.)
@@ -83,15 +83,16 @@ public sealed class WindowLayerRouteVisibilityTests : TestContext
         Assert.Single(cut.FindAll("[data-testid='workspace-home']"));
     }
 
-    // (b) full-page route (/qms/iqc) → window-layer is HIDDEN + @Body renders the
-    // page (NOT WorkspaceHome). /qms/iqc is a genuine full-page tab, not a
-    // registry window key.
+    // (b) full-page route (/settings) → window-layer is HIDDEN + @Body renders the
+    // page (NOT WorkspaceHome). /settings là route full-page THẬT SỰ còn lại —
+    // /qms/iqc từng đóng vai này cho tới 2026-09-10, khi IQC vào registry thành
+    // cửa sổ như 4 module QMS anh em.
     [Fact]
-    public void Full_page_route_qms_iqc_hides_window_layer_and_renders_body()
+    public void Full_page_route_settings_hides_window_layer_and_renders_body()
     {
-        NavTo("/qms/iqc");
+        NavTo("/settings");
 
-        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("iqc")));
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("settings")));
 
         var layer = cut.Find(".window-layer");
         Assert.Contains("is-hidden", layer.GetAttribute("class") ?? "");
@@ -104,14 +105,14 @@ public sealed class WindowLayerRouteVisibilityTests : TestContext
     [Fact]
     public void Mo_cua_so_TU_trang_full_page_thi_HIEN_lop_ra_ngay()
     {
-        // Lỗi Henry báo 2026-09-04: ở IQC Data (/qms/iqc) bấm Open / nháy đúp
+        // Lỗi Henry báo 2026-09-04: ở IQC Data bấm Open / nháy đúp
         // một phiếu thì "không có gì hiện lên", phải đi tìm thẻ thu nhỏ ở góc
         // trái dưới rồi bấm mới thấy. Cửa sổ VẪN được tạo và focus đúng — nó
         // nằm trong .window-layer.is-hidden vì luật cũ ẩn cả lớp trên mọi route
         // full-page. Luật đó đúng cho cửa sổ CÒN SÓT từ lượt trước, sai cho cửa
         // sổ người dùng VỪA BẤM MỞ.
-        NavTo("/qms/iqc");
-        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("iqc")));
+        NavTo("/settings");
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("settings")));
         Assert.Contains("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
 
         // Trang IQC mở phiếu qua WM.Open — đúng đường IqcModule.OpenInspection đi.
@@ -127,8 +128,8 @@ public sealed class WindowLayerRouteVisibilityTests : TestContext
     {
         // Dedupe: cửa sổ đã mở sẵn nhưng đang bị ẩn cùng cả lớp. Bấm Open lần
         // nữa mà không hiện ra thì người dùng tưởng nút hỏng.
-        NavTo("/qms/iqc");
-        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("iqc")));
+        NavTo("/settings");
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("settings")));
         cut.InvokeAsync(() => _wm.Open("ticket:T1", "T1", "🔬", typeof(WorkspaceHome)));
 
         // Rời sang trang full-page khác → lớp ẩn lại, cửa sổ vẫn còn (keep-alive).
@@ -148,8 +149,8 @@ public sealed class WindowLayerRouteVisibilityTests : TestContext
         // Ranh giới của bản vá: chỉ Ý ĐỊNH MỞ mới hiện lớp. Nếu suy từ event
         // Changed chung thì thu nhỏ / đóng cũng bị hiểu thành mở, và lớp sẽ
         // bật lên che trang mỗi lần dọn cửa sổ.
-        NavTo("/qms/iqc");
-        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("iqc")));
+        NavTo("/settings");
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("settings")));
         var w = _wm.Open("ticket:T2", "T2", "🔬", typeof(WorkspaceHome))!;
 
         NavTo("/");
@@ -183,10 +184,10 @@ public sealed class WindowLayerRouteVisibilityTests : TestContext
     {
         // Land on a full-page route → layer starts hidden even though a window
         // (opened earlier in the session) is still mounted behind it.
-        NavTo("/qms/iqc");
+        NavTo("/settings");
         var win = _wm.Open(WindowRegistryKeys.QmsDashboard, "Dash", null, typeof(QmsDashboardStub))!;
 
-        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("iqc")));
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("settings")));
 
         // Layer hidden on the full-page route; the window is still mounted (keep-alive).
         Assert.Contains("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
@@ -210,17 +211,17 @@ public sealed class WindowLayerRouteVisibilityTests : TestContext
     [Fact]
     public void Chip_single_click_on_non_route_window_reveals_layer_directly()
     {
-        NavTo("/qms/iqc");
+        NavTo("/settings");
         _wm.Open("spec:909", "Spec #909", null, typeof(QmsDashboardStub));
 
-        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("iqc")));
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("settings")));
         Assert.Contains("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
 
         cut.Find("[data-testid='tb-chip']").Click();
 
         // Non-route key → reveal directly; URL stays on the full-page route.
         Assert.DoesNotContain("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
-        Assert.EndsWith("/qms/iqc",
+        Assert.EndsWith("/settings",
             Services.GetRequiredService<FakeNavigationManager>().Uri);
     }
 
@@ -229,10 +230,10 @@ public sealed class WindowLayerRouteVisibilityTests : TestContext
     [Fact]
     public void Window_stays_mounted_while_layer_is_hidden_on_full_page_route()
     {
-        NavTo("/qms/iqc");
+        NavTo("/settings");
         _wm.Open(WindowRegistryKeys.QmsDashboard, "Dash", null, typeof(QmsDashboardStub));
 
-        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("iqc")));
+        var cut = RenderComponent<MainLayout>(p => p.Add(x => x.Body, RouteBody("settings")));
 
         // Hidden layer, but the host is in the DOM (display:none via CSS).
         Assert.Contains("is-hidden", cut.Find(".window-layer").GetAttribute("class") ?? "");
