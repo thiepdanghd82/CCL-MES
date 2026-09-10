@@ -746,7 +746,19 @@ public class IqcService
 
         row.MeasuredValue = string.IsNullOrWhiteSpace(measuredValue) ? null : measuredValue.Trim();
         row.DefectCode = string.IsNullOrWhiteSpace(defectCode) ? null : defectCode.Trim();
-        if (defectCount is not null) row.DefectCount = defectCount;
+
+        // Ô SỐ LỖI mang TRẠNG THÁI MONG MUỐN, y như hai ô chữ ngay trên: người
+        // kiểm xoá ô thì phải xoá được. Trước đây null nghĩa là "đừng đụng", nên
+        // gõ nhầm 3 rồi xoá ô đi là request vẫn trả 200 trong khi DB vẫn giữ 3 —
+        // ô trống trên màn hình, phán định Fail dưới DB, và không còn đường nào
+        // gỡ ngoài sửa tay. Đúng thứ doc-comment của chính hàm này cấm.
+        //
+        // Chỉ áp cho hạng mục ĐẾM LỖI, vì chỉ ở đó ô này có nghĩa — đo trên DB
+        // live 2026-09-10: 53.285/53.285 dòng DefectCount có số, 0/28.062 dòng
+        // Verdict·Measure có. Kind khác giữ nguyên luật cũ, không đổi hành vi.
+        if (row.Kind == IqcCheckKind.DefectCount) row.DefectCount = defectCount;
+        else if (defectCount is not null) row.DefectCount = defectCount;
+
         if (tearObserved is not null) row.TearObserved = tearObserved.Value;
 
         // Ô đo: ghi đè theo thứ tự. Dòng đã dựng sẵn lúc mở phiếu nên chỉ cập

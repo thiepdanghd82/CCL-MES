@@ -397,8 +397,10 @@ public sealed class SetIqcItemBody
 
     // ── P13 bước 4 — dữ liệu để MÁY chấm ─────────────────────────────────
 
-    /// <summary>Số lỗi đếm được (hạng mục <c>DefectCount</c>). <c>null</c> =
-    /// lần ghi này không đụng tới, KHÁC hẳn 0 (đã đếm, không có lỗi).</summary>
+    /// <summary>Số lỗi đếm được. Với hạng mục <c>DefectCount</c> ô này mang
+    /// TRẠNG THÁI MONG MUỐN: <c>null</c> = XOÁ số đã ghi (người kiểm gõ nhầm
+    /// rồi xoá ô), <c>0</c> = đã đếm và không có lỗi — hai thứ khác nhau.
+    /// Với hạng mục khác, <c>null</c> vẫn là "lần ghi này không đụng tới".</summary>
     public int? DefectCount { get; set; }
 
     /// <summary>Các phép đo, đúng thứ tự và đúng số lượng

@@ -97,6 +97,16 @@
                             <span class="prepress-pill @RowPillClass(row)" data-testid="status-pill">
                                 @RowStatusLabel(row)
                             </span>
+                            @if (row.LotGateExempt)
+                            {
+                                @* Bán thành phẩm tự làm: cổng lô KHÔNG chạy cho dòng
+                                   này. Nói thẳng ra, vì "miễn" mà im lặng thì trông
+                                   hệt "đã đạt". *@
+                                <span class="prepress-exempt" data-testid="lot-exempt-badge"
+                                      title="@T("womat.exempt.hint")">
+                                    @T("womat.exempt.badge")
+                                </span>
+                            }
                         </td>
                         <td class="pm-ng" data-label="@T("womat.col.ng")">
                             @if (isNg || draft.SettingNg)

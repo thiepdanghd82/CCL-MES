@@ -88,6 +88,42 @@ public sealed class PrepressDashboardTests : TestContext
         CutterCheck = cutter ?? new PrepressCutterRow { Id = 20, Status = "Pending" },
     };
 
+    // ── Miễn cổng lô: phải NHÌN THẤY ────────────────────────────────
+
+    /// <summary>
+    /// Dòng được miễn cổng lô phải mang nhãn nói rõ điều đó. Miễn KHÔNG phải
+    /// là đạt — không ai kiểm số lô của dòng ấy cả. Nếu màn hình im lặng thì
+    /// dòng không-ai-kiểm trông y hệt dòng đã đạt, và người vận hành lẫn QC
+    /// không có cách nào biết. Đây đúng cơ chế đã giấu 65 dòng mồ côi 2,5
+    /// tháng: hệ im không phải vì ổn, mà vì không ai hỏi.
+    /// </summary>
+    [Fact]
+    public void Dong_duoc_mien_cong_lo_phai_hien_nhan_noi_ro()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView(
+            materials: new List<PrepressMaterialRow>
+            {
+                new() { Id = 1, BomLineIdx = 0, MaterialCode = "BTP-001", QtyRequired = 10,
+                        Status = "Ok", LotGateExempt = true },
+                new() { Id = 2, BomLineIdx = 1, MaterialCode = "MUA-002", QtyRequired = 20,
+                        Status = "Ok", LotGateExempt = false },
+            }));
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+
+        cut.WaitForAssertion(() =>
+            Assert.Equal(2, cut.FindAll("[data-testid='material-row']").Count));
+
+        var rows = cut.FindAll("[data-testid='material-row']");
+        var exemptBadge = rows[0].QuerySelector("[data-testid='lot-exempt-badge']");
+
+        Assert.NotNull(exemptBadge);                                   // ← đỏ nếu nhãn biến mất
+        Assert.False(string.IsNullOrWhiteSpace(exemptBadge!.TextContent));
+        // Hàng mua KHÔNG được đeo nhãn — nhãn sai chỗ còn tệ hơn không có.
+        Assert.Null(rows[1].QuerySelector("[data-testid='lot-exempt-badge']"));
+    }
+
     // ── Render gate ─────────────────────────────────────────────────
 
     [Fact]

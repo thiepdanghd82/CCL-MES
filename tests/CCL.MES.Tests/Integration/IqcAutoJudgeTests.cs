@@ -125,6 +125,55 @@ public sealed class IqcAutoJudgeTests : IDisposable
     }
 
     [Fact]
+    public async Task Go_nham_so_loi_roi_XOA_O_thi_phai_xoa_duoc()
+    {
+        // Bệnh thật: ô số lỗi từng là "null = đừng đụng", nên gõ nhầm 3 rồi xoá
+        // ô là request trả 200 mà DB vẫn giữ 3 — ô trống trên màn hình, phán
+        // định Fail dưới DB, không còn đường gỡ ngoài sửa tay. Live có 73 dòng
+        // DefectCount > 0; nếu dòng nào trong đó là gõ nhầm thì trước fix này
+        // nó kẹt Fail vĩnh viễn.
+        await using var db = _fx.NewContext();
+        var id = await SeedAsync(db);
+        var item = await ItemAsync(db, id, "RD-01");
+        var svc = Svc(db);
+
+        await svc.SetItemVerdictAsync(id, item, pass: null, null, null,
+            Actor, Role, defectCount: 3);
+        Assert.Equal(3, (await RowAsync(db, item)).DefectCount);
+
+        // Người kiểm xoá ô — UI gửi null (ParseInt("") == null).
+        var r = await svc.SetItemVerdictAsync(id, item, pass: null, null, null,
+            Actor, Role, defectCount: null);
+
+        Assert.True(r.Ok);
+        var row = await RowAsync(db, item);
+        Assert.Null(row.DefectCount);                            // ← đỏ nếu hoàn nguyên fix
+        Assert.Equal("Undecidable", row.AutoVerdict);            // về CHƯA ĐẾM
+        Assert.Equal("iqc.judge.defect_incomplete", row.AutoVerdictReason);
+        Assert.Null(row.Pass);                                   // không còn kẹt Fail
+    }
+
+    [Fact]
+    public async Task Xoa_o_so_loi_KHONG_dung_toi_hang_muc_kind_khac()
+    {
+        // Giới hạn phạm vi: luật "null = xoá" chỉ áp cho hạng mục ĐẾM LỖI.
+        // Hạng mục Verdict không mang ô này, ghi phán định cho nó không được
+        // đổi gì ở DefectCount — đo trên live: 0/28.062 dòng Verdict·Measure
+        // có DefectCount.
+        await using var db = _fx.NewContext();
+        var id = await SeedAsync(db);
+        var verdictItem = await db.IqcResultDetails
+            .Where(d => d.IqcInspectionId == id && d.Kind == IqcCheckKind.Verdict)
+            .Select(d => d.Id).FirstAsync();
+
+        var r = await Svc(db).SetItemVerdictAsync(id, verdictItem, pass: true, null, null,
+            Actor, Role, defectCount: null);
+
+        Assert.True(r.Ok);
+        Assert.Null((await RowAsync(db, verdictItem)).DefectCount);
+    }
+
+    [Fact]
     public async Task Chua_dem_thi_may_KHONG_QUYET_DUOC_chu_khong_phai_dat()
     {
         await using var db = _fx.NewContext();

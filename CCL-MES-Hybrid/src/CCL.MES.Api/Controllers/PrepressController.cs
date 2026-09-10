@@ -93,6 +93,11 @@ public sealed class PrepressController : WoMutationControllerBase
         var etag = freshRv is not null && freshRv.Length > 0
             ? Convert.ToBase64String(freshRv) : "";
 
+        // Mã tự làm được MIỄN cổng lô (xem PrepressPolicy.ValidateLotReleased).
+        // Tra một lần cho cả danh sách để UI nói ra được là dòng nào không ai
+        // kiểm — miễn mà không hiện thì trông y hệt đã đạt.
+        var inHouse = await _lots.InHouseCodesAsync(materials.Select(m => m.MaterialCode));
+
         return Ok(new PrepressView
         {
             WoId = id,
@@ -100,7 +105,9 @@ public sealed class PrepressController : WoMutationControllerBase
             MesPhase = wo.MesPhase,
             MaterialsReady = wo.MaterialsReady,
             ETag = etag,
-            Materials = materials.Select(m => MaterialToDto(m, wo.TargetQty)).ToList(),
+            Materials = materials
+                .Select(m => MaterialToDto(m, wo.TargetQty, inHouse.Contains(m.MaterialCode ?? "")))
+                .ToList(),
             PlateCheck = plate is null ? null : PlateToDto(plate),
             CutterCheck = cutter is null ? null : CutterToDto(cutter),
         });
@@ -597,8 +604,10 @@ public sealed class PrepressController : WoMutationControllerBase
 
     // ── DTO mappers ────────────────────────────────────────────────
 
-    private static PrepressMaterialRow MaterialToDto(WoMaterial m, int targetQty = 0) => new()
+    private static PrepressMaterialRow MaterialToDto(
+        WoMaterial m, int targetQty = 0, bool lotGateExempt = false) => new()
     {
+        LotGateExempt = lotGateExempt,
         Id = m.Id,
         BomLineIdx = m.BomLineIdx,
         MaterialCode = m.MaterialCode,

@@ -43,6 +43,20 @@ public sealed record PrepressMaterialRow
     /// <summary>Persisted BOM-resolved description for the scanned part.</summary>
     public string? PartScanDescription { get; init; }
     public string Status { get; init; } = "Pending";
+    /// <summary>
+    /// Dòng này ĐƯỢC MIỄN cổng lô vì mã vật tư là bán thành phẩm tự làm
+    /// (xuất hiện làm <c>ParentPart</c> trong <c>ManufacturingStructures</c>),
+    /// nên không bao giờ có phiếu IQC để mà đối chiếu.
+    ///
+    /// <para><b>Miễn không có nghĩa là đã kiểm.</b> Cờ này tồn tại để UI nói
+    /// thẳng điều đó ra: nếu không, một dòng KHÔNG AI KIỂM trông y hệt một
+    /// dòng đã đạt. Đúng cái bệnh khiến 65 dòng mồ côi nằm im 2,5 tháng —
+    /// hệ im lặng không phải vì ổn, mà vì không có ai hỏi.</para>
+    ///
+    /// <para>Lỗ này chỉ đóng được khi chất lượng định nghĩa "bán thành phẩm
+    /// đạt" là gì; hiện <c>SemiLot</c> không có ô nào ghi kết quả QC.</para>
+    /// </summary>
+    public bool LotGateExempt { get; init; }
     public string? NgReasonCode { get; init; }
     public string? NgNote { get; init; }
     public string? CheckedBy { get; init; }

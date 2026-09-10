@@ -46,5 +46,8 @@ public sealed partial class TranslationCatalog
 
         Add("womat.status.okspecialaccept",  "OK · Chấp nhận đặc biệt",                     "OK · Special Accept");
         Add("womat.status.notchecked",       "Chưa kiểm",                                   "Not checked");
+
+        Add("womat.exempt.badge",            "Miễn cổng lô",                                "Lot gate waived");
+        Add("womat.exempt.hint",             "Bán thành phẩm tự làm — không có phiếu IQC, nên số lô của dòng này KHÔNG được kiểm.", "In-house semi-finished part — no IQC ticket, so this line's lot is NOT verified.");
     }
 }

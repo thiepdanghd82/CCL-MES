@@ -361,6 +361,42 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         Assert.True(body.Ok);
     }
 
+    /// <summary>
+    /// Cờ miễn trừ phải ĐI RA TỚI VIEW, không nằm im ở tầng server. Miễn cổng
+    /// lô nghĩa là KHÔNG AI kiểm số lô của dòng đó; nếu màn hình không nói ra
+    /// thì dòng không-ai-kiểm trông y hệt dòng đã đạt — đúng cái đã giấu 65
+    /// dòng mồ côi suốt 2,5 tháng. Đo 2026-09-10 trên DB live: 19/82 dòng BOM
+    /// đang được miễn.
+    /// </summary>
+    [Fact]
+    public async Task View_noi_ro_dong_nao_duoc_mien_cong_lo()
+    {
+        var (woId, _) = await SeedWoWithBomAsync("WO-EXEMPT-VIEW", "PROD-EXV", bomLines: 2);
+
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            db.ManufacturingStructures.Add(new ManufacturingStructure
+            {
+                ParentPart = "COMP-PROD-EXV-0",       // chỉ dòng 0 là mã cha
+                ComponentPart = "MUC-PHA-EXV",
+                ComponentDescription = "Mực pha nội bộ",
+                QtyAssembly = 1, Uom = "kg", ScrapFactor = 0,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var client = await OperatorClientAsync("op-exempt-view");
+        var view = await client.GetFromJsonAsync<PrepressView>(
+            $"/api/v2/work-orders/{woId}/prepress");
+
+        var inHouse = view!.Materials.Single(m => m.BomLineIdx == 0);
+        var bought  = view.Materials.Single(m => m.BomLineIdx == 1);
+
+        Assert.True(inHouse.LotGateExempt);    // ← đỏ nếu cờ không ra tới DTO
+        Assert.False(bought.LotGateExempt);    // miễn không lan sang hàng mua
+    }
+
     /// <summary>Miễn KHÔNG lan sang vật tư mua: cùng WO, mã KHÔNG phải mã cha
     /// thì lô không tra được vẫn chặn.</summary>
     [Fact]

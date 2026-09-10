@@ -5338,6 +5338,23 @@ button.app-nav-link-2line:focus-visible { outline: none; box-shadow: var(--focus
 .prepress-pill-ng       { background: var(--ng-bg); color: var(--ng); }
 .prepress-pill-pending  { background: var(--c-divider); color: var(--c-ink-4); }
 
+/* Miễn cổng lô — bán thành phẩm tự làm. KHÔNG dùng tông "đạt": dòng này
+   không ai kiểm, và cái nhãn tồn tại chính là để nói ra điều đó. Viền đứt
+   để phân biệt với pill trạng thái đặc ruột ngay bên cạnh. */
+.prepress-exempt {
+    display: inline-block;
+    margin-inline-start: 6px;
+    padding: 1px 8px;
+    border: 1px dashed var(--warn-soft);
+    border-radius: 999px;
+    background: var(--warn-bg);
+    color: var(--warn-ink);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    white-space: nowrap;
+    cursor: help;
+}
+
 .prepress-table {
     width: 100%;
     border-collapse: collapse;
