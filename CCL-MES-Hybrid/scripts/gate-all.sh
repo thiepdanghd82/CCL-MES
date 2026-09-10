@@ -38,6 +38,7 @@ GATES=(
   "matlot:gate-material-lot-fk.sh:A1 mạch lô đi bằng FK, khoá chuỗi NOCASE"
   "enum-integrity:gate-enum-integrity.sh:2026-08-19 không giá trị nào nằm ngoài enum, 3 tầng còn dây"
   "backup-fresh:gate-backup-fresh.sh:2026-09-07 lịch bật thì snapshot ≤48h — chặn mất DB im lặng"
+  "materials-ready:gate-materials-ready.sh:2026-09-10 cờ MaterialsReady khớp dòng — chặn WO tự nhận sẵn sàng"
 )
 
 total="${#GATES[@]}"

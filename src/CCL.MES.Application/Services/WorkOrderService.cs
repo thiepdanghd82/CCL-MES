@@ -284,7 +284,19 @@ public class WorkOrderService
             .Include(w => w.History)
             .FirstOrDefaultAsync(w => w.Id == id);
 
-    public async Task<WorkOrder> CreateAsync(CreateWoRequest r)
+    /// <summary>
+    /// Tạo WO. <paramref name="user"/> là TUỲ CHỌN vì đường gọi duy nhất còn
+    /// lại nằm trong <c>src/CCL.MES.Web</c> — app legacy đã đóng băng
+    /// 2026-08-19, không được sửa; để mặc định thì nó biên dịch nguyên trạng.
+    ///
+    /// <para><b>Vì sao thêm audit.</b> Trước 2026-09-10 hàm này KHÔNG emit gì.
+    /// Hằng số <c>WO_CREATE</c> có sẵn nhưng cả DB live chỉ có 1 dòng, đến từ
+    /// đường khác. Hệ quả đo được hôm ấy: điều tra 27 WO mang trạng thái mà app
+    /// không tạo ra nổi, và KHÔNG truy được chúng từ đâu ra — vì ngay cả một WO
+    /// tạo hợp lệ cũng chẳng để lại vết nào. Không có dòng audit thì "không tìm
+    /// thấy bằng chứng" và "không có chuyện gì xảy ra" trông giống hệt nhau.</para>
+    /// </summary>
+    public async Task<WorkOrder> CreateAsync(CreateWoRequest r, string? user = null)
     {
         var wo = new WorkOrder
         {
@@ -312,6 +324,24 @@ public class WorkOrderService
         // the rows committed atomically with the WO row.
         var snapshotSvc = new Services.PrepressBomSnapshotService(_db);
         await snapshotSvc.MaterializeAsync(wo.Id);
+
+        // Emit SAU khi dựng xong ảnh chụp BOM, để số dòng trong detail là số
+        // thật đã materialise chứ không phải số dự kiến.
+        var bomLines = await _db.WoMaterials.CountAsync(m => m.WorkOrderId == wo.Id);
+        await _audit.EmitAsync(
+            AuditAction.WoCreate, user ?? "anonymous", actorRole: "",
+            targetType: "WorkOrder", targetId: wo.Id.ToString(),
+            detail: JsonSerializer.Serialize(new
+            {
+                wo_no = wo.WoNo,
+                product_id = wo.ProductId,
+                product_revision_id = wo.ProductRevisionId,
+                machine_code = wo.MachineCode,
+                target_qty = wo.TargetQty,
+                bom_lines = bomLines,
+                mes_phase = wo.MesPhase,
+                materials_ready = wo.MaterialsReady,
+            }));
 
         return wo;
     }
