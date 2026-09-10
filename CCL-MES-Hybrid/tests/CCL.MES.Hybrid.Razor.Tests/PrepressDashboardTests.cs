@@ -216,6 +216,40 @@ public sealed class PrepressDashboardTests : TestContext
         });
     }
 
+    /// <summary>
+    /// Nút OK phải mang theo MÃ QUÉT đang hiện trong ô. Thiếu nó thì server —
+    /// vốn đòi mã quét khi xác nhận Ok — chặn mọi lần bấm dù ô đang có chữ, và
+    /// người vận hành thấy "Scan the material label…" trong khi họ đã gõ rồi.
+    /// Lỗi này lọt ra tận máy thật ngày 2026-09-10 vì không có test nào soi
+    /// NỘI DUNG request của nút OK, chỉ soi status và ETag.
+    /// </summary>
+    [Fact]
+    public void Nut_OK_phai_gui_kem_ma_quet_dang_hien()
+    {
+        var api = (RecordingApi)Services.GetRequiredService<ICclApiClient>();
+        api.PrepressViewImpl = (_, _) => Task.FromResult(SampleView());
+        api.PutPrepressMaterialImpl = (_, _, _, _, _) => Task.FromResult(new PrepressSetResponse
+        {
+            Ok = true, MaterialsReady = false, ETag = "v2",
+        });
+
+        var cut = RenderComponent<PrepressDashboard>(p => p.Add(d => d.WorkOrderId, 42L));
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[data-testid='material-row']")));
+
+        // Gõ vào ô Part Scan làm parent đổi state ⇒ re-render ⇒ handler của nút
+        // OK mang id mới. Phải TÌM LẠI nút sau khi gõ, không giữ tham chiếu cũ.
+        cut.FindAll("[data-testid='material-row']")[0]
+           .QuerySelector("[data-testid='part-scan']")!.Input("M-001");
+        cut.FindAll("[data-testid='material-row']")[0]
+           .QuerySelector("[data-testid='btn-ok']")!.Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(api.PutPrepressMaterialCalls);
+            Assert.Equal("M-001", api.PutPrepressMaterialCalls[0].Req.PartScan);
+        });
+    }
+
     // ── Material set Ng arming ──────────────────────────────────────
 
     [Fact]

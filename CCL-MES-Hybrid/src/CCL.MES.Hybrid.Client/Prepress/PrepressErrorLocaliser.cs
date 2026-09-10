@@ -27,6 +27,22 @@ public static class PrepressErrorLocaliser
             "prepress.invalid_reason_code"      => "NG reason code is not in the Scrap catalog — choose a valid code.",
             "prepress.invalid_ng_note"          => "An NG note is required when setting NG (1-500 characters).",
             "prepress.special_accept_forbidden" => "Only a PD leader (Engineer) or Supervisor can special-accept a material.",
+            // Nói người vận hành phải LÀM GÌ, không nói luật bị vi phạm. Câu
+            // "lot_required" trần thì họ đọc xong vẫn không biết gõ vào đâu.
+            "prepress.lot_required"             => "Enter the lot number printed on the roll before confirming this line OK.",
+            "prepress.part_scan_required"       => "Scan the material label before confirming this line OK.",
+            "prepress.part_scan_mismatch"       => "The scanned part does not match this BOM line — you are holding the wrong material.",
+            "prepress.lot_not_released"         => "This lot has not been passed by IQC — get a released lot, or ask a PD leader to Special Accept.",
+
+            // Mã lỗi LÔ — trước đây chỉ với tới được ở đường tiêu thụ nên chưa
+            // ai dịch. Từ khi gắn nhãn lô cũng chặn thật khi SAI VẬT TƯ, chúng
+            // hiện ngay trên màn Pre-press. Không có bốn dòng này thì người vận
+            // hành nhận nguyên chuỗi "HTTP 422 · lot.part_mismatch · …".
+            "lot.part_mismatch"                 => "This lot belongs to a different material — check the roll label against the BOM line.",
+            "lot.rejected"                      => "This lot was rejected by IQC — do not load it. Get a replacement lot.",
+            "lot.not_released"                  => "This lot has not been released by IQC yet — wait for the IQC verdict.",
+            "lot.expired"                       => "This lot is past its expiry date — ask QC to re-test or use another lot.",
+            "lot.not_found"                     => "No such lot in the system — check the number, or ask the warehouse to register it at IQC.",
             _                                   => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 

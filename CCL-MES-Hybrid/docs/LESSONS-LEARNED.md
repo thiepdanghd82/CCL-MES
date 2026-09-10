@@ -1040,6 +1040,17 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 
 ----
 
+### L81 — thêm luật BẮT BUỘC ở server cho một trường mà UI KHÔNG gửi ở hành động đó: nút OK chết cứng
+
+| | |
+|---|---|
+| **Triệu chứng** | Siết Pre-press: xác nhận Ok phải kèm mã quét (`prepress.part_scan_required`). Build xanh, 4042 test xanh, gate 21/21. Trên máy thật, người vận hành gõ mã vào ô Part Scan rồi bấm **OK** → banner đỏ *"Scan the material label before confirming this line OK"*, bấm bao nhiêu lần cũng vậy. Ô đang có chữ mà server bảo chưa quét. Hệ quả phụ: luật lô mới thêm KHÔNG BAO GIỜ chạy tới, nên người dùng báo "không thấy lỗi sai LOT như bạn nói" — hai triệu chứng, một nguyên nhân. |
+| **Root cause** (proven) | `WoMaterialsList.OnSubmitOk` chỉ gửi `BomLineIdx / Status / QtyLoaded / LotNo / NgReasonCode / NgNote` — **không có `PartScan`**. Ô Part Scan là state của component CHA, chỉ đi lên server qua vòng quét (Enter/blur → auto-OK), không qua nút OK. Chua nhất: DTO `MaterialSetIntent` **đã có sẵn** trường `PartScan`, và `OnSubmitSpecialAccept` **đã gửi nó từ đầu** — chỉ OK và NG bỏ sót. Tôi đọc controller, đọc policy, viết luật, chạy test — nhưng không lần nào mở đường gọi phía client để xem nó có gửi trường ấy không. |
+| **Fix** | `OnSubmitOk` và `OnSubmitNg` mang theo `ScanPart(row.BomLineIdx)` — mã đang hiện trong ô. NG cũng mang: đánh NG là ghi nhận vấn đề trên MỘT cuộn cụ thể, mất mã quét là mất luôn cuộn nào bị đánh. |
+| **Cơ chế chặn tái phát** | Nguyên nhân lọt là **không có test nào soi NỘI DUNG request của nút OK** — các bUnit cũ chỉ assert `Status` và `ETag`, nên payload thiếu trường vẫn xanh. Thêm `PrepressDashboardTests.Nut_OK_phai_gui_kem_ma_quet_dang_hien`: gõ vào `[data-testid=part-scan]` rồi Click `[data-testid=btn-ok]`, assert `PutPrepressMaterialCalls[0].Req.PartScan`. Đã chứng minh không xanh vô nghĩa: bỏ dòng `PartScan` khỏi `OnSubmitOk` → đỏ, khôi phục → xanh. **Luật rút ra: thêm một trường vào danh sách BẮT BUỘC ở server thì phải mở ĐƯỜNG GỌI phía client ra đọc, và phải có test soi payload — test soi status code không bao giờ bắt được lỗi này.** (Lưu ý bUnit: `Input()` gây re-render nên phải TÌM LẠI nút trước khi Click, giữ tham chiếu cũ sẽ ném `UnknownEventHandlerIdException`.) |
+
+----
+
 ## Adding a new lesson
 
 When a new bug class costs ≥2 hours of investigation:

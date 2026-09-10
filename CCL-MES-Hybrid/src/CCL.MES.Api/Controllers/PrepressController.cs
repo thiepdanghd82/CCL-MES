@@ -131,22 +131,52 @@ public sealed class PrepressController : WoMutationControllerBase
             return NotFound(ApiError.Of("wo.material_row_not_found",
                 $"No wo_materials row for wo_id={id}, bom_line_idx={bomLineIdx}."));
 
+        // Ba chốt dưới đây chạy TRƯỚC khi đặt trạng thái. Giá trị "sau lệnh
+        // này" = giá trị trong body nếu có, không thì giá trị đang lưu — bấm OK
+        // trơn không được phép xoá mã quét / lô đã khai trước đó.
+        var scanAfter = !string.IsNullOrWhiteSpace(req?.PartScan) ? req!.PartScan : row.PartScan;
+        var scanErr = PrepressPolicy.ValidatePartScan(newStatus, scanAfter, row.MaterialCode);
+        if (scanErr is not null) return Invalid(scanErr.Value.ErrorCode, scanErr.Value.Message);
+
+        var lotAfter = !string.IsNullOrWhiteSpace(req?.LotNo) ? req!.LotNo : row.LotNo;
+        var lotErr = PrepressPolicy.ValidateLotPresence(newStatus, lotAfter);
+        if (lotErr is not null) return Invalid(lotErr.Value.ErrorCode, lotErr.Value.Message);
+
         var fromStatus = row.Status;
-        row.Status = newStatus;
         row.QtyLoaded = req?.QtyLoaded ?? row.QtyLoaded;
         // A1 §3.3 — mã lô KHÔNG còn được gán thẳng từ body vào cột nữa. Chuỗi đi
         // qua MaterialLotScanService: chuẩn hoá → thử resolve về một MaterialLot
         // thật → set FK MaterialLotId + mirror LotNo TỪ ENTITY LÔ. Chưa resolve
         // được thì vẫn giữ nhãn kèm warning (siết read-only là Phase 3, sau
         // go-live); cờ Mes:MaterialLot:EnforceReleased bật thì từ chối.
+        // Gắn nhãn lô TRƯỚC khi đặt trạng thái: chốt "lô đã Released chưa" cần
+        // biết lô tra ra là lô nào, mà chỉ AttachLotLabelAsync mới trả lời được.
+        // Trả về sớm ở đây thì KHÔNG có gì được ghi — CommitAndAuditAsync mới là
+        // nơi SaveChanges, còn DbContext của request thì bị vứt.
         string? lotWarning = null;
+        string? lotStatusNow = null;
         if (req?.LotNo is not null)
         {
             var attach = await _lots.AttachLotLabelAsync(row, req.LotNo, actor, role);
             if (!attach.Ok)
                 return UnprocessableEntity(ApiError.Of(attach.ErrorCode!, attach.MessageEn!));
             lotWarning = attach.Warning;
+            lotStatusNow = attach.LotStatus;
         }
+        // MaterialLotId là SHADOW property (không có trên entity WoMaterial) —
+        // đọc qua ChangeTracker, và đọc SAU khi attach để thấy FK vừa được set.
+        var lotFk = _lots.LotFkOf(row);
+        if (lotStatusNow is null && lotFk is not null)
+        {
+            lotStatusNow = await _db.MaterialLots.AsNoTracking()
+                .Where(l => l.Id == lotFk)
+                .Select(l => l.Status).FirstOrDefaultAsync();
+        }
+
+        var relErr = PrepressPolicy.ValidateLotReleased(newStatus, lotFk, lotStatusNow);
+        if (relErr is not null) return Invalid(relErr.Value.ErrorCode, relErr.Value.Message);
+
+        row.Status = newStatus;
         // Persist scanned part + BOM-resolved description ONLY when the request
         // carried them (a plain OK/NG must not wipe a previously-scanned code).
         if (!string.IsNullOrWhiteSpace(req?.PartScan)) row.PartScan = req!.PartScan;
@@ -219,6 +249,13 @@ public sealed class PrepressController : WoMutationControllerBase
         if (row is null)
             return NotFound(ApiError.Of("wo.material_row_not_found",
                 $"No wo_materials row for wo_id={id}, bom_line_idx={bomLineIdx}."));
+
+        // Sai MÃ thì Special Accept cũng không cứu: nhân nhượng là chấp nhận
+        // một LÔ chưa đạt điều kiện, không phải ghi nhầm mã vào hồ sơ truy xuất.
+        var saScan = !string.IsNullOrWhiteSpace(req?.PartScan) ? req!.PartScan : row.PartScan;
+        var saScanErr = PrepressPolicy.ValidatePartScan(
+            PrepressCheckStatus.Pending, saScan, row.MaterialCode);
+        if (saScanErr is not null) return Invalid(saScanErr.Value.ErrorCode, saScanErr.Value.Message);
 
         // Concession → OK, but keep the deviation on the row for the record.
         row.Status = PrepressCheckStatus.Ok;

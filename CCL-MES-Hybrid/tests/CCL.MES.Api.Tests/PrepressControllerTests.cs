@@ -75,6 +75,25 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
                 ScrapFactor = 0,
             });
         }
+        // Mỗi dòng BOM có sẵn MỘT lô Released — từ khi Prepress đòi lô phải tra
+        // được và phải được IQC thông qua, không có lô thì mọi test đường-OK
+        // đều đỏ vì lý do chẳng liên quan gì tới thứ nó đang kiểm.
+        for (var i = 0; i < bomLines; i++)
+        {
+            // Idempotent: [Theory] gọi seed nhiều lần với CÙNG productCode, mà
+            // (LotNo, PartNo) có unique index — thêm mù là DbUpdateException.
+            var lotNo = $"LOT-{productCode}-{i}";
+            if (await db.MaterialLots.AnyAsync(l => l.LotNo == lotNo)) continue;
+            db.MaterialLots.Add(new MaterialLot
+            {
+                LotNo = lotNo,
+                PartNo = $"COMP-{productCode}-{i}",
+                ReceivedAt = DateTime.UtcNow,
+                QtyReceived = 1000, QtyAvailable = 1000,
+                Status = nameof(MaterialLotStatus.Released),
+                Uom = "m2",
+            });
+        }
         await db.SaveChangesAsync();
 
         var wo = new WorkOrder
@@ -131,6 +150,136 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         }
     }
 
+    // ── Mã quét phải TRÙNG mã BOM ─────────────────────────────────────
+
+    /// <summary>
+    /// Đo trên WO thật 2026-09-10: gõ 30031638 vào dòng mã 30031146 thì client
+    /// BÁO ĐÚNG ("Typed 30031638 ≠ line 30031146") nhưng server vẫn nhận và
+    /// Status vẫn Ok. Cảnh báo mà không chặn thì chỉ cần bấm tiếp là qua.
+    /// </summary>
+    [Fact]
+    public async Task Ma_quet_lech_ma_BOM_thi_422()
+    {
+        var (woId, _) = await SeedWoWithBomAsync("WO-SCAN-X", "PROD-SCANX");
+        var client = await OperatorClientAsync("op-scan-x");
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        // Mã của dòng 1, gõ vào dòng 0.
+        var resp = await client.SendAsync(PutMaterial(woId, 0,
+            "{\"status\":\"Ok\",\"partScan\":\"COMP-PROD-SCANX-1\",\"lotNo\":\"LOT-PROD-SCANX-0\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("prepress.part_scan_mismatch", err!.Code);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var row = await db.WoMaterials.AsNoTracking()
+            .FirstAsync(m => m.WorkOrderId == woId && m.BomLineIdx == 0);
+        Assert.Equal(PrepressCheckStatus.Pending, row.Status);
+        Assert.True(string.IsNullOrEmpty(row.PartScan));   // mã sai KHÔNG được lưu
+    }
+
+    /// <summary>Chưa quét thì chưa ai đối chiếu vật tư thật với BOM ⇒ không cho OK.</summary>
+    [Fact]
+    public async Task Chua_quet_ma_thi_khong_cho_OK()
+    {
+        var (woId, _) = await SeedWoWithBomAsync("WO-SCAN-N", "PROD-SCANN");
+        var client = await OperatorClientAsync("op-scan-n");
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        var resp = await client.SendAsync(PutMaterial(woId, 0,
+            "{\"status\":\"Ok\",\"lotNo\":\"LOT-PROD-SCANN-0\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("prepress.part_scan_required", err!.Code);
+    }
+
+    /// <summary>Special Accept là nhân nhượng về ĐIỀU KIỆN LÔ, không phải giấy
+    /// phép ghi nhầm mã vào hồ sơ truy xuất — sai mã vẫn chặn.</summary>
+    [Fact]
+    public async Task Special_Accept_cung_khong_cuu_duoc_ma_quet_sai()
+    {
+        await SeedScrapReasonAsync();
+        var (woId, _) = await SeedWoWithBomAsync("WO-SA-X", "PROD-SAX");
+        var client = await ClientAsRoleAsync("eng-sa-x", UserRole.Engineer);
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        var resp = await client.SendAsync(PostSpecialAccept(woId, 0,
+            "{\"ngReasonCode\":\"SC-COLOR\",\"note\":\"xin chấp nhận\",\"partScan\":\"COMP-PROD-SAX-2\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("prepress.part_scan_mismatch", err!.Code);
+    }
+
+    // ── Lô phải tra được VÀ đã được IQC thông qua ──────────────────────
+
+    /// <summary>Số lô gõ đúng định dạng nhưng KHÔNG có trong hệ ⇒ không cho OK.
+    /// Có số lô mới chứng minh người vận hành gõ gì đó, chưa chứng minh cuộn ấy
+    /// được phép lên máy.</summary>
+    [Fact]
+    public async Task Lo_khong_co_trong_he_thi_khong_cho_OK()
+    {
+        var (woId, _) = await SeedWoWithBomAsync("WO-LOT-NF", "PROD-LOTNF");
+        var client = await OperatorClientAsync("op-lot-nf");
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        var resp = await client.SendAsync(PutMaterial(woId, 0,
+            "{\"status\":\"Ok\",\"partScan\":\"COMP-PROD-LOTNF-0\",\"lotNo\":\"KHONG-CO-THAT\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("prepress.lot_not_released", err!.Code);
+    }
+
+    /// <summary>Lô CÓ trong hệ nhưng IQC đánh trượt / chưa kết luận ⇒ không cho
+    /// OK. Đây là chốt chặn sớm nhất cho lô xấu, đặt ở Pre-press chứ không đợi
+    /// tới IPQC.</summary>
+    [Theory]
+    [InlineData(nameof(MaterialLotStatus.Rejected))]
+    [InlineData(nameof(MaterialLotStatus.Quarantine))]
+    public async Task Lo_chua_duoc_IQC_thong_qua_thi_khong_cho_OK(string lotStatus)
+    {
+        var (woId, _) = await SeedWoWithBomAsync("WO-LOT-" + lotStatus, "PROD-LOT" + lotStatus);
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var lot = await db.MaterialLots.FirstAsync(l => l.LotNo == $"LOT-PROD-LOT{lotStatus}-0");
+            lot.Status = lotStatus;
+            await db.SaveChangesAsync();
+        }
+        var client = await OperatorClientAsync("op-lot-" + lotStatus.ToLowerInvariant());
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        var resp = await client.SendAsync(PutMaterial(woId, 0,
+            $"{{\"status\":\"Ok\",\"partScan\":\"COMP-PROD-LOT{lotStatus}-0\",\"lotNo\":\"LOT-PROD-LOT{lotStatus}-0\"}}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("prepress.lot_not_released", err!.Code);
+    }
+
+    /// <summary>Body xác nhận OK hợp lệ cho dòng BOM thứ <paramref name="idx"/>:
+    /// mã quét TRÙNG mã BOM và số lô trỏ đúng lô Released do seed dựng.</summary>
+    private static string OkBody(string productCode, int idx, double? qty = null)
+        => qty is null
+            ? $"{{\"status\":\"Ok\",\"partScan\":\"COMP-{productCode}-{idx}\",\"lotNo\":\"LOT-{productCode}-{idx}\"}}"
+            // InvariantCulture: máy chạy locale vi-VN thì {qty} nội suy ra "50,5"
+            // và JSON hỏng ⇒ 400, chứ không phải luật nào từ chối.
+            : $"{{\"status\":\"Ok\",\"qtyLoaded\":{qty.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)},\"partScan\":\"COMP-{productCode}-{idx}\",\"lotNo\":\"LOT-{productCode}-{idx}\"}}";
+
     private static HttpRequestMessage PutMaterial(long id, int idx, string body,
         string? ifMatch, string? idem)
     {
@@ -142,6 +291,87 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         if (ifMatch is not null) req.Headers.TryAddWithoutValidation("If-Match", ifMatch);
         if (idem is not null) req.Headers.TryAddWithoutValidation("Idempotency-Key", idem);
         return req;
+    }
+
+    // ── A — xác nhận OK phải kèm số lô ────────────────────────────────
+
+    /// <summary>
+    /// Đo trên live 2026-09-09: WO báo "10/10 materials OK" + "Materials Ready"
+    /// trong khi 10/10 dòng có LotNo RỖNG. Không luật nào đòi lô, nên chữ "sẵn
+    /// sàng" không chứng minh gì. Từ nay OK mà thiếu lô ⇒ 422.
+    /// </summary>
+    [Fact]
+    public async Task Xac_nhan_OK_thieu_lo_thi_422()
+    {
+        var (woId, _) = await SeedWoWithBomAsync("WO-A-LOTREQ", "PROD-A1");
+        var client = await OperatorClientAsync("op-a-lotreq");
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress"); // materialise BOM
+        var etag = await EtagOfAsync(woId);
+
+        var resp = await client.SendAsync(PutMaterial(woId, 0,
+            "{\"status\":\"Ok\",\"partScan\":\"COMP-PROD-A1-0\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("prepress.lot_required", err!.Code);
+
+        // KHÔNG được ghi gì: validate phải chạy TRƯỚC khi chạm vào row.
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var row = await db.WoMaterials.AsNoTracking()
+            .FirstAsync(m => m.WorkOrderId == woId && m.BomLineIdx == 0);
+        Assert.Equal(PrepressCheckStatus.Pending, row.Status);
+    }
+
+    /// <summary>NG và Pending KHÔNG bị đòi lô — đánh NG là đang BÁO có vấn đề,
+    /// bắt khai đủ giấy tờ trước khi cho báo là chặn nhầm hướng.</summary>
+    [Theory]
+    [InlineData("Pending", null, null)]
+    [InlineData("Ng", "SC-COLOR", "hỏng mép cuộn")]
+    public async Task NG_va_Pending_khong_bi_doi_lo(string status, string? code, string? note)
+    {
+        await SeedScrapReasonAsync();
+        var (woId, _) = await SeedWoWithBomAsync("WO-A-NP-" + status, "PROD-A2");
+        var client = await OperatorClientAsync("op-a-np-" + status.ToLowerInvariant());
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress"); // materialise BOM
+        var etag = await EtagOfAsync(woId);
+        var body = code is null
+            ? $"{{\"status\":\"{status}\"}}"
+            : $"{{\"status\":\"{status}\",\"ngReasonCode\":\"{code}\",\"ngNote\":\"{note}\"}}";
+
+        var resp = await client.SendAsync(PutMaterial(woId, 0, body,
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
+
+    /// <summary>Bấm OK trơn (không gửi lotNo) trên dòng ĐÃ có lô thì vẫn qua —
+    /// lô cũ không bị coi là thiếu, và cũng không bị xoá.</summary>
+    [Fact]
+    public async Task OK_tren_dong_da_co_lo_thi_khong_can_gui_lai()
+    {
+        var (woId, _) = await SeedWoWithBomAsync("WO-A-KEEP", "PROD-A3");
+        var client = await OperatorClientAsync("op-a-keep");
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress"); // materialise BOM
+
+        var e1 = await EtagOfAsync(woId);
+        var r1 = await client.SendAsync(PutMaterial(woId, 0,
+            OkBody("PROD-A3", 0),
+            ifMatch: $"\"{e1}\"", idem: Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.OK, r1.StatusCode);
+
+        var e2 = await EtagOfAsync(woId);
+        var r2 = await client.SendAsync(PutMaterial(woId, 0,
+            "{\"status\":\"Ok\",\"partScan\":\"COMP-PROD-A3-0\"}",
+            ifMatch: $"\"{e2}\"", idem: Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.OK, r2.StatusCode);
+
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var row = await db.WoMaterials.AsNoTracking()
+            .FirstAsync(m => m.WorkOrderId == woId && m.BomLineIdx == 0);
+        Assert.Equal("LOT-PROD-A3-0", row.LotNo);
     }
 
     private static HttpRequestMessage PutPlate(long id, string body,
@@ -230,7 +460,7 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         await client.GetAsync($"/api/v2/work-orders/{woId}/prepress"); // materialize
 
         var resp = await client.SendAsync(PutMaterial(woId, 0,
-            "{\"status\":\"Ok\"}", ifMatch: null, idem: Guid.NewGuid().ToString()));
+            OkBody("PROD-428", 0), ifMatch: null, idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.PreconditionRequired, resp.StatusCode);
     }
 
@@ -243,7 +473,7 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         var etag = await EtagOfAsync(woId);
 
         var resp = await client.SendAsync(PutMaterial(woId, 0,
-            "{\"status\":\"Ok\"}", ifMatch: $"\"{etag}\"", idem: null));
+            OkBody("PROD-400", 0), ifMatch: $"\"{etag}\"", idem: null));
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
     }
 
@@ -256,7 +486,7 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         var stale = Convert.ToBase64String(new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 });
 
         var resp = await client.SendAsync(PutMaterial(woId, 0,
-            "{\"status\":\"Ok\"}", ifMatch: $"\"{stale}\"", idem: Guid.NewGuid().ToString()));
+            OkBody("PROD-409", 0), ifMatch: $"\"{stale}\"", idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.Conflict, resp.StatusCode);
 
         using var scope = _fx.Services.CreateScope();
@@ -338,7 +568,7 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         var etag = await EtagOfAsync(woId);
 
         var resp = await client.SendAsync(PutMaterial(woId, 0,
-            "{\"status\":\"Ok\"}", ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+            OkBody("PROD-PH", 0), ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
         var err = (await resp.Content.ReadFromJsonAsync<ApiError>())!;
         Assert.Equal("wo.invalid_phase", err.Code);
@@ -353,7 +583,7 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         var etag = await EtagOfAsync(woId);
 
         var resp = await client.SendAsync(PutMaterial(woId, 99,
-            "{\"status\":\"Ok\"}", ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+            OkBody("PROD-LINE", 99), ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
     }
 
@@ -366,7 +596,7 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         var preEtag = await EtagOfAsync(woId);
 
         var resp = await client.SendAsync(PutMaterial(woId, 0,
-            "{\"status\":\"Ok\",\"qtyLoaded\":50.5,\"lotNo\":\"LOT-123\"}",
+            OkBody("PROD-OK", 0, 50.5),
             ifMatch: $"\"{preEtag}\"", idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         var body = (await resp.Content.ReadFromJsonAsync<PrepressSetResponse>())!;
@@ -379,7 +609,7 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         var row = await db.WoMaterials.SingleAsync(m => m.WorkOrderId == woId && m.BomLineIdx == 0);
         Assert.Equal(PrepressCheckStatus.Ok, row.Status);
         Assert.Equal(50.5, row.QtyLoaded);
-        Assert.Equal("LOT-123", row.LotNo);
+        Assert.Equal("LOT-PROD-OK-0", row.LotNo);
 
         var auditCount = await db.AuditLogs
             .CountAsync(a => a.Action == "WO_PREPRESS_MATERIAL_SET" && a.TargetId == woId.ToString());
@@ -447,12 +677,12 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
 
         // Sequential — fresh ETag each step.
         var etag = await EtagOfAsync(woId);
-        var r1 = await client.SendAsync(PutMaterial(woId, 0, "{\"status\":\"Ok\"}",
+        var r1 = await client.SendAsync(PutMaterial(woId, 0, OkBody("PROD-FLIP", 0),
             $"\"{etag}\"", Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.OK, r1.StatusCode);
 
         etag = await EtagOfAsync(woId);
-        var r2 = await client.SendAsync(PutMaterial(woId, 1, "{\"status\":\"Ok\"}",
+        var r2 = await client.SendAsync(PutMaterial(woId, 1, OkBody("PROD-FLIP", 1),
             $"\"{etag}\"", Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.OK, r2.StatusCode);
 
@@ -508,7 +738,7 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         // 9-conflict ratio + final rollup once the winner commits.
         var startEtag = await EtagOfAsync(woId);
         var tasks = Enumerable.Range(0, 10).Select(idx =>
-            client.SendAsync(PutMaterial(woId, idx, "{\"status\":\"Ok\"}",
+            client.SendAsync(PutMaterial(woId, idx, OkBody("PROD-SOAK", idx),
                 ifMatch: $"\"{startEtag}\"", idem: Guid.NewGuid().ToString())));
         var responses = await Task.WhenAll(tasks);
 
@@ -542,7 +772,7 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         await admin.GetAsync($"/api/v2/work-orders/{woId}/prepress");
         var etag = await EtagOfAsync(woId);
         var resp = await admin.SendAsync(PutMaterial(woId, 0,
-            "{\"status\":\"Ok\",\"qtyLoaded\":100}",
+            OkBody("PROD-WIRE", 0, 100),
             ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
 
@@ -602,7 +832,7 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         var etag = await EtagOfAsync(woId);
 
         var resp = await client.SendAsync(PostSpecialAccept(woId, 0,
-            "{\"ngReasonCode\":\"SC-COLOR\",\"note\":\"accepted by PD leader\",\"partScan\":\"COMP-X\"}",
+            "{\"ngReasonCode\":\"SC-COLOR\",\"note\":\"accepted by PD leader\",\"partScan\":\"COMP-PROD-SAENG-0\"}",
             ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
 
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);

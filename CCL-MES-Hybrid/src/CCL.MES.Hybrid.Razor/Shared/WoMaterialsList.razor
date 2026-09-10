@@ -297,6 +297,11 @@
             Status = "Ok",
             QtyLoaded = ParseQty(draft.QtyLoaded),
             LotNo = string.IsNullOrWhiteSpace(draft.LotNo) ? null : draft.LotNo,
+            // Mã quét ĐANG HIỆN trong ô phải đi cùng lệnh xác nhận. Thiếu dòng
+            // này thì nút OK gửi lệnh không mang mã quét, và server — vốn đòi
+            // mã quét khi xác nhận Ok — chặn mọi lần bấm, dù ô đang có chữ.
+            // (Special Accept ở dưới đã gửi từ đầu; chỉ OK/NG bỏ sót.)
+            PartScan = string.IsNullOrWhiteSpace(ScanPart(row.BomLineIdx)) ? null : ScanPart(row.BomLineIdx),
             NgReasonCode = null,
             NgNote = null,
         });
@@ -311,6 +316,9 @@
             Status = "Ng",
             QtyLoaded = ParseQty(draft.QtyLoaded),
             LotNo = string.IsNullOrWhiteSpace(draft.LotNo) ? null : draft.LotNo,
+            // NG cũng mang mã quét: đánh NG là ghi nhận có vấn đề trên MỘT cuộn
+            // cụ thể, mất mã quét là mất luôn cuộn nào đã bị đánh.
+            PartScan = string.IsNullOrWhiteSpace(ScanPart(row.BomLineIdx)) ? null : ScanPart(row.BomLineIdx),
             NgReasonCode = string.IsNullOrWhiteSpace(draft.NgReasonCode) ? null : draft.NgReasonCode,
             NgNote = string.IsNullOrWhiteSpace(draft.NgNote) ? null : draft.NgNote,
         });

@@ -120,10 +120,8 @@ public sealed class MaterialLotScanService
                 $"Material cannot be consumed once the WO reaches {wo.MesPhase}.");
         }
 
-        // 3. Tìm lô. So khớp bằng `==` thuần: cột LotNo mang COLLATE NOCASE nên
-        //    SQLite tự so không phân biệt hoa thường. KHÔNG dùng
-        //    EF.Functions.Collate(...) — thừa ở đây và phá cổng sang SQL Server.
-        var lot = await _db.MaterialLots.FirstOrDefaultAsync(l => l.LotNo == lotNo, ct);
+        // 3. Tìm lô — theo (mã + lô), xem FindLotForPartAsync.
+        var lot = await FindLotForPartAsync(lotNo, row.MaterialCode, ct);
         if (lot is null)
         {
             await DenyAsync(wo, bomLineIdx, lotNo, null,
@@ -255,6 +253,38 @@ public sealed class MaterialLotScanService
 
     // ── Gắn nhãn lô cho PREPRESS (đường ghi cũ, §3.3) ─────────────
 
+
+    /// <summary>
+    /// Tìm lô theo (MÃ VẬT TƯ + SỐ LÔ), không phải số lô một mình.
+    ///
+    /// <para>Số lô KHÔNG duy nhất toàn cục. Đo trên live 2026-09-09:
+    /// <b>822/1672</b> số lô dùng cho nhiều hơn một mã vật tư, cá biệt một số lô
+    /// nằm dưới <b>79</b> mã khác nhau. Tra bằng số lô trần thì
+    /// <c>FirstOrDefault</c> trả về lô của mã nào là do thứ tự bảng quyết định —
+    /// và hệ quả không phải "không tìm thấy" mà là <b>tìm thấy nhầm</b>: bind FK
+    /// sang lô của mã khác, hoặc từ chối oan một lô hợp lệ chỉ vì có mã khác
+    /// trùng số lô.</para>
+    ///
+    /// <para>Không thấy lô của đúng mã thì lùi về lô cùng số của mã bất kỳ —
+    /// CHỈ để <c>CanConsume</c> dựng được câu báo nêu đích danh mã thật ("lô X
+    /// thuộc mã A, không phải B"). Thiếu bước lùi này thì người vận hành nhận
+    /// "không tìm thấy lô" và đi điều tra sai hướng.</para>
+    ///
+    /// <para>So khớp bằng <c>==</c> thuần: cột LotNo/PartNo mang COLLATE NOCASE
+    /// nên SQLite tự so không phân biệt hoa thường (L28).</para>
+    /// </summary>
+    private async Task<MaterialLot?> FindLotForPartAsync(
+        string lotNo, string? materialCode, CancellationToken ct)
+    {
+        if (!string.IsNullOrWhiteSpace(materialCode))
+        {
+            var exact = await _db.MaterialLots
+                .FirstOrDefaultAsync(l => l.LotNo == lotNo && l.PartNo == materialCode, ct);
+            if (exact is not null) return exact;
+        }
+        return await _db.MaterialLots.FirstOrDefaultAsync(l => l.LotNo == lotNo, ct);
+    }
+
     /// <summary>
     /// Đường ghi <c>PUT /materials/{idx}</c> cũ: operator vẫn gõ mã lô trong ô
     /// nhập, nhưng chuỗi đó KHÔNG còn được gán thẳng vào cột nữa.
@@ -284,7 +314,7 @@ public sealed class MaterialLotScanService
             return MaterialLotOutcome.Fail(422, MaterialLotStatusPolicy.InvalidRequest,
                 "lot_no must be 64 characters or fewer.");
 
-        var lot = await _db.MaterialLots.FirstOrDefaultAsync(l => l.LotNo == lotNo, ct);
+        var lot = await FindLotForPartAsync(lotNo, row.MaterialCode, ct);
         if (lot is null)
         {
             if (_opts.EnforceReleased)
@@ -302,8 +332,18 @@ public sealed class MaterialLotScanService
         }
 
         var verdict = MaterialLotStatusPolicy.CanConsume(lot, row.MaterialCode, 0, DateTime.UtcNow);
-        if (!verdict.Allowed && _opts.EnforceReleased
-            && verdict.ErrorCode != MaterialLotStatusPolicy.Depleted)
+
+        // SAI VẬT TƯ thì CHẶN THẬT, bất kể cờ EnforceReleased. Đây không phải
+        // chuyện "kho chưa kịp làm IQC" mà là gắn nhầm lô của mã khác — gắn
+        // xong là FK trỏ sai và mọi tầng sau đều tin theo. ConsumeAsync đã theo
+        // luật này từ đầu (xem `relaxable`), AttachLotLabelAsync thì không, nên
+        // cùng một sai sót bị chặn hay được cho qua tuỳ người vận hành bấm nút
+        // nào. Ba mã được nới vẫn nguyên: NotReleased · Expired · Rejected —
+        // chúng phụ thuộc kho đã nhập liệu IQC đủ chưa, không phải lỗi thao tác.
+        var hardDeny = verdict.ErrorCode == MaterialLotStatusPolicy.PartMismatch;
+        var softDeny = !verdict.Allowed && _opts.EnforceReleased
+            && verdict.ErrorCode != MaterialLotStatusPolicy.Depleted;
+        if (hardDeny || softDeny)
         {
             return MaterialLotOutcome.Fail(422, verdict.ErrorCode!, verdict.MessageEn!);
         }
@@ -805,6 +845,15 @@ public sealed class MaterialLotScanService
         if (db is DbContext ctx)
             ctx.Entry(row).Property("MaterialLotId").CurrentValue = lotId;
     }
+
+    /// <summary>
+    /// Đọc FK lô của một dòng BOM. <c>MaterialLotId</c> là SHADOW property —
+    /// không có trên entity <see cref="WoMaterial"/> — nên phải đi qua
+    /// ChangeTracker. Để cặp đọc/ghi nằm CẠNH NHAU ở đây thay vì rải phép
+    /// downcast <c>is DbContext</c> ra từng controller.
+    /// </summary>
+    public long? LotFkOf(WoMaterial row)
+        => _db is DbContext ctx ? ctx.Entry(row).Property<long?>("MaterialLotId").CurrentValue : null;
 
     private static string NormalizeETag(string raw)
     {

@@ -101,6 +101,53 @@ public sealed class MaterialLotScanTests : IClassFixture<MesApiFactory>
     private static string ConsumeBody(string lotNo, double qty = 10)
         => $"{{\"lotNo\":\"{lotNo}\",\"qtyUsed\":{qty.ToString(System.Globalization.CultureInfo.InvariantCulture)}}}";
 
+    // ── C — tra lô theo (MÃ + LÔ) ──────────────────────────────────
+
+    /// <summary>
+    /// Số lô KHÔNG duy nhất toàn cục — đo trên live 2026-09-09: 822/1672 số lô
+    /// dùng cho >1 mã, cá biệt một số lô nằm dưới 79 mã. Bản cũ tra bằng số lô
+    /// TRẦN nên lô của mã nào được chọn là do thứ tự bảng quyết định. Ở đây lô
+    /// của mã KHÁC được ghi TRƯỚC, nên bản cũ sẽ vớ phải nó và từ chối oan.
+    /// </summary>
+    [Fact]
+    public async Task Hai_ma_trung_so_lo_thi_lay_dung_lo_cua_ma_minh()
+    {
+        var wo = await SeedWoAsync("SAMELOT", "PVC-50");
+        var other = await SeedLotAsync("LOT-DUP-9", "GIAY-KHAC", qty: 500);   // ghi trước
+        var mine  = await SeedLotAsync("LOT-DUP-9", "PVC-50",    qty: 100);   // ghi sau
+        var c = await ClientAsync("op-c-samelot");
+
+        var resp = await c.SendAsync(Post(ConsumeUrl(wo), ConsumeBody("LOT-DUP-9", 10)));
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        // Trừ đúng lô CỦA MÌNH, lô mã khác không suy suyển.
+        Assert.Equal(90, await db.MaterialLots.Where(l => l.Id == mine)
+            .Select(l => l.QtyAvailable).SingleAsync());
+        Assert.Equal(500, await db.MaterialLots.Where(l => l.Id == other)
+            .Select(l => l.QtyAvailable).SingleAsync());
+    }
+
+    /// <summary>
+    /// Không có lô nào của đúng mã ⇒ vẫn phải báo SAI VẬT TƯ nêu đích danh mã
+    /// thật, chứ không phải "không tìm thấy lô" — hai câu này đẩy người vận hành
+    /// đi hai hướng điều tra khác hẳn nhau.
+    /// </summary>
+    [Fact]
+    public async Task Lo_cua_ma_khac_bao_sai_vat_tu_chu_khong_bao_khong_thay()
+    {
+        var wo = await SeedWoAsync("WRONGPART", "PVC-50");
+        await SeedLotAsync("LOT-OTHER-1", "GIAY-KHAC", qty: 500);
+        var c = await ClientAsync("op-c-wrongpart");
+
+        var resp = await c.SendAsync(Post(ConsumeUrl(wo), ConsumeBody("LOT-OTHER-1", 10)));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var body = (await resp.Content.ReadFromJsonAsync<MaterialLotSetResponse>())!;
+        Assert.Equal("lot.part_mismatch", body.ErrorCode);
+    }
+
     // ── Happy path ─────────────────────────────────────────────────
 
     [Fact]
