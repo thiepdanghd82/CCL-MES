@@ -24,6 +24,10 @@ public static class RunningSurfaceErrorLocaliser
             "wo.idempotency_key_required"           => "Request is missing the idempotency key — contact IT.",
             "running.setting_not_started"           => "WO has not entered the SETTING phase — cannot mark it complete.",
             "running.invalid_body"                  => "Invalid request data — contact IT.",
+            // Lô bị IQC đánh trượt SAU khi Pre-press đã gắn. Câu phải nói rõ
+            // HAI đường ra, vì lúc này WO đã qua Pre-press nên người vận hành
+            // không tự sửa dòng vật tư được nữa.
+            "run.material_lot_unusable"             => "A material lot is no longer released by IQC — replace the lot, or have a PD leader special-accept it, before starting the run.",
             "running.invalid_qty_delta"             => "Quantity must be greater than 0 (use \"Correct count\" for negative values).",
             "running.invalid_reason_code"           => "Reason code is not in the catalog — choose one from the list.",
             "running.invalid_ng_note"               => "An NG note is required when entering an NG count (1-500 characters).",

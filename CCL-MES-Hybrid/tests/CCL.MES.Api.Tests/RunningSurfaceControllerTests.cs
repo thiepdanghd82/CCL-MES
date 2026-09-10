@@ -298,6 +298,97 @@ public sealed class RunningSurfaceControllerTests : IClassFixture<MesApiFactory>
         Assert.Null(session.EndedAt);
     }
 
+    /// <summary>Gắn một dòng vật tư kèm lô ở trạng thái cho trước, có nối FK
+    /// (shadow property MaterialLotId) như đường quét thật vẫn làm.</summary>
+    private async Task SeedMaterialWithLotAsync(
+        long woId, string code, string lotStatus, bool specialAccepted = false)
+    {
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        var tok = Guid.NewGuid().ToString("N")[..6];
+        var lot = new MaterialLot
+        {
+            LotNo = $"LOT-{tok}", PartNo = code, ReceivedAt = DateTime.UtcNow,
+            QtyReceived = 100, QtyAvailable = 100, Status = lotStatus, Uom = "m2",
+        };
+        db.MaterialLots.Add(lot);
+        await db.SaveChangesAsync();
+
+        var m = new WoMaterial
+        {
+            WorkOrderId = woId, BomLineIdx = 0, MaterialCode = code,
+            QtyRequired = 10, Uom = "m2", LotNo = lot.LotNo,
+            Status = PrepressCheckStatus.Ok,
+            // Dấu Special Accept: Ok mà vẫn có mã lý do.
+            NgReasonCode = specialAccepted ? "SC-COLOR" : null,
+            NgNote = specialAccepted ? "PD leader chấp nhận" : null,
+        };
+        db.WoMaterials.Add(m);
+        await db.SaveChangesAsync();
+        db.Entry(m).Property("MaterialLotId").CurrentValue = lot.Id;
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// MỤC E — hỏi lại trạng thái lô ngay trước khi máy chạy. Pre-press đã
+    /// chặn và rollup đã soi, nhưng cả hai là ảnh chụp: giữa lúc gắn lô và lúc
+    /// bấm chạy, IQC vẫn có thể đánh lô thành Rejected. Không hỏi lại thì lô đã
+    /// thu hồi vẫn lên máy, và cái giá là cả một lượt chạy.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(MaterialLotStatus.Rejected))]
+    [InlineData(nameof(MaterialLotStatus.Quarantine))]
+    [InlineData(nameof(MaterialLotStatus.Expired))]
+    public async Task RunStart_bi_chan_khi_lo_khong_con_Released(string lotStatus)
+    {
+        var (wo, etag) = await SeedWoAsync("IPQC_APPROVED");
+        await SeedMaterialWithLotAsync(wo, "MAT-E1", lotStatus);
+        var client = await OperatorClientAsync("op-e-" + lotStatus.ToLowerInvariant());
+
+        var resp = await client.SendAsync(Post(
+            $"/api/v2/work-orders/{wo}/run/start", "{}", $"\"{etag}\"", Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("run.material_lot_unusable", err!.Code);
+
+        // KHÔNG được chuyển phase, KHÔNG được mở phiên chạy.
+        using var scope = _fx.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+        Assert.Equal("IPQC_APPROVED",
+            await db.WorkOrders.Where(w => w.Id == wo).Select(w => w.MesPhase).SingleAsync());
+        Assert.Empty(await db.WoRunSessions.Where(x => x.WoId == wo).ToListAsync());
+    }
+
+    [Fact]
+    public async Task RunStart_qua_khi_lo_con_Released()
+    {
+        var (wo, etag) = await SeedWoAsync("IPQC_APPROVED");
+        await SeedMaterialWithLotAsync(wo, "MAT-E2", nameof(MaterialLotStatus.Released));
+        var client = await OperatorClientAsync("op-e-ok");
+
+        var resp = await client.SendAsync(Post(
+            $"/api/v2/work-orders/{wo}/run/start", "{}", $"\"{etag}\"", Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
+
+    /// <summary>Special Accept vẫn cho chạy — cùng vị từ với rollup Pre-press.
+    /// Nó là đường xả đã có chữ ký, không phải lỗ hổng cần bịt lần nữa.</summary>
+    [Fact]
+    public async Task RunStart_van_qua_khi_dong_da_Special_Accept_du_lo_Rejected()
+    {
+        var (wo, etag) = await SeedWoAsync("IPQC_APPROVED");
+        await SeedMaterialWithLotAsync(wo, "MAT-E3",
+            nameof(MaterialLotStatus.Rejected), specialAccepted: true);
+        var client = await OperatorClientAsync("op-e-sa");
+
+        var resp = await client.SendAsync(Post(
+            $"/api/v2/work-orders/{wo}/run/start", "{}", $"\"{etag}\"", Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
+
     [Fact]
     public async Task RunStart_in_SETTING_returns_422_invalid_phase()
     {

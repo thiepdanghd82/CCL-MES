@@ -852,6 +852,45 @@ public sealed class MaterialLotScanService
     /// ChangeTracker. Để cặp đọc/ghi nằm CẠNH NHAU ở đây thay vì rải phép
     /// downcast <c>is DbContext</c> ra từng controller.
     /// </summary>
+    /// <summary>
+    /// Các dòng vật tư của WO đang gắn lô KHÔNG còn dùng được — trả về mã vật
+    /// tư kèm trạng thái lô, rỗng nghĩa là sạch.
+    ///
+    /// <para><b>Vì sao phải hỏi lại ở cửa vào RUNNING</b>, dù Pre-press đã chặn
+    /// và rollup đã soi: cả hai đều là ẢNH CHỤP. Giữa lúc Pre-press gắn lô và
+    /// lúc máy bắt đầu chạy, IQC hoàn toàn có thể đánh lô đó thành Rejected —
+    /// một phiếu tái kiểm, một khiếu nại NCC. Không hỏi lại thì lô đã bị thu
+    /// hồi vẫn lên máy, và cái giá là cả một lượt chạy.</para>
+    ///
+    /// <para>Dùng chung đúng vị từ với rollup Pre-press
+    /// (<see cref="MaterialsReadinessRollup.IsLineReady"/>) nên Special Accept
+    /// vẫn được tính là đạt — nó là đường xả đã có chữ ký, không phải lỗ hổng.</para>
+    /// </summary>
+    public async Task<IReadOnlyList<(string MaterialCode, string? LotNo, string? LotStatus)>>
+        LinesWithUnusableLotAsync(long woId, CancellationToken ct = default)
+    {
+        var rows = await _db.WoMaterials.Where(m => m.WorkOrderId == woId).ToListAsync(ct);
+        if (rows.Count == 0) return Array.Empty<(string, string?, string?)>();
+
+        // Một truy vấn cho tất cả lô đang gắn, không tra từng dòng (N+1).
+        var fks = rows.Select(LotFkOf).Where(x => x is not null)
+                      .Select(x => x!.Value).Distinct().ToList();
+        var statusById = fks.Count == 0
+            ? new Dictionary<long, string>()
+            : await _db.MaterialLots.AsNoTracking()
+                .Where(l => fks.Contains(l.Id))
+                .ToDictionaryAsync(l => l.Id, l => l.Status, ct);
+
+        var bad = new List<(string, string?, string?)>();
+        foreach (var m in rows)
+        {
+            var st = LotFkOf(m) is { } id && statusById.TryGetValue(id, out var v) ? v : null;
+            if (!MaterialsReadinessRollup.IsLineReady(m, st))
+                bad.Add((m.MaterialCode, m.LotNo, st));
+        }
+        return bad;
+    }
+
     public long? LotFkOf(WoMaterial row)
         => _db is DbContext ctx ? ctx.Entry(row).Property<long?>("MaterialLotId").CurrentValue : null;
 

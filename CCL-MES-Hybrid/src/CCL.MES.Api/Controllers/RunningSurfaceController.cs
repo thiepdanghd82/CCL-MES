@@ -62,13 +62,16 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
 {
     private readonly Services.ITraceFreezeService _trace;
     private readonly Services.WoMutationExecutor _executor;
+    private readonly MaterialLotScanService _lots;
 
     public RunningSurfaceController(IMesDbContext db, IAuditWriter audit,
-        Services.ITraceFreezeService trace, Services.WoMutationExecutor executor)
+        Services.ITraceFreezeService trace, Services.WoMutationExecutor executor,
+        MaterialLotScanService lots)
         : base(db, audit)
     {
         _trace = trace;
         _executor = executor;
+        _lots = lots;
     }
 
     // ── GET /running-surface ───────────────────────────────────────
@@ -283,6 +286,23 @@ public sealed class RunningSurfaceController : WoMutationControllerBase
         if (wo.MesPhase != "IPQC_APPROVED")
             return Invalid("wo.invalid_phase",
                 $"run/start requires MesPhase = IPQC_APPROVED; current = {wo.MesPhase}.");
+
+        // HỎI LẠI TRẠNG THÁI LÔ NGAY TRƯỚC KHI MÁY CHẠY. Pre-press đã chặn và
+        // rollup đã soi, nhưng cả hai đều là ẢNH CHỤP: giữa lúc gắn lô và lúc
+        // bấm chạy, IQC hoàn toàn có thể đánh lô thành Rejected (tái kiểm,
+        // khiếu nại NCC). Không hỏi lại thì lô đã thu hồi vẫn lên máy, và cái
+        // giá là cả một lượt chạy chứ không phải một dòng nhập liệu.
+        // Special Accept vẫn được tính là đạt — dùng chung vị từ với rollup.
+        var badLots = await _lots.LinesWithUnusableLotAsync(id);
+        if (badLots.Count > 0)
+        {
+            var first = badLots[0];
+            return Invalid("run.material_lot_unusable",
+                $"Material '{first.MaterialCode}' is on lot '{first.LotNo ?? "—"}' "
+                + $"which is '{first.LotStatus ?? "not registered"}', not Released"
+                + (badLots.Count > 1 ? $" (+{badLots.Count - 1} more)" : "")
+                + ". Replace the lot or have a PD leader special-accept it before running.");
+        }
 
         var svc = new WoRunSessionService(_db);
         var session = svc.Start(wo, actor, DateTime.UtcNow);
