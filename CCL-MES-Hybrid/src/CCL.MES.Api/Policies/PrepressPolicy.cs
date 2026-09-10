@@ -149,11 +149,24 @@ public static class PrepressPolicy
     ///
     /// <para>NG và Pending KHÔNG bị đòi: đánh NG là đang báo có vấn đề, bắt khai
     /// đủ giấy tờ trước khi cho báo là chặn nhầm hướng.</para>
+    ///
+    /// <para><b>Bán thành phẩm tự làm cũng KHÔNG bị đòi</b> (Thiệp chốt
+    /// 2026-09-10). Dòng ấy đã được miễn cổng lô vì không thể có phiếu IQC; bắt
+    /// nó gõ thêm một số lô mà hệ thống không đối chiếu được với bất cứ đâu chỉ
+    /// tạo ra TRUY XUẤT GIẢ — hồ sơ có một con số trông như bằng chứng nhưng
+    /// không trỏ về đâu cả. Ô trống kèm nhãn "Miễn cổng lô" nói đúng sự thật:
+    /// dòng này chưa có cơ chế truy xuất, và ai đọc hồ sơ cũng thấy ngay.
+    /// Xưởng hiện chưa phát nhãn lô cho bán thành phẩm (<c>SemiLots</c> mới 6
+    /// dòng, quy trình chưa chạy) nên buộc gõ là buộc gõ đại.</para>
+    ///
+    /// <para>Khi <c>SemiLots</c> được nối vào cổng chất lượng thì bậc đúng là
+    /// bắt QUÉT nhãn lô semi thật, không phải quay lại đòi chuỗi tự do.</para>
     /// </summary>
     public static (string ErrorCode, string Message)? ValidateLotPresence(
-        PrepressCheckStatus status, string? lotAfterWrite)
+        PrepressCheckStatus status, string? lotAfterWrite, bool isInHouse = false)
     {
         if (status != PrepressCheckStatus.Ok) return null;
+        if (isInHouse) return null;
         if (!string.IsNullOrWhiteSpace(lotAfterWrite)) return null;
         return (LotRequired,
             "Lot number is required before a material line can be confirmed OK.");

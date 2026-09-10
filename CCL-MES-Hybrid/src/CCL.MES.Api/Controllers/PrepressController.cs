@@ -145,8 +145,14 @@ public sealed class PrepressController : WoMutationControllerBase
         var scanErr = PrepressPolicy.ValidatePartScan(newStatus, scanAfter, row.MaterialCode);
         if (scanErr is not null) return Invalid(scanErr.Value.ErrorCode, scanErr.Value.Message);
 
+        // Tra mã-cha MỘT lần, dùng cho CẢ hai chốt lô bên dưới. Phải nằm trên
+        // ValidateLotPresence: dòng bán thành phẩm được miễn cả số lô, nên phải
+        // biết nó có phải hàng tự làm không TRƯỚC khi đòi.
+        var isInHouse = (await _lots.InHouseCodesAsync(new[] { row.MaterialCode }))
+            .Contains(row.MaterialCode ?? "");
+
         var lotAfter = !string.IsNullOrWhiteSpace(req?.LotNo) ? req!.LotNo : row.LotNo;
-        var lotErr = PrepressPolicy.ValidateLotPresence(newStatus, lotAfter);
+        var lotErr = PrepressPolicy.ValidateLotPresence(newStatus, lotAfter, isInHouse);
         if (lotErr is not null) return Invalid(lotErr.Value.ErrorCode, lotErr.Value.Message);
 
         var fromStatus = row.Status;
@@ -182,9 +188,8 @@ public sealed class PrepressController : WoMutationControllerBase
 
         // Bán thành phẩm tự làm ⇒ miễn cổng lô: IQC chỉ phủ hàng MUA, bắt chúng
         // có MaterialLot Released là bắt một điều kiện vĩnh viễn không đạt được.
-        var inHouse = await _lots.InHouseCodesAsync(new[] { row.MaterialCode });
         var relErr = PrepressPolicy.ValidateLotReleased(
-            newStatus, lotFk, lotStatusNow, inHouse.Contains(row.MaterialCode ?? ""));
+            newStatus, lotFk, lotStatusNow, isInHouse);
         if (relErr is not null) return Invalid(relErr.Value.ErrorCode, relErr.Value.Message);
 
         row.Status = newStatus;

@@ -446,6 +446,51 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
         return req;
     }
 
+    /// <summary>
+    /// Bán thành phẩm tự làm được miễn CẢ số lô, không chỉ miễn đối chiếu IQC.
+    ///
+    /// <para>Trước đó dòng ấy vẫn bị đòi một số lô mà hệ thống không tra được
+    /// vào đâu. Xưởng chưa phát nhãn lô cho bán thành phẩm (<c>SemiLots</c> mới
+    /// 6 dòng) nên người vận hành sẽ gõ đại cho qua — sinh ra TRUY XUẤT GIẢ: hồ
+    /// sơ có con số trông như bằng chứng nhưng không trỏ về đâu. Ô trống kèm
+    /// nhãn "Miễn cổng lô" thành thật hơn. Thiệp chốt 2026-09-10.</para>
+    /// </summary>
+    [Fact]
+    public async Task Ban_thanh_pham_bo_trong_lo_van_xac_nhan_OK_duoc()
+    {
+        var (woId, _) = await SeedWoWithBomAsync("WO-INH-NOLOT", "PROD-INL", bomLines: 1);
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            db.ManufacturingStructures.Add(new ManufacturingStructure
+            {
+                ParentPart = "COMP-PROD-INL-0",       // dòng 0 là mã CHA ⇒ tự làm
+                ComponentPart = "MUC-PHA-INL",
+                ComponentDescription = "Mực pha nội bộ",
+                QtyAssembly = 1, Uom = "kg", ScrapFactor = 0,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var client = await OperatorClientAsync("op-inh-nolot");
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        // Có mã quét, KHÔNG có lô — trước fix này là 422 prepress.lot_required.
+        var resp = await client.SendAsync(PutMaterial(woId, 0,
+            "{\"status\":\"Ok\",\"partScan\":\"COMP-PROD-INL-0\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);   // ← đỏ nếu bỏ miễn trừ
+
+        using var check = _fx.Services.CreateScope();
+        var db2 = check.ServiceProvider.GetRequiredService<MesDbContext>();
+        var row = await db2.WoMaterials.AsNoTracking()
+            .FirstAsync(m => m.WorkOrderId == woId && m.BomLineIdx == 0);
+        Assert.Equal(PrepressCheckStatus.Ok, row.Status);
+        Assert.True(string.IsNullOrWhiteSpace(row.LotNo));  // ô trống, thành thật
+    }
+
     // ── A — xác nhận OK phải kèm số lô ────────────────────────────────
 
     /// <summary>
