@@ -881,14 +881,37 @@ public sealed class MaterialLotScanService
                 .Where(l => fks.Contains(l.Id))
                 .ToDictionaryAsync(l => l.Id, l => l.Status, ct);
 
+        var inHouse = await InHouseCodesAsync(rows.Select(m => m.MaterialCode), ct);
+
         var bad = new List<(string, string?, string?)>();
         foreach (var m in rows)
         {
             var st = LotFkOf(m) is { } id && statusById.TryGetValue(id, out var v) ? v : null;
-            if (!MaterialsReadinessRollup.IsLineReady(m, st))
+            if (!MaterialsReadinessRollup.IsLineReady(m, st, inHouse.Contains(m.MaterialCode ?? "")))
                 bad.Add((m.MaterialCode, m.LotNo, st));
         }
         return bad;
+    }
+
+    /// <summary>
+    /// Trong tập mã đưa vào, mã nào là BÁN THÀNH PHẨM tự làm — nhận biết bằng
+    /// việc chính nó cũng là <c>ParentPart</c> trong ManufacturingStructures,
+    /// tức có công thức riêng và do nhà máy sản xuất chứ không mua vào.
+    ///
+    /// <para>Đây là kiến thức BOM, đặt tạm cạnh cổng lô vì chỉ cổng lô cần tới.
+    /// Có service BOM riêng thì dời sang.</para>
+    /// </summary>
+    public async Task<HashSet<string>> InHouseCodesAsync(
+        IEnumerable<string> codes, CancellationToken ct = default)
+    {
+        var want = codes.Where(c => !string.IsNullOrWhiteSpace(c))
+                        .Select(c => c.Trim()).Distinct().ToList();
+        if (want.Count == 0) return new(StringComparer.OrdinalIgnoreCase);
+
+        var found = await _db.ManufacturingStructures.AsNoTracking()
+            .Where(ms => want.Contains(ms.ParentPart))
+            .Select(ms => ms.ParentPart).Distinct().ToListAsync(ct);
+        return new HashSet<string>(found!, StringComparer.OrdinalIgnoreCase);
     }
 
     public long? LotFkOf(WoMaterial row)

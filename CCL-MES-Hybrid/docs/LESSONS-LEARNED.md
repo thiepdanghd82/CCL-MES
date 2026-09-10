@@ -1051,6 +1051,17 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 
 ----
 
+### L82 — cổng chất lượng hỏi SAI BẢNG cho một nửa số dòng BOM, và cái sai chỉ lộ ra khi đi xuất danh sách
+
+| | |
+|---|---|
+| **Triệu chứng** | Dựng xong ba tầng chặn lô (xác nhận dòng · rollup · vào RUNNING), test 4057 xanh, gate 21/21, nghiệm thu trên máy thật chạy trọn Pre-press → IPQC. Rồi Thiệp hỏi xuất danh sách mã thiếu phiếu IQC cho kho đi lấp. Lúc soi danh sách mới thấy: mã đầu bảng là `PANTONE 200C-UV`, `WM8080 base` — **mực pha và đế nhãn do chính nhà máy làm ra**. |
+| **Root cause** (proven) | Luật đòi mọi dòng vật tư trỏ về một `MaterialLot` đã `Released`. Nhưng `MaterialLot` sinh ra từ **phiếu IQC**, mà IQC là quy trình cho hàng **MUA VÀO**. Dòng BOM trỏ vào bán thành phẩm tự làm thì vĩnh viễn không có `MaterialLot` nào — không phải vì kho lười nhập liệu, mà vì **về bản chất không tồn tại**. Nhận biết bằng một phép thử rẻ: mã linh kiện đó có xuất hiện làm `ParentPart` trong `ManufacturingStructures` không (tức nó có công thức riêng). Đo trên BOM thật 2026-09-10: **848/1687** mã "thiếu phiếu IQC" là bán thành phẩm; trong phạm vi sản phẩm đang chạy là **127/280 dòng**. Tức luật đẩy gần một nửa số dòng vào Special Accept **vĩnh viễn** — biến đường xả có chữ ký thành thủ tục ký khống mỗi ca, đúng thứ nó sinh ra để chống. |
+| **Fix** | Miễn cổng lô cho dòng có mã là `ParentPart` (`MaterialLotScanService.InHouseCodesAsync`, một truy vấn cho cả WO). Áp ở CẢ ba tầng qua cùng một vị từ `MaterialsReadinessRollup.IsLineReady`. Đo lại trong phạm vi sản phẩm đang chạy: dòng bị chặn **280 → 153**, miễn đúng 127. Miễn là TẠM và ghi rõ trong doc-comment: chỗ đúng để soi bán thành phẩm là bảng `SemiLots` (`SemiKind` · `SourceWorkOrderId` · `Status`) cộng FQC của WO nguồn — chưa nối vì tiêu chí "bán thành phẩm thế nào là đạt" là quyết định của bên chất lượng. |
+| **Cơ chế chặn tái phát** | 6 test khoá: 4 unit (`Ban_thanh_pham_duoc_mien_cong_lo` [Theory] · `Mien_khong_lan_sang_vat_tu_mua` · `Ban_thanh_pham_chua_Ok_thi_van_chua_san_sang`) + 2 wire dựng mã cha THẬT trong `ManufacturingStructures` rồi xoá lô, chứng minh miễn trừ chạy qua EF chứ không phải qua cờ giả. Đã kiểm không xanh vô nghĩa: gỡ hai dòng `if (isInHouse)` ⇒ cả 3 đỏ, khôi phục ⇒ xanh. **Luật rút ra: trước khi bắt một cột phải có giá trị, hỏi xem có nhóm bản ghi nào mà giá trị ấy KHÔNG THỂ tồn tại về mặt nghiệp vụ. Test xanh và nghiệm thu trên một WO không phát hiện được — chỉ có đi xuất danh sách cho người khác dùng mới lộ ra.** |
+
+----
+
 ## Adding a new lesson
 
 When a new bug class costs ≥2 hours of investigation:

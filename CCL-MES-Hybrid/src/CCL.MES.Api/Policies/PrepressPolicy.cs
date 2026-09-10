@@ -1,5 +1,6 @@
 using CCL.MES.Domain;
 using CCL.MES.Domain.Entities;
+using CCL.MES.Domain.StateMachine;
 
 namespace CCL.MES.Api.Policies;
 
@@ -105,10 +106,16 @@ public static class PrepressPolicy
     /// role-gate Engineer/Supervisor và bắt ghi lý do. Chặn cứng mà không có
     /// đường xả thì thành dừng chuyền; nới luật thì thành không có luật.</para>
     /// </summary>
+    /// <param name="isInHouse">Bán thành phẩm tự làm ⇒ MIỄN cổng lô. Xem giải
+    /// thích đầy đủ ở <see cref="MaterialsReadinessRollup.IsLineReady"/>: IQC
+    /// chỉ phủ hàng MUA, nên bắt bán thành phẩm có MaterialLot Released là bắt
+    /// một điều kiện vĩnh viễn không thể đạt.</param>
     public static (string ErrorCode, string Message)? ValidateLotReleased(
-        PrepressCheckStatus status, long? materialLotId, string? lotStatus)
+        PrepressCheckStatus status, long? materialLotId, string? lotStatus,
+        bool isInHouse = false)
     {
         if (status != PrepressCheckStatus.Ok) return null;
+        if (isInHouse) return null;
 
         if (materialLotId is null)
             return (LotNotReleased,

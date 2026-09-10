@@ -173,7 +173,11 @@ public sealed class PrepressController : WoMutationControllerBase
                 .Select(l => l.Status).FirstOrDefaultAsync();
         }
 
-        var relErr = PrepressPolicy.ValidateLotReleased(newStatus, lotFk, lotStatusNow);
+        // Bán thành phẩm tự làm ⇒ miễn cổng lô: IQC chỉ phủ hàng MUA, bắt chúng
+        // có MaterialLot Released là bắt một điều kiện vĩnh viễn không đạt được.
+        var inHouse = await _lots.InHouseCodesAsync(new[] { row.MaterialCode });
+        var relErr = PrepressPolicy.ValidateLotReleased(
+            newStatus, lotFk, lotStatusNow, inHouse.Contains(row.MaterialCode ?? ""));
         if (relErr is not null) return Invalid(relErr.Value.ErrorCode, relErr.Value.Message);
 
         row.Status = newStatus;
@@ -537,8 +541,11 @@ public sealed class PrepressController : WoMutationControllerBase
                 .Where(l => lotFks.Contains(l.Id))
                 .ToDictionaryAsync(l => l.Id, l => l.Status);
 
+        var inHouseCodes = await _lots.InHouseCodesAsync(materials.Select(m => m.MaterialCode));
+
         var (hasSnap, allOk) = MaterialsReadinessRollup.Compute(materials, plate, cutter,
-            m => _lots.LotFkOf(m) is { } id && lotStatusById.TryGetValue(id, out var st) ? st : null);
+            m => _lots.LotFkOf(m) is { } id && lotStatusById.TryGetValue(id, out var st) ? st : null,
+            m => inHouseCodes.Contains(m.MaterialCode ?? ""));
 
         // Always touch the WO row so the SQLite UPDATE trigger bumps
         // RowVersion + EF's [Timestamp] concurrency check fires correctly under

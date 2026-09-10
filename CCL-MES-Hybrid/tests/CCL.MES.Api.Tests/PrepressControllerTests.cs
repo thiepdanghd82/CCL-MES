@@ -318,6 +318,76 @@ public sealed class PrepressControllerTests : IClassFixture<MesApiFactory>
             .Select(w => w.MaterialsReady).SingleAsync());
     }
 
+    /// <summary>
+    /// Dòng BOM trỏ vào BÁN THÀNH PHẨM tự làm (mã của nó cũng là ParentPart
+    /// trong ManufacturingStructures) ⇒ MIỄN cổng lô, xác nhận Ok được dù
+    /// không có lô nào. IQC chỉ phủ hàng MUA; đo 2026-09-10 thì 848/1687 mã
+    /// thiếu phiếu IQC là bán thành phẩm, không miễn thì ~nửa số dòng BOM chỉ
+    /// còn đường Special Accept.
+    /// </summary>
+    [Fact]
+    public async Task Ban_thanh_pham_duoc_mien_cong_lo_qua_wire()
+    {
+        var (woId, _) = await SeedWoWithBomAsync("WO-INHOUSE", "PROD-INH", bomLines: 1);
+
+        // Biến COMP-PROD-INH-0 thành mã CHA: cho nó một công thức riêng.
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            db.ManufacturingStructures.Add(new ManufacturingStructure
+            {
+                ParentPart = "COMP-PROD-INH-0",       // ← chính nó là cha
+                ComponentPart = "MUC-PHA-XYZ",
+                ComponentDescription = "Mực pha nội bộ",
+                QtyAssembly = 1, Uom = "kg", ScrapFactor = 0,
+            });
+            // và xoá lô Released mà seed dựng, để chắc chắn không có lô nào
+            var lot = await db.MaterialLots.FirstAsync(l => l.LotNo == "LOT-PROD-INH-0");
+            db.MaterialLots.Remove(lot);
+            await db.SaveChangesAsync();
+        }
+
+        var client = await OperatorClientAsync("op-inhouse");
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        // Có mã quét + có số lô (traceability vẫn đòi), nhưng lô KHÔNG tra được.
+        var resp = await client.SendAsync(PutMaterial(woId, 0,
+            "{\"status\":\"Ok\",\"partScan\":\"COMP-PROD-INH-0\",\"lotNo\":\"BTP-2026-001\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+        var body = (await resp.Content.ReadFromJsonAsync<PrepressSetResponse>())!;
+        Assert.True(body.Ok);
+    }
+
+    /// <summary>Miễn KHÔNG lan sang vật tư mua: cùng WO, mã KHÔNG phải mã cha
+    /// thì lô không tra được vẫn chặn.</summary>
+    [Fact]
+    public async Task Vat_tu_mua_cung_WO_van_bi_chan()
+    {
+        var (woId, _) = await SeedWoWithBomAsync("WO-MIX", "PROD-MIX", bomLines: 1);
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var lot = await db.MaterialLots.FirstAsync(l => l.LotNo == "LOT-PROD-MIX-0");
+            db.MaterialLots.Remove(lot);
+            await db.SaveChangesAsync();
+        }
+
+        var client = await OperatorClientAsync("op-mix");
+        await client.GetAsync($"/api/v2/work-orders/{woId}/prepress");
+        var etag = await EtagOfAsync(woId);
+
+        var resp = await client.SendAsync(PutMaterial(woId, 0,
+            "{\"status\":\"Ok\",\"partScan\":\"COMP-PROD-MIX-0\",\"lotNo\":\"KHONG-CO\"}",
+            ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("prepress.lot_not_released", err!.Code);
+    }
+
     /// <summary>Body xác nhận OK hợp lệ cho dòng BOM thứ <paramref name="idx"/>:
     /// mã quét TRÙNG mã BOM và số lô trỏ đúng lô Released do seed dựng.</summary>
     private static string OkBody(string productCode, int idx, double? qty = null)

@@ -101,6 +101,55 @@ public sealed class MaterialsReadinessRollupTests
         Assert.False(allOk);
     }
 
+    /// <summary>
+    /// Bán thành phẩm TỰ LÀM được miễn cổng lô: IQC chỉ phủ hàng MUA, nên
+    /// chúng vĩnh viễn không có MaterialLot. Đo 2026-09-10: 848/1687 mã thiếu
+    /// phiếu IQC là bán thành phẩm — không miễn thì ~một NỬA số dòng BOM chỉ
+    /// còn đường Special Accept, tức bắt người vận hành ký khống mỗi ca.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(MaterialLotStatus.Rejected))]
+    [InlineData(null)]
+    public void Ban_thanh_pham_duoc_mien_cong_lo(string? lotStatus)
+    {
+        var mats = new[] { Mat(PrepressCheckStatus.Ok) };
+
+        var (_, allOk) = MaterialsReadinessRollup.Compute(
+            mats, Plate(PrepressCheckStatus.Ok), Cutter(PrepressCheckStatus.Ok),
+            _ => lotStatus, _ => true);          // ← là mã cha trong BOM
+
+        Assert.True(allOk);
+    }
+
+    /// <summary>Miễn KHÔNG lan sang vật tư mua: cùng lô xấu, cùng WO, chỉ khác
+    /// bản chất mã — dòng mua vẫn phải chặn.</summary>
+    [Fact]
+    public void Mien_khong_lan_sang_vat_tu_mua()
+    {
+        var mats = new[] { Mat(PrepressCheckStatus.Ok, 0), Mat(PrepressCheckStatus.Ok, 1) };
+
+        var (_, allOk) = MaterialsReadinessRollup.Compute(
+            mats, Plate(PrepressCheckStatus.Ok), Cutter(PrepressCheckStatus.Ok),
+            _ => nameof(MaterialLotStatus.Rejected),
+            m => m.BomLineIdx == 0);            // chỉ dòng 0 là bán thành phẩm
+
+        Assert.False(allOk);                    // dòng 1 là vật tư mua ⇒ vẫn chặn
+    }
+
+    /// <summary>Miễn cổng lô KHÔNG có nghĩa miễn xác nhận: chưa Ok thì vẫn chưa
+    /// sẵn sàng, dù là bán thành phẩm.</summary>
+    [Fact]
+    public void Ban_thanh_pham_chua_Ok_thi_van_chua_san_sang()
+    {
+        var mats = new[] { Mat(PrepressCheckStatus.Pending) };
+
+        var (_, allOk) = MaterialsReadinessRollup.Compute(
+            mats, Plate(PrepressCheckStatus.Ok), Cutter(PrepressCheckStatus.Ok),
+            _ => null, _ => true);
+
+        Assert.False(allOk);
+    }
+
     /// <summary>Quá tải 3 tham số giữ NGUYÊN hợp đồng cũ — không soi lô. WO
     /// trước 7b không có dữ liệu lô, ép cổng lô lên chúng là chặn oan.</summary>
     [Fact]

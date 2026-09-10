@@ -58,10 +58,29 @@ public static class MaterialsReadinessRollup
     ///
     /// <para><paramref name="lotStatus"/> null nghĩa là dòng chưa gắn lô nào.</para>
     /// </summary>
-    public static bool IsLineReady(WoMaterial m, string? lotStatus)
+    /// <param name="isInHouse">
+    /// Dòng BOM trỏ vào BÁN THÀNH PHẨM tự làm (mã của nó cũng là mã CHA trong
+    /// ManufacturingStructures — mực pha, đế nhãn…), không phải vật tư mua.
+    ///
+    /// <para><b>Miễn cổng lô, vì cổng đang hỏi sai bảng.</b> IQC là quy trình
+    /// cho hàng MUA VÀO; bán thành phẩm do chính nhà máy làm ra nên vĩnh viễn
+    /// không có <c>MaterialLot</c> nào. Đo trên BOM thật 2026-09-10: 848/1687
+    /// mã thiếu phiếu IQC là bán thành phẩm — tức nếu không miễn thì khoảng một
+    /// NỬA số dòng BOM chỉ còn đường Special Accept, mãi mãi. Đó không phải
+    /// siết chất lượng mà là bắt người vận hành ký khống mỗi ca.</para>
+    ///
+    /// <para><b>Đây là miễn TẠM, không phải kết luận.</b> Chỗ đúng để soi bán
+    /// thành phẩm là bảng <c>SemiLots</c> (SemiKind · SourceWorkOrderId ·
+    /// Status) cộng FQC của WO sinh ra nó. Chưa nối vì tiêu chí "bán thành phẩm
+    /// thế nào là đạt" là quyết định của bên chất lượng, chưa chốt. Miễn tường
+    /// minh ở đây tốt hơn để luật âm thầm đẩy nửa số dòng vào Special Accept —
+    /// ít nhất chỗ này đọc ra được là hệ CHƯA phủ, thay vì tưởng đã phủ.</para>
+    /// </param>
+    public static bool IsLineReady(WoMaterial m, string? lotStatus, bool isInHouse = false)
     {
         if (m.Status != PrepressCheckStatus.Ok) return false;
         if (!string.IsNullOrWhiteSpace(m.NgReasonCode)) return true;   // đã Special Accept
+        if (isInHouse) return true;                                    // bán thành phẩm — xem <param>
         return string.Equals(lotStatus, nameof(MaterialLotStatus.Released),
                              StringComparison.OrdinalIgnoreCase);
     }
@@ -78,20 +97,22 @@ public static class MaterialsReadinessRollup
         IReadOnlyCollection<WoMaterial>? materials,
         WoPlateCheck? plate,
         WoCutterCheck? cutter,
-        Func<WoMaterial, string?> lotStatusOf)
-        => ComputeCore(materials, plate, cutter, lotStatusOf);
+        Func<WoMaterial, string?> lotStatusOf,
+        Func<WoMaterial, bool>? isInHouse = null)
+        => ComputeCore(materials, plate, cutter, lotStatusOf, isInHouse);
 
     public static (bool HasSnapshot, bool AllOk) Compute(
         IReadOnlyCollection<WoMaterial>? materials,
         WoPlateCheck? plate,
         WoCutterCheck? cutter)
-        => ComputeCore(materials, plate, cutter, lotStatusOf: null);
+        => ComputeCore(materials, plate, cutter, lotStatusOf: null, isInHouse: null);
 
     private static (bool HasSnapshot, bool AllOk) ComputeCore(
         IReadOnlyCollection<WoMaterial>? materials,
         WoPlateCheck? plate,
         WoCutterCheck? cutter,
-        Func<WoMaterial, string?>? lotStatusOf)
+        Func<WoMaterial, string?>? lotStatusOf,
+        Func<WoMaterial, bool>? isInHouse)
     {
         var hasMaterials = materials is { Count: > 0 };
         var hasPlate = plate is not null;
@@ -102,7 +123,7 @@ public static class MaterialsReadinessRollup
 
         var materialsOk = hasMaterials && (lotStatusOf is null
             ? materials!.All(m => m.Status == PrepressCheckStatus.Ok)
-            : materials!.All(m => IsLineReady(m, lotStatusOf(m))));
+            : materials!.All(m => IsLineReady(m, lotStatusOf(m), isInHouse?.Invoke(m) ?? false)));
         var plateOk = hasPlate && plate!.Status == PrepressCheckStatus.Ok;
         var cutterOk = hasCutter && cutter!.Status == PrepressCheckStatus.Ok;
 
