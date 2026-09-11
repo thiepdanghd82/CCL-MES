@@ -49,7 +49,8 @@ public static class IpqcLibraryMaterializer
     public static Result Build(
         IReadOnlyList<QcLineLibrarySelector.Selection> selections,
         IReadOnlyList<string> resolvedLines,
-        IpqcCavityPlan.Plan? cavities = null)
+        IpqcCavityPlan.Plan? cavities = null,
+        IReadOnlyList<IpqcProductLimitPlan.Criterion>? productLimits = null)
     {
         var plan = cavities ?? IpqcCavityPlan.None;
         var rows = (selections ?? Array.Empty<QcLineLibrarySelector.Selection>())
@@ -100,6 +101,15 @@ public static class IpqcLibraryMaterializer
                 CavityCount = IpqcCavityPlan.For(plan, sel.Line).Count,
                 CavitySource = IpqcCavityPlan.For(plan, sel.Line).Source,
 
+                // Ngưỡng SỐ theo sản phẩm, đóng băng từ kế hoạch QC đã duyệt.
+                // null = chưa ai soạn QC plan cho mã này, hoặc tiêu chí không
+                // gắn hạng mục thư viện nào ⇒ người chấm, máy im.
+                LimitLow            = LimitOf(productLimits, r.ItemId, sel.Line).Low,
+                LimitUp             = LimitOf(productLimits, r.ItemId, sel.Line).Up,
+                LimitNominal        = LimitOf(productLimits, r.ItemId, sel.Line).Nominal,
+                LimitUnit           = LimitOf(productLimits, r.ItemId, sel.Line).Unit,
+                LimitSourceWindowId = LimitOf(productLimits, r.ItemId, sel.Line).SourceWindowId,
+
                 Status = IpqcCheckStatus.Pending,
                 Sort = (sort += 10),
             });
@@ -107,6 +117,10 @@ public static class IpqcLibraryMaterializer
 
         return new Result(BuildSnapshotJson(rows, resolvedLines), items);
     }
+
+    private static IpqcProductLimitPlan.Limit LimitOf(
+        IReadOnlyList<IpqcProductLimitPlan.Criterion>? criteria, string? itemKey, string? line)
+        => IpqcProductLimitPlan.For(criteria, itemKey, line);
 
     /// <summary>Rỗng/whitespace ⇒ coi như KHÔNG có bản dịch. Chuỗi rỗng nguy
     /// hiểm hơn null: nó lọt qua mọi phép kiểm null và làm UI hiển thị ô trắng

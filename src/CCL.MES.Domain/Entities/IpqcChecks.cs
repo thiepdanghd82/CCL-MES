@@ -215,5 +215,31 @@ public class WoIpqcCheckItem : BaseEntity
     /// được "lấy từ spec" với "người kiểm tự điền".</summary>
     [MaxLength(16)] public string? CavitySource { get; set; }
 
+    // ── Dung sai THEO SẢN PHẨM, đóng băng từ QcCriteria (2026-09-11) ────────
+    // Thư viện là theo DÒNG SẢN XUẤT nên không thể mang dung sai: nhãn 20mm và
+    // nhãn 200mm cùng hạng mục "kích thước tổng thể" nhưng khác dung sai. Con
+    // số ấy sống ở QcCriteria (per ProductRevision × Stage), nối vào đây qua
+    // QcCriterion.LibraryItemKey và ĐÓNG BĂNG lúc materialise — hồ sơ phải
+    // giữ NGƯỠNG ĐÃ ÁP, không tra lại về sau khi kỹ sư đã sửa spec.
+
+    /// <summary>Cận dưới đã áp. <c>null</c> = hạng mục này không có ngưỡng số
+    /// (hoặc chưa ai soạn QC plan cho sản phẩm) ⇒ máy KHÔNG chấm, người chấm.</summary>
+    public double? LimitLow { get; set; }
+
+    /// <summary>Cận trên đã áp.</summary>
+    public double? LimitUp { get; set; }
+
+    /// <summary>Giá trị danh nghĩa nếu spec có ghi — để hiện "20 ± 0,5" cho
+    /// người kiểm, không dùng để chấm.</summary>
+    public double? LimitNominal { get; set; }
+
+    /// <summary>Đơn vị của ba số trên (mm · µm · %…). Thiếu đơn vị thì con số
+    /// vô nghĩa, nên đóng băng cùng chứ không suy lúc hiển thị.</summary>
+    [MaxLength(16)] public string? LimitUnit { get; set; }
+
+    /// <summary><c>SpecQcWindow.Id</c> đã cấp ngưỡng, để truy ngược hồ sơ về
+    /// đúng bản kế hoạch QC nào. <c>null</c> = không có spec nào áp.</summary>
+    public long? LimitSourceWindowId { get; set; }
+
     public int Sort { get; set; }
 }

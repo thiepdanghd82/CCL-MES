@@ -129,6 +129,8 @@ public class MesDbContext : DbContext, IMesDbContext
         // Phase 8 PR-D-3 — Method (free-form ops text), Frequency (cadence) per-criterion.
         b.Entity<QcCriterion>().Property(x => x.Method).HasMaxLength(200);
         b.Entity<QcCriterion>().Property(x => x.Frequency).HasMaxLength(120);
+        // Đường nối spec-theo-sản-phẩm ↔ thư viện-theo-dòng-SX (2026-09-11).
+        b.Entity<QcCriterion>().Property(x => x.LibraryItemKey).HasMaxLength(64);
         // Phase 8 PR-D-4 — SpecQcCapture (append-only result per criterion) + ReasonCode lookup.
         b.Entity<SpecQcCapture>().Property(x => x.Result).HasConversion<string>();
         b.Entity<SpecQcCapture>().Property(x => x.Measurement).HasMaxLength(200);

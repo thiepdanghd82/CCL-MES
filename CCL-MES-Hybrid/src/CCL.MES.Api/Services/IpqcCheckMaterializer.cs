@@ -182,13 +182,49 @@ public sealed class IpqcCheckMaterializer
         if (selected.Count == 0) return SkippedNoLibrary;
 
         var built = IpqcLibraryMaterializer.Build(
-            selected, lines, await ResolveCavitiesAsync(wo.ProductRevisionId, ct));
+            selected, lines,
+            await ResolveCavitiesAsync(wo.ProductRevisionId, ct),
+            await ResolveProductLimitsAsync(wo.ProductRevisionId, ct));
         if (built.Items.Count == 0) return SkippedNoLibrary;
 
         check.ItemsProfileSnapshotJson = built.ProfileSnapshotJson;
         check.ResolvedLines = string.Join(",", lines);
         foreach (var it in built.Items) check.Items.Add(it);
         return Materialized;
+    }
+
+    /// <summary>
+    /// Tra ngưỡng SỐ theo sản phẩm từ kế hoạch QC đã duyệt, để đóng băng lên
+    /// hạng mục IPQC (2026-09-11).
+    ///
+    /// <para><b>Chỉ lấy kế hoạch ĐÃ DUYỆT.</b> Bản <c>Draft</c> là thứ kỹ sư
+    /// đang sửa dở; đóng băng nó vào hồ sơ đã ký là ký lên một tiêu chuẩn chưa
+    /// ai duyệt. <c>Superseded</c> thì đã bị bản mới thay.</para>
+    ///
+    /// <para>Chỉ hai stage <c>IpqcPrint</c> · <c>IpqcCut</c> — FQC và OQC có
+    /// kế hoạch riêng, không áp cho khâu trong chuyền.</para>
+    ///
+    /// <para>Không có revision, hoặc chưa ai soạn kế hoạch nào ⇒ trả danh sách
+    /// rỗng: hạng mục vẫn dựng bình thường, chỉ là không có ngưỡng số nên máy
+    /// không chấm và người vẫn chấm như hiện nay.</para>
+    /// </summary>
+    private async Task<IReadOnlyList<IpqcProductLimitPlan.Criterion>> ResolveProductLimitsAsync(
+        long? revisionId, CancellationToken ct)
+    {
+        if (revisionId is null) return Array.Empty<IpqcProductLimitPlan.Criterion>();
+
+        return await _db.QcCriteria.AsNoTracking()
+            .Join(_db.SpecQcWindows.AsNoTracking(),
+                  c => c.SpecQcWindowId, w => w.Id, (c, w) => new { c, w })
+            .Where(x => x.w.ProductRevisionId == revisionId
+                     && x.w.Status == SpecQcWindowStatus.Approved
+                     && (x.w.Stage == QcStage.IpqcPrint || x.w.Stage == QcStage.IpqcCut)
+                     && x.c.LibraryItemKey != null
+                     && (x.c.ToleranceMin != null || x.c.ToleranceMax != null))
+            .Select(x => new IpqcProductLimitPlan.Criterion(
+                x.c.LibraryItemKey, x.w.Id, x.w.Stage,
+                x.c.ToleranceMin, x.c.ToleranceMax, x.c.TargetValue, x.c.Unit))
+            .ToListAsync(ct);
     }
 
     /// <summary>

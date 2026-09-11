@@ -333,6 +333,22 @@ public class QcCriterion : BaseEntity
     public string? Unit { get; set; }
     public string? PassCriteria { get; set; }
     public string? ReferenceImageKey { get; set; }
+
+    /// <summary>
+    /// <c>ItemId</c> của hạng mục thư viện mà tiêu chí này LÀM RÕ — ví dụ
+    /// <c>LBL-B1</c> "Kích thước tổng thể". Đây là đường nối giữa spec THEO
+    /// SẢN PHẨM và danh mục kiểm THEO DÒNG SẢN XUẤT (Thiệp chốt 2026-09-11).
+    ///
+    /// <para><b>Vì sao phải là cột, không khớp theo tên.</b> <see cref="Name"/>
+    /// là chữ kỹ sư tự gõ; "Kích thước tổng thể" và "Kích thước tổng thể (W×L)"
+    /// không khớp nhau, và sai một chữ là mất dung sai mà KHÔNG AI BÁO. Cột
+    /// tường minh thì trượt là thấy ngay.</para>
+    ///
+    /// <para><c>null</c> = tiêu chí không gắn hạng mục thư viện nào. Hợp lệ:
+    /// kỹ sư có thể ghi một tiêu chí riêng của sản phẩm chưa có trong thư
+    /// viện. Nó chỉ không bơm được dung sai vào đâu cả.</para>
+    /// </summary>
+    public string? LibraryItemKey { get; set; }
     public bool Required { get; set; } = true;
     public string? ExtraJson { get; set; }
     // Phase 8 PR-D-3 — CMES parity per-criterion overrides (nullable additive).
