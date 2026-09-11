@@ -23,6 +23,12 @@ namespace CCL.MES.Application.Services;
 ///     Method     → <see cref="QcCriterion.Method"/>         (NEW PR-D-3 col, max 200)
 ///     Frequency  → <see cref="QcCriterion.Frequency"/>      (NEW PR-D-3 col, max 120)
 ///
+/// P4 (2026-09-11): chữ ở trên giữ nguyên, NHƯNG cặp Target+Tolerance nay còn
+/// được <see cref="QcCriterionLimit"/> rút thành cặn số và ghi vào
+/// <c>TargetValue</c> / <c>ToleranceMin</c> / <c>ToleranceMax</c> / <c>Unit</c>
+/// — bốn cột vốn có sẵn mà PR-D-3 cố ý bỏ trống. Không đọc được thì để null,
+/// và UI phải nói ra chứ không im lặng.
+///
 /// Per-stage atomic upsert: each save reads current rows, computes diff (deleted /
 /// updated / created), writes via single transaction, audits SpecQcPlanUpsert.
 ///
@@ -247,12 +253,25 @@ public class SpecQcWindowService
         target.Seq = seq;
         target.Name = row.Name.Trim();
         // CriterionType + Required stay at entity defaults (Visual + true).
-        // PR-D-3 keeps the UI 5-col free-form text + leaves structured numeric
-        // fields (TargetValue / ToleranceMin / ToleranceMax) untouched.
         target.PassCriteria  = NormalizeOptional(row.Target);
         target.MeasureMethod = NormalizeOptional(row.Tolerance); // repurposed — see service summary
         target.Method        = NormalizeOptional(row.Method);
         target.Frequency     = NormalizeOptional(row.Frequency);
+
+        // P4 (2026-09-11) — CHỮ kỹ sư gõ giữ nguyên ở trên; bên dưới rút thêm
+        // CẶN SỐ để máy so được. Trước đây ba cột số này bị cố ý để trống
+        // ("untouched"), nên "20 ± 0,5 mm" không so được với con số người kiểm
+        // đo ra — hạng mục đo lường vẫn phải chấm bằng mắt.
+        //
+        // Đọc CẢ HAI ô vì người ta gõ Target "20" + Tolerance "±0,5"; đọc riêng
+        // thì "±0,5" vô nghĩa. Không đọc được thì XOÁ cặn cũ đi chứ không giữ
+        // lại: giữ cặn của lần sửa trước trong khi chữ đã đổi là để hồ sơ nói
+        // một đằng, máy chấm một nẻo.
+        var lim = QcCriterionLimit.Resolve(row.Target, row.Tolerance);
+        target.TargetValue  = lim.Nominal;
+        target.ToleranceMin = lim.Low;
+        target.ToleranceMax = lim.Up;
+        target.Unit         = lim.Unit;
     }
 
     private static string? NormalizeOptional(string? s)

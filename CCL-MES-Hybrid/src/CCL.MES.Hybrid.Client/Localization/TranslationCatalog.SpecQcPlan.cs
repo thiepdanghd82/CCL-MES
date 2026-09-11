@@ -22,6 +22,8 @@ public sealed partial class TranslationCatalog
         Add("specqcplan.col.criterion",    "Tiêu chí",                                             "Criterion");
         Add("specqcplan.col.target",       "Mục tiêu",                                             "Target");
         Add("specqcplan.col.tolerance",    "Dung sai",                                             "Tolerance");
+        Add("specqcplan.limit.understood",  "Hiểu là",                              "Read as");
+        Add("specqcplan.limit.not_numeric", "Chưa đọc được thành số — máy sẽ không tự chấm hạng mục này", "Not numeric — the system cannot auto-judge this item");
         Add("specqcplan.col.method",       "Phương pháp",                                          "Method");
         Add("specqcplan.col.frequency",    "Tần suất",                                             "Frequency");
 

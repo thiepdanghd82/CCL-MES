@@ -11152,3 +11152,14 @@ tr.wc-row:hover { background: var(--c-bg); }
     .iqc-ng-dash .iqc-ng-tm,
     .iqc-ng-dash .iqc-ng-tn { display: none; }
 }
+
+/* P4 — diễn giải dung sai ngay dưới ô nhập. Không đọc được thì nói ra: im
+   lặng nghĩa là kỹ sư gõ một dung sai mà máy không bao giờ so được. */
+.qc-limit-ok,
+.qc-limit-none {
+    margin-top: 3px;
+    font-size: var(--fs-xs);
+    line-height: 1.35;
+}
+.qc-limit-ok   { color: var(--ok-ink); font-variant-numeric: tabular-nums; }
+.qc-limit-none { color: var(--warn-ink); }

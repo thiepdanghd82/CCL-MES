@@ -106,6 +106,21 @@ else
                                                value="@row.Tolerance" maxlength="200"
                                                disabled="@(submitting || !canEdit)"
                                                @oninput="(e) => row.Tolerance = e.Value?.ToString()" />
+                                        @* P4 — nói ra hệ thống hiểu thành khoảng nào. Im lặng ở
+                                           đây nghĩa là kỹ sư gõ một dung sai mà máy không bao giờ
+                                           so được, và không ai biết cho tới lúc cần chấm. *@
+                                        @if (row.HasLimit)
+                                        {
+                                            <div class="qc-limit-ok" data-testid="qc-limit-parsed">
+                                                @T("specqcplan.limit.understood") @FormatLimit(row)
+                                            </div>
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(row.Tolerance) && row.Id is not null)
+                                        {
+                                            <div class="qc-limit-none" data-testid="qc-limit-unparsed">
+                                                @T("specqcplan.limit.not_numeric")
+                                            </div>
+                                        }
                                     </td>
                                     <td>
                                         <input type="text" class="qc-cell-input"
@@ -179,10 +194,28 @@ else
                     Tolerance = c.MeasureMethod,
                     Method = c.MethodOverride,
                     Frequency = c.FrequencyOverride,
+                    LimitLow = c.ToleranceMin,
+                    LimitUp = c.ToleranceMax,
+                    LimitUnit = c.Unit,
                 }).ToList() ?? new List<EditableRow>();
             _rowsByStage[key] = rows;
         }
     }
+
+    /// <summary>"19,5 – 20,5 mm" · "≥ 18" · "≤ 22" — đúng cách người đọc bản
+    /// vẽ quen nhìn, và theo vi-VN nên dấu phẩy là dấu thập phân.</summary>
+    private static string FormatLimit(EditableRow r)
+    {
+        var unit = string.IsNullOrWhiteSpace(r.LimitUnit) ? "" : " " + r.LimitUnit;
+        var (lo, up) = (r.LimitLow, r.LimitUp);
+        if (lo is not null && up is not null) return $"{N(lo.Value)} – {N(up.Value)}{unit}";
+        if (lo is not null) return $"≥ {N(lo.Value)}{unit}";
+        if (up is not null) return $"≤ {N(up.Value)}{unit}";
+        return "";
+    }
+
+    private static string N(double v) =>
+        v.ToString("0.####", System.Globalization.CultureInfo.GetCultureInfo("vi-VN"));
 
     private static string ComputeWindowsHash(IReadOnlyDictionary<string, QcWindowItem?> windows)
     {
@@ -294,5 +327,13 @@ else
         public string? Tolerance { get; set; }
         public string? Method { get; set; }
         public string? Frequency { get; set; }
+
+        // P4 — cặn số server rút được từ cặp Target+Tolerance ở LẦN LƯU gần
+        // nhất. Chỉ để HIỂN THỊ LẠI cho kỹ sư thấy hệ thống hiểu thành khoảng
+        // nào; không sửa tay được, và chữ ở hai ô trên mới là nguồn.
+        public double? LimitLow { get; set; }
+        public double? LimitUp { get; set; }
+        public string? LimitUnit { get; set; }
+        public bool HasLimit => LimitLow is not null || LimitUp is not null;
     }
 }
