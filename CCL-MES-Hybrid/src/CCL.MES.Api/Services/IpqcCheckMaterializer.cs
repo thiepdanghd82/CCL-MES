@@ -181,12 +181,47 @@ public sealed class IpqcCheckMaterializer
         var selected = QcLineLibrarySelector.Select(lib, lines);
         if (selected.Count == 0) return SkippedNoLibrary;
 
-        var built = IpqcLibraryMaterializer.Build(selected, lines);
+        var built = IpqcLibraryMaterializer.Build(
+            selected, lines, await ResolveCavitiesAsync(wo.ProductRevisionId, ct));
         if (built.Items.Count == 0) return SkippedNoLibrary;
 
         check.ItemsProfileSnapshotJson = built.ProfileSnapshotJson;
         check.ResolvedLines = string.Join(",", lines);
         foreach (var it in built.Items) check.Items.Add(it);
         return Materialized;
+    }
+
+    /// <summary>
+    /// P-IPQC-2 — tra số cavity của bản spec để làm cỡ mẫu FAI.
+    ///
+    /// <para>Chuỗi khoá: <c>WorkOrder.ProductRevisionId</c> →
+    /// <c>SpecPrints</c> (đo được: 0 revision nào có quá một dòng) →
+    /// <c>SpecFlexoCuttingRows.SpecPrintId</c>. Cắt có thể có nhiều dòng với
+    /// cavity khác nhau — <see cref="IpqcCavityPlan.FromCut"/> quyết định, và
+    /// nó KHÔNG chọn hộ khi mơ hồ.</para>
+    ///
+    /// <para>Không có revision ⇒ trả <see cref="IpqcCavityPlan.None"/>: hạng
+    /// mục vẫn dựng bình thường, chỉ là mang <c>CavitySource = "Missing"</c> để
+    /// màn hình nói thẳng là chưa có số, thay vì im lặng.</para>
+    /// </summary>
+    private async Task<IpqcCavityPlan.Plan> ResolveCavitiesAsync(long? revisionId, CancellationToken ct)
+    {
+        if (revisionId is null) return IpqcCavityPlan.None;
+
+        var print = await _db.SpecPrints.AsNoTracking()
+            .Where(sp => sp.ProductRevisionId == revisionId)
+            .Select(sp => new { sp.Id, sp.Cavity })
+            .FirstOrDefaultAsync(ct);
+
+        if (print is null) return IpqcCavityPlan.None;
+
+        var cutCavities = await _db.SpecFlexoCuttingRows.AsNoTracking()
+            .Where(fc => fc.SpecPrintId == print.Id)
+            .Select(fc => fc.CuttingCavity)
+            .ToListAsync(ct);
+
+        return new IpqcCavityPlan.Plan(
+            IpqcCavityPlan.FromPrint(print.Cavity),
+            IpqcCavityPlan.FromCut(cutCavities));
     }
 }

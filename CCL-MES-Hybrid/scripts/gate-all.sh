@@ -39,6 +39,7 @@ GATES=(
   "enum-integrity:gate-enum-integrity.sh:2026-08-19 không giá trị nào nằm ngoài enum, 3 tầng còn dây"
   "backup-fresh:gate-backup-fresh.sh:2026-09-07 lịch bật thì snapshot ≤48h — chặn mất DB im lặng"
   "materials-ready:gate-materials-ready.sh:2026-09-10 cờ MaterialsReady khớp dòng — chặn WO tự nhận sẵn sàng"
+  "qc-process-kind:gate-qc-process-kind.sh:2026-09-11 tập line IN/CẮT khớp giữa server và UI — chặn cavity giải sai công đoạn"
 )
 
 total="${#GATES[@]}"

@@ -48,8 +48,10 @@ public static class IpqcLibraryMaterializer
     /// </summary>
     public static Result Build(
         IReadOnlyList<QcLineLibrarySelector.Selection> selections,
-        IReadOnlyList<string> resolvedLines)
+        IReadOnlyList<string> resolvedLines,
+        IpqcCavityPlan.Plan? cavities = null)
     {
+        var plan = cavities ?? IpqcCavityPlan.None;
         var rows = (selections ?? Array.Empty<QcLineLibrarySelector.Selection>())
             .Where(s => s.Row.Active)
             .OrderBy(s => LineIndex(s.Line))
@@ -84,6 +86,20 @@ public static class IpqcLibraryMaterializer
                 // IPQC first-article (Q2) — freeze the library CheckType so the
                 // 3-tab stepper (Visual / Dimension / Function) stays stable.
                 CheckType = r.CheckType,
+
+                // P-IPQC-1 — TIÊU CHÍ ĐÃ ÁP đi vào hồ sơ, không chỉ nằm ở thư
+                // viện. Trước đây hai trường này có đủ ở 59/59 hạng mục nhưng
+                // KHÔNG được chép xuống, nên hồ sơ ghi "Đạt" mà không ghi được
+                // đạt theo AQL nào, lấy mẫu ra sao (ISO 9001 §8.6).
+                Aql = Blank(r.Aql) ? null : r.Aql,
+                Sampling = Blank(r.Sampling) ? null : r.Sampling,
+
+                // P-IPQC-2 — cỡ mẫu FAI = số cavity của công đoạn CHÍNH HẠNG
+                // MỤC NÀY (in hay cắt). Chưa giải được thì để null kèm lý do,
+                // không mặc định 1.
+                CavityCount = IpqcCavityPlan.For(plan, sel.Line).Count,
+                CavitySource = IpqcCavityPlan.For(plan, sel.Line).Source,
+
                 Status = IpqcCheckStatus.Pending,
                 Sort = (sort += 10),
             });

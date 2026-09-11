@@ -177,5 +177,43 @@ public class WoIpqcCheckItem : BaseEntity
     /// Nullable — legacy items materialised before this column stay null.</summary>
     [MaxLength(24)] public string? CheckType { get; set; }
 
+    // ── P-IPQC-1 · đóng băng TIÊU CHÍ ĐÃ ÁP (Thiệp chốt 2026-09-11) ─────────
+    // ISO 9001:2015 §8.6 đòi hồ sơ xuất xưởng mang bằng chứng phù hợp VỚI TIÊU
+    // CHÍ CHẤP NHẬN. Trước đây thư viện có đủ Aql/Sampling ở 59/59 hạng mục
+    // nhưng bộ dựng KHÔNG chép chúng xuống, và bảng này KHÔNG có cột chứa — nên
+    // hồ sơ ghi được "Đạt" mà không ghi được ĐẠT THEO TIÊU CHÍ NÀO.
+
+    /// <summary>Mức AQL đóng băng từ <see cref="CheckItemLibrary.Aql"/> lúc
+    /// materialise (vd "0,65" · "1,5" · "4"). Giữ NGUYÊN CHUỖI của thư viện,
+    /// không parse thành số: dấu thập phân là dấu phẩy theo vi-VN, và đây là
+    /// bằng chứng chép lại chứ không phải giá trị để tính toán.</summary>
+    [MaxLength(32)] public string? Aql { get; set; }
+
+    /// <summary>Cách lấy mẫu đóng băng từ <see cref="CheckItemLibrary.Sampling"/>
+    /// (vd "FAI 100% + AQL 1.5"). Nullable — hạng mục cũ materialise trước cột
+    /// này để null.</summary>
+    [MaxLength(128)] public string? Sampling { get; set; }
+
+    // ── P-IPQC-2 · cỡ mẫu FAI theo CAVITY (Thiệp chốt 2026-09-11) ───────────
+    // Lô của IPQC KHÔNG phải sản lượng lệnh và không liên quan IQC: nó là số
+    // cavity của MỘT shot in hoặc MỘT shot cắt, và FAI là kiểm đủ 100% số ấy.
+    // Lý do nghiệp vụ: khuôn/bản nhiều cavity sinh lỗi LẶP THEO VỊ TRÍ — cavity
+    // số 7 hỏng thì mọi shot sau đều hỏng đúng con thứ 7. Lấy mẫu ngẫu nhiên
+    // theo AQL trên cả lô rất dễ trượt lỗi ấy; soi đủ mọi cavity thì không.
+
+    /// <summary>Số cavity phải kiểm ở first-article, giải lúc materialise theo
+    /// công đoạn của chính hạng mục (in → <c>SpecPrints.Cavity</c>, cắt →
+    /// <c>SpecFlexoCuttingRows.CuttingCavity</c>). <c>null</c> = CHƯA giải được
+    /// — xem <see cref="CavitySource"/>. Không bao giờ mặc định 1: mặc định 1
+    /// biến "kiểm đủ" thành "kiểm một con" mà không ai nhìn ra.</summary>
+    public int? CavityCount { get; set; }
+
+    /// <summary>Số cavity ở trên đến TỪ ĐÂU — <c>Print</c> · <c>Cut</c> ·
+    /// <c>Manual</c> (người kiểm nhập tay) · <c>Ambiguous</c> (spec có nhiều
+    /// giá trị cavity cắt khác nhau, đo được 59/238 spec) · <c>Missing</c>
+    /// (spec chưa điền). Ghi lại nguồn để người đọc hồ sơ về sau phân biệt
+    /// được "lấy từ spec" với "người kiểm tự điền".</summary>
+    [MaxLength(16)] public string? CavitySource { get; set; }
+
     public int Sort { get; set; }
 }
