@@ -2,7 +2,7 @@
 
 Migration: `20260911060118_AddIpqcFrozenAcceptanceCriteria`
 Ngày: 2026-09-11 · Tác giả: Claude, theo yêu cầu Thiệp
-Trạng thái: **Phase A + B XONG — Phase C CHƯA ÁP, chờ Henry duyệt (STOP-gate §0)**
+Trạng thái: **Phase A + B + C XONG** — áp live 2026-09-11 13:2x
 
 ## Vì sao
 
@@ -72,18 +72,72 @@ Bảng đang RỖNG, nên migration không chạm dòng dữ liệu nào.
 2. `database update --no-build` báo `PendingModelChangesWarning`: migration đã
    có trong nguồn nhưng chưa được biên dịch vào assembly. Build lại rồi áp.
 
-## Phase C — CHƯA CHẠY
+## Phase C — ĐÃ ÁP LIVE (2026-09-11)
 
-STOP-gate theo CLAUDE.md §0: migration lên DB live phải qua Henry.
+**Thẩm quyền:** STOP-gate §0 (migration lên DB live) được **Thiệp miễn tường
+minh** sau khi đọc đánh giá rủi ro ở trên. Không phải agent tự vượt cổng.
 
-**Rollback nếu cần:**
+Thứ tự thi hành: xác nhận baseline chưa trôi → **dừng API** → áp → thu bằng
+chứng → build lại + khởi động API → chạy thật.
+
+### Bằng chứng
+
+| | trước | sau |
+|---|---|---|
+| số cột `WoIpqcCheckItems` | 26 | **30** |
+| `Aql` · `Sampling` · `CavityCount` · `CavitySource` | — | 4 cột, **notnull=0** cả bốn |
+| index trên bảng | 2 | **2** (không mất) |
+| `integrity_check` | ok | **ok** |
+| `foreign_key_check` | 0 | **0** |
+
+Rowcount — **không dòng nào đổi**:
+
+```
+WorkOrders          2 → 2        SpecPrints        330 → 330
+WoMaterials         8 → 8        IqcInspections   5334 → 5334
+CheckItemLibraries 87 → 87       MaterialLots     4850 → 4850
+WoIpqcCheckItems    0 → 0
+```
+
+`__EFMigrationsHistory` mới nhất: `20260911060118_AddIpqcFrozenAcceptanceCriteria`
+(trước đó `20260905035549_AddIqcNgClaim`).
+
+### Pha 5 VERIFY — chạy thật, không chỉ tin gate
+
+**P1 trên DB LIVE**, WO-TEST-02 đẩy qua IPQC: **14/14** hạng mục mang AQL +
+cách lấy mẫu đóng băng vào hồ sơ.
+
+```
+LBL-A3  PRESS_CNC  AQL 0,65  FAI 100% + AQL 0.65
+LBL-A5  PRESS_CNC  AQL 1,5   FAI 100% + AQL 1.5
+…
+tổng 14 hạng mục · có AQL 14/14
+```
+
+**P2 trên BẢN SAO** (revision của WO live chưa điền cavity nên không chứng minh
+được đường chính trên live):
+
+| WO | revision | cavity spec | kết quả | nguồn |
+|---|---|---|---|---|
+| WO-TEST-02 | 5 | cắt = 4 (rõ) | **4** | `Cut` |
+| WO-TEST-01 | 45 | cắt = 5 và 2 (mơ hồ) | **null** | `Ambiguous` |
+
+Ca mơ hồ **không đoán** — đúng thiết kế. Cả hai WO là PRESS_CNC nên lấy đúng
+nhánh cavity CẮT.
+
+### Dọn dẹp
+
+Bản sao probe đã xoá; WO-TEST-02 trả về `MesPhase=NEW`. **14 dòng
+`WoIpqcCheckItems` giữ lại trên live** — đó là bằng chứng P1 chạy thật, không
+phải rác test.
+
+### Đường lùi (vẫn còn hiệu lực)
+
 ```bash
+# Lùi schema: restore từ backup Phase A
+cp data/Backup/SQLite/ccl_mes.db.before-ipqc-p1p2.20260911-125928 data/ccl_mes.db
+# Lùi code
 rm -f src/CCL.MES.Infrastructure/Migrations/*AddIpqcFrozenAcceptanceCriteria*
 cp /tmp/snapshot-pre-ipqc-p1p2.cs \
    src/CCL.MES.Infrastructure/Migrations/MesDbContextModelSnapshot.cs
 ```
-Nếu đã áp live rồi mới muốn lùi: restore từ `data/Backup/SQLite/ccl_mes.db.before-ipqc-p1p2.20260911-125928`.
-
-**Rủi ro đánh giá THẤP:** 4 cột nullable, bảng đích rỗng, không rebuild bảng,
-không đụng index/trigger. So với `AddMaterialLotGenealogy` (19/08, có rebuild)
-thì lần này nhẹ hơn hẳn.
