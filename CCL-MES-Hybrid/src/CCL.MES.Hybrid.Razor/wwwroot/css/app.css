@@ -11163,3 +11163,27 @@ tr.wc-row:hover { background: var(--c-bg); }
 }
 .qc-limit-ok   { color: var(--ok-ink); font-variant-numeric: tabular-nums; }
 .qc-limit-none { color: var(--warn-ink); }
+
+/* Ký điện tử khi duyệt IPQC — đặt ngay trên hàng nút phán định, viền nhấn để
+   người đứng máy thấy đây là một bước bắt buộc chứ không phải ô tuỳ chọn. */
+.ipqc-sign {
+    margin: var(--sp-3) 0 var(--sp-2);
+    padding: var(--sp-3);
+    border: 1px solid var(--c-line);
+    border-left: 3px solid var(--brand);
+    border-radius: var(--r-sm);
+    background: var(--c-surface-2);
+}
+.ipqc-sign-head {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+    color: var(--c-ink-2);
+    margin-bottom: var(--sp-2);
+}
+.ipqc-sign-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.ipqc-sign-input { flex: 1 1 14rem; min-width: 0; min-height: var(--d-tap); }
+.ipqc-sign-hint {
+    margin-top: var(--sp-2);
+    font-size: var(--fs-xs);
+    color: var(--c-ink-4);
+}

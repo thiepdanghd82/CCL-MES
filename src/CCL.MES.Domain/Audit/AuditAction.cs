@@ -377,6 +377,11 @@ public static class AuditAction
     /// "GoRun"|"StopLine"|"SpecialAccept", special_accept_reason? }.</summary>
     public const string WoIpqcJudgment        = "WO_IPQC_JUDGMENT";
 
+    /// <summary>Ký điện tử khi duyệt IPQC bị TỪ CHỐI — sai tài khoản/mật khẩu,
+    /// người ký không đủ vai, hoặc tài khoản đang bị khoá do gõ sai nhiều lần.
+    /// Detail ghi tên GÕ VÀO và lý do; <b>tuyệt đối không ghi mật khẩu</b>.</summary>
+    public const string WoIpqcSignDenied      = "WO_IPQC_SIGN_DENIED";
+
     /// <summary>P10.7d-1 — QA approver action on a SPECIAL_ACCEPT
     /// escalation (success path). detail JSON: { wo_id, outcome:
     /// "Approve"|"Reject", qa_reason?, ipqc_submitted_by,

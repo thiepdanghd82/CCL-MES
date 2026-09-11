@@ -376,7 +376,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var client = await QcClientAsync("qc-7d2-judge-go");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
-            "{\"judgment\":\"GoRun\"}",
+            "{\"judgment\":\"GoRun\",\"signerUsername\":\"qc-7d2-judge-go\",\"signerPassword\":\"P@ss!1\"}",
             ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         var body = await resp.Content.ReadFromJsonAsync<IpqcSetResponse>();
@@ -402,7 +402,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var client = await QcClientAsync("qc-7d2-judge-incon");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
-            "{\"judgment\":\"GoRun\"}",
+            "{\"judgment\":\"GoRun\",\"signerUsername\":\"qc-7d2-judge-incon\",\"signerPassword\":\"P@ss!1\"}",
             ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
         var err = await resp.Content.ReadFromJsonAsync<ApiError>();
@@ -419,7 +419,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var client = await QcClientAsync("qc-7d2-judge-stop");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
-            "{\"judgment\":\"StopLine\"}",
+            "{\"judgment\":\"StopLine\",\"signerUsername\":\"qc-7d2-judge-stop\",\"signerPassword\":\"P@ss!1\"}",
             ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         var body = await resp.Content.ReadFromJsonAsync<IpqcSetResponse>();
@@ -436,7 +436,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var client = await QcClientAsync("qc-7d2-judge-sa");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
-            "{\"judgment\":\"SpecialAccept\",\"specialAcceptReason\":\"Lô gấp giao trong ngày, ΔE 2.3 chấp nhận được\"}",
+            "{\"judgment\":\"SpecialAccept\",\"specialAcceptReason\":\"Lô gấp giao trong ngày, ΔE 2.3 chấp nhận được\",\"signerUsername\":\"qc-7d2-judge-sa\",\"signerPassword\":\"P@ss!1\"}",
             ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
         var body = await resp.Content.ReadFromJsonAsync<IpqcSetResponse>();
@@ -453,7 +453,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var client = await QcClientAsync("qc-7d2-judge-sa-noreason");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
-            "{\"judgment\":\"SpecialAccept\"}",
+            "{\"judgment\":\"SpecialAccept\",\"signerUsername\":\"qc-7d2-judge-sa-noreason\",\"signerPassword\":\"P@ss!1\"}",
             ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
         var err = await resp.Content.ReadFromJsonAsync<ApiError>();
@@ -468,7 +468,7 @@ public sealed class IpqcReviewControllerTests : IClassFixture<MesApiFactory>
         var client = await QcClientAsync("qc-7d2-judge-notready");
         var resp = await client.SendAsync(Mk(HttpMethod.Post,
             $"/api/v2/work-orders/{wo}/ipqc/judgment",
-            "{\"judgment\":\"GoRun\"}",
+            "{\"judgment\":\"GoRun\",\"signerUsername\":\"qc-7d2-judge-notready\",\"signerPassword\":\"P@ss!1\"}",
             ifMatch: $"\"{etag}\"", idem: Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
         var err = await resp.Content.ReadFromJsonAsync<ApiError>();

@@ -187,6 +187,20 @@ public sealed record SubmitIpqcJudgmentRequest
 {
     public string? Judgment { get; init; }
     public string? SpecialAcceptReason { get; init; }
+
+    // ── Chữ ký điện tử (Thiệp chốt 2026-09-11) ──────────────────────────────
+    // Người đánh giá IPQC tại chuyền gõ lại tài khoản + mật khẩu CỦA CHÍNH HỌ
+    // thì mới duyệt và chuyển bước được. Không phải đăng nhập lại cả phiên —
+    // chữ ký gắn vào ĐÚNG hành động phán định này.
+
+    /// <summary>Tài khoản người ký. CÓ THỂ khác người đang đăng nhập: cả chuyền
+    /// dùng chung một máy, người đánh giá đi tới ký rồi đi. Hồ sơ ghi cả hai.</summary>
+    public string? SignerUsername { get; init; }
+
+    /// <summary>Mật khẩu người ký. <b>Chỉ đi qua đường dây, KHÔNG BAO GIỜ được
+    /// lưu, ghi log, hay xuất hiện trong detail của audit.</b> Server đối chiếu
+    /// bằng <c>IPasswordHasher</c> rồi vứt.</summary>
+    public string? SignerPassword { get; init; }
 }
 
 /// <summary>

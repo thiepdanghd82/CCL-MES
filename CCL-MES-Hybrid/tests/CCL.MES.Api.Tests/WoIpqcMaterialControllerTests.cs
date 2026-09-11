@@ -438,7 +438,7 @@ public sealed class WoIpqcMaterialControllerTests : IClassFixture<MesApiFactory>
 
         var etag = await EtagAsync(wo);
         var blocked = await qc.SendAsync(Mk(HttpMethod.Post,
-            $"/api/v2/work-orders/{wo}/ipqc/judgment", "{\"judgment\":\"GoRun\"}", $"\"{etag}\"", Guid.NewGuid().ToString()));
+            $"/api/v2/work-orders/{wo}/ipqc/judgment", "{\"judgment\":\"GoRun\",\"signerUsername\":\"qc-h2-gorun\",\"signerPassword\":\"P@ss!1\"}", $"\"{etag}\"", Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, blocked.StatusCode);
         var err = await blocked.Content.ReadFromJsonAsync<ApiError>();
         Assert.Equal("ipqc.material_divergence_unresolved", err!.Code);
@@ -451,7 +451,7 @@ public sealed class WoIpqcMaterialControllerTests : IClassFixture<MesApiFactory>
 
         var etag3 = await EtagAsync(wo);
         var ok = await qc.SendAsync(Mk(HttpMethod.Post,
-            $"/api/v2/work-orders/{wo}/ipqc/judgment", "{\"judgment\":\"GoRun\"}", $"\"{etag3}\"", Guid.NewGuid().ToString()));
+            $"/api/v2/work-orders/{wo}/ipqc/judgment", "{\"judgment\":\"GoRun\",\"signerUsername\":\"qc-h2-gorun\",\"signerPassword\":\"P@ss!1\"}", $"\"{etag3}\"", Guid.NewGuid().ToString()));
         Assert.Equal(HttpStatusCode.OK, ok.StatusCode);
         var body = await ok.Content.ReadFromJsonAsync<IpqcSetResponse>();
         Assert.Equal("IPQC_APPROVED", body!.MesPhase);

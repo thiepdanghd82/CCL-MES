@@ -81,15 +81,106 @@ public sealed class IpqcReviewController : WoMutationControllerBase
         Services.ITraceFreezeService trace,
         Services.WoMutationExecutor executor,
         Services.IpqcCheckMaterializer materializer,
-        Services.IpqcMaterialMaterializer materialChecks)
+        Services.IpqcMaterialMaterializer materialChecks,
+        Microsoft.AspNetCore.Identity.IPasswordHasher<CCL.MES.Domain.Entities.User> hasher,
+        Auth.ReauthThrottle reauth)
         : base(db, audit)
     {
+        _hasher = hasher;
+        _reauth = reauth;
         _dualSig = dualSig.Value;
         _trace = trace;
         _executor = executor;
         _materializer = materializer;
         _materialChecks = materialChecks;
     }
+
+    private readonly Microsoft.AspNetCore.Identity.IPasswordHasher<CCL.MES.Domain.Entities.User> _hasher;
+    private readonly Auth.ReauthThrottle _reauth;
+
+    /// <summary>
+    /// Đối chiếu chữ ký điện tử của người đánh giá IPQC.
+    ///
+    /// <para><b>Thứ tự kiểm có chủ đích:</b> khoá thử-sai đứng TRƯỚC việc tra
+    /// mật khẩu. Tra trước rồi mới khoá thì mỗi lần bị khoá vẫn tốn một phép so
+    /// hash — và thời gian trả lời khác nhau giữa "user tồn tại" và "không tồn
+    /// tại" là một kênh rò rỉ.</para>
+    ///
+    /// <para><b>Một mã lỗi chung cho mọi kiểu sai</b> (không có tài khoản · sai
+    /// mật khẩu · tài khoản tắt), theo đúng luật của <c>AuthController</c>: tách
+    /// ra chẳng giúp người dùng thật mà chỉ giúp người dò biết tài khoản nào có
+    /// tồn tại.</para>
+    ///
+    /// <para><b>Audit ghi TÊN GÕ VÀO và lý do, KHÔNG BAO GIỜ ghi mật khẩu</b> —
+    /// danh sách cấm trong skill <c>cmes-audit-emit</c> liệt kê đích danh.</para>
+    /// </summary>
+    private async Task<(IActionResult? Error, string? Username, string? Role)> VerifySignatureAsync(
+        long woId, string sessionActor, string sessionRole, SubmitIpqcJudgmentRequest? req)
+    {
+        var typed = req?.SignerUsername?.Trim();
+
+        var shape = IpqcSignaturePolicy.ValidateShape(typed, req?.SignerPassword);
+        if (shape is not null)
+            return (Invalid(shape.Value.ErrorCode, shape.Value.Message), null, null);
+
+        // ① Đang bị khoá thì dừng ngay, không đụng tới bảng Users.
+        if (_reauth.LockedFor(typed) is { } left)
+        {
+            await DenyAsync(woId, sessionActor, sessionRole, typed,
+                IpqcSignaturePolicy.SignatureLocked, (int)Math.Ceiling(left.TotalMinutes));
+            return (Invalid(IpqcSignaturePolicy.SignatureLocked,
+                $"Tài khoản đang tạm khoá do gõ sai nhiều lần. Thử lại sau {Math.Ceiling(left.TotalMinutes)} phút."),
+                null, null);
+        }
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == typed);
+
+        var ok = user is not null
+                 && user.IsActive
+                 && _hasher.VerifyHashedPassword(user, user.PasswordHash, req!.SignerPassword!)
+                    != Microsoft.AspNetCore.Identity.PasswordVerificationResult.Failed;
+
+        if (!ok)
+        {
+            var locked = _reauth.RegisterFailure(typed);
+            await DenyAsync(woId, sessionActor, sessionRole, typed,
+                IpqcSignaturePolicy.SignatureInvalid, locked ? 0 : null);
+            return (Invalid(IpqcSignaturePolicy.SignatureInvalid,
+                "Tài khoản hoặc mật khẩu không đúng."), null, null);
+        }
+
+        // ② Mật khẩu đúng, nhưng người ký có được phán định IPQC không. Kiểm
+        //    RIÊNG với vai của NGƯỜI KÝ — quyền của phiên đang mở không nói lên
+        //    quyền của người vừa ký, và đó chính là lý do cho phép hai người
+        //    khác nhau.
+        var signerRole = user!.Role;
+        if (!IpqcSignaturePolicy.SignerRoleAllowed(signerRole))
+        {
+            _reauth.RegisterFailure(typed);
+            await DenyAsync(woId, sessionActor, sessionRole, typed,
+                IpqcSignaturePolicy.SignerNotAllowed, null);
+            return (Invalid(IpqcSignaturePolicy.SignerNotAllowed,
+                "Tài khoản này không có quyền phán định IPQC."), null, null);
+        }
+
+        _reauth.RegisterSuccess(typed);
+        return (null, user.Username, signerRole);
+    }
+
+    /// <summary>Ghi một lần ký bị từ chối. Detail mang tên GÕ VÀO + lý do +
+    /// phiên nào đang mở máy — đủ để điều tra, và không có gì bí mật.</summary>
+    private Task DenyAsync(long woId, string sessionActor, string sessionRole,
+        string? typedUsername, string reason, int? lockMinutes)
+        => _audit.EmitAsync(
+            AuditAction.WoIpqcSignDenied, sessionActor, sessionRole,
+            targetType: "WorkOrder", targetId: woId.ToString(),
+            detail: System.Text.Json.JsonSerializer.Serialize(new
+            {
+                typed_username = typedUsername,
+                reason,
+                lock_minutes = lockMinutes,
+                session_actor = sessionActor,
+            }));
 
     // Best-effort trace freeze — never breaks the confirm; idempotent in service.
     private async Task FreezeSafe(long woId, string phase, string actor)
@@ -416,6 +507,12 @@ public sealed class IpqcReviewController : WoMutationControllerBase
             return Invalid("wo.invalid_phase",
                 $"ipqc/judgment requires MesPhase = IPQC_WAIT; current = {wo.MesPhase}.");
 
+        // ── CHỮ KÝ ĐIỆN TỬ ─────────────────────────────────────────────────
+        // Đặt TRƯỚC mọi phép mutate: trả về sớm ở đây thì không gì được ghi,
+        // vì SaveChanges nằm mãi dưới CommitAndAuditAsync.
+        var signer = await VerifySignatureAsync(id, actor, role, req);
+        if (signer.Error is not null) return signer.Error;
+
         var parse = IpqcJudgmentPolicy.ParseJudgment(req?.Judgment);
         if (!parse.IsValid)
             return Invalid(parse.ErrorCode!, parse.ErrorMessage!);
@@ -450,9 +547,13 @@ public sealed class IpqcReviewController : WoMutationControllerBase
             return Invalid(reasonError.Value.ErrorCode, reasonError.Value.Message);
 
         var now = DateTime.UtcNow;
+        // NGƯỜI KÝ đứng tên trên hồ sơ, không phải người đang mở máy. Quan
+        // trọng vì luật chữ ký kép (Q3) sau đó so người duyệt QA với chính
+        // IpqcSubmittedBy: ghi nhầm tên phiên thì máy chung đăng nhập bằng một
+        // tài khoản sẽ làm luật bốn mắt so sai người.
         WoIpqcCheckService.SubmitJudgment(check!, judgment,
             judgment == IpqcJudgment.SpecialAccept ? req.SpecialAcceptReason : null,
-            actor, now);
+            signer.Username!, now);
 
         var transition = IpqcJudgmentPolicy.Transition(judgment);
         if (transition.NextPhase.Length > 0)
@@ -465,6 +566,14 @@ public sealed class IpqcReviewController : WoMutationControllerBase
                 outcome = judgment.ToString(),
                 special_accept_reason = judgment == IpqcJudgment.SpecialAccept
                     ? req.SpecialAcceptReason : null,
+                // Chữ ký điện tử: ghi CẢ HAI danh tính. Cả chuyền dùng chung một
+                // máy, nên "ai đang mở máy" và "ai đã ký" là hai câu hỏi khác
+                // nhau — hồ sơ chất lượng cần câu thứ hai, điều tra sự cố cần
+                // câu thứ nhất. KHÔNG có mật khẩu ở đây.
+                signed_by = signer.Username,
+                signer_role = signer.Role,
+                session_actor = actor,
+                reauthenticated = true,
             });
         // Freeze IPQC snapshot the moment the judgment concludes OK (GoRun).
         if (result is OkObjectResult && transition.FreezeOnGoRun)

@@ -574,6 +574,31 @@
                 }
             </div>
 
+            @* Ký điện tử — người đánh giá IPQC tại chuyền gõ lại tài khoản +
+               mật khẩu CỦA CHÍNH HỌ. Đặt NGAY TRÊN hàng nút để thứ tự thao tác
+               đọc được thành một câu: ký, rồi mới phán định. Cả chuyền dùng
+               chung một máy nên người ký có thể khác người đang đăng nhập. *@
+            <div class="ipqc-sign" data-testid="ipqc-signature">
+                <div class="ipqc-sign-head">@T("ipqc.sign.title")</div>
+                <div class="ipqc-sign-row">
+                    <input type="text" class="prepress-input ipqc-sign-input"
+                           value="@_signUser" autocomplete="off"
+                           placeholder="@T("ipqc.sign.user.ph")"
+                           aria-label="@T("ipqc.sign.user.ph")"
+                           disabled="@_busy"
+                           data-testid="ipqc-sign-user"
+                           @oninput="(e) => _signUser = e.Value?.ToString()" />
+                    <input type="password" class="prepress-input ipqc-sign-input"
+                           value="@_signPwd" autocomplete="off"
+                           placeholder="@T("ipqc.sign.pwd.ph")"
+                           aria-label="@T("ipqc.sign.pwd.ph")"
+                           disabled="@_busy"
+                           data-testid="ipqc-sign-pwd"
+                           @oninput="(e) => _signPwd = e.Value?.ToString()" />
+                </div>
+                <div class="ipqc-sign-hint">@T("ipqc.sign.hint")</div>
+            </div>
+
             <div class="ipqc-judgment-actions rs-action-bar-multi" data-testid="ipqc-judgment-buttons">
                 <button type="button"
                         class="op-btn op-btn-success ipqc-judgment-btn"
@@ -1390,6 +1415,11 @@
         && !string.IsNullOrWhiteSpace(_specialAcceptReason)
         && _specialAcceptReason.Length <= 500;
 
+    // Chữ ký điện tử. KHÔNG lưu ở đâu khác, KHÔNG đưa vào localStorage, và
+    // mật khẩu bị xoá ngay sau mỗi lần gửi.
+    private string? _signUser;
+    private string? _signPwd;
+
     private async Task OnSubmitJudgmentAsync(string judgment)
     {
         if (_view is null || _busy) return;
@@ -1401,8 +1431,14 @@
             {
                 Judgment = judgment,
                 SpecialAcceptReason = judgment == JudgmentSpecialAccept ? _specialAcceptReason : null,
+                SignerUsername = _signUser,
+                SignerPassword = _signPwd,
             };
             var resp = await Api.PostIpqcJudgmentAsync(WorkOrderId, _view.ETag, req);
+            // Xoá mật khẩu khỏi bộ nhớ client NGAY, bất kể kết quả. Giữ lại thì
+            // nó còn nằm đó suốt ca trên một máy dùng chung — người sau bấm nút
+            // là ký bằng tài khoản người trước.
+            _signPwd = null;
             await HandleSetResponseAsync(resp);
             // After a successful judgment the WO leaves IPQC_WAIT:
             //   GoRun         → IPQC_APPROVED  (RunningDashboard takes over)

@@ -174,6 +174,11 @@ builder.Services.AddApplication();
 // the cookie-era hash format.
 builder.Services.AddSingleton<IPasswordHasher<User>, PasswordHasher<User>>();
 
+// Hãm thử-sai cho ô ký điện tử ở IPQC. SINGLETON — trạng thái khoá phải dùng
+// chung cho mọi request, nếu scoped thì mỗi lần gõ sai là một bộ đếm mới và
+// việc khoá thành vô nghĩa.
+builder.Services.AddSingleton<CCL.MES.Api.Auth.ReauthThrottle>();
+
 // IAuditWriter implementation — distinct from legacy AuditService (lives in
 // Web) but behaviour-identical. See ApiAuditWriter.cs for the parity note.
 builder.Services.AddScoped<IAuditWriter, ApiAuditWriter>();

@@ -1096,6 +1096,15 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Fix** | `CreateAsync(CreateWoRequest r, string? user = null)` — tham số **tuỳ chọn** vì đường gọi duy nhất còn lại nằm trong `src/CCL.MES.Web`, app legacy **đã đóng băng 2026-08-19** và không được sửa; để mặc định thì nó biên dịch nguyên trạng (đã kiểm: `dotnet build` legacy 0 error, `git status` không đụng file nào trong đó). Emit đặt SAU khi materialise BOM để `bom_lines` là số thật; detail mang `wo_no · product_id · product_revision_id · machine_code · target_qty · bom_lines · mes_phase · materials_ready` — đúng những trường cuộc điều tra đã đi tìm mà không có. |
 | **Cơ chế chặn tái phát** | 3 test `WorkOrderCreateAuditTests`: có đúng một dòng `WO_CREATE` mang tên người tạo · `Detail` chứa đủ trường truy vết **và** `materials_ready` phải `false` (WO mới không bao giờ được đẻ ra đã "sẵn sàng" — đúng thứ 42 dòng của L85 vi phạm) · không truyền actor thì ghi `anonymous` chứ không bỏ trống dòng audit. **Luật rút ra: một service mutation không nhận được actor thì không thể ghi audit, và sẽ không ai nhận ra cho tới lúc cần đi truy. Khi thêm phương thức thay đổi dữ liệu, tham số actor phải có mặt từ đầu — thêm sau thì vướng chữ ký của những nơi đã đóng băng.** |
 
+### L87 — bản TIÊM LỖI không biên dịch được, và tôi nuốt output build nên tưởng test đã bắt
+
+| | |
+|---|---|
+| **Triệu chứng** | Kiểm chứng tính năng ký điện tử bằng cách tiêm ba lỗi nguy hiểm nhất. Lỗi ② — đẩy mật khẩu vào `AuditLogs.Detail` — làm **SAI test** đỏ: đỏ ở `Go_sai_qua_nhieu_lan_thi_tai_khoan_bi_KHOA`, trong khi test lẽ ra phải bắt là `Sai_mat_khau_..._KHONG_ghi_mat_khau_vao_audit` thì **XANH**. Nếu tin kết quả đó thì đã báo cáo "test đã kiểm chứng" cho một test không kiểm chứng được gì. |
+| **Root cause** (proven) | Đoạn tiêm đặt `req?.SignerPassword` vào trong `DenyAsync` — nhưng `req` **không có trong tầm vực** của hàm đó, nên bản tiêm **không biên dịch được**. Lệnh build trong harness kiểm chứng lại viết `dotnet build … >/dev/null 2>&1`, nuốt sạch lỗi; ngay sau đó `dotnet test --no-build` chạy trên **binary CŨ chưa tiêm**. Test xanh vì code vẫn đúng — không phải vì test giỏi. Chạy lại với bản tiêm ĐÚNG TẦM VỰC và **không nuốt output** thì test đỏ ngay: `Assert.DoesNotContain() Failure: Sub-string found`. |
+| **Fix** | Tiêm vào chỗ `req` có trong tầm vực (`VerifySignatureAsync`), in số lỗi biên dịch ra màn hình trước khi chạy test. Cả ba lỗi khi ấy đều đỏ đúng test của nó. |
+| **Cơ chế chặn tái phát** | **Luật rút ra: một bản tiêm lỗi phải được chứng minh là ĐÃ BIÊN DỊCH trước khi tin vào kết quả test.** Quy trình tiêm-để-kiểm chỉ có giá trị khi bản tiêm thật sự chạy; `>/dev/null` trên lệnh build biến nó thành nghi thức rỗng. Cụ thể: (1) không bao giờ nuốt output của `dotnet build` trong harness kiểm chứng — in `grep -c "error CS"`; (2) `--no-build` chỉ được dùng SAU một lần build có in số lỗi; (3) nghi ngờ ngay khi bản tiêm làm đỏ một test KHÁC với test mình nhắm — đó gần như luôn là dấu hiệu bản tiêm không vào. Đây là L22 (binary cũ) tái xuất, lần này nằm trong chính khâu kiểm chứng chứ không phải trong sản phẩm. |
+
 ----
 
 ## Adding a new lesson

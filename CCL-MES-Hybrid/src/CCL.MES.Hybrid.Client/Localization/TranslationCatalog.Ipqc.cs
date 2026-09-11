@@ -63,6 +63,10 @@ public sealed partial class TranslationCatalog
         // ── Judgment row ──────────────────────────────────────────────
         Add("ipqc.judgment.title",           "Kết luận IPQC",                                                      "IPQC judgment");
         Add("ipqc.judgment.gorun",           "Cho chạy",                                                           "Go Run");
+        Add("ipqc.sign.title",     "Ký duyệt — người đánh giá IPQC",       "Sign-off — IPQC inspector");
+        Add("ipqc.sign.user.ph",   "Tài khoản người đánh giá",             "Inspector account");
+        Add("ipqc.sign.pwd.ph",    "Mật khẩu",                             "Password");
+        Add("ipqc.sign.hint",      "Gõ đúng tài khoản và mật khẩu của bạn thì mới phán định và chuyển bước được.", "Enter your own account and password to submit the judgment and advance.");
         Add("ipqc.judgment.stopline",        "Dừng chuyền",                                                        "Stop Line");
         Add("ipqc.judgment.specialaccept",   "Chấp nhận đặc biệt",                                                 "Special Accept");
         Add("ipqc.rollup.allok",             "Cả 4 slot đều Đạt — nên chọn Cho chạy",                              "All 4 slots OK — Go Run recommended");
