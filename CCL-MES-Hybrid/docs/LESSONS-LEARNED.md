@@ -1115,6 +1115,27 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Fix** | `dotnet publish CCL-MES-Hybrid/src/CCL.MES.Hybrid/CCL.MES.Hybrid.csproj -c Release -f net10.0-maccatalyst`. Bundle đầy đủ nằm ở `bin/Release/net10.0-maccatalyst/CCL MES.app` — **không** phải thư mục `maccatalyst-arm64/` bên trong (đó là sản phẩm phụ của `build`, mở được mà thiếu `wwwroot`; chính nó đã bị mở nhầm trong lúc chữa). |
 | **Cơ chế chặn tái phát** | `scripts/gate-bundle-assets.sh` (gate 24, có `--self-test`, đã nối `gate-all.sh`): so **sha256** `app.css`/`ix.css` trong bundle publish với nguồn; in cảnh báo "ĐỪNG MỞ" cho mọi bundle RID thiếu `wwwroot`. Kiểm chứng bằng cách tiêm lại đúng sự cố (cắt CSS bundle về 362.403 byte) → gate đỏ với đúng cặp số ấy, phục hồi → xanh. **Bản nháp đầu của gate so mtime và báo oan ngay bản publish tốt** — khâu copy giữ nguyên mtime của nguồn, nên CSS trong bundle lành vẫn "cũ hơn" DLL vừa biên dịch; bài học phụ: với tài nguyên được copy, giờ giấc không chứng minh được gì, chỉ nội dung mới chứng minh được. Luật rút ra: **chốt "binary mới" phải soi cả phần KHÔNG phải mã** — DLL mới không nói lên gì về CSS, font, hay ảnh đi kèm. |
 
+### L89 — L54 TÁI PHÁT: một endpoint trả hai hình dạng thân, client đọc nhầm và nuốt sạch lý do thật
+
+| | |
+|---|---|
+| **Triệu chứng** | Thiệp gõ sai mật khẩu ký IPQC trên chuyền và màn hình bảo *"Máy chủ trả về Ok=false nhưng không có mã lỗi — báo IT."* Mọi lỗi nghiệp vụ khác cũng vậy: chưa xác nhận đủ hạng mục, sai pha, ảnh quá nặng. Người đứng máy không có cách nào biết mình sai ở đâu. |
+| **Root cause** (proven) | `WoMutationControllerBase.Invalid()` trả **`ApiError {code,message}`** cho 422, còn 200/409 trả **envelope `{ok,errorCode}`** — hai hình dạng khác nhau trên cùng một endpoint. Client đọc thân 422 thành envelope ⇒ `ErrorCode = null` ⇒ rơi vào câu "báo IT". Server hoàn toàn đúng: audit đã ghi `WO_IPQC_SIGN_DENIED` với `reason: ipqc.signature_invalid`, đúng `typed_username`, đúng `session_actor`, không có mật khẩu. Lỗi nằm **trọn ở client**. |
+| **Vì sao lọt qua mọi test** | Test wire đọc thân bằng `ReadFromJsonAsync<ApiError>` — tức chúng kiểm **server**, và server đúng. Không test nào chạy qua `CclApiClient`, nên chỗ nối giữa hai tầng không ai canh. Bài học phụ: *test hai đầu đều xanh không chứng minh được cái ở giữa*. |
+| **Đây là L54, không phải lỗi mới** | L54 đã sửa đúng ca này cho `SendSettingMutationAsync` từ trước, chú thích còn ghi nguyên văn *"not 'no error code — report to IT'"*. Nhưng sửa một chỗ rồi để đó, không có máy canh — nên **4 helper viết sau chép lại đúng cái sai**. Đo được: 3/5 helper thiếu khi bắt đầu điều tra, và chính gate mới dựng lại lôi ra **chỗ thứ 6** (`UploadWoQcPhotoAsync`) mà mắt người đã bỏ sót. |
+| **Fix** | Tách nhánh 422 ra trước, đọc `ApiError`, ánh xạ `Code` sang `ErrorCode` — ở cả 6 đường: IPQC judgment/slot/item · vật tư IPQC · FQC/OQC · xoá ảnh · tải ảnh lên. |
+| **Cơ chế chặn tái phát** | `scripts/gate-422-error-shape.sh` (gate 25, có `--self-test`, đã nối `gate-all.sh`): mọi hàm trong `CclApiClient` có nhận `UnprocessableEntity` **phải** đọc qua `ReadFromJsonAsync<ApiError>`. Cộng 9 test client (`CclApiClientQc422ShapeTests`) khoá từng mã lỗi chữ ký, ca thân rỗng, và ca 409 vẫn phải đọc envelope. Kiểm chứng bằng tiêm: bỏ nhánh 422 → 7/9 test đỏ. **Luật rút ra: một lesson không có máy canh chỉ là văn xuôi — nó sửa được chỗ đã hỏng, không ngăn được chỗ chưa viết.** |
+
+### L90 — nạp lại dữ liệu làm mất CHỖ ĐANG ĐỨNG của người dùng
+
+| | |
+|---|---|
+| **Triệu chứng** | Xác nhận một hạng mục ở tab B hoặc D của IPQC thì màn hình văng về tab A. Với 14 hạng mục trải trên 3 tab, người kiểm phải bấm lại tab sau **từng ô**. |
+| **Root cause** (proven) | `IpqcDashboard.ReloadAsync()` đặt lại `_activeProcess` + `_activeTab` về mặc định **vô điều kiện**, mà nó chạy sau MỖI lần ghi một hạng mục (đúng theo thiết kế 7d-3: ghi xong thì nạp lại trạng thái chuẩn từ server). Mặc định vốn dành cho **lần nạp đầu**, bị áp nhầm cho **mọi lần nạp**. |
+| **Vì sao nguy hiểm hơn vẻ ngoài** | Không chỉ là phiền. Ô kế tiếp người kiểm định chấm đã không còn ở chỗ mắt đang nhìn — đây là cách tạo ra **chấm nhầm hàng** trên hồ sơ chất lượng, thứ sau đó được ký điện tử và đóng băng. |
+| **Fix** | Giữ lựa chọn hiện tại; chỉ rơi về mặc định khi nó **không còn tồn tại** (đổi WO, hoặc công đoạn/tab vừa hết hạng mục). |
+| **Cơ chế chặn tái phát** | 2 bUnit (`IpqcDashboardTabPersistenceTests`): một khoá "chấm ở tab B thì vẫn ở tab B", một khoá mặt ngược lại "tab biến mất thì phải rơi về mặc định, không được hiện màn trống". Kiểm chứng bằng tiêm: khôi phục dòng đặt lại vô điều kiện → test thứ nhất đỏ. **Luật rút ra: mặc định là chuyện của lần nạp ĐẦU. Mỗi lần nạp lại mà ghi đè vị trí người dùng đang đứng là một lỗi, kể cả khi dữ liệu hiển thị vẫn đúng.** |
+
 ----
 
 ## Adding a new lesson

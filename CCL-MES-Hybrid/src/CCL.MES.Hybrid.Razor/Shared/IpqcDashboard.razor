@@ -1083,10 +1083,19 @@
             // WO-phase guard must not fire (the leg phase is enforced server-side).
             _invalidPhase = WoLegId is null && _view.MesPhase != "IPQC_WAIT";
 
-            // First-article: default TẦNG-1 to the first process that has
-            // items, then TẦNG-2 to the first GroupLabel tab (A·… đầu tiên).
-            _activeProcess = FirstNonEmptyProcess();
-            _activeTab = FirstTab();
+            // First-article: mặc định TẦNG-1 về công đoạn đầu tiên có hạng mục,
+            // rồi TẦNG-2 về tab GroupLabel đầu (A·…).
+            //
+            // 2026-09-14 — GIỮ lựa chọn của người đứng máy. ReloadAsync() chạy
+            // sau MỖI lần xác nhận một hạng mục; đặt lại vô điều kiện thì chấm
+            // xong một ô ở tab B là văng về tab A, phải bấm lại để chấm ô kế —
+            // với 14 hạng mục là 14 lần bấm thừa, và rất dễ chấm nhầm ô.
+            // Chỉ rơi về mặc định khi lựa chọn hiện tại KHÔNG CÒN tồn tại
+            // (đổi WO, hoặc công đoạn/tab vừa hết hạng mục).
+            _activeProcess = ActiveProcesses.Any(p => p.Key == _activeProcess)
+                ? _activeProcess : FirstNonEmptyProcess();
+            _activeTab = ActiveTabs.Any(t => t.Key == _activeTab)
+                ? _activeTab : FirstTab();
 
             // MATERIAL (SYSTEM) reconciliation — WO-level, IPQC_WAIT only.
             await ReloadMaterialAsync();

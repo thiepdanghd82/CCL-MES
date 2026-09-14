@@ -41,6 +41,7 @@ GATES=(
   "materials-ready:gate-materials-ready.sh:2026-09-10 cờ MaterialsReady khớp dòng — chặn WO tự nhận sẵn sàng"
   "qc-process-kind:gate-qc-process-kind.sh:2026-09-11 tập line IN/CẮT khớp giữa server và UI — chặn cavity giải sai công đoạn"
   "bundle-assets:gate-bundle-assets.sh:2026-09-11 .app mang đúng stylesheet của repo — chặn DLL mới đi với CSS cũ"
+  "422-error-shape:gate-422-error-shape.sh:2026-09-14 đường ghi đọc đúng thân 422 — chặn lỗi thật bị nuốt thành \"báo IT\""
 )
 
 total="${#GATES[@]}"

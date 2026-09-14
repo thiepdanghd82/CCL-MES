@@ -978,9 +978,20 @@ public sealed class CclApiClient : ICclApiClient
 
         using var resp = await _http.SendAsync(msg, ct);
 
+        // L54 — 422 là ApiError {code,message}, không phải envelope. Xem chú
+        // thích đầy đủ ở SendIpqcMutationAsync.
+        if (resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var err = await resp.Content.ReadFromJsonAsync<ApiError>(cancellationToken: ct);
+            return new IpqcMaterialSetResponse
+            {
+                Ok = false,
+                ErrorCode = string.IsNullOrEmpty(err?.Code) ? "http.422" : err.Code,
+            };
+        }
+
         if (resp.StatusCode == HttpStatusCode.OK
-            || resp.StatusCode == HttpStatusCode.Conflict
-            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+            || resp.StatusCode == HttpStatusCode.Conflict)
         {
             var body = await resp.Content.ReadFromJsonAsync<IpqcMaterialSetResponse>(cancellationToken: ct);
             return body ?? new IpqcMaterialSetResponse
@@ -1017,12 +1028,25 @@ public sealed class CclApiClient : ICclApiClient
 
         using var resp = await _http.SendAsync(msg, ct);
 
-        // 200 (success), 409 (state conflict — carries fresh ETag), 422
-        // (qa.same_user_as_ipqc_submitter + other domain rejects) all
-        // return the typed envelope. The UI distinguishes by ErrorCode.
+        // L54 (2026-09-14, tái phát trên đường IPQC): 422 KHÔNG mang envelope.
+        // `WoMutationControllerBase.Invalid()` trả `ApiError` {code,message},
+        // nên đọc nó thành IpqcSetResponse cho ra ErrorCode = null và màn hình
+        // hiện "Máy chủ trả về Ok=false nhưng không có mã lỗi — báo IT" cho MỌI
+        // lỗi nghiệp vụ: sai mật khẩu ký, chưa xác nhận đủ hạng mục, sai pha.
+        // Người đứng máy mất sạch lý do thật. Ánh xạ mã sang envelope.
+        if (resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var err = await resp.Content.ReadFromJsonAsync<ApiError>(cancellationToken: ct);
+            return new IpqcSetResponse
+            {
+                Ok = false,
+                ErrorCode = string.IsNullOrEmpty(err?.Code) ? "http.422" : err.Code,
+            };
+        }
+
+        // 200 (success) + 409 (state conflict — carries fresh ETag) mang envelope thật.
         if (resp.StatusCode == HttpStatusCode.OK
-            || resp.StatusCode == HttpStatusCode.Conflict
-            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+            || resp.StatusCode == HttpStatusCode.Conflict)
         {
             var body = await resp.Content.ReadFromJsonAsync<IpqcSetResponse>(cancellationToken: ct);
             return body ?? new IpqcSetResponse
@@ -1177,9 +1201,20 @@ public sealed class CclApiClient : ICclApiClient
         msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
 
         using var resp = await _http.SendAsync(msg, ct);
+        // L54 — 422 là ApiError {code,message}, không phải envelope. Xem chú
+        // thích đầy đủ ở SendIpqcMutationAsync.
+        if (resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var err = await resp.Content.ReadFromJsonAsync<ApiError>(cancellationToken: ct);
+            return new WoQcSetResponse
+            {
+                Ok = false,
+                ErrorCode = string.IsNullOrEmpty(err?.Code) ? "http.422" : err.Code,
+            };
+        }
+
         if (resp.StatusCode == HttpStatusCode.OK
-            || resp.StatusCode == HttpStatusCode.Conflict
-            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+            || resp.StatusCode == HttpStatusCode.Conflict)
         {
             var body = await resp.Content.ReadFromJsonAsync<WoQcSetResponse>(cancellationToken: ct);
             return body ?? new WoQcSetResponse { Ok = false, ErrorCode = "http.empty_body" };
@@ -1216,9 +1251,22 @@ public sealed class CclApiClient : ICclApiClient
         msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
 
         using var resp = await _http.SendAsync(msg, ct);
+
+        // L54 — 422 là ApiError {code,message}, không phải envelope. Ở đây nó
+        // nuốt đúng những lý do người chụp ảnh cần biết: ảnh quá nặng, đuôi
+        // file không cho phép, sai pha. Xem chú thích đầy đủ ở SendIpqcMutationAsync.
+        if (resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var err = await resp.Content.ReadFromJsonAsync<ApiError>(cancellationToken: ct);
+            return new WoQcPhotoUploadResponse
+            {
+                Ok = false,
+                ErrorCode = string.IsNullOrEmpty(err?.Code) ? "http.422" : err.Code,
+            };
+        }
+
         if (resp.StatusCode == HttpStatusCode.OK
-            || resp.StatusCode == HttpStatusCode.Conflict
-            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+            || resp.StatusCode == HttpStatusCode.Conflict)
         {
             var body = await resp.Content.ReadFromJsonAsync<WoQcPhotoUploadResponse>(cancellationToken: ct);
             return body ?? new WoQcPhotoUploadResponse { Ok = false, ErrorCode = "http.empty_body" };
@@ -1239,9 +1287,20 @@ public sealed class CclApiClient : ICclApiClient
         msg.Headers.TryAddWithoutValidation("Idempotency-Key", Guid.NewGuid().ToString());
 
         using var resp = await _http.SendAsync(msg, ct);
+        // L54 — 422 là ApiError {code,message}, không phải envelope. Xem chú
+        // thích đầy đủ ở SendIpqcMutationAsync.
+        if (resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+        {
+            var err = await resp.Content.ReadFromJsonAsync<ApiError>(cancellationToken: ct);
+            return new WoQcSetResponse
+            {
+                Ok = false,
+                ErrorCode = string.IsNullOrEmpty(err?.Code) ? "http.422" : err.Code,
+            };
+        }
+
         if (resp.StatusCode == HttpStatusCode.OK
-            || resp.StatusCode == HttpStatusCode.Conflict
-            || resp.StatusCode == HttpStatusCode.UnprocessableEntity)
+            || resp.StatusCode == HttpStatusCode.Conflict)
         {
             var body = await resp.Content.ReadFromJsonAsync<WoQcSetResponse>(cancellationToken: ct);
             return body ?? new WoQcSetResponse { Ok = false, ErrorCode = "http.empty_body" };
