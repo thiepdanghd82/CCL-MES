@@ -1256,8 +1256,35 @@
     /// server-computed rollup/approval fields; non-ok → banner + reload. The
     /// material panel + waiver never bubble OnPhaseChanged — they don't change
     /// MesPhase (only judgment does), so the parent dispatch stays put.</summary>
+    /// <summary>
+    /// Một WO chỉ có MỘT <c>RowVersion</c>, nhưng màn này giữ HAI bản sao của
+    /// nó: <c>_view.ETag</c> (hạng mục + phán định) và <c>_material.ETag</c>
+    /// (vật tư). Cả hai đều là <c>Convert.ToBase64String(wo.RowVersion)</c>,
+    /// chỉ khác chỗ cất.
+    ///
+    /// <para>2026-09-14 — ghi qua đường VẬT TƯ chỉ nạp lại <c>_material</c>,
+    /// nên <c>_view.ETag</c> lạc hậu trong im lặng. Duyệt 4 dòng vật tư xong
+    /// bấm phán định là ăn ngay 409 <c>wo.state_conflict</c> — trông như hệ
+    /// thống hỏng, trong khi chính người đó vừa gây ra thay đổi ấy. Đo được
+    /// trên live: một dòng WO_STATE_CONFLICT lúc 04:40:55 ngay sau 4 dòng
+    /// WO_IPQC_MATERIAL_CHECK lúc 04:40:46–49.</para>
+    ///
+    /// <para>Server đã trả sẵn ETag mới trong mỗi phản hồi đúng vì lý do này.
+    /// Rót nó vào CẢ HAI bản sao, thay vì thêm một vòng GET.</para>
+    /// </summary>
+    private void SyncWoEtag(string? fresh)
+    {
+        if (string.IsNullOrEmpty(fresh)) return;
+        if (_view is not null && _view.ETag != fresh) _view = _view with { ETag = fresh };
+        if (_material is not null && _material.ETag != fresh) _material = _material with { ETag = fresh };
+    }
+
     private async Task HandleMaterialResponseAsync(IpqcMaterialSetResponse resp)
     {
+        // Kể cả khi bị từ chối: 409 mang ETag MỚI của server, rót vào rồi thì
+        // lần bấm kế tiếp đi được — không bắt người đứng máy bấm "Tìm" lại.
+        SyncWoEtag(resp.ETag);
+
         if (resp.Ok)
         {
             await ReloadMaterialAsync();
@@ -1491,6 +1518,10 @@
     /// an extra GET, but reload is cheap + simpler).</summary>
     private async Task HandleSetResponseAsync(IpqcSetResponse resp)
     {
+        // Rót ETag mới vào TRƯỚC khi nạp lại: nạp lại có thể hỏng (mạng chập,
+        // API vừa khởi động lại) và khi ấy bản sao cũ sẽ làm hỏng lần bấm kế.
+        SyncWoEtag(resp.ETag);
+
         if (resp.Ok)
         {
             await ReloadAsync();

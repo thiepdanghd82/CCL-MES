@@ -1136,6 +1136,16 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Fix** | Giữ lựa chọn hiện tại; chỉ rơi về mặc định khi nó **không còn tồn tại** (đổi WO, hoặc công đoạn/tab vừa hết hạng mục). |
 | **Cơ chế chặn tái phát** | 2 bUnit (`IpqcDashboardTabPersistenceTests`): một khoá "chấm ở tab B thì vẫn ở tab B", một khoá mặt ngược lại "tab biến mất thì phải rơi về mặc định, không được hiện màn trống". Kiểm chứng bằng tiêm: khôi phục dòng đặt lại vô điều kiện → test thứ nhất đỏ. **Luật rút ra: mặc định là chuyện của lần nạp ĐẦU. Mỗi lần nạp lại mà ghi đè vị trí người dùng đang đứng là một lỗi, kể cả khi dữ liệu hiển thị vẫn đúng.** |
 
+### L91 — HAI bản sao của một token đồng thời, làm mới độc lập: ghi đường này làm câm đường kia
+
+| | |
+|---|---|
+| **Triệu chứng** | Duyệt xong 4 dòng vật tư rồi bấm phán định IPQC → *"Không lưu được thay đổi: Another operation has already updated this WO."* Không có "operation khác" nào cả — chính người vừa bấm đã gây ra thay đổi ấy. |
+| **Root cause** (proven) | Một WO chỉ có **một** `RowVersion`, nhưng `IpqcDashboard` giữ **hai bản sao**: `_view.ETag` (hạng mục + phán định) và `_material.ETag` (vật tư). Cả hai đều là `Convert.ToBase64String(wo.RowVersion)` — chứng minh bằng `IpqcReviewController:231` và `IpqcMaterialMaterializer:182`. Ghi qua đường vật tư chỉ gọi `ReloadMaterialAsync()`, nên bản sao trong `_view` lạc hậu **trong im lặng**. Bằng chứng trên live: một dòng `WO_STATE_CONFLICT` (`attempted_action: ipqc_judgment`, `client_version` ≠ `server_version`) lúc 04:40:55, ngay sau bốn dòng `WO_IPQC_MATERIAL_CHECK` lúc 04:40:46–49. |
+| **Vì sao đây là lỗi HẠNG NẶNG chứ không phải phiền toái** | Khoá lạc quan tồn tại để chặn **hai người** ghi đè nhau. Khi nó nổ vì **một người** thao tác đúng trình tự, người dùng học được rằng cảnh báo xung đột là nhiễu — và lần sau, lúc xung đột thật, họ cũng bấm qua. Một cổng an toàn kêu oan là một cổng an toàn bị vô hiệu. |
+| **Fix** | `SyncWoEtag(resp.ETag)` — rót ETag server vừa trả vào **cả hai** bản sao, gọi ở cả hai handler phản hồi. Server đã trả sẵn ETag mới trong mọi phản hồi (kể cả 409) đúng vì lý do này, nên không tốn thêm vòng GET. Đặt **trước** khi nạp lại: nạp lại có thể hỏng, và khi ấy bản sao cũ sẽ làm hỏng lần bấm kế. |
+| **Cơ chế chặn tái phát** | 2 bUnit (`IpqcDashboardEtagSyncTests`): ghi vật tư xong thì phán định phải mang ETag mới; và 409 cũng phải nhận ETag mới để lần bấm sau đi được. Kiểm chứng bằng tiêm: bỏ vế `_view` trong `SyncWoEtag` → cả hai đỏ với đúng `Expected "v2" / Actual "v1"`. **Luật rút ra: một giá trị đồng thời chỉ được có MỘT chỗ cất trong client. Nếu buộc phải có hai bản sao, mọi phản hồi mang giá trị mới phải cập nhật TẤT CẢ bản sao — nếu không, đường ghi ít dùng nhất sẽ âm thầm phá đường ghi hay dùng nhất.** Cùng họ với L21 (nạp lại summary sau khi đổi pha): trạng thái server đã đổi mà client không biết. |
+
 ----
 
 ## Adding a new lesson
