@@ -88,10 +88,22 @@ public sealed class ElectronicSignatureVerifier
                 typed, null, null, lockedNow ? 0 : null);
         }
 
-        // ② Mật khẩu đúng KHÔNG có nghĩa là được ký ở đây. Kiểm vai của NGƯỜI KÝ,
+        // ② Mật khẩu ĐÚNG nhưng là mật khẩu SEED (chưa ai tự đặt) thì chữ ký
+        //    không chứng minh được gì — seed đặt mật khẩu = tên tài khoản, ai
+        //    cũng gõ được. Kiểm SAU khi so mật khẩu: đặt trước thì lộ tài khoản
+        //    nào tồn tại cho người dò.
+        if (user!.MustChangePassword)
+        {
+            _reauth.RegisterFailure(typed);
+            return new Result(IpqcSignaturePolicy.SignaturePasswordNotSet,
+                "Tài khoản này chưa đặt mật khẩu riêng nên chưa ký được. Đăng nhập một lần để đổi mật khẩu, rồi ký lại.",
+                typed, null, null, null);
+        }
+
+        // ③ Mật khẩu đúng KHÔNG có nghĩa là được ký ở đây. Kiểm vai của NGƯỜI KÝ,
         //    không phải vai của phiên đang mở — đó chính là lý do cho phép hai
         //    người khác nhau cùng dùng một máy.
-        if (!signerRoleAllowed(user!.Role))
+        if (!signerRoleAllowed(user.Role))
         {
             _reauth.RegisterFailure(typed);
             return new Result(IpqcSignaturePolicy.SignerNotAllowed,

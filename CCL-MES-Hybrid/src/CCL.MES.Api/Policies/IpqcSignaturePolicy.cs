@@ -24,6 +24,20 @@ public static class IpqcSignaturePolicy
     public const string SignerNotAllowed  = "ipqc.signer_not_allowed";
     public const string SignatureLocked   = "ipqc.signature_locked";
 
+    /// <summary>
+    /// Tài khoản còn dùng mật khẩu seed (chưa từng tự đặt mật khẩu riêng).
+    ///
+    /// <para><b>Vì sao chặn.</b> Seed đặt mật khẩu = chính tên tài khoản
+    /// (CLAUDE.md §0). Một mật khẩu đoán được thì chữ ký KHÔNG chứng minh được
+    /// ai đã quyết định — mà đó là toàn bộ lý do chữ ký tồn tại. Đo 2026-09-14:
+    /// 3/4 tài khoản ký được waiver (engineer · supervisor · OQC) đang ở trạng
+    /// thái này, tức ai đứng ở máy cũng ký thay họ được.</para>
+    ///
+    /// <para>Không phải ràng buộc mới với người dùng thật: lần đăng nhập đầu
+    /// tiên hệ thống vốn đã bắt họ đổi mật khẩu.</para>
+    /// </summary>
+    public const string SignaturePasswordNotSet = "ipqc.signature_password_not_set";
+
     /// <summary>Chặn trên để một request không nuốt nổi bộ nhớ; không phải luật
     /// mật khẩu (luật ấy thuộc về lúc đặt mật khẩu).</summary>
     public const int MaxUsernameLength = 128;

@@ -168,6 +168,40 @@ public sealed class IpqcWaiverSignatureWireTests : IClassFixture<MesApiFactory>
         Assert.Equal("ipqc.signer_not_allowed", err!.Code);
     }
 
+    [Fact]
+    public async Task Tai_khoan_con_dung_MAT_KHAU_SEED_thi_khong_duoc_ky()
+    {
+        // Seed đặt mật khẩu = chính tên tài khoản (CLAUDE.md §0). Đo 14-09:
+        // engineer · supervisor · OQC đều còn ở trạng thái này, tức ai đứng ở
+        // máy cũng ký thay họ được. Chữ ký sinh ra để chứng minh AI quyết định;
+        // một mật khẩu đoán được làm nó vô nghĩa.
+        var (wo, _) = await SeedPendingWaiverAsync("seedpwd", "qc-w-confirmer5");
+        await _fx.SeedUserAsync("eng-w-seed", EngPwd, UserRole.Engineer);
+
+        using (var scope = _fx.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MesDbContext>();
+            var u = await db.Users.FirstAsync(x => x.Username == "eng-w-seed");
+            u.MustChangePassword = true;            // chưa từng tự đặt mật khẩu
+            await db.SaveChangesAsync();
+        }
+
+        var client = await ClientAsync("admin-w-seed", UserRole.Admin);
+        var resp = await client.SendAsync(Approve(wo, await EtagAsync(wo), new
+        {
+            outcome = "Approve", reason = "ký bằng tài khoản chưa đổi mật khẩu",
+            signerUsername = "eng-w-seed", signerPassword = EngPwd,
+        }));
+
+        // Mật khẩu ĐÚNG, vai ĐÚNG — vẫn phải chặn.
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, resp.StatusCode);
+        var err = await resp.Content.ReadFromJsonAsync<ApiError>();
+        Assert.Equal("ipqc.signature_password_not_set", err!.Code);
+
+        var row = await RowAsync(wo);
+        Assert.Equal(DivergenceApprovalStatus.PendingEngineer, row.DivergenceApprovalStatus);
+    }
+
     // ── Ký đúng ─────────────────────────────────────────────────────────────
 
     [Fact]
