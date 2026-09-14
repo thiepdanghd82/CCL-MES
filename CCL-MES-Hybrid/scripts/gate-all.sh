@@ -40,6 +40,7 @@ GATES=(
   "backup-fresh:gate-backup-fresh.sh:2026-09-07 lịch bật thì snapshot ≤48h — chặn mất DB im lặng"
   "materials-ready:gate-materials-ready.sh:2026-09-10 cờ MaterialsReady khớp dòng — chặn WO tự nhận sẵn sàng"
   "qc-process-kind:gate-qc-process-kind.sh:2026-09-11 tập line IN/CẮT khớp giữa server và UI — chặn cavity giải sai công đoạn"
+  "bundle-assets:gate-bundle-assets.sh:2026-09-11 .app mang đúng stylesheet của repo — chặn DLL mới đi với CSS cũ"
 )
 
 total="${#GATES[@]}"
