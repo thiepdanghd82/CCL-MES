@@ -23,6 +23,7 @@ public static class RoutingErrorLocaliser
             "leg.invalid_reason"          => "Cần nhập lý do rework (1-500 ký tự).",
             "routing.unmapped"            => "Có công đoạn trong routing chưa map được — cần người duyệt cấu hình, KHÔNG tự đoán.",
             "routing.invalid_dag"         => "Sơ đồ công đoạn (DAG) không hợp lệ — báo IT.",
+            "leg.ipqc_incomplete"         => "Nhánh này chưa qua IPQC (còn hạng mục chưa OK) — chưa chuyển bước được.",
             _                             => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 
@@ -34,6 +35,7 @@ public static class RoutingErrorLocaliser
         "wo.if_match_required"        => "Chưa tải lại phiên dữ liệu — quét lại WO.",
         "wo.idempotency_key_required" => "Thiếu khoá idempotency — báo IT.",
         "http.empty_body"            => "Máy chủ trả về rỗng — báo IT.",
+        "leg.ipqc_incomplete"        => "Nhánh này chưa qua IPQC (còn hạng mục chưa OK) — chưa chuyển bước được.",
         _                            => $"Mã lỗi không xác định ({code}).",
     };
 }

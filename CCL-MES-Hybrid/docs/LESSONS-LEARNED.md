@@ -1146,6 +1146,17 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Fix** | `SyncWoEtag(resp.ETag)` — rót ETag server vừa trả vào **cả hai** bản sao, gọi ở cả hai handler phản hồi. Server đã trả sẵn ETag mới trong mọi phản hồi (kể cả 409) đúng vì lý do này, nên không tốn thêm vòng GET. Đặt **trước** khi nạp lại: nạp lại có thể hỏng, và khi ấy bản sao cũ sẽ làm hỏng lần bấm kế. |
 | **Cơ chế chặn tái phát** | 2 bUnit (`IpqcDashboardEtagSyncTests`): ghi vật tư xong thì phán định phải mang ETag mới; và 409 cũng phải nhận ETag mới để lần bấm sau đi được. Kiểm chứng bằng tiêm: bỏ vế `_view` trong `SyncWoEtag` → cả hai đỏ với đúng `Expected "v2" / Actual "v1"`. **Luật rút ra: một giá trị đồng thời chỉ được có MỘT chỗ cất trong client. Nếu buộc phải có hai bản sao, mọi phản hồi mang giá trị mới phải cập nhật TẤT CẢ bản sao — nếu không, đường ghi ít dùng nhất sẽ âm thầm phá đường ghi hay dùng nhất.** Cùng họ với L21 (nạp lại summary sau khi đổi pha): trạng thái server đã đổi mà client không biết. |
 
+### L92 — mã lỗi hiện trần ra màn hình xưởng, và một câu thông báo NÓI SAI LUẬT
+
+| | |
+|---|---|
+| **Triệu chứng** | Bấm "Cho chạy" → *"Unknown error code (ipqc.material_divergence_unresolved)."* Luật nghiệp vụ chạy đúng — vật tư lệch dữ liệu IQC thì phải có kỹ sư phê duyệt trước — nhưng người đứng máy không có cách nào biết mình cần **làm gì**. Một mã lỗi hiện trần ra màn hình là lỗi ngang với không có thông báo. |
+| **Root cause** (proven) | `IpqcReviewErrorLocaliser` thiếu mục cho mã ấy nên rơi vào nhánh mặc định `_ => $"Unknown error code ({code})"`. Quét toàn hệ: **5 mã đang câm** — `ipqc.material_divergence_unresolved`, `ipqc.invalid_item`, `ipqc.slot_write_in_item_mode`, `leg.not_found`, `leg.invalid_phase`, cộng `setting.incomplete` và `leg.ipqc_incomplete` ở hai màn khác. |
+| **Vì sao gate i18n cũ không bắt** | `gate-i18n-parity` canh `TranslationCatalog` — chuỗi giao diện. Mã lỗi lại nằm trong các lớp `*ErrorLocaliser`, một đường hoàn toàn khác, **không ai canh**. Đó là lý do lỗ hổng sống được nhiều tháng: có gate, nhưng gate soi nhầm chỗ. |
+| **Phát hiện kèm theo, nặng hơn** | `ipqc.not_ready_for_judgment` có câu — nhưng câu ấy viết *"All 4 slots (Material + 3 Print) must be processed"*. Với WO chạy chế độ hạng mục (data-driven, WO-TEST-02 có **14** hạng mục) thì đó là **mô tả sai luật**, và nó đã bị **hai test khoá lại** như thể là hợp đồng đúng. Một thông báo sai nguy hiểm hơn một thông báo thiếu: người đọc tin nó. |
+| **Fix** | Thêm câu cho cả 7 mã, ở **cả hai** nhánh `LocaliseApiError` + `LocaliseSetError`; sửa câu `not_ready_for_judgment` cho đúng luật và cập nhật 2 test đang khoá câu cũ (sửa CÂU, không nới luật). |
+| **Cơ chế chặn tái phát** | `scripts/gate-error-code-localised.sh` (gate 26, có `--self-test`, đã nối `gate-all.sh`): mọi mã `"<vùng>.<tên>"` xuất hiện trong controller/policy phải xuất hiện trong localiser tương ứng. Phủ 5 cặp controller↔localiser, hiện **50/50**. **Luật rút ra: gate xanh chỉ chứng minh cái nó soi. Khi thêm một đường sinh chuỗi cho người đọc (localiser, banner, hint), phải hỏi ngay gate nào canh đường ấy — nếu không có thì chính là lúc phải dựng.** |
+
 ----
 
 ## Adding a new lesson

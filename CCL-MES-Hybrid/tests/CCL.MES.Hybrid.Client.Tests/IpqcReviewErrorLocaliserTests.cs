@@ -32,7 +32,9 @@ public sealed class IpqcReviewErrorLocaliserTests
     [InlineData("ipqc.invalid_ng_note",               "An NG note is required when marking NG (1-500 characters).")]
     [InlineData("ipqc.invalid_judgment",              "Judgment must be Go Run / Stop Line / Special Accept.")]
     [InlineData("ipqc.judgment_inconsistent",         "There is an NG slot — Go Run is not allowed; choose Stop Line or Special Accept.")]
-    [InlineData("ipqc.not_ready_for_judgment",        "All 4 slots (Material + 3 Print) must be processed before judgment.")]
+    // 2026-09-14: câu cũ nói SAI luật — "4 slots" chỉ đúng với WO legacy; WO chạy
+    // chế độ hạng mục (data-driven) có thể có 14 hạng mục. Sửa CÂU, không nới luật.
+    [InlineData("ipqc.not_ready_for_judgment",        "Còn hạng mục chưa xác nhận OK/NG — chấm hết rồi mới phán định được.")]
     [InlineData("ipqc.invalid_special_accept_reason", "A Special Accept reason is required (1-500 characters).")]
     [InlineData("qa.invalid_outcome",                 "QA outcome must be Approve or Reject.")]
     [InlineData("qa.invalid_qa_reason",               "A QA reason is required (1-500 characters).")]
@@ -68,7 +70,9 @@ public sealed class IpqcReviewErrorLocaliserTests
     [InlineData("wo.if_match_required",               "Data session has not been reloaded — scan the WO again.")]
     [InlineData("wo.idempotency_key_required",        "Request is missing the idempotency key — contact IT.")]
     [InlineData("ipqc.judgment_inconsistent",         "There is an NG slot — Go Run is not allowed; choose Stop Line or Special Accept.")]
-    [InlineData("ipqc.not_ready_for_judgment",        "All 4 slots (Material + 3 Print) must be processed before judgment.")]
+    // 2026-09-14: câu cũ nói SAI luật — "4 slots" chỉ đúng với WO legacy; WO chạy
+    // chế độ hạng mục (data-driven) có thể có 14 hạng mục. Sửa CÂU, không nới luật.
+    [InlineData("ipqc.not_ready_for_judgment",        "Còn hạng mục chưa xác nhận OK/NG — chấm hết rồi mới phán định được.")]
     [InlineData("ipqc.invalid_special_accept_reason", "A Special Accept reason is required (1-500 characters).")]
     [InlineData("qa.invalid_qa_reason",               "A QA reason is required (1-500 characters).")]
     [InlineData("http.empty_body",                    "The server returned an empty response — contact IT.")]

@@ -38,6 +38,7 @@ public static class RunningSurfaceErrorLocaliser
             "running.no_active_session"             => "No RUNNING session yet — tap \"Start run\" first.",
             "running.no_active_pause"               => "No PAUSE session is open — reload the state.",
             "running.no_production"                 => "No production yet — cannot finish the WO.",
+            "setting.incomplete"                    => "Còn hạng mục cài đặt chưa OK — xác nhận hết rồi mới Hoàn tất được.",
             _                                       => $"HTTP {statusCode} · {error.Code} · {error.MessageEn}",
         };
 
@@ -52,6 +53,7 @@ public static class RunningSurfaceErrorLocaliser
         "wo.if_match_required"        => "Data session has not been reloaded — scan the WO again.",
         "wo.idempotency_key_required" => "Request is missing the idempotency key — contact IT.",
         "http.empty_body"             => "The server returned an empty response — contact IT.",
+        "setting.incomplete"          => "Còn hạng mục cài đặt chưa OK — xác nhận hết rồi mới Hoàn tất được.",
         _                             => $"Unknown error code ({code}).",
     };
 }
