@@ -1157,6 +1157,16 @@ qua `IFloatingWindowStore` (`LegsDashboard._ipqcWins`, mirror `QualityTraceabili
 | **Fix** | Thêm câu cho cả 7 mã, ở **cả hai** nhánh `LocaliseApiError` + `LocaliseSetError`; sửa câu `not_ready_for_judgment` cho đúng luật và cập nhật 2 test đang khoá câu cũ (sửa CÂU, không nới luật). |
 | **Cơ chế chặn tái phát** | `scripts/gate-error-code-localised.sh` (gate 26, có `--self-test`, đã nối `gate-all.sh`): mọi mã `"<vùng>.<tên>"` xuất hiện trong controller/policy phải xuất hiện trong localiser tương ứng. Phủ 5 cặp controller↔localiser, hiện **50/50**. **Luật rút ra: gate xanh chỉ chứng minh cái nó soi. Khi thêm một đường sinh chuỗi cho người đọc (localiser, banner, hint), phải hỏi ngay gate nào canh đường ấy — nếu không có thì chính là lúc phải dựng.** |
 
+### L93 — publish tăng tiến để lại ảnh AOT lệch DLL: app sập sau 0,13 giây, còn tôi báo "đã mở lại"
+
+| | |
+|---|---|
+| **Triệu chứng** | macOS hiện "CCL MES quit unexpectedly". `EXC_CRASH (SIGABRT)`, `abort() called`, sập **0,13 giây** sau khi khởi động — trước khi bất kỳ màn hình nào kịp vẽ. |
+| **Root cause** (proven) | Ngăn xếp luồng gây sập: `load_aot_module` → `monoeg_g_log` → `abort`. Ảnh AOT trong bundle **không khớp** DLL vừa biên dịch lại. Lần publish trước đó chỉ sửa project `CCL.MES.Hybrid.Client`, và publish **tăng tiến** dùng lại ảnh AOT cũ của assembly ấy. Không phải ngoại lệ trong mã quản lý — ngoại lệ quản lý cho ngăn xếp khác hẳn và kèm chữ trong `asi`. |
+| **Fix** | Xoá `bin/Release/net10.0-maccatalyst` + `obj/Release/net10.0-maccatalyst` của app **và** `obj/Release` của Client + Razor, rồi `dotnet publish` lại **sạch**. Publish tăng tiến sau khi sửa project phụ thuộc là không an toàn với AOT. |
+| **Cái tệ hơn: phép kiểm của tôi vô giá trị** | Tôi "xác minh" bằng `open` rồi `pgrep` thấy tiến trình ⇒ báo *"app đã mở lại"*. Tiến trình **có** mọc — rồi chết ngay sau đó. Người dùng là người phát hiện, không phải tôi. `pgrep` ngay sau `open` không phân biệt nổi "chạy được" với "mọc lên rồi abort". |
+| **Cơ chế chặn tái phát** | `scripts/verify-app-launch.sh`: đếm số báo cáo sự cố **trước** khi mở, mở app, **giữ 20 giây**, đếm lại. Sinh thêm báo cáo = sập, kể cả khi tiến trình vẫn còn. Khi sập thì in luôn 10 khung đầu và nhận diện dấu hiệu `load_aot_module` để chỉ thẳng cách chữa. Đây là pha 5 VERIFY cho app Catalyst — **gate tĩnh không thay được nó**: cùng phiên đó `gate-all` báo 26/26 xanh trong khi bundle sập ngay khi mở, và trước đó còn báo xanh trong khi client **không biên dịch được**. **Luật rút ra: "tiến trình đã mọc" không phải bằng chứng app chạy. Bằng chứng là nó còn sống sau một khoảng thời gian, và không để lại báo cáo sự cố.** |
+
 ----
 
 ## Adding a new lesson
